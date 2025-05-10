@@ -18211,6 +18211,23 @@ Spawn(function()
 
 		Wait(2)
 
+		Notify({
+			Title = "Archived version of "..adminName,
+			Description = "This version will no longer receive updates.\nA new owner has been assigned.",
+			Buttons = {
+				{
+					Text = "Copy new loadstring",
+					Callback = function()
+						setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/Kayden12341/Nameless-Admin/main/Source.lua"))();]])
+					end
+				},
+				{
+					Text = "Cancel",
+					Callback = function() end
+				}
+			}
+		})
+
 		--[[local updateLogMessage = maybeMock('Added "updlog" command (displays any new changes added into '..adminName..')')
 		DoNotif(updateLogMessage, nil, "Info")]]
 	end)
