@@ -1,0 +1,434 @@
+print("What accessories you have on")
+for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+	if v:IsA("Accessory") then
+		print("What accessories you have on")
+		print(v.Name)
+	end
+end
+wait()
+local plr = game:FindService"Players".LocalPlayer
+
+function mOut(txt, type)
+	if type == 1 then
+		spawn(function()
+			local m = Instance.new("Message")
+			protectUI(m)
+			m.Text = txt
+			task.wait(3)
+			m:Destroy()
+		end)
+	elseif type == 2 then
+		spawn(function()
+			local h = Instance.new("Hint")
+			protectUI(h)
+			h.Text = txt
+			task.wait(3)
+			h:Destroy()
+		end)
+	end
+end
+-- Gui to Lua
+-- Version: 3.2
+
+-- Instances:
+
+local ScreenGui = Instance.new("ScreenGui")
+local Main = Instance.new("Frame")
+local Container = Instance.new("Frame")
+local UICorner = Instance.new("UICorner")
+local UIGradient = Instance.new("UIGradient")
+local Topbar = Instance.new("Frame")
+local Icon = Instance.new("ImageLabel")
+local Exit = Instance.new("TextButton")
+local ImageLabel = Instance.new("ImageLabel")
+local Minimize = Instance.new("TextButton")
+local ImageLabel_2 = Instance.new("ImageLabel")
+local TopBar = Instance.new("Frame")
+local ImageLabel_3 = Instance.new("ImageLabel")
+local ImageLabel_4 = Instance.new("ImageLabel")
+local Title = Instance.new("TextLabel")
+local UICorner_2 = Instance.new("UICorner")
+local UIGradient_2 = Instance.new("UIGradient")
+local Punish = Instance.new("TextBox")
+local UICorner_3 = Instance.new("UICorner")
+local SilentCMD = Instance.new("TextBox")
+local UICorner_4 = Instance.new("UICorner")
+local SilentC = Instance.new("TextButton")
+local UICorner_5 = Instance.new("UICorner")
+
+function protectUI(sGui)
+    local function blankfunction(...)
+        return ...
+    end
+
+    local cloneref = cloneref or blankfunction
+
+    local function SafeGetService(service)
+        return cloneref(game:GetService(service)) or game:GetService(service)
+    end
+
+    if sGui:IsA("ScreenGui") then
+        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		sGui.DisplayOrder = 999999999
+		sGui.ResetOnSpawn = false
+		sGui.IgnoreGuiInset = true
+    end
+    local cGUI = SafeGetService("CoreGui")
+    local lPlr = SafeGetService("Players").LocalPlayer
+
+    local function NAProtection(inst, var)
+        if inst then
+            if var then
+                inst[var] = "\0"
+                inst.Archivable = false
+            else
+                inst.Name = "\0"
+                inst.Archivable = false
+            end
+        end
+    end
+
+    if cGUI and cGUI:FindFirstChild("RobloxGui") then
+		NAProtection(sGui)
+		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
+		return sGui
+	elseif cGUI then
+		NAProtection(sGui)
+		sGui.Parent = cGUI
+		return sGui
+	elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
+		NAProtection(sGui)
+		sGui.Parent = lPlr:FindFirstChild("PlayerGui")
+		sGui.ResetOnSpawn = false
+		return sGui
+	else
+		return nil
+	end
+end
+
+protectUI(ScreenGui)
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ResetOnSpawn = false
+
+Main.Name = "Main"
+Main.Parent = ScreenGui
+Main.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Main.BackgroundTransparency = 0.140
+Main.BorderColor3 = Color3.fromRGB(139, 139, 139)
+Main.BorderSizePixel = 0
+Main.Position = UDim2.new(0.651976228, 0, 0.453526437, 0)
+Main.Size = UDim2.new(0, 402, 0, 218)
+Main.Active = true
+Main.Draggable = true
+
+Container.Name = "Container"
+Container.Parent = Main
+Container.AnchorPoint = Vector2.new(0.5, 1)
+Container.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Container.BackgroundTransparency = 0.500
+Container.BorderColor3 = Color3.fromRGB(255, 255, 255)
+Container.BorderSizePixel = 0
+Container.ClipsDescendants = true
+Container.Position = UDim2.new(0.5, 0, 0.996153831, -5)
+Container.Size = UDim2.new(1, -10, 1.00769234, -30)
+
+UICorner.CornerRadius = UDim.new(0, 9)
+UICorner.Parent = Container
+
+UIGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
+UIGradient.Parent = Container
+
+Topbar.Name = "Topbar"
+Topbar.Parent = Main
+Topbar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Topbar.BackgroundTransparency = 1.000
+Topbar.Size = UDim2.new(1, 0, 0, 25)
+
+Icon.Name = "Icon"
+Icon.Parent = Topbar
+Icon.AnchorPoint = Vector2.new(0, 0.5)
+Icon.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Icon.BackgroundTransparency = 1.000
+Icon.Position = UDim2.new(0, 10, 0.5, 0)
+Icon.Size = UDim2.new(0, 13, 0, 13)
+Icon.Image = "rbxgameasset://Images/menuIcon"
+
+Exit.Name = "Exit"
+Exit.Parent = Topbar
+Exit.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
+Exit.BackgroundTransparency = 0.500
+Exit.BorderSizePixel = 0
+Exit.Position = UDim2.new(0.870000005, 0, 0, 0)
+Exit.Size = UDim2.new(-0.00899999961, 40, 1.04299998, -10)
+Exit.Font = Enum.Font.Gotham
+Exit.Text = "X"
+Exit.TextColor3 = Color3.fromRGB(255, 255, 255)
+Exit.TextSize = 13.000
+
+ImageLabel.Parent = Exit
+ImageLabel.BackgroundColor3 = Color3.fromRGB(36, 36, 36)
+ImageLabel.BackgroundTransparency = 1.000
+ImageLabel.Position = UDim2.new(0.999998331, 0, 0, 0)
+ImageLabel.Size = UDim2.new(0, 9, 0, 16)
+ImageLabel.Image = "http://www.roblox.com/asset/?id=8650484523"
+ImageLabel.ImageColor3 = Color3.fromRGB(12, 4, 20)
+ImageLabel.ImageTransparency = 0.500
+
+Minimize.Name = "Minimize"
+Minimize.Parent = Topbar
+Minimize.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
+Minimize.BackgroundTransparency = 0.500
+Minimize.BorderSizePixel = 0
+Minimize.Position = UDim2.new(0.804174006, 0, 0, 0)
+Minimize.Size = UDim2.new(0.00100000005, 27, 1.04299998, -10)
+Minimize.Font = Enum.Font.Gotham
+Minimize.Text = "-"
+Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
+Minimize.TextSize = 18.000
+
+ImageLabel_2.Parent = Minimize
+ImageLabel_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ImageLabel_2.BackgroundTransparency = 1.000
+ImageLabel_2.Position = UDim2.new(-0.453000009, 0, 0, 0)
+ImageLabel_2.Size = UDim2.new(0, 12, 0, 16)
+ImageLabel_2.Image = "http://www.roblox.com/asset/?id=10555881849"
+ImageLabel_2.ImageColor3 = Color3.fromRGB(12, 4, 20)
+ImageLabel_2.ImageTransparency = 0.500
+
+TopBar.Name = "TopBar"
+TopBar.Parent = Topbar
+TopBar.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
+TopBar.BackgroundTransparency = 0.500
+TopBar.BorderSizePixel = 0
+TopBar.Position = UDim2.new(0.268202901, 0, -0.00352294743, 0)
+TopBar.Size = UDim2.new(0, 186, 0, 16)
+
+ImageLabel_3.Parent = TopBar
+ImageLabel_3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ImageLabel_3.BackgroundTransparency = 1.000
+ImageLabel_3.Position = UDim2.new(1, 0, 0.0590000004, 0)
+ImageLabel_3.Size = UDim2.new(0, 12, 0, 15)
+ImageLabel_3.Image = "http://www.roblox.com/asset/?id=8650484523"
+ImageLabel_3.ImageColor3 = Color3.fromRGB(12, 4, 20)
+ImageLabel_3.ImageTransparency = 0.500
+
+ImageLabel_4.Parent = TopBar
+ImageLabel_4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ImageLabel_4.BackgroundTransparency = 1.000
+ImageLabel_4.Position = UDim2.new(-0.0817726701, 0, 0, 0)
+ImageLabel_4.Size = UDim2.new(0, 16, 0, 16)
+ImageLabel_4.Image = "http://www.roblox.com/asset/?id=10555881849"
+ImageLabel_4.ImageColor3 = Color3.fromRGB(12, 4, 20)
+ImageLabel_4.ImageTransparency = 0.500
+
+Title.Name = "Title"
+Title.Parent = TopBar
+Title.AnchorPoint = Vector2.new(0, 0.5)
+Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundTransparency = 1.000
+Title.BorderSizePixel = 0
+Title.Position = UDim2.new(-0.150533721, 32, 0.415876389, 0)
+Title.Size = UDim2.new(0.522161067, 80, 1.11675644, -7)
+Title.Font = Enum.Font.SourceSansLight
+Title.Text = "Give Hat"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 17.000
+Title.TextWrapped = true
+
+UICorner_2.CornerRadius = UDim.new(0, 9)
+UICorner_2.Parent = Main
+
+UIGradient_2.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.38, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.68, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
+UIGradient_2.Parent = Main
+
+Punish.Name = "Punish"
+Punish.Parent = Main
+Punish.BackgroundColor3 = Color3.fromRGB(10, 3, 17)
+Punish.BackgroundTransparency = 0.500
+Punish.Position = UDim2.new(0.206467807, 0, 0.192345411, 0)
+Punish.Size = UDim2.new(0, 234, 0, 40)
+Punish.Font = Enum.Font.SourceSans
+Punish.PlaceholderText = "Player name"
+Punish.Text = ""
+Punish.TextColor3 = Color3.fromRGB(255, 255, 255)
+Punish.TextSize = 14.000
+
+UICorner_3.Parent = Punish
+
+SilentCMD.Name = "SilentCMD"
+SilentCMD.Parent = Main
+SilentCMD.BackgroundColor3 = Color3.fromRGB(10, 3, 17)
+SilentCMD.BackgroundTransparency = 0.500
+SilentCMD.Position = UDim2.new(0.216417909, 0, 0.440437019, 0)
+SilentCMD.Size = UDim2.new(0, 227, 0, 38)
+SilentCMD.Font = Enum.Font.SourceSans
+SilentCMD.PlaceholderText = "Hat name"
+SilentCMD.Text = ""
+SilentCMD.TextColor3 = Color3.fromRGB(255, 255, 255)
+SilentCMD.TextSize = 14.000
+
+UICorner_4.Parent = SilentCMD
+
+SilentC.Name = "SilentC"
+SilentC.Parent = Main
+SilentC.BackgroundColor3 = Color3.fromRGB(10, 3, 17)
+SilentC.BackgroundTransparency = 0.500
+SilentC.Position = UDim2.new(0.226368293, 0, 0.722879827, 0)
+SilentC.Size = UDim2.new(0, 217, 0, 34)
+SilentC.Font = Enum.Font.SourceSans
+SilentC.Text = "Hat em'"
+SilentC.TextColor3 = Color3.fromRGB(255, 255, 255)
+SilentC.TextSize = 20.000
+SilentC.TextWrapped = true
+
+UICorner_5.Parent = SilentC
+
+-- Scripts:
+
+local function RNBIV_fake_script() -- Exit.LocalScript 
+	Exit.MouseButton1Click:Connect(function()
+		Exit.Parent.Parent.Parent:Destroy()
+	end)
+end
+
+function getPlayer(shortcut)
+	local player = nil
+	local g = game.Players:GetPlayers()
+	for i = 1, #g do
+		if string.lower(string.sub(g[i].Name,1,string.len(shortcut))) == string.lower(shortcut) then
+			if g[i] ~= nil then
+				player = g[i]
+				break
+			end
+		end
+	end
+	return player
+end
+
+function getHat(shortcuts)
+	local hat = nil
+	for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+		if v:IsA("Accessory") then
+			if string.lower(string.sub(v.Name,1,string.len(shortcuts))) == string.lower(shortcuts) then
+				if v.Name ~= nil then
+					hat = v
+					break
+				end
+			end
+		end
+	end
+	return hat
+end
+
+local runcode = true
+local spawntime = game.Players.RespawnTime + 3
+
+local hatstored = {}
+
+SilentC.MouseButton1Click:Connect(function()
+	local char = game.Players.LocalPlayer.Character
+	if runcode then
+		runcode = true
+		local dfc = game.ReplicatedStorage.DefaultChatSystemChatEvents
+		local smr = dfc.SayMessageRequest
+
+		local hatse = getHat(SilentCMD.Text)
+		local arg = getPlayer(Punish.Text)
+
+		if table.find(hatstored, hatse.Name) then
+			mOut("Hat is already given away, error", 1)
+			return end
+
+		argplr = game.Players[arg.Name].Character
+
+		local rs = game:FindService("RunService")
+		local fc
+		local dc
+		local dic
+		local coc
+		char.Archivable = true
+		headname = char.Head.Name
+		local cchar = char:Clone()
+		cchar.Parent = Workspace
+		wait()
+		Main.Visible = false
+		runcode = true
+		table.clear(hatstored)
+		wait(0.2)
+		Main.Visible = true
+		runcode = true
+
+		local con
+		con = char.Humanoid.Died:Connect(function()
+			cchar:Destroy()
+			Main.Visible = false
+			runcode = true
+			mOut("Wait For "..tostring(spawntime).." Second", 1)
+			table.clear(hatstored)
+			task.wait(spawntime)
+			Main.Visible = true
+			runcode = true
+			con:Disconnect()
+		end)
+
+		if fakeadmin then
+			smr:FireServer(";givehat "..hatse.Name.." "..arg.Name, "All")
+		end
+
+		cchar.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame
+		for i, x in pairs(cchar:GetDescendants()) do
+			if x:IsA("BasePart") then
+				x.Transparency = 1
+			end
+		end
+		for i, v in pairs(cchar.Head:GetDescendants()) do
+			if v.className == "Decal" or v.className == "Texture" then
+				v.Transparency = 1
+			end
+		end
+
+		for i,v in pairs(char:GetDescendants()) do
+			if v:IsA("BasePart") and v.Name ~="HumanoidRootPart" then
+				fc = rs.Heartbeat:Connect(function()
+					if char.Humanoid.Health <= 0 then fc:Disconnect() return end
+					v.Velocity = Vector3.new(30, 4, 0)
+					v.RotVelocity = Vector3.new(30, 4, 0)
+				end)
+			end
+
+			dic = rs.RenderStepped:Connect(function()
+				setscriptable(plr, "SimulationRadius", true)
+				plr.SimulationRadius = math.huge * math.huge, math.huge * math.huge * 1 / 0 * 1 / 0 * 1 / 0 * 1 / 0 * 1 / 0
+			end)
+
+			coc = plr.SimulationRadiusChanged:Connect(function(radius)
+				radius = math.huge
+				return radius
+			end)
+
+			char[hatse.Name].Handle.AccessoryWeld:Destroy()
+
+			dc = rs.RenderStepped:Connect(function()
+				if char.Humanoid.Health <= 0 then dc:Disconnect() cchar:Destroy() coc:Disconnect() dic:Disconnect() return end
+				cchar.HumanoidRootPart.CFrame = argplr.HumanoidRootPart.CFrame
+				char[hatse.Name].Handle.CFrame = cchar[hatse.Name].Handle.CFrame
+			end)
+			table.insert(hatstored, hatse.Name)
+		end
+		runcode = true
+	end
+
+	X.MouseButton1Click:Connect(function()
+		Main.Visible = false
+	end)
+
+	mOut("Hat Giver Has Loaded", 2)
+	wait(0.2)
+	print("What accessories you have on")
+	for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+		if v:IsA("Accessory") then
+			print("What accessories you have on")
+			print(v.Name)
+		end
+	end
+end)

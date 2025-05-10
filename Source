@@ -1,0 +1,3 @@
+loadstring(game:HttpGet("https://github.com/ltseverydayyou/Nameless-Admin/blob/main/Source.lua?raw=NEWLOADSTRINGYAYAYA"))();
+
+-- original by @qipu | loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/main/Source"))();

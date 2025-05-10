@@ -1,0 +1,504 @@
+local screenGui = Instance.new("ScreenGui")
+local mainFrame = Instance.new("Frame")
+local container = Instance.new("Frame")
+local topbar = Instance.new("Frame")
+local title = Instance.new("TextLabel")
+local exitButton = Instance.new("TextButton")
+local minimizeButton = Instance.new("TextButton")
+local localTab = Instance.new("TextButton")
+local playersTab = Instance.new("TextButton")
+local searchBar = Instance.new("TextBox")
+local localScrollFrame = Instance.new("ScrollingFrame")
+local playersScrollFrame = Instance.new("ScrollingFrame")
+local listLayout1 = Instance.new("UIListLayout")
+local listLayout2 = Instance.new("UIListLayout")
+
+function protectUI(sGui)
+    local function blankfunction(...) return ... end
+    local cloneref = cloneref or blankfunction
+    local function SafeGetService(service)
+        return cloneref(game:GetService(service)) or game:GetService(service)
+    end
+    if sGui:IsA("ScreenGui") then
+        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        sGui.DisplayOrder = 999999999
+        sGui.ResetOnSpawn = false
+        sGui.IgnoreGuiInset = true
+    end
+    local cGUI = SafeGetService("CoreGui")
+    local lPlr = SafeGetService("Players").LocalPlayer
+    local function NAProtection(inst, var)
+        if inst then
+            if var then
+                inst[var] = "\0"
+                inst.Archivable = false
+            else
+                inst.Name = "\0"
+                inst.Archivable = false
+            end
+        end
+    end
+    if cGUI and cGUI:FindFirstChild("RobloxGui") then
+        NAProtection(sGui)
+        sGui.Parent = cGUI:FindFirstChild("RobloxGui")
+        return sGui
+    elseif cGUI then
+        NAProtection(sGui)
+        sGui.Parent = cGUI
+        return sGui
+    elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
+        NAProtection(sGui)
+        sGui.Parent = lPlr:FindFirstChild("PlayerGui")
+        sGui.ResetOnSpawn = false
+        return sGui
+    else
+        return nil
+    end
+end
+
+NAdragV2 = function(ui, dragui)
+    if not dragui then 
+        dragui = ui 
+    end
+    local UserInputService = game:GetService("UserInputService")
+
+    local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        local parentSize = screenGui.AbsoluteSize
+        local uiSize = ui.AbsoluteSize
+        
+        local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
+        local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+        
+        local anchor = ui.AnchorPoint
+        local minX = anchor.X * (uiSize.X / parentSize.X)
+        local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+        local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+        local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+        
+        newXScale = math.clamp(newXScale, minX, maxX)
+        newYScale = math.clamp(newYScale, minY, maxY)
+        
+        ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+    end
+
+    dragui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = ui.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    dragui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+
+    local function onScreenSizeChanged()
+        local parentSize = screenGui.AbsoluteSize
+        local uiSize = ui.AbsoluteSize
+        local currentPos = ui.Position
+
+        local anchor = ui.AnchorPoint
+        local minX = anchor.X * (uiSize.X / parentSize.X)
+        local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+        local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+        local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+
+        local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
+        local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
+
+        ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+    end
+
+    screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+
+    ui.Active = true
+end
+
+function nameChecker(plr)
+	return plr.DisplayName == plr.Name and '@'..plr.Name or plr.DisplayName..' (@'..plr.Name..')'
+end
+
+screenGui.Name = "AnimationSpooferX"
+protectUI(screenGui)
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.ResetOnSpawn = false
+
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 10, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.65, 0, 0.54, 0)
+mainFrame.Size = UDim2.new(0, 420, 0, 300)
+mainFrame.ClipsDescendants = true
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+local mainGradient = Instance.new("UIGradient")
+mainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 10, 40)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(15, 5, 25)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 10, 40))
+})
+mainGradient.Parent = mainFrame
+
+container.Name = "Container"
+container.Parent = mainFrame
+container.AnchorPoint = Vector2.new(0.5, 1)
+container.BackgroundColor3 = Color3.fromRGB(20, 8, 30)
+container.BackgroundTransparency = 0.2
+container.BorderSizePixel = 0
+container.Position = UDim2.new(0.5, 0, 1, -5)
+container.Size = UDim2.new(1, -10, 1, -65)
+container.ClipsDescendants = true
+
+local containerCorner = Instance.new("UICorner")
+containerCorner.CornerRadius = UDim.new(0, 8)
+containerCorner.Parent = container
+
+topbar.Name = "Topbar"
+topbar.Parent = mainFrame
+topbar.BackgroundColor3 = Color3.fromRGB(30, 12, 45)
+topbar.BackgroundTransparency = 0.1
+topbar.BorderSizePixel = 0
+topbar.Size = UDim2.new(1, 0, 0, 30)
+
+local topbarCorner = Instance.new("UICorner")
+topbarCorner.CornerRadius = UDim.new(0, 8)
+topbarCorner.Parent = topbar
+
+title.Name = "Title"
+title.Parent = topbar
+title.BackgroundTransparency = 1
+title.Position = UDim2.new(0, 15, 0, 0)
+title.Size = UDim2.new(0.7, 0, 1, 0)
+title.Font = Enum.Font.GothamSemibold
+title.Text = "Animation Spoofer X"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+exitButton.Name = "ExitButton"
+exitButton.Parent = topbar
+exitButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+exitButton.BackgroundTransparency = 0.3
+exitButton.Position = UDim2.new(1, -30, 0.5, -10)
+exitButton.Size = UDim2.new(0, 20, 0, 20)
+exitButton.Font = Enum.Font.GothamBold
+exitButton.Text = "X"
+exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitButton.TextSize = 14
+exitButton.AutoButtonColor = false
+
+local exitCorner = Instance.new("UICorner")
+exitCorner.CornerRadius = UDim.new(0, 4)
+exitCorner.Parent = exitButton
+
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Parent = topbar
+minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 255)
+minimizeButton.BackgroundTransparency = 0.3
+minimizeButton.Position = UDim2.new(1, -60, 0.5, -10)
+minimizeButton.Size = UDim2.new(0, 20, 0, 20)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.TextSize = 18
+minimizeButton.AutoButtonColor = false
+
+local minimizeCorner = Instance.new("UICorner")
+minimizeCorner.CornerRadius = UDim.new(0, 4)
+minimizeCorner.Parent = minimizeButton
+
+localTab.Name = "LocalTab"
+localTab.Parent = container
+localTab.Text = "LocalPlayer"
+localTab.Size = UDim2.new(0.5, -5, 0, 30)
+localTab.Position = UDim2.new(0, 5, 0, 5)
+localTab.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+localTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+localTab.Font = Enum.Font.Gotham
+localTab.TextSize = 14
+
+playersTab.Name = "PlayersTab"
+playersTab.Parent = container
+playersTab.Text = "Players"
+playersTab.Size = UDim2.new(0.5, -5, 0, 30)
+playersTab.Position = UDim2.new(0.5, 5, 0, 5)
+playersTab.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+playersTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+playersTab.Font = Enum.Font.Gotham
+playersTab.TextSize = 14
+
+searchBar.Name = "SearchBar"
+searchBar.Parent = mainFrame
+searchBar.BackgroundColor3 = Color3.fromRGB(30, 15, 45)
+searchBar.BackgroundTransparency = 0.2
+searchBar.Position = UDim2.new(0.5, -150, 0, 40)
+searchBar.Size = UDim2.new(0, 300, 0, 30)
+searchBar.Font = Enum.Font.Gotham
+searchBar.PlaceholderText = "Search animations..."
+searchBar.Text = ""
+searchBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+searchBar.TextSize = 14
+searchBar.ClearTextOnFocus = false
+
+local searchCorner = Instance.new("UICorner")
+searchCorner.CornerRadius = UDim.new(0, 6)
+searchCorner.Parent = searchBar
+
+localScrollFrame.Name = "LocalScrollFrame"
+localScrollFrame.Parent = container
+localScrollFrame.BackgroundTransparency = 1
+localScrollFrame.Position = UDim2.new(0, 5, 0, 40)
+localScrollFrame.Size = UDim2.new(1, -10, 1, -50)
+localScrollFrame.BottomImage = ""
+localScrollFrame.MidImage = ""
+localScrollFrame.TopImage = ""
+localScrollFrame.ScrollBarThickness = 4
+localScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+localScrollFrame.ScrollBarImageTransparency = 0.7
+localScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+playersScrollFrame.Name = "PlayersScrollFrame"
+playersScrollFrame.Parent = container
+playersScrollFrame.BackgroundTransparency = 1
+playersScrollFrame.Position = UDim2.new(0, 5, 0, 40)
+playersScrollFrame.Size = UDim2.new(1, -10, 1, -50)
+playersScrollFrame.BottomImage = ""
+playersScrollFrame.MidImage = ""
+playersScrollFrame.TopImage = ""
+playersScrollFrame.ScrollBarThickness = 4
+playersScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+playersScrollFrame.ScrollBarImageTransparency = 0.7
+playersScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playersScrollFrame.Visible = false
+
+listLayout1.Parent = localScrollFrame
+listLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout1.Padding = UDim.new(0, 5)
+
+listLayout2.Parent = playersScrollFrame
+listLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout2.Padding = UDim.new(0, 5)
+
+local minimized = false
+local animationTable = {}
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local function createAnimationButton(id, parent, playerName)
+    local str = string.match(tostring(id), "%d+")
+    local button = Instance.new("Frame")
+    button.Name = "AnimButton_"..str
+    button.Parent = parent
+    button.BackgroundColor3 = Color3.fromRGB(40, 20, 60)
+    button.BackgroundTransparency = 0.2
+    button.BorderSizePixel = 0
+    button.Size = UDim2.new(1, 0, 0, 60)
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 6)
+    buttonCorner.Parent = button
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Parent = button
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Position = UDim2.new(0, 10, 0, 5)
+    nameLabel.Size = UDim2.new(1, -20, 0, 25)
+    nameLabel.Font = Enum.Font.GothamSemibold
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 14
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local idLabel = Instance.new("TextLabel")
+    idLabel.Name = "IdLabel"
+    idLabel.Parent = button
+    idLabel.BackgroundTransparency = 1
+    idLabel.Position = UDim2.new(0, 10, 0, 30)
+    idLabel.Size = UDim2.new(1, -20, 0, 20)
+    idLabel.Font = Enum.Font.Gotham
+    idLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    idLabel.TextSize = 12
+    idLabel.Text = "ID: "..str
+    idLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local copyButton = Instance.new("TextButton")
+    copyButton.Name = "CopyButton"
+    copyButton.Parent = button
+    copyButton.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+    copyButton.BackgroundTransparency = 0.2
+    copyButton.Position = UDim2.new(1, -80, 0.5, -15)
+    copyButton.Size = UDim2.new(0, 70, 0, 30)
+    copyButton.Font = Enum.Font.GothamSemibold
+    copyButton.Text = "Copy ID"
+    copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    copyButton.TextSize = 12
+
+    local copyCorner = Instance.new("UICorner")
+    copyCorner.CornerRadius = UDim.new(0, 4)
+    copyCorner.Parent = copyButton
+
+    pcall(function()
+        local animInfo = MarketplaceService:GetProductInfo(tonumber(str))
+        nameLabel.Text = animInfo.Name or "Unknown Animation"
+    end)
+
+    if playerName then
+        local playerLabel = Instance.new("TextLabel")
+        playerLabel.Name = "PlayerLabel"
+        playerLabel.Parent = button
+        playerLabel.BackgroundTransparency = 1
+        playerLabel.Position = UDim2.new(0, 10, 0, 50)
+        playerLabel.Size = UDim2.new(1, -20, 0, 20)
+        playerLabel.Font = Enum.Font.Gotham
+        playerLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+        playerLabel.TextSize = 12
+        playerLabel.Text = "Player: "..playerName
+        playerLabel.TextXAlignment = Enum.TextXAlignment.Left
+        button.Size = UDim2.new(1, 0, 0, 80)
+    end
+
+    copyButton.MouseButton1Click:Connect(function()
+        setclipboard(str)
+        copyButton.Text = "Copied!"
+        copyButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+        task.delay(1, function()
+            copyButton.Text = "Copy ID"
+            copyButton.BackgroundColor3 = Color3.fromRGB(60, 30, 90)
+        end)
+    end)
+
+    return button
+end
+
+local function monitorLocalAnimations()
+    while task.wait(.5) do
+        local character = game:GetService("Players").LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+                    local id = track.Animation.AnimationId
+                    if id and not table.find(animationTable, id) then
+                        table.insert(animationTable, id)
+                        createAnimationButton(id, localScrollFrame)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function monitorOtherPlayers()
+    while task.wait(.5) do
+        for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+            if player ~= game:GetService("Players").LocalPlayer then
+                local character = player.Character
+                if character then
+                    local humanoid = character:FindFirstChild("Humanoid")
+                    if humanoid then
+                        for _, track in pairs(humanoid:GetPlayingAnimationTracks()) do
+                            local id = track.Animation.AnimationId
+                            if id and not table.find(animationTable, id) then
+                                table.insert(animationTable, id)
+                                createAnimationButton(id, playersScrollFrame, nameChecker(player))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local minimized = false
+
+minimizeButton.MouseButton1Click:Connect(function()
+	minimized = not minimized
+
+	if minimized then
+		container.Visible = false
+		searchBar.Visible = false
+		mainFrame:TweenSize(UDim2.new(0, 420, 0, 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+		minimizeButton.Text = "+"
+	else
+		mainFrame:TweenSize(UDim2.new(0, 420, 0, 300), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+		task.delay(0.3, function()
+			container.Visible = true
+			searchBar.Visible = true
+		end)
+		minimizeButton.Text = "-"
+	end
+end)
+
+localTab.MouseButton1Click:Connect(function()
+    localScrollFrame.Visible = true
+    playersScrollFrame.Visible = false
+end)
+
+playersTab.MouseButton1Click:Connect(function()
+    localScrollFrame.Visible = false
+    playersScrollFrame.Visible = true
+end)
+
+exitButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+searchBar.Changed:Connect(function(prop)
+	if prop == "Text" then
+		local searchText = searchBar.Text:lower()
+		
+		local function filterButtons(frame)
+			for _, button in pairs(frame:GetChildren()) do
+				if button:IsA("Frame") and button.Name:match("AnimButton_") then
+					local nameLabel = button:FindFirstChild("NameLabel")
+					local idLabel = button:FindFirstChild("IdLabel")
+					local playerLabel = button:FindFirstChild("PlayerLabel")
+
+					local nameText = nameLabel and nameLabel.Text:lower() or ""
+					local idText = idLabel and idLabel.Text:lower() or ""
+					local playerText = playerLabel and playerLabel.Text:lower() or ""
+
+					if searchText == "" or nameText:find(searchText) or idText:find(searchText) or playerText:find(searchText) then
+						button.Visible = true
+					else
+						button.Visible = false
+					end
+				end
+			end
+		end
+
+		filterButtons(localScrollFrame)
+		filterButtons(playersScrollFrame)
+	end
+end)
+
+task.spawn(monitorLocalAnimations)
+task.spawn(monitorOtherPlayers)
+NAdragV2(mainFrame)
