@@ -1,7 +1,3 @@
-Here's the cleaned-up and simplified version with the Discord part and image sources removed, leaving only basic archive info:
-
----
-
 # Nameless Admin (Archived Project)
 
 > **⚠️ This repository is archived and no longer maintained.**
