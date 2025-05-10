@@ -2978,8 +2978,8 @@ cmd.add({"updatelog","updlog","updates"},{"updatelog (updlog,updates)","show the
 	gui.updateLogs()
 end)
 
-cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link to the official Nameless Admin Discord server"}, function()
-	local inviteLink = "https://discord.gg/zS7TpV3p64"
+cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link"}, function()
+	local inviteLink = "https://discord.gg/rWRuDNNUq8"
 
 	if setclipboard then
 		Notify({
