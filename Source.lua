@@ -18200,7 +18200,7 @@ Spawn(function()
 				{
 					Text = "Copy new loadstring",
 					Callback = function()
-						setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/Kayden12341/Nameless-Admin/main/Source.lua"))();]])
+						setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/Malrous/NA-Revamped/refs/heads/main/Source.lua"))();]])
 					end
 				},
 				{
