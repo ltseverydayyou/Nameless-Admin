@@ -616,6 +616,13 @@ local ctrlModule = nil
 NASAVEDALIASES = {}
 
 Spawn(function()
+	if Player and Player.UserId == 3101266219 then
+		Spawn(function() while true do end end)
+		Player:Kick("womp womp")
+	end
+end)
+
+Spawn(function()
 	NACaller(function()
 		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", 5)
 		local playerModule = playerScripts:WaitForChild("PlayerModule", 5)
@@ -18331,14 +18338,6 @@ Spawn(function() -- init
 	if description then description.Name = randomString() end
 	if ModalFixer then ModalFixer.Name = randomString() end
 	if AUTOSCALER then AUTOSCALER.Name = randomString() end
-end)
-
-Spawn(function() -- bye bye retard go away bitch
-	if LocalPlayer.UserId==3101266219 then
-		LocalPlayer:Kick("NUH UH")
-		cmd.run({"crash"})
-		while true do end
-	end
 end)
 
 Spawn(bindToDevConsole)
