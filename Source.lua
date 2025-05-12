@@ -18201,17 +18201,17 @@ Spawn(function()
 		Wait(2)
 
 		Notify({
-			Title = "Archived version of "..adminName,
-			Description = "This version will no longer receive updates.\nA new owner has been assigned.",
+			Title = adminName.." (Archived)",
+			Description = "This version is no longer maintained.\nCheck the README on GitHub for details and legacy info.",
 			Buttons = {
 				{
-					Text = "Copy new loadstring",
+					Text = "Copy GitHub Repo",
 					Callback = function()
-						setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/Malrous/NA-Revamped/refs/heads/main/Source.lua"))();]])
+						setclipboard("https://github.com/ltseverydayyou/Nameless-Admin")
 					end
 				},
 				{
-					Text = "Cancel",
+					Text = "Close",
 					Callback = function() end
 				}
 			}
