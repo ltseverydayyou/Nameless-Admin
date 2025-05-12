@@ -1,3 +1,7 @@
+-- hey mr wydcheese i haven't officially classified you as the owner :3
+
+-- quit pinging everyone for your gay ass questions that make no sense kthxbye
+
 if getgenv().RealNamelessLoaded then return end
 
 function NACaller(pp)--helps me log better

@@ -45,3 +45,5 @@ It’s not because I disliked working on the project, or that the community was 
 I’m also quitting Roblox in general. The updates lately feel soulless, and the platform just doesn’t interest me anymore. I’ve moved on.
 
 Thanks to everyone who supported the project over the years. I appreciate it.
+
+> hi wydcheese
