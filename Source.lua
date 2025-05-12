@@ -2986,7 +2986,7 @@ cmd.add({"updatelog","updlog","updates"},{"updatelog (updlog,updates)","show the
 end)
 
 cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link"}, function()
-	--[[local inviteLink = "https://discord.gg/rWRuDNNUq8"
+	local inviteLink = "https://discord.gg/zzjYhtMGFD"
 
 	if setclipboard then
 		Notify({
@@ -3005,8 +3005,8 @@ cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, he
 				{Text = "Close", Callback = function() end}
 			}
 		})
-	end]]
-	DoNotif("not available yet", 2)
+	end
+	--DoNotif("not available yet", 2)
 end)
 
 clickflingUI = nil
