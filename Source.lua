@@ -35,7 +35,8 @@ local sessionStart = os.clock()
 
 function SafeGetService(name)
 	local service = game:GetService(name)
-	return if cloneref then cloneref(service) else service
+	local zeNAService = (cloneref and cloneref(service)) or service
+	return zeNAService
 end
 
 local HttpService=SafeGetService('HttpService');
@@ -173,14 +174,14 @@ end
 
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.2"
+local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.3 (ARCHIVED)"
 
 --[[ Brand ]]--
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
 
-function yayApril(isTesting: boolean)
+function yayApril(isTesting)
     local baseNames = {
         "Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
         "Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
@@ -632,10 +633,10 @@ sussyINPUTTER = {
 
 local function updateInputVector()
 	local x, z = 0, 0
-	if sussyINPUTTER.W then z += 1 end
-	if sussyINPUTTER.S then z -= 1 end
-	if sussyINPUTTER.A then x -= 1 end
-	if sussyINPUTTER.D then x += 1 end
+	if sussyINPUTTER.W then z = z + 1 end
+	if sussyINPUTTER.S then z = z - 1 end
+	if sussyINPUTTER.A then x = x - 1 end
+	if sussyINPUTTER.D then x = x + 1 end
 
 	if thumberSTICKER.Magnitude > 0.1 then
 		customVECTORMOVE = Vector3.new(thumberSTICKER.X, 0, thumberSTICKER.Y)
@@ -1455,7 +1456,7 @@ local PlayerArgs = {
 				local accCount = 0
 				for _, item in ipairs(Char:GetChildren()) do
 					if item:IsA("Accessory") then
-						accCount += 1
+						accCount = accCount + 1
 					end
 				end
 
@@ -1550,11 +1551,15 @@ function placeName()
 
 		Wait(.5)
 	end]]
-	return GaemInfo.Name
+	local checking = 'unknown'
+	if GaemInfo and GaemInfo.Name then checking = GaemInfo.Name end
+	return checking
 end
 
 function placeCreator()
-	return GaemInfo.Creator.Name
+	local checkingCreator = 'unknown'
+	if GaemInfo and  GaemInfo.Creator and GaemInfo.Creator.Name then checkingCreator = GaemInfo.Creator.Name end
+	return checkingCreator
 end
 
 function storeESP(p, cType, conn)
@@ -1810,6 +1815,10 @@ function unmobilefly()
 	if Signal2 then Signal2:Disconnect() end
 end]]
 
+local tool
+if getChar() and getBp() then
+	tool=getBp():FindFirstChildOfClass("Tool") or getChar():FindFirstChildOfClass("Tool")
+end
 
 function xxRAYYYY(v)
 	if v then
@@ -2250,12 +2259,9 @@ function RenderUserButtons()
 		end)
 
 		Insert(UserButtonGuiList, btn)
-		index += 1
+		index = index + 1
 	end
 end
-
-local tool=nil
-if getChar() then tool=getBp():FindFirstChildOfClass("Tool") or getChar():FindFirstChildOfClass("Tool") or nil end
 
 local lp=Players.LocalPlayer
 
@@ -6655,8 +6661,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 					Spawn(function()
 						for i = 1, 10 do
 							if root:IsDescendantOf(game) then
-								root.AssemblyLinearVelocity *= .8
-								root.AssemblyAngularVelocity *= .8
+								root.AssemblyLinearVelocity=root.AssemblyLinearVelocity * .8
+								root.AssemblyAngularVelocity=root.AssemblyAngularVelocity * .8
 								Wait(0.05)
 							end
 						end
@@ -9767,7 +9773,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 			return
 		end
 
-		angle += math.rad(spinSpeed * dt)
+		angle = angle + math.rad(spinSpeed * dt)
 		bg.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, angle, 0)
 	end))
 end)
@@ -13067,7 +13073,7 @@ cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"
 
 	hum.Sit = true
 	Wait(0.1)
-	root.CFrame *= CFrame.Angles(math.pi * 0.5, 0, 0)
+	root.CFrame=root.CFrame * CFrame.Angles(math.pi * 0.5, 0, 0)
 
 	for _, a in ipairs(hum:GetPlayingAnimationTracks()) do
 		a:Stop()
@@ -15145,7 +15151,7 @@ cmd.add({"firetouchinterests", "fti"}, {"firetouchinterests (fti)", "Fires every
 			local pp = des.Parent
 			if pp and pp:IsA("BasePart") then
 				Insert(toucher, pp)
-				count += 1
+				count = count + 1
 			end
 		end
 	end
@@ -15680,7 +15686,7 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 
 		_G._noclipInput = UserInputService.InputChanged:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-				rotationX -= input.Delta.X * sensitivity
+				rotationX=rotationX - input.Delta.X * sensitivity
 				rotationY = math.clamp(rotationY + input.Delta.Y * sensitivity, -80, 80)
 			end
 		end)
@@ -16070,9 +16076,9 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 				end
 
 				if ok then
-					remoteCount += 1
+					remoteCount=remoteCount + 1
 				else
-					failedCount += 1
+					failedCount=failedCount + 1
 				end
 			end)
 		end
@@ -16545,7 +16551,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		local root = getRoot(char)
 		if not (char and hum and root) then return end
 
-		NPCControl.MoveCooldown -= dt
+		NPCControl.MoveCooldown=NPCControl.MoveCooldown - dt
 		NPCControl._jumpCooldown = (NPCControl._jumpCooldown or 0) - dt
 		NPCControl._moveTimeout = (NPCControl._moveTimeout or 0) + dt
 
@@ -17794,7 +17800,7 @@ function bindToDevConsole()
 	local messageCounter = 0
 
 	LogService.MessageOut:Connect(function(msg, msgTYPE)
-		messageCounter += 1
+		messageCounter=messageCounter + 1
 
 		local logLabel = NAconsoleExample:Clone()
 		logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
