@@ -1,8 +1,8 @@
 # Nameless Admin (Archived Project)
 
-> ⚠️ **This project is no longer maintained.**
+> ⚠️ **This project is no longer actively maintained.**
 >
-> Nameless Admin was a continuation of an older legacy script. We picked it up, added new commands, made improvements, and kept it going for a while. But as of now, the project is archived and won’t be updated anymore.
+> Nameless Admin was a continuation of an older legacy script. We picked it up, added new commands, made improvements, and kept it going for a while. But as of now, the project is archived and no longer in active development.
 
 ## Last Maintainers
 
@@ -11,13 +11,15 @@
 
 ## Archive Info
 
-* **Status:** Development has stopped. No more features or fixes.
-* **Access:** Old versions are still available, but they’re unsupported.
+* **Status:** Development has stopped. No new features will be added.
+* **Fix Policy:** Only critical bug fixes or major issues may still be patched if absolutely necessary.
+* **Access:** Old versions remain available, but they’re unsupported.
 
 ## Legacy Owner
 
 The original Nameless Admin was created by [FilteringEnabled](https://github.com/FilteringEnabled)
-You can also check out his main GitHub: [lxte](https://github.com/lxte)
+
+You can also check out his main GitHub here: [lxte](https://github.com/lxte)
 
 ## Loadstrings
 
@@ -25,6 +27,9 @@ You can also check out his main GitHub: [lxte](https://github.com/lxte)
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();
+```
+
+```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
 ```
 
@@ -38,12 +43,12 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/Name
 
 ## Why I Stopped Working on It
 
-I stopped updating Nameless Admin simply because I lost motivation. Life’s getting busier, and I’ve got other things to focus on. I’m growing up, and scripting just doesn’t fit into everything I’m trying to do right now.
+I stopped updating Nameless Admin because I lost the motivation to continue. Life’s getting busier, and I’ve got real-world things to focus on. I’m growing up, and scripting just doesn’t really fit into where I’m headed anymore.
 
-It’s not because I disliked working on the project, or that the community was a problem — none of that. I actually enjoyed the experience and the support. But I want to spend more time on real-life priorities.
+It wasn’t because I didn’t enjoy working on it, or because the community was an issue — none of that. I actually liked the process and the support. But I need to put more time into my personal life now.
 
-I’m also quitting Roblox in general. The updates lately feel soulless, and the platform just doesn’t interest me anymore. I’ve moved on.
+I’m also done with Roblox in general. The updates lately feel soulless, and I’ve completely lost interest in playing. It’s just not for me anymore.
 
-Thanks to everyone who supported the project over the years. I appreciate it.
+Thanks to everyone who supported the project — it really meant a lot.
 
-> hi wydcheese
+> hi wydcheese :3
