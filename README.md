@@ -51,4 +51,5 @@ I’m also done with Roblox in general. The updates lately feel soulless, and I�
 
 Thanks to everyone who supported the project — it really meant a lot.
 
-> hi wydcheese :3
+> hi wydcheese
+> you're a retard
