@@ -18,8 +18,6 @@
 
 ]]
 
--- hey mr wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234) i haven't officially classified you as the owner dumbass
-
 if getgenv().RealNamelessLoaded then return end
 
 function NACaller(pp)--helps me log better
