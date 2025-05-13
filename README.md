@@ -53,6 +53,3 @@ It wasn’t because I didn’t enjoy working on it, or because the community was
 I’m also done with Roblox in general. The updates lately feel soulless, and I’ve completely lost interest in playing. It’s just not for me anymore.
 
 Thanks to everyone who supported the project — it really meant a lot.
-
-> hi wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234)
-> you're a retard
