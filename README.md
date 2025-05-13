@@ -1,3 +1,6 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=white&labelColor=5865F2)](https://discord.gg/zzjYhtMGFD)
+
 # Nameless Admin (Archived Project)
 
 > ⚠️ **This project is no longer actively maintained.**
