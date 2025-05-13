@@ -51,5 +51,5 @@ I’m also done with Roblox in general. The updates lately feel soulless, and I�
 
 Thanks to everyone who supported the project — it really meant a lot.
 
-> hi wydcheese
+> hi wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234)
 > you're a retard

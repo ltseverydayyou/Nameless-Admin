@@ -1,4 +1,4 @@
--- hey mr wydcheese i haven't officially classified you as the owner :3
+-- hey mr wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234) i haven't officially classified you as the owner :3
 
 -- quit pinging everyone for your gay ass questions that make no sense kthxbye
 
