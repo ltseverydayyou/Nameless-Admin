@@ -1,6 +1,4 @@
--- hey mr wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234) i haven't officially classified you as the owner :3
-
--- quit pinging everyone for your gay ass questions that make no sense kthxbye
+-- hey mr wydcheese (aka: thetronicmonkey) (discord user id: 1352433077074399234) i haven't officially classified you as the owner dumbass
 
 if getgenv().RealNamelessLoaded then return end
 
@@ -602,13 +600,6 @@ local ctrlModule = nil
 NASAVEDALIASES = {}
 
 Spawn(function()
-	if Player and Player.UserId == 3101266219 then
-		Spawn(function() while true do end end)
-		Player:Kick("womp womp")
-	end
-end)
-
-Spawn(function()
 	NACaller(function()
 		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", 5)
 		local playerModule = playerScripts:WaitForChild("PlayerModule", 5)
@@ -797,7 +788,7 @@ function randomahhfunctionthatyouwontgetit(data)
         if (x == '=') then return '' end
         local r, f = '', (pqwodwjvxnskdsfo:find(x) - 1)
         for i = 6, 1, -1 do
-            r = r .. (f % 2^i - f % 2^(i - 1) > 0 and '1' or '0')
+            r = r..(f % 2^i - f % 2^(i - 1) > 0 and '1' or '0')
         end
         return r
     end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
@@ -18238,12 +18229,18 @@ Spawn(function()
 
 		Notify({
 			Title = adminName.." (Archived)",
-			Description = "This version is no longer maintained.\nCheck the README on GitHub for details and legacy info.",
+			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.\n\nIMPORTANT NOTE:\nThe original server was destroyed and is no longer official.\nPlease consider joining the new official server.',
 			Buttons = {
 				{
 					Text = "Copy GitHub Repo",
 					Callback = function()
 						setclipboard("https://github.com/ltseverydayyou/Nameless-Admin")
+					end
+				},
+				{
+					Text = "Discord Server",
+					Callback = function()
+						setclipboard("https://discord.gg/zzjYhtMGFD")
 					end
 				},
 				{
