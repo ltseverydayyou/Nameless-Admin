@@ -18227,7 +18227,7 @@ Spawn(function()
 
 		Notify({
 			Title = adminName.." (Archived)",
-			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.\n\nIMPORTANT NOTE:\nThe original server was destroyed and is no longer official.\nPlease consider joining the new official server.',
+			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.',
 			Buttons = {
 				{
 					Text = "Copy GitHub Repo",
