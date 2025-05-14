@@ -7,6 +7,7 @@ end
 
 NACaller(function() getgenv().RealNamelessLoaded=true end)
 NACaller(function() getgenv().NATestingVer=false end)
+NACaller(function() getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR" end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -4019,7 +4020,6 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 		end))
 	end
 end)
-getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR"
 cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "stop the walkfling command"}, function()
 	if not hiddenfling then return end
 
