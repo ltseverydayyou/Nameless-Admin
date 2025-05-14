@@ -4039,7 +4039,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 		end))
 	end
 end)
-getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="UQ3OFS"
+getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR"
 cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "stop the walkfling command"}, function()
 	if not hiddenfling then return end
 
