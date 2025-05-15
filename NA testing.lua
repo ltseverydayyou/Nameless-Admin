@@ -2947,10 +2947,10 @@ cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox api"},funct
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
 end)
 
-cmd.add({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
+--[[cmd.add({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
 	require(ChatService.ClientChatModules.ChatSettings).WindowResizable=true
 	require(ChatService.ClientChatModules.ChatSettings).WindowDraggable=true
-end)
+end)]]
 
 cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(...)
 	local newPrefix = (...)
