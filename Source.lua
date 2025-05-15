@@ -555,7 +555,7 @@ local PlrGui=Player:FindFirstChild("PlayerGui");
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
-local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
+local LegacyChat=false--TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
