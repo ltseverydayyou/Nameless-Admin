@@ -12,6 +12,13 @@ NACaller(function() getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR" end)
 NAbegin=tick()
 CMDAUTOFILL = {}
 
+local function SafeGetService(name)
+	local service = game:GetService(name)
+	local zeNAService = (cloneref and cloneref(service)) or service
+	return zeNAService
+end
+
+local HttpService=SafeGetService('HttpService');
 local Lower = string.lower;
 local Split = string.split;
 local Sub = string.sub;
@@ -29,14 +36,6 @@ local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local sessionStart = os.clock()
-
-function SafeGetService(name)
-	local service = game:GetService(name)
-	local zeNAService = (cloneref and cloneref(service)) or service
-	return zeNAService
-end
-
-local HttpService=SafeGetService('HttpService');
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -2425,6 +2424,20 @@ lib.isConnected = function(name)
     return connections[name] ~= nil
 end
 
+lib.isProperty = function(inst,prop)
+	local s, _ = pcall(function()
+		local _ = inst[prop]
+	end)
+	return s
+end
+
+lib.setProperty = function(inst,prop,v)
+	local s, _ = pcall(function()
+		inst[prop] = v
+	end)
+	return s
+end
+
 --prepare for annoying and unnecessary tool grip math
 local rad=math.rad
 local clamp=math.clamp
@@ -2435,26 +2448,35 @@ local tan=math.tan
 cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
 	local args = {...}
 	local link = Concat(args, " ")
+
 	if not link or link == "" then
-		return false, "Invalid URL"
+		return DoNotif("no link provided", 2)
 	end
 
 	local success, result = pcall(function()
 		return game:HttpGet(link)
 	end)
+
+	if not success then return end
+
+	local func = loadstring(result)
+	if not func then return end
+
+	Spawn(func)
 end, true)
 
-cmd.add({"loadstring", "ls"}, {"loadstring <code> (ls)", "Run code using loadstring"}, function(...)
+cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code> (ls, lstring, loads, execute)", "Run code using loadstring"}, function(...)
 	local args = {...}
 	local code = Concat(args, " ")
+
 	if not code or code == "" then
-		return false, "No code provided"
+		return DoNotif("no code provided", 2)
 	end
 
-	local fn, err = assert(loadstring(code))()
-	if not fn then
-		return false, "Error loading code: "..tostring(err)
-	end
+	local func = loadstring(code)
+	if not func then return end
+
+	Spawn(func)
 end, true)
 
 cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias for an existing command"}, function(original, alias)
@@ -16468,14 +16490,9 @@ cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 	end
 end)
 
-bringingNpcs = false
-bringNPClooper = nil
 npcCache = {}
-
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
-	if bringingNpcs then return end
-	bringingNpcs = true
-
+	if lib.isConnected("loopbringnpcs") then lib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
 	for _, hum in ipairs(SafeGetService("Workspace"):GetDescendants()) do
 		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
@@ -16483,33 +16500,31 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 		end
 	end
 
-	bringNPClooper = coroutine.create(function()
-		while bringingNpcs do
-			for _, hum in ipairs(npcCache) do
-				if hum.Parent and hum.Health > 0 then
-					local model = hum.Parent
-					local rootPart = getRoot(model)
-					if rootPart and LocalPlayer.Character and getRoot(LocalPlayer.Character) then
-						rootPart.CFrame = getRoot(LocalPlayer.Character).CFrame
-					end
+	lib.connect("loopbringnpcs", RunService.Heartbeat:Connect(function()
+		for _, hum in ipairs(npcCache) do
+			if hum.Parent and hum.Health > 0 then
+				local model = hum.Parent
+				local rootPart = getRoot(model)
+				local localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
+				if rootPart and localRoot then
+					rootPart.CFrame = localRoot.CFrame
+				end
+				Spawn(function()
 					for _, part in ipairs(model:GetDescendants()) do
 						if part:IsA("BasePart") then
-							part.CanCollide = false
+							if lib.isProperty(part, "CanCollide") then
+								lib.setProperty(part, "CanCollide", false)
+							end
 						end
 					end
-				end
+				end)
 			end
-			Wait()
 		end
-	end)
-
-	coroutine.resume(bringNPClooper)
+	end))
 end)
 
 cmd.add({"unloopbringnpcs", "unlbnpcs"}, {"unloopbringnpcs (unlbnpcs)", "Stops NPC bring loop"}, function()
-	if not bringingNpcs then return end
-	bringingNpcs = false
-	bringNPClooper = nil
+	lib.disconnect("loopbringnpcs")
 end)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
