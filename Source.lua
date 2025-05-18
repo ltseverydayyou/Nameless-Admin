@@ -36,6 +36,9 @@ local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local sessionStart = os.clock()
+local cmd={}
+local lib={}
+cmdNAnum=0
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -168,6 +171,13 @@ function InstanceNew(c,p)
 	return inst
 end
 
+function countDictNA(tbl)
+	local count = 0
+	for _ in pairs(tbl) do
+		count += 1
+	end
+	return count
+end
 
 --[[ Version ]]--
 local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.3 (ARCHIVED)"
@@ -809,9 +819,16 @@ function isRelAdmin(Player)
 end
 
 function nameChecker(p)
-	local d = p.DisplayName
-	if not d then return p.Name end
-	return d:lower() == p.Name:lower() and '@'..p.Name or d..' (@'..p.Name..')'
+	if not lib.isProperty(p, "DisplayName") then
+		return p.Name
+	end
+
+	local displayName = p.DisplayName
+	if displayName:lower() == p.Name:lower() then
+		return '@'..p.Name
+	else
+		return displayName..' (@'..p.Name..')'
+	end
 end
 
 function loadedResults(res)
@@ -864,7 +881,6 @@ end)
 
 --[[ COMMAND FUNCTIONS ]]--
 local commandcount=0
-cmd={}
 Loops = {}
 cmd.add = function(aliases, info, func, requiresArguments)
 	requiresArguments = requiresArguments or false
@@ -1067,7 +1083,6 @@ end
 NaProtectUI(NA_storage)
 
 --[[ LIBRARY FUNCTIONS ]]--
-local lib={}
 lib.wrap=function(f)
 	return coroutine.wrap(f)()
 end
@@ -1654,15 +1669,6 @@ function NAESP(player, persistent)
 			textLabel.Parent = billboardGui
 		end
 
-		local function nuhuhcheck(plr)
-			local name = plr.Name
-			local displayName = name
-			pcall(function()
-				displayName = plr.DisplayName
-			end)
-			return displayName == name and '@'..name or displayName..' (@'..name..')'
-		end
-
 		espLoop = RunService.RenderStepped:Connect(function()
 			if not character:IsDescendantOf(workspace) then
 				espLoop:Disconnect()
@@ -1687,7 +1693,7 @@ function NAESP(player, persistent)
 				local targetColor = hasTeam and teamColor or distanceColor
 
 				if textLabel then
-					textLabel.Text = Format("%s | %d/%d HP | %d studs", nuhuhcheck(player), health, maxHealth, distance)
+					textLabel.Text = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
 
 					if textLabel.TextColor3 ~= distanceColor then
 						TweenService:Create(textLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -2425,10 +2431,11 @@ lib.isConnected = function(name)
 end
 
 lib.isProperty = function(inst,prop)
-	local s, _ = pcall(function()
-		local _ = inst[prop]
+	local s, r = pcall(function()
+		return inst[prop]
 	end)
-	return s
+	if not s then return nil end
+	return r
 end
 
 lib.setProperty = function(inst,prop,v)
@@ -4160,7 +4167,7 @@ end,true)
 
 --made by the_king.78
 cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypassadonis,badonis,adonisb)","bypasses adonis admin detection"},function()
-	local DebugFunc = getinfo or debug.getinfo
+	--[[local DebugFunc = getinfo or debug.getinfo
 	local IsDebug = false
 	local hooks = {}
 
@@ -4215,7 +4222,87 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 		end
 
 		return hook(...)
-	end))
+	end))]]
+	Spawn(function()
+		local getgc = getgc or debug.getgc
+		local hookfunction = hookfunction
+		local getrenv = getrenv
+		local debugInfo = (getrenv and getrenv().debug and getrenv().debug.info) or debug.info
+		local newcclosure = newcclosure or function(f) return f end
+
+		if not (getgc and hookfunction and getrenv and debugInfo) then
+			DoNotif("Required exploit functions not available. Skipping Adonis bypass.",3,"Adonis Bypasser")
+			return
+		end
+
+		local IsDebug = false
+		local hooks = {}
+		local DetectedMeth, KillMeth
+		local AdonisFound = false
+
+		for _, value in getgc(true) do
+			if typeof(value) == "table" then
+				local hasDetected = typeof(rawget(value, "Detected")) == "function"
+				local hasKill = typeof(rawget(value, "Kill")) == "function"
+				local hasVars = rawget(value, "Variables") ~= nil
+				local hasProcess = rawget(value, "Process") ~= nil
+
+				if hasDetected or (hasKill and hasVars and hasProcess) then
+					AdonisFound = true
+					break
+				end
+			end
+		end
+
+		if not AdonisFound then
+			DoNotif("Adonis not found. Bypass skipped.",3,"Adonis Bypasser")
+			return
+		end
+
+		for _, value in getgc(true) do
+			if typeof(value) == "table" then
+				local detected = rawget(value, "Detected")
+				local kill = rawget(value, "Kill")
+
+				if typeof(detected) == "function" and not DetectedMeth then
+					DetectedMeth = detected
+					local hook
+					hook = hookfunction(DetectedMeth, function(methodName, methodFunc)
+						if methodName ~= "_" and IsDebug then
+							DoNotif("Adonis Detected\nMethod: "..methodName.."\nInfo: "..methodFunc,3,"Adonis Bypasser")
+						end
+						return true
+					end)
+					Insert(hooks, DetectedMeth)
+					DoNotif("Hooked Adonis 'Detected' method.",3,"Adonis Bypasser")
+				end
+
+				if rawget(value, "Variables") and rawget(value, "Process") and typeof(kill) == "function" and not KillMeth then
+					KillMeth = kill
+					local hook
+					hook = hookfunction(KillMeth, function(killFunc)
+						if IsDebug then
+							DoNotif("Adonis tried to kill function: "..killFunc,3,"Adonis Bypasser")
+						end
+					end)
+					Insert(hooks, KillMeth)
+					DoNotif("Hooked Adonis 'Kill' method.",3,"Adonis Bypasser")
+				end
+			end
+		end
+
+		if DetectedMeth and debugInfo then
+			local hook
+			hook = hookfunction(debugInfo, newcclosure(function(...)
+				local functionName = ...
+				if functionName == DetectedMeth then
+					-- warn("Adonis detection intercepted. Bypassed by the_king.78.",3,"Adonis Bypasser")
+					return coroutine.yield(coroutine.running())
+				end
+				return hook(...)
+			end))
+		end
+	end)
 end)
 
 --[ LOCALPLAYER ]--
@@ -17324,6 +17411,14 @@ gui.menuifyv2 = function(menu)
 	menu.Visible = false
 end
 
+gui.hideFill = function()
+	for i, v in ipairs(CMDAUTOFILL) do
+		if v:IsA("Frame") then
+			v.Visible = false
+		end
+	end
+end
+
 gui.loadCommands = function()
 	for i, v in pairs(cmdAutofill:GetChildren()) do
 		if v.Name ~= "UIListLayout" then
@@ -17349,15 +17444,19 @@ gui.loadCommands = function()
 
 		Insert(CMDAUTOFILL, btn)
 	end
+	cmdNAnum = i
+	gui.hideFill()
 end
 
 gui.loadCommands()
 
-for i, v in ipairs(CMDAUTOFILL) do
-	if v:IsA("Frame") then
-		v.Visible = false
+Spawn(function() -- plugin tester
+	while Wait(2) do
+		if countDictNA(Commands) ~= cmdNAnum then
+			gui.loadCommands()
+		end
 	end
-end
+end)
 
 gui.barSelect = function(speed)
 	speed = speed or 0.4
