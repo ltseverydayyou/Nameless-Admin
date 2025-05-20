@@ -58,6 +58,7 @@ local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local sessionStart = os.clock()
 local cmd={}
 local lib={}
+cmdPluginAdd={}
 cmdNAnum=0
 
 function isAprilFools()
@@ -396,7 +397,7 @@ function DoNotif(text, duration, sender)
 end
 
 --Custom file functions checker checker
---local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles;
+local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder
 NAFILEPATH = "Nameless-Admin"
 NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints"
@@ -2084,6 +2085,85 @@ function loadAutoExec()
 				NAEXECDATA.args = {}
 			end
 		end
+	end
+end
+
+local function LoadPlugins()
+	if not FileSupport then return end
+
+	local function formatInfo(aliases, argsHint)
+		local main = aliases[1]
+		local extras = {}
+
+		for i = 2, #aliases do
+			Insert(extras, aliases[i])
+		end
+
+		local formatted = main
+
+		if argsHint and argsHint ~= "" then
+			formatted = formatted.." "..argsHint
+		end
+
+		if #extras > 0 then
+			formatted = formatted.." ("..Concat(extras, ", ")..")"
+		end
+
+		return formatted
+	end
+
+	local loadedPluginCount = 0
+	local loadedPluginNames = {}
+
+	local files = listfiles(NAPLUGINFILEPATH)
+
+	for _, file in ipairs(files) do
+		if Lower(file):match("%.na$") then
+			local success, content = pcall(readfile, file)
+			if success and content then
+				local func, loadErr = loadstring(content)
+				if func then
+					cmdPluginAdd = nil
+
+					local ok, execErr = pcall(func)
+					if ok and type(cmdPluginAdd) == "table" then
+						local aliases = cmdPluginAdd.Aliases
+						local handler = cmdPluginAdd.Function
+
+						if type(aliases) == "table" and type(handler) == "function" then
+							local argsHint = cmdPluginAdd.ArgsHint or ""
+							local formattedDisplay = formatInfo(aliases, argsHint)
+							local info = {
+								formattedDisplay,
+								cmdPluginAdd.Info or "No description"
+							}
+
+							cmd.add(
+								aliases,
+								info,
+								handler,
+								cmdPluginAdd.RequiresArguments or false
+							)
+
+							loadedPluginCount += 1
+							Insert(loadedPluginNames, aliases[1])
+						else
+							DoNotif("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+						end
+					else
+						DoNotif("[Plugin Error] '"..file.."' => "..tostring(execErr))
+					end
+				else
+					DoNotif("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
+				end
+			else
+				DoNotif("[Plugin Read Error] Failed to read '"..file.."'")
+			end
+		end
+	end
+
+	if loadedPluginCount > 0 then
+		DoNotif("Loaded "..loadedPluginCount.." plugin(s):\n\n"..Concat(loadedPluginNames, ",\n"),6)
 	end
 end
 
@@ -18491,6 +18571,7 @@ Spawn(loadAliases)
 Spawn(loadButtonIDS)
 Spawn(RenderUserButtons)
 Spawn(loadAutoExec)
+Spawn(LoadPlugins)
 
 Spawn(function()
 	NACaller(function()
