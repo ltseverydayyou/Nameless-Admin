@@ -1666,9 +1666,9 @@ function NAESP(player, persistent)
 		highlight.OutlineColor = Color3.new(1, 1, 1)
 		highlight.Parent = character
 
-		local billboardGui
-		local textLabel
-		local espLoop
+		local billboardGui, textLabel
+		local lastTextColor = nil
+		local lastFillColor = nil
 
 		if character:FindFirstChild("Head") and not chamsEnabled then
 			billboardGui = InstanceNew("BillboardGui")
@@ -1682,13 +1682,20 @@ function NAESP(player, persistent)
 			textLabel.Size = UDim2.new(1, 0, 1, 0)
 			textLabel.Position = UDim2.new(0, 0, 0, 0)
 			textLabel.BackgroundTransparency = 1
-			textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			textLabel.TextColor3 = Color3.new(1, 1, 1)
 			textLabel.Font = Enum.Font.GothamBold
 			textLabel.TextSize = 14
 			textLabel.TextStrokeTransparency = 0.2
 			textLabel.Text = ""
 			textLabel.Parent = billboardGui
 		end
+
+		local localChar = getPlrChar(Players.LocalPlayer)
+		local localRoot = localChar and getRoot(localChar)
+
+		local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+		local espLoop
 
 		espLoop = RunService.RenderStepped:Connect(function()
 			if not character:IsDescendantOf(workspace) then
@@ -1698,10 +1705,12 @@ function NAESP(player, persistent)
 
 			local humanoid = character:FindFirstChildOfClass("Humanoid")
 			local rootPart = getRoot(character)
-			if humanoid and rootPart then
+			local isValid = humanoid and rootPart and localRoot
+
+			if isValid then
 				local health = math.floor(humanoid.Health)
 				local maxHealth = math.floor(humanoid.MaxHealth)
-				local distance = math.floor((getRoot(getPlrChar(Players.LocalPlayer)).Position - rootPart.Position).Magnitude)
+				local distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
 
 				local distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
 					or distance < 100 and Color3.fromRGB(255, 165, 0)
@@ -1714,19 +1723,19 @@ function NAESP(player, persistent)
 				local targetColor = hasTeam and teamColor or distanceColor
 
 				if textLabel then
-					textLabel.Text = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
-
-					if textLabel.TextColor3 ~= distanceColor then
-						TweenService:Create(textLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-							TextColor3 = distanceColor
-						}):Play()
+					local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
+					if textLabel.Text ~= newText then
+						textLabel.Text = newText
+					end
+					if textLabel.TextColor3 ~= distanceColor and lastTextColor ~= distanceColor then
+						lastTextColor = distanceColor
+						TweenService:Create(textLabel, tweenInfo, { TextColor3 = distanceColor }):Play()
 					end
 				end
 
-				if highlight.FillColor ~= targetColor then
-					TweenService:Create(highlight, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-						FillColor = targetColor
-					}):Play()
+				if highlight.FillColor ~= targetColor and lastFillColor ~= targetColor then
+					lastFillColor = targetColor
+					TweenService:Create(highlight, tweenInfo, { FillColor = targetColor }):Play()
 				end
 			end
 		end)
