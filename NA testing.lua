@@ -201,7 +201,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.3 (ARCHIVED)"
+local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.3"
 
 --[[ Brand ]]--
 local mainName = 'Nameless Admin'
@@ -18434,7 +18434,7 @@ Spawn(function()
 
 		Wait(2)
 
-		Notify({
+		--[[Notify({
 			Title = adminName.." (Archived)",
 			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.',
 			Buttons = {
@@ -18455,7 +18455,7 @@ Spawn(function()
 					Callback = function() end
 				}
 			}
-		})
+		})]]
 
 		--[[local updateLogMessage = maybeMock('Added "updlog" command (displays any new changes added into '..adminName..')')
 		DoNotif(updateLogMessage, nil, "Info")]]
