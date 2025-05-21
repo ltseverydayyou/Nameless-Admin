@@ -9921,7 +9921,6 @@ main.BackgroundTransparency = 0.2
 main.BorderSizePixel = 0
 main.ClipsDescendants = true
 main.Active = true
-main.Draggable = true
 main.Visible = true
 main.Name = "Main"
 main:ClearAllChildren()
@@ -10024,6 +10023,7 @@ local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
 tween:Play()
 minimized = not minimized
 end)
+gui.draggablev2(main, top)
 end
 local ok, result = pcall(getBadges)
 if ok then
