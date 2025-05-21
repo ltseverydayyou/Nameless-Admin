@@ -16543,20 +16543,6 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 	end
 end)
 
-cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
-	local npcs = {}
-
-	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
-			Insert(npcs,{hum,hum.HipHeight})
-			hum.HipHeight = 1024
-		end
-	end
-	for _,hum in pairs(SafeGetService("workspace"):GetDescendants()) do
-		disappear(hum)
-	end
-end)
-
 cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 	local npcs = {}
 
