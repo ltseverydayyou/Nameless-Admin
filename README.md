@@ -1,55 +1,84 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE)
-[![Discord](https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=white&labelColor=5865F2)](https://discord.gg/zzjYhtMGFD)
 
-# Nameless Admin (Archived Project)
+# Nameless Admin (Official Continuation)
 
-> ⚠️ **This project is no longer actively maintained.**
->
-> Nameless Admin was a continuation of an older legacy script. We picked it up, added new commands, made improvements, and kept it going for a while. But as of now, the project is archived and no longer in active development.
+![Proof of Ownership](Github_Images/na_Proof.png)
 
-## Last Maintainers
+Nameless Admin is the official continuation of the original script. Our dedicated team is working to maintain and improve previous functionalities while developing brand new commands and features.
 
-* [Aervanix (ltseverydayyou)](https://github.com/ltseverydayyou)
-* [Viper (Cosmella-v)](https://github.com/Cosmella-v)
+## Current Developers (New Owners)
 
-## Archive Info
+Click on the badges to check out our GitHub profiles:
 
-* **Status:** Development has stopped. No new features will be added.
-* **Fix Policy:** Only critical bug fixes or major issues may still be patched if absolutely necessary.
-* **Access:** Old versions remain available, but they’re unsupported.
+<div align="left">
+  <a href="https://github.com/ltseverydayyou">
+    <img src="https://img.shields.io/badge/Aervanix%20(@ltseverydayyou)-black?logo=github&logoColor=white&labelColor=black" alt="Aervanix's GitHub">
+  </a>
+  <a href="https://github.com/Cosmella-v">
+    <img src="https://img.shields.io/badge/Viper%20(@Cosmella)-darkgreen?logo=github&logoColor=white" alt="Viper's GitHub">
+  </a>
+</div>
 
-## Legacy Owner
+## Project Information
 
-The original Nameless Admin was created by [FilteringEnabled](https://github.com/FilteringEnabled)
+- **Legacy Script Support:** Old scripts will be fixed and fully functional.
+- **Upcoming Features:** New commands are on the horizon (stay tuned and support our work!).
 
-You can also check out his main GitHub here: [lxte](https://github.com/lxte)
+## Join the Community
+
+Connect with us on Discord:
+
+<div align="left">
+  <a href="https://discord.gg/zzjYhtMGFD">
+    <img src="https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=blue&labelColor=969ef2" alt="Join Our Discord">
+  </a>
+  <a href="https://scriptblox.com/u/Aervanix">
+    <img src="https://img.shields.io/badge/Aervanix-black.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAKlBMVEVHcEyMff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+DauQDAAAADnRSTlMADFUlMrlw/5X0g+On0vgqudEAAADnSURBVHgBYiAZMKILMIEIZmMgcHFxNgRUIc+IEYUBFIVvbLuKFpE2O4htl3HuQ8wdRH1s2+xiZ9YyePzndOcDEAAgkGa5QBKAidn5Zq0mFXgA/PpglMVafwKhnSaU8DlIBoLbTCDbphRvWGK7COoqOSjC4wEJARJIdgEIN6GF5KANfigh+2BDUDTJTQFaMkkZAhy8ku0iUKUcLYA/yW0I4Ev2FYkQSOZ2ixBKBV4QwGwDKo7UkxPH6cMlDCBJyhWvMOGLZF9lkWLBAimPVVAG/CUNgqj3jJR2DfwM4B/TNEDyid7ZjbYuEbNd7qs3kgsAAAAASUVORK5CYII=" alt="Follow Aervanix on Scriptblox">
+  </a>
+  <a href="https://scriptblox.com/u/Viper">
+    <img src="https://img.shields.io/badge/Viper-darkgreen.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAKlBMVEVHcEyMff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+DauQDAAAADnRSTlMADFUlMrlw/5X0g+On0vgqudEAAADnSURBVHgBYiAZMKILMIEIZmMgcHFxNgRUIc+IEYUBFIVvbLuKFpE2O4htl3HuQ8wdRH1s2+xiZ9YyePzndOcDEAAgkGa5QBKAidn5Zq0mFXgA/PpglMVafwKhnSaU8DlIBoLbTCDbphRvWGK7COoqOSjC4wEJARJIdgEIN6GF5KANfigh+2BDUDTJTQFaMkkZAhy8ku0iUKUcLYA/yW0I4Ev2FYkQSOZ2ixBKBV4QwGwDKo7UkxPH6cMlDCBJyhWvMOGLZF9lkWLBAimPVVAG/CUNgqj3jJR2DfwM4B/TNEDyid7ZjbYuEbNd7qs3kgsAAAAASUVORK5CYII=" alt="Follow Viper on Scriptblox">
+  </a>
+</div>
+
+## Original Owner
+
+We extend our gratitude to the original creator for laying the foundation of Nameless Admin:
+
+<div align="left">
+  <a href="https://github.com/FilteringEnabled">
+    <img src="https://img.shields.io/badge/FilteringEnabled-black?logo=github&logoColor=white&labelColor=black" alt="FilteringEnabled's GitHub">
+  </a>
+  <a href="https://github.com/lxte">
+    <img src="https://img.shields.io/badge/lxte-black?logo=github&logoColor=white" alt="lxte's GitHub">
+  </a>
+</div>
 
 ## Loadstrings
 
-**Current (Archived Version):**
+### Original Script
+
+Use the following loadstring to run the original version:
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();
+loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/refs/heads/main/Source"))()
 ```
+
+### Current Versions
+
+**Main Version:**
+
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
+```
+
+**Testing Version:**
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
 ```
 
-**Legacy Version (Original):**
-
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/refs/heads/main/Source"))();
-```
-
 ---
 
-## Why I Stopped Working on It
+Feel free to contribute or ask questions in our community channels. Enjoy using Nameless Admin!
 
-I stopped updating Nameless Admin because I lost the motivation to continue. Life’s getting busier, and I’ve got real-world things to focus on. I’m growing up, and scripting just doesn’t really fit into where I’m headed anymore.
-
-It wasn’t because I didn’t enjoy working on it, or because the community was an issue — none of that. I actually liked the process and the support. But I need to put more time into my personal life now.
-
-I’m also done with Roblox in general. The updates lately feel soulless, and I’ve completely lost interest in playing. It’s just not for me anymore.
-
-Thanks to everyone who supported the project — it really meant a lot.
+---
