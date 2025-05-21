@@ -9874,8 +9874,163 @@ cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "P
 	end
 end)
 
-cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer,spoofanim,animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
+cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Animation%20Spoofer"))()
+end)
+
+cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
+local Player = Players.LocalPlayer
+local function getBadges()
+local all = {}
+local cursor = ""
+repeat
+  local url = ("https://badges.roproxy.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
+  GameId,
+  cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
+  )
+  local res = NAREQUEST({Url = url, Method = "GET"})
+  if not res or res.StatusCode ~= 200 then
+    break
+  end
+  local body = HttpService:JSONDecode(res.Body)
+  for _, b in ipairs(body.data or {}) do
+    table.insert(all, {
+    id = b.id,
+    name = b.name,
+    desc = b.displayDescription or b.description or "",
+    icon = b.iconImageId,
+    rarity = b.statistics and b.statistics.winRatePercentage or 0,
+    awarded = b.statistics and b.statistics.awardedCount or 0,
+    pastDay = b.statistics and b.statistics.pastDayAwardedCount or 0,
+    universe = b.awardingUniverse and b.awardingUniverse.name or "Unknown"
+    })
+  end
+  cursor = body.nextPageCursor or ""
+until cursor == ""
+return all
+end
+local function createBadgeUI(data)
+local sgui = Instance.new("ScreenGui")
+NaProtectUI(sgui)
+sgui.Name = "BadgeViewer"
+local main = Instance.new("Frame", sgui)
+main.Size = UDim2.new(0, 600, 0, 500)
+main.Position = UDim2.new(0.5, -300, 0.5, -250)
+main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+main.BackgroundTransparency = 0.2
+main.BorderSizePixel = 0
+main.ClipsDescendants = true
+main.Active = true
+main.Draggable = true
+main.Visible = true
+main.Name = "Main"
+main:ClearAllChildren()
+local uicorner = Instance.new("UICorner", main)
+uicorner.CornerRadius = UDim.new(0, 16)
+local top = Instance.new("Frame", main)
+top.Size = UDim2.new(1, 0, 0, 40)
+top.BackgroundTransparency = 0.3
+top.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+local topCorner = Instance.new("UICorner", top)
+topCorner.CornerRadius = UDim.new(0, 12)
+local title = Instance.new("TextLabel", top)
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.Text = "Badge Viewer"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(240, 240, 240)
+title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Left
+local closeBtn = Instance.new("TextButton", top)
+closeBtn.Text = "X"
+closeBtn.Size = UDim2.new(0, 30, 1, 0)
+closeBtn.Position = UDim2.new(1, -35, 0, 0)
+closeBtn.Font = Enum.Font.Gotham
+closeBtn.TextSize = 16
+closeBtn.BackgroundTransparency = 1
+closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+local minBtn = Instance.new("TextButton", top)
+minBtn.Text = "-"
+minBtn.Size = UDim2.new(0, 30, 1, 0)
+minBtn.Position = UDim2.new(1, -70, 0, 0)
+minBtn.Font = Enum.Font.Gotham
+minBtn.TextSize = 20
+minBtn.BackgroundTransparency = 1
+minBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+local scroll = Instance.new("ScrollingFrame", main)
+scroll.Size = UDim2.new(1, -20, 1, -50)
+scroll.Position = UDim2.new(0, 10, 0, 45)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 6
+scroll.CanvasSize = UDim2.new(0, 0, 0, #data * 130)
+local layout = Instance.new("UIListLayout", scroll)
+layout.Padding = UDim.new(0, 10)
+for _, b in ipairs(data) do
+  local f = Instance.new("Frame", scroll)
+  f.Size = UDim2.new(1, 0, 0, 120)
+  f.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+  f.BackgroundTransparency = 0.4
+  local fc = Instance.new("UICorner", f)
+  fc.CornerRadius = UDim.new(0, 10)
+  local img = Instance.new("ImageLabel", f)
+  img.Size = UDim2.new(0, 100, 0, 100)
+  img.Position = UDim2.new(0, 10, 0, 10)
+  img.Image = "rbxthumb://type=Asset&id="..b.icon.."&w=420&h=420"
+  img.BackgroundTransparency = 1
+  local title = Instance.new("TextLabel", f)
+  title.Position = UDim2.new(0, 120, 0, 10)
+  title.Size = UDim2.new(1, -130, 0, 25)
+  title.Text = b.name
+  title.TextColor3 = Color3.fromRGB(255, 255, 255)
+  title.Font = Enum.Font.GothamSemibold
+  title.TextSize = 18
+  title.BackgroundTransparency = 1
+  title.TextXAlignment = Enum.TextXAlignment.Left
+  local desc = Instance.new("TextLabel", f)
+  desc.Position = UDim2.new(0, 120, 0, 35)
+  desc.Size = UDim2.new(1, -130, 0, 30)
+  desc.Text = b.desc
+  desc.TextWrapped = true
+  desc.TextColor3 = Color3.fromRGB(200, 200, 200)
+  desc.Font = Enum.Font.Gotham
+  desc.TextSize = 14
+  desc.BackgroundTransparency = 1
+  desc.TextXAlignment = Enum.TextXAlignment.Left
+  local stat = Instance.new("TextLabel", f)
+  stat.Position = UDim2.new(0, 120, 0, 65)
+  stat.Size = UDim2.new(1, -130, 0, 50)
+  stat.Text = string.format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
+  stat.TextColor3 = Color3.fromRGB(160, 160, 160)
+  stat.Font = Enum.Font.Gotham
+  stat.TextSize = 13
+  stat.TextWrapped = true
+  stat.BackgroundTransparency = 1
+  stat.TextXAlignment = Enum.TextXAlignment.Left
+end
+closeBtn.MouseButton1Click:Connect(function()
+local tween = TweenService:Create(main, TweenInfo.new(0.4), {
+Size = UDim2.new(0, 0, 0, 0),
+Position = UDim2.new(0.5, 0, 0.5, 0)
+})
+tween:Play()
+tween.Completed:Wait()
+sgui:Destroy()
+end)
+local minimized = false
+minBtn.MouseButton1Click:Connect(function()
+local target = minimized and UDim2.new(0, 600, 0, 500) or UDim2.new(0, 600, 0, 40)
+local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
+tween:Play()
+minimized = not minimized
+end)
+end
+local ok, result = pcall(getBadges)
+if ok then
+  createBadgeUI(result)
+else
+  DoNotif("Failed to fetch badge data")
+end
 end)
 
 cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <number> (btransparency,bodyt)", "Sets LocalTransparencyModifier of bodyparts to whatever number you put (0-1)"}, function(v)
