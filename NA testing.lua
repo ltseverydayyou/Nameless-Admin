@@ -9918,7 +9918,7 @@ local sgui = InstanceNew("ScreenGui")
 NaProtectUI(sgui)
 sgui.Name = "BadgeViewer"
 local main = InstanceNew("Frame", sgui)
-main.Size = UDim2.new(0.3,0,0.5,0)
+main.Size = UDim2.new(0.5,0,0.7,0)
 main.Position = UDim2.new(0.25, 0, 0.2, 0)
 main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main.BackgroundTransparency = 0.2
@@ -10022,7 +10022,7 @@ sgui:Destroy()
 end)
 local minimized = false
 minBtn.MouseButton1Click:Connect(function()
-local target = minimized and UDim2.new(0.3,0,0.5,0) or UDim2.new(0.3,0,0.05,0)
+local target = minimized and UDim2.new(0.5,0,0.7,0) or UDim2.new(0.5,0,0.07,0)
 local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
 tween:Play()
 minimized = not minimized
