@@ -2183,7 +2183,7 @@ local function LoadPlugins()
 	end
 
 	if #loadedSummaries > 0 then
-		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n"), 6)
+		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 6)
 	end
 end
 
