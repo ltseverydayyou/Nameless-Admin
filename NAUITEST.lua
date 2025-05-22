@@ -126,6 +126,20 @@ local Filter_2 = Instance.new("TextBox")
 local UICorner_34 = Instance.new("UICorner")
 local UICorner_35 = Instance.new("UICorner")
 local UIGradient_14 = Instance.new("UIGradient")
+local PluginManager = Instance.new("Frame")
+local UICorner_PM = Instance.new("UICorner")
+local Topbar_PM = Instance.new("Frame")
+local Title_PM = Instance.new("TextLabel")
+local Minimize_PM = Instance.new("TextButton")
+local UICorner_Min_PM = Instance.new("UICorner")
+local Exit_PM = Instance.new("TextButton")
+local UICorner_Exit_PM = Instance.new("UICorner")
+local Container_PM = Instance.new("Frame")
+local List_PM = Instance.new("ScrollingFrame")
+local UIListLayout_PM = Instance.new("UIListLayout")
+local Filter_PM = Instance.new("TextBox")
+local UICorner_Filter_PM = Instance.new("UICorner")
+local UIGradient_PM = Instance.new("UIGradient")
 
 AdminUI.Name = "AdminUI"
 AdminUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -977,5 +991,112 @@ UICorner_35.Parent = soRealConsole
 
 UIGradient_14.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.38, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.68, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
 UIGradient_14.Parent = soRealConsole
+
+PluginManager.Name = "PluginManager"
+PluginManager.Parent = AdminUI
+PluginManager.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+PluginManager.BackgroundTransparency = 0.4
+PluginManager.BorderSizePixel = 0
+PluginManager.ClipsDescendants = false
+PluginManager.Position = UDim2.new(0.37, 0, 0.05, 0)
+PluginManager.Size = UDim2.new(0, 280, 0, 320)
+
+UICorner_PM.Parent = PluginManager
+
+Topbar_PM.Name = "Topbar"
+Topbar_PM.Parent = PluginManager
+Topbar_PM.BackgroundTransparency = 1.000
+Topbar_PM.BorderSizePixel = 0
+Topbar_PM.Size = UDim2.new(1, 0, 0, 30)
+Topbar_PM.ZIndex = 10
+
+Title_PM.Name = "Title"
+Title_PM.Parent = Topbar_PM
+Title_PM.BackgroundTransparency = 1.000
+Title_PM.Position = UDim2.new(0, 10, 0, 0)
+Title_PM.Size = UDim2.new(1, -100, 1, 0)
+Title_PM.Font = Enum.Font.GothamBold
+Title_PM.Text = "Plugins"
+Title_PM.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title_PM.TextScaled = true
+Title_PM.TextSize = 20.000
+Title_PM.TextWrapped = true
+Title_PM.TextXAlignment = Enum.TextXAlignment.Left
+
+Minimize_PM.Name = "Minimize"
+Minimize_PM.Parent = Topbar_PM
+Minimize_PM.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+Minimize_PM.BackgroundTransparency = 0.300
+Minimize_PM.Position = UDim2.new(1, -70, 0, 0)
+Minimize_PM.Size = UDim2.new(0, 30, 0, 30)
+Minimize_PM.Font = Enum.Font.GothamBold
+Minimize_PM.Text = "-"
+Minimize_PM.TextColor3 = Color3.fromRGB(10, 10, 10)
+Minimize_PM.TextSize = 18.000
+
+UICorner_Min_PM.CornerRadius = UDim.new(0, 6)
+UICorner_Min_PM.Parent = Minimize_PM
+
+Exit_PM.Name = "Exit"
+Exit_PM.Parent = Topbar_PM
+Exit_PM.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+Exit_PM.BackgroundTransparency = 0.300
+Exit_PM.Position = UDim2.new(1, -35, 0, 0)
+Exit_PM.Size = UDim2.new(0, 30, 0, 30)
+Exit_PM.Font = Enum.Font.GothamBold
+Exit_PM.Text = "X"
+Exit_PM.TextColor3 = Color3.fromRGB(10, 10, 10)
+Exit_PM.TextSize = 18.000
+
+UICorner_Exit_PM.CornerRadius = UDim.new(0, 6)
+UICorner_Exit_PM.Parent = Exit_PM
+
+Container_PM.Name = "Container"
+Container_PM.Parent = PluginManager
+Container_PM.BackgroundTransparency = 1.000
+Container_PM.Position = UDim2.new(0, 10, 0, 35)
+Container_PM.Size = UDim2.new(1, -20, 1, -40)
+
+Filter_PM.Name = "Filter"
+Filter_PM.Parent = Container_PM
+Filter_PM.AnchorPoint = Vector2.new(0.5, 0)
+Filter_PM.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
+Filter_PM.BackgroundTransparency = 0.7
+Filter_PM.BorderSizePixel = 0
+Filter_PM.Position = UDim2.new(0.5, 0, 0, 5)
+Filter_PM.Size = UDim2.new(1, -10, 0, 20)
+Filter_PM.Font = Enum.Font.SourceSans
+Filter_PM.PlaceholderColor3 = Color3.fromRGB(124, 124, 124)
+Filter_PM.PlaceholderText = "Filter plugins..."
+Filter_PM.Text = ""
+Filter_PM.TextColor3 = Color3.fromRGB(229, 229, 229)
+Filter_PM.TextSize = 18.000
+
+UICorner_Filter_PM.CornerRadius = UDim.new(0, 9)
+UICorner_Filter_PM.Parent = Filter_PM
+
+List_PM.Name = "List"
+List_PM.Parent = Container_PM
+List_PM.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+List_PM.BackgroundTransparency = 1.000
+List_PM.BorderSizePixel = 0
+List_PM.Position = UDim2.new(0, 5, 0, 30)
+List_PM.Size = UDim2.new(1, -10, 1, -35)
+List_PM.BottomImage = "rbxgameasset://Images/scrollBottom (1)"
+List_PM.MidImage = "rbxgameasset://Images/scrollMid"
+List_PM.ScrollBarThickness = 4
+List_PM.TopImage = "rbxgameasset://Images/scrollTop"
+List_PM.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+UIListLayout_PM.Parent = List_PM
+UIListLayout_PM.Padding = UDim.new(0, 4)
+UIListLayout_PM.SortOrder = Enum.SortOrder.LayoutOrder
+
+UIGradient_PM.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)),
+	ColorSequenceKeypoint.new(0.50, Color3.fromRGB(4, 4, 4)),
+	ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))
+}
+UIGradient_PM.Parent = PluginManager
 
 return AdminUI
