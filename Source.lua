@@ -9878,7 +9878,7 @@ repeat
   end
   local body = HttpService:JSONDecode(res.Body)
   for _, b in ipairs(body.data or {}) do
-    table.insert(all, {
+    Insert(all, {
     id = b.id,
     name = b.name,
     desc = b.displayDescription or b.description or "",
@@ -9894,12 +9894,12 @@ until cursor == ""
 return all
 end
 local function createBadgeUI(data)
-local sgui = Instance.new("ScreenGui")
+local sgui = InstanceNew("ScreenGui")
 NaProtectUI(sgui)
 sgui.Name = "BadgeViewer"
-local main = Instance.new("Frame", sgui)
-main.Size = UDim2.new(0, 600, 0, 500)
-main.Position = UDim2.new(0.5, -300, 0.5, -250)
+local main = InstanceNew("Frame", sgui)
+main.Size = UDim2.new(0.3,0,0.5,0)
+main.Position = UDim2.new(0.25, 0, 0.2, 0)
 main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main.BackgroundTransparency = 0.2
 main.BorderSizePixel = 0
@@ -9908,15 +9908,15 @@ main.Active = true
 main.Visible = true
 main.Name = "Main"
 main:ClearAllChildren()
-local uicorner = Instance.new("UICorner", main)
+local uicorner = InstanceNew("UICorner", main)
 uicorner.CornerRadius = UDim.new(0, 16)
-local top = Instance.new("Frame", main)
+local top = InstanceNew("Frame", main)
 top.Size = UDim2.new(1, 0, 0, 40)
 top.BackgroundTransparency = 0.3
 top.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-local topCorner = Instance.new("UICorner", top)
+local topCorner = InstanceNew("UICorner", top)
 topCorner.CornerRadius = UDim.new(0, 12)
-local title = Instance.new("TextLabel", top)
+local title = InstanceNew("TextLabel", top)
 title.Size = UDim2.new(1, -80, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.Text = "Badge Viewer"
@@ -9925,7 +9925,7 @@ title.TextSize = 20
 title.TextColor3 = Color3.fromRGB(240, 240, 240)
 title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
-local closeBtn = Instance.new("TextButton", top)
+local closeBtn = InstanceNew("TextButton", top)
 closeBtn.Text = "X"
 closeBtn.Size = UDim2.new(0, 30, 1, 0)
 closeBtn.Position = UDim2.new(1, -35, 0, 0)
@@ -9933,7 +9933,7 @@ closeBtn.Font = Enum.Font.Gotham
 closeBtn.TextSize = 16
 closeBtn.BackgroundTransparency = 1
 closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-local minBtn = Instance.new("TextButton", top)
+local minBtn = InstanceNew("TextButton", top)
 minBtn.Text = "-"
 minBtn.Size = UDim2.new(0, 30, 1, 0)
 minBtn.Position = UDim2.new(1, -70, 0, 0)
@@ -9941,27 +9941,27 @@ minBtn.Font = Enum.Font.Gotham
 minBtn.TextSize = 20
 minBtn.BackgroundTransparency = 1
 minBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-local scroll = Instance.new("ScrollingFrame", main)
+local scroll = InstanceNew("ScrollingFrame", main)
 scroll.Size = UDim2.new(1, -20, 1, -50)
 scroll.Position = UDim2.new(0, 10, 0, 45)
 scroll.BackgroundTransparency = 1
 scroll.ScrollBarThickness = 6
 scroll.CanvasSize = UDim2.new(0, 0, 0, #data * 130)
-local layout = Instance.new("UIListLayout", scroll)
+local layout = InstanceNew("UIListLayout", scroll)
 layout.Padding = UDim.new(0, 10)
 for _, b in ipairs(data) do
-  local f = Instance.new("Frame", scroll)
+  local f = InstanceNew("Frame", scroll)
   f.Size = UDim2.new(1, 0, 0, 120)
   f.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
   f.BackgroundTransparency = 0.4
-  local fc = Instance.new("UICorner", f)
+  local fc = InstanceNew("UICorner", f)
   fc.CornerRadius = UDim.new(0, 10)
-  local img = Instance.new("ImageLabel", f)
+  local img = InstanceNew("ImageLabel", f)
   img.Size = UDim2.new(0, 100, 0, 100)
   img.Position = UDim2.new(0, 10, 0, 10)
   img.Image = "rbxthumb://type=Asset&id="..b.icon.."&w=420&h=420"
   img.BackgroundTransparency = 1
-  local title = Instance.new("TextLabel", f)
+  local title = InstanceNew("TextLabel", f)
   title.Position = UDim2.new(0, 120, 0, 10)
   title.Size = UDim2.new(1, -130, 0, 25)
   title.Text = b.name
@@ -9970,7 +9970,7 @@ for _, b in ipairs(data) do
   title.TextSize = 18
   title.BackgroundTransparency = 1
   title.TextXAlignment = Enum.TextXAlignment.Left
-  local desc = Instance.new("TextLabel", f)
+  local desc = InstanceNew("TextLabel", f)
   desc.Position = UDim2.new(0, 120, 0, 35)
   desc.Size = UDim2.new(1, -130, 0, 30)
   desc.Text = b.desc
@@ -9980,10 +9980,10 @@ for _, b in ipairs(data) do
   desc.TextSize = 14
   desc.BackgroundTransparency = 1
   desc.TextXAlignment = Enum.TextXAlignment.Left
-  local stat = Instance.new("TextLabel", f)
+  local stat = InstanceNew("TextLabel", f)
   stat.Position = UDim2.new(0, 120, 0, 65)
   stat.Size = UDim2.new(1, -130, 0, 50)
-  stat.Text = string.format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
+  stat.Text = Format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
   stat.TextColor3 = Color3.fromRGB(160, 160, 160)
   stat.Font = Enum.Font.Gotham
   stat.TextSize = 13
@@ -10002,12 +10002,12 @@ sgui:Destroy()
 end)
 local minimized = false
 minBtn.MouseButton1Click:Connect(function()
-local target = minimized and UDim2.new(0, 600, 0, 500) or UDim2.new(0, 600, 0, 40)
+local target = minimized and UDim2.new(0.3,0,0.5,0) or UDim2.new(0.3,0,0.05,0)
 local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
 tween:Play()
 minimized = not minimized
 end)
-gui.draggablev2(main, top)
+gui.draggable(main, top)
 end
 local ok, result = pcall(getBadges)
 if ok then
