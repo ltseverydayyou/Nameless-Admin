@@ -832,6 +832,7 @@ Description.Font = Enum.Font.SourceSansItalic
 Description.Text = "Name"
 Description.TextColor3 = Color3.fromRGB(255, 255, 255)
 Description.TextSize = 13.000
+Description.TextScaled = true
 Description.TextWrapped = true
 
 UICorner_6.Parent = Description
