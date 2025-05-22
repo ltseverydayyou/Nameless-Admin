@@ -2101,8 +2101,7 @@ local function LoadPlugins()
 		return formatted
 	end
 
-	local loadedPluginCount = 0
-	local loadedPluginNames = {}
+	local loadedSummaries = {}
 
 	local files = listfiles(NAPLUGINFILEPATH)
 
@@ -2112,32 +2111,56 @@ local function LoadPlugins()
 			if success and content then
 				local func, loadErr = loadstring(content)
 				if func then
-					cmdPluginAdd = nil
+					local collectedPlugins = {}
+
+					local proxyEnv = {}
+					local baseEnv = getfenv()
+
+					setmetatable(proxyEnv, {
+						__index = baseEnv,
+						__newindex = function(_, k, v)
+							if k == "cmdPluginAdd" and type(v) == "table" then
+								Insert(collectedPlugins, v)
+							else
+								rawset(baseEnv, k, v)
+							end
+						end
+					})
+
+					setfenv(func, proxyEnv)
 
 					local ok, execErr = pcall(func)
-					if ok and type(cmdPluginAdd) == "table" then
-						local aliases = cmdPluginAdd.Aliases
-						local handler = cmdPluginAdd.Function
+					if ok then
+						local fileCommandNames = {}
 
-						if type(aliases) == "table" and type(handler) == "function" then
-							local argsHint = cmdPluginAdd.ArgsHint or ""
-							local formattedDisplay = formatInfo(aliases, argsHint)
-							local info = {
-								formattedDisplay,
-								cmdPluginAdd.Info or "No description"
-							}
+						for _, plugin in ipairs(collectedPlugins) do
+							local aliases = plugin.Aliases
+							local handler = plugin.Function
 
-							cmd.add(
-								aliases,
-								info,
-								handler,
-								cmdPluginAdd.RequiresArguments or false
-							)
+							if type(aliases) == "table" and type(handler) == "function" then
+								local argsHint = plugin.ArgsHint or ""
+								local formattedDisplay = formatInfo(aliases, argsHint)
+								local info = {
+									formattedDisplay,
+									plugin.Info or "No description"
+								}
 
-							loadedPluginCount += 1
-							Insert(loadedPluginNames, aliases[1])
-						else
-							DoNotif("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+								cmd.add(
+									aliases,
+									info,
+									handler,
+									plugin.RequiresArguments or false
+								)
+
+								Insert(fileCommandNames, aliases[1])
+							else
+								DoNotif("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+							end
+						end
+
+						if #fileCommandNames > 0 then
+							local fileName = file:match("[^\\/]+$") or file
+							Insert(loadedSummaries, fileName.." ("..Concat(fileCommandNames, ", ")..")")
 						end
 					else
 						DoNotif("[Plugin Error] '"..file.."' => "..tostring(execErr))
@@ -2151,8 +2174,8 @@ local function LoadPlugins()
 		end
 	end
 
-	if loadedPluginCount > 0 then
-		DoNotif("Loaded "..loadedPluginCount.." plugin(s):\n\n"..Concat(loadedPluginNames, ",\n"),6)
+	if #loadedSummaries > 0 then
+		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n"), 6)
 	end
 end
 
