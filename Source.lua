@@ -2119,8 +2119,16 @@ local function LoadPlugins()
 					setmetatable(proxyEnv, {
 						__index = baseEnv,
 						__newindex = function(_, k, v)
-							if k == "cmdPluginAdd" and type(v) == "table" then
-								Insert(collectedPlugins, v)
+							if k == "cmdPluginAdd" then
+								if type(v) == "table" then
+									if v[1] and type(v[1]) == "table" then
+										for _, sub in ipairs(v) do
+											Insert(collectedPlugins, sub)
+										end
+									else
+										Insert(collectedPlugins, v)
+									end
+								end
 							else
 								rawset(baseEnv, k, v)
 							end
