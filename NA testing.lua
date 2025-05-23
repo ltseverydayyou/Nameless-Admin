@@ -100,7 +100,7 @@ local function maybeMock(text)
 	return isAprilFools() and MockText(text) or text
 end
 
-function randomString()
+function rStringgg()
 	local length = math.random(10, 20)
 	local result = {}
 	local glitchMarks = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
@@ -138,10 +138,10 @@ end
 function NAProtection(inst,var)
 	if inst then
 		if var then
-			inst[var]=randomString()
+			inst[var]="\0"
 			inst.Archivable=false
 		else
-			inst.Name=randomString()
+			inst.Name="\0"
 			inst.Archivable=false
 		end
 	end
@@ -188,7 +188,7 @@ end
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent=p end
-	inst.Name = randomString()
+	inst.Name = '\0'
 	return inst
 end
 
@@ -349,6 +349,7 @@ local githubUrl = ''
 local loader=''
 local NAUILOADER=''
 local NAimageButton=nil
+local NAAUTOSCALER=nil
 
 if getgenv().NATestingVer then
 	loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))();]]
@@ -404,6 +405,7 @@ NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints"
 NAPLUGINFILEPATH = "Nameless-Admin/Plugins"
 NAPREFIXPATH = "Nameless-Admin/Prefix.txt"
 NAIMAGEBUTTONSIZEPATH = "Nameless-Admin/ImageButtonSize.txt"
+NAUISIZEPATH = "Nameless-Admin/UIScale.txt"
 NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt"
 NAALIASPATH = "Nameless-Admin/Aliases.json"
 NAICONPOSPATH = "Nameless-Admin/IconPosition.json"
@@ -437,6 +439,10 @@ if FileSupport then
 		writefile(NAIMAGEBUTTONSIZEPATH, "1")
 	end
 
+	if not isfile(NAUISIZEPATH) then
+		writefile(NAUISIZEPATH, "1")
+	end
+
 	if not isfile(NAQOTPATH) then
 		writefile(NAQOTPATH, "false")
 	end
@@ -468,6 +474,7 @@ end
 
 local prefixCheck = ";"
 local NAScale = 1
+local NAUIScale = 1
 NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAREQUEST = request or http_request or (syn and syn.request) or function() end
@@ -475,6 +482,7 @@ NAREQUEST = request or http_request or (syn and syn.request) or function() end
 if FileSupport then
 	prefixCheck = readfile(NAPREFIXPATH)
 	NAsavedScale = tonumber(readfile(NAIMAGEBUTTONSIZEPATH))
+	NAUISavedScale = tonumber(readfile(NAUISIZEPATH))
 	NAQoTEnabled = readfile(NAQOTPATH) == "true"
 	doPREDICTION = readfile(NAPREDICTIONPATH) == "true"
 
@@ -494,6 +502,14 @@ if FileSupport then
 		NAScale = 1
 		writefile(NAIMAGEBUTTONSIZEPATH, "1")
 		DoNotif("ImageButton size has been reset to default due to invalid data.")
+	end
+
+	if NAUISavedScale and NAUISavedScale > 0 then
+		NAUIScale = NAUISavedScale
+	else
+		NAUIScale = 1
+		writefile(NAUISIZEPATH, "1")
+		DoNotif("UI Scale has been reset to default due to invalid data.")
 	end
 
 	if isfile(NAICONPOSPATH) then
@@ -1781,7 +1797,7 @@ local flyMobile, MobileWeld = nil, nil
 function mobilefly(speed, vfly)
 	local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	if flyMobile then flyMobile:Destroy() end
-	flyMobile = InstanceNew("Part", SafeGetService("Workspace").CurrentCamera)
+	flyMobile = InstanceNew("Part", SafeGetService("Workspace"))
 	flyMobile.Size, flyMobile.CanCollide = Vector3.new(0.05, 0.05, 0.05), false
 	if MobileWeld then MobileWeld:Destroy() end
 	MobileWeld = InstanceNew("Weld", flyMobile)
@@ -1937,7 +1953,7 @@ function sFLY(vfly, cfly)
 
 	local Camera = SafeGetService("Workspace").CurrentCamera
 
-	goofyFLY = InstanceNew("Part", Camera)
+	goofyFLY = InstanceNew("Part", SafeGetService("Workspace"))
 	goofyFLY.Size = Vector3.new(0.05, 0.05, 0.05)
 	goofyFLY.Transparency = 1
 	goofyFLY.CanCollide = false
@@ -3103,6 +3119,137 @@ end)
 	require(ChatService.ClientChatModules.ChatSettings).WindowResizable=true
 	require(ChatService.ClientChatModules.ChatSettings).WindowDraggable=true
 end)]]
+
+local scaleFrame = nil
+cmd.add({"uiscale", "uscale"}, {"uiscale", "Adjust the scale of the "..adminName.." UI"}, function()
+	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
+	scaleFrame = InstanceNew("ScreenGui")
+	local frame = InstanceNew("Frame")
+	local frameCorner = InstanceNew("UICorner")
+	local slider = InstanceNew("Frame")
+	local sliderCorner = InstanceNew("UICorner")
+	local progress = InstanceNew("Frame")
+	local progressCorner = InstanceNew("UICorner")
+	local knob = InstanceNew("TextButton")
+	local knobCorner = InstanceNew("UICorner")
+	local label = InstanceNew("TextLabel")
+	local closeButton = InstanceNew("TextButton")
+	local closeCorner = InstanceNew("UICorner")
+
+	local sizeRange = {0.5, 2.5}
+	local minSize, maxSize = sizeRange[1], sizeRange[2]
+
+	NaProtectUI(scaleFrame)
+	frame.Parent = scaleFrame
+	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	frame.Size = UDim2.new(0, 400, 0, 120)
+	frame.Position = UDim2.new(0.5,-283/2+5,0.5,-260/2+5)
+	frame.BorderSizePixel = 0
+	frame.BackgroundTransparency = 0.05
+
+	frameCorner.CornerRadius = UDim.new(0.1, 0)
+	frameCorner.Parent = frame
+
+	slider.Parent = frame
+	slider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	slider.Size = UDim2.new(0.8, 0, 0.2, 0)
+	slider.Position = UDim2.new(0.1, 0, 0.5, 0)
+	slider.AnchorPoint = Vector2.new(0, 0.5)
+	slider.BorderSizePixel = 0
+
+	sliderCorner.CornerRadius = UDim.new(0.5, 0)
+	sliderCorner.Parent = slider
+
+	progress.Parent = slider
+	progress.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+	progress.Size = UDim2.new((NAUIScale - minSize) / (maxSize - minSize), 0, 1, 0)
+	progress.BorderSizePixel = 0
+
+	progressCorner.CornerRadius = UDim.new(0.5, 0)
+	progressCorner.Parent = progress
+
+	knob.Parent = slider
+	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	knob.Size = UDim2.new(0, 25, 1.5, 0)
+	knob.Position = UDim2.new((NAUIScale - minSize) / (maxSize - minSize), 0, -0.25, 0)
+	knob.Text = ""
+	knob.BorderSizePixel = 0
+	knob.AutoButtonColor = false
+
+	knobCorner.CornerRadius = UDim.new(1, 0)
+	knobCorner.Parent = knob
+
+	label.Parent = frame
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 0.3, 0)
+	label.Position = UDim2.new(0, 0, 0.1, 0)
+	label.Text = "Scale: "..Format("%.2f", NAUIScale)
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.Font = Enum.Font.Gotham
+	label.TextSize = 18
+	label.TextXAlignment = Enum.TextXAlignment.Center
+
+	closeButton.Parent = frame
+	closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	closeButton.Size = UDim2.new(0, 30, 0, 30)
+	closeButton.Position = UDim2.new(1, -40, 0, 10)
+	closeButton.Text = "X"
+	closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeButton.Font = Enum.Font.Gotham
+	closeButton.TextSize = 14
+	closeButton.BorderSizePixel = 0
+
+	closeCorner.CornerRadius = UDim.new(0.5, 0)
+	closeCorner.Parent = closeButton
+
+	local function update(scale)
+		NAAUTOSCALER.Scale = scale
+		progress.Size = UDim2.new((scale - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
+		knob.Position = UDim2.new((scale - minSize) / (maxSize - minSize), 0, -0.25, 0)
+		label.Text = "Scale: "..Format("%.2f", scale)
+	end
+
+	update(NAUIScale)
+
+	local dragging = false
+	local dragInput
+	local sliderStart, sliderWidth
+
+	local UserInputService = UserInputService
+	local RunService = RunService
+
+	knob.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			sliderStart = slider.AbsolutePosition.X
+			sliderWidth = slider.AbsoluteSize.X
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+					if FileSupport then
+							writefile(NAUISIZEPATH, tostring(NAUIScale))
+					end
+				end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			local mouseX = input.Position.X
+			local relativePosition = (mouseX - sliderStart) / sliderWidth
+			local newScale = math.clamp(relativePosition, 0, 1) * (maxSize - minSize) + minSize
+			NAUIScale = math.clamp(newScale, minSize, maxSize)
+			update(NAUIScale)
+		end
+	end)
+
+	MouseButtonFix(closeButton,function()
+		scaleFrame:Destroy()
+	end)
+
+	gui.draggablev2(frame)
+end)
 
 cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(...)
 	local newPrefix = (...)
@@ -8961,7 +9108,7 @@ function toggleTFly()
 		local speed = TflySpeed
 		local Humanoid = getHum()
 
-		tflyCORE = InstanceNew("Part", SafeGetService("Workspace").CurrentCamera)
+		tflyCORE = InstanceNew("Part", SafeGetService("Workspace"))
 		tflyCORE:SetAttribute("tflyPart", true)
 		tflyCORE.Size = Vector3.new(0.05, 0.05, 0.05)
 		tflyCORE.CanCollide = false
@@ -9158,7 +9305,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 								platformPart.CanCollide = true
 								platformPart.Transparency = 1
 								platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
-								platformPart.Parent = SafeGetService("Workspace").CurrentCamera
+								platformPart.Parent = SafeGetService("Workspace")
 								root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
 								if not toldNotif then
 									toldNotif = true
@@ -10158,7 +10305,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	part.Transparency = 1
 	part.Anchored = false
 	part.CanCollide = false
-	part.Parent = SafeGetService("Workspace").CurrentCamera
+	part.Parent = SafeGetService("Workspace")
 
 	local weld = InstanceNew("Weld")
 	weld.Part0 = part
@@ -10374,7 +10521,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		return element
 	end
 
-	local ScreenGui = createUIElement("ScreenGui", { Name = randomString() })
+	local ScreenGui = createUIElement("ScreenGui", { Name = '\0' })
 	NaProtectUI(ScreenGui)
 
 	local background = createUIElement("Frame", {
@@ -12024,7 +12171,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 			part.Anchored = true
 			part.CanCollide = true
 			part.Transparency = 1
-			part.Parent = SafeGetService("Workspace").CurrentCamera
+			part.Parent = SafeGetService("Workspace")
 			Insert(platformParts, part)
 		end
 
@@ -12195,7 +12342,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(standParts, part)
 	end
 
@@ -12856,7 +13003,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(bangParts, part)
 	end
 	local bangOffset = CFrame.new(0, 1, -1.1)
@@ -12949,7 +13096,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(jerkParts, part)
 	end
 
@@ -13078,7 +13225,7 @@ cmd.add({"suck", "dicksuck"}, {"suck <player> <number> (dicksuck)", "suck it"}, 
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(SUCKYSUCKY, part)
 	end
 
@@ -13287,7 +13434,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(BANGPARTS, part)
 	end
 
@@ -13416,7 +13563,7 @@ cmd.add({"inversebang", "ibang", "inverseb"}, {"inversebang <player> <number> (i
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace").CurrentCamera
+		part.Parent = SafeGetService("Workspace")
 		Insert(INVERSEBANGPARTS, part)
 	end
 
@@ -13689,7 +13836,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Anchored = true
 							part.CanCollide = true
 							part.Transparency = 1
-							part.Parent = SafeGetService("Workspace").CurrentCamera
+							part.Parent = SafeGetService("Workspace")
 							table.insert(huggiePARTS, part)
 						end
 						lib.connect("hug_plat", RunService.Heartbeat:Connect(function()
@@ -14265,7 +14412,7 @@ cmd.add({"spin"}, {"spin {amount}", "Makes your character spin as fast as you wa
 	spinPart.CanCollide = false
 	spinPart.Transparency = 1
 	spinPart.Size = Vector3.new(1, 1, 1)
-	spinPart.Parent = SafeGetService("Workspace").CurrentCamera
+	spinPart.Parent = SafeGetService("Workspace")
 	spinPart.CFrame = getRoot(LocalPlayer.Character).CFrame
 
 	spinThingy = InstanceNew("BodyAngularVelocity")
@@ -17255,6 +17402,8 @@ if resizeFrame then
 	resizeFrame.Parent = nil
 end
 
+NAAUTOSCALER = AUTOSCALER
+
 	--[[pcall(function()
 		for i,v in pairs(NASCREENGUI:GetDescendants()) do
 			coreGuiProtection[v]=rPlayer.Name
@@ -17387,138 +17536,208 @@ gui.resizeable = function(ui, min, max)
 	local lastPos = Vector2.new()
 
 	local function updateResize(currentPos)
-		if not dragging or not mode then return end
+		local success, err = pcall(function()
+			if not dragging or not mode then return end
 
-		local xy = resizeXY[mode.Name]
-		if not xy then return end
+			local xy = resizeXY[mode.Name]
+			if not xy then return end
 
-		local parentSize = screenGui.AbsoluteSize
-		local delta = (currentPos - lastPos) / scale
+			local parentSize = screenGui.AbsoluteSize
+			local delta = (currentPos - lastPos) / scale
 
-		local resizeDelta = Vector2.new(
-			delta.X * xy[1].X,
-			delta.Y * xy[1].Y
-		)
+			local resizeDelta = Vector2.new(
+				delta.X * xy[1].X,
+				delta.Y * xy[1].Y
+			)
 
-		local newSize = Vector2.new(
-			math.clamp(lastSize.X + resizeDelta.X, min.X, max.X),
-			math.clamp(lastSize.Y + resizeDelta.Y, min.Y, max.Y)
-		)
+			local newSize = Vector2.new(
+				math.clamp(lastSize.X + resizeDelta.X, min.X, max.X),
+				math.clamp(lastSize.Y + resizeDelta.Y, min.Y, max.Y)
+			)
 
-		ui.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
+			ui.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
 
-		local deltaXScale = (lastSize.X - newSize.X) / parentSize.X
-		local deltaYScale = (lastSize.Y - newSize.Y) / parentSize.Y
+			local deltaXScale = (lastSize.X - newSize.X) / parentSize.X
+			local deltaYScale = (lastSize.Y - newSize.Y) / parentSize.Y
 
-		local newXScale = UIPos.X.Scale
-		local newYScale = UIPos.Y.Scale
+			local newXScale = UIPos.X.Scale
+			local newYScale = UIPos.Y.Scale
 
-		if xy[1].X < 0 then
-			newXScale = newXScale + deltaXScale
+			if xy[1].X < 0 then
+				newXScale = newXScale + deltaXScale
+			end
+
+			if xy[1].Y < 0 then
+				newYScale = newYScale + deltaYScale
+			end
+
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+
+		if not success then
+			warn("Resize update failed:", err)
 		end
-
-		if xy[1].Y < 0 then
-			newYScale = newYScale + deltaYScale
-		end
-
-		ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
 	end
 
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			updateResize(Vector2.new(input.Position.X, input.Position.Y))
-		end
+	pcall(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					updateResize(Vector2.new(input.Position.X, input.Position.Y))
+				end
+			end)
+			if not success then warn("InputChanged error:", err) end
+		end)
 	end)
 
-	UserInputService.InputEnded:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-			dragging = false
-			mode = nil
-			if mouse and mouse.Icon ~= "" then
-				mouse.Icon = ""
-			end
-		end
+	pcall(function()
+		UserInputService.InputEnded:Connect(function(input)
+			local success, err = pcall(function()
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+					dragging = false
+					mode = nil
+					if mouse and mouse.Icon ~= "" then
+						mouse.Icon = ""
+					end
+				end
+			end)
+			if not success then warn("InputEnded error:", err) end
+		end)
 	end)
 
 	for _, button in pairs(rgui:GetChildren()) do
-		button.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				mode = button
-				dragging = true
-				local currentPos = input.Position
-				lastPos = Vector2.new(currentPos.X, currentPos.Y)
-				lastSize = ui.AbsoluteSize
-				UIPos = ui.Position
-			end
+		pcall(function()
+			button.InputBegan:Connect(function(input)
+				local success, err = pcall(function()
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						mode = button
+						dragging = true
+						local currentPos = input.Position
+						lastPos = Vector2.new(currentPos.X, currentPos.Y)
+						lastSize = ui.AbsoluteSize
+						UIPos = ui.Position
+					end
+				end)
+				if not success then warn("InputBegan error:", err) end
+			end)
 		end)
 
-		button.InputEnded:Connect(function(input)
-			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
-				dragging = false
-				mode = nil
-				if mouse and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
-					mouse.Icon = ""
-				end
-			end
+		pcall(function()
+			button.InputEnded:Connect(function(input)
+				local success, err = pcall(function()
+					if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
+						dragging = false
+						mode = nil
+						if mouse and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+							mouse.Icon = ""
+						end
+					end
+				end)
+				if not success then warn("InputEnded error:", err) end
+			end)
 		end)
 
-		button.MouseEnter:Connect(function()
-			if resizeXY[button.Name] and mouse then
-				mouse.Icon = resizeXY[button.Name][3]
-			end
+		pcall(function()
+			button.MouseEnter:Connect(function()
+				local success, err = pcall(function()
+					if resizeXY[button.Name] and mouse then
+						mouse.Icon = resizeXY[button.Name][3]
+					end
+				end)
+				if not success then warn("MouseEnter error:", err) end
+			end)
 		end)
 
-		button.MouseLeave:Connect(function()
-			if not dragging and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
-				mouse.Icon = ""
-			end
+		pcall(function()
+			button.MouseLeave:Connect(function()
+				local success, err = pcall(function()
+					if not dragging and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
+						mouse.Icon = ""
+					end
+				end)
+				if not success then warn("MouseLeave error:", err) end
+			end)
 		end)
 	end
 
 	return function()
-		rgui:Destroy()
+		pcall(function()
+			rgui:Destroy()
+		end)
 	end
 end
 
-gui.draggable=function(ui, dragui)
+gui.draggable = function(ui, dragui)
 	if not dragui then dragui = ui end
 	local UserInputService = SafeGetService("UserInputService")
 	local dragging
 	local dragInput
 	local dragStart
 	local startPos
+
 	local function update(input)
-		local delta = input.Position - dragStart
-		local newXOffset = startPos.X.Offset + delta.X
-		local newYOffset = startPos.Y.Offset + delta.Y
-		local screenSize = ui.Parent.AbsoluteSize
-		local newXScale = startPos.X.Scale + (newXOffset / screenSize.X)
-		local newYScale = startPos.Y.Scale + (newYOffset / screenSize.Y)
-		ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		local success, err = pcall(function()
+			local delta = input.Position - dragStart
+			local newXOffset = startPos.X.Offset + delta.X
+			local newYOffset = startPos.Y.Offset + delta.Y
+			local screenSize = ui.Parent.AbsoluteSize
+			local newXScale = startPos.X.Scale + (newXOffset / screenSize.X)
+			local newYScale = startPos.Y.Scale + (newYOffset / screenSize.Y)
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("Draggable update error:", err)
+		end
 	end
-	dragui.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = ui.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
+
+	pcall(function()
+		dragui.InputBegan:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = ui.Position
+					pcall(function()
+						input.Changed:Connect(function()
+							local ok, innerErr = pcall(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+								end
+							end)
+							if not ok then warn("Input Changed error:", innerErr) end
+						end)
+					end)
 				end
 			end)
-		end
+			if not success then warn("InputBegan error:", err) end
+		end)
 	end)
-	dragui.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
+
+	pcall(function()
+		dragui.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
+				end
+			end)
+			if not success then warn("InputChanged (dragui) error:", err) end
+		end)
 	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			update(input)
-		end
+
+	pcall(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input == dragInput and dragging then
+					update(input)
+				end
+			end)
+			if not success then warn("UserInputService.InputChanged error:", err) end
+		end)
 	end)
-	ui.Active = true
+
+	pcall(function()
+		ui.Active = true
+	end)
 end
 
 gui.draggablev2 = function(ui, dragui)
@@ -17535,75 +17754,109 @@ gui.draggablev2 = function(ui, dragui)
 	local startPos
 
 	local function update(input)
-		local delta = input.Position - dragStart
-		local parentSize = screenGui.AbsoluteSize
-		local uiSize = ui.AbsoluteSize
+		local success, err = pcall(function()
+			local delta = input.Position - dragStart
+			local parentSize = screenGui.AbsoluteSize
+			local uiSize = ui.AbsoluteSize
 
-		local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
-		local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+			local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
+			local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
 
-		local anchor = ui.AnchorPoint
-		local minX = anchor.X * (uiSize.X / parentSize.X)
-		local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-		local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-		local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+			local anchor = ui.AnchorPoint
+			local minX = anchor.X * (uiSize.X / parentSize.X)
+			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-		newXScale = math.clamp(newXScale, minX, maxX)
-		newYScale = math.clamp(newYScale, minY, maxY)
+			newXScale = math.clamp(newXScale, minX, maxX)
+			newYScale = math.clamp(newYScale, minY, maxY)
 
-		ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("DraggableV2 update error:", err)
+		end
 	end
 
-	dragui.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = ui.Position
+	pcall(function()
+		dragui.InputBegan:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = ui.Position
 
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
+					pcall(function()
+						input.Changed:Connect(function()
+							local ok, innerErr = pcall(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+								end
+							end)
+							if not ok then warn("Input Changed error:", innerErr) end
+						end)
+					end)
 				end
 			end)
-		end
+			if not success then warn("InputBegan error:", err) end
+		end)
 	end)
 
-	dragui.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
+	pcall(function()
+		dragui.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
+				end
+			end)
+			if not success then warn("InputChanged (dragui) error:", err) end
+		end)
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			update(input)
-		end
+	pcall(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input == dragInput and dragging then
+					update(input)
+				end
+			end)
+			if not success then warn("UserInputService.InputChanged error:", err) end
+		end)
 	end)
 
 	local function onScreenSizeChanged()
-		local parentSize = screenGui.AbsoluteSize
-		local uiSize = ui.AbsoluteSize
-		local currentPos = ui.Position
+		local success, err = pcall(function()
+			local parentSize = screenGui.AbsoluteSize
+			local uiSize = ui.AbsoluteSize
+			local currentPos = ui.Position
 
-		local anchor = ui.AnchorPoint
-		local minX = anchor.X * (uiSize.X / parentSize.X)
-		local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-		local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-		local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+			local anchor = ui.AnchorPoint
+			local minX = anchor.X * (uiSize.X / parentSize.X)
+			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-		local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
-		local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
+			local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
+			local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
 
-		ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("Screen size update error:", err)
+		end
 	end
 
-	screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+	pcall(function()
+		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+	end)
 
-	ui.Active = true
+	pcall(function()
+		ui.Active = true
+	end)
 end
 
 gui.menuify = function(menu)
-	if menu:IsA("Frame") then menu.AnchorPoint=Vector2.new(0,0) end
+	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
 	local minimized = false
@@ -17640,7 +17893,11 @@ gui.menuify = function(menu)
 end
 
 gui.menuifyv2 = function(menu)
-	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
+	pcall(function()
+		if menu:IsA("Frame") then
+			menu.AnchorPoint = Vector2.new(0, 0)
+		end
+	end)
 
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
@@ -17652,51 +17909,75 @@ gui.menuifyv2 = function(menu)
 	local sizeY = InstanceNew("IntValue", menu)
 
 	local function toggleMinimize()
-		if isAnimating then return end
-		minimized = not minimized
-		isAnimating = true
+		local success, err = pcall(function()
+			if isAnimating then return end
+			minimized = not minimized
+			isAnimating = true
 
-		if minimized then
-			sizeX.Value = menu.Size.X.Offset
-			sizeY.Value = menu.Size.Y.Offset
-			gui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, 35)}).Completed:Connect(function()
-				isAnimating = false
-			end)
-		else
-			gui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)}).Completed:Connect(function()
-				isAnimating = false
-			end)
-		end
+			if minimized then
+				sizeX.Value = menu.Size.X.Offset
+				sizeY.Value = menu.Size.Y.Offset
+				gui.tween(menu, "Quart", "Out", 0.5, {
+					Size = UDim2.new(0, sizeX.Value, 0, 35)
+				}).Completed:Connect(function()
+					isAnimating = false
+				end)
+			else
+				gui.tween(menu, "Quart", "Out", 0.5, {
+					Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)
+				}).Completed:Connect(function()
+					isAnimating = false
+				end)
+			end
+		end)
+		if not success then warn("menuifyv2 toggleMinimize error:", err) end
 	end
 
-	MouseButtonFix(minimizeButton, toggleMinimize)
-	MouseButtonFix(exitButton, function()
-		menu.Visible = false
+	pcall(function()
+		MouseButtonFix(minimizeButton, toggleMinimize)
+	end)
+
+	pcall(function()
+		MouseButtonFix(exitButton, function()
+			local ok, err = pcall(function()
+				menu.Visible = false
+			end)
+			if not ok then warn("menuifyv2 exit button error:", err) end
+		end)
 	end)
 
 	if clearButton then
-		clearButton.Visible = true
-
-		MouseButtonFix(clearButton, function()
-			local container = menu:FindFirstChild("Container", true)
-			if container then
-				local scrollingFrame = container:FindFirstChildOfClass("ScrollingFrame")
-				if scrollingFrame then
-					local layout = scrollingFrame:FindFirstChildOfClass("UIListLayout", true)
-					if layout then
-						for _, v in ipairs(layout.Parent:GetChildren()) do
-							if v:IsA("TextLabel") then
-								v:Destroy()
+		pcall(function()
+			clearButton.Visible = true
+			MouseButtonFix(clearButton, function()
+				local ok, err = pcall(function()
+					local container = menu:FindFirstChild("Container", true)
+					if container then
+						local scrollingFrame = container:FindFirstChildOfClass("ScrollingFrame")
+						if scrollingFrame then
+							local layout = scrollingFrame:FindFirstChildOfClass("UIListLayout", true)
+							if layout then
+								for _, v in ipairs(layout.Parent:GetChildren()) do
+									if v:IsA("TextLabel") then
+										v:Destroy()
+									end
+								end
 							end
 						end
 					end
-				end
-			end
+				end)
+				if not ok then warn("menuifyv2 clear button error:", err) end
+			end)
 		end)
 	end
 
-	gui.draggablev2(menu, menu.Topbar)
-	menu.Visible = false
+	pcall(function()
+		gui.draggablev2(menu, menu.Topbar)
+	end)
+
+	pcall(function()
+		menu.Visible = false
+	end)
 end
 
 gui.hideFill = function()
@@ -18104,7 +18385,7 @@ function bindToChat(plr, msg)
 		end
 	end
 
-	chatMsg.Name = randomString()
+	chatMsg.Name = '\0'
 	chatMsg.Parent = chatLogs
 
 	local displayName = plr.DisplayName or "Unknown"
@@ -18311,13 +18592,13 @@ function bindToDevConsole()
 	end)
 end
 
-function NAUISCALEUPD()
+--[[function NAUISCALEUPD()
 	if not SafeGetService("Workspace").CurrentCamera then return end
 
 	local screenHeight = SafeGetService("Workspace").CurrentCamera.ViewportSize.Y
 	local baseHeight = 720
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
-end
+end]]
 
 function setupPlayer(plr)
 	plr.Chatted:Connect(function(msg)
@@ -18422,7 +18703,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
-RunService.RenderStepped:Connect(NAUISCALEUPD)
+--RunService.RenderStepped:Connect(NAUISCALEUPD)
 
 Spawn(function()
 	local template = UpdLogsLabel
@@ -18777,15 +19058,15 @@ Spawn(function()
 end)
 
 Spawn(function() -- init
-	if cmdBar then cmdBar.Name = randomString() end
-	if chatLogsFrame then chatLogsFrame.Name = randomString() end
-	if NAconsoleFrame then NAconsoleFrame.Name = randomString() end
-	if commandsFrame then commandsFrame.Name = randomString() end
-	if UpdLogsFrame then UpdLogsFrame.Name = randomString() end
-	if resizeFrame then resizeFrame.Name = randomString() end
-	if description then description.Name = randomString() end
-	if ModalFixer then ModalFixer.Name = randomString() end
-	if AUTOSCALER then AUTOSCALER.Name = randomString() end
+	if cmdBar then cmdBar.Name = '\0' end
+	if chatLogsFrame then chatLogsFrame.Name = '\0' end
+	if NAconsoleFrame then NAconsoleFrame.Name = '\0' end
+	if commandsFrame then commandsFrame.Name = '\0' end
+	if UpdLogsFrame then UpdLogsFrame.Name = '\0' end
+	if resizeFrame then resizeFrame.Name = '\0' end
+	if description then description.Name = '\0' end
+	if ModalFixer then ModalFixer.Name = '\0' end
+	if AUTOSCALER then AUTOSCALER.Name = '\0' AUTOSCALER.Scale = NAUIScale end
 end)
 
 Spawn(bindToDevConsole)
