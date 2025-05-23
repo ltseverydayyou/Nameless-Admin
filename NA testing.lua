@@ -3121,7 +3121,7 @@ end)
 end)]]
 
 local scaleFrame = nil
-cmd.add({"uiscale", "uscale"}, {"uiscale", "Adjust the scale of the "..adminName.." UI"}, function()
+cmd.add({"uiscale", "uscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
 	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
 	scaleFrame = InstanceNew("ScreenGui")
 	local frame = InstanceNew("Frame")
