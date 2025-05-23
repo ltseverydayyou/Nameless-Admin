@@ -885,14 +885,17 @@ local commandcount=0
 Loops = {}
 cmd.add = function(aliases, info, func, requiresArguments)
 	requiresArguments = requiresArguments or false
+	local data = {func, info, requiresArguments}
+
 	for i, cmdName in pairs(aliases) do
 		if i == 1 then
-			Commands[cmdName:lower()] = {func, info, requiresArguments}
+			Commands[cmdName:lower()] = data
 		else
-			Aliases[cmdName:lower()] = {func, info, requiresArguments}
+			Aliases[cmdName:lower()] = data
 		end
 	end
-	commandcount = commandcount + 1
+
+	commandcount += 1
 end
 
 cmd.run = function(args)
@@ -3859,7 +3862,7 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
 end)
 
 
-cmd.add({"commands","cmds"},{"commands (cmds)","Open the command list"},function()
+cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
 	gui.commands()
 end)
 
@@ -17685,30 +17688,43 @@ gui.hideFill = function()
 end
 
 gui.loadCommands = function()
-	for i, v in pairs(cmdAutofill:GetChildren()) do
-		if v.Name ~= "UIListLayout" then
-			v:Remove()
+	for _, v in pairs(cmdAutofill:GetChildren()) do
+		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
+			v:Destroy()
 		end
 	end
 
 	CMDAUTOFILL = {}
-
-	local last = nil
 	local i = 0
-	for name, tbl in pairs(Commands) do
-		local info = tbl[2]
+
+	for name, cmdData in pairs(Commands) do
+		local usageText = "Unknown"
+		local info = cmdData[2]
+
+		if type(info) == "table" and #info >= 1 then
+			usageText = info[1]
+
+			local aliasesList = {}
+			for alias, aliasData in pairs(Aliases) do
+				if aliasData == cmdData then
+					Insert(aliasesList, alias)
+				end
+			end
+
+			if #aliasesList > 0 and not usageText:find("%b()") then
+				usageText = usageText.." ("..Concat(aliasesList, ", ")..")"
+			end
+		end
+
 		local btn = cmdExample:Clone()
 		btn.Parent = cmdAutofill
 		btn.Name = name
-		btn.Input.Text = info[1]
-		i = i + 1
+		btn.Input.Text = usageText
 
-		local size = btn.Size
-		btn.Size = UDim2.new(0, 0, 0, 25)
-		btn.Size = size
-
+		i += 1
 		Insert(CMDAUTOFILL, btn)
 	end
+
 	cmdNAnum = i
 	gui.hideFill()
 end
@@ -17762,7 +17778,8 @@ lastSearchText = ""
 searchHeartbeat = nil
 
 gui.searchCommands = function()
-	local inputText = cmdInput.Text:gsub(";", ""):lower()
+	local inputText = GSub(cmdInput.Text, ";", "")
+	inputText = Lower(inputText)
 
 	if inputText == lastSearchText then
 		return
@@ -17778,7 +17795,7 @@ gui.searchCommands = function()
 		searchHeartbeat:Disconnect()
 
 		local searchTerm = inputText
-		if searchTerm:find("%s") then
+		if Find(searchTerm, "%s") then
 			if not searchedSEARCH then
 				for _, frame in ipairs(CMDAUTOFILL) do
 					frame.Visible = false
@@ -17795,31 +17812,33 @@ gui.searchCommands = function()
 		local maxResults = 5
 
 		for _, frame in ipairs(CMDAUTOFILL) do
-			local cmdName = frame.Name:lower()
+			local cmdName = Lower(frame.Name)
 			local command = Commands[cmdName]
 			if not command then continue end
 
 			local displayInfo = command[2] and command[2][1] or ""
-			local searchableName = displayInfo:lower()
-			:gsub("<[^>]+>", "")
-			:gsub("%[[^%]]+%]", "")
-			:gsub("%([^%)]+%)", "")
-			:gsub("{[^}]+}", "")
-			:gsub("【[^】]+】", "")
-			:gsub("〖[^〗]+〗", "")
-			:gsub("«[^»]+»", "")
-			:gsub("‹[^›]+›", "")
-			:gsub("「[^」]+」", "")
-			:gsub("『[^』]+』", "")
-			:gsub("（[^）]+）", "")
-			:gsub("〔[^〕]+〕", "")
-			:gsub("‖[^‖]+‖", "")
-			:gsub("%s+", " ")
-			:gsub("^%s*(.-)%s*$", "%1")
+			local searchableName = Lower(displayInfo)
+			searchableName = GSub(searchableName, "<[^>]+>", "")
+			searchableName = GSub(searchableName, "%[[^%]]+%]", "")
+			searchableName = GSub(searchableName, "%([^%)]+%)", "")
+			searchableName = GSub(searchableName, "{[^}]+}", "")
+			searchableName = GSub(searchableName, "【[^】]+】", "")
+			searchableName = GSub(searchableName, "〖[^〗]+〗", "")
+			searchableName = GSub(searchableName, "«[^»]+»", "")
+			searchableName = GSub(searchableName, "‹[^›]+›", "")
+			searchableName = GSub(searchableName, "「[^」]+」", "")
+			searchableName = GSub(searchableName, "『[^』]+』", "")
+			searchableName = GSub(searchableName, "（[^）]+）", "")
+			searchableName = GSub(searchableName, "〔[^〕]+〕", "")
+			searchableName = GSub(searchableName, "‖[^‖]+‖", "")
+			searchableName = GSub(searchableName, "%s+", " ")
+			searchableName = GSub(searchableName, "^%s*(.-)%s*$", "%1")
 
 			local extraAliases = {}
 			for alias in displayInfo:gmatch("%(([^%)]+)%)") do
-				Insert(extraAliases, alias:lower())
+				for a in alias:gmatch("[^,%s]+") do
+					Insert(extraAliases, Lower(a))
+				end
 			end
 
 			local score = 999
@@ -17827,7 +17846,7 @@ gui.searchCommands = function()
 
 			if cmdName == searchTerm then
 				score = 1
-			elseif cmdName:sub(1, searchTermLength) == searchTerm then
+			elseif Sub(cmdName, 1, searchTermLength) == searchTerm then
 				score = 2
 			elseif Aliases[searchTerm] and Aliases[searchTerm][1] == command[1] then
 				score = 3
@@ -17837,14 +17856,14 @@ gui.searchCommands = function()
 				matchText = searchTerm
 			else
 				for alias, realCmd in pairs(Aliases) do
-					if realCmd[1] == command[1] and alias:sub(1, searchTermLength) == searchTerm then
+					if realCmd[1] == command[1] and Sub(alias, 1, searchTermLength) == searchTerm then
 						score = 4
 						matchText = alias
 						break
 					end
 				end
 				for alias, realCmd in pairs(NASAVEDALIASES) do
-					if realCmd == cmdName and alias:sub(1, searchTermLength) == searchTerm then
+					if realCmd == cmdName and Sub(alias, 1, searchTermLength) == searchTerm then
 						score = 4
 						matchText = alias
 						break
@@ -17858,11 +17877,11 @@ gui.searchCommands = function()
 						score = 3
 						matchText = cmdName
 						break
-					elseif extraAlias:sub(1, searchTermLength) == searchTerm then
+					elseif Sub(extraAlias, 1, searchTermLength) == searchTerm then
 						score = 4
 						matchText = cmdName
 						break
-					elseif extraAlias:find(searchTerm, 1, true) then
+					elseif Find(extraAlias, searchTerm, 1, true) then
 						score = 5
 						matchText = cmdName
 						break
@@ -17871,10 +17890,10 @@ gui.searchCommands = function()
 			end
 
 			if score == 999 and searchTermLength >= 2 then
-				if cmdName:find(searchTerm, 1, true) then
+				if Find(cmdName, searchTerm, 1, true) then
 					score = 6
 					matchText = cmdName
-				elseif searchableName:find(searchTerm, 1, true) then
+				elseif Find(searchableName, searchTerm, 1, true) then
 					score = 7
 					matchText = displayInfo
 				end
@@ -17905,26 +17924,16 @@ gui.searchCommands = function()
 			if i > maxResults then break end
 
 			local frame = result.frame
+			frame.Visible = true
 
-			if result.text and result.text ~= "" then
-				local displayText = Commands[result.name]
-				and Commands[result.name][2]
-				and Commands[result.name][2][1]
+			local width = math.sqrt(i) * 125
+			local yOffset = (i - 1) * 28
+			local newPos = UDim2.new(0.5, width, 0, yOffset)
 
-				frame.Input.Text = displayText or result.name
-				frame.Visible = true
-
-				local width = math.sqrt(i) * 125
-				local yOffset = (i - 1) * 28
-				local newPos = UDim2.new(0.5, 0, 0, yOffset)
-
-				gui.tween(frame, "Quint", "Out", 0.3, {
-					Size = UDim2.new(0.5, width, 0, 25),
-					Position = newPos,
-				})
-			else
-				frame.Visible = false
-			end
+			gui.tween(frame, "Quint", "Out", 0.3, {
+				Size = UDim2.new(0.5, width, 0, 25),
+				Position = newPos,
+			})
 		end
 	end)
 end
@@ -17980,52 +17989,58 @@ if UpdLogsFrame then gui.resizeable(UpdLogsFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
-	local searchText = commandsFilter.Text:lower():gsub(";", "")
+	local searchText = Lower(GSub(commandsFilter.Text, ";", ""))
 
 	for _, label in ipairs(commandsList:GetChildren()) do
 		if label:IsA("TextLabel") then
-			local cmdName = label.Name:lower()
+			local cmdName = Lower(label.Name)
 			local command = Commands[cmdName]
 			local displayInfo = command and command[2] and command[2][1] or ""
-			
-			local searchableInfo = displayInfo:lower()
-				:gsub("<[^>]+>", "")
-				:gsub("%[[^%]]+%]", "")
-				:gsub("%([^%)]+%)", "")
-				:gsub("{[^}]+}", "")
-				:gsub("【[^】]+】", "")
-				:gsub("〖[^〗]+〗", "")
-				:gsub("«[^»]+»", "")
-				:gsub("‹[^›]+›", "")
-				:gsub("「[^」]+」", "")
-				:gsub("『[^』]+』", "")
-				:gsub("（[^）]+）", "")
-				:gsub("〔[^〕]+〕", "")
-				:gsub("‖[^‖]+‖", "")
-				:gsub("%s+", " ")
-				:gsub("^%s*(.-)%s*$", "%1")
+			local updatedText = displayInfo
+
+			local searchableInfo = Lower(displayInfo)
+			searchableInfo = GSub(searchableInfo, "<[^>]+>", "")
+			searchableInfo = GSub(searchableInfo, "%[[^%]]+%]", "")
+			searchableInfo = GSub(searchableInfo, "%([^%)]+%)", "")
+			searchableInfo = GSub(searchableInfo, "{[^}]+}", "")
+			searchableInfo = GSub(searchableInfo, "【[^】]+】", "")
+			searchableInfo = GSub(searchableInfo, "〖[^〗]+〗", "")
+			searchableInfo = GSub(searchableInfo, "«[^»]+»", "")
+			searchableInfo = GSub(searchableInfo, "‹[^›]+›", "")
+			searchableInfo = GSub(searchableInfo, "「[^」]+」", "")
+			searchableInfo = GSub(searchableInfo, "『[^』]+』", "")
+			searchableInfo = GSub(searchableInfo, "（[^）]+）", "")
+			searchableInfo = GSub(searchableInfo, "〔[^〕]+〕", "")
+			searchableInfo = GSub(searchableInfo, "‖[^‖]+‖", "")
+			searchableInfo = GSub(searchableInfo, "%s+", " ")
+			searchableInfo = GSub(searchableInfo, "^%s*(.-)%s*$", "%1")
 
 			local extraAliases = {}
 			local baseFunc = command and command[1]
 			for alias, aliasData in pairs(Aliases) do
 				if aliasData[1] == baseFunc then
-					Insert(extraAliases, alias:lower())
+					Insert(extraAliases, Lower(alias))
 				end
 			end
 			for alias, realCmdName in pairs(NASAVEDALIASES) do
 				if realCmdName == cmdName then
-					Insert(extraAliases, alias:lower())
+					Insert(extraAliases, Lower(alias))
 				end
 			end
+
+			if #extraAliases > 0 and not Find(updatedText, "%b()") then
+				updatedText = updatedText.." ("..Concat(extraAliases, ", ")..")"
+			end
+
 			local matches = false
 
-			if cmdName:sub(1, #searchText) == searchText then
+			if Sub(cmdName, 1, #searchText) == searchText then
 				matches = true
-			elseif searchableInfo:find(searchText, 1, true) then
+			elseif Find(searchableInfo, searchText, 1, true) then
 				matches = true
 			else
 				for _, alias in ipairs(extraAliases) do
-					if alias:sub(1, #searchText) == searchText or alias:find(searchText, 1, true) then
+					if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
 						matches = true
 						break
 					end
@@ -18033,6 +18048,9 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 			end
 
 			label.Visible = matches
+			if matches then
+				label.Text = updatedText
+			end
 		end
 	end
 end)
