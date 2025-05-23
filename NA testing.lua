@@ -17793,6 +17793,25 @@ gui.barDeselect = function(speed)
 end
 
 --[[ AUTOFILL SEARCHER ]]--
+function getUpdatedCommandText(cmdName, command)
+	local displayInfo = command and command[2] and command[2][1] or ""
+	local updatedText = displayInfo
+
+	local extraAliases = {}
+	local baseFunc = command and command[1]
+	for alias, aliasData in pairs(Aliases) do
+		if aliasData[1] == baseFunc then
+			Insert(extraAliases, Lower(alias))
+		end
+	end
+
+	if #extraAliases > 0 and not Find(updatedText, "%b()") then
+		updatedText = updatedText .. " (" .. Concat(extraAliases, ", ") .. ")"
+	end
+
+	return updatedText, extraAliases
+end
+
 searchedSEARCH=false
 lastSearchText = ""
 searchHeartbeat = nil
@@ -17834,6 +17853,11 @@ gui.searchCommands = function()
 		for _, frame in ipairs(CMDAUTOFILL) do
 			local cmdName = Lower(frame.Name)
 			local command = Commands[cmdName]
+			local updatedText, extraAliases = getUpdatedCommandText(cmdName, command)
+
+			if frame:FindFirstChildWhichIsA("TextLabel") then
+				frame:FindFirstChildWhichIsA("TextLabel").Text = updatedText
+			end
 			if not command then continue end
 
 			local displayInfo = command[2] and command[2][1] or ""
@@ -18016,7 +18040,7 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 			local cmdName = Lower(label.Name)
 			local command = Commands[cmdName]
 			local displayInfo = command and command[2] and command[2][1] or ""
-			local updatedText = displayInfo
+			local updatedText, extraAliases = getUpdatedCommandText(cmdName, command)
 
 			local searchableInfo = Lower(displayInfo)
 			searchableInfo = GSub(searchableInfo, "<[^>]+>", "")
@@ -18039,11 +18063,6 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 			local baseFunc = command and command[1]
 			for alias, aliasData in pairs(Aliases) do
 				if aliasData[1] == baseFunc then
-					Insert(extraAliases, Lower(alias))
-				end
-			end
-			for alias, realCmdName in pairs(NASAVEDALIASES) do
-				if realCmdName == cmdName then
 					Insert(extraAliases, Lower(alias))
 				end
 			end
