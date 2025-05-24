@@ -55,10 +55,9 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
-local sessionStart = os.clock()
+NASESSIONSTARTEDIDK = os.clock()
 local cmd={}
 local lib={}
-cmdPluginAdd={}
 cmdNAnum=0
 
 function isAprilFools()
@@ -182,7 +181,7 @@ function NaProtectUI(sGui)
 end
 
 function guiCHECKINGAHHHHH()
-	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChild("RobloxGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
 end
 
 function InstanceNew(c,p)
@@ -574,24 +573,15 @@ end)
 local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
 local Players=SafeGetService("Players");
 local UserInputService=SafeGetService("UserInputService");
-local ProximityPromptService=SafeGetService("ProximityPromptService");
 local TweenService=SafeGetService("TweenService");
 local RunService=SafeGetService("RunService");
 local TeleportService=SafeGetService("TeleportService");
-local StarterGui=SafeGetService("StarterGui");
-local SoundService=SafeGetService("SoundService");
 local Lighting=SafeGetService("Lighting");
 local ReplicatedStorage=SafeGetService("ReplicatedStorage");
-local GuiService=SafeGetService("GuiService");
 local COREGUI=SafeGetService("CoreGui");
-local AvatarEditorService = SafeGetService("AvatarEditorService");
-local ChatService = SafeGetService("Chat");
 local TextChatService = SafeGetService("TextChatService");
-local LogService = SafeGetService("LogService");
 local CaptureService = SafeGetService("CaptureService");
-local MarketplaceService = SafeGetService("MarketplaceService");
-local TextService = SafeGetService("TextService")
-local AvatarEditorService = SafeGetService("AvatarEditorService")
+local TextService = SafeGetService("TextService");
 local IsOnMobile=false--Discover({Enum.Platform.IOS,Enum.Platform.Android},UserInputService:GetPlatform());
 local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platform.Linux,Enum.Platform.SteamOS,Enum.Platform.OSX,Enum.Platform.Chromecast,Enum.Platform.WebOS},UserInputService:GetPlatform());
 local sethidden=sethiddenproperty or set_hidden_property or set_hidden_prop
@@ -601,11 +591,10 @@ local PlrGui=Player:FindFirstChild("PlayerGui");
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
-local LegacyChat=false--TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
+--local LegacyChat=false--TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
-local Loopmute=false
 local OrgDestroyHeight = SafeGetService("Workspace").FallenPartsDestroyHeight
 local Watch=false
 local Admin={}
@@ -615,13 +604,13 @@ _G.NAadminsLol={
 	530829101; --Viper
 	229501685; --legshot
 	817571515; --Aimlock
-	144324719; --Cosmic
 	1844177730; --glexinator
 	2624269701; --Akim
 	2502806181; --null
 	1594235217; --Purple
 	1620986547; --pc alt
 	7269577915; --another alt
+	2019160453; --grim
 }
 
 if UserInputService.TouchEnabled then
@@ -1614,12 +1603,20 @@ function placeName()
 
 		Wait(.5)
 	end]]
+	local hh,pp = pcall(function()
+	GaemInfo = SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
+	end)
+	if not gg then DoNotif("Failed to get place info: "..tostring(pp), 3) return end
 	local checking = 'unknown'
 	if GaemInfo and GaemInfo.Name then checking = GaemInfo.Name end
 	return checking
 end
 
 function placeCreator()
+	local hh,pp = pcall(function()
+	GaemInfo = SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
+	end)
+	if not gg then DoNotif("Failed to get place info: "..tostring(pp), 3) return end
 	local checkingCreator = 'unknown'
 	if GaemInfo and  GaemInfo.Creator and GaemInfo.Creator.Name then checkingCreator = GaemInfo.Creator.Name end
 	return checkingCreator
@@ -3116,8 +3113,8 @@ cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox api"},funct
 end)
 
 --[[cmd.add({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
-	require(ChatService.ClientChatModules.ChatSettings).WindowResizable=true
-	require(ChatService.ClientChatModules.ChatSettings).WindowDraggable=true
+	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowResizable=true
+	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowDraggable=true
 end)]]
 
 local scaleFrame = nil
@@ -4273,7 +4270,7 @@ if IsOnMobile then
 	end)
 
 	cmd.add({"DefaultRotaionScreen","DefaultScreen","Defscreen"},{"DefaultRotaionScreen (DefaultScreen or Defscreen)","Changes ScreenOrientation to Portrait"},function()
-		PlrGui.ScreenOrientation=StarterGui.ScreenOrientation
+		PlrGui.ScreenOrientation=SafeGetService("StarterGui").ScreenOrientation
 	end)
 end
 cmd.add({"commandcount","cc"},{"commandcount (cc)","Counds how many commands NA has"},function()
@@ -5762,7 +5759,7 @@ cmd.add({"datetime", "localdatetime"}, {"datetime (localdatetime)", "Shows your 
 	DoNotif("Your Local Date & Time: "..dateTime)
 end)
 cmd.add({"uptime"}, {"uptime", "Shows how long the game/session has been running"}, function()
-	local uptime = os.clock() - sessionStart
+	local uptime = os.clock() - NASESSIONSTARTEDIDK
 	local hours = math.floor(uptime / 3600)
 	local minutes = math.floor((uptime % 3600) / 60)
 	local seconds = math.floor(uptime % 60)
@@ -6286,7 +6283,7 @@ cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
 end)
 
 cmd.add({"checkrfe"},{"checkrfe","Checks if the game has respect filtering enabled off"},function()
-	DoNotif(SoundService.RespectFilteringEnabled and "Respect Filtering Enabled is on" or "Respect Filtering Enabled is off")
+	DoNotif(SafeGetService("SoundService").RespectFilteringEnabled and "Respect Filtering Enabled is on" or "Respect Filtering Enabled is off")
 end)
 
 cmd.add({"sit"},{"sit","Sit your player"},function()
@@ -7258,7 +7255,7 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				StarterGui:SetCoreGuiEnabled(coreGuiType, true)
+				SafeGetService("StarterGui"):SetCoreGuiEnabled(coreGuiType, true)
 				if coreGuiType == Enum.CoreGuiType.Chat or coreGuiType == Enum.CoreGuiType.All then
 					loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))()
 				end
@@ -7310,7 +7307,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				StarterGui:SetCoreGuiEnabled(coreGuiType, false)
+				SafeGetService("StarterGui"):SetCoreGuiEnabled(coreGuiType, false)
 			end
 		})
 	end
@@ -7355,7 +7352,7 @@ cmd.add({"reverb", "reverbcontrol"}, {"reverb (reverbcontrol)", "Manage sound re
 		Insert(reverbButtons, {
 			Text = reverbType.Name,
 			Callback = function()
-				SoundService.AmbientReverb = reverbType
+				SafeGetService("SoundService").AmbientReverb = reverbType
 			end
 		})
 	end
@@ -7970,19 +7967,11 @@ cmd.add({"resetanims", "defaultanims", "animsreset"}, {"resetanims (defaultanims
 end)
 
 cmd.add({"bubblechat","bchat"},{"bubblechat (bchat)","Enables BubbleChat"},function()
-	if LegacyChat then
-		ChatService.BubbleChatEnabled = true
-	else
-		TextChatService.BubbleChatConfiguration.Enabled = true
-	end
+	TextChatService.BubbleChatConfiguration.Enabled = true
 end)
 
 cmd.add({"unbubblechat","unbchat"},{"unbubblechat (unbchat)","Disabled BubbleChat"},function()
-	if LegacyChat then
-		ChatService.BubbleChatEnabled = false
-	else
-		TextChatService.BubbleChatConfiguration.Enabled = false
-	end
+	TextChatService.BubbleChatConfiguration.Enabled = false
 end)
 
 cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
@@ -8153,7 +8142,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		end
 	end
 
-	lib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function()
+	lib.connect("autorejoin", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
 		Spawn(handleRejoin)
 	end))
 
@@ -9938,46 +9927,36 @@ cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "P
 	local CachedChannels = {}
 
 	lib.BypassChatMessage = function(message, recipient)
-		if LegacyChat then
-			local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-			if not chatEvents then return end
-			if recipient and recipient ~= "All" then
-				chatEvents.SayMessageRequest:FireServer("/w "..recipient.." "..message, "All")
-			else
-				chatEvents.SayMessageRequest:FireServer(message, "All")
-			end
-		else
-			local targetChannel
+		local targetChannel
 	
-			if recipient and recipient ~= "All" then
-				targetChannel = CachedChannels[recipient]
-				if targetChannel then
-					if not targetChannel:IsDescendantOf(TextChatService)
-						or not targetChannel:FindFirstChild(recipient)
-						or not targetChannel:FindFirstChild(LocalPlayer.Name) then
-						CachedChannels[recipient] = nil
-						targetChannel = nil
-					end
-				end
-				if not targetChannel then
-					for _, ch in pairs(TextChatService.TextChannels:GetChildren()) do
-						if ch.Name:find("RBXWhisper:") and ch:FindFirstChild(recipient) then
-							targetChannel = ch
-							CachedChannels[recipient] = ch
-							break
-						end
-					end
-				end
-			end
-	
-			if not targetChannel then
-				targetChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-					or TextChatService.TextChannels:FindFirstChild("General")
-			end
-	
+		if recipient and recipient ~= "All" then
+			targetChannel = CachedChannels[recipient]
 			if targetChannel then
-				targetChannel:SendAsync(message)
+				if not targetChannel:IsDescendantOf(TextChatService)
+				or not targetChannel:FindFirstChild(recipient)
+				or not targetChannel:FindFirstChild(LocalPlayer.Name) then
+					CachedChannels[recipient] = nil
+					targetChannel = nil
+				end
 			end
+			if not targetChannel then
+				for _, ch in pairs(TextChatService.TextChannels:GetChildren()) do
+					if ch.Name:find("RBXWhisper:") and ch:FindFirstChild(recipient) then
+						targetChannel = ch
+						CachedChannels[recipient] = ch
+						break
+					end
+				end
+			end
+		end
+	
+		if not targetChannel then
+			targetChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
+			or TextChatService.TextChannels:FindFirstChild("General")
+		end
+
+		if targetChannel then
+			targetChannel:SendAsync(message)
 		end
 	end
 
@@ -9995,68 +9974,54 @@ cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "P
 		return "All"
 	end
 
-	if LegacyChat then
-		local success = pcall(function()
-			local ChatMain = require(LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("ChatScript"):WaitForChild("ChatMain"))
-			rawset(ChatMain, "MessagePosted", {
-				fire = function(message)
-					lib.BypassChatMessage(message)
-				end,
-				wait = function() end,
-				connect = function() end
-			})
-		end)
-		DoNotif(success and "Antichatlogs active (Legacy Chat)" or "Failed to hook legacy chat")
-	else
-		Spawn(function()
-			repeat Wait() until COREGUI:FindFirstChild("ExperienceChat")
-			local experienceChat = COREGUI:WaitForChild("ExperienceChat")
-			local appLayout = experienceChat:FindFirstChild("appLayout")
-			if not appLayout then return end
+	Spawn(function()
+		repeat Wait() until COREGUI:FindFirstChild("ExperienceChat")
+		local experienceChat = COREGUI:WaitForChild("ExperienceChat")
+		local appLayout = experienceChat:FindFirstChild("appLayout")
+		if not appLayout then return end
 
-			local chatInputBar = appLayout:FindFirstChild("chatInputBar")
-			if not chatInputBar then return end
+		local chatInputBar = appLayout:FindFirstChild("chatInputBar")
+		if not chatInputBar then return end
 
-			local background = chatInputBar:FindFirstChild("Background")
-			if not background then return end
+		local background = chatInputBar:FindFirstChild("Background")
+		if not background then return end
 
-			local container = background:FindFirstChild("Container")
-			if not container then return end
+		local container = background:FindFirstChild("Container")
+		if not container then return end
 
-			local textContainer = container:FindFirstChild("TextContainer")
-			local textBoxContainer = textContainer and textContainer:FindFirstChild("TextBoxContainer")
-			local chatBox = textBoxContainer and textBoxContainer:FindFirstChild("TextBox")
-			local sendButton = container:FindFirstChild("SendButton")
-			local targetChip = textContainer and textContainer:FindFirstChild("TargetChannelChip")
+		local textContainer = container:FindFirstChild("TextContainer")
+		local textBoxContainer = textContainer and textContainer:FindFirstChild("TextBoxContainer")
+		local chatBox = textBoxContainer and textBoxContainer:FindFirstChild("TextBox")
+		local sendButton = container:FindFirstChild("SendButton")
+		local targetChip = textContainer and textContainer:FindFirstChild("TargetChannelChip")
 
-			if chatBox then
-				chatBox.FocusLost:Connect(function(enterPressed)
-					if enterPressed and chatBox.Text ~= "" then
-						local msg = chatBox.Text
-						local recipient = getTargetName(targetChip)
-						chatBox.Text = ""
-						Defer(function()
-							lib.BypassChatMessage(msg, recipient)
-						end)
-					end
-				end)
-			end
+		if chatBox then
+			chatBox.FocusLost:Connect(function(enterPressed)
+				if enterPressed and chatBox.Text ~= "" then
+					local msg = chatBox.Text
+					local recipient = getTargetName(targetChip)
+					chatBox.Text = ""
+					Defer(function()
+						lib.BypassChatMessage(msg, recipient)
+					end)
+				end
+			end)
+		end
 
-			if sendButton and chatBox then
-				sendButton.MouseButton1Click:Connect(function()
-					if chatBox.Text ~= "" then
-						local msg = chatBox.Text
-						local recipient = getTargetName(targetChip)
-						chatBox.Text = ""
-						Defer(function()
-							lib.BypassChatMessage(msg, recipient)
-						end)
-					end
-				end)
-			end
-		end)
-		DoNotif("Antichatlogs active (TextChatService)")
-	end
+		if sendButton and chatBox then
+			sendButton.MouseButton1Click:Connect(function()
+				if chatBox.Text ~= "" then
+					local msg = chatBox.Text
+					local recipient = getTargetName(targetChip)
+					chatBox.Text = ""
+					Defer(function()
+						lib.BypassChatMessage(msg, recipient)
+					end)
+				end
+			end)
+		end
+	end)
+	DoNotif("Antichatlogs active")
 end)
 
 cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
@@ -12040,7 +12005,7 @@ end)
 
 cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Returns true if the UserOwnsGamePassAsync function gets used"},function()
 	local Hook
-	Hook = hookfunction(MarketplaceService.UserOwnsGamePassAsync, newcclosure(function(self, ...)
+	Hook = hookfunction(SafeGetService("MarketplaceService").UserOwnsGamePassAsync, newcclosure(function(self, ...)
 		return true
 	end))
 
@@ -12048,7 +12013,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Returns true if th
 end)
 
 --[[cmd.add({"freedevproduct", "freedp"},{"freedevproduct (freedp)", "Simulates a successful Developer Product purchase"},function()
-    hookfunction(MarketplaceService.PromptProductPurchase, newcclosure(function(self, player, productId, ...)
+    hookfunction(SafeGetService("MarketplaceService").PromptProductPurchase, newcclosure(function(self, player, productId, ...)
         if player == LocalPlayer then
         DoNotif("✅ Simulated dev product purchase for ProductId: "..tostring(productId))
 
@@ -12084,13 +12049,13 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 	for _, plr in next, trg do
 		local Root = getRoot(plr.Character)
 		if Root then
-			SoundService:SetListener(Enum.ListenerType.ObjectPosition, Root)
+			SafeGetService("SoundService"):SetListener(Enum.ListenerType.ObjectPosition, Root)
 		end
 	end
 end,true)
 
 cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
-	SoundService:SetListener(Enum.ListenerType.Camera)
+	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
 end)
 
 cmd.add({"lockmouse", "lockm"}, {"lockmouse (lockm)", "Locks your mouse in the center"}, function()
@@ -12688,6 +12653,7 @@ renderConn = nil
 playerAddConn = nil
 playerRemoveConn = nil
 toolConnections = {}
+idkwhyididntmakethisbruh = nil
 
 cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool viewer"}, function()
 	if renderConn then renderConn:Disconnect() end
@@ -12696,13 +12662,12 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	for _, c in pairs(toolConnections) do pcall(function() c:Disconnect() end) end
 	toolConnections = {}
 
-	local old = guiCHECKINGAHHHHH():FindFirstChild("ToolViewGui")
-	if old then old:Destroy() end
+	if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 
-	local ui = InstanceNew("ScreenGui")
-	NaProtectUI(ui)
-	ui.Name = "ToolViewGui"
-	ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	idkwhyididntmakethisbruh = InstanceNew("ScreenGui")
+	NaProtectUI(idkwhyididntmakethisbruh)
+	idkwhyididntmakethisbruh.Name = "ToolViewGui"
+	idkwhyididntmakethisbruh.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 	local main = InstanceNew("Frame")
 	main.Name = "Main"
@@ -12714,7 +12679,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	main.ZIndex = 10
 	main.Active = true
 	main.Selectable = true
-	main.Parent = ui
+	main.Parent = idkwhyididntmakethisbruh
 	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 20)
 
 	local topbar = InstanceNew("Frame")
@@ -12911,7 +12876,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		if playerAddConn then playerAddConn:Disconnect() end
 		if playerRemoveConn then playerRemoveConn:Disconnect() end
 		for _, c in pairs(toolConnections) do pcall(function() c:Disconnect() end) end
-		ui:Destroy()
+		if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 	end)
 
 	gui.draggable(main,topbar)
@@ -14339,8 +14304,8 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	local targetPlayers = getPlr(args)
 
 	for _, plr in next, targetPlayers do
-		GuiService:CloseInspectMenu()
-		GuiService:InspectPlayerFromUserId(plr.UserId)
+		SafeGetService("GuiService"):CloseInspectMenu()
+		SafeGetService("GuiService"):InspectPlayerFromUserId(plr.UserId)
 	end
 end, true)
 
@@ -14532,7 +14497,7 @@ end,true)
 
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Disable the cooldown for proximity prompts"},function()
 	lib.disconnect("instantpp")
-	lib.connect("instantpp", ProximityPromptService.PromptButtonHoldBegan:Connect(function(pp)
+	lib.connect("instantpp", SafeGetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(pp)
 		fireproximityprompt(pp, 1)
 	end))
 end)
@@ -14542,15 +14507,15 @@ cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximity
 end)
 
 cmd.add({"r6"},{"r6","Shows a prompt that will switch your character rig type into R6"},function()
-	AvatarEditorService:PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R6)
-	AvatarEditorService.PromptSaveAvatarCompleted:Wait()
+	SafeGetService("AvatarEditorService"):PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R6)
+	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
 	Player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
 	Player.Character:FindFirstChildOfClass("Humanoid").Health=0
 end)
 
 cmd.add({"r15"},{"r15","Shows a prompt that will switch your character rig type into R15"},function()
-	AvatarEditorService:PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R15)
-	AvatarEditorService.PromptSaveAvatarCompleted:Wait()
+	SafeGetService("AvatarEditorService"):PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R15)
+	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
 	Player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
 	Player.Character:FindFirstChildOfClass("Humanoid").Health=0
 end)
@@ -15556,7 +15521,7 @@ cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera t
 end)
 
 cmd.add({"console", "debug"},{"console (debug)","Opens developer console"},function()
-	--StarterGui:SetCore("DevConsoleVisible",true)
+	--SafeGetService("StarterGui"):SetCore("DevConsoleVisible",true)
 	gui.consoleeee()
 end)
 
@@ -16532,7 +16497,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		getRoot(Player.Character).CFrame=OriginalPosition
 		Character.Parent = SafeGetService("Workspace")
 		DoNotif("Invisibility has been turned off.")
-		StarterGui:SetCore("ResetButtonCallback", true)
+		SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
 	end
 
 	local function ToggleInvisibility()
@@ -16561,7 +16526,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			Player.Character = InvisibleCharacter
 			SafeGetService("Workspace").CurrentCamera.CameraSubject = InvisibleCharacter:FindFirstChildWhichIsA("Humanoid")
 			DoNotif("You are now invisible.")
-			StarterGui:SetCore("ResetButtonCallback", false)
+			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
 		else
 			TurnVisible()
 		end
@@ -18531,7 +18496,7 @@ function bindToDevConsole()
 
 	local messageCounter = 0
 
-	LogService.MessageOut:Connect(function(msg, msgTYPE)
+	SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
 		messageCounter=messageCounter + 1
 
 		local logLabel = NAconsoleExample:Clone()
@@ -19075,12 +19040,6 @@ Spawn(loadButtonIDS)
 Spawn(RenderUserButtons)
 Spawn(loadAutoExec)
 Spawn(LoadPlugins)
-
-Spawn(function()
-	NACaller(function()
-		GaemInfo = MarketplaceService:GetProductInfo(PlaceId)
-	end)
-end)
 
 Spawn(function()
 	NACaller(function()--better saveinstance support
