@@ -57,7 +57,7 @@ local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 NASESSIONSTARTEDIDK = os.clock()
 local cmd={}
-local lib={}
+lib={}
 cmdNAnum=0
 
 function isAprilFools()
@@ -95,7 +95,7 @@ function MockText(text)
 	return Concat(result)
 end
 
-local function maybeMock(text)
+function maybeMock(text)
 	return isAprilFools() and MockText(text) or text
 end
 
@@ -347,7 +347,7 @@ end
 local githubUrl = ''
 local loader=''
 local NAUILOADER=''
-local NAimageButton=nil
+local NAtextButton=nil
 local NAAUTOSCALER=nil
 
 if getgenv().NATestingVer then
@@ -635,12 +635,12 @@ NASAVEDALIASES = {}
 
 Spawn(function()
 	NACaller(function()
-		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", 5)
-		local playerModule = playerScripts:WaitForChild("PlayerModule", 5)
-		local controlModule = playerModule:WaitForChild("ControlModule", 5)
+		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
+		local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
+		local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
 
 		local ok, result = pcall(require, controlModule)
-		if ok then
+		if ok and result then
 			ctrlModule = result
 		end
 	end)
@@ -1118,6 +1118,18 @@ end
 
 local wrap=lib.wrap
 
+function getTrueCharModel(char)
+	if not char or not char:IsA("Model") then return nil end
+	if char:FindFirstChild("Head") and char:FindFirstChildOfClass("Humanoid") then
+		return char
+	end
+	local inner = char:FindFirstChildWhichIsA("Model")
+	if inner and inner:FindFirstChild("Head") and inner:FindFirstChildOfClass("Humanoid") then
+		return inner
+	end
+	return char
+end
+
 function rngMsg()
 	return msg[math.random(1,#msg)]
 end
@@ -1134,12 +1146,12 @@ end
 
 function getChar()
 	local plr = Players.LocalPlayer
-	return plr.Character
+	return getTrueCharModel(plr.Character)
 end
 
 function getPlrChar(plr)
 	local fix=plr:IsA("Player") and (plr and plr.Character) or plr or nil
-	return fix
+	return getTrueCharModel(fix)
 end
 
 function getBp()
@@ -1571,55 +1583,33 @@ function round(num,numDecimalPlaces)
 	return math.floor(num*mult+0.5) / mult
 end
 
-GaemInfo=nil
+function getPlaceInfo()
+	local success, result = pcall(function()
+		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
+	end)
+
+	if not success then
+		DoNotif("Failed to get place info: "..tostring(result), 3)
+		return nil
+	end
+
+	return result
+end
 
 function placeName()
-	--[[while true do
-		local success, page = pcall(function()
-			return SafeGetService("AssetService"):GetGamePlacesAsync()
-		end)
-
-		if success then
-			while true do
-				for _, place in ipairs(page:GetCurrentPage()) do
-					if place.PlaceId == PlaceId then
-						return place.Name
-					end
-				end
-
-				if page.IsFinished then
-					break
-				end
-
-				local successAdvance = pcall(function()
-					page:AdvanceToNextPageAsync()
-				end)
-
-				if not successAdvance then
-					break
-				end
-			end
-		end
-
-		Wait(.5)
-	end]]
-	local hh,pp = pcall(function()
-	GaemInfo = SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
-	end)
-	if not gg then DoNotif("Failed to get place info: "..tostring(pp), 3) return end
-	local checking = 'unknown'
-	if GaemInfo and GaemInfo.Name then checking = GaemInfo.Name end
-	return checking
+	local info = getPlaceInfo()
+	if info and info.Name then
+		return info.Name
+	end
+	return "unknown"
 end
 
 function placeCreator()
-	local hh,pp = pcall(function()
-	GaemInfo = SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
-	end)
-	if not gg then DoNotif("Failed to get place info: "..tostring(pp), 3) return end
-	local checkingCreator = 'unknown'
-	if GaemInfo and  GaemInfo.Creator and GaemInfo.Creator.Name then checkingCreator = GaemInfo.Creator.Name end
-	return checkingCreator
+	local info = getPlaceInfo()
+	if info and info.Creator and info.Creator.Name then
+		return info.Creator.Name
+	end
+	return "unknown"
 end
 
 function storeESP(p, cType, conn)
@@ -1668,6 +1658,8 @@ function NAESP(player, persistent)
 
 		local character = getPlrChar(player)
 		if not character or player == Players.LocalPlayer then return end
+
+		--character = getTrueCharModel(character)
 
 		if espCONS[player] then
 			if espCONS[player].highlight then espCONS[player].highlight:Destroy() end
@@ -1847,7 +1839,7 @@ function mobilefly(speed, vfly)
 			bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 			bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
 			if not vfly then
-				getHum().PlatformStand = true
+				if getHum() and getHum().PlatformStand then getHum().PlatformStand = true end
 			end
 
 			bg.CFrame = camera.CFrame
@@ -1869,7 +1861,7 @@ end
 function unmobilefly()
 	if flyMobile then
 		flyMobile:Destroy()
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	end
 	if Signal1 then Signal1:Disconnect() end
 	if Signal2 then Signal2:Disconnect() end
@@ -3030,7 +3022,7 @@ if IsOnMobile then
 		closeCorner.Parent = closeButton
 
 		local function update(scale)
-			NAimageButton.Size = UDim2.new(0, 32 * scale, 0, 33 * scale)
+			NAtextButton.Size = UDim2.new(0, 32 * scale, 0, 33 * scale)
 			progress.Size = UDim2.new((scale - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
 			knob.Position = UDim2.new((scale - minSize) / (maxSize - minSize), 0, -0.25, 0)
 			label.Text = "Scale: "..Format("%.2f", scale)
@@ -3080,7 +3072,7 @@ if IsOnMobile then
 
 	cmd.add({"keepiconpos", "kip", "saveicon", "kpos"}, {"keepiconpos (kip, saveicon, kpos)", "Save current icon position"}, function()
 		if FileSupport then
-			local pos = NAimageButton.Position
+			local pos = NAtextButton.Position
 			writefile(NAICONPOSPATH, HttpService:JSONEncode({
 				X = pos.X.Scale,
 				Y = pos.Y.Scale,
@@ -3101,7 +3093,7 @@ if IsOnMobile then
 				Save = false
 			}))
 		end
-		NAimageButton.Position = UDim2.new(0.5, 0, 0.1, 0)
+		NAtextButton.Position = UDim2.new(0.5, 0, 0.1, 0)
 		NAiconSaveEnabled = false
 		DoNotif("Icon position reset to default", 2)
 	end)
@@ -4651,7 +4643,7 @@ end)
 function toggleVFly()
 	if vFlyEnabled then
 		FLYING = false
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		if goofyFLY then goofyFLY:Destroy() end
 		vFlyEnabled = false
 	else
@@ -4770,13 +4762,13 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 					btn.Text = "UnvFly"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 					sFLY(true)
-					getHum().PlatformStand = false
+					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 				else
 					vOn = false
 					btn.Text = "vFly"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					FLYING = false
-					getHum().PlatformStand = false
+					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 					if goofyFLY then goofyFLY:Destroy() end
 				end
 			end)
@@ -4786,7 +4778,7 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		gui.draggablev2(speedBox)
 	else
 		FLYING = false
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
 		DoNotif("Vehicle fly enabled. Press '"..vToggleKey:upper().."' to toggle vehicle flying.")
 		sFLY(true)
@@ -4799,7 +4791,7 @@ cmd.add({"unvfly", "unvehiclefly"}, {"unvehiclefly (unvfly)", "disable vehicle f
 	Wait()
 	if not bool then DoNotif("Not vFlying anymore", 2) end
 	FLYING = false
-	getHum().PlatformStand = false
+	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
 	vOn = false
 	if vRAHH then
@@ -8671,7 +8663,7 @@ end)
 function toggleFly()
 	if flyEnabled then
 		FLYING = false
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		if goofyFLY then goofyFLY:Destroy() end
 		flyEnabled = false
 	else
@@ -8794,7 +8786,7 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 					btn.Text = "Fly"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					FLYING = false
-					getHum().PlatformStand = false
+					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 					if goofyFLY then goofyFLY:Destroy() end
 				end
 			end)
@@ -8804,7 +8796,7 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		gui.draggablev2(speedBox)
 	else
 		FLYING = false
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
 		DoNotif("Fly enabled. Press '"..toggleKey:upper().."' to toggle flying.")
 		sFLY()
@@ -8817,7 +8809,7 @@ cmd.add({"unfly"}, {"unfly", "Disable flight"}, function(bool)
 	Wait()
 	if not bool then DoNotif("Not flying anymore", 2) end
 	FLYING = false
-	getHum().PlatformStand = false
+	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
 	mOn = false
 	if mFlyBruh then
@@ -9013,7 +9005,7 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		gui.draggablev2(speedBox)
 	else
 		FLYING = false
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
 		DoNotif("CFrame Fly enabled. Press '"..cToggleKey:upper().."' to toggle.")
 		sFLY(true, true)
@@ -9740,7 +9732,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			SafeGetService("Workspace").Gravity = 196.2
 			LocalPlayer.Character:PivotTo(LocalPlayer.Character:GetPivot() * CFrame.Angles(2, 0, 0))
 			Wait(0.5)
-			getHum().PlatformStand = true
+			if getHum() and getHum().PlatformStand then getHum().PlatformStand = true end
 			LocalPlayer.Character.Animate.Disabled = true
 
 			k:Play()
@@ -9755,7 +9747,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
 			SafeGetService("Workspace").Gravity = currentnormal
-			getHum().PlatformStand = false
+			if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 			getHum().Jump = true
 			k:Stop()
 
@@ -9794,7 +9786,7 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 
 		getgenv().Lzzz = false
 		SafeGetService("Workspace").Gravity = currentnormal
-		getHum().PlatformStand = false
+		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		getHum().Jump = true
 		k:Stop()
 
@@ -18598,18 +18590,27 @@ Players.PlayerRemoving:Connect(function(plr)
 	removeESPonLEAVE(plr)
 end)
 
-function setupFLASHBACK(c)
-	if not c then return end
-	c:WaitForChild("Humanoid",5).Died:Connect(function()
-		local root = getRoot(character)
-		if root then
-			deathCFrame = root.CFrame
-		end
-	end)
-end
+spawn(function()
+	local function setupFLASHBACK(c)
+		if not c then return end
 
-setupFLASHBACK(LocalPlayer.Character)
-LocalPlayer.CharacterAdded:Connect(setupFLASHBACK)
+		local success, humanoid = pcall(function()
+			return c:WaitForChild("Humanoid", 5)
+		end)
+
+		if success and humanoid then
+			humanoid.Died:Connect(function()
+				local root = getRoot(character)
+				if root then
+					deathCFrame = root.CFrame
+				end
+			end)
+		end
+	end
+
+	setupFLASHBACK(LocalPlayer.Character)
+	LocalPlayer.CharacterAdded:Connect(setupFLASHBACK)
+end)
 
 mouse.Move:Connect(function()
 	local viewportSize = SafeGetService("Workspace").CurrentCamera and SafeGetService("Workspace").CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
@@ -18691,7 +18692,7 @@ local TextLabel = InstanceNew("TextLabel")
 local UICorner = InstanceNew("UICorner")
 local UIStroke = InstanceNew("UIStroke")
 local UIGradient = InstanceNew("UIGradient")
-local ImageButton = InstanceNew("ImageButton")
+local TextButton = InstanceNew("TextButton")
 local UICorner2 = InstanceNew("UICorner")
 
 TextLabel.Parent = NASCREENGUI
@@ -18730,28 +18731,40 @@ UIGradient.Transparency = NumberSequence.new{
 }
 UIGradient.Rotation = 55
 
-ImageButton.Parent = NASCREENGUI
-ImageButton.BackgroundTransparency = 1
-ImageButton.AnchorPoint = Vector2.new(0.5, 0)
-ImageButton.BorderSizePixel = 0
-ImageButton.Position = UDim2.new(0.5, 0, -1, 0)
-ImageButton.Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
-ImageButton.Image = isAprilFools() and "rbxassetid://104531932157501" or "rbxassetid://77352376040674"
-ImageButton.ZIndex = 9999
+TextButton.Parent = NASCREENGUI
+TextButton.BackgroundTransparency = 0
+TextButton.AnchorPoint = Vector2.new(0.5, 0)
+TextButton.BorderSizePixel = 0
+TextButton.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
+TextButton.Position = UDim2.new(0.5, 0, -1, 0)
+TextButton.Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
+TextButton.Font = Enum.Font.SourceSansBold
+--TextButton.Text = isAprilFools() and "IY" or "NA"
+TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.TextSize = 22
+TextButton.ZIndex = 9999
+TextButton.TextWrapped = true
 
-UICorner.CornerRadius = UDim.new(0.5, 0)
-UICorner.Parent = ImageButton
+if isAprilFools() then
+	cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX", ""}
+	TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
+else
+	TextButton.Text = "NA"
+end
 
-NAimageButton = ImageButton
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = TextButton
+
+NAtextButton = TextButton
 
 if IsOnMobile then
-	ImageButton.MouseEnter:Connect(function()
-		TweenService:Create(ImageButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+	TextButton.MouseEnter:Connect(function()
+		TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
 		}):Play()
 	end)
-	ImageButton.MouseLeave:Connect(function()
-		TweenService:Create(ImageButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+	TextButton.MouseLeave:Connect(function()
+		TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
 		}):Play()
 	end)
@@ -18760,23 +18773,23 @@ end
 swooshySWOOSH = false
 
 function Swoosh()
-	TweenService:Create(ImageButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		Rotation = isAprilFools() and math.random(540, 1440) or 720
 	}):Play()
 
-	gui.draggablev2(ImageButton)
+	gui.draggablev2(TextButton)
 
 	if swooshySWOOSH then
 		return
 	end
 	swooshySWOOSH = true
 
-	ImageButton.InputBegan:Connect(function(input)
+	TextButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					if FileSupport and NAiconSaveEnabled then
-						local pos = ImageButton.Position
+						local pos = TextButton.Position
 						writefile(NAICONPOSPATH, HttpService:JSONEncode({
 							X = pos.X.Scale,
 							Y = pos.Y.Scale,
@@ -18808,8 +18821,8 @@ function mainNameless()
 	riseTween:Play()
 
 	if IsOnMobile then
-		ImageButton.Size = UDim2.new(0, 0, 0, 0)
-		ImageButton.ImageTransparency = 1
+		TextButton.Size = UDim2.new(0, 0, 0, 0)
+		TextButton.TextTransparency = 1
 
 		local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
@@ -18820,18 +18833,18 @@ function mainNameless()
 			end
 		end
 
-		ImageButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+		TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
 
-		local appearBtnTween = TweenService:Create(ImageButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
 			Position = targetPos,
-			ImageTransparency = 0
+			TextTransparency = 0
 		})
 		appearBtnTween:Play()
 
 		Swoosh()
 	else
-		ImageButton:Destroy()
+		TextButton:Destroy()
 	end
 
 	Wait(2.5)
@@ -18852,7 +18865,7 @@ end
 coroutine.wrap(mainNameless)()
 
 if IsOnMobile then
-	MouseButtonFix(ImageButton,function()
+	MouseButtonFix(TextButton,function()
 		gui.barSelect()
 		cmdInput.Text=''
 		cmdInput:CaptureFocus()
@@ -18907,6 +18920,7 @@ Spawn(function()
 
 		Wait(2)
 
+		-- just ignore this section (personal stuff)
 		--[[Notify({
 			Title = adminName.." (Archived)",
 			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.',
@@ -18952,15 +18966,15 @@ Spawn(function()
 end)
 
 CaptureService.CaptureBegan:Connect(function()
-	if NAimageButton then
-		NAimageButton.Visible=false
+	if NAtextButton then
+		NAtextButton.Visible=false
 	end
 end)
 
 CaptureService.CaptureEnded:Connect(function()
 	Delay(0.1, function()
-		if NAimageButton then
-			NAimageButton.Visible=true
+		if NAtextButton then
+			NAtextButton.Visible=true
 		end
 	end)
 end)
