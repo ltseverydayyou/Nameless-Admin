@@ -13,9 +13,8 @@ NAbegin=tick()
 CMDAUTOFILL = {}
 
 local function SafeGetService(name)
-	local service = game:GetService(name)
-	local zeNAService = (cloneref and cloneref(service)) or service
-	return zeNAService
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
 end
 
 local HttpService=SafeGetService('HttpService');
