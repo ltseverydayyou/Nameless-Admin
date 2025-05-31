@@ -1,7 +1,12 @@
+local function SafeGetService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
+
 local r = request or http_request or (syn and syn.request) or function() end
-local ts = game:GetService("TweenService")
-local uis = game:GetService("UserInputService")
-local http = game:GetService("HttpService")
+local ts = SafeGetService("TweenService")
+local uis = SafeGetService("UserInputService")
+local http = SafeGetService("HttpService")
 local engine = "ScriptBlox" -- current ones (RScripts, ScriptBlox)
 
 local c = {
@@ -15,17 +20,7 @@ local c = {
     er = Color3.fromRGB(220, 53, 69)
 }
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
-
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999

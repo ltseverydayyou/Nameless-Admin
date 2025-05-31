@@ -43,25 +43,20 @@ local Title = Instance.new("TextLabel")
 local UICorner_15 = Instance.new("UICorner")
 local UIGradient = Instance.new("UIGradient")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
 		sGui.ResetOnSpawn = false
 		sGui.IgnoreGuiInset = true
     end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
+    local cGUI = ClonedService("CoreGui")
+    local lPlr = ClonedService("Players").LocalPlayer
 
     local function NAProtection(inst, var)
         if inst then
@@ -488,12 +483,12 @@ ChatButton.MouseButton1Click:Connect(
         local A_1 =
             NameBox.Text ..
             "                                                                                                                             " ..
-                "" .. PlayerBox.Text .. ": " .. MessageBox.Text
+                ""..PlayerBox.Text..": "..MessageBox.Text
         local A_2 = "All"
-        if game:GetService("TextChatService"):FindFirstChild("TextChannels") then
-            game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(A_1)
+        if ClonedService("TextChatService"):FindFirstChild("TextChannels") then
+            ClonedService("TextChatService").TextChannels.RBXGeneral:SendAsync(A_1)
         else
-            game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(A_1, A_2)
+            ClonedService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(A_1, A_2)
         end
     end
 )

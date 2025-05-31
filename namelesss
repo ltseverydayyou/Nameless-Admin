@@ -1,3 +1,7 @@
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
 		if "wanna use myworld reanimate" then
 			--reanimate by MyWorld#4430 discord.gg/pYVHtSJmEY
@@ -27,7 +31,7 @@
 			local humState16 = true --enables collisions for limbs before the humanoid dies (using hum:ChangeState)
 			local addtools = false --puts all tools from backpack to character and lets you hold them after reanimation
 			local hedafterneck = true --disable aligns for head and enable after neck or torso is removed
-			local loadtime = game:GetService("Players").RespawnTime + 0.5 --anti respawn delay
+			local loadtime = ClonedService("Players").RespawnTime + 0.5 --anti respawn delay
 			local method = 3 --reanimation method
 			--methods:
 			--0 - breakJoints (takes [loadtime] seconds to laod)
@@ -48,13 +52,13 @@
 			--duration (fling time in seconds) can be set to: a number or a string convertable to the number (0.5s if not provided),
 			--velocity (fling part rotation velocity) can be set to a vector3 value (Vector3.new(20000, 20000, 20000) if not provided)
 	
-			local lp = game:GetService("Players").LocalPlayer
-			local rs = game:GetService("RunService")
+			local lp = ClonedService("Players").LocalPlayer
+			local rs = ClonedService("RunService")
 			local stepped = rs.Stepped
 			local heartbeat = rs.Heartbeat
 			local renderstepped = rs.RenderStepped
-			local sg = game:GetService("StarterGui")
-			local ws = game:GetService("Workspace")
+			local sg = ClonedService("StarterGui")
+			local ws = ClonedService("Workspace")
 			local cf = CFrame.new
 			local v3 = Vector3.new
 			local v3_0 = Vector3.zero
@@ -891,15 +895,15 @@
 			end
 		end
 	
-		local c = game:GetService("Players").LocalPlayer.Character
+		local c = ClonedService("Players").LocalPlayer.Character
 		if not c then return end
-		local ws = game:GetService("Workspace")
+		local ws = ClonedService("Workspace")
 		c.AncestryChanged:Connect(function()
 			if not c:IsDescendantOf(ws) then
 				c = nil
 			end
 		end)
-		local rs = game:GetService("RunService")
+		local rs = ClonedService("RunService")
 		local stepped, renderstepped, heartbeat = rs.Stepped, rs.RenderStepped, rs.Heartbeat
 		local function gp(parent, name, classname)
 			if typeof(parent) == "Instance" then
@@ -1044,7 +1048,7 @@
 				modes[Enum.KeyCode[i:upper()]] = v
 			end
 		end
-		local uis, mode = game:GetService("UserInputService"), ""
+		local uis, mode = ClonedService("UserInputService"), ""
 		uis.InputBegan:Connect(function(key)
 			if uis:GetFocusedTextBox() then return end
 			key = key.KeyCode

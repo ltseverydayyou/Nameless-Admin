@@ -65,17 +65,12 @@ local Target = Instance.new("TextBox")
 local UICorner_28 = Instance.new("UICorner")
 local UICorner_29 = Instance.new("UICorner")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
+local function SafeGetService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
@@ -540,27 +535,27 @@ UICorner_28.Parent = Target
 UICorner_29.Parent = Comet
 
 -- [[ CODE ]]
-Players = game:GetService("Players")
+Players = SafeGetService("Players")
 
 SupportedGame = false -- Check to see if comet supports the current game you're in
 -- messy code
 function Destroy(part)
     spawn(
         function()
-            if game:GetService("ReplicatedStorage"):FindFirstChild("DeleteCar") then
+            if SafeGetService("ReplicatedStorage"):FindFirstChild("DeleteCar") then
                 SupportedGame = true
-                game:GetService("ReplicatedStorage").DeleteCar:FireServer(part)
-            elseif game:GetService("Players").LocalPlayer.Character:FindFirstChild("HandlessSegway") then
+                SafeGetService("ReplicatedStorage").DeleteCar:FireServer(part)
+            elseif SafeGetService("Players").LocalPlayer.Character:FindFirstChild("HandlessSegway") then
                 SupportedGame = true
                 for i, slaves in pairs(game:GetDescendants()) do
                     if slaves.Name == "DestroySegway" then
                         slaves:FireServer(part, {Value = part})
                     end
                 end
-            elseif game:GetService("ReplicatedStorage"):FindFirstChild("GuiHandler") then
+            elseif SafeGetService("ReplicatedStorage"):FindFirstChild("GuiHandler") then
                 SupportedGame = true
-                game:GetService("ReplicatedStorage").GuiHandler:FireServer(false, part)
-            elseif game:GetService("Players").LocalPlayer.Backpack:FindFirstChild("Building Tools") then
+                SafeGetService("ReplicatedStorage").GuiHandler:FireServer(false, part)
+            elseif SafeGetService("Players").LocalPlayer.Backpack:FindFirstChild("Building Tools") then
                 SupportedGame = true
                 local args = {
                     [1] = "Remove",
@@ -568,7 +563,7 @@ function Destroy(part)
                         [1] = part
                     }
                 }
-                game:GetService("Players").LocalPlayer.Backpack:FindFirstChild("Building Tools").SyncAPI.ServerEndpoint:InvokeServer(
+                SafeGetService("Players").LocalPlayer.Backpack:FindFirstChild("Building Tools").SyncAPI.ServerEndpoint:InvokeServer(
                     unpack(args)
                 )
             end
@@ -1194,7 +1189,7 @@ Btools.MouseButton1Click:Connect(
                 Destroy(mouse.Target)
             end
         )
-        game:GetService("StarterGui"):SetCoreGuiEnabled("Backpack", true)
+        SafeGetService("StarterGui"):SetCoreGuiEnabled("Backpack", true)
         Players.LocalPlayer.CharacterAdded:connect(
             function()
                 local destroytool = Instance.new("Tool", Players.LocalPlayer:FindFirstChildOfClass("Backpack"))
@@ -1232,7 +1227,7 @@ Btools.MouseButton1Click:Connect(
                         Destroy(mouse.Target)
                     end
                 )
-                game:GetService("StarterGui"):SetCoreGuiEnabled("Backpack", true)
+                SafeGetService("StarterGui"):SetCoreGuiEnabled("Backpack", true)
             end
         )
     end
@@ -1281,7 +1276,7 @@ Kick.MouseButton1Click:Connect(
 
 Clearmap.MouseButton1Click:Connect(
     function()
-        for i, v in pairs(game:GetService("Workspace"):GetChildren()) do
+        for i, v in pairs(SafeGetService("Workspace"):GetChildren()) do
             Destroy(v)
         end
     end

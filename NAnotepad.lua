@@ -19,17 +19,12 @@ local CopyButton = Instance.new("TextButton")
 local StatusLabel = Instance.new("TextLabel")
 local CharCount = Instance.new("TextLabel")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
+local function SafeGetService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
@@ -253,7 +248,7 @@ local function showStatus(message, color)
 end
 
 local function updateTextBoxSize()
-    local textBounds = game:GetService("TextService"):GetTextSize(
+    local textBounds = SafeGetService("TextService"):GetTextSize(
         TextBox.Text,
         TextBox.TextSize,
         TextBox.Font,

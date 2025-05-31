@@ -23,16 +23,21 @@ if not game:IsLoaded() then
 end
 wait(0.1)
 
---// variables/modules
-local CoreGui = game:GetService("CoreGui")
-local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
-local UserInputService = game:GetService("UserInputService")
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
-local TopBar = game:GetService("CoreGui"):WaitForChild("TopBarApp"):WaitForChild("TopBarFrame")
+--// variables/modules
+local CoreGui = ClonedService("CoreGui")
+local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
+local UserInputService = ClonedService("UserInputService")
+
+local TopBar = ClonedService("CoreGui"):WaitForChild("TopBarApp"):WaitForChild("TopBarFrame")
 local ChatIcon =
     TopBar:WaitForChild("LeftFrame"):WaitForChild("ChatIcon"):WaitForChild("Background"):WaitForChild("Icon")
 
-local UIS = game:GetService("UserInputService")
+local UIS = ClonedService("UserInputService")
 
 local function devprint(text)
     if config.dev then
@@ -87,8 +92,8 @@ TopBar.LeftFrame.MenuIcon.Position = UDim2.new(0, 0, 0, 0)
 TopBar.LeftFrame.MenuIcon.Size = UDim2.new(0, 50, 0, 36)
 TopBar.LeftFrame.MenuIcon.Background.Icon.Position = UDim2.new(0, 25, 0, 12)
 TopBar.LeftFrame.MenuIcon.Background.Icon.Size = UDim2.new(0, 32, 0, 25)
-game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Position = UDim2.new(0, -8, 0, 18)
-game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Size = UDim2.new(0, 32, 0, 25)
+ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Position = UDim2.new(0, -8, 0, 18)
+ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Size = UDim2.new(0, 32, 0, 25)
 
 TopBar.LeftFrame.ChatIcon.Position = UDim2.new(0, 0, 0, 0)
 TopBar.LeftFrame.ChatIcon.Size = UDim2.new(0, 50, 0, 36)
@@ -103,7 +108,7 @@ TopBar.LeftFrame.MenuIcon.Background.Icon.Image = "rbxasset://textures/ui/Menu/H
 if config.old_graphics == true then
     --// epic 2016 remastered--// instances
     local cc = Instance.new("ColorCorrectionEffect")
-    local lighting = game:GetService("Lighting")
+    local lighting = ClonedService("Lighting")
 
     --// hd killer
     local ihateu = {
@@ -123,7 +128,7 @@ if config.old_graphics == true then
     end
 
     --// setup
-    cc.Parent = game.Lighting
+    cc.Parent = ClonedService("Lighting")
     cc.Saturation = 0
     cc.Contrast = -0.1
     lighting.GlobalShadows = false
@@ -167,7 +172,7 @@ if mods.fps_counter then
 
     spawn(
         function()
-            while game:GetService("RunService").RenderStepped:wait() do
+            while ClonedService("RunService").RenderStepped:wait() do
                 local Transcurrido = math.abs(Tiempo - tick())
                 Tiempo = tick()
                 FPS = math.floor(1 / Transcurrido)
@@ -193,7 +198,7 @@ local HealthContainer = Instance.new("Frame")
 local HealthFill = Instance.new("Frame")
 
 NameHealthContainer.Name = "NameHealthContainer"
-NameHealthContainer.Parent = game.CoreGui:WaitForChild("TopBarApp").TopBarFrame.RightFrame
+NameHealthContainer.Parent = ClonedService("CoreGui"):WaitForChild("TopBarApp").TopBarFrame.RightFrame
 NameHealthContainer.BackgroundTransparency = 1.000
 NameHealthContainer.Position = UDim2.new(1, -170, 0.027778089, 0)
 NameHealthContainer.Size = UDim2.new(0, 170, 1, 0)
@@ -227,38 +232,38 @@ HealthFill.BorderSizePixel = 0
 HealthFill.Size = UDim2.new(1, 0, 1, 0)
 HealthFill.Active = false
 
-Username.Text = game:GetService("Players").LocalPlayer.Name
+Username.Text = ClonedService("Players").LocalPlayer.Name
 
 spawn(
     function()
-        game.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
-        local player = game.Players.LocalPlayer
+        ClonedService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+        local player = ClonedService("Players").LocalPlayer
         local char = player.Character
         local frame = HealthContainer
         local bar = frame.HealthFill
-        game.RunService.Heartbeat:Connect(
+        ClonedService("RunService").Heartbeat:Connect(
             function()
                 bar.Size =
                     UDim2.new(
                     0,
-                    (game.Players.LocalPlayer.Character:WaitForChild("Humanoid").Health /
-                        game.Players.LocalPlayer.Character:WaitForChild("Humanoid").MaxHealth *
+                    (ClonedService("Players").LocalPlayer.Character:WaitForChild("Humanoid").Health /
+                        ClonedService("Players").LocalPlayer.Character:WaitForChild("Humanoid").MaxHealth *
                         160),
                     1,
                     0
                 )
 
                 if
-                    game.Players.LocalPlayer.Character.Humanoid.Health <
-                        game.Players.LocalPlayer.Character.Humanoid.MaxHealth and
-                        game.Players.LocalPlayer.Character.Humanoid.Health >
-                            game.Players.LocalPlayer.Character.Humanoid.MaxHealth / 2
+                    ClonedService("Players").LocalPlayer.Character.Humanoid.Health <
+                        ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth and
+                        ClonedService("Players").LocalPlayer.Character.Humanoid.Health >
+                            ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth / 2
                  then
                     bar.BackgroundColor3 =
                         Color3.new(
                         1 -
-                            (game.Players.LocalPlayer.Character.Humanoid.Health /
-                                game.Players.LocalPlayer.Character.Humanoid.MaxHealth) +
+                            (ClonedService("Players").LocalPlayer.Character.Humanoid.Health /
+                                ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth) +
                             0.5,
                         1,
                         0
@@ -267,20 +272,20 @@ spawn(
                     bar.BackgroundColor3 = Color3.fromRGB(27, 252, 107)
                 end
                 if
-                    game.Players.LocalPlayer.Character.Humanoid.Health ==
-                        game.Players.LocalPlayer.Character.Humanoid.MaxHealth / 2
+                    ClonedService("Players").LocalPlayer.Character.Humanoid.Health ==
+                        ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth / 2
                  then
                     bar.BackgroundColor3 = Color3.new(1, 1, 0)
                 end
                 if
-                    game.Players.LocalPlayer.Character.Humanoid.Health <
-                        game.Players.LocalPlayer.Character.Humanoid.MaxHealth / 2
-                 then
+                    ClonedService("Players").LocalPlayer.Character.Humanoid.Health <
+                        ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth / 2
+                        then
                     bar.BackgroundColor3 =
                         Color3.new(
                         1,
-                        (game.Players.LocalPlayer.Character.Humanoid.Health /
-                            game.Players.LocalPlayer.Character.Humanoid.MaxHealth) *
+                        (ClonedService("Players").LocalPlayer.Character.Humanoid.Health /
+                            ClonedService("Players").LocalPlayer.Character.Humanoid.MaxHealth) *
                             2,
                         0
                     )
@@ -294,18 +299,18 @@ spawn(
 if not mods.c00l_mode then
     spawn(
         function()
-            game:GetService("RunService").Heartbeat:Connect(
+            ClonedService("RunService").Heartbeat:Connect(
                 function()
                     if
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.Frame.ChatBar:IsFocused(
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.Frame.ChatBar:IsFocused(
 
                         )
-                     then
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
+                        then
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
                             0.1
                     else
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
-                            game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
+                            ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency
                     end
                 end
             )
@@ -331,7 +336,7 @@ changechatico()
 
 spawn(
     function()
-        game:GetService("Players").PlayerChatted:Connect(
+        ClonedService("Players").PlayerChatted:Connect(
             function(PlayerChatType, sender, message, recipient)
                 changechatico()
             end
@@ -341,7 +346,7 @@ spawn(
 
 spawn(
     function()
-        game:GetService("RunService").Heartbeat:Connect(
+        ClonedService("RunService").Heartbeat:Connect(
             function()
                 changechatico()
             end
@@ -350,18 +355,18 @@ spawn(
 )
 
 --// just something useful from the src i was too lazy to group
-game.RunService.Heartbeat:Connect(
+ClonedService("RunService").Heartbeat:Connect(
     function()
         if config.old_plist then
-            game.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+            ClonedService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
         end
         TopBar.LeftFrame.MenuIcon.Background.StateOverlay.Image = ""
         if not c00l_mode then
-            game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Image =
+            ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Image =
                 "rbxasset://textures/ui/Menu/HamburgerDown.png"
         end
-        game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.ImageRectOffset = Vector2.new(0, 0)
-        game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.ImageRectSize = Vector2.new(0, 0)
+        ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.ImageRectOffset = Vector2.new(0, 0)
+        ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.ImageRectSize = Vector2.new(0, 0)
         if TopBar.RightFrame:FindFirstChild("MoreMenu") then
             TopBar.RightFrame.MoreMenu:Destroy()
         end
@@ -418,9 +423,9 @@ Background_Icon.Position = UDim2.new(0, 0, 0, 3)
 Background_Icon.Size = UDim2.new(0, 25, 0, 27)
 
 if not mods.c00l_mode then
-    game.RunService.Heartbeat:Connect(
+    ClonedService("RunService").Heartbeat:Connect(
         function()
-            if game.CoreGui.RobloxGui.Backpack.Inventory.Visible == true then
+            if ClonedService("CoreGui").RobloxGui.Backpack.Inventory.Visible == true then
                 Background_Icon.Image = "rbxasset://textures/ui/Backpack/Backpack_Down@2x.png"
             else
                 Background_Icon.Image = "rbxasset://textures/ui/Backpack/Backpack@2x.png"
@@ -461,14 +466,14 @@ if config.old_console then
     local AnalyticsAction_InitialOpenTab = "DeveloperConsole_InitialOpenTab"
     local AnalyticsAction_ClickToOpenOpenTab = "DeveloperConsole_ClickToOpenOpenTab"
 
-    local CoreGui = game:GetService("CoreGui")
+    local CoreGui = ClonedService("CoreGui")
     local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
     local Modules = RobloxGui:FindFirstChild("Modules")
 
-    local ContextActionService = game:GetService("ContextActionService")
-    local TextService = game:GetService("TextService")
-    local GuiService = game:GetService("GuiService")
-    local VRService = game:GetService("VRService")
+    local ContextActionService = ClonedService("ContextActionService")
+    local TextService = ClonedService("TextService")
+    local GuiService = ClonedService("GuiService")
+    local VRService = ClonedService("VRService")
     local isTenFootInterface = GuiService:IsTenFootInterface()
 
     local ClientMemoryAnalyzerClass =
@@ -492,7 +497,7 @@ if config.old_console then
         pcall(
             function()
                 -- Fun window colors for cool people
-                local Players = game:GetService("Players")
+                local Players = ClonedService("Players")
                 if not Players or not Players.LocalPlayer then
                     return
                 end
@@ -766,8 +771,8 @@ if config.old_console then
     end
 
     -- Services
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
+    local UserInputService = ClonedService("UserInputService")
+    local RunService = ClonedService("RunService")
     local TouchEnabled = UserInputService.TouchEnabled
 
     local DeveloperConsole = {}
@@ -1495,7 +1500,7 @@ if config.old_console then
 
             local enabled = false
 
-            local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+            local mouse = ClonedService("Players").LocalPlayer:GetMouse()
 
             local function Refresh()
                 local enabledNew = devConsole.Visible and not UserInputService.MouseIconEnabled
@@ -2517,7 +2522,7 @@ if config.old_console then
             [Enum.UserInputType.Touch] = true -- I'm not sure if touch actually works here
         }
 
-        local mouse = game:GetService("Players").LocalPlayer:GetMouse()
+        local mouse = ClonedService("Players").LocalPlayer:GetMouse()
 
         local function startDragging(startP)
             if dragging then
@@ -2642,10 +2647,10 @@ if config.old_console then
                     local url =
                         string.format(
                         "/users/%d/canmanage/%d",
-                        game:GetService("Players").LocalPlayer.UserId,
+                        ClonedService("Players").LocalPlayer.UserId,
                         game.PlaceId
                     )
-                    return game:GetService("HttpRbxApiService"):GetAsync(
+                    return ClonedService("HttpRbxApiService"):GetAsync(
                         url,
                         Enum.ThrottlingPriority.Default,
                         Enum.HttpRequestType.Default,
@@ -2660,7 +2665,7 @@ if config.old_console then
                 success, result =
                     pcall(
                     function()
-                        return game:GetService("HttpService"):JSONDecode(result)
+                        return ClonedService("HttpService"):JSONDecode(result)
                     end
                 )
                 if success and result.CanManage == true then
@@ -2796,7 +2801,7 @@ if config.old_console then
                     function(this)
                         local messages = {}
 
-                        local LogService = game:GetService("LogService")
+                        local LogService = ClonedService("LogService")
                         do -- This do block keeps history from sticking around in memory
                             local history = LogService:GetLogHistory()
                             for i = 1, #history do
@@ -2838,7 +2843,7 @@ if config.old_console then
                     function(this)
                         local messages = {}
 
-                        local LogService = game:GetService("LogService")
+                        local LogService = ClonedService("LogService")
 
                         LogService.ServerMessageOut:connect(
                             function(text, messageType, timestamp)
@@ -2873,7 +2878,7 @@ if config.old_console then
                         stats = {}
                         pcall(
                             function()
-                                local clientReplicator = game:GetService("NetworkClient"):GetChildren()[1]
+                                local clientReplicator = ClonedService("NetworkClient"):GetChildren()[1]
                                 if clientReplicator then
                                     statsListenerConnection =
                                         clientReplicator.StatsReceived:connect(
@@ -3000,7 +3005,7 @@ if config.old_console then
         )
     end
 
-    local StarterGui = game:GetService("StarterGui")
+    local StarterGui = ClonedService("StarterGui")
     local function GetDeveloperConsoleVisible()
         if (not myDeveloperConsole) then
             SetCoreConsoleCreation()
@@ -3024,8 +3029,8 @@ if config.old_console then
     end
 
     -- BetterConsole.lua by Josh#0903
-    local InputService = game:GetService "UserInputService"
-    local StarterGui = game:GetService "StarterGui"
+    local InputService = ClonedService("UserInputService")
+    local StarterGui = ClonedService("StarterGui")
 
     InputService.InputBegan:connect(
         function(a)
@@ -3184,7 +3189,7 @@ if config.old_plist then
                         function()
                             FriendButton.MouseButton1Click:Connect(
                                 function()
-                                    game.Players.LocalPlayer:RequestFriendship(game.Players:FindFirstChild(Player.Text))
+                                    ClonedService("Players").LocalPlayer:RequestFriendship(ClonedService("Players"):FindFirstChild(Player.Text))
                                     if Player:FindFirstChild("PlayerControlsHolder") then
                                         Player:FindFirstChild("PlayerControlsHolder"):Destroy()
                                         Player.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
@@ -3218,7 +3223,7 @@ if config.old_plist then
     end
 
     --// this will only run once, this is the activator cause yeah
-    for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+    for i, v in pairs(ClonedService("Players"):GetPlayers()) do
         local function isbc_func()
             if v.MembershipType == Enum.MembershipType.Premium then
                 return true
@@ -3232,7 +3237,7 @@ if config.old_plist then
         end
 
         local function isfriend_func()
-            if v:IsFriendsWith(game.Players.LocalPlayer.UserId) then
+            if v:IsFriendsWith(ClonedService("Players").LocalPlayer.UserId) then
                 return true
             end
         end
@@ -3240,7 +3245,7 @@ if config.old_plist then
         addplr(v.Name, isbc_func(), isfriend_func(), isdev_func())
     end
 
-    game:GetService("Players").PlayerAdded:Connect(
+    ClonedService("Players").PlayerAdded:Connect(
         function(player)
             local function isbc_func()
                 if player.MembershipType == Enum.MembershipType.Premium then
@@ -3255,7 +3260,7 @@ if config.old_plist then
             end
 
             local function isfriend_func()
-                if player:IsFriendsWith(game.Players.LocalPlayer.UserId) then
+                if player:IsFriendsWith(ClonedService("Players").LocalPlayer.UserId) then
                     return true
                 end
             end
@@ -3264,7 +3269,7 @@ if config.old_plist then
         end
     )
 
-    game:GetService("Players").PlayerRemoving:Connect(
+    ClonedService("Players").PlayerRemoving:Connect(
         function(player)
             removeplrfromlist(player.Name)
         end
@@ -3321,9 +3326,9 @@ if mods.built_in_silentre then
     SilentIcon_Background.MouseButton1Click:Connect(
         function()
             if game.PlaceId == 5100950559 or game.PlaceId == 6048573718 or game.PlaceId == 6446409152 then
-                game:GetService("Players"):Chat("-re")
+                ClonedService("Players"):Chat("-re")
             else
-                local plr = game:GetService("Players").LocalPlayer
+                local plr = ClonedService("Players").LocalPlayer
                 local char = plr.Character
 
                 local Human = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid", true)
@@ -3413,7 +3418,7 @@ if mods.c00l_mode then
     TopBar.Transparency = 0
     TopBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 
-    game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundColor3 =
+    ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundColor3 =
         Color3.fromRGB(255, 0, 0)
 
     local function c00l_chat_func()
@@ -3431,7 +3436,7 @@ if mods.c00l_mode then
 
     spawn(
         function()
-            game:GetService("RunService").Heartbeat:Connect(
+            ClonedService("RunService").Heartbeat:Connect(
                 function()
                     c00l_chat_func()
                 end
@@ -3441,9 +3446,9 @@ if mods.c00l_mode then
 
     spawn(
         function()
-            game.RunService.Heartbeat:Connect(
+            ClonedService("RunService").Heartbeat:Connect(
                 function()
-                    if game.CoreGui.RobloxGui.Backpack.Inventory.Visible == true then
+                    if ClonedService("CoreGui").RobloxGui.Backpack.Inventory.Visible == true then
                         Background_Icon.Image = getasset("2016_storage/redbpico.png")
                     else
                         Background_Icon.Image = "rbxasset://textures/ui/Backpack/Backpack@2x.png"
@@ -3455,9 +3460,9 @@ if mods.c00l_mode then
 
     spawn(
         function()
-            game.RunService.Heartbeat:Connect(
+            ClonedService("RunService").Heartbeat:Connect(
                 function()
-                    game.CoreGui:WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Image =
+                    ClonedService("CoreGui"):WaitForChild("TopBarApp").LegacyCloseMenu.CloseMenuButton.Image =
                         getasset("2016_storage/redmenu.png")
                 end
             )
@@ -3466,18 +3471,18 @@ if mods.c00l_mode then
 
     spawn(
         function()
-            game:GetService("RunService").Heartbeat:Connect(
+            ClonedService("RunService").Heartbeat:Connect(
                 function()
                     if
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.Frame.ChatBar:IsFocused(
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.Frame.ChatBar:IsFocused(
 
                         )
-                     then
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
+                        then
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
                             0.1
                     else
-                        game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
-                            game.Players.LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency
+                        ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency =
+                            ClonedService("Players").LocalPlayer.PlayerGui.Chat.Frame.ChatBarParentFrame.Frame.BoxFrame.BackgroundTransparency
                     end
                 end
             )

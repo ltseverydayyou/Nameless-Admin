@@ -14,15 +14,10 @@ local UICorner_2 = Instance.new("UICorner")
 local TemplateText = Instance.new("TextButton")
 local TemplateCorner = Instance.new("UICorner")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
-
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
+local function protectUI(sGui)
+    local function SafeGetService(name)
+        local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+        return service
     end
 
     if sGui:IsA("ScreenGui") then

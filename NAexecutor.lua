@@ -21,25 +21,20 @@ local xt = Instance.new("TextButton")
 local mn = Instance.new("TextButton")
 local sb = Instance.new("TextLabel")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
 
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
 		sGui.ResetOnSpawn = false
 		sGui.IgnoreGuiInset = true
     end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
+    local cGUI = ClonedService("CoreGui")
+    local lPlr = ClonedService("Players").LocalPlayer
 
     local function NAProtection(inst, var)
         if inst then
@@ -238,7 +233,7 @@ local function updateEditorSize()
     local text = t.Text
     if text == "" then text = " " end
 
-    local textSize = game:GetService("TextService"):GetTextSize(
+    local textSize = ClonedService("TextService"):GetTextSize(
         text, t.TextSize, t.Font, Vector2.new(fixedTextWidth, math.huge)
     )
     

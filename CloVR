@@ -1,7 +1,13 @@
 --[[---------Settings---------]] --
+local function SafeGetService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
+
+
 local game = game
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local Players = SafeGetService("Players")
+local RunService = SafeGetService("RunService")
 local sethidden = sethiddenproperty or set_hidden_property or set_hidden_prop
 coroutine.wrap(
     function()
@@ -20,7 +26,7 @@ RunService.Stepped:Connect(
 local bodyTransparency = 0 --Change the transparency of your character (0 - 1)
 local bodyVelocity = {-17.7, 0, -17.7} --Change your body parts velocity. First number value is the X value. Second number value is the Y value. Third number value is the Z value.
 local hatVelocity = {-17.7, 0, -17.7} --Change your accessory's velocity. First number value is the X value. Second number value is the Y value. Third number value is the Z value.
- --
+
 --Velocity is not recommended to be (-17.7, 0, -17.7) in R15 since body parts often fall in R15.
 --[[--------------------------]] local player1 = Players.LocalPlayer
 local character1 = player1.Character
@@ -36,21 +42,14 @@ local function CreateAttachment(parent, position, orientation, axis, secondaryAx
     newAttchment.Name = name
 end
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
+local function protectUI(sGui)
+    if sGui:IsA("ScreenGui") then
+        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		sGui.DisplayOrder = 999999999
+		sGui.ResetOnSpawn = false
+		sGui.IgnoreGuiInset = true
     end
-
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
     local cGUI = SafeGetService("CoreGui")
-    local rPlr = SafeGetService("Players"):FindFirstChildWhichIsA("Player")
-    local cGUIProtect = {}
-    local rService = SafeGetService("RunService")
     local lPlr = SafeGetService("Players").LocalPlayer
 
     local function NAProtection(inst, var)
@@ -65,58 +64,22 @@ function protectUI(sGui)
         end
     end
 
-    if (get_hidden_gui or gethui) then
-        local hiddenUI = (get_hidden_gui or gethui)
-        NAProtection(sGui)
-        sGui.Parent = hiddenUI()
-        return sGui
-    elseif (not is_sirhurt_closure) and (syn and syn.protect_gui) then
-        NAProtection(sGui)
-        syn.protect_gui(sGui)
-        sGui.Parent = cGUI
-        return sGui
-    elseif cGUI:FindFirstChildWhichIsA("ScreenGui") then
-        pcall(function()
-            for _, v in pairs(sGui:GetDescendants()) do
-                cGUIProtect[v] = rPlr.Name
-            end
-            sGui.DescendantAdded:Connect(function(v)
-                cGUIProtect[v] = rPlr.Name
-            end)
-            cGUIProtect[sGui] = rPlr.Name
-
-            local meta = getrawmetatable(game)
-            local tostr = meta.__tostring
-            setreadonly(meta, false)
-            meta.__tostring = newcclosure(function(t)
-                if cGUIProtect[t] and not checkcaller() then
-                    return cGUIProtect[t]
-                end
-                return tostr(t)
-            end)
-        end)
-        if not rService:IsStudio() then
-            local newGui = cGUI:FindFirstChildWhichIsA("ScreenGui")
-            newGui.DescendantAdded:Connect(function(v)
-                cGUIProtect[v] = rPlr.Name
-            end)
-            for _, v in pairs(sGui:GetChildren()) do
-                v.Parent = newGui
-            end
-            sGui = newGui
-        end
-        return sGui
-    elseif cGUI then
-        NAProtection(sGui)
-        sGui.Parent = cGUI
-        return sGui
-    elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
-        NAProtection(sGui)
-        sGui.Parent = lPlr:FindFirstChild("PlayerGui")
-        return sGui
-    else
-        return nil
-    end
+    if cGUI and cGUI:FindFirstChild("RobloxGui") then
+		NAProtection(sGui)
+		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
+		return sGui
+	elseif cGUI then
+		NAProtection(sGui)
+		sGui.Parent = cGUI
+		return sGui
+	elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
+		NAProtection(sGui)
+		sGui.Parent = lPlr:FindFirstChild("PlayerGui")
+		sGui.ResetOnSpawn = false
+		return sGui
+	else
+		return nil
+	end
 end
 
 --Variables
@@ -143,7 +106,7 @@ reanimFolder.Name = "FakeCharacter"
 local model = Instance.new("Model", reanimFolder)
 model.Name = "Reanimation"
 
-local userInputService = game:GetService("UserInputService")
+local userInputService = SafeGetService("UserInputService")
 local movingW, movingA, movingS, movingD, jumping = false
 
 --Body Parts--
@@ -499,12 +462,12 @@ Script = function()
     local Backpack = Client:WaitForChild("Backpack")
     local Mouse = Client:GetMouse()
     local Camera = workspace.CurrentCamera
-    local VRService = game:GetService("VRService")
+    local VRService = SafeGetService("VRService")
     local VRReady = VRService.VREnabled
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
-    local HttpService = game:GetService("HttpService")
-    local StarterGui = game:GetService("StarterGui")
+    local UserInputService = SafeGetService("UserInputService")
+    local RunService = SafeGetService("RunService")
+    local HttpService = SafeGetService("HttpService")
+    local StarterGui = SafeGetService("StarterGui")
     local HeadAccessories = {}
     local UsedAccessories = {}
     local Pointer = false
@@ -524,15 +487,15 @@ Script = function()
             function()
                 settings().Physics.AllowSleep = false
                 while true do
-                    game:GetService("RunService").RenderStepped:Wait()
-                    for _, Players in next, game:GetService("Players"):GetChildren() do
-                        if Players ~= game:GetService("Players").LocalPlayer then
+                    SafeGetService("RunService").RenderStepped:Wait()
+                    for _, Players in next, SafeGetService("Players"):GetChildren() do
+                        if Players ~= SafeGetService("Players").LocalPlayer then
                             Players.MaximumSimulationRadius = 0.1
                             Players.SimulationRadius = 0
                         end
                     end
-                    game:GetService("Players").LocalPlayer.MaximumSimulationRadius = math.pow(math.huge, math.huge)
-                    game:GetService("Players").LocalPlayer.SimulationRadius = math.huge * math.huge
+                    SafeGetService("Players").LocalPlayer.MaximumSimulationRadius = math.pow(math.huge, math.huge)
+                    SafeGetService("Players").LocalPlayer.SimulationRadius = math.huge * math.huge
                 end
             end
         )
@@ -576,7 +539,7 @@ Script = function()
 --]]
     function Tween(Object, Style, Direction, Time, Goal)
         local tweenInfo = TweenInfo.new(Time, Enum.EasingStyle[Style], Enum.EasingDirection[Direction])
-        local tween = game:GetService("TweenService"):Create(Object, tweenInfo, Goal)
+        local tween = SafeGetService("TweenService"):Create(Object, tweenInfo, Goal)
         tween.Completed:Connect(
             function()
                 tween:Destroy()
@@ -1352,12 +1315,12 @@ Script = function()
         --[[
  Functions
  --]]
-        local Players = game:GetService("Players")
+        local Players = SafeGetService("Players")
         local Client = Players.LocalPlayer
-        local VRService = game:GetService("VRService")
+        local VRService = SafeGetService("VRService")
         local VRReady = VRService.VREnabled
-        local UserInputService = game:GetService("UserInputService")
-        local RunService = game:GetService("RunService")
+        local UserInputService = SafeGetService("UserInputService")
+        local RunService = SafeGetService("RunService")
         local Camera = workspace.CurrentCamera
         --[[
  Code
@@ -1461,11 +1424,11 @@ ChatHUDFunc = function()
     --[[
  Variables
  --]]
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
-    local VRService = game:GetService("VRService")
+    local UserInputService = SafeGetService("UserInputService")
+    local RunService = SafeGetService("RunService")
+    local VRService = SafeGetService("VRService")
     local VRReady = VRService.VREnabled
-    local Players = game:GetService("Players")
+    local Players = SafeGetService("Players")
     local Client = Players.LocalPlayer
     local ChatHUD = game:GetObjects("rbxassetid://4476067885")[1]
     local GlobalFrame = ChatHUD.GlobalFrame
@@ -1604,11 +1567,11 @@ ViewHUDFunc = function()
  Variables
  --]]
     local ViewportRange = ViewportRange or 32
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
-    local VRService = game:GetService("VRService")
+    local UserInputService = SafeGetService("UserInputService")
+    local RunService = SafeGetService("RunService")
+    local VRService = SafeGetService("VRService")
     local VRReady = VRService.VREnabled
-    local Players = game:GetService("Players")
+    local Players = SafeGetService("Players")
     local Client = Players.LocalPlayer
     local Mouse = Client:GetMouse()
     local Camera = workspace.CurrentCamera
@@ -1761,7 +1724,7 @@ ViewHUDFunc = function()
         end
     end
 
-    game:GetService("RunService").Heartbeat:Connect(
+    SafeGetService("RunService").Heartbeat:Connect(
         function()
             for i, v in pairs(character1:GetChildren()) do
                 if v:IsA("BasePart") then
@@ -1841,7 +1804,7 @@ ViewHUDFunc = function()
         end
     )
 
-    game:GetService("RunService").Stepped:Connect(
+    SafeGetService("RunService").Stepped:Connect(
         function()
             for i, v in pairs(reanimation:GetChildren()) do
                 if v:IsA("BasePart") then
@@ -1857,7 +1820,7 @@ ViewHUDFunc = function()
 end
 Script()
 wait(2)
-local Players = game:GetService("Players")
+local Players = SafeGetService("Players")
 local lp = Players.LocalPlayer
 local character = reanimation
  --lp.Character

@@ -13,20 +13,21 @@ local playersScrollFrame = Instance.new("ScrollingFrame")
 local listLayout1 = Instance.new("UIListLayout")
 local listLayout2 = Instance.new("UIListLayout")
 
-function protectUI(sGui)
-    local function blankfunction(...) return ... end
-    local cloneref = cloneref or blankfunction
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
+local function SafeGetService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
+
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        sGui.DisplayOrder = 999999999
-        sGui.ResetOnSpawn = false
-        sGui.IgnoreGuiInset = true
+		sGui.DisplayOrder = 999999999
+		sGui.ResetOnSpawn = false
+		sGui.IgnoreGuiInset = true
     end
     local cGUI = SafeGetService("CoreGui")
     local lPlr = SafeGetService("Players").LocalPlayer
+
     local function NAProtection(inst, var)
         if inst then
             if var then
@@ -38,29 +39,30 @@ function protectUI(sGui)
             end
         end
     end
+
     if cGUI and cGUI:FindFirstChild("RobloxGui") then
-        NAProtection(sGui)
-        sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-        return sGui
-    elseif cGUI then
-        NAProtection(sGui)
-        sGui.Parent = cGUI
-        return sGui
-    elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
-        NAProtection(sGui)
-        sGui.Parent = lPlr:FindFirstChild("PlayerGui")
-        sGui.ResetOnSpawn = false
-        return sGui
-    else
-        return nil
-    end
+		NAProtection(sGui)
+		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
+		return sGui
+	elseif cGUI then
+		NAProtection(sGui)
+		sGui.Parent = cGUI
+		return sGui
+	elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
+		NAProtection(sGui)
+		sGui.Parent = lPlr:FindFirstChild("PlayerGui")
+		sGui.ResetOnSpawn = false
+		return sGui
+	else
+		return nil
+	end
 end
 
 NAdragV2 = function(ui, dragui)
     if not dragui then 
         dragui = ui 
     end
-    local UserInputService = game:GetService("UserInputService")
+    local UserInputService = SafeGetService("UserInputService")
 
     local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 
@@ -308,7 +310,7 @@ listLayout2.Padding = UDim.new(0, 5)
 
 local minimized = false
 local animationTable = {}
-local MarketplaceService = game:GetService("MarketplaceService")
+local MarketplaceService = SafeGetService("MarketplaceService")
 
 local function createAnimationButton(id, parent, playerName)
     local str = string.match(tostring(id), "%d+")
@@ -398,7 +400,7 @@ end
 
 local function monitorLocalAnimations()
     while task.wait(.5) do
-        local character = game:GetService("Players").LocalPlayer.Character
+        local character = SafeGetService("Players").LocalPlayer.Character
         if character then
             local humanoid = character:FindFirstChild("Humanoid")
             if humanoid then
@@ -416,8 +418,8 @@ end
 
 local function monitorOtherPlayers()
     while task.wait(.5) do
-        for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-            if player ~= game:GetService("Players").LocalPlayer then
+        for _, player in ipairs(SafeGetService("Players"):GetPlayers()) do
+            if player ~= SafeGetService("Players").LocalPlayer then
                 local character = player.Character
                 if character then
                     local humanoid = character:FindFirstChild("Humanoid")

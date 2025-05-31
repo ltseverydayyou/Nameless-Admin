@@ -1,17 +1,12 @@
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local TextService = game:GetService("TextService")
-local UserInputService = game:GetService("UserInputService")
-
-function blankfunction(...)
-	return ...
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
 end
 
-local cloneref = cloneref or blankfunction
-
-local function SafeGetService(service)
-    return cloneref(game:GetService(service)) or game:GetService(service)
-end
+local TweenService = ClonedService("TweenService")
+local RunService = ClonedService("RunService")
+local TextService = ClonedService("TextService")
+local UserInputService = ClonedService("UserInputService")
 
 local PADDING = 10
 local TWEEN_TIME = 0.8
@@ -31,8 +26,8 @@ local NOTIFICATION_COLORS = {
 	Accent = Color3.fromRGB(80, 120, 255)
 }
 
-local Player = game:GetService("Players").LocalPlayer
-local search = RunService:IsStudio() and Player.PlayerGui or (SafeGetService("CoreGui"):FindFirstChild("RobloxGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+local Player = ClonedService("Players").LocalPlayer
+local search = RunService:IsStudio() and Player.PlayerGui or (ClonedService("CoreGui"):FindFirstChild("RobloxGui") or ClonedService("CoreGui") or ClonedService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
 local NotifGui, Container
 
 if search:FindFirstChild("EnhancedNotif") and _G.EnhancedNotifs then

@@ -1,5 +1,10 @@
-Players = game:GetService("Players")
-Player = game.Players.LocalPlayer
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
+
+Players = ClonedService("Players")
+Player = ClonedService("Players").LocalPlayer
 LocalPlayer = Player
 
 if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
@@ -519,7 +524,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 else
     print("Must be R15.")
 end
-game.Players.LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid").Died:Connect(
+ClonedService("Players").LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid").Died:Connect(
     function()
         wait(1)
         loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/2016%20anims"))()

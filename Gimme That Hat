@@ -1,12 +1,16 @@
-print("What accessories you have on")
-for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+local function ClonedService(name)
+    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+    return service
+end
+
+for i, v in pairs(ClonedService("Players").LocalPlayer.Character:GetDescendants()) do
 	if v:IsA("Accessory") then
 		print("What accessories you have on")
 		print(v.Name)
 	end
 end
 wait()
-local plr = game:FindService"Players".LocalPlayer
+local plr = ClonedService("Players").LocalPlayer
 
 function mOut(txt, type)
 	if type == 1 then
@@ -56,15 +60,10 @@ local UICorner_4 = Instance.new("UICorner")
 local SilentC = Instance.new("TextButton")
 local UICorner_5 = Instance.new("UICorner")
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
-
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
+local function protectUI(sGui)
+    local function SafeGetService(name)
+        local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+        return service
     end
 
     if sGui:IsA("ScreenGui") then
@@ -293,7 +292,7 @@ end
 
 function getPlayer(shortcut)
 	local player = nil
-	local g = game.Players:GetPlayers()
+	local g = ClonedService("Players"):GetPlayers()
 	for i = 1, #g do
 		if string.lower(string.sub(g[i].Name,1,string.len(shortcut))) == string.lower(shortcut) then
 			if g[i] ~= nil then
@@ -307,7 +306,7 @@ end
 
 function getHat(shortcuts)
 	local hat = nil
-	for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+	for i, v in pairs(ClonedService("Players").LocalPlayer.Character:GetDescendants()) do
 		if v:IsA("Accessory") then
 			if string.lower(string.sub(v.Name,1,string.len(shortcuts))) == string.lower(shortcuts) then
 				if v.Name ~= nil then
@@ -321,15 +320,15 @@ function getHat(shortcuts)
 end
 
 local runcode = true
-local spawntime = game.Players.RespawnTime + 3
+local spawntime = ClonedService("Players").RespawnTime + 3
 
 local hatstored = {}
 
 SilentC.MouseButton1Click:Connect(function()
-	local char = game.Players.LocalPlayer.Character
+	local char = ClonedService("Players").LocalPlayer.Character
 	if runcode then
 		runcode = true
-		local dfc = game.ReplicatedStorage.DefaultChatSystemChatEvents
+		local dfc = ClonedService("ReplicatedStorage").DefaultChatSystemChatEvents
 		local smr = dfc.SayMessageRequest
 
 		local hatse = getHat(SilentCMD.Text)
@@ -339,9 +338,9 @@ SilentC.MouseButton1Click:Connect(function()
 			mOut("Hat is already given away, error", 1)
 			return end
 
-		argplr = game.Players[arg.Name].Character
+		argplr = ClonedService("Players")[arg.Name].Character
 
-		local rs = game:FindService("RunService")
+		local rs = ClonedService("RunService")
 		local fc
 		local dc
 		local dic
@@ -425,7 +424,7 @@ SilentC.MouseButton1Click:Connect(function()
 	mOut("Hat Giver Has Loaded", 2)
 	wait(0.2)
 	print("What accessories you have on")
-	for i, v in pairs(game.Players.LocalPlayer.Character:GetDescendants()) do
+	for i, v in pairs(ClonedService("Players").LocalPlayer.Character:GetDescendants()) do
 		if v:IsA("Accessory") then
 			print("What accessories you have on")
 			print(v.Name)

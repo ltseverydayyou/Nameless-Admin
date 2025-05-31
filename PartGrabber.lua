@@ -1,17 +1,12 @@
 if getgenv().prtGrabLoaded then return print('Part Grabber is already running') end
 getgenv().prtGrabLoaded = true
 
-function protectUI(sGui)
-    local function blankfunction(...)
-        return ...
-    end
+local function SafeGetService(name)
+	local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
+	return service
+end
 
-    local cloneref = cloneref or blankfunction
-
-    local function SafeGetService(service)
-        return cloneref(game:GetService(service)) or game:GetService(service)
-    end
-
+local function protectUI(sGui)
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
@@ -51,7 +46,7 @@ function protectUI(sGui)
 	end
 end
 
-local TweenService = game:GetService("TweenService")
+local TweenService = SafeGetService("TweenService")
 
 local function createButton(text, color, parent, pos, size)
 	local button = Instance.new("TextButton")
@@ -227,7 +222,7 @@ local function highlightPart(part)
 end
 
 local function selectPart()
-	local player = game:GetService("Players").LocalPlayer
+	local player = SafeGetService("Players").LocalPlayer
 	local mouse = player:GetMouse()
 	if mouse.Target then
 		selectedPart = mouse.Target
@@ -242,7 +237,7 @@ local function selectPart()
 end
 
 local function setupMouseConnection()
-	local player = game:GetService("Players").LocalPlayer
+	local player = SafeGetService("Players").LocalPlayer
 	local mouse = player:GetMouse()
 	mouse.TargetFilter = nil
 	if mouseConnection then mouseConnection:Disconnect() end
@@ -250,9 +245,9 @@ local function setupMouseConnection()
 end
 
 local function enableDragging()
-	local player = game:GetService("Players").LocalPlayer
+	local player = SafeGetService("Players").LocalPlayer
 	local mouse = player:GetMouse()
-	local camera = workspace.CurrentCamera
+	local camera = SafeGetService("Workspace").CurrentCamera
 
 	if dragConnection then dragConnection:Disconnect() end
 
@@ -373,7 +368,7 @@ end)
 
 bring.MouseButton1Click:Connect(function()
 	if selectedPart then
-		local player = game:GetService("Players").LocalPlayer
+		local player = SafeGetService("Players").LocalPlayer
 		local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if hrp then
 			selectedPart.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
@@ -425,10 +420,10 @@ setupMouseConnection()
 
 for _, button in pairs({grab, del, copy, Exit, Minimize}) do
 	button.MouseEnter:Connect(function()
-		game:GetService("TweenService"):Create(button, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+		SafeGetService("TweenService"):Create(button, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
 	end)
 
 	button.MouseLeave:Connect(function()
-		game:GetService("TweenService"):Create(button, TweenInfo.new(0.3), {BackgroundTransparency = 0.2}):Play()
+		SafeGetService("TweenService"):Create(button, TweenInfo.new(0.3), {BackgroundTransparency = 0.2}):Play()
 	end)
 end
