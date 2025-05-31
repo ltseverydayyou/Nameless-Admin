@@ -1,4 +1,5 @@
 local AdminUI = Instance.new("ScreenGui")
+local AdminScale = Instance.new("UIScale")
 local CmdBar = Instance.new("Frame")
 local CenterBar = Instance.new("Frame")
 local Horizontal = Instance.new("Frame")
@@ -145,6 +146,9 @@ local ModalFix = Instance.new("ImageButton")
 AdminUI.Name = "AdminUI"
 AdminUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 AdminUI.ResetOnSpawn = false
+
+AdminScale.Name = "AutoScale"
+AdminScale.Parent = AdminUI
 
 CmdBar.Name = "CmdBar"
 CmdBar.Parent = AdminUI
