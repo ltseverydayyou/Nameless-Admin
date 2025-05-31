@@ -44,7 +44,11 @@ local function protectUI(sGui)
         end
     end
 
-    if cGUI and cGUI:FindFirstChild("RobloxGui") then
+    if gethui then
+		NAProtection(sGui)
+		sGui.Parent = gethui()
+		return sGui
+	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
 		NAProtection(sGui)
 		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
 		return sGui

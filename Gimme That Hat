@@ -61,19 +61,14 @@ local SilentC = Instance.new("TextButton")
 local UICorner_5 = Instance.new("UICorner")
 
 local function protectUI(sGui)
-    local function SafeGetService(name)
-        local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
-        return service
-    end
-
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		sGui.DisplayOrder = 999999999
 		sGui.ResetOnSpawn = false
 		sGui.IgnoreGuiInset = true
     end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
+    local cGUI = ClonedService("CoreGui")
+    local lPlr = ClonedService("Players").LocalPlayer
 
     local function NAProtection(inst, var)
         if inst then
@@ -87,7 +82,11 @@ local function protectUI(sGui)
         end
     end
 
-    if cGUI and cGUI:FindFirstChild("RobloxGui") then
+    if gethui then
+		NAProtection(sGui)
+		sGui.Parent = gethui()
+		return sGui
+	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
 		NAProtection(sGui)
 		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
 		return sGui
