@@ -9764,7 +9764,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 		if getgenv().Lzzz == true then return end
 
 		local Anim = InstanceNew("Animation")
-		if isR15() then
+		if IsR15() then
 			Anim.AnimationId = "rbxassetid://507767968"
 		else
 			Anim.AnimationId = "rbxassetid://180436148"
@@ -9775,7 +9775,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 
 		if Lzzz == false then
 			getgenv().Lzzz = true
-			if isR15() then
+			if IsR15() then
 				Anim.AnimationId = "rbxassetid://507767968"
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
@@ -9793,7 +9793,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			LocalPlayer.Character.Animate.Disabled = true
 		else
 			getgenv().Lzzz = false
-			if isR15() then
+			if IsR15() then
 				Anim.AnimationId = "rbxassetid://507767968"
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
@@ -9828,7 +9828,7 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 		if getgenv().Lzzz ~= true then return end
 
 		local Anim = InstanceNew("Animation")
-		if isR15() then
+		if IsR15() then
 			Anim.AnimationId = "rbxassetid://507767968"
 		else
 			Anim.AnimationId = "rbxassetid://180436148"
