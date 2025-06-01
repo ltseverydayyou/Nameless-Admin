@@ -1928,13 +1928,13 @@ end
 function xxRAYYYY(v)
 	if v then
 		for _,i in pairs(SafeGetService("Workspace"):GetDescendants()) do
-			if i:IsA("BasePart") and not i.Parent:FindFirstChild("Humanoid") and not i.Parent.Parent:FindFirstChild("Humanoid") then
+			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
 				i.LocalTransparencyModifier=0.5
 			end
 		end
 	else
 		for _,i in pairs(SafeGetService("Workspace"):GetDescendants()) do
-			if i:IsA("BasePart") and not i.Parent:FindFirstChild("Humanoid") and not i.Parent.Parent:FindFirstChild("Humanoid") then
+			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
 				i.LocalTransparencyModifier=0
 			end
 		end
@@ -4644,14 +4644,14 @@ function respawn()
 
 	local respawnCFrame = rootPart.CFrame
 
-	local humanoid = oldChar:FindFirstChildOfClass("Humanoid")
+	local humanoid = getPlrHum(oldChar)
 	if humanoid then
 		humanoid:ChangeState(Enum.HumanoidStateType.Dead)
 		humanoid.Health = 0
 	end
 
 	local newChar = player.CharacterAdded:Wait()
-	newChar:WaitForChild("HumanoidRootPart",3)
+	newChar:WaitForChild("HumanoidRootPart",2)
 
 	Wait(0.2)
 
@@ -6038,6 +6038,7 @@ end)
 
 cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 	local function noSit(character)
+		task.wait(1)
 		local humanoid = getPlrHum(character)
 		if humanoid then
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
