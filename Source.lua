@@ -18195,6 +18195,7 @@ gui.searchCommands = function()
 		else
 			predictionInput.Text = ""
 		end
+		cmdInput.TextXAlignment = Enum.TextXAlignment.Left
 
 		for _, frame in ipairs(CMDAUTOFILL) do
 			frame.Visible = false
@@ -18238,6 +18239,7 @@ cmdInput.FocusLost:Connect(function(enterPressed)
 	if predictionInput then
 		predictionInput.Text = ""
 	end
+	cmdInput.TextXAlignment = Enum.TextXAlignment.Center
 	gui.barDeselect()
 end)
 
