@@ -11794,6 +11794,7 @@ LOOPPROTECT = nil
 
 cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(plr)
 	local Targets = {plr}
+	Loopvoid = false
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
