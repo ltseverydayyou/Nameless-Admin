@@ -1,6 +1,11 @@
 local function ClonedService(name)
-    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
-    return service
+    local Service = (game.GetService);
+	local Reference = (cloneref) or function(reference) return reference end
+	return Reference(Service(game, name));
+end
+
+local function GETTHEUI()
+	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 local TweenService = ClonedService("TweenService")
@@ -27,7 +32,7 @@ local NOTIFICATION_COLORS = {
 }
 
 local Player = ClonedService("Players").LocalPlayer
-local search = RunService:IsStudio() and Player.PlayerGui or (ClonedService("CoreGui"):FindFirstChild("RobloxGui") or ClonedService("CoreGui") or ClonedService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+local search = RunService:IsStudio() and Player.PlayerGui or GETTHEUI()
 local NotifGui, Container
 
 if search:FindFirstChild("EnhancedNotif") and _G.EnhancedNotifs then
@@ -142,7 +147,7 @@ local function CreateCloseButton(Parent)
 	CloseButton.Size = UDim2.new(0, 24, 0, 24)
 	CloseButton.Position = UDim2.new(1, -30, 0, 6)
 	CloseButton.BackgroundColor3 = NOTIFICATION_COLORS.CloseButton
-	CloseButton.Text = "×"
+	CloseButton.Text = "X"
 	CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 	CloseButton.TextSize = 18
 	CloseButton.Font = Enum.Font.GothamBold
@@ -360,6 +365,11 @@ _G.EnhancedNotifs = {
 			YPosition = YPosition + 40
 		end
 
+		local CloseBtn = CreateCloseButton(NewNotif)
+		CloseBtn.MouseButton1Click:Connect(function()
+			FadeOutAfter(NewNotif, 0)
+		end)
+
 		if ButtonCount > 0 then
 			local ScrollingFrame = Instance.new("ScrollingFrame")
 			ScrollingFrame.Size = UDim2.new(1, -30, 0, 100)
@@ -413,11 +423,6 @@ _G.EnhancedNotifs = {
 
 			Y = Y + 100
 			NewNotif.Size = UDim2.new(0, 300, 0, Y)
-		else
-			local CloseBtn = CreateCloseButton(NewNotif)
-			CloseBtn.MouseButton1Click:Connect(function()
-				FadeOutAfter(NewNotif, 0)
-			end)
 		end
 
 		NewNotif.Parent = Container

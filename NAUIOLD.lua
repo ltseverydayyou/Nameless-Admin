@@ -194,6 +194,7 @@ Input.TextColor3 = Color3.fromRGB(225, 225, 225)
 Input.TextScaled = true
 Input.TextSize = 24.000
 Input.TextWrapped = true
+Input.TextXAlignment = Enum.TextXAlignment.Left
 
 Aesthetic.Name = "Aesthetic"
 Aesthetic.Parent = CenterBar

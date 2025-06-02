@@ -33,8 +33,9 @@ NAbegin=tick()
 CMDAUTOFILL = {}
 
 local function SafeGetService(name)
-    local service = (cloneref and cloneref(game:GetService(name))) or game:GetService(name)
-    return service
+    local Service = (game.GetService);
+	local Reference = (cloneref) or function(reference) return reference end
+	return Reference(Service(game, name));
 end
 
 local HttpService=SafeGetService('HttpService');
@@ -180,7 +181,7 @@ function NaProtectUI(sGui)
 end
 
 function guiCHECKINGAHHHHH()
-	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 function InstanceNew(c,p)
@@ -952,10 +953,6 @@ cmd.run = function(args)
 										Spawn(function() commandFunc() end)
 									end
 								end
-							},
-							{
-								Text = "Cancel",
-								Callback = function() end
 							}
 						}
 					})
@@ -971,10 +968,6 @@ cmd.run = function(args)
 										commandFunc()
 									end)
 								end
-							},
-							{
-								Text = "Cancel",
-								Callback = function() end
 							}
 						}
 					})
@@ -1042,12 +1035,6 @@ cmd.loop = function(commandName, args)
 
 					DoNotif("Loop started for '"..commandName.."' with delay: "..interval.."s. Args: "..FormatArgs(args), 3)
 				end
-			},
-			{
-				Text = "Cancel",
-				Callback = function()
-					DoNotif("Loop creation canceled.", 2)
-				end
 			}
 		}
 	})
@@ -1079,13 +1066,6 @@ cmd.stopLoop = function()
 			end
 		})
 	end
-
-	Insert(buttons, {
-		Text = "Cancel",
-		Callback = function()
-			DoNotif("No loops were stopped.", 2)
-		end
-	})
 
 	Notify({
 		Title = "Stop a Loop",
@@ -1210,7 +1190,7 @@ function getHum()
 end
 
 function getPlrHum(pp)
-	local char = (pp:IsA("Player") and getPlrChar(pp)) or pp
+	local char = pp:IsA("Player") and getPlrChar(pp) or pp
 	if not char then return nil end
 
 	for _, v in pairs(char:GetDescendants()) do
@@ -2742,13 +2722,6 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 		})
 	end
 
-	Insert(buttons, {
-		Text = "Cancel",
-		Callback = function()
-			DoNotif("Alias removal cancelled", 2)
-		end
-	})
-
 	Notify({
 		Title = "Remove Alias",
 		Description = "Select an alias to remove:",
@@ -2820,13 +2793,6 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 		})
 	end
 
-	Insert(options, {
-		Text = "Cancel",
-		Callback = function()
-			DoNotif("Cancelled removing button", 2)
-		end
-	})
-
 	Notify({
 		Title = "Remove User Button",
 		Description = "Select a button to remove:",
@@ -2856,12 +2822,6 @@ cmd.add({"clearbuttons", "clearbtns", "cb"}, {"clearbuttons (clearbtns, cb)", "C
 					RenderUserButtons()
 
 					DoNotif("Cleared all user buttons", 2)
-				end
-			},
-			{
-				Text = "Cancel",
-				Callback = function()
-					DoNotif("Cancelled clearing buttons", 2)
 				end
 			}
 		}
@@ -2939,13 +2899,6 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 			end
 		})
 	end
-
-	Insert(options, {
-		Text = "Cancel",
-		Callback = function()
-			DoNotif("Cancelled removing AutoExec", 2)
-		end
-	})
 
 	Notify({
 		Title = "Remove AutoExec Command",
@@ -5646,7 +5599,7 @@ end)
 
 cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhysicalProperties)"},function(...)
 	local args={...}
-	for _,child in pairs(Player.Character:GetDescendants()) do
+	for _,child in pairs(getChar():GetDescendants()) do
 		if child:IsA("BasePart") then
 			if args[1] then
 				child.CustomPhysicalProperties=PhysicalProperties.new(args[1],0.3,0.5)
@@ -5658,7 +5611,7 @@ cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhy
 end,true)
 
 cmd.add({"unweaken","unstrengthen"},{"unweaken (unstrengthen)","Sets your characters CustomPhysicalProperties to default"},function()
-	for _,child in pairs(Player.Character:GetDescendants()) do
+	for _,child in pairs(getChar():GetDescendants()) do
 		if child:IsA("BasePart") then
 			child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
 		end
@@ -5667,7 +5620,7 @@ end)
 
 cmd.add({"weaken"},{"weaken","Makes your character less dense"},function(...)
 	local args={...}
-	for _,child in pairs(Player.Character:GetDescendants()) do
+	for _,child in pairs(getChar():GetDescendants()) do
 		if child:IsA("BasePart") then
 			if args[1] then
 				child.CustomPhysicalProperties=PhysicalProperties.new(-args[1],0.3,0.5)
@@ -7331,10 +7284,6 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 			DoNotif("No matching CoreGui element found for: "..enableName, 3)
 		end
 	else
-		Insert(buttons, {
-			Text = "Cancel",
-			Callback = function() end
-		})
 		Notify({
 			Title = "Enable a Specific Core Gui Element",
 			Buttons = buttons
@@ -7380,10 +7329,6 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 			DoNotif("No matching CoreGui element found for: "..disableName, 3)
 		end
 	else
-		Insert(buttons, {
-			Text = "Cancel",
-			Callback = function() end
-		})
 		Notify({
 			Title = "Disable a Specific Core Gui Element",
 			Buttons = buttons
@@ -7402,11 +7347,6 @@ cmd.add({"reverb", "reverbcontrol"}, {"reverb (reverbcontrol)", "Manage sound re
 		})
 	end
 
-	Insert(reverbButtons, {
-		Text = "Cancel",
-		Callback = function() end
-	})
-
 	Notify({
 		Title = "Sound Reverb Options",
 		Buttons = reverbButtons
@@ -7423,11 +7363,6 @@ cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage ca
 			end
 		})
 	end
-
-	Insert(cameraTypeButtons, {
-		Text = "Cancel",
-		Callback = function() end
-	})
 
 	Notify({
 		Title = "Camera Type Options",
@@ -10985,14 +10920,36 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	end
 end)
 
-cmd.add({"goto","to","tp","teleport"},{"goto <player/X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
-	Username=(...)
+cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
+	local args = {...}
+	local input = Concat(args, " ")
+	local targets = getPlr(input)
 
-	local target=getPlr(Username)
-	for _, plr in next, target do
-		getRoot(getChar()).CFrame=getPlrHum(plr).RootPart.CFrame
+	if #targets > 0 then
+		for _, plr in next, targets do
+			local targetHum = getPlrHum(plr)
+			if targetHum and targetHum.RootPart then
+				local char = getChar()
+				local root = getRoot(char)
+				if root then
+					root.CFrame = targetHum.RootPart.CFrame
+				end
+			end
+		end
+	else
+		local x, y, z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
+		if x and y and z then
+			x, y, z = tonumber(x), tonumber(y), tonumber(z)
+			local char = getChar()
+			local root = getRoot(char)
+			if root then
+				root.CFrame = CFrame.new(x, y, z)
+			end
+		else
+			DoNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
+		end
 	end
-end,true)
+end, true)
 
 function stareFIXER(char, facePos)
 	local root = getRoot(char)
@@ -11437,9 +11394,8 @@ cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherev
 		end
 		lib.connect("follow", RunService.Stepped:Connect(function()
 			local target = plr.Character
-			local character = getChar()
-			if target and character then
-				local hum = getPlrHum(plr)
+			if target then
+				local hum = getHum()
 				local targetPart = getHead(target)
 				if hum and targetPart then
 					local targetPos = targetPart.Position
@@ -14688,11 +14644,6 @@ cmd.add({"lighting", "lightingcontrol"}, {"lighting (lightingcontrol)", "Manage 
 		})
 	end
 
-	Insert(lightingButtons, {
-		Text = "Cancel",
-		Callback = function() end
-	})
-
 	Notify({
 		Title = "Lighting Technology Options",
 		Buttons = lightingButtons
@@ -17395,6 +17346,16 @@ if resizeFrame then
 	resizeFrame.Parent = nil
 end
 
+local predictionInput = cmdInput:Clone()
+predictionInput.Name = "predictionInput"
+predictionInput.TextEditable = false
+predictionInput.TextTransparency = 0.5
+predictionInput.TextColor3 = Color3.fromRGB(180, 180, 180)
+predictionInput.BackgroundTransparency = 1
+predictionInput.ZIndex = cmdInput.ZIndex + 1
+predictionInput.Parent = cmdInput.Parent
+predictionInput.PlaceholderText = ""
+
 NAAUTOSCALER = AUTOSCALER
 
 	--[[pcall(function()
@@ -17426,6 +17387,21 @@ NAAUTOSCALER = AUTOSCALER
 		end
 		NASCREENGUI=newGui
 	end]]
+
+cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the given name"}, function(...)
+	local newName = Concat({...}, " ")
+	adminName = newName
+	if cmdInput and cmdInput.PlaceholderText then
+		cmdInput.PlaceholderText = newName
+	end
+end, true)
+
+cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function(...)
+	adminName = getgenv().NATestingVer and "NA Testing" or "Nameless Admin"
+	if cmdInput and cmdInput.PlaceholderText then
+		cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName.." V"..curVer..' 🤡' or getSeasonEmoji()..' '..adminName.." V"..curVer..' '..getSeasonEmoji()
+	end
+end, false)
 
 --[[ GUI FUNCTIONS ]]--
 gui={}
@@ -18080,7 +18056,7 @@ function getUpdatedCommandText(cmdName, command)
 	end
 
 	if #extraAliases > 0 and not Find(updatedText, "%b()") then
-		updatedText = updatedText .. " (" .. Concat(extraAliases, ", ") .. ")"
+		updatedText = updatedText.." ("..Concat(extraAliases, ", ")..")"
 	end
 
 	return updatedText, extraAliases
@@ -18234,6 +18210,12 @@ gui.searchCommands = function()
 			return a.score < b.score
 		end)
 
+		if predictionInput and results[1] then
+			predictionInput.Text = results[1].text
+		else
+			predictionInput.Text = ""
+		end
+
 		for _, frame in ipairs(CMDAUTOFILL) do
 			frame.Visible = false
 		end
@@ -18273,11 +18255,27 @@ cmdInput.FocusLost:Connect(function(enterPressed)
 			lib.parseCommand(opt.prefix..cmdInput.Text)
 		end)
 	end
+	if predictionInput then
+		predictionInput.Text = ""
+	end
 	gui.barDeselect()
 end)
 
 cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 	gui.searchCommands()
+end)
+
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Tab
+	and UserInputService:GetFocusedTextBox() == cmdInput then
+		local predictionText = predictionInput and predictionInput.Text or ""
+		if predictionText ~= "" then
+			Wait()
+			cmdInput.Text = predictionText
+			cmdInput.CursorPosition = #predictionText + 1
+			predictionInput.Text = ""
+		end
+	end
 end)
 
 gui.barDeselect(0)
