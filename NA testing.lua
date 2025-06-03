@@ -33,7 +33,7 @@ NAbegin=tick()
 CMDAUTOFILL = {}
 
 local function SafeGetService(name)
-    local Service = (game.GetService);
+	local Service = (game.GetService);
 	local Reference = (cloneref) or function(reference) return reference end
 	return Reference(Service(game, name));
 end
@@ -205,42 +205,42 @@ local testingName = 'NA Testing'
 local adminName = 'NA'
 
 function yayApril(isTesting)
-    local baseNames = {
-        "Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
-        "Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
-        "Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
-        "Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
-        "Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
-        "Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
-        "Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
-        "Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
-        "Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
-        "Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
-        "Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
-        "Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
-        "Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
-        "Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
-        "Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
-        "Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
-        "Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
-        "Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
-        "Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
-        "Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
-        "Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
-        "Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
-        "Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
-        "Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
-        "Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
-        "Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
-        "Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
-        "Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
-        "Xeme", "Yonderly", "Zenobia"
-    }
+	local baseNames = {
+		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
+		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
+		"Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
+		"Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
+		"Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
+		"Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
+		"Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
+		"Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
+		"Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
+		"Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
+		"Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
+		"Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
+		"Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
+		"Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
+		"Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
+		"Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
+		"Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
+		"Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
+		"Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
+		"Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
+		"Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
+		"Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
+		"Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
+		"Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
+		"Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
+		"Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
+		"Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
+		"Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
+		"Xeme", "Yonderly", "Zenobia"
+	}
 
-    local suffix = isTesting and "Testing" or "Admin"
-    local name = baseNames[math.random(#baseNames)]
+	local suffix = isTesting and "Testing" or "Admin"
+	local name = baseNames[math.random(#baseNames)]
 
-    return name.." "..suffix
+	return name.." "..suffix
 end
 
 function getSeasonEmoji()
@@ -404,6 +404,7 @@ NAICONPOSPATH = "Nameless-Admin/IconPosition.json"
 NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json"
 NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json"
 NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt"
+NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt"
 NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
@@ -462,6 +463,14 @@ if FileSupport then
 	if not isfile(NAPREDICTIONPATH) then
 		writefile(NAPREDICTIONPATH, "true")
 	end
+
+	if not isfile(NASTROKETHINGY) then
+		writefile(NASTROKETHINGY, HttpService:JSONEncode({
+			R = 148 / 255,
+			G = 93 / 255,
+			B = 255 / 255
+		}))
+	end
 end
 
 local prefixCheck = ";"
@@ -469,7 +478,36 @@ local NAScale = 1
 local NAUIScale = 1
 NAQoTEnabled = nil
 NAiconSaveEnabled = nil
+NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NAREQUEST = request or http_request or (syn and syn.request) or function() end
+
+function InitUIStroke(path)
+	local defaultColor = Color3.fromRGB(148, 93, 255)
+
+	if not FileSupport then
+		DoNotif("UI Stroke defaulted: no file support")
+		return defaultColor
+	end
+
+	local success, content = pcall(readfile, path)
+	if success and content then
+		local ok, data = pcall(function()
+			return HttpService:JSONDecode(content)
+		end)
+
+		if ok and data and typeof(data) == "table" and data.R and data.G and data.B then
+			return Color3.new(data.R, data.G, data.B)
+		end
+	end
+
+	writefile(path, HttpService:JSONEncode({
+		R = defaultColor.R,
+		G = defaultColor.G,
+		B = defaultColor.B
+	}))
+	DoNotif("UI Stroke color reset to default due to invalid or missing data.")
+	return defaultColor
+end
 
 if FileSupport then
 	prefixCheck = readfile(NAPREFIXPATH)
@@ -477,6 +515,7 @@ if FileSupport then
 	NAUISavedScale = tonumber(readfile(NAUISIZEPATH))
 	NAQoTEnabled = readfile(NAQOTPATH) == "true"
 	doPREDICTION = readfile(NAPREDICTIONPATH) == "true"
+	NAUISTROKER = InitUIStroke(NASTROKETHINGY)
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -525,6 +564,7 @@ else
 	NAScale = 1
 	NAQoTEnabled = false
 	NAiconSaveEnabled = false
+	NAUISTROKER = Color3.fromRGB(148, 93, 255)
 	DoNotif("Your exploit does not support read/write file")
 end
 
@@ -810,22 +850,22 @@ function didYouMean(input)
 end
 pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 function randomahhfunctionthatyouwontgetit(data)
-    data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
-    return (data:gsub('.', function(x)
-        if (x == '=') then return '' end
-        local r, f = '', (pqwodwjvxnskdsfo:find(x) - 1)
-        for i = 6, 1, -1 do
-            r = r..(f % 2^i - f % 2^(i - 1) > 0 and '1' or '0')
-        end
-        return r
-    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
-        if (#x ~= 8) then return '' end
-        local c = 0
-        for i = 1, 8 do
-            c = c + (x:sub(i, i) == '1' and 2^(8 - i) or 0)
-        end
-        return string.char(c)
-    end))
+	data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
+	return (data:gsub('.', function(x)
+		if (x == '=') then return '' end
+		local r, f = '', (pqwodwjvxnskdsfo:find(x) - 1)
+		for i = 6, 1, -1 do
+			r = r..(f % 2^i - f % 2^(i - 1) > 0 and '1' or '0')
+		end
+		return r
+	end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+		if (#x ~= 8) then return '' end
+		local c = 0
+		for i = 1, 8 do
+			c = c + (x:sub(i, i) == '1' and 2^(8 - i) or 0)
+		end
+		return string.char(c)
+	end))
 end
 qowijjokqwd = randomahhfunctionthatyouwontgetit("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2x0c2V2ZXJ5ZGF5eW91L3V1dXV1dXUvcmVmcy9oZWFkcy9tYWluL2VuY29kZQ==")
 function isRelAdmin(Player)
@@ -1627,6 +1667,16 @@ function placeName()
 	return "unknown"
 end
 
+function SaveUIStroke(path, color)
+	if FileSupport then
+		writefile(path, HttpService:JSONEncode({
+			R = color.R,
+			G = color.G,
+			B = color.B
+		}))
+	end
+end
+
 function placeCreator()
 	local info = getPlaceInfo()
 	if info and info.Creator and info.Creator.Name then
@@ -2409,7 +2459,7 @@ function RenderUserButtons()
 					end
 				end
 				cmd.run(finalArgs)
-			
+
 				if data.Cmd2 then
 					toggled = not toggled
 					btn.BackgroundColor3 = toggled and TOGGLE_COLOR_ON or TOGGLE_COLOR_OFF
@@ -2600,7 +2650,7 @@ lib.disconnect = function(name)
 end
 
 lib.isConnected = function(name)
-    return connections[name] ~= nil
+	return connections[name] ~= nil
 end
 
 lib.isProperty = function(inst,prop)
@@ -3083,7 +3133,7 @@ cmd.add({"uiscale", "uscale"}, {"uiscale (uscale)", "Adjust the scale of the "..
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
 					if FileSupport then
-							writefile(NAUISIZEPATH, tostring(NAUIScale))
+						writefile(NAUISIZEPATH, tostring(NAUIScale))
 					end
 				end
 			end)
@@ -3895,8 +3945,8 @@ end)
 debugUI, cDEBUGCON, isMinimized = nil, {}, false
 
 function DEBUGclearCONS()
-    for _,c in ipairs(cDEBUGCON) do c:Disconnect() end
-    cDEBUGCON = {}
+	for _,c in ipairs(cDEBUGCON) do c:Disconnect() end
+	cDEBUGCON = {}
 end
 
 cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},function()
@@ -3911,149 +3961,149 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		for k,v in pairs(props) do inst[k] = v end
 		return inst
 	end
-    if debugUI then
-        debugUI:Destroy()
-        debugUI = nil
-        DEBUGclearCONS()
-        RunService:UnbindFromRenderStep("CharDebug")
-        return
-    end
+	if debugUI then
+		debugUI:Destroy()
+		debugUI = nil
+		DEBUGclearCONS()
+		RunService:UnbindFromRenderStep("CharDebug")
+		return
+	end
 
-    debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false})
+	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false})
 	NaProtectUI(debugUI)
 
-    local window = new("Frame",{
-        Name="Window",
-        Size=UDim2.fromOffset(UI_SIZE.X, HEADER_H),
-        Position=UDim2.new(0.5, -UI_SIZE.X/2, 0.2, 0),
-        BackgroundColor3=BG_COLOR,
-        BorderSizePixel=0,
-        ClipsDescendants=true,
-        Parent=debugUI
-    })
-    new("UICorner",{CornerRadius=UDim.new(0,8),Parent=window})
+	local window = new("Frame",{
+		Name="Window",
+		Size=UDim2.fromOffset(UI_SIZE.X, HEADER_H),
+		Position=UDim2.new(0.5, -UI_SIZE.X/2, 0.2, 0),
+		BackgroundColor3=BG_COLOR,
+		BorderSizePixel=0,
+		ClipsDescendants=true,
+		Parent=debugUI
+	})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=window})
 
-    local header = new("Frame",{
-        Name="Header",
-        Size=UDim2.new(1,0,0,HEADER_H),
-        BackgroundColor3=BG_COLOR,
-        Parent=window
-    })
-    new("UICorner",{CornerRadius=UDim.new(0,8),Parent=header})
+	local header = new("Frame",{
+		Name="Header",
+		Size=UDim2.new(1,0,0,HEADER_H),
+		BackgroundColor3=BG_COLOR,
+		Parent=window
+	})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=header})
 
-    local title = new("TextLabel",{
-        Name="Title",
-        Size=UDim2.new(1,-80,1,0),
-        Position=UDim2.new(0,10,0,0),
-        BackgroundTransparency=1,
-        Font=Enum.Font.Code,
-        TextSize=18,
-        TextColor3=Color3.new(1,1,1),
-        TextXAlignment=Enum.TextXAlignment.Left,
-        Text="Character Debug",
-        Parent=header
-    })
+	local title = new("TextLabel",{
+		Name="Title",
+		Size=UDim2.new(1,-80,1,0),
+		Position=UDim2.new(0,10,0,0),
+		BackgroundTransparency=1,
+		Font=Enum.Font.Code,
+		TextSize=18,
+		TextColor3=Color3.new(1,1,1),
+		TextXAlignment=Enum.TextXAlignment.Left,
+		Text="Character Debug",
+		Parent=header
+	})
 
-    local btn = new("TextButton",{
-        Name="MinimizeBtn",
-        Size=UDim2.new(0,40,1,0),
-        Position=UDim2.new(1,-40,0,0),
-        BackgroundTransparency=1,
-        Font=Enum.Font.Code,
-        TextSize=24,
-        TextColor3=Color3.new(1,1,1),
-        Text="-",
-        Parent=header
-    })
+	local btn = new("TextButton",{
+		Name="MinimizeBtn",
+		Size=UDim2.new(0,40,1,0),
+		Position=UDim2.new(1,-40,0,0),
+		BackgroundTransparency=1,
+		Font=Enum.Font.Code,
+		TextSize=24,
+		TextColor3=Color3.new(1,1,1),
+		Text="-",
+		Parent=header
+	})
 
-    local content = new("Frame",{
-        Name="Content",
-        Size=UDim2.new(1,0,0,UI_SIZE.Y-HEADER_H),
-        Position=UDim2.new(0,0,0,HEADER_H),
-        BackgroundColor3=CONTENT_BG,
-        BackgroundTransparency=0.3,
-        Parent=window
-    })
-    new("UICorner",{CornerRadius=UDim.new(0,8),Parent=content})
+	local content = new("Frame",{
+		Name="Content",
+		Size=UDim2.new(1,0,0,UI_SIZE.Y-HEADER_H),
+		Position=UDim2.new(0,0,0,HEADER_H),
+		BackgroundColor3=CONTENT_BG,
+		BackgroundTransparency=0.3,
+		Parent=window
+	})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=content})
 
-    local grid = new("UIGridLayout",{
-        Parent=content,
-        CellSize=UDim2.new(0,250,0,50),
-        CellPadding=UDim2.new(0,10,0,10),
-        StartCorner=Enum.StartCorner.TopLeft,
-        SortOrder=Enum.SortOrder.LayoutOrder
-    })
+	local grid = new("UIGridLayout",{
+		Parent=content,
+		CellSize=UDim2.new(0,250,0,50),
+		CellPadding=UDim2.new(0,10,0,10),
+		StartCorner=Enum.StartCorner.TopLeft,
+		SortOrder=Enum.SortOrder.LayoutOrder
+	})
 
-    local stats = {
-        {key="Velocity",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Velocity.X, r.Velocity.Y, r.Velocity.Z end},
-        {key="Position",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Position.X, r.Position.Y, r.Position.Z end},
-        {key="Health",    source="humanoid", fmt="%.2f / %.2f",             fn=function(h) return h.Health, h.MaxHealth end},
-        {key="FOV",       source="camera",   fmt="%.2f",                      fn=function(c) return c.FieldOfView end},
-        {key="State",     source="humanoid", fmt="%s",                        fn=function(h) return tostring(h:GetState()) end},
-        {key="Tool",      source="char",     fmt="%s",                        fn=function(c) local t=c:FindFirstChildOfClass("Tool") return (t and t.Name) or "None" end},
-        {key="JumpPower", source="humanoid", fmt="%.2f",                      fn=function(h) return h.JumpPower end},
-        {key="WalkSpeed", source="humanoid", fmt="%.2f",                      fn=function(h) return h.WalkSpeed end},
-    }
+	local stats = {
+		{key="Velocity",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Velocity.X, r.Velocity.Y, r.Velocity.Z end},
+		{key="Position",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Position.X, r.Position.Y, r.Position.Z end},
+		{key="Health",    source="humanoid", fmt="%.2f / %.2f",             fn=function(h) return h.Health, h.MaxHealth end},
+		{key="FOV",       source="camera",   fmt="%.2f",                      fn=function(c) return c.FieldOfView end},
+		{key="State",     source="humanoid", fmt="%s",                        fn=function(h) return tostring(h:GetState()) end},
+		{key="Tool",      source="char",     fmt="%s",                        fn=function(c) local t=c:FindFirstChildOfClass("Tool") return (t and t.Name) or "None" end},
+		{key="JumpPower", source="humanoid", fmt="%.2f",                      fn=function(h) return h.JumpPower end},
+		{key="WalkSpeed", source="humanoid", fmt="%.2f",                      fn=function(h) return h.WalkSpeed end},
+	}
 
-    local labels = {}
-    for i,stat in ipairs(stats) do
-        local lbl = new("TextLabel",{
-            Name=stat.key,
-            LayoutOrder=i,
-            Size=UDim2.fromOffset(250,50),
-            BackgroundColor3=Color3.fromRGB(30,30,30),
-            BorderSizePixel=0,
-            Font=Enum.Font.Code,
-            TextScaled=true,
-            TextColor3=Color3.new(1,1,1),
-            TextWrapped=true,
-            Text=stat.key.."\n—",
-            Parent=content
-        })
-        new("UICorner",{CornerRadius=UDim.new(0,4),Parent=lbl})
-        labels[stat.key] = lbl
-    end
+	local labels = {}
+	for i,stat in ipairs(stats) do
+		local lbl = new("TextLabel",{
+			Name=stat.key,
+			LayoutOrder=i,
+			Size=UDim2.fromOffset(250,50),
+			BackgroundColor3=Color3.fromRGB(30,30,30),
+			BorderSizePixel=0,
+			Font=Enum.Font.Code,
+			TextScaled=true,
+			TextColor3=Color3.new(1,1,1),
+			TextWrapped=true,
+			Text=stat.key.."\n—",
+			Parent=content
+		})
+		new("UICorner",{CornerRadius=UDim.new(0,4),Parent=lbl})
+		labels[stat.key] = lbl
+	end
 
 	gui.draggablev2(window, header)
 
-    btn.MouseButton1Click:Connect(function()
-        isMinimized = not isMinimized
-        local target = isMinimized and UDim2.fromOffset(UI_SIZE.X, HEADER_H) or UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)
-        TweenService:Create(window, TweenInfo.new(0.2), {Size = target}):Play()
-        btn.Text = isMinimized and "+" or "-"
-        content.Visible = not isMinimized
-    end)
+	btn.MouseButton1Click:Connect(function()
+		isMinimized = not isMinimized
+		local target = isMinimized and UDim2.fromOffset(UI_SIZE.X, HEADER_H) or UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)
+		TweenService:Create(window, TweenInfo.new(0.2), {Size = target}):Play()
+		btn.Text = isMinimized and "+" or "-"
+		content.Visible = not isMinimized
+	end)
 
-    local dtAcc = 0
-    RunService:BindToRenderStep("CharDebug", Enum.RenderPriority.Last.Value, function(dt)
-        dtAcc = dtAcc + dt
-        if dtAcc < UPDATE_RATE then return end
-        dtAcc = 0
+	local dtAcc = 0
+	RunService:BindToRenderStep("CharDebug", Enum.RenderPriority.Last.Value, function(dt)
+		dtAcc = dtAcc + dt
+		if dtAcc < UPDATE_RATE then return end
+		dtAcc = 0
 
-        local char = LocalPlayer.Character
-        local hum  = getHum()
-        local root = char and getRoot(char)
-        local cam  = SafeGetService("Workspace").CurrentCamera
-        if not (char and hum and root and cam) then return end
+		local char = LocalPlayer.Character
+		local hum  = getHum()
+		local root = char and getRoot(char)
+		local cam  = SafeGetService("Workspace").CurrentCamera
+		if not (char and hum and root and cam) then return end
 
-        local sources = { char = char, humanoid = hum, root = root, camera = cam }
-        for _, stat in ipairs(stats) do
-            local src = sources[stat.source]
-            if src then
-                local vals = { stat.fn(src) }
-                labels[stat.key].Text = stat.key.."\n"..Format(stat.fmt, unpack(vals))
-            end
-        end
-    end)
+		local sources = { char = char, humanoid = hum, root = root, camera = cam }
+		for _, stat in ipairs(stats) do
+			local src = sources[stat.source]
+			if src then
+				local vals = { stat.fn(src) }
+				labels[stat.key].Text = stat.key.."\n"..Format(stat.fmt, unpack(vals))
+			end
+		end
+	end)
 end)
 
 cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character debug"},function()
-    if debugUI then
-        debugUI:Destroy()
-        debugUI = nil
-        DEBUGclearCONS()
-        RunService:UnbindFromRenderStep("CharDebug")
-    end
+	if debugUI then
+		debugUI:Destroy()
+		debugUI = nil
+		DEBUGclearCONS()
+		RunService:UnbindFromRenderStep("CharDebug")
+	end
 end)
 
 cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
@@ -7490,47 +7540,47 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 end)
 
 local damageMessages = {
-    "Ouch!", "Ow!", "Aw!", "That hurt!", "Yikes!", "Gah!", "Nooo!",
-    "Stop that!", "Bruh...", "Hmph!", "I felt that!", "What the–?!", "My pixels!", "Dang!",
-    "Seriously?", "Try that again!", "Cut it out!", "That was rude!"
+	"Ouch!", "Ow!", "Aw!", "That hurt!", "Yikes!", "Gah!", "Nooo!",
+	"Stop that!", "Bruh...", "Hmph!", "I felt that!", "What the–?!", "My pixels!", "Dang!",
+	"Seriously?", "Try that again!", "Cut it out!", "That was rude!"
 }
 
 cmd.add({"damagechat", "dmgchat", "painchat"}, {"damagechat (dmgchat, painchat)", "Toggles chat message when you take damage"}, function()
-    local humanoid = getHum()
+	local humanoid = getHum()
 
-    if not humanoid then
-        DoNotif("Humanoid not found", 2)
-        return
-    end
+	if not humanoid then
+		DoNotif("Humanoid not found", 2)
+		return
+	end
 
-    local connName = "damagechat"
+	local connName = "damagechat"
 
-    if lib.isConnected(connName) then
-        lib.disconnect(connName)
-        DoNotif("Disabled", 2)
-        return
-    end
+	if lib.isConnected(connName) then
+		lib.disconnect(connName)
+		DoNotif("Disabled", 2)
+		return
+	end
 
-    local lastHealth = humanoid.Health
+	local lastHealth = humanoid.Health
 
-    lib.connect(connName, humanoid.HealthChanged:Connect(function(newHealth)
-        if newHealth < lastHealth then
-            local msg = damageMessages[math.random(1, #damageMessages)]
-            lib.LocalPlayerChat(msg, "All")
-        end
-        lastHealth = newHealth
-    end))
+	lib.connect(connName, humanoid.HealthChanged:Connect(function(newHealth)
+		if newHealth < lastHealth then
+			local msg = damageMessages[math.random(1, #damageMessages)]
+			lib.LocalPlayerChat(msg, "All")
+		end
+		lastHealth = newHealth
+	end))
 
-    DoNotif("Enabled", 2)
+	DoNotif("Enabled", 2)
 end)
 
 cmd.add({"undamagechat", "undmgchat", "unpainchat"}, {"undamagechat (undmgchat, unpainchat)", "Disables damage reaction chat"}, function()
-    if lib.isConnected("damagechat") then
-        lib.disconnect("damagechat")
-        DoNotif("Disabled", 2)
-    else
-        DoNotif("Already disabled", 2)
-    end
+	if lib.isConnected("damagechat") then
+		lib.disconnect("damagechat")
+		DoNotif("Disabled", 2)
+	else
+		DoNotif("Already disabled", 2)
+	end
 end)
 
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
@@ -7555,147 +7605,147 @@ local storedAnims = {}
 builderAnim = nil
 
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
-    if builderAnim then pcall(function() builderAnim:Destroy() end) builderAnim = nil end
+	if builderAnim then pcall(function() builderAnim:Destroy() end) builderAnim = nil end
 
-    local function getData()
-        local hum = getHum()
-        if not hum then return end
-        local animate = hum.Parent:FindFirstChild("Animate")
-        if not animate then return end
-        return hum, animate
-    end
+	local function getData()
+		local hum = getHum()
+		if not hum then return end
+		local animate = hum.Parent:FindFirstChild("Animate")
+		if not animate then return end
+		return hum, animate
+	end
 
-    local p = LocalPlayer
-    local uid = p.UserId
-    if not storedAnims[uid] then
-        local hum0, animate0 = getData()
-        if not animate0 then return end
-        local store = {}
-        for _, v in pairs(animate0:GetChildren()) do
-            if v:IsA("StringValue") then
-                local a = v:FindFirstChildWhichIsA("Animation")
-                if a then store[v.Name] = a.AnimationId end
-            end
-        end
-        storedAnims[uid] = store
-    end
+	local p = LocalPlayer
+	local uid = p.UserId
+	if not storedAnims[uid] then
+		local hum0, animate0 = getData()
+		if not animate0 then return end
+		local store = {}
+		for _, v in pairs(animate0:GetChildren()) do
+			if v:IsA("StringValue") then
+				local a = v:FindFirstChildWhichIsA("Animation")
+				if a then store[v.Name] = a.AnimationId end
+			end
+		end
+		storedAnims[uid] = store
+	end
 
-    builderAnim = InstanceNew("ScreenGui")
-    NaProtectUI(builderAnim)
+	builderAnim = InstanceNew("ScreenGui")
+	NaProtectUI(builderAnim)
 
-    local m = InstanceNew("Frame", builderAnim)
-    local fullW, fullH = 420, 515
-    m.Size = UDim2.new(0, fullW, 0, fullH)
-    m.Position = UDim2.new(0.5, -fullW/2, 0.5, -fullH/2)
-    m.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    m.BackgroundTransparency = 0.4
-    m.ClipsDescendants = true
-    InstanceNew("UICorner", m).CornerRadius = UDim.new(0,12)
+	local m = InstanceNew("Frame", builderAnim)
+	local fullW, fullH = 420, 515
+	m.Size = UDim2.new(0, fullW, 0, fullH)
+	m.Position = UDim2.new(0.5, -fullW/2, 0.5, -fullH/2)
+	m.BackgroundColor3 = Color3.fromRGB(30,30,30)
+	m.BackgroundTransparency = 0.4
+	m.ClipsDescendants = true
+	InstanceNew("UICorner", m).CornerRadius = UDim.new(0,12)
 
-    local title = InstanceNew("TextLabel", m)
-    title.Size = UDim2.new(1,0,0,30)
-    title.Position = UDim2.new(0,0,0,0)
-    title.BackgroundTransparency = 1
-    title.Text = "Animation Builder"
-    title.TextSize = 20
-    title.Font = Enum.Font.SourceSansSemibold
-    title.TextColor3 = Color3.new(1,1,1)
+	local title = InstanceNew("TextLabel", m)
+	title.Size = UDim2.new(1,0,0,30)
+	title.Position = UDim2.new(0,0,0,0)
+	title.BackgroundTransparency = 1
+	title.Text = "Animation Builder"
+	title.TextSize = 20
+	title.Font = Enum.Font.SourceSansSemibold
+	title.TextColor3 = Color3.new(1,1,1)
 
-    local x = InstanceNew("TextButton", m)
-    x.Size = UDim2.new(0,30,0,30)
-    x.Position = UDim2.new(1,-35,0,2)
-    x.Text = "X"
-    x.Font = Enum.Font.SourceSansBold
-    x.TextSize = 18
-    x.BackgroundColor3 = Color3.fromRGB(200,50,50)
-    x.BackgroundTransparency = 0.5
-    InstanceNew("UICorner", x).CornerRadius = UDim.new(0,8)
-    x.MouseButton1Click:Connect(function() pcall(builderAnim.Destroy, builderAnim) builderAnim = nil end)
+	local x = InstanceNew("TextButton", m)
+	x.Size = UDim2.new(0,30,0,30)
+	x.Position = UDim2.new(1,-35,0,2)
+	x.Text = "X"
+	x.Font = Enum.Font.SourceSansBold
+	x.TextSize = 18
+	x.BackgroundColor3 = Color3.fromRGB(200,50,50)
+	x.BackgroundTransparency = 0.5
+	InstanceNew("UICorner", x).CornerRadius = UDim.new(0,8)
+	x.MouseButton1Click:Connect(function() pcall(builderAnim.Destroy, builderAnim) builderAnim = nil end)
 
-    local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
-    local tb = {}
-    for i, k in ipairs(states) do
-        local r = InstanceNew("Frame", m)
-        r.Size = UDim2.new(1,-20,0,50)
-        r.Position = UDim2.new(0,10,0,40 + (i-1)*55)
-        r.BackgroundColor3 = Color3.fromRGB(50,50,50)
-        r.BackgroundTransparency = 0.3
-        InstanceNew("UICorner", r).CornerRadius = UDim.new(0,10)
+	local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
+	local tb = {}
+	for i, k in ipairs(states) do
+		local r = InstanceNew("Frame", m)
+		r.Size = UDim2.new(1,-20,0,50)
+		r.Position = UDim2.new(0,10,0,40 + (i-1)*55)
+		r.BackgroundColor3 = Color3.fromRGB(50,50,50)
+		r.BackgroundTransparency = 0.3
+		InstanceNew("UICorner", r).CornerRadius = UDim.new(0,10)
 
-        local l = InstanceNew("TextLabel", r)
-        l.Text = k
-        l.Size = UDim2.new(0.3,0,1,0)
-        l.Position = UDim2.new(0,10,0,0)
-        l.BackgroundTransparency = 1
-        l.TextSize = 16
-        l.Font = Enum.Font.SourceSans
-        l.TextColor3 = Color3.new(1,1,1)
-        l.TextXAlignment = Enum.TextXAlignment.Left
+		local l = InstanceNew("TextLabel", r)
+		l.Text = k
+		l.Size = UDim2.new(0.3,0,1,0)
+		l.Position = UDim2.new(0,10,0,0)
+		l.BackgroundTransparency = 1
+		l.TextSize = 16
+		l.Font = Enum.Font.SourceSans
+		l.TextColor3 = Color3.new(1,1,1)
+		l.TextXAlignment = Enum.TextXAlignment.Left
 
-        local te = InstanceNew("TextBox", r)
-        te.PlaceholderText = "Insert ID"
-        te.Text = ""
-        te.ClearTextOnFocus = false
-        te.Size = UDim2.new(0.7,-20,0,30)
-        te.Position = UDim2.new(0.3,10,0,10)
-        te.BackgroundColor3 = Color3.fromRGB(70,70,70)
-        te.BackgroundTransparency = 0.2
-        te.TextSize = 16
-        te.Font = Enum.Font.SourceSans
-        te.TextColor3 = Color3.new(1,1,1)
-        InstanceNew("UICorner", te).CornerRadius = UDim.new(0,8)
-        te:GetPropertyChangedSignal("Text"):Connect(function()
-            local clean = te.Text:gsub('%D','') if te.Text~=clean then te.Text=clean end
-        end)
-        tb[Lower(k)] = te
-    end
+		local te = InstanceNew("TextBox", r)
+		te.PlaceholderText = "Insert ID"
+		te.Text = ""
+		te.ClearTextOnFocus = false
+		te.Size = UDim2.new(0.7,-20,0,30)
+		te.Position = UDim2.new(0.3,10,0,10)
+		te.BackgroundColor3 = Color3.fromRGB(70,70,70)
+		te.BackgroundTransparency = 0.2
+		te.TextSize = 16
+		te.Font = Enum.Font.SourceSans
+		te.TextColor3 = Color3.new(1,1,1)
+		InstanceNew("UICorner", te).CornerRadius = UDim.new(0,8)
+		te:GetPropertyChangedSignal("Text"):Connect(function()
+			local clean = te.Text:gsub('%D','') if te.Text~=clean then te.Text=clean end
+		end)
+		tb[Lower(k)] = te
+	end
 
-    local btnY = fullH - 45
-    local save = InstanceNew("TextButton", m)
-    save.Size = UDim2.new(0.48,0,0,40)
-    save.Position = UDim2.new(0.02,0,0,btnY)
-    save.Text = "Save"
-    save.TextSize = 18
-    save.Font = Enum.Font.SourceSansSemibold
-    save.BackgroundColor3 = Color3.fromRGB(80,160,80)
-    save.BackgroundTransparency = 0.2
-    InstanceNew("UICorner", save).CornerRadius = UDim.new(0,10)
+	local btnY = fullH - 45
+	local save = InstanceNew("TextButton", m)
+	save.Size = UDim2.new(0.48,0,0,40)
+	save.Position = UDim2.new(0.02,0,0,btnY)
+	save.Text = "Save"
+	save.TextSize = 18
+	save.Font = Enum.Font.SourceSansSemibold
+	save.BackgroundColor3 = Color3.fromRGB(80,160,80)
+	save.BackgroundTransparency = 0.2
+	InstanceNew("UICorner", save).CornerRadius = UDim.new(0,10)
 
-    local revert = InstanceNew("TextButton", m)
-    revert.Size = UDim2.new(0.48,0,0,40)
-    revert.Position = UDim2.new(0.5,0,0,btnY)
-    revert.Text = "Revert"
-    revert.TextSize = 18
-    revert.Font = Enum.Font.SourceSansSemibold
-    revert.BackgroundColor3 = Color3.fromRGB(160,80,80)
-    revert.BackgroundTransparency = 0.2
-    InstanceNew("UICorner", revert).CornerRadius = UDim.new(0,10)
+	local revert = InstanceNew("TextButton", m)
+	revert.Size = UDim2.new(0.48,0,0,40)
+	revert.Position = UDim2.new(0.5,0,0,btnY)
+	revert.Text = "Revert"
+	revert.TextSize = 18
+	revert.Font = Enum.Font.SourceSansSemibold
+	revert.BackgroundColor3 = Color3.fromRGB(160,80,80)
+	revert.BackgroundTransparency = 0.2
+	InstanceNew("UICorner", revert).CornerRadius = UDim.new(0,10)
 
-    local function applyAnims(mode)
-        local hum, animate = getData()
-        if not animate then return end
-        for _, k in ipairs(states) do
-            local e = tb[Lower(k)]
-            if mode == "save" then
-                local id = tonumber(e.Text)
-                if id then local o = animate:FindFirstChild(k:lower())
-                    if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = "rbxassetid://"..id end end
-                end
-            else
-                local raw = storedAnims[uid] and storedAnims[uid][k:lower()]
-                if raw then local num = raw:match('%d+') if num then local orig = tonumber(num)
-                            if orig then local o = animate:FindFirstChild(k:lower())
-                                    if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = raw end end
-                                tb[Lower(k)].Text = tostring(orig)
-                            end
-                        end
-                end
-            end
-        end
-    end
-    save.MouseButton1Click:Connect(function() applyAnims("save") end)
-    revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
-    gui.draggable(m)
+	local function applyAnims(mode)
+		local hum, animate = getData()
+		if not animate then return end
+		for _, k in ipairs(states) do
+			local e = tb[Lower(k)]
+			if mode == "save" then
+				local id = tonumber(e.Text)
+				if id then local o = animate:FindFirstChild(k:lower())
+					if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = "rbxassetid://"..id end end
+				end
+			else
+				local raw = storedAnims[uid] and storedAnims[uid][k:lower()]
+				if raw then local num = raw:match('%d+') if num then local orig = tonumber(num)
+						if orig then local o = animate:FindFirstChild(k:lower())
+							if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = raw end end
+							tb[Lower(k)].Text = tostring(orig)
+						end
+					end
+				end
+			end
+		end
+	end
+	save.MouseButton1Click:Connect(function() applyAnims("save") end)
+	revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
+	gui.draggable(m)
 end)
 
 cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer animation set"}, function()
@@ -9754,13 +9804,13 @@ cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "P
 
 	lib.BypassChatMessage = function(message, recipient)
 		local targetChannel
-	
+
 		if recipient and recipient ~= "All" then
 			targetChannel = CachedChannels[recipient]
 			if targetChannel then
 				if not targetChannel:IsDescendantOf(TextChatService)
-				or not targetChannel:FindFirstChild(recipient)
-				or not targetChannel:FindFirstChild(LocalPlayer.Name) then
+					or not targetChannel:FindFirstChild(recipient)
+					or not targetChannel:FindFirstChild(LocalPlayer.Name) then
 					CachedChannels[recipient] = nil
 					targetChannel = nil
 				end
@@ -9775,10 +9825,10 @@ cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "P
 				end
 			end
 		end
-	
+
 		if not targetChannel then
 			targetChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-			or TextChatService.TextChannels:FindFirstChild("General")
+				or TextChatService.TextChannels:FindFirstChild("General")
 		end
 
 		if targetChannel then
@@ -9855,158 +9905,158 @@ cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer
 end)
 
 cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
-local Player = Players.LocalPlayer
-local function getBadges()
-local all = {}
-local cursor = ""
-repeat
-  local url = ("https://badges.roproxy.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
-  GameId,
-  cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
-  )
-  local res = NAREQUEST({Url = url, Method = "GET"})
-  if not res or res.StatusCode ~= 200 then
-    break
-  end
-  local body = HttpService:JSONDecode(res.Body)
-  for _, b in ipairs(body.data or {}) do
-    Insert(all, {
-    id = b.id,
-    name = b.name,
-    desc = b.displayDescription or b.description or "",
-    icon = b.iconImageId,
-    rarity = b.statistics and b.statistics.winRatePercentage or 0,
-    awarded = b.statistics and b.statistics.awardedCount or 0,
-    pastDay = b.statistics and b.statistics.pastDayAwardedCount or 0,
-    universe = b.awardingUniverse and b.awardingUniverse.name or "Unknown"
-    })
-  end
-  cursor = body.nextPageCursor or ""
-until cursor == ""
-return all
-end
-local function createBadgeUI(data)
-local sgui = InstanceNew("ScreenGui")
-NaProtectUI(sgui)
-sgui.Name = "BadgeViewer"
-local main = InstanceNew("Frame", sgui)
-main.Size = UDim2.new(0.5,0,0.7,0)
-main.Position = UDim2.new(0.25, 0, 0.2, 0)
-main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-main.BackgroundTransparency = 0.2
-main.BorderSizePixel = 0
-main.ClipsDescendants = true
-main.Active = true
-main.Visible = true
-main.Name = "Main"
-main:ClearAllChildren()
-local uicorner = InstanceNew("UICorner", main)
-uicorner.CornerRadius = UDim.new(0, 16)
-local top = InstanceNew("Frame", main)
-top.Size = UDim2.new(1, 0, 0, 40)
-top.BackgroundTransparency = 0.3
-top.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-local topCorner = InstanceNew("UICorner", top)
-topCorner.CornerRadius = UDim.new(0, 12)
-local title = InstanceNew("TextLabel", top)
-title.Size = UDim2.new(1, -80, 1, 0)
-title.Position = UDim2.new(0, 10, 0, 0)
-title.Text = "Badge Viewer"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-title.TextColor3 = Color3.fromRGB(240, 240, 240)
-title.BackgroundTransparency = 1
-title.TextXAlignment = Enum.TextXAlignment.Left
-local closeBtn = InstanceNew("TextButton", top)
-closeBtn.Text = "X"
-closeBtn.Size = UDim2.new(0, 30, 1, 0)
-closeBtn.Position = UDim2.new(1, -35, 0, 0)
-closeBtn.Font = Enum.Font.Gotham
-closeBtn.TextSize = 16
-closeBtn.BackgroundTransparency = 1
-closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-local minBtn = InstanceNew("TextButton", top)
-minBtn.Text = "-"
-minBtn.Size = UDim2.new(0, 30, 1, 0)
-minBtn.Position = UDim2.new(1, -70, 0, 0)
-minBtn.Font = Enum.Font.Gotham
-minBtn.TextSize = 20
-minBtn.BackgroundTransparency = 1
-minBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-local scroll = InstanceNew("ScrollingFrame", main)
-scroll.Size = UDim2.new(1, -20, 1, -50)
-scroll.Position = UDim2.new(0, 10, 0, 45)
-scroll.BackgroundTransparency = 1
-scroll.ScrollBarThickness = 6
-scroll.CanvasSize = UDim2.new(0, 0, 0, #data * 130)
-local layout = InstanceNew("UIListLayout", scroll)
-layout.Padding = UDim.new(0, 10)
-for _, b in ipairs(data) do
-  local f = InstanceNew("Frame", scroll)
-  f.Size = UDim2.new(1, 0, 0, 120)
-  f.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-  f.BackgroundTransparency = 0.4
-  local fc = InstanceNew("UICorner", f)
-  fc.CornerRadius = UDim.new(0, 10)
-  local img = InstanceNew("ImageLabel", f)
-  img.Size = UDim2.new(0, 100, 0, 100)
-  img.Position = UDim2.new(0, 10, 0, 10)
-  img.Image = "rbxthumb://type=Asset&id="..b.icon.."&w=420&h=420"
-  img.BackgroundTransparency = 1
-  local title = InstanceNew("TextLabel", f)
-  title.Position = UDim2.new(0, 120, 0, 10)
-  title.Size = UDim2.new(1, -130, 0, 25)
-  title.Text = b.name
-  title.TextColor3 = Color3.fromRGB(255, 255, 255)
-  title.Font = Enum.Font.GothamSemibold
-  title.TextSize = 18
-  title.BackgroundTransparency = 1
-  title.TextXAlignment = Enum.TextXAlignment.Left
-  local desc = InstanceNew("TextLabel", f)
-  desc.Position = UDim2.new(0, 120, 0, 35)
-  desc.Size = UDim2.new(1, -130, 0, 30)
-  desc.Text = b.desc
-  desc.TextWrapped = true
-  desc.TextColor3 = Color3.fromRGB(200, 200, 200)
-  desc.Font = Enum.Font.Gotham
-  desc.TextSize = 14
-  desc.BackgroundTransparency = 1
-  desc.TextXAlignment = Enum.TextXAlignment.Left
-  local stat = InstanceNew("TextLabel", f)
-  stat.Position = UDim2.new(0, 120, 0, 65)
-  stat.Size = UDim2.new(1, -130, 0, 50)
-  stat.Text = Format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
-  stat.TextColor3 = Color3.fromRGB(160, 160, 160)
-  stat.Font = Enum.Font.Gotham
-  stat.TextSize = 13
-  stat.TextWrapped = true
-  stat.BackgroundTransparency = 1
-  stat.TextXAlignment = Enum.TextXAlignment.Left
-end
-closeBtn.MouseButton1Click:Connect(function()
-local tween = TweenService:Create(main, TweenInfo.new(0.4), {
-Size = UDim2.new(0, 0, 0, 0),
-Position = UDim2.new(0.5, 0, 0.5, 0)
-})
-tween:Play()
-tween.Completed:Wait()
-sgui:Destroy()
-end)
-local minimized = false
-minBtn.MouseButton1Click:Connect(function()
-local target = minimized and UDim2.new(0.5,0,0.7,0) or UDim2.new(0.5,0,0.07,0)
-local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
-tween:Play()
-minimized = not minimized
-end)
-gui.draggable(main, top)
-end
-local ok, result = pcall(getBadges)
-if ok then
-  createBadgeUI(result)
-else
-  DoNotif("Failed to fetch badge data")
-end
+	local Player = Players.LocalPlayer
+	local function getBadges()
+		local all = {}
+		local cursor = ""
+		repeat
+			local url = ("https://badges.roproxy.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
+				GameId,
+				cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
+			)
+			local res = NAREQUEST({Url = url, Method = "GET"})
+			if not res or res.StatusCode ~= 200 then
+				break
+			end
+			local body = HttpService:JSONDecode(res.Body)
+			for _, b in ipairs(body.data or {}) do
+				Insert(all, {
+					id = b.id,
+					name = b.name,
+					desc = b.displayDescription or b.description or "",
+					icon = b.iconImageId,
+					rarity = b.statistics and b.statistics.winRatePercentage or 0,
+					awarded = b.statistics and b.statistics.awardedCount or 0,
+					pastDay = b.statistics and b.statistics.pastDayAwardedCount or 0,
+					universe = b.awardingUniverse and b.awardingUniverse.name or "Unknown"
+				})
+			end
+			cursor = body.nextPageCursor or ""
+		until cursor == ""
+		return all
+	end
+	local function createBadgeUI(data)
+		local sgui = InstanceNew("ScreenGui")
+		NaProtectUI(sgui)
+		sgui.Name = "BadgeViewer"
+		local main = InstanceNew("Frame", sgui)
+		main.Size = UDim2.new(0.5,0,0.7,0)
+		main.Position = UDim2.new(0.25, 0, 0.2, 0)
+		main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		main.BackgroundTransparency = 0.2
+		main.BorderSizePixel = 0
+		main.ClipsDescendants = true
+		main.Active = true
+		main.Visible = true
+		main.Name = "Main"
+		main:ClearAllChildren()
+		local uicorner = InstanceNew("UICorner", main)
+		uicorner.CornerRadius = UDim.new(0, 16)
+		local top = InstanceNew("Frame", main)
+		top.Size = UDim2.new(1, 0, 0, 40)
+		top.BackgroundTransparency = 0.3
+		top.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		local topCorner = InstanceNew("UICorner", top)
+		topCorner.CornerRadius = UDim.new(0, 12)
+		local title = InstanceNew("TextLabel", top)
+		title.Size = UDim2.new(1, -80, 1, 0)
+		title.Position = UDim2.new(0, 10, 0, 0)
+		title.Text = "Badge Viewer"
+		title.Font = Enum.Font.GothamBold
+		title.TextSize = 20
+		title.TextColor3 = Color3.fromRGB(240, 240, 240)
+		title.BackgroundTransparency = 1
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		local closeBtn = InstanceNew("TextButton", top)
+		closeBtn.Text = "X"
+		closeBtn.Size = UDim2.new(0, 30, 1, 0)
+		closeBtn.Position = UDim2.new(1, -35, 0, 0)
+		closeBtn.Font = Enum.Font.Gotham
+		closeBtn.TextSize = 16
+		closeBtn.BackgroundTransparency = 1
+		closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+		local minBtn = InstanceNew("TextButton", top)
+		minBtn.Text = "-"
+		minBtn.Size = UDim2.new(0, 30, 1, 0)
+		minBtn.Position = UDim2.new(1, -70, 0, 0)
+		minBtn.Font = Enum.Font.Gotham
+		minBtn.TextSize = 20
+		minBtn.BackgroundTransparency = 1
+		minBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+		local scroll = InstanceNew("ScrollingFrame", main)
+		scroll.Size = UDim2.new(1, -20, 1, -50)
+		scroll.Position = UDim2.new(0, 10, 0, 45)
+		scroll.BackgroundTransparency = 1
+		scroll.ScrollBarThickness = 6
+		scroll.CanvasSize = UDim2.new(0, 0, 0, #data * 130)
+		local layout = InstanceNew("UIListLayout", scroll)
+		layout.Padding = UDim.new(0, 10)
+		for _, b in ipairs(data) do
+			local f = InstanceNew("Frame", scroll)
+			f.Size = UDim2.new(1, 0, 0, 120)
+			f.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+			f.BackgroundTransparency = 0.4
+			local fc = InstanceNew("UICorner", f)
+			fc.CornerRadius = UDim.new(0, 10)
+			local img = InstanceNew("ImageLabel", f)
+			img.Size = UDim2.new(0, 100, 0, 100)
+			img.Position = UDim2.new(0, 10, 0, 10)
+			img.Image = "rbxthumb://type=Asset&id="..b.icon.."&w=420&h=420"
+			img.BackgroundTransparency = 1
+			local title = InstanceNew("TextLabel", f)
+			title.Position = UDim2.new(0, 120, 0, 10)
+			title.Size = UDim2.new(1, -130, 0, 25)
+			title.Text = b.name
+			title.TextColor3 = Color3.fromRGB(255, 255, 255)
+			title.Font = Enum.Font.GothamSemibold
+			title.TextSize = 18
+			title.BackgroundTransparency = 1
+			title.TextXAlignment = Enum.TextXAlignment.Left
+			local desc = InstanceNew("TextLabel", f)
+			desc.Position = UDim2.new(0, 120, 0, 35)
+			desc.Size = UDim2.new(1, -130, 0, 30)
+			desc.Text = b.desc
+			desc.TextWrapped = true
+			desc.TextColor3 = Color3.fromRGB(200, 200, 200)
+			desc.Font = Enum.Font.Gotham
+			desc.TextSize = 14
+			desc.BackgroundTransparency = 1
+			desc.TextXAlignment = Enum.TextXAlignment.Left
+			local stat = InstanceNew("TextLabel", f)
+			stat.Position = UDim2.new(0, 120, 0, 65)
+			stat.Size = UDim2.new(1, -130, 0, 50)
+			stat.Text = Format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
+			stat.TextColor3 = Color3.fromRGB(160, 160, 160)
+			stat.Font = Enum.Font.Gotham
+			stat.TextSize = 13
+			stat.TextWrapped = true
+			stat.BackgroundTransparency = 1
+			stat.TextXAlignment = Enum.TextXAlignment.Left
+		end
+		closeBtn.MouseButton1Click:Connect(function()
+			local tween = TweenService:Create(main, TweenInfo.new(0.4), {
+				Size = UDim2.new(0, 0, 0, 0),
+				Position = UDim2.new(0.5, 0, 0.5, 0)
+			})
+			tween:Play()
+			tween.Completed:Wait()
+			sgui:Destroy()
+		end)
+		local minimized = false
+		minBtn.MouseButton1Click:Connect(function()
+			local target = minimized and UDim2.new(0.5,0,0.7,0) or UDim2.new(0.5,0,0.07,0)
+			local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
+			tween:Play()
+			minimized = not minimized
+		end)
+		gui.draggable(main, top)
+	end
+	local ok, result = pcall(getBadges)
+	if ok then
+		createBadgeUI(result)
+	else
+		DoNotif("Failed to fetch badge data")
+	end
 end)
 
 cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <number> (btransparency,bodyt)", "Sets LocalTransparencyModifier of bodyparts to whatever number you put (0-1)"}, function(v)
@@ -17250,7 +17300,6 @@ predictionInput.BackgroundTransparency = 1
 predictionInput.ZIndex = cmdInput.ZIndex + 1
 predictionInput.Parent = cmdInput.Parent
 predictionInput.PlaceholderText = ""
-predictionInput.TextXAlignment = Enum.TextXAlignment.Center
 
 NAAUTOSCALER = AUTOSCALER
 
@@ -18463,7 +18512,6 @@ cmdInput.FocusLost:Connect(function(enterPressed)
 	if predictionInput then
 		predictionInput.Text = ""
 	end
-	cmdInput.TextXAlignment = Enum.TextXAlignment.Center
 	gui.barDeselect()
 end)
 
@@ -18473,7 +18521,7 @@ end)
 
 UserInputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Tab
-	and UserInputService:GetFocusedTextBox() == cmdInput then
+		and UserInputService:GetFocusedTextBox() == cmdInput then
 		local predictionText = predictionInput and predictionInput.Text or ""
 		if predictionText ~= "" then
 			Wait()
@@ -18960,7 +19008,7 @@ UICorner2.Parent = TextLabel
 
 UIStroke.Parent = TextLabel
 UIStroke.Thickness = 2
-UIStroke.Color = Color3.fromRGB(145, 90, 255)
+UIStroke.Color = NAUISTROKER --Color3.fromRGB(148, 93, 255)
 UIStroke.Transparency = 0.4
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
@@ -19335,14 +19383,14 @@ gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 end)
 
 if FileSupport then
-gui.addButton("Save Prefix", function()
-	if isfile(NAPREFIXPATH) then
-		writefile(NAPREFIXPATH, opt.prefix)
-		DoNotif("Prefix saved to file: "..NAPREFIXPATH)
-	else
-		DoNotif("File not found: "..NAPREFIXPATH)
-	end
-end)
+	gui.addButton("Save Prefix", function()
+		if isfile(NAPREFIXPATH) then
+			writefile(NAPREFIXPATH, opt.prefix)
+			DoNotif("Prefix saved to file: "..NAPREFIXPATH)
+		else
+			DoNotif("File not found: "..NAPREFIXPATH)
+		end
+	end)
 end
 
 gui.addToggle("Keep NA",NAQoTEnabled, function(val)
@@ -19370,8 +19418,8 @@ gui.addToggle("Command Predictions Prompt",doPREDICTION, function(v)
 end)
 
 if IsOnPC then
-gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
-	local newKey = text:lower()
+	gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
+		local newKey = text:lower()
 		if newKey == "" or newKey==nil then
 			DoNotif("Please provide a keybind.")
 			return
@@ -19385,10 +19433,10 @@ gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
 		connectFlyKey()
 
 		DoNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
-end)
+	end)
 
-gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
-	local newKey = text:lower()
+	gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
+		local newKey = text:lower()
 		if newKey == "" or newKey==nil then
 			DoNotif("Please provide a keybind.")
 			return
@@ -19401,10 +19449,10 @@ gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
 		connectVFlyKey()
 
 		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
-end)
+	end)
 
-gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
-	local newKey = text or ""
+	gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
+		local newKey = text or ""
 		newKey = newKey:lower()
 		if newKey == "" then
 			DoNotif("Please provide a keybind.")
@@ -19420,10 +19468,10 @@ gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
 
 		connectCFlyKey()
 		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
-end)
+	end)
 
-gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
-	local key = text or ""
+	gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
+		local key = text or ""
 		if key == "" then
 			DoNotif("Please provide a key.")
 			return
@@ -19436,26 +19484,27 @@ gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
 			end
 		end)
 		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
-end)
+	end)
 end
 
 if IsOnMobile then
-gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
-	NAScale = val
-	NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+	gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
+		NAScale = val
+		NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
 
-	if FileSupport then
-		writefile(NABUTTONSIZEPATH, tostring(val))
-	end
-end)
+		if FileSupport then
+			writefile(NABUTTONSIZEPATH, tostring(val))
+		end
+	end)
 end
 
-gui.addColorPicker("UI Stroke", Color3.fromRGB(148, 93, 255), function(color)
+gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 	for _, element in ipairs(NACOLOREDELEMENTS) do
 		if element:IsA("UIStroke") then
 			element.Color = color
 		end
 	end
+	SaveUIStroke(NASTROKETHINGY, color)
 end)
 
 Spawn(function()
