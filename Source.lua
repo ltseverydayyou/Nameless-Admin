@@ -38,15 +38,12 @@ local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 NASESSIONSTARTEDIDK = os.clock()
 local cmd={}
 lib={}
+NACOLOREDELEMENTS={}
 cmdNAnum=0
 
 function isAprilFools()
 	local d = os.date("*t")
 	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
-end
-
-function loadOldNAUI()
-	return getgenv().USEOLDNAUI or false
 end
 
 function MockText(text)
@@ -180,7 +177,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.3"
+local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.4"
 
 --[[ Brand ]]--
 local mainName = 'Nameless Admin'
@@ -340,10 +337,6 @@ else
 	NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
 end
 
-if loadOldNAUI() then
-	NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUIOLD.lua"
-end
-
 local queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end
 
 --Notification library
@@ -383,7 +376,7 @@ NAFILEPATH = "Nameless-Admin"
 NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints"
 NAPLUGINFILEPATH = "Nameless-Admin/Plugins"
 NAPREFIXPATH = "Nameless-Admin/Prefix.txt"
-NAIMAGEBUTTONSIZEPATH = "Nameless-Admin/ImageButtonSize.txt"
+NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt"
 NAUISIZEPATH = "Nameless-Admin/UIScale.txt"
 NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt"
 NAALIASPATH = "Nameless-Admin/Aliases.json"
@@ -414,8 +407,8 @@ if FileSupport then
 		writefile(NAPREFIXPATH, ";")
 	end
 
-	if not isfile(NAIMAGEBUTTONSIZEPATH) then
-		writefile(NAIMAGEBUTTONSIZEPATH, "1")
+	if not isfile(NABUTTONSIZEPATH) then
+		writefile(NABUTTONSIZEPATH, "1")
 	end
 
 	if not isfile(NAUISIZEPATH) then
@@ -460,7 +453,7 @@ NAREQUEST = request or http_request or (syn and syn.request) or function() end
 
 if FileSupport then
 	prefixCheck = readfile(NAPREFIXPATH)
-	NAsavedScale = tonumber(readfile(NAIMAGEBUTTONSIZEPATH))
+	NAsavedScale = tonumber(readfile(NABUTTONSIZEPATH))
 	NAUISavedScale = tonumber(readfile(NAUISIZEPATH))
 	NAQoTEnabled = readfile(NAQOTPATH) == "true"
 	doPREDICTION = readfile(NAPREDICTIONPATH) == "true"
@@ -479,7 +472,7 @@ if FileSupport then
 		NAScale = NAsavedScale
 	else
 		NAScale = 1
-		writefile(NAIMAGEBUTTONSIZEPATH, "1")
+		writefile(NABUTTONSIZEPATH, "1")
 		DoNotif("ImageButton size has been reset to default due to invalid data.")
 	end
 
@@ -879,9 +872,6 @@ LocalPlayer.OnTeleport:Connect(function(...)
 	end
 	if isAprilFools() then
 		queueteleport("getgenv().ActivateAprilMode=true")
-	end
-	if loadOldNAUI() then
-		queueteleport("getgenv().USEOLDNAUI=true")
 	end
 end)
 
@@ -1903,38 +1893,40 @@ end
 
 -- [[ FLY VARIABLES ]] --
 
-mOn = false
-mFlyBruh = nil
-flyEnabled = false
-toggleKey = "f"
-flySpeed = 1
-keybindConn = nil
+local flyVariables = {
+	mOn = false;
+	mFlyBruh = nil;
+	flyEnabled = false;
+	toggleKey = "f";
+	flySpeed = 1;
+	keybindConn = nil;
 
-vOn = false
-vRAHH = nil
-vFlyEnabled = false
-vToggleKey = "v"
-vFlySpeed = 1
-vKeybindConn = nil
+	vOn = false;
+	vRAHH = nil;
+	vFlyEnabled = false;
+	vToggleKey = "v";
+	vFlySpeed = 1;
+	vKeybindConn = nil;
 
-cOn = false
-cFlyGUI = nil
-cFlyEnabled = false
-cToggleKey = "c"
-cFlySpeed = 1
-cKeybindConn = nil
+	cOn = false;
+	cFlyGUI = nil;
+	cFlyEnabled = false;
+	cToggleKey = "c";
+	cFlySpeed = 1;
+	cKeybindConn = nil;
 
-TFlyEnabled = false
-tflyCORE = nil
-tflyToggleKey = "t"
-tflyButtonUI = nil
-TFLYBTN = nil
-tflyKeyConn = nil
-TflySpeed = 2
+	TFlyEnabled = false;
+	tflyCORE = nil;
+	tflyToggleKey = "t";
+	tflyButtonUI = nil;
+	TFLYBTN = nil;
+	tflyKeyConn = nil;
+	TflySpeed = 2;
+}
 
 -----------------------------
 
-local cmdlp = Players.LocalPlayer
+cmdlp = Players.LocalPlayer
 plr = cmdlp
 local cmdm = plr:GetMouse()
 goofyFLY = nil
@@ -1998,7 +1990,7 @@ function sFLY(vfly, cfly)
 				(Camera.CFrame.LookVector * fullMove.Z)
 
 			if moveDirection.Magnitude > 0 then
-				local newPos = Head.Position + moveDirection.Unit * flySpeed
+				local newPos = Head.Position + moveDirection.Unit * flyVariables.flySpeed
 				local lookAt = newPos + Camera.CFrame.LookVector
 				Head.CFrame = CFrame.new(newPos, lookAt)
 				goofyFLY.CFrame = Head.CFrame
@@ -2032,7 +2024,7 @@ function sFLY(vfly, cfly)
 				local hasInput = moveVec.Magnitude > 0 or CONTROL.Q ~= 0 or CONTROL.E ~= 0
 
 				if hasInput then
-					SPEED = (vfly and vFlySpeed or flySpeed) * 50
+					SPEED = (vfly and flyVariables.vFlySpeed or flyVariables.flySpeed) * 50
 				elseif SPEED ~= 0 then
 					SPEED = 0
 				end
@@ -2925,137 +2917,6 @@ cmd.add({"stoploop"}, {"stoploop", "Stop a running loop"}, function()
 end)
 
 if IsOnMobile then
-	local scaleFrame = nil
-	cmd.add({"guiscale", "guisize", "gsize", "gscale"}, {"guiscale (guisize, gsize, gscale)", "Adjust the scale of the "..adminName.." button"}, function()
-		if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
-		scaleFrame = InstanceNew("ScreenGui")
-		local frame = InstanceNew("Frame")
-		local frameCorner = InstanceNew("UICorner")
-		local slider = InstanceNew("Frame")
-		local sliderCorner = InstanceNew("UICorner")
-		local progress = InstanceNew("Frame")
-		local progressCorner = InstanceNew("UICorner")
-		local knob = InstanceNew("TextButton")
-		local knobCorner = InstanceNew("UICorner")
-		local label = InstanceNew("TextLabel")
-		local closeButton = InstanceNew("TextButton")
-		local closeCorner = InstanceNew("UICorner")
-
-		local sizeRange = {0.5, 3}
-		local minSize, maxSize = sizeRange[1], sizeRange[2]
-
-		NaProtectUI(scaleFrame)
-		frame.Parent = scaleFrame
-		frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		frame.Size = UDim2.new(0, 400, 0, 120)
-		frame.Position = UDim2.new(0.5,-283/2+5,0.5,-260/2+5)
-		frame.BorderSizePixel = 0
-		frame.BackgroundTransparency = 0.05
-
-		frameCorner.CornerRadius = UDim.new(0.1, 0)
-		frameCorner.Parent = frame
-
-		slider.Parent = frame
-		slider.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		slider.Size = UDim2.new(0.8, 0, 0.2, 0)
-		slider.Position = UDim2.new(0.1, 0, 0.5, 0)
-		slider.AnchorPoint = Vector2.new(0, 0.5)
-		slider.BorderSizePixel = 0
-
-		sliderCorner.CornerRadius = UDim.new(0.5, 0)
-		sliderCorner.Parent = slider
-
-		progress.Parent = slider
-		progress.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-		progress.Size = UDim2.new((NAScale - minSize) / (maxSize - minSize), 0, 1, 0)
-		progress.BorderSizePixel = 0
-
-		progressCorner.CornerRadius = UDim.new(0.5, 0)
-		progressCorner.Parent = progress
-
-		knob.Parent = slider
-		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		knob.Size = UDim2.new(0, 25, 1.5, 0)
-		knob.Position = UDim2.new((NAScale - minSize) / (maxSize - minSize), 0, -0.25, 0)
-		knob.Text = ""
-		knob.BorderSizePixel = 0
-		knob.AutoButtonColor = false
-
-		knobCorner.CornerRadius = UDim.new(1, 0)
-		knobCorner.Parent = knob
-
-		label.Parent = frame
-		label.BackgroundTransparency = 1
-		label.Size = UDim2.new(1, 0, 0.3, 0)
-		label.Position = UDim2.new(0, 0, 0.1, 0)
-		label.Text = "Scale: "..Format("%.2f", NAScale)
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		label.Font = Enum.Font.Gotham
-		label.TextSize = 18
-		label.TextXAlignment = Enum.TextXAlignment.Center
-
-		closeButton.Parent = frame
-		closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-		closeButton.Size = UDim2.new(0, 30, 0, 30)
-		closeButton.Position = UDim2.new(1, -40, 0, 10)
-		closeButton.Text = "X"
-		closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		closeButton.Font = Enum.Font.Gotham
-		closeButton.TextSize = 14
-		closeButton.BorderSizePixel = 0
-
-		closeCorner.CornerRadius = UDim.new(0.5, 0)
-		closeCorner.Parent = closeButton
-
-		local function update(scale)
-			NAtextButton.Size = UDim2.new(0, 32 * scale, 0, 33 * scale)
-			progress.Size = UDim2.new((scale - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
-			knob.Position = UDim2.new((scale - minSize) / (maxSize - minSize), 0, -0.25, 0)
-			label.Text = "Scale: "..Format("%.2f", scale)
-		end
-
-		update(NAScale)
-
-		local dragging = false
-		local dragInput
-		local sliderStart, sliderWidth
-
-		local UserInputService = UserInputService
-		local RunService = RunService
-
-		knob.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				dragging = true
-				sliderStart = slider.AbsolutePosition.X
-				sliderWidth = slider.AbsoluteSize.X
-				input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
-						if FileSupport then
-							writefile(NAIMAGEBUTTONSIZEPATH, tostring(NAScale))
-						end
-					end
-				end)
-			end
-		end)
-
-		UserInputService.InputChanged:Connect(function(input)
-			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-				local mouseX = input.Position.X
-				local relativePosition = (mouseX - sliderStart) / sliderWidth
-				local newScale = math.clamp(relativePosition, 0, 1) * (maxSize - minSize) + minSize
-				NAScale = math.clamp(newScale, minSize, maxSize)
-				update(NAScale)
-			end
-		end)
-
-		MouseButtonFix(closeButton,function()
-			scaleFrame:Destroy()
-		end)
-
-		gui.draggablev2(frame)
-	end)
-
 	cmd.add({"keepiconpos", "kip", "saveicon", "kpos"}, {"keepiconpos (kip, saveicon, kpos)", "Save current icon position"}, function()
 		if FileSupport then
 			local pos = NAtextButton.Position
@@ -4007,6 +3868,10 @@ cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
 	gui.commands()
 end)
 
+cmd.add({"settings"},{"settings","Open the settings menu"},function()
+	gui.settingss()
+end)
+
 debugUI, cDEBUGCON, isMinimized = nil, {}, false
 
 function DEBUGclearCONS()
@@ -4626,24 +4491,24 @@ cmd.add({"unhitboxes"},{"unhitboxes","removes the hitboxes outline"},function()
 end)
 
 function toggleVFly()
-	if vFlyEnabled then
+	if flyVariables.vFlyEnabled then
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		if goofyFLY then goofyFLY:Destroy() end
-		vFlyEnabled = false
+		flyVariables.vFlyEnabled = false
 	else
 		FLYING = true
 		sFLY(true)
-		vFlyEnabled = true
+		flyVariables.vFlyEnabled = true
 	end
 end
 
 function connectVFlyKey()
-	if vKeybindConn then
-		vKeybindConn:Disconnect()
+	if flyVariables.vKeybindConn then
+		flyVariables.vKeybindConn:Disconnect()
 	end
-	vKeybindConn = cmdm.KeyDown:Connect(function(KEY)
-		if KEY:lower() == vToggleKey then
+	flyVariables.vKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+		if KEY:lower() == flyVariables.vToggleKey then
 			toggleVFly()
 		end
 	end)
@@ -4651,13 +4516,13 @@ end
 
 cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}, function(...)
 	local arg = (...) or nil
-	vFlySpeed = arg or 1
+	flyVariables.vFlySpeed = arg or 1
 	connectVFlyKey()
-	vFlyEnabled = true
+	flyVariables.vFlyEnabled = true
 
-	if vRAHH then
-		vRAHH:Destroy()
-		vRAHH = nil
+	if flyVariables.vRAHH then
+		flyVariables.vRAHH:Destroy()
+		flyVariables.vRAHH = nil
 	end
 
 	cmd.run({"uncfly", ''})
@@ -4667,7 +4532,7 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		Wait()
 		DoNotif(adminName.." detected mobile. vFly button added for easier use.", 2)
 
-		vRAHH = InstanceNew("ScreenGui")
+		flyVariables.vRAHH = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
 		local speedBox = InstanceNew("TextBox")
 		local toggleBtn = InstanceNew("TextButton")
@@ -4676,10 +4541,10 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		local corner3 = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(vRAHH)
-		vRAHH.ResetOnSpawn = false
+		NaProtectUI(flyVariables.vRAHH)
+		flyVariables.vRAHH.ResetOnSpawn = false
 
-		btn.Parent = vRAHH
+		btn.Parent = flyVariables.vRAHH
 		btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
 		btn.BackgroundTransparency = 0.1
 		btn.Position = UDim2.new(0.9,0,0.5,0)
@@ -4698,14 +4563,14 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
-		speedBox.Parent = vRAHH
+		speedBox.Parent = flyVariables.vRAHH
 		speedBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
 		speedBox.BackgroundTransparency = 0.1
 		speedBox.AnchorPoint = Vector2.new(0.5, 0)
 		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
 		speedBox.Size = UDim2.new(0, 75, 0, 35)
 		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(vFlySpeed)
+		speedBox.Text = tostring(flyVariables.vFlySpeed)
 		speedBox.TextColor3 = Color3.fromRGB(255,255,255)
 		speedBox.TextSize = 18
 		speedBox.TextWrapped = true
@@ -4739,17 +4604,17 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 
 		coroutine.wrap(function()
 			MouseButtonFix(btn, function()
-				if not vOn then
-					local newSpeed = tonumber(speedBox.Text) or vFlySpeed
-					vFlySpeed = newSpeed
-					speedBox.Text = tostring(vFlySpeed)
-					vOn = true
+				if not flyVariables.vOn then
+					local newSpeed = tonumber(speedBox.Text) or flyVariables.vFlySpeed
+					flyVariables.vFlySpeed = newSpeed
+					speedBox.Text = tostring(flyVariables.vFlySpeed)
+					flyVariables.vOn = true
 					btn.Text = "UnvFly"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 					sFLY(true)
 					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 				else
-					vOn = false
+					flyVariables.vOn = false
 					btn.Text = "vFly"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					FLYING = false
@@ -4765,10 +4630,10 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("Vehicle fly enabled. Press '"..vToggleKey:upper().."' to toggle vehicle flying.")
+		DoNotif("Vehicle fly enabled. Press '"..flyVariables.vToggleKey:upper().."' to toggle vehicle flying.")
 		sFLY(true)
-		speedofthevfly = vFlySpeed
-		speedofthefly = vFlySpeed
+		speedofthevfly = flyVariables.vFlySpeed
+		speedofthefly = flyVariables.vFlySpeed
 	end
 end, true)
 
@@ -4778,18 +4643,18 @@ cmd.add({"unvfly", "unvehiclefly"}, {"unvehiclefly (unvfly)", "disable vehicle f
 	FLYING = false
 	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
-	vOn = false
-	if vRAHH then
-		vRAHH:Destroy()
-		vRAHH = nil
+	flyVariables.vOn = false
+	if flyVariables.vRAHH then
+		flyVariables.vRAHH:Destroy()
+		flyVariables.vRAHH = nil
 	end
-	if vKeybindConn then
-		vKeybindConn:Disconnect()
-		vKeybindConn = nil
+	if flyVariables.vKeybindConn then
+		flyVariables.vKeybindConn:Disconnect()
+		flyVariables.vKeybindConn = nil
 	end
 end)
 
-if IsOnPC then
+--[[if IsOnPC then
 	cmd.add({"vflybind", "vflykeybind","bindvfly"}, {"vflybind (vflykeybind, bindvfly)", "set a custom keybind for the 'vFly' command"}, function(...)
 		local newKey = (...):lower()
 		if newKey == "" or newKey==nil then
@@ -4797,15 +4662,15 @@ if IsOnPC then
 			return
 		end
 
-		vToggleKey = newKey
-		if vKeybindConn then
-			vKeybindConn:Disconnect()
+		flyVariables.vToggleKey = newKey
+		if flyVariables.vKeybindConn then
+			flyVariables.vKeybindConn:Disconnect()
 		end
 		connectVFlyKey()
 
-		DoNotif("vFly keybind set to '"..vToggleKey:upper().."'")
+		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
 	end,true)
-end
+end]]
 
 cmd.add({"equiptools","equipall"},{"equiptools","Equip all of your tools"},function()
 	local backpack=getBp()
@@ -8629,24 +8494,24 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 end)
 
 function toggleFly()
-	if flyEnabled then
+	if flyVariables.flyEnabled then
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		if goofyFLY then goofyFLY:Destroy() end
-		flyEnabled = false
+		flyVariables.flyEnabled = false
 	else
 		FLYING = true
 		sFLY()
-		flyEnabled = true
+		flyVariables.flyEnabled = true
 	end
 end
 
 function connectFlyKey()
-	if keybindConn then
-		keybindConn:Disconnect()
+	if flyVariables.keybindConn then
+		flyVariables.keybindConn:Disconnect()
 	end
-	keybindConn = cmdm.KeyDown:Connect(function(KEY)
-		if KEY:lower() == toggleKey then
+	flyVariables.keybindConn = cmdm.KeyDown:Connect(function(KEY)
+		if KEY:lower() == flyVariables.toggleKey then
 			toggleFly()
 		end
 	end)
@@ -8654,13 +8519,13 @@ end
 
 cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 	local arg = (...) or nil
-	flySpeed = arg or 1
+	flyVariables.flySpeed = arg or 1
 	connectFlyKey()
-	flyEnabled = true
+	flyVariables.flyEnabled = true
 
-	if mFlyBruh then
-		mFlyBruh:Destroy()
-		mFlyBruh = nil
+	if flyVariables.mFlyBruh then
+		flyVariables.mFlyBruh:Destroy()
+		flyVariables.mFlyBruh = nil
 	end
 	cmd.run({"uncfly", ''})
 	cmd.run({"unvfly", ''})
@@ -8669,7 +8534,7 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		Wait()
 		DoNotif(adminName.." detected mobile. Fly button added for easier use.", 2)
 
-		mFlyBruh = InstanceNew("ScreenGui")
+		flyVariables.mFlyBruh = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
 		local speedBox = InstanceNew("TextBox")
 		local toggleBtn = InstanceNew("TextButton")
@@ -8678,10 +8543,10 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		local corner3 = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(mFlyBruh)
-		mFlyBruh.ResetOnSpawn = false
+		NaProtectUI(flyVariables.mFlyBruh)
+		flyVariables.mFlyBruh.ResetOnSpawn = false
 
-		btn.Parent = mFlyBruh
+		btn.Parent = flyVariables.mFlyBruh
 		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		btn.BackgroundTransparency = 0.1
 		btn.Position = UDim2.new(0.9, 0, 0.5, 0)
@@ -8700,14 +8565,14 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
-		speedBox.Parent = mFlyBruh
+		speedBox.Parent = flyVariables.mFlyBruh
 		speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		speedBox.BackgroundTransparency = 0.1
 		speedBox.AnchorPoint = Vector2.new(0.5, 0)
 		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
 		speedBox.Size = UDim2.new(0, 75, 0, 35)
 		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(flySpeed)
+		speedBox.Text = tostring(flyVariables.flySpeed)
 		speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 		speedBox.TextSize = 18
 		speedBox.TextWrapped = true
@@ -8741,16 +8606,16 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 
 		coroutine.wrap(function()
 			MouseButtonFix(btn, function()
-				if not mOn then
-					local newSpeed = tonumber(speedBox.Text) or flySpeed
-					flySpeed = newSpeed
-					speedBox.Text = tostring(flySpeed)
-					mOn = true
+				if not flyVariables.mOn then
+					local newSpeed = tonumber(speedBox.Text) or flyVariables.flySpeed
+					flyVariables.flySpeed = newSpeed
+					speedBox.Text = tostring(flyVariables.flySpeed)
+					flyVariables.mOn = true
 					btn.Text = "Unfly"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 					sFLY()
 				else
-					mOn = false
+					flyVariables.mOn = false
 					btn.Text = "Fly"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					FLYING = false
@@ -8766,10 +8631,10 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("Fly enabled. Press '"..toggleKey:upper().."' to toggle flying.")
+		DoNotif("Fly enabled. Press '"..flyVariables.toggleKey:upper().."' to toggle flying.")
 		sFLY()
-		speedofthevfly = flySpeed
-		speedofthefly = flySpeed
+		speedofthevfly = flyVariables.flySpeed
+		speedofthefly = flyVariables.flySpeed
 	end
 end, true)
 
@@ -8779,44 +8644,25 @@ cmd.add({"unfly"}, {"unfly", "Disable flight"}, function(bool)
 	FLYING = false
 	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
-	mOn = false
-	if mFlyBruh then
-		mFlyBruh:Destroy()
-		mFlyBruh = nil
+	flyVariables.mOn = false
+	if flyVariables.mFlyBruh then
+		flyVariables.mFlyBruh:Destroy()
+		flyVariables.mFlyBruh = nil
 	end
-	if keybindConn then
-		keybindConn:Disconnect()
-		keybindConn = nil
+	if flyVariables.keybindConn then
+		flyVariables.keybindConn:Disconnect()
+		flyVariables.keybindConn = nil
 	end
 end)
-
-if IsOnPC then
-	cmd.add({"flybind", "flykeybind","bindfly"}, {"flybind (flykeybind, bindfly)", "set a custom keybind for the 'fly' command"}, function(...)
-		local newKey = (...):lower()
-		if newKey == "" or newKey==nil then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-
-		toggleKey = newKey
-		if keybindConn then
-			keybindConn:Disconnect()
-			keybindConn = nil
-		end
-		connectFlyKey()
-
-		DoNotif("Fly keybind set to '"..toggleKey:upper().."'")
-	end,true)
-end
 
 function toggleCFly()
 	local char = cmdlp.Character
 	local humanoid = getHum()
 	local head = getHead(char)
 
-	if cFlyEnabled then
+	if flyVariables.cFlyEnabled then
 		FLYING = false
-		cFlyEnabled = false
+		flyVariables.cFlyEnabled = false
 
 		if CFloop then
 			CFloop:Disconnect()
@@ -8837,17 +8683,17 @@ function toggleCFly()
 		end
 	else
 		FLYING = true
-		cFlyEnabled = true
+		flyVariables.cFlyEnabled = true
 		sFLY(nil, true)
 	end
 end
 
 function connectCFlyKey()
-	if cKeybindConn then
-		cKeybindConn:Disconnect()
+	if flyVariables.cKeybindConn then
+		flyVariables.cKeybindConn:Disconnect()
 	end
-	cKeybindConn = cmdm.KeyDown:Connect(function(KEY)
-		if KEY:lower() == cToggleKey then
+	flyVariables.cKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+		if KEY:lower() == flyVariables.cToggleKey then
 			toggleCFly()
 		end
 	end)
@@ -8855,15 +8701,15 @@ end
 
 cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based flight"}, function(...)
 	local arg = (...) or nil
-	cFlySpeed = tonumber(arg) or cFlySpeed
-	flySpeed = cFlySpeed
+	flyVariables.cFlySpeed = tonumber(arg) or flyVariables.cFlySpeed
+	flyVariables.flySpeed = flyVariables.cFlySpeed
 
 	connectCFlyKey()
-	cFlyEnabled = true
+	flyVariables.cFlyEnabled = true
 
-	if cFlyGUI then
-		cFlyGUI:Destroy()
-		cFlyGUI = nil
+	if flyVariables.cFlyGUI then
+		flyVariables.cFlyGUI:Destroy()
+		flyVariables.cFlyGUI = nil
 	end
 
 	cmd.run({"unfly", ''})
@@ -8873,7 +8719,7 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		Wait()
 		DoNotif(adminName.." detected mobile. CFrame Fly button added.", 2)
 
-		cFlyGUI = InstanceNew("ScreenGui")
+		flyVariables.cFlyGUI = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
 		local speedBox = InstanceNew("TextBox")
 		local toggleBtn = InstanceNew("TextButton")
@@ -8882,10 +8728,10 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		local corner3 = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(cFlyGUI)
-		cFlyGUI.ResetOnSpawn = false
+		NaProtectUI(flyVariables.cFlyGUI)
+		flyVariables.cFlyGUI.ResetOnSpawn = false
 
-		btn.Parent = cFlyGUI
+		btn.Parent = flyVariables.cFlyGUI
 		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		btn.BackgroundTransparency = 0.1
 		btn.Position = UDim2.new(0.9, 0, 0.6, 0)
@@ -8904,14 +8750,14 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
-		speedBox.Parent = cFlyGUI
+		speedBox.Parent = flyVariables.cFlyGUI
 		speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		speedBox.BackgroundTransparency = 0.1
 		speedBox.AnchorPoint = Vector2.new(0.5, 0)
 		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
 		speedBox.Size = UDim2.new(0, 75, 0, 35)
 		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(cFlySpeed)
+		speedBox.Text = tostring(flyVariables.cFlySpeed)
 		speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 		speedBox.TextSize = 18
 		speedBox.TextWrapped = true
@@ -8945,17 +8791,17 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 
 		coroutine.wrap(function()
 			MouseButtonFix(btn, function()
-				if not cOn then
-					local newSpeed = tonumber(speedBox.Text) or cFlySpeed
-					cFlySpeed = newSpeed
-					flySpeed = cFlySpeed
-					speedBox.Text = tostring(cFlySpeed)
-					cOn = true
+				if not flyVariables.cOn then
+					local newSpeed = tonumber(speedBox.Text) or flyVariables.cFlySpeed
+					flyVariables.cFlySpeed = newSpeed
+					flyVariables.flySpeed = flyVariables.cFlySpeed
+					speedBox.Text = tostring(flyVariables.cFlySpeed)
+					flyVariables.cOn = true
 					btn.Text = "UnCfly"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 					sFLY(true, true)
 				else
-					cOn = false
+					flyVariables.cOn = false
 					btn.Text = "CFly"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					FLYING = false
@@ -8975,7 +8821,7 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("CFrame Fly enabled. Press '"..cToggleKey:upper().."' to toggle.")
+		DoNotif("CFrame Fly enabled. Press '"..flyVariables.cToggleKey:upper().."' to toggle.")
 		sFLY(true, true)
 	end
 end, true)
@@ -9006,18 +8852,18 @@ cmd.add({"uncframefly","uncfly"}, {"uncframefly (uncfly)", "Disable CFrame-based
 		goofyFLY:Destroy()
 	end
 
-	cOn = false
-	if cFlyGUI then
-		cFlyGUI:Destroy()
-		cFlyGUI = nil
+	flyVariables.cOn = false
+	if flyVariables.cFlyGUI then
+		flyVariables.cFlyGUI:Destroy()
+		flyVariables.cFlyGUI = nil
 	end
-	if cKeybindConn then
-		cKeybindConn:Disconnect()
-		cKeybindConn = nil
+	if flyVariables.cKeybindConn then
+		flyVariables.cKeybindConn:Disconnect()
+		flyVariables.cKeybindConn = nil
 	end
 end)
 
-if IsOnPC then
+--[[if IsOnPC then
 	cmd.add({"cflybind", "cframeflybind", "bindcfly"}, {"cflybind [key] (cframeflybind, bindcfly)", "Set custom keybind for CFrame fly"}, function(...)
 		local newKey = (...) or ""
 		newKey = newKey:lower()
@@ -9026,21 +8872,21 @@ if IsOnPC then
 			return
 		end
 
-		cToggleKey = newKey
+		flyVariables.cToggleKey = newKey
 
-		if cKeybindConn then
-			cKeybindConn:Disconnect()
-			cKeybindConn = nil
+		if flyVariables.cKeybindConn then
+			flyVariables.cKeybindConn:Disconnect()
+			flyVariables.cKeybindConn = nil
 		end
 
 		connectCFlyKey()
-		DoNotif("CFrame fly keybind set to '"..cToggleKey:upper().."'")
+		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
 	end,true)
-end
+end]]
 
 function toggleTFly()
-	if TFlyEnabled then
-		TFlyEnabled = false
+	if flyVariables.TFlyEnabled then
+		flyVariables.TFlyEnabled = false
 		for _, v in pairs(SafeGetService("Workspace"):GetDescendants()) do
 			if v:GetAttribute("tflyPart") then
 				v:Destroy()
@@ -9048,31 +8894,31 @@ function toggleTFly()
 		end
 		local hum = getHum()
 		if hum then hum.PlatformStand = false end
-		if TFLYBTN then
-			TFLYBTN.Text = "TFly"
-			TFLYBTN.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+		if flyVariables.TFLYBTN then
+			flyVariables.TFLYBTN.Text = "TFly"
+			flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 		end
 	else
-		TFlyEnabled = true
-		local speed = TflySpeed
+		flyVariables.TFlyEnabled = true
+		local speed = flyVariables.TflySpeed
 		local Humanoid = getHum()
 
-		tflyCORE = InstanceNew("Part", SafeGetService("Workspace"))
-		tflyCORE:SetAttribute("tflyPart", true)
-		tflyCORE.Size = Vector3.new(0.05, 0.05, 0.05)
-		tflyCORE.CanCollide = false
+		flyVariables.tflyCORE = InstanceNew("Part", SafeGetService("Workspace"))
+		flyVariables.tflyCORE:SetAttribute("tflyPart", true)
+		flyVariables.tflyCORE.Size = Vector3.new(0.05, 0.05, 0.05)
+		flyVariables.tflyCORE.CanCollide = false
 
-		local Weld = InstanceNew("Weld", tflyCORE)
-		Weld.Part0 = tflyCORE
+		local Weld = InstanceNew("Weld", flyVariables.tflyCORE)
+		Weld.Part0 = flyVariables.tflyCORE
 		Weld.Part1 = Humanoid.RootPart
 		Weld.C0 = CFrame.new(0, 0, 0)
 
-		local pos = InstanceNew("BodyPosition", tflyCORE)
-		local gyro = InstanceNew("BodyGyro", tflyCORE)
+		local pos = InstanceNew("BodyPosition", flyVariables.tflyCORE)
+		local gyro = InstanceNew("BodyGyro", flyVariables.tflyCORE)
 		pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
-		pos.position = tflyCORE.Position
+		pos.position = flyVariables.tflyCORE.Position
 		gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-		gyro.cframe = tflyCORE.CFrame
+		gyro.cframe = flyVariables.tflyCORE.CFrame
 
 		coroutine.wrap(function()
 			repeat
@@ -9091,64 +8937,64 @@ function toggleTFly()
 
 				pos.position = newPosition.p
 				gyro.cframe = SafeGetService("Workspace").CurrentCamera.CoordinateFrame
-			until not TFlyEnabled
+			until not flyVariables.TFlyEnabled
 
 			if gyro then gyro:Destroy() end
 			if pos then pos:Destroy() end
 			Humanoid.PlatformStand = false
 		end)()
 
-		if TFLYBTN then
-			TFLYBTN.Text = "UnTFly"
-			TFLYBTN.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+		if flyVariables.TFLYBTN then
+			flyVariables.TFLYBTN.Text = "UnTFly"
+			flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 		end
 	end
 end
 
 cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying"}, function(...)
 	local arg = (...) or nil
-	TflySpeed = arg or 1
+	flyVariables.TflySpeed = arg or 1
 
 	if IsOnMobile then
 		Wait()
 		DoNotif(adminName.." detected mobile. Tfly button added for easier use.", 2)
 
-		if tflyButtonUI then tflyButtonUI:Destroy() end
-		if TFLYBTN then TFLYBTN:Destroy() end
+		if flyVariables.tflyButtonUI then flyVariables.tflyButtonUI:Destroy() end
+		if flyVariables.TFLYBTN then flyVariables.TFLYBTN:Destroy() end
 
-		tflyButtonUI = InstanceNew("ScreenGui")
-		TFLYBTN = InstanceNew("TextButton")
+		flyVariables.tflyButtonUI = InstanceNew("ScreenGui")
+		flyVariables.TFLYBTN = InstanceNew("TextButton")
 		local corner = InstanceNew("UICorner")
 
-		NaProtectUI(tflyButtonUI)
-		tflyButtonUI.ResetOnSpawn = false
+		NaProtectUI(flyVariables.tflyButtonUI)
+		flyVariables.tflyButtonUI.ResetOnSpawn = false
 
-		TFLYBTN.Parent = tflyButtonUI
-		TFLYBTN.BackgroundColor3 = Color3.fromRGB(30,30,30)
-		TFLYBTN.BackgroundTransparency = 0.1
-		TFLYBTN.Position = UDim2.new(0.9,0,0.5,0)
-		TFLYBTN.Size = UDim2.new(0.08,0,0.1,0)
-		TFLYBTN.Font = Enum.Font.GothamBold
-		TFLYBTN.Text = "TFly"
-		TFLYBTN.TextColor3 = Color3.fromRGB(255,255,255)
-		TFLYBTN.TextSize = 18
-		TFLYBTN.TextWrapped = true
-		TFLYBTN.Active = true
-		TFLYBTN.TextScaled = true
+		flyVariables.TFLYBTN.Parent = flyVariables.tflyButtonUI
+		flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(30,30,30)
+		flyVariables.TFLYBTN.BackgroundTransparency = 0.1
+		flyVariables.TFLYBTN.Position = UDim2.new(0.9,0,0.5,0)
+		flyVariables.TFLYBTN.Size = UDim2.new(0.08,0,0.1,0)
+		flyVariables.TFLYBTN.Font = Enum.Font.GothamBold
+		flyVariables.TFLYBTN.Text = "TFly"
+		flyVariables.TFLYBTN.TextColor3 = Color3.fromRGB(255,255,255)
+		flyVariables.TFLYBTN.TextSize = 18
+		flyVariables.TFLYBTN.TextWrapped = true
+		flyVariables.TFLYBTN.Active = true
+		flyVariables.TFLYBTN.TextScaled = true
 
 		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = TFLYBTN
+		corner.Parent = flyVariables.TFLYBTN
 
-		MouseButtonFix(TFLYBTN, toggleTFly)
-		gui.draggablev2(TFLYBTN)
+		MouseButtonFix(flyVariables.TFLYBTN, toggleTFly)
+		gui.draggablev2(flyVariables.TFLYBTN)
 	else
-		if tflyKeyConn then tflyKeyConn:Disconnect() end
-		tflyKeyConn = cmdm.KeyDown:Connect(function(key)
-			if key:lower() == tflyToggleKey then
+		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
+		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(key)
+			if key:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
 		end)
-		DoNotif("TFly keybind set to '"..tflyToggleKey:upper().."'. Press to toggle.")
+		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'. Press to toggle.")
 	end
 
 	toggleTFly()
@@ -9157,7 +9003,7 @@ end, true)
 cmd.add({"untfly", "untweenfly"}, {"untfly (untweenfly)", "Disables tween flying"}, function()
 	Wait()
 	DoNotif("Not flying anymore", 2)
-	TFlyEnabled = false
+	flyVariables.TFlyEnabled = false
 	for _, v in pairs(SafeGetService("Workspace"):GetDescendants()) do
 		if v:GetAttribute("tflyPart") then
 			v:Destroy()
@@ -9165,37 +9011,37 @@ cmd.add({"untfly", "untweenfly"}, {"untfly (untweenfly)", "Disables tween flying
 	end
 	local hum = getHum()
 	if hum then hum.PlatformStand = false end
-	if tflyButtonUI then
-		tflyButtonUI:Destroy()
-		tflyButtonUI = nil
+	if flyVariables.tflyButtonUI then
+		flyVariables.tflyButtonUI:Destroy()
+		flyVariables.tflyButtonUI = nil
 	end
-	if TFLYBTN then
-		TFLYBTN:Destroy()
-		TFLYBTN = nil
+	if flyVariables.TFLYBTN then
+		flyVariables.TFLYBTN:Destroy()
+		flyVariables.TFLYBTN = nil
 	end
-	if tflyKeyConn then
-		tflyKeyConn:Disconnect()
-		tflyKeyConn = nil
+	if flyVariables.tflyKeyConn then
+		flyVariables.tflyKeyConn:Disconnect()
+		flyVariables.tflyKeyConn = nil
 	end
 end)
 
-if IsOnPC then
+--[[if IsOnPC then
 	cmd.add({"tflykeybind", "bindtfly", "tflybind"}, {"tflykeybind [key] (bindtfly, tflybind)", "Set keybind for tfly toggle"}, function(...)
 		local key = (...) or ""
 		if key == "" then
 			DoNotif("Please provide a key.")
 			return
 		end
-		tflyToggleKey = key:lower()
-		if tflyKeyConn then tflyKeyConn:Disconnect() end
-		tflyKeyConn = cmdm.KeyDown:Connect(function(k)
-			if k:lower() == tflyToggleKey then
+		flyVariables.tflyToggleKey = key:lower()
+		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
+		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
 		end)
-		DoNotif("TFly keybind set to '"..tflyToggleKey:upper().."'")
+		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end, true)
-end
+end]]
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
 	lib.disconnect("noclip")
@@ -9495,7 +9341,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 
 		coroutine.wrap(function()
 			MouseButtonFix(btn, function()
-				if not mOn then
+				if not flyVariables.mOn then
 					local newSpeed = tonumber(speedBox.Text) or 5
 					if newSpeed then
 						speed = newSpeed
@@ -9504,12 +9350,12 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 						speed = 5
 						speedBox.Text = tostring(speed)
 					end
-					mOn = true
+					flyVariables.mOn = true
 					btn.Text = "UNFC"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 					runFREECAM()
 				else
-					mOn = false
+					flyVariables.mOn = false
 					btn.Text = "FC"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 					if lib.isConnected("freecam") then
@@ -16612,22 +16458,6 @@ cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time yo
 	end
 end)
 
-cmd.add({"prediction", "predict"}, {"prediction (predict)", "prompts command prediction if you spelled it wrong"}, function()
-	doPREDICTION=true
-	DoNotif("predictions enabled",2)
-	if FileSupport then
-		writefile(NAPREDICTIONPATH, "true")
-	end
-end)
-
-cmd.add({"unprediction", "unpredict"}, {"unprediction (unpredict)", "disable command predictions"}, function()
-	doPREDICTION=false
-	DoNotif("predictions disabled",2)
-	if FileSupport then
-		writefile(NAPREDICTIONPATH, "false")
-	end
-end)
-
 loopedFOV = nil
 
 cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–120)"}, function(num)
@@ -17293,11 +17123,21 @@ local commandsFilter = commandsFrame and commandsFrame:FindFirstChild("Container
 local commandsList = commandsFrame and commandsFrame:FindFirstChild("Container") and commandsFrame:FindFirstChild("Container"):FindFirstChild("List")
 local commandExample = commandsList and commandsList:FindFirstChild("TextLabel")
 local UpdLogsFrame = NASCREENGUI:FindFirstChild("UpdLog")
-local UpdLogsTitle = loadOldNAUI() and UpdLogsFrame and UpdLogsFrame:FindFirstChild("Topbar") and UpdLogsFrame:FindFirstChild("Topbar"):FindFirstChild("TopBar") and UpdLogsFrame:FindFirstChild("Topbar"):FindFirstChild("TopBar"):FindFirstChild("Title") or UpdLogsFrame and UpdLogsFrame:FindFirstChild("Topbar") and UpdLogsFrame:FindFirstChild("Topbar"):FindFirstChild("Title")
+local UpdLogsTitle = UpdLogsFrame and UpdLogsFrame:FindFirstChild("Topbar") and UpdLogsFrame:FindFirstChild("Topbar"):FindFirstChild("Title")
 local UpdLogsList = UpdLogsFrame and UpdLogsFrame:FindFirstChild("Container") and UpdLogsFrame:FindFirstChild("Container"):FindFirstChild("List")
 local UpdLogsLabel = UpdLogsList and UpdLogsList:FindFirstChildWhichIsA("TextLabel")
 local resizeFrame = NASCREENGUI:FindFirstChild("Resizeable")
 local ModalFixer = NASCREENGUI:FindFirstChildWhichIsA("ImageButton")
+local SettingsFrame = NASCREENGUI:FindFirstChild("setsettings")
+local SettingsContainer = SettingsFrame and SettingsFrame:FindFirstChild("Container")
+local SettingsList = SettingsContainer and SettingsContainer:FindFirstChild("List")
+local SettingsButton = SettingsList and SettingsList:FindFirstChild("Button")
+local SettingsColorPicker = SettingsList and SettingsList:FindFirstChild("ColorPicker")
+local SettingsSectionTitle = SettingsList and SettingsList:FindFirstChild("SectionTitle")
+local SettingsToggle = SettingsList and SettingsList:FindFirstChild("Toggle")
+local SettingsInput = SettingsList and SettingsList:FindFirstChild("Input")
+local SettingsKeybind = SettingsList and SettingsList:FindFirstChild("Keybind")
+local SettingsSlider = SettingsList and SettingsList:FindFirstChild("Slider")
 local resizeXY={
 	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    "rbxassetid://2911850935"},
 	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    "rbxassetid://2911850935"},
@@ -17334,6 +17174,53 @@ if resizeFrame then
 	resizeFrame.Parent = nil
 end
 
+if SettingsButton then
+	SettingsButton.Parent = nil
+end
+
+if SettingsColorPicker then
+	SettingsColorPicker.Parent = nil
+end
+
+if SettingsSectionTitle then
+	SettingsSectionTitle.Parent = nil
+end
+
+if SettingsToggle then
+	SettingsToggle.Parent = nil
+end
+
+if SettingsInput then
+	SettingsInput.Parent = nil
+end
+
+if SettingsKeybind then
+	SettingsKeybind.Parent = nil
+end
+
+if SettingsSlider then
+	SettingsSlider.Parent = nil
+end
+
+local templates = {
+	Button = SettingsButton;
+	ColorPicker = SettingsColorPicker;
+	SectionTitle = SettingsSectionTitle;
+	Toggle = SettingsToggle;
+	Input = SettingsInput;
+	Keybind = SettingsKeybind;
+	Slider = SettingsSlider;
+	Index = 0;
+}
+
+Spawn(function()
+	for _,v in ipairs(NASCREENGUI:GetDescendants()) do
+		if v:IsA("UIStroke") then
+			Insert(NACOLOREDELEMENTS, v)
+		end
+	end
+end)
+
 local predictionInput = cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
@@ -17343,6 +17230,7 @@ predictionInput.BackgroundTransparency = 1
 predictionInput.ZIndex = cmdInput.ZIndex + 1
 predictionInput.Parent = cmdInput.Parent
 predictionInput.PlaceholderText = ""
+predictionInput.TextXAlignment = Enum.TextXAlignment.Center
 
 NAAUTOSCALER = AUTOSCALER
 
@@ -17452,6 +17340,14 @@ gui.consoleeee = function()
 			NAconsoleFrame.Visible = true
 		end
 		NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+	end
+end
+gui.settingss = function()
+	if SettingsFrame then
+		if not SettingsFrame.Visible then
+			SettingsFrame.Visible = true
+		end
+		SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	end
 end
 gui.updateLogs = function()
@@ -17622,6 +17518,307 @@ gui.resizeable = function(ui, min, max)
 			rgui:Destroy()
 		end)
 	end
+end
+
+gui.addButton = function(label, callback)
+	if not SettingsList then return end
+	local button = templates.Button:Clone()
+	button.Title.Text = label
+	button.Parent = SettingsList
+	button.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+
+	MouseButtonFix(button.Interact,function()
+		pcall(callback)
+	end)
+end
+
+gui.addSection = function(titleText)
+	if not SettingsList then return end
+	local section = templates.SectionTitle:Clone()
+	section.Title.Text = titleText
+	section.Parent = SettingsList
+	section.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+end
+
+gui.addToggle = function(label, defaultValue, callback)
+	if not SettingsList then return end
+	local toggle = templates.Toggle:Clone()
+	local switch = toggle:FindFirstChild("Switch")
+	local indicator = switch and switch:FindFirstChild("Indicator")
+	local stroke = indicator and indicator:FindFirstChild("UIStroke")
+
+	toggle.Title.Text = label
+	toggle.Parent = SettingsList
+	toggle.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+
+	local state = defaultValue
+
+	local function updateVisual()
+		if state then
+			indicator.Position = UDim2.new(1, -20, 0.5, 0)
+			indicator.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
+			stroke.Color = Color3.fromRGB(50, 255, 80)
+		else
+			indicator.Position = UDim2.new(1, -40, 0.5, 0)
+			indicator.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			stroke.Color = Color3.fromRGB(80, 80, 80)
+		end
+	end
+
+	updateVisual()
+
+	MouseButtonFix(toggle.Interact,function()
+		state = not state
+		updateVisual()
+		pcall(function()
+			callback(state)
+		end)
+	end)
+end
+
+gui.addColorPicker = function(label, defaultColor, callback)
+	if not SettingsList then return end
+	local picker = templates.ColorPicker:Clone()
+	picker.Title.Text = label
+	picker.Parent = SettingsList
+	picker.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+
+	local background = picker.CPBackground
+	local display = background.Display
+	local main = background.MainCP
+	local slider = picker.ColorSlider
+	local rgb = picker.RGB
+	local hex = picker.HexInput
+
+	local h, s, v = defaultColor:ToHSV()
+	local draggingMain = false
+	local draggingSlider = false
+
+	main.MainPoint.AnchorPoint = Vector2.new(0.5, 0.5)
+	slider.SliderPoint.AnchorPoint = Vector2.new(0.5, 0.5)
+
+	local function updateUI(pushToInputs)
+		local color = Color3.fromHSV(h, s, v)
+		display.BackgroundColor3 = color
+		background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+		main.MainPoint.Position = UDim2.new(s, 0, 1 - v, 0)
+		slider.SliderPoint.Position = UDim2.new(h, 0, 0.5, 0)
+
+		local r = math.floor(color.R * 255 + 0.5)
+		local g = math.floor(color.G * 255 + 0.5)
+		local b = math.floor(color.B * 255 + 0.5)
+
+		if pushToInputs then
+			rgb.RInput.InputBox.Text = tostring(r)
+			rgb.GInput.InputBox.Text = tostring(g)
+			rgb.BInput.InputBox.Text = tostring(b)
+			hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
+		end
+
+		pcall(function()
+			callback(color)
+		end)
+	end
+
+	local function parseRGBInputs()
+		local r = tonumber(rgb.RInput.InputBox.Text) or 0
+		local g = tonumber(rgb.GInput.InputBox.Text) or 0
+		local b = tonumber(rgb.BInput.InputBox.Text) or 0
+
+		r = math.clamp(r, 0, 255)
+		g = math.clamp(g, 0, 255)
+		b = math.clamp(b, 0, 255)
+
+		h, s, v = Color3.fromRGB(r, g, b):ToHSV()
+		updateUI(false)
+	end
+
+	rgb.RInput.InputBox.FocusLost:Connect(parseRGBInputs)
+	rgb.GInput.InputBox.FocusLost:Connect(parseRGBInputs)
+	rgb.BInput.InputBox.FocusLost:Connect(parseRGBInputs)
+
+	hex.InputBox.FocusLost:Connect(function()
+		local text = hex.InputBox.Text:gsub("#", ""):upper()
+		if text:match("^[0-9A-F]+$") and #text == 6 then
+			local r = tonumber(text:sub(1, 2), 16)
+			local g = tonumber(text:sub(3, 4), 16)
+			local b = tonumber(text:sub(5, 6), 16)
+			if r and g and b then
+				h, s, v = Color3.fromRGB(r, g, b):ToHSV()
+				updateUI(true)
+			end
+		else
+			hex.InputBox.Text = Format("#%02X%02X%02X", math.floor(Color3.fromHSV(h,s,v).R * 255 + 0.5), math.floor(Color3.fromHSV(h,s,v).G * 255 + 0.5), math.floor(Color3.fromHSV(h,s,v).B * 255 + 0.5))
+		end
+	end)
+
+	local mouse = lp:GetMouse()
+
+	local function setupDragDetection(obj, dragType)
+		obj.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				if dragType == "main" then
+					draggingMain = true
+				elseif dragType == "slider" then
+					draggingSlider = true
+				end
+			end
+		end)
+	end
+
+	setupDragDetection(main, "main")
+	setupDragDetection(main.MainPoint, "main")
+	setupDragDetection(slider, "slider")
+	setupDragDetection(slider.SliderPoint, "slider")
+
+	SafeGetService("UserInputService").InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			draggingMain = false
+			draggingSlider = false
+		end
+	end)
+
+	SafeGetService("RunService").RenderStepped:Connect(function()
+		if draggingMain then
+			local relX = math.clamp(mouse.X - main.AbsolutePosition.X, 0, main.AbsoluteSize.X)
+			local relY = math.clamp(mouse.Y - main.AbsolutePosition.Y, 0, main.AbsoluteSize.Y)
+			s = relX / main.AbsoluteSize.X
+			v = 1 - (relY / main.AbsoluteSize.Y)
+			updateUI(true)
+		end
+		if draggingSlider then
+			local relX = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+			h = relX / slider.AbsoluteSize.X
+			updateUI(true)
+		end
+	end)
+
+	updateUI(true)
+end
+
+gui.addInput = function(label, placeholder, defaultText, callback)
+	local input = templates.Input:Clone()
+	input.Title.Text = label
+	input.InputFrame.InputBox.Text = defaultText or ""
+	input.InputFrame.InputBox.PlaceholderText = placeholder or ""
+
+	input.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+	input.Parent = SettingsList
+
+	input.InputFrame.InputBox.FocusLost:Connect(function()
+		pcall(callback, input.InputFrame.InputBox.Text)
+	end)
+
+	input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
+		input.InputFrame:TweenSize(
+			UDim2.new(0, input.InputFrame.InputBox.TextBounds.X + 24, 0, 30),
+			Enum.EasingDirection.Out,
+			Enum.EasingStyle.Exponential,
+			0.2,
+			true
+		)
+	end)
+end
+
+gui.addKeybind = function(label, defaultKey, callback)
+	local keybind = templates.Keybind:Clone()
+	keybind.Title.Text = label
+	keybind.KeybindFrame.KeybindBox.Text = defaultKey
+
+	keybind.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+	keybind.Parent = SettingsList
+
+	local capturing = false
+
+	keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
+		capturing = true
+		keybind.KeybindFrame.KeybindBox.Text = ""
+	end)
+
+	keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
+		capturing = false
+		if keybind.KeybindFrame.KeybindBox.Text == "" then
+			keybind.KeybindFrame.KeybindBox.Text = defaultKey
+		end
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if capturing and input.KeyCode ~= Enum.KeyCode.Unknown then
+			local keyName = tostring(input.KeyCode):split(".")[3]
+			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
+			keybind.KeybindFrame.KeybindBox.Text = keyName
+			capturing = false
+			pcall(callback, keyName)
+		elseif not capturing and keybind.KeybindFrame.KeybindBox.Text ~= "" then
+			if tostring(input.KeyCode) == "Enum.KeyCode."..keybind.KeybindFrame.KeybindBox.Text and not processed then
+				pcall(callback)
+			end
+		end
+	end)
+
+	keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
+		keybind.KeybindFrame:TweenSize(
+			UDim2.new(0, keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30),
+			Enum.EasingDirection.Out,
+			Enum.EasingStyle.Exponential,
+			0.2,
+			true
+		)
+	end)
+end
+
+gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
+	local slider = templates.Slider:Clone()
+	slider.Title.Text = label
+
+	slider.LayoutOrder = templates.Index
+	templates.Index = templates.Index + 1
+	slider.Parent = SettingsList
+
+	local interact = slider.Main.Interact
+	local progress = slider.Main.Progress
+	local infoText = slider.Main.Information
+
+	local dragging = false
+
+	local function updateSliderValueFromPos(x)
+		local relX = math.clamp(x - interact.AbsolutePosition.X, 0, interact.AbsoluteSize.X)
+		local percent = relX / interact.AbsoluteSize.X
+		local value = math.floor((min + (max - min) * percent) / increment + 0.5) * increment
+		value = math.clamp(value, min, max)
+
+		progress.Size = UDim2.new(percent, 0, 1, 0)
+		infoText.Text = tostring(value)..(suffix or "")
+		pcall(callback, value)
+	end
+
+	interact.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+		end
+	end)
+
+	interact.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	RunService.RenderStepped:Connect(function()
+		if dragging then
+			updateSliderValueFromPos(UserInputService:GetMouseLocation().X)
+		end
+	end)
+
+	local initialPercent = (defaultValue - min) / (max - min)
+	progress.Size = UDim2.new(initialPercent, 0, 1, 0)
+	infoText.Text = tostring(defaultValue)..(suffix or "")
 end
 
 gui.draggable = function(ui, dragui)
@@ -18203,7 +18400,6 @@ gui.searchCommands = function()
 		else
 			predictionInput.Text = ""
 		end
-		cmdInput.TextXAlignment = Enum.TextXAlignment.Left
 
 		for _, frame in ipairs(CMDAUTOFILL) do
 			frame.Visible = false
@@ -18286,12 +18482,17 @@ if UpdLogsFrame then
 	gui.menuify(UpdLogsFrame)
 end
 
+if SettingsFrame then
+	gui.menuify(SettingsFrame)
+end
+
 --[[ GUI RESIZE FUNCTION ]]--
 
 if chatLogsFrame then gui.resizeable(chatLogsFrame) end
 if NAconsoleFrame then gui.resizeable(NAconsoleFrame) end
 if commandsFrame then gui.resizeable(commandsFrame) end
 if UpdLogsFrame then gui.resizeable(UpdLogsFrame) end
+if SettingsFrame then gui.resizeable(SettingsFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
@@ -18661,6 +18862,7 @@ RunService.Stepped:Connect(function()
 	if NAconsoleLogs then updateCanvasSize(NAconsoleLogs, AUTOSCALER.Scale) end
 	if commandsList then updateCanvasSize(commandsList, AUTOSCALER.Scale) end
 	if UpdLogsList then updateCanvasSize(UpdLogsList, AUTOSCALER.Scale) end
+	if SettingsList then updateCanvasSize(SettingsList, AUTOSCALER.Scale) end
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -19052,6 +19254,7 @@ Spawn(function() -- init
 	if description then description.Name = '\0' end
 	if ModalFixer then ModalFixer.Name = '\0' end
 	if AUTOSCALER then AUTOSCALER.Name = '\0' AUTOSCALER.Scale = NAUIScale end
+	if SettingsFrame then SettingsFrame.Name = '\0' end
 end)
 
 Spawn(bindToDevConsole)
@@ -19060,6 +19263,180 @@ Spawn(loadButtonIDS)
 Spawn(RenderUserButtons)
 Spawn(loadAutoExec)
 Spawn(LoadPlugins)
+
+-- [[ GUI ELEMENTS ]] --
+
+--[[
+
+gui.addToggle("Toggle Button", true, function(state)
+	print("State:", state)
+end)
+
+gui.addColorPicker("Color Picker", Color3.fromRGB(200, 50, 100), function(color)
+	print("Selected Color:", color)
+end)
+
+gui.addButton("button", function()
+	print'pressed button'
+end)
+
+gui.addSection("Section Label")
+
+gui.addInput("Input Label", "Placeholder", "", function(text)
+	print("Input:", text)
+end)
+
+gui.addKeybind("Toggle Key", "F", function(key)
+	print("key triggered:", key)
+end)
+
+gui.addSlider("Slider", 0, 100, 50, 5, "%", function(val) -- min, max, default, add, suffix
+	print("Slider Value:", val)
+end)
+
+]]
+
+gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
+	local newPrefix = text
+	if not newPrefix or newPrefix == "" then
+		DoNotif("Please enter a valid prefix")
+	elseif utf8.len(newPrefix) > 1 then
+		DoNotif("Prefix must be a single character (e.g. ; . !)")
+	elseif newPrefix:match("[%w]") then
+		DoNotif("Prefix cannot contain letters or numbers")
+	elseif newPrefix:match("[%[%]%(%)%*%^%$%%{}<>]") then
+		DoNotif("That symbol is not allowed as a prefix")
+	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;") or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
+		DoNotif("Encoded/HTML characters are not allowed as a prefix")
+	else
+		opt.prefix = newPrefix
+		DoNotif("Prefix set to: "..newPrefix)
+	end
+end)
+
+if FileSupport then
+gui.addButton("Save Prefix", function()
+	if isfile(NAPREFIXPATH) then
+		writefile(NAPREFIXPATH, opt.prefix)
+		DoNotif("Prefix saved to file: "..NAPREFIXPATH)
+	else
+		DoNotif("File not found: "..NAPREFIXPATH)
+	end
+end)
+end
+
+gui.addToggle("Keep NA",NAQoTEnabled, function(val)
+	NAQoTEnabled=val
+	if FileSupport then
+		writefile(NAQOTPATH, tostring(val))
+		if NAQoTEnabled then
+			DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)",3)
+		elseif not NAQoTEnabled then
+			DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport",3)
+		end
+	end
+end)
+
+gui.addToggle("Command Predictions Prompt",doPREDICTION, function(v)
+	doPREDICTION=v
+	if doPREDICTION then
+		DoNotif("Command Predictions Enabled",2)
+	else
+		DoNotif("Command Predictions Disabled",2)
+	end
+	if FileSupport then
+		writefile(NAPREDICTIONPATH, tostring(v))
+	end
+end)
+
+if IsOnPC then
+gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
+	local newKey = text:lower()
+		if newKey == "" or newKey==nil then
+			DoNotif("Please provide a keybind.")
+			return
+		end
+
+		flyVariables.toggleKey = newKey
+		if flyVariables.keybindConn then
+			flyVariables.keybindConn:Disconnect()
+			flyVariables.keybindConn = nil
+		end
+		connectFlyKey()
+
+		DoNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
+end)
+
+gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
+	local newKey = text:lower()
+		if newKey == "" or newKey==nil then
+			DoNotif("Please provide a keybind.")
+			return
+		end
+
+		flyVariables.vToggleKey = newKey
+		if flyVariables.vKeybindConn then
+			flyVariables.vKeybindConn:Disconnect()
+		end
+		connectVFlyKey()
+
+		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
+end)
+
+gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
+	local newKey = text or ""
+		newKey = newKey:lower()
+		if newKey == "" then
+			DoNotif("Please provide a keybind.")
+			return
+		end
+
+		flyVariables.cToggleKey = newKey
+
+		if flyVariables.cKeybindConn then
+			flyVariables.cKeybindConn:Disconnect()
+			flyVariables.cKeybindConn = nil
+		end
+
+		connectCFlyKey()
+		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
+end)
+
+gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
+	local key = text or ""
+		if key == "" then
+			DoNotif("Please provide a key.")
+			return
+		end
+		flyVariables.tflyToggleKey = key:lower()
+		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
+		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+			if k:lower() == flyVariables.tflyToggleKey then
+				toggleTFly()
+			end
+		end)
+		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
+end)
+end
+
+if IsOnMobile then
+gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
+	NAScale = val
+	NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+
+	if FileSupport then
+		writefile(NABUTTONSIZEPATH, tostring(val))
+	end
+end)
+end
+
+gui.addColorPicker("UI Stroke", Color3.fromRGB(148, 93, 255), function(color)
+	for _, element in ipairs(NACOLOREDELEMENTS) do
+		if element:IsA("UIStroke") then
+			element.Color = color
+		end
+	end
+end)
 
 Spawn(function()
 	NACaller(function()--better saveinstance support
