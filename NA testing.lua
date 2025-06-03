@@ -14459,9 +14459,9 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 	end
 	Wait()
 	if f>0 then
-		DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(t,f))
+		DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(t,f),2)
 	else
-		DoNotif(("Fired %d ClickDetectors"):format(t))
+		DoNotif(("Fired %d ClickDetectors"):format(t),2)
 	end
 end)
 
@@ -14477,9 +14477,9 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 	end
 	Wait()
 	if f>0 then
-		DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(t,f))
+		DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(t,f),2)
 	else
-		DoNotif(("Fired %d ProximityPrompts"):format(t))
+		DoNotif(("Fired %d ProximityPrompts"):format(t),2)
 	end
 end)
 
@@ -14513,9 +14513,9 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 
 	Wait()
 	if f>0 then
-		DoNotif(("Fired %d TouchInterests, Failed: %d"):format(t,f))
+		DoNotif(("Fired %d TouchInterests, Failed: %d"):format(t,f),2)
 	else
-		DoNotif(("Fired %d TouchInterests"):format(t))
+		DoNotif(("Fired %d TouchInterests"):format(t),2)
 	end
 end)
 

@@ -1,983 +1,1131 @@
-local AdminUI = Instance.new("ScreenGui")
-local AdminScale = Instance.new("UIScale")
-local CmdBar = Instance.new("Frame")
-local CenterBar = Instance.new("Frame")
-local Horizontal = Instance.new("Frame")
-local UIGradient = Instance.new("UIGradient")
-local UICorner = Instance.new("UICorner")
-local Input = Instance.new("TextBox")
-local UICorner_2 = Instance.new("UICorner")
-local LeftFill = Instance.new("Frame")
-local Frame = Instance.new("Frame")
-local UIGradient_2 = Instance.new("UIGradient")
-local UICorner_3 = Instance.new("UICorner")
-local Horizontal_2 = Instance.new("Frame")
-local UIGradient_3 = Instance.new("UIGradient")
-local UICorner_4 = Instance.new("UICorner")
-local Edge = Instance.new("Frame")
-local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint")
-local Edge_2 = Instance.new("ImageLabel")
-local RightFill = Instance.new("Frame")
-local Frame_2 = Instance.new("Frame")
-local UIGradient_4 = Instance.new("UIGradient")
-local UICorner_5 = Instance.new("UICorner")
-local Horizontal_3 = Instance.new("Frame")
-local UIGradient_5 = Instance.new("UIGradient")
-local UICorner_6 = Instance.new("UICorner")
-local Edge_3 = Instance.new("Frame")
-local UIAspectRatioConstraint_2 = Instance.new("UIAspectRatioConstraint")
-local Edge_4 = Instance.new("ImageLabel")
-local Autofill = Instance.new("Frame")
-local UICorner_7 = Instance.new("UICorner")
-local UIGradient_6 = Instance.new("UIGradient")
-local Cmd = Instance.new("Frame")
-local UICorner_8 = Instance.new("UICorner")
-local Input_2 = Instance.new("TextLabel")
-local UIListLayout = Instance.new("UIListLayout")
-local Resizeable = Instance.new("Frame")
-local Left = Instance.new("Frame")
-local Right = Instance.new("Frame")
-local Top = Instance.new("Frame")
-local Bottom = Instance.new("Frame")
-local TopLeft = Instance.new("Frame")
-local TopRight = Instance.new("Frame")
-local BottomLeft = Instance.new("Frame")
-local BottomRight = Instance.new("Frame")
-local Description = Instance.new("TextLabel")
-local UICorner_9 = Instance.new("UICorner")
-local Modal = Instance.new("ImageButton")
-local ChatLogs = Instance.new("Frame")
-local UICorner_10 = Instance.new("UICorner")
-local Topbar = Instance.new("Frame")
-local Title = Instance.new("TextLabel")
-local Minimize = Instance.new("TextButton")
-local UICorner_11 = Instance.new("UICorner")
-local Exit = Instance.new("TextButton")
-local UICorner_12 = Instance.new("UICorner")
-local Clear = Instance.new("TextButton")
-local UICorner_13 = Instance.new("UICorner")
-local Container = Instance.new("Frame")
-local UIListLayout_2 = Instance.new("UIListLayout")
-local Logs = Instance.new("ScrollingFrame")
-local UIListLayout_3 = Instance.new("UIListLayout")
-local TextLabel = Instance.new("TextLabel")
-local UICorner_14 = Instance.new("UICorner")
-local UIGradient_7 = Instance.new("UIGradient")
-local UICorner_15 = Instance.new("UICorner")
-local UIGradient_8 = Instance.new("UIGradient")
-local Commands = Instance.new("Frame")
-local UICorner_16 = Instance.new("UICorner")
-local Topbar_2 = Instance.new("Frame")
-local Title_2 = Instance.new("TextLabel")
-local Minimize_2 = Instance.new("TextButton")
-local UICorner_17 = Instance.new("UICorner")
-local Exit_2 = Instance.new("TextButton")
-local UICorner_18 = Instance.new("UICorner")
-local Clear_2 = Instance.new("TextButton")
-local UICorner_19 = Instance.new("UICorner")
-local Container_2 = Instance.new("Frame")
-local UIListLayout_4 = Instance.new("UIListLayout")
-local List = Instance.new("ScrollingFrame")
-local UIListLayout_5 = Instance.new("UIListLayout")
-local TextLabel_2 = Instance.new("TextLabel")
-local Filter = Instance.new("TextBox")
-local UICorner_20 = Instance.new("UICorner")
-local UICorner_21 = Instance.new("UICorner")
-local UIGradient_9 = Instance.new("UIGradient")
-local UICorner_22 = Instance.new("UICorner")
-local UIGradient_10 = Instance.new("UIGradient")
-local UpdLog = Instance.new("Frame")
-local UICorner_23 = Instance.new("UICorner")
-local Topbar_3 = Instance.new("Frame")
-local Title_3 = Instance.new("TextLabel")
-local Minimize_3 = Instance.new("TextButton")
-local UICorner_24 = Instance.new("UICorner")
-local Exit_3 = Instance.new("TextButton")
-local UICorner_25 = Instance.new("UICorner")
-local Clear_3 = Instance.new("TextButton")
-local UICorner_26 = Instance.new("UICorner")
-local Container_3 = Instance.new("Frame")
-local UIListLayout_6 = Instance.new("UIListLayout")
-local List_2 = Instance.new("ScrollingFrame")
-local UIListLayout_7 = Instance.new("UIListLayout")
-local TextLabel_3 = Instance.new("TextLabel")
-local UICorner_27 = Instance.new("UICorner")
-local UIGradient_11 = Instance.new("UIGradient")
-local UICorner_28 = Instance.new("UICorner")
-local UIGradient_12 = Instance.new("UIGradient")
-local soRealConsole = Instance.new("Frame")
-local UICorner_29 = Instance.new("UICorner")
-local Topbar_4 = Instance.new("Frame")
-local Title_4 = Instance.new("TextLabel")
-local Minimize_4 = Instance.new("TextButton")
-local UICorner_30 = Instance.new("UICorner")
-local Exit_4 = Instance.new("TextButton")
-local UICorner_31 = Instance.new("UICorner")
-local Clear_4 = Instance.new("TextButton")
-local UICorner_32 = Instance.new("UICorner")
-local Container_4 = Instance.new("Frame")
-local UIListLayout_8 = Instance.new("UIListLayout")
-local Logs_2 = Instance.new("ScrollingFrame")
-local UIListLayout_9 = Instance.new("UIListLayout")
-local TextLabel_4 = Instance.new("TextLabel")
-local UICorner_33 = Instance.new("UICorner")
-local UIGradient_13 = Instance.new("UIGradient")
-local Filter_2 = Instance.new("TextBox")
-local UICorner_34 = Instance.new("UICorner")
-local UICorner_35 = Instance.new("UICorner")
-local UIGradient_14 = Instance.new("UIGradient")
-
-AdminUI.Name = "AdminUI"
-AdminUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-AdminUI.ResetOnSpawn = false
-
-AdminScale.Name = "AutoScale"
-AdminScale.Parent = AdminUI
-
-CmdBar.Name = "CmdBar"
-CmdBar.Parent = AdminUI
-CmdBar.AnchorPoint = Vector2.new(0.5, 0.5)
-CmdBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-CmdBar.BackgroundTransparency = 1.000
-CmdBar.Position = UDim2.new(0.5, 0, 0.5, -20)
-CmdBar.Size = UDim2.new(1, 0, 0, 25)
-
-CenterBar.Name = "CenterBar"
-CenterBar.Parent = CmdBar
-CenterBar.AnchorPoint = Vector2.new(0.5, 0.5)
-CenterBar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-CenterBar.BackgroundTransparency = 1.000
-CenterBar.Position = UDim2.new(0.5, 0, 0.5, 0)
-CenterBar.Size = UDim2.new(0, 250, 1, 15)
-CenterBar.ZIndex = 2
-
-Horizontal.Name = "Horizontal"
-Horizontal.Parent = CenterBar
-Horizontal.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
-Horizontal.BackgroundTransparency = 0.140
-Horizontal.BorderColor3 = Color3.fromRGB(27, 27, 27)
-Horizontal.BorderSizePixel = 0
-Horizontal.Size = UDim2.new(1, 0, 1, 0)
-
-UIGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient.Parent = Horizontal
-
-UICorner.CornerRadius = UDim.new(0, 9)
-UICorner.Parent = Horizontal
-
-Input.Name = "Input"
-Input.Parent = CenterBar
-Input.Active = false
-Input.AnchorPoint = Vector2.new(0.5, 0.5)
-Input.BackgroundColor3 = Color3.fromRGB(17, 17, 17)
-Input.BackgroundTransparency = 0.300
-Input.ClipsDescendants = true
-Input.Position = UDim2.new(0.5, 0, 0.5, 0)
-Input.Size = UDim2.new(1, -10, 0.699999988, 0)
-Input.ZIndex = 3
-Input.Font = Enum.Font.SourceSans
-Input.PlaceholderText = "placeholder"
-Input.Text = ""
-Input.TextColor3 = Color3.fromRGB(225, 225, 225)
-Input.TextScaled = true
-Input.TextSize = 24.000
-Input.TextWrapped = true
-Input.TextXAlignment = Enum.TextXAlignment.Left
-
-UICorner_2.CornerRadius = UDim.new(0, 6)
-UICorner_2.Parent = Input
-
-LeftFill.Name = "LeftFill"
-LeftFill.Parent = CmdBar
-LeftFill.AnchorPoint = Vector2.new(0, 0.5)
-LeftFill.BackgroundTransparency = 1.000
-LeftFill.Position = UDim2.new(0, 0, 0.5, 0)
-LeftFill.Size = UDim2.new(0.5, -125, 1, 0)
-
-Frame.Parent = LeftFill
-Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Frame.BackgroundTransparency = 0.140
-Frame.Size = UDim2.new(1, 0, 1, 0)
-
-UIGradient_2.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(4, 4, 4))}
-UIGradient_2.Parent = Frame
-
-UICorner_3.CornerRadius = UDim.new(0, 9)
-UICorner_3.Parent = Frame
-
-Horizontal_2.Name = "Horizontal"
-Horizontal_2.Parent = LeftFill
-Horizontal_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Horizontal_2.BackgroundTransparency = 0.140
-Horizontal_2.BorderColor3 = Color3.fromRGB(27, 27, 27)
-Horizontal_2.BorderSizePixel = 0
-Horizontal_2.Size = UDim2.new(1.005988, 0, 1, 0)
-
-UIGradient_3.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.05, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.49, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(4, 4, 4))}
-UIGradient_3.Parent = Horizontal_2
-
-UICorner_4.Parent = Horizontal_2
-
-Edge.Name = "Edge"
-Edge.Parent = LeftFill
-Edge.AnchorPoint = Vector2.new(0, 0.5)
-Edge.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Edge.BackgroundTransparency = 1.000
-Edge.BorderSizePixel = 0
-Edge.ClipsDescendants = true
-Edge.Position = UDim2.new(1, 0, 0.5, 0)
-Edge.Size = UDim2.new(0.185000002, 0, 1, 0)
-
-UIAspectRatioConstraint.Parent = Edge
-
-Edge_2.Name = "Edge"
-Edge_2.Parent = Edge
-Edge_2.AnchorPoint = Vector2.new(0.5, 0.5)
-Edge_2.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Edge_2.BackgroundTransparency = 1.000
-Edge_2.BorderSizePixel = 0
-Edge_2.Position = UDim2.new(0, 0, 0.5, 0)
-Edge_2.Size = UDim2.new(1, 12, 1, 0)
-Edge_2.Image = "rbxassetid://483281072"
-Edge_2.ImageColor3 = Color3.fromRGB(4, 4, 4)
-Edge_2.ImageTransparency = 0.140
-
-RightFill.Name = "RightFill"
-RightFill.Parent = CmdBar
-RightFill.AnchorPoint = Vector2.new(1, 0.5)
-RightFill.BackgroundTransparency = 1.000
-RightFill.Position = UDim2.new(1, 0, 0.5, 0)
-RightFill.Size = UDim2.new(0.5, -125, 1, 0)
-
-Frame_2.Parent = RightFill
-Frame_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Frame_2.BackgroundTransparency = 0.140
-Frame_2.Size = UDim2.new(1, 0, 1, 0)
-
-UIGradient_4.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_4.Parent = Frame_2
-
-UICorner_5.CornerRadius = UDim.new(0, 9)
-UICorner_5.Parent = Frame_2
-
-Horizontal_3.Name = "Horizontal"
-Horizontal_3.Parent = RightFill
-Horizontal_3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Horizontal_3.BackgroundTransparency = 0.140
-Horizontal_3.BorderColor3 = Color3.fromRGB(27, 27, 27)
-Horizontal_3.BorderSizePixel = 0
-Horizontal_3.Position = UDim2.new(-0.00798403192, 0, 0, 0)
-Horizontal_3.Size = UDim2.new(1.00798404, 0, 1, 0)
-
-UIGradient_5.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.49, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_5.Parent = Horizontal_3
-
-UICorner_6.Parent = Horizontal_3
-
-Edge_3.Name = "Edge"
-Edge_3.Parent = RightFill
-Edge_3.AnchorPoint = Vector2.new(1, 0.5)
-Edge_3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Edge_3.BackgroundTransparency = 1.000
-Edge_3.BorderSizePixel = 0
-Edge_3.ClipsDescendants = true
-Edge_3.Position = UDim2.new(0, 0, 0.5, 0)
-Edge_3.Size = UDim2.new(0.185000002, 0, 1, 0)
-
-UIAspectRatioConstraint_2.Parent = Edge_3
-
-Edge_4.Name = "Edge"
-Edge_4.Parent = Edge_3
-Edge_4.AnchorPoint = Vector2.new(0.5, 0.5)
-Edge_4.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Edge_4.BackgroundTransparency = 1.000
-Edge_4.BorderSizePixel = 0
-Edge_4.Position = UDim2.new(1, 0, 0.5, 0)
-Edge_4.Size = UDim2.new(1, 12, 1, 0)
-Edge_4.Image = "rbxassetid://483281072"
-Edge_4.ImageColor3 = Color3.fromRGB(4, 4, 4)
-Edge_4.ImageTransparency = 0.140
-
-Autofill.Name = "Autofill"
-Autofill.Parent = CmdBar
-Autofill.AnchorPoint = Vector2.new(0.5, 1)
-Autofill.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
-Autofill.BackgroundTransparency = 1.000
-Autofill.BorderSizePixel = 0
-Autofill.ClipsDescendants = false
-Autofill.Position = UDim2.new(0.5, 0, 0, -10)
-Autofill.Size = UDim2.new(0, 400, 0, 150)
-Autofill.ZIndex = 4
-
-UICorner_7.CornerRadius = UDim.new(0, 9)
-UICorner_7.Parent = Autofill
-
-UIGradient_6.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(4, 4, 4))}
-UIGradient_6.Rotation = 90
-UIGradient_6.Parent = Autofill
-
-Cmd.Name = "Cmd"
-Cmd.Parent = Autofill
-Cmd.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-Cmd.BackgroundTransparency = 0.100
-Cmd.BorderSizePixel = 0
-Cmd.ClipsDescendants = true
-Cmd.Size = UDim2.new(0.899999976, 0, 0, 30)
-
-UICorner_8.CornerRadius = UDim.new(0, 6)
-UICorner_8.Parent = Cmd
-
-Input_2.Name = "Input"
-Input_2.Parent = Cmd
-Input_2.BackgroundTransparency = 1.000
-Input_2.Position = UDim2.new(0, 5, 0, 0)
-Input_2.Size = UDim2.new(1, -10, 1, 0)
-Input_2.Font = Enum.Font.SourceSans
-Input_2.Text = "example <player> <text>"
-Input_2.TextColor3 = Color3.fromRGB(240, 240, 240)
-Input_2.TextScaled = true
-Input_2.TextSize = 24.000
-Input_2.TextWrapped = true
-
-UIListLayout.Parent = Autofill
-UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-UIListLayout.Padding = UDim.new(0, 3)
-
-Resizeable.Name = "Resizeable"
-Resizeable.Parent = AdminUI
-Resizeable.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Resizeable.BackgroundTransparency = 1.000
-Resizeable.Size = UDim2.new(1, 0, 1, 0)
-
-Left.Name = "Left"
-Left.Parent = Resizeable
-Left.AnchorPoint = Vector2.new(1, 0.5)
-Left.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-Left.BackgroundTransparency = 1.000
-Left.BorderSizePixel = 0
-Left.Position = UDim2.new(0, 0, 0.5, 0)
-Left.Size = UDim2.new(0, 8, 1, -8)
-
-Right.Name = "Right"
-Right.Parent = Resizeable
-Right.AnchorPoint = Vector2.new(0, 0.5)
-Right.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-Right.BackgroundTransparency = 1.000
-Right.BorderSizePixel = 0
-Right.Position = UDim2.new(1, 0, 0.5, 0)
-Right.Size = UDim2.new(0, 8, 1, -8)
-
-Top.Name = "Top"
-Top.Parent = Resizeable
-Top.AnchorPoint = Vector2.new(0.5, 1)
-Top.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-Top.BackgroundTransparency = 1.000
-Top.BorderSizePixel = 0
-Top.Position = UDim2.new(0.5, 0, 0, 0)
-Top.Size = UDim2.new(1, -8, 0, 8)
-
-Bottom.Name = "Bottom"
-Bottom.Parent = Resizeable
-Bottom.AnchorPoint = Vector2.new(0.5, 0)
-Bottom.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-Bottom.BackgroundTransparency = 1.000
-Bottom.BorderSizePixel = 0
-Bottom.Position = UDim2.new(0.5, 0, 1, 0)
-Bottom.Size = UDim2.new(1, -8, 0, 8)
-
-TopLeft.Name = "TopLeft"
-TopLeft.Parent = Resizeable
-TopLeft.AnchorPoint = Vector2.new(1, 1)
-TopLeft.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-TopLeft.BackgroundTransparency = 1.000
-TopLeft.BorderSizePixel = 0
-TopLeft.Position = UDim2.new(0, 4, 0, 4)
-TopLeft.Size = UDim2.new(0, 12, 0, 12)
-
-TopRight.Name = "TopRight"
-TopRight.Parent = Resizeable
-TopRight.AnchorPoint = Vector2.new(0, 1)
-TopRight.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-TopRight.BackgroundTransparency = 1.000
-TopRight.BorderSizePixel = 0
-TopRight.Position = UDim2.new(1, -4, 0, 4)
-TopRight.Size = UDim2.new(0, 12, 0, 12)
-
-BottomLeft.Name = "BottomLeft"
-BottomLeft.Parent = Resizeable
-BottomLeft.AnchorPoint = Vector2.new(1, 0)
-BottomLeft.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-BottomLeft.BackgroundTransparency = 1.000
-BottomLeft.BorderSizePixel = 0
-BottomLeft.Position = UDim2.new(0, 4, 1, -4)
-BottomLeft.Size = UDim2.new(0, 12, 0, 12)
-
-BottomRight.Name = "BottomRight"
-BottomRight.Parent = Resizeable
-BottomRight.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
-BottomRight.BackgroundTransparency = 1.000
-BottomRight.BorderSizePixel = 0
-BottomRight.Position = UDim2.new(1, -4, 1, -4)
-BottomRight.Size = UDim2.new(0, 12, 0, 12)
-
-Description.Name = "Description"
-Description.Parent = AdminUI
-Description.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
-Description.BackgroundTransparency = 0.300
-Description.BorderColor3 = Color3.fromRGB(53, 53, 53)
-Description.Size = UDim2.new(0, 191, 0, 26)
-Description.Visible = false
-Description.Font = Enum.Font.SourceSansItalic
-Description.Text = "Name"
-Description.TextColor3 = Color3.fromRGB(255, 255, 255)
-Description.TextSize = 13.000
-Description.TextScaled = true
-Description.TextWrapped = true
-Description.ZIndex = 99
-
-UICorner_9.Parent = Description
-
-Modal.Name = "Modal"
-Modal.Parent = AdminUI
-Modal.BackgroundTransparency = 1.000
-
-ChatLogs.Name = "ChatLogs"
-ChatLogs.Parent = AdminUI
-ChatLogs.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-ChatLogs.BackgroundTransparency = 0.400
-ChatLogs.BorderSizePixel = 0
-ChatLogs.ClipsDescendants = false
-ChatLogs.Position = UDim2.new(0.654038072, 0, 0.596248388, 0)
-ChatLogs.Size = UDim2.new(0, 400, 0, 300)
-
-UICorner_10.Parent = ChatLogs
-
-Topbar.Name = "Topbar"
-Topbar.Parent = ChatLogs
-Topbar.BackgroundTransparency = 1.000
-Topbar.BorderSizePixel = 0
-Topbar.Size = UDim2.new(1, 0, 0, 30)
-Topbar.ZIndex = 10
-
-Title.Name = "Title"
-Title.Parent = Topbar
-Title.BackgroundTransparency = 1.000
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.Size = UDim2.new(1, -100, 1, 0)
-Title.Font = Enum.Font.GothamBold
-Title.Text = "Chat Logs"
-Title.TextColor3 = Color3.fromRGB(0, 255, 255)
-Title.TextScaled = true
-Title.TextSize = 20.000
-Title.TextWrapped = true
-Title.TextXAlignment = Enum.TextXAlignment.Left
-
-Minimize.Name = "Minimize"
-Minimize.Parent = Topbar
-Minimize.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Minimize.BackgroundTransparency = 0.300
-Minimize.Position = UDim2.new(1, -70, 0, 0)
-Minimize.Size = UDim2.new(0, 30, 0, 30)
-Minimize.Font = Enum.Font.GothamBold
-Minimize.Text = "-"
-Minimize.TextColor3 = Color3.fromRGB(10, 10, 10)
-Minimize.TextSize = 18.000
-
-UICorner_11.CornerRadius = UDim.new(0, 6)
-UICorner_11.Parent = Minimize
-
-Exit.Name = "Exit"
-Exit.Parent = Topbar
-Exit.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Exit.BackgroundTransparency = 0.300
-Exit.Position = UDim2.new(1, -35, 0, 0)
-Exit.Size = UDim2.new(0, 30, 0, 30)
-Exit.Font = Enum.Font.GothamBold
-Exit.Text = "X"
-Exit.TextColor3 = Color3.fromRGB(10, 10, 10)
-Exit.TextSize = 18.000
-
-UICorner_12.CornerRadius = UDim.new(0, 6)
-UICorner_12.Parent = Exit
-
-Clear.Name = "Clear"
-Clear.Parent = Topbar
-Clear.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Clear.BackgroundTransparency = 0.300
-Clear.Position = UDim2.new(1, -105, 0, 0)
-Clear.Size = UDim2.new(0, 30, 0, 30)
-Clear.Visible = false
-Clear.Font = Enum.Font.GothamBold
-Clear.Text = "C"
-Clear.TextColor3 = Color3.fromRGB(10, 10, 10)
-Clear.TextSize = 18.000
-
-UICorner_13.CornerRadius = UDim.new(0, 6)
-UICorner_13.Parent = Clear
-
-Container.Name = "Container"
-Container.Parent = ChatLogs
-Container.BackgroundTransparency = 1.000
-Container.Position = UDim2.new(0, 10, 0, 35)
-Container.Size = UDim2.new(1, -20, 1, -40)
-
-UIListLayout_2.Parent = Container
-UIListLayout_2.Padding = UDim.new(0, 5)
-
-Logs.Name = "Logs"
-Logs.Parent = Container
-Logs.AnchorPoint = Vector2.new(0.5, 0.5)
-Logs.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Logs.BackgroundTransparency = 1.000
-Logs.BorderColor3 = Color3.fromRGB(16, 16, 16)
-Logs.BorderSizePixel = 0
-Logs.Position = UDim2.new(0.5, 0, 0.5, 0)
-Logs.Size = UDim2.new(1, -10, 1, -10)
-Logs.BottomImage = "rbxgameasset://Images/scrollBottom (1)"
-Logs.MidImage = "rbxgameasset://Images/scrollMid"
-Logs.ScrollBarThickness = 4
-Logs.TopImage = "rbxgameasset://Images/scrollTop"
-
-UIListLayout_3.Parent = Logs
-UIListLayout_3.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout_3.Padding = UDim.new(0, 3)
-
-TextLabel.Parent = Logs
-TextLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel.BackgroundTransparency = 1.000
-TextLabel.Size = UDim2.new(1, 0, 0, 25)
-TextLabel.Font = Enum.Font.Arial
-TextLabel.Text = "[Roblox]: Hello,World!"
-TextLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
-TextLabel.TextScaled = true
-TextLabel.TextSize = 14.000
-TextLabel.TextStrokeTransparency = 0.800
-TextLabel.TextWrapped = true
-
-UICorner_14.CornerRadius = UDim.new(0, 9)
-UICorner_14.Parent = Container
-
-UIGradient_7.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_7.Parent = Container
-
-UICorner_15.CornerRadius = UDim.new(0, 9)
-UICorner_15.Parent = ChatLogs
-
-UIGradient_8.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.38, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.68, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_8.Parent = ChatLogs
-
-Commands.Name = "Commands"
-Commands.Parent = AdminUI
-Commands.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-Commands.BackgroundTransparency = 0.400
-Commands.BorderSizePixel = 0
-Commands.ClipsDescendants = false
-Commands.Position = UDim2.new(0.0477434583, 0, 0.556921065, 0)
-Commands.Size = UDim2.new(0, 280, 0, 320)
-
-UICorner_16.Parent = Commands
-
-Topbar_2.Name = "Topbar"
-Topbar_2.Parent = Commands
-Topbar_2.BackgroundTransparency = 1.000
-Topbar_2.BorderSizePixel = 0
-Topbar_2.Size = UDim2.new(1, 0, 0, 30)
-Topbar_2.ZIndex = 10
-
-Title_2.Name = "Title"
-Title_2.Parent = Topbar_2
-Title_2.BackgroundTransparency = 1.000
-Title_2.Position = UDim2.new(0, 10, 0, 0)
-Title_2.Size = UDim2.new(1, -100, 1, 0)
-Title_2.Font = Enum.Font.GothamBold
-Title_2.Text = "Commands"
-Title_2.TextColor3 = Color3.fromRGB(0, 255, 255)
-Title_2.TextScaled = true
-Title_2.TextSize = 20.000
-Title_2.TextWrapped = true
-Title_2.TextXAlignment = Enum.TextXAlignment.Left
-
-Minimize_2.Name = "Minimize"
-Minimize_2.Parent = Topbar_2
-Minimize_2.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Minimize_2.BackgroundTransparency = 0.300
-Minimize_2.Position = UDim2.new(1, -70, 0, 0)
-Minimize_2.Size = UDim2.new(0, 30, 0, 30)
-Minimize_2.Font = Enum.Font.GothamBold
-Minimize_2.Text = "-"
-Minimize_2.TextColor3 = Color3.fromRGB(10, 10, 10)
-Minimize_2.TextSize = 18.000
-
-UICorner_17.CornerRadius = UDim.new(0, 6)
-UICorner_17.Parent = Minimize_2
-
-Exit_2.Name = "Exit"
-Exit_2.Parent = Topbar_2
-Exit_2.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Exit_2.BackgroundTransparency = 0.300
-Exit_2.Position = UDim2.new(1, -35, 0, 0)
-Exit_2.Size = UDim2.new(0, 30, 0, 30)
-Exit_2.Font = Enum.Font.GothamBold
-Exit_2.Text = "X"
-Exit_2.TextColor3 = Color3.fromRGB(10, 10, 10)
-Exit_2.TextSize = 18.000
-
-UICorner_18.CornerRadius = UDim.new(0, 6)
-UICorner_18.Parent = Exit_2
-
-Clear_2.Name = "Clear"
-Clear_2.Parent = Topbar_2
-Clear_2.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Clear_2.BackgroundTransparency = 0.300
-Clear_2.Position = UDim2.new(1, -105, 0, 0)
-Clear_2.Size = UDim2.new(0, 30, 0, 30)
-Clear_2.Visible = false
-Clear_2.Font = Enum.Font.GothamBold
-Clear_2.Text = "C"
-Clear_2.TextColor3 = Color3.fromRGB(10, 10, 10)
-Clear_2.TextSize = 18.000
-
-UICorner_19.CornerRadius = UDim.new(0, 6)
-UICorner_19.Parent = Clear_2
-
-Container_2.Name = "Container"
-Container_2.Parent = Commands
-Container_2.BackgroundTransparency = 1.000
-Container_2.Position = UDim2.new(0, 10, 0, 35)
-Container_2.Size = UDim2.new(1, -20, 1, -40)
-
-UIListLayout_4.Parent = Container_2
-UIListLayout_4.Padding = UDim.new(0, 5)
-
-List.Name = "List"
-List.Parent = Container_2
-List.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-List.BackgroundTransparency = 1.000
-List.BorderColor3 = Color3.fromRGB(16, 16, 16)
-List.BorderSizePixel = 0
-List.Position = UDim2.new(0, 6, 0, 27)
-List.Size = UDim2.new(1, -10, 1, -27)
-List.BottomImage = "rbxgameasset://Images/scrollBottom (1)"
-List.MidImage = "rbxgameasset://Images/scrollMid"
-List.ScrollBarThickness = 4
-List.TopImage = "rbxgameasset://Images/scrollTop"
-
-UIListLayout_5.Parent = List
-UIListLayout_5.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIListLayout_5.Padding = UDim.new(0, 2)
-
-TextLabel_2.Parent = List
-TextLabel_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel_2.BackgroundTransparency = 1.000
-TextLabel_2.Position = UDim2.new(0, 0, 0.0173913036, 0)
-TextLabel_2.Size = UDim2.new(1, 0, 0, 20)
-TextLabel_2.Font = Enum.Font.Arial
-TextLabel_2.Text = "example <player> <text>"
-TextLabel_2.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel_2.TextScaled = true
-TextLabel_2.TextSize = 15.000
-TextLabel_2.TextStrokeTransparency = 0.800
-TextLabel_2.TextWrapped = true
-
-Filter.Name = "Filter"
-Filter.Parent = Container_2
-Filter.AnchorPoint = Vector2.new(0.5, 0)
-Filter.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
-Filter.BackgroundTransparency = 0.700
-Filter.BorderSizePixel = 0
-Filter.Position = UDim2.new(0.5, 0, 0, 5)
-Filter.Size = UDim2.new(1, -10, 0, 20)
-Filter.Font = Enum.Font.SourceSans
-Filter.PlaceholderColor3 = Color3.fromRGB(124, 124, 124)
-Filter.PlaceholderText = "Filter commands..."
-Filter.Text = ""
-Filter.TextColor3 = Color3.fromRGB(229, 229, 229)
-Filter.TextSize = 18.000
-
-UICorner_20.CornerRadius = UDim.new(0, 9)
-UICorner_20.Parent = Filter
-
-UICorner_21.CornerRadius = UDim.new(0, 9)
-UICorner_21.Parent = Container_2
-
-UIGradient_9.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_9.Parent = Container_2
-
-UICorner_22.CornerRadius = UDim.new(0, 9)
-UICorner_22.Parent = Commands
-
-UIGradient_10.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.53, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_10.Parent = Commands
-
-UpdLog.Name = "UpdLog"
-UpdLog.Parent = AdminUI
-UpdLog.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-UpdLog.BackgroundTransparency = 0.400
-UpdLog.BorderSizePixel = 0
-UpdLog.ClipsDescendants = false
-UpdLog.Position = UDim2.new(0.68653208, 0, 0.0209573247, 0)
-UpdLog.Size = UDim2.new(0, 280, 0, 320)
-
-UICorner_23.Parent = UpdLog
-
-Topbar_3.Name = "Topbar"
-Topbar_3.Parent = UpdLog
-Topbar_3.BackgroundTransparency = 1.000
-Topbar_3.BorderSizePixel = 0
-Topbar_3.Size = UDim2.new(1, 0, 0, 30)
-Topbar_3.ZIndex = 10
-
-Title_3.Name = "Title"
-Title_3.Parent = Topbar_3
-Title_3.BackgroundTransparency = 1.000
-Title_3.Position = UDim2.new(0, 10, 0, 0)
-Title_3.Size = UDim2.new(1, -100, 1, 0)
-Title_3.Font = Enum.Font.GothamBold
-Title_3.Text = "Update Log"
-Title_3.TextColor3 = Color3.fromRGB(0, 255, 255)
-Title_3.TextScaled = true
-Title_3.TextSize = 20.000
-Title_3.TextWrapped = true
-Title_3.TextXAlignment = Enum.TextXAlignment.Left
-
-Minimize_3.Name = "Minimize"
-Minimize_3.Parent = Topbar_3
-Minimize_3.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Minimize_3.BackgroundTransparency = 0.300
-Minimize_3.Position = UDim2.new(1, -70, 0, 0)
-Minimize_3.Size = UDim2.new(0, 30, 0, 30)
-Minimize_3.Font = Enum.Font.GothamBold
-Minimize_3.Text = "-"
-Minimize_3.TextColor3 = Color3.fromRGB(10, 10, 10)
-Minimize_3.TextSize = 18.000
-
-UICorner_24.CornerRadius = UDim.new(0, 6)
-UICorner_24.Parent = Minimize_3
-
-Exit_3.Name = "Exit"
-Exit_3.Parent = Topbar_3
-Exit_3.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Exit_3.BackgroundTransparency = 0.300
-Exit_3.Position = UDim2.new(1, -35, 0, 0)
-Exit_3.Size = UDim2.new(0, 30, 0, 30)
-Exit_3.Font = Enum.Font.GothamBold
-Exit_3.Text = "X"
-Exit_3.TextColor3 = Color3.fromRGB(10, 10, 10)
-Exit_3.TextSize = 18.000
-
-UICorner_25.CornerRadius = UDim.new(0, 6)
-UICorner_25.Parent = Exit_3
-
-Clear_3.Name = "Clear"
-Clear_3.Parent = Topbar_3
-Clear_3.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Clear_3.BackgroundTransparency = 0.300
-Clear_3.Position = UDim2.new(1, -105, 0, 0)
-Clear_3.Size = UDim2.new(0, 30, 0, 30)
-Clear_3.Visible = false
-Clear_3.Font = Enum.Font.GothamBold
-Clear_3.Text = "C"
-Clear_3.TextColor3 = Color3.fromRGB(10, 10, 10)
-Clear_3.TextSize = 18.000
-
-UICorner_26.CornerRadius = UDim.new(0, 6)
-UICorner_26.Parent = Clear_3
-
-Container_3.Name = "Container"
-Container_3.Parent = UpdLog
-Container_3.BackgroundTransparency = 1.000
-Container_3.Position = UDim2.new(0, 10, 0, 35)
-Container_3.Size = UDim2.new(1, -20, 1, -40)
-
-UIListLayout_6.Parent = Container_3
-UIListLayout_6.Padding = UDim.new(0, 5)
-
-List_2.Name = "List"
-List_2.Parent = Container_3
-List_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-List_2.BackgroundTransparency = 1.000
-List_2.BorderColor3 = Color3.fromRGB(16, 16, 16)
-List_2.BorderSizePixel = 0
-List_2.Position = UDim2.new(0, 6, 0, 6)
-List_2.Size = UDim2.new(1, -10, 1.0801245, -27)
-List_2.BottomImage = "rbxgameasset://Images/scrollBottom (1)"
-List_2.MidImage = "rbxgameasset://Images/scrollMid"
-List_2.ScrollBarThickness = 4
-List_2.TopImage = "rbxgameasset://Images/scrollTop"
-
-UIListLayout_7.Parent = List_2
-UIListLayout_7.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIListLayout_7.Padding = UDim.new(0, 2)
-
-TextLabel_3.Name = ""
-TextLabel_3.Parent = List_2
-TextLabel_3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel_3.BackgroundTransparency = 1.000
-TextLabel_3.BorderColor3 = Color3.fromRGB(0, 0, 0)
-TextLabel_3.BorderSizePixel = 0
-TextLabel_3.Size = UDim2.new(1, 0, 0, 35)
-TextLabel_3.Font = Enum.Font.SourceSansBold
-TextLabel_3.Text = "- log 1 thingy"
-TextLabel_3.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel_3.TextScaled = true
-TextLabel_3.TextSize = 14.000
-TextLabel_3.TextWrapped = true
-
-UICorner_27.CornerRadius = UDim.new(0, 9)
-UICorner_27.Parent = Container_3
-
-UIGradient_11.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_11.Parent = Container_3
-
-UICorner_28.CornerRadius = UDim.new(0, 9)
-UICorner_28.Parent = UpdLog
-
-UIGradient_12.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.53, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_12.Parent = UpdLog
-
-soRealConsole.Name = "soRealConsole"
-soRealConsole.Parent = AdminUI
-soRealConsole.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-soRealConsole.BackgroundTransparency = 0.400
-soRealConsole.BorderSizePixel = 0
-soRealConsole.ClipsDescendants = false
-soRealConsole.Position = UDim2.new(0.321694374, 0, 0.570633888, 0)
-soRealConsole.Size = UDim2.new(0, 400, 0, 300)
-
-UICorner_29.Parent = soRealConsole
-
-Topbar_4.Name = "Topbar"
-Topbar_4.Parent = soRealConsole
-Topbar_4.BackgroundTransparency = 1.000
-Topbar_4.BorderSizePixel = 0
-Topbar_4.Size = UDim2.new(1, 0, 0, 30)
-Topbar_4.ZIndex = 10
-
-Title_4.Name = "Title"
-Title_4.Parent = Topbar_4
-Title_4.BackgroundTransparency = 1.000
-Title_4.Position = UDim2.new(0, 10, 0, 0)
-Title_4.Size = UDim2.new(1, -100, 1, 0)
-Title_4.Font = Enum.Font.GothamBold
-Title_4.Text = "Console"
-Title_4.TextColor3 = Color3.fromRGB(0, 255, 255)
-Title_4.TextScaled = true
-Title_4.TextSize = 20.000
-Title_4.TextWrapped = true
-Title_4.TextXAlignment = Enum.TextXAlignment.Left
-
-Minimize_4.Name = "Minimize"
-Minimize_4.Parent = Topbar_4
-Minimize_4.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Minimize_4.BackgroundTransparency = 0.300
-Minimize_4.Position = UDim2.new(1, -70, 0, 0)
-Minimize_4.Size = UDim2.new(0, 30, 0, 30)
-Minimize_4.Font = Enum.Font.GothamBold
-Minimize_4.Text = "-"
-Minimize_4.TextColor3 = Color3.fromRGB(10, 10, 10)
-Minimize_4.TextSize = 18.000
-
-UICorner_30.CornerRadius = UDim.new(0, 6)
-UICorner_30.Parent = Minimize_4
-
-Exit_4.Name = "Exit"
-Exit_4.Parent = Topbar_4
-Exit_4.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Exit_4.BackgroundTransparency = 0.300
-Exit_4.Position = UDim2.new(1, -35, 0, 0)
-Exit_4.Size = UDim2.new(0, 30, 0, 30)
-Exit_4.Font = Enum.Font.GothamBold
-Exit_4.Text = "X"
-Exit_4.TextColor3 = Color3.fromRGB(10, 10, 10)
-Exit_4.TextSize = 18.000
-
-UICorner_31.CornerRadius = UDim.new(0, 6)
-UICorner_31.Parent = Exit_4
-
-Clear_4.Name = "Clear"
-Clear_4.Parent = Topbar_4
-Clear_4.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-Clear_4.BackgroundTransparency = 0.300
-Clear_4.Position = UDim2.new(1, -105, 0, 0)
-Clear_4.Size = UDim2.new(0, 30, 0, 30)
-Clear_4.Visible = false
-Clear_4.Font = Enum.Font.GothamBold
-Clear_4.Text = "C"
-Clear_4.TextColor3 = Color3.fromRGB(10, 10, 10)
-Clear_4.TextSize = 18.000
-
-UICorner_32.CornerRadius = UDim.new(0, 6)
-UICorner_32.Parent = Clear_4
-
-Container_4.Name = "Container"
-Container_4.Parent = soRealConsole
-Container_4.BackgroundTransparency = 1.000
-Container_4.Position = UDim2.new(0, 10, 0, 35)
-Container_4.Size = UDim2.new(1, -20, 1, -40)
-
-UIListLayout_8.Parent = Container_4
-UIListLayout_8.Padding = UDim.new(0, 5)
-
-Logs_2.Name = "Logs"
-Logs_2.Parent = Container_4
-Logs_2.AnchorPoint = Vector2.new(0.5, 0.5)
-Logs_2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Logs_2.BackgroundTransparency = 1.000
-Logs_2.BorderColor3 = Color3.fromRGB(16, 16, 16)
-Logs_2.BorderSizePixel = 0
-Logs_2.Position = UDim2.new(0.5, 0, 0.620000005, 0)
-Logs_2.Size = UDim2.new(1, -10, 0.899999976, -35)
-Logs_2.BottomImage = "rbxgameasset://Images/scrollBottom (1)"
-Logs_2.MidImage = "rbxgameasset://Images/scrollMid"
-Logs_2.ScrollBarThickness = 4
-Logs_2.TopImage = "rbxgameasset://Images/scrollTop"
-
-UIListLayout_9.Parent = Logs_2
-UIListLayout_9.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout_9.Padding = UDim.new(0, 3)
-
-TextLabel_4.Parent = Logs_2
-TextLabel_4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-TextLabel_4.BackgroundTransparency = 1.000
-TextLabel_4.Size = UDim2.new(1, 0, 0, 25)
-TextLabel_4.Font = Enum.Font.Arial
-TextLabel_4.Text = "[Output]: failed print 1"
-TextLabel_4.TextColor3 = Color3.fromRGB(240, 240, 240)
-TextLabel_4.TextScaled = true
-TextLabel_4.TextSize = 14.000
-TextLabel_4.TextStrokeTransparency = 0.800
-TextLabel_4.TextWrapped = true
-
-UICorner_33.CornerRadius = UDim.new(0, 9)
-UICorner_33.Parent = Container_4
-
-UIGradient_13.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_13.Parent = Container_4
-
-Filter_2.Name = "Filter"
-Filter_2.Parent = Container_4
-Filter_2.AnchorPoint = Vector2.new(0.5, 0)
-Filter_2.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
-Filter_2.BackgroundTransparency = 0.700
-Filter_2.BorderSizePixel = 0
-Filter_2.Position = UDim2.new(0.5, 0, 0, 5)
-Filter_2.Size = UDim2.new(1, -10, 0, 20)
-Filter_2.Font = Enum.Font.SourceSans
-Filter_2.PlaceholderColor3 = Color3.fromRGB(124, 124, 124)
-Filter_2.PlaceholderText = "Search..."
-Filter_2.Text = ""
-Filter_2.TextColor3 = Color3.fromRGB(229, 229, 229)
-Filter_2.TextSize = 18.000
-
-UICorner_34.CornerRadius = UDim.new(0, 9)
-UICorner_34.Parent = Filter_2
-
-UICorner_35.CornerRadius = UDim.new(0, 9)
-UICorner_35.Parent = soRealConsole
-
-UIGradient_14.Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(12, 4, 20)), ColorSequenceKeypoint.new(0.38, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.52, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(0.68, Color3.fromRGB(4, 4, 4)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(12, 4, 20))}
-UIGradient_14.Parent = soRealConsole
-
-return AdminUI
+local G2L = {};
+
+-- StarterGui.AdminUI
+G2L["1"] = Instance.new("ScreenGui");
+G2L["1"]["Name"] = [[AdminUI]];
+G2L["1"]["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling;
+G2L["1"]["ResetOnSpawn"] = false;
+
+
+-- StarterGui.AdminUI.AutoScale
+G2L["2"] = Instance.new("UIScale", G2L["1"]);
+G2L["2"]["Name"] = [[AutoScale]];
+
+
+-- StarterGui.AdminUI.CmdBar
+G2L["3"] = Instance.new("Frame", G2L["1"]);
+G2L["3"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["3"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["3"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["3"]["Position"] = UDim2.new(0.5, 0, 0.5, -20);
+G2L["3"]["Name"] = [[CmdBar]];
+G2L["3"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.CenterBar
+G2L["4"] = Instance.new("Frame", G2L["3"]);
+G2L["4"]["ZIndex"] = 2;
+G2L["4"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["4"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["4"]["Size"] = UDim2.new(0, 250, 1, 15);
+G2L["4"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+G2L["4"]["Name"] = [[CenterBar]];
+G2L["4"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.CenterBar.Horizontal
+G2L["5"] = Instance.new("Frame", G2L["4"]);
+G2L["5"]["ZIndex"] = 2;
+G2L["5"]["BorderSizePixel"] = 0;
+G2L["5"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["5"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["5"]["BorderColor3"] = Color3.fromRGB(29, 29, 29);
+G2L["5"]["Name"] = [[Horizontal]];
+G2L["5"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.CmdBar.CenterBar.Horizontal.UICorners
+G2L["6"] = Instance.new("UICorner", G2L["5"]);
+G2L["6"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.CmdBar.CenterBar.Horizontal.UIGradients
+G2L["7"] = Instance.new("UIGradient", G2L["5"]);
+G2L["7"]["Name"] = [[UIGradients]];
+G2L["7"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.CmdBar.CenterBar.Input
+G2L["8"] = Instance.new("TextBox", G2L["4"]);
+G2L["8"]["CursorPosition"] = -1;
+G2L["8"]["Active"] = false;
+G2L["8"]["Name"] = [[Input]];
+G2L["8"]["TextXAlignment"] = Enum.TextXAlignment.Left;
+G2L["8"]["ZIndex"] = 2;
+G2L["8"]["TextWrapped"] = true;
+G2L["8"]["TextSize"] = 24;
+G2L["8"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["8"]["TextScaled"] = true;
+G2L["8"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["8"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["8"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["8"]["ClipsDescendants"] = true;
+G2L["8"]["Size"] = UDim2.new(1, -5, 0.7, 0);
+G2L["8"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+G2L["8"]["Text"] = [[]];
+G2L["8"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.LeftFill
+G2L["9"] = Instance.new("Frame", G2L["3"]);
+G2L["9"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["9"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["9"]["Size"] = UDim2.new(0.5, -125, 1, 0);
+G2L["9"]["Position"] = UDim2.new(0, 0, 0.5, 0);
+G2L["9"]["Name"] = [[LeftFill]];
+G2L["9"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.LeftFill.Horizontal
+G2L["a"] = Instance.new("Frame", G2L["9"]);
+G2L["a"]["BorderSizePixel"] = 0;
+G2L["a"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["a"]["Size"] = UDim2.new(1.00599, 0, 1, 0);
+G2L["a"]["BorderColor3"] = Color3.fromRGB(29, 29, 29);
+G2L["a"]["Name"] = [[Horizontal]];
+G2L["a"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.CmdBar.LeftFill.Horizontal.UICorners
+G2L["b"] = Instance.new("UICorner", G2L["a"]);
+G2L["b"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.CmdBar.LeftFill.Horizontal.UIGradients
+G2L["c"] = Instance.new("UIGradient", G2L["a"]);
+G2L["c"]["Name"] = [[UIGradients]];
+G2L["c"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.CmdBar.RightFill
+G2L["d"] = Instance.new("Frame", G2L["3"]);
+G2L["d"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["d"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["d"]["Size"] = UDim2.new(0.5, -125, 1, 0);
+G2L["d"]["Position"] = UDim2.new(1, 0, 0.5, 0);
+G2L["d"]["Name"] = [[RightFill]];
+G2L["d"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.RightFill.Horizontal
+G2L["e"] = Instance.new("Frame", G2L["d"]);
+G2L["e"]["BorderSizePixel"] = 0;
+G2L["e"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["e"]["Size"] = UDim2.new(1.00798, 0, 1, 0);
+G2L["e"]["Position"] = UDim2.new(-0.00798, 0, 0, 0);
+G2L["e"]["BorderColor3"] = Color3.fromRGB(29, 29, 29);
+G2L["e"]["Name"] = [[Horizontal]];
+G2L["e"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.CmdBar.RightFill.Horizontal.UICorners
+G2L["f"] = Instance.new("UICorner", G2L["e"]);
+G2L["f"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.CmdBar.RightFill.Horizontal.UIGradients
+G2L["10"] = Instance.new("UIGradient", G2L["e"]);
+G2L["10"]["Name"] = [[UIGradients]];
+G2L["10"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill
+G2L["11"] = Instance.new("ScrollingFrame", G2L["3"]);
+G2L["11"]["CanvasSize"] = UDim2.new(0, 0, 5, 0);
+G2L["11"]["ScrollingEnabled"] = false;
+G2L["11"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["11"]["Name"] = [[Autofill]];
+G2L["11"]["Selectable"] = false;
+G2L["11"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["11"]["Size"] = UDim2.new(1, 0, 0, 138);
+G2L["11"]["Position"] = UDim2.new(0.5, 0, -6.52, 10);
+G2L["11"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd
+G2L["12"] = Instance.new("Frame", G2L["11"]);
+G2L["12"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["12"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["12"]["Size"] = UDim2.new(0.5, 0, 0, 25);
+G2L["12"]["Position"] = UDim2.new(0.5, 0, 0.81884, 0);
+G2L["12"]["Name"] = [[Cmd]];
+G2L["12"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Input
+G2L["13"] = Instance.new("TextLabel", G2L["12"]);
+G2L["13"]["TextWrapped"] = true;
+G2L["13"]["Active"] = true;
+G2L["13"]["ZIndex"] = 2;
+G2L["13"]["TextSize"] = 24;
+G2L["13"]["TextScaled"] = true;
+G2L["13"]["BackgroundColor3"] = Color3.fromRGB(19, 19, 19);
+G2L["13"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["13"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["13"]["BackgroundTransparency"] = 1;
+G2L["13"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["13"]["Size"] = UDim2.new(1, 0, 1, -5);
+G2L["13"]["ClipsDescendants"] = true;
+G2L["13"]["Text"] = [[example <player> <text>]];
+G2L["13"]["Selectable"] = true;
+G2L["13"]["Name"] = [[Input]];
+G2L["13"]["Position"] = UDim2.new(0, 0, 0.5, 0);
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Background
+G2L["14"] = Instance.new("Frame", G2L["12"]);
+G2L["14"]["BackgroundColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["14"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["14"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["14"]["Position"] = UDim2.new(0.5, 0, 0, 0);
+G2L["14"]["Name"] = [[Background]];
+G2L["14"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Background.Horizontal
+G2L["15"] = Instance.new("Frame", G2L["14"]);
+G2L["15"]["BorderSizePixel"] = 0;
+G2L["15"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["15"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["15"]["Name"] = [[Horizontal]];
+G2L["15"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Background.Horizontal.UICorners
+G2L["16"] = Instance.new("UICorner", G2L["15"]);
+G2L["16"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Background.Horizontal.UIGradients
+G2L["17"] = Instance.new("UIGradient", G2L["15"]);
+G2L["17"]["Name"] = [[UIGradients]];
+G2L["17"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.CmdBar.Autofill.UIListLayout
+G2L["18"] = Instance.new("UIListLayout", G2L["11"]);
+G2L["18"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
+G2L["18"]["Padding"] = UDim.new(0, 3);
+G2L["18"]["VerticalAlignment"] = Enum.VerticalAlignment.Bottom;
+G2L["18"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+-- StarterGui.AdminUI.Commands
+G2L["19"] = Instance.new("Frame", G2L["1"]);
+G2L["19"]["BorderSizePixel"] = 0;
+G2L["19"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["19"]["Size"] = UDim2.new(0, 283, 0, 286);
+G2L["19"]["Position"] = UDim2.new(0.01855, 0, 0.52493, 0);
+G2L["19"]["BorderColor3"] = Color3.fromRGB(141, 141, 141);
+G2L["19"]["Name"] = [[Commands]];
+G2L["19"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.Commands.Container
+G2L["1a"] = Instance.new("Frame", G2L["19"]);
+G2L["1a"]["BorderSizePixel"] = 0;
+G2L["1a"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["1a"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["1a"]["ClipsDescendants"] = true;
+G2L["1a"]["Size"] = UDim2.new(1, -10, 1.01154, -30);
+G2L["1a"]["Position"] = UDim2.new(0.5, 0, 1, -5);
+G2L["1a"]["BorderColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["1a"]["Name"] = [[Container]];
+G2L["1a"]["BackgroundTransparency"] = 0.5;
+
+
+-- StarterGui.AdminUI.Commands.Container.List
+G2L["1b"] = Instance.new("ScrollingFrame", G2L["1a"]);
+G2L["1b"]["BorderSizePixel"] = 0;
+G2L["1b"]["TopImage"] = [[rbxgameasset://Images/scrollTop]];
+G2L["1b"]["MidImage"] = [[rbxgameasset://Images/scrollMid]];
+G2L["1b"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["1b"]["Name"] = [[List]];
+G2L["1b"]["BottomImage"] = [[rbxgameasset://Images/scrollBottom (1)]];
+G2L["1b"]["Size"] = UDim2.new(1, -10, 1, -27);
+G2L["1b"]["Position"] = UDim2.new(0, 6, 0, 27);
+G2L["1b"]["BorderColor3"] = Color3.fromRGB(18, 18, 18);
+G2L["1b"]["ScrollBarThickness"] = 4;
+G2L["1b"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Commands.Container.List.UIListLayout
+G2L["1c"] = Instance.new("UIListLayout", G2L["1b"]);
+G2L["1c"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
+G2L["1c"]["Padding"] = UDim.new(0, 2);
+
+
+-- StarterGui.AdminUI.Commands.Container.List.TextLabel
+G2L["1d"] = Instance.new("TextLabel", G2L["1b"]);
+G2L["1d"]["TextWrapped"] = true;
+G2L["1d"]["TextSize"] = 15;
+G2L["1d"]["TextScaled"] = true;
+G2L["1d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["1d"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["1d"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["1d"]["BackgroundTransparency"] = 1;
+G2L["1d"]["Size"] = UDim2.new(1, 0, 0, 20);
+G2L["1d"]["Text"] = [[example <player> <text>]];
+G2L["1d"]["Position"] = UDim2.new(0, 0, 0.01739, 0);
+
+
+-- StarterGui.AdminUI.Commands.Container.Filter
+G2L["1e"] = Instance.new("TextBox", G2L["1a"]);
+G2L["1e"]["Name"] = [[Filter]];
+G2L["1e"]["PlaceholderColor3"] = Color3.fromRGB(126, 126, 126);
+G2L["1e"]["BorderSizePixel"] = 0;
+G2L["1e"]["TextSize"] = 18;
+G2L["1e"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["1e"]["BackgroundColor3"] = Color3.fromRGB(6, 6, 6);
+G2L["1e"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["1e"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["1e"]["PlaceholderText"] = [[Filter commands...]];
+G2L["1e"]["Size"] = UDim2.new(1, -10, 0, 20);
+G2L["1e"]["Position"] = UDim2.new(0.5, 0, 0, 5);
+G2L["1e"]["Text"] = [[]];
+G2L["1e"]["BackgroundTransparency"] = 0.7;
+
+
+-- StarterGui.AdminUI.Commands.Container.Filter.UICorner
+G2L["1f"] = Instance.new("UICorner", G2L["1e"]);
+G2L["1f"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.Commands.Container.UICorner
+G2L["20"] = Instance.new("UICorner", G2L["1a"]);
+G2L["20"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.Commands.Container.UIGradient
+G2L["21"] = Instance.new("UIGradient", G2L["1a"]);
+G2L["21"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(0.500, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(14, 6, 22))};
+
+
+-- StarterGui.AdminUI.Commands.Topbar
+G2L["22"] = Instance.new("Frame", G2L["19"]);
+G2L["22"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["22"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["22"]["Name"] = [[Topbar]];
+G2L["22"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Exit
+G2L["23"] = Instance.new("TextButton", G2L["22"]);
+G2L["23"]["TextWrapped"] = true;
+G2L["23"]["BorderSizePixel"] = 0;
+G2L["23"]["TextSize"] = 13;
+G2L["23"]["TextScaled"] = true;
+G2L["23"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["23"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["23"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["23"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["23"]["BackgroundTransparency"] = 0.5;
+G2L["23"]["Size"] = UDim2.new(0, 32, 1, -8);
+G2L["23"]["Text"] = [[X]];
+G2L["23"]["Name"] = [[Exit]];
+G2L["23"]["Position"] = UDim2.new(1, -4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Exit.UICorners
+G2L["24"] = Instance.new("UICorner", G2L["23"]);
+G2L["24"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Exit.UIStroker
+G2L["25"] = Instance.new("UIStroke", G2L["23"]);
+G2L["25"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["25"]["Name"] = [[UIStroker]];
+G2L["25"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Minimize
+G2L["26"] = Instance.new("TextButton", G2L["22"]);
+G2L["26"]["TextWrapped"] = true;
+G2L["26"]["BorderSizePixel"] = 0;
+G2L["26"]["TextSize"] = 13;
+G2L["26"]["TextScaled"] = true;
+G2L["26"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["26"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["26"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["26"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["26"]["BackgroundTransparency"] = 0.5;
+G2L["26"]["Size"] = UDim2.new(0, 28, 1, -8);
+G2L["26"]["Text"] = [[-]];
+G2L["26"]["Name"] = [[Minimize]];
+G2L["26"]["Position"] = UDim2.new(1, -40, 0.5, 0);
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Minimize.UICorners
+G2L["27"] = Instance.new("UICorner", G2L["26"]);
+G2L["27"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Minimize.UIStroker
+G2L["28"] = Instance.new("UIStroke", G2L["26"]);
+G2L["28"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["28"]["Name"] = [[UIStroker]];
+G2L["28"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.Commands.Topbar.Title
+G2L["29"] = Instance.new("TextLabel", G2L["22"]);
+G2L["29"]["TextWrapped"] = true;
+G2L["29"]["BorderSizePixel"] = 0;
+G2L["29"]["TextSize"] = 17;
+G2L["29"]["TextScaled"] = true;
+G2L["29"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["29"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["29"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["29"]["BackgroundTransparency"] = 1;
+G2L["29"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["29"]["Size"] = UDim2.new(0.5, 0, 1, -8);
+G2L["29"]["Text"] = [[Commands]];
+G2L["29"]["Name"] = [[Title]];
+G2L["29"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+
+
+-- StarterGui.AdminUI.Commands.UICorners
+G2L["2a"] = Instance.new("UICorner", G2L["19"]);
+G2L["2a"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.Commands.UIStroker
+G2L["2b"] = Instance.new("UIStroke", G2L["19"]);
+G2L["2b"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["2b"]["Name"] = [[UIStroker]];
+G2L["2b"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.Commands.UIGradients
+G2L["2c"] = Instance.new("UIGradient", G2L["19"]);
+G2L["2c"]["Name"] = [[UIGradients]];
+G2L["2c"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.Resizeable
+G2L["2d"] = Instance.new("Frame", G2L["1"]);
+G2L["2d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["2d"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["2d"]["Name"] = [[Resizeable]];
+G2L["2d"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.Left
+G2L["2e"] = Instance.new("Frame", G2L["2d"]);
+G2L["2e"]["BorderSizePixel"] = 0;
+G2L["2e"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["2e"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["2e"]["Size"] = UDim2.new(0, 8, 1, -8);
+G2L["2e"]["Position"] = UDim2.new(0, 0, 0.5, 0);
+G2L["2e"]["Name"] = [[Left]];
+G2L["2e"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.Right
+G2L["2f"] = Instance.new("Frame", G2L["2d"]);
+G2L["2f"]["BorderSizePixel"] = 0;
+G2L["2f"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["2f"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["2f"]["Size"] = UDim2.new(0, 8, 1, -8);
+G2L["2f"]["Position"] = UDim2.new(1, 0, 0.5, 0);
+G2L["2f"]["Name"] = [[Right]];
+G2L["2f"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.Top
+G2L["30"] = Instance.new("Frame", G2L["2d"]);
+G2L["30"]["BorderSizePixel"] = 0;
+G2L["30"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["30"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["30"]["Size"] = UDim2.new(1, -8, 0, 8);
+G2L["30"]["Position"] = UDim2.new(0.5, 0, 0, 0);
+G2L["30"]["Name"] = [[Top]];
+G2L["30"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.Bottom
+G2L["31"] = Instance.new("Frame", G2L["2d"]);
+G2L["31"]["BorderSizePixel"] = 0;
+G2L["31"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["31"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["31"]["Size"] = UDim2.new(1, -8, 0, 8);
+G2L["31"]["Position"] = UDim2.new(0.5, 0, 1, 0);
+G2L["31"]["Name"] = [[Bottom]];
+G2L["31"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.TopLeft
+G2L["32"] = Instance.new("Frame", G2L["2d"]);
+G2L["32"]["BorderSizePixel"] = 0;
+G2L["32"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["32"]["AnchorPoint"] = Vector2.new(1, 1);
+G2L["32"]["Size"] = UDim2.new(0, 12, 0, 12);
+G2L["32"]["Position"] = UDim2.new(0, 4, 0, 4);
+G2L["32"]["Name"] = [[TopLeft]];
+G2L["32"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.TopRight
+G2L["33"] = Instance.new("Frame", G2L["2d"]);
+G2L["33"]["BorderSizePixel"] = 0;
+G2L["33"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["33"]["AnchorPoint"] = Vector2.new(0, 1);
+G2L["33"]["Size"] = UDim2.new(0, 12, 0, 12);
+G2L["33"]["Position"] = UDim2.new(1, -4, 0, 4);
+G2L["33"]["Name"] = [[TopRight]];
+G2L["33"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.BottomLeft
+G2L["34"] = Instance.new("Frame", G2L["2d"]);
+G2L["34"]["BorderSizePixel"] = 0;
+G2L["34"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["34"]["AnchorPoint"] = Vector2.new(1, 0);
+G2L["34"]["Size"] = UDim2.new(0, 12, 0, 12);
+G2L["34"]["Position"] = UDim2.new(0, 4, 1, -4);
+G2L["34"]["Name"] = [[BottomLeft]];
+G2L["34"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Resizeable.BottomRight
+G2L["35"] = Instance.new("Frame", G2L["2d"]);
+G2L["35"]["BorderSizePixel"] = 0;
+G2L["35"]["BackgroundColor3"] = Color3.fromRGB(0, 202, 255);
+G2L["35"]["Size"] = UDim2.new(0, 12, 0, 12);
+G2L["35"]["Position"] = UDim2.new(1, -4, 1, -4);
+G2L["35"]["Name"] = [[BottomRight]];
+G2L["35"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.Description
+G2L["36"] = Instance.new("TextLabel", G2L["1"]);
+G2L["36"]["TextWrapped"] = true;
+G2L["36"]["TextSize"] = 13;
+G2L["36"]["TextScaled"] = true;
+G2L["36"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["36"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["36"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["36"]["BackgroundTransparency"] = 0.3;
+G2L["36"]["AnchorPoint"] = Vector2.new(0, 1);
+G2L["36"]["Size"] = UDim2.new(0, 191, 0, 26);
+G2L["36"]["Visible"] = false;
+G2L["36"]["BorderColor3"] = Color3.fromRGB(55, 55, 55);
+G2L["36"]["Text"] = [[Name]];
+G2L["36"]["Name"] = [[Description]];
+
+
+-- StarterGui.AdminUI.Description.UICorner
+G2L["37"] = Instance.new("UICorner", G2L["36"]);
+
+
+
+-- StarterGui.AdminUI.UpdLog
+G2L["38"] = Instance.new("Frame", G2L["1"]);
+G2L["38"]["BorderSizePixel"] = 0;
+G2L["38"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["38"]["Size"] = UDim2.new(0, 283, 0, 286);
+G2L["38"]["Position"] = UDim2.new(0.61871, 0, 0.03718, 0);
+G2L["38"]["BorderColor3"] = Color3.fromRGB(141, 141, 141);
+G2L["38"]["Name"] = [[UpdLog]];
+G2L["38"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.UpdLog.Container
+G2L["39"] = Instance.new("Frame", G2L["38"]);
+G2L["39"]["BorderSizePixel"] = 0;
+G2L["39"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["39"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["39"]["ClipsDescendants"] = true;
+G2L["39"]["Size"] = UDim2.new(1, -10, 1.01154, -30);
+G2L["39"]["Position"] = UDim2.new(0.5, 0, 1, -5);
+G2L["39"]["BorderColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["39"]["Name"] = [[Container]];
+G2L["39"]["BackgroundTransparency"] = 0.5;
+
+
+-- StarterGui.AdminUI.UpdLog.Container.List
+G2L["3a"] = Instance.new("ScrollingFrame", G2L["39"]);
+G2L["3a"]["BorderSizePixel"] = 0;
+G2L["3a"]["TopImage"] = [[rbxgameasset://Images/scrollTop]];
+G2L["3a"]["MidImage"] = [[rbxgameasset://Images/scrollMid]];
+G2L["3a"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["3a"]["Name"] = [[List]];
+G2L["3a"]["BottomImage"] = [[rbxgameasset://Images/scrollBottom (1)]];
+G2L["3a"]["Size"] = UDim2.new(1, -10, 1.08012, -27);
+G2L["3a"]["Position"] = UDim2.new(0, 6, 0, 6);
+G2L["3a"]["BorderColor3"] = Color3.fromRGB(18, 18, 18);
+G2L["3a"]["ScrollBarThickness"] = 4;
+G2L["3a"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.UpdLog.Container.List.UIListLayout
+G2L["3b"] = Instance.new("UIListLayout", G2L["3a"]);
+G2L["3b"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
+G2L["3b"]["Padding"] = UDim.new(0, 2);
+
+
+-- StarterGui.AdminUI.UpdLog.Container.List.
+G2L["3c"] = Instance.new("TextLabel", G2L["3a"]);
+G2L["3c"]["TextWrapped"] = true;
+G2L["3c"]["BorderSizePixel"] = 0;
+G2L["3c"]["TextSize"] = 14;
+G2L["3c"]["TextScaled"] = true;
+G2L["3c"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["3c"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["3c"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["3c"]["BackgroundTransparency"] = 1;
+G2L["3c"]["Size"] = UDim2.new(1, 0, 0, 35);
+G2L["3c"]["BorderColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["3c"]["Text"] = [[- log 1 thingy]];
+G2L["3c"]["Name"] = [[]];
+
+
+-- StarterGui.AdminUI.UpdLog.Container.UICorner
+G2L["3d"] = Instance.new("UICorner", G2L["39"]);
+G2L["3d"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.UpdLog.Container.UIGradient
+G2L["3e"] = Instance.new("UIGradient", G2L["39"]);
+G2L["3e"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(0.500, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(14, 6, 22))};
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar
+G2L["3f"] = Instance.new("Frame", G2L["38"]);
+G2L["3f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["3f"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["3f"]["Name"] = [[Topbar]];
+G2L["3f"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Exit
+G2L["40"] = Instance.new("TextButton", G2L["3f"]);
+G2L["40"]["TextWrapped"] = true;
+G2L["40"]["BorderSizePixel"] = 0;
+G2L["40"]["TextSize"] = 13;
+G2L["40"]["TextScaled"] = true;
+G2L["40"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["40"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["40"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["40"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["40"]["BackgroundTransparency"] = 0.5;
+G2L["40"]["Size"] = UDim2.new(0, 32, 1, -8);
+G2L["40"]["Text"] = [[X]];
+G2L["40"]["Name"] = [[Exit]];
+G2L["40"]["Position"] = UDim2.new(1, -4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Exit.UICorners
+G2L["41"] = Instance.new("UICorner", G2L["40"]);
+G2L["41"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Exit.UIStroker
+G2L["42"] = Instance.new("UIStroke", G2L["40"]);
+G2L["42"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["42"]["Name"] = [[UIStroker]];
+G2L["42"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Minimize
+G2L["43"] = Instance.new("TextButton", G2L["3f"]);
+G2L["43"]["TextWrapped"] = true;
+G2L["43"]["BorderSizePixel"] = 0;
+G2L["43"]["TextSize"] = 13;
+G2L["43"]["TextScaled"] = true;
+G2L["43"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["43"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["43"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["43"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["43"]["BackgroundTransparency"] = 0.5;
+G2L["43"]["Size"] = UDim2.new(0, 28, 1, -8);
+G2L["43"]["Text"] = [[-]];
+G2L["43"]["Name"] = [[Minimize]];
+G2L["43"]["Position"] = UDim2.new(1, -40, 0.5, 0);
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Minimize.UICorners
+G2L["44"] = Instance.new("UICorner", G2L["43"]);
+G2L["44"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Minimize.UIStroker
+G2L["45"] = Instance.new("UIStroke", G2L["43"]);
+G2L["45"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["45"]["Name"] = [[UIStroker]];
+G2L["45"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.UpdLog.Topbar.Title
+G2L["46"] = Instance.new("TextLabel", G2L["3f"]);
+G2L["46"]["TextWrapped"] = true;
+G2L["46"]["BorderSizePixel"] = 0;
+G2L["46"]["TextSize"] = 17;
+G2L["46"]["TextScaled"] = true;
+G2L["46"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["46"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["46"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["46"]["BackgroundTransparency"] = 1;
+G2L["46"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["46"]["Size"] = UDim2.new(0.5, 0, 1, -8);
+G2L["46"]["Text"] = [[Update Log]];
+G2L["46"]["Name"] = [[Title]];
+G2L["46"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+
+
+-- StarterGui.AdminUI.UpdLog.UICorners
+G2L["47"] = Instance.new("UICorner", G2L["38"]);
+G2L["47"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.UpdLog.UIStroker
+G2L["48"] = Instance.new("UIStroke", G2L["38"]);
+G2L["48"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["48"]["Name"] = [[UIStroker]];
+G2L["48"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.UpdLog.UIGradients
+G2L["49"] = Instance.new("UIGradient", G2L["38"]);
+G2L["49"]["Name"] = [[UIGradients]];
+G2L["49"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.ChatLogs
+G2L["4a"] = Instance.new("Frame", G2L["1"]);
+G2L["4a"]["BorderSizePixel"] = 0;
+G2L["4a"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["4a"]["Size"] = UDim2.new(0, 402, 0, 262);
+G2L["4a"]["Position"] = UDim2.new(0.65118, 0, 0.56114, 0);
+G2L["4a"]["BorderColor3"] = Color3.fromRGB(141, 141, 141);
+G2L["4a"]["Name"] = [[ChatLogs]];
+G2L["4a"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.ChatLogs.Container
+G2L["4b"] = Instance.new("Frame", G2L["4a"]);
+G2L["4b"]["BorderSizePixel"] = 0;
+G2L["4b"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["4b"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["4b"]["ClipsDescendants"] = true;
+G2L["4b"]["Size"] = UDim2.new(1, -10, 1.00769, -30);
+G2L["4b"]["Position"] = UDim2.new(0.49502, 0, 1.00379, -5);
+G2L["4b"]["BorderColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["4b"]["Name"] = [[Container]];
+G2L["4b"]["BackgroundTransparency"] = 0.5;
+
+
+-- StarterGui.AdminUI.ChatLogs.Container.Logs
+G2L["4c"] = Instance.new("ScrollingFrame", G2L["4b"]);
+G2L["4c"]["BorderSizePixel"] = 0;
+G2L["4c"]["TopImage"] = [[rbxgameasset://Images/scrollTop]];
+G2L["4c"]["MidImage"] = [[rbxgameasset://Images/scrollMid]];
+G2L["4c"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["4c"]["Name"] = [[Logs]];
+G2L["4c"]["BottomImage"] = [[rbxgameasset://Images/scrollBottom (1)]];
+G2L["4c"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["4c"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["4c"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+G2L["4c"]["BorderColor3"] = Color3.fromRGB(18, 18, 18);
+G2L["4c"]["ScrollBarThickness"] = 4;
+G2L["4c"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.ChatLogs.Container.Logs.UIListLayout
+G2L["4d"] = Instance.new("UIListLayout", G2L["4c"]);
+G2L["4d"]["Padding"] = UDim.new(0, 3);
+G2L["4d"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+-- StarterGui.AdminUI.ChatLogs.Container.Logs.TextLabel
+G2L["4e"] = Instance.new("TextLabel", G2L["4c"]);
+G2L["4e"]["TextWrapped"] = true;
+G2L["4e"]["TextSize"] = 14;
+G2L["4e"]["TextScaled"] = true;
+G2L["4e"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["4e"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["4e"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["4e"]["BackgroundTransparency"] = 1;
+G2L["4e"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["4e"]["Text"] = [[[Roblox]: Hello,World!]];
+
+
+-- StarterGui.AdminUI.ChatLogs.Container.UICorner
+G2L["4f"] = Instance.new("UICorner", G2L["4b"]);
+G2L["4f"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.ChatLogs.Container.UIGradient
+G2L["50"] = Instance.new("UIGradient", G2L["4b"]);
+G2L["50"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(0.500, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(14, 6, 22))};
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar
+G2L["51"] = Instance.new("Frame", G2L["4a"]);
+G2L["51"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["51"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["51"]["Name"] = [[Topbar]];
+G2L["51"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Exit
+G2L["52"] = Instance.new("TextButton", G2L["51"]);
+G2L["52"]["TextWrapped"] = true;
+G2L["52"]["BorderSizePixel"] = 0;
+G2L["52"]["TextSize"] = 13;
+G2L["52"]["TextScaled"] = true;
+G2L["52"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["52"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["52"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["52"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["52"]["BackgroundTransparency"] = 0.5;
+G2L["52"]["Size"] = UDim2.new(0, 32, 1, -8);
+G2L["52"]["Text"] = [[X]];
+G2L["52"]["Name"] = [[Exit]];
+G2L["52"]["Position"] = UDim2.new(1, -4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Exit.UICorners
+G2L["53"] = Instance.new("UICorner", G2L["52"]);
+G2L["53"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Exit.UIStroker
+G2L["54"] = Instance.new("UIStroke", G2L["52"]);
+G2L["54"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["54"]["Name"] = [[UIStroker]];
+G2L["54"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Minimize
+G2L["55"] = Instance.new("TextButton", G2L["51"]);
+G2L["55"]["TextWrapped"] = true;
+G2L["55"]["BorderSizePixel"] = 0;
+G2L["55"]["TextSize"] = 18;
+G2L["55"]["TextScaled"] = true;
+G2L["55"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["55"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["55"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["55"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["55"]["BackgroundTransparency"] = 0.5;
+G2L["55"]["Size"] = UDim2.new(0, 28, 1, -8);
+G2L["55"]["Text"] = [[-]];
+G2L["55"]["Name"] = [[Minimize]];
+G2L["55"]["Position"] = UDim2.new(1, -40, 0.5, 0);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Minimize.UICorners
+G2L["56"] = Instance.new("UICorner", G2L["55"]);
+G2L["56"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Minimize.UIStroker
+G2L["57"] = Instance.new("UIStroke", G2L["55"]);
+G2L["57"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["57"]["Name"] = [[UIStroker]];
+G2L["57"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Clear
+G2L["58"] = Instance.new("TextButton", G2L["51"]);
+G2L["58"]["TextWrapped"] = true;
+G2L["58"]["BorderSizePixel"] = 0;
+G2L["58"]["TextSize"] = 13;
+G2L["58"]["TextScaled"] = true;
+G2L["58"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["58"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["58"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["58"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["58"]["BackgroundTransparency"] = 0.5;
+G2L["58"]["Size"] = UDim2.new(0, 48, 1, -8);
+G2L["58"]["Text"] = [[Clear]];
+G2L["58"]["Name"] = [[Clear]];
+G2L["58"]["Position"] = UDim2.new(0, 4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Clear.UIStroker
+G2L["59"] = Instance.new("UIStroke", G2L["58"]);
+G2L["59"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["59"]["Name"] = [[UIStroker]];
+G2L["59"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Clear.UICorners
+G2L["5a"] = Instance.new("UICorner", G2L["58"]);
+G2L["5a"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.Title
+G2L["5b"] = Instance.new("TextLabel", G2L["51"]);
+G2L["5b"]["TextWrapped"] = true;
+G2L["5b"]["BorderSizePixel"] = 0;
+G2L["5b"]["TextSize"] = 17;
+G2L["5b"]["TextScaled"] = true;
+G2L["5b"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["5b"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["5b"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["5b"]["BackgroundTransparency"] = 1;
+G2L["5b"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["5b"]["Size"] = UDim2.new(0.5, 0, 1, -8);
+G2L["5b"]["Text"] = [[Chat Logs]];
+G2L["5b"]["Name"] = [[Title]];
+G2L["5b"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+
+
+-- StarterGui.AdminUI.ChatLogs.UICorners
+G2L["5c"] = Instance.new("UICorner", G2L["4a"]);
+G2L["5c"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.ChatLogs.UIStroker
+G2L["5d"] = Instance.new("UIStroke", G2L["4a"]);
+G2L["5d"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["5d"]["Name"] = [[UIStroker]];
+G2L["5d"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.ChatLogs.UIGradients
+G2L["5e"] = Instance.new("UIGradient", G2L["4a"]);
+G2L["5e"]["Name"] = [[UIGradients]];
+G2L["5e"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.soRealConsole
+G2L["5f"] = Instance.new("Frame", G2L["1"]);
+G2L["5f"]["BorderSizePixel"] = 0;
+G2L["5f"]["BackgroundColor3"] = Color3.fromRGB(27, 28, 32);
+G2L["5f"]["Size"] = UDim2.new(0, 402, 0, 262);
+G2L["5f"]["Position"] = UDim2.new(0.31784, 0, 0.55079, 0);
+G2L["5f"]["BorderColor3"] = Color3.fromRGB(141, 141, 141);
+G2L["5f"]["Name"] = [[soRealConsole]];
+G2L["5f"]["BackgroundTransparency"] = 0.14;
+
+
+-- StarterGui.AdminUI.soRealConsole.Container
+G2L["60"] = Instance.new("Frame", G2L["5f"]);
+G2L["60"]["BorderSizePixel"] = 0;
+G2L["60"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["60"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["60"]["ClipsDescendants"] = true;
+G2L["60"]["Size"] = UDim2.new(1, -10, 1.00769, -30);
+G2L["60"]["Position"] = UDim2.new(0.49502, 0, 1.00379, -5);
+G2L["60"]["BorderColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["60"]["Name"] = [[Container]];
+G2L["60"]["BackgroundTransparency"] = 0.5;
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.Logs
+G2L["61"] = Instance.new("ScrollingFrame", G2L["60"]);
+G2L["61"]["BorderSizePixel"] = 0;
+G2L["61"]["TopImage"] = [[rbxgameasset://Images/scrollTop]];
+G2L["61"]["MidImage"] = [[rbxgameasset://Images/scrollMid]];
+G2L["61"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["61"]["Name"] = [[Logs]];
+G2L["61"]["BottomImage"] = [[rbxgameasset://Images/scrollBottom (1)]];
+G2L["61"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["61"]["Size"] = UDim2.new(1, -10, 0.9, -35);
+G2L["61"]["Position"] = UDim2.new(0.5, 0, 0.62, 0);
+G2L["61"]["BorderColor3"] = Color3.fromRGB(18, 18, 18);
+G2L["61"]["ScrollBarThickness"] = 4;
+G2L["61"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.Logs.UIListLayout
+G2L["62"] = Instance.new("UIListLayout", G2L["61"]);
+G2L["62"]["Padding"] = UDim.new(0, 3);
+G2L["62"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.Logs.TextLabel
+G2L["63"] = Instance.new("TextLabel", G2L["61"]);
+G2L["63"]["TextWrapped"] = true;
+G2L["63"]["TextSize"] = 14;
+G2L["63"]["TextScaled"] = true;
+G2L["63"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["63"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["63"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["63"]["BackgroundTransparency"] = 1;
+G2L["63"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["63"]["Text"] = [[[Output]: failed print 1]];
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.UICorner
+G2L["64"] = Instance.new("UICorner", G2L["60"]);
+G2L["64"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.UIGradient
+G2L["65"] = Instance.new("UIGradient", G2L["60"]);
+G2L["65"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(0.500, Color3.fromRGB(14, 6, 22)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(14, 6, 22))};
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.Filter
+G2L["66"] = Instance.new("TextBox", G2L["60"]);
+G2L["66"]["Name"] = [[Filter]];
+G2L["66"]["PlaceholderColor3"] = Color3.fromRGB(126, 126, 126);
+G2L["66"]["BorderSizePixel"] = 0;
+G2L["66"]["TextSize"] = 18;
+G2L["66"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["66"]["BackgroundColor3"] = Color3.fromRGB(6, 6, 6);
+G2L["66"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["66"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["66"]["PlaceholderText"] = [[Search...]];
+G2L["66"]["Size"] = UDim2.new(1, -10, 0, 20);
+G2L["66"]["Position"] = UDim2.new(0.5, 0, 0, 5);
+G2L["66"]["Text"] = [[]];
+G2L["66"]["BackgroundTransparency"] = 0.7;
+
+
+-- StarterGui.AdminUI.soRealConsole.Container.Filter.UICorner
+G2L["67"] = Instance.new("UICorner", G2L["66"]);
+G2L["67"]["CornerRadius"] = UDim.new(0, 9);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar
+G2L["68"] = Instance.new("Frame", G2L["5f"]);
+G2L["68"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["68"]["Size"] = UDim2.new(1, 0, 0, 25);
+G2L["68"]["Name"] = [[Topbar]];
+G2L["68"]["BackgroundTransparency"] = 1;
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Exit
+G2L["69"] = Instance.new("TextButton", G2L["68"]);
+G2L["69"]["TextWrapped"] = true;
+G2L["69"]["BorderSizePixel"] = 0;
+G2L["69"]["TextSize"] = 13;
+G2L["69"]["TextScaled"] = true;
+G2L["69"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["69"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["69"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["69"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["69"]["BackgroundTransparency"] = 0.5;
+G2L["69"]["Size"] = UDim2.new(0, 32, 1, -8);
+G2L["69"]["Text"] = [[X]];
+G2L["69"]["Name"] = [[Exit]];
+G2L["69"]["Position"] = UDim2.new(1, -4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Exit.UICorners
+G2L["6a"] = Instance.new("UICorner", G2L["69"]);
+G2L["6a"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Exit.UIStroker
+G2L["6b"] = Instance.new("UIStroke", G2L["69"]);
+G2L["6b"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["6b"]["Name"] = [[UIStroker]];
+G2L["6b"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Minimize
+G2L["6c"] = Instance.new("TextButton", G2L["68"]);
+G2L["6c"]["TextWrapped"] = true;
+G2L["6c"]["BorderSizePixel"] = 0;
+G2L["6c"]["TextSize"] = 18;
+G2L["6c"]["TextScaled"] = true;
+G2L["6c"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["6c"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["6c"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["6c"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["6c"]["BackgroundTransparency"] = 0.5;
+G2L["6c"]["Size"] = UDim2.new(0, 28, 1, -8);
+G2L["6c"]["Text"] = [[-]];
+G2L["6c"]["Name"] = [[Minimize]];
+G2L["6c"]["Position"] = UDim2.new(1, -40, 0.5, 0);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Minimize.UICorners
+G2L["6d"] = Instance.new("UICorner", G2L["6c"]);
+G2L["6d"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Minimize.UIStroker
+G2L["6e"] = Instance.new("UIStroke", G2L["6c"]);
+G2L["6e"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["6e"]["Name"] = [[UIStroker]];
+G2L["6e"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Clear
+G2L["6f"] = Instance.new("TextButton", G2L["68"]);
+G2L["6f"]["TextWrapped"] = true;
+G2L["6f"]["BorderSizePixel"] = 0;
+G2L["6f"]["TextSize"] = 13;
+G2L["6f"]["TextScaled"] = true;
+G2L["6f"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["6f"]["BackgroundColor3"] = Color3.fromRGB(14, 6, 22);
+G2L["6f"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["6f"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["6f"]["BackgroundTransparency"] = 0.5;
+G2L["6f"]["Size"] = UDim2.new(0, 48, 1, -8);
+G2L["6f"]["Text"] = [[Clear]];
+G2L["6f"]["Name"] = [[Clear]];
+G2L["6f"]["Position"] = UDim2.new(0, 4, 0.5, 0);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Clear.UICorners
+G2L["70"] = Instance.new("UICorner", G2L["6f"]);
+G2L["70"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Clear.UIStroker
+G2L["71"] = Instance.new("UIStroke", G2L["6f"]);
+G2L["71"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["71"]["Name"] = [[UIStroker]];
+G2L["71"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.soRealConsole.Topbar.Title
+G2L["72"] = Instance.new("TextLabel", G2L["68"]);
+G2L["72"]["TextWrapped"] = true;
+G2L["72"]["BorderSizePixel"] = 0;
+G2L["72"]["TextSize"] = 17;
+G2L["72"]["TextScaled"] = true;
+G2L["72"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["72"]["FontFace"] = Font.new([[rbxasset://fonts/families/GothamSSm.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["72"]["TextColor3"] = Color3.fromRGB(243, 243, 243);
+G2L["72"]["BackgroundTransparency"] = 1;
+G2L["72"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["72"]["Size"] = UDim2.new(0.5, 0, 1, -8);
+G2L["72"]["Text"] = [[NA Console]];
+G2L["72"]["Name"] = [[Title]];
+G2L["72"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+
+
+-- StarterGui.AdminUI.soRealConsole.UICorners
+G2L["73"] = Instance.new("UICorner", G2L["5f"]);
+G2L["73"]["Name"] = [[UICorners]];
+
+
+-- StarterGui.AdminUI.soRealConsole.UIStroker
+G2L["74"] = Instance.new("UIStroke", G2L["5f"]);
+G2L["74"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["74"]["Name"] = [[UIStroker]];
+G2L["74"]["Color"] = Color3.fromRGB(147, 92, 255);
+
+
+-- StarterGui.AdminUI.soRealConsole.UIGradients
+G2L["75"] = Instance.new("UIGradient", G2L["5f"]);
+G2L["75"]["Name"] = [[UIGradients]];
+G2L["75"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(42, 42, 48)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(20, 20, 24))};
+
+
+-- StarterGui.AdminUI.Modal
+G2L["76"] = Instance.new("ImageButton", G2L["1"]);
+G2L["76"]["BackgroundTransparency"] = 1;
+G2L["76"]["Name"] = [[Modal]];
+
+
+
+return G2L["1"];
