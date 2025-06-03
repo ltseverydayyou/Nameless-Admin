@@ -4027,6 +4027,10 @@ cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
 	gui.commands()
 end)
 
+cmd.add({"settings"},{"settings","Open the settings menu"},function()
+	gui.settingss()
+end)
+
 debugUI, cDEBUGCON, isMinimized = nil, {}, false
 
 function DEBUGclearCONS()
@@ -17318,6 +17322,13 @@ local UpdLogsList = UpdLogsFrame and UpdLogsFrame:FindFirstChild("Container") an
 local UpdLogsLabel = UpdLogsList and UpdLogsList:FindFirstChildWhichIsA("TextLabel")
 local resizeFrame = NASCREENGUI:FindFirstChild("Resizeable")
 local ModalFixer = NASCREENGUI:FindFirstChildWhichIsA("ImageButton")
+local SettingsFrame = NASCREENGUI:FindFirstChild("setsettings")
+local SettingsContainer = SettingsFrame and SettingsFrame:FindFirstChild("Container")
+local SettingsList = SettingsContainer and SettingsContainer:FindFirstChild("List")
+local SettingsButton = SettingsList and SettingsList:FindFirstChild("Button")
+local SettingsColorPicker = SettingsList and SettingsList:FindFirstChild("ColorPicker")
+local SettingsSectionTitle = SettingsList and SettingsList:FindFirstChild("SectionTitle")
+local SettingsToggle = SettingsList and SettingsList:FindFirstChild("Toggle")
 local resizeXY={
 	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    "rbxassetid://2911850935"},
 	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    "rbxassetid://2911850935"},
@@ -17353,6 +17364,29 @@ end
 if resizeFrame then
 	resizeFrame.Parent = nil
 end
+
+if SettingsButton then
+	SettingsButton.Parent = nil
+end
+
+if SettingsColorPicker then
+	SettingsColorPicker.Parent = nil
+end
+
+if SettingsSectionTitle then
+	SettingsSectionTitle.Parent = nil
+end
+
+if SettingsToggle then
+	SettingsToggle.Parent = nil
+end
+
+local templates = {
+	Button = SettingsButton,
+	ColorPicker = SettingsColorPicker,
+	SectionTitle = SettingsSectionTitle,
+	Toggle = SettingsToggle,
+}
 
 local predictionInput = cmdInput:Clone()
 predictionInput.Name = "predictionInput"
@@ -17472,6 +17506,14 @@ gui.consoleeee = function()
 			NAconsoleFrame.Visible = true
 		end
 		NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+	end
+end
+gui.settingss = function()
+	if SettingsFrame then
+		if not SettingsFrame.Visible then
+			SettingsFrame.Visible = true
+		end
+		SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	end
 end
 gui.updateLogs = function()
@@ -17642,6 +17684,136 @@ gui.resizeable = function(ui, min, max)
 			rgui:Destroy()
 		end)
 	end
+end
+
+gui.addButton = function(label, callback)
+	local button = templates.Button:Clone()
+	button.Title.Text = label
+	button.Parent = SettingsList
+
+	button.Interact.MouseButton1Click:Connect(function()
+		pcall(callback)
+	end)
+end
+
+gui.addSection = function(titleText)
+	local section = templates.SectionTitle:Clone()
+	section.Title.Text = titleText
+	section.Parent = SettingsList
+end
+
+gui.addToggle = function(label, defaultValue, callback)
+	local toggle = templates.Toggle:Clone()
+	local switch = toggle:FindFirstChild("Switch")
+	local indicator = switch and switch:FindFirstChild("Indicator")
+	local stroke = indicator and indicator:FindFirstChild("UIStroke")
+
+	toggle.Title.Text = label
+	toggle.Parent = SettingsList
+
+	local state = defaultValue
+
+	local function updateVisual()
+		if state then
+			indicator.Position = UDim2.new(1, -20, 0.5, 0)
+			indicator.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
+			stroke.Color = Color3.fromRGB(50, 255, 80)
+		else
+			indicator.Position = UDim2.new(1, -40, 0.5, 0)
+			indicator.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			stroke.Color = Color3.fromRGB(80, 80, 80)
+		end
+	end
+
+	updateVisual()
+
+	toggle.Interact.MouseButton1Click:Connect(function()
+		state = not state
+		updateVisual()
+		pcall(function()
+			callback(state)
+		end)
+	end)
+end
+
+gui.addColorPicker = function(label, defaultColor, callback)
+	local picker = templates.ColorPicker:Clone()
+	picker.Title.Text = label
+	picker.Parent = SettingsList
+
+	local background = picker.CPBackground
+	local display = background.Display
+	local main = background.MainCP
+	local slider = picker.ColorSlider
+	local rgb = picker.RGB
+	local hex = picker.HexInput
+
+	local h, s, v = defaultColor:ToHSV()
+	local draggingMain = false
+	local draggingSlider = false
+
+	local function updateUI()
+		local color = Color3.fromHSV(h, s, v)
+		display.BackgroundColor3 = color
+		background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+		main.MainPoint.Position = UDim2.new(s, -main.MainPoint.AbsoluteSize.X/2, 1 - v, -main.MainPoint.AbsoluteSize.Y/2)
+		slider.SliderPoint.Position = UDim2.new(h, -slider.SliderPoint.AbsoluteSize.X/2, 0.5, 0)
+
+		local r = math.floor(color.R * 255 + 0.5)
+		local g = math.floor(color.G * 255 + 0.5)
+		local b = math.floor(color.B * 255 + 0.5)
+
+		rgb.RInput.InputBox.Text = tostring(r)
+		rgb.GInput.InputBox.Text = tostring(g)
+		rgb.BInput.InputBox.Text = tostring(b)
+		hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
+
+		pcall(function()
+			callback(color)
+		end)
+	end
+
+	rgb.RInput.InputBox.FocusLost:Connect(function() updateUI() end)
+	rgb.GInput.InputBox.FocusLost:Connect(function() updateUI() end)
+	rgb.BInput.InputBox.FocusLost:Connect(function() updateUI() end)
+
+	hex.InputBox.FocusLost:Connect(function()
+		local r, g, b = Match(hex.InputBox.Text, "^#?(%x%x)(%x%x)(%x%x)$")
+		if r and g and b then
+			h, s, v = Color3.fromRGB(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)):ToHSV()
+			updateUI()
+		end
+	end)
+
+	local mouse = lp:GetMouse()
+	main.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingMain = true end
+	end)
+	slider.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingSlider = true end
+	end)
+	SafeGetService("UserInputService").InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			draggingMain = false
+			draggingSlider = false
+		end
+	end)
+	SafeGetService("RunService").RenderStepped:Connect(function()
+		if draggingMain then
+			local relX = math.clamp(mouse.X - main.AbsolutePosition.X, 0, main.AbsoluteSize.X)
+			local relY = math.clamp(mouse.Y - main.AbsolutePosition.Y, 0, main.AbsoluteSize.Y)
+			s = relX / main.AbsoluteSize.X
+			v = 1 - (relY / main.AbsoluteSize.Y)
+			updateUI()
+		end
+		if draggingSlider then
+			local relX = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
+			h = relX / slider.AbsoluteSize.X
+			updateUI()
+		end
+	end)
+
+	updateUI()
 end
 
 gui.draggable = function(ui, dragui)
@@ -18306,12 +18478,17 @@ if UpdLogsFrame then
 	gui.menuify(UpdLogsFrame)
 end
 
+if SettingsFrame then
+	gui.menuify(SettingsFrame)
+end
+
 --[[ GUI RESIZE FUNCTION ]]--
 
 if chatLogsFrame then gui.resizeable(chatLogsFrame) end
 if NAconsoleFrame then gui.resizeable(NAconsoleFrame) end
 if commandsFrame then gui.resizeable(commandsFrame) end
 if UpdLogsFrame then gui.resizeable(UpdLogsFrame) end
+if SettingsFrame then gui.resizeable(SettingsFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
@@ -19072,6 +19249,7 @@ Spawn(function() -- init
 	if description then description.Name = '\0' end
 	if ModalFixer then ModalFixer.Name = '\0' end
 	if AUTOSCALER then AUTOSCALER.Name = '\0' AUTOSCALER.Scale = NAUIScale end
+	if SettingsFrame then SettingsFrame.Name = '\0' end
 end)
 
 Spawn(bindToDevConsole)
@@ -19080,6 +19258,8 @@ Spawn(loadButtonIDS)
 Spawn(RenderUserButtons)
 Spawn(loadAutoExec)
 Spawn(LoadPlugins)
+
+gui.addSection("Graphics Settings")
 
 Spawn(function()
 	NACaller(function()--better saveinstance support
