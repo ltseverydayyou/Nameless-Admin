@@ -1730,14 +1730,14 @@ function NAESP(player, persistent)
 		discPlrESP(player)
 
 		local character = getPlrChar(player)
-		if not character or player == Players.LocalPlayer then return end
-
-		--character = getTrueCharModel(character)
+		if not character then return end
 
 		if espCONS[player] then
 			if espCONS[player].highlight then espCONS[player].highlight:Destroy() end
 			if espCONS[player].billboard then espCONS[player].billboard:Destroy() end
 			if espCONS[player].connection then espCONS[player].connection:Disconnect() end
+			if espCONS[player].localWatcher then espCONS[player].localWatcher:Disconnect() end
+			if espCONS[player].charWatcher then espCONS[player].charWatcher:Disconnect() end
 		end
 
 		local highlight = InstanceNew("Highlight")
@@ -1771,31 +1771,53 @@ function NAESP(player, persistent)
 			textLabel.Parent = billboardGui
 		end
 
-		local localChar = getPlrChar(Players.LocalPlayer)
-		local localRoot = localChar and getRoot(localChar)
-
+		local localRoot = nil
 		local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
-		local espLoop
+		local function updateLocalRoot()
+			local localChar = getPlrChar(Players.LocalPlayer)
+			localRoot = localChar and getRoot(localChar)
+		end
 
+		local watcherConn
+		watcherConn = RunService.Heartbeat:Connect(function()
+			local prev = localRoot
+			updateLocalRoot()
+			if prev and not localRoot then
+				localRoot = nil
+			end
+		end)
+
+		local charWatcherConn
+		charWatcherConn = Players.LocalPlayer.CharacterRemoving:Connect(function()
+			localRoot = nil
+		end)
+
+		local espLoop
 		espLoop = RunService.RenderStepped:Connect(function()
 			if not character:IsDescendantOf(workspace) then
 				espLoop:Disconnect()
+				if watcherConn then watcherConn:Disconnect() end
+				if charWatcherConn then charWatcherConn:Disconnect() end
 				return
 			end
 
 			local humanoid = getPlrHum(character)
 			local rootPart = getRoot(character)
-			local isValid = humanoid and rootPart and localRoot
 
-			if isValid then
+			if humanoid and rootPart then
 				local health = math.floor(humanoid.Health)
 				local maxHealth = math.floor(humanoid.MaxHealth)
-				local distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
 
-				local distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
-					or distance < 100 and Color3.fromRGB(255, 165, 0)
-					or Color3.fromRGB(0, 255, 0)
+				local distance = 0
+				local distanceColor = Color3.fromRGB(255, 255, 255)
+
+				if localRoot then
+					distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
+					distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
+						or distance < 100 and Color3.fromRGB(255, 165, 0)
+						or Color3.fromRGB(0, 255, 0)
+				end
 
 				local hasTeam, teamColor = pcall(function()
 					return player.Team.TeamColor.Color
@@ -1804,7 +1826,8 @@ function NAESP(player, persistent)
 				local targetColor = hasTeam and teamColor or distanceColor
 
 				if textLabel then
-					local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
+					local newText = Format("%s | %d/%d HP%s", nameChecker(player), health, maxHealth,
+						localRoot and Format(" | %d studs", distance) or "")
 					if textLabel.Text ~= newText then
 						textLabel.Text = newText
 					end
@@ -1824,7 +1847,9 @@ function NAESP(player, persistent)
 		espCONS[player] = {
 			highlight = highlight,
 			billboard = billboardGui,
-			connection = espLoop
+			connection = espLoop,
+			localWatcher = watcherConn,
+			charWatcher = charWatcherConn
 		}
 
 		if not player:IsA("Model") then
@@ -1841,6 +1866,8 @@ function NAESP(player, persistent)
 					if espCONS[player].highlight then espCONS[player].highlight:Destroy() end
 					if espCONS[player].billboard then espCONS[player].billboard:Destroy() end
 					if espCONS[player].connection then espCONS[player].connection:Disconnect() end
+					if espCONS[player].localWatcher then espCONS[player].localWatcher:Disconnect() end
+					if espCONS[player].charWatcher then espCONS[player].charWatcher:Disconnect() end
 					espCONS[player] = nil
 				end
 
