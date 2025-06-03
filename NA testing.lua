@@ -18735,19 +18735,18 @@ end)
 local TextLabel = InstanceNew("TextLabel")
 local UICorner = InstanceNew("UICorner")
 local UIStroke = InstanceNew("UIStroke")
-local UIGradient = InstanceNew("UIGradient")
 local TextButton = InstanceNew("TextButton")
 local UICorner2 = InstanceNew("UICorner")
 
 TextLabel.Parent = NASCREENGUI
-TextLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-TextLabel.BackgroundTransparency = 1
+TextLabel.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
+TextLabel.BackgroundTransparency = 0.1
 TextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 TextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
 TextLabel.Size = UDim2.new(0, 0, 0, 0)
 TextLabel.Font = Enum.Font.FredokaOne
 TextLabel.Text = getSeasonEmoji().." "..adminName.." V"..curVer.." "..getSeasonEmoji()
-TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel.TextColor3 = Color3.fromRGB(241, 241, 241)
 TextLabel.TextSize = 22
 TextLabel.TextWrapped = true
 TextLabel.TextStrokeTransparency = 0.7
@@ -18759,35 +18758,21 @@ UICorner2.Parent = TextLabel
 
 UIStroke.Parent = TextLabel
 UIStroke.Thickness = 2
-UIStroke.Color = Color3.fromRGB(0, 0, 0)
+UIStroke.Color = Color3.fromRGB(145, 90, 255)
 UIStroke.Transparency = 0.4
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-UIGradient.Parent = TextLabel
-UIGradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 255, 170))
-}
-UIGradient.Transparency = NumberSequence.new{
-	NumberSequenceKeypoint.new(0, 0),
-	NumberSequenceKeypoint.new(0.5, 0.25),
-	NumberSequenceKeypoint.new(1, 0)
-}
-UIGradient.Rotation = 55
 
 TextButton.Parent = NASCREENGUI
 TextButton.BackgroundTransparency = 0
 TextButton.AnchorPoint = Vector2.new(0.5, 0)
 TextButton.BorderSizePixel = 0
-TextButton.BackgroundColor3 = Color3.fromRGB(4, 4, 4)
+TextButton.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
 TextButton.Position = UDim2.new(0.5, 0, -1, 0)
 TextButton.Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
 TextButton.Font = Enum.Font.SourceSansBold
---TextButton.Text = isAprilFools() and "IY" or "NA"
-TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
 TextButton.TextSize = 22
 TextButton.ZIndex = 9999
-TextButton.TextWrapped = true
 
 if isAprilFools() then
 	cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX", ""}
@@ -18818,16 +18803,13 @@ swooshySWOOSH = false
 
 function Swoosh()
 	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Rotation = isAprilFools() and math.random(540, 1440) or 720
+		Rotation = 720
 	}):Play()
-
 	gui.draggablev2(TextButton)
-
 	if swooshySWOOSH then
 		return
 	end
 	swooshySWOOSH = true
-
 	TextButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			input.Changed:Connect(function()
