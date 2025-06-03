@@ -14447,18 +14447,36 @@ cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to what
 	SafeGetService("Workspace").Gravity=(...)
 end,true)
 
-cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every click detector that's in workspace"},function()
-	local ccamount=0
-	for _,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
-		if v:IsA("ClickDetector") then
-			ccamount=ccamount+1
-			fireclickdetector(v)
+cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every click detector in workspace"},function()
+	local s,f,t=0,0,0
+	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		if d:IsA("ClickDetector") then
+			t+=1
+			if pcall(function() fireclickdetector(d) end) then
+				s+=1
+			else
+				f+=1
+			end
 		end
 	end
+	Wait()
+	DoNotif(("Fired %d ClickDetectors: %d succeeded, %d failed"):format(t,s,f))
+end)
 
-	Wait();
-
-	DoNotif("Fired "..ccamount.." amount of click detectors")
+cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every Proximity Prompt that's in workspace"},function()
+	local s,f,t=0,0,0
+	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		if d:IsA("ProximityPrompt") then
+			t+=1
+			if pcall(function() fireproximityprompt(d,1) end) then
+				s+=1
+			else
+				f+=1
+			end
+		end
+	end
+	Wait()
+	DoNotif(("Fired %d ProximityPrompts: %d succeeded, %d failed"):format(t,s,f))
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -16040,21 +16058,6 @@ end)
 
 cmd.add({"unglobalshadows","nogshadows","ungshadows","noglobalshadows"},{"unglobalshadows (nogshadows,ungshadows,noglobalshadows)","Disables global shadows"},function()
 	Lighting.GlobalShadows=false
-end)
-
-cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every Proximity Prompt that's in workspace"},function()
-	fppamount=0
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
-		if v:IsA("ProximityPrompt") then
-			fppamount=fppamount+1
-			fireproximityprompt(v,1)
-		end
-	end
-
-
-	Wait();
-
-	DoNotif("Fired "..fppamount.." of proximity prompts")
 end)
 
 cmd.add({"gamma", "exposure"},{"gamma (exposure)","gamma vision (real)"},function(num)
