@@ -1170,6 +1170,7 @@ G2L["79"]["BackgroundTransparency"] = 1;
 G2L["7a"] = Instance.new("UIListLayout", G2L["79"]);
 G2L["7a"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
 G2L["7a"]["Padding"] = UDim.new(0, 2);
+G2L["7a"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
 
 
 -- StarterGui.AdminUI.setsettings.Container.List.Toggle
