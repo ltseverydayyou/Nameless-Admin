@@ -5991,7 +5991,7 @@ end)
 
 cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 	local function noSit(character)
-		task.wait(1)
+		Wait(1)
 		local humanoid = getPlrHum(character)
 		if humanoid then
 			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -13767,8 +13767,8 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 					local anim2 = InstanceNew("Animation")
 					anim2.AnimationId = "rbxassetid://225975820"
 					local track2 = humanoid:LoadAnimation(anim2)
-					table.insert(currentHugTracks, track1)
-					table.insert(currentHugTracks, track2)
+					Insert(currentHugTracks, track1)
+					Insert(currentHugTracks, track2)
 					track1:Play()
 					track2:Play()
 
@@ -13792,7 +13792,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.CanCollide = true
 							part.Transparency = 1
 							part.Parent = SafeGetService("Workspace")
-							table.insert(huggiePARTS, part)
+							Insert(huggiePARTS, part)
 						end
 						lib.connect("hug_plat", RunService.Heartbeat:Connect(function()
 							local charRoot = getRoot(LocalPlayer.Character)
@@ -14448,35 +14448,75 @@ cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to what
 end,true)
 
 cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every click detector in workspace"},function()
-	local s,f,t=0,0,0
+	local t,f=0,0
 	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
 		if d:IsA("ClickDetector") then
 			t+=1
-			if pcall(function() fireclickdetector(d) end) then
-				s+=1
-			else
+			if not pcall(function() fireclickdetector(d) end) then
 				f+=1
 			end
 		end
 	end
 	Wait()
-	DoNotif(("Fired %d ClickDetectors: %d succeeded, %d failed"):format(t,s,f))
+	if f>0 then
+		DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(t,f))
+	else
+		DoNotif(("Fired %d ClickDetectors"):format(t))
+	end
 end)
 
 cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every Proximity Prompt that's in workspace"},function()
-	local s,f,t=0,0,0
+	local t,f=0,0
 	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
 		if d:IsA("ProximityPrompt") then
 			t+=1
-			if pcall(function() fireproximityprompt(d,1) end) then
-				s+=1
-			else
+			if not pcall(function() fireproximityprompt(d,1) end) then
 				f+=1
 			end
 		end
 	end
 	Wait()
-	DoNotif(("Fired %d ProximityPrompts: %d succeeded, %d failed"):format(t,s,f))
+	if f>0 then
+		DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(t,f))
+	else
+		DoNotif(("Fired %d ProximityPrompts"):format(t))
+	end
+end)
+
+cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every Touch Interest that's in workspace"},function()
+	local c=getChar() local r=c and getRoot(c)
+	local t,f=0,0 local parts={}
+
+	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		if d:IsA("TouchTransmitter") then
+			local p=d.Parent
+			if p and p:IsA("BasePart") then
+				t+=1
+				Insert(parts,p)
+			end
+		end
+	end
+
+	for _,p in pairs(parts) do
+		coroutine.wrap(function()
+			local cf=p.CFrame
+			local ok=pcall(function()
+				p.CFrame=r.CFrame
+				firetouchinterest(r,p,0)
+				Wait()
+				firetouchinterest(r,p,1)
+			end)
+			Delay(0.1,function() p.CFrame=cf end)
+			if not ok then f+=1 end
+		end)()
+	end
+
+	Wait()
+	if f>0 then
+		DoNotif(("Fired %d TouchInterests, Failed: %d"):format(t,f))
+	else
+		DoNotif(("Fired %d TouchInterests"):format(t))
+	end
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -15678,40 +15718,6 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 			Attachment1.WorldCFrame = UpdatedPosition
 		end
 	end)
-end)
-
-cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every Touch Interest that's in workspace"},function()
-	local c=getChar() local r=c and getRoot(c)
-	local s,f,t=0,0,0
-	local parts={}
-
-	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
-		if d:IsA("TouchTransmitter") then
-			local p=d.Parent
-			if p and p:IsA("BasePart") then
-				t+=1
-				Insert(parts,p)
-			end
-		end
-	end
-
-	for _,p in pairs(parts) do
-		coroutine.wrap(function()
-			local cf=p.CFrame
-			local ok1,ok2
-			ok1=pcall(function()
-				p.CFrame=r.CFrame
-				firetouchinterest(r,p,0)
-				Wait()
-				firetouchinterest(r,p,1)
-			end)
-			Delay(0.1,function() p.CFrame=cf end)
-			if ok1 then s+=1 else f+=1 end
-		end)()
-	end
-
-	Wait()
-	DoNotif(("Fired %d TouchInterests: %d succeeded, %d failed"):format(t,s,f))
 end)
 
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
