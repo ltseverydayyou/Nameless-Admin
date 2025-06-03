@@ -15680,40 +15680,38 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	end)
 end)
 
-cmd.add({"firetouchinterests", "fti"}, {"firetouchinterests (fti)", "Fires every Touch Interest that's in workspace"}, function()
-	local char = getChar()
-	local root = char and getRoot(char)
+cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every Touch Interest that's in workspace"},function()
+	local c=getChar() local r=c and getRoot(c)
+	local s,f,t=0,0,0
+	local parts={}
 
-	local count = 0
-	local toucher = {}
-
-	for _, des in ipairs(SafeGetService("Workspace"):GetDescendants()) do
-		if des:IsA("TouchTransmitter") then
-			local pp = des.Parent
-			if pp and pp:IsA("BasePart") then
-				Insert(toucher, pp)
-				count = count + 1
+	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		if d:IsA("TouchTransmitter") then
+			local p=d.Parent
+			if p and p:IsA("BasePart") then
+				t+=1
+				Insert(parts,p)
 			end
 		end
 	end
 
-	for _, part in ipairs(toucher) do
+	for _,p in pairs(parts) do
 		coroutine.wrap(function()
-			local originalCFrame = part.CFrame
-			part.CFrame = root.CFrame
-
-			firetouchinterest(root, part, 0)
-			Wait()
-			firetouchinterest(root, part, 1)
-
-			Delay(0.1, function()
-				part.CFrame = originalCFrame
+			local cf=p.CFrame
+			local ok1,ok2
+			ok1=pcall(function()
+				p.CFrame=r.CFrame
+				firetouchinterest(r,p,0)
+				Wait()
+				firetouchinterest(r,p,1)
 			end)
+			Delay(0.1,function() p.CFrame=cf end)
+			if ok1 then s+=1 else f+=1 end
 		end)()
 	end
 
 	Wait()
-	DoNotif("Fired "..count.." touch interests")
+	DoNotif(("Fired %d TouchInterests: %d succeeded, %d failed"):format(t,s,f))
 end)
 
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
