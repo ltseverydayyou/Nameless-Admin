@@ -1413,6 +1413,7 @@ G2L["8f"]["ImageTransparency"] = 0.1;
 G2L["8f"]["BackgroundTransparency"] = 1;
 -- [ERROR] cannot convert ImageContent, please report to "https://github.com/uniquadev/GuiToLuaConverter/issues"
 G2L["8f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["8f"]["ZIndex"] = 2;
 G2L["8f"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
 G2L["8f"]["Image"] = [[http://www.roblox.com/asset/?id=11413591840]];
 G2L["8f"]["Size"] = UDim2.new(1, 0, 1, 0);
@@ -1428,6 +1429,8 @@ G2L["90"]["CornerRadius"] = UDim.new(0, 5);
 
 -- StarterGui.AdminUI.setsettings.Container.List.ColorPicker.CPBackground.MainCP.MainPoint
 G2L["91"] = Instance.new("ImageButton", G2L["8f"]);
+G2L["91"]["Active"] = false;
+G2L["91"]["Interactable"] = false;
 G2L["91"]["BackgroundTransparency"] = 1;
 -- [ERROR] cannot convert ImageContent, please report to "https://github.com/uniquadev/GuiToLuaConverter/issues"
 G2L["91"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
@@ -1536,6 +1539,8 @@ G2L["9c"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.f
 
 -- StarterGui.AdminUI.setsettings.Container.List.ColorPicker.ColorSlider.SliderPoint
 G2L["9d"] = Instance.new("ImageButton", G2L["9b"]);
+G2L["9d"]["Active"] = false;
+G2L["9d"]["Interactable"] = false;
 G2L["9d"]["BackgroundTransparency"] = 1;
 -- [ERROR] cannot convert ImageContent, please report to "https://github.com/uniquadev/GuiToLuaConverter/issues"
 G2L["9d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
@@ -1853,4 +1858,4 @@ G2L["bd"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.f
 
 
 
-return G2L["1"], require;
+return G2L["1"];
