@@ -1435,6 +1435,7 @@ G2L["91"]["BackgroundTransparency"] = 1;
 -- [ERROR] cannot convert ImageContent, please report to "https://github.com/uniquadev/GuiToLuaConverter/issues"
 G2L["91"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["91"]["ImageColor3"] = Color3.fromRGB(29, 73, 0);
+G2L["91"]["ZIndex"] = 3;
 G2L["91"]["Image"] = [[http://www.roblox.com/asset/?id=3259050989]];
 G2L["91"]["Size"] = UDim2.new(0, 59, 0, 59);
 G2L["91"]["BorderColor3"] = Color3.fromRGB(28, 43, 54);
@@ -1545,6 +1546,7 @@ G2L["9d"]["BackgroundTransparency"] = 1;
 -- [ERROR] cannot convert ImageContent, please report to "https://github.com/uniquadev/GuiToLuaConverter/issues"
 G2L["9d"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["9d"]["ImageColor3"] = Color3.fromRGB(0, 255, 0);
+G2L["9d"]["ZIndex"] = 2;
 G2L["9d"]["AnchorPoint"] = Vector2.new(0, 0.5);
 G2L["9d"]["Image"] = [[http://www.roblox.com/asset/?id=3259050989]];
 G2L["9d"]["Size"] = UDim2.new(0, 59, 0, 59);
