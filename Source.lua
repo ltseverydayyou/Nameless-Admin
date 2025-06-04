@@ -324,7 +324,6 @@ end
 local githubUrl = ''
 local loader=''
 local NAUILOADER=''
-local NAtextButton=nil
 local NAAUTOSCALER=nil
 
 if getgenv().NATestingVer then
@@ -601,6 +600,7 @@ local sethidden=sethiddenproperty or set_hidden_property or set_hidden_prop
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChild("PlayerGui");
+--local TopBarApp = nil
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
@@ -633,6 +633,14 @@ end
 if UserInputService.KeyboardEnabled then
 	IsOnPC=true
 end
+
+-- TopBar grabber
+--[[Spawn(function()
+	TopBarApp=COREGUI:WaitForChild("TopBarApp",math.huge):WaitForChild("TopBarApp",math.huge):WaitForChild("UnibarLeftFrame",math.huge):WaitForChild("StackedElements",math.huge)
+	if TopBarApp:FindFirstChildWhichIsA("UIPadding") then
+		TopBarApp:FindFirstChildWhichIsA("UIPadding").PaddingLeft = UDim.new(0, 20)
+	end
+end)]]
 
 --[[ Some more variables ]]--
 
@@ -2991,34 +2999,6 @@ end,true)
 
 cmd.add({"stoploop"}, {"stoploop", "Stop a running loop"}, function()
 	cmd.stopLoop()
-end)
-
-cmd.add({"keepiconpos", "kip", "saveicon", "kpos"}, {"keepiconpos (kip, saveicon, kpos)", "Save current icon position"}, function()
-	if FileSupport then
-		local pos = NAtextButton.Position
-		writefile(NAICONPOSPATH, HttpService:JSONEncode({
-			X = pos.X.Scale,
-			Y = pos.Y.Scale,
-			Save = true
-		}))
-		NAiconSaveEnabled = true
-		DoNotif("Icon position saved", 2)
-	else
-		DoNotif("Your exploit does not support file saving", 2)
-	end
-end)
-
-cmd.add({"forgeticonpos", "fip", "reseticon", "rpos"}, {"forgeticonpos (fip, reseticon, rpos)", "Reset icon position to default"}, function()
-	if FileSupport then
-		writefile(NAICONPOSPATH, HttpService:JSONEncode({
-			X = 0.5,
-			Y = 0.1,
-			Save = false
-		}))
-	end
-	NAtextButton.Position = UDim2.new(0.5, 0, 0.1, 0)
-	NAiconSaveEnabled = false
-	DoNotif("Icon position reset to default", 2)
 end)
 
 cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox api"},function()
@@ -16381,8 +16361,11 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			InvisibleCharacter = nil
 		end
 		Player.Character = Character
-		getRoot(Player.Character).CFrame=OriginalPosition
 		Character.Parent = SafeGetService("Workspace")
+		RunService.Heartbeat:Wait()
+		if Character and getRoot(Character) then
+			Character:PivotTo(OriginalPosition)
+		end
 		DoNotif("Invisibility has been turned off.")
 		SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
 	end
@@ -18267,6 +18250,32 @@ Spawn(function() -- plugin tester
 	end
 end)
 
+-- TopBar stuff idk (it's gonna be used in the future)
+--[[Spawn(function()
+	repeat Wait(0.5) until TopBarApp and typeof(TopBarApp) == "Instance"
+
+	local button = InstanceNew("ImageButton")
+	button.Size = UDim2.new(0, 42, 0, 42)
+	button.Position = UDim2.new(1, -50, 0, 10)
+	button.AnchorPoint = Vector2.new(1, 0)
+	button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	button.BackgroundTransparency = 0.3
+	button.Image = "rbxasset://textures/CollisionGroupsEditor/manage.png"
+	button.ScaleType = Enum.ScaleType.Fit
+	button.BorderSizePixel = 0
+	button.ClipsDescendants = true
+	button.LayoutOrder = 5
+	button.Parent = TopBarApp
+
+	local uicorner = InstanceNew("UICorner")
+	uicorner.CornerRadius = UDim.new(1, 0)
+	uicorner.Parent = button
+
+	MouseButtonFix(button, function()
+		gui.settingss()
+	end)
+end)]]
+
 gui.barSelect = function(speed)
 	speed = speed or 0.4
 
@@ -19038,8 +19047,6 @@ end
 UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = TextButton
 
-NAtextButton = TextButton
-
 TextButton.MouseEnter:Connect(function()
 	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
@@ -19115,7 +19122,7 @@ function mainNameless()
 	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
 		Position = targetPos,
-			TextTransparency = 0
+		TextTransparency = 0
 	})
 	appearBtnTween:Play()
 
@@ -19238,15 +19245,15 @@ Spawn(function()
 end)
 
 CaptureService.CaptureBegan:Connect(function()
-	if NAtextButton then
-		NAtextButton.Visible=false
+	if TextButton then
+		TextButton.Visible=false
 	end
 end)
 
 CaptureService.CaptureEnded:Connect(function()
 	Delay(0.1, function()
-		if NAtextButton then
-			NAtextButton.Visible=true
+		if TextButton then
+			TextButton.Visible=true
 		end
 	end)
 end)
@@ -19413,6 +19420,22 @@ gui.addToggle("Command Predictions Prompt",doPREDICTION, function(v)
 	end
 end)
 
+if FileSupport then
+	gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
+		if FileSupport then
+			local pos = TextButton.Position
+			writefile(NAICONPOSPATH, HttpService:JSONEncode({
+				X = v and pos.X.Scale or 0.5,
+				Y = v and pos.Y.Scale or 0.1,
+				Save = v
+			}))
+			NAiconSaveEnabled = v
+		end
+
+		DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
+	end)
+end
+
 if IsOnPC then
 	gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
 		local newKey = text:lower()
@@ -19485,7 +19508,7 @@ end
 
 gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAScale = val
-	NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
 
 	if FileSupport then
 		writefile(NABUTTONSIZEPATH, tostring(val))
