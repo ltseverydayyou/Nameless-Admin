@@ -19115,7 +19115,7 @@ function mainNameless()
 	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
 		Position = targetPos,
-			extTransparency = 0
+			TextTransparency = 0
 	})
 	appearBtnTween:Play()
 
