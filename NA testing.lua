@@ -17318,7 +17318,7 @@ end)
 local predictionInput = cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
-predictionInput.TextTransparency = 0.5
+predictionInput.TextTransparency = 1
 predictionInput.TextColor3 = Color3.fromRGB(180, 180, 180)
 predictionInput.BackgroundTransparency = 1
 predictionInput.ZIndex = cmdInput.ZIndex + 1
