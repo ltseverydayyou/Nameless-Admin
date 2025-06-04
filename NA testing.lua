@@ -19063,18 +19063,16 @@ UICorner.Parent = TextButton
 
 NAtextButton = TextButton
 
-if IsOnMobile then
-	TextButton.MouseEnter:Connect(function()
-		TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
-		}):Play()
-	end)
-	TextButton.MouseLeave:Connect(function()
-		TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
-		}):Play()
-	end)
-end
+TextButton.MouseEnter:Connect(function()
+	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
+	}):Play()
+end)
+TextButton.MouseLeave:Connect(function()
+	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
+	}):Play()
+end)
 
 swooshySWOOSH = false
 
@@ -19123,32 +19121,28 @@ function mainNameless()
 	appearTween:Play()
 	riseTween:Play()
 
-	if IsOnMobile then
-		TextButton.Size = UDim2.new(0, 0, 0, 0)
-		TextButton.TextTransparency = 1
+	TextButton.Size = UDim2.new(0, 0, 0, 0)
+	TextButton.TextTransparency = 1
 
-		local targetPos = UDim2.new(0.5, 0, 0.1, 0)
+	local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
-		if FileSupport and isfile(NAICONPOSPATH) then
-			local data = HttpService:JSONDecode(readfile(NAICONPOSPATH))
-			if data and data.X and data.Y then
-				targetPos = UDim2.new(data.X, 0, data.Y, 0)
-			end
+	if FileSupport and isfile(NAICONPOSPATH) then
+		local data = HttpService:JSONDecode(readfile(NAICONPOSPATH))
+		if data and data.X and data.Y then
+			targetPos = UDim2.new(data.X, 0, data.Y, 0)
 		end
-
-		TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
-
-		local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
-			Position = targetPos,
-			TextTransparency = 0
-		})
-		appearBtnTween:Play()
-
-		Swoosh()
-	else
-		TextButton:Destroy()
 	end
+
+	TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+
+	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
+		Position = targetPos,
+			extTransparency = 0
+	})
+	appearBtnTween:Play()
+
+	Swoosh()
 
 	Wait(2.5)
 
@@ -19167,13 +19161,11 @@ end
 
 coroutine.wrap(mainNameless)()
 
-if IsOnMobile then
-	MouseButtonFix(TextButton,function()
-		gui.barSelect()
-		cmdInput.Text=''
-		cmdInput:CaptureFocus()
-	end)
-end
+MouseButtonFix(TextButton,function()
+	gui.barSelect()
+	cmdInput.Text=''
+	cmdInput:CaptureFocus()
+end)
 
 --@ltseverydayyou (Aervanix)
 --@Cosmella (Viper)
