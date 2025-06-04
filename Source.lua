@@ -2993,36 +2993,33 @@ cmd.add({"stoploop"}, {"stoploop", "Stop a running loop"}, function()
 	cmd.stopLoop()
 end)
 
-if IsOnMobile then
-	cmd.add({"keepiconpos", "kip", "saveicon", "kpos"}, {"keepiconpos (kip, saveicon, kpos)", "Save current icon position"}, function()
-		if FileSupport then
-			local pos = NAtextButton.Position
-			writefile(NAICONPOSPATH, HttpService:JSONEncode({
-				X = pos.X.Scale,
-				Y = pos.Y.Scale,
-				Save = true
-			}))
-			NAiconSaveEnabled = true
-			DoNotif("Icon position saved", 2)
-		else
-			DoNotif("Your exploit does not support file saving", 2)
-		end
-	end)
+cmd.add({"keepiconpos", "kip", "saveicon", "kpos"}, {"keepiconpos (kip, saveicon, kpos)", "Save current icon position"}, function()
+	if FileSupport then
+		local pos = NAtextButton.Position
+		writefile(NAICONPOSPATH, HttpService:JSONEncode({
+			X = pos.X.Scale,
+			Y = pos.Y.Scale,
+			Save = true
+		}))
+		NAiconSaveEnabled = true
+		DoNotif("Icon position saved", 2)
+	else
+		DoNotif("Your exploit does not support file saving", 2)
+	end
+end)
 
-	cmd.add({"forgeticonpos", "fip", "reseticon", "rpos"}, {"forgeticonpos (fip, reseticon, rpos)", "Reset icon position to default"}, function()
-		if FileSupport then
-			writefile(NAICONPOSPATH, HttpService:JSONEncode({
-				X = 0.5,
-				Y = 0.1,
-				Save = false
-			}))
-		end
-		NAtextButton.Position = UDim2.new(0.5, 0, 0.1, 0)
-		NAiconSaveEnabled = false
-		DoNotif("Icon position reset to default", 2)
-	end)
-
-end
+cmd.add({"forgeticonpos", "fip", "reseticon", "rpos"}, {"forgeticonpos (fip, reseticon, rpos)", "Reset icon position to default"}, function()
+	if FileSupport then
+		writefile(NAICONPOSPATH, HttpService:JSONEncode({
+			X = 0.5,
+			Y = 0.1,
+			Save = false
+		}))
+	end
+	NAtextButton.Position = UDim2.new(0.5, 0, 0.1, 0)
+	NAiconSaveEnabled = false
+	DoNotif("Icon position reset to default", 2)
+end)
 
 cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox api"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
@@ -19486,16 +19483,14 @@ if IsOnPC then
 	end)
 end
 
-if IsOnMobile then
-	gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
-		NAScale = val
-		NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
+	NAScale = val
+	NAtextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
 
-		if FileSupport then
-			writefile(NABUTTONSIZEPATH, tostring(val))
-		end
-	end)
-end
+	if FileSupport then
+		writefile(NABUTTONSIZEPATH, tostring(val))
+	end
+end)
 
 gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 	for _, element in ipairs(NACOLOREDELEMENTS) do
