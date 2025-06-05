@@ -325,6 +325,10 @@ local githubUrl = ''
 local loader=''
 local NAUILOADER=''
 local NAAUTOSCALER=nil
+local JoinLeaveConfig = {
+	JoinLog = false,
+	LeaveLog = false
+}
 
 if getgenv().NATestingVer then
 	loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))();]]
@@ -384,6 +388,8 @@ NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json"
 NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json"
 NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt"
 NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt"
+NAJOINLEAVE = "Nameless-Admin/JoinLeave.json"
+NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt"
 NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
@@ -448,6 +454,13 @@ if FileSupport then
 			R = 148 / 255,
 			G = 93 / 255,
 			B = 255 / 255
+		}))
+	end
+
+	if not isfile(NAJOINLEAVE) then
+		writefile(NAJOINLEAVE, HttpService:JSONEncode({
+			JoinLog = false,
+			LeaveLog = false
 		}))
 	end
 end
@@ -520,6 +533,16 @@ if FileSupport then
 		NAUIScale = 1
 		writefile(NAUISIZEPATH, "1")
 		DoNotif("UI Scale has been reset to default due to invalid data.")
+	end
+
+	if isfile(NAJOINLEAVE) then
+		local success, data = pcall(function()
+			return HttpService:JSONDecode(readfile(NAJOINLEAVE))
+		end)
+
+		if success and type(data) == "table" then
+			JoinLeaveConfig = data
+		end
 	end
 
 	if isfile(NAICONPOSPATH) then
@@ -2302,6 +2325,19 @@ local function LoadPlugins()
 
 	if #loadedSummaries > 0 then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 6)
+	end
+end
+
+local function LogJoinLeave(message)
+	if not FileSupport or not appendfile then return end
+	local logPath = NAJOINLEAVELOG
+	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
+	local logMessage = Format("%s %s\n", timestamp, message)
+
+	if isfile(logPath) then
+		appendfile(logPath, logMessage)
+	else
+		writefile(logPath, logMessage)
 	end
 end
 
@@ -18674,7 +18710,7 @@ function bindToChat(plr, msg)
 		end
 
 		if plr == LocalPlayer then
-			chatMsg.TextColor3 = Color3.fromRGB(0, 0, 155)
+			chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
 		elseif LocalPlayer:IsFriendsWith(plr.UserId) then
 			chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
 		end
@@ -18863,7 +18899,7 @@ end
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
 end]]
 
-function setupPlayer(plr)
+function setupPlayer(plr,bruh)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
 	end)
@@ -18880,10 +18916,16 @@ function setupPlayer(plr)
 			NAESP(plr)
 		end)
 	end
+
+	if JoinLeaveConfig.JoinLog and not bruh then
+		local joinMsg = nameChecker(plr).." has joined the game."
+		DoNotif(joinMsg, 3, "Join/Leave")
+		LogJoinLeave(joinMsg)
+	end
 end
 
 for _, plr in pairs(Players:GetPlayers()) do
-	setupPlayer(plr)
+	setupPlayer(plr, true)
 end
 
 Players.PlayerAdded:Connect(setupPlayer)
@@ -18894,6 +18936,11 @@ Players.PlayerRemoving:Connect(function(plr)
 		table.remove(playerButtons, index)
 	end
 	removeESPonLEAVE(plr)
+	if JoinLeaveConfig.LeaveLog then
+		local leaveMsg = nameChecker(plr).." has left the game."
+		DoNotif(leaveMsg, 3, "Join/Leave")
+		LogJoinLeave(leaveMsg)
+	end
 end)
 
 spawn(function()
@@ -19433,6 +19480,18 @@ if FileSupport then
 		end
 
 		DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
+	end)
+
+	gui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
+		JoinLeaveConfig.JoinLog = v
+		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
+	end)
+
+	gui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
+		JoinLeaveConfig.LeaveLog = v
+		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 	end)
 end
 
