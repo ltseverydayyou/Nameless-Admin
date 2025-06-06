@@ -9611,6 +9611,170 @@ cmd.add({"circlemath", "cm"}, {"circlemath <mode> <size>", "Gay circle math\nMod
 	end
 end,true)
 
+GRIPUITHINGYIDFK = nil
+
+cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually input grip offset and rotation."}, function()
+	local plr = LocalPlayer
+	if GRIPUITHINGYIDFK then return end
+
+	GRIPUITHINGYIDFK = InstanceNew("ScreenGui")
+	GRIPUITHINGYIDFK.Name = "GripAdjustUI"
+	GRIPUITHINGYIDFK.ResetOnSpawn = false
+	NaProtectUI(GRIPUITHINGYIDFK)
+
+	local frame = InstanceNew("Frame")
+	frame.Size = UDim2.new(0, 320, 0, 270)
+	frame.Position = UDim2.new(0.5, -160, 0.5, -135)
+	frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	frame.BorderSizePixel = 0
+	frame.Parent = GRIPUITHINGYIDFK
+
+	local corner = InstanceNew("UICorner", frame)
+	corner.CornerRadius = UDim.new(0, 6)
+
+	local gradient = InstanceNew("UIGradient", frame)
+	gradient.Rotation = 90
+	gradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 60)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(25, 25, 30))
+	}
+
+	local titleBar = InstanceNew("Frame")
+	titleBar.Size = UDim2.new(1, 0, 0, 30)
+	titleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+	titleBar.BorderSizePixel = 0
+	titleBar.Parent = frame
+
+	local barCorner = InstanceNew("UICorner", titleBar)
+	barCorner.CornerRadius = UDim.new(0, 6)
+
+	local title = InstanceNew("TextLabel")
+	title.Size = UDim2.new(1, 0, 1, 0)
+	title.BackgroundTransparency = 1
+	title.Text = "Grip Position Editor"
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 16
+	title.Parent = titleBar
+
+	local preview = InstanceNew("TextButton")
+	preview.Size = UDim2.new(0, 260, 0, 28)
+	preview.Position = UDim2.new(0, 30, 0, 180)
+	preview.Text = "🔍 Preview"
+	preview.Font = Enum.Font.GothamBold
+	preview.TextSize = 15
+	preview.BackgroundColor3 = Color3.fromRGB(75, 75, 95)
+	preview.TextColor3 = Color3.new(1, 1, 1)
+	preview.Parent = frame
+	InstanceNew("UICorner", preview)
+
+	local labels = {"X", "Y", "Z", "RX", "RY", "RZ"}
+	local textBoxes = {}
+
+	for i, label in ipairs(labels) do
+		local xOffset = ((i - 1) % 3) * 100
+		local yOffset = 40 + math.floor((i - 1) / 3) * 50
+
+		local labelUI = InstanceNew("TextLabel")
+		labelUI.Size = UDim2.new(0, 40, 0, 25)
+		labelUI.Position = UDim2.new(0, 10 + xOffset, 0, yOffset)
+		labelUI.BackgroundTransparency = 1
+		labelUI.Text = label
+		labelUI.TextColor3 = Color3.fromRGB(255, 255, 255)
+		labelUI.Font = Enum.Font.Gotham
+		labelUI.TextSize = 14
+		labelUI.Parent = frame
+
+		local box = InstanceNew("TextBox")
+		box.Size = UDim2.new(0, 50, 0, 25)
+		box.Position = UDim2.new(0, 50 + xOffset, 0, yOffset)
+		box.PlaceholderText = "0"
+		box.Text = ""
+		box.Font = Enum.Font.Gotham
+		box.TextSize = 14
+		box.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+		box.TextColor3 = Color3.fromRGB(255, 255, 255)
+		box.BorderSizePixel = 0
+		box.ClearTextOnFocus = false
+		box.Parent = frame
+
+		local boxCorner = InstanceNew("UICorner", box)
+		boxCorner.CornerRadius = UDim.new(0, 4)
+
+		textBoxes[label] = box
+	end
+
+	local function getVal(name)
+		return tonumber(textBoxes[name].Text) or 0
+	end
+
+	local function closeUI()
+		if GRIPUITHINGYIDFK then
+			GRIPUITHINGYIDFK:Destroy()
+			GRIPUITHINGYIDFK = nil
+		end
+	end
+
+	local function applyGrip()
+		local char = getChar()
+		local tool = char and char:FindFirstChildOfClass("Tool")
+		local backpack = getBp() or LocalPlayer:FindFirstChild("Backpack")
+		if not tool or not backpack then return end
+
+		local pos = Vector3.new(getVal("X"), getVal("Y"), getVal("Z"))
+		local rot = Vector3.new(getVal("RX"), getVal("RY"), getVal("RZ"))
+		local gripCFrame = CFrame.new(pos) * CFrame.Angles(math.rad(rot.X), math.rad(rot.Y), math.rad(rot.Z))
+
+		tool.Parent = backpack
+		Wait()
+		tool.Grip = gripCFrame
+		tool.Parent = char
+
+		local fix
+		fix = tool.Changed:Connect(function(prop)
+			if prop == "Grip" and tool.Grip ~= gripCFrame then
+				tool.Grip = gripCFrame
+			end
+		end)
+
+		tool.AncestryChanged:Connect(function()
+			if fix then fix:Disconnect() end
+		end)
+	end
+
+	local confirm = InstanceNew("TextButton")
+	confirm.Size = UDim2.new(0, 130, 0, 32)
+	confirm.Position = UDim2.new(0, 20, 0, 215)
+	confirm.Text = "Apply"
+	confirm.Font = Enum.Font.GothamBold
+	confirm.TextSize = 16
+	confirm.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
+	confirm.TextColor3 = Color3.new(1, 1, 1)
+	confirm.Parent = frame
+	InstanceNew("UICorner", confirm)
+
+	local cancel = InstanceNew("TextButton")
+	cancel.Size = UDim2.new(0, 130, 0, 32)
+	cancel.Position = UDim2.new(0, 170, 0, 215)
+	cancel.Text = "Cancel"
+	cancel.Font = Enum.Font.GothamBold
+	cancel.TextSize = 16
+	cancel.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+	cancel.TextColor3 = Color3.new(1, 1, 1)
+	cancel.Parent = frame
+	InstanceNew("UICorner", cancel)
+
+	confirm.MouseButton1Click:Connect(function()
+		applyGrip()
+		closeUI()
+	end)
+
+	preview.MouseButton1Click:Connect(applyGrip)
+	cancel.MouseButton1Click:Connect(closeUI)
+
+	gui.draggablev2(frame)
+end)
+
 cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 	Spawn(function()
 		if getgenv().Lzzz == true then return end
