@@ -35,11 +35,13 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
+local NAjson = nil
 NASESSIONSTARTEDIDK = os.clock()
 local cmd={}
 lib={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
+NACaller(function() NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) end)
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -177,7 +179,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or "2.4.4"
+local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson.ver
 
 --[[ Brand ]]--
 local mainName = 'Nameless Admin'
@@ -343,32 +345,36 @@ end
 local queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end
 
 --Notification library
-local Notification = nil
-
+local Notification
 repeat
-	local sssss, rerere = pcall(function()
+	local success, result = pcall(function()
 		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
 	end)
 
-	if sssss then
-		Notification = rerere
+	if success then
+		Notification = result
 	else
-		warn(math.random(1,999999).." | Failed to load notification module: "..rerere.." | retrying...")
-		Wait(.3)
+		warn(string.format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
+		Wait(0.3)
 	end
 until Notification
 
 local Notify = Notification.Notify
+local Window = Notification.Window
 
 function DoNotif(text, duration, sender)
-	text = text or "something"
-	duration = duration or 5
-	sender = sender or adminName
-
 	Notify({
-		Title = sender,
-		Description = text,
-		Duration = duration
+		Title = sender or adminName or "Nameless",
+		Description = text or "something",
+		Duration = duration or 5
+	})
+end
+
+function DoWindow(text, duration, sender)
+	Window({
+		Title = sender or adminName or "Nameless",
+		Description = text or "something",
+		Duration = duration or 5
 	})
 end
 
@@ -1584,28 +1590,6 @@ local PlayerArgs = {
 
 		return Targets
 	end,
-
-	["alts"] = function() -- scuffed one
-		local Targets = {}
-
-		Foreach(Players:GetPlayers(), function(_, Player)
-			local Char = Player.Character
-			if Char then
-				local accCount = 0
-				for _, item in ipairs(Char:GetChildren()) do
-					if item:IsA("Accessory") then
-						accCount = accCount + 1
-					end
-				end
-
-				if accCount <= 1 then
-					Insert(Targets, Player)
-				end
-			end
-		end)
-
-		return Targets
-	end,
 }
 
 function getPlr(Target)
@@ -1672,10 +1656,8 @@ end
 
 function placeName()
 	local info = getPlaceInfo()
-	if info and info.Name then
-		return info.Name
-	end
-	return "unknown"
+	local name = info and lib.isProperty(info, "Name")
+	return name or "unknown"
 end
 
 function SaveUIStroke(path, color)
@@ -1690,10 +1672,9 @@ end
 
 function placeCreator()
 	local info = getPlaceInfo()
-	if info and info.Creator and info.Creator.Name then
-		return info.Creator.Name
-	end
-	return "unknown"
+	local creator = info and lib.isProperty(info, "Creator")
+	local creatorName = creator and lib.isProperty(creator, "Name")
+	return creatorName or "unknown"
 end
 
 function storeESP(p, cType, conn)
@@ -7341,12 +7322,14 @@ cmd.add({"chams"}, {"chams", "ESP but without the text :shock:"}, function()
 	end
 end)
 
-cmd.add({"locate"}, {"locate <username>", "locate where the players are"}, function(...)
-	local username = (...)
-	local target = getPlr(username)
-	for _, plr in next, target do
-		if plr then
-			NAESP(plr, true)
+cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
+	local usernames = {...}
+	for _, username in ipairs(usernames) do
+		local target = getPlr(username)
+		for _, plr in ipairs(target) do
+			if plr then
+				NAESP(plr, true)
+			end
 		end
 	end
 end, true)
@@ -7380,11 +7363,14 @@ cmd.add({"unesp", "unchams"}, {"unesp (unchams)", "Disables esp/chams"}, functio
 	end
 end)
 
-cmd.add({"unlocate"}, {"unlocate <player>"}, function(username)
-	local target = getPlr(username)
-	for _, plr in next, target do
-		if plr then
-			discPlrESP(plr)
+cmd.add({"unlocate"}, {"unlocate <username1> <username2> etc (optional)"}, function(...)
+	local usernames = {...}
+	for _, username in ipairs(usernames) do
+		local target = getPlr(username)
+		for _, plr in ipairs(target) do
+			if plr then
+				discPlrESP(plr)
+			end
 		end
 	end
 end, true)
@@ -19205,6 +19191,12 @@ Spawn(function()
 	end
 end)
 
+NACaller(function()
+	if NAjson.annc and NAjson.annc ~= "" then
+		DoWindow(NAjson.annc, 99999999999999999, adminName.." Announcement")
+	end
+end)
+
 --[[ COMMAND BAR BUTTON ]]--
 local TextLabel = InstanceNew("TextLabel")
 local UICorner = InstanceNew("UICorner")
@@ -19408,7 +19400,7 @@ Spawn(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		Wait(2)
+		pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) -- it has better SaveInstance support and important functions that are required
 
 		-- just ignore this section (personal stuff)
 		--[[Notify({
@@ -19745,10 +19737,4 @@ gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 		end
 	end
 	SaveUIStroke(NASTROKETHINGY, color)
-end)
-
-Spawn(function()
-	NACaller(function()--better saveinstance support
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))();
-	end)
 end)
