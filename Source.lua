@@ -41,7 +41,8 @@ local cmd={}
 lib={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
-NACaller(function() NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) end)
+
+NACaller(function() repeat Wait() NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) until NAjson~=nil end)
 
 function isAprilFools()
 	local d = os.date("*t")
