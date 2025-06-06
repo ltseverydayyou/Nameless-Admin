@@ -35,6 +35,7 @@ local NOTIFICATION_COLORS = {
 local Player = ClonedService("Players").LocalPlayer
 local search = RunService:IsStudio() and Player.PlayerGui or GETTHEUI()
 local NotifGui, Container
+local AnnouncementObjects = {}
 
 if search:FindFirstChild("EnhancedNotif") and _G.EnhancedNotifs then
 	return _G.EnhancedNotifs
@@ -247,7 +248,26 @@ local function Update()
 	LastTick = tick()
 end
 
+local function UpdateAnnouncements()
+	local PreviousObjects = {}
+	for _, Object in ipairs(AnnouncementObjects) do
+		local Frame, Delta, Done = Object[1], Object[2], Object[3]
+		if not Done then
+			Object[2] = math.clamp(Delta + (tick() - LastTick), 0, TWEEN_TIME)
+			if Object[2] >= TWEEN_TIME then
+				Object[3] = true
+			end
+		end
+		local OffsetY = CalculateBounds(PreviousObjects)
+		local TargetPos = UDim2.new(0.5, 0, 0, OffsetY + 20)
+		Frame.Position = TargetPos
+		table.insert(PreviousObjects, Frame)
+	end
+	LastTick = tick()
+end
+
 RunService:BindToRenderStep("UpdateNotifications", 0, Update)
+RunService:BindToRenderStep("UpdateAnnouncements", 1, UpdateAnnouncements)
 
 local PropertyTweenOut = {
 	Text = "TextTransparency",
@@ -296,16 +316,18 @@ local function FadeOutAfter(Object, Seconds)
 
 		local originalSize = Object.Size
 		local originalPosition = Object.Position
-		local centerDownPos = UDim2.new(
+		local anchor = Object.AnchorPoint
+
+		local centerShrinkPos = UDim2.new(
 			originalPosition.X.Scale,
-			originalPosition.X.Offset + originalSize.X.Offset / 2,
+			originalPosition.X.Offset + (originalSize.X.Offset * (0.5 - anchor.X)),
 			originalPosition.Y.Scale,
-			originalPosition.Y.Offset + originalSize.Y.Offset / 2 + 20
+			originalPosition.Y.Offset + (originalSize.Y.Offset * (0.5 - anchor.Y))
 		)
 
 		TweenService:Create(Object, fadeTweenInfo, {
 			Size = UDim2.new(0, 0, 0, 0),
-			Position = centerDownPos,
+			Position = centerShrinkPos,
 			BackgroundTransparency = 1
 		}):Play()
 
@@ -339,6 +361,10 @@ local function FadeOutAfter(Object, Seconds)
 		if index then
 			table.remove(InstructionObjects, index)
 			ResetObjects()
+		end
+		local aIndex = FindIndexByDependency(AnnouncementObjects, Object)
+		if aIndex then
+			table.remove(AnnouncementObjects, aIndex)
 		end
 		Object:Destroy()
 	end)
@@ -500,6 +526,124 @@ _G.EnhancedNotifs = {
 				}):Play()
 			end
 			FadeOutAfter(NewNotif, Duration)
+		end
+	end,
+
+	Window = function(Properties)
+		local Properties = typeof(Properties) == "table" and Properties or {}
+		local Title = Properties.Title or "Untitled"
+		local Description = Properties.Description or ""
+		local Duration = Properties.Duration or 0
+		local Buttons = Properties.Buttons or {}
+		local InputFieldEnabled = Properties.InputField or false
+		local ButtonCount = #Buttons
+
+		local Gui = Instance.new("ScreenGui")
+		Gui.Name = "EnhancedWindow"
+		Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		Gui.ResetOnSpawn = false
+		Gui.IgnoreGuiInset = true
+		Gui.DisplayOrder = 999999998
+		Gui.Parent = GETTHEUI()
+
+		local WindowFrame = Instance.new("Frame")
+		WindowFrame.Size = UDim2.new(0, 400, 0, 0)
+		WindowFrame.Position = UDim2.new(0.5, 0, 0, -100)
+		WindowFrame.AnchorPoint = Vector2.new(0.5, 0)
+		WindowFrame.BackgroundColor3 = NOTIFICATION_COLORS.Background
+		WindowFrame.BackgroundTransparency = 1
+		WindowFrame.BorderSizePixel = 0
+		WindowFrame.Parent = Gui
+
+		local UICorner = Instance.new("UICorner", WindowFrame)
+		UICorner.CornerRadius = UDim.new(0, 8)
+
+		local Stroke = Instance.new("UIStroke", WindowFrame)
+		Stroke.Color = NOTIFICATION_COLORS.Stroke
+		Stroke.Thickness = 1.5
+		Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		Stroke.Transparency = 0
+
+		local YPosition = 10
+		local Height = 0
+
+		if Title then
+			CreateTitle(Title, WindowFrame)
+			YPosition += 30
+			Height += 30
+		end
+
+		if Description ~= "" then
+			local Desc, DescHeight = CreateDescription(Description, WindowFrame, YPosition)
+			YPosition += DescHeight + 10
+			Height += DescHeight + 10
+		end
+
+		local InputField
+		if InputFieldEnabled then
+			InputField = CreateInputField(WindowFrame, YPosition)
+			YPosition += 40
+			Height += 40
+		end
+
+		if ButtonCount > 0 then
+			local ButtonPadding = 10
+			local TotalWidth = 370
+			local ButtonWidth = (TotalWidth - ((ButtonCount - 1) * ButtonPadding)) / ButtonCount
+			for i, ButtonInfo in ipairs(Buttons) do
+				local Button = CreateSquircleButton(
+					ButtonInfo.Text,
+					ButtonWidth,
+					30,
+					WindowFrame,
+					UDim2.new(0, 15 + (i - 1) * (ButtonWidth + ButtonPadding), 0, YPosition)
+				)
+				Button.MouseButton1Click:Connect(function()
+					if ButtonInfo.Callback then
+						if InputFieldEnabled then
+							ButtonInfo.Callback(InputField.Text)
+						else
+							ButtonInfo.Callback()
+						end
+					end
+					FadeOutAfter(WindowFrame, 0)
+				end)
+			end
+			YPosition += 40
+			Height += 40
+		end
+
+		local CloseBtn = CreateCloseButton(WindowFrame)
+		CloseBtn.MouseButton1Click:Connect(function()
+			FadeOutAfter(WindowFrame, 0)
+		end)
+
+		WindowFrame.Size = UDim2.new(0, 400, 0, Height + 20)
+		WindowFrame.BackgroundTransparency = 1
+		WindowFrame.Position = UDim2.new(0.5, 0, 0, -100)
+
+		TweenService:Create(WindowFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 0.4
+		}):Play()
+
+		for _, desc in WindowFrame:GetDescendants() do
+			local prop = PropertyTweenOut[string.sub(desc.ClassName, 1, 4)]
+			if prop then
+				desc[prop] = 1
+				TweenService:Create(desc, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {
+					[prop] = 0
+				}):Play()
+			end
+		end
+
+		table.insert(AnnouncementObjects, {WindowFrame, 0, false})
+
+		if ButtonCount == 0 and Duration > 0 then
+			task.delay(Duration, function()
+				if WindowFrame then
+					FadeOutAfter(WindowFrame, 0)
+				end
+			end)
 		end
 	end
 }
