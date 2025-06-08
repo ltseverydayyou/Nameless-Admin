@@ -349,8 +349,9 @@ local loader=''
 local NAUILOADER=''
 local NAAUTOSCALER=nil
 local JoinLeaveConfig = {
-	JoinLog = false,
-	LeaveLog = false
+	JoinLog = false;
+	LeaveLog = false;
+	SaveLog = false;
 }
 
 if getgenv().NATestingVer then
@@ -486,8 +487,9 @@ if FileSupport then
 
 	if not isfile(NAJOINLEAVE) then
 		writefile(NAJOINLEAVE, HttpService:JSONEncode({
-			JoinLog = false,
-			LeaveLog = false
+			JoinLog = false;
+			LeaveLog = false;
+			SaveLog = false;
 		}))
 	end
 end
@@ -1006,7 +1008,7 @@ cmd.run = function(args)
 				local requiresInput = Commands[closest] and Commands[closest][3] or Aliases[closest] and Aliases[closest][3]
 
 				if requiresInput then
-					Notify({
+					Window({
 						Title = adminName,
 						Description = "Command [ "..caller.." ] doesn't exist\nDid you mean [ "..closest.." ]?",
 						InputField = true,
@@ -1025,7 +1027,7 @@ cmd.run = function(args)
 						}
 					})
 				else
-					Notify({
+					Window({
 						Title = adminName,
 						Description = "Command [ "..caller.." ] doesn't exist\nDid you mean [ "..closest.." ]?",
 						Buttons = {
@@ -1063,7 +1065,7 @@ cmd.loop = function(commandName, args)
 		return Concat(arguments, ", ")
 	end
 
-	Notify({
+	Window({
 		Title = "Set Loop Delay",
 		Description = "Enter the delay (in seconds) for the loop of command: "..commandName,
 		InputField = true,
@@ -1135,7 +1137,7 @@ cmd.stopLoop = function()
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Stop a Loop",
 		Description = "Select a loop to stop:",
 		Buttons = buttons
@@ -2331,10 +2333,21 @@ local function LoadPlugins()
 end
 
 local function LogJoinLeave(message)
-	if not FileSupport or not appendfile then return end
+	if not FileSupport or not appendfile or not JoinLeaveConfig.SaveLog then return end
+
 	local logPath = NAJOINLEAVELOG
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
-	local logMessage = Format("%s %s\n", timestamp, message)
+
+	local logMessage = string.format(
+		"%s %s | Game: %s | Creator: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
+		timestamp,
+		message,
+		placeName(),
+		placeCreator(),
+		tostring(PlaceId),
+		tostring(GameId),
+		tostring(JobId)
+	)
 
 	if isfile(logPath) then
 		appendfile(logPath, logMessage)
@@ -2817,7 +2830,7 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Remove Alias",
 		Description = "Select an alias to remove:",
 		Buttons = buttons
@@ -2888,7 +2901,7 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Remove User Button",
 		Description = "Select a button to remove:",
 		Buttons = options
@@ -2901,7 +2914,7 @@ cmd.add({"clearbuttons", "clearbtns", "cb"}, {"clearbuttons (clearbtns, cb)", "C
 		return
 	end
 
-	Notify({
+	Window({
 		Title = "Clear All Buttons",
 		Description = "Are you sure you want to clear all user buttons?",
 		Buttons = {
@@ -2995,7 +3008,7 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Remove AutoExec Command",
 		Description = "Select which AutoExec to remove:",
 		Buttons = options
@@ -3255,7 +3268,7 @@ cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, he
 	local inviteLink = "https://discord.gg/zzjYhtMGFD"
 
 	if setclipboard then
-		Notify({
+		Window({
 			Title = "Discord",
 			Description = inviteLink,
 			Buttons = {
@@ -3264,7 +3277,7 @@ cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, he
 			}
 		})
 	else
-		Notify({
+		Window({
 			Title = "Discord",
 			Description = "Your exploit does not support setclipboard.\nPlease manually type the invite link: "..inviteLink,
 			Buttons = {
@@ -6035,7 +6048,7 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		DoNotif("Anti-Kick Enabled: Mode - "..(mode == "fake" and "Fake Success" or "Error"),2)
 	end
 
-	Notify({
+	Window({
 		Title = "Anti-Kick Mode Selection",
 		Description = "Choose how kick attempts should be handled.",
 		Buttons = {
@@ -7221,7 +7234,7 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 			DoNotif("No matching CoreGui element found for: "..enableName, 3)
 		end
 	else
-		Notify({
+		Window({
 			Title = "Enable a Specific Core Gui Element",
 			Buttons = buttons
 		})
@@ -7266,7 +7279,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 			DoNotif("No matching CoreGui element found for: "..disableName, 3)
 		end
 	else
-		Notify({
+		Window({
 			Title = "Disable a Specific Core Gui Element",
 			Buttons = buttons
 		})
@@ -7284,7 +7297,7 @@ cmd.add({"reverb", "reverbcontrol"}, {"reverb (reverbcontrol)", "Manage sound re
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Sound Reverb Options",
 		Buttons = reverbButtons
 	})
@@ -7301,7 +7314,7 @@ cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage ca
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Camera Type Options",
 		Buttons = cameraTypeButtons
 	})
@@ -14790,7 +14803,7 @@ cmd.add({"lighting", "lightingcontrol"}, {"lighting (lightingcontrol)", "Manage 
 		})
 	end
 
-	Notify({
+	Window({
 		Title = "Lighting Technology Options",
 		Buttons = lightingButtons
 	})
@@ -15655,34 +15668,34 @@ cmd.add({"console", "debug"},{"console (debug)","Opens developer console"},funct
 	gui.consoleeee()
 end)
 
-local ogSIZES = {}
-local hbCON = {}
+local ogSizes = {}
+local hbConns = {}
 
-cmd.add({"hitbox", "hbox"}, {"hitbox {amount}", "Modifies everyone's hitbox to the specified size"}, function(playerName, size)
-	local targetPlayers = getPlr(playerName)
-	local hitboxSize = tonumber(size) or 10
+cmd.add({"hitbox", "hbox"}, {"hitbox <player> {amount} (hbox)", "Modifies everyone's hitbox to the specified size"}, function(playerName, size)
+	local targets = getPlr(playerName)
+	local sizeVal = tonumber(size) or 10
 
-	for _, plr in pairs(targetPlayers) do
-		local character = getPlrChar(plr)
-		local root = character and getRoot(character)
+	for _, plr in pairs(targets) do
+		local root = getRoot(getPlrChar(plr))
 		if root then
-			if not ogSIZES[plr] then
-				ogSIZES[plr] = root.Size
+			if not ogSizes[plr] then
+				ogSizes[plr] = root.Size
 			end
 
-			root.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+			local newSize = Vector3.new(sizeVal, sizeVal, sizeVal)
+			root.Size = newSize
 			root.Transparency = 0.9
 			root.BrickColor = BrickColor.new("Really black")
 			root.Material = Enum.Material.Neon
 
-			if hbCON[plr] then
-				hbCON[plr]:Disconnect()
+			if hbConns[plr] then
+				hbConns[plr]:Disconnect()
 			end
 
-			hbCON[plr] = RunService.Stepped:Connect(function()
-				local r = getPlrChar(plr) and getRoot(getPlrChar(plr))
+			hbConns[plr] = RunService.Stepped:Connect(function()
+				local r = getRoot(getPlrChar(plr))
 				if r then
-					r.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+					r.Size = newSize
 					r.Transparency = 0.9
 					r.BrickColor = BrickColor.new("Really black")
 					r.Material = Enum.Material.Neon
@@ -15692,28 +15705,98 @@ cmd.add({"hitbox", "hbox"}, {"hitbox {amount}", "Modifies everyone's hitbox to t
 	end
 end, true)
 
-cmd.add({"unhitbox", "unhbox"}, {"unhitbox", "Disables hitbox modifications"}, function(playerName)
-	local targetPlayers = getPlr(playerName)
+cmd.add({"unhitbox", "unhbox"}, {"unhitbox <player> (unhbox)", "Disables hitbox modifications"}, function(playerName)
+	local targets = getPlr(playerName)
 
-	for _, plr in pairs(targetPlayers) do
-		local character = getPlrChar(plr)
-		local root = character and getRoot(character)
+	for _, plr in pairs(targets) do
+		local root = getRoot(getPlrChar(plr))
 		if root then
-			local original = ogSIZES[plr] or Vector3.new(2, 2, 1)
+			local original = ogSizes[plr] or Vector3.new(2, 2, 1)
 			root.Size = original
 			root.Transparency = 1
 			root.BrickColor = BrickColor.new("Really black")
 			root.Material = Enum.Material.Neon
 		end
 
-		if hbCON[plr] then
-			hbCON[plr]:Disconnect()
-			hbCON[plr] = nil
+		if hbConns[plr] then
+			hbConns[plr]:Disconnect()
+			hbConns[plr] = nil
 		end
 
-		ogSIZES[plr] = nil
+		ogSizes[plr] = nil
 	end
-end,true)
+end, true)
+
+local headData = {}
+local headConns = {}
+
+cmd.add({"headsize", "hsize"}, {"headsize <player> {amount} (hsize)"}, function(playerName, scale)
+	local targets = getPlr(playerName)
+	local factor = tonumber(scale) or 1
+
+	for _, plr in pairs(targets) do
+		local head = getHead(getPlrChar(plr))
+		if head then
+			local mesh = head:FindFirstChildOfClass("SpecialMesh")
+
+			if not headData[plr] then
+				headData[plr] = {
+					size = head.Size,
+					meshScale = mesh and mesh.Scale
+				}
+			end
+
+			local newSize = headData[plr].size * factor
+			head.Size = newSize
+			head.Transparency = 0.5
+
+			if mesh then
+				local originalScale = headData[plr].meshScale or Vector3.new(1, 1, 1)
+				mesh.Scale = originalScale * factor
+			end
+
+			if headConns[plr] then
+				headConns[plr]:Disconnect()
+			end
+
+			headConns[plr] = RunService.Stepped:Connect(function()
+				local h = getHead(getPlrChar(plr))
+				if h then
+					h.Size = newSize
+					h.Transparency = 0.5
+					local m = h:FindFirstChildOfClass("SpecialMesh")
+					if m and headData[plr].meshScale then
+						m.Scale = headData[plr].meshScale * factor
+					end
+				end
+			end)
+		end
+	end
+end, true)
+
+cmd.add({"unheadsize", "unhsize"}, {"unheadsize <player> (unhsize)", "Resets head size modifications"}, function(playerName)
+	local targets = getPlr(playerName)
+
+	for _, plr in pairs(targets) do
+		local head = getHead(getPlrChar(plr))
+		if head and headData[plr] then
+			head.Size = headData[plr].size
+			head.Transparency = 0
+
+			local mesh = head:FindFirstChildOfClass("SpecialMesh")
+			if mesh and headData[plr].meshScale then
+				mesh.Scale = headData[plr].meshScale
+			end
+		end
+
+		if headConns[plr] then
+			headConns[plr]:Disconnect()
+			headConns[plr] = nil
+		end
+
+		headData[plr] = nil
+	end
+end, true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
 	DoNotif("Car breaker loaded, sit on a vehicle and be the driver")
@@ -19400,7 +19483,7 @@ Spawn(function()
 
 		if not FileSupport then
 			warn("NAWWW NO FILE SUPPORT???????")
-			Notify({
+			Window({
 				Title = maybeMock("Would you like to enable QueueOnTeleport?"),
 				Description = maybeMock("With QueueOnTeleport, "..adminName.." will automatically execute itself upon teleporting to a game or place."),
 				Buttons = {
@@ -19424,7 +19507,7 @@ Spawn(function()
 		pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) -- it has better SaveInstance support and important functions that are required
 
 		-- just ignore this section (personal stuff)
-		--[[Notify({
+		--[[Window({
 			Title = adminName.." (Archived)",
 			Description = 'This version is no longer maintained.\nCheck the README on GitHub for legacy details.',
 			Buttons = {
@@ -19669,6 +19752,12 @@ if FileSupport then
 		JoinLeaveConfig.LeaveLog = v
 		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
+	end)
+
+	gui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
+		JoinLeaveConfig.SaveLog = v
+		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 	end)
 end
 
