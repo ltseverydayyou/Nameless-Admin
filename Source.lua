@@ -36,8 +36,21 @@ local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local NAjson = nil
-NASESSIONSTARTEDIDK = os.clock()
 local cmd={}
+local NAImageAssets = {
+	Icon = "NAnew.png";
+	Sheet = "sheet.png";
+	blur = "blur.png";
+	Inlet = "Inlet.png";
+	Stud = "oldStud.png";
+	bk = "SkyBk.png";
+	dn = "SkyDn.png";
+	ft = "SkyFt.png";
+	lf = "SkyLf.png";
+	rt = "SkyRt.png";
+	up = "SkyUp.png";
+}
+NASESSIONSTARTEDIDK = os.clock()
 lib={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
@@ -356,7 +369,7 @@ repeat
 	if success then
 		Notification = result
 	else
-		warn(string.format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
+		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
 		Wait(0.3)
 	end
 until Notification
@@ -386,6 +399,7 @@ local FileSupport = isfile and isfolder and writefile and readfile and makefolde
 NAFILEPATH = "Nameless-Admin"
 NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints"
 NAPLUGINFILEPATH = "Nameless-Admin/Plugins"
+NAASSETSFILEPATH = "Nameless-Admin/Assets"
 NAPREFIXPATH = "Nameless-Admin/Prefix.txt"
 NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt"
 NAUISIZEPATH = "Nameless-Admin/UIScale.txt"
@@ -415,6 +429,10 @@ if FileSupport then
 
 	if not isfolder(NAPLUGINFILEPATH) then
 		makefolder(NAPLUGINFILEPATH)
+	end
+
+	if not isfolder(NAASSETSFILEPATH) then
+		makefolder(NAASSETSFILEPATH)
 	end
 
 	if not isfile(NAPREFIXPATH) then
@@ -608,6 +626,26 @@ NACaller(function()
 		if json and json[1] and json[1].commit and json[1].commit.author and json[1].commit.author.date then
 			local year, month, day = json[1].commit.author.date:match("(%d+)-(%d+)-(%d+)")
 			NAupdDate = month.."/"..day.."/"..year
+		end
+	end
+end)
+
+NACaller(function()
+	if not FileSupport then return end
+	if type(NAImageAssets) ~= "table" then return end
+
+	local baseURL = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"
+	for _, fileName in pairs(NAImageAssets) do
+		local fullPath = NAASSETSFILEPATH.."/"..fileName
+		if not isfile(fullPath) then
+			local success, data = pcall(function()
+				return game:HttpGet(baseURL..fileName)
+			end)
+			if success and data then
+				writefile(fullPath, data)
+			else
+				warn("[NA] Failed to download:", fileName)
+			end
 		end
 	end
 end)
@@ -2318,7 +2356,7 @@ local function LogJoinLeave(message)
 	local logPath = NAJOINLEAVELOG
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
 
-	local logMessage = string.format(
+	local logMessage = Format(
 		"%s %s | Game: %s | Creator: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
 		timestamp,
 		message,
@@ -5011,12 +5049,10 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 	local backpack = getBp()
 	local toolToDrop = nil
 
-	if not toolToDrop then
-		for _, tool in ipairs(getChar():GetChildren()) do
-			if tool:IsA("Tool") then
-				toolToDrop = tool
-				break
-			end
+	for _, tool in ipairs(getChar():GetChildren()) do
+		if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+			toolToDrop = tool
+			break
 		end
 	end
 
@@ -5024,7 +5060,7 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 
 	if backpack and not toolToDrop then
 		for _, tool in ipairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") then
+			if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
 				tool.Parent = getChar()
 				toolToDrop = tool
 				break
@@ -5034,34 +5070,47 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 
 	if toolToDrop then
 		toolToDrop.Parent = SafeGetService("Workspace")
+		DoNotif("Dropped: "..toolToDrop.Name, 4)
+	else
+		DoNotif("No droppable tool found", 4)
 	end
 end)
 
+cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
+	local backpack = getBp()
+	local dropped = 0
 
-cmd.add({"droptools"},{"dropalltools","Drop all of your tools"},function()
-	backpack=getBp()
 	if backpack then
-		for _,tool in pairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") then
-				tool.Parent=getChar()
+		for _, tool in ipairs(backpack:GetChildren()) do
+			if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+				tool.Parent = getChar()
 			end
 		end
 	end
+
 	Wait()
-	for _,tool in pairs(getChar():GetChildren()) do
-		if tool:IsA("Tool") then
-			tool.Parent=SafeGetService("Workspace")
+
+	for _, tool in ipairs(getChar():GetChildren()) do
+		if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+			tool.Parent = SafeGetService("Workspace")
+			dropped += 1
 		end
+	end
+
+	if dropped > 0 then
+		DoNotif("Dropped "..dropped.." tool(s)", 4)
+	else
+		DoNotif("No droppable tools found", 4)
 	end
 end)
 
 cmd.add({"notools"},{"notools","Remove your tools"},function()
-	for _,tool in pairs(getChar():GetChildren()) do
+	for _,tool in pairs(getChar():GetDescendants()) do
 		if tool:IsA("Tool") then
 			tool:Destroy()
 		end
 	end
-	for _,tool in pairs(getBp():GetChildren()) do
+	for _,tool in pairs(getBp():GetDescendants()) do
 		if tool:IsA("Tool") then
 			tool:Destroy()
 		end
@@ -5121,7 +5170,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 		if v:IsA("BasePart") then
 			v.Material = Enum.Material.Plastic
 			v.Reflectance = 0
-			if v:IsA("MeshPart") and not decalsEnabled then v.TextureID = "" end
+			if v:IsA("MeshPart") and not decalsEnabled then v.TextureId = "" end
 		elseif v:IsA("Decal") or v:IsA("Texture") then
 			if not decalsEnabled then v.Transparency = 1 end
 		elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
@@ -6225,14 +6274,14 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
 		if v:IsA("BasePart") then
 			local dec=InstanceNew("Texture",v)
-			dec.Texture="rbxassetid://48715260"
+			dec.Texture=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Stud) or "rbxassetid://48715260"
 			dec.Face="Top"
 			dec.StudsPerTileU="1"
 			dec.StudsPerTileV="1"
 			dec.Transparency=v.Transparency
 			v.Material="Plastic"
 			local dec2=InstanceNew("Texture",v)
-			dec2.Texture="rbxassetid://20299774"
+			dec2.Texture=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Inlet) or "rbxassetid://20299774"
 			dec2.Face="Bottom"
 			dec2.StudsPerTileU="1"
 			dec2.StudsPerTileV="1"
@@ -6249,12 +6298,12 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		end
 	end
 	local sky=InstanceNew("Sky",Lighting)
-	sky.SkyboxBk="rbxassetid://161781263"
-	sky.SkyboxDn="rbxassetid://161781258"
-	sky.SkyboxFt="rbxassetid://161781261"
-	sky.SkyboxLf="rbxassetid://161781267"
-	sky.SkyboxRt="rbxassetid://161781268"
-	sky.SkyboxUp="rbxassetid://161781260"
+	sky.SkyboxBk=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.bk) or "rbxassetid://161781263"
+	sky.SkyboxDn=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.dn) or "rbxassetid://161781258"
+	sky.SkyboxFt=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.ft) or "rbxassetid://161781261"
+	sky.SkyboxLf=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.lf) or "rbxassetid://161781267"
+	sky.SkyboxRt=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.rt) or "rbxassetid://161781268"
+	sky.SkyboxUp=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.up) or "rbxassetid://161781260"
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
@@ -8224,7 +8273,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	clear.Position=UDim2.new(1,-28,0,2)
 	clear.Size=UDim2.new(0,24,0,24)
 	clear.ZIndex=2
-	clear.Image="rbxassetid://3926305904"
+	clear.Image=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Sheet) or "rbxassetid://3926305904"
 	clear.ImageRectOffset=Vector2.new(924,724)
 	clear.ImageRectSize=Vector2.new(36,36)
 
@@ -8296,11 +8345,12 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	shadow.BackgroundTransparency = 1
 	shadow.Size = UDim2.new(1, 20, 1, 20)
 	shadow.Position = UDim2.new(0, -10, 0, -10)
-	shadow.Image = "rbxassetid://1316045217"
+	shadow.Image = getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.blur) or "rbxassetid://1316045217"
 	shadow.ImageColor3 = Color3.new(0, 0, 0)
 	shadow.ImageTransparency = 0.5
 	shadow.ScaleType = Enum.ScaleType.Slice
 	shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+	shadow.ZIndex = 0
 
 	function AKIHDI_fake_script()
 		getgenv().functionspy={
@@ -8580,7 +8630,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end)
 	end
 	coroutine.wrap(PRML_fake_script)()
-	gui.draggablev2(Main,Title)
+	gui.draggablev2(Main)
 end)
 
 function toggleFly()
@@ -19177,7 +19227,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	end
 end)
 
-spawn(function()
+Spawn(function()
 	local function setupFLASHBACK(c)
 		if not c then return end
 
@@ -19285,8 +19335,26 @@ end)
 local TextLabel = InstanceNew("TextLabel")
 local UICorner = InstanceNew("UICorner")
 local UIStroke = InstanceNew("UIStroke")
-local TextButton = InstanceNew("TextButton")
+local TextButton
 local UICorner2 = InstanceNew("UICorner")
+
+NAICONASSET = getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Icon) or nil
+
+if NAICONASSET then
+    TextButton = InstanceNew("ImageButton")
+    TextButton.Image = NAICONASSET
+else
+    TextButton = InstanceNew("TextButton")
+    TextButton.Font = Enum.Font.SourceSansBold
+    TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
+    TextButton.TextSize = 22
+    if isAprilFools() then
+        cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX", ""}
+        TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
+    else
+        TextButton.Text = "NA"
+    end
+end
 
 TextLabel.Parent = NASCREENGUI
 TextLabel.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
@@ -19319,115 +19387,111 @@ TextButton.BorderSizePixel = 0
 TextButton.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
 TextButton.Position = UDim2.new(0.5, 0, -1, 0)
 TextButton.Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
-TextButton.Font = Enum.Font.SourceSansBold
-TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
-TextButton.TextSize = 22
 TextButton.ZIndex = 9999
-
-if isAprilFools() then
-	cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX", ""}
-	TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
-else
-	TextButton.Text = "NA"
-end
 
 UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = TextButton
 
 TextButton.MouseEnter:Connect(function()
-	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
-	}):Play()
+    TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
+    }):Play()
 end)
+
 TextButton.MouseLeave:Connect(function()
-	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
-	}):Play()
+    TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
+    }):Play()
 end)
 
 swooshySWOOSH = false
 
 function Swoosh()
-	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Rotation = 720
-	}):Play()
-	gui.draggablev2(TextButton)
-	if swooshySWOOSH then
-		return
-	end
-	swooshySWOOSH = true
-	TextButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					if FileSupport and NAiconSaveEnabled then
-						local pos = TextButton.Position
-						writefile(NAICONPOSPATH, HttpService:JSONEncode({
-							X = pos.X.Scale,
-							Y = pos.Y.Scale,
-							Save = NAiconSaveEnabled
-						}))
-					end
-				end
-			end)
-		end
-	end)
+    TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        Rotation = 720
+    }):Play()
+    gui.draggablev2(TextButton)
+    if swooshySWOOSH then return end
+    swooshySWOOSH = true
+    TextButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    if FileSupport and NAiconSaveEnabled then
+                        local pos = TextButton.Position
+                        writefile(NAICONPOSPATH, HttpService:JSONEncode({
+                            X = pos.X.Scale,
+                            Y = pos.Y.Scale,
+                            Save = NAiconSaveEnabled
+                        }))
+                    end
+                end
+            end)
+        end
+    end)
 end
 
 function mainNameless()
-	local txtLabel = TextLabel
-	local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
-	local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
+    local txtLabel = TextLabel
+    local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
+    local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
 
-	local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Size = finalSize,
-		BackgroundTransparency = 0.1,
-		TextTransparency = 0,
-	})
+    local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        Size = finalSize,
+        BackgroundTransparency = 0.1,
+        TextTransparency = 0,
+    })
 
-	local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 0, 0.48, 0)
-	})
+    local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, 0, 0.48, 0)
+    })
 
-	appearTween:Play()
-	riseTween:Play()
+    appearTween:Play()
+    riseTween:Play()
 
-	TextButton.Size = UDim2.new(0, 0, 0, 0)
-	TextButton.TextTransparency = 1
+    TextButton.Size = UDim2.new(0, 0, 0, 0)
+    if TextButton:IsA("TextButton") then
+        TextButton.TextTransparency = 1
+    end
 
-	local targetPos = UDim2.new(0.5, 0, 0.1, 0)
+    local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
-	if FileSupport and isfile(NAICONPOSPATH) then
-		local data = HttpService:JSONDecode(readfile(NAICONPOSPATH))
-		if data and data.X and data.Y then
-			targetPos = UDim2.new(data.X, 0, data.Y, 0)
-		end
+    if FileSupport and isfile(NAICONPOSPATH) then
+        local data = HttpService:JSONDecode(readfile(NAICONPOSPATH))
+        if data and data.X and data.Y then
+            targetPos = UDim2.new(data.X, 0, data.Y, 0)
+        end
+    end
+
+    TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+
+    local tweenProps = {
+		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
+		Position = targetPos
+	}
+
+	if TextButton:IsA("TextButton") then
+		tweenProps.TextTransparency = 0
 	end
 
-	TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), tweenProps)
+    appearBtnTween:Play()
 
-	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
-		Position = targetPos,
-		TextTransparency = 0
-	})
-	appearBtnTween:Play()
+    Swoosh()
 
-	Swoosh()
+    Wait(2.5)
 
-	Wait(2.5)
+    local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
+        TextTransparency = 1,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, 0, 0.52, 20),
+        Size = UDim2.new(0, 0, 0, 0)
+    })
 
-	local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
-		TextTransparency = 1,
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0.5, 0, 0.52, 20),
-		Size = UDim2.new(0, 0, 0, 0)
-	})
-
-	fadeOutTween:Play()
-	fadeOutTween.Completed:Once(function()
-		txtLabel:Destroy()
-	end)
+    fadeOutTween:Play()
+    fadeOutTween.Completed:Once(function()
+        txtLabel:Destroy()
+    end)
 end
 
 coroutine.wrap(mainNameless)()
