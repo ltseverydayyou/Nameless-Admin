@@ -587,30 +587,44 @@ _G.EnhancedNotifs = {
 		end
 
 		if ButtonCount > 0 then
+			local buttonsPerRow = 3
+			local rows = math.ceil(ButtonCount / buttonsPerRow)
 			local ButtonPadding = 10
-			local TotalWidth = 370
-			local ButtonWidth = (TotalWidth - ((ButtonCount - 1) * ButtonPadding)) / ButtonCount
-			for i, ButtonInfo in ipairs(Buttons) do
-				local Button = CreateSquircleButton(
-					ButtonInfo.Text,
-					ButtonWidth,
-					30,
-					WindowFrame,
-					UDim2.new(0, 15 + (i - 1) * (ButtonWidth + ButtonPadding), 0, YPosition)
-				)
-				Button.MouseButton1Click:Connect(function()
-					if ButtonInfo.Callback then
-						if InputFieldEnabled then
-							ButtonInfo.Callback(InputField.Text)
-						else
-							ButtonInfo.Callback()
-						end
+			local ButtonHeight = 30
+			local ButtonWidth = (370 - ((buttonsPerRow - 1) * ButtonPadding)) / buttonsPerRow
+
+			for row = 1, rows do
+				for col = 1, buttonsPerRow do
+					local index = (row - 1) * buttonsPerRow + col
+					local ButtonInfo = Buttons[index]
+					if ButtonInfo then
+						local xPos = 15 + (col - 1) * (ButtonWidth + ButtonPadding)
+						local yPos = YPosition + (row - 1) * (ButtonHeight + 10)
+
+						local Button = CreateSquircleButton(
+							ButtonInfo.Text,
+							ButtonWidth,
+							ButtonHeight,
+							WindowFrame,
+							UDim2.new(0, xPos, 0, yPos)
+						)
+
+						Button.MouseButton1Click:Connect(function()
+							if ButtonInfo.Callback then
+								if InputFieldEnabled then
+									ButtonInfo.Callback(InputField.Text)
+								else
+									ButtonInfo.Callback()
+								end
+							end
+							FadeOutAfter(WindowFrame, 0)
+						end)
 					end
-					FadeOutAfter(WindowFrame, 0)
-				end)
+				end
 			end
-			YPosition += 40
-			Height += 40
+
+			YPosition += rows * (ButtonHeight + 10)
+			Height += rows * (ButtonHeight + 10)
 		end
 
 		local CloseBtn = CreateCloseButton(WindowFrame)

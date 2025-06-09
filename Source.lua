@@ -39,6 +39,7 @@ local NAjson = nil
 local cmd={}
 local NAImageAssets = {
 	Icon = "NAnew.png";
+	sWare = "ScriptWare.png";
 	Sheet = "sheet.png";
 	blur = "blur.png";
 	Inlet = "Inlet.png";
@@ -782,15 +783,6 @@ UserInputService.InputEnded:Connect(function(input)
 	updateInputVector()
 end)
 
-UserInputService.InputChanged:Connect(function(input, gameProcessed)
-	if input.UserInputType == Enum.UserInputType.Gamepad1 or input.UserInputType == Enum.UserInputType.Touch then
-		if input.KeyCode == Enum.KeyCode.Thumbstick1 then
-			thumberSTICKER = input.Position
-			updateInputVector()
-		end
-	end
-end)
-
 function GetCustomMoveVector()
 	if ctrlModule then
 		local success, vec = pcall(function()
@@ -903,10 +895,11 @@ function didYouMean(input)
 
 	cc(Commands)
 	cc(Aliases)
+	cc(NASAVEDALIASES)
 
 	return bestMatch
 end
-pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+--[[pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 function randomahhfunctionthatyouwontgetit(data)
 	data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
 	return (data:gsub('.', function(x)
@@ -924,8 +917,51 @@ function randomahhfunctionthatyouwontgetit(data)
 		end
 		return string.char(c)
 	end))
+end]]
+function randomahhfunctionthatyouwontgetit(data)
+	local CHARS = [[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~"]]
+	local LOOKUP = {}
+	for i = 1, #CHARS do
+		LOOKUP[CHARS:sub(i, i)] = i - 1
+	end
+
+	local v = -1
+	local b = 0
+	local n = 0
+	local out = {}
+
+	for i = 1, #data do
+		local c = data:sub(i, i)
+		local val = LOOKUP[c]
+		if val == nil then continue end
+		if v < 0 then
+			v = val
+		else
+			v = v + val * 91
+			b = b + v * 2^n
+			n = n + (if v % 8192 > 88 then 13 else 14)
+			repeat
+				Insert(out, string.char(b % 256))
+				b = math.floor(b / 256)
+				n = n - 8
+			until n < 8
+			v = -1
+		end
+	end
+
+	if v > -1 then
+		b = b + v * 2^n
+		n = n + 7
+		repeat
+			Insert(out, string.char(b % 256))
+			b = math.floor(b / 256)
+			n = n - 8
+		until n < 8
+	end
+
+	return Concat(out)
 end
-qowijjokqwd = randomahhfunctionthatyouwontgetit("aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2x0c2V2ZXJ5ZGF5eW91L3V1dXV1dXUvcmVmcy9oZWFkcy9tYWluL2VuY29kZQ==")
+qowijjokqwd = randomahhfunctionthatyouwontgetit("l5VKR[9`aIEv*.Zkm5!fW*pT<R>xl.`otoW3)*1;eI(/e95p)z9Kt)b13$)&l9bph8;gih6eB#(&<8Wiy29av)H[f1X%M^cjKB")
 function isRelAdmin(Player)
 	for _, id in ipairs(_G.NAadminsLol) do
 		if Player.UserId == id then
@@ -948,40 +984,57 @@ function nameChecker(p)
 	end
 end
 
-function loadedResults(res)
-	local sec = tonumber(res) or 0
-	local isNegative = sec < 0
-
-	if isNegative then
-		sec = math.abs(sec)
+function ParseArguments(input)
+	if not input or input:match("^%s*$") then
+		return nil
 	end
 
-	local days = math.floor(sec / 86400)
-	local hours = math.floor((sec % 86400) / 3600)
-	local minutes = math.floor((sec % 3600) / 60)
-	local secondsFloat = sec % 60
+	local args = {}
+	for arg in string.gmatch(input, "[^%s]+") do
+		Insert(args, arg)
+	end
+	return args
+end
 
-	local seconds, fractional = math.modf(secondsFloat)
-	local milliseconds = math.floor(fractional * 1000)
+function loadedResults(res)
+	local total = tonumber(res) or 0
+	local isNegative = total < 0
+	total = math.abs(total)
 
-	local function formatTime()
-		if days > 0 then
-			return Format("%d:%02d:%02d:%02d.%03d | Days,Hours,Minutes,Seconds.Milliseconds",
-				days, hours, minutes, seconds, milliseconds)
-		elseif hours > 0 then
-			return Format("%d:%02d:%02d.%03d | Hours,Minutes,Seconds.Milliseconds",
-				hours, minutes, seconds, milliseconds)
-		elseif minutes > 0 then
-			return Format("%d:%02d.%03d | Minutes,Seconds.Milliseconds",
-				minutes, seconds, milliseconds)
-		else
-			return Format("%d.%03d | Seconds.Milliseconds",
-				seconds, milliseconds)
+	local units = {
+		{ "d", 86400 },
+		{ "h", 3600 },
+		{ "m", 60 },
+		{ "s", 1 },
+	}
+
+	local parts = {}
+	for _, u in ipairs(units) do
+		local count = math.floor(total / u[2])
+		total = total % u[2]
+		parts[u[1]] = count
+	end
+
+	local seconds = parts["s"]
+	local milliseconds = math.floor((total) * 1000)
+	local hasTime = false
+	local output = {}
+
+	for _, u in ipairs(units) do
+		local val = parts[u[1]]
+		if val > 0 then
+			Insert(output, Format("%d%s", val, u[1]))
+			hasTime = true
 		end
 	end
 
-	local formatted = formatTime()
-	return isNegative and ("-"..formatted) or formatted
+	if not hasTime or seconds > 0 or milliseconds > 0 then
+		local fractional = seconds + (milliseconds / 1000)
+		Insert(output, Format("%.3fs", fractional))
+	end
+
+	local result = Concat(output, " ")
+	return isNegative and ("-"..result) or result
 end
 
 LocalPlayer.OnTeleport:Connect(function(...)
@@ -1161,19 +1214,6 @@ cmd.stopLoop = function()
 		Buttons = buttons
 	})
 end
-
-function ParseArguments(input)
-	if not input or input:match("^%s*$") then
-		return nil
-	end
-
-	local args = {}
-	for arg in string.gmatch(input, "[^%s]+") do
-		Insert(args, arg)
-	end
-	return args
-end
-
 
 --[[ Fully setup Nameless admin storage ]]
 NaProtectUI(NA_storage)
@@ -3066,7 +3106,7 @@ cmd.add({"commandloop", "cmdloop"}, {"commandloop <command> {arguments} (cmdloop
 	cmd.loop(commandName, args)
 end,true)
 
-cmd.add({"stoploop"}, {"stoploop", "Stop a running loop"}, function()
+cmd.add({"stoploop", "uncmdloop", "sloop", "stopl"}, {"stoploop", "Stop a running loop"}, function()
 	cmd.stopLoop()
 end)
 
@@ -3080,7 +3120,7 @@ end)
 end)]]
 
 local scaleFrame = nil
-cmd.add({"uiscale", "uscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
+cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
 	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
 	scaleFrame = InstanceNew("ScreenGui")
 	local frame = InstanceNew("Frame")
@@ -3574,6 +3614,13 @@ cmd.add({"unclickfling", "unmousefling"}, {"unclickfling (unmousefling)","disabl
 	clickflingEnabled = false
 	if clickflingUI then clickflingUI:Destroy() end
 	lib.disconnect("clickfling_mouse")
+end)
+
+cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
+	for Index = 1, 3 do
+		Players:Chat(Format("/e hi"))
+	end
+	return "Filter", "Reset"
 end)
 
 cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
@@ -6004,6 +6051,165 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	local setReadOnly = setreadonly or (
 		make_writeable and function(t, readOnly)
+			if readOnly then make_readonly(t) else make_writeable(t) end
+		end
+	)
+
+	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then
+		DoNotif("Required exploit functions not available", 3)
+		return
+	end
+
+	local meta = getRawMetatable(game)
+	if not meta then
+		DoNotif("Failed to get game metatable", 3)
+		return
+	end
+
+	local player = SafeGetService("Players").LocalPlayer
+	if not player then
+		DoNotif("LocalPlayer not found", 3)
+		return
+	end
+
+	_G.__antikick = {
+		oldNamecall = meta.__namecall,
+		oldIndex = meta.__index,
+		oldNewIndex = meta.__newindex
+	}
+
+	for _, Kick in next, { player.Kick, player.kick } do
+		local originalKick
+		originalKick = hookfunction(Kick, newcclosure(function(...)
+			local args = {...}
+			local msg = tostring(args[1] or "No message")
+			DoNotif("Kick call blocked (hooked): "..msg, 3)
+		end))
+	end
+
+	setReadOnly(meta, false)
+
+	meta.__namecall = newcclosure(function(self, ...)
+		if self == player and getnamecallmethod():lower() == "kick" then
+			local args = {...}
+			local msg = tostring(args[1] or "No message")
+			DoNotif("Kick attempt blocked (__namecall): "..msg, 3)
+			return
+		end
+		return _G.__antikick.oldNamecall(self, ...)
+	end)
+
+	meta.__index = newcclosure(function(self, key)
+		if self == player then
+			local lowered = tostring(key):lower()
+			if lowered:find("kick") or lowered:find("destroy") or lowered:find("break") then
+				DoNotif("Blocked access to suspicious key: "..key, 3)
+				return function() DoNotif("Blocked execution of: "..key, 3) end
+			end
+		end
+		return _G.__antikick.oldIndex(self, key)
+	end)
+
+	meta.__newindex = newcclosure(function(self, key, value)
+		if self == player then
+			local lowered = tostring(key):lower()
+			if lowered:find("kick") or lowered:find("destroy") then
+				DoNotif("Blocked overwrite of "..key, 2)
+				return
+			end
+		end
+		return _G.__antikick.oldNewIndex(self, key, value)
+	end)
+
+	setReadOnly(meta, true)
+
+	DoNotif("Anti-Kick Enabled (All kicks blocked)", 2)
+end)
+
+cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, blocktp)", "Prevents TeleportService from moving you to another place"}, function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (
+		make_writeable and function(t, readOnly)
+			if readOnly then make_readonly(t) else make_writeable(t) end
+		end
+	)
+
+	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction or not hookmetamethod then
+		DoNotif("Required exploit functions not available", 3)
+		return
+	end
+
+	local TeleportService = SafeGetService("TeleportService")
+	if not TeleportService then
+		DoNotif("TeleportService not found", 3)
+		return
+	end
+
+	_G.__antiteleport = {
+		oldNamecall = getRawMetatable(game).__namecall,
+		oldIndex = getRawMetatable(game).__index,
+		oldNewIndex = getRawMetatable(game).__newindex
+	}
+
+	for _, tpFunc in next, {
+		TeleportService.Teleport,
+		TeleportService.TeleportToPlaceInstance,
+		TeleportService.TeleportAsync,
+		TeleportService.TeleportPartyAsync,
+		getrenv().TeleportToPrivateServer
+	} do
+		if typeof(tpFunc) == "function" then
+			hookfunction(tpFunc, newcclosure(function(...)
+				DoNotif("Teleport blocked (hooked)", 3)
+				return
+			end))
+		end
+	end
+
+	local meta = getRawMetatable(game)
+
+	setReadOnly(meta, false)
+
+	meta.__namecall = newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if typeof(method) == "string" and method:lower():find("teleport") then
+			DoNotif("Teleport blocked (__namecall): "..method, 3)
+			return
+		end
+		return _G.__antiteleport.oldNamecall(self, ...)
+	end)
+
+	meta.__index = newcclosure(function(self, key)
+		if self == TeleportService then
+			local lowered = tostring(key):lower()
+			if lowered:find("teleport") then
+				DoNotif("Blocked access to teleport method: "..key, 3)
+				return function() DoNotif("Blocked execution of: "..key, 3) end
+			end
+		end
+		return _G.__antiteleport.oldIndex(self, key)
+	end)
+
+	meta.__newindex = newcclosure(function(self, key, value)
+		if self == TeleportService then
+			local lowered = tostring(key):lower()
+			if lowered:find("teleport") then
+				DoNotif("Blocked overwrite of teleport method: "..key, 2)
+				return
+			end
+		end
+		return _G.__antiteleport.oldNewIndex(self, key, value)
+	end)
+
+	setReadOnly(meta, true)
+
+	DoNotif("Anti-Teleport Enabled", 2)
+end)
+
+cmd.add({"unantikick", "unnokick", "unbypasskick", "unbk"}, {"unantikick", "Disables Anti-Kick protection"}, function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (
+		make_writeable and function(t, readOnly)
 			if readOnly then
 				make_readonly(t)
 			else
@@ -6012,83 +6218,50 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		end
 	)
 
-	if not getRawMetatable or not setReadOnly or not newcclosure then
-		DoNotif("Required metatable functions are not available", 3)
+	local meta = getRawMetatable(game)
+	if not meta or not _G.__antikick then
+		DoNotif("Anti-Kick not active or missing references", 3)
 		return
 	end
+
+	setReadOnly(meta, false)
+	meta.__namecall = _G.__antikick.oldNamecall
+	meta.__index = _G.__antikick.oldIndex
+	meta.__newindex = _G.__antikick.oldNewIndex
+	setReadOnly(meta, true)
+
+	_G.__antikick = nil
+
+	DoNotif("Anti-Kick Disabled", 2)
+end)
+
+cmd.add({"unantiteleport", "unnoteleport", "unblocktp"}, {"unantiteleport", "Disables Anti-Teleport protection"}, function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (
+		make_writeable and function(t, readOnly)
+			if readOnly then
+				make_readonly(t)
+			else
+				make_writeable(t)
+			end
+		end
+	)
 
 	local meta = getRawMetatable(game)
-	if not meta then
-		DoNotif("Failed to get the metatable of the game object", 3)
+	if not meta or not _G.__antiteleport then
+		DoNotif("Anti-Teleport not active or missing references", 3)
 		return
 	end
 
-	local player = SafeGetService("Players").LocalPlayer
+	setReadOnly(meta, false)
+	meta.__namecall = _G.__antiteleport.oldNamecall
+	meta.__index = _G.__antiteleport.oldIndex
+	meta.__newindex = _G.__antiteleport.oldNewIndex
+	setReadOnly(meta, true)
 
-	local function applyAntiKick(mode)
-		local oldNamecall = meta.__namecall
-		local oldIndex = meta.__index
-		local oldNewIndex = meta.__newindex
+	_G.__antiteleport = nil
 
-		setReadOnly(meta, false)
-
-		meta.__namecall = newcclosure(function(self, ...)
-			local method = getnamecallmethod()
-			if method and self == player then
-				local m = method:lower()
-				if m == "kick" then
-					if mode == "fake" then
-						DoNotif("Kick intercepted (Fake Success)",2)
-						return true
-					else
-						DoNotif("Kick attempt blocked (Error)",2)
-						return
-					end
-				elseif m == "destroy" then
-					DoNotif("Destroy attempt blocked",2)
-					return
-				end
-			end
-			return oldNamecall(self, ...)
-		end)
-
-		meta.__index = newcclosure(function(self, key)
-			if self == player then
-				if key == "Kick" then
-					DoNotif("Access to Kick blocked",2)
-					return function() end
-				elseif key == "Destroy" then
-					DoNotif("Access to Destroy blocked",2)
-					return function() end
-				end
-			end
-			return oldIndex(self, key)
-		end)
-
-		meta.__newindex = newcclosure(function(self, key, value)
-			if self == player and (key == "Kick" or key == "Destroy") then
-				DoNotif("Attempt to overwrite "..key.." blocked",2)
-				return
-			end
-			return oldNewIndex(self, key, value)
-		end)
-
-		setReadOnly(meta, true)
-		DoNotif("Anti-Kick Enabled: Mode - "..(mode == "fake" and "Fake Success" or "Error"),2)
-	end
-
-	Window({
-		Title = "Anti-Kick Mode Selection",
-		Description = "Choose how kick attempts should be handled.",
-		Buttons = {
-			{Text = "Fake Success", Callback = function()
-				applyAntiKick("fake")
-			end},
-			{Text = "Error", Callback = function()
-				applyAntiKick("error")
-			end}
-		}
-	})
+	DoNotif("Anti-Teleport Disabled", 2)
 end)
 
 acftpCON = {}
@@ -8088,7 +8261,7 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 end)
 
 if askndnijewfijewongf~=zmxcnsaodakscn then
-	uhefwewufjodwcijdscsauasd = "aWYgc2V0Y2xpcGJvYXJkIHRoZW4KCQkJc2V0Y2xpcGJvYXJkKFtbbG9hZHN0cmluZyhnYW1lOkh0dHBHZXQoImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9sdHNldmVyeWRheXlvdS9OYW1lbGVzcy1BZG1pbi9tYWluL1NvdXJjZS5sdWEiKSkoKTtdXSkKCQllbmQKCQl0YXNrLnNwYXduKGZ1bmN0aW9uKCkgZ2FtZTpHZXRTZXJ2aWNlKCJQbGF5ZXJzIikuTG9jYWxQbGF5ZXI6S2ljayhbW3ZlcnNpb24gbWlzc21hdGNoIHBsZWFzZSB1c2UgdGhlIG9yaWdpbmFsIE5hbWVsZXNzIEFkbWluIHNvdXJjZV1dKSBlbmQpIHRhc2sud2FpdCgxKSB3aGlsZSB0cnVlIGRvIGVuZA=="
+	uhefwewufjodwcijdscsauasd = [[DSh+f,nTG$I)I^XiuM=Cq/"@gC%M7Lpoi5(IN:%N2$>+lEFg*ibg2+DZM%Z%xEZk6l_1.yFZ,$n0KFBMl5VKR[9`aIEv*.Zkm5!fW*pT<R>xl.`otoW3)*1;eI(/e95p)z9Kt)b13$)&!Oqm?in<R[4G6!Y64^jmjaU=t60eM%10Evap#GLaWc.!k9Q6HXQDPO$JmJ>y1BFv;mdQZuH<!=6i6U<xhQQn%X4Dw.Z;;RPKqxfd)z^g^*VvAGe!wP!j$2wZqgG{s!m!xwXikPG3]0RT@SSmw,9j$2,<8==/x#h.FQ_o2X=CY<=Hb%zt]m9j44!f,W#Ny#V6JQKm(nFfe,ueb%6t?vqmxoh+i>;Nt!fpgPcLtoef4WQIb%a%sQFl,X;a4W5vwS60nuWogP=Cf><clTy]]
 	oioji32eipqpaofvofsiv = randomahhfunctionthatyouwontgetit(uhefwewufjodwcijdscsauasd)
 	return loadstring(oioji32eipqpaofvofsiv)()
 end
@@ -10512,6 +10685,11 @@ end)
 cmd.add({"night"},{"night","Makes it night"},function()
 	Lighting.ClockTime=0
 end)
+
+cmd.add({"time"}, {"time <number>", "Sets the time"}, function(...)
+	local time = {...}
+	if time then Lighting.ClockTime = time[1] end
+end, true)
 
 cmd.add({"chat", "message"}, {"chat <text> (message)", "Chats for you, useful if you're muted"}, function(...)
 	local chatMessage = Concat({...}, " ")
@@ -15937,6 +16115,45 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	end)
 end)
 
+cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using available methods. Usage: setsimradius <radius>"},function(...)
+        local r = tonumber(...)
+        if not r then
+            return DoNotif("Invalid input. Usage: setsimradius <number>")
+        end
+
+        local ok = false
+
+        if setsimulationradius then
+            pcall(function()
+                setsimulationradius(r)
+                ok = true
+                DoNotif("SimRadius set with setsimulationradius: "..r)
+            end)
+        end
+
+        if not ok and sethiddenproperty then
+            if pcall(function()
+                sethiddenproperty(LocalPlayer, "SimulationRadius", r)
+            end) then
+                ok = true
+                DoNotif("SimRadius set with sethiddenproperty: "..r)
+            end
+        end
+
+        if not ok then
+            if pcall(function()
+                LocalPlayer.SimulationRadius = r
+            end) then
+                ok = true
+                DoNotif("SimRadius set directly: "..r)
+            end
+        end
+
+        if not ok then
+            DoNotif("No supported method to set sim radius.")
+        end
+end,true)
+
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
 	Wait()
 	DoNotif("Infinite Jump Enabled", 2)
@@ -18553,14 +18770,28 @@ gui.loadCommands = function()
 			usageText = info[1]
 
 			local aliasesList = {}
-			for alias, aliasData in pairs(Aliases) do
-				if aliasData == cmdData then
+			for alias, aliasCmdData in pairs(Aliases) do
+				if aliasCmdData == cmdData or Commands[alias] == cmdData then
 					Insert(aliasesList, alias)
 				end
 			end
 
-			if #aliasesList > 0 and not usageText:find("%b()") then
-				usageText = usageText.." ("..Concat(aliasesList, ", ")..")"
+			if #aliasesList > 0 then
+				local alreadyListed = {}
+				for word in usageText:gmatch("%w+") do
+					alreadyListed[word:lower()] = true
+				end
+
+				local missingAliases = {}
+				for _, alias in ipairs(aliasesList) do
+					if not alreadyListed[alias:lower()] then
+						Insert(missingAliases, alias)
+					end
+				end
+
+				if #missingAliases > 0 then
+					usageText = usageText.." ("..Concat(missingAliases, ", ")..")"
+				end
 			end
 		end
 
@@ -18647,23 +18878,38 @@ gui.barDeselect = function(speed)
 end
 
 --[[ AUTOFILL SEARCHER ]]--
-function getUpdatedCommandText(cmdName, command)
-	local displayInfo = command and command[2] and command[2][1] or ""
-	local updatedText = displayInfo
+function fixStupidSearchGoober(cmdName, command)
+	local dInfo = command and command[2] and command[2][1] or ""
+	local func = command and command[1]
 
-	local extraAliases = {}
-	local baseFunc = command and command[1]
-	for alias, aliasData in pairs(Aliases) do
-		if aliasData[1] == baseFunc then
-			Insert(extraAliases, Lower(alias))
+	local aliasSet = {}
+	for alias, data in pairs(Aliases) do
+		if data[1] == func then
+			aliasSet[Lower(alias)] = true
 		end
 	end
 
-	if #extraAliases > 0 and not Find(updatedText, "%b()") then
-		updatedText = updatedText.." ("..Concat(extraAliases, ", ")..")"
+	local main = dInfo:match("^%w+")
+	for alias in dInfo:gmatch("%((.-)%)") do
+		for a in alias:gmatch("[^,%s]+") do
+			aliasSet[Lower(a)] = true
+		end
 	end
 
-	return updatedText, extraAliases
+	local final = {}
+	for alias in pairs(aliasSet) do
+		if alias ~= Lower(main) then
+			Insert(final, alias)
+		end
+	end
+	table.sort(final)
+
+	local updTxt = main
+	if #final > 0 then
+		updTxt = updTxt.." ("..Concat(final, ", ")..")"
+	end
+
+	return updTxt, final
 end
 
 searchedSEARCH=false
@@ -18707,7 +18953,7 @@ gui.searchCommands = function()
 		for _, frame in ipairs(CMDAUTOFILL) do
 			local cmdName = Lower(frame.Name)
 			local command = Commands[cmdName]
-			local updatedText, extraAliases = getUpdatedCommandText(cmdName, command)
+			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
 
 			if frame:FindFirstChildWhichIsA("TextLabel") then
 				frame:FindFirstChildWhichIsA("TextLabel").Text = updatedText
@@ -18921,7 +19167,7 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 			local cmdName = Lower(label.Name)
 			local command = Commands[cmdName]
 			local displayInfo = command and command[2] and command[2][1] or ""
-			local updatedText, extraAliases = getUpdatedCommandText(cmdName, command)
+			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
 
 			local searchableInfo = Lower(displayInfo)
 			searchableInfo = GSub(searchableInfo, "<[^>]+>", "")
@@ -19286,7 +19532,7 @@ function updateCanvasSize(frame, scale)
 	end
 end
 
-RunService.Stepped:Connect(function()
+RunService.RenderStepped:Connect(function()
 	if chatLogs then updateCanvasSize(chatLogs, AUTOSCALER.Scale) end
 	if NAconsoleLogs then updateCanvasSize(NAconsoleLogs, AUTOSCALER.Scale) end
 	if commandsList then updateCanvasSize(commandsList, AUTOSCALER.Scale) end
@@ -19355,7 +19601,7 @@ local UIStroke = InstanceNew("UIStroke")
 local TextButton
 local UICorner2 = InstanceNew("UICorner")
 
-NAICONASSET = getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Icon) or nil
+NAICONASSET = (getcustomasset and (isAprilFools() and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil
 
 if NAICONASSET then
     TextButton = InstanceNew("ImageButton")
@@ -19366,7 +19612,7 @@ else
     TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
     TextButton.TextSize = 22
     if isAprilFools() then
-        cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX", ""}
+        cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX" }
         TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
     else
         TextButton.Text = "NA"
