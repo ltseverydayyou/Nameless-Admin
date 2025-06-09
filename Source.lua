@@ -15693,9 +15693,26 @@ cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera t
 	end
 end)
 
-cmd.add({"console", "debug"},{"console (debug)","Opens developer console"},function()
-	--SafeGetService("StarterGui"):SetCore("DevConsoleVisible",true)
-	gui.consoleeee()
+cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, function()
+	local consoleButtons = {
+		{
+			Text = "Roblox Console",
+			Callback = function()
+				SafeGetService("StarterGui"):SetCore("DevConsoleVisible", true)
+			end
+		},
+		{
+			Text = "Custom Console",
+			Callback = function()
+				gui.consoleeee()
+			end
+		}
+	}
+
+	Window({
+		Title = "Select Console",
+		Buttons = consoleButtons
+	})
 end)
 
 local ogSizes = {}
