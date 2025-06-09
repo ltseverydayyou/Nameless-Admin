@@ -18889,24 +18889,32 @@ function fixStupidSearchGoober(cmdName, command)
 		end
 	end
 
-	local main = dInfo:match("^%w+")
-	for alias in dInfo:gmatch("%((.-)%)") do
-		for a in alias:gmatch("[^,%s]+") do
+	local main = cmdName and Lower(cmdName)
+	local existingAliases = {}
+	local prefix, aliasBlock = dInfo:match("^(.-)%s*%((.-)%)$")
+
+	if aliasBlock then
+		for a in aliasBlock:gmatch("[^,%s]+") do
 			aliasSet[Lower(a)] = true
 		end
 	end
 
 	local final = {}
 	for alias in pairs(aliasSet) do
-		if alias ~= Lower(main) then
+		if alias ~= main then
 			Insert(final, alias)
 		end
 	end
 	table.sort(final)
 
-	local updTxt = main
-	if #final > 0 then
-		updTxt = updTxt.." ("..Concat(final, ", ")..")"
+	local updTxt
+	if prefix then
+		updTxt = prefix.." ("..Concat(final, ", ")..")"
+	else
+		updTxt = dInfo
+		if #final > 0 then
+			updTxt = updTxt.." ("..Concat(final, ", ")..")"
+		end
 	end
 
 	return updTxt, final
