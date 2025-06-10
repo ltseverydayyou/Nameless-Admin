@@ -20,7 +20,7 @@
 
 if getgenv().RealNamelessLoaded then return end
 
-function NACaller(pp)--helps me log better
+local function NACaller(pp)--helps me log better
 	local NAsss,NAerr=pcall(pp)
 	if not NAsss then warn("NA script error: "..NAerr) end
 end
@@ -40,7 +40,6 @@ end
 
 local HttpService=SafeGetService('HttpService');
 local Lower = string.lower;
-local Split = string.split;
 local Sub = string.sub;
 local GSub = string.gsub;
 local Find = string.find;
@@ -57,6 +56,7 @@ local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local NAjson = nil
 local cmd={}
+local NAmanage={}
 local NAImageAssets = {
 	Icon = "NAnew.png";
 	sWare = "ScriptWare.png";
@@ -71,12 +71,18 @@ local NAImageAssets = {
 	rt = "SkyRt.png";
 	up = "SkyUp.png";
 }
+local prefixCheck = ";"
+local NAScale = 1
+local NAUIScale = 1
 NASESSIONSTARTEDIDK = os.clock()
 lib={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
+NAQoTEnabled = nil
+NAiconSaveEnabled = nil
+NAUISTROKER = Color3.fromRGB(148, 93, 255)
 
-NACaller(function() repeat Wait() NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) until NAjson~=nil end)
+NACaller(function() while not NAjson do Wait(.1) NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) end end)
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -96,7 +102,7 @@ function MockText(text)
 			local transformed = toggle and char:upper() or char:lower()
 			toggle = not toggle
 
-			if math.random() < 0.5 then
+			if math.random() < 0.15 then
 				local glitch = glitchChars[math.random(#glitchChars)]
 				transformed = transformed..glitch
 			end
@@ -184,9 +190,9 @@ function NaProtectUI(sGui)
 		NAProtection(sGui)
 		sGui.Parent = cGUI
 		return sGui
-	elseif lPlr and lPlr:FindFirstChild("PlayerGui") then
+	elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
 		NAProtection(sGui)
-		sGui.Parent = lPlr:FindFirstChild("PlayerGui")
+		sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
 		sGui.ResetOnSpawn = false
 		return sGui
 	else
@@ -194,7 +200,7 @@ function NaProtectUI(sGui)
 	end
 end
 
-function guiCHECKINGAHHHHH()
+NAmanage.guiCHECKINGAHHHHH=function()
 	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
@@ -322,8 +328,7 @@ end
 
 if not gethui then
 	getgenv().gethui=function()
-		local h=(SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or Players.LocalPlayer:FindFirstChild("PlayerGui"))
-		return h
+		return NAmanage.guiCHECKINGAHHHHH()
 	end
 end
 
@@ -346,39 +351,42 @@ if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not firep
 	end
 end
 
-NA_storage=InstanceNew("ScreenGui")--Stupid Ahh script removing folders
-
 if not game:IsLoaded() then
 	local message = InstanceNew("Message")
 	message.Text = adminName.." is waiting for the game to load"
 	NaProtectUI(message)
 	game.Loaded:Wait()
 
-	repeat Wait() until SafeGetService("Players").LocalPlayer
+	repeat Wait(.1) until SafeGetService("Players").LocalPlayer
 	message:Destroy()
 end
 
-local githubUrl = ''
-local loader=''
-local NAUILOADER=''
-local NAAUTOSCALER=nil
 local JoinLeaveConfig = {
 	JoinLog = false;
 	LeaveLog = false;
 	SaveLog = false;
 }
+local opt={
+	prefix=prefixCheck;
+	NAupdDate='unknown'; --month,day,year
+	githubUrl = '';
+	loader='';
+	NAUILOADER='';
+	NAAUTOSCALER=nil;
+	NA_storage=InstanceNew("ScreenGui");--Stupid Ahh script removing folders
+	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
+	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
+}
 
 if getgenv().NATestingVer then
-	loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))();]]
-	githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
-	NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
+	opt.loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))();]]
+	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
+	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
 else
-	loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();]]
-	githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
-	NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
+	opt.loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();]]
+	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
+	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
 end
-
-local queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end
 
 --Notification library
 local Notification
@@ -417,22 +425,24 @@ end
 --Custom file functions checker checker
 local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder
-NAFILEPATH = "Nameless-Admin"
-NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints"
-NAPLUGINFILEPATH = "Nameless-Admin/Plugins"
-NAASSETSFILEPATH = "Nameless-Admin/Assets"
-NAPREFIXPATH = "Nameless-Admin/Prefix.txt"
-NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt"
-NAUISIZEPATH = "Nameless-Admin/UIScale.txt"
-NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt"
-NAALIASPATH = "Nameless-Admin/Aliases.json"
-NAICONPOSPATH = "Nameless-Admin/IconPosition.json"
-NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json"
-NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json"
-NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt"
-NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt"
-NAJOINLEAVE = "Nameless-Admin/JoinLeave.json"
-NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt"
+local NAfiles = {
+	NAFILEPATH = "Nameless-Admin";
+	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
+	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
+	NAASSETSFILEPATH = "Nameless-Admin/Assets";
+	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
+	NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt";
+	NAUISIZEPATH = "Nameless-Admin/UIScale.txt";
+	NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt";
+	NAALIASPATH = "Nameless-Admin/Aliases.json";
+	NAICONPOSPATH = "Nameless-Admin/IconPosition.json";
+	NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json";
+	NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json";
+	NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt";
+	NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt";
+	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
+	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
+}
 NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
@@ -440,86 +450,78 @@ doPREDICTION = true
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
-	if not isfolder(NAFILEPATH) then
-		makefolder(NAFILEPATH)
+	if not isfolder(NAfiles.NAFILEPATH) then
+		makefolder(NAfiles.NAFILEPATH)
 	end
 
-	if not isfolder(NAWAYPOINTFILEPATH) then
-		makefolder(NAWAYPOINTFILEPATH)
+	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+		makefolder(NAfiles.NAWAYPOINTFILEPATH)
 	end
 
-	if not isfolder(NAPLUGINFILEPATH) then
-		makefolder(NAPLUGINFILEPATH)
+	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
+		makefolder(NAfiles.NAPLUGINFILEPATH)
 	end
 
-	if not isfolder(NAASSETSFILEPATH) then
-		makefolder(NAASSETSFILEPATH)
+	if not isfolder(NAfiles.NAASSETSFILEPATH) then
+		makefolder(NAfiles.NAASSETSFILEPATH)
 	end
 
-	if not isfile(NAPREFIXPATH) then
-		writefile(NAPREFIXPATH, ";")
+	if not isfile(NAfiles.NAPREFIXPATH) then
+		writefile(NAfiles.NAPREFIXPATH, ";")
 	end
 
-	if not isfile(NABUTTONSIZEPATH) then
-		writefile(NABUTTONSIZEPATH, "1")
+	if not isfile(NAfiles.NABUTTONSIZEPATH) then
+		writefile(NAfiles.NABUTTONSIZEPATH, "1")
 	end
 
-	if not isfile(NAUISIZEPATH) then
-		writefile(NAUISIZEPATH, "1")
+	if not isfile(NAfiles.NAUISIZEPATH) then
+		writefile(NAfiles.NAUISIZEPATH, "1")
 	end
 
-	if not isfile(NAQOTPATH) then
-		writefile(NAQOTPATH, "false")
+	if not isfile(NAfiles.NAQOTPATH) then
+		writefile(NAfiles.NAQOTPATH, "false")
 	end
 
-	if not isfile(NAALIASPATH) then
-		writefile(NAALIASPATH, "{}")
+	if not isfile(NAfiles.NAALIASPATH) then
+		writefile(NAfiles.NAALIASPATH, "{}")
 	end
 
-	if not isfile(NAICONPOSPATH) then
-		writefile(NAICONPOSPATH, HttpService:JSONEncode({
+	if not isfile(NAfiles.NAICONPOSPATH) then
+		writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
 			X = 0.5,
 			Y = 0.1,
 			Save = false
 		}))
 	end
 
-	if not isfile(NAUSERBUTTONSPATH) then
-		writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+	if not isfile(NAfiles.NAUSERBUTTONSPATH) then
+		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
 	end
 
-	if not isfile(NAAUTOEXECPATH) then
-		writefile(NAAUTOEXECPATH, "[]")
+	if not isfile(NAfiles.NAAUTOEXECPATH) then
+		writefile(NAfiles.NAAUTOEXECPATH, "[]")
 	end
 
-	if not isfile(NAPREDICTIONPATH) then
-		writefile(NAPREDICTIONPATH, "true")
+	if not isfile(NAfiles.NAPREDICTIONPATH) then
+		writefile(NAfiles.NAPREDICTIONPATH, "true")
 	end
 
-	if not isfile(NASTROKETHINGY) then
-		writefile(NASTROKETHINGY, HttpService:JSONEncode({
+	if not isfile(NAfiles.NASTROKETHINGY) then
+		writefile(NAfiles.NASTROKETHINGY, HttpService:JSONEncode({
 			R = 148 / 255,
 			G = 93 / 255,
 			B = 255 / 255
 		}))
 	end
 
-	if not isfile(NAJOINLEAVE) then
-		writefile(NAJOINLEAVE, HttpService:JSONEncode({
+	if not isfile(NAfiles.NAJOINLEAVE) then
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
 			JoinLog = false;
 			LeaveLog = false;
 			SaveLog = false;
 		}))
 	end
 end
-
-local prefixCheck = ";"
-local NAScale = 1
-local NAUIScale = 1
-NAQoTEnabled = nil
-NAiconSaveEnabled = nil
-NAUISTROKER = Color3.fromRGB(148, 93, 255)
-NAREQUEST = request or http_request or (syn and syn.request) or function() end
 
 function InitUIStroke(path)
 	local defaultColor = Color3.fromRGB(148, 93, 255)
@@ -550,12 +552,12 @@ function InitUIStroke(path)
 end
 
 if FileSupport then
-	prefixCheck = readfile(NAPREFIXPATH)
-	NAsavedScale = tonumber(readfile(NABUTTONSIZEPATH))
-	NAUISavedScale = tonumber(readfile(NAUISIZEPATH))
-	NAQoTEnabled = readfile(NAQOTPATH) == "true"
-	doPREDICTION = readfile(NAPREDICTIONPATH) == "true"
-	NAUISTROKER = InitUIStroke(NASTROKETHINGY)
+	prefixCheck = readfile(NAfiles.NAPREFIXPATH)
+	NAsavedScale = tonumber(readfile(NAfiles.NABUTTONSIZEPATH))
+	NAUISavedScale = tonumber(readfile(NAfiles.NAUISIZEPATH))
+	NAQoTEnabled = readfile(NAfiles.NAQOTPATH) == "true"
+	doPREDICTION = readfile(NAfiles.NAPREDICTIONPATH) == "true"
+	NAUISTROKER = InitUIStroke(NAfiles.NASTROKETHINGY)
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -563,7 +565,7 @@ if FileSupport then
 		or prefixCheck:match("&quot;") or prefixCheck:match("&#x27;") or prefixCheck:match("&#x60;") then
 
 		prefixCheck = ";"
-		writefile(NAPREFIXPATH, ";")
+		writefile(NAfiles.NAPREFIXPATH, ";")
 		DoNotif("Your prefix has been reset to the default (;) due to invalid symbol.")
 	end
 
@@ -571,7 +573,7 @@ if FileSupport then
 		NAScale = NAsavedScale
 	else
 		NAScale = 1
-		writefile(NABUTTONSIZEPATH, "1")
+		writefile(NAfiles.NABUTTONSIZEPATH, "1")
 		DoNotif("ImageButton size has been reset to default due to invalid data.")
 	end
 
@@ -579,13 +581,13 @@ if FileSupport then
 		NAUIScale = NAUISavedScale
 	else
 		NAUIScale = 1
-		writefile(NAUISIZEPATH, "1")
+		writefile(NAfiles.NAUISIZEPATH, "1")
 		DoNotif("UI Scale has been reset to default due to invalid data.")
 	end
 
-	if isfile(NAJOINLEAVE) then
+	if isfile(NAfiles.NAJOINLEAVE) then
 		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAJOINLEAVE))
+			return HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
 		end)
 
 		if success and type(data) == "table" then
@@ -593,9 +595,9 @@ if FileSupport then
 		end
 	end
 
-	if isfile(NAICONPOSPATH) then
+	if isfile(NAfiles.NAICONPOSPATH) then
 		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAICONPOSPATH))
+			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
 		end)
 		if success and data then
 			if data.Save ~= nil then
@@ -618,27 +620,13 @@ else
 	DoNotif("Your exploit does not support read/write file")
 end
 
---[[ PREFIX AND OTHER STUFF. ]]--
-local opt={
-	prefix=prefixCheck,
-	tupleSeparator=',',
-	ui={},
-	keybinds={},
-}
+opt.prefix = prefixCheck
 
 local lastPrefix = opt.prefix
 
---[[ Update Logs ]]--
-NAupdLogs = {
-	log1='updlogs have been abandoned for now';
-	log2='join the discord using the command "Discord" to view the update logs';
-}
-
-NAupdDate="unknown" --month,day,year
-
 NACaller(function()
-	local response = NAREQUEST({
-		Url = githubUrl,
+	local response = opt.NAREQUEST({
+		Url = opt.githubUrl,
 		Method = "GET"
 	})
 
@@ -646,7 +634,7 @@ NACaller(function()
 		local json = HttpService:JSONDecode(response.Body)
 		if json and json[1] and json[1].commit and json[1].commit.author and json[1].commit.author.date then
 			local year, month, day = json[1].commit.author.date:match("(%d+)-(%d+)-(%d+)")
-			NAupdDate = month.."/"..day.."/"..year
+			opt.NAupdDate = month.."/"..day.."/"..year
 		end
 	end
 end)
@@ -657,7 +645,7 @@ NACaller(function()
 
 	local baseURL = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"
 	for _, fileName in pairs(NAImageAssets) do
-		local fullPath = NAASSETSFILEPATH.."/"..fileName
+		local fullPath = NAfiles.NAASSETSFILEPATH.."/"..fileName
 		if not isfile(fullPath) then
 			local success, data = pcall(function()
 				return game:HttpGet(baseURL..fileName)
@@ -740,10 +728,13 @@ LocalPlayer=Player
 local character=Player.Character
 local mouse=localPlayer:GetMouse()
 local camera=SafeGetService("Workspace").CurrentCamera
-local Commands,Aliases={},{}
 local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
 local ctrlModule = nil
-NASAVEDALIASES = {}
+local cmds={
+	Commands={};
+	Aliases={};
+	NASAVEDALIASES = {};
+}
 
 Spawn(function()
 	NACaller(function()
@@ -913,9 +904,9 @@ function didYouMean(input)
 		end
 	end
 
-	cc(Commands)
-	cc(Aliases)
-	cc(NASAVEDALIASES)
+	cc(cmds.Commands)
+	cc(cmds.Aliases)
+	cc(cmds.NASAVEDALIASES)
 
 	return bestMatch
 end
@@ -1054,11 +1045,11 @@ function loadedResults(res)
 end
 
 LocalPlayer.OnTeleport:Connect(function(...)
-	if NAQoTEnabled and queueteleport then
-		queueteleport(loader)
+	if NAQoTEnabled and opt.queueteleport then
+		opt.queueteleport(opt.loader)
 	end
 	if isAprilFools() then
-		queueteleport("getgenv().ActivateAprilMode=true")
+		opt.queueteleport("getgenv().ActivateAprilMode=true")
 	end
 end)
 
@@ -1071,9 +1062,9 @@ cmd.add = function(aliases, info, func, requiresArguments)
 
 	for i, cmdName in pairs(aliases) do
 		if i == 1 then
-			Commands[cmdName:lower()] = data
+			cmds.Commands[cmdName:lower()] = data
 		else
-			Aliases[cmdName:lower()] = data
+			cmds.Aliases[cmdName:lower()] = data
 		end
 	end
 
@@ -1085,14 +1076,14 @@ cmd.run = function(args)
 	table.remove(args, 1)
 
 	local success, msg = pcall(function()
-		local command = Commands[caller:lower()] or Aliases[caller:lower()]
+		local command = cmds.Commands[caller:lower()] or cmds.Aliases[caller:lower()]
 		if command then
 			command[1](unpack(arguments))
 		else
 			local closest = didYouMean(caller:lower())
 			if closest and doPREDICTION then
-				local commandFunc = Commands[closest] and Commands[closest][1] or Aliases[closest] and Aliases[closest][1]
-				local requiresInput = Commands[closest] and Commands[closest][3] or Aliases[closest] and Aliases[closest][3]
+				local commandFunc = cmds.Commands[closest] and cmds.Commands[closest][1] or cmds.Aliases[closest] and cmds.Aliases[closest][1]
+				local requiresInput = cmds.Commands[closest] and cmds.Commands[closest][3] or cmds.Aliases[closest] and cmds.Aliases[closest][3]
 
 				if requiresInput then
 					Window({
@@ -1135,7 +1126,7 @@ cmd.run = function(args)
 end
 
 cmd.loop = function(commandName, args)
-	local command = Commands[commandName:lower()] or Aliases[commandName:lower()]
+	local command = cmds.Commands[commandName:lower()] or cmds.Aliases[commandName:lower()]
 	if not command then
 		DoNotif("Command '"..commandName.."' does not exist.", 3)
 		return
@@ -1232,7 +1223,7 @@ cmd.stopLoop = function()
 end
 
 --[[ Fully setup Nameless admin storage ]]
-NaProtectUI(NA_storage)
+NaProtectUI(opt.NA_storage)
 
 --[[ LIBRARY FUNCTIONS ]]--
 lib.wrap=function(f)
@@ -2242,10 +2233,10 @@ function sFLY(vfly, cfly)
 	end
 end
 
-function readAliasFile()
-	if FileSupport and isfile(NAALIASPATH) then
+NAmanage.readAliasFile = function()
+	if FileSupport and isfile(NAfiles.NAALIASPATH) then
 		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAALIASPATH))
+			return HttpService:JSONDecode(readfile(NAfiles.NAALIASPATH))
 		end)
 		if success and type(data) == "table" then
 			return data
@@ -2254,21 +2245,21 @@ function readAliasFile()
 	return {}
 end
 
-function loadAliases()
-	local aliasMap = readAliasFile()
+NAmanage.loadAliases = function()
+	local aliasMap = NAmanage.readAliasFile()
 	for alias, original in pairs(aliasMap) do
-		if Commands[original:lower()] then
-			local command = Commands[original:lower()]
-			Aliases[alias:lower()] = {command[1], command[2], command[3]}
-			NASAVEDALIASES[alias:lower()] = true
+		if cmds.Commands[original:lower()] then
+			local command = cmds.Commands[original:lower()]
+			cmds.Aliases[alias:lower()] = {command[1], command[2], command[3]}
+			cmds.NASAVEDALIASES[alias:lower()] = true
 		end
 	end
 end
 
-function loadButtonIDS()
-	if FileSupport and isfile(NAUSERBUTTONSPATH) then
+NAmanage.loadButtonIDS = function()
+	if FileSupport and isfile(NAfiles.NAUSERBUTTONSPATH) then
 		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAUSERBUTTONSPATH))
+			return HttpService:JSONDecode(readfile(NAfiles.NAUSERBUTTONSPATH))
 		end)
 		if success and type(data) == "table" then
 			NAUserButtons = data
@@ -2276,12 +2267,12 @@ function loadButtonIDS()
 	end
 end
 
-function loadAutoExec()
+NAmanage.loadAutoExec = function()
 	NAEXECDATA = {commands = {}, args = {}}
 
-	if FileSupport and isfile(NAAUTOEXECPATH) then
+	if FileSupport and isfile(NAfiles.NAAUTOEXECPATH) then
 		local success, decoded = pcall(function()
-			return HttpService:JSONDecode(readfile(NAAUTOEXECPATH))
+			return HttpService:JSONDecode(readfile(NAfiles.NAAUTOEXECPATH))
 		end)
 		if success and type(decoded) == "table" then
 			NAEXECDATA = decoded
@@ -2296,7 +2287,7 @@ function loadAutoExec()
 	end
 end
 
-local function LoadPlugins()
+NAmanage.LoadPlugins = function()
 	if not CustomFunctionSupport then return end
 
 	local function formatInfo(aliases, argsHint)
@@ -2322,7 +2313,7 @@ local function LoadPlugins()
 
 	local loadedSummaries = {}
 
-	local files = listfiles(NAPLUGINFILEPATH)
+	local files = listfiles(NAfiles.NAPLUGINFILEPATH)
 
 	for _, file in ipairs(files) do
 		if Lower(file):match("%.na$") then
@@ -2406,10 +2397,10 @@ local function LoadPlugins()
 	end
 end
 
-local function LogJoinLeave(message)
+NAmanage.LogJoinLeave = function(message)
 	if not FileSupport or not appendfile or not JoinLeaveConfig.SaveLog then return end
 
-	local logPath = NAJOINLEAVELOG
+	local logPath = NAfiles.NAJOINLEAVELOG
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
 
 	local logMessage = Format(
@@ -2430,7 +2421,7 @@ local function LogJoinLeave(message)
 	end
 end
 
-function RenderUserButtons()
+NAmanage.RenderUserButtons = function()
 	for _, btn in pairs(UserButtonGuiList) do
 		btn:Destroy()
 	end
@@ -2554,7 +2545,7 @@ function RenderUserButtons()
 		SavedArguments[id] = data.Args or {}
 
 		local cmdToRun = data.Cmd1
-		local commandData = Commands[cmdToRun:lower()] or Aliases[cmdToRun:lower()]
+		local commandData = cmds.Commands[cmdToRun:lower()] or cmds.Aliases[cmdToRun:lower()]
 		local requiresArgs = commandData and commandData[3]
 
 		if requiresArgs then
@@ -2575,7 +2566,7 @@ function RenderUserButtons()
 				saveToggle.Text = saveEnabled and "S" or "N"
 				data.RunMode = saveEnabled and "S" or "N"
 				if FileSupport then
-					writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 				end
 			end)
 		end
@@ -2588,7 +2579,7 @@ function RenderUserButtons()
 				cmdToRunNow = data.Cmd2
 			end
 
-			local commandDataNow = Commands[cmdToRunNow:lower()] or Aliases[cmdToRunNow:lower()]
+			local commandDataNow = cmds.Commands[cmdToRunNow:lower()] or cmds.Aliases[cmdToRunNow:lower()]
 			local requiresArgsNow = commandDataNow and commandDataNow[3]
 
 			local function runCommand(parsedArguments)
@@ -2622,7 +2613,7 @@ function RenderUserButtons()
 							SavedArguments[id] = parsedArguments
 							data.Args = parsedArguments
 							if FileSupport then
-								writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 							end
 							runCommand(parsedArguments)
 						else
@@ -2857,31 +2848,31 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 
 	original, alias = original:lower(), alias:lower()
 
-	if not Commands[original] then
+	if not cmds.Commands[original] then
 		DoNotif("Command '"..original.."' does not exist", 2)
 		return
 	end
 
-	if Commands[alias] or Aliases[alias] then
+	if cmds.Commands[alias] or cmds.Aliases[alias] then
 		DoNotif("The name '"..alias.."' is already used by another command or alias", 2)
 		return
 	end
 
-	local command = Commands[original]
-	Aliases[alias] = {command[1], command[2], command[3]}
-	NASAVEDALIASES[alias] = true
+	local command = cmds.Commands[original]
+	cmds.Aliases[alias] = {command[1], command[2], command[3]}
+	cmds.NASAVEDALIASES[alias] = true
 
 	if FileSupport then
-		local aliasMap = readAliasFile()
+		local aliasMap = NAmanage.readAliasFile()
 		aliasMap[alias] = original
-		writefile(NAALIASPATH, HttpService:JSONEncode(aliasMap))
+		writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(aliasMap))
 	end
 
 	DoNotif("Alias '"..alias.."' has been added for command '"..original.."'", 2)
 end, true)
 
 cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, function()
-	local aliasMap = FileSupport and readAliasFile() or {}
+	local aliasMap = FileSupport and NAmanage.readAliasFile() or {}
 
 	if next(aliasMap) == nil then
 		DoNotif("No saved aliases to remove", 2)
@@ -2894,10 +2885,10 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 		Insert(buttons, {
 			Text = 'Alias: '..alias.." | Command: "..original,
 			Callback = function()
-				Aliases[alias] = nil
+				cmds.Aliases[alias] = nil
 				aliasMap[alias] = nil
 				if FileSupport then
-					writefile(NAALIASPATH, HttpService:JSONEncode(aliasMap))
+					writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(aliasMap))
 				end
 				DoNotif("Removed alias '"..alias.."'", 2)
 			end
@@ -2914,12 +2905,12 @@ end)
 cmd.add({"clearaliases"}, {"clearaliases", "Removes all aliases created using addalias."}, function()
 	if not FileSupport then return end
 
-	for alias in pairs(NASAVEDALIASES) do
-		Aliases[alias] = nil
+	for alias in pairs(cmds.NASAVEDALIASES) do
+		cmds.Aliases[alias] = nil
 	end
 
-	NASAVEDALIASES = {}
-	writefile(NAALIASPATH, "{}")
+	cmds.NASAVEDALIASES = {}
+	writefile(NAfiles.NAALIASPATH, "{}")
 	DoNotif("All aliases have been removed", 2)
 end)
 
@@ -2937,10 +2928,10 @@ cmd.add({"addbutton", "ab"}, {"addbutton <command> <label> [<command2>] (ab)", "
 	}
 
 	if FileSupport then
-		writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 	end
 
-	RenderUserButtons()
+	NAmanage.RenderUserButtons()
 
 	DoNotif("Added button with id "..id, 2)
 end,true)
@@ -2965,10 +2956,10 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 				NAUserButtons[id] = nil
 
 				if FileSupport then
-					writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 				end
 
-				RenderUserButtons()
+				NAmanage.RenderUserButtons()
 
 				DoNotif("Removed user button: ["..id.."] "..label, 2)
 			end
@@ -2998,10 +2989,10 @@ cmd.add({"clearbuttons", "clearbtns", "cb"}, {"clearbuttons (clearbtns, cb)", "C
 					table.clear(NAUserButtons)
 
 					if FileSupport then
-						writefile(NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 					end
 
-					RenderUserButtons()
+					NAmanage.RenderUserButtons()
 
 					DoNotif("Cleared all user buttons", 2)
 				end
@@ -3019,7 +3010,7 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 	local args = {...}
 	local commandName = arg1:lower()
 
-	if not Commands[commandName] and not Aliases[commandName] then
+	if not cmds.Commands[commandName] and not cmds.Aliases[commandName] then
 		DoNotif("Command ["..commandName.."] does not exist", 2)
 		return
 	end
@@ -3051,7 +3042,7 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 	end
 
 	if FileSupport then
-		writefile(NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
 	end
 
 	DoNotif("Added to AutoExec: "..arg1.." "..(args[1] or ""), 2)
@@ -3074,7 +3065,7 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 				NAEXECDATA.args[removedCommand] = nil
 
 				if FileSupport then
-					writefile(NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+					writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
 				end
 
 				DoNotif("Removed AutoExec command: "..display, 2)
@@ -3099,7 +3090,7 @@ cmd.add({"autoexecclear", "aexecclear", "aeclear"}, {"autoexecclear (aexecclear,
 	NAEXECDATA.args = {}
 
 	if FileSupport then
-		writefile(NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
 	end
 
 	DoNotif("Cleared all AutoExec commands", 2)
@@ -3126,7 +3117,7 @@ cmd.add({"stoploop", "uncmdloop", "sloop", "stopl"}, {"stoploop", "Stop a runnin
 	cmd.stopLoop()
 end)
 
-cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox api"},function()
+cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts API"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
 end)
 
@@ -3218,7 +3209,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	closeCorner.Parent = closeButton
 
 	local function update(scale)
-		NAAUTOSCALER.Scale = scale
+		opt.NAAUTOSCALER.Scale = scale
 		progress.Size = UDim2.new((scale - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
 		knob.Position = UDim2.new((scale - minSize) / (maxSize - minSize), 0, -0.25, 0)
 		label.Text = "Scale: "..Format("%.2f", scale)
@@ -3242,7 +3233,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
 					if FileSupport then
-						writefile(NAUISIZEPATH, tostring(NAUIScale))
+						writefile(NAfiles.NAUISIZEPATH, tostring(NAUIScale))
 					end
 				end
 			end)
@@ -3299,7 +3290,7 @@ cmd.add({"saveprefix"}, {"saveprefix <symbol>", "Saves the prefix to a file and 
 	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;") or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
 		DoNotif("Encoded/HTML characters are not allowed as a prefix")
 	else
-		writefile(NAPREFIXPATH, newPrefix)
+		writefile(NAfiles.NAPREFIXPATH, newPrefix)
 		opt.prefix = newPrefix
 		DoNotif("Prefix saved to: "..newPrefix)
 	end
@@ -3332,10 +3323,6 @@ end)
 
 cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy)","Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua"))()
-end)
-
-cmd.add({"updatelog","updlog","updates"},{"updatelog (updlog,updates)","show the update logs for Nameless Admin"},function()
-	gui.updateLogs()
 end)
 
 cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link"}, function()
@@ -3639,92 +3626,64 @@ cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your mes
 	return "Filter", "Reset"
 end)
 
+NAmanage.doWindows = function(position, Size, defaultText)
+	local screenGui = Instance.new("ScreenGui")
+	NaProtectUI(screenGui)
+	screenGui.ResetOnSpawn = false
+
+	local window = Instance.new("Frame")
+	window.Parent = screenGui
+	window.BackgroundColor3 = Color3.fromRGB(32, 34, 40)
+	window.BackgroundTransparency = 0
+	window.Position = position
+	window.Size = Size
+
+	local uiCorner = Instance.new("UICorner")
+	uiCorner.CornerRadius = UDim.new(0, 12)
+	uiCorner.Parent = window
+
+	local uiStroke = Instance.new("UIStroke")
+	uiStroke.Color = Color3.fromRGB(60, 60, 75)
+	uiStroke.Thickness = 2
+	uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	uiStroke.Parent = window
+
+	local titleBar = Instance.new("TextLabel")
+	titleBar.Parent = window
+	titleBar.BackgroundTransparency = 1
+	titleBar.Position = UDim2.new(0, 10, 0, 5)
+	titleBar.Size = UDim2.new(1, -70, 0, 25)
+	titleBar.Font = Enum.Font.GothamMedium
+	titleBar.Text = defaultText
+	titleBar.TextColor3 = Color3.fromRGB(235, 235, 255)
+	titleBar.TextSize = 16
+	titleBar.TextXAlignment = Enum.TextXAlignment.Left
+
+	local closeButton = Instance.new("TextButton")
+	closeButton.Parent = window
+	closeButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
+	closeButton.Position = UDim2.new(1, -30, 0, 5)
+	closeButton.Size = UDim2.new(0, 20, 0, 20)
+	closeButton.Font = Enum.Font.GothamBold
+	closeButton.Text = "X"
+	closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	closeButton.TextSize = 14
+	closeButton.ZIndex = 10
+
+	local closeUICorner = Instance.new("UICorner")
+	closeUICorner.CornerRadius = UDim.new(1, 0)
+	closeUICorner.Parent = closeButton
+
+	return {
+		screenGui = screenGui;
+		window = window;
+		closeButton = closeButton;
+		defaultText = defaultText;
+		titleBar = titleBar;
+	}
+end
+
 cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
-	local function createWindow(position, maxSize, minSize, defaultText)
-		local screenGui = InstanceNew("ScreenGui")
-		NaProtectUI(screenGui)
-		screenGui.ResetOnSpawn = false
-
-		local window = InstanceNew("TextLabel")
-		window.Parent = screenGui
-		window.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-		window.BackgroundTransparency = 0.2
-		window.Position = position
-		window.Size = maxSize
-		window.Font = Enum.Font.GothamSemibold
-		window.Text = defaultText
-		window.TextColor3 = Color3.fromRGB(255, 255, 255)
-		window.TextSize = 16
-		window.TextXAlignment = Enum.TextXAlignment.Center
-		window.TextWrapped = true
-
-		local uiCorner = InstanceNew("UICorner")
-		uiCorner.CornerRadius = UDim.new(0, 10)
-		uiCorner.Parent = window
-
-		local uiStroke = InstanceNew("UIStroke")
-		uiStroke.Color = Color3.fromRGB(100, 100, 255)
-		uiStroke.Thickness = 1.5
-		uiStroke.Parent = window
-
-		local closeButton = InstanceNew("TextButton")
-		closeButton.Parent = window
-		closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-		closeButton.Position = UDim2.new(1, -25, 0.5, -10)
-		closeButton.Size = UDim2.new(0, 20, 0, 20)
-		closeButton.Font = Enum.Font.GothamBold
-		closeButton.Text = "X"
-		closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		closeButton.TextSize = 14
-		closeButton.ZIndex = 10
-
-		local closeUICorner = InstanceNew("UICorner")
-		closeUICorner.CornerRadius = UDim.new(0, 10)
-		closeUICorner.Parent = closeButton
-
-		local minimizeButton = InstanceNew("TextButton")
-		minimizeButton.Parent = window
-		minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 255)
-		minimizeButton.Position = UDim2.new(1, -50, 0.5, -10)
-		minimizeButton.Size = UDim2.new(0, 20, 0, 20)
-		minimizeButton.Font = Enum.Font.GothamBold
-		minimizeButton.Text = "-"
-		minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		minimizeButton.TextSize = 14
-		minimizeButton.ZIndex = 10
-
-		local minUICorner = InstanceNew("UICorner")
-		minUICorner.CornerRadius = UDim.new(0, 10)
-		minUICorner.Parent = minimizeButton
-
-		return {
-			screenGui = screenGui,
-			window = window,
-			closeButton = closeButton,
-			minimizeButton = minimizeButton,
-			maxSize = maxSize,
-			minSize = minSize,
-			defaultText = defaultText,
-			minimized = false
-		}
-	end
-
-	local function setupMinimize(guiElements)
-		MouseButtonFix(guiElements.minimizeButton, function()
-			guiElements.minimized = not guiElements.minimized
-			local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			local targetSize = guiElements.minimized and guiElements.minSize or guiElements.maxSize
-			local tween = TweenService:Create(guiElements.window, tweenInfo, {Size = targetSize})
-			tween:Play()
-			if guiElements.minimized then
-				local title = guiElements.defaultText:match("^(%S+)")
-				guiElements.window.Text = title
-			else
-				guiElements.window.Text = guiElements.defaultText
-			end
-		end)
-	end
-
 	local function setupClose(guiElements)
 		MouseButtonFix(guiElements.closeButton, function()
 			guiElements.screenGui:Destroy()
@@ -3734,8 +3693,8 @@ cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
 	local function setupDraggable(guiElements)
 		gui.draggablev2(guiElements.window)
 	end
-	local guiElements = createWindow(UDim2.new(0, 0, 0, 48), UDim2.new(0, 201, 0, 35), UDim2.new(0, 201, 0, 20), "Ping: --")
-	setupMinimize(guiElements)
+
+	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "Ping: --")
 	setupClose(guiElements)
 	setupDraggable(guiElements)
 	local lastUpdate = 0
@@ -3755,10 +3714,8 @@ cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
 				color = Color3.fromRGB(255, 50, 50)
 			end
 
-			if not guiElements.minimized then
-				guiElements.window.Text = "Ping: "..ping.." ms"
-				guiElements.window.TextColor3 = color
-			end
+			guiElements.titleBar.Text = "Ping: "..ping.." ms"
+			guiElements.titleBar.TextColor3 = color
 
 			lastUpdate = currentTime
 		end
@@ -3766,91 +3723,6 @@ cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
 end)
 
 cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
-	local function createWindow(position, maxSize, minSize, defaultText)
-		local screenGui = InstanceNew("ScreenGui")
-		NaProtectUI(screenGui)
-		screenGui.ResetOnSpawn = false
-
-		local window = InstanceNew("TextLabel")
-		window.Parent = screenGui
-		window.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-		window.BackgroundTransparency = 0.2
-		window.Position = position
-		window.Size = maxSize
-		window.Font = Enum.Font.GothamSemibold
-		window.Text = defaultText
-		window.TextColor3 = Color3.fromRGB(255, 255, 255)
-		window.TextSize = 16
-		window.TextXAlignment = Enum.TextXAlignment.Center
-		window.TextWrapped = true
-
-		local uiCorner = InstanceNew("UICorner")
-		uiCorner.CornerRadius = UDim.new(0, 10)
-		uiCorner.Parent = window
-
-		local uiStroke = InstanceNew("UIStroke")
-		uiStroke.Color = Color3.fromRGB(100, 100, 255)
-		uiStroke.Thickness = 1.5
-		uiStroke.Parent = window
-
-		local closeButton = InstanceNew("TextButton")
-		closeButton.Parent = window
-		closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-		closeButton.Position = UDim2.new(1, -25, 0.5, -10)
-		closeButton.Size = UDim2.new(0, 20, 0, 20)
-		closeButton.Font = Enum.Font.GothamBold
-		closeButton.Text = "X"
-		closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		closeButton.TextSize = 14
-		closeButton.ZIndex = 10
-
-		local closeUICorner = InstanceNew("UICorner")
-		closeUICorner.CornerRadius = UDim.new(0, 10)
-		closeUICorner.Parent = closeButton
-
-		local minimizeButton = InstanceNew("TextButton")
-		minimizeButton.Parent = window
-		minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 255)
-		minimizeButton.Position = UDim2.new(1, -50, 0.5, -10)
-		minimizeButton.Size = UDim2.new(0, 20, 0, 20)
-		minimizeButton.Font = Enum.Font.GothamBold
-		minimizeButton.Text = "-"
-		minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		minimizeButton.TextSize = 14
-		minimizeButton.ZIndex = 10
-
-		local minUICorner = InstanceNew("UICorner")
-		minUICorner.CornerRadius = UDim.new(0, 10)
-		minUICorner.Parent = minimizeButton
-
-		return {
-			screenGui = screenGui,
-			window = window,
-			closeButton = closeButton,
-			minimizeButton = minimizeButton,
-			maxSize = maxSize,
-			minSize = minSize,
-			defaultText = defaultText,
-			minimized = false
-		}
-	end
-
-	local function setupMinimize(guiElements)
-		MouseButtonFix(guiElements.minimizeButton, function()
-			guiElements.minimized = not guiElements.minimized
-			local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			local targetSize = guiElements.minimized and guiElements.minSize or guiElements.maxSize
-			local tween = TweenService:Create(guiElements.window, tweenInfo, {Size = targetSize})
-			tween:Play()
-			if guiElements.minimized then
-				local title = guiElements.defaultText:match("^(%S+)")
-				guiElements.window.Text = title
-			else
-				guiElements.window.Text = guiElements.defaultText
-			end
-		end)
-	end
-
 	local function setupClose(guiElements)
 		MouseButtonFix(guiElements.closeButton, function()
 			guiElements.screenGui:Destroy()
@@ -3860,8 +3732,8 @@ cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
 	local function setupDraggable(guiElements)
 		gui.draggablev2(guiElements.window)
 	end
-	local guiElements = createWindow(UDim2.new(0, 0, 0, 6), UDim2.new(0, 201, 0, 35), UDim2.new(0, 201, 0, 20), "FPS: --")
-	setupMinimize(guiElements)
+
+	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "FPS: --")
 	setupClose(guiElements)
 	setupDraggable(guiElements)
 	local frames = {}
@@ -3891,10 +3763,8 @@ cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
 				color = Color3.fromRGB(255, 50, 50)
 			end
 
-			if not guiElements.minimized then
-				guiElements.window.Text = "FPS: "..fps
-				guiElements.window.TextColor3 = color
-			end
+			guiElements.titleBar.Text = "FPS: "..fps
+			guiElements.titleBar.TextColor3 = color
 
 			lastUpdate = currentTime
 		end
@@ -3902,91 +3772,6 @@ cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
 end)
 
 cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
-	local function createWindow(position, maxSize, minSize, defaultText)
-		local screenGui = InstanceNew("ScreenGui")
-		NaProtectUI(screenGui)
-		screenGui.ResetOnSpawn = false
-
-		local window = InstanceNew("TextLabel")
-		window.Parent = screenGui
-		window.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-		window.BackgroundTransparency = 0.2
-		window.Position = position
-		window.Size = maxSize
-		window.Font = Enum.Font.GothamSemibold
-		window.Text = defaultText
-		window.TextColor3 = Color3.fromRGB(255, 255, 255)
-		window.TextSize = 14
-		window.TextXAlignment = Enum.TextXAlignment.Center
-		window.TextWrapped = true
-
-		local uiCorner = InstanceNew("UICorner")
-		uiCorner.CornerRadius = UDim.new(0, 10)
-		uiCorner.Parent = window
-
-		local uiStroke = InstanceNew("UIStroke")
-		uiStroke.Color = Color3.fromRGB(100, 100, 255)
-		uiStroke.Thickness = 1.5
-		uiStroke.Parent = window
-
-		local closeButton = InstanceNew("TextButton")
-		closeButton.Parent = window
-		closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-		closeButton.Position = UDim2.new(1, -25, 0.5, -10)
-		closeButton.Size = UDim2.new(0, 20, 0, 20)
-		closeButton.Font = Enum.Font.GothamBold
-		closeButton.Text = "X"
-		closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		closeButton.TextSize = 14
-		closeButton.ZIndex = 10
-
-		local closeUICorner = InstanceNew("UICorner")
-		closeUICorner.CornerRadius = UDim.new(0, 10)
-		closeUICorner.Parent = closeButton
-
-		local minimizeButton = InstanceNew("TextButton")
-		minimizeButton.Parent = window
-		minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 255)
-		minimizeButton.Position = UDim2.new(1, -50, 0.5, -10)
-		minimizeButton.Size = UDim2.new(0, 20, 0, 20)
-		minimizeButton.Font = Enum.Font.GothamBold
-		minimizeButton.Text = "-"
-		minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		minimizeButton.TextSize = 14
-		minimizeButton.ZIndex = 10
-
-		local minUICorner = InstanceNew("UICorner")
-		minUICorner.CornerRadius = UDim.new(0, 10)
-		minUICorner.Parent = minimizeButton
-
-		return {
-			screenGui = screenGui,
-			window = window,
-			closeButton = closeButton,
-			minimizeButton = minimizeButton,
-			maxSize = maxSize,
-			minSize = minSize,
-			defaultText = defaultText,
-			minimized = false
-		}
-	end
-
-	local function setupMinimize(guiElements)
-		MouseButtonFix(guiElements.minimizeButton, function()
-			guiElements.minimized = not guiElements.minimized
-			local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			local targetSize = guiElements.minimized and guiElements.minSize or guiElements.maxSize
-			local tween = TweenService:Create(guiElements.window, tweenInfo, {Size = targetSize})
-			tween:Play()
-			if guiElements.minimized then
-				local title = guiElements.defaultText:match("^(%S+)")
-				guiElements.window.Text = title
-			else
-				guiElements.window.Text = guiElements.defaultText
-			end
-		end)
-	end
-
 	local function setupClose(guiElements)
 		MouseButtonFix(guiElements.closeButton, function()
 			guiElements.screenGui:Destroy()
@@ -3996,8 +3781,8 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
 	local function setupDraggable(guiElements)
 		gui.draggablev2(guiElements.window)
 	end
-	local guiElements = createWindow(UDim2.new(0, 0, 0, 48), UDim2.new(0, 250, 0, 50), UDim2.new(0, 250, 0, 20), "Ping: -- ms | FPS: --")
-	setupMinimize(guiElements)
+
+	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 250, 0, 35), "Ping: -- ms | FPS: --")
 	setupClose(guiElements)
 	setupDraggable(guiElements)
 	local frames = {}
@@ -4039,10 +3824,8 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
 				fpsColor = Color3.fromRGB(255, 50, 50)
 			end
 
-			if not guiElements.minimized then
-				guiElements.window.Text = "Ping: "..ping.." ms | FPS: "..fps
-				guiElements.window.TextColor3 = pingColor
-			end
+			guiElements.titleBar.Text = "Ping: "..ping.." ms | FPS: "..fps
+			guiElements.titleBar.TextColor3 = pingColor
 
 			lastUpdate = currentTime
 		end
@@ -4325,10 +4108,10 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 	DoNotif("Walkfling enabled", 2)
 	hiddenfling = true
 
-	if not NA_storage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
+	if not opt.NA_storage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
 		local detection = InstanceNew("Decal")
 		detection.Name = "juisdfj0i32i0eidsuf0iok"
-		detection.Parent = NA_storage
+		detection.Parent = opt.NA_storage
 	end
 
 	lib.disconnect("walkflinger")
@@ -4413,7 +4196,7 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
                 end)
             ]], tostring(hrp.Position), tostring(hrp.CFrame))
 
-			queueteleport(tpScript)
+			opt.queueteleport(tpScript)
 		end
 
 		Spawn(function()
@@ -5249,8 +5032,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 		end
 	end
 
-	pcall(function() sethiddenproperty(l,"Technology",Enum.Technology.Compatibility) end)
-	pcall(function() sethiddenproperty(t,"Decoration",false) end)
+	pcall(function() sethidden(l,"Technology",Enum.Technology.Compatibility) end)
+	pcall(function() sethidden(t,"Decoration",false) end)
 	t.WaterWaveSize = 0
 	t.WaterWaveSpeed = 0
 	t.WaterReflectance = 0
@@ -6457,14 +6240,14 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
 		if v:IsA("BasePart") then
 			local dec=InstanceNew("Texture",v)
-			dec.Texture=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Stud) or "rbxassetid://48715260"
+			dec.Texture=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud) or "rbxassetid://48715260"
 			dec.Face="Top"
 			dec.StudsPerTileU="1"
 			dec.StudsPerTileV="1"
 			dec.Transparency=v.Transparency
 			v.Material="Plastic"
 			local dec2=InstanceNew("Texture",v)
-			dec2.Texture=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Inlet) or "rbxassetid://20299774"
+			dec2.Texture=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet) or "rbxassetid://20299774"
 			dec2.Face="Bottom"
 			dec2.StudsPerTileU="1"
 			dec2.StudsPerTileV="1"
@@ -6481,12 +6264,12 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		end
 	end
 	local sky=InstanceNew("Sky",Lighting)
-	sky.SkyboxBk=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.bk) or "rbxassetid://161781263"
-	sky.SkyboxDn=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.dn) or "rbxassetid://161781258"
-	sky.SkyboxFt=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.ft) or "rbxassetid://161781261"
-	sky.SkyboxLf=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.lf) or "rbxassetid://161781267"
-	sky.SkyboxRt=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.rt) or "rbxassetid://161781268"
-	sky.SkyboxUp=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.up) or "rbxassetid://161781260"
+	sky.SkyboxBk=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk) or "rbxassetid://161781263"
+	sky.SkyboxDn=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn) or "rbxassetid://161781258"
+	sky.SkyboxFt=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft) or "rbxassetid://161781261"
+	sky.SkyboxLf=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf) or "rbxassetid://161781267"
+	sky.SkyboxRt=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt) or "rbxassetid://161781268"
+	sky.SkyboxUp=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up) or "rbxassetid://161781260"
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
@@ -6895,7 +6678,7 @@ cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/Module
 			if time_elapsed <= .5 then
 				Wait(.5 - time_elapsed)
 			end
-			local httpResult = NAREQUEST({
+			local httpResult = opt.NAREQUEST({
 				Url = API..konstantType,
 				Body = bytecode,
 				Method = "POST",
@@ -8456,7 +8239,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	clear.Position=UDim2.new(1,-28,0,2)
 	clear.Size=UDim2.new(0,24,0,24)
 	clear.ZIndex=2
-	clear.Image=getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Sheet) or "rbxassetid://3926305904"
+	clear.Image=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Sheet) or "rbxassetid://3926305904"
 	clear.ImageRectOffset=Vector2.new(924,724)
 	clear.ImageRectSize=Vector2.new(36,36)
 
@@ -8528,7 +8311,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	shadow.BackgroundTransparency = 1
 	shadow.Size = UDim2.new(1, 20, 1, 20)
 	shadow.Position = UDim2.new(0, -10, 0, -10)
-	shadow.Image = getcustomasset and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.blur) or "rbxassetid://1316045217"
+	shadow.Image = getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.blur) or "rbxassetid://1316045217"
 	shadow.ImageColor3 = Color3.new(0, 0, 0)
 	shadow.ImageTransparency = 0.5
 	shadow.ScaleType = Enum.ScaleType.Slice
@@ -10331,7 +10114,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				GameId,
 				cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
 			)
-			local res = NAREQUEST({Url = url, Method = "GET"})
+			local res = opt.NAREQUEST({Url = url, Method = "GET"})
 			if not res or res.StatusCode ~= 200 then
 				break
 			end
@@ -11966,7 +11749,7 @@ cmd.add({"blackhole"}, {"blackhole", "Makes unanchored parts teleport to the bla
 			for _, Players in next, SafeGetService("Players"):GetPlayers() do
 				if Players ~= LocalPlayer then
 					Players.MaximumSimulationRadius = 0
-					sethiddenproperty(Players, "SimulationRadius", 0)
+					sethidden(Players, "SimulationRadius", 0)
 				end
 			end
 			LocalPlayer.MaximumSimulationRadius = math.pow(math.huge, math.huge)
@@ -12294,7 +12077,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				return
 			end
 		end
-		if not Welcome then DoNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
+		if not getgenv().Welcome then DoNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
 		getgenv().Welcome = true
 		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
 		if AllBool then
@@ -15614,7 +15397,7 @@ cmd.add({"tpua", "bringua"}, {"tpua <player> (bringua)", "brings every unanchore
 	Spawn(function()
 		while true do
 			RunService.Heartbeat:Wait()
-			sethiddenproperty(LocalPlayer, "SimulationRadius", 1e9)
+			sethidden(LocalPlayer, "SimulationRadius", 1e9)
 			LocalPlayer.MaximumSimulationRadius = 1e9
 		end
 	end)
@@ -16061,7 +15844,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 			for _, player in ipairs(Players:GetPlayers()) do
 				if player ~= Player then
 					player.MaximumSimulationRadius = 0
-					sethiddenproperty(player, "SimulationRadius", 0)
+					sethidden(player, "SimulationRadius", 0)
 				end
 			end
 			Player.MaximumSimulationRadius = math.pow(math.huge, math.huge)
@@ -16141,9 +15924,9 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
             end)
         end
 
-        if not ok and sethiddenproperty then
+        if not ok and sethidden then
             if pcall(function()
-                sethiddenproperty(LocalPlayer, "SimulationRadius", r)
+                sethidden(LocalPlayer, "SimulationRadius", r)
             end) then
                 ok = true
                 DoNotif("SimRadius set with sethiddenproperty: "..r)
@@ -17065,7 +16848,7 @@ end)
 cmd.add({"keepna"}, {"keepna", "keep executing "..adminName.." every time you teleport"}, function()
 	NAQoTEnabled=true
 	if FileSupport then
-		writefile(NAQOTPATH, "true")
+		writefile(NAfiles.NAQOTPATH, "true")
 		DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)")
 	end
 end)
@@ -17073,7 +16856,7 @@ end)
 cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time you teleport"}, function()
 	NAQoTEnabled=false
 	if FileSupport then
-		writefile(NAQOTPATH, "false")
+		writefile(NAfiles.NAQOTPATH, "false")
 		if not NAQoTEnabled then
 			DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport")
 		end
@@ -17702,7 +17485,7 @@ end]]
 --[[ GUI VARIABLES ]]--
 repeat
 	local NASUC, resexy = pcall(function()
-		return loadstring(game:HttpGet(NAUILOADER))()
+		return loadstring(game:HttpGet(opt.NAUILOADER))()
 	end)
 
 	if NASUC then
@@ -17744,10 +17527,6 @@ local commandsFrame = NASCREENGUI:FindFirstChild("Commands")
 local commandsFilter = commandsFrame and commandsFrame:FindFirstChild("Container") and commandsFrame:FindFirstChild("Container"):FindFirstChild("Filter")
 local commandsList = commandsFrame and commandsFrame:FindFirstChild("Container") and commandsFrame:FindFirstChild("Container"):FindFirstChild("List")
 local commandExample = commandsList and commandsList:FindFirstChild("TextLabel")
-local UpdLogsFrame = NASCREENGUI:FindFirstChild("UpdLog")
-local UpdLogsTitle = UpdLogsFrame and UpdLogsFrame:FindFirstChild("Topbar") and UpdLogsFrame:FindFirstChild("Topbar"):FindFirstChild("Title")
-local UpdLogsList = UpdLogsFrame and UpdLogsFrame:FindFirstChild("Container") and UpdLogsFrame:FindFirstChild("Container"):FindFirstChild("List")
-local UpdLogsLabel = UpdLogsList and UpdLogsList:FindFirstChildWhichIsA("TextLabel")
 local resizeFrame = NASCREENGUI:FindFirstChild("Resizeable")
 local ModalFixer = NASCREENGUI:FindFirstChildWhichIsA("ImageButton")
 local SettingsFrame = NASCREENGUI:FindFirstChild("setsettings")
@@ -17786,10 +17565,6 @@ end
 
 if commandExample then
 	commandExample.Parent = nil
-end
-
-if UpdLogsLabel then
-	UpdLogsLabel.Parent = nil
 end
 
 if resizeFrame then
@@ -17853,7 +17628,7 @@ predictionInput.ZIndex = cmdInput.ZIndex + 1
 predictionInput.Parent = cmdInput.Parent
 predictionInput.PlaceholderText = ""
 
-NAAUTOSCALER = AUTOSCALER
+opt.NAAUTOSCALER = AUTOSCALER
 
 	--[[pcall(function()
 		for i,v in pairs(NASCREENGUI:GetDescendants()) do
@@ -17919,7 +17694,7 @@ gui.commands = function()
 	end
 
 	local yOffset = 5
-	for cmdName, tbl in pairs(Commands) do
+	for cmdName, tbl in pairs(cmds.Commands) do
 		local Cmd = commandExample:Clone()
 		Cmd.Parent = cList
 		Cmd.Name = cmdName
@@ -17971,18 +17746,6 @@ gui.settingss = function()
 		SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	end
 end
-gui.updateLogs = function()
-	if UpdLogsFrame then
-		if not UpdLogsFrame.Visible and next(NAupdLogs) then
-			UpdLogsFrame.Visible = true
-		elseif not next(NAupdLogs) then
-			DoNotif("no upd logs for now...")
-		else
-			warn("huh?")
-		end
-		UpdLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-	end
-end
 gui.tween = function(obj, style, direction, duration, goal, callback)
 	style = style or "Sine"
 	direction = direction or "Out"
@@ -17992,7 +17755,6 @@ gui.tween = function(obj, style, direction, duration, goal, callback)
 	tween:Play()
 	return tween
 end
-
 gui.resizeable = function(ui, min, max)
 	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
 	max = max or Vector2.new(5000, 5000)
@@ -18773,7 +18535,7 @@ gui.loadCommands = function()
 	CMDAUTOFILL = {}
 	local i = 0
 
-	for name, cmdData in pairs(Commands) do
+	for name, cmdData in pairs(cmds.Commands) do
 		local usageText = "Unknown"
 		local info = cmdData[2]
 
@@ -18781,8 +18543,8 @@ gui.loadCommands = function()
 			usageText = info[1]
 
 			local aliasesList = {}
-			for alias, aliasCmdData in pairs(Aliases) do
-				if aliasCmdData == cmdData or Commands[alias] == cmdData then
+			for alias, aliasCmdData in pairs(cmds.Aliases) do
+				if aliasCmdData == cmdData or cmds.Commands[alias] == cmdData then
 					Insert(aliasesList, alias)
 				end
 			end
@@ -18823,7 +18585,7 @@ gui.loadCommands()
 
 Spawn(function() -- plugin tester
 	while Wait(2) do
-		if countDictNA(Commands) ~= cmdNAnum then
+		if countDictNA(cmds.Commands) ~= cmdNAnum then
 			gui.loadCommands()
 		end
 	end
@@ -18894,7 +18656,7 @@ function fixStupidSearchGoober(cmdName, command)
 	local func = command and command[1]
 
 	local aliasSet = {}
-	for alias, data in pairs(Aliases) do
+	for alias, data in pairs(cmds.Aliases) do
 		if data[1] == func then
 			aliasSet[Lower(alias)] = true
 		end
@@ -18971,7 +18733,7 @@ gui.searchCommands = function()
 
 		for _, frame in ipairs(CMDAUTOFILL) do
 			local cmdName = Lower(frame.Name)
-			local command = Commands[cmdName]
+			local command = cmds.Commands[cmdName]
 			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
 
 			if frame:FindFirstChildWhichIsA("TextLabel") then
@@ -19011,21 +18773,21 @@ gui.searchCommands = function()
 				score = 1
 			elseif Sub(cmdName, 1, searchTermLength) == searchTerm then
 				score = 2
-			elseif Aliases[searchTerm] and Aliases[searchTerm][1] == command[1] then
+			elseif cmds.Aliases[searchTerm] and cmds.Aliases[searchTerm][1] == command[1] then
 				score = 3
 				matchText = searchTerm
-			elseif NASAVEDALIASES[searchTerm] and NASAVEDALIASES[searchTerm] == cmdName then
+			elseif cmds.NASAVEDALIASES[searchTerm] and cmds.NASAVEDALIASES[searchTerm] == cmdName then
 				score = 3
 				matchText = searchTerm
 			else
-				for alias, realCmd in pairs(Aliases) do
+				for alias, realCmd in pairs(cmds.Aliases) do
 					if realCmd[1] == command[1] and Sub(alias, 1, searchTermLength) == searchTerm then
 						score = 4
 						matchText = alias
 						break
 					end
 				end
-				for alias, realCmd in pairs(NASAVEDALIASES) do
+				for alias, realCmd in pairs(cmds.NASAVEDALIASES) do
 					if realCmd == cmdName and Sub(alias, 1, searchTermLength) == searchTerm then
 						score = 4
 						matchText = alias
@@ -19161,10 +18923,6 @@ if commandsFrame then
 	gui.menuify(commandsFrame)
 end
 
-if UpdLogsFrame then
-	gui.menuify(UpdLogsFrame)
-end
-
 if SettingsFrame then
 	gui.menuify(SettingsFrame)
 end
@@ -19174,7 +18932,6 @@ end
 if chatLogsFrame then gui.resizeable(chatLogsFrame) end
 if NAconsoleFrame then gui.resizeable(NAconsoleFrame) end
 if commandsFrame then gui.resizeable(commandsFrame) end
-if UpdLogsFrame then gui.resizeable(UpdLogsFrame) end
 if SettingsFrame then gui.resizeable(SettingsFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
@@ -19184,7 +18941,7 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 	for _, label in ipairs(commandsList:GetChildren()) do
 		if label:IsA("TextLabel") then
 			local cmdName = Lower(label.Name)
-			local command = Commands[cmdName]
+			local command = cmds.Commands[cmdName]
 			local displayInfo = command and command[2] and command[2][1] or ""
 			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
 
@@ -19207,7 +18964,7 @@ commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 
 			local extraAliases = {}
 			local baseFunc = command and command[1]
-			for alias, aliasData in pairs(Aliases) do
+			for alias, aliasData in pairs(cmds.Aliases) do
 				if aliasData[1] == baseFunc then
 					Insert(extraAliases, Lower(alias))
 				end
@@ -19304,7 +19061,7 @@ function bindToChat(plr, msg)
 	end
 end
 
-function bindToDevConsole()
+NAmanage.bindToDevConsole = function()
 	if not NAconsoleLogs or not NAconsoleExample then return end
 
 	local toggles = { Output = true, Info = true, Warn = true, Error = true }
@@ -19486,7 +19243,7 @@ function setupPlayer(plr,bruh)
 	if JoinLeaveConfig.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
 		DoNotif(joinMsg, 3, "Join/Leave")
-		LogJoinLeave(joinMsg)
+		NAmanage.LogJoinLeave(joinMsg)
 	end
 end
 
@@ -19505,7 +19262,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
 		DoNotif(leaveMsg, 3, "Join/Leave")
-		LogJoinLeave(leaveMsg)
+		NAmanage.LogJoinLeave(leaveMsg)
 	end
 end)
 
@@ -19551,7 +19308,6 @@ RunService.RenderStepped:Connect(function()
 	if chatLogs then updateCanvasSize(chatLogs, AUTOSCALER.Scale) end
 	if NAconsoleLogs then updateCanvasSize(NAconsoleLogs, AUTOSCALER.Scale) end
 	if commandsList then updateCanvasSize(commandsList, AUTOSCALER.Scale) end
-	if UpdLogsList then updateCanvasSize(UpdLogsList, AUTOSCALER.Scale) end
 	if SettingsList then updateCanvasSize(SettingsList, AUTOSCALER.Scale) end
 end)
 
@@ -19573,10 +19329,10 @@ RunService.RenderStepped:Connect(function()
 			DoNotif("Invalid prefix detected. Resetting to default ';'")
 			lastPrefix = ";"
 
-			if FileSupport and isfile(NAPREFIXPATH) then
-				local filePrefix = readfile(NAPREFIXPATH)
+			if FileSupport and isfile(NAfiles.NAPREFIXPATH) then
+				local filePrefix = readfile(NAfiles.NAPREFIXPATH)
 				if isInvalid(filePrefix) then
-					writefile(NAPREFIXPATH, ";")
+					writefile(NAfiles.NAPREFIXPATH, ";")
 				end
 			end
 		end
@@ -19586,22 +19342,6 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
-
-Spawn(function()
-	local template = UpdLogsLabel
-	local list = UpdLogsList
-
-	UpdLogsTitle.Text = UpdLogsTitle.Text.." "..NAupdDate
-
-	if next(NAupdLogs) then
-		for name, txt in pairs(NAupdLogs) do
-			local btn = template:Clone()
-			btn.Parent = list
-			btn.Name = name
-			btn.Text = "-"..txt
-		end
-	end
-end)
 
 NACaller(function()
 	if NAjson.annc and NAjson.annc ~= "" then
@@ -19616,7 +19356,7 @@ local UIStroke = InstanceNew("UIStroke")
 local TextButton
 local UICorner2 = InstanceNew("UICorner")
 
-NAICONASSET = (getcustomasset and (isAprilFools() and getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil
+NAICONASSET = (getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil
 
 if NAICONASSET then
     TextButton = InstanceNew("ImageButton")
@@ -19697,7 +19437,7 @@ function Swoosh()
                 if input.UserInputState == Enum.UserInputState.End then
                     if FileSupport and NAiconSaveEnabled then
                         local pos = TextButton.Position
-                        writefile(NAICONPOSPATH, HttpService:JSONEncode({
+                        writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
                             X = pos.X.Scale,
                             Y = pos.Y.Scale,
                             Save = NAiconSaveEnabled
@@ -19734,8 +19474,8 @@ function mainNameless()
 
     local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
-    if FileSupport and isfile(NAICONPOSPATH) then
-        local data = HttpService:JSONDecode(readfile(NAICONPOSPATH))
+    if FileSupport and isfile(NAfiles.NAICONPOSPATH) then
+        local data = HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
         if data and data.X and data.Y then
             targetPos = UDim2.new(data.X, 0, data.Y, 0)
         end
@@ -19798,7 +19538,7 @@ Spawn(function()
 
 		local notifBody = welcomeMessage..
 			(identifyexecutor and ("\nExecutor: "..executorName) or "")..
-			"\nUpdated on: "..NAupdDate..
+			"\nUpdated on: "..opt.NAupdDate..
 			"\nTime Taken To Load: "..loadedResults(NAresult)
 
 		DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
@@ -19810,12 +19550,12 @@ Spawn(function()
 				Description = maybeMock("With QueueOnTeleport, "..adminName.." will automatically execute itself upon teleporting to a game or place."),
 				Buttons = {
 					{Text = "Yes", Callback = function()
-						queueteleport(loader)
+						opt.queueteleport(opt.loader)
 					end},
 					{Text = "No", Callback = function() end}
 				}
 			})
-		elseif not queueteleport then
+		elseif not opt.queueteleport then
 			warn('your executor is dog shit')
 		end
 
@@ -19851,9 +19591,6 @@ Spawn(function()
 				}
 			}
 		})]]
-
-		--[[local updateLogMessage = maybeMock('Added "updlog" command (displays any new changes added into '..adminName..')')
-		DoNotif(updateLogMessage, nil, "Info")]]
 	end)
 	Spawn(function()
 		Wait(.5)
@@ -19949,7 +19686,6 @@ Spawn(function() -- init
 	if chatLogsFrame then chatLogsFrame.Name = '\0' end
 	if NAconsoleFrame then NAconsoleFrame.Name = '\0' end
 	if commandsFrame then commandsFrame.Name = '\0' end
-	if UpdLogsFrame then UpdLogsFrame.Name = '\0' end
 	if resizeFrame then resizeFrame.Name = '\0' end
 	if description then description.Name = '\0' end
 	if ModalFixer then ModalFixer.Name = '\0' end
@@ -19957,12 +19693,12 @@ Spawn(function() -- init
 	if SettingsFrame then SettingsFrame.Name = '\0' end
 end)
 
-Spawn(bindToDevConsole)
-Spawn(loadAliases)
-Spawn(loadButtonIDS)
-Spawn(RenderUserButtons)
-Spawn(loadAutoExec)
-Spawn(LoadPlugins)
+Spawn(NAmanage.bindToDevConsole)
+Spawn(NAmanage.loadAliases)
+Spawn(NAmanage.loadButtonIDS)
+Spawn(NAmanage.RenderUserButtons)
+Spawn(NAmanage.loadAutoExec)
+Spawn(NAmanage.LoadPlugins)
 
 -- [[ GUI ELEMENTS ]] --
 
@@ -20016,19 +19752,19 @@ end)
 
 if FileSupport then
 	gui.addButton("Save Prefix", function()
-		if isfile(NAPREFIXPATH) then
-			writefile(NAPREFIXPATH, opt.prefix)
-			DoNotif("Prefix saved to file: "..NAPREFIXPATH)
+		if isfile(NAfiles.NAPREFIXPATH) then
+			writefile(NAfiles.NAPREFIXPATH, opt.prefix)
+			DoNotif("Prefix saved to file: "..NAfiles.NAPREFIXPATH)
 		else
-			DoNotif("File not found: "..NAPREFIXPATH)
+			DoNotif("File not found: "..NAfiles.NAPREFIXPATH)
 		end
 	end)
 end
 
-gui.addToggle("Keep NA",NAQoTEnabled, function(val)
+gui.addToggle("Keep "..adminName,NAQoTEnabled, function(val)
 	NAQoTEnabled=val
 	if FileSupport then
-		writefile(NAQOTPATH, tostring(val))
+		writefile(NAfiles.NAQOTPATH, tostring(val))
 		if NAQoTEnabled then
 			DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)",3)
 		elseif not NAQoTEnabled then
@@ -20045,7 +19781,7 @@ gui.addToggle("Command Predictions Prompt",doPREDICTION, function(v)
 		DoNotif("Command Predictions Disabled",2)
 	end
 	if FileSupport then
-		writefile(NAPREDICTIONPATH, tostring(v))
+		writefile(NAfiles.NAPREDICTIONPATH, tostring(v))
 	end
 end)
 
@@ -20053,7 +19789,7 @@ if FileSupport then
 	gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 		if FileSupport then
 			local pos = TextButton.Position
-			writefile(NAICONPOSPATH, HttpService:JSONEncode({
+			writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
 				X = v and pos.X.Scale or 0.5,
 				Y = v and pos.Y.Scale or 0.1,
 				Save = v
@@ -20066,19 +19802,19 @@ if FileSupport then
 
 	gui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
 		JoinLeaveConfig.JoinLog = v
-		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
 	end)
 
 	gui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
 		JoinLeaveConfig.LeaveLog = v
-		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 	end)
 
 	gui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
 		JoinLeaveConfig.SaveLog = v
-		writefile(NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 	end)
 end
@@ -20158,7 +19894,7 @@ gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
 
 	if FileSupport then
-		writefile(NABUTTONSIZEPATH, tostring(val))
+		writefile(NAfiles.NABUTTONSIZEPATH, tostring(val))
 	end
 end)
 
@@ -20168,5 +19904,5 @@ gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 			element.Color = color
 		end
 	end
-	SaveUIStroke(NASTROKETHINGY, color)
+	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
 end)
