@@ -4628,20 +4628,17 @@ end)
 function respawn()
 	local oldChar = getChar()
 	local rootPart = getRoot(oldChar)
-	if not rootPart then return end
+	while not rootPart do Wait(.1) rootPart=getRoot(oldChar) end
 
 	local respawnCFrame = rootPart.CFrame
 
 	local humanoid = getPlrHum(oldChar)
-	if humanoid then
-		humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-		humanoid.Health = 0
-	end
+	while not humanoid do Wait(.1) humanoid=getPlrHum(oldChar) end
+	humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+	humanoid.Health = 0
 
 	local newChar = player.CharacterAdded:Wait()
-	newChar:WaitForChild("HumanoidRootPart",2)
-
-	Wait(0.2)
+	while not getRoot(newChar) do Wait(.1) getRoot(newChar) end
 
 	local newRoot = getRoot(newChar)
 	if newRoot then
@@ -6037,12 +6034,10 @@ end)
 
 cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 	local function noSit(character)
-		Wait(1)
 		local humanoid = getPlrHum(character)
-		if humanoid then
-			humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-			humanoid.Sit = true
-		end
+		while not humanoid do Wait(.1) humanoid = getPlrHum(character) end
+		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+		humanoid.Sit = true
 	end
 
 	if LocalPlayer.Character then
@@ -6058,10 +6053,9 @@ end)
 cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
 	local character = LocalPlayer.Character
 	local humanoid = getHum()
-	if humanoid then
-		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-		humanoid.Sit = false
-	end
+	while not humanoid do Wait(.1) humanoid = getHum() end
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+	humanoid.Sit = false
 
 	lib.disconnect("antisit_conn")
 	DoNotif("Anti sit disabled", 3)
@@ -6427,7 +6421,7 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 	local function doTRIPPER(char)
 		local hum = getPlrHum(char)
 		local root = getRoot(char)
-		if not (hum and root) then return end
+		while not (hum and root) do Wait(.1) hum=getPlrHum(char) root=getRoot(char) end
 
 		lib.disconnect("trip_fall")
 		lib.connect("trip_fall", hum.FallingDown:Connect(function()
@@ -11206,7 +11200,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 		end
 
 		lib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
-			char:WaitForChild("HumanoidRootPart", 3)
+			while not getRoot(char) do Wait(.1) end
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
 					v.Anchored = true
@@ -11217,7 +11211,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 
 	lib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
 		lib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
-			char:WaitForChild("HumanoidRootPart", 3)
+			while not getRoot(char) do Wait(.1) end
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
 					v.Anchored = true
@@ -11288,7 +11282,7 @@ function stareFIXER(char, facePos)
 	root.CFrame = CFrame.new(pos, flatTarget)
 end
 
-cmd.add({"lookat", "stare"}, {"stare <player> (lookat)", "Stare at a player"}, function(...)
+cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(...)
 	local Username = (...)
 	local Target = getPlr(Username)
 
@@ -11313,7 +11307,7 @@ cmd.add({"lookat", "stare"}, {"stare <player> (lookat)", "Stare at a player"}, f
 	end
 end, true)
 
-cmd.add({"unlookat", "unstare"}, {"unstare (unlookat)", "Stops staring"}, function()
+cmd.add({"unlookat", "unstare"}, {"unlookat", "Stops staring"}, function()
 	lib.disconnect("stare_direct")
 	if getHum() then
 		getHum().AutoRotate = true
@@ -11391,7 +11385,7 @@ function spectatePlayer(targetPlayer)
 	lib.disconnect("spectate_leave")
 
 	lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
-		repeat Wait() until getPlrHum(character)
+		while not getPlrHum(character) do Wait(.1) end
 		SafeGetService("Workspace").CurrentCamera.CameraSubject = getPlrHum(character)
 	end))
 
@@ -11684,7 +11678,7 @@ cmd.add({"unwatch2", "unview2"}, {"unwatch2 (unview2)", "Stop spectating with GU
 end)
 
 cmd.add({"stealaudio", "getaudio", "steal", "logaudio"}, {"stealaudio <player> (getaudio,logaudio,steal)", "Save all sounds a player is playing to a file -Cyrus"}, function(p)
-	Wait()
+	Wait(.1)
 	local players = getPlr(p)
 	for _, plr in next, players do
 		if not plr then
@@ -11779,7 +11773,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 
 						local function setupFollow(char)
 							local targetRoot = getRoot(char)
-							if not targetRoot then return end
+							while not targetRoot do Wait(.1) targetRoot=getRoot(char) end
 
 							if followConnection then followConnection:Disconnect() end
 							followConnection = RunService.Stepped:Connect(function()
@@ -12694,7 +12688,7 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 	applyWS()
 
 	lib.connect("loopws_char", LocalPlayer.CharacterAdded:Connect(function()
-		repeat Wait() until getHum()
+		while not getHum() do Wait(.1) end
 		if loopws then applyWS() end
 	end))
 end, true)
@@ -12740,7 +12734,7 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 	applyJP()
 
 	lib.connect("loopjp_char", LocalPlayer.CharacterAdded:Connect(function()
-		repeat Wait() until getHum()
+		while not getHum() do Wait(.1) end
 		if loopjp then applyJP() end
 	end))
 end, true)
@@ -16175,42 +16169,43 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 end,true)
 
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
-	Wait()
-	DoNotif("Infinite Jump Enabled", 2)
+    Wait()
+    DoNotif("Infinite Jump Enabled", 2)
 
-	local function doINFJUMPY()
-		lib.disconnect("infjump_jump")
+    local function doINFJUMPY()
+        lib.disconnect("infjump_jump")
 
-		local debounce = false
-		local humanoid = getHum()
+        local debounce = false
+        local humanoid = nil
 
-		lib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
-			if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
-				debounce = true
-				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        while not humanoid do Wait(.1) humanoid = getHum() end
 
-				Delay(0.25, function()
-					debounce = false
-				end)
-			end
-		end))
-	end
+        lib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
+            if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                debounce = true
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 
-	doINFJUMPY()
+                Delay(0.25, function()
+                    debounce = false
+                end)
+            end
+        end))
+    end
 
-	lib.disconnect("infjump_char")
-	lib.connect("infjump_char", plr.CharacterAdded:Connect(function(char)
-		getPlrHum(char)
-		doINFJUMPY()
-	end))
+    lib.disconnect("infjump_char")
+    lib.connect("infjump_char", plr.CharacterAdded:Connect(function()
+        doINFJUMPY()
+    end))
+
+    doINFJUMPY()
 end)
 
 cmd.add({"uninfjump", "uninfinitejump"}, {"uninfjump (uninfinitejump)", "Disables infinite jumping"}, function()
-	Wait()
-	DoNotif("Infinite Jump Disabled", 2)
+    Wait()
+    DoNotif("Infinite Jump Disabled", 2)
 
-	lib.disconnect("infjump_jump")
-	lib.disconnect("infjump_char")
+    lib.disconnect("infjump_jump")
+    lib.disconnect("infjump_char")
 end)
 
 cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
@@ -19522,18 +19517,14 @@ Spawn(function()
 	local function setupFLASHBACK(c)
 		if not c then return end
 
-		local success, humanoid = pcall(function()
-			return c:WaitForChild("Humanoid", 5)
+		local hum = getHum()
+		while not hum do Wait(.1) hum=getHum() end
+		hum.Died:Connect(function()
+			local root = getRoot(character)
+			if root then
+				deathCFrame = root.CFrame
+			end
 		end)
-
-		if success and humanoid then
-			humanoid.Died:Connect(function()
-				local root = getRoot(character)
-				if root then
-					deathCFrame = root.CFrame
-				end
-			end)
-		end
 	end
 
 	setupFLASHBACK(LocalPlayer.Character)
