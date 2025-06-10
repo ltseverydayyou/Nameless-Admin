@@ -1035,22 +1035,18 @@ function loadedResults(res)
 		parts[u[1]] = count
 	end
 
-	local seconds = parts["s"]
 	local milliseconds = math.floor((total) * 1000)
-	local hasTime = false
 	local output = {}
 
 	for _, u in ipairs(units) do
 		local val = parts[u[1]]
 		if val > 0 then
 			Insert(output, Format("%d%s", val, u[1]))
-			hasTime = true
 		end
 	end
 
-	if not hasTime or seconds > 0 or milliseconds > 0 then
-		local fractional = seconds + (milliseconds / 1000)
-		Insert(output, Format("%.3fs", fractional))
+	if parts["s"] == 0 and milliseconds > 0 then
+		Insert(output, Format("%.3fs", milliseconds / 1000))
 	end
 
 	local result = Concat(output, " ")
