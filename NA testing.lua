@@ -2156,7 +2156,7 @@ function sFLY(vfly, cfly)
 		humanoid.PlatformStand = true
 		Head.Anchored = true
 
-		CFloop = RunService.Heartbeat:Connect(function()
+		CFloop = RunService.Stepped:Connect(function()
 			local moveVec = GetCustomMoveVector()
 			local vertical = (CONTROL.E + CONTROL.Q)
 			local fullMove = Vector3.new(moveVec.X, vertical, -moveVec.Z)
@@ -4115,7 +4115,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 	end
 
 	lib.disconnect("walkflinger")
-	lib.connect("walkflinger", RunService.Heartbeat:Connect(function()
+	lib.connect("walkflinger", RunService.Stepped:Connect(function()
 		if not hiddenfling then return end
 
 		local lp = Players.LocalPlayer
@@ -4125,7 +4125,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 			local originalVelocity = hrp.Velocity
 			hrp.Velocity = originalVelocity * 10000 + Vector3.new(0, 10000, 0)
 
-			RunService.RenderStepped:Wait()
+			RunService.Stepped:Wait()
 			if character and hrp then
 				hrp.Velocity = originalVelocity
 			end
@@ -6093,7 +6093,7 @@ function enableACFTP()
 		end
 	end
 
-	acftpCONN = RunService.RenderStepped:Connect(function()
+	acftpCONN = RunService.Stepped:Connect(function()
 		for part in pairs(acftpCFrames) do
 			if part and part:IsDescendantOf(character) then
 				acftpCFrames[part] = part.CFrame
@@ -6370,7 +6370,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 		end
 	end)
 
-	RunService.RenderStepped:Connect(function()
+	RunService.Stepped:Connect(function()
 		CheckMode()
 		if Toggled then
 			local targetPlayer = GetClosestPlayer()
@@ -6485,7 +6485,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	params.FilterType = Enum.RaycastFilterType.Blacklist
 	params.FilterDescendantsInstances = {character}
 
-	lib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
+	lib.connect("hamster_render", RunService.Stepped:Connect(function(delta)
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
 		if UserInputService:GetFocusedTextBox() then return end
@@ -7148,7 +7148,7 @@ function EnableShiftLock()
 		OriginalRotationType = currentRotation
 	end
 
-	lib.connect("shiftlock_loop", RunService.RenderStepped:Connect(function()
+	lib.connect("shiftlock_loop", RunService.Stepped:Connect(function()
 		pcall(function()
 			GameSettings.RotationType = Enum.RotationType.CameraRelative
 		end)
@@ -7489,7 +7489,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 					end
 				end
 
-				RunService.RenderStepped:Wait()
+				RunService.Stepped:Wait()
 			end
 		end)
 	end
@@ -7558,7 +7558,7 @@ end, true)
 cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts more stable"},function()
 	for i,v in next,getChar():GetDescendants() do
 		if v:IsA("BasePart") and v.Name~="HumanoidRootPart" then
-			RunService.Heartbeat:Connect(function()
+			RunService.Stepped:Connect(function()
 				v.Velocity=Vector3.new(-30,0,0)
 			end)
 		end
@@ -9161,7 +9161,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	end))
 end)
 
-cmd.add({"clip","c"},{"clip","Enable your player's collision"},function()
+cmd.add({"clip"},{"clip","Enable your player's collision"},function()
 	lib.disconnect("noclip")
 end)
 
@@ -9351,7 +9351,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			cmd.run({"fr",''})
 		end)
 
-		lib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
+		lib.connect("freecam", RunService.Stepped:Connect(function(dt)
 			local primaryPart = camPart
 			camera.CameraSubject = primaryPart
 
@@ -10264,7 +10264,7 @@ cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <numbe
 
 	lib.disconnect("body_transparency")
 
-	lib.connect("body_transparency", RunService.RenderStepped:Connect(function()
+	lib.connect("body_transparency", RunService.Stepped:Connect(function()
 		local char = LocalPlayer.Character
 		if char then
 			for _, p in ipairs(char:GetChildren()) do
@@ -10291,7 +10291,7 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 
 	lib.disconnect("animation_speed")
 
-	lib.connect("animation_speed", RunService.Heartbeat:Connect(function()
+	lib.connect("animation_speed", RunService.Stepped:Connect(function()
 		local character = getChar()
 		local humanoid = getHum() or character:FindFirstChildOfClass("AnimationController")
 		if humanoid then
@@ -12241,7 +12241,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 			Insert(platformParts, part)
 		end
 
-		lib.connect("headsit_follow", RunService.Heartbeat:Connect(function()
+		lib.connect("headsit_follow", RunService.Stepped:Connect(function()
 			if not SafeGetService("Players"):FindFirstChild(plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
@@ -12291,7 +12291,7 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 
 	local canHop = true
 
-	lib.connect("wallhop_loop", RunService.Heartbeat:Connect(function()
+	lib.connect("wallhop_loop", RunService.Stepped:Connect(function()
 		if not char or not root or not hum or hum.Health <= 0 then
 			lib.disconnect("wallhop_loop")
 			return
@@ -12347,7 +12347,7 @@ end)
 cmd.add({"loopjump", "bhop"}, {"loopjump (bhop)", "Continuously jump."}, function()
 	lib.disconnect("loopjump")
 
-	lib.connect("loopjump", RunService.Heartbeat:Connect(function()
+	lib.connect("loopjump", RunService.RenderStepped:Connect(function()
 		local h = getHum()
 		if h and h:GetState() ~= Enum.HumanoidStateType.Freefall then
 			h:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -12412,7 +12412,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		Insert(standParts, part)
 	end
 
-	lib.connect("headstand_follow", RunService.Heartbeat:Connect(function()
+	lib.connect("headstand_follow", RunService.Stepped:Connect(function()
 		local plrCharacter = plr.Character
 		if Players:FindFirstChild(plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			local charRoot = getRoot(char)
@@ -13381,12 +13381,12 @@ cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when yo
 	end
 
 	edgeJump()
-	HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.RenderStepped:Connect(edgeJump)
+	HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.Stepped:Connect(edgeJump)
 	HumanModCons.ejCA = (HumanModCons.ejCA and HumanModCons.ejCA:Disconnect() and false) or speaker.CharacterAdded:Connect(function(newChar)
 		Char = newChar
 		Human = getPlrHum(newChar)
 		edgeJump()
-		HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.RenderStepped:Connect(edgeJump)
+		HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.Stepped:Connect(edgeJump)
 	end)
 end)
 
@@ -13895,7 +13895,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Parent = SafeGetService("Workspace")
 							Insert(huggiePARTS, part)
 						end
-						lib.connect("hug_plat", RunService.Heartbeat:Connect(function()
+						lib.connect("hug_plat", RunService.Stepped:Connect(function()
 							local charRoot = getRoot(LocalPlayer.Character)
 							if charRoot then
 								for i, wall in ipairs(walls) do
@@ -13981,7 +13981,7 @@ cmd.add({"glue", "loopgoto", "lgoto"}, {"glue <player> (loopgoto,lgoto)", "Loop 
 			glueloop[plr]:Disconnect()
 			glueloop[plr] = nil
 		end
-		glueloop[plr] = RunService.RenderStepped:Connect(function()
+		glueloop[plr] = RunService.Stepped:Connect(function()
 			local char = plr.Character
 			if char then
 				local targetRoot = getRoot(char)
@@ -14011,7 +14011,7 @@ cmd.add({"glueback", "loopbehind", "lbehind"}, {"glueback <player> (loopbehind,l
 			glueBACKER[target]:Disconnect()
 			glueBACKER[target] = nil
 		end
-		glueBACKER[target] = RunService.RenderStepped:Connect(function()
+		glueBACKER[target] = RunService.Stepped:Connect(function()
 			local targetChar = target.Character
 			if targetChar then
 				local targetRoot = getRoot(targetChar)
@@ -14167,7 +14167,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 	awPart.Anchored = true
 	airwalk.Y = getRoot(getChar()).CFrame.y
 
-	Airwalker = RunService.RenderStepped:Connect(function()
+	Airwalker = RunService.Stepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
 		airwalk.Vars.offset = airwalk.Vars.decrease and 5 or (airwalk.Vars.increase and 3.5 or 4)
 		if airwalk.Vars.offset == 4 then
@@ -15358,7 +15358,7 @@ cmd.add({"swim"}, {"swim {speed}", "Swim in the air"}, function(speed)
 			SWIMMERRRR = false
 		end))
 
-		lib.connect("swim_heartbeat", RunService.Heartbeat:Connect(function()
+		lib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
 			pcall(function()
 				if humanoid and hrp then
 					local move = humanoid.MoveDirection
@@ -16881,7 +16881,7 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 		local cam = SafeGetService("Workspace").CurrentCamera
 		if not cam then return end
 
-		lib.connect("fov_loop", RunService.RenderStepped:Connect(function()
+		lib.connect("fov_loop", RunService.Stepped:Connect(function()
 			if cam.FieldOfView ~= loopedFOV then
 				cam.FieldOfView = loopedFOV
 			end
@@ -17189,7 +17189,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 		end
 	end
 
-	lib.connect("loopbringnpcs", RunService.Heartbeat:Connect(function()
+	lib.connect("loopbringnpcs", RunService.Stepped:Connect(function()
 		for _, hum in ipairs(npcCache) do
 			if hum.Parent and hum.Health > 0 then
 				local model = hum.Parent
@@ -18870,26 +18870,54 @@ gui.searchCommands = function()
 end
 
 --[[ OPEN THE COMMAND BAR ]]--
-mouse.KeyDown:Connect(function(k)
+--[[mouse.KeyDown:Connect(function(k)
 	if k:lower()==opt.prefix then
 		Wait();
 		gui.barSelect()
 		cmdInput.Text=''
 		cmdInput:CaptureFocus()
 	end
+end)]]
+UserInputService.InputBegan:Connect(function(i, g)
+	if g then return end
+	local c = tostring(opt.prefix):sub(1,1)
+	local k
+	for _, v in pairs(Enum.KeyCode:GetEnumItems()) do
+		if v.Name:lower() == c:lower() or v.Value == string.byte(c) then
+			k = v
+			break
+		end
+	end
+	if i.KeyCode == k then
+		Wait()
+		if cmdInput then
+			gui.barSelect()
+			cmdInput.Text = ''
+
+			while true do
+				cmdInput:CaptureFocus()
+				Wait(.05)
+				if cmdInput:IsFocused() then break end
+			end
+		end
+	end
 end)
 
 --[[ CLOSE THE COMMAND BAR ]]--
-cmdInput.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		wrap(function()
-			lib.parseCommand(opt.prefix..cmdInput.Text)
-		end)
+cmdInput.FocusLost:Connect(function(enter)
+	if enter then
+		local txt = cmdInput.Text
+		if txt and #txt > 0 then
+			wrap(function()
+				lib.parseCommand(opt.prefix..txt)
+			end)
+		end
 	end
 	if predictionInput then
 		predictionInput.Text = ""
 	end
-	gui.barDeselect()
+	Wait(.05)
+	if not cmdInput:IsFocused() then gui.barDeselect() end
 end)
 
 cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
