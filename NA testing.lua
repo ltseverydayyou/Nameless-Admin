@@ -74,6 +74,11 @@ local NAImageAssets = {
 local prefixCheck = ";"
 local NAScale = 1
 local NAUIScale = 1
+local flingManager = {
+	FlingOldPos = nil;
+	lFlingOldPos = nil;
+	cFlingOldPos = nil;
+}
 NASESSIONSTARTEDIDK = os.clock()
 lib={}
 NACOLOREDELEMENTS={}
@@ -378,6 +383,9 @@ local opt={
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
 	ctrlModule = nil;
+	currentTagText = "Tag";
+	currentTagColor = Color3.fromRGB(0, 255, 170);
+	saveTag = false;
 }
 
 if getgenv().NATestingVer then
@@ -444,6 +452,7 @@ local NAfiles = {
 	NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt";
 	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
 	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
+	NACHATTAG = "Nameless-Admin/ChatTag.json";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -523,6 +532,18 @@ if FileSupport then
 			SaveLog = false;
 		}))
 	end
+
+	if not isfile(NAfiles.NACHATTAG) then
+		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
+			Text = "Tag";
+			Color = {
+				R = 0;
+				G = 1;
+				B = 170 / 255;
+			};
+			Save = false;
+		}))
+	end
 end
 
 function InitUIStroke(path)
@@ -597,6 +618,33 @@ if FileSupport then
 		end
 	end
 
+	if isfile(NAfiles.NACHATTAG) then
+		local success, data = pcall(function()
+			return HttpService:JSONDecode(readfile(NAfiles.NACHATTAG))
+		end)
+
+		if success and typeof(data) == "table" then
+			if type(data.Text) == "string" then
+				opt.currentTagText = data.Text
+			end
+
+			if type(data.Color) == "table" and data.Color.R and data.Color.G and data.Color.B then
+				opt.currentTagColor = Color3.new(data.Color.R, data.Color.G, data.Color.B)
+			end
+
+			if type(data.Save) == "boolean" then
+				opt.saveTag = data.Save
+			else
+				opt.saveTag = false
+			end
+		else
+			opt.currentTagText = "Tag"
+			opt.currentTagColor = Color3.fromRGB(0, 255, 170)
+			opt.saveTag = false
+			DoNotif("Chat tag file was corrupt or unreadable. Loaded defaults",3)
+		end
+	end
+
 	if isfile(NAfiles.NAICONPOSPATH) then
 		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
@@ -619,12 +667,20 @@ else
 	NAQoTEnabled = false
 	NAiconSaveEnabled = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
+	opt.currentTagText = "Tag"
+	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
+	opt.saveTag = false
 	DoWindow("Your exploit does not support read/write file")
 end
 
 opt.prefix = prefixCheck
 
 local lastPrefix = opt.prefix
+
+if opt.saveTag then
+	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
+	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
+end
 
 NACaller(function()
 	local response = opt.NAREQUEST({
@@ -688,7 +744,7 @@ local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
-local OrgDestroyHeight = workspace.FallenPartsDestroyHeight
+local OrgDestroyHeight = nil
 local Watch=false
 local Admin={}
 local playerButtons={}
@@ -3459,8 +3515,8 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 				end
 
 				if Character and Humanoid and RootPart then
-					if not getgenv().OldPos or RootPart.Velocity.Magnitude < 50 then
-						getgenv().OldPos = RootPart.CFrame
+					if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude < 50 then
+						flingManager.cFlingOldPos = RootPart.CFrame
 					end
 					if THumanoid and THumanoid.Sit and not AllBool then
 					end
@@ -3573,8 +3629,8 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 					workspace.CurrentCamera.CameraSubject = Humanoid
 
 					repeat
-						RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
-						Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, .5, 0))
+						RootPart.CFrame = flingManager.cFlingOldPos * CFrame.new(0, .5, 0)
+						Character:SetPrimaryPartCFrame(flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
 						Humanoid:ChangeState("GettingUp")
 						Foreach(Character:GetChildren(), function(_, x)
 							if x:IsA("BasePart") then
@@ -3582,7 +3638,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 							end
 						end)
 						Wait()
-					until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+					until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude < 25
 					workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 				else
 				end
@@ -3628,28 +3684,28 @@ cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your mes
 end)
 
 NAmanage.doWindows = function(position, Size, defaultText)
-	local screenGui = Instance.new("ScreenGui")
+	local screenGui = InstanceNew("ScreenGui")
 	NaProtectUI(screenGui)
 	screenGui.ResetOnSpawn = false
 
-	local window = Instance.new("Frame")
+	local window = InstanceNew("Frame")
 	window.Parent = screenGui
 	window.BackgroundColor3 = Color3.fromRGB(32, 34, 40)
 	window.BackgroundTransparency = 0
 	window.Position = position
 	window.Size = Size
 
-	local uiCorner = Instance.new("UICorner")
+	local uiCorner = InstanceNew("UICorner")
 	uiCorner.CornerRadius = UDim.new(0, 12)
 	uiCorner.Parent = window
 
-	local uiStroke = Instance.new("UIStroke")
+	local uiStroke = InstanceNew("UIStroke")
 	uiStroke.Color = Color3.fromRGB(60, 60, 75)
 	uiStroke.Thickness = 2
 	uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	uiStroke.Parent = window
 
-	local titleBar = Instance.new("TextLabel")
+	local titleBar = InstanceNew("TextLabel")
 	titleBar.Parent = window
 	titleBar.BackgroundTransparency = 1
 	titleBar.Position = UDim2.new(0, 10, 0, 5)
@@ -3660,7 +3716,7 @@ NAmanage.doWindows = function(position, Size, defaultText)
 	titleBar.TextSize = 16
 	titleBar.TextXAlignment = Enum.TextXAlignment.Left
 
-	local closeButton = Instance.new("TextButton")
+	local closeButton = InstanceNew("TextButton")
 	closeButton.Parent = window
 	closeButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
 	closeButton.Position = UDim2.new(1, -30, 0, 5)
@@ -3671,7 +3727,7 @@ NAmanage.doWindows = function(position, Size, defaultText)
 	closeButton.TextSize = 14
 	closeButton.ZIndex = 10
 
-	local closeUICorner = Instance.new("UICorner")
+	local closeUICorner = InstanceNew("UICorner")
 	closeUICorner.CornerRadius = UDim.new(1, 0)
 	closeUICorner.Parent = closeButton
 
@@ -5951,7 +6007,7 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 		TeleportService.TeleportAsync,
 		TeleportService.TeleportPartyAsync,
 		getrenv().TeleportToPrivateServer
-	} do
+		} do
 		if typeof(tpFunc) == "function" then
 			hookfunction(tpFunc, newcclosure(function(...)
 				DoNotif("Teleport blocked (hooked)", 3)
@@ -10805,8 +10861,8 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			Handle = Accessory.Handle
 		end
 		if Character and Humanoid and HRP then
-			if not getgenv().OldPos or RootPart.Velocity.Magnitude < 50 then
-				getgenv().OldPos = RootPart.CFrame
+			if not flingManager.FlingOldPos or RootPart.Velocity.Magnitude < 50 then
+				flingManager.FlingOldPos = RootPart.CFrame
 			end
 			if THumanoid and THumanoid.Sit and not AllBool then
 			end
@@ -10892,8 +10948,8 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 			workspace.CurrentCamera.CameraSubject = Humanoid
 			repeat
-				RootPart.CFrame = getgenv().OldPos * CFrame.new(0, 0.5, 0)
-				Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, 0.5, 0))
+				RootPart.CFrame = flingManager.FlingOldPos * CFrame.new(0, 0.5, 0)
+				Character:SetPrimaryPartCFrame(flingManager.FlingOldPos * CFrame.new(0, 0.5, 0))
 				Humanoid:ChangeState("GettingUp")
 				Foreach(Character:GetChildren(), function(_, x)
 					if x:IsA("BasePart") then
@@ -10901,7 +10957,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 					end
 				end)
 				Wait()
-			until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+			until (RootPart.Position - flingManager.FlingOldPos.p).Magnitude < 25
 			workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 			attachedPart:Destroy()
 		end
@@ -11905,7 +11961,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 		local SkidFling = function(TargetPlayer)
 			if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
 			local Character = Player.Character
-			local Humanoid = getPlrHum(Player)
+			local Humanoid = getPlrHum(Character)
 			local HRP = Humanoid and Humanoid.RootPart
 			local camera = workspace.CurrentCamera
 			LOOPPROTECT = InstanceNew("Part")
@@ -11927,8 +11983,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 			local TCharacter = TargetPlayer.Character
 			local THumanoid, TRootPart, THead, Accessory, Handle
 			if not TCharacter then if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end return end
-			if getPlrHum(TargetPlayer) then
-				THumanoid = getPlrHum(TargetPlayer)
+			if getPlrHum(TCharacter) then
+				THumanoid = getPlrHum(TCharacter)
 			end
 			if THumanoid and THumanoid.RootPart then
 				TRootPart = THumanoid.RootPart
@@ -11943,8 +11999,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				Handle = Accessory.Handle
 			end
 			if Character and Humanoid and HRP then
-				if not getgenv().OldPos or RootPart.Velocity.Magnitude < 50 then
-					getgenv().OldPos = RootPart.CFrame
+				if not flingManager.lFlingOldPos or RootPart.Velocity.Magnitude < 50 then
+					flingManager.lFlingOldPos = RootPart.CFrame
 				end
 				if THumanoid and THumanoid.Sit and not AllBool then
 					return
@@ -12038,8 +12094,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 				workspace.CurrentCamera.CameraSubject = Humanoid
 				repeat
-					RootPart.CFrame = getgenv().OldPos * CFrame.new(0, 0.5, 0)
-					Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, 0.5, 0))
+					RootPart.CFrame = flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0)
+					Character:SetPrimaryPartCFrame(flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
 					Humanoid:ChangeState("GettingUp")
 					Foreach(Character:GetChildren(), function(_, x)
 						if x:IsA("BasePart") then
@@ -12047,7 +12103,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 						end
 					end)
 					Wait()
-				until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
+				until (RootPart.Position - flingManager.lFlingOldPos.p).Magnitude < 25
 				workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 				if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
 			else
@@ -12151,12 +12207,6 @@ if IsOnPC then
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end)
 end
-
---[[cmd.add({"chattag", "ctags", "chatt", "tag"}, {"chattag (ctags, chatt, tag)", "gives you a chat tag (visually)"}, function(...)
-	if not LegacyChat then return DoNotif("this doesn't work with Legacy Chat System please use it on a game that uses the new Chat System",5) end
-	local tag = Concat({...}, " ")
-	LocalPlayer:SetAttribute("CustomNAtagger", tag)
-end, true)]]
 
 platformParts = {}
 
@@ -14332,36 +14382,36 @@ cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmutebo
 end, true)
 
 cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
-    local target = getPlr(...)
-    for _, plr in next, target do
-        local char = getPlrChar(plr)
-        if char then
-            local root = getRoot(char)
-            if root then
-                local mass = root.AssemblyMass
-                DoNotif(nameChecker(plr).."'s mass is "..mass)
-            end
-        end
-        Wait()
-    end
+	local target = getPlr(...)
+	for _, plr in next, target do
+		local char = getPlrChar(plr)
+		if char then
+			local root = getRoot(char)
+			if root then
+				local mass = root.AssemblyMass
+				DoNotif(nameChecker(plr).."'s mass is "..mass)
+			end
+		end
+		Wait()
+	end
 end, true)
 
 cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the position of another player"}, function(...)
-    local target = getPlr(...)
-    for _, plr in next, target do
-        local char = getPlrChar(plr)
-        if char then
-            local root = getRoot(char)
-            if root then
-                local pos = root.Position
-                DoNotif(nameChecker(plr).."'s position is: "..tostring(pos))
-                if setclipboard then
-                    setclipboard(tostring(pos))
-                end
-            end
-        end
-        Wait()
-    end
+	local target = getPlr(...)
+	for _, plr in next, target do
+		local char = getPlrChar(plr)
+		if char then
+			local root = getRoot(char)
+			if root then
+				local pos = root.Position
+				DoNotif(nameChecker(plr).."'s position is: "..tostring(pos))
+				if setclipboard then
+					setclipboard(tostring(pos))
+				end
+			end
+		end
+		Wait()
+	end
 end, true)
 
 cmd.add({"equiptools"},{"equiptools","Equips every tool in your inventory at once"},function()
@@ -15978,82 +16028,82 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 end)
 
 cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using available methods. Usage: setsimradius <radius>"},function(...)
-        local r = tonumber(...)
-        if not r then
-            return DoNotif("Invalid input. Usage: setsimradius <number>")
-        end
+	local r = tonumber(...)
+	if not r then
+		return DoNotif("Invalid input. Usage: setsimradius <number>")
+	end
 
-        local ok = false
+	local ok = false
 
-        if setsimulationradius then
-            pcall(function()
-                setsimulationradius(r)
-                ok = true
-                DoNotif("SimRadius set with setsimulationradius: "..r)
-            end)
-        end
+	if setsimulationradius then
+		pcall(function()
+			setsimulationradius(r)
+			ok = true
+			DoNotif("SimRadius set with setsimulationradius: "..r)
+		end)
+	end
 
-        if not ok and opt.hiddenprop then
-            if pcall(function()
-                opt.hiddenprop(LocalPlayer, "SimulationRadius", r)
-            end) then
-                ok = true
-                DoNotif("SimRadius set with sethiddenproperty: "..r)
-            end
-        end
+	if not ok and opt.hiddenprop then
+		if pcall(function()
+				opt.hiddenprop(LocalPlayer, "SimulationRadius", r)
+			end) then
+			ok = true
+			DoNotif("SimRadius set with sethiddenproperty: "..r)
+		end
+	end
 
-        if not ok then
-            if pcall(function()
-                LocalPlayer.SimulationRadius = r
-            end) then
-                ok = true
-                DoNotif("SimRadius set directly: "..r)
-            end
-        end
+	if not ok then
+		if pcall(function()
+				LocalPlayer.SimulationRadius = r
+			end) then
+			ok = true
+			DoNotif("SimRadius set directly: "..r)
+		end
+	end
 
-        if not ok then
-            DoNotif("No supported method to set sim radius.")
-        end
+	if not ok then
+		DoNotif("No supported method to set sim radius.")
+	end
 end,true)
 
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
-    Wait()
-    DoNotif("Infinite Jump Enabled", 2)
+	Wait()
+	DoNotif("Infinite Jump Enabled", 2)
 
-    local function doINFJUMPY()
-        lib.disconnect("infjump_jump")
+	local function doINFJUMPY()
+		lib.disconnect("infjump_jump")
 
-        local debounce = false
-        local humanoid = nil
+		local debounce = false
+		local humanoid = nil
 
-        while not humanoid do Wait(.1) humanoid = getHum() end
+		while not humanoid do Wait(.1) humanoid = getHum() end
 
-        lib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
-            if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
-                debounce = true
-                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		lib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
+			if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+				debounce = true
+				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 
-                Delay(0.25, function()
-                    debounce = false
-                end)
-            end
-        end))
-    end
+				Delay(0.25, function()
+					debounce = false
+				end)
+			end
+		end))
+	end
 
-    lib.disconnect("infjump_char")
-    lib.connect("infjump_char", plr.CharacterAdded:Connect(function()
-        doINFJUMPY()
-    end))
+	lib.disconnect("infjump_char")
+	lib.connect("infjump_char", plr.CharacterAdded:Connect(function()
+		doINFJUMPY()
+	end))
 
-    doINFJUMPY()
+	doINFJUMPY()
 end)
 
 cmd.add({"uninfjump", "uninfinitejump"}, {"uninfjump (uninfinitejump)", "Disables infinite jumping"}, function()
-    Wait()
-    DoNotif("Infinite Jump Disabled", 2)
+	Wait()
+	DoNotif("Infinite Jump Disabled", 2)
 
-    lib.disconnect("infjump_jump")
-    lib.disconnect("infjump_char")
+	lib.disconnect("infjump_jump")
+	lib.disconnect("infjump_char")
 end)
 
 cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
@@ -19456,19 +19506,19 @@ local UICorner2 = InstanceNew("UICorner")
 NAICONASSET = (getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil
 
 if NAICONASSET then
-    TextButton = InstanceNew("ImageButton")
-    TextButton.Image = NAICONASSET
+	TextButton = InstanceNew("ImageButton")
+	TextButton.Image = NAICONASSET
 else
-    TextButton = InstanceNew("TextButton")
-    TextButton.Font = Enum.Font.SourceSansBold
-    TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
-    TextButton.TextSize = 22
-    if isAprilFools() then
-        cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX" }
-        TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
-    else
-        TextButton.Text = "NA"
-    end
+	TextButton = InstanceNew("TextButton")
+	TextButton.Font = Enum.Font.SourceSansBold
+	TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
+	TextButton.TextSize = 22
+	if isAprilFools() then
+		cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX" }
+		TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
+	else
+		TextButton.Text = "NA"
+	end
 end
 
 TextLabel.Parent = NASCREENGUI
@@ -19508,79 +19558,79 @@ UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = TextButton
 
 TextButton.MouseEnter:Connect(function()
-    TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
-    }):Play()
+	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
+	}):Play()
 end)
 
 TextButton.MouseLeave:Connect(function()
-    TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
-    }):Play()
+	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
+	}):Play()
 end)
 
 swooshySWOOSH = false
 
 function Swoosh()
-    TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-        Rotation = 720
-    }):Play()
-    gui.draggablev2(TextButton)
-    if swooshySWOOSH then return end
-    swooshySWOOSH = true
-    TextButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    if FileSupport and NAiconSaveEnabled then
-                        local pos = TextButton.Position
-                        writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-                            X = pos.X.Scale,
-                            Y = pos.Y.Scale,
-                            Save = NAiconSaveEnabled
-                        }))
-                    end
-                end
-            end)
-        end
-    end)
+	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		Rotation = 720
+	}):Play()
+	gui.draggablev2(TextButton)
+	if swooshySWOOSH then return end
+	swooshySWOOSH = true
+	TextButton.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					if FileSupport and NAiconSaveEnabled then
+						local pos = TextButton.Position
+						writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
+							X = pos.X.Scale,
+							Y = pos.Y.Scale,
+							Save = NAiconSaveEnabled
+						}))
+					end
+				end
+			end)
+		end
+	end)
 end
 
 function mainNameless()
-    local txtLabel = TextLabel
-    local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
-    local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
+	local txtLabel = TextLabel
+	local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
+	local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
 
-    local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-        Size = finalSize,
-        BackgroundTransparency = 0.1,
-        TextTransparency = 0,
-    })
+	local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		Size = finalSize,
+		BackgroundTransparency = 0.1,
+		TextTransparency = 0,
+	})
 
-    local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 0, 0.48, 0)
-    })
+	local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, 0, 0.48, 0)
+	})
 
-    appearTween:Play()
-    riseTween:Play()
+	appearTween:Play()
+	riseTween:Play()
 
-    TextButton.Size = UDim2.new(0, 0, 0, 0)
-    if TextButton:IsA("TextButton") then
-        TextButton.TextTransparency = 1
-    end
+	TextButton.Size = UDim2.new(0, 0, 0, 0)
+	if TextButton:IsA("TextButton") then
+		TextButton.TextTransparency = 1
+	end
 
-    local targetPos = UDim2.new(0.5, 0, 0.1, 0)
+	local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
-    if FileSupport and isfile(NAfiles.NAICONPOSPATH) then
-        local data = HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
-        if data and data.X and data.Y then
-            targetPos = UDim2.new(data.X, 0, data.Y, 0)
-        end
-    end
+	if FileSupport and isfile(NAfiles.NAICONPOSPATH) then
+		local data = HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
+		if data and data.X and data.Y then
+			targetPos = UDim2.new(data.X, 0, data.Y, 0)
+		end
+	end
 
-    TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+	TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
 
-    local tweenProps = {
+	local tweenProps = {
 		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
 		Position = targetPos
 	}
@@ -19590,23 +19640,23 @@ function mainNameless()
 	end
 
 	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), tweenProps)
-    appearBtnTween:Play()
+	appearBtnTween:Play()
 
-    Swoosh()
+	Swoosh()
 
-    Wait(2.5)
+	Wait(2.5)
 
-    local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
-        TextTransparency = 1,
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0.5, 0, 0.52, 20),
-        Size = UDim2.new(0, 0, 0, 0)
-    })
+	local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
+		TextTransparency = 1,
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0.5, 0, 0.52, 20),
+		Size = UDim2.new(0, 0, 0, 0)
+	})
 
-    fadeOutTween:Play()
-    fadeOutTween.Completed:Once(function()
-        txtLabel:Destroy()
-    end)
+	fadeOutTween:Play()
+	fadeOutTween.Completed:Once(function()
+		txtLabel:Destroy()
+	end)
 end
 
 coroutine.wrap(mainNameless)()
@@ -19721,34 +19771,35 @@ CaptureService.CaptureEnded:Connect(function()
 	end)
 end)
 
---[[if not LegacyChat then
-	TextChatService.OnIncomingMessage = function(message)
-		local textSource = message.TextSource
-		if not textSource then return end
+TextChatService.OnIncomingMessage = function(message)
+	local textSource = message.TextSource
+	if not textSource then return end
 
-		local fromPlayer = Players:GetPlayerByUserId(textSource.UserId)
-		if not fromPlayer then return end
+	local fromPlayer = Players:GetPlayerByUserId(textSource.UserId)
+	if not fromPlayer then return end
 
-		for _, adminId in ipairs(_G.NAadminsLol) do
-			if fromPlayer.UserId == adminId then
-				local clr = 255
-				local hex = Format("#%02X%02X%02X", clr, clr, clr)
-				local props = InstanceNew("TextChatMessageProperties")
-				props.PrefixText = Format('<font color="%s">[NA ADMIN]</font> %s', hex, message.PrefixText or "")
-				props.Text = message.Text
-				return props
-			end
-		end
-
-		local tag = fromPlayer:GetAttribute("CustomNAtagger")
-		if tag then
+	for _, adminId in ipairs(_G.NAadminsLol or {}) do
+		if fromPlayer.UserId == adminId then
+			local hex = Format("#%02X%02X%02X", 255, 255, 255)
 			local props = InstanceNew("TextChatMessageProperties")
-			props.PrefixText = Format('<font color="#00FFAA">[%s]</font> %s', tag, message.PrefixText or "")
+			props.PrefixText = Format('<font color="%s">[NA ADMIN]</font> %s', hex, message.PrefixText or "")
 			props.Text = message.Text
 			return props
 		end
 	end
-end]]
+
+	local tagText = fromPlayer:GetAttribute("CustomNAtaggerText")
+	local tagColor = fromPlayer:GetAttribute("CustomNAtaggerColor")
+
+	if tagText and tagColor then
+		local r, g, b = tagColor.R * 255, tagColor.G * 255, tagColor.B * 255
+		local hex = Format("#%02X%02X%02X", r, g, b)
+		local props = InstanceNew("TextChatMessageProperties")
+		props.PrefixText = Format('<font color="%s">[%s]</font> %s', hex, tagText, message.PrefixText or "")
+		props.Text = message.Text
+		return props
+	end
+end
 
 print([[
 	
@@ -19779,15 +19830,15 @@ Spawn(function()
 end)
 
 Spawn(function() -- init
-	if cmdBar then cmdBar.Name = '\0' end
-	if chatLogsFrame then chatLogsFrame.Name = '\0' end
-	if NAconsoleFrame then NAconsoleFrame.Name = '\0' end
-	if commandsFrame then commandsFrame.Name = '\0' end
-	if resizeFrame then resizeFrame.Name = '\0' end
-	if description then description.Name = '\0' end
-	if ModalFixer then ModalFixer.Name = '\0' end
-	if AUTOSCALER then AUTOSCALER.Name = '\0' AUTOSCALER.Scale = NAUIScale end
-	if SettingsFrame then SettingsFrame.Name = '\0' end
+	if cmdBar then NAProtection(cmdBar) end
+	if chatLogsFrame then NAProtection(chatLogsFrame) end
+	if NAconsoleFrame then NAProtection(NAconsoleFrame) end
+	if commandsFrame then NAProtection(commandsFrame) end
+	if resizeFrame then NAProtection(resizeFrame) end
+	if description then NAProtection(description) end
+	if ModalFixer then NAProtection(ModalFixer) end
+	if AUTOSCALER then NAProtection(AUTOSCALER) AUTOSCALER.Scale = NAUIScale end
+	if SettingsFrame then NAProtection(SettingsFrame) end
 end)
 
 Spawn(NAmanage.bindToDevConsole)
@@ -19796,6 +19847,8 @@ Spawn(NAmanage.loadButtonIDS)
 Spawn(NAmanage.RenderUserButtons)
 Spawn(NAmanage.loadAutoExec)
 Spawn(NAmanage.LoadPlugins)
+
+OrgDestroyHeight=lib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
 -- [[ GUI ELEMENTS ]] --
 
@@ -19829,6 +19882,8 @@ end)
 
 ]]
 
+gui.addSection("Prefix Settings")
+
 gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 	local newPrefix = text
 	if not newPrefix or newPrefix == "" then
@@ -19839,7 +19894,8 @@ gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 		DoNotif("Prefix cannot contain letters or numbers")
 	elseif newPrefix:match("[%[%]%(%)%*%^%$%%{}<>]") then
 		DoNotif("That symbol is not allowed as a prefix")
-	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;") or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
+	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;")
+		or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
 		DoNotif("Encoded/HTML characters are not allowed as a prefix")
 	else
 		opt.prefix = newPrefix
@@ -19858,44 +19914,41 @@ if FileSupport then
 	end)
 end
 
-gui.addToggle("Keep "..adminName,NAQoTEnabled, function(val)
-	NAQoTEnabled=val
+gui.addSection("Admin Utility")
+
+gui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
+	NAQoTEnabled = val
 	if FileSupport then
 		writefile(NAfiles.NAQOTPATH, tostring(val))
-		if NAQoTEnabled then
-			DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)",3)
-		elseif not NAQoTEnabled then
-			DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport",3)
-		end
+	end
+	if NAQoTEnabled then
+		DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)", 3)
+	else
+		DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport", 3)
 	end
 end)
 
-gui.addToggle("Command Predictions Prompt",doPREDICTION, function(v)
-	doPREDICTION=v
-	if doPREDICTION then
-		DoNotif("Command Predictions Enabled",2)
-	else
-		DoNotif("Command Predictions Disabled",2)
-	end
+gui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
+	doPREDICTION = v
+	DoNotif("Command Predictions "..(v and "Enabled" or "Disabled"), 2)
 	if FileSupport then
 		writefile(NAfiles.NAPREDICTIONPATH, tostring(v))
 	end
 end)
 
-if FileSupport then
-	gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
-		if FileSupport then
-			local pos = TextButton.Position
-			writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-				X = v and pos.X.Scale or 0.5,
-				Y = v and pos.Y.Scale or 0.1,
-				Save = v
-			}))
-			NAiconSaveEnabled = v
-		end
+gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
+	local pos = TextButton.Position
+	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
+		X = v and pos.X.Scale or 0.5,
+		Y = v and pos.Y.Scale or 0.1,
+		Save = v
+	}))
+	NAiconSaveEnabled = v
+	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
+end)
 
-		DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
-	end)
+if FileSupport then
+	gui.addSection("Join/Leave Logging")
 
 	gui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
 		JoinLeaveConfig.JoinLog = v
@@ -19917,66 +19970,62 @@ if FileSupport then
 end
 
 if IsOnPC then
+	gui.addSection("Fly Keybinds")
+
 	gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
 		local newKey = text:lower()
-		if newKey == "" or newKey==nil then
+		if newKey == "" then
 			DoNotif("Please provide a keybind.")
 			return
 		end
-
 		flyVariables.toggleKey = newKey
 		if flyVariables.keybindConn then
 			flyVariables.keybindConn:Disconnect()
 			flyVariables.keybindConn = nil
 		end
 		connectFlyKey()
-
 		DoNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
 	end)
 
 	gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
 		local newKey = text:lower()
-		if newKey == "" or newKey==nil then
+		if newKey == "" then
 			DoNotif("Please provide a keybind.")
 			return
 		end
-
 		flyVariables.vToggleKey = newKey
 		if flyVariables.vKeybindConn then
 			flyVariables.vKeybindConn:Disconnect()
 		end
 		connectVFlyKey()
-
 		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
 	end)
 
 	gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
-		local newKey = text or ""
-		newKey = newKey:lower()
+		local newKey = (text or ""):lower()
 		if newKey == "" then
 			DoNotif("Please provide a keybind.")
 			return
 		end
-
 		flyVariables.cToggleKey = newKey
-
 		if flyVariables.cKeybindConn then
 			flyVariables.cKeybindConn:Disconnect()
 			flyVariables.cKeybindConn = nil
 		end
-
 		connectCFlyKey()
 		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
 	end)
 
 	gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
-		local key = text or ""
+		local key = (text or ""):lower()
 		if key == "" then
 			DoNotif("Please provide a key.")
 			return
 		end
-		flyVariables.tflyToggleKey = key:lower()
-		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
+		flyVariables.tflyToggleKey = key
+		if flyVariables.tflyKeyConn then
+			flyVariables.tflyKeyConn:Disconnect()
+		end
 		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
 			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
@@ -19986,10 +20035,11 @@ if IsOnPC then
 	end)
 end
 
+gui.addSection("UI Customization")
+
 gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAScale = val
 	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
-
 	if FileSupport then
 		writefile(NAfiles.NABUTTONSIZEPATH, tostring(val))
 	end
@@ -20002,4 +20052,53 @@ gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 		end
 	end
 	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
+end)
+
+gui.addSection("Chat Tag Customization")
+
+gui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
+	opt.currentTagText = inputText
+end)
+
+gui.addColorPicker("Tag Color", opt.currentTagColor, function(color)
+	opt.currentTagColor = color
+end)
+
+gui.addButton("Apply Chat Tag", function()
+	if opt.currentTagText == "" or not opt.currentTagText then
+		DoNotif("Please enter a tag name before applying",2)
+		return
+	end
+
+	LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
+	LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
+
+	if FileSupport then
+		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
+			Text = opt.currentTagText;
+			Color = {
+				R = opt.currentTagColor.R;
+				G = opt.currentTagColor.G;
+				B = opt.currentTagColor.B;
+			};
+			Save = true;
+		}))
+	end
+
+	DoNotif("Custom chat tag applied and saved!",2.5)
+end)
+
+gui.addButton("Remove Chat Tag", function()
+	LocalPlayer:SetAttribute("CustomNAtaggerText", nil)
+	LocalPlayer:SetAttribute("CustomNAtaggerColor", nil)
+
+	if FileSupport and isfile(NAfiles.NACHATTAG) then
+		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
+			Text = opt.currentTagText;
+			Color = { R = opt.currentTagColor.R, G = opt.currentTagColor.G, B = opt.currentTagColor.B };
+			Save = false;
+		}))
+	end
+
+	DoNotif("Custom chat tag removed.",2.5)
 end)
