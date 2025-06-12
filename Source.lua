@@ -353,9 +353,10 @@ local opt={
 	loader='';
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
-	NA_storage=InstanceNew("ScreenGui");--Stupid Ahh script removing folders
+	NA_storage=nil;--Stupid Ahh script removing folders
 	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
+	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
 }
 
 if getgenv().NATestingVer then
@@ -655,10 +656,9 @@ local CaptureService = SafeGetService("CaptureService");
 local TextService = SafeGetService("TextService");
 local IsOnMobile=false--Discover({Enum.Platform.IOS,Enum.Platform.Android},UserInputService:GetPlatform());
 local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platform.Linux,Enum.Platform.SteamOS,Enum.Platform.OSX,Enum.Platform.Chromecast,Enum.Platform.WebOS},UserInputService:GetPlatform());
-local sethidden=sethiddenproperty or set_hidden_property or set_hidden_prop
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
-local PlrGui=Player:FindFirstChild("PlayerGui");
+local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 --local TopBarApp = nil
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
@@ -667,7 +667,7 @@ local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
-local OrgDestroyHeight = SafeGetService("Workspace").FallenPartsDestroyHeight
+local OrgDestroyHeight = workspace.FallenPartsDestroyHeight
 local Watch=false
 local Admin={}
 local playerButtons={}
@@ -707,7 +707,7 @@ localPlayer=Player
 LocalPlayer=Player
 local character=Player.Character
 local mouse=localPlayer:GetMouse()
-local camera=SafeGetService("Workspace").CurrentCamera
+local camera=workspace.CurrentCamera
 local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
 local ctrlModule = nil
 local cmds={
@@ -1203,6 +1203,7 @@ cmd.stopLoop = function()
 end
 
 --[[ Fully setup Nameless admin storage ]]
+opt.NA_storage = InstanceNew("ScreenGui")
 NaProtectUI(opt.NA_storage)
 
 --[[ LIBRARY FUNCTIONS ]]--
@@ -1420,7 +1421,7 @@ local PlayerArgs = {
 	["npc"] = function()
 		local Targets = {}
 
-		Foreach(SafeGetService("Workspace"):GetDescendants(), function(Index, Model)
+		Foreach(workspace:GetDescendants(), function(Index, Model)
 			if CheckIfNPC(Model) then
 				Insert(Targets, Model)
 			end
@@ -1946,7 +1947,7 @@ local flyMobile, MobileWeld = nil, nil
 function mobilefly(speed, vfly)
 	local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	if flyMobile then flyMobile:Destroy() end
-	flyMobile = InstanceNew("Part", SafeGetService("Workspace"))
+	flyMobile = InstanceNew("Part", workspace)
 	flyMobile.Size, flyMobile.CanCollide = Vector3.new(0.05, 0.05, 0.05), false
 	if MobileWeld then MobileWeld:Destroy() end
 	MobileWeld = InstanceNew("Weld", flyMobile)
@@ -1987,7 +1988,7 @@ function mobilefly(speed, vfly)
 		end
 	end)
 
-	local camera = SafeGetService("Workspace").CurrentCamera
+	local camera = workspace.CurrentCamera
 
 	Signal2 = RunService.RenderStepped:Connect(function()
 		local character = getChar()
@@ -2034,13 +2035,13 @@ end
 
 function xxRAYYYY(v)
 	if v then
-		for _,i in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _,i in pairs(workspace:GetDescendants()) do
 			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
 				i.LocalTransparencyModifier=0.5
 			end
 		end
 	else
-		for _,i in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _,i in pairs(workspace:GetDescendants()) do
 			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
 				i.LocalTransparencyModifier=0
 			end
@@ -2102,9 +2103,9 @@ function sFLY(vfly, cfly)
 	local root = getRoot(char)
 	if not root then return end
 
-	local Camera = SafeGetService("Workspace").CurrentCamera
+	local Camera = workspace.CurrentCamera
 
-	goofyFLY = InstanceNew("Part", SafeGetService("Workspace"))
+	goofyFLY = InstanceNew("Part", workspace)
 	goofyFLY.Size = Vector3.new(0.05, 0.05, 0.05)
 	goofyFLY.Transparency = 1
 	goofyFLY.CanCollide = false
@@ -3287,11 +3288,11 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 	local UserInputService=UserInputService
 	function teleportPlayer()
 		local character=player.Character or player.CharacterAdded:wait(1)
-		local camera=SafeGetService("Workspace").CurrentCamera
+		local camera=workspace.CurrentCamera
 		local cameraPosition=camera.CFrame.Position
 		character:SetPrimaryPartCFrame(CFrame.new(cameraPosition))
 	end
-	local camera=SafeGetService("Workspace").CurrentCamera
+	local camera=workspace.CurrentCamera
 	repeat Wait() until camera.CFrame~=CFrame.new()
 
 	teleportPlayer()
@@ -3444,11 +3445,11 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 					if THumanoid and THumanoid.Sit and not AllBool then
 					end
 					if THead then
-						SafeGetService("Workspace").CurrentCamera.CameraSubject = THead
+						workspace.CurrentCamera.CameraSubject = THead
 					elseif not THead and Handle then
-						SafeGetService("Workspace").CurrentCamera.CameraSubject = Handle
+						workspace.CurrentCamera.CameraSubject = Handle
 					elseif THumanoid and TRootPart then
-						SafeGetService("Workspace").CurrentCamera.CameraSubject = THumanoid
+						workspace.CurrentCamera.CameraSubject = THumanoid
 					end
 					if not TCharacter:FindFirstChildWhichIsA("BasePart") then
 						return
@@ -3524,7 +3525,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 							end
 						until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
 					end
-					SafeGetService("Workspace").FallenPartsDestroyHeight = 0/0
+					workspace.FallenPartsDestroyHeight = 0/0
 
 					local BV = InstanceNew("BodyVelocity")
 					BV.Parent = RootPart
@@ -3549,7 +3550,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 
 					BV:Destroy()
 					Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-					SafeGetService("Workspace").CurrentCamera.CameraSubject = Humanoid
+					workspace.CurrentCamera.CameraSubject = Humanoid
 
 					repeat
 						RootPart.CFrame = getgenv().OldPos * CFrame.new(0, .5, 0)
@@ -3562,7 +3563,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 						end)
 						Wait()
 					until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
-					SafeGetService("Workspace").FallenPartsDestroyHeight = OrgDestroyHeight
+					workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 				else
 				end
 			end
@@ -3962,7 +3963,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		local char = LocalPlayer.Character
 		local hum  = getHum()
 		local root = char and getRoot(char)
-		local cam  = SafeGetService("Workspace").CurrentCamera
+		local cam  = workspace.CurrentCamera
 		if not (char and hum and root and cam) then return end
 
 		local sources = { char = char, humanoid = hum, root = root, camera = cam }
@@ -4095,7 +4096,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 	end
 
 	lib.disconnect("walkflinger")
-	lib.connect("walkflinger", RunService.Stepped:Connect(function()
+	lib.connect("walkflinger", RunService.Heartbeat:Connect(function()
 		if not hiddenfling then return end
 
 		local lp = Players.LocalPlayer
@@ -4853,15 +4854,15 @@ originalFPDH = nil
 
 cmd.add({"antivoid2"}, {"antivoid2", "sets FallenPartsDestroyHeight to -inf"}, function()
 	if not originalFPDH then
-		originalFPDH = SafeGetService("Workspace").FallenPartsDestroyHeight
+		originalFPDH = workspace.FallenPartsDestroyHeight
 	end
 
-	SafeGetService("Workspace").FallenPartsDestroyHeight = -9e9
+	workspace.FallenPartsDestroyHeight = -9e9
 end)
 
 cmd.add({"unantivoid2"}, {"unantivoid2", "reverts FallenPartsDestroyHeight"}, function()
 	if originalFPDH ~= nil then
-		SafeGetService("Workspace").FallenPartsDestroyHeight = originalFPDH
+		workspace.FallenPartsDestroyHeight = originalFPDH
 		DoNotif("FallenPartsDestroyHeight reverted to original value | Antivoid2 Disabled",2)
 	else
 		DoNotif("Original value was not stored. Cannot revert.",2)
@@ -4892,7 +4893,7 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 	end
 
 	if toolToDrop then
-		toolToDrop.Parent = SafeGetService("Workspace")
+		toolToDrop.Parent = workspace
 		DoNotif("Dropped: "..toolToDrop.Name, 4)
 	else
 		DoNotif("No droppable tool found", 4)
@@ -4915,7 +4916,7 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 
 	for _, tool in ipairs(getChar():GetChildren()) do
 		if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
-			tool.Parent = SafeGetService("Workspace")
+			tool.Parent = workspace
 			dropped += 1
 		end
 	end
@@ -4947,11 +4948,11 @@ end)
 	DoNotif("Break layered clothing executed,if you havent already equip shirt,jacket,pants and shoes (Layered Clothing ones)")
 	local swimming=false
 	local RunService=RunService
-	oldgrav=SafeGetService("Workspace").Gravity
-	SafeGetService("Workspace").Gravity=0
+	oldgrav=workspace.Gravity
+	workspace.Gravity=0
 	local char=getChar()
 	local swimDied=function()
-		SafeGetService("Workspace").Gravity=oldgrav
+		workspace.Gravity=oldgrav
 		swimming=false
 	end
 	Humanoid=char:FindFirstChildWhichIsA("Humanoid")
@@ -4985,7 +4986,7 @@ end)]]
 
 cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics, boostfps, lowg)","Enables low graphics mode to improve performance."},function()
 	local decalsEnabled = false
-	local w = SafeGetService("Workspace")
+	local w = workspace
 	local l = Lighting
 	local t = w.Terrain
 
@@ -5012,8 +5013,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 		end
 	end
 
-	pcall(function() sethidden(l,"Technology",Enum.Technology.Compatibility) end)
-	pcall(function() sethidden(t,"Decoration",false) end)
+	pcall(function() opt.hiddenprop(l,"Technology",Enum.Technology.Compatibility) end)
+	pcall(function() opt.hiddenprop(t,"Decoration",false) end)
 	t.WaterWaveSize = 0
 	t.WaterWaveSpeed = 0
 	t.WaterReflectance = 0
@@ -5302,7 +5303,7 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 end)
 
 cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in pairs(workspace:GetDescendants()) do
 		if v:IsA("BasePart") and v.Transparency==1 and v.CanCollide then
 			v:Destroy()
 		end
@@ -5312,7 +5313,7 @@ end)
 local shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
-	for _, v in ipairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, v in ipairs(workspace:GetDescendants()) do
 		if v:IsA("BasePart") and v.Transparency == 1 then
 			local alreadyShown = false
 			for _, p in ipairs(shownParts) do
@@ -5653,7 +5654,7 @@ end, false)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
 	local RunService = RunService
-	local Workspace = SafeGetService("Workspace")
+	local Workspace = workspace
 
 	repeat RunService.RenderStepped:Wait() until Player.Character
 	local Character = Player.Character
@@ -5712,8 +5713,8 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 
 		Spawn(function()
 			while isFlying do
-				flyg.CFrame = SafeGetService("Workspace").CurrentCamera.CFrame * CFrame.Angles(-math.rad(f * 50 * speed / maxSpeed), 0, 0)
-				flyv.Velocity = SafeGetService("Workspace").CurrentCamera.CFrame.LookVector * speed
+				flyg.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(-math.rad(f * 50 * speed / maxSpeed), 0, 0)
+				flyv.Velocity = workspace.CurrentCamera.CFrame.LookVector * speed
 				Wait(0.1)
 
 				if speed < 0 then
@@ -6217,7 +6218,7 @@ cmd.add({"sit"},{"sit","Sit your player"},function()
 end)
 
 cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in pairs(workspace:GetDescendants()) do
 		if v:IsA("BasePart") then
 			local dec=InstanceNew("Texture",v)
 			dec.Texture=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud) or "rbxassetid://48715260"
@@ -6267,7 +6268,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	local Players = Players
 	local RunService = RunService
 	local UIS = UserInputService
-	local Camera = SafeGetService("Workspace").CurrentCamera
+	local Camera = workspace.CurrentCamera
 
 	local Player = Players.LocalPlayer
 	local Mouse = Player:GetMouse()
@@ -6442,7 +6443,7 @@ end)
 cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	local UserInputService = SafeGetService("UserInputService")
 	local RunService = RunService
-	local Camera = SafeGetService("Workspace").CurrentCamera
+	local Camera = workspace.CurrentCamera
 
 	local SPEED_MULTIPLIER = (...) or 30
 	local JUMP_POWER = 60
@@ -6481,7 +6482,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	end))
 
 	UserInputService.JumpRequest:Connect(function()
-		local result = SafeGetService("Workspace"):Raycast(
+		local result = workspace:Raycast(
 			ball.Position,
 			Vector3.new(0, -((ball.Size.Y / 2) + JUMP_GAP), 0),
 			params
@@ -6504,9 +6505,9 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		local virtualUser = SafeGetService("VirtualUser")
 
 		lib.connect("antiAFK", player.Idled:Connect(function()
-			virtualUser:Button2Down(Vector2.new(0, 0), SafeGetService("Workspace").CurrentCamera.CFrame)
+			virtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 			Wait(1)
-			virtualUser:Button2Up(Vector2.new(0, 0), SafeGetService("Workspace").CurrentCamera.CFrame)
+			virtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 		end))
 
 		DoNotif("Anti AFK has been enabled")
@@ -6832,13 +6833,13 @@ cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats
 end)
 
 cmd.add({"lockws","lockworkspace"},{"lockws (lockworkspace)","Locks the whole workspace"},function()
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in pairs(workspace:GetDescendants()) do
 		v.Locked=true
 	end
 end)
 
 cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks the whole workspace"},function()
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in pairs(workspace:GetDescendants()) do
 		v.Locked=false
 	end
 end)
@@ -6856,7 +6857,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	local intens = tonumber(amount) or 1
 
 	lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
-		local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+		local subject = workspace.CurrentCamera.CameraSubject
 		if subject and subject:IsA("Humanoid") and subject.SeatPart then
 			subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 		elseif subject and subject:IsA("BasePart") then
@@ -6967,7 +6968,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 
 			lib.disconnect("vehicleloopspeed")
 			lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
-				local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+				local subject = workspace.CurrentCamera.CameraSubject
 				if subject and subject:IsA("Humanoid") and subject.SeatPart then
 					subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 				elseif subject and subject:IsA("BasePart") then
@@ -6980,7 +6981,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		else
 			lib.disconnect("vehicleloopspeed")
 
-			local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+			local subject = workspace.CurrentCamera.CameraSubject
 			if subject then
 				local root
 				if subject:IsA("Humanoid") and subject.SeatPart then
@@ -7008,7 +7009,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	end)
 
 	MouseButtonFix(vstopBtn, function()
-		local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+		local subject = workspace.CurrentCamera.CameraSubject
 		if subject then
 			local root
 			if subject:IsA("Humanoid") and subject.SeatPart then
@@ -7045,7 +7046,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 
 		lib.disconnect("vehicleloopspeed")
 		lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
-			local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+			local subject = workspace.CurrentCamera.CameraSubject
 			if subject and subject:IsA("Humanoid") and subject.SeatPart then
 				subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 			elseif subject and subject:IsA("BasePart") then
@@ -7069,7 +7070,7 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 		vspeedBTN = nil
 	end
 
-	local subject = SafeGetService("Workspace").CurrentCamera.CameraSubject
+	local subject = workspace.CurrentCamera.CameraSubject
 	if subject then
 		local root
 		if subject:IsA("Humanoid") and subject.SeatPart then
@@ -7103,7 +7104,7 @@ end)
 
 local active=false
 local players=Players
-local camera=SafeGetService("Workspace").CurrentCamera
+local camera=workspace.CurrentCamera
 
 local uis=UserInputService
 
@@ -7284,7 +7285,7 @@ cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage ca
 		Insert(cameraTypeButtons, {
 			Text = cameraType.Name,
 			Callback = function()
-				SafeGetService("Workspace").CurrentCamera.CameraType = cameraType
+				workspace.CurrentCamera.CameraType = cameraType
 			end
 		})
 	end
@@ -8973,7 +8974,7 @@ end]]
 function toggleTFly()
 	if flyVariables.TFlyEnabled then
 		flyVariables.TFlyEnabled = false
-		for _, v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, v in pairs(workspace:GetDescendants()) do
 			if v:GetAttribute("tflyPart") then
 				v:Destroy()
 			end
@@ -8989,7 +8990,7 @@ function toggleTFly()
 		local speed = flyVariables.TflySpeed
 		local Humanoid = getHum()
 
-		flyVariables.tflyCORE = InstanceNew("Part", SafeGetService("Workspace"))
+		flyVariables.tflyCORE = InstanceNew("Part", workspace)
 		flyVariables.tflyCORE:SetAttribute("tflyPart", true)
 		flyVariables.tflyCORE.Size = Vector3.new(0.05, 0.05, 0.05)
 		flyVariables.tflyCORE.CanCollide = false
@@ -9016,13 +9017,13 @@ function toggleTFly()
 				moveVec = Vector3.new(moveVec.X, moveVec.Y, -moveVec.Z)
 
 				if moveVec.Magnitude > 0 then
-					local camera = SafeGetService("Workspace").CurrentCamera
+					local camera = workspace.CurrentCamera
 					newPosition = newPosition + (camera.CFrame.RightVector * moveVec.X * speed)
 					newPosition = newPosition + (camera.CFrame.LookVector * moveVec.Z * speed)
 				end
 
 				pos.position = newPosition.p
-				gyro.cframe = SafeGetService("Workspace").CurrentCamera.CoordinateFrame
+				gyro.cframe = workspace.CurrentCamera.CoordinateFrame
 			until not flyVariables.TFlyEnabled
 
 			if gyro then gyro:Destroy() end
@@ -9090,7 +9091,7 @@ cmd.add({"untfly", "untweenfly"}, {"untfly (untweenfly)", "Disables tween flying
 	Wait()
 	DoNotif("Not flying anymore", 2)
 	flyVariables.TFlyEnabled = false
-	for _, v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, v in pairs(workspace:GetDescendants()) do
 		if v:GetAttribute("tflyPart") then
 			v:Destroy()
 		end
@@ -9156,7 +9157,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 	if not root then return end
 
 	originalPos = root.CFrame
-	local orgHeight = SafeGetService("Workspace").FallenPartsDestroyHeight
+	local orgHeight = workspace.FallenPartsDestroyHeight
 	local anims = {"rbxassetid://5918726674", "rbxassetid://148840371", "rbxassetid://698251653", "rbxassetid://72042024", "rbxassetid://189854234", "rbxassetid://106772613", "rbxassetid://10714360343", "rbxassetid://95383980"}
 	local inVoid = false
 	local targetPlayer = nil
@@ -9179,14 +9180,14 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 								inVoid = true
 								activationTime = tick()
 								targetPlayer = p
-								SafeGetService("Workspace").FallenPartsDestroyHeight = 0/1/0
+								workspace.FallenPartsDestroyHeight = 0/1/0
 								platformPart = InstanceNew("Part")
 								platformPart.Size = Vector3.new(9999, 1, 9999)
 								platformPart.Anchored = true
 								platformPart.CanCollide = true
 								platformPart.Transparency = 1
 								platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
-								platformPart.Parent = SafeGetService("Workspace")
+								platformPart.Parent = workspace
 								root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
 								if not toldNotif then
 									toldNotif = true
@@ -9208,7 +9209,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 				root.Anchored = true
 				Wait()
 				root.Anchored = false
-				SafeGetService("Workspace").FallenPartsDestroyHeight = orgHeight
+				workspace.FallenPartsDestroyHeight = orgHeight
 				if platformPart then
 					platformPart:Destroy()
 					platformPart = nil
@@ -9508,7 +9509,7 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 	replicatesignal(LocalPlayer.ConnectDiedSignalBackend)
 
 	local rootPart = LocalPlayer.Character and getRoot(LocalPlayer.Character)
-	local cam = SafeGetService("Workspace").CurrentCamera
+	local cam = workspace.CurrentCamera
 
 	Wait(Players.RespawnTime - 0.165)
 
@@ -9523,7 +9524,7 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 		getRoot(LocalPlayer.Character).CFrame = rootPart.CFrame
 	end
 
-	SafeGetService("Workspace").CurrentCamera = cam
+	workspace.CurrentCamera = cam
 end)
 
 function getAllTools()
@@ -9792,8 +9793,8 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
-			getgenv().currentnormal = SafeGetService("Workspace").Gravity
-			SafeGetService("Workspace").Gravity = 196.2
+			getgenv().currentnormal = workspace.Gravity
+			workspace.Gravity = 196.2
 			LocalPlayer.Character:PivotTo(LocalPlayer.Character:GetPivot() * CFrame.Angles(2, 0, 0))
 			Wait(0.5)
 			if getHum() and getHum().PlatformStand then getHum().PlatformStand = true end
@@ -9810,7 +9811,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
-			SafeGetService("Workspace").Gravity = currentnormal
+			workspace.Gravity = currentnormal
 			if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 			getHum().Jump = true
 			k:Stop()
@@ -9849,7 +9850,7 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 		local k = getHum():LoadAnimation(Anim)
 
 		getgenv().Lzzz = false
-		SafeGetService("Workspace").Gravity = currentnormal
+		workspace.Gravity = currentnormal
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		getHum().Jump = true
 		k:Stop()
@@ -9913,7 +9914,7 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 			local A_1 = "/unmute "..plr.Name
 			local A_2 = "All"
 			lib.LocalPlayerChat(A_1, A_2)
-			plr.Character.Parent = SafeGetService("Workspace")
+			plr.Character.Parent = workspace
 		end
 	end
 end, true)
@@ -9928,7 +9929,7 @@ end
 cmd.add({"grabtools"},{"grabtools","grabs dropped tools"},function()
 	local c=getChar()
 	if c and getHum() then
-		for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for i,v in pairs(workspace:GetDescendants()) do
 			if v:IsA("Tool") then
 				getHum():EquipTool(v)
 			end
@@ -9941,7 +9942,7 @@ cmd.add({"loopgrabtools"},{"loopgrabtools","Loop grabs dropped tools"},function(
 	repeat Wait(1)
 		local c=getChar()
 		if c and getHum() then
-			for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+			for i,v in pairs(workspace:GetDescendants()) do
 				if v:IsA("Tool") then
 					getHum():EquipTool(v)
 				end
@@ -10326,7 +10327,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	part.Transparency = 1
 	part.Anchored = false
 	part.CanCollide = false
-	part.Parent = SafeGetService("Workspace")
+	part.Parent = workspace
 
 	local weld = InstanceNew("Weld")
 	weld.Part0 = part
@@ -10361,7 +10362,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 			explosion.Position = root.Position
 			explosion.BlastRadius = 6
 			explosion.BlastPressure = 500000
-			explosion.Parent = SafeGetService("Workspace")
+			explosion.Parent = workspace
 
 			humanoid.Health = 0
 			return
@@ -10422,7 +10423,7 @@ end, true)
 function toggleKB(enable)
 	local p = Players.LocalPlayer
 	local hrp = getRoot(p.Character)
-	local parts = SafeGetService("Workspace"):GetPartBoundsInRadius(hrp.Position, 10)
+	local parts = workspace:GetPartBoundsInRadius(hrp.Position, 10)
 	for _, part in ipairs(parts) do
 		if part:IsA("BasePart") then
 			part.CanTouch = enable
@@ -10509,7 +10510,7 @@ cmd.add({"stopmimic", "unmimic"}, {"stopmimic (unmimic)", "Stops mimicking a pla
 end, true)
 
 cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
-	local ws = SafeGetService("Workspace")
+	local ws = workspace
 	local plr = Players.LocalPlayer
 	ws.CurrentCamera:Remove()
 	Wait(0.1)
@@ -10749,7 +10750,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 		local Character = Player.Character
 		local Humanoid = getPlrHum(Character)
 		local HRP = Humanoid and Humanoid.RootPart
-		local camera = SafeGetService("Workspace").CurrentCamera
+		local camera = workspace.CurrentCamera
 		attachedPart = InstanceNew("Part")
 		attachedPart.Size = Vector3.new(1, 1, 1)
 		attachedPart.Transparency = 1
@@ -10790,11 +10791,11 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			if THumanoid and THumanoid.Sit and not AllBool then
 			end
 			if THead then
-				SafeGetService("Workspace").CurrentCamera.CameraSubject = THead
+				workspace.CurrentCamera.CameraSubject = THead
 			elseif not THead and Handle then
-				SafeGetService("Workspace").CurrentCamera.CameraSubject = Handle
+				workspace.CurrentCamera.CameraSubject = Handle
 			elseif THumanoid and TRootPart then
-				SafeGetService("Workspace").CurrentCamera.CameraSubject = THumanoid
+				workspace.CurrentCamera.CameraSubject = THumanoid
 			end
 			if not TCharacter:FindFirstChildWhichIsA("BasePart") then
 				return
@@ -10853,7 +10854,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
 				if attachedPart then attachedPart:Destroy() attachedPart=nil end
 			end
-			SafeGetService("Workspace").FallenPartsDestroyHeight = 0/0
+			workspace.FallenPartsDestroyHeight = 0/0
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
 			if TRootPart and THead then
 				if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
@@ -10869,7 +10870,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				SFBasePart(Handle)
 			end
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-			SafeGetService("Workspace").CurrentCamera.CameraSubject = Humanoid
+			workspace.CurrentCamera.CameraSubject = Humanoid
 			repeat
 				RootPart.CFrame = getgenv().OldPos * CFrame.new(0, 0.5, 0)
 				Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, 0.5, 0))
@@ -10881,7 +10882,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				end)
 				Wait()
 			until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
-			SafeGetService("Workspace").FallenPartsDestroyHeight = OrgDestroyHeight
+			workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 			attachedPart:Destroy()
 		end
 	end
@@ -11133,7 +11134,7 @@ function cleanup()
 		specGui = nil
 	end
 
-	SafeGetService("Workspace").CurrentCamera.CameraSubject = getHum()
+	workspace.CurrentCamera.CameraSubject = getHum()
 end
 
 function spectatePlayer(targetPlayer)
@@ -11145,7 +11146,7 @@ function spectatePlayer(targetPlayer)
 
 	lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
 		while not getPlrHum(character) do Wait(.1) end
-		SafeGetService("Workspace").CurrentCamera.CameraSubject = getPlrHum(character)
+		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
 	end))
 
 	lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
@@ -11158,7 +11159,7 @@ function spectatePlayer(targetPlayer)
 	local loop = coroutine.create(function()
 		while true do
 			if getPlrHum(targetPlayer) then
-				SafeGetService("Workspace").CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
+				workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
 			end
 			Wait()
 		end
@@ -11712,111 +11713,87 @@ cmd.add({"unfreeze","unthaw","unanchor","unfr"},{"unfreeze (unthaw,unanchor,unfr
 	end
 end)
 
-cmd.add({"blackhole"}, {"blackhole", "Makes unanchored parts teleport to the black hole"}, function()
-	local UserInputService = SafeGetService("UserInputService")
-	local Mouse = LocalPlayer:GetMouse()
-	local Folder = InstanceNew("Folder", SafeGetService("Workspace"))
-	local Part = InstanceNew("Part", Folder)
-	local Attachment1 = InstanceNew("Attachment", Part)
-	Part.Anchored = true
-	Part.CanCollide = false
-	Part.Transparency = 1
-	local Updated = Mouse.Hit + Vector3.new(0, 5, 0)
+cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts teleport to the black hole"},function()
+	local UIS=SafeGetService("UserInputService")
+	local Mouse=LocalPlayer:GetMouse()
+	local Folder=InstanceNew("Folder",workspace)
+	local Part=InstanceNew("Part",Folder)
+	local Attachment1=InstanceNew("Attachment",Part)
+	Part.Anchored=true Part.CanCollide=false Part.Transparency=1
+	local Updated=Mouse.Hit+Vector3.new(0,5,0)
 
-	local NetworkAccess = coroutine.create(function()
-		settings().Physics.AllowSleep = false
-		while RunService.RenderStepped:Wait() do
-			for _, Players in next, SafeGetService("Players"):GetPlayers() do
-				if Players ~= LocalPlayer then
-					Players.MaximumSimulationRadius = 0
-					sethidden(Players, "SimulationRadius", 0)
-				end
+	lib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
+		settings().Physics.AllowSleep=false
+		for _,plr in next,Players:GetPlayers() do
+			if plr~=LocalPlayer then
+				pcall(function()
+					plr.MaximumSimulationRadius=0
+					opt.hiddenprop(plr,"SimulationRadius",0)
+				end)
 			end
-			LocalPlayer.MaximumSimulationRadius = math.pow(math.huge, math.huge)
 		end
-	end)
-	coroutine.resume(NetworkAccess)
+		pcall(function()
+			LocalPlayer.MaximumSimulationRadius=1e9
+			sethidden(LocalPlayer,"SimulationRadius",1e9)
+		end)
+	end))
 
 	local function ForcePart(v)
-		if v:IsA("Part") and v.Anchored == false and getPlrHum(v.Parent) == nil and getHead(v.Parent) == nil and v.Name ~= "Handle" then
-			Mouse.TargetFilter = v
-			for _, x in next, v:GetChildren() do
-				if x:IsA("BodyAngularVelocity") or x:IsA("BodyForce") or x:IsA("BodyGyro") or x:IsA("BodyPosition") or x:IsA("BodyThrust") or x:IsA("BodyVelocity") or x:IsA("RocketPropulsion") then
-					x:Destroy()
-				end
+		if v:IsA("Part") and not v.Anchored and not v.Parent:FindFirstChildWhichIsA("Humanoid") and not v.Parent:FindFirstChild("Head") and v.Name~="Handle" then
+			Mouse.TargetFilter=v
+			for _,x in next,v:GetChildren() do
+				if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
 			end
-			if v:FindFirstChild("Attachment") then
-				v:FindFirstChild("Attachment"):Destroy()
-			end
-			if v:FindFirstChild("AlignPosition") then
-				v:FindFirstChild("AlignPosition"):Destroy()
-			end
-			if v:FindFirstChild("Torque") then
-				v:FindFirstChild("Torque"):Destroy()
-			end
-			v.CanCollide = false
-			local Torque = InstanceNew("Torque", v)
-			Torque.Torque = Vector3.new(100000, 100000, 100000)
-			local AlignPosition = InstanceNew("AlignPosition", v)
-			local Attachment2 = InstanceNew("Attachment", v)
-			Torque.Attachment0 = Attachment2
-			AlignPosition.MaxForce = 9999999999999999
-			AlignPosition.MaxVelocity = math.huge
-			AlignPosition.Responsiveness = 200
-			AlignPosition.Attachment0 = Attachment2
-			AlignPosition.Attachment1 = Attachment1
+			for _,n in next,{"Attachment","AlignPosition","Torque"} do local i=v:FindFirstChild(n) if i then i:Destroy() end end
+			v.CanCollide=false
+			local a2=InstanceNew("Attachment",v)
+			local align=InstanceNew("AlignPosition",v)
+			local torque=InstanceNew("Torque",v)
+			align.Attachment0=a2 align.Attachment1=Attachment1
+			align.MaxForce=1e9 align.MaxVelocity=math.huge align.Responsiveness=200
+			torque.Attachment0=a2 torque.Torque=Vector3.new(100000,100000,100000)
 		end
 	end
 
-	for _, v in next, SafeGetService("Workspace"):GetDescendants() do
-		ForcePart(v)
-	end
+	for _,v in next,workspace:GetDescendants() do ForcePart(v) end
+	lib.connect("blackhole_new",workspace.DescendantAdded:Connect(ForcePart))
 
-	SafeGetService("Workspace").DescendantAdded:Connect(function(v)
-		ForcePart(v)
-	end)
-
-	UserInputService.InputBegan:Connect(function(Key, Chat)
-		if Key.KeyCode == Enum.KeyCode.E and not Chat and not IsOnMobile then
-			Updated = Mouse.Hit + Vector3.new(0, 5, 0)
+	UIS.InputBegan:Connect(function(k,chat)
+		if k.KeyCode==Enum.KeyCode.E and not chat and not IsOnMobile then
+			Updated=Mouse.Hit+Vector3.new(0,5,0)
 		end
 	end)
 
 	if IsOnMobile then
 		local sGUI=InstanceNew("ScreenGui")
 		NaProtectUI(sGUI)
-		UICorner = InstanceNew("UICorner")
-		local button = InstanceNew("TextButton")
-		button.Text = "Move Blackhole"
-		button.AnchorPoint = Vector2.new(0.5,0)
-		button.Size = UDim2.new(0, 150, 0, 40)
-		button.Position = UDim2.new(0.5, 0, 0.9, 0)
-		button.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
-		button.TextColor3 = Color3.new(1, 1, 1)
-		button.Font = Enum.Font.SourceSansBold
-		button.TextSize = 18
-		button.Parent=sGUI
-
-		UICorner.CornerRadius = UDim.new(0.25, 0)
-		UICorner.Parent = button
+		local button=InstanceNew("TextButton",sGUI)
+		local UICorner=InstanceNew("UICorner",button)
+		button.Text="Move Blackhole"
+		button.AnchorPoint=Vector2.new(0.5,0)
+		button.Size=UDim2.new(0,150,0,40)
+		button.Position=UDim2.new(0.5,0,0.9,0)
+		button.BackgroundColor3=Color3.new(0.2,0.2,0.2)
+		button.TextColor3=Color3.new(1,1,1)
+		button.Font=Enum.Font.SourceSansBold
+		button.TextSize=18
+		UICorner.CornerRadius=UDim.new(0.25,0)
 
 		MouseButtonFix(button,function()
-			Updated = Mouse.Hit + Vector3.new(0, 5, 0)
+			Updated=Mouse.Hit+Vector3.new(0,5,0)
 		end)
-
 		gui.draggablev2(button)
 	end
 
 	Spawn(function()
 		while RunService.RenderStepped:Wait() do
-			Attachment1.WorldCFrame = Updated
+			Attachment1.WorldCFrame=Updated
 		end
 	end)
 
 	Wait()
-
-	DoNotif("Blackhole has been loaded, "..(IsOnMobile and "tap the button to move it" or "press E to change the position to where your mouse is"))
-end)
+	DoNotif("Blackhole loaded. "..(IsOnMobile and "Tap button to move" or "Press E to move it to mouse"))
+end,true)
 
 cmd.add({"disableanimations","disableanims"},{"disableanimations (disableanims)","Freezes your animations"},function()
 	getChar().Animate.Disabled=true
@@ -11910,7 +11887,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 			local Character = Player.Character
 			local Humanoid = getPlrHum(Player)
 			local HRP = Humanoid and Humanoid.RootPart
-			local camera = SafeGetService("Workspace").CurrentCamera
+			local camera = workspace.CurrentCamera
 			LOOPPROTECT = InstanceNew("Part")
 			LOOPPROTECT.Size = Vector3.new(1, 1, 1)
 			LOOPPROTECT.Transparency = 1
@@ -11953,11 +11930,11 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					return
 				end
 				if THead then
-					SafeGetService("Workspace").CurrentCamera.CameraSubject = THead
+					workspace.CurrentCamera.CameraSubject = THead
 				elseif not THead and Handle then
-					SafeGetService("Workspace").CurrentCamera.CameraSubject = Handle
+					workspace.CurrentCamera.CameraSubject = Handle
 				elseif THumanoid and TRootPart then
-					SafeGetService("Workspace").CurrentCamera.CameraSubject = THumanoid
+					workspace.CurrentCamera.CameraSubject = THumanoid
 				end
 				if not TCharacter:FindFirstChildWhichIsA("BasePart") then
 					return
@@ -12016,7 +11993,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
 					if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
 				end
-				SafeGetService("Workspace").FallenPartsDestroyHeight = 0/0
+				workspace.FallenPartsDestroyHeight = 0/0
 				local BV = InstanceNew("BodyVelocity")
 				BV.Parent = RootPart
 				BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
@@ -12039,7 +12016,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				end
 				BV:Destroy()
 				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-				SafeGetService("Workspace").CurrentCamera.CameraSubject = Humanoid
+				workspace.CurrentCamera.CameraSubject = Humanoid
 				repeat
 					RootPart.CFrame = getgenv().OldPos * CFrame.new(0, 0.5, 0)
 					Character:SetPrimaryPartCFrame(getgenv().OldPos * CFrame.new(0, 0.5, 0))
@@ -12051,7 +12028,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					end)
 					Wait()
 				until (RootPart.Position - getgenv().OldPos.p).Magnitude < 25
-				SafeGetService("Workspace").FallenPartsDestroyHeight = OrgDestroyHeight
+				workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 				if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
 			else
 				return
@@ -12217,7 +12194,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 			part.Anchored = true
 			part.CanCollide = true
 			part.Transparency = 1
-			part.Parent = SafeGetService("Workspace")
+			part.Parent = workspace
 			Insert(platformParts, part)
 		end
 
@@ -12388,7 +12365,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(standParts, part)
 	end
 
@@ -12689,7 +12666,7 @@ cmd.add({"toolview", "tview"}, {"toolview <player> (tview)", "3D tool viewer abo
 
 		local hb
 		hb = RunService.RenderStepped:Connect(function()
-			if not plr.Parent or not plr.Character or not head:IsDescendantOf(SafeGetService("Workspace")) then
+			if not plr.Parent or not plr.Character or not head:IsDescendantOf(workspace) then
 				bb:Destroy()
 				tviewBillboards[plr] = nil
 				if hb then hb:Disconnect() end
@@ -13039,7 +13016,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(bangParts, part)
 	end
 	local bangOffset = CFrame.new(0, 1, -1.1)
@@ -13132,7 +13109,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(jerkParts, part)
 	end
 
@@ -13261,7 +13238,7 @@ cmd.add({"suck", "dicksuck"}, {"suck <player> <number> (dicksuck)", "suck it"}, 
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(SUCKYSUCKY, part)
 	end
 
@@ -13319,11 +13296,11 @@ cmd.add({"unsuck", "undicksuck"}, {"unsuck (undicksuck)", "no more fun"}, functi
 end)
 
 cmd.add({"improvetextures"},{"improvetextures","Switches Textures"},function()
-	sethidden(SafeGetService("MaterialService"), "Use2022Materials", true)
+	opt.hiddenprop(SafeGetService("MaterialService"), "Use2022Materials", true)
 end)
 
 cmd.add({"undotextures"},{"undotextures","Switches Textures"},function()
-	sethidden(SafeGetService("MaterialService"), "Use2022Materials", false)
+	opt.hiddenprop(SafeGetService("MaterialService"), "Use2022Materials", false)
 end)
 
 cmd.add({"serverlist","serverlister","slist"},{"serverlist (serverlister,slist)","list of servers to join in"},function()
@@ -13470,7 +13447,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(BANGPARTS, part)
 	end
 
@@ -13599,7 +13576,7 @@ cmd.add({"inversebang", "ibang", "inverseb"}, {"inversebang <player> <number> (i
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = SafeGetService("Workspace")
+		part.Parent = workspace
 		Insert(INVERSEBANGPARTS, part)
 	end
 
@@ -13872,7 +13849,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Anchored = true
 							part.CanCollide = true
 							part.Transparency = 1
-							part.Parent = SafeGetService("Workspace")
+							part.Parent = workspace
 							Insert(huggiePARTS, part)
 						end
 						lib.connect("hug_plat", RunService.Stepped:Connect(function()
@@ -14140,7 +14117,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		end)
 	end
 
-	awPart = InstanceNew("Part", SafeGetService("Workspace"))
+	awPart = InstanceNew("Part", workspace)
 	awPart.Size = Vector3.new(7, 2, 3)
 	awPart.CFrame = getRoot(getChar()).CFrame - Vector3.new(0, 4, 0)
 	awPart.Transparency = 1
@@ -14335,15 +14312,38 @@ cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmutebo
 	end
 end, true)
 
-cmd.add({"getmass"},{"getmass <player>","Get your mass"},function(...)
-	target=getPlr(...)
-	for _, plr in next, target do
-		local mass=getRoot(plr.Character).AssemblyMass
-		Wait();
+cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
+    local target = getPlr(...)
+    for _, plr in next, target do
+        local char = getPlrChar(plr)
+        if char then
+            local root = getRoot(char)
+            if root then
+                local mass = root.AssemblyMass
+                DoNotif(nameChecker(plr).."'s mass is "..mass)
+            end
+        end
+        Wait()
+    end
+end, true)
 
-		DoNotif(nameChecker(plr).."'s mass is "..mass)
-	end
-end,true)
+cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the position of another player"}, function(...)
+    local target = getPlr(...)
+    for _, plr in next, target do
+        local char = getPlrChar(plr)
+        if char then
+            local root = getRoot(char)
+            if root then
+                local pos = root.Position
+                DoNotif(nameChecker(plr).."'s position is: "..tostring(pos))
+                if setclipboard then
+                    setclipboard(tostring(pos))
+                end
+            end
+        end
+        Wait()
+    end
+end, true)
 
 cmd.add({"equiptools"},{"equiptools","Equips every tool in your inventory at once"},function()
 	for i,v in pairs(Player:FindFirstChildOfClass("Backpack"):GetChildren()) do
@@ -14358,7 +14358,7 @@ cmd.add({"unequiptools"},{"unequiptools","Unequips every tool you are currently 
 end)
 
 cmd.add({"removeterrain", "rterrain", "noterrain"},{"removeterrain (rterrain, noterrain)","clears terrain"},function()
-	SafeGetService("Workspace"):FindFirstChildOfClass('Terrain'):Clear()
+	workspace:FindFirstChildOfClass('Terrain'):Clear()
 end)
 
 cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (nonilinstances, cni)","Removes nil instances"},function()
@@ -14448,7 +14448,7 @@ cmd.add({"spin"}, {"spin {amount}", "Makes your character spin as fast as you wa
 	spinPart.CanCollide = false
 	spinPart.Transparency = 1
 	spinPart.Size = Vector3.new(1, 1, 1)
-	spinPart.Parent = SafeGetService("Workspace")
+	spinPart.Parent = workspace
 	spinPart.CFrame = getRoot(LocalPlayer.Character).CFrame
 
 	spinThingy = InstanceNew("BodyAngularVelocity")
@@ -14525,12 +14525,12 @@ cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that suppo
 end)
 
 cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to whatever u want"},function(...)
-	SafeGetService("Workspace").Gravity=(...)
+	workspace.Gravity=(...)
 end,true)
 
 cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every click detector in workspace"},function()
 	local t,f=0,0
-	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,d in pairs(workspace:GetDescendants()) do
 		if d:IsA("ClickDetector") then
 			t+=1
 			if not pcall(function() fireclickdetector(d) end) then
@@ -14548,7 +14548,7 @@ end)
 
 cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every Proximity Prompt that's in workspace"},function()
 	local t,f=0,0
-	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,d in pairs(workspace:GetDescendants()) do
 		if d:IsA("ProximityPrompt") then
 			t+=1
 			if not pcall(function() fireproximityprompt(d,1) end) then
@@ -14568,7 +14568,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	local c=getChar() local r=c and getRoot(c)
 	local t,f=0,0 local parts={}
 
-	for _,d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,d in pairs(workspace:GetDescendants()) do
 		if d:IsA("TouchTransmitter") then
 			local p=d.Parent
 			if p and p:IsA("BasePart") then
@@ -14601,7 +14601,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
-	for i,v in ipairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in ipairs(workspace:GetDescendants()) do
 		if v:IsA("ClickDetector") then
 			if (...) == nil then
 				v.MaxActivationDistance=math.huge
@@ -14613,7 +14613,7 @@ cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetecto
 end,true)
 
 cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximitypromptlimits <limit> (nopplimits,removepplimits)","Sets all proximity prompts MaxActivationDistance to math.huge"},function(...)
-	for i,v in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for i,v in pairs(workspace:GetDescendants()) do
 		if v:IsA("ProximityPrompt") then
 			if (...) == nil then
 				v.MaxActivationDistance=math.huge
@@ -14805,7 +14805,7 @@ cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweent
 
 	function teleportPlayer()
 		local character=player.Character or player.CharacterAdded:wait(1)
-		local camera=SafeGetService("Workspace").CurrentCamera
+		local camera=workspace.CurrentCamera
 		local cameraPosition=camera.CFrame.Position
 
 		local tween=TweenService:Create(character.PrimaryPart,TweenInfo.new(2),{
@@ -14816,7 +14816,7 @@ cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweent
 	end
 
 
-	local camera=SafeGetService("Workspace").CurrentCamera
+	local camera=workspace.CurrentCamera
 	repeat Wait() until camera.CFrame~=CFrame.new()
 
 	teleportPlayer()
@@ -14828,7 +14828,7 @@ cmd.add({"delete", "remove", "del"}, {"delete {partname} (remove, del)", "Remove
 	local args = {...}
 	local targetName = Concat(args, " ")
 
-	for _, d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, d in pairs(workspace:GetDescendants()) do
 		if d.Name:lower() == targetName:lower() then
 			d:Destroy()
 			deleteCount = deleteCount + 1
@@ -14848,7 +14848,7 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 	local deFind = 0
 	local targetName = Concat({...}, " "):lower()
 
-	for _, d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, d in pairs(workspace:GetDescendants()) do
 		if d.Name:lower():find(targetName) then
 			d:Destroy()
 			deFind = deFind + 1
@@ -14896,7 +14896,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 
 	if not FindInTable(autoRemover, targetName) then
 		Insert(autoRemover, targetName)
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if part.Name:lower() == targetName then
 				part:Destroy()
 			end
@@ -14904,7 +14904,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 	end
 
 	if not autoRemoveConnection then
-		autoRemoveConnection = SafeGetService("Workspace").DescendantAdded:Connect(handleDescendantAdd)
+		autoRemoveConnection = workspace.DescendantAdded:Connect(handleDescendantAdd)
 	end
 
 	Wait()
@@ -14948,7 +14948,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 
 	if not FindInTable(autoFinder, kw) then
 		Insert(autoFinder, kw)
-		for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, obj in pairs(workspace:GetDescendants()) do
 			if obj.Name:lower():find(kw) then
 				obj:Destroy()
 			end
@@ -14956,7 +14956,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 	end
 
 	if not finderConn then
-		finderConn = SafeGetService("Workspace").DescendantAdded:Connect(onAdd)
+		finderConn = workspace.DescendantAdded:Connect(onAdd)
 	end
 
 	Wait()
@@ -14976,7 +14976,7 @@ cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removec
 	local targetClass = args[1]:lower()
 	local deleteCount = 0
 
-	for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, part in pairs(workspace:GetDescendants()) do
 		if part.ClassName:lower() == targetClass then
 			part:Destroy()
 			deleteCount = deleteCount + 1
@@ -15017,7 +15017,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 
 	if not FindInTable(autoClassRemover, targetClass) then
 		Insert(autoClassRemover, targetClass)
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if part.ClassName:lower() == targetClass then
 				part:Destroy()
 			end
@@ -15025,7 +15025,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 	end
 
 	if not autoClassConnection then
-		autoClassConnection = SafeGetService("Workspace").DescendantAdded:Connect(handleClassDescendantAdd)
+		autoClassConnection = workspace.DescendantAdded:Connect(handleClassDescendantAdd)
 	end
 
 	Wait()
@@ -15114,7 +15114,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15137,7 +15137,7 @@ cmd.add({"tweengotopart", "tgotopart", "ttopart", "ttoprt"}, {"tweengotopart {pa
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15162,7 +15162,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15185,7 +15185,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15209,7 +15209,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15223,7 +15223,7 @@ end, true)
 cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
 	local partName = Concat({...}, " "):lower()
 
-	for _, part in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, part in pairs(workspace:GetDescendants()) do
 		if part:IsA("BasePart") and part.Name:lower() == partName then
 			if getChar() then
 				part:PivotTo(getChar():GetPivot())
@@ -15235,7 +15235,7 @@ end, true)
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
-	for _, model in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, model in pairs(workspace:GetDescendants()) do
 		if model:IsA("Model") and model.Name:lower() == modelName then
 			if getChar() then
 				model:PivotTo(getChar():GetPivot())
@@ -15256,7 +15256,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, model in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, model in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15279,7 +15279,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 	activeTeleports[commandKey] = taskState
 
 	Spawn(function()
-		for _, model in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, model in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -15293,7 +15293,7 @@ end, true)
 cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)", "Teleports you to a model whose name contains the given text"}, function(...)
 	local name = Concat({...}, " "):lower()
 
-	for _, model in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, model in pairs(workspace:GetDescendants()) do
 		if model:IsA("Model") and model.Name:lower():find(name) then
 			if getHum() then
 				getHum().Sit = false
@@ -15307,7 +15307,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 	end
 end, true)
 
-OGGRAVV = SafeGetService("Workspace").Gravity
+OGGRAVV = workspace.Gravity
 SWIMMERRRR = false
 
 function ZEhumSTATE(humanoid, enabled)
@@ -15326,15 +15326,15 @@ cmd.add({"swim"}, {"swim {speed}", "Swim in the air"}, function(speed)
 		local hrp = getRoot(humanoid.Parent)
 		if not hrp then return end
 
-		OGGRAVV = SafeGetService("Workspace").Gravity
-		SafeGetService("Workspace").Gravity = 0
+		OGGRAVV = workspace.Gravity
+		workspace.Gravity = 0
 
 		ZEhumSTATE(humanoid, false)
 		humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 		humanoid.WalkSpeed = speed or 16
 
 		lib.connect("swim_die", humanoid.Died:Connect(function()
-			SafeGetService("Workspace").Gravity = OGGRAVV
+			workspace.Gravity = OGGRAVV
 			SWIMMERRRR = false
 		end))
 
@@ -15357,7 +15357,7 @@ cmd.add({"unswim"}, {"unswim", "Stops the swim script"}, function()
 	local humanoid = getHum()
 
 	if humanoid then
-		SafeGetService("Workspace").Gravity = OGGRAVV
+		workspace.Gravity = OGGRAVV
 		SWIMMERRRR = false
 
 		lib.disconnect("swim_die")
@@ -15369,24 +15369,94 @@ cmd.add({"unswim"}, {"unswim", "Stops the swim script"}, function()
 	end
 end)
 
-cmd.add({"tpua", "bringua"}, {"tpua <player> (bringua)", "brings every unanchored part on the map"}, function(target)
-	local targetPlayer = getPlr(target)
-	if not targetPlayer or not getPlrChar(targetPlayer) or not getRoot(getPlrChar(targetPlayer)) then return end
-	local targetCF = getRoot(getPlrChar(targetPlayer)).CFrame
+cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
+	local targets=getPlr(...)
+	local targetPlayer=targets[1]
+	if not targetPlayer or not getPlrChar(targetPlayer) or not getRoot(getPlrChar(targetPlayer)) then
+		targetPlayer=getPlr("me")
+	end
+
+	local root=getRoot(getPlrChar(targetPlayer))
+	if not root then return end
+
+	local targetCF=root.CFrame
 
 	Spawn(function()
-		while true do
-			RunService.Heartbeat:Wait()
-			sethidden(LocalPlayer, "SimulationRadius", 1e9)
-			LocalPlayer.MaximumSimulationRadius = 1e9
+		while RunService.Heartbeat:Wait() do
+			pcall(function()
+				opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
+				LocalPlayer.MaximumSimulationRadius=1e9
+			end)
 		end
 	end)
 
-	for _, v in pairs(SafeGetService("Workspace"):GetDescendants()) do
-		if v:IsA("BasePart") and not v.Anchored and not v:IsDescendantOf(targetPlayer.Character) then
-			v.CFrame = targetCF * CFrame.new(math.random(-10,10), 0, math.random(-10,10))
+	for _,part in ipairs(workspace:GetDescendants()) do
+		if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(targetPlayer.Character) then
+			for _,x in next,part:GetChildren() do
+				if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
+			end
+			for _,name in next,{"Attachment","AlignPosition","Torque"} do
+				local inst=part:FindFirstChild(name) if inst then inst:Destroy() end
+			end
+			part.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
 		end
 	end
+end,true)
+
+cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls unanchored parts to you with spin"},function()
+	if lib.isConnected("bhf") then return DoNotif("BHF already active.") end
+
+	local root=getRoot(getPlrChar(LocalPlayer));if not root then return end
+	local att1=InstanceNew("Attachment",root);att1.Name="BHF_Attach"
+
+	local function pullPart(part)
+		if not part:IsA("BasePart") or part.Anchored or part:IsDescendantOf(LocalPlayer.Character) then return end
+		for _,x in next,part:GetChildren() do
+			if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
+		end
+		for _,n in next,{"Attachment","AlignPosition","Torque"} do local i=part:FindFirstChild(n) if i then i:Destroy() end end
+		part.CanCollide=false
+		local att0=InstanceNew("Attachment",part)
+		local align=InstanceNew("AlignPosition",part)
+		align.Attachment0=att0
+		align.Attachment1=att1
+		align.MaxForce=1e9
+		align.MaxVelocity=math.huge
+		align.Responsiveness=200
+		local torque=InstanceNew("Torque",part)
+		torque.Attachment0=att0
+		torque.Torque=Vector3.new(100000,100000,100000)
+	end
+
+	for _,part in ipairs(workspace:GetDescendants()) do Defer(function() pullPart(part) end) end
+
+	lib.connect("bhf",workspace.DescendantAdded:Connect(pullPart))
+	lib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
+		pcall(function()
+			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
+			LocalPlayer.MaximumSimulationRadius=1e9
+		end)
+	end))
+
+	DoNotif("Blackhole follow enabled.")
+end,true)
+
+cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow","Stops blackhole follow and clears constraints"},function()
+	lib.disconnect("bhf")
+	lib.disconnect("bhf_sim")
+
+	local root=getRoot(getPlrChar(LocalPlayer))
+	if root then local att=root:FindFirstChild("BHF_Attach") if att then att:Destroy() end end
+
+	for _,part in ipairs(workspace:GetDescendants()) do
+		if part:IsA("BasePart") and not part.Anchored then
+			for _,obj in ipairs(part:GetChildren()) do
+				if obj:IsA("AlignPosition") or obj:IsA("Torque") or obj:IsA("Attachment") then obj:Destroy() end
+			end
+		end
+	end
+
+	DoNotif("Blackhole follow disabled.")
 end,true)
 
 cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter (sfighter, swordf, swordbot, sf)", "Activates a sword fighting bot that engages in automated PvP combat"},function()
@@ -15436,7 +15506,7 @@ function onPartAdded(part)
 end
 
 function enableEsp(objType, color, list)
-	for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA(objType) then
 			local parent = obj.Parent
 			if parent and (parent:IsA("BasePart") or parent:IsA("Model")) then
@@ -15449,7 +15519,7 @@ function enableEsp(objType, color, list)
 	end
 
 	if not espTriggers[objType] then
-		espTriggers[objType] = SafeGetService("Workspace").DescendantAdded:Connect(function(obj)
+		espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
 			if obj:IsA(objType) then
 				local parent = obj.Parent
 				if parent and (parent:IsA("BasePart") or parent:IsA("Model")) then
@@ -15469,7 +15539,7 @@ function disableEsp(objType, list)
 		espTriggers[objType] = nil
 	end
 
-	for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
 			local adornee = obj.Adornee
 			if adornee and Discover(list, adornee) then
@@ -15488,7 +15558,7 @@ cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "
 	if not Discover(espList, partName) then
 		Insert(espList, partName)
 
-		for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, obj in pairs(workspace:GetDescendants()) do
 			if obj.Name:lower() == partName then
 				if obj:IsA("BasePart") or obj:IsA("Model") then
 					createBox(obj, Color3.fromRGB(50, 205, 50), 0.45)
@@ -15498,7 +15568,7 @@ cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "
 	end
 
 	if not partTrigger then
-		partTrigger = SafeGetService("Workspace").DescendantAdded:Connect(onPartAdded)
+		partTrigger = workspace.DescendantAdded:Connect(onPartAdded)
 	end
 end, true)
 
@@ -15509,7 +15579,7 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 	if not Discover(espList, partName) then
 		Insert(espList, partName)
 
-		for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _, obj in pairs(workspace:GetDescendants()) do
 			if obj.Name:lower():find(partName) then
 				if obj:IsA("BasePart") or obj:IsA("Model") then
 					createBox(obj, Color3.fromRGB(50, 205, 50), 0.45)
@@ -15519,7 +15589,7 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 	end
 
 	if not partTrigger then
-		partTrigger = SafeGetService("Workspace").DescendantAdded:Connect(function(part)
+		partTrigger = workspace.DescendantAdded:Connect(function(part)
 			if #espList > 0 then
 				for _, name in ipairs(espList) do
 					if part.Name:lower():find(name) then
@@ -15534,7 +15604,7 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 end, true)
 
 cmd.add({"unpesp", "unesppart", "unpartesp"}, {"unpesp (unesppart, unpartesp)", "Removes ESP from specific parts added by pesp"}, function()
-	for _, obj in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, obj in pairs(workspace:GetDescendants()) do
 		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
 			local adornee = obj.Adornee
 			if adornee then
@@ -15582,7 +15652,7 @@ end)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
 	local partName = Concat({...}, " "):lower()
-	local ws = SafeGetService("Workspace")
+	local ws = workspace
 	local camera = ws.CurrentCamera
 
 	for _, obj in ipairs(ws:GetDescendants()) do
@@ -15605,7 +15675,7 @@ cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "
 end,true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
-	local camera = SafeGetService("Workspace").CurrentCamera
+	local camera = workspace.CurrentCamera
 	local humanoid = getHum()
 	if humanoid then
 		camera.CameraSubject = humanoid
@@ -15614,7 +15684,7 @@ end)
 
 cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewpfind, vpartfind)", "Focuses camera on a part, model, or folder with name containing the given text"}, function(...)
 	local name = Concat({...}, " "):lower()
-	local ws = SafeGetService("Workspace")
+	local ws = workspace
 	local cam = ws.CurrentCamera
 
 	for _, obj in ipairs(ws:GetDescendants()) do
@@ -15637,7 +15707,7 @@ cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewp
 end, true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
-	local cam = SafeGetService("Workspace").CurrentCamera
+	local cam = workspace.CurrentCamera
 	local hum = getHum()
 	if hum then
 		cam.CameraSubject = hum
@@ -15805,7 +15875,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	local UserInputService = UserInputService
 
 	local Folder = InstanceNew("Folder")
-	Folder.Parent = SafeGetService("Workspace")
+	Folder.Parent = workspace
 
 	local Part = InstanceNew("Part")
 	Part.Anchored = true
@@ -15824,7 +15894,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 			for _, player in ipairs(Players:GetPlayers()) do
 				if player ~= Player then
 					player.MaximumSimulationRadius = 0
-					sethidden(player, "SimulationRadius", 0)
+					opt.hiddenprop(player, "SimulationRadius", 0)
 				end
 			end
 			Player.MaximumSimulationRadius = math.pow(math.huge, math.huge)
@@ -15869,11 +15939,11 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		alignPosition.Attachment1 = Attachment1
 	end
 
-	for _, descendant in ipairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, descendant in ipairs(workspace:GetDescendants()) do
 		applyForceToPart(descendant)
 	end
 
-	SafeGetService("Workspace").DescendantAdded:Connect(applyForceToPart)
+	workspace.DescendantAdded:Connect(applyForceToPart)
 
 	UserInputService.InputBegan:Connect(function(input, isChatting)
 		if input.KeyCode == Enum.KeyCode.E and not isChatting then
@@ -15904,9 +15974,9 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
             end)
         end
 
-        if not ok and sethidden then
+        if not ok and opt.hiddenprop then
             if pcall(function()
-                sethidden(LocalPlayer, "SimulationRadius", r)
+                opt.hiddenprop(LocalPlayer, "SimulationRadius", r)
             end) then
                 ok = true
                 DoNotif("SimRadius set with sethiddenproperty: "..r)
@@ -16362,7 +16432,7 @@ end,true)
 
 cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip,cnoclip,nccam)","Makes your camera clip through walls"}, function()
 	local player = Players.LocalPlayer
-	local camera = SafeGetService("Workspace").CurrentCamera
+	local camera = workspace.CurrentCamera
 
 	local SetConstant = (debug and debug.setconstant) or setconstant
 	local GetConstants = (debug and debug.getconstants) or getconstants
@@ -16448,7 +16518,7 @@ end)
 
 cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip (uncamnoclip,uncnoclip,unnccam)","Restores normal camera"}, function()
 	local player = Players.LocalPlayer
-	local camera = SafeGetService("Workspace").CurrentCamera
+	local camera = workspace.CurrentCamera
 
 	local SetConstant = (debug and debug.setconstant) or setconstant
 	local GetConstants = (debug and debug.getconstants) or getconstants
@@ -16553,7 +16623,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 				weld:Destroy()
 			end
 
-			handle = InstanceNew("Part", SafeGetService("Workspace"))
+			handle = InstanceNew("Part", workspace)
 			handle.Name = "Handle"
 			handle.Transparency = 1
 			handle.CanCollide = false
@@ -16565,7 +16635,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 			weld.C0 = CFrame.new(0, offset - 1.5, 0)
 
 			setDisplayDistance(offset + 100)
-			SafeGetService("Workspace").CurrentCamera.CameraSubject = handle
+			workspace.CurrentCamera.CameraSubject = handle
 			getRoot(getChar()).CFrame = getRoot(getChar()).CFrame * CFrame.new(0, offset, 0)
 			getHum().HipHeight = offset
 			getHum():ChangeState(11)
@@ -16604,7 +16674,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 
 			heldTool = nil
 			setDisplayDistance(100)
-			SafeGetService("Workspace").CurrentCamera.CameraSubject = getHum()
+			workspace.CurrentCamera.CameraSubject = getHum()
 			getRoot(getChar()).CFrame = getRoot(getChar()).CFrame * CFrame.new(0, -offset, 0)
 			getHum().HipHeight = HH
 
@@ -16689,7 +16759,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			InvisibleCharacter = nil
 		end
 		Player.Character = Character
-		Character.Parent = SafeGetService("Workspace")
+		Character.Parent = workspace
 		RunService.Heartbeat:Wait()
 		if Character and getRoot(Character) then
 			Character:PivotTo(OriginalPosition)
@@ -16702,7 +16772,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		if not IsInvis then
 			IsInvis = true
 			InvisibleCharacter = Character:Clone()
-			InvisibleCharacter.Parent = SafeGetService("Workspace")
+			InvisibleCharacter.Parent = workspace
 			for _, v in pairs(InvisibleCharacter:GetDescendants()) do
 				if v:IsA("BasePart") then
 					v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
@@ -16722,7 +16792,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 				end
 			end
 			Player.Character = InvisibleCharacter
-			SafeGetService("Workspace").CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
+			workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
 			DoNotif("You are now invisible.")
 			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
 		else
@@ -16847,7 +16917,7 @@ loopedFOV = nil
 
 cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–120)"}, function(num)
 	local field = math.clamp(tonumber(num) or 70, 1, 120)
-	local cam = SafeGetService("Workspace").CurrentCamera
+	local cam = workspace.CurrentCamera
 	TweenService:Create(cam, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {FieldOfView = field}):Play()
 end, true)
 
@@ -16858,7 +16928,7 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 		lib.disconnect("fov_loop")
 		lib.disconnect("fov_refresh")
 
-		local cam = SafeGetService("Workspace").CurrentCamera
+		local cam = workspace.CurrentCamera
 		if not cam then return end
 
 		lib.connect("fov_loop", RunService.Stepped:Connect(function()
@@ -16875,7 +16945,7 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 	end
 
 	lib.disconnect("fov_watch")
-	lib.connect("fov_watch", SafeGetService("Workspace"):GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	lib.connect("fov_watch", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		Wait(0.05)
 		apply()
 	end))
@@ -17045,7 +17115,7 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 			hum.HipHeight = 1024
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17061,7 +17131,7 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 			hum:MoveTo(targetPos)
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17081,7 +17151,7 @@ cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"},
 				hum:MoveTo(targetPos)
 			end
 		end
-		for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+		for _,hum in pairs(workspace:GetDescendants()) do
 			disappear(hum)
 		end
 	until npcfollowloop == false
@@ -17103,7 +17173,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17120,7 +17190,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17137,7 +17207,7 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17154,7 +17224,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _,hum in pairs(workspace:GetDescendants()) do
 		disappear(hum)
 	end
 end)
@@ -17163,7 +17233,7 @@ npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
 	if lib.isConnected("loopbringnpcs") then lib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
-	for _, hum in ipairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, hum in ipairs(workspace:GetDescendants()) do
 		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
 			Insert(npcCache, hum)
 		end
@@ -17200,7 +17270,7 @@ cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	local Players = SafeGetService("Players")
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
-	for _, d in pairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, d in pairs(workspace:GetDescendants()) do
 		if d:IsA("Humanoid") and not Players:GetPlayerFromCharacter(d.Parent) then
 			local root = getRoot(d.Parent)
 			if root then
@@ -17369,7 +17439,7 @@ cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable cli
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
-	for _, d in ipairs(SafeGetService("Workspace"):GetDescendants()) do
+	for _, d in ipairs(workspace:GetDescendants()) do
 		if d:IsA("Humanoid") and not Players:GetPlayerFromCharacter(d.Parent) then
 			local root = getPlrHum(d.Parent)
 			if root then
@@ -19223,9 +19293,9 @@ NAmanage.bindToDevConsole = function()
 end
 
 --[[function NAUISCALEUPD()
-	if not SafeGetService("Workspace").CurrentCamera then return end
+	if not workspace.CurrentCamera then return end
 
-	local screenHeight = SafeGetService("Workspace").CurrentCamera.ViewportSize.Y
+	local screenHeight = workspace.CurrentCamera.ViewportSize.Y
 	local baseHeight = 720
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
 end]]
@@ -19293,7 +19363,7 @@ Spawn(function()
 end)
 
 mouse.Move:Connect(function()
-	local viewportSize = SafeGetService("Workspace").CurrentCamera and SafeGetService("Workspace").CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+	local viewportSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
 
 	local xScale = mouse.X / viewportSize.X
 	local yScale = mouse.Y / viewportSize.Y
