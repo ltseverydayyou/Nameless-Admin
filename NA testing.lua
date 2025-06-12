@@ -377,6 +377,7 @@ local opt={
 	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
+	ctrlModule = nil;
 }
 
 if getgenv().NATestingVer then
@@ -489,9 +490,9 @@ if FileSupport then
 
 	if not isfile(NAfiles.NAICONPOSPATH) then
 		writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-			X = 0.5,
-			Y = 0.1,
-			Save = false
+			X = 0.5;
+			Y = 0.1;
+			Save = false;
 		}))
 	end
 
@@ -509,9 +510,9 @@ if FileSupport then
 
 	if not isfile(NAfiles.NASTROKETHINGY) then
 		writefile(NAfiles.NASTROKETHINGY, HttpService:JSONEncode({
-			R = 148 / 255,
-			G = 93 / 255,
-			B = 255 / 255
+			R = 148 / 255;
+			G = 93 / 255;
+			B = 255 / 255;
 		}))
 	end
 
@@ -544,9 +545,9 @@ function InitUIStroke(path)
 	end
 
 	writefile(path, HttpService:JSONEncode({
-		R = defaultColor.R,
-		G = defaultColor.G,
-		B = defaultColor.B
+		R = defaultColor.R;
+		G = defaultColor.G;
+		B = defaultColor.B;
 	}))
 	DoNotif("UI Stroke color reset to default due to invalid or missing data.")
 	return defaultColor
@@ -618,7 +619,7 @@ else
 	NAQoTEnabled = false
 	NAiconSaveEnabled = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
-	DoNotif("Your exploit does not support read/write file")
+	DoWindow("Your exploit does not support read/write file")
 end
 
 opt.prefix = prefixCheck
@@ -729,7 +730,6 @@ local character=Player.Character
 local mouse=localPlayer:GetMouse()
 local camera=workspace.CurrentCamera
 local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
-local ctrlModule = nil
 local cmds={
 	Commands={};
 	Aliases={};
@@ -744,7 +744,7 @@ Spawn(function()
 
 		local ok, result = pcall(require, controlModule)
 		if ok and result then
-			ctrlModule = result
+			opt.ctrlModule = result
 		end
 	end)
 end)
@@ -795,9 +795,9 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 function GetCustomMoveVector()
-	if ctrlModule then
+	if opt.ctrlModule then
 		local success, vec = pcall(function()
-			return ctrlModule:GetMoveVector()
+			return opt.ctrlModule:GetMoveVector()
 		end)
 		if success and vec and vec.Magnitude > 0 then
 			return vec
@@ -12136,20 +12136,19 @@ cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
 	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
 end)
 
-cmd.add({"lockmouse", "lockm"}, {"lockmouse (lockm)", "Locks your mouse in the center"}, function()
-	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-end)
-
-cmd.add({"unlockmouse", "unlockm"}, {"unlockmouse (unlockm)", "Unlocks your mouse"}, function()
-	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-end)
-
 if IsOnPC then
-	cmd.add({"lockmouse2", "lockm2"}, {"lockmouse2 (lockm2)", "Locks your mouse in the center (first person)"}, function()
+	cmd.add({"lockmouse", "lockm"}, {"lockmouse2 (lockm2)", "Default Mouse Behaviour (idk any description)"}, function()
 		gui.doModal(false)
 	end)
-	cmd.add({"unlockmouse2", "unlockm2"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse (fr this time)"}, function()
+	cmd.add({"unlockmouse", "unlockm"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse (fr this time)"}, function()
 		gui.doModal(true)
+	end)
+	cmd.add({"lockmouse2", "lockm2"}, {"lockmouse2 (lockm2)", "Locks your mouse in the center"}, function()
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	end)
+
+	cmd.add({"unlockmouse2", "unlockm2"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse"}, function()
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end)
 end
 
