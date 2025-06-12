@@ -4105,7 +4105,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 			local originalVelocity = hrp.Velocity
 			hrp.Velocity = originalVelocity * 10000 + Vector3.new(0, 10000, 0)
 
-			RunService.Stepped:Wait()
+			RunService.RenderStepped:Wait()
 			if character and hrp then
 				hrp.Velocity = originalVelocity
 			end
@@ -6465,7 +6465,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	params.FilterType = Enum.RaycastFilterType.Blacklist
 	params.FilterDescendantsInstances = {character}
 
-	lib.connect("hamster_render", RunService.Stepped:Connect(function(delta)
+	lib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
 		if UserInputService:GetFocusedTextBox() then return end
