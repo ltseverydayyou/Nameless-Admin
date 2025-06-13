@@ -61,6 +61,7 @@ local flingManager = {
 }
 NASESSIONSTARTEDIDK = os.clock()
 lib={}
+gui={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
 NAQoTEnabled = nil
@@ -7352,6 +7353,24 @@ cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage ca
 	})
 end)
 
+cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"},function()
+    local function onInput(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Comma and workspace.CurrentCamera then
+            workspace.CurrentCamera:PanUnits(-1)
+        elseif input.KeyCode == Enum.KeyCode.Period and workspace.CurrentCamera then
+            workspace.CurrentCamera:PanUnits(1)
+        end
+    end
+    if not lib.isConnected("align_input") then
+        lib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
+    end
+end,true)
+
+cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys","Disable alignment keys"},function()
+    lib.disconnect("align_input")
+end,true)
+
 cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
 	ESPenabled = true
 	chamsEnabled = false
@@ -11770,23 +11789,27 @@ cmd.add({"unfreeze","unthaw","unanchor","unfr"},{"unfreeze (unthaw,unanchor,unfr
 end)
 
 cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts teleport to the black hole"},function()
+	if lib.isConnected("blackhole_force") then return DoNotif("Blackhole already exists.") end
+
 	local UIS=SafeGetService("UserInputService")
 	local Mouse=LocalPlayer:GetMouse()
 	local Folder=InstanceNew("Folder",workspace)
 	local Part=InstanceNew("Part",Folder)
 	local Attachment1=InstanceNew("Attachment",Part)
 	Part.Anchored=true Part.CanCollide=false Part.Transparency=1
+
 	local Updated=Mouse.Hit+Vector3.new(0,5,0)
+	_G.BlackholeAttachment=Attachment1
+	_G.BlackholeTarget=Updated
+	_G.BlackholeActive=false
 
 	lib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
 		for _,plr in next,Players:GetPlayers() do
-			if plr~=LocalPlayer then
-				pcall(function()
-					plr.MaximumSimulationRadius=0
-					opt.hiddenprop(plr,"SimulationRadius",0)
-				end)
-			end
+			if plr~=LocalPlayer then pcall(function()
+				plr.MaximumSimulationRadius=0
+				opt.hiddenprop(plr,"SimulationRadius",0)
+			end) end
 		end
 		pcall(function()
 			LocalPlayer.MaximumSimulationRadius=1e9
@@ -11794,9 +11817,15 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end)
 	end))
 
+	lib.connect("blackhole_pos",RunService.RenderStepped:Connect(function()
+		if _G.BlackholeAttachment then
+			_G.BlackholeAttachment.WorldCFrame=_G.BlackholeTarget
+		end
+	end))
+
 	local function ForcePart(v)
+		if not _G.BlackholeActive then return end
 		if v:IsA("Part") and not v.Anchored and not v.Parent:FindFirstChildWhichIsA("Humanoid") and not v.Parent:FindFirstChild("Head") and v.Name~="Handle" then
-			Mouse.TargetFilter=v
 			for _,x in next,v:GetChildren() do
 				if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
 			end
@@ -11805,50 +11834,73 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 			local a2=InstanceNew("Attachment",v)
 			local align=InstanceNew("AlignPosition",v)
 			local torque=InstanceNew("Torque",v)
-			align.Attachment0=a2 align.Attachment1=Attachment1
+			align.Attachment0=a2 align.Attachment1=_G.BlackholeAttachment
 			align.MaxForce=1e9 align.MaxVelocity=math.huge align.Responsiveness=200
 			torque.Attachment0=a2 torque.Torque=Vector3.new(100000,100000,100000)
 		end
 	end
 
 	for _,v in next,workspace:GetDescendants() do ForcePart(v) end
-	lib.connect("blackhole_new",workspace.DescendantAdded:Connect(ForcePart))
+	lib.connect("blackhole_force",workspace.DescendantAdded:Connect(ForcePart))
 
 	UIS.InputBegan:Connect(function(k,chat)
-		if k.KeyCode==Enum.KeyCode.E and not chat and not IsOnMobile then
-			Updated=Mouse.Hit+Vector3.new(0,5,0)
+		if k.KeyCode==Enum.KeyCode.E and not chat then
+			_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
 		end
 	end)
 
-	if IsOnMobile then
-		local sGUI=InstanceNew("ScreenGui")
-		NaProtectUI(sGUI)
-		local button=InstanceNew("TextButton",sGUI)
-		local UICorner=InstanceNew("UICorner",button)
-		button.Text="Move Blackhole"
-		button.AnchorPoint=Vector2.new(0.5,0)
-		button.Size=UDim2.new(0,150,0,40)
-		button.Position=UDim2.new(0.5,0,0.9,0)
-		button.BackgroundColor3=Color3.new(0.2,0.2,0.2)
-		button.TextColor3=Color3.new(1,1,1)
-		button.Font=Enum.Font.SourceSansBold
-		button.TextSize=18
-		UICorner.CornerRadius=UDim.new(0.25,0)
+	local gui=InstanceNew("ScreenGui")
+	NaProtectUI(gui)
 
-		MouseButtonFix(button,function()
-			Updated=Mouse.Hit+Vector3.new(0,5,0)
-		end)
-		gui.draggablev2(button)
-	end
+	local toggleBtn=InstanceNew("TextButton",gui)
+	local toggleCorner=InstanceNew("UICorner",toggleBtn)
+	toggleBtn.Text="Enable Blackhole"
+	toggleBtn.AnchorPoint=Vector2.new(0.5,0)
+	toggleBtn.Size=UDim2.new(0,160,0,40)
+	toggleBtn.Position=UDim2.new(0.5,0,0.88,0)
+	toggleBtn.BackgroundColor3=Color3.new(0.15,0.15,0.15)
+	toggleBtn.TextColor3=Color3.new(1,1,1)
+	toggleBtn.Font=Enum.Font.SourceSansBold
+	toggleBtn.TextSize=18
+	toggleBtn.Draggable=true
+	toggleCorner.CornerRadius=UDim.new(0.25,0)
 
-	Spawn(function()
-		while RunService.RenderStepped:Wait() do
-			Attachment1.WorldCFrame=Updated
+	MouseButtonFix(toggleBtn,function()
+		_G.BlackholeActive=not _G.BlackholeActive
+		toggleBtn.Text=_G.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
+		if not _G.BlackholeActive then
+			for _,p in ipairs(workspace:GetDescendants()) do
+				if p:IsA("BasePart") and not p.Anchored then
+					for _,o in ipairs(p:GetChildren()) do
+						if o:IsA("AlignPosition") or o:IsA("Torque") or o:IsA("Attachment") then o:Destroy() end
+					end
+				end
+			end
+			DoNotif("Blackhole force disabled",2)
+		else
+			for _,v in next,workspace:GetDescendants() do ForcePart(v) end
+			DoNotif("Blackhole force enabled",2)
 		end
 	end)
 
-	Wait()
-	DoNotif("Blackhole loaded. "..(IsOnMobile and "Tap button to move" or "Press E to move it to mouse"))
+	local moveBtn=InstanceNew("TextButton",gui)
+	local moveCorner=InstanceNew("UICorner",moveBtn)
+	moveBtn.Text="Move Blackhole"
+	moveBtn.AnchorPoint=Vector2.new(0.5,0)
+	moveBtn.Size=UDim2.new(0,160,0,40)
+	moveBtn.Position=UDim2.new(0.5,0,0.94,0)
+	moveBtn.BackgroundColor3=Color3.new(0.2,0.2,0.2)
+	moveBtn.TextColor3=Color3.new(1,1,1)
+	moveBtn.Font=Enum.Font.SourceSansBold
+	moveBtn.TextSize=18
+	moveBtn.Draggable=true
+	moveCorner.CornerRadius=UDim.new(0.25,0)
+
+	MouseButtonFix(moveBtn,function()
+		_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
+	end)
+
+	DoNotif("Blackhole created. Tap button or press E to move",3)
 end,true)
 
 cmd.add({"disableanimations","disableanims"},{"disableanimations (disableanims)","Freezes your animations"},function()
@@ -11860,13 +11912,11 @@ cmd.add({"undisableanimations","undisableanims"},{"undisableanimations (undisabl
 end)
 
 cmd.add({"hatresize"},{"hatresize","Makes your hats very big r15 only"},function()
-
 	Wait();
 
 	DoNotif("Hat resize loaded, rthro needed")
 
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/DigitalityScripts/roblox-scripts/refs/heads/main/Patched/hat%20resize'))()
-
 end)
 
 cmd.add({"exit"},{"exit","Close down roblox"},function()
@@ -15421,9 +15471,7 @@ end)
 cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
 	local targets=getPlr(...)
 	local targetPlayer=targets[1]
-	if not targetPlayer or not getPlrChar(targetPlayer) or not getRoot(getPlrChar(targetPlayer)) then
-		targetPlayer=getPlr("me")
-	end
+	if not targetPlayer then targetPlayer=LocalPlayer end
 
 	local root=getRoot(getPlrChar(targetPlayer))
 	if not root then return end
@@ -15439,47 +15487,65 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 		end
 	end)
 
-	for _,part in ipairs(workspace:GetDescendants()) do
-		if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(targetPlayer.Character) then
-			for _,x in next,part:GetChildren() do
-				if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
-			end
-			for _,name in next,{"Attachment","AlignPosition","Torque"} do
-				local inst=part:FindFirstChild(name) if inst then inst:Destroy() end
-			end
-			part.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
+	local function ForcePart(v)
+		if not v:IsA("BasePart") then return end
+		if v.Anchored or v:IsDescendantOf(targetPlayer.Character) then return end
+		if v.Parent:FindFirstChildWhichIsA("Humanoid") or v.Parent:FindFirstChild("Head") or v.Name=="Handle" then return end
+
+		for _,x in next,v:GetChildren() do
+			if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
 		end
+		for _,n in next,{"Attachment","AlignPosition","Torque"} do
+			local i=v:FindFirstChild(n)
+			if i then i:Destroy() end
+		end
+
+		v.CanCollide=false
+		v.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
+	end
+
+	for _,part in ipairs(workspace:GetDescendants()) do
+		ForcePart(part)
 	end
 end,true)
 
 cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls unanchored parts to you with spin"},function()
-	if lib.isConnected("bhf") then return DoNotif("BHF already active.") end
+	if lib.isConnected("bhf") then return DoNotif("BHF already active") end
 
 	local root=getRoot(getPlrChar(LocalPlayer));if not root then return end
 	local att1=InstanceNew("Attachment",root);att1.Name="BHF_Attach"
 
-	local function pullPart(part)
-		if not part:IsA("BasePart") or part.Anchored or part:IsDescendantOf(LocalPlayer.Character) then return end
-		for _,x in next,part:GetChildren() do
+	local function ForcePart(v)
+		if not v:IsA("BasePart") then return end
+		if v.Anchored or v:IsDescendantOf(LocalPlayer.Character) then return end
+		if v.Parent:FindFirstChildWhichIsA("Humanoid") or v.Parent:FindFirstChild("Head") or v.Name=="Handle" then return end
+
+		for _,x in next,v:GetChildren() do
 			if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
 		end
-		for _,n in next,{"Attachment","AlignPosition","Torque"} do local i=part:FindFirstChild(n) if i then i:Destroy() end end
-		part.CanCollide=false
-		local att0=InstanceNew("Attachment",part)
-		local align=InstanceNew("AlignPosition",part)
+		for _,n in next,{"Attachment","AlignPosition","Torque"} do
+			local i=v:FindFirstChild(n)
+			if i then i:Destroy() end
+		end
+
+		v.CanCollide=false
+
+		local att0=InstanceNew("Attachment",v)
+		local align=InstanceNew("AlignPosition",v)
 		align.Attachment0=att0
 		align.Attachment1=att1
 		align.MaxForce=1e9
 		align.MaxVelocity=math.huge
 		align.Responsiveness=200
-		local torque=InstanceNew("Torque",part)
+
+		local torque=InstanceNew("Torque",v)
 		torque.Attachment0=att0
 		torque.Torque=Vector3.new(100000,100000,100000)
 	end
 
-	for _,part in ipairs(workspace:GetDescendants()) do Defer(function() pullPart(part) end) end
+	for _,part in ipairs(workspace:GetDescendants()) do Defer(function() ForcePart(part) end) end
 
-	lib.connect("bhf",workspace.DescendantAdded:Connect(pullPart))
+	lib.connect("bhf",workspace.DescendantAdded:Connect(ForcePart))
 	lib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
 		pcall(function()
 			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
@@ -17775,7 +17841,6 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 end, false)
 
 --[[ GUI FUNCTIONS ]]--
-gui={}
 gui.txtSize=function(ui,x,y)
 	local textService=TextService
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
