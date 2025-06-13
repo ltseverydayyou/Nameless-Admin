@@ -19548,7 +19548,9 @@ local UIStroke = InstanceNew("UIStroke")
 local TextButton
 local UICorner2 = InstanceNew("UICorner")
 
-NAICONASSET = (getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil
+NAICONASSET = nil
+
+NACaller(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
 
 if NAICONASSET then
 	TextButton = InstanceNew("ImageButton")
@@ -20099,7 +20101,7 @@ gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
 end)
 
-gui.addSection("Chat Tag Customization")
+gui.addSection("Chat Tag Customization (Client Sided")
 
 gui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
 	opt.currentTagText = inputText
