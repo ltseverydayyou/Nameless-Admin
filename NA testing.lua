@@ -161,49 +161,80 @@ function rStringgg()
 end
 
 function NAProtection(inst,var)
-	if inst then
-		if var then
-			inst[var]="\0"
-			inst.Archivable=false
-		else
-			inst.Name="\0"
-			inst.Archivable=false
-		end
-	end
+    if not inst then return end
+    if var then
+        inst[var] = "\u{200B}\u{200C}"
+    else
+        inst.Name   = "\u{200B}\u{200C}"
+    end
+    inst.Archivable = false
 end
 
-function NaProtectUI(sGui)
-	local cGUI = SafeGetService("CoreGui")
-	local lPlr = SafeGetService("Players").LocalPlayer
-
-	if sGui:IsA("ScreenGui") then
-		sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		sGui.DisplayOrder = 999999999
-		sGui.ResetOnSpawn = false
-		sGui.IgnoreGuiInset = true
-	end
-
-
-	if gethui then
-		NAProtection(sGui)
-		sGui.Parent = gethui()
-		return sGui
-	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
-		NAProtection(sGui)
-		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-		return sGui
-	elseif cGUI then
-		NAProtection(sGui)
-		sGui.Parent = cGUI
-		return sGui
-	elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
-		NAProtection(sGui)
-		sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
-		sGui.ResetOnSpawn = false
-		return sGui
-	else
-		return nil
-	end
+function NaProtectUI(gui)
+    local RunService = SafeGetService("RunService")
+    local Players    = SafeGetService("Players")
+    local CoreGui    = SafeGetService("CoreGui")
+    local ZW = {
+        "\u{200B}", "\u{200C}", "\u{200D}",
+        "\u{2060}", "\u{2062}", "\u{2063}", "\u{FEFF}"
+    }
+    local INV = ""
+    for i = 1, math.random(6, 12) do
+        INV = INV..ZW[math.random(1, #ZW)]
+    end
+    local MAX_DO = 0x7FFFFFFF
+    local target = (gethui and gethui())
+                or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
+                or (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+    if not target then return end
+    pcall(function() gui.Archivable = false end)
+    gui.Name   = INV
+    gui.Parent = target
+    if gui:IsA("ScreenGui") then
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        gui.DisplayOrder   = MAX_DO
+        gui.ResetOnSpawn   = false
+        gui.IgnoreGuiInset = true
+    end
+    local props = {
+        Parent         = target,
+        Name           = INV,
+        Archivable     = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Global,
+        DisplayOrder   = MAX_DO,
+        ResetOnSpawn   = false,
+        IgnoreGuiInset = true,
+    }
+    if not gui:IsA("ScreenGui") then
+        props.ZIndexBehavior = nil
+        props.DisplayOrder   = nil
+        props.ResetOnSpawn   = nil
+        props.IgnoreGuiInset = nil
+    end
+    for prop, val in pairs(props) do
+        gui:GetPropertyChangedSignal(prop):Connect(function()
+            if gui[prop] ~= val then
+                pcall(function() gui[prop] = val end)
+            end
+        end)
+    end
+    gui.AncestryChanged:Connect(function(_, newParent)
+        if gui.Parent ~= target then
+            gui.Parent = target
+        end
+    end)
+    local hb
+    hb = RunService.Heartbeat:Connect(function()
+        for prop, val in pairs(props) do
+            if gui[prop] ~= val then
+                pcall(function() gui[prop] = val end)
+            end
+        end
+        if not gui.Parent then
+            hb:Disconnect()
+        end
+    end)
+    return gui
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
@@ -211,10 +242,10 @@ NAmanage.guiCHECKINGAHHHHH=function()
 end
 
 function InstanceNew(c,p)
-	local inst = Instance.new(c)
-	if p then inst.Parent=p end
-	inst.Name = '\0'
-	return inst
+    local inst = Instance.new(c)
+    if p then inst.Parent = p end
+    inst.Name = "\u{200B}\u{200C}\u{200D}\u{FEFF}"
+    return inst
 end
 
 function countDictNA(tbl)
@@ -434,7 +465,7 @@ function DoWindow(text, duration, sender)
 end
 
 --Custom file functions checker checker
-local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles;
+local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
@@ -2529,7 +2560,7 @@ NAmanage.RenderUserButtons = function()
 			promptGui:Destroy()
 		end)
 
-		gui.draggablev2(frame)
+		gui.draggerV2(frame)
 	end
 
 	local totalButtons = #NAUserButtons
@@ -2560,7 +2591,7 @@ NAmanage.RenderUserButtons = function()
 		corner.CornerRadius = UDim.new(0.25, 0)
 		corner.Parent = btn
 
-		gui.draggablev2(btn)
+		gui.draggerV2(btn)
 
 		local toggled = false
 		local saveEnabled = data.RunMode == "S"
@@ -3276,7 +3307,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 		scaleFrame:Destroy()
 	end)
 
-	gui.draggablev2(frame)
+	gui.draggerV2(frame)
 end)
 
 cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(...)
@@ -3398,7 +3429,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 	uiCorner.CornerRadius = UDim.new(0, 8)
 	uiCorner.Parent = toggleButton
 
-	gui.draggablev2(toggleButton)
+	gui.draggerV2(toggleButton)
 
 	MouseButtonFix(toggleButton, function()
 		clickflingEnabled = not clickflingEnabled
@@ -3713,7 +3744,7 @@ cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggablev2(guiElements.window)
+		gui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "Ping: --")
@@ -3752,7 +3783,7 @@ cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggablev2(guiElements.window)
+		gui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "FPS: --")
@@ -3801,7 +3832,7 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggablev2(guiElements.window)
+		gui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 250, 0, 35), "Ping: -- ms | FPS: --")
@@ -3985,7 +4016,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		labels[stat.key] = lbl
 	end
 
-	gui.draggablev2(window, header)
+	gui.draggerV2(window, header)
 
 	btn.MouseButton1Click:Connect(function()
 		isMinimized = not isMinimized
@@ -4612,8 +4643,8 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 			end)
 		end)()
 
-		gui.draggablev2(btn)
-		gui.draggablev2(speedBox)
+		gui.draggerV2(btn)
+		gui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -5274,7 +5305,7 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 		content.Visible = not minimized
 		minimizeBtn.Text = minimized and "+" or "-"
 	end)
-	gui.draggablev2(frame)
+	gui.draggerV2(frame)
 end)
 
 local annoyLoop = false
@@ -5672,7 +5703,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 			end)
 		end)()
 
-		gui.draggablev2(btn)
+		gui.draggerV2(btn)
 	else
 		lib.disconnect("somersault_key")
 		lib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
@@ -6189,7 +6220,7 @@ cmd.add({"anticframeteleport", "acframetp", "acftp"}, {"anticframeteleport (acfr
 			end
 		end)
 
-		gui.draggablev2(acftpBtn)
+		gui.draggerV2(acftpBtn)
 	end
 end)
 
@@ -6665,8 +6696,8 @@ cmd.add({"clicktp", "tptool"}, {"clicktp (tptool)", "Teleport where your mouse i
 		initialMousePosition = nil
 	end))
 
-	gui.draggablev2(clickTpButton)
-	gui.draggablev2(tweenTpButton)
+	gui.draggerV2(clickTpButton)
+	gui.draggerV2(tweenTpButton)
 end)
 
 cmd.add({"unclicktp", "untptool"}, {"unclicktp (untptool)", "Remove teleport buttons"}, function()
@@ -7098,9 +7129,9 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		DoNotif("vSpeed updated to "..intens, 2)
 	end)
 
-	gui.draggablev2(btn)
-	gui.draggablev2(speedBox)
-	gui.draggablev2(vstopBtn)
+	gui.draggerV2(btn)
+	gui.draggerV2(speedBox)
+	gui.draggerV2(vstopBtn)
 end, true)
 
 cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the vehiclespeed command"}, function()
@@ -7235,6 +7266,13 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 		end
 	})
 
+	Insert(buttons, {
+		Text = "Reset",
+		Callback = function()
+			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
+		end
+	})
+
 	if enableName and enableName ~= "" then
 		local found = false
 		for _, button in ipairs(buttons) do
@@ -7277,6 +7315,13 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 		Text = "Shiftlock",
 		Callback = function()
 			LocalPlayer.DevEnableMouseLock = false
+		end
+	})
+
+	Insert(buttons, {
+		Text = "Reset",
+		Callback = function()
+			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
 		end
 	})
 
@@ -7820,7 +7865,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 	save.MouseButton1Click:Connect(function() applyAnims("save") end)
 	revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
-	gui.draggable(m)
+	gui.dragger(m)
 end)
 
 cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer animation set"}, function()
@@ -8636,7 +8681,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end)
 	end
 	coroutine.wrap(PRML_fake_script)()
-	gui.draggablev2(Main)
+	gui.draggerV2(Main)
 end)
 
 function toggleFly()
@@ -8771,8 +8816,8 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 			end)
 		end)()
 
-		gui.draggablev2(btn)
-		gui.draggablev2(speedBox)
+		gui.draggerV2(btn)
+		gui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -8961,8 +9006,8 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 			end)
 		end)()
 
-		gui.draggablev2(btn)
-		gui.draggablev2(speedBox)
+		gui.draggerV2(btn)
+		gui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -9132,7 +9177,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 		corner.Parent = flyVariables.TFLYBTN
 
 		MouseButtonFix(flyVariables.TFLYBTN, toggleTFly)
-		gui.draggablev2(flyVariables.TFLYBTN)
+		gui.draggerV2(flyVariables.TFLYBTN)
 	else
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
 		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(key)
@@ -9513,8 +9558,8 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			end)
 		end)()
 
-		gui.draggablev2(btn)
-		gui.draggablev2(speedBox)
+		gui.draggerV2(btn)
+		gui.draggerV2(speedBox)
 	else
 		DoNotif("Freecam is activated, use WASD to move around", 2)
 		runFREECAM()
@@ -9828,7 +9873,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	preview.MouseButton1Click:Connect(applyGrip)
 	cancel.MouseButton1Click:Connect(closeUI)
 
-	gui.draggablev2(frame)
+	gui.draggerV2(frame)
 end)
 
 cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
@@ -10039,105 +10084,115 @@ cmd.add({"undance"},{"undance","Stops the dance command"},function()
 	theanim:Destroy()
 end)
 
-cmd.add({"antichatlogs", "antichatlogger"}, {"antichatlogs (antichatlogger)", "Prevents you from getting banning when typing unspeakable messages (game needs legacy chat service or manual override)"}, function()
-	local CachedChannels = {}
-
-	lib.BypassChatMessage = function(message, recipient)
-		local targetChannel
-
-		if recipient and recipient ~= "All" then
-			targetChannel = CachedChannels[recipient]
-			if targetChannel then
-				if not targetChannel:IsDescendantOf(TextChatService)
-					or not targetChannel:FindFirstChild(recipient)
-					or not targetChannel:FindFirstChild(LocalPlayer.Name) then
-					CachedChannels[recipient] = nil
-					targetChannel = nil
-				end
+cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prevents you from getting banning when typing unspeakable messages (requires the new chat service)"},function()
+	local Players=SafeGetService("Players")
+	local TextChatService=SafeGetService("TextChatService")
+	local CoreGui=SafeGetService("CoreGui")
+	local LocalPlayer=Players.LocalPlayer
+	local glyphs={
+		b={"β","в","բ"},
+		c={"ծ"},
+		d={"δ","д","դ"},
+		e={"ε","է"},
+		f={"φ","ф","ֆ"},
+		h={"η","н"},
+		i={"ի"},
+		j={"ջ"},
+		k={"κ","к","կ"},
+		l={"λ","л","լ"},
+		m={"μ","м","մ"},
+		n={"η","н","ն"},
+		p={"պ"},
+		r={"ր"},
+		t={"τ","т","տ"},
+		u={"մ"},
+		v={"в"},
+		w={"ω","ш","վ"},
+		x={"χ","խ"},
+		y={"յ"},
+		z={"ζ","з"},
+		["1"]={"१"},
+		["2"]={"२","٢"},
+		["3"]={"३","٣"},
+		["4"]={"४","٤"},
+		["5"]={"५"},
+		["6"]={"६","٦"},
+		["7"]={"७"},
+		["8"]={"८","٨"},
+		["9"]={"९","٩"}
+	}
+	local function obfuscateMessage(msg)
+		local out={}
+		for _,code in utf8.codes(msg) do
+			local ch=utf8.char(code)
+			local lower=Lower(ch)
+			if glyphs[lower] then
+				local g=glyphs[lower][math.random(#glyphs[lower])]
+				if ch:match("%u") then g=g:upper() end
+				ch=g
 			end
-			if not targetChannel then
-				for _, ch in pairs(TextChatService.TextChannels:GetChildren()) do
-					if ch.Name:find("RBXWhisper:") and ch:FindFirstChild(recipient) then
-						targetChannel = ch
-						CachedChannels[recipient] = ch
-						break
-					end
-				end
-			end
+			Insert(out,ch)
 		end
-
-		if not targetChannel then
-			targetChannel = TextChatService.TextChannels:FindFirstChild("RBXGeneral")
-				or TextChatService.TextChannels:FindFirstChild("General")
-		end
-
-		if targetChannel then
-			targetChannel:SendAsync(message)
-		end
+		return Concat(out)
 	end
-
-	local function getTargetName(targetChip)
-		if targetChip and targetChip:IsA("TextButton") then
-			local displayName = Match(targetChip.Text or "", "^%[To%s+(.-)%]$")
-			if displayName and displayName ~= "" then
-				for _, plr in ipairs(Players:GetPlayers()) do
-					if plr.DisplayName:lower() == displayName:lower() then
-						return plr.Name
+	local CachedChannels={}
+	lib.BypassChatMessage=function(message,recipient)
+		Spawn(function()
+			local text=obfuscateMessage(message)
+			local channel
+			if recipient and recipient~="All" then
+				channel=CachedChannels[recipient]
+				if not channel or not channel:IsDescendantOf(TextChatService) or not channel:FindFirstChild(recipient) then
+					channel=nil
+					for _,c in ipairs(TextChatService.TextChannels:GetChildren()) do
+						if Find(c.Name,"^RBXWhisper:") and c:FindFirstChild(recipient) then
+							channel=c
+							CachedChannels[recipient]=c
+							break
+						end
 					end
+				end
+			end
+			if not channel then channel=TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:FindFirstChild("General") end
+			if channel then pcall(function() channel:SendAsync(text) end) end
+		end)
+	end
+	local function resolveRecipient(chip)
+		if chip and chip:IsA("TextButton") then
+			local txt=chip.Text or ""
+			local d=Match(txt,"^%[To%s+(.+)%]$")
+			if d and d~="" then
+				d=Lower(d)
+				for _,plr in ipairs(Players:GetPlayers()) do
+					if Lower(plr.DisplayName)==d then return plr.Name end
 				end
 			end
 		end
 		return "All"
 	end
-
 	Spawn(function()
-		repeat Wait() until COREGUI:FindFirstChild("ExperienceChat")
-		local experienceChat = COREGUI:WaitForChild("ExperienceChat")
-		local appLayout = experienceChat:FindFirstChild("appLayout")
-		if not appLayout then return end
-
-		local chatInputBar = appLayout:FindFirstChild("chatInputBar")
-		if not chatInputBar then return end
-
-		local background = chatInputBar:FindFirstChild("Background")
-		if not background then return end
-
-		local container = background:FindFirstChild("Container")
-		if not container then return end
-
-		local textContainer = container:FindFirstChild("TextContainer")
-		local textBoxContainer = textContainer and textContainer:FindFirstChild("TextBoxContainer")
-		local chatBox = textBoxContainer and textBoxContainer:FindFirstChild("TextBox")
-		local sendButton = container:FindFirstChild("SendButton")
-		local targetChip = textContainer and textContainer:FindFirstChild("TargetChannelChip")
-
-		if chatBox then
-			chatBox.FocusLost:Connect(function(enterPressed)
-				if enterPressed and chatBox.Text ~= "" then
-					local msg = chatBox.Text
-					local recipient = getTargetName(targetChip)
-					chatBox.Text = ""
-					Defer(function()
-						lib.BypassChatMessage(msg, recipient)
-					end)
-				end
-			end)
+		repeat Wait() until CoreGui:FindFirstChild("ExperienceChat")
+		local ec=CoreGui:WaitForChild("ExperienceChat")
+		local al=ec:WaitForChild("appLayout")
+		local cb=al:WaitForChild("chatInputBar")
+		local bg=cb:WaitForChild("Background")
+		local ct=bg:WaitForChild("Container")
+		local tc=ct:WaitForChild("TextContainer")
+		local bc=tc:WaitForChild("TextBoxContainer")
+		local box=bc:WaitForChild("TextBox")
+		local btn=ct:WaitForChild("SendButton")
+		local chip=tc:FindFirstChild("TargetChannelChip")
+		local function hook()
+			local m=box.Text
+			if m~="" then
+				box.Text=""
+				lib.BypassChatMessage(m,resolveRecipient(chip))
+			end
 		end
-
-		if sendButton and chatBox then
-			sendButton.MouseButton1Click:Connect(function()
-				if chatBox.Text ~= "" then
-					local msg = chatBox.Text
-					local recipient = getTargetName(targetChip)
-					chatBox.Text = ""
-					Defer(function()
-						lib.BypassChatMessage(msg, recipient)
-					end)
-				end
-			end)
-		end
+		box.FocusLost:Connect(function(e) if e then hook() end end)
+		btn.MouseButton1Click:Connect(hook)
 	end)
-	DoNotif("Antichatlogs active")
+	DoNotif("antichatlogs activated (W.I.P)")
 end)
 
 cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
@@ -10289,7 +10344,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			tween:Play()
 			minimized = not minimized
 		end)
-		gui.draggable(main, top)
+		gui.dragger(main, top)
 	end
 	local ok, result = pcall(getBadges)
 	if ok then
@@ -11263,7 +11318,7 @@ function createSpecUI()
 		corner.CornerRadius = UDim.new(0, 20)
 		corner.Parent = frame
 
-		gui.draggablev2(frame)
+		gui.draggerV2(frame)
 
 		local backButton = InstanceNew("TextButton")
 		backButton.Size = UDim2.new(0, 40, 0, 40)
@@ -11735,7 +11790,7 @@ cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
-		gui.draggablev2(btn)
+		gui.draggerV2(btn)
 
 		MouseButtonFix(btn, function()
 			local char = getChar()
@@ -13010,7 +13065,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 	end)
 
-	gui.draggable(main,topbar)
+	gui.dragger(main,topbar)
 end)
 
 cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, function(...)
@@ -13883,8 +13938,8 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 		sideUICorner.CornerRadius = UDim.new(0, 8)
 		sideUICorner.Parent = sideToggleButton
 
-		gui.draggablev2(toggleHugButton)
-		gui.draggablev2(sideToggleButton)
+		gui.draggerV2(toggleHugButton)
+		gui.draggerV2(sideToggleButton)
 
 		hugModeEnabled = false
 
@@ -14172,7 +14227,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		button.MouseLeave:Connect(function() hoverEffect(false) end)
 		button.MouseButton1Down:Connect(callbackDown)
 		button.MouseButton1Up:Connect(callbackUp)
-		gui.draggablev2(button)
+		gui.draggerV2(button)
 
 		return button
 	end
@@ -16834,10 +16889,12 @@ OriginalPosition = nil
 InvisBindLol = Enum.KeyCode.E
 
 cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scare people or something"}, function()
-	if invisKeybindConnection then return DoNotif("invis is already loaded bruh") end -- most stupidest check ever lmao
-	local UIS = UserInputService
-	local Player = Players.LocalPlayer
-	local Character = Player.Character or Player.CharacterAdded:Wait()
+	if invisKeybindConnection then 
+		DoNotif("Invisibility is already loaded!")
+		return 
+	end
+
+	local Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
 	Character.Archivable = true
 	OriginalPosition = getRoot(Character).CFrame
 
@@ -16845,25 +16902,18 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		if not IsInvis then return end
 		IsInvis = false
 		OriginalPosition = getRoot(InvisibleCharacter).CFrame
-		if invisKeybindConnection then
-			invisKeybindConnection:Disconnect()
-			invisKeybindConnection = nil
-		end
-		if invisBtnlol then
-			invisBtnlol:Destroy()
-			invisBtnlol = nil
-		end
 		if InvisibleCharacter then
 			InvisibleCharacter:Destroy()
 			InvisibleCharacter = nil
 		end
-		Player.Character = Character
+		Players.LocalPlayer.Character = Character
 		Character.Parent = workspace
 		RunService.Heartbeat:Wait()
-		if Character and getRoot(Character) then
-			Character:PivotTo(OriginalPosition)
+		local root = getRoot(Character)
+		if root then
+			root.CFrame = OriginalPosition
 		end
-		DoNotif("Invisibility has been turned off.")
+		DoNotif("Invisibility turned off.")
 		SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
 	end
 
@@ -16872,7 +16922,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			IsInvis = true
 			InvisibleCharacter = Character:Clone()
 			InvisibleCharacter.Parent = workspace
-			for _, v in pairs(InvisibleCharacter:GetDescendants()) do
+			for _, v in ipairs(InvisibleCharacter:GetDescendants()) do
 				if v:IsA("BasePart") then
 					v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
 				end
@@ -16880,17 +16930,15 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			local root = getRoot(Character)
 			if root then
 				OriginalPosition = root.CFrame
-				root.CFrame = CFrame.new(0, math.pi*1000000, 0)
+				root.CFrame = CFrame.new(0, math.pi * 1000000, 0)
 			end
 			Wait(0.1)
-			Character.Parent = Lighting
-			if OriginalPosition then
-				local invisRoot = getRoot(InvisibleCharacter)
-				if invisRoot then
-					invisRoot.CFrame = OriginalPosition
-				end
+			Character.Parent = ReplicatedStorage
+			local invisRoot = getRoot(InvisibleCharacter)
+			if invisRoot then
+				invisRoot.CFrame = OriginalPosition
 			end
-			Player.Character = InvisibleCharacter
+			Players.LocalPlayer.Character = InvisibleCharacter
 			workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
 			DoNotif("You are now invisible.")
 			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
@@ -16899,7 +16947,12 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		end
 	end
 
-	invisKeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+	if invisKeybindConnection then
+		invisKeybindConnection:Disconnect()
+		invisKeybindConnection = nil
+	end
+
+	invisKeybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == InvisBindLol and not gameProcessed then
 			ToggleInvisibility()
 		end
@@ -16908,7 +16961,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 	local humanoid = getPlrHum(Character)
 	if humanoid then
 		humanoid.Died:Connect(function()
-			TurnVisible()
+			cmd.run({"vis"})
 		end)
 	end
 
@@ -16918,10 +16971,9 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		local TextButton = InstanceNew("TextButton")
 		local UICorner = InstanceNew("UICorner")
 		local UIAspectRatioConstraint = InstanceNew("UIAspectRatioConstraint")
-
 		NaProtectUI(invisBtnlol)
 		invisBtnlol.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
+		invisBtnlol.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 		TextButton.Parent = invisBtnlol
 		TextButton.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
 		TextButton.BackgroundTransparency = 0.14
@@ -16929,26 +16981,42 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		TextButton.Size = UDim2.new(0.1, 0, 0.1, 0)
 		TextButton.Font = Enum.Font.SourceSansBold
 		TextButton.Text = "Invisible"
-		TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		TextButton.TextColor3 = Color3.new(1, 1, 1)
 		TextButton.TextSize = 15
 		TextButton.TextWrapped = true
-		TextButton.Active = true
 		TextButton.TextScaled = true
-
+		TextButton.Active = true
 		UICorner.Parent = TextButton
 		UIAspectRatioConstraint.Parent = TextButton
-		UIAspectRatioConstraint.AspectRatio = 1.0
-
-		gui.draggablev2(TextButton)
-
-		MouseButtonFix(TextButton,function()
+		UIAspectRatioConstraint.AspectRatio = 1
+		gui.draggerV2(TextButton)
+		MouseButtonFix(TextButton, function()
 			ToggleInvisibility()
 			TextButton.Text = IsInvis and "Visible" or "Invisible"
 		end)
 	end
 
 	Wait()
-	DoNotif("Invisible loaded, press "..InvisBindLol.Name.." to toggle or use the mobile button.")
+	DoNotif("Invisible loaded. Press "..InvisBindLol.Name.." or use the mobile button",2.5)
+end)
+
+cmd.add({"visible", "vis"}, {"visible", "turn visible"}, function()
+	if invisKeybindConnection then
+		invisKeybindConnection:Disconnect()
+		invisKeybindConnection = nil
+	end
+	if invisBtnlol then
+		invisBtnlol:Destroy()
+		invisBtnlol = nil
+	end
+	local Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+	if IsInvis then
+		IsInvis = false
+		if InvisibleCharacter then InvisibleCharacter:Destroy() InvisibleCharacter = nil end
+		Players.LocalPlayer.Character = Character
+		Character.Parent = workspace
+	end
+	DoNotif("Invisibility Disabled",2)
 end)
 
 cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, bindinvis)", "set a custom keybind for the 'Invisible' command"}, function(...)
@@ -17508,7 +17576,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	uiCorner.CornerRadius = UDim.new(0, 8)
 	uiCorner.Parent = toggleButton
 
-	gui.draggablev2(toggleButton)
+	gui.draggerV2(toggleButton)
 
 	MouseButtonFix(toggleButton, function()
 		clickkillEnabled = not clickkillEnabled
@@ -17573,7 +17641,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 
 	local corner = InstanceNew("UICorner", button)
 	corner.CornerRadius = UDim.new(0, 8)
-	gui.draggablev2(button)
+	gui.draggerV2(button)
 
 	MouseButtonFix(button, function()
 		clickVoidEnabled = not clickVoidEnabled
@@ -17628,7 +17696,7 @@ end
 	end
 	Wait(1)
 	warn("retrying")
-	return Getmodel(id) 
+	return Getmodel(id)
 end]]
 
 --[[ GUI VARIABLES ]]--
@@ -18352,195 +18420,193 @@ gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callb
 	infoText.Text = tostring(defaultValue)..(suffix or "")
 end
 
-gui.draggable = function(ui, dragui)
-	if not dragui then dragui = ui end
-	local UserInputService = SafeGetService("UserInputService")
-	local dragging
-	local dragInput
-	local dragStart
-	local startPos
+gui.dragger = function(ui, dragui)
+    dragui = dragui or ui
+    local UserInputService = game:GetService("UserInputService")
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
 
-	local function update(input)
-		local success, err = pcall(function()
-			local delta = input.Position - dragStart
-			local newXOffset = startPos.X.Offset + delta.X
-			local newYOffset = startPos.Y.Offset + delta.Y
-			local screenSize = ui.Parent.AbsoluteSize
-			local newXScale = startPos.X.Scale + (newXOffset / screenSize.X)
-			local newYScale = startPos.Y.Scale + (newYOffset / screenSize.Y)
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("Draggable update error:", err)
-		end
-	end
+    local function update(input)
+        local success, err = pcall(function()
+            local delta = input.Position - dragStart
+            local screenSize = ui.Parent.AbsoluteSize
+            local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
+            local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
+            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+        end)
+        if not success then
+            warn("[Dragger] update error:", err)
+        end
+    end
 
-	pcall(function()
-		dragui.InputBegan:Connect(function(input)
-			local success, err = pcall(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
-					pcall(function()
-						input.Changed:Connect(function()
-							local ok, innerErr = pcall(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-								end
-							end)
-							if not ok then warn("Input Changed error:", innerErr) end
-						end)
-					end)
-				end
-			end)
-			if not success then warn("InputBegan error:", err) end
-		end)
-	end)
+    pcall(function()
+        dragui.InputBegan:Connect(function(input)
+            local success, err = pcall(function()
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = ui.Position
 
-	pcall(function()
-		dragui.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-			if not success then warn("InputChanged (dragui) error:", err) end
-		end)
-	end)
+                    pcall(function()
+                        input.Changed:Connect(function()
+                            local ok, innerErr = pcall(function()
+                                if input.UserInputState == Enum.UserInputState.End then
+                                    dragging = false
+                                end
+                            end)
+                            if not ok then warn("[Dragger] input.Changed error:", innerErr) end
+                        end)
+                    end)
+                end
+            end)
+            if not success then warn("[Dragger] InputBegan error:", err) end
+        end)
+    end)
 
-	pcall(function()
-		UserInputService.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
-				if input == dragInput and dragging then
-					update(input)
-				end
-			end)
-			if not success then warn("UserInputService.InputChanged error:", err) end
-		end)
-	end)
+    pcall(function()
+        dragui.InputChanged:Connect(function(input)
+            local success, err = pcall(function()
+                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                    dragInput = input
+                end
+            end)
+            if not success then warn("[Dragger] InputChanged error:", err) end
+        end)
+    end)
 
-	pcall(function()
-		ui.Active = true
-	end)
+    pcall(function()
+        UserInputService.InputChanged:Connect(function(input)
+            local success, err = pcall(function()
+                if input == dragInput and dragging then
+                    update(input)
+                end
+            end)
+            if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
+        end)
+    end)
+
+    local success, err = pcall(function()
+        ui.Active = true
+    end)
+    if not success then warn("[Dragger] Set Active error:", err) end
 end
 
-gui.draggablev2 = function(ui, dragui)
-	if not dragui then
-		dragui = ui
-	end
-	local UserInputService = SafeGetService("UserInputService")
+gui.draggerV2 = function(ui, dragui)
+    dragui = dragui or ui
+    local UserInputService = SafeGetService("UserInputService")
+    local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
 
-	local dragging
-	local dragInput
-	local dragStart
-	local startPos
+    local function update(input)
+        local success, err = pcall(function()
+            local delta = input.Position - dragStart
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
 
-	local function update(input)
-		local success, err = pcall(function()
-			local delta = input.Position - dragStart
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
+            local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
+            local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
 
-			local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
-			local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+            local anchor = ui.AnchorPoint
+            local minX = anchor.X * (uiSize.X / parentSize.X)
+            local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+            local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+            local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+            newXScale = math.clamp(newXScale, minX, maxX)
+            newYScale = math.clamp(newYScale, minY, maxY)
 
-			newXScale = math.clamp(newXScale, minX, maxX)
-			newYScale = math.clamp(newYScale, minY, maxY)
+            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+        end)
+        if not success then
+            warn("[DraggerV2] update error:", err)
+        end
+    end
 
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("DraggableV2 update error:", err)
-		end
-	end
+    pcall(function()
+        dragui.InputBegan:Connect(function(input)
+            local success, err = pcall(function()
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = ui.Position
 
-	pcall(function()
-		dragui.InputBegan:Connect(function(input)
-			local success, err = pcall(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
+                    pcall(function()
+                        input.Changed:Connect(function()
+                            local ok, innerErr = pcall(function()
+                                if input.UserInputState == Enum.UserInputState.End then
+                                    dragging = false
+                                end
+                            end)
+                            if not ok then warn("[DraggerV2] input.Changed error:", innerErr) end
+                        end)
+                    end)
+                end
+            end)
+            if not success then warn("[DraggerV2] InputBegan error:", err) end
+        end)
+    end)
 
-					pcall(function()
-						input.Changed:Connect(function()
-							local ok, innerErr = pcall(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-								end
-							end)
-							if not ok then warn("Input Changed error:", innerErr) end
-						end)
-					end)
-				end
-			end)
-			if not success then warn("InputBegan error:", err) end
-		end)
-	end)
+    pcall(function()
+        dragui.InputChanged:Connect(function(input)
+            local success, err = pcall(function()
+                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                    dragInput = input
+                end
+            end)
+            if not success then warn("[DraggerV2] InputChanged error:", err) end
+        end)
+    end)
 
-	pcall(function()
-		dragui.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-			if not success then warn("InputChanged (dragui) error:", err) end
-		end)
-	end)
+    pcall(function()
+        UserInputService.InputChanged:Connect(function(input)
+            local success, err = pcall(function()
+                if input == dragInput and dragging then
+                    update(input)
+                end
+            end)
+            if not success then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
+        end)
+    end)
 
-	pcall(function()
-		UserInputService.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
-				if input == dragInput and dragging then
-					update(input)
-				end
-			end)
-			if not success then warn("UserInputService.InputChanged error:", err) end
-		end)
-	end)
+    local function onScreenSizeChanged()
+        local success, err = pcall(function()
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
+            local currentPos = ui.Position
 
-	local function onScreenSizeChanged()
-		local success, err = pcall(function()
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
-			local currentPos = ui.Position
+            local anchor = ui.AnchorPoint
+            local minX = anchor.X * (uiSize.X / parentSize.X)
+            local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+            local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+            local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+            local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
+            local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
 
-			local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
-			local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
+            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+        end)
+        if not success then
+            warn("[DraggerV2] Screen size update error:", err)
+        end
+    end
 
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("Screen size update error:", err)
-		end
-	end
+    pcall(function()
+        screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+    end)
 
-	pcall(function()
-		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
-	end)
-
-	pcall(function()
-		ui.Active = true
-	end)
+    local success, err = pcall(function()
+        ui.Active = true
+    end)
+    if not success then warn("[DraggerV2] Set Active error:", err) end
 end
 
-gui.menuify = function(menu)
+gui.menu = function(menu)
 	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
@@ -18573,11 +18639,11 @@ gui.menuify = function(menu)
 	MouseButtonFix(exitButton, function()
 		menu.Visible = false
 	end)
-	gui.draggablev2(menu, menu.Topbar)
+	gui.draggerV2(menu, menu.Topbar)
 	menu.Visible = false
 end
 
-gui.menuifyv2 = function(menu)
+gui.menuv2 = function(menu)
 	pcall(function()
 		if menu:IsA("Frame") then
 			menu.AnchorPoint = Vector2.new(0, 0)
@@ -18615,7 +18681,7 @@ gui.menuifyv2 = function(menu)
 				end)
 			end
 		end)
-		if not success then warn("menuifyv2 toggleMinimize error:", err) end
+		if not success then warn("menuv2 toggleMinimize error:", err) end
 	end
 
 	pcall(function()
@@ -18627,7 +18693,7 @@ gui.menuifyv2 = function(menu)
 			local ok, err = pcall(function()
 				menu.Visible = false
 			end)
-			if not ok then warn("menuifyv2 exit button error:", err) end
+			if not ok then warn("menuv2 exit button error:", err) end
 		end)
 	end)
 
@@ -18651,13 +18717,13 @@ gui.menuifyv2 = function(menu)
 						end
 					end
 				end)
-				if not ok then warn("menuifyv2 clear button error:", err) end
+				if not ok then warn("menuv2 clear button error:", err) end
 			end)
 		end)
 	end
 
 	pcall(function()
-		gui.draggablev2(menu, menu.Topbar)
+		gui.draggerV2(menu, menu.Topbar)
 	end)
 
 	pcall(function()
@@ -18673,7 +18739,7 @@ gui.hideFill = function()
 	end
 end
 
-gui.loadCommands = function()
+gui.loadCMDS = function()
 	for _, v in pairs(cmdAutofill:GetChildren()) do
 		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
 			v:Destroy()
@@ -18729,12 +18795,12 @@ gui.loadCommands = function()
 	gui.hideFill()
 end
 
-gui.loadCommands()
+gui.loadCMDS()
 
 Spawn(function() -- plugin tester
 	while Wait(2) do
 		if countDictNA(cmds.Commands) ~= cmdNAnum then
-			gui.loadCommands()
+			gui.loadCMDS()
 		end
 	end
 end)
@@ -19088,19 +19154,19 @@ end)
 gui.barDeselect(0)
 cmdBar.Visible=true
 if chatLogsFrame then
-	gui.menuifyv2(chatLogsFrame)
+	gui.menuv2(chatLogsFrame)
 end
 
 if NAconsoleFrame then
-	gui.menuifyv2(NAconsoleFrame)
+	gui.menuv2(NAconsoleFrame)
 end
 
 if commandsFrame then
-	gui.menuify(commandsFrame)
+	gui.menu(commandsFrame)
 end
 
 if SettingsFrame then
-	gui.menuify(SettingsFrame)
+	gui.menu(SettingsFrame)
 end
 
 --[[ GUI RESIZE FUNCTION ]]--
@@ -19545,7 +19611,7 @@ else
 	TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
 	TextButton.TextSize = 22
 	if isAprilFools() then
-		cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "𝕴𝖄", "Ø", "NA", "CMDX" }
+		cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "Ø", "NA", "CMDX" }
 		TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
 	else
 		TextButton.Text = "NA"
@@ -19606,7 +19672,7 @@ function Swoosh()
 	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		Rotation = 720
 	}):Play()
-	gui.draggablev2(TextButton)
+	gui.draggerV2(TextButton)
 	if swooshySWOOSH then return end
 	swooshySWOOSH = true
 	TextButton.InputBegan:Connect(function(input)
