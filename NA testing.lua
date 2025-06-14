@@ -33,8 +33,9 @@ NAbegin=tick()
 CMDAUTOFILL = {}
 
 local function SafeGetService(name)
-    local clone = cloneref or function(ref) return ref end
-    return clone(game:GetService(name))
+	local Service = (game.GetService);
+	local Reference = (cloneref) or function(reference) return reference end
+	return Reference(Service(game, name));
 end
 
 local HttpService=SafeGetService('HttpService');
