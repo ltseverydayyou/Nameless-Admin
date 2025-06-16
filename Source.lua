@@ -4738,76 +4738,116 @@ end, true)
 
 
 cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
-	reachsize = tonumber(reachsize) or 25
+    reachsize = tonumber(reachsize) or 25
 
-	local char = getChar()
-	local bp = getBp()
-	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    local char = getChar()
+    local bp = getBp()
+    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    if not Tool then return end
 
-	if not Tool then return end
+    local partSet = {}
+    for _, p in ipairs(Tool:GetDescendants()) do
+        if p:IsA("BasePart") then
+            partSet[p.Name] = true
+        end
+    end
 
-	local toolHnld = Tool:FindFirstChild("Handle") or Tool:FindFirstChildWhichIsA("BasePart")
-	if not toolHnld then return end
+    local btns = {}
+    for partName, _ in pairs(partSet) do
+        Insert(btns, {
+            Text = partName,
+            Callback = function()
+                local toolPart = Tool:FindFirstChild(partName) or Tool:FindFirstChildWhichIsA("BasePart")
+                if not toolPart then return end
 
-	if Tool:FindFirstChild("OGSize3") then
-		toolHnld.Size = Tool.OGSize3.Value
-		Tool.OGSize3:Destroy()
-		if toolHnld:FindFirstChild("FunTIMES") then
-			toolHnld.FunTIMES:Destroy()
-		end
-	end
+                if Tool:FindFirstChild("OGSize3") then
+                    toolPart.Size = Tool.OGSize3.Value
+                    Tool.OGSize3:Destroy()
+                    if toolPart:FindFirstChild("FunTIMES") then
+                        toolPart.FunTIMES:Destroy()
+                    end
+                end
 
-	local val = InstanceNew("Vector3Value", Tool)
-	val.Name = "OGSize3"
-	val.Value = toolHnld.Size
+                local val = InstanceNew("Vector3Value", Tool)
+                val.Name = "OGSize3"
+                val.Value = toolPart.Size
 
-	local sb = InstanceNew("SelectionBox")
-	sb.Adornee = toolHnld
-	sb.Name = "FunTIMES"
-	sb.LineThickness = 0.01
-	sb.Color3 = Color3.fromRGB(255, 0, 0)
-	sb.Transparency = 0.7
-	sb.Parent = toolHnld
+                local sb = InstanceNew("SelectionBox")
+                sb.Adornee = toolPart
+                sb.Name = "FunTIMES"
+                sb.LineThickness = 0.01
+                sb.Color3 = Color3.fromRGB(255, 0, 0)
+                sb.Transparency = 0.7
+                sb.Parent = toolPart
 
-	toolHnld.Massless = true
-	toolHnld.Size = Vector3.new(toolHnld.Size.X, toolHnld.Size.Y, reachsize)
-end,true)
+                toolPart.Massless = true
+                toolPart.Size = Vector3.new(toolPart.Size.X, toolPart.Size.Y, reachsize)
+            end
+        })
+    end
+
+    Window({
+        Title = "Reach Menu",
+        Description = "Choose part to extend reach",
+        Buttons = btns
+    })
+end, true)
 
 cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around your tool"}, function(reachsize)
-	reachsize = tonumber(reachsize) or 25
+    reachsize = tonumber(reachsize) or 25
 
-	local char = getChar()
-	local bp = getBp()
-	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    local char = getChar()
+    local bp = getBp()
+    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    if not Tool then return end
 
-	if not Tool then return end
+    local partSet = {}
+    for _, p in ipairs(Tool:GetDescendants()) do
+        if p:IsA("BasePart") then
+            partSet[p.Name] = true
+        end
+    end
 
-	local toolHnld = Tool:FindFirstChild("Handle") or Tool:FindFirstChildWhichIsA("BasePart")
-	if not toolHnld then return end
+    local btns = {}
+    for partName, _ in pairs(partSet) do
+        Insert(btns, {
+            Text = partName,
+            Callback = function()
+                local toolPart = Tool:FindFirstChild(partName) or Tool:FindFirstChildWhichIsA("BasePart")
+                if not toolPart then return end
 
-	if Tool:FindFirstChild("OGSize3") then
-		toolHnld.Size = Tool.OGSize3.Value
-		Tool.OGSize3:Destroy()
-		if toolHnld:FindFirstChild("FunTIMES") then
-			toolHnld.FunTIMES:Destroy()
-		end
-	end
+                if Tool:FindFirstChild("OGSize3") then
+                    toolPart.Size = Tool.OGSize3.Value
+                    Tool.OGSize3:Destroy()
+                    if toolPart:FindFirstChild("FunTIMES") then
+                        toolPart.FunTIMES:Destroy()
+                    end
+                end
 
-	local val = InstanceNew("Vector3Value", Tool)
-	val.Name = "OGSize3"
-	val.Value = toolHnld.Size
+                local val = InstanceNew("Vector3Value", Tool)
+                val.Name = "OGSize3"
+                val.Value = toolPart.Size
 
-	local sb = InstanceNew("SelectionBox")
-	sb.Adornee = toolHnld
-	sb.Name = "FunTIMES"
-	sb.LineThickness = 0.01
-	sb.Color3 = Color3.fromRGB(0, 0, 255)
-	sb.Transparency = 0.7
-	sb.Parent = toolHnld
+                local sb = InstanceNew("SelectionBox")
+                sb.Adornee = toolPart
+                sb.Name = "FunTIMES"
+                sb.LineThickness = 0.01
+                sb.Color3 = Color3.fromRGB(0, 0, 255)
+                sb.Transparency = 0.7
+                sb.Parent = toolPart
 
-	toolHnld.Massless = true
-	toolHnld.Size = Vector3.new(reachsize, reachsize, reachsize)
-end,true)
+                toolPart.Massless = true
+                toolPart.Size = Vector3.new(reachsize, reachsize, reachsize)
+            end
+        })
+    end
+
+    Window({
+        Title = "Box Reach Menu",
+        Description = "Choose part to box",
+        Buttons = btns
+    })
+end, true)
 
 cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unreach)", "Resets tool to normal size"}, function()
 	local char = getChar()
