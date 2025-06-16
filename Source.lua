@@ -762,15 +762,14 @@ local Admin={}
 local playerButtons={}
 CoreGui=COREGUI;
 _G.NAadminsLol={
+	11761417; -- Main
 	530829101; --Viper
-	229501685; --legshot
 	817571515; --Aimlock
 	1844177730; --glexinator
 	2624269701; --Akim
 	2502806181; --null
 	1594235217; --Purple
 	1620986547; --pc alt
-	7269577915; --another alt
 	2019160453; --grim
 }
 
@@ -4829,65 +4828,65 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	end
 end)
 
-cmd.add({"aura"}, {"aura [distance]", "Continuously damages nearby players within range using a damage tool"}, function(range)
-	range = tonumber(range) or 20
+local auraConn,auraViz
 
-	local Players = SafeGetService("Players")
-	local LocalPlayer = Players.LocalPlayer
+cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with equipped tool"},function(dist)
+    dist=tonumber(dist) or 20
+    local Players=SafeGetService("Players")
+    local RunService=SafeGetService("RunService")
+    local LocalPlayer=Players.LocalPlayer
+    if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
+    if auraConn then auraConn:Disconnect() auraConn=nil end
+    if auraViz then auraViz:Destroy() auraViz=nil end
+    auraViz=InstanceNew("Part")
+    auraViz.Shape=Enum.PartType.Ball
+    auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
+    auraViz.Transparency=0.8
+    auraViz.Color=Color3.fromRGB(255,0,0)
+    auraViz.Material=Enum.Material.Neon
+    auraViz.Anchored=true
+    auraViz.CanCollide=false
+    auraViz.Parent=workspace
+    local function getHandle()
+        local c=getChar() if not c then return end
+        local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
+        return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+    end
+    auraConn=RunService.RenderStepped:Connect(function()
+        local handle=getHandle()
+        local root=getRoot(getChar())
+        if not handle or not root then return end
+        auraViz.CFrame=root.CFrame
+        for _,plr in ipairs(Players:GetPlayers()) do
+            if plr~=LocalPlayer and plr.Character then
+                local hum=getPlrHum(plr)
+                if hum and hum.Health>0 then
+                    for _,part in ipairs(plr.Character:GetChildren()) do
+                        if part:IsA("BasePart") and (part.Position-handle.Position).Magnitude<=dist then
+                            firetouchinterest(handle,part,0)
+							Wait();
+                            firetouchinterest(handle,part,1)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    DoNotif("Aura enabled at "..dist,1.2)
+end,true)
 
-	if not firetouchinterest then
-		return DoNotif('Your exploit does not support firetouchinterest to run this command')
-	end
-
-	lib.disconnect("aura_loop")
-
-	local function getToolAndHandle()
-		local char = LocalPlayer.Character
-		if not char then return end
-		local tool = char:FindFirstChildWhichIsA("Tool")
-		if not tool then return end
-		local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-		return tool, handle
-	end
-
-	lib.connect("aura_loop", RunService.RenderStepped:Connect(function()
-		local Tool, Handle = getToolAndHandle()
-		if Tool and Handle and Tool.Parent == LocalPlayer.Character then
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer and player.Character then
-					local targetChar = player.Character
-					local humanoid = getPlrHum(targetChar)
-					if humanoid and humanoid.Health > 0 then
-						for _, part in ipairs(targetChar:GetChildren()) do
-							if part:IsA("BasePart") and (part.Position - Handle.Position).Magnitude <= range then
-								firetouchinterest(Handle, part, 0)
-								Wait()
-								firetouchinterest(Handle, part, 1)
-							end
-						end
-					end
-				end
-			end
-		end
-	end))
-
-	DoNotif("Aura enabled at range "..tostring(range), 1.2)
-end, true)
-
-cmd.add({"unaura"}, {"unaura", "Stops the running aura loop"}, function()
-	if lib.isConnected("aura_loop") then
-		lib.disconnect("aura_loop")
-		DoNotif("Aura disabled", 1.2)
-	else
-		DoNotif("Aura is not active", 1.2)
-	end
-end, true)
+cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function()
+    if auraConn then auraConn:Disconnect() auraConn=nil end
+    if auraViz then auraViz:Destroy() auraViz=nil end
+    DoNotif("Aura disabled",1.2)
+end,true)
 
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
 	lib.disconnect("antivoid")
 
 	lib.connect("antivoid", RunService.Stepped:Connect(function()
-		local character = Players.LocalPlayer.Character
+		local character = getChar()
 		local root = character and getRoot(character)
 		if root and root.Position.Y <= OrgDestroyHeight + 25 then
 			root.Velocity = Vector3.new(root.Velocity.X, root.Velocity.Y + 250, root.Velocity.Z)
@@ -11216,19 +11215,16 @@ cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Sto
 	end
 end)
 
-local specGui, currentPlayerIndex = nil, 1
+local specUI=nil
+local connStep,connAdd,connRemove=nil,nil,nil
 
+function doCLEAR(c)if c then c:Disconnect()end return nil end
 function cleanup()
-	lib.disconnect("spectate_char")
-	lib.disconnect("spectate_loop")
-	lib.disconnect("spectate_leave")
-
-	if specGui then
-		specGui:Destroy()
-		specGui = nil
-	end
-
-	workspace.CurrentCamera.CameraSubject = getHum()
+    connStep=doCLEAR(connStep)
+    connAdd=doCLEAR(connAdd)
+    connRemove=doCLEAR(connRemove)
+    if specUI then specUI:Destroy() specUI=nil end
+    workspace.CurrentCamera.CameraSubject=getHum()
 end
 
 function spectatePlayer(targetPlayer)
@@ -11281,255 +11277,196 @@ cmd.add({"unwatch", "unview"}, {"unwatch (unview)", "Stop spectating"}, function
 	cleanup()
 end)
 
-function createSpecUI()
-	if not specGui then
-		specGui = InstanceNew("ScreenGui")
-		NaProtectUI(specGui)
-		specGui.ResetOnSpawn = false
+cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
+    local LocalPlayer=Players.LocalPlayer
 
-		local frame = InstanceNew("Frame")
-		frame.Size = UDim2.new(0, 350, 0, 40)
-		frame.Position = UDim2.new(0.5, -175, 1, -160)
-		frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		frame.BorderSizePixel = 0
-		frame.Parent = specGui
+    local playerList,currentIndex={},1
+    local frame,titleLabel,toggleBtn,scroll,listOpen=false,false,false,false,false
+    local baseTogglePos=5
 
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 20)
-		corner.Parent = frame
+    local function rebuild()
+        table.clear(playerList)
+        for _,p in ipairs(Players:GetPlayers()) do Insert(playerList,p) end
+        table.sort(playerList,function(a,b)return a.Name<b.Name end)
+        if currentIndex>#playerList then currentIndex=1 end
+    end
 
-		gui.draggerV2(frame)
+    local function cam(p)
+        local h=getPlrHum(p)
+        workspace.CurrentCamera.CameraSubject=h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
+    end
 
-		local backButton = InstanceNew("TextButton")
-		backButton.Size = UDim2.new(0, 40, 0, 40)
-		backButton.Position = UDim2.new(0, -18, 0, 0)
-		backButton.Text = "<"
-		backButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		backButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		backButton.Font = Enum.Font.GothamBold
-		backButton.TextSize = 24
-		backButton.Parent = frame
+    local function recolor()
+        if not listOpen or not scroll then return end
+        for _,btn in ipairs(scroll:GetChildren())do
+            if btn:IsA("TextButton") then
+                local idx=btn:GetAttribute("idx")
+                local lbl=btn:FindFirstChild("NameLabel")
+                if idx and lbl then
+                    local plr=playerList[idx]
+                    if plr==LocalPlayer then
+                        lbl.TextColor3=Color3.fromRGB(255,255,0)
+                    elseif idx==currentIndex then
+                        lbl.TextColor3=Color3.fromRGB(0,162,255)
+                    else
+                        lbl.TextColor3=Color3.fromRGB(255,255,255)
+                    end
+                end
+            end
+        end
+    end
 
-		local backCorner = InstanceNew("UICorner")
-		backCorner.CornerRadius = UDim.new(0, 10)
-		backCorner.Parent = backButton
+    local function refresh()
+        if not titleLabel then return end
+        if #playerList==0 then
+            titleLabel.Text="Spectating: None"
+            return
+        end
+        if currentIndex<1 then currentIndex=1 end
+        if currentIndex>#playerList then currentIndex=1 end
+        local plr=playerList[currentIndex]
+        if not plr then
+            titleLabel.Text="Spectating: None"
+            return
+        end
+        titleLabel.Text="Spectating: "..nameChecker(plr)
+        titleLabel.TextColor3=(plr==LocalPlayer)and Color3.fromRGB(255,255,0)or Color3.fromRGB(0,162,255)
+        cam(plr)
+        recolor()
+    end
 
-		local forwardButton = InstanceNew("TextButton")
-		forwardButton.Size = UDim2.new(0, 40, 0, 40)
-		forwardButton.Position = UDim2.new(1, -22, 0, 0)
-		forwardButton.Text = ">"
-		forwardButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		forwardButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		forwardButton.Font = Enum.Font.GothamBold
-		forwardButton.TextSize = 24
-		forwardButton.Parent = frame
+    local function mkBtn(txt,pos,size,bg,ts,cb)
+        local b=InstanceNew("TextButton",frame)
+        b.Size=size or UDim2.new(0,40,0,40)
+        b.Position=pos
+        b.BackgroundColor3=bg or Color3.fromRGB(50,50,50)
+        b.Text=txt
+        b.TextColor3=Color3.new(1,1,1)
+        b.Font=Enum.Font.GothamBold
+        b.TextSize=ts or 24
+        InstanceNew("UICorner",b).CornerRadius=UDim.new(0,10)
+        MouseButtonFix(b,cb)
+        return b
+    end
 
-		local forwardCorner = InstanceNew("UICorner")
-		forwardCorner.CornerRadius = UDim.new(0, 10)
-		forwardCorner.Parent = forwardButton
+    rebuild()
+    if #playerList==0 then return DoNotif("No players to spectate",2) end
 
-		local dropdownLabel = InstanceNew("TextLabel")
-		dropdownLabel.Size = UDim2.new(0.76, 0, 1, 0)
-		dropdownLabel.Position = UDim2.new(0.08, 0, 0, 0)
-		dropdownLabel.BackgroundTransparency = 1
-		dropdownLabel.Text = "Spectating: None"
-		dropdownLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		dropdownLabel.Font = Enum.Font.GothamBold
-		dropdownLabel.TextScaled = true
-		dropdownLabel.Parent = frame
+    specUI=InstanceNew("ScreenGui") NaProtectUI(specUI) specUI.ResetOnSpawn=false specUI.DisplayOrder=10
+    frame=InstanceNew("Frame",specUI)
+    frame.AnchorPoint=Vector2.new(0.5,1)
+    frame.Size=UDim2.new(0,350,0,40)
+    frame.Position=UDim2.new(0.5,0,1,-150)
+    frame.BackgroundColor3=Color3.fromRGB(30,30,30)
+    frame.BorderSizePixel=0
+    InstanceNew("UICorner",frame).CornerRadius=UDim.new(0,20)
+    gui.draggerV2(frame)
 
-		local dropCorner = InstanceNew("UICorner")
-		dropCorner.CornerRadius = UDim.new(0, 10)
-		dropCorner.Parent = dropdownLabel
+    titleLabel=InstanceNew("TextLabel",frame)
+    titleLabel.BackgroundTransparency=1
+    titleLabel.Size=UDim2.new(0.7,0,1,0)
+    titleLabel.Position=UDim2.new(0.15,0,0,0)
+    titleLabel.Font=Enum.Font.GothamBold
+    titleLabel.TextScaled=true
 
-		local closeButton = InstanceNew("TextButton")
-		closeButton.Size = UDim2.new(0, 30, 0, 30)
-		closeButton.Position = UDim2.new(1, -55, 0, 5)
-		closeButton.Text = "X"
-		closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-		closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		closeButton.Font = Enum.Font.GothamBold
-		closeButton.TextSize = 18
-		closeButton.Parent = frame
+    mkBtn("<",UDim2.new(0,-18,0,0),nil,nil,nil,function()
+        currentIndex=currentIndex-1 if currentIndex<1 then currentIndex=#playerList end refresh()
+    end)
+    mkBtn(">",UDim2.new(1,-22,0,0),nil,nil,nil,function()
+        currentIndex=currentIndex+1 if currentIndex>#playerList then currentIndex=1 end refresh()
+    end)
+    mkBtn("X",UDim2.new(1,-55,0,5),UDim2.new(0,30,0,30),Color3.fromRGB(255,50,50),18,function()
+        cleanup()
+    end)
 
-		local closeCorner = InstanceNew("UICorner")
-		closeCorner.CornerRadius = UDim.new(0, 5)
-		closeCorner.Parent = closeButton
+    toggleBtn=mkBtn("v",UDim2.new(0.5,-15,1,baseTogglePos),UDim2.new(0,30,0,20),Color3.fromRGB(40,40,40),18,function()
+        if listOpen then
+            local tClose=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,0)})
+            local tPos=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,baseTogglePos)})
+            tClose:Play() tPos:Play()
+            tClose.Completed:Wait()
+            scroll:Destroy() scroll=nil listOpen=false toggleBtn.Text="v"
+        else
+            scroll=InstanceNew("ScrollingFrame",frame)
+            scroll.Size=UDim2.new(1,0,0,0)
+            scroll.Position=UDim2.new(0,0,1,0)
+            scroll.BackgroundColor3=Color3.fromRGB(40,40,40)
+            scroll.BorderSizePixel=0
+            scroll.ScrollBarThickness=8
+            scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
+            scroll.ClipsDescendants=true
+            InstanceNew("UICorner",scroll).CornerRadius=UDim.new(0,10)
+            InstanceNew("UIListLayout",scroll).SortOrder=Enum.SortOrder.LayoutOrder
 
-		MouseButtonFix(closeButton,function()
-			cleanup()
-		end)
+            local loading=InstanceNew("TextLabel",scroll)
+            loading.Size=UDim2.new(1,0,0,30)
+            loading.BackgroundTransparency=1
+            loading.Font=Enum.Font.GothamSemibold
+            loading.TextScaled=true
+            loading.TextColor3=Color3.fromRGB(255,255,255)
+            loading.Text="Loading..."
 
-		local toggleDropdownButton = InstanceNew("TextButton")
-		toggleDropdownButton.Size = UDim2.new(0, 30, 0, 20)
-		toggleDropdownButton.Position = UDim2.new(0.5, -15, 1, 5)
-		toggleDropdownButton.Text = "v"
-		toggleDropdownButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-		toggleDropdownButton.TextColor3 = Color3.new(1, 1, 1)
-		toggleDropdownButton.Font = Enum.Font.GothamBold
-		toggleDropdownButton.TextSize = 18
-		toggleDropdownButton.Parent = frame
+            Spawn(function()
+                loading:Destroy()
+                for i,plr in ipairs(playerList) do
+                    local pb=InstanceNew("TextButton",scroll)
+                    pb.Size=UDim2.new(1,0,0,30)
+                    pb.BackgroundColor3=Color3.fromRGB(50,50,50)
+                    pb.Font=Enum.Font.Gotham
+                    pb.Text=""
+                    pb.LayoutOrder=i
+                    pb:SetAttribute("idx",i)
+                    InstanceNew("UICorner",pb).CornerRadius=UDim.new(0,6)
 
-		local toggleCorner = InstanceNew("UICorner")
-		toggleCorner.CornerRadius = UDim.new(0, 6)
-		toggleCorner.Parent = toggleDropdownButton
+                    local img=InstanceNew("ImageLabel",pb)
+                    img.Size=UDim2.new(0,30,0,30)
+                    img.BackgroundTransparency=1
+                    img.Image=Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size420x420)
 
-		local dropdownOpen = false
-		local dropdownList
+                    local nameLbl=InstanceNew("TextLabel",pb)
+                    nameLbl.Name="NameLabel"
+                    nameLbl.BackgroundTransparency=1
+                    nameLbl.Size=UDim2.new(1,-35,1,0)
+                    nameLbl.Position=UDim2.new(0,35,0,0)
+                    nameLbl.Font=Enum.Font.Gotham
+                    nameLbl.TextScaled=true
+                    nameLbl.Text=nameChecker(plr)
 
-		local function updateSpectating()
-			if #playerButtons == 0 then
-				dropdownLabel.Text = "Spectating: None"
-				return
-			end
-			local currentPlayer = playerButtons[currentPlayerIndex]
-			local nameCheck = nameChecker(currentPlayer)
-			dropdownLabel.Text = "Spectating: "..nameCheck
-			if currentPlayer == LocalPlayer then
-				dropdownLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-			else
-				dropdownLabel.TextColor3 = Color3.fromRGB(0, 162, 255)
-			end
-			spectatePlayer(currentPlayer)
+                    MouseButtonFix(pb,function()
+                        currentIndex=i refresh()
+                    end)
+                end
+                local h=math.min(#playerList*30,300)
+                scroll.CanvasSize=UDim2.new(0,0,0,#playerList*30)
+                local open=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,h)})
+                local move=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,h+10)})
+                open:Play() move:Play()
+                listOpen=true toggleBtn.Text="^"
+                recolor()
+            end)
+        end
+    end)
 
-			if dropdownOpen and dropdownList then
-				for _, child in pairs(dropdownList:GetChildren()) do
-					if child:IsA("TextButton") then
-						local idx = child:GetAttribute("PlayerIndex")
-						if idx then
-							local playerRef = playerButtons[idx]
-							if playerRef then
-								if playerRef == LocalPlayer then
-									child.TextColor3 = Color3.fromRGB(255, 255, 0)
-								elseif playerRef == currentPlayer then
-									child.TextColor3 = Color3.fromRGB(0, 162, 255)
-								else
-									child.TextColor3 = Color3.fromRGB(255, 255, 255)
-								end
-							end
-						end
-					end
-				end
-			end
-		end
+    connStep=RunService.RenderStepped:Connect(function()
+        if #playerList==0 then return end
+        local p=playerList[currentIndex]
+        if not p or not p.Character then rebuild() end
+        cam(playerList[currentIndex])
+    end)
+    connAdd=Players.PlayerAdded:Connect(function()rebuild()refresh()recolor()end)
+    connRemove=Players.PlayerRemoving:Connect(function(plr)
+        rebuild()
+        if plr==playerList[currentIndex] then currentIndex=1 end
+        refresh() recolor()
+    end)
 
-		MouseButtonFix(backButton, function()
-			if #playerButtons == 0 then return end
-			currentPlayerIndex = currentPlayerIndex - 1
-			if currentPlayerIndex < 1 then
-				currentPlayerIndex = #playerButtons
-			end
-			updateSpectating()
-		end)
+    refresh()
+end,true)
 
-		MouseButtonFix(forwardButton, function()
-			if #playerButtons == 0 then return end
-			currentPlayerIndex = currentPlayerIndex + 1
-			if currentPlayerIndex > #playerButtons then
-				currentPlayerIndex = 1
-			end
-			updateSpectating()
-		end)
-
-		MouseButtonFix(toggleDropdownButton,function()
-			if dropdownOpen then
-				if dropdownList then
-					local closeTween = TweenService:Create(dropdownList, TweenInfo.new(0.25), { Size = UDim2.new(1, 0, 0, 0) })
-					local moveToggle = TweenService:Create(toggleDropdownButton, TweenInfo.new(0.25), { Position = UDim2.new(0.5, -15, 1, 5) })
-					closeTween:Play()
-					moveToggle:Play()
-					closeTween.Completed:Wait()
-					dropdownList:Destroy()
-					dropdownList = nil
-				end
-				toggleDropdownButton.Text = "v"
-				dropdownOpen = false
-			else
-				dropdownList = InstanceNew("ScrollingFrame")
-				local totalHeight = #playerButtons * 30
-				local listHeight = math.min(totalHeight, 150)
-				dropdownList.Size = UDim2.new(1, 0, 0, 0)
-				dropdownList.Position = UDim2.new(0, 0, 1, 0)
-				dropdownList.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-				dropdownList.BorderSizePixel = 0
-				dropdownList.ScrollBarThickness = 5
-				dropdownList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-				dropdownList.ClipsDescendants = true
-				dropdownList.Parent = frame
-
-				local listCorner = InstanceNew("UICorner")
-				listCorner.CornerRadius = UDim.new(0, 10)
-				listCorner.Parent = dropdownList
-
-				local listLayout = InstanceNew("UIListLayout")
-				listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-				listLayout.Parent = dropdownList
-
-				local openTween = TweenService:Create(dropdownList, TweenInfo.new(0.25), { Size = UDim2.new(1, 0, 0, listHeight) })
-				local moveToggle = TweenService:Create(toggleDropdownButton, TweenInfo.new(0.25), { Position = UDim2.new(0.5, -15, 1, listHeight + 10) })
-
-				openTween:Play()
-				moveToggle:Play()
-
-				toggleDropdownButton.Text = "^"
-				dropdownOpen = true
-
-				for i, player in ipairs(playerButtons) do
-					local playerButton = InstanceNew("TextButton")
-					playerButton.Size = UDim2.new(1, 0, 0, 30)
-					playerButton.LayoutOrder = i
-					playerButton.Text = ""
-					playerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-					playerButton.Font = Enum.Font.Gotham
-					playerButton.TextScaled = true
-					playerButton.Parent = dropdownList
-					playerButton:SetAttribute("PlayerIndex", i)
-
-					local headshot = InstanceNew("ImageLabel")
-					headshot.Size = UDim2.new(0, 30, 0, 30)
-					headshot.Position = UDim2.new(0, 0, 0, 0)
-					headshot.BackgroundTransparency = 1
-					headshot.Parent = playerButton
-					local thumbType = Enum.ThumbnailType.HeadShot
-					local thumbSize = Enum.ThumbnailSize.Size420x420
-					headshot.Image = Players:GetUserThumbnailAsync(player.UserId, thumbType, thumbSize)
-
-					local nameLabel = InstanceNew("TextLabel")
-					nameLabel.Size = UDim2.new(1, -35, 1, 0)
-					nameLabel.Position = UDim2.new(0, 35, 0, 0)
-					nameLabel.BackgroundTransparency = 1
-					nameLabel.Text = nameChecker(player)
-					nameLabel.Font = Enum.Font.Gotham
-					nameLabel.TextScaled = true
-					if player == Players.LocalPlayer then
-						nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-					elseif playerButtons[currentPlayerIndex] == player then
-						nameLabel.TextColor3 = Color3.fromRGB(0, 162, 255)
-					else
-						nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-					end
-					nameLabel.Parent = playerButton
-
-					MouseButtonFix(playerButton,function()
-						currentPlayerIndex = i
-						updateSpectating()
-					end)
-				end
-			end
-		end)
-
-		updateSpectating()
-	end
-end
-
-cmd.add({"watch2", "view2", "spectate2"}, {"watch2 <Player> (view2, spectate2)", "Spectate player with GUI"}, function()
-	cleanup()
-	createSpecUI()
-end)
-
-cmd.add({"unwatch2", "unview2"}, {"unwatch2 (unview2)", "Stop spectating with GUI"}, function()
-	cleanup()
-end)
+cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
+    cleanup()
+    DoNotif("Spectate stopped",1.2)
+end,true)
 
 cmd.add({"stealaudio", "getaudio", "steal", "logaudio"}, {"stealaudio <player> (getaudio,logaudio,steal)", "Save all sounds a player is playing to a file -Cyrus"}, function(p)
 	Wait(.1)
@@ -15487,6 +15424,10 @@ cmd.add({"unswim"}, {"unswim", "Stops the swim script"}, function()
 	end
 end)
 
+cmd.add({"punch"},{"punch","punch tool that flings"},function()
+	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/puncher.luau'))()
+end)
+
 cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
 	local targets=getPlr(...)
 	local targetPlayer=targets[1]
@@ -15870,135 +15811,88 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
-local ogSizes = {}
-local hbConns = {}
+local ogParts,resizeLoops={},{}
+local hbAddConn,hbRemConn=nil,nil
 
-cmd.add({"hitbox", "hbox"}, {"hitbox <player> {amount} (hbox)", "Modifies everyone's hitbox to the specified size"}, function(playerName, size)
-	local targets = getPlr(playerName)
-	local sizeVal = tonumber(size) or 10
+cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
+    local Players=SafeGetService("Players")
+    local RunService=SafeGetService("RunService")
+    local targets=getPlr(pArg) if #targets==0 then DoNotif("No players found",2) return end
+    local n=tonumber(sArg) or 10
+    local global=(Lower(pArg)=="all" or Lower(pArg)=="others")
+    local partSet={All=true}
+    for _,plr in ipairs(targets)do
+        local char=getPlrChar(plr)
+        if char then
+            for _,p in ipairs(char:GetChildren())do
+                if p:IsA("BasePart") then partSet[p.Name]=true end
+            end
+        end
+    end
+    local btns={}
+    for limb,_ in pairs(partSet)do
+        Insert(btns,{
+            Text=limb,
+            Callback=function()
+                if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
+                if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
+                local newSize=Vector3.new(n,n,n)
+                local function cache(b,plr)
+                    ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material}
+                end
+                local function apply(plr)
+                    ogParts[plr]=ogParts[plr] or {}
+                    if resizeLoops[plr] then resizeLoops[plr]:Disconnect() end
+                    resizeLoops[plr]=RunService.Stepped:Connect(function()
+                        local char=getPlrChar(plr) if not char then return end
+                        for _,bp in ipairs(char:GetChildren())do
+                            if bp:IsA("BasePart") and (limb=="All" or bp.Name:lower()==limb:lower()) then
+                                if not ogParts[plr][bp] then cache(bp,plr) end
+                                bp.Size=newSize
+                                bp.Transparency=0.9
+                                bp.BrickColor=BrickColor.new("Really black")
+                                bp.Material=Enum.Material.Neon
+                                bp.Massless=true
+                            end
+                        end
+                    end)
+                end
+                for _,plr in ipairs(targets)do apply(plr) end
+                if global then
+                    hbAddConn=Players.PlayerAdded:Connect(apply)
+                    hbRemConn=Players.PlayerRemoving:Connect(function(plr)
+                        if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
+                        ogParts[plr]=nil
+                    end)
+                end
+            end
+        })
+    end
+    Window({Title="Hitbox Menu",Description="Choose limb to resize",Buttons=btns})
+end,true)
 
-	for _, plr in pairs(targets) do
-		local root = getRoot(getPlrChar(plr))
-		if root then
-			if not ogSizes[plr] then
-				ogSizes[plr] = root.Size
-			end
-
-			local newSize = Vector3.new(sizeVal, sizeVal, sizeVal)
-			root.Size = newSize
-			root.Transparency = 0.9
-			root.BrickColor = BrickColor.new("Really black")
-			root.Material = Enum.Material.Neon
-
-			if hbConns[plr] then
-				hbConns[plr]:Disconnect()
-			end
-
-			hbConns[plr] = RunService.Stepped:Connect(function()
-				local r = getRoot(getPlrChar(plr))
-				if r then
-					r.Size = newSize
-					r.Transparency = 0.9
-					r.BrickColor = BrickColor.new("Really black")
-					r.Material = Enum.Material.Neon
-				end
-			end)
-		end
-	end
-end, true)
-
-cmd.add({"unhitbox", "unhbox"}, {"unhitbox <player> (unhbox)", "Disables hitbox modifications"}, function(playerName)
-	local targets = getPlr(playerName)
-
-	for _, plr in pairs(targets) do
-		local root = getRoot(getPlrChar(plr))
-		if root then
-			local original = ogSizes[plr] or Vector3.new(2, 2, 1)
-			root.Size = original
-			root.Transparency = 1
-			root.BrickColor = BrickColor.new("Really black")
-			root.Material = Enum.Material.Neon
-		end
-
-		if hbConns[plr] then
-			hbConns[plr]:Disconnect()
-			hbConns[plr] = nil
-		end
-
-		ogSizes[plr] = nil
-	end
-end, true)
-
-local headData = {}
-local headConns = {}
-
-cmd.add({"headsize", "hsize"}, {"headsize <player> {amount} (hsize)"}, function(playerName, scale)
-	local targets = getPlr(playerName)
-	local factor = tonumber(scale) or 1
-
-	for _, plr in pairs(targets) do
-		local head = getHead(getPlrChar(plr))
-		if head then
-			local mesh = head:FindFirstChildOfClass("SpecialMesh")
-
-			if not headData[plr] then
-				headData[plr] = {
-					size = head.Size,
-					meshScale = mesh and mesh.Scale
-				}
-			end
-
-			local newSize = headData[plr].size * factor
-			head.Size = newSize
-			head.Transparency = 0.5
-
-			if mesh then
-				local originalScale = headData[plr].meshScale or Vector3.new(1, 1, 1)
-				mesh.Scale = originalScale * factor
-			end
-
-			if headConns[plr] then
-				headConns[plr]:Disconnect()
-			end
-
-			headConns[plr] = RunService.Stepped:Connect(function()
-				local h = getHead(getPlrChar(plr))
-				if h then
-					h.Size = newSize
-					h.Transparency = 0.5
-					local m = h:FindFirstChildOfClass("SpecialMesh")
-					if m and headData[plr].meshScale then
-						m.Scale = headData[plr].meshScale * factor
-					end
-				end
-			end)
-		end
-	end
-end, true)
-
-cmd.add({"unheadsize", "unhsize"}, {"unheadsize <player> (unhsize)", "Resets head size modifications"}, function(playerName)
-	local targets = getPlr(playerName)
-
-	for _, plr in pairs(targets) do
-		local head = getHead(getPlrChar(plr))
-		if head and headData[plr] then
-			head.Size = headData[plr].size
-			head.Transparency = 0
-
-			local mesh = head:FindFirstChildOfClass("SpecialMesh")
-			if mesh and headData[plr].meshScale then
-				mesh.Scale = headData[plr].meshScale
-			end
-		end
-
-		if headConns[plr] then
-			headConns[plr]:Disconnect()
-			headConns[plr] = nil
-		end
-
-		headData[plr] = nil
-	end
-end, true)
+cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
+    local Players=SafeGetService("Players")
+    local targets=getPlr(pArg)
+    for _,plr in ipairs(targets)do
+        local char=getPlrChar(plr)
+        if char and ogParts[plr] then
+            for bp,props in pairs(ogParts[plr])do
+                local ref=char:FindFirstChild(bp.Name) or bp
+                if ref then
+                    ref.Size=props.Size
+                    ref.Transparency=props.Transparency
+                    ref.BrickColor=props.BrickColor
+                    ref.Material=props.Material
+                end
+            end
+        end
+        if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
+        ogParts[plr]=nil
+    end
+    if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
+	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
+end,true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
 	DoNotif("Car breaker loaded, sit on a vehicle and be the driver")
