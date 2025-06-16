@@ -15885,7 +15885,7 @@ cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
                     ref.Transparency=props.Transparency
                     ref.BrickColor=props.BrickColor
                     ref.Material=props.Material
-					ref.CanCollide=props.CanCollide
+                    ref.CanCollide=props.CanCollide
                 end
             end
         end
