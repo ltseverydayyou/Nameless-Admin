@@ -4758,7 +4758,7 @@ end, true)
 
 
 cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
-    reachsize = tonumber(reachsize) or 25
+    reachsize = tonumber(reachsize) or 15
 
     local char = getChar()
     local bp = getBp()
@@ -4777,18 +4777,19 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
         Insert(btns, {
             Text = partName,
             Callback = function()
-                local toolPart = Tool:FindFirstChild(partName) or Tool:FindFirstChildWhichIsA("BasePart")
+                local toolPart = Tool:FindFirstChild(partName)
                 if not toolPart then return end
 
-                if Tool:FindFirstChild("OGSize3") then
-                    toolPart.Size = Tool.OGSize3.Value
-                    Tool.OGSize3:Destroy()
+                if toolPart:FindFirstChild("OGSize3") then
+                    toolPart.Size = toolPart.OGSize3.Value
+                    toolPart.OGSize3:Destroy()
                     if toolPart:FindFirstChild("FunTIMES") then
                         toolPart.FunTIMES:Destroy()
                     end
+                    return
                 end
 
-                local val = InstanceNew("Vector3Value", Tool)
+                local val = InstanceNew("Vector3Value", toolPart)
                 val.Name = "OGSize3"
                 val.Value = toolPart.Size
 
@@ -4814,7 +4815,7 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 end, true)
 
 cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around your tool"}, function(reachsize)
-    reachsize = tonumber(reachsize) or 25
+    reachsize = tonumber(reachsize) or 15
 
     local char = getChar()
     local bp = getBp()
@@ -4833,18 +4834,19 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
         Insert(btns, {
             Text = partName,
             Callback = function()
-                local toolPart = Tool:FindFirstChild(partName) or Tool:FindFirstChildWhichIsA("BasePart")
+                local toolPart = Tool:FindFirstChild(partName)
                 if not toolPart then return end
 
-                if Tool:FindFirstChild("OGSize3") then
-                    toolPart.Size = Tool.OGSize3.Value
-                    Tool.OGSize3:Destroy()
+                if toolPart:FindFirstChild("OGSize3") then
+                    toolPart.Size = toolPart.OGSize3.Value
+                    toolPart.OGSize3:Destroy()
                     if toolPart:FindFirstChild("FunTIMES") then
                         toolPart.FunTIMES:Destroy()
                     end
+                    return
                 end
 
-                local val = InstanceNew("Vector3Value", Tool)
+                local val = InstanceNew("Vector3Value", toolPart)
                 val.Name = "OGSize3"
                 val.Value = toolPart.Size
 
@@ -4864,28 +4866,28 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 
     Window({
         Title = "Box Reach Menu",
-        Description = "Choose part to box",
+        Description = "Choose part to extend box reach",
         Buttons = btns
     })
 end, true)
 
 cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unreach)", "Resets tool to normal size"}, function()
-	local char = getChar()
-	local bp = getBp()
-	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    local char = getChar()
+    local bp = getBp()
+    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+    if not Tool then return end
 
-	if not Tool then return end
-
-	local toolHnld = Tool:FindFirstChild("Handle") or Tool:FindFirstChildWhichIsA("BasePart")
-	if not toolHnld then return end
-
-	if Tool:FindFirstChild("OGSize3") then
-		toolHnld.Size = Tool.OGSize3.Value
-		Tool.OGSize3:Destroy()
-		if toolHnld:FindFirstChild("FunTIMES") then
-			toolHnld.FunTIMES:Destroy()
-		end
-	end
+    for _, p in ipairs(Tool:GetDescendants()) do
+        if p:IsA("BasePart") then
+            if p:FindFirstChild("OGSize3") then
+                p.Size = p.OGSize3.Value
+                p.OGSize3:Destroy()
+            end
+            if p:FindFirstChild("FunTIMES") then
+                p.FunTIMES:Destroy()
+            end
+        end
+    end
 end)
 
 local auraConn,auraViz
