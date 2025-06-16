@@ -4773,25 +4773,22 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
     end
 
     local btns = {}
-    for partName, _ in pairs(partSet) do
+    for partName in pairs(partSet) do
         Insert(btns, {
             Text = partName,
             Callback = function()
                 local toolPart = Tool:FindFirstChild(partName)
                 if not toolPart then return end
 
-                if toolPart:FindFirstChild("OGSize3") then
-                    toolPart.Size = toolPart.OGSize3.Value
-                    toolPart.OGSize3:Destroy()
-                    if toolPart:FindFirstChild("FunTIMES") then
-                        toolPart.FunTIMES:Destroy()
-                    end
-                    return
+                if not toolPart:FindFirstChild("OGSize3") then
+                    local val = InstanceNew("Vector3Value", toolPart)
+                    val.Name = "OGSize3"
+                    val.Value = toolPart.Size
                 end
 
-                local val = InstanceNew("Vector3Value", toolPart)
-                val.Name = "OGSize3"
-                val.Value = toolPart.Size
+                if toolPart:FindFirstChild("FunTIMES") then
+                    toolPart.FunTIMES:Destroy()
+                end
 
                 local sb = InstanceNew("SelectionBox")
                 sb.Adornee = toolPart
@@ -4830,25 +4827,22 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
     end
 
     local btns = {}
-    for partName, _ in pairs(partSet) do
+    for partName in pairs(partSet) do
         Insert(btns, {
             Text = partName,
             Callback = function()
                 local toolPart = Tool:FindFirstChild(partName)
                 if not toolPart then return end
 
-                if toolPart:FindFirstChild("OGSize3") then
-                    toolPart.Size = toolPart.OGSize3.Value
-                    toolPart.OGSize3:Destroy()
-                    if toolPart:FindFirstChild("FunTIMES") then
-                        toolPart.FunTIMES:Destroy()
-                    end
-                    return
+                if not toolPart:FindFirstChild("OGSize3") then
+                    local val = InstanceNew("Vector3Value", toolPart)
+                    val.Name = "OGSize3"
+                    val.Value = toolPart.Size
                 end
 
-                local val = InstanceNew("Vector3Value", toolPart)
-                val.Name = "OGSize3"
-                val.Value = toolPart.Size
+                if toolPart:FindFirstChild("FunTIMES") then
+                    toolPart.FunTIMES:Destroy()
+                end
 
                 local sb = InstanceNew("SelectionBox")
                 sb.Adornee = toolPart
