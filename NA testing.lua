@@ -15858,7 +15858,7 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
                 if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
                 local newSize=Vector3.new(n,n,n)
                 local function cache(b,plr)
-                    ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material}
+                    ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material,CanCollide=b.CanCollide}
                 end
                 local function apply(plr)
                     ogParts[plr]=ogParts[plr] or {}
@@ -15872,6 +15872,7 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
                                 bp.Transparency=0.9
                                 bp.BrickColor=BrickColor.new("Really black")
                                 bp.Material=Enum.Material.Neon
+                                bp.CanCollide=false
                                 bp.Massless=true
                             end
                         end
@@ -15904,6 +15905,7 @@ cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
                     ref.Transparency=props.Transparency
                     ref.BrickColor=props.BrickColor
                     ref.Material=props.Material
+					ref.CanCollide=props.CanCollide
                 end
             end
         end
