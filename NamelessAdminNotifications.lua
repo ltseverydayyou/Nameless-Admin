@@ -44,7 +44,7 @@ else
 	NotifGui.Name = "EnhancedNotif"
 	NotifGui.Parent = search
 	NotifGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	NotifGui.DisplayOrder = 999999999
+	NotifGui.DisplayOrder = 0x7FFFFFFF
 	NotifGui.ResetOnSpawn = false
 	NotifGui.IgnoreGuiInset = true
 
