@@ -17203,6 +17203,23 @@ cmd.add({"errorchat"},{"errorchat","Makes the chat error appear when roblox chat
 	end
 end)
 
+cmd.add({"clearerror", "noerror"}, {"clearerror", "Clears any current error or disconnected UI immediately"}, function()
+    SafeGetService("GuiService"):ClearError()
+end)
+
+cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future error or disconnected UI"}, function()
+    lib.disconnect("antierror")
+    lib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
+        SafeGetService("GuiService"):ClearError()
+    end))
+    DoNotif("Anti Error is now enabled!", 2)
+end)
+
+cmd.add({"unantierror", "noantierror"}, {"unantierror", "Disables Anti Error"}, function()
+    lib.disconnect("antierror")
+	DoNotif("Anti Error is now disabled!",2)
+end)
+
 -- [[ NPC SECTION ]] --
 
 cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
