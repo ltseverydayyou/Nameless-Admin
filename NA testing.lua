@@ -161,80 +161,80 @@ function rStringgg()
 end
 
 function NAProtection(inst,var)
-    if not inst then return end
-    if var then
-        inst[var] = "\u{200B}\u{200C}"
-    else
-        inst.Name   = "\u{200B}\u{200C}"
-    end
-    inst.Archivable = false
+	if not inst then return end
+	if var then
+		inst[var] = "\u{200B}\u{200C}"
+	else
+		inst.Name   = "\u{200B}\u{200C}"
+	end
+	inst.Archivable = false
 end
 
 function NaProtectUI(gui)
-    local RunService = SafeGetService("RunService")
-    local Players    = SafeGetService("Players")
-    local CoreGui    = SafeGetService("CoreGui")
-    local ZW = {
-        "\u{200B}", "\u{200C}", "\u{200D}",
-        "\u{2060}", "\u{2062}", "\u{2063}", "\u{FEFF}"
-    }
-    local INV = ""
-    for i = 1, math.random(6, 12) do
-        INV = INV..ZW[math.random(1, #ZW)]
-    end
-    local MAX_DO = 0x7FFFFFFF
-    local target = (gethui and gethui())
-                or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
-                or (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
-    if not target then return end
-    pcall(function() gui.Archivable = false end)
-    gui.Name   = INV
-    gui.Parent = target
-    if gui:IsA("ScreenGui") then
-        gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        gui.DisplayOrder   = MAX_DO
-        gui.ResetOnSpawn   = false
-        gui.IgnoreGuiInset = true
-    end
-    local props = {
-        Parent         = target,
-        Name           = INV,
-        Archivable     = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Global,
-        DisplayOrder   = MAX_DO,
-        ResetOnSpawn   = false,
-        IgnoreGuiInset = true,
-    }
-    if not gui:IsA("ScreenGui") then
-        props.ZIndexBehavior = nil
-        props.DisplayOrder   = nil
-        props.ResetOnSpawn   = nil
-        props.IgnoreGuiInset = nil
-    end
-    for prop, val in pairs(props) do
-        gui:GetPropertyChangedSignal(prop):Connect(function()
-            if gui[prop] ~= val then
-                pcall(function() gui[prop] = val end)
-            end
-        end)
-    end
-    gui.AncestryChanged:Connect(function(_, newParent)
-        if gui.Parent ~= target then
-            gui.Parent = target
-        end
-    end)
-    local hb
-    hb = RunService.Heartbeat:Connect(function()
-        for prop, val in pairs(props) do
-            if gui[prop] ~= val then
-                pcall(function() gui[prop] = val end)
-            end
-        end
-        if not gui.Parent then
-            hb:Disconnect()
-        end
-    end)
-    return gui
+	local RunService = SafeGetService("RunService")
+	local Players    = SafeGetService("Players")
+	local CoreGui    = SafeGetService("CoreGui")
+	local ZW = {
+		"\u{200B}", "\u{200C}", "\u{200D}",
+		"\u{2060}", "\u{2062}", "\u{2063}", "\u{FEFF}"
+	}
+	local INV = ""
+	for i = 1, math.random(6, 12) do
+		INV = INV..ZW[math.random(1, #ZW)]
+	end
+	local MAX_DO = 0x7FFFFFFF
+	local target = (gethui and gethui())
+		or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
+		or (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+	if not target then return end
+	pcall(function() gui.Archivable = false end)
+	gui.Name   = INV
+	gui.Parent = target
+	if gui:IsA("ScreenGui") then
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		gui.DisplayOrder   = MAX_DO
+		gui.ResetOnSpawn   = false
+		gui.IgnoreGuiInset = true
+	end
+	local props = {
+		Parent         = target,
+		Name           = INV,
+		Archivable     = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Global,
+		DisplayOrder   = MAX_DO,
+		ResetOnSpawn   = false,
+		IgnoreGuiInset = true,
+	}
+	if not gui:IsA("ScreenGui") then
+		props.ZIndexBehavior = nil
+		props.DisplayOrder   = nil
+		props.ResetOnSpawn   = nil
+		props.IgnoreGuiInset = nil
+	end
+	for prop, val in pairs(props) do
+		gui:GetPropertyChangedSignal(prop):Connect(function()
+			if gui[prop] ~= val then
+				pcall(function() gui[prop] = val end)
+			end
+		end)
+	end
+	gui.AncestryChanged:Connect(function(_, newParent)
+		if gui.Parent ~= target then
+			gui.Parent = target
+		end
+	end)
+	local hb
+	hb = RunService.Heartbeat:Connect(function()
+		for prop, val in pairs(props) do
+			if gui[prop] ~= val then
+				pcall(function() gui[prop] = val end)
+			end
+		end
+		if not gui.Parent then
+			hb:Disconnect()
+		end
+	end)
+	return gui
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
@@ -242,10 +242,10 @@ NAmanage.guiCHECKINGAHHHHH=function()
 end
 
 function InstanceNew(c,p)
-    local inst = Instance.new(c)
-    if p then inst.Parent = p end
-    inst.Name = "\u{200B}\u{200C}\u{200D}\u{FEFF}"
-    return inst
+	local inst = Instance.new(c)
+	if p then inst.Parent = p end
+	inst.Name = "\u{200B}\u{200C}\u{200D}\u{FEFF}"
+	return inst
 end
 
 function countDictNA(tbl)
@@ -447,20 +447,27 @@ until Notification
 
 local Notify = Notification.Notify
 local Window = Notification.Window
+local Popup  = Notification.Popup
 
-function DoNotif(text, duration, sender)
+function DoNotif(text, duration, title)
 	Notify({
-		Title = sender or adminName or "Nameless",
+		Title = title or adminName or nil,
 		Description = text or "something",
 		Duration = duration or 5
 	})
 end
 
-function DoWindow(text, duration, sender)
+function DoWindow(text, title)
 	Window({
-		Title = sender or adminName or "Nameless",
+		Title = title or adminName or nil,
 		Description = text or "something",
-		Duration = duration or 5
+	})
+end
+
+function DoPopup(text, title)
+	Popup({
+		Title = title or adminName or nil,
+		Description = text or "something",
 	})
 end
 
@@ -702,7 +709,7 @@ else
 	opt.currentTagText = "Tag"
 	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
 	opt.saveTag = false
-	DoWindow("Your exploit does not support read/write file")
+	DoPopup("Your exploit does not support read/write file")
 end
 
 opt.prefix = prefixCheck
@@ -4758,184 +4765,184 @@ end, true)
 
 
 cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
-    reachsize = tonumber(reachsize) or 15
+	reachsize = tonumber(reachsize) or 15
 
-    local char = getChar()
-    local bp = getBp()
-    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
-    if not Tool then return end
+	local char = getChar()
+	local bp = getBp()
+	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+	if not Tool then return end
 
-    local partSet = {}
-    for _, p in ipairs(Tool:GetDescendants()) do
-        if p:IsA("BasePart") then
-            partSet[p.Name] = true
-        end
-    end
+	local partSet = {}
+	for _, p in ipairs(Tool:GetDescendants()) do
+		if p:IsA("BasePart") then
+			partSet[p.Name] = true
+		end
+	end
 
-    local btns = {}
-    for partName in pairs(partSet) do
-        Insert(btns, {
-            Text = partName,
-            Callback = function()
-                local toolPart = Tool:FindFirstChild(partName)
-                if not toolPart then return end
+	local btns = {}
+	for partName in pairs(partSet) do
+		Insert(btns, {
+			Text = partName,
+			Callback = function()
+				local toolPart = Tool:FindFirstChild(partName)
+				if not toolPart then return end
 
-                if not toolPart:FindFirstChild("OGSize3") then
-                    local val = InstanceNew("Vector3Value", toolPart)
-                    val.Name = "OGSize3"
-                    val.Value = toolPart.Size
-                end
+				if not toolPart:FindFirstChild("OGSize3") then
+					local val = InstanceNew("Vector3Value", toolPart)
+					val.Name = "OGSize3"
+					val.Value = toolPart.Size
+				end
 
-                if toolPart:FindFirstChild("FunTIMES") then
-                    toolPart.FunTIMES:Destroy()
-                end
+				if toolPart:FindFirstChild("FunTIMES") then
+					toolPart.FunTIMES:Destroy()
+				end
 
-                local sb = InstanceNew("SelectionBox")
-                sb.Adornee = toolPart
-                sb.Name = "FunTIMES"
-                sb.LineThickness = 0.01
-                sb.Color3 = Color3.fromRGB(255, 0, 0)
-                sb.Transparency = 0.7
-                sb.Parent = toolPart
+				local sb = InstanceNew("SelectionBox")
+				sb.Adornee = toolPart
+				sb.Name = "FunTIMES"
+				sb.LineThickness = 0.01
+				sb.Color3 = Color3.fromRGB(255, 0, 0)
+				sb.Transparency = 0.7
+				sb.Parent = toolPart
 
-                toolPart.Massless = true
-                toolPart.Size = Vector3.new(toolPart.Size.X, toolPart.Size.Y, reachsize)
-            end
-        })
-    end
+				toolPart.Massless = true
+				toolPart.Size = Vector3.new(toolPart.Size.X, toolPart.Size.Y, reachsize)
+			end
+		})
+	end
 
-    Window({
-        Title = "Reach Menu",
-        Description = "Choose part to extend reach",
-        Buttons = btns
-    })
+	Window({
+		Title = "Reach Menu",
+		Description = "Choose part to extend reach",
+		Buttons = btns
+	})
 end, true)
 
 cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around your tool"}, function(reachsize)
-    reachsize = tonumber(reachsize) or 15
+	reachsize = tonumber(reachsize) or 15
 
-    local char = getChar()
-    local bp = getBp()
-    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
-    if not Tool then return end
+	local char = getChar()
+	local bp = getBp()
+	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+	if not Tool then return end
 
-    local partSet = {}
-    for _, p in ipairs(Tool:GetDescendants()) do
-        if p:IsA("BasePart") then
-            partSet[p.Name] = true
-        end
-    end
+	local partSet = {}
+	for _, p in ipairs(Tool:GetDescendants()) do
+		if p:IsA("BasePart") then
+			partSet[p.Name] = true
+		end
+	end
 
-    local btns = {}
-    for partName in pairs(partSet) do
-        Insert(btns, {
-            Text = partName,
-            Callback = function()
-                local toolPart = Tool:FindFirstChild(partName)
-                if not toolPart then return end
+	local btns = {}
+	for partName in pairs(partSet) do
+		Insert(btns, {
+			Text = partName,
+			Callback = function()
+				local toolPart = Tool:FindFirstChild(partName)
+				if not toolPart then return end
 
-                if not toolPart:FindFirstChild("OGSize3") then
-                    local val = InstanceNew("Vector3Value", toolPart)
-                    val.Name = "OGSize3"
-                    val.Value = toolPart.Size
-                end
+				if not toolPart:FindFirstChild("OGSize3") then
+					local val = InstanceNew("Vector3Value", toolPart)
+					val.Name = "OGSize3"
+					val.Value = toolPart.Size
+				end
 
-                if toolPart:FindFirstChild("FunTIMES") then
-                    toolPart.FunTIMES:Destroy()
-                end
+				if toolPart:FindFirstChild("FunTIMES") then
+					toolPart.FunTIMES:Destroy()
+				end
 
-                local sb = InstanceNew("SelectionBox")
-                sb.Adornee = toolPart
-                sb.Name = "FunTIMES"
-                sb.LineThickness = 0.01
-                sb.Color3 = Color3.fromRGB(0, 0, 255)
-                sb.Transparency = 0.7
-                sb.Parent = toolPart
+				local sb = InstanceNew("SelectionBox")
+				sb.Adornee = toolPart
+				sb.Name = "FunTIMES"
+				sb.LineThickness = 0.01
+				sb.Color3 = Color3.fromRGB(0, 0, 255)
+				sb.Transparency = 0.7
+				sb.Parent = toolPart
 
-                toolPart.Massless = true
-                toolPart.Size = Vector3.new(reachsize, reachsize, reachsize)
-            end
-        })
-    end
+				toolPart.Massless = true
+				toolPart.Size = Vector3.new(reachsize, reachsize, reachsize)
+			end
+		})
+	end
 
-    Window({
-        Title = "Box Reach Menu",
-        Description = "Choose part to extend box reach",
-        Buttons = btns
-    })
+	Window({
+		Title = "Box Reach Menu",
+		Description = "Choose part to extend box reach",
+		Buttons = btns
+	})
 end, true)
 
 cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unreach)", "Resets tool to normal size"}, function()
-    local char = getChar()
-    local bp = getBp()
-    local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
-    if not Tool then return end
+	local char = getChar()
+	local bp = getBp()
+	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+	if not Tool then return end
 
-    for _, p in ipairs(Tool:GetDescendants()) do
-        if p:IsA("BasePart") then
-            if p:FindFirstChild("OGSize3") then
-                p.Size = p.OGSize3.Value
-                p.OGSize3:Destroy()
-            end
-            if p:FindFirstChild("FunTIMES") then
-                p.FunTIMES:Destroy()
-            end
-        end
-    end
+	for _, p in ipairs(Tool:GetDescendants()) do
+		if p:IsA("BasePart") then
+			if p:FindFirstChild("OGSize3") then
+				p.Size = p.OGSize3.Value
+				p.OGSize3:Destroy()
+			end
+			if p:FindFirstChild("FunTIMES") then
+				p.FunTIMES:Destroy()
+			end
+		end
+	end
 end)
 
 local auraConn,auraViz
 
 cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with equipped tool"},function(dist)
-    dist=tonumber(dist) or 20
-    local Players=SafeGetService("Players")
-    local RunService=SafeGetService("RunService")
-    local LocalPlayer=Players.LocalPlayer
-    if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
-    if auraConn then auraConn:Disconnect() auraConn=nil end
-    if auraViz then auraViz:Destroy() auraViz=nil end
-    auraViz=InstanceNew("Part")
-    auraViz.Shape=Enum.PartType.Ball
-    auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
-    auraViz.Transparency=0.8
-    auraViz.Color=Color3.fromRGB(255,0,0)
-    auraViz.Material=Enum.Material.Neon
-    auraViz.Anchored=true
-    auraViz.CanCollide=false
-    auraViz.Parent=workspace
-    local function getHandle()
-        local c=getChar() if not c then return end
-        local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
-        return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
-    end
-    auraConn=RunService.RenderStepped:Connect(function()
-        local handle=getHandle()
-        local root=getRoot(getChar())
-        if not handle or not root then return end
-        auraViz.CFrame=root.CFrame
-        for _,plr in ipairs(Players:GetPlayers()) do
-            if plr~=LocalPlayer and plr.Character then
-                local hum=getPlrHum(plr)
-                if hum and hum.Health>0 then
-                    for _,part in ipairs(plr.Character:GetChildren()) do
-                        if part:IsA("BasePart") and (part.Position-handle.Position).Magnitude<=dist then
-                            firetouchinterest(handle,part,0)
+	dist=tonumber(dist) or 20
+	local Players=SafeGetService("Players")
+	local RunService=SafeGetService("RunService")
+	local LocalPlayer=Players.LocalPlayer
+	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
+	if auraConn then auraConn:Disconnect() auraConn=nil end
+	if auraViz then auraViz:Destroy() auraViz=nil end
+	auraViz=InstanceNew("Part")
+	auraViz.Shape=Enum.PartType.Ball
+	auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
+	auraViz.Transparency=0.8
+	auraViz.Color=Color3.fromRGB(255,0,0)
+	auraViz.Material=Enum.Material.Neon
+	auraViz.Anchored=true
+	auraViz.CanCollide=false
+	auraViz.Parent=workspace
+	local function getHandle()
+		local c=getChar() if not c then return end
+		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
+		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+	end
+	auraConn=RunService.RenderStepped:Connect(function()
+		local handle=getHandle()
+		local root=getRoot(getChar())
+		if not handle or not root then return end
+		auraViz.CFrame=root.CFrame
+		for _,plr in ipairs(Players:GetPlayers()) do
+			if plr~=LocalPlayer and plr.Character then
+				local hum=getPlrHum(plr)
+				if hum and hum.Health>0 then
+					for _,part in ipairs(plr.Character:GetChildren()) do
+						if part:IsA("BasePart") and (part.Position-handle.Position).Magnitude<=dist then
+							firetouchinterest(handle,part,0)
 							Wait();
-                            firetouchinterest(handle,part,1)
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    DoNotif("Aura enabled at "..dist,1.2)
+							firetouchinterest(handle,part,1)
+							break
+						end
+					end
+				end
+			end
+		end
+	end)
+	DoNotif("Aura enabled at "..dist,1.2)
 end,true)
 
 cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function()
-    if auraConn then auraConn:Disconnect() auraConn=nil end
-    if auraViz then auraViz:Destroy() auraViz=nil end
-    DoNotif("Aura disabled",1.2)
+	if auraConn then auraConn:Disconnect() auraConn=nil end
+	if auraViz then auraViz:Destroy() auraViz=nil end
+	DoNotif("Aura disabled",1.2)
 end,true)
 
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
@@ -7418,21 +7425,21 @@ cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage ca
 end)
 
 cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"},function()
-    local function onInput(input, gameProcessed)
-        if gameProcessed then return end
-        if input.KeyCode == Enum.KeyCode.Comma and workspace.CurrentCamera then
-            workspace.CurrentCamera:PanUnits(-1)
-        elseif input.KeyCode == Enum.KeyCode.Period and workspace.CurrentCamera then
-            workspace.CurrentCamera:PanUnits(1)
-        end
-    end
-    if not lib.isConnected("align_input") then
-        lib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
-    end
+	local function onInput(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.Comma and workspace.CurrentCamera then
+			workspace.CurrentCamera:PanUnits(-1)
+		elseif input.KeyCode == Enum.KeyCode.Period and workspace.CurrentCamera then
+			workspace.CurrentCamera:PanUnits(1)
+		end
+	end
+	if not lib.isConnected("align_input") then
+		lib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
+	end
 end,true)
 
 cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys","Disable alignment keys"},function()
-    lib.disconnect("align_input")
+	lib.disconnect("align_input")
 end,true)
 
 cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
@@ -7615,7 +7622,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 	end
 end, true)
 
-cmd.add({"creep", "scare"}, {"creep <player> (scare)", "Teleports from a player behind them and under the floor to the top"}, function(...)
+cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and under the floor to the top"}, function(...)
 	local username = ...
 	local targets = getPlr(username)
 	if #targets == 0 then
@@ -11275,19 +11282,19 @@ local specUI=nil
 local connStep,connAdd,connRemove=nil,nil,nil
 
 function cleanup()
-    lib.disconnect("spectate_char")
-    lib.disconnect("spectate_loop")
-    lib.disconnect("spectate_leave")
+	lib.disconnect("spectate_char")
+	lib.disconnect("spectate_loop")
+	lib.disconnect("spectate_leave")
 
-    if connStep then connStep:Disconnect() connStep = nil end
-    if connAdd then connAdd:Disconnect() connAdd = nil end
-    if connRemove then connRemove:Disconnect() connRemove = nil end
+	if connStep then connStep:Disconnect() connStep = nil end
+	if connAdd then connAdd:Disconnect() connAdd = nil end
+	if connRemove then connRemove:Disconnect() connRemove = nil end
 
-    if specUI then specUI:Destroy() specUI = nil end
+	if specUI then specUI:Destroy() specUI = nil end
 
-    local hum  = getHum()
-    local cam  = workspace.CurrentCamera
-    if hum then cam.CameraSubject = hum end
+	local hum  = getHum()
+	local cam  = workspace.CurrentCamera
+	if hum then cam.CameraSubject = hum end
 end
 
 function spectatePlayer(targetPlayer)
@@ -11341,224 +11348,218 @@ cmd.add({"unwatch", "unview"}, {"unwatch (unview)", "Stop spectating"}, function
 end)
 
 cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
-    local LocalPlayer=Players.LocalPlayer
+	local LocalPlayer=Players.LocalPlayer
 
-    local playerList,currentIndex={},1
-    local frame,titleLabel,toggleBtn,scroll,listOpen=false,false,false,false,false
-    local baseTogglePos=5
+	local playerList,currentIndex={},1
+	local frame,titleLabel,toggleBtn,scroll,listOpen=false,false,false,false,false
+	local baseTogglePos=5
 
-    local function rebuild()
-        table.clear(playerList)
-        for _,p in ipairs(Players:GetPlayers()) do Insert(playerList,p) end
-        table.sort(playerList,function(a,b)return a.Name<b.Name end)
-        if currentIndex>#playerList then currentIndex=1 end
-    end
+	local function rebuild()
+		table.clear(playerList)
+		for _,p in ipairs(Players:GetPlayers()) do Insert(playerList,p) end
+		table.sort(playerList,function(a,b)return a.Name<b.Name end)
+		if currentIndex>#playerList then currentIndex=1 end
+	end
 
-    local function cam(p)
-        local h=getPlrHum(p)
-        workspace.CurrentCamera.CameraSubject=h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
-    end
+	local function cam(p)
+		local h=getPlrHum(p)
+		workspace.CurrentCamera.CameraSubject=h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
+	end
 
-    local function recolor()
-        if not listOpen or not scroll then return end
-        for _,btn in ipairs(scroll:GetChildren())do
-            if btn:IsA("TextButton") then
-                local idx=btn:GetAttribute("idx")
-                local lbl=btn:FindFirstChild("NameLabel")
-                if idx and lbl then
-                    local plr=playerList[idx]
-                    if plr==LocalPlayer then
-                        lbl.TextColor3=Color3.fromRGB(255,255,0)
-                    elseif idx==currentIndex then
-                        lbl.TextColor3=Color3.fromRGB(0,162,255)
-                    else
-                        lbl.TextColor3=Color3.fromRGB(255,255,255)
-                    end
-                end
-            end
-        end
-    end
+	local function recolor()
+		if not listOpen or not scroll then return end
+		for _,btn in ipairs(scroll:GetChildren())do
+			if btn:IsA("TextButton") then
+				local idx=btn:GetAttribute("idx")
+				local lbl=btn:FindFirstChild("NameLabel")
+				if idx and lbl then
+					local plr=playerList[idx]
+					if plr==LocalPlayer then
+						lbl.TextColor3=Color3.fromRGB(255,255,0)
+					elseif idx==currentIndex then
+						lbl.TextColor3=Color3.fromRGB(0,162,255)
+					else
+						lbl.TextColor3=Color3.fromRGB(255,255,255)
+					end
+				end
+			end
+		end
+	end
 
-    local function refresh()
-        if not titleLabel then return end
-        if #playerList==0 then
-            titleLabel.Text="Spectating: None"
-            return
-        end
-        if currentIndex<1 then currentIndex=1 end
-        if currentIndex>#playerList then currentIndex=1 end
-        local plr=playerList[currentIndex]
-        if not plr then
-            titleLabel.Text="Spectating: None"
-            return
-        end
-        titleLabel.Text="Spectating: "..nameChecker(plr)
-        titleLabel.TextColor3=(plr==LocalPlayer)and Color3.fromRGB(255,255,0)or Color3.fromRGB(0,162,255)
-        cam(plr)
-        recolor()
-    end
+	local function refresh()
+		if not titleLabel then return end
+		if #playerList==0 then
+			titleLabel.Text="Spectating: None"
+			return
+		end
+		if currentIndex<1 then currentIndex=1 end
+		if currentIndex>#playerList then currentIndex=1 end
+		local plr=playerList[currentIndex]
+		if not plr then
+			titleLabel.Text="Spectating: None"
+			return
+		end
+		titleLabel.Text="Spectating: "..nameChecker(plr)
+		titleLabel.TextColor3=(plr==LocalPlayer)and Color3.fromRGB(255,255,0)or Color3.fromRGB(0,162,255)
+		cam(plr)
+		recolor()
+	end
 
-    local function mkBtn(txt,pos,size,bg,ts,cb)
-        local b=InstanceNew("TextButton",frame)
-        b.Size=size or UDim2.new(0,40,0,40)
-        b.Position=pos
-        b.BackgroundColor3=bg or Color3.fromRGB(50,50,50)
-        b.Text=txt
-        b.TextColor3=Color3.new(1,1,1)
-        b.Font=Enum.Font.GothamBold
-        b.TextSize=ts or 24
-        InstanceNew("UICorner",b).CornerRadius=UDim.new(0,10)
-        MouseButtonFix(b,cb)
-        return b
-    end
+	local function mkBtn(txt,pos,size,bg,ts,cb)
+		local b=InstanceNew("TextButton",frame)
+		b.Size=size or UDim2.new(0,40,0,40)
+		b.Position=pos
+		b.BackgroundColor3=bg or Color3.fromRGB(50,50,50)
+		b.Text=txt
+		b.TextColor3=Color3.new(1,1,1)
+		b.Font=Enum.Font.GothamBold
+		b.TextSize=ts or 24
+		InstanceNew("UICorner",b).CornerRadius=UDim.new(0,10)
+		MouseButtonFix(b,cb)
+		return b
+	end
 
-    rebuild()
-    if #playerList==0 then return DoNotif("No players to spectate",2) end
+	rebuild()
+	if #playerList==0 then return DoNotif("No players to spectate",2) end
 
-    specUI=InstanceNew("ScreenGui") NaProtectUI(specUI) specUI.ResetOnSpawn=false specUI.DisplayOrder=10
-    frame=InstanceNew("Frame",specUI)
-    frame.AnchorPoint=Vector2.new(0.5,1)
-    frame.Size=UDim2.new(0,350,0,40)
-    frame.Position=UDim2.new(0.5,0,1,-150)
-    frame.BackgroundColor3=Color3.fromRGB(30,30,30)
-    frame.BorderSizePixel=0
-    InstanceNew("UICorner",frame).CornerRadius=UDim.new(0,20)
-    gui.draggerV2(frame)
+	specUI=InstanceNew("ScreenGui") NaProtectUI(specUI) specUI.ResetOnSpawn=false specUI.DisplayOrder=10
+	frame=InstanceNew("Frame",specUI)
+	frame.AnchorPoint=Vector2.new(0.5,1)
+	frame.Size=UDim2.new(0,350,0,40)
+	frame.Position=UDim2.new(0.5, 0, 0.1, 0)
+	frame.BackgroundColor3=Color3.fromRGB(30,30,30)
+	frame.BorderSizePixel=0
+	InstanceNew("UICorner",frame).CornerRadius=UDim.new(0,20)
+	gui.draggerV2(frame)
 
-    titleLabel=InstanceNew("TextLabel",frame)
-    titleLabel.BackgroundTransparency=1
-    titleLabel.Size=UDim2.new(0.7,0,1,0)
-    titleLabel.Position=UDim2.new(0.15,0,0,0)
-    titleLabel.Font=Enum.Font.GothamBold
-    titleLabel.TextScaled=true
+	titleLabel=InstanceNew("TextLabel",frame)
+	titleLabel.BackgroundTransparency=1
+	titleLabel.Size=UDim2.new(0.7,0,1,0)
+	titleLabel.Position=UDim2.new(0.15,0,0,0)
+	titleLabel.Font=Enum.Font.GothamBold
+	titleLabel.TextScaled=true
 
-    mkBtn("<",UDim2.new(0,-18,0,0),nil,nil,nil,function()
-        currentIndex=currentIndex-1 if currentIndex<1 then currentIndex=#playerList end refresh()
-    end)
-    mkBtn(">",UDim2.new(1,-22,0,0),nil,nil,nil,function()
-        currentIndex=currentIndex+1 if currentIndex>#playerList then currentIndex=1 end refresh()
-    end)
-    mkBtn("X",UDim2.new(1,-55,0,5),UDim2.new(0,30,0,30),Color3.fromRGB(255,50,50),18,function()
-        cleanup()
-    end)
+	mkBtn("<",UDim2.new(0,-18,0,0),nil,nil,nil,function()
+		currentIndex=currentIndex-1 if currentIndex<1 then currentIndex=#playerList end refresh()
+	end)
+	mkBtn(">",UDim2.new(1,-22,0,0),nil,nil,nil,function()
+		currentIndex=currentIndex+1 if currentIndex>#playerList then currentIndex=1 end refresh()
+	end)
+	mkBtn("X",UDim2.new(1,-55,0,5),UDim2.new(0,30,0,30),Color3.fromRGB(255,50,50),18,function()
+		cleanup()
+	end)
 
-    toggleBtn=mkBtn("v",UDim2.new(0.5,-15,1,baseTogglePos),UDim2.new(0,30,0,20),Color3.fromRGB(40,40,40),18,function()
-        if listOpen then
-            local tClose=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,0)})
-            local tPos=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,baseTogglePos)})
-            tClose:Play() tPos:Play()
-            tClose.Completed:Wait()
-            scroll:Destroy() scroll=nil listOpen=false toggleBtn.Text="v"
-        else
-            scroll=InstanceNew("ScrollingFrame",frame)
-            scroll.Size=UDim2.new(1,0,0,0)
-            scroll.Position=UDim2.new(0,0,1,0)
-            scroll.BackgroundColor3=Color3.fromRGB(40,40,40)
-            scroll.BorderSizePixel=0
-            scroll.ScrollBarThickness=8
-            scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
-            scroll.ClipsDescendants=true
-            InstanceNew("UICorner",scroll).CornerRadius=UDim.new(0,10)
-            InstanceNew("UIListLayout",scroll).SortOrder=Enum.SortOrder.LayoutOrder
+	toggleBtn=mkBtn("v",UDim2.new(0.5,-15,1,baseTogglePos),UDim2.new(0,30,0,20),Color3.fromRGB(40,40,40),18,function()
+		if listOpen then
+			local tClose=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,0)})
+			local tPos=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,baseTogglePos)})
+			tClose:Play() tPos:Play()
+			tClose.Completed:Wait()
+			scroll:Destroy() scroll=nil listOpen=false toggleBtn.Text="v"
+		else
+			scroll=InstanceNew("ScrollingFrame",frame)
+			scroll.Size=UDim2.new(1,0,0,0)
+			scroll.Position=UDim2.new(0,0,1,0)
+			scroll.BackgroundColor3=Color3.fromRGB(40,40,40)
+			scroll.BorderSizePixel=0
+			scroll.ScrollBarThickness=8
+			scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
+			scroll.ClipsDescendants=true
+			InstanceNew("UICorner",scroll).CornerRadius=UDim.new(0,10)
+			InstanceNew("UIListLayout",scroll).SortOrder=Enum.SortOrder.LayoutOrder
 
-            local loading=InstanceNew("TextLabel",scroll)
-            loading.Size=UDim2.new(1,0,0,30)
-            loading.BackgroundTransparency=1
-            loading.Font=Enum.Font.GothamSemibold
-            loading.TextScaled=true
-            loading.TextColor3=Color3.fromRGB(255,255,255)
-            loading.Text="Loading..."
+			local loading=InstanceNew("TextLabel",scroll)
+			loading.Size=UDim2.new(1,0,0,30)
+			loading.BackgroundTransparency=1
+			loading.Font=Enum.Font.GothamSemibold
+			loading.TextScaled=true
+			loading.TextColor3=Color3.fromRGB(255,255,255)
+			loading.Text="Loading..."
 
-            Spawn(function()
-                loading:Destroy()
-                for i,plr in ipairs(playerList) do
-                    local pb=InstanceNew("TextButton",scroll)
-                    pb.Size=UDim2.new(1,0,0,30)
-                    pb.BackgroundColor3=Color3.fromRGB(50,50,50)
-                    pb.Font=Enum.Font.Gotham
-                    pb.Text=""
-                    pb.LayoutOrder=i
-                    pb:SetAttribute("idx",i)
-                    InstanceNew("UICorner",pb).CornerRadius=UDim.new(0,6)
+			Spawn(function()
+				loading:Destroy()
+				for i,plr in ipairs(playerList) do
+					local pb=InstanceNew("TextButton",scroll)
+					pb.Size=UDim2.new(1,0,0,30)
+					pb.BackgroundColor3=Color3.fromRGB(50,50,50)
+					pb.Font=Enum.Font.Gotham
+					pb.Text=""
+					pb.LayoutOrder=i
+					pb:SetAttribute("idx",i)
+					InstanceNew("UICorner",pb).CornerRadius=UDim.new(0,6)
 
-                    local img=InstanceNew("ImageLabel",pb)
-                    img.Size=UDim2.new(0,30,0,30)
-                    img.BackgroundTransparency=1
-                    img.Image=Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size420x420)
+					local img=InstanceNew("ImageLabel",pb)
+					img.Size=UDim2.new(0,30,0,30)
+					img.BackgroundTransparency=1
+					img.Image=Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size420x420)
 
-                    local nameLbl=InstanceNew("TextLabel",pb)
-                    nameLbl.Name="NameLabel"
-                    nameLbl.BackgroundTransparency=1
-                    nameLbl.Size=UDim2.new(1,-35,1,0)
-                    nameLbl.Position=UDim2.new(0,35,0,0)
-                    nameLbl.Font=Enum.Font.Gotham
-                    nameLbl.TextScaled=true
-                    nameLbl.Text=nameChecker(plr)
+					local nameLbl=InstanceNew("TextLabel",pb)
+					nameLbl.Name="NameLabel"
+					nameLbl.BackgroundTransparency=1
+					nameLbl.Size=UDim2.new(1,-35,1,0)
+					nameLbl.Position=UDim2.new(0,35,0,0)
+					nameLbl.Font=Enum.Font.Gotham
+					nameLbl.TextScaled=true
+					nameLbl.Text=nameChecker(plr)
 
-                    MouseButtonFix(pb,function()
-                        currentIndex=i refresh()
-                    end)
-                end
-                local h=math.min(#playerList*30,300)
-                scroll.CanvasSize=UDim2.new(0,0,0,#playerList*30)
-                local open=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,h)})
-                local move=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,h+10)})
-                open:Play() move:Play()
-                listOpen=true toggleBtn.Text="^"
-                recolor()
-            end)
-        end
-    end)
+					MouseButtonFix(pb,function()
+						currentIndex=i refresh()
+					end)
+				end
+				local h=math.min(#playerList*30,300)
+				scroll.CanvasSize=UDim2.new(0,0,0,#playerList*30)
+				local open=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,h)})
+				local move=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,h+10)})
+				open:Play() move:Play()
+				listOpen=true toggleBtn.Text="^"
+				recolor()
+			end)
+		end
+	end)
 
-    connStep=RunService.RenderStepped:Connect(function()
-        if #playerList==0 then return end
-        local p=playerList[currentIndex]
-        if not p or not p.Character then rebuild() end
-        cam(playerList[currentIndex])
-    end)
-    connAdd=Players.PlayerAdded:Connect(function()rebuild()refresh()recolor()end)
-    connRemove=Players.PlayerRemoving:Connect(function(plr)
-        rebuild()
-        if plr==playerList[currentIndex] then currentIndex=1 end
-        refresh() recolor()
-    end)
+	connStep=RunService.RenderStepped:Connect(function()
+		if #playerList==0 then return end
+		local p=playerList[currentIndex]
+		if not p or not p.Character then rebuild() end
+		cam(playerList[currentIndex])
+	end)
+	connAdd=Players.PlayerAdded:Connect(function()rebuild()refresh()recolor()end)
+	connRemove=Players.PlayerRemoving:Connect(function(plr)
+		rebuild()
+		if plr==playerList[currentIndex] then currentIndex=1 end
+		refresh() recolor()
+	end)
 
-    refresh()
+	refresh()
 end,true)
 
 cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
-    cleanup()
-    DoNotif("Spectate stopped",1.2)
+	cleanup()
+	DoNotif("Spectate stopped",1.2)
 end,true)
 
-cmd.add({"stealaudio", "getaudio", "steal", "logaudio"}, {"stealaudio <player> (getaudio,logaudio,steal)", "Save all sounds a player is playing to a file -Cyrus"}, function(p)
+cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Save all sounds a player is playing to a file -Cyrus"},function(p)
 	Wait(.1)
-	local players = getPlr(p)
-	for _, plr in next, players do
-		if not plr then
-			DoNotif("Player not found.")
-			return
-		end
-		local char = plr.Character
-		if not char then
-			DoNotif("Character not found for player "..nameChecker(plr))
-			return
-		end
-		local audioList = {}
-		for _, songer in pairs(char:GetDescendants()) do
-			if songer:IsA("Sound") and songer.Playing then
-				Insert(audioList, songer.SoundId)
+	local players=getPlr(p)
+	if not next(players) then DoNotif("Player not found") return end
+	local ids={}
+	for _,plr in pairs(players)do
+		local char=plr and plr.Character
+		if char then
+			for _,snd in pairs(char:GetDescendants())do
+				if snd:IsA("Sound") and snd.Playing then
+					ids[#ids+1]=snd.SoundId
+				end
 			end
 		end
-		if #audioList > 0 then
-			local audios = Concat(audioList, "\n")
-			setclipboard(audios)
-			DoNotif("Audio links have been copied to your clipboard.")
-		else
-			DoNotif("No playing audio found for player "..nameChecker(plr))
-		end
 	end
-end, true)
+	if #ids>0 then
+		setclipboard(Concat(ids,"\n"))
+		DoNotif("Audio links copied.")
+	else
+		DoNotif("No audio found.")
+	end
+end,true)
 
 cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherever they go"}, function(p)
 	lib.disconnect("follow")
@@ -11568,7 +11569,7 @@ cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherev
 			DoNotif("Player not found or invalid.")
 			return
 		end
-		lib.connect("follow", RunService.Stepped:Connect(function()
+		lib.connect("follow", RunService.RenderStepped:Connect(function()
 			local target = plr.Character
 			if target then
 				local hum = getHum()
@@ -11680,51 +11681,39 @@ cmd.add({"unautofollow", "stopautofollow", "unproxfollow"}, {"unautofollow (stop
 	followTarget = nil
 end)
 
-cmd.add({"pathfind"}, {"pathfind <player>", "Follow a player using the pathfinder API wherever they go"}, function(p)
-	local targetPlayers = getPlr(p)
-	for _, plr in next, targetPlayers do
-		if not plr then return end
-		lib.disconnect("follow")
-		local debounce = false
-		lib.connect("follow", RunService.Stepped:Connect(function()
-			if debounce then return end
-			debounce = true
-			local target = plr.Character
-			local character = getChar()
-			if not target or not character then
-				debounce = false
-				return
-			end
-			local hum = getHum()
-			local main = getRoot(target)
-			if hum and main then
-				local targetPart = main or getHead(target)
-				local targetPos = (targetPart.CFrame * CFrame.new(0, 0, -0.5)).p
-				local PathService = SafeGetService("PathfindingService")
-				local path = PathService:CreatePath({
-					AgentRadius = 2,
-					AgentHeight = 5,
-					AgentCanJump = true
-				})
-				path:ComputeAsync(hum.RootPart.Position, targetPos)
-				if path.Status ~= Enum.PathStatus.NoPath then
-					local waypoints = path:GetWaypoints()
-					for i, waypoint in pairs(waypoints) do
-						if waypoint.Action == Enum.PathWaypointAction.Jump then
-							hum:ChangeState(Enum.HumanoidStateType.Jumping)
-							hum:MoveTo(waypoint.Position)
-							hum.MoveToFinished:Wait()
-						else
-							hum:MoveTo(waypoint.Position)
-							hum.MoveToFinished:Wait()
+cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder API wherever they go"},function(p)
+	Wait(.1)
+	local players=getPlr(p)
+	for _,plr in ipairs(players)do
+		if plr then
+			lib.disconnect("follow")
+			local ps=SafeGetService("PathfindingService")
+			local lastSrc, lastDst = Vector3.new(), Vector3.new()
+			lib.connect("follow",RunService.Heartbeat:Connect(function()
+				local hum=getHum() local char=getChar() local tgt=plr.Character
+				if not(hum and char and tgt and hum.RootPart) then return end
+				local src=hum.RootPart.Position
+				local dst=(getRoot(tgt) or getHead(tgt)).Position+Vector3.new(0,0,-2)
+				if (src-lastSrc).Magnitude>1 or (dst-lastDst).Magnitude>1 then
+					lastSrc, lastDst = src, dst
+					local path=ps:CreatePath{AgentRadius=2,AgentHeight=5,AgentCanJump=true}
+					path:ComputeAsync(src,dst)
+					if path.Status~=Enum.PathStatus.NoPath then
+						for _,wp in ipairs(path:GetWaypoints())do
+							if wp.Action==Enum.PathWaypointAction.Jump then
+								if hum:GetState()~=Enum.HumanoidStateType.Freefall and hum.FloorMaterial~=Enum.Material.Air then
+									hum:ChangeState(Enum.HumanoidStateType.Jumping)
+								end
+							end
+							hum:MoveTo(wp.Position)
+							hum.MoveToFinished:Wait(1)
 						end
 					end
 				end
-			end
-			debounce = false
-		end))
+			end))
+		end
 	end
-end, true)
+end,true)
 
 freezeBTNTOGGLE = nil
 isFrozennn = false
@@ -11826,9 +11815,9 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		settings().Physics.AllowSleep=false
 		for _,plr in next,Players:GetPlayers() do
 			if plr~=LocalPlayer then pcall(function()
-				plr.MaximumSimulationRadius=0
-				opt.hiddenprop(plr,"SimulationRadius",0)
-			end) end
+					plr.MaximumSimulationRadius=0
+					opt.hiddenprop(plr,"SimulationRadius",0)
+				end) end
 		end
 		pcall(function()
 			LocalPlayer.MaximumSimulationRadius=1e9
@@ -12419,19 +12408,60 @@ cmd.add({"jump"},{"jump","jump."},function()
 	getHum():ChangeState(Enum.HumanoidStateType.Jumping)
 end)
 
-cmd.add({"loopjump", "bhop"}, {"loopjump (bhop)", "Continuously jump."}, function()
+cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
 	lib.disconnect("loopjump")
-
-	lib.connect("loopjump", RunService.RenderStepped:Connect(function()
-		local h = getHum()
-		if h and h:GetState() ~= Enum.HumanoidStateType.Freefall then
+	lib.connect("loopjump",RunService.RenderStepped:Connect(function()
+		local h=getHum()
+		if h and h:GetState()~=Enum.HumanoidStateType.Freefall and h.FloorMaterial~=Enum.Material.Air then
 			h:ChangeState(Enum.HumanoidStateType.Jumping)
 		end
 	end))
 end)
 
-cmd.add({"unloopjump", "unbhop"}, {"unloopjump (unbhop)", "Stop continuous jumping."}, function()
+cmd.add({"unloopjump","unbhop"},{"unloopjump (unbhop)","Stop continuous jumping."},function()
 	lib.disconnect("loopjump")
+end)
+
+cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when you jump"},function() -- totally didn't stole this idea from FE2 lmao
+	lib.disconnect("trussjump_spawn") lib.disconnect("trussjump_jump")
+	local function hook()
+		local hm=getHum()
+		if not hm then return false end
+		lib.disconnect("trussjump_jump")
+		lib.connect("trussjump_jump",hm.Jumping:Connect(function(isJump)
+			NACaller(function()
+				local char=getChar()
+				local rt=char and getRoot(char)
+				local h=getHum()
+				if isJump and h and rt and h:GetState()==Enum.HumanoidStateType.Jumping then
+					h:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
+					local hor=Vector3.new(rt.Velocity.X,0,rt.Velocity.Z)
+					rt.Velocity=hor+Vector3.new(0,h.JumpPower*1.1,0)
+					Delay(0.2,function() h:SetStateEnabled(Enum.HumanoidStateType.Climbing,true) end)
+				end
+			end)
+		end))
+		return true
+	end
+	local attempts=5
+	while attempts>0 and not hook() do
+		attempts-=1
+		Wait(1)
+	end
+	if not getHum() then DoNotif("failed to hook to Humanoid",2) end
+	lib.connect("trussjump_spawn",LocalPlayer.CharacterAdded:Connect(function()
+		local attempts2=5
+		while attempts2>0 and not hook() do
+			attempts2-=1
+			Wait(1)
+		end
+		if not getHum() then DoNotif("failed to hook to Humanoid",2) end
+	end))
+	DoNotif("Trussjump enabled",2)
+end,true)
+
+cmd.add({"untrussjump","untj","untjump","untrussj"},{"untrussjump","Disable trussjump"},function()
+	lib.disconnect("trussjump_spawn") lib.disconnect("trussjump_jump")
 end)
 
 standParts = {}
@@ -15878,84 +15908,84 @@ local ogParts,resizeLoops={},{}
 local hbAddConn,hbRemConn=nil,nil
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
-    local Players=SafeGetService("Players")
-    local RunService=SafeGetService("RunService")
-    local targets=getPlr(pArg) if #targets==0 then DoNotif("No players found",2) return end
-    local n=tonumber(sArg) or 10
-    local global=(Lower(pArg)=="all" or Lower(pArg)=="others")
-    local partSet={All=true}
-    for _,plr in ipairs(targets)do
-        local char=getPlrChar(plr)
-        if char then
-            for _,p in ipairs(char:GetChildren())do
-                if p:IsA("BasePart") then partSet[p.Name]=true end
-            end
-        end
-    end
-    local btns={}
-    for limb,_ in pairs(partSet)do
-        Insert(btns,{
-            Text=limb,
-            Callback=function()
-                if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
-                if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-                local newSize=Vector3.new(n,n,n)
-                local function cache(b,plr)
-                    ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material,CanCollide=b.CanCollide}
-                end
-                local function apply(plr)
-                    ogParts[plr]=ogParts[plr] or {}
-                    if resizeLoops[plr] then resizeLoops[plr]:Disconnect() end
-                    resizeLoops[plr]=RunService.Stepped:Connect(function()
-                        local char=getPlrChar(plr) if not char then return end
-                        for _,bp in ipairs(char:GetChildren())do
-                            if bp:IsA("BasePart") and (limb=="All" or bp.Name:lower()==limb:lower()) then
-                                if not ogParts[plr][bp] then cache(bp,plr) end
-                                bp.Size=newSize
-                                bp.Transparency=0.9
-                                bp.BrickColor=BrickColor.new("Really black")
-                                bp.Material=Enum.Material.Neon
-                                bp.CanCollide=false
-                                bp.Massless=true
-                            end
-                        end
-                    end)
-                end
-                for _,plr in ipairs(targets)do apply(plr) end
-                if global then
-                    hbAddConn=Players.PlayerAdded:Connect(apply)
-                    hbRemConn=Players.PlayerRemoving:Connect(function(plr)
-                        if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
-                        ogParts[plr]=nil
-                    end)
-                end
-            end
-        })
-    end
-    Window({Title="Hitbox Menu",Description="Choose limb to resize",Buttons=btns})
+	local Players=SafeGetService("Players")
+	local RunService=SafeGetService("RunService")
+	local targets=getPlr(pArg) if #targets==0 then DoNotif("No players found",2) return end
+	local n=tonumber(sArg) or 10
+	local global=(Lower(pArg)=="all" or Lower(pArg)=="others")
+	local partSet={All=true}
+	for _,plr in ipairs(targets)do
+		local char=getPlrChar(plr)
+		if char then
+			for _,p in ipairs(char:GetChildren())do
+				if p:IsA("BasePart") then partSet[p.Name]=true end
+			end
+		end
+	end
+	local btns={}
+	for limb,_ in pairs(partSet)do
+		Insert(btns,{
+			Text=limb,
+			Callback=function()
+				if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
+				if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
+				local newSize=Vector3.new(n,n,n)
+				local function cache(b,plr)
+					ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material,CanCollide=b.CanCollide}
+				end
+				local function apply(plr)
+					ogParts[plr]=ogParts[plr] or {}
+					if resizeLoops[plr] then resizeLoops[plr]:Disconnect() end
+					resizeLoops[plr]=RunService.Stepped:Connect(function()
+						local char=getPlrChar(plr) if not char then return end
+						for _,bp in ipairs(char:GetChildren())do
+							if bp:IsA("BasePart") and (limb=="All" or bp.Name:lower()==limb:lower()) then
+								if not ogParts[plr][bp] then cache(bp,plr) end
+								bp.Size=newSize
+								bp.Transparency=0.9
+								bp.BrickColor=BrickColor.new("Really black")
+								bp.Material=Enum.Material.Neon
+								bp.CanCollide=false
+								bp.Massless=true
+							end
+						end
+					end)
+				end
+				for _,plr in ipairs(targets)do apply(plr) end
+				if global then
+					hbAddConn=Players.PlayerAdded:Connect(apply)
+					hbRemConn=Players.PlayerRemoving:Connect(function(plr)
+						if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
+						ogParts[plr]=nil
+					end)
+				end
+			end
+		})
+	end
+	Window({Title="Hitbox Menu",Description="Choose limb to resize",Buttons=btns})
 end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
-    local Players=SafeGetService("Players")
-    local targets=getPlr(pArg)
-    for _,plr in ipairs(targets)do
-        local char=getPlrChar(plr)
-        if char and ogParts[plr] then
-            for bp,props in pairs(ogParts[plr])do
-                local ref=char:FindFirstChild(bp.Name) or bp
-                if ref then
-                    ref.Size=props.Size
-                    ref.Transparency=props.Transparency
-                    ref.BrickColor=props.BrickColor
-                    ref.Material=props.Material
-                    ref.CanCollide=props.CanCollide
-                end
-            end
-        end
-        if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
-        ogParts[plr]=nil
-    end
-    if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
+	local Players=SafeGetService("Players")
+	local targets=getPlr(pArg)
+	for _,plr in ipairs(targets)do
+		local char=getPlrChar(plr)
+		if char and ogParts[plr] then
+			for bp,props in pairs(ogParts[plr])do
+				local ref=char:FindFirstChild(bp.Name) or bp
+				if ref then
+					ref.Size=props.Size
+					ref.Transparency=props.Transparency
+					ref.BrickColor=props.BrickColor
+					ref.Material=props.Material
+					ref.CanCollide=props.CanCollide
+				end
+			end
+		end
+		if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
+		ogParts[plr]=nil
+	end
+	if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
 	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
 end,true)
 
@@ -17211,19 +17241,19 @@ cmd.add({"errorchat"},{"errorchat","Makes the chat error appear when roblox chat
 end)
 
 cmd.add({"clearerror", "noerror"}, {"clearerror", "Clears any current error or disconnected UI immediately"}, function()
-    SafeGetService("GuiService"):ClearError()
+	SafeGetService("GuiService"):ClearError()
 end)
 
 cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future error or disconnected UI"}, function()
-    lib.disconnect("antierror")
-    lib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
-        SafeGetService("GuiService"):ClearError()
-    end))
-    DoNotif("Anti Error is now enabled!", 2)
+	lib.disconnect("antierror")
+	lib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
+		SafeGetService("GuiService"):ClearError()
+	end))
+	DoNotif("Anti Error is now enabled!", 2)
 end)
 
 cmd.add({"unantierror", "noantierror"}, {"unantierror", "Disables Anti Error"}, function()
-    lib.disconnect("antierror")
+	lib.disconnect("antierror")
 	DoNotif("Anti Error is now disabled!",2)
 end)
 
@@ -18377,189 +18407,189 @@ gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callb
 end
 
 gui.dragger = function(ui, dragui)
-    dragui = dragui or ui
-    local UserInputService = game:GetService("UserInputService")
-    local dragging = false
-    local dragInput
-    local dragStart
-    local startPos
+	dragui = dragui or ui
+	local UserInputService = SafeGetService("UserInputService")
+	local dragging = false
+	local dragInput
+	local dragStart
+	local startPos
 
-    local function update(input)
-        local success, err = pcall(function()
-            local delta = input.Position - dragStart
-            local screenSize = ui.Parent.AbsoluteSize
-            local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
-            local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
-            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-        end)
-        if not success then
-            warn("[Dragger] update error:", err)
-        end
-    end
+	local function update(input)
+		local success, err = pcall(function()
+			local delta = input.Position - dragStart
+			local screenSize = ui.Parent.AbsoluteSize
+			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
+			local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("[Dragger] update error:", err)
+		end
+	end
 
-    pcall(function()
-        dragui.InputBegan:Connect(function(input)
-            local success, err = pcall(function()
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    dragStart = input.Position
-                    startPos = ui.Position
+	pcall(function()
+		dragui.InputBegan:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = ui.Position
 
-                    pcall(function()
-                        input.Changed:Connect(function()
-                            local ok, innerErr = pcall(function()
-                                if input.UserInputState == Enum.UserInputState.End then
-                                    dragging = false
-                                end
-                            end)
-                            if not ok then warn("[Dragger] input.Changed error:", innerErr) end
-                        end)
-                    end)
-                end
-            end)
-            if not success then warn("[Dragger] InputBegan error:", err) end
-        end)
-    end)
+					pcall(function()
+						input.Changed:Connect(function()
+							local ok, innerErr = pcall(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+								end
+							end)
+							if not ok then warn("[Dragger] input.Changed error:", innerErr) end
+						end)
+					end)
+				end
+			end)
+			if not success then warn("[Dragger] InputBegan error:", err) end
+		end)
+	end)
 
-    pcall(function()
-        dragui.InputChanged:Connect(function(input)
-            local success, err = pcall(function()
-                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                    dragInput = input
-                end
-            end)
-            if not success then warn("[Dragger] InputChanged error:", err) end
-        end)
-    end)
+	pcall(function()
+		dragui.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
+				end
+			end)
+			if not success then warn("[Dragger] InputChanged error:", err) end
+		end)
+	end)
 
-    pcall(function()
-        UserInputService.InputChanged:Connect(function(input)
-            local success, err = pcall(function()
-                if input == dragInput and dragging then
-                    update(input)
-                end
-            end)
-            if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
-        end)
-    end)
+	pcall(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input == dragInput and dragging then
+					update(input)
+				end
+			end)
+			if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
+		end)
+	end)
 
-    local success, err = pcall(function()
-        ui.Active = true
-    end)
-    if not success then warn("[Dragger] Set Active error:", err) end
+	local success, err = pcall(function()
+		ui.Active = true
+	end)
+	if not success then warn("[Dragger] Set Active error:", err) end
 end
 
 gui.draggerV2 = function(ui, dragui)
-    dragui = dragui or ui
-    local UserInputService = SafeGetService("UserInputService")
-    local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+	dragui = dragui or ui
+	local UserInputService = SafeGetService("UserInputService")
+	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 
-    local dragging
-    local dragInput
-    local dragStart
-    local startPos
+	local dragging
+	local dragInput
+	local dragStart
+	local startPos
 
-    local function update(input)
-        local success, err = pcall(function()
-            local delta = input.Position - dragStart
-            local parentSize = screenGui.AbsoluteSize
-            local uiSize = ui.AbsoluteSize
+	local function update(input)
+		local success, err = pcall(function()
+			local delta = input.Position - dragStart
+			local parentSize = screenGui.AbsoluteSize
+			local uiSize = ui.AbsoluteSize
 
-            local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
-            local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+			local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
+			local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
 
-            local anchor = ui.AnchorPoint
-            local minX = anchor.X * (uiSize.X / parentSize.X)
-            local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-            local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-            local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+			local anchor = ui.AnchorPoint
+			local minX = anchor.X * (uiSize.X / parentSize.X)
+			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-            newXScale = math.clamp(newXScale, minX, maxX)
-            newYScale = math.clamp(newYScale, minY, maxY)
+			newXScale = math.clamp(newXScale, minX, maxX)
+			newYScale = math.clamp(newYScale, minY, maxY)
 
-            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-        end)
-        if not success then
-            warn("[DraggerV2] update error:", err)
-        end
-    end
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("[DraggerV2] update error:", err)
+		end
+	end
 
-    pcall(function()
-        dragui.InputBegan:Connect(function(input)
-            local success, err = pcall(function()
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    dragStart = input.Position
-                    startPos = ui.Position
+	pcall(function()
+		dragui.InputBegan:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = ui.Position
 
-                    pcall(function()
-                        input.Changed:Connect(function()
-                            local ok, innerErr = pcall(function()
-                                if input.UserInputState == Enum.UserInputState.End then
-                                    dragging = false
-                                end
-                            end)
-                            if not ok then warn("[DraggerV2] input.Changed error:", innerErr) end
-                        end)
-                    end)
-                end
-            end)
-            if not success then warn("[DraggerV2] InputBegan error:", err) end
-        end)
-    end)
+					pcall(function()
+						input.Changed:Connect(function()
+							local ok, innerErr = pcall(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+								end
+							end)
+							if not ok then warn("[DraggerV2] input.Changed error:", innerErr) end
+						end)
+					end)
+				end
+			end)
+			if not success then warn("[DraggerV2] InputBegan error:", err) end
+		end)
+	end)
 
-    pcall(function()
-        dragui.InputChanged:Connect(function(input)
-            local success, err = pcall(function()
-                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                    dragInput = input
-                end
-            end)
-            if not success then warn("[DraggerV2] InputChanged error:", err) end
-        end)
-    end)
+	pcall(function()
+		dragui.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
+				end
+			end)
+			if not success then warn("[DraggerV2] InputChanged error:", err) end
+		end)
+	end)
 
-    pcall(function()
-        UserInputService.InputChanged:Connect(function(input)
-            local success, err = pcall(function()
-                if input == dragInput and dragging then
-                    update(input)
-                end
-            end)
-            if not success then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
-        end)
-    end)
+	pcall(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = pcall(function()
+				if input == dragInput and dragging then
+					update(input)
+				end
+			end)
+			if not success then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
+		end)
+	end)
 
-    local function onScreenSizeChanged()
-        local success, err = pcall(function()
-            local parentSize = screenGui.AbsoluteSize
-            local uiSize = ui.AbsoluteSize
-            local currentPos = ui.Position
+	local function onScreenSizeChanged()
+		local success, err = pcall(function()
+			local parentSize = screenGui.AbsoluteSize
+			local uiSize = ui.AbsoluteSize
+			local currentPos = ui.Position
 
-            local anchor = ui.AnchorPoint
-            local minX = anchor.X * (uiSize.X / parentSize.X)
-            local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-            local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-            local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+			local anchor = ui.AnchorPoint
+			local minX = anchor.X * (uiSize.X / parentSize.X)
+			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
+			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
+			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
 
-            local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
-            local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
+			local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
+			local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
 
-            ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-        end)
-        if not success then
-            warn("[DraggerV2] Screen size update error:", err)
-        end
-    end
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("[DraggerV2] Screen size update error:", err)
+		end
+	end
 
-    pcall(function()
-        screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
-    end)
+	pcall(function()
+		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+	end)
 
-    local success, err = pcall(function()
-        ui.Active = true
-    end)
-    if not success then warn("[DraggerV2] Set Active error:", err) end
+	local success, err = pcall(function()
+		ui.Active = true
+	end)
+	if not success then warn("[DraggerV2] Set Active error:", err) end
 end
 
 gui.menu = function(menu)
@@ -19543,7 +19573,7 @@ end)
 
 NACaller(function()
 	if NAjson.annc and NAjson.annc ~= "" then
-		DoWindow(NAjson.annc, 99999999999999999, adminName.." Announcement")
+		DoPopup(NAjson.annc, adminName.." Announcement")
 	end
 end)
 
