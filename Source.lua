@@ -11254,13 +11254,20 @@ end)
 local specUI=nil
 local connStep,connAdd,connRemove=nil,nil,nil
 
-function doCLEAR(c)if c then c:Disconnect()end return nil end
 function cleanup()
-    connStep=doCLEAR(connStep)
-    connAdd=doCLEAR(connAdd)
-    connRemove=doCLEAR(connRemove)
-    if specUI then specUI:Destroy() specUI=nil end
-    workspace.CurrentCamera.CameraSubject=getHum()
+    lib.disconnect("spectate_char")
+    lib.disconnect("spectate_loop")
+    lib.disconnect("spectate_leave")
+
+    if connStep then connStep:Disconnect() connStep = nil end
+    if connAdd then connAdd:Disconnect() connAdd = nil end
+    if connRemove then connRemove:Disconnect() connRemove = nil end
+
+    if specUI then specUI:Destroy() specUI = nil end
+
+    local hum  = getHum()
+    local cam  = workspace.CurrentCamera
+    if hum then cam.CameraSubject = hum end
 end
 
 function spectatePlayer(targetPlayer)
