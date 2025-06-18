@@ -68,6 +68,7 @@ local function CreateNotificationFrame(Y)
 	Frame.BackgroundColor3 = NOTIFICATION_COLORS.Background
 	Frame.BackgroundTransparency = 1
 	Frame.BorderSizePixel = 0
+	Frame.ClipsDescendants = true
 
 	local Stroke = Instance.new("UIStroke", Frame)
 	Stroke.Color = NOTIFICATION_COLORS.Stroke
@@ -668,6 +669,7 @@ _G.EnhancedNotifs = {
 		wf.BackgroundColor3       = NOTIFICATION_COLORS.Background
 		wf.BackgroundTransparency = 1
 		wf.BorderSizePixel        = 0
+		wf.ClipsDescendants       = true
 		Instance.new("UICorner", wf).CornerRadius = UDim.new(0, 8)
 		local stroke = Instance.new("UIStroke", wf)
 		stroke.Color           = NOTIFICATION_COLORS.Stroke
@@ -840,6 +842,7 @@ _G.EnhancedNotifs = {
 		f.BackgroundColor3      = NOTIFICATION_COLORS.Background
 		f.BackgroundTransparency= 1
 		f.BorderSizePixel       = 0
+		f.ClipsDescendants      = true
 		Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
 		local stroke = Instance.new("UIStroke", f)
 		stroke.Color     = NOTIFICATION_COLORS.Stroke
