@@ -18471,7 +18471,7 @@ gui.addToggle = function(label, defaultValue, callback)
 			stroke.Color = Color3.fromRGB(50, 255, 80)
 		else
 			indicator.Position = UDim2.new(1, -40, 0.5, 0)
-			indicator.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			indicator.BackgroundColor3 = Color3.fromRGB(111, 111, 121)
 			stroke.Color = Color3.fromRGB(80, 80, 80)
 		end
 	end
@@ -19146,7 +19146,7 @@ gui.barSelect = function(speed)
     centerBar.Size = UDim2.new(0, 0, 0, 0)
 
     gui.tween(centerBar, "Back", "Out", speed, {
-        Size = UDim2.new(0, 250, 1, 15)
+        Size = UDim2.new(0, 280, 1, 10)
     })
 
     leftFill.Position = UDim2.new(0.5, 0, 0.5, 0)
