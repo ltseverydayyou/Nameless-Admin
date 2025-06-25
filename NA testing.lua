@@ -1914,7 +1914,7 @@ end
 function NAESP(player, persistent)
     persistent = persistent or false
 
-    Delay(0.1,function()
+    Defer(function()
         discPlrESP(player)
         local character = getPlrChar(player)
         if not character or not character:IsA("Model") then return end
