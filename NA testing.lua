@@ -491,6 +491,7 @@ local NAfiles = {
 	NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt";
 	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
 	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
+	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
 	NACHATTAG = "Nameless-Admin/ChatTag.json";
 }
 NAUserButtons = {}
@@ -1867,137 +1868,181 @@ function storeESP(p, cType, conn)
 	Insert(espCONS[p.Name], { type = cType, connection = conn })
 end
 
-function discPlrESP(player)
-	if espCONS[player.Name] then
-		for _, entry in ipairs(espCONS[player.Name]) do
-			if entry.connection then
-				entry.connection:Disconnect()
-			end
-		end
-		espCONS[player.Name] = nil
-	end
-	removeESPonLEAVE(player)
+function removeESPonLEAVE(player)
+    local esp = espCONS[player]
+    if esp then
+        for part, entry in pairs(esp) do
+            if type(entry) == "table" then
+                if entry.boxHandle then entry.boxHandle:Destroy() end
+                if entry.billboard then entry.billboard:Destroy() end
+                if entry.connection then entry.connection:Disconnect() end
+            end
+        end
+        if esp.connection then esp.connection:Disconnect() end
+        if esp.descendantAdded then esp.descendantAdded:Disconnect() end
+        espCONS[player] = nil
+    end
 end
 
 function removeAllESP()
-	for _, esp in pairs(espCONS) do
-		if esp.highlight then esp.highlight:Destroy() end
-		if esp.billboard then esp.billboard:Destroy() end
-		if esp.connection then esp.connection:Disconnect() end
-	end
-	table.clear(espCONS)
+    for player, esp in pairs(espCONS) do
+        for part, entry in pairs(esp) do
+            if type(entry) == "table" then
+                if entry.boxHandle then entry.boxHandle:Destroy() end
+                if entry.billboard then entry.billboard:Destroy() end
+                if entry.connection then entry.connection:Disconnect() end
+            end
+        end
+        if esp.connection then esp.connection:Disconnect() end
+        if esp.descendantAdded then esp.descendantAdded:Disconnect() end
+    end
+    table.clear(espCONS)
 end
 
-function removeESPonLEAVE(player)
-	local esp = espCONS[player]
-	if esp then
-		if esp.highlight then esp.highlight:Destroy() end
-		if esp.billboard then esp.billboard:Destroy() end
-		if esp.connection then esp.connection:Disconnect() end
-		espCONS[player] = nil
-	end
+function discPlrESP(player)
+    if espCONS[player.Name] then
+        for part, entry in pairs(espCONS[player.Name]) do
+            if type(entry) == "table" and entry.connection then
+                entry.connection:Disconnect()
+            end
+        end
+        espCONS[player.Name] = nil
+    end
+    removeESPonLEAVE(player)
 end
 
 function NAESP(player, persistent)
-	persistent = persistent or false
+    persistent = persistent or false
 
-	Spawn(function()
-		discPlrESP(player)
-		local character = getPlrChar(player)
-		if not character then return end
-		if espCONS[player] then
-			if espCONS[player].highlight then espCONS[player].highlight:Destroy() end
-			if espCONS[player].billboard then espCONS[player].billboard:Destroy() end
-			if espCONS[player].connection then espCONS[player].connection:Disconnect() end
-		end
+    Defer(function()
+        discPlrESP(player)
+        local character = getPlrChar(player)
+        if not character or not character:IsA("Model") then return end
+        if espCONS[player] then
+            for _, entry in pairs(espCONS[player]) do
+                if entry.boxHandle then entry.boxHandle:Destroy() end
+                if entry.billboard then entry.billboard:Destroy() end
+                if entry.connection then entry.connection:Disconnect() end
+            end
+            espCONS[player] = {}
+        else
+            espCONS[player] = {}
+        end
 
-		local highlight = InstanceNew("Highlight")
-		highlight.Name = "\0"
-		highlight.FillTransparency = 0.6
-		highlight.OutlineTransparency = 0
-		highlight.OutlineColor = Color3.new(1, 1, 1)
-		highlight.Parent = character
+        local function createBoxHandle(part)
+            local boxHandle = Instance.new("BoxHandleAdornment")
+            boxHandle.Name = "\0"
+            boxHandle.Transparency = 0.5
+            boxHandle.Color3 = Color3.new(1, 1, 1)
+            boxHandle.Adornee = part
+            boxHandle.AlwaysOnTop = true
+            boxHandle.ZIndex = 1
+            boxHandle.Size = part.Size
+            boxHandle.Parent = part
+            return boxHandle
+        end
 
-		local billboardGui, textLabel
-		if getHead(character) and not chamsEnabled then
-			billboardGui = InstanceNew("BillboardGui")
-			billboardGui.Name = "\0"
-			billboardGui.Size = UDim2.new(0, 200, 0, 50)
-			billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
-			billboardGui.AlwaysOnTop = true
-			billboardGui.Parent = getHead(character)
+        local function createBillboard(head)
+            local billboardGui = Instance.new("BillboardGui")
+            billboardGui.Name = "\0"
+            billboardGui.Size = UDim2.new(0, 200, 0, 50)
+            billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
+            billboardGui.AlwaysOnTop = true
+            billboardGui.Parent = head
 
-			textLabel = InstanceNew("TextLabel")
-			textLabel.Size = UDim2.new(1, 0, 1, 0)
-			textLabel.Position = UDim2.new(0, 0, 0, 0)
-			textLabel.BackgroundTransparency = 1
-			textLabel.TextColor3 = Color3.new(1, 1, 1)
-			textLabel.Font = Enum.Font.GothamBold
-			textLabel.TextSize = 14
-			textLabel.TextStrokeTransparency = 0.2
-			textLabel.Text = ""
-			textLabel.Parent = billboardGui
-		end
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.Position = UDim2.new(0, 0, 0, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.new(1, 1, 1)
+            textLabel.Font = Enum.Font.GothamBold
+            textLabel.TextSize = 14
+            textLabel.TextStrokeTransparency = 0.2
+            textLabel.Text = ""
+            textLabel.Parent = billboardGui
 
-		local rootPart = getRoot(character)
-		local humanoid = getPlrHum(character)
-		local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local accumulator = 0
+            return { billboard = billboardGui, textLabel = textLabel }
+        end
 
-		local espLoop
-		espLoop = RunService.Heartbeat:Connect(function(dt)
-			accumulator = accumulator + dt
-			if accumulator < 0.066 then return end
-			accumulator = 0
-			if not character:IsDescendantOf(workspace) then
-				espLoop:Disconnect()
-				return
-			end
+        local function updateESP()
+            local rootPart = getRoot(character)
+            local humanoid = getPlrHum(character)
+            local localChar = getPlrChar(Players.LocalPlayer)
+            local localRoot = localChar and getRoot(localChar)
+            local head = getHead(character)
 
-			if not rootPart or not humanoid then return end
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    local espEntry = espCONS[player][part]
+                    if not espEntry then
+                        espEntry = {}
+                        espEntry.boxHandle = createBoxHandle(part)
+                        if part == head and not chamsEnabled then
+                            local billboardInfo = createBillboard(part)
+                            espEntry.billboard = billboardInfo.billboard
+                            espEntry.textLabel = billboardInfo.textLabel
+                        end
+                        espCONS[player][part] = espEntry
+                    end
 
-			local health = math.floor(humanoid.Health)
-			local maxHealth = math.floor(humanoid.MaxHealth)
-			local localChar = getPlrChar(Players.LocalPlayer)
-			local localRoot = localChar and getRoot(localChar)
-			local distance = 0
-			local distanceColor = Color3.fromRGB(255, 255, 255)
-			if localRoot and rootPart then
-				distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
-				distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
-					or distance < 100 and Color3.fromRGB(255, 165, 0)
-					or Color3.fromRGB(0, 255, 0)
-			end
+                    local distance = 0
+                    local distanceColor = Color3.fromRGB(255, 255, 255)
+                    if localRoot and rootPart then
+                        distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
+                        distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
+                            or distance < 100 and Color3.fromRGB(255, 165, 0)
+                            or Color3.fromRGB(0, 255, 0)
+                    end
 
-			local teamColor
-			if lib.isProperty(player, "Team") and lib.isProperty(player.Team, "TeamColor") then
-				teamColor = player.Team.TeamColor.Color
-			end
-			local targetColor = teamColor or distanceColor
+                    local teamColor
+                    if lib.isProperty(player, "Team") and lib.isProperty(player.Team, "TeamColor") then
+                        teamColor = player.Team.TeamColor.Color
+                    end
+                    local targetColor = teamColor or distanceColor
 
-			if textLabel then
-				local newText = Format("%s | %d/%d HP%s", nameChecker(player), health, maxHealth,
-					localRoot and Format(" | %d studs", distance) or "")
-				if textLabel.Text ~= newText then
-					textLabel.Text = newText
-				end
-				if textLabel.TextColor3 ~= distanceColor then
-					TweenService:Create(textLabel, tweenInfo, { TextColor3 = distanceColor }):Play()
-				end
-			end
+                    if espEntry.boxHandle.Color3 ~= targetColor then
+                        TweenService:Create(espEntry.boxHandle, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Color3 = targetColor }):Play()
+                    end
 
-			if highlight.FillColor ~= targetColor then
-				TweenService:Create(highlight, tweenInfo, { FillColor = targetColor }):Play()
-			end
-		end)
+                    if espEntry.textLabel then
+                        local health = math.floor(humanoid.Health)
+                        local maxHealth = math.floor(humanoid.MaxHealth)
+                        local newText = Format("%s | %d/%d HP%s", nameChecker(player), health, maxHealth,
+                            localRoot and Format(" | %d studs", distance) or "")
+                        if espEntry.textLabel.Text ~= newText then
+                            espEntry.textLabel.Text = newText
+                        end
+                        if espEntry.textLabel.TextColor3 ~= distanceColor then
+                            TweenService:Create(espEntry.textLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextColor3 = distanceColor }):Play()
+                        end
+                    end
+                end
+            end
+        end
 
-		espCONS[player] = {
-			highlight = highlight,
-			billboard = billboardGui,
-			connection = espLoop
-		}
+        local espLoop
+        espLoop = RunService.Heartbeat:Connect(function(dt)
+            if not character:IsDescendantOf(workspace) then
+                espLoop:Disconnect()
+                removeESPonLEAVE(player)
+                return
+            end
+            updateESP()
+        end)
 
-		if not player:IsA("Model") then
+        local descendantAddedConnection
+        descendantAddedConnection = character.DescendantAdded:Connect(function(descendant)
+            if descendant:IsA("BasePart") then
+                Defer(function()
+                    updateESP()
+                end)
+            end
+        end)
+
+        espCONS[player].connection = espLoop
+        espCONS[player].descendantAdded = descendantAddedConnection
+
+        if not player:IsA("Model") then
 			local characterAddedConnection
 			characterAddedConnection = player.CharacterAdded:Connect(function()
 				if not ESPenabled and not persistent then
@@ -2006,17 +2051,28 @@ function NAESP(player, persistent)
 				end
 				local char = player.Character or player.CharacterAdded:Wait()
 				if espCONS[player] then
-					if espCONS[player].highlight then espCONS[player].highlight:Destroy() end
-					if espCONS[player].billboard then espCONS[player].billboard:Destroy() end
+					for part, entry in pairs(espCONS[player]) do
+						if type(entry) == "table" then
+							if entry.boxHandle then entry.boxHandle:Destroy() end
+							if entry.billboard then entry.billboard:Destroy() end
+							if entry.connection then entry.connection:Disconnect() end
+						end
+					end
 					if espCONS[player].connection then espCONS[player].connection:Disconnect() end
+					if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
 					espCONS[player] = nil
 				end
-				Wait(0.5)
-				NAESP(player, persistent)
+				Defer(function()
+					Wait(0.5)
+					NAESP(player, persistent)
+				end)
 			end)
 			storeESP(player, "characterAdded", characterAddedConnection)
 		end
-	end)
+
+
+        updateESP()
+    end)
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -2111,20 +2167,72 @@ if getChar() and getBp() then
 	tool=getBp():FindFirstChildOfClass("Tool") or getChar():FindFirstChildOfClass("Tool")
 end
 
-function xxRAYYYY(v)
-	if v then
-		for _,i in pairs(workspace:GetDescendants()) do
-			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
-				i.LocalTransparencyModifier=0.5
-			end
-		end
-	else
-		for _,i in pairs(workspace:GetDescendants()) do
-			if i:IsA("BasePart") and not i.Parent:FindFirstChildOfClass("Humanoid") and not i.Parent.Parent:FindFirstChildOfClass("Humanoid") then
-				i.LocalTransparencyModifier=0
-			end
-		end
-	end
+local xrayConn = nil
+
+function togXray(en)
+    if type(en) ~= "boolean" then
+        warn("togXray: Invalid arg, expected boolean")
+        return
+    end
+
+    local transVal = en and 0.5 or 0.0
+
+    if en then
+        xrayConn = workspace.DescendantAdded:Connect(function(desc)
+            if desc:IsA("BasePart") then
+                local hasHum = false
+                local cur = desc.Parent
+                for i = 1, 5 do
+                    if cur and cur:FindFirstChildOfClass("Humanoid") then
+                        hasHum = true
+                        break
+                    end
+                    cur = cur.Parent
+                    if not cur or cur == workspace then
+                        break
+                    end
+                end
+                if not hasHum then
+                    local ok, err = pcall(function()
+                        desc.LocalTransparencyModifier = 0.5
+                    end)
+                    if not ok then
+                        warn("Failed to mod transparency for new part "..tostring(desc)..": "..tostring(err))
+                    end
+                end
+            end
+        end)
+    else
+        if xrayConn then
+            xrayConn:Disconnect()
+            xrayConn = nil
+        end
+    end
+
+    for _, prt in pairs(workspace:GetDescendants()) do
+        if prt:IsA("BasePart") then
+            local hasHum = false
+            local cur = prt.Parent
+            for i = 1, 5 do
+                if cur and cur:FindFirstChildOfClass("Humanoid") then
+                    hasHum = true
+                    break
+                end
+                cur = cur.Parent
+                if not cur or cur == workspace then
+                    break
+                end
+            end
+            if not hasHum then
+                local ok, err = pcall(function()
+                    prt.LocalTransparencyModifier = transVal
+                end)
+                if not ok then
+                    warn("Failed to mod transparency for part "..tostring(prt)..": "..tostring(err))
+                end
+            end
+        end
+    end
 end
 
 -- [[ FLY VARIABLES ]] --
@@ -2463,11 +2571,10 @@ NAmanage.LogJoinLeave = function(message)
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
 
 	local logMessage = Format(
-		"%s %s | Game: %s | Creator: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
+		"%s %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
 		timestamp,
 		message,
 		placeName(),
-		placeCreator(),
 		tostring(PlaceId),
 		tostring(GameId),
 		tostring(JobId)
@@ -10714,6 +10821,26 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		ZIndex = 0
 	}, ScreenGui)
 
+	local staticOverlay = createUIElement("ImageLabel", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Image = "rbxassetid://259236205", 
+		ImageTransparency = 0.8,
+		ZIndex = 1
+	}, background)
+
+	coroutine.wrap(function()
+		while not getgenv().SawFinish do
+			local tween = TweenService:Create(
+				staticOverlay,
+				TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+				{ ImageTransparency = math.random(0.7, 0.9), Position = UDim2.new(math.random(-0.01, 0.01), 0, math.random(-0.01, 0.01), 0) }
+			)
+			tween:Play()
+			Wait(math.random(0.05, 0.2))
+		end
+	end)()
+
 	local bgTween = TweenService:Create(
 		background,
 		TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -10753,10 +10880,25 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			local tween = TweenService:Create(
 				imgLabel,
 				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
-				{ Size = UDim2.new(0, newSize, 0, newSize), Rotation = newRotation }
+				{ Size = UDim2.new(0, newSize, 0, newSize), Rotation = newRotation, ImageColor3 = Color3.fromRGB(math.random(200, 255), 0, 0) }
 			)
 			tween:Play()
 			tween.Completed:Wait()
+			if math.random() < 0.2 then
+				local glitchTween = TweenService:Create(
+					imgLabel,
+					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+					{ ImageTransparency = math.random(0.3, 0.7), Position = UDim2.new(0.5 + math.random(-0.05, 0.05), 0, 0.1 + math.random(-0.05, 0.05), 0) }
+				)
+				glitchTween:Play()
+				glitchTween.Completed:Wait()
+				local resetTween = TweenService:Create(
+					imgLabel,
+					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+					{ ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.1, 0) }
+				)
+				resetTween:Play()
+			end
 		end
 	end)()
 
@@ -10770,6 +10912,8 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		Text = "Challenge: "..challenge,
 		TextColor3 = Color3.fromRGB(255, 0, 0),
 		TextSize = 24,
+		TextStrokeColor3 = Color3.fromRGB(100, 0, 0),
+		TextStrokeTransparency = 0.5,
 		TextWrapped = true,
 		ZIndex = 3
 	}, ScreenGui)
@@ -10784,6 +10928,8 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		Text = "Time Remaining: 180 seconds",
 		TextColor3 = Color3.fromRGB(255, 0, 0),
 		TextSize = 24,
+		TextStrokeColor3 = Color3.fromRGB(100, 0, 0),
+		TextStrokeTransparency = 0.5,
 		TextWrapped = true,
 		ZIndex = 3
 	}, ScreenGui)
@@ -10807,6 +10953,8 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			local newColor = Color3.fromRGB(math.random(200, 255), 0, 0)
 			ttLabelLeft.TextColor3 = newColor
 			ttLabelRight.TextColor3 = newColor
+			ttLabelLeft.TextStrokeTransparency = math.random(0.4, 0.7)
+			ttLabelRight.TextStrokeTransparency = math.random(0.4, 0.7)
 			ttLabelLeft.Text = "Challenge: "..challenge:sub(1, math.random(1, #challenge))
 			Wait(math.random(0.05, 0.15))
 		end
@@ -10815,9 +10963,31 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	local function dramaticCountdown(num)
 		dramaticLabel.Text = tostring(num)
 		playSound(138081500, 2)
+		for i = 1, 5 do
+			local shakeTween = TweenService:Create(
+				dramaticLabel,
+				TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+				{ Position = UDim2.new(0.5 + math.random(-0.02, 0.02), 0, 0.7 + math.random(-0.02, 0.02), 0) }
+			)
+			shakeTween:Play()
+			shakeTween.Completed:Wait()
+		end
+		local resetTween = TweenService:Create(
+			dramaticLabel,
+			TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+			{ Position = UDim2.new(0.5, 0, 0.7, 0) }
+		)
+		resetTween:Play()
 		Wait(1)
 		dramaticLabel.Text = ""
 	end
+
+	local ambientSound = InstanceNew("Sound")
+	ambientSound.Parent = PlrGui
+	ambientSound.SoundId = "rbxassetid://1846090198"
+	ambientSound.Volume = 0.2
+	ambientSound.Looped = true
+	ambientSound:Play()
 
 	local function count()
 		local num = 180
@@ -10825,14 +10995,15 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			if not getgenv().SawFinish then
 				if num > 0 then
 					num = num - 1
-					playSound(138081500, 1)
+					playSound(138081500, num <= 10 and 2 or 1)
 					ttLabelRight.Text = "Time Remaining: "..num.." seconds"
 
 					local progress = num / 180
+					local jitter = math.random(-0.02, 0.02)
 					local tween = TweenService:Create(
 						progressFill,
 						TweenInfo.new(1, Enum.EasingStyle.Linear),
-						{ Size = UDim2.new(progress, 0, 1, 0) }
+						{ Size = UDim2.new(progress + jitter, 0, 1, 0), BackgroundColor3 = num <= 30 and Color3.fromRGB(math.random(200, 255), math.random(0, 50), 0) or Color3.fromRGB(255, 0, 0) }
 					)
 					tween:Play()
 
@@ -10843,15 +11014,65 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 						playSound(138081500, 2)
 					end
 				else
+					local flash = createUIElement("Frame", {
+						BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+						BackgroundTransparency = 0,
+						Size = UDim2.new(1, 0, 1, 0),
+						ZIndex = 10
+					}, ScreenGui)
+					playSound(9125915751, 5)
+					Wait(0.2)
+					flash:Destroy()
 					Players.LocalPlayer:Kick("You Failed The Challenge")
 				end
 			else
 				ttLabelLeft.Text = "You Survived... For Now"
 				ttLabelRight.Text = ""
-				dramaticLabel.Text = ""
+				dramaticLabel.Text = "I'll be watching..."
+				local distortion = createUIElement("Frame", {
+					BackgroundColor3 = Color3.fromRGB(100, 0, 0),
+					BackgroundTransparency = 0.7,
+					Size = UDim2.new(1, 0, 1, 0),
+					ZIndex = 5
+				}, ScreenGui)
+				local glitchOverlay = createUIElement("ImageLabel", {
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 1, 0),
+					Image = "rbxassetid://259236205",
+					ImageTransparency = 0.5,
+					ZIndex = 6
+				}, distortion)
 				playSound(9125915751, 5)
-				Wait(2)
+				for i = 1, 3 do
+					local glitchTween = TweenService:Create(
+						glitchOverlay,
+						TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+						{ Position = UDim2.new(math.random(-0.05, 0.05), 0, math.random(-0.05, 0.05), 0), ImageTransparency = math.random(0.3, 0.7) }
+					)
+					glitchTween:Play()
+					Wait(0.15)
+				end
+				local fadeTween = TweenService:Create(
+					dramaticLabel,
+					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ TextTransparency = 1 }
+				)
+				local distortionFade = TweenService:Create(
+					distortion,
+					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ BackgroundTransparency = 1 }
+				)
+				local glitchFade = TweenService:Create(
+					glitchOverlay,
+					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+					{ ImageTransparency = 1 }
+				)
+				fadeTween:Play()
+				distortionFade:Play()
+				glitchFade:Play()
+				Wait(3)
 				ScreenGui:Destroy()
+				ambientSound:Destroy()
 				break
 			end
 		end
@@ -11061,23 +11282,39 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	end
 end, true)
 
-cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "FE dramatic oof sequence"}, function()
-	local p = Players.LocalPlayer
-	local c = p.Character or p.CharacterAdded:Wait()
-	local h = getHum()
+cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers a dramatic oof sequence for the player"}, function()
+    local p = Players.LocalPlayer
+    if not p then
+        return
+    end
 
-	lib.LocalPlayerChat("Okay.. I will do it.", "All")
-	Wait(1)
-	lib.LocalPlayerChat("I will oof", "All")
-	Wait(1)
-	lib.LocalPlayerChat("Goodbye.", "All")
-	Wait(1)
+    local c = p.Character
+    if not c then
+        c = p.CharacterAdded:Wait()
+    end
 
-	local r = getRoot(c)
-	h:MoveTo(r.Position + r.CFrame.LookVector * 10)
-	h:ChangeState(Enum.HumanoidStateType.Jumping)
-	Wait(0.5)
-	cmd.run({'die'})
+    local h = getPlrHum(c)
+    if not h then
+        return
+    end
+
+    local r = getRoot(c)
+    if not r then
+        return
+    end
+
+    lib.LocalPlayerChat("Okay... I will do it.", "All")
+    Wait(1.5)
+    lib.LocalPlayerChat("I will oof now...", "All")
+    Wait(1.5)
+    lib.LocalPlayerChat("Goodbye, cruel world.", "All")
+    Wait(2)
+
+    h:MoveTo(r.Position + r.CFrame.LookVector * 10)
+    h:ChangeState(Enum.HumanoidStateType.Jumping)
+    Wait(0.45)
+
+    cmd.run({'die'})
 end)
 
 cmd.add({"volume","vol"},{"volume <1-10> (vol)","Changes your volume"},function(vol)
@@ -11278,265 +11515,346 @@ cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Sto
 	end
 end)
 
-local specUI=nil
-local connStep,connAdd,connRemove=nil,nil,nil
+local specUI = nil
+local connStep, connAdd, connRemove = nil, nil, nil
 
 function cleanup()
-	lib.disconnect("spectate_char")
-	lib.disconnect("spectate_loop")
-	lib.disconnect("spectate_leave")
+    lib.disconnect("spectate_char")
+    lib.disconnect("spectate_loop")
+    lib.disconnect("spectate_leave")
 
-	if connStep then connStep:Disconnect() connStep = nil end
-	if connAdd then connAdd:Disconnect() connAdd = nil end
-	if connRemove then connRemove:Disconnect() connRemove = nil end
+    if connStep then connStep:Disconnect() connStep = nil end
+    if connAdd then connAdd:Disconnect() connAdd = nil end
+    if connRemove then connRemove:Disconnect() connRemove = nil end
 
-	if specUI then specUI:Destroy() specUI = nil end
+    if specUI then specUI:Destroy() specUI = nil end
 
-	local hum  = getHum()
-	local cam  = workspace.CurrentCamera
-	if hum then cam.CameraSubject = hum end
+    local hum = getHum()
+    local cam = workspace.CurrentCamera
+    if hum then cam.CameraSubject = hum end
 end
 
 function spectatePlayer(targetPlayer)
-	if not targetPlayer then return end
+    if not targetPlayer then return end
 
-	lib.disconnect("spectate_char")
-	lib.disconnect("spectate_loop")
-	lib.disconnect("spectate_leave")
+    lib.disconnect("spectate_char")
+    lib.disconnect("spectate_loop")
+    lib.disconnect("spectate_leave")
 
-	lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
-		while not getPlrHum(character) do Wait(.1) end
-		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
-	end))
+    lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
+        while not getPlrHum(character) do Wait(.1) end
+        workspace.CurrentCamera.CameraSubject = getPlrHum(character)
+    end))
 
-	lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
-		if player == targetPlayer then
-			cleanup()
-			DoNotif("Player left - camera reset")
-		end
-	end))
+    lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
+        if player == targetPlayer then
+            cleanup()
+            DoNotif("Player left - camera reset")
+        end
+    end))
 
-	local loop = coroutine.create(function()
-		while true do
-			if getPlrHum(targetPlayer) then
-				workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
-			end
-			Wait()
-		end
-	end)
-	lib.connect("spectate_loop", {
-		Disconnect = function()
-			if coroutine.status(loop) ~= "dead" then
-				coroutine.close(loop)
-			end
-		end
-	})
-	coroutine.resume(loop)
+    local loop = coroutine.create(function()
+        while true do
+            if getPlrHum(targetPlayer) then
+                workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
+            end
+            Wait()
+        end
+    end)
+    lib.connect("spectate_loop", {
+        Disconnect = function()
+            if coroutine.status(loop) ~= "dead" then
+                coroutine.close(loop)
+            end
+        end
+    })
+    coroutine.resume(loop)
 end
 
 cmd.add({"watch", "view", "spectate"}, {"watch <Player> (view, spectate)", "Spectate player"}, function(...)
-	cleanup()
-	local targetPlayer = getPlr((...))
-	for _, plr in next, targetPlayer do
-		if not plr then return end
-		spectatePlayer(plr)
-	end
+    cleanup()
+    local targetPlayer = getPlr((...))
+    for _, plr in next, targetPlayer do
+        if not plr then return end
+        spectatePlayer(plr)
+    end
 end, true)
 
 cmd.add({"unwatch", "unview"}, {"unwatch (unview)", "Stop spectating"}, function()
-	cleanup()
+    cleanup()
 end)
 
 cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
-	local LocalPlayer=Players.LocalPlayer
+    local LocalPlayer = Players.LocalPlayer
+    local spectatedPlayer = nil
+    local playerList, currentIndex = {}, 1
+    local frame, titleLabel, toggleBtn, scroll, listOpen = false, false, false, false, false
+    local baseTogglePos = 5
 
-	local playerList,currentIndex={},1
-	local frame,titleLabel,toggleBtn,scroll,listOpen=false,false,false,false,false
-	local baseTogglePos=5
+    local function rebuild()
+        table.clear(playerList)
+        for _, p in ipairs(Players:GetPlayers()) do
+            table.insert(playerList, p)
+        end
+        table.sort(playerList, function(a, b) return a.Name < b.Name end)
+    end
 
-	local function rebuild()
-		table.clear(playerList)
-		for _,p in ipairs(Players:GetPlayers()) do Insert(playerList,p) end
-		table.sort(playerList,function(a,b)return a.Name<b.Name end)
-		if currentIndex>#playerList then currentIndex=1 end
-	end
+    local function cam(p)
+        local h = getPlrHum(p)
+        workspace.CurrentCamera.CameraSubject = h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
+    end
 
-	local function cam(p)
-		local h=getPlrHum(p)
-		workspace.CurrentCamera.CameraSubject=h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
-	end
+    local function recolor()
+        if not listOpen or not scroll then return end
+        for _, btn in ipairs(scroll:GetChildren()) do
+            if btn:IsA("TextButton") then
+                local idx = btn:GetAttribute("idx")
+                local lbl = btn:FindFirstChild("NameLabel")
+                if idx and lbl then
+                    local plr = playerList[idx]
+                    if plr == LocalPlayer then
+                        lbl.TextColor3 = Color3.fromRGB(255, 255, 0)
+                    elseif idx == currentIndex then
+                        lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
+                    else
+                        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    end
+                end
+            end
+        end
+    end
 
-	local function recolor()
-		if not listOpen or not scroll then return end
-		for _,btn in ipairs(scroll:GetChildren())do
-			if btn:IsA("TextButton") then
-				local idx=btn:GetAttribute("idx")
-				local lbl=btn:FindFirstChild("NameLabel")
-				if idx and lbl then
-					local plr=playerList[idx]
-					if plr==LocalPlayer then
-						lbl.TextColor3=Color3.fromRGB(255,255,0)
-					elseif idx==currentIndex then
-						lbl.TextColor3=Color3.fromRGB(0,162,255)
-					else
-						lbl.TextColor3=Color3.fromRGB(255,255,255)
-					end
-				end
-			end
-		end
-	end
+    local function refresh()
+        if not titleLabel then return end
+        if #playerList == 0 then
+            titleLabel.Text = "Spectating: None"
+            spectatedPlayer = nil
+            return
+        end
+        if spectatedPlayer and table.find(playerList, spectatedPlayer) then
+            currentIndex = table.find(playerList, spectatedPlayer)
+        else
+            if currentIndex < 1 then currentIndex = 1 end
+            if currentIndex > #playerList then currentIndex = 1 end
+            spectatedPlayer = playerList[currentIndex]
+        end
+        local plr = playerList[currentIndex]
+        if not plr then
+            titleLabel.Text = "Spectating: None"
+            spectatedPlayer = nil
+            return
+        end
+        titleLabel.Text = "Spectating: " .. nameChecker(plr)
+        titleLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(0, 162, 255)
+        cam(plr)
+        recolor()
+    end
 
-	local function refresh()
-		if not titleLabel then return end
-		if #playerList==0 then
-			titleLabel.Text="Spectating: None"
-			return
-		end
-		if currentIndex<1 then currentIndex=1 end
-		if currentIndex>#playerList then currentIndex=1 end
-		local plr=playerList[currentIndex]
-		if not plr then
-			titleLabel.Text="Spectating: None"
-			return
-		end
-		titleLabel.Text="Spectating: "..nameChecker(plr)
-		titleLabel.TextColor3=(plr==LocalPlayer)and Color3.fromRGB(255,255,0)or Color3.fromRGB(0,162,255)
-		cam(plr)
-		recolor()
-	end
+    local function updateDropdown()
+        if not listOpen or not scroll then return end
+        for _, child in ipairs(scroll:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
+            end
+        end
+        for i, plr in ipairs(playerList) do
+            local pb = InstanceNew("TextButton", scroll)
+            pb.Size = UDim2.new(1, 0, 0, 30)
+            pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            pb.Font = Enum.Font.Gotham
+            pb.Text = ""
+            pb.LayoutOrder = i
+            pb:SetAttribute("idx", i)
+            InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
 
-	local function mkBtn(txt,pos,size,bg,ts,cb)
-		local b=InstanceNew("TextButton",frame)
-		b.Size=size or UDim2.new(0,40,0,40)
-		b.Position=pos
-		b.BackgroundColor3=bg or Color3.fromRGB(50,50,50)
-		b.Text=txt
-		b.TextColor3=Color3.new(1,1,1)
-		b.Font=Enum.Font.GothamBold
-		b.TextSize=ts or 24
-		InstanceNew("UICorner",b).CornerRadius=UDim.new(0,10)
-		MouseButtonFix(b,cb)
-		return b
-	end
+            local img = InstanceNew("ImageLabel", pb)
+            img.Size = UDim2.new(0, 30, 0, 30)
+            img.BackgroundTransparency = 1
+            img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 
-	rebuild()
-	if #playerList==0 then return DoNotif("No players to spectate",2) end
+            local nameLbl = InstanceNew("TextLabel", pb)
+            nameLbl.Name = "NameLabel"
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Size = UDim2.new(1, -35, 1, 0)
+            nameLbl.Position = UDim2.new(0, 35, 0, 0)
+            nameLbl.Font = Enum.Font.Gotham
+            nameLbl.TextScaled = true
+            nameLbl.Text = nameChecker(plr)
 
-	specUI=InstanceNew("ScreenGui") NaProtectUI(specUI) specUI.ResetOnSpawn=false specUI.DisplayOrder=10
-	frame=InstanceNew("Frame",specUI)
-	frame.AnchorPoint=Vector2.new(0.5,1)
-	frame.Size=UDim2.new(0,350,0,40)
-	frame.Position=UDim2.new(0.5, 0, 0.1, 0)
-	frame.BackgroundColor3=Color3.fromRGB(30,30,30)
-	frame.BorderSizePixel=0
-	InstanceNew("UICorner",frame).CornerRadius=UDim.new(0,20)
-	gui.draggerV2(frame)
+            MouseButtonFix(pb, function()
+                currentIndex = i
+                spectatedPlayer = playerList[currentIndex]
+                refresh()
+            end)
+        end
+        local h = math.min(#playerList * 30, 300)
+        scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
+        scroll.Size = UDim2.new(1, 0, 0, h)
+        toggleBtn.Position = UDim2.new(0.5, -15, 1, h + 10)
+        recolor()
+    end
 
-	titleLabel=InstanceNew("TextLabel",frame)
-	titleLabel.BackgroundTransparency=1
-	titleLabel.Size=UDim2.new(0.7,0,1,0)
-	titleLabel.Position=UDim2.new(0.15,0,0,0)
-	titleLabel.Font=Enum.Font.GothamBold
-	titleLabel.TextScaled=true
+    local function mkBtn(txt, pos, size, bg, ts, cb)
+        local b = InstanceNew("TextButton", frame)
+        b.Size = size or UDim2.new(0, 40, 0, 40)
+        b.Position = pos
+        b.BackgroundColor3 = bg or Color3.fromRGB(50, 50, 50)
+        b.Text = txt
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = ts or 24
+        InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 10)
+        MouseButtonFix(b, cb)
+        return b
+    end
 
-	mkBtn("<",UDim2.new(0,-18,0,0),nil,nil,nil,function()
-		currentIndex=currentIndex-1 if currentIndex<1 then currentIndex=#playerList end refresh()
-	end)
-	mkBtn(">",UDim2.new(1,-22,0,0),nil,nil,nil,function()
-		currentIndex=currentIndex+1 if currentIndex>#playerList then currentIndex=1 end refresh()
-	end)
-	mkBtn("X",UDim2.new(1,-55,0,5),UDim2.new(0,30,0,30),Color3.fromRGB(255,50,50),18,function()
-		cleanup()
-	end)
+    rebuild()
+    if #playerList == 0 then return DoNotif("No players to spectate", 2) end
 
-	toggleBtn=mkBtn("v",UDim2.new(0.5,-15,1,baseTogglePos),UDim2.new(0,30,0,20),Color3.fromRGB(40,40,40),18,function()
-		if listOpen then
-			local tClose=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,0)})
-			local tPos=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,baseTogglePos)})
-			tClose:Play() tPos:Play()
-			tClose.Completed:Wait()
-			scroll:Destroy() scroll=nil listOpen=false toggleBtn.Text="v"
-		else
-			scroll=InstanceNew("ScrollingFrame",frame)
-			scroll.Size=UDim2.new(1,0,0,0)
-			scroll.Position=UDim2.new(0,0,1,0)
-			scroll.BackgroundColor3=Color3.fromRGB(40,40,40)
-			scroll.BorderSizePixel=0
-			scroll.ScrollBarThickness=8
-			scroll.AutomaticCanvasSize=Enum.AutomaticSize.Y
-			scroll.ClipsDescendants=true
-			InstanceNew("UICorner",scroll).CornerRadius=UDim.new(0,10)
-			InstanceNew("UIListLayout",scroll).SortOrder=Enum.SortOrder.LayoutOrder
+    specUI = InstanceNew("ScreenGui")
+    NaProtectUI(specUI)
+    specUI.ResetOnSpawn = false
+    specUI.DisplayOrder = 10
+    frame = InstanceNew("Frame", specUI)
+    frame.AnchorPoint = Vector2.new(0.5, 1)
+    frame.Size = UDim2.new(0, 350, 0, 40)
+    frame.Position = UDim2.new(0.5, 0, 0.1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 20)
+    gui.draggerV2(frame)
 
-			local loading=InstanceNew("TextLabel",scroll)
-			loading.Size=UDim2.new(1,0,0,30)
-			loading.BackgroundTransparency=1
-			loading.Font=Enum.Font.GothamSemibold
-			loading.TextScaled=true
-			loading.TextColor3=Color3.fromRGB(255,255,255)
-			loading.Text="Loading..."
+    titleLabel = InstanceNew("TextLabel", frame)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+    titleLabel.Position = UDim2.new(0.15, 0, 0, 0)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextScaled = true
 
-			Spawn(function()
-				loading:Destroy()
-				for i,plr in ipairs(playerList) do
-					local pb=InstanceNew("TextButton",scroll)
-					pb.Size=UDim2.new(1,0,0,30)
-					pb.BackgroundColor3=Color3.fromRGB(50,50,50)
-					pb.Font=Enum.Font.Gotham
-					pb.Text=""
-					pb.LayoutOrder=i
-					pb:SetAttribute("idx",i)
-					InstanceNew("UICorner",pb).CornerRadius=UDim.new(0,6)
+    mkBtn("<", UDim2.new(0, -18, 0, 0), nil, nil, nil, function()
+        currentIndex = currentIndex - 1
+        if currentIndex < 1 then currentIndex = #playerList end
+        spectatedPlayer = playerList[currentIndex]
+        refresh()
+    end)
+    mkBtn(">", UDim2.new(1, -22, 0, 0), nil, nil, nil, function()
+        currentIndex = currentIndex + 1
+        if currentIndex > #playerList then currentIndex = 1 end
+        spectatedPlayer = playerList[currentIndex]
+        refresh()
+    end)
+    mkBtn("X", UDim2.new(1, -55, 0, 5), UDim2.new(0, 30, 0, 30), Color3.fromRGB(255, 50, 50), 18, function()
+        cleanup()
+    end)
 
-					local img=InstanceNew("ImageLabel",pb)
-					img.Size=UDim2.new(0,30,0,30)
-					img.BackgroundTransparency=1
-					img.Image=Players:GetUserThumbnailAsync(plr.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size420x420)
+    toggleBtn = mkBtn("v", UDim2.new(0.5, -15, 1, baseTogglePos), UDim2.new(0, 30, 0, 20), Color3.fromRGB(40, 40, 40), 18, function()
+        if listOpen then
+            local tClose = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 0)})
+            local tPos = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, baseTogglePos)})
+            tClose:Play()
+            tPos:Play()
+            tClose.Completed:Wait()
+            scroll:Destroy()
+            scroll = nil
+            listOpen = false
+            toggleBtn.Text = "v"
+        else
+            scroll = InstanceNew("ScrollingFrame", frame)
+            scroll.Size = UDim2.new(1, 0, 0, 0)
+            scroll.Position = UDim2.new(0, 0, 1, 0)
+            scroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            scroll.BorderSizePixel = 0
+            scroll.ScrollBarThickness = 8
+            scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+            scroll.ClipsDescendants = true
+            InstanceNew("UICorner", scroll).CornerRadius = UDim.new(0, 10)
+            InstanceNew("UIListLayout", scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
-					local nameLbl=InstanceNew("TextLabel",pb)
-					nameLbl.Name="NameLabel"
-					nameLbl.BackgroundTransparency=1
-					nameLbl.Size=UDim2.new(1,-35,1,0)
-					nameLbl.Position=UDim2.new(0,35,0,0)
-					nameLbl.Font=Enum.Font.Gotham
-					nameLbl.TextScaled=true
-					nameLbl.Text=nameChecker(plr)
+            local loading = InstanceNew("TextLabel", scroll)
+            loading.Size = UDim2.new(1, 0, 0, 30)
+            loading.BackgroundTransparency = 1
+            loading.Font = Enum.Font.GothamSemibold
+            loading.TextScaled = true
+            loading.TextColor3 = Color3.fromRGB(255, 255, 255)
+            loading.Text = "Loading..."
 
-					MouseButtonFix(pb,function()
-						currentIndex=i refresh()
-					end)
-				end
-				local h=math.min(#playerList*30,300)
-				scroll.CanvasSize=UDim2.new(0,0,0,#playerList*30)
-				local open=TweenService:Create(scroll,TweenInfo.new(0.25),{Size=UDim2.new(1,0,0,h)})
-				local move=TweenService:Create(toggleBtn,TweenInfo.new(0.25),{Position=UDim2.new(0.5,-15,1,h+10)})
-				open:Play() move:Play()
-				listOpen=true toggleBtn.Text="^"
-				recolor()
-			end)
-		end
-	end)
+            Spawn(function()
+                loading:Destroy()
+                for i, plr in ipairs(playerList) do
+                    local pb = InstanceNew("TextButton", scroll)
+                    pb.Size = UDim2.new(1, 0, 0, 30)
+                    pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                    pb.Font = Enum.Font.Gotham
+                    pb.Text = ""
+                    pb.LayoutOrder = i
+                    pb:SetAttribute("idx", i)
+                    InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
 
-	connStep=RunService.RenderStepped:Connect(function()
-		if #playerList==0 then return end
-		local p=playerList[currentIndex]
-		if not p or not p.Character then rebuild() end
-		cam(playerList[currentIndex])
-	end)
-	connAdd=Players.PlayerAdded:Connect(function()rebuild()refresh()recolor()end)
-	connRemove=Players.PlayerRemoving:Connect(function(plr)
-		rebuild()
-		if plr==playerList[currentIndex] then currentIndex=1 end
-		refresh() recolor()
-	end)
+                    local img = InstanceNew("ImageLabel", pb)
+                    img.Size = UDim2.new(0, 30, 0, 30)
+                    img.BackgroundTransparency = 1
+                    img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 
-	refresh()
-end,true)
+                    local nameLbl = InstanceNew("TextLabel", pb)
+                    nameLbl.Name = "NameLabel"
+                    nameLbl.BackgroundTransparency = 1
+                    nameLbl.Size = UDim2.new(1, -35, 1, 0)
+                    nameLbl.Position = UDim2.new(0, 35, 0, 0)
+                    nameLbl.Font = Enum.Font.Gotham
+                    nameLbl.TextScaled = true
+                    nameLbl.Text = nameChecker(plr)
+
+                    MouseButtonFix(pb, function()
+                        currentIndex = i
+                        spectatedPlayer = playerList[currentIndex]
+                        refresh()
+                    end)
+                end
+                local h = math.min(#playerList * 30, 300)
+                scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
+                local open = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, h)})
+                local move = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, h + 10)})
+                open:Play()
+                move:Play()
+                listOpen = true
+                toggleBtn.Text = "^"
+                recolor()
+            end)
+        end
+    end)
+
+    connStep = RunService.RenderStepped:Connect(function()
+        if #playerList == 0 then return end
+        local p = playerList[currentIndex]
+        if not p or not p.Character then rebuild() end
+        cam(playerList[currentIndex])
+    end)
+    connAdd = Players.PlayerAdded:Connect(function()
+        rebuild()
+        refresh()
+        updateDropdown()
+    end)
+    connRemove = Players.PlayerRemoving:Connect(function(plr)
+        rebuild()
+        if plr == spectatedPlayer then
+            spectatedPlayer = nil
+            if #playerList > 0 then
+                currentIndex = 1
+            else
+                currentIndex = 0
+            end
+        end
+        refresh()
+        updateDropdown()
+    end)
+
+    refresh()
+end, true)
 
 cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
-	cleanup()
-	DoNotif("Spectate stopped",1.2)
-end,true)
+    cleanup()
+    DoNotif("Spectate stopped", 1.2)
+end, true)
 
 cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Save all sounds a player is playing to a file -Cyrus"},function(p)
 	Wait(.1)
@@ -15639,23 +15957,41 @@ local partTrigger = nil
 local espTriggers = {}
 
 function createBox(part, color, transparency)
-	local box = InstanceNew("BoxHandleAdornment")
-	box.Name = part.Name:lower().."_PEEPEE"
-	box.Parent = part
-	box.Adornee = part
-	box.AlwaysOnTop = true
-	box.ZIndex = 0
-	if part:IsA("BasePart") then
-		box.Size = part.Size
-	elseif part:FindFirstChildWhichIsA("BasePart") then
-		box.Size = part:FindFirstChildWhichIsA("BasePart").Size
-	else
-		box.Size = Vector3.new(4, 4, 4)
-	end
-
-	box.Transparency = transparency or 0.45
-	box.Color3 = color
-	return box
+    local box = InstanceNew("BoxHandleAdornment")
+    box.Name = part.Name:lower().."_PEEPEE"
+    box.Parent = part
+    box.Adornee = part
+    box.AlwaysOnTop = true
+    box.ZIndex = 0
+    if part:IsA("BasePart") then
+        box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+    elseif part:FindFirstChildWhichIsA("BasePart") then
+        box.Size = part:FindFirstChildWhichIsA("BasePart").Size + Vector3.new(0.1, 0.1, 0.1)
+    else
+        box.Size = Vector3.new(4, 4, 4)
+    end
+    box.Transparency = transparency or 0.45
+    box.Color3 = color
+    
+    local billboard = InstanceNew("BillboardGui")
+    billboard.Name = part.Name:lower().."_LABEL"
+    billboard.Parent = part
+    billboard.Adornee = part
+    billboard.Size = UDim2.new(0, 100, 0, 30)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.AlwaysOnTop = true
+    
+    local textLabel = InstanceNew("TextLabel")
+    textLabel.Parent = billboard
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = color
+    textLabel.Text = part.Name
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 14
+    textLabel.TextStrokeTransparency = 0.5
+    
+    return box
 end
 
 function onPartAdded(part)
@@ -15702,21 +16038,23 @@ function enableEsp(objType, color, list)
 end
 
 function disableEsp(objType, list)
-	if espTriggers[objType] then
-		espTriggers[objType]:Disconnect()
-		espTriggers[objType] = nil
-	end
+    if espTriggers[objType] then
+        espTriggers[objType]:Disconnect()
+        espTriggers[objType] = nil
+    end
 
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-			local adornee = obj.Adornee
-			if adornee and Discover(list, adornee) then
-				obj:Destroy()
-			end
-		end
-	end
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
+            local adornee = obj.Adornee
+            if adornee and Discover(list, adornee) then
+                obj:Destroy()
+                local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
+                if label then label:Destroy() end
+            end
+        end
+    end
 
-	table.clear(list)
+    table.clear(list)
 end
 
 cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "Highlights specific parts by name"}, function(...)
@@ -15772,26 +16110,28 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 end, true)
 
 cmd.add({"unpesp", "unesppart", "unpartesp"}, {"unpesp (unesppart, unpartesp)", "Removes ESP from specific parts added by pesp"}, function()
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-			local adornee = obj.Adornee
-			if adornee then
-				for _, name in ipairs(espList) do
-					if adornee.Name:lower():find(name) then
-						obj:Destroy()
-						break
-					end
-				end
-			end
-		end
-	end
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
+            local adornee = obj.Adornee
+            if adornee then
+                for _, name in ipairs(espList) do
+                    if adornee.Name:lower():find(name) then
+                        obj:Destroy()
+                        local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
+                        if label then label:Destroy() end
+                        break
+                    end
+                end
+            end
+        end
+    end
 
-	espList = {}
+    espList = {}
 
-	if partTrigger then
-		partTrigger:Disconnect()
-		partTrigger = nil
-	end
+    if partTrigger then
+        partTrigger:Disconnect()
+        partTrigger = nil
+    end
 end)
 
 cmd.add({"touchesp", "tesp"}, {"touchesp (tesp)", "Highlights parts with TouchTransmitter"}, function()
@@ -16177,18 +16517,16 @@ cmd.add({"unflyjump","noflyjump"},{"unflyjump (noflyjump)","Disables flyjump"},f
 	lib.disconnect("flyjump")
 end)
 
-cmd.add({"xray","xrayon"},{"xray (xrayon)","Makes you be able to see through walls"},function()
-	Wait();
-
-	DoNotif("Xray enabled")
-	xxRAYYYY(true)
+cmd.add({"xray", "xrayon"}, {"xray (xrayon)", "Enables X-ray vision to see through walls"}, function()
+    Wait()
+    DoNotif("X-ray enabled")
+    togXray(true)
 end)
 
-cmd.add({"unxray","xrayoff"},{"unxray (xrayoff)","Makes you not be able to see through walls"},function()
-	Wait();
-
-	DoNotif("Xray disabled")
-	xxRAYYYY(false)
+cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, function()
+    Wait()
+    DoNotif("X-ray disabled")
+    togXray(false)
 end)
 
 cmd.add({"pastebinscraper","pastebinscrape"},{"pastebinscraper (pastebinscrape)","Scrapes paste bin posts"},function()
@@ -17754,6 +18092,11 @@ local resizeXY={
 	BottomRight = {Vector2.new(1,1),    Vector2.new(0,0),    "rbxassetid://2911852219"},
 }
 
+local fillSizes={
+	right=rightFill.Size,
+	left=leftFill.Size,
+}
+
 if cmdExample then
 	cmdExample.Parent = nil
 end
@@ -18818,36 +19161,56 @@ end)
 end)]]
 
 gui.barSelect = function(speed)
-	speed = speed or 0.4
+    speed = speed or 0.4
 
-	centerBar.Visible = true
-	centerBar.Size = UDim2.new(0, 0, 1, 15)
+    centerBar.Size = UDim2.new(0, 0, 0, 0)
 
-	gui.tween(centerBar, "Quint", "Out", speed, {Size = UDim2.new(0, 250, 1, 15)})
+    gui.tween(centerBar, "Back", "Out", speed, {
+        Size = UDim2.new(0, 250, 1, 15)
+    })
 
-	leftFill.Position = UDim2.new(-0.5, 0, 0.5, 0)
-	rightFill.Position = UDim2.new(1.5, 0, 0.5, 0)
+    leftFill.Position = UDim2.new(0.5, 0, 0.5, 0)
+    rightFill.Position = UDim2.new(0.5, 0, 0.5, 0)
+    leftFill.Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
+    rightFill.Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 
-	gui.tween(leftFill, "Quart", "Out", speed, {Position = UDim2.new(0, 0, 0.5, 0)})
-	gui.tween(rightFill, "Quart", "Out", speed, {Position = UDim2.new(1, 0, 0.5, 0)})
+    Wait(speed * 0.1)
+    gui.tween(leftFill, "Quart", "Out", speed * 1.2, {
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = fillSizes.left
+    })
+    gui.tween(rightFill, "Quart", "Out", speed * 1.2, {
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = fillSizes.right
+    })
 end
 
 gui.barDeselect = function(speed)
-	speed = speed or 0.4
+    speed = speed or 0.4
 
-	gui.tween(centerBar, "Back", "InOut", speed, {Size = UDim2.new(0, 250, 0, 0)})
+    gui.tween(centerBar, "Back", "InOut", speed, {
+        Size = UDim2.new(0, 0, 0, 0)
+    })
 
-	gui.tween(leftFill, "Quart", "In", speed * 0.9, {Position = UDim2.new(-0.5, -125, 0.5, 0)})
-	gui.tween(rightFill, "Quart", "In", speed * 0.9, {Position = UDim2.new(1.5, 125, 0.5, 0)})
+    gui.tween(leftFill, "Quart", "In", speed * 0.9, {
+        Position = UDim2.new(-0.5, -125, 0.5, 0),
+        Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
+    })
+    gui.tween(rightFill, "Quart", "In", speed * 0.9, {
+        Position = UDim2.new(1.5, 125, 0.5, 0),
+        Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
+    })
 
-	for i, v in ipairs(cmdAutofill:GetChildren()) do
-		if v:IsA("Frame") then
-			wrap(function()
-				Wait(math.random(50, 120) / 1000)
-				gui.tween(v, "Exponential", "In", 0.25, {Size = UDim2.new(0, 0, 0, 25)})
-			end)
-		end
-	end
+    for i, v in ipairs(cmdAutofill:GetChildren()) do
+        if v:IsA("Frame") then
+            wrap(function()
+                Wait(math.random(50, 120) / 1000)
+                gui.tween(v, "Exponential", "In", 0.25, {
+                    Size = UDim2.new(0, 0, 0, 25)
+                })
+            end)
+        end
+    end
 end
 
 --[[ AUTOFILL SEARCHER ]]--
@@ -19097,6 +19460,7 @@ UserInputService.InputBegan:Connect(function(i, g)
 			while true do
 				cmdInput:CaptureFocus()
 				Wait(.05)
+				cmdInput.Text = ''
 				if cmdInput:IsFocused() then break end
 			end
 		end
@@ -19227,219 +19591,250 @@ end)
 
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
-	local chatMsg = chatExample:Clone()
+    local chatMsg = chatExample:Clone()
 
-	for _, v in pairs(chatLogs:GetChildren()) do
-		if v:IsA("TextLabel") then
-			v.LayoutOrder = v.LayoutOrder + 1
-		end
-	end
+    for _, v in pairs(chatLogs:GetChildren()) do
+        if v:IsA("TextLabel") then
+            v.LayoutOrder = v.LayoutOrder + 1
+        end
+    end
 
-	chatMsg.Name = '\0'
-	chatMsg.Parent = chatLogs
+    chatMsg.Name = '\0'
+    chatMsg.Parent = chatLogs
 
-	local displayName = plr.DisplayName or "Unknown"
-	local userName = plr.Name or "Unknown"
+    local displayName = plr.DisplayName or "Unknown"
+    local userName = plr.Name or "Unknown"
 
-	local isNAadmin = false
-	if _G.NAadminsLol then
-		for _, id in ipairs(_G.NAadminsLol) do
-			if plr.UserId == id then
-				isNAadmin = true
-				break
-			end
-		end
-	end
+    local isNAadmin = false
+    if _G.NAadminsLol then
+        for _, id in ipairs(_G.NAadminsLol) do
+            if plr.UserId == id then
+                isNAadmin = true
+                break
+            end
+        end
+    end
 
-	if isNAadmin then
-		chatMsg:Destroy()
-	else
-		if displayName == userName then
-			chatMsg.Text = ("@%s: %s"):format(userName, msg)
-		else
-			chatMsg.Text = ("%s [@%s]: %s"):format(displayName, userName, msg)
-		end
+    local currentTime = os.date("%Y-%m-%d %H:%M:%S")
+    if displayName == userName then
+        chatMsg.Text = ("@%s: %s"):format(userName, msg)
+    else
+        chatMsg.Text = ("%s [@%s]: %s"):format(displayName, userName, msg)
+    end
 
-		if plr == LocalPlayer then
-			chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
-		elseif LocalPlayer:IsFriendsWith(plr.UserId) then
-			chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
-		end
-	end
+    if isNAadmin then
+        local function rainbowColor()
+            local time = tick()
+            local r = math.sin(time * 0.5) * 127 + 128
+            local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
+            local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
+            return Color3.fromRGB(r, g, b)
+        end
+        RunService.Heartbeat:Connect(function()
+            if chatMsg and chatMsg.Parent then
+                chatMsg.TextColor3 = rainbowColor()
+            end
+        end)
+    else
+        if plr == LocalPlayer then
+            chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
+        elseif LocalPlayer:IsFriendsWith(plr.UserId) then
+            chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
+        end
+    end
 
-	local txtSize = gui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
-	chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
+    pcall(function()
+        if FileSupport and appendfile then
+            local cEntry = Format(
+                "[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
+                currentTime,
+                chatMsg.Text,
+                placeName(),
+                tostring(PlaceId),
+                tostring(GameId),
+                tostring(JobId)
+            )
+            if isfile(NAfiles.NACHATLOGS) then
+                appendfile(NAfiles.NACHATLOGS, cEntry)
+            else
+                writefile(NAfiles.NACHATLOGS, cEntry)
+            end
+        end
+    end)
 
-	local MAX_MESSAGES = 100
-	local chatFrames = {}
-	for _, v in pairs(chatLogs:GetChildren()) do
-		if v:IsA("TextLabel") then
-			Insert(chatFrames, v)
-		end
-	end
+    local txtSize = gui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
+    chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-	table.sort(chatFrames, function(a, b)
-		return a.LayoutOrder < b.LayoutOrder
-	end)
+    local MAX_MESSAGES = 100
+    local chatFrames = {}
+    for _, v in pairs(chatLogs:GetChildren()) do
+        if v:IsA("TextLabel") then
+            Insert(chatFrames, v)
+        end
+    end
 
-	if #chatFrames > MAX_MESSAGES then
-		for i = MAX_MESSAGES + 1, #chatFrames do
-			chatFrames[i]:Destroy()
-		end
-	end
+    table.sort(chatFrames, function(a, b)
+        return a.LayoutOrder < b.LayoutOrder
+    end)
+
+    if #chatFrames > MAX_MESSAGES then
+        for i = MAX_MESSAGES + 1, #chatFrames do
+            chatFrames[i]:Destroy()
+        end
+    end
 end
 
 NAmanage.bindToDevConsole = function()
-	if not NAconsoleLogs or not NAconsoleExample then return end
+    if not NAconsoleLogs or not NAconsoleExample then return end
 
-	local toggles = { Output = true, Info = true, Warn = true, Error = true }
+    local toggles = { Output = true, Info = true, Warn = true, Error = true }
 
-	local FilterButtons = InstanceNew("Frame")
-	FilterButtons.Name = "FilterButtons"
-	FilterButtons.Size = UDim2.new(1, -10, 0, 22)
-	FilterButtons.Position = UDim2.new(0.5, 0, 0, 30)
-	FilterButtons.AnchorPoint = Vector2.new(0.5, 0)
-	FilterButtons.BackgroundTransparency = 1
-	FilterButtons.Parent = NAconsoleLogs.Parent
+    local FilterButtons = InstanceNew("Frame")
+    FilterButtons.Name = "FilterButtons"
+    FilterButtons.Size = UDim2.new(1, -10, 0, 22)
+    FilterButtons.Position = UDim2.new(0.5, 0, 0, 30)
+    FilterButtons.AnchorPoint = Vector2.new(0.5, 0)
+    FilterButtons.BackgroundTransparency = 1
+    FilterButtons.Parent = NAconsoleLogs.Parent
 
-	local layout = InstanceNew("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 6)
-	layout.Parent = FilterButtons
+    local layout = InstanceNew("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 6)
+    layout.Parent = FilterButtons
 
-	local buttonTypes = { "Output", "Info", "Warn", "Error" }
+    local buttonTypes = { "Output", "Info", "Warn", "Error" }
 
-	for _, logType in ipairs(buttonTypes) do
-		local btnContainer = InstanceNew("Frame")
-		btnContainer.Name = logType
-		btnContainer.Size = UDim2.new(0, 90, 1, 0)
-		btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		btnContainer.Parent = FilterButtons
+    for _, logType in ipairs(buttonTypes) do
+        local btnContainer = InstanceNew("Frame")
+        btnContainer.Name = logType
+        btnContainer.Size = UDim2.new(0, 90, 1, 0)
+        btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        btnContainer.Parent = FilterButtons
 
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(1, 0)
-		corner.Parent = btnContainer
+        local corner = InstanceNew("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = btnContainer
 
-		local checkbox = InstanceNew("TextLabel")
-		checkbox.Name = "Checkbox"
-		checkbox.Size = UDim2.new(0, 18, 1, 0)
-		checkbox.Position = UDim2.new(0, 5, 0, 0)
-		checkbox.BackgroundTransparency = 1
-		checkbox.Font = Enum.Font.Gotham
-		checkbox.TextSize = 14
-		checkbox.TextXAlignment = Enum.TextXAlignment.Center
-		checkbox.TextYAlignment = Enum.TextYAlignment.Center
-		checkbox.Text = "✅"
-		checkbox.TextColor3 = Color3.fromRGB(255, 255, 255)
-		checkbox.Parent = btnContainer
+        local checkbox = InstanceNew("Frame")
+        checkbox.Name = "Checkbox"
+        checkbox.Size = UDim2.new(0, 18, 0, 18)
+        checkbox.Position = UDim2.new(0, 5, 0.5, 0)
+        checkbox.AnchorPoint = Vector2.new(0, 0.5)
+        checkbox.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        checkbox.BorderSizePixel = 0
+        checkbox.Parent = btnContainer
 
-		local label = InstanceNew("TextLabel")
-		label.Name = "Label"
-		label.Text = logType
-		label.Position = UDim2.new(0, 28, 0, 0)
-		label.Size = UDim2.new(1, -28, 1, 0)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.Gotham
-		label.TextSize = 14
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		label.TextXAlignment = Enum.TextXAlignment.Center
-		label.Parent = btnContainer
+        local boxCorner = InstanceNew("UICorner")
+        boxCorner.CornerRadius = UDim.new(0, 4)
+        boxCorner.Parent = checkbox
 
-		local clickZone = InstanceNew("TextButton")
-		clickZone.Name = "ClickArea"
-		clickZone.Size = UDim2.new(1, 0, 1, 0)
-		clickZone.BackgroundTransparency = 1
-		clickZone.Text = ""
-		clickZone.Parent = btnContainer
+        local label = InstanceNew("TextLabel")
+        label.Name = "Label"
+        label.Text = logType
+        label.Position = UDim2.new(0, 28, 0, 0)
+        label.Size = UDim2.new(1, -28, 1, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 14
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextXAlignment = Enum.TextXAlignment.Center
+        label.Parent = btnContainer
 
-		MouseButtonFix(clickZone,function()
-			toggles[logType] = not toggles[logType]
-			checkbox.Text = toggles[logType] and "✅" or "⬜"
+        local clickZone = InstanceNew("TextButton")
+        clickZone.Name = "ClickArea"
+        clickZone.Size = UDim2.new(1, 0, 1, 0)
+        clickZone.BackgroundTransparency = 1
+        clickZone.Text = ""
+        clickZone.Parent = btnContainer
 
-			for _, label in pairs(NAconsoleLogs:GetChildren()) do
-				if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-					local tag = label.Tag.Value
-					local matchesSearch = NAfilter.Text == "" or Find(label.Text:lower(), NAfilter.Text:lower())
-					label.Visible = toggles[tag] and matchesSearch
-				end
-			end
-		end)
-	end
+        MouseButtonFix(clickZone, function()
+            toggles[logType] = not toggles[logType]
+            local targetColor = toggles[logType] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+            local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            local tween = TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor})
+            tween:Play()
 
-	NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
-		local query = NAfilter.Text:lower()
-		for _, label in pairs(NAconsoleLogs:GetChildren()) do
-			if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-				local tag = label.Tag.Value
-				local matches = query == "" or Find(label.Text:lower(), query)
-				label.Visible = toggles[tag] and matches
-			end
-		end
-	end)
+            for _, label in pairs(NAconsoleLogs:GetChildren()) do
+                if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
+                    local tag = label.Tag.Value
+                    local matchesSearch = NAfilter.Text == "" or Find(label.Text:lower(), NAfilter.Text:lower())
+                    label.Visible = toggles[tag] and matchesSearch
+                end
+            end
+        end)
+    end
 
-	local messageCounter = 0
+    NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
+        local query = NAfilter.Text:lower()
+        for _, label in pairs(NAconsoleLogs:GetChildren()) do
+            if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
+                local tag = label.Tag.Value
+                local matches = query == "" or Find(label.Text:lower(), query)
+                label.Visible = toggles[tag] and matches
+            end
+        end
+    end)
 
-	SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
-		messageCounter=messageCounter + 1
+    local messageCounter = 0
 
-		local logLabel = NAconsoleExample:Clone()
-		logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
-		logLabel.Parent = NAconsoleLogs
-		logLabel.LayoutOrder = messageCounter
-		logLabel.RichText = true
+    SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
+        messageCounter = messageCounter + 1
 
-		local tagColor = "#cccccc"
-		local tagText = "Output"
+        local logLabel = NAconsoleExample:Clone()
+        logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
+        logLabel.Parent = NAconsoleLogs
+        logLabel.LayoutOrder = messageCounter
+        logLabel.RichText = true
 
-		if msgTYPE == Enum.MessageType.MessageError then
-			tagColor = "#ff6464"
-			tagText = "Error"
-		elseif msgTYPE == Enum.MessageType.MessageWarning then
-			tagColor = "#ffcc00"
-			tagText = "Warn"
-		elseif msgTYPE == Enum.MessageType.MessageInfo then
-			tagColor = "#66ccff"
-			tagText = "Info"
-		end
+        local tagColor = "#cccccc"
+        local tagText = "Output"
 
-		logLabel.Text = Format(
-			'<font color="%s">[%s]</font>: <font color="#ffffff">%s</font>',
-			tagColor,
-			tagText,
-			msg
-		)
+        if msgTYPE == Enum.MessageType.MessageError then
+            tagColor = "#ff6464"
+            tagText = "Error"
+        elseif msgTYPE == Enum.MessageType.MessageWarning then
+            tagColor = "#ffcc00"
+            tagText = "Warn"
+        elseif msgTYPE == Enum.MessageType.MessageInfo then
+            tagColor = "#66ccff"
+            tagText = "Info"
+        end
 
-		local tag = InstanceNew("StringValue")
-		tag.Name = "Tag"
-		tag.Value = tagText
-		tag.Parent = logLabel
+        local escapedMsg = msg:gsub("<", "&lt;"):gsub(">", "&gt;")
 
-		local txtSize = gui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
-		logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
+        logLabel.Text = '<font color="'..tagColor..'">['..tagText..']</font>: <font color="#ffffff">'..escapedMsg..'</font>'
 
-		local MAX_MESSAGES = 300
-		local logFrames = {}
+        local tag = InstanceNew("StringValue")
+        tag.Name = "Tag"
+        tag.Value = tagText
+        tag.Parent = logLabel
 
-		for _, v in pairs(NAconsoleLogs:GetChildren()) do
-			if v:IsA("TextLabel") then
-				Insert(logFrames, v)
-			end
-		end
+        local txtSize = gui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
+        logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-		table.sort(logFrames, function(a, b)
-			return a.LayoutOrder < b.LayoutOrder
-		end)
+        local MAX_MESSAGES = 300
+        local logFrames = {}
 
-		while #logFrames > MAX_MESSAGES do
-			logFrames[1]:Destroy()
-			table.remove(logFrames, 1)
-		end
+        for _, v in pairs(NAconsoleLogs:GetChildren()) do
+            if v:IsA("TextLabel") then
+                Insert(logFrames, v)
+            end
+        end
 
-		local matchesSearch = NAfilter.Text == "" or Find(logLabel.Text:lower(), NAfilter.Text:lower())
-		logLabel.Visible = toggles[tagText] and matchesSearch
-	end)
+        table.sort(logFrames, function(a, b)
+            return a.LayoutOrder < b.LayoutOrder
+        end)
+
+        while #logFrames > MAX_MESSAGES do
+            logFrames[1]:Destroy()
+            table.remove(logFrames, 1)
+        end
+
+        local matchesSearch = NAfilter.Text == "" or Find(logLabel.Text:lower(), NAfilter.Text:lower())
+        logLabel.Visible = toggles[tagText] and matchesSearch
+    end)
 end
 
 --[[function NAUISCALEUPD()
@@ -19748,6 +20143,8 @@ MouseButtonFix(TextButton,function()
 	gui.barSelect()
 	cmdInput.Text=''
 	cmdInput:CaptureFocus()
+	Wait(.05)
+	cmdInput.Text=''
 end)
 
 --@ltseverydayyou (Aervanix)
@@ -19905,10 +20302,7 @@ math.randomseed(os.time())
 
 Spawn(function()
 	while Wait() do
-		if getHum() then
-			getHum().AutoJumpEnabled=false
-			break
-		end
+		if getHum() then getHum().AutoJumpEnabled=false end -- bye bye useless autojump
 	end
 end)
 
