@@ -1842,10 +1842,10 @@ function placeCreator()
 end
 
 function storeESP(p, cType, conn)
-	if not espCONS[p.Name] then
-		espCONS[p.Name] = {}
-	end
-	Insert(espCONS[p.Name], { type = cType, connection = conn })
+    if not espCONS[p.Name] then
+        espCONS[p.Name] = {}
+    end
+    Insert(espCONS[p.Name], { type = cType, connection = conn })
 end
 
 function removeESPonLEAVE(player)
@@ -1894,7 +1894,7 @@ end
 function NAESP(player, persistent)
     persistent = persistent or false
 
-    Defer(function()
+    Delay(0.1,function()
         discPlrESP(player)
         local character = getPlrChar(player)
         if not character or not character:IsA("Model") then return end
@@ -1912,7 +1912,7 @@ function NAESP(player, persistent)
         local function createBoxHandle(part)
             local boxHandle = Instance.new("BoxHandleAdornment")
             boxHandle.Name = "\0"
-            boxHandle.Transparency = 0.5
+            boxHandle.Transparency = 0.7
             boxHandle.Color3 = Color3.new(1, 1, 1)
             boxHandle.Adornee = part
             boxHandle.AlwaysOnTop = true
@@ -1925,7 +1925,7 @@ function NAESP(player, persistent)
         local function createBillboard(head)
             local billboardGui = Instance.new("BillboardGui")
             billboardGui.Name = "\0"
-            billboardGui.Size = UDim2.new(0, 200, 0, 50)
+            billboardGui.Size = UDim2.new(0, 150, 0, 40)
             billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
             billboardGui.AlwaysOnTop = true
             billboardGui.Parent = head
@@ -1936,8 +1936,8 @@ function NAESP(player, persistent)
             textLabel.BackgroundTransparency = 1
             textLabel.TextColor3 = Color3.new(1, 1, 1)
             textLabel.Font = Enum.Font.GothamBold
-            textLabel.TextSize = 14
-            textLabel.TextStrokeTransparency = 0.2
+            textLabel.TextSize = 12
+            textLabel.TextStrokeTransparency = 0.5
             textLabel.Text = ""
             textLabel.Parent = billboardGui
 
@@ -1969,9 +1969,13 @@ function NAESP(player, persistent)
                     local distanceColor = Color3.fromRGB(255, 255, 255)
                     if localRoot and rootPart then
                         distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
-                        distanceColor = distance < 50 and Color3.fromRGB(255, 0, 0)
-                            or distance < 100 and Color3.fromRGB(255, 165, 0)
-                            or Color3.fromRGB(0, 255, 0)
+                        if distance > 100 then
+                            distanceColor = Color3.fromRGB(0, 255, 0)
+                        elseif distance > 50 then
+                            distanceColor = Color3.fromRGB(255, 165, 0)
+                        else
+                            distanceColor = Color3.fromRGB(255, 0, 0)
+                        end
                     end
 
                     local teamColor
@@ -1981,19 +1985,18 @@ function NAESP(player, persistent)
                     local targetColor = teamColor or distanceColor
 
                     if espEntry.boxHandle.Color3 ~= targetColor then
-                        TweenService:Create(espEntry.boxHandle, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Color3 = targetColor }):Play()
+                        espEntry.boxHandle.Color3 = targetColor
                     end
 
                     if espEntry.textLabel then
                         local health = math.floor(humanoid.Health)
                         local maxHealth = math.floor(humanoid.MaxHealth)
-                        local newText = Format("%s | %d/%d HP%s", nameChecker(player), health, maxHealth,
-                            localRoot and Format(" | %d studs", distance) or "")
+                        local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
                         if espEntry.textLabel.Text ~= newText then
                             espEntry.textLabel.Text = newText
                         end
                         if espEntry.textLabel.TextColor3 ~= distanceColor then
-                            TweenService:Create(espEntry.textLabel, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextColor3 = distanceColor }):Play()
+                            espEntry.textLabel.TextColor3 = distanceColor
                         end
                     end
                 end
@@ -2001,17 +2004,20 @@ function NAESP(player, persistent)
         end
 
         local espLoop
-        espLoop = RunService.Heartbeat:Connect(function(dt)
+        espLoop = RunService.RenderStepped:Connect(function(dt)
             if not character:IsDescendantOf(workspace) then
                 espLoop:Disconnect()
                 removeESPonLEAVE(player)
                 return
             end
-            updateESP()
+            if not espCONS[player].lastUpdate or (tick() - espCONS[player].lastUpdate) > 0.1 then
+                updateESP()
+                espCONS[player].lastUpdate = tick()
+            end
         end)
 
-        local descendantAddedConnection
-        descendantAddedConnection = character.DescendantAdded:Connect(function(descendant)
+        local charPrtAdded
+        charPrtAdded = character.DescendantAdded:Connect(function(descendant)
             if descendant:IsA("BasePart") then
                 Defer(function()
                     updateESP()
@@ -2020,36 +2026,35 @@ function NAESP(player, persistent)
         end)
 
         espCONS[player].connection = espLoop
-        espCONS[player].descendantAdded = descendantAddedConnection
+        espCONS[player].descendantAdded = charPrtAdded
 
         if not player:IsA("Model") then
-			local characterAddedConnection
-			characterAddedConnection = player.CharacterAdded:Connect(function()
-				if not ESPenabled and not persistent then
-					characterAddedConnection:Disconnect()
-					return
-				end
-				local char = player.Character or player.CharacterAdded:Wait()
-				if espCONS[player] then
-					for part, entry in pairs(espCONS[player]) do
-						if type(entry) == "table" then
-							if entry.boxHandle then entry.boxHandle:Destroy() end
-							if entry.billboard then entry.billboard:Destroy() end
-							if entry.connection then entry.connection:Disconnect() end
-						end
-					end
-					if espCONS[player].connection then espCONS[player].connection:Disconnect() end
-					if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
-					espCONS[player] = nil
-				end
-				Defer(function()
-					Wait(0.5)
-					NAESP(player, persistent)
-				end)
-			end)
-			storeESP(player, "characterAdded", characterAddedConnection)
-		end
-
+            local charAddConn
+            charAddConn = player.CharacterAdded:Connect(function()
+                if not ESPenabled and not persistent then
+                    charAddConn:Disconnect()
+                    return
+                end
+                local char = player.Character or player.CharacterAdded:Wait()
+                if espCONS[player] then
+                    for part, entry in pairs(espCONS[player]) do
+                        if type(entry) == "table" then
+                            if entry.boxHandle then entry.boxHandle:Destroy() end
+                            if entry.billboard then entry.billboard:Destroy() end
+                            if entry.connection then entry.connection:Disconnect() end
+                        end
+                    end
+                    if espCONS[player].connection then espCONS[player].connection:Disconnect() end
+                    if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
+                    espCONS[player] = nil
+                end
+                Defer(function()
+                    Wait(0.5)
+                    NAESP(player, persistent)
+                end)
+            end)
+            storeESP(player, "characterAdded", charAddConn)
+        end
 
         updateESP()
     end)
