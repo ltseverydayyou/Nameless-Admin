@@ -2009,8 +2009,8 @@ function NAESP(player, persistent)
                     end
 
                     if espEntry.textLabel then
-                        local health = math.floor(humanoid.Health)
-                        local maxHealth = math.floor(humanoid.MaxHealth)
+                        local health = humanoid and math.floor(humanoid.Health) or 0
+                        local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
                         local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
                         if espEntry.textLabel.Text ~= newText then
                             espEntry.textLabel.Text = newText
