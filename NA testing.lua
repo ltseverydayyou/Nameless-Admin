@@ -11401,148 +11401,167 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 end)
 
 cmd.add({"char","character","morph"},{"char","change your character's appearance to someone else's"},function(args)
-    local arg = args
-    local uid = tonumber(arg)
-    if not uid then
-        local ok,id = pcall(Players.GetUserIdFromNameAsync,Players,arg)
-        if not ok then return end
-        uid = id
+ local arg=args
+ local uid=tonumber(arg)
+ if not uid then
+  local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
+  if not ok then return end
+  uid=id
+ end
+ local function aa(c,id)
+  local a=game:GetObjects("rbxassetid://"..id)[1]
+  if not(a and a:IsA("Accessory"))then return end
+  for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
+  a.Parent=c
+  local h=a:FindFirstChild("Handle") if not h then return end
+  local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
+  local ok2
+  for _,ac in ipairs(at)do
+   local ra=c:FindFirstChild(ac.Name,true)
+   if ra and ra:IsA("Attachment")then
+    h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
+    local w=Instance.new("WeldConstraint")
+    w.Part0,w.Part1,w.Parent=ra.Parent,h,h
+    ok2=true break
+   end
+  end
+  if not ok2 then
+   local hd=getHead(c) or getRoot(c)
+   if hd then
+    h.CFrame=hd.CFrame
+    local w=Instance.new("WeldConstraint")
+    w.Part0,w.Part1,w.Parent=hd,h,h
+   end
+  end
+ end
+ local function ap()
+  local c=getChar()
+  for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
+  local d=Players:GetHumanoidDescriptionFromUserId(uid)
+  local ar=Players:GetCharacterAppearanceAsync(uid)
+  for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
+  local hum=getHum()
+  if hum and hum:FindFirstChild("HumanoidDescription")then
+   local pd=hum.HumanoidDescription
+   pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
+    d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
+  end
+  local bc=c:FindFirstChildOfClass("BodyColors")
+  if bc then
+   bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
+    d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
+  end
+  local hd=getHead(c)
+  if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
+  for _,v in ipairs(ar:GetDescendants())do
+   if IsR6() and (v:IsA("CharacterMesh")or v:IsA("SpecialMesh"))then
+    v:Clone().Parent=c
+   elseif IsR15() and v:IsA("MeshPart")then
+    local tp=c:FindFirstChild(v.Name,true)
+    if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
+   elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
+    v:Clone().Parent=c
+   elseif v:IsA("Decal")and Lower(v.Name)=="face"then
+    v:Clone().Parent=hd
+   end
+  end
+  if IsR15() then
+   local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
+    LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
+    RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
+    RightUpperLeg="7430071119",UpperTorso="7430071038"}
+   for name,id2 in pairs(b)do
+    local found=false
+    for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
+    if not found then
+     local mp=c:FindFirstChild(name)
+     if mp and mp:IsA("MeshPart")then
+      mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
+     end
     end
-    local function aa(c,id)
-        local a = game:GetObjects("rbxassetid://"..id)[1]
-        if not(a and a:IsA("Accessory"))then return end
-        for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
-        a.Parent=c
-        local h = a:FindFirstChild("Handle")
-        if not h then return end
-        local at={}
-        for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
-        local ok
-        for _,ac in ipairs(at)do
-            local ra = c:FindFirstChild(ac.Name,true)
-            if ra and ra:IsA("Attachment")then
-                h.CFrame = ra.WorldCFrame*ac.CFrame:Inverse()
-                local w = Instance.new("WeldConstraint")
-                w.Part0, w.Part1, w.Parent = ra.Parent, h, h
-                ok=true break
-            end
-        end
-        if not ok then
-            local hd = getHead(c) or getRoot(c)
-            if hd then
-                h.CFrame = hd.CFrame
-                local w = Instance.new("WeldConstraint")
-                w.Part0, w.Part1, w.Parent = hd, h, h
-            end
-        end
-    end
-    local function ap()
-        local c = getChar()
-        for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
-        local d = Players:GetHumanoidDescriptionFromUserId(uid)
-        local ar = Players:GetCharacterAppearanceAsync(uid)
-        for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
-        local hum = getHum()
-        if hum and hum:FindFirstChild("HumanoidDescription")then
-            local pd = hum.HumanoidDescription
-            pd.BodyTypeScale, pd.DepthScale, pd.HeadScale, pd.HeightScale, pd.ProportionScale, pd.WidthScale =
-                d.BodyTypeScale, d.DepthScale, d.HeadScale, d.HeightScale, d.ProportionScale, d.WidthScale
-        end
-        local bc = c:FindFirstChildOfClass("BodyColors")
-        if bc then
-            bc.HeadColor3, bc.LeftArmColor3, bc.LeftLegColor3, bc.RightArmColor3, bc.RightLegColor3, bc.TorsoColor3 =
-                d.HeadColor, d.LeftArmColor, d.LeftLegColor, d.RightArmColor, d.RightLegColor, d.TorsoColor
-        end
-        local hd = getHead(c)
-        if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
-        for _,v in ipairs(ar:GetDescendants())do
-            if v:IsA("CharacterMesh")or v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
-                v.Parent=c
-            elseif v:IsA("Decal")and Lower(v.Name)=="face"then
-                v.Parent=hd
-            end
-        end
-    end
-    ap()
+   end
+  end
+ end
+ ap()
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
-    local uid = Players.LocalPlayer.UserId
-    local function aa(c,id)
-        local a = game:GetObjects("rbxassetid://"..id)[1]
-        if not(a and a:IsA("Accessory"))then return end
-        for _,v in ipairs(a:GetDescendants())do
-            if v:IsA("BasePart")then
-                v.CanCollide=false
-                v.Massless=true
-            end
-        end
-        a.Parent=c
-        local h=a:FindFirstChild("Handle")
-        if not h then return end
-        local at={}
-        for _,ch in ipairs(h:GetChildren())do
-            if ch:IsA("Attachment")then
-                at[#at+1]=ch
-            end
-        end
-        local ok
-        for _,ac in ipairs(at)do
-            local ra=c:FindFirstChild(ac.Name,true)
-            if ra and ra:IsA("Attachment")then
-                h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
-                local w=Instance.new("WeldConstraint")
-                w.Part0, w.Part1, w.Parent = ra.Parent, h, h
-                ok=true break
-            end
-        end
-        if not ok then
-            local hd = getHead(c) or getRoot(c)
-            if hd then
-                h.CFrame=hd.CFrame
-                local w=Instance.new("WeldConstraint")
-                w.Part0, w.Part1, w.Parent = hd, h, h
-            end
-        end
+ local uid=Players.LocalPlayer.UserId
+ local function aa(c,id)
+  local a=game:GetObjects("rbxassetid://"..id)[1]
+  if not(a and a:IsA("Accessory"))then return end
+  for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
+  a.Parent=c
+  local h=a:FindFirstChild("Handle") if not h then return end
+  local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
+  local ok2
+  for _,ac in ipairs(at)do
+   local ra=c:FindFirstChild(ac.Name,true)
+   if ra and ra:IsA("Attachment")then
+    h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
+    local w=Instance.new("WeldConstraint")
+    w.Part0,w.Part1,w.Parent=ra.Parent,h,h
+    ok2=true break
+   end
+  end
+  if not ok2 then
+   local hd=getHead(c) or getRoot(c)
+   if hd then
+    h.CFrame=hd.CFrame
+    local w=Instance.new("WeldConstraint")
+    w.Part0,w.Part1,w.Parent=hd,h,h
+   end
+  end
+ end
+ local function ap()
+  local c=getChar()
+  for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
+  local d=Players:GetHumanoidDescriptionFromUserId(uid)
+  local ar=Players:GetCharacterAppearanceAsync(uid)
+  for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
+  local hum=getHum()
+  if hum and hum:FindFirstChild("HumanoidDescription")then
+   local pd=hum.HumanoidDescription
+   pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
+    d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
+  end
+  local bc=c:FindFirstChildOfClass("BodyColors")
+  if bc then
+   bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
+    d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
+  end
+  local hd=getHead(c)
+  if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
+  for _,v in ipairs(ar:GetDescendants())do
+   if IsR6() and (v:IsA("CharacterMesh")or v:IsA("SpecialMesh"))then
+    v:Clone().Parent=c
+   elseif IsR15() and v:IsA("MeshPart")then
+    local tp=c:FindFirstChild(v.Name)
+    if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
+   elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
+    v:Clone().Parent=c
+   elseif v:IsA("Decal")and Lower(v.Name)=="face"then
+    v:Clone().Parent=hd
+   end
+  end
+  if IsR15() then
+   local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
+    LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
+    RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
+    RightUpperLeg="7430071119",UpperTorso="7430071038"}
+   for name,id2 in pairs(b)do
+    local found=false
+    for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
+    if not found then
+     local mp=c:FindFirstChild(name,true)
+     if mp and mp:IsA("MeshPart")then
+      mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
+     end
     end
-    local function ap()
-        local c = getChar()
-        for _,x in ipairs(c:GetChildren())do
-            if x:IsA("Accessory") or x:IsA("CharacterMesh") or x:IsA("Shirt") or x:IsA("Pants") or x:IsA("ShirtGraphic") then
-                x:Destroy()
-            end
-        end
-        local d = Players:GetHumanoidDescriptionFromUserId(uid)
-        local ar = Players:GetCharacterAppearanceAsync(uid)
-        for _,info in ipairs(d:GetAccessories(true))do
-            aa(c,info.AssetId)
-        end
-        local hum = getHum()
-        if hum and hum:FindFirstChild("HumanoidDescription")then
-            local pd = hum.HumanoidDescription
-            pd.BodyTypeScale, pd.DepthScale, pd.HeadScale, pd.HeightScale, pd.ProportionScale, pd.WidthScale =
-                d.BodyTypeScale, d.DepthScale, d.HeadScale, d.HeightScale, d.ProportionScale, d.WidthScale
-        end
-        local bc = c:FindFirstChildOfClass("BodyColors")
-        if bc then
-            bc.HeadColor3, bc.LeftArmColor3, bc.LeftLegColor3, bc.RightArmColor3, bc.RightLegColor3, bc.TorsoColor3 =
-                d.HeadColor, d.LeftArmColor, d.LeftLegColor, d.RightArmColor, d.RightLegColor, d.TorsoColor
-        end
-        local hd = getHead(c)
-        if hd then
-            for _,dec in ipairs(hd:GetChildren())do
-                if dec:IsA("Decal")then dec:Destroy() end
-            end
-        end
-        for _,v in ipairs(ar:GetDescendants())do
-            if v:IsA("CharacterMesh") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") then
-                v.Parent=c
-            elseif v:IsA("Decal") and Lower(v.Name)=="face" then
-                v.Parent=hd
-            end
-        end
-    end
-    ap()
+   end
+  end
+ end
+ ap()
 end)
 
 cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
@@ -19609,7 +19628,7 @@ UserInputService.InputBegan:Connect(function(i, g)
 
 			while true do
 				cmdInput:CaptureFocus()
-				Wait(.05)
+				Wait(.00005)
 				cmdInput.Text = ''
 				if cmdInput:IsFocused() then break end
 			end
@@ -20293,7 +20312,7 @@ MouseButtonFix(TextButton,function()
 	gui.barSelect()
 	cmdInput.Text=''
 	cmdInput:CaptureFocus()
-	Wait(.05)
+	Wait(.00005)
 	cmdInput.Text=''
 end)
 
