@@ -79,6 +79,7 @@ local flingManager = {
 	lFlingOldPos = nil;
 	cFlingOldPos = nil;
 }
+local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 lib={}
 gui={}
@@ -1862,222 +1863,222 @@ function placeCreator()
 end
 
 function storeESP(p, cType, conn)
-    if not espCONS[p.Name] then
-        espCONS[p.Name] = {}
-    end
-    Insert(espCONS[p.Name], { type = cType, connection = conn })
+	if not espCONS[p.Name] then
+		espCONS[p.Name] = {}
+	end
+	Insert(espCONS[p.Name], { type = cType, connection = conn })
 end
 
 function removeESPonLEAVE(player)
-    local esp = espCONS[player]
-    if esp then
-        for part, entry in pairs(esp) do
-            if type(entry) == "table" then
-                if entry.boxHandle then entry.boxHandle:Destroy() end
-                if entry.billboard then entry.billboard:Destroy() end
-                if entry.connection then entry.connection:Disconnect() end
-            end
-        end
-        if esp.connection then esp.connection:Disconnect() end
-        if esp.descendantAdded then esp.descendantAdded:Disconnect() end
-        espCONS[player] = nil
-    end
+	local esp = espCONS[player]
+	if esp then
+		for part, entry in pairs(esp) do
+			if type(entry) == "table" then
+				if entry.boxHandle then entry.boxHandle:Destroy() end
+				if entry.billboard then entry.billboard:Destroy() end
+				if entry.connection then entry.connection:Disconnect() end
+			end
+		end
+		if esp.connection then esp.connection:Disconnect() end
+		if esp.descendantAdded then esp.descendantAdded:Disconnect() end
+		espCONS[player] = nil
+	end
 end
 
 function removeAllESP()
-    for player, esp in pairs(espCONS) do
-        for part, entry in pairs(esp) do
-            if type(entry) == "table" then
-                if entry.boxHandle then entry.boxHandle:Destroy() end
-                if entry.billboard then entry.billboard:Destroy() end
-                if entry.connection then entry.connection:Disconnect() end
-            end
-        end
-        if esp.connection then esp.connection:Disconnect() end
-        if esp.descendantAdded then esp.descendantAdded:Disconnect() end
-    end
-    table.clear(espCONS)
+	for player, esp in pairs(espCONS) do
+		for part, entry in pairs(esp) do
+			if type(entry) == "table" then
+				if entry.boxHandle then entry.boxHandle:Destroy() end
+				if entry.billboard then entry.billboard:Destroy() end
+				if entry.connection then entry.connection:Disconnect() end
+			end
+		end
+		if esp.connection then esp.connection:Disconnect() end
+		if esp.descendantAdded then esp.descendantAdded:Disconnect() end
+	end
+	table.clear(espCONS)
 end
 
 function discPlrESP(player)
-    if espCONS[player.Name] then
-        for part, entry in pairs(espCONS[player.Name]) do
-            if type(entry) == "table" and entry.connection then
-                entry.connection:Disconnect()
-            end
-        end
-        espCONS[player.Name] = nil
-    end
-    removeESPonLEAVE(player)
+	if espCONS[player.Name] then
+		for part, entry in pairs(espCONS[player.Name]) do
+			if type(entry) == "table" and entry.connection then
+				entry.connection:Disconnect()
+			end
+		end
+		espCONS[player.Name] = nil
+	end
+	removeESPonLEAVE(player)
 end
 
 function NAESP(player, persistent)
-    persistent = persistent or false
+	persistent = persistent or false
 
-    Defer(function()
-        discPlrESP(player)
-        local character = getPlrChar(player)
-        if not character or not character:IsA("Model") then return end
-        if espCONS[player] then
-            for _, entry in pairs(espCONS[player]) do
-                if entry.boxHandle then entry.boxHandle:Destroy() end
-                if entry.billboard then entry.billboard:Destroy() end
-                if entry.connection then entry.connection:Disconnect() end
-            end
-            espCONS[player] = {}
-        else
-            espCONS[player] = {}
-        end
+	Defer(function()
+		discPlrESP(player)
+		local character = getPlrChar(player)
+		if not character or not character:IsA("Model") then return end
+		if espCONS[player] then
+			for _, entry in pairs(espCONS[player]) do
+				if entry.boxHandle then entry.boxHandle:Destroy() end
+				if entry.billboard then entry.billboard:Destroy() end
+				if entry.connection then entry.connection:Disconnect() end
+			end
+			espCONS[player] = {}
+		else
+			espCONS[player] = {}
+		end
 
-        local function createBoxHandle(part)
-            local boxHandle = Instance.new("BoxHandleAdornment")
-            boxHandle.Name = "\0"
-            boxHandle.Transparency = 0.7
-            boxHandle.Color3 = Color3.new(1, 1, 1)
-            boxHandle.Adornee = part
-            boxHandle.AlwaysOnTop = true
-            boxHandle.ZIndex = 1
-            boxHandle.Size = part.Size
-            boxHandle.Parent = part
-            return boxHandle
-        end
+		local function createBoxHandle(part)
+			local boxHandle = Instance.new("BoxHandleAdornment")
+			boxHandle.Name = "\0"
+			boxHandle.Transparency = 0.7
+			boxHandle.Color3 = Color3.new(1, 1, 1)
+			boxHandle.Adornee = part
+			boxHandle.AlwaysOnTop = true
+			boxHandle.ZIndex = 1
+			boxHandle.Size = part.Size
+			boxHandle.Parent = part
+			return boxHandle
+		end
 
-        local function createBillboard(head)
-            local billboardGui = Instance.new("BillboardGui")
-            billboardGui.Name = "\0"
-            billboardGui.Size = UDim2.new(0, 150, 0, 40)
-            billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
-            billboardGui.AlwaysOnTop = true
-            billboardGui.Parent = head
+		local function createBillboard(head)
+			local billboardGui = Instance.new("BillboardGui")
+			billboardGui.Name = "\0"
+			billboardGui.Size = UDim2.new(0, 150, 0, 40)
+			billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
+			billboardGui.AlwaysOnTop = true
+			billboardGui.Parent = head
 
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.Position = UDim2.new(0, 0, 0, 0)
-            textLabel.BackgroundTransparency = 1
-            textLabel.TextColor3 = Color3.new(1, 1, 1)
-            textLabel.Font = Enum.Font.GothamBold
-            textLabel.TextSize = 12
-            textLabel.TextStrokeTransparency = 0.5
-            textLabel.Text = ""
-            textLabel.Parent = billboardGui
+			local textLabel = Instance.new("TextLabel")
+			textLabel.Size = UDim2.new(1, 0, 1, 0)
+			textLabel.Position = UDim2.new(0, 0, 0, 0)
+			textLabel.BackgroundTransparency = 1
+			textLabel.TextColor3 = Color3.new(1, 1, 1)
+			textLabel.Font = Enum.Font.GothamBold
+			textLabel.TextSize = 12
+			textLabel.TextStrokeTransparency = 0.5
+			textLabel.Text = ""
+			textLabel.Parent = billboardGui
 
-            return { billboard = billboardGui, textLabel = textLabel }
-        end
+			return { billboard = billboardGui, textLabel = textLabel }
+		end
 
-        local function updateESP()
-            local rootPart = getRoot(character)
-            local humanoid = getPlrHum(character)
-            local localChar = getPlrChar(Players.LocalPlayer)
-            local localRoot = localChar and getRoot(localChar)
-            local head = getHead(character)
+		local function updateESP()
+			local rootPart = getRoot(character)
+			local humanoid = getPlrHum(character)
+			local localChar = getPlrChar(Players.LocalPlayer)
+			local localRoot = localChar and getRoot(localChar)
+			local head = getHead(character)
 
-            for _, part in ipairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local espEntry = espCONS[player][part]
-                    if not espEntry then
-                        espEntry = {}
-                        espEntry.boxHandle = createBoxHandle(part)
-                        if part == head and not chamsEnabled then
-                            local billboardInfo = createBillboard(part)
-                            espEntry.billboard = billboardInfo.billboard
-                            espEntry.textLabel = billboardInfo.textLabel
-                        end
-                        espCONS[player][part] = espEntry
-                    end
+			for _, part in ipairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					local espEntry = espCONS[player][part]
+					if not espEntry then
+						espEntry = {}
+						espEntry.boxHandle = createBoxHandle(part)
+						if part == head and not chamsEnabled then
+							local billboardInfo = createBillboard(part)
+							espEntry.billboard = billboardInfo.billboard
+							espEntry.textLabel = billboardInfo.textLabel
+						end
+						espCONS[player][part] = espEntry
+					end
 
-                    local distance = 0
-                    local distanceColor = Color3.fromRGB(255, 255, 255)
-                    if localRoot and rootPart then
-                        distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
-                        if distance > 100 then
-                            distanceColor = Color3.fromRGB(0, 255, 0)
-                        elseif distance > 50 then
-                            distanceColor = Color3.fromRGB(255, 165, 0)
-                        else
-                            distanceColor = Color3.fromRGB(255, 0, 0)
-                        end
-                    end
+					local distance = 0
+					local distanceColor = Color3.fromRGB(255, 255, 255)
+					if localRoot and rootPart then
+						distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
+						if distance > 100 then
+							distanceColor = Color3.fromRGB(0, 255, 0)
+						elseif distance > 50 then
+							distanceColor = Color3.fromRGB(255, 165, 0)
+						else
+							distanceColor = Color3.fromRGB(255, 0, 0)
+						end
+					end
 
-                    local teamColor
-                    if lib.isProperty(player, "Team") and lib.isProperty(player.Team, "TeamColor") then
-                        teamColor = player.Team.TeamColor.Color
-                    end
-                    local targetColor = teamColor or distanceColor
+					local teamColor
+					if lib.isProperty(player, "Team") and lib.isProperty(player.Team, "TeamColor") then
+						teamColor = player.Team.TeamColor.Color
+					end
+					local targetColor = teamColor or distanceColor
 
-                    if espEntry.boxHandle.Color3 ~= targetColor then
-                        espEntry.boxHandle.Color3 = targetColor
-                    end
+					if espEntry.boxHandle.Color3 ~= targetColor then
+						espEntry.boxHandle.Color3 = targetColor
+					end
 
-                    if espEntry.textLabel then
-                        local health = humanoid and math.floor(humanoid.Health) or 0
-                        local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
-                        local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
-                        if espEntry.textLabel.Text ~= newText then
-                            espEntry.textLabel.Text = newText
-                        end
-                        if espEntry.textLabel.TextColor3 ~= distanceColor then
-                            espEntry.textLabel.TextColor3 = distanceColor
-                        end
-                    end
-                end
-            end
-        end
+					if espEntry.textLabel then
+						local health = humanoid and math.floor(humanoid.Health) or 0
+						local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
+						local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
+						if espEntry.textLabel.Text ~= newText then
+							espEntry.textLabel.Text = newText
+						end
+						if espEntry.textLabel.TextColor3 ~= distanceColor then
+							espEntry.textLabel.TextColor3 = distanceColor
+						end
+					end
+				end
+			end
+		end
 
-        local espLoop
-        espLoop = RunService.RenderStepped:Connect(function(dt)
-            if not character:IsDescendantOf(workspace) then
-                espLoop:Disconnect()
-                removeESPonLEAVE(player)
-                return
-            end
-            if not espCONS[player].lastUpdate or (tick() - espCONS[player].lastUpdate) > 0.1 then
-                updateESP()
-                espCONS[player].lastUpdate = tick()
-            end
-        end)
+		local espLoop
+		espLoop = RunService.RenderStepped:Connect(function(dt)
+			if not character:IsDescendantOf(workspace) then
+				espLoop:Disconnect()
+				removeESPonLEAVE(player)
+				return
+			end
+			if not espCONS[player].lastUpdate or (tick() - espCONS[player].lastUpdate) > 0.1 then
+				updateESP()
+				espCONS[player].lastUpdate = tick()
+			end
+		end)
 
-        local charPrtAdded
-        charPrtAdded = character.DescendantAdded:Connect(function(descendant)
-            if descendant:IsA("BasePart") then
-                Defer(function()
-                    updateESP()
-                end)
-            end
-        end)
+		local charPrtAdded
+		charPrtAdded = character.DescendantAdded:Connect(function(descendant)
+			if descendant:IsA("BasePart") then
+				Defer(function()
+					updateESP()
+				end)
+			end
+		end)
 
-        espCONS[player].connection = espLoop
-        espCONS[player].descendantAdded = charPrtAdded
+		espCONS[player].connection = espLoop
+		espCONS[player].descendantAdded = charPrtAdded
 
-        if not player:IsA("Model") then
-            local charAddConn
-            charAddConn = player.CharacterAdded:Connect(function()
-                if not ESPenabled and not persistent then
-                    charAddConn:Disconnect()
-                    return
-                end
-                local char = player.Character or player.CharacterAdded:Wait()
-                if espCONS[player] then
-                    for part, entry in pairs(espCONS[player]) do
-                        if type(entry) == "table" then
-                            if entry.boxHandle then entry.boxHandle:Destroy() end
-                            if entry.billboard then entry.billboard:Destroy() end
-                            if entry.connection then entry.connection:Disconnect() end
-                        end
-                    end
-                    if espCONS[player].connection then espCONS[player].connection:Disconnect() end
-                    if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
-                    espCONS[player] = nil
-                end
-                Defer(function()
-                    Wait(0.5)
-                    NAESP(player, persistent)
-                end)
-            end)
-            storeESP(player, "characterAdded", charAddConn)
-        end
+		if not player:IsA("Model") then
+			local charAddConn
+			charAddConn = player.CharacterAdded:Connect(function()
+				if not ESPenabled and not persistent then
+					charAddConn:Disconnect()
+					return
+				end
+				local char = player.Character or player.CharacterAdded:Wait()
+				if espCONS[player] then
+					for part, entry in pairs(espCONS[player]) do
+						if type(entry) == "table" then
+							if entry.boxHandle then entry.boxHandle:Destroy() end
+							if entry.billboard then entry.billboard:Destroy() end
+							if entry.connection then entry.connection:Disconnect() end
+						end
+					end
+					if espCONS[player].connection then espCONS[player].connection:Disconnect() end
+					if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
+					espCONS[player] = nil
+				end
+				Defer(function()
+					Wait(0.5)
+					NAESP(player, persistent)
+				end)
+			end)
+			storeESP(player, "characterAdded", charAddConn)
+		end
 
-        updateESP()
-    end)
+		updateESP()
+	end)
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -2175,69 +2176,69 @@ end
 local xrayConn = nil
 
 function togXray(en)
-    if type(en) ~= "boolean" then
-        warn("togXray: Invalid arg, expected boolean")
-        return
-    end
+	if type(en) ~= "boolean" then
+		warn("togXray: Invalid arg, expected boolean")
+		return
+	end
 
-    local transVal = en and 0.5 or 0.0
+	local transVal = en and 0.5 or 0.0
 
-    if en then
-        xrayConn = workspace.DescendantAdded:Connect(function(desc)
-            if desc:IsA("BasePart") then
-                local hasHum = false
-                local cur = desc.Parent
-                for i = 1, 5 do
-                    if cur and cur:FindFirstChildOfClass("Humanoid") then
-                        hasHum = true
-                        break
-                    end
-                    cur = cur.Parent
-                    if not cur or cur == workspace then
-                        break
-                    end
-                end
-                if not hasHum then
-                    local ok, err = pcall(function()
-                        desc.LocalTransparencyModifier = 0.5
-                    end)
-                    if not ok then
-                        warn("Failed to mod transparency for new part "..tostring(desc)..": "..tostring(err))
-                    end
-                end
-            end
-        end)
-    else
-        if xrayConn then
-            xrayConn:Disconnect()
-            xrayConn = nil
-        end
-    end
+	if en then
+		xrayConn = workspace.DescendantAdded:Connect(function(desc)
+			if desc:IsA("BasePart") then
+				local hasHum = false
+				local cur = desc.Parent
+				for i = 1, 5 do
+					if cur and cur:FindFirstChildOfClass("Humanoid") then
+						hasHum = true
+						break
+					end
+					cur = cur.Parent
+					if not cur or cur == workspace then
+						break
+					end
+				end
+				if not hasHum then
+					local ok, err = pcall(function()
+						desc.LocalTransparencyModifier = 0.5
+					end)
+					if not ok then
+						warn("Failed to mod transparency for new part "..tostring(desc)..": "..tostring(err))
+					end
+				end
+			end
+		end)
+	else
+		if xrayConn then
+			xrayConn:Disconnect()
+			xrayConn = nil
+		end
+	end
 
-    for _, prt in pairs(workspace:GetDescendants()) do
-        if prt:IsA("BasePart") then
-            local hasHum = false
-            local cur = prt.Parent
-            for i = 1, 5 do
-                if cur and cur:FindFirstChildOfClass("Humanoid") then
-                    hasHum = true
-                    break
-                end
-                cur = cur.Parent
-                if not cur or cur == workspace then
-                    break
-                end
-            end
-            if not hasHum then
-                local ok, err = pcall(function()
-                    prt.LocalTransparencyModifier = transVal
-                end)
-                if not ok then
-                    warn("Failed to mod transparency for part "..tostring(prt)..": "..tostring(err))
-                end
-            end
-        end
-    end
+	for _, prt in pairs(workspace:GetDescendants()) do
+		if prt:IsA("BasePart") then
+			local hasHum = false
+			local cur = prt.Parent
+			for i = 1, 5 do
+				if cur and cur:FindFirstChildOfClass("Humanoid") then
+					hasHum = true
+					break
+				end
+				cur = cur.Parent
+				if not cur or cur == workspace then
+					break
+				end
+			end
+			if not hasHum then
+				local ok, err = pcall(function()
+					prt.LocalTransparencyModifier = transVal
+				end)
+				if not ok then
+					warn("Failed to mod transparency for part "..tostring(prt)..": "..tostring(err))
+				end
+			end
+		end
+	end
 end
 
 -- [[ FLY VARIABLES ]] --
@@ -11288,38 +11289,38 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 end, true)
 
 cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers a dramatic oof sequence for the player"}, function()
-    local p = Players.LocalPlayer
-    if not p then
-        return
-    end
+	local p = Players.LocalPlayer
+	if not p then
+		return
+	end
 
-    local c = p.Character
-    if not c then
-        c = p.CharacterAdded:Wait()
-    end
+	local c = p.Character
+	if not c then
+		c = p.CharacterAdded:Wait()
+	end
 
-    local h = getPlrHum(c)
-    if not h then
-        return
-    end
+	local h = getPlrHum(c)
+	if not h then
+		return
+	end
 
-    local r = getRoot(c)
-    if not r then
-        return
-    end
+	local r = getRoot(c)
+	if not r then
+		return
+	end
 
-    lib.LocalPlayerChat("Okay... I will do it.", "All")
-    Wait(1.5)
-    lib.LocalPlayerChat("I will oof now...", "All")
-    Wait(1.5)
-    lib.LocalPlayerChat("Goodbye, cruel world.", "All")
-    Wait(2)
+	lib.LocalPlayerChat("Okay... I will do it.", "All")
+	Wait(1.5)
+	lib.LocalPlayerChat("I will oof now...", "All")
+	Wait(1.5)
+	lib.LocalPlayerChat("Goodbye, cruel world.", "All")
+	Wait(2)
 
-    h:MoveTo(r.Position + r.CFrame.LookVector * 10)
-    h:ChangeState(Enum.HumanoidStateType.Jumping)
-    Wait(0.45)
+	h:MoveTo(r.Position + r.CFrame.LookVector * 10)
+	h:ChangeState(Enum.HumanoidStateType.Jumping)
+	Wait(0.45)
 
-    cmd.run({'die'})
+	cmd.run({'die'})
 end)
 
 cmd.add({"volume","vol"},{"volume <1-10> (vol)","Changes your volume"},function(vol)
@@ -11401,181 +11402,181 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 end)
 
 cmd.add({"char","character","morph"},{"char","change your character's appearance to someone else's"},function(args)
- local arg=args
- local uid=tonumber(arg)
- if not uid then
-  local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
-  if not ok then return end
-  uid=id
- end
- local function aa(c,id)
-  local a=game:GetObjects("rbxassetid://"..id)[1]
-  if not(a and a:IsA("Accessory"))then return end
-  for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
-  a.Parent=c
-  local h=a:FindFirstChild("Handle") if not h then return end
-  local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
-  local ok2
-  for _,ac in ipairs(at)do
-   local ra=c:FindFirstChild(ac.Name,true)
-   if ra and ra:IsA("Attachment")then
-    h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
-    local w=Instance.new("WeldConstraint")
-    w.Part0,w.Part1,w.Parent=ra.Parent,h,h
-    ok2=true break
-   end
-  end
-  if not ok2 then
-   local hd=getHead(c) or getRoot(c)
-   if hd then
-    h.CFrame=hd.CFrame
-    local w=Instance.new("WeldConstraint")
-    w.Part0,w.Part1,w.Parent=hd,h,h
-   end
-  end
- end
- local function ap()
-  local c=getChar()
-  for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
-  local d=Players:GetHumanoidDescriptionFromUserId(uid)
-  local ar=Players:GetCharacterAppearanceAsync(uid)
-  for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
-  local hum=getHum()
-  if hum and hum:FindFirstChild("HumanoidDescription")then
-   local pd=hum.HumanoidDescription
-   pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
-    d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
-  end
-  local bc=c:FindFirstChildOfClass("BodyColors")
-  if bc then
-   bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
-    d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
-  end
-  local hd=getHead(c)
-  if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
-  for _,v in ipairs(ar:GetDescendants())do
-   if IsR6() and (v:IsA("CharacterMesh")or v:IsA("SpecialMesh"))then
-    v:Clone().Parent=c
-   elseif IsR15() and v:IsA("MeshPart")then
-    local tp=c:FindFirstChild(v.Name,true)
-    if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
-   elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
-    v:Clone().Parent=c
-   elseif v:IsA("Decal")and Lower(v.Name)=="face"then
-    v:Clone().Parent=hd
-   end
-  end
-  if IsR15() then
-   local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
-    LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
-    RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
-    RightUpperLeg="7430071119",UpperTorso="7430071038"}
-   for name,id2 in pairs(b)do
-    local found=false
-    for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
-    if not found then
-     local mp=c:FindFirstChild(name)
-     if mp and mp:IsA("MeshPart")then
-      mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
-     end
-    end
-   end
-  end
- end
- ap()
+	local arg=args
+	local uid=tonumber(arg)
+	if not uid then
+		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
+		if not ok then return end
+		uid=id
+	end
+	local function aa(c,id)
+		local a=game:GetObjects("rbxassetid://"..id)[1]
+		if not(a and a:IsA("Accessory"))then return end
+		for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
+		a.Parent=c
+		local h=a:FindFirstChild("Handle") if not h then return end
+		local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
+		local ok2
+		for _,ac in ipairs(at)do
+			local ra=c:FindFirstChild(ac.Name,true)
+			if ra and ra:IsA("Attachment")then
+				h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
+				local w=Instance.new("WeldConstraint")
+				w.Part0,w.Part1,w.Parent=ra.Parent,h,h
+				ok2=true break
+			end
+		end
+		if not ok2 then
+			local hd=getHead(c) or getRoot(c)
+			if hd then
+				h.CFrame=hd.CFrame
+				local w=Instance.new("WeldConstraint")
+				w.Part0,w.Part1,w.Parent=hd,h,h
+			end
+		end
+	end
+	local function ap()
+		local c=getChar()
+		for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
+		local d=Players:GetHumanoidDescriptionFromUserId(uid)
+		local ar=Players:GetCharacterAppearanceAsync(uid)
+		for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
+		local hum=getHum()
+		if hum and hum:FindFirstChild("HumanoidDescription")then
+			local pd=hum.HumanoidDescription
+			pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
+				d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
+		end
+		local bc=c:FindFirstChildOfClass("BodyColors")
+		if bc then
+			bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
+				d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
+		end
+		local hd=getHead(c)
+		if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
+		for _,v in ipairs(ar:GetDescendants())do
+			if IsR6() and v:IsA("CharacterMesh")then
+				v:Clone().Parent=c
+			elseif IsR15() and v:IsA("MeshPart")then
+				local tp=c:FindFirstChild(v.Name,true)
+				if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
+			elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
+				v:Clone().Parent=c
+			elseif v:IsA("Decal")and Lower(v.Name)=="face"then
+				v:Clone().Parent=hd
+			end
+		end
+		if IsR15() then
+			local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
+				LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
+				RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
+				RightUpperLeg="7430071119",UpperTorso="7430071038"}
+			for name,id2 in pairs(b)do
+				local found=false
+				for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
+				if not found then
+					local mp=c:FindFirstChild(name)
+					if mp and mp:IsA("MeshPart")then
+						mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
+					end
+				end
+			end
+		end
+	end
+	ap()
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
- local uid=Players.LocalPlayer.UserId
- local function aa(c,id)
-  local a=game:GetObjects("rbxassetid://"..id)[1]
-  if not(a and a:IsA("Accessory"))then return end
-  for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
-  a.Parent=c
-  local h=a:FindFirstChild("Handle") if not h then return end
-  local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
-  local ok2
-  for _,ac in ipairs(at)do
-   local ra=c:FindFirstChild(ac.Name,true)
-   if ra and ra:IsA("Attachment")then
-    h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
-    local w=Instance.new("WeldConstraint")
-    w.Part0,w.Part1,w.Parent=ra.Parent,h,h
-    ok2=true break
-   end
-  end
-  if not ok2 then
-   local hd=getHead(c) or getRoot(c)
-   if hd then
-    h.CFrame=hd.CFrame
-    local w=Instance.new("WeldConstraint")
-    w.Part0,w.Part1,w.Parent=hd,h,h
-   end
-  end
- end
- local function ap()
-  local c=getChar()
-  for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
-  local d=Players:GetHumanoidDescriptionFromUserId(uid)
-  local ar=Players:GetCharacterAppearanceAsync(uid)
-  for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
-  local hum=getHum()
-  if hum and hum:FindFirstChild("HumanoidDescription")then
-   local pd=hum.HumanoidDescription
-   pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
-    d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
-  end
-  local bc=c:FindFirstChildOfClass("BodyColors")
-  if bc then
-   bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
-    d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
-  end
-  local hd=getHead(c)
-  if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
-  for _,v in ipairs(ar:GetDescendants())do
-   if IsR6() and (v:IsA("CharacterMesh")or v:IsA("SpecialMesh"))then
-    v:Clone().Parent=c
-   elseif IsR15() and v:IsA("MeshPart")then
-    local tp=c:FindFirstChild(v.Name)
-    if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
-   elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
-    v:Clone().Parent=c
-   elseif v:IsA("Decal")and Lower(v.Name)=="face"then
-    v:Clone().Parent=hd
-   end
-  end
-  if IsR15() then
-   local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
-    LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
-    RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
-    RightUpperLeg="7430071119",UpperTorso="7430071038"}
-   for name,id2 in pairs(b)do
-    local found=false
-    for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
-    if not found then
-     local mp=c:FindFirstChild(name,true)
-     if mp and mp:IsA("MeshPart")then
-      mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
-     end
-    end
-   end
-  end
- end
- ap()
+	local uid=Players.LocalPlayer.UserId
+	local function aa(c,id)
+		local a=game:GetObjects("rbxassetid://"..id)[1]
+		if not(a and a:IsA("Accessory"))then return end
+		for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
+		a.Parent=c
+		local h=a:FindFirstChild("Handle") if not h then return end
+		local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
+		local ok2
+		for _,ac in ipairs(at)do
+			local ra=c:FindFirstChild(ac.Name,true)
+			if ra and ra:IsA("Attachment")then
+				h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
+				local w=Instance.new("WeldConstraint")
+				w.Part0,w.Part1,w.Parent=ra.Parent,h,h
+				ok2=true break
+			end
+		end
+		if not ok2 then
+			local hd=getHead(c) or getRoot(c)
+			if hd then
+				h.CFrame=hd.CFrame
+				local w=Instance.new("WeldConstraint")
+				w.Part0,w.Part1,w.Parent=hd,h,h
+			end
+		end
+	end
+	local function ap()
+		local c=getChar()
+		for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
+		local d=Players:GetHumanoidDescriptionFromUserId(uid)
+		local ar=Players:GetCharacterAppearanceAsync(uid)
+		for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
+		local hum=getHum()
+		if hum and hum:FindFirstChild("HumanoidDescription")then
+			local pd=hum.HumanoidDescription
+			pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
+				d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
+		end
+		local bc=c:FindFirstChildOfClass("BodyColors")
+		if bc then
+			bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
+				d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
+		end
+		local hd=getHead(c)
+		if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
+		for _,v in ipairs(ar:GetDescendants())do
+			if IsR6() and v:IsA("CharacterMesh")then
+				v:Clone().Parent=c
+			elseif IsR15() and v:IsA("MeshPart")then
+				local tp=c:FindFirstChild(v.Name)
+				if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
+			elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
+				v:Clone().Parent=c
+			elseif v:IsA("Decal")and Lower(v.Name)=="face"then
+				v:Clone().Parent=hd
+			end
+		end
+		if IsR15() then
+			local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
+				LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
+				RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
+				RightUpperLeg="7430071119",UpperTorso="7430071038"}
+			for name,id2 in pairs(b)do
+				local found=false
+				for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
+				if not found then
+					local mp=c:FindFirstChild(name,true)
+					if mp and mp:IsA("MeshPart")then
+						mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
+					end
+				end
+			end
+		end
+	end
+	ap()
 end)
 
 cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(args)
-    local target = args
-    if not target then return end
-    lib.disconnect("autochar")
-    lib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
-        cmd.run({"char", target})
-    end))
-    cmd.run({"char", target})
+	local target = args
+	if not target then return end
+	lib.disconnect("autochar")
+	lib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
+		cmd.run({"char", target})
+	end))
+	cmd.run({"char", target})
 end, true)
 
 cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
-    lib.disconnect("autochar")
+	lib.disconnect("autochar")
 end)
 
 cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
@@ -11702,341 +11703,341 @@ local specUI = nil
 local connStep, connAdd, connRemove = nil, nil, nil
 
 function cleanup()
-    lib.disconnect("spectate_char")
-    lib.disconnect("spectate_loop")
-    lib.disconnect("spectate_leave")
+	lib.disconnect("spectate_char")
+	lib.disconnect("spectate_loop")
+	lib.disconnect("spectate_leave")
 
-    if connStep then connStep:Disconnect() connStep = nil end
-    if connAdd then connAdd:Disconnect() connAdd = nil end
-    if connRemove then connRemove:Disconnect() connRemove = nil end
+	if connStep then connStep:Disconnect() connStep = nil end
+	if connAdd then connAdd:Disconnect() connAdd = nil end
+	if connRemove then connRemove:Disconnect() connRemove = nil end
 
-    if specUI then specUI:Destroy() specUI = nil end
+	if specUI then specUI:Destroy() specUI = nil end
 
-    local hum = getHum()
-    local cam = workspace.CurrentCamera
-    if hum then cam.CameraSubject = hum end
+	local hum = getHum()
+	local cam = workspace.CurrentCamera
+	if hum then cam.CameraSubject = hum end
 end
 
 function spectatePlayer(targetPlayer)
-    if not targetPlayer then return end
+	if not targetPlayer then return end
 
-    lib.disconnect("spectate_char")
-    lib.disconnect("spectate_loop")
-    lib.disconnect("spectate_leave")
+	lib.disconnect("spectate_char")
+	lib.disconnect("spectate_loop")
+	lib.disconnect("spectate_leave")
 
-    lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
-        while not getPlrHum(character) do Wait(.1) end
-        workspace.CurrentCamera.CameraSubject = getPlrHum(character)
-    end))
+	lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
+		while not getPlrHum(character) do Wait(.1) end
+		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
+	end))
 
-    lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
-        if player == targetPlayer then
-            cleanup()
-            DoNotif("Player left - camera reset")
-        end
-    end))
+	lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
+		if player == targetPlayer then
+			cleanup()
+			DoNotif("Player left - camera reset")
+		end
+	end))
 
-    local loop = coroutine.create(function()
-        while true do
-            if getPlrHum(targetPlayer) then
-                workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
-            end
-            Wait()
-        end
-    end)
-    lib.connect("spectate_loop", {
-        Disconnect = function()
-            if coroutine.status(loop) ~= "dead" then
-                coroutine.close(loop)
-            end
-        end
-    })
-    coroutine.resume(loop)
+	local loop = coroutine.create(function()
+		while true do
+			if getPlrHum(targetPlayer) then
+				workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
+			end
+			Wait()
+		end
+	end)
+	lib.connect("spectate_loop", {
+		Disconnect = function()
+			if coroutine.status(loop) ~= "dead" then
+				coroutine.close(loop)
+			end
+		end
+	})
+	coroutine.resume(loop)
 end
 
 cmd.add({"watch", "view", "spectate"}, {"watch <Player> (view, spectate)", "Spectate player"}, function(...)
-    cleanup()
-    local targetPlayer = getPlr((...))
-    for _, plr in next, targetPlayer do
-        if not plr then return end
-        spectatePlayer(plr)
-    end
+	cleanup()
+	local targetPlayer = getPlr((...))
+	for _, plr in next, targetPlayer do
+		if not plr then return end
+		spectatePlayer(plr)
+	end
 end, true)
 
 cmd.add({"unwatch", "unview"}, {"unwatch (unview)", "Stop spectating"}, function()
-    cleanup()
+	cleanup()
 end)
 
 cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
-    local LocalPlayer = Players.LocalPlayer
-    local spectatedPlayer = nil
-    local playerList, currentIndex = {}, 1
-    local frame, titleLabel, toggleBtn, scroll, listOpen = false, false, false, false, false
-    local baseTogglePos = 5
+	local LocalPlayer = Players.LocalPlayer
+	local spectatedPlayer = nil
+	local playerList, currentIndex = {}, 1
+	local frame, titleLabel, toggleBtn, scroll, listOpen = false, false, false, false, false
+	local baseTogglePos = 5
 
-    local function rebuild()
-        table.clear(playerList)
-        for _, p in ipairs(Players:GetPlayers()) do
-            table.insert(playerList, p)
-        end
-        table.sort(playerList, function(a, b) return a.Name < b.Name end)
-    end
+	local function rebuild()
+		table.clear(playerList)
+		for _, p in ipairs(Players:GetPlayers()) do
+			table.insert(playerList, p)
+		end
+		table.sort(playerList, function(a, b) return a.Name < b.Name end)
+	end
 
-    local function cam(p)
-        local h = getPlrHum(p)
-        workspace.CurrentCamera.CameraSubject = h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
-    end
+	local function cam(p)
+		local h = getPlrHum(p)
+		workspace.CurrentCamera.CameraSubject = h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
+	end
 
-    local function recolor()
-        if not listOpen or not scroll then return end
-        for _, btn in ipairs(scroll:GetChildren()) do
-            if btn:IsA("TextButton") then
-                local idx = btn:GetAttribute("idx")
-                local lbl = btn:FindFirstChild("NameLabel")
-                if idx and lbl then
-                    local plr = playerList[idx]
-                    if plr == LocalPlayer then
-                        lbl.TextColor3 = Color3.fromRGB(255, 255, 0)
-                    elseif idx == currentIndex then
-                        lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
-                    else
-                        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-                    end
-                end
-            end
-        end
-    end
+	local function recolor()
+		if not listOpen or not scroll then return end
+		for _, btn in ipairs(scroll:GetChildren()) do
+			if btn:IsA("TextButton") then
+				local idx = btn:GetAttribute("idx")
+				local lbl = btn:FindFirstChild("NameLabel")
+				if idx and lbl then
+					local plr = playerList[idx]
+					if plr == LocalPlayer then
+						lbl.TextColor3 = Color3.fromRGB(255, 255, 0)
+					elseif idx == currentIndex then
+						lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
+					else
+						lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+					end
+				end
+			end
+		end
+	end
 
-    local function refresh()
-        if not titleLabel then return end
-        if #playerList == 0 then
-            titleLabel.Text = "Spectating: None"
-            spectatedPlayer = nil
-            return
-        end
-        if spectatedPlayer and table.find(playerList, spectatedPlayer) then
-            currentIndex = table.find(playerList, spectatedPlayer)
-        else
-            if currentIndex < 1 then currentIndex = 1 end
-            if currentIndex > #playerList then currentIndex = 1 end
-            spectatedPlayer = playerList[currentIndex]
-        end
-        local plr = playerList[currentIndex]
-        if not plr then
-            titleLabel.Text = "Spectating: None"
-            spectatedPlayer = nil
-            return
-        end
-        titleLabel.Text = "Spectating: " .. nameChecker(plr)
-        titleLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(0, 162, 255)
-        cam(plr)
-        recolor()
-    end
+	local function refresh()
+		if not titleLabel then return end
+		if #playerList == 0 then
+			titleLabel.Text = "Spectating: None"
+			spectatedPlayer = nil
+			return
+		end
+		if spectatedPlayer and table.find(playerList, spectatedPlayer) then
+			currentIndex = table.find(playerList, spectatedPlayer)
+		else
+			if currentIndex < 1 then currentIndex = 1 end
+			if currentIndex > #playerList then currentIndex = 1 end
+			spectatedPlayer = playerList[currentIndex]
+		end
+		local plr = playerList[currentIndex]
+		if not plr then
+			titleLabel.Text = "Spectating: None"
+			spectatedPlayer = nil
+			return
+		end
+		titleLabel.Text = "Spectating: " .. nameChecker(plr)
+		titleLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(0, 162, 255)
+		cam(plr)
+		recolor()
+	end
 
-    local function updateDropdown()
-        if not listOpen or not scroll then return end
-        for _, child in ipairs(scroll:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-        for i, plr in ipairs(playerList) do
-            local pb = InstanceNew("TextButton", scroll)
-            pb.Size = UDim2.new(1, 0, 0, 30)
-            pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            pb.Font = Enum.Font.Gotham
-            pb.Text = ""
-            pb.LayoutOrder = i
-            pb:SetAttribute("idx", i)
-            InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
+	local function updateDropdown()
+		if not listOpen or not scroll then return end
+		for _, child in ipairs(scroll:GetChildren()) do
+			if child:IsA("TextButton") then
+				child:Destroy()
+			end
+		end
+		for i, plr in ipairs(playerList) do
+			local pb = InstanceNew("TextButton", scroll)
+			pb.Size = UDim2.new(1, 0, 0, 30)
+			pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			pb.Font = Enum.Font.Gotham
+			pb.Text = ""
+			pb.LayoutOrder = i
+			pb:SetAttribute("idx", i)
+			InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
 
-            local img = InstanceNew("ImageLabel", pb)
-            img.Size = UDim2.new(0, 30, 0, 30)
-            img.BackgroundTransparency = 1
-            img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+			local img = InstanceNew("ImageLabel", pb)
+			img.Size = UDim2.new(0, 30, 0, 30)
+			img.BackgroundTransparency = 1
+			img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 
-            local nameLbl = InstanceNew("TextLabel", pb)
-            nameLbl.Name = "NameLabel"
-            nameLbl.BackgroundTransparency = 1
-            nameLbl.Size = UDim2.new(1, -35, 1, 0)
-            nameLbl.Position = UDim2.new(0, 35, 0, 0)
-            nameLbl.Font = Enum.Font.Gotham
-            nameLbl.TextScaled = true
-            nameLbl.Text = nameChecker(plr)
+			local nameLbl = InstanceNew("TextLabel", pb)
+			nameLbl.Name = "NameLabel"
+			nameLbl.BackgroundTransparency = 1
+			nameLbl.Size = UDim2.new(1, -35, 1, 0)
+			nameLbl.Position = UDim2.new(0, 35, 0, 0)
+			nameLbl.Font = Enum.Font.Gotham
+			nameLbl.TextScaled = true
+			nameLbl.Text = nameChecker(plr)
 
-            MouseButtonFix(pb, function()
-                currentIndex = i
-                spectatedPlayer = playerList[currentIndex]
-                refresh()
-            end)
-        end
-        local h = math.min(#playerList * 30, 300)
-        scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
-        scroll.Size = UDim2.new(1, 0, 0, h)
-        toggleBtn.Position = UDim2.new(0.5, -15, 1, h + 10)
-        recolor()
-    end
+			MouseButtonFix(pb, function()
+				currentIndex = i
+				spectatedPlayer = playerList[currentIndex]
+				refresh()
+			end)
+		end
+		local h = math.min(#playerList * 30, 300)
+		scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
+		scroll.Size = UDim2.new(1, 0, 0, h)
+		toggleBtn.Position = UDim2.new(0.5, -15, 1, h + 10)
+		recolor()
+	end
 
-    local function mkBtn(txt, pos, size, bg, ts, cb)
-        local b = InstanceNew("TextButton", frame)
-        b.Size = size or UDim2.new(0, 40, 0, 40)
-        b.Position = pos
-        b.BackgroundColor3 = bg or Color3.fromRGB(50, 50, 50)
-        b.Text = txt
-        b.TextColor3 = Color3.new(1, 1, 1)
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = ts or 24
-        InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 10)
-        MouseButtonFix(b, cb)
-        return b
-    end
+	local function mkBtn(txt, pos, size, bg, ts, cb)
+		local b = InstanceNew("TextButton", frame)
+		b.Size = size or UDim2.new(0, 40, 0, 40)
+		b.Position = pos
+		b.BackgroundColor3 = bg or Color3.fromRGB(50, 50, 50)
+		b.Text = txt
+		b.TextColor3 = Color3.new(1, 1, 1)
+		b.Font = Enum.Font.GothamBold
+		b.TextSize = ts or 24
+		InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 10)
+		MouseButtonFix(b, cb)
+		return b
+	end
 
-    rebuild()
-    if #playerList == 0 then return DoNotif("No players to spectate", 2) end
+	rebuild()
+	if #playerList == 0 then return DoNotif("No players to spectate", 2) end
 
-    specUI = InstanceNew("ScreenGui")
-    NaProtectUI(specUI)
-    specUI.ResetOnSpawn = false
-    specUI.DisplayOrder = 10
-    frame = InstanceNew("Frame", specUI)
-    frame.AnchorPoint = Vector2.new(0.5, 1)
-    frame.Size = UDim2.new(0, 350, 0, 40)
-    frame.Position = UDim2.new(0.5, 0, 0.1, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    frame.BorderSizePixel = 0
-    InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 20)
-    gui.draggerV2(frame)
+	specUI = InstanceNew("ScreenGui")
+	NaProtectUI(specUI)
+	specUI.ResetOnSpawn = false
+	specUI.DisplayOrder = 10
+	frame = InstanceNew("Frame", specUI)
+	frame.AnchorPoint = Vector2.new(0.5, 1)
+	frame.Size = UDim2.new(0, 350, 0, 40)
+	frame.Position = UDim2.new(0.5, 0, 0.1, 0)
+	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	frame.BorderSizePixel = 0
+	InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 20)
+	gui.draggerV2(frame)
 
-    titleLabel = InstanceNew("TextLabel", frame)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
-    titleLabel.Position = UDim2.new(0.15, 0, 0, 0)
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextScaled = true
+	titleLabel = InstanceNew("TextLabel", frame)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+	titleLabel.Position = UDim2.new(0.15, 0, 0, 0)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextScaled = true
 
-    mkBtn("<", UDim2.new(0, -18, 0, 0), nil, nil, nil, function()
-        currentIndex = currentIndex - 1
-        if currentIndex < 1 then currentIndex = #playerList end
-        spectatedPlayer = playerList[currentIndex]
-        refresh()
-    end)
-    mkBtn(">", UDim2.new(1, -22, 0, 0), nil, nil, nil, function()
-        currentIndex = currentIndex + 1
-        if currentIndex > #playerList then currentIndex = 1 end
-        spectatedPlayer = playerList[currentIndex]
-        refresh()
-    end)
-    mkBtn("X", UDim2.new(1, -55, 0, 5), UDim2.new(0, 30, 0, 30), Color3.fromRGB(255, 50, 50), 18, function()
-        cleanup()
-    end)
+	mkBtn("<", UDim2.new(0, -18, 0, 0), nil, nil, nil, function()
+		currentIndex = currentIndex - 1
+		if currentIndex < 1 then currentIndex = #playerList end
+		spectatedPlayer = playerList[currentIndex]
+		refresh()
+	end)
+	mkBtn(">", UDim2.new(1, -22, 0, 0), nil, nil, nil, function()
+		currentIndex = currentIndex + 1
+		if currentIndex > #playerList then currentIndex = 1 end
+		spectatedPlayer = playerList[currentIndex]
+		refresh()
+	end)
+	mkBtn("X", UDim2.new(1, -55, 0, 5), UDim2.new(0, 30, 0, 30), Color3.fromRGB(255, 50, 50), 18, function()
+		cleanup()
+	end)
 
-    toggleBtn = mkBtn("v", UDim2.new(0.5, -15, 1, baseTogglePos), UDim2.new(0, 30, 0, 20), Color3.fromRGB(40, 40, 40), 18, function()
-        if listOpen then
-            local tClose = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 0)})
-            local tPos = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, baseTogglePos)})
-            tClose:Play()
-            tPos:Play()
-            tClose.Completed:Wait()
-            scroll:Destroy()
-            scroll = nil
-            listOpen = false
-            toggleBtn.Text = "v"
-        else
-            scroll = InstanceNew("ScrollingFrame", frame)
-            scroll.Size = UDim2.new(1, 0, 0, 0)
-            scroll.Position = UDim2.new(0, 0, 1, 0)
-            scroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-            scroll.BorderSizePixel = 0
-            scroll.ScrollBarThickness = 8
-            scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-            scroll.ClipsDescendants = true
-            InstanceNew("UICorner", scroll).CornerRadius = UDim.new(0, 10)
-            InstanceNew("UIListLayout", scroll).SortOrder = Enum.SortOrder.LayoutOrder
+	toggleBtn = mkBtn("v", UDim2.new(0.5, -15, 1, baseTogglePos), UDim2.new(0, 30, 0, 20), Color3.fromRGB(40, 40, 40), 18, function()
+		if listOpen then
+			local tClose = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 0)})
+			local tPos = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, baseTogglePos)})
+			tClose:Play()
+			tPos:Play()
+			tClose.Completed:Wait()
+			scroll:Destroy()
+			scroll = nil
+			listOpen = false
+			toggleBtn.Text = "v"
+		else
+			scroll = InstanceNew("ScrollingFrame", frame)
+			scroll.Size = UDim2.new(1, 0, 0, 0)
+			scroll.Position = UDim2.new(0, 0, 1, 0)
+			scroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+			scroll.BorderSizePixel = 0
+			scroll.ScrollBarThickness = 8
+			scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			scroll.ClipsDescendants = true
+			InstanceNew("UICorner", scroll).CornerRadius = UDim.new(0, 10)
+			InstanceNew("UIListLayout", scroll).SortOrder = Enum.SortOrder.LayoutOrder
 
-            local loading = InstanceNew("TextLabel", scroll)
-            loading.Size = UDim2.new(1, 0, 0, 30)
-            loading.BackgroundTransparency = 1
-            loading.Font = Enum.Font.GothamSemibold
-            loading.TextScaled = true
-            loading.TextColor3 = Color3.fromRGB(255, 255, 255)
-            loading.Text = "Loading..."
+			local loading = InstanceNew("TextLabel", scroll)
+			loading.Size = UDim2.new(1, 0, 0, 30)
+			loading.BackgroundTransparency = 1
+			loading.Font = Enum.Font.GothamSemibold
+			loading.TextScaled = true
+			loading.TextColor3 = Color3.fromRGB(255, 255, 255)
+			loading.Text = "Loading..."
 
-            Spawn(function()
-                loading:Destroy()
-                for i, plr in ipairs(playerList) do
-                    local pb = InstanceNew("TextButton", scroll)
-                    pb.Size = UDim2.new(1, 0, 0, 30)
-                    pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-                    pb.Font = Enum.Font.Gotham
-                    pb.Text = ""
-                    pb.LayoutOrder = i
-                    pb:SetAttribute("idx", i)
-                    InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
+			Spawn(function()
+				loading:Destroy()
+				for i, plr in ipairs(playerList) do
+					local pb = InstanceNew("TextButton", scroll)
+					pb.Size = UDim2.new(1, 0, 0, 30)
+					pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+					pb.Font = Enum.Font.Gotham
+					pb.Text = ""
+					pb.LayoutOrder = i
+					pb:SetAttribute("idx", i)
+					InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
 
-                    local img = InstanceNew("ImageLabel", pb)
-                    img.Size = UDim2.new(0, 30, 0, 30)
-                    img.BackgroundTransparency = 1
-                    img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+					local img = InstanceNew("ImageLabel", pb)
+					img.Size = UDim2.new(0, 30, 0, 30)
+					img.BackgroundTransparency = 1
+					img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 
-                    local nameLbl = InstanceNew("TextLabel", pb)
-                    nameLbl.Name = "NameLabel"
-                    nameLbl.BackgroundTransparency = 1
-                    nameLbl.Size = UDim2.new(1, -35, 1, 0)
-                    nameLbl.Position = UDim2.new(0, 35, 0, 0)
-                    nameLbl.Font = Enum.Font.Gotham
-                    nameLbl.TextScaled = true
-                    nameLbl.Text = nameChecker(plr)
+					local nameLbl = InstanceNew("TextLabel", pb)
+					nameLbl.Name = "NameLabel"
+					nameLbl.BackgroundTransparency = 1
+					nameLbl.Size = UDim2.new(1, -35, 1, 0)
+					nameLbl.Position = UDim2.new(0, 35, 0, 0)
+					nameLbl.Font = Enum.Font.Gotham
+					nameLbl.TextScaled = true
+					nameLbl.Text = nameChecker(plr)
 
-                    MouseButtonFix(pb, function()
-                        currentIndex = i
-                        spectatedPlayer = playerList[currentIndex]
-                        refresh()
-                    end)
-                end
-                local h = math.min(#playerList * 30, 300)
-                scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
-                local open = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, h)})
-                local move = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, h + 10)})
-                open:Play()
-                move:Play()
-                listOpen = true
-                toggleBtn.Text = "^"
-                recolor()
-            end)
-        end
-    end)
+					MouseButtonFix(pb, function()
+						currentIndex = i
+						spectatedPlayer = playerList[currentIndex]
+						refresh()
+					end)
+				end
+				local h = math.min(#playerList * 30, 300)
+				scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
+				local open = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, h)})
+				local move = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, h + 10)})
+				open:Play()
+				move:Play()
+				listOpen = true
+				toggleBtn.Text = "^"
+				recolor()
+			end)
+		end
+	end)
 
-    connStep = RunService.RenderStepped:Connect(function()
-        if #playerList == 0 then return end
-        local p = playerList[currentIndex]
-        if not p or not p.Character then rebuild() end
-        cam(playerList[currentIndex])
-    end)
-    connAdd = Players.PlayerAdded:Connect(function()
-        rebuild()
-        refresh()
-        updateDropdown()
-    end)
-    connRemove = Players.PlayerRemoving:Connect(function(plr)
-        rebuild()
-        if plr == spectatedPlayer then
-            spectatedPlayer = nil
-            if #playerList > 0 then
-                currentIndex = 1
-            else
-                currentIndex = 0
-            end
-        end
-        refresh()
-        updateDropdown()
-    end)
+	connStep = RunService.RenderStepped:Connect(function()
+		if #playerList == 0 then return end
+		local p = playerList[currentIndex]
+		if not p or not p.Character then rebuild() end
+		cam(playerList[currentIndex])
+	end)
+	connAdd = Players.PlayerAdded:Connect(function()
+		rebuild()
+		refresh()
+		updateDropdown()
+	end)
+	connRemove = Players.PlayerRemoving:Connect(function(plr)
+		rebuild()
+		if plr == spectatedPlayer then
+			spectatedPlayer = nil
+			if #playerList > 0 then
+				currentIndex = 1
+			else
+				currentIndex = 0
+			end
+		end
+		refresh()
+		updateDropdown()
+	end)
 
-    refresh()
+	refresh()
 end, true)
 
 cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
-    cleanup()
-    DoNotif("Spectate stopped", 1.2)
+	cleanup()
+	DoNotif("Spectate stopped", 1.2)
 end, true)
 
 cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Save all sounds a player is playing to a file -Cyrus"},function(p)
@@ -16140,41 +16141,41 @@ local partTrigger = nil
 local espTriggers = {}
 
 function createBox(part, color, transparency)
-    local box = InstanceNew("BoxHandleAdornment")
-    box.Name = part.Name:lower().."_PEEPEE"
-    box.Parent = part
-    box.Adornee = part
-    box.AlwaysOnTop = true
-    box.ZIndex = 0
-    if part:IsA("BasePart") then
-        box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
-    elseif part:FindFirstChildWhichIsA("BasePart") then
-        box.Size = part:FindFirstChildWhichIsA("BasePart").Size + Vector3.new(0.1, 0.1, 0.1)
-    else
-        box.Size = Vector3.new(4, 4, 4)
-    end
-    box.Transparency = transparency or 0.45
-    box.Color3 = color
-    
-    local billboard = InstanceNew("BillboardGui")
-    billboard.Name = part.Name:lower().."_LABEL"
-    billboard.Parent = part
-    billboard.Adornee = part
-    billboard.Size = UDim2.new(0, 100, 0, 30)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.AlwaysOnTop = true
-    
-    local textLabel = InstanceNew("TextLabel")
-    textLabel.Parent = billboard
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = color
-    textLabel.Text = part.Name
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 14
-    textLabel.TextStrokeTransparency = 0.5
-    
-    return box
+	local box = InstanceNew("BoxHandleAdornment")
+	box.Name = part.Name:lower().."_PEEPEE"
+	box.Parent = part
+	box.Adornee = part
+	box.AlwaysOnTop = true
+	box.ZIndex = 0
+	if part:IsA("BasePart") then
+		box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+	elseif part:FindFirstChildWhichIsA("BasePart") then
+		box.Size = part:FindFirstChildWhichIsA("BasePart").Size + Vector3.new(0.1, 0.1, 0.1)
+	else
+		box.Size = Vector3.new(4, 4, 4)
+	end
+	box.Transparency = transparency or 0.45
+	box.Color3 = color
+
+	local billboard = InstanceNew("BillboardGui")
+	billboard.Name = part.Name:lower().."_LABEL"
+	billboard.Parent = part
+	billboard.Adornee = part
+	billboard.Size = UDim2.new(0, 100, 0, 30)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+
+	local textLabel = InstanceNew("TextLabel")
+	textLabel.Parent = billboard
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextColor3 = color
+	textLabel.Text = part.Name
+	textLabel.Font = Enum.Font.SourceSansBold
+	textLabel.TextSize = 14
+	textLabel.TextStrokeTransparency = 0.5
+
+	return box
 end
 
 function onPartAdded(part)
@@ -16221,23 +16222,23 @@ function enableEsp(objType, color, list)
 end
 
 function disableEsp(objType, list)
-    if espTriggers[objType] then
-        espTriggers[objType]:Disconnect()
-        espTriggers[objType] = nil
-    end
+	if espTriggers[objType] then
+		espTriggers[objType]:Disconnect()
+		espTriggers[objType] = nil
+	end
 
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-            local adornee = obj.Adornee
-            if adornee and Discover(list, adornee) then
-                obj:Destroy()
-                local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
-                if label then label:Destroy() end
-            end
-        end
-    end
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
+			local adornee = obj.Adornee
+			if adornee and Discover(list, adornee) then
+				obj:Destroy()
+				local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
+				if label then label:Destroy() end
+			end
+		end
+	end
 
-    table.clear(list)
+	table.clear(list)
 end
 
 cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "Highlights specific parts by name"}, function(...)
@@ -16293,28 +16294,28 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 end, true)
 
 cmd.add({"unpesp", "unesppart", "unpartesp"}, {"unpesp (unesppart, unpartesp)", "Removes ESP from specific parts added by pesp"}, function()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-            local adornee = obj.Adornee
-            if adornee then
-                for _, name in ipairs(espList) do
-                    if adornee.Name:lower():find(name) then
-                        obj:Destroy()
-                        local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
-                        if label then label:Destroy() end
-                        break
-                    end
-                end
-            end
-        end
-    end
+	for _, obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
+			local adornee = obj.Adornee
+			if adornee then
+				for _, name in ipairs(espList) do
+					if adornee.Name:lower():find(name) then
+						obj:Destroy()
+						local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
+						if label then label:Destroy() end
+						break
+					end
+				end
+			end
+		end
+	end
 
-    espList = {}
+	espList = {}
 
-    if partTrigger then
-        partTrigger:Disconnect()
-        partTrigger = nil
-    end
+	if partTrigger then
+		partTrigger:Disconnect()
+		partTrigger = nil
+	end
 end)
 
 cmd.add({"touchesp", "tesp"}, {"touchesp (tesp)", "Highlights parts with TouchTransmitter"}, function()
@@ -16701,15 +16702,15 @@ cmd.add({"unflyjump","noflyjump"},{"unflyjump (noflyjump)","Disables flyjump"},f
 end)
 
 cmd.add({"xray", "xrayon"}, {"xray (xrayon)", "Enables X-ray vision to see through walls"}, function()
-    Wait()
-    DoNotif("X-ray enabled")
-    togXray(true)
+	Wait()
+	DoNotif("X-ray enabled")
+	togXray(true)
 end)
 
 cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, function()
-    Wait()
-    DoNotif("X-ray disabled")
-    togXray(false)
+	Wait()
+	DoNotif("X-ray disabled")
+	togXray(false)
 end)
 
 cmd.add({"pastebinscraper","pastebinscrape"},{"pastebinscraper (pastebinscrape)","Scrapes paste bin posts"},function()
@@ -19344,56 +19345,56 @@ end)
 end)]]
 
 gui.barSelect = function(speed)
-    speed = speed or 0.4
+	speed = speed or 0.4
 
-    centerBar.Size = UDim2.new(0, 0, 0, 0)
+	centerBar.Size = UDim2.new(0, 0, 0, 0)
 
-    gui.tween(centerBar, "Back", "Out", speed, {
-        Size = UDim2.new(0, 280, 1, 10)
-    })
+	gui.tween(centerBar, "Back", "Out", speed, {
+		Size = UDim2.new(0, 280, 1, 10)
+	})
 
-    leftFill.Position = UDim2.new(0.5, 0, 0.5, 0)
-    rightFill.Position = UDim2.new(0.5, 0, 0.5, 0)
-    leftFill.Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
-    rightFill.Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
+	leftFill.Position = UDim2.new(0.5, 0, 0.5, 0)
+	rightFill.Position = UDim2.new(0.5, 0, 0.5, 0)
+	leftFill.Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
+	rightFill.Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 
-    Wait(speed * 0.1)
-    gui.tween(leftFill, "Quart", "Out", speed * 1.2, {
-        Position = UDim2.new(0, 0, 0.5, 0),
-        Size = fillSizes.left
-    })
-    gui.tween(rightFill, "Quart", "Out", speed * 1.2, {
-        Position = UDim2.new(1, 0, 0.5, 0),
-        Size = fillSizes.right
-    })
+	Wait(speed * 0.1)
+	gui.tween(leftFill, "Quart", "Out", speed * 1.2, {
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = fillSizes.left
+	})
+	gui.tween(rightFill, "Quart", "Out", speed * 1.2, {
+		Position = UDim2.new(1, 0, 0.5, 0),
+		Size = fillSizes.right
+	})
 end
 
 gui.barDeselect = function(speed)
-    speed = speed or 0.4
+	speed = speed or 0.4
 
-    gui.tween(centerBar, "Back", "InOut", speed, {
-        Size = UDim2.new(0, 0, 0, 0)
-    })
+	gui.tween(centerBar, "Back", "InOut", speed, {
+		Size = UDim2.new(0, 0, 0, 0)
+	})
 
-    gui.tween(leftFill, "Quart", "In", speed * 0.9, {
-        Position = UDim2.new(-0.5, -125, 0.5, 0),
-        Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
-    })
-    gui.tween(rightFill, "Quart", "In", speed * 0.9, {
-        Position = UDim2.new(1.5, 125, 0.5, 0),
-        Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
-    })
+	gui.tween(leftFill, "Quart", "In", speed * 0.9, {
+		Position = UDim2.new(-0.5, -125, 0.5, 0),
+		Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
+	})
+	gui.tween(rightFill, "Quart", "In", speed * 0.9, {
+		Position = UDim2.new(1.5, 125, 0.5, 0),
+		Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
+	})
 
-    for i, v in ipairs(cmdAutofill:GetChildren()) do
-        if v:IsA("Frame") then
-            wrap(function()
-                Wait(math.random(50, 120) / 1000)
-                gui.tween(v, "Exponential", "In", 0.25, {
-                    Size = UDim2.new(0, 0, 0, 25)
-                })
-            end)
-        end
-    end
+	for i, v in ipairs(cmdAutofill:GetChildren()) do
+		if v:IsA("Frame") then
+			wrap(function()
+				Wait(math.random(50, 120) / 1000)
+				gui.tween(v, "Exponential", "In", 0.25, {
+					Size = UDim2.new(0, 0, 0, 25)
+				})
+			end)
+		end
+	end
 end
 
 --[[ AUTOFILL SEARCHER ]]--
@@ -19774,250 +19775,250 @@ end)
 
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
-    local chatMsg = chatExample:Clone()
+	local chatMsg = chatExample:Clone()
 
-    for _, v in pairs(chatLogs:GetChildren()) do
-        if v:IsA("TextLabel") then
-            v.LayoutOrder = v.LayoutOrder + 1
-        end
-    end
+	for _, v in pairs(chatLogs:GetChildren()) do
+		if v:IsA("TextLabel") then
+			v.LayoutOrder = v.LayoutOrder + 1
+		end
+	end
 
-    chatMsg.Name = '\0'
-    chatMsg.Parent = chatLogs
+	chatMsg.Name = '\0'
+	chatMsg.Parent = chatLogs
 
-    local displayName = plr.DisplayName or "Unknown"
-    local userName = plr.Name or "Unknown"
+	local displayName = plr.DisplayName or "Unknown"
+	local userName = plr.Name or "Unknown"
 
-    local isNAadmin = false
-    if _G.NAadminsLol then
-        for _, id in ipairs(_G.NAadminsLol) do
-            if plr.UserId == id then
-                isNAadmin = true
-                break
-            end
-        end
-    end
+	local isNAadmin = false
+	if _G.NAadminsLol then
+		for _, id in ipairs(_G.NAadminsLol) do
+			if plr.UserId == id then
+				isNAadmin = true
+				break
+			end
+		end
+	end
 
-    local currentTime = os.date("%Y-%m-%d %H:%M:%S")
-    if displayName == userName then
-        chatMsg.Text = ("@%s: %s"):format(userName, msg)
-    else
-        chatMsg.Text = ("%s [@%s]: %s"):format(displayName, userName, msg)
-    end
+	local currentTime = os.date("%Y-%m-%d %H:%M:%S")
+	if displayName == userName then
+		chatMsg.Text = ("@%s: %s"):format(userName, msg)
+	else
+		chatMsg.Text = ("%s [@%s]: %s"):format(displayName, userName, msg)
+	end
 
-    if isNAadmin then
-        local function rainbowColor()
-            local time = tick()
-            local r = math.sin(time * 0.5) * 127 + 128
-            local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
-            local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
-            return Color3.fromRGB(r, g, b)
-        end
-        RunService.Heartbeat:Connect(function()
-            if chatMsg and chatMsg.Parent then
-                chatMsg.TextColor3 = rainbowColor()
-            end
-        end)
-    else
-        if plr == LocalPlayer then
-            chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
-        elseif LocalPlayer:IsFriendsWith(plr.UserId) then
-            chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
-        end
-    end
+	if isNAadmin then
+		local function rainbowColor()
+			local time = tick()
+			local r = math.sin(time * 0.5) * 127 + 128
+			local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
+			local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
+			return Color3.fromRGB(r, g, b)
+		end
+		RunService.Heartbeat:Connect(function()
+			if chatMsg and chatMsg.Parent then
+				chatMsg.TextColor3 = rainbowColor()
+			end
+		end)
+	else
+		if plr == LocalPlayer then
+			chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
+		elseif LocalPlayer:IsFriendsWith(plr.UserId) then
+			chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
+		end
+	end
 
-    pcall(function()
-        if FileSupport and appendfile then
-            local cEntry = Format(
-                "[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
-                currentTime,
-                chatMsg.Text,
-                placeName(),
-                tostring(PlaceId),
-                tostring(GameId),
-                tostring(JobId)
-            )
-            if isfile(NAfiles.NACHATLOGS) then
-                appendfile(NAfiles.NACHATLOGS, cEntry)
-            else
-                writefile(NAfiles.NACHATLOGS, cEntry)
-            end
-        end
-    end)
+	pcall(function()
+		if FileSupport and appendfile then
+			local cEntry = Format(
+				"[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
+				currentTime,
+				chatMsg.Text,
+				placeName(),
+				tostring(PlaceId),
+				tostring(GameId),
+				tostring(JobId)
+			)
+			if isfile(NAfiles.NACHATLOGS) then
+				appendfile(NAfiles.NACHATLOGS, cEntry)
+			else
+				writefile(NAfiles.NACHATLOGS, cEntry)
+			end
+		end
+	end)
 
-    local txtSize = gui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
-    chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
+	local txtSize = gui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
+	chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-    local MAX_MESSAGES = 100
-    local chatFrames = {}
-    for _, v in pairs(chatLogs:GetChildren()) do
-        if v:IsA("TextLabel") then
-            Insert(chatFrames, v)
-        end
-    end
+	local MAX_MESSAGES = 100
+	local chatFrames = {}
+	for _, v in pairs(chatLogs:GetChildren()) do
+		if v:IsA("TextLabel") then
+			Insert(chatFrames, v)
+		end
+	end
 
-    table.sort(chatFrames, function(a, b)
-        return a.LayoutOrder < b.LayoutOrder
-    end)
+	table.sort(chatFrames, function(a, b)
+		return a.LayoutOrder < b.LayoutOrder
+	end)
 
-    if #chatFrames > MAX_MESSAGES then
-        for i = MAX_MESSAGES + 1, #chatFrames do
-            chatFrames[i]:Destroy()
-        end
-    end
+	if #chatFrames > MAX_MESSAGES then
+		for i = MAX_MESSAGES + 1, #chatFrames do
+			chatFrames[i]:Destroy()
+		end
+	end
 end
 
 NAmanage.bindToDevConsole = function()
-    if not NAconsoleLogs or not NAconsoleExample then return end
+	if not NAconsoleLogs or not NAconsoleExample then return end
 
-    local toggles = { Output = true, Info = true, Warn = true, Error = true }
+	local toggles = { Output = true, Info = true, Warn = true, Error = true }
 
-    local FilterButtons = InstanceNew("Frame")
-    FilterButtons.Name = "FilterButtons"
-    FilterButtons.Size = UDim2.new(1, -10, 0, 22)
-    FilterButtons.Position = UDim2.new(0.5, 0, 0, 30)
-    FilterButtons.AnchorPoint = Vector2.new(0.5, 0)
-    FilterButtons.BackgroundTransparency = 1
-    FilterButtons.Parent = NAconsoleLogs.Parent
+	local FilterButtons = InstanceNew("Frame")
+	FilterButtons.Name = "FilterButtons"
+	FilterButtons.Size = UDim2.new(1, -10, 0, 22)
+	FilterButtons.Position = UDim2.new(0.5, 0, 0, 30)
+	FilterButtons.AnchorPoint = Vector2.new(0.5, 0)
+	FilterButtons.BackgroundTransparency = 1
+	FilterButtons.Parent = NAconsoleLogs.Parent
 
-    local layout = InstanceNew("UIListLayout")
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 6)
-    layout.Parent = FilterButtons
+	local layout = InstanceNew("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = FilterButtons
 
-    local buttonTypes = { "Output", "Info", "Warn", "Error" }
+	local buttonTypes = { "Output", "Info", "Warn", "Error" }
 
-    for _, logType in ipairs(buttonTypes) do
-        local btnContainer = InstanceNew("Frame")
-        btnContainer.Name = logType
-        btnContainer.Size = UDim2.new(0, 90, 1, 0)
-        btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        btnContainer.Parent = FilterButtons
+	for _, logType in ipairs(buttonTypes) do
+		local btnContainer = InstanceNew("Frame")
+		btnContainer.Name = logType
+		btnContainer.Size = UDim2.new(0, 90, 1, 0)
+		btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		btnContainer.Parent = FilterButtons
 
-        local corner = InstanceNew("UICorner")
-        corner.CornerRadius = UDim.new(1, 0)
-        corner.Parent = btnContainer
+		local corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(1, 0)
+		corner.Parent = btnContainer
 
-        local checkbox = InstanceNew("Frame")
-        checkbox.Name = "Checkbox"
-        checkbox.Size = UDim2.new(0, 18, 0, 18)
-        checkbox.Position = UDim2.new(0, 5, 0.5, 0)
-        checkbox.AnchorPoint = Vector2.new(0, 0.5)
-        checkbox.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        checkbox.BorderSizePixel = 0
-        checkbox.Parent = btnContainer
+		local checkbox = InstanceNew("Frame")
+		checkbox.Name = "Checkbox"
+		checkbox.Size = UDim2.new(0, 18, 0, 18)
+		checkbox.Position = UDim2.new(0, 5, 0.5, 0)
+		checkbox.AnchorPoint = Vector2.new(0, 0.5)
+		checkbox.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+		checkbox.BorderSizePixel = 0
+		checkbox.Parent = btnContainer
 
-        local boxCorner = InstanceNew("UICorner")
-        boxCorner.CornerRadius = UDim.new(0, 4)
-        boxCorner.Parent = checkbox
+		local boxCorner = InstanceNew("UICorner")
+		boxCorner.CornerRadius = UDim.new(0, 4)
+		boxCorner.Parent = checkbox
 
-        local label = InstanceNew("TextLabel")
-        label.Name = "Label"
-        label.Text = logType
-        label.Position = UDim2.new(0, 28, 0, 0)
-        label.Size = UDim2.new(1, -28, 1, 0)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 14
-        label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        label.TextXAlignment = Enum.TextXAlignment.Center
-        label.Parent = btnContainer
+		local label = InstanceNew("TextLabel")
+		label.Name = "Label"
+		label.Text = logType
+		label.Position = UDim2.new(0, 28, 0, 0)
+		label.Size = UDim2.new(1, -28, 1, 0)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 14
+		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.Parent = btnContainer
 
-        local clickZone = InstanceNew("TextButton")
-        clickZone.Name = "ClickArea"
-        clickZone.Size = UDim2.new(1, 0, 1, 0)
-        clickZone.BackgroundTransparency = 1
-        clickZone.Text = ""
-        clickZone.Parent = btnContainer
+		local clickZone = InstanceNew("TextButton")
+		clickZone.Name = "ClickArea"
+		clickZone.Size = UDim2.new(1, 0, 1, 0)
+		clickZone.BackgroundTransparency = 1
+		clickZone.Text = ""
+		clickZone.Parent = btnContainer
 
-        MouseButtonFix(clickZone, function()
-            toggles[logType] = not toggles[logType]
-            local targetColor = toggles[logType] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
-            local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-            local tween = TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor})
-            tween:Play()
+		MouseButtonFix(clickZone, function()
+			toggles[logType] = not toggles[logType]
+			local targetColor = toggles[logType] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+			local tween = TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor})
+			tween:Play()
 
-            for _, label in pairs(NAconsoleLogs:GetChildren()) do
-                if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-                    local tag = label.Tag.Value
-                    local matchesSearch = NAfilter.Text == "" or Find(label.Text:lower(), NAfilter.Text:lower())
-                    label.Visible = toggles[tag] and matchesSearch
-                end
-            end
-        end)
-    end
+			for _, label in pairs(NAconsoleLogs:GetChildren()) do
+				if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
+					local tag = label.Tag.Value
+					local matchesSearch = NAfilter.Text == "" or Find(label.Text:lower(), NAfilter.Text:lower())
+					label.Visible = toggles[tag] and matchesSearch
+				end
+			end
+		end)
+	end
 
-    NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
-        local query = NAfilter.Text:lower()
-        for _, label in pairs(NAconsoleLogs:GetChildren()) do
-            if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-                local tag = label.Tag.Value
-                local matches = query == "" or Find(label.Text:lower(), query)
-                label.Visible = toggles[tag] and matches
-            end
-        end
-    end)
+	NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
+		local query = NAfilter.Text:lower()
+		for _, label in pairs(NAconsoleLogs:GetChildren()) do
+			if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
+				local tag = label.Tag.Value
+				local matches = query == "" or Find(label.Text:lower(), query)
+				label.Visible = toggles[tag] and matches
+			end
+		end
+	end)
 
-    local messageCounter = 0
+	local messageCounter = 0
 
-    SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
-        messageCounter = messageCounter + 1
+	SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
+		messageCounter = messageCounter + 1
 
-        local logLabel = NAconsoleExample:Clone()
-        logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
-        logLabel.Parent = NAconsoleLogs
-        logLabel.LayoutOrder = messageCounter
-        logLabel.RichText = true
+		local logLabel = NAconsoleExample:Clone()
+		logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
+		logLabel.Parent = NAconsoleLogs
+		logLabel.LayoutOrder = messageCounter
+		logLabel.RichText = true
 
-        local tagColor = "#cccccc"
-        local tagText = "Output"
+		local tagColor = "#cccccc"
+		local tagText = "Output"
 
-        if msgTYPE == Enum.MessageType.MessageError then
-            tagColor = "#ff6464"
-            tagText = "Error"
-        elseif msgTYPE == Enum.MessageType.MessageWarning then
-            tagColor = "#ffcc00"
-            tagText = "Warn"
-        elseif msgTYPE == Enum.MessageType.MessageInfo then
-            tagColor = "#66ccff"
-            tagText = "Info"
-        end
+		if msgTYPE == Enum.MessageType.MessageError then
+			tagColor = "#ff6464"
+			tagText = "Error"
+		elseif msgTYPE == Enum.MessageType.MessageWarning then
+			tagColor = "#ffcc00"
+			tagText = "Warn"
+		elseif msgTYPE == Enum.MessageType.MessageInfo then
+			tagColor = "#66ccff"
+			tagText = "Info"
+		end
 
-        local escapedMsg = msg:gsub("<", "&lt;"):gsub(">", "&gt;")
+		local escapedMsg = msg:gsub("<", "&lt;"):gsub(">", "&gt;")
 
-        logLabel.Text = '<font color="'..tagColor..'">['..tagText..']</font>: <font color="#ffffff">'..escapedMsg..'</font>'
+		logLabel.Text = '<font color="'..tagColor..'">['..tagText..']</font>: <font color="#ffffff">'..escapedMsg..'</font>'
 
-        local tag = InstanceNew("StringValue")
-        tag.Name = "Tag"
-        tag.Value = tagText
-        tag.Parent = logLabel
+		local tag = InstanceNew("StringValue")
+		tag.Name = "Tag"
+		tag.Value = tagText
+		tag.Parent = logLabel
 
-        local txtSize = gui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
-        logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
+		local txtSize = gui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
+		logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-        local MAX_MESSAGES = 300
-        local logFrames = {}
+		local MAX_MESSAGES = 300
+		local logFrames = {}
 
-        for _, v in pairs(NAconsoleLogs:GetChildren()) do
-            if v:IsA("TextLabel") then
-                Insert(logFrames, v)
-            end
-        end
+		for _, v in pairs(NAconsoleLogs:GetChildren()) do
+			if v:IsA("TextLabel") then
+				Insert(logFrames, v)
+			end
+		end
 
-        table.sort(logFrames, function(a, b)
-            return a.LayoutOrder < b.LayoutOrder
-        end)
+		table.sort(logFrames, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
+		end)
 
-        while #logFrames > MAX_MESSAGES do
-            logFrames[1]:Destroy()
-            table.remove(logFrames, 1)
-        end
+		while #logFrames > MAX_MESSAGES do
+			logFrames[1]:Destroy()
+			table.remove(logFrames, 1)
+		end
 
-        local matchesSearch = NAfilter.Text == "" or Find(logLabel.Text:lower(), NAfilter.Text:lower())
-        logLabel.Visible = toggles[tagText] and matchesSearch
-    end)
+		local matchesSearch = NAfilter.Text == "" or Find(logLabel.Text:lower(), NAfilter.Text:lower())
+		logLabel.Visible = toggles[tagText] and matchesSearch
+	end)
 end
 
 --[[function NAUISCALEUPD()
@@ -20761,4 +20762,32 @@ gui.addButton("Remove Chat Tag", function()
 	end
 
 	DoNotif("Custom chat tag removed.",2.5)
+end)
+
+gui.addSection("Character Morph")
+gui.addInput("Target User", "UserId or Username", "", function(val)
+	morphTarget = val
+end)
+gui.addButton("Morph Character", function()
+	if morphTarget ~= "" then
+		cmd.run({"char", morphTarget})
+	end
+end)
+gui.addButton("Revert Character", function()
+	cmd.run({"unchar"})
+end)
+gui.addToggle("Auto Morph", false, function(state)
+	if state then
+		lib.disconnect("autochartoggle")
+		lib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
+			if morphTarget ~= "" then
+				cmd.run({"char", morphTarget})
+			end
+		end))
+		if morphTarget ~= "" then
+			cmd.run({"char", morphTarget})
+		end
+	else
+		lib.disconnect("autochartoggle")
+	end
 end)
