@@ -11433,7 +11433,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	end
 end)
 
-cmd.add({"char","character","morph"},{"char","change your character's appearance to someone else's"},function(args)
+cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(args)
 	local arg=args
 	local uid=tonumber(arg)
 	if not uid then
