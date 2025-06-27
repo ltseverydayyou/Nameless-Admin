@@ -239,6 +239,17 @@ function NaProtectUI(gui)
 	return gui
 end
 
+NAmanage.centerFrame = function(f)
+    local cam = workspace.CurrentCamera
+    local vp = cam.ViewportSize
+    local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
+    local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
+    f.Position = UDim2.new(
+        0.5 - totalX/2, 0,
+        0.5 - totalY/2, 0
+    )
+end
+
 NAmanage.guiCHECKINGAHHHHH=function()
 	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
@@ -18467,14 +18478,16 @@ gui.commands = function()
 	end
 
 	cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-	cFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+	--cFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+	NAmanage.centerFrame(cFrame)
 end
 gui.chatlogs = function()
 	if chatLogsFrame then
 		if not chatLogsFrame.Visible then
 			chatLogsFrame.Visible = true
 		end
-		chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		--chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		NAmanage.centerFrame(chatLogsFrame)
 	end
 end
 gui.doModal = function(v)
@@ -18485,7 +18498,8 @@ gui.consoleeee = function()
 		if not NAconsoleFrame.Visible then
 			NAconsoleFrame.Visible = true
 		end
-		NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		--NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		NAmanage.centerFrame(NAconsoleFrame)
 	end
 end
 gui.settingss = function()
@@ -18493,7 +18507,8 @@ gui.settingss = function()
 		if not SettingsFrame.Visible then
 			SettingsFrame.Visible = true
 		end
-		SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		--SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		NAmanage.centerFrame(SettingsFrame)
 	end
 end
 gui.tween = function(obj, style, direction, duration, goal, callback)
@@ -19450,7 +19465,8 @@ Spawn(function()
     MouseButtonFix(button, function()
         if SettingsFrame then
             SettingsFrame.Visible = not SettingsFrame.Visible
-            SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+            --SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+			NAmanage.centerFrame(SettingsFrame)
         end
     end)
     MouseButtonFix(btns.cmds, function()
@@ -19459,13 +19475,15 @@ Spawn(function()
     MouseButtonFix(btns.chatlogs, function()
         if chatLogsFrame then
             chatLogsFrame.Visible = not chatLogsFrame.Visible
-            chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+            --chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+			NAmanage.centerFrame(chatLogsFrame)
         end
     end)
     MouseButtonFix(btns.console, function()
         if NAconsoleFrame then
             NAconsoleFrame.Visible = not NAconsoleFrame.Visible
-            NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+            --NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+			NAmanage.centerFrame(NAconsoleFrame)
         end
     end)
 end)
