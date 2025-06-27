@@ -11544,6 +11544,20 @@ cmd.add({"unchar"},{"unchar","revert to your character"},function()
  ap()
 end)
 
+cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(args)
+    local target = args
+    if not target then return end
+    lib.disconnect("autochar")
+    lib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
+        cmd.run({"char", target})
+    end))
+    cmd.run({"char", target})
+end, true)
+
+cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
+    lib.disconnect("autochar")
+end)
+
 cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
 	local args = {...}
 	local input = Concat(args, " ")
