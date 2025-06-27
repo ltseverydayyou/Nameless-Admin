@@ -88,6 +88,7 @@ cmdNAnum=0
 NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
+NATOPBARVISIBLE = true
 
 NACaller(function() while not NAjson do Wait(.1) NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) end end)
 
@@ -494,6 +495,7 @@ local NAfiles = {
 	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
 	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
 	NACHATTAG = "Nameless-Admin/ChatTag.json";
+	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -585,6 +587,10 @@ if FileSupport then
 			Save = false;
 		}))
 	end
+
+	if not isfile(NAfiles.NATOPBAR) then
+		writefile(NAfiles.NATOPBAR, "true")
+	end
 end
 
 function InitUIStroke(path)
@@ -622,6 +628,7 @@ if FileSupport then
 	NAQoTEnabled = readfile(NAfiles.NAQOTPATH) == "true"
 	doPREDICTION = readfile(NAfiles.NAPREDICTIONPATH) == "true"
 	NAUISTROKER = InitUIStroke(NAfiles.NASTROKETHINGY)
+	NATOPBARVISIBLE = readfile(NAfiles.NATOPBAR) == "true"
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -777,7 +784,10 @@ local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platf
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
---local TopBarApp = nil
+local TopBarApp = {
+	top=nil;
+	frame=nil;
+}
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
@@ -811,12 +821,23 @@ if UserInputService.KeyboardEnabled then
 end
 
 -- TopBar grabber
---[[Spawn(function()
-	TopBarApp=COREGUI:WaitForChild("TopBarApp",math.huge):WaitForChild("TopBarApp",math.huge):WaitForChild("UnibarLeftFrame",math.huge):WaitForChild("StackedElements",math.huge)
-	if TopBarApp:FindFirstChildWhichIsA("UIPadding") then
-		TopBarApp:FindFirstChildWhichIsA("UIPadding").PaddingLeft = UDim.new(0, 20)
-	end
-end)]]
+Spawn(function()
+    --TopBarApp = COREGUI:WaitForChild("TopBarApp", math.huge)
+    --    :WaitForChild("TopBarApp", math.huge)
+    --    :WaitForChild("UnibarLeftFrame", math.huge)
+    --    :WaitForChild("StackedElements", math.huge)
+
+    TopBarApp.top = InstanceNew("ScreenGui")
+    TopBarApp.top.Name = "CustomTopbar"
+    NaProtectUI(TopBarApp.top)
+    TopBarApp.top.Enabled=NATOPBARVISIBLE
+
+    TopBarApp.frame = InstanceNew("Frame")
+    TopBarApp.frame.Size = UDim2.new(1, 0, 0, 36)
+    TopBarApp.frame.Position = UDim2.new(0, 0, 0, 0)
+    TopBarApp.frame.BackgroundTransparency = 1
+    TopBarApp.frame.Parent = TopBarApp.top
+end)
 
 --[[ Some more variables ]]--
 
@@ -11828,7 +11849,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 			spectatedPlayer = nil
 			return
 		end
-		titleLabel.Text = "Spectating: " .. nameChecker(plr)
+		titleLabel.Text = "Spectating: "..nameChecker(plr)
 		titleLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(0, 162, 255)
 		cam(plr)
 		recolor()
@@ -19319,30 +19340,135 @@ Spawn(function() -- plugin tester
 end)
 
 -- TopBar stuff idk (it's gonna be used in the future)
---[[Spawn(function()
-	repeat Wait(0.5) until TopBarApp and typeof(TopBarApp) == "Instance"
+Spawn(function()
+    repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top) == "Instance"
 
-	local button = InstanceNew("ImageButton")
-	button.Size = UDim2.new(0, 42, 0, 42)
-	button.Position = UDim2.new(1, -50, 0, 10)
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	button.BackgroundTransparency = 0.3
-	button.Image = "rbxasset://textures/CollisionGroupsEditor/manage.png"
-	button.ScaleType = Enum.ScaleType.Fit
-	button.BorderSizePixel = 0
-	button.ClipsDescendants = true
-	button.LayoutOrder = 5
-	button.Parent = TopBarApp
+    local button = InstanceNew("ImageButton")
+    button.Size = UDim2.new(0, 42, 0, 42)
+    button.Position = UDim2.new(1, -50, 0, 10)
+    button.AnchorPoint = Vector2.new(1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    button.BackgroundTransparency = 0.3
+    button.Image = ""
+    button.BorderSizePixel = 0
+    button.ClipsDescendants = true
+    button.LayoutOrder = 5
+    button.Parent = TopBarApp.frame
 
-	local uicorner = InstanceNew("UICorner")
-	uicorner.CornerRadius = UDim.new(1, 0)
-	uicorner.Parent = button
+    local cornerMain = InstanceNew("UICorner")
+    cornerMain.CornerRadius = UDim.new(0.5, 0)
+    cornerMain.Parent = button
 
-	MouseButtonFix(button, function()
-		gui.settingss()
-	end)
-end)]]
+    local iconMain = InstanceNew("ImageLabel")
+    iconMain.AnchorPoint = Vector2.new(0.5, 0.5)
+    iconMain.Position = UDim2.new(0.5, 0, 0.5, 0)
+    iconMain.Size = UDim2.new(0.8, 0, 0.8, 0)
+    iconMain.BackgroundTransparency = 1
+    iconMain.Image = "rbxasset://textures/CollisionGroupsEditor/manage.png"
+    iconMain.ScaleType = Enum.ScaleType.Fit
+    iconMain.Parent = button
+
+    local offsets = { cmds = -200, chatlogs = -150, console = -100 }
+    local images  = {
+        cmds     = "rbxasset://textures/ui/Settings/Radial/PlayerList.png",
+        chatlogs = "rbxasset://textures/ui/Chat/ToggleChatFlip.png",
+        console  = "rbxasset://textures/Icon_Stream_Off.png",
+    }
+    local btns = {}
+
+    for name, xOff in pairs(offsets) do
+        local btn = InstanceNew("ImageButton")
+        btn.Size = UDim2.new(0, 42, 0, 42)
+        btn.Position = UDim2.new(1, xOff, 0, 10)
+        btn.AnchorPoint = Vector2.new(1, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        btn.BackgroundTransparency = 0.3
+        btn.Image = ""
+        btn.BorderSizePixel = 0
+        btn.ClipsDescendants = true
+        btn.LayoutOrder = 5
+        btn.Parent = TopBarApp.frame
+
+        local corner = InstanceNew("UICorner")
+        corner.CornerRadius = UDim.new(0.5, 0)
+        corner.Parent = btn
+
+        local icon = InstanceNew("ImageLabel")
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+        icon.Size = UDim2.new(0.8, 0, 0.8, 0)
+        icon.BackgroundTransparency = 1
+        icon.Image = images[name]
+        icon.ScaleType = Enum.ScaleType.Fit
+        icon.Parent = btn
+
+        btns[name] = btn
+    end
+
+    local function makeDraggable(btn)
+        local dragging, dragInput, dragStart, startPos
+
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = btn.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+
+        btn.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input == dragInput then
+                local delta = input.Position - dragStart
+                local fw = TopBarApp.frame.AbsoluteSize.X
+                local bw = btn.AbsoluteSize.X
+                local minOff = -(fw - bw)
+                local maxOff = 0
+                local newOff = math.clamp(startPos.X.Offset + delta.X, minOff, maxOff)
+                btn.Position = UDim2.new(startPos.X.Scale, newOff, startPos.Y.Scale, startPos.Y.Offset)
+            end
+        end)
+    end
+
+    makeDraggable(button)
+    for _, b in pairs(btns) do
+        makeDraggable(b)
+    end
+
+    MouseButtonFix(button, function()
+        if SettingsFrame then
+            SettingsFrame.Visible = not SettingsFrame.Visible
+            SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+        end
+    end)
+    MouseButtonFix(btns.cmds, function()
+        gui.commands()
+    end)
+    MouseButtonFix(btns.chatlogs, function()
+        if chatLogsFrame then
+            chatLogsFrame.Visible = not chatLogsFrame.Visible
+            chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+        end
+    end)
+    MouseButtonFix(btns.console, function()
+        if NAconsoleFrame then
+            NAconsoleFrame.Visible = not NAconsoleFrame.Visible
+            NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+        end
+    end)
+end)
 
 gui.barSelect = function(speed)
 	speed = speed or 0.4
@@ -20608,6 +20734,32 @@ gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
 end)
 
+gui.addSection("UI Customization")
+
+gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
+	NAScale = val
+	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+	if FileSupport then
+		writefile(NAfiles.NABUTTONSIZEPATH, tostring(val))
+	end
+end)
+
+gui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
+	TopBarApp.top.Enabled = v
+	if FileSupport then
+		writefile(NAfiles.NATOPBAR, tostring(v))
+	end
+end)
+
+gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
+	for _, element in ipairs(NACOLOREDELEMENTS) do
+		if element:IsA("UIStroke") then
+			element.Color = color
+		end
+	end
+	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
+end)
+
 if FileSupport then
 	gui.addSection("Join/Leave Logging")
 
@@ -20695,25 +20847,6 @@ if IsOnPC then
 		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end)
 end
-
-gui.addSection("UI Customization")
-
-gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
-	NAScale = val
-	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
-	if FileSupport then
-		writefile(NAfiles.NABUTTONSIZEPATH, tostring(val))
-	end
-end)
-
-gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
-	for _, element in ipairs(NACOLOREDELEMENTS) do
-		if element:IsA("UIStroke") then
-			element.Color = color
-		end
-	end
-	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
-end)
 
 gui.addSection("Chat Tag Customization (Client Sided")
 
