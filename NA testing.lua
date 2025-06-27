@@ -20626,6 +20626,7 @@ Spawn(function() -- init
 	if ModalFixer then NAProtection(ModalFixer) end
 	if AUTOSCALER then NAProtection(AUTOSCALER) AUTOSCALER.Scale = NAUIScale end
 	if SettingsFrame then NAProtection(SettingsFrame) end
+	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
 Spawn(NAmanage.bindToDevConsole)
