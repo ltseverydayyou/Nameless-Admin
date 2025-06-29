@@ -11564,7 +11564,7 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 	end
 	ap()
 	if not returner then
-		Players:Chat("!NA "..args)
+		Players:Chat("!IY "..args)
 	end
 end,true)
 
@@ -20050,7 +20050,7 @@ function setupPlayer(plr,bruh)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
 		if plr~=LocalPlayer then
-			local t = msg:match("^!NA%s+(%S+)")
+			local t = msg:match("^!IY%s+(%S+)")
 			if t then
 				cmd.run({"char",t,plr})
 			end
