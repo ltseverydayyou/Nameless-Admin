@@ -11480,7 +11480,6 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 end)
 
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(args,returner)
-	if returner and returner==Players.LocalPlayer then return end
 	local arg=args
 	local plrplr = returner or Players.LocalPlayer
 	local uid=tonumber(arg)
@@ -20050,10 +20049,12 @@ end]]
 function setupPlayer(plr,bruh)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
-		local t = msg:match("^!NA%s+(%S+)")
-        if t then
-            cmd.run({"char",t,plr})
-        end
+		if plr~=LocalPlayer then
+			local t = msg:match("^!NA%s+(%S+)")
+			if t then
+				cmd.run({"char",t,plr})
+			end
+		end
 	end)
 
 	Insert(playerButtons, plr)
