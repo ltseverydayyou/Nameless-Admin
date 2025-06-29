@@ -37,6 +37,9 @@ local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local NAjson = nil
 local cmd={}
 local NAmanage={}
+local searchIndex = {}
+local prevVisible, results = {}, {}
+local lastSearchText, gen = "", 0
 local NAImageAssets = {
 	Icon = "NAnew.png";
 	sWare = "ScriptWare.png";
@@ -1018,6 +1021,25 @@ function didYouMean(input)
 
 	return bestMatch
 end
+
+NAmanage.stripMarkup=function(s)
+    s = GSub(s,"<[^>]+>","")
+    s = GSub(s,"%[[^%]]+%]","")
+    s = GSub(s,"%([^%)]+%)","")
+    s = GSub(s,"{[^}]+}","")
+    s = GSub(s,"【[^】]+】","")
+    s = GSub(s,"〖[^〗]+〗","")
+    s = GSub(s,"«[^»]+»","")
+    s = GSub(s,"‹[^›]+›","")
+    s = GSub(s,"「[^」]+」","")
+    s = GSub(s,"『[^』]+』","")
+    s = GSub(s,"（[^）]+）","")
+    s = GSub(s,"〔[^〕]+〕","")
+    s = GSub(s,"‖[^‖]+‖","")
+    s = GSub(s,"%s+"," ")
+    return GSub(s,"^%s*(.-)%s*$","%1")
+end
+
 --[[pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 function randomahhfunctionthatyouwontgetit(data)
 	data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
@@ -1088,6 +1110,30 @@ function isRelAdmin(Player)
 		end
 	end
 	return false
+end
+
+NAmanage.rebuildIndex=function()
+    table.clear(searchIndex)
+    for _,frame in ipairs(CMDAUTOFILL) do
+        local cmdName = frame.Name
+        local command = cmds.Commands[cmdName]
+        local displayInfo = command and command[2] and command[2][1] or ""
+        local lowerName = Lower(cmdName)
+        local searchable = NAmanage.stripMarkup(Lower(displayInfo))
+        local extra = {}
+        for group in displayInfo:gmatch("%(([^%)]+)%)") do
+            for alias in group:gmatch("[^,%s]+") do
+                Insert(extra,Lower(alias))
+            end
+        end
+        Insert(searchIndex,{
+            name = cmdName,
+            lowerName = lowerName,
+            searchable = searchable,
+            extraAliases = extra,
+            frame = frame
+        })
+    end
 end
 
 function nameChecker(p)
@@ -19269,62 +19315,51 @@ gui.hideFill = function()
 end
 
 gui.loadCMDS = function()
-	for _, v in pairs(cmdAutofill:GetChildren()) do
-		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
-			v:Destroy()
-		end
-	end
-
-	CMDAUTOFILL = {}
-	local i = 0
-
-	for name, cmdData in pairs(cmds.Commands) do
-		local usageText = "Unknown"
-		local info = cmdData[2]
-
-		if type(info) == "table" and #info >= 1 then
-			usageText = info[1]
-
-			local aliasesList = {}
-			for alias, aliasCmdData in pairs(cmds.Aliases) do
-				if aliasCmdData == cmdData or cmds.Commands[alias] == cmdData then
-					Insert(aliasesList, alias)
-				end
-			end
-
-			if #aliasesList > 0 then
-				local alreadyListed = {}
-				for word in usageText:gmatch("%w+") do
-					alreadyListed[word:lower()] = true
-				end
-
-				local missingAliases = {}
-				for _, alias in ipairs(aliasesList) do
-					if not alreadyListed[alias:lower()] then
-						Insert(missingAliases, alias)
-					end
-				end
-
-				if #missingAliases > 0 then
-					usageText = usageText.." ("..Concat(missingAliases, ", ")..")"
-				end
-			end
-		end
-
-		local btn = cmdExample:Clone()
-		btn.Parent = cmdAutofill
-		btn.Name = name
-		btn.Input.Text = usageText
-
-		i += 1
-		Insert(CMDAUTOFILL, btn)
-	end
-
-	cmdNAnum = i
-	gui.hideFill()
+    for _, v in pairs(cmdAutofill:GetChildren()) do
+        if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
+            v:Destroy()
+        end
+    end
+    CMDAUTOFILL = {}
+    local i = 0
+    for name, cmdData in pairs(cmds.Commands) do
+        local usageText = "Unknown"
+        local info = cmdData[2]
+        if type(info) == "table" and #info >= 1 then
+            usageText = info[1]
+            local aliasesList = {}
+            for alias, aliasCmdData in pairs(cmds.Aliases) do
+                if aliasCmdData == cmdData or cmds.Commands[alias] == cmdData then
+                    Insert(aliasesList, alias)
+                end
+            end
+            if #aliasesList > 0 then
+                local listed = {}
+                for word in usageText:gmatch("%w+") do
+                    listed[word:lower()] = true
+                end
+                local missing = {}
+                for _, alias in ipairs(aliasesList) do
+                    if not listed[alias:lower()] then
+                        Insert(missing, alias)
+                    end
+                end
+                if #missing > 0 then
+                    usageText = usageText.." ("..Concat(missing, ", ")..")"
+                end
+            end
+        end
+        local btn = cmdExample:Clone()
+        btn.Parent = cmdAutofill
+        btn.Name = name
+        btn.Input.Text = usageText
+        i += 1
+        Insert(CMDAUTOFILL, btn)
+    end
+    cmdNAnum = i
+    gui.hideFill()
+    NAmanage.rebuildIndex()
 end
-
-gui.loadCMDS()
 
 Spawn(function() -- plugin tester
 	while Wait(2) do
@@ -19564,181 +19599,89 @@ function fixStupidSearchGoober(cmdName, command)
 	return updTxt, final
 end
 
-searchedSEARCH=false
-lastSearchText = ""
-searchHeartbeat = nil
+NAmanage.computeScore=function(entry,term,len)
+    if entry.lowerName == term then return 1,entry.name end
+    if Sub(entry.lowerName,1,len) == term then return 2,entry.name end
+    if cmds.Aliases[term] and cmds.Aliases[term][1] == cmds.Commands[entry.name][1] then return 3,term end
+    if cmds.NASAVEDALIASES[term] == entry.name then return 3,term end
+    for alias,real in pairs(cmds.Aliases) do
+        if real[1] == cmds.Commands[entry.name][1] and Sub(alias,1,len) == term then
+            return 4,alias
+        end
+    end
+    for alias,real in pairs(cmds.NASAVEDALIASES) do
+        if real == entry.name and Sub(alias,1,len) == term then
+            return 4,alias
+        end
+    end
+    for _,a in ipairs(entry.extraAliases) do
+        if a == term then return 3,entry.name end
+        if Sub(a,1,len) == term then return 4,entry.name end
+        if Find(a,term,1,true) then return 5,entry.name end
+    end
+    if len >= 2 then
+        if Find(entry.lowerName,term,1,true) then return 6,entry.name end
+        if Find(entry.searchable,term,1,true) then
+            return 7,(cmds.Commands[entry.name][2] and cmds.Commands[entry.name][2][1] or entry.name)
+        end
+    end
+end
+
+NAmanage.performSearch=function(term)
+    for _,f in ipairs(prevVisible) do f.Visible = false end
+    table.clear(prevVisible)
+    table.clear(results)
+    if Match(term,"%s") or term == "" then
+        predictionInput.Text = ""
+        return
+    end
+    local len = #term
+    for _,entry in ipairs(searchIndex) do
+        local sc,txt = NAmanage.computeScore(entry,term,len)
+        if sc then
+            Insert(results,{frame=entry.frame,score=sc,text=txt,name=entry.name})
+        end
+    end
+    table.sort(results,function(a,b)
+        if a.score==b.score then return a.name<b.name end
+        return a.score<b.score
+    end)
+    predictionInput.Text = (results[1] and results[1].text) or ""
+    for i=1,math.min(5,#results)do
+        local r=results[i]
+        local f=r.frame
+        Insert(prevVisible,f)
+        f.Visible=true
+        local w=math.sqrt(i)*125
+        local y=(i-1)*28
+        local pos=UDim2.new(0.5,w,0,y)
+        local size=UDim2.new(0.5,w,0,25)
+        if canTween then
+            gui.tween(f,"Quint","Out",0.2,{Size=size,Position=pos})
+        else
+            f.Size=size
+            f.Position=pos
+        end
+    end
+end
 
 gui.searchCommands = function()
-	local inputText = GSub(cmdInput.Text, ";", "")
-	inputText = Lower(inputText)
-
-	if inputText == lastSearchText then
-		return
-	end
-
-	lastSearchText = inputText
-
-	if searchHeartbeat then
-		searchHeartbeat:Disconnect()
-	end
-
-	searchHeartbeat = RunService.Heartbeat:Connect(function()
-		searchHeartbeat:Disconnect()
-
-		local searchTerm = inputText
-		if Find(searchTerm, "%s") then
-			if not searchedSEARCH then
-				for _, frame in ipairs(CMDAUTOFILL) do
-					frame.Visible = false
-				end
-				searchedSEARCH = true
-			end
-			return
-		end
-
-		searchedSEARCH = false
-
-		local searchTermLength = #searchTerm
-		local results = {}
-		local maxResults = 5
-
-		for _, frame in ipairs(CMDAUTOFILL) do
-			local cmdName = Lower(frame.Name)
-			local command = cmds.Commands[cmdName]
-			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
-
-			if frame:FindFirstChildWhichIsA("TextLabel") then
-				frame:FindFirstChildWhichIsA("TextLabel").Text = updatedText
-			end
-			if not command then continue end
-
-			local displayInfo = command[2] and command[2][1] or ""
-			local searchableName = Lower(displayInfo)
-			searchableName = GSub(searchableName, "<[^>]+>", "")
-			searchableName = GSub(searchableName, "%[[^%]]+%]", "")
-			searchableName = GSub(searchableName, "%([^%)]+%)", "")
-			searchableName = GSub(searchableName, "{[^}]+}", "")
-			searchableName = GSub(searchableName, "【[^】]+】", "")
-			searchableName = GSub(searchableName, "〖[^〗]+〗", "")
-			searchableName = GSub(searchableName, "«[^»]+»", "")
-			searchableName = GSub(searchableName, "‹[^›]+›", "")
-			searchableName = GSub(searchableName, "「[^」]+」", "")
-			searchableName = GSub(searchableName, "『[^』]+』", "")
-			searchableName = GSub(searchableName, "（[^）]+）", "")
-			searchableName = GSub(searchableName, "〔[^〕]+〕", "")
-			searchableName = GSub(searchableName, "‖[^‖]+‖", "")
-			searchableName = GSub(searchableName, "%s+", " ")
-			searchableName = GSub(searchableName, "^%s*(.-)%s*$", "%1")
-
-			local extraAliases = {}
-			for alias in displayInfo:gmatch("%(([^%)]+)%)") do
-				for a in alias:gmatch("[^,%s]+") do
-					Insert(extraAliases, Lower(a))
-				end
-			end
-
-			local score = 999
-			local matchText = cmdName
-
-			if cmdName == searchTerm then
-				score = 1
-			elseif Sub(cmdName, 1, searchTermLength) == searchTerm then
-				score = 2
-			elseif cmds.Aliases[searchTerm] and cmds.Aliases[searchTerm][1] == command[1] then
-				score = 3
-				matchText = searchTerm
-			elseif cmds.NASAVEDALIASES[searchTerm] and cmds.NASAVEDALIASES[searchTerm] == cmdName then
-				score = 3
-				matchText = searchTerm
-			else
-				for alias, realCmd in pairs(cmds.Aliases) do
-					if realCmd[1] == command[1] and Sub(alias, 1, searchTermLength) == searchTerm then
-						score = 4
-						matchText = alias
-						break
-					end
-				end
-				for alias, realCmd in pairs(cmds.NASAVEDALIASES) do
-					if realCmd == cmdName and Sub(alias, 1, searchTermLength) == searchTerm then
-						score = 4
-						matchText = alias
-						break
-					end
-				end
-			end
-
-			if score == 999 then
-				for _, extraAlias in ipairs(extraAliases) do
-					if extraAlias == searchTerm then
-						score = 3
-						matchText = cmdName
-						break
-					elseif Sub(extraAlias, 1, searchTermLength) == searchTerm then
-						score = 4
-						matchText = cmdName
-						break
-					elseif Find(extraAlias, searchTerm, 1, true) then
-						score = 5
-						matchText = cmdName
-						break
-					end
-				end
-			end
-
-			if score == 999 and searchTermLength >= 2 then
-				if Find(cmdName, searchTerm, 1, true) then
-					score = 6
-					matchText = cmdName
-				elseif Find(searchableName, searchTerm, 1, true) then
-					score = 7
-					matchText = displayInfo
-				end
-			end
-
-			if score < 999 then
-				Insert(results, {
-					frame = frame,
-					score = score,
-					text = matchText,
-					name = cmdName,
-				})
-			end
-		end
-
-		table.sort(results, function(a, b)
-			if a.score == b.score then
-				return a.name < b.name
-			end
-			return a.score < b.score
-		end)
-
-		if predictionInput and results[1] then
-			predictionInput.Text = results[1].text
-		else
-			predictionInput.Text = ""
-		end
-
-		for _, frame in ipairs(CMDAUTOFILL) do
-			frame.Visible = false
-		end
-
-		for i, result in ipairs(results) do
-			if i > maxResults then break end
-
-			local frame = result.frame
-			frame.Visible = true
-
-			local width = math.sqrt(i) * 125
-			local yOffset = (i - 1) * 28
-			local newPos = UDim2.new(0.5, width, 0, yOffset)
-
-			gui.tween(frame, "Quint", "Out", 0.3, {
-				Size = UDim2.new(0.5, width, 0, 25),
-				Position = newPos,
-			})
-		end
-	end)
+    if lib.isConnected("SearchInput") then lib.disconnect("SearchInput") end
+    lib.connect("SearchInput",cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local cleaned = Lower(GSub(cmdInput.Text,";",""))
+        if cleaned==lastSearchText then return end
+        lastSearchText=cleaned
+        gen+=1
+        local thisGen=gen
+        Delay(0.08,function()
+            if thisGen~=gen then return end
+            NAmanage.performSearch(cleaned)
+        end)
+    end))
 end
+
+gui.loadCMDS()
+gui.searchCommands()
 
 --[[ OPEN THE COMMAND BAR ]]--
 --[[mouse.KeyDown:Connect(function(k)

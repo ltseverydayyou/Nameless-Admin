@@ -1042,7 +1042,7 @@ function didYouMean(input)
 	return bestMatch
 end
 
-function stripMarkup(s)
+NAmanage.stripMarkup=function(s)
     s = GSub(s,"<[^>]+>","")
     s = GSub(s,"%[[^%]]+%]","")
     s = GSub(s,"%([^%)]+%)","")
@@ -1132,14 +1132,14 @@ function isRelAdmin(Player)
 	return false
 end
 
-function rebuildIndex()
+NAmanage.rebuildIndex=function()
     table.clear(searchIndex)
     for _,frame in ipairs(CMDAUTOFILL) do
         local cmdName = frame.Name
         local command = cmds.Commands[cmdName]
         local displayInfo = command and command[2] and command[2][1] or ""
         local lowerName = Lower(cmdName)
-        local searchable = stripMarkup(Lower(displayInfo))
+        local searchable = NAmanage.stripMarkup(Lower(displayInfo))
         local extra = {}
         for group in displayInfo:gmatch("%(([^%)]+)%)") do
             for alias in group:gmatch("[^,%s]+") do
@@ -19378,10 +19378,8 @@ gui.loadCMDS = function()
     end
     cmdNAnum = i
     gui.hideFill()
-    rebuildIndex()
+    NAmanage.rebuildIndex()
 end
-
-gui.loadCMDS()
 
 Spawn(function() -- plugin tester
 	while Wait(2) do
@@ -19621,7 +19619,7 @@ function fixStupidSearchGoober(cmdName, command)
 	return updTxt, final
 end
 
-function computeScore(entry,term,len)
+NAmanage.computeScore=function(entry,term,len)
     if entry.lowerName == term then return 1,entry.name end
     if Sub(entry.lowerName,1,len) == term then return 2,entry.name end
     if cmds.Aliases[term] and cmds.Aliases[term][1] == cmds.Commands[entry.name][1] then return 3,term end
@@ -19649,7 +19647,7 @@ function computeScore(entry,term,len)
     end
 end
 
-function performSearch(term)
+NAmanage.performSearch=function(term)
     for _,f in ipairs(prevVisible) do f.Visible = false end
     table.clear(prevVisible)
     table.clear(results)
@@ -19659,7 +19657,7 @@ function performSearch(term)
     end
     local len = #term
     for _,entry in ipairs(searchIndex) do
-        local sc,txt = computeScore(entry,term,len)
+        local sc,txt = NAmanage.computeScore(entry,term,len)
         if sc then
             Insert(results,{frame=entry.frame,score=sc,text=txt,name=entry.name})
         end
@@ -19697,7 +19695,7 @@ gui.searchCommands = function()
         local thisGen=gen
         Delay(0.08,function()
             if thisGen~=gen then return end
-            performSearch(cleaned)
+            NAmanage.performSearch(cleaned)
         end)
     end))
 end
