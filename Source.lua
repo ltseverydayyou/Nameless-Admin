@@ -1889,10 +1889,7 @@ function getPlaceInfo()
 		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
 	end)
 
-	if not success then
-		DoNotif("Failed to get place info: "..tostring(result), 3)
-		return nil
-	end
+	if not success then return nil end
 
 	return result
 end
