@@ -4434,7 +4434,7 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 			local success = pcall(function()
 				if #Players:GetPlayers() <= 1 then
 					LocalPlayer:Kick("\nRejoining...")
-					Wait(0.5)
+					Wait(0.05)
 					TeleportService:Teleport(PlaceId, LocalPlayer)
 				else
 					TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
@@ -4462,7 +4462,7 @@ cmd.add({"rejoin", "rj"}, {"rejoin (rj)", "Rejoin the game"}, function()
 
 	if #plrs:GetPlayers() <= 1 then
 		lp:Kick("Rejoining...")
-		Wait()
+		Wait(0.05)
 		tp:TeleportCancel()
 		local success, err = pcall(function()
 			tp:Teleport(PlaceId)
@@ -6923,7 +6923,11 @@ cmd.add({"dex"},{"dex","Using this you can see the parts / guis / scripts etc wi
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexByMoonMobile"))()
 end)
 
-cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/ModuleScript's"},function()
+cmd.add({"dexplus"},{"dexplus","Better version of dex"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DexPlusPlus/refs/heads/master/out.lua"))()
+end)
+
+cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/ModuleScript's using konstant"},function()
 	Spawn(function()
 		assert(getscriptbytecode, "Exploit not supported.")
 
@@ -7060,51 +7064,24 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 	Load(Dex)
 end)
 
-local aFLING = {on = false, c = {}}
-function addFLINGER(c) Insert(aFLING.c, c) end
-
 cmd.add({"antifling"}, {"antifling", "makes other players non-collidable with you"}, function()
-	if aFLING.on then for _, cn in ipairs(aFLING.c) do cn:Disconnect() end aFLING.c = {} end
-	aFLING.on = true
-	addFLINGER(RunService.Stepped:Connect(function()
+	lib.disconnect("antifling")
+	lib.connect("antifling", RunService.Stepped:Connect(function()
 		for _, pl in ipairs(Players:GetPlayers()) do
 			if pl ~= LocalPlayer and pl.Character then
-				for _, p in ipairs(pl.Character:GetDescendants()) do
-					if p:IsA("BasePart") then p.CanCollide = false end
+				for _, part in ipairs(pl.Character:GetDescendants()) do
+					if part:IsA("BasePart") and lib.isProperty(part, "CanCollide") then
+						lib.setProperty(part, "CanCollide", false)
+					end
 				end
 			end
 		end
-	end))
-	local function setNo(p)
-		if p:IsA("BasePart") then
-			p.CanCollide = false
-			addFLINGER(p:GetPropertyChangedSignal("CanCollide"):Connect(function()
-				if p.CanCollide then p.CanCollide = false end
-			end))
-		end
-	end
-	local function hook(c)
-		for _, p in ipairs(c:GetDescendants()) do setNo(p) end
-		addFLINGER(c.DescendantAdded:Connect(setNo))
-	end
-	for _, pl in ipairs(Players:GetPlayers()) do
-		if pl ~= LocalPlayer then
-			if pl.Character then hook(pl.Character) end
-			addFLINGER(pl.CharacterAdded:Connect(hook))
-		end
-	end
-	addFLINGER(Players.PlayerAdded:Connect(function(pl)
-		if pl ~= LocalPlayer then addFLINGER(pl.CharacterAdded:Connect(hook)) end
 	end))
 	DoNotif("Antifling Enabled")
 end)
 
 cmd.add({"unantifling"}, {"unantifling", "restores collision for other players"}, function()
-	if aFLING.on then
-		for _, cn in ipairs(aFLING.c) do cn:Disconnect() end
-		aFLING.c = {}
-		aFLING.on = false
-	end
+	lib.disconnect("antifling")
 	DoNotif("Antifling Disabled")
 end)
 
@@ -8360,7 +8337,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	local function handleRejoin()
 		if #Players:GetPlayers() <= 1 then
 			Players.LocalPlayer:Kick("Rejoining...")
-			Wait()
+			Wait(.05)
 			TeleportService:Teleport(PlaceId, Players.LocalPlayer)
 		else
 			TeleportService:TeleportToPlaceInstance(PlaceId, JobId, Players.LocalPlayer)
@@ -12670,37 +12647,6 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Returns true if th
 
 	DoNotif("✅ Free gamepasses enabled! Rejoin to disable. Note: This only works in some games.")
 end)
-
---[[cmd.add({"freedevproduct", "freedp"},{"freedevproduct (freedp)", "Simulates a successful Developer Product purchase"},function()
-    hookfunction(SafeGetService("MarketplaceService").PromptProductPurchase, newcclosure(function(self, player, productId, ...)
-        if player == LocalPlayer then
-        DoNotif("✅ Simulated dev product purchase for ProductId: "..tostring(productId))
-
-        local success, err = pcall(function()
-                local ReceiptInfo = {
-                    PlayerId = player.UserId,
-                    ProductId = productId,
-                    CurrencySpent = 0,
-                    PlaceIdWherePurchased = PlaceId,
-                    PurchaseId = HttpService:GenerateGUID(false)
-                }
-
-                if typeof(getgenv().ProcessReceipt) == "function" then
-                    getgenv().ProcessReceipt(ReceiptInfo)
-                elseif typeof(getgenv().ProcessReceipt) == "function" then
-                    getgenv().ProcessReceipt(ReceiptInfo)
-                end
-            end)
-
-            if not success then
-                warn("⚠️ Could not simulate ProcessReceipt: "..tostring(err))
-            end
-        end
-        return
-    end))
-
-    DoNotif("🟢 Fake dev product purchase enabled! Use in games with local handlers.")
-end)]]
 
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
 	local trg = getPlr(plr)
@@ -20723,7 +20669,7 @@ if IsOnPC then
 	end)
 end
 
-gui.addSection("Chat Tag Customization (Client Sided")
+gui.addSection("Chat Tag Customization (Client Sided)")
 
 gui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
 	opt.currentTagText = inputText
