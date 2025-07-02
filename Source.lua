@@ -62,6 +62,12 @@ local flingManager = {
 	lFlingOldPos = nil;
 	cFlingOldPos = nil;
 }
+local settingsLight = {
+    range = 30;
+    brightness = 1;
+    color = Color3.new(1,1,1);
+    LIGHTER = nil;
+}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 lib={}
@@ -1868,6 +1874,7 @@ local JSONEncode,JSONDecode=HttpService.JSONEncode,HttpService.JSONDecode
 
 NACaller(function()
 	LocalPlayer.CharacterAdded:Connect(function(c)
+		if not c then return end
 		character=c
 		Character=c
 		char=c
@@ -6915,11 +6922,11 @@ cmd.add({"unclicktp", "untptool"}, {"unclicktp (untptool)", "Remove teleport but
 	lib.disconnect("tp_up")
 end)
 
-cmd.add({"dex"},{"dex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
+cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexByMoonMobile"))()
 end)
 
-cmd.add({"dexplus"},{"dexplus","Better version of dex"},function()
+cmd.add({"dex"},{"dex","Better version of dex"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DexPlusPlus/refs/heads/master/out.lua"))()
 end)
 
@@ -6979,7 +6986,7 @@ cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's 
 		return Players:GetUserIdFromNameAsync(tostring(thingy))
 	end)
 
-	if not s then return warn("err: "..tostring(idd)) end
+	if not s then return DoNotif("err: "..tostring(idd)) end
 
 	if not setclipboard then return DoNotif("no setclipboard") end
 	setclipboard(tostring(idd))
@@ -6992,7 +6999,7 @@ cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username
 		return Players:GetNameFromUserIdAsync(thingy)
 	end)
 
-	if not s then return warn("err: "..tostring(naem)) end
+	if not s then return DoNotif("err: "..tostring(naem)) end
 
 	if not setclipboard then return DoNotif("no setclipboard") end
 	setclipboard(tostring(naem))
@@ -7531,38 +7538,70 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 	end
 end,true)
 
-cmd.add({"reverb", "reverbcontrol"}, {"reverb (reverbcontrol)", "Manage sound reverb settings"}, function()
-	local reverbButtons = {}
-	for _, reverbType in ipairs(Enum.ReverbType:GetEnumItems()) do
-		Insert(reverbButtons, {
-			Text = reverbType.Name,
-			Callback = function()
-				SafeGetService("SoundService").AmbientReverb = reverbType
-			end
-		})
-	end
-
-	Window({
-		Title = "Sound Reverb Options",
-		Buttons = reverbButtons
-	})
+cmd.add({"reverb","reverbcontrol"},{"reverb (reverbcontrol)","Manage sound reverb settings"},function(...)
+    local args = {...}
+    local target = args[1]
+    local buttons = {}
+    for _, rt in ipairs(Enum.ReverbType:GetEnumItems()) do
+        Insert(buttons, {
+            Text = rt.Name,
+            Callback = function()
+                SafeGetService("SoundService").AmbientReverb = rt
+            end
+        })
+    end
+    if target and target ~= "" then
+        local found = false
+        for _, btn in ipairs(buttons) do
+            if Match(Lower(btn.Text), Lower(target)) then
+                btn.Callback()
+                DoNotif("Reverb set to "..btn.Text, 3)
+                found = true
+                break
+            end
+        end
+        if not found then
+            DoNotif("No matching reverb type for: "..target, 3)
+        end
+    else
+        Window({
+            Title = "Sound Reverb Options",
+            Buttons = buttons
+        })
+    end
 end)
 
-cmd.add({"cam", "camera", "cameratype"}, {"cam (camera, cameratype)", "Manage camera type settings"}, function()
-	local cameraTypeButtons = {}
-	for _, cameraType in ipairs(Enum.CameraType:GetEnumItems()) do
-		Insert(cameraTypeButtons, {
-			Text = cameraType.Name,
-			Callback = function()
-				workspace.CurrentCamera.CameraType = cameraType
-			end
-		})
-	end
-
-	Window({
-		Title = "Camera Type Options",
-		Buttons = cameraTypeButtons
-	})
+cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera type settings"},function(...)
+    local args = {...}
+    local target = args[1]
+    local buttons = {}
+    for _, ct in ipairs(Enum.CameraType:GetEnumItems()) do
+        Insert(buttons, {
+            Text = ct.Name,
+            Callback = function()
+                workspace.CurrentCamera.CameraType = ct
+            end
+        })
+    end
+    if target and target ~= "" then
+        local found = false
+        for _, btn in ipairs(buttons) do
+            if Match(Lower(btn.Text), Lower(target)) then
+                btn.Callback()
+                DoNotif("Camera type set to "..btn.Text, 3)
+                found = true
+                break
+            end
+        end
+        if not found then
+            DoNotif("No matching camera type for: "..target, 3)
+        end
+    else
+        Window({
+            Title = "Camera Type Options",
+            Buttons = buttons
+        })
+    end
 end)
 
 cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"},function()
@@ -15332,39 +15371,75 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 	end)
 end)
 
-cmd.add({"light"}, {"light <range> <brightness>", "Gives your player dynamic light"}, function(range, brightness)
-	range = tonumber(range) or 30
-	brightness = tonumber(brightness) or 1
 
-	local light = InstanceNew("PointLight")
-	light.Parent = getRoot(Player.Character)
-	light.Range = range
-	light.Brightness = brightness
+cmd.add({"light"},{"light <range> <brightness> <hexColor>","Gives your player dynamic light"},function(rangeStr,brightnessStr,colorHex)
+    local range     = tonumber(rangeStr)   or settingsLight.range
+    local brightness= tonumber(brightnessStr)or settingsLight.brightness
+    local color     = settingsLight.color
+    if colorHex and #colorHex>0 then
+        local hex = colorHex:match("^#?(%x+)")
+        if hex and (#hex==6 or #hex==3) then
+            if #hex==3 then hex = hex:gsub(".", function(c) return c..c end) end
+            local r = tonumber(hex:sub(1,2),16)/255
+            local g = tonumber(hex:sub(3,4),16)/255
+            local b = tonumber(hex:sub(5,6),16)/255
+            color = Color3.new(r,g,b)
+        end
+    end
+
+    local root = getRoot(Player.Character)
+    if not root then return end
+
+    local light = settingsLight.LIGHTER
+    if not light or not light.Parent then
+        light = InstanceNew("PointLight")
+        settingsLight.LIGHTER = light
+    end
+
+    light.Parent     = root
+    light.Range      = range
+    light.Brightness = brightness
+    light.Color      = color
 end, true)
 
-cmd.add({"unlight", "nolight"}, {"unlight (nolight)", "Removes dynamic light from your player"}, function()
-	for _, descendant in pairs(Player.Character:GetDescendants()) do
-		if descendant:IsA("PointLight") then
-			descendant:Destroy()
-		end
-	end
+cmd.add({"unlight","nolight"},{"unlight (nolight)","Removes dynamic light from your player"},function()
+    if settingsLight.LIGHTER then
+        settingsLight.LIGHTER:Destroy()
+        settingsLight.LIGHTER = nil
+    end
 end)
 
-cmd.add({"lighting", "lightingcontrol"}, {"lighting (lightingcontrol)", "Manage lighting technology settings"}, function()
-	local lightingButtons = {}
-	for _, lightingType in ipairs(Enum.Technology:GetEnumItems()) do
-		Insert(lightingButtons, {
-			Text = lightingType.Name,
-			Callback = function()
-				Lighting.Technology = lightingType
-			end
-		})
-	end
-
-	Window({
-		Title = "Lighting Technology Options",
-		Buttons = lightingButtons
-	})
+cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lighting technology settings"},function(...)
+    local args = {...}
+    local target = args[1]
+    local buttons = {}
+    for _, lt in ipairs(Enum.Technology:GetEnumItems()) do
+        Insert(buttons, {
+            Text = lt.Name,
+            Callback = function()
+                Lighting.Technology = lt
+            end
+        })
+    end
+    if target and target ~= "" then
+        local found = false
+        for _, btn in ipairs(buttons) do
+            if Match(Lower(btn.Text), Lower(target)) then
+                btn.Callback()
+                DoNotif("Lighting technology set to "..btn.Text, 3)
+                found = true
+                break
+            end
+        end
+        if not found then
+            DoNotif("No matching lighting tech for: "..target, 3)
+        end
+    else
+        Window({
+            Title = "Lighting Technology Options",
+            Buttons = buttons
+        })
+    end
 end)
 
 cmd.add({"friend"}, {"friend", "Sends a friend request to your target"}, function(p)
@@ -20673,6 +20748,63 @@ if IsOnPC then
 	end)
 end
 
+gui.addSection("Character Morph")
+gui.addInput("Target User", "UserId or Username", "", function(val)
+	morphTarget = val
+end)
+gui.addButton("Morph Character", function()
+	if morphTarget ~= "" then
+		cmd.run({"char", morphTarget})
+	end
+end)
+gui.addButton("Revert Character", function()
+	cmd.run({"unchar"})
+end)
+gui.addToggle("Auto Morph", false, function(state)
+	if state then
+		lib.disconnect("autochartoggle")
+		lib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
+			if morphTarget ~= "" then
+				cmd.run({"char", morphTarget})
+			end
+		end))
+		if morphTarget ~= "" then
+			cmd.run({"char", morphTarget})
+		end
+	else
+		lib.disconnect("autochartoggle")
+	end
+end)
+
+gui.addSection("Character Light")
+
+gui.addSlider("Range",      0,  60, settingsLight.range,      1,   "", function(val) settingsLight.range      = val end)
+gui.addSlider("Brightness", 0,   30, settingsLight.brightness, 1,   "", function(val) settingsLight.brightness = val end)
+gui.addColorPicker("Color",  settingsLight.color, function(col) settingsLight.color = col end)
+
+gui.addButton("Apply Light", function()
+    local root = getRoot(Player.Character)
+    if not root then return end
+
+    local light = settingsLight.LIGHTER
+    if not light or not light.Parent then
+        light = InstanceNew("PointLight")
+        settingsLight.LIGHTER = light
+    end
+
+    light.Parent     = root
+    light.Range      = settingsLight.range
+    light.Brightness = settingsLight.brightness
+    light.Color      = settingsLight.color
+end)
+
+gui.addButton("Remove Light", function()
+    if settingsLight.LIGHTER then
+        settingsLight.LIGHTER:Destroy()
+        settingsLight.LIGHTER = nil
+    end
+end)
+
 gui.addSection("Chat Tag Customization (Client Sided)")
 
 gui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
@@ -20720,32 +20852,4 @@ gui.addButton("Remove Chat Tag", function()
 	end
 
 	DoNotif("Custom chat tag removed.",2.5)
-end)
-
-gui.addSection("Character Morph")
-gui.addInput("Target User", "UserId or Username", "", function(val)
-	morphTarget = val
-end)
-gui.addButton("Morph Character", function()
-	if morphTarget ~= "" then
-		cmd.run({"char", morphTarget})
-	end
-end)
-gui.addButton("Revert Character", function()
-	cmd.run({"unchar"})
-end)
-gui.addToggle("Auto Morph", false, function(state)
-	if state then
-		lib.disconnect("autochartoggle")
-		lib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
-			if morphTarget ~= "" then
-				cmd.run({"char", morphTarget})
-			end
-		end))
-		if morphTarget ~= "" then
-			cmd.run({"char", morphTarget})
-		end
-	else
-		lib.disconnect("autochartoggle")
-	end
 end)
