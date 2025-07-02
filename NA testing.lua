@@ -3013,37 +3013,33 @@ end
 local connections = {}
 
 lib.connect = function(name, connection)
-	connections[name] = connections[name] or {}
-	Insert(connections[name], connection)
-	return connection
+    connections[name] = connections[name] or {}
+    Insert(connections[name], connection)
+    return connection
 end
 
 lib.disconnect = function(name)
-	if connections[name] then
-		for _, conn in ipairs(connections[name]) do
-			conn:Disconnect()
-		end
-		connections[name] = nil
-	end
+    if connections[name] then
+        for _, conn in ipairs(connections[name]) do
+            conn:Disconnect()
+        end
+        connections[name] = nil
+    end
 end
 
 lib.isConnected = function(name)
-	return connections[name] ~= nil
+    return connections[name] ~= nil
 end
 
-lib.isProperty = function(inst,prop)
-	local s, r = pcall(function()
-		return inst[prop]
-	end)
-	if not s then return nil end
-	return r
+lib.isProperty = function(inst, prop)
+    local s, r = pcall(function() return inst[prop] end)
+    if not s then return nil end
+    return r
 end
 
-lib.setProperty = function(inst,prop,v)
-	local s, _ = pcall(function()
-		inst[prop] = v
-	end)
-	return s
+lib.setProperty = function(inst, prop, v)
+    local s, _ = pcall(function() inst[prop] = v end)
+    return s
 end
 
 --prepare for annoying and unnecessary tool grip math
@@ -11760,7 +11756,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	local function rebuild()
 		table.clear(playerList)
 		for _, p in ipairs(Players:GetPlayers()) do
-			table.insert(playerList, p)
+			Insert(playerList, p)
 		end
 		table.sort(playerList, function(a, b) return a.Name < b.Name end)
 	end
@@ -11797,8 +11793,8 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 			spectatedPlayer = nil
 			return
 		end
-		if spectatedPlayer and table.find(playerList, spectatedPlayer) then
-			currentIndex = table.find(playerList, spectatedPlayer)
+		if spectatedPlayer and Discover(playerList, spectatedPlayer) then
+			currentIndex = Discover(playerList, spectatedPlayer)
 		else
 			if currentIndex < 1 then currentIndex = 1 end
 			if currentIndex > #playerList then currentIndex = 1 end
@@ -16084,242 +16080,221 @@ cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter 
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Sword%20Fight%20Bot"))()
 end)
 
-local espList = {}
-touchESPList = {}
-proximityESPList = {}
-clickESPList = {}
-local partTrigger = nil
-local espTriggers = {}
+touchESPList, proximityESPList, clickESPList = {}, {}, {}
+espTriggers = {}
+espNameLists = { exact = {}, partial = {} }
+espNameTriggers = {}
+nameESPPartLists = { exact = {}, partial = {} }
 
-function createBox(part, c, t)
-    local bc = c or Color3.new(1,1,1)
-    local h,s,v = Color3.toHSV(bc)
-    local off = 0.35
-    local dv = math.clamp(v - off, 0, 1)
-    local lv = math.clamp(v + off, 0, 1)
-    local dC = Color3.fromHSV(h, s, dv)
-    local lC = Color3.fromHSV(h, s, lv)
+function createBox(part,c,t)
+    local bc=c or Color3.new(1,1,1)
+    local h,s,v=Color3.toHSV(bc)
+    local off=0.35
+    local dv=math.clamp(v-off,0,1)
+    local lv=math.clamp(v+off,0,1)
+    local dC=Color3.fromHSV(h,s,dv)
+    local lC=Color3.fromHSV(h,s,lv)
+    local b=InstanceNew("BoxHandleAdornment")
+    b.Name=Lower(part.Name).."_PEEPEE"
+    b.Parent=part
+    b.Adornee=part
+    b.AlwaysOnTop=true
+    b.ZIndex=0
+    b.Transparency=t or 0.45
+    b.Color3=lC
 
-    local b = InstanceNew("BoxHandleAdornment")
-    b.Name         = part.Name:lower().."_PEEPEE"
-    b.Parent       = part
-    b.Adornee      = part
-    b.AlwaysOnTop  = true
-    b.ZIndex       = 0
-    b.Transparency = t or 0.45
-    b.Color3       = lC
+    local bb=InstanceNew("BillboardGui")
+    bb.Name=Lower(part.Name).."_LABEL"
+    bb.Parent=part
+    bb.Adornee=part
+    bb.Size=UDim2.new(0,100,0,30)
+    bb.StudsOffset=Vector3.new(0,0.5,0)
+    bb.AlwaysOnTop=true
+    bb.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 
-    if part:IsA("Model") then
-        local _, ms = part:GetBoundingBox()
-        b.Size = ms + Vector3.new(0.1,0.1,0.1)
-    elseif part:IsA("BasePart") then
-        b.Size = part.Size + Vector3.new(0.1,0.1,0.1)
-    elseif part:FindFirstChildWhichIsA("BasePart") then
-        local cp = part:FindFirstChildWhichIsA("BasePart")
-        b.Size = cp.Size + Vector3.new(0.1,0.1,0.1)
-    else
-        b.Size = Vector3.new(4,4,4)
+    local tl=InstanceNew("TextLabel")
+    tl.Parent=bb
+    tl.Size=UDim2.new(1,0,1,0)
+    tl.BackgroundTransparency=1
+    tl.Text=part.Name
+    tl.TextColor3=Color3.new(1,1,1)
+    tl.Font=Enum.Font.SourceSansBold
+    tl.TextSize=14
+    tl.TextStrokeTransparency=0.5
+    tl.ZIndex=1
+
+    local gr=InstanceNew("UIGradient")
+    gr.Color=ColorSequence.new(dC,lC)
+    gr.Parent=tl
+
+    local function update()
+        if not b.Parent then return end
+        if part:IsA("Model") then
+            local _,ms=part:GetBoundingBox()
+            b.Size=ms+Vector3.new(0.1,0.1,0.1)
+        else
+            b.Size=part.Size+Vector3.new(0.1,0.1,0.1)
+        end
+        bb.StudsOffset=Vector3.new(0,b.Size.Y/2+0.2,0)
     end
 
-    local bt = TweenService:Create(b, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, math.huge, true), {Color3 = dC})
-    bt:Play()
+    update()
+    Defer(update)
 
-    local bb = InstanceNew("BillboardGui")
-    bb.Name            = part.Name:lower().."_LABEL"
-    bb.Parent          = part
-    bb.Adornee         = part
-    bb.Size            = UDim2.new(0,100,0,30)
-    bb.StudsOffset     = Vector3.new(0, b.Size.Y/2 + 0.2, 0)
-    bb.AlwaysOnTop     = true
-    bb.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-
-    local tl = InstanceNew("TextLabel")
-    tl.Parent                = bb
-    tl.Size                  = UDim2.new(1,0,1,0)
-    tl.BackgroundTransparency = 1
-    tl.Text                  = part.Name
-    tl.TextColor3            = Color3.new(1,1,1)
-    tl.Font                  = Enum.Font.SourceSansBold
-    tl.TextSize              = 14
-    tl.TextStrokeTransparency = 0.5
-    tl.ZIndex                = 1
-
-    local gr = InstanceNew("UIGradient")
-    gr.Color    = ColorSequence.new(dC, lC)
-    gr.Rotation = 0
-    gr.Parent   = tl
+    local key="esp_update_"..tostring(b)
+    if part:IsA("Model") then
+        lib.connect(key,part.DescendantAdded:Connect(update))
+        lib.connect(key,part.DescendantRemoving:Connect(update))
+    elseif lib.isProperty(part,"Size") then
+        lib.connect(key,part:GetPropertyChangedSignal("Size"):Connect(update))
+    end
 
     b:GetPropertyChangedSignal("Parent"):Connect(function()
         if not b.Parent then
-            bt:Cancel()
+            lib.disconnect(key)
         end
     end)
 
     return b
 end
 
-function onPartAdded(part)
-	if #espList > 0 then
-		if Discover(espList, part.Name:lower()) then
-			if part:IsA("BasePart") or part:IsA("Model") then
-				createBox(part, nil, 0.45)
-			end
-		end
-	else
-		if partTrigger then
-			partTrigger:Disconnect()
-			partTrigger = nil
-		end
-	end
-end
-
 function enableEsp(objType, color, list)
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA(objType) then
-			local parent = obj.Parent
-			if parent and (parent:IsA("BasePart") or parent:IsA("Model")) then
-				if not Discover(list, parent) then
-					Insert(list, parent)
-					createBox(parent, color, 0.45)
-				end
-			end
-		end
-	end
-
-	if not espTriggers[objType] then
-		espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
-			if obj:IsA(objType) then
-				local parent = obj.Parent
-				if parent and (parent:IsA("BasePart") or parent:IsA("Model")) then
-					if not Discover(list, parent) then
-						Insert(list, parent)
-						createBox(parent, color, 0.45)
-					end
-				end
-			end
-		end)
-	end
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA(objType) then
+            local parent = obj.Parent
+            if parent and (parent:IsA("BasePart") or parent:IsA("Model")) and not Discover(list, parent) then
+                Insert(list, parent)
+                createBox(parent, color, 0.45)
+            end
+        end
+    end
+    if not espTriggers[objType] then
+        espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA(objType) then
+                local parent = obj.Parent
+                if parent and (parent:IsA("BasePart") or parent:IsA("Model")) and not Discover(list, parent) then
+                    Insert(list, parent)
+                    createBox(parent, color, 0.45)
+                end
+            end
+        end)
+    end
 end
 
 function disableEsp(objType, list)
-	if espTriggers[objType] then
-		espTriggers[objType]:Disconnect()
-		espTriggers[objType] = nil
-	end
-
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-			local adornee = obj.Adornee
-			if adornee and Discover(list, adornee) then
-				obj:Destroy()
-				local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
-				if label then label:Destroy() end
-			end
-		end
-	end
-
-	table.clear(list)
+    if espTriggers[objType] then
+        espTriggers[objType]:Disconnect()
+        espTriggers[objType] = nil
+    end
+    for _, part in ipairs(list) do
+        for _, b in ipairs(part:GetChildren()) do
+            if b:IsA("BoxHandleAdornment") and Sub(b.Name, -7) == "_PEEPEE" then
+                lib.disconnect("esp_size_"..tostring(b))
+                b:Destroy()
+            end
+        end
+        local lbl = part:FindFirstChild(Lower(part.Name).."_LABEL")
+        if lbl then lbl:Destroy() end
+    end
+    table.clear(list)
 end
 
-cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "Highlights specific parts by name"}, function(...)
-	local args = {...}
-	local partName = Concat(args, " "):lower()
+function enableNameEsp(mode, color, ...)
+    local terms = {...}
+    local list = espNameLists[mode]
+    local parts = nameESPPartLists[mode]
+    for _, term in ipairs(terms) do
+        term = Lower(term)
+        if not table.find(list, term) then
+            Insert(list, term)
+        end
+    end
+    local function matchFn(obj)
+        if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
+        local nm = Lower(obj.Name)
+        for _, term in ipairs(list) do
+            if (mode == "exact" and nm == term) or (mode == "partial" and nm:find(term)) then
+                return true
+            end
+        end
+        return false
+    end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if matchFn(obj) and not Discover(parts, obj) then
+            Insert(parts, obj)
+            createBox(obj, color, 0.45)
+        end
+    end
+    if not espNameTriggers[mode] then
+        espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
+            if matchFn(obj) and not Discover(parts, obj) then
+                Insert(parts, obj)
+                createBox(obj, color, 0.45)
+            end
+        end)
+    end
+end
 
-	if not Discover(espList, partName) then
-		Insert(espList, partName)
+function disableNameEsp(mode)
+    if espNameTriggers[mode] then
+        espNameTriggers[mode]:Disconnect()
+        espNameTriggers[mode] = nil
+    end
+    local parts = nameESPPartLists[mode]
+    for _, part in ipairs(parts) do
+        for _, b in ipairs(part:GetChildren()) do
+            if b:IsA("BoxHandleAdornment") and Sub(b.Name, -7) == "_PEEPEE" then
+                lib.disconnect("esp_size_"..tostring(b))
+                b:Destroy()
+            end
+        end
+        local lbl = part:FindFirstChild(Lower(part.Name).."_LABEL")
+        if lbl then lbl:Destroy() end
+    end
+    table.clear(parts)
+    table.clear(espNameLists[mode])
+end
 
-		for _, obj in pairs(workspace:GetDescendants()) do
-			if obj.Name:lower() == partName then
-				if obj:IsA("BasePart") or obj:IsA("Model") then
-					createBox(obj, nil, 0.45)
-				end
-			end
-		end
-	end
+cmd.add({"pesp","esppart","partesp"},{"pesp {partname}"},function(...)
+    local name = Concat({...}," ")
+    enableNameEsp("exact", nil, name)
+end,true)
 
-	if not partTrigger then
-		partTrigger = workspace.DescendantAdded:Connect(onPartAdded)
-	end
-end, true)
-
-cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (partespfind, esppartfind)", "Highlights parts that partially match the name"}, function(...)
-	local args = {...}
-	local partName = Concat(args, " "):lower()
-
-	if not Discover(espList, partName) then
-		Insert(espList, partName)
-
-		for _, obj in pairs(workspace:GetDescendants()) do
-			if obj.Name:lower():find(partName) then
-				if obj:IsA("BasePart") or obj:IsA("Model") then
-					createBox(obj, nil, 0.45)
-				end
-			end
-		end
-	end
-
-	if not partTrigger then
-		partTrigger = workspace.DescendantAdded:Connect(function(part)
-			if #espList > 0 then
-				for _, name in ipairs(espList) do
-					if part.Name:lower():find(name) then
-						if part:IsA("BasePart") or part:IsA("Model") then
-							createBox(part, Color3.fromRGB(50, 205, 50), 0.45)
-						end
-					end
-				end
-			end
-		end)
-	end
-end, true)
-
-cmd.add({"unpesp", "unesppart", "unpartesp"}, {"unpesp (unesppart, unpartesp)", "Removes ESP from specific parts added by pesp"}, function()
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if obj:IsA("BoxHandleAdornment") and obj.Name:sub(-7) == "_PEEPEE" then
-			local adornee = obj.Adornee
-			if adornee then
-				for _, name in ipairs(espList) do
-					if adornee.Name:lower():find(name) then
-						obj:Destroy()
-						local label = adornee:FindFirstChild(adornee.Name:lower().."_LABEL")
-						if label then label:Destroy() end
-						break
-					end
-				end
-			end
-		end
-	end
-
-	espList = {}
-
-	if partTrigger then
-		partTrigger:Disconnect()
-		partTrigger = nil
-	end
+cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp"},function()
+    disableNameEsp("exact")
 end)
 
-cmd.add({"touchesp", "tesp"}, {"touchesp (tesp)", "Highlights parts with TouchTransmitter"}, function()
-	enableEsp("TouchTransmitter", Color3.fromRGB(255, 0, 0), touchESPList)
+cmd.add({"pespfind","partespfind","esppartfind"},{"pespfind {partname}"},function(...)
+    local name = Concat({...}," ")
+    enableNameEsp("partial", nil, name)
+end,true)
+
+cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind"},function()
+    disableNameEsp("partial")
 end)
 
-cmd.add({"untouchesp", "untesp"}, {"untouchesp (untesp)", "Removes ESP from parts with TouchTransmitter"}, function()
-	disableEsp("TouchTransmitter", touchESPList)
+cmd.add({"touchesp","tesp"},{"touchesp"},function()
+    enableEsp("TouchTransmitter", Color3.fromRGB(255,0,0), touchESPList)
 end)
 
-cmd.add({"proximityesp", "prxesp", "proxiesp"}, {"proximityesp (prxesp, proxiesp)", "Highlights parts with ProximityPrompt"}, function()
-	enableEsp("ProximityPrompt", Color3.fromRGB(0, 0, 255), proximityESPList)
+cmd.add({"untouchesp","untesp"},{"untouchesp"},function()
+    disableEsp("TouchTransmitter", touchESPList)
 end)
 
-cmd.add({"unproximityesp", "unprxesp", "unproxiesp"}, {"unproximityesp (unprxesp, unproxiesp)", "Removes ESP from parts with ProximityPrompt"}, function()
-	disableEsp("ProximityPrompt", proximityESPList)
+cmd.add({"proximityesp","prxesp","proxiesp"},{"proximityesp"},function()
+    enableEsp("ProximityPrompt", Color3.fromRGB(0,0,255), proximityESPList)
 end)
 
-cmd.add({"clickesp", "cesp"}, {"clickesp (cesp)", "Highlights parts with ClickDetector"}, function()
-	enableEsp("ClickDetector", Color3.fromRGB(255, 165, 0), clickESPList)
+cmd.add({"unproximityesp","unprxesp","unproxiesp"},{"unproximityesp"},function()
+    disableEsp("ProximityPrompt", proximityESPList)
 end)
 
-cmd.add({"unclickesp", "uncesp"}, {"unclickesp (uncesp)", "Removes ESP from parts with ClickDetector"}, function()
-	disableEsp("ClickDetector", clickESPList)
+cmd.add({"clickesp","cesp"},{"clickesp"},function()
+    enableEsp("ClickDetector", Color3.fromRGB(255,165,0), clickESPList)
+end)
+
+cmd.add({"unclickesp","uncesp"},{"unclickesp"},function()
+    disableEsp("ClickDetector", clickESPList)
 end)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
