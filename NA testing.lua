@@ -16091,49 +16091,78 @@ clickESPList = {}
 local partTrigger = nil
 local espTriggers = {}
 
-function createBox(part, color, transparency)
-	local box = InstanceNew("BoxHandleAdornment")
-	box.Name = part.Name:lower().."_PEEPEE"
-	box.Parent = part
-	box.Adornee = part
-	box.AlwaysOnTop = true
-	box.ZIndex = 0
-	if part:IsA("BasePart") then
-		box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
-	elseif part:FindFirstChildWhichIsA("BasePart") then
-		box.Size = part:FindFirstChildWhichIsA("BasePart").Size + Vector3.new(0.1, 0.1, 0.1)
-	else
-		box.Size = Vector3.new(4, 4, 4)
-	end
-	box.Transparency = transparency or 0.45
-	box.Color3 = color
+function createBox(part, c, t)
+    local bc = c or Color3.new(1,1,1)
+    local h,s,v = Color3.toHSV(bc)
+    local off = 0.35
+    local dv = math.clamp(v - off, 0, 1)
+    local lv = math.clamp(v + off, 0, 1)
+    local dC = Color3.fromHSV(h, s, dv)
+    local lC = Color3.fromHSV(h, s, lv)
 
-	local billboard = InstanceNew("BillboardGui")
-	billboard.Name = part.Name:lower().."_LABEL"
-	billboard.Parent = part
-	billboard.Adornee = part
-	billboard.Size = UDim2.new(0, 100, 0, 30)
-	billboard.StudsOffset = Vector3.new(0, 2, 0)
-	billboard.AlwaysOnTop = true
+    local b = InstanceNew("BoxHandleAdornment")
+    b.Name         = part.Name:lower().."_PEEPEE"
+    b.Parent       = part
+    b.Adornee      = part
+    b.AlwaysOnTop  = true
+    b.ZIndex       = 0
+    b.Transparency = t or 0.45
+    b.Color3       = lC
 
-	local textLabel = InstanceNew("TextLabel")
-	textLabel.Parent = billboard
-	textLabel.Size = UDim2.new(1, 0, 1, 0)
-	textLabel.BackgroundTransparency = 1
-	textLabel.TextColor3 = color
-	textLabel.Text = part.Name
-	textLabel.Font = Enum.Font.SourceSansBold
-	textLabel.TextSize = 14
-	textLabel.TextStrokeTransparency = 0.5
+    if part:IsA("Model") then
+        local _, ms = part:GetBoundingBox()
+        b.Size = ms + Vector3.new(0.1,0.1,0.1)
+    elseif part:IsA("BasePart") then
+        b.Size = part.Size + Vector3.new(0.1,0.1,0.1)
+    elseif part:FindFirstChildWhichIsA("BasePart") then
+        local cp = part:FindFirstChildWhichIsA("BasePart")
+        b.Size = cp.Size + Vector3.new(0.1,0.1,0.1)
+    else
+        b.Size = Vector3.new(4,4,4)
+    end
 
-	return box
+    local bt = TweenService:Create(b, TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, math.huge, true), {Color3 = dC})
+    bt:Play()
+
+    local bb = InstanceNew("BillboardGui")
+    bb.Name            = part.Name:lower().."_LABEL"
+    bb.Parent          = part
+    bb.Adornee         = part
+    bb.Size            = UDim2.new(0,100,0,30)
+    bb.StudsOffset     = Vector3.new(0, b.Size.Y/2 + 0.2, 0)
+    bb.AlwaysOnTop     = true
+    bb.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+
+    local tl = InstanceNew("TextLabel")
+    tl.Parent                = bb
+    tl.Size                  = UDim2.new(1,0,1,0)
+    tl.BackgroundTransparency = 1
+    tl.Text                  = part.Name
+    tl.TextColor3            = Color3.new(1,1,1)
+    tl.Font                  = Enum.Font.SourceSansBold
+    tl.TextSize              = 14
+    tl.TextStrokeTransparency = 0.5
+    tl.ZIndex                = 1
+
+    local gr = InstanceNew("UIGradient")
+    gr.Color    = ColorSequence.new(dC, lC)
+    gr.Rotation = 0
+    gr.Parent   = tl
+
+    b:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not b.Parent then
+            bt:Cancel()
+        end
+    end)
+
+    return b
 end
 
 function onPartAdded(part)
 	if #espList > 0 then
 		if Discover(espList, part.Name:lower()) then
 			if part:IsA("BasePart") or part:IsA("Model") then
-				createBox(part, Color3.fromRGB(50, 205, 50), 0.45)
+				createBox(part, nil, 0.45)
 			end
 		end
 	else
@@ -16202,7 +16231,7 @@ cmd.add({"pesp", "esppart", "partesp"}, {"pesp {partname} (esppart, partesp)", "
 		for _, obj in pairs(workspace:GetDescendants()) do
 			if obj.Name:lower() == partName then
 				if obj:IsA("BasePart") or obj:IsA("Model") then
-					createBox(obj, Color3.fromRGB(50, 205, 50), 0.45)
+					createBox(obj, nil, 0.45)
 				end
 			end
 		end
@@ -16223,7 +16252,7 @@ cmd.add({"pespfind", "partespfind", "esppartfind"}, {"pespfind {partname} (parte
 		for _, obj in pairs(workspace:GetDescendants()) do
 			if obj.Name:lower():find(partName) then
 				if obj:IsA("BasePart") or obj:IsA("Model") then
-					createBox(obj, Color3.fromRGB(50, 205, 50), 0.45)
+					createBox(obj, nil, 0.45)
 				end
 			end
 		end
