@@ -11523,8 +11523,8 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
-	local uid=Players.LocalPlayer.UserId
-	cmd.run({"char", uid})
+	local naem=Players.LocalPlayer.Name
+	cmd.run({"char", naem})
 end)
 
 cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(args)
