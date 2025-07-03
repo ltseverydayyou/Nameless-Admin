@@ -16543,6 +16543,163 @@ cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
 end,true)
 
+local PST = {
+    orig   = {},
+    exact  = {},
+    partial= {},
+    sizeE  = {},
+    sizeP  = {},
+}
+
+NAmanage.cachePart = function(p)
+    PST.orig[p] = {
+        Size         = p.Size,
+        Transparency = p.Transparency,
+        CanCollide   = p.CanCollide,
+    }
+end
+
+NAmanage.resizePart = function(p, sizeVec, store)
+    if not PST.orig[p] then NAmanage.cachePart(p) end
+    p.Size         = sizeVec
+    p.Transparency = 0.5
+    p.CanCollide   = false
+    Insert(store, p)
+end
+
+cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}"},function(nameArg, sizeArg)
+    local term, n = Lower(nameArg), tonumber(sizeArg)
+    if not n then DoNotif("Invalid size",2) return end
+    local sizeVec = Vector3.new(n,n,n)
+    PST.sizeE[term] = sizeVec
+
+    local parts, elser = {}, {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        local nm = Lower(obj.Name)
+        if obj:IsA("BasePart") and nm == term then
+            Insert(parts, obj)
+        elseif nm == term then
+            Insert(elser, obj)
+        end
+    end
+
+    for _, p in ipairs(parts) do
+        NAmanage.resizePart(p, sizeVec, PST.exact)
+    end
+    for _, m in ipairs(elser) do
+        for _, d in ipairs(m:GetDescendants()) do
+            if d:IsA("BasePart") then
+                NAmanage.resizePart(d, sizeVec, PST.exact)
+            end
+        end
+    end
+
+    if not lib.isConnected("partsizeExact") then
+        lib.connect("partsizeExact", workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA("BasePart") then
+                local nm = Lower(obj.Name)
+                local sz = PST.sizeE[nm]
+                if sz then
+                    NAmanage.resizePart(obj, sz, PST.exact)
+                    return
+                end
+            else
+                local sz = PST.sizeE[Lower(obj.Name)]
+                if sz then
+                    for _, d in ipairs(obj:GetDescendants()) do
+                        if d:IsA("BasePart") then
+                            NAmanage.resizePart(d, sz, PST.exact)
+                        end
+                    end
+                end
+            end
+        end))
+    end
+end, true)
+
+cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term} {size}"},function(termArg, sizeArg)
+    local term, n = Lower(termArg), tonumber(sizeArg)
+    if not n then DoNotif("Invalid size",2) return end
+    local sizeVec = Vector3.new(n,n,n)
+    PST.sizeP[term] = sizeVec
+
+    local parts, elser = {}, {}
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        local nm = Lower(obj.Name)
+        if obj:IsA("BasePart") and nm:find(term) then
+            Insert(parts, obj)
+        elseif nm:find(term) then
+            Insert(elser, obj)
+        end
+    end
+
+    for _, p in ipairs(parts) do
+        NAmanage.resizePart(p, sizeVec, PST.partial)
+    end
+    for _, m in ipairs(elser) do
+        for _, d in ipairs(m:GetDescendants()) do
+            if d:IsA("BasePart") then
+                NAmanage.resizePart(d, sizeVec, PST.partial)
+            end
+        end
+    end
+
+    if not lib.isConnected("partsizeFind") then
+        lib.connect("partsizeFind", workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA("BasePart") then
+                local nm = Lower(obj.Name)
+                for t, sz in pairs(PST.sizeP) do
+                    if nm:find(t) then
+                        NAmanage.resizePart(obj, sz, PST.partial)
+                        return
+                    end
+                end
+            else
+                for t, sz in pairs(PST.sizeP) do
+                    if Lower(obj.Name):find(t) then
+                        for _, d in ipairs(obj:GetDescendants()) do
+                            if d:IsA("BasePart") then
+                                NAmanage.resizePart(d, sz, PST.partial)
+                            end
+                        end
+                        return
+                    end
+                end
+            end
+        end))
+    end
+end, true)
+
+cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize"},function()
+    for _, p in ipairs(PST.exact) do
+        local pr = PST.orig[p]
+        if pr then
+            p.Size         = pr.Size
+            p.Transparency = pr.Transparency
+            p.CanCollide   = pr.CanCollide
+            PST.orig[p] = nil
+        end
+    end
+    table.clear(PST.exact)
+    table.clear(PST.sizeE)
+    lib.disconnect("partsizeExact")
+end, true)
+
+cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind"},function()
+    for _, p in ipairs(PST.partial) do
+        local pr = PST.orig[p]
+        if pr then
+            p.Size         = pr.Size
+            p.Transparency = pr.Transparency
+            p.CanCollide   = pr.CanCollide
+            PST.orig[p] = nil
+        end
+    end
+    table.clear(PST.partial)
+    table.clear(PST.sizeP)
+    lib.disconnect("partsizeFind")
+end, true)
+
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
 	DoNotif("Car breaker loaded, sit on a vehicle and be the driver")
 
