@@ -16567,7 +16567,7 @@ NAmanage.resizePart = function(p, sizeVec, store)
     Insert(store, p)
 end
 
-cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}"},function(nameArg, sizeArg)
+cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part or model named exactly <name> to the cube size you choose."},function(nameArg, sizeArg)
     local term, n = Lower(nameArg), tonumber(sizeArg)
     if not n then DoNotif("Invalid size",2) return end
     local sizeVec = Vector3.new(n,n,n)
@@ -16617,7 +16617,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}"},function(name
     end
 end, true)
 
-cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term} {size}"},function(termArg, sizeArg)
+cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term} {size}", "Grow every part or model whose name contains <term> to the cube size you choose."},function(termArg, sizeArg)
     local term, n = Lower(termArg), tonumber(sizeArg)
     if not n then DoNotif("Invalid size",2) return end
     local sizeVec = Vector3.new(n,n,n)
@@ -16670,7 +16670,7 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
     end
 end, true)
 
-cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize"},function()
+cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—return those parts back to their original size and collision."},function()
     for _, p in ipairs(PST.exact) do
         local pr = PST.orig[p]
         if pr then
@@ -16685,7 +16685,7 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize"},function()
     lib.disconnect("partsizeExact")
 end, true)
 
-cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind"},function()
+cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo partsizefind—return those resized parts back to their original size and collision."},function()
     for _, p in ipairs(PST.partial) do
         local pr = PST.orig[p]
         if pr then
