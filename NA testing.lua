@@ -99,7 +99,7 @@ NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
 
-NACaller(function() while not NAjson do Wait(.1) NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) end end)
+NACaller(function() repeat Wait(.1) NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) until NAjson end)
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -279,7 +279,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson.ver
+local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson and NAjson.ver or "(unknown version)"
 
 --[[ Brand ]]--
 local mainName = 'Nameless Admin'
