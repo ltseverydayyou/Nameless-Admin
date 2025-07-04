@@ -19238,116 +19238,98 @@ gui.dragger = function(ui, dragui)
 end
 
 gui.draggerV2 = function(ui, dragui)
-	dragui = dragui or ui
-	local UserInputService = SafeGetService("UserInputService")
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+    dragui = dragui or ui
+    local UserInputService = SafeGetService("UserInputService")
+    local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 
-	local dragging
-	local dragInput
-	local dragStart
-	local startPos
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
 
-	local function update(input)
-		local success, err = NACaller(function()
-			local delta = input.Position - dragStart
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
+    local function update(input)
+        local success, err = NACaller(function()
+            local delta = input.Position - dragStart
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
+            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
+            local startX = startPos.X.Scale * parentSize.X + startPos.X.Offset
+            local startY = startPos.Y.Scale * parentSize.Y + startPos.Y.Offset
+            local absX = math.clamp(startX + delta.X, 0, parentSize.X - uiSize.X)
+            local absY = math.clamp(startY + delta.Y, 0, parentSize.Y - uiSize.Y)
+            ui.Position = UDim2.new(absX / parentSize.X, 0, absY / parentSize.Y, 0)
+        end)
+        if not success then warn("[DraggerV2] update error:", err) end
+    end
 
-			local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
-			local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+    NACaller(function()
+        dragui.InputBegan:Connect(function(input)
+            local ok, err = NACaller(function()
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = ui.Position
+                    NACaller(function()
+                        input.Changed:Connect(function()
+                            local ok2, err2 = NACaller(function()
+                                if input.UserInputState == Enum.UserInputState.End then
+                                    dragging = false
+                                end
+                            end)
+                            if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
+                        end)
+                    end)
+                end
+            end)
+            if not ok then warn("[DraggerV2] InputBegan error:", err) end
+        end)
+    end)
 
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+    NACaller(function()
+        dragui.InputChanged:Connect(function(input)
+            local ok, err = NACaller(function()
+                if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                    dragInput = input
+                end
+            end)
+            if not ok then warn("[DraggerV2] InputChanged error:", err) end
+        end)
+    end)
 
-			newXScale = math.clamp(newXScale, minX, maxX)
-			newYScale = math.clamp(newYScale, minY, maxY)
+    NACaller(function()
+        UserInputService.InputChanged:Connect(function(input)
+            local ok, err = NACaller(function()
+                if input == dragInput and dragging then
+                    update(input)
+                end
+            end)
+            if not ok then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
+        end)
+    end)
 
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("[DraggerV2] update error:", err)
-		end
-	end
+    local function onScreenSizeChanged()
+        local success, err = NACaller(function()
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
+            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
+            local currentPos = ui.Position
+            local startX = currentPos.X.Scale * parentSize.X + currentPos.X.Offset
+            local startY = currentPos.Y.Scale * parentSize.Y + currentPos.Y.Offset
+            local clampedX = math.clamp(startX, 0, parentSize.X - uiSize.X)
+            local clampedY = math.clamp(startY, 0, parentSize.Y - uiSize.Y)
+            ui.Position = UDim2.new(clampedX / parentSize.X, 0, clampedY / parentSize.Y, 0)
+        end)
+        if not success then warn("[DraggerV2] Screen size update error:", err) end
+    end
 
-	NACaller(function()
-		dragui.InputBegan:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
+    NACaller(function()
+        screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
+    end)
 
-					NACaller(function()
-						input.Changed:Connect(function()
-							local ok, innerErr = NACaller(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-								end
-							end)
-							if not ok then warn("[DraggerV2] input.Changed error:", innerErr) end
-						end)
-					end)
-				end
-			end)
-			if not success then warn("[DraggerV2] InputBegan error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		dragui.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-			if not success then warn("[DraggerV2] InputChanged error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		UserInputService.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input == dragInput and dragging then
-					update(input)
-				end
-			end)
-			if not success then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
-		end)
-	end)
-
-	local function onScreenSizeChanged()
-		local success, err = NACaller(function()
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
-			local currentPos = ui.Position
-
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
-
-			local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
-			local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
-
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("[DraggerV2] Screen size update error:", err)
-		end
-	end
-
-	NACaller(function()
-		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
-	end)
-
-	local success, err = NACaller(function()
-		ui.Active = true
-	end)
-	if not success then warn("[DraggerV2] Set Active error:", err) end
+    local ok, err = NACaller(function()
+        ui.Active = true
+    end)
+    if not ok then warn("[DraggerV2] Set Active error:", err) end
 end
 
 gui.menu = function(menu)
