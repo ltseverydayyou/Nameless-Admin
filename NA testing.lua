@@ -20,14 +20,9 @@
 
 if getgenv().RealNamelessLoaded then return end
 
-local function NACaller(pp)--helps me log better
-	local NAsss,NAerr=pcall(pp)
-	if not NAsss then warn("NA script error: "..NAerr) end
-end
-
-NACaller(function() getgenv().RealNamelessLoaded=true end)
-NACaller(function() getgenv().NATestingVer=true end)
-NACaller(function() getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR" end)
+pcall(function() getgenv().RealNamelessLoaded=true end)
+pcall(function() getgenv().NATestingVer=true end)
+pcall(function() getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR" end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -55,6 +50,11 @@ local Concat = table.concat;
 local Defer = task.defer;
 local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
 local NAjson = nil
+local Notification = nil
+local mainName = 'Nameless Admin'
+local testingName = 'NA Testing'
+local adminName = 'NA'
+local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local cmd={}
 local NAmanage={}
 local searchIndex = {}
@@ -99,8 +99,6 @@ NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
 
-NACaller(function() repeat Wait(.1) NAjson=HttpService:JSONDecode(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")) until NAjson end)
-
 function isAprilFools()
 	local d = os.date("*t")
 	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
@@ -135,6 +133,116 @@ end
 function maybeMock(text)
 	return isAprilFools() and MockText(text) or text
 end
+
+if getgenv().NATestingVer then
+	if isAprilFools() then
+		testingName = yayApril(true)
+		testingName = maybeMock(testingName)
+	end
+	adminName = testingName
+else
+	if isAprilFools() then
+		mainName = yayApril(false)
+		mainName = maybeMock(mainName)
+	end
+	adminName = mainName
+end
+
+repeat
+	local success, result = pcall(function()
+		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
+	end)
+
+	if success then
+		Notification = result
+	else
+		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
+		Wait(0.3)
+	end
+until Notification
+
+local Notify = Notification.Notify
+local Window = Notification.Window
+local Popup  = Notification.Popup
+
+function DoNotif(text, duration, title)
+	Notify({
+		Title = title or adminName or nil,
+		Description = text or "something",
+		Duration = duration or 5
+	})
+end
+
+function DoWindow(text, title)
+	Window({
+		Title = title or adminName or nil,
+		Description = text or "something",
+	})
+end
+
+function DoPopup(text, title)
+	Popup({
+		Title = title or adminName or nil,
+		Description = text or "something",
+	})
+end
+
+function NACaller(fn, ...)
+    local args = {...}
+    local function wrapped()
+        return fn(unpack(args))
+    end
+
+    local t = table.pack(xpcall(wrapped, function(msg)
+        return debug.traceback(msg, 2)
+    end))
+
+    if not t[1] then
+        warn("NA script error:\n"..t[2])
+        Popup({
+            Title       = adminName or "Script Error",
+            Description = Format(
+                "An error occurred in %s.\nPlease report this to the owner.\n\nError details:\n%s",
+                adminName or "Script Error",
+                t[2]
+            ),
+            Buttons     = {
+                {
+                    Text = "Open Console",
+                    Callback = function()
+                        cmd.run({"console"})
+                    end
+                },
+                {
+                    Text = "Discord Server",
+                    Callback = function()
+                        if setclipboard then
+                            setclipboard(inviteLink)
+                            DoNotif("Discord link copied to clipboard!")
+                        else
+                            DoWindow("Server Invite: "..inviteLink)
+                        end
+                    end
+                }
+            }
+        })
+    end
+
+    return Unpack(t, 1, t.n)
+end
+
+NACaller(function()
+    repeat
+        Wait(0.1)
+        local okFetch, raw = NACaller(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
+        if okFetch then
+            local okDecode, decoded = NACaller(HttpService.JSONDecode, HttpService, raw)
+            if okDecode and type(decoded) == "table" then
+                NAjson = decoded
+            end
+        end
+    until NAjson
+end)
 
 function rStringgg()
 	local length = math.random(10, 20)
@@ -279,12 +387,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format("%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson and NAjson.ver or "(unknown version)"
-
---[[ Brand ]]--
-local mainName = 'Nameless Admin'
-local testingName = 'NA Testing'
-local adminName = 'NA'
+local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson and " V"..NAjson.ver or ""
 
 function yayApril(isTesting)
 	local baseNames = {
@@ -371,20 +474,6 @@ function getSeasonEmoji()
 	return ''
 end
 
-if getgenv().NATestingVer then
-	if isAprilFools() then
-		testingName = yayApril(true)
-		testingName = maybeMock(testingName)
-	end
-	adminName = testingName
-else
-	if isAprilFools() then
-		mainName = yayApril(false)
-		mainName = maybeMock(mainName)
-	end
-	adminName = mainName
-end
-
 if not gethui then
 	getgenv().gethui=function()
 		return NAmanage.guiCHECKINGAHHHHH()
@@ -450,47 +539,6 @@ else
 	opt.loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();]]
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
 	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
-end
-
---Notification library
-local Notification
-repeat
-	local success, result = pcall(function()
-		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
-	end)
-
-	if success then
-		Notification = result
-	else
-		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
-		Wait(0.3)
-	end
-until Notification
-
-local Notify = Notification.Notify
-local Window = Notification.Window
-local Popup  = Notification.Popup
-
-function DoNotif(text, duration, title)
-	Notify({
-		Title = title or adminName or nil,
-		Description = text or "something",
-		Duration = duration or 5
-	})
-end
-
-function DoWindow(text, title)
-	Window({
-		Title = title or adminName or nil,
-		Description = text or "something",
-	})
-end
-
-function DoPopup(text, title)
-	Popup({
-		Title = title or adminName or nil,
-		Description = text or "something",
-	})
 end
 
 --Custom file functions checker checker
@@ -621,9 +669,9 @@ function InitUIStroke(path)
 		return defaultColor
 	end
 
-	local success, content = pcall(readfile, path)
+	local success, content = NACaller(readfile, path)
 	if success and content then
-		local ok, data = pcall(function()
+		local ok, data = NACaller(function()
 			return HttpService:JSONDecode(content)
 		end)
 
@@ -677,7 +725,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NAJOINLEAVE) then
-		local success, data = pcall(function()
+		local success, data = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
 		end)
 
@@ -687,7 +735,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NACHATTAG) then
-		local success, data = pcall(function()
+		local success, data = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NACHATTAG))
 		end)
 
@@ -714,7 +762,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NAICONPOSPATH) then
-		local success, data = pcall(function()
+		local success, data = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
 		end)
 		if success and data then
@@ -773,7 +821,7 @@ NACaller(function()
 	for _, fileName in pairs(NAImageAssets) do
 		local fullPath = NAfiles.NAASSETSFILEPATH.."/"..fileName
 		if not isfile(fullPath) then
-			local success, data = pcall(function()
+			local success, data = NACaller(function()
 				return game:HttpGet(baseURL..fileName)
 			end)
 			if success and data then
@@ -879,7 +927,7 @@ Spawn(function()
 		local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
 		local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
 
-		local ok, result = pcall(require, controlModule)
+		local ok, result = NACaller(require, controlModule)
 		if ok and result then
 			opt.ctrlModule = result
 		end
@@ -933,7 +981,7 @@ end)
 
 function GetCustomMoveVector()
 	if opt.ctrlModule then
-		local success, vec = pcall(function()
+		local success, vec = NACaller(function()
 			return opt.ctrlModule:GetMoveVector()
 		end)
 		if success and vec and vec.Magnitude > 0 then
@@ -1255,7 +1303,7 @@ cmd.run = function(args)
 	local caller, arguments = args[1], args
 	table.remove(args, 1)
 
-	local success, msg = pcall(function()
+	local success, msg = NACaller(function()
 		local command = cmds.Commands[caller:lower()] or cmds.Aliases[caller:lower()]
 		if command then
 			command[1](unpack(arguments))
@@ -1354,7 +1402,7 @@ cmd.loop = function(commandName, args)
 
 					Spawn(function()
 						while Loops[loopKey] and Loops[loopKey].running do
-							pcall(function()
+							NACaller(function()
 								Loops[loopKey].command(unpack(Loops[loopKey].args))
 							end)
 							Wait(Loops[loopKey].interval)
@@ -1540,7 +1588,7 @@ end
 
 Foreach = function(Table, Func, Loop)
 	for Index, Value in next, Table do
-		pcall(function()
+		NACaller(function()
 			if Loop and typeof(Value) == 'table' then
 				for Index2, Value2 in next, Value do
 					Func(Index2, Value2)
@@ -1912,7 +1960,7 @@ function round(num,numDecimalPlaces)
 end
 
 function getPlaceInfo()
-	local success, result = pcall(function()
+	local success, result = NACaller(function()
 		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
 	end)
 
@@ -2281,7 +2329,7 @@ function togXray(en)
 					end
 				end
 				if not hasHum then
-					local ok, err = pcall(function()
+					local ok, err = NACaller(function()
 						desc.LocalTransparencyModifier = 0.5
 					end)
 					if not ok then
@@ -2312,7 +2360,7 @@ function togXray(en)
 				end
 			end
 			if not hasHum then
-				local ok, err = pcall(function()
+				local ok, err = NACaller(function()
 					prt.LocalTransparencyModifier = transVal
 				end)
 				if not ok then
@@ -2490,7 +2538,7 @@ end
 
 NAmanage.readAliasFile = function()
 	if FileSupport and isfile(NAfiles.NAALIASPATH) then
-		local success, data = pcall(function()
+		local success, data = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAALIASPATH))
 		end)
 		if success and type(data) == "table" then
@@ -2513,7 +2561,7 @@ end
 
 NAmanage.loadButtonIDS = function()
 	if FileSupport and isfile(NAfiles.NAUSERBUTTONSPATH) then
-		local success, data = pcall(function()
+		local success, data = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAUSERBUTTONSPATH))
 		end)
 		if success and type(data) == "table" then
@@ -2526,7 +2574,7 @@ NAmanage.loadAutoExec = function()
 	NAEXECDATA = {commands = {}, args = {}}
 
 	if FileSupport and isfile(NAfiles.NAAUTOEXECPATH) then
-		local success, decoded = pcall(function()
+		local success, decoded = NACaller(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAAUTOEXECPATH))
 		end)
 		if success and type(decoded) == "table" then
@@ -2572,7 +2620,7 @@ NAmanage.LoadPlugins = function()
 
 	for _, file in ipairs(files) do
 		if Lower(file):match("%.na$") then
-			local success, content = pcall(readfile, file)
+			local success, content = NACaller(readfile, file)
 			if success and content then
 				local func, loadErr = loadstring(content)
 				if func then
@@ -2602,7 +2650,7 @@ NAmanage.LoadPlugins = function()
 
 					setfenv(func, proxyEnv)
 
-					local ok, execErr = pcall(func)
+					local ok, execErr = NACaller(func)
 					if ok then
 						local fileCommandNames = {}
 
@@ -2662,7 +2710,7 @@ NAmanage.LogJoinLeave = function(message)
 		"%s %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
 		timestamp,
 		message,
-		placeName(),
+		placeName() or "unknown",
 		tostring(PlaceId),
 		tostring(GameId),
 		tostring(JobId)
@@ -3064,7 +3112,7 @@ cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
 		return DoNotif("no link provided", 2)
 	end
 
-	local success, result = pcall(function()
+	local success, result = NACaller(function()
 		return game:HttpGet(link)
 	end)
 
@@ -3576,8 +3624,6 @@ cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy
 end)
 
 cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link"}, function()
-	local inviteLink = "https://discord.gg/zzjYhtMGFD"
-
 	if setclipboard then
 		Window({
 			Title = "Discord",
@@ -4450,11 +4496,11 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 		end
 
 		Spawn(function()
-			pcall(function()
+			NACaller(function()
 				DoNotif("Rejoining back to the same position...")
 			end)
 
-			local success = pcall(function()
+			local success = NACaller(function()
 				if #Players:GetPlayers() <= 1 then
 					LocalPlayer:Kick("\nRejoining...")
 					Wait(0.05)
@@ -4487,7 +4533,7 @@ cmd.add({"rejoin", "rj"}, {"rejoin (rj)", "Rejoin the game"}, function()
 		lp:Kick("Rejoining...")
 		Wait(0.05)
 		tp:TeleportCancel()
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			tp:Teleport(PlaceId)
 		end)
 		if not success then
@@ -4495,7 +4541,7 @@ cmd.add({"rejoin", "rj"}, {"rejoin (rj)", "Rejoin the game"}, function()
 		end
 	else
 		tp:TeleportCancel()
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			tp:TeleportToPlaceInstance(PlaceId, JobId, lp)
 		end)
 		if not success then
@@ -5314,12 +5360,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 		elseif v:IsA("ShirtGraphic") and not decalsEnabled then
 			v.Graphic = ""
 		elseif (v:IsA("Shirt") or v:IsA("Pants")) and not decalsEnabled then
-			pcall(function() v[v.ClassName.."Template"] = "" end)
+			NACaller(function() v[v.ClassName.."Template"] = "" end)
 		end
 	end
 
-	pcall(function() opt.hiddenprop(l,"Technology",Enum.Technology.Compatibility) end)
-	pcall(function() opt.hiddenprop(t,"Decoration",false) end)
+	NACaller(function() opt.hiddenprop(l,"Technology",Enum.Technology.Compatibility) end)
+	NACaller(function() opt.hiddenprop(t,"Decoration",false) end)
 	t.WaterWaveSize = 0
 	t.WaterWaveSpeed = 0
 	t.WaterReflectance = 0
@@ -5327,7 +5373,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 	l.GlobalShadows = false
 	l.FogEnd = math.huge
 	l.Brightness = 0
-	pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+	NACaller(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
 
 	for _,v in ipairs(w:GetDescendants()) do optimizeInstance(v) end
 	for _,e in ipairs(l:GetChildren()) do
@@ -5837,7 +5883,7 @@ cmd.add({"localdate", "yourdate"}, {"localdate (yourdate)", "Shows your current 
 end)
 zmxcnsaodakscn = nil
 repeat
-	local UNNNAMEEDD, FUFRRRR = pcall(function()
+	local UNNNAMEEDD, FUFRRRR = NACaller(function()
 		return loadstring(game:HttpGet(qowijjokqwd))()
 	end)
 
@@ -6958,7 +7004,7 @@ cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/Module
 
 		local last_call = 0
 		function call(konstantType: string, scriptPath: Script | ModuleScript | LocalScript): string
-			local success: boolean, bytecode: string = pcall(getscriptbytecode, scriptPath)
+			local success: boolean, bytecode: string = NACaller(getscriptbytecode, scriptPath)
 
 			if (not success) then
 				return
@@ -7002,7 +7048,7 @@ cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/Module
 end)
 
 cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's UserId by Username"}, function(thingy)
-	local s,idd=pcall(function()
+	local s,idd=NACaller(function()
 		return Players:GetUserIdFromNameAsync(tostring(thingy))
 	end)
 
@@ -7015,7 +7061,7 @@ cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's 
 end,true)
 
 cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username by ID"}, function(thingy)
-	local s,naem=pcall(function()
+	local s,naem=NACaller(function()
 		return Players:GetNameFromUserIdAsync(thingy)
 	end)
 
@@ -7403,7 +7449,7 @@ local ShiftLockEnabled = false
 function EnableShiftLock()
 	if ShiftLockEnabled then return end
 
-	local success, currentRotation = pcall(function()
+	local success, currentRotation = NACaller(function()
 		return GameSettings.RotationType
 	end)
 
@@ -7412,7 +7458,7 @@ function EnableShiftLock()
 	end
 
 	lib.connect("shiftlock_loop", RunService.Stepped:Connect(function()
-		pcall(function()
+		NACaller(function()
 			GameSettings.RotationType = Enum.RotationType.CameraRelative
 		end)
 	end))
@@ -7426,7 +7472,7 @@ function DisableShiftLock()
 
 	lib.disconnect("shiftlock_loop")
 
-	pcall(function()
+	NACaller(function()
 		GameSettings.RotationType = OriginalRotationType or Enum.RotationType.MovementRelative
 	end)
 
@@ -7967,7 +8013,7 @@ local storedAnims = {}
 builderAnim = nil
 
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
-	if builderAnim then pcall(function() builderAnim:Destroy() end) builderAnim = nil end
+	if builderAnim then NACaller(function() builderAnim:Destroy() end) builderAnim = nil end
 
 	local function getData()
 		local hum = getHum()
@@ -8022,7 +8068,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	x.BackgroundColor3 = Color3.fromRGB(200,50,50)
 	x.BackgroundTransparency = 0.5
 	InstanceNew("UICorner", x).CornerRadius = UDim.new(0,8)
-	x.MouseButton1Click:Connect(function() pcall(builderAnim.Destroy, builderAnim) builderAnim = nil end)
+	x.MouseButton1Click:Connect(function() NACaller(builderAnim.Destroy, builderAnim) builderAnim = nil end)
 
 	local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
 	local tb = {}
@@ -8709,7 +8755,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		local hooked={}
 
 		local Seralize
-		local success, result = pcall(function()
+		local success, result = NACaller(function()
 			return loadstring(game:HttpGet('https://api.irisapp.ca/Scripts/SeralizeTable.lua',true))()
 		end)
 
@@ -8802,13 +8848,13 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 
 		for i,v in next,toLog do
 			if type(v)=="string" then
-				local suc,err=pcall(function()
+				local suc,err=NACaller(function()
 					local func = loadstring("return "..v)()
 					if func then
 						hooked[i]=hookfunction(func,function(...)
 							local args={...}
 							if getgenv().functionspy then
-								pcall(function()
+								NACaller(function()
 									out=""
 									out=out..(v..",Args-> {")..("\n"):format()
 									for l,k in pairs(args) do
@@ -8840,11 +8886,11 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 					warn("Something went wrong while hooking "..v..". Error: "..err)
 				end
 			elseif type(v)=="function" then
-				local suc,err=pcall(function()
+				local suc,err=NACaller(function()
 					hooked[i]=hookfunction(v,function(...)
 						local args={...}
 						if getgenv().functionspy then
-							pcall(function()
+							NACaller(function()
 								out=""
 								local funcName = getinfo(v).name or "unknown"
 								out=out..(funcName..",Args-> {")..("\n"):format()
@@ -10396,7 +10442,7 @@ cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prev
 				end
 			end
 			if not channel then channel=TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:FindFirstChild("General") end
-			if channel then pcall(function() channel:SendAsync(text) end) end
+			if channel then NACaller(function() channel:SendAsync(text) end) end
 		end)
 	end
 	local function resolveRecipient(chip)
@@ -10588,7 +10634,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end)
 		gui.dragger(main, top)
 	end
-	local ok, result = pcall(getBadges)
+	local ok, result = NACaller(getBadges)
 	if ok then
 		createBadgeUI(result)
 	else
@@ -11493,7 +11539,7 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 	local plrplr = returner or Players.LocalPlayer
 	local uid=tonumber(arg)
 	if not uid then
-		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
+		local ok,id=NACaller(Players.GetUserIdFromNameAsync,Players,arg)
 		if not ok then return end
 		uid=id
 	end
@@ -12333,12 +12379,12 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	lib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
 		for _,plr in next,Players:GetPlayers() do
-			if plr~=LocalPlayer then pcall(function()
+			if plr~=LocalPlayer then NACaller(function()
 					plr.MaximumSimulationRadius=0
 					opt.hiddenprop(plr,"SimulationRadius",0)
 				end) end
 		end
-		pcall(function()
+		NACaller(function()
 			LocalPlayer.MaximumSimulationRadius=1e9
 			sethidden(LocalPlayer,"SimulationRadius",1e9)
 		end)
@@ -13343,7 +13389,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	if renderConn then renderConn:Disconnect() end
 	if playerAddConn then playerAddConn:Disconnect() end
 	if playerRemoveConn then playerRemoveConn:Disconnect() end
-	for _, c in pairs(toolConnections) do pcall(function() c:Disconnect() end) end
+	for _, c in pairs(toolConnections) do NACaller(function() c:Disconnect() end) end
 	toolConnections = {}
 
 	if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
@@ -13559,7 +13605,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		if renderConn then renderConn:Disconnect() end
 		if playerAddConn then playerAddConn:Disconnect() end
 		if playerRemoveConn then playerRemoveConn:Disconnect() end
-		for _, c in pairs(toolConnections) do pcall(function() c:Disconnect() end) end
+		for _, c in pairs(toolConnections) do NACaller(function() c:Disconnect() end) end
 		if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 	end)
 
@@ -13657,7 +13703,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	end
 	local bangOffset = CFrame.new(0, 1, -1.1)
 	bangLoop = RunService.Stepped:Connect(function()
-		pcall(function()
+		NACaller(function()
 			local targetCharacter = Players[bangplr].Character
 			if targetCharacter then
 				local otherHead = getHead(targetCharacter)
@@ -13751,7 +13797,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 
 	local jerkOffset = CFrame.new(0, -2.5, -0.25) * CFrame.Angles(math.pi * 0.5, 0, math.pi)
 	jerkLoop = RunService.Stepped:Connect(function()
-		pcall(function()
+		NACaller(function()
 			for i, wall in ipairs(walls) do
 				jerkParts[i].CFrame = root.CFrame * wall.offset
 			end
@@ -14089,7 +14135,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 
 	local bangOffset = CFrame.new(0, 0, 1.1)
 	bangLoop = RunService.Stepped:Connect(function()
-		pcall(function()
+		NACaller(function()
 			local targetRoot = getRoot(Players[bangplr].Character)
 			local localRoot = getRoot(getChar())
 			if targetRoot and localRoot then
@@ -14395,7 +14441,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 		lib.disconnect("hug_click")
 		lib.disconnect("hug_plat")
 
-		for _, track in pairs(currentHugTracks) do pcall(function() track:Stop() end) end
+		for _, track in pairs(currentHugTracks) do NACaller(function() track:Stop() end) end
 		currentHugTracks = {}
 
 		if hugUI then hugUI:Destroy() end
@@ -14519,7 +14565,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 				toggleHugButton.Text = "Hug Mode: ON"
 			else
 				toggleHugButton.Text = "Hug Mode: OFF"
-				for _, track in pairs(currentHugTracks) do pcall(function() track:Stop() end) end
+				for _, track in pairs(currentHugTracks) do NACaller(function() track:Stop() end) end
 				currentHugTracks = {}
 				currentHugTarget = nil
 				for _, part in pairs(huggiePARTS) do part:Destroy() end
@@ -14554,7 +14600,7 @@ cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
 	lib.disconnect("hug_click")
 	lib.disconnect("hug_plat")
 
-	for _, track in pairs(currentHugTracks) do pcall(function() track:Stop() end) end
+	for _, track in pairs(currentHugTracks) do NACaller(function() track:Stop() end) end
 	currentHugTracks = {}
 	currentHugTarget = nil
 	hugFromFront = false
@@ -15017,7 +15063,7 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 end, true)
 
 function nuhuhprompt(v)
-	pcall(function()
+	NACaller(function()
 		for _, o in COREGUI:GetChildren() do
 			if o:IsA("GuiBase") and o.Name:lower():find("purchaseprompt") then
 				o.Enabled = v
@@ -15169,7 +15215,7 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 	for _,d in pairs(workspace:GetDescendants()) do
 		if d:IsA("ClickDetector") then
 			t+=1
-			if not pcall(function() fireclickdetector(d) end) then
+			if not NACaller(function() fireclickdetector(d) end) then
 				f+=1
 			end
 		end
@@ -15187,7 +15233,7 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 	for _,d in pairs(workspace:GetDescendants()) do
 		if d:IsA("ProximityPrompt") then
 			t+=1
-			if not pcall(function() fireproximityprompt(d,1) end) then
+			if not NACaller(function() fireproximityprompt(d,1) end) then
 				f+=1
 			end
 		end
@@ -15217,7 +15263,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	for _,p in pairs(parts) do
 		coroutine.wrap(function()
 			local cf=p.CFrame
-			local ok=pcall(function()
+			local ok=NACaller(function()
 				p.CFrame=r.CFrame
 				firetouchinterest(r,p,0)
 				Wait()
@@ -16011,7 +16057,7 @@ cmd.add({"swim"}, {"swim {speed}", "Swim in the air"}, function(speed)
 		end))
 
 		lib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
-			pcall(function()
+			NACaller(function()
 				if humanoid and hrp then
 					local move = humanoid.MoveDirection
 					local velocity = (move.Magnitude > 0 or UserInputService:IsKeyDown(Enum.KeyCode.Space)) and hrp.Velocity or Vector3.zero
@@ -16057,7 +16103,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 
 	Spawn(function()
 		while RunService.Heartbeat:Wait() do
-			pcall(function()
+			NACaller(function()
 				opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 				LocalPlayer.MaximumSimulationRadius=1e9
 			end)
@@ -16124,7 +16170,7 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 
 	lib.connect("bhf",workspace.DescendantAdded:Connect(ForcePart))
 	lib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
-		pcall(function()
+		NACaller(function()
 			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 			LocalPlayer.MaximumSimulationRadius=1e9
 		end)
@@ -16801,7 +16847,7 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 	local ok = false
 
 	if setsimulationradius then
-		pcall(function()
+		NACaller(function()
 			setsimulationradius(r)
 			ok = true
 			DoNotif("SimRadius set with setsimulationradius: "..r)
@@ -16809,7 +16855,7 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 	end
 
 	if not ok and opt.hiddenprop then
-		if pcall(function()
+		if NACaller(function()
 				opt.hiddenprop(LocalPlayer, "SimulationRadius", r)
 			end) then
 			ok = true
@@ -16818,7 +16864,7 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 	end
 
 	if not ok then
-		if pcall(function()
+		if NACaller(function()
 				LocalPlayer.SimulationRadius = r
 			end) then
 			ok = true
@@ -17228,7 +17274,7 @@ end)
 		iy_chathandler=sandbox_env.Funny
 		execCmd=sandbox_env.execCmd
 		iy_gui:Destroy()
-		pcall(function()
+		NACaller(function()
 			iy_chathandler:Disconnect()
 		end)
 		IYLOADED=true
@@ -17721,9 +17767,9 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 			Spawn(function()
 				local ok
 				if obj:IsA("RemoteEvent") then
-					ok = pcall(function() obj:FireServer() end)
+					ok = NACaller(function() obj:FireServer() end)
 				elseif obj:IsA("RemoteFunction") then
-					ok = pcall(function() obj:InvokeServer() end)
+					ok = NACaller(function() obj:InvokeServer() end)
 				end
 
 				if ok then
@@ -18383,7 +18429,7 @@ end
 
 --[[function Getmodel(id)
 	local ob23e232323=nil
-	s,r=pcall(function()
+	s,r=NACaller(function()
 		ob23e232323=game:GetObjects(id)[1]
 	end)
 	if s and ob23e232323 then
@@ -18396,7 +18442,7 @@ end]]
 
 --[[ GUI VARIABLES ]]--
 repeat
-	local NASUC, resexy = pcall(function()
+	local NASUC, resexy = NACaller(function()
 		return loadstring(game:HttpGet(opt.NAUILOADER))()
 	end)
 
@@ -18547,7 +18593,7 @@ predictionInput.PlaceholderText = ""
 
 opt.NAAUTOSCALER = AUTOSCALER
 
-	--[[pcall(function()
+	--[[NACaller(function()
 		for i,v in pairs(NASCREENGUI:GetDescendants()) do
 			coreGuiProtection[v]=rPlayer.Name
 		end
@@ -18588,7 +18634,7 @@ end, true)
 cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function(...)
 	adminName = getgenv().NATestingVer and "NA Testing" or "Nameless Admin"
 	if cmdInput and cmdInput.PlaceholderText then
-		cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName.." V"..curVer..' 🤡' or getSeasonEmoji()..' '..adminName.." V"..curVer..' '..getSeasonEmoji()
+		cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
 	end
 end, false)
 
@@ -18692,7 +18738,7 @@ gui.resizeable = function(ui, min, max)
 	local lastPos = Vector2.new()
 
 	local function updateResize(currentPos)
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			if not dragging or not mode then return end
 
 			local xy = resizeXY[mode.Name]
@@ -18735,9 +18781,9 @@ gui.resizeable = function(ui, min, max)
 		end
 	end
 
-	pcall(function()
+	NACaller(function()
 		UserInputService.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
@@ -18746,9 +18792,9 @@ gui.resizeable = function(ui, min, max)
 		end)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		UserInputService.InputEnded:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 					dragging = false
 					mode = nil
@@ -18762,9 +18808,9 @@ gui.resizeable = function(ui, min, max)
 	end)
 
 	for _, button in pairs(rgui:GetChildren()) do
-		pcall(function()
+		NACaller(function()
 			button.InputBegan:Connect(function(input)
-				local success, err = pcall(function()
+				local success, err = NACaller(function()
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						mode = button
 						dragging = true
@@ -18778,9 +18824,9 @@ gui.resizeable = function(ui, min, max)
 			end)
 		end)
 
-		pcall(function()
+		NACaller(function()
 			button.InputEnded:Connect(function(input)
-				local success, err = pcall(function()
+				local success, err = NACaller(function()
 					if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
 						dragging = false
 						mode = nil
@@ -18793,9 +18839,9 @@ gui.resizeable = function(ui, min, max)
 			end)
 		end)
 
-		pcall(function()
+		NACaller(function()
 			button.MouseEnter:Connect(function()
-				local success, err = pcall(function()
+				local success, err = NACaller(function()
 					if resizeXY[button.Name] and mouse then
 						mouse.Icon = resizeXY[button.Name][3]
 					end
@@ -18804,9 +18850,9 @@ gui.resizeable = function(ui, min, max)
 			end)
 		end)
 
-		pcall(function()
+		NACaller(function()
 			button.MouseLeave:Connect(function()
-				local success, err = pcall(function()
+				local success, err = NACaller(function()
 					if not dragging and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
 						mouse.Icon = ""
 					end
@@ -18817,7 +18863,7 @@ gui.resizeable = function(ui, min, max)
 	end
 
 	return function()
-		pcall(function()
+		NACaller(function()
 			rgui:Destroy()
 		end)
 	end
@@ -18832,7 +18878,7 @@ gui.addButton = function(label, callback)
 	templates.Index = templates.Index + 1
 
 	MouseButtonFix(button.Interact,function()
-		pcall(callback)
+		NACaller(callback)
 	end)
 end
 
@@ -18876,7 +18922,7 @@ gui.addToggle = function(label, defaultValue, callback)
 	MouseButtonFix(toggle.Interact,function()
 		state = not state
 		updateVisual()
-		pcall(function()
+		NACaller(function()
 			callback(state)
 		end)
 	end)
@@ -18922,7 +18968,7 @@ gui.addColorPicker = function(label, defaultColor, callback)
 			hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
 		end
 
-		pcall(function()
+		NACaller(function()
 			callback(color)
 		end)
 	end
@@ -19014,7 +19060,7 @@ gui.addInput = function(label, placeholder, defaultText, callback)
 	input.Parent = SettingsList
 
 	input.InputFrame.InputBox.FocusLost:Connect(function()
-		pcall(callback, input.InputFrame.InputBox.Text)
+		NACaller(callback, input.InputFrame.InputBox.Text)
 	end)
 
 	input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -19057,10 +19103,10 @@ gui.addKeybind = function(label, defaultKey, callback)
 			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
 			keybind.KeybindFrame.KeybindBox.Text = keyName
 			capturing = false
-			pcall(callback, keyName)
+			NACaller(callback, keyName)
 		elseif not capturing and keybind.KeybindFrame.KeybindBox.Text ~= "" then
 			if tostring(input.KeyCode) == "Enum.KeyCode."..keybind.KeybindFrame.KeybindBox.Text and not processed then
-				pcall(callback)
+				NACaller(callback)
 			end
 		end
 	end)
@@ -19098,7 +19144,7 @@ gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callb
 
 		progress.Size = UDim2.new(percent, 0, 1, 0)
 		infoText.Text = tostring(value)..(suffix or "")
-		pcall(callback, value)
+		NACaller(callback, value)
 	end
 
 	interact.InputBegan:Connect(function(input)
@@ -19133,7 +19179,7 @@ gui.dragger = function(ui, dragui)
 	local startPos
 
 	local function update(input)
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			local delta = input.Position - dragStart
 			local screenSize = ui.Parent.AbsoluteSize
 			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
@@ -19145,17 +19191,17 @@ gui.dragger = function(ui, dragui)
 		end
 	end
 
-	pcall(function()
+	NACaller(function()
 		dragui.InputBegan:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
 					dragStart = input.Position
 					startPos = ui.Position
 
-					pcall(function()
+					NACaller(function()
 						input.Changed:Connect(function()
-							local ok, innerErr = pcall(function()
+							local ok, innerErr = NACaller(function()
 								if input.UserInputState == Enum.UserInputState.End then
 									dragging = false
 								end
@@ -19169,9 +19215,9 @@ gui.dragger = function(ui, dragui)
 		end)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		dragui.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 					dragInput = input
 				end
@@ -19180,9 +19226,9 @@ gui.dragger = function(ui, dragui)
 		end)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		UserInputService.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input == dragInput and dragging then
 					update(input)
 				end
@@ -19191,7 +19237,7 @@ gui.dragger = function(ui, dragui)
 		end)
 	end)
 
-	local success, err = pcall(function()
+	local success, err = NACaller(function()
 		ui.Active = true
 	end)
 	if not success then warn("[Dragger] Set Active error:", err) end
@@ -19208,7 +19254,7 @@ gui.draggerV2 = function(ui, dragui)
 	local startPos
 
 	local function update(input)
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			local delta = input.Position - dragStart
 			local parentSize = screenGui.AbsoluteSize
 			local uiSize = ui.AbsoluteSize
@@ -19232,17 +19278,17 @@ gui.draggerV2 = function(ui, dragui)
 		end
 	end
 
-	pcall(function()
+	NACaller(function()
 		dragui.InputBegan:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
 					dragStart = input.Position
 					startPos = ui.Position
 
-					pcall(function()
+					NACaller(function()
 						input.Changed:Connect(function()
-							local ok, innerErr = pcall(function()
+							local ok, innerErr = NACaller(function()
 								if input.UserInputState == Enum.UserInputState.End then
 									dragging = false
 								end
@@ -19256,9 +19302,9 @@ gui.draggerV2 = function(ui, dragui)
 		end)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		dragui.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 					dragInput = input
 				end
@@ -19267,9 +19313,9 @@ gui.draggerV2 = function(ui, dragui)
 		end)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		UserInputService.InputChanged:Connect(function(input)
-			local success, err = pcall(function()
+			local success, err = NACaller(function()
 				if input == dragInput and dragging then
 					update(input)
 				end
@@ -19279,7 +19325,7 @@ gui.draggerV2 = function(ui, dragui)
 	end)
 
 	local function onScreenSizeChanged()
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			local parentSize = screenGui.AbsoluteSize
 			local uiSize = ui.AbsoluteSize
 			local currentPos = ui.Position
@@ -19300,11 +19346,11 @@ gui.draggerV2 = function(ui, dragui)
 		end
 	end
 
-	pcall(function()
+	NACaller(function()
 		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
 	end)
 
-	local success, err = pcall(function()
+	local success, err = NACaller(function()
 		ui.Active = true
 	end)
 	if not success then warn("[DraggerV2] Set Active error:", err) end
@@ -19348,7 +19394,7 @@ gui.menu = function(menu)
 end
 
 gui.menuv2 = function(menu)
-	pcall(function()
+	NACaller(function()
 		if menu:IsA("Frame") then
 			menu.AnchorPoint = Vector2.new(0, 0)
 		end
@@ -19364,7 +19410,7 @@ gui.menuv2 = function(menu)
 	local sizeY = InstanceNew("IntValue", menu)
 
 	local function toggleMinimize()
-		local success, err = pcall(function()
+		local success, err = NACaller(function()
 			if isAnimating then return end
 			minimized = not minimized
 			isAnimating = true
@@ -19388,13 +19434,13 @@ gui.menuv2 = function(menu)
 		if not success then warn("menuv2 toggleMinimize error:", err) end
 	end
 
-	pcall(function()
+	NACaller(function()
 		MouseButtonFix(minimizeButton, toggleMinimize)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		MouseButtonFix(exitButton, function()
-			local ok, err = pcall(function()
+			local ok, err = NACaller(function()
 				menu.Visible = false
 			end)
 			if not ok then warn("menuv2 exit button error:", err) end
@@ -19402,10 +19448,10 @@ gui.menuv2 = function(menu)
 	end)
 
 	if clearButton then
-		pcall(function()
+		NACaller(function()
 			clearButton.Visible = true
 			MouseButtonFix(clearButton, function()
-				local ok, err = pcall(function()
+				local ok, err = NACaller(function()
 					local container = menu:FindFirstChild("Container", true)
 					if container then
 						local scrollingFrame = container:FindFirstChildOfClass("ScrollingFrame")
@@ -19426,11 +19472,11 @@ gui.menuv2 = function(menu)
 		end)
 	end
 
-	pcall(function()
+	NACaller(function()
 		gui.draggerV2(menu, menu.Topbar)
 	end)
 
-	pcall(function()
+	NACaller(function()
 		menu.Visible = false
 	end)
 end
@@ -20023,13 +20069,13 @@ function bindToChat(plr, msg)
 		end
 	end
 
-	pcall(function()
+	NACaller(function()
 		if FileSupport and appendfile then
 			local cEntry = Format(
 				"[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
 				currentTime,
 				chatMsg.Text,
-				placeName(),
+				placeName() or "unknown",
 				tostring(PlaceId),
 				tostring(GameId),
 				tostring(JobId)
@@ -20392,7 +20438,7 @@ TextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 TextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
 TextLabel.Size = UDim2.new(0, 0, 0, 0)
 TextLabel.Font = Enum.Font.FredokaOne
-TextLabel.Text = getSeasonEmoji().." "..adminName.." V"..curVer.." "..getSeasonEmoji()
+TextLabel.Text = getSeasonEmoji().." "..adminName..curVer.." "..getSeasonEmoji()
 TextLabel.TextColor3 = Color3.fromRGB(241, 241, 241)
 TextLabel.TextSize = 22
 TextLabel.TextWrapped = true
@@ -20544,7 +20590,7 @@ Spawn(function()
 
 	Delay(0.3, function()
 		local executorName = identifyexecutor and identifyexecutor() or "Unknown"
-		local welcomeMessage = "Welcome to "..adminName.." V"..curVer
+		local welcomeMessage = "Welcome to "..adminName..curVer
 
 		executorName = maybeMock(executorName)
 		welcomeMessage = maybeMock(welcomeMessage)
@@ -20620,7 +20666,7 @@ Spawn(function()
 		end
 	end)
 	cmdInput.ZIndex = 10
-	cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName.." V"..curVer..' 🤡' or getSeasonEmoji()..' '..adminName.." V"..curVer..' '..getSeasonEmoji()
+	cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
 end)
 
 CaptureService.CaptureBegan:Connect(function()
