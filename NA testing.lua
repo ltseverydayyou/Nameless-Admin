@@ -202,18 +202,12 @@ function NACaller(fn, ...)
         Popup({
             Title       = adminName or "Script Error",
             Description = Format(
-                "An error occurred in %s.\nPlease report this to the owner.\n\nError details:\n%s",
+                "An error occurred in %s.\nPlease report this to the owner through the discord server.\n\nError details:\n%s",
                 adminName or "Script Error",
                 t[2]
             ),
             Buttons     = {
-                {
-                    Text = "Open Console",
-                    Callback = function()
-                        cmd.run({"console"})
-                    end
-                },
-                {
+				{
                     Text = "Discord Server",
                     Callback = function()
                         if setclipboard then
