@@ -44,7 +44,6 @@ local NAImageAssets = {
 	Icon = "NAnew.png";
 	sWare = "ScriptWare.png";
 	Sheet = "sheet.png";
-	blur = "blur.png";
 	Inlet = "Inlet.png";
 	Stud = "oldStud.png";
 	bk = "SkyBk.png";
@@ -1588,28 +1587,27 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button,clickCallback)
-	local isHolding = false
-	local holdThreshold = 0.45
-	local mouseDownTime = 0
+function MouseButtonFix(button, clickCallback)
+    local isHolding = false
+    local holdThreshold = 0.45
+    local mouseDownTime = 0
 
-	button.MouseButton1Down:Connect(function()
-		isHolding = false
-		mouseDownTime = tick()
-	end)
+    lib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
+        isHolding = false
+        mouseDownTime = tick()
+    end))
 
-	button.MouseButton1Up:Connect(function()
-		local holdDuration = tick() - mouseDownTime
-		if holdDuration < holdThreshold and not isHolding then
-			clickCallback()
-		end
-	end)
+    lib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
+        if tick() - mouseDownTime < holdThreshold and not isHolding then
+            clickCallback()
+        end
+    end))
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
-		end
-	end)
+    lib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+            isHolding = true
+        end
+    end))
 end
 
 --[[ FUNCTION TO GET A PLAYER ]]--
@@ -2035,7 +2033,7 @@ function NAESP(player, persistent)
 		end
 
 		local function createBoxHandle(part)
-			local boxHandle = Instance.new("BoxHandleAdornment")
+			local boxHandle = InstanceNew("BoxHandleAdornment")
 			boxHandle.Name = "\0"
 			boxHandle.Transparency = 0.7
 			boxHandle.Color3 = Color3.new(1, 1, 1)
@@ -2048,14 +2046,14 @@ function NAESP(player, persistent)
 		end
 
 		local function createBillboard(head)
-			local billboardGui = Instance.new("BillboardGui")
+			local billboardGui = InstanceNew("BillboardGui")
 			billboardGui.Name = "\0"
 			billboardGui.Size = UDim2.new(0, 150, 0, 40)
 			billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
 			billboardGui.AlwaysOnTop = true
 			billboardGui.Parent = head
 
-			local textLabel = Instance.new("TextLabel")
+			local textLabel = InstanceNew("TextLabel")
 			textLabel.Size = UDim2.new(1, 0, 1, 0)
 			textLabel.Position = UDim2.new(0, 0, 0, 0)
 			textLabel.BackgroundTransparency = 1
@@ -8482,34 +8480,19 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	local output=InstanceNew("TextLabel")
 	local clear_2=InstanceNew("TextButton")
 	local copy=InstanceNew("TextButton")
-	local UICorner = InstanceNew("UICorner")
-	local UIStroke = InstanceNew("UIStroke")
 
 	NaProtectUI(FunctionSpy)
+	FunctionSpy.Name="FunctionSpy"
+	FunctionSpy.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 
+	Main.Name="Main"
 	Main.Parent=FunctionSpy
 	Main.BackgroundColor3=Color3.fromRGB(33,33,33)
 	Main.BorderSizePixel=0
 	Main.Position=UDim2.new(0,10,0,36)
 	Main.Size=UDim2.new(0,536,0,328)
-	Main.Active=true
 
-	local function addRoundedCorners(instance, radius)
-		local corner = UICorner:Clone()
-		corner.CornerRadius = UDim.new(0, radius)
-		corner.Parent = instance
-	end
-
-	local function addStroke(instance, color, thick)
-		local stroke = UIStroke:Clone()
-		stroke.Color = color
-		stroke.Thickness = thick
-		stroke.Parent = instance
-	end
-
-	addRoundedCorners(Main, 10)
-	addStroke(Main, Color3.fromRGB(255, 255, 255), 2)
-
+	LeftPanel.Name="LeftPanel"
 	LeftPanel.Parent=Main
 	LeftPanel.Active=true
 	LeftPanel.BackgroundColor3=Color3.fromRGB(45,45,45)
@@ -8523,6 +8506,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	UIListLayout.SortOrder=Enum.SortOrder.LayoutOrder
 	UIListLayout.Padding=UDim.new(0,7)
 
+	example.Name="example"
 	example.Parent=LeftPanel
 	example.BackgroundColor3=Color3.fromRGB(31,31,31)
 	example.BorderSizePixel=0
@@ -8535,6 +8519,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	example.TextSize=14.000
 	example.TextXAlignment=Enum.TextXAlignment.Left
 
+	name.Name="name"
 	name.Parent=example
 	name.BackgroundColor3=Color3.fromRGB(255,255,255)
 	name.BackgroundTransparency=1.000
@@ -8552,6 +8537,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	UIPadding.PaddingRight=UDim.new(0,7)
 	UIPadding.PaddingTop=UDim.new(0,7)
 
+	FakeTitle.Name="FakeTitle"
 	FakeTitle.Parent=Main
 	FakeTitle.BackgroundColor3=Color3.fromRGB(40,40,40)
 	FakeTitle.BorderSizePixel=0
@@ -8562,6 +8548,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	FakeTitle.TextColor3=Color3.fromRGB(255,255,255)
 	FakeTitle.TextSize=14.000
 
+	Title.Name="Title"
 	Title.Parent=Main
 	Title.BackgroundColor3=Color3.fromRGB(40,40,40)
 	Title.BorderSizePixel=0
@@ -8573,14 +8560,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	Title.TextSize=14.000
 	Title.TextWrapped=true
 
-	local gradient = InstanceNew("UIGradient")
-	gradient.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 255, 255))
-	}
-	gradient.Rotation = 45
-	gradient.Parent = Title
-
+	clear.Name="clear"
 	clear.Parent=Title
 	clear.BackgroundTransparency=1.000
 	clear.Position=UDim2.new(1,-28,0,2)
@@ -8590,12 +8570,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	clear.ImageRectOffset=Vector2.new(924,724)
 	clear.ImageRectSize=Vector2.new(36,36)
 
-	MouseButtonFix(clear,function()
-		if getgenv().functionspy then
-			getgenv().functionspy.shutdown()
-		end
-	end)
-
+	RightPanel.Name="RightPanel"
 	RightPanel.Parent=Main
 	RightPanel.Active=true
 	RightPanel.BackgroundColor3=Color3.fromRGB(35,35,35)
@@ -8606,6 +8581,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	RightPanel.HorizontalScrollBarInset=Enum.ScrollBarInset.ScrollBar
 	RightPanel.ScrollBarThickness=3
 
+	output.Name="output"
 	output.Parent=RightPanel
 	output.BackgroundColor3=Color3.fromRGB(255,255,255)
 	output.BackgroundTransparency=1.000
@@ -8617,10 +8593,10 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	output.Text=""
 	output.TextColor3=Color3.fromRGB(255,255,255)
 	output.TextSize=14.000
-	output.TextScaled = true
 	output.TextXAlignment=Enum.TextXAlignment.Left
 	output.TextYAlignment=Enum.TextYAlignment.Top
 
+	clear_2.Name="clear"
 	clear_2.Parent=RightPanel
 	clear_2.BackgroundColor3=Color3.fromRGB(30,30,30)
 	clear_2.BorderSizePixel=0
@@ -8631,6 +8607,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	clear_2.TextColor3=Color3.fromRGB(255,255,255)
 	clear_2.TextSize=14.000
 
+	copy.Name="copy"
 	copy.Parent=RightPanel
 	copy.BackgroundColor3=Color3.fromRGB(30,30,30)
 	copy.BorderSizePixel=0
@@ -8641,43 +8618,21 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	copy.TextColor3=Color3.fromRGB(255,255,255)
 	copy.TextSize=14.000
 
-	local function addHoverEffect(button)
-		button.MouseEnter:Connect(function()
-			button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		end)
-		button.MouseLeave:Connect(function()
-			button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		end)
-	end
-
-	addHoverEffect(clear_2)
-	addHoverEffect(copy)
-
-	local shadow = InstanceNew("ImageLabel")
-	shadow.Parent = Main
-	shadow.BackgroundTransparency = 1
-	shadow.Size = UDim2.new(1, 20, 1, 20)
-	shadow.Position = UDim2.new(0, -10, 0, -10)
-	shadow.Image = getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.blur) or "rbxassetid://1316045217"
-	shadow.ImageColor3 = Color3.new(0, 0, 0)
-	shadow.ImageTransparency = 0.5
-	shadow.ScaleType = Enum.ScaleType.Slice
-	shadow.SliceCenter = Rect.new(10, 10, 118, 118)
-	shadow.ZIndex = 0
+	--Scripts:
 
 	function AKIHDI_fake_script()
-		getgenv().functionspy={
+		_G.functionspy={
 			instance=Main.Parent;
 			logging=true;
 			connections={};
 		}
 
-		getgenv().functionspy.shutdown=function()
-			for i,v in pairs(getgenv().functionspy.connections) do
+		_G.functionspy.shutdown=function()
+			for i,v in pairs(_G.functionspy.connections) do
 				v:Disconnect()
 			end
-			getgenv().functionspy.connections={}
-			getgenv().functionspy=nil
+			_G.functionspy.connections={}
+			_G.functionspy=nil
 			Main.Parent:Destroy()
 		end
 
@@ -8685,35 +8640,25 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 
 		local currentInfo=nil
 
-		local getinfo = debug.getinfo or function(f)
-			return {name = tostring(f)}
-		end
-
 		function log(name,text)
 			local btn=Main.LeftPanel.example:Clone()
 			btn.Parent=Main.LeftPanel
 			btn.Name=name
 			btn.name.Text=name
 			btn.Visible=true
-			Insert(connections,MouseButtonFix(btn,function()
+			Insert(connections,btn.MouseButton1Click:Connect(function()
 				Main.RightPanel.output.Text=text
 				currentInfo=text
 			end))
 		end
 
-		MouseButtonFix(clear,function()
-			if getgenv().functionspy then
-				getgenv().functionspy.shutdown()
-			end
-		end)
-
-		MouseButtonFix(Main.RightPanel.copy,function()
+		Main.RightPanel.copy.MouseButton1Click:Connect(function()
 			if currentInfo~=nil then
 				setclipboard(tostring(currentInfo))
 			end
 		end)
 
-		MouseButtonFix(Main.RightPanel.clear,function()
+		Main.RightPanel.clear.MouseButton1Click:Connect(function()
 			for i,v in pairs(connections) do
 				v:Disconnect()
 			end
@@ -8727,134 +8672,40 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end)
 
 		local hooked={}
-
-		local Seralize
-		local success, result = NACaller(function()
-			return loadstring(game:HttpGet('https://api.irisapp.ca/Scripts/SeralizeTable.lua',true))()
-		end)
-
-		if success then
-			Seralize = result
-		else
-			Seralize = function(tbl, depth)
-				if not tbl then return "nil" end
-				if type(tbl) ~= "table" then return tostring(tbl) end
-
-				depth = depth or 0
-				if depth > 5 then return "..." end
-
-				local indent = string.rep("    ", depth)
-				local indent_inner = string.rep("    ", depth + 1)
-				local result = "{\n"
-
-				for k, v in pairs(tbl) do
-					local key_str
-					if type(k) == "string" then
-						key_str = '["'..k..'"]'
-					else
-						key_str = "["..tostring(k).."]"
-					end
-
-					local value_str
-					if type(v) == "table" then
-						value_str = Seralize(v, depth + 1)
-					elseif type(v) == "string" then
-						value_str = '"'..v..'"'
-					elseif type(v) == "function" then
-						local info = debug.getinfo(v)
-						value_str = "function "..(info.name or "").." "..tostring(v)
-					else
-						value_str = tostring(v)
-					end
-
-					result = result..indent_inner..key_str.." = "..value_str..",\n"
-				end
-
-				result = result..indent.."}"
-				return result
-			end
-		end
-
-		function GetFunctionInfo(func)
-			if type(func) ~= "function" then return tostring(func) end
-
-			local info = debug.getinfo(func)
-			local result = "function"
-
-			if info.name and info.name ~= "" then
-				result = result.." "..info.name
-			end
-
-			result = result.." "..tostring(func).." {\n"
-			result = result.."    source: "..(info.source or "unknown")..",\n"
-			result = result.."    line: "..(info.linedefined or "?").." to "..(info.lastlinedefined or "?")..",\n"
-			result = result.."    params: "..(info.nparams or "?")..(info.isvararg and " + vararg" or "")..",\n"
-
-			local upvalues = ""
-			local i = 1
-			while true do
-				local name, value = debug.getupvalue(func, i)
-				if not name then break end
-
-				local value_str
-				if type(value) == "table" then
-					value_str = "table: "..tostring(value)
-				elseif type(value) == "function" then
-					value_str = "function: "..tostring(value)
-				elseif type(value) == "string" then
-					value_str = '"'..value..'"'
-				else
-					value_str = tostring(value)
-				end
-
-				upvalues = upvalues.."        "..name.." = "..value_str..",\n"
-				i = i + 1
-			end
-
-			if upvalues ~= "" then
-				result = result.."    upvalues: {\n"..upvalues.."    },\n"
-			end
-
-			result = result.."}"
-			return result
-		end
-
-
+		local Seralize=loadstring(game:HttpGet('https://api.irisapp.ca/Scripts/SeralizeTable.lua',true))()
 		for i,v in next,toLog do
 			if type(v)=="string" then
 				local suc,err=NACaller(function()
-					local func = loadstring("return "..v)()
-					if func then
-						hooked[i]=hookfunction(func,function(...)
-							local args={...}
-							if getgenv().functionspy then
-								NACaller(function()
-									out=""
-									out=out..(v..",Args-> {")..("\n"):format()
-									for l,k in pairs(args) do
-										if type(k)=="function" then
-											out = out..("    ["..tostring(l).."] Type-> "..type(k)..",Info->\n        "..GetFunctionInfo(k))..("\n"):format()
-										elseif type(k)=="table" then
-											out = out..("    ["..tostring(l).."] Type-> "..type(k)..",Data->\n"..Seralize(k))..("\n"):format()
-										elseif type(k)=="boolean" then
-											out=out..("    ["..tostring(l).."] Value-> "..tostring(k).."-> "..type(k))..("\n"):format()
-										elseif type(k)=="nil" then
-											out=out..("    ["..tostring(l).."] null")..("\n"):format()
-										elseif type(k)=="number" then
-											out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
-										else
-											out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
-										end
+					local func=loadstring("return "..v)()
+					hooked[i]=hookfunction(func,function(...)
+						local args={...}
+						if _G.functionspy then
+							NACaller(function() 
+								out=""
+								out=out..(v..",Args-> {")..("\n"):format()
+								for l,k in pairs(args) do
+									if type(k)=="function" then
+										out=out..("    ["..tostring(l).."] "..tostring(k)..",Type-> "..type(k)..",Name-> "..getinfo(k).name)..("\n"):format()
+									elseif type(k)=="table" then
+										out=out..("    ["..tostring(l).."] "..tostring(k)..",Type-> "..type(k)..",Data-> "..Seralize(k))..("\n"):format()
+									elseif type(k)=="boolean" then
+										out=out..("    ["..tostring(l).."] Value-> "..tostring(k).."-> "..type(k))..("\n"):format()
+									elseif type(k)=="nil" then
+										out=out..("    ["..tostring(l).."] null")..("\n"):format()
+									elseif type(k)=="number" then
+										out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
+									else
+										out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
 									end
-									out=out..("},Result-> "..tostring(nil))..("\n"):format()
-									if getgenv().functionspy.logging==true then
-										log(v,out)
-									end
-								end)
-							end
-							return hooked[i](...)
-						end)
-					end
+								end
+								out=out..("},Result-> "..tostring(nil))..("\n"):format()
+								if _G.functionspy.logging==true then
+									log(v,out)
+								end
+							end)
+						end
+						return hooked[i](...)
+					end)
 				end)
 				if not suc then
 					warn("Something went wrong while hooking "..v..". Error: "..err)
@@ -8863,16 +8714,13 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 				local suc,err=NACaller(function()
 					hooked[i]=hookfunction(v,function(...)
 						local args={...}
-						if getgenv().functionspy then
-							NACaller(function()
+						if _G.functionspy then
+							NACaller(function() 
 								out=""
-								local funcName = getinfo(v).name or "unknown"
-								out=out..(funcName..",Args-> {")..("\n"):format()
+								out=out..(getinfo(v).name..",Args-> {")..("\n"):format()
 								for l,k in pairs(args) do
 									if type(k)=="function" then
-										local funcInfo = getinfo(k)
-										local funcName = funcInfo and funcInfo.name or "unknown"
-										out=out..("    ["..tostring(l).."] "..tostring(k)..",Type-> "..type(k)..",Name-> "..funcName)..("\n"):format()
+										out=out..("    ["..tostring(l).."] "..tostring(k)..",Type-> "..type(k)..",Name-> "..getinfo(k).name)..("\n"):format()
 									elseif type(k)=="table" then
 										out=out..("    ["..tostring(l).."] "..tostring(k)..",Type-> "..type(k)..",Data-> "..Seralize(k))..("\n"):format()
 									elseif type(k)=="boolean" then
@@ -8880,15 +8728,14 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 									elseif type(k)=="nil" then
 										out=out..("    ["..tostring(l).."] null")..("\n"):format()
 									elseif type(k)=="number" then
-
 										out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
 									else
 										out=out..("    ["..tostring(l).."] Value-> "..tostring(k)..",Type-> "..type(k))..("\n"):format()
 									end
 								end
 								out=out..("},Result-> "..tostring(nil))..("\n"):format()
-								if getgenv().functionspy.logging==true then
-									log(funcName,out)
+								if _G.functionspy.logging==true then
+									log(getinfo(v).name,out)
 								end
 							end)
 						end
@@ -8896,54 +8743,90 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 					end)
 				end)
 				if not suc then
-					local funcName = getinfo(v).name or "unknown"
-					warn("Something went wrong while hooking "..funcName..". Error: "..err)
+					warn("Something went wrong while hooking "..getinfo(v).name..". Error: "..err)
 				end
 			end
 		end
 
 	end
 	coroutine.wrap(AKIHDI_fake_script)()
+	function KVVJTK_fake_script()
+		local UIS=UserInputService
+		local frame=FakeTitle.Parent
+		local dragToggle=nil
+		local dragSpeed=0.25
+		local dragStart=nil
+		local startPos=nil
+
+		function updateInput(input)
+			local delta=input.Position-dragStart
+			local position=UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,
+				startPos.Y.Scale,startPos.Y.Offset+delta.Y)
+			TweenService:Create(frame,TweenInfo.new(dragSpeed),{Position=position}):Play()
+		end
+
+		Insert(_G.functionspy.connections,frame.Title.InputBegan:Connect(function(input)
+			if (input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch) then 
+				dragToggle=true
+				dragStart=input.Position
+				startPos=frame.Position
+				input.Changed:Connect(function()
+					if input.UserInputState==Enum.UserInputState.End then
+						dragToggle=false
+					end
+				end)
+			end
+		end))
+
+		Insert(_G.functionspy.connections,UIS.InputChanged:Connect(function(input)
+			if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+				if dragToggle then
+					updateInput(input)
+				end
+			end
+		end))
+
+	end
+	coroutine.wrap(KVVJTK_fake_script)()
 	function BIPVKVC_fake_script()
 		local script=InstanceNew('LocalScript',FakeTitle)
 
-		Insert(getgenv().functionspy.connections,FakeTitle.MouseEnter:Connect(function()
-			if getgenv().functionspy.logging==true then
+		Insert(_G.functionspy.connections,FakeTitle.MouseEnter:Connect(function()
+			if _G.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif getgenv().functionspy.logging==false then
+			elseif _G.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(getgenv().functionspy.connections,FakeTitle.MouseMoved:Connect(function()
-			if getgenv().functionspy.logging==true then
+		Insert(_G.functionspy.connections,FakeTitle.MouseMoved:Connect(function()
+			if _G.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif getgenv().functionspy.logging==false then
+			elseif _G.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(getgenv().functionspy.connections,MouseButtonFix(FakeTitle,function()
-			getgenv().functionspy.logging=not getgenv().functionspy.logging
-			if getgenv().functionspy.logging==true then
+		Insert(_G.functionspy.connections,FakeTitle.MouseButton1Click:Connect(function()
+			_G.functionspy.logging=not _G.functionspy.logging
+			if _G.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif getgenv().functionspy.logging==false then
+			elseif _G.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(getgenv().functionspy.connections,FakeTitle.MouseLeave:Connect(function()
+		Insert(_G.functionspy.connections,FakeTitle.MouseLeave:Connect(function()
 			TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,1,1)}):Play()
 		end))
 	end
 	coroutine.wrap(BIPVKVC_fake_script)()
 	function PRML_fake_script()
-		MouseButtonFix(clear,function()
-			getgenv().functionspy.shutdown()
+		clear.MouseButton1Click:Connect(function()
+			_G.functionspy.shutdown()
 		end)
 	end
 	coroutine.wrap(PRML_fake_script)()
-	gui.draggerV2(Main)
 end)
 
 function toggleFly()
@@ -11529,7 +11412,7 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 			local ra=c:FindFirstChild(ac.Name,true)
 			if ra and ra:IsA("Attachment")then
 				h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
-				local w=Instance.new("WeldConstraint")
+				local w=InstanceNew("WeldConstraint")
 				w.Part0,w.Part1,w.Parent=ra.Parent,h,h
 				ok2=true break
 			end
@@ -11538,7 +11421,7 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 			local hd=getHead(c) or getRoot(c)
 			if hd then
 				h.CFrame=hd.CFrame
-				local w=Instance.new("WeldConstraint")
+				local w=InstanceNew("WeldConstraint")
 				w.Part0,w.Part1,w.Parent=hd,h,h
 			end
 		end
@@ -16300,7 +16183,7 @@ function enableNameEsp(mode, color, ...)
     local parts = nameESPPartLists[mode]
     for _, term in ipairs(terms) do
         term = Lower(term)
-        if not table.find(list, term) then
+        if not Discover(list, term) then
             Insert(list, term)
         end
     end
@@ -19218,116 +19101,92 @@ gui.dragger = function(ui, dragui)
 end
 
 gui.draggerV2 = function(ui, dragui)
-	dragui = dragui or ui
-	local UserInputService = SafeGetService("UserInputService")
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+    dragui = dragui or ui
+    local connName = "DraggerV2_"..ui:GetDebugId()
+    lib.disconnect(connName)
+    local UserInputService = SafeGetService("UserInputService")
+    local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+    local dragging, dragInput, dragStart, startPos
+    local anchor = ui.AnchorPoint
 
-	local dragging
-	local dragInput
-	local dragStart
-	local startPos
+    local function update(input)
+        local ok, err = NACaller(function()
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
+            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
+            local startAbsX = startPos.X.Scale * parentSize.X + startPos.X.Offset
+            local startAbsY = startPos.Y.Scale * parentSize.Y + startPos.Y.Offset
+            local dx = input.Position.X - dragStart.X
+            local dy = input.Position.Y - dragStart.Y
+            local minX = anchor.X * uiSize.X
+            local maxX = parentSize.X - (1 - anchor.X) * uiSize.X
+            local minY = anchor.Y * uiSize.Y
+            local maxY = parentSize.Y - (1 - anchor.Y) * uiSize.Y
+            local newAbsX = math.clamp(startAbsX + dx, minX, maxX)
+            local newAbsY = math.clamp(startAbsY + dy, minY, maxY)
+            ui.Position = UDim2.new(newAbsX / parentSize.X, 0, newAbsY / parentSize.Y, 0)
+        end)
+        if not ok then warn("[DraggerV2] update error:", err) end
+    end
 
-	local function update(input)
-		local success, err = NACaller(function()
-			local delta = input.Position - dragStart
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
+    lib.connect(connName, dragui.InputBegan:Connect(function(input)
+        local ok, err = NACaller(function()
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = ui.Position
+                local conn = input.Changed:Connect(function()
+                    local ok2, err2 = NACaller(function()
+                        if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                    end)
+                    if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
+                end)
+                lib.connect(connName, conn)
+            end
+        end)
+        if not ok then warn("[DraggerV2] InputBegan error:", err) end
+    end))
 
-			local newXScale = startPos.X.Scale + (delta.X / parentSize.X)
-			local newYScale = startPos.Y.Scale + (delta.Y / parentSize.Y)
+    lib.connect(connName, dragui.InputChanged:Connect(function(input)
+        local ok, err = NACaller(function()
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        if not ok then warn("[DraggerV2] InputChanged error:", err) end
+    end))
 
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
+    lib.connect(connName, UserInputService.InputChanged:Connect(function(input)
+        local ok, err = NACaller(function()
+            if input == dragInput and dragging then update(input) end
+        end)
+        if not ok then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
+    end))
 
-			newXScale = math.clamp(newXScale, minX, maxX)
-			newYScale = math.clamp(newYScale, minY, maxY)
+    local function onScreenSizeChanged()
+        local ok, err = NACaller(function()
+            local parentSize = screenGui.AbsoluteSize
+            local uiSize = ui.AbsoluteSize
+            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
+            local curr = ui.Position
+            local absX = curr.X.Scale * parentSize.X + curr.X.Offset
+            local absY = curr.Y.Scale * parentSize.Y + curr.Y.Offset
+            local minX = anchor.X * uiSize.X
+            local maxX = parentSize.X - (1 - anchor.X) * uiSize.X
+            local minY = anchor.Y * uiSize.Y
+            local maxY = parentSize.Y - (1 - anchor.Y) * uiSize.Y
+            local newAbsX = math.clamp(absX, minX, maxX)
+            local newAbsY = math.clamp(absY, minY, maxY)
+            ui.Position = UDim2.new(newAbsX / parentSize.X, 0, newAbsY / parentSize.Y, 0)
+        end)
+        if not ok then warn("[DraggerV2] Screen size update error:", err) end
+    end
 
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("[DraggerV2] update error:", err)
-		end
-	end
+    lib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
 
-	NACaller(function()
-		dragui.InputBegan:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
-
-					NACaller(function()
-						input.Changed:Connect(function()
-							local ok, innerErr = NACaller(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-								end
-							end)
-							if not ok then warn("[DraggerV2] input.Changed error:", innerErr) end
-						end)
-					end)
-				end
-			end)
-			if not success then warn("[DraggerV2] InputBegan error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		dragui.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-			if not success then warn("[DraggerV2] InputChanged error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		UserInputService.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input == dragInput and dragging then
-					update(input)
-				end
-			end)
-			if not success then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
-		end)
-	end)
-
-	local function onScreenSizeChanged()
-		local success, err = NACaller(function()
-			local parentSize = screenGui.AbsoluteSize
-			local uiSize = ui.AbsoluteSize
-			local currentPos = ui.Position
-
-			local anchor = ui.AnchorPoint
-			local minX = anchor.X * (uiSize.X / parentSize.X)
-			local maxX = 1 - (1 - anchor.X) * (uiSize.X / parentSize.X)
-			local minY = anchor.Y * (uiSize.Y / parentSize.Y)
-			local maxY = 1 - (1 - anchor.Y) * (uiSize.Y / parentSize.Y)
-
-			local newXScale = math.clamp(currentPos.X.Scale, minX, maxX)
-			local newYScale = math.clamp(currentPos.Y.Scale, minY, maxY)
-
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("[DraggerV2] Screen size update error:", err)
-		end
-	end
-
-	NACaller(function()
-		screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged)
-	end)
-
-	local success, err = NACaller(function()
-		ui.Active = true
-	end)
-	if not success then warn("[DraggerV2] Set Active error:", err) end
+    if lib.isProperty(ui, "Active") then
+        lib.setProperty(ui, "Active", true)
+    end
 end
 
 gui.menu = function(menu)
