@@ -16,20 +16,18 @@ local TemplateCorner = Instance.new("UICorner")
 
 local function protectUI(sGui)
     local function SafeGetService(name)
-        local Service = (game.GetService);
-	local Reference = (cloneref) or function(reference) return reference end
-	return Reference(Service(game, name));
+        local Service = game.GetService
+        local Reference = cloneref or function(reference) return reference end
+        return Reference(Service(game, name))
     end
-
     if sGui:IsA("ScreenGui") then
         sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		sGui.DisplayOrder = 999999999
-		sGui.ResetOnSpawn = false
-		sGui.IgnoreGuiInset = true
+        sGui.DisplayOrder = 999999999
+        sGui.ResetOnSpawn = false
+        sGui.IgnoreGuiInset = true
     end
     local cGUI = SafeGetService("CoreGui")
     local lPlr = SafeGetService("Players").LocalPlayer
-
     local function NAProtection(inst, var)
         if inst then
             if var then
@@ -41,27 +39,26 @@ local function protectUI(sGui)
             end
         end
     end
-
     if gethui then
-		NAProtection(sGui)
-		sGui.Parent = gethui()
-		return sGui
-	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
-		NAProtection(sGui)
-		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-		return sGui
-	elseif cGUI then
-		NAProtection(sGui)
-		sGui.Parent = cGUI
-		return sGui
-	elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
-		NAProtection(sGui)
-		sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
-		sGui.ResetOnSpawn = false
-		return sGui
-	else
-		return nil
-	end
+        NAProtection(sGui)
+        sGui.Parent = gethui()
+        return sGui
+    elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
+        NAProtection(sGui)
+        sGui.Parent = cGUI:FindFirstChild("RobloxGui")
+        return sGui
+    elseif cGUI then
+        NAProtection(sGui)
+        sGui.Parent = cGUI
+        return sGui
+    elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
+        NAProtection(sGui)
+        sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
+        sGui.ResetOnSpawn = false
+        return sGui
+    else
+        return nil
+    end
 end
 
 HttpSpy.Name = "HttpSpy"
@@ -88,21 +85,20 @@ Icon.Name = "Icon"
 Icon.Parent = Topbar
 Icon.AnchorPoint = Vector2.new(0, 0.5)
 Icon.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Icon.BackgroundTransparency = 1.000
+Icon.BackgroundTransparency = 1
 Icon.Position = UDim2.new(0, 10, 0.5, 0)
 Icon.Size = UDim2.new(0, 16, 0, 16)
-Icon.Image = "rbxassetid://6031280882" -- Network icon
+Icon.Image = "rbxassetid://6031280882"
 
 Title.Name = "Title"
 Title.Parent = Topbar
-Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Title.BackgroundTransparency = 1.000
+Title.BackgroundTransparency = 1
 Title.Position = UDim2.new(0, 35, 0, 0)
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.Font = Enum.Font.SourceSansSemibold
 Title.Text = "HTTP Spy"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 18.000
+Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
 Exit.Name = "Exit"
@@ -113,7 +109,7 @@ Exit.Size = UDim2.new(0, 20, 0, 20)
 Exit.Font = Enum.Font.GothamSemibold
 Exit.Text = "X"
 Exit.TextColor3 = Color3.fromRGB(255, 255, 255)
-Exit.TextSize = 14.000
+Exit.TextSize = 14
 Exit.MouseButton1Click:Connect(function()
     HttpSpy:Destroy()
 end)
@@ -129,10 +125,7 @@ Minimize.Size = UDim2.new(0, 20, 0, 20)
 Minimize.Font = Enum.Font.GothamSemibold
 Minimize.Text = "-"
 Minimize.TextColor3 = Color3.fromRGB(255, 255, 255)
-Minimize.TextSize = 18.000
-Minimize.MouseButton1Click:Connect(function()
-    MainContainer.Visible = not MainContainer.Visible
-end)
+Minimize.TextSize = 18
 
 MinimizeCorner.CornerRadius = UDim.new(0, 4)
 MinimizeCorner.Parent = Minimize
@@ -169,7 +162,7 @@ TemplateText.Size = UDim2.new(1, -10, 0, 30)
 TemplateText.Font = Enum.Font.SourceSans
 TemplateText.Text = "template"
 TemplateText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TemplateText.TextSize = 14.000
+TemplateText.TextSize = 14
 TemplateText.TextWrapped = true
 TemplateText.TextXAlignment = Enum.TextXAlignment.Left
 TemplateText.TextYAlignment = Enum.TextYAlignment.Center
@@ -187,89 +180,75 @@ end
 
 UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvasSize)
 
-local function Log(text, headers)
+local function Log(text, url, headers, copyable)
+    copyable = (copyable == nil) and true or copyable
+
+    local msg = text
+    if url then
+        msg = msg..": "..tostring(url)
+    end
+    if headers and type(headers) == "table" then
+        msg = msg.."\n\nHeaders:"
+        for k, v in pairs(headers) do
+            msg = msg..("\n%s: %s"):format(tostring(k), tostring(v))
+        end
+    end
+
     local Label = TemplateText:Clone()
     Label.Visible = true
-    
-    if headers and type(headers) == "table" then 
-        local headerText = " (HEADERS: "
-        for Index, Value in next, headers do 
-            headerText = headerText .. tostring(Index) .. ": " .. tostring(Value) .. ", "
-        end
-        headerText = headerText:sub(1, -3) .. ")"
-        text = text .. headerText
-    end
-    
-    Label.Text = text 
+    Label.Text = msg
     Label.Parent = MainContainer
-    
-    Label.MouseButton1Click:Connect(function()
-        setclipboard(text)
-    end)
-    
+
+    if copyable and url then
+        Label.MouseButton1Click:Connect(function()
+            setclipboard(tostring(url))
+        end)
+    end
+
     updateCanvasSize()
     return Label
 end
 
-local oldHttpGet
-oldHttpGet = hookfunction(game.HttpGet, function(self, url, ...)
-    Log("HttpGet: " .. tostring(url))
-    return oldHttpGet(self, url, ...)
+local HttpGet
+HttpGet = hookfunction(game.HttpGet, function(self, url, ...)
+    Log("HTTP GET", url)
+    return HttpGet(self, url, ...)
 end)
 
-local oldHttpPost
-oldHttpPost = hookfunction(game.HttpPost, function(self, url, data, ...)
-    Log("HttpPost: " .. tostring(url))
-    return oldHttpPost(self, url, data, ...)
+local HttpPost
+HttpPost = hookfunction(game.HttpPost, function(self, url, ...)
+    Log("HTTP POST", url)
+    return HttpPost(self, url, ...)
 end)
 
-local oldHttpGetAsync
-oldHttpGetAsync = hookfunction(game.HttpGetAsync, function(self, url, ...)
-    Log("HttpGetAsync: " .. tostring(url))
-    return oldHttpGetAsync(self, url, ...)
-end)
-
-local oldHttpPostAsync
-oldHttpPostAsync = hookfunction(game.HttpPostAsync, function(self, url, data, ...)
-    Log("HttpPostAsync: " .. tostring(url))
-    return oldHttpPostAsync(self, url, data, ...)
-end)
-
-local success, result = pcall(function()
-    if syn and syn.request then 
-        local oldSynRequest = syn.request
-        syn.request = function(data)
-            Log("syn.request: " .. tostring(data.Url) .. " (" .. (data.Method or "GET") .. ")", data.Headers)
-            return oldSynRequest(data)
-        end
-        return true
-    elseif request then
-        local oldRequest = request
-        request = function(data)
-            Log("request: " .. tostring(data.Url) .. " (" .. (data.Method or "GET") .. ")", data.Headers)
-            return oldRequest(data)
-        end
-        return true
-    elseif http and http.request then
-        local oldHttpRequest = http.request
-        http.request = function(data)
-            Log("http.request: " .. tostring(data.Url) .. " (" .. (data.Method or "GET") .. ")", data.Headers)
-            return oldHttpRequest(data)
-        end
-        return true
-    elseif http_request then
-        local oldHttpRequest = http_request
-        http_request = function(data)
-            Log("http_request: " .. tostring(data.Url) .. " (" .. (data.Method or "GET") .. ")", data.Headers)
-            return oldHttpRequest(data)
-        end
-        return true
-    end
-    return false
-end)
-
-if not success or not result then
-    Log("WARNING: Could not hook request function. Your exploit might not be fully supported.")
+local RequestLog
+if syn and syn.request then
+    RequestLog = hookfunction(syn.request, function(dat)
+        Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
+        return RequestLog(dat)
+    end)
+elseif request then
+    RequestLog = hookfunction(request, function(dat)
+        Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
+        return RequestLog(dat)
+    end)
+else
+    Log("WARNING", "Your exploit is not supported!")
 end
 
-Log("HTTP Spy initialized. Click on any request to copy it to clipboard.")
+local minimized = false
+local origSize = Background.Size
+
+Minimize.MouseButton1Click:Connect(function()
+    if not minimized then
+        MainContainer.Visible = false
+        Background.Size = UDim2.new(origSize.X.Scale, origSize.X.Offset, 0, 30)
+        minimized = true
+    else
+        Background.Size = origSize
+        MainContainer.Visible = true
+        minimized = false
+    end
+end)
+
+Log("HTTP Spy initialized. Click on any request to copy it to clipboard.", nil, nil, false)

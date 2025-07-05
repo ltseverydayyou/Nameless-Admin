@@ -20126,6 +20126,12 @@ end
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
 end]]
 
+local logClrs={
+	GREEN   = "#00FF00";
+	WHITE   = "#FFFFFF";
+	RED     = "#FF0000";
+}
+
 function setupPlayer(plr,bruh)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
@@ -20152,7 +20158,8 @@ function setupPlayer(plr,bruh)
 
 	if JoinLeaveConfig.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
-		DoNotif(joinMsg, 3, "Join/Leave")
+		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
+        DoNotif(joinMsg, 2, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
 	end
 end
@@ -20171,7 +20178,8 @@ Players.PlayerRemoving:Connect(function(plr)
 	removeESPonLEAVE(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
-		DoNotif(leaveMsg, 3, "Join/Leave")
+		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
+        DoNotif(leaveMsg, 2, categoryRT)
 		NAmanage.LogJoinLeave(leaveMsg)
 	end
 end)
