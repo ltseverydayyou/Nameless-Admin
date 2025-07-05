@@ -12243,7 +12243,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 		NACaller(function()
 			LocalPlayer.MaximumSimulationRadius=1e9
-			sethidden(LocalPlayer,"SimulationRadius",1e9)
+			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 		end)
 	end))
 
@@ -19164,23 +19164,26 @@ gui.draggerV2 = function(ui, dragui)
     end))
 
     local function onScreenSizeChanged()
-        local ok, err = NACaller(function()
-            local parentSize = screenGui.AbsoluteSize
-            local uiSize = ui.AbsoluteSize
-            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
-            local curr = ui.Position
-            local absX = curr.X.Scale * parentSize.X + curr.X.Offset
-            local absY = curr.Y.Scale * parentSize.Y + curr.Y.Offset
-            local minX = anchor.X * uiSize.X
-            local maxX = parentSize.X - (1 - anchor.X) * uiSize.X
-            local minY = anchor.Y * uiSize.Y
-            local maxY = parentSize.Y - (1 - anchor.Y) * uiSize.Y
-            local newAbsX = math.clamp(absX, minX, maxX)
-            local newAbsY = math.clamp(absY, minY, maxY)
-            ui.Position = UDim2.new(newAbsX / parentSize.X, 0, newAbsY / parentSize.Y, 0)
-        end)
-        if not ok then warn("[DraggerV2] Screen size update error:", err) end
-    end
+		local parentSize = screenGui.AbsoluteSize
+		local uiSize     = ui.AbsoluteSize
+		if parentSize.X <= 0 or parentSize.Y <= 0 then return end
+
+		local curr = ui.Position
+		local absX = curr.X.Scale * parentSize.X + curr.X.Offset
+		local absY = curr.Y.Scale * parentSize.Y + curr.Y.Offset
+
+		local minX = anchor.X * uiSize.X
+		local maxX = parentSize.X     - (1 - anchor.X) * uiSize.X
+		local minY = anchor.Y * uiSize.Y
+		local maxY = parentSize.Y     - (1 - anchor.Y) * uiSize.Y
+
+		if maxX < minX then maxX = minX end
+		if maxY < minY then maxY = minY end
+
+		local newScaleX = math.clamp(absX, minX, maxX) / parentSize.X
+		local newScaleY = math.clamp(absY, minY, maxY) / parentSize.Y
+		ui.Position = UDim2.new(newScaleX, 0, newScaleY, 0)
+	end
 
     lib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
 
