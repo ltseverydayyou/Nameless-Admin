@@ -19129,22 +19129,27 @@ gui.draggerV2 = function(ui, dragui)
     local dragging, dragInput, dragStart, startPos
     local anchor = ui.AnchorPoint
 
+    local function safeClamp(v, lo, hi)
+        if hi < lo then hi = lo end
+        return math.clamp(v, lo, hi)
+    end
+
     local function update(input)
         local ok, err = NACaller(function()
-            local parentSize = screenGui.AbsoluteSize
-            local uiSize = ui.AbsoluteSize
-            if parentSize.X <= 0 or parentSize.Y <= 0 then return end
-            local startAbsX = startPos.X.Scale * parentSize.X + startPos.X.Offset
-            local startAbsY = startPos.Y.Scale * parentSize.Y + startPos.Y.Offset
+            local p = screenGui.AbsoluteSize
+            local s = ui.AbsoluteSize
+            if p.X <= 0 or p.Y <= 0 then return end
+            local startX = startPos.X.Scale * p.X + startPos.X.Offset
+            local startY = startPos.Y.Scale * p.Y + startPos.Y.Offset
             local dx = input.Position.X - dragStart.X
             local dy = input.Position.Y - dragStart.Y
-            local minX = anchor.X * uiSize.X
-            local maxX = parentSize.X - (1 - anchor.X) * uiSize.X
-            local minY = anchor.Y * uiSize.Y
-            local maxY = parentSize.Y - (1 - anchor.Y) * uiSize.Y
-            local newAbsX = math.clamp(startAbsX + dx, minX, maxX)
-            local newAbsY = math.clamp(startAbsY + dy, minY, maxY)
-            ui.Position = UDim2.new(newAbsX / parentSize.X, 0, newAbsY / parentSize.Y, 0)
+            local minX = anchor.X * s.X
+            local maxX = p.X - (1 - anchor.X) * s.X
+            local minY = anchor.Y * s.Y
+            local maxY = p.Y - (1 - anchor.Y) * s.Y
+            local nx = safeClamp(startX + dx, minX, maxX)
+            local ny = safeClamp(startY + dy, minY, maxY)
+            ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
         end)
         if not ok then warn("[DraggerV2] update error:", err) end
     end
@@ -19155,13 +19160,13 @@ gui.draggerV2 = function(ui, dragui)
                 dragging = true
                 dragStart = input.Position
                 startPos = ui.Position
-                local conn = input.Changed:Connect(function()
+                local c = input.Changed:Connect(function()
                     local ok2, err2 = NACaller(function()
                         if input.UserInputState == Enum.UserInputState.End then dragging = false end
                     end)
                     if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
                 end)
-                lib.connect(connName, conn)
+                lib.connect(connName, c)
             end
         end)
         if not ok then warn("[DraggerV2] InputBegan error:", err) end
@@ -19184,26 +19189,23 @@ gui.draggerV2 = function(ui, dragui)
     end))
 
     local function onScreenSizeChanged()
-		local parentSize = screenGui.AbsoluteSize
-		local uiSize     = ui.AbsoluteSize
-		if parentSize.X <= 0 or parentSize.Y <= 0 then return end
-
-		local curr = ui.Position
-		local absX = curr.X.Scale * parentSize.X + curr.X.Offset
-		local absY = curr.Y.Scale * parentSize.Y + curr.Y.Offset
-
-		local minX = anchor.X * uiSize.X
-		local maxX = parentSize.X     - (1 - anchor.X) * uiSize.X
-		local minY = anchor.Y * uiSize.Y
-		local maxY = parentSize.Y     - (1 - anchor.Y) * uiSize.Y
-
-		if maxX < minX then maxX = minX end
-		if maxY < minY then maxY = minY end
-
-		local newScaleX = math.clamp(absX, minX, maxX) / parentSize.X
-		local newScaleY = math.clamp(absY, minY, maxY) / parentSize.Y
-		ui.Position = UDim2.new(newScaleX, 0, newScaleY, 0)
-	end
+        local ok, err = NACaller(function()
+            local p = screenGui.AbsoluteSize
+            local s = ui.AbsoluteSize
+            if p.X <= 0 or p.Y <= 0 then return end
+            local curr = ui.Position
+            local absX = curr.X.Scale * p.X + curr.X.Offset
+            local absY = curr.Y.Scale * p.Y + curr.Y.Offset
+            local minX = anchor.X * s.X
+            local maxX = p.X - (1 - anchor.X) * s.X
+            local minY = anchor.Y * s.Y
+            local maxY = p.Y - (1 - anchor.Y) * s.Y
+            local nx = safeClamp(absX, minX, maxX)
+            local ny = safeClamp(absY, minY, maxY)
+            ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
+        end)
+        if not ok then warn("[DraggerV2] Screen size update error:", err) end
+    end
 
     lib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
 
