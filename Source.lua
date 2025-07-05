@@ -895,12 +895,12 @@ local cmds={
 }
 
 Spawn(function()
-	NACaller(function()
+	pcall(function()
 		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
 		local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
 		local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
 
-		local ok, result = NACaller(require, controlModule)
+		local ok, result = pcall(require, controlModule)
 		if ok and result then
 			opt.ctrlModule = result
 		end
@@ -1002,20 +1002,6 @@ local msg = {
 	"Greetings!",
 	"Peace!",
 	"Salute!",
-
-	"Greetings, traveler!",
-	"Greetings, Earthling!",
-	"Ahoy!",
-	"Welcome to the show!",
-	"Boot sequence complete. Welcome!",
-	"System online. Hello!",
-	"Executor synced. Let's go!",
-	"Ready for action!",
-	"Initialization complete!",
-	"Connected successfully!",
-	"Teleportation successful!",
-	"Code ready. Welcome!",
-	"Admin mode: Activated.",
 }
 
 --[[ Prediction ]]--
@@ -7091,15 +7077,19 @@ cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats
 end)
 
 cmd.add({"lockws","lockworkspace"},{"lockws (lockworkspace)","Locks the whole workspace"},function()
-	for i,v in pairs(workspace:GetDescendants()) do
-		v.Locked=true
-	end
+	for _, inst in ipairs(workspace:GetDescendants()) do
+        if lib.isProperty(inst, "Locked") ~= nil then
+            lib.setProperty(inst, "Locked", true)
+        end
+    end
 end)
 
-cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks the whole workspace"},function()
-	for i,v in pairs(workspace:GetDescendants()) do
-		v.Locked=false
-	end
+cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks everything in Workspace"},function()
+    for _, inst in ipairs(workspace:GetDescendants()) do
+        if lib.isProperty(inst, "Locked") ~= nil then
+            lib.setProperty(inst, "Locked", false)
+        end
+    end
 end)
 
 vspeedBTN = nil
@@ -10133,33 +10123,52 @@ if IsOnPC then
 	end)
 end
 
-cmd.add({"grabtools"},{"grabtools","grabs dropped tools"},function()
-	local c=getChar()
-	if c and getHum() then
-		for i,v in pairs(workspace:GetDescendants()) do
-			if v:IsA("Tool") then
-				getHum():EquipTool(v)
-			end
-		end
-	end
+NAmanage.grabAllTools=function()
+    local char = getChar()
+    local hum = char and getHum()
+    if not hum then return 0 end
+    local count = 0
+    for _, tool in ipairs(workspace:GetDescendants()) do
+        if tool:IsA("Tool") then
+            if NACaller(function() hum:EquipTool(tool) end) then
+                count += 1
+            end
+        end
+    end
+    return count
+end
+
+cmd.add({"grabtools"},{"grabtools","Grabs dropped tools"},function()
+    local count = NAmanage.grabAllTools()
+    if count > 0 then
+        DoNotif(("Grabbed %d tools"):format(count), 2)
+    else
+        DoNotif("No tools to grab", 2)
+    end
 end)
 
 cmd.add({"loopgrabtools"},{"loopgrabtools","Loop grabs dropped tools"},function()
-	loopgrab=true
-	repeat Wait(1)
-		local c=getChar()
-		if c and getHum() then
-			for i,v in pairs(workspace:GetDescendants()) do
-				if v:IsA("Tool") then
-					getHum():EquipTool(v)
-				end
-			end
-		end
-	until loopgrab==false
+    if loopgrab then
+        DoNotif("Loop grab already running", 2)
+        return
+    end
+    loopgrab = true
+    DoNotif("Started loop grabbing tools", 2)
+    Spawn(function()
+        while loopgrab do
+            NAmanage.grabAllTools()
+            Wait(1)
+        end
+        DoNotif("Stopped loop grabbing tools", 2)
+    end)
 end)
 
 cmd.add({"unloopgrabtools"},{"unloopgrabtools","Stops the loop grab command"},function()
-	loopgrab=false
+    if not loopgrab then
+        DoNotif("Loop grab is not running", 2)
+        return
+    end
+    loopgrab = false
 end)
 
 cmd.add({"dance"},{"dance","Does a random dance"},function()
@@ -15025,76 +15034,95 @@ cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to what
 	workspace.Gravity=(...)
 end,true)
 
-cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every click detector in workspace"},function()
-	local t,f=0,0
-	for _,d in pairs(workspace:GetDescendants()) do
-		if d:IsA("ClickDetector") then
-			t+=1
-			if not NACaller(function() fireclickdetector(d) end) then
-				f+=1
-			end
-		end
-	end
-	Wait()
-	if f>0 then
-		DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(t,f),2)
-	else
-		DoNotif(("Fired %d ClickDetectors"):format(t),2)
-	end
+cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every ClickDetector in Workspace"},function()
+    if typeof(fireclickdetector) ~= "function" then return DoNotif("fireclickdetector not available",3) end
+
+    local list, f = {}, 0
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("ClickDetector") then
+            table.insert(list, d)
+        end
+    end
+    if #list == 0 then return DoNotif("No ClickDetectors found",2) end
+
+    for _, d in ipairs(list) do
+        if not NACaller(function() fireclickdetector(d) end) then
+            f += 1
+        end
+    end
+    Wait()
+    if f > 0 then
+        DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list, f),2)
+    else
+        DoNotif(("Fired %d ClickDetectors"):format(#list),2)
+    end
 end)
 
-cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every Proximity Prompt that's in workspace"},function()
-	local t,f=0,0
-	for _,d in pairs(workspace:GetDescendants()) do
-		if d:IsA("ProximityPrompt") then
-			t+=1
-			if not NACaller(function() fireproximityprompt(d,1) end) then
-				f+=1
-			end
-		end
-	end
-	Wait()
-	if f>0 then
-		DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(t,f),2)
-	else
-		DoNotif(("Fired %d ProximityPrompts"):format(t),2)
-	end
+cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every ProximityPrompt in Workspace"},function()
+    if typeof(fireproximityprompt) ~= "function" then return DoNotif("fireproximityprompt not available",3) end
+
+    local list, f = {}, 0
+    for _, p in ipairs(workspace:GetDescendants()) do
+        if p:IsA("ProximityPrompt") then
+            table.insert(list, p)
+        end
+    end
+    if #list == 0 then return DoNotif("No ProximityPrompts found",2) end
+
+    for _, p in ipairs(list) do
+        if not NACaller(function() fireproximityprompt(p, 1) end) then
+            f += 1
+        end
+    end
+    Wait()
+    if f > 0 then
+        DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list, f),2)
+    else
+        DoNotif(("Fired %d ProximityPrompts"):format(#list),2)
+    end
 end)
 
-cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every Touch Interest that's in workspace"},function()
-	local c=getChar() local r=c and getRoot(c)
-	local t,f=0,0 local parts={}
+cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function()
+    if typeof(firetouchinterest)   ~= "function"
+    then
+        return DoNotif("firetouchinterest not available",3)
+    end
 
-	for _,d in pairs(workspace:GetDescendants()) do
-		if d:IsA("TouchTransmitter") then
-			local p=d.Parent
-			if p and p:IsA("BasePart") then
-				t+=1
-				Insert(parts,p)
-			end
-		end
-	end
+    local char = getChar()
+    local root = char and getRoot(char)
+    if not root then return DoNotif("Character not found",3) end
 
-	for _,p in pairs(parts) do
-		coroutine.wrap(function()
-			local cf=p.CFrame
-			local ok=NACaller(function()
-				p.CFrame=r.CFrame
-				firetouchinterest(r,p,0)
-				Wait()
-				firetouchinterest(r,p,1)
-			end)
-			Delay(0.1,function() p.CFrame=cf end)
-			if not ok then f+=1 end
-		end)()
-	end
+    local parts, f = {}, 0
+    for _, t in ipairs(workspace:GetDescendants()) do
+        if t:IsA("TouchTransmitter") then
+            local p = t.Parent
+            if p and p:IsA("BasePart") then
+                table.insert(parts, p)
+            end
+        end
+    end
+    if #parts == 0 then return DoNotif("No TouchInterests found",2) end
 
-	Wait()
-	if f>0 then
-		DoNotif(("Fired %d TouchInterests, Failed: %d"):format(t,f),2)
-	else
-		DoNotif(("Fired %d TouchInterests"):format(t),2)
-	end
+    for _, p in ipairs(parts) do
+        coroutine.wrap(function()
+            local orig = p.CFrame
+            local ok = NACaller(function()
+                p.CFrame = root.CFrame
+                firetouchinterest(root, p, 0)
+                Wait()
+                firetouchinterest(root, p, 1)
+            end)
+            Delay(0.1, function() p.CFrame = orig end)
+            if not ok then f += 1 end
+        end)()
+    end
+
+    Wait()
+    if f > 0 then
+        DoNotif(("Fired %d TouchInterests, Failed: %d"):format(#parts, f),2)
+    else
+        DoNotif(("Fired %d TouchInterests"):format(#parts),2)
+    end
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -15400,6 +15428,14 @@ end, true)
 cmd.add({"deletelighting", "removelighting", "removel", "ldel"},{"deletelighting (removelighting, removel, ldel)","Removes all descendants (objects) within Lighting."},function()
 	for _, l in ipairs(Lighting:GetDescendants()) do
 		l:Destroy()
+	end
+end)
+
+cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (disablelighting, ldisable)", "Disables all post-processing effects in Lighting instead of deleting them."},function()
+	for _, inst in ipairs(Lighting:GetDescendants()) do
+		if inst:IsA("PostEffect") then
+			inst.Enabled = false
+		end
 	end
 end)
 
@@ -20198,7 +20234,7 @@ end)
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
 
 NACaller(function()
-	if NAjson.annc and NAjson.annc ~= "" then
+	if NAjson and NAjson.annc and NAjson.annc ~= "" then
 		DoPopup(NAjson.annc, adminName.." Announcement")
 	end
 end)
