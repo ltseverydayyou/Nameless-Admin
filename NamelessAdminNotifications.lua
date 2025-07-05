@@ -107,6 +107,7 @@ local function CreateTitle(Text, Parent)
 	Title.TextColor3 = NOTIFICATION_COLORS.Title
 	Title.TextSize = 16
 	Title.TextScaled = true
+	Title.RichText = true
 	Title.Font = Enum.Font.GothamBold
 	Title.TextXAlignment = Enum.TextXAlignment.Left
 	Title.TextYAlignment = Enum.TextYAlignment.Center
@@ -123,6 +124,7 @@ local function CreateDescription(Text, Parent, YPosition)
 	Description.TextColor3 = NOTIFICATION_COLORS.Text
 	Description.TextSize = 14
 	Description.TextScaled = true
+	Description.RichText = true
 	Description.Font = Enum.Font.Gotham
 	Description.TextXAlignment = Enum.TextXAlignment.Left
 	Description.TextYAlignment = Enum.TextYAlignment.Top
