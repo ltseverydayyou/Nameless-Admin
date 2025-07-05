@@ -1964,223 +1964,181 @@ function placeCreator()
 	return creatorName or "unknown"
 end
 
-function storeESP(p, cType, conn)
-	if not espCONS[p.Name] then
-		espCONS[p.Name] = {}
-	end
-	Insert(espCONS[p.Name], { type = cType, connection = conn })
+local function clearESP(player)
+    local name = player.Name
+    lib.disconnect("esp_render_"      .. name)
+    lib.disconnect("esp_descAdded_"   .. name)
+    lib.disconnect("esp_descRemoved_" .. name)
+    lib.disconnect("esp_charAdded_"   .. name)
+    local data = espCONS[name]
+    if data then
+        for part, box in pairs(data.boxTable) do
+            box:Destroy()
+        end
+        if data.billboard then
+            data.billboard:Destroy()
+        end
+        espCONS[name] = nil
+    end
 end
 
 function removeESPonLEAVE(player)
-	local esp = espCONS[player]
-	if esp then
-		for part, entry in pairs(esp) do
-			if type(entry) == "table" then
-				if entry.boxHandle then entry.boxHandle:Destroy() end
-				if entry.billboard then entry.billboard:Destroy() end
-				if entry.connection then entry.connection:Disconnect() end
-			end
-		end
-		if esp.connection then esp.connection:Disconnect() end
-		if esp.descendantAdded then esp.descendantAdded:Disconnect() end
-		espCONS[player] = nil
-	end
+    clearESP(player)
 end
 
 function removeAllESP()
-	for player, esp in pairs(espCONS) do
-		for part, entry in pairs(esp) do
-			if type(entry) == "table" then
-				if entry.boxHandle then entry.boxHandle:Destroy() end
-				if entry.billboard then entry.billboard:Destroy() end
-				if entry.connection then entry.connection:Disconnect() end
-			end
-		end
-		if esp.connection then esp.connection:Disconnect() end
-		if esp.descendantAdded then esp.descendantAdded:Disconnect() end
-	end
-	table.clear(espCONS)
+    for _, player in ipairs(Players:GetPlayers()) do
+        clearESP(player)
+    end
 end
 
 function discPlrESP(player)
-	if espCONS[player.Name] then
-		for part, entry in pairs(espCONS[player.Name]) do
-			if type(entry) == "table" and entry.connection then
-				entry.connection:Disconnect()
-			end
-		end
-		espCONS[player.Name] = nil
-	end
-	removeESPonLEAVE(player)
+    clearESP(player)
 end
 
 function NAESP(player, persistent)
-	persistent = persistent or false
+    persistent = persistent or false
+    clearESP(player)
 
-	Defer(function()
-		discPlrESP(player)
-		local character = getPlrChar(player)
-		if not character or not character:IsA("Model") then return end
-		if espCONS[player] then
-			for _, entry in pairs(espCONS[player]) do
-				if entry.boxHandle then entry.boxHandle:Destroy() end
-				if entry.billboard then entry.billboard:Destroy() end
-				if entry.connection then entry.connection:Disconnect() end
-			end
-			espCONS[player] = {}
-		else
-			espCONS[player] = {}
-		end
+    local character = getPlrChar(player)
+    if not character or not character:IsA("Model") then return end
 
-		local function createBoxHandle(part)
-			local boxHandle = InstanceNew("BoxHandleAdornment")
-			boxHandle.Name = "\0"
-			boxHandle.Transparency = 0.7
-			boxHandle.Color3 = Color3.new(1, 1, 1)
-			boxHandle.Adornee = part
-			boxHandle.AlwaysOnTop = true
-			boxHandle.ZIndex = 1
-			boxHandle.Size = part.Size
-			boxHandle.Parent = part
-			return boxHandle
-		end
+    local name = player.Name
+    local data = { boxTable = {} }
+    espCONS[name] = data
 
-		local function createBillboard(head)
-			local billboardGui = InstanceNew("BillboardGui")
-			billboardGui.Name = "\0"
-			billboardGui.Size = UDim2.new(0, 150, 0, 40)
-			billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
-			billboardGui.AlwaysOnTop = true
-			billboardGui.Parent = head
+    local function addPart(part)
+        if data.boxTable[part] then return end
+        local box = InstanceNew("BoxHandleAdornment")
+        box.Name         = "\0"
+        box.Adornee      = part
+        box.AlwaysOnTop  = true
+        box.ZIndex       = 1
+        box.Transparency = 0.7
+        box.Size         = part.Size
+        box.Color3       = Color3.new(1, 1, 1)
+        box.Parent       = part
+        data.boxTable[part] = box
+    end
 
-			local textLabel = InstanceNew("TextLabel")
-			textLabel.Size = UDim2.new(1, 0, 1, 0)
-			textLabel.Position = UDim2.new(0, 0, 0, 0)
-			textLabel.BackgroundTransparency = 1
-			textLabel.TextColor3 = Color3.new(1, 1, 1)
-			textLabel.Font = Enum.Font.GothamBold
-			textLabel.TextSize = 12
-			textLabel.TextStrokeTransparency = 0.5
-			textLabel.Text = ""
-			textLabel.Parent = billboardGui
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            addPart(part)
+        end
+    end
 
-			return { billboard = billboardGui, textLabel = textLabel }
-		end
+    lib.connect("esp_descAdded_" .. name,
+        character.DescendantAdded:Connect(function(desc)
+            if desc:IsA("BasePart") then
+                addPart(desc)
+            end
+        end)
+    )
 
-		local function updateESP()
-			local rootPart = getRoot(character)
-			local humanoid = getPlrHum(character)
-			local localChar = getPlrChar(Players.LocalPlayer)
-			local localRoot = localChar and getRoot(localChar)
-			local head = getHead(character)
+    lib.connect("esp_descRemoved_" .. name,
+        character.DescendantRemoving:Connect(function(desc)
+            if desc:IsA("BasePart") then
+                local box = data.boxTable[desc]
+                if box then
+                    box:Destroy()
+                    data.boxTable[desc] = nil
+                end
+            end
+        end)
+    )
 
-			for _, part in ipairs(character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					local espEntry = espCONS[player][part]
-					if not espEntry then
-						espEntry = {}
-						espEntry.boxHandle = createBoxHandle(part)
-						if part == head and not chamsEnabled then
-							local billboardInfo = createBillboard(part)
-							espEntry.billboard = billboardInfo.billboard
-							espEntry.textLabel = billboardInfo.textLabel
-						end
-						espCONS[player][part] = espEntry
-					end
+    if persistent and player:IsA("Player") then
+        lib.connect("esp_charAdded_" .. name,
+            player.CharacterAdded:Connect(function()
+                NAESP(player, true)
+            end)
+        )
+    end
 
-					local distance = 0
-					local distanceColor = Color3.fromRGB(255, 255, 255)
-					if localRoot and rootPart then
-						distance = math.floor((localRoot.Position - rootPart.Position).Magnitude)
-						if distance > 100 then
-							distanceColor = Color3.fromRGB(0, 255, 0)
-						elseif distance > 50 then
-							distanceColor = Color3.fromRGB(255, 165, 0)
-						else
-							distanceColor = Color3.fromRGB(255, 0, 0)
-						end
-					end
+    if not chamsEnabled then
+        local head = getHead(character)
+        if head then
+            local billboard = InstanceNew("BillboardGui")
+            billboard.Name        = "\0"
+            billboard.Adornee     = head
+            billboard.AlwaysOnTop = true
+            billboard.Size        = UDim2.new(0, 150, 0, 40)
+            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+            billboard.Parent      = head
 
-					local teamColor
-					if lib.isProperty(player, "Team") and lib.isProperty(player.Team, "TeamColor") then
-						teamColor = player.Team.TeamColor.Color
-					end
-					local targetColor = teamColor or distanceColor
+            local label = InstanceNew("TextLabel")
+            label.Size                   = UDim2.new(1, 0, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Font                   = Enum.Font.GothamBold
+            label.TextSize               = 12
+            label.TextStrokeTransparency = 0.5
+            label.Text                   = ""
+            label.Parent                 = billboard
 
-					if espEntry.boxHandle.Color3 ~= targetColor then
-						espEntry.boxHandle.Color3 = targetColor
-					end
+            data.billboard = billboard
+            data.textLabel = label
+        end
+    end
 
-					if espEntry.textLabel then
-						local health = humanoid and math.floor(humanoid.Health) or 0
-						local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
-						local newText = Format("%s | %d/%d HP | %d studs", nameChecker(player), health, maxHealth, distance)
-						if espEntry.textLabel.Text ~= newText then
-							espEntry.textLabel.Text = newText
-						end
-						if espEntry.textLabel.TextColor3 ~= distanceColor then
-							espEntry.textLabel.TextColor3 = distanceColor
-						end
-					end
-				end
-			end
-		end
+    lib.connect("esp_render_" .. name,
+        RunService.RenderStepped:Connect(function()
+            if not character:IsDescendantOf(workspace) then
+                if persistent then
+                    clearESP(player)
+                else
+                    removeESPonLEAVE(player)
+                end
+                return
+            end
 
-		local espLoop
-		espLoop = RunService.RenderStepped:Connect(function(dt)
-			if not character:IsDescendantOf(workspace) then
-				espLoop:Disconnect()
-				removeESPonLEAVE(player)
-				return
-			end
-			if not espCONS[player].lastUpdate or (tick() - espCONS[player].lastUpdate) > 0.1 then
-				updateESP()
-				espCONS[player].lastUpdate = tick()
-			end
-		end)
+            local now = tick()
+            if data.lastUpdate and now - data.lastUpdate < 0.1 then return end
+            data.lastUpdate = now
 
-		local charPrtAdded
-		charPrtAdded = character.DescendantAdded:Connect(function(descendant)
-			if descendant:IsA("BasePart") then
-				Defer(function()
-					updateESP()
-				end)
-			end
-		end)
+            local localChar = getPlrChar(Players.LocalPlayer)
+            local localRoot = localChar and getRoot(localChar)
+            local rootPart  = getRoot(character)
+            local humanoid  = getPlrHum(character)
+            local distance  = (localRoot and rootPart) and
+                math.floor((localRoot.Position - rootPart.Position).Magnitude) or 0
 
-		espCONS[player].connection = espLoop
-		espCONS[player].descendantAdded = charPrtAdded
+            local distColor = distance > 100 and Color3.fromRGB(0,255,0)
+                             or distance > 50  and Color3.fromRGB(255,165,0)
+                             or Color3.fromRGB(255,0,0)
 
-		if not player:IsA("Model") then
-			local charAddConn
-			charAddConn = player.CharacterAdded:Connect(function()
-				if not ESPenabled and not persistent then
-					charAddConn:Disconnect()
-					return
-				end
-				local char = player.Character or player.CharacterAdded:Wait()
-				if espCONS[player] then
-					for part, entry in pairs(espCONS[player]) do
-						if type(entry) == "table" then
-							if entry.boxHandle then entry.boxHandle:Destroy() end
-							if entry.billboard then entry.billboard:Destroy() end
-							if entry.connection then entry.connection:Disconnect() end
-						end
-					end
-					if espCONS[player].connection then espCONS[player].connection:Disconnect() end
-					if espCONS[player].descendantAdded then espCONS[player].descendantAdded:Disconnect() end
-					espCONS[player] = nil
-				end
-				Defer(function()
-					Wait(0.5)
-					NAESP(player, persistent)
-				end)
-			end)
-			storeESP(player, "characterAdded", charAddConn)
-		end
+            local teamColor = lib.isProperty(player, "Team")
+                           and lib.isProperty(player.Team, "TeamColor")
+                           and player.Team.TeamColor.Color
 
-		updateESP()
-	end)
+            local finalColor = teamColor or distColor
+
+            for part, box in pairs(data.boxTable) do
+                if box and lib.isProperty(box, "Color3") and box.Color3 ~= finalColor then
+                    lib.setProperty(box, "Color3", finalColor)
+                end
+                if box and lib.isProperty(box, "Size") and box.Size ~= part.Size then
+                    lib.setProperty(box, "Size", part.Size)
+                end
+            end
+
+            if data.textLabel then
+                local health    = humanoid and math.floor(humanoid.Health)     or 0
+                local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
+                local newText   = Format(
+                    "%s | %d/%d HP | %d studs",
+                    nameChecker(player), health, maxHealth, distance
+                )
+                if lib.isProperty(data.textLabel, "Text")
+                   and data.textLabel.Text ~= newText then
+                    lib.setProperty(data.textLabel, "Text", newText)
+                end
+                if lib.isProperty(data.textLabel, "TextColor3")
+                   and data.textLabel.TextColor3 ~= distColor then
+                    lib.setProperty(data.textLabel, "TextColor3", distColor)
+                end
+            end
+        end)
+    )
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -3662,7 +3620,7 @@ cmd.add({"clickfling","mousefling"}, {"clickfling (mousefling)", "Fling a player
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local player = Players.LocalPlayer
 			local Targets = {PlayerName}
-			local Players = game:GetService("Players")
+			local Players = game.GetService(game,"Players")
 			local Player = Players.LocalPlayer
 
 			local AllBool = false
@@ -11087,7 +11045,7 @@ attachedPart=nil
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	local mouse = LocalPlayer:GetMouse()
 	local Targets = {plr}
-	local Players = game:GetService("Players")
+	local Players = game.GetService(game,"Players")
 	local Player = Players.LocalPlayer
 	local AllBool = false
 	local GetPlayer = function(Name)
@@ -11256,7 +11214,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				Wait()
 			until (RootPart.Position - flingManager.FlingOldPos.p).Magnitude < 25
 			workspace.FallenPartsDestroyHeight = OrgDestroyHeight
-			attachedPart:Destroy()
+			if attachedPart then attachedPart:Destroy() attachedPart=nil end
 		end
 	end
 	getgenv().Welcome = true
@@ -12392,7 +12350,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = game:GetService("Players")
+		local Players = game.GetService(game,"Players")
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
