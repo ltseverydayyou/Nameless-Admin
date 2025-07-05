@@ -19189,8 +19189,11 @@ gui.draggerV2 = function(ui, dragui)
 
     lib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
 
-    if lib.isProperty(ui, "Active") then
+    if ui and lib.isProperty(ui, "Active") then
         lib.setProperty(ui, "Active", true)
+    end
+	if dragui and lib.isProperty(dragui, "Active") then
+        lib.setProperty(dragui, "Active", true)
     end
 end
 
