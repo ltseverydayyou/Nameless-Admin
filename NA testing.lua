@@ -89,8 +89,8 @@ local settingsLight = {
 }
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
-lib={}
-gui={}
+NAlib={}
+NAgui={}
 NACOLOREDELEMENTS={}
 cmdNAnum=0
 NAQoTEnabled = nil
@@ -1190,7 +1190,7 @@ NAmanage.rebuildIndex=function()
 end
 
 function nameChecker(p)
-	if not lib.isProperty(p, "DisplayName") then
+	if not NAlib.isProperty(p, "DisplayName") then
 		return p.Name
 	end
 
@@ -1434,11 +1434,11 @@ opt.NA_storage = InstanceNew("ScreenGui")
 NaProtectUI(opt.NA_storage)
 
 --[[ LIBRARY FUNCTIONS ]]--
-lib.wrap=function(f)
+NAlib.wrap=function(f)
 	return coroutine.wrap(f)()
 end
 
-local wrap=lib.wrap
+local wrap=NAlib.wrap
 
 function rngMsg()
 	return msg[math.random(1,#msg)]
@@ -1598,18 +1598,18 @@ function MouseButtonFix(button, clickCallback)
     local holdThreshold = 0.45
     local mouseDownTime = 0
 
-    lib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
+    NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
         isHolding = false
         mouseDownTime = tick()
     end))
 
-    lib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
+    NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
         if tick() - mouseDownTime < holdThreshold and not isHolding then
             clickCallback()
         end
     end))
 
-    lib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
+    NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
             isHolding = true
         end
@@ -1949,7 +1949,7 @@ end
 
 function placeName()
 	local info = getPlaceInfo()
-	local name = info and lib.isProperty(info, "Name")
+	local name = info and NAlib.isProperty(info, "Name")
 	return name or "unknown"
 end
 
@@ -1965,17 +1965,17 @@ end
 
 function placeCreator()
 	local info = getPlaceInfo()
-	local creator = info and lib.isProperty(info, "Creator")
-	local creatorName = creator and lib.isProperty(creator, "Name")
+	local creator = info and NAlib.isProperty(info, "Creator")
+	local creatorName = creator and NAlib.isProperty(creator, "Name")
 	return creatorName or "unknown"
 end
 
 local function clearESP(player)
     local name = player.Name
-    lib.disconnect("esp_render_"      .. name)
-    lib.disconnect("esp_descAdded_"   .. name)
-    lib.disconnect("esp_descRemoved_" .. name)
-    lib.disconnect("esp_charAdded_"   .. name)
+    NAlib.disconnect("esp_render_"      .. name)
+    NAlib.disconnect("esp_descAdded_"   .. name)
+    NAlib.disconnect("esp_descRemoved_" .. name)
+    NAlib.disconnect("esp_charAdded_"   .. name)
     local data = espCONS[name]
     if data then
         for part, box in pairs(data.boxTable) do
@@ -2033,7 +2033,7 @@ function NAESP(player, persistent)
         end
     end
 
-    lib.connect("esp_descAdded_" .. name,
+    NAlib.connect("esp_descAdded_" .. name,
         character.DescendantAdded:Connect(function(desc)
             if desc:IsA("BasePart") then
                 addPart(desc)
@@ -2041,7 +2041,7 @@ function NAESP(player, persistent)
         end)
     )
 
-    lib.connect("esp_descRemoved_" .. name,
+    NAlib.connect("esp_descRemoved_" .. name,
         character.DescendantRemoving:Connect(function(desc)
             if desc:IsA("BasePart") then
                 local box = data.boxTable[desc]
@@ -2054,7 +2054,7 @@ function NAESP(player, persistent)
     )
 
     if persistent and player:IsA("Player") then
-        lib.connect("esp_charAdded_" .. name,
+        NAlib.connect("esp_charAdded_" .. name,
             player.CharacterAdded:Connect(function()
                 NAESP(player, true)
             end)
@@ -2086,7 +2086,7 @@ function NAESP(player, persistent)
         end
     end
 
-    lib.connect("esp_render_" .. name,
+    NAlib.connect("esp_render_" .. name,
         RunService.RenderStepped:Connect(function()
             if not character:IsDescendantOf(workspace) then
                 if persistent then
@@ -2112,18 +2112,18 @@ function NAESP(player, persistent)
                              or distance > 50  and Color3.fromRGB(255,165,0)
                              or Color3.fromRGB(255,0,0)
 
-            local teamColor = lib.isProperty(player, "Team")
-                           and lib.isProperty(player.Team, "TeamColor")
+            local teamColor = NAlib.isProperty(player, "Team")
+                           and NAlib.isProperty(player.Team, "TeamColor")
                            and player.Team.TeamColor.Color
 
             local finalColor = teamColor or distColor
 
             for part, box in pairs(data.boxTable) do
-                if box and lib.isProperty(box, "Color3") and box.Color3 ~= finalColor then
-                    lib.setProperty(box, "Color3", finalColor)
+                if box and NAlib.isProperty(box, "Color3") and box.Color3 ~= finalColor then
+                    NAlib.setProperty(box, "Color3", finalColor)
                 end
-                if box and lib.isProperty(box, "Size") and box.Size ~= part.Size then
-                    lib.setProperty(box, "Size", part.Size)
+                if box and NAlib.isProperty(box, "Size") and box.Size ~= part.Size then
+                    NAlib.setProperty(box, "Size", part.Size)
                 end
             end
 
@@ -2134,13 +2134,13 @@ function NAESP(player, persistent)
                     "%s | %d/%d HP | %d studs",
                     nameChecker(player), health, maxHealth, distance
                 )
-                if lib.isProperty(data.textLabel, "Text")
+                if NAlib.isProperty(data.textLabel, "Text")
                    and data.textLabel.Text ~= newText then
-                    lib.setProperty(data.textLabel, "Text", newText)
+                    NAlib.setProperty(data.textLabel, "Text", newText)
                 end
-                if lib.isProperty(data.textLabel, "TextColor3")
+                if NAlib.isProperty(data.textLabel, "TextColor3")
                    and data.textLabel.TextColor3 ~= distColor then
-                    lib.setProperty(data.textLabel, "TextColor3", distColor)
+                    NAlib.setProperty(data.textLabel, "TextColor3", distColor)
                 end
             end
         end)
@@ -2745,7 +2745,7 @@ NAmanage.RenderUserButtons = function()
 			promptGui:Destroy()
 		end)
 
-		gui.draggerV2(frame)
+		NAgui.draggerV2(frame)
 	end
 
 	local totalButtons = #NAUserButtons
@@ -2776,7 +2776,7 @@ NAmanage.RenderUserButtons = function()
 		corner.CornerRadius = UDim.new(0.25, 0)
 		corner.Parent = btn
 
-		gui.draggerV2(btn)
+		NAgui.draggerV2(btn)
 
 		local toggled = false
 		local saveEnabled = data.RunMode == "S"
@@ -2875,7 +2875,7 @@ local lp=Players.LocalPlayer
 chatmsgshooks={}
 Playerchats={}
 
-lib.LocalPlayerChat=function(...)
+NAlib.LocalPlayerChat=function(...)
 	local args={...}
 	if TextChatService:FindFirstChild("TextChannels") then
 		local sendto=TextChatService.TextChannels.RBXGeneral
@@ -2925,7 +2925,7 @@ if TextChatService:FindFirstChild("TextChannels") then
 					end
 					Playerchats[va[1]]=v
 					chatmsgshooks[id]=nil
-					lib.LocalPlayerChat(va[2])
+					NAlib.LocalPlayerChat(va[2])
 					break
 				end
 			end
@@ -2933,9 +2933,9 @@ if TextChatService:FindFirstChild("TextChannels") then
 	end)
 end
 
-lib.lpchat=lib.LocalPlayerChat
+NAlib.lpchat=NAlib.LocalPlayerChat
 
-lib.find=function(t,v)	--mmmmmm
+NAlib.find=function(t,v)	--mmmmmm
 	for i,e in pairs(t) do
 		if i==v or e==v then
 			return i
@@ -2944,7 +2944,7 @@ lib.find=function(t,v)	--mmmmmm
 	return nil
 end
 
-lib.parseText = function(text, watch, rPlr)
+NAlib.parseText = function(text, watch, rPlr)
 	local function FIIIX(str)
 		local chatPrefix = str:match("^/(%a+)%s")
 		if chatPrefix then
@@ -2985,11 +2985,11 @@ lib.parseText = function(text, watch, rPlr)
 	return {parsed}
 end
 
-lib.parseCommand = function(text, rPlr)
+NAlib.parseCommand = function(text, rPlr)
 	wrap(function()
 		local prefix = rPlr and (isRelAdmin(rPlr) and not isRelAdmin(Players.LocalPlayer) and ";" or nil) or opt.prefix
 		if not prefix then return end
-		local commands = lib.parseText(text, prefix, rPlr)
+		local commands = NAlib.parseText(text, prefix, rPlr)
 		if not commands then return end
 		for _, parsed in pairs(commands) do
 			local args = {}
@@ -3003,13 +3003,13 @@ end
 
 local connections = {}
 
-lib.connect = function(name, connection)
+NAlib.connect = function(name, connection)
     connections[name] = connections[name] or {}
     Insert(connections[name], connection)
     return connection
 end
 
-lib.disconnect = function(name)
+NAlib.disconnect = function(name)
     if connections[name] then
         for _, conn in ipairs(connections[name]) do
             conn:Disconnect()
@@ -3018,17 +3018,17 @@ lib.disconnect = function(name)
     end
 end
 
-lib.isConnected = function(name)
+NAlib.isConnected = function(name)
     return connections[name] ~= nil
 end
 
-lib.isProperty = function(inst, prop)
+NAlib.isProperty = function(inst, prop)
     local s, r = pcall(function() return inst[prop] end)
     if not s then return nil end
     return r
 end
 
-lib.setProperty = function(inst, prop, v)
+NAlib.setProperty = function(inst, prop, v)
     local s, _ = pcall(function() inst[prop] = v end)
     return s
 end
@@ -3488,7 +3488,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 		scaleFrame:Destroy()
 	end)
 
-	gui.draggerV2(frame)
+	NAgui.draggerV2(frame)
 end)
 
 cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(...)
@@ -3533,7 +3533,7 @@ end, true)
 --[ UTILITY ]--
 
 cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function()
-	gui.chatlogs()
+	NAgui.chatlogs()
 end)
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
@@ -3587,7 +3587,7 @@ clickflingEnabled = true
 cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player by clicking them"},function()
     clickflingEnabled = true
     if clickflingUI then clickflingUI:Destroy() end
-    lib.disconnect("clickfling_mouse")
+    NAlib.disconnect("clickfling_mouse")
 
     local Mouse = player:GetMouse()
     clickflingUI = InstanceNew("ScreenGui")
@@ -3608,7 +3608,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
     uiCorner.CornerRadius = UDim.new(0,8)
     uiCorner.Parent = toggleButton
 
-    gui.draggerV2(toggleButton)
+    NAgui.draggerV2(toggleButton)
 
     MouseButtonFix(toggleButton,function()
         clickflingEnabled = not clickflingEnabled
@@ -3627,8 +3627,8 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
             local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
             local playerLocal = Players.LocalPlayer
             local Targets = {PlayerName}
-            local PlayersService = game.GetService(game,"Players")
-            local Player = PlayersService.LocalPlayer
+            local Players = game.GetService(game,"Players")
+            local Player = Players.LocalPlayer
             local AllBool = false
 
             local GetPlayer = function(Name)
@@ -3637,11 +3637,11 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
                     AllBool = true
                     return
                 elseif Name == "random" then
-                    local GetPlayers = PlayersService:GetPlayers()
+                    local GetPlayers = Players:GetPlayers()
                     if Discover(GetPlayers,Player) then table.remove(GetPlayers,Discover(GetPlayers,Player)) end
                     return GetPlayers[math.random(#GetPlayers)]
                 end
-                for _,x in next,PlayersService:GetPlayers() do
+                for _,x in next,Players:GetPlayers() do
                     if x~=Player then
                         if Sub(Lower(x.Name),1,#Name)==Name or Sub(Lower(x.DisplayName),1,#Name)==Name then
                             return x
@@ -3713,7 +3713,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
                             else
                                 break
                             end
-                        until BasePart.Velocity.Magnitude>500 or BasePart.Parent~=TargetPlayer.Character or TargetPlayer.Parent~=PlayersService or TargetPlayer.Character~=TCharacter or THumanoid.Sit or Humanoid.Health<=0 or tick()>Time+TimeToWait
+                        until BasePart.Velocity.Magnitude>500 or BasePart.Parent~=TargetPlayer.Character or TargetPlayer.Parent~=Players or TargetPlayer.Character~=TCharacter or THumanoid.Sit or Humanoid.Health<=0 or tick()>Time+TimeToWait
                     end
 
                     workspace.FallenPartsDestroyHeight = 0/0
@@ -3763,7 +3763,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
             end
 
             if AllBool then
-                for _,x in next,PlayersService:GetPlayers() do SkidFling(x) end
+                for _,x in next,Players:GetPlayers() do SkidFling(x) end
             end
 
             for _,x in next,Targets do
@@ -3775,13 +3775,13 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
         end
     end)
 
-    lib.connect("clickfling_mouse",conn)
+    NAlib.connect("clickfling_mouse",conn)
 end)
 
 cmd.add({"unclickfling","unmousefling"},{"unclickfling (unmousefling)","disables clickfling"},function()
     clickflingEnabled = false
     if clickflingUI then clickflingUI:Destroy() end
-    lib.disconnect("clickfling_mouse")
+    NAlib.disconnect("clickfling_mouse")
 end)
 
 cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
@@ -3856,7 +3856,7 @@ cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggerV2(guiElements.window)
+		NAgui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "Ping: --")
@@ -3895,7 +3895,7 @@ cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggerV2(guiElements.window)
+		NAgui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "FPS: --")
@@ -3944,7 +3944,7 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
 	end
 
 	local function setupDraggable(guiElements)
-		gui.draggerV2(guiElements.window)
+		NAgui.draggerV2(guiElements.window)
 	end
 
 	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 250, 0, 35), "Ping: -- ms | FPS: --")
@@ -3999,11 +3999,11 @@ end)
 
 
 cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
-	gui.commands()
+	NAgui.commands()
 end)
 
 cmd.add({"settings"},{"settings","Open the settings menu"},function()
-	gui.settingss()
+	NAgui.settingss()
 end)
 
 debugUI, cDEBUGCON, isMinimized = nil, {}, false
@@ -4128,7 +4128,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		labels[stat.key] = lbl
 	end
 
-	gui.draggerV2(window, header)
+	NAgui.draggerV2(window, header)
 
 	btn.MouseButton1Click:Connect(function()
 		isMinimized = not isMinimized
@@ -4196,11 +4196,11 @@ groupRole = function(player)
 end
 
 cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joins the server"}, function()
-	lib.disconnect("staffNotifier")
+	NAlib.disconnect("staffNotifier")
 
 	if game.CreatorType == Enum.CreatorType.Group then
 		local staffList = {}
-		lib.connect("staffNotifier", Players.PlayerAdded:Connect(function(player)
+		NAlib.connect("staffNotifier", Players.PlayerAdded:Connect(function(player)
 			local info = groupRole(player)
 			if info.IsStaff then
 				DoNotif(formatUsername(player).." is a "..info.Role)
@@ -4219,7 +4219,7 @@ cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joi
 end)
 
 cmd.add({"stoptrackstaff", "untrackstaff"}, {"stoptrackstaff (untrackstaff)", "Stop tracking staff members"}, function()
-	lib.disconnect("staffNotifier")
+	NAlib.disconnect("staffNotifier")
 	DoNotif("Tracking disabled")
 end)
 
@@ -4279,8 +4279,8 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 		detection.Parent = opt.NA_storage
 	end
 
-	lib.disconnect("walkflinger")
-	lib.connect("walkflinger", RunService.Heartbeat:Connect(function()
+	NAlib.disconnect("walkflinger")
+	NAlib.connect("walkflinger", RunService.Heartbeat:Connect(function()
 		if not hiddenfling then return end
 
 		local lp = Players.LocalPlayer
@@ -4304,8 +4304,8 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 
 	local lp = Players.LocalPlayer
 	if lp then
-		lib.disconnect("walkfling_charfix")
-		lib.connect("walkfling_charfix", lp.CharacterAdded:Connect(function()
+		NAlib.disconnect("walkfling_charfix")
+		NAlib.connect("walkfling_charfix", lp.CharacterAdded:Connect(function()
 			if hiddenfling then
 				DoNotif("Re-enabling Walkfling")
 			end
@@ -4318,8 +4318,8 @@ cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "st
 	DoNotif("Walkfling disabled", 2)
 	hiddenfling = false
 
-	lib.disconnect("walkflinger")
-	lib.disconnect("walkfling_charfix")
+	NAlib.disconnect("walkflinger")
+	NAlib.disconnect("walkfling_charfix")
 end)
 
 cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and teleports you to your previous position"}, function()
@@ -4755,8 +4755,8 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 			end)
 		end)()
 
-		gui.draggerV2(btn)
-		gui.draggerV2(speedBox)
+		NAgui.draggerV2(btn)
+		NAgui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -5052,9 +5052,9 @@ cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function(
 end,true)
 
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
-	lib.disconnect("antivoid")
+	NAlib.disconnect("antivoid")
 
-	lib.connect("antivoid", RunService.Stepped:Connect(function()
+	NAlib.connect("antivoid", RunService.Stepped:Connect(function()
 		local character = getChar()
 		local root = character and getRoot(character)
 		if root and root.Position.Y <= OrgDestroyHeight + 25 then
@@ -5066,7 +5066,7 @@ cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by lau
 end)
 
 cmd.add({"unantivoid"},{"unantivoid","Disables antivoid"},function()
-	lib.disconnect("antivoid")
+	NAlib.disconnect("antivoid")
 	DoNotif("AntiVoid Disabled", 3)
 end)
 
@@ -5094,7 +5094,7 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 	local toolToDrop = nil
 
 	for _, tool in ipairs(getChar():GetChildren()) do
-		if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+		if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
 			toolToDrop = tool
 			break
 		end
@@ -5104,7 +5104,7 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 
 	if backpack and not toolToDrop then
 		for _, tool in ipairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+			if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
 				tool.Parent = getChar()
 				toolToDrop = tool
 				break
@@ -5126,7 +5126,7 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 
 	if backpack then
 		for _, tool in ipairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+			if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
 				tool.Parent = getChar()
 			end
 		end
@@ -5135,7 +5135,7 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 	Wait()
 
 	for _, tool in ipairs(getChar():GetChildren()) do
-		if tool:IsA("Tool") and lib.isProperty(tool, "CanBeDropped") == true then
+		if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
 			tool.Parent = workspace
 			dropped += 1
 		end
@@ -5453,7 +5453,7 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 		content.Visible = not minimized
 		minimizeBtn.Text = minimized and "+" or "-"
 	end)
-	gui.draggerV2(frame)
+	NAgui.draggerV2(frame)
 end)
 
 local annoyLoop = false
@@ -5851,10 +5851,10 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 			end)
 		end)()
 
-		gui.draggerV2(btn)
+		NAgui.draggerV2(btn)
 	else
-		lib.disconnect("somersault_key")
-		lib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
+		NAlib.disconnect("somersault_key")
+		NAlib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
 			if KEY:lower() == somersaultToggleKey then
 				somersaulter()
 			end
@@ -5869,7 +5869,7 @@ cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable
 		somersaultBTN = nil
 	end
 
-	lib.disconnect("somersault_key")
+	NAlib.disconnect("somersault_key")
 end, false)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
@@ -5984,7 +5984,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 end)
 
 cmd.add({"unspam","unlag","unchatspam","unanimlag","unremotespam"},{"unspam","Stop all attempts to lag/spam"},function()
-	lib.disconnect("spam")
+	NAlib.disconnect("spam")
 end)
 
 cmd.add({"UNCTest","UNC"},{"UNCTest (UNC)","Test how many functions your executor supports"},function()
@@ -6024,8 +6024,8 @@ cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 		noSit(LocalPlayer.Character)
 	end
 
-	lib.disconnect("antisit_conn")
-	lib.connect("antisit_conn", LocalPlayer.CharacterAdded:Connect(noSit))
+	NAlib.disconnect("antisit_conn")
+	NAlib.connect("antisit_conn", LocalPlayer.CharacterAdded:Connect(noSit))
 
 	DoNotif("Anti sit enabled", 3)
 end)
@@ -6037,7 +6037,7 @@ cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 	humanoid.Sit = false
 
-	lib.disconnect("antisit_conn")
+	NAlib.disconnect("antisit_conn")
 	DoNotif("Anti sit disabled", 3)
 end)
 
@@ -6368,7 +6368,7 @@ cmd.add({"anticframeteleport", "acframetp", "acftp"}, {"anticframeteleport (acfr
 			end
 		end)
 
-		gui.draggerV2(acftpBtn)
+		NAgui.draggerV2(acftpBtn)
 	end
 end)
 
@@ -6403,8 +6403,8 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 		local root = getRoot(char)
 		while not (hum and root) do Wait(.1) hum=getPlrHum(char) root=getRoot(char) end
 
-		lib.disconnect("trip_fall")
-		lib.connect("trip_fall", hum.FallingDown:Connect(function()
+		NAlib.disconnect("trip_fall")
+		NAlib.connect("trip_fall", hum.FallingDown:Connect(function()
 			root.Velocity = Vector3.zero
 			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end))
@@ -6414,15 +6414,15 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 		doTRIPPER(LocalPlayer.Character)
 	end
 
-	lib.disconnect("trip_char")
-	lib.connect("trip_char", LocalPlayer.CharacterAdded:Connect(doTRIPPER))
+	NAlib.disconnect("trip_char")
+	NAlib.connect("trip_char", LocalPlayer.CharacterAdded:Connect(doTRIPPER))
 
 	DoNotif("Antitrip Enabled", 2)
 end)
 
 cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
-	lib.disconnect("trip_fall")
-	lib.disconnect("trip_char")
+	NAlib.disconnect("trip_fall")
+	NAlib.disconnect("trip_char")
 	DoNotif("Antitrip Disabled", 2)
 end)
 
@@ -6605,7 +6605,7 @@ hasPosition = false
 spawnPosition = CFrame.new()
 
 cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets your spawn point to the current character's position"}, function()
-	if lib.isConnected("spawnCONNECTION") and lib.isConnected("spawnCHARCON") then
+	if NAlib.isConnected("spawnCONNECTION") and NAlib.isConnected("spawnCHARCON") then
 		return DoNotif("spawn point is already running", 3)
 	end
 
@@ -6628,9 +6628,9 @@ cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets yo
 		end
 	end
 
-	lib.connect("spawnCONNECTION", RunService.Stepped:Connect(handleRespawn))
+	NAlib.connect("spawnCONNECTION", RunService.Stepped:Connect(handleRespawn))
 
-	lib.connect("spawnCHARCON", LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("spawnCHARCON", LocalPlayer.CharacterAdded:Connect(function()
 		Wait(1)
 		needsRespawning = false
 		hasPosition = false
@@ -6639,8 +6639,8 @@ end)
 
 cmd.add({"disablespawn", "unsetspawn", "ds"}, {"disablespawn (unsetspawn, ds)", "Disables the previously set spawn point"}, function()
 	DoNotif("Spawn point has been disabled")
-	lib.disconnect("spawnCONNECTION")
-	lib.disconnect("spawnCHARCON")
+	NAlib.disconnect("spawnCONNECTION")
+	NAlib.disconnect("spawnCHARCON")
 	stationaryRespawn = false
 	needsRespawning = false
 	hasPosition = false
@@ -6686,7 +6686,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	params.FilterType = Enum.RaycastFilterType.Blacklist
 	params.FilterDescendantsInstances = {character}
 
-	lib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
+	NAlib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
 		if UserInputService:GetFocusedTextBox() then return end
@@ -6713,18 +6713,18 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	end)
 
 	humanoid.Died:Connect(function()
-		lib.disconnect("hamster_render")
+		NAlib.disconnect("hamster_render")
 	end)
 
 	Camera.CameraSubject = ball
 end, true)
 
 cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked for being AFK"},function()
-	if not lib.isConnected("antiAFK") then
+	if not NAlib.isConnected("antiAFK") then
 		local player = Players.LocalPlayer
 		local virtualUser = SafeGetService("VirtualUser")
 
-		lib.connect("antiAFK", player.Idled:Connect(function()
+		NAlib.connect("antiAFK", player.Idled:Connect(function()
 			virtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 			Wait(1)
 			virtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
@@ -6737,8 +6737,8 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
-	if lib.isConnected("antiAFK") then
-		lib.disconnect("antiAFK")
+	if NAlib.isConnected("antiAFK") then
+		NAlib.disconnect("antiAFK")
 		DoNotif("Anti AFK has been disabled")
 	else
 		DoNotif("Anti AFK is already disabled")
@@ -6755,8 +6755,8 @@ cmd.add({"clicktp", "tptool"}, {"clicktp (tptool)", "Teleport where your mouse i
 	if tpUI then
 		tpUI:Destroy()
 		tpUI = nil
-		lib.disconnect("tp_down")
-		lib.disconnect("tp_up")
+		NAlib.disconnect("tp_down")
+		NAlib.disconnect("tp_up")
 	end
 
 	tpUI = InstanceNew("ScreenGui")
@@ -6810,11 +6810,11 @@ cmd.add({"clicktp", "tptool"}, {"clicktp (tptool)", "Teleport where your mouse i
 	local initialMousePosition = nil
 	local dragThreshold = 10
 
-	lib.connect("tp_down", mouse.Button1Down:Connect(function()
+	NAlib.connect("tp_down", mouse.Button1Down:Connect(function()
 		initialMousePosition = Vector2.new(mouse.X, mouse.Y)
 	end))
 
-	lib.connect("tp_up", mouse.Button1Up:Connect(function()
+	NAlib.connect("tp_up", mouse.Button1Up:Connect(function()
 		if initialMousePosition then
 			local currentMousePosition = Vector2.new(mouse.X, mouse.Y)
 			local distance = (currentMousePosition - initialMousePosition).Magnitude
@@ -6844,8 +6844,8 @@ cmd.add({"clicktp", "tptool"}, {"clicktp (tptool)", "Teleport where your mouse i
 		initialMousePosition = nil
 	end))
 
-	gui.draggerV2(clickTpButton)
-	gui.draggerV2(tweenTpButton)
+	NAgui.draggerV2(clickTpButton)
+	NAgui.draggerV2(tweenTpButton)
 end)
 
 cmd.add({"unclicktp", "untptool"}, {"unclicktp (untptool)", "Remove teleport buttons"}, function()
@@ -6853,8 +6853,8 @@ cmd.add({"unclicktp", "untptool"}, {"unclicktp (untptool)", "Remove teleport but
 		tpUI:Destroy()
 		tpUI = nil
 	end
-	lib.disconnect("tp_down")
-	lib.disconnect("tp_up")
+	NAlib.disconnect("tp_down")
+	NAlib.disconnect("tp_up")
 end)
 
 cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
@@ -7003,13 +7003,13 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 end)
 
 cmd.add({"antifling"}, {"antifling", "makes other players non-collidable with you"}, function()
-	lib.disconnect("antifling")
-	lib.connect("antifling", RunService.Stepped:Connect(function()
+	NAlib.disconnect("antifling")
+	NAlib.connect("antifling", RunService.Stepped:Connect(function()
 		for _, pl in ipairs(Players:GetPlayers()) do
 			if pl ~= LocalPlayer and pl.Character then
 				for _, part in ipairs(pl.Character:GetDescendants()) do
-					if part:IsA("BasePart") and lib.isProperty(part, "CanCollide") then
-						lib.setProperty(part, "CanCollide", false)
+					if part:IsA("BasePart") and NAlib.isProperty(part, "CanCollide") then
+						NAlib.setProperty(part, "CanCollide", false)
 					end
 				end
 			end
@@ -7019,7 +7019,7 @@ cmd.add({"antifling"}, {"antifling", "makes other players non-collidable with yo
 end)
 
 cmd.add({"unantifling"}, {"unantifling", "restores collision for other players"}, function()
-	lib.disconnect("antifling")
+	NAlib.disconnect("antifling")
 	DoNotif("Antifling Disabled")
 end)
 
@@ -7031,16 +7031,16 @@ end)
 
 cmd.add({"lockws","lockworkspace"},{"lockws (lockworkspace)","Locks the whole workspace"},function()
 	for _, inst in ipairs(workspace:GetDescendants()) do
-        if lib.isProperty(inst, "Locked") ~= nil then
-            lib.setProperty(inst, "Locked", true)
+        if NAlib.isProperty(inst, "Locked") ~= nil then
+            NAlib.setProperty(inst, "Locked", true)
         end
     end
 end)
 
 cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks everything in Workspace"},function()
     for _, inst in ipairs(workspace:GetDescendants()) do
-        if lib.isProperty(inst, "Locked") ~= nil then
-            lib.setProperty(inst, "Locked", false)
+        if NAlib.isProperty(inst, "Locked") ~= nil then
+            NAlib.setProperty(inst, "Locked", false)
         end
     end
 end)
@@ -7048,7 +7048,7 @@ end)
 vspeedBTN = nil
 
 cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change the vehicle speed"}, function(amount)
-	lib.disconnect("vehicleloopspeed")
+	NAlib.disconnect("vehicleloopspeed")
 
 	if vspeedBTN then
 		vspeedBTN:Destroy()
@@ -7057,7 +7057,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 
 	local intens = tonumber(amount) or 1
 
-	lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+	NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
 		local subject = workspace.CurrentCamera.CameraSubject
 		if subject and subject:IsA("Humanoid") and subject.SeatPart then
 			subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -7167,8 +7167,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			local newIntens = tonumber(speedBox.Text) or 1
 			intens = newIntens
 
-			lib.disconnect("vehicleloopspeed")
-			lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+			NAlib.disconnect("vehicleloopspeed")
+			NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
 				local subject = workspace.CurrentCamera.CameraSubject
 				if subject and subject:IsA("Humanoid") and subject.SeatPart then
 					subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -7180,7 +7180,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			btn.Text = "vSpeed ON"
 			btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
 		else
-			lib.disconnect("vehicleloopspeed")
+			NAlib.disconnect("vehicleloopspeed")
 
 			local subject = workspace.CurrentCamera.CameraSubject
 			if subject then
@@ -7245,8 +7245,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		local newIntens = tonumber(speedBox.Text) or 1
 		intens = newIntens
 
-		lib.disconnect("vehicleloopspeed")
-		lib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+		NAlib.disconnect("vehicleloopspeed")
+		NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
 			local subject = workspace.CurrentCamera.CameraSubject
 			if subject and subject:IsA("Humanoid") and subject.SeatPart then
 				subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -7258,13 +7258,13 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		DoNotif("vSpeed updated to "..intens, 2)
 	end)
 
-	gui.draggerV2(btn)
-	gui.draggerV2(speedBox)
-	gui.draggerV2(vstopBtn)
+	NAgui.draggerV2(btn)
+	NAgui.draggerV2(speedBox)
+	NAgui.draggerV2(vstopBtn)
 end, true)
 
 cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the vehiclespeed command"}, function()
-	lib.disconnect("vehicleloopspeed")
+	NAlib.disconnect("vehicleloopspeed")
 
 	if vspeedBTN then
 		vspeedBTN:Destroy()
@@ -7330,7 +7330,7 @@ function EnableShiftLock()
 		OriginalRotationType = currentRotation
 	end
 
-	lib.connect("shiftlock_loop", RunService.Stepped:Connect(function()
+	NAlib.connect("shiftlock_loop", RunService.Stepped:Connect(function()
 		NACaller(function()
 			GameSettings.RotationType = Enum.RotationType.CameraRelative
 		end)
@@ -7343,7 +7343,7 @@ end
 function DisableShiftLock()
 	if not ShiftLockEnabled then return end
 
-	lib.disconnect("shiftlock_loop")
+	NAlib.disconnect("shiftlock_loop")
 
 	NACaller(function()
 		GameSettings.RotationType = OriginalRotationType or Enum.RotationType.MovementRelative
@@ -7552,13 +7552,13 @@ cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment ke
 			workspace.CurrentCamera:PanUnits(1)
 		end
 	end
-	if not lib.isConnected("align_input") then
-		lib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
+	if not NAlib.isConnected("align_input") then
+		NAlib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
 	end
 end,true)
 
 cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys","Disable alignment keys"},function()
-	lib.disconnect("align_input")
+	NAlib.disconnect("align_input")
 end,true)
 
 cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
@@ -7749,11 +7749,11 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 	root.CFrame = getPlrHum(target).RootPart.CFrame * CFrame.new(0, -10, 4)
 	Wait()
 
-	if lib.isConnected("noclip") then
-		lib.disconnect("noclip")
+	if NAlib.isConnected("noclip") then
+		NAlib.disconnect("noclip")
 	end
 
-	lib.connect("noclip", RunService.Stepped:Connect(function()
+	NAlib.connect("noclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _, part in ipairs(char:GetDescendants()) do
@@ -7777,7 +7777,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 	root.Anchored = false
 	Wait()
 
-	lib.disconnect("noclip")
+	NAlib.disconnect("noclip")
 end, true)
 
 cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts more stable"},function()
@@ -7815,18 +7815,18 @@ cmd.add({"damagechat", "dmgchat", "painchat"}, {"damagechat (dmgchat, painchat)"
 
 	local connName = "damagechat"
 
-	if lib.isConnected(connName) then
-		lib.disconnect(connName)
+	if NAlib.isConnected(connName) then
+		NAlib.disconnect(connName)
 		DoNotif("Disabled", 2)
 		return
 	end
 
 	local lastHealth = humanoid.Health
 
-	lib.connect(connName, humanoid.HealthChanged:Connect(function(newHealth)
+	NAlib.connect(connName, humanoid.HealthChanged:Connect(function(newHealth)
 		if newHealth < lastHealth then
 			local msg = damageMessages[math.random(1, #damageMessages)]
-			lib.LocalPlayerChat(msg, "All")
+			NAlib.LocalPlayerChat(msg, "All")
 		end
 		lastHealth = newHealth
 	end))
@@ -7835,8 +7835,8 @@ cmd.add({"damagechat", "dmgchat", "painchat"}, {"damagechat (dmgchat, painchat)"
 end)
 
 cmd.add({"undamagechat", "undmgchat", "unpainchat"}, {"undamagechat (undmgchat, unpainchat)", "Disables damage reaction chat"}, function()
-	if lib.isConnected("damagechat") then
-		lib.disconnect("damagechat")
+	if NAlib.isConnected("damagechat") then
+		NAlib.disconnect("damagechat")
 		DoNotif("Disabled", 2)
 	else
 		DoNotif("Already disabled", 2)
@@ -8005,7 +8005,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 	save.MouseButton1Click:Connect(function() applyAnims("save") end)
 	revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
-	gui.dragger(m)
+	NAgui.dragger(m)
 end)
 
 cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer animation set"}, function()
@@ -8145,7 +8145,7 @@ end)
 
 cmd.add({"admin"},{"admin","whitelist someone to allow them to use commands"},function(...)
 	function ChatMessage(Message,Whisper)
-		lib.LocalPlayerChat(Message,Whisper or "All")
+		NAlib.LocalPlayerChat(Message,Whisper or "All")
 	end
 	local Player=getPlr(...)
 	for _, plr in next, Player do
@@ -8162,7 +8162,7 @@ end,true)
 
 cmd.add({"unadmin"},{"unadmin <player>","removes someone from being admin"},function(...)
 	function ChatMessage(Message,Whisper)
-		lib.LocalPlayerChat(Message,Whisper or "All")
+		NAlib.LocalPlayerChat(Message,Whisper or "All")
 	end
 	local Player=getPlr(...)
 	for _, plr in next, Player do
@@ -8285,7 +8285,7 @@ if askndnijewfijewongf~=zmxcnsaodakscn then
 end
 
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
-	lib.disconnect("autorejoin")
+	NAlib.disconnect("autorejoin")
 
 	local function handleRejoin()
 		if #Players:GetPlayers() <= 1 then
@@ -8297,7 +8297,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		end
 	end
 
-	lib.connect("autorejoin", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
+	NAlib.connect("autorejoin", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
 		Spawn(handleRejoin)
 	end))
 
@@ -8305,8 +8305,8 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 end)
 
 cmd.add({"unautorejoin", "unautorj"}, {"unautorejoin (unautorj)", "Disables auto rejoin command"}, function()
-	if lib.isConnected("autorejoin") then
-		lib.disconnect("autorejoin")
+	if NAlib.isConnected("autorejoin") then
+		NAlib.disconnect("autorejoin")
 		DoNotif("Auto Rejoin is now disabled!")
 	else
 		DoNotif("Auto Rejoin is already disabled!")
@@ -8841,8 +8841,8 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 			end)
 		end)()
 
-		gui.draggerV2(btn)
-		gui.draggerV2(speedBox)
+		NAgui.draggerV2(btn)
+		NAgui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -9031,8 +9031,8 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 			end)
 		end)()
 
-		gui.draggerV2(btn)
-		gui.draggerV2(speedBox)
+		NAgui.draggerV2(btn)
+		NAgui.draggerV2(speedBox)
 	else
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -9202,7 +9202,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 		corner.Parent = flyVariables.TFLYBTN
 
 		MouseButtonFix(flyVariables.TFLYBTN, toggleTFly)
-		gui.draggerV2(flyVariables.TFLYBTN)
+		NAgui.draggerV2(flyVariables.TFLYBTN)
 	else
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
 		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(key)
@@ -9260,8 +9260,8 @@ end)
 end]]
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
-	lib.disconnect("noclip")
-	lib.connect("noclip",RunService.Stepped:Connect(function()
+	NAlib.disconnect("noclip")
+	NAlib.connect("noclip",RunService.Stepped:Connect(function()
 		if not getChar() then return end
 		for i,v in pairs(getChar():GetDescendants()) do
 			if v:IsA("BasePart") then
@@ -9272,7 +9272,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 end)
 
 cmd.add({"clip"},{"clip","Enable your player's collision"},function()
-	lib.disconnect("noclip")
+	NAlib.disconnect("noclip")
 end)
 
 originalPos = nil
@@ -9280,7 +9280,7 @@ platformPart = nil
 activationTime = nil
 
 cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PROGRESS)"}, function()
-	lib.disconnect("antibang_loop")
+	NAlib.disconnect("antibang_loop")
 
 	local root = getRoot(LocalPlayer.Character)
 	if not root then return end
@@ -9298,7 +9298,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		root = getRoot(char)
 	end)
 
-	lib.connect("antibang_loop", RunService.Stepped:Connect(function()
+	NAlib.connect("antibang_loop", RunService.Stepped:Connect(function()
 		for _, p in pairs(SafeGetService("Players"):GetPlayers()) do
 			if p ~= LocalPlayer and p.Character and getRoot(p.Character) then
 				if (getRoot(p.Character).Position - root.Position).Magnitude <= 10 then
@@ -9359,7 +9359,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 end)
 
 cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
-	lib.disconnect("antibang_loop")
+	NAlib.disconnect("antibang_loop")
 	if platformPart then
 		platformPart:Destroy()
 		platformPart = nil
@@ -9368,7 +9368,7 @@ cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
 end)
 
 cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, function(p, d)
-	lib.disconnect("orbit")
+	NAlib.disconnect("orbit")
 	local targets = getPlr(p)
 	if #targets == 0 then return end
 	local target = targets[1]
@@ -9380,9 +9380,9 @@ cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, funct
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
 	local sineX, sineZ = 0, math.pi / 2
-	lib.connect("orbit", RunService.Stepped:Connect(function()
+	NAlib.connect("orbit", RunService.Stepped:Connect(function()
 		if not (thrp.Parent and hrp.Parent) then
-			lib.disconnect("orbit")
+			NAlib.disconnect("orbit")
 			return
 		end
 		sineX, sineZ = sineX + 0.05, sineZ + 0.05
@@ -9393,7 +9393,7 @@ cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, funct
 end, true)
 
 cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on the Y axis"}, function(p, d)
-	lib.disconnect("orbit")
+	NAlib.disconnect("orbit")
 	local targets = getPlr(p)
 	if #targets == 0 then return end
 	local target = targets[1]
@@ -9405,9 +9405,9 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on t
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
 	local sineX, sineY = 0, math.pi / 2
-	lib.connect("orbit", RunService.Stepped:Connect(function()
+	NAlib.connect("orbit", RunService.Stepped:Connect(function()
 		if not (thrp.Parent and hrp.Parent) then
-			lib.disconnect("orbit")
+			NAlib.disconnect("orbit")
 			return
 		end
 		sineX, sineY = sineX + 0.05, sineY + 0.05
@@ -9418,7 +9418,7 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on t
 end, true)
 
 cmd.add({"unorbit"}, {"unorbit", "Stop orbiting"}, function()
-	lib.disconnect("orbit")
+	NAlib.disconnect("orbit")
 end)
 
 cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but lets you walk on the client"},function()
@@ -9442,8 +9442,8 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	argg = (...)
 	local speed = argg or 5
 
-	if lib.isConnected("freecam") then
-		lib.disconnect("freecam")
+	if NAlib.isConnected("freecam") then
+		NAlib.disconnect("freecam")
 		camera.CameraSubject = getChar()
 		Spawn(function() cmd.run({"unfr"}) end)
 	end
@@ -9461,7 +9461,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			cmd.run({"fr",''})
 		end)
 
-		lib.connect("freecam", RunService.Stepped:Connect(function(dt)
+		NAlib.connect("freecam", RunService.Stepped:Connect(function(dt)
 			local primaryPart = camPart
 			camera.CameraSubject = primaryPart
 
@@ -9574,8 +9574,8 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 					flyVariables.mOn = false
 					btn.Text = "FC"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-					if lib.isConnected("freecam") then
-						lib.disconnect("freecam")
+					if NAlib.isConnected("freecam") then
+						NAlib.disconnect("freecam")
 					end
 					camera.CameraSubject = getChar()
 					Spawn(function() cmd.run({"unfr"}) end)
@@ -9583,8 +9583,8 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			end)
 		end)()
 
-		gui.draggerV2(btn)
-		gui.draggerV2(speedBox)
+		NAgui.draggerV2(btn)
+		NAgui.draggerV2(speedBox)
 	else
 		DoNotif("Freecam is activated, use WASD to move around", 2)
 		runFREECAM()
@@ -9592,7 +9592,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 end, true)
 
 cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free camera"},function()
-	lib.disconnect("freecam")
+	NAlib.disconnect("freecam")
 	camera.CameraSubject = getChar()
 	Spawn(function()
 		cmd.run({"unfr"})
@@ -9677,7 +9677,7 @@ end
 cmd.add({"circlemath", "cm"}, {"circlemath <mode> <size>", "Gay circle math\nModes: a,b,c,d,e"}, function(mode, size)
 	local mode = mode or "a"
 	local backpack = getBp()
-	lib.disconnect("cm")
+	NAlib.disconnect("cm")
 	if backpack and character.Parent then
 		local tools = getAllTools()
 		for i, tool in pairs(tools) do
@@ -9719,16 +9719,16 @@ cmd.add({"circlemath", "cm"}, {"circlemath <mode> <size>", "Gay circle math\nMod
 			tool.Grip = g
 			tool.Parent = character
 
-			tcon[#tcon] = lib.connect("cm", mouse.Button1Down:Connect(function()
+			tcon[#tcon] = NAlib.connect("cm", mouse.Button1Down:Connect(function()
 				tool:Activate()
 			end))
-			tcon[#tcon] = lib.connect("cm", tool.Changed:Connect(function(p)
+			tcon[#tcon] = NAlib.connect("cm", tool.Changed:Connect(function(p)
 				if p == "Grip" and tool.Grip ~= g then
 					tool.Grip = g
 				end
 			end))
 
-			lib.connect("cm", tool.AncestryChanged:Connect(function()
+			NAlib.connect("cm", tool.AncestryChanged:Connect(function()
 				for i = 1, #tcon do
 					tcon[i]:Disconnect()
 				end
@@ -9898,7 +9898,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	preview.MouseButton1Click:Connect(applyGrip)
 	cancel.MouseButton1Click:Connect(closeUI)
 
-	gui.draggerV2(frame)
+	NAgui.draggerV2(frame)
 end)
 
 cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
@@ -10027,7 +10027,7 @@ cmd.add({"hide", "unshow"}, {"hide <player> (unshow)", "places the selected play
 		if plr and plr.Character then
 			local A_1 = "/mute "..plr.Name
 			local A_2 = "All"
-			lib.LocalPlayerChat(A_1, A_2)
+			NAlib.LocalPlayerChat(A_1, A_2)
 			plr.Character.Parent = Lighting
 		end
 	end
@@ -10042,7 +10042,7 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 		if plr and plr.Character then
 			local A_1 = "/unmute "..plr.Name
 			local A_2 = "All"
-			lib.LocalPlayerChat(A_1, A_2)
+			NAlib.LocalPlayerChat(A_1, A_2)
 			plr.Character.Parent = workspace
 		end
 	end
@@ -10180,7 +10180,7 @@ cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prev
 		return Concat(out)
 	end
 	local CachedChannels={}
-	lib.BypassChatMessage=function(message,recipient)
+	NAlib.BypassChatMessage=function(message,recipient)
 		Spawn(function()
 			local text=obfuscateMessage(message)
 			local channel
@@ -10230,7 +10230,7 @@ cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prev
 			local m=box.Text
 			if m~="" then
 				box.Text=""
-				lib.BypassChatMessage(m,resolveRecipient(chip))
+				NAlib.BypassChatMessage(m,resolveRecipient(chip))
 			end
 		end
 		box.FocusLost:Connect(function(e) if e then hook() end end)
@@ -10388,7 +10388,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			tween:Play()
 			minimized = not minimized
 		end)
-		gui.dragger(main, top)
+		NAgui.dragger(main, top)
 	end
 	local ok, result = NACaller(getBadges)
 	if ok then
@@ -10401,9 +10401,9 @@ end)
 cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <number> (btransparency,bodyt)", "Sets LocalTransparencyModifier of bodyparts to whatever number you put (0-1)"}, function(v)
 	local vv = tonumber(v) or 0
 
-	lib.disconnect("body_transparency")
+	NAlib.disconnect("body_transparency")
 
-	lib.connect("body_transparency", RunService.Stepped:Connect(function()
+	NAlib.connect("body_transparency", RunService.Stepped:Connect(function()
 		local char = LocalPlayer.Character
 		if char then
 			for _, p in ipairs(char:GetChildren()) do
@@ -10418,8 +10418,8 @@ cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <numbe
 end, true)
 
 cmd.add({"unbodytransparency", "unbtransparency", "unbodyt"}, {"unbodytransparency (unbtransparency,unbodyt)", "Stops transparency loop"}, function()
-	if lib.isConnected("body_transparency") then
-		lib.disconnect("body_transparency")
+	if NAlib.isConnected("body_transparency") then
+		NAlib.disconnect("body_transparency")
 	else
 		DoNotif("No loop running", 2)
 	end
@@ -10428,9 +10428,9 @@ end)
 cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (animspeed,aspeed)", "Adjusts the speed of currently playing animations"}, function(speed)
 	local targetSpeed = tonumber(speed) or 1
 
-	lib.disconnect("animation_speed")
+	NAlib.disconnect("animation_speed")
 
-	lib.connect("animation_speed", RunService.Stepped:Connect(function()
+	NAlib.connect("animation_speed", RunService.Stepped:Connect(function()
 		local character = getChar()
 		local humanoid = getHum() or character:FindFirstChildOfClass("AnimationController")
 		if humanoid then
@@ -10446,8 +10446,8 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 end, true)
 
 cmd.add({"unanimationspeed", "unanimspeed", "unaspeed"}, {"unanimationspeed (unanimspeed,unaspeed)", "Stops the animation speed adjustment loop"}, function()
-	if lib.isConnected("animation_speed") then
-		lib.disconnect("animation_speed")
+	if NAlib.isConnected("animation_speed") then
+		NAlib.disconnect("animation_speed")
 		DoNotif("Animation speed disabled")
 	else
 		DoNotif("No active animation speed to disable")
@@ -10509,9 +10509,9 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	local startTime = tick()
 	local angle = 0
 
-	lib.connect("firework_spin", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("firework_spin", RunService.Heartbeat:Connect(function(dt)
 		if tick() - startTime > spinTime then
-			lib.disconnect("firework_spin")
+			NAlib.disconnect("firework_spin")
 			bv:Destroy()
 			bg:Destroy()
 			part:Destroy()
@@ -10626,7 +10626,7 @@ end, true)
 cmd.add({"chat", "message"}, {"chat <text> (message)", "Chats for you, useful if you're muted"}, function(...)
 	local chatMessage = Concat({...}, " ")
 	local chatTarget = "All"
-	lib.LocalPlayerChat(chatMessage, chatTarget)
+	NAlib.LocalPlayerChat(chatMessage, chatTarget)
 end, true)
 
 cmd.add({"privatemessage", "pm"}, {"privatemessage <player> <text> (pm)", "Sends a private message to a player"}, function(...)
@@ -10636,16 +10636,16 @@ cmd.add({"privatemessage", "pm"}, {"privatemessage <player> <text> (pm)", "Sends
 	for _, plr in next, Player do
 		local chatMessage = Concat(args, " ", 2)
 		local chatTarget = plr.Name
-		local result = lib.LocalPlayerChat(chatMessage, chatTarget)
+		local result = NAlib.LocalPlayerChat(chatMessage, chatTarget)
 		if result == "Hooking" then
 			Wait(.5)
-			lib.LocalPlayerChat(chatMessage, chatTarget)
+			NAlib.LocalPlayerChat(chatMessage, chatTarget)
 		end
 	end
 end,true)
 
 cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat of a player"}, function(name)
-	lib.disconnect("mimicchat")
+	NAlib.disconnect("mimicchat")
 
 	local targets = getPlr(name)
 	if #targets == 0 then
@@ -10656,14 +10656,14 @@ cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat 
 	for _, plr in pairs(targets) do
 		DoNotif("Now mimicking "..plr.Name.."'s chat", 2)
 
-		lib.connect("mimicchat", plr.Chatted:Connect(function(msg)
-			lib.LocalPlayerChat(msg, "All")
+		NAlib.connect("mimicchat", plr.Chatted:Connect(function(msg)
+			NAlib.LocalPlayerChat(msg, "All")
 		end))
 	end
 end, true)
 
 cmd.add({"stopmimic", "unmimic"}, {"stopmimic (unmimic)", "Stops mimicking a player"}, function()
-	lib.disconnect("mimicchat")
+	NAlib.disconnect("mimicchat")
 	DoNotif("Stopped mimicking", 2)
 end, true)
 
@@ -10981,201 +10981,169 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 	getgenv().SawFinish = true
 end)
 
-attachedPart=nil
-
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local mouse = LocalPlayer:GetMouse()
-	local Targets = {plr}
-	local Players = game.GetService(game,"Players")
-	local Player = Players.LocalPlayer
-	local AllBool = false
-	local GetPlayer = function(Name)
-		Name = Name:lower()
-		if Name == "all" or Name == "others" then
-			AllBool = true
-			return
-		elseif Name == "random" then
-			local GetPlayers = Players:GetPlayers()
-			if Discover(GetPlayers, Player) then table.remove(GetPlayers, Discover(GetPlayers, Player)) end
-			return GetPlayers[math.random(#GetPlayers)]
-		elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
-			for _, x in next, Players:GetPlayers() do
-				if x ~= Player then
-					if x.Name:lower():match("^"..Name) then
-						return x
-					elseif x.DisplayName:lower():match("^"..Name) then
-						return x
-					end
-				end
-			end
-		else
-			return
-		end
-	end
-	local Message = function(_Title, _Text, Time)
-		print(_Title)
-		print(_Text)
-		print(Time)
-	end
-	local SkidFling = function(TargetPlayer)
-		if attachedPart then attachedPart:Destroy() attachedPart=nil end
-		local Character = Player.Character
-		local Humanoid = getPlrHum(Character)
-		local HRP = Humanoid and Humanoid.RootPart
-		local camera = workspace.CurrentCamera
-		attachedPart = InstanceNew("Part")
-		attachedPart.Size = Vector3.new(1, 1, 1)
-		attachedPart.Transparency = 1
-		attachedPart.CanCollide = false
-		attachedPart.Anchored = false
-		attachedPart.Parent = camera
-		local weld = InstanceNew("WeldConstraint")
-		weld.Part0 = HRP
-		weld.Part1 = attachedPart
-		weld.Parent = attachedPart
-		local bodyGyro = InstanceNew("BodyGyro")
-		bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-		bodyGyro.D = 1000
-		bodyGyro.P = 2000
-		bodyGyro.Parent = attachedPart
-		local RootPart = HRP
-		local TCharacter = TargetPlayer.Character
-		local THumanoid, TRootPart, THead, Accessory, Handle
-		if getPlrHum(TCharacter) then
-			THumanoid = getPlrHum(TCharacter)
-		end
-		if THumanoid and THumanoid.RootPart then
-			TRootPart = THumanoid.RootPart
-		end
-		if getHead(TCharacter) then
-			THead = getHead(TCharacter)
-		end
-		if TCharacter:FindFirstChildOfClass("Accessory") then
-			Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-		end
-		if Accessory and Accessory:FindFirstChild("Handle") then
-			Handle = Accessory.Handle
-		end
-		if Character and Humanoid and HRP then
-			if not flingManager.FlingOldPos or RootPart.Velocity.Magnitude < 50 then
-				flingManager.FlingOldPos = RootPart.CFrame
-			end
-			if THumanoid and THumanoid.Sit and not AllBool then
-			end
-			if THead then
-				workspace.CurrentCamera.CameraSubject = THead
-			elseif not THead and Handle then
-				workspace.CurrentCamera.CameraSubject = Handle
-			elseif THumanoid and TRootPart then
-				workspace.CurrentCamera.CameraSubject = THumanoid
-			end
-			if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-				return
-			end
-			local FPos = function(BasePart, Pos, Ang)
-				RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-				Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-				RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-				RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-			end
-			local SFBasePart = function(BasePart)
-				local TimeToWait = 2
-				local Time = tick()
-				local Angle = 0
-				repeat
-					if RootPart and THumanoid then
-						if BasePart.Velocity.Magnitude < 50 then
-							Angle = Angle + 100
-							FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-							Wait()
-						else
-							FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
-							Wait()
-							FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-							Wait()
-						end
-					else
-						break
-					end
-				until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
-				if attachedPart then attachedPart:Destroy() attachedPart=nil end
-			end
-			workspace.FallenPartsDestroyHeight = 0/0
-			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-			if TRootPart and THead then
-				if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
-					SFBasePart(THead)
-				else
-					SFBasePart(TRootPart)
-				end
-			elseif TRootPart and not THead then
-				SFBasePart(TRootPart)
-			elseif not TRootPart and THead then
-				SFBasePart(THead)
-			elseif not TRootPart and not THead and Accessory and Handle then
-				SFBasePart(Handle)
-			end
-			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-			workspace.CurrentCamera.CameraSubject = Humanoid
-			repeat
-				RootPart.CFrame = flingManager.FlingOldPos * CFrame.new(0, 0.5, 0)
-				Character:SetPrimaryPartCFrame(flingManager.FlingOldPos * CFrame.new(0, 0.5, 0))
-				Humanoid:ChangeState("GettingUp")
-				Foreach(Character:GetChildren(), function(_, x)
-					if x:IsA("BasePart") then
-						x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
-					end
-				end)
-				Wait()
-			until (RootPart.Position - flingManager.FlingOldPos.p).Magnitude < 25
-			workspace.FallenPartsDestroyHeight = OrgDestroyHeight
-			if attachedPart then attachedPart:Destroy() attachedPart=nil end
-		end
-	end
-	getgenv().Welcome = true
-	if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
-	if AllBool then
-		for _, x in next, Players:GetPlayers() do
-			SkidFling(x)
-		end
-	end
-	for _, x in next, Targets do
-		if GetPlayer(x) and GetPlayer(x) ~= Player then
-			if GetPlayer(x).UserId ~= 1414978355 then
-				local TPlayer = GetPlayer(x)
-				if TPlayer then
-					SkidFling(TPlayer)
-				end
-			end
-		end
-	end
-end, true)
+    local Players = game.GetService(game,"Players")
+    local LocalPlayer    = Players.LocalPlayer
+    local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local Humanoid       = getPlrHum(Character)
+    local RootPart       = Humanoid and Humanoid.RootPart
+    if not RootPart then return end
+
+    local AllBool = false
+    local function GetPlayer(Name)
+        Name = Lower(Name)
+        if Name == "all" or Name == "others" then
+            AllBool = true
+            return
+        elseif Name == "random" then
+            local list = Players:GetPlayers()
+            if Discover(list, LocalPlayer) then
+                table.remove(list, Discover(list, LocalPlayer))
+            end
+            return list[math.random(#list)]
+        end
+        for _, x in next, Players:GetPlayers() do
+            if x ~= LocalPlayer then
+                if Sub(Lower(x.Name), 1, #Name) == Name or Sub(Lower(x.DisplayName), 1, #Name) == Name then
+                    return x
+                end
+            end
+        end
+    end
+
+    local flingManager       = flingManager
+    local OrgDestroyHeight   = workspace.FallenPartsDestroyHeight
+
+    local function SkidFling(TargetPlayer)
+        local Character = LocalPlayer.Character
+        local Humanoid  = getPlrHum(Character)
+        local RootPart  = Humanoid and Humanoid.RootPart
+        local TChar     = TargetPlayer.Character
+        local THumanoid = getPlrHum(TChar)
+        local TRootPart = THumanoid and THumanoid.RootPart
+        local THead     = getHead(TChar)
+        local Acc       = TChar:FindFirstChildOfClass("Accessory")
+        local Handle    = Acc and Acc:FindFirstChild("Handle")
+
+        if Character and Humanoid and RootPart then
+            if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude < 50 then
+                flingManager.cFlingOldPos = RootPart.CFrame
+            end
+
+            if THead then
+                workspace.CurrentCamera.CameraSubject = THead
+            elseif Handle then
+                workspace.CurrentCamera.CameraSubject = Handle
+            elseif THumanoid and TRootPart then
+                workspace.CurrentCamera.CameraSubject = THumanoid
+            end
+
+            if not TChar:FindFirstChildWhichIsA("BasePart") then return end
+
+            local function FPos(BasePart, Pos, Ang)
+                RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
+                Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+                RootPart.Velocity    = Vector3.new(9e7, 9e7*10, 9e7)
+                RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+            end
+
+            local function SFBasePart(BasePart)
+                local TimeToWait = 2
+                local Time       = tick()
+                local Angle      = 0
+                repeat
+                    if RootPart and THumanoid then
+                        if BasePart.Velocity.Magnitude < 50 then
+                            Angle = Angle + 100
+                            FPos(BasePart, CFrame.new(0,1.5,0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(2.25,1.5,-2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(-2.25,-1.5,2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,1.5,0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+                        else
+                            FPos(BasePart, CFrame.new(0,1.5,THumanoid.WalkSpeed), CFrame.Angles(math.rad(90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,-THumanoid.WalkSpeed), CFrame.Angles(0,0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,1.5,THumanoid.WalkSpeed), CFrame.Angles(math.rad(90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,-TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(0,0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(math.rad(90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(0,0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(math.rad(-90),0,0)) Wait()
+                            FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(0,0,0)) Wait()
+                        end
+                    else
+                        break
+                    end
+                until BasePart.Velocity.Magnitude > 500
+                      or BasePart.Parent ~= TargetPlayer.Character
+                      or TargetPlayer.Parent ~= Players
+                      or TargetPlayer.Character ~= TChar
+                      or THumanoid.Sit
+                      or Humanoid.Health <= 0
+                      or tick() > Time + TimeToWait
+            end
+
+            workspace.FallenPartsDestroyHeight = 0/0
+
+            local BV = InstanceNew("BodyVelocity")
+            BV.Parent    = RootPart
+            BV.Velocity  = Vector3.new(9e8,9e8,9e8)
+            BV.MaxForce  = Vector3.new(1/0,1/0,1/0)
+
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+            if TRootPart and THead then
+                if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+                    SFBasePart(THead)
+                else
+                    SFBasePart(TRootPart)
+                end
+            elseif TRootPart then
+                SFBasePart(TRootPart)
+            elseif THead then
+                SFBasePart(THead)
+            elseif Handle then
+                SFBasePart(Handle)
+            end
+
+            BV:Destroy()
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+            workspace.CurrentCamera.CameraSubject = Humanoid
+
+            repeat
+                RootPart.CFrame                  = flingManager.cFlingOldPos * CFrame.new(0, .5, 0)
+                Character:SetPrimaryPartCFrame( flingManager.cFlingOldPos * CFrame.new(0, .5, 0) )
+                Humanoid:ChangeState("GettingUp")
+                for _, x in next, Character:GetChildren() do
+                    if x:IsA("BasePart") then
+                        x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+                    end
+                end
+                Wait()
+            until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude < 25
+
+            workspace.FallenPartsDestroyHeight = OrgDestroyHeight
+        end
+    end
+
+    local targets = {}
+    for _, name in next, {plr} do
+        local p = GetPlayer(name)
+        if p then Insert(targets, p) end
+    end
+
+    if AllBool then
+        for _, p in next, Players:GetPlayers() do
+            if p ~= LocalPlayer then SkidFling(p) end
+        end
+    else
+        for _, p in next, targets do
+            SkidFling(p)
+        end
+    end
+end)
 
 cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers a dramatic oof sequence for the player"}, function()
 	local p = Players.LocalPlayer
@@ -11198,11 +11166,11 @@ cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers 
 		return
 	end
 
-	lib.LocalPlayerChat("Okay... I will do it.", "All")
+	NAlib.LocalPlayerChat("Okay... I will do it.", "All")
 	Wait(1.5)
-	lib.LocalPlayerChat("I will oof now...", "All")
+	NAlib.LocalPlayerChat("I will oof now...", "All")
 	Wait(1.5)
-	lib.LocalPlayerChat("Goodbye, cruel world.", "All")
+	NAlib.LocalPlayerChat("Goodbye, cruel world.", "All")
 	Wait(2)
 
 	h:MoveTo(r.Position + r.CFrame.LookVector * 10)
@@ -11233,9 +11201,9 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	if #target == 0 then return end
 
 	for _, plr in pairs(Players:GetPlayers()) do
-		lib.disconnect("timestop_char_"..plr.UserId)
+		NAlib.disconnect("timestop_char_"..plr.UserId)
 	end
-	lib.disconnect("timestop_playeradd")
+	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in pairs(target) do
 		local char = getPlrChar(plr)
@@ -11247,7 +11215,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 			end
 		end
 
-		lib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
+		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
@@ -11257,8 +11225,8 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 		end))
 	end
 
-	lib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
-		lib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
+	NAlib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
+		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
@@ -11274,9 +11242,9 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	if #target == 0 then return end
 
 	for _, plr in pairs(Players:GetPlayers()) do
-		lib.disconnect("timestop_char_"..plr.UserId)
+		NAlib.disconnect("timestop_char_"..plr.UserId)
 	end
-	lib.disconnect("timestop_playeradd")
+	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in pairs(target) do
 		local char = getPlrChar(plr)
@@ -11387,15 +11355,15 @@ end)
 cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(args)
 	local target = args
 	if not target then return end
-	lib.disconnect("autochar")
-	lib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.disconnect("autochar")
+	NAlib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
 		cmd.run({"char", target})
 	end))
 	cmd.run({"char", target})
 end, true)
 
 cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
-	lib.disconnect("autochar")
+	NAlib.disconnect("autochar")
 end)
 
 cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
@@ -11443,7 +11411,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(
 	local Target = getPlr(Username)
 
 	for _, plr in next, Target do
-		lib.disconnect("stare_direct")
+		NAlib.disconnect("stare_direct")
 
 		local lp = Players.LocalPlayer
 		if not (lp.Character and getRoot(lp.Character)) then return end
@@ -11455,23 +11423,23 @@ cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(
 			if lp.Character and plr.Character and getRoot(plr.Character) then
 				stareFIXER(lp.Character, getRoot(plr.Character).Position)
 			elseif not Players:FindFirstChild(plr.Name) then
-				lib.disconnect("stare_direct")
+				NAlib.disconnect("stare_direct")
 			end
 		end
 
-		lib.connect("stare_direct", RunService.RenderStepped:Connect(Stare))
+		NAlib.connect("stare_direct", RunService.RenderStepped:Connect(Stare))
 	end
 end, true)
 
 cmd.add({"unlookat", "unstare"}, {"unlookat", "Stops staring"}, function()
-	lib.disconnect("stare_direct")
+	NAlib.disconnect("stare_direct")
 	if getHum() then
 		getHum().AutoRotate = true
 	end
 end)
 
 cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at the closest player"}, function()
-	lib.disconnect("stare_nearest")
+	NAlib.disconnect("stare_nearest")
 
 	local function getClosest()
 		local lp = Players.LocalPlayer
@@ -11508,11 +11476,11 @@ cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at th
 		end
 	end
 
-	lib.connect("stare_nearest", RunService.RenderStepped:Connect(stare))
+	NAlib.connect("stare_nearest", RunService.RenderStepped:Connect(stare))
 end)
 
 cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Stop staring at closest player"}, function()
-	lib.disconnect("stare_nearest")
+	NAlib.disconnect("stare_nearest")
 	if getHum() then
 		getHum().AutoRotate = true
 	end
@@ -11522,9 +11490,9 @@ local specUI = nil
 local connStep, connAdd, connRemove = nil, nil, nil
 
 function cleanup()
-	lib.disconnect("spectate_char")
-	lib.disconnect("spectate_loop")
-	lib.disconnect("spectate_leave")
+	NAlib.disconnect("spectate_char")
+	NAlib.disconnect("spectate_loop")
+	NAlib.disconnect("spectate_leave")
 
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
@@ -11540,16 +11508,16 @@ end
 function spectatePlayer(targetPlayer)
 	if not targetPlayer then return end
 
-	lib.disconnect("spectate_char")
-	lib.disconnect("spectate_loop")
-	lib.disconnect("spectate_leave")
+	NAlib.disconnect("spectate_char")
+	NAlib.disconnect("spectate_loop")
+	NAlib.disconnect("spectate_leave")
 
-	lib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
+	NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
 		while not getPlrHum(character) do Wait(.1) end
 		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
 	end))
 
-	lib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
+	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
 			cleanup()
 			DoNotif("Player left - camera reset")
@@ -11564,7 +11532,7 @@ function spectatePlayer(targetPlayer)
 			Wait()
 		end
 	end)
-	lib.connect("spectate_loop", {
+	NAlib.connect("spectate_loop", {
 		Disconnect = function()
 			if coroutine.status(loop) ~= "dead" then
 				coroutine.close(loop)
@@ -11725,7 +11693,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 	frame.BorderSizePixel = 0
 	InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 20)
-	gui.draggerV2(frame)
+	NAgui.draggerV2(frame)
 
 	titleLabel = InstanceNew("TextLabel", frame)
 	titleLabel.BackgroundTransparency = 1
@@ -11883,14 +11851,14 @@ cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Sav
 end,true)
 
 cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherever they go"}, function(p)
-	lib.disconnect("follow")
+	NAlib.disconnect("follow")
 	local targetPlayers = getPlr(p)
 	for _, plr in next, targetPlayers do
 		if not plr then
 			DoNotif("Player not found or invalid.")
 			return
 		end
-		lib.connect("follow", RunService.RenderStepped:Connect(function()
+		NAlib.connect("follow", RunService.RenderStepped:Connect(function()
 			local target = plr.Character
 			if target then
 				local hum = getHum()
@@ -11899,17 +11867,17 @@ cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherev
 					local targetPos = targetPart.Position
 					hum:MoveTo(targetPos)
 				else
-					lib.disconnect("follow")
+					NAlib.disconnect("follow")
 				end
 			else
-				lib.disconnect("follow")
+				NAlib.disconnect("follow")
 			end
 		end))
 	end
 end, true)
 
 cmd.add({"unfollow", "unstalk", "unwalk", "unpathfind"}, {"unfollow", "Stop all attempts to follow a player"}, function()
-	lib.disconnect("follow")
+	NAlib.disconnect("follow")
 end)
 
 PROXIMITY_RADIUS = 15
@@ -11920,14 +11888,14 @@ followConnection = nil
 flwCharAdd = nil
 
 cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxfollow)", "Automatically follow any player who comes close"}, function()
-	lib.disconnect("autofollow")
+	NAlib.disconnect("autofollow")
 	if followConnection then followConnection:Disconnect() followConnection = nil end
 	if flwCharAdd then flwCharAdd:Disconnect() flwCharAdd = nil end
 	lastDistances = {}
 	ISfollowing = false
 	followTarget = nil
 
-	lib.connect("autofollow", RunService.Stepped:Connect(function()
+	NAlib.connect("autofollow", RunService.Stepped:Connect(function()
 		if ISfollowing then return end
 
 		local myChar = getChar()
@@ -11994,7 +11962,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 end)
 
 cmd.add({"unautofollow", "stopautofollow", "unproxfollow"}, {"unautofollow (stopautofollow,unproxfollow)", "Stop automatically following nearby players"}, function()
-	lib.disconnect("autofollow")
+	NAlib.disconnect("autofollow")
 	if followConnection then followConnection:Disconnect() followConnection = nil end
 	if flwCharAdd then flwCharAdd:Disconnect() flwCharAdd = nil end
 	lastDistances = {}
@@ -12007,10 +11975,10 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 	local players=getPlr(p)
 	for _,plr in ipairs(players)do
 		if plr then
-			lib.disconnect("follow")
+			NAlib.disconnect("follow")
 			local ps=SafeGetService("PathfindingService")
 			local lastSrc, lastDst = Vector3.new(), Vector3.new()
-			lib.connect("follow",RunService.Heartbeat:Connect(function()
+			NAlib.connect("follow",RunService.Heartbeat:Connect(function()
 				local hum=getHum() local char=getChar() local tgt=plr.Character
 				if not(hum and char and tgt and hum.RootPart) then return end
 				local src=hum.RootPart.Position
@@ -12080,7 +12048,7 @@ cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
-		gui.draggerV2(btn)
+		NAgui.draggerV2(btn)
 
 		MouseButtonFix(btn, function()
 			local char = getChar()
@@ -12118,7 +12086,7 @@ cmd.add({"unfreeze","unthaw","unanchor","unfr"},{"unfreeze (unthaw,unanchor,unfr
 end)
 
 cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts teleport to the black hole"},function()
-	if lib.isConnected("blackhole_force") then return DoNotif("Blackhole already exists.") end
+	if NAlib.isConnected("blackhole_force") then return DoNotif("Blackhole already exists.") end
 
 	local UIS=SafeGetService("UserInputService")
 	local Mouse=LocalPlayer:GetMouse()
@@ -12132,7 +12100,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	_G.BlackholeTarget=Updated
 	_G.BlackholeActive=false
 
-	lib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
+	NAlib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
 		for _,plr in next,Players:GetPlayers() do
 			if plr~=LocalPlayer then NACaller(function()
@@ -12146,7 +12114,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end)
 	end))
 
-	lib.connect("blackhole_pos",RunService.RenderStepped:Connect(function()
+	NAlib.connect("blackhole_pos",RunService.RenderStepped:Connect(function()
 		if _G.BlackholeAttachment then
 			_G.BlackholeAttachment.WorldCFrame=_G.BlackholeTarget
 		end
@@ -12170,7 +12138,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	end
 
 	for _,v in next,workspace:GetDescendants() do ForcePart(v) end
-	lib.connect("blackhole_force",workspace.DescendantAdded:Connect(ForcePart))
+	NAlib.connect("blackhole_force",workspace.DescendantAdded:Connect(ForcePart))
 
 	UIS.InputBegan:Connect(function(k,chat)
 		if k.KeyCode==Enum.KeyCode.E and not chat then
@@ -12227,8 +12195,8 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
 	end)
 	
-	gui.draggerV2(toggleBtn)
-	gui.draggerV2(moveBtn)
+	NAgui.draggerV2(toggleBtn)
+	NAgui.draggerV2(moveBtn)
 
 	DoNotif("Blackhole created. Tap button or press E to move",3)
 end,true)
@@ -12523,10 +12491,10 @@ end)
 
 if IsOnPC then
 	cmd.add({"lockmouse", "lockm"}, {"lockmouse2 (lockm2)", "Default Mouse Behaviour (idk any description)"}, function()
-		gui.doModal(false)
+		NAgui.doModal(false)
 	end)
 	cmd.add({"unlockmouse", "unlockm"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse (fr this time)"}, function()
-		gui.doModal(true)
+		NAgui.doModal(true)
 	end)
 	cmd.add({"lockmouse2", "lockm2"}, {"lockmouse2 (lockm2)", "Locks your mouse in the center"}, function()
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
@@ -12549,8 +12517,8 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 		local hum = getHum()
 		if not hum then return end
 
-		lib.disconnect("headsit_follow")
-		lib.disconnect("headsit_died")
+		NAlib.disconnect("headsit_follow")
+		NAlib.disconnect("headsit_died")
 
 		local charRoot = getRoot(char)
 		local target = plr.Character
@@ -12558,9 +12526,9 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 
 		hum.Sit = true
 
-		lib.connect("headsit_died", hum.Died:Connect(function()
-			lib.disconnect("headsit_follow")
-			lib.disconnect("headsit_died")
+		NAlib.connect("headsit_died", hum.Died:Connect(function()
+			NAlib.disconnect("headsit_follow")
+			NAlib.disconnect("headsit_died")
 			for _, part in pairs(platformParts) do
 				part:Destroy()
 			end
@@ -12596,14 +12564,14 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 			Insert(platformParts, part)
 		end
 
-		lib.connect("headsit_follow", RunService.Stepped:Connect(function()
+		NAlib.connect("headsit_follow", RunService.Stepped:Connect(function()
 			if not SafeGetService("Players"):FindFirstChild(plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
 				or hum.Sit == false then
 
-				lib.disconnect("headsit_follow")
-				lib.disconnect("headsit_died")
+				NAlib.disconnect("headsit_follow")
+				NAlib.disconnect("headsit_died")
 
 				for _, part in pairs(platformParts) do
 					part:Destroy()
@@ -12622,8 +12590,8 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 end, true)
 
 cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
-	lib.disconnect("headsit_follow")
-	lib.disconnect("headsit_died")
+	NAlib.disconnect("headsit_follow")
+	NAlib.disconnect("headsit_died")
 
 	for _, part in pairs(platformParts) do
 		part:Destroy()
@@ -12642,13 +12610,13 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 	local root = getRoot(char)
 	local hum = getHum()
 
-	lib.disconnect("wallhop_loop")
+	NAlib.disconnect("wallhop_loop")
 
 	local canHop = true
 
-	lib.connect("wallhop_loop", RunService.Stepped:Connect(function()
+	NAlib.connect("wallhop_loop", RunService.Stepped:Connect(function()
 		if not char or not root or not hum or hum.Health <= 0 then
-			lib.disconnect("wallhop_loop")
+			NAlib.disconnect("wallhop_loop")
 			return
 		end
 
@@ -12692,7 +12660,7 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 end)
 
 cmd.add({"unwallhop"},{"unwallhop","disable wallhop helper"},function()
-	lib.disconnect("wallhop_loop")
+	NAlib.disconnect("wallhop_loop")
 end)
 
 cmd.add({"jump"},{"jump","jump."},function()
@@ -12700,8 +12668,8 @@ cmd.add({"jump"},{"jump","jump."},function()
 end)
 
 cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
-	lib.disconnect("loopjump")
-	lib.connect("loopjump",RunService.RenderStepped:Connect(function()
+	NAlib.disconnect("loopjump")
+	NAlib.connect("loopjump",RunService.RenderStepped:Connect(function()
 		local h=getHum()
 		if h and h:GetState()~=Enum.HumanoidStateType.Freefall and h.FloorMaterial~=Enum.Material.Air then
 			h:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -12710,16 +12678,16 @@ cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
 end)
 
 cmd.add({"unloopjump","unbhop"},{"unloopjump (unbhop)","Stop continuous jumping."},function()
-	lib.disconnect("loopjump")
+	NAlib.disconnect("loopjump")
 end)
 
 cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when you jump"},function() -- totally didn't stole this idea from FE2 lmao
-	lib.disconnect("trussjump_spawn") lib.disconnect("trussjump_jump")
+	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 	local function hook()
 		local hm=getHum()
 		if not hm then return false end
-		lib.disconnect("trussjump_jump")
-		lib.connect("trussjump_jump",hm.Jumping:Connect(function(isJump)
+		NAlib.disconnect("trussjump_jump")
+		NAlib.connect("trussjump_jump",hm.Jumping:Connect(function(isJump)
 			NACaller(function()
 				local char=getChar()
 				local rt=char and getRoot(char)
@@ -12740,7 +12708,7 @@ cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when
 		Wait(1)
 	end
 	if not getHum() then DoNotif("failed to hook to Humanoid",2) end
-	lib.connect("trussjump_spawn",LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("trussjump_spawn",LocalPlayer.CharacterAdded:Connect(function()
 		local attempts2=5
 		while attempts2>0 and not hook() do
 			attempts2-=1
@@ -12752,14 +12720,14 @@ cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when
 end,true)
 
 cmd.add({"untrussjump","untj","untjump","untrussj"},{"untrussjump","Disable trussjump"},function()
-	lib.disconnect("trussjump_spawn") lib.disconnect("trussjump_jump")
+	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 end)
 
 standParts = {}
 
 cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, function(p)
-	lib.disconnect("headstand_follow")
-	lib.disconnect("headstand_died")
+	NAlib.disconnect("headstand_follow")
+	NAlib.disconnect("headstand_died")
 
 	local targets = getPlr(p)
 	if #targets == 0 then return end
@@ -12770,9 +12738,9 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 	local hum = getHum()
 	if not hum then return end
 
-	lib.connect("headstand_died", hum.Died:Connect(function()
-		lib.disconnect("headstand_follow")
-		lib.disconnect("headstand_died")
+	NAlib.connect("headstand_died", hum.Died:Connect(function()
+		NAlib.disconnect("headstand_follow")
+		NAlib.disconnect("headstand_died")
 		for _, part in pairs(standParts) do
 			part:Destroy()
 		end
@@ -12808,7 +12776,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		Insert(standParts, part)
 	end
 
-	lib.connect("headstand_follow", RunService.Stepped:Connect(function()
+	NAlib.connect("headstand_follow", RunService.Stepped:Connect(function()
 		local plrCharacter = plr.Character
 		if Players:FindFirstChild(plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			local charRoot = getRoot(char)
@@ -12817,8 +12785,8 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 				standParts[i].CFrame = charRoot.CFrame * wall.offset
 			end
 		else
-			lib.disconnect("headstand_follow")
-			lib.disconnect("headstand_died")
+			NAlib.disconnect("headstand_follow")
+			NAlib.disconnect("headstand_died")
 			for _, part in pairs(standParts) do
 				part:Destroy()
 			end
@@ -12828,8 +12796,8 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 end, true)
 
 cmd.add({"unheadstand"}, {"unheadstand", "Stop the headstand command."}, function()
-	lib.disconnect("headstand_follow")
-	lib.disconnect("headstand_died")
+	NAlib.disconnect("headstand_follow")
+	NAlib.disconnect("headstand_died")
 
 	for _, part in pairs(standParts) do
 		part:Destroy()
@@ -12845,14 +12813,14 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 	getgenv().NamelessWs = val
 	loopws = true
 
-	lib.disconnect("loopws_apply")
-	lib.disconnect("loopws_char")
+	NAlib.disconnect("loopws_apply")
+	NAlib.disconnect("loopws_char")
 
 	local function applyWS()
 		local hum = getHum()
 		if hum then
 			hum.WalkSpeed = val
-			lib.connect("loopws_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+			NAlib.connect("loopws_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
 				if loopws and hum.WalkSpeed ~= val then
 					hum.WalkSpeed = val
 				end
@@ -12862,7 +12830,7 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 
 	applyWS()
 
-	lib.connect("loopws_char", LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("loopws_char", LocalPlayer.CharacterAdded:Connect(function()
 		while not getHum() do Wait(.1) end
 		if loopws then applyWS() end
 	end))
@@ -12870,8 +12838,8 @@ end, true)
 
 cmd.add({"unloopwalkspeed", "unloopws", "unlws"}, {"unloopwalkspeed (unloopws,unlws)", "Disable loop walkspeed"}, function()
 	loopws = false
-	lib.disconnect("loopws_apply")
-	lib.disconnect("loopws_char")
+	NAlib.disconnect("loopws_apply")
+	NAlib.disconnect("loopws_char")
 end)
 
 getgenv().NamelessJP = nil
@@ -12882,8 +12850,8 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 	getgenv().NamelessJP = val
 	loopjp = true
 
-	lib.disconnect("loopjp_apply")
-	lib.disconnect("loopjp_char")
+	NAlib.disconnect("loopjp_apply")
+	NAlib.disconnect("loopjp_char")
 
 	local function applyJP()
 		local hum = getHum()
@@ -12891,14 +12859,14 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 
 		if hum.UseJumpPower then
 			hum.JumpPower = val
-			lib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
+			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
 				if loopjp and hum.JumpPower ~= val then
 					hum.JumpPower = val
 				end
 			end))
 		else
 			hum.JumpHeight = val
-			lib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpHeight"):Connect(function()
+			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpHeight"):Connect(function()
 				if loopjp and hum.JumpHeight ~= val then
 					hum.JumpHeight = val
 				end
@@ -12908,7 +12876,7 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 
 	applyJP()
 
-	lib.connect("loopjp_char", LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("loopjp_char", LocalPlayer.CharacterAdded:Connect(function()
 		while not getHum() do Wait(.1) end
 		if loopjp then applyJP() end
 	end))
@@ -12916,8 +12884,8 @@ end, true)
 
 cmd.add({"unloopjumppower", "unloopjp", "unljp"}, {"unloopjumppower (unloopjp,unljp)", "Disable loop jump power"}, function()
 	loopjp = false
-	lib.disconnect("loopjp_apply")
-	lib.disconnect("loopjp_char")
+	NAlib.disconnect("loopjp_apply")
+	NAlib.disconnect("loopjp_char")
 end)
 
 cmd.add({"stopanimations", "stopanims", "stopanim", "noanim"}, {"stopanimations (stopanims,stopanim,noanim)", "Stops running animations"}, function()
@@ -13366,7 +13334,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 	end)
 
-	gui.dragger(main,topbar)
+	NAgui.dragger(main,topbar)
 end)
 
 cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, function(...)
@@ -14193,10 +14161,10 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 	if IsR6() then
 		local mouse = LocalPlayer:GetMouse()
 
-		lib.disconnect("hug_toggle")
-		lib.disconnect("hug_side")
-		lib.disconnect("hug_click")
-		lib.disconnect("hug_plat")
+		NAlib.disconnect("hug_toggle")
+		NAlib.disconnect("hug_side")
+		NAlib.disconnect("hug_click")
+		NAlib.disconnect("hug_plat")
 
 		for _, track in pairs(currentHugTracks) do NACaller(function() track:Stop() end) end
 		currentHugTracks = {}
@@ -14239,8 +14207,8 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 		sideUICorner.CornerRadius = UDim.new(0, 8)
 		sideUICorner.Parent = sideToggleButton
 
-		gui.draggerV2(toggleHugButton)
-		gui.draggerV2(sideToggleButton)
+		NAgui.draggerV2(toggleHugButton)
+		NAgui.draggerV2(sideToggleButton)
 
 		hugModeEnabled = false
 
@@ -14291,7 +14259,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Parent = workspace
 							Insert(huggiePARTS, part)
 						end
-						lib.connect("hug_plat", RunService.Stepped:Connect(function()
+						NAlib.connect("hug_plat", RunService.Stepped:Connect(function()
 							local charRoot = getRoot(LocalPlayer.Character)
 							if charRoot then
 								for i, wall in ipairs(walls) do
@@ -14316,7 +14284,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 			end
 		end
 
-		lib.connect("hug_toggle", MouseButtonFix(toggleHugButton, function()
+		NAlib.connect("hug_toggle", MouseButtonFix(toggleHugButton, function()
 			hugModeEnabled = not hugModeEnabled
 			if hugModeEnabled then
 				toggleHugButton.Text = "Hug Mode: ON"
@@ -14327,16 +14295,16 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 				currentHugTarget = nil
 				for _, part in pairs(huggiePARTS) do part:Destroy() end
 				huggiePARTS = {}
-				lib.disconnect("hug_plat")
+				NAlib.disconnect("hug_plat")
 			end
 		end))
 
-		lib.connect("hug_side", MouseButtonFix(sideToggleButton, function()
+		NAlib.connect("hug_side", MouseButtonFix(sideToggleButton, function()
 			hugFromFront = not hugFromFront
 			sideToggleButton.Text = (hugFromFront and "Hug Side: Front") or "Hug Side: Back"
 		end))
 
-		lib.connect("hug_click", LocalPlayer:GetMouse().Button1Down:Connect(function()
+		NAlib.connect("hug_click", LocalPlayer:GetMouse().Button1Down:Connect(function()
 			if not hugModeEnabled then return end
 			local target = mouse.Target
 			if target and target.Parent then
@@ -14352,10 +14320,10 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 end)
 
 cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
-	lib.disconnect("hug_toggle")
-	lib.disconnect("hug_side")
-	lib.disconnect("hug_click")
-	lib.disconnect("hug_plat")
+	NAlib.disconnect("hug_toggle")
+	NAlib.disconnect("hug_side")
+	NAlib.disconnect("hug_click")
+	NAlib.disconnect("hug_plat")
 
 	for _, track in pairs(currentHugTracks) do NACaller(function() track:Stop() end) end
 	currentHugTracks = {}
@@ -14528,7 +14496,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		button.MouseLeave:Connect(function() hoverEffect(false) end)
 		button.MouseButton1Down:Connect(callbackDown)
 		button.MouseButton1Up:Connect(callbackUp)
-		gui.draggerV2(button)
+		NAgui.draggerV2(button)
 
 		return button
 	end
@@ -14597,14 +14565,14 @@ cmd.add({"cbring", "clientbring"}, {"clientbring <player> (cbring)", "Brings the
 	local username = (...)
 	local target = getPlr(username)
 	if #target == 0 then return end
-	if lib.isConnected("noclip") then
-		lib.disconnect("noclip")
+	if NAlib.isConnected("noclip") then
+		NAlib.disconnect("noclip")
 	end
 	for _, conn in ipairs(bringc) do
 		conn:Disconnect()
 	end
 	bringc = {}
-	lib.connect("noclip", RunService.Stepped:Connect(function()
+	NAlib.connect("noclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _, descendant in pairs(char:GetDescendants()) do
@@ -14633,8 +14601,8 @@ cmd.add({"uncbring", "unclientbring"}, {"unclientbring (uncbring)", "Disable Cli
 		conn:Disconnect()
 	end
 	bringc = {}
-	if lib.isConnected("noclip") then
-		lib.disconnect("noclip")
+	if NAlib.isConnected("noclip") then
+		NAlib.disconnect("noclip")
 	end
 end)
 
@@ -14668,13 +14636,13 @@ TPWalk = false
 cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed script"}, function(...)
 	if TPWalk then
 		TPWalk = false
-		lib.disconnect("TPWalkingConnection")
+		NAlib.disconnect("TPWalkingConnection")
 	end
 
 	TPWalk = true
 	local Speed = ...
 
-	lib.connect("TPWalkingConnection", RunService.Stepped:Connect(function(_, deltaTime)
+	NAlib.connect("TPWalkingConnection", RunService.Stepped:Connect(function(_, deltaTime)
 		if TPWalk then
 			local humanoid = getHum()
 			if humanoid and humanoid.MoveDirection.Magnitude > 0 then
@@ -14688,7 +14656,7 @@ end, true)
 
 cmd.add({"untpwalk"}, {"untpwalk", "Stops the tpwalk command"}, function()
 	TPWalk = false
-	lib.disconnect("TPWalkingConnection")
+	NAlib.disconnect("TPWalkingConnection")
 end)
 
 muteLOOP = {}
@@ -14973,7 +14941,7 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
     local list, f = {}, 0
     for _, d in ipairs(workspace:GetDescendants()) do
         if d:IsA("ClickDetector") then
-            table.insert(list, d)
+            Insert(list, d)
         end
     end
     if #list == 0 then return DoNotif("No ClickDetectors found",2) end
@@ -14997,7 +14965,7 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
     local list, f = {}, 0
     for _, p in ipairs(workspace:GetDescendants()) do
         if p:IsA("ProximityPrompt") then
-            table.insert(list, p)
+            Insert(list, p)
         end
     end
     if #list == 0 then return DoNotif("No ProximityPrompts found",2) end
@@ -15030,7 +14998,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
         if t:IsA("TouchTransmitter") then
             local p = t.Parent
             if p and p:IsA("BasePart") then
-                table.insert(parts, p)
+                Insert(parts, p)
             end
         end
     end
@@ -15083,14 +15051,14 @@ cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximityp
 end,true)
 
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Disable the cooldown for proximity prompts"},function()
-	lib.disconnect("instantpp")
-	lib.connect("instantpp", SafeGetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(pp)
+	NAlib.disconnect("instantpp")
+	NAlib.connect("instantpp", SafeGetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(pp)
 		fireproximityprompt(pp, 1)
 	end))
 end)
 
 cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximityprompts (uninstantpp,unipp)","Undo the cooldown removal"},function()
-	lib.disconnect("instantpp")
+	NAlib.disconnect("instantpp")
 end)
 
 cmd.add({"r6"},{"r6","Shows a prompt that will switch your character rig type into R6"},function()
@@ -15123,9 +15091,9 @@ end,true)
 cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
 	local humanoid = getHum()
 	if humanoid then
-		lib.disconnect("godmode")
+		NAlib.disconnect("godmode")
 
-		lib.connect("godmode", humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+		NAlib.connect("godmode", humanoid:GetPropertyChangedSignal("Health"):Connect(function()
 			if humanoid.Health ~= humanoid.MaxHealth then
 				humanoid.Health = humanoid.MaxHealth
 			end
@@ -15139,7 +15107,7 @@ cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function
 end)
 
 cmd.add({"ungodmode", "ungod"}, {"ungodmode (ungod)", "Disables invincibility"}, function()
-	lib.disconnect("godmode")
+	NAlib.disconnect("godmode")
 	DoNotif("Godmode OFF", 2)
 end)
 
@@ -15835,12 +15803,12 @@ cmd.add({"swim"}, {"swim {speed}", "Swim in the air"}, function(speed)
 		humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 		humanoid.WalkSpeed = speed or 16
 
-		lib.connect("swim_die", humanoid.Died:Connect(function()
+		NAlib.connect("swim_die", humanoid.Died:Connect(function()
 			workspace.Gravity = OGGRAVV
 			SWIMMERRRR = false
 		end))
 
-		lib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
+		NAlib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
 			NACaller(function()
 				if humanoid and hrp then
 					local move = humanoid.MoveDirection
@@ -15862,8 +15830,8 @@ cmd.add({"unswim"}, {"unswim", "Stops the swim script"}, function()
 		workspace.Gravity = OGGRAVV
 		SWIMMERRRR = false
 
-		lib.disconnect("swim_die")
-		lib.disconnect("swim_heartbeat")
+		NAlib.disconnect("swim_die")
+		NAlib.disconnect("swim_heartbeat")
 
 		ZEhumSTATE(humanoid, true)
 		humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
@@ -15917,7 +15885,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 end,true)
 
 cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls unanchored parts to you with spin"},function()
-	if lib.isConnected("bhf") then return DoNotif("BHF already active") end
+	if NAlib.isConnected("bhf") then return DoNotif("BHF already active") end
 
 	local root=getRoot(getPlrChar(LocalPlayer));if not root then return end
 	local att1=InstanceNew("Attachment",root);att1.Name="BHF_Attach"
@@ -15952,8 +15920,8 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 
 	for _,part in ipairs(workspace:GetDescendants()) do Defer(function() ForcePart(part) end) end
 
-	lib.connect("bhf",workspace.DescendantAdded:Connect(ForcePart))
-	lib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
+	NAlib.connect("bhf",workspace.DescendantAdded:Connect(ForcePart))
+	NAlib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
 		NACaller(function()
 			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 			LocalPlayer.MaximumSimulationRadius=1e9
@@ -15964,8 +15932,8 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 end,true)
 
 cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow","Stops blackhole follow and clears constraints"},function()
-	lib.disconnect("bhf")
-	lib.disconnect("bhf_sim")
+	NAlib.disconnect("bhf")
+	NAlib.disconnect("bhf_sim")
 
 	local root=getRoot(getPlrChar(LocalPlayer))
 	if root then local att=root:FindFirstChild("BHF_Attach") if att then att:Destroy() end end
@@ -16048,15 +16016,15 @@ function createBox(part,c,t)
 
     local key="esp_update_"..tostring(b)
     if part:IsA("Model") then
-        lib.connect(key,part.DescendantAdded:Connect(update))
-        lib.connect(key,part.DescendantRemoving:Connect(update))
-    elseif lib.isProperty(part,"Size") then
-        lib.connect(key,part:GetPropertyChangedSignal("Size"):Connect(update))
+        NAlib.connect(key,part.DescendantAdded:Connect(update))
+        NAlib.connect(key,part.DescendantRemoving:Connect(update))
+    elseif NAlib.isProperty(part,"Size") then
+        NAlib.connect(key,part:GetPropertyChangedSignal("Size"):Connect(update))
     end
 
     b:GetPropertyChangedSignal("Parent"):Connect(function()
         if not b.Parent then
-            lib.disconnect(key)
+            NAlib.disconnect(key)
         end
     end)
 
@@ -16094,7 +16062,7 @@ function disableEsp(objType, list)
     for _, part in ipairs(list) do
         for _, b in ipairs(part:GetChildren()) do
             if b:IsA("BoxHandleAdornment") and Sub(b.Name, -7) == "_PEEPEE" then
-                lib.disconnect("esp_size_"..tostring(b))
+                NAlib.disconnect("esp_size_"..tostring(b))
                 b:Destroy()
             end
         end
@@ -16149,7 +16117,7 @@ function disableNameEsp(mode)
     for _, part in ipairs(parts) do
         for _, b in ipairs(part:GetChildren()) do
             if b:IsA("BoxHandleAdornment") and Sub(b.Name, -7) == "_PEEPEE" then
-                lib.disconnect("esp_size_"..tostring(b))
+                NAlib.disconnect("esp_size_"..tostring(b))
                 b:Destroy()
             end
         end
@@ -16277,7 +16245,7 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 		{
 			Text = "Custom Console",
 			Callback = function()
-				gui.consoleeee()
+				NAgui.consoleeee()
 			end
 		}
 	}
@@ -16424,8 +16392,8 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
         end
     end
 
-    if not lib.isConnected("partsizeExact") then
-        lib.connect("partsizeExact", workspace.DescendantAdded:Connect(function(obj)
+    if not NAlib.isConnected("partsizeExact") then
+        NAlib.connect("partsizeExact", workspace.DescendantAdded:Connect(function(obj)
             if obj:IsA("BasePart") then
                 local nm = Lower(obj.Name)
                 local sz = PST.sizeE[nm]
@@ -16474,8 +16442,8 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
         end
     end
 
-    if not lib.isConnected("partsizeFind") then
-        lib.connect("partsizeFind", workspace.DescendantAdded:Connect(function(obj)
+    if not NAlib.isConnected("partsizeFind") then
+        NAlib.connect("partsizeFind", workspace.DescendantAdded:Connect(function(obj)
             if obj:IsA("BasePart") then
                 local nm = Lower(obj.Name)
                 for t, sz in pairs(PST.sizeP) do
@@ -16512,7 +16480,7 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
     end
     table.clear(PST.exact)
     table.clear(PST.sizeE)
-    lib.disconnect("partsizeExact")
+    NAlib.disconnect("partsizeExact")
 end, true)
 
 cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo partsizefind—return those resized parts back to their original size and collision."},function()
@@ -16527,7 +16495,7 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
     end
     table.clear(PST.partial)
     table.clear(PST.sizeP)
-    lib.disconnect("partsizeFind")
+    NAlib.disconnect("partsizeFind")
 end, true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
@@ -16666,14 +16634,14 @@ cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinit
 	DoNotif("Infinite Jump Enabled", 2)
 
 	local function doINFJUMPY()
-		lib.disconnect("infjump_jump")
+		NAlib.disconnect("infjump_jump")
 
 		local debounce = false
 		local humanoid = nil
 
 		while not humanoid do Wait(.1) humanoid = getHum() end
 
-		lib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
+		NAlib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
 			if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
 				debounce = true
 				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -16685,8 +16653,8 @@ cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinit
 		end))
 	end
 
-	lib.disconnect("infjump_char")
-	lib.connect("infjump_char", plr.CharacterAdded:Connect(function()
+	NAlib.disconnect("infjump_char")
+	NAlib.connect("infjump_char", plr.CharacterAdded:Connect(function()
 		doINFJUMPY()
 	end))
 
@@ -16697,16 +16665,16 @@ cmd.add({"uninfjump", "uninfinitejump"}, {"uninfjump (uninfinitejump)", "Disable
 	Wait()
 	DoNotif("Infinite Jump Disabled", 2)
 
-	lib.disconnect("infjump_jump")
-	lib.disconnect("infjump_char")
+	NAlib.disconnect("infjump_jump")
+	NAlib.disconnect("infjump_char")
 end)
 
 cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
 	Wait()
 	DoNotif("FlyJump Enabled", 3)
 
-	lib.disconnect("flyjump")
-	lib.connect("flyjump", UserInputService.JumpRequest:Connect(function()
+	NAlib.disconnect("flyjump")
+	NAlib.connect("flyjump", UserInputService.JumpRequest:Connect(function()
 		getHum():ChangeState(Enum.HumanoidStateType.Jumping)
 	end))
 end)
@@ -16715,7 +16683,7 @@ cmd.add({"unflyjump","noflyjump"},{"unflyjump (noflyjump)","Disables flyjump"},f
 	Wait()
 	DoNotif("FlyJump Disabled", 3)
 
-	lib.disconnect("flyjump")
+	NAlib.disconnect("flyjump")
 end)
 
 cmd.add({"xray", "xrayon"}, {"xray (xrayon)", "Enables X-ray vision to see through walls"}, function()
@@ -16851,11 +16819,11 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","Makes games that a
 end)
 
 cmd.add({"loopday", "lday"}, {"loopday (lday)", "Sunshiiiine!"}, function()
-	lib.disconnect("loopday")
+	NAlib.disconnect("loopday")
 
 	Lighting.ClockTime = 14
 
-	lib.connect("loopday", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	NAlib.connect("loopday", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
 		if Lighting.ClockTime ~= 14 then
 			Lighting.ClockTime = 14
 		end
@@ -16863,15 +16831,15 @@ cmd.add({"loopday", "lday"}, {"loopday (lday)", "Sunshiiiine!"}, function()
 end)
 
 cmd.add({"unloopday", "unlday"}, {"unloopday (unlday)", "No more sunshine"}, function()
-	lib.disconnect("loopday")
+	NAlib.disconnect("loopday")
 end)
 
 cmd.add({"loopfullbright", "loopfb", "lfb"}, {"loopfullbright (loopfb,lfb)", "Sunshiiiine!"}, function()
-	lib.disconnect("fbCon")
-	lib.disconnect("fbCon1")
-	lib.disconnect("fbCon2")
-	lib.disconnect("fbCon3")
-	lib.disconnect("fbCon4")
+	NAlib.disconnect("fbCon")
+	NAlib.disconnect("fbCon1")
+	NAlib.disconnect("fbCon2")
+	NAlib.disconnect("fbCon3")
+	NAlib.disconnect("fbCon4")
 
 	Lighting.Brightness = 1
 	Lighting.ClockTime = 12
@@ -16879,27 +16847,27 @@ cmd.add({"loopfullbright", "loopfb", "lfb"}, {"loopfullbright (loopfb,lfb)", "Su
 	Lighting.GlobalShadows = false
 	Lighting.Ambient = Color3.fromRGB(178, 178, 178)
 
-	lib.connect("fbCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+	NAlib.connect("fbCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
 		if Lighting.Brightness ~= 1 then
 			Lighting.Brightness = 1
 		end
 	end))
-	lib.connect("fbCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	NAlib.connect("fbCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
 		if Lighting.ClockTime ~= 12 then
 			Lighting.ClockTime = 12
 		end
 	end))
-	lib.connect("fbCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+	NAlib.connect("fbCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
 		if Lighting.FogEnd ~= 786543 then
 			Lighting.FogEnd = 786543
 		end
 	end))
-	lib.connect("fbCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+	NAlib.connect("fbCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
 		if Lighting.GlobalShadows ~= false then
 			Lighting.GlobalShadows = false
 		end
 	end))
-	lib.connect("fbCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+	NAlib.connect("fbCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
 		if Lighting.Ambient ~= Color3.fromRGB(178, 178, 178) then
 			Lighting.Ambient = Color3.fromRGB(178, 178, 178)
 		end
@@ -16907,19 +16875,19 @@ cmd.add({"loopfullbright", "loopfb", "lfb"}, {"loopfullbright (loopfb,lfb)", "Su
 end)
 
 cmd.add({"unloopfullbright", "unloopfb", "unlfb"}, {"unloopfullbright (unloopfb,unlfb)", "No more sunshine"}, function()
-	lib.disconnect("fbCon")
-	lib.disconnect("fbCon1")
-	lib.disconnect("fbCon2")
-	lib.disconnect("fbCon3")
-	lib.disconnect("fbCon4")
+	NAlib.disconnect("fbCon")
+	NAlib.disconnect("fbCon1")
+	NAlib.disconnect("fbCon2")
+	NAlib.disconnect("fbCon3")
+	NAlib.disconnect("fbCon4")
 end)
 
 cmd.add({"loopnight", "loopn", "ln"}, {"loopnight (loopn,ln)", "Moonlight."}, function()
-	lib.disconnect("nightCon")
-	lib.disconnect("nightCon1")
-	lib.disconnect("nightCon2")
-	lib.disconnect("nightCon3")
-	lib.disconnect("nightCon4")
+	NAlib.disconnect("nightCon")
+	NAlib.disconnect("nightCon1")
+	NAlib.disconnect("nightCon2")
+	NAlib.disconnect("nightCon3")
+	NAlib.disconnect("nightCon4")
 
 	Lighting.Brightness = 1
 	Lighting.ClockTime = 0
@@ -16927,27 +16895,27 @@ cmd.add({"loopnight", "loopn", "ln"}, {"loopnight (loopn,ln)", "Moonlight."}, fu
 	Lighting.GlobalShadows = false
 	Lighting.Ambient = Color3.fromRGB(178, 178, 178)
 
-	lib.connect("nightCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+	NAlib.connect("nightCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
 		if Lighting.Brightness ~= 1 then
 			Lighting.Brightness = 1
 		end
 	end))
-	lib.connect("nightCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	NAlib.connect("nightCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
 		if Lighting.ClockTime ~= 0 then
 			Lighting.ClockTime = 0
 		end
 	end))
-	lib.connect("nightCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+	NAlib.connect("nightCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
 		if Lighting.FogEnd ~= 786543 then
 			Lighting.FogEnd = 786543
 		end
 	end))
-	lib.connect("nightCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+	NAlib.connect("nightCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
 		if Lighting.GlobalShadows ~= false then
 			Lighting.GlobalShadows = false
 		end
 	end))
-	lib.connect("nightCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+	NAlib.connect("nightCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
 		if Lighting.Ambient ~= Color3.fromRGB(178, 178, 178) then
 			Lighting.Ambient = Color3.fromRGB(178, 178, 178)
 		end
@@ -16955,18 +16923,18 @@ cmd.add({"loopnight", "loopn", "ln"}, {"loopnight (loopn,ln)", "Moonlight."}, fu
 end)
 
 cmd.add({"unloopnight", "unloopn", "unln"}, {"unloopnight (unloopn,unln)", "No more moonlight."}, function()
-	lib.disconnect("nightCon")
-	lib.disconnect("nightCon1")
-	lib.disconnect("nightCon2")
-	lib.disconnect("nightCon3")
-	lib.disconnect("nightCon4")
+	NAlib.disconnect("nightCon")
+	NAlib.disconnect("nightCon1")
+	NAlib.disconnect("nightCon2")
+	NAlib.disconnect("nightCon3")
+	NAlib.disconnect("nightCon4")
 end)
 
 cmd.add({"loopnofog","lnofog","lnf", "loopnf"},{"loopnofog (lnofog,lnf,loopnf)","See clearly forever!"},function()
 	local Lighting = Lighting
 
-	lib.disconnect("nofog_con")
-	lib.disconnect("nofog_loop")
+	NAlib.disconnect("nofog_con")
+	NAlib.disconnect("nofog_loop")
 
 	Lighting.FogEnd = 786543
 
@@ -16978,18 +16946,18 @@ cmd.add({"loopnofog","lnofog","lnf", "loopnf"},{"loopnofog (lnofog,lnf,loopnf)",
 		end
 	end
 
-	lib.connect("nofog_con", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+	NAlib.connect("nofog_con", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
 		if Lighting.FogEnd ~= 786543 then
 			Lighting.FogEnd = 786543
 		end
 	end))
 
-	lib.connect("nofog_loop", RunService.RenderStepped:Connect(fogFunc))
+	NAlib.connect("nofog_loop", RunService.RenderStepped:Connect(fogFunc))
 end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf"},{"unloopnofog (unlnofog,unlnf,unloopnf)","No more sight."},function()
-	lib.disconnect("nofog_con")
-	lib.disconnect("nofog_loop")
+	NAlib.disconnect("nofog_con")
+	NAlib.disconnect("nofog_loop")
 end)
 
 cmd.add({"brightness"},{"brightness","Changes the brightness lighting property"},function(...)
@@ -17011,11 +16979,11 @@ end,true)
 
 cmd.add({"loopgamma", "loopexposure"},{"loopgamma (loopexposure)","loop gamma vision (mega real)"},function(num)
 	expose = tonumber(num) or 0
-	lib.disconnect("loopgamma")
+	NAlib.disconnect("loopgamma")
 
 	Lighting.ExposureCompensation = expose
 
-	lib.connect("loopgamma", Lighting:GetPropertyChangedSignal("ExposureCompensation"):Connect(function()
+	NAlib.connect("loopgamma", Lighting:GetPropertyChangedSignal("ExposureCompensation"):Connect(function()
 		if Lighting.ExposureCompensation ~= expose then
 			Lighting.ExposureCompensation = expose
 		end
@@ -17023,7 +16991,7 @@ cmd.add({"loopgamma", "loopexposure"},{"loopgamma (loopexposure)","loop gamma vi
 end, true)
 
 cmd.add({"unloopgamma", "unlgamma", "unloopexposure", "unlexposure"},{"unloopgamma (unlgamma, unloopexposure, unlexposure)","stop gamma vision (real)"},function()
-	lib.disconnect("loopgamma")
+	NAlib.disconnect("loopgamma")
 end)
 
 cmd.add({"unsuspendvc", "fixvc", "rejoinvc", "restorevc"},{"unsuspendvc (fixvc, rejoinvc, restorevc)","allows you to use Voice Chat again"},function()
@@ -17168,8 +17136,8 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 			local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, -zoom))
 			camera.CFrame = CFrame.new(camPos, targetPos)
 		end)]]
-		if lib.isConnected("ilovesolara") then lib.disconnect("ilovesolara") player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Zoom return end
-		lib.connect("ilovesolara",player:GetPropertyChangedSignal("DevCameraOcclusionMode"):Connect(function()
+		if NAlib.isConnected("ilovesolara") then NAlib.disconnect("ilovesolara") player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Zoom return end
+		NAlib.connect("ilovesolara",player:GetPropertyChangedSignal("DevCameraOcclusionMode"):Connect(function()
 			if player.DevCameraOcclusionMode~=Enum.DevCameraOcclusionMode.Invisicam then
 				player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Invisicam
 			end
@@ -17224,7 +17192,7 @@ cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip 
 				newModule.Parent = scripts
 			end
 		end]]
-		lib.disconnect("ilovesolara")
+		NAlib.disconnect("ilovesolara")
 		LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
 	end
 end)
@@ -17497,7 +17465,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		UICorner.Parent = TextButton
 		UIAspectRatioConstraint.Parent = TextButton
 		UIAspectRatioConstraint.AspectRatio = 1
-		gui.draggerV2(TextButton)
+		NAgui.draggerV2(TextButton)
 		MouseButtonFix(TextButton, function()
 			ToggleInvisibility()
 			TextButton.Text = IsInvis and "Visible" or "Invisible"
@@ -17600,27 +17568,27 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 	loopedFOV = math.clamp(tonumber(num) or 70, 1, 120)
 
 	local function apply()
-		lib.disconnect("fov_loop")
-		lib.disconnect("fov_refresh")
+		NAlib.disconnect("fov_loop")
+		NAlib.disconnect("fov_refresh")
 
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		lib.connect("fov_loop", RunService.Stepped:Connect(function()
+		NAlib.connect("fov_loop", RunService.Stepped:Connect(function()
 			if cam.FieldOfView ~= loopedFOV then
 				cam.FieldOfView = loopedFOV
 			end
 		end))
 
-		lib.connect("fov_refresh", cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+		NAlib.connect("fov_refresh", cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
 			if cam.FieldOfView ~= loopedFOV then
 				cam.FieldOfView = loopedFOV
 			end
 		end))
 	end
 
-	lib.disconnect("fov_watch")
-	lib.connect("fov_watch", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	NAlib.disconnect("fov_watch")
+	NAlib.connect("fov_watch", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		Wait(0.05)
 		apply()
 	end))
@@ -17629,9 +17597,9 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 end, true)
 
 cmd.add({"unloopfov", "unlfov"}, {"unloopfov (unlfov)", "Stops the looped FOV"}, function()
-	lib.disconnect("fov_loop")
-	lib.disconnect("fov_refresh")
-	lib.disconnect("fov_watch")
+	NAlib.disconnect("fov_loop")
+	NAlib.disconnect("fov_refresh")
+	NAlib.disconnect("fov_watch")
 	loopedFOV = nil
 end)
 
@@ -17681,8 +17649,8 @@ cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antieq
 	local p = Players.LocalPlayer
 	local c = p.Character
 
-	lib.disconnect("noequip_char")
-	lib.disconnect("noequip_hum")
+	NAlib.disconnect("noequip_char")
+	NAlib.disconnect("noequip_hum")
 
 	local h = getHum()
 	if not h then return end
@@ -17699,15 +17667,15 @@ cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antieq
 		end
 	end
 
-	lib.connect("noequip_char", c.ChildAdded:Connect(onTool))
-	lib.connect("noequip_hum", h.ChildAdded:Connect(onTool))
+	NAlib.connect("noequip_char", c.ChildAdded:Connect(onTool))
+	NAlib.connect("noequip_hum", h.ChildAdded:Connect(onTool))
 
 	DoNotif("Tool prevention on", 3)
 end)
 
 cmd.add({"unpreventtools", "unnoequip", "unantiequip"}, {"unpreventtools (unnoequip,unantiequip)", "Self-explanatory"}, function()
-	lib.disconnect("noequip_char")
-	lib.disconnect("noequip_hum")
+	NAlib.disconnect("noequip_char")
+	NAlib.disconnect("noequip_hum")
 	DoNotif("Tool prevention off", 2)
 end)
 
@@ -17747,8 +17715,8 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	Humanoid.BreakJointsOnDeath = false
 	Humanoid.RequiresNeck = false
 
-	lib.connect("oofspam_forcerun", RunService.Stepped:Connect(function()
-		if not Humanoid then return lib.disconnect("oofspam_forcerun") end
+	NAlib.connect("oofspam_forcerun", RunService.Stepped:Connect(function()
+		if not Humanoid then return NAlib.disconnect("oofspam_forcerun") end
 		Humanoid:ChangeState(Enum.HumanoidStateType.Running)
 	end))
 
@@ -17756,9 +17724,9 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	LocalPlayer.Character = Character
 	Wait(Players.RespawnTime + 0.1)
 
-	lib.connect("oofspam_loop", RunService.Heartbeat:Connect(function()
+	NAlib.connect("oofspam_loop", RunService.Heartbeat:Connect(function()
 		if not getgenv().enabled then
-			lib.disconnect("oofspam_loop")
+			NAlib.disconnect("oofspam_loop")
 			return
 		end
 		Humanoid:ChangeState(Enum.HumanoidStateType.Dead)
@@ -17775,7 +17743,7 @@ end)
 
 cmd.add({"errorchat"},{"errorchat","Makes the chat error appear when roblox chat is slow"},function()
 	for i=1,3 do
-		lib.LocalPlayerChat("\0","All")
+		NAlib.LocalPlayerChat("\0","All")
 	end
 end)
 
@@ -17784,15 +17752,15 @@ cmd.add({"clearerror", "noerror"}, {"clearerror", "Clears any current error or d
 end)
 
 cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future error or disconnected UI"}, function()
-	lib.disconnect("antierror")
-	lib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
+	NAlib.disconnect("antierror")
+	NAlib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
 		SafeGetService("GuiService"):ClearError()
 	end))
 	DoNotif("Anti Error is now enabled!", 2)
 end)
 
 cmd.add({"unantierror", "noantierror"}, {"unantierror", "Disables Anti Error"}, function()
-	lib.disconnect("antierror")
+	NAlib.disconnect("antierror")
 	DoNotif("Anti Error is now disabled!",2)
 end)
 
@@ -17923,7 +17891,7 @@ end)
 
 npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
-	if lib.isConnected("loopbringnpcs") then lib.disconnect("loopbringnpcs") end
+	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
 	for _, hum in ipairs(workspace:GetDescendants()) do
 		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
@@ -17931,7 +17899,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 		end
 	end
 
-	lib.connect("loopbringnpcs", RunService.Stepped:Connect(function()
+	NAlib.connect("loopbringnpcs", RunService.Stepped:Connect(function()
 		for _, hum in ipairs(npcCache) do
 			if hum.Parent and hum.Health > 0 then
 				local model = hum.Parent
@@ -17943,8 +17911,8 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 				Spawn(function()
 					for _, part in ipairs(model:GetDescendants()) do
 						if part:IsA("BasePart") then
-							if lib.isProperty(part, "CanCollide") then
-								lib.setProperty(part, "CanCollide", false)
+							if NAlib.isProperty(part, "CanCollide") then
+								NAlib.setProperty(part, "CanCollide", false)
 							end
 						end
 					end
@@ -17955,7 +17923,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 end)
 
 cmd.add({"unloopbringnpcs", "unlbnpcs"}, {"unloopbringnpcs (unlbnpcs)", "Stops NPC bring loop"}, function()
-	lib.disconnect("loopbringnpcs")
+	NAlib.disconnect("loopbringnpcs")
 end)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
@@ -18079,7 +18047,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	clickkillEnabled = true
 
 	if clickkillUI then clickkillUI:Destroy() end
-	lib.disconnect("clickkill_mouse")
+	NAlib.disconnect("clickkill_mouse")
 
 	local Mouse = player:GetMouse()
 
@@ -18101,14 +18069,14 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	uiCorner.CornerRadius = UDim.new(0, 8)
 	uiCorner.Parent = toggleButton
 
-	gui.draggerV2(toggleButton)
+	NAgui.draggerV2(toggleButton)
 
 	MouseButtonFix(toggleButton, function()
 		clickkillEnabled = not clickkillEnabled
 		toggleButton.Text = clickkillEnabled and "ClickKill: ON" or "ClickKill: OFF"
 	end)
 
-	lib.connect("clickkill_mouse", Mouse.Button1Down:Connect(function()
+	NAlib.connect("clickkill_mouse", Mouse.Button1Down:Connect(function()
 		if not clickkillEnabled then return end
 
 		local Target = Mouse.Target
@@ -18127,7 +18095,7 @@ end)
 cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable clickkillnpc"}, function()
 	clickkillEnabled = false
 	if clickkillUI then clickkillUI:Destroy() end
-	lib.disconnect("clickkill_mouse")
+	NAlib.disconnect("clickkill_mouse")
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
@@ -18148,7 +18116,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 	clickVoidEnabled = true
 
 	if clickVoidUI then clickVoidUI:Destroy() end
-	lib.disconnect("clickvoid_mouse")
+	NAlib.disconnect("clickvoid_mouse")
 
 	clickVoidUI = InstanceNew("ScreenGui")
 	NaProtectUI(clickVoidUI)
@@ -18166,7 +18134,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 
 	local corner = InstanceNew("UICorner", button)
 	corner.CornerRadius = UDim.new(0, 8)
-	gui.draggerV2(button)
+	NAgui.draggerV2(button)
 
 	MouseButtonFix(button, function()
 		clickVoidEnabled = not clickVoidEnabled
@@ -18174,7 +18142,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 	end)
 
 	local mouse = player:GetMouse()
-	lib.connect("clickvoid_mouse", mouse.Button1Down:Connect(function()
+	NAlib.connect("clickvoid_mouse", mouse.Button1Down:Connect(function()
 		if not clickVoidEnabled then return end
 
 		local target = mouse.Target
@@ -18190,18 +18158,18 @@ end)
 cmd.add({"unclickvoidnpc", "uncvnpc"}, {"unclickvoidnpc (uncvnpc)","Disable click-void"}, function()
 	clickVoidEnabled = false
 	if clickVoidUI then clickVoidUI:Destroy() end
-	lib.disconnect("clickvoid_mouse")
+	NAlib.disconnect("clickvoid_mouse")
 end)
 
 --[[ FUNCTIONALITY ]]--
 localPlayer.Chatted:Connect(function(str)
-	lib.parseCommand(str)
+	NAlib.parseCommand(str)
 end)
 
 --[[ Admin Player]]
 function IsAdminAndRun(Message, Player)
 	if Admin[Player.UserId] or isRelAdmin(Player) then
-		lib.parseCommand(Message, Player)
+		NAlib.parseCommand(Message, Player)
 	end
 end
 
@@ -18423,11 +18391,11 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 end, false)
 
 --[[ GUI FUNCTIONS ]]--
-gui.txtSize=function(ui,x,y)
+NAgui.txtSize=function(ui,x,y)
 	local textService=TextService
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
 end
-gui.commands = function()
+NAgui.commands = function()
 	local cFrame, cList = commandsFrame, commandsList
 
 	if not cFrame.Visible then
@@ -18466,7 +18434,7 @@ gui.commands = function()
 	--cFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	NAmanage.centerFrame(cFrame)
 end
-gui.chatlogs = function()
+NAgui.chatlogs = function()
 	if chatLogsFrame then
 		if not chatLogsFrame.Visible then
 			chatLogsFrame.Visible = true
@@ -18475,10 +18443,10 @@ gui.chatlogs = function()
 		NAmanage.centerFrame(chatLogsFrame)
 	end
 end
-gui.doModal = function(v)
+NAgui.doModal = function(v)
 	ModalFixer.Modal = v
 end
-gui.consoleeee = function()
+NAgui.consoleeee = function()
 	if NAconsoleFrame then
 		if not NAconsoleFrame.Visible then
 			NAconsoleFrame.Visible = true
@@ -18487,7 +18455,7 @@ gui.consoleeee = function()
 		NAmanage.centerFrame(NAconsoleFrame)
 	end
 end
-gui.settingss = function()
+NAgui.settingss = function()
 	if SettingsFrame then
 		if not SettingsFrame.Visible then
 			SettingsFrame.Visible = true
@@ -18496,7 +18464,7 @@ gui.settingss = function()
 		NAmanage.centerFrame(SettingsFrame)
 	end
 end
-gui.tween = function(obj, style, direction, duration, goal, callback)
+NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	style = style or "Sine"
 	direction = direction or "Out"
 	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle[style], Enum.EasingDirection[direction])
@@ -18505,7 +18473,7 @@ gui.tween = function(obj, style, direction, duration, goal, callback)
 	tween:Play()
 	return tween
 end
-gui.resizeable = function(ui, min, max)
+NAgui.resizeable = function(ui, min, max)
 	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
 	max = max or Vector2.new(5000, 5000)
 
@@ -18653,7 +18621,7 @@ gui.resizeable = function(ui, min, max)
 	end
 end
 
-gui.addButton = function(label, callback)
+NAgui.addButton = function(label, callback)
 	if not SettingsList then return end
 	local button = templates.Button:Clone()
 	button.Title.Text = label
@@ -18666,7 +18634,7 @@ gui.addButton = function(label, callback)
 	end)
 end
 
-gui.addSection = function(titleText)
+NAgui.addSection = function(titleText)
 	if not SettingsList then return end
 	local section = templates.SectionTitle:Clone()
 	section.Title.Text = titleText
@@ -18675,7 +18643,7 @@ gui.addSection = function(titleText)
 	templates.Index = templates.Index + 1
 end
 
-gui.addToggle = function(label, defaultValue, callback)
+NAgui.addToggle = function(label, defaultValue, callback)
 	if not SettingsList then return end
 	local toggle = templates.Toggle:Clone()
 	local switch = toggle:FindFirstChild("Switch")
@@ -18712,7 +18680,7 @@ gui.addToggle = function(label, defaultValue, callback)
 	end)
 end
 
-gui.addColorPicker = function(label, defaultColor, callback)
+NAgui.addColorPicker = function(label, defaultColor, callback)
 	if not SettingsList then return end
 	local picker = templates.ColorPicker:Clone()
 	picker.Title.Text = label
@@ -18833,7 +18801,7 @@ gui.addColorPicker = function(label, defaultColor, callback)
 	updateUI(true)
 end
 
-gui.addInput = function(label, placeholder, defaultText, callback)
+NAgui.addInput = function(label, placeholder, defaultText, callback)
 	local input = templates.Input:Clone()
 	input.Title.Text = label
 	input.InputFrame.InputBox.Text = defaultText or ""
@@ -18858,7 +18826,7 @@ gui.addInput = function(label, placeholder, defaultText, callback)
 	end)
 end
 
-gui.addKeybind = function(label, defaultKey, callback)
+NAgui.addKeybind = function(label, defaultKey, callback)
 	local keybind = templates.Keybind:Clone()
 	keybind.Title.Text = label
 	keybind.KeybindFrame.KeybindBox.Text = defaultKey
@@ -18906,7 +18874,7 @@ gui.addKeybind = function(label, defaultKey, callback)
 	end)
 end
 
-gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
+NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
 	local slider = templates.Slider:Clone()
 	slider.Title.Text = label
 
@@ -18954,7 +18922,7 @@ gui.addSlider = function(label, min, max, defaultValue, increment, suffix, callb
 	infoText.Text = tostring(defaultValue)..(suffix or "")
 end
 
-gui.dragger = function(ui, dragui)
+NAgui.dragger = function(ui, dragui)
 	dragui = dragui or ui
 	local UserInputService = SafeGetService("UserInputService")
 	local dragging = false
@@ -19027,10 +18995,10 @@ gui.dragger = function(ui, dragui)
 	if not success then warn("[Dragger] Set Active error:", err) end
 end
 
-gui.draggerV2 = function(ui, dragui)
+NAgui.draggerV2 = function(ui, dragui)
     dragui = dragui or ui
     local connName = "DraggerV2_"..ui:GetDebugId()
-    lib.disconnect(connName)
+    NAlib.disconnect(connName)
     local UserInputService = SafeGetService("UserInputService")
     local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
     local dragging, dragInput, dragStart, startPos
@@ -19061,7 +19029,7 @@ gui.draggerV2 = function(ui, dragui)
         if not ok then warn("[DraggerV2] update error:", err) end
     end
 
-    lib.connect(connName, dragui.InputBegan:Connect(function(input)
+    NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
         local ok, err = NACaller(function()
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
@@ -19073,13 +19041,13 @@ gui.draggerV2 = function(ui, dragui)
                     end)
                     if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
                 end)
-                lib.connect(connName, c)
+                NAlib.connect(connName, c)
             end
         end)
         if not ok then warn("[DraggerV2] InputBegan error:", err) end
     end))
 
-    lib.connect(connName, dragui.InputChanged:Connect(function(input)
+    NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
         local ok, err = NACaller(function()
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
@@ -19088,7 +19056,7 @@ gui.draggerV2 = function(ui, dragui)
         if not ok then warn("[DraggerV2] InputChanged error:", err) end
     end))
 
-    lib.connect(connName, UserInputService.InputChanged:Connect(function(input)
+    NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
         local ok, err = NACaller(function()
             if input == dragInput and dragging then update(input) end
         end)
@@ -19114,17 +19082,17 @@ gui.draggerV2 = function(ui, dragui)
         if not ok then warn("[DraggerV2] Screen size update error:", err) end
     end
 
-    lib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
+    NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
 
-    if ui and lib.isProperty(ui, "Active") then
-        lib.setProperty(ui, "Active", true)
+    if ui and NAlib.isProperty(ui, "Active") then
+        NAlib.setProperty(ui, "Active", true)
     end
-	if dragui and lib.isProperty(dragui, "Active") then
-        lib.setProperty(dragui, "Active", true)
+	if dragui and NAlib.isProperty(dragui, "Active") then
+        NAlib.setProperty(dragui, "Active", true)
     end
 end
 
-gui.menu = function(menu)
+NAgui.menu = function(menu)
 	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
@@ -19141,12 +19109,12 @@ gui.menu = function(menu)
 		if minimized then
 			sizeX.Value = menu.Size.X.Offset
 			sizeY.Value = menu.Size.Y.Offset
-			gui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, 35)})
+			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, 35)})
 				.Completed:Connect(function()
 					isAnimating = false
 				end)
 		else
-			gui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)})
+			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)})
 				.Completed:Connect(function()
 					isAnimating = false
 				end)
@@ -19157,11 +19125,11 @@ gui.menu = function(menu)
 	MouseButtonFix(exitButton, function()
 		menu.Visible = false
 	end)
-	gui.draggerV2(menu, menu.Topbar)
+	NAgui.draggerV2(menu, menu.Topbar)
 	menu.Visible = false
 end
 
-gui.menuv2 = function(menu)
+NAgui.menuv2 = function(menu)
 	NACaller(function()
 		if menu:IsA("Frame") then
 			menu.AnchorPoint = Vector2.new(0, 0)
@@ -19186,13 +19154,13 @@ gui.menuv2 = function(menu)
 			if minimized then
 				sizeX.Value = menu.Size.X.Offset
 				sizeY.Value = menu.Size.Y.Offset
-				gui.tween(menu, "Quart", "Out", 0.5, {
+				NAgui.tween(menu, "Quart", "Out", 0.5, {
 					Size = UDim2.new(0, sizeX.Value, 0, 35)
 				}).Completed:Connect(function()
 					isAnimating = false
 				end)
 			else
-				gui.tween(menu, "Quart", "Out", 0.5, {
+				NAgui.tween(menu, "Quart", "Out", 0.5, {
 					Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)
 				}).Completed:Connect(function()
 					isAnimating = false
@@ -19241,7 +19209,7 @@ gui.menuv2 = function(menu)
 	end
 
 	NACaller(function()
-		gui.draggerV2(menu, menu.Topbar)
+		NAgui.draggerV2(menu, menu.Topbar)
 	end)
 
 	NACaller(function()
@@ -19249,7 +19217,7 @@ gui.menuv2 = function(menu)
 	end)
 end
 
-gui.hideFill = function()
+NAgui.hideFill = function()
 	for i, v in ipairs(CMDAUTOFILL) do
 		if v:IsA("Frame") then
 			v.Visible = false
@@ -19257,7 +19225,7 @@ gui.hideFill = function()
 	end
 end
 
-gui.loadCMDS = function()
+NAgui.loadCMDS = function()
     for _, v in pairs(cmdAutofill:GetChildren()) do
         if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
             v:Destroy()
@@ -19300,14 +19268,14 @@ gui.loadCMDS = function()
         Insert(CMDAUTOFILL, btn)
     end
     cmdNAnum = i
-    gui.hideFill()
+    NAgui.hideFill()
     NAmanage.rebuildIndex()
 end
 
 Spawn(function() -- plugin tester
 	while Wait(2) do
 		if countDictNA(cmds.Commands) ~= cmdNAnum then
-			gui.loadCMDS()
+			NAgui.loadCMDS()
 		end
 	end
 end)
@@ -19428,7 +19396,7 @@ Spawn(function()
         end
     end)
     MouseButtonFix(btns.cmds, function()
-        gui.commands()
+        NAgui.commands()
     end)
     MouseButtonFix(btns.chatlogs, function()
         if chatLogsFrame then
@@ -19446,12 +19414,12 @@ Spawn(function()
     end)
 end)
 
-gui.barSelect = function(speed)
+NAgui.barSelect = function(speed)
 	speed = speed or 0.4
 
 	centerBar.Size = UDim2.new(0, 0, 0, 0)
 
-	gui.tween(centerBar, "Back", "Out", speed, {
+	NAgui.tween(centerBar, "Back", "Out", speed, {
 		Size = UDim2.new(0, 280, 1, 10)
 	})
 
@@ -19461,28 +19429,28 @@ gui.barSelect = function(speed)
 	rightFill.Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 
 	Wait(speed * 0.1)
-	gui.tween(leftFill, "Quart", "Out", speed * 1.2, {
+	NAgui.tween(leftFill, "Quart", "Out", speed * 1.2, {
 		Position = UDim2.new(0, 0, 0.5, 0),
 		Size = fillSizes.left
 	})
-	gui.tween(rightFill, "Quart", "Out", speed * 1.2, {
+	NAgui.tween(rightFill, "Quart", "Out", speed * 1.2, {
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
 end
 
-gui.barDeselect = function(speed)
+NAgui.barDeselect = function(speed)
 	speed = speed or 0.4
 
-	gui.tween(centerBar, "Back", "InOut", speed, {
+	NAgui.tween(centerBar, "Back", "InOut", speed, {
 		Size = UDim2.new(0, 0, 0, 0)
 	})
 
-	gui.tween(leftFill, "Quart", "In", speed * 0.9, {
+	NAgui.tween(leftFill, "Quart", "In", speed * 0.9, {
 		Position = UDim2.new(-0.5, -125, 0.5, 0),
 		Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
 	})
-	gui.tween(rightFill, "Quart", "In", speed * 0.9, {
+	NAgui.tween(rightFill, "Quart", "In", speed * 0.9, {
 		Position = UDim2.new(1.5, 125, 0.5, 0),
 		Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 	})
@@ -19491,7 +19459,7 @@ gui.barDeselect = function(speed)
 		if v:IsA("Frame") then
 			wrap(function()
 				Wait(math.random(50, 120) / 1000)
-				gui.tween(v, "Exponential", "In", 0.25, {
+				NAgui.tween(v, "Exponential", "In", 0.25, {
 					Size = UDim2.new(0, 0, 0, 25)
 				})
 			end)
@@ -19600,7 +19568,7 @@ NAmanage.performSearch=function(term)
         local pos=UDim2.new(0.5,w,0,y)
         local size=UDim2.new(0.5,w,0,25)
         if canTween then
-            gui.tween(f,"Quint","Out",0.2,{Size=size,Position=pos})
+            NAgui.tween(f,"Quint","Out",0.2,{Size=size,Position=pos})
         else
             f.Size=size
             f.Position=pos
@@ -19608,9 +19576,9 @@ NAmanage.performSearch=function(term)
     end
 end
 
-gui.searchCommands = function()
-    if lib.isConnected("SearchInput") then lib.disconnect("SearchInput") end
-    lib.connect("SearchInput",cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
+NAgui.searchCommands = function()
+    if NAlib.isConnected("SearchInput") then NAlib.disconnect("SearchInput") end
+    NAlib.connect("SearchInput",cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
         local cleaned = Lower(GSub(cmdInput.Text,";",""))
         if cleaned==lastSearchText then return end
         lastSearchText=cleaned
@@ -19623,14 +19591,14 @@ gui.searchCommands = function()
     end))
 end
 
-gui.loadCMDS()
-gui.searchCommands()
+NAgui.loadCMDS()
+NAgui.searchCommands()
 
 --[[ OPEN THE COMMAND BAR ]]--
 --[[mouse.KeyDown:Connect(function(k)
 	if k:lower()==opt.prefix then
 		Wait();
-		gui.barSelect()
+		NAgui.barSelect()
 		cmdInput.Text=''
 		cmdInput:CaptureFocus()
 	end
@@ -19648,7 +19616,7 @@ UserInputService.InputBegan:Connect(function(i, g)
 	if i.KeyCode == k then
 		Wait()
 		if cmdInput then
-			gui.barSelect()
+			NAgui.barSelect()
 			cmdInput.Text = ''
 
 			while true do
@@ -19667,7 +19635,7 @@ cmdInput.FocusLost:Connect(function(enter)
 		local txt = cmdInput.Text
 		if txt and #txt > 0 then
 			wrap(function()
-				lib.parseCommand(opt.prefix..txt)
+				NAlib.parseCommand(opt.prefix..txt)
 			end)
 		end
 	end
@@ -19675,11 +19643,11 @@ cmdInput.FocusLost:Connect(function(enter)
 		predictionInput.Text = ""
 	end
 	Wait(.05)
-	if not cmdInput:IsFocused() then gui.barDeselect() end
+	if not cmdInput:IsFocused() then NAgui.barDeselect() end
 end)
 
 cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
-	gui.searchCommands()
+	NAgui.searchCommands()
 end)
 
 UserInputService.InputBegan:Connect(function(input)
@@ -19695,30 +19663,30 @@ UserInputService.InputBegan:Connect(function(input)
 	end
 end)
 
-gui.barDeselect(0)
+NAgui.barDeselect(0)
 cmdBar.Visible=true
 if chatLogsFrame then
-	gui.menuv2(chatLogsFrame)
+	NAgui.menuv2(chatLogsFrame)
 end
 
 if NAconsoleFrame then
-	gui.menuv2(NAconsoleFrame)
+	NAgui.menuv2(NAconsoleFrame)
 end
 
 if commandsFrame then
-	gui.menu(commandsFrame)
+	NAgui.menu(commandsFrame)
 end
 
 if SettingsFrame then
-	gui.menu(SettingsFrame)
+	NAgui.menu(SettingsFrame)
 end
 
 --[[ GUI RESIZE FUNCTION ]]--
 
-if chatLogsFrame then gui.resizeable(chatLogsFrame) end
-if NAconsoleFrame then gui.resizeable(NAconsoleFrame) end
-if commandsFrame then gui.resizeable(commandsFrame) end
-if SettingsFrame then gui.resizeable(SettingsFrame) end
+if chatLogsFrame then NAgui.resizeable(chatLogsFrame) end
+if NAconsoleFrame then NAgui.resizeable(NAconsoleFrame) end
+if commandsFrame then NAgui.resizeable(commandsFrame) end
+if SettingsFrame then NAgui.resizeable(SettingsFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
@@ -19856,7 +19824,7 @@ function bindToChat(plr, msg)
 		end
 	end)
 
-	local txtSize = gui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
+	local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
 	chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
 	local MAX_MESSAGES = 100
@@ -20005,7 +19973,7 @@ NAmanage.bindToDevConsole = function()
 		tag.Value = tagText
 		tag.Parent = logLabel
 
-		local txtSize = gui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
+		local txtSize = NAgui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
 		logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
 		local MAX_MESSAGES = 300
@@ -20123,7 +20091,7 @@ mouse.Move:Connect(function()
 
 	description.Position = UDim2.new(xScale, 0, yScale, 0)
 
-	local newSize = gui.txtSize(description, 200, 100)
+	local newSize = NAgui.txtSize(description, 200, 100)
 	description.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
 end)
 
@@ -20261,7 +20229,7 @@ function Swoosh()
 	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		Rotation = 720
 	}):Play()
-	gui.draggerV2(TextButton)
+	NAgui.draggerV2(TextButton)
 	if swooshySWOOSH then return end
 	swooshySWOOSH = true
 	TextButton.InputBegan:Connect(function(input)
@@ -20348,7 +20316,7 @@ end
 coroutine.wrap(mainNameless)()
 
 MouseButtonFix(TextButton,function()
-	gui.barSelect()
+	NAgui.barSelect()
 	cmdInput.Text=''
 	cmdInput:CaptureFocus()
 	Wait(.00005)
@@ -20534,43 +20502,43 @@ Spawn(NAmanage.RenderUserButtons)
 Spawn(NAmanage.loadAutoExec)
 Spawn(NAmanage.LoadPlugins)
 
-OrgDestroyHeight=lib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
+OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
 -- [[ GUI ELEMENTS ]] --
 
 --[[
 
-gui.addToggle("Toggle Button", true, function(state)
+NAgui.addToggle("Toggle Button", true, function(state)
 	print("State:", state)
 end)
 
-gui.addColorPicker("Color Picker", Color3.fromRGB(200, 50, 100), function(color)
+NAgui.addColorPicker("Color Picker", Color3.fromRGB(200, 50, 100), function(color)
 	print("Selected Color:", color)
 end)
 
-gui.addButton("button", function()
+NAgui.addButton("button", function()
 	print'pressed button'
 end)
 
-gui.addSection("Section Label")
+NAgui.addSection("Section Label")
 
-gui.addInput("Input Label", "Placeholder", "", function(text)
+NAgui.addInput("Input Label", "Placeholder", "", function(text)
 	print("Input:", text)
 end)
 
-gui.addKeybind("Toggle Key", "F", function(key)
+NAgui.addKeybind("Toggle Key", "F", function(key)
 	print("key triggered:", key)
 end)
 
-gui.addSlider("Slider", 0, 100, 50, 5, "%", function(val) -- min, max, default, add, suffix
+NAgui.addSlider("Slider", 0, 100, 50, 5, "%", function(val) -- min, max, default, add, suffix
 	print("Slider Value:", val)
 end)
 
 ]]
 
-gui.addSection("Prefix Settings")
+NAgui.addSection("Prefix Settings")
 
-gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
+NAgui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 	local newPrefix = text
 	if not newPrefix or newPrefix == "" then
 		DoNotif("Please enter a valid prefix")
@@ -20590,7 +20558,7 @@ gui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 end)
 
 if FileSupport then
-	gui.addButton("Save Prefix", function()
+	NAgui.addButton("Save Prefix", function()
 		if isfile(NAfiles.NAPREFIXPATH) then
 			writefile(NAfiles.NAPREFIXPATH, opt.prefix)
 			DoNotif("Prefix saved to file: "..NAfiles.NAPREFIXPATH)
@@ -20600,9 +20568,9 @@ if FileSupport then
 	end)
 end
 
-gui.addSection("Admin Utility")
+NAgui.addSection("Admin Utility")
 
-gui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
+NAgui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
 	NAQoTEnabled = val
 	if FileSupport then
 		writefile(NAfiles.NAQOTPATH, tostring(val))
@@ -20614,7 +20582,7 @@ gui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
 	end
 end)
 
-gui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
+NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	doPREDICTION = v
 	DoNotif("Command Predictions "..(v and "Enabled" or "Disabled"), 2)
 	if FileSupport then
@@ -20622,7 +20590,7 @@ gui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	end
 end)
 
-gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
+NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	local pos = TextButton.Position
 	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
 		X = v and pos.X.Scale or 0.5,
@@ -20633,9 +20601,9 @@ gui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
 end)
 
-gui.addSection("UI Customization")
+NAgui.addSection("UI Customization")
 
-gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
+NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAScale = val
 	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
 	if FileSupport then
@@ -20643,14 +20611,14 @@ gui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	end
 end)
 
-gui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
+NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	TopBarApp.top.Enabled = v
 	if FileSupport then
 		writefile(NAfiles.NATOPBAR, tostring(v))
 	end
 end)
 
-gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
+NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 	for _, element in ipairs(NACOLOREDELEMENTS) do
 		if element:IsA("UIStroke") then
 			element.Color = color
@@ -20660,21 +20628,21 @@ gui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 end)
 
 if FileSupport then
-	gui.addSection("Join/Leave Logging")
+	NAgui.addSection("Join/Leave Logging")
 
-	gui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
+	NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
 		JoinLeaveConfig.JoinLog = v
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
 	end)
 
-	gui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
+	NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
 		JoinLeaveConfig.LeaveLog = v
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 	end)
 
-	gui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
+	NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
 		JoinLeaveConfig.SaveLog = v
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
@@ -20682,9 +20650,9 @@ if FileSupport then
 end
 
 if IsOnPC then
-	gui.addSection("Fly Keybinds")
+	NAgui.addSection("Fly Keybinds")
 
-	gui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
+	NAgui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
 		local newKey = text:lower()
 		if newKey == "" then
 			DoNotif("Please provide a keybind.")
@@ -20699,7 +20667,7 @@ if IsOnPC then
 		DoNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
 	end)
 
-	gui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
+	NAgui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
 		local newKey = text:lower()
 		if newKey == "" then
 			DoNotif("Please provide a keybind.")
@@ -20713,7 +20681,7 @@ if IsOnPC then
 		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
 	end)
 
-	gui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
+	NAgui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
 		local newKey = (text or ""):lower()
 		if newKey == "" then
 			DoNotif("Please provide a keybind.")
@@ -20728,7 +20696,7 @@ if IsOnPC then
 		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
 	end)
 
-	gui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
+	NAgui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
 		local key = (text or ""):lower()
 		if key == "" then
 			DoNotif("Please provide a key.")
@@ -20747,22 +20715,22 @@ if IsOnPC then
 	end)
 end
 
-gui.addSection("Character Morph")
-gui.addInput("Target User", "UserId or Username", "", function(val)
+NAgui.addSection("Character Morph")
+NAgui.addInput("Target User", "UserId or Username", "", function(val)
 	morphTarget = val
 end)
-gui.addButton("Morph Character", function()
+NAgui.addButton("Morph Character", function()
 	if morphTarget ~= "" then
 		cmd.run({"char", morphTarget})
 	end
 end)
-gui.addButton("Revert Character", function()
+NAgui.addButton("Revert Character", function()
 	cmd.run({"unchar"})
 end)
-gui.addToggle("Auto Morph", false, function(state)
+NAgui.addToggle("Auto Morph", false, function(state)
 	if state then
-		lib.disconnect("autochartoggle")
-		lib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
+		NAlib.disconnect("autochartoggle")
+		NAlib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
 			if morphTarget ~= "" then
 				cmd.run({"char", morphTarget})
 			end
@@ -20771,17 +20739,17 @@ gui.addToggle("Auto Morph", false, function(state)
 			cmd.run({"char", morphTarget})
 		end
 	else
-		lib.disconnect("autochartoggle")
+		NAlib.disconnect("autochartoggle")
 	end
 end)
 
-gui.addSection("Character Light")
+NAgui.addSection("Character Light")
 
-gui.addSlider("Range",      0,  60, settingsLight.range,      1,   "", function(val) settingsLight.range      = val end)
-gui.addSlider("Brightness", 0,   30, settingsLight.brightness, 1,   "", function(val) settingsLight.brightness = val end)
-gui.addColorPicker("Color",  settingsLight.color, function(col) settingsLight.color = col end)
+NAgui.addSlider("Range",      0,  60, settingsLight.range,      1,   "", function(val) settingsLight.range      = val end)
+NAgui.addSlider("Brightness", 0,   30, settingsLight.brightness, 1,   "", function(val) settingsLight.brightness = val end)
+NAgui.addColorPicker("Color",  settingsLight.color, function(col) settingsLight.color = col end)
 
-gui.addButton("Apply Light", function()
+NAgui.addButton("Apply Light", function()
     local root = getRoot(Player.Character)
     if not root then return end
 
@@ -20797,24 +20765,24 @@ gui.addButton("Apply Light", function()
     light.Color      = settingsLight.color
 end)
 
-gui.addButton("Remove Light", function()
+NAgui.addButton("Remove Light", function()
     if settingsLight.LIGHTER then
         settingsLight.LIGHTER:Destroy()
         settingsLight.LIGHTER = nil
     end
 end)
 
-gui.addSection("Chat Tag Customization (Client Sided)")
+NAgui.addSection("Chat Tag Customization (Client Sided)")
 
-gui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
+NAgui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
 	opt.currentTagText = inputText
 end)
 
-gui.addColorPicker("Tag Color", opt.currentTagColor, function(color)
+NAgui.addColorPicker("Tag Color", opt.currentTagColor, function(color)
 	opt.currentTagColor = color
 end)
 
-gui.addButton("Apply Chat Tag", function()
+NAgui.addButton("Apply Chat Tag", function()
 	if opt.currentTagText == "" or not opt.currentTagText then
 		DoNotif("Please enter a tag name before applying",2)
 		return
@@ -20838,7 +20806,7 @@ gui.addButton("Apply Chat Tag", function()
 	DoNotif("Custom chat tag applied and saved!",2.5)
 end)
 
-gui.addButton("Remove Chat Tag", function()
+NAgui.addButton("Remove Chat Tag", function()
 	LocalPlayer:SetAttribute("CustomNAtaggerText", nil)
 	LocalPlayer:SetAttribute("CustomNAtaggerColor", nil)
 
