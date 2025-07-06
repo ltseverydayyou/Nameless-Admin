@@ -177,16 +177,28 @@ function NACaller(fn, ...)
     end))
 
     if not t[1] then
-        warn("NA script error:\n"..t[2])
+        local err = t[2]
+        warn("NA script error:\n"..err)
+
         Popup({
-            Title       = adminName or "Script Error",
+            Title       = adminName or "Oops!",
             Description = Format(
-                "An error occurred in %s.\nPlease report this to the owner through the discord server.\n\nError details:\n%s",
-                adminName or "Script Error",
-                t[2]
+                "Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s",
+                err
             ),
             Buttons     = {
-				{
+                {
+                    Text = "Copy Error",
+                    Callback = function()
+                        if setclipboard then
+                            setclipboard(err)
+                            DoNotif("Error details copied to clipboard!")
+                        else
+                            DoWindow("Error details:\n"..err)
+                        end
+                    end
+                },
+                {
                     Text = "Discord Server",
                     Callback = function()
                         if setclipboard then
@@ -18174,7 +18186,7 @@ end]]
 
 --[[ GUI VARIABLES ]]--
 repeat
-	local NASUC, resexy = NACaller(function()
+	local NASUC, resexy = pcall(function()
 		return loadstring(game:HttpGet(opt.NAUILOADER))()
 	end)
 
