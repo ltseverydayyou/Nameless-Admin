@@ -5258,10 +5258,10 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 end)
 
 cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
-	local gui = InstanceNew("ScreenGui")
-	NaProtectUI(gui)
-	gui.Name = "AntiLagGUI"
-	gui.ResetOnSpawn = false
+	local sGUI = InstanceNew("ScreenGui")
+	NaProtectUI(sGUI)
+	sGUI.Name = "AntiLagGUI"
+	sGUI.ResetOnSpawn = false
 
 	local frame = InstanceNew("Frame")
 	frame.AnchorPoint = Vector2.new(0.5, 0)
@@ -5269,7 +5269,7 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 	frame.Position = UDim2.new(0.5, 0, 0.35, 0)
 	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 	frame.BorderSizePixel = 0
-	frame.Parent = gui
+	frame.Parent = sGUI
 
 	local topbar = InstanceNew("Frame")
 	topbar.Name = "TopBar"
@@ -5439,12 +5439,12 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 
 	MouseButtonFix(runBtn,function()
 		getgenv().Settings = userSettings
-		gui:Destroy()
+		sGUI:Destroy()
 		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/low%20detail"))()
 	end)
 
 	MouseButtonFix(closeBtn,function()
-		gui:Destroy()
+		sGUI:Destroy()
 	end)
 
 	local minimized = false
@@ -12199,10 +12199,10 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 	end)
 
-	local gui=InstanceNew("ScreenGui")
-	NaProtectUI(gui)
+	local sGUI=InstanceNew("ScreenGui")
+	NaProtectUI(sGUI)
 
-	local toggleBtn=InstanceNew("TextButton",gui)
+	local toggleBtn=InstanceNew("TextButton",sGUI)
 	local toggleCorner=InstanceNew("UICorner",toggleBtn)
 	toggleBtn.Text="Enable Blackhole"
 	toggleBtn.AnchorPoint=Vector2.new(0.5,0)
@@ -12212,7 +12212,6 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	toggleBtn.TextColor3=Color3.new(1,1,1)
 	toggleBtn.Font=Enum.Font.SourceSansBold
 	toggleBtn.TextSize=18
-	toggleBtn.Draggable=true
 	toggleCorner.CornerRadius=UDim.new(0.25,0)
 
 	MouseButtonFix(toggleBtn,function()
@@ -12233,7 +12232,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 	end)
 
-	local moveBtn=InstanceNew("TextButton",gui)
+	local moveBtn=InstanceNew("TextButton",sGUI)
 	local moveCorner=InstanceNew("UICorner",moveBtn)
 	moveBtn.Text="Move Blackhole"
 	moveBtn.AnchorPoint=Vector2.new(0.5,0)
@@ -12243,12 +12242,14 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	moveBtn.TextColor3=Color3.new(1,1,1)
 	moveBtn.Font=Enum.Font.SourceSansBold
 	moveBtn.TextSize=18
-	moveBtn.Draggable=true
 	moveCorner.CornerRadius=UDim.new(0.25,0)
 
 	MouseButtonFix(moveBtn,function()
 		_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
 	end)
+	
+	gui.draggerV2(toggleBtn)
+	gui.draggerV2(moveBtn)
 
 	DoNotif("Blackhole created. Tap button or press E to move",3)
 end,true)
