@@ -1938,7 +1938,7 @@ function round(num,numDecimalPlaces)
 end
 
 function getPlaceInfo()
-	local success, result = NACaller(function()
+	local success, result = pcall(function()
 		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
 	end)
 
@@ -7566,16 +7566,8 @@ cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
 	chamsEnabled = false
 	for _, player in pairs(Players:GetPlayers()) do
 		if player.Name ~= Players.LocalPlayer.Name then
-			NAESP(player)
+			NAESP(player,true)
 		end
-	end
-
-	if not getgenv().ESPJoinConnection then
-		getgenv().ESPJoinConnection = Players.PlayerAdded:Connect(function(player)
-			if ESPenabled and player.Name ~= Players.LocalPlayer.Name then
-				NAESP(player,true)
-			end
-		end)
 	end
 end)
 
@@ -7586,14 +7578,6 @@ cmd.add({"chams"}, {"chams", "ESP but without the text :shock:"}, function()
 		if player.Name ~= Players.LocalPlayer.Name then
 			NAESP(player,true)
 		end
-	end
-
-	if not getgenv().ESPJoinConnection then
-		getgenv().ESPJoinConnection = Players.PlayerAdded:Connect(function(player)
-			if ESPenabled and player.Name ~= Players.LocalPlayer.Name then
-				NAESP(player,true)
-			end
-		end)
 	end
 end)
 
@@ -7631,11 +7615,6 @@ cmd.add({"unesp", "unchams"}, {"unesp (unchams)", "Disables esp/chams"}, functio
 	ESPenabled = false
 	chamsEnabled = false
 	removeAllESP()
-
-	if getgenv().ESPJoinConnection then
-		getgenv().ESPJoinConnection:Disconnect()
-		getgenv().ESPJoinConnection = nil
-	end
 end)
 
 cmd.add({"unlocate"}, {"unlocate <username1> <username2> etc (optional)"}, function(...)
