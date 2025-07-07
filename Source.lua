@@ -324,7 +324,7 @@ function NaProtectUI(gui)
 	end
 	gui.AncestryChanged:Connect(function(_, newParent)
 		if gui.Parent ~= target then
-			gui.Parent = target
+			pcall(function() gui.Parent = target end)
 		end
 	end)
 	local hb
@@ -335,7 +335,7 @@ function NaProtectUI(gui)
 			end
 		end
 		if not gui.Parent then
-			hb:Disconnect()
+			pcall(function() hb:Disconnect() end)
 		end
 	end)
 	return gui
@@ -6738,115 +6738,142 @@ cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked 
 end)
 
 local tpUI = nil
+local tpTools = {}
 
-cmd.add({"clicktp", "tptool"}, {"clicktp (tptool)", "Teleport where your mouse is"}, function()
-	local TweenService = SafeGetService("TweenService")
-	local player = Players.LocalPlayer
-	local mouse = player:GetMouse()
+NAmanage.clearAllTP=function()
+    if tpUI then
+        tpUI:Destroy()
+        tpUI = nil
+    end
+    for _, tool in ipairs(tpTools) do
+        tool:Destroy()
+    end
+    tpTools = {}
+    NAlib.disconnect("tp_down")
+    NAlib.disconnect("tp_up")
+end
 
-	if tpUI then
-		tpUI:Destroy()
-		tpUI = nil
-		NAlib.disconnect("tp_down")
-		NAlib.disconnect("tp_up")
-	end
+NAmanage.makeClickTweenUI=function()
+    NAmanage.clearAllTP()
+    local TweenService = SafeGetService("TweenService")
+    local player = Players.LocalPlayer
+    local mouse = player:GetMouse()
 
-	tpUI = InstanceNew("ScreenGui")
-	NaProtectUI(tpUI)
+    tpUI = InstanceNew("ScreenGui")
+    NaProtectUI(tpUI)
 
-	local clickTpButton = InstanceNew("TextButton")
-	clickTpButton.Size = UDim2.new(0, 130, 0, 40)
-	clickTpButton.AnchorPoint = Vector2.new(0.5, 0)
-	clickTpButton.Position = UDim2.new(0.45, 0, 0.1, 0)
-	clickTpButton.Text = "Enable Click TP"
-	clickTpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	clickTpButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-	clickTpButton.BorderSizePixel = 0
-	clickTpButton.Parent = tpUI
+    local clickTpButton = InstanceNew("TextButton")
+    clickTpButton.Size = UDim2.new(0,130,0,40)
+    clickTpButton.AnchorPoint = Vector2.new(0.5,0)
+    clickTpButton.Position = UDim2.new(0.45,0,0.1,0)
+    clickTpButton.Text = "Enable Click TP"
+    clickTpButton.TextColor3 = Color3.fromRGB(255,255,255)
+    clickTpButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    clickTpButton.BorderSizePixel = 0
+    clickTpButton.Parent = tpUI
 
-	local clickTpCorner = InstanceNew("UICorner")
-	clickTpCorner.CornerRadius = UDim.new(0, 10)
-	clickTpCorner.Parent = clickTpButton
+    local tweenTpButton = clickTpButton:Clone()
+    tweenTpButton.Position = UDim2.new(0.55,0,0.1,0)
+    tweenTpButton.Text = "Enable Tween TP"
+    tweenTpButton.Parent = tpUI
 
-	local tweenTpButton = InstanceNew("TextButton")
-	tweenTpButton.Size = UDim2.new(0, 130, 0, 40)
-	tweenTpButton.AnchorPoint = Vector2.new(0.5, 0)
-	tweenTpButton.Position = UDim2.new(0.55, 0, 0.1, 0)
-	tweenTpButton.Text = "Enable Tween TP"
-	tweenTpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	tweenTpButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-	tweenTpButton.BorderSizePixel = 0
-	tweenTpButton.Parent = tpUI
+    local clickTpCorner = InstanceNew("UICorner")
+    clickTpCorner.CornerRadius = UDim.new(0,10)
+    clickTpCorner.Parent = clickTpButton
 
-	local tweenTpCorner = InstanceNew("UICorner")
-	tweenTpCorner.CornerRadius = UDim.new(0, 10)
-	tweenTpCorner.Parent = tweenTpButton
+    local tweenTpCorner = InstanceNew("UICorner")
+    tweenTpCorner.CornerRadius = UDim.new(0,10)
+    tweenTpCorner.Parent = tweenTpButton
 
-	local clickTpEnabled = false
-	local tweenTpEnabled = false
+    local clickEnabled = false
+    local tweenEnabled = false
 
-	MouseButtonFix(clickTpButton, function()
-		clickTpEnabled = not clickTpEnabled
-		tweenTpEnabled = false
-		tweenTpButton.Text = "Enable Tween TP"
-		clickTpButton.Text = clickTpEnabled and "Disable Click TP" or "Enable Click TP"
-	end)
+    MouseButtonFix(clickTpButton, function()
+        clickEnabled = not clickEnabled
+        tweenEnabled = false
+        tweenTpButton.Text = "Enable Tween TP"
+        clickTpButton.Text = clickEnabled and "Disable Click TP" or "Enable Click TP"
+    end)
 
-	MouseButtonFix(tweenTpButton, function()
-		tweenTpEnabled = not tweenTpEnabled
-		clickTpEnabled = false
-		clickTpButton.Text = "Enable Click TP"
-		tweenTpButton.Text = tweenTpEnabled and "Disable Tween TP" or "Enable Tween TP"
-	end)
+    MouseButtonFix(tweenTpButton, function()
+        tweenEnabled = not tweenEnabled
+        clickEnabled = false
+        clickTpButton.Text = "Enable Click TP"
+        tweenTpButton.Text = tweenEnabled and "Disable Tween TP" or "Enable Tween TP"
+    end)
 
-	local initialMousePosition = nil
-	local dragThreshold = 10
+    local initialPos = nil
+    local dragThreshold = 10
 
-	NAlib.connect("tp_down", mouse.Button1Down:Connect(function()
-		initialMousePosition = Vector2.new(mouse.X, mouse.Y)
-	end))
+    NAlib.connect("tp_down", mouse.Button1Down:Connect(function()
+        initialPos = Vector2.new(mouse.X, mouse.Y)
+    end))
 
-	NAlib.connect("tp_up", mouse.Button1Up:Connect(function()
-		if initialMousePosition then
-			local currentMousePosition = Vector2.new(mouse.X, mouse.Y)
-			local distance = (currentMousePosition - initialMousePosition).Magnitude
-			if distance <= dragThreshold then
-				if clickTpEnabled then
-					local pos = mouse.Hit + Vector3.new(0, 2.5, 0)
-					local targetCFrame = CFrame.new(pos.X, pos.Y, pos.Z)
-					getRoot(player.Character).CFrame = targetCFrame
-				elseif tweenTpEnabled then
-					local pos = mouse.Hit + Vector3.new(0, 2.5, 0)
-					local humanoidRootPart = getRoot(player.Character)
-					local tweenInfo = TweenInfo.new(
-						1,
-						Enum.EasingStyle.Quad,
-						Enum.EasingDirection.Out,
-						0,
-						false,
-						0
-					)
-					local tween = TweenService:Create(humanoidRootPart, tweenInfo, {
-						CFrame = CFrame.new(pos.X, pos.Y, pos.Z)
-					})
-					tween:Play()
-				end
-			end
-		end
-		initialMousePosition = nil
-	end))
+    NAlib.connect("tp_up", mouse.Button1Up:Connect(function()
+        if initialPos then
+            local currentPos = Vector2.new(mouse.X, mouse.Y)
+            if (currentPos - initialPos).Magnitude <= dragThreshold then
+                local target = mouse.Hit + Vector3.new(0,2.5,0)
+                local root = getRoot(player.Character)
+                if clickEnabled then
+                    root.CFrame = CFrame.new(target.p)
+                elseif tweenEnabled then
+                    local info = TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+                    TweenService:Create(root,info,{CFrame = CFrame.new(target.p)}):Play()
+                end
+            end
+        end
+        initialPos = nil
+    end))
 
-	NAgui.draggerV2(clickTpButton)
-	NAgui.draggerV2(tweenTpButton)
+    NAgui.draggerV2(clickTpButton)
+    NAgui.draggerV2(tweenTpButton)
+end
+
+NAmanage.makeClickTweenTools=function()
+    NAmanage.clearAllTP()
+    local TweenService = SafeGetService("TweenService")
+    local player = Players.LocalPlayer
+
+    local function newTool(name, onActivate)
+        local tool = InstanceNew("Tool")
+        tool.Name = name
+        tool.RequiresHandle = false
+        tool.CanBeDropped = false
+        tool.Parent = player.Backpack
+        tool.Activated:Connect(function()
+            local mouse = player:GetMouse()
+            local target = mouse.Hit + Vector3.new(0,2.5,0)
+            onActivate(target)
+        end)
+        Insert(tpTools, tool)
+    end
+
+    newTool("Click TP", function(target)
+        local root = getRoot(player.Character)
+        root.CFrame = CFrame.new(target.p)
+    end)
+
+    newTool("Tween TP", function(target)
+        local root = getRoot(player.Character)
+        local info = TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+        TweenService:Create(root,info,{CFrame = CFrame.new(target.p)}):Play()
+    end)
+end
+
+cmd.add({"clicktp","tptool"}, {"clicktp (tptool)","Teleport where your mouse is"}, function()
+    Window({
+        Title = "Choose Teleport Mode",
+        Description = "Would you like to use on-screen buttons, or equipable Tools in your Backpack?",
+        Buttons = {
+            {Text = "UI Buttons", Callback = NAmanage.makeClickTweenUI},
+            {Text = "Backpack Tools", Callback = NAmanage.makeClickTweenTools}
+        }
+    })
 end)
 
-cmd.add({"unclicktp", "untptool"}, {"unclicktp (untptool)", "Remove teleport buttons"}, function()
-	if tpUI then
-		tpUI:Destroy()
-		tpUI = nil
-	end
-	NAlib.disconnect("tp_down")
-	NAlib.disconnect("tp_up")
+cmd.add({"unclicktp","untptool"}, {"unclicktp (untptool)","Remove teleport buttons or tools"}, function()
+    NAmanage.clearAllTP()
 end)
 
 cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
