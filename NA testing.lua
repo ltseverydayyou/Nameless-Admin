@@ -1393,7 +1393,7 @@ cmd.loop = function(commandName, args)
 
 					Spawn(function()
 						while Loops[loopKey] and Loops[loopKey].running do
-							NACaller(function()
+							pcall(function()
 								Loops[loopKey].command(unpack(Loops[loopKey].args))
 							end)
 							Wait(Loops[loopKey].interval)
@@ -2067,7 +2067,8 @@ function NAESP(player, persistent)
 
     if persistent and player:IsA("Player") then
         NAlib.connect("esp_charAdded_" .. name,
-            player.CharacterAdded:Connect(function()
+            player.CharacterAdded:Connect(function(c)
+                repeat Wait(.5) until player.Character
                 NAESP(player, true)
             end)
         )
@@ -13467,26 +13468,26 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	end
 	local bangOffset = CFrame.new(0, 1, -1.1)
 	bangLoop = RunService.Stepped:Connect(function()
-		NACaller(function()
-			local targetCharacter = Players[bangplr].Character
-			if targetCharacter then
-				local otherHead = getHead(targetCharacter)
-				local localRoot = getRoot(getChar())
-				if otherHead and localRoot then
-					localRoot.CFrame = otherHead.CFrame * bangOffset
-				end
-				local charPos = getChar().PrimaryPart.Position
-				local targetRoot = getRoot(plr.Character)
-				if targetRoot then
-					local newCFrame = CFrame.new(charPos, Vector3.new(targetRoot.Position.X, charPos.Y, targetRoot.Position.Z))
-					Players.LocalPlayer.Character:SetPrimaryPartCFrame(newCFrame)
-				end
-				for i, wall in ipairs(walls) do
-					bangParts[i].CFrame = localRoot.CFrame * wall.offset
-				end
-			end
-		end)
-	end)
+    NACaller(function()
+        local targetPlayer = Players:FindFirstChild(bangplr)
+        if not targetPlayer or not targetPlayer.Character then return end
+        local targetCharacter = targetPlayer.Character
+        local otherHead = getHead(targetCharacter)
+        local localRoot = getRoot(getChar())
+        if otherHead and localRoot then
+            localRoot.CFrame = otherHead.CFrame * bangOffset
+        end
+        local charPos = getChar().PrimaryPart.Position
+        local targetRoot = getRoot(targetCharacter)
+        if targetRoot then
+            local newCFrame = CFrame.new(charPos, Vector3.new(targetRoot.Position.X, charPos.Y, targetRoot.Position.Z))
+            Players.LocalPlayer.Character:SetPrimaryPartCFrame(newCFrame)
+        end
+        for i, wall in ipairs(walls) do
+            bangParts[i].CFrame = localRoot.CFrame * wall.offset
+        end
+    end)
+end)
 end, true)
 
 cmd.add({"unheadbang", "unmouthbang", "unhb", "unmb"}, {"unheadbang (unmouthbang,unhb,unmb)", "Stops headbang"}, function()
@@ -13613,132 +13614,94 @@ suckDIED = nil
 doSUCKING = nil
 SUCKYSUCKY = {}
 
-cmd.add({"suck", "dicksuck"}, {"suck <player> <number> (dicksuck)", "suck it"}, function(h, d)
-	if suckLOOP then
-		suckLOOP = nil
-	end
-	if doSUCKING then
-		doSUCKING:Stop()
-	end
-	if suckANIM then
-		suckANIM:Destroy()
-	end
-	if suckDIED then
-		suckDIED:Disconnect()
-	end
-	for _, p in pairs(SUCKYSUCKY) do
-		p:Destroy()
-	end
-	SUCKYSUCKY = {}
+cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
+    if suckLOOP then suckLOOP = nil end
+    if doSUCKING then doSUCKING:Stop() end
+    if suckANIM then suckANIM:Destroy() end
+    if suckDIED then suckDIED:Disconnect() end
+    for _,p in pairs(SUCKYSUCKY) do p:Destroy() end
+    SUCKYSUCKY = {}
 
-	local speed = d or 10
-	local tweenDuration = 1 / speed
-	local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-	local username = h
-	local targets = getPlr(username)
-	if #targets == 0 then return end
-	local plr = targets[1]
+    local speed = d or 10
+    local tweenDuration = 1/speed
+    local tweenInfo = TweenInfo.new(tweenDuration,Enum.EasingStyle.Sine,Enum.EasingDirection.Out)
+    local targets = getPlr(h)
+    if #targets == 0 then return end
+    local plr = targets[1]
+    local targetName = plr.Name
 
-	suckANIM = InstanceNew("Animation")
-	local isR15 = IsR15(Players.LocalPlayer)
-	if not isR15 then
-		suckANIM.AnimationId = "rbxassetid://189854234"
-	else
-		suckANIM.AnimationId = "rbxassetid://5918726674"
-	end
-	local hum = getHum()
-	doSUCKING = hum:LoadAnimation(suckANIM)
-	doSUCKING:Play(0.1, 1, 1)
-	doSUCKING:AdjustSpeed(speed)
+    suckANIM = InstanceNew("Animation")
+    if not IsR15(Players.LocalPlayer) then
+        suckANIM.AnimationId = "rbxassetid://189854234"
+    else
+        suckANIM.AnimationId = "rbxassetid://5918726674"
+    end
+    local hum = getHum()
+    doSUCKING = hum:LoadAnimation(suckANIM)
+    doSUCKING:Play(0.1,1,1)
+    doSUCKING:AdjustSpeed(speed)
 
-	suckDIED = hum.Died:Connect(function()
-		if suckLOOP then
-			suckLOOP = nil
-		end
-		doSUCKING:Stop()
-		suckANIM:Destroy()
-		if suckDIED then
-			suckDIED:Disconnect()
-		end
-		for _, part in pairs(SUCKYSUCKY) do
-			part:Destroy()
-		end
-		SUCKYSUCKY = {}
-	end)
+    suckDIED = hum.Died:Connect(function()
+        if suckLOOP then suckLOOP = nil end
+        doSUCKING:Stop()
+        suckANIM:Destroy()
+        suckDIED:Disconnect()
+        for _,part in pairs(SUCKYSUCKY) do part:Destroy() end
+        SUCKYSUCKY = {}
+    end)
 
-	local thick = 0.2
-	local halfWidth = 2
-	local halfDepth = 2
-	local halfHeight = 3
-	local walls = {
-		{offset = CFrame.new(0, 0, halfDepth + thick/500), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(0, 0, -(halfDepth + thick/500)), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(halfWidth + thick/500, 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(-(halfWidth + thick/500), 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(0, halfHeight + thick/500, 0), size = Vector3.new(4, thick, 4)},
-		{offset = CFrame.new(0, -(halfHeight + thick/500), 0), size = Vector3.new(4, thick, 4)}
-	}
-	for i, wall in ipairs(walls) do
-		local part = InstanceNew("Part")
-		part.Size = wall.size
-		part.Anchored = true
-		part.CanCollide = true
-		part.Transparency = 1
-		part.Parent = workspace
-		Insert(SUCKYSUCKY, part)
-	end
+    local thick,halfWidth,halfDepth,halfHeight = 0.2,2,2,3
+    local walls = {
+        {offset=CFrame.new(0,0,halfDepth+thick/500), size=Vector3.new(4,6,thick)},
+        {offset=CFrame.new(0,0,-(halfDepth+thick/500)), size=Vector3.new(4,6,thick)},
+        {offset=CFrame.new(halfWidth+thick/500,0,0), size=Vector3.new(thick,6,4)},
+        {offset=CFrame.new(-(halfWidth+thick/500),0,0), size=Vector3.new(thick,6,4)},
+        {offset=CFrame.new(0,halfHeight+thick/500,0), size=Vector3.new(4,thick,4)},
+        {offset=CFrame.new(0,-(halfHeight+thick/500),0), size=Vector3.new(4,thick,4)},
+    }
+    for i,wall in ipairs(walls) do
+        local part = InstanceNew("Part")
+        part.Size=wall.size
+        part.Anchored=true
+        part.CanCollide=true
+        part.Transparency=1
+        part.Parent=workspace
+        Insert(SUCKYSUCKY,part)
+    end
 
-	suckLOOP = coroutine.wrap(function()
-		while true do
-			local targetCharacter = plr.Character
-			local localCharacter = getChar()
-			if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
-				local targetHRP = getRoot(targetCharacter)
-				local localHRP = getRoot(localCharacter)
-				local forwardCFrame = targetHRP.CFrame * CFrame.new(0, -2.3, -2.5) * CFrame.Angles(0, math.pi, 0)
-				local backwardCFrame = targetHRP.CFrame * CFrame.new(0, -2.3, -1.3) * CFrame.Angles(0, math.pi, 0)
-				local tweenForward = TweenService:Create(
-					localHRP,
-					TweenInfo.new(0.15, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-					{CFrame = forwardCFrame}
-				)
-				tweenForward:Play()
-				tweenForward.Completed:Wait()
-				local tweenBackward = TweenService:Create(
-					localHRP,
-					TweenInfo.new(0.15, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-					{CFrame = backwardCFrame}
-				)
-				tweenBackward:Play()
-				tweenBackward.Completed:Wait()
-				for i, wall in ipairs(walls) do
-					SUCKYSUCKY[i].CFrame = localHRP.CFrame * wall.offset
-				end
-			else
-				break
-			end
-		end
-	end)
-	suckLOOP()
-end, true)
+    suckLOOP = coroutine.wrap(function()
+        while true do
+            local targetPlayer = Players:FindFirstChild(targetName)
+            local targetCharacter = targetPlayer and targetPlayer.Character
+            local localCharacter = getChar()
+            if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
+                local targetHRP = getRoot(targetCharacter)
+                local localHRP = getRoot(localCharacter)
+                local forwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-2.5) * CFrame.Angles(0,math.pi,0)
+                local backwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-1.3) * CFrame.Angles(0,math.pi,0)
+                local tweenForward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
+                tweenForward:Play()
+                tweenForward.Completed:Wait()
+                local tweenBackward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
+                tweenBackward:Play()
+                tweenBackward.Completed:Wait()
+                for i,wall in ipairs(walls) do
+                    SUCKYSUCKY[i].CFrame = localHRP.CFrame * wall.offset
+                end
+            end
+            Wait(0.1)
+        end
+    end)
+    suckLOOP()
+end,true)
 
-cmd.add({"unsuck", "undicksuck"}, {"unsuck (undicksuck)", "no more fun"}, function()
-	if suckLOOP then
-		suckLOOP = nil
-	end
-	if doSUCKING then
-		doSUCKING:Stop()
-	end
-	if suckANIM then
-		suckANIM:Destroy()
-	end
-	if suckDIED then
-		suckDIED:Disconnect()
-	end
-	for _, p in pairs(SUCKYSUCKY) do
-		p:Destroy()
-	end
-	SUCKYSUCKY = {}
+cmd.add({"unsuck","undicksuck"},{"unsuck","no more fun"},function()
+    suckLOOP = nil
+    if doSUCKING then doSUCKING:Stop() end
+    if suckANIM then suckANIM:Destroy() end
+    if suckDIED then suckDIED:Disconnect() end
+    for _,p in pairs(SUCKYSUCKY) do p:Destroy() end
+    SUCKYSUCKY = {}
 end)
 
 cmd.add({"improvetextures"},{"improvetextures","Switches Textures"},function()
@@ -13900,7 +13863,9 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	local bangOffset = CFrame.new(0, 0, 1.1)
 	bangLoop = RunService.Stepped:Connect(function()
 		NACaller(function()
-			local targetRoot = getRoot(Players[bangplr].Character)
+			local targetPlayer = Players:FindFirstChild(bangplr)
+			if not targetPlayer or not targetPlayer.Character then return end
+			local targetRoot = getRoot(targetPlayer.Character)
 			local localRoot = getRoot(getChar())
 			if targetRoot and localRoot then
 				localRoot.CFrame = targetRoot.CFrame * bangOffset
@@ -13939,149 +13904,105 @@ doInversebang = nil
 doInversebang2 = nil
 INVERSEBANGPARTS = {}
 
-cmd.add({"inversebang", "ibang", "inverseb"}, {"inversebang <player> <number> (inversebang/inverseb)", "you're the one getting fucked today ;)"},function(h, d)
-	if inversebangLoop then
-		inversebangLoop = nil
-	end
-	if doInversebang then
-		doInversebang:Stop()
-	end
-	if inversebangAnim then
-		inversebangAnim:Destroy()
-	end
-	if inversebangAnim2 then
-		inversebangAnim2:Destroy()
-	end
-	if inversebangDied then
-		inversebangDied:Disconnect()
-	end
-	for _, p in pairs(INVERSEBANGPARTS) do
-		p:Destroy()
-	end
-	INVERSEBANGPARTS = {}
+cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you're the one getting fucked today ;)"},function(h,d)
+    if inversebangLoop then inversebangLoop = nil end
+    if doInversebang then doInversebang:Stop() end
+    if inversebangAnim then inversebangAnim:Destroy() end
+    if inversebangAnim2 then inversebangAnim2:Destroy() end
+    if inversebangDied then inversebangDied:Disconnect() end
+    for _,p in pairs(INVERSEBANGPARTS) do p:Destroy() end
+    INVERSEBANGPARTS = {}
 
-	local speed = d or 10
-	local username = h
-	local targets = getPlr(username)
-	if #targets == 0 then return end
-	local plr = targets[1]
+    local speed = d or 10
+    local targets = getPlr(h)
+    if #targets == 0 then return end
+    local plr = targets[1]
+    local bangplr = plr.Name
 
-	inversebangAnim = InstanceNew("Animation")
-	local isR15 = IsR15(Players.LocalPlayer)
-	if not isR15 then
-		inversebangAnim.AnimationId = "rbxassetid://189854234"
-		inversebangAnim2 = InstanceNew("Animation")
-		inversebangAnim2.AnimationId = "rbxassetid://106772613"
-	else
-		inversebangAnim.AnimationId = "rbxassetid://10714360343"
-		inversebangAnim2 = nil
-	end
-	local hum = getHum()
-	doInversebang = hum:LoadAnimation(inversebangAnim)
-	doInversebang:Play(0.1, 1, 1)
-	doInversebang:AdjustSpeed(speed)
-	if not isR15 and inversebangAnim2 then
-		doInversebang2 = hum:LoadAnimation(inversebangAnim2)
-		doInversebang2:Play(0.1, 1, 1)
-		doInversebang2:AdjustSpeed(speed)
-	end
+    inversebangAnim = InstanceNew("Animation")
+    local isR15 = IsR15(Players.LocalPlayer)
+    if not isR15 then
+        inversebangAnim.AnimationId = "rbxassetid://189854234"
+        inversebangAnim2 = InstanceNew("Animation")
+        inversebangAnim2.AnimationId = "rbxassetid://106772613"
+    else
+        inversebangAnim.AnimationId = "rbxassetid://10714360343"
+        inversebangAnim2 = nil
+    end
 
-	inversebangDied = hum.Died:Connect(function()
-		if inversebangLoop then
-			inversebangLoop = nil
-		end
-		doInversebang:Stop()
-		if doInversebang2 then
-			doInversebang2:Stop()
-		end
-		inversebangAnim:Destroy()
-		if inversebangDied then
-			inversebangDied:Disconnect()
-		end
-		for _, part in pairs(INVERSEBANGPARTS) do
-			part:Destroy()
-		end
-		INVERSEBANGPARTS = {}
-	end)
+    local hum = getHum()
+    doInversebang = hum:LoadAnimation(inversebangAnim)
+    doInversebang:Play(0.1,1,1)
+    doInversebang:AdjustSpeed(speed)
+    if not isR15 and inversebangAnim2 then
+        doInversebang2 = hum:LoadAnimation(inversebangAnim2)
+        doInversebang2:Play(0.1,1,1)
+        doInversebang2:AdjustSpeed(speed)
+    end
 
-	local thick = 0.2
-	local halfWidth = 2
-	local halfDepth = 2
-	local halfHeight = 3
-	local walls = {
-		{offset = CFrame.new(0, 0, halfDepth + thick/500), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(0, 0, -(halfDepth + thick/500)), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(halfWidth + thick/500, 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(-(halfWidth + thick/500), 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(0, halfHeight + thick/500, 0), size = Vector3.new(4, thick, 4)},
-		{offset = CFrame.new(0, -(halfHeight + thick/500), 0), size = Vector3.new(4, thick, 4)}
-	}
-	for i, wall in ipairs(walls) do
-		local part = InstanceNew("Part")
-		part.Size = wall.size
-		part.Anchored = true
-		part.CanCollide = true
-		part.Transparency = 1
-		part.Parent = workspace
-		Insert(INVERSEBANGPARTS, part)
-	end
+    inversebangDied = hum.Died:Connect(function()
+        if inversebangLoop then inversebangLoop = nil end
+        doInversebang:Stop()
+        if doInversebang2 then doInversebang2:Stop() end
+        inversebangAnim:Destroy()
+        inversebangDied:Disconnect()
+        for _,part in pairs(INVERSEBANGPARTS) do part:Destroy() end
+        INVERSEBANGPARTS = {}
+    end)
 
-	local bangOffset = CFrame.new(0, 0, 1.1)
+    local thick,halfWidth,halfDepth,halfHeight = 0.2,2,2,3
+    local walls = {
+        {offset=CFrame.new(0,0,halfDepth+thick/500),    size=Vector3.new(4,6,thick)},
+        {offset=CFrame.new(0,0,-(halfDepth+thick/500)), size=Vector3.new(4,6,thick)},
+        {offset=CFrame.new(halfWidth+thick/500,0,0),    size=Vector3.new(thick,6,4)},
+        {offset=CFrame.new(-(halfWidth+thick/500),0,0), size=Vector3.new(thick,6,4)},
+        {offset=CFrame.new(0,halfHeight+thick/500,0),   size=Vector3.new(4,thick,4)},
+        {offset=CFrame.new(0,-(halfHeight+thick/500),0),size=Vector3.new(4,thick,4)},
+    }
+    for i,wall in ipairs(walls) do
+        local part = InstanceNew("Part")
+        part.Size = wall.size
+        part.Anchored = true
+        part.CanCollide = true
+        part.Transparency = 1
+        part.Parent = workspace
+        Insert(INVERSEBANGPARTS,part)
+    end
 
-	inversebangLoop = coroutine.wrap(function()
-		while true do
-			local targetCharacter = plr.Character
-			local localCharacter = getChar()
-			if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
-				local targetHRP = getRoot(targetCharacter)
-				local localHRP = getRoot(localCharacter)
-				local forwardCFrame = targetHRP.CFrame * CFrame.new(0, 0, -2.5)
-				local backwardCFrame = targetHRP.CFrame * CFrame.new(0, 0, -1.3)
-				local tweenForward = TweenService:Create(
-					localHRP,
-					TweenInfo.new(0.15, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-					{CFrame = forwardCFrame}
-				)
-				tweenForward:Play()
-				tweenForward.Completed:Wait()
-				local tweenBackward = TweenService:Create(
-					localHRP,
-					TweenInfo.new(0.15, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
-					{CFrame = backwardCFrame}
-				)
-				tweenBackward:Play()
-				tweenBackward.Completed:Wait()
-				for i, wall in ipairs(walls) do
-					INVERSEBANGPARTS[i].CFrame = localHRP.CFrame * wall.offset
-				end
-			else
-				break
-			end
-		end
-	end)
-	inversebangLoop()
-end, true)
+    inversebangLoop = coroutine.wrap(function()
+        while true do
+            local targetPlayer = Players:FindFirstChild(bangplr)
+            local targetCharacter = targetPlayer and targetPlayer.Character
+            local localCharacter = getChar()
+            if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
+                local targetHRP = getRoot(targetCharacter)
+                local localHRP = getRoot(localCharacter)
+                local forwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-2.5)
+                local backwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-1.3)
+                local tweenForward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
+                tweenForward:Play()
+                tweenForward.Completed:Wait()
+                local tweenBackward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
+                tweenBackward:Play()
+                tweenBackward.Completed:Wait()
+                for i,wall in ipairs(walls) do
+                    INVERSEBANGPARTS[i].CFrame = localHRP.CFrame * wall.offset
+                end
+            end
+            Wait(0.1)
+        end
+    end)
+    inversebangLoop()
+end,true)
 
-cmd.add({"uninversebang", "unibang", "uninverseb"}, {"uninversebang (unibang)", "no more fun"}, function()
-	if inversebangLoop then
-		inversebangLoop = nil
-	end
-	if doInversebang then
-		doInversebang:Stop()
-	end
-	if doInversebang2 then
-		doInversebang2:Stop()
-	end
-	if inversebangAnim then
-		inversebangAnim:Destroy()
-	end
-	if inversebangDied then
-		inversebangDied:Disconnect()
-	end
-	for _, p in pairs(INVERSEBANGPARTS) do
-		p:Destroy()
-	end
-	INVERSEBANGPARTS = {}
+cmd.add({"uninversebang","unibang","uninverseb"},{"uninversebang","no more fun"},function()
+    if inversebangLoop then inversebangLoop = nil end
+    if doInversebang then doInversebang:Stop() end
+    if doInversebang2 then doInversebang2:Stop() end
+    if inversebangAnim then inversebangAnim:Destroy() end
+    if inversebangDied then inversebangDied:Disconnect() end
+    for _,p in pairs(INVERSEBANGPARTS) do p:Destroy() end
+    INVERSEBANGPARTS = {}
 end)
 
 sussyID = "rbxassetid://106772613"
@@ -14376,63 +14297,63 @@ end)
 
 glueloop = {}
 
-cmd.add({"glue", "loopgoto", "lgoto"}, {"glue <player> (loopgoto,lgoto)", "Loop teleport to a player"}, function(...)
-	local user = (...)
-	local targets = getPlr(user)
-	for _, plr in next, targets do
-		if glueloop[plr] then
-			glueloop[plr]:Disconnect()
-			glueloop[plr] = nil
-		end
-		glueloop[plr] = RunService.Stepped:Connect(function()
-			local char = plr.Character
-			if char then
-				local targetRoot = getRoot(char)
-				local localRoot = getRoot(getChar())
-				if targetRoot and localRoot then
-					localRoot.CFrame = targetRoot.CFrame
-				end
-			end
-		end)
-	end
-end, true)
+cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
+    local input = (...)
+    local players = getPlr(input)
+    for _, p in next, players do
+        local name = p.Name
+        if glueloop[name] then
+            glueloop[name]:Disconnect()
+        end
+        glueloop[name] = RunService.Stepped:Connect(function()
+            local target = Players:FindFirstChild(name)
+            if target and target.Character then
+                local tr = getRoot(target.Character)
+                local lr = getRoot(getChar())
+                if tr and lr then
+                    lr.CFrame = tr.CFrame
+                end
+            end
+        end)
+    end
+end,true)
 
-cmd.add({"unglue", "unloopgoto", "noloopgoto"}, {"unglue (unloopgoto,noloopgoto)", "Stops teleporting you to a player"}, function()
-	for _, connection in pairs(glueloop) do
-		connection:Disconnect()
-	end
-	glueloop = {}
+cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to a player"},function()
+    for _, conn in pairs(glueloop) do
+        conn:Disconnect()
+    end
+    glueloop = {}
 end)
 
 glueBACKER = {}
 
-cmd.add({"glueback", "loopbehind", "lbehind"}, {"glueback <player> (loopbehind,lbehind)", "Loop teleport behind a player"}, function(...)
-	local input = (...)
-	local players = getPlr(input)
-	for _, target in next, players do
-		if glueBACKER[target] then
-			glueBACKER[target]:Disconnect()
-			glueBACKER[target] = nil
-		end
-		glueBACKER[target] = RunService.Stepped:Connect(function()
-			local targetChar = target.Character
-			if targetChar then
-				local targetRoot = getRoot(targetChar)
-				local localRoot = getRoot(getChar())
-				if targetRoot and localRoot then
-					local cf = targetRoot.CFrame * CFrame.new(0, 0, 3)
-					localRoot.CFrame = CFrame.new(cf.Position, targetRoot.Position)
-				end
-			end
-		end)
-	end
-end, true)
+cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport behind a player"},function(...)
+    local input = (...)
+    local players = getPlr(input)
+    for _, target in next, players do
+        local name = target.Name
+        if glueBACKER[name] then
+            glueBACKER[name]:Disconnect()
+            glueBACKER[name] = nil
+        end
+        glueBACKER[name] = RunService.Stepped:Connect(function()
+            local targetPlayer = Players:FindFirstChild(name)
+            if not targetPlayer or not targetPlayer.Character then return end
+            local targetRoot = getRoot(targetPlayer.Character)
+            local localRoot  = getRoot(getChar())
+            if targetRoot and localRoot then
+                local cf = targetRoot.CFrame * CFrame.new(0,0,3)
+                localRoot.CFrame = CFrame.new(cf.Position, targetRoot.Position)
+            end
+        end)
+    end
+end,true)
 
-cmd.add({"unglueback", "unloopbehind", "unlbehind"}, {"unglueback (unloopbehind,unlbehind)", "Stops teleporting you to a player"}, function()
-	for _, conn in pairs(glueBACKER) do
-		conn:Disconnect()
-	end
-	glueBACKER = {}
+cmd.add({"unglueback","unloopbehind","unlbehind"},{"unglueback","Stops teleporting you to a player"},function()
+    for _, conn in pairs(glueBACKER) do
+        conn:Disconnect()
+    end
+    glueBACKER = {}
 end)
 
 cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a player for a few seconds"}, function(...)
@@ -14457,33 +14378,38 @@ end, true)
 
 loopspook = false
 
-cmd.add({"loopspook", "loopscare"}, {"loopspook <player> (loopscare)", "Teleports next to a player repeatedly"}, function(...)
-	local t = getPlr(...)
-	loopspook = true
+cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a player repeatedly"},function(...)
+    local input = (...)
+    local names = {}
+    for _, p in ipairs(getPlr(input)) do
+        names[#names+1] = p.Name
+    end
+    loopspook = true
 
-	Spawn(function()
-		while loopspook do
-			for _, p in ipairs(t) do
-				local lc = getChar()
-				local lr = getRoot(lc)
-				if getPlrHum(p) then
-					local tr = getRoot(p.Character)
-					if lr and tr then
-						local old = lr.CFrame
-						lr.CFrame = tr.CFrame + tr.CFrame.LookVector * 2
-						lr.CFrame = CFrame.new(lr.Position, tr.Position)
-						Wait(0.5)
-						lr.CFrame = old
-					end
-				end
-			end
-			Wait(0.3)
-		end
-	end)
-end, true)
+    Spawn(function()
+        while loopspook do
+            for _, name in ipairs(names) do
+                local target = Players:FindFirstChild(name)
+                if target and getPlrHum(target) then
+                    local lc = getChar()
+                    local lr = getRoot(lc)
+                    local tr = getRoot(target.Character)
+                    if lr and tr then
+                        local old = lr.CFrame
+                        lr.CFrame = tr.CFrame + tr.CFrame.LookVector * 2
+                        lr.CFrame = CFrame.new(lr.Position, tr.Position)
+                        Wait(0.5)
+                        lr.CFrame = old
+                    end
+                end
+            end
+            Wait(0.3)
+        end
+    end)
+end,true)
 
-cmd.add({"unloopspook", "unloopscare"}, {"unloopspook (unloopscare)", "Stops the loopspook command"}, function()
-	loopspook = false
+cmd.add({"unloopspook","unloopscare"},{"unloopspook","Stops the loopspook command"},function()
+    loopspook = false
 end)
 
 Airwalker, awPart = nil, nil
@@ -20071,7 +19997,7 @@ function setupPlayer(plr,bruh)
 
 	if ESPenabled then
 		Spawn(function()
-			repeat Wait() until plr.Character
+			repeat Wait(.5) until plr.Character
 			NAESP(plr,true)
 		end)
 	end
