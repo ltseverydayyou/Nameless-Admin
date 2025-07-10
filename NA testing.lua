@@ -3797,8 +3797,8 @@ cmd.add({"unclickfling","unmousefling"},{"unclickfling (unmousefling)","disables
     NAlib.disconnect("clickfling_mouse")
 end)
 
-local clickscareUI = nil
-local clickscareEnabled = true
+clickscareUI = nil
+clickscareEnabled = true
 
 cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next to a clicked player for a few seconds"},function()
     clickscareEnabled = true
