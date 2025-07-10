@@ -3797,6 +3797,69 @@ cmd.add({"unclickfling","unmousefling"},{"unclickfling (unmousefling)","disables
     NAlib.disconnect("clickfling_mouse")
 end)
 
+local clickscareUI = nil
+local clickscareEnabled = true
+
+cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next to a clicked player for a few seconds"},function()
+    clickscareEnabled = true
+    if clickscareUI then clickscareUI:Destroy() end
+    NAlib.disconnect("clickscare_mouse")
+
+    local Mouse = player:GetMouse()
+    clickscareUI = InstanceNew("ScreenGui")
+    NaProtectUI(clickscareUI)
+
+    local toggleButton = InstanceNew("TextButton")
+    toggleButton.Size = UDim2.new(0,120,0,40)
+    toggleButton.Text = "ClickScare: ON"
+    toggleButton.Position = UDim2.new(0.5,-60,0,10)
+    toggleButton.TextScaled = 16
+    toggleButton.TextColor3 = Color3.new(1,1,1)
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    toggleButton.BackgroundTransparency = 0.2
+    toggleButton.Parent = clickscareUI
+
+    local uiCorner = InstanceNew("UICorner")
+    uiCorner.CornerRadius = UDim.new(0,8)
+    uiCorner.Parent = toggleButton
+
+    NAgui.draggerV2(toggleButton)
+
+    MouseButtonFix(toggleButton,function()
+        clickscareEnabled = not clickscareEnabled
+        toggleButton.Text = clickscareEnabled and "ClickScare: ON" or "ClickScare: OFF"
+    end)
+
+    local conn = Mouse.Button1Down:Connect(function()
+        if not clickscareEnabled then return end
+        local target = Mouse.Target
+        if not (target and target.Parent and target.Parent:IsA("Model")) then return end
+        local clickedPlayer = Players:GetPlayerFromCharacter(target.Parent)
+        if not clickedPlayer or not getPlrHum(clickedPlayer) then return end
+
+        local char = getChar()
+        local root = getRoot(char)
+        local oldCF = root.CFrame
+        local distancepl = 2
+        local targetRoot = getRoot(clickedPlayer.Character)
+        if targetRoot then
+            root.CFrame = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
+            root.CFrame = CFrame.new(root.Position, targetRoot.Position)
+            Wait(0.5)
+            root.CFrame = oldCF
+        end
+    end)
+
+    NAlib.connect("clickscare_mouse",conn)
+end)
+
+cmd.add({"unclickscare","unclickspook"},{"unclickscare (unclickspook)","Disables clickscare"},function()
+    clickscareEnabled = false
+    if clickscareUI then clickscareUI:Destroy() end
+    NAlib.disconnect("clickscare_mouse")
+end)
+
 cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
 		Players:Chat(Format("/e hi"))
