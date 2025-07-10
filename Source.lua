@@ -6882,7 +6882,7 @@ cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts 
 end)
 
 cmd.add({"dex"},{"dex","Better version of dex"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/DexPlusPlus/refs/heads/master/out.lua"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexPlusBackup.luau"))()
 end)
 
 cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/ModuleScript's using konstant"},function()
