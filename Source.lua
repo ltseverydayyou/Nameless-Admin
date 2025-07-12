@@ -6801,23 +6801,23 @@ cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked 
 	end
 end)
 
-local tpUI = nil
+local tpUI
 local tpTools = {}
 
-NAmanage.clearAllTP=function()
+NAmanage.clearAllTP = function()
     if tpUI then
         tpUI:Destroy()
         tpUI = nil
     end
-    for _, tool in ipairs(tpTools) do
-        tool:Destroy()
+    for _, t in ipairs(tpTools) do
+        t:Destroy()
     end
     tpTools = {}
     NAlib.disconnect("tp_down")
     NAlib.disconnect("tp_up")
 end
 
-NAmanage.makeClickTweenUI=function()
+NAmanage.makeClickTweenUI = function()
     NAmanage.clearAllTP()
     local TweenService = SafeGetService("TweenService")
     local player = Players.LocalPlayer
@@ -6841,50 +6841,70 @@ NAmanage.makeClickTweenUI=function()
     tweenTpButton.Text = "Enable Tween TP"
     tweenTpButton.Parent = tpUI
 
-    local clickTpCorner = InstanceNew("UICorner")
-    clickTpCorner.CornerRadius = UDim.new(0,10)
-    clickTpCorner.Parent = clickTpButton
-
-    local tweenTpCorner = InstanceNew("UICorner")
-    tweenTpCorner.CornerRadius = UDim.new(0,10)
-    tweenTpCorner.Parent = tweenTpButton
+    InstanceNew("UICorner", clickTpButton)
+    InstanceNew("UICorner", tweenTpButton)
 
     local clickEnabled = false
     local tweenEnabled = false
+    local initialPos
+    local dragThreshold = 10
+    local ctCFVal
 
     MouseButtonFix(clickTpButton, function()
         clickEnabled = not clickEnabled
         tweenEnabled = false
-        tweenTpButton.Text = "Enable Tween TP"
+        if ctCFVal then
+            ctCFVal:Destroy()
+            ctCFVal = nil
+        end
         clickTpButton.Text = clickEnabled and "Disable Click TP" or "Enable Click TP"
+        tweenTpButton.Text = "Enable Tween TP"
     end)
 
     MouseButtonFix(tweenTpButton, function()
         tweenEnabled = not tweenEnabled
         clickEnabled = false
-        clickTpButton.Text = "Enable Click TP"
+        if not tweenEnabled and ctCFVal then
+            ctCFVal:Destroy()
+            ctCFVal = nil
+        end
         tweenTpButton.Text = tweenEnabled and "Disable Tween TP" or "Enable Tween TP"
+        clickTpButton.Text = "Enable Click TP"
     end)
-
-    local initialPos = nil
-    local dragThreshold = 10
 
     NAlib.connect("tp_down", mouse.Button1Down:Connect(function()
         initialPos = Vector2.new(mouse.X, mouse.Y)
     end))
 
     NAlib.connect("tp_up", mouse.Button1Up:Connect(function()
-        if initialPos then
-            local currentPos = Vector2.new(mouse.X, mouse.Y)
-            if (currentPos - initialPos).Magnitude <= dragThreshold then
-                local target = mouse.Hit + Vector3.new(0,2.5,0)
-                local root = getRoot(player.Character)
-                if clickEnabled then
-                    root.CFrame = CFrame.new(target.p)
-                elseif tweenEnabled then
-                    local info = TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
-                    TweenService:Create(root,info,{CFrame = CFrame.new(target.p)}):Play()
+        if not initialPos then return end
+        local currentPos = Vector2.new(mouse.X, mouse.Y)
+        if (currentPos - initialPos).Magnitude <= dragThreshold then
+            local target = mouse.Hit + Vector3.new(0,2.5,0)
+            local char = player.Character
+            if clickEnabled then
+                char:PivotTo(CFrame.new(target.p))
+            elseif tweenEnabled then
+                if ctCFVal then
+                    ctCFVal:Destroy()
+                    ctCFVal = nil
                 end
+                local cfVal = InstanceNew("CFrameValue")
+                ctCFVal = cfVal
+                cfVal.Value = char:GetPivot()
+                cfVal.Changed:Connect(function(newCF)
+                    char:PivotTo(newCF)
+                end)
+                local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
+                tw:Play()
+                tw.Completed:Connect(function()
+                    if cfVal then
+                        cfVal:Destroy()
+                        if ctCFVal == cfVal then
+                            ctCFVal = nil
+                        end
+                    end
+                end)
             end
         end
         initialPos = nil
@@ -6894,12 +6914,12 @@ NAmanage.makeClickTweenUI=function()
     NAgui.draggerV2(tweenTpButton)
 end
 
-NAmanage.makeClickTweenTools=function()
+NAmanage.makeClickTweenTools = function()
     NAmanage.clearAllTP()
     local TweenService = SafeGetService("TweenService")
     local player = Players.LocalPlayer
 
-    local function newTool(name, onActivate)
+    local function newTool(name, tween)
         local tool = InstanceNew("Tool")
         tool.Name = name
         tool.RequiresHandle = false
@@ -6908,35 +6928,41 @@ NAmanage.makeClickTweenTools=function()
         tool.Activated:Connect(function()
             local mouse = player:GetMouse()
             local target = mouse.Hit + Vector3.new(0,2.5,0)
-            onActivate(target)
+            local char = player.Character
+            if tween then
+                local cfVal = InstanceNew("CFrameValue")
+                cfVal.Value = char:GetPivot()
+                cfVal.Changed:Connect(function(newCF)
+                    char:PivotTo(newCF)
+                end)
+                local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
+                tw:Play()
+                tw.Completed:Connect(function()
+                    cfVal:Destroy()
+                end)
+            else
+                char:PivotTo(CFrame.new(target.p))
+            end
         end)
         Insert(tpTools, tool)
     end
 
-    newTool("Click TP", function(target)
-        local root = getRoot(player.Character)
-        root.CFrame = CFrame.new(target.p)
-    end)
-
-    newTool("Tween TP", function(target)
-        local root = getRoot(player.Character)
-        local info = TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
-        TweenService:Create(root,info,{CFrame = CFrame.new(target.p)}):Play()
-    end)
+    newTool("Click TP", false)
+    newTool("Tween TP", true)
 end
 
-cmd.add({"clicktp","tptool"}, {"clicktp (tptool)","Teleport where your mouse is"}, function()
+cmd.add({"clicktp","tptool"},{"clicktp (tptool)","Teleport where your mouse is"},function()
     Window({
         Title = "Choose Teleport Mode",
         Description = "Would you like to use on-screen buttons, or equipable Tools in your Backpack?",
         Buttons = {
-            {Text = "UI Buttons", Callback = NAmanage.makeClickTweenUI},
-            {Text = "Backpack Tools", Callback = NAmanage.makeClickTweenTools}
+            {Text="UI Buttons",Callback=NAmanage.makeClickTweenUI},
+            {Text="Backpack Tools",Callback=NAmanage.makeClickTweenTools}
         }
     })
 end)
 
-cmd.add({"unclicktp","untptool"}, {"unclicktp (untptool)","Remove teleport buttons or tools"}, function()
+cmd.add({"unclicktp","untptool"},{"unclicktp (untptool)","Remove teleport buttons or tools"},function()
     NAmanage.clearAllTP()
 end)
 
