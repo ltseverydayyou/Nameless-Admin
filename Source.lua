@@ -8226,7 +8226,7 @@ cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out t
 	synsaveinstance(Options)
 end)
 
-cmd.add({"admin"},{"admin","whitelist someone to allow them to use commands"},function(...)
+cmd.add({"admin","whitelist"},{"admin <player>","Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves"},function(...)
 	function ChatMessage(Message,Whisper)
 		NAlib.LocalPlayerChat(Message,Whisper or "All")
 	end
