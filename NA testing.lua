@@ -533,6 +533,7 @@ local opt={
 	ctrlModule = nil;
 	currentTagText = "Tag";
 	currentTagColor = Color3.fromRGB(0, 255, 170);
+	currentTagRGB = false;
 	saveTag = false;
 }
 
@@ -753,6 +754,10 @@ if FileSupport then
 				opt.currentTagColor = Color3.new(data.Color.R, data.Color.G, data.Color.B)
 			end
 
+			if type(data.RGB) == "boolean" then
+				opt.currentTagRGB = data.RGB
+			end
+
 			if type(data.Save) == "boolean" then
 				opt.saveTag = data.Save
 			else
@@ -761,6 +766,7 @@ if FileSupport then
 		else
 			opt.currentTagText = "Tag"
 			opt.currentTagColor = Color3.fromRGB(0, 255, 170)
+			opt.currentTagRGB = false
 			opt.saveTag = false
 			DoNotif("Chat tag file was corrupt or unreadable. Loaded defaults",3)
 		end
@@ -790,6 +796,7 @@ else
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
 	opt.currentTagText = "Tag"
 	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
+	opt.currentTagRGB = false
 	opt.saveTag = false
 	DoPopup("Your exploit does not support read/write file")
 end
@@ -801,6 +808,7 @@ local lastPrefix = opt.prefix
 if opt.saveTag then
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
+	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
 end
 
 NACaller(function()
@@ -20485,34 +20493,91 @@ CaptureService.CaptureEnded:Connect(function()
 	end)
 end)
 
+NAmanage.hsv2rgb=function(h, s, v)
+    local c = v * s
+    local x = c * (1 - math.abs((h / 60) % 2 - 1))
+    local m = v - c
+    local r1, g1, b1
+    if h < 60 then
+        r1, g1, b1 = c, x, 0
+    elseif h < 120 then
+        r1, g1, b1 = x, c, 0
+    elseif h < 180 then
+        r1, g1, b1 = 0, c, x
+    elseif h < 240 then
+        r1, g1, b1 = 0, x, c
+    elseif h < 300 then
+        r1, g1, b1 = x, 0, c
+    else
+        r1, g1, b1 = c, 0, x
+    end
+    return (r1 + m), (g1 + m), (b1 + m)
+end
+
+NAmanage.gradientify=function(text)
+    local len = #text
+    if len == 0 then return "" end
+    local out = {}
+    for i = 1, len do
+        local frac = (i - 1) / (len - 1)
+        local hue = frac * 360
+        local r, g, b = NAmanage.hsv2rgb(hue, 1, 1)
+        local hex = Format("#%02X%02X%02X", r * 255, g * 255, b * 255)
+        local ch = text:sub(i, i)
+        out[i] = Format('<font color="%s">%s</font>', hex, ch)
+    end
+    return Concat(out)
+end
+
+NAmanage.grayGradient=function(text)
+    local startGray = 0
+    local endGray   = 100
+    local len = #text
+    if len == 0 then return "" end
+    local out = {}
+    for i = 1, len do
+        local frac = (i - 1) / (len - 1)
+        local v = startGray + (endGray - startGray) * frac
+        local g = math.floor(v)
+        local hex = Format("#%02X%02X%02X", g, g, g)
+        local ch = text:sub(i, i)
+        out[i] = Format('<font color="%s">%s</font>', hex, ch)
+    end
+    return Concat(out)
+end
+
 TextChatService.OnIncomingMessage = function(message)
-	local textSource = message.TextSource
-	if not textSource then return end
+    local ts = message.TextSource
+    if not ts then return end
+    local pl = Players:GetPlayerByUserId(ts.UserId)
+    if not pl then return end
 
-	local fromPlayer = Players:GetPlayerByUserId(textSource.UserId)
-	if not fromPlayer then return end
+    for _, id in ipairs(_G.NAadminsLol or {}) do
+        if pl.UserId == id then
+            local props = InstanceNew("TextChatMessageProperties")
+            local name = nameChecker(pl)
+            local gradName = NAmanage.gradientify(name)
+            local tag      = NAmanage.grayGradient("[NA ADMIN]")
+            props.PrefixText = Format('%s %s: ', tag, gradName)
+            props.Text = message.Text
+            return props
+        end
+    end
 
-	for _, adminId in ipairs(_G.NAadminsLol or {}) do
-		if fromPlayer.UserId == adminId then
-			local hex = Format("#%02X%02X%02X", 255, 255, 255)
-			local props = InstanceNew("TextChatMessageProperties")
-			props.PrefixText = Format('<font color="%s">[NA ADMIN]</font> %s', hex, message.PrefixText or "")
-			props.Text = message.Text
-			return props
-		end
-	end
+    local tagText   = pl:GetAttribute("CustomNAtaggerText")
+    local tagCol    = pl:GetAttribute("CustomNAtaggerColor")
+    local useRainbow = pl:GetAttribute("CustomNAtaggerRainbow")
 
-	local tagText = fromPlayer:GetAttribute("CustomNAtaggerText")
-	local tagColor = fromPlayer:GetAttribute("CustomNAtaggerColor")
-
-	if tagText and tagColor then
-		local r, g, b = tagColor.R * 255, tagColor.G * 255, tagColor.B * 255
-		local hex = Format("#%02X%02X%02X", r, g, b)
-		local props = InstanceNew("TextChatMessageProperties")
-		props.PrefixText = Format('<font color="%s">[%s]</font> %s', hex, tagText, message.PrefixText or "")
-		props.Text = message.Text
-		return props
-	end
+    if tagText and tagCol then
+        local r, g, b = tagCol.R * 255, tagCol.G * 255, tagCol.B * 255
+        local hex = Format("#%02X%02X%02X", r, g, b)
+        local props = InstanceNew("TextChatMessageProperties")
+        local name = nameChecker(pl)
+        local displayName = useRainbow and NAmanage.gradientify(name) or name
+        props.PrefixText = Format('<font color="%s">[%s]</font> %s: ', hex, tagText, displayName)
+        props.Text = message.Text
+        return props
+    end
 end
 
 print([[
@@ -20840,6 +20905,10 @@ NAgui.addColorPicker("Tag Color", opt.currentTagColor, function(color)
 	opt.currentTagColor = color
 end)
 
+NAgui.addToggle("Rainbow Name", opt.currentTagRGB, function(state)
+	opt.currentTagRGB = state
+end)
+
 NAgui.addButton("Apply Chat Tag", function()
 	if opt.currentTagText == "" or not opt.currentTagText then
 		DoNotif("Please enter a tag name before applying",2)
@@ -20848,6 +20917,7 @@ NAgui.addButton("Apply Chat Tag", function()
 
 	LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
 	LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
+	LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
 
 	if FileSupport then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
@@ -20857,6 +20927,7 @@ NAgui.addButton("Apply Chat Tag", function()
 				G = opt.currentTagColor.G;
 				B = opt.currentTagColor.B;
 			};
+			RGB = opt.currentTagRGB;
 			Save = true;
 		}))
 	end
@@ -20867,11 +20938,13 @@ end)
 NAgui.addButton("Remove Chat Tag", function()
 	LocalPlayer:SetAttribute("CustomNAtaggerText", nil)
 	LocalPlayer:SetAttribute("CustomNAtaggerColor", nil)
+	LocalPlayer:SetAttribute("CustomNAtaggerRainbow", nil)
 
 	if FileSupport and isfile(NAfiles.NACHATTAG) then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
 			Text = opt.currentTagText;
 			Color = { R = opt.currentTagColor.R, G = opt.currentTagColor.G, B = opt.currentTagColor.B };
+			RGB = opt.currentTagRGB;
 			Save = false;
 		}))
 	end
