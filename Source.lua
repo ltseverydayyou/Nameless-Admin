@@ -83,6 +83,45 @@ function isAprilFools()
 	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
 end
 
+function yayApril(isTesting)
+	local baseNames = {
+		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
+		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
+		"Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
+		"Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
+		"Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
+		"Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
+		"Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
+		"Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
+		"Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
+		"Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
+		"Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
+		"Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
+		"Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
+		"Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
+		"Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
+		"Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
+		"Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
+		"Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
+		"Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
+		"Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
+		"Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
+		"Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
+		"Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
+		"Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
+		"Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
+		"Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
+		"Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
+		"Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
+		"Xeme", "Yonderly", "Zenobia"
+	}
+
+	local suffix = isTesting and "Testing" or "Admin"
+	local name = baseNames[math.random(#baseNames)]
+
+	return name.." "..suffix
+end
+
 function MockText(text)
 	local result = {}
 	local toggle = true
@@ -373,45 +412,6 @@ end
 
 --[[ Version ]]--
 local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson and " V"..NAjson.ver or ""
-
-function yayApril(isTesting)
-	local baseNames = {
-		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
-		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
-		"Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
-		"Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
-		"Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
-		"Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
-		"Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
-		"Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
-		"Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
-		"Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
-		"Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
-		"Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
-		"Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
-		"Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
-		"Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
-		"Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
-		"Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
-		"Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
-		"Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
-		"Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
-		"Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
-		"Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
-		"Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
-		"Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
-		"Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
-		"Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
-		"Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
-		"Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
-		"Xeme", "Yonderly", "Zenobia"
-	}
-
-	local suffix = isTesting and "Testing" or "Admin"
-	local name = baseNames[math.random(#baseNames)]
-
-	return name.." "..suffix
-end
 
 function getSeasonEmoji()
 	local date = os.date("*t")
