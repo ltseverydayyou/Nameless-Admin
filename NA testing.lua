@@ -7006,6 +7006,10 @@ cmd.add({"minimap"},{"minimap","just a minimap lol"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/minimap.luau"))()
 end)
 
+cmd.add({"animationplayer","animplayer", "aplayer","animp"},{"animationplayer","dropdown menu with all the animations the game has to be played"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau"))();
+end)
+
 cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/ModuleScript's using konstant"},function()
 	Spawn(function()
 		assert(getscriptbytecode, "Exploit not supported.")
