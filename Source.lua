@@ -14709,6 +14709,135 @@ cmd.add({"untpwalk"}, {"untpwalk", "Stops the tpwalk command"}, function()
 	NAlib.disconnect("TPWalkingConnection")
 end)
 
+local tptptpSPEED = {
+    enabled = false;
+    part = nil;
+    accumulator = 0;
+    pos = Vector3.new();
+    useCollisionCheck = false;
+    useStepMovement = false;
+    oldUI = nil;
+    oldSpeed = nil;
+    speedConn = nil;
+}
+
+cmd.add({"tpspeed","tpspeed"},{"tpspeed <number>","Teleport in leaps with visual target"}, function(...)
+    if tptptpSPEED.enabled then
+        tptptpSPEED.enabled = false
+        NAlib.disconnect("TPSpeedVisual")
+        if tptptpSPEED.part then tptptpSPEED.part:Destroy() tptptpSPEED.part = nil end
+        if tptptpSPEED.oldUI then tptptpSPEED.oldUI:Destroy() tptptpSPEED.oldUI = nil end
+        if tptptpSPEED.speedConn then tptptpSPEED.speedConn:Disconnect() tptptpSPEED.speedConn = nil end
+        local humanoid = getHum()
+        if humanoid and tptptpSPEED.oldSpeed then humanoid.WalkSpeed = tptptpSPEED.oldSpeed end
+    end
+
+    tptptpSPEED.enabled = true
+    local speed = tonumber(...) or 1
+    local char = getChar()
+    tptptpSPEED.pos = char:GetPivot().Position
+    tptptpSPEED.accumulator = 0
+
+    tptptpSPEED.part = InstanceNew("Part", workspace)
+    tptptpSPEED.part.Size = Vector3.new(2,2,2)
+    tptptpSPEED.part.Anchored = true
+    tptptpSPEED.part.CanCollide = false
+    tptptpSPEED.part.Material = Enum.Material.SmoothPlastic
+    tptptpSPEED.part.Color = Color3.fromRGB(0,255,0)
+    tptptpSPEED.part.Transparency = 0.5
+
+    tptptpSPEED.oldUI = InstanceNew("ScreenGui")
+    NaProtectUI(tptptpSPEED.oldUI)
+    tptptpSPEED.oldUI.Name = "TPSpeedGui"
+    tptptpSPEED.oldUI.ResetOnSpawn = false
+
+    local function createButton(name, text, xScale)
+        local btn = InstanceNew("TextButton", tptptpSPEED.oldUI)
+        btn.Name = name
+        btn.Text = text
+        btn.Size = UDim2.new(0.1,0,0.04,0)
+        btn.Position = UDim2.new(xScale,0,0.02,0)
+        btn.AnchorPoint = Vector2.new(0.5,0)
+        btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        btn.TextColor3 = Color3.new(1,1,1)
+        local corner = Instance.new("UICorner", btn)
+        corner.CornerRadius = UDim.new(0.5,0)
+        return btn
+    end
+
+    local collisionBtn = createButton("CollisionCheckButton","Collision: Off",0.4)
+    local movementBtn  = createButton("MovementModeButton",  "Mode: Snap",  0.6)
+
+    MouseButtonFix(collisionBtn, function()
+        tptptpSPEED.useCollisionCheck = not tptptpSPEED.useCollisionCheck
+        collisionBtn.Text = "Collision: " .. (tptptpSPEED.useCollisionCheck and "On" or "Off")
+    end)
+    MouseButtonFix(movementBtn, function()
+        tptptpSPEED.useStepMovement = not tptptpSPEED.useStepMovement
+        movementBtn.Text = "Mode: " .. (tptptpSPEED.useStepMovement and "Step" or "Snap")
+    end)
+    NAgui.draggerV2(collisionBtn)
+    NAgui.draggerV2(movementBtn)
+
+    do
+        local humanoid = getHum()
+        if humanoid then
+            tptptpSPEED.oldSpeed = humanoid.WalkSpeed
+            tptptpSPEED.speedConn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                local new = humanoid.WalkSpeed
+                if new > 0 then tptptpSPEED.oldSpeed = new end
+                humanoid.WalkSpeed = 0
+            end)
+            humanoid.WalkSpeed = 0
+        end
+    end
+
+    NAlib.connect("TPSpeedVisual", RunService.Stepped:Connect(function(_,dt)
+        if not tptptpSPEED.enabled then return end
+        local char = getChar()
+        local humanoid = getHum()
+        if humanoid and humanoid.MoveDirection.Magnitude > 0 then
+            local dir = humanoid.MoveDirection.Unit
+            local origin = char:GetPivot().Position
+            local leap = speed * 0.4 * 10
+            local newPos = (tptptpSPEED.useStepMovement
+                and tptptpSPEED.pos + dir * (speed * dt * 10)
+                or origin + dir * leap)
+
+            if tptptpSPEED.useCollisionCheck then
+                local half = tptptpSPEED.part.Size/2
+                local region = Region3.new(newPos-half, newPos+half)
+                local parts = workspace:FindPartsInRegion3WithIgnoreList(region,{char,tptptpSPEED.part},10)
+                local ok = true
+                for _,p in ipairs(parts) do if p.CanCollide then ok=false break end end
+                if ok then tptptpSPEED.pos = newPos end
+            else
+                tptptpSPEED.pos = newPos
+            end
+
+            tptptpSPEED.part.CFrame = CFrame.new(tptptpSPEED.pos)
+            tptptpSPEED.accumulator = tptptpSPEED.accumulator + dt
+            if tptptpSPEED.accumulator >= 0.4 then
+                tptptpSPEED.accumulator = tptptpSPEED.accumulator - 0.4
+                local pivot = char:GetPivot()
+                char:PivotTo(CFrame.new(tptptpSPEED.pos)*(pivot-pivot.Position))
+            end
+        end
+    end))
+end, true)
+
+cmd.add({"untpspeed"},{"untpspeed","Stops the tpspeed command"}, function()
+    if tptptpSPEED.enabled then
+        tptptpSPEED.enabled = false
+        NAlib.disconnect("TPSpeedVisual")
+        if tptptpSPEED.part then tptptpSPEED.part:Destroy() tptptpSPEED.part=nil end
+        if tptptpSPEED.oldUI then tptptpSPEED.oldUI:Destroy() tptptpSPEED.oldUI=nil end
+        if tptptpSPEED.speedConn then tptptpSPEED.speedConn:Disconnect() tptptpSPEED.speedConn=nil end
+        local humanoid = getHum()
+        if humanoid and tptptpSPEED.oldSpeed then humanoid.WalkSpeed = tptptpSPEED.oldSpeed end
+    end
+end)
+
 muteLOOP = {}
 
 cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)", "Loop mutes the player's boombox"}, function(...)
