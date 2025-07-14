@@ -974,7 +974,7 @@ end)
 
 function GetCustomMoveVector()
 	if opt.ctrlModule then
-		local success, vec = NACaller(function()
+		local success, vec = pcall(function()
 			return opt.ctrlModule:GetMoveVector()
 		end)
 		if success and vec and vec.Magnitude > 0 then
@@ -1282,7 +1282,7 @@ cmd.run = function(args)
 	local caller, arguments = args[1], args
 	table.remove(args, 1)
 
-	local success, msg = NACaller(function()
+	local success, msg = pcall(function()
 		local command = cmds.Commands[caller:lower()] or cmds.Aliases[caller:lower()]
 		if command then
 			command[1](unpack(arguments))
@@ -1330,6 +1330,8 @@ cmd.run = function(args)
 			end
 		end
 	end)
+
+	if not success then warn("NA script error:\n"..msg) end
 end
 
 cmd.loop = function(commandName, args)
@@ -20691,6 +20693,12 @@ TextChatService.OnIncomingMessage = function(message)
         props.Text = message.Text
         return props
     end
+
+	--[[local props = InstanceNew("TextChatMessageProperties")
+	local name = nameChecker(pl)
+	props.PrefixText = Format('%s: ', name)
+	props.Text = message.Text
+	return props]]
 end
 
 print([[
