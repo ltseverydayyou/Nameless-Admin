@@ -15136,96 +15136,96 @@ cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to what
 	workspace.Gravity=(...)
 end,true)
 
-cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every ClickDetector in Workspace"},function()
-    if typeof(fireclickdetector) ~= "function" then return DoNotif("fireclickdetector not available",3) end
-
-    local list, f = {}, 0
-    for _, d in ipairs(workspace:GetDescendants()) do
-        if d:IsA("ClickDetector") then
-            Insert(list, d)
+cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every ClickDetector in Workspace"},function(...)
+    local args={...}
+    local target=args[1] and Concat(args," "):lower()
+    if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
+    local list,f={},0
+    for _,d in ipairs(workspace:GetDescendants()) do
+        if d:IsA("ClickDetector") and (not target or d.Name:lower()==target or (d.Parent and d.Parent.Name:lower()==target)) then
+            Insert(list,d)
         end
     end
-    if #list == 0 then return DoNotif("No ClickDetectors found",2) end
-
-    for _, d in ipairs(list) do
-        if not NACaller(function() fireclickdetector(d) end) then
-            f += 1
-        end
+    if #list==0 then
+        if target then return DoNotif("No ClickDetectors found matching \""..target.."\"",2) end
+        return DoNotif("No ClickDetectors found",2)
+    end
+    for _,d in ipairs(list) do
+        if not pcall(function() fireclickdetector(d) end) then f += 1 end
     end
     Wait()
-    if f > 0 then
-        DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list, f),2)
+    if f>0 then
+        DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list,f),2)
     else
         DoNotif(("Fired %d ClickDetectors"):format(#list),2)
     end
-end)
+end,true)
 
-cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every ProximityPrompt in Workspace"},function()
-    if typeof(fireproximityprompt) ~= "function" then return DoNotif("fireproximityprompt not available",3) end
-
-    local list, f = {}, 0
-    for _, p in ipairs(workspace:GetDescendants()) do
-        if p:IsA("ProximityPrompt") then
-            Insert(list, p)
+cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every ProximityPrompt in Workspace"},function(...)
+    local args={...}
+    local target=args[1] and Concat(args," "):lower()
+    if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
+    local list,f={},0
+    for _,p in ipairs(workspace:GetDescendants()) do
+        if p:IsA("ProximityPrompt") and (not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target)) then
+            Insert(list,p)
         end
     end
-    if #list == 0 then return DoNotif("No ProximityPrompts found",2) end
-
-    for _, p in ipairs(list) do
-        if not NACaller(function() fireproximityprompt(p, 1) end) then
-            f += 1
-        end
+    if #list==0 then
+        if target then return DoNotif("No ProximityPrompts found matching \""..target.."\"",2) end
+        return DoNotif("No ProximityPrompts found",2)
+    end
+    for _,p in ipairs(list) do
+        if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
     end
     Wait()
-    if f > 0 then
-        DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list, f),2)
+    if f>0 then
+        DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list,f),2)
     else
         DoNotif(("Fired %d ProximityPrompts"):format(#list),2)
     end
-end)
+end,true)
 
-cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function()
-    if typeof(firetouchinterest)   ~= "function"
-    then
-        return DoNotif("firetouchinterest not available",3)
-    end
-
-    local char = getChar()
-    local root = char and getRoot(char)
+cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function(...)
+    local args={...}
+    local target=args[1] and Concat(args," "):lower()
+    if typeof(firetouchinterest)~="function" then return DoNotif("firetouchinterest not available",3) end
+    local char=getChar()
+    local root=char and getRoot(char)
     if not root then return DoNotif("Character not found",3) end
-
-    local parts, f = {}, 0
-    for _, t in ipairs(workspace:GetDescendants()) do
+    local parts,f={},0
+    for _,t in ipairs(workspace:GetDescendants()) do
         if t:IsA("TouchTransmitter") then
-            local p = t.Parent
-            if p and p:IsA("BasePart") then
-                Insert(parts, p)
+            local p=t.Parent
+            if p and p:IsA("BasePart") and (not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target)) then
+                Insert(parts,p)
             end
         end
     end
-    if #parts == 0 then return DoNotif("No TouchInterests found",2) end
-
-    for _, p in ipairs(parts) do
+    if #parts==0 then
+        if target then return DoNotif("No TouchInterests found matching \""..target.."\"",2) end
+        return DoNotif("No TouchInterests found",2)
+    end
+    for _,p in ipairs(parts) do
         coroutine.wrap(function()
-            local orig = p.CFrame
-            local ok = NACaller(function()
-                p.CFrame = root.CFrame
-                firetouchinterest(root, p, 0)
+            local orig=p.CFrame
+            local ok=pcall(function()
+                p.CFrame=root.CFrame
+                firetouchinterest(root,p,0)
                 Wait()
-                firetouchinterest(root, p, 1)
+                firetouchinterest(root,p,1)
             end)
-            Delay(0.1, function() p.CFrame = orig end)
+            Delay(0.1,function() p.CFrame=orig end)
             if not ok then f += 1 end
         end)()
     end
-
     Wait()
-    if f > 0 then
-        DoNotif(("Fired %d TouchInterests, Failed: %d"):format(#parts, f),2)
+    if f>0 then
+        DoNotif(("Fired %d TouchInterests, Failed: %d"):format(#parts,f),2)
     else
         DoNotif(("Fired %d TouchInterests"):format(#parts),2)
     end
-end)
+end,true)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
 	for i,v in ipairs(workspace:GetDescendants()) do
