@@ -326,9 +326,9 @@ end
 function NAProtection(inst,var)
 	if not inst then return end
 	if var then
-		inst[var] = "\u{200B}\u{200C}"
+		inst[var] = "\0"
 	else
-		inst.Name   = "\u{200B}\u{200C}"
+		inst.Name   = "\0"
 	end
 	inst.Archivable = false
 end
@@ -337,14 +337,7 @@ function NaProtectUI(gui)
 	local RunService = SafeGetService("RunService")
 	local Players    = SafeGetService("Players")
 	local CoreGui    = SafeGetService("CoreGui")
-	local ZW = {
-		"\u{200B}", "\u{200C}", "\u{200D}",
-		"\u{2060}", "\u{2062}", "\u{2063}", "\u{FEFF}"
-	}
-	local INV = ""
-	for i = 1, math.random(6, 12) do
-		INV = INV..ZW[math.random(1, #ZW)]
-	end
+	local INV = "\0"
 	local MAX_DO = 0x7FFFFFFF
 	local target = (gethui and gethui())
 		or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
@@ -418,7 +411,7 @@ end
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent = p end
-	inst.Name = "\u{200B}\u{200C}\u{200D}\u{FEFF}"
+	inst.Name = "\0"
 	return inst
 end
 
