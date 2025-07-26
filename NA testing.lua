@@ -18186,6 +18186,26 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 	end
 end)
 
+cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
+    local speed = tonumber(speedStr) or 16
+    for _, hum in pairs(workspace:GetDescendants()) do
+        if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+            local root = getRoot(hum.Parent)
+            if root then hum.WalkSpeed = speed end
+        end
+    end
+end,true)
+
+cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
+    local power=tonumber(powerStr) or 50
+    for _,hum in pairs(workspace:GetDescendants()) do
+        if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+            local root=getRoot(hum.Parent)
+            if root then hum.JumpPower=power end
+        end
+    end
+end,true)
+
 cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 	local npcs = {}
 
@@ -18473,6 +18493,134 @@ cmd.add({"unclickvoidnpc", "uncvnpc"}, {"unclickvoidnpc (uncvnpc)","Disable clic
 	clickVoidEnabled = false
 	if clickVoidUI then clickVoidUI:Destroy() end
 	NAlib.disconnect("clickvoid_mouse")
+end)
+
+clickSpeedUI,clickSpeedEnabled=nil,false
+
+cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSpeed"},function()
+    clickSpeedEnabled=true
+    if clickSpeedUI then clickSpeedUI:Destroy() end
+    NAlib.disconnect("clickspeed_mouse")
+    local player=Players.LocalPlayer
+    local mouse=player:GetMouse()
+    clickSpeedUI=InstanceNew("ScreenGui")
+    NaProtectUI(clickSpeedUI)
+    local btn=InstanceNew("TextButton")
+    btn.Size=UDim2.new(0,120,0,40)
+    btn.Position=UDim2.new(0.5,-130,0,10)
+    btn.Text="SetSpeed: ON"
+    btn.TextSize=16
+    btn.TextColor3=Color3.new(1,1,1)
+    btn.Font=Enum.Font.GothamBold
+    btn.BackgroundColor3=Color3.fromRGB(40,40,40)
+    btn.BackgroundTransparency=0.2
+    btn.Parent=clickSpeedUI
+    local cor1=InstanceNew("UICorner")
+    cor1.CornerRadius=UDim.new(0,8)
+    cor1.Parent=btn
+    NAgui.draggerV2(btn)
+    local tb=InstanceNew("TextBox")
+    tb.Size=UDim2.new(0,120,0,40)
+    tb.Position=UDim2.new(0.5,10,0,10)
+    tb.Text="16"
+    tb.PlaceholderText="Speed"
+    tb.TextSize=16
+    tb.TextColor3=Color3.new(1,1,1)
+    tb.Font=Enum.Font.Gotham
+    tb.BackgroundColor3=Color3.fromRGB(50,50,50)
+    tb.BackgroundTransparency=0.2
+    tb.Parent=clickSpeedUI
+    local cor2=InstanceNew("UICorner")
+    cor2.CornerRadius=UDim.new(0,8)
+    cor2.Parent=tb
+    NAgui.draggerV2(tb)
+    local speedNumber=16
+    tb.FocusLost:Connect(function(enterPressed)
+        local n=tonumber(tb.Text)
+        if n then speedNumber=n else tb.Text=tostring(speedNumber) end
+    end)
+    MouseButtonFix(btn,function()
+        clickSpeedEnabled=not clickSpeedEnabled
+        btn.Text=clickSpeedEnabled and "SetSpeed: ON" or "SetSpeed: OFF"
+    end)
+    NAlib.connect("clickspeed_mouse",mouse.Button1Down:Connect(function()
+        if not clickSpeedEnabled then return end
+        local hit=mouse.Target
+        if hit and hit.Parent and CheckIfNPC(hit.Parent) then
+            local hum=getPlrHum(hit.Parent)
+            if hum then hum.WalkSpeed=speedNumber end
+        end
+    end))
+end)
+
+cmd.add({"unclicknpcws","uncnpcws"},{"unclicknpcws","Disable clicknpcws"},function()
+    clickSpeedEnabled=false
+    if clickSpeedUI then clickSpeedUI:Destroy() end
+    NAlib.disconnect("clickspeed_mouse")
+end)
+
+clickJumpUI,clickJumpEnabled=nil,false
+
+cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPower"},function()
+    clickJumpEnabled=true
+    if clickJumpUI then clickJumpUI:Destroy() end
+    NAlib.disconnect("clickjump_mouse")
+    local player=Players.LocalPlayer
+    local mouse=player:GetMouse()
+    clickJumpUI=InstanceNew("ScreenGui")
+    NaProtectUI(clickJumpUI)
+    local btn=InstanceNew("TextButton")
+    btn.Size=UDim2.new(0,120,0,40)
+    btn.Position=UDim2.new(0.5,-130,0,10)
+    btn.Text="SetJump: ON"
+    btn.TextSize=16
+    btn.TextColor3=Color3.new(1,1,1)
+    btn.Font=Enum.Font.GothamBold
+    btn.BackgroundColor3=Color3.fromRGB(40,40,40)
+    btn.BackgroundTransparency=0.2
+    btn.Parent=clickJumpUI
+    local cor1=InstanceNew("UICorner")
+    cor1.CornerRadius=UDim.new(0,8)
+    cor1.Parent=btn
+    NAgui.draggerV2(btn)
+    local tb=InstanceNew("TextBox")
+    tb.Size=UDim2.new(0,120,0,40)
+    tb.Position=UDim2.new(0.5,10,0,10)
+    tb.Text="50"
+    tb.PlaceholderText="JumpPower"
+    tb.TextSize=16
+    tb.TextColor3=Color3.new(1,1,1)
+    tb.Font=Enum.Font.Gotham
+    tb.BackgroundColor3=Color3.fromRGB(50,50,50)
+    tb.BackgroundTransparency=0.2
+    tb.Parent=clickJumpUI
+    local cor2=InstanceNew("UICorner")
+    cor2.CornerRadius=UDim.new(0,8)
+    cor2.Parent=tb
+    NAgui.draggerV2(tb)
+    local jumpPowerNumber=50
+    tb.FocusLost:Connect(function(enterPressed)
+        local n=tonumber(tb.Text)
+        if n then jumpPowerNumber=n else tb.Text=tostring(jumpPowerNumber) end
+    end)
+    MouseButtonFix(btn,function()
+        clickJumpEnabled=not clickJumpEnabled
+        btn.Text=clickJumpEnabled and "SetJump: ON" or "SetJump: OFF"
+    end)
+    NAlib.connect("clickjump_mouse",mouse.Button1Down:Connect(function()
+        if not clickJumpEnabled then return end
+        local hit=mouse.Target
+        if hit and hit.Parent and CheckIfNPC(hit.Parent) then
+            local hum=getPlrHum(hit.Parent)
+            if hum then hum.JumpPower=jumpPowerNumber end
+        end
+    end))
+end)
+
+cmd.add({"unclicknpcjp","uncnpcjp"},{"unclicknpcjp","Disable clicknpcjp"},function()
+    clickJumpEnabled=false
+    if clickJumpUI then clickJumpUI:Destroy() end
+    NAlib.disconnect("clickjump_mouse")
 end)
 
 --[[ FUNCTIONALITY ]]--
