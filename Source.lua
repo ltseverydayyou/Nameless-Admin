@@ -6131,8 +6131,8 @@ cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 	local function noSit(character)
 		local humanoid = getPlrHum(character)
 		while not humanoid do Wait(.1) humanoid = getPlrHum(character) end
+		humanoid.Sit = false
 		humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-		humanoid.Sit = true
 	end
 
 	if LocalPlayer.Character then
@@ -6149,8 +6149,8 @@ cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
 	local character = LocalPlayer.Character
 	local humanoid = getHum()
 	while not humanoid do Wait(.1) humanoid = getHum() end
-	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 	humanoid.Sit = false
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 
 	NAlib.disconnect("antisit_conn")
 	DoNotif("Anti sit disabled", 3)
