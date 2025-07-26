@@ -1,4 +1,3 @@
-
 if getgenv().RealNamelessLoaded then return end
 
 pcall(function() getgenv().RealNamelessLoaded=true end)
@@ -7720,23 +7719,87 @@ cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera
     end
 end)
 
-cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"},function()
-	local function onInput(input, gameProcessed)
-		if gameProcessed then return end
-		if input.KeyCode == Enum.KeyCode.Comma and workspace.CurrentCamera then
-			workspace.CurrentCamera:PanUnits(-1)
-		elseif input.KeyCode == Enum.KeyCode.Period and workspace.CurrentCamera then
-			workspace.CurrentCamera:PanUnits(1)
-		end
-	end
-	if not NAlib.isConnected("align_input") then
-		NAlib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
-	end
-end,true)
+alignmentButtonsGui = nil
 
-cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys","Disable alignment keys"},function()
-	NAlib.disconnect("align_input")
-end,true)
+cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"}, function()
+    local function onInput(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Comma and workspace.CurrentCamera then
+            workspace.CurrentCamera:PanUnits(-1)
+        elseif input.KeyCode == Enum.KeyCode.Period and workspace.CurrentCamera then
+            workspace.CurrentCamera:PanUnits(1)
+        end
+    end
+    if not NAlib.isConnected("align_input") then
+        NAlib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
+    end
+    if IsOnMobile and not alignmentButtonsGui then
+        alignmentButtonsGui = InstanceNew("ScreenGui")
+        alignmentButtonsGui.Name = "AlignButtons"
+        alignmentButtonsGui.ResetOnSpawn = false
+        NaProtectUI(alignmentButtonsGui)
+
+        local btnSize = UDim2.new(0.1, 0, 0.1, 0)
+
+        local leftButton = InstanceNew("TextButton")
+        leftButton.Name = "PanLeft"
+        leftButton.Text = "<"
+        leftButton.TextScaled = true
+        leftButton.Size = btnSize
+        leftButton.Position = UDim2.new(0.45, 0, 0.05, 0)
+        leftButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        leftButton.BackgroundColor3 = Color3.new(0, 0, 0)
+        leftButton.BorderSizePixel = 0
+        leftButton.TextColor3 = Color3.new(1, 1, 1)
+        leftButton.Parent = alignmentButtonsGui
+
+        local leftUICorner = InstanceNew("UICorner")
+        leftUICorner.CornerRadius = UDim.new(1, 0)
+        leftUICorner.Parent = leftButton
+
+        local rightButton = InstanceNew("TextButton")
+        rightButton.Name = "PanRight"
+        rightButton.Text = ">"
+        rightButton.TextScaled = true
+        rightButton.Size = btnSize
+        rightButton.Position = UDim2.new(0.55, 0, 0.05, 0)
+        rightButton.AnchorPoint = Vector2.new(0.5, 0.5)
+        rightButton.BackgroundColor3 = Color3.new(0, 0, 0)
+        rightButton.BorderSizePixel = 0
+        rightButton.TextColor3 = Color3.new(1, 1, 1)
+        rightButton.Parent = alignmentButtonsGui
+
+        local rightUICorner = InstanceNew("UICorner")
+        rightUICorner.CornerRadius = UDim.new(1, 0)
+        rightUICorner.Parent = rightButton
+
+		NAgui.draggerV2(leftButton)
+		NAgui.draggerV2(rightButton)
+
+        NAlib.connect("align_mobile_left", MouseButtonFix(leftButton,function()
+            if workspace.CurrentCamera then
+                workspace.CurrentCamera:PanUnits(-1)
+            end
+        end))
+        NAlib.connect("align_mobile_right", MouseButtonFix(rightButton,function()
+            if workspace.CurrentCamera then
+                workspace.CurrentCamera:PanUnits(1)
+            end
+        end))
+    end
+end)
+
+cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys","Disable alignment keys"}, function()
+    NAlib.disconnect("align_input")
+    if IsOnMobile and alignmentButtonsGui then
+        NAlib.disconnect("align_mobile_left")
+        NAlib.disconnect("align_mobile_right")
+        alignmentButtonsGui:Destroy()
+        alignmentButtonsGui = nil
+        mobileLeftConn = nil
+        mobileRightConn = nil
+    end
+end)
 
 cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
 	ESPenabled = true
