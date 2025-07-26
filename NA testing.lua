@@ -2890,63 +2890,119 @@ local lp=Players.LocalPlayer
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks={}
 Playerchats={}
+local oldChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
-NAlib.LocalPlayerChat=function(...)
-	local args={...}
-	if TextChatService:FindFirstChild("TextChannels") then
-		local sendto=TextChatService.TextChannels.RBXGeneral
-		if args[2]~=nil and  args[2]~="All"  then
-			if not Playerchats[args[2]] then
-				for i,v in pairs(TextChatService.TextChannels:GetChildren()) do
-					if Find(v.Name,"RBXWhisper:") then
-						if v:FindFirstChild(args[2]) and v:FindFirstChild(Players.LocalPlayer.Name) then
-							if v[Players.LocalPlayer.Name].CanSend==false then
-								continue
-							end
-							sendto=v
-							Playerchats[args[2]]=v
-							break
-						end
-					end
-				end
-			else
-				sendto=Playerchats[args[2]]
-			end
-			if sendto==TextChatService.TextChannels.RBXGeneral then
-				chatmsgshooks[args[1]]={args[1],args}
-				Spawn(function()
-					TextChatService.TextChannels.RBXGeneral:SendAsync("/w @"..args[2])
-				end)
-				return "Hooking"
-			end
-		end
-		sendto:SendAsync(args[1] or "")
-	else
+if oldChat then
+	NAlib.LocalPlayerChat=function(...)
+		local args={...}
 		if args[2] and args[2]~="All" then
 			ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("/w "..args[2].." "..args[1] or "","All")
 		else
 			ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(args[1] or "","All")
 		end
 	end
-end
-
-if TextChatService:FindFirstChild("TextChannels") then
-	TextChatService.TextChannels.ChildAdded:Connect(function(v)
-		if Find(v.Name,"RBXWhisper:") then
-			Wait(1)
-			for id,va in pairs(chatmsgshooks) do
-				if v:FindFirstChild(va[1]) and v:FindFirstChild(Players.LocalPlayer.Name) then
-					if v[Players.LocalPlayer.Name].CanSend==false then
-						continue
+else
+	local RBXGeneral = nil
+	NACaller(function()
+		if TextChatService.CreateDefaultTextChannels then
+			for i,v in pairs(TextChatService:GetDescendants()) do
+				if v:IsA("TextChannel") and v.Name=="RBXGeneral" then
+					if v:FindFirstChild(Players.LocalPlayer.Name) and v[Players.LocalPlayer.Name]:IsA("TextSource") then
+						RBXGeneral = v
+						break
 					end
-					Playerchats[va[1]]=v
-					chatmsgshooks[id]=nil
-					NAlib.LocalPlayerChat(va[2])
-					break
 				end
 			end
 		end
+		
+		if not RBXGeneral then
+			for i,v in pairs(TextChatService:GetDescendants()) do
+				if v:IsA("TextChannel") then
+					for index,player in pairs(Players:GetPlayers()) do
+						if v:FindFirstChild(player.Name) and v[player.Name]:IsA("TextSource") and v[player.Name].CanSend then
+							RBXGeneral = v
+						else
+							RBXGeneral = nil
+							break
+						end
+					end
+					if RBXGeneral then
+						break
+					end
+				end
+			end
+			
+			if not RBXGeneral then
+				for i,v in pairs(TextChatService:GetDescendants()) do
+					if v:IsA("TextChannel") then
+						if v:FindFirstChild(Players.LocalPlayer.Name) and v[Players.LocalPlayer.Name]:IsA("TextSource") and v[Players.LocalPlayer.Name].CanSend then
+							RBXGeneral = v
+							break
+						end
+					end
+				end
+			end
+			-- i have tried enough
+			if not RBXGeneral then
+				NAlib.LocalPlayerChat=function(...)
+					NACaller(function()
+						error("unable to get the chat system for the game")
+					end)	
+				end
+				return	
+			end
+		end
+		
+		NAlib.LocalPlayerChat=function(...)
+			local args={...}
+			local sendto=RBXGeneral
+			if args[2]~=nil and  args[2]~="All"  then
+				if not Playerchats[args[2]] then
+					for i,v in pairs(TextChatService:GetDescendants()) do
+						if v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
+							if v:FindFirstChild(args[2]) and v:FindFirstChild(Players.LocalPlayer.Name) then
+								if v[Players.LocalPlayer.Name].CanSend==false then
+									continue
+								end
+								sendto=v
+								Playerchats[args[2]]=v
+								break
+							end
+						end
+					end
+				else
+					sendto=Playerchats[args[2]]
+				end
+				if sendto==RBXGeneral then
+					chatmsgshooks[args[1]]={args[1],args}
+					Spawn(function()
+						RBXGeneral:SendAsync("/w @"..args[2])
+					end)
+					return "Hooking"
+				end
+			end
+			sendto:SendAsync(args[1] or "")
+			
+		end
 	end)
+
+	if TextChatService:FindFirstChild("TextChannels") then
+		TextChatService.TextChannels.ChildAdded:Connect(function(v)
+			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
+				Wait(1)
+				for id,va in pairs(chatmsgshooks) do
+					if v:FindFirstChild(va[1]) and v:FindFirstChild(Players.LocalPlayer.Name) then
+						if v[Players.LocalPlayer.Name].CanSend==false then
+							continue
+						end
+						Playerchats[va[1]]=v
+						chatmsgshooks[id]=nil
+						NAlib.LocalPlayerChat(va[2])
+					end
+				end
+			end
+		end)
+	end
 end
 
 NAlib.lpchat=NAlib.LocalPlayerChat
