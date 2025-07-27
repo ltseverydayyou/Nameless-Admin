@@ -1478,23 +1478,19 @@ function rngMsg()
 end
 
 function getRoot(char)
-	if not char or not char:IsA("Model") then return nil end
-	if char:IsA("Player") then char = char.Character end
-
-	local fallback
-
-	for _, v in pairs(char:GetDescendants()) do
-		if not v:IsA("BasePart") then continue end
-
-		local name = v.Name:lower()
-		if name == "humanoidrootpart" or name == "torso" or name == "uppertorso" or name == "lowertorso" then
-			return v
-		elseif not fallback then
-			fallback = v
-		end
-	end
-
-	return fallback
+    if not char or not char:IsA("Model") then return nil end
+    if char:IsA("Player") then char = char.Character end
+    local fallback
+    for _, v in pairs(char:GetDescendants()) do
+        if not v:IsA("BasePart") then continue end
+        local name = v.Name:lower()
+        if name=="humanoidrootpart" or name=="torso" or name=="uppertorso" or name=="lowertorso" then
+            return v
+        elseif not fallback then
+            fallback = v
+        end
+    end
+    return fallback
 end
 
 function getTorso(char)
@@ -1518,23 +1514,19 @@ function getTorso(char)
 end
 
 function getHead(char)
-	if not char or not char:IsA("Model") then return nil end
-	if char:IsA("Player") then char = char.Character end
-
-	local fallback
-
-	for _, v in pairs(char:GetDescendants()) do
-		if not v:IsA("BasePart") then continue end
-
-		local name = v.Name:lower()
-		if name == "head" then
-			return v
-		elseif not fallback then
-			fallback = v
-		end
-	end
-
-	return fallback
+    if not char or not char:IsA("Model") then return nil end
+    if char:IsA("Player") then char = char.Character end
+    local fallback
+    for _, v in pairs(char:GetDescendants()) do
+        if not v:IsA("BasePart") then continue end
+        local name = v.Name:lower()
+        if name=="head" then
+            return v
+        elseif not fallback then
+            fallback = v
+        end
+    end
+    return fallback
 end
 
 function getChar()
@@ -1543,8 +1535,7 @@ function getChar()
 end
 
 function getPlrChar(plr)
-	local fix=plr:IsA("Player") and (plr and plr.Character) or plr or nil
-	return fix
+    return (plr and plr:IsA("Player")) and plr.Character or plr
 end
 
 function getBp()
@@ -1566,16 +1557,12 @@ function getHum()
 end
 
 function getPlrHum(pp)
-	local char = pp:IsA("Player") and getPlrChar(pp) or pp
-	if not char then return nil end
-
-	for _, v in pairs(char:GetDescendants()) do
-		if v:IsA("Humanoid") then
-			return v
-		end
-	end
-
-	return nil
+    local char = (pp and pp:IsA("Player")) and pp.Character or pp
+    if not char then return nil end
+    for _, v in pairs(char:GetDescendants()) do
+        if v:IsA("Humanoid") then return v end
+    end
+    return nil
 end
 
 function IsR15(plr)
@@ -1612,10 +1599,18 @@ Foreach = function(Table, Func, Loop)
 	end
 end
 
-CheckIfNPC = function(Character)
-	if (Character and Character:IsA("Model")) and (Character:FindFirstChildOfClass("Humanoid") and not Players:GetPlayerFromCharacter(Character)) then
-		return true
-	end
+CheckIfNPC = function(character)
+    if not (character and character:IsA("Model")) then
+        return false
+    end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        return false
+    end
+    if Players:GetPlayerFromCharacter(character) then
+        return false
+    end
+    return true
 end
 
 FindInTable = function(tbl,val)
@@ -1679,13 +1674,11 @@ local PlayerArgs = {
 
 	["npc"] = function()
 		local Targets = {}
-
-		Foreach(workspace:GetDescendants(), function(Index, Model)
-			if CheckIfNPC(Model) then
-				Insert(Targets, Model)
+		for _, model in ipairs(workspace:GetDescendants()) do
+			if CheckIfNPC(model) then
+				Insert(Targets, model)
 			end
-		end)
-
+		end
 		return Targets
 	end,
 
@@ -2026,159 +2019,126 @@ function removeESPonLEAVE(player)
 end
 
 function removeAllESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        clearESP(player)
+    for model,_ in pairs(espCONS) do
+        clearESPModel(model)
     end
 end
 
-function discPlrESP(player)
-    clearESP(player)
+function clearESPModel(model)
+    local key = tostring(model)
+    NAlib.disconnect(key.."_descAdded")
+    NAlib.disconnect(key.."_descRemoved")
+    NAlib.disconnect(key.."_render")
+    NAlib.disconnect(key.."_charAdded")
+    local data = espCONS[model]
+    if data then
+        for part,box in pairs(data.boxTable) do box:Destroy() end
+        if data.billboard then data.billboard:Destroy() end
+        espCONS[model] = nil
+    end
 end
 
-function NAESP(player, persistent)
+function discPlrESP(target)
+    local model = (target and target:IsA("Player")) and target.Character or target
+    if model then clearESPModel(model) end
+end
+
+function espKey(target)
+    local model = (typeof(target) == "Instance" and target:IsA("Model")) and target or (typeof(target) == "Instance" and target:IsA("Player") and target.Character)
+    return tostring(model)
+end
+
+function NAESP(target,persistent)
     persistent = persistent or false
-    clearESP(player)
-
-    local character = getPlrChar(player)
-    if not character or not character:IsA("Model") then return end
-
-    local name = player.Name
+    local model = (target and target:IsA("Player")) and target.Character or target
+    clearESPModel(model)
+    if not (model and model:IsA("Model")) then return end
     local data = { boxTable = {} }
-    espCONS[name] = data
-
+    espCONS[model] = data
+    local key = tostring(model)
     local function addPart(part)
         if data.boxTable[part] then return end
-        local box = InstanceNew("BoxHandleAdornment")
-        box.Name         = "\0"
+        local box = Instance.new("BoxHandleAdornment")
         box.Adornee      = part
         box.AlwaysOnTop  = true
         box.ZIndex       = 1
         box.Transparency = 0.7
         box.Size         = part.Size
-        box.Color3       = Color3.new(1, 1, 1)
+        box.Color3       = Color3.new(1,1,1)
         box.Parent       = part
         data.boxTable[part] = box
     end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            addPart(part)
-        end
+    for _, part in ipairs(model:GetDescendants()) do
+        if part:IsA("BasePart") then addPart(part) end
     end
-
-    NAlib.connect("esp_descAdded_" .. name,
-        character.DescendantAdded:Connect(function(desc)
-            if desc:IsA("BasePart") then
-                addPart(desc)
+    NAlib.connect(key.."_descAdded",
+        model.DescendantAdded:Connect(function(desc)
+            if desc:IsA("BasePart") then addPart(desc) end
+        end)
+    )
+    NAlib.connect(key.."_descRemoved",
+        model.DescendantRemoving:Connect(function(desc)
+            local box = data.boxTable[desc]
+            if box then box:Destroy(); data.boxTable[desc] = nil end
+        end)
+    )
+    NAlib.connect(key.."_render",
+        RunService.RenderStepped:Connect(function()
+            if not model.Parent then clearESPModel(model); return end
+            local now = tick()
+            if data.lastUpdate and now - data.lastUpdate < 0.1 then return end
+            data.lastUpdate = now
+            local localRoot = getRoot(Players.LocalPlayer.Character)
+            local rootPart  = getRoot(model)
+            if not rootPart then return end
+            local distance = localRoot and math.floor((localRoot.Position - rootPart.Position).Magnitude) or 0
+            local distColor = distance>100 and Color3.fromRGB(0,255,0)
+                            or distance>50  and Color3.fromRGB(255,165,0)
+                            or Color3.fromRGB(255,0,0)
+            for part,box in pairs(data.boxTable) do
+                if box.Color3~=distColor then NAlib.setProperty(box,"Color3",distColor) end
+                if box.Size~=part.Size then NAlib.setProperty(box,"Size",part.Size) end
+            end
+            if not chamsEnabled and data.textLabel then
+                local hum = getPlrHum(model)
+                local h = hum and math.floor(hum.Health) or 0
+                local m = hum and math.floor(hum.MaxHealth) or 0
+                local name = target:IsA("Player") and target.Name or model.Name
+                local txt = name.." | "..h.."/"..m.." HP | "..distance.." studs"
+                if data.textLabel.Text~=txt then NAlib.setProperty(data.textLabel,"Text",txt) end
+                if data.textLabel.TextColor3~=distColor then NAlib.setProperty(data.textLabel,"TextColor3",distColor) end
             end
         end)
     )
-
-    NAlib.connect("esp_descRemoved_" .. name,
-        character.DescendantRemoving:Connect(function(desc)
-            if desc:IsA("BasePart") then
-                local box = data.boxTable[desc]
-                if box then
-                    box:Destroy()
-                    data.boxTable[desc] = nil
-                end
-            end
-        end)
-    )
-
-    if persistent and player:IsA("Player") then
-        NAlib.connect("esp_charAdded_" .. name,
-            player.CharacterAdded:Connect(function(c)
-                repeat Wait(.5) until player.Character
-                NAESP(player, true)
-            end)
-        )
-    end
-
     if not chamsEnabled then
-        local head = getHead(character)
+        local head = getHead(model)
         if head then
-            local billboard = InstanceNew("BillboardGui")
-            billboard.Name        = "\0"
+            local billboard = Instance.new("BillboardGui")
             billboard.Adornee     = head
             billboard.AlwaysOnTop = true
-            billboard.Size        = UDim2.new(0, 150, 0, 40)
-            billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+            billboard.Size        = UDim2.new(0,150,0,40)
+            billboard.StudsOffset = Vector3.new(0,2.5,0)
             billboard.Parent      = head
-
-            local label = InstanceNew("TextLabel")
-            label.Size                   = UDim2.new(1, 0, 1, 0)
+            local label = Instance.new("TextLabel")
+            label.Size                   = UDim2.new(1,0,1,0)
             label.BackgroundTransparency = 1
             label.Font                   = Enum.Font.GothamBold
             label.TextSize               = 12
             label.TextStrokeTransparency = 0.5
             label.Text                   = ""
             label.Parent                 = billboard
-
             data.billboard = billboard
             data.textLabel = label
         end
     end
-
-    NAlib.connect("esp_render_" .. name,
-        RunService.RenderStepped:Connect(function()
-            if not character:IsDescendantOf(workspace) then
-                if persistent then
-                    clearESP(player)
-                else
-                    removeESPonLEAVE(player)
-                end
-                return
-            end
-
-            local now = tick()
-            if data.lastUpdate and now - data.lastUpdate < 0.1 then return end
-            data.lastUpdate = now
-
-            local localChar = getPlrChar(Players.LocalPlayer)
-            local localRoot = localChar and getRoot(localChar)
-            local rootPart  = getRoot(character)
-            local humanoid  = getPlrHum(character)
-            local distance  = (localRoot and rootPart) and
-                math.floor((localRoot.Position - rootPart.Position).Magnitude) or 0
-
-            local distColor = distance > 100 and Color3.fromRGB(0,255,0)
-                             or distance > 50  and Color3.fromRGB(255,165,0)
-                             or Color3.fromRGB(255,0,0)
-
-            local teamColor = NAlib.isProperty(player, "Team")
-                           and NAlib.isProperty(player.Team, "TeamColor")
-                           and player.Team.TeamColor.Color
-
-            local finalColor = teamColor or distColor
-
-            for part, box in pairs(data.boxTable) do
-                if box and NAlib.isProperty(box, "Color3") and box.Color3 ~= finalColor then
-                    NAlib.setProperty(box, "Color3", finalColor)
-                end
-                if box and NAlib.isProperty(box, "Size") and box.Size ~= part.Size then
-                    NAlib.setProperty(box, "Size", part.Size)
-                end
-            end
-
-            if data.textLabel then
-                local health    = humanoid and math.floor(humanoid.Health)     or 0
-                local maxHealth = humanoid and math.floor(humanoid.MaxHealth) or 0
-                local newText   = Format(
-                    "%s | %d/%d HP | %d studs",
-                    nameChecker(player), health, maxHealth, distance
-                )
-                if NAlib.isProperty(data.textLabel, "Text")
-                   and data.textLabel.Text ~= newText then
-                    NAlib.setProperty(data.textLabel, "Text", newText)
-                end
-                if NAlib.isProperty(data.textLabel, "TextColor3")
-                   and data.textLabel.TextColor3 ~= distColor then
-                    NAlib.setProperty(data.textLabel, "TextColor3", distColor)
-                end
-            end
-        end)
-    )
+    if persistent and target:IsA("Player") then
+        NAlib.connect(key.."_charAdded",
+            target.CharacterAdded:Connect(function(char)
+                Wait(1)
+                NAESP(target,true)
+            end)
+        )
+    end
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -7869,40 +7829,70 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	end
 end, true)
 
-cmd.add({"npcesp", "espnpc"}, {"npcesp (espnpc)", "locate where the npcs are"}, function()
-	local target = getPlr("npc")
-	for _, plr in next, target do
-		if plr then
-			NAESP(plr)
-		end
-	end
+NPC_SCAN_KEY = "npc_esp_scan"
+getgenv().npcESPList = {}
+
+cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},function()
+    ESPenabled = true
+    chamsEnabled = false
+    getgenv().npcESPList = {}
+    if not NAlib.isConnected(NPC_SCAN_KEY) then
+        local accumulator = 0
+        NAlib.connect(NPC_SCAN_KEY,RunService.Heartbeat:Connect(function(dt)
+            accumulator = accumulator + dt
+            if accumulator < 0.5 then return end
+            accumulator = 0
+            local found = {}
+            for _,inst in ipairs(workspace:GetDescendants()) do
+                if inst:IsA("Model") then
+                    local h = getPlrHum(inst)
+                    local root = getRoot(inst)
+                    if h and not Players:GetPlayerFromCharacter(inst) and root then
+                        found[inst] = true
+                        if not getgenv().npcESPList[inst] then
+                            getgenv().npcESPList[inst] = true
+                            NAESP(inst,false)
+                        end
+                    end
+                end
+            end
+            for inst in pairs(getgenv().npcESPList) do
+                if not found[inst] then
+                    getgenv().npcESPList[inst] = nil
+                    discPlrESP(inst)
+                end
+            end
+        end))
+    end
 end)
 
-cmd.add({"unnpcesp", "unespnpc"}, {"unnpcesp (unespnpc)", "stop locating npcs"}, function()
-	local target = getPlr("npc")
-	for _, plr in next, target do
-		if plr then
-			discPlrESP(plr)
-		end
-	end
+cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},function()
+    ESPenabled = false
+    chamsEnabled = false
+    if NAlib.isConnected(NPC_SCAN_KEY) then
+        NAlib.disconnect(NPC_SCAN_KEY)
+    end
+    for inst in pairs(getgenv().npcESPList) do
+        discPlrESP(inst)
+    end
+    getgenv().npcESPList = {}
 end)
 
-cmd.add({"unesp", "unchams"}, {"unesp (unchams)", "Disables esp/chams"}, function()
-	ESPenabled = false
-	chamsEnabled = false
-	removeAllESP()
+cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
+    ESPenabled   = false
+    chamsEnabled = false
+	if NAlib.isConnected(NPC_SCAN_KEY) then
+        NAlib.disconnect(NPC_SCAN_KEY)
+    end
+    removeAllESP()
 end)
 
-cmd.add({"unlocate"}, {"unlocate <username1> <username2> etc (optional)"}, function(...)
-	local usernames = {...}
-	for _, username in ipairs(usernames) do
-		local target = getPlr(username)
-		for _, plr in ipairs(target) do
-			if plr then
-				discPlrESP(plr)
-			end
-		end
-	end
+cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
+    for _, name in ipairs({...}) do
+        for _, plr in ipairs(getPlr(name)) do
+            discPlrESP(plr)
+        end
+    end
 end, true)
 
 cmd.add({"crash"},{"crash","crashes ur client lol (why would you even use this tho)"},function()
@@ -20513,6 +20503,7 @@ function setupPlayer(plr,bruh)
 	if ESPenabled then
 		Spawn(function()
 			repeat Wait(.5) until plr.Character
+			Wait(.5)
 			NAESP(plr,true)
 		end)
 	end
