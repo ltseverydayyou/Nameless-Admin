@@ -782,7 +782,7 @@ G2L["5b"]["BackgroundTransparency"] = 1;
 
 
 -- StarterGui.AdminUI.CmdBar.Autofill.Cmd.Input
-G2L["5c"] = Instance.new("TextLabel", G2L["5b"]);
+G2L["5c"] = Instance.new("TextButton", G2L["5b"]);
 G2L["5c"]["TextWrapped"] = true;
 G2L["5c"]["Active"] = true;
 G2L["5c"]["ZIndex"] = 2;
