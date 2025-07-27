@@ -28,8 +28,11 @@ local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
-local NASCREENGUI=nil --Getmodel("rbxassetid://140418556029404")
-local NAjson = nil
+local NAStuff = {
+	NASCREENGUI=nil; --Getmodel("rbxassetid://140418556029404")
+	NAjson = nil;
+	nuhuhNotifs = true;
+}
 local Notification = nil
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
@@ -191,6 +194,15 @@ function DoNotif(text, duration, title)
 	})
 end
 
+function DebugNotif(text, duration, title)
+	if not NAStuff.nuhuhNotifs then return end
+	Notify({
+		Title = title or adminName or nil,
+		Description = text or "something",
+		Duration = duration or 5
+	})
+end
+
 function DoWindow(text, title)
 	Window({
 		Title = title or adminName or nil,
@@ -262,10 +274,10 @@ NACaller(function()
         if okFetch then
             local okDecode, decoded = NACaller(HttpService.JSONDecode, HttpService, raw)
             if okDecode and type(decoded) == "table" then
-                NAjson = decoded
+                NAStuff.NAjson = decoded
             end
         end
-    until NAjson
+    until NAStuff.NAjson
 end)
 
 function rStringgg()
@@ -404,7 +416,7 @@ function countDictNA(tbl)
 end
 
 --[[ Version ]]--
-local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAjson and " V"..NAjson.ver or ""
+local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAStuff.NAjson and " V"..NAStuff.NAjson.ver or ""
 
 function getSeasonEmoji()
 	local date = os.date("*t")
@@ -543,6 +555,7 @@ local NAfiles = {
 	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
 	NACHATTAG = "Nameless-Admin/ChatTag.json";
 	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
+	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -581,6 +594,10 @@ if FileSupport then
 
 	if not isfile(NAfiles.NAQOTPATH) then
 		writefile(NAfiles.NAQOTPATH, "false")
+	end
+
+	if not isfile(NAfiles.NANOTIFSTOGGLE) then
+		writefile(NAfiles.NANOTIFSTOGGLE, "false")
 	end
 
 	if not isfile(NAfiles.NAALIASPATH) then
@@ -673,6 +690,7 @@ if FileSupport then
 	NAsavedScale = tonumber(readfile(NAfiles.NABUTTONSIZEPATH))
 	NAUISavedScale = tonumber(readfile(NAfiles.NAUISIZEPATH))
 	NAQoTEnabled = readfile(NAfiles.NAQOTPATH) == "true"
+	NAStuff.nuhuhNotifs = readfile(NAfiles.NANOTIFSTOGGLE) == "true"
 	doPREDICTION = readfile(NAfiles.NAPREDICTIONPATH) == "true"
 	NAUISTROKER = InitUIStroke(NAfiles.NASTROKETHINGY)
 	NATOPBARVISIBLE = readfile(NAfiles.NATOPBAR) == "true"
@@ -2607,7 +2625,7 @@ NAmanage.LoadPlugins = function()
 
 								Insert(fileCommandNames, aliases[1])
 							else
-								DoNotif("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+								DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
 							end
 						end
 
@@ -2616,19 +2634,19 @@ NAmanage.LoadPlugins = function()
 							Insert(loadedSummaries, fileName.." ("..Concat(fileCommandNames, ", ")..")")
 						end
 					else
-						DoNotif("[Plugin Error] '"..file.."' => "..tostring(execErr))
+						DoWindow("[Plugin Error] '"..file.."' => "..tostring(execErr))
 					end
 				else
-					DoNotif("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
+					DoWindow("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
 				end
 			else
-				DoNotif("[Plugin Read Error] Failed to read '"..file.."'")
+				DoWindow("[Plugin Read Error] Failed to read '"..file.."'")
 			end
 		end
 	end
 
 	if #loadedSummaries > 0 then
-		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 6)
+		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 5.7)
 	end
 end
 
@@ -2668,7 +2686,7 @@ NAmanage.RenderUserButtons = function()
 		local promptGui = InstanceNew("ScreenGui")
 		promptGui.IgnoreGuiInset = true
 		promptGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		promptGui.Parent = NASCREENGUI
+		promptGui.Parent = NAStuff.NASCREENGUI
 
 		local frame = InstanceNew("Frame")
 		frame.Size = UDim2.new(0, 260, 0, 140)
@@ -2746,7 +2764,7 @@ NAmanage.RenderUserButtons = function()
 
 	local totalButtons = #NAUserButtons
 	local totalWidth = totalButtons * (100 + 10)
-	local startX = 0.5 - (totalWidth / 2) / NASCREENGUI.AbsoluteSize.X
+	local startX = 0.5 - (totalWidth / 2) / NAStuff.NASCREENGUI.AbsoluteSize.X
 	local spacing = 110
 	local TOGGLE_COLOR_ON = Color3.fromRGB(0, 170, 0)
 	local TOGGLE_COLOR_OFF = Color3.fromRGB(30, 30, 30)
@@ -2758,8 +2776,8 @@ NAmanage.RenderUserButtons = function()
 		btn.Text = data.Label
 		btn.Size = UDim2.new(0, 60, 0, 60)
 		btn.AnchorPoint = Vector2.new(0.5, 1)
-		btn.Position = UDim2.new(startX + (spacing * index) / NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
-		btn.Parent = NASCREENGUI
+		btn.Position = UDim2.new(startX + (spacing * index) / NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
+		btn.Parent = NAStuff.NASCREENGUI
 		btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 		btn.TextScaled = true
@@ -4318,7 +4336,7 @@ cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joi
 		NAlib.connect("staffNotifier", Players.PlayerAdded:Connect(function(player)
 			local info = groupRole(player)
 			if info.IsStaff then
-				DoNotif(formatUsername(player).." is a "..info.Role)
+				DebugNotif(formatUsername(player).." is a "..info.Role)
 			end
 		end))
 		for _, player in pairs(Players:GetPlayers()) do
@@ -4327,15 +4345,15 @@ cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joi
 				Insert(staffList, formatUsername(player).." is a "..info.Role)
 			end
 		end
-		DoNotif(#staffList > 0 and Concat(staffList, ",\n") or "Tracking enabled")
+		DebugNotif(#staffList > 0 and Concat(staffList, ",\n") or "Tracking enabled")
 	else
-		DoNotif("Game is not owned by a Group")
+		DebugNotif("Game is not owned by a Group")
 	end
 end)
 
 cmd.add({"stoptrackstaff", "untrackstaff"}, {"stoptrackstaff (untrackstaff)", "Stop tracking staff members"}, function()
 	NAlib.disconnect("staffNotifier")
-	DoNotif("Tracking disabled")
+	DebugNotif("Tracking disabled")
 end)
 
 cmd.add({"deletevelocity", "dv", "removevelocity", "removeforces"}, {"deletevelocity (dv, removevelocity, removeforces)", "removes any velocity/force instanceson your character"}, function()
@@ -4385,7 +4403,7 @@ hiddenfling = false
 cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the best fling lol"}, function()
 	if hiddenfling then return end
 
-	DoNotif("Walkfling enabled", 2)
+	DebugNotif("Walkfling enabled", 2)
 	hiddenfling = true
 
 	if not opt.NA_storage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
@@ -4422,7 +4440,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 		NAlib.disconnect("walkfling_charfix")
 		NAlib.connect("walkfling_charfix", lp.CharacterAdded:Connect(function()
 			if hiddenfling then
-				DoNotif("Re-enabling Walkfling")
+				DebugNotif("Re-enabling Walkfling")
 			end
 		end))
 	end
@@ -4430,7 +4448,7 @@ end)
 cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "stop the walkfling command"}, function()
 	if not hiddenfling then return end
 
-	DoNotif("Walkfling disabled", 2)
+	DebugNotif("Walkfling disabled", 2)
 	hiddenfling = false
 
 	NAlib.disconnect("walkflinger")
@@ -4480,9 +4498,7 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 		end
 
 		Spawn(function()
-			NACaller(function()
-				DoNotif("Rejoining back to the same position...")
-			end)
+			DebugNotif("Rejoining back to the same position...")
 
 			local success = NACaller(function()
 				if #Players:GetPlayers() <= 1 then
@@ -4508,7 +4524,7 @@ cmd.add({"rejoin", "rj"}, {"rejoin (rj)", "Rejoin the game"}, function()
 	local lp = plrs.LocalPlayer
 
 	function tpError(err)
-		DoNotif("Teleport failed: "..err)
+		DebugNotif("Teleport failed: "..err)
 	end
 
 	tp.TeleportInitFailed:Connect(tpError)
@@ -4534,7 +4550,7 @@ cmd.add({"rejoin", "rj"}, {"rejoin (rj)", "Rejoin the game"}, function()
 	end
 
 	Wait()
-	DoNotif("Rejoining...")
+	DebugNotif("Rejoining...")
 end)
 
 cmd.add({"teleporttoplace","toplace","ttp"},{"teleporttoplace (PlaceId) (toplace,ttp)","Teleports you using PlaceId"},function(...)
@@ -4776,7 +4792,7 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 
 	if IsOnMobile then
 		Wait()
-		DoNotif(adminName.." detected mobile. vFly button added for easier use.", 2)
+		DebugNotif(adminName.." detected mobile. vFly button added for easier use.", 2)
 
 		flyVariables.vRAHH = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
@@ -4876,7 +4892,7 @@ cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("Vehicle fly enabled. Press '"..flyVariables.vToggleKey:upper().."' to toggle vehicle flying.")
+		DebugNotif("Vehicle fly enabled. Press '"..flyVariables.vToggleKey:upper().."' to toggle vehicle flying.")
 		sFLY(true)
 		speedofthevfly = flyVariables.vFlySpeed
 		speedofthefly = flyVariables.vFlySpeed
@@ -4885,7 +4901,7 @@ end, true)
 
 cmd.add({"unvfly", "unvehiclefly"}, {"unvehiclefly (unvfly)", "disable vehicle fly"}, function(bool)
 	Wait()
-	if not bool then DoNotif("Not vFlying anymore", 2) end
+	if not bool then DebugNotif("Not vFlying anymore", 2) end
 	FLYING = false
 	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
@@ -4935,7 +4951,7 @@ cmd.add({"usetools","uset"},{"usetools (uset)","Equips all tools, uses them, and
 	local equippedTools = {}
 
 	if not backpack or not character then
-		DoNotif("Could not find backpack or character.")
+		DebugNotif("Could not find backpack or character.")
 		return
 	end
 
@@ -5157,13 +5173,13 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 			end
 		end
 	end)
-	DoNotif("Aura enabled at "..dist,1.2)
+	DebugNotif("Aura enabled at "..dist,1.2)
 end,true)
 
 cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function()
 	if auraConn then auraConn:Disconnect() auraConn=nil end
 	if auraViz then auraViz:Destroy() auraViz=nil end
-	DoNotif("Aura disabled",1.2)
+	DebugNotif("Aura disabled",1.2)
 end,true)
 
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
@@ -5177,12 +5193,12 @@ cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by lau
 		end
 	end))
 
-	DoNotif("AntiVoid Enabled", 3)
+	DebugNotif("AntiVoid Enabled", 3)
 end)
 
 cmd.add({"unantivoid"},{"unantivoid","Disables antivoid"},function()
 	NAlib.disconnect("antivoid")
-	DoNotif("AntiVoid Disabled", 3)
+	DebugNotif("AntiVoid Disabled", 3)
 end)
 
 originalFPDH = nil
@@ -5198,9 +5214,9 @@ end)
 cmd.add({"unantivoid2"}, {"unantivoid2", "reverts FallenPartsDestroyHeight"}, function()
 	if originalFPDH ~= nil then
 		workspace.FallenPartsDestroyHeight = originalFPDH
-		DoNotif("FallenPartsDestroyHeight reverted to original value | Antivoid2 Disabled",2)
+		DebugNotif("FallenPartsDestroyHeight reverted to original value | Antivoid2 Disabled",2)
 	else
-		DoNotif("Original value was not stored. Cannot revert.",2)
+		DebugNotif("Original value was not stored. Cannot revert.",2)
 	end
 end)
 
@@ -5229,9 +5245,9 @@ cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 
 	if toolToDrop then
 		toolToDrop.Parent = workspace
-		DoNotif("Dropped: "..toolToDrop.Name, 4)
+		DebugNotif("Dropped: "..toolToDrop.Name, 4)
 	else
-		DoNotif("No droppable tool found", 4)
+		DebugNotif("No droppable tool found", 4)
 	end
 end)
 
@@ -5257,9 +5273,9 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 	end
 
 	if dropped > 0 then
-		DoNotif("Dropped "..dropped.." tool(s)", 4)
+		DebugNotif("Dropped "..dropped.." tool(s)", 4)
 	else
-		DoNotif("No droppable tools found", 4)
+		DebugNotif("No droppable tools found", 4)
 	end
 end)
 
@@ -5787,7 +5803,7 @@ cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, functio
 	end
 
 	if #seats == 0 then
-		DoNotif("No available seats found in the game", 3)
+		DebugNotif("No available seats found in the game", 3)
 		return
 	end
 
@@ -5798,9 +5814,9 @@ cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, functio
 	local seat = seats[1]
 	if seat then
 		seat:Sit(humanoid)
-		DoNotif("Sat in the nearest seat", 2)
+		DebugNotif("Sat in the nearest seat", 2)
 	else
-		DoNotif("Failed to sit in a seat", 3)
+		DebugNotif("Failed to sit in a seat", 3)
 	end
 end)
 
@@ -5822,7 +5838,7 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	end
 
 	if #vehicleSeats == 0 then
-		DoNotif("No available VehicleSeats found in the game", 3)
+		DebugNotif("No available VehicleSeats found in the game", 3)
 		return
 	end
 
@@ -5833,9 +5849,9 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	local vseat = vehicleSeats[1]
 	if vseat then
 		vseat:Sit(humanoid)
-		DoNotif("Sat in the nearest VehicleSeat", 2)
+		DebugNotif("Sat in the nearest VehicleSeat", 2)
 	else
-		DoNotif("Failed to sit in a VehicleSeat", 3)
+		DebugNotif("Failed to sit in a VehicleSeat", 3)
 	end
 end)
 cmd.add({"copytools","ctools"},{"copytools <player> (ctools)","Copies the tools the given player has"},function(...)
@@ -6142,7 +6158,7 @@ cmd.add({"antisit"},{"antisit","Prevents the player from sitting"},function()
 	NAlib.disconnect("antisit_conn")
 	NAlib.connect("antisit_conn", LocalPlayer.CharacterAdded:Connect(noSit))
 
-	DoNotif("Anti sit enabled", 3)
+	DebugNotif("Anti sit enabled", 3)
 end)
 
 cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
@@ -6153,7 +6169,7 @@ cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 
 	NAlib.disconnect("antisit_conn")
-	DoNotif("Anti sit disabled", 3)
+	DebugNotif("Anti sit disabled", 3)
 end)
 
 cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasskick, bk)", "Bypass Kick on Most Games"}, function()
@@ -6192,7 +6208,7 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		originalKick = hookfunction(Kick, newcclosure(function(...)
 			local args = {...}
 			local msg = tostring(args[1] or "No message")
-			DoNotif("Kick call blocked (hooked): "..msg, 3)
+			DebugNotif("Kick call blocked (hooked): "..msg, 3)
 		end))
 	end
 
@@ -6202,7 +6218,7 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		if self == player and getnamecallmethod():lower() == "kick" then
 			local args = {...}
 			local msg = tostring(args[1] or "No message")
-			DoNotif("Kick attempt blocked (__namecall): "..msg, 3)
+			DebugNotif("Kick attempt blocked (__namecall): "..msg, 3)
 			return
 		end
 		return _G.__antikick.oldNamecall(self, ...)
@@ -6212,8 +6228,8 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		if self == player then
 			local lowered = tostring(key):lower()
 			if lowered:find("kick") or lowered:find("destroy") or lowered:find("break") then
-				DoNotif("Blocked access to suspicious key: "..key, 3)
-				return function() DoNotif("Blocked execution of: "..key, 3) end
+				DebugNotif("Blocked access to suspicious key: "..key, 3)
+				return function() DebugNotif("Blocked execution of: "..key, 3) end
 			end
 		end
 		return _G.__antikick.oldIndex(self, key)
@@ -6223,7 +6239,7 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 		if self == player then
 			local lowered = tostring(key):lower()
 			if lowered:find("kick") or lowered:find("destroy") then
-				DoNotif("Blocked overwrite of "..key, 2)
+				DebugNotif("Blocked overwrite of "..key, 2)
 				return
 			end
 		end
@@ -6232,7 +6248,7 @@ cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasski
 
 	setReadOnly(meta, true)
 
-	DoNotif("Anti-Kick Enabled (All kicks blocked)", 2)
+	DebugNotif("Anti-Kick Enabled (All kicks blocked)", 2)
 end)
 
 cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, blocktp)", "Prevents TeleportService from moving you to another place"}, function()
@@ -6244,13 +6260,13 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 	)
 
 	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction or not hookmetamethod then
-		DoNotif("Required exploit functions not available", 3)
+		DebugNotif("Required exploit functions not available", 3)
 		return
 	end
 
 	local TeleportService = SafeGetService("TeleportService")
 	if not TeleportService then
-		DoNotif("TeleportService not found", 3)
+		DebugNotif("TeleportService not found", 3)
 		return
 	end
 
@@ -6269,7 +6285,7 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 		} do
 		if typeof(tpFunc) == "function" then
 			hookfunction(tpFunc, newcclosure(function(...)
-				DoNotif("Teleport blocked (hooked)", 3)
+				DebugNotif("Teleport blocked (hooked)", 3)
 				return
 			end))
 		end
@@ -6282,7 +6298,7 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 	meta.__namecall = newcclosure(function(self, ...)
 		local method = getnamecallmethod()
 		if typeof(method) == "string" and method:lower():find("teleport") then
-			DoNotif("Teleport blocked (__namecall): "..method, 3)
+			DebugNotif("Teleport blocked (__namecall): "..method, 3)
 			return
 		end
 		return _G.__antiteleport.oldNamecall(self, ...)
@@ -6292,8 +6308,8 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 		if self == TeleportService then
 			local lowered = tostring(key):lower()
 			if lowered:find("teleport") then
-				DoNotif("Blocked access to teleport method: "..key, 3)
-				return function() DoNotif("Blocked execution of: "..key, 3) end
+				DebugNotif("Blocked access to teleport method: "..key, 3)
+				return function() DebugNotif("Blocked execution of: "..key, 3) end
 			end
 		end
 		return _G.__antiteleport.oldIndex(self, key)
@@ -6303,7 +6319,7 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 		if self == TeleportService then
 			local lowered = tostring(key):lower()
 			if lowered:find("teleport") then
-				DoNotif("Blocked overwrite of teleport method: "..key, 2)
+				DebugNotif("Blocked overwrite of teleport method: "..key, 2)
 				return
 			end
 		end
@@ -6312,7 +6328,7 @@ cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, b
 
 	setReadOnly(meta, true)
 
-	DoNotif("Anti-Teleport Enabled", 2)
+	DebugNotif("Anti-Teleport Enabled", 2)
 end)
 
 cmd.add({"unantikick", "unnokick", "unbypasskick", "unbk"}, {"unantikick", "Disables Anti-Kick protection"}, function()
@@ -6341,7 +6357,7 @@ cmd.add({"unantikick", "unnokick", "unbypasskick", "unbk"}, {"unantikick", "Disa
 
 	_G.__antikick = nil
 
-	DoNotif("Anti-Kick Disabled", 2)
+	DebugNotif("Anti-Kick Disabled", 2)
 end)
 
 cmd.add({"unantiteleport", "unnoteleport", "unblocktp"}, {"unantiteleport", "Disables Anti-Teleport protection"}, function()
@@ -6370,7 +6386,7 @@ cmd.add({"unantiteleport", "unnoteleport", "unblocktp"}, {"unantiteleport", "Dis
 
 	_G.__antiteleport = nil
 
-	DoNotif("Anti-Teleport Disabled", 2)
+	DebugNotif("Anti-Teleport Disabled", 2)
 end)
 
 acftpCON = {}
@@ -6417,7 +6433,7 @@ function enableACFTP()
 		end
 	end)
 
-	DoNotif("Anti CFrame Teleport enabled", 1.5)
+	DebugNotif("Anti CFrame Teleport enabled", 1.5)
 end
 
 function disableACFTP()
@@ -6433,7 +6449,7 @@ function disableACFTP()
 	end
 
 	acftpState = false
-	DoNotif("Anti CFrame Teleport disabled", 1.5)
+	DebugNotif("Anti CFrame Teleport disabled", 1.5)
 end
 
 cmd.add({"anticframeteleport", "acframetp", "acftp"}, {"anticframeteleport (acframetp,acftp)", "Prevents scripts from teleporting you by resetting your CFrame"}, function()
@@ -6532,13 +6548,13 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 	NAlib.disconnect("trip_char")
 	NAlib.connect("trip_char", LocalPlayer.CharacterAdded:Connect(doTRIPPER))
 
-	DoNotif("Antitrip Enabled", 2)
+	DebugNotif("Antitrip Enabled", 2)
 end)
 
 cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
 	NAlib.disconnect("trip_fall")
 	NAlib.disconnect("trip_char")
-	DoNotif("Antitrip Disabled", 2)
+	DebugNotif("Antitrip Disabled", 2)
 end)
 
 cmd.add({"checkrfe"},{"checkrfe","Checks if the game has respect filtering enabled off"},function()
@@ -6701,7 +6717,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 
 	On.Text = "TriggerBot On: "..tostring(Toggled).." (Key: "..ToggleKey.Name..")"
 
-	DoNotif("Advanced Trigger Bot Loaded")
+	DebugNotif("Advanced Trigger Bot Loaded")
 end)
 
 cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
@@ -6724,7 +6740,7 @@ cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets yo
 		return DoNotif("spawn point is already running", 3)
 	end
 
-	DoNotif("Spawn has been set")
+	DebugNotif("Spawn has been set")
 	stationaryRespawn = true
 
 	function handleRespawn()
@@ -6753,7 +6769,7 @@ cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets yo
 end)
 
 cmd.add({"disablespawn", "unsetspawn", "ds"}, {"disablespawn (unsetspawn, ds)", "Disables the previously set spawn point"}, function()
-	DoNotif("Spawn point has been disabled")
+	DebugNotif("Spawn point has been disabled")
 	NAlib.disconnect("spawnCONNECTION")
 	NAlib.disconnect("spawnCHARCON")
 	stationaryRespawn = false
@@ -6845,18 +6861,18 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 			virtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 		end))
 
-		DoNotif("Anti AFK has been enabled")
+		DebugNotif("Anti AFK has been enabled")
 	else
-		DoNotif("Anti AFK is already enabled")
+		DebugNotif("Anti AFK is already enabled")
 	end
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
 	if NAlib.isConnected("antiAFK") then
 		NAlib.disconnect("antiAFK")
-		DoNotif("Anti AFK has been disabled")
+		DebugNotif("Anti AFK has been disabled")
 	else
-		DoNotif("Anti AFK is already disabled")
+		DebugNotif("Anti AFK is already disabled")
 	end
 end)
 
@@ -7102,7 +7118,7 @@ cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's 
 	if not setclipboard then return DoNotif("no setclipboard") end
 	setclipboard(tostring(idd))
 
-	DoNotif("Copied "..tostring(thingy).."'s UserId: "..tostring(idd))
+	DebugNotif("Copied "..tostring(thingy).."'s UserId: "..tostring(idd))
 end,true)
 
 cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username by ID"}, function(thingy)
@@ -7115,7 +7131,7 @@ cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username
 	if not setclipboard then return DoNotif("no setclipboard") end
 	setclipboard(tostring(naem))
 
-	DoNotif("Copied "..tostring(naem).."'s Username with ID of "..tostring(thingy))
+	DebugNotif("Copied "..tostring(naem).."'s Username with ID of "..tostring(thingy))
 end,true)
 
 cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explorer"},function()
@@ -7191,17 +7207,17 @@ cmd.add({"antifling"}, {"antifling", "makes other players non-collidable with yo
 			end
 		end
 	end))
-	DoNotif("Antifling Enabled")
+	DebugNotif("Antifling Enabled")
 end)
 
 cmd.add({"unantifling"}, {"unantifling", "restores collision for other players"}, function()
 	NAlib.disconnect("antifling")
-	DoNotif("Antifling Disabled")
+	DebugNotif("Antifling Disabled")
 end)
 
 cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
 	Wait();
-	DoNotif("Wait a few seconds for it to load")
+	DoNotif("Wait a few seconds for it to load",2.5)
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun"))()
 end)
 
@@ -7242,7 +7258,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		end
 	end))
 
-	DoNotif("Vehicle speed set to "..intens)
+	DebugNotif("Vehicle speed set to "..intens)
 
 	Wait()
 
@@ -7431,7 +7447,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			end
 		end))
 
-		DoNotif("vSpeed updated to "..intens, 2)
+		DebugNotif("vSpeed updated to "..intens, 2)
 	end)
 
 	NAgui.draggerV2(btn)
@@ -7476,7 +7492,7 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 		end
 	end
 
-	DoNotif("Vehicle speed disabled")
+	DebugNotif("Vehicle speed disabled")
 end)
 
 local active=false
@@ -7513,7 +7529,7 @@ function EnableShiftLock()
 	end))
 
 	ShiftLockEnabled = true
-	DoNotif("ShiftLock Enabled", 2)
+	DebugNotif("ShiftLock Enabled", 2)
 end
 
 function DisableShiftLock()
@@ -7526,7 +7542,7 @@ function DisableShiftLock()
 	end)
 
 	ShiftLockEnabled = false
-	DoNotif("ShiftLock Disabled", 2)
+	DebugNotif("ShiftLock Disabled", 2)
 end
 
 cmd.add({"shiftlock","sl"}, {"shiftlock (sl)", "Toggles shiftlock"}, function()
@@ -7584,14 +7600,14 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 			if Match(button.Text:lower(), enableName:lower()) then
 				button.Callback()
 				if not hiddenNotif then
-					DoNotif("CoreGui Enabled: "..button.Text.." has been enabled.", 3)
+					DebugNotif("CoreGui Enabled: "..button.Text.." has been enabled.", 3)
 				end
 				found = true
 				break
 			end
 		end
 		if not found then
-			DoNotif("No matching CoreGui element found for: "..enableName, 3)
+			DebugNotif("No matching CoreGui element found for: "..enableName, 3)
 		end
 	else
 		Window({
@@ -7636,14 +7652,14 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 			if Match(button.Text:lower(), disableName:lower()) then
 				button.Callback()
 				if not hiddenNotif then
-					DoNotif("CoreGui Disabled: "..button.Text.." has been disabled.", 3)
+					DebugNotif("CoreGui Disabled: "..button.Text.." has been disabled.", 3)
 				end
 				found = true
 				break
 			end
 		end
 		if not found then
-			DoNotif("No matching CoreGui element found for: "..disableName, 3)
+			DebugNotif("No matching CoreGui element found for: "..disableName, 3)
 		end
 	else
 		Window({
@@ -7670,13 +7686,13 @@ cmd.add({"reverb","reverbcontrol"},{"reverb (reverbcontrol)","Manage sound rever
         for _, btn in ipairs(buttons) do
             if Match(Lower(btn.Text), Lower(target)) then
                 btn.Callback()
-                DoNotif("Reverb set to "..btn.Text, 3)
+                DebugNotif("Reverb set to "..btn.Text, 3)
                 found = true
                 break
             end
         end
         if not found then
-            DoNotif("No matching reverb type for: "..target, 3)
+            DebugNotif("No matching reverb type for: "..target, 3)
         end
     else
         Window({
@@ -7703,13 +7719,13 @@ cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera
         for _, btn in ipairs(buttons) do
             if Match(Lower(btn.Text), Lower(target)) then
                 btn.Callback()
-                DoNotif("Camera type set to "..btn.Text, 3)
+                DebugNotif("Camera type set to "..btn.Text, 3)
                 found = true
                 break
             end
         end
         if not found then
-            DoNotif("No matching camera type for: "..target, 3)
+            DebugNotif("No matching camera type for: "..target, 3)
         end
     else
         Window({
@@ -8031,7 +8047,7 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 
 	Wait();
 
-	DoNotif("Netless has been activated,re-run this script if you die")
+	DebugNotif("Netless has been activated,re-run this script if you die")
 end)
 
 cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
@@ -8071,15 +8087,15 @@ cmd.add({"damagechat", "dmgchat", "painchat"}, {"damagechat (dmgchat, painchat)"
 		lastHealth = newHealth
 	end))
 
-	DoNotif("Enabled", 2)
+	DebugNotif("Enabled", 2)
 end)
 
 cmd.add({"undamagechat", "undmgchat", "unpainchat"}, {"undamagechat (undmgchat, unpainchat)", "Disables damage reaction chat"}, function()
 	if NAlib.isConnected("damagechat") then
 		NAlib.disconnect("damagechat")
-		DoNotif("Disabled", 2)
+		DebugNotif("Disabled", 2)
 	else
-		DoNotif("Already disabled", 2)
+		DebugNotif("Already disabled", 2)
 	end
 end)
 
@@ -8430,7 +8446,7 @@ cmd.add({"jobid"},{"jobid","Copies your job id"},function()
 		setclipboard(tostring(JobId))
 		Wait();
 
-		DoNotif("Copied your jobid ("..JobId..")")
+		DebugNotif("Copied your jobid ("..JobId..")")
 	else
 		DoNotif("Your executor does not support setclipboard")
 	end
@@ -8445,7 +8461,7 @@ end,true)
 cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 	Wait();
 
-	DoNotif("Searching")
+	DebugNotif("Searching")
 	local Number=0
 	local SomeSRVS={}
 	local found=0
@@ -8459,7 +8475,7 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 		end
 	end
 	if #SomeSRVS>0 then
-		DoNotif("serverhopping | Player Count: "..found)
+		DebugNotif("serverhopping | Player Count: "..found)
 		TeleportService:TeleportToPlaceInstance(PlaceId,SomeSRVS[1])
 	end
 end)
@@ -8467,7 +8483,7 @@ end)
 cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a small server"},function()
 	Wait();
 
-	DoNotif("Searching")
+	DebugNotif("Searching")
 
 	local Number=math.huge
 	local SomeSRVS={}
@@ -8484,7 +8500,7 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	end
 
 	if #SomeSRVS>0 then
-		DoNotif("serverhopping | Player Count: "..found)
+		DebugNotif("serverhopping | Player Count: "..found)
 		TeleportService:TeleportToPlaceInstance(PlaceId,SomeSRVS[1])
 	end
 end)
@@ -8492,7 +8508,7 @@ end)
 cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a server with the best ping"},function()
 	Wait();
 
-	DoNotif("Searching for server with best ping")
+	DebugNotif("Searching for server with best ping")
 
 	local Servers = JSONDecode(HttpService, game:HttpGetAsync("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")).data
 	local BestPing = math.huge
@@ -8511,10 +8527,10 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	end
 
 	if BestJobId then
-		DoNotif(Format("Serverhopping to server with ping: %s ms", tostring(BestPing)))
+		DebugNotif(Format("Serverhopping to server with ping: %s ms", tostring(BestPing)))
 		TeleportService:TeleportToPlaceInstance(PlaceId, BestJobId)
 	else
-		DoNotif("No better server found")
+		DebugNotif("No better server found")
 	end
 end)
 
@@ -8541,15 +8557,15 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		Spawn(handleRejoin)
 	end))
 
-	DoNotif("Auto Rejoin is now enabled!")
+	DebugNotif("Auto Rejoin is now enabled!")
 end)
 
 cmd.add({"unautorejoin", "unautorj"}, {"unautorejoin (unautorj)", "Disables auto rejoin command"}, function()
 	if NAlib.isConnected("autorejoin") then
 		NAlib.disconnect("autorejoin")
-		DoNotif("Auto Rejoin is now disabled!")
+		DebugNotif("Auto Rejoin is now disabled!")
 	else
-		DoNotif("Auto Rejoin is already disabled!")
+		DebugNotif("Auto Rejoin is already disabled!")
 	end
 end)
 
@@ -8988,7 +9004,7 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 
 	if IsOnMobile then
 		Wait()
-		DoNotif(adminName.." detected mobile. Fly button added for easier use.", 2)
+		DebugNotif(adminName.." detected mobile. Fly button added for easier use.", 2)
 
 		flyVariables.mFlyBruh = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
@@ -9087,7 +9103,7 @@ cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("Fly enabled. Press '"..flyVariables.toggleKey:upper().."' to toggle flying.")
+		DebugNotif("Fly enabled. Press '"..flyVariables.toggleKey:upper().."' to toggle flying.")
 		sFLY()
 		speedofthevfly = flyVariables.flySpeed
 		speedofthefly = flyVariables.flySpeed
@@ -9096,7 +9112,7 @@ end, true)
 
 cmd.add({"unfly"}, {"unfly", "Disable flight"}, function(bool)
 	Wait()
-	if not bool then DoNotif("Not flying anymore", 2) end
+	if not bool then DebugNotif("Not flying anymore", 2) end
 	FLYING = false
 	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 	if goofyFLY then goofyFLY:Destroy() end
@@ -9173,7 +9189,7 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 
 	if IsOnMobile then
 		Wait()
-		DoNotif(adminName.." detected mobile. CFrame Fly button added.", 2)
+		DebugNotif(adminName.." detected mobile. CFrame Fly button added.", 2)
 
 		flyVariables.cFlyGUI = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
@@ -9277,14 +9293,14 @@ cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based
 		FLYING = false
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		Wait()
-		DoNotif("CFrame Fly enabled. Press '"..flyVariables.cToggleKey:upper().."' to toggle.")
+		DebugNotif("CFrame Fly enabled. Press '"..flyVariables.cToggleKey:upper().."' to toggle.")
 		sFLY(true, true)
 	end
 end, true)
 
 cmd.add({"uncframefly","uncfly"}, {"uncframefly (uncfly)", "Disable CFrame-based flight"}, function(bool)
 	Wait()
-	if not bool then DoNotif("CFrame Fly disabled.", 2) end
+	if not bool then DebugNotif("CFrame Fly disabled.", 2) end
 	FLYING = false
 
 	local char = cmdlp.Character
@@ -9413,7 +9429,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 
 	if IsOnMobile then
 		Wait()
-		DoNotif(adminName.." detected mobile. Tfly button added for easier use.", 2)
+		DebugNotif(adminName.." detected mobile. Tfly button added for easier use.", 2)
 
 		if flyVariables.tflyButtonUI then flyVariables.tflyButtonUI:Destroy() end
 		if flyVariables.TFLYBTN then flyVariables.TFLYBTN:Destroy() end
@@ -9450,7 +9466,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 				toggleTFly()
 			end
 		end)
-		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'. Press to toggle.")
+		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'. Press to toggle.")
 	end
 
 	toggleTFly()
@@ -9458,7 +9474,7 @@ end, true)
 
 cmd.add({"untfly", "untweenfly"}, {"untfly (untweenfly)", "Disables tween flying"}, function()
 	Wait()
-	DoNotif("Not flying anymore", 2)
+	DebugNotif("Not flying anymore", 2)
 	flyVariables.TFlyEnabled = false
 	for _, v in pairs(workspace:GetDescendants()) do
 		if v:GetAttribute("tflyPart") then
@@ -9560,7 +9576,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 								root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
 								if not toldNotif then
 									toldNotif = true
-									DoNotif("Antibang activated | Target: "..nameChecker(targetPlayer), 2)
+									DebugNotif("Antibang activated | Target: "..nameChecker(targetPlayer), 2)
 								end
 							end
 						end
@@ -9586,16 +9602,16 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 				if toldNotif then
 					toldNotif = false
 					if activationTime and tick() - activationTime >= 10 then
-						DoNotif("Antibang deactivated (timeout)", 2)
+						DebugNotif("Antibang deactivated (timeout)", 2)
 					else
-						DoNotif("Antibang deactivated", 2)
+						DebugNotif("Antibang deactivated", 2)
 					end
 				end
 			end
 		end
 	end))
 
-	DoNotif("Antibang Enabled", 3)
+	DebugNotif("Antibang Enabled", 3)
 end)
 
 cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
@@ -9604,7 +9620,7 @@ cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
 		platformPart:Destroy()
 		platformPart = nil
 	end
-	DoNotif("Antibang Disabled", 3)
+	DebugNotif("Antibang Disabled", 3)
 end)
 
 cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, function(p, d)
@@ -9673,7 +9689,7 @@ cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but l
 		getTorso(Character).Anchored=true
 		getTorso(Character).Root:Destroy()
 	end
-	DoNotif("freezewalk is activated,reset to stop it")
+	DebugNotif("freezewalk is activated,reset to stop it")
 end)
 
 fcBTNTOGGLE = nil
@@ -9826,7 +9842,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		NAgui.draggerV2(btn)
 		NAgui.draggerV2(speedBox)
 	else
-		DoNotif("Freecam is activated, use WASD to move around", 2)
+		DebugNotif("Freecam is activated, use WASD to move around", 2)
 		runFREECAM()
 	end
 end, true)
@@ -10260,7 +10276,7 @@ local center=CFrame.new(1.5,0.5,-1.5)
 
 cmd.add({"hide", "unshow"}, {"hide <player> (unshow)", "places the selected player to lighting"}, function(...)
 	Wait()
-	DoNotif("Hid the player")
+	DebugNotif("Hid the player")
 	local Username = (...)
 	local target = getPlr(Username)
 	for _, plr in next, target do
@@ -10275,7 +10291,7 @@ end, true)
 
 cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected player back to workspace"}, function(...)
 	Wait()
-	DoNotif("Unhid the player")
+	DebugNotif("Unhid the player")
 	local Username = (...)
 	local target = getPlr(Username)
 	for _, plr in next, target do
@@ -10313,31 +10329,31 @@ end
 cmd.add({"grabtools"},{"grabtools","Grabs dropped tools"},function()
     local count = NAmanage.grabAllTools()
     if count > 0 then
-        DoNotif(("Grabbed %d tools"):format(count), 2)
+        DebugNotif(("Grabbed %d tools"):format(count), 2)
     else
-        DoNotif("No tools to grab", 2)
+        DebugNotif("No tools to grab", 2)
     end
 end)
 
 cmd.add({"loopgrabtools"},{"loopgrabtools","Loop grabs dropped tools"},function()
     if loopgrab then
-        DoNotif("Loop grab already running", 2)
+        DebugNotif("Loop grab already running", 2)
         return
     end
     loopgrab = true
-    DoNotif("Started loop grabbing tools", 2)
+    DebugNotif("Started loop grabbing tools", 2)
     Spawn(function()
         while loopgrab do
             NAmanage.grabAllTools()
             Wait(1)
         end
-        DoNotif("Stopped loop grabbing tools", 2)
+        DebugNotif("Stopped loop grabbing tools", 2)
     end)
 end)
 
 cmd.add({"unloopgrabtools"},{"unloopgrabtools","Stops the loop grab command"},function()
     if not loopgrab then
-        DoNotif("Loop grab is not running", 2)
+        DebugNotif("Loop grab is not running", 2)
         return
     end
     loopgrab = false
@@ -10654,14 +10670,14 @@ cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <numbe
 		end
 	end))
 
-	DoNotif("Body transparency set to "..vv, 1.5)
+	DebugNotif("Body transparency set to "..vv, 1.5)
 end, true)
 
 cmd.add({"unbodytransparency", "unbtransparency", "unbodyt"}, {"unbodytransparency (unbtransparency,unbodyt)", "Stops transparency loop"}, function()
 	if NAlib.isConnected("body_transparency") then
 		NAlib.disconnect("body_transparency")
 	else
-		DoNotif("No loop running", 2)
+		DebugNotif("No loop running", 2)
 	end
 end)
 
@@ -10682,15 +10698,15 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 		end
 	end))
 
-	DoNotif("Animation speed set to "..targetSpeed)
+	DebugNotif("Animation speed set to "..targetSpeed)
 end, true)
 
 cmd.add({"unanimationspeed", "unanimspeed", "unaspeed"}, {"unanimationspeed (unanimspeed,unaspeed)", "Stops the animation speed adjustment loop"}, function()
 	if NAlib.isConnected("animation_speed") then
 		NAlib.disconnect("animation_speed")
-		DoNotif("Animation speed disabled")
+		DebugNotif("Animation speed disabled")
 	else
-		DoNotif("No active animation speed to disable")
+		DebugNotif("No active animation speed to disable")
 	end
 end)
 
@@ -10699,7 +10715,7 @@ cmd.add({"placeid","pid"},{"placeid (pid)","Copies the PlaceId of the game you'r
 
 	Wait();
 
-	DoNotif("Copied the game's PlaceId: "..PlaceId)
+	DebugNotif("Copied the game's PlaceId: "..PlaceId)
 end)
 
 cmd.add({"gameid","universeid","gid"},{"gameid (universeid,gid)","Copies the GameId/Universe Id of the game you're in"},function()
@@ -10707,7 +10723,7 @@ cmd.add({"gameid","universeid","gid"},{"gameid (universeid,gid)","Copies the Gam
 
 	Wait();
 
-	DoNotif("Copied the game's GameId: "..GameId)
+	DebugNotif("Copied the game's GameId: "..GameId)
 end)
 
 cmd.add({"firework"}, {"firework", "pop"}, function()
@@ -10777,7 +10793,7 @@ cmd.add({"placename","pname"},{"placename (pname)","Copies the game's place name
 
 	Wait();
 
-	DoNotif("Copied the game's place name: "..placeNaem)
+	DebugNotif("Copied the game's place name: "..placeNaem)
 end)
 
 cmd.add({"gameinfo","ginfo"},{"gameinfo (ginfo)","shows info about the game you're playing"},function()
@@ -10791,7 +10807,7 @@ cmd.add({"copyname", "cname"}, {"copyname <player> (cname)", "Copies the usernam
 	for _, plr in next, tgt do
 		setclipboard(tostring(plr.Name))
 		Wait()
-		DoNotif("Copied the username of "..nameChecker(plr))
+		DebugNotif("Copied the username of "..nameChecker(plr))
 	end
 end, true)
 
@@ -10802,7 +10818,7 @@ cmd.add({"copydisplay", "cdisplay"}, {"copydisplay <player> (cdisplay)", "Copies
 	for _, plr in next, tgt do
 		setclipboard(tostring(plr.DisplayName))
 		Wait()
-		DoNotif("Copied the display name of "..nameChecker(plr))
+		DebugNotif("Copied the display name of "..nameChecker(plr))
 	end
 end, true)
 
@@ -10813,7 +10829,7 @@ cmd.add({"copyid", "id"}, {"copyid <player> (id)", "Copies the UserId of the tar
 	for _, plr in next, tgt do
 		setclipboard(tostring(plr.UserId))
 		Wait()
-		DoNotif("Copied the UserId of "..nameChecker(plr))
+		DebugNotif("Copied the UserId of "..nameChecker(plr))
 	end
 end, true)
 
@@ -10843,7 +10859,7 @@ end,true)
 
 cmd.add({"netbypass", "netb"}, {"netbypass (netb)", "Net bypass"}, function()
 	Wait()
-	DoNotif("Netbypass enabled")
+	DebugNotif("Netbypass enabled")
 	local fenv = getfenv()
 	local shp = fenv.sethiddenproperty or fenv.set_hidden_property or fenv.sethiddenprop or fenv.set_hidden_prop
 	local ssr = fenv.setsimulationradius or fenv.setsimradius or fenv.set_simulation_radius
@@ -10894,7 +10910,7 @@ cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat 
 	end
 
 	for _, plr in pairs(targets) do
-		DoNotif("Now mimicking "..plr.Name.."'s chat", 2)
+		DebugNotif("Now mimicking "..plr.Name.."'s chat", 2)
 
 		NAlib.connect("mimicchat", plr.Chatted:Connect(function(msg)
 			NAlib.LocalPlayerChat(msg, "All")
@@ -10904,7 +10920,7 @@ end, true)
 
 cmd.add({"stopmimic", "unmimic"}, {"stopmimic (unmimic)", "Stops mimicking a player"}, function()
 	NAlib.disconnect("mimicchat")
-	DoNotif("Stopped mimicking", 2)
+	DebugNotif("Stopped mimicking", 2)
 end, true)
 
 cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
@@ -10959,7 +10975,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	local staticOverlay = createUIElement("ImageLabel", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 1, 0),
-		Image = "rbxassetid://259236205", 
+		Image = "rbxassetid://259236205",
 		ImageTransparency = 0.8,
 		ZIndex = 1
 	}, background)
@@ -11632,7 +11648,7 @@ cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to t
 				root.CFrame = CFrame.new(x, y, z)
 			end
 		else
-			DoNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
+			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
 		end
 	end
 end, true)
@@ -11760,7 +11776,7 @@ function spectatePlayer(targetPlayer)
 	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
 			cleanup()
-			DoNotif("Player left - camera reset")
+			DebugNotif("Player left - camera reset")
 		end
 	end))
 
@@ -11920,7 +11936,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	end
 
 	rebuild()
-	if #playerList == 0 then return DoNotif("No players to spectate", 2) end
+	if #playerList == 0 then return DebugNotif("No players to spectate", 2) end
 
 	specUI = InstanceNew("ScreenGui")
 	NaProtectUI(specUI)
@@ -12064,7 +12080,7 @@ end, true)
 
 cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
 	cleanup()
-	DoNotif("Spectate stopped", 1.2)
+	DebugNotif("Spectate stopped", 1.2)
 end, true)
 
 cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Save all sounds a player is playing to a file -Cyrus"},function(p)
@@ -12084,9 +12100,9 @@ cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Sav
 	end
 	if #ids>0 then
 		setclipboard(Concat(ids,"\n"))
-		DoNotif("Audio links copied.")
+		DebugNotif("Audio links copied.")
 	else
-		DoNotif("No audio found.")
+		DebugNotif("No audio found.")
 	end
 end,true)
 
@@ -12326,7 +12342,7 @@ cmd.add({"unfreeze","unthaw","unanchor","unfr"},{"unfreeze (unthaw,unanchor,unfr
 end)
 
 cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts teleport to the black hole"},function()
-	if NAlib.isConnected("blackhole_force") then return DoNotif("Blackhole already exists.") end
+	if NAlib.isConnected("blackhole_force") then return DebugNotif("Blackhole already exists.") end
 
 	local UIS=SafeGetService("UserInputService")
 	local Mouse=LocalPlayer:GetMouse()
@@ -12412,10 +12428,10 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 					end
 				end
 			end
-			DoNotif("Blackhole force disabled",2)
+			DebugNotif("Blackhole force disabled",2)
 		else
 			for _,v in next,workspace:GetDescendants() do ForcePart(v) end
-			DoNotif("Blackhole force enabled",2)
+			DebugNotif("Blackhole force enabled",2)
 		end
 	end)
 
@@ -12438,7 +12454,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	NAgui.draggerV2(toggleBtn)
 	NAgui.draggerV2(moveBtn)
 
-	DoNotif("Blackhole created. Tap button or press E to move",3)
+	DebugNotif("Blackhole created. Tap button or press E to move",3)
 end,true)
 
 cmd.add({"disableanimations","disableanims"},{"disableanimations (disableanims)","Freezes your animations"},function()
@@ -12452,7 +12468,7 @@ end)
 cmd.add({"hatresize"},{"hatresize","Makes your hats very big r15 only"},function()
 	Wait();
 
-	DoNotif("Hat resize loaded, rthro needed")
+	DebugNotif("Hat resize loaded, rthro needed")
 
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/DigitalityScripts/roblox-scripts/refs/heads/main/Patched/hat%20resize'))()
 end)
@@ -12678,7 +12694,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				return
 			end
 		end
-		if not getgenv().Welcome then DoNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
+		if not getgenv().Welcome then DebugNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
 		getgenv().Welcome = true
 		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
 		if AllBool then
@@ -12711,7 +12727,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Returns true if th
 		return true
 	end))
 
-	DoNotif("✅ Free gamepasses enabled! Rejoin to disable. Note: This only works in some games.")
+	DebugNotif("✅ Free gamepasses enabled! Rejoin to disable. Note: This only works in some games.")
 end)
 
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
@@ -12956,7 +12972,7 @@ cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when
 		end
 		if not getHum() then DoNotif("failed to hook to Humanoid",2) end
 	end))
-	DoNotif("Trussjump enabled",2)
+	DebugNotif("Trussjump enabled",2)
 end,true)
 
 cmd.add({"untrussjump","untj","untjump","untrussj"},{"untrussjump","Disable trussjump"},function()
@@ -13187,7 +13203,7 @@ cmd.add({"tools", "gears"}, {"tools <player> (gears)", "Copies tools from Replic
 	copyTools(ReplicatedStorage)
 
 	Wait()
-	DoNotif("Copied tools from ReplicatedStorage and Lighting", 3)
+	DebugNotif("Copied tools from ReplicatedStorage and Lighting", 3)
 end)
 
 tviewBillboards = {}
@@ -14628,7 +14644,7 @@ local airwalk = {
 }
 
 cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go up, unairwalk to stop"}, function()
-	DoNotif(IsOnMobile and "Airwalk: ON" or "Airwalk: ON (Q And E)")
+	DebugNotif(IsOnMobile and "Airwalk: ON" or "Airwalk: ON (Q And E)")
 	if Airwalker then Airwalker:Disconnect() Airwalker = nil end
 	if awPart then awPart:Destroy() awPart = nil end
 
@@ -14721,7 +14737,7 @@ cmd.add({"unairwalk", "unfloat", "unaw"}, {"unairwalk (unfloat, unaw)", "Stops t
 		if gui then gui:Destroy() end
 	end
 	airwalk.guis = {}
-	DoNotif("Airwalk: OFF")
+	DebugNotif("Airwalk: OFF")
 end)
 
 bringc = {}
@@ -14988,9 +15004,9 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 				end
 				muteLOOP[id] = nil
 			end)
-			DoNotif("Loopmuted "..p.Name)
+			DebugNotif("Loopmuted "..p.Name)
 		else
-			DoNotif(p.Name.." already loopmuted")
+			DebugNotif(p.Name.." already loopmuted")
 		end
 	end
 end, true)
@@ -15006,9 +15022,9 @@ cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmutebo
 		if t then
 			coroutine.close(t)
 			muteLOOP[id] = nil
-			DoNotif("Unloopmuted "..p.Name)
+			DebugNotif("Unloopmuted "..p.Name)
 		else
-			DoNotif(p.Name.." not loopmuted")
+			DebugNotif(p.Name.." not loopmuted")
 		end
 	end
 end, true)
@@ -15036,7 +15052,7 @@ cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the 
 			local root = getRoot(char)
 			if root then
 				local pos = root.Position
-				DoNotif(nameChecker(plr).."'s position is: "..tostring(pos))
+				DebugNotif(nameChecker(plr).."'s position is: "..tostring(pos))
 				if setclipboard then
 					setclipboard(tostring(pos))
 				end
@@ -15093,12 +15109,12 @@ end
 
 cmd.add({"noprompt","nopurchaseprompts","noprompts"},{"noprompt (nopurchaseprompts,noprompts)","remove the stupid purchase prompt"},function()
 	nuhuhprompt(false)
-	DoNotif("Purchase prompts have been disabled")
+	DebugNotif("Purchase prompts have been disabled")
 end)
 
 cmd.add({"prompt","purchaseprompts","showprompts","showpurchaseprompts"},{"prompt (purchaseprompts,showprompts,showpurchaseprompts)","allows the stupid purchase prompt"},function()
 	nuhuhprompt(true)
-	DoNotif("Purchase prompts have been enabled")
+	DebugNotif("Purchase prompts have been enabled")
 end)
 
 cmd.add({"wallwalk"},{"wallwalk","Makes you walk on walls"},function()
@@ -15162,7 +15178,7 @@ cmd.add({"spin"}, {"spin {amount}", "Makes your character spin as fast as you wa
 	weld.Part1 = getRoot(LocalPlayer.Character)
 	weld.Parent = spinPart
 
-	DoNotif("Spinning...")
+	DebugNotif("Spinning...")
 end, true)
 
 cmd.add({"unspin"}, {"unspin", "Makes your character unspin"}, function()
@@ -15178,7 +15194,7 @@ cmd.add({"unspin"}, {"unspin", "Makes your character unspin"}, function()
 		spinPart = nil
 	end
 
-	DoNotif("Spin Disabled", 3)
+	DebugNotif("Spin Disabled", 3)
 end)
 
 cmd.add({"notepad"},{"notepad","notepad for making scripts / etc"},function()
@@ -15240,17 +15256,17 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
         end
     end
     if #list==0 then
-        if target then return DoNotif("No ClickDetectors found matching \""..target.."\"",2) end
-        return DoNotif("No ClickDetectors found",2)
+        if target then return DebugNotif("No ClickDetectors found matching \""..target.."\"",2) end
+        return DebugNotif("No ClickDetectors found",2)
     end
     for _,d in ipairs(list) do
         if not pcall(function() fireclickdetector(d) end) then f += 1 end
     end
     Wait()
     if f>0 then
-        DoNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list,f),2)
+        DebugNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list,f),2)
     else
-        DoNotif(("Fired %d ClickDetectors"):format(#list),2)
+        DebugNotif(("Fired %d ClickDetectors"):format(#list),2)
     end
 end,true)
 
@@ -15265,17 +15281,17 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
         end
     end
     if #list==0 then
-        if target then return DoNotif("No ProximityPrompts found matching \""..target.."\"",2) end
-        return DoNotif("No ProximityPrompts found",2)
+        if target then return DebugNotif("No ProximityPrompts found matching \""..target.."\"",2) end
+        return DebugNotif("No ProximityPrompts found",2)
     end
     for _,p in ipairs(list) do
         if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
     end
     Wait()
     if f>0 then
-        DoNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list,f),2)
+        DebugNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list,f),2)
     else
-        DoNotif(("Fired %d ProximityPrompts"):format(#list),2)
+        DebugNotif(("Fired %d ProximityPrompts"):format(#list),2)
     end
 end,true)
 
@@ -15296,8 +15312,8 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
         end
     end
     if #parts==0 then
-        if target then return DoNotif("No TouchInterests found matching \""..target.."\"",2) end
-        return DoNotif("No TouchInterests found",2)
+        if target then return DebugNotif("No TouchInterests found matching \""..target.."\"",2) end
+        return DebugNotif("No TouchInterests found",2)
     end
     for _,p in ipairs(parts) do
         coroutine.wrap(function()
@@ -15314,9 +15330,9 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
     end
     Wait()
     if f>0 then
-        DoNotif(("Fired %d TouchInterests, Failed: %d"):format(#parts,f),2)
+        DebugNotif(("Fired %d TouchInterests, Failed: %d"):format(#parts,f),2)
     else
-        DoNotif(("Fired %d TouchInterests"):format(#parts),2)
+        DebugNotif(("Fired %d TouchInterests"):format(#parts),2)
     end
 end,true)
 
@@ -15376,13 +15392,15 @@ cmd.add({"maxslopeangle", "msa"}, {"maxslopeangle (msa)", "Changes your characte
 	local humanoid = getHum()
 	if humanoid then
 		humanoid.MaxSlopeAngle = amount
-		DoNotif(Format("Set MaxSlopeAngle to %s", tostring(amount)), 2)
+		DebugNotif(Format("Set MaxSlopeAngle to %s", tostring(amount)), 2)
 	else
-		DoNotif("Humanoid not found or invalid.", 2)
+		DebugNotif("Humanoid not found or invalid.", 2)
 	end
 end,true)
 
-cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
+-- garbage that needs to be changed to something else
+
+--[[cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
 	local humanoid = getHum()
 	if humanoid then
 		NAlib.disconnect("godmode")
@@ -15394,16 +15412,16 @@ cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function
 		end))
 
 		humanoid.Health = humanoid.MaxHealth
-		DoNotif("Godmode ON", 2)
+		DebugNotif("Godmode ON", 2)
 	else
-		DoNotif("Humanoid not found", 2)
+		DebugNotif("Humanoid not found", 2)
 	end
 end)
 
 cmd.add({"ungodmode", "ungod"}, {"ungodmode (ungod)", "Disables invincibility"}, function()
 	NAlib.disconnect("godmode")
-	DoNotif("Godmode OFF", 2)
-end)
+	DebugNotif("Godmode OFF", 2)
+end)]]
 
 cmd.add({"controllock", "ctrllock"}, {"controllock (ctrllock)", "Sets your Shiftlock keybinds to the control keys"}, function()
 	local player = Players.LocalPlayer
@@ -15412,7 +15430,7 @@ cmd.add({"controllock", "ctrllock"}, {"controllock (ctrllock)", "Sets your Shift
 
 	boundKeys.Value = "LeftControl,RightControl"
 
-	DoNotif("Set your Shiftlock keybinds to Ctrl")
+	DebugNotif("Set your Shiftlock keybinds to Ctrl")
 end)
 
 cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default (LeftShift)"}, function()
@@ -15422,7 +15440,7 @@ cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default 
 
 	boundKeys.Value = "LeftShift,RightShift"
 
-	DoNotif("Reset your Shiftlock keybinds to Shift")
+	DebugNotif("Reset your Shiftlock keybinds to Shift")
 end)
 
 cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get them banned"}, function()
@@ -15455,7 +15473,7 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 		player.Chatted:Connect(function(message)
 			local keyword, reason = CheckIfReportable(message)
 			if keyword and reason then
-				DoNotif(Format("Reported %s", nameChecker(player)).." | "..Format("Reason - %s", reason))
+				DebugNotif(Format("Reported %s", nameChecker(player)).." | "..Format("Reason - %s", reason))
 
 				if reportplayer then
 					reportplayer(player, reason, Format("Saying %s", keyword))
@@ -15530,13 +15548,13 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
         for _, btn in ipairs(buttons) do
             if Match(Lower(btn.Text), Lower(target)) then
                 btn.Callback()
-                DoNotif("Lighting technology set to "..btn.Text, 3)
+                DebugNotif("Lighting technology set to "..btn.Text, 3)
                 found = true
                 break
             end
         end
         if not found then
-            DoNotif("No matching lighting tech for: "..target, 3)
+            DebugNotif("No matching lighting tech for: "..target, 3)
         end
     else
         Window({
@@ -15594,9 +15612,9 @@ cmd.add({"delete", "remove", "del"}, {"delete {partname} (remove, del)", "Remove
 	Wait()
 
 	if deleteCount > 0 then
-		DoNotif("Deleted "..deleteCount.." instance(s) of '"..targetName.."'", 2.5)
+		DebugNotif("Deleted "..deleteCount.." instance(s) of '"..targetName.."'", 2.5)
 	else
-		DoNotif("'"..targetName.."' not found to delete", 2.5)
+		DebugNotif("'"..targetName.."' not found to delete", 2.5)
 	end
 end, true)
 
@@ -15614,9 +15632,9 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 	Wait()
 
 	if deFind > 0 then
-		DoNotif("Deleted "..deFind.." instance(s) containing '"..targetName.."'", 2.5)
+		DebugNotif("Deleted "..deFind.." instance(s) containing '"..targetName.."'", 2.5)
 	else
-		DoNotif("No instances found containing '"..targetName.."'", 2.5)
+		DebugNotif("No instances found containing '"..targetName.."'", 2.5)
 	end
 end, true)
 
@@ -15672,7 +15690,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 	end
 
 	Wait()
-	DoNotif("Auto deleting instances with name: "..targetName, 2.5)
+	DebugNotif("Auto deleting instances with name: "..targetName, 2.5)
 end, true)
 
 cmd.add({"unautodelete", "unautoremove", "unautodel"}, {"unautodelete {partname} (unautoremove, unautodel)", "Disables autodelete"}, function()
@@ -15724,7 +15742,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 	end
 
 	Wait()
-	DoNotif("Auto deleting parts containing: "..kw, 2.5)
+	DebugNotif("Auto deleting parts containing: "..kw, 2.5)
 end, true)
 
 cmd.add({"unautodeletefind", "unautoremovefind", "unautodelfind"}, {"unautodeletefind (unautoremovefind,unautodelfind)", "Stops autodeletefind"}, function()
@@ -15749,9 +15767,9 @@ cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removec
 
 	Wait()
 	if deleteCount > 0 then
-		DoNotif("Deleted "..deleteCount.." instance(s) of class: "..targetClass, 2.5)
+		DebugNotif("Deleted "..deleteCount.." instance(s) of class: "..targetClass, 2.5)
 	else
-		DoNotif("No instances of class: "..targetClass.." found to delete", 2.5)
+		DebugNotif("No instances of class: "..targetClass.." found to delete", 2.5)
 	end
 end, true)
 
@@ -15793,7 +15811,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 	end
 
 	Wait()
-	DoNotif("Auto deleting instances with class: "..targetClass, 2.5)
+	DebugNotif("Auto deleting instances with class: "..targetClass, 2.5)
 end, true)
 
 cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeleteclass {ClassName} (unautoremoveclass, unautodc)", "Disables autodeleteclass"}, function()
@@ -15818,9 +15836,9 @@ cmd.add({"chardelete", "charremove", "chardel", "cdelete", "cremove", "cdel"}, {
 
 	Wait()
 	if deleteCount > 0 then
-		DoNotif("Deleted "..deleteCount.." instance(s) of '"..targetName.."' inside the character", 2.5)
+		DebugNotif("Deleted "..deleteCount.." instance(s) of '"..targetName.."' inside the character", 2.5)
 	else
-		DoNotif("'"..targetName.."' not found in the character", 2.5)
+		DebugNotif("'"..targetName.."' not found in the character", 2.5)
 	end
 end, true)
 
@@ -15838,9 +15856,9 @@ cmd.add({"chardeletefind", "charremovefind", "chardelfind", "cdeletefind", "crem
 
 	Wait()
 	if count > 0 then
-		DoNotif("Deleted "..count.." instance(s) containing '"..kw.."' in character", 2.5)
+		DebugNotif("Deleted "..count.." instance(s) containing '"..kw.."' in character", 2.5)
 	else
-		DoNotif("Nothing found containing '"..kw.."' in character", 2.5)
+		DebugNotif("Nothing found containing '"..kw.."' in character", 2.5)
 	end
 end, true)
 
@@ -15858,9 +15876,9 @@ cmd.add({"chardeleteclass", "charremoveclass", "chardeleteclassname", "cdc"}, {"
 
 	Wait()
 	if deleteCount > 0 then
-		DoNotif("Deleted "..deleteCount.." instance(s) of class: "..targetClass.." inside the character", 2.5)
+		DebugNotif("Deleted "..deleteCount.." instance(s) of class: "..targetClass.." inside the character", 2.5)
 	else
-		DoNotif("No instances of class: "..targetClass.." found in the character", 2.5)
+		DebugNotif("No instances of class: "..targetClass.." found in the character", 2.5)
 	end
 end, true)
 
@@ -16222,7 +16240,7 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 		end)
 	end))
 
-	DoNotif("Blackhole follow enabled.")
+	DebugNotif("Blackhole follow enabled.")
 end,true)
 
 cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow","Stops blackhole follow and clears constraints"},function()
@@ -16240,7 +16258,7 @@ cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow",
 		end
 	end
 
-	DoNotif("Blackhole follow disabled.")
+	DebugNotif("Blackhole follow disabled.")
 end,true)
 
 cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter (sfighter, swordf, swordbot, sf)", "Activates a sword fighting bot that engages in automated PvP combat"},function()
@@ -16485,7 +16503,7 @@ cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "
 		end
 	end
 
-	DoNotif("No matching part, model, or folder with a BasePart found named '"..partName.."'")
+	DebugNotif("No matching part, model, or folder with a BasePart found named '"..partName.."'")
 end,true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
@@ -16517,7 +16535,7 @@ cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewp
 		end
 	end
 
-	DoNotif("No part, model, or folder containing '"..name.."' with a BasePart found")
+	DebugNotif("No part, model, or folder containing '"..name.."' with a BasePart found")
 end, true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
@@ -16793,7 +16811,7 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 end, true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
-	DoNotif("Car breaker loaded, sit on a vehicle and be the driver")
+	DebugNotif("Car breaker loaded, sit on a vehicle and be the driver")
 
 	local Player = Players.LocalPlayer
 	local Mouse = Player:GetMouse()
@@ -16884,7 +16902,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	end)
 end)
 
-cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using available methods. Usage: setsimradius <radius>"},function(...)
+cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius <number>","Set sim radius using available methods. Usage: setsimradius <radius>"},function(...)
 	local r = tonumber(...)
 	if not r then
 		return DoNotif("Invalid input. Usage: setsimradius <number>")
@@ -16896,7 +16914,7 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 		NACaller(function()
 			setsimulationradius(r)
 			ok = true
-			DoNotif("SimRadius set with setsimulationradius: "..r)
+			DebugNotif("SimRadius set with setsimulationradius: "..r)
 		end)
 	end
 
@@ -16905,7 +16923,7 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 				opt.hiddenprop(LocalPlayer, "SimulationRadius", r)
 			end) then
 			ok = true
-			DoNotif("SimRadius set with sethiddenproperty: "..r)
+			DebugNotif("SimRadius set with sethiddenproperty: "..r)
 		end
 	end
 
@@ -16914,18 +16932,18 @@ cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius","Set sim radius using 
 				LocalPlayer.SimulationRadius = r
 			end) then
 			ok = true
-			DoNotif("SimRadius set directly: "..r)
+			DebugNotif("SimRadius set directly: "..r)
 		end
 	end
 
 	if not ok then
-		DoNotif("No supported method to set sim radius.")
+		DebugNotif("No supported method to set sim radius.")
 	end
 end,true)
 
 cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinite jumping"}, function()
 	Wait()
-	DoNotif("Infinite Jump Enabled", 2)
+	DebugNotif("Infinite Jump Enabled", 2)
 
 	local function doINFJUMPY()
 		NAlib.disconnect("infjump_jump")
@@ -16957,7 +16975,7 @@ end)
 
 cmd.add({"uninfjump", "uninfinitejump"}, {"uninfjump (uninfinitejump)", "Disables infinite jumping"}, function()
 	Wait()
-	DoNotif("Infinite Jump Disabled", 2)
+	DebugNotif("Infinite Jump Disabled", 2)
 
 	NAlib.disconnect("infjump_jump")
 	NAlib.disconnect("infjump_char")
@@ -16965,7 +16983,7 @@ end)
 
 cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
 	Wait()
-	DoNotif("FlyJump Enabled", 3)
+	DebugNotif("FlyJump Enabled", 3)
 
 	NAlib.disconnect("flyjump")
 	NAlib.connect("flyjump", UserInputService.JumpRequest:Connect(function()
@@ -16975,20 +16993,20 @@ end)
 
 cmd.add({"unflyjump","noflyjump"},{"unflyjump (noflyjump)","Disables flyjump"},function()
 	Wait()
-	DoNotif("FlyJump Disabled", 3)
+	DebugNotif("FlyJump Disabled", 3)
 
 	NAlib.disconnect("flyjump")
 end)
 
 cmd.add({"xray", "xrayon"}, {"xray (xrayon)", "Enables X-ray vision to see through walls"}, function()
 	Wait()
-	DoNotif("X-ray enabled")
+	DebugNotif("X-ray enabled")
 	togXray(true)
 end)
 
 cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, function()
 	Wait()
-	DoNotif("X-ray disabled")
+	DebugNotif("X-ray disabled")
 	togXray(false)
 end)
 
@@ -17000,7 +17018,7 @@ cmd.add({"pastebinscraper","pastebinscrape"},{"pastebinscraper (pastebinscrape)"
 	COREGUI.Scraper["Pastebin Scraper"].TextButton.Text="             ⭐ Pastebin Post Scraper ⭐"
 	COREGUI.Scraper["Pastebin Scraper"].Content.Search.PlaceholderText="Search for a post here..."
 	COREGUI.Scraper["Pastebin Scraper"].Content.Search.BackgroundTransparency=0.4
-	DoNotif("Pastebin scraper loaded")
+	DebugNotif("Pastebin scraper loaded")
 end)
 
 cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","Makes games that are really dark to have no darkness and be really light"},function()
@@ -17493,7 +17511,7 @@ end)
 
 cmd.add({"oganims"},{"oganims","Old animations from 2007"},function()
 	Wait();
-	DoNotif("OG animations set")
+	DebugNotif("OG animations set")
 	loadstring(game:HttpGet(('https://pastebin.com/raw/6GNkQUu6'),true))()
 end)
 
@@ -17658,10 +17676,10 @@ InvisibleCharacter = nil
 OriginalPosition = nil
 InvisBindLol = Enum.KeyCode.E
 
-cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scare people or something"}, function()
-	if invisKeybindConnection then 
-		DoNotif("Invisibility is already loaded!")
-		return 
+cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare people or something"}, function()
+	if invisKeybindConnection then
+		DebugNotif("Invisibility is already loaded!")
+		return
 	end
 
 	local Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
@@ -17683,7 +17701,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 		if root then
 			root.CFrame = OriginalPosition
 		end
-		DoNotif("Invisibility turned off.")
+		DebugNotif("Invisibility turned off.")
 		SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
 	end
 
@@ -17710,7 +17728,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 			end
 			Players.LocalPlayer.Character = InvisibleCharacter
 			workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
-			DoNotif("You are now invisible.")
+			DebugNotif("You are now invisible.")
 			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
 		else
 			TurnVisible()
@@ -17767,7 +17785,7 @@ cmd.add({"invisible", "invis"}, {"invisible (invis)", "Sets invisibility to scar
 	end
 
 	Wait()
-	DoNotif("Invisible loaded. Press "..InvisBindLol.Name.." or use the mobile button",2.5)
+	DebugNotif("Invisible loaded. Press "..InvisBindLol.Name.." or use the mobile button",2.5)
 end)
 
 cmd.add({"visible", "vis"}, {"visible", "turn visible"}, function()
@@ -17786,7 +17804,7 @@ cmd.add({"visible", "vis"}, {"visible", "turn visible"}, function()
 		Players.LocalPlayer.Character = Character
 		Character.Parent = workspace
 	end
-	DoNotif("Invisibility Disabled",2)
+	DebugNotif("Invisibility Disabled",2)
 end)
 
 cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, bindinvis)", "set a custom keybind for the 'Invisible' command"}, function(...)
@@ -17794,13 +17812,13 @@ cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, 
 	if args[1] then
 		InvisBindLol = Enum.KeyCode[args[1]] or Enum.KeyCode[args[1]:upper()]
 		if InvisBindLol then
-			DoNotif("Invis bind set to "..InvisBindLol.Name)
+			DebugNotif("Invis bind set to "..InvisBindLol.Name)
 		else
-			DoNotif("Invalid keybind, defaulting to E")
+			DebugNotif("Invalid keybind, defaulting to E")
 			InvisBindLol = Enum.KeyCode.E
 		end
 	else
-		DoNotif("No keybind provided")
+		DebugNotif("No keybind provided")
 	end
 end,true)
 
@@ -17828,7 +17846,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 	end
 
 	Delay(2, function()
-		DoNotif("Fired "..remoteCount.." remotes\nFailed: "..failedCount.." remotes")
+		DebugNotif("Fired "..remoteCount.." remotes\nFailed: "..failedCount.." remotes")
 	end)
 end)
 
@@ -17925,7 +17943,7 @@ cmd.add({"savetools", "stools"}, {"savetools (stools)", "Saves your tools to mem
 		end
 	end
 
-	DoNotif("Tools saved: "..#storedTools,2)
+	DebugNotif("Tools saved: "..#storedTools,2)
 end)
 
 cmd.add({"loadtools", "ltools"}, {"loadtools (ltools)", "Restores your saved tools to your backpack"}, function()
@@ -17936,7 +17954,7 @@ cmd.add({"loadtools", "ltools"}, {"loadtools (ltools)", "Restores your saved too
 		end
 	end
 
-	DoNotif("Tools loaded: "..#storedTools,2)
+	DebugNotif("Tools loaded: "..#storedTools,2)
 end)
 
 cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antiequip)", "Prevents any item from being equipped"}, function()
@@ -17956,7 +17974,7 @@ cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antieq
 			t.Enabled = false
 			Defer(function()
 				h:UnequipTools()
-				DoNotif("Tool "..t.Name.." blocked", 2)
+				DebugNotif("Tool "..t.Name.." blocked", 2)
 			end)
 		end
 	end
@@ -17964,13 +17982,13 @@ cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antieq
 	NAlib.connect("noequip_char", c.ChildAdded:Connect(onTool))
 	NAlib.connect("noequip_hum", h.ChildAdded:Connect(onTool))
 
-	DoNotif("Tool prevention on", 3)
+	DebugNotif("Tool prevention on", 3)
 end)
 
 cmd.add({"unpreventtools", "unnoequip", "unantiequip"}, {"unpreventtools (unnoequip,unantiequip)", "Self-explanatory"}, function()
 	NAlib.disconnect("noequip_char")
 	NAlib.disconnect("noequip_hum")
-	DoNotif("Tool prevention off", 2)
+	DebugNotif("Tool prevention off", 2)
 end)
 
 cmd.add({"ws", "speed", "walkspeed"}, {"walkspeed <number> (speed,ws)", "Sets your WalkSpeed"}, function(...)
@@ -18050,12 +18068,12 @@ cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future 
 	NAlib.connect("antierror", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
 		SafeGetService("GuiService"):ClearError()
 	end))
-	DoNotif("Anti Error is now enabled!", 2)
+	DebugNotif("Anti Error is now enabled!", 2)
 end)
 
 cmd.add({"unantierror", "noantierror"}, {"unantierror", "Disables Anti Error"}, function()
 	NAlib.disconnect("antierror")
-	DoNotif("Anti Error is now disabled!",2)
+	DebugNotif("Anti Error is now disabled!",2)
 end)
 
 -- [[ NPC SECTION ]] --
@@ -18285,7 +18303,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		NPCControl.CurrentTarget = targetPos
 		hum:MoveTo(targetPos)
 
-		DoNotif("Moving to: "..Format("X: %.0f, Y: %.0f, Z: %.0f", targetPos.X, targetPos.Y, targetPos.Z), 1.5)
+		DebugNotif("Moving to: "..Format("X: %.0f, Y: %.0f, Z: %.0f", targetPos.X, targetPos.Y, targetPos.Z), 1.5)
 	end
 
 	NPCControl.Connection = RunService.Heartbeat:Connect(function(dt)
@@ -18299,7 +18317,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		NPCControl._moveTimeout = (NPCControl._moveTimeout or 0) + dt
 
 		if hum.Sit then
-			DoNotif("Sitting detected — jumping to escape", 1.5)
+			DebugNotif("Sitting detected — jumping to escape", 1.5)
 			hum.Sit = false
 			hum:ChangeState(Enum.HumanoidStateType.Jumping)
 			NPCControl._jumpCooldown = 1.5
@@ -18307,13 +18325,13 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		end
 
 		if NPCControl.CurrentTarget and (root.Position - NPCControl.CurrentTarget).Magnitude < 2 then
-			DoNotif("Reached target", 1.5)
+			DebugNotif("Reached target", 1.5)
 			NPCControl.CurrentTarget = nil
 		end
 
 		if not NPCControl.CurrentTarget or NPCControl._moveTimeout > 5 then
 			if NPCControl._moveTimeout > 5 then
-				DoNotif("Stuck — retrying new path", 1.5)
+				DebugNotif("Stuck — retrying new path", 1.5)
 			end
 			if NPCControl.MoveCooldown <= 0 then
 				moveToRandom()
@@ -18336,7 +18354,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 
 			if part.CanCollide and not isPlayerChar then
 				if hum:GetState() == Enum.HumanoidStateType.Running then
-					DoNotif("Obstacle detected — jumping", 1.5)
+					DebugNotif("Obstacle detected — jumping", 1.5)
 					hum:ChangeState(Enum.HumanoidStateType.Jumping)
 					NPCControl._jumpCooldown = 1.5
 				end
@@ -18641,47 +18659,47 @@ repeat
 	end)
 
 	if NASUC then
-		NASCREENGUI = resexy
+		NAStuff.NASCREENGUI = resexy
 	else
 		warn(math.random(1,999999).." | Failed to load UI module: "..resexy.." | retrying...")
 		Wait(.3)
 	end
-until NASCREENGUI
+until NAStuff.NASCREENGUI
 local rPlayer=Players:FindFirstChildWhichIsA("Player")
 local coreGuiProtection={}
 if not RunService:IsStudio() then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI",true)
-	NASCREENGUI=player:FindFirstChild("AdminUI",true)
+	NAStuff.NASCREENGUI=player:FindFirstChild("AdminUI",true)
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
 
-NaProtectUI(NASCREENGUI)
+NaProtectUI(NAStuff.NASCREENGUI)
 
-local description = NASCREENGUI:FindFirstChild("Description")
-local AUTOSCALER = NASCREENGUI:FindFirstChild("AutoScale")
-local cmdBar = NASCREENGUI:FindFirstChild("CmdBar")
+local description = NAStuff.NASCREENGUI:FindFirstChild("Description")
+local AUTOSCALER = NAStuff.NASCREENGUI:FindFirstChild("AutoScale")
+local cmdBar = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
 local centerBar = cmdBar and cmdBar:FindFirstChild("CenterBar")
 local cmdInput = centerBar and centerBar:FindFirstChild("Input")
 local cmdAutofill = cmdBar and cmdBar:FindFirstChild("Autofill")
 local cmdExample = cmdAutofill and cmdAutofill:FindFirstChildWhichIsA("Frame")
 local leftFill = cmdBar and cmdBar:FindFirstChild("LeftFill")
 local rightFill = cmdBar and cmdBar:FindFirstChild("RightFill")
-local chatLogsFrame = NASCREENGUI:FindFirstChild("ChatLogs")
+local chatLogsFrame = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")
 local chatLogs = chatLogsFrame and chatLogsFrame:FindFirstChild("Container") and chatLogsFrame:FindFirstChild("Container"):FindFirstChild("Logs")
 local chatExample = chatLogs and chatLogs:FindFirstChildWhichIsA("TextLabel")
-local NAconsoleFrame = NASCREENGUI:FindFirstChild("soRealConsole")
+local NAconsoleFrame = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
 local NAconsoleLogs = NAconsoleFrame and NAconsoleFrame:FindFirstChild("Container") and NAconsoleFrame:FindFirstChild("Container"):FindFirstChild("Logs")
 local NAconsoleExample = NAconsoleLogs and NAconsoleLogs:FindFirstChildWhichIsA("TextLabel")
 local NAcontainer = NAconsoleFrame and NAconsoleFrame:FindFirstChild("Container")
 local NAfilter = NAcontainer and NAcontainer:FindFirstChild("Filter")
-local commandsFrame = NASCREENGUI:FindFirstChild("Commands")
+local commandsFrame = NAStuff.NASCREENGUI:FindFirstChild("Commands")
 local commandsFilter = commandsFrame and commandsFrame:FindFirstChild("Container") and commandsFrame:FindFirstChild("Container"):FindFirstChild("Filter")
 local commandsList = commandsFrame and commandsFrame:FindFirstChild("Container") and commandsFrame:FindFirstChild("Container"):FindFirstChild("List")
 local commandExample = commandsList and commandsList:FindFirstChild("TextLabel")
-local resizeFrame = NASCREENGUI:FindFirstChild("Resizeable")
-local ModalFixer = NASCREENGUI:FindFirstChildWhichIsA("ImageButton")
-local SettingsFrame = NASCREENGUI:FindFirstChild("setsettings")
+local resizeFrame = NAStuff.NASCREENGUI:FindFirstChild("Resizeable")
+local ModalFixer = NAStuff.NASCREENGUI:FindFirstChildWhichIsA("ImageButton")
+local SettingsFrame = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 local SettingsContainer = SettingsFrame and SettingsFrame:FindFirstChild("Container")
 local SettingsList = SettingsContainer and SettingsContainer:FindFirstChild("List")
 local SettingsButton = SettingsList and SettingsList:FindFirstChild("Button")
@@ -18768,7 +18786,7 @@ local templates = {
 }
 
 Spawn(function()
-	for _,v in ipairs(NASCREENGUI:GetDescendants()) do
+	for _,v in ipairs(NAStuff.NASCREENGUI:GetDescendants()) do
 		if v:IsA("UIStroke") then
 			Insert(NACOLOREDELEMENTS, v)
 		end
@@ -18788,13 +18806,13 @@ predictionInput.PlaceholderText = ""
 opt.NAAUTOSCALER = AUTOSCALER
 
 	--[[NACaller(function()
-		for i,v in pairs(NASCREENGUI:GetDescendants()) do
+		for i,v in pairs(NAStuff.NASCREENGUI:GetDescendants()) do
 			coreGuiProtection[v]=rPlayer.Name
 		end
-		NASCREENGUI.DescendantAdded:Connect(function(v)
+		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(v)
 			coreGuiProtection[v]=rPlayer.Name
 		end)
-		coreGuiProtection[NASCREENGUI]=rPlayer.Name
+		coreGuiProtection[NAStuff.NASCREENGUI]=rPlayer.Name
 	
 		local meta=getrawmetatable(game)
 		local tostr=meta.__tostring
@@ -18807,14 +18825,14 @@ opt.NAAUTOSCALER = AUTOSCALER
 		end)
 	end)
 	if not RunService:IsStudio() then
-		local newGui=COREGUI:FindFirstChildWhichIsA("NASCREENGUI")
+		local newGui=COREGUI:FindFirstChildWhichIsA("NAStuff.NASCREENGUI")
 		newGui.DescendantAdded:Connect(function(v)
 			coreGuiProtection[v]=rPlayer.Name
 		end)
-		for i,v in pairs(NASCREENGUI:GetChildren()) do
+		for i,v in pairs(NAStuff.NASCREENGUI:GetChildren()) do
 			v.Parent=newGui
 		end
-		NASCREENGUI=newGui
+		NAStuff.NASCREENGUI=newGui
 	end]]
 
 cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the given name"}, function(...)
@@ -20482,7 +20500,7 @@ function setupPlayer(plr,bruh)
 	if JoinLeaveConfig.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
-        DoNotif(joinMsg, 2, categoryRT)
+        DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
 	end
 end
@@ -20502,7 +20520,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
-        DoNotif(leaveMsg, 2, categoryRT)
+        DoNotif(leaveMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(leaveMsg)
 	end
 end)
@@ -20585,8 +20603,8 @@ end)
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
 
 NACaller(function()
-	if NAjson and NAjson.annc and NAjson.annc ~= "" then
-		DoPopup(NAjson.annc, adminName.." Announcement")
+	if NAStuff.NAjson and NAStuff.NAjson.annc and NAStuff.NAjson.annc ~= "" then
+		DoPopup(NAStuff.NAjson.annc, adminName.." Announcement")
 	end
 end)
 
@@ -20617,7 +20635,7 @@ else
 	end
 end
 
-TextLabel.Parent = NASCREENGUI
+TextLabel.Parent = NAStuff.NASCREENGUI
 TextLabel.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
 TextLabel.BackgroundTransparency = 0.1
 TextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -20641,7 +20659,7 @@ UIStroke.Color = NAUISTROKER --Color3.fromRGB(148, 93, 255)
 UIStroke.Transparency = 0.4
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-TextButton.Parent = NASCREENGUI
+TextButton.Parent = NAStuff.NASCREENGUI
 TextButton.BackgroundTransparency = 0
 TextButton.AnchorPoint = Vector2.new(0.5, 0)
 TextButton.BorderSizePixel = 0
@@ -21095,6 +21113,14 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	end
 end)
 
+NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
+	NAStuff.nuhuhNotifs = v
+	DoNotif("Debug Notifications "..(v and "Enabled" or "Disabled"), 2)
+	if FileSupport then
+		writefile(NAfiles.NANOTIFSTOGGLE, tostring(v))
+	end
+end)
+
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	local pos = TextButton.Position
 	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
@@ -21169,7 +21195,7 @@ if IsOnPC then
 			flyVariables.keybindConn = nil
 		end
 		connectFlyKey()
-		DoNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
+		DebugNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
 	end)
 
 	NAgui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
@@ -21183,7 +21209,7 @@ if IsOnPC then
 			flyVariables.vKeybindConn:Disconnect()
 		end
 		connectVFlyKey()
-		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
+		DebugNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
 	end)
 
 	NAgui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
@@ -21198,7 +21224,7 @@ if IsOnPC then
 			flyVariables.cKeybindConn = nil
 		end
 		connectCFlyKey()
-		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
+		DebugNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
 	end)
 
 	NAgui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
@@ -21216,7 +21242,7 @@ if IsOnPC then
 				toggleTFly()
 			end
 		end)
-		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
+		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end)
 end
 
@@ -21314,7 +21340,7 @@ NAgui.addButton("Apply Chat Tag", function()
 		}))
 	end
 
-	DoNotif("Custom chat tag applied and saved!",2.5)
+	DebugNotif("Custom chat tag applied and saved!",2.5)
 end)
 
 NAgui.addButton("Remove Chat Tag", function()
@@ -21331,5 +21357,5 @@ NAgui.addButton("Remove Chat Tag", function()
 		}))
 	end
 
-	DoNotif("Custom chat tag removed.",2.5)
+	DebugNotif("Custom chat tag removed.",2.5)
 end)
