@@ -15333,7 +15333,6 @@ cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Auto
     local args={...}
     local interval=tonumber(args[1]) or 0.1
     local target=args[2] and Lower(Concat(args," ",2))
-    if NAlib.isConnected("AutoFireClick") then NAlib.disconnect("AutoFireClick") return DebugNotif("AutoFireClick stopped",2) end
     local last=tick()
     NAlib.connect("AutoFireClick",RunService.Heartbeat:Connect(function()
         if tick()-last>=interval then
@@ -15345,14 +15344,17 @@ cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Auto
             end
         end
     end))
-    DebugNotif("AutoFireClick started",2)
+    if target then
+        DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
+    else
+        DebugNotif("AutoFireClick started",2)
+    end
 end,true)
 
 cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"},function(...)
     local args={...}
     local interval=tonumber(args[1]) or 0.1
     local target=args[2] and Lower(Concat(args," ",2))
-    if NAlib.isConnected("AutoFireProxi") then NAlib.disconnect("AutoFireProxi") return DebugNotif("AutoFireProxi stopped",2) end
     local last=tick()
     NAlib.connect("AutoFireProxi",RunService.Heartbeat:Connect(function()
         if tick()-last>=interval then
@@ -15364,14 +15366,17 @@ cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Auto
             end
         end
     end))
-    DebugNotif("AutoFireProxi started",2)
+    if target then
+        DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
+    else
+        DebugNotif("AutoFireProxi started",2)
+    end
 end,true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
     local args={...}
     local interval=tonumber(args[1]) or 1
     local target=args[2] and Lower(Concat(args," ",2))
-    if NAlib.isConnected("AutoTouch") then NAlib.disconnect("AutoTouch") return DebugNotif("AutoTouch stopped",2) end
     local last=tick()
     NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
         if tick()-last>=interval then
@@ -15397,7 +15402,11 @@ cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically 
             end
         end
     end))
-    DebugNotif("AutoTouch started",2)
+    if target then
+        DebugNotif(("AutoTouch \"%s\" started"):format(target),2)
+    else
+        DebugNotif("AutoTouch started",2)
+    end
 end,true)
 
 cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops the AutoFireClick loop"},function()
