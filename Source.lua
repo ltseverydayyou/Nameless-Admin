@@ -33,6 +33,11 @@ local NAStuff = {
 	NAjson = nil;
 	nuhuhNotifs = true;
 }
+local interactTbl = {
+	click = {};
+	proxy = {};
+	touch = {};
+}
 local Notification = nil
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
@@ -15240,8 +15245,8 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
     local target=args[1] and Concat(args," "):lower()
     if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
     local list,f={},0
-    for _,d in ipairs(workspace:GetDescendants()) do
-        if d:IsA("ClickDetector") and (not target or d.Name:lower()==target or (d.Parent and d.Parent.Name:lower()==target)) then
+    for _,d in ipairs(interactTbl.click) do
+        if not target or d.Name:lower()==target or (d.Parent and d.Parent.Name:lower()==target) then
             Insert(list,d)
         end
     end
@@ -15265,8 +15270,8 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
     local target=args[1] and Concat(args," "):lower()
     if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
     local list,f={},0
-    for _,p in ipairs(workspace:GetDescendants()) do
-        if p:IsA("ProximityPrompt") and (not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target)) then
+    for _,p in ipairs(interactTbl.proxy) do
+        if not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target) then
             Insert(list,p)
         end
     end
@@ -15293,12 +15298,10 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
     local root=char and getRoot(char)
     if not root then return DoNotif("Character not found",3) end
     local parts,f={},0
-    for _,t in ipairs(workspace:GetDescendants()) do
-        if t:IsA("TouchTransmitter") then
-            local p=t.Parent
-            if p and p:IsA("BasePart") and (not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target)) then
-                Insert(parts,p)
-            end
+    for _,t in ipairs(interactTbl.touch) do
+        local p=t.Parent
+        if p and p:IsA("BasePart") and (not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target)) then
+            Insert(parts,p)
         end
     end
     if #parts==0 then
@@ -15326,28 +15329,116 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
     end
 end,true)
 
+cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"},function(...)
+    local args={...}
+    local interval=tonumber(args[1]) or 0.1
+    local target=args[2] and Lower(Concat(args," ",2))
+    if NAlib.isConnected("AutoFireClick") then NAlib.disconnect("AutoFireClick") return DebugNotif("AutoFireClick stopped",2) end
+    local last=tick()
+    NAlib.connect("AutoFireClick",RunService.Heartbeat:Connect(function()
+        if tick()-last>=interval then
+            last=tick()
+            for _,d in ipairs(interactTbl.click) do
+                if not target or Lower(d.Name)==target or (d.Parent and Lower(d.Parent.Name)==target) then
+                    pcall(fireclickdetector,d)
+                end
+            end
+        end
+    end))
+    DebugNotif("AutoFireClick started",2)
+end,true)
+
+cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"},function(...)
+    local args={...}
+    local interval=tonumber(args[1]) or 0.1
+    local target=args[2] and Lower(Concat(args," ",2))
+    if NAlib.isConnected("AutoFireProxi") then NAlib.disconnect("AutoFireProxi") return DebugNotif("AutoFireProxi stopped",2) end
+    local last=tick()
+    NAlib.connect("AutoFireProxi",RunService.Heartbeat:Connect(function()
+        if tick()-last>=interval then
+            last=tick()
+            for _,p in ipairs(interactTbl.proxy) do
+                if not target or Lower(p.Name)==target or (p.Parent and Lower(p.Parent.Name)==target) then
+                    pcall(fireproximityprompt,p,1)
+                end
+            end
+        end
+    end))
+    DebugNotif("AutoFireProxi started",2)
+end,true)
+
+cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
+    local args={...}
+    local interval=tonumber(args[1]) or 1
+    local target=args[2] and Lower(Concat(args," ",2))
+    if NAlib.isConnected("AutoTouch") then NAlib.disconnect("AutoTouch") return DebugNotif("AutoTouch stopped",2) end
+    local last=tick()
+    NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
+        if tick()-last>=interval then
+            last=tick()
+            local char=getChar()
+            local root=char and getRoot(char)
+            if root then
+                for _,t in ipairs(interactTbl.touch) do
+                    local part=t.Parent
+                    if part and part:IsA("BasePart") and (not target or Lower(part.Name)==target or (part.Parent and Lower(part.Parent.Name)==target)) then
+                        Spawn(function()
+                            local orig=part.CFrame
+                            pcall(function()
+                                part.CFrame=root.CFrame
+                                firetouchinterest(root,part,0)
+                                Wait()
+                                firetouchinterest(root,part,1)
+                            end)
+                            Delay(0.1,function() part.CFrame=orig end)
+                        end)
+                    end
+                end
+            end
+        end
+    end))
+    DebugNotif("AutoTouch started",2)
+end,true)
+
+cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops the AutoFireClick loop"},function()
+    if NAlib.isConnected("AutoFireClick") then
+        NAlib.disconnect("AutoFireClick")
+        DebugNotif("AutoFireClick stopped",2)
+    else
+        DebugNotif("AutoFireClick not running",2)
+    end
+end)
+
+cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops the AutoFireProxi loop"},function()
+    if NAlib.isConnected("AutoFireProxi") then
+        NAlib.disconnect("AutoFireProxi")
+        DebugNotif("AutoFireProxi stopped",2)
+    else
+        DebugNotif("AutoFireProxi not running",2)
+    end
+end)
+
+cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops the AutoTouch loop"},function()
+    if NAlib.isConnected("AutoTouch") then
+        NAlib.disconnect("AutoTouch")
+        DebugNotif("AutoTouch stopped",2)
+    else
+        DebugNotif("AutoTouch not running",2)
+    end
+end)
+
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
-	for i,v in ipairs(workspace:GetDescendants()) do
-		if v:IsA("ClickDetector") then
-			if (...) == nil then
-				v.MaxActivationDistance=math.huge
-			else
-				v.MaxActivationDistance=(...)
-			end
-		end
-	end
+    local limit = (...) or math.huge
+    for _,v in ipairs(interactTbl.click) do
+        v.MaxActivationDistance = limit
+    end
 end,true)
 
 cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximitypromptlimits <limit> (nopplimits,removepplimits)","Sets all proximity prompts MaxActivationDistance to math.huge"},function(...)
-	for i,v in pairs(workspace:GetDescendants()) do
-		if v:IsA("ProximityPrompt") then
-			if (...) == nil then
-				v.MaxActivationDistance=math.huge
-			else
-				v.MaxActivationDistance=(...)
-			end
-		end
-	end
+    local limit = (...) or math.huge
+    for _,v in ipairs(interactTbl.proxy) do
+        v.MaxActivationDistance = limit
+    end
 end,true)
 
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Disable the cooldown for proximity prompts"},function()
@@ -20514,6 +20605,41 @@ Players.PlayerRemoving:Connect(function(plr)
         DoNotif(leaveMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(leaveMsg)
 	end
+end)
+
+Spawn(function()
+for _, obj in ipairs(workspace:GetDescendants()) do
+    if obj:IsA("ClickDetector") then
+        Insert(interactTbl.click, obj)
+    elseif obj:IsA("ProximityPrompt") then
+        Insert(interactTbl.proxy, obj)
+    elseif obj.ClassName == "TouchInterest" then
+        Insert(interactTbl.touch, obj)
+    end
+end
+
+workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ClickDetector") then
+        Insert(interactTbl.click, obj)
+    elseif obj:IsA("ProximityPrompt") then
+        Insert(interactTbl.proxy, obj)
+    elseif obj.ClassName == "TouchInterest" then
+        Insert(interactTbl.touch, obj)
+    end
+end)
+
+workspace.DescendantRemoving:Connect(function(obj)
+    if obj:IsA("ClickDetector") then
+        local i = Discover(interactTbl.click, obj)
+        if i then table.remove(interactTbl.click, i) end
+    elseif obj:IsA("ProximityPrompt") then
+        local i = Discover(interactTbl.proxy, obj)
+        if i then table.remove(interactTbl.proxy, i) end
+    elseif obj.ClassName == "TouchInterest" then
+        local i = Discover(interactTbl.touch, obj)
+        if i then table.remove(interactTbl.touch, i) end
+    end
+end)
 end)
 
 Spawn(function()
