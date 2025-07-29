@@ -5887,7 +5887,7 @@ cmd.add({"localdate", "yourdate"}, {"localdate (yourdate)", "Shows your current 
 end)
 zmxcnsaodakscn = nil
 repeat
-	local UNNNAMEEDD, FUFRRRR = NACaller(function()
+	local UNNNAMEEDD, FUFRRRR = pcall(function()
 		return loadstring(game:HttpGet(qowijjokqwd))()
 	end)
 
@@ -8850,7 +8850,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 					hooked[i]=hookfunction(func,function(...)
 						local args={...}
 						if _G.functionspy then
-							NACaller(function() 
+							NACaller(function()
 								out=""
 								out=out..(v..",Args-> {")..("\n"):format()
 								for l,k in pairs(args) do
