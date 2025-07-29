@@ -15529,7 +15529,7 @@ end,true)
 
 -- garbage that needs to be changed to something else
 
---[[cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
+cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
 	local humanoid = getHum()
 	if humanoid then
 		NAlib.disconnect("godmode")
@@ -15550,7 +15550,7 @@ end)
 cmd.add({"ungodmode", "ungod"}, {"ungodmode (ungod)", "Disables invincibility"}, function()
 	NAlib.disconnect("godmode")
 	DebugNotif("Godmode OFF", 2)
-end)]]
+end)
 
 cmd.add({"controllock", "ctrllock"}, {"controllock (ctrllock)", "Sets your Shiftlock keybinds to the control keys"}, function()
 	local player = Players.LocalPlayer
