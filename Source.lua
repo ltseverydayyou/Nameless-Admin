@@ -32,6 +32,7 @@ local NAStuff = {
 	NASCREENGUI=nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
 	nuhuhNotifs = true;
+	KeybindConnection = nil;
 }
 local interactTbl = {
 	click = {};
@@ -1983,10 +1984,10 @@ end
 
 local function clearESP(player)
     local name = player.Name
-    NAlib.disconnect("esp_render_"      .. name)
-    NAlib.disconnect("esp_descAdded_"   .. name)
-    NAlib.disconnect("esp_descRemoved_" .. name)
-    NAlib.disconnect("esp_charAdded_"   .. name)
+    NAlib.disconnect("esp_render_"     ..name)
+    NAlib.disconnect("esp_descAdded_"  ..name)
+    NAlib.disconnect("esp_descRemoved_"..name)
+    NAlib.disconnect("esp_charAdded_"  ..name)
     local data = espCONS[name]
     if data then
         for part, box in pairs(data.boxTable) do
@@ -2639,213 +2640,251 @@ NAmanage.LogJoinLeave = function(message)
 end
 
 NAmanage.RenderUserButtons = function()
-	for _, btn in pairs(UserButtonGuiList) do
-		btn:Destroy()
-	end
-	table.clear(UserButtonGuiList)
+    if NAStuff.KeybindConnection then
+        NAStuff.KeybindConnection:Disconnect()
+        NAStuff.KeybindConnection = nil
+    end
+    for _, btn in pairs(UserButtonGuiList) do
+        btn:Destroy()
+    end
+    table.clear(UserButtonGuiList)
 
-	local SavedArguments = {}
-	local ActivePrompts = {}
+    local UIS = UserInputService
+    local SavedArgs       = {}
+    local ActivePrompts   = {}
+    local ActiveKeyBinding= {}
+    local ActionBindings  = {}
+    local tSize = 28
 
-	function ButtonInputPrompt(commandName, callback)
-		local promptGui = InstanceNew("ScreenGui")
-		promptGui.IgnoreGuiInset = true
-		promptGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		promptGui.Parent = NAStuff.NASCREENGUI
+    function ButtonInputPrompt(cmdName, cb)
+        local gui = InstanceNew("ScreenGui")
+        gui.IgnoreGuiInset = true
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        gui.Parent = NAStuff.NASCREENGUI
 
-		local frame = InstanceNew("Frame")
-		frame.Size = UDim2.new(0, 260, 0, 140)
-		frame.Position = UDim2.new(0.5, -130, 0.5, -70)
-		frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		frame.BorderSizePixel = 0
-		frame.Parent = promptGui
+        local f = InstanceNew("Frame")
+        f.Size = UDim2.new(0,260,0,140)
+        f.Position = UDim2.new(0.5,-130,0.5,-70)
+        f.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        f.BorderSizePixel = 0
+        f.Parent = gui
 
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0.1, 0)
-		corner.Parent = frame
+        local u = InstanceNew("UICorner")
+        u.CornerRadius = UDim.new(0.1,0)
+        u.Parent = f
 
-		local title = InstanceNew("TextLabel")
-		title.Size = UDim2.new(1, -20, 0, 30)
-		title.Position = UDim2.new(0, 10, 0, 10)
-		title.BackgroundTransparency = 1
-		title.Text = "Arguments for: "..commandName
-		title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		title.Font = Enum.Font.GothamBold
-		title.TextSize = 16
-		title.TextWrapped = true
-		title.Parent = frame
+        local t = InstanceNew("TextLabel")
+        t.Size = UDim2.new(1,-20,0,30)
+        t.Position = UDim2.new(0,10,0,10)
+        t.BackgroundTransparency = 1
+        t.Text = "Arguments for: "..cmdName
+        t.TextColor3 = Color3.fromRGB(255,255,255)
+        t.Font = Enum.Font.GothamBold
+        t.TextSize = 16
+        t.TextWrapped = true
+        t.Parent = f
 
-		local textbox = InstanceNew("TextBox")
-		textbox.Size = UDim2.new(1, -20, 0, 30)
-		textbox.Position = UDim2.new(0, 10, 0, 50)
-		textbox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		textbox.TextColor3 = Color3.fromRGB(255, 255, 255)
-		textbox.PlaceholderText = "Type arguments here"
-		textbox.Text = ""
-		textbox.TextSize = 16
-		textbox.Font = Enum.Font.Gotham
-		textbox.ClearTextOnFocus = false
-		textbox.Parent = frame
+        local tb = InstanceNew("TextBox")
+        tb.Size = UDim2.new(1,-20,0,30)
+        tb.Position = UDim2.new(0,10,0,50)
+        tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        tb.TextColor3 = Color3.fromRGB(255,255,255)
+        tb.PlaceholderText = "Type arguments here"
+        tb.TextSize = 16
+        tb.Font = Enum.Font.Gotham
+        tb.ClearTextOnFocus = false
+        tb.Parent = f
 
-		local submit = InstanceNew("TextButton")
-		submit.Size = UDim2.new(0.5, -15, 0, 30)
-		submit.Position = UDim2.new(0, 10, 1, -40)
-		submit.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-		submit.Text = "Submit"
-		submit.TextColor3 = Color3.fromRGB(255, 255, 255)
-		submit.Font = Enum.Font.GothamBold
-		submit.TextSize = 14
-		submit.Parent = frame
+        local s = InstanceNew("TextButton")
+        s.Size = UDim2.new(0.5,-15,0,30)
+        s.Position = UDim2.new(0,10,1,-40)
+        s.BackgroundColor3 = Color3.fromRGB(0,170,255)
+        s.Text = "Submit"
+        s.TextColor3 = Color3.fromRGB(255,255,255)
+        s.Font = Enum.Font.GothamBold
+        s.TextSize = 14
+        s.Parent = f
 
-		local cancel = InstanceNew("TextButton")
-		cancel.Size = UDim2.new(0.5, -15, 0, 30)
-		cancel.Position = UDim2.new(0.5, 5, 1, -40)
-		cancel.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-		cancel.Text = "Cancel"
-		cancel.TextColor3 = Color3.fromRGB(255, 255, 255)
-		cancel.Font = Enum.Font.GothamBold
-		cancel.TextSize = 14
-		cancel.Parent = frame
+        local c = InstanceNew("TextButton")
+        c.Size = UDim2.new(0.5,-15,0,30)
+        c.Position = UDim2.new(0.5,5,1,-40)
+        c.BackgroundColor3 = Color3.fromRGB(255,0,0)
+        c.Text = "Cancel"
+        c.TextColor3 = Color3.fromRGB(255,255,255)
+        c.Font = Enum.Font.GothamBold
+        c.TextSize = 14
+        c.Parent = f
 
-		MouseButtonFix(submit,function()
-			Spawn(function()
-				callback(textbox.Text)
-			end)
-			if ActivePrompts then
-				ActivePrompts[commandName] = nil
-			end
-			promptGui:Destroy()
-		end)
+        MouseButtonFix(s, function()
+            cb(tb.Text)
+            ActivePrompts[cmdName] = nil
+            gui:Destroy()
+        end)
+        MouseButtonFix(c, function()
+            ActivePrompts[cmdName] = nil
+            gui:Destroy()
+        end)
+        NAgui.draggerV2(f)
+    end
 
-		MouseButtonFix(cancel,function()
-			if ActivePrompts then
-				ActivePrompts[commandName] = nil
-			end
-			promptGui:Destroy()
-		end)
+    local total   = #NAUserButtons
+    local totalW  = total * 110
+    local startX  = 0.5 - (totalW/2)/NAStuff.NASCREENGUI.AbsoluteSize.X
+    local spacing = 110
+    local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
 
-		NAgui.draggerV2(frame)
-	end
+    local idx = 0
+    for id, data in pairs(NAUserButtons) do
+        local btn = InstanceNew("TextButton")
+        btn.Name            = "NAUserButton_"..id
+        btn.Text            = data.Label
+        btn.Size            = UDim2.new(0,60, 0,60)
+        btn.AnchorPoint     = Vector2.new(0.5,1)
+        btn.Position        = UDim2.new(startX + (spacing*idx)/NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
+        btn.Parent          = NAStuff.NASCREENGUI
+        btn.BackgroundColor3= Color3.fromRGB(0,0,0)
+        btn.TextColor3      = Color3.fromRGB(255,255,255)
+        btn.TextScaled      = true
+        btn.Font            = Enum.Font.GothamBold
+        btn.BorderSizePixel = 0
+        btn.ZIndex          = 9999
+        btn.AutoButtonColor = true
 
-	local totalButtons = #NAUserButtons
-	local totalWidth = totalButtons * (100 + 10)
-	local startX = 0.5 - (totalWidth / 2) / NAStuff.NASCREENGUI.AbsoluteSize.X
-	local spacing = 110
-	local TOGGLE_COLOR_ON = Color3.fromRGB(0, 170, 0)
-	local TOGGLE_COLOR_OFF = Color3.fromRGB(30, 30, 30)
+        local btnCorner = InstanceNew("UICorner")
+        btnCorner.CornerRadius = UDim.new(0.25,0)
+        btnCorner.Parent       = btn
+        NAgui.draggerV2(btn)
 
-	local index = 0
-	for id, data in pairs(NAUserButtons) do
-		local btn = InstanceNew("TextButton")
-		btn.Name = "NAUserButton_"..id
-		btn.Text = data.Label
-		btn.Size = UDim2.new(0, 60, 0, 60)
-		btn.AnchorPoint = Vector2.new(0.5, 1)
-		btn.Position = UDim2.new(startX + (spacing * index) / NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
-		btn.Parent = NAStuff.NASCREENGUI
-		btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.TextScaled = true
-		btn.Font = Enum.Font.GothamBold
-		btn.BorderSizePixel = 0
-		btn.ZIndex = 9999
-		btn.AutoButtonColor = true
+        local toggled     = false
+        local saveEnabled = data.RunMode == "S"
+        SavedArgs[id]     = data.Args or {}
 
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0.25, 0)
-		corner.Parent = btn
+        local cmd1      = data.Cmd1
+        local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
+        local needsArgs = cd1 and cd1[3]
 
-		NAgui.draggerV2(btn)
+        if needsArgs then
+            local saveToggle = InstanceNew("TextButton")
+            saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
+            saveToggle.AnchorPoint      = Vector2.new(1,1)
+            saveToggle.Position         = UDim2.new(1,0,0,0)
+            saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
+            saveToggle.TextScaled       = true
+            saveToggle.Font             = Enum.Font.Gotham
+            saveToggle.Text             = saveEnabled and "S" or "N"
+            saveToggle.ZIndex           = 10000
+            saveToggle.Parent           = btn
 
-		local toggled = false
-		local saveEnabled = data.RunMode == "S"
-		SavedArguments[id] = data.Args or {}
+            local stCorner = InstanceNew("UICorner")
+            stCorner.CornerRadius = UDim.new(0.5,0)
+            stCorner.Parent       = saveToggle
 
-		local cmdToRun = data.Cmd1
-		local commandData = cmds.Commands[cmdToRun:lower()] or cmds.Aliases[cmdToRun:lower()]
-		local requiresArgs = commandData and commandData[3]
+            MouseButtonFix(saveToggle, function()
+                saveEnabled = not saveEnabled
+                saveToggle.Text = saveEnabled and "S" or "N"
+                data.RunMode = saveEnabled and "S" or "N"
+                if FileSupport then
+                    writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+                end
+            end)
+        end
 
-		if requiresArgs then
-			local saveToggle = InstanceNew("TextButton")
-			saveToggle.Size = UDim2.new(0, 20, 0, 20)
-			saveToggle.Position = UDim2.new(1, -15, 0, -10)
-			saveToggle.AnchorPoint = Vector2.new(0.5, 0)
-			saveToggle.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			saveToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-			saveToggle.TextSize = 12
-			saveToggle.Font = Enum.Font.Gotham
-			saveToggle.Text = saveEnabled and "S" or "N"
-			saveToggle.ZIndex = 10000
-			saveToggle.Parent = btn
+        local function runCmd(args)
+            local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+            local arr   = {toRun}
+            if args then for _,v in ipairs(args) do table.insert(arr, v) end end
+            cmd.run(arr)
+            if data.Cmd2 then
+                toggled = not toggled
+                btn.BackgroundColor3 = toggled and ON or OFF
+            end
+        end
 
-			MouseButtonFix(saveToggle, function()
-				saveEnabled = not saveEnabled
-				saveToggle.Text = saveEnabled and "S" or "N"
-				data.RunMode = saveEnabled and "S" or "N"
-				if FileSupport then
-					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-				end
-			end)
-		end
+        MouseButtonFix(btn, function()
+            local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+            local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+            local na      = nd and nd[3]
+            if na then
+                if saveEnabled and data.Args and #data.Args>0 then
+                    runCmd(data.Args)
+                else
+                    if ActivePrompts[now] then return end
+                    ActivePrompts[now] = true
+                    ButtonInputPrompt(now, function(input)
+                        ActivePrompts[now] = nil
+                        local parsed = ParseArguments(input)
+                        if parsed then
+                            SavedArgs[id] = parsed
+                            data.Args     = parsed
+                            if FileSupport then
+                                writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+                            end
+                            runCmd(parsed)
+                        else
+                            runCmd(nil)
+                        end
+                    end)
+                end
+            else
+                runCmd(nil)
+            end
+        end)
 
-		MouseButtonFix(btn, function()
-			local cmdToRunNow
-			if not toggled or not data.Cmd2 then
-				cmdToRunNow = data.Cmd1
-			else
-				cmdToRunNow = data.Cmd2
-			end
+        if IsOnPC then
+            local keyToggle = InstanceNew("TextButton")
+            keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
+            keyToggle.AnchorPoint      = Vector2.new(0,1)
+            keyToggle.Position         = UDim2.new(0,0,0,0)
+            keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+            keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
+            keyToggle.TextScaled       = true
+            keyToggle.Font             = Enum.Font.Gotham
+            keyToggle.Text             = data.Keybind or "Key"
+            keyToggle.ZIndex           = 10000
+            keyToggle.Parent           = btn
 
-			local commandDataNow = cmds.Commands[cmdToRunNow:lower()] or cmds.Aliases[cmdToRunNow:lower()]
-			local requiresArgsNow = commandDataNow and commandDataNow[3]
+            local ktCorner = InstanceNew("UICorner")
+            ktCorner.CornerRadius = UDim.new(0.5,0)
+            ktCorner.Parent       = keyToggle
 
-			local function runCommand(parsedArguments)
-				local finalArgs = {cmdToRunNow}
-				if parsedArguments then
-					for _, v in ipairs(parsedArguments) do
-						Insert(finalArgs, v)
-					end
-				end
-				cmd.run(finalArgs)
+            MouseButtonFix(keyToggle, function()
+                if ActiveKeyBinding[id] then return end
+                ActiveKeyBinding[id] = true
+                keyToggle.Text = "..."
+                local conn
+                conn = UIS.InputBegan:Connect(function(input, gp)
+                    if gp or not input.KeyCode then return end
+                    local old = data.Keybind
+                    if old then ActionBindings[old] = nil end
+                    local new = input.KeyCode.Name
+                    data.Keybind = new
+                    keyToggle.Text = new
+                    if FileSupport then
+                        writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+                    end
+                    ActionBindings[new] = function() runCmd(data.Args) end
+                    ActiveKeyBinding[id] = nil
+                    conn:Disconnect()
+                end)
+            end)
 
-				if data.Cmd2 then
-					toggled = not toggled
-					btn.BackgroundColor3 = toggled and TOGGLE_COLOR_ON or TOGGLE_COLOR_OFF
-				end
-			end
+            if data.Keybind then
+                ActionBindings[data.Keybind] = function() runCmd(data.Args) end
+            end
+        end
 
-			if requiresArgsNow then
-				if saveEnabled and data.Args and #data.Args > 0 then
-					runCommand(data.Args)
-				else
-					if ActivePrompts[cmdToRunNow] then
-						return
-					end
+        Insert(UserButtonGuiList, btn)
+        idx = idx + 1
+    end
 
-					ActivePrompts[cmdToRunNow] = true
-					ButtonInputPrompt(cmdToRunNow, function(input)
-						ActivePrompts[cmdToRunNow] = nil
-						local parsedArguments = ParseArguments(input)
-						if parsedArguments then
-							SavedArguments[id] = parsedArguments
-							data.Args = parsedArguments
-							if FileSupport then
-								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-							end
-							runCommand(parsedArguments)
-						else
-							runCommand(nil)
-						end
-					end)
-				end
-			else
-				runCommand(nil)
-			end
-		end)
-
-		Insert(UserButtonGuiList, btn)
-		index = index + 1
-	end
+    if IsOnPC then
+        NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
+            if gp or not input.KeyCode then return end
+            local act = ActionBindings[input.KeyCode.Name]
+            if act then act() end
+        end)
+    end
 end
 
 local lp=Players.LocalPlayer
@@ -14896,11 +14935,11 @@ cmd.add({"tpspeed","tpspeed"},{"tpspeed <number>","Teleport in leaps with visual
 
     MouseButtonFix(collisionBtn, function()
         tptptpSPEED.useCollisionCheck = not tptptpSPEED.useCollisionCheck
-        collisionBtn.Text = "Collision: " .. (tptptpSPEED.useCollisionCheck and "On" or "Off")
+        collisionBtn.Text = "Collision: "..(tptptpSPEED.useCollisionCheck and "On" or "Off")
     end)
     MouseButtonFix(movementBtn, function()
         tptptpSPEED.useStepMovement = not tptptpSPEED.useStepMovement
-        movementBtn.Text = "Mode: " .. (tptptpSPEED.useStepMovement and "Step" or "Snap")
+        movementBtn.Text = "Mode: "..(tptptpSPEED.useStepMovement and "Step" or "Snap")
     end)
     NAgui.draggerV2(collisionBtn)
     NAgui.draggerV2(movementBtn)
