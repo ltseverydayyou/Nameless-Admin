@@ -21675,7 +21675,8 @@ Spawn(function()
 				Buttons     = {{
 					Text     = "Submit",
 					Callback = function(input)
-						Insert(Bindings[ev], input)    -- just the raw line
+						Bindings[ev] = Bindings[ev] or {}
+						Insert(Bindings[ev], input)
 						NAmanage.SaveBinders()
 						refreshItems()
 					end
