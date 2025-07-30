@@ -2029,7 +2029,7 @@ G2L["de"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["de"]["BackgroundTransparency"] = 1;
 G2L["de"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
 G2L["de"]["Size"] = UDim2.new(0.5, 0, 1, 0);
-G2L["de"]["Text"] = [[NA Waypoint]];
+G2L["de"]["Text"] = [[NA Waypoints]];
 G2L["de"]["Name"] = [[Title]];
 G2L["de"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
 
