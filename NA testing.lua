@@ -4227,7 +4227,7 @@ cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current posit
 	Waypoints[name] = { Components = { cf:GetComponents() } }
 	NAmanage.SaveWaypoints()
 	NAmanage.UpdateWaypointList()
-	DoNotif(("Waypoint '%s' set."):format(name))
+	DebugNotif(("Waypoint '%s' set."):format(name))
 end,true)
 
 cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a saved waypoint"},function(name)
@@ -4240,7 +4240,7 @@ cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a 
 		Waypoints[name] = nil
 		NAmanage.SaveWaypoints()
 		NAmanage.UpdateWaypointList()
-		DoNotif(("Waypoint '%s' removed."):format(name))
+		DebugNotif(("Waypoint '%s' removed."):format(name))
 	else
 		DoNotif(("No such waypoint '%s'."):format(name))
 	end
@@ -18063,9 +18063,9 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 			Spawn(function()
 				local ok
 				if obj:IsA("RemoteEvent") then
-					ok = NACaller(function() obj:FireServer() end)
+					ok = pcall(function() obj:FireServer() end)
 				elseif obj:IsA("RemoteFunction") then
-					ok = NACaller(function() obj:InvokeServer() end)
+					ok = pcall(function() obj:InvokeServer() end)
 				end
 
 				if ok then
@@ -19428,9 +19428,9 @@ NAmanage.UpdateWaypointList=function()
                         local cf = CFrame.new(unpack(comps))
                         if setclipboard then
                             pcall(setclipboard, tostring(cf))
-                            DoNotif("Copied "..name)
+                            DebugNotif("Copied "..name)
                         else
-                            DoNotif("Copy not supported")
+                            DebugNotif("Copy not supported")
                         end
                     end)
                 end
@@ -19439,7 +19439,7 @@ NAmanage.UpdateWaypointList=function()
                         Waypoints[name] = nil
                         NAmanage.SaveWaypoints()
                         NAmanage.UpdateWaypointList()
-                        DoNotif("Removed '"..name.."'")
+                        DebugNotif("Removed '"..name.."'")
                     end)
                 end
                 if tpBtn then
