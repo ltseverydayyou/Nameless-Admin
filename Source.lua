@@ -29,6 +29,7 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 local Waypoints = {}
+local Bindings = Bindings or {}
 local NAStuff = {
 	NASCREENGUI=nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
@@ -77,6 +78,7 @@ local settingsLight = {
 	color = Color3.new(1,1,1);
 	LIGHTER = nil;
 }
+local events = {"OnSpawned","OnDeath","OnChatted","OnDamage","OnJoin","OnLeave"}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
@@ -87,6 +89,12 @@ NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
+
+for _, ev in ipairs(events) do
+    if type(Bindings[ev]) ~= "table" then
+        Bindings[ev] = {}
+    end
+end
 
 function isAprilFools()
 	local d = os.date("*t")
@@ -563,6 +571,7 @@ local NAfiles = {
 	NACHATTAG = "Nameless-Admin/ChatTag.json";
 	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
 	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
+	NABINDERS = "Nameless-Admin/Binders.json";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -662,6 +671,10 @@ if FileSupport then
 	if not isfile(NAfiles.NATOPBAR) then
 		writefile(NAfiles.NATOPBAR, "true")
 	end
+
+	if not isfile(NAfiles.NABINDERS) then
+		writefile(NAfiles.NABINDERS, "{}")
+	end
 end
 
 function InitUIStroke(path)
@@ -693,16 +706,17 @@ function InitUIStroke(path)
 end
 
 NAmanage.GetWPPath=function()
-    if not game.PlaceId or type(game.PlaceId) ~= "number" then
-        repeat task.wait() until type(game.PlaceId) == "number"
-    end
-    return ("%s/WP_%s.json"):format(
-        NAfiles.NAWAYPOINTFILEPATH,
-        tostring(game.PlaceId)
-    )
+	if not game.PlaceId or type(game.PlaceId) ~= "number" then
+		repeat Wait() until type(game.PlaceId) == "number"
+	end
+	return ("%s/WP_%s.json"):format(
+		NAfiles.NAWAYPOINTFILEPATH,
+		tostring(game.PlaceId)
+	)
 end
 
 local WPPath = NAmanage.GetWPPath()
+local bindersPath = NAfiles.NABINDERS
 
 if FileSupport then
 	prefixCheck = readfile(NAfiles.NAPREFIXPATH)
@@ -800,15 +814,18 @@ if FileSupport then
 	end
 
 	local path = NAmanage.GetWPPath()
-    if not isfile(path) then
-        writefile(path, "{}")
-    end
+	if not isfile(path) then
+		writefile(path, "{}")
+	end
 
-    local ok, data = NACaller(function()
-        return HttpService:JSONDecode(readfile(path))
-    end)
+	local ok, data = NACaller(function()
+		return HttpService:JSONDecode(readfile(path))
+	end)
 
-    Waypoints = (ok and type(data) == "table") and data or {}
+	Waypoints = (ok and type(data) == "table") and data or {}
+
+	local ok, data = NACaller(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
+	Bindings = ok and type(data)=="table" and data or {}
 else
 	prefixCheck = ";"
 	NAScale = 1
@@ -1253,6 +1270,15 @@ function ParseArguments(input)
 		Insert(args, arg)
 	end
 	return args
+end
+
+NAmanage.ExecuteBindings = function(evName, ...)
+    local list = Bindings[evName]
+    if type(list) ~= "table" then return end
+    for _, cmdStr in ipairs(list) do
+        local args = ParseArguments(cmdStr) or {cmdStr}
+        Spawn(function() cmd.run(args) end)
+    end
 end
 
 function loadedResults(res)
@@ -2641,18 +2667,24 @@ NAmanage.LoadPlugins = function()
 end
 
 NAmanage.SaveWaypoints = function()
-    if not FileSupport then return end
+	if not FileSupport then return end
 
-    local path = NAmanage.GetWPPath()
+	local path = NAmanage.GetWPPath()
 
-    if next(Waypoints) then
-        writefile(path, HttpService:JSONEncode(Waypoints))
-    else
-        if delfile and isfile(path) then
-            pcall(delfile, path)
-        else
-            writefile(path, "{}")
-        end
+	if next(Waypoints) then
+		writefile(path, HttpService:JSONEncode(Waypoints))
+	else
+		if delfile and isfile(path) then
+			pcall(delfile, path)
+		else
+			writefile(path, "{}")
+		end
+	end
+end
+
+NAmanage.SaveBinders=function()
+	if FileSupport then
+        writefile(bindersPath, HttpService:JSONEncode(Bindings))
     end
 end
 
@@ -2833,7 +2865,7 @@ NAmanage.RenderUserButtons = function()
 		local function runCmd(args)
 			local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
 			local arr   = {toRun}
-			if args then for _,v in ipairs(args) do table.insert(arr, v) end end
+			if args then for _,v in ipairs(args) do Insert(arr, v) end end
 			cmd.run(arr)
 			if data.Cmd2 then
 				toggled = not toggled
@@ -4185,6 +4217,10 @@ end)
 
 cmd.add({"waypoints", "wp"},{"waypoints","Open the waypoints menu"},function()
 	NAgui.waypointers()
+end)
+
+cmd.add({"binders", "binds"},{"binders","Open the event binder menu"},function()
+	NAgui.eventbinders()
 end)
 
 cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current position under that name"},function(name)
@@ -18836,6 +18872,7 @@ end)
 --[[ FUNCTIONALITY ]]--
 localPlayer.Chatted:Connect(function(str)
 	NAlib.parseCommand(str)
+	NAmanage.ExecuteBindings("OnChatted", str)
 end)
 
 --[[ Admin Player]]
@@ -18979,7 +19016,6 @@ local NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Slider");
-	
 	WaypointFrame        = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint");
 	WaypointContainer    = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
 		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container");
@@ -18993,6 +19029,12 @@ local NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container")
 		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChild("List")
 		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("WP");
+	BindersFrame        = NAStuff.NASCREENGUI:FindFirstChild("binders");
+	BindersContainer    = NAStuff.NASCREENGUI:FindFirstChild("binders")
+		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container");
+	BindersList         = NAStuff.NASCREENGUI:FindFirstChild("binders")
+		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container"):FindFirstChild("List");
 }
 
 local resizeXY={
@@ -19224,6 +19266,15 @@ NAgui.waypointers = function()
 		NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
 	end
 end
+NAgui.eventbinders = function()
+	if NAUIMANAGER.BindersFrame then
+		if not NAUIMANAGER.BindersFrame.Visible then
+			NAUIMANAGER.BindersFrame.Visible = true
+		end
+		--NAUIMANAGER.BindersFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+		NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+	end
+end
 NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	style = style or "Sine"
 	direction = direction or "Out"
@@ -19382,59 +19433,59 @@ NAgui.resizeable = function(ui, min, max)
 end
 
 NAmanage.UpdateWaypointList=function()
-    local list = NAUIMANAGER.WaypointList
-    local rawFilter = NAUIMANAGER.filterBox and NAUIMANAGER.filterBox.Text or ""
-    local filterText = rawFilter:lower()
-    for _, child in ipairs(list:GetChildren()) do
-        if not child:IsA("UIListLayout") then
-            child:Destroy()
-        end
-    end
-    for name, entry in pairs(Waypoints) do
-        if filterText == "" or name:lower():find(filterText, 1, true) then
-            local row = NAUIMANAGER.WPFrame:Clone()
-            row.Name = name
-            row.Parent = list
-            local nameBtn = row:FindFirstChildWhichIsA("TextButton")
-            if nameBtn then nameBtn.Text = name end
-            local actionFrame = row:FindFirstChildWhichIsA("Frame")
-            if actionFrame then
-                local copyBtn = actionFrame:FindFirstChild("CopyBtn")
-                local delBtn = actionFrame:FindFirstChild("DelBtn")
-                local tpBtn = actionFrame:FindFirstChild("TPBtn")
-                if copyBtn then
-                    copyBtn.MouseButton1Click:Connect(function()
-                        local comps = entry.Components
-                        local cf = CFrame.new(unpack(comps))
-                        if setclipboard then
-                            pcall(setclipboard, tostring(cf))
-                            DebugNotif("Copied "..name)
-                        else
-                            DebugNotif("Copy not supported")
-                        end
-                    end)
-                end
-                if delBtn then
-                    delBtn.MouseButton1Click:Connect(function()
-                        Waypoints[name] = nil
-                        NAmanage.SaveWaypoints()
-                        NAmanage.UpdateWaypointList()
-                        DebugNotif("Removed '"..name.."'")
-                    end)
-                end
-                if tpBtn then
-                    tpBtn.MouseButton1Click:Connect(function()
-                        local comps = entry.Components
-                        local cf = CFrame.new(unpack(comps))
-                        local char = getChar()
-                        if char then
-                            char:PivotTo(cf)
-                        end
-                    end)
-                end
-            end
-        end
-    end
+	local list = NAUIMANAGER.WaypointList
+	local rawFilter = NAUIMANAGER.filterBox and NAUIMANAGER.filterBox.Text or ""
+	local filterText = rawFilter:lower()
+	for _, child in ipairs(list:GetChildren()) do
+		if not child:IsA("UIListLayout") then
+			child:Destroy()
+		end
+	end
+	for name, entry in pairs(Waypoints) do
+		if filterText == "" or name:lower():find(filterText, 1, true) then
+			local row = NAUIMANAGER.WPFrame:Clone()
+			row.Name = name
+			row.Parent = list
+			local nameBtn = row:FindFirstChildWhichIsA("TextButton")
+			if nameBtn then nameBtn.Text = name end
+			local actionFrame = row:FindFirstChildWhichIsA("Frame")
+			if actionFrame then
+				local copyBtn = actionFrame:FindFirstChild("CopyBtn")
+				local delBtn = actionFrame:FindFirstChild("DelBtn")
+				local tpBtn = actionFrame:FindFirstChild("TPBtn")
+				if copyBtn then
+					copyBtn.MouseButton1Click:Connect(function()
+						local comps = entry.Components
+						local cf = CFrame.new(unpack(comps))
+						if setclipboard then
+							pcall(setclipboard, tostring(cf))
+							DebugNotif("Copied "..name)
+						else
+							DebugNotif("Copy not supported")
+						end
+					end)
+				end
+				if delBtn then
+					delBtn.MouseButton1Click:Connect(function()
+						Waypoints[name] = nil
+						NAmanage.SaveWaypoints()
+						NAmanage.UpdateWaypointList()
+						DebugNotif("Removed '"..name.."'")
+					end)
+				end
+				if tpBtn then
+					tpBtn.MouseButton1Click:Connect(function()
+						local comps = entry.Components
+						local cf = CFrame.new(unpack(comps))
+						local char = getChar()
+						if char then
+							char:PivotTo(cf)
+						end
+					end)
+				end
+			end
+		end
+	end
 end
 
 NAgui.addButton = function(label, callback)
@@ -20125,12 +20176,13 @@ Spawn(function()
 	iconMain.ScaleType = Enum.ScaleType.Fit
 	iconMain.Parent = button
 
-	local offsets = { cmds = -250, chatlogs = -200, console = -150, waypp = -100 }
+	local offsets = { cmds = -300, chatlogs = -250, console = -200, waypp = -150, bindd = -100 }
 	local images  = {
-		cmds     = "rbxasset://textures/ui/Settings/Radial/PlayerList.png";
-		chatlogs = "rbxasset://textures/ui/Chat/ToggleChatFlip.png";
+		cmds     = "rbxasset://textures/ui/TopBar/moreOff@2x.png";
+		chatlogs = "rbxasset://textures/ui/Chat/ToggleChat@2x.png";
 		console  = "rbxasset://textures/Icon_Stream_Off.png";
-		waypp    = "rbxasset://textures/MaterialManager/Show_in_Explorer.png";
+		waypp    = "rbxasset://textures/ui/waypoint.png";
+		bindd    = "rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png";
 	}
 	local btns = {}
 
@@ -20234,6 +20286,13 @@ Spawn(function()
 			NAUIMANAGER.WaypointFrame.Visible = not NAUIMANAGER.WaypointFrame.Visible
 			--NAUIMANAGER.WaypointFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 			NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+		end
+	end)
+	MouseButtonFix(btns.bindd, function()
+		if NAUIMANAGER.BindersFrame then
+			NAUIMANAGER.BindersFrame.Visible = not NAUIMANAGER.BindersFrame.Visible
+			--NAUIMANAGER.BindersFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
+			NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
 		end
 	end)
 end)
@@ -20475,7 +20534,7 @@ NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 if NAUIMANAGER.filterBox then
-    NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList)
+	NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList)
 end
 
 UserInputService.InputBegan:Connect(function(input)
@@ -20513,6 +20572,10 @@ if NAUIMANAGER.WaypointFrame then
 	NAgui.menu(NAUIMANAGER.WaypointFrame)
 end
 
+if NAUIMANAGER.BindersFrame then
+	NAgui.menu(NAUIMANAGER.BindersFrame)
+end
+
 --[[ GUI RESIZE FUNCTION ]]--
 
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
@@ -20520,6 +20583,7 @@ if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) 
 if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
+if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
@@ -20657,10 +20721,10 @@ function bindToChat(plr, msg)
 		end
 	end)
 
-	local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 100)
+	local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 200)
 	chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-	local MAX_MESSAGES = 100
+	local MAX_MESSAGES = 200
 	local chatFrames = {}
 	for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
 		if v:IsA("TextLabel") then
@@ -20809,7 +20873,7 @@ NAmanage.bindToDevConsole = function()
 		local txtSize = NAgui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
 		logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-		local MAX_MESSAGES = 300
+		local MAX_MESSAGES = 200
 		local logFrames = {}
 
 		for _, v in pairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
@@ -20847,6 +20911,7 @@ local logClrs={
 }
 
 function setupPlayer(plr,bruh)
+	NAmanage.ExecuteBindings("OnJoin", plr.Name)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
 		if plr~=LocalPlayer then
@@ -20886,6 +20951,7 @@ end
 Players.PlayerAdded:Connect(setupPlayer)
 
 Players.PlayerRemoving:Connect(function(plr)
+	NAmanage.ExecuteBindings("OnLeave", plr.Name)
 	local index = Discover(playerButtons, plr)
 	if index then
 		table.remove(playerButtons, index)
@@ -20949,7 +21015,37 @@ Spawn(function()
 	end
 
 	setupFLASHBACK(LocalPlayer.Character)
-	LocalPlayer.CharacterAdded:Connect(setupFLASHBACK)
+	LocalPlayer.CharacterAdded:Connect(function(c)
+		setupFLASHBACK(c)
+		NAmanage.ExecuteBindings("OnSpawned", char)
+		Wait(.5)
+		local humanoid = getHum()
+		if humanoid then
+			local lastHP = humanoid.Health
+			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
+			humanoid.HealthChanged:Connect(function(newHP)
+				if newHP < lastHP then
+					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
+				end
+				lastHP = newHP
+			end)
+		end
+	end)
+
+	if LocalPlayer.Character then
+		local char = LocalPlayer.Character
+		local humanoid = getHum()
+		if humanoid then
+			local lastHP = humanoid.Health
+			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
+			humanoid.HealthChanged:Connect(function(newHP)
+				if newHP < lastHP then
+					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
+				end
+				lastHP = newHP
+			end)
+		end
+	end
 end)
 
 mouse.Move:Connect(function()
@@ -20978,6 +21074,7 @@ RunService.RenderStepped:Connect(function()
 	if NAUIMANAGER.commandsList then updateCanvasSize(NAUIMANAGER.commandsList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.SettingsList then updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.WaypointList then updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale) end
+	if NAUIMANAGER.BindersList then updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale) end
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -21426,6 +21523,7 @@ Spawn(function() -- init
 	if NAUIMANAGER.AUTOSCALER then NAProtection(NAUIMANAGER.AUTOSCALER) NAUIMANAGER.AUTOSCALER.Scale = NAUIScale end
 	if NAUIMANAGER.SettingsFrame then NAProtection(NAUIMANAGER.SettingsFrame) end
 	if NAUIMANAGER.WaypointFrame then NAProtection(NAUIMANAGER.WaypointFrame) end
+	if NAUIMANAGER.BindersFrame then NAProtection(NAUIMANAGER.BindersFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
@@ -21439,6 +21537,156 @@ Spawn(NAmanage.UpdateWaypointList)
 
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
+
+local bindersList      = NAUIMANAGER.BindersList
+Spawn(function()
+    local layoutOrder = 1
+    for _, evName in ipairs(events) do
+        local ev = evName
+        local HEADER_H = 30
+
+        local binderFrame = InstanceNew("Frame")
+        binderFrame.Name                   = ev.."Binder"
+        binderFrame.Parent                 = bindersList
+        binderFrame.Size                   = UDim2.new(1,0,0, HEADER_H)
+        binderFrame.LayoutOrder            = layoutOrder
+        binderFrame.ClipsDescendants       = true
+        binderFrame.BackgroundColor3       = Color3.fromRGB(20,20,20)
+        local binderCorner = InstanceNew("UICorner", binderFrame)
+        binderCorner.CornerRadius          = UDim.new(0, 8)
+        local binderStroke = InstanceNew("UIStroke", binderFrame)
+        binderStroke.Color                 = Color3.fromRGB(60,60,60)
+        binderStroke.Thickness             = 1
+
+        local header = InstanceNew("TextButton")
+        header.Name                        = "Header"
+        header.Parent                      = binderFrame
+        header.Size                        = UDim2.new(1,-30,0, HEADER_H)
+        header.Position                    = UDim2.new(0,0,0,0)
+        header.BackgroundColor3            = Color3.fromRGB(30,30,30)
+        header.AutoButtonColor             = false
+        header.Font                        = Enum.Font.SourceSansSemibold
+        header.TextSize                    = 14
+        header.TextColor3                  = Color3.fromRGB(255,255,255)
+        header.Text                        = ev
+        local headerCorner = InstanceNew("UICorner", header)
+        headerCorner.CornerRadius          = UDim.new(0, 6)
+        header.MouseEnter:Connect(function() header.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
+        header.MouseLeave:Connect(function() header.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
+
+        local addBtn = InstanceNew("TextButton")
+        addBtn.Name                        = "AddBtn"
+        addBtn.Parent                      = binderFrame
+        addBtn.Size                        = UDim2.new(0,30,0, HEADER_H)
+        addBtn.Position                    = UDim2.new(1,-30,0,0)
+        addBtn.BackgroundColor3            = Color3.fromRGB(30,30,30)
+        addBtn.AutoButtonColor             = false
+        addBtn.Font                        = Enum.Font.SourceSansBold
+        addBtn.TextSize                    = 18
+        addBtn.TextColor3                  = Color3.fromRGB(255,255,255)
+        addBtn.Text                        = "+"
+        local addCorner = InstanceNew("UICorner", addBtn)
+        addCorner.CornerRadius             = UDim.new(0, 6)
+        addBtn.MouseEnter:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
+        addBtn.MouseLeave:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
+
+        local itemsFrame = InstanceNew("Frame")
+        itemsFrame.Name                     = "Items"
+        itemsFrame.Parent                   = binderFrame
+        itemsFrame.Position                 = UDim2.new(0,0,0, HEADER_H)
+        itemsFrame.Size                     = UDim2.new(1,0,0, 0)
+        itemsFrame.BackgroundColor3         = Color3.fromRGB(25,25,25)
+        local itemsCorner = InstanceNew("UICorner", itemsFrame)
+        itemsCorner.CornerRadius            = UDim.new(0, 6)
+
+        local uiLayout = InstanceNew("UIListLayout")
+        uiLayout.SortOrder                  = Enum.SortOrder.LayoutOrder
+        uiLayout.Padding                    = UDim.new(0, 4)
+        uiLayout.Parent                     = itemsFrame
+        uiLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            if binderFrame:GetAttribute("Expanded") then
+                local h = uiLayout.AbsoluteContentSize.Y + 8
+                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+            end
+        end)
+
+        header.MouseButton1Click:Connect(function()
+            local exp = binderFrame:GetAttribute("Expanded")
+            binderFrame:SetAttribute("Expanded", not exp)
+            if exp then
+                itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
+                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
+            else
+                local h = uiLayout.AbsoluteContentSize.Y + 8
+                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+            end
+        end)
+
+        local function refreshItems()
+            for _, child in ipairs(itemsFrame:GetChildren()) do
+                if child.Name == "BinderItem" then child:Destroy() end
+            end
+            local list = Bindings[ev] or {}
+            for i, cmdStr in ipairs(list) do
+                local item = InstanceNew("Frame")
+                item.Name                      = "BinderItem"
+                item.Parent                    = itemsFrame
+                item.Size                      = UDim2.new(1,0,0,24)
+                item.LayoutOrder               = i
+                item.BackgroundColor3          = Color3.fromRGB(35,35,35)
+                local itemCorner = InstanceNew("UICorner", item)
+                itemCorner.CornerRadius         = UDim.new(0, 4)
+
+                local lbl = InstanceNew("TextLabel")
+                lbl.Parent                      = item
+                lbl.Size                        = UDim2.new(1,-24,1,0)
+                lbl.Position                    = UDim2.new(0,8,0,0)
+                lbl.BackgroundTransparency      = 1
+                lbl.Text                        = cmdStr
+                lbl.Font                        = Enum.Font.SourceSans
+                lbl.TextSize                    = 14
+                lbl.TextColor3                  = Color3.fromRGB(255,255,255)
+                lbl.TextXAlignment              = Enum.TextXAlignment.Left
+
+                local rem = InstanceNew("TextButton")
+                rem.Parent                      = item
+                rem.Size                        = UDim2.new(0,20,0,20)
+                rem.Position                    = UDim2.new(1,-24,0,2)
+                rem.BackgroundTransparency      = 1
+                rem.Text                        = "×"
+                rem.Font                        = Enum.Font.SourceSansBold
+                rem.TextSize                    = 18
+                rem.TextColor3                  = Color3.fromRGB(255,100,100)
+                rem.MouseButton1Click:Connect(function()
+                    table.remove(list, i)
+                    NAmanage.SaveBinders()
+                    refreshItems()
+                end)
+            end
+        end
+
+        addBtn.MouseButton1Click:Connect(function()
+			Window({
+				Title       = ev.." Binders",
+				Description = "Enter commands for "..ev,
+				InputField  = true,
+				Buttons     = {{
+					Text     = "Submit",
+					Callback = function(input)
+						Insert(Bindings[ev], input)    -- just the raw line
+						NAmanage.SaveBinders()
+						refreshItems()
+					end
+				}}
+			})
+		end)
+
+        refreshItems()
+        layoutOrder = layoutOrder + 1
+    end
+end)
 
 -- [[ GUI ELEMENTS ]] --
 
