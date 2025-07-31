@@ -2114,7 +2114,7 @@ function NAESP(target,persistent)
 	local key = tostring(model)
 	local function addPart(part)
 		if data.boxTable[part] then return end
-		local box = Instance.new("BoxHandleAdornment")
+		local box = InstanceNew("BoxHandleAdornment")
 		box.Adornee      = part
 		box.AlwaysOnTop  = true
 		box.ZIndex       = 1
@@ -2169,13 +2169,13 @@ function NAESP(target,persistent)
 	if not chamsEnabled then
 		local head = getHead(model)
 		if head then
-			local billboard = Instance.new("BillboardGui")
+			local billboard = InstanceNew("BillboardGui")
 			billboard.Adornee     = head
 			billboard.AlwaysOnTop = true
 			billboard.Size        = UDim2.new(0,150,0,40)
 			billboard.StudsOffset = Vector3.new(0,2.5,0)
 			billboard.Parent      = head
-			local label = Instance.new("TextLabel")
+			local label = InstanceNew("TextLabel")
 			label.Size                   = UDim2.new(1,0,1,0)
 			label.BackgroundTransparency = 1
 			label.Font                   = Enum.Font.GothamBold
@@ -15064,7 +15064,7 @@ cmd.add({"tpspeed","tpspeed"},{"tpspeed <number>","Teleport in leaps with visual
 		btn.AnchorPoint = Vector2.new(0.5,0)
 		btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
 		btn.TextColor3 = Color3.new(1,1,1)
-		local corner = Instance.new("UICorner", btn)
+		local corner = InstanceNew("UICorner", btn)
 		corner.CornerRadius = UDim.new(0.5,0)
 		return btn
 	end
@@ -20169,152 +20169,237 @@ end)
 
 -- TopBar stuff idk (it's gonna be used in the future)
 Spawn(function()
-	repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top) == "Instance"
+    repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top) == "Instance"
 
-	local button = InstanceNew("ImageButton")
-	button.Size = UDim2.new(0, 42, 0, 42)
-	button.Position = UDim2.new(1, -50, 0, 10)
-	button.AnchorPoint = Vector2.new(1, 0)
-	button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	button.BackgroundTransparency = 0.3
-	button.Image = ""
-	button.BorderSizePixel = 0
-	button.ClipsDescendants = true
-	button.LayoutOrder = 5
-	button.Parent = TopBarApp.frame
+    local toggle = InstanceNew("ImageButton")
+    toggle.Size                   = UDim2.new(0, 42, 0, 42)
+    toggle.Position               = UDim2.new(1, -50, 0, 10)
+    toggle.AnchorPoint            = Vector2.new(1, 0)
+    toggle.BackgroundColor3       = Color3.new(0, 0, 0)
+    toggle.BackgroundTransparency = 0.3
+    toggle.BorderSizePixel        = 0
+    toggle.ClipsDescendants       = true
+    toggle.ZIndex                 = 10
+    toggle.Parent                 = TopBarApp.frame
+    InstanceNew("UICorner", toggle).CornerRadius = UDim.new(0.5, 0)
 
-	local cornerMain = InstanceNew("UICorner")
-	cornerMain.CornerRadius = UDim.new(0.5, 0)
-	cornerMain.Parent = button
+    local iconMain = InstanceNew("ImageLabel", toggle)
+    iconMain.AnchorPoint            = Vector2.new(0.5, 0.5)
+    iconMain.Position               = UDim2.new(0.5, 0, 0.5, 0)
+    iconMain.Size                   = UDim2.new(0.8, 0, 0.8, 0)
+    iconMain.BackgroundTransparency = 1
+    iconMain.ScaleType              = Enum.ScaleType.Fit
+    iconMain.Image                  = "rbxasset://textures/ui/MenuBar/icon_menu.png"
+    iconMain.ZIndex                 = 11
 
-	local iconMain = InstanceNew("ImageLabel")
-	iconMain.AnchorPoint = Vector2.new(0.5, 0.5)
-	iconMain.Position = UDim2.new(0.5, 0, 0.5, 0)
-	iconMain.Size = UDim2.new(0.8, 0, 0.8, 0)
-	iconMain.BackgroundTransparency = 1
-	iconMain.Image = "rbxasset://textures/CollisionGroupsEditor/manage.png"
-	iconMain.ScaleType = Enum.ScaleType.Fit
-	iconMain.Parent = button
+    local dropdown = InstanceNew("Frame", TopBarApp.frame)
+    dropdown.Size                   = UDim2.new(0, 0, 0, 42)
+    dropdown.Visible                = false
+    dropdown.ClipsDescendants       = true
+    dropdown.BackgroundTransparency = 1
+    dropdown.ZIndex                 = 5
 
-	local offsets = { cmds = -300, chatlogs = -250, console = -200, waypp = -150, bindd = -100 }
-	local images  = {
-		cmds     = "rbxasset://textures/ui/TopBar/moreOff@2x.png";
-		chatlogs = "rbxasset://textures/ui/Chat/ToggleChat@2x.png";
-		console  = "rbxasset://textures/Icon_Stream_Off.png";
-		waypp    = "rbxasset://textures/ui/waypoint.png";
-		bindd    = "rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png";
-	}
-	local btns = {}
+    local bg = InstanceNew("Frame", dropdown)
+    bg.Size                       = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3           = Color3.new(0, 0, 0)
+    bg.BackgroundTransparency     = 1
+    bg.ZIndex                     = 6
+    InstanceNew("UICorner", bg).CornerRadius = UDim.new(0.5, 0)
 
-	for name, xOff in pairs(offsets) do
-		local btn = InstanceNew("ImageButton")
-		btn.Size = UDim2.new(0, 42, 0, 42)
-		btn.Position = UDim2.new(1, xOff, 0, 10)
-		btn.AnchorPoint = Vector2.new(1, 0)
-		btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		btn.BackgroundTransparency = 0.3
-		btn.Image = ""
-		btn.BorderSizePixel = 0
-		btn.ClipsDescendants = true
-		btn.LayoutOrder = 5
-		btn.Parent = TopBarApp.frame
+    local container = InstanceNew("Frame", dropdown)
+    container.Size                   = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.ZIndex                 = 7
 
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0.5, 0)
-		corner.Parent = btn
+    local layout = InstanceNew("UIListLayout", container)
+    layout.FillDirection       = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    layout.SortOrder           = Enum.SortOrder.LayoutOrder
+    layout.Padding             = UDim.new(0, 8)
 
-		local icon = InstanceNew("ImageLabel")
-		icon.AnchorPoint = Vector2.new(0.5, 0.5)
-		icon.Position = UDim2.new(0.5, 0, 0.5, 0)
-		icon.Size = UDim2.new(0.8, 0, 0.8, 0)
-		icon.BackgroundTransparency = 1
-		icon.Image = images[name]
-		icon.ScaleType = Enum.ScaleType.Fit
-		icon.Parent = btn
+    local buttonDefs = {
+        { name="settings", image="rbxasset://textures/CollisionGroupsEditor/manage.png", func=function()
+            if NAUIMANAGER.SettingsFrame then
+                NAUIMANAGER.SettingsFrame.Visible = not NAUIMANAGER.SettingsFrame.Visible
+                NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+            end
+        end },
+        { name="cmds", image="rbxasset://textures/ui/TopBar/moreOff@2x.png", func=NAgui.commands },
+        { name="chatlogs", image="rbxasset://textures/ui/Chat/ToggleChat@2x.png", func=function()
+            if NAUIMANAGER.chatLogsFrame then
+                NAUIMANAGER.chatLogsFrame.Visible = not NAUIMANAGER.chatLogsFrame.Visible
+                NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+            end
+        end },
+        { name="console", image="rbxasset://textures/Icon_Stream_Off.png", func=function()
+            if NAUIMANAGER.NAconsoleFrame then
+                NAUIMANAGER.NAconsoleFrame.Visible = not NAUIMANAGER.NAconsoleFrame.Visible
+                NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+            end
+        end },
+        { name="waypp", image="rbxasset://textures/ui/waypoint.png", func=function()
+            if NAUIMANAGER.WaypointFrame then
+                NAUIMANAGER.WaypointFrame.Visible = not NAUIMANAGER.WaypointFrame.Visible
+                NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+            end
+        end },
+        { name="bindd", image="rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png", func=function()
+            if NAUIMANAGER.BindersFrame then
+                NAUIMANAGER.BindersFrame.Visible = not NAUIMANAGER.BindersFrame.Visible
+                NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+            end
+        end },
+    }
 
-		btns[name] = btn
-	end
+    local childButtons = {}
+    for i, def in ipairs(buttonDefs) do
+        local btn = InstanceNew("ImageButton", container)
+        btn.Name                   = def.name.."Btn"
+        btn.Size                   = UDim2.new(0, 42, 0, 42)
+        btn.LayoutOrder            = i
+        btn.BackgroundColor3       = Color3.new(0, 0, 0)
+        btn.BackgroundTransparency = 0.3
+        btn.BorderSizePixel        = 0
+        btn.ClipsDescendants       = true
+        btn.ZIndex                 = 8
+        InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.5, 0)
 
-	local function makeDraggable(btn)
-		local dragging, dragInput, dragStart, startPos
+        local icon = InstanceNew("ImageLabel", btn)
+        icon.AnchorPoint            = Vector2.new(0.5, 0.5)
+        icon.Position               = UDim2.new(0.5, 0, 0.5, 0)
+        icon.Size                   = UDim2.new(0.8, 0, 0.8, 0)
+        icon.BackgroundTransparency = 1
+        icon.ScaleType              = Enum.ScaleType.Fit
+        icon.Image                  = def.image
+        icon.ZIndex                 = 9
 
-		btn.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch then
-				dragging = true
-				dragStart = input.Position
-				startPos = btn.Position
-				input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
-					end
-				end)
-			end
-		end)
+        childButtons[btn] = def.func
+    end
 
-		btn.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement
-				or input.UserInputType == Enum.UserInputType.Touch then
-				dragInput = input
-			end
-		end)
+    local MARGIN              = 4
+    local BUTTON_SIZE         = 42
+    local PADDING             = layout.Padding.Offset
+    local DROPDOWN_TWEEN      = TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+    local ICON_TWEEN          = TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+    local CLOSED_IMG          = "rbxasset://textures/ui/MenuBar/icon_menu.png"
+    local OPENED_IMG          = "rbxasset://textures/ui/ScreenshotHud/Close@2x.png"
+    local isOpen              = false
 
-		UserInputService.InputChanged:Connect(function(input)
-			if dragging and input == dragInput then
-				local delta = input.Position - dragStart
-				local fw = TopBarApp.frame.AbsoluteSize.X
-				local bw = btn.AbsoluteSize.X
-				local minOff = -(fw - bw)
-				local maxOff = 0
-				local newOff = math.clamp(startPos.X.Offset + delta.X, minOff, maxOff)
-				btn.Position = UDim2.new(startPos.X.Scale, newOff, startPos.Y.Scale, startPos.Y.Offset)
-			end
-		end)
-	end
+    local function clampToggle()
+        local fw      = TopBarApp.frame.AbsoluteSize.X
+        local bw      = toggle.AbsoluteSize.X
+        local offX    = math.clamp(toggle.Position.X.Offset, -(fw - bw), 0)
+        toggle.Position = UDim2.new(toggle.Position.X.Scale, offX, toggle.Position.Y.Scale, toggle.Position.Y.Offset)
+    end
+    TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToggle)
 
-	makeDraggable(button)
-	for _, b in pairs(btns) do
-		makeDraggable(b)
-	end
+    local function computeDropdownProps()
+        local count  = #buttonDefs
+        local width  = count * BUTTON_SIZE + (count - 1) * PADDING
+        for _, c in ipairs(dropdown:GetDescendants()) do
+            if c:IsA("UISizeConstraint") then
+                width = math.clamp(width, c.MinSize.X, c.MaxSize.X)
+            end
+        end
+        local frameX  = TopBarApp.frame.AbsolutePosition.X
+        local frameW  = TopBarApp.frame.AbsoluteSize.X
+        local tLeft   = toggle.AbsolutePosition.X - frameX
+        local tRight  = tLeft + toggle.AbsoluteSize.X
+        local yOffset = toggle.AbsolutePosition.Y - TopBarApp.frame.AbsolutePosition.Y
+        local posX
+        if frameW - tRight >= width + MARGIN then
+            posX = tRight + MARGIN
+        else
+            posX = tLeft - MARGIN - width
+        end
+        return width, UDim2.new(0, posX, 0, yOffset), Vector2.new(0, 0)
+    end
 
-	MouseButtonFix(button, function()
-		if NAUIMANAGER.SettingsFrame then
-			NAUIMANAGER.SettingsFrame.Visible = not NAUIMANAGER.SettingsFrame.Visible
-			--NAUIMANAGER.SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-			NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-		end
-	end)
-	MouseButtonFix(btns.cmds, function()
-		NAgui.commands()
-	end)
-	MouseButtonFix(btns.chatlogs, function()
-		if NAUIMANAGER.chatLogsFrame then
-			NAUIMANAGER.chatLogsFrame.Visible = not NAUIMANAGER.chatLogsFrame.Visible
-			--NAUIMANAGER.chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-			NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-		end
-	end)
-	MouseButtonFix(btns.console, function()
-		if NAUIMANAGER.NAconsoleFrame then
-			NAUIMANAGER.NAconsoleFrame.Visible = not NAUIMANAGER.NAconsoleFrame.Visible
-			--NAUIMANAGER.NAconsoleFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-			NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-		end
-	end)
-	MouseButtonFix(btns.waypp, function()
-		if NAUIMANAGER.WaypointFrame then
-			NAUIMANAGER.WaypointFrame.Visible = not NAUIMANAGER.WaypointFrame.Visible
-			--NAUIMANAGER.WaypointFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-			NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
-		end
-	end)
-	MouseButtonFix(btns.bindd, function()
-		if NAUIMANAGER.BindersFrame then
-			NAUIMANAGER.BindersFrame.Visible = not NAUIMANAGER.BindersFrame.Visible
-			--NAUIMANAGER.BindersFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-			NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
-		end
-	end)
+    local function updatePosition()
+        local _, pos, ap = computeDropdownProps()
+        dropdown.AnchorPoint = ap
+        dropdown.Position    = pos
+    end
+
+    updatePosition()
+    TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(updatePosition)
+
+    local currentCam = workspace.CurrentCamera
+    local camConn
+    local function bindCamera(cam)
+        if camConn then camConn:Disconnect() end
+        if cam then
+            camConn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(updatePosition)
+        end
+    end
+
+    bindCamera(currentCam)
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        currentCam = workspace.CurrentCamera
+        bindCamera(currentCam)
+        updatePosition()
+    end)
+
+    local function animateIcon(img)
+        local s = TweenService:Create(iconMain, ICON_TWEEN, {Size = UDim2.new(0, 0, 0, 0)})
+        s:Play(); s.Completed:Wait()
+        iconMain.Image = img
+        TweenService:Create(iconMain, ICON_TWEEN, {Size = UDim2.new(0.8, 0, 0.8, 0)}):Play()
+    end
+
+    local function makeDraggable(gui)
+        local dragging, dragInput, startPos, guiPos
+        gui.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging, dragInput, startPos, guiPos = true, input, input.Position, gui.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                end)
+            end
+        end)
+        gui.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input == dragInput then
+                local delta = input.Position - startPos
+                local fw, bw = TopBarApp.frame.AbsoluteSize.X, gui.AbsoluteSize.X
+                local newX = math.clamp(guiPos.X.Offset + delta.X, -(fw - bw), 0)
+                gui.Position = UDim2.new(guiPos.X.Scale, newX, guiPos.Y.Scale, guiPos.Y.Offset)
+                if gui == toggle then
+                    clampToggle()
+                    updatePosition()
+                end
+            end
+        end)
+    end
+
+    makeDraggable(toggle)
+    for btn, fn in pairs(childButtons) do
+        makeDraggable(btn)
+    end
+
+    local function toggleDropdown()
+        isOpen = not isOpen
+        updatePosition()
+        if isOpen then dropdown.Visible = true end
+        local width = computeDropdownProps()
+        local tween = TweenService:Create(dropdown, DROPDOWN_TWEEN, {Size = UDim2.new(0, width, 0, BUTTON_SIZE)})
+        tween:Play()
+        TweenService:Create(bg, DROPDOWN_TWEEN, {BackgroundTransparency = isOpen and 0.3 or 1}):Play()
+        animateIcon(isOpen and OPENED_IMG or CLOSED_IMG)
+        if not isOpen then
+            tween.Completed:Wait()
+            dropdown.Visible = false
+        end
+    end
+
+    MouseButtonFix(toggle, toggleDropdown)
+    for btn, fn in pairs(childButtons) do
+        MouseButtonFix(btn, fn)
+    end
 end)
 
 NAgui.barSelect = function(speed)
@@ -21566,63 +21651,63 @@ Spawn(function()
         local HEADER_H = 30
 
         local binderFrame = InstanceNew("Frame")
-        binderFrame.Name                   = ev.."Binder"
-        binderFrame.Parent                 = bindersList
-        binderFrame.Size                   = UDim2.new(1,0,0, HEADER_H)
-        binderFrame.LayoutOrder            = layoutOrder
-        binderFrame.ClipsDescendants       = true
-        binderFrame.BackgroundColor3       = Color3.fromRGB(20,20,20)
+        binderFrame.Name             = ev.."Binder"
+        binderFrame.Parent           = bindersList
+        binderFrame.Size             = UDim2.new(1,0,0, HEADER_H)
+        binderFrame.LayoutOrder      = layoutOrder
+        binderFrame.ClipsDescendants = true
+        binderFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
         local binderCorner = InstanceNew("UICorner", binderFrame)
-        binderCorner.CornerRadius          = UDim.new(0, 8)
+        binderCorner.CornerRadius    = UDim.new(0,8)
         local binderStroke = InstanceNew("UIStroke", binderFrame)
-        binderStroke.Color                 = Color3.fromRGB(60,60,60)
-        binderStroke.Thickness             = 1
+        binderStroke.Color           = Color3.fromRGB(60,60,60)
+        binderStroke.Thickness       = 1
 
         local header = InstanceNew("TextButton")
-        header.Name                        = "Header"
-        header.Parent                      = binderFrame
-        header.Size                        = UDim2.new(1,-30,0, HEADER_H)
-        header.Position                    = UDim2.new(0,0,0,0)
-        header.BackgroundColor3            = Color3.fromRGB(30,30,30)
-        header.AutoButtonColor             = false
-        header.Font                        = Enum.Font.SourceSansSemibold
-        header.TextSize                    = 14
-        header.TextColor3                  = Color3.fromRGB(255,255,255)
-        header.Text                        = ev
+        header.Name                   = "Header"
+        header.Parent                 = binderFrame
+        header.Size                   = UDim2.new(1,-30,0, HEADER_H)
+        header.Position               = UDim2.new(0,0,0,0)
+        header.BackgroundColor3       = Color3.fromRGB(30,30,30)
+        header.AutoButtonColor        = false
+        header.Font                   = Enum.Font.SourceSansSemibold
+        header.TextSize               = 14
+        header.TextColor3             = Color3.fromRGB(255,255,255)
+        header.Text                   = ev
         local headerCorner = InstanceNew("UICorner", header)
-        headerCorner.CornerRadius          = UDim.new(0, 6)
+        headerCorner.CornerRadius     = UDim.new(0,6)
         header.MouseEnter:Connect(function() header.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
         header.MouseLeave:Connect(function() header.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
         local addBtn = InstanceNew("TextButton")
-        addBtn.Name                        = "AddBtn"
-        addBtn.Parent                      = binderFrame
-        addBtn.Size                        = UDim2.new(0,30,0, HEADER_H)
-        addBtn.Position                    = UDim2.new(1,-30,0,0)
-        addBtn.BackgroundColor3            = Color3.fromRGB(30,30,30)
-        addBtn.AutoButtonColor             = false
-        addBtn.Font                        = Enum.Font.SourceSansBold
-        addBtn.TextSize                    = 18
-        addBtn.TextColor3                  = Color3.fromRGB(255,255,255)
-        addBtn.Text                        = "+"
+        addBtn.Name                    = "AddBtn"
+        addBtn.Parent                  = binderFrame
+        addBtn.Size                    = UDim2.new(0,30,0, HEADER_H)
+        addBtn.Position                = UDim2.new(1,-30,0,0)
+        addBtn.BackgroundColor3        = Color3.fromRGB(30,30,30)
+        addBtn.AutoButtonColor         = false
+        addBtn.Font                    = Enum.Font.SourceSansBold
+        addBtn.TextSize                = 18
+        addBtn.TextColor3              = Color3.fromRGB(255,255,255)
+        addBtn.Text                    = "+"
         local addCorner = InstanceNew("UICorner", addBtn)
-        addCorner.CornerRadius             = UDim.new(0, 6)
+        addCorner.CornerRadius         = UDim.new(0,6)
         addBtn.MouseEnter:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
         addBtn.MouseLeave:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
         local itemsFrame = InstanceNew("Frame")
-        itemsFrame.Name                     = "Items"
-        itemsFrame.Parent                   = binderFrame
-        itemsFrame.Position                 = UDim2.new(0,0,0, HEADER_H)
-        itemsFrame.Size                     = UDim2.new(1,0,0, 0)
-        itemsFrame.BackgroundColor3         = Color3.fromRGB(25,25,25)
+        itemsFrame.Name                 = "Items"
+        itemsFrame.Parent               = binderFrame
+        itemsFrame.Position             = UDim2.new(0,0,0, HEADER_H)
+        itemsFrame.Size                 = UDim2.new(1,0,0, 0)
+        itemsFrame.BackgroundColor3     = Color3.fromRGB(25,25,25)
         local itemsCorner = InstanceNew("UICorner", itemsFrame)
-        itemsCorner.CornerRadius            = UDim.new(0, 6)
+        itemsCorner.CornerRadius        = UDim.new(0,6)
 
         local uiLayout = InstanceNew("UIListLayout")
-        uiLayout.SortOrder                  = Enum.SortOrder.LayoutOrder
-        uiLayout.Padding                    = UDim.new(0, 4)
-        uiLayout.Parent                     = itemsFrame
+        uiLayout.SortOrder              = Enum.SortOrder.LayoutOrder
+        uiLayout.Padding                = UDim.new(0,4)
+        uiLayout.Parent                 = itemsFrame
         uiLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             if binderFrame:GetAttribute("Expanded") then
                 local h = uiLayout.AbsoluteContentSize.Y + 8
@@ -21646,39 +21731,52 @@ Spawn(function()
 
         local function refreshItems()
             for _, child in ipairs(itemsFrame:GetChildren()) do
-                if child.Name == "BinderItem" then child:Destroy() end
+                if child.Name == "BinderItem" then
+                    child:Destroy()
+                end
             end
             local list = Bindings[ev] or {}
+            header.Text = ev.." ("..#list..")"
+            if #list > 0 then
+                binderFrame:SetAttribute("Expanded", true)
+                local h = uiLayout.AbsoluteContentSize.Y + 8
+                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+            else
+                binderFrame:SetAttribute("Expanded", false)
+                itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
+                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
+            end
             for i, cmdStr in ipairs(list) do
                 local item = InstanceNew("Frame")
-                item.Name                      = "BinderItem"
-                item.Parent                    = itemsFrame
-                item.Size                      = UDim2.new(1,0,0,24)
-                item.LayoutOrder               = i
-                item.BackgroundColor3          = Color3.fromRGB(35,35,35)
+                item.Name               = "BinderItem"
+                item.Parent             = itemsFrame
+                item.Size               = UDim2.new(1,0,0,24)
+                item.LayoutOrder        = i
+                item.BackgroundColor3   = Color3.fromRGB(35,35,35)
                 local itemCorner = InstanceNew("UICorner", item)
-                itemCorner.CornerRadius         = UDim.new(0, 4)
+                itemCorner.CornerRadius  = UDim.new(0,4)
 
                 local lbl = InstanceNew("TextLabel")
-                lbl.Parent                      = item
-                lbl.Size                        = UDim2.new(1,-24,1,0)
-                lbl.Position                    = UDim2.new(0,8,0,0)
-                lbl.BackgroundTransparency      = 1
-                lbl.Text                        = cmdStr
-                lbl.Font                        = Enum.Font.SourceSans
-                lbl.TextSize                    = 14
-                lbl.TextColor3                  = Color3.fromRGB(255,255,255)
-                lbl.TextXAlignment              = Enum.TextXAlignment.Left
+                lbl.Parent               = item
+                lbl.Size                 = UDim2.new(1,-24,1,0)
+                lbl.Position             = UDim2.new(0,8,0,0)
+                lbl.BackgroundTransparency = 1
+                lbl.Text                 = cmdStr
+                lbl.Font                 = Enum.Font.SourceSans
+                lbl.TextSize             = 14
+                lbl.TextColor3           = Color3.fromRGB(255,255,255)
+                lbl.TextXAlignment       = Enum.TextXAlignment.Left
 
                 local rem = InstanceNew("TextButton")
-                rem.Parent                      = item
-                rem.Size                        = UDim2.new(0,20,0,20)
-                rem.Position                    = UDim2.new(1,-24,0,2)
-                rem.BackgroundTransparency      = 1
-                rem.Text                        = "×"
-                rem.Font                        = Enum.Font.SourceSansBold
-                rem.TextSize                    = 18
-                rem.TextColor3                  = Color3.fromRGB(255,100,100)
+                rem.Parent               = item
+                rem.Size                 = UDim2.new(0,20,0,20)
+                rem.Position             = UDim2.new(1,-24,0,2)
+                rem.BackgroundTransparency = 1
+                rem.Text                 = "×"
+                rem.Font                 = Enum.Font.SourceSansBold
+                rem.TextSize             = 18
+                rem.TextColor3           = Color3.fromRGB(255,100,100)
                 rem.MouseButton1Click:Connect(function()
                     table.remove(list, i)
                     NAmanage.SaveBinders()
@@ -21688,21 +21786,26 @@ Spawn(function()
         end
 
         addBtn.MouseButton1Click:Connect(function()
-			Window({
-				Title       = ev.." Binders",
-				Description = "Enter commands for "..ev,
-				InputField  = true,
-				Buttons     = {{
-					Text     = "Submit",
-					Callback = function(input)
-						Bindings[ev] = Bindings[ev] or {}
-						Insert(Bindings[ev], input)
-						NAmanage.SaveBinders()
-						refreshItems()
-					end
-				}}
-			})
-		end)
+            Bindings[ev] = Bindings[ev] or {}
+            Window({
+                Title       = ev.." Binders",
+                Description = "Enter commands for "..ev,
+                InputField  = true,
+                Buttons     = {{
+                    Text     = "Submit",
+                    Callback = function(input)
+                        local cmdName = input:match("^(%S+)")
+                        if not (cmds.Commands[cmdName:lower()] or cmds.Aliases[cmdName:lower()]) then
+                            DoNotif("Command '"..cmdName.."' not found.")
+                            return
+                        end
+                        Insert(Bindings[ev], input)
+                        NAmanage.SaveBinders()
+                        refreshItems()
+                    end
+                }}
+            })
+        end)
 
         refreshItems()
         layoutOrder = layoutOrder + 1
