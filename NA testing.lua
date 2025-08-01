@@ -15512,48 +15512,54 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 end,true)
 
 cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"},function(...)
-	local args={...}
-	local interval=tonumber(args[1]) or 0.1
-	local target=args[2] and Lower(Concat(args," ",2))
-	local last=tick()
-	NAlib.connect("AutoFireClick",RunService.Heartbeat:Connect(function()
-		if tick()-last>=interval then
-			last=tick()
-			for _,d in ipairs(interactTbl.click) do
-				if not target or Lower(d.Name)==target or (d.Parent and Lower(d.Parent.Name)==target) then
-					pcall(fireclickdetector,d)
-				end
-			end
-		end
-	end))
-	if target then
-		DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
-	else
-		DebugNotif("AutoFireClick started",2)
-	end
-end,true)
+    local args = {...}
+    local interval = tonumber(args[1]) or 0.1
+    local target = args[2] and Lower(Concat(args," ",2))
+    local last = tick()
+    NAlib.connect("AutoFireClick", RunService.Heartbeat:Connect(function()
+        if tick() - last >= interval then
+            last = tick()
+            for _, d in ipairs(interactTbl.click) do
+                local part = d.Parent:IsA("BasePart") and d.Parent or d:FindFirstAncestorWhichIsA("BasePart")
+                if part and (not target
+                              or Lower(part.Name) == target
+                              or (part.Parent and Lower(part.Parent.Name) == target)) then
+                    pcall(fireclickdetector, d)
+                end
+            end
+        end
+    end))
+    if target then
+        DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
+    else
+        DebugNotif("AutoFireClick started",2)
+    end
+end, true)
 
 cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"},function(...)
-	local args={...}
-	local interval=tonumber(args[1]) or 0.1
-	local target=args[2] and Lower(Concat(args," ",2))
-	local last=tick()
-	NAlib.connect("AutoFireProxi",RunService.Heartbeat:Connect(function()
-		if tick()-last>=interval then
-			last=tick()
-			for _,p in ipairs(interactTbl.proxy) do
-				if not target or Lower(p.Name)==target or (p.Parent and Lower(p.Parent.Name)==target) then
-					pcall(fireproximityprompt,p,1)
-				end
-			end
-		end
-	end))
-	if target then
-		DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
-	else
-		DebugNotif("AutoFireProxi started",2)
-	end
-end,true)
+    local args = {...}
+    local interval = tonumber(args[1]) or 0.1
+    local target = args[2] and Lower(Concat(args," ",2))
+    local last = tick()
+    NAlib.connect("AutoFireProxi", RunService.Heartbeat:Connect(function()
+        if tick() - last >= interval then
+            last = tick()
+            for _, p in ipairs(interactTbl.proxy) do
+                local part = p.Parent:IsA("BasePart") and p.Parent or p:FindFirstAncestorWhichIsA("BasePart")
+                if part and (not target
+                              or Lower(part.Name) == target
+                              or (part.Parent and Lower(part.Parent.Name) == target)) then
+                    pcall(fireproximityprompt, p, 1)
+                end
+            end
+        end
+    end))
+    if target then
+        DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
+    else
+        DebugNotif("AutoFireProxi started",2)
+    end
+end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
     local args={...}
