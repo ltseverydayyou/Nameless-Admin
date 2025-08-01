@@ -20391,19 +20391,15 @@ Spawn(function()
         TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
     end
 
-    local function makeDraggable(gui)
-		gui.Active = true
+    local function makeDraggable(ui, dragui)
+		dragui = dragui or ui
+		local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
 
-		local dragging, dragInput, dragStart, startPos
-
-		gui.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-			or  input.UserInputType == Enum.UserInputType.Touch then
+		dragui.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or  input.UserInputType == Enum.UserInputType.Touch then
 				dragging   = true
-				dragInput  = input
 				dragStart  = input.Position
-				startPos   = gui.Position
-
+				startPos   = ui.Position
 				input.Changed:Connect(function()
 					if input.UserInputState == Enum.UserInputState.End then
 						dragging = false
@@ -20412,22 +20408,29 @@ Spawn(function()
 			end
 		end)
 
-		gui.InputChanged:Connect(function(input)
-			if input == dragInput
-			and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		dragui.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseMovement or  input.UserInputType == Enum.UserInputType.Touch then
+				dragInput = input
+			end
+		end)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if input == dragInput and dragging then
 				local delta = input.Position - dragStart
-				local fw, bw = TopBarApp.frame.AbsoluteSize.X, gui.AbsoluteSize.X
+				local fw, bw = TopBarApp.frame.AbsoluteSize.X, ui.AbsoluteSize.X
 				local newX = math.clamp(startPos.X.Offset + delta.X, -(fw - bw), 0)
-				gui.Position = UDim2.new(startPos.X.Scale, newX,startPos.Y.Scale, startPos.Y.Offset)
-				if gui == toggle then
+				ui.Position = UDim2.new(startPos.X.Scale, newX,startPos.Y.Scale, startPos.Y.Offset)
+				if ui == toggle then
 					clampToggle()
 					updatePosition()
 				end
 			end
 		end)
+
+		ui.Active = true
 	end
     makeDraggable(toggle)
-    for btn,fn in pairs(childButtons)do makeDraggable(btn)end
+	for btn, fn in pairs(childButtons) do makeDraggable(btn) end
 
     local function toggleDropdown()
         isOpen=not isOpen
