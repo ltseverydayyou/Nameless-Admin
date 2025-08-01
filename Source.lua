@@ -755,7 +755,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NAJOINLEAVE) then
-		local success, data = NACaller(function()
+		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
 		end)
 
@@ -765,7 +765,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NACHATTAG) then
-		local success, data = NACaller(function()
+		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NACHATTAG))
 		end)
 
@@ -797,7 +797,7 @@ if FileSupport then
 	end
 
 	if isfile(NAfiles.NAICONPOSPATH) then
-		local success, data = NACaller(function()
+		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
 		end)
 		if success and data then
@@ -818,13 +818,13 @@ if FileSupport then
 		writefile(path, "{}")
 	end
 
-	local ok, data = NACaller(function()
+	local ok, data = pcall(function()
 		return HttpService:JSONDecode(readfile(path))
 	end)
 
 	Waypoints = (ok and type(data) == "table") and data or {}
 
-	local ok, data = NACaller(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
+	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
 	Bindings = ok and type(data)=="table" and data or {}
 else
 	prefixCheck = ";"
@@ -2762,6 +2762,7 @@ NAmanage.RenderUserButtons = function()
 		tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
 		tb.TextColor3 = Color3.fromRGB(255,255,255)
 		tb.PlaceholderText = "Type arguments here"
+		tb.Text=""
 		tb.TextSize = 16
 		tb.Font = Enum.Font.Gotham
 		tb.ClearTextOnFocus = false
