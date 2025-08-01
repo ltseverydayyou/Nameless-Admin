@@ -20386,24 +20386,40 @@ Spawn(function()
     end
 
     local function makeDraggable(gui)
-        local drag,di,start,orig=false,nil,nil,nil
-        gui.InputBegan:Connect(function(i)
-            if i.UserInputType==Enum.UserInputType.MouseButton1 then
-                drag,di,start,orig=true,i,i.Position,gui.Position
-                i.Changed:Connect(function()if i.UserInputState==Enum.UserInputState.End then drag=false end end)
-            end
-        end)
-        gui.InputChanged:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseMovement then di=i end end)
-        UserInputService.InputChanged:Connect(function(i)
-            if drag and i==di then
-                local d=i.Position-start
-                local fw,bw=TopBarApp.frame.AbsoluteSize.X,gui.AbsoluteSize.X
-                local off=math.clamp(orig.X.Offset+d.X,-(fw-bw),0)
-                gui.Position=UDim2.new(orig.X.Scale,off,orig.Y.Scale,orig.Y.Offset)
-                if gui==toggle then clampToggle();updatePosition() end
-            end
-        end)
-    end
+		gui.Active = true
+
+		local dragging, dragInput, dragStart, startPos
+
+		gui.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1
+			or  input.UserInputType == Enum.UserInputType.Touch then
+				dragging   = true
+				dragInput  = input
+				dragStart  = input.Position
+				startPos   = gui.Position
+
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+					end
+				end)
+			end
+		end)
+
+		gui.InputChanged:Connect(function(input)
+			if input == dragInput
+			and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				local delta = input.Position - dragStart
+				local fw, bw = TopBarApp.frame.AbsoluteSize.X, gui.AbsoluteSize.X
+				local newX = math.clamp(startPos.X.Offset + delta.X, -(fw - bw), 0)
+				gui.Position = UDim2.new(startPos.X.Scale, newX,startPos.Y.Scale, startPos.Y.Offset)
+				if gui == toggle then
+					clampToggle()
+					updatePosition()
+				end
+			end
+		end)
+	end
     makeDraggable(toggle)
     for btn,fn in pairs(childButtons)do makeDraggable(btn)end
 
