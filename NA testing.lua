@@ -48,6 +48,7 @@ local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
+local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
 local Waypoints = {}
 local Bindings = Bindings or {}
 local NAStuff = {
@@ -735,6 +736,35 @@ NAmanage.GetWPPath=function()
 	)
 end
 
+NAmanage.mPosVector = function()
+	return Vector2.new(mouse.X, mouse.Y)
+end
+
+NAmanage.worlScreen=function(obj)
+	local vec = workspace.CurrentCamera:WorldToScreenPoint(obj.Position)
+	return Vector2.new(vec.X, vec.Y)
+end
+
+NAmanage.getPlrCursor = function()
+	local found = nil
+	local Players = SafeGetService("Players")
+	local ClosestDistance = math.huge
+	for _,v in pairs(Players:GetPlayers()) do
+		if v ~= Players.LocalPlayer and v.Character and v.Character:FindFirstChildOfClass("Humanoid") then
+			for k, x in pairs(v.Character:GetChildren()) do
+				if Find(x.Name, "Torso") then
+					local Distance = (NAmanage.worlScreen(x) - NAmanage.mPosVector()).Magnitude
+					if Distance < ClosestDistance then
+						ClosestDistance = Distance
+						found = v
+					end
+				end
+			end
+		end
+	end
+	return found
+end
+
 local WPPath = NAmanage.GetWPPath()
 local bindersPath = NAfiles.NABINDERS
 
@@ -983,7 +1013,6 @@ end)
 localPlayer=Player
 LocalPlayer=Player
 local character=Player.Character
-local mouse=localPlayer:GetMouse()
 local camera=workspace.CurrentCamera
 local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
 local cmds={
@@ -1967,30 +1996,134 @@ local PlayerArgs = {
 
 		return Targets
 	end,
-}
+	["#(%d+)"] = function(speaker, args, currentList)
+        local returns = {}
+        local randAmount = tonumber(args[1])
+        local pool = { unpack(currentList or Players:GetPlayers()) }
+        for i = 1, math.min(randAmount, #pool) do
+            local idx = math.random(1, #pool)
+            Insert(returns, pool[idx])
+            table.remove(pool, idx)
+        end
+        return returns
+    end,
 
-function getPlr(Target)
-	local Target = Lower(Target);
-	local Check = PlayerArgs[Target];
+    ["%%(.+)"] = function(speaker, args)
+        local returns = {}
+        local teamPrefix = args[1]:lower()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Team
+            and plr.Team.Name:lower():sub(1, #teamPrefix) == teamPrefix
+            then
+                Insert(returns, plr)
+            end
+        end
+        return returns
+    end,
 
-	if Check then
-		return Check()
-	else
-		local Specific = {}
+    ["allies"] = function()
+        local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
-			local Name, Display = Lower(Player.Name), Lower(Player.DisplayName)
-
-			if Sub(Name, 1, #Target) == Target then
-				Insert(Specific, Player)
-
-			elseif Sub(Display, 1, #Target) == Target then
-				Insert(Specific, Player)
+		Foreach(Players:GetPlayers(), function(_, Player)
+			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
+				Insert(Targets, Player)
 			end
 		end)
 
-		return Specific
-	end
+		return Targets
+    end,
+
+    ["enemies"] = function()
+        local Targets = {}
+
+		Foreach(Players:GetPlayers(), function(_, Player)
+			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
+				Insert(Targets, Player)
+			end
+		end)
+
+		return Targets
+    end,
+
+    ["age(%d+)"] = function(speaker, args)
+        local returns = {}
+        local maxAge = tonumber(args[1])
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.AccountAge <= maxAge then
+                Insert(returns, plr)
+            end
+        end
+        return returns
+    end,
+
+    ["group(%d+)"] = function(speaker, args)
+        local returns = {}
+        local groupID = tonumber(args[1])
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr:IsInGroup(groupID) then
+                Insert(returns, plr)
+            end
+        end
+        return returns
+    end,
+
+    ["rad(%d+)"] = function(speaker, args)
+        local returns = {}
+        local radius = tonumber(args[1])
+        local origin = getRoot(speaker.Character)
+        if not origin then return returns end
+        for _, plr in ipairs(Players:GetPlayers()) do
+            local root = getRoot(plr.Character)
+            if root and (root.Position - origin.Position).Magnitude <= radius then
+                Insert(returns, plr)
+            end
+        end
+        return returns
+    end,
+
+    ["cursor"] = function(speaker)
+        local returns = {}
+        local v = NAmanage.getPlrCursor()
+        if v then Insert(returns, v) end
+        return returns
+    end,
+}
+
+local function getPlr(a, b)
+    local speaker, raw
+    if b == nil then
+        speaker = Players.LocalPlayer
+        raw = a:lower()
+    else
+        speaker = a
+        raw = b:lower()
+    end
+
+    if PlayerArgs[raw] then
+        return PlayerArgs[raw](speaker)
+    end
+
+    local onlyDigits = raw:match("^%d+$")
+    if onlyDigits then
+        return PlayerArgs["#(%d+)"](speaker, {onlyDigits}, PlayerArgs["all"]())
+    end
+
+    for pat, fn in pairs(PlayerArgs) do
+        local captures = { raw:match("^"..pat.."$") }
+        if #captures > 0 then
+            return fn(speaker, captures, PlayerArgs["all"]())
+        end
+    end
+
+    local out = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        local n = plr.Name:lower()
+        local d = plr.DisplayName:lower()
+        if n:sub(1,#raw) == raw or d:sub(1,#raw) == raw then
+            Insert(out, plr)
+        end
+    end
+    return out
 end
 
 --[[ MORE VARIABLES ]]--
@@ -2159,7 +2292,7 @@ function NAESP(target,persistent)
 				local hum = getPlrHum(model)
 				local h = hum and math.floor(hum.Health) or 0
 				local m = hum and math.floor(hum.MaxHealth) or 0
-				local name = target:IsA("Player") and target.Name or model.Name
+				local name = target:IsA("Player") and nameChecker(target) or model.Name
 				local txt = name.." | "..h.."/"..m.." HP | "..distance.." studs"
 				if data.textLabel.Text~=txt then NAlib.setProperty(data.textLabel,"Text",txt) end
 				if data.textLabel.TextColor3~=distColor then NAlib.setProperty(data.textLabel,"TextColor3",distColor) end
@@ -5132,17 +5265,17 @@ cmd.add({"usetools","uset"},{"usetools (uset)","Equips all tools, uses them, and
 	end
 end)
 
-cmd.add({"tweento","tweengoto", "tgoto"}, {"tweengoto <player> (tweento, tgoto)", "Teleportation method that bypasses some anticheats"}, function(...)
-	local Username = (...)
-	local speaker = Players.LocalPlayer
-
-	local target = getPlr(Username)
-	for _, plr in next, target do
-		if not plr or not plr.Character then return end
-
-		TweenService:Create(getRoot(speaker.Character), TweenInfo.new(1, Enum.EasingStyle.Linear), {CFrame = getRoot(plr.Character).CFrame}):Play()
-	end
-end, true)
+cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
+    local char = getChar()
+    for _,plr in ipairs(getPlr(name)) do
+        local cfVal = InstanceNew("CFrameValue")
+        cfVal.Value = char:GetPivot()
+        cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
+        local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
+        tw:Play()
+        tw.Completed:Connect(function() cfVal:Destroy() end)
+    end
+end,true)
 
 
 cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
@@ -11796,36 +11929,23 @@ cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},fu
 	NAlib.disconnect("autochar")
 end)
 
-cmd.add({"goto", "to", "tp", "teleport"}, {"goto <player/X,Y,Z>", "Teleport to the given player or X,Y,Z coordinates"}, function(...)
-	local args = {...}
-	local input = Concat(args, " ")
-	local targets = getPlr(input)
-
-	if #targets > 0 then
-		for _, plr in next, targets do
-			local targetHum = getPlrHum(plr)
-			if targetHum and targetHum.RootPart then
-				local char = getChar()
-				local root = getRoot(char)
-				if root then
-					root.CFrame = targetHum.RootPart.CFrame
-				end
-			end
-		end
-	else
-		local x, y, z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
-		if x and y and z then
-			x, y, z = tonumber(x), tonumber(y), tonumber(z)
-			local char = getChar()
-			local root = getRoot(char)
-			if root then
-				root.CFrame = CFrame.new(x, y, z)
-			end
-		else
-			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
-		end
-	end
-end, true)
+cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
+    local input   = Concat({...}," ")
+    local targets = getPlr(input)
+    local char    = getChar()
+    if #targets > 0 then
+        for _,plr in ipairs(targets) do
+            char:PivotTo(plr.Character:GetPivot())
+        end
+    else
+        local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
+        if x and y and z then
+            char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+        else
+            DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
+        end
+    end
+end,true)
 
 function stareFIXER(char, facePos)
 	local root = getRoot(char)
@@ -14688,62 +14808,47 @@ end)
 glueloop = {}
 
 cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
-	local input = (...)
-	local players = getPlr(input)
-	for _, p in next, players do
-		local name = p.Name
-		if glueloop[name] then
-			glueloop[name]:Disconnect()
-		end
-		glueloop[name] = RunService.Stepped:Connect(function()
-			local target = Players:FindFirstChild(name)
-			if target and target.Character then
-				local tr = getRoot(target.Character)
-				local lr = getRoot(getChar())
-				if tr and lr then
-					lr.CFrame = tr.CFrame
-				end
-			end
-		end)
-	end
+    local input = (...)
+    local players = getPlr(input)
+    for _, p in next, players do
+        local name = p.Name
+        if glueloop[name] then glueloop[name]:Disconnect() end
+        glueloop[name] = RunService.Stepped:Connect(function()
+            local target = Players:FindFirstChild(name)
+            if target and target.Character then
+                getChar():PivotTo(target.Character:GetPivot()*CFrame.new(0,1.5,0))
+            end
+        end)
+    end
 end,true)
 
 cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to a player"},function()
-	for _, conn in pairs(glueloop) do
-		conn:Disconnect()
-	end
-	glueloop = {}
+    for _, conn in pairs(glueloop) do conn:Disconnect() end
+    glueloop = {}
 end)
 
 glueBACKER = {}
 
 cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport behind a player"},function(...)
-	local input = (...)
-	local players = getPlr(input)
-	for _, target in next, players do
-		local name = target.Name
-		if glueBACKER[name] then
-			glueBACKER[name]:Disconnect()
-			glueBACKER[name] = nil
-		end
-		glueBACKER[name] = RunService.Stepped:Connect(function()
-			local targetPlayer = Players:FindFirstChild(name)
-			if not targetPlayer or not targetPlayer.Character then return end
-			local targetRoot = getRoot(targetPlayer.Character)
-			local localRoot  = getRoot(getChar())
-			if targetRoot and localRoot then
-				local cf = targetRoot.CFrame * CFrame.new(0,0,3)
-				localRoot.CFrame = CFrame.new(cf.Position, targetRoot.Position)
-			end
-		end)
-	end
+    local input   = (...)
+    local targets = getPlr(input)
+    for _,target in next,targets do
+        local name = target.Name
+        if glueBACKER[name] then
+            glueBACKER[name]:Disconnect()
+            glueBACKER[name] = nil
+        end
+        glueBACKER[name] = RunService.Stepped:Connect(function()
+            local tp = Players:FindFirstChild(name)
+            if not tp or not tp.Character then return end
+            getChar():PivotTo(tp.Character:GetPivot()*CFrame.new(0,1.5,3))
+        end)
+    end
 end,true)
 
 cmd.add({"unglueback","unloopbehind","unlbehind"},{"unglueback","Stops teleporting you to a player"},function()
-	for _, conn in pairs(glueBACKER) do
-		conn:Disconnect()
-	end
-	glueBACKER = {}
+    for _,conn in pairs(glueBACKER) do conn:Disconnect() end
+    glueBACKER = {}
 end)
 
 cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a player for a few seconds"}, function(...)
@@ -16180,29 +16285,30 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	end)
 end, true)
 
-cmd.add({"tweengotopart", "tgotopart", "ttopart", "ttoprt"}, {"tweengotopart {partname}", "Tweens you to each matching part by name once"}, function(...)
-	local partName = Concat({...}, " "):lower()
-	local commandKey = "tweengotopart"
-
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
-	end
-
-	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
-
-	Spawn(function()
-		for _, part in pairs(workspace:GetDescendants()) do
-			if not taskState.active then return end
-			if part:IsA("BasePart") and part.Name:lower() == partName then
-				if getHum() then getHum().Sit = false Wait(0.1) end
-				local tween = TweenService:Create(getRoot(getChar()), TweenInfo.new(1, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
-				tween:Play()
-				Wait(1.1)
-			end
-		end
-	end)
-end, true)
+cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partName>","Tween to each matching part by name once"},function(...)
+    local partName = Concat({...}," "):lower()
+    local key      = "tweengotopart"
+    if activeTeleports[key] then activeTeleports[key].active = false end
+    local state    = {active = true}
+    activeTeleports[key] = state
+    Spawn(function()
+        local char = getChar()
+        for _,obj in ipairs(workspace:GetDescendants()) do
+            if not state.active then return end
+            if obj:IsA("BasePart") and obj.Name:lower() == partName then
+                local hum = getHum()
+                if hum then hum.Sit = false end
+                local cfVal = InstanceNew("CFrameValue")
+                cfVal.Value = char:GetPivot()
+                cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
+                local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value = obj.CFrame})
+                tw:Play()
+                tw.Completed:Connect(function() cfVal:Destroy() end)
+                Wait(0.1)
+            end
+        end
+    end)
+end,true)
 
 
 cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Teleports to each part containing name once"}, function(...)
