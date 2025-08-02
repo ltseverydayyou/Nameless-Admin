@@ -92,9 +92,9 @@ NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
 
 for _, ev in ipairs(events) do
-    if type(Bindings[ev]) ~= "table" then
-        Bindings[ev] = {}
-    end
+	if type(Bindings[ev]) ~= "table" then
+		Bindings[ev] = {}
+	end
 end
 
 function isAprilFools()
@@ -1302,12 +1302,12 @@ function ParseArguments(input)
 end
 
 NAmanage.ExecuteBindings = function(evName, ...)
-    local list = Bindings[evName]
-    if type(list) ~= "table" then return end
-    for _, cmdStr in ipairs(list) do
-        local args = ParseArguments(cmdStr) or {cmdStr}
-        Spawn(function() cmd.run(args) end)
-    end
+	local list = Bindings[evName]
+	if type(list) ~= "table" then return end
+	for _, cmdStr in ipairs(list) do
+		local args = ParseArguments(cmdStr) or {cmdStr}
+		Spawn(function() cmd.run(args) end)
+	end
 end
 
 function loadedResults(res)
@@ -1977,32 +1977,32 @@ local PlayerArgs = {
 		return Targets
 	end,
 	["#(%d+)"] = function(speaker, args, currentList)
-        local returns = {}
-        local randAmount = tonumber(args[1])
-        local pool = { unpack(currentList or Players:GetPlayers()) }
-        for i = 1, math.min(randAmount, #pool) do
-            local idx = math.random(1, #pool)
-            Insert(returns, pool[idx])
-            table.remove(pool, idx)
-        end
-        return returns
-    end,
+		local returns = {}
+		local randAmount = tonumber(args[1])
+		local pool = { unpack(currentList or Players:GetPlayers()) }
+		for i = 1, math.min(randAmount, #pool) do
+			local idx = math.random(1, #pool)
+			Insert(returns, pool[idx])
+			table.remove(pool, idx)
+		end
+		return returns
+	end,
 
-    ["%%(.+)"] = function(speaker, args)
-        local returns = {}
-        local teamPrefix = args[1]:lower()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Team
-            and plr.Team.Name:lower():sub(1, #teamPrefix) == teamPrefix
-            then
-                Insert(returns, plr)
-            end
-        end
-        return returns
-    end,
+	["%%(.+)"] = function(speaker, args)
+		local returns = {}
+		local teamPrefix = args[1]:lower()
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr.Team
+				and plr.Team.Name:lower():sub(1, #teamPrefix) == teamPrefix
+			then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
 
-    ["allies"] = function()
-        local Targets = {}
+	["allies"] = function()
+		local Targets = {}
 
 		Foreach(Players:GetPlayers(), function(_, Player)
 			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
@@ -2011,10 +2011,10 @@ local PlayerArgs = {
 		end)
 
 		return Targets
-    end,
+	end,
 
-    ["enemies"] = function()
-        local Targets = {}
+	["enemies"] = function()
+		local Targets = {}
 
 		Foreach(Players:GetPlayers(), function(_, Player)
 			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
@@ -2023,87 +2023,87 @@ local PlayerArgs = {
 		end)
 
 		return Targets
-    end,
+	end,
 
-    ["age(%d+)"] = function(speaker, args)
-        local returns = {}
-        local maxAge = tonumber(args[1])
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.AccountAge <= maxAge then
-                Insert(returns, plr)
-            end
-        end
-        return returns
-    end,
+	["age(%d+)"] = function(speaker, args)
+		local returns = {}
+		local maxAge = tonumber(args[1])
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr.AccountAge <= maxAge then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
 
-    ["group(%d+)"] = function(speaker, args)
-        local returns = {}
-        local groupID = tonumber(args[1])
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr:IsInGroup(groupID) then
-                Insert(returns, plr)
-            end
-        end
-        return returns
-    end,
+	["group(%d+)"] = function(speaker, args)
+		local returns = {}
+		local groupID = tonumber(args[1])
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr:IsInGroup(groupID) then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
 
-    ["rad(%d+)"] = function(speaker, args)
-        local returns = {}
-        local radius = tonumber(args[1])
-        local origin = getRoot(speaker.Character)
-        if not origin then return returns end
-        for _, plr in ipairs(Players:GetPlayers()) do
-            local root = getRoot(plr.Character)
-            if root and (root.Position - origin.Position).Magnitude <= radius then
-                Insert(returns, plr)
-            end
-        end
-        return returns
-    end,
+	["rad(%d+)"] = function(speaker, args)
+		local returns = {}
+		local radius = tonumber(args[1])
+		local origin = getRoot(speaker.Character)
+		if not origin then return returns end
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local root = getRoot(plr.Character)
+			if root and (root.Position - origin.Position).Magnitude <= radius then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
 
-    ["cursor"] = function(speaker)
-        local returns = {}
-        local v = NAmanage.getPlrCursor()
-        if v then Insert(returns, v) end
-        return returns
-    end,
+	["cursor"] = function(speaker)
+		local returns = {}
+		local v = NAmanage.getPlrCursor()
+		if v then Insert(returns, v) end
+		return returns
+	end,
 }
 
 local function getPlr(a, b)
-    local speaker, raw
-    if b == nil then
-        speaker = Players.LocalPlayer
-        raw = a:lower()
-    else
-        speaker = a
-        raw = b:lower()
-    end
+	local speaker, raw
+	if b == nil then
+		speaker = Players.LocalPlayer
+		raw = a:lower()
+	else
+		speaker = a
+		raw = b:lower()
+	end
 
-    if PlayerArgs[raw] then
-        return PlayerArgs[raw](speaker)
-    end
+	if PlayerArgs[raw] then
+		return PlayerArgs[raw](speaker)
+	end
 
-    local onlyDigits = raw:match("^%d+$")
-    if onlyDigits then
-        return PlayerArgs["#(%d+)"](speaker, {onlyDigits}, PlayerArgs["all"]())
-    end
+	local onlyDigits = raw:match("^%d+$")
+	if onlyDigits then
+		return PlayerArgs["#(%d+)"](speaker, {onlyDigits}, PlayerArgs["all"]())
+	end
 
-    for pat, fn in pairs(PlayerArgs) do
-        local captures = { raw:match("^"..pat.."$") }
-        if #captures > 0 then
-            return fn(speaker, captures, PlayerArgs["all"]())
-        end
-    end
+	for pat, fn in pairs(PlayerArgs) do
+		local captures = { raw:match("^"..pat.."$") }
+		if #captures > 0 then
+			return fn(speaker, captures, PlayerArgs["all"]())
+		end
+	end
 
-    local out = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        local n = plr.Name:lower()
-        local d = plr.DisplayName:lower()
-        if n:sub(1,#raw) == raw or d:sub(1,#raw) == raw then
-            Insert(out, plr)
-        end
-    end
-    return out
+	local out = {}
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local n = plr.Name:lower()
+		local d = plr.DisplayName:lower()
+		if n:sub(1,#raw) == raw or d:sub(1,#raw) == raw then
+			Insert(out, plr)
+		end
+	end
+	return out
 end
 
 --[[ MORE VARIABLES ]]--
@@ -2817,8 +2817,8 @@ end
 
 NAmanage.SaveBinders=function()
 	if FileSupport then
-        writefile(bindersPath, HttpService:JSONEncode(Bindings))
-    end
+		writefile(bindersPath, HttpService:JSONEncode(Bindings))
+	end
 end
 
 NAmanage.LogJoinLeave = function(message)
@@ -5246,15 +5246,15 @@ cmd.add({"usetools","uset"},{"usetools (uset)","Equips all tools, uses them, and
 end)
 
 cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
-    local char = getChar()
-    for _,plr in ipairs(getPlr(name)) do
-        local cfVal = InstanceNew("CFrameValue")
-        cfVal.Value = char:GetPivot()
-        cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-        local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
-        tw:Play()
-        tw.Completed:Connect(function() cfVal:Destroy() end)
-    end
+	local char = getChar()
+	for _,plr in ipairs(getPlr(name)) do
+		local cfVal = InstanceNew("CFrameValue")
+		cfVal.Value = char:GetPivot()
+		cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
+		local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
+		tw:Play()
+		tw.Completed:Connect(function() cfVal:Destroy() end)
+	end
 end,true)
 
 
@@ -11910,21 +11910,21 @@ cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},fu
 end)
 
 cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
-    local input   = Concat({...}," ")
-    local targets = getPlr(input)
-    local char    = getChar()
-    if #targets > 0 then
-        for _,plr in ipairs(targets) do
-            char:PivotTo(plr.Character:GetPivot())
-        end
-    else
-        local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
-        if x and y and z then
-            char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
-        else
-            DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
-        end
-    end
+	local input   = Concat({...}," ")
+	local targets = getPlr(input)
+	local char    = getChar()
+	if #targets > 0 then
+		for _,plr in ipairs(targets) do
+			char:PivotTo(plr.Character:GetPivot())
+		end
+	else
+		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
+		if x and y and z then
+			char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+		else
+			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
+		end
+	end
 end,true)
 
 function stareFIXER(char, facePos)
@@ -14788,47 +14788,47 @@ end)
 glueloop = {}
 
 cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
-    local input = (...)
-    local players = getPlr(input)
-    for _, p in next, players do
-        local name = p.Name
-        if glueloop[name] then glueloop[name]:Disconnect() end
-        glueloop[name] = RunService.Stepped:Connect(function()
-            local target = Players:FindFirstChild(name)
-            if target and target.Character then
-                getChar():PivotTo(target.Character:GetPivot()*CFrame.new(0,1.5,0))
-            end
-        end)
-    end
+	local input = (...)
+	local players = getPlr(input)
+	for _, p in next, players do
+		local name = p.Name
+		if glueloop[name] then glueloop[name]:Disconnect() end
+		glueloop[name] = RunService.Stepped:Connect(function()
+			local target = Players:FindFirstChild(name)
+			if target and target.Character then
+				getChar():PivotTo(target.Character:GetPivot()*CFrame.new(0,1.5,0))
+			end
+		end)
+	end
 end,true)
 
 cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to a player"},function()
-    for _, conn in pairs(glueloop) do conn:Disconnect() end
-    glueloop = {}
+	for _, conn in pairs(glueloop) do conn:Disconnect() end
+	glueloop = {}
 end)
 
 glueBACKER = {}
 
 cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport behind a player"},function(...)
-    local input   = (...)
-    local targets = getPlr(input)
-    for _,target in next,targets do
-        local name = target.Name
-        if glueBACKER[name] then
-            glueBACKER[name]:Disconnect()
-            glueBACKER[name] = nil
-        end
-        glueBACKER[name] = RunService.Stepped:Connect(function()
-            local tp = Players:FindFirstChild(name)
-            if not tp or not tp.Character then return end
-            getChar():PivotTo(tp.Character:GetPivot()*CFrame.new(0,1.5,3))
-        end)
-    end
+	local input   = (...)
+	local targets = getPlr(input)
+	for _,target in next,targets do
+		local name = target.Name
+		if glueBACKER[name] then
+			glueBACKER[name]:Disconnect()
+			glueBACKER[name] = nil
+		end
+		glueBACKER[name] = RunService.Stepped:Connect(function()
+			local tp = Players:FindFirstChild(name)
+			if not tp or not tp.Character then return end
+			getChar():PivotTo(tp.Character:GetPivot()*CFrame.new(0,1.5,3))
+		end)
+	end
 end,true)
 
 cmd.add({"unglueback","unloopbehind","unlbehind"},{"unglueback","Stops teleporting you to a player"},function()
-    for _,conn in pairs(glueBACKER) do conn:Disconnect() end
-    glueBACKER = {}
+	for _,conn in pairs(glueBACKER) do conn:Disconnect() end
+	glueBACKER = {}
 end)
 
 cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a player for a few seconds"}, function(...)
@@ -15555,126 +15555,126 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 end,true)
 
 cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function(...)
-    local args = {...}
-    local target = args[1] and Lower(Concat(args," ")):lower()
-    if typeof(firetouchinterest) ~= "function" then return end
-    local char = getChar()
-    local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-    if not root then return end
-    local found = 0
-    for _,t in ipairs(interactTbl.touch) do
-        local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
-        if nameMatch then
-            local container = t.Parent
-            local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-            if part then
-                found += 1
-                Spawn(function()
-                    local orig = part.CFrame
-                    part.CFrame = root.CFrame
-                    firetouchinterest(part,root,1)
-                    Wait()
-                    firetouchinterest(part,root,0)
-                    Delay(0.1,function() part.CFrame = orig end)
-                end)
-            end
-        end
-    end
-    if found == 0 then
-        if target then
-            DebugNotif(("No TouchInterests found matching \"%s\""):format(target),2)
-        else
-            DebugNotif("No TouchInterests found",2)
-        end
-    else
-        DebugNotif(("Fired %d TouchInterests"):format(found),2)
-    end
+	local args = {...}
+	local target = args[1] and Lower(Concat(args," ")):lower()
+	if typeof(firetouchinterest) ~= "function" then return end
+	local char = getChar()
+	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	if not root then return end
+	local found = 0
+	for _,t in ipairs(interactTbl.touch) do
+		local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
+		if nameMatch then
+			local container = t.Parent
+			local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
+			if part then
+				found += 1
+				Spawn(function()
+					local orig = part.CFrame
+					part.CFrame = root.CFrame
+					firetouchinterest(part,root,1)
+					Wait()
+					firetouchinterest(part,root,0)
+					Delay(0.1,function() part.CFrame = orig end)
+				end)
+			end
+		end
+	end
+	if found == 0 then
+		if target then
+			DebugNotif(("No TouchInterests found matching \"%s\""):format(target),2)
+		else
+			DebugNotif("No TouchInterests found",2)
+		end
+	else
+		DebugNotif(("Fired %d TouchInterests"):format(found),2)
+	end
 end,true)
 
 cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"},function(...)
-    local args = {...}
-    local interval = tonumber(args[1]) or 0.1
-    local target = args[2] and Lower(Concat(args," ",2))
-    local last = tick()
-    NAlib.connect("AutoFireClick", RunService.Heartbeat:Connect(function()
-        if tick() - last >= interval then
-            last = tick()
-            for _, d in ipairs(interactTbl.click) do
-                local part = d.Parent:IsA("BasePart") and d.Parent or d:FindFirstAncestorWhichIsA("BasePart")
-                if part and (not target
-                              or Lower(part.Name) == target
-                              or (part.Parent and Lower(part.Parent.Name) == target)) then
-                    pcall(fireclickdetector, d)
-                end
-            end
-        end
-    end))
-    if target then
-        DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
-    else
-        DebugNotif("AutoFireClick started",2)
-    end
+	local args = {...}
+	local interval = tonumber(args[1]) or 0.1
+	local target = args[2] and Lower(Concat(args," ",2))
+	local last = tick()
+	NAlib.connect("AutoFireClick", RunService.Heartbeat:Connect(function()
+		if tick() - last >= interval then
+			last = tick()
+			for _, d in ipairs(interactTbl.click) do
+				local part = d.Parent:IsA("BasePart") and d.Parent or d:FindFirstAncestorWhichIsA("BasePart")
+				if part and (not target
+					or Lower(part.Name) == target
+					or (part.Parent and Lower(part.Parent.Name) == target)) then
+					pcall(fireclickdetector, d)
+				end
+			end
+		end
+	end))
+	if target then
+		DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
+	else
+		DebugNotif("AutoFireClick started",2)
+	end
 end, true)
 
 cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"},function(...)
-    local args = {...}
-    local interval = tonumber(args[1]) or 0.1
-    local target = args[2] and Lower(Concat(args," ",2))
-    local last = tick()
-    NAlib.connect("AutoFireProxi", RunService.Heartbeat:Connect(function()
-        if tick() - last >= interval then
-            last = tick()
-            for _, p in ipairs(interactTbl.proxy) do
-                local part = p.Parent:IsA("BasePart") and p.Parent or p:FindFirstAncestorWhichIsA("BasePart")
-                if part and (not target
-                              or Lower(part.Name) == target
-                              or (part.Parent and Lower(part.Parent.Name) == target)) then
-                    pcall(fireproximityprompt, p, 1)
-                end
-            end
-        end
-    end))
-    if target then
-        DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
-    else
-        DebugNotif("AutoFireProxi started",2)
-    end
+	local args = {...}
+	local interval = tonumber(args[1]) or 0.1
+	local target = args[2] and Lower(Concat(args," ",2))
+	local last = tick()
+	NAlib.connect("AutoFireProxi", RunService.Heartbeat:Connect(function()
+		if tick() - last >= interval then
+			last = tick()
+			for _, p in ipairs(interactTbl.proxy) do
+				local part = p.Parent:IsA("BasePart") and p.Parent or p:FindFirstAncestorWhichIsA("BasePart")
+				if part and (not target
+					or Lower(part.Name) == target
+					or (part.Parent and Lower(part.Parent.Name) == target)) then
+					pcall(fireproximityprompt, p, 1)
+				end
+			end
+		end
+	end))
+	if target then
+		DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
+	else
+		DebugNotif("AutoFireProxi started",2)
+	end
 end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
-    local args = {...}
-    local interval = tonumber(args[1]) or 1
-    local target = args[2] and Lower(Concat(args," ",2)):lower()
-    local last = tick()
-    NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
-        if tick()-last < interval then return end
-        last = tick()
-        local char = getChar()
-        local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-        if not root then return end
-        for _,t in ipairs(interactTbl.touch) do
-            local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
-            if nameMatch then
-                local container = t.Parent
-                local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-                if part then
-                    Spawn(function()
-                        local orig = part.CFrame
-                        part.CFrame = root.CFrame
-                        firetouchinterest(part,root,1)
-                        Wait()
-                        firetouchinterest(part,root,0)
-                        Delay(0.1,function() part.CFrame = orig end)
-                    end)
-                end
-            end
-        end
-    end))
-    if target then
-        DebugNotif(("AutoTouch \"%s\" started"):format(target),2)
-    else
-        DebugNotif("AutoTouch started",2)
-    end
+	local args = {...}
+	local interval = tonumber(args[1]) or 1
+	local target = args[2] and Lower(Concat(args," ",2)):lower()
+	local last = tick()
+	NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
+		if tick()-last < interval then return end
+		last = tick()
+		local char = getChar()
+		local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+		if not root then return end
+		for _,t in ipairs(interactTbl.touch) do
+			local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
+			if nameMatch then
+				local container = t.Parent
+				local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
+				if part then
+					Spawn(function()
+						local orig = part.CFrame
+						part.CFrame = root.CFrame
+						firetouchinterest(part,root,1)
+						Wait()
+						firetouchinterest(part,root,0)
+						Delay(0.1,function() part.CFrame = orig end)
+					end)
+				end
+			end
+		end
+	end))
+	if target then
+		DebugNotif(("AutoTouch \"%s\" started"):format(target),2)
+	else
+		DebugNotif("AutoTouch started",2)
+	end
 end,true)
 
 cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops the AutoFireClick loop"},function()
@@ -16266,28 +16266,28 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 end, true)
 
 cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partName>","Tween to each matching part by name once"},function(...)
-    local partName = Concat({...}," "):lower()
-    local key      = "tweengotopart"
-    if activeTeleports[key] then activeTeleports[key].active = false end
-    local state    = {active = true}
-    activeTeleports[key] = state
-    Spawn(function()
-        local char = getChar()
-        for _,obj in ipairs(workspace:GetDescendants()) do
-            if not state.active then return end
-            if obj:IsA("BasePart") and obj.Name:lower() == partName then
-                local hum = getHum()
-                if hum then hum.Sit = false end
-                local cfVal = InstanceNew("CFrameValue")
-                cfVal.Value = char:GetPivot()
-                cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-                local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value = obj.CFrame})
-                tw:Play()
-                tw.Completed:Connect(function() cfVal:Destroy() end)
-                Wait(0.1)
-            end
-        end
-    end)
+	local partName = Concat({...}," "):lower()
+	local key      = "tweengotopart"
+	if activeTeleports[key] then activeTeleports[key].active = false end
+	local state    = {active = true}
+	activeTeleports[key] = state
+	Spawn(function()
+		local char = getChar()
+		for _,obj in ipairs(workspace:GetDescendants()) do
+			if not state.active then return end
+			if obj:IsA("BasePart") and obj.Name:lower() == partName then
+				local hum = getHum()
+				if hum then hum.Sit = false end
+				local cfVal = InstanceNew("CFrameValue")
+				cfVal.Value = char:GetPivot()
+				cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
+				local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value = obj.CFrame})
+				tw:Play()
+				tw.Completed:Connect(function() cfVal:Destroy() end)
+				Wait(0.1)
+			end
+		end
+	end)
 end,true)
 
 
@@ -16631,240 +16631,240 @@ local espNameTriggers = {}
 local nameESPPartLists = {exact={},partial={}}
 
 local function createBox(part,color,transparency)
-    local c = color or Color3.new(1,1,1)
-    local h,s,v = Color3.toHSV(c)
-    local off = 0.35
-    local dC = Color3.fromHSV(h,s,math.clamp(v-off,0,1))
-    local lC = Color3.fromHSV(h,s,math.clamp(v+off,0,1))
-    local b = InstanceNew("BoxHandleAdornment",part)
-    b.Name = Lower(part.Name).."_peepee"
-    b.Adornee = part
-    b.AlwaysOnTop = true
-    b.ZIndex = 0
-    b.Transparency = transparency or 0.45
-    b.Color3 = lC
-    local bb = InstanceNew("BillboardGui",part)
-    bb.Name = Lower(part.Name).."_label"
-    bb.Adornee = part
-    bb.Size = UDim2.new(0,100,0,30)
-    bb.StudsOffset = Vector3.new(0,0.5,0)
-    bb.AlwaysOnTop = true
-    bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    local tl = InstanceNew("TextLabel",bb)
-    tl.Size = UDim2.new(1,0,1,0)
-    tl.BackgroundTransparency = 1
-    tl.Text = part.Name
-    tl.TextColor3 = Color3.new(1,1,1)
-    tl.Font = Enum.Font.SourceSansBold
-    tl.TextSize = 14
-    tl.TextStrokeTransparency = 0.5
-    tl.ZIndex = 1
-    local gr = InstanceNew("UIGradient",tl)
-    gr.Color = ColorSequence.new(dC,lC)
-    local function update()
-        if not b.Parent then return end
-        if part:IsA("Model") then
-            local _,ms = part:GetBoundingBox()
-            b.Size = ms + Vector3.new(0.1,0.1,0.1)
-        else
-            b.Size = part.Size + Vector3.new(0.1,0.1,0.1)
-        end
-        bb.StudsOffset = Vector3.new(0,b.Size.Y/2+0.2,0)
-    end
-    update()
-    Defer(update)
-    local key = "esp_update_"..tostring(b)
-    if part:IsA("Model") then
-        NAlib.connect(key, part.DescendantAdded:Connect(update))
-        NAlib.connect(key, part.DescendantRemoving:Connect(update))
-    elseif NAlib.isProperty(part,"Size") then
-        NAlib.connect(key, part:GetPropertyChangedSignal("Size"):Connect(update))
-    end
-    b:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not b.Parent then
-            NAlib.disconnect(key)
-        end
-    end)
-    return b
+	local c = color or Color3.new(1,1,1)
+	local h,s,v = Color3.toHSV(c)
+	local off = 0.35
+	local dC = Color3.fromHSV(h,s,math.clamp(v-off,0,1))
+	local lC = Color3.fromHSV(h,s,math.clamp(v+off,0,1))
+	local b = InstanceNew("BoxHandleAdornment",part)
+	b.Name = Lower(part.Name).."_peepee"
+	b.Adornee = part
+	b.AlwaysOnTop = true
+	b.ZIndex = 0
+	b.Transparency = transparency or 0.45
+	b.Color3 = lC
+	local bb = InstanceNew("BillboardGui",part)
+	bb.Name = Lower(part.Name).."_label"
+	bb.Adornee = part
+	bb.Size = UDim2.new(0,100,0,30)
+	bb.StudsOffset = Vector3.new(0,0.5,0)
+	bb.AlwaysOnTop = true
+	bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	local tl = InstanceNew("TextLabel",bb)
+	tl.Size = UDim2.new(1,0,1,0)
+	tl.BackgroundTransparency = 1
+	tl.Text = part.Name
+	tl.TextColor3 = Color3.new(1,1,1)
+	tl.Font = Enum.Font.SourceSansBold
+	tl.TextSize = 14
+	tl.TextStrokeTransparency = 0.5
+	tl.ZIndex = 1
+	local gr = InstanceNew("UIGradient",tl)
+	gr.Color = ColorSequence.new(dC,lC)
+	local function update()
+		if not b.Parent then return end
+		if part:IsA("Model") then
+			local _,ms = part:GetBoundingBox()
+			b.Size = ms + Vector3.new(0.1,0.1,0.1)
+		else
+			b.Size = part.Size + Vector3.new(0.1,0.1,0.1)
+		end
+		bb.StudsOffset = Vector3.new(0,b.Size.Y/2+0.2,0)
+	end
+	update()
+	Defer(update)
+	local key = "esp_update_"..tostring(b)
+	if part:IsA("Model") then
+		NAlib.connect(key, part.DescendantAdded:Connect(update))
+		NAlib.connect(key, part.DescendantRemoving:Connect(update))
+	elseif NAlib.isProperty(part,"Size") then
+		NAlib.connect(key, part:GetPropertyChangedSignal("Size"):Connect(update))
+	end
+	b:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not b.Parent then
+			NAlib.disconnect(key)
+		end
+	end)
+	return b
 end
 
 local function removeEspFromPart(part)
-    for _,child in ipairs(part:GetChildren()) do
-        if child:IsA("BoxHandleAdornment") and Sub(child.Name,-7) == "_peepee" then
-            NAlib.disconnect("esp_update_"..tostring(child))
-            child:Destroy()
-        end
-    end
-    for _,child in ipairs(part:GetChildren()) do
-        if child:IsA("BillboardGui") and Sub(Lower(child.Name),-6) == "_label" then
-            child:Destroy()
-        end
-    end
+	for _,child in ipairs(part:GetChildren()) do
+		if child:IsA("BoxHandleAdornment") and Sub(child.Name,-7) == "_peepee" then
+			NAlib.disconnect("esp_update_"..tostring(child))
+			child:Destroy()
+		end
+	end
+	for _,child in ipairs(part:GetChildren()) do
+		if child:IsA("BillboardGui") and Sub(Lower(child.Name),-6) == "_label" then
+			child:Destroy()
+		end
+	end
 end
 
 local function enableEsp(objType,color,list)
-    for _,obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA(objType) then
-            local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-            if parent and not Discover(list,parent) then
-                Insert(list,parent)
-                createBox(parent,color,0.45)
-            end
-        end
-    end
-    if not espTriggers[objType] then
-        espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
-            if obj:IsA(objType) then
-                local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-                if parent and not Discover(list,parent) then
-                    Insert(list,parent)
-                    createBox(parent,color,0.45)
-                end
-            end
-        end)
-    end
+	for _,obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA(objType) then
+			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+			if parent and not Discover(list,parent) then
+				Insert(list,parent)
+				createBox(parent,color,0.45)
+			end
+		end
+	end
+	if not espTriggers[objType] then
+		espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA(objType) then
+				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+				if parent and not Discover(list,parent) then
+					Insert(list,parent)
+					createBox(parent,color,0.45)
+				end
+			end
+		end)
+	end
 end
 
 local function disableEsp(objType,list)
-    if espTriggers[objType] then
-        espTriggers[objType]:Disconnect()
-        espTriggers[objType] = nil
-    end
-    for _,part in ipairs(list) do
-        removeEspFromPart(part)
-    end
-    table.clear(list)
+	if espTriggers[objType] then
+		espTriggers[objType]:Disconnect()
+		espTriggers[objType] = nil
+	end
+	for _,part in ipairs(list) do
+		removeEspFromPart(part)
+	end
+	table.clear(list)
 end
 
 local function enableNameEsp(mode,color,...)
-    local terms = {...}
-    local list = espNameLists[mode]
-    local parts = nameESPPartLists[mode]
-    for _,term in ipairs(terms) do
-        term = Lower(term)
-        if not Discover(list,term) then
-            Insert(list,term)
-        end
-    end
-    local function matchFn(obj)
-        if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
-        local nm = Lower(obj.Name)
-        for _,term in ipairs(list) do
-            if (mode=="exact" and nm==term) or (mode=="partial" and Find(nm,term)) then
-                return true
-            end
-        end
-        return false
-    end
-    local function handleNameChange(obj)
-        local matches = matchFn(obj)
-        local idx = Discover(parts,obj)
-        if matches and not idx then
-            Insert(parts,obj)
-            createBox(obj,color,0.45)
-        elseif not matches and idx then
-            removeEspFromPart(obj)
-            table.remove(parts,idx)
-        end
-    end
-    for _,obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") or obj:IsA("Model") then
-            NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
-                handleNameChange(obj)
-            end))
-            handleNameChange(obj)
-        end
-    end
-    if not espNameTriggers[mode] then
-        espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
-            if obj:IsA("BasePart") or obj:IsA("Model") then
-                NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
-                    handleNameChange(obj)
-                end))
-                handleNameChange(obj)
-            end
-        end)
-    end
+	local terms = {...}
+	local list = espNameLists[mode]
+	local parts = nameESPPartLists[mode]
+	for _,term in ipairs(terms) do
+		term = Lower(term)
+		if not Discover(list,term) then
+			Insert(list,term)
+		end
+	end
+	local function matchFn(obj)
+		if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
+		local nm = Lower(obj.Name)
+		for _,term in ipairs(list) do
+			if (mode=="exact" and nm==term) or (mode=="partial" and Find(nm,term)) then
+				return true
+			end
+		end
+		return false
+	end
+	local function handleNameChange(obj)
+		local matches = matchFn(obj)
+		local idx = Discover(parts,obj)
+		if matches and not idx then
+			Insert(parts,obj)
+			createBox(obj,color,0.45)
+		elseif not matches and idx then
+			removeEspFromPart(obj)
+			table.remove(parts,idx)
+		end
+	end
+	for _,obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") or obj:IsA("Model") then
+			NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
+				handleNameChange(obj)
+			end))
+			handleNameChange(obj)
+		end
+	end
+	if not espNameTriggers[mode] then
+		espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA("BasePart") or obj:IsA("Model") then
+				NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
+					handleNameChange(obj)
+				end))
+				handleNameChange(obj)
+			end
+		end)
+	end
 end
 
 local function disableNameEsp(mode)
-    if espNameTriggers[mode] then
-        espNameTriggers[mode]:Disconnect()
-        espNameTriggers[mode] = nil
-    end
-    NAlib.disconnect("esp_namechange_"..mode)
-    local parts = nameESPPartLists[mode]
-    for _,part in ipairs(parts) do
-        removeEspFromPart(part)
-    end
-    table.clear(parts)
-    table.clear(espNameLists[mode])
+	if espNameTriggers[mode] then
+		espNameTriggers[mode]:Disconnect()
+		espNameTriggers[mode] = nil
+	end
+	NAlib.disconnect("esp_namechange_"..mode)
+	local parts = nameESPPartLists[mode]
+	for _,part in ipairs(parts) do
+		removeEspFromPart(part)
+	end
+	table.clear(parts)
+	table.clear(espNameLists[mode])
 end
 
 cmd.add({"touchesp","tesp"},{"touchesp"},function()
-    enableEsp("TouchTransmitter",Color3.fromRGB(255,0,0),touchESPList)
+	enableEsp("TouchTransmitter",Color3.fromRGB(255,0,0),touchESPList)
 end)
 
 cmd.add({"untouchesp","untesp"},{"untouchesp"},function()
-    disableEsp("TouchTransmitter",touchESPList)
+	disableEsp("TouchTransmitter",touchESPList)
 end)
 
 cmd.add({"proximityesp","prxesp","proxiesp"},{"proximityesp"},function()
-    enableEsp("ProximityPrompt",Color3.fromRGB(0,0,255),proximityESPList)
+	enableEsp("ProximityPrompt",Color3.fromRGB(0,0,255),proximityESPList)
 end)
 
 cmd.add({"unproximityesp","unprxesp","unproxiesp"},{"unproximityesp"},function()
-    disableEsp("ProximityPrompt",proximityESPList)
+	disableEsp("ProximityPrompt",proximityESPList)
 end)
 
 cmd.add({"clickesp","cesp"},{"clickesp"},function()
-    enableEsp("ClickDetector",Color3.fromRGB(255,165,0),clickESPList)
+	enableEsp("ClickDetector",Color3.fromRGB(255,165,0),clickESPList)
 end)
 
 cmd.add({"unclickesp","uncesp"},{"unclickesp"},function()
-    disableEsp("ClickDetector",clickESPList)
+	disableEsp("ClickDetector",clickESPList)
 end)
 
 cmd.add({"sitesp","ssp"},{"sitesp"},function()
-    enableEsp("Seat", Color3.fromRGB(0,255,0), siteESPList)
+	enableEsp("Seat", Color3.fromRGB(0,255,0), siteESPList)
 end)
 
 cmd.add({"unsitesp","unssp"},{"unsitesp"},function()
-    disableEsp("Seat", siteESPList)
+	disableEsp("Seat", siteESPList)
 end)
 
 cmd.add({"vehiclesitesp","vsitesp","vsp"},{"vehiclesitesp"},function()
-    enableEsp("VehicleSeat", Color3.fromRGB(255,0,255), vehicleSiteESPList)
+	enableEsp("VehicleSeat", Color3.fromRGB(255,0,255), vehicleSiteESPList)
 end)
 
 cmd.add({"unvehiclesitesp","unvsitesp","unvsp"},{"unvehiclesitesp"},function()
-    disableEsp("VehicleSeat", vehicleSiteESPList)
+	disableEsp("VehicleSeat", vehicleSiteESPList)
 end)
 
 cmd.add({"pesp","esppart","partesp"},{"pesp {partname}"},function(...)
-    local name = Concat({...}," ")
-    if name=="" then
-        disableNameEsp("exact")
-    else
-        enableNameEsp("exact",nil,name)
-    end
+	local name = Concat({...}," ")
+	if name=="" then
+		disableNameEsp("exact")
+	else
+		enableNameEsp("exact",nil,name)
+	end
 end,true)
 
 cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp"},function()
-    disableNameEsp("exact")
+	disableNameEsp("exact")
 end)
 
 cmd.add({"pespfind","partespfind","esppartfind"},{"pespfind {partname}"},function(...)
-    local name = Concat({...}," ")
-    if name=="" then
-        disableNameEsp("partial")
-    else
-        enableNameEsp("partial",nil,name)
-    end
+	local name = Concat({...}," ")
+	if name=="" then
+		disableNameEsp("partial")
+	else
+		enableNameEsp("partial",nil,name)
+	end
 end,true)
 
 cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind"},function()
-    disableNameEsp("partial")
+	disableNameEsp("partial")
 end)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
@@ -19634,7 +19634,7 @@ NAgui.addButton = function(label, callback)
 	templates.Index = templates.Index + 1
 
 	MouseButtonFix(button.Interact,function()
-		NACaller(callback)
+		pcall(callback)
 	end)
 end
 
@@ -19678,7 +19678,7 @@ NAgui.addToggle = function(label, defaultValue, callback)
 	MouseButtonFix(toggle.Interact,function()
 		state = not state
 		updateVisual()
-		NACaller(function()
+		pcall(function()
 			callback(state)
 		end)
 	end)
@@ -19724,7 +19724,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 			hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
 		end
 
-		NACaller(function()
+		pcall(function()
 			callback(color)
 		end)
 	end
@@ -19816,7 +19816,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	input.Parent = NAUIMANAGER.SettingsList
 
 	input.InputFrame.InputBox.FocusLost:Connect(function()
-		NACaller(callback, input.InputFrame.InputBox.Text)
+		pcall(callback, input.InputFrame.InputBox.Text)
 	end)
 
 	input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -19859,10 +19859,10 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
 			keybind.KeybindFrame.KeybindBox.Text = keyName
 			capturing = false
-			NACaller(callback, keyName)
+			pcall(callback, keyName)
 		elseif not capturing and keybind.KeybindFrame.KeybindBox.Text ~= "" then
 			if tostring(input.KeyCode) == "Enum.KeyCode."..keybind.KeybindFrame.KeybindBox.Text and not processed then
-				NACaller(callback)
+				pcall(callback)
 			end
 		end
 	end)
@@ -19900,7 +19900,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 
 		progress.Size = UDim2.new(percent, 0, 1, 0)
 		infoText.Text = tostring(value)..(suffix or "")
-		NACaller(callback, value)
+		pcall(callback, value)
 	end
 
 	interact.InputBegan:Connect(function(input)
@@ -20286,214 +20286,214 @@ end)
 
 -- TopBar stuff idk (it's gonna be used in the future)
 Spawn(function()
-    repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top)=="Instance"
+	repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top)=="Instance"
 
-    local toggle=InstanceNew("ImageButton",TopBarApp.frame)
-    toggle.Name="TopbarToggle"
-    toggle.Size=UDim2.new(0,42,0,42)
-    toggle.Position=UDim2.new(1,-50,0,10)
-    toggle.AnchorPoint=Vector2.new(1,0)
-    toggle.BackgroundColor3=Color3.new(0,0,0)
-    toggle.BackgroundTransparency=0.3
-    toggle.BorderSizePixel=0
-    toggle.ClipsDescendants=true
-    toggle.ZIndex=10
-    InstanceNew("UICorner",toggle).CornerRadius=UDim.new(0.5,0)
+	local toggle=InstanceNew("ImageButton",TopBarApp.frame)
+	toggle.Name="TopbarToggle"
+	toggle.Size=UDim2.new(0,42,0,42)
+	toggle.Position=UDim2.new(1,-50,0,10)
+	toggle.AnchorPoint=Vector2.new(1,0)
+	toggle.BackgroundColor3=Color3.new(0,0,0)
+	toggle.BackgroundTransparency=0.3
+	toggle.BorderSizePixel=0
+	toggle.ClipsDescendants=true
+	toggle.ZIndex=10
+	InstanceNew("UICorner",toggle).CornerRadius=UDim.new(0.5,0)
 
-    local CLOSED_IMG="rbxasset://textures/ui/MenuBar/icon_menu.png"
-    local OPENED_IMG="rbxasset://textures/ui/ScreenshotHud/Close@2x.png"
+	local CLOSED_IMG="rbxasset://textures/ui/MenuBar/icon_menu.png"
+	local OPENED_IMG="rbxasset://textures/ui/ScreenshotHud/Close@2x.png"
 
-    local iconMain=InstanceNew("ImageLabel",toggle)
-    iconMain.AnchorPoint=Vector2.new(0.5,0.5)
-    iconMain.Position=UDim2.new(0.5,0,0.5,0)
-    iconMain.Size=UDim2.new(0.8,0,0.8,0)
-    iconMain.BackgroundTransparency=1
-    iconMain.ScaleType=Enum.ScaleType.Fit
-    iconMain.Image=CLOSED_IMG
-    iconMain.ZIndex=11
+	local iconMain=InstanceNew("ImageLabel",toggle)
+	iconMain.AnchorPoint=Vector2.new(0.5,0.5)
+	iconMain.Position=UDim2.new(0.5,0,0.5,0)
+	iconMain.Size=UDim2.new(0.8,0,0.8,0)
+	iconMain.BackgroundTransparency=1
+	iconMain.ScaleType=Enum.ScaleType.Fit
+	iconMain.Image=CLOSED_IMG
+	iconMain.ZIndex=11
 
-    local dropdown=InstanceNew("Frame",TopBarApp.frame)
-    dropdown.Name="DropdownFrame"
-    dropdown.Size=UDim2.new(0,0,0,42)
-    dropdown.Visible=false
-    dropdown.ClipsDescendants=true
-    dropdown.BackgroundTransparency=1
-    dropdown.ZIndex=5
+	local dropdown=InstanceNew("Frame",TopBarApp.frame)
+	dropdown.Name="DropdownFrame"
+	dropdown.Size=UDim2.new(0,0,0,42)
+	dropdown.Visible=false
+	dropdown.ClipsDescendants=true
+	dropdown.BackgroundTransparency=1
+	dropdown.ZIndex=5
 
-    local bg=InstanceNew("Frame",dropdown)
-    bg.Name="Background"
-    bg.Size=UDim2.new(1,0,1,0)
-    bg.BackgroundColor3=Color3.new(0,0,0)
-    bg.BackgroundTransparency=1
-    bg.ZIndex=6
-    InstanceNew("UICorner",bg).CornerRadius=UDim.new(0.5,0)
+	local bg=InstanceNew("Frame",dropdown)
+	bg.Name="Background"
+	bg.Size=UDim2.new(1,0,1,0)
+	bg.BackgroundColor3=Color3.new(0,0,0)
+	bg.BackgroundTransparency=1
+	bg.ZIndex=6
+	InstanceNew("UICorner",bg).CornerRadius=UDim.new(0.5,0)
 
-    local container=InstanceNew("ScrollingFrame",dropdown)
-    container.Name="Container"
-    container.Size=UDim2.new(1,0,1,0)
-    container.CanvasSize=UDim2.new(0,0,0,0)
-    container.ScrollBarThickness=3
-    container.ScrollingDirection=Enum.ScrollingDirection.X
-    container.BackgroundTransparency=1
-    container.ZIndex=7
+	local container=InstanceNew("ScrollingFrame",dropdown)
+	container.Name="Container"
+	container.Size=UDim2.new(1,0,1,0)
+	container.CanvasSize=UDim2.new(0,0,0,0)
+	container.ScrollBarThickness=3
+	container.ScrollingDirection=Enum.ScrollingDirection.X
+	container.BackgroundTransparency=1
+	container.ZIndex=7
 
-    local layout=InstanceNew("UIListLayout",container)
-    layout.FillDirection=Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
-    layout.SortOrder=Enum.SortOrder.LayoutOrder
-    layout.Padding=UDim.new(0,8)
+	local layout=InstanceNew("UIListLayout",container)
+	layout.FillDirection=Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
+	layout.SortOrder=Enum.SortOrder.LayoutOrder
+	layout.Padding=UDim.new(0,8)
 
-    local BUTTON_SIZE=42
-    local PADDING=layout.Padding.Offset
-    local MAX_VISIBLE=4
-    local MAX_WIDTH=MAX_VISIBLE*BUTTON_SIZE+(MAX_VISIBLE-1)*PADDING
-    local MARGIN=4
+	local BUTTON_SIZE=42
+	local PADDING=layout.Padding.Offset
+	local MAX_VISIBLE=4
+	local MAX_WIDTH=MAX_VISIBLE*BUTTON_SIZE+(MAX_VISIBLE-1)*PADDING
+	local MARGIN=4
 
-    local DROPDOWN_TWEEN=TweenInfo.new(0.15,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
-    local ICON_TWEEN=TweenInfo.new(0.05,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
+	local DROPDOWN_TWEEN=TweenInfo.new(0.15,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
+	local ICON_TWEEN=TweenInfo.new(0.05,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
 
-    local isOpen=false
-    local currentSide="right"
+	local isOpen=false
+	local currentSide="right"
 
-    local buttonDefs={
-        {name="settings",image="rbxasset://textures/CollisionGroupsEditor/manage.png",func=function()
-            if NAUIMANAGER.SettingsFrame then
-                NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
-                NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-            end
-        end},
-        {name="cmds",image="rbxasset://textures/ui/TopBar/moreOff@2x.png",func=NAgui.commands},
-        {name="chatlogs",image="rbxasset://textures/ui/Chat/ToggleChat@2x.png",func=function()
-            if NAUIMANAGER.chatLogsFrame then
-                NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-                NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-            end
-        end},
-        {name="console",image="rbxasset://textures/Icon_Stream_Off.png",func=function()
-            if NAUIMANAGER.NAconsoleFrame then
-                NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-                NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-            end
-        end},
-        {name="waypp",image="rbxasset://textures/ui/waypoint.png",func=function()
-            if NAUIMANAGER.WaypointFrame then
-                NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
-                NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
-            end
-        end},
-        {name="bindd",image="rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png",func=function()
-            if NAUIMANAGER.BindersFrame then
-                NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
-                NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
-            end
-        end},
-    }
+	local buttonDefs={
+		{name="settings",image="rbxasset://textures/CollisionGroupsEditor/manage.png",func=function()
+			if NAUIMANAGER.SettingsFrame then
+				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+			end
+		end},
+		{name="cmds",image="rbxasset://textures/ui/TopBar/moreOff@2x.png",func=NAgui.commands},
+		{name="chatlogs",image="rbxasset://textures/ui/Chat/ToggleChat@2x.png",func=function()
+			if NAUIMANAGER.chatLogsFrame then
+				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+			end
+		end},
+		{name="console",image="rbxasset://textures/Icon_Stream_Off.png",func=function()
+			if NAUIMANAGER.NAconsoleFrame then
+				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+			end
+		end},
+		{name="waypp",image="rbxasset://textures/ui/waypoint.png",func=function()
+			if NAUIMANAGER.WaypointFrame then
+				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+			end
+		end},
+		{name="bindd",image="rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png",func=function()
+			if NAUIMANAGER.BindersFrame then
+				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+			end
+		end},
+	}
 
-    local childButtons={}
-    local function buildButtons()
-        for _,c in pairs(container:GetChildren())do
-            if c:IsA("ImageButton")then c:Destroy()end
-        end
-        for i,def in ipairs(buttonDefs)do
-            local btn=InstanceNew("ImageButton",container)
-            btn.Name=Format("%sBtn",def.name)
-            btn.Size=UDim2.new(0,BUTTON_SIZE,0,BUTTON_SIZE)
-            btn.LayoutOrder=i
-            btn.BackgroundColor3=Color3.new(0,0,0)
-            btn.BackgroundTransparency=0.3
-            btn.BorderSizePixel=0
-            btn.ClipsDescendants=true
-            btn.ZIndex=8
-            InstanceNew("UICorner",btn).CornerRadius=UDim.new(0.5,0)
-            local icon=InstanceNew("ImageLabel",btn)
-            icon.Name="Icon"
-            icon.AnchorPoint=Vector2.new(0.5,0.5)
-            icon.Position=UDim2.new(0.5,0,0.5,0)
-            icon.Size=UDim2.new(0.8,0,0.8,0)
-            icon.BackgroundTransparency=1
-            icon.ScaleType=Enum.ScaleType.Fit
-            icon.Image=def.image
-            icon.ZIndex=9
-            childButtons[btn]=def.func
-        end
-    end
-    buildButtons()
+	local childButtons={}
+	local function buildButtons()
+		for _,c in pairs(container:GetChildren())do
+			if c:IsA("ImageButton")then c:Destroy()end
+		end
+		for i,def in ipairs(buttonDefs)do
+			local btn=InstanceNew("ImageButton",container)
+			btn.Name=Format("%sBtn",def.name)
+			btn.Size=UDim2.new(0,BUTTON_SIZE,0,BUTTON_SIZE)
+			btn.LayoutOrder=i
+			btn.BackgroundColor3=Color3.new(0,0,0)
+			btn.BackgroundTransparency=0.3
+			btn.BorderSizePixel=0
+			btn.ClipsDescendants=true
+			btn.ZIndex=8
+			InstanceNew("UICorner",btn).CornerRadius=UDim.new(0.5,0)
+			local icon=InstanceNew("ImageLabel",btn)
+			icon.Name="Icon"
+			icon.AnchorPoint=Vector2.new(0.5,0.5)
+			icon.Position=UDim2.new(0.5,0,0.5,0)
+			icon.Size=UDim2.new(0.8,0,0.8,0)
+			icon.BackgroundTransparency=1
+			icon.ScaleType=Enum.ScaleType.Fit
+			icon.Image=def.image
+			icon.ZIndex=9
+			childButtons[btn]=def.func
+		end
+	end
+	buildButtons()
 
-    NAlib.connect("contentSize",layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        container.CanvasSize=UDim2.new(0,layout.AbsoluteContentSize.X+PADDING,0,0)
-    end))
+	NAlib.connect("contentSize",layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		container.CanvasSize=UDim2.new(0,layout.AbsoluteContentSize.X+PADDING,0,0)
+	end))
 
-    local function clampToggle()
-        local fw=TopBarApp.frame.AbsoluteSize.X
-        local bw=toggle.AbsoluteSize.X
-        local off=math.clamp(toggle.Position.X.Offset,-(fw-bw),0)
-        toggle.Position=UDim2.new(toggle.Position.X.Scale,off,toggle.Position.Y.Scale,toggle.Position.Y.Offset)
-    end
-    NAlib.connect("frameSize",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToggle))
+	local function clampToggle()
+		local fw=TopBarApp.frame.AbsoluteSize.X
+		local bw=toggle.AbsoluteSize.X
+		local off=math.clamp(toggle.Position.X.Offset,-(fw-bw),0)
+		toggle.Position=UDim2.new(toggle.Position.X.Scale,off,toggle.Position.Y.Scale,toggle.Position.Y.Offset)
+	end
+	NAlib.connect("frameSize",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToggle))
 
-    local function computeProps()
-        local count=#buttonDefs
-        local contentW=count*BUTTON_SIZE+(count-1)*PADDING
-        for _,c in ipairs(dropdown:GetDescendants())do
-            if c:IsA("UISizeConstraint")then
-                contentW=math.clamp(contentW,c.MinSize.X,c.MaxSize.X)
-            end
-        end
-        local showW=math.min(contentW,MAX_WIDTH)
-        local frameX=TopBarApp.frame.AbsolutePosition.X
-        local frameW=TopBarApp.frame.AbsoluteSize.X
-        local tL=toggle.AbsolutePosition.X-frameX
-        local tR=tL+toggle.AbsoluteSize.X
-        local yOff=toggle.AbsolutePosition.Y-TopBarApp.frame.AbsolutePosition.Y
-        if frameW-tR>=showW+MARGIN then
-            return showW,UDim2.new(0,tR+MARGIN,0,yOff),"right"
-        else
-            return showW,UDim2.new(0,tL-MARGIN,0,yOff),"left"
-        end
-    end
+	local function computeProps()
+		local count=#buttonDefs
+		local contentW=count*BUTTON_SIZE+(count-1)*PADDING
+		for _,c in ipairs(dropdown:GetDescendants())do
+			if c:IsA("UISizeConstraint")then
+				contentW=math.clamp(contentW,c.MinSize.X,c.MaxSize.X)
+			end
+		end
+		local showW=math.min(contentW,MAX_WIDTH)
+		local frameX=TopBarApp.frame.AbsolutePosition.X
+		local frameW=TopBarApp.frame.AbsoluteSize.X
+		local tL=toggle.AbsolutePosition.X-frameX
+		local tR=tL+toggle.AbsoluteSize.X
+		local yOff=toggle.AbsolutePosition.Y-TopBarApp.frame.AbsolutePosition.Y
+		if frameW-tR>=showW+MARGIN then
+			return showW,UDim2.new(0,tR+MARGIN,0,yOff),"right"
+		else
+			return showW,UDim2.new(0,tL-MARGIN,0,yOff),"left"
+		end
+	end
 
-    local function updatePosition()
-        local w,pos,side=computeProps()
-        dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
-        if dropdown.Visible then
-            TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos}):Play()
-            if side~=currentSide then
-                TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
-                currentSide=side
-            end
-        else
-            dropdown.Position=pos
-            iconMain.Rotation=side=="left"and 180 or 0
-            currentSide=side
-        end
-    end
-    updatePosition()
+	local function updatePosition()
+		local w,pos,side=computeProps()
+		dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
+		if dropdown.Visible then
+			TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos}):Play()
+			if side~=currentSide then
+				TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
+				currentSide=side
+			end
+		else
+			dropdown.Position=pos
+			iconMain.Rotation=side=="left"and 180 or 0
+			currentSide=side
+		end
+	end
+	updatePosition()
 
-    local cam=workspace.CurrentCamera
-    if cam then
-        NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-            updatePosition()
-        end))
-    end
-    NAlib.connect("camChange",workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-        cam=workspace.CurrentCamera
-        NAlib.disconnect("camSize")
-        if cam then
-            NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-                updatePosition()
-            end))
-        end
-        updatePosition()
-    end))
+	local cam=workspace.CurrentCamera
+	if cam then
+		NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			updatePosition()
+		end))
+	end
+	NAlib.connect("camChange",workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		cam=workspace.CurrentCamera
+		NAlib.disconnect("camSize")
+		if cam then
+			NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				updatePosition()
+			end))
+		end
+		updatePosition()
+	end))
 
-    local function animateIcon(img)
-        local s=TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0,0,0,0)})
-        s:Play();s.Completed:Wait()
-        iconMain.Image=img
-        TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
-    end
+	local function animateIcon(img)
+		local s=TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0,0,0,0)})
+		s:Play();s.Completed:Wait()
+		iconMain.Image=img
+		TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
+	end
 
-    local function makeDraggable(ui, dragui)
+	local function makeDraggable(ui, dragui)
 		dragui = dragui or ui
 		local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
 
@@ -20531,30 +20531,30 @@ Spawn(function()
 
 		ui.Active = true
 	end
-    makeDraggable(toggle)
+	makeDraggable(toggle)
 	for btn, fn in pairs(childButtons) do makeDraggable(btn) end
 
-    local function toggleDropdown()
-        isOpen=not isOpen
-        local w,pos,side=computeProps()
-        dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
-        if isOpen then
-            dropdown.Visible=true
-            TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
-            TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)}):Play()
-            TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=0.3}):Play()
-            animateIcon(OPENED_IMG)
-        else
-            TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=1}):Play()
-            local t=TweenService:Create(dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
-            t:Play();t.Completed:Wait()
-            dropdown.Visible=false
-            animateIcon(CLOSED_IMG)
-        end
-    end
+	local function toggleDropdown()
+		isOpen=not isOpen
+		local w,pos,side=computeProps()
+		dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
+		if isOpen then
+			dropdown.Visible=true
+			TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
+			TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)}):Play()
+			TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=0.3}):Play()
+			animateIcon(OPENED_IMG)
+		else
+			TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=1}):Play()
+			local t=TweenService:Create(dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
+			t:Play();t.Completed:Wait()
+			dropdown.Visible=false
+			animateIcon(CLOSED_IMG)
+		end
+	end
 
-    MouseButtonFix(toggle,toggleDropdown)
-    for btn,fn in pairs(childButtons)do MouseButtonFix(btn,fn)end
+	MouseButtonFix(toggle,toggleDropdown)
+	for btn,fn in pairs(childButtons)do MouseButtonFix(btn,fn)end
 end)
 
 NAgui.barSelect = function(speed)
@@ -21226,35 +21226,59 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 Spawn(function()
-	for _, obj in ipairs(workspace:GetDescendants()) do
-		if obj:IsA("ClickDetector") then
-			Insert(interactTbl.click, obj)
-		elseif obj:IsA("ProximityPrompt") then
-			Insert(interactTbl.proxy, obj)
-		elseif obj:IsA("TouchTransmitter") then
-			Insert(interactTbl.touch, obj)
+	NAmanage.UIrenamerFRIEND=function(o)
+		if type(o.Text) == "string" then
+			o.Text = o.Text:gsub("Connections","Friends"):gsub("Connection","Friend")
 		end
 	end
 
-	workspace.DescendantAdded:Connect(function(obj)
-		if obj:IsA("ClickDetector") then
-			Insert(interactTbl.click, obj)
-		elseif obj:IsA("ProximityPrompt") then
-			Insert(interactTbl.proxy, obj)
-		elseif obj:IsA("TouchTransmitter") then
-			Insert(interactTbl.touch, obj)
+	for _, internet in ipairs(workspace:GetDescendants()) do
+		if internet:IsA("ClickDetector") then
+			Insert(interactTbl.click, internet)
+		elseif internet:IsA("ProximityPrompt") then
+			Insert(interactTbl.proxy, internet)
+		elseif internet:IsA("TouchTransmitter") then
+			Insert(interactTbl.touch, internet)
+		end
+	end
+
+	if CoreGui then
+		for _, o in ipairs(CoreGui:GetDescendants()) do
+			if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
+				NAmanage.UIrenamerFRIEND(o)
+			end
+		end
+		CoreGui.DescendantAdded:Connect(function(o)
+			if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
+				NAmanage.UIrenamerFRIEND(o)
+			end
+			for _, c in ipairs(o:GetDescendants()) do
+				if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
+					NAmanage.UIrenamerFRIEND(c)
+				end
+			end
+		end)
+	end
+
+	workspace.DescendantAdded:Connect(function(internet)
+		if internet:IsA("ClickDetector") then
+			Insert(interactTbl.click, internet)
+		elseif internet:IsA("ProximityPrompt") then
+			Insert(interactTbl.proxy, internet)
+		elseif internet:IsA("TouchTransmitter") then
+			Insert(interactTbl.touch, internet)
 		end
 	end)
 
-	workspace.DescendantRemoving:Connect(function(obj)
-		if obj:IsA("ClickDetector") then
-			local i = Discover(interactTbl.click, obj)
+	workspace.DescendantRemoving:Connect(function(internet)
+		if internet:IsA("ClickDetector") then
+			local i = Discover(interactTbl.click, internet)
 			if i then table.remove(interactTbl.click, i) end
-		elseif obj:IsA("ProximityPrompt") then
-			local i = Discover(interactTbl.proxy, obj)
+		elseif internet:IsA("ProximityPrompt") then
+			local i = Discover(interactTbl.proxy, internet)
 			if i then table.remove(interactTbl.proxy, i) end
-		elseif obj:IsA("TouchTransmitter") then
-			local i = Discover(interactTbl.touch, obj)
+		elseif internet:IsA("TouchTransmitter") then
+			local i = Discover(interactTbl.touch, internet)
 			if i then table.remove(interactTbl.touch, i) end
 		end
 	end)
@@ -21800,171 +21824,171 @@ OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math
 
 local bindersList      = NAUIMANAGER.BindersList
 Spawn(function()
-    local layoutOrder = 1
-    for _, evName in ipairs(events) do
-        local ev = evName
-        local HEADER_H = 30
+	local layoutOrder = 1
+	for _, evName in ipairs(events) do
+		local ev = evName
+		local HEADER_H = 30
 
-        local binderFrame = InstanceNew("Frame")
-        binderFrame.Name             = ev.."Binder"
-        binderFrame.Parent           = bindersList
-        binderFrame.Size             = UDim2.new(1,0,0, HEADER_H)
-        binderFrame.LayoutOrder      = layoutOrder
-        binderFrame.ClipsDescendants = true
-        binderFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
-        local binderCorner = InstanceNew("UICorner", binderFrame)
-        binderCorner.CornerRadius    = UDim.new(0,8)
-        local binderStroke = InstanceNew("UIStroke", binderFrame)
-        binderStroke.Color           = Color3.fromRGB(60,60,60)
-        binderStroke.Thickness       = 1
+		local binderFrame = InstanceNew("Frame")
+		binderFrame.Name             = ev.."Binder"
+		binderFrame.Parent           = bindersList
+		binderFrame.Size             = UDim2.new(1,0,0, HEADER_H)
+		binderFrame.LayoutOrder      = layoutOrder
+		binderFrame.ClipsDescendants = true
+		binderFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+		local binderCorner = InstanceNew("UICorner", binderFrame)
+		binderCorner.CornerRadius    = UDim.new(0,8)
+		local binderStroke = InstanceNew("UIStroke", binderFrame)
+		binderStroke.Color           = Color3.fromRGB(60,60,60)
+		binderStroke.Thickness       = 1
 
-        local header = InstanceNew("TextButton")
-        header.Name                   = "Header"
-        header.Parent                 = binderFrame
-        header.Size                   = UDim2.new(1,-30,0, HEADER_H)
-        header.Position               = UDim2.new(0,0,0,0)
-        header.BackgroundColor3       = Color3.fromRGB(30,30,30)
-        header.AutoButtonColor        = false
-        header.Font                   = Enum.Font.SourceSansSemibold
-        header.TextSize               = 14
-        header.TextColor3             = Color3.fromRGB(255,255,255)
-        header.Text                   = ev
-        local headerCorner = InstanceNew("UICorner", header)
-        headerCorner.CornerRadius     = UDim.new(0,6)
-        header.MouseEnter:Connect(function() header.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
-        header.MouseLeave:Connect(function() header.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
+		local header = InstanceNew("TextButton")
+		header.Name                   = "Header"
+		header.Parent                 = binderFrame
+		header.Size                   = UDim2.new(1,-30,0, HEADER_H)
+		header.Position               = UDim2.new(0,0,0,0)
+		header.BackgroundColor3       = Color3.fromRGB(30,30,30)
+		header.AutoButtonColor        = false
+		header.Font                   = Enum.Font.SourceSansSemibold
+		header.TextSize               = 14
+		header.TextColor3             = Color3.fromRGB(255,255,255)
+		header.Text                   = ev
+		local headerCorner = InstanceNew("UICorner", header)
+		headerCorner.CornerRadius     = UDim.new(0,6)
+		header.MouseEnter:Connect(function() header.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
+		header.MouseLeave:Connect(function() header.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
-        local addBtn = InstanceNew("TextButton")
-        addBtn.Name                    = "AddBtn"
-        addBtn.Parent                  = binderFrame
-        addBtn.Size                    = UDim2.new(0,30,0, HEADER_H)
-        addBtn.Position                = UDim2.new(1,-30,0,0)
-        addBtn.BackgroundColor3        = Color3.fromRGB(30,30,30)
-        addBtn.AutoButtonColor         = false
-        addBtn.Font                    = Enum.Font.SourceSansBold
-        addBtn.TextSize                = 18
-        addBtn.TextColor3              = Color3.fromRGB(255,255,255)
-        addBtn.Text                    = "+"
-        local addCorner = InstanceNew("UICorner", addBtn)
-        addCorner.CornerRadius         = UDim.new(0,6)
-        addBtn.MouseEnter:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
-        addBtn.MouseLeave:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
+		local addBtn = InstanceNew("TextButton")
+		addBtn.Name                    = "AddBtn"
+		addBtn.Parent                  = binderFrame
+		addBtn.Size                    = UDim2.new(0,30,0, HEADER_H)
+		addBtn.Position                = UDim2.new(1,-30,0,0)
+		addBtn.BackgroundColor3        = Color3.fromRGB(30,30,30)
+		addBtn.AutoButtonColor         = false
+		addBtn.Font                    = Enum.Font.SourceSansBold
+		addBtn.TextSize                = 18
+		addBtn.TextColor3              = Color3.fromRGB(255,255,255)
+		addBtn.Text                    = "+"
+		local addCorner = InstanceNew("UICorner", addBtn)
+		addCorner.CornerRadius         = UDim.new(0,6)
+		addBtn.MouseEnter:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
+		addBtn.MouseLeave:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
-        local itemsFrame = InstanceNew("Frame")
-        itemsFrame.Name                 = "Items"
-        itemsFrame.Parent               = binderFrame
-        itemsFrame.Position             = UDim2.new(0,0,0, HEADER_H)
-        itemsFrame.Size                 = UDim2.new(1,0,0, 0)
-        itemsFrame.BackgroundColor3     = Color3.fromRGB(25,25,25)
-        local itemsCorner = InstanceNew("UICorner", itemsFrame)
-        itemsCorner.CornerRadius        = UDim.new(0,6)
+		local itemsFrame = InstanceNew("Frame")
+		itemsFrame.Name                 = "Items"
+		itemsFrame.Parent               = binderFrame
+		itemsFrame.Position             = UDim2.new(0,0,0, HEADER_H)
+		itemsFrame.Size                 = UDim2.new(1,0,0, 0)
+		itemsFrame.BackgroundColor3     = Color3.fromRGB(25,25,25)
+		local itemsCorner = InstanceNew("UICorner", itemsFrame)
+		itemsCorner.CornerRadius        = UDim.new(0,6)
 
-        local uiLayout = InstanceNew("UIListLayout")
-        uiLayout.SortOrder              = Enum.SortOrder.LayoutOrder
-        uiLayout.Padding                = UDim.new(0,4)
-        uiLayout.Parent                 = itemsFrame
-        uiLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            if binderFrame:GetAttribute("Expanded") then
-                local h = uiLayout.AbsoluteContentSize.Y + 8
-                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
-                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
-            end
-        end)
+		local uiLayout = InstanceNew("UIListLayout")
+		uiLayout.SortOrder              = Enum.SortOrder.LayoutOrder
+		uiLayout.Padding                = UDim.new(0,4)
+		uiLayout.Parent                 = itemsFrame
+		uiLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if binderFrame:GetAttribute("Expanded") then
+				local h = uiLayout.AbsoluteContentSize.Y + 8
+				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+			end
+		end)
 
-        header.MouseButton1Click:Connect(function()
-            local exp = binderFrame:GetAttribute("Expanded")
-            binderFrame:SetAttribute("Expanded", not exp)
-            if exp then
-                itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
-                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
-            else
-                local h = uiLayout.AbsoluteContentSize.Y + 8
-                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
-                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
-            end
-        end)
+		header.MouseButton1Click:Connect(function()
+			local exp = binderFrame:GetAttribute("Expanded")
+			binderFrame:SetAttribute("Expanded", not exp)
+			if exp then
+				itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
+				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
+			else
+				local h = uiLayout.AbsoluteContentSize.Y + 8
+				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+			end
+		end)
 
-        local function refreshItems()
-            for _, child in ipairs(itemsFrame:GetChildren()) do
-                if child.Name == "BinderItem" then
-                    child:Destroy()
-                end
-            end
-            local list = Bindings[ev] or {}
-            header.Text = ev.." ("..#list..")"
-            if #list > 0 then
-                binderFrame:SetAttribute("Expanded", true)
-                local h = uiLayout.AbsoluteContentSize.Y + 8
-                itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
-                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
-            else
-                binderFrame:SetAttribute("Expanded", false)
-                itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
-                binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
-            end
-            for i, cmdStr in ipairs(list) do
-                local item = InstanceNew("Frame")
-                item.Name               = "BinderItem"
-                item.Parent             = itemsFrame
-                item.Size               = UDim2.new(1,0,0,24)
-                item.LayoutOrder        = i
-                item.BackgroundColor3   = Color3.fromRGB(35,35,35)
-                local itemCorner = InstanceNew("UICorner", item)
-                itemCorner.CornerRadius  = UDim.new(0,4)
+		local function refreshItems()
+			for _, child in ipairs(itemsFrame:GetChildren()) do
+				if child.Name == "BinderItem" then
+					child:Destroy()
+				end
+			end
+			local list = Bindings[ev] or {}
+			header.Text = ev.." ("..#list..")"
+			if #list > 0 then
+				binderFrame:SetAttribute("Expanded", true)
+				local h = uiLayout.AbsoluteContentSize.Y + 8
+				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
+				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
+			else
+				binderFrame:SetAttribute("Expanded", false)
+				itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
+				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
+			end
+			for i, cmdStr in ipairs(list) do
+				local item = InstanceNew("Frame")
+				item.Name               = "BinderItem"
+				item.Parent             = itemsFrame
+				item.Size               = UDim2.new(1,0,0,24)
+				item.LayoutOrder        = i
+				item.BackgroundColor3   = Color3.fromRGB(35,35,35)
+				local itemCorner = InstanceNew("UICorner", item)
+				itemCorner.CornerRadius  = UDim.new(0,4)
 
-                local lbl = InstanceNew("TextLabel")
-                lbl.Parent               = item
-                lbl.Size                 = UDim2.new(1,-24,1,0)
-                lbl.Position             = UDim2.new(0,8,0,0)
-                lbl.BackgroundTransparency = 1
-                lbl.Text                 = cmdStr
-                lbl.Font                 = Enum.Font.SourceSans
-                lbl.TextSize             = 14
-                lbl.TextColor3           = Color3.fromRGB(255,255,255)
-                lbl.TextXAlignment       = Enum.TextXAlignment.Left
+				local lbl = InstanceNew("TextLabel")
+				lbl.Parent               = item
+				lbl.Size                 = UDim2.new(1,-24,1,0)
+				lbl.Position             = UDim2.new(0,8,0,0)
+				lbl.BackgroundTransparency = 1
+				lbl.Text                 = cmdStr
+				lbl.Font                 = Enum.Font.SourceSans
+				lbl.TextSize             = 14
+				lbl.TextColor3           = Color3.fromRGB(255,255,255)
+				lbl.TextXAlignment       = Enum.TextXAlignment.Left
 
-                local rem = InstanceNew("TextButton")
-                rem.Parent               = item
-                rem.Size                 = UDim2.new(0,20,0,20)
-                rem.Position             = UDim2.new(1,-24,0,2)
-                rem.BackgroundTransparency = 1
-                rem.Text                 = "×"
-                rem.Font                 = Enum.Font.SourceSansBold
-                rem.TextSize             = 18
-                rem.TextColor3           = Color3.fromRGB(255,100,100)
-                rem.MouseButton1Click:Connect(function()
-                    table.remove(list, i)
-                    NAmanage.SaveBinders()
-                    refreshItems()
-                end)
-            end
-        end
+				local rem = InstanceNew("TextButton")
+				rem.Parent               = item
+				rem.Size                 = UDim2.new(0,20,0,20)
+				rem.Position             = UDim2.new(1,-24,0,2)
+				rem.BackgroundTransparency = 1
+				rem.Text                 = "×"
+				rem.Font                 = Enum.Font.SourceSansBold
+				rem.TextSize             = 18
+				rem.TextColor3           = Color3.fromRGB(255,100,100)
+				rem.MouseButton1Click:Connect(function()
+					table.remove(list, i)
+					NAmanage.SaveBinders()
+					refreshItems()
+				end)
+			end
+		end
 
-        addBtn.MouseButton1Click:Connect(function()
-            Bindings[ev] = Bindings[ev] or {}
-            Window({
-                Title       = ev.." Binders",
-                Description = "Enter commands for "..ev,
-                InputField  = true,
-                Buttons     = {{
-                    Text     = "Submit",
-                    Callback = function(input)
-                        local cmdName = input:match("^(%S+)")
-                        if not (cmds.Commands[cmdName:lower()] or cmds.Aliases[cmdName:lower()]) then
-                            DoNotif("Command '"..cmdName.."' not found.")
-                            return
-                        end
-                        Insert(Bindings[ev], input)
-                        NAmanage.SaveBinders()
-                        refreshItems()
-                    end
-                }}
-            })
-        end)
+		addBtn.MouseButton1Click:Connect(function()
+			Bindings[ev] = Bindings[ev] or {}
+			Window({
+				Title       = ev.." Binders",
+				Description = "Enter commands for "..ev,
+				InputField  = true,
+				Buttons     = {{
+					Text     = "Submit",
+					Callback = function(input)
+						local cmdName = input:match("^(%S+)")
+						if not (cmds.Commands[cmdName:lower()] or cmds.Aliases[cmdName:lower()]) then
+							DoNotif("Command '"..cmdName.."' not found.")
+							return
+						end
+						Insert(Bindings[ev], input)
+						NAmanage.SaveBinders()
+						refreshItems()
+					end
+				}}
+			})
+		end)
 
-        refreshItems()
-        layoutOrder = layoutOrder + 1
-    end
+		refreshItems()
+		layoutOrder = layoutOrder + 1
+	end
 end)
 
 -- [[ GUI ELEMENTS ]] --
@@ -22242,6 +22266,102 @@ NAgui.addButton("Remove Light", function()
 		settingsLight.LIGHTER = nil
 	end
 end)
+
+if FileSupport and CoreGui then
+	Spawn(function()
+		local path = NAfiles.NAFILEPATH.."/gradient.json"
+		local default = {
+			enabled = true,
+			start   = { h = 0.8, s = 1, v = 1 },
+			finish  = { h = 0,   s = 1, v = 1 },
+		}
+		if FileSupport and not isfile(path) then
+			writefile(path, HttpService:JSONEncode(default))
+		end
+
+		local parsed
+		if FileSupport and isfile(path) then
+			local ok, raw = pcall(readfile, path)
+			if ok then
+				local ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
+				if ok2 and type(tbl)=="table" then
+					parsed = tbl
+				end
+			end
+		end
+		parsed = parsed or {}
+
+		local enabled = parsed.enabled
+		if enabled == nil then enabled = default.enabled end
+
+		local sH = (parsed.start and parsed.start.h) or default.start.h
+		local sS = (parsed.start and parsed.start.s) or default.start.s
+		local sV = (parsed.start and parsed.start.v) or default.start.v
+
+		local eH = (parsed.finish and parsed.finish.h) or default.finish.h
+		local eS = (parsed.finish and parsed.finish.s) or default.finish.s
+		local eV = (parsed.finish and parsed.finish.v) or default.finish.v
+
+		local cg = CoreGui
+		NAmanage.PLEXPLEX=function()
+			for _, o in ipairs(cg:GetDescendants()) do
+				if (o:IsA("ImageLabel") or o:IsA("ImageButton"))
+					and (o.Image or o.Texture or o.TextureId):match("img_set_%dx_%d+%.png$")
+				then
+					local old = o:FindFirstChildOfClass("UIGradient")
+					if old then old:Destroy() end
+					if enabled then
+						local seq = ColorSequence.new{
+							ColorSequenceKeypoint.new(0, Color3.fromHSV(sH,sS,sV)),
+							ColorSequenceKeypoint.new(1, Color3.fromHSV(eH,eS,eV)),
+						}
+						local ug = Instance.new("UIGradient", o)
+						ug.Color    = seq
+						ug.Rotation = 45
+					end
+				end
+			end
+		end
+
+		NAgui.addSection("Gradient Picker")
+		NAgui.addToggle("Enable Gradient", enabled, function(v)
+			enabled = v
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
+		NAgui.addColorPicker("Start Gradient Color", Color3.fromHSV(sH,sS,sV), function(c)
+			sH, sS, sV = c:ToHSV()
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
+		NAgui.addColorPicker("End Gradient Color", Color3.fromHSV(eH,eS,eV), function(c)
+			eH, eS, eV = c:ToHSV()
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
+
+		NAmanage.PLEXPLEX()
+	end)
+end
+
 
 NAgui.addSection("Chat Tag Customization (Client Sided)")
 
