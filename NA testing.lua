@@ -15470,44 +15470,39 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 end,true)
 
 cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function(...)
-    local args={...}
-    local target=args[1] and Concat(args," "):lower()
-    if typeof(firetouchinterest)~="function" then return DoNotif("firetouchinterest not available",3) end
-    local char=getChar()
-    local root=char and getRoot(char)
-    if not root then return DoNotif("Character not found",3) end
-    local items,f={},0
+    local args = {...}
+    local target = args[1] and Lower(Concat(args," ")):lower()
+    if typeof(firetouchinterest) ~= "function" then return end
+    local char = getChar()
+    local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+    if not root then return end
+    local found = 0
     for _,t in ipairs(interactTbl.touch) do
-        local container=t.Parent
-        local p = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-        if p and (not target or Lower(p.Name)==target or (p.Parent and Lower(p.Parent.Name)==target)) then
-            Insert(items,{transmitter=t, part=p})
+        local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
+        if nameMatch then
+            local container = t.Parent
+            local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
+            if part then
+                found += 1
+                Spawn(function()
+                    local orig = part.CFrame
+                    part.CFrame = root.CFrame
+                    firetouchinterest(part,root,1)
+                    Wait()
+                    firetouchinterest(part,root,0)
+                    Delay(0.1,function() part.CFrame = orig end)
+                end)
+            end
         end
     end
-    if #items==0 then
-        if target then return DebugNotif("No TouchInterests found matching \""..target.."\"",2) end
-        return DebugNotif("No TouchInterests found",2)
-    end
-    for _,it in ipairs(items) do
-        coroutine.wrap(function()
-            local t = it.transmitter
-            local p = it.part
-            local orig = p.CFrame
-            local ok = pcall(function()
-                p.CFrame = root.CFrame
-                firetouchinterest(root, t, 0)
-                Wait()
-                firetouchinterest(root, t, 1)
-            end)
-            Delay(0.1, function() p.CFrame = orig end)
-            if not ok then f += 1 end
-        end)()
-    end
-    Wait()
-    if f > 0 then
-        DebugNotif(("Fired %d TouchInterests, Failed: %d"):format(#items,f),2)
+    if found == 0 then
+        if target then
+            DebugNotif(("No TouchInterests found matching \"%s\""):format(target),2)
+        else
+            DebugNotif("No TouchInterests found",2)
+        end
     else
-        DebugNotif(("Fired %d TouchInterests"):format(#items),2)
+        DebugNotif(("Fired %d TouchInterests"):format(found),2)
     end
 end,true)
 
@@ -15562,29 +15557,30 @@ cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Auto
 end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
-    local args={...}
-    local interval=tonumber(args[1]) or 1
-    local target=args[2] and Lower(Concat(args," ",2))
-    local last=tick()
+    local args = {...}
+    local interval = tonumber(args[1]) or 1
+    local target = args[2] and Lower(Concat(args," ",2)):lower()
+    local last = tick()
     NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
-        if tick()-last >= interval then
-            last = tick()
-            local char = getChar()
-            local root = char and getRoot(char)
-            if root then
-                for _,t in ipairs(interactTbl.touch) do
-                    local container = t.Parent
-                    local p = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-                    if p and (not target or Lower(p.Name)==target or (p.Parent and Lower(p.Parent.Name)==target)) then
-                        Spawn(function()
-                            local orig = p.CFrame
-                            p.CFrame = root.CFrame
-                            firetouchinterest(root, t, 0)
-                            Wait()
-                            firetouchinterest(root, t, 1)
-                            Delay(0.1, function() p.CFrame = orig end)
-                        end)
-                    end
+        if tick()-last < interval then return end
+        last = tick()
+        local char = getChar()
+        local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+        if not root then return end
+        for _,t in ipairs(interactTbl.touch) do
+            local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
+            if nameMatch then
+                local container = t.Parent
+                local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
+                if part then
+                    Spawn(function()
+                        local orig = part.CFrame
+                        part.CFrame = root.CFrame
+                        firetouchinterest(part,root,1)
+                        Wait()
+                        firetouchinterest(part,root,0)
+                        Delay(0.1,function() part.CFrame = orig end)
+                    end)
                 end
             end
         end
