@@ -22269,96 +22269,105 @@ end)
 
 if FileSupport and CoreGui then
 	Spawn(function()
-		local path = NAfiles.NAFILEPATH.."/gradient.json"
-		local default = {
-			enabled = true,
-			start   = { h = 0.8, s = 1, v = 1 },
-			finish  = { h = 0,   s = 1, v = 1 },
+		local PT = {
+			path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
+			default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
+			cg      = CoreGui,
+			images  = {}
 		}
-		if FileSupport and not isfile(path) then
-			writefile(path, HttpService:JSONEncode(default))
+
+		if FileSupport and not isfile(PT.path) then
+			writefile(PT.path, HttpService:JSONEncode(PT.default))
 		end
 
-		local parsed
-		if FileSupport and isfile(path) then
-			local ok, raw = pcall(readfile, path)
+		local raw, tbl
+		if FileSupport and isfile(PT.path) then
+			local ok; ok, raw = pcall(readfile, PT.path)
 			if ok then
-				local ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-				if ok2 and type(tbl)=="table" then
-					parsed = tbl
-				end
+				local ok2; ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
+				if not (ok2 and type(tbl)=="table") then tbl = nil end
 			end
 		end
-		parsed = parsed or {}
 
-		local enabled = parsed.enabled
-		if enabled == nil then enabled = default.enabled end
+		PT.data = tbl or PT.default
 
-		local sH = (parsed.start and parsed.start.h) or default.start.h
-		local sS = (parsed.start and parsed.start.s) or default.start.s
-		local sV = (parsed.start and parsed.start.v) or default.start.v
+		NAmanage.plex_remove = function(o)
+			local g = o:FindFirstChildOfClass("UIGradient")
+			if g then g:Destroy() end
+		end
 
-		local eH = (parsed.finish and parsed.finish.h) or default.finish.h
-		local eS = (parsed.finish and parsed.finish.s) or default.finish.s
-		local eV = (parsed.finish and parsed.finish.v) or default.finish.v
+		NAmanage.plex_apply = function(o)
+			NAmanage.plex_remove(o)
+			if PT.data.enabled then
+				local seq = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
+				}
+				local ug = Instance.new("UIGradient", o)
+				ug.Color, ug.Rotation = seq, 45
+			end
+		end
 
-		local cg = CoreGui
-		NAmanage.PLEXPLEX=function()
-			for _, o in ipairs(cg:GetDescendants()) do
-				if (o:IsA("ImageLabel") or o:IsA("ImageButton"))
-					and (o.Image or o.Texture or o.TextureId):match("img_set_%dx_%d+%.png$")
-				then
-					local old = o:FindFirstChildOfClass("UIGradient")
-					if old then old:Destroy() end
-					if enabled then
-						local seq = ColorSequence.new{
-							ColorSequenceKeypoint.new(0, Color3.fromHSV(sH,sS,sV)),
-							ColorSequenceKeypoint.new(1, Color3.fromHSV(eH,eS,eV)),
-						}
-						local ug = Instance.new("UIGradient", o)
-						ug.Color    = seq
-						ug.Rotation = 45
-					end
+		NAmanage.plex_add = function(o)
+			if not PT.images[o] and (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+				local id = NAlib.isProperty(o, "Image")
+					or NAlib.isProperty(o, "Texture")
+					or NAlib.isProperty(o, "TextureId")
+				if type(id)=="string" and id:match("img_set_%dx_%d+%.png$") then
+					PT.images[o] = true
+					NAmanage.plex_apply(o)
 				end
 			end
 		end
 
-		NAgui.addSection("Gradient Picker")
-		NAgui.addToggle("Enable Gradient", enabled, function(v)
-			enabled = v
-			NAmanage.PLEXPLEX()
-			if FileSupport then
-				writefile(path, HttpService:JSONEncode{
-					enabled = enabled,
-					start   = { h = sH, s = sS, v = sV },
-					finish  = { h = eH, s = eS, v = eV },
-				})
+		NAmanage.plex_applyAll = function()
+			for o in pairs(PT.images) do
+				NAmanage.plex_apply(o)
 			end
-		end)
-		NAgui.addColorPicker("Start Gradient Color", Color3.fromHSV(sH,sS,sV), function(c)
-			sH, sS, sV = c:ToHSV()
-			NAmanage.PLEXPLEX()
-			if FileSupport then
-				writefile(path, HttpService:JSONEncode{
-					enabled = enabled,
-					start   = { h = sH, s = sS, v = sV },
-					finish  = { h = eH, s = eS, v = eV },
-				})
+		end
+
+		for _, o in ipairs(PT.cg:GetDescendants()) do
+			NAmanage.plex_add(o)
+		end
+
+		if PT.data.enabled then
+			NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
+		end
+
+		NAgui.addSection("Plexity Theme")
+		NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
+			PT.data.enabled = v
+			NAlib.disconnect("PlexyDesc")
+			if v then
+				NAmanage.plex_applyAll()
+				NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
+			else
+				for o in pairs(PT.images) do
+					NAmanage.plex_remove(o)
+				end
 			end
-		end)
-		NAgui.addColorPicker("End Gradient Color", Color3.fromHSV(eH,eS,eV), function(c)
-			eH, eS, eV = c:ToHSV()
-			NAmanage.PLEXPLEX()
 			if FileSupport then
-				writefile(path, HttpService:JSONEncode{
-					enabled = enabled,
-					start   = { h = sH, s = sS, v = sV },
-					finish  = { h = eH, s = eS, v = eV },
-				})
+				writefile(PT.path, HttpService:JSONEncode(PT.data))
 			end
 		end)
 
-		NAmanage.PLEXPLEX()
+		NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
+			local h, s, v = c:ToHSV()
+			PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
+			NAmanage.plex_applyAll()
+			if FileSupport then
+				writefile(PT.path, HttpService:JSONEncode(PT.data))
+			end
+		end)
+
+		NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
+			local h, s, v = c:ToHSV()
+			PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
+			NAmanage.plex_applyAll()
+			if FileSupport then
+				writefile(PT.path, HttpService:JSONEncode(PT.data))
+			end
+		end)
 	end)
 end
 
