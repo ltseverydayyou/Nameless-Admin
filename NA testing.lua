@@ -22288,98 +22288,98 @@ NAgui.addButton("Remove Light", function()
 end)
 
 if FileSupport and CoreGui then
-Spawn(function()
-    local path = NAfiles.NAFILEPATH.."/gradient.json"
-    local default = {
-        enabled = true,
-        start   = { h = 0.8, s = 1, v = 1 },
-        finish  = { h = 0,   s = 1, v = 1 },
-    }
-    if FileSupport and not isfile(path) then
-        writefile(path, HttpService:JSONEncode(default))
-    end
+	Spawn(function()
+		local path = NAfiles.NAFILEPATH.."/gradient.json"
+		local default = {
+			enabled = true,
+			start   = { h = 0.8, s = 1, v = 1 },
+			finish  = { h = 0,   s = 1, v = 1 },
+		}
+		if FileSupport and not isfile(path) then
+			writefile(path, HttpService:JSONEncode(default))
+		end
 
-    local parsed
-    if FileSupport and isfile(path) then
-        local ok, raw = pcall(readfile, path)
-        if ok then
-            local ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-            if ok2 and type(tbl)=="table" then
-                parsed = tbl
-            end
-        end
-    end
-    parsed = parsed or {}
+		local parsed
+		if FileSupport and isfile(path) then
+			local ok, raw = pcall(readfile, path)
+			if ok then
+				local ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
+				if ok2 and type(tbl)=="table" then
+					parsed = tbl
+				end
+			end
+		end
+		parsed = parsed or {}
 
-    local enabled = parsed.enabled
-    if enabled == nil then enabled = default.enabled end
+		local enabled = parsed.enabled
+		if enabled == nil then enabled = default.enabled end
 
-    local sH = (parsed.start and parsed.start.h) or default.start.h
-    local sS = (parsed.start and parsed.start.s) or default.start.s
-    local sV = (parsed.start and parsed.start.v) or default.start.v
+		local sH = (parsed.start and parsed.start.h) or default.start.h
+		local sS = (parsed.start and parsed.start.s) or default.start.s
+		local sV = (parsed.start and parsed.start.v) or default.start.v
 
-    local eH = (parsed.finish and parsed.finish.h) or default.finish.h
-    local eS = (parsed.finish and parsed.finish.s) or default.finish.s
-    local eV = (parsed.finish and parsed.finish.v) or default.finish.v
+		local eH = (parsed.finish and parsed.finish.h) or default.finish.h
+		local eS = (parsed.finish and parsed.finish.s) or default.finish.s
+		local eV = (parsed.finish and parsed.finish.v) or default.finish.v
 
-    local cg = CoreGui
-    NAmanage.PLEXPLEX=function()
-        for _, o in ipairs(cg:GetDescendants()) do
-            if (o:IsA("ImageLabel") or o:IsA("ImageButton"))
-            and (o.Image or o.Texture or o.TextureId):match("img_set_%dx_%d+%.png$")
-            then
-                local old = o:FindFirstChildOfClass("UIGradient")
-                if old then old:Destroy() end
-                if enabled then
-                    local seq = ColorSequence.new{
-                        ColorSequenceKeypoint.new(0, Color3.fromHSV(sH,sS,sV)),
-                        ColorSequenceKeypoint.new(1, Color3.fromHSV(eH,eS,eV)),
-                    }
-                    local ug = Instance.new("UIGradient", o)
-                    ug.Color    = seq
-                    ug.Rotation = 45
-                end
-            end
-        end
-    end
+		local cg = CoreGui
+		NAmanage.PLEXPLEX=function()
+			for _, o in ipairs(cg:GetDescendants()) do
+				if (o:IsA("ImageLabel") or o:IsA("ImageButton"))
+					and (o.Image or o.Texture or o.TextureId):match("img_set_%dx_%d+%.png$")
+				then
+					local old = o:FindFirstChildOfClass("UIGradient")
+					if old then old:Destroy() end
+					if enabled then
+						local seq = ColorSequence.new{
+							ColorSequenceKeypoint.new(0, Color3.fromHSV(sH,sS,sV)),
+							ColorSequenceKeypoint.new(1, Color3.fromHSV(eH,eS,eV)),
+						}
+						local ug = Instance.new("UIGradient", o)
+						ug.Color    = seq
+						ug.Rotation = 45
+					end
+				end
+			end
+		end
 
-    NAgui.addSection("Gradient Picker")
-    NAgui.addToggle("Enable Gradient", enabled, function(v)
-        enabled = v
-        NAmanage.PLEXPLEX()
-        if FileSupport then
-            writefile(path, HttpService:JSONEncode{
-                enabled = enabled,
-                start   = { h = sH, s = sS, v = sV },
-                finish  = { h = eH, s = eS, v = eV },
-            })
-        end
-    end)
-    NAgui.addColorPicker("Start Gradient Color", Color3.fromHSV(sH,sS,sV), function(c)
-        sH, sS, sV = c:ToHSV()
-        NAmanage.PLEXPLEX()
-        if FileSupport then
-            writefile(path, HttpService:JSONEncode{
-                enabled = enabled,
-                start   = { h = sH, s = sS, v = sV },
-                finish  = { h = eH, s = eS, v = eV },
-            })
-        end
-    end)
-    NAgui.addColorPicker("End Gradient Color", Color3.fromHSV(eH,eS,eV), function(c)
-        eH, eS, eV = c:ToHSV()
-        NAmanage.PLEXPLEX()
-        if FileSupport then
-            writefile(path, HttpService:JSONEncode{
-                enabled = enabled,
-                start   = { h = sH, s = sS, v = sV },
-                finish  = { h = eH, s = eS, v = eV },
-            })
-        end
-    end)
+		NAgui.addSection("Gradient Picker")
+		NAgui.addToggle("Enable Gradient", enabled, function(v)
+			enabled = v
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
+		NAgui.addColorPicker("Start Gradient Color", Color3.fromHSV(sH,sS,sV), function(c)
+			sH, sS, sV = c:ToHSV()
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
+		NAgui.addColorPicker("End Gradient Color", Color3.fromHSV(eH,eS,eV), function(c)
+			eH, eS, eV = c:ToHSV()
+			NAmanage.PLEXPLEX()
+			if FileSupport then
+				writefile(path, HttpService:JSONEncode{
+					enabled = enabled,
+					start   = { h = sH, s = sS, v = sV },
+					finish  = { h = eH, s = eS, v = eV },
+				})
+			end
+		end)
 
-    NAmanage.PLEXPLEX()
-end)
+		NAmanage.PLEXPLEX()
+	end)
 end
 
 
