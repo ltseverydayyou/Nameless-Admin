@@ -6379,18 +6379,15 @@ cmd.add({"UNCTest","UNC"},{"UNCTest (UNC)","Test how many functions your executo
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/UNC%20test"))()
 end)
 
-cmd.add({"sUNCtest","sUNC"},{"sUNCtest (sUNC)","uses sUNC test that test the functions if they're working"},function()
+-- game based so bye bye api
+--[[cmd.add({"sUNCtest","sUNC"},{"sUNCtest (sUNC)","uses sUNC test that test the functions if they're working"},function()
 	getgenv().sUNCDebug = {
 		["printcheckpoints"] = false,
 		["delaybetweentests"] = 0
 	}
 
 	loadstring(game:HttpGet("https://script.sunc.su/"))()
-end)
-
-cmd.add({"cherryUNC","CUNC"},{"cherryUNC (CUNC)","executes cherry's advanced UNC checker that actually checks your executor's UNC (if it crashes that's roblox issue)"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/InfernusScripts/Executor-Tests/refs/heads/main/Environment/Test.lua", true))()
-end)
+end)]]
 
 cmd.add({"vulnerabilitytest","vulntest"},{"vulnerabilitytest (vulntest)","Test if your executor is Vulnerable"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/VulnTest.lua"))()
