@@ -598,6 +598,47 @@ NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
 doPREDICTION = true
+ -- make it so It's easier for IY users to move to nameless admin (yes i did this and it's funny)
+local NamelessMigrate = {}
+function NamelessMigrate:LoadFromIY() 
+	if not FileSupport then
+		return
+	end
+
+	-- check if IY is installed
+	if not isfile("IY_FE.iy") then
+		return
+	end
+	local success, content = NACaller(readfile, "IY_FE.iy")
+	if success and content then
+		local p = HttpService:JSONDecode(content)
+		local Objects = {}
+		for i,v in pairs(p.WayPoints) do
+			if not Objects[v.GAME] then
+				Objects[v.GAME] = {}
+			end
+			local cord =  v.COORD
+			cord[#cord+1] = 1
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 1
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 1
+			Objects[v.GAME][v.NAME] = v.COORD
+		end
+		for i,v in pairs(Objects) do
+			local Load = ("%s/WP_%s.json"):format(
+				NAfiles.NAWAYPOINTFILEPATH,
+				tostring(i)
+			)
+			writefile(Load, HttpService:JSONEncode(v))
+		end
+		DoNotif("Your waypoints have been imported from Infinite Yield")
+	end
+end
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
@@ -607,6 +648,10 @@ if FileSupport then
 
 	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
 		makefolder(NAfiles.NAWAYPOINTFILEPATH)
+		-- imagine if it didn't make the folder
+		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+			NamelessMigrate:LoadFromIY()
+		end
 	end
 
 	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
