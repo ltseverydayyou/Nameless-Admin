@@ -578,6 +578,77 @@ NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
 doPREDICTION = true
+-- make it so It's easier for IY users to move to nameless admin (yes i did this and it's funny)
+local NamelessMigrate = {}
+NamelessMigrate.IY_FE = {}
+function NamelessMigrate:LoadIY_FE()
+	if FileSupport then
+		-- check if IY was installed
+		if isfile("IY_FE.iy") then
+			local success, content = NACaller(readfile, "IY_FE.iy")
+			if success and content then
+				NamelessMigrate.IY_FE = HttpService:JSONDecode(content)
+				DoNotif("Some Settings have been imported from Infinite Yield")
+			end
+		end
+	end
+	NamelessMigrate.LoadIY_FE = function() end -- too lazy to make a proper check just override it
+	return
+end
+function NamelessMigrate:Prefix() 
+	NamelessMigrate:LoadIY_FE()
+	if FileSupport then
+		if NamelessMigrate.IY_FE then
+			return NamelessMigrate.IY_FE["prefix"] or nil
+		end
+	end
+	return nil
+end
+
+function NamelessMigrate:UiSize() 
+	NamelessMigrate:LoadIY_FE()
+	if FileSupport then
+		if NamelessMigrate.IY_FE then
+			return tonumber(NamelessMigrate.IY_FE["guiScale"]) or nil
+		end
+	end
+	return nil
+end
+
+function NamelessMigrate:Waypoints() 
+	NamelessMigrate:LoadIY_FE()
+	if not FileSupport then
+		return
+	end
+
+	if NamelessMigrate.IY_FE then
+		local Objects = {}
+		for i,v in pairs(NamelessMigrate.IY_FE["WayPoints"] or {}) do
+			if not Objects[v.GAME] then
+				Objects[v.GAME] = {}
+			end
+			local cord =  v.COORD
+			cord[#cord+1] = 1
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 1
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 0
+			cord[#cord+1] = 1
+			Objects[v.GAME][v.NAME]= {["Components"] = v.COORD}
+		end
+		for i,v in pairs(Objects) do
+			local Load = ("%s/WP_%s.json"):format(
+				NAfiles.NAWAYPOINTFILEPATH,
+				tostring(i)
+			)
+			writefile(Load, HttpService:JSONEncode(v))
+		end
+	end
+
+end
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
@@ -587,6 +658,10 @@ if FileSupport then
 
 	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
 		makefolder(NAfiles.NAWAYPOINTFILEPATH)
+		-- imagine if it didn't make the folder
+		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+			NamelessMigrate:Waypoints()
+		end
 	end
 
 	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
@@ -598,7 +673,7 @@ if FileSupport then
 	end
 
 	if not isfile(NAfiles.NAPREFIXPATH) then
-		writefile(NAfiles.NAPREFIXPATH, ";")
+		writefile(NAfiles.NAPREFIXPATH, NamelessMigrate:Prefix() or ";")
 	end
 
 	if not isfile(NAfiles.NABUTTONSIZEPATH) then
@@ -606,7 +681,7 @@ if FileSupport then
 	end
 
 	if not isfile(NAfiles.NAUISIZEPATH) then
-		writefile(NAfiles.NAUISIZEPATH, "1")
+		writefile(NAfiles.NAUISIZEPATH, NamelessMigrate:UiSize() or "1")
 	end
 
 	if not isfile(NAfiles.NAQOTPATH) then
@@ -21767,7 +21842,6 @@ TextChatService.OnIncomingMessage = function(message)
 	props.Text = message.Text
 	return props]]
 end
-
 --[[
 print(
 	
@@ -21786,7 +21860,6 @@ print(
 ╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
 )
 ]]
-
 math.randomseed(os.time())
 
 Spawn(function()
