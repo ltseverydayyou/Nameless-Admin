@@ -612,7 +612,7 @@ function NamelessMigrate:LoadIY_FE()
 			end
 		end
 	end
-	NamelessMigrate.IY_FE = function() end -- too lazy to make a proper check just override it
+	NamelessMigrate.LoadIY_FE = function() end -- too lazy to make a proper check just override it
 	return
 end
 function NamelessMigrate:Prefix() 
