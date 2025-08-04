@@ -680,7 +680,7 @@ if FileSupport then
 		makefolder(NAfiles.NAWAYPOINTFILEPATH)
 		-- imagine if it didn't make the folder
 		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-			NamelessMigrate:WaypointsLoadFromIY()
+			NamelessMigrate:Waypoints()
 		end
 	end
 
