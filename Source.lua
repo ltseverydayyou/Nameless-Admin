@@ -283,12 +283,12 @@ function NACaller(fn, ...)
 	return Unpack(t, 1, t.n)
 end
 
-NACaller(function()
+pcall(function()
 	repeat
 		Wait(0.1)
-		local okFetch, raw = NACaller(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
+		local okFetch, raw = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
 		if okFetch then
-			local okDecode, decoded = NACaller(HttpService.JSONDecode, HttpService, raw)
+			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 			if okDecode and type(decoded) == "table" then
 				NAStuff.NAjson = decoded
 			end
@@ -954,7 +954,7 @@ if opt.saveTag then
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
 end
 
-NACaller(function()
+pcall(function()
 	local response = opt.NAREQUEST({
 		Url = opt.githubUrl,
 		Method = "GET"
@@ -1727,7 +1727,7 @@ end
 
 Foreach = function(Table, Func, Loop)
 	for Index, Value in next, Table do
-		NACaller(function()
+		pcall(function()
 			if Loop and typeof(Value) == 'table' then
 				for Index2, Value2 in next, Value do
 					Func(Index2, Value2)
@@ -2503,7 +2503,7 @@ function togXray(en)
 					end
 				end
 				if not hasHum then
-					local ok, err = NACaller(function()
+					local ok, err = pcall(function()
 						desc.LocalTransparencyModifier = 0.5
 					end)
 					if not ok then
