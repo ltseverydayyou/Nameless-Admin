@@ -20380,6 +20380,15 @@ end)
 Spawn(function()
 	repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top)=="Instance"
 
+	NAmanage._tweens={}
+	NAmanage.playTween=function(key,instance,info,props)
+		if NAmanage._tweens[key] then NAmanage._tweens[key]:Cancel() end
+		local t=TweenService:Create(instance,info,props)
+		NAmanage._tweens[key]=t
+		t:Play()
+		return t
+	end
+
 	local toggle=InstanceNew("ImageButton",TopBarApp.frame)
 	toggle.Name="TopbarToggle"
 	toggle.Size=UDim2.new(0,42,0,42)
@@ -20482,7 +20491,7 @@ Spawn(function()
 	}
 
 	local childButtons={}
-	local function buildButtons()
+	NAmanage.buildButtons=function()
 		for _,c in pairs(container:GetChildren())do
 			if c:IsA("ImageButton")then c:Destroy()end
 		end
@@ -20509,28 +20518,24 @@ Spawn(function()
 			childButtons[btn]=def.func
 		end
 	end
-	buildButtons()
+	NAmanage.buildButtons()
 
 	NAlib.connect("contentSize",layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		container.CanvasSize=UDim2.new(0,layout.AbsoluteContentSize.X+PADDING,0,0)
+		if isOpen then NAmanage.updatePosition() end
 	end))
 
-	local function clampToggle()
+	NAmanage.clampToggle=function()
 		local fw=TopBarApp.frame.AbsoluteSize.X
 		local bw=toggle.AbsoluteSize.X
 		local off=math.clamp(toggle.Position.X.Offset,-(fw-bw),0)
 		toggle.Position=UDim2.new(toggle.Position.X.Scale,off,toggle.Position.Y.Scale,toggle.Position.Y.Offset)
 	end
-	NAlib.connect("frameSize",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToggle))
+	NAlib.connect("frameSize",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(NAmanage.clampToggle))
 
-	local function computeProps()
-		local count=#buttonDefs
-		local contentW=count*BUTTON_SIZE+(count-1)*PADDING
-		for _,c in ipairs(dropdown:GetDescendants())do
-			if c:IsA("UISizeConstraint")then
-				contentW=math.clamp(contentW,c.MinSize.X,c.MaxSize.X)
-			end
-		end
+	local inFlip=false
+	NAmanage.computeProps=function()
+		local contentW=layout.AbsoluteContentSize.X
 		local showW=math.min(contentW,MAX_WIDTH)
 		local frameX=TopBarApp.frame.AbsolutePosition.X
 		local frameW=TopBarApp.frame.AbsoluteSize.X
@@ -20544,27 +20549,37 @@ Spawn(function()
 		end
 	end
 
-	local function updatePosition()
-		local w,pos,side=computeProps()
-		dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
-		if dropdown.Visible then
-			TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos}):Play()
-			if side~=currentSide then
-				TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
-				currentSide=side
-			end
-		else
+	NAmanage.updatePosition=function()
+		local w,pos,side=NAmanage.computeProps()
+		local targetAnchor=Vector2.new(side=="left"and 1 or 0,0)
+		if not dropdown.Visible then
+			dropdown.AnchorPoint=targetAnchor
 			dropdown.Position=pos
+			dropdown.Size=UDim2.new(0,0,0,BUTTON_SIZE)
 			iconMain.Rotation=side=="left"and 180 or 0
 			currentSide=side
+			return
+		end
+		if side~=currentSide and not inFlip then
+			inFlip=true
+			local collapse=NAmanage.playTween("dropdown_collapse",dropdown,ICON_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
+			collapse.Completed:Wait()
+			dropdown.AnchorPoint=targetAnchor
+			dropdown.Position=pos
+			NAmanage.playTween("dropdown_expand",dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,w,0,BUTTON_SIZE)})
+			NAmanage.playTween("icon_flip",iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0})
+			currentSide=side
+			inFlip=false
+		else
+			NAmanage.playTween("dropdown_move",dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)})
 		end
 	end
-	updatePosition()
+	NAmanage.updatePosition()
 
 	local cam=workspace.CurrentCamera
 	if cam then
 		NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			updatePosition()
+			NAmanage.updatePosition()
 		end))
 	end
 	NAlib.connect("camChange",workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
@@ -20572,80 +20587,83 @@ Spawn(function()
 		NAlib.disconnect("camSize")
 		if cam then
 			NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-				updatePosition()
+				NAmanage.updatePosition()
 			end))
 		end
-		updatePosition()
+		NAmanage.updatePosition()
 	end))
 
-	local function animateIcon(img)
+	NAmanage.animateIcon=function(img)
 		local s=TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0,0,0,0)})
 		s:Play();s.Completed:Wait()
 		iconMain.Image=img
 		TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
 	end
 
-	local function makeDraggable(ui, dragui)
-		dragui = dragui or ui
-		local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
-
+	NAmanage.makeDraggable=function(ui,dragui)
+		dragui=dragui or ui
+		local dragging,dragInput,dragStart,startPos=false,nil,nil,nil
 		dragui.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or  input.UserInputType == Enum.UserInputType.Touch then
-				dragging   = true
-				dragStart  = input.Position
-				startPos   = ui.Position
+			if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+				dragging=true
+				dragStart=input.Position
+				startPos=ui.Position
 				input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
+					if input.UserInputState==Enum.UserInputState.End then
+						dragging=false
 					end
 				end)
 			end
 		end)
-
 		dragui.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement or  input.UserInputType == Enum.UserInputType.Touch then
-				dragInput = input
+			if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+				dragInput=input
 			end
 		end)
-
+		local lastStep=0
 		UserInputService.InputChanged:Connect(function(input)
-			if input == dragInput and dragging then
-				local delta = input.Position - dragStart
-				local fw, bw = TopBarApp.frame.AbsoluteSize.X, ui.AbsoluteSize.X
-				local newX = math.clamp(startPos.X.Offset + delta.X, -(fw - bw), 0)
-				ui.Position = UDim2.new(startPos.X.Scale, newX,startPos.Y.Scale, startPos.Y.Offset)
-				if ui == toggle then
-					clampToggle()
-					updatePosition()
+			if input==dragInput and dragging then
+				local now=os.clock()
+				if now-lastStep<(1/60) then return end
+				lastStep=now
+				local delta=input.Position-dragStart
+				local fw,bw=TopBarApp.frame.AbsoluteSize.X,ui.AbsoluteSize.X
+				local newX=math.clamp(startPos.X.Offset+delta.X,-(fw-bw),0)
+				ui.Position=UDim2.new(startPos.X.Scale,newX,startPos.Y.Scale,startPos.Y.Offset)
+				if ui==toggle then
+					NAmanage.clampToggle()
+					if isOpen then NAmanage.updatePosition() end
 				end
 			end
 		end)
-
-		ui.Active = true
+		ui.Active=true
 	end
-	makeDraggable(toggle)
-	for btn, fn in pairs(childButtons) do makeDraggable(btn) end
+	NAmanage.makeDraggable(toggle)
+	for btn,fn in pairs(childButtons)do NAmanage.makeDraggable(btn) end
 
-	local function toggleDropdown()
+	NAmanage.toggleDropdown=function()
 		isOpen=not isOpen
-		local w,pos,side=computeProps()
+		local w,pos,side=NAmanage.computeProps()
 		dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
 		if isOpen then
 			dropdown.Visible=true
-			TweenService:Create(iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0}):Play()
-			TweenService:Create(dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)}):Play()
-			TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=0.3}):Play()
-			animateIcon(OPENED_IMG)
+			dropdown.Position=pos
+			dropdown.Size=UDim2.new(0,0,0,BUTTON_SIZE)
+			NAmanage.playTween("icon_rot",iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0})
+			NAmanage.playTween("dropdown_open",dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)})
+			NAmanage.playTween("bg_fade",bg,DROPDOWN_TWEEN,{BackgroundTransparency=0.3})
+			NAmanage.animateIcon(OPENED_IMG)
 		else
-			TweenService:Create(bg,DROPDOWN_TWEEN,{BackgroundTransparency=1}):Play()
-			local t=TweenService:Create(dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
-			t:Play();t.Completed:Wait()
+			NAmanage.playTween("bg_fade",bg,DROPDOWN_TWEEN,{BackgroundTransparency=1})
+			local t=NAmanage.playTween("dropdown_close",dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
+			t.Completed:Wait()
 			dropdown.Visible=false
-			animateIcon(CLOSED_IMG)
+			NAmanage.animateIcon(CLOSED_IMG)
 		end
+		currentSide=side
 	end
 
-	MouseButtonFix(toggle,toggleDropdown)
+	MouseButtonFix(toggle,NAmanage.toggleDropdown)
 	for btn,fn in pairs(childButtons)do MouseButtonFix(btn,fn)end
 end)
 
