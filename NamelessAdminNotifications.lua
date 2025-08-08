@@ -470,6 +470,8 @@ local function BuildNotification(p)
 		inputBox.TextYAlignment = Enum.TextYAlignment.Center
 		inputBox.Font = Enum.Font.Gotham
 		inputBox.TextSize = 14
+		inputBox.Text=''
+		inputBox.PlaceholderText = "Type Here..."
 		inputBox.TextColor3 = COLORS.Text
 		inputBox.RichText = true
 		inputBox.BackgroundColor3 = COLORS.Button
@@ -590,6 +592,8 @@ local function BuildTopWindow(p)
 		inputBox.TextYAlignment = Enum.TextYAlignment.Center
 		inputBox.Font = Enum.Font.Gotham
 		inputBox.TextSize = 14
+		inputBox.Text=''
+		inputBox.PlaceholderText = "Type Here..."
 		inputBox.TextColor3 = COLORS.Text
 		inputBox.RichText = true
 		inputBox.BackgroundColor3 = COLORS.Button
@@ -708,6 +712,8 @@ local function BuildPopupModal(p)
 		inputBox.TextYAlignment = Enum.TextYAlignment.Center
 		inputBox.Font = Enum.Font.Gotham
 		inputBox.TextSize = 14
+		inputBox.Text=''
+		inputBox.PlaceholderText = "Type Here..."
 		inputBox.TextColor3 = COLORS.Text
 		inputBox.RichText = true
 		inputBox.BackgroundColor3 = COLORS.Button
