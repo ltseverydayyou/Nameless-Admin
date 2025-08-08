@@ -6738,127 +6738,134 @@ cmd.add({"unantiteleport", "unnoteleport", "unblocktp"}, {"unantiteleport", "Dis
 	DebugNotif("Anti-Teleport Disabled", 2)
 end)
 
-acftpCON = {}
-acftpCONN = nil
-acftpCFrames = {}
-acftpGUI = nil
-acftpState = false
+local ATPC = {
+	state = false,
+	plr = Players.LocalPlayer,
+	lastCF = nil,
+	lastT = 0,
+	hits = 0,
+	MAX_SPEED = 70,
+	MAX_STEP_DIST = 8,
+	REPEAT = 3,
+	LOCK_TIME = 0.1,
+	cn = {},
+	gui = nil,
+	btn = nil
+}
 
-function enableACFTP()
-	acftpState = true
-	local character = LocalPlayer and LocalPlayer.Character
-	if not character then
-		DoNotif("Your character is invalid.", 3)
-		return
-	end
-
-	for _, con in pairs(acftpCON) do
-		con:Disconnect()
-	end
-	acftpCON = {}
-	acftpCFrames = {}
-
-	if acftpCONN then
-		acftpCONN:Disconnect()
-		acftpCONN = nil
-	end
-
-	for _, part in pairs(character:GetChildren()) do
-		if part:IsA("BasePart") then
-			acftpCFrames[part] = part.CFrame
-			acftpCON[part] = part:GetPropertyChangedSignal("CFrame"):Connect(function()
-				if part:IsDescendantOf(character) and part.CFrame ~= acftpCFrames[part] then
-					part.CFrame = acftpCFrames[part]
-				end
-			end)
+ATPC._zero = function(char)
+	for _,d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") then
+			d.AssemblyLinearVelocity = Vector3.zero
+			d.AssemblyAngularVelocity = Vector3.zero
 		end
 	end
+end
 
-	acftpCONN = RunService.Stepped:Connect(function()
-		for part in pairs(acftpCFrames) do
-			if part and part:IsDescendantOf(character) then
-				acftpCFrames[part] = part.CFrame
-			end
-		end
+ATPC._bindChar = function(char)
+	local r = getRoot(char)
+	if not r then return end
+	ATPC.lastCF = r.CFrame
+	ATPC.lastT = os.clock()
+	ATPC.hits = 0
+end
+
+ATPC._syncBtn = function()
+	if not ATPC.btn then return end
+	if ATPC.state then
+		ATPC.btn.Text = "UNACFTP"
+		ATPC.btn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	else
+		ATPC.btn.Text = "ACFTP"
+		ATPC.btn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+	end
+end
+
+ATPC._buildGUI = function()
+	if not IsOnMobile then return end
+	if ATPC.gui then ATPC.gui:Destroy() ATPC.gui=nil ATPC.btn=nil end
+	ATPC.gui = InstanceNew("ScreenGui")
+	local b = InstanceNew("TextButton")
+	local c = InstanceNew("UICorner")
+	local a = InstanceNew("UIAspectRatioConstraint")
+	NaProtectUI(ATPC.gui)
+	ATPC.gui.ResetOnSpawn = false
+	b.Parent = ATPC.gui
+	b.BackgroundTransparency = 0.1
+	b.Position = UDim2.new(0.9,0,0.4,0)
+	b.Size = UDim2.new(0.08,0,0.1,0)
+	b.Font = Enum.Font.GothamBold
+	b.TextColor3 = Color3.fromRGB(255,255,255)
+	b.TextScaled = true
+	b.TextWrapped = true
+	b.Active = true
+	c.CornerRadius = UDim.new(0.2,0)
+	c.Parent = b
+	a.Parent = b
+	a.AspectRatio = 1
+	ATPC.btn = b
+	ATPC._syncBtn()
+	MouseButtonFix(b,function()
+		if ATPC.state then ATPC.Disable() else ATPC.Enable() end
 	end)
-
-	DebugNotif("Anti CFrame Teleport enabled", 1.5)
+	NAgui.draggerV2(b)
 end
 
-function disableACFTP()
-	for _, con in pairs(acftpCON) do
-		con:Disconnect()
-	end
-	acftpCON = {}
-	acftpCFrames = {}
-
-	if acftpCONN then
-		acftpCONN:Disconnect()
-		acftpCONN = nil
-	end
-
-	acftpState = false
-	DebugNotif("Anti CFrame Teleport disabled", 1.5)
-end
-
-cmd.add({"anticframeteleport", "acframetp", "acftp"}, {"anticframeteleport (acframetp,acftp)", "Prevents scripts from teleporting you by resetting your CFrame"}, function()
-	enableACFTP()
-
-	if IsOnMobile then
-		if acftpGUI then
-			acftpGUI:Destroy()
-		end
-
-		acftpGUI = InstanceNew("ScreenGui")
-		local acftpBtn = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-		local aspect = InstanceNew("UIAspectRatioConstraint")
-
-		NaProtectUI(acftpGUI)
-		acftpGUI.ResetOnSpawn = false
-
-		acftpBtn.Parent = acftpGUI
-		acftpBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-		acftpBtn.BackgroundTransparency = 0.1
-		acftpBtn.Position = UDim2.new(0.9, 0, 0.4, 0)
-		acftpBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
-		acftpBtn.Font = Enum.Font.GothamBold
-		acftpBtn.Text = "UNACFTP"
-		acftpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		acftpBtn.TextSize = 18
-		acftpBtn.TextScaled = true
-		acftpBtn.TextWrapped = true
-		acftpBtn.Active = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = acftpBtn
-		aspect.Parent = acftpBtn
-		aspect.AspectRatio = 1.0
-
-		MouseButtonFix(acftpBtn, function()
-			acftpState = not acftpState
-			if acftpState then
-				enableACFTP()
-				acftpBtn.Text = "UNACFTP"
-				acftpBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+ATPC.Enable = function()
+	if ATPC.state then return end
+	ATPC.state = true
+	ATPC._bindChar(ATPC.plr.Character)
+	if not ATPC.cn.add then ATPC.cn.add = ATPC.plr.CharacterAdded:Connect(ATPC._bindChar) end
+	if not ATPC.cn.hb then
+		ATPC.cn.hb = RunService.Heartbeat:Connect(function()
+			if not ATPC.state then return end
+			local char = ATPC.plr.Character
+			if not char then return end
+			local r = getRoot(char)
+			if not r then return end
+			if not ATPC.lastCF then ATPC.lastCF, ATPC.lastT = r.CFrame, os.clock() return end
+			local now = os.clock()
+			local dt = math.max(now - ATPC.lastT, 1/240)
+			local cf = r.CFrame
+			local dist = (cf.Position - ATPC.lastCF.Position).Magnitude
+			local speed = dist / dt
+			if dist > ATPC.MAX_STEP_DIST or speed > ATPC.MAX_SPEED then
+				char:PivotTo(ATPC.lastCF)
+				ATPC._zero(char)
+				ATPC.hits += 1
+				if ATPC.hits >= ATPC.REPEAT then
+					task.defer(function() ATPC._zero(char) end)
+					task.delay(ATPC.LOCK_TIME, function() ATPC.hits = 0 end)
+				end
 			else
-				disableACFTP()
-				acftpBtn.Text = "ACFTP"
-				acftpBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+				ATPC.hits = math.max(ATPC.hits - 1, 0)
+				ATPC.lastCF = cf
+				ATPC.lastT = now
 			end
 		end)
-
-		NAgui.draggerV2(acftpBtn)
 	end
+	ATPC._syncBtn()
+	DebugNotif("Anti CFrame Teleport enabled",1.5)
+end
+
+ATPC.Disable = function()
+	if not ATPC.state then return end
+	ATPC.state = false
+	for _,c in pairs(ATPC.cn) do c:Disconnect() end
+	ATPC.cn = {}
+	ATPC.lastCF, ATPC.lastT, ATPC.hits = nil, 0, 0
+	ATPC._syncBtn()
+	DebugNotif("Anti CFrame Teleport disabled",1.5)
+end
+
+cmd.add({"anticframeteleport","acframetp","acftp"}, {"anticframeteleport (acframetp,acftp)","Prevents client teleports"}, function()
+	ATPC.Enable()
+	if IsOnMobile then ATPC._buildGUI() end
 end)
 
-cmd.add({"unanticframeteleport", "unacframetp", "unacftp"}, {"unanticframeteleport (unacframetp,unacftp)", "Disables Anti CFrame Teleport"}, function()
-	disableACFTP()
-
-	if acftpGUI then
-		acftpGUI:Destroy()
-		acftpGUI = nil
-	end
+cmd.add({"unanticframeteleport","unacframetp","unacftp"}, {"unanticframeteleport (unacframetp,unacftp)","Disables Anti CFrame Teleport"}, function()
+	ATPC.Disable()
+	if ATPC.gui then ATPC.gui:Destroy() ATPC.gui=nil ATPC.btn=nil end
 end)
 
 cmd.add({"lay"},{"lay","zzzzzzzz"},function()
