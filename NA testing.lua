@@ -629,7 +629,7 @@ function NamelessMigrate:UiSize()
 	NamelessMigrate:LoadIY_FE()
 	if FileSupport then
 		if NamelessMigrate.IY_FE then
-			return tonumber(NamelessMigrate.IY_FE["guiScale"]) or nil
+			return tostring(NamelessMigrate.IY_FE["guiScale"]) or nil
 		end
 	end
 	return nil
