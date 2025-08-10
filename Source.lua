@@ -1033,6 +1033,7 @@ _G.NAadminsLol={
 	1594235217; --Purple
 	1620986547; --pc alt
 	2019160453; --grim
+	4881709223; --bzz bzz byzren
 }
 
 if UserInputService.TouchEnabled then
