@@ -1,558 +1,714 @@
-local function SafeGetService(name)
-    local Service = (game.GetService);
-	local Reference = (cloneref) or function(reference) return reference end
-	return Reference(Service(game, name));
+local function Svc(n)
+    local g = game.GetService
+    local rf = cloneref or function(v) return v end
+    return rf(g(game, n))
 end
 
-local r = request or http_request or (syn and syn.request) or function() end
-local ts = SafeGetService("TweenService")
-local uis = SafeGetService("UserInputService")
-local http = SafeGetService("HttpService")
-local engine = "ScriptBlox" -- current ones (RScripts, ScriptBlox)
+local rq = request or http_request or (syn and syn.request) or function() end
+local tw = Svc("TweenService")
+local ui = Svc("UserInputService")
+local hs = Svc("HttpService")
+local rs = Svc("RunService")
+local eng = "ScriptBlox"
 
-local c = {
-    bg = Color3.fromRGB(30, 30, 35),
-    ac = Color3.fromRGB(0, 0, 0),
-    sc = Color3.fromRGB(45, 45, 50),
-    tx = Color3.fromRGB(255, 255, 255),
-    td = Color3.fromRGB(180, 180, 180),
-    su = Color3.fromRGB(40, 180, 99),
-    wa = Color3.fromRGB(255, 153, 51),
-    er = Color3.fromRGB(220, 53, 69)
+local col = {
+    bg = Color3.fromRGB(20,22,26),
+    ac = Color3.fromRGB(30,144,255),
+    sc = Color3.fromRGB(32,34,40),
+    tx = Color3.fromRGB(255,255,255),
+    td = Color3.fromRGB(186,192,205),
+    su = Color3.fromRGB(52,211,153),
+    wa = Color3.fromRGB(255,179,71),
+    er = Color3.fromRGB(244,63,94)
 }
 
-local function protectUI(sGui)
-    if sGui:IsA("ScreenGui") then
-        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		sGui.DisplayOrder = 999999999
-		sGui.ResetOnSpawn = false
-		sGui.IgnoreGuiInset = true
+local function Protect(g)
+    if g:IsA("ScreenGui") then
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        g.DisplayOrder = 999999999
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
     end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
-
-    local function NAProtection(inst, var)
-        if inst then
-            if var then
-                inst[var] = "\0"
-                inst.Archivable = false
-            else
-                inst.Name = "\0"
-                inst.Archivable = false
-            end
+    local cg = Svc("CoreGui")
+    local lp = Svc("Players").LocalPlayer
+    local function NA(x,v)
+        if x then
+            if v then x[v] = "\0" x.Archivable = false else x.Name = "\0" x.Archivable = false end
         end
     end
-
-    if gethui then
-		NAProtection(sGui)
-		sGui.Parent = gethui()
-		return sGui
-	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
-		NAProtection(sGui)
-		sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-		return sGui
-	elseif cGUI then
-		NAProtection(sGui)
-		sGui.Parent = cGUI
-		return sGui
-	elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
-		NAProtection(sGui)
-		sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
-		sGui.ResetOnSpawn = false
-		return sGui
-	else
-		return nil
-	end
+    if gethui then NA(g) g.Parent = gethui()
+    elseif cg and cg:FindFirstChild("RobloxGui") then NA(g) g.Parent = cg:FindFirstChild("RobloxGui")
+    elseif cg then NA(g) g.Parent = cg
+    elseif lp and lp:FindFirstChildWhichIsA("PlayerGui") then NA(g) g.Parent = lp:FindFirstChildWhichIsA("PlayerGui") g.ResetOnSpawn=false end
+    return g
 end
 
 local sg = Instance.new("ScreenGui")
-sg.Name = "SBHub"
-protectUI(sg)
-sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+sg.Name = "SBX"
+Protect(sg)
 
-local m = Instance.new("Frame")
-m.Name = "M"
-m.Size = UDim2.new(0, 500, 0, 400)
-m.Position = UDim2.new(0.5, -250, 0.5, -200)
-m.BackgroundColor3 = c.bg
-m.BorderSizePixel = 0
-m.Active = true
-m.ClipsDescendants = true
-m.Parent = sg
+local fr = Instance.new("Frame")
+fr.Size = UDim2.new(0, 580, 0, 500)
+fr.Position = UDim2.new(0.5, -290, 0.5, -250)
+fr.BackgroundColor3 = col.bg
+fr.BorderSizePixel = 0
+fr.Active = true
+fr.ClipsDescendants = true
+fr.Parent = sg
 
-local mc = Instance.new("UICorner")
-mc.CornerRadius = UDim.new(0, 10)
-mc.Parent = m
+local frc = Instance.new("UICorner")
+frc.CornerRadius = UDim.new(0, 14)
+frc.Parent = fr
 
-local sh = Instance.new("ImageLabel")
-sh.Name = "Sh"
-sh.AnchorPoint = Vector2.new(0.5, 0.5)
-sh.BackgroundTransparency = 1
-sh.Position = UDim2.new(0.5, 0, 0.5, 0)
-sh.Size = UDim2.new(1, 40, 1, 40)
-sh.ZIndex = -1
-sh.Image = "rbxassetid://5554236805"
-sh.ImageColor3 = Color3.fromRGB(0, 0, 0)
-sh.ImageTransparency = 0.4
-sh.ScaleType = Enum.ScaleType.Slice
-sh.SliceCenter = Rect.new(23, 23, 277, 277)
-sh.Parent = m
+local fst = Instance.new("UIStroke")
+fst.Thickness = 1
+fst.Color = Color3.fromRGB(70,75,85)
+fst.Transparency = 0.35
+fst.Parent = fr
 
-local tb = Instance.new("Frame")
-tb.Name = "TB"
-tb.Size = UDim2.new(1, 0, 0, 40)
-tb.BackgroundColor3 = c.ac
-tb.BorderSizePixel = 0
-tb.Parent = m
+local top = Instance.new("Frame")
+top.Size = UDim2.new(1, 0, 0, 56)
+top.BackgroundColor3 = col.sc
+top.BorderSizePixel = 0
+top.Parent = fr
 
-local tbc = Instance.new("UICorner")
-tbc.CornerRadius = UDim.new(0, 10)
-tbc.Parent = tb
+local topc = Instance.new("UICorner")
+topc.CornerRadius = UDim.new(0, 14)
+topc.Parent = top
 
-local bf = Instance.new("Frame")
-bf.Name = "BF"
-bf.Size = UDim2.new(1, 0, 0, 10)
-bf.Position = UDim2.new(0, 0, 1, -10)
-bf.BackgroundColor3 = c.ac
-bf.BorderSizePixel = 0
-bf.ZIndex = tb.ZIndex
-bf.Parent = tb
+local tgrad = Instance.new("UIGradient")
+tgrad.Color = ColorSequence.new(Color3.fromRGB(45,49,58), col.sc)
+tgrad.Rotation = 90
+tgrad.Parent = top
+task.spawn(function()
+    while top.Parent do
+        tw:Create(tgrad, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {Offset = Vector2.new(0,0.07)}):Play()
+        task.wait(1.8)
+    end
+end)
 
-local t = Instance.new("TextLabel")
-t.Name = "T"
-t.Size = UDim2.new(1, -120, 1, 0)
-t.Position = UDim2.new(0, 15, 0, 0)
-t.BackgroundTransparency = 1
-t.Font = Enum.Font.GothamBold
-t.Text = "Script Hub - By @ltseverydayyou"
-t.TextColor3 = c.tx
-t.TextSize = 18
-t.TextXAlignment = Enum.TextXAlignment.Left
-t.Parent = tb
+local ttl = Instance.new("TextLabel")
+ttl.Size = UDim2.new(1, -260, 1, 0)
+ttl.Position = UDim2.new(0, 16, 0, 0)
+ttl.BackgroundTransparency = 1
+ttl.Font = Enum.Font.GothamBold
+ttl.Text = "Script Hub • by @ltseverydayyou"
+ttl.TextColor3 = col.tx
+ttl.TextSize = 18
+ttl.TextXAlignment = Enum.TextXAlignment.Left
+ttl.Parent = top
 
-local dd = Instance.new("TextButton")
-dd.Name = "DD"
-dd.Size = UDim2.new(0, 120, 0, 27)
-dd.Position = UDim2.new(1, -185, 0, 8)
-dd.BackgroundColor3 = c.sc
-dd.BorderSizePixel = 0
-dd.Font = Enum.Font.GothamSemibold
-dd.Text = "Engine: ScriptBlox"
-dd.TextColor3 = c.tx
-dd.TextScaled = true
-dd.Parent = tb
+local tr = Instance.new("Frame")
+tr.BackgroundTransparency = 1
+tr.Size = UDim2.new(0, 0, 1, -12)
+tr.Position = UDim2.new(1, -12, 0, 6)
+tr.AnchorPoint = Vector2.new(1,0)
+tr.AutomaticSize = Enum.AutomaticSize.X
+tr.Parent = top
 
-local ddc = Instance.new("UICorner")
-ddc.CornerRadius = UDim.new(0, 6)
-ddc.Parent = dd
+local trl = Instance.new("UIListLayout")
+trl.FillDirection = Enum.FillDirection.Horizontal
+trl.HorizontalAlignment = Enum.HorizontalAlignment.Right
+trl.VerticalAlignment = Enum.VerticalAlignment.Center
+trl.Padding = UDim.new(0, 8)
+trl.Parent = tr
 
-local cb = Instance.new("ImageButton")
-cb.Name = "CB"
-cb.Size = UDim2.new(0, 24, 0, 24)
-cb.Position = UDim2.new(1, -32, 0, 8)
-cb.BackgroundTransparency = 1
-cb.Image = "rbxassetid://6031094678"
-cb.ImageColor3 = c.tx
-cb.Parent = tb
+local engb = Instance.new("TextButton")
+engb.Size = UDim2.new(0, 184, 1, 0)
+engb.BackgroundColor3 = col.bg
+engb.Text = "Engine: ScriptBlox"
+engb.TextColor3 = col.tx
+engb.TextSize = 14
+engb.Font = Enum.Font.GothamSemibold
+engb.AutoButtonColor = false
+engb.Parent = tr
 
-local mb = Instance.new("ImageButton")
-mb.Name = "MB"
-mb.Size = UDim2.new(0, 24, 0, 24)
-mb.Position = UDim2.new(1, -64, 0, 8)
-mb.BackgroundTransparency = 1
-mb.Image = "rbxassetid://6031090990"
-mb.ImageColor3 = c.tx
-mb.Parent = tb
+local engbc = Instance.new("UICorner")
+engbc.CornerRadius = UDim.new(0, 8)
+engbc.Parent = engb
 
-local sc = Instance.new("Frame")
-sc.Name = "SC"
-sc.Size = UDim2.new(1, -40, 0, 50)
-sc.Position = UDim2.new(0, 20, 0, 50)
-sc.BackgroundColor3 = c.sc
-sc.BorderSizePixel = 0
-sc.Parent = m
+local engbs = Instance.new("UIStroke")
+engbs.Thickness = 1
+engbs.Color = Color3.fromRGB(70,75,85)
+engbs.Transparency = 0.25
+engbs.Parent = engb
 
-local scc = Instance.new("UICorner")
-scc.CornerRadius = UDim.new(0, 8)
-scc.Parent = sc
+local mini = Instance.new("TextButton")
+mini.Size = UDim2.new(0, 40, 1, 0)
+mini.BackgroundColor3 = Color3.fromRGB(45,49,58)
+mini.Text = "V"
+mini.TextColor3 = col.tx
+mini.TextScaled = true
+mini.Font = Enum.Font.GothamBold
+mini.AutoButtonColor = false
+mini.Rotation = 0
+mini.Parent = tr
+local minic = Instance.new("UICorner"); minic.CornerRadius=UDim.new(0,8); minic.Parent=mini
 
-local si = Instance.new("ImageLabel")
-si.Name = "SI"
-si.Size = UDim2.new(0, 20, 0, 20)
-si.Position = UDim2.new(0, 10, 0.5, -10)
-si.BackgroundTransparency = 1
-si.Image = "rbxassetid://3192519002"
-si.ImageColor3 = c.td
-si.Parent = sc
+local cls = Instance.new("TextButton")
+cls.Size = UDim2.new(0, 40, 1, 0)
+cls.BackgroundColor3 = Color3.fromRGB(45,49,58)
+cls.Text = "X"
+cls.TextColor3 = col.tx
+cls.TextScaled = true
+cls.Font = Enum.Font.GothamBold
+cls.AutoButtonColor = false
+cls.Parent = tr
+local clsc = Instance.new("UICorner"); clsc.CornerRadius=UDim.new(0,8); clsc.Parent=cls
 
-local stb = Instance.new("TextBox")
-stb.Name = "STB"
-stb.Size = UDim2.new(1, -80, 1, -10)
-stb.Position = UDim2.new(0, 40, 0, 5)
-stb.BackgroundTransparency = 1
-stb.Font = Enum.Font.Gotham
-stb.PlaceholderText = "Search for scripts..."
-stb.Text = ""
-stb.TextColor3 = c.tx
-stb.TextSize = 14
-stb.TextXAlignment = Enum.TextXAlignment.Left
-stb.Parent = sc
+local sr = Instance.new("Frame")
+sr.Size = UDim2.new(1, -32, 0, 64)
+sr.Position = UDim2.new(0, 16, 0, 72)
+sr.BackgroundColor3 = col.sc
+sr.BorderSizePixel = 0
+sr.Parent = fr
 
-local sb = Instance.new("TextButton")
-sb.Name = "SB"
-sb.Size = UDim2.new(0, 80, 0, 30)
-sb.Position = UDim2.new(1, -90, 0.5, -15)
-sb.BackgroundColor3 = c.ac
-sb.BorderSizePixel = 0
-sb.Font = Enum.Font.GothamSemibold
-sb.Text = "Search"
-sb.TextColor3 = c.tx
-sb.TextSize = 14
-sb.Parent = sc
+local src = Instance.new("UICorner")
+src.CornerRadius = UDim.new(0, 12)
+src.Parent = sr
 
-local sbc = Instance.new("UICorner")
-sbc.CornerRadius = UDim.new(0, 6)
-sbc.Parent = sb
+local srs = Instance.new("UIStroke")
+srs.Thickness = 1
+srs.Color = Color3.fromRGB(70,75,85)
+srs.Transparency = 0.25
+srs.Parent = sr
+
+local sPad = Instance.new("UIPadding")
+sPad.PaddingLeft = UDim.new(0, 12)
+sPad.PaddingRight = UDim.new(0, 12)
+sPad.Parent = sr
+
+local sLbl = Instance.new("TextLabel")
+sLbl.Size = UDim2.new(0, 32, 1, 0)
+sLbl.BackgroundTransparency = 1
+sLbl.Font = Enum.Font.GothamBold
+sLbl.Text = "🔎"
+sLbl.TextColor3 = col.td
+sLbl.TextScaled = true
+sLbl.Parent = sr
+
+local sbox = Instance.new("TextBox")
+sbox.Size = UDim2.new(1, -260, 1, -16)
+sbox.Position = UDim2.new(0, 40, 0, 8)
+sbox.BackgroundTransparency = 1
+sbox.Font = Enum.Font.Gotham
+sbox.PlaceholderText = "Search for scripts…"
+sbox.Text = ""
+sbox.TextColor3 = col.tx
+sbox.PlaceholderColor3 = Color3.fromRGB(140,146,160)
+sbox.TextSize = 16
+sbox.TextXAlignment = Enum.TextXAlignment.Left
+sbox.ClearTextOnFocus = false
+sbox.Parent = sr
+
+local go = Instance.new("TextButton")
+go.Size = UDim2.new(0, 148, 0, 40)
+go.Position = UDim2.new(1, -160, 0.5, -20)
+go.BackgroundColor3 = col.ac
+go.BorderSizePixel = 0
+go.Font = Enum.Font.GothamSemibold
+go.Text = "Search"
+go.TextColor3 = col.tx
+go.TextSize = 16
+go.AutoButtonColor = false
+go.Parent = sr
+
+local goc = Instance.new("UICorner")
+goc.CornerRadius = UDim.new(0, 10)
+goc.Parent = go
+
+local goGrad = Instance.new("UIGradient")
+goGrad.Color = ColorSequence.new(col.ac, Color3.fromRGB(58,160,255))
+goGrad.Rotation = 0
+goGrad.Offset = Vector2.new(-1,0)
+goGrad.Parent = go
+task.spawn(function()
+    while go.Parent do
+        tw:Create(goGrad, TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
+        task.wait(2.2)
+        goGrad.Offset = Vector2.new(-1,0)
+    end
+end)
+
+local ub = Instance.new("Frame")
+ub.AnchorPoint = Vector2.new(0,1)
+ub.Position = UDim2.new(0, 12, 1, -6)
+ub.Size = UDim2.new(0, 0, 0, 2)
+ub.BackgroundColor3 = col.ac
+ub.BorderSizePixel = 0
+ub.Parent = sr
+
+local sp = Instance.new("TextLabel")
+sp.Size = UDim2.new(0, 30, 0, 30)
+sp.Position = UDim2.new(1, -200, 0.5, -15)
+sp.BackgroundTransparency = 1
+sp.Font = Enum.Font.Code
+sp.Text = ""
+sp.TextColor3 = col.tx
+sp.TextScaled = true
+sp.ZIndex = 2
+sp.Parent = sr
 
 local rc = Instance.new("Frame")
-rc.Name = "RC"
-rc.Size = UDim2.new(1, -40, 1, -110)
-rc.Position = UDim2.new(0, 20, 0, 110)
-rc.BackgroundColor3 = c.sc
+rc.Size = UDim2.new(1, -32, 1, -152)
+rc.Position = UDim2.new(0, 16, 0, 144)
+rc.BackgroundColor3 = col.sc
 rc.BorderSizePixel = 0
-rc.Parent = m
+rc.Parent = fr
 
 local rcc = Instance.new("UICorner")
-rcc.CornerRadius = UDim.new(0, 8)
+rcc.CornerRadius = UDim.new(0, 12)
 rcc.Parent = rc
 
+local rcs = Instance.new("UIStroke")
+rcs.Color = Color3.fromRGB(70,75,85)
+rcs.Transparency = 0.3
+rcs.Thickness = 1
+rcs.Parent = rc
+
 local sf = Instance.new("ScrollingFrame")
-sf.Name = "SF"
-sf.Size = UDim2.new(1, -20, 1, -20)
-sf.Position = UDim2.new(0, 10, 0, 10)
+sf.Size = UDim2.new(1, -16, 1, -16)
+sf.Position = UDim2.new(0, 8, 0, 8)
 sf.BackgroundTransparency = 1
 sf.BorderSizePixel = 0
 sf.ScrollBarThickness = 6
-sf.ScrollBarImageColor3 = c.ac
+sf.ScrollBarImageColor3 = col.ac
 sf.CanvasSize = UDim2.new(0, 0, 0, 0)
 sf.Parent = rc
 
-local dragging, dragInput, dragStart, startPos
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 10)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = sf
 
-local function updateDrag(input)
-    local delta = input.Position - dragStart
-    m.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 8)
+pad.PaddingLeft = UDim.new(0, 2)
+pad.PaddingRight = UDim.new(0, 2)
+pad.PaddingBottom = UDim.new(0, 8)
+pad.Parent = sf
+
+local tn = Instance.new("Frame")
+tn.AnchorPoint = Vector2.new(1,0)
+tn.BackgroundTransparency = 1
+tn.Size = UDim2.new(0, 320, 1, 0)
+tn.Position = UDim2.new(1, -16, 0, 72)
+tn.ZIndex = 10
+tn.Parent = fr
+
+local tnl = Instance.new("UIListLayout")
+tnl.VerticalAlignment = Enum.VerticalAlignment.Top
+tnl.HorizontalAlignment = Enum.HorizontalAlignment.Right
+tnl.Padding = UDim.new(0, 8)
+tnl.Parent = tn
+
+local function btnAnim(b, baseCol, hoverCol)
+    local base = b.Size
+    local hover = UDim2.new(base.X.Scale, base.X.Offset+4, base.Y.Scale, base.Y.Offset+2)
+    local press = UDim2.new(base.X.Scale, base.X.Offset-2, base.Y.Scale, base.Y.Offset-1)
+    local hovering = false
+    b.MouseEnter:Connect(function()
+        hovering = true
+        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = hoverCol, Size = hover}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        hovering = false
+        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = baseCol, Size = base}):Play()
+    end)
+    b.MouseButton1Down:Connect(function()
+        tw:Create(b, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = press}):Play()
+    end)
+    b.MouseButton1Up:Connect(function()
+        tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = hovering and hover or base}):Play()
+    end)
+end
+btnAnim(engb, col.bg, Color3.fromRGB(45,49,58))
+btnAnim(go, col.ac, Color3.fromRGB(58,160,255))
+btnAnim(mini, mini.BackgroundColor3, Color3.fromRGB(60,64,72))
+btnAnim(cls, cls.BackgroundColor3, Color3.fromRGB(72,24,32))
+
+local function sizeCanvas()
+    sf.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 12)
+end
+list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(sizeCanvas)
+
+local function clearAll(anim)
+    for _,v in ipairs(sf:GetChildren()) do
+        if v:IsA("Frame") and (v.Name:find("^Card") or v.Name=="Msg" or v.Name=="Skel") then
+            if anim then
+                tw:Create(v, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1, Position = v.Position + UDim2.new(0,0,0,6)}):Play()
+                task.delay(0.2, function() if v then v:Destroy() end end)
+            else
+                v:Destroy()
+            end
+        end
+    end
+    sizeCanvas()
 end
 
-tb.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = m.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
+local function toast(txt, colr)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(0, 300, 0, 44)
+    f.BackgroundColor3 = col.sc
+    f.BorderSizePixel = 0
+    f.ZIndex = 11
+    f.Parent = tn
+    local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(0, 10); fc.Parent = f
+    local fs = Instance.new("UIStroke"); fs.Color = Color3.fromRGB(80,85,95); fs.Transparency = 0.35; fs.Thickness = 1; fs.Parent = f
+    local lb = Instance.new("TextLabel")
+    lb.BackgroundTransparency = 1
+    lb.Text = txt
+    lb.TextWrapped = true
+    lb.TextXAlignment = Enum.TextXAlignment.Left
+    lb.Font = Enum.Font.Gotham
+    lb.TextSize = 14
+    lb.TextColor3 = colr or col.tx
+    lb.Size = UDim2.new(1, -24, 1, 0)
+    lb.Position = UDim2.new(0, 12, 0, 0)
+    lb.ZIndex = 12
+    lb.Parent = f
+    f.AnchorPoint = Vector2.new(1,0)
+    f.Position = UDim2.new(1, 24, 0, 0)
+    f.BackgroundTransparency = 1
+    lb.TextTransparency = 1
+    tw:Create(f, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 0}):Play()
+    tw:Create(lb, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+    task.delay(2.2, function()
+        tw:Create(f, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1, 24, 0, 0), BackgroundTransparency = 1}):Play()
+        task.delay(0.24, function() if f then f:Destroy() end end)
+    end)
+end
+
+local spConn
+local spFrames = {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"}
+local function spin(on)
+    if on then
+        if spConn then return end
+        sp.Text = spFrames[1]
+        ub.Size = UDim2.new(0, 0, 0, 2)
+        tw:Create(ub, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, true), {Size = UDim2.new(1, -24, 0, 2)}):Play()
+        local i,acc = 1,0
+        spConn = rs.RenderStepped:Connect(function(dt)
+            acc += dt
+            if acc > 0.08 then
+                acc = 0
+                i = (i % #spFrames)+1
+                sp.Text = spFrames[i]
             end
         end)
-    end
-end)
-
-tb.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-uis.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        updateDrag(input)
-    end
-end)
-
-local minimized = false
-mb.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    if minimized then
-        ts:Create(m, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 40)}):Play()
     else
-        ts:Create(m, TweenInfo.new(0.3), {Size = UDim2.new(0, 500, 0, 400)}):Play()
+        if spConn then spConn:Disconnect() spConn=nil end
+        sp.Text = ""
+        tw:Create(ub, TweenInfo.new(0.15), {Size = UDim2.new(0, 0, 0, 2)}):Play()
     end
-end)
-
-cb.MouseButton1Click:Connect(function()
-    sg:Destroy()
-end)
-
-dd.MouseButton1Click:Connect(function()
-    if engine == "ScriptBlox" then
-        engine = "RScripts"
-        dd.Text = "Engine: RScripts"
-        stb.PlaceholderText = "Search for scripts (powered by rscripts.net)"
-    else
-        engine = "ScriptBlox"
-        dd.Text = "Engine: ScriptBlox"
-        stb.PlaceholderText = "Search for scripts (powered by scriptblox.com)"
-    end
-end)
-
-local function search(q,doEmpty)
-    local url = engine == "ScriptBlox" and "https://scriptblox.com/api/script/search?q="..q or "https://rscripts.net/api/v2/scripts?page=1&orderBy=date&sort=desc&q="..q
-
-    if doEmpty and engine == "ScriptBlox" then
-        url='https://www.scriptblox.com/api/script/fetch'
-    end
-    
-    local success, response = pcall(function()
-        return r({
-            Url = url,
-            Method = "GET"
-        })
-    end)
-    
-    sf:ClearAllChildren()
-    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
-    
-    if not success then
-        local el = Instance.new("TextLabel")
-        el.Size = UDim2.new(1, 0, 0, 30)
-        el.BackgroundColor3 = c.er
-        el.BackgroundTransparency = 0.8
-        el.BorderSizePixel = 0
-        el.Font = Enum.Font.Gotham
-        el.Text = "Error making request: "..tostring(response)
-        el.TextColor3 = c.tx
-        el.TextSize = 14
-        el.Parent = sf
-        
-        local elc = Instance.new("UICorner")
-        elc.CornerRadius = UDim.new(0, 6)
-        elc.Parent = el
-        return
-    end
-    
-    if not response or not response.Body then
-        local el = Instance.new("TextLabel")
-        el.Size = UDim2.new(1, 0, 0, 30)
-        el.BackgroundColor3 = c.er
-        el.BackgroundTransparency = 0.8
-        el.BorderSizePixel = 0
-        el.Font = Enum.Font.Gotham
-        el.Text = "No response received from "..engine
-        el.TextColor3 = c.tx
-        el.TextSize = 14
-        el.Parent = sf
-        
-        local elc = Instance.new("UICorner")
-        elc.CornerRadius = UDim.new(0, 6)
-        elc.Parent = el
-        return
-    end
-    
-    local success, decoded = pcall(function()
-        return http:JSONDecode(response.Body)
-    end)
-    
-    if not success or not decoded then
-        local el = Instance.new("TextLabel")
-        el.Size = UDim2.new(1, 0, 0, 30)
-        el.BackgroundColor3 = c.er
-        el.BackgroundTransparency = 0.8
-        el.BorderSizePixel = 0
-        el.Font = Enum.Font.Gotham
-        el.Text = "Failed to decode JSON response"
-        el.TextColor3 = c.tx
-        el.TextSize = 14
-        el.Parent = sf
-        
-        local elc = Instance.new("UICorner")
-        elc.CornerRadius = UDim.new(0, 6)
-        elc.Parent = el
-        return
-    end
-    
-    local scripts = engine == "ScriptBlox" and decoded.result.scripts or decoded.scripts
-    if not scripts or #scripts == 0 then
-        local el = Instance.new("TextLabel")
-        el.Size = UDim2.new(1, 0, 0, 30)
-        el.BackgroundColor3 = c.wa
-        el.BackgroundTransparency = 0.8
-        el.BorderSizePixel = 0
-        el.Font = Enum.Font.Gotham
-        el.Text = "No scripts found for your query"
-        el.TextColor3 = c.tx
-        el.TextSize = 14
-        el.Parent = sf
-        
-        local elc = Instance.new("UICorner")
-        elc.CornerRadius = UDim.new(0, 6)
-        elc.Parent = el
-        return
-    end
-    
-    local totalHeight = 0
-    for i, script in ipairs(scripts) do
-        local title = engine == "ScriptBlox" and script.title or script.title
-        local raw = engine == "ScriptBlox" and script.script or script.rawScript
-        local views = engine == "ScriptBlox" and script.views or script.views
-        local key = engine == "ScriptBlox" and script.key or script.keySystem
-
-        local card = Instance.new("Frame")
-        card.Name = "Card"..i
-        card.Size = UDim2.new(1, 0, 0, 120)
-        card.Position = UDim2.new(0, 0, 0, totalHeight)
-        card.BackgroundColor3 = c.bg
-        card.BorderSizePixel = 0
-        card.Parent = sf
-        
-        local cardc = Instance.new("UICorner")
-        cardc.CornerRadius = UDim.new(0, 6)
-        cardc.Parent = card
-        
-        local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(1, -20, 0, 30)
-        titleLabel.Position = UDim2.new(0, 10, 0, 5)
-        titleLabel.BackgroundTransparency = 1
-        titleLabel.Font = Enum.Font.GothamBold
-        titleLabel.Text = title
-        titleLabel.TextColor3 = c.tx
-        titleLabel.TextSize = 14
-        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        titleLabel.TextWrapped = true
-        titleLabel.Parent = card
-        
-        local info = Instance.new("TextLabel")
-        info.Size = UDim2.new(1, -20, 0, 40)
-        info.Position = UDim2.new(0, 10, 0, 35)
-        info.BackgroundTransparency = 1
-        info.Font = Enum.Font.Gotham
-        if engine == "ScriptBlox" then
-            info.Text = "Universal: "..(script.isUniversal and "Yes" or "No").." | Key: "..(script.key and "Yes" or "No").."\nPatched: "..(script.isPatched and "Yes" or "No").." | Views: "..script.views
-        else
-            local discord = script.discord or "N/A"
-            info.Text = "Key: "..(key and "Yes" or "No").." | Views: "..views.."\nDiscord: "..discord.." | Mobile Compatible: "..(script.mobileReady and "Yes" or "No")
-        end
-        --info.Text = "Key: "..(key and "Yes" or "No").." | Views: "..views
-        info.TextColor3 = c.td
-        info.TextSize = 12
-        info.TextXAlignment = Enum.TextXAlignment.Left
-        info.Parent = card
-        
-        local eb = Instance.new("TextButton")
-        eb.Name = "EB"
-        eb.Size = UDim2.new(0, 100, 0, 30)
-        eb.Position = UDim2.new(0, 10, 0, 80)
-        eb.BackgroundColor3 = c.su
-        eb.BorderSizePixel = 0
-        eb.Font = Enum.Font.GothamSemibold
-        eb.Text = "Execute"
-        eb.TextColor3 = c.tx
-        eb.TextSize = 14
-        eb.Parent = card
-        
-        local ebc = Instance.new("UICorner")
-        ebc.CornerRadius = UDim.new(0, 6)
-        ebc.Parent = eb
-        
-    if setclipboard then
-        local cpb = Instance.new("TextButton")
-        cpb.Name = "CPB"
-        cpb.Size = UDim2.new(0, 100, 0, 30)
-        cpb.Position = UDim2.new(0, 120, 0, 80)
-        cpb.BackgroundColor3 = c.ac
-        cpb.BorderSizePixel = 0
-        cpb.Font = Enum.Font.GothamSemibold
-        cpb.Text = "Copy"
-        cpb.TextColor3 = c.tx
-        cpb.TextSize = 14
-        cpb.Parent = card
-        
-        local cpbc = Instance.new("UICorner")
-        cpbc.CornerRadius = UDim.new(0, 6)
-        cpbc.Parent = cpb
-
-        cpb.MouseButton1Click:Connect(function()
-            pcall(function()
-                task.spawn(function()
-                    if engine == "ScriptBlox" then
-                        setclipboard(raw)
-                    else
-                        setclipboard(game:HttpGet(raw))();
-                    end
-                end)
-                cpb.Text = "Copied!"
-                wait(1)
-                cpb.Text = "Copy"
-            end)
-        end)
-    end
-        
-        eb.MouseButton1Click:Connect(function()
-            pcall(function()
-                if engine == "ScriptBlox" then
-                    loadstring(raw)()
-                else
-                    loadstring(game:HttpGet(raw))();
-                end
-            end)
-        end)
-
-        if script.discord and setclipboard then
-            local discordButton = Instance.new("TextButton")
-            discordButton.Name = "DiscordButton"
-            discordButton.Size = UDim2.new(0, 100, 0, 30)
-            discordButton.Position = UDim2.new(0, 240, 0, 80)
-            discordButton.BackgroundColor3 = Color3.fromRGB(11, 114, 224)
-            discordButton.BorderSizePixel = 0
-            discordButton.Font = Enum.Font.GothamSemibold
-            discordButton.Text = "Copy Discord"
-            discordButton.TextColor3 = c.tx
-            discordButton.TextSize = 14
-            discordButton.Parent = card
-        
-            local discordButtonCorner = Instance.new("UICorner")
-            discordButtonCorner.CornerRadius = UDim.new(0, 6)
-            discordButtonCorner.Parent = discordButton
-        
-            discordButton.MouseButton1Click:Connect(function()
-                pcall(function()
-                    setclipboard(script.discord)
-                    discordButton.Text = "Copied!"
-                    wait(1)
-                    discordButton.Text = "Copy Discord"
-                end)
-            end)
-        end
-        
-        totalHeight = totalHeight + 130
-    end
-    
-    sf.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 end
 
-sb.MouseButton1Click:Connect(function()
-    local q = stb.Text:gsub(" ", "%%20")
-    if q ~= "" then
-        search(q)
-    else
-        if engine == "ScriptBlox" then
-            search(q, true)
-        else
-            sf:ClearAllChildren()
-            local el = Instance.new("TextLabel")
-            el.Size = UDim2.new(1, 0, 0, 30)
-            el.BackgroundColor3 = c.wa
-            el.BackgroundTransparency = 0.8
-            el.BorderSizePixel = 0
-            el.Font = Enum.Font.Gotham
-            el.Text = "Please enter a search query"
-            el.TextColor3 = c.tx
-            el.TextSize = 14
-            el.Parent = sf
+local function skeleton(n)
+    for i=1,n do
+        local s = Instance.new("Frame")
+        s.Name = "Skel"
+        s.Size = UDim2.new(1, -8, 0, 120)
+        s.BackgroundColor3 = Color3.fromRGB(40,44,52)
+        s.BorderSizePixel = 0
+        s.Parent = sf
+        local sc = Instance.new("UICorner"); sc.CornerRadius=UDim.new(0,10); sc.Parent=s
+        local g = Instance.new("UIGradient")
+        g.Color = ColorSequence.new(Color3.fromRGB(50,54,62), Color3.fromRGB(60,64,72), Color3.fromRGB(50,54,62))
+        g.Rotation = 0
+        g.Offset = Vector2.new(-1,0)
+        g.Parent = s
+        tw:Create(g, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), {Offset = Vector2.new(1,0)}):Play()
+    end
+    sizeCanvas()
+end
 
-            local elc = Instance.new("UICorner")
-            elc.CornerRadius = UDim.new(0, 6)
-            elc.Parent = el
+local function mkMsg(txt, bg)
+    local el = Instance.new("Frame")
+    el.Name = "Msg"
+    el.Size = UDim2.new(1, -8, 0, 52)
+    el.BackgroundColor3 = bg
+    el.BackgroundTransparency = 0.15
+    el.Parent = sf
+    local elc = Instance.new("UICorner"); elc.CornerRadius = UDim.new(0,8); elc.Parent = el
+    local lb = Instance.new("TextLabel")
+    lb.BackgroundTransparency = 1
+    lb.Size = UDim2.new(1, -20, 1, 0)
+    lb.Position = UDim2.new(0, 10, 0, 0)
+    lb.Font = Enum.Font.Gotham
+    lb.Text = txt
+    lb.TextSize = 14
+    lb.TextColor3 = col.tx
+    lb.Parent = el
+    local sc = Instance.new("UIScale"); sc.Scale=0.96; sc.Parent=el
+    el.BackgroundTransparency = 1
+    lb.TextTransparency = 1
+    tw:Create(el, TweenInfo.new(0.18), {BackgroundTransparency = 0.15}):Play()
+    tw:Create(lb, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
+    tw:Create(sc, TweenInfo.new(0.18), {Scale = 1}):Play()
+    sizeCanvas()
+end
+
+local minimized = false
+local fullS = UDim2.new(0, 580, 0, 500)
+local miniS = UDim2.new(0, 580, 0, 56)
+
+local function setMin(s)
+    minimized = s
+    if minimized then
+        tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = miniS}):Play()
+        tw:Create(mini, TweenInfo.new(0.2), {Rotation = 180}):Play()
+        tw:Create(rc, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+        tw:Create(sr, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
+    else
+        tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = fullS}):Play()
+        tw:Create(mini, TweenInfo.new(0.2), {Rotation = 0}):Play()
+        tw:Create(rc, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+        tw:Create(sr, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+    end
+end
+
+mini.MouseButton1Click:Connect(function()
+    setMin(not minimized)
+end)
+
+cls.MouseButton1Click:Connect(function()
+    tw:Create(fr, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1, Size = fr.Size - UDim2.new(0,12,0,12)}):Play()
+    task.delay(0.2, function() sg:Destroy() end)
+end)
+
+sbox.Focused:Connect(function()
+    tw:Create(sLbl, TweenInfo.new(0.15), {TextColor3 = col.ac}):Play()
+    tw:Create(srs, TweenInfo.new(0.15), {Transparency = 0.1}):Play()
+end)
+
+sbox.FocusLost:Connect(function()
+    tw:Create(sLbl, TweenInfo.new(0.2), {TextColor3 = col.td}):Play()
+    tw:Create(srs, TweenInfo.new(0.2), {Transparency = 0.25}):Play()
+end)
+
+local function mkCard(i, d)
+    local t = d.title
+    local rw = (eng == "ScriptBlox") and d.script or d.rawScript
+    local v = d.views
+    local k = (eng == "ScriptBlox") and d.key or d.keySystem
+
+    local c = Instance.new("Frame")
+    c.Name = "Card"..i
+    c.Size = UDim2.new(1, -8, 0, 134)
+    c.BackgroundColor3 = col.bg
+    c.BorderSizePixel = 0
+    c.Parent = sf
+
+    local cc = Instance.new("UICorner")
+    cc.CornerRadius = UDim.new(0, 10)
+    cc.Parent = c
+
+    local cs = Instance.new("UIStroke")
+    cs.Color = Color3.fromRGB(70,75,85)
+    cs.Transparency = 0.35
+    cs.Thickness = 1
+    cs.Parent = c
+
+    c.MouseEnter:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.15}):Play() end)
+    c.MouseLeave:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.35}):Play() end)
+
+    local tl = Instance.new("TextLabel")
+    tl.Size = UDim2.new(1, -20, 0, 32)
+    tl.Position = UDim2.new(0, 12, 0, 10)
+    tl.BackgroundTransparency = 1
+    tl.Font = Enum.Font.GothamBold
+    tl.Text = tostring(t)
+    tl.TextColor3 = col.tx
+    tl.TextSize = 15
+    tl.TextXAlignment = Enum.TextXAlignment.Left
+    tl.TextWrapped = true
+    tl.Parent = c
+
+    local inf = Instance.new("TextLabel")
+    inf.Size = UDim2.new(1, -20, 0, 40)
+    inf.Position = UDim2.new(0, 12, 0, 46)
+    inf.BackgroundTransparency = 1
+    inf.Font = Enum.Font.Gotham
+    if eng == "ScriptBlox" then
+        inf.Text = "🌐 "..(d.isUniversal and "Universal" or "Game-Specific").."   •   🔑 "..((d.key and "Key") or "No Key").."\n🛠️ "..((d.isPatched and "Patched") or "Working").."   •   👁️ "..tostring(v)
+    else
+        local dc = d.discord or "N/A"
+        inf.Text = "🔑 "..((k and "Key") or "No Key").."   •   👁️ "..tostring(v).."\n💬 "..dc.."   •   📱 "..((d.mobileReady and "Mobile") or "PC Only")
+    end
+    inf.TextColor3 = col.td
+    inf.TextSize = 12
+    inf.TextXAlignment = Enum.TextXAlignment.Left
+    inf.Parent = c
+
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Size = UDim2.new(1, -24, 0, 40)
+    row.Position = UDim2.new(0, 12, 1, -50)
+    row.Parent = c
+
+    local rl = Instance.new("UIListLayout")
+    rl.FillDirection = Enum.FillDirection.Horizontal
+    rl.Padding = UDim.new(0, 10)
+    rl.SortOrder = Enum.SortOrder.LayoutOrder
+    rl.Parent = row
+
+    local function mkB(txt, bg)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0, 120, 1, 0)
+        b.BackgroundColor3 = bg
+        b.Text = txt
+        b.TextColor3 = col.tx
+        b.TextSize = 14
+        b.Font = Enum.Font.GothamSemibold
+        b.AutoButtonColor = false
+        b.Parent = row
+        local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0, 8); bc.Parent = b
+        btnAnim(b, bg, bg:Lerp(Color3.new(1,1,1), 0.12))
+        return b
+    end
+
+    local ex = mkB("▶ Run", col.su)
+    local cp = setclipboard and mkB("📋 Copy", Color3.fromRGB(57,63,75)) or nil
+    local dc = (d.discord and setclipboard) and mkB("💬 Discord", Color3.fromRGB(28,116,224)) or nil
+
+    ex.MouseButton1Click:Connect(function()
+        pcall(function()
+            if eng == "ScriptBlox" then loadstring(rw)() else loadstring(game:HttpGet(rw))() end
+        end)
+        toast("Executed script", col.tx)
+    end)
+
+    if cp then
+        cp.MouseButton1Click:Connect(function()
+            pcall(function()
+                if eng == "ScriptBlox" then setclipboard(rw) else setclipboard(game:HttpGet(rw)) end
+            end)
+            cp.Text = "✅ Copied"
+            tw:Create(cp, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(76,82,96)}):Play()
+            task.delay(0.9, function()
+                cp.Text = "📋 Copy"
+                tw:Create(cp, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(57,63,75)}):Play()
+            end)
+        end)
+    end
+
+    if dc then
+        dc.MouseButton1Click:Connect(function()
+            pcall(function() setclipboard(d.discord) end)
+            dc.Text = "✅ Copied"
+            task.delay(0.9, function() dc.Text = "💬 Discord" end)
+        end)
+    end
+
+    local sca = Instance.new("UIScale")
+    sca.Scale = 0.95
+    sca.Parent = c
+    c.BackgroundTransparency = 1
+    c.Position = UDim2.new(c.Position.X.Scale, c.Position.X.Offset, 0, 6)
+    tl.TextTransparency = 1
+    inf.TextTransparency = 1
+    tw:Create(c, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, Position = UDim2.new(c.Position.X.Scale, c.Position.X.Offset, 0, 0)}):Play()
+    tw:Create(sca, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+    tw:Create(tl, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
+    tw:Create(inf, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
+end
+
+local searching = false
+
+local function fetch(q, empty)
+    if searching then return end
+    searching = true
+    clearAll(true)
+    skeleton(4)
+    spin(true)
+    go.Text = "Searching…"
+    go.Active = false
+    local u = (eng == "ScriptBlox") and ("https://scriptblox.com/api/script/search?q="..q) or ("https://rscripts.net/api/v2/scripts?page=1&orderBy=date&sort=desc&q="..q)
+    if empty and eng == "ScriptBlox" then u = "https://www.scriptblox.com/api/script/fetch" end
+    local ok, res = pcall(function() return rq({Url = u, Method = "GET"}) end)
+    clearAll(false)
+    if not ok or not res or not res.Body then
+        mkMsg("Request failed", col.er)
+        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
+    end
+    local ok2, dec = pcall(function() return hs:JSONDecode(res.Body) end)
+    if not ok2 or not dec then
+        mkMsg("Invalid response", col.er)
+        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
+    end
+    local data = (eng == "ScriptBlox") and dec.result and dec.result.scripts or dec.scripts
+    if not data or #data == 0 then
+        mkMsg("No scripts found", col.wa)
+        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
+    end
+    for i,d in ipairs(data) do
+        mkCard(i, d)
+        task.wait(0.02)
+    end
+    spin(false)
+    go.Text = "Search"
+    go.Active = true
+    searching = false
+    sizeCanvas()
+end
+
+engb.MouseButton1Click:Connect(function()
+    if eng == "ScriptBlox" then
+        eng = "RScripts"
+        engb.Text = "Engine: RScripts"
+        sbox.PlaceholderText = "Search for scripts (rscripts.net)"
+        tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(45,49,58)}):Play()
+        toast("Switched to RScripts", col.tx)
+    else
+        eng = "ScriptBlox"
+        engb.Text = "Engine: ScriptBlox"
+        sbox.PlaceholderText = "Search for scripts (scriptblox.com)"
+        tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = col.bg}):Play()
+        toast("Switched to ScriptBlox", col.tx)
+    end
+end)
+
+go.MouseButton1Click:Connect(function()
+    if searching then return end
+    local q = sbox.Text:gsub(" ", "%%20")
+    if q ~= "" then
+        fetch(q)
+    else
+        if eng == "ScriptBlox" then
+            fetch(q, true)
+        else
+            clearAll(true)
+            mkMsg("Please enter a search query", col.wa)
+            sizeCanvas()
         end
     end
 end)
+
+local drag, dIn, dStart, start
+local function up(i)
+    local d = i.Position - dStart
+    fr.Position = UDim2.new(start.X.Scale, start.X.Offset + d.X, start.Y.Scale, start.Y.Offset + d.Y)
+end
+top.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        drag = true
+        dStart = i.Position
+        start = fr.Position
+        i.Changed:Connect(function()
+            if i.UserInputState == Enum.UserInputState.End then drag = false end
+        end)
+    end
+end)
+top.InputChanged:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then dIn = i end
+end)
+ui.InputChanged:Connect(function(i)
+    if i == dIn and drag then up(i) end
+end)
+
+local openS = Instance.new("UIScale")
+openS.Scale = 0.9
+openS.Parent = fr
+fr.BackgroundTransparency = 1
+tw:Create(openS, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+tw:Create(fr, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
