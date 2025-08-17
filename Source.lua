@@ -6757,8 +6757,8 @@ ATPC.Enable = function()
 				ATPC._zero(char)
 				ATPC.hits += 1
 				if ATPC.hits >= ATPC.REPEAT then
-					task.defer(function() ATPC._zero(char) end)
-					task.delay(ATPC.LOCK_TIME, function() ATPC.hits = 0 end)
+					Defer(function() ATPC._zero(char) end)
+					Delay(ATPC.LOCK_TIME, function() ATPC.hits = 0 end)
 				end
 			else
 				ATPC.hits = math.max(ATPC.hits - 1, 0)
@@ -8431,6 +8431,7 @@ builderAnim = nil
 
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
 	if builderAnim then NACaller(function() builderAnim:Destroy() end) builderAnim = nil end
+	local p = Players.LocalPlayer
 
 	local function getData()
 		local hum = getHum()
@@ -8440,16 +8441,15 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		return hum, animate
 	end
 
-	local p = LocalPlayer
 	local uid = p.UserId
 	if not storedAnims[uid] then
-		local hum0, animate0 = getData()
+		local _, animate0 = getData()
 		if not animate0 then return end
 		local store = {}
 		for _, v in pairs(animate0:GetChildren()) do
 			if v:IsA("StringValue") then
 				local a = v:FindFirstChildWhichIsA("Animation")
-				if a then store[v.Name] = a.AnimationId end
+				if a then store[v.Name:lower()] = a.AnimationId end
 			end
 		end
 		storedAnims[uid] = store
@@ -8457,120 +8457,238 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 
 	builderAnim = InstanceNew("ScreenGui")
 	NaProtectUI(builderAnim)
+	builderAnim.Name = "AnimationBuilder"
 
-	local m = InstanceNew("Frame", builderAnim)
-	local fullW, fullH = 420, 515
-	m.Size = UDim2.new(0, fullW, 0, fullH)
-	m.Position = UDim2.new(0.5, -fullW/2, 0.5, -fullH/2)
-	m.BackgroundColor3 = Color3.fromRGB(30,30,30)
-	m.BackgroundTransparency = 0.4
-	m.ClipsDescendants = true
-	InstanceNew("UICorner", m).CornerRadius = UDim.new(0,12)
+	local main = InstanceNew("Frame", builderAnim)
+	main.Size = UDim2.new(0.46,0,0.56,0)
+	main.Position = UDim2.new(0.27,0,0.22,0)
+	main.BackgroundColor3 = Color3.fromRGB(28,28,32)
+	main.BackgroundTransparency = 0.08
+	main.BorderSizePixel = 0
+	main.ClipsDescendants = true
+	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 14)
+	local mainStroke = InstanceNew("UIStroke", main)
+	mainStroke.Color = Color3.fromRGB(60,60,65)
+	mainStroke.Thickness = 1
+	mainStroke.Transparency = 0.2
 
-	local title = InstanceNew("TextLabel", m)
-	title.Size = UDim2.new(1,0,0,30)
-	title.Position = UDim2.new(0,0,0,0)
+	local headerH = 56
+	local header = InstanceNew("Frame", main)
+	header.Size = UDim2.new(1,0,0,headerH)
+	header.BackgroundColor3 = Color3.fromRGB(24,24,26)
+	header.BackgroundTransparency = 0.12
+	InstanceNew("UICorner", header).CornerRadius = UDim.new(0, 14)
+	local headerPad = InstanceNew("UIPadding", header)
+	headerPad.PaddingLeft = UDim.new(0, 10)
+	headerPad.PaddingRight = UDim.new(0, 10)
+
+	local row = InstanceNew("Frame", header)
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1,0,1,0)
+	local rowLayout = InstanceNew("UIListLayout", row)
+	rowLayout.FillDirection = Enum.FillDirection.Horizontal
+	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	rowLayout.Padding = UDim.new(0,8)
+
+	local title = InstanceNew("TextLabel", row)
+	title.Size = UDim2.new(0.8, 0, 1, 0)
 	title.BackgroundTransparency = 1
 	title.Text = "Animation Builder"
-	title.TextSize = 20
-	title.Font = Enum.Font.SourceSansSemibold
-	title.TextColor3 = Color3.new(1,1,1)
+	title.TextColor3 = Color3.fromRGB(240,240,240)
+	title.Font = Enum.Font.GothamBold
+	title.TextScaled = true
+	do local ts = InstanceNew("UITextSizeConstraint", title) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
+	title.TextXAlignment = Enum.TextXAlignment.Left
 
-	local x = InstanceNew("TextButton", m)
-	x.Size = UDim2.new(0,30,0,30)
-	x.Position = UDim2.new(1,-35,0,2)
-	x.Text = "X"
-	x.Font = Enum.Font.SourceSansBold
-	x.TextSize = 18
-	x.BackgroundColor3 = Color3.fromRGB(200,50,50)
-	x.BackgroundTransparency = 0.5
-	InstanceNew("UICorner", x).CornerRadius = UDim.new(0,8)
-	x.MouseButton1Click:Connect(function() NACaller(builderAnim.Destroy, builderAnim) builderAnim = nil end)
+	local closeBtn = InstanceNew("TextButton", row)
+	closeBtn.Size = UDim2.new(0.2, 0, 0.82, 0)
+	closeBtn.BackgroundTransparency = 1
+	closeBtn.Text = "X"
+	closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+	closeBtn.Font = Enum.Font.Gotham
+	closeBtn.TextScaled = true
+	do local ts = InstanceNew("UITextSizeConstraint", closeBtn) ts.MinTextSize = 12 ts.MaxTextSize = 22 end
+
+	local body = InstanceNew("Frame", main)
+	body.BackgroundTransparency = 1
+	body.Size = UDim2.new(1,0,1,-headerH-58)
+	body.Position = UDim2.new(0,0,0,headerH)
+
+	local scroll = InstanceNew("ScrollingFrame", body)
+	scroll.Size = UDim2.new(1,0,1,0)
+	scroll.BackgroundTransparency = 1
+	scroll.ScrollBarThickness = 6
+	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	scroll.CanvasSize = UDim2.new(0,0,0,0)
+	local pad = InstanceNew("UIPadding", scroll)
+	pad.PaddingLeft = UDim.new(0,10)
+	pad.PaddingRight = UDim.new(0,10)
+	pad.PaddingTop = UDim.new(0,10)
+	pad.PaddingBottom = UDim.new(0,10)
+	local list = InstanceNew("UIListLayout", scroll)
+	list.Padding = UDim.new(0, 8)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local footer = InstanceNew("Frame", main)
+	footer.Size = UDim2.new(1,0,0,50)
+	footer.Position = UDim2.new(0,0,1,-50)
+	footer.BackgroundTransparency = 1
+	local footerPad = InstanceNew("UIPadding", footer)
+	footerPad.PaddingLeft = UDim.new(0,10)
+	footerPad.PaddingRight = UDim.new(0,10)
+	footerPad.PaddingBottom = UDim.new(0,8)
+	local footerRow = InstanceNew("Frame", footer)
+	footerRow.BackgroundTransparency = 1
+	footerRow.Size = UDim2.new(1,0,1,0)
+	local fl = InstanceNew("UIListLayout", footerRow)
+	fl.FillDirection = Enum.FillDirection.Horizontal
+	fl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	fl.VerticalAlignment = Enum.VerticalAlignment.Center
+	fl.Padding = UDim.new(0,10)
+
+	local save = InstanceNew("TextButton", footerRow)
+	save.Size = UDim2.new(0.48,0,1,0)
+	save.BackgroundColor3 = Color3.fromRGB(60,140,80)
+	save.BackgroundTransparency = 0.1
+	save.Text = "💾 Save"
+	save.TextColor3 = Color3.new(1,1,1)
+	save.Font = Enum.Font.GothamSemibold
+	save.TextScaled = true
+	do InstanceNew("UICorner", save).CornerRadius = UDim.new(0,10) end
+	do local ts = InstanceNew("UITextSizeConstraint", save) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
+
+	local revert = InstanceNew("TextButton", footerRow)
+	revert.Size = UDim2.new(0.48,0,1,0)
+	revert.BackgroundColor3 = Color3.fromRGB(160,80,80)
+	revert.BackgroundTransparency = 0.1
+	revert.Text = "↩️ Revert"
+	revert.TextColor3 = Color3.new(1,1,1)
+	revert.Font = Enum.Font.GothamSemibold
+	revert.TextScaled = true
+	do InstanceNew("UICorner", revert).CornerRadius = UDim.new(0,10) end
+	do local ts = InstanceNew("UITextSizeConstraint", revert) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
 
 	local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
-	local tb = {}
-	for i, k in ipairs(states) do
-		local r = InstanceNew("Frame", m)
-		r.Size = UDim2.new(1,-20,0,50)
-		r.Position = UDim2.new(0,10,0,40 + (i-1)*55)
-		r.BackgroundColor3 = Color3.fromRGB(50,50,50)
-		r.BackgroundTransparency = 0.3
+	local inputs = {}
+
+	local function makeRow(name)
+		local r = InstanceNew("Frame", scroll)
+		r.Size = UDim2.new(1,0,0,54)
+		r.BackgroundColor3 = Color3.fromRGB(36,36,40)
+		r.BackgroundTransparency = 0.12
 		InstanceNew("UICorner", r).CornerRadius = UDim.new(0,10)
+		local rs = InstanceNew("UIStroke", r)
+		rs.Color = Color3.fromRGB(60,60,65)
+		rs.Thickness = 1
+		rs.Transparency = 0.2
 
-		local l = InstanceNew("TextLabel", r)
-		l.Text = k
-		l.Size = UDim2.new(0.3,0,1,0)
-		l.Position = UDim2.new(0,10,0,0)
-		l.BackgroundTransparency = 1
-		l.TextSize = 16
-		l.Font = Enum.Font.SourceSans
-		l.TextColor3 = Color3.new(1,1,1)
-		l.TextXAlignment = Enum.TextXAlignment.Left
+		local inner = InstanceNew("Frame", r)
+		inner.BackgroundTransparency = 1
+		inner.Size = UDim2.new(1,-16,1,-12)
+		inner.Position = UDim2.new(0,8,0,6)
 
-		local te = InstanceNew("TextBox", r)
-		te.PlaceholderText = "Insert ID"
-		te.Text = ""
-		te.ClearTextOnFocus = false
-		te.Size = UDim2.new(0.7,-20,0,30)
-		te.Position = UDim2.new(0.3,10,0,10)
-		te.BackgroundColor3 = Color3.fromRGB(70,70,70)
-		te.BackgroundTransparency = 0.2
-		te.TextSize = 16
-		te.Font = Enum.Font.SourceSans
-		te.TextColor3 = Color3.new(1,1,1)
-		InstanceNew("UICorner", te).CornerRadius = UDim.new(0,8)
-		te:GetPropertyChangedSignal("Text"):Connect(function()
-			local clean = te.Text:gsub('%D','') if te.Text~=clean then te.Text=clean end
+		local hl = InstanceNew("UIListLayout", inner)
+		hl.FillDirection = Enum.FillDirection.Horizontal
+		hl.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		hl.VerticalAlignment = Enum.VerticalAlignment.Center
+		hl.Padding = UDim.new(0,8)
+
+		local label = InstanceNew("TextLabel", inner)
+		label.Size = UDim2.new(0.28,0,1,0)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.TextColor3 = Color3.new(1,1,1)
+		label.Font = Enum.Font.GothamSemibold
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextScaled = true
+		do local ts = InstanceNew("UITextSizeConstraint", label) ts.MinTextSize = 12 ts.MaxTextSize = 18 end
+
+		local boxHolder = InstanceNew("Frame", inner)
+		boxHolder.Size = UDim2.new(0.72,0,1,0)
+		boxHolder.BackgroundTransparency = 1
+
+		local box = InstanceNew("TextBox", boxHolder)
+		box.AnchorPoint = Vector2.new(0.5,0.5)
+		box.Position = UDim2.new(0.5,0,0.5,0)
+		box.Size = UDim2.new(1,0,1,0)
+		box.Text = ""
+		box.PlaceholderText = "rbxassetid (numbers only)"
+		box.ClearTextOnFocus = false
+		box.TextColor3 = Color3.new(1,1,1)
+		box.BackgroundColor3 = Color3.fromRGB(50,50,55)
+		box.BackgroundTransparency = 0.15
+		box.Font = Enum.Font.Gotham
+		box.TextScaled = true
+		do InstanceNew("UICorner", box).CornerRadius = UDim.new(0,8) end
+		do local ts = InstanceNew("UITextSizeConstraint", box) ts.MinTextSize = 11 ts.MaxTextSize = 18 end
+
+		box:GetPropertyChangedSignal("Text"):Connect(function()
+			local clean = box.Text:gsub("%D","")
+			if box.Text ~= clean then box.Text = clean end
 		end)
-		tb[Lower(k)] = te
+
+		inputs[Lower(name)] = box
 	end
 
-	local btnY = fullH - 45
-	local save = InstanceNew("TextButton", m)
-	save.Size = UDim2.new(0.48,0,0,40)
-	save.Position = UDim2.new(0.02,0,0,btnY)
-	save.Text = "Save"
-	save.TextSize = 18
-	save.Font = Enum.Font.SourceSansSemibold
-	save.BackgroundColor3 = Color3.fromRGB(80,160,80)
-	save.BackgroundTransparency = 0.2
-	InstanceNew("UICorner", save).CornerRadius = UDim.new(0,10)
-
-	local revert = InstanceNew("TextButton", m)
-	revert.Size = UDim2.new(0.48,0,0,40)
-	revert.Position = UDim2.new(0.5,0,0,btnY)
-	revert.Text = "Revert"
-	revert.TextSize = 18
-	revert.Font = Enum.Font.SourceSansSemibold
-	revert.BackgroundColor3 = Color3.fromRGB(160,80,80)
-	revert.BackgroundTransparency = 0.2
-	InstanceNew("UICorner", revert).CornerRadius = UDim.new(0,10)
+	for _, n in ipairs(states) do makeRow(n) end
 
 	local function applyAnims(mode)
-		local hum, animate = getData()
-		if not animate then return end
+		local _, animate = getData()
+		if not animate then DoNotif("No Animate object found") return end
 		for _, k in ipairs(states) do
-			local e = tb[Lower(k)]
-			if mode == "save" then
-				local id = tonumber(e.Text)
-				if id then local o = animate:FindFirstChild(k:lower())
-					if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = "rbxassetid://"..id end end
-				end
-			else
-				local raw = storedAnims[uid] and storedAnims[uid][k:lower()]
-				if raw then local num = raw:match('%d+') if num then local orig = tonumber(num)
-						if orig then local o = animate:FindFirstChild(k:lower())
-							if o and o:IsA("StringValue") then local a = o:FindFirstChildWhichIsA("Animation") if a then a.AnimationId = raw end end
-							tb[Lower(k)].Text = tostring(orig)
+			local key = Lower(k)
+			local sv = animate:FindFirstChild(key)
+			if sv and sv:IsA("StringValue") then
+				local anim = sv:FindFirstChildWhichIsA("Animation")
+				if anim then
+					if mode == "save" then
+						local id = tonumber(inputs[key].Text)
+						if id then
+							anim.AnimationId = "rbxassetid://"..id
+						end
+					else
+						local raw = storedAnims[uid] and storedAnims[uid][key]
+						if raw then
+							anim.AnimationId = raw
+							local num = raw:match("%d+")
+							if num then inputs[key].Text = num end
 						end
 					end
 				end
 			end
 		end
+		if mode == "save" then DoNotif("Saved animations") else DoNotif("Reverted animations") end
 	end
+
+	local function prefill()
+		for _, k in ipairs(states) do
+			local key = Lower(k)
+			local raw = storedAnims[uid] and storedAnims[uid][key]
+			if raw then
+				local num = raw:match("%d+")
+				if num then inputs[key].Text = num end
+			else
+				inputs[key].Text = ""
+			end
+		end
+	end
+	prefill()
+
+	closeBtn.MouseButton1Click:Connect(function()
+		local t = TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+			Size = UDim2.new(0.02,0,0.02,0),
+			Position = UDim2.new(0.99,0,0.01,0)
+		})
+		t:Play(); t.Completed:Wait()
+		NACaller(function() builderAnim:Destroy() end)
+		builderAnim = nil
+	end)
+
 	save.MouseButton1Click:Connect(function() applyAnims("save") end)
 	revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
-	NAgui.dragger(m)
+
+	NAgui.dragger(main, header)
 end)
 
 cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer animation set"}, function()
@@ -10803,19 +10921,27 @@ cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer
 end)
 
 cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
+	local BadgeService = SafeGetService("BadgeService")
 	local Player = Players.LocalPlayer
+
+	local COLORS = {
+		PANEL = Color3.fromRGB(28, 28, 32),
+		TOP = Color3.fromRGB(24, 24, 26),
+		TEXT = Color3.fromRGB(240, 240, 240),
+		MUTED = Color3.fromRGB(180, 180, 185),
+		STROKE = Color3.fromRGB(60, 60, 65),
+		OWNED = Color3.fromRGB(65, 200, 120),
+	}
+
 	local function getBadges()
-		local all = {}
-		local cursor = ""
+		local all, cursor = {}, ""
 		repeat
 			local url = ("https://badges.roproxy.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
 				GameId,
 				cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
 			)
 			local res = opt.NAREQUEST({Url = url, Method = "GET"})
-			if not res or res.StatusCode ~= 200 then
-				break
-			end
+			if not res or res.StatusCode ~= 200 then break end
 			local body = HttpService:JSONDecode(res.Body)
 			for _, b in ipairs(body.data or {}) do
 				Insert(all, {
@@ -10823,134 +10949,469 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 					name = b.name,
 					desc = b.displayDescription or b.description or "",
 					icon = b.iconImageId,
-					rarity = b.statistics and b.statistics.winRatePercentage or 0,
-					awarded = b.statistics and b.statistics.awardedCount or 0,
-					pastDay = b.statistics and b.statistics.pastDayAwardedCount or 0,
-					universe = b.awardingUniverse and b.awardingUniverse.name or "Unknown"
+					rarity = (b.statistics and b.statistics.winRatePercentage) or 0,
+					awarded = (b.statistics and b.statistics.awardedCount) or 0,
+					pastDay = (b.statistics and b.statistics.pastDayAwardedCount) or 0,
+					universe = (b.awardingUniverse and b.awardingUniverse.name) or "Unknown",
 				})
 			end
 			cursor = body.nextPageCursor or ""
 		until cursor == ""
 		return all
 	end
+
+	local function pill(parent, text, color)
+		local p = InstanceNew("TextLabel", parent)
+		p.BackgroundColor3 = color
+		p.BackgroundTransparency = 0.15
+		p.TextColor3 = Color3.new(1,1,1)
+		p.Font = Enum.Font.GothamSemibold
+		p.Text = text
+		p.Size = UDim2.new(0, 0, 0, 0)
+		p.AutomaticSize = Enum.AutomaticSize.XY
+		p.AnchorPoint = Vector2.new(1,0)
+		p.Position = UDim2.new(1, 0, 0, 0)
+		p.TextScaled = true
+		local pc = InstanceNew("UICorner", p); pc.CornerRadius = UDim.new(0, 8)
+		local pad = InstanceNew("UIPadding", p)
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 6)
+		local ts = InstanceNew("UITextSizeConstraint", p); ts.MinTextSize = 10; ts.MaxTextSize = 14
+		p.Visible = false
+		return p
+	end
+
+	local function applyOwnedStyle(card, stroke, ownedTag)
+		stroke.Color = COLORS.OWNED
+		stroke.Transparency = 0
+		stroke.Thickness = 2
+		card.BackgroundTransparency = 0.1
+		card.BackgroundColor3 = Color3.fromRGB(35, 44, 38)
+		ownedTag.Visible = true
+	end
+
+	local function tweenTransparency(container, target, tinfo)
+		for _, d in ipairs(container:GetDescendants()) do
+			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+				TweenService:Create(d, tinfo, {TextTransparency = target}):Play()
+			elseif d:IsA("ImageLabel") or d:IsA("ImageButton") then
+				TweenService:Create(d, tinfo, {ImageTransparency = target}):Play()
+			elseif d:IsA("Frame") then
+				TweenService:Create(d, tinfo, {BackgroundTransparency = math.clamp(target,0,1)}):Play()
+			elseif d:IsA("UIStroke") then
+				TweenService:Create(d, tinfo, {Transparency = target}):Play()
+			end
+		end
+	end
+
 	local function createBadgeUI(data)
 		local sgui = InstanceNew("ScreenGui")
 		NaProtectUI(sgui)
 		sgui.Name = "BadgeViewer"
+
+		local headerH = 60
+		local expandedMainSize = UDim2.new(0.6,0,0.66,0)
+
 		local main = InstanceNew("Frame", sgui)
-		main.Size = UDim2.new(0.5,0,0.7,0)
-		main.Position = UDim2.new(0.25, 0, 0.2, 0)
-		main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		main.BackgroundTransparency = 0.2
+		main.Size = expandedMainSize
+		main.Position = UDim2.new(0.2,0,0.17,0)
+		main.BackgroundColor3 = COLORS.PANEL
+		main.BackgroundTransparency = 0.08
 		main.BorderSizePixel = 0
 		main.ClipsDescendants = true
 		main.Active = true
-		main.Visible = true
 		main.Name = "Main"
-		main:ClearAllChildren()
-		local uicorner = InstanceNew("UICorner", main)
-		uicorner.CornerRadius = UDim.new(0, 16)
-		local top = InstanceNew("Frame", main)
-		top.Size = UDim2.new(1, 0, 0, 40)
-		top.BackgroundTransparency = 0.3
-		top.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-		local topCorner = InstanceNew("UICorner", top)
-		topCorner.CornerRadius = UDim.new(0, 12)
-		local title = InstanceNew("TextLabel", top)
-		title.Size = UDim2.new(1, -80, 1, 0)
-		title.Position = UDim2.new(0, 10, 0, 0)
-		title.Text = "Badge Viewer"
+		local uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 14)
+		local stroke = InstanceNew("UIStroke", main); stroke.Color = COLORS.STROKE; stroke.Thickness = 1; stroke.Transparency = 0.2
+
+		local header = InstanceNew("Frame", main)
+		header.Size = UDim2.new(1, 0, 0, headerH)
+		header.BackgroundColor3 = COLORS.TOP
+		header.BackgroundTransparency = 0.12
+		local headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 14)
+		local headerPad = InstanceNew("UIPadding", header)
+		headerPad.PaddingLeft = UDim.new(0, 10)
+		headerPad.PaddingRight = UDim.new(0, 10)
+
+		local row = InstanceNew("Frame", header)
+		row.BackgroundTransparency = 1
+		row.Size = UDim2.new(1, 0, 1, 0)
+		local rowLayout = InstanceNew("UIListLayout", row)
+		rowLayout.FillDirection = Enum.FillDirection.Horizontal
+		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		rowLayout.Padding = UDim.new(0, 8)
+
+		local title = InstanceNew("TextLabel", row)
+		title.Size = UDim2.new(0.22, 0, 1, 0)
+		title.Text = "🏅 Badge Viewer"
 		title.Font = Enum.Font.GothamBold
-		title.TextSize = 20
-		title.TextColor3 = Color3.fromRGB(240, 240, 240)
+		title.TextColor3 = COLORS.TEXT
 		title.BackgroundTransparency = 1
 		title.TextXAlignment = Enum.TextXAlignment.Left
-		local closeBtn = InstanceNew("TextButton", top)
+		title.TextScaled = true
+		local tsTitle = InstanceNew("UITextSizeConstraint", title); tsTitle.MinTextSize = 12; tsTitle.MaxTextSize = 20
+
+		local searchHolder = InstanceNew("Frame", row)
+		searchHolder.Size = UDim2.new(0.32, 0, 0.8, 0)
+		searchHolder.BackgroundTransparency = 1
+		local search = InstanceNew("TextBox", searchHolder)
+		search.AnchorPoint = Vector2.new(0.5,0.5)
+		search.Position = UDim2.new(0.5,0,0.5,0)
+		search.Size = UDim2.new(1, 0, 1, 0)
+		search.PlaceholderText = "🔎 Search badges…"
+		search.ClearTextOnFocus = false
+		search.Text = ""
+		search.BackgroundColor3 = Color3.fromRGB(34,34,38)
+		search.BackgroundTransparency = 0.2
+		search.TextColor3 = COLORS.TEXT
+		search.PlaceholderColor3 = COLORS.MUTED
+		search.TextXAlignment = Enum.TextXAlignment.Left
+		search.Font = Enum.Font.Gotham
+		search.TextSize = 24
+		search.TextScaled = true
+		local sc = InstanceNew("UICorner", search); sc.CornerRadius = UDim.new(0, 8)
+		local sp = InstanceNew("UIPadding", search)
+		sp.PaddingLeft = UDim.new(0, 10)
+		sp.PaddingRight = UDim.new(0, 6)
+		local tsSearch = InstanceNew("UITextSizeConstraint", search); tsSearch.MinTextSize = 10; tsSearch.MaxTextSize = 18
+
+		local ownedOnlyBtn = InstanceNew("TextButton", row)
+		ownedOnlyBtn.AutoButtonColor = true
+		ownedOnlyBtn.Text = "🏆 Owned: OFF"
+		ownedOnlyBtn.Font = Enum.Font.GothamSemibold
+		ownedOnlyBtn.TextColor3 = COLORS.TEXT
+		ownedOnlyBtn.Size = UDim2.new(0.15, 0, 0.8, 0)
+		ownedOnlyBtn.BackgroundColor3 = Color3.fromRGB(34,34,38)
+		ownedOnlyBtn.BackgroundTransparency = 0.2
+		ownedOnlyBtn.TextScaled = true
+		local ooc = InstanceNew("UICorner", ownedOnlyBtn); ooc.CornerRadius = UDim.new(0, 8)
+		local tsOwned = InstanceNew("UITextSizeConstraint", ownedOnlyBtn); tsOwned.MinTextSize = 10; tsOwned.MaxTextSize = 18
+
+		local layoutToggle = InstanceNew("TextButton", row)
+		layoutToggle.AutoButtonColor = true
+		layoutToggle.Text = "🧩 Grid"
+		layoutToggle.Font = Enum.Font.GothamSemibold
+		layoutToggle.TextColor3 = COLORS.TEXT
+		layoutToggle.Size = UDim2.new(0.11, 0, 0.8, 0)
+		layoutToggle.BackgroundColor3 = Color3.fromRGB(34,34,38)
+		layoutToggle.BackgroundTransparency = 0.2
+		layoutToggle.TextScaled = true
+		local ltc = InstanceNew("UICorner", layoutToggle); ltc.CornerRadius = UDim.new(0, 8)
+		local tsLayout = InstanceNew("UITextSizeConstraint", layoutToggle); tsLayout.MinTextSize = 10; tsLayout.MaxTextSize = 18
+
+		local minBtn = InstanceNew("TextButton", row)
+		minBtn.Text = "—"
+		minBtn.Size = UDim2.new(0.05, 0, 0.8, 0)
+		minBtn.Font = Enum.Font.Gotham
+		minBtn.BackgroundTransparency = 1
+		minBtn.TextColor3 = COLORS.MUTED
+		minBtn.TextScaled = true
+		local tsMin = InstanceNew("UITextSizeConstraint", minBtn); tsMin.MinTextSize = 12; tsMin.MaxTextSize = 24
+
+		local closeBtn = InstanceNew("TextButton", row)
 		closeBtn.Text = "X"
-		closeBtn.Size = UDim2.new(0, 30, 1, 0)
-		closeBtn.Position = UDim2.new(1, -35, 0, 0)
+		closeBtn.Size = UDim2.new(0.05, 0, 0.8, 0)
 		closeBtn.Font = Enum.Font.Gotham
-		closeBtn.TextSize = 16
 		closeBtn.BackgroundTransparency = 1
 		closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-		local minBtn = InstanceNew("TextButton", top)
-		minBtn.Text = "-"
-		minBtn.Size = UDim2.new(0, 30, 1, 0)
-		minBtn.Position = UDim2.new(1, -70, 0, 0)
-		minBtn.Font = Enum.Font.Gotham
-		minBtn.TextSize = 20
-		minBtn.BackgroundTransparency = 1
-		minBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-		local scroll = InstanceNew("ScrollingFrame", main)
-		scroll.Size = UDim2.new(1, -20, 1, -50)
-		scroll.Position = UDim2.new(0, 10, 0, 45)
-		scroll.BackgroundTransparency = 1
-		scroll.ScrollBarThickness = 6
-		scroll.CanvasSize = UDim2.new(0, 0, 0, #data * 130)
-		local layout = InstanceNew("UIListLayout", scroll)
-		layout.Padding = UDim.new(0, 10)
-		for _, b in ipairs(data) do
-			local f = InstanceNew("Frame", scroll)
-			f.Size = UDim2.new(1, 0, 0, 120)
-			f.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-			f.BackgroundTransparency = 0.4
-			local fc = InstanceNew("UICorner", f)
-			fc.CornerRadius = UDim.new(0, 10)
+		closeBtn.TextScaled = true
+		local tsClose = InstanceNew("UITextSizeConstraint", closeBtn); tsClose.MinTextSize = 12; tsClose.MaxTextSize = 22
+
+		local content = InstanceNew("Frame", main)
+		content.Name = "Content"
+		content.Size = UDim2.new(1, 0, 1, -headerH)
+		content.Position = UDim2.new(0, 0, 0, headerH)
+		content.BackgroundTransparency = 1
+		content.ClipsDescendants = true
+
+		local listScroll = InstanceNew("ScrollingFrame", content)
+		listScroll.Size = UDim2.new(1, 0, 1, 0)
+		listScroll.BackgroundTransparency = 1
+		listScroll.ScrollBarThickness = 6
+		listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		listScroll.CanvasSize = UDim2.new(0,0,0,0)
+		listScroll.Visible = false
+		local listLayout = InstanceNew("UIListLayout", listScroll)
+		listLayout.Padding = UDim.new(0, 10)
+		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		local listPad = InstanceNew("UIPadding", listScroll)
+		listPad.PaddingLeft = UDim.new(0, 10)
+		listPad.PaddingRight = UDim.new(0, 10)
+		listPad.PaddingTop = UDim.new(0, 10)
+		listPad.PaddingBottom = UDim.new(0, 10)
+
+		local gridScroll = InstanceNew("ScrollingFrame", content)
+		gridScroll.Size = UDim2.new(1, 0, 1, 0)
+		gridScroll.BackgroundTransparency = 1
+		gridScroll.ScrollBarThickness = 6
+		gridScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		gridScroll.CanvasSize = UDim2.new(0,0,0,0)
+		gridScroll.Visible = true
+		local gridPad = InstanceNew("UIPadding", gridScroll)
+		gridPad.PaddingLeft = UDim.new(0.01, 0)
+		gridPad.PaddingRight = UDim.new(0.01, 0)
+		gridPad.PaddingTop = UDim.new(0.01, 0)
+		gridPad.PaddingBottom = UDim.new(0.01, 0)
+		local gridLayout = InstanceNew("UIGridLayout", gridScroll)
+		gridLayout.FillDirection = Enum.FillDirection.Horizontal
+		gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+		gridLayout.CellPadding = UDim2.new(0.01, 0, 0.01, 0)
+		gridLayout.CellSize = UDim2.new(0.32, 0, 0, 190)
+		gridLayout.FillDirectionMaxCells = 0
+
+		local function updateGridColumns()
+			local w = gridScroll.AbsoluteSize.X
+			local padScale, sidePadScale, minCellPx = 0.01, 0.01, 260
+			local cols = math.max(1, math.floor((w*(1 - sidePadScale*2) + (w*padScale)) / (minCellPx + (w*padScale))))
+			local widthScale = (1 - sidePadScale*2 - padScale*(cols-1)) / cols
+			gridLayout.CellSize = UDim2.new(math.clamp(widthScale, 0.18, 1), 0, 0, 190)
+		end
+		content:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
+		gridScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
+		Defer(updateGridColumns)
+
+		local ownedOnly = false
+		local useGrid = true
+		local ownedMap: {[number]: boolean} = {}
+		local listCards, gridCards = {}, {}
+		local idToCards = {} -- [badgeId] = {list=card?, grid=card?}
+
+		local function makeListCard(b)
+			local f = InstanceNew("Frame", listScroll)
+			f.Size = UDim2.new(1, 0, 0, 118)
+			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
+			f.BackgroundTransparency = 0.12
+			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
+			local fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
+
 			local img = InstanceNew("ImageLabel", f)
-			img.Size = UDim2.new(0, 100, 0, 100)
-			img.Position = UDim2.new(0, 10, 0, 10)
-			img.Image = "rbxthumb://type=Asset&id="..b.icon.."&w=420&h=420"
+			img.Size = UDim2.new(0, 96, 0, 96)
+			img.Position = UDim2.new(0, 12, 0, 11)
 			img.BackgroundTransparency = 1
+			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
+
 			local title = InstanceNew("TextLabel", f)
 			title.Position = UDim2.new(0, 120, 0, 10)
-			title.Size = UDim2.new(1, -130, 0, 25)
-			title.Text = b.name
-			title.TextColor3 = Color3.fromRGB(255, 255, 255)
-			title.Font = Enum.Font.GothamSemibold
-			title.TextSize = 18
+			title.Size = UDim2.new(1, -130, 0, 24)
+			title.Text = b.name or ("Badge "..tostring(b.id))
+			title.TextColor3 = COLORS.TEXT
 			title.BackgroundTransparency = 1
+			title.Font = Enum.Font.GothamSemibold
 			title.TextXAlignment = Enum.TextXAlignment.Left
+			title.TextTruncate = Enum.TextTruncate.AtEnd
+			title.TextScaled = true
+			local tsLT = InstanceNew("UITextSizeConstraint", title); tsLT.MinTextSize = 10; tsLT.MaxTextSize = 18
+
 			local desc = InstanceNew("TextLabel", f)
-			desc.Position = UDim2.new(0, 120, 0, 35)
-			desc.Size = UDim2.new(1, -130, 0, 30)
+			desc.Position = UDim2.new(0, 120, 0, 36)
+			desc.Size = UDim2.new(1, -130, 0, 32)
 			desc.Text = b.desc
 			desc.TextWrapped = true
-			desc.TextColor3 = Color3.fromRGB(200, 200, 200)
-			desc.Font = Enum.Font.Gotham
-			desc.TextSize = 14
+			desc.TextColor3 = COLORS.MUTED
 			desc.BackgroundTransparency = 1
+			desc.Font = Enum.Font.Gotham
 			desc.TextXAlignment = Enum.TextXAlignment.Left
+			desc.TextYAlignment = Enum.TextYAlignment.Top
+			desc.TextScaled = true
+			local tsLD = InstanceNew("UITextSizeConstraint", desc); tsLD.MinTextSize = 9; tsLD.MaxTextSize = 14
+
 			local stat = InstanceNew("TextLabel", f)
-			stat.Position = UDim2.new(0, 120, 0, 65)
-			stat.Size = UDim2.new(1, -130, 0, 50)
-			stat.Text = Format("Win: %.2f%% | Awarded: %d | 24h: %d\nFrom: %s", b.rarity, b.awarded, b.pastDay, b.universe)
-			stat.TextColor3 = Color3.fromRGB(160, 160, 160)
-			stat.Font = Enum.Font.Gotham
-			stat.TextSize = 13
-			stat.TextWrapped = true
+			stat.Position = UDim2.new(0, 120, 0, 72)
+			stat.Size = UDim2.new(1, -130, 0, 28)
+			stat.Text = Format("🎯 %.2f%%   📈 %d   ⏱️ %d   🧭 %s", b.rarity, b.awarded, b.pastDay, b.universe)
+			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
 			stat.BackgroundTransparency = 1
+			stat.Font = Enum.Font.Gotham
 			stat.TextXAlignment = Enum.TextXAlignment.Left
+			stat.TextScaled = true
+			local tsLS = InstanceNew("UITextSizeConstraint", stat); tsLS.MinTextSize = 9; tsLS.MaxTextSize = 13
+
+			local ownedTag = pill(f, "✅ OWNED", COLORS.OWNED)
+
+			local card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
+			idToCards[b.id] = idToCards[b.id] or {}
+			idToCards[b.id].list = card
+			Insert(listCards, card)
+			return card
 		end
+
+		local function makeGridCard(b)
+			local f = InstanceNew("Frame", gridScroll)
+			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
+			f.BackgroundTransparency = 0.12
+			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
+			local fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
+
+			local img = InstanceNew("ImageLabel", f)
+			img.AnchorPoint = Vector2.new(0.5,0)
+			img.Position = UDim2.new(0.5, 0, 0, 10)
+			img.Size = UDim2.new(0, 72, 0, 72)
+			img.BackgroundTransparency = 1
+			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
+
+			local title = InstanceNew("TextLabel", f)
+			title.AnchorPoint = Vector2.new(0.5,0)
+			title.Position = UDim2.new(0.5, 0, 0, 88)
+			title.Size = UDim2.new(0.92, 0, 0, 20)
+			title.Text = b.name or ("Badge "..tostring(b.id))
+			title.TextColor3 = COLORS.TEXT
+			title.BackgroundTransparency = 1
+			title.Font = Enum.Font.GothamSemibold
+			title.TextXAlignment = Enum.TextXAlignment.Center
+			title.TextTruncate = Enum.TextTruncate.AtEnd
+			title.TextScaled = true
+			local tsGT = InstanceNew("UITextSizeConstraint", title); tsGT.MinTextSize = 10; tsGT.MaxTextSize = 16
+
+			local desc = InstanceNew("TextLabel", f)
+			desc.AnchorPoint = Vector2.new(0.5,0)
+			desc.Position = UDim2.new(0.5, 0, 0, 110)
+			desc.Size = UDim2.new(0.92, 0, 0, 28)
+			desc.Text = b.desc
+			desc.TextWrapped = true
+			desc.TextColor3 = COLORS.MUTED
+			desc.BackgroundTransparency = 1
+			desc.Font = Enum.Font.Gotham
+			desc.TextXAlignment = Enum.TextXAlignment.Center
+			desc.TextYAlignment = Enum.TextYAlignment.Top
+			desc.TextScaled = true
+			local tsGD = InstanceNew("UITextSizeConstraint", desc); tsGD.MinTextSize = 9; tsGD.MaxTextSize = 12
+
+			local stat = InstanceNew("TextLabel", f)
+			stat.AnchorPoint = Vector2.new(0.5,0)
+			stat.Position = UDim2.new(0.5, 0, 0, 140)
+			stat.Size = UDim2.new(0.92, 0, 0, 24)
+			stat.Text = Format("🎯 %.1f%%  📈 %d  ⏱️ %d  🧭 %s", b.rarity, b.awarded, b.pastDay, b.universe)
+			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
+			stat.BackgroundTransparency = 1
+			stat.Font = Enum.Font.Gotham
+			stat.TextXAlignment = Enum.TextXAlignment.Center
+			stat.TextScaled = true
+			local tsGS = InstanceNew("UITextSizeConstraint", stat); tsGS.MinTextSize = 9; tsGS.MaxTextSize = 12
+
+			local ownedTag = pill(f, "✅ OWNED", COLORS.OWNED)
+
+			local card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
+			idToCards[b.id] = idToCards[b.id] or {}
+			idToCards[b.id].grid = card
+			Insert(gridCards, card)
+			return card
+		end
+
+		for _, b in ipairs(data) do
+			makeListCard(b)
+			makeGridCard(b)
+		end
+
+		local function textContains(h, n)
+			if n == "" then return true end
+			h = Lower(h or ""); n = Lower(n or "")
+			return Find(h, n, 1, true) ~= nil
+		end
+
+		local function applyFilters()
+			local q = search.Text
+			for _, card in ipairs(listCards) do
+				local show = textContains(card.data.name.." "..card.data.desc, q)
+				if ownedOnly then show = show and (ownedMap[card.data.id] == true) end
+				card.frame.Visible = show
+			end
+			for _, card in ipairs(gridCards) do
+				local show = textContains(card.data.name.." "..card.data.desc, q)
+				if ownedOnly then show = show and (ownedMap[card.data.id] == true) end
+				card.frame.Visible = show
+			end
+		end
+
+		search:GetPropertyChangedSignal("Text"):Connect(applyFilters)
+		ownedOnlyBtn.MouseButton1Click:Connect(function()
+			ownedOnly = not ownedOnly
+			ownedOnlyBtn.Text = ownedOnly and "🏆 Owned: ON" or "🏆 Owned: OFF"
+			applyFilters()
+		end)
+
+		local function updateGridOrListVisibility()
+			if useGrid then
+				listScroll.Visible = false
+				gridScroll.Visible = true
+			else
+				gridScroll.Visible = false
+				listScroll.Visible = true
+			end
+		end
+		updateGridColumns()
+		updateGridOrListVisibility()
+
+		layoutToggle.MouseButton1Click:Connect(function()
+			useGrid = not useGrid
+			layoutToggle.Text = useGrid and "🧩 Grid" or "📃 List"
+			updateGridOrListVisibility()
+		end)
+
 		closeBtn.MouseButton1Click:Connect(function()
-			local tween = TweenService:Create(main, TweenInfo.new(0.4), {
-				Size = UDim2.new(0, 0, 0, 0),
-				Position = UDim2.new(0.5, 0, 0.5, 0)
+			local t1 = TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+				Size = UDim2.new(0.02,0,0.02,0),
+				Position = UDim2.new(0.99,0,0.01,0)
 			})
-			tween:Play()
-			tween.Completed:Wait()
+			t1:Play(); t1.Completed:Wait()
 			sgui:Destroy()
 		end)
+
 		local minimized = false
+		local function minimize()
+			if minimized then return end
+			tweenTransparency(content, 1, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+			local tA = TweenService:Create(content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,0)})
+			local tB = TweenService:Create(main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(main.Size.X.Scale, 0, 0, headerH)})
+			tA:Play(); tB:Play()
+			Delay(0.18, function() content.Visible = false end)
+			minimized = true
+		end
+		local function restore()
+			if not minimized then return end
+			content.Visible = true
+			local tB = TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = expandedMainSize})
+			local tA = TweenService:Create(content, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1, -headerH)})
+			tB:Play(); tA:Play()
+			Delay(0.1, function() tweenTransparency(content, 0, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)) end)
+			minimized = false
+		end
 		minBtn.MouseButton1Click:Connect(function()
-			local target = minimized and UDim2.new(0.5,0,0.7,0) or UDim2.new(0.5,0,0.07,0)
-			local tween = TweenService:Create(main, TweenInfo.new(0.3), {Size = target})
-			tween:Play()
-			minimized = not minimized
+			if minimized then restore() else minimize() end
 		end)
-		NAgui.dragger(main, top)
+
+		NAgui.dragger(main, header)
+
+		local i = 0
+		for _, b in ipairs(data) do
+			Spawn(function()
+				i += 1
+				if i % 8 == 0 then Wait(0.2) end
+				local ok, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, Player.UserId, b.id)
+				ownedMap[b.id] = ok and has or false
+				local pair = idToCards[b.id]
+				if pair then
+					if ownedMap[b.id] then
+						if pair.list then applyOwnedStyle(pair.list.frame, pair.list.stroke, pair.list.ownedTag) end
+						if pair.grid then applyOwnedStyle(pair.grid.frame, pair.grid.stroke, pair.grid.ownedTag) end
+					end
+				end
+				if ownedOnly then applyFilters() end
+			end)
+		end
+
+		tweenTransparency(content, 0, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
 	end
+
 	local ok, result = NACaller(getBadges)
 	if ok then
+		local root = NAmanage.guiCHECKINGAHHHHH()
+		for _, g in ipairs(root:GetChildren()) do
+			if g:IsA("ScreenGui") and g.Name == "BadgeViewer" then g:Destroy() end
+		end
 		createBadgeUI(result)
 	else
 		DoNotif("Failed to fetch badge data")
@@ -15607,54 +16068,105 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	end
 end,true)
 
-cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"},function(...)
+NAmanage.carPart=function(inst)
+	if inst and inst:IsA("BasePart") then return inst end
+	if inst and inst:IsA("Attachment") then
+		local p = inst.Parent
+		if p and p:IsA("BasePart") then return p end
+	end
+	return inst and inst:FindFirstAncestorWhichIsA("BasePart") or nil
+end
+
+NAmanage.parseInterval=function(defaultInterval, ...)
 	local args = {...}
-	local interval = tonumber(args[1]) or 0.1
-	local target = args[2] and Lower(Concat(args," ",2))
+	local n1 = tonumber(args[1])
+	if n1 then
+		return n1, (args[2] and Lower(Concat(args," ",2)) or nil)
+	else
+		return defaultInterval, (args[1] and Lower(Concat(args," ",1)) or nil)
+	end
+end
+
+NAmanage.anyMatches=function(names, target)
+	if not target or target == "" then return true end
+	for _, n in ipairs(names) do
+		n = Lower(n)
+		if n == target or Find(n, target) then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.collectPrompts=function(p)
+	local names = {}
+	if p.Name then Insert(names, p.Name) end
+	if p.ObjectText then Insert(names, p.ObjectText) end
+	if p.ActionText then Insert(names, p.ActionText) end
+	if p.Parent and p.Parent.Name then Insert(names, p.Parent.Name) end
+	local part = NAmanage.carPart(p)
+	if part then
+		Insert(names, part.Name)
+		local m = part:FindFirstAncestorWhichIsA("Model")
+		while m do
+			Insert(names, m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	end
+	return names
+end
+
+NAmanage.collectClicks=function(d)
+	local names = {}
+	if d.Name then Insert(names, d.Name) end
+	if d.Parent and d.Parent.Name then Insert(names, d.Parent.Name) end
+	local part = NAmanage.carPart(d.Parent or d)
+	if part then
+		Insert(names, part.Name)
+		local m = part:FindFirstAncestorWhichIsA("Model")
+		while m do
+			Insert(names, m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	end
+	return names
+end
+
+cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"}, function(...)
+	local interval, target = NAmanage.parseInterval(0.1, ...)
 	local last = tick()
 	NAlib.connect("AutoFireClick", RunService.Heartbeat:Connect(function()
-		if tick() - last >= interval then
-			last = tick()
-			for _, d in ipairs(interactTbl.click) do
-				local part = d.Parent:IsA("BasePart") and d.Parent or d:FindFirstAncestorWhichIsA("BasePart")
-				if part and (not target
-					or Lower(part.Name) == target
-					or (part.Parent and Lower(part.Parent.Name) == target)) then
-					pcall(fireclickdetector, d)
+		if tick() - last < interval then return end
+		last = tick()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("ClickDetector") and obj.Parent then
+				local names = NAmanage.collectClicks(obj)
+				if NAmanage.anyMatches(names, target) then
+					pcall(fireclickdetector, obj)
 				end
 			end
 		end
 	end))
-	if target then
-		DebugNotif(("AutoFireClick \"%s\" started"):format(target),2)
-	else
-		DebugNotif("AutoFireClick started",2)
-	end
+	DebugNotif(target and ("AutoFireClick \"%s\" started"):format(target) or "AutoFireClick started", 2)
 end, true)
 
-cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"},function(...)
-	local args = {...}
-	local interval = tonumber(args[1]) or 0.1
-	local target = args[2] and Lower(Concat(args," ",2))
+cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"}, function(...)
+	local interval, target = NAmanage.parseInterval(0.1, ...)
 	local last = tick()
 	NAlib.connect("AutoFireProxi", RunService.Heartbeat:Connect(function()
-		if tick() - last >= interval then
-			last = tick()
-			for _, p in ipairs(interactTbl.proxy) do
-				local part = p.Parent:IsA("BasePart") and p.Parent or p:FindFirstAncestorWhichIsA("BasePart")
-				if part and (not target
-					or Lower(part.Name) == target
-					or (part.Parent and Lower(part.Parent.Name) == target)) then
-					pcall(fireproximityprompt, p, 1)
+		if tick() - last < interval then return end
+		last = tick()
+		for _, obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("ProximityPrompt") and obj.Enabled and obj.Parent then
+				local names = NAmanage.collectPrompts(obj)
+				if NAmanage.anyMatches(names, target) then
+					local ok = pcall(fireproximityprompt, obj)
+					if not ok then pcall(fireproximityprompt, obj, 1) end
 				end
 			end
 		end
 	end))
-	if target then
-		DebugNotif(("AutoFireProxi \"%s\" started"):format(target),2)
-	else
-		DebugNotif("AutoFireProxi started",2)
-	end
+	DebugNotif(target and ("AutoFireProxi \"%s\" started"):format(target) or "AutoFireProxi started", 2)
 end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
