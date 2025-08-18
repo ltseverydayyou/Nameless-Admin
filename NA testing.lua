@@ -19973,6 +19973,7 @@ NAgui.resizeable = function(ui, min, max)
 	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
 	max = max or Vector2.new(5000, 5000)
 
+	local UserInputService = SafeGetService("UserInputService")
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 	local scale = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
 
@@ -19984,11 +19985,11 @@ NAgui.resizeable = function(ui, min, max)
 	local UIPos
 	local lastSize
 	local lastPos = Vector2.new()
+	local activeInput
 
 	local function updateResize(currentPos)
 		local success, err = NACaller(function()
-			if not dragging or not mode then return end
-
+			if not dragging or not mode or not activeInput then return end
 			local xy = resizeXY[mode.Name]
 			if not xy then return end
 
@@ -20023,16 +20024,19 @@ NAgui.resizeable = function(ui, min, max)
 
 			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
 		end)
-
 		if not success then
 			warn("Resize update failed:", err)
 		end
 	end
 
 	NACaller(function()
+		ui.Active = true
+	end)
+
+	NACaller(function()
 		UserInputService.InputChanged:Connect(function(input)
 			local success, err = NACaller(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and input == activeInput then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
@@ -20043,9 +20047,10 @@ NAgui.resizeable = function(ui, min, max)
 	NACaller(function()
 		UserInputService.InputEnded:Connect(function(input)
 			local success, err = NACaller(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and input == activeInput and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 					dragging = false
 					mode = nil
+					activeInput = nil
 					if mouse and mouse.Icon ~= "" then
 						mouse.Icon = ""
 					end
@@ -20057,15 +20062,36 @@ NAgui.resizeable = function(ui, min, max)
 
 	for _, button in pairs(rgui:GetChildren()) do
 		NACaller(function()
+			if button:IsA("GuiObject") then pcall(function() button.Active = true end) end
+		end)
+
+		NACaller(function()
 			button.InputBegan:Connect(function(input)
 				local success, err = NACaller(function()
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						mode = button
 						dragging = true
+						activeInput = input
 						local currentPos = input.Position
 						lastPos = Vector2.new(currentPos.X, currentPos.Y)
 						lastSize = ui.AbsoluteSize
 						UIPos = ui.Position
+
+						NACaller(function()
+							input.Changed:Connect(function()
+								local ok, innerErr = NACaller(function()
+									if input.UserInputState == Enum.UserInputState.End and input == activeInput then
+										dragging = false
+										mode = nil
+										activeInput = nil
+										if mouse and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+											mouse.Icon = ""
+										end
+									end
+								end)
+								if not ok then warn("input.Changed error:", innerErr) end
+							end)
+						end)
 					end
 				end)
 				if not success then warn("InputBegan error:", err) end
@@ -20073,11 +20099,23 @@ NAgui.resizeable = function(ui, min, max)
 		end)
 
 		NACaller(function()
+			button.InputChanged:Connect(function(input)
+				local success, err = NACaller(function()
+					if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+						activeInput = input
+					end
+				end)
+				if not success then warn("Button InputChanged error:", err) end
+			end)
+		end)
+
+		NACaller(function()
 			button.InputEnded:Connect(function(input)
 				local success, err = NACaller(function()
-					if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
+					if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button and input == activeInput then
 						dragging = false
 						mode = nil
+						activeInput = nil
 						if mouse and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
 							mouse.Icon = ""
 						end
@@ -20116,7 +20154,6 @@ NAgui.resizeable = function(ui, min, max)
 		end)
 	end
 end
-
 NAmanage.UpdateWaypointList=function()
 	local list = NAUIMANAGER.WaypointList
 	local rawFilter = NAUIMANAGER.filterBox and NAUIMANAGER.filterBox.Text or ""
