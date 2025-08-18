@@ -283,26 +283,25 @@ local bi = {
 
 local function colorize(txt)
 	local E = esc(txt)
-	local ph = {}
-	local n = 0
+	local ph, n = {}, 0
 	local function keep(s)
 		n += 1
 		ph[n] = s
-		return "\1"..n.."\2"
+		return "\1PH" .. n .. "\2"
 	end
-	E = E:gsub("%-%-%[%[.-%]%]", function(s) return keep('<font color="#8B949E">'..s.."</font>") end)
-	E = E:gsub("%-%-[^\n]*", function(s) return keep('<font color="#8B949E">'..s.."</font>") end)
-	E = E:gsub("%[%[.-%]%]", function(s) return keep('<font color="#A3E635">'..s.."</font>") end)
-	E = E:gsub('"(.-)"', function(s) return keep('<font color="#A3E635">'..'"'..s..'"'.."</font>") end)
-	E = E:gsub("'(.-)'", function(s) return keep('<font color="#A3E635">'.."'"..s.."'".."</font>") end)
-	E = E:gsub("(%f[%w_]%d[%d%.eE]*%f[^%w_])", function(s) return '<font color="#60A5FA">'..s.."</font>" end)
+	E = E:gsub("%-%-%[%[[%s%S]-%]%]", function(s) return keep('<font color="#8B949E">'..s..'</font>') end)
+	E = E:gsub("%-%-[^\n]*", function(s) return keep('<font color="#8B949E">'..s..'</font>') end)
+	E = E:gsub("%[%[[%s%S]-%]%]", function(s) return keep('<font color="#A3E635">'..s..'</font>') end)
+	E = E:gsub('"(.-)"', function(s) return keep('<font color="#A3E635">"'..s..'"</font>') end)
+	E = E:gsub("'(.-)'", function(s) return keep('<font color="#A3E635">\''..s..'\'</font>') end)
+	E = E:gsub("(%f[%w_]%d[%d%.eE]*%f[^%w_])", '<font color="#60A5FA">%1</font>')
 	for _, w in ipairs(kw) do
-		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F472B6">'..w.."</font>")
+		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F472B6">'..w..'</font>')
 	end
 	for _, w in ipairs(bi) do
-		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F59E0B">'..w.."</font>")
+		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F59E0B">'..w..'</font>')
 	end
-	E = E:gsub("\1(%d+)\2", function(i) return ph[tonumber(i)] or "" end)
+	E = E:gsub("\1PH(%d+)\2", function(i) return ph[tonumber(i)] or "" end)
 	return E
 end
 
