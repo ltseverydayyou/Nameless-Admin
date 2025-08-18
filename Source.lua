@@ -4427,167 +4427,536 @@ cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a 
 	end
 end,true)
 
-debugUI, cDEBUGCON, isMinimized = nil, {}, false
-
-function DEBUGclearCONS()
-	for _,c in ipairs(cDEBUGCON) do c:Disconnect() end
-	cDEBUGCON = {}
-end
+debugUI, isMinimized = nil, false
 
 cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},function()
-	local UI_SIZE     = Vector2.new(520, 300)
-	local HEADER_H    = 40
-	local BG_COLOR    = Color3.fromRGB(20, 20, 20)
-	local CONTENT_BG  = Color3.fromRGB(20, 20, 20)
-	local UPDATE_RATE = 1/30
+	local CONN_KEY = "CharDebug"
+	local RENDER_BIND = "CharDebug"
 
-	local function new(class, props)
-		local inst = InstanceNew(class)
-		for k,v in pairs(props) do inst[k] = v end
-		return inst
-	end
+	local Lighting = SafeGetService("Lighting")
+	local LogService = SafeGetService("LogService")
+	local StatsService = SafeGetService("Stats")
+	local CoreGui = SafeGetService("CoreGui")
+
+	local UI_SIZE = Vector2.new(860, 520)
+	local HEADER_H = 48
+	local TAB_H = 36
+	local BG_COLOR = Color3.fromRGB(20, 20, 20)
+	local PANEL_BG = Color3.fromRGB(26, 26, 26)
+	local ACCENT = Color3.fromRGB(95, 165, 255)
+	local UPDATE_RATE = 1/30
+	local MAX_LOGS = 600
+
+	local LocalPlayer = Players.LocalPlayer
+	local paused = false
+	local fps, fpsAlpha, dtAcc = 0, 0, 0
+	local lastDt = UPDATE_RATE
+	local activeTab = "Overview"
+	local logs, errCount, warnCount, infoCount = {}, 0, 0, 0
+
 	if debugUI then
 		debugUI:Destroy()
 		debugUI = nil
-		DEBUGclearCONS()
-		RunService:UnbindFromRenderStep("CharDebug")
+		NAlib.disconnect(CONN_KEY)
+		RunService:UnbindFromRenderStep(RENDER_BIND)
 		return
 	end
 
-	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false})
-	NaProtectUI(debugUI)
-
-	local window = new("Frame",{
-		Name="Window",
-		Size=UDim2.fromOffset(UI_SIZE.X, HEADER_H),
-		Position=UDim2.new(0.5, -UI_SIZE.X/2, 0.2, 0),
-		BackgroundColor3=BG_COLOR,
-		BorderSizePixel=0,
-		ClipsDescendants=true,
-		Parent=debugUI
-	})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=window})
-
-	local header = new("Frame",{
-		Name="Header",
-		Size=UDim2.new(1,0,0,HEADER_H),
-		BackgroundColor3=BG_COLOR,
-		Parent=window
-	})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=header})
-
-	local title = new("TextLabel",{
-		Name="Title",
-		Size=UDim2.new(1,-80,1,0),
-		Position=UDim2.new(0,10,0,0),
-		BackgroundTransparency=1,
-		Font=Enum.Font.Code,
-		TextSize=18,
-		TextColor3=Color3.new(1,1,1),
-		TextXAlignment=Enum.TextXAlignment.Left,
-		Text="Character Debug",
-		Parent=header
-	})
-
-	local btn = new("TextButton",{
-		Name="MinimizeBtn",
-		Size=UDim2.new(0,40,1,0),
-		Position=UDim2.new(1,-40,0,0),
-		BackgroundTransparency=1,
-		Font=Enum.Font.Code,
-		TextSize=24,
-		TextColor3=Color3.new(1,1,1),
-		Text="-",
-		Parent=header
-	})
-
-	local content = new("Frame",{
-		Name="Content",
-		Size=UDim2.new(1,0,0,UI_SIZE.Y-HEADER_H),
-		Position=UDim2.new(0,0,0,HEADER_H),
-		BackgroundColor3=CONTENT_BG,
-		BackgroundTransparency=0.3,
-		Parent=window
-	})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=content})
-
-	local grid = new("UIGridLayout",{
-		Parent=content,
-		CellSize=UDim2.new(0,250,0,50),
-		CellPadding=UDim2.new(0,10,0,10),
-		StartCorner=Enum.StartCorner.TopLeft,
-		SortOrder=Enum.SortOrder.LayoutOrder
-	})
-
-	local stats = {
-		{key="Velocity",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Velocity.X, r.Velocity.Y, r.Velocity.Z end},
-		{key="Position",  source="root",     fmt="X: %.2f\nY: %.2f\nZ: %.2f", fn=function(r) return r.Position.X, r.Position.Y, r.Position.Z end},
-		{key="Health",    source="humanoid", fmt="%.2f / %.2f",             fn=function(h) return h.Health, h.MaxHealth end},
-		{key="FOV",       source="camera",   fmt="%.2f",                      fn=function(c) return c.FieldOfView end},
-		{key="State",     source="humanoid", fmt="%s",                        fn=function(h) return tostring(h:GetState()) end},
-		{key="Tool",      source="char",     fmt="%s",                        fn=function(c) local t=c:FindFirstChildOfClass("Tool") return (t and t.Name) or "None" end},
-		{key="JumpPower", source="humanoid", fmt="%.2f",                      fn=function(h) return h.JumpPower end},
-		{key="WalkSpeed", source="humanoid", fmt="%.2f",                      fn=function(h) return h.WalkSpeed end},
-	}
-
-	local labels = {}
-	for i,stat in ipairs(stats) do
-		local lbl = new("TextLabel",{
-			Name=stat.key,
-			LayoutOrder=i,
-			Size=UDim2.fromOffset(250,50),
-			BackgroundColor3=Color3.fromRGB(30,30,30),
-			BorderSizePixel=0,
-			Font=Enum.Font.Code,
-			TextScaled=true,
-			TextColor3=Color3.new(1,1,1),
-			TextWrapped=true,
-			Text=stat.key.."\n—",
-			Parent=content
-		})
-		new("UICorner",{CornerRadius=UDim.new(0,4),Parent=lbl})
-		labels[stat.key] = lbl
+	local function velOf(r)
+		if not r then return Vector3.zero end
+		local v = NAlib.isProperty(r,"AssemblyLinearVelocity") or Vector3.zero
+		if v.Magnitude == 0 and NAlib.isProperty(r,"Velocity") then v = r.Velocity end
+		return v
+	end
+	local function angVelOf(r)
+		if not r then return Vector3.zero end
+		local v = NAlib.isProperty(r,"AssemblyAngularVelocity") or Vector3.zero
+		if NAlib.isProperty(r,"RotVelocity") then v = r.RotVelocity end
+		return v
+	end
+	local function char() return LocalPlayer.Character end
+	local function hum() local c=char() return c and c:FindFirstChildOfClass("Humanoid") or nil end
+	local function root(c)
+		c = c or char()
+		return c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso")) or nil
+	end
+	local function raycastDown(origin, dist)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		local c = char()
+		params.FilterDescendantsInstances = c and {c} or {}
+		return workspace:Raycast(origin, Vector3.new(0,-math.abs(dist or 1000),0), params)
+	end
+	local function getPingMs()
+		local ok,ms = pcall(function()
+			local net = StatsService:FindFirstChild("Network")
+			if not net then return nil end
+			local p = (net:FindFirstChild("ServerStatsItem") and net.ServerStatsItem:FindFirstChild("Data Ping")) or net:FindFirstChild("Data Ping")
+			if not p then return nil end
+			if p.GetValue then
+				local v = p:GetValue()
+				if typeof(v) == "number" then return v end
+			end
+			if p.GetValueString then
+				local s = p:GetValueString()
+				if type(s) == "string" then
+					local n = tonumber((s:gsub("[^%d%.]","")))
+					return n
+				end
+			end
+			return nil
+		end)
+		if ok then return ms end
+		return nil
+	end
+	local function getMem()
+		local ok,total = pcall(function() return StatsService:GetTotalMemoryUsageMb() end)
+		local tags = {"Internal","Instances","Signals","Physics","GraphicsTexture","LuaHeap","HttpCache","Animation","Pathfinding","Sounds","Terrain","Navigation"}
+		local map = {}
+		if ok then map.Total = total end
+		for _,t in ipairs(tags) do
+			local ok2,val = pcall(function() return StatsService:GetMemoryUsageMbForTag(t) end)
+			if ok2 then map[t] = val end
+		end
+		return map
+	end
+	local function pushLog(msg, t)
+		local tag = tostring(t)
+		if tag:find("Error") then errCount += 1 elseif tag:find("Warning") then warnCount += 1 else infoCount += 1 end
+		Insert(logs, os.date("%X").." | "..tag.." | "..msg)
+		if #logs > MAX_LOGS then table.remove(logs,1) end
 	end
 
-	NAgui.draggerV2(window, header)
+	local function NewI(c) return (InstanceNew and InstanceNew(c)) or Instance.new(c) end
+	local function new(class, props) local inst = NewI(class) for k,v in pairs(props) do inst[k] = v end return inst end
 
-	btn.MouseButton1Click:Connect(function()
-		isMinimized = not isMinimized
-		local target = isMinimized and UDim2.fromOffset(UI_SIZE.X, HEADER_H) or UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)
-		TweenService:Create(window, TweenInfo.new(0.2), {Size = target}):Play()
-		btn.Text = isMinimized and "+" or "-"
-		content.Visible = not isMinimized
-	end)
+	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1000})
+	pcall(function() NaProtectUI(debugUI) end)
 
-	local dtAcc = 0
-	RunService:BindToRenderStep("CharDebug", Enum.RenderPriority.Last.Value, function(dt)
-		dtAcc = dtAcc + dt
-		if dtAcc < UPDATE_RATE then return end
-		dtAcc = 0
+	local window = new("Frame",{Name="Window", Size=UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), Position=UDim2.new(0.5,-UI_SIZE.X/2,0.22,0), BackgroundColor3=BG_COLOR, BorderSizePixel=0, ClipsDescendants=true, Parent=debugUI, ZIndex=10})
+	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=window})
+	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(35,35,35),Parent=window})
 
-		local char = LocalPlayer.Character
-		local hum  = getHum()
-		local root = char and getRoot(char)
-		local cam  = workspace.CurrentCamera
-		if not (char and hum and root and cam) then return end
+	local hdr = new("Frame",{Name="Header", Size=UDim2.new(1,0,0,HEADER_H), BackgroundColor3=BG_COLOR, BorderSizePixel=0, Parent=window, ZIndex=50})
+	local hdrStroke = new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(45,45,45),Parent=hdr})
+	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=hdr})
 
-		local sources = { char = char, humanoid = hum, root = root, camera = cam }
-		for _, stat in ipairs(stats) do
-			local src = sources[stat.source]
-			if src then
-				local vals = { stat.fn(src) }
-				labels[stat.key].Text = stat.key.."\n"..Format(stat.fmt, unpack(vals))
+	local title = new("TextLabel",{Name="Title", Size=UDim2.new(0.5,-12,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Font=Enum.Font.Code, TextSize=18, TextColor3=Color3.new(1,1,1), TextXAlignment=Enum.TextXAlignment.Left, Text="Character Debug", Parent=hdr, ZIndex=60})
+
+	local right = new("Frame",{Name="Right", AnchorPoint=Vector2.new(1,0), Position=UDim2.new(1,-8,0,6), Size=UDim2.new(0,0,1,-12), BackgroundTransparency=1, AutomaticSize=Enum.AutomaticSize.X, Parent=hdr, ZIndex=60})
+	new("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,HorizontalAlignment=Enum.HorizontalAlignment.Right,VerticalAlignment=Enum.VerticalAlignment.Center,Padding=UDim.new(0,6),Parent=right})
+
+	local status = new("TextLabel",{Name="Status", Size=UDim2.fromOffset(178,HEADER_H-16), BackgroundTransparency=0, BackgroundColor3=Color3.fromRGB(30,30,30), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), TextXAlignment=Enum.TextXAlignment.Center, Text="FPS: -- | Ping: --", Parent=right, ZIndex=61})
+	new("UICorner",{CornerRadius=UDim.new(1,8),Parent=status})
+	local btnPause = new("TextButton",{Name="Pause", Size=UDim2.fromOffset(74,HEADER_H-16), BackgroundColor3=ACCENT, AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="Pause", Font=Enum.Font.Code, TextSize=16, Parent=right, ZIndex=61})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnPause})
+	local btnMin = new("TextButton",{Name="Min", Size=UDim2.fromOffset(44,HEADER_H-16), BackgroundColor3=Color3.fromRGB(45,45,45), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="–", Font=Enum.Font.Code, TextSize=20, Parent=right, ZIndex=61})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnMin})
+	local btnClose = new("TextButton",{Name="Close", Size=UDim2.fromOffset(44,HEADER_H-16), BackgroundColor3=Color3.fromRGB(140,55,55), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="×", Font=Enum.Font.Code, TextSize=20, Parent=right, ZIndex=61})
+	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnClose})
+
+	local tabbar = new("ScrollingFrame",{Name="Tabs", Size=UDim2.new(1,0,0,TAB_H), Position=UDim2.new(0,0,0,HEADER_H), BackgroundColor3=Color3.fromRGB(28,28,28), BorderSizePixel=0, Parent=window, ScrollingDirection=Enum.ScrollingDirection.X, ScrollBarThickness=6, Active=true, CanvasSize=UDim2.new(), ZIndex=30})
+	local tabsHolder = new("Frame",{Name="Holder", BackgroundTransparency=1, Size=UDim2.new(0,0,1,0), Parent=tabbar, ZIndex=31})
+	local uilist = new("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,6),HorizontalAlignment=Enum.HorizontalAlignment.Left,VerticalAlignment=Enum.VerticalAlignment.Center,Parent=tabsHolder})
+
+	local content = new("Frame",{Name="Content", Size=UDim2.new(1,0,1,-(HEADER_H+TAB_H)), Position=UDim2.new(0,0,0,HEADER_H+TAB_H), BackgroundTransparency=1, BorderSizePixel=0, Parent=window, ZIndex=20})
+	local cardsScroll = new("ScrollingFrame",{Name="CardsScroll", Active=true, ScrollingDirection=Enum.ScrollingDirection.Y, ScrollBarThickness=6, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
+	new("UIPadding",{PaddingLeft=UDim.new(0,12),PaddingTop=UDim.new(0,12),Parent=cardsScroll})
+	local cardsHolder = new("Frame",{Name="CardsHolder", BackgroundTransparency=1, Size=UDim2.new(1,-24,0,0), Position=UDim2.new(0,12,0,12), Parent=cardsScroll, AutomaticSize=Enum.AutomaticSize.Y, ZIndex=22})
+	local grid = new("UIGridLayout",{Parent=cardsHolder, CellSize=UDim2.fromOffset(400,86), CellPadding=UDim2.new(0,10,0,10), StartCorner=Enum.StartCorner.TopLeft, SortOrder=Enum.SortOrder.LayoutOrder})
+	cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
+
+	local logsHolder = new("Frame",{Name="LogsHolder", BackgroundTransparency=1, Visible=false, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
+	local panel = new("Frame",{Name="LogPanel", BackgroundColor3=PANEL_BG, BorderSizePixel=0, Parent=logsHolder, Size=UDim2.new(1,-24,1,-24), Position=UDim2.new(0,12,0,12), ZIndex=22})
+	new("UICorner",{CornerRadius=UDim.new(0,10),Parent=panel})
+	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(40,40,40),Parent=panel})
+	local counts = new("TextLabel",{Name="Counts", BackgroundTransparency=1, Position=UDim2.new(0,10,0,8), Size=UDim2.new(1,-20,0,18), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(200,200,200), TextXAlignment=Enum.TextXAlignment.Left, Text="Info:0  Warn:0  Error:0", Parent=panel, ZIndex=23})
+	local logScroll = new("ScrollingFrame",{Name="Scroll", Active=true, ScrollBarThickness=6, ScrollingDirection=Enum.ScrollingDirection.Y, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.new(1,-20,1,-40), Position=UDim2.new(0,10,0,30), Parent=panel, ZIndex=23})
+	local logText = new("TextLabel",{Name="Text", BackgroundTransparency=1, Size=UDim2.new(1,-4,0,0), Position=UDim2.new(0,2,0,0), Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, TextWrapped=false, TextScaled=false, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), Text="", Parent=logScroll, AutomaticSize=Enum.AutomaticSize.Y, ZIndex=23})
+	new("UITextSizeConstraint",{Parent=logText, MaxTextSize=18, MinTextSize=12})
+
+	local tabsList = {"Overview","Movement","Humanoid","Camera","World","Network","Memory","Anim","Tools","Inputs","Physics","Perf","Logs"}
+	local tabBtns = {}
+	for _, name in ipairs(tabsList) do
+		local b = new("TextButton",{Name=name, Size=UDim2.fromOffset(126, TAB_H-10), BackgroundColor3=(name==activeTab) and ACCENT or Color3.fromRGB(45,45,45), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text=name, Font=Enum.Font.Code, TextSize=14, Parent=tabsHolder, ZIndex=32})
+		new("UICorner",{CornerRadius=UDim.new(0,8),Parent=b})
+		tabBtns[name] = b
+	end
+
+	local dockGui = new("ScreenGui",{Name="CharDebugDock",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1100,Parent=CoreGui})
+	local dock = new("Frame",{Name="Dock", Size=UDim2.fromOffset(64,64), AnchorPoint=Vector2.new(0,1), Position=UDim2.new(0,16,1,-16), BackgroundColor3=ACCENT, Visible=false, Parent=dockGui, ZIndex=100})
+	new("UICorner",{CornerRadius=UDim.new(0,20),Parent=dock})
+	local dockLabel = new("TextButton",{Name="Btn", BackgroundTransparency=1, Size=UDim2.fromScale(1,1), Text="CD", Font=Enum.Font.Code, TextSize=20, TextColor3=Color3.new(1,1,1), Parent=dock, ZIndex=101})
+
+	local cards, values = {}, {}
+
+	local function makeCard(parent, key, height)
+		local f = new("Frame",{Name=key, Size=UDim2.fromOffset(400,height or 86), BackgroundColor3=PANEL_BG, BorderSizePixel=0, Parent=parent, ZIndex=22})
+		new("UICorner",{CornerRadius=UDim.new(0,10),Parent=f})
+		new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(40,40,40),Parent=f})
+		new("TextLabel",{Name="Key", BackgroundTransparency=1, Position=UDim2.new(0,10,0,8), Size=UDim2.new(1,-20,0,16), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(180,180,180), TextXAlignment=Enum.TextXAlignment.Left, Text=key, Parent=f, ZIndex=23})
+		local val = new("TextLabel",{Name="Val", BackgroundTransparency=1, Position=UDim2.new(0,10,0,28), Size=UDim2.new(1,-20,1,-36), Font=Enum.Font.Code, TextSize=16, TextColor3=Color3.new(1,1,1), TextXAlignment=Enum.TextXAlignment.Left, TextWrapped=true, Text="", Parent=f, ZIndex=23})
+		return f, val
+	end
+	local function clearCards() for _,v in pairs(cards) do v:Destroy() end cards, values = {}, {} end
+	local function addCard(key, h)
+		local card, val = makeCard(cardsHolder, key, h)
+		cards[key] = card
+		values[key] = val
+		card.BackgroundTransparency = 0.35
+		TweenService:Create(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.15}):Play()
+	end
+
+	NAlib.connect(CONN_KEY, grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
+	end))
+	NAlib.connect(CONN_KEY, uilist:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		local w = uilist.AbsoluteContentSize.X + 12
+		tabsHolder.Size = UDim2.fromOffset(w, TAB_H)
+		tabbar.CanvasSize = UDim2.fromOffset(w + 12, TAB_H)
+	end))
+	NAlib.connect(CONN_KEY, tabbar.InputChanged:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseWheel then
+			local x = math.clamp(tabbar.CanvasPosition.X - i.Position.Z*32, 0, math.max(0, tabbar.CanvasSize.X.Offset - tabbar.AbsoluteSize.X))
+			tabbar.CanvasPosition = Vector2.new(x, 0)
+		end
+	end))
+
+	local function setTab(name)
+		activeTab = name
+		for n,b in pairs(tabBtns) do TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = (n==name) and ACCENT or Color3.fromRGB(45,45,45)}):Play() end
+		local showLogs = (name == "Logs")
+		cardsScroll.Visible = not showLogs
+		logsHolder.Visible = showLogs
+		if not showLogs then
+			clearCards()
+			if name=="Overview" then
+				addCard("Username"); addCard("UserId")
+				addCard("Position"); addCard("Velocity"); addCard("Speed"); addCard("AngularVel")
+				addCard("Health"); addCard("State"); addCard("MoveDirection"); addCard("FloorMaterial")
+				addCard("Tool"); addCard("FOV")
+			elseif name=="Movement" then
+				addCard("WalkSpeed"); addCard("JumpPower"); addCard("JumpHeight"); addCard("HipHeight")
+				addCard("AutoRotate"); addCard("AssemblyMass"); addCard("PlatformStand"); addCard("Sit"); addCard("Airborne")
+			elseif name=="Humanoid" then
+				addCard("RigType"); addCard("MaxHealth"); addCard("HealthDisplayType"); addCard("StatesEnabled",110); addCard("SeatPart"); addCard("MoveTo")
+			elseif name=="Camera" then
+				addCard("CameraType"); addCard("Subject"); addCard("SubjectDistance"); addCard("CameraCFrame",110); addCard("FOV")
+			elseif name=="World" then
+				addCard("Gravity"); addCard("ClockTime"); addCard("Brightness"); addCard("EnvSpecular"); addCard("CurrentZone")
+			elseif name=="Network" then
+				addCard("Ping"); addCard("DataInKbps"); addCard("DataOutKbps")
+			elseif name=="Memory" then
+				addCard("TotalMB"); addCard("LuaHeapMB"); addCard("InstancesMB"); addCard("GraphicsTextureMB"); addCard("PhysicsMB"); addCard("TerrainMB"); addCard("PathfindingMB")
+			elseif name=="Anim" then
+				addCard("PlayingTracks",130)
+			elseif name=="Tools" then
+				addCard("EquippedTool"); addCard("BackpackItems",130)
+			elseif name=="Inputs" then
+				addCard("KeysDown",130); addCard("LastInput")
+			elseif name=="Physics" then
+				addCard("GroundDist"); addCard("GroundNormal"); addCard("SlopeAngle"); addCard("UnderPart"); addCard("HumanoidRootCFrame",110); addCard("PivotOffset")
+			elseif name=="Perf" then
+				addCard("HeartbeatDt"); addCard("ServerTime"); addCard("TouchingParts")
+			end
+			cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
+		else
+			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
+			logText.Text = (#logs>0) and Concat(logs,"\n") or ""
+			local h = logText.TextBounds.Y
+			logScroll.CanvasSize = UDim2.fromOffset(0, h)
+			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+		end
+	end
+
+	for _,b in pairs(tabBtns) do
+		NAlib.connect(CONN_KEY, b.MouseButton1Click:Connect(function() setTab(b.Name) end))
+		NAlib.connect(CONN_KEY, b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0.05}):Play() end))
+		NAlib.connect(CONN_KEY, b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0}):Play() end))
+	end
+
+	local dragging, dragStart, startPos
+	NAlib.connect(CONN_KEY, hdr.InputBegan:Connect(function(i) if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end dragging=true; dragStart=i.Position; startPos=window.Position end))
+	NAlib.connect(CONN_KEY, hdr.InputChanged:Connect(function(i) if not dragging then return end local d=i.Position-dragStart window.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y) end))
+	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end))
+
+	local pressed, lastInput = {}, "-"
+	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input,gp)
+		if gp then return end
+		if input.UserInputType == Enum.UserInputType.Keyboard then
+			pressed[input.KeyCode.Name] = true
+			lastInput = input.KeyCode.Name
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 then lastInput = "Mouse1"
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then lastInput = "Mouse2"
+		elseif input.UserInputType == Enum.UserInputType.MouseWheel then lastInput = "Wheel" end
+	end))
+	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(input,gp)
+		if gp then return end
+		if input.UserInputType == Enum.UserInputType.Keyboard then pressed[input.KeyCode.Name] = nil end
+	end))
+	NAlib.connect(CONN_KEY, LogService.MessageOut:Connect(function(m,t)
+		pushLog(m,t)
+		if activeTab=="Logs" then
+			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
+			logText.Text = (#logs>0) and Concat(logs,"\n") or ""
+			local h = logText.TextBounds.Y
+			logScroll.CanvasSize = UDim2.fromOffset(0, h)
+			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+		end
+	end))
+
+	local function setVal(key, text) local lbl=values[key] if lbl then lbl.Text=text end end
+	local function getTool() local c=char() return c and c:FindFirstChildOfClass("Tool") or nil end
+	local function statsNetKbps() local i,o; local okI,vI=pcall(function() return StatsService.DataReceiveKbps end); if okI then i=vI end local okO,vO=pcall(function() return StatsService.DataSendKbps end); if okO then o=vO end return i,o end
+
+	local function updateOverview(h, r)
+		setVal("Username", LocalPlayer and LocalPlayer.Name or "N/A")
+		setVal("UserId", LocalPlayer and tostring(LocalPlayer.UserId) or "N/A")
+		if r then
+			local p = r.Position
+			setVal("Position", Format("X: %.2f  Y: %.2f  Z: %.2f", p.X, p.Y, p.Z))
+			local v = velOf(r)
+			setVal("Velocity", Format("X: %.2f  Y: %.2f  Z: %.2f", v.X, v.Y, v.Z))
+			setVal("Speed", Format("%.2f", v.Magnitude))
+			local av = angVelOf(r)
+			setVal("AngularVel", Format("X: %.2f  Y: %.2f  Z: %.2f", av.X, av.Y, av.Z))
+		end
+		if h then
+			setVal("Health", Format("%.1f / %.1f", h.Health, h.MaxHealth))
+			setVal("State", tostring(h:GetState()))
+			local md = h.MoveDirection
+			setVal("MoveDirection", Format("X: %.2f  Y: %.2f  Z: %.2f", md.X, md.Y, md.Z))
+			setVal("FloorMaterial", tostring(h.FloorMaterial))
+		end
+		local t = getTool()
+		setVal("Tool", t and t.Name or "None")
+		local cam = workspace.CurrentCamera
+		if cam then setVal("FOV", Format("%.1f", cam.FieldOfView)) end
+	end
+	local function updateMovement(h, r)
+		if h then
+			setVal("WalkSpeed", Format("%.2f", h.WalkSpeed))
+			setVal("JumpPower", Format("%.2f", h.JumpPower))
+			local okJH, jh = pcall(function() return h.JumpHeight end)
+			setVal("JumpHeight", okJH and Format("%.2f", jh) or "N/A")
+			setVal("HipHeight", Format("%.2f", h.HipHeight))
+			setVal("AutoRotate", tostring(h.AutoRotate))
+			setVal("PlatformStand", tostring(h.PlatformStand))
+			setVal("Sit", tostring(h.Sit))
+			local airborne = h:GetState() == Enum.HumanoidStateType.Freefall or h:GetState() == Enum.HumanoidStateType.Jumping
+			setVal("Airborne", tostring(airborne))
+		end
+		if r then setVal("AssemblyMass", Format("%.2f", r.AssemblyMass)) end
+	end
+	local function updateHumanoid(h)
+		if not h then return end
+		setVal("RigType", tostring(h.RigType))
+		setVal("MaxHealth", Format("%.1f", h.MaxHealth))
+		setVal("HealthDisplayType", tostring(h.HealthDisplayType))
+		local states = {"Running","RunningNoPhysics","Jumping","Freefall","Landed","Seated","Climbing","Swimming","FallingDown","Ragdoll","GettingUp","Flying"}
+		local list = {}
+		for _,s in ipairs(states) do local ok,val=pcall(function() return h:GetStateEnabled(Enum.HumanoidStateType[s]) end) Insert(list, Format("%s:%s", s, ok and tostring(val) or "N/A")) end
+		setVal("StatesEnabled", table.concat(list,"  "))
+		local seat = h.SeatPart
+		setVal("SeatPart", seat and seat.Name or "None")
+		local mpos = h.WalkToPoint
+		setVal("MoveTo", Format("X: %.1f  Y: %.1f  Z: %.1f", mpos.X, mpos.Y, mpos.Z))
+	end
+	local function updateCamera(_, r)
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		setVal("CameraType", tostring(cam.CameraType))
+		local subj = cam.CameraSubject
+		setVal("Subject", subj and subj.Name or "None")
+		if r then setVal("SubjectDistance", Format("%.2f", (cam.CFrame.Position - r.Position).Magnitude)) else setVal("SubjectDistance", "N/A") end
+		local cf = cam.CFrame
+		local rx,ry,rz = cf:ToOrientation()
+		setVal("CameraCFrame", Format("P(%.1f,%.1f,%.1f)  R(%.2f,%.2f,%.2f)", cf.X, cf.Y, cf.Z, rx, ry, rz))
+		setVal("FOV", Format("%.1f", cam.FieldOfView))
+	end
+	local function updateWorld()
+		setVal("Gravity", Format("%.1f", workspace.Gravity))
+		setVal("ClockTime", Format("%.2f", Lighting.ClockTime))
+		setVal("Brightness", Format("%.2f", Lighting.Brightness))
+		local okE, env = pcall(function() return Lighting.EnvironmentSpecularScale end)
+		setVal("EnvSpecular", okE and Format("%.2f", env) or "N/A")
+		setVal("CurrentZone", "N/A")
+	end
+	local function updateNetwork()
+		local ping = getPingMs()
+		setVal("Ping", ping and Format("%.0f ms", ping) or "N/A")
+		local inK, outK = statsNetKbps()
+		setVal("DataInKbps", inK and Format("%.1f", inK) or "N/A")
+		setVal("DataOutKbps", outK and Format("%.1f", outK) or "N/A")
+	end
+	local function updateMemory()
+		local m = getMem()
+		setVal("TotalMB", m.Total and Format("%.1f", m.Total) or "N/A")
+		setVal("LuaHeapMB", m.LuaHeap and Format("%.1f", m.LuaHeap) or "N/A")
+		setVal("InstancesMB", m.Instances and Format("%.1f", m.Instances) or "N/A")
+		setVal("GraphicsTextureMB", m.GraphicsTexture and Format("%.1f", m.GraphicsTexture) or "N/A")
+		setVal("PhysicsMB", m.Physics and Format("%.1f", m.Physics) or "N/A")
+		setVal("TerrainMB", m.Terrain and Format("%.1f", m.Terrain) or "N/A")
+		setVal("PathfindingMB", m.Pathfinding and Format("%.1f", m.Pathfinding) or "N/A")
+	end
+	local function updateAnim(h)
+		if not h then setVal("PlayingTracks","None"); return end
+		local animator = h:FindFirstChildOfClass("Animator")
+		if not animator then setVal("PlayingTracks","None"); return end
+		local tracks = animator:GetPlayingAnimationTracks()
+		if #tracks == 0 then setVal("PlayingTracks","None"); return end
+		local lines = {}
+		for _,t in ipairs(tracks) do
+			local name = (t.Animation and t.Animation.Name) or t.Name or "Track"
+			Insert(lines, Format("%s  w=%.2f  s=%.2f", name, t.WeightCurrent or 0, t.Speed or 1))
+		end
+		setVal("PlayingTracks", table.concat(lines,"  "))
+	end
+	local function updateTools()
+		local t = getTool()
+		setVal("EquippedTool", t and t.Name or "None")
+		local items, count = {}, 0
+		if LocalPlayer.Backpack then
+			for _,i in ipairs(LocalPlayer.Backpack:GetChildren()) do
+				if i:IsA("Tool") then count += 1; Insert(items, i.Name) end
 			end
 		end
+		setVal("BackpackItems", count > 0 and table.concat(items, ", ") or "None")
+	end
+	local function updateInputs()
+		local keys = {} for k,_ in pairs(pressed) do Insert(keys,k) end table.sort(keys)
+		setVal("KeysDown", (#keys>0) and table.concat(keys,", ") or "None")
+		setVal("LastInput", lastInput or "-")
+	end
+	local function updatePhysics(_, r)
+		if not r then
+			setVal("GroundDist","N/A"); setVal("GroundNormal","N/A"); setVal("SlopeAngle","N/A"); setVal("UnderPart","N/A"); setVal("HumanoidRootCFrame","N/A"); setVal("PivotOffset","N/A")
+			return
+		end
+		local res = raycastDown(r.Position, 1000)
+		if res then
+			local d = (r.Position - res.Position).Magnitude
+			setVal("GroundDist", Format("%.2f", d))
+			setVal("GroundNormal", Format("X: %.2f Y: %.2f Z: %.2f", res.Normal.X, res.Normal.Y, res.Normal.Z))
+			local slope = math.deg(math.acos(math.clamp(res.Normal:Dot(Vector3.new(0,1,0)), -1, 1)))
+			setVal("SlopeAngle", Format("%.2f°", slope))
+			setVal("UnderPart", res.Instance and (res.Instance.Name.." ["..tostring(res.Material).."]") or "None")
+		else
+			setVal("GroundDist","--"); setVal("GroundNormal","--"); setVal("SlopeAngle","--"); setVal("UnderPart","--")
+		end
+		local cf = r.CFrame
+		local rx,ry,rz = cf:ToOrientation()
+		setVal("HumanoidRootCFrame", Format("P(%.1f,%.1f,%.1f)  R(%.2f,%.2f,%.2f)", cf.X, cf.Y, cf.Z, rx, ry, rz))
+		local pv = char() and char():GetPivot() or CFrame.identity
+		local d = cf.Position - pv.Position
+		setVal("PivotOffset", Format("Δ(%.2f, %.2f, %.2f)", d.X, d.Y, d.Z))
+	end
+	local function updatePerf()
+		setVal("HeartbeatDt", Format("%.4f s", lastDt))
+		setVal("ServerTime", tostring(os.time()))
+		local r = root(); local n=0 if r then for _,p in ipairs(r:GetTouchingParts()) do n+=1 end end
+		setVal("TouchingParts", tostring(n))
+	end
+	local function updateLogs()
+		counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
+		logText.Text = (#logs>0) and Concat(logs,"\n") or ""
+		local h = logText.TextBounds.Y
+		logScroll.CanvasSize = UDim2.fromOffset(0, h)
+		logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+	end
+
+	local function safeFPS(dt)
+		if not dt or dt ~= dt or dt <= 0 or dt > 1 then return end
+		local inst = 1/dt
+		if inst ~= inst or inst == math.huge then return end
+		if fpsAlpha == 0 then fps = inst; fpsAlpha = 1 else fps = fps*0.9 + inst*0.1 end
+	end
+
+	local function refresh()
+		if paused then return end
+		local h = hum()
+		local r = root()
+		if activeTab=="Overview" then updateOverview(h,r)
+		elseif activeTab=="Movement" then updateMovement(h,r)
+		elseif activeTab=="Humanoid" then updateHumanoid(h)
+		elseif activeTab=="Camera" then updateCamera(h,r)
+		elseif activeTab=="World" then updateWorld()
+		elseif activeTab=="Network" then updateNetwork()
+		elseif activeTab=="Memory" then updateMemory()
+		elseif activeTab=="Anim" then updateAnim(h)
+		elseif activeTab=="Tools" then updateTools()
+		elseif activeTab=="Inputs" then updateInputs()
+		elseif activeTab=="Physics" then updatePhysics(h,r)
+		elseif activeTab=="Perf" then updatePerf()
+		elseif activeTab=="Logs" then updateLogs()
+		end
+		local p = getPingMs()
+		local f = (fps ~= fps or fps == math.huge or fps <= 0) and "--" or tostring(math.clamp(math.floor(fps + 0.5), 1, 999))
+		status.Text = Format("FPS: %s | Ping: %s", f, p and Format("%d ms", p) or "--")
+	end
+
+	NAlib.connect(CONN_KEY, btnPause.MouseButton1Click:Connect(function()
+		paused = not paused
+		btnPause.Text = paused and "Resume" or "Pause"
+		TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
+	end))
+
+	NAlib.connect(CONN_KEY, btnMin.MouseButton1Click:Connect(function()
+		if window.Visible then
+			local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
+			out.Completed:Connect(function()
+				window.Visible=false
+				dock.Visible=true
+				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(70,70)}):Play()
+			end)
+			out:Play()
+			Delay(0.25,function() if not window.Visible then dock.Visible=true end end)
+		end
+	end))
+
+	local dockDragging, dockStart, dockPos
+	NAlib.connect(CONN_KEY, dockLabel.InputBegan:Connect(function(i) if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end dockDragging=true dockStart=i.Position dockPos=dock.Position end))
+	NAlib.connect(CONN_KEY, dockLabel.InputChanged:Connect(function(i) if not dockDragging then return end local d=i.Position-dockStart dock.Position=UDim2.new(dockPos.X.Scale,dockPos.X.Offset+d.X,dockPos.Y.Scale,dockPos.Y.Offset+d.Y) end))
+	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dockDragging=false end end))
+	NAlib.connect(CONN_KEY, dockLabel.MouseButton1Click:Connect(function()
+		if not window.Visible then
+			dock.Visible=false
+			window.Visible=true
+			window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
+			window.BackgroundTransparency = 0.4
+			TweenService:Create(window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
+		end
+	end))
+
+	NAlib.connect(CONN_KEY, btnClose.MouseButton1Click:Connect(function()
+		debugUI:Destroy()
+		dockGui:Destroy()
+		debugUI = nil
+		NAlib.disconnect(CONN_KEY)
+		RunService:UnbindFromRenderStep(RENDER_BIND)
+	end))
+
+	setTab(activeTab)
+
+	RunService:BindToRenderStep(RENDER_BIND, Enum.RenderPriority.Last.Value, function(dt)
+		lastDt = dt
+		safeFPS(dt)
+		dtAcc += dt
+		if dtAcc < UPDATE_RATE then return end
+		dtAcc = 0
+		refresh()
 	end)
+
+	window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
+	TweenService:Create(window, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)}):Play()
 end)
 
 cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character debug"},function()
 	if debugUI then
 		debugUI:Destroy()
 		debugUI = nil
-		DEBUGclearCONS()
-		RunService:UnbindFromRenderStep("CharDebug")
+		NAlib.disconnect("CharDebug")
+		SafeGetService("RunService"):UnbindFromRenderStep("CharDebug")
 	end
 end)
 
@@ -20096,7 +20465,6 @@ NAgui.resizeable = function(ui, min, max)
 		end)
 	end
 end
-
 NAmanage.UpdateWaypointList=function()
 	local list = NAUIMANAGER.WaypointList
 	local rawFilter = NAUIMANAGER.filterBox and NAUIMANAGER.filterBox.Text or ""
