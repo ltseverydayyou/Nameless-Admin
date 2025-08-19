@@ -215,7 +215,7 @@ local function mkHdr(parent, z)
 	ttl.BackgroundTransparency = 1
 	ttl.TextTruncate = Enum.TextTruncate.AtEnd
 	ttl.Font = Enum.Font.GothamBold
-	ttl.TextSize = 16
+	ttl.TextScaled = true
 	ttl.TextXAlignment = Enum.TextXAlignment.Left
 	ttl.TextYAlignment = Enum.TextYAlignment.Center
 	ttl.TextColor3 = CLR.Title
