@@ -2727,26 +2727,44 @@ NAmanage.LoadPlugins = function()
 	local function formatInfo(aliases, argsHint)
 		local main = aliases[1]
 		local extras = {}
-
 		for i = 2, #aliases do
 			Insert(extras, aliases[i])
 		end
-
 		local formatted = main
-
 		if argsHint and argsHint ~= "" then
 			formatted = formatted.." "..argsHint
 		end
-
 		if #extras > 0 then
 			formatted = formatted.." ("..Concat(extras, ", ")..")"
 		end
-
 		return formatted
 	end
 
-	local loadedSummaries = {}
+	local function splitArgs(line)
+		local out, buf, quote = {}, "", nil
+		for i = 1, #line do
+			local ch = Sub(line, i, i)
+			if quote then
+				if ch == quote then
+					quote = nil
+				else
+					buf = buf..ch
+				end
+			else
+				if ch == "'" or ch == '"' then
+					quote = ch
+				elseif ch == " " or ch == "\t" then
+					if #buf > 0 then out[#out+1] = buf; buf = "" end
+				else
+					buf = buf..ch
+				end
+			end
+		end
+		if #buf > 0 then out[#out+1] = buf end
+		return out
+	end
 
+	local loadedSummaries = {}
 	local files = listfiles(NAfiles.NAPLUGINFILEPATH)
 
 	for _, file in ipairs(files) do
@@ -2756,9 +2774,40 @@ NAmanage.LoadPlugins = function()
 				local func, loadErr = loadstring(content)
 				if func then
 					local collectedPlugins = {}
-
 					local proxyEnv = {}
 					local baseEnv = getfenv()
+
+					local function _dispatchRun(...)
+						local runner = cmd and (cmd.run or cmd.Run)
+						if not runner then return nil, "cmd.run not available" end
+						local n = select("#", ...)
+						local argv
+						if n == 1 then
+							local a = ...
+							if type(a) == "table" then
+								argv = a
+							elseif type(a) == "string" then
+								argv = splitArgs(a)
+							else
+								return nil, "invalid input to runCommand"
+							end
+						else
+							argv = {}
+							for i = 1, n do
+								local v = select(i, ...)
+								argv[#argv+1] = type(v) == "string" and v or tostring(v)
+							end
+						end
+						local ok, res = NACaller(runner, argv)
+						if ok then return res end
+						local ok2, res2 = NACaller(runner, Concat(argv, " "))
+						if ok2 then return res2 end
+						return nil, res2
+					end
+
+					proxyEnv.cmdRun = _dispatchRun
+					proxyEnv.RunCommand = _dispatchRun
+					proxyEnv.runCommand = _dispatchRun
 
 					setmetatable(proxyEnv, {
 						__index = baseEnv,
@@ -2784,32 +2833,19 @@ NAmanage.LoadPlugins = function()
 					local ok, execErr = NACaller(func)
 					if ok then
 						local fileCommandNames = {}
-
 						for _, plugin in ipairs(collectedPlugins) do
 							local aliases = plugin.Aliases
 							local handler = plugin.Function
-
 							if type(aliases) == "table" and type(handler) == "function" then
 								local argsHint = plugin.ArgsHint or ""
 								local formattedDisplay = formatInfo(aliases, argsHint)
-								local info = {
-									formattedDisplay,
-									plugin.Info or "No description"
-								}
-
-								cmd.add(
-									aliases,
-									info,
-									handler,
-									plugin.RequiresArguments or false
-								)
-
+								local info = { formattedDisplay, plugin.Info or "No description" }
+								cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
 								Insert(fileCommandNames, aliases[1])
 							else
 								DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
 							end
 						end
-
 						if #fileCommandNames > 0 then
 							local fileName = file:match("[^\\/]+$") or file
 							Insert(loadedSummaries, fileName.." ("..Concat(fileCommandNames, ", ")..")")
@@ -4767,7 +4803,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		local states = {"Running","RunningNoPhysics","Jumping","Freefall","Landed","Seated","Climbing","Swimming","FallingDown","Ragdoll","GettingUp","Flying"}
 		local list = {}
 		for _,s in ipairs(states) do local ok,val=pcall(function() return h:GetStateEnabled(Enum.HumanoidStateType[s]) end) Insert(list, Format("%s:%s", s, ok and tostring(val) or "N/A")) end
-		setVal("StatesEnabled", table.concat(list,"  "))
+		setVal("StatesEnabled", Concat(list,"  "))
 		local seat = h.SeatPart
 		setVal("SeatPart", seat and seat.Name or "None")
 		local mpos = h.WalkToPoint
@@ -4821,7 +4857,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 			local name = (t.Animation and t.Animation.Name) or t.Name or "Track"
 			Insert(lines, Format("%s  w=%.2f  s=%.2f", name, t.WeightCurrent or 0, t.Speed or 1))
 		end
-		setVal("PlayingTracks", table.concat(lines,"  "))
+		setVal("PlayingTracks", Concat(lines,"  "))
 	end
 	local function updateTools()
 		local t = getTool()
@@ -4832,11 +4868,11 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 				if i:IsA("Tool") then count += 1; Insert(items, i.Name) end
 			end
 		end
-		setVal("BackpackItems", count > 0 and table.concat(items, ", ") or "None")
+		setVal("BackpackItems", count > 0 and Concat(items, ", ") or "None")
 	end
 	local function updateInputs()
 		local keys = {} for k,_ in pairs(pressed) do Insert(keys,k) end table.sort(keys)
-		setVal("KeysDown", (#keys>0) and table.concat(keys,", ") or "None")
+		setVal("KeysDown", (#keys>0) and Concat(keys,", ") or "None")
 		setVal("LastInput", lastInput or "-")
 	end
 	local function updatePhysics(_, r)
@@ -22759,7 +22795,7 @@ TextChatService.OnIncomingMessage = function(message)
 		local grad = NAmanage.gradientify(gradSrc)
 		local seen = {}
 		local cands = {}
-		local function add(s) if s and s ~= "" and not seen[s] then seen[s] = true; table.insert(cands, s) end end
+		local function add(s) if s and s ~= "" and not seen[s] then seen[s] = true; Insert(cands, s) end end
 		add(nmA); add(nmB); add(nmC); add(nmD)
 		local function esc(s) return (s:gsub("([^%w])","%%%1")) end
 		for _, c in ipairs(cands) do
