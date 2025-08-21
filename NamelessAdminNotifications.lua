@@ -48,7 +48,7 @@ local CLR = {
 local PAD,GAP = 12,10
 
 local ex, exParent = findGui()
-if _G.EnhancedNotifs and ex then return _G.EnhancedNotifs end
+if getgenv().EnhancedNotifs and ex then return getgenv().EnhancedNotifs end
 
 local root = exParent or pick()
 local gui = ex or Instance.new("ScreenGui")
@@ -815,10 +815,10 @@ local function Popup(p)
 	return card, grp
 end
 
-_G.EnhancedNotifs = {
+getgenv().EnhancedNotifs = {
 	Notify = function(p) return Notify(p) end,
 	Window = function(p) return Window(p) end,
 	Popup = function(p) return Popup(p) end,
 }
 
-return _G.EnhancedNotifs
+return getgenv().EnhancedNotifs
