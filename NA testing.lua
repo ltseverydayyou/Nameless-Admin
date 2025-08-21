@@ -23345,8 +23345,8 @@ end)
 
 NAgui.addSection("Character Light")
 
-NAgui.addSlider("Range",      0,  60, settingsLight.range,      1,   "", function(val) settingsLight.range      = val end)
-NAgui.addSlider("Brightness", 0,   30, settingsLight.brightness, 1,   "", function(val) settingsLight.brightness = val end)
+NAgui.addSlider("Range",      0,  60, settingsLight.range,      0.1,   "", function(val) settingsLight.range      = val end)
+NAgui.addSlider("Brightness", 0,   30, settingsLight.brightness, 0.1,   "", function(val) settingsLight.brightness = val end)
 NAgui.addColorPicker("Color",  settingsLight.color, function(col) settingsLight.color = col end)
 
 NAgui.addButton("Apply Light", function()
