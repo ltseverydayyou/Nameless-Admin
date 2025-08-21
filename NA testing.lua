@@ -55,6 +55,7 @@ local NAStuff = {
 	NAjson = nil;
 	nuhuhNotifs = true;
 	KeybindConnection = nil;
+	ForceAdminRainbow = true;
 }
 local interactTbl = {
 	click = {};
@@ -3308,12 +3309,21 @@ NAlib.parseText = function(text, watch, rPlr)
 
 	text = text:sub(#prefix + 1)
 
-	local parsed = {}
-	for arg in text:gmatch("[^ ]+") do
-		Insert(parsed, arg)
+	local commands = {}
+	for segment in text:gmatch("[^\\]+") do
+		segment = segment:gsub("^%s+", ""):gsub("%s+$", "")
+		if #segment > 0 then
+			local parsed = {}
+			for arg in segment:gmatch("[^ ]+") do
+				Insert(parsed, arg)
+			end
+			if #parsed > 0 then
+				Insert(commands, parsed)
+			end
+		end
 	end
 
-	return {parsed}
+	return commands
 end
 
 NAlib.parseCommand = function(text, rPlr)
@@ -4178,12 +4188,13 @@ cmd.add({"unclickscare","unclickspook"},{"unclickscare (unclickspook)","Disables
 	NAlib.disconnect("clickscare_mouse")
 end)
 
-cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
+-- patched
+--[[cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
 		Players:Chat(Format("/e hi"))
 	end
 	return "Filter", "Reset"
-end)
+end)]]
 
 NAmanage.doWindows = function(position, Size, defaultText)
 	local screenGui = InstanceNew("ScreenGui")
@@ -12064,10 +12075,24 @@ cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat 
 
 	for _, plr in pairs(targets) do
 		DebugNotif("Now mimicking "..plr.Name.."'s chat", 2)
-
-		NAlib.connect("mimicchat", plr.Chatted:Connect(function(msg)
-			NAlib.LocalPlayerChat(msg, "All")
-		end))
+		local channels = TextChatService:WaitForChild("TextChannels")
+		local function hookChannel(ch)
+			if ch:IsA("TextChannel") then
+				NAlib.connect("mimicchat", ch.MessageReceived:Connect(function(message)
+					local ts = message.TextSource
+					if ts and ts.UserId == plr.UserId then
+						local msg = message.Text
+						local chn = message.TextChannel
+						local mode = (chn and chn.Name == "RBXWhisper") and "Whisper" or "All"
+						NAlib.LocalPlayerChat(msg, mode)
+					end
+				end))
+			end
+		end
+		for _, ch in ipairs(channels:GetDescendants()) do
+			hookChannel(ch)
+		end
+		NAlib.connect("mimicchat", channels.DescendantAdded:Connect(hookChannel))
 	end
 end, true)
 
@@ -12751,9 +12776,9 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 		end
 	end
 	ap()
-	if not returner then
+	--[[if not returner then
 		Players:Chat("!IY "..args)
-	end
+	end]]
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
@@ -16744,19 +16769,30 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 
 	local function MonitorPlayerChat(player)
 		if player == LocalPlayer then return end
-
-		player.Chatted:Connect(function(message)
-			local keyword, reason = CheckIfReportable(message)
-			if keyword and reason then
-				DebugNotif(Format("Reported %s", nameChecker(player)).." | "..Format("Reason - %s", reason))
-
-				if reportplayer then
-					reportplayer(player, reason, Format("Saying %s", keyword))
-				else
-					SafeGetService("Players"):ReportAbuse(player, reason, Format("Saying %s", keyword))
-				end
+		local channels = TextChatService:WaitForChild("TextChannels")
+		local function hookChannel(ch)
+			if ch:IsA("TextChannel") then
+				ch.MessageReceived:Connect(function(m)
+					local ts = m.TextSource
+					if ts and ts.UserId == player.UserId then
+						local message = m.Text
+						local keyword, reason = CheckIfReportable(message)
+						if keyword and reason then
+							DebugNotif(Format("Reported %s", nameChecker(player)).." | "..Format("Reason - %s", reason))
+							if reportplayer then
+								reportplayer(player, reason, Format("Saying %s", keyword))
+							else
+								SafeGetService("Players"):ReportAbuse(player, reason, Format("Saying %s", keyword))
+							end
+						end
+					end
+				end)
 			end
-		end)
+		end
+		for _, ch in ipairs(channels:GetDescendants()) do
+			hookChannel(ch)
+		end
+		channels.DescendantAdded:Connect(hookChannel)
 	end
 
 	for _, player in ipairs(SafeGetService("Players"):GetPlayers()) do
@@ -16767,7 +16803,6 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 		MonitorPlayerChat(player)
 	end)
 end)
-
 
 cmd.add({"light"},{"light <range> <brightness> <hexColor>","Gives your player dynamic light"},function(rangeStr,brightnessStr,colorHex)
 	local range     = tonumber(rangeStr)   or settingsLight.range
@@ -19924,10 +19959,25 @@ cmd.add({"unclicknpcjp","uncnpcjp"},{"unclicknpcjp","Disable clicknpcjp"},functi
 end)
 
 --[[ FUNCTIONALITY ]]--
-localPlayer.Chatted:Connect(function(str)
-	NAlib.parseCommand(str)
-	NAmanage.ExecuteBindings("OnChatted", str)
-end)
+do
+	local channels = TextChatService:WaitForChild("TextChannels")
+	local function hookChannel(ch)
+		if ch:IsA("TextChannel") then
+			ch.MessageReceived:Connect(function(message)
+				local ts = message.TextSource
+				if ts and ts.UserId == LocalPlayer.UserId then
+					local str = message.Text
+					NAlib.parseCommand(str)
+					NAmanage.ExecuteBindings("OnChatted", str)
+				end
+			end)
+		end
+	end
+	for _, ch in ipairs(channels:GetDescendants()) do
+		hookChannel(ch)
+	end
+	channels.DescendantAdded:Connect(hookChannel)
+end
 
 --[[ Admin Player]]
 function IsAdminAndRun(Message, Player)
@@ -19937,9 +19987,22 @@ function IsAdminAndRun(Message, Player)
 end
 
 function CheckPermissions(Player)
-	Player.Chatted:Connect(function(Message)
-		IsAdminAndRun(Message,Player)
-	end)
+	local channels = TextChatService:WaitForChild("TextChannels")
+	local function hookChannel(ch)
+		if ch:IsA("TextChannel") then
+			ch.MessageReceived:Connect(function(message)
+				local ts = message.TextSource
+				if ts and ts.UserId == Player.UserId then
+					local Message = message.Text
+					IsAdminAndRun(Message,Player)
+				end
+			end)
+		end
+	end
+	for _, ch in ipairs(channels:GetDescendants()) do
+		hookChannel(ch)
+	end
+	channels.DescendantAdded:Connect(hookChannel)
 end
 
 --[[function Getmodel(id)
@@ -21225,8 +21288,12 @@ Spawn(function()
 	toggle.ZIndex=10
 	InstanceNew("UICorner",toggle).CornerRadius=UDim.new(0.5,0)
 
-	local CLOSED_IMG="rbxasset://textures/ui/MenuBar/icon_menu.png"
-	local OPENED_IMG="rbxasset://textures/ui/ScreenshotHud/Close@2x.png"
+	local CLOSED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
+	local CLOSED_IMG_RECT_OFFSET=Vector2.new(456,440)
+	local CLOSED_IMG_RECT_SIZE=Vector2.new(36,36)
+	local OPENED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_5.png"
+	local OPENED_IMG_RECT_OFFSET=Vector2.new(436,258)
+	local OPENED_IMG_RECT_SIZE=Vector2.new(36,36)
 
 	local iconMain=InstanceNew("ImageLabel",toggle)
 	iconMain.AnchorPoint=Vector2.new(0.5,0.5)
@@ -21235,6 +21302,8 @@ Spawn(function()
 	iconMain.BackgroundTransparency=1
 	iconMain.ScaleType=Enum.ScaleType.Fit
 	iconMain.Image=CLOSED_IMG
+	if CLOSED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=CLOSED_IMG_RECT_OFFSET end
+	if CLOSED_IMG_RECT_SIZE then iconMain.ImageRectSize=CLOSED_IMG_RECT_SIZE end
 	iconMain.ZIndex=11
 
 	local dropdown=InstanceNew("Frame",TopBarApp.frame)
@@ -21281,7 +21350,7 @@ Spawn(function()
 	local currentSide="right"
 
 	local buttonDefs={
-		{name="settings",image="rbxasset://textures/CollisionGroupsEditor/manage.png",func=function()
+		{name="settings",image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_8.png",ImageRectOffset=Vector2.new(416,464),ImageRectSize=Vector2.new(36,36),func=function()
 			if NAUIMANAGER.SettingsFrame then
 				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
@@ -21306,7 +21375,7 @@ Spawn(function()
 				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
 			end
 		end},
-		{name="bindd",image="rbxasset://textures/StudioToolbox/AssetConfig/creations@2x.png",func=function()
+		{name="bindd",image="rbxasset://textures/ui/PlayerList/developer@2x.png",func=function()
 			if NAUIMANAGER.BindersFrame then
 				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
@@ -21339,6 +21408,8 @@ Spawn(function()
 			icon.ScaleType=Enum.ScaleType.Fit
 			icon.Image=def.image
 			icon.ZIndex=9
+			if def.ImageRectOffset then icon.ImageRectOffset=def.ImageRectOffset end
+			if def.ImageRectSize then icon.ImageRectSize=def.ImageRectSize end
 			childButtons[btn]=def.func
 		end
 	end
@@ -21421,6 +21492,16 @@ Spawn(function()
 		local s=TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0,0,0,0)})
 		s:Play();s.Completed:Wait()
 		iconMain.Image=img
+		if img==CLOSED_IMG then
+			if CLOSED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=CLOSED_IMG_RECT_OFFSET else iconMain.ImageRectOffset=Vector2.new(0,0) end
+			if CLOSED_IMG_RECT_SIZE then iconMain.ImageRectSize=CLOSED_IMG_RECT_SIZE else iconMain.ImageRectSize=Vector2.new(0,0) end
+		elseif img==OPENED_IMG then
+			if OPENED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=OPENED_IMG_RECT_OFFSET else iconMain.ImageRectOffset=Vector2.new(0,0) end
+			if OPENED_IMG_RECT_SIZE then iconMain.ImageRectSize=OPENED_IMG_RECT_SIZE else iconMain.ImageRectSize=Vector2.new(0,0) end
+		else
+			iconMain.ImageRectOffset=Vector2.new(0,0)
+			iconMain.ImageRectSize=Vector2.new(0,0)
+		end
 		TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
 	end
 
@@ -22106,15 +22187,22 @@ local logClrs={
 
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr.Name)
-	plr.Chatted:Connect(function(msg)
-		bindToChat(plr, msg)
-		if plr~=LocalPlayer then
-			local t = msg:match("^!IY%s+(%S+)")
-			if t then
-				cmd.run({"char",t,plr})
-			end
+	local channels = TextChatService:WaitForChild("TextChannels")
+	local function hookChannel(ch)
+		if ch:IsA("TextChannel") then
+			ch.MessageReceived:Connect(function(message)
+				local ts = message.TextSource
+				if ts and ts.UserId == plr.UserId then
+					local msg = message.Text
+					bindToChat(plr, msg)
+				end
+			end)
 		end
-	end)
+	end
+	for _, ch in ipairs(channels:GetDescendants()) do
+		hookChannel(ch)
+	end
+	channels.DescendantAdded:Connect(hookChannel)
 
 	Insert(playerButtons, plr)
 
@@ -22671,38 +22759,76 @@ TextChatService.OnIncomingMessage = function(message)
 	local pl = Players:GetPlayerByUserId(ts.UserId)
 	if not pl then return end
 
+	local tagText = pl:GetAttribute("CustomNAtaggerText")
+	local tagCol = pl:GetAttribute("CustomNAtaggerColor")
+	local useRainbow = pl:GetAttribute("CustomNAtaggerRainbow")
+
+	local basePrefix = message.PrefixText
+	if not basePrefix or basePrefix == "" then
+		local nm = nameChecker(pl)
+		basePrefix = Format("%s: ", nm)
+	end
+
+	local rainbowApplied = false
+	if useRainbow then
+		local nmA = ts.Name or ""
+		local nmB = pl.DisplayName or ""
+		local nmC = pl.Name or ""
+		local nmD = nameChecker(pl) or ""
+		local gradSrc = nmD ~= "" and nmD or (nmB ~= "" and nmB or nmC)
+		local grad = NAmanage.gradientify(gradSrc)
+		local seen = {}
+		local cands = {}
+		local function add(s) if s and s ~= "" and not seen[s] then seen[s] = true; table.insert(cands, s) end end
+		add(nmA); add(nmB); add(nmC); add(nmD)
+		local function esc(s) return (s:gsub("([^%w])","%%%1")) end
+		for _, c in ipairs(cands) do
+			local rep, n = basePrefix:gsub(esc(c), grad, 1)
+			if n > 0 then
+				basePrefix = rep
+				rainbowApplied = true
+				break
+			end
+		end
+		if not rainbowApplied then
+			basePrefix = Format("%s: ", grad)
+			rainbowApplied = true
+		end
+	end
+
 	for _, id in ipairs(_G.NAadminsLol or {}) do
 		if pl.UserId == id then
 			local props = InstanceNew("TextChatMessageProperties")
-			local name = nameChecker(pl)
-			local gradName = NAmanage.gradientify(name)
-			local tag      = NAmanage.grayGradient("[NA ADMIN]")
-			props.PrefixText = Format('%s %s: ', tag, gradName)
+			local tag = NAmanage.grayGradient("[NA ADMIN]")
+			local finalPrefix = basePrefix
+			if NAStuff.ForceAdminRainbow then
+				local nm = nameChecker(pl)
+				local grad = NAmanage.gradientify(nm)
+				local esc = nm:gsub("([^%w])","%%%1")
+				local rep, n = finalPrefix:gsub(esc, grad, 1)
+				finalPrefix = n > 0 and rep or Format("%s: ", grad)
+			end
+			props.PrefixText = Format("%s %s", tag, finalPrefix)
 			props.Text = message.Text
 			return props
 		end
 	end
 
-	local tagText   = pl:GetAttribute("CustomNAtaggerText")
-	local tagCol    = pl:GetAttribute("CustomNAtaggerColor")
-	local useRainbow = pl:GetAttribute("CustomNAtaggerRainbow")
-
 	if tagText and tagCol then
 		local r, g, b = tagCol.R * 255, tagCol.G * 255, tagCol.B * 255
 		local hex = Format("#%02X%02X%02X", r, g, b)
 		local props = InstanceNew("TextChatMessageProperties")
-		local name = nameChecker(pl)
-		local displayName = useRainbow and NAmanage.gradientify(name) or name
-		props.PrefixText = Format('<font color="%s">[%s]</font> %s: ', hex, tagText, displayName)
+		props.PrefixText = Format('<font color="%s">[%s]</font> %s', hex, tagText, basePrefix)
 		props.Text = message.Text
 		return props
 	end
 
-	--[[local props = InstanceNew("TextChatMessageProperties")
-	local name = nameChecker(pl)
-	props.PrefixText = Format('%s: ', name)
-	props.Text = message.Text
-	return props]]
+	if rainbowApplied then
+		local props = InstanceNew("TextChatMessageProperties")
+		props.PrefixText = basePrefix
+		props.Text = message.Text
+		return props
+	end
 end
 --[[
 print(
@@ -22956,6 +23082,15 @@ NAgui.addSlider("Slider", 0, 100, 50, 5, "%", function(val) -- min, max, default
 end)
 
 ]]
+
+if Discover(_G.NAadminsLol or {}, LocalPlayer.UserId) then
+	if NAgui.addSection then
+		NAgui.addSection("NA Admin")
+	end
+	NAgui.addToggle("Admin RGB Username", NAStuff.ForceAdminRainbow, function(state)
+		NAStuff.ForceAdminRainbow = state
+	end)
+end
 
 NAgui.addSection("Prefix Settings")
 
