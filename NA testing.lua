@@ -12111,7 +12111,7 @@ cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat 
 
 	for _, plr in pairs(targets) do
 		DebugNotif("Now mimicking "..plr.Name.."'s chat", 2)
-		local channels = TextChatService:WaitForChild("TextChannels")
+		local channels = TextChatService:WaitForChild("TextChannels",math.huge)
 		local function hookChannel(ch)
 			if ch:IsA("TextChannel") then
 				NAlib.connect("mimicchat", ch.MessageReceived:Connect(function(message)
@@ -16805,7 +16805,7 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 
 	local function MonitorPlayerChat(player)
 		if player == LocalPlayer then return end
-		local channels = TextChatService:WaitForChild("TextChannels")
+		local channels = TextChatService:WaitForChild("TextChannels",math.huge)
 		local function hookChannel(ch)
 			if ch:IsA("TextChannel") then
 				ch.MessageReceived:Connect(function(m)
@@ -19995,8 +19995,9 @@ cmd.add({"unclicknpcjp","uncnpcjp"},{"unclicknpcjp","Disable clicknpcjp"},functi
 end)
 
 --[[ FUNCTIONALITY ]]--
+Spawn(function()
 do
-	local channels = TextChatService:WaitForChild("TextChannels")
+	local channels = TextChatService:WaitForChild("TextChannels",math.huge)
 	local function hookChannel(ch)
 		if ch:IsA("TextChannel") then
 			ch.MessageReceived:Connect(function(message)
@@ -20014,6 +20015,7 @@ do
 	end
 	channels.DescendantAdded:Connect(hookChannel)
 end
+end)
 
 --[[ Admin Player]]
 function IsAdminAndRun(Message, Player)
@@ -20023,7 +20025,7 @@ function IsAdminAndRun(Message, Player)
 end
 
 function CheckPermissions(Player)
-	local channels = TextChatService:WaitForChild("TextChannels")
+	local channels = TextChatService:WaitForChild("TextChannels",math.huge)
 	local function hookChannel(ch)
 		if ch:IsA("TextChannel") then
 			ch.MessageReceived:Connect(function(message)
@@ -22223,7 +22225,8 @@ local logClrs={
 
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr.Name)
-	local channels = TextChatService:WaitForChild("TextChannels")
+	Spawn(function()
+	local channels = TextChatService:WaitForChild("TextChannels",math.huge)
 	local function hookChannel(ch)
 		if ch:IsA("TextChannel") then
 			ch.MessageReceived:Connect(function(message)
@@ -22239,11 +22242,12 @@ function setupPlayer(plr,bruh)
 		hookChannel(ch)
 	end
 	channels.DescendantAdded:Connect(hookChannel)
+	end)
 
 	Insert(playerButtons, plr)
 
 	if plr ~= LocalPlayer then
-		CheckPermissions(plr)
+		Spawn(function() CheckPermissions(plr) end)
 	end
 
 	if ESPenabled then
