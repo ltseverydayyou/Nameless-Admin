@@ -152,7 +152,7 @@ local function mkBtn(parent, text, z)
 	local b = Instance.new("TextButton")
 	b.AutoButtonColor = false
 	b.Text = text or ""
-	b.TextSize = 14
+	b.TextScaled = true
 	b.Font = Enum.Font.Gotham
 	b.TextColor3 = CLR.Text
 	b.RichText = true
