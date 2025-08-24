@@ -51,11 +51,28 @@ local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
 local Waypoints = {}
 local Bindings = Bindings or {}
 local NAStuff = {
-	NASCREENGUI=nil; --Getmodel("rbxassetid://140418556029404")
+	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
 	nuhuhNotifs = true;
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
+	originalDesc = nil;
+	currentDesc = nil;
+	BlockedRemotes = {};
+
+	touchESPList = {};
+	proximityESPList = {};
+	clickESPList = {};
+	siteESPList = {};
+	vehicleSiteESPList = {};
+	unanchoredESPList = {};
+	collisionTrueESPList = {};
+	collisionFalseESPList = {};
+
+	espTriggers = {};
+	espNameLists = { exact = {}, partial = {} };
+	espNameTriggers = {};
+	nameESPPartLists = { exact = {}, partial = {} };
 }
 local interactTbl = {
 	click = {};
@@ -12728,94 +12745,61 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	end
 end)
 
-cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(args,returner)
-	local arg=args
-	local plrplr = returner or Players.LocalPlayer
-	local uid=tonumber(arg)
-	if not uid then
-		local ok,id=NACaller(Players.GetUserIdFromNameAsync,Players,arg)
+cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
+	if not arg then return end
+	local userId = tonumber(arg)
+	if not userId then
+		local ok, id = pcall(Players.GetUserIdFromNameAsync, Players, arg)
 		if not ok then return end
-		uid=id
+		userId = id
 	end
-	local function aa(c,id)
-		local a=game:GetObjects("rbxassetid://"..id)[1]
-		if not(a and a:IsA("Accessory"))then return end
-		for _,v in ipairs(a:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false v.Massless=true end end
-		a.Parent=c
-		local h=a:FindFirstChild("Handle") if not h then return end
-		local at={} for _,ch in ipairs(h:GetChildren())do if ch:IsA("Attachment")then at[#at+1]=ch end end
-		local ok2
-		for _,ac in ipairs(at)do
-			local ra=c:FindFirstChild(ac.Name,true)
-			if ra and ra:IsA("Attachment")then
-				h.CFrame=ra.WorldCFrame*ac.CFrame:Inverse()
-				local w=InstanceNew("WeldConstraint")
-				w.Part0,w.Part1,w.Parent=ra.Parent,h,h
-				ok2=true break
-			end
+
+	local okD, desc = pcall(Players.GetHumanoidDescriptionFromUserId, Players, userId)
+	if not okD or not desc then return end
+	currentDesc = desc
+
+	local char = getChar() or plr.CharacterAdded:Wait()
+	local hum = getHum() or char:WaitForChild("Humanoid", 3)
+	repeat Wait(.1) until getRoot(char)
+	if not hum then return end
+
+	if not NAStuff.originalDesc then
+		local okA, applied = pcall(function() return hum:GetAppliedDescription() end)
+		if okA then NAStuff.originalDesc = applied end
+	end
+
+	if plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then plr.CharacterAppearanceLoaded:Wait() end
+	plr:ClearCharacterAppearance()
+	hum:ApplyDescriptionClientServer(currentDesc)
+
+	if IsR6(plr) then
+		for _, x in ipairs(char:GetChildren()) do
+			if x:IsA("CharacterMesh") then x:Destroy() end
 		end
-		if not ok2 then
-			local hd=getHead(c) or getRoot(c)
+
+		local okA, ap = pcall(Players.GetCharacterAppearanceAsync, Players, userId)
+		if okA and ap then
+			for _, v in ipairs(ap:GetDescendants()) do
+				if v:IsA("CharacterMesh") then
+					v:Clone().Parent = char
+				end
+			end
+
+			local hd = getHead(char)
 			if hd then
-				h.CFrame=hd.CFrame
-				local w=InstanceNew("WeldConstraint")
-				w.Part0,w.Part1,w.Parent=hd,h,h
-			end
-		end
-	end
-	local function ap()
-		local c=getPlrChar(plrplr)
-		for _,x in ipairs(c:GetChildren())do if x:IsA("Accessory")or x:IsA("CharacterMesh")or x:IsA("Shirt")or x:IsA("Pants")or x:IsA("ShirtGraphic")then x:Destroy()end end
-		local d=Players:GetHumanoidDescriptionFromUserId(uid)
-		local ar=Players:GetCharacterAppearanceAsync(uid)
-		for _,info in ipairs(d:GetAccessories(true))do aa(c,info.AssetId)end
-		local hum=getPlrHum(plrplr)
-		if hum and hum:FindFirstChild("HumanoidDescription")then
-			local pd=hum.HumanoidDescription
-			pd.BodyTypeScale,pd.DepthScale,pd.HeadScale,pd.HeightScale,pd.ProportionScale,pd.WidthScale=
-				d.BodyTypeScale,d.DepthScale,d.HeadScale,d.HeightScale,d.ProportionScale,d.WidthScale
-		end
-		local bc=c:FindFirstChildOfClass("BodyColors")
-		if bc then
-			bc.HeadColor3,bc.LeftArmColor3,bc.LeftLegColor3,bc.RightArmColor3,bc.RightLegColor3,bc.TorsoColor3=
-				d.HeadColor,d.LeftArmColor,d.LeftLegColor,d.RightArmColor,d.RightLegColor,d.TorsoColor
-		end
-		local hd=getHead(c)
-		if hd then for _,dec in ipairs(hd:GetChildren())do if dec:IsA("Decal")then dec:Destroy()end end end
-		for _,v in ipairs(ar:GetDescendants())do
-			if IsR6(plrplr) and v:IsA("CharacterMesh")then
-				v:Clone().Parent=c
-			elseif IsR15(plrplr) and v:IsA("MeshPart")then
-				local tp=c:FindFirstChild(v.Name,true)
-				if tp then tp.MeshId,tp.TextureID=v.MeshId,v.TextureID end
-			elseif v:IsA("Shirt")or v:IsA("Pants")or v:IsA("ShirtGraphic")then
-				v:Clone().Parent=c
-			elseif v:IsA("Decal")and Lower(v.Name)=="face"then
-				v:Clone().Parent=hd
-			end
-		end
-		if IsR15(plrplr) then
-			local b={LeftFoot="7430071039",LeftHand="7430070991",LeftLowerArm="7430071005",LeftLowerLeg="7430071049",
-				LeftUpperArm="7430071044",LeftUpperLeg="7430071065",LowerTorso="7430071109",RightFoot="7430071082",
-				RightHand="7430070997",RightLowerArm="7430071013",RightLowerLeg="7430071105",RightUpperArm="7430071041",
-				RightUpperLeg="7430071119",UpperTorso="7430071038"}
-			for name,id2 in pairs(b)do
-				local found=false
-				for _,v in ipairs(ar:GetDescendants())do if v:IsA("MeshPart")and v.Name==name then found=true break end end
-				if not found then
-					local mp=c:FindFirstChild(name)
-					if mp and mp:IsA("MeshPart")then
-						mp.MeshId="https://assetdelivery.roblox.com/v1/asset/?id="..id2
+				for _, d in ipairs(hd:GetChildren()) do
+					if d:IsA("Decal") then d:Destroy() end
+				end
+				for _, v in ipairs(ap:GetDescendants()) do
+					if v:IsA("Decal") and Lower(v.Name) == "face" then
+						v:Clone().Parent = hd
+						break
 					end
 				end
 			end
 		end
 	end
-	ap()
-	--[[if not returner then
-		Players:Chat("!IY "..args)
-	end]]
-end,true)
+end, true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
 	local naem=Players.LocalPlayer.Name
@@ -17612,33 +17596,27 @@ cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter 
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Sword%20Fight%20Bot"))()
 end)
 
-local touchESPList, proximityESPList, clickESPList, siteESPList, vehicleSiteESPList = {}, {}, {}, {}, {}
-local espTriggers = {}
-local espNameLists = {exact={},partial={}}
-local espNameTriggers = {}
-local nameESPPartLists = {exact={},partial={}}
-
-local function createBox(part,color,transparency)
+NAmanage.CreateBox = function(part, color, transparency)
 	local c = color or Color3.new(1,1,1)
 	local h,s,v = Color3.toHSV(c)
 	local off = 0.35
 	local dC = Color3.fromHSV(h,s,math.clamp(v-off,0,1))
 	local lC = Color3.fromHSV(h,s,math.clamp(v+off,0,1))
-	local b = InstanceNew("BoxHandleAdornment",part)
+	local b = InstanceNew("BoxHandleAdornment", part)
 	b.Name = Lower(part.Name).."_peepee"
 	b.Adornee = part
 	b.AlwaysOnTop = true
 	b.ZIndex = 0
 	b.Transparency = transparency or 0.45
 	b.Color3 = lC
-	local bb = InstanceNew("BillboardGui",part)
+	local bb = InstanceNew("BillboardGui", part)
 	bb.Name = Lower(part.Name).."_label"
 	bb.Adornee = part
 	bb.Size = UDim2.new(0,100,0,30)
 	bb.StudsOffset = Vector3.new(0,0.5,0)
 	bb.AlwaysOnTop = true
 	bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	local tl = InstanceNew("TextLabel",bb)
+	local tl = InstanceNew("TextLabel", bb)
 	tl.Size = UDim2.new(1,0,1,0)
 	tl.BackgroundTransparency = 1
 	tl.Text = part.Name
@@ -17647,8 +17625,8 @@ local function createBox(part,color,transparency)
 	tl.TextSize = 14
 	tl.TextStrokeTransparency = 0.5
 	tl.ZIndex = 1
-	local gr = InstanceNew("UIGradient",tl)
-	gr.Color = ColorSequence.new(dC,lC)
+	local gr = InstanceNew("UIGradient", tl)
+	gr.Color = ColorSequence.new(dC, lC)
 	local function update()
 		if not b.Parent then return end
 		if part:IsA("Model") then
@@ -17676,7 +17654,7 @@ local function createBox(part,color,transparency)
 	return b
 end
 
-local function removeEspFromPart(part)
+NAmanage.RemoveEspFromPart = function(part)
 	for _,child in ipairs(part:GetChildren()) do
 		if child:IsA("BoxHandleAdornment") and Sub(child.Name,-7) == "_peepee" then
 			NAlib.disconnect("esp_update_"..tostring(child))
@@ -17690,48 +17668,48 @@ local function removeEspFromPart(part)
 	end
 end
 
-local function enableEsp(objType,color,list)
-	for _,obj in pairs(workspace:GetDescendants()) do
+NAmanage.EnableEsp = function(objType, color, list)
+	for _,obj in ipairs(workspace:GetDescendants()) do
 		if obj:IsA(objType) then
 			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-			if parent and not Discover(list,parent) then
-				Insert(list,parent)
-				createBox(parent,color,0.45)
+			if parent and not Discover(list, parent) then
+				Insert(list, parent)
+				NAmanage.CreateBox(parent, color, 0.45)
 			end
 		end
 	end
-	if not espTriggers[objType] then
-		espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
+	if not NAStuff.espTriggers[objType] then
+		NAStuff.espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
 			if obj:IsA(objType) then
 				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-				if parent and not Discover(list,parent) then
-					Insert(list,parent)
-					createBox(parent,color,0.45)
+				if parent and not Discover(list, parent) then
+					Insert(list, parent)
+					NAmanage.CreateBox(parent, color, 0.45)
 				end
 			end
 		end)
 	end
 end
 
-local function disableEsp(objType,list)
-	if espTriggers[objType] then
-		espTriggers[objType]:Disconnect()
-		espTriggers[objType] = nil
+NAmanage.DisableEsp = function(objType, list)
+	if NAStuff.espTriggers[objType] then
+		NAStuff.espTriggers[objType]:Disconnect()
+		NAStuff.espTriggers[objType] = nil
 	end
 	for _,part in ipairs(list) do
-		removeEspFromPart(part)
+		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(list)
 end
 
-local function enableNameEsp(mode,color,...)
+NAmanage.EnableNameEsp = function(mode, color, ...)
 	local terms = {...}
-	local list = espNameLists[mode]
-	local parts = nameESPPartLists[mode]
+	local list = NAStuff.espNameLists[mode]
+	local parts = NAStuff.nameESPPartLists[mode]
 	for _,term in ipairs(terms) do
 		term = Lower(term)
-		if not Discover(list,term) then
-			Insert(list,term)
+		if not Discover(list, term) then
+			Insert(list, term)
 		end
 	end
 	local function matchFn(obj)
@@ -17749,9 +17727,9 @@ local function enableNameEsp(mode,color,...)
 		local idx = Discover(parts,obj)
 		if matches and not idx then
 			Insert(parts,obj)
-			createBox(obj,color,0.45)
+			NAmanage.CreateBox(obj,color,0.45)
 		elseif not matches and idx then
-			removeEspFromPart(obj)
+			NAmanage.RemoveEspFromPart(obj)
 			table.remove(parts,idx)
 		end
 	end
@@ -17763,8 +17741,8 @@ local function enableNameEsp(mode,color,...)
 			handleNameChange(obj)
 		end
 	end
-	if not espNameTriggers[mode] then
-		espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
+	if not NAStuff.espNameTriggers[mode] then
+		NAStuff.espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
 			if obj:IsA("BasePart") or obj:IsA("Model") then
 				NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
 					handleNameChange(obj)
@@ -17775,84 +17753,205 @@ local function enableNameEsp(mode,color,...)
 	end
 end
 
-local function disableNameEsp(mode)
-	if espNameTriggers[mode] then
-		espNameTriggers[mode]:Disconnect()
-		espNameTriggers[mode] = nil
+NAmanage.DisableNameEsp = function(mode)
+	if NAStuff.espNameTriggers[mode] then
+		NAStuff.espNameTriggers[mode]:Disconnect()
+		NAStuff.espNameTriggers[mode] = nil
 	end
 	NAlib.disconnect("esp_namechange_"..mode)
-	local parts = nameESPPartLists[mode]
+	local parts = NAStuff.nameESPPartLists[mode]
 	for _,part in ipairs(parts) do
-		removeEspFromPart(part)
+		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(parts)
-	table.clear(espNameLists[mode])
+	table.clear(NAStuff.espNameLists[mode])
+end
+
+NAmanage.EnableUnanchoredEsp = function(color)
+	local col = color or Color3.fromRGB(255,220,0)
+	local function update(part)
+		if not part:IsA("BasePart") then return end
+		local idx = Discover(NAStuff.unanchoredESPList, part)
+		if part.Anchored == false and not idx then
+			Insert(NAStuff.unanchoredESPList, part)
+			NAmanage.CreateBox(part, col, 0.45)
+		elseif part.Anchored == true and idx then
+			NAmanage.RemoveEspFromPart(part)
+			table.remove(NAStuff.unanchoredESPList, idx)
+		end
+	end
+	for _,obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			update(obj)
+			NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
+				update(obj)
+			end))
+		end
+	end
+	if not NAStuff.espTriggers["__unanchored"] then
+		NAStuff.espTriggers["__unanchored"] = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA("BasePart") then
+				update(obj)
+				NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
+					update(obj)
+				end))
+			end
+		end)
+	end
+end
+
+NAmanage.DisableUnanchoredEsp = function()
+	if NAStuff.espTriggers["__unanchored"] then
+		NAStuff.espTriggers["__unanchored"]:Disconnect()
+		NAStuff.espTriggers["__unanchored"] = nil
+	end
+	NAlib.disconnect("esp_unanchored_prop")
+	for _,part in ipairs(NAStuff.unanchoredESPList) do
+		NAmanage.RemoveEspFromPart(part)
+	end
+	table.clear(NAStuff.unanchoredESPList)
+end
+
+NAmanage.EnableCollisionEsp = function(targetState, color)
+	local list = targetState and NAStuff.collisionTrueESPList or NAStuff.collisionFalseESPList
+	local trigKey = targetState and "__cancollide_true" or "__cancollide_false"
+	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
+	local col = color or (targetState and Color3.fromRGB(0,200,255) or Color3.fromRGB(255,120,120))
+	local function update(part)
+		if not part:IsA("BasePart") then return end
+		local idx = Discover(list, part)
+		local matches = part.CanCollide == targetState
+		if matches and not idx then
+			Insert(list, part)
+			NAmanage.CreateBox(part, col, 0.45)
+		elseif not matches and idx then
+			NAmanage.RemoveEspFromPart(part)
+			table.remove(list, idx)
+		end
+	end
+	for _,obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			update(obj)
+			NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
+				update(obj)
+			end))
+		end
+	end
+	if not NAStuff.espTriggers[trigKey] then
+		NAStuff.espTriggers[trigKey] = workspace.DescendantAdded:Connect(function(obj)
+			if obj:IsA("BasePart") then
+				update(obj)
+				NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
+					update(obj)
+				end))
+			end
+		end)
+	end
+end
+
+NAmanage.DisableCollisionEsp = function(targetState)
+	local list = targetState and NAStuff.collisionTrueESPList or NAStuff.collisionFalseESPList
+	local trigKey = targetState and "__cancollide_true" or "__cancollide_false"
+	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
+	if NAStuff.espTriggers[trigKey] then
+		NAStuff.espTriggers[trigKey]:Disconnect()
+		NAStuff.espTriggers[trigKey] = nil
+	end
+	NAlib.disconnect(propKey)
+	for _,part in ipairs(list) do
+		NAmanage.RemoveEspFromPart(part)
+	end
+	table.clear(list)
 end
 
 cmd.add({"touchesp","tesp"},{"touchesp"},function()
-	enableEsp("TouchTransmitter",Color3.fromRGB(255,0,0),touchESPList)
+	NAmanage.EnableEsp("TouchTransmitter", Color3.fromRGB(255,0,0), NAStuff.touchESPList)
 end)
 
 cmd.add({"untouchesp","untesp"},{"untouchesp"},function()
-	disableEsp("TouchTransmitter",touchESPList)
+	NAmanage.DisableEsp("TouchTransmitter", NAStuff.touchESPList)
 end)
 
 cmd.add({"proximityesp","prxesp","proxiesp"},{"proximityesp"},function()
-	enableEsp("ProximityPrompt",Color3.fromRGB(0,0,255),proximityESPList)
+	NAmanage.EnableEsp("ProximityPrompt", Color3.fromRGB(0,0,255), NAStuff.proximityESPList)
 end)
 
 cmd.add({"unproximityesp","unprxesp","unproxiesp"},{"unproximityesp"},function()
-	disableEsp("ProximityPrompt",proximityESPList)
+	NAmanage.DisableEsp("ProximityPrompt", NAStuff.proximityESPList)
 end)
 
 cmd.add({"clickesp","cesp"},{"clickesp"},function()
-	enableEsp("ClickDetector",Color3.fromRGB(255,165,0),clickESPList)
+	NAmanage.EnableEsp("ClickDetector", Color3.fromRGB(255,165,0), NAStuff.clickESPList)
 end)
 
 cmd.add({"unclickesp","uncesp"},{"unclickesp"},function()
-	disableEsp("ClickDetector",clickESPList)
+	NAmanage.DisableEsp("ClickDetector", NAStuff.clickESPList)
 end)
 
 cmd.add({"sitesp","ssp"},{"sitesp"},function()
-	enableEsp("Seat", Color3.fromRGB(0,255,0), siteESPList)
+	NAmanage.EnableEsp("Seat", Color3.fromRGB(0,255,0), NAStuff.siteESPList)
 end)
 
 cmd.add({"unsitesp","unssp"},{"unsitesp"},function()
-	disableEsp("Seat", siteESPList)
+	NAmanage.DisableEsp("Seat", NAStuff.siteESPList)
 end)
 
 cmd.add({"vehiclesitesp","vsitesp","vsp"},{"vehiclesitesp"},function()
-	enableEsp("VehicleSeat", Color3.fromRGB(255,0,255), vehicleSiteESPList)
+	NAmanage.EnableEsp("VehicleSeat", Color3.fromRGB(255,0,255), NAStuff.vehicleSiteESPList)
 end)
 
 cmd.add({"unvehiclesitesp","unvsitesp","unvsp"},{"unvehiclesitesp"},function()
-	disableEsp("VehicleSeat", vehicleSiteESPList)
+	NAmanage.DisableEsp("VehicleSeat", NAStuff.vehicleSiteESPList)
 end)
 
 cmd.add({"pesp","esppart","partesp"},{"pesp {partname}"},function(...)
 	local name = Concat({...}," ")
 	if name=="" then
-		disableNameEsp("exact")
+		NAmanage.DisableNameEsp("exact")
 	else
-		enableNameEsp("exact",nil,name)
+		NAmanage.EnableNameEsp("exact", nil, name)
 	end
 end,true)
 
 cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp"},function()
-	disableNameEsp("exact")
+	NAmanage.DisableNameEsp("exact")
 end)
 
 cmd.add({"pespfind","partespfind","esppartfind"},{"pespfind {partname}"},function(...)
 	local name = Concat({...}," ")
 	if name=="" then
-		disableNameEsp("partial")
+		NAmanage.DisableNameEsp("partial")
 	else
-		enableNameEsp("partial",nil,name)
+		NAmanage.EnableNameEsp("partial", nil, name)
 	end
 end,true)
 
 cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind"},function()
-	disableNameEsp("partial")
+	NAmanage.DisableNameEsp("partial")
+end)
+
+cmd.add({"unanchored","unanchoredesp","uaesp"},{"unanchored"},function()
+	NAmanage.EnableUnanchoredEsp(Color3.fromRGB(255,220,0))
+end)
+
+cmd.add({"ununanchored","ununanchoredesp","unuaesp"},{"ununanchored"},function()
+	NAmanage.DisableUnanchoredEsp()
+end)
+
+cmd.add({"collisionesp","colesp"},{"collisionesp"},function()
+	NAmanage.EnableCollisionEsp(true, Color3.fromRGB(0,200,255))
+end)
+
+cmd.add({"uncollisionesp","uncolesp"},{"uncollisionesp"},function()
+	NAmanage.DisableCollisionEsp(true)
+end)
+
+cmd.add({"nocollisionesp","ncolesp"},{"nocollisionesp"},function()
+	NAmanage.EnableCollisionEsp(false, Color3.fromRGB(255,120,120))
+end)
+
+cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
+	NAmanage.DisableCollisionEsp(false)
 end)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
@@ -19134,7 +19233,6 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		local UIAspectRatioConstraint = InstanceNew("UIAspectRatioConstraint")
 		NaProtectUI(invisBtnlol)
 		invisBtnlol.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		invisBtnlol.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 		TextButton.Parent = invisBtnlol
 		TextButton.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
 		TextButton.BackgroundTransparency = 0.14
@@ -19385,6 +19483,307 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 		end
 	end
 end, true)
+
+NAmanage.BlockRemote = function(remote)
+	if not Discover(NAStuff.BlockedRemotes, remote) then
+		Insert(NAStuff.BlockedRemotes, remote)
+		DebugNotif(("Blocked: %s"):format(remote:GetFullName()), 3, "Remote Block")
+	end
+end
+
+NAmanage.UnblockRemote = function(remote)
+	local idx = Discover(NAStuff.BlockedRemotes, remote)
+	if idx then
+		local name = NAStuff.BlockedRemotes[idx]:GetFullName()
+		table.remove(NAStuff.BlockedRemotes, idx)
+		DebugNotif(("Unblocked: %s"):format(name), 3, "Remote Block")
+	end
+end
+
+NAmanage.RemoteSource = function(remote)
+	local plr = Players.LocalPlayer
+	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+	if remote:IsDescendantOf(ReplicatedStorage) then
+		return "ReplicatedStorage"
+	elseif pg and remote:IsDescendantOf(pg) then
+		return "PlayerGui"
+	elseif remote:IsDescendantOf(plr) then
+		return "Player"
+	end
+	return (remote.Parent and remote.Parent.Name) or "Unknown"
+end
+
+NAmanage.FindRemotesByName = function(remoteName)
+	local remotes = {}
+	local lname = Lower(remoteName)
+	local function scan(parent)
+		for _, obj in ipairs(parent:GetDescendants()) do
+			if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and Lower(obj.Name) == lname then
+				Insert(remotes, obj)
+			end
+		end
+	end
+	scan(ReplicatedStorage)
+	local plr = Players.LocalPlayer
+	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+	if pg then scan(pg) else scan(plr) end
+	return remotes
+end
+
+NAmanage.FindRemoteSuggestions = function(query)
+	local suggestions, lq, seen = {}, Lower(query), {}
+	local function scan(parent)
+		for _, obj in ipairs(parent:GetDescendants()) do
+			if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+				local ln = Lower(obj.Name)
+				if Find(ln, lq, 1, true) and not seen[obj] then
+					seen[obj] = true
+					Insert(suggestions, obj)
+				end
+			end
+		end
+	end
+	scan(ReplicatedStorage)
+	local plr = Players.LocalPlayer
+	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+	if pg then scan(pg) else scan(plr) end
+	return suggestions
+end
+
+NAmanage.EnsureHook = function()
+	if getgenv().NA_BlockHooked then return end
+	local mt = getrawmetatable(game)
+	local oldNamecall = mt.__namecall
+	setreadonly(mt, false)
+	mt.__namecall = newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if (method == "FireServer" or method == "InvokeServer") and Discover(NAStuff.BlockedRemotes, self) then
+			DebugNotif(("Blocked call -> %s (%s)"):format(self:GetFullName(), method), 2, "Remote Block")
+			return nil
+		end
+		return oldNamecall(self, ...)
+	end)
+	setreadonly(mt, true)
+	getgenv().NA_BlockHooked = true
+	DebugNotif("Installed __namecall hook", 3, "Remote Block")
+end
+
+cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
+	if not name or name == "" then
+		local all = {}
+		local seen = {}
+		local function scan(parent)
+			for _, obj in ipairs(parent:GetDescendants()) do
+				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
+					seen[obj] = true
+					Insert(all, obj)
+				end
+			end
+		end
+		scan(ReplicatedStorage)
+		local plr = Players.LocalPlayer
+		local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+		if pg then scan(pg) else scan(plr) end
+
+		if #all == 0 then
+			DebugNotif("No remotes found.", 3, "Remote Block")
+			return
+		end
+
+		local buttons = {}
+		for _, r in ipairs(all) do
+			local src = NAmanage.RemoteSource(r)
+			Insert(buttons, {
+				Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+				Callback = function()
+					NAmanage.EnsureHook()
+					NAmanage.BlockRemote(r)
+				end
+			})
+		end
+
+		Window({
+			Title = "Select remote(s) to BLOCK",
+			Buttons = buttons
+		})
+		return
+	end
+
+	NAmanage.EnsureHook()
+
+	local exact = NAmanage.FindRemotesByName(name)
+	if #exact > 0 then
+		for _, r in ipairs(exact) do
+			NAmanage.BlockRemote(r)
+		end
+		return
+	end
+
+	local suggestions = NAmanage.FindRemoteSuggestions(name)
+	if #suggestions == 0 then
+		DebugNotif(("No remotes found for '%s'"):format(name), 3, "Remote Block")
+		return
+	end
+
+	local buttons = {}
+	for _, r in ipairs(suggestions) do
+		local src = NAmanage.RemoteSource(r)
+		Insert(buttons, {
+			Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+			Callback = function() NAmanage.BlockRemote(r) end
+		})
+	end
+
+	Window({
+		Title = ("Select remote to BLOCK for '%s'"):format(name),
+		Buttons = buttons
+	})
+end, false)
+
+cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by name, or pick from blocked list"},function(name)
+	if not name or name == "" then
+		local blocked = NAStuff.BlockedRemotes
+		if #blocked == 0 then
+			DebugNotif("No remotes are currently blocked.", 3, "Remote Block")
+			return
+		end
+
+		local buttons = {}
+		for _, r in ipairs(blocked) do
+			local src = NAmanage.RemoteSource(r)
+			Insert(buttons, {
+				Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+				Callback = function() NAmanage.UnblockRemote(r) end
+			})
+		end
+		Insert(buttons, {
+			Text = "[ Unblock ALL ]",
+			Callback = function()
+				for i = #blocked, 1, -1 do
+					NAmanage.UnblockRemote(blocked[i])
+				end
+			end
+		})
+
+		Window({
+			Title = "Blocked Remotes",
+			Buttons = buttons
+		})
+		return
+	end
+
+	if Lower(name) == "all" or name == "*" then
+		for i = #NAStuff.BlockedRemotes, 1, -1 do
+			NAmanage.UnblockRemote(NAStuff.BlockedRemotes[i])
+		end
+		return
+	end
+
+	-- Try exacts within blocked set
+	local lname = Lower(name)
+	local exact = {}
+	for _, r in ipairs(NAStuff.BlockedRemotes) do
+		if Lower(r.Name) == lname then
+			Insert(exact, r)
+		end
+	end
+	if #exact > 0 then
+		for _, r in ipairs(exact) do
+			NAmanage.UnblockRemote(r)
+		end
+		return
+	end
+
+	local suggestions = {}
+	for _, r in ipairs(NAStuff.BlockedRemotes) do
+		if Find(Lower(r.Name), lname, 1, true) then
+			Insert(suggestions, r)
+		end
+	end
+	if #suggestions == 0 then
+		DebugNotif(("No BLOCKED remotes match '%s'"):format(name), 3, "Remote Block")
+		return
+	end
+
+	local buttons = {}
+	for _, r in ipairs(suggestions) do
+	 local src = NAmanage.RemoteSource(r)
+	 Insert(buttons, {
+			Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+			Callback = function() NAmanage.UnblockRemote(r) end
+		})
+	end
+
+	Window({
+		Title = ("Select remote to UNBLOCK for '%s'"):format(name),
+		Buttons = buttons
+	})
+end, false)
+
+cmd.add({"bypassspeed","bps","bypasswalkspeed","bpws"},{"bypassspeed <number> (bps,bpws)","Set WalkSpeed (bypass variant)"},function(...)
+	local a = {...}
+	local val = tonumber(a[2] or a[1])
+	if not val or val <= 0 then return end
+	local hum = getHum()
+	if hum then
+		hum.WalkSpeed = val
+		DebugNotif(("BypassSpeed set to %s"):format(val), 2, "Bypass Speed")
+	end
+end, true)
+
+do
+	getgenv().NA_BPS_Val = nil
+	local bps_loop = false
+
+	cmd.add({"loopbypassspeed","lbps","loopbypasswalkspeed","lbws"},{"loopbypassspeed <number|off> (lbps,lbws)","Loop WalkSpeed (bypass variant)"},function(...)
+		local arg = tostring((...))
+		if not arg then return end
+
+		if Lower(arg) == "off" then
+			bps_loop = false
+			NAlib.disconnect("na_bps_apply")
+			NAlib.disconnect("na_bps_char")
+			DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
+			return
+		end
+
+		local val = tonumber(arg)
+		if not val or val <= 0 then return end
+		getgenv().NA_BPS_Val = val
+		bps_loop = true
+
+		NAlib.disconnect("na_bps_apply")
+		NAlib.disconnect("na_bps_char")
+
+		local function applyWS()
+			local hum = getHum()
+			if not hum then return end
+			hum.WalkSpeed = val
+			NAlib.connect("na_bps_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if bps_loop and hum.WalkSpeed ~= val then
+					hum.WalkSpeed = val
+				end
+			end))
+		end
+
+		applyWS()
+
+		local plr = LocalPlayer
+		NAlib.connect("na_bps_char", plr.CharacterAdded:Connect(function()
+			while not getHum() do Wait(.1) end
+			if bps_loop then applyWS() end
+		end))
+
+		DebugNotif(("LoopBypassSpeed: %s"):format(val), 2, "Bypass Speed")
+	end, true)
+
+	cmd.add({"unloopbypassspeed","unlbps","unloopbypasswalkspeed","unlbws"},{"unloopbypassspeed (unlbps,unlbws)","Disable loop WalkSpeed (bypass variant)"},function()
+		bps_loop = false
+		NAlib.disconnect("na_bps_apply")
+		NAlib.disconnect("na_bps_char")
+		DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
+	end)
+end
 
 cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	getgenv().enabled = true
@@ -20916,7 +21315,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		value = math.clamp(value, min, max)
 
 		progress.Size = UDim2.new(percent, 0, 1, 0)
-		infoText.Text = tostring(value)..(suffix or "")
+		infoText.Text = Format("%.14g", value)..(suffix or "")
 		pcall(callback, value)
 	end
 
@@ -20940,7 +21339,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 
 	local initialPercent = (defaultValue - min) / (max - min)
 	progress.Size = UDim2.new(initialPercent, 0, 1, 0)
-	infoText.Text = tostring(defaultValue)..(suffix or "")
+	infoText.Text = Format("%.14g", defaultValue)..(suffix or "")
 end
 
 NAgui.dragger = function(ui, dragui)
