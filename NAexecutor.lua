@@ -236,10 +236,10 @@ local dragging = false
 local dragInput, dragStart, startPos
 
 local function update(i)
-	local d = i.Position - dragStart
+	local d2 = i.Position - dragStart
 	m.Position = UDim2.new(
-		startPos.X.Scale, startPos.X.Offset + d.X,
-		startPos.Y.Scale, startPos.Y.Offset + d.Y
+		startPos.X.Scale, startPos.X.Offset + d2.X,
+		startPos.Y.Scale, startPos.Y.Offset + d2.Y
 	)
 end
 
@@ -284,16 +284,16 @@ local bi = {
 local function colorize(txt)
 	local E = esc(txt)
 	local ph, n = {}, 0
-	local function keep(s)
+	local function keep(s2)
 		n += 1
-		ph[n] = s
+		ph[n] = s2
 		return "\1PH" .. n .. "\2"
 	end
-	E = E:gsub("%-%-%[%[[%s%S]-%]%]", function(s) return keep('<font color="#8B949E">'..s..'</font>') end)
-	E = E:gsub("%-%-[^\n]*", function(s) return keep('<font color="#8B949E">'..s..'</font>') end)
-	E = E:gsub("%[%[[%s%S]-%]%]", function(s) return keep('<font color="#A3E635">'..s..'</font>') end)
-	E = E:gsub('"(.-)"', function(s) return keep('<font color="#A3E635">"'..s..'"</font>') end)
-	E = E:gsub("'(.-)'", function(s) return keep('<font color="#A3E635">\''..s..'\'</font>') end)
+	E = E:gsub("%-%-%[%[[%s%S]-%]%]", function(s2) return keep('<font color="#8B949E">'..s2..'</font>') end)
+	E = E:gsub("%-%-[^\n]*", function(s2) return keep('<font color="#8B949E">'..s2..'</font>') end)
+	E = E:gsub("%[%[[%s%S]-%]%]", function(s2) return keep('<font color="#A3E635">'..s2..'</font>') end)
+	E = E:gsub('"(.-)"', function(s2) return keep('<font color="#A3E635">"'..s2..'"</font>') end)
+	E = E:gsub("'(.-)'", function(s2) return keep('<font color="#A3E635">\''..s2..'\'</font>') end)
 	E = E:gsub("(%f[%w_]%d[%d%.eE]*%f[^%w_])", '<font color="#60A5FA">%1</font>')
 	for _, w in ipairs(kw) do
 		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F472B6">'..w..'</font>')
@@ -301,13 +301,66 @@ local function colorize(txt)
 	for _, w in ipairs(bi) do
 		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F59E0B">'..w..'</font>')
 	end
-	E = E:gsub("\1PH(%d+)\2", function(i) return ph[tonumber(i)] or "" end)
+	E = E:gsub("\1PH(%d+)\2", function(i2) return ph[tonumber(i2)] or "" end)
 	return E
 end
 
 local tsrv = S("TextService")
 local function lineHeight()
 	return tsrv:GetTextSize("A", t.TextSize, t.Font, Vector2.new(1e5, 1e5)).Y
+end
+
+local CHUNK_NAME = "UserScript"
+local errorLine = nil
+local runningCo = nil
+
+local errMark = Instance.new("Frame")
+errMark.Name = "ErrMark"
+errMark.Parent = s
+errMark.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
+errMark.BackgroundTransparency = 0.85
+errMark.BorderSizePixel = 0
+errMark.Visible = false
+errMark.ZIndex = 0
+
+local function gotoLine(n)
+	local y = math.max(0, (n-1) * lineHeight() - s.AbsoluteSize.Y*0.3)
+	s.CanvasPosition = Vector2.new(0, y)
+end
+
+local function clearErrorUI()
+	errorLine = nil
+	errMark.Visible = false
+end
+
+local function parseError(err)
+	local e2 = tostring(err)
+	local ln2 = tonumber(e2:match(CHUNK_NAME..":(%d+):")) or tonumber(e2:match(":(%d+):"))
+	local msg = e2:match(CHUNK_NAME..":%d+:%s*(.*)") or e2:match(":%d+:%s*(.*)") or e2
+	return ln2, msg
+end
+
+local function showError(err)
+	local ln2, msg = parseError(err)
+	if ln2 then
+		errorLine = ln2
+		errMark.Size = UDim2.new(0, math.max(0, s.CanvasSize.X.Offset - 52), 0, lineHeight())
+		errMark.Position = UDim2.new(0, 46, 0, (ln2-1)*lineHeight())
+		errMark.Visible = true
+		gotoLine(ln2)
+	end
+	sb.Text = ("Error%s%s"):format(ln2 and (" on line "..ln2) or "", ": "..msg)
+	sb.TextColor3 = Color3.fromRGB(255,120,120)
+	task.spawn(function()
+		task.wait(6)
+		sb.Text = "Ready"
+		sb.TextColor3 = Color3.fromRGB(110, 245, 140)
+	end)
+	runningCo = nil
+end
+
+local function traceHandler(e2)
+	return tostring(e2) .. "\n" .. debug.traceback(nil, 2)
 end
 
 local function updateLines()
@@ -317,7 +370,13 @@ local function updateLines()
 	local c = 1
 	for _ in txt:gmatch("\n") do c += 1 end
 	local buf = {}
-	for i = 1, c do buf[#buf+1] = tostring(i) end
+	for i = 1, c do
+		if errorLine and i == errorLine then
+			buf[#buf+1] = '<font color="#FF7A7A">'..i..'</font>'
+		else
+			buf[#buf+1] = tostring(i)
+		end
+	end
 	ln.Text = table.concat(buf, "\n")
 	local widest = 0
 	for line in (t.Text.."\n"):gmatch("(.-)\n") do
@@ -331,6 +390,10 @@ local function updateLines()
 	t.Size = UDim2.new(0, tgtW, 0, tgtH)
 	ln.Size = UDim2.new(0, 40, 0, tgtH)
 	s.CanvasSize = UDim2.new(0, 46 + tgtW + 6, 0, tgtH)
+	if errorLine then
+		errMark.Size = UDim2.new(0, tgtW, 0, lineHeight())
+		errMark.Position = UDim2.new(0, 46, 0, (errorLine-1)*lineHeight())
+	end
 end
 
 local function updateHL()
@@ -354,7 +417,6 @@ uis.InputBegan:Connect(function(i, gpe)
 	end
 end)
 
-local busy = false
 local function setStatus(msg, col, dur)
 	sb.Text = msg
 	sb.TextColor3 = col
@@ -368,23 +430,32 @@ local function setStatus(msg, col, dur)
 end
 
 ex.MouseButton1Click:Connect(function()
-	if busy then return end
-	busy = true
-	setStatus("Executing...", Color3.fromRGB(255, 230, 120))
-	local ok, err = pcall(function()
-		local f = loadstring(t.Text)
-		if f then f() end
-	end)
-	if ok then
-		setStatus("Executed", Color3.fromRGB(140, 240, 180), 2)
-	else
-		setStatus(err or "Error", Color3.fromRGB(255, 120, 120), 3)
+	clearErrorUI()
+	setStatus("Running...", Color3.fromRGB(255, 230, 120))
+	local src = t.Text
+	local f, cerr = loadstring(src)
+	if not f then
+		showError(cerr)
+		return
 	end
-	busy = false
+	runningCo = coroutine.create(function()
+		local ok, e2 = xpcall(f, traceHandler)
+		if not ok then
+			showError(e2)
+		else
+			setStatus("Executed", Color3.fromRGB(140, 240, 180), 2)
+		end
+		runningCo = nil
+	end)
+	task.spawn(function()
+		local ok, e2 = coroutine.resume(runningCo)
+		if not ok then showError(e2) end
+	end)
 end)
 
 cl.MouseButton1Click:Connect(function()
 	t.Text = ""
+	clearErrorUI()
 end)
 
 cp.MouseButton1Click:Connect(function()
