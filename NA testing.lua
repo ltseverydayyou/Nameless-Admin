@@ -2193,7 +2193,7 @@ end)
 
 local ESPenabled=false
 local chamsEnabled=false
-espCONS = {}
+espCONS = espCONS or {}
 
 
 function round(num,numDecimalPlaces)
@@ -2234,149 +2234,211 @@ function placeCreator()
 	return creatorName or "unknown"
 end
 
-local function clearESP(player)
-	local name = player.Name
-	NAlib.disconnect("esp_render_"     ..name)
-	NAlib.disconnect("esp_descAdded_"  ..name)
-	NAlib.disconnect("esp_descRemoved_"..name)
-	NAlib.disconnect("esp_charAdded_"  ..name)
-	local data = espCONS[name]
-	if data then
-		for part, box in pairs(data.boxTable) do
-			box:Destroy()
-		end
-		if data.billboard then
-			data.billboard:Destroy()
-		end
-		espCONS[name] = nil
-	end
-end
-
-function removeESPonLEAVE(player)
-	clearESP(player)
-end
-
-function removeAllESP()
-	for model,_ in pairs(espCONS) do
-		clearESPModel(model)
-	end
-end
-
-function clearESPModel(model)
-	local key = tostring(model)
-	NAlib.disconnect(key.."_descAdded")
-	NAlib.disconnect(key.."_descRemoved")
-	NAlib.disconnect(key.."_render")
-	NAlib.disconnect(key.."_charAdded")
-	local data = espCONS[model]
-	if data then
-		for part,box in pairs(data.boxTable) do box:Destroy() end
-		if data.billboard then data.billboard:Destroy() end
-		espCONS[model] = nil
-	end
-end
-
-function discPlrESP(target)
-	local model = (target and target:IsA("Player")) and target.Character or target
-	if model then clearESPModel(model) end
-end
-
-function espKey(target)
-	local model = (typeof(target) == "Instance" and target:IsA("Model")) and target or (typeof(target) == "Instance" and target:IsA("Player") and target.Character)
+NAmanage.ESP_Key = function(model)
 	return tostring(model)
 end
 
-function NAESP(target,persistent)
-	persistent = persistent or false
-	local model = (target and target:IsA("Player")) and target.Character or target
-	clearESPModel(model)
-	if not (model and model:IsA("Model")) then return end
-	local data = { boxTable = {} }
-	espCONS[model] = data
-	local key = tostring(model)
-	local function addPart(part)
-		if data.boxTable[part] then return end
-		local box = InstanceNew("BoxHandleAdornment")
-		box.Adornee      = part
-		box.AlwaysOnTop  = true
-		box.ZIndex       = 1
-		box.Transparency = 0.7
-		box.Size         = part.Size
-		box.Color3       = Color3.new(1,1,1)
-		box.Parent       = part
-		data.boxTable[part] = box
-	end
+NAmanage.ESP_DestroyLabel = function(model)
+	local data = espCONS[model]
+	if not data then return end
+	if data.billboard then data.billboard:Destroy() data.billboard = nil end
+	if data.textLabel then data.textLabel:Destroy() data.textLabel = nil end
+end
+
+NAmanage.ESP_EnsureLabel = function(model)
+	if chamsEnabled then return end
+	local data = espCONS[model]
+	if not data then return end
+	if data.textLabel and data.billboard and data.billboard.Parent then return end
+	local anchor = getHead(model) or getRoot(model)
+	if not anchor then return end
+	local billboard = InstanceNew("BillboardGui")
+	billboard.Adornee = anchor
+	billboard.AlwaysOnTop = true
+	billboard.Size = UDim2.new(0,150,0,40)
+	billboard.StudsOffset = Vector3.new(0,2.5,0)
+	billboard.Parent = anchor
+	local label = InstanceNew("TextLabel")
+	label.Size = UDim2.new(1,0,1,0)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 12
+	label.TextStrokeTransparency = 0.5
+	label.Text = ""
+	label.Parent = billboard
+	data.billboard = billboard
+	data.textLabel = label
+end
+
+NAmanage.ESP_AddBoxForPart = function(model, part)
+	local data = espCONS[model]
+	if not data or not part or not part:IsA("BasePart") then return end
+	if data.boxTable[part] then return end
+	local box = InstanceNew("BoxHandleAdornment")
+	box.Adornee = part
+	box.AlwaysOnTop = true
+	box.ZIndex = 1
+	box.Transparency = 0.7
+	box.Size = part.Size
+	box.Color3 = Color3.new(1,1,1)
+	box.Parent = part
+	data.boxTable[part] = box
+end
+
+NAmanage.ESP_AddBoxes = function(model)
+	local data = espCONS[model]
+	if not data then return end
 	for _, part in ipairs(model:GetDescendants()) do
-		if part:IsA("BasePart") then addPart(part) end
-	end
-	NAlib.connect(key.."_descAdded",
-		model.DescendantAdded:Connect(function(desc)
-			if desc:IsA("BasePart") then addPart(desc) end
-		end)
-	)
-	NAlib.connect(key.."_descRemoved",
-		model.DescendantRemoving:Connect(function(desc)
-			local box = data.boxTable[desc]
-			if box then box:Destroy(); data.boxTable[desc] = nil end
-		end)
-	)
-	NAlib.connect(key.."_render",
-		RunService.RenderStepped:Connect(function()
-			if not model.Parent then clearESPModel(model); return end
-			local now = tick()
-			if data.lastUpdate and now - data.lastUpdate < 0.1 then return end
-			data.lastUpdate = now
-			local localRoot = getRoot(Players.LocalPlayer.Character)
-			local rootPart  = getRoot(model)
-			if not rootPart then return end
-			local distance = localRoot and math.floor((localRoot.Position - rootPart.Position).Magnitude) or 0
-			local distColor = distance>100 and Color3.fromRGB(0,255,0)
-				or distance>50  and Color3.fromRGB(255,165,0)
-				or Color3.fromRGB(255,0,0)
-			for part,box in pairs(data.boxTable) do
-				if box.Color3~=distColor then NAlib.setProperty(box,"Color3",distColor) end
-				if box.Size~=part.Size then NAlib.setProperty(box,"Size",part.Size) end
-			end
-			if not chamsEnabled and data.textLabel then
-				local hum = getPlrHum(model)
-				local h = hum and math.floor(hum.Health) or 0
-				local m = hum and math.floor(hum.MaxHealth) or 0
-				local name = target:IsA("Player") and nameChecker(target) or model.Name
-				local txt = name.." | "..h.."/"..m.." HP | "..distance.." studs"
-				if data.textLabel.Text~=txt then NAlib.setProperty(data.textLabel,"Text",txt) end
-				if data.textLabel.TextColor3~=distColor then NAlib.setProperty(data.textLabel,"TextColor3",distColor) end
-			end
-		end)
-	)
-	if not chamsEnabled then
-		local head = getHead(model)
-		if head then
-			local billboard = InstanceNew("BillboardGui")
-			billboard.Adornee     = head
-			billboard.AlwaysOnTop = true
-			billboard.Size        = UDim2.new(0,150,0,40)
-			billboard.StudsOffset = Vector3.new(0,2.5,0)
-			billboard.Parent      = head
-			local label = InstanceNew("TextLabel")
-			label.Size                   = UDim2.new(1,0,1,0)
-			label.BackgroundTransparency = 1
-			label.Font                   = Enum.Font.GothamBold
-			label.TextSize               = 12
-			label.TextStrokeTransparency = 0.5
-			label.Text                   = ""
-			label.Parent                 = billboard
-			data.billboard = billboard
-			data.textLabel = label
+		if part:IsA("BasePart") then
+			NAmanage.ESP_AddBoxForPart(model, part)
 		end
 	end
-	if persistent and target:IsA("Player") then
-		NAlib.connect(key.."_charAdded",
-			target.CharacterAdded:Connect(function(char)
-				Wait(1)
-				NAESP(target,true)
-			end)
-		)
+	data.boxEnabled = true
+end
+
+NAmanage.ESP_RemoveBoxes = function(model)
+	local data = espCONS[model]
+	if not data then return end
+	for part, box in pairs(data.boxTable) do
+		if box then box:Destroy() end
+		data.boxTable[part] = nil
 	end
+	data.boxEnabled = false
+end
+
+NAmanage.ESP_ClearModel = function(model)
+	if not model then return end
+	local key = NAmanage.ESP_Key(model)
+	NAlib.disconnect(key.."_descAdded")
+	NAlib.disconnect(key.."_descRemoved")
+	NAlib.disconnect(key.."_charAdded")
+	NAmanage.ESP_RemoveBoxes(model)
+	NAmanage.ESP_DestroyLabel(model)
+	espCONS[model] = nil
+end
+
+NAmanage.ESP_ClearAll = function()
+	for model,_ in pairs(espCONS) do
+		NAmanage.ESP_ClearModel(model)
+	end
+end
+
+NAmanage.ESP_Disconnect = function(target)
+	local model = (target and target:IsA("Player")) and target.Character or target
+	if typeof(target) == "Instance" and target:IsA("Player") then
+		NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
+	end
+	NAmanage.ESP_ClearModel(model)
+end
+
+NAmanage.ESP_Add = function(target, persistent)
+	persistent = persistent or false
+	if typeof(target) ~= "Instance" then return end
+
+	if target:IsA("Player") then
+		if persistent then
+			NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
+			NAlib.connect("esp_charAdded_plr_"..tostring(target.UserId), target.CharacterAdded:Connect(function()
+				Wait(0.25)
+				NAmanage.ESP_Add(target, true)
+			end))
+		end
+		if not target.Character then return end
+	end
+
+	local model = target:IsA("Player") and target.Character or target
+	NAmanage.ESP_ClearModel(model)
+	if not (model and model:IsA("Model")) then return end
+
+	espCONS[model] = { boxTable = {}, persistent = persistent }
+	local key = NAmanage.ESP_Key(model)
+
+	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
+		if desc:IsA("BasePart") then NAmanage.ESP_AddBoxForPart(model, desc) end
+	end))
+
+	NAlib.connect(key.."_descRemoved", model.DescendantRemoving:Connect(function(desc)
+		local data = espCONS[model]
+		if not data then return end
+		local box = data.boxTable[desc]
+		if box then box:Destroy(); data.boxTable[desc] = nil end
+	end))
+
+	NAmanage.ESP_AddBoxes(model)
+	NAmanage.ESP_StartGlobal()
+end
+
+NAmanage.ESP_UpdateOne = function(model, now, localRoot)
+	local data = espCONS[model]
+	if not data then return end
+	if not model.Parent then NAmanage.ESP_ClearModel(model) return end
+	local rootPart = getRoot(model)
+	if not rootPart or not localRoot then return end
+
+	local dist = math.floor((localRoot.Position - rootPart.Position).Magnitude)
+	local t = dist<=50 and 0.05 or dist<=150 and 0.15 or dist<=400 and 0.3 or 0.6
+	if data.next and now < data.next then return end
+	data.next = now + t
+
+	local distColor = (dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)
+	local wantBoxes = ESPenabled and (dist <= (NAStuff.ESP_BoxMaxDistance or 120))
+	local wantLabel = ESPenabled and not chamsEnabled and (dist <= (NAStuff.ESP_LabelMaxDistance or 10000))
+
+	if wantBoxes and not data.boxEnabled then
+		NAmanage.ESP_AddBoxes(model)
+	elseif not wantBoxes and data.boxEnabled then
+		NAmanage.ESP_RemoveBoxes(model)
+	end
+
+	if wantLabel then
+		NAmanage.ESP_EnsureLabel(model)
+	else
+		NAmanage.ESP_DestroyLabel(model)
+	end
+
+	if data.boxEnabled then
+		for part, box in pairs(data.boxTable) do
+			if not part or not part.Parent then
+				if box then box:Destroy() end
+				data.boxTable[part] = nil
+			else
+				if box.Color3 ~= distColor then box.Color3 = distColor end
+				if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
+			end
+		end
+		if now % 0.5 < 0.05 then
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") and not data.boxTable[part] then
+					NAmanage.ESP_AddBoxForPart(model, part)
+				end
+			end
+		end
+	end
+
+	if data.textLabel then
+		local hum = getPlrHum(model)
+		local h = hum and math.floor(hum.Health) or 0
+		local m = hum and math.floor(hum.MaxHealth) or 0
+		local owner = Players:GetPlayerFromCharacter(model)
+		local nm = owner and nameChecker(owner) or model.Name
+		local teamName = owner and owner.Team and owner.Team.Name or (owner and "No Team") or "NPC"
+		local txt = nm.." | "..h.."/"..m.." HP | "..teamName.." | "..dist.." studs"
+		if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
+		if data.textLabel.TextColor3 ~= distColor then data.textLabel.TextColor3 = distColor end
+	end
+end
+
+NAmanage.ESP_StartGlobal = function()
+	if NAlib.isConnected("esp_update_global") then return end
+	NAlib.connect("esp_update_global", RunService.Heartbeat:Connect(function()
+		local plr = Players.LocalPlayer
+		local char = plr and plr.Character
+		local localRoot = char and getRoot(char)
+		local now = tick()
+		for model,_ in pairs(espCONS) do
+			NAmanage.ESP_UpdateOne(model, now, localRoot)
+		end
+	end))
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -8549,33 +8611,35 @@ cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys
 	end
 end)
 
-cmd.add({"esp"}, {"esp", "locate where the players are"}, function()
+cmd.add({"esp"}, {"esp","locate where the players are"}, function()
 	ESPenabled = true
 	chamsEnabled = false
 	for _, player in pairs(Players:GetPlayers()) do
-		if player.Name ~= Players.LocalPlayer.Name then
-			NAESP(player,true)
+		if player ~= Players.LocalPlayer then
+			NAmanage.ESP_Add(player, true)
 		end
 	end
 end)
 
-cmd.add({"chams"}, {"chams", "ESP but without the text :shock:"}, function()
+cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
 	ESPenabled = true
 	chamsEnabled = true
 	for _, player in pairs(Players:GetPlayers()) do
-		if player.Name ~= Players.LocalPlayer.Name then
-			NAESP(player,true)
+		if player ~= Players.LocalPlayer then
+			NAmanage.ESP_Add(player, true)
 		end
 	end
 end)
 
 cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
-	local usernames = {...}
-	for _, username in ipairs(usernames) do
-		local target = getPlr(username)
-		for _, plr in ipairs(target) do
-			if plr then
-				NAESP(plr, true)
+	ESPenabled = true
+	chamsEnabled = false
+	local args = {...}
+	if #args == 0 then args = {"all"} end
+	for _, token in ipairs(args) do
+		for _, target in ipairs(getPlr(token)) do
+			if target and target ~= Players.LocalPlayer then
+				NAmanage.ESP_Add(target, true)
 			end
 		end
 	end
@@ -8589,21 +8653,21 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 	chamsEnabled = false
 	getgenv().npcESPList = {}
 	if not NAlib.isConnected(NPC_SCAN_KEY) then
-		local accumulator = 0
-		NAlib.connect(NPC_SCAN_KEY,RunService.Heartbeat:Connect(function(dt)
-			accumulator = accumulator + dt
-			if accumulator < 0.5 then return end
-			accumulator = 0
+		local acc = 0
+		NAlib.connect(NPC_SCAN_KEY, RunService.Heartbeat:Connect(function(dt)
+			acc = acc + dt
+			if acc < 0.6 then return end
+			acc = 0
 			local found = {}
-			for _,inst in ipairs(workspace:GetDescendants()) do
+			for _, inst in ipairs(workspace:GetDescendants()) do
 				if inst:IsA("Model") then
 					local h = getPlrHum(inst)
 					local root = getRoot(inst)
-					if h and not Players:GetPlayerFromCharacter(inst) and root then
+					if h and root and not Players:GetPlayerFromCharacter(inst) then
 						found[inst] = true
 						if not getgenv().npcESPList[inst] then
 							getgenv().npcESPList[inst] = true
-							NAESP(inst,false)
+							NAmanage.ESP_Add(inst, false)
 						end
 					end
 				end
@@ -8611,11 +8675,12 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 			for inst in pairs(getgenv().npcESPList) do
 				if not found[inst] then
 					getgenv().npcESPList[inst] = nil
-					discPlrESP(inst)
+					NAmanage.ESP_Disconnect(inst)
 				end
 			end
 		end))
 	end
+	NAmanage.ESP_StartGlobal()
 end)
 
 cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},function()
@@ -8625,24 +8690,24 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 		NAlib.disconnect(NPC_SCAN_KEY)
 	end
 	for inst in pairs(getgenv().npcESPList) do
-		discPlrESP(inst)
+		NAmanage.ESP_Disconnect(inst)
 	end
 	getgenv().npcESPList = {}
 end)
 
 cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
-	ESPenabled   = false
+	ESPenabled = false
 	chamsEnabled = false
 	if NAlib.isConnected(NPC_SCAN_KEY) then
 		NAlib.disconnect(NPC_SCAN_KEY)
 	end
-	removeAllESP()
+	NAmanage.ESP_ClearAll()
 end)
 
 cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
 	for _, name in ipairs({...}) do
 		for _, plr in ipairs(getPlr(name)) do
-			discPlrESP(plr)
+			NAmanage.ESP_Disconnect(plr)
 		end
 	end
 end, true)
@@ -22674,7 +22739,7 @@ function setupPlayer(plr,bruh)
 		Spawn(function()
 			repeat Wait(.5) until plr.Character
 			Wait(.5)
-			NAESP(plr,true)
+			NAmanage.ESP_Add(plr,true)
 		end)
 	end
 
@@ -22698,7 +22763,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	if index then
 		table.remove(playerButtons, index)
 	end
-	removeESPonLEAVE(plr)
+	NAmanage.ESP_Disconnect(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
