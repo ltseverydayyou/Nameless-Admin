@@ -131,7 +131,7 @@ local function mkHdr(par,z,kind,onPause)
 	local posBtn=nil if kind~="Popup"then posBtn=spacer(mkBtn(act,"POS",act.ZIndex+1,CURF[kind]),10)posBtn.Size=UDim2.fromOffset(34,24)end
 	local fbtn=spacer(mkBtn(act,"Aa",act.ZIndex+1,CURF[kind]),20)fbtn.Size=UDim2.fromOffset(34,24)
 	local ttl=Instance.new("TextLabel")ttl.Name="Title"ttl.AnchorPoint=Vector2.new(0,0.5)ttl.Position=UDim2.new(0,PAD,0.5,0)ttl.Size=UDim2.new(1,-(PAD+act.AbsoluteSize.X+PAD),1,0)ttl.BackgroundTransparency=1 ttl.TextTruncate=Enum.TextTruncate.AtEnd
-	ttl.Font=CURF[kind] ttl.TextScaled=true ttl.TextWrapped=false ttl.TextXAlignment=Enum.TextXAlignment.Left ttl.TextYAlignment=Enum.TextYAlignment.Center ttl.TextColor3=CLR.Title ttl.RichText=true ttl.ZIndex=z+210 ttl.Parent=hdr
+	ttl.Font=CURF[kind] ttl.TextScaled=true ttl.TextXAlignment=Enum.TextXAlignment.Left ttl.TextYAlignment=Enum.TextYAlignment.Center ttl.TextColor3=CLR.Title ttl.RichText=true ttl.ZIndex=z+210 ttl.Parent=hdr
 	local tcon=Instance.new("UITextSizeConstraint",ttl)tcon.MinTextSize=14 tcon.MaxTextSize=(kind=="Popup")and 28 or 24
 	act:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()ttl.Size=UDim2.new(1,-(PAD+act.AbsoluteSize.X+PAD),1,0)end)
 	local cls=spacer(mkBtn(act,"×",act.ZIndex+1,CURF[kind]),90)cls.Size=UDim2.fromOffset(28,24)cls.Font=Enum.Font.GothamBold cls.TextColor3=Color3.new(1,1,1)cls.BackgroundColor3=CLR.Close
