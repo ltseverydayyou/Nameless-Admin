@@ -19659,7 +19659,6 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 		return
 	end
 
-	-- Try exacts within blocked set
 	local lname = Lower(name)
 	local exact = {}
 	for _, r in ipairs(NAStuff.BlockedRemotes) do
@@ -19700,70 +19699,92 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 	})
 end, false)
 
-cmd.add({"bypassspeed","bps","bypasswalkspeed","bpws"},{"bypassspeed <number> (bps,bpws)","Set WalkSpeed (bypass variant)"},function(...)
-	local a = {...}
-	local val = tonumber(a[2] or a[1])
-	if not val or val <= 0 then return end
+NAmanage.EnsureWalkSpeedBypassHook = function()
+	if getgenv().NA_WSBP_Hooked then return end
+	local mt = getrawmetatable(game)
+	local oldIndex = mt.__index
+	setreadonly(mt, false)
+	mt.__index = newcclosure(function(self, key)
+		if key == "WalkSpeed" then
+			return 16
+		end
+		return oldIndex(self, key)
+	end)
+	setreadonly(mt, true)
+	getgenv().NA_WSBP_Hooked = true
+	DebugNotif("WalkSpeed bypass installed", 2, "Bypass Speed")
+end
+
+NAmanage.ApplyBypassSpeedOnce = function(val)
 	local hum = getHum()
-	if hum then
+	if hum and val and val > 0 then
 		hum.WalkSpeed = val
 		DebugNotif(("BypassSpeed set to %s"):format(val), 2, "Bypass Speed")
 	end
+end
+
+NAmanage.StartBypassSpeedLoop = function(val)
+	if not val or val <= 0 then return end
+	getgenv().NA_BPS_Enabled = true
+	getgenv().NA_BPS_Val = val
+	NAlib.disconnect("na_bps_apply")
+	NAlib.disconnect("na_bps_char")
+	local plr = Players.LocalPlayer
+	NAmanage.ApplyBypassSpeedOnce(val)
+	NAlib.connect("na_bps_apply", game:GetService("RunService").Heartbeat:Connect(function()
+		if not getgenv().NA_BPS_Enabled then return end
+		local hum = getHum()
+		if hum and hum.WalkSpeed ~= getgenv().NA_BPS_Val then
+			hum.WalkSpeed = getgenv().NA_BPS_Val
+		end
+	end))
+	NAlib.connect("na_bps_char", plr.CharacterAdded:Connect(function(char)
+		NAmanage.EnsureWalkSpeedBypassHook()
+		while not getHum() do Wait(.05) end
+		if getgenv().NA_BPS_Enabled then
+			NAmanage.ApplyBypassSpeedOnce(getgenv().NA_BPS_Val)
+		end
+	end))
+	DebugNotif(("LoopBypassSpeed: %s"):format(val), 2, "Bypass Speed")
+end
+
+NAmanage.StopBypassSpeedLoop = function()
+	getgenv().NA_BPS_Enabled = false
+	NAlib.disconnect("na_bps_apply")
+	NAlib.disconnect("na_bps_char")
+	DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
+end
+
+cmd.add({"bypassspeed","bps","bypasswalkspeed","bpws"},{"bypassspeed <number> (bps,bpws)","Set WalkSpeed (bypass variant)"},function(...)
+	local a = {...}
+	local arg = tostring(a[2] or a[1] or "")
+	if arg == "" then return end
+	if Lower(arg) == "off" then
+		NAmanage.StopBypassSpeedLoop()
+		return
+	end
+	local val = tonumber(arg)
+	if not val or val <= 0 then return end
+	NAmanage.EnsureWalkSpeedBypassHook()
+	NAmanage.ApplyBypassSpeedOnce(val)
 end, true)
 
-do
-	getgenv().NA_BPS_Val = nil
-	local bps_loop = false
+cmd.add({"loopbypassspeed","lbps","loopbypasswalkspeed","lbws"},{"loopbypassspeed <number|off> (lbps,lbws)","Loop WalkSpeed (bypass variant)"},function(...)
+	local arg = tostring((...) or "")
+	if arg == "" then return end
+	if Lower(arg) == "off" then
+		NAmanage.StopBypassSpeedLoop()
+		return
+	end
+	local val = tonumber(arg)
+	if not val or val <= 0 then return end
+	NAmanage.EnsureWalkSpeedBypassHook()
+	NAmanage.StartBypassSpeedLoop(val)
+end, true)
 
-	cmd.add({"loopbypassspeed","lbps","loopbypasswalkspeed","lbws"},{"loopbypassspeed <number|off> (lbps,lbws)","Loop WalkSpeed (bypass variant)"},function(...)
-		local arg = tostring((...))
-		if not arg then return end
-
-		if Lower(arg) == "off" then
-			bps_loop = false
-			NAlib.disconnect("na_bps_apply")
-			NAlib.disconnect("na_bps_char")
-			DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
-			return
-		end
-
-		local val = tonumber(arg)
-		if not val or val <= 0 then return end
-		getgenv().NA_BPS_Val = val
-		bps_loop = true
-
-		NAlib.disconnect("na_bps_apply")
-		NAlib.disconnect("na_bps_char")
-
-		local function applyWS()
-			local hum = getHum()
-			if not hum then return end
-			hum.WalkSpeed = val
-			NAlib.connect("na_bps_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-				if bps_loop and hum.WalkSpeed ~= val then
-					hum.WalkSpeed = val
-				end
-			end))
-		end
-
-		applyWS()
-
-		local plr = LocalPlayer
-		NAlib.connect("na_bps_char", plr.CharacterAdded:Connect(function()
-			while not getHum() do Wait(.1) end
-			if bps_loop then applyWS() end
-		end))
-
-		DebugNotif(("LoopBypassSpeed: %s"):format(val), 2, "Bypass Speed")
-	end, true)
-
-	cmd.add({"unloopbypassspeed","unlbps","unloopbypasswalkspeed","unlbws"},{"unloopbypassspeed (unlbps,unlbws)","Disable loop WalkSpeed (bypass variant)"},function()
-		bps_loop = false
-		NAlib.disconnect("na_bps_apply")
-		NAlib.disconnect("na_bps_char")
-		DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
-	end)
-end
+cmd.add({"unloopbypassspeed","unlbps","unloopbypasswalkspeed","unlbws"},{"unloopbypassspeed (unlbps,unlbws)","Disable loop WalkSpeed (bypass variant)"},function()
+	NAmanage.StopBypassSpeedLoop()
+end)
 
 cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	getgenv().enabled = true
