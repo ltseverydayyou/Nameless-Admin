@@ -610,6 +610,7 @@ local NAfiles = {
 	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
 	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
 	NABINDERS = "Nameless-Admin/Binders.json";
+	NAESPSETTINGSPATH = "Nameless-Admin/ESPSettings.json";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -859,6 +860,56 @@ end
 
 local WPPath = NAmanage.GetWPPath()
 local bindersPath = NAfiles.NABINDERS
+
+NAmanage.LoadESPSettings = function()
+	local d = {
+		ESP_Transparency = 0.7;
+		ESP_BoxMaxDistance = 120;
+		ESP_LabelMaxDistance = 1000;
+		ESP_ColorByTeam = true;
+		ESP_ShowTeamText = true;
+		ESP_ShowName = true;
+		ESP_ShowHealth = true;
+		ESP_ShowDistance = true;
+	}
+	if FileSupport then
+		if not isfile(NAfiles.NAESPSETTINGSPATH) then
+			writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+		end
+		local ok, raw = pcall(readfile, NAfiles.NAESPSETTINGSPATH)
+		if ok and raw then
+			local ok2, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
+			if ok2 and type(cfg)=="table" then
+				for k,v in pairs(d) do
+					if cfg[k]~=nil then d[k]=cfg[k] end
+				end
+			end
+		end
+	end
+	NAStuff.ESP_Transparency = d.ESP_Transparency
+	NAStuff.ESP_BoxMaxDistance = d.ESP_BoxMaxDistance
+	NAStuff.ESP_LabelMaxDistance = d.ESP_LabelMaxDistance
+	NAStuff.ESP_ColorByTeam = d.ESP_ColorByTeam
+	NAStuff.ESP_ShowTeamText = d.ESP_ShowTeamText
+	NAStuff.ESP_ShowName = d.ESP_ShowName
+	NAStuff.ESP_ShowHealth = d.ESP_ShowHealth
+	NAStuff.ESP_ShowDistance = d.ESP_ShowDistance
+end
+
+NAmanage.SaveESPSettings = function()
+	if not FileSupport then return end
+	local d = {
+		ESP_Transparency = NAStuff.ESP_Transparency or 0.7;
+		ESP_BoxMaxDistance = NAStuff.ESP_BoxMaxDistance or 120;
+		ESP_LabelMaxDistance = NAStuff.ESP_LabelMaxDistance or 1000;
+		ESP_ColorByTeam = (NAStuff.ESP_ColorByTeam ~= false);
+		ESP_ShowTeamText = (NAStuff.ESP_ShowTeamText ~= false);
+		ESP_ShowName = (NAStuff.ESP_ShowName ~= false);
+		ESP_ShowHealth = (NAStuff.ESP_ShowHealth ~= false);
+		ESP_ShowDistance = (NAStuff.ESP_ShowDistance ~= false);
+	}
+	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+end
 
 if FileSupport then
 	prefixCheck = readfile(NAfiles.NAPREFIXPATH)
@@ -2241,8 +2292,8 @@ end
 NAmanage.ESP_DestroyLabel = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	if data.billboard then data.billboard:Destroy() data.billboard = nil end
-	if data.textLabel then data.textLabel:Destroy() data.textLabel = nil end
+	if data.billboard then data.billboard:Destroy() data.billboard=nil end
+	if data.textLabel then data.textLabel:Destroy() data.textLabel=nil end
 end
 
 NAmanage.ESP_EnsureLabel = function(model)
@@ -2278,7 +2329,7 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	box.Adornee = part
 	box.AlwaysOnTop = true
 	box.ZIndex = 1
-	box.Transparency = 0.7
+	box.Transparency = NAStuff.ESP_Transparency or 0.7
 	box.Size = part.Size
 	box.Color3 = Color3.new(1,1,1)
 	box.Parent = part
@@ -2373,37 +2424,39 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if not data then return end
 	if not model.Parent then NAmanage.ESP_ClearModel(model) return end
 	local rootPart = getRoot(model)
-	if not rootPart or not localRoot then return end
-
-	local dist = math.floor((localRoot.Position - rootPart.Position).Magnitude)
-	local t = dist<=50 and 0.05 or dist<=150 and 0.15 or dist<=400 and 0.3 or 0.6
+	if not rootPart then return end
+	local owner = Players:GetPlayerFromCharacter(model)
+	local team = owner and owner.Team or nil
+	local teamName = team and team.Name or nil
+	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
+	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
+	local budget = dist and ((dist<=50 and 0.05) or (dist<=150 and 0.15) or (dist<=400 and 0.3) or 0.6) or 0.2
 	if data.next and now < data.next then return end
-	data.next = now + t
-
-	local distColor = (dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)
-	local wantBoxes = ESPenabled and (dist <= (NAStuff.ESP_BoxMaxDistance or 120))
-	local wantLabel = ESPenabled and not chamsEnabled and (dist <= (NAStuff.ESP_LabelMaxDistance or 10000))
-
+	data.next = now + budget
+	local distColor = dist and ((dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)) or Color3.new(1,1,1)
+	local finalColor = (NAStuff.ESP_ColorByTeam ~= false and teamColor) or distColor
+	local wantBoxes = ESPenabled and (not dist or dist <= (NAStuff.ESP_BoxMaxDistance or 120))
+	local wantLabel = ESPenabled and not chamsEnabled and (not dist or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
 	if wantBoxes and not data.boxEnabled then
 		NAmanage.ESP_AddBoxes(model)
 	elseif not wantBoxes and data.boxEnabled then
 		NAmanage.ESP_RemoveBoxes(model)
 	end
-
 	if wantLabel then
 		NAmanage.ESP_EnsureLabel(model)
 	else
 		NAmanage.ESP_DestroyLabel(model)
 	end
-
 	if data.boxEnabled then
 		for part, box in pairs(data.boxTable) do
 			if not part or not part.Parent then
 				if box then box:Destroy() end
 				data.boxTable[part] = nil
 			else
-				if box.Color3 ~= distColor then box.Color3 = distColor end
+				if box.Color3 ~= finalColor then box.Color3 = finalColor end
 				if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
+				local tr = NAStuff.ESP_Transparency or 0.7
+				if box.Transparency ~= tr then box.Transparency = tr end
 			end
 		end
 		if now % 0.5 < 0.05 then
@@ -2414,17 +2467,33 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			end
 		end
 	end
-
-	if data.textLabel then
-		local hum = getPlrHum(model)
-		local h = hum and math.floor(hum.Health) or 0
-		local m = hum and math.floor(hum.MaxHealth) or 0
-		local owner = Players:GetPlayerFromCharacter(model)
+	local pieces = {}
+	if NAStuff.ESP_ShowName ~= false then
 		local nm = owner and nameChecker(owner) or model.Name
-		local teamName = owner and owner.Team and owner.Team.Name or (owner and "No Team") or "NPC"
-		local txt = nm.." | "..h.."/"..m.." HP | "..teamName.." | "..dist.." studs"
-		if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
-		if data.textLabel.TextColor3 ~= distColor then data.textLabel.TextColor3 = distColor end
+		if nm and nm ~= "" then pieces[#pieces+1] = nm end
+	end
+	if NAStuff.ESP_ShowHealth ~= false then
+		local hum = getPlrHum(model)
+		local h = hum and math.floor(hum.Health) or nil
+		local m = hum and math.floor(hum.MaxHealth) or nil
+		if h and m then pieces[#pieces+1] = tostring(h).."/"..tostring(m).." HP" end
+	end
+	if (NAStuff.ESP_ShowTeamText ~= false) and teamName and teamName ~= "None" then
+		pieces[#pieces+1] = teamName
+	end
+	if (NAStuff.ESP_ShowDistance ~= false) and dist then
+		pieces[#pieces+1] = tostring(dist).." studs"
+	end
+	if #pieces > 0 and wantLabel then
+		NAmanage.ESP_EnsureLabel(model)
+		if data.textLabel then
+			local txt = table.concat(pieces, " | ")
+			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
+			local txtColor = finalColor or Color3.new(1,1,1)
+			if data.textLabel.TextColor3 ~= txtColor then data.textLabel.TextColor3 = txtColor end
+		end
+	else
+		NAmanage.ESP_DestroyLabel(model)
 	end
 end
 
@@ -23403,6 +23472,7 @@ Spawn(NAmanage.RenderUserButtons)
 Spawn(NAmanage.loadAutoExec)
 Spawn(NAmanage.LoadPlugins)
 Spawn(NAmanage.UpdateWaypointList)
+Spawn(NAmanage.LoadESPSettings)
 
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
@@ -23803,6 +23873,53 @@ if IsOnPC then
 		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end)
 end
+
+NAgui.addSection("ESP Settings")
+
+NAgui.addSlider("ESP Transparency", 0, 1, NAStuff.ESP_Transparency or 0.7, 0.05, "", function(v)
+	NAStuff.ESP_Transparency = v
+	for _, data in pairs(espCONS) do
+		for _, box in pairs(data.boxTable) do
+			if box then box.Transparency = v end
+		end
+	 end
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
+	NAStuff.ESP_BoxMaxDistance = v
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1000, 25, " studs", function(v)
+	NAStuff.ESP_LabelMaxDistance = v
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
+	NAStuff.ESP_ColorByTeam = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Team In Label", (NAStuff.ESP_ShowTeamText ~= false), function(state)
+	NAStuff.ESP_ShowTeamText = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Name In Label", (NAStuff.ESP_ShowName ~= false), function(state)
+	NAStuff.ESP_ShowName = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Health In Label", (NAStuff.ESP_ShowHealth ~= false), function(state)
+	NAStuff.ESP_ShowHealth = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
+	NAStuff.ESP_ShowDistance = state
+	NAmanage.SaveESPSettings()
+end)
 
 NAgui.addSection("Character Morph")
 NAgui.addInput("Target User", "UserId or Username", "", function(val)
