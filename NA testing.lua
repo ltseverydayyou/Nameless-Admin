@@ -2487,7 +2487,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if #pieces > 0 and wantLabel then
 		NAmanage.ESP_EnsureLabel(model)
 		if data.textLabel then
-			local txt = table.concat(pieces, " | ")
+			local txt = Concat(pieces, " | ")
 			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
 			local txtColor = finalColor or Color3.new(1,1,1)
 			if data.textLabel.TextColor3 ~= txtColor then data.textLabel.TextColor3 = txtColor end
@@ -2966,8 +2966,8 @@ NAmanage.LoadPlugins = function()
 								argv[#argv+1] = type(v) == "string" and v or tostring(v)
 							end
 						end
-						local ok, res = NACaller(runner, argv)
-						if ok then return res end
+						local ok1, res1 = NACaller(runner, argv)
+						if ok1 then return res1 end
 						local ok2, res2 = NACaller(runner, Concat(argv, " "))
 						if ok2 then return res2 end
 						return nil, res2
@@ -2978,7 +2978,23 @@ NAmanage.LoadPlugins = function()
 					proxyEnv.runCommand = _dispatchRun
 
 					setmetatable(proxyEnv, {
-						__index = baseEnv,
+						__index = function(_, k)
+							if k == "loadstring" then
+								local baseLoadstring = baseEnv.loadstring or loadstring
+								return function(code, chunkname)
+									local f, e = baseLoadstring(code, chunkname)
+									if f then setfenv(f, proxyEnv) end
+									return f, e
+								end
+							elseif k == "load" then
+								local baseLoad = baseEnv.load
+								if not baseLoad then return nil end
+								return function(chunk, chunkname, mode, env)
+									return baseLoad(chunk, chunkname, mode, env or proxyEnv)
+								end
+							end
+							return baseEnv[k]
+						end,
 						__newindex = function(_, k, v)
 							if k == "cmdPluginAdd" then
 								if type(v) == "table" then
@@ -3033,6 +3049,218 @@ NAmanage.LoadPlugins = function()
 	if #loadedSummaries > 0 then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 5.7)
 	end
+end
+
+NAmanage.InitPlugs=function()
+    local lp = function(p) return (Lower((p or "")):gsub("\\","/")) end
+    local bn = function(p) return (p and p:match("[^\\/]+$")) or p end
+    local jp = function(d, n) d = d or ""; return (#d > 0) and (d.."/"..n) or n end
+    local mk = function(p) if p and #p > 0 and not isfolder(p) then makefolder(p) end end
+    local isna = function(p) return lp(p):match("%.na$") ~= nil end
+    local under = function(p, f) p, f = lp(p), lp(f or ""); if #f == 0 then return false end; return p:sub(1, #f + 1) == (f.."/") end
+    local uniq = function(dir, fname)
+        local name, ext = fname:match("^(.*)(%.[^%.]+)$")
+        name, ext = name or fname, ext or ""
+        local try = jp(dir, fname)
+        if not isfile(try) then return try end
+        local n = 1
+        while true do
+            try = jp(dir, Format("%s (%d)%s", name, n, ext))
+            if not isfile(try) then return try end
+            n += 1
+        end
+    end
+    local root = function()
+        local cands = {"", ".", "/"}
+        for _, c in ipairs(cands) do
+            local ok, t = pcall(listfiles, c)
+            if ok and type(t) == "table" then return c end
+        end
+        return ""
+    end
+    local scan = function(startDir, skipDir)
+        local out = {}
+        local function rec(dir)
+            local ok, items = pcall(listfiles, dir)
+            if not ok or type(items) ~= "table" then return end
+            for _, p in ipairs(items) do
+                local okd, isd = pcall(isfolder, p)
+                if okd and isd then
+                    if not under(p, skipDir) then rec(p) end
+                else
+                    if isna(p) and not under(p, skipDir) then Insert(out, p) end
+                end
+            end
+        end
+        rec(startDir)
+        return out
+    end
+
+    local plugsDir = NAfiles.NAPLUGINFILEPATH
+
+    cmd.add(
+        {"addallplugins","addplugins","aap","aaplugs"},
+        {"addallplugins","Move all .na files from workspace into Nameless-Admin/Plugins and load them"},
+        function()
+            mk(plugsDir)
+            local ws = root()
+            local found = scan(ws, plugsDir)
+            local moved, errs = {}, 0
+            for _, src in ipairs(found) do
+                local okR, data = pcall(readfile, src)
+                if okR and data then
+                    local dst = uniq(plugsDir, bn(src))
+                    local okW = pcall(writefile, dst, data)
+                    if okW then
+                        if delfile and pcall(delfile, src) then
+                            Insert(moved, bn(dst))
+                        else
+                            errs += 1
+                        end
+                    else
+                        errs += 1
+                    end
+                else
+                    errs += 1
+                end
+            end
+            if #moved > 0 then
+                DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
+                if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+            else
+                DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found", 3)
+            end
+        end
+    )
+
+    cmd.add(
+        {"addplugin","addplug","ap","aplug"},
+        {"addplugin","Move one .na from workspace into Nameless-Admin/Plugins and load it"},
+        function(...)
+            mk(plugsDir)
+            local query = tostring((...) or ""):lower()
+            local ws = root()
+            local all = scan(ws, plugsDir)
+            if #all == 0 then DoNotif("No .na files found in workspace",3); return end
+
+            local function moveOne(path)
+                local file = bn(path)
+                local okR, data = pcall(readfile, path)
+                if not okR or not data then DoNotif("Failed to read "..file,3); return end
+                local dst = uniq(plugsDir, file)
+                local okW = pcall(writefile, dst, data)
+                if not okW then DoNotif("Failed to write "..file,3); return end
+                if not delfile or not pcall(delfile, path) then DoNotif("Wrote but couldn't delete source "..file,3); return end
+                DoNotif("Moved plugin "..file,3)
+                if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+            end
+
+            if #query > 0 then
+                local hits = {}
+                for _, p in ipairs(all) do
+                    local base = bn(p):lower()
+                    if base == query or base:find(query, 1, true) then Insert(hits, p) end
+                end
+                if #hits == 1 then
+                    moveOne(hits[1]); return
+                elseif #hits > 1 then
+                    local btns = {}
+                    for _, p in ipairs(hits) do
+                        local file = bn(p)
+                        Insert(btns, { Text = file, Callback = function() moveOne(p) end })
+                    end
+                    local show = Window or DoWindow
+                    if show then show({Title = "Select Plugin", Buttons = btns}) else DoNotif("Multiple matches; refine name",3) end
+                    return
+                else
+                    DoNotif("No match for '"..query.."'",3); return
+                end
+            end
+
+            local btns = {}
+            for _, p in ipairs(all) do
+                local file = bn(p)
+                Insert(btns, { Text = file, Callback = function() moveOne(p) end })
+            end
+            local show = Window or DoWindow
+            if show then show({Title = "Add Plugin", Buttons = btns}) else DoNotif("UI not available",3) end
+        end
+    )
+
+    cmd.add(
+        {"removeplugin","rmplugin","delplugin","rmp"},
+        {"removeplugin","Move a plugin file from Nameless-Admin/Plugins back to workspace"},
+        function()
+            if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
+            local ok, items = pcall(listfiles, plugsDir)
+            if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+            local btns = {}
+            for _, p in ipairs(items) do
+                if isna(p) then
+                    local file = bn(p)
+                    Insert(btns, {
+                        Text = file,
+                        Callback = function()
+                            local okR, data = pcall(readfile, p)
+                            if not okR or not data then DoNotif("Failed to read "..file,3); return end
+                            local dst = uniq("", file)
+                            local okW = pcall(writefile, dst, data)
+                            if okW then
+                                if delfile and pcall(delfile, p) then
+                                    DoNotif("Moved "..file.." to workspace",3)
+                                else
+                                    DoNotif("Wrote but couldn't delete "..file,3)
+                                end
+                            else
+                                DoNotif("Failed to move "..file,3)
+                            end
+                        end
+                    })
+                end
+            end
+            if #btns == 0 then DoNotif("No plugins found in Plugins folder",3); return end
+            local show = Window or DoWindow
+            if show then show({Title = "Move Plugin to Workspace", Buttons = btns}) else DoNotif("Window UI not available",3) end
+        end
+    )
+
+    cmd.add(
+        {"removeallplugins","rmaplugins","clearplugins","rmap","rmaplugs"},
+        {"removeallplugins","Move all plugins from Nameless-Admin/Plugins back to workspace"},
+        function()
+            if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
+            local ok, items = pcall(listfiles, plugsDir)
+            if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+            local moved, errs = {}, 0
+            for _, p in ipairs(items) do
+                if isna(p) then
+                    local file = bn(p)
+                    local okR, data = pcall(readfile, p)
+                    if okR and data then
+                        local dst = uniq("", file)
+                        local okW = pcall(writefile, dst, data)
+                        if okW then
+                            if delfile and pcall(delfile, p) then
+                                Insert(moved, file)
+                            else
+                                errs += 1
+                            end
+                        else
+                            errs += 1
+                        end
+                    else
+                        errs += 1
+                    end
+                end
+            end
+            if #moved > 0 then
+                DoNotif("Moved "..#moved.." plugin file(s) to workspace:\n\n"..Concat(moved, "\n"), 4.5)
+            else
+                DoNotif((errs>0) and ("No plugin files moved ("..errs.." error(s))") or "No plugins found",3)
+            end
+            if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+        end
+    )
 end
 
 NAmanage.SaveWaypoints = function()
@@ -23471,6 +23699,7 @@ Spawn(NAmanage.loadButtonIDS)
 Spawn(NAmanage.RenderUserButtons)
 Spawn(NAmanage.loadAutoExec)
 Spawn(NAmanage.LoadPlugins)
+Spawn(NAmanage.InitPlugs)
 Spawn(NAmanage.UpdateWaypointList)
 Spawn(NAmanage.LoadESPSettings)
 
