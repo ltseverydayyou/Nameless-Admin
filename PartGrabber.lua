@@ -1,171 +1,177 @@
-if getgenv().prtGrabLoaded then return print('Part Grabber is already running') end
+if getgenv().prtGrabLoaded then return print("Part Grabber is already running") end
 getgenv().prtGrabLoaded = true
 
-local function SafeGetService(name)
-    local Service = (game.GetService)
-    local Reference = (cloneref) or function(reference) return reference end
-    return Reference(Service(game, name))
+local function Svc(n)
+    local g = game.GetService
+    local cref = cloneref or function(r) return r end
+    return cref(g(game, n))
 end
 
-local function protectUI(sGui)
-    if sGui:IsA("ScreenGui") then
-        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        sGui.DisplayOrder = 999999999
-        sGui.ResetOnSpawn = false
-        sGui.IgnoreGuiInset = true
+local function ProtectGui(g)
+    if g:IsA("ScreenGui") then
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        g.DisplayOrder = 999999999
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
     end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
-    local function NAProtection(inst, var)
-        if inst then
-            if var then
-                inst[var] = "\0"
-                inst.Archivable = false
+    local cg = Svc("CoreGui")
+    local lp = Svc("Players").LocalPlayer
+    local function NAP(i, v)
+        if i then
+            if v then
+                i[v] = "\0"
+                i.Archivable = false
             else
-                inst.Name = "\0"
-                inst.Archivable = false
+                i.Name = "\0"
+                i.Archivable = false
             end
         end
     end
     if gethui then
-        NAProtection(sGui)
-        sGui.Parent = gethui()
-        return sGui
-    elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
-        NAProtection(sGui)
-        sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-        return sGui
-    elseif cGUI then
-        NAProtection(sGui)
-        sGui.Parent = cGUI
-        return sGui
-    elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
-        NAProtection(sGui)
-        sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
-        sGui.ResetOnSpawn = false
-        return sGui
+        NAP(g)
+        g.Parent = gethui()
+        return g
+    elseif cg and cg:FindFirstChild("RobloxGui") then
+        NAP(g)
+        g.Parent = cg:FindFirstChild("RobloxGui")
+        return g
+    elseif cg then
+        NAP(g)
+        g.Parent = cg
+        return g
     else
-        return nil
+        if lp and lp:FindFirstChildWhichIsA("PlayerGui") then
+            NAP(g)
+            g.Parent = lp:FindFirstChildWhichIsA("PlayerGui")
+            g.ResetOnSpawn = false
+            return g
+        end
     end
+    return nil
 end
 
-local TweenService = SafeGetService("TweenService")
-local UIS = SafeGetService("UserInputService")
-local GuiService = SafeGetService("GuiService")
-local Players = SafeGetService("Players")
-local plr = Players.LocalPlayer
+local ts = Svc("TweenService")
+local uis = Svc("UserInputService")
+local gsv = Svc("GuiService")
+local plrs = Svc("Players")
+local lp = plrs.LocalPlayer
 
-local function createButton(text, color, parent, h)
+local _conns = {}
+local function track(c) if c then table.insert(_conns, c) end return c end
+local function discAll() for i=#_conns,1,-1 do local c=_conns[i] if c and c.Disconnect then pcall(function() c:Disconnect() end) end _conns[i]=nil end end
+local mouseConn, tapConn, uisChangedConn, tbBeganConn, tbChangedConn = nil, nil, nil, nil, nil
+
+local function mkBtn(txt, col, parent, h)
     local b = Instance.new("TextButton")
-    b.Name = text:gsub("%s+", "")
-    b.Text = text
+    b.Name = txt:gsub("%s+","")
+    b.Text = txt
     b.Font = Enum.Font.GothamSemibold
     b.TextSize = 14
     b.TextColor3 = Color3.fromRGB(235,235,255)
-    b.BackgroundColor3 = color
+    b.BackgroundColor3 = col
     b.BackgroundTransparency = 0.2
     b.BorderSizePixel = 0
     b.AutoButtonColor = false
-    b.Size = UDim2.new(1, 0, 0, h or 38)
+    b.Size = UDim2.new(1,0,0,h or 38)
     b.Parent = parent
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 12)
+    c.CornerRadius = UDim.new(0,12)
     c.Parent = b
     b.MouseEnter:Connect(function()
-        if UIS.TouchEnabled then return end
-        TweenService:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0}):Play()
-        TweenService:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1, 0, 0, (h or 38)+2)}):Play()
+        if uis.TouchEnabled then return end
+        ts:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0}):Play()
+        ts:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1,0,0,(h or 38)+2)}):Play()
     end)
     b.MouseLeave:Connect(function()
-        if UIS.TouchEnabled then return end
-        TweenService:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0.2}):Play()
-        TweenService:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1, 0, 0, (h or 38))}):Play()
+        if uis.TouchEnabled then return end
+        ts:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0.2}):Play()
+        ts:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1,0,0,(h or 38))}):Play()
     end)
     return b
 end
 
-local function ripple(btn, screenPos)
-    local inset = GuiService:GetGuiInset()
-    local localPos = Vector2.new(screenPos.X - inset.X - btn.AbsolutePosition.X, screenPos.Y - inset.Y - btn.AbsolutePosition.Y)
+local function ripple(btn, p)
+    local inset = gsv:GetGuiInset()
+    local lpv = Vector2.new(p.X - inset.X - btn.AbsolutePosition.X, p.Y - inset.Y - btn.AbsolutePosition.Y)
     local r = Instance.new("Frame")
     r.BackgroundColor3 = Color3.fromRGB(255,255,255)
     r.BackgroundTransparency = 0.8
     r.BorderSizePixel = 0
     r.ZIndex = btn.ZIndex + 1
-    r.Size = UDim2.new(0, 0, 0, 0)
-    r.AnchorPoint = Vector2.new(0.5, 0.5)
-    r.Position = UDim2.fromOffset(localPos.X, localPos.Y)
+    r.Size = UDim2.new(0,0,0,0)
+    r.AnchorPoint = Vector2.new(0.5,0.5)
+    r.Position = UDim2.fromOffset(lpv.X, lpv.Y)
     local rc = Instance.new("UICorner")
-    rc.CornerRadius = UDim.new(1, 0)
+    rc.CornerRadius = UDim.new(1,0)
     rc.Parent = r
     r.Parent = btn
-    local max = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.8
-    TweenService:Create(r, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(max, max)}):Play()
-    TweenService:Create(r, TweenInfo.new(0.35), {BackgroundTransparency = 1}):Play()
+    local mx = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.8
+    ts:Create(r, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(mx, mx)}):Play()
+    ts:Create(r, TweenInfo.new(0.35), {BackgroundTransparency = 1}):Play()
     task.delay(0.4, function() r:Destroy() end)
 end
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "PartGrabberX"
-screenGui.ResetOnSpawn = false
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-protectUI(screenGui)
+local sg = Instance.new("ScreenGui")
+sg.Name = "PartGrabberX"
+sg.ResetOnSpawn = false
+sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ProtectGui(sg)
 
-local Window = Instance.new("Frame")
-Window.Name = "Window"
-Window.Size = UDim2.new(0, 520, 0, 304)
-Window.Position = UDim2.new(0.5, -260, 0.5, -162)
-Window.BackgroundColor3 = Color3.fromRGB(16,16,24)
-Window.BorderSizePixel = 0
-Window.Parent = screenGui
+local win = Instance.new("Frame")
+win.Name = "Win"
+win.Size = UDim2.new(0,520,0,304)
+win.Position = UDim2.new(0.5,-260,0.5,-162)
+win.BackgroundColor3 = Color3.fromRGB(16,16,24)
+win.BorderSizePixel = 0
+win.Parent = sg
 
-local shadow = Instance.new("ImageLabel")
-shadow.Name = "Shadow"
-shadow.BackgroundTransparency = 1
-shadow.Image = "rbxassetid://5028857084"
-shadow.ScaleType = Enum.ScaleType.Slice
-shadow.SliceCenter = Rect.new(24,24,276,276)
-shadow.ImageTransparency = 0.35
-shadow.Size = UDim2.new(1, 40, 1, 40)
-shadow.Position = UDim2.new(0, -20, 0, -20)
-shadow.ZIndex = 0
-shadow.Parent = Window
+local sh = Instance.new("ImageLabel")
+sh.Name = "Shadow"
+sh.BackgroundTransparency = 1
+sh.Image = "rbxassetid://5028857084"
+sh.ScaleType = Enum.ScaleType.Slice
+sh.SliceCenter = Rect.new(24,24,276,276)
+sh.ImageTransparency = 0.35
+sh.Size = UDim2.new(1,40,1,40)
+sh.Position = UDim2.new(0,-20,0,-20)
+sh.ZIndex = 0
+sh.Parent = win
 
 local winCorner = Instance.new("UICorner")
-winCorner.CornerRadius = UDim.new(0, 16)
-winCorner.Parent = Window
+winCorner.CornerRadius = UDim.new(0,16)
+winCorner.Parent = win
 
 local winStroke = Instance.new("UIStroke")
 winStroke.Thickness = 2
-winStroke.Color = Color3.fromRGB(90, 120, 255)
+winStroke.Color = Color3.fromRGB(90,120,255)
 winStroke.Transparency = 0.3
 winStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-winStroke.Parent = Window
+winStroke.Parent = win
 
-local Topbar = Instance.new("Frame")
-Topbar.Name = "Topbar"
-Topbar.Size = UDim2.new(1, 0, 0, 48)
-Topbar.BackgroundColor3 = Color3.fromRGB(12,12,20)
-Topbar.BorderSizePixel = 0
-Topbar.Parent = Window
-Topbar.Active = true
-Topbar.Selectable = true
+local top = Instance.new("Frame")
+top.Name = "Top"
+top.Size = UDim2.new(1,0,0,48)
+top.BackgroundColor3 = Color3.fromRGB(12,12,20)
+top.BorderSizePixel = 0
+top.Parent = win
+top.Active = true
+top.Selectable = true
 
-local tbCorner = Instance.new("UICorner")
-tbCorner.CornerRadius = UDim.new(0, 16)
-tbCorner.Parent = Topbar
+local topCorner = Instance.new("UICorner")
+topCorner.CornerRadius = UDim.new(0,16)
+topCorner.Parent = top
 
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.Text = "Part Grabber X"
-Title.Font = Enum.Font.GothamBlack
-Title.TextColor3 = Color3.fromRGB(225,225,255)
-Title.TextSize = 18
-Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1, -170, 1, 0)
-Title.Position = UDim2.new(0, 18, 0, 0)
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Topbar
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Text = "Part Grabber X"
+title.Font = Enum.Font.GothamBlack
+title.TextColor3 = Color3.fromRGB(225,225,255)
+title.TextSize = 18
+title.BackgroundTransparency = 1
+title.Size = UDim2.new(1,-170,1,0)
+title.Position = UDim2.new(0,18,0,0)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = top
 
 local titleGrad = Instance.new("UIGradient")
 titleGrad.Color = ColorSequence.new{
@@ -173,47 +179,47 @@ titleGrad.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(1, Color3.fromRGB(220,220,255))
 }
 titleGrad.Rotation = 0
-titleGrad.Parent = Title
+titleGrad.Parent = title
 
-local TopBtns = Instance.new("Frame")
-TopBtns.Name = "TopBtns"
-TopBtns.BackgroundTransparency = 1
-TopBtns.Size = UDim2.new(0, 136, 1, -10)
-TopBtns.Position = UDim2.new(1, -142, 0, 5)
-TopBtns.Parent = Topbar
+local topBtns = Instance.new("Frame")
+topBtns.Name = "TopBtns"
+topBtns.BackgroundTransparency = 1
+topBtns.Size = UDim2.new(0,136,1,-10)
+topBtns.Position = UDim2.new(1,-142,0,5)
+topBtns.Parent = top
 
 local btnLayout = Instance.new("UIListLayout")
 btnLayout.FillDirection = Enum.FillDirection.Horizontal
 btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-btnLayout.Padding = UDim.new(0, 8)
-btnLayout.Parent = TopBtns
+btnLayout.Padding = UDim.new(0,8)
+btnLayout.Parent = topBtns
 
-local Minimize = createButton("-", Color3.fromRGB(70,130,255), TopBtns, 36)
-Minimize.Size = UDim2.new(0, 56, 0, 36)
-Minimize.TextScaled = true
+local btnMin = mkBtn("-", Color3.fromRGB(70,130,255), topBtns, 36)
+btnMin.Size = UDim2.new(0,56,0,36)
+btnMin.TextScaled = true
 
-local Exit = createButton("×", Color3.fromRGB(230,70,70), TopBtns, 36)
-Exit.Size = UDim2.new(0, 56, 0, 36)
-Exit.TextScaled = true
+local btnExit = mkBtn("×", Color3.fromRGB(230,70,70), topBtns, 36)
+btnExit.Size = UDim2.new(0,56,0,36)
+btnExit.TextScaled = true
 
-local Body = Instance.new("Frame")
-Body.Name = "Body"
-Body.Size = UDim2.new(1, -20, 1, -70)
-Body.Position = UDim2.new(0, 10, 0, 58)
-Body.BackgroundColor3 = Color3.fromRGB(22,22,32)
-Body.BorderSizePixel = 0
-Body.Parent = Window
+local body = Instance.new("Frame")
+body.Name = "Body"
+body.Size = UDim2.new(1,-20,1,-70)
+body.Position = UDim2.new(0,10,0,58)
+body.BackgroundColor3 = Color3.fromRGB(22,22,32)
+body.BorderSizePixel = 0
+body.Parent = win
 
 local bodyCorner = Instance.new("UICorner")
-bodyCorner.CornerRadius = UDim.new(0, 14)
-bodyCorner.Parent = Body
+bodyCorner.CornerRadius = UDim.new(0,14)
+bodyCorner.Parent = body
 
 local bodyStroke = Instance.new("UIStroke")
 bodyStroke.Thickness = 1
-bodyStroke.Color = Color3.fromRGB(80, 90, 160)
+bodyStroke.Color = Color3.fromRGB(80,90,160)
 bodyStroke.Transparency = 0.6
-bodyStroke.Parent = Body
+bodyStroke.Parent = body
 
 local bodyGrad = Instance.new("UIGradient")
 bodyGrad.Color = ColorSequence.new{
@@ -221,367 +227,429 @@ bodyGrad.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(1, Color3.fromRGB(30,30,50))
 }
 bodyGrad.Rotation = 0
-bodyGrad.Parent = Body
+bodyGrad.Parent = body
 
 local bodyPad = Instance.new("UIPadding")
-bodyPad.PaddingTop = UDim.new(0, 14)
-bodyPad.PaddingLeft = UDim.new(0, 14)
-bodyPad.PaddingRight = UDim.new(0, 14)
-bodyPad.PaddingBottom = UDim.new(0, 14)
-bodyPad.Parent = Body
+bodyPad.PaddingTop = UDim.new(0,14)
+bodyPad.PaddingLeft = UDim.new(0,14)
+bodyPad.PaddingRight = UDim.new(0,14)
+bodyPad.PaddingBottom = UDim.new(0,14)
+bodyPad.Parent = body
 
 local bodyList = Instance.new("UIListLayout")
 bodyList.SortOrder = Enum.SortOrder.LayoutOrder
-bodyList.Padding = UDim.new(0, 12)
-bodyList.Parent = Body
+bodyList.Padding = UDim.new(0,12)
+bodyList.Parent = body
 
-local Status = Instance.new("TextLabel")
-Status.Name = "Status"
-Status.Text = "Tap/Click a 3D part to select"
-Status.Font = Enum.Font.GothamSemibold
-Status.Size = UDim2.new(1, 0, 0, 22)
-Status.TextColor3 = Color3.fromRGB(170, 170, 255)
-Status.TextSize = 13
-Status.BackgroundTransparency = 1
-Status.LayoutOrder = 1
-Status.Parent = Body
+local lbl = Instance.new("TextLabel")
+lbl.Name = "Status"
+lbl.Text = "Tap/Click a 3D part to select"
+lbl.Font = Enum.Font.GothamSemibold
+lbl.Size = UDim2.new(1,0,0,22)
+lbl.TextColor3 = Color3.fromRGB(170,170,255)
+lbl.TextSize = 13
+lbl.BackgroundTransparency = 1
+lbl.LayoutOrder = 1
+lbl.Parent = body
 
-local PathFrame = Instance.new("Frame")
-PathFrame.Name = "PathFrame"
-PathFrame.Size = UDim2.new(1, 0, 0, 44)
-PathFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
-PathFrame.BorderSizePixel = 0
-PathFrame.LayoutOrder = 2
-PathFrame.Parent = Body
+local pathFrame = Instance.new("Frame")
+pathFrame.Name = "PathFrame"
+pathFrame.Size = UDim2.new(1,0,0,44)
+pathFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
+pathFrame.BorderSizePixel = 0
+pathFrame.LayoutOrder = 2
+pathFrame.Parent = body
 
 local pfCorner = Instance.new("UICorner")
-pfCorner.CornerRadius = UDim.new(0, 12)
-pfCorner.Parent = PathFrame
+pfCorner.CornerRadius = UDim.new(0,12)
+pfCorner.Parent = pathFrame
 
-local PathText = Instance.new("TextLabel")
-PathText.Name = "PathText"
-PathText.Text = ". . ."
-PathText.Font = Enum.Font.Code
-PathText.TextWrapped = true
-PathText.TextXAlignment = Enum.TextXAlignment.Center
-PathText.TextYAlignment = Enum.TextYAlignment.Center
-PathText.TextSize = 14
-PathText.TextColor3 = Color3.fromRGB(230,230,255)
-PathText.BackgroundTransparency = 1
-PathText.Size = UDim2.new(1, -10, 1, -8)
-PathText.Position = UDim2.new(0, 5, 0, 4)
-PathText.Parent = PathFrame
+local pathTxt = Instance.new("TextLabel")
+pathTxt.Name = "PathText"
+pathTxt.Text = ". . ."
+pathTxt.Font = Enum.Font.Code
+pathTxt.TextWrapped = true
+pathTxt.TextXAlignment = Enum.TextXAlignment.Center
+pathTxt.TextYAlignment = Enum.TextYAlignment.Center
+pathTxt.TextSize = 14
+pathTxt.TextColor3 = Color3.fromRGB(230,230,255)
+pathTxt.BackgroundTransparency = 1
+pathTxt.Size = UDim2.new(1,-10,1,-8)
+pathTxt.Position = UDim2.new(0,5,0,4)
+pathTxt.Parent = pathFrame
 
-local Row1 = Instance.new("Frame")
-Row1.BackgroundTransparency = 1
-Row1.Size = UDim2.new(1, 0, 0, 38)
-Row1.LayoutOrder = 3
-Row1.Parent = Body
+local row1 = Instance.new("Frame")
+row1.BackgroundTransparency = 1
+row1.Size = UDim2.new(1,0,0,38)
+row1.LayoutOrder = 3
+row1.Parent = body
 
-local Grid1 = Instance.new("UIGridLayout")
-Grid1.CellPadding = UDim2.new(0, 12, 0, 0)
-Grid1.CellSize = UDim2.new(0.5, -6, 1, 0)
-Grid1.Parent = Row1
+local grid1 = Instance.new("UIGridLayout")
+grid1.CellPadding = UDim2.new(0,12,0,0)
+grid1.CellSize = UDim2.new(0.5,-6,1,0)
+grid1.Parent = row1
 
-local CopyPath = createButton("Copy Path", Color3.fromRGB(70,130,255), Row1)
-local SelectToggle = createButton("Selection: On", Color3.fromRGB(90,140,220), Row1)
+local btnCopy = mkBtn("Copy Path", Color3.fromRGB(70,130,255), row1)
+local btnToggle = mkBtn("Selection: On", Color3.fromRGB(90,140,220), row1)
 
-local Row2 = Instance.new("Frame")
-Row2.BackgroundTransparency = 1
-Row2.Size = UDim2.new(1, 0, 0, 38)
-Row2.LayoutOrder = 4
-Row2.Parent = Body
+local row2 = Instance.new("Frame")
+row2.BackgroundTransparency = 1
+row2.Size = UDim2.new(1,0,0,38)
+row2.LayoutOrder = 4
+row2.Parent = body
 
-local Grid2 = Instance.new("UIGridLayout")
-Grid2.CellPadding = UDim2.new(0, 12, 0, 0)
-Grid2.CellSize = UDim2.new(0.5, -6, 1, 0)
-Grid2.Parent = Row2
+local grid2 = Instance.new("UIGridLayout")
+grid2.CellPadding = UDim2.new(0,12,0,0)
+grid2.CellSize = UDim2.new(0.5,-6,1,0)
+grid2.Parent = row2
 
-local Rename = createButton("Rename Part", Color3.fromRGB(90,90,150), Row2)
-local Bring = createButton("Bring Part", Color3.fromRGB(90,90,150), Row2)
+local btnRen = mkBtn("Rename Part", Color3.fromRGB(90,90,150), row2)
+local btnBring = mkBtn("Bring Part", Color3.fromRGB(90,90,150), row2)
 
-local Row3 = Instance.new("Frame")
-Row3.BackgroundTransparency = 1
-Row3.Size = UDim2.new(1, 0, 0, 38)
-Row3.LayoutOrder = 5
-Row3.Parent = Body
+local row3 = Instance.new("Frame")
+row3.BackgroundTransparency = 1
+row3.Size = UDim2.new(1,0,0,38)
+row3.LayoutOrder = 5
+row3.Parent = body
 
-local Grid3 = Instance.new("UIGridLayout")
-Grid3.CellPadding = UDim2.new(0, 12, 0, 0)
-Grid3.CellSize = UDim2.new(0.5, -6, 1, 0)
-Grid3.Parent = Row3
+local grid3 = Instance.new("UIGridLayout")
+grid3.CellPadding = UDim2.new(0,12,0,0)
+grid3.CellSize = UDim2.new(0.5,-6,1,0)
+grid3.Parent = row3
 
-local CanCollideBtn = createButton("CanCollide: ?", Color3.fromRGB(70,180,110), Row3)
-local Delete = createButton("Delete Part", Color3.fromRGB(230,70,70), Row3)
+local btnColl = mkBtn("CanCollide: ?", Color3.fromRGB(70,180,110), row3)
+local btnDel = mkBtn("Delete Part", Color3.fromRGB(230,70,70), row3)
 
-local Modal = Instance.new("Frame")
-Modal.Visible = false
-Modal.BackgroundColor3 = Color3.fromRGB(10,10,16)
-Modal.BackgroundTransparency = 0.45
-Modal.BorderSizePixel = 0
-Modal.Size = UDim2.new(1, 0, 1, 0)
-Modal.Position = UDim2.new(0, 0, 0, 0)
-Modal.Parent = Window
-Modal.ZIndex = 50
+local modal = Instance.new("Frame")
+modal.Visible = false
+modal.BackgroundColor3 = Color3.fromRGB(10,10,16)
+modal.BackgroundTransparency = 0.45
+modal.BorderSizePixel = 0
+modal.Size = UDim2.new(1,0,1,0)
+modal.Position = UDim2.new(0,0,0,0)
+modal.Parent = win
+modal.ZIndex = 50
 
-local RenameBox = Instance.new("Frame")
-RenameBox.Size = UDim2.new(0, 360, 0, 140)
-RenameBox.Position = UDim2.new(0.5, -180, 0.5, -70)
-RenameBox.BackgroundColor3 = Color3.fromRGB(24,24,34)
-RenameBox.BorderSizePixel = 0
-RenameBox.Parent = Modal
-RenameBox.ZIndex = 51
+local renBox = Instance.new("Frame")
+renBox.Size = UDim2.new(0,360,0,140)
+renBox.Position = UDim2.new(0.5,-180,0.5,-70)
+renBox.BackgroundColor3 = Color3.fromRGB(24,24,34)
+renBox.BorderSizePixel = 0
+renBox.Parent = modal
+renBox.ZIndex = 51
 
 local rbCorner = Instance.new("UICorner")
-rbCorner.CornerRadius = UDim.new(0, 12)
-rbCorner.Parent = RenameBox
+rbCorner.CornerRadius = UDim.new(0,12)
+rbCorner.Parent = renBox
 
 local rbStroke = Instance.new("UIStroke")
 rbStroke.Thickness = 2
 rbStroke.Color = Color3.fromRGB(90,120,255)
 rbStroke.Transparency = 0.3
-rbStroke.Parent = RenameBox
+rbStroke.Parent = renBox
 
-local RBTitle = Instance.new("TextLabel")
-RBTitle.BackgroundTransparency = 1
-RBTitle.Text = "Rename Part"
-RBTitle.Font = Enum.Font.GothamBold
-RBTitle.TextSize = 16
-RBTitle.TextColor3 = Color3.fromRGB(220,220,255)
-RBTitle.Size = UDim2.new(1, -20, 0, 28)
-RBTitle.Position = UDim2.new(0, 10, 0, 10)
-RBTitle.ZIndex = 51
-RBTitle.Parent = RenameBox
+local rbTitle = Instance.new("TextLabel")
+rbTitle.BackgroundTransparency = 1
+rbTitle.Text = "Rename Part"
+rbTitle.Font = Enum.Font.GothamBold
+rbTitle.TextSize = 16
+rbTitle.TextColor3 = Color3.fromRGB(220,220,255)
+rbTitle.Size = UDim2.new(1,-20,0,28)
+rbTitle.Position = UDim2.new(0,10,0,10)
+rbTitle.ZIndex = 51
+rbTitle.Parent = renBox
 
-local RBInput = Instance.new("TextBox")
-RBInput.Size = UDim2.new(1, -20, 0, 36)
-RBInput.Position = UDim2.new(0, 10, 0, 50)
-RBInput.Font = Enum.Font.Gotham
-RBInput.TextSize = 14
-RBInput.Text = ""
-RBInput.ClearTextOnFocus = false
-RBInput.TextColor3 = Color3.fromRGB(230,230,255)
-RBInput.PlaceholderText = "Enter new name"
-RBInput.BackgroundColor3 = Color3.fromRGB(34,34,46)
-RBInput.BorderSizePixel = 0
-RBInput.Parent = RenameBox
-RBInput.ZIndex = 51
+local rbInput = Instance.new("TextBox")
+rbInput.Size = UDim2.new(1,-20,0,36)
+rbInput.Position = UDim2.new(0,10,0,50)
+rbInput.Font = Enum.Font.Gotham
+rbInput.TextSize = 14
+rbInput.Text = ""
+rbInput.ClearTextOnFocus = false
+rbInput.TextColor3 = Color3.fromRGB(230,230,255)
+rbInput.PlaceholderText = "Enter new name"
+rbInput.BackgroundColor3 = Color3.fromRGB(34,34,46)
+rbInput.BorderSizePixel = 0
+rbInput.Parent = renBox
+rbInput.ZIndex = 51
 local rbInputCorner = Instance.new("UICorner")
-rbInputCorner.CornerRadius = UDim.new(0, 10)
-rbInputCorner.Parent = RBInput
+rbInputCorner.CornerRadius = UDim.new(0,10)
+rbInputCorner.Parent = rbInput
 
-local RBRow = Instance.new("Frame")
-RBRow.BackgroundTransparency = 1
-RBRow.Size = UDim2.new(1, -20, 0, 34)
-RBRow.Position = UDim2.new(0, 10, 1, -44)
-RBRow.ZIndex = 51
-RBRow.Parent = RenameBox
+local rbRow = Instance.new("Frame")
+rbRow.BackgroundTransparency = 1
+rbRow.Size = UDim2.new(1,-20,0,34)
+rbRow.Position = UDim2.new(0,10,1,-44)
+rbRow.ZIndex = 51
+rbRow.Parent = renBox
 
-local RBGrid = Instance.new("UIGridLayout")
-RBGrid.CellPadding = UDim2.new(0, 10, 0, 0)
-RBGrid.CellSize = UDim2.new(0.5, -6, 1, 0)
-RBGrid.Parent = RBRow
+local rbGrid = Instance.new("UIGridLayout")
+rbGrid.CellPadding = UDim2.new(0,10,0,0)
+rbGrid.CellSize = UDim2.new(0.5,-6,1,0)
+rbGrid.Parent = rbRow
 
-local SaveName = createButton("Save", Color3.fromRGB(70,190,100), RBRow, 34)
-SaveName.ZIndex = 51
-local CancelName = createButton("Cancel", Color3.fromRGB(90,90,140), RBRow, 34)
-CancelName.ZIndex = 51
+local btnSave = mkBtn("Save", Color3.fromRGB(70,190,100), rbRow, 34)
+btnSave.ZIndex = 51
+local btnCancel = mkBtn("Cancel", Color3.fromRGB(90,90,140), rbRow, 34)
+btnCancel.ZIndex = 51
 
-local selectedPart = nil
-local selectionAdornment = nil
-local selectionEnabled = true
+local selObj = nil
+local adorn = nil
+local selOn = true
 local minimized = false
-local draggingUI = false
+local dragging = false
 local dragInput = nil
 local dragStart, startPos = nil, nil
-local mouseConn = nil
 
-local function GetInstancePath(obj)
-    local path = {}
-    local function isService(o)
-        return o.Parent == game and o ~= game
-    end
-    if not obj then return "" end
-    if isService(obj) then
-        table.insert(path, string.format('game:GetService("%s")', obj.ClassName))
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = win
+
+local function instPath(o)
+    local p = {}
+    local function isSvc(x) return x.Parent == game and x ~= game end
+    if not o then return "" end
+    if isSvc(o) then
+        table.insert(p, string.format('game:GetService("%s")', o.ClassName))
     else
-        while obj and obj.Parent do
-            local name = obj.Name
-            if name:match("^[%a_][%w_]*$") then
-                table.insert(path, 1, "." .. name)
+        while o and o.Parent do
+            local n = o.Name
+            if n:match("^[%a_][%w_]*$") then
+                table.insert(p, 1, "."..n)
             else
-                table.insert(path, 1, string.format(':FindFirstChild("%s")', name:gsub('"', '\\"')))
+                table.insert(p, 1, string.format(':FindFirstChild("%s")', n:gsub('"','\\"')))
             end
-            if isService(obj.Parent) then
-                table.insert(path, 1, string.format('game:GetService("%s")', obj.Parent.ClassName))
+            if isSvc(o.Parent) then
+                table.insert(p, 1, string.format('game:GetService("%s")', o.Parent.ClassName))
                 break
             end
-            obj = obj.Parent
+            o = o.Parent
         end
     end
-    return (table.concat(path):gsub("^%.", ""))
+    return (table.concat(p):gsub("^%.",""))
 end
 
-local function setStatus(t, good)
-    Status.Text = t
-    local c = good == nil and Color3.fromRGB(170,170,255) or (good and Color3.fromRGB(100,255,120) or Color3.fromRGB(255,120,120))
-    TweenService:Create(Status, TweenInfo.new(0.12), {TextColor3 = c}):Play()
+local function setStatus(t, ok)
+    lbl.Text = t
+    local c = ok == nil and Color3.fromRGB(170,170,255) or (ok and Color3.fromRGB(100,255,120) or Color3.fromRGB(255,120,120))
+    ts:Create(lbl, TweenInfo.new(0.12), {TextColor3 = c}):Play()
 end
 
-local function clearAdornment()
-    if selectionAdornment then selectionAdornment:Destroy() selectionAdornment = nil end
+local function clearAdorn()
+    if adorn then adorn:Destroy() adorn = nil end
 end
 
-local function highlight(part)
-    clearAdornment()
+local function showAdorn(pv)
+    clearAdorn()
+    local f = Instance.new("Folder")
+    f.Name = "PGX_Adorn"
     local h = Instance.new("Highlight")
-    h.Name = "PartGrabber_Highlight"
-    h.Adornee = part
+    h.Name = "PGX_Highlight"
+    h.Adornee = pv
     h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    h.FillTransparency = 0.7
-    h.OutlineTransparency = 0
     h.FillColor = Color3.fromRGB(70,120,255)
     h.OutlineColor = Color3.fromRGB(140,170,255)
-    h.Parent = part
-    selectionAdornment = h
-    TweenService:Create(h, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {FillTransparency = 0.5}):Play()
+    h.FillTransparency = 0.35
+    h.OutlineTransparency = 0
+    h.Parent = f
+    ts:Create(h, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {FillTransparency = 0.5}):Play()
+    local sb = Instance.new("SelectionBox")
+    sb.Name = "PGX_Select"
+    sb.LineThickness = 0.05
+    sb.Color3 = Color3.fromRGB(200,220,255)
+    sb.SurfaceTransparency = 1
+    sb.Adornee = pv
+    sb.Parent = f
+    f.Parent = pv
+    adorn = f
 end
 
-local function updateCanCollideButton()
-    if selectedPart and selectedPart:IsA("BasePart") then
-        if selectedPart.CanCollide then
-            CanCollideBtn.Text = "CanCollide: On"
-            TweenService:Create(CanCollideBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(70,180,110)}):Play()
+local function updCollBtn()
+    if selObj and selObj:IsA("BasePart") then
+        if selObj.CanCollide then
+            btnColl.Text = "CanCollide: On"
+            ts:Create(btnColl, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(70,180,110)}):Play()
         else
-            CanCollideBtn.Text = "CanCollide: Off"
-            TweenService:Create(CanCollideBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(180,120,80)}):Play()
+            btnColl.Text = "CanCollide: Off"
+            ts:Create(btnColl, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(180,120,80)}):Play()
         end
     else
-        CanCollideBtn.Text = "CanCollide: ?"
-        TweenService:Create(CanCollideBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(90,90,120)}):Play()
+        btnColl.Text = "CanCollide: ?"
+        ts:Create(btnColl, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(90,90,120)}):Play()
     end
 end
 
-local function setSelected(p)
-    selectedPart = p
+local function setSel(p)
+    selObj = p
     if p then
-        PathText.Text = " " .. GetInstancePath(p)
+        pathTxt.Text = " "..instPath(p)
         setStatus("Part selected: "..p.Name, true)
-        highlight(p)
-        updateCanCollideButton()
-        TweenService:Create(PathFrame, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(36,36,50)}):Play()
+        showAdorn(p)
+        updCollBtn()
+        ts:Create(pathFrame, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(36,36,50)}):Play()
     else
-        PathText.Text = ". . ."
+        pathTxt.Text = ". . ."
         setStatus("No part selected", false)
-        clearAdornment()
-        updateCanCollideButton()
-        TweenService:Create(PathFrame, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30,30,44)}):Play()
+        clearAdorn()
+        updCollBtn()
+        ts:Create(pathFrame, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30,30,44)}):Play()
     end
 end
 
-local function isOnWindow(screenPos)
-    local inset = GuiService:GetGuiInset()
-    local p = Vector2.new(screenPos.X - inset.X, screenPos.Y - inset.Y)
-    local a = Window.AbsolutePosition
-    local s = Window.AbsoluteSize
-    return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
+local function onWin(p)
+    local inset = gsv:GetGuiInset()
+    local v = Vector2.new(p.X - inset.X, p.Y - inset.Y)
+    local a = win.AbsolutePosition
+    local s = win.AbsoluteSize
+    return v.X >= a.X and v.X <= a.X + s.X and v.Y >= a.Y and v.Y <= a.Y + s.Y
 end
 
-local function selectWithMouse()
-    if not selectionEnabled then return end
-    if draggingUI then return end
-    local pos = UIS:GetMouseLocation()
-    if isOnWindow(pos) then return end
-    local mouse = plr:GetMouse()
-    local t = mouse.Target
+local function pick()
+    if not selOn then return end
+    if dragging then return end
+    local pos = uis:GetMouseLocation()
+    if onWin(pos) then return end
+    local m = lp:GetMouse()
+    local t = m.Target
     if t and t:IsA("BasePart") then
-        setSelected(t)
+        setSel(t)
     else
-        setSelected(nil)
+        setSel(nil)
     end
 end
 
-local function bindMouseSelect()
-    if mouseConn then mouseConn:Disconnect() end
-    local mouse = plr:GetMouse()
-    mouseConn = mouse.Button1Down:Connect(selectWithMouse)
-    UIS.TouchTap:Connect(function(touches, processed)
+local function bindPick()
+    if mouseConn then mouseConn:Disconnect() mouseConn=nil end
+    if tapConn then tapConn:Disconnect() tapConn=nil end
+    local m = lp:GetMouse()
+    mouseConn = track(m.Button1Down:Connect(pick))
+    tapConn = track(uis.TouchTap:Connect(function(touches, processed)
         if processed then return end
         local p = touches and touches[1]
-        if p and isOnWindow(p) then return end
-        selectWithMouse()
-    end)
+        if p and onWin(p) then return end
+        pick()
+    end))
 end
 
-local function showRenameModal(defaultText)
-    RBInput.Text = defaultText or ""
-    Modal.Visible = true
-    RenameBox.Size = UDim2.new(0, 320, 0, 110)
-    TweenService:Create(Modal, TweenInfo.new(0.15), {BackgroundTransparency = 0.2}):Play()
-    TweenService:Create(RenameBox, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 360, 0, 140)}):Play()
-    RBInput:CaptureFocus()
+local function showRen(d)
+    rbInput.Text = d or ""
+    modal.Visible = true
+    renBox.Size = UDim2.new(0,320,0,110)
+    ts:Create(modal, TweenInfo.new(0.15), {BackgroundTransparency = 0.2}):Play()
+    ts:Create(renBox, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,360,0,140)}):Play()
+    rbInput:CaptureFocus()
 end
 
-local function hideRenameModal()
-    TweenService:Create(Modal, TweenInfo.new(0.15), {BackgroundTransparency = 0.45}):Play()
-    Modal.Visible = false
+local function hideRen()
+    ts:Create(modal, TweenInfo.new(0.15), {BackgroundTransparency = 0.45}):Play()
+    modal.Visible = false
 end
 
-Minimize.MouseButton1Click:Connect(function()
+local function beginDrag(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    dragging = true
+    dragStart = input.Position
+    startPos = win.Position
+    ts:Create(win, TweenInfo.new(0.12), {Size = UDim2.new(0, win.Size.X.Offset, 0, (minimized and 64 or 304)+2)}):Play()
+    ts:Create(winStroke, TweenInfo.new(0.12), {Thickness = 3}):Play()
+    track(input.Changed:Connect(function()
+        if input.UserInputState == Enum.UserInputState.End then
+            dragging = false
+            ts:Create(win, TweenInfo.new(0.12), {Size = UDim2.new(0, win.Size.X.Offset, 0, minimized and 64 or 304)}):Play()
+            ts:Create(winStroke, TweenInfo.new(0.12), {Thickness = 2}):Play()
+        end
+    end))
+end
+
+local function updateDrag(input)
+    if not dragging then return end
+    local d = input.Position - dragStart
+    win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+end
+
+tbBeganConn = track(top.InputBegan:Connect(function(i) beginDrag(i) end))
+tbChangedConn = track(top.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then dragInput = i end end))
+uisChangedConn = track(uis.InputChanged:Connect(function(i) if i == dragInput then updateDrag(i) end end))
+
+local function applyScale()
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
+    local inset = gsv:GetGuiInset()
+    local ux = math.max(0, vp.X - inset.X*2)
+    local uy = math.max(0, vp.Y - inset.Y*2)
+    local bw, bh = 520, (minimized and 64 or 304)
+    local sc = math.min(ux/(bw+32), uy/(bh+80))
+    sc = math.clamp(sc, 0.65, 1)
+    uiScale.Scale = sc
+    win.AnchorPoint = Vector2.new(0.5,0.5)
+    win.Position = UDim2.fromScale(0.5,0.5)
+    win.Size = UDim2.new(0,bw,0,bh)
+end
+
+local function hookViewport()
+    local function hookCam(c) if not c then return end track(c:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)) end
+    track(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() hookCam(workspace.CurrentCamera) applyScale() end))
+    if workspace.CurrentCamera then hookCam(workspace.CurrentCamera) end
+    track(sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale))
+end
+
+btnMin.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        Body.Visible = false
-        TweenService:Create(Window, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 520, 0, 64)}):Play()
-        Minimize.Text = "+"
+        body.Visible = false
+        ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,520,0,64)}):Play()
+        btnMin.Text = "+"
     else
-        TweenService:Create(Window, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 520, 0, 304)}):Play()
-        task.delay(0.05, function() Body.Visible = true end)
-        Minimize.Text = "-"
+        ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,520,0,304)}):Play()
+        task.delay(0.05, function() body.Visible = true end)
+        btnMin.Text = "-"
     end
+    applyScale()
 end)
 
-Exit.MouseButton1Click:Connect(function()
-    if mouseConn then mouseConn:Disconnect() end
-    clearAdornment()
+btnExit.MouseButton1Click:Connect(function()
+    selOn = false
+    selObj = nil
+    clearAdorn()
     for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("Highlight") and v.Name == "PartGrabber_Highlight" then v:Destroy() end
+        if v:IsA("Highlight") and v.Name == "PGX_Highlight" then v:Destroy() end
+        if v:IsA("SelectionBox") and v.Name == "PGX_Select" then v:Destroy() end
     end
-    screenGui:Destroy()
-    selectedPart = nil
+    discAll()
+    if sg then sg:Destroy() end
     getgenv().prtGrabLoaded = false
 end)
 
-CopyPath.MouseButton1Click:Connect(function()
-    if PathText.Text ~= ". . ." and setclipboard then
-        setclipboard(PathText.Text)
+btnCopy.MouseButton1Click:Connect(function()
+    if pathTxt.Text ~= ". . ." and setclipboard then
+        setclipboard(pathTxt.Text)
         setStatus("Path copied", true)
-        TweenService:Create(CopyPath, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,190,110)}):Play()
+        ts:Create(btnCopy, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,190,110)}):Play()
         task.wait(0.22)
-        TweenService:Create(CopyPath, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,130,255)}):Play()
+        ts:Create(btnCopy, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,130,255)}):Play()
     else
         setStatus("No part to copy", false)
     end
 end)
 
-SelectToggle.MouseButton1Click:Connect(function()
-    selectionEnabled = not selectionEnabled
-    if selectionEnabled then
-        SelectToggle.Text = "Selection: On"
-        TweenService:Create(SelectToggle, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(90,140,220)}):Play()
+btnToggle.MouseButton1Click:Connect(function()
+    selOn = not selOn
+    if selOn then
+        btnToggle.Text = "Selection: On"
+        ts:Create(btnToggle, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(90,140,220)}):Play()
         setStatus("Selection enabled", true)
     else
-        SelectToggle.Text = "Selection: Off"
-        TweenService:Create(SelectToggle, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(120,90,140)}):Play()
+        btnToggle.Text = "Selection: Off"
+        ts:Create(btnToggle, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(120,90,140)}):Play()
         setStatus("Selection disabled", false)
     end
 end)
 
-Delete.MouseButton1Click:Connect(function()
-    if selectedPart then
-        local ok, err = pcall(function() selectedPart:Destroy() end)
+btnDel.MouseButton1Click:Connect(function()
+    if selObj then
+        local ok, err = pcall(function() selObj:Destroy() end)
         if ok then
             setStatus("Part deleted", true)
-            setSelected(nil)
+            setSel(nil)
         else
             setStatus("Delete failed: "..tostring(err):sub(1,40), false)
         end
@@ -590,111 +658,84 @@ Delete.MouseButton1Click:Connect(function()
     end
 end)
 
-Rename.MouseButton1Click:Connect(function()
-    if selectedPart then
-        showRenameModal(selectedPart.Name)
+btnRen.MouseButton1Click:Connect(function()
+    if selObj then
+        showRen(selObj.Name)
     else
         setStatus("No part selected to rename", false)
     end
 end)
 
-SaveName.MouseButton1Click:Connect(function()
-    if selectedPart and RBInput.Text ~= "" then
-        selectedPart.Name = RBInput.Text
-        setStatus("Renamed to "..RBInput.Text, true)
-        PathText.Text = " " .. GetInstancePath(selectedPart)
+btnSave.MouseButton1Click:Connect(function()
+    if selObj and rbInput.Text ~= "" then
+        selObj.Name = rbInput.Text
+        setStatus("Renamed to "..rbInput.Text, true)
+        pathTxt.Text = " "..instPath(selObj)
     end
-    hideRenameModal()
+    hideRen()
 end)
 
-CancelName.MouseButton1Click:Connect(function()
-    hideRenameModal()
+btnCancel.MouseButton1Click:Connect(function()
+    hideRen()
 end)
 
-Bring.MouseButton1Click:Connect(function()
-    if selectedPart and selectedPart:IsA("BasePart") then
-        local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            selectedPart.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
+btnBring.MouseButton1Click:Connect(function()
+    if selObj and selObj:IsA("PVInstance") then
+        local ch = lp.Character
+        if ch and ch.PrimaryPart then
+            local pivot = ch:GetPivot()
+            local tgt = pivot * CFrame.new(0,0,-5)
+            selObj:PivotTo(tgt)
             setStatus("Brought part in front", true)
         else
-            setStatus("HumanoidRootPart not found", false)
+            local cam = workspace.CurrentCamera
+            if cam then
+                local tgt = cam.CFrame * CFrame.new(0,0,-8)
+                selObj:PivotTo(tgt)
+                setStatus("Brought part to camera", true)
+            else
+                setStatus("No pivot reference", false)
+            end
         end
     else
         setStatus("No part selected to bring", false)
     end
 end)
 
-CanCollideBtn.MouseButton1Click:Connect(function()
-    if selectedPart and selectedPart:IsA("BasePart") then
-        selectedPart.CanCollide = not selectedPart.CanCollide
-        if selectedPart.CanCollide then
+btnColl.MouseButton1Click:Connect(function()
+    if selObj and selObj:IsA("BasePart") then
+        selObj.CanCollide = not selObj.CanCollide
+        if selObj.CanCollide then
             setStatus("CanCollide enabled", true)
         else
             setStatus("CanCollide disabled", true)
         end
-        updateCanCollideButton()
+        updCollBtn()
     else
         setStatus("No part selected or invalid", false)
     end
 end)
 
-local function beginDragUI(input)
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    draggingUI = true
-    dragStart = input.Position
-    startPos = Window.Position
-    TweenService:Create(Window, TweenInfo.new(0.12), {Size = UDim2.new(0, Window.Size.X.Offset, 0, (minimized and 64 or 304)+2)}):Play()
-    TweenService:Create(winStroke, TweenInfo.new(0.12), {Thickness = 3}):Play()
-    input.Changed:Connect(function()
-        if input.UserInputState == Enum.UserInputState.End then
-            draggingUI = false
-            TweenService:Create(Window, TweenInfo.new(0.12), {Size = UDim2.new(0, Window.Size.X.Offset, 0, minimized and 64 or 304)}):Play()
-            TweenService:Create(winStroke, TweenInfo.new(0.12), {Thickness = 2}):Play()
+local function bindRipples(b)
+    b.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            ripple(b, i.Position)
         end
     end)
 end
 
-local function updateDragUI(input)
-    if not draggingUI then return end
-    local delta = input.Position - dragStart
-    Window.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-Topbar.InputBegan:Connect(function(input)
-    beginDragUI(input)
-end)
-
-Topbar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if input == dragInput then
-        updateDragUI(input)
-    end
-end)
-
-Window.Position = UDim2.new(0.5, -260, 0.5, -240)
-Window.Size = UDim2.new(0, 520, 0, 260)
-Window.BackgroundTransparency = 1
-TweenService:Create(Window, TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -260, 0.5, -162), Size = UDim2.new(0, 520, 0, 304), BackgroundTransparency = 0}):Play()
-TweenService:Create(winStroke, TweenInfo.new(0.35), {Transparency = 0.3}):Play()
-TweenService:Create(bodyStroke, TweenInfo.new(0.35), {Transparency = 0.6}):Play()
-TweenService:Create(titleGrad, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360}):Play()
-
-bindMouseSelect()
-
-local function bindRipples(btn)
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            ripple(btn, input.Position)
-        end
-    end)
-end
-
-for _, b in ipairs({CopyPath, SelectToggle, Delete, Rename, Bring, CanCollideBtn, Exit, Minimize, SaveName, CancelName}) do
+for _, b in ipairs({btnCopy, btnToggle, btnDel, btnRen, btnBring, btnColl, btnExit, btnMin, btnSave, btnCancel}) do
     bindRipples(b)
 end
+
+win.Position = UDim2.new(0.5,-260,0.5,-240)
+win.Size = UDim2.new(0,520,0,260)
+win.BackgroundTransparency = 1
+ts:Create(win, TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0.5,-260,0.5,-162), Size = UDim2.new(0,520,0,304), BackgroundTransparency = 0}):Play()
+ts:Create(winStroke, TweenInfo.new(0.35), {Transparency = 0.3}):Play()
+ts:Create(bodyStroke, TweenInfo.new(0.35), {Transparency = 0.6}):Play()
+ts:Create(titleGrad, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360}):Play()
+
+hookViewport()
+applyScale()
+bindPick()
