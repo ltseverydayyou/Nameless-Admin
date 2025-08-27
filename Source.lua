@@ -3032,17 +3032,17 @@ NAmanage.LoadPlugins = function()
 end
 
 NAmanage.InitPlugs=function()
-    local lp = function(p) return (Lower((p or "")):gsub("\\","/")) end
+    local lp = function(p)
+        p = (p or ""):gsub("\\","/"):gsub("/+","/")
+        return Lower(p:gsub("/+$",""))
+    end
     local bn = function(p) return (p and p:match("[^\\/]+$")) or p end
     local jp = function(d, n) d = d or ""; return (#d > 0) and (d.."/"..n) or n end
     local mk = function(p) if p and #p > 0 and not isfolder(p) then makefolder(p) end end
     local isna = function(p) return lp(p):match("%.na$") ~= nil end
-    local under = function(p, f) p, f = lp(p), lp(f or ""); if #f == 0 then return false end; return p:sub(1, #f + 1) == (f.."/") end
     local uniq = function(dir, fname)
-        local name, ext = fname:match("^(.*)(%.[^%.]+)$")
-        name, ext = name or fname, ext or ""
-        local try = jp(dir, fname)
-        if not isfile(try) then return try end
+        local name, ext = fname:match("^(.*)(%.[^%.]+)$"); name, ext = name or fname, ext or ""
+        local try = jp(dir, fname); if not isfile(try) then return try end
         local n = 1
         while true do
             try = jp(dir, Format("%s (%d)%s", name, n, ext))
@@ -3051,14 +3051,25 @@ NAmanage.InitPlugs=function()
         end
     end
     local root = function()
-        local cands = {"", ".", "/"}
-        for _, c in ipairs(cands) do
+        for _, c in ipairs({"", ".", "/"}) do
             local ok, t = pcall(listfiles, c)
             if ok and type(t) == "table" then return c end
         end
         return ""
     end
-    local scan = function(startDir, skipDir)
+
+    local plugsDir = NAfiles.NAPLUGINFILEPATH
+    local plugsNorm = lp(plugsDir)
+    local plugsTail = plugsNorm:match("([^/]+/[^/]+)$") or plugsNorm
+    local inPlugs = function(path)
+        local p = lp(path)
+        if p == plugsNorm then return true end
+        if p:sub(1, #plugsNorm + 1) == (plugsNorm.."/") then return true end
+        if p:find("/"..plugsTail.."/", 1, true) then return true end
+        return false
+    end
+
+    local scan = function(startDir)
         local out = {}
         local function rec(dir)
             local ok, items = pcall(listfiles, dir)
@@ -3066,9 +3077,9 @@ NAmanage.InitPlugs=function()
             for _, p in ipairs(items) do
                 local okd, isd = pcall(isfolder, p)
                 if okd and isd then
-                    if not under(p, skipDir) then rec(p) end
+                    if not inPlugs(p) then rec(p) end
                 else
-                    if isna(p) and not under(p, skipDir) then Insert(out, p) end
+                    if isna(p) and not inPlugs(p) then Insert(out, p) end
                 end
             end
         end
@@ -3076,27 +3087,21 @@ NAmanage.InitPlugs=function()
         return out
     end
 
-    local plugsDir = NAfiles.NAPLUGINFILEPATH
-
     cmd.add(
         {"addallplugins","addplugins","aap","aaplugs"},
         {"addallplugins","Move all .na files from workspace into Nameless-Admin/Plugins and load them"},
         function()
             mk(plugsDir)
             local ws = root()
-            local found = scan(ws, plugsDir)
+            local found = scan(ws)
             local moved, errs = {}, 0
             for _, src in ipairs(found) do
                 local okR, data = pcall(readfile, src)
                 if okR and data then
                     local dst = uniq(plugsDir, bn(src))
                     local okW = pcall(writefile, dst, data)
-                    if okW then
-                        if delfile and pcall(delfile, src) then
-                            Insert(moved, bn(dst))
-                        else
-                            errs += 1
-                        end
+                    if okW and delfile and pcall(delfile, src) then
+                        Insert(moved, bn(dst))
                     else
                         errs += 1
                     end
@@ -3108,7 +3113,7 @@ NAmanage.InitPlugs=function()
                 DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
                 if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
             else
-                DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found", 3)
+                DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found outside Plugins", 3)
             end
         end
     )
@@ -3120,8 +3125,8 @@ NAmanage.InitPlugs=function()
             mk(plugsDir)
             local query = tostring((...) or ""):lower()
             local ws = root()
-            local all = scan(ws, plugsDir)
-            if #all == 0 then DoNotif("No .na files found in workspace",3); return end
+            local all = scan(ws) -- already excludes anything under Plugins
+            if #all == 0 then DoNotif("No .na files found outside Plugins",3); return end
 
             local function moveOne(path)
                 local file = bn(path)
@@ -3130,7 +3135,7 @@ NAmanage.InitPlugs=function()
                 local dst = uniq(plugsDir, file)
                 local okW = pcall(writefile, dst, data)
                 if not okW then DoNotif("Failed to write "..file,3); return end
-                if not delfile or not pcall(delfile, path) then DoNotif("Wrote but couldn't delete source "..file,3); return end
+                if not (delfile and pcall(delfile, path)) then DoNotif("Wrote but couldn't delete source "..file,3); return end
                 DoNotif("Moved plugin "..file,3)
                 if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
             end
@@ -3141,20 +3146,16 @@ NAmanage.InitPlugs=function()
                     local base = bn(p):lower()
                     if base == query or base:find(query, 1, true) then Insert(hits, p) end
                 end
-                if #hits == 1 then
-                    moveOne(hits[1]); return
-                elseif #hits > 1 then
-                    local btns = {}
-                    for _, p in ipairs(hits) do
-                        local file = bn(p)
-                        Insert(btns, { Text = file, Callback = function() moveOne(p) end })
-                    end
-                    local show = Window or DoWindow
-                    if show then show({Title = "Select Plugin", Buttons = btns}) else DoNotif("Multiple matches; refine name",3) end
-                    return
-                else
-                    DoNotif("No match for '"..query.."'",3); return
+                if #hits == 1 then moveOne(hits[1]); return end
+                if #hits == 0 then DoNotif("No match for '"..query.."'",3); return end
+                local btns = {}
+                for _, p in ipairs(hits) do
+                    local file = bn(p)
+                    Insert(btns, { Text = file, Callback = function() moveOne(p) end })
                 end
+                local show = Window or DoWindow
+                if show then show({Title = "Select Plugin", Buttons = btns}) else DoNotif("Multiple matches; refine name",3) end
+                return
             end
 
             local btns = {}
@@ -3185,12 +3186,8 @@ NAmanage.InitPlugs=function()
                             if not okR or not data then DoNotif("Failed to read "..file,3); return end
                             local dst = uniq("", file)
                             local okW = pcall(writefile, dst, data)
-                            if okW then
-                                if delfile and pcall(delfile, p) then
-                                    DoNotif("Moved "..file.." to workspace",3)
-                                else
-                                    DoNotif("Wrote but couldn't delete "..file,3)
-                                end
+                            if okW and delfile and pcall(delfile, p) then
+                                DoNotif("Moved "..file.." to workspace",3)
                             else
                                 DoNotif("Failed to move "..file,3)
                             end
@@ -3219,12 +3216,8 @@ NAmanage.InitPlugs=function()
                     if okR and data then
                         local dst = uniq("", file)
                         local okW = pcall(writefile, dst, data)
-                        if okW then
-                            if delfile and pcall(delfile, p) then
-                                Insert(moved, file)
-                            else
-                                errs += 1
-                            end
+                        if okW and delfile and pcall(delfile, p) then
+                            Insert(moved, file)
                         else
                             errs += 1
                         end
