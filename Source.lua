@@ -1076,10 +1076,7 @@ local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platf
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
-local TopBarApp = {
-	top=nil;
-	frame=nil;
-}
+local TopBarApp = { top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; gridScroll=nil; grid=nil; isOpen=false; childButtons={}; buttonDefs={}, currentCols=4 }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
@@ -1112,25 +1109,6 @@ end
 if UserInputService.KeyboardEnabled then
 	IsOnPC=true
 end
-
--- TopBar grabber
-Spawn(function()
-	--TopBarApp = COREGUI:WaitForChild("TopBarApp", math.huge)
-	--    :WaitForChild("TopBarApp", math.huge)
-	--    :WaitForChild("UnibarLeftFrame", math.huge)
-	--    :WaitForChild("StackedElements", math.huge)
-
-	TopBarApp.top = InstanceNew("ScreenGui")
-	TopBarApp.top.Name = "CustomTopbar"
-	NaProtectUI(TopBarApp.top)
-	TopBarApp.top.Enabled=NATOPBARVISIBLE
-
-	TopBarApp.frame = InstanceNew("Frame")
-	TopBarApp.frame.Size = UDim2.new(1, 0, 0, 36)
-	TopBarApp.frame.Position = UDim2.new(0, 0, 0, 0)
-	TopBarApp.frame.BackgroundTransparency = 1
-	TopBarApp.frame.Parent = TopBarApp.top
-end)
 
 --[[ Some more variables ]]--
 
@@ -21698,6 +21676,318 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	infoText.Text = Format("%.14g", defaultValue)..(suffix or "")
 end
 
+NAmanage.Topbar_PlayTween = function(key,instance,info,props)
+	NAmanage._tweens = NAmanage._tweens or {}
+	if NAmanage._tweens[key] then NAmanage._tweens[key]:Cancel() end
+	local t = TweenService:Create(instance,info,props)
+	NAmanage._tweens[key] = t
+	t:Play()
+	return t
+end
+
+NAmanage.Topbar_CountButtons = function()
+	local n = 0
+	for _ in ipairs(TopBarApp.buttonDefs) do n += 1 end
+	return n
+end
+
+NAmanage.Topbar_ComputedPanelSize = function()
+	local tile, pad, maxCols, maxRows = 48, 8, 4, 3
+	local count = NAmanage.Topbar_CountButtons()
+	local cols = math.clamp(count == 0 and 1 or math.min(count, maxCols), 1, maxCols)
+	local rows = math.max(1, math.ceil(count / cols))
+	rows = math.min(rows, maxRows)
+	TopBarApp.currentCols = cols
+	local w = cols*tile + (cols-1)*pad + 12
+	local h = rows*tile + (rows-1)*pad + 12
+	return w, h
+end
+
+NAmanage.Topbar_PositionPanel = function()
+	if not TopBarApp.panel then return end
+	TopBarApp.panel.AnchorPoint = Vector2.new(0.5,0)
+	TopBarApp.panel.Position = UDim2.new(0.5,0,1,8)
+end
+
+NAmanage.Topbar_AnimateIcon = function(img, rectOffset, rectSize)
+	local ti = TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+	local ti2 = TweenInfo.new(0.14, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	NAmanage.Topbar_PlayTween("icon_shrink", TopBarApp.icon, ti, {Size = UDim2.new(0,0,0,0)}).Completed:Wait()
+	TopBarApp.icon.Image = img
+	if rectOffset then TopBarApp.icon.ImageRectOffset = rectOffset else TopBarApp.icon.ImageRectOffset = Vector2.new(0,0) end
+	if rectSize   then TopBarApp.icon.ImageRectSize   = rectSize   else TopBarApp.icon.ImageRectSize   = Vector2.new(0,0) end
+	NAmanage.Topbar_PlayTween("icon_grow", TopBarApp.icon, ti2, {Size = UDim2.new(0.8,0,0.8,0)})
+end
+
+NAmanage.Topbar_UpdateToggleVisual = function(open)
+	local ti = TweenInfo.new(0.14, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+	local bgTarget = open and 0.06 or 0.12
+	local strokeT  = open and 0.05 or 0.15
+	local size     = open and UDim2.new(0,48,0,48) or UDim2.new(0,42,0,42)
+	NAmanage.Topbar_PlayTween("tgl_size", TopBarApp.toggle, ti, {Size = size})
+	NAmanage.Topbar_PlayTween("tglass_bg", TopBarApp.tGlass, ti, {BackgroundTransparency = bgTarget})
+	if TopBarApp.tStroke then NAmanage.Topbar_PlayTween("tglass_stroke", TopBarApp.tStroke, ti, {Transparency = strokeT}) end
+	local CLOSED_IMG  = "rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
+	local CLOSED_OFF  = Vector2.new(456,440)
+	local CLOSED_SIZE = Vector2.new(36,36)
+	local OPENED_IMG  = "rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_5.png"
+	local OPENED_OFF  = Vector2.new(436,258)
+	local OPENED_SIZE = Vector2.new(36,36)
+	if open then
+		NAmanage.Topbar_AnimateIcon(OPENED_IMG, OPENED_OFF, OPENED_SIZE)
+	else
+		NAmanage.Topbar_AnimateIcon(CLOSED_IMG, CLOSED_OFF, CLOSED_SIZE)
+	end
+end
+
+NAmanage.Topbar_SetOpen = function(state)
+	if not TopBarApp.panel then return end
+	TopBarApp.isOpen = state
+	local w, h = NAmanage.Topbar_ComputedPanelSize()
+	TopBarApp.panel.Visible = true
+	TopBarApp.panel.Size = UDim2.new(0, w, 0, 0)
+	NAmanage.Topbar_PositionPanel()
+	NAmanage.Topbar_UpdateToggleVisual(state)
+	if state then
+		NAmanage.Topbar_PlayTween("panel_open", TopBarApp.panel, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Size = UDim2.new(0, w, 0, h)})
+	else
+		local t = NAmanage.Topbar_PlayTween("panel_close", TopBarApp.panel, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Size = UDim2.new(0, w, 0, 0)})
+		t.Completed:Connect(function()
+			if not TopBarApp.isOpen then TopBarApp.panel.Visible = false end
+		end)
+	end
+end
+
+NAmanage.Topbar_Toggle = function()
+	NAmanage.Topbar_SetOpen(not TopBarApp.isOpen)
+end
+
+NAmanage.Topbar_UpdatePanelCanvas = function()
+	if not (TopBarApp.gridScroll and TopBarApp.grid) then return end
+	TopBarApp.gridScroll.CanvasSize = UDim2.new(0, TopBarApp.grid.AbsoluteContentSize.X, 0, TopBarApp.grid.AbsoluteContentSize.Y)
+end
+
+NAmanage.Topbar_Rebuild = function()
+	if not TopBarApp.gridScroll then return end
+	for _,c in ipairs(TopBarApp.gridScroll:GetChildren()) do if c:IsA("ImageButton") then c:Destroy() end end
+	for btn,_ in pairs(TopBarApp.childButtons) do TopBarApp.childButtons[btn] = nil end
+	local i = 0
+	for _,def in ipairs(TopBarApp.buttonDefs) do
+		i += 1
+		local btn = InstanceNew("ImageButton", TopBarApp.gridScroll)
+		btn.Name = def.name.."Btn"
+		btn.Size = UDim2.new(0,48,0,48)
+		btn.BackgroundTransparency = 1
+		btn.BorderSizePixel = 0
+		btn.LayoutOrder = i
+		local bg = InstanceNew("Frame", btn)
+		bg.ZIndex = 102
+		bg.Size = UDim2.new(1,0,1,0)
+		bg.BackgroundColor3 = Color3.fromRGB(25,25,28)
+		bg.BackgroundTransparency = 0.18
+		bg.BorderSizePixel = 0
+		local cr = InstanceNew("UICorner", bg)
+		cr.CornerRadius = UDim.new(0,12)
+		local stroke = InstanceNew("UIStroke", bg)
+		stroke.Thickness = 1
+		stroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+		stroke.Transparency = 0.15
+		local ic = InstanceNew("ImageLabel", bg)
+		ic.ZIndex = 103
+		ic.BackgroundTransparency = 1
+		ic.Size = UDim2.new(0.65,0,0.65,0)
+		ic.Position = UDim2.new(0.5,0,0.5,0)
+		ic.AnchorPoint = Vector2.new(0.5,0.5)
+		ic.Image = def.image
+		if def.ImageRectOffset then ic.ImageRectOffset = def.ImageRectOffset end
+		if def.ImageRectSize then ic.ImageRectSize = def.ImageRectSize end
+		TopBarApp.childButtons[btn] = def.func
+		MouseButtonFix(btn, def.func)
+		btn.MouseEnter:Connect(function()
+			TweenService:Create(bg, TweenInfo.new(0.12,Enum.EasingStyle.Sine,Enum.EasingDirection.Out), {BackgroundTransparency = 0.1}):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			TweenService:Create(bg, TweenInfo.new(0.18,Enum.EasingStyle.Sine,Enum.EasingDirection.In), {BackgroundTransparency = 0.18}):Play()
+		end)
+	end
+	NAmanage.Topbar_UpdatePanelCanvas()
+end
+
+NAmanage.Topbar_AddButton = function(def)
+	TopBarApp.buttonDefs[#TopBarApp.buttonDefs+1] = def
+	NAmanage.Topbar_Rebuild()
+end
+
+NAmanage.Topbar_ClampToggle = function()
+	local fw = TopBarApp.frame.AbsoluteSize.X
+	local bw = TopBarApp.toggle.AbsoluteSize.X
+	local off = math.clamp(TopBarApp.toggle.Position.X.Offset, -(fw - bw), 0)
+	TopBarApp.toggle.Position = UDim2.new(TopBarApp.toggle.Position.X.Scale, off, TopBarApp.toggle.Position.Y.Scale, TopBarApp.toggle.Position.Y.Offset)
+end
+
+NAmanage.Topbar_MakeDraggableHorizontal = function(ui)
+	local dragging=false
+	local dragInput,dragStart,startPos
+	ui.InputBegan:Connect(function(input)
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+			dragging=true
+			dragStart=input.Position
+			startPos=ui.Position
+			input.Changed:Connect(function()
+				if input.UserInputState==Enum.UserInputState.End then dragging=false end
+			end)
+		end
+	end)
+	ui.InputChanged:Connect(function(input)
+		if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+			dragInput=input
+		end
+	end)
+	local lastStep=0
+	UserInputService.InputChanged:Connect(function(input)
+		if input==dragInput and dragging then
+			local now=os.clock()
+			if now-lastStep<(1/60) then return end
+			lastStep=now
+			local delta=input.Position-dragStart
+			local fw=TopBarApp.frame.AbsoluteSize.X
+			local bw=ui.AbsoluteSize.X
+			local newX=math.clamp(startPos.X.Offset+delta.X,-(fw-bw),0)
+			ui.Position=UDim2.new(startPos.X.Scale,newX,startPos.Y.Scale,startPos.Y.Offset)
+			if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
+		end
+	end)
+	ui.Active=true
+end
+
+NAmanage.Topbar_Init = function()
+	if TopBarApp.top and TopBarApp.top.Parent then TopBarApp.top:Destroy() end
+	TopBarApp.top = InstanceNew("ScreenGui")
+	TopBarApp.top.Name = "NA_Topbar_Styled"
+	TopBarApp.top.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	TopBarApp.top.DisplayOrder = 9999
+	TopBarApp.top.IgnoreGuiInset = true
+	NaProtectUI(TopBarApp.top)
+	TopBarApp.top.Enabled = NATOPBARVISIBLE
+	TopBarApp.frame = InstanceNew("Frame")
+	TopBarApp.frame.Size = UDim2.new(1,0,0,36)
+	TopBarApp.frame.Position = UDim2.new(0,0,0,0)
+	TopBarApp.frame.BackgroundTransparency = 1
+	TopBarApp.frame.Parent = TopBarApp.top
+	TopBarApp.toggle = InstanceNew("ImageButton",TopBarApp.frame)
+	TopBarApp.toggle.Name="TopbarToggle"
+	TopBarApp.toggle.Size=UDim2.new(0,42,0,42)
+	TopBarApp.toggle.Position=UDim2.new(1,-50,0,10)
+	TopBarApp.toggle.AnchorPoint=Vector2.new(1,0)
+	TopBarApp.toggle.BackgroundTransparency=1
+	TopBarApp.toggle.BorderSizePixel=0
+	TopBarApp.toggle.ClipsDescendants=false
+	TopBarApp.toggle.ZIndex=10
+	TopBarApp.tGlass = InstanceNew("Frame", TopBarApp.toggle)
+	TopBarApp.tGlass.Size = UDim2.new(1,0,1,0)
+	TopBarApp.tGlass.BackgroundColor3 = Color3.fromRGB(20,20,24)
+	TopBarApp.tGlass.BackgroundTransparency = 0.12
+	TopBarApp.tGlass.ZIndex = 11
+	local tCorner = InstanceNew("UICorner", TopBarApp.tGlass)
+	tCorner.CornerRadius = UDim.new(0.5,0)
+	TopBarApp.tStroke = InstanceNew("UIStroke", TopBarApp.tGlass)
+	TopBarApp.tStroke.Thickness = 1.25
+	TopBarApp.tStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+	TopBarApp.tStroke.Transparency = 0.15
+	TopBarApp.icon=InstanceNew("ImageLabel",TopBarApp.toggle)
+	TopBarApp.icon.AnchorPoint=Vector2.new(0.5,0.5)
+	TopBarApp.icon.Position=UDim2.new(0.5,0,0.5,0)
+	TopBarApp.icon.Size=UDim2.new(0.8,0,0.8,0)
+	TopBarApp.icon.BackgroundTransparency=1
+	TopBarApp.icon.ScaleType=Enum.ScaleType.Fit
+	TopBarApp.icon.Image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
+	TopBarApp.icon.ImageRectOffset=Vector2.new(456,440)
+	TopBarApp.icon.ImageRectSize=Vector2.new(36,36)
+	TopBarApp.icon.ZIndex=12
+	TopBarApp.panel=InstanceNew("Frame",TopBarApp.toggle)
+	TopBarApp.panel.Visible=false
+	TopBarApp.panel.ClipsDescendants=true
+	TopBarApp.panel.BackgroundTransparency=1
+	TopBarApp.panel.ZIndex=100
+	TopBarApp.underlay=InstanceNew("Frame",TopBarApp.panel)
+	TopBarApp.underlay.Size=UDim2.new(1,0,1,0)
+	TopBarApp.underlay.BackgroundColor3=Color3.fromRGB(18,18,22)
+	TopBarApp.underlay.BackgroundTransparency=0.1
+	TopBarApp.underlay.ZIndex=101
+	local pCorner=InstanceNew("UICorner",TopBarApp.underlay)
+	pCorner.CornerRadius=UDim.new(0,12)
+	local pStroke=InstanceNew("UIStroke",TopBarApp.underlay)
+	pStroke.Thickness=1
+	pStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
+	pStroke.Transparency=0.2
+	TopBarApp.gridScroll=InstanceNew("ScrollingFrame",TopBarApp.panel)
+	TopBarApp.gridScroll.Name="GridScroll"
+	TopBarApp.gridScroll.BackgroundTransparency=1
+	TopBarApp.gridScroll.BorderSizePixel=0
+	TopBarApp.gridScroll.ScrollBarThickness=4
+	TopBarApp.gridScroll.Size=UDim2.new(1,0,1,0)
+	TopBarApp.gridScroll.ZIndex=102
+	local pad=InstanceNew("UIPadding",TopBarApp.gridScroll)
+	pad.PaddingTop=UDim.new(0,6)
+	pad.PaddingBottom=UDim.new(0,6)
+	pad.PaddingLeft=UDim.new(0,6)
+	pad.PaddingRight=UDim.new(0,6)
+	TopBarApp.grid=InstanceNew("UIGridLayout",TopBarApp.gridScroll)
+	TopBarApp.grid.CellSize=UDim2.new(0,48,0,48)
+	TopBarApp.grid.CellPadding=UDim2.new(0,8,0,8)
+	TopBarApp.grid.HorizontalAlignment=Enum.HorizontalAlignment.Center
+	TopBarApp.grid.VerticalAlignment=Enum.VerticalAlignment.Top
+	TopBarApp.grid.SortOrder=Enum.SortOrder.LayoutOrder
+	NAlib.connect("tb_grid_content",TopBarApp.grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(NAmanage.Topbar_UpdatePanelCanvas))
+	TopBarApp.buttonDefs = {
+		{name="settings",image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_8.png",ImageRectOffset=Vector2.new(416,464),ImageRectSize=Vector2.new(36,36),func=function()
+			if NAUIMANAGER.SettingsFrame then
+				NAUIMANAGER.SettingsFrame.Visible = not NAUIMANAGER.SettingsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+			end
+		end},
+		{name="cmds",image="rbxasset://textures/ui/TopBar/moreOff@2x.png",func=NAgui.commands},
+		{name="chatlogs",image="rbxasset://textures/ui/Chat/ToggleChat@2x.png",func=function()
+			if NAUIMANAGER.chatLogsFrame then
+				NAUIMANAGER.chatLogsFrame.Visible = not NAUIMANAGER.chatLogsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+			end
+		end},
+		{name="console",image="rbxasset://textures/Icon_Stream_Off.png",func=function()
+			if NAUIMANAGER.NAconsoleFrame then
+				NAUIMANAGER.NAconsoleFrame.Visible = not NAUIMANAGER.NAconsoleFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+			end
+		end},
+		{name="waypp",image="rbxasset://textures/ui/waypoint.png",func=function()
+			if NAUIMANAGER.WaypointFrame then
+				NAUIMANAGER.WaypointFrame.Visible = not NAUIMANAGER.WaypointFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+			end
+		end},
+		{name="bindd",image="rbxasset://textures/ui/PlayerList/developer@2x.png",func=function()
+			if NAUIMANAGER.BindersFrame then
+				NAUIMANAGER.BindersFrame.Visible = not NAUIMANAGER.BindersFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+			end
+		end},
+	}
+	NAmanage.Topbar_Rebuild()
+	NAmanage.Topbar_SetOpen(false)
+	MouseButtonFix(TopBarApp.toggle, NAmanage.Topbar_Toggle)
+	NAmanage.Topbar_MakeDraggableHorizontal(TopBarApp.toggle)
+	NAlib.connect("tb_repos_frame",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		NAmanage.Topbar_ClampToggle()
+	end))
+end
+
+NAmanage.Topbar_Destroy = function()
+	NAlib.disconnect("tb_grid_content")
+	NAlib.disconnect("tb_repos_frame")
+	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
+	TopBarApp = { top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; gridScroll=nil; grid=nil; isOpen=false; childButtons={}; buttonDefs={}, currentCols=4 }
+end
+
 NAgui.dragger = function(ui, dragui)
 	dragui = dragui or ui
 	local UserInputService = SafeGetService("UserInputService")
@@ -22056,313 +22346,9 @@ Spawn(function() -- plugin tester
 	end
 end)
 
--- TopBar stuff idk (it's gonna be used in the future)
 Spawn(function()
-	repeat Wait(0.5) until TopBarApp.top and typeof(TopBarApp.top)=="Instance"
-
-	NAmanage._tweens={}
-	NAmanage.playTween=function(key,instance,info,props)
-		if NAmanage._tweens[key] then NAmanage._tweens[key]:Cancel() end
-		local t=TweenService:Create(instance,info,props)
-		NAmanage._tweens[key]=t
-		t:Play()
-		return t
-	end
-
-	local toggle=InstanceNew("ImageButton",TopBarApp.frame)
-	toggle.Name="TopbarToggle"
-	toggle.Size=UDim2.new(0,42,0,42)
-	toggle.Position=UDim2.new(1,-50,0,10)
-	toggle.AnchorPoint=Vector2.new(1,0)
-	toggle.BackgroundColor3=Color3.new(0,0,0)
-	toggle.BackgroundTransparency=0.3
-	toggle.BorderSizePixel=0
-	toggle.ClipsDescendants=true
-	toggle.ZIndex=10
-	InstanceNew("UICorner",toggle).CornerRadius=UDim.new(0.5,0)
-
-	local CLOSED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
-	local CLOSED_IMG_RECT_OFFSET=Vector2.new(456,440)
-	local CLOSED_IMG_RECT_SIZE=Vector2.new(36,36)
-	local OPENED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_5.png"
-	local OPENED_IMG_RECT_OFFSET=Vector2.new(436,258)
-	local OPENED_IMG_RECT_SIZE=Vector2.new(36,36)
-
-	local iconMain=InstanceNew("ImageLabel",toggle)
-	iconMain.AnchorPoint=Vector2.new(0.5,0.5)
-	iconMain.Position=UDim2.new(0.5,0,0.5,0)
-	iconMain.Size=UDim2.new(0.8,0,0.8,0)
-	iconMain.BackgroundTransparency=1
-	iconMain.ScaleType=Enum.ScaleType.Fit
-	iconMain.Image=CLOSED_IMG
-	if CLOSED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=CLOSED_IMG_RECT_OFFSET end
-	if CLOSED_IMG_RECT_SIZE then iconMain.ImageRectSize=CLOSED_IMG_RECT_SIZE end
-	iconMain.ZIndex=11
-
-	local dropdown=InstanceNew("Frame",TopBarApp.frame)
-	dropdown.Name="DropdownFrame"
-	dropdown.Size=UDim2.new(0,0,0,42)
-	dropdown.Visible=false
-	dropdown.ClipsDescendants=true
-	dropdown.BackgroundTransparency=1
-	dropdown.ZIndex=5
-
-	local bg=InstanceNew("Frame",dropdown)
-	bg.Name="Background"
-	bg.Size=UDim2.new(1,0,1,0)
-	bg.BackgroundColor3=Color3.new(0,0,0)
-	bg.BackgroundTransparency=1
-	bg.ZIndex=6
-	InstanceNew("UICorner",bg).CornerRadius=UDim.new(0.5,0)
-
-	local container=InstanceNew("ScrollingFrame",dropdown)
-	container.Name="Container"
-	container.Size=UDim2.new(1,0,1,0)
-	container.CanvasSize=UDim2.new(0,0,0,0)
-	container.ScrollBarThickness=3
-	container.ScrollingDirection=Enum.ScrollingDirection.X
-	container.BackgroundTransparency=1
-	container.ZIndex=7
-
-	local layout=InstanceNew("UIListLayout",container)
-	layout.FillDirection=Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
-	layout.SortOrder=Enum.SortOrder.LayoutOrder
-	layout.Padding=UDim.new(0,8)
-
-	local BUTTON_SIZE=42
-	local PADDING=layout.Padding.Offset
-	local MAX_VISIBLE=4
-	local MAX_WIDTH=MAX_VISIBLE*BUTTON_SIZE+(MAX_VISIBLE-1)*PADDING
-	local MARGIN=4
-
-	local DROPDOWN_TWEEN=TweenInfo.new(0.15,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
-	local ICON_TWEEN=TweenInfo.new(0.05,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
-
-	local isOpen=false
-	local currentSide="right"
-
-	local buttonDefs={
-		{name="settings",image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_8.png",ImageRectOffset=Vector2.new(416,464),ImageRectSize=Vector2.new(36,36),func=function()
-			if NAUIMANAGER.SettingsFrame then
-				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-			end
-		end},
-		{name="cmds",image="rbxasset://textures/ui/TopBar/moreOff@2x.png",func=NAgui.commands},
-		{name="chatlogs",image="rbxasset://textures/ui/Chat/ToggleChat@2x.png",func=function()
-			if NAUIMANAGER.chatLogsFrame then
-				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-			end
-		end},
-		{name="console",image="rbxasset://textures/Icon_Stream_Off.png",func=function()
-			if NAUIMANAGER.NAconsoleFrame then
-				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-			end
-		end},
-		{name="waypp",image="rbxasset://textures/ui/waypoint.png",func=function()
-			if NAUIMANAGER.WaypointFrame then
-				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
-			end
-		end},
-		{name="bindd",image="rbxasset://textures/ui/PlayerList/developer@2x.png",func=function()
-			if NAUIMANAGER.BindersFrame then
-				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
-			end
-		end},
-	}
-
-	local childButtons={}
-	NAmanage.buildButtons=function()
-		for _,c in pairs(container:GetChildren())do
-			if c:IsA("ImageButton")then c:Destroy()end
-		end
-		for i,def in ipairs(buttonDefs)do
-			local btn=InstanceNew("ImageButton",container)
-			btn.Name=Format("%sBtn",def.name)
-			btn.Size=UDim2.new(0,BUTTON_SIZE,0,BUTTON_SIZE)
-			btn.LayoutOrder=i
-			btn.BackgroundColor3=Color3.new(0,0,0)
-			btn.BackgroundTransparency=0.3
-			btn.BorderSizePixel=0
-			btn.ClipsDescendants=true
-			btn.ZIndex=8
-			InstanceNew("UICorner",btn).CornerRadius=UDim.new(0.5,0)
-			local icon=InstanceNew("ImageLabel",btn)
-			icon.Name="Icon"
-			icon.AnchorPoint=Vector2.new(0.5,0.5)
-			icon.Position=UDim2.new(0.5,0,0.5,0)
-			icon.Size=UDim2.new(0.8,0,0.8,0)
-			icon.BackgroundTransparency=1
-			icon.ScaleType=Enum.ScaleType.Fit
-			icon.Image=def.image
-			icon.ZIndex=9
-			if def.ImageRectOffset then icon.ImageRectOffset=def.ImageRectOffset end
-			if def.ImageRectSize then icon.ImageRectSize=def.ImageRectSize end
-			childButtons[btn]=def.func
-		end
-	end
-	NAmanage.buildButtons()
-
-	NAlib.connect("contentSize",layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		container.CanvasSize=UDim2.new(0,layout.AbsoluteContentSize.X+PADDING,0,0)
-		if isOpen then NAmanage.updatePosition() end
-	end))
-
-	NAmanage.clampToggle=function()
-		local fw=TopBarApp.frame.AbsoluteSize.X
-		local bw=toggle.AbsoluteSize.X
-		local off=math.clamp(toggle.Position.X.Offset,-(fw-bw),0)
-		toggle.Position=UDim2.new(toggle.Position.X.Scale,off,toggle.Position.Y.Scale,toggle.Position.Y.Offset)
-	end
-	NAlib.connect("frameSize",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(NAmanage.clampToggle))
-
-	local inFlip=false
-	NAmanage.computeProps=function()
-		local contentW=layout.AbsoluteContentSize.X
-		local showW=math.min(contentW,MAX_WIDTH)
-		local frameX=TopBarApp.frame.AbsolutePosition.X
-		local frameW=TopBarApp.frame.AbsoluteSize.X
-		local tL=toggle.AbsolutePosition.X-frameX
-		local tR=tL+toggle.AbsoluteSize.X
-		local yOff=toggle.AbsolutePosition.Y-TopBarApp.frame.AbsolutePosition.Y
-		if frameW-tR>=showW+MARGIN then
-			return showW,UDim2.new(0,tR+MARGIN,0,yOff),"right"
-		else
-			return showW,UDim2.new(0,tL-MARGIN,0,yOff),"left"
-		end
-	end
-
-	NAmanage.updatePosition=function()
-		local w,pos,side=NAmanage.computeProps()
-		local targetAnchor=Vector2.new(side=="left"and 1 or 0,0)
-		if not dropdown.Visible then
-			dropdown.AnchorPoint=targetAnchor
-			dropdown.Position=pos
-			dropdown.Size=UDim2.new(0,0,0,BUTTON_SIZE)
-			iconMain.Rotation=side=="left"and 180 or 0
-			currentSide=side
-			return
-		end
-		if side~=currentSide and not inFlip then
-			inFlip=true
-			local collapse=NAmanage.playTween("dropdown_collapse",dropdown,ICON_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
-			collapse.Completed:Wait()
-			dropdown.AnchorPoint=targetAnchor
-			dropdown.Position=pos
-			NAmanage.playTween("dropdown_expand",dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,w,0,BUTTON_SIZE)})
-			NAmanage.playTween("icon_flip",iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0})
-			currentSide=side
-			inFlip=false
-		else
-			NAmanage.playTween("dropdown_move",dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)})
-		end
-	end
-	NAmanage.updatePosition()
-
-	local cam=workspace.CurrentCamera
-	if cam then
-		NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			NAmanage.updatePosition()
-		end))
-	end
-	NAlib.connect("camChange",workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		cam=workspace.CurrentCamera
-		NAlib.disconnect("camSize")
-		if cam then
-			NAlib.connect("camSize",cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-				NAmanage.updatePosition()
-			end))
-		end
-		NAmanage.updatePosition()
-	end))
-
-	NAmanage.animateIcon=function(img)
-		local s=TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0,0,0,0)})
-		s:Play();s.Completed:Wait()
-		iconMain.Image=img
-		if img==CLOSED_IMG then
-			if CLOSED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=CLOSED_IMG_RECT_OFFSET else iconMain.ImageRectOffset=Vector2.new(0,0) end
-			if CLOSED_IMG_RECT_SIZE then iconMain.ImageRectSize=CLOSED_IMG_RECT_SIZE else iconMain.ImageRectSize=Vector2.new(0,0) end
-		elseif img==OPENED_IMG then
-			if OPENED_IMG_RECT_OFFSET then iconMain.ImageRectOffset=OPENED_IMG_RECT_OFFSET else iconMain.ImageRectOffset=Vector2.new(0,0) end
-			if OPENED_IMG_RECT_SIZE then iconMain.ImageRectSize=OPENED_IMG_RECT_SIZE else iconMain.ImageRectSize=Vector2.new(0,0) end
-		else
-			iconMain.ImageRectOffset=Vector2.new(0,0)
-			iconMain.ImageRectSize=Vector2.new(0,0)
-		end
-		TweenService:Create(iconMain,ICON_TWEEN,{Size=UDim2.new(0.8,0,0.8,0)}):Play()
-	end
-
-	NAmanage.makeDraggable=function(ui,dragui)
-		dragui=dragui or ui
-		local dragging,dragInput,dragStart,startPos=false,nil,nil,nil
-		dragui.InputBegan:Connect(function(input)
-			if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-				dragging=true
-				dragStart=input.Position
-				startPos=ui.Position
-				input.Changed:Connect(function()
-					if input.UserInputState==Enum.UserInputState.End then
-						dragging=false
-					end
-				end)
-			end
-		end)
-		dragui.InputChanged:Connect(function(input)
-			if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
-				dragInput=input
-			end
-		end)
-		local lastStep=0
-		UserInputService.InputChanged:Connect(function(input)
-			if input==dragInput and dragging then
-				local now=os.clock()
-				if now-lastStep<(1/60) then return end
-				lastStep=now
-				local delta=input.Position-dragStart
-				local fw,bw=TopBarApp.frame.AbsoluteSize.X,ui.AbsoluteSize.X
-				local newX=math.clamp(startPos.X.Offset+delta.X,-(fw-bw),0)
-				ui.Position=UDim2.new(startPos.X.Scale,newX,startPos.Y.Scale,startPos.Y.Offset)
-				if ui==toggle then
-					NAmanage.clampToggle()
-					if isOpen then NAmanage.updatePosition() end
-				end
-			end
-		end)
-		ui.Active=true
-	end
-	NAmanage.makeDraggable(toggle)
-	for btn,fn in pairs(childButtons)do NAmanage.makeDraggable(btn) end
-
-	NAmanage.toggleDropdown=function()
-		isOpen=not isOpen
-		local w,pos,side=NAmanage.computeProps()
-		dropdown.AnchorPoint=Vector2.new(side=="left"and 1 or 0,0)
-		if isOpen then
-			dropdown.Visible=true
-			dropdown.Position=pos
-			dropdown.Size=UDim2.new(0,0,0,BUTTON_SIZE)
-			NAmanage.playTween("icon_rot",iconMain,ICON_TWEEN,{Rotation=side=="left"and 180 or 0})
-			NAmanage.playTween("dropdown_open",dropdown,DROPDOWN_TWEEN,{Position=pos,Size=UDim2.new(0,w,0,BUTTON_SIZE)})
-			NAmanage.playTween("bg_fade",bg,DROPDOWN_TWEEN,{BackgroundTransparency=0.3})
-			NAmanage.animateIcon(OPENED_IMG)
-		else
-			NAmanage.playTween("bg_fade",bg,DROPDOWN_TWEEN,{BackgroundTransparency=1})
-			local t=NAmanage.playTween("dropdown_close",dropdown,DROPDOWN_TWEEN,{Size=UDim2.new(0,0,0,BUTTON_SIZE)})
-			t.Completed:Wait()
-			dropdown.Visible=false
-			NAmanage.animateIcon(CLOSED_IMG)
-		end
-		currentSide=side
-	end
-
-	MouseButtonFix(toggle,NAmanage.toggleDropdown)
-	for btn,fn in pairs(childButtons)do MouseButtonFix(btn,fn)end
+	repeat Wait(0.2) until NAUIMANAGER and InstanceNew and TweenService
+	NAmanage.Topbar_Init()
 end)
 
 NAgui.barSelect = function(speed)
