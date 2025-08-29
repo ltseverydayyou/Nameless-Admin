@@ -137,6 +137,7 @@ body.BackgroundColor3 = Color3.fromRGB(22,22,32)
 body.BorderSizePixel = 0
 body.Size = UDim2.new(1, -16, 1, -64)
 body.Position = UDim2.new(0, 8, 0, 56)
+body.ClipsDescendants = true
 body.Parent = win
 
 local bodyCorner = Instance.new("UICorner")
@@ -237,7 +238,7 @@ local btnSaveAs = mkBtn("Save As", Color3.fromRGB(100,180,90), btnRow, 32)
 local txtFrame = Instance.new("Frame")
 txtFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
 txtFrame.BorderSizePixel = 0
-txtFrame.Size = UDim2.new(1, 0, 1, -(36+10+36+10+36+10+26))
+txtFrame.Size = UDim2.new(1, 0, 0, 120)
 txtFrame.LayoutOrder = 3
 txtFrame.Parent = body
 local tfCorner = Instance.new("UICorner")
@@ -414,26 +415,51 @@ local function resizeBox()
     box.Size = UDim2.new(1, -8, 0, newH)
     scroll.CanvasSize = UDim2.new(0, 0, 0, newH)
 end
+
+local function relayout()
+    local innerH = body.AbsoluteSize.Y - (pad.PaddingTop.Offset + pad.PaddingBottom.Offset)
+    local n, othersH = 0, 0
+    for _, child in ipairs(body:GetChildren()) do
+        if child:IsA("Frame") and child.Visible then
+            n += 1
+            if child ~= txtFrame then
+                othersH += child.AbsoluteSize.Y
+            end
+        end
+    end
+    local gaps = math.max(0, n - 1) * vlist.Padding.Offset
+    local h = math.max(80, innerH - othersH - gaps)
+    txtFrame.Size = UDim2.new(1, 0, 0, h)
+    resizeBox()
+end
+
 local function applyScale()
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
     local inset = gsv:GetGuiInset()
     local ux = math.max(0, vp.X - inset.X*2)
     local uy = math.max(0, vp.Y - inset.Y*2)
-
     local minSize = minimized and COLLAPSED_MIN or BASE_MIN
     local targetW = math.clamp(ux * 0.64, minSize.X, sizeCons.MaxSize.X)
     local targetH = minimized and (top.AbsoluteSize.Y + 16)
                     or math.clamp(uy * 0.62, minSize.Y, sizeCons.MaxSize.Y)
-
     win.Size = UDim2.new(0, targetW, 0, targetH)
+    relayout()
 end
+
 local function hookViewport()
     local function hookCam(c) if not c then return end c:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale) end
     workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() hookCam(workspace.CurrentCamera) applyScale() end)
     if workspace.CurrentCamera then hookCam(workspace.CurrentCamera) end
     gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
+    body:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+    vlist:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(relayout)
+    fileRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+    btnRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+    utilRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+    statusRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
 end
+
 local function positionExtList()
     if not extList.Visible then return end
     local p = extBox.AbsolutePosition
@@ -473,7 +499,6 @@ btnMin.MouseButton1Click:Connect(function()
     body.Visible = not minimized
     sizeCons.MinSize = minimized and COLLAPSED_MIN or BASE_MIN
     btnMin.Text = minimized and "+" or "-"
-
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
     local inset = gsv:GetGuiInset()
@@ -483,11 +508,9 @@ btnMin.MouseButton1Click:Connect(function()
     local targetW = math.clamp(ux * 0.64, minSize.X, sizeCons.MaxSize.X)
     local targetH = minimized and (top.AbsoluteSize.Y + 16)
                     or math.clamp(uy * 0.62, minSize.Y, sizeCons.MaxSize.Y)
-
     ts:Create(win, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
         { Size = UDim2.new(0, targetW, 0, targetH) }
     ):Play()
-
     task.defer(applyScale)
     task.defer(positionExtList)
 end)
@@ -726,4 +749,5 @@ scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeBox)
 applyScale()
 hookViewport()
 updateCounts()
+relayout()
 resizeBox()

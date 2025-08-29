@@ -66,49 +66,18 @@ local function mkBtn(txt, col, parent, h)
     b.Name = txt:gsub("%s+","")
     b.Text = txt
     b.Font = Enum.Font.GothamSemibold
-    b.TextSize = 14
+    b.TextSize = 13
     b.TextColor3 = Color3.fromRGB(235,235,255)
     b.BackgroundColor3 = col
     b.BackgroundTransparency = 0.2
     b.BorderSizePixel = 0
     b.AutoButtonColor = false
-    b.Size = UDim2.new(1,0,0,h or 38)
+    b.Size = UDim2.new(1,0,0,h or 34)
     b.Parent = parent
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0,12)
+    c.CornerRadius = UDim.new(0,8)
     c.Parent = b
-    b.MouseEnter:Connect(function()
-        if uis.TouchEnabled then return end
-        ts:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0}):Play()
-        ts:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1,0,0,(h or 38)+2)}):Play()
-    end)
-    b.MouseLeave:Connect(function()
-        if uis.TouchEnabled then return end
-        ts:Create(b, TweenInfo.new(0.16), {BackgroundTransparency = 0.2}):Play()
-        ts:Create(b, TweenInfo.new(0.16), {Size = UDim2.new(1,0,0,(h or 38))}):Play()
-    end)
     return b
-end
-
-local function ripple(btn, p)
-    local inset = gsv:GetGuiInset()
-    local lpv = Vector2.new(p.X - inset.X - btn.AbsolutePosition.X, p.Y - inset.Y - btn.AbsolutePosition.Y)
-    local r = Instance.new("Frame")
-    r.BackgroundColor3 = Color3.fromRGB(255,255,255)
-    r.BackgroundTransparency = 0.8
-    r.BorderSizePixel = 0
-    r.ZIndex = btn.ZIndex + 1
-    r.Size = UDim2.new(0,0,0,0)
-    r.AnchorPoint = Vector2.new(0.5,0.5)
-    r.Position = UDim2.fromOffset(lpv.X, lpv.Y)
-    local rc = Instance.new("UICorner")
-    rc.CornerRadius = UDim.new(1,0)
-    rc.Parent = r
-    r.Parent = btn
-    local mx = math.max(btn.AbsoluteSize.X, btn.AbsoluteSize.Y) * 1.8
-    ts:Create(r, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(mx, mx)}):Play()
-    ts:Create(r, TweenInfo.new(0.35), {BackgroundTransparency = 1}):Play()
-    task.delay(0.4, function() r:Destroy() end)
 end
 
 local sg = Instance.new("ScreenGui")
@@ -117,10 +86,12 @@ sg.ResetOnSpawn = false
 sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ProtectGui(sg)
 
+local TOPH = 40
+
 local win = Instance.new("Frame")
 win.Name = "Win"
-win.Size = UDim2.new(0,520,0,304)
-win.Position = UDim2.new(0.5,-260,0.5,-162)
+win.Size = UDim2.new(0,420,0,300)
+win.Position = UDim2.new(0.5,-210,0.5,-150)
 win.BackgroundColor3 = Color3.fromRGB(16,16,24)
 win.BorderSizePixel = 0
 win.Parent = sg
@@ -138,7 +109,7 @@ sh.ZIndex = 0
 sh.Parent = win
 
 local winCorner = Instance.new("UICorner")
-winCorner.CornerRadius = UDim.new(0,16)
+winCorner.CornerRadius = UDim.new(0,12)
 winCorner.Parent = win
 
 local winStroke = Instance.new("UIStroke")
@@ -150,7 +121,7 @@ winStroke.Parent = win
 
 local top = Instance.new("Frame")
 top.Name = "Top"
-top.Size = UDim2.new(1,0,0,48)
+top.Size = UDim2.new(1,0,0,TOPH)
 top.BackgroundColor3 = Color3.fromRGB(12,12,20)
 top.BorderSizePixel = 0
 top.Parent = win
@@ -158,18 +129,18 @@ top.Active = true
 top.Selectable = true
 
 local topCorner = Instance.new("UICorner")
-topCorner.CornerRadius = UDim.new(0,16)
+topCorner.CornerRadius = UDim.new(0,12)
 topCorner.Parent = top
 
 local title = Instance.new("TextLabel")
 title.Name = "Title"
 title.Text = "Part Grabber X"
-title.Font = Enum.Font.GothamBlack
+title.Font = Enum.Font.GothamBold
 title.TextColor3 = Color3.fromRGB(225,225,255)
-title.TextSize = 18
+title.TextSize = 16
 title.BackgroundTransparency = 1
-title.Size = UDim2.new(1,-170,1,0)
-title.Position = UDim2.new(0,18,0,0)
+title.Size = UDim2.new(1,-120,1,0)
+title.Position = UDim2.new(0,14,0,0)
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = top
 
@@ -184,35 +155,36 @@ titleGrad.Parent = title
 local topBtns = Instance.new("Frame")
 topBtns.Name = "TopBtns"
 topBtns.BackgroundTransparency = 1
-topBtns.Size = UDim2.new(0,136,1,-10)
-topBtns.Position = UDim2.new(1,-142,0,5)
+topBtns.Size = UDim2.new(0,100,1,-6)
+topBtns.Position = UDim2.new(1,-106,0,3)
 topBtns.Parent = top
 
 local btnLayout = Instance.new("UIListLayout")
 btnLayout.FillDirection = Enum.FillDirection.Horizontal
 btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-btnLayout.Padding = UDim.new(0,8)
+btnLayout.Padding = UDim.new(0,6)
 btnLayout.Parent = topBtns
 
-local btnMin = mkBtn("-", Color3.fromRGB(70,130,255), topBtns, 36)
-btnMin.Size = UDim2.new(0,56,0,36)
+local btnMin = mkBtn("-", Color3.fromRGB(70,130,255), topBtns, 30)
+btnMin.Size = UDim2.new(0,40,0,30)
 btnMin.TextScaled = true
 
-local btnExit = mkBtn("×", Color3.fromRGB(230,70,70), topBtns, 36)
-btnExit.Size = UDim2.new(0,56,0,36)
+local btnExit = mkBtn("×", Color3.fromRGB(230,70,70), topBtns, 30)
+btnExit.Size = UDim2.new(0,40,0,30)
 btnExit.TextScaled = true
 
 local body = Instance.new("Frame")
 body.Name = "Body"
-body.Size = UDim2.new(1,-20,1,-70)
-body.Position = UDim2.new(0,10,0,58)
+body.Size = UDim2.new(1,-20,1,-(TOPH+26))
+body.Position = UDim2.new(0,10,0,TOPH+10)
 body.BackgroundColor3 = Color3.fromRGB(22,22,32)
 body.BorderSizePixel = 0
+body.ClipsDescendants = true
 body.Parent = win
 
 local bodyCorner = Instance.new("UICorner")
-bodyCorner.CornerRadius = UDim.new(0,14)
+bodyCorner.CornerRadius = UDim.new(0,10)
 bodyCorner.Parent = body
 
 local bodyStroke = Instance.new("UIStroke")
@@ -230,38 +202,38 @@ bodyGrad.Rotation = 0
 bodyGrad.Parent = body
 
 local bodyPad = Instance.new("UIPadding")
-bodyPad.PaddingTop = UDim.new(0,14)
-bodyPad.PaddingLeft = UDim.new(0,14)
-bodyPad.PaddingRight = UDim.new(0,14)
-bodyPad.PaddingBottom = UDim.new(0,14)
+bodyPad.PaddingTop = UDim.new(0,12)
+bodyPad.PaddingLeft = UDim.new(0,12)
+bodyPad.PaddingRight = UDim.new(0,12)
+bodyPad.PaddingBottom = UDim.new(0,12)
 bodyPad.Parent = body
 
 local bodyList = Instance.new("UIListLayout")
 bodyList.SortOrder = Enum.SortOrder.LayoutOrder
-bodyList.Padding = UDim.new(0,12)
+bodyList.Padding = UDim.new(0,10)
 bodyList.Parent = body
 
 local lbl = Instance.new("TextLabel")
 lbl.Name = "Status"
 lbl.Text = "Tap/Click a 3D part to select"
 lbl.Font = Enum.Font.GothamSemibold
-lbl.Size = UDim2.new(1,0,0,22)
+lbl.Size = UDim2.new(1,0,0,20)
 lbl.TextColor3 = Color3.fromRGB(170,170,255)
-lbl.TextSize = 13
+lbl.TextSize = 12
 lbl.BackgroundTransparency = 1
 lbl.LayoutOrder = 1
 lbl.Parent = body
 
 local pathFrame = Instance.new("Frame")
 pathFrame.Name = "PathFrame"
-pathFrame.Size = UDim2.new(1,0,0,44)
+pathFrame.Size = UDim2.new(1,0,0,40)
 pathFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
 pathFrame.BorderSizePixel = 0
 pathFrame.LayoutOrder = 2
 pathFrame.Parent = body
 
 local pfCorner = Instance.new("UICorner")
-pfCorner.CornerRadius = UDim.new(0,12)
+pfCorner.CornerRadius = UDim.new(0,10)
 pfCorner.Parent = pathFrame
 
 local pathTxt = Instance.new("TextLabel")
@@ -271,22 +243,22 @@ pathTxt.Font = Enum.Font.Code
 pathTxt.TextWrapped = true
 pathTxt.TextXAlignment = Enum.TextXAlignment.Center
 pathTxt.TextYAlignment = Enum.TextYAlignment.Center
-pathTxt.TextSize = 14
+pathTxt.TextSize = 13
 pathTxt.TextColor3 = Color3.fromRGB(230,230,255)
 pathTxt.BackgroundTransparency = 1
-pathTxt.Size = UDim2.new(1,-10,1,-8)
-pathTxt.Position = UDim2.new(0,5,0,4)
+pathTxt.Size = UDim2.new(1,-8,1,-6)
+pathTxt.Position = UDim2.new(0,4,0,3)
 pathTxt.Parent = pathFrame
 
 local row1 = Instance.new("Frame")
 row1.BackgroundTransparency = 1
-row1.Size = UDim2.new(1,0,0,38)
+row1.Size = UDim2.new(1,0,0,34)
 row1.LayoutOrder = 3
 row1.Parent = body
 
 local grid1 = Instance.new("UIGridLayout")
-grid1.CellPadding = UDim2.new(0,12,0,0)
-grid1.CellSize = UDim2.new(0.5,-6,1,0)
+grid1.CellPadding = UDim2.new(0,10,0,0)
+grid1.CellSize = UDim2.new(0.5,-5,1,0)
 grid1.Parent = row1
 
 local btnCopy = mkBtn("Copy Path", Color3.fromRGB(70,130,255), row1)
@@ -294,13 +266,13 @@ local btnToggle = mkBtn("Selection: On", Color3.fromRGB(90,140,220), row1)
 
 local row2 = Instance.new("Frame")
 row2.BackgroundTransparency = 1
-row2.Size = UDim2.new(1,0,0,38)
+row2.Size = UDim2.new(1,0,0,34)
 row2.LayoutOrder = 4
 row2.Parent = body
 
 local grid2 = Instance.new("UIGridLayout")
-grid2.CellPadding = UDim2.new(0,12,0,0)
-grid2.CellSize = UDim2.new(0.5,-6,1,0)
+grid2.CellPadding = UDim2.new(0,10,0,0)
+grid2.CellSize = UDim2.new(0.5,-5,1,0)
 grid2.Parent = row2
 
 local btnRen = mkBtn("Rename Part", Color3.fromRGB(90,90,150), row2)
@@ -308,13 +280,13 @@ local btnBring = mkBtn("Bring Part", Color3.fromRGB(90,90,150), row2)
 
 local row3 = Instance.new("Frame")
 row3.BackgroundTransparency = 1
-row3.Size = UDim2.new(1,0,0,38)
+row3.Size = UDim2.new(1,0,0,34)
 row3.LayoutOrder = 5
 row3.Parent = body
 
 local grid3 = Instance.new("UIGridLayout")
-grid3.CellPadding = UDim2.new(0,12,0,0)
-grid3.CellSize = UDim2.new(0.5,-6,1,0)
+grid3.CellPadding = UDim2.new(0,10,0,0)
+grid3.CellSize = UDim2.new(0.5,-5,1,0)
 grid3.Parent = row3
 
 local btnColl = mkBtn("CanCollide: ?", Color3.fromRGB(70,180,110), row3)
@@ -331,15 +303,15 @@ modal.Parent = win
 modal.ZIndex = 50
 
 local renBox = Instance.new("Frame")
-renBox.Size = UDim2.new(0,360,0,140)
-renBox.Position = UDim2.new(0.5,-180,0.5,-70)
+renBox.Size = UDim2.new(0,340,0,120)
+renBox.Position = UDim2.new(0.5,-170,0.5,-60)
 renBox.BackgroundColor3 = Color3.fromRGB(24,24,34)
 renBox.BorderSizePixel = 0
 renBox.Parent = modal
 renBox.ZIndex = 51
 
 local rbCorner = Instance.new("UICorner")
-rbCorner.CornerRadius = UDim.new(0,12)
+rbCorner.CornerRadius = UDim.new(0,10)
 rbCorner.Parent = renBox
 
 local rbStroke = Instance.new("UIStroke")
@@ -352,16 +324,16 @@ local rbTitle = Instance.new("TextLabel")
 rbTitle.BackgroundTransparency = 1
 rbTitle.Text = "Rename Part"
 rbTitle.Font = Enum.Font.GothamBold
-rbTitle.TextSize = 16
+rbTitle.TextSize = 15
 rbTitle.TextColor3 = Color3.fromRGB(220,220,255)
-rbTitle.Size = UDim2.new(1,-20,0,28)
-rbTitle.Position = UDim2.new(0,10,0,10)
+rbTitle.Size = UDim2.new(1,-20,0,24)
+rbTitle.Position = UDim2.new(0,10,0,8)
 rbTitle.ZIndex = 51
 rbTitle.Parent = renBox
 
 local rbInput = Instance.new("TextBox")
-rbInput.Size = UDim2.new(1,-20,0,36)
-rbInput.Position = UDim2.new(0,10,0,50)
+rbInput.Size = UDim2.new(1,-20,0,32)
+rbInput.Position = UDim2.new(0,10,0,40)
 rbInput.Font = Enum.Font.Gotham
 rbInput.TextSize = 14
 rbInput.Text = ""
@@ -373,24 +345,24 @@ rbInput.BorderSizePixel = 0
 rbInput.Parent = renBox
 rbInput.ZIndex = 51
 local rbInputCorner = Instance.new("UICorner")
-rbInputCorner.CornerRadius = UDim.new(0,10)
+rbInputCorner.CornerRadius = UDim.new(0,8)
 rbInputCorner.Parent = rbInput
 
 local rbRow = Instance.new("Frame")
 rbRow.BackgroundTransparency = 1
-rbRow.Size = UDim2.new(1,-20,0,34)
-rbRow.Position = UDim2.new(0,10,1,-44)
+rbRow.Size = UDim2.new(1,-20,0,32)
+rbRow.Position = UDim2.new(0,10,1,-40)
 rbRow.ZIndex = 51
 rbRow.Parent = renBox
 
 local rbGrid = Instance.new("UIGridLayout")
-rbGrid.CellPadding = UDim2.new(0,10,0,0)
-rbGrid.CellSize = UDim2.new(0.5,-6,1,0)
+rbGrid.CellPadding = UDim2.new(0,8,0,0)
+rbGrid.CellSize = UDim2.new(0.5,-4,1,0)
 rbGrid.Parent = rbRow
 
-local btnSave = mkBtn("Save", Color3.fromRGB(70,190,100), rbRow, 34)
+local btnSave = mkBtn("Save", Color3.fromRGB(70,190,100), rbRow, 32)
 btnSave.ZIndex = 51
-local btnCancel = mkBtn("Cancel", Color3.fromRGB(90,90,140), rbRow, 34)
+local btnCancel = mkBtn("Cancel", Color3.fromRGB(90,90,140), rbRow, 32)
 btnCancel.ZIndex = 51
 
 local selObj = nil
@@ -451,14 +423,20 @@ local function showAdorn(pv)
     h.FillTransparency = 0.35
     h.OutlineTransparency = 0
     h.Parent = f
-    ts:Create(h, TweenInfo.new(0.6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {FillTransparency = 0.5}):Play()
     local sb = Instance.new("SelectionBox")
     sb.Name = "PGX_Select"
     sb.LineThickness = 0.05
     sb.Color3 = Color3.fromRGB(200,220,255)
-    sb.SurfaceTransparency = 1
     sb.Adornee = pv
     sb.Parent = f
+    local bha = Instance.new("BoxHandleAdornment")
+    bha.Name = "PGX_Box"
+    bha.AlwaysOnTop = true
+    bha.ZIndex = 10
+    bha.Adornee = pv
+    bha.Color3 = Color3.fromRGB(140,170,255)
+    bha.Transparency = 0.85
+    bha.Parent = f
     f.Parent = pv
     adorn = f
 end
@@ -533,9 +511,9 @@ end
 local function showRen(d)
     rbInput.Text = d or ""
     modal.Visible = true
-    renBox.Size = UDim2.new(0,320,0,110)
+    renBox.Size = UDim2.new(0,300,0,96)
     ts:Create(modal, TweenInfo.new(0.15), {BackgroundTransparency = 0.2}):Play()
-    ts:Create(renBox, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,360,0,140)}):Play()
+    ts:Create(renBox, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0,340,0,120)}):Play()
     rbInput:CaptureFocus()
 end
 
@@ -544,18 +522,20 @@ local function hideRen()
     modal.Visible = false
 end
 
+local function baseSize()
+    local bw = uis.TouchEnabled and 360 or 420
+    local bh = minimized and 56 or (uis.TouchEnabled and 300 or 300)
+    return bw, bh
+end
+
 local function beginDrag(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
     dragging = true
     dragStart = input.Position
     startPos = win.Position
-    ts:Create(win, TweenInfo.new(0.12), {Size = UDim2.new(0, win.Size.X.Offset, 0, (minimized and 64 or 304)+2)}):Play()
-    ts:Create(winStroke, TweenInfo.new(0.12), {Thickness = 3}):Play()
     track(input.Changed:Connect(function()
         if input.UserInputState == Enum.UserInputState.End then
             dragging = false
-            ts:Create(win, TweenInfo.new(0.12), {Size = UDim2.new(0, win.Size.X.Offset, 0, minimized and 64 or 304)}):Play()
-            ts:Create(winStroke, TweenInfo.new(0.12), {Thickness = 2}):Play()
         end
     end))
 end
@@ -576,12 +556,10 @@ local function applyScale()
     local inset = gsv:GetGuiInset()
     local ux = math.max(0, vp.X - inset.X*2)
     local uy = math.max(0, vp.Y - inset.Y*2)
-    local bw, bh = 520, (minimized and 64 or 304)
-    local sc = math.min(ux/(bw+32), uy/(bh+80))
-    sc = math.clamp(sc, 0.65, 1)
+    local bw, bh = baseSize()
+    local sc = math.min(ux/(bw+24), uy/(bh+60))
+    sc = math.clamp(sc, uis.TouchEnabled and 0.45 or 0.6, 1)
     uiScale.Scale = sc
-    win.AnchorPoint = Vector2.new(0.5,0.5)
-    win.Position = UDim2.fromScale(0.5,0.5)
     win.Size = UDim2.new(0,bw,0,bh)
 end
 
@@ -594,16 +572,17 @@ end
 
 btnMin.MouseButton1Click:Connect(function()
     minimized = not minimized
+    local bw, bh = baseSize()
     if minimized then
-        body.Visible = false
-        ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,520,0,64)}):Play()
+        local tw = ts:Create(win, TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,bw,0,bh)})
+        tw.Completed:Connect(function() body.Visible = false end)
+        tw:Play()
         btnMin.Text = "+"
     else
-        ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,520,0,304)}):Play()
-        task.delay(0.05, function() body.Visible = true end)
+        body.Visible = true
+        ts:Create(win, TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0,bw,0,bh)}):Play()
         btnMin.Text = "-"
     end
-    applyScale()
 end)
 
 btnExit.MouseButton1Click:Connect(function()
@@ -613,6 +592,7 @@ btnExit.MouseButton1Click:Connect(function()
     for _, v in pairs(game:GetDescendants()) do
         if v:IsA("Highlight") and v.Name == "PGX_Highlight" then v:Destroy() end
         if v:IsA("SelectionBox") and v.Name == "PGX_Select" then v:Destroy() end
+        if v:IsA("BoxHandleAdornment") and v.Name == "PGX_Box" then v:Destroy() end
     end
     discAll()
     if sg then sg:Destroy() end
@@ -623,9 +603,7 @@ btnCopy.MouseButton1Click:Connect(function()
     if pathTxt.Text ~= ". . ." and setclipboard then
         setclipboard(pathTxt.Text)
         setStatus("Path copied", true)
-        ts:Create(btnCopy, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,190,110)}):Play()
         task.wait(0.22)
-        ts:Create(btnCopy, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(70,130,255)}):Play()
     else
         setStatus("No part to copy", false)
     end
@@ -716,22 +694,14 @@ btnColl.MouseButton1Click:Connect(function()
     end
 end)
 
-local function bindRipples(b)
-    b.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            ripple(b, i.Position)
-        end
-    end)
-end
+local function bindRipples(b) end
 
 for _, b in ipairs({btnCopy, btnToggle, btnDel, btnRen, btnBring, btnColl, btnExit, btnMin, btnSave, btnCancel}) do
     bindRipples(b)
 end
 
-win.Position = UDim2.new(0.5,-260,0.5,-240)
-win.Size = UDim2.new(0,520,0,260)
 win.BackgroundTransparency = 1
-ts:Create(win, TweenInfo.new(0.38, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = UDim2.new(0.5,-260,0.5,-162), Size = UDim2.new(0,520,0,304), BackgroundTransparency = 0}):Play()
+ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
 ts:Create(winStroke, TweenInfo.new(0.35), {Transparency = 0.3}):Play()
 ts:Create(bodyStroke, TweenInfo.new(0.35), {Transparency = 0.6}):Play()
 ts:Create(titleGrad, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360}):Play()
