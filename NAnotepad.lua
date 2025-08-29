@@ -41,18 +41,20 @@ local win = Instance.new("Frame")
 win.Name = "Win"
 win.AnchorPoint = Vector2.new(0.5, 0.5)
 win.Position = UDim2.fromScale(0.5, 0.5)
-win.Size = UDim2.fromScale(0.64, 0.62)
+win.Size = UDim2.fromScale(0.6, 0.86)
 win.BackgroundColor3 = Color3.fromRGB(16,16,24)
 win.BorderSizePixel = 0
 win.Parent = gui
 
+local uiScale = Instance.new("UIScale")
+uiScale.Parent = win
+
 local sizeCons = Instance.new("UISizeConstraint")
-sizeCons.MinSize = Vector2.new(360, 300)
-sizeCons.MaxSize = Vector2.new(820, 620)
+sizeCons.MinSize = Vector2.new(380, 360)
+sizeCons.MaxSize = Vector2.new(980, 740)
 sizeCons.Parent = win
 
-local BASE_MIN      = Vector2.new(360, 300)
-local COLLAPSED_MIN = Vector2.new(320, 64)
+local BASE_MIN = Vector2.new(380, 360)
 
 local winCorner = Instance.new("UICorner")
 winCorner.CornerRadius = UDim.new(0, 14)
@@ -125,11 +127,9 @@ end
 
 local btnMin = mkBtn("-", Color3.fromRGB(90,140,255), topBtns, 34)
 btnMin.Size = UDim2.new(0, 56, 0, 34)
-btnMin.TextScaled = true
 
 local btnExit = mkBtn("×", Color3.fromRGB(230,70,80), topBtns, 34)
 btnExit.Size = UDim2.new(0, 56, 0, 34)
-btnExit.TextScaled = true
 
 local body = Instance.new("Frame")
 body.Name = "Body"
@@ -137,7 +137,6 @@ body.BackgroundColor3 = Color3.fromRGB(22,22,32)
 body.BorderSizePixel = 0
 body.Size = UDim2.new(1, -16, 1, -64)
 body.Position = UDim2.new(0, 8, 0, 56)
-body.ClipsDescendants = true
 body.Parent = win
 
 local bodyCorner = Instance.new("UICorner")
@@ -227,18 +226,18 @@ btnRow.Parent = body
 local btnGrid = Instance.new("UIGridLayout")
 btnGrid.FillDirection = Enum.FillDirection.Horizontal
 btnGrid.CellPadding = UDim2.new(0, 8, 0, 0)
-btnGrid.CellSize = UDim2.new(0.25, -6, 1, 0)
+btnGrid.CellSize = UDim2.new(0.333, -6, 1, 0)
+btnGrid.FillDirectionMaxCells = 3
 btnGrid.Parent = btnRow
 
 local btnNew = mkBtn("New", Color3.fromRGB(90,90,150), btnRow, 32)
 local btnOpen = mkBtn("Open", Color3.fromRGB(90,140,220), btnRow, 32)
 local btnSave = mkBtn("Save", Color3.fromRGB(70,180,110), btnRow, 32)
-local btnSaveAs = mkBtn("Save As", Color3.fromRGB(100,180,90), btnRow, 32)
 
 local txtFrame = Instance.new("Frame")
 txtFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
 txtFrame.BorderSizePixel = 0
-txtFrame.Size = UDim2.new(1, 0, 0, 120)
+txtFrame.Size = UDim2.new(1, 0, 1, -(36+10+36+10+36+10+26))
 txtFrame.LayoutOrder = 3
 txtFrame.Parent = body
 local tfCorner = Instance.new("UICorner")
@@ -256,25 +255,30 @@ scroll.BackgroundTransparency = 1
 scroll.BorderSizePixel = 0
 scroll.Position = UDim2.new(0, 6, 0, 6)
 scroll.Size = UDim2.new(1, -12, 1, -12)
-scroll.ScrollBarThickness = 5
+scroll.ScrollBarThickness = 6
 scroll.ScrollBarImageColor3 = Color3.fromRGB(120,120,220)
+scroll.ScrollingDirection = Enum.ScrollingDirection.XY
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.None
 scroll.Parent = txtFrame
 
 local box = Instance.new("TextBox")
 box.BackgroundTransparency = 1
 box.Position = UDim2.new(0, 2, 0, 0)
-box.Size = UDim2.new(1, -8, 0, 200)
+box.Size = UDim2.new(0, 200, 0, 200)
 box.ClearTextOnFocus = false
 box.Font = Enum.Font.Code
+box.TextSize = 24
+box.TextScaled = false
 box.MultiLine = true
 box.PlaceholderText = "Type here..."
 box.PlaceholderColor3 = Color3.fromRGB(160,160,190)
 box.Text = ""
 box.TextColor3 = Color3.fromRGB(230,230,245)
-box.TextSize = 16
 box.TextXAlignment = Enum.TextXAlignment.Left
 box.TextYAlignment = Enum.TextYAlignment.Top
 box.TextWrapped = false
+box.RichText = false
+box.MaxVisibleGraphemes = -1
 box.Parent = scroll
 
 local utilRow = Instance.new("Frame")
@@ -286,13 +290,12 @@ utilRow.Parent = body
 local utilGrid = Instance.new("UIGridLayout")
 utilGrid.FillDirection = Enum.FillDirection.Horizontal
 utilGrid.CellPadding = UDim2.new(0, 8, 0, 0)
-utilGrid.CellSize = UDim2.new(0.25, -6, 1, 0)
+utilGrid.CellSize = UDim2.new(0.333, -6, 1, 0)
 utilGrid.Parent = utilRow
 
 local btnCopy = mkBtn("Copy", Color3.fromRGB(70,140,240), utilRow, 32)
 local btnClear = mkBtn("Clear", Color3.fromRGB(230,90,90), utilRow, 32)
 local btnDelete = mkBtn("Delete", Color3.fromRGB(210,120,70), utilRow, 32)
-local btnExtMenu = mkBtn("Ext Menu", Color3.fromRGB(120,90,160), utilRow, 32)
 
 local statusRow = Instance.new("Frame")
 statusRow.BackgroundTransparency = 1
@@ -308,6 +311,8 @@ status.Font = Enum.Font.Gotham
 status.TextSize = 14
 status.TextColor3 = Color3.fromRGB(180,180,220)
 status.TextXAlignment = Enum.TextXAlignment.Left
+status.TextWrapped = false
+status.TextTruncate = Enum.TextTruncate.AtEnd
 status.Parent = statusRow
 
 local counts = Instance.new("TextLabel")
@@ -319,6 +324,8 @@ counts.Font = Enum.Font.Gotham
 counts.TextSize = 14
 counts.TextColor3 = Color3.fromRGB(170,170,190)
 counts.TextXAlignment = Enum.TextXAlignment.Right
+counts.TextWrapped = false
+counts.TextTruncate = Enum.TextTruncate.AtEnd
 counts.Parent = statusRow
 
 local extList = Instance.new("Frame")
@@ -372,11 +379,35 @@ local function mkExtButton(t)
         extList.Visible = false
     end)
 end
-for _, e in ipairs(exts) do mkExtButton(e) end
+for _, e2 in ipairs(exts) do mkExtButton(e2) end
 
 local minimized = false
-local dragging = false
-local dragInput, dragStart, startPos = nil, nil, nil
+local dock = Instance.new("TextButton")
+dock.Name = "NP_Dock"
+dock.Text = "📝"
+dock.Font = Enum.Font.GothamBold
+dock.TextScaled = true
+dock.BackgroundColor3 = Color3.fromRGB(32,34,52)
+dock.TextColor3 = Color3.fromRGB(220,230,255)
+dock.BorderSizePixel = 0
+dock.Size = UDim2.fromOffset(56,56)
+dock.Visible = false
+dock.AnchorPoint = Vector2.new(0.5,0.5)
+dock.Parent = gui
+local dockC = Instance.new("UICorner")
+dockC.CornerRadius = UDim.new(1,0)
+dockC.Parent = dock
+local dockS = Instance.new("UIStroke")
+dockS.Thickness = 1
+dockS.Color = Color3.fromRGB(90,120,255)
+dockS.Transparency = 0.3
+dockS.Parent = dock
+
+local function setStatus(msg, good)
+    status.Text = msg
+    ts:Create(status, TweenInfo.new(0.1), {TextColor3 = good == false and Color3.fromRGB(255,120,120) or Color3.fromRGB(160,200,255)}):Play()
+    task.delay(2.2, function() if status then status.Text = "" end end)
+end
 
 local function trim(s) return (s:gsub("^%s*(.-)%s*$", "%1")) end
 local function safeName(s)
@@ -397,40 +428,38 @@ end
 local function fullName()
     return safeName(nameBox.Text) .. "." .. normExt(extBox.Text)
 end
-local function setStatus(msg, good)
-    status.Text = msg
-    ts:Create(status, TweenInfo.new(0.1), {TextColor3 = good == false and Color3.fromRGB(255,120,120) or Color3.fromRGB(160,200,255)}):Play()
-    task.delay(2.2, function() if status then status.Text = "" end end)
+
+local function countLines(s)
+    if s == "" then return 0 end
+    return select(2, s:gsub("\n","")) + 1
 end
+
+local function lineHeight()
+    return txtsvc:GetTextSize("Ag", 24, box.Font, Vector2.new(1e5,1e5)).Y
+end
+
+local function maxLineWidth(text)
+    local max = 0
+    for line in (text.."\n"):gmatch("(.-)\n") do
+        local w = txtsvc:GetTextSize(line == "" and " " or line, 24, box.Font, Vector2.new(1e7,1e7)).X
+        if w > max then max = w end
+    end
+    return max + 16
+end
+
+local function refreshCanvas()
+    box.MaxVisibleGraphemes = -1
+    local w = math.max(scroll.AbsoluteSize.X, maxLineWidth(box.Text))
+    local h = math.max(scroll.AbsoluteSize.Y, countLines(box.Text) * (lineHeight()+2) + 24)
+    box.Size = UDim2.new(0, w - 8, 0, h - 8)
+    scroll.CanvasSize = UDim2.new(0, w, 0, h)
+end
+
 local function updateCounts()
     local s = box.Text
     local chars = #s
     local lines = (s == "" and 0) or (select(2, s:gsub("\n","")) + 1)
     counts.Text = ("Chars: %d | Lines: %d"):format(chars, lines)
-end
-local function resizeBox()
-    local bounds = txtsvc:GetTextSize(box.Text, box.TextSize, box.Font, Vector2.new(box.AbsoluteSize.X, math.huge))
-    local minH = scroll.AbsoluteSize.Y
-    local newH = math.max(minH, bounds.Y + 24)
-    box.Size = UDim2.new(1, -8, 0, newH)
-    scroll.CanvasSize = UDim2.new(0, 0, 0, newH)
-end
-
-local function relayout()
-    local innerH = body.AbsoluteSize.Y - (pad.PaddingTop.Offset + pad.PaddingBottom.Offset)
-    local n, othersH = 0, 0
-    for _, child in ipairs(body:GetChildren()) do
-        if child:IsA("Frame") and child.Visible then
-            n += 1
-            if child ~= txtFrame then
-                othersH += child.AbsoluteSize.Y
-            end
-        end
-    end
-    local gaps = math.max(0, n - 1) * vlist.Padding.Offset
-    local h = math.max(80, innerH - othersH - gaps)
-    txtFrame.Size = UDim2.new(1, 0, 0, h)
-    resizeBox()
 end
 
 local function applyScale()
@@ -439,38 +468,24 @@ local function applyScale()
     local inset = gsv:GetGuiInset()
     local ux = math.max(0, vp.X - inset.X*2)
     local uy = math.max(0, vp.Y - inset.Y*2)
-    local minSize = minimized and COLLAPSED_MIN or BASE_MIN
-    local targetW = math.clamp(ux * 0.64, minSize.X, sizeCons.MaxSize.X)
-    local targetH = minimized and (top.AbsoluteSize.Y + 16)
-                    or math.clamp(uy * 0.62, minSize.Y, sizeCons.MaxSize.Y)
+    local targetW = math.clamp(ux * 0.6, BASE_MIN.X, sizeCons.MaxSize.X)
+    local targetH = math.clamp(uy * 0.86, BASE_MIN.Y, sizeCons.MaxSize.Y)
     win.Size = UDim2.new(0, targetW, 0, targetH)
-    relayout()
+    local sc = math.min(ux / targetW, uy / targetH)
+    uiScale.Scale = math.clamp(sc, 0.65, 1)
 end
 
 local function hookViewport()
-    local function hookCam(c) if not c then return end c:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale) end
-    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() hookCam(workspace.CurrentCamera) applyScale() end)
+    local function hookCam(c) if not c then return end c:GetPropertyChangedSignal("ViewportSize"):Connect(function() applyScale() refreshCanvas() end) end
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() hookCam(workspace.CurrentCamera) applyScale() refreshCanvas() end)
     if workspace.CurrentCamera then hookCam(workspace.CurrentCamera) end
-    gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale)
-    body:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
-    vlist:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(relayout)
-    fileRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
-    btnRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
-    utilRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
-    statusRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(relayout)
+    gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() applyScale() refreshCanvas() end)
+    scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshCanvas)
 end
 
-local function positionExtList()
-    if not extList.Visible then return end
-    local p = extBox.AbsolutePosition
-    local s = extBox.AbsoluteSize
-    local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
-    local x = math.clamp(p.X, 8, vp.X - extList.AbsoluteSize.X - 8)
-    local y = math.clamp(p.Y + s.Y + 4, 8, vp.Y - extList.AbsoluteSize.Y - 8)
-    extList.Position = UDim2.fromOffset(x, y)
-end
-
-local function beginDrag(i)
+local dragging = false
+local dragInput, dragStart, startPos = nil, nil, nil
+top.InputBegan:Connect(function(i)
     if i.UserInputType ~= Enum.UserInputType.MouseButton1 and i.UserInputType ~= Enum.UserInputType.Touch then return end
     dragging = true
     dragStart = i.Position
@@ -482,54 +497,77 @@ local function beginDrag(i)
             ts:Create(winStroke, TweenInfo.new(0.08), {Thickness = 2}):Play()
         end
     end)
-end
-local function updateDrag(i)
-    if not dragging then return end
-    local d = i.Position - dragStart
-    win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-    positionExtList()
-end
+end)
+top.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch then dragInput = i end end)
+uis.InputChanged:Connect(function(i)
+    if dragging and i == dragInput then
+        local d2 = i.Position - dragStart
+        win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d2.X, startPos.Y.Scale, startPos.Y.Offset + d2.Y)
+    end
+end)
 
-top.InputBegan:Connect(beginDrag)
-top.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then dragInput = i end end)
-uis.InputChanged:Connect(function(i) if i == dragInput then updateDrag(i) end end)
-
-btnMin.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    body.Visible = not minimized
-    sizeCons.MinSize = minimized and COLLAPSED_MIN or BASE_MIN
-    btnMin.Text = minimized and "+" or "-"
+local lastWinPos, lastWinSize = win.Position, win.Size
+local function clampDock(x,y)
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
-    local inset = gsv:GetGuiInset()
-    local ux = math.max(0, vp.X - inset.X*2)
-    local uy = math.max(0, vp.Y - inset.Y*2)
-    local minSize = minimized and COLLAPSED_MIN or BASE_MIN
-    local targetW = math.clamp(ux * 0.64, minSize.X, sizeCons.MaxSize.X)
-    local targetH = minimized and (top.AbsoluteSize.Y + 16)
-                    or math.clamp(uy * 0.62, minSize.Y, sizeCons.MaxSize.Y)
-    ts:Create(win, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { Size = UDim2.new(0, targetW, 0, targetH) }
-    ):Play()
-    task.defer(applyScale)
-    task.defer(positionExtList)
-end)
+    local px = math.clamp(x, 36, vp.X-36)
+    local py = math.clamp(y, 36, vp.Y-36)
+    return px, py
+end
+
+local function minimizeToDock()
+    if minimized then return end
+    minimized = true
+    lastWinPos, lastWinSize = win.Position, win.Size
+    local ax = win.AbsolutePosition.X + win.AbsoluteSize.X*0.5
+    local ay = win.AbsolutePosition.Y + 28
+    ax, ay = clampDock(ax, ay)
+    dock.Position = UDim2.fromOffset(ax, ay)
+    dock.Size = UDim2.fromOffset(0,0)
+    dock.Visible = true
+    ts:Create(win, TweenInfo.new(0.18), {BackgroundTransparency = 1}):Play()
+    ts:Create(body, TweenInfo.new(0.18), {BackgroundTransparency = 1}):Play()
+    for _,g in ipairs(body:GetDescendants()) do if g:IsA("GuiObject") then g.Visible = false end end
+    ts:Create(dock, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(56,56)}):Play()
+    task.delay(0.18, function() win.Visible = false end)
+end
+
+local function restoreFromDock()
+    if not minimized then return end
+    minimized = false
+    win.Visible = true
+    ts:Create(dock, TweenInfo.new(0.16), {Size = UDim2.fromOffset(0,0)}):Play()
+    ts:Create(win, TweenInfo.new(0.18), {BackgroundTransparency = 0}):Play()
+    task.delay(0.02, function()
+        for _,g in ipairs(body:GetDescendants()) do if g:IsA("GuiObject") then g.Visible = true end end
+        ts:Create(body, TweenInfo.new(0.18), {BackgroundTransparency = 0}):Play()
+        win.Position = lastWinPos
+        win.Size = lastWinSize
+        dock.Visible = false
+        applyScale()
+        refreshCanvas()
+    end)
+end
+
+btnMin.MouseButton1Click:Connect(minimizeToDock)
+dock.MouseButton1Click:Connect(restoreFromDock)
 
 btnExit.MouseButton1Click:Connect(function()
     gui:Destroy()
     getgenv().npadLoaded = false
 end)
 
-btnExtMenu.MouseButton1Click:Connect(function()
-    extList.Visible = not extList.Visible
-    positionExtList()
-end)
 extBtn.MouseButton1Click:Connect(function()
     extList.Visible = not extList.Visible
-    positionExtList()
+    local p = extBox.AbsolutePosition
+    local s2 = extBox.AbsoluteSize
+    local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920,1080)
+    local x = math.clamp(p.X, 8, vp.X - extList.AbsoluteSize.X - 8)
+    local y = math.clamp(p.Y + s2.Y + 4, 8, vp.Y - extList.AbsoluteSize.Y - 8)
+    extList.Position = UDim2.fromOffset(x, y)
 end)
 
-uis.InputBegan:Connect(function(i, gpe)
+uis.InputBegan:Connect(function(i,gpe)
     if gpe then return end
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         if not extList.Visible then return end
@@ -548,24 +586,20 @@ local function doSave(target)
     local ok = pcall(writefile, fn, box.Text)
     if ok then setStatus("Saved "..fn, true) else setStatus("Save failed", false) end
 end
-
 local function doOpen(fn)
     if not (isfile and readfile) then setStatus("FS not available", false) return end
     if isfile(fn) then
         local ok, data = pcall(readfile, fn)
         if ok then
-            box.Text = data
+            box.Text = tostring(data or "")
             setStatus("Opened "..fn, true)
-            return true
         else
             setStatus("Open failed", false)
         end
     else
         setStatus("No such file", false)
     end
-    return false
 end
-
 local function doDelete(fn)
     if not (isfile and delfile) then setStatus("FS not available", false) return end
     if isfile(fn) then
@@ -576,178 +610,59 @@ local function doDelete(fn)
     end
 end
 
-local modal = Instance.new("Frame")
-modal.Visible = false
-modal.BackgroundColor3 = Color3.fromRGB(0,0,0)
-modal.BackgroundTransparency = 0.45
-modal.BorderSizePixel = 0
-modal.Size = UDim2.fromScale(1,1)
-modal.Position = UDim2.fromScale(0,0)
-modal.ZIndex = 80
-modal.Parent = gui
-
-local boxSaveAs = Instance.new("Frame")
-boxSaveAs.Size = UDim2.new(0, 360, 0, 140)
-boxSaveAs.Position = UDim2.new(0.5, -180, 0.5, -70)
-boxSaveAs.BackgroundColor3 = Color3.fromRGB(24,24,34)
-boxSaveAs.BorderSizePixel = 0
-boxSaveAs.ZIndex = 81
-boxSaveAs.Parent = modal
-local saCorner = Instance.new("UICorner")
-saCorner.CornerRadius = UDim.new(0, 12)
-saCorner.Parent = boxSaveAs
-local saStroke = Instance.new("UIStroke")
-saStroke.Thickness = 1
-saStroke.Color = Color3.fromRGB(100,120,200)
-saStroke.Transparency = 0.4
-saStroke.Parent = boxSaveAs
-
-local saTitle = Instance.new("TextLabel")
-saTitle.BackgroundTransparency = 1
-saTitle.Text = "Save As"
-saTitle.Font = Enum.Font.GothamBold
-saTitle.TextSize = 16
-saTitle.TextColor3 = Color3.fromRGB(220,220,255)
-saTitle.Size = UDim2.new(1, -20, 0, 26)
-saTitle.Position = UDim2.new(0, 10, 0, 10)
-saTitle.ZIndex = 81
-saTitle.Parent = boxSaveAs
-
-local saRow = Instance.new("Frame")
-saRow.BackgroundTransparency = 1
-saRow.Size = UDim2.new(1, -20, 0, 32)
-saRow.Position = UDim2.new(0, 10, 0, 46)
-saRow.ZIndex = 81
-saRow.Parent = boxSaveAs
-
-local saList = Instance.new("UIListLayout")
-saList.FillDirection = Enum.FillDirection.Horizontal
-saList.Padding = UDim.new(0, 8)
-saList.Parent = saRow
-
-local saName = Instance.new("TextBox")
-saName.Size = UDim2.new(0.7, 0, 1, 0)
-saName.Text = "file"
-saName.ClearTextOnFocus = false
-saName.Font = Enum.Font.Gotham
-saName.TextSize = 14
-saName.TextColor3 = Color3.fromRGB(235,235,255)
-saName.BackgroundColor3 = Color3.fromRGB(34,34,46)
-saName.BorderSizePixel = 0
-saName.ZIndex = 81
-saName.Parent = saRow
-local saNameC = Instance.new("UICorner")
-saNameC.CornerRadius = UDim.new(0,10)
-saNameC.Parent = saName
-
-local saExt = Instance.new("TextBox")
-saExt.Size = UDim2.new(0.3, 0, 1, 0)
-saExt.Text = "txt"
-saExt.ClearTextOnFocus = false
-saExt.Font = Enum.Font.Gotham
-saExt.TextSize = 14
-saExt.TextColor3 = Color3.fromRGB(235,235,255)
-saExt.BackgroundColor3 = Color3.fromRGB(34,34,46)
-saExt.BorderSizePixel = 0
-saExt.ZIndex = 81
-saExt.Parent = saRow
-local saExtC = Instance.new("UICorner")
-saExtC.CornerRadius = UDim.new(0,10)
-saExtC.Parent = saExt
-
-local saBtns = Instance.new("Frame")
-saBtns.BackgroundTransparency = 1
-saBtns.Size = UDim2.new(1, -20, 0, 32)
-saBtns.Position = UDim2.new(0, 10, 1, -42)
-saBtns.ZIndex = 81
-saBtns.Parent = boxSaveAs
-
-local saGrid = Instance.new("UIGridLayout")
-saGrid.FillDirection = Enum.FillDirection.Horizontal
-saGrid.CellPadding = UDim2.new(0, 8, 0, 0)
-saGrid.CellSize = UDim2.new(0.5, -6, 1, 0)
-saGrid.Parent = saBtns
-
-local saSave = mkBtn("Save", Color3.fromRGB(70,180,110), saBtns, 32)
-saSave.ZIndex = 81
-local saCancel = mkBtn("Cancel", Color3.fromRGB(120,90,160), saBtns, 32)
-saCancel.ZIndex = 81
-
-local function showSaveAs()
-    saName.Text = safeName(nameBox.Text)
-    saExt.Text = normExt(extBox.Text)
-    modal.Visible = true
-    boxSaveAs.Size = UDim2.new(0, 320, 0, 110)
-    ts:Create(boxSaveAs, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 360, 0, 140)}):Play()
-end
-local function hideSaveAs()
-    modal.Visible = false
-end
-
 btnCopy.MouseButton1Click:Connect(function()
     if setclipboard then setclipboard(box.Text) setStatus("Copied to clipboard", true) else setStatus("Clipboard not available", false) end
 end)
-
 btnClear.MouseButton1Click:Connect(function()
     box.Text = ""
+    refreshCanvas()
     updateCounts()
-    resizeBox()
     setStatus("Cleared", true)
 end)
-
 btnDelete.MouseButton1Click:Connect(function()
-    local fn = fullName()
-    doDelete(fn)
+    doDelete(fullName())
 end)
-
 btnNew.MouseButton1Click:Connect(function()
     nameBox.Text = "file"
     extBox.Text = "txt"
     box.Text = ""
+    refreshCanvas()
     updateCounts()
-    resizeBox()
     setStatus("New document", true)
 end)
-
 btnOpen.MouseButton1Click:Connect(function()
     doOpen(fullName())
-    resizeBox()
+    refreshCanvas()
     updateCounts()
 end)
-
 btnSave.MouseButton1Click:Connect(function()
     nameBox.Text = safeName(nameBox.Text)
     extBox.Text = normExt(extBox.Text)
     doSave()
 end)
 
-btnSaveAs.MouseButton1Click:Connect(function()
-    showSaveAs()
-end)
-
-saSave.MouseButton1Click:Connect(function()
-    local nm = safeName(saName.Text)
-    local ex = normExt(saExt.Text)
-    local fn = nm .. "." .. ex
-    if isfile and delfile and isfile(fn) then pcall(delfile, fn) end
-    doSave(fn)
-    nameBox.Text = nm
-    extBox.Text = ex
-    hideSaveAs()
-end)
-
-saCancel.MouseButton1Click:Connect(function()
-    hideSaveAs()
-end)
-
 box:GetPropertyChangedSignal("Text"):Connect(function()
+    box.MaxVisibleGraphemes = -1
+    refreshCanvas()
     updateCounts()
-    resizeBox()
 end)
-scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeBox)
+scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshCanvas)
+
+uis.InputBegan:Connect(function(i,gpe)
+    if gpe then return end
+    if i.KeyCode == Enum.KeyCode.Tab and box:IsFocused() then
+        local pos = box.CursorPosition
+        if pos and pos > 0 then
+            local tx = box.Text
+            local pre = tx:sub(1, pos - 1)
+            local suf = tx:sub(pos)
+            box.Text = pre .. "    " .. suf
+            box.CursorPosition = pos + 4
+        end
+    end
+end)
 
 applyScale()
 hookViewport()
+refreshCanvas()
 updateCounts()
-relayout()
-resizeBox()

@@ -22095,12 +22095,6 @@ NAmanage.Topbar_Init=function()
 			if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 		end))
 	end
-	if NAgui and NAgui.addToggle then
-		NAgui.addToggle("Dropdown Under Toggle",TopBarApp.mode=="bottom",function(v)
-			NAmanage.Topbar_SetMode(v and "bottom" or "side")
-			if TopBarApp.isOpen then NAmanage.Topbar_SetOpen(true) end
-		end)
-	end
 end
 
 NAmanage.Topbar_Destroy=function()
