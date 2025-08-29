@@ -76,6 +76,14 @@ local NAStuff = {
 
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
+
+	AntiKickMode = "fakeok";
+	AntiKickHooked = false;
+	AntiKickOrig = {namecall=nil,index=nil,newindex=nil,kicks={}};
+
+	AntiTeleportMode = "fakeok";
+	AntiTeleportHooked = false;
+	AntiTeleportOrig = {namecall=nil,index=nil,newindex=nil,funcs={}};
 }
 local interactTbl = {
 	click = {};
@@ -7242,221 +7250,241 @@ cmd.add({"unantisit"},{"unantisit","Allows the player to sit again"},function()
 	DebugNotif("Anti sit disabled", 3)
 end)
 
-cmd.add({"antikick", "nokick", "bypasskick", "bk"}, {"antikick (nokick, bypasskick, bk)", "Bypass Kick on Most Games"}, function()
+NAmanage.AntiKick_EnsureHook = function()
+	if NAStuff.AntiKickHooked then return end
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (
-		make_writeable and function(t, readOnly)
-			if readOnly then make_readonly(t) else make_writeable(t) end
-		end
-	)
-
-	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then
-		DoNotif("Required exploit functions not available", 3)
-		return
-	end
-
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
+	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
 	local meta = getRawMetatable(game)
-	if not meta then
-		DoNotif("Failed to get game metatable", 3)
-		return
-	end
-
-	local player = SafeGetService("Players").LocalPlayer
-	if not player then
-		DoNotif("LocalPlayer not found", 3)
-		return
-	end
-
-	_G.__antikick = {
-		oldNamecall = meta.__namecall,
-		oldIndex = meta.__index,
-		oldNewIndex = meta.__newindex
-	}
-
+	if not meta then return end
+	local player = Players.LocalPlayer
+	if not player then return end
+	NAStuff.AntiKickOrig.namecall = meta.__namecall
+	NAStuff.AntiKickOrig.index = meta.__index
+	NAStuff.AntiKickOrig.newindex = meta.__newindex
 	for _, Kick in next, { player.Kick, player.kick } do
-		local originalKick
-		originalKick = hookfunction(Kick, newcclosure(function(...)
-			local args = {...}
-			local msg = tostring(args[1] or "No message")
-			DebugNotif("Kick call blocked (hooked): "..msg, 3)
-		end))
-	end
-
-	setReadOnly(meta, false)
-
-	meta.__namecall = newcclosure(function(self, ...)
-		if self == player and getnamecallmethod():lower() == "kick" then
-			local args = {...}
-			local msg = tostring(args[1] or "No message")
-			DebugNotif("Kick attempt blocked (__namecall): "..msg, 3)
-			return
-		end
-		return _G.__antikick.oldNamecall(self, ...)
-	end)
-
-	meta.__index = newcclosure(function(self, key)
-		if self == player then
-			local lowered = tostring(key):lower()
-			if lowered:find("kick") or lowered:find("destroy") or lowered:find("break") then
-				DebugNotif("Blocked access to suspicious key: "..key, 3)
-				return function() DebugNotif("Blocked execution of: "..key, 3) end
-			end
-		end
-		return _G.__antikick.oldIndex(self, key)
-	end)
-
-	meta.__newindex = newcclosure(function(self, key, value)
-		if self == player then
-			local lowered = tostring(key):lower()
-			if lowered:find("kick") or lowered:find("destroy") then
-				DebugNotif("Blocked overwrite of "..key, 2)
-				return
-			end
-		end
-		return _G.__antikick.oldNewIndex(self, key, value)
-	end)
-
-	setReadOnly(meta, true)
-
-	DebugNotif("Anti-Kick Enabled (All kicks blocked)", 2)
-end)
-
-cmd.add({"antiteleport", "noteleport", "blocktp"}, {"antiteleport (noteleport, blocktp)", "Prevents TeleportService from moving you to another place"}, function()
-	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (
-		make_writeable and function(t, readOnly)
-			if readOnly then make_readonly(t) else make_writeable(t) end
-		end
-	)
-
-	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction or not hookmetamethod then
-		DebugNotif("Required exploit functions not available", 3)
-		return
-	end
-
-	local TeleportService = SafeGetService("TeleportService")
-	if not TeleportService then
-		DebugNotif("TeleportService not found", 3)
-		return
-	end
-
-	_G.__antiteleport = {
-		oldNamecall = getRawMetatable(game).__namecall,
-		oldIndex = getRawMetatable(game).__index,
-		oldNewIndex = getRawMetatable(game).__newindex
-	}
-
-	for _, tpFunc in next, {
-		TeleportService.Teleport,
-		TeleportService.TeleportToPlaceInstance,
-		TeleportService.TeleportAsync,
-		TeleportService.TeleportPartyAsync,
-		getrenv().TeleportToPrivateServer
-		} do
-		if typeof(tpFunc) == "function" then
-			hookfunction(tpFunc, newcclosure(function(...)
-				DebugNotif("Teleport blocked (hooked)", 3)
-				return
+		if Kick and type(Kick)=="function" then
+			local originalKick
+			originalKick = hookfunction(Kick, newcclosure(function(self, ...)
+				if self==player then
+					local msg = tostring((select(1, ...)) or "No message")
+					Defer(DebugNotif, "Kick blocked (hook)", 2)
+					if NAStuff.AntiKickMode=="error" then
+						error("Kick blocked: "..msg, 0)
+					else
+						return
+					end
+				end
+				return originalKick(self, ...)
 			end))
+			NAStuff.AntiKickOrig.kicks[Kick] = originalKick
 		end
 	end
-
-	local meta = getRawMetatable(game)
-
 	setReadOnly(meta, false)
-
 	meta.__namecall = newcclosure(function(self, ...)
 		local method = getnamecallmethod()
-		if typeof(method) == "string" and method:lower():find("teleport") then
-			DebugNotif("Teleport blocked (__namecall): "..method, 3)
-			return
-		end
-		return _G.__antiteleport.oldNamecall(self, ...)
-	end)
-
-	meta.__index = newcclosure(function(self, key)
-		if self == TeleportService then
-			local lowered = tostring(key):lower()
-			if lowered:find("teleport") then
-				DebugNotif("Blocked access to teleport method: "..key, 3)
-				return function() DebugNotif("Blocked execution of: "..key, 3) end
-			end
-		end
-		return _G.__antiteleport.oldIndex(self, key)
-	end)
-
-	meta.__newindex = newcclosure(function(self, key, value)
-		if self == TeleportService then
-			local lowered = tostring(key):lower()
-			if lowered:find("teleport") then
-				DebugNotif("Blocked overwrite of teleport method: "..key, 2)
+		if self==player and method and method:lower()=="kick" then
+			local msg = tostring((select(1, ...)) or "No message")
+			Defer(DebugNotif, "Kick blocked (__namecall)", 2)
+			if NAStuff.AntiKickMode=="error" then
+				error("Kick blocked: "..msg, 0)
+			else
 				return
 			end
 		end
-		return _G.__antiteleport.oldNewIndex(self, key, value)
+		return NAStuff.AntiKickOrig.namecall(self, ...)
 	end)
-
-	setReadOnly(meta, true)
-
-	DebugNotif("Anti-Teleport Enabled", 2)
-end)
-
-cmd.add({"unantikick", "unnokick", "unbypasskick", "unbk"}, {"unantikick", "Disables Anti-Kick protection"}, function()
-	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (
-		make_writeable and function(t, readOnly)
-			if readOnly then
-				make_readonly(t)
-			else
-				make_writeable(t)
+	meta.__index = newcclosure(function(self, key)
+		if self==player then
+			local k=tostring(key):lower()
+			if k:find("kick") or k:find("destroy") then
+				Defer(DebugNotif, "Blocked access: "..tostring(key), 2)
+				if NAStuff.AntiKickMode=="error" then
+					return function() error("Blocked method: "..tostring(key),0) end
+				else
+					return function() end
+				end
 			end
 		end
-	)
-
-	local meta = getRawMetatable(game)
-	if not meta or not _G.__antikick then
-		DoNotif("Anti-Kick not active or missing references", 3)
-		return
-	end
-
-	setReadOnly(meta, false)
-	meta.__namecall = _G.__antikick.oldNamecall
-	meta.__index = _G.__antikick.oldIndex
-	meta.__newindex = _G.__antikick.oldNewIndex
-	setReadOnly(meta, true)
-
-	_G.__antikick = nil
-
-	DebugNotif("Anti-Kick Disabled", 2)
-end)
-
-cmd.add({"unantiteleport", "unnoteleport", "unblocktp"}, {"unantiteleport", "Disables Anti-Teleport protection"}, function()
-	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (
-		make_writeable and function(t, readOnly)
-			if readOnly then
-				make_readonly(t)
-			else
-				make_writeable(t)
+		return NAStuff.AntiKickOrig.index(self, key)
+	end)
+	meta.__newindex = newcclosure(function(self, key, value)
+		if self==player then
+			local k=tostring(key):lower()
+			if k:find("kick") or k:find("destroy") then
+				Defer(DebugNotif, "Blocked overwrite: "..tostring(key), 2)
+				return
 			end
 		end
-	)
+		return NAStuff.AntiKickOrig.newindex(self, key, value)
+	end)
+	setReadOnly(meta, true)
+	NAStuff.AntiKickHooked = true
+	Defer(DebugNotif, "Anti-Kick active", 2)
+end
 
+NAmanage.AntiTeleport_EnsureHook = function()
+	if NAStuff.AntiTeleportHooked then return end
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
+	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
 	local meta = getRawMetatable(game)
-	if not meta or not _G.__antiteleport then
-		DoNotif("Anti-Teleport not active or missing references", 3)
+	if not meta then return end
+	local TeleportService = SafeGetService("TeleportService")
+	if not TeleportService then return end
+	NAStuff.AntiTeleportOrig.namecall = meta.__namecall
+	NAStuff.AntiTeleportOrig.index = meta.__index
+	NAStuff.AntiTeleportOrig.newindex = meta.__newindex
+	local methods = {"Teleport","TeleportToPlaceInstance","TeleportAsync","TeleportPartyAsync","TeleportToPrivateServer"}
+	for _,m in ipairs(methods) do
+		local fn = TeleportService[m]
+		if typeof(fn)=="function" then
+			local orig
+			orig = hookfunction(fn, newcclosure(function(self, ...)
+				if self==TeleportService then
+					Defer(DebugNotif, "Teleport blocked (hook)", 2)
+					if NAStuff.AntiTeleportMode=="error" then
+						error("Teleport blocked",0)
+					else
+						return nil
+					end
+				end
+				return orig(self,...)
+			end))
+			NAStuff.AntiTeleportOrig.funcs[m] = orig
+		end
+	end
+	setReadOnly(meta,false)
+	meta.__namecall = newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if self==TeleportService and typeof(method)=="string" and Lower(method):find("teleport") then
+			Defer(DebugNotif, "Teleport blocked (__namecall)", 2)
+			if NAStuff.AntiTeleportMode=="error" then
+				error("Teleport blocked",0)
+			else
+				return nil
+			end
+		end
+		return NAStuff.AntiTeleportOrig.namecall(self,...)
+	end)
+	meta.__index = newcclosure(function(self, key)
+		if self==TeleportService then
+			local k = Lower(tostring(key))
+			if k:find("teleport") then
+				Defer(DebugNotif, "Blocked access: "..tostring(key), 2)
+				if NAStuff.AntiTeleportMode=="error" then
+					return function() error("Blocked method: "..tostring(key),0) end
+				else
+					return function() end
+				end
+			end
+		end
+		return NAStuff.AntiTeleportOrig.index(self,key)
+	end)
+	meta.__newindex = newcclosure(function(self, key, value)
+		if self==TeleportService then
+			local k = Lower(tostring(key))
+			if k:find("teleport") then
+				Defer(DebugNotif, "Blocked overwrite: "..tostring(key), 2)
+				return
+			end
+		end
+		return NAStuff.AntiTeleportOrig.newindex(self,key,value)
+	end)
+	setReadOnly(meta,true)
+	NAStuff.AntiTeleportHooked = true
+	Defer(DebugNotif, "Anti-Teleport active", 2)
+end
+
+cmd.add({"antikick","nokick","bypasskick","bk"},{"antikick (nokick, bypasskick, bk)","Bypass Kick on Most Games"},function(mode)
+	local m = mode and Lower(tostring(mode)) or nil
+	local function apply()
+		NAmanage.AntiKick_EnsureHook()
+		DebugNotif("Anti-Kick: "..(NAStuff.AntiKickMode=="error" and "Error" or "Fake Success"),2)
+	end
+	if m=="error" or m=="fail" then
+		NAStuff.AntiKickMode = "error"
+		apply()
+	elseif m=="success" or m=="ok" or m=="fake" then
+		NAStuff.AntiKickMode = "fakeok"
+		apply()
+	else
+		Window({
+			Title = "Anti-Kick Mode",
+			Buttons = {
+				{ Text = "Fake Success", Callback = function() NAStuff.AntiKickMode="fakeok"; apply() end },
+				{ Text = "Error",        Callback = function() NAStuff.AntiKickMode="error";  apply() end }
+			}
+		})
+	end
+end,true)
+
+cmd.add({"antiteleport","noteleport","blocktp"},{"antiteleport (noteleport, blocktp)","Prevents TeleportService from moving you to another place"},function(mode)
+	local m = mode and Lower(tostring(mode)) or nil
+	local function apply()
+		NAmanage.AntiTeleport_EnsureHook()
+		DebugNotif("Anti-Teleport: "..(NAStuff.AntiTeleportMode=="error" and "Error" or "Fake Success"),2)
+	end
+	if m=="error" or m=="fail" then
+		NAStuff.AntiTeleportMode = "error"
+		apply()
+	elseif m=="success" or m=="ok" or m=="fake" then
+		NAStuff.AntiTeleportMode = "fakeok"
+		apply()
+	else
+		Window({
+			Title = "Anti-Teleport Mode",
+			Buttons = {
+				{ Text = "Fake Success", Callback = function() NAStuff.AntiTeleportMode="fakeok"; apply() end },
+				{ Text = "Error",        Callback = function() NAStuff.AntiTeleportMode="error";  apply() end }
+			}
+		})
+	end
+end,true)
+
+cmd.add({"unantikick","unnokick","unbypasskick","unbk"},{"unantikick","Disables Anti-Kick protection"},function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
+	local meta = getRawMetatable(game)
+	if not meta or not NAStuff.AntiKickOrig or not NAStuff.AntiKickOrig.namecall then
+		DoNotif("Anti-Kick not active or missing references",3)
 		return
 	end
+	local player = Players.LocalPlayer
+	for k,orig in pairs(NAStuff.AntiKickOrig.kicks or {}) do
+		pcall(function() hookfunction(k, orig) end)
+	end
+	setReadOnly(meta,false)
+	meta.__namecall = NAStuff.AntiKickOrig.namecall
+	meta.__index = NAStuff.AntiKickOrig.index
+	meta.__newindex = NAStuff.AntiKickOrig.newindex
+	setReadOnly(meta,true)
+	NAStuff.AntiKickHooked = false
+	DebugNotif("Anti-Kick Disabled",2)
+end)
 
-	setReadOnly(meta, false)
-	meta.__namecall = _G.__antiteleport.oldNamecall
-	meta.__index = _G.__antiteleport.oldIndex
-	meta.__newindex = _G.__antiteleport.oldNewIndex
-	setReadOnly(meta, true)
-
-	_G.__antiteleport = nil
-
-	DebugNotif("Anti-Teleport Disabled", 2)
+cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disables Anti-Teleport protection"},function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
+	local meta = getRawMetatable(game)
+	if not meta or not NAStuff.AntiTeleportOrig or not NAStuff.AntiTeleportOrig.namecall then
+		DoNotif("Anti-Teleport not active or missing references",3)
+		return
+	end
+	local TeleportService = SafeGetService("TeleportService")
+	for name,orig in pairs(NAStuff.AntiTeleportOrig.funcs or {}) do
+		local fn = TeleportService[name]
+		if typeof(fn)=="function" and orig then
+			pcall(function() hookfunction(fn, orig) end)
+		end
+	end
+	setReadOnly(meta,false)
+	meta.__namecall = NAStuff.AntiTeleportOrig.namecall
+	meta.__index = NAStuff.AntiTeleportOrig.index
+	meta.__newindex = NAStuff.AntiTeleportOrig.newindex
+	setReadOnly(meta,true)
+	NAStuff.AntiTeleportHooked = false
+	DebugNotif("Anti-Teleport Disabled",2)
 end)
 
 local ATPC = {
