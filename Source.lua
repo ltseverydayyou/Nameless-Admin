@@ -53,6 +53,9 @@ local NAStuff = {
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
 	nameESPPartLists = { exact = {}, partial = {} };
+
+	RemoteBlockMode = "fakeok";
+	RemoteFakeReturn = true;
 }
 local interactTbl = {
 	click = {};
@@ -19858,25 +19861,32 @@ NAmanage.EnsureHook = function()
 	mt.__namecall = newcclosure(function(self, ...)
 		local method = getnamecallmethod()
 		if (method == "FireServer" or method == "InvokeServer") and Discover(NAStuff.BlockedRemotes, self) then
-			DebugNotif(("Blocked call -> %s (%s)"):format(self:GetFullName(), method), 2, "Remote Block")
-			return nil
+			local mode = NAStuff.RemoteBlockMode
+			if NAStuff.nuhuhNotifs then
+				Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, mode=="error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
+			end
+			if mode == "error" then
+				error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0)
+			end
+			if method == "InvokeServer" then
+				return NAStuff.RemoteFakeReturn
+			end
+			return
 		end
 		return oldNamecall(self, ...)
 	end)
 	setreadonly(mt, true)
 	getgenv().NA_BlockHooked = true
-	DebugNotif("Installed __namecall hook", 3, "Remote Block")
 end
 
 cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
-	if not name or name == "" then
-		local all = {}
-		local seen = {}
+	local function scanAll()
+		local list, seen = {}, {}
 		local function scan(parent)
 			for _, obj in ipairs(parent:GetDescendants()) do
 				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
 					seen[obj] = true
-					Insert(all, obj)
+					Insert(list, obj)
 				end
 			end
 		end
@@ -19884,61 +19894,86 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 		local plr = Players.LocalPlayer
 		local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
 		if pg then scan(pg) else scan(plr) end
+		return list
+	end
 
-		if #all == 0 then
+	local function exactByName(q)
+		local out, lq = {}, Lower(q)
+		for _, r in ipairs(scanAll()) do
+			if Lower(r.Name) == lq then Insert(out, r) end
+		end
+		return out
+	end
+
+	local function fuzzyByName(q)
+		local out, lq = {}, Lower(q)
+		for _, r in ipairs(scanAll()) do
+			if Find(Lower(r.Name), lq, 1, true) then Insert(out, r) end
+		end
+		return out
+	end
+
+	local function openPicker(list, titleText)
+		if #list == 0 then
 			DebugNotif("No remotes found.", 3, "Remote Block")
 			return
 		end
-
 		local buttons = {}
-		for _, r in ipairs(all) do
-			local src = NAmanage.RemoteSource(r)
+		for _, r in ipairs(list) do
 			Insert(buttons, {
-				Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
 				Callback = function()
 					NAmanage.EnsureHook()
 					NAmanage.BlockRemote(r)
 				end
 			})
 		end
-
-		Window({
-			Title = "Select remote(s) to BLOCK",
-			Buttons = buttons
-		})
-		return
+		Window({ Title = titleText, Buttons = buttons })
 	end
 
-	NAmanage.EnsureHook()
-
-	local exact = NAmanage.FindRemotesByName(name)
-	if #exact > 0 then
-		for _, r in ipairs(exact) do
-			NAmanage.BlockRemote(r)
+	local function afterMode()
+		local q = tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
+		if q ~= "" then
+			local exact = exactByName(q)
+			if #exact >= 1 then
+				NAmanage.EnsureHook()
+				for _, r in ipairs(exact) do
+					NAmanage.BlockRemote(r)
+				end
+				return
+			end
+			local fuzzy = fuzzyByName(q)
+			if #fuzzy == 1 then
+				NAmanage.EnsureHook()
+				NAmanage.BlockRemote(fuzzy[1])
+				return
+			end
+			openPicker(fuzzy, ("Select remote(s) to BLOCK for '%s'"):format(q))
+			return
 		end
-		return
-	end
-
-	local suggestions = NAmanage.FindRemoteSuggestions(name)
-	if #suggestions == 0 then
-		DebugNotif(("No remotes found for '%s'"):format(name), 3, "Remote Block")
-		return
-	end
-
-	local buttons = {}
-	for _, r in ipairs(suggestions) do
-		local src = NAmanage.RemoteSource(r)
-		Insert(buttons, {
-			Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
-			Callback = function() NAmanage.BlockRemote(r) end
-		})
+		openPicker(scanAll(), "Select remote(s) to BLOCK")
 	end
 
 	Window({
-		Title = ("Select remote to BLOCK for '%s'"):format(name),
-		Buttons = buttons
+		Title = "Remote Block Mode",
+		Buttons = {
+			{
+				Text = "Fake Success",
+				Callback = function()
+					NAStuff.RemoteBlockMode = "fakeok"
+					afterMode()
+				end
+			},
+			{
+				Text = "Error",
+				Callback = function()
+					NAStuff.RemoteBlockMode = "error"
+					afterMode()
+				end
+			}
+		}
 	})
-end, false)
+end, true)
 
 cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by name, or pick from blocked list"},function(name)
 	if not name or name == "" then
@@ -19947,12 +19982,10 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 			DebugNotif("No remotes are currently blocked.", 3, "Remote Block")
 			return
 		end
-
 		local buttons = {}
 		for _, r in ipairs(blocked) do
-			local src = NAmanage.RemoteSource(r)
 			Insert(buttons, {
-				Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
 				Callback = function() NAmanage.UnblockRemote(r) end
 			})
 		end
@@ -19964,11 +19997,7 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 				end
 			end
 		})
-
-		Window({
-			Title = "Blocked Remotes",
-			Buttons = buttons
-		})
+		Window({ Title = "Blocked Remotes", Buttons = buttons })
 		return
 	end
 
@@ -20006,18 +20035,13 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 
 	local buttons = {}
 	for _, r in ipairs(suggestions) do
-	 local src = NAmanage.RemoteSource(r)
-	 Insert(buttons, {
-			Text = Format("(%s | %s | %s)", r.Name, r.ClassName, src),
+		Insert(buttons, {
+			Text = ("%s | %s"):format(r.Name, r:GetFullName()),
 			Callback = function() NAmanage.UnblockRemote(r) end
 		})
 	end
-
-	Window({
-		Title = ("Select remote to UNBLOCK for '%s'"):format(name),
-		Buttons = buttons
-	})
-end, false)
+	Window({ Title = ("Select remote to UNBLOCK for '%s'"):format(name), Buttons = buttons })
+end, true)
 
 NAmanage.EnsureWalkSpeedBypassHook = function()
 	if getgenv().NA_WSBP_Hooked then return end
