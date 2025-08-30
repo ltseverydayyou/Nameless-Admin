@@ -78,6 +78,8 @@ local NAStuff = {
 	RemoteFakeReturn = true;
 	BlockedEventSaved = {};
 	BlockedInvokeSaved = {};
+	BlockedRemoteModes = {};
+	BlockedRemoteReturns = {};
 
 	AntiKickMode = "fakeok";
 	AntiKickHooked = false;
@@ -19837,29 +19839,37 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 	end
 end, true)
 
-NAmanage.BlockRemote = function(remote)
+NAmanage.BlockRemoteWithMode = function(remote, mode)
 	if not Discover(NAStuff.BlockedRemotes, remote) then
 		Insert(NAStuff.BlockedRemotes, remote)
-		if remote:IsA("RemoteEvent") and typeof(getconnections)=="function" then
-			local saved={funcs={}}
-			for _,c in ipairs(getconnections(remote.OnClientEvent)) do
-				local ok,f=pcall(function() return c.Function end)
-				if ok and type(f)=="function" then Insert(saved.funcs,f) end
-				pcall(function() c:Disconnect() end)
-			end
-			NAStuff.BlockedEventSaved[remote]=saved
-		elseif remote:IsA("RemoteFunction") then
-			if NAStuff.BlockedInvokeSaved[remote]==nil then NAStuff.BlockedInvokeSaved[remote]=false end
-			remote.OnClientInvoke=function(...)
-				if NAStuff.RemoteBlockMode=="error" then
-					error("Blocked remote: "..remote:GetFullName().." [OnClientInvoke]",0)
-				else
-					return NAStuff.RemoteFakeReturn
-				end
+	end
+	NAStuff.BlockedRemoteModes[remote] = mode or "fakeok"
+	if remote:IsA("RemoteEvent") and typeof(getconnections)=="function" then
+		local saved={funcs={}}
+		for _,c in ipairs(getconnections(remote.OnClientEvent)) do
+			local ok,f=pcall(function() return c.Function end)
+			if ok and type(f)=="function" then Insert(saved.funcs,f) end
+			pcall(function() c:Disconnect() end)
+		end
+		NAStuff.BlockedEventSaved[remote]=saved
+	elseif remote:IsA("RemoteFunction") then
+		if NAStuff.BlockedInvokeSaved[remote]==nil then NAStuff.BlockedInvokeSaved[remote]=false end
+		remote.OnClientInvoke=function(...)
+			local m=NAStuff.BlockedRemoteModes[remote] or "fakeok"
+			if m=="error" then
+				error("Blocked remote: "..remote:GetFullName().." [OnClientInvoke]",0)
+			else
+				local ret=NAStuff.BlockedRemoteReturns[remote]
+				if ret==nil then ret=NAStuff.RemoteFakeReturn end
+				return ret
 			end
 		end
-		DebugNotif(("Blocked: %s"):format(remote:GetFullName()),3,"Remote Block")
 	end
+	DebugNotif(("Blocked: %s (%s)"):format(remote:GetFullName(), NAStuff.BlockedRemoteModes[remote]),3,"Remote Block")
+end
+
+NAmanage.BlockRemote = function(remote)
+	NAmanage.BlockRemoteWithMode(remote, "fakeok")
 end
 
 NAmanage.UnblockRemote = function(remote)
@@ -19867,6 +19877,8 @@ NAmanage.UnblockRemote = function(remote)
 	if idx then
 		local name=NAStuff.BlockedRemotes[idx]:GetFullName()
 		table.remove(NAStuff.BlockedRemotes,idx)
+		NAStuff.BlockedRemoteModes[remote]=nil
+		NAStuff.BlockedRemoteReturns[remote]=nil
 		if remote:IsA("RemoteEvent") then
 			local saved=NAStuff.BlockedEventSaved[remote]
 			if saved and saved.funcs then
@@ -19947,22 +19959,27 @@ NAmanage.EnsureHook = function()
 	mt.__namecall=newcclosure(function(self,...)
 		local method=getnamecallmethod()
 		if (method=="FireServer" or method=="InvokeServer") and Discover(NAStuff.BlockedRemotes,self) then
-			local mode=NAStuff.RemoteBlockMode
-			if NAStuff.nuhuhNotifs then Defer(DebugNotif,("Blocked -> %s (%s) [%s]"):format(self:GetFullName(),method,mode=="error" and "ERROR" or "FAKEOK"),2,"Remote Block") end
-			if mode=="error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]",0) end
-			if method=="InvokeServer" then return NAStuff.RemoteFakeReturn end
+			local m=NAStuff.BlockedRemoteModes[self] or "fakeok"
+			if NAStuff.nuhuhNotifs then Defer(DebugNotif,("Blocked -> %s (%s) [%s]"):format(self:GetFullName(),method,m=="error" and "ERROR" or "FAKEOK"),2,"Remote Block") end
+			if m=="error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]",0) end
+			if method=="InvokeServer" then
+				local ret=NAStuff.BlockedRemoteReturns[self]
+				if ret==nil then ret=NAStuff.RemoteFakeReturn end
+				return ret
+			end
 			return
 		end
 		if method=="Connect" or method=="Wait" then
 			for _,r in ipairs(NAStuff.BlockedRemotes) do
 				if r:IsA("RemoteEvent") and self==r.OnClientEvent then
+					local m=NAStuff.BlockedRemoteModes[r] or "fakeok"
 					if NAStuff.nuhuhNotifs then Defer(DebugNotif,("Blocked -> %s (%s) [ClientEvent]"):format(r:GetFullName(),method),2,"Remote Block") end
 					if method=="Connect" then
 						local conn=oldNamecall(self,function() end)
 						pcall(function() conn:Disconnect() end)
 						return conn
 					else
-						if NAStuff.RemoteBlockMode=="error" then error("Blocked OnClientEvent:Wait() for "..r:GetFullName(),0) end
+						if m=="error" then error("Blocked OnClientEvent:Wait() for "..r:GetFullName(),0) end
 						return nil
 					end
 				end
@@ -19984,99 +20001,79 @@ end
 
 cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
 	local function scanAll()
-		local list, seen = {}, {}
-		local function scan(parent)
-			for _, obj in ipairs(parent:GetDescendants()) do
-				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
-					seen[obj] = true
-					Insert(list, obj)
+		local list,seen={},{}
+		local function scan(p)
+			for _,o in ipairs(p:GetDescendants()) do
+				if (o:IsA("RemoteEvent") or o:IsA("RemoteFunction")) and not seen[o] then
+					seen[o]=true
+					Insert(list,o)
 				end
 			end
 		end
 		scan(ReplicatedStorage)
-		local plr = Players.LocalPlayer
-		local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+		local plr=Players.LocalPlayer
+		local pg=PlrGui or plr:FindFirstChildOfClass("PlayerGui")
 		if pg then scan(pg) else scan(plr) end
 		return list
 	end
-
 	local function exactByName(q)
-		local out, lq = {}, Lower(q)
-		for _, r in ipairs(scanAll()) do
-			if Lower(r.Name) == lq then Insert(out, r) end
+		local out,lq={},Lower(q)
+		for _,r in ipairs(scanAll()) do
+			if Lower(r.Name)==lq then Insert(out,r) end
 		end
 		return out
 	end
-
 	local function fuzzyByName(q)
-		local out, lq = {}, Lower(q)
-		for _, r in ipairs(scanAll()) do
-			if Find(Lower(r.Name), lq, 1, true) then Insert(out, r) end
+		local out,lq={},Lower(q)
+		for _,r in ipairs(scanAll()) do
+			if Find(Lower(r.Name),lq,1,true) then Insert(out,r) end
 		end
 		return out
 	end
-
-	local function openPicker(list, titleText)
-		if #list == 0 then
-			DebugNotif("No remotes found.", 3, "Remote Block")
-			return
-		end
-		local buttons = {}
-		for _, r in ipairs(list) do
-			Insert(buttons, {
-				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
-				Callback = function()
+	local function openPicker(list,titleText,modeSel)
+		if #list==0 then DebugNotif("No remotes found.",3,"Remote Block") return end
+		local buttons={}
+		for _,r in ipairs(list) do
+			Insert(buttons,{
+				Text=("%s | %s"):format(r.Name,r:GetFullName()),
+				Callback=function()
 					NAmanage.EnsureHook()
-					NAmanage.BlockRemote(r)
+					NAmanage.BlockRemoteWithMode(r,modeSel)
 				end
 			})
 		end
-		Window({ Title = titleText, Buttons = buttons })
+		Window({Title=titleText,Buttons=buttons})
 	end
-
-	local function afterMode()
-		local q = tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
-		if q ~= "" then
-			local exact = exactByName(q)
-			if #exact >= 1 then
+	local function afterMode(modeSel)
+		local q=tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
+		if q~="" then
+			local exact=exactByName(q)
+			if #exact>=1 then
 				NAmanage.EnsureHook()
-				for _, r in ipairs(exact) do
-					NAmanage.BlockRemote(r)
+				for _,r in ipairs(exact) do
+					NAmanage.BlockRemoteWithMode(r,modeSel)
 				end
 				return
 			end
-			local fuzzy = fuzzyByName(q)
-			if #fuzzy == 1 then
+			local fuzzy=fuzzyByName(q)
+			if #fuzzy==1 then
 				NAmanage.EnsureHook()
-				NAmanage.BlockRemote(fuzzy[1])
+				NAmanage.BlockRemoteWithMode(fuzzy[1],modeSel)
 				return
 			end
-			openPicker(fuzzy, ("Select remote(s) to BLOCK for '%s'"):format(q))
+			openPicker(fuzzy,("Select remote(s) to BLOCK for '%s'"):format(q),modeSel)
 			return
 		end
-		openPicker(scanAll(), "Select remote(s) to BLOCK")
+		openPicker(scanAll(),"Select remote(s) to BLOCK",modeSel)
 	end
-
 	Window({
-		Title = "Remote Block Mode",
-		Buttons = {
-			{
-				Text = "Fake Success",
-				Callback = function()
-					NAStuff.RemoteBlockMode = "fakeok"
-					afterMode()
-				end
-			},
-			{
-				Text = "Error",
-				Callback = function()
-					NAStuff.RemoteBlockMode = "error"
-					afterMode()
-				end
-			}
+		Title="Remote Block Mode",
+		Buttons={
+			{Text="Fake Success",Callback=function() afterMode("fakeok") end},
+			{Text="Error",Callback=function() afterMode("error") end}
 		}
 	})
-end, true)
+end,true)
 
 cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by name, or pick from blocked list"},function(name)
 	if not name or name == "" then
