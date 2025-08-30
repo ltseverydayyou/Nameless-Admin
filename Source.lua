@@ -4953,7 +4953,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		if #logs > MAX_LOGS then table.remove(logs,1) end
 	end
 
-	local function NewI(c) return (InstanceNew and InstanceNew(c)) or Instance.new(c) end
+	local function NewI(c) return InstanceNew(c) end
 	local function new(class, props) local inst = NewI(class) for k,v in pairs(props) do inst[k] = v end return inst end
 
 	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1000})
@@ -13280,13 +13280,10 @@ function cleanup()
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
-
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
 	if connRemove then connRemove:Disconnect() connRemove = nil end
-
 	if specUI then specUI:Destroy() specUI = nil end
-
 	local hum = getHum()
 	local cam = workspace.CurrentCamera
 	if hum then cam.CameraSubject = hum end
@@ -13294,23 +13291,19 @@ end
 
 function spectatePlayer(targetPlayer)
 	if not targetPlayer then return end
-
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
-
 	NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
 		while not getPlrHum(character) do Wait(.1) end
 		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
 	end))
-
 	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
 			cleanup()
 			DebugNotif("Player left - camera reset")
 		end
 	end))
-
 	local loop = coroutine.create(function()
 		while true do
 			if getPlrHum(targetPlayer) then
@@ -13343,273 +13336,437 @@ cmd.add({"unwatch", "unview"}, {"unwatch (unview)", "Stop spectating"}, function
 end)
 
 cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
-	local LocalPlayer = Players.LocalPlayer
-	local spectatedPlayer = nil
-	local playerList, currentIndex = {}, 1
-	local frame, titleLabel, toggleBtn, scroll, listOpen = false, false, false, false, false
-	local baseTogglePos = 5
+	NAlib.disconnect("spectate_char")
+	NAlib.disconnect("spectate_loop")
+	NAlib.disconnect("spectate_leave")
 
-	local function rebuild()
-		table.clear(playerList)
-		for _, p in ipairs(Players:GetPlayers()) do
-			Insert(playerList, p)
+	local LocalPlayer = Players.LocalPlayer
+	local PAD = 8
+	local CARD_W = IsOnMobile and 0.88 or 0.42
+	local CARD_H = IsOnMobile and 78 or 72
+	local BTN_H = IsOnMobile and 40 or 36
+	local BTN_W_SIDE = IsOnMobile and 76 or 68
+	local BTN_W_V = IsOnMobile and 40 or 34
+	local BTN_W_X = IsOnMobile and 40 or 34
+	local AV_SZ = IsOnMobile and 48 or 44
+	local ROW_H = IsOnMobile and 46 or 34
+	local HEADER_H = IsOnMobile and 40 or 34
+
+	local ui, card, avatar, nameLabel, toggleBtn, btnPrev, btnNext, btnClose
+	local drop, searchBox, list, listLayout, dropMaxH
+	local listOpen, dropdownBusy = false, false
+	local dropdownSeq = 0
+
+	local playerList, currentIndex, spectatedPlayer = {}, 1, nil
+	local rows = {}
+	local searchTerm = ""
+
+	local function stopAll()
+		NAlib.disconnect("spectate2_step")
+		NAlib.disconnect("spectate2_add")
+		NAlib.disconnect("spectate2_remove")
+		if drop then drop:Destroy() drop=nil end
+		listOpen, dropdownBusy = false, false
+		cleanup()
+	end
+
+	local function insertSorted(plr)
+		local n = #playerList
+		if n == 0 then Insert(playerList, plr) return 1 end
+		local key = Lower(plr.Name)
+		local lo, hi, pos = 1, n, n + 1
+		while lo <= hi do
+			local mid = (lo + hi) // 2
+			if Lower(playerList[mid].Name) > key then
+				pos = mid
+				hi = mid - 1
+			else
+				lo = mid + 1
+			end
 		end
-		table.sort(playerList, function(a, b) return a.Name < b.Name end)
+		table.insert(playerList, pos, plr)
+		return pos
+	end
+
+	local function removeFromList(plr)
+		local i = Discover(playerList, plr)
+		if i then table.remove(playerList, i) return i end
 	end
 
 	local function cam(p)
 		local h = getPlrHum(p)
-		workspace.CurrentCamera.CameraSubject = h or getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart")
+		if h then workspace.CurrentCamera.CameraSubject = h
+		else
+			local r = p.Character and (getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart"))
+			if r then workspace.CurrentCamera.CameraSubject = r end
+		end
+	end
+
+	local function matchesFilter(plr)
+		if searchTerm == "" then return true end
+		return Find(Lower(nameChecker(plr)), searchTerm, 1, true) ~= nil
 	end
 
 	local function recolor()
-		if not listOpen or not scroll then return end
-		for _, btn in ipairs(scroll:GetChildren()) do
-			if btn:IsA("TextButton") then
-				local idx = btn:GetAttribute("idx")
-				local lbl = btn:FindFirstChild("NameLabel")
-				if idx and lbl then
-					local plr = playerList[idx]
-					if plr == LocalPlayer then
-						lbl.TextColor3 = Color3.fromRGB(255, 255, 0)
-					elseif idx == currentIndex then
-						lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
-					else
-						lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-					end
+		for _, btn in pairs(rows) do
+			local lbl = btn:FindFirstChild("NameLabel")
+			if lbl then
+				local uid = btn:GetAttribute("uid")
+				local plr = Players:GetPlayerByUserId(uid)
+				if plr == LocalPlayer then
+					lbl.TextColor3 = Color3.fromRGB(255,255,0)
+				elseif spectatedPlayer and plr == spectatedPlayer then
+					lbl.TextColor3 = Color3.fromRGB(0,162,255)
+				else
+					lbl.TextColor3 = Color3.fromRGB(255,255,255)
 				end
 			end
 		end
 	end
 
-	local function refresh()
-		if not titleLabel then return end
-		if #playerList == 0 then
-			titleLabel.Text = "Spectating: None"
-			spectatedPlayer = nil
-			return
-		end
-		if spectatedPlayer and Discover(playerList, spectatedPlayer) then
-			currentIndex = Discover(playerList, spectatedPlayer)
-		else
-			if currentIndex < 1 then currentIndex = 1 end
-			if currentIndex > #playerList then currentIndex = 1 end
-			spectatedPlayer = playerList[currentIndex]
-		end
-		local plr = playerList[currentIndex]
+	local function setHeader(plr)
 		if not plr then
-			titleLabel.Text = "Spectating: None"
-			spectatedPlayer = nil
+			nameLabel.Text = "None"
 			return
 		end
-		titleLabel.Text = "Spectating: "..nameChecker(plr)
-		titleLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255, 255, 0) or Color3.fromRGB(0, 162, 255)
+		nameLabel.Text = nameChecker(plr)
+		nameLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255,255,0) or Color3.fromRGB(0,162,255)
+		avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+	end
+
+	local function gotoPlayer(plr)
+		if not plr then return end
+		spectatedPlayer = plr
+		currentIndex = Discover(playerList, plr) or currentIndex
+		setHeader(plr)
 		cam(plr)
 		recolor()
 	end
 
-	local function updateDropdown()
-		if not listOpen or not scroll then return end
-		for _, child in ipairs(scroll:GetChildren()) do
-			if child:IsA("TextButton") then
-				child:Destroy()
+	local function gotoIndex(idx)
+		if #playerList == 0 then return end
+		if idx < 1 then idx = #playerList end
+		if idx > #playerList then idx = 1 end
+		currentIndex = idx
+		gotoPlayer(playerList[currentIndex])
+	end
+
+	local function mkRow(plr)
+		if not list or rows[plr.UserId] then return end
+		local pb = InstanceNew("TextButton")
+		pb.Parent = list
+		pb.Name = Lower(plr.Name).."|"..tostring(plr.UserId)
+		pb.Size = UDim2.new(1, 0, 0, ROW_H)
+		pb.BackgroundColor3 = Color3.fromRGB(40,40,40)
+		pb.AutoButtonColor = true
+		pb.Text = ""
+		pb:SetAttribute("uid", plr.UserId)
+		local corner = InstanceNew("UICorner", pb) corner.CornerRadius = UDim.new(0, 10)
+		local stroke = InstanceNew("UIStroke", pb) stroke.Thickness = 1 stroke.Transparency = 0.6 stroke.Color = Color3.fromRGB(70,70,70)
+		local img = InstanceNew("ImageLabel", pb)
+		img.Size = UDim2.new(0, ROW_H, 0, ROW_H)
+		img.BackgroundTransparency = 1
+		img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		local nameLbl = InstanceNew("TextLabel", pb)
+		nameLbl.Name = "NameLabel"
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Size = UDim2.new(1, -ROW_H-12, 1, 0)
+		nameLbl.Position = UDim2.new(0, ROW_H+12, 0, 0)
+		nameLbl.Font = Enum.Font.SourceSansSemibold
+		nameLbl.TextScaled = true
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+		nameLbl.TextColor3 = Color3.fromRGB(255,255,255)
+		nameLbl.Text = nameChecker(plr)
+		pb.Visible = matchesFilter(plr)
+		MouseButtonFix(pb, function()
+			gotoPlayer(plr)
+		end)
+		rows[plr.UserId] = pb
+	end
+
+	local function destroyRow(plr)
+		local b = rows[plr.UserId]
+		if b then b:Destroy() rows[plr.UserId] = nil end
+	end
+
+	local function filterRows()
+		for uid, btn in pairs(rows) do
+			local plr = Players:GetPlayerByUserId(uid)
+			if plr then
+				btn.Visible = matchesFilter(plr)
+			else
+				btn.Visible = false
 			end
 		end
-		for i, plr in ipairs(playerList) do
-			local pb = InstanceNew("TextButton", scroll)
-			pb.Size = UDim2.new(1, 0, 0, 30)
-			pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-			pb.Font = Enum.Font.Gotham
-			pb.Text = ""
-			pb.LayoutOrder = i
-			pb:SetAttribute("idx", i)
-			InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
-
-			local img = InstanceNew("ImageLabel", pb)
-			img.Size = UDim2.new(0, 30, 0, 30)
-			img.BackgroundTransparency = 1
-			img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-
-			local nameLbl = InstanceNew("TextLabel", pb)
-			nameLbl.Name = "NameLabel"
-			nameLbl.BackgroundTransparency = 1
-			nameLbl.Size = UDim2.new(1, -35, 1, 0)
-			nameLbl.Position = UDim2.new(0, 35, 0, 0)
-			nameLbl.Font = Enum.Font.Gotham
-			nameLbl.TextScaled = true
-			nameLbl.Text = nameChecker(plr)
-
-			MouseButtonFix(pb, function()
-				currentIndex = i
-				spectatedPlayer = playerList[currentIndex]
-				refresh()
-			end)
+		if drop and list then
+			local headerH = HEADER_H + PAD*2
+			local contentY = list.AbsoluteCanvasSize.Y
+			local target = math.min(headerH + contentY + PAD, dropMaxH)
+			drop.Size = UDim2.new(1, 0, 0, target)
 		end
-		local h = math.min(#playerList * 30, 300)
-		scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
-		scroll.Size = UDim2.new(1, 0, 0, h)
-		toggleBtn.Position = UDim2.new(0.5, -15, 1, h + 10)
-		recolor()
 	end
 
-	local function mkBtn(txt, pos, size, bg, ts, cb)
-		local b = InstanceNew("TextButton", frame)
-		b.Size = size or UDim2.new(0, 40, 0, 40)
-		b.Position = pos
-		b.BackgroundColor3 = bg or Color3.fromRGB(50, 50, 50)
-		b.Text = txt
-		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = Enum.Font.GothamBold
-		b.TextSize = ts or 24
-		InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 10)
-		MouseButtonFix(b, cb)
-		return b
+	local function safeConnectProp(inst, prop, mySeq, cb)
+		if not inst then return end
+		local ok, sig = pcall(function() return inst:GetPropertyChangedSignal(prop) end)
+		if not ok or not sig then return end
+		sig:Connect(function()
+			if dropdownSeq ~= mySeq or not drop or not list or inst.Parent == nil then return end
+			cb()
+		end)
 	end
 
-	rebuild()
+	local function openDropdown()
+		if dropdownBusy or listOpen then return end
+		dropdownBusy = true
+		toggleBtn.Active = false
+		toggleBtn.AutoButtonColor = false
+		dropdownSeq += 1
+		local mySeq = dropdownSeq
+
+		drop = InstanceNew("Frame", card)
+		drop.BackgroundColor3 = Color3.fromRGB(34,34,34)
+		drop.BorderSizePixel = 0
+		drop.Position = UDim2.new(0, 0, 1, PAD)
+		drop.Size = UDim2.new(1, 0, 0, 0)
+		local dCorner = InstanceNew("UICorner", drop) dCorner.CornerRadius = UDim.new(0, 12)
+		local dStroke = InstanceNew("UIStroke", drop) dStroke.Thickness = 1 dStroke.Transparency = 0.6 dStroke.Color = Color3.fromRGB(64,64,64)
+
+		local header = InstanceNew("Frame", drop)
+		header.BackgroundTransparency = 1
+		header.Size = UDim2.new(1, -PAD*2, 0, HEADER_H)
+		header.Position = UDim2.new(0, PAD, 0, PAD)
+
+		searchBox = InstanceNew("TextBox", header)
+		searchBox.Size = UDim2.new(1, 0, 1, 0)
+		searchBox.BackgroundColor3 = Color3.fromRGB(45,45,45)
+		searchBox.TextXAlignment = Enum.TextXAlignment.Left
+		searchBox.Font = Enum.Font.SourceSans
+		searchBox.TextSize = IsOnMobile and 18 or 16
+		searchBox.PlaceholderText = "Type to filter players"
+		searchBox.PlaceholderColor3 = Color3.fromRGB(185,185,185)
+		searchBox.ClearTextOnFocus = false
+		searchBox.Text = searchTerm
+		searchBox.TextColor3 = Color3.fromRGB(255,255,255)
+		local sCorner = InstanceNew("UICorner", searchBox) sCorner.CornerRadius = UDim.new(0, 8)
+		local sStroke = InstanceNew("UIStroke", searchBox) sStroke.Thickness = 1 sStroke.Transparency = 0.6 sStroke.Color = Color3.fromRGB(70,70,70)
+
+		list = InstanceNew("ScrollingFrame", drop)
+		list.BackgroundTransparency = 1
+		list.BorderSizePixel = 0
+		list.Position = UDim2.new(0, PAD, 0, HEADER_H + PAD*2)
+		list.Size = UDim2.new(1, -PAD*2, 1, -(HEADER_H + PAD*3))
+		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		list.CanvasSize = UDim2.new(0,0,0,0)
+		list.ScrollBarThickness = 8
+		list.ClipsDescendants = true
+		listLayout = InstanceNew("UIListLayout", list)
+		listLayout.SortOrder = Enum.SortOrder.Name
+		listLayout.Padding = UDim.new(0, 6)
+		local padIn = InstanceNew("UIPadding", list)
+		padIn.PaddingLeft = UDim.new(0, 6)
+		padIn.PaddingRight = UDim.new(0, 6)
+		padIn.PaddingTop = UDim.new(0, 6)
+		padIn.PaddingBottom = UDim.new(0, 6)
+
+		local vpY = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
+		dropMaxH = math.floor(vpY * (IsOnMobile and 0.7 or 0.55))
+		local openStart = TweenService:Create(drop, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 300 or 240)))})
+		openStart:Play()
+
+		for _, plr in ipairs(playerList) do
+			mkRow(plr)
+		end
+
+		filterRows()
+
+		safeConnectProp(searchBox, "Text", mySeq, function()
+			searchTerm = Lower(searchBox.Text or "")
+			filterRows()
+		end)
+
+		safeConnectProp(listLayout, "AbsoluteContentSize", mySeq, function()
+			filterRows()
+		end)
+
+		toggleBtn.Text = "V"
+		toggleBtn.Rotation = 180
+		listOpen = true
+		dropdownBusy = false
+		toggleBtn.Active = true
+		toggleBtn.AutoButtonColor = true
+	end
+
+	local function closeDropdown()
+		if not listOpen and not dropdownBusy then return end
+		dropdownSeq += 1
+		dropdownBusy = false
+		toggleBtn.Active = true
+		toggleBtn.AutoButtonColor = true
+		toggleBtn.Text = "V"
+		toggleBtn.Rotation = 0
+		if drop then
+			local tClose = TweenService:Create(drop, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)})
+			tClose:Play()
+			tClose.Completed:Wait()
+			if drop then drop:Destroy() end
+		end
+		drop, list, listLayout, searchBox = nil, nil, nil, nil
+		listOpen = false
+		rows = {}
+	end
+
+	local function buildCard()
+		card = InstanceNew("Frame", ui)
+		card.AnchorPoint = Vector2.new(0.5, 1)
+		card.Size = UDim2.new(CARD_W, 0, 0, CARD_H)
+		card.Position = UDim2.new(0.5, 0, 0.18, 0)
+		card.BackgroundColor3 = Color3.fromRGB(26,26,26)
+		card.BorderSizePixel = 0
+		local cardCorner = InstanceNew("UICorner", card) cardCorner.CornerRadius = UDim.new(0, 14)
+		local cardStroke = InstanceNew("UIStroke", card) cardStroke.Thickness = 1 cardStroke.Transparency = 0.6 cardStroke.Color = Color3.fromRGB(70,70,70)
+		local grad = InstanceNew("UIGradient", card) grad.Color = ColorSequence.new(Color3.fromRGB(32,32,32), Color3.fromRGB(22,22,22))
+		NAgui.draggerV2(card)
+
+		local content = InstanceNew("Frame", card)
+		content.BackgroundTransparency = 1
+		content.Size = UDim2.new(1, -PAD*2, 1, -PAD*2)
+		content.Position = UDim2.new(0, PAD, 0, PAD)
+
+		avatar = InstanceNew("ImageLabel", content)
+		avatar.Size = UDim2.new(0, AV_SZ, 0, AV_SZ)
+		avatar.Position = UDim2.new(0, 0, 0.5, -AV_SZ/2)
+		avatar.BackgroundTransparency = 1
+		local avCorner = InstanceNew("UICorner", avatar) avCorner.CornerRadius = UDim.new(1, 0)
+
+		nameLabel = InstanceNew("TextLabel", content)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Position = UDim2.new(0, AV_SZ + PAD, 0, 0)
+		nameLabel.Size = UDim2.new(1, -(AV_SZ + PAD), 1, 0)
+		nameLabel.Font = Enum.Font.SourceSansBold
+		nameLabel.TextScaled = true
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+		nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
+		nameLabel.Text = ""
+
+		btnPrev = InstanceNew("TextButton", card)
+		btnPrev.Size = UDim2.new(0, BTN_W_SIDE, 0, BTN_H)
+		btnPrev.AnchorPoint = Vector2.new(1, 0.5)
+		btnPrev.Position = UDim2.new(0, -PAD, 0.5, 0)
+		btnPrev.BackgroundColor3 = Color3.fromRGB(45,45,45)
+		btnPrev.Text = "Prev"
+		btnPrev.TextColor3 = Color3.fromRGB(255,255,255)
+		btnPrev.Font = Enum.Font.SourceSansBold
+		btnPrev.TextSize = IsOnMobile and 20 or 18
+		local pc = InstanceNew("UICorner", btnPrev) pc.CornerRadius = UDim.new(0, 10)
+		local ps = InstanceNew("UIStroke", btnPrev) ps.Thickness = 1 ps.Transparency = 0.5 ps.Color = Color3.fromRGB(70,70,70)
+		MouseButtonFix(btnPrev, function() gotoIndex(currentIndex - 1) end)
+
+		btnNext = InstanceNew("TextButton", card)
+		btnNext.Size = UDim2.new(0, BTN_W_SIDE, 0, BTN_H)
+		btnNext.AnchorPoint = Vector2.new(0, 0.5)
+		btnNext.Position = UDim2.new(1, PAD, 0.5, 0)
+		btnNext.BackgroundColor3 = Color3.fromRGB(45,45,45)
+		btnNext.Text = "Next"
+		btnNext.TextColor3 = Color3.fromRGB(255,255,255)
+		btnNext.Font = Enum.Font.SourceSansBold
+		btnNext.TextSize = IsOnMobile and 20 or 18
+		local nc = InstanceNew("UICorner", btnNext) nc.CornerRadius = UDim.new(0, 10)
+		local ns = InstanceNew("UIStroke", btnNext) ns.Thickness = 1 ns.Transparency = 0.5 ns.Color = Color3.fromRGB(70,70,70)
+		MouseButtonFix(btnNext, function() gotoIndex(currentIndex + 1) end)
+
+		toggleBtn = InstanceNew("TextButton", card)
+		toggleBtn.Size = UDim2.new(0, BTN_W_V, 0, BTN_H)
+		toggleBtn.AnchorPoint = Vector2.new(1, 1)
+		toggleBtn.Position = UDim2.new(1, PAD, 1, PAD)
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(45,45,45)
+		toggleBtn.Text = "V"
+		toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
+		toggleBtn.Font = Enum.Font.SourceSansBold
+		toggleBtn.TextSize = IsOnMobile and 18 or 16
+		local vc = InstanceNew("UICorner", toggleBtn) vc.CornerRadius = UDim.new(0, 10)
+		local vs = InstanceNew("UIStroke", toggleBtn) vs.Thickness = 1 vs.Transparency = 0.5 vs.Color = Color3.fromRGB(70,70,70)
+		MouseButtonFix(toggleBtn, function()
+			if listOpen then closeDropdown() else openDropdown() end
+		end)
+
+		btnClose = InstanceNew("TextButton", card)
+		btnClose.Size = UDim2.new(0, BTN_W_X, 0, BTN_H)
+		btnClose.AnchorPoint = Vector2.new(1, 0)
+		btnClose.Position = UDim2.new(1, PAD, 0, -PAD)
+		btnClose.BackgroundColor3 = Color3.fromRGB(255,60,60)
+		btnClose.Text = "X"
+		btnClose.TextColor3 = Color3.fromRGB(255,255,255)
+		btnClose.Font = Enum.Font.SourceSansBold
+		btnClose.TextSize = IsOnMobile and 18 or 16
+		local xc = InstanceNew("UICorner", btnClose) xc.CornerRadius = UDim.new(0, 10)
+		local xs = InstanceNew("UIStroke", btnClose) xs.Thickness = 1 xs.Transparency = 0.5 xs.Color = Color3.fromRGB(120,30,30)
+		MouseButtonFix(btnClose, stopAll)
+	end
+
+	local function initialRoster()
+		table.clear(playerList)
+		for _, p in ipairs(Players:GetPlayers()) do
+			insertSorted(p)
+		end
+	end
+
+	initialRoster()
 	if #playerList == 0 then return DebugNotif("No players to spectate", 2) end
 
-	specUI = InstanceNew("ScreenGui")
-	NaProtectUI(specUI)
-	specUI.ResetOnSpawn = false
-	specUI.DisplayOrder = 10
-	frame = InstanceNew("Frame", specUI)
-	frame.AnchorPoint = Vector2.new(0.5, 1)
-	frame.Size = UDim2.new(0, 350, 0, 40)
-	frame.Position = UDim2.new(0.5, 0, 0.1, 0)
-	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	frame.BorderSizePixel = 0
-	InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 20)
-	NAgui.draggerV2(frame)
+	ui = InstanceNew("ScreenGui")
+	NaProtectUI(ui)
+	ui.ResetOnSpawn = false
+	ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	ui.DisplayOrder = 10
 
-	titleLabel = InstanceNew("TextLabel", frame)
-	titleLabel.BackgroundTransparency = 1
-	titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
-	titleLabel.Position = UDim2.new(0.15, 0, 0, 0)
-	titleLabel.Font = Enum.Font.GothamBold
-	titleLabel.TextScaled = true
+	buildCard()
+	specUI = ui
+	gotoIndex(1)
 
-	mkBtn("<", UDim2.new(0, -18, 0, 0), nil, nil, nil, function()
-		currentIndex = currentIndex - 1
-		if currentIndex < 1 then currentIndex = #playerList end
-		spectatedPlayer = playerList[currentIndex]
-		refresh()
-	end)
-	mkBtn(">", UDim2.new(1, -22, 0, 0), nil, nil, nil, function()
-		currentIndex = currentIndex + 1
-		if currentIndex > #playerList then currentIndex = 1 end
-		spectatedPlayer = playerList[currentIndex]
-		refresh()
-	end)
-	mkBtn("X", UDim2.new(1, -55, 0, 5), UDim2.new(0, 30, 0, 30), Color3.fromRGB(255, 50, 50), 18, function()
-		cleanup()
-	end)
+	NAlib.connect("spectate2_step", RunService.RenderStepped:Connect(function()
+		if spectatedPlayer then cam(spectatedPlayer) end
+	end))
 
-	toggleBtn = mkBtn("v", UDim2.new(0.5, -15, 1, baseTogglePos), UDim2.new(0, 30, 0, 20), Color3.fromRGB(40, 40, 40), 18, function()
-		if listOpen then
-			local tClose = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, 0)})
-			local tPos = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, baseTogglePos)})
-			tClose:Play()
-			tPos:Play()
-			tClose.Completed:Wait()
-			scroll:Destroy()
-			scroll = nil
-			listOpen = false
-			toggleBtn.Text = "v"
-		else
-			scroll = InstanceNew("ScrollingFrame", frame)
-			scroll.Size = UDim2.new(1, 0, 0, 0)
-			scroll.Position = UDim2.new(0, 0, 1, 0)
-			scroll.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-			scroll.BorderSizePixel = 0
-			scroll.ScrollBarThickness = 8
-			scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			scroll.ClipsDescendants = true
-			InstanceNew("UICorner", scroll).CornerRadius = UDim.new(0, 10)
-			InstanceNew("UIListLayout", scroll).SortOrder = Enum.SortOrder.LayoutOrder
-
-			local loading = InstanceNew("TextLabel", scroll)
-			loading.Size = UDim2.new(1, 0, 0, 30)
-			loading.BackgroundTransparency = 1
-			loading.Font = Enum.Font.GothamSemibold
-			loading.TextScaled = true
-			loading.TextColor3 = Color3.fromRGB(255, 255, 255)
-			loading.Text = "Loading..."
-
-			Spawn(function()
-				loading:Destroy()
-				for i, plr in ipairs(playerList) do
-					local pb = InstanceNew("TextButton", scroll)
-					pb.Size = UDim2.new(1, 0, 0, 30)
-					pb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-					pb.Font = Enum.Font.Gotham
-					pb.Text = ""
-					pb.LayoutOrder = i
-					pb:SetAttribute("idx", i)
-					InstanceNew("UICorner", pb).CornerRadius = UDim.new(0, 6)
-
-					local img = InstanceNew("ImageLabel", pb)
-					img.Size = UDim2.new(0, 30, 0, 30)
-					img.BackgroundTransparency = 1
-					img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-
-					local nameLbl = InstanceNew("TextLabel", pb)
-					nameLbl.Name = "NameLabel"
-					nameLbl.BackgroundTransparency = 1
-					nameLbl.Size = UDim2.new(1, -35, 1, 0)
-					nameLbl.Position = UDim2.new(0, 35, 0, 0)
-					nameLbl.Font = Enum.Font.Gotham
-					nameLbl.TextScaled = true
-					nameLbl.Text = nameChecker(plr)
-
-					MouseButtonFix(pb, function()
-						currentIndex = i
-						spectatedPlayer = playerList[currentIndex]
-						refresh()
-					end)
-				end
-				local h = math.min(#playerList * 30, 300)
-				scroll.CanvasSize = UDim2.new(0, 0, 0, #playerList * 30)
-				local open = TweenService:Create(scroll, TweenInfo.new(0.25), {Size = UDim2.new(1, 0, 0, h)})
-				local move = TweenService:Create(toggleBtn, TweenInfo.new(0.25), {Position = UDim2.new(0.5, -15, 1, h + 10)})
-				open:Play()
-				move:Play()
-				listOpen = true
-				toggleBtn.Text = "^"
-				recolor()
-			end)
+	NAlib.connect("spectate2_add", Players.PlayerAdded:Connect(function(plr)
+		local wasOpen = listOpen
+		local keep = searchTerm
+		local prevSel = spectatedPlayer
+		insertSorted(plr)
+		if wasOpen and list then mkRow(plr) filterRows() end
+		if prevSel then
+			currentIndex = Discover(playerList, prevSel) or currentIndex
+		elseif #playerList > 0 and not prevSel then
+			gotoIndex(1)
 		end
-	end)
+		searchTerm = keep
+	end))
 
-	connStep = RunService.RenderStepped:Connect(function()
-		if #playerList == 0 then return end
-		local p = playerList[currentIndex]
-		if not p or not p.Character then rebuild() end
-		cam(playerList[currentIndex])
-	end)
-	connAdd = Players.PlayerAdded:Connect(function()
-		rebuild()
-		refresh()
-		updateDropdown()
-	end)
-	connRemove = Players.PlayerRemoving:Connect(function(plr)
-		rebuild()
-		if plr == spectatedPlayer then
-			spectatedPlayer = nil
+	NAlib.connect("spectate2_remove", Players.PlayerRemoving:Connect(function(plr)
+		local wasOpen = listOpen
+		local keep = searchTerm
+		local prevSel = spectatedPlayer
+		local removedIndex = removeFromList(plr)
+		if wasOpen and list then destroyRow(plr) filterRows() end
+		if prevSel == plr then
 			if #playerList > 0 then
-				currentIndex = 1
+				local newIndex = math.min(removedIndex or 1, #playerList)
+				gotoIndex(newIndex)
 			else
-				currentIndex = 0
+				spectatedPlayer = nil
+				nameLabel.Text = "None"
 			end
+		else
+			if prevSel then currentIndex = Discover(playerList, prevSel) or currentIndex end
 		end
-		refresh()
-		updateDropdown()
-	end)
-
-	refresh()
+		searchTerm = keep
+	end))
 end, true)
 
 cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
+	NAlib.disconnect("spectate2_step")
+	NAlib.disconnect("spectate2_add")
+	NAlib.disconnect("spectate2_remove")
 	cleanup()
 	DebugNotif("Spectate stopped", 1.2)
 end, true)
@@ -24369,7 +24526,7 @@ if FileSupport and CoreGui then
 					ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
 					ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
 				}
-				local ug = Instance.new("UIGradient", o)
+				local ug = InstanceNew("UIGradient", o)
 				ug.Color, ug.Rotation = seq, 45
 			end
 		end
