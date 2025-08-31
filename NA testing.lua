@@ -20024,7 +20024,7 @@ NAmanage.BlockRemote = function(remote, mode)
 			local saved = {funcs = {}}
 			for _, c in ipairs(getconnections(remote.OnClientEvent)) do
 				local ok, f = pcall(function() return c.Function end)
-				if ok and type(f) == "function" and not isCoreFunc(f) then
+				if ok and type(f) == "function" and not NAmanage.isCoreFunc(f) then
 					Insert(saved.funcs, f)
 					pcall(function() c:Disconnect() end)
 				end
@@ -20100,7 +20100,7 @@ NAmanage.EnsureHook = function()
 			if method == "Connect" then
 				local args = {...}
 				local cb = args[1]
-				if type(cb) == "function" and isCoreFunc(cb) then
+				if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
 					return oldNamecall(self, ...)
 				end
 				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Connect()", 2, "Remote Block") end
@@ -20110,7 +20110,7 @@ NAmanage.EnsureHook = function()
 			elseif method == "Once" then
 				local args = {...}
 				local cb = args[1]
-				if type(cb) == "function" and isCoreFunc(cb) then
+				if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
 					return oldNamecall(self, ...)
 				end
 				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Once()", 2, "Remote Block") end
