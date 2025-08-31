@@ -80,6 +80,7 @@ local NAStuff = {
 	BlockedInvokeSaved = {};
 	BlockedRemoteModes = {};
 	BlockedRemoteReturns = {};
+	BlockedSignals = {};
 	RemoteFakeReturn = true;
 
 	AntiKickMode = "fakeok";
@@ -20017,16 +20018,19 @@ NAmanage.BlockRemote = function(remote, mode)
 		Insert(NAStuff.BlockedRemotes, remote)
 	end
 	NAStuff.BlockedRemoteModes[remote] = mode
-	if remote:IsA("RemoteEvent") and typeof(getconnections) == "function" then
-		local saved = {funcs = {}}
-		for _, c in ipairs(getconnections(remote.OnClientEvent)) do
-			local ok, f = pcall(function() return c.Function end)
-			if ok and type(f) == "function" and not NAmanage.isCoreFunc(f) then
-				Insert(saved.funcs, f)
-				pcall(function() c:Disconnect() end)
+	if remote:IsA("RemoteEvent") then
+		NAStuff.BlockedSignals[remote.OnClientEvent] = true
+		if typeof(getconnections) == "function" then
+			local saved = {funcs = {}}
+			for _, c in ipairs(getconnections(remote.OnClientEvent)) do
+				local ok, f = pcall(function() return c.Function end)
+				if ok and type(f) == "function" and not isCoreFunc(f) then
+					Insert(saved.funcs, f)
+					pcall(function() c:Disconnect() end)
+				end
 			end
+			NAStuff.BlockedEventSaved[remote] = saved
 		end
-		NAStuff.BlockedEventSaved[remote] = saved
 	elseif remote:IsA("RemoteFunction") then
 		if NAStuff.BlockedInvokeSaved[remote] == nil then
 			NAStuff.BlockedInvokeSaved[remote] = remote.OnClientInvoke or false
@@ -20053,6 +20057,7 @@ NAmanage.UnblockRemote = function(remote)
 		NAStuff.BlockedRemoteModes[remote] = nil
 		NAStuff.BlockedRemoteReturns[remote] = nil
 		if remote:IsA("RemoteEvent") then
+			NAStuff.BlockedSignals[remote.OnClientEvent] = nil
 			local saved = NAStuff.BlockedEventSaved[remote]
 			if saved and saved.funcs then
 				for _, f in ipairs(saved.funcs) do
@@ -20077,7 +20082,6 @@ NAmanage.EnsureHook = function()
 	if getgenv().NA_BlockHooked then return end
 	local mt = getrawmetatable(game)
 	local oldNamecall = mt.__namecall
-	local oldNewindex = mt.__newindex
 	setreadonly(mt, false)
 	mt.__namecall = newcclosure(function(self, ...)
 		local method = getnamecallmethod()
@@ -20092,39 +20096,41 @@ NAmanage.EnsureHook = function()
 			end
 			return
 		end
-		if method == "Connect" then
-			for _, r in ipairs(NAStuff.BlockedRemotes) do
-				if r:IsA("RemoteEvent") and self == r.OnClientEvent then
-					local args = {...}
-					local cb = args[1]
-					if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
-						return oldNamecall(self, ...)
+		if NAStuff.BlockedSignals[self] then
+			if method == "Connect" then
+				local args = {...}
+				local cb = args[1]
+				if type(cb) == "function" and isCoreFunc(cb) then
+					return oldNamecall(self, ...)
+				end
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Connect()", 2, "Remote Block") end
+				local conn = oldNamecall(self, function() end)
+				pcall(function() conn:Disconnect() end)
+				return conn
+			elseif method == "Once" then
+				local args = {...}
+				local cb = args[1]
+				if type(cb) == "function" and isCoreFunc(cb) then
+					return oldNamecall(self, ...)
+				end
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Once()", 2, "Remote Block") end
+				local conn = oldNamecall(self, function() end)
+				pcall(function() conn:Disconnect() end)
+				return conn
+			elseif method == "Wait" then
+				local m = "fakeok"
+				for r,_ in pairs(NAStuff.BlockedRemotes) do
+					if typeof(r)=="Instance" and r:IsA("RemoteEvent") and self==r.OnClientEvent then
+						m = NAStuff.BlockedRemoteModes[r] or "fakeok"
+						break
 					end
-					if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (Connect) [ClientEvent]"):format(r:GetFullName()), 2, "Remote Block") end
-					local conn = oldNamecall(self, function() end)
-					pcall(function() conn:Disconnect() end)
-					return conn
 				end
-			end
-		elseif method == "Wait" then
-			for _, r in ipairs(NAStuff.BlockedRemotes) do
-				if r:IsA("RemoteEvent") and self == r.OnClientEvent then
-					local m = NAStuff.BlockedRemoteModes[r] or "fakeok"
-					if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (Wait) [ClientEvent]"):format(r:GetFullName()), 2, "Remote Block") end
-					if m == "error" then error("Blocked OnClientEvent:Wait() for "..r:GetFullName(), 0) end
-					return nil
-				end
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block") end
+				if m == "error" then error("Blocked OnClientEvent:Wait()", 0) end
+				return nil
 			end
 		end
 		return oldNamecall(self, ...)
-	end)
-	mt.__newindex = newcclosure(function(self, key, value)
-		if typeof(self) == "Instance" and self:IsA("RemoteFunction") and key == "OnClientInvoke" then
-			if not Discover(NAStuff.BlockedRemotes, self) then
-				NAStuff.BlockedInvokeSaved[self] = value
-			end
-		end
-		return oldNewindex(self, key, value)
 	end)
 	setreadonly(mt, true)
 	getgenv().NA_BlockHooked = true
