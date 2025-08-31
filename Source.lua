@@ -60,6 +60,7 @@ local NAStuff = {
 	BlockedInvokeSaved = {};
 	BlockedRemoteModes = {};
 	BlockedRemoteReturns = {};
+	RemoteFakeReturn = true;
 
 	AntiKickMode = "fakeok";
 	AntiKickHooked = false;
@@ -13342,17 +13343,17 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 
 	local LocalPlayer = Players.LocalPlayer
 	local PAD = 8
-	local CARD_W = IsOnMobile and 0.88 or 0.42
-	local CARD_H = IsOnMobile and 78 or 72
-	local BTN_H = IsOnMobile and 40 or 36
-	local BTN_W_SIDE = IsOnMobile and 76 or 68
-	local BTN_W_V = IsOnMobile and 40 or 34
-	local BTN_W_X = IsOnMobile and 40 or 34
-	local AV_SZ = IsOnMobile and 48 or 44
-	local ROW_H = IsOnMobile and 46 or 34
-	local HEADER_H = IsOnMobile and 40 or 34
+	local CARD_W = IsOnMobile and 0.6 or 0.4
+	local CARD_H = IsOnMobile and 62 or 68
+	local BTN_H = IsOnMobile and 34 or 32
+	local BTN_W_SIDE = IsOnMobile and 58 or 60
+	local BTN_W_V = IsOnMobile and 34 or 32
+	local BTN_W_X = IsOnMobile and 34 or 32
+	local AV_SZ = IsOnMobile and 40 or 42
+	local ROW_H = IsOnMobile and 40 or 34
+	local HEADER_H = IsOnMobile and 36 or 32
 
-	local ui, card, avatar, nameLabel, toggleBtn, btnPrev, btnNext, btnClose
+	local ui, card, avatar, nameMain, nameSub, toggleBtn, btnPrev, btnNext, btnClose
 	local drop, searchBox, list, listLayout, dropMaxH
 	local listOpen, dropdownBusy = false, false
 	local dropdownSeq = 0
@@ -13360,15 +13361,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	local playerList, currentIndex, spectatedPlayer = {}, 1, nil
 	local rows = {}
 	local searchTerm = ""
-
-	local function stopAll()
-		NAlib.disconnect("spectate2_step")
-		NAlib.disconnect("spectate2_add")
-		NAlib.disconnect("spectate2_remove")
-		if drop then drop:Destroy() drop=nil end
-		listOpen, dropdownBusy = false, false
-		cleanup()
-	end
 
 	local function insertSorted(plr)
 		local n = #playerList
@@ -13407,6 +13399,18 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		return Find(Lower(nameChecker(plr)), searchTerm, 1, true) ~= nil
 	end
 
+	local function setHeader(plr)
+		if not plr then
+			nameSub.Text = "Spectating"
+			nameMain.Text = "None"
+			return
+		end
+		nameSub.Text = "Spectating"
+		nameMain.Text = nameChecker(plr)
+		nameMain.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255,255,0) or Color3.fromRGB(255,255,255)
+		avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+	end
+
 	local function recolor()
 		for _, btn in pairs(rows) do
 			local lbl = btn:FindFirstChild("NameLabel")
@@ -13422,16 +13426,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 				end
 			end
 		end
-	end
-
-	local function setHeader(plr)
-		if not plr then
-			nameLabel.Text = "None"
-			return
-		end
-		nameLabel.Text = nameChecker(plr)
-		nameLabel.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255,255,0) or Color3.fromRGB(0,162,255)
-		avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 	end
 
 	local function gotoPlayer(plr)
@@ -13571,7 +13565,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 
 		local vpY = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
 		dropMaxH = math.floor(vpY * (IsOnMobile and 0.7 or 0.55))
-		local openStart = TweenService:Create(drop, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 300 or 240)))})
+		local openStart = TweenService:Create(drop, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 280 or 240)))})
 		openStart:Play()
 
 		for _, plr in ipairs(playerList) do
@@ -13620,12 +13614,12 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		card = InstanceNew("Frame", ui)
 		card.AnchorPoint = Vector2.new(0.5, 1)
 		card.Size = UDim2.new(CARD_W, 0, 0, CARD_H)
-		card.Position = UDim2.new(0.5, 0, 0.18, 0)
-		card.BackgroundColor3 = Color3.fromRGB(26,26,26)
+		card.Position = UDim2.new(0.5, 0, 0.14, 0)
+		card.BackgroundColor3 = Color3.fromRGB(24,24,24)
 		card.BorderSizePixel = 0
-		local cardCorner = InstanceNew("UICorner", card) cardCorner.CornerRadius = UDim.new(0, 14)
-		local cardStroke = InstanceNew("UIStroke", card) cardStroke.Thickness = 1 cardStroke.Transparency = 0.6 cardStroke.Color = Color3.fromRGB(70,70,70)
-		local grad = InstanceNew("UIGradient", card) grad.Color = ColorSequence.new(Color3.fromRGB(32,32,32), Color3.fromRGB(22,22,22))
+		local cardCorner = InstanceNew("UICorner", card) cardCorner.CornerRadius = UDim.new(0, 12)
+		local cardStroke = InstanceNew("UIStroke", card) cardStroke.Thickness = 1 cardStroke.Transparency = 0.5 cardStroke.Color = Color3.fromRGB(60,60,60)
+		local grad = InstanceNew("UIGradient", card) grad.Color = ColorSequence.new(Color3.fromRGB(30,30,30), Color3.fromRGB(18,18,18))
 		NAgui.draggerV2(card)
 
 		local content = InstanceNew("Frame", card)
@@ -13639,15 +13633,25 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		avatar.BackgroundTransparency = 1
 		local avCorner = InstanceNew("UICorner", avatar) avCorner.CornerRadius = UDim.new(1, 0)
 
-		nameLabel = InstanceNew("TextLabel", content)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Position = UDim2.new(0, AV_SZ + PAD, 0, 0)
-		nameLabel.Size = UDim2.new(1, -(AV_SZ + PAD), 1, 0)
-		nameLabel.Font = Enum.Font.SourceSansBold
-		nameLabel.TextScaled = true
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-		nameLabel.TextColor3 = Color3.fromRGB(255,255,255)
-		nameLabel.Text = ""
+		nameSub = InstanceNew("TextLabel", content)
+		nameSub.BackgroundTransparency = 1
+		nameSub.Position = UDim2.new(0, AV_SZ + PAD, 0, 0)
+		nameSub.Size = UDim2.new(1, -(AV_SZ + PAD), 0.45, 0)
+		nameSub.Font = Enum.Font.SourceSans
+		nameSub.TextScaled = true
+		nameSub.TextXAlignment = Enum.TextXAlignment.Left
+		nameSub.TextColor3 = Color3.fromRGB(185,185,185)
+		nameSub.Text = "Spectating"
+
+		nameMain = InstanceNew("TextLabel", content)
+		nameMain.BackgroundTransparency = 1
+		nameMain.Position = UDim2.new(0, AV_SZ + PAD, 0.48, 0)
+		nameMain.Size = UDim2.new(1, -(AV_SZ + PAD), 0.5, 0)
+		nameMain.Font = Enum.Font.SourceSansBold
+		nameMain.TextScaled = true
+		nameMain.TextXAlignment = Enum.TextXAlignment.Left
+		nameMain.TextColor3 = Color3.fromRGB(255,255,255)
+		nameMain.Text = ""
 
 		btnPrev = InstanceNew("TextButton", card)
 		btnPrev.Size = UDim2.new(0, BTN_W_SIDE, 0, BTN_H)
@@ -13657,7 +13661,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnPrev.Text = "Prev"
 		btnPrev.TextColor3 = Color3.fromRGB(255,255,255)
 		btnPrev.Font = Enum.Font.SourceSansBold
-		btnPrev.TextSize = IsOnMobile and 20 or 18
+		btnPrev.TextSize = IsOnMobile and 16 or 16
 		local pc = InstanceNew("UICorner", btnPrev) pc.CornerRadius = UDim.new(0, 10)
 		local ps = InstanceNew("UIStroke", btnPrev) ps.Thickness = 1 ps.Transparency = 0.5 ps.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(btnPrev, function() gotoIndex(currentIndex - 1) end)
@@ -13670,7 +13674,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnNext.Text = "Next"
 		btnNext.TextColor3 = Color3.fromRGB(255,255,255)
 		btnNext.Font = Enum.Font.SourceSansBold
-		btnNext.TextSize = IsOnMobile and 20 or 18
+		btnNext.TextSize = IsOnMobile and 16 or 16
 		local nc = InstanceNew("UICorner", btnNext) nc.CornerRadius = UDim.new(0, 10)
 		local ns = InstanceNew("UIStroke", btnNext) ns.Thickness = 1 ns.Transparency = 0.5 ns.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(btnNext, function() gotoIndex(currentIndex + 1) end)
@@ -13683,7 +13687,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		toggleBtn.Text = "V"
 		toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
 		toggleBtn.Font = Enum.Font.SourceSansBold
-		toggleBtn.TextSize = IsOnMobile and 18 or 16
+		toggleBtn.TextSize = IsOnMobile and 14 or 14
 		local vc = InstanceNew("UICorner", toggleBtn) vc.CornerRadius = UDim.new(0, 10)
 		local vs = InstanceNew("UIStroke", toggleBtn) vs.Thickness = 1 vs.Transparency = 0.5 vs.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(toggleBtn, function()
@@ -13698,10 +13702,17 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnClose.Text = "X"
 		btnClose.TextColor3 = Color3.fromRGB(255,255,255)
 		btnClose.Font = Enum.Font.SourceSansBold
-		btnClose.TextSize = IsOnMobile and 18 or 16
+		btnClose.TextSize = IsOnMobile and 14 or 14
 		local xc = InstanceNew("UICorner", btnClose) xc.CornerRadius = UDim.new(0, 10)
 		local xs = InstanceNew("UIStroke", btnClose) xs.Thickness = 1 xs.Transparency = 0.5 xs.Color = Color3.fromRGB(120,30,30)
-		MouseButtonFix(btnClose, stopAll)
+		MouseButtonFix(btnClose, function()
+			NAlib.disconnect("spectate2_step")
+			NAlib.disconnect("spectate2_add")
+			NAlib.disconnect("spectate2_remove")
+			if drop then drop:Destroy() drop=nil end
+			listOpen, dropdownBusy = false, false
+			cleanup()
+		end)
 	end
 
 	local function initialRoster()
@@ -13749,13 +13760,10 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		local removedIndex = removeFromList(plr)
 		if wasOpen and list then destroyRow(plr) filterRows() end
 		if prevSel == plr then
-			if #playerList > 0 then
-				local newIndex = math.min(removedIndex or 1, #playerList)
-				gotoIndex(newIndex)
-			else
-				spectatedPlayer = nil
-				nameLabel.Text = "None"
-			end
+			spectatedPlayer = nil
+			nameMain.Text = "None"
+			local hum = getHum()
+			if hum then workspace.CurrentCamera.CameraSubject = hum end
 		else
 			if prevSel then currentIndex = Discover(playerList, prevSel) or currentIndex end
 		end
@@ -19976,238 +19984,204 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 	end
 end, true)
 
-NAmanage.BlockRemoteWithMode = function(remote, mode)
+NAmanage.isCoreFunc=function(fn)
+	local ok, env = pcall(getfenv, fn)
+	if not ok or type(env) ~= "table" then return false end
+	local sc = rawget(env, "script")
+	return typeof(sc) == "Instance" and sc:IsDescendantOf(COREGUI)
+end
+
+NAmanage.BlockRemote = function(remote, mode)
+	mode = mode or "fakeok"
 	if not Discover(NAStuff.BlockedRemotes, remote) then
 		Insert(NAStuff.BlockedRemotes, remote)
 	end
-	NAStuff.BlockedRemoteModes[remote] = mode or "fakeok"
-	if remote:IsA("RemoteEvent") and typeof(getconnections)=="function" then
-		local saved={funcs={}}
-		for _,c in ipairs(getconnections(remote.OnClientEvent)) do
-			local ok,f=pcall(function() return c.Function end)
-			if ok and type(f)=="function" then Insert(saved.funcs,f) end
-			pcall(function() c:Disconnect() end)
+	NAStuff.BlockedRemoteModes[remote] = mode
+	if remote:IsA("RemoteEvent") and typeof(getconnections) == "function" then
+		local saved = {funcs = {}}
+		for _, c in ipairs(getconnections(remote.OnClientEvent)) do
+			local ok, f = pcall(function() return c.Function end)
+			if ok and type(f) == "function" and not NAmanage.isCoreFunc(f) then
+				Insert(saved.funcs, f)
+				pcall(function() c:Disconnect() end)
+			end
 		end
-		NAStuff.BlockedEventSaved[remote]=saved
+		NAStuff.BlockedEventSaved[remote] = saved
 	elseif remote:IsA("RemoteFunction") then
-		if NAStuff.BlockedInvokeSaved[remote]==nil then NAStuff.BlockedInvokeSaved[remote]=false end
-		remote.OnClientInvoke=function(...)
-			local m=NAStuff.BlockedRemoteModes[remote] or "fakeok"
-			if m=="error" then
-				error("Blocked remote: "..remote:GetFullName().." [OnClientInvoke]",0)
+		if NAStuff.BlockedInvokeSaved[remote] == nil then
+			NAStuff.BlockedInvokeSaved[remote] = remote.OnClientInvoke or false
+		end
+		remote.OnClientInvoke = function(...)
+			local m = NAStuff.BlockedRemoteModes[remote] or "fakeok"
+			if m == "error" then
+				error("Blocked remote: "..remote:GetFullName().." [OnClientInvoke]", 0)
 			else
-				local ret=NAStuff.BlockedRemoteReturns[remote]
-				if ret==nil then ret=NAStuff.RemoteFakeReturn end
+				local ret = NAStuff.BlockedRemoteReturns[remote]
+				if ret == nil then ret = NAStuff.RemoteFakeReturn end
 				return ret
 			end
 		end
 	end
-	DebugNotif(("Blocked: %s (%s)"):format(remote:GetFullName(), NAStuff.BlockedRemoteModes[remote]),3,"Remote Block")
-end
-
-NAmanage.BlockRemote = function(remote)
-	NAmanage.BlockRemoteWithMode(remote, "fakeok")
+	DebugNotif(("Blocked: %s (%s)"):format(remote:GetFullName(), NAStuff.BlockedRemoteModes[remote]), 3, "Remote Block")
 end
 
 NAmanage.UnblockRemote = function(remote)
-	local idx=Discover(NAStuff.BlockedRemotes,remote)
+	local idx = Discover(NAStuff.BlockedRemotes, remote)
 	if idx then
-		local name=NAStuff.BlockedRemotes[idx]:GetFullName()
-		table.remove(NAStuff.BlockedRemotes,idx)
-		NAStuff.BlockedRemoteModes[remote]=nil
-		NAStuff.BlockedRemoteReturns[remote]=nil
+		local name = NAStuff.BlockedRemotes[idx]:GetFullName()
+		table.remove(NAStuff.BlockedRemotes, idx)
+		NAStuff.BlockedRemoteModes[remote] = nil
+		NAStuff.BlockedRemoteReturns[remote] = nil
 		if remote:IsA("RemoteEvent") then
-			local saved=NAStuff.BlockedEventSaved[remote]
+			local saved = NAStuff.BlockedEventSaved[remote]
 			if saved and saved.funcs then
-				for _,f in ipairs(saved.funcs) do
+				for _, f in ipairs(saved.funcs) do
 					pcall(function() remote.OnClientEvent:Connect(f) end)
 				end
 			end
-			NAStuff.BlockedEventSaved[remote]=nil
+			NAStuff.BlockedEventSaved[remote] = nil
 		elseif remote:IsA("RemoteFunction") then
-			local saved=NAStuff.BlockedInvokeSaved[remote]
-			if type(saved)=="function" then
-				remote.OnClientInvoke=saved
+			local saved = NAStuff.BlockedInvokeSaved[remote]
+			if type(saved) == "function" then
+				remote.OnClientInvoke = saved
 			else
-				remote.OnClientInvoke=nil
+				remote.OnClientInvoke = nil
 			end
-			NAStuff.BlockedInvokeSaved[remote]=nil
+			NAStuff.BlockedInvokeSaved[remote] = nil
 		end
-		DebugNotif(("Unblocked: %s"):format(name),3,"Remote Block")
+		DebugNotif(("Unblocked: %s"):format(name), 3, "Remote Block")
 	end
-end
-
-NAmanage.RemoteSource = function(remote)
-	local plr = Players.LocalPlayer
-	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
-	if remote:IsDescendantOf(ReplicatedStorage) then
-		return "ReplicatedStorage"
-	elseif pg and remote:IsDescendantOf(pg) then
-		return "PlayerGui"
-	elseif remote:IsDescendantOf(plr) then
-		return "Player"
-	end
-	return (remote.Parent and remote.Parent.Name) or "Unknown"
-end
-
-NAmanage.FindRemotesByName = function(remoteName)
-	local remotes = {}
-	local lname = Lower(remoteName)
-	local function scan(parent)
-		for _, obj in ipairs(parent:GetDescendants()) do
-			if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and Lower(obj.Name) == lname then
-				Insert(remotes, obj)
-			end
-		end
-	end
-	scan(ReplicatedStorage)
-	local plr = Players.LocalPlayer
-	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
-	if pg then scan(pg) else scan(plr) end
-	return remotes
-end
-
-NAmanage.FindRemoteSuggestions = function(query)
-	local suggestions, lq, seen = {}, Lower(query), {}
-	local function scan(parent)
-		for _, obj in ipairs(parent:GetDescendants()) do
-			if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-				local ln = Lower(obj.Name)
-				if Find(ln, lq, 1, true) and not seen[obj] then
-					seen[obj] = true
-					Insert(suggestions, obj)
-				end
-			end
-		end
-	end
-	scan(ReplicatedStorage)
-	local plr = Players.LocalPlayer
-	local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
-	if pg then scan(pg) else scan(plr) end
-	return suggestions
 end
 
 NAmanage.EnsureHook = function()
 	if getgenv().NA_BlockHooked then return end
-	local mt=getrawmetatable(game)
-	local oldNamecall=mt.__namecall
-	local oldNewindex=mt.__newindex
-	setreadonly(mt,false)
-	mt.__namecall=newcclosure(function(self,...)
-		local method=getnamecallmethod()
-		if (method=="FireServer" or method=="InvokeServer") and Discover(NAStuff.BlockedRemotes,self) then
-			local m=NAStuff.BlockedRemoteModes[self] or "fakeok"
-			if NAStuff.nuhuhNotifs then Defer(DebugNotif,("Blocked -> %s (%s) [%s]"):format(self:GetFullName(),method,m=="error" and "ERROR" or "FAKEOK"),2,"Remote Block") end
-			if m=="error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]",0) end
-			if method=="InvokeServer" then
-				local ret=NAStuff.BlockedRemoteReturns[self]
-				if ret==nil then ret=NAStuff.RemoteFakeReturn end
+	local mt = getrawmetatable(game)
+	local oldNamecall = mt.__namecall
+	local oldNewindex = mt.__newindex
+	setreadonly(mt, false)
+	mt.__namecall = newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if (method == "FireServer" or method == "InvokeServer") and Discover(NAStuff.BlockedRemotes, self) then
+			local m = NAStuff.BlockedRemoteModes[self] or "fakeok"
+			if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, m == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block") end
+			if m == "error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0) end
+			if method == "InvokeServer" then
+				local ret = NAStuff.BlockedRemoteReturns[self]
+				if ret == nil then ret = NAStuff.RemoteFakeReturn end
 				return ret
 			end
 			return
 		end
-		if method=="Connect" or method=="Wait" then
-			for _,r in ipairs(NAStuff.BlockedRemotes) do
-				if r:IsA("RemoteEvent") and self==r.OnClientEvent then
-					local m=NAStuff.BlockedRemoteModes[r] or "fakeok"
-					if NAStuff.nuhuhNotifs then Defer(DebugNotif,("Blocked -> %s (%s) [ClientEvent]"):format(r:GetFullName(),method),2,"Remote Block") end
-					if method=="Connect" then
-						local conn=oldNamecall(self,function() end)
-						pcall(function() conn:Disconnect() end)
-						return conn
-					else
-						if m=="error" then error("Blocked OnClientEvent:Wait() for "..r:GetFullName(),0) end
-						return nil
+		if method == "Connect" then
+			for _, r in ipairs(NAStuff.BlockedRemotes) do
+				if r:IsA("RemoteEvent") and self == r.OnClientEvent then
+					local args = {...}
+					local cb = args[1]
+					if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
+						return oldNamecall(self, ...)
 					end
+					if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (Connect) [ClientEvent]"):format(r:GetFullName()), 2, "Remote Block") end
+					local conn = oldNamecall(self, function() end)
+					pcall(function() conn:Disconnect() end)
+					return conn
+				end
+			end
+		elseif method == "Wait" then
+			for _, r in ipairs(NAStuff.BlockedRemotes) do
+				if r:IsA("RemoteEvent") and self == r.OnClientEvent then
+					local m = NAStuff.BlockedRemoteModes[r] or "fakeok"
+					if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (Wait) [ClientEvent]"):format(r:GetFullName()), 2, "Remote Block") end
+					if m == "error" then error("Blocked OnClientEvent:Wait() for "..r:GetFullName(), 0) end
+					return nil
 				end
 			end
 		end
-		return oldNamecall(self,...)
+		return oldNamecall(self, ...)
 	end)
-	mt.__newindex=newcclosure(function(self,key,value)
-		if typeof(self)=="Instance" and self:IsA("RemoteFunction") and key=="OnClientInvoke" then
-			if not Discover(NAStuff.BlockedRemotes,self) then
-				NAStuff.BlockedInvokeSaved[self]=value
+	mt.__newindex = newcclosure(function(self, key, value)
+		if typeof(self) == "Instance" and self:IsA("RemoteFunction") and key == "OnClientInvoke" then
+			if not Discover(NAStuff.BlockedRemotes, self) then
+				NAStuff.BlockedInvokeSaved[self] = value
 			end
 		end
-		return oldNewindex(self,key,value)
+		return oldNewindex(self, key, value)
 	end)
-	setreadonly(mt,true)
-	getgenv().NA_BlockHooked=true
+	setreadonly(mt, true)
+	getgenv().NA_BlockHooked = true
 end
 
 cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
 	local function scanAll()
-		local list,seen={},{}
-		local function scan(p)
-			for _,o in ipairs(p:GetDescendants()) do
-				if (o:IsA("RemoteEvent") or o:IsA("RemoteFunction")) and not seen[o] then
-					seen[o]=true
-					Insert(list,o)
+		local list, seen = {}, {}
+		local function scan(parent)
+			for _, obj in ipairs(parent:GetDescendants()) do
+				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
+					seen[obj] = true
+					Insert(list, obj)
 				end
 			end
 		end
 		scan(ReplicatedStorage)
-		local plr=Players.LocalPlayer
-		local pg=PlrGui or plr:FindFirstChildOfClass("PlayerGui")
+		local plr = Players.LocalPlayer
+		local pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
 		if pg then scan(pg) else scan(plr) end
 		return list
 	end
 	local function exactByName(q)
-		local out,lq={},Lower(q)
-		for _,r in ipairs(scanAll()) do
-			if Lower(r.Name)==lq then Insert(out,r) end
+		local out, lq = {}, Lower(q)
+		for _, r in ipairs(scanAll()) do
+			if Lower(r.Name) == lq then Insert(out, r) end
 		end
 		return out
 	end
 	local function fuzzyByName(q)
-		local out,lq={},Lower(q)
-		for _,r in ipairs(scanAll()) do
-			if Find(Lower(r.Name),lq,1,true) then Insert(out,r) end
+		local out, lq = {}, Lower(q)
+		for _, r in ipairs(scanAll()) do
+			if Find(Lower(r.Name), lq, 1, true) then Insert(out, r) end
 		end
 		return out
 	end
-	local function openPicker(list,titleText,modeSel)
-		if #list==0 then DebugNotif("No remotes found.",3,"Remote Block") return end
-		local buttons={}
-		for _,r in ipairs(list) do
-			Insert(buttons,{
-				Text=("%s | %s"):format(r.Name,r:GetFullName()),
-				Callback=function()
+	local function openPicker(list, titleText, modeSel)
+		if #list == 0 then DebugNotif("No remotes found.", 3, "Remote Block") return end
+		local buttons = {}
+		for _, r in ipairs(list) do
+			Insert(buttons, {
+				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
+				Callback = function()
 					NAmanage.EnsureHook()
-					NAmanage.BlockRemoteWithMode(r,modeSel)
+					NAmanage.BlockRemote(r, modeSel)
 				end
 			})
 		end
-		Window({Title=titleText,Buttons=buttons})
+		Window({ Title = titleText, Buttons = buttons })
 	end
 	local function afterMode(modeSel)
-		local q=tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
-		if q~="" then
-			local exact=exactByName(q)
-			if #exact>=1 then
+		local q = tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
+		if q ~= "" then
+			local exact = exactByName(q)
+			if #exact >= 1 then
 				NAmanage.EnsureHook()
-				for _,r in ipairs(exact) do
-					NAmanage.BlockRemoteWithMode(r,modeSel)
+				for _, r in ipairs(exact) do
+					NAmanage.BlockRemote(r, modeSel)
 				end
 				return
 			end
-			local fuzzy=fuzzyByName(q)
-			if #fuzzy==1 then
+			local fuzzy = fuzzyByName(q)
+			if #fuzzy == 1 then
 				NAmanage.EnsureHook()
-				NAmanage.BlockRemoteWithMode(fuzzy[1],modeSel)
+				NAmanage.BlockRemote(fuzzy[1], modeSel)
 				return
 			end
-			openPicker(fuzzy,("Select remote(s) to BLOCK for '%s'"):format(q),modeSel)
+			openPicker(fuzzy, ("Select remote(s) to BLOCK for '%s'"):format(q), modeSel)
 			return
 		end
-		openPicker(scanAll(),"Select remote(s) to BLOCK",modeSel)
+		openPicker(scanAll(), "Select remote(s) to BLOCK", modeSel)
 	end
 	Window({
-		Title="Remote Block Mode",
-		Buttons={
-			{Text="Fake Success",Callback=function() afterMode("fakeok") end},
-			{Text="Error",Callback=function() afterMode("error") end}
+		Title = "Remote Block Mode",
+		Buttons = {
+			{ Text = "Fake Success", Callback = function() afterMode("fakeok") end },
+			{ Text = "Error",        Callback = function() afterMode("error")  end }
 		}
 	})
 end,true)
@@ -20237,19 +20211,19 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 		Window({ Title = "Blocked Remotes", Buttons = buttons })
 		return
 	end
-
 	if Lower(name) == "all" or name == "*" then
 		for i = #NAStuff.BlockedRemotes, 1, -1 do
 			NAmanage.UnblockRemote(NAStuff.BlockedRemotes[i])
 		end
 		return
 	end
-
 	local lname = Lower(name)
-	local exact = {}
+	local exact, suggestions = {}, {}
 	for _, r in ipairs(NAStuff.BlockedRemotes) do
 		if Lower(r.Name) == lname then
 			Insert(exact, r)
+		elseif Find(Lower(r.Name), lname, 1, true) then
+			Insert(suggestions, r)
 		end
 	end
 	if #exact > 0 then
@@ -20258,18 +20232,10 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 		end
 		return
 	end
-
-	local suggestions = {}
-	for _, r in ipairs(NAStuff.BlockedRemotes) do
-		if Find(Lower(r.Name), lname, 1, true) then
-			Insert(suggestions, r)
-		end
-	end
 	if #suggestions == 0 then
 		DebugNotif(("No BLOCKED remotes match '%s'"):format(name), 3, "Remote Block")
 		return
 	end
-
 	local buttons = {}
 	for _, r in ipairs(suggestions) do
 		Insert(buttons, {
@@ -20278,7 +20244,7 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 		})
 	end
 	Window({ Title = ("Select remote to UNBLOCK for '%s'"):format(name), Buttons = buttons })
-end, true)
+end,true)
 
 NAmanage.EnsureWalkSpeedBypassHook = function()
 	if getgenv().NA_WSBP_Hooked then return end
