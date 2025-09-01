@@ -80,6 +80,7 @@ local NAStuff = {
 
 	MIMIC_TAG = "MIMIC_SYNC";
 	Mimic_AnimatePrevDisabled = nil;
+	mimic_uid = 0;
 }
 local interactTbl = {
 	click = {};
@@ -9858,7 +9859,7 @@ cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","C
 	local inverse = {}
 
 	local function addEvent(e) events[#events+1] = e end
-	local function newId() _mimic_uid += 1 return _mimic_uid end
+	local function newId() NAStuff.mimic_uid += 1 return NAStuff.mimic_uid end
 
 	local function stopAndRestore()
 		for _, s in pairs(slots) do
