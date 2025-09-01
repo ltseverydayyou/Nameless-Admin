@@ -72,6 +72,14 @@ local NAStuff = {
 	AntiTeleportMode = "fakeok";
 	AntiTeleportHooked = false;
 	AntiTeleportOrig = {namecall=nil,index=nil,newindex=nil,funcs={}};
+
+	SYNC_TAG = "ANIM_SYNC";
+	CORE_FOLDERS = {idle=true,walk=true,run=true,jump=true,fall=true,climb=true,swim=true,swimidle=true,toolnone=true,toolslash=true,toollunge=true};
+	SavedDefaultMap = nil;
+	Sync_AnimatePrevDisabled = nil;
+
+	MIMIC_TAG = "MIMIC_SYNC";
+	Mimic_AnimatePrevDisabled = nil;
 }
 local interactTbl = {
 	click = {};
@@ -6990,87 +6998,6 @@ cmd.add({"timestamp", "epoch"}, {"timestamp (epoch)", "Shows current Unix timest
 	local timestamp = os.time()
 	DoNotif("Current Unix Timestamp: "..timestamp)
 end)
-somersaultBTN = nil
-somersaultToggleKey = "x"
-cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a clean front flip"}, function(...)
-	local function somersaulter()
-		local p = LocalPlayer
-		local c = getChar() or p.CharacterAdded:Wait()
-		local hrp = getRoot(c)
-		local hum = getHum()
-
-		if hum:GetState() ~= Enum.HumanoidStateType.Freefall and hum.FloorMaterial ~= Enum.Material.Air then
-			hum.PlatformStand = true
-			hrp.AssemblyAngularVelocity = hrp.CFrame.RightVector * -40
-			hrp.AssemblyLinearVelocity = hrp.CFrame.LookVector * 30 + Vector3.new(0, 30, 0)
-
-			Delay(0.25, function()
-				hrp.AssemblyAngularVelocity = Vector3.zero
-				hum.PlatformStand = false
-				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-			end)
-		end
-	end
-
-	if IsOnMobile then
-		if somersaultBTN then
-			somersaultBTN:Destroy()
-			somersaultBTN = nil
-		end
-
-		somersaultBTN = InstanceNew("ScreenGui")
-		local btn = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-		local aspect = InstanceNew("UIAspectRatioConstraint")
-
-		NaProtectUI(somersaultBTN)
-		somersaultBTN.ResetOnSpawn = false
-
-		btn.Parent = somersaultBTN
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		btn.BackgroundTransparency = 0.1
-		btn.Position = UDim2.new(0.85, 0, 0.5, 0)
-		btn.Size = UDim2.new(0.08, 0, 0.1, 0)
-		btn.Font = Enum.Font.GothamBold
-		btn.Text = "Flip"
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.TextSize = 18
-		btn.TextWrapped = true
-		btn.Active = true
-		btn.TextScaled = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = btn
-
-		aspect.Parent = btn
-		aspect.AspectRatio = 1.0
-
-		coroutine.wrap(function()
-			MouseButtonFix(btn, function()
-				somersaulter()
-			end)
-		end)()
-
-		NAgui.draggerV2(btn)
-	else
-		NAlib.disconnect("somersault_key")
-		NAlib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
-			if KEY:lower() == somersaultToggleKey then
-				somersaulter()
-			end
-		end))
-
-		DoNotif("Press '"..somersaultToggleKey:upper().."' to flip!", 3)
-	end
-end, false)
-cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable somersault button and keybind"}, function(...)
-	if somersaultBTN then
-		somersaultBTN:Destroy()
-		somersaultBTN = nil
-	end
-
-	NAlib.disconnect("somersault_key")
-end, false)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
 	local RunService = RunService
@@ -9181,50 +9108,6 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum().Health=0
 end)
 
-local damageMessages = {
-	"Ouch!", "Ow!", "Aw!", "That hurt!", "Yikes!", "Gah!", "Nooo!",
-	"Stop that!", "Bruh...", "Hmph!", "I felt that!", "What the–?!", "My pixels!", "Dang!",
-	"Seriously?", "Try that again!", "Cut it out!", "That was rude!"
-}
-
-cmd.add({"damagechat", "dmgchat", "painchat"}, {"damagechat (dmgchat, painchat)", "Toggles chat message when you take damage"}, function()
-	local humanoid = getHum()
-
-	if not humanoid then
-		DoNotif("Humanoid not found", 2)
-		return
-	end
-
-	local connName = "damagechat"
-
-	if NAlib.isConnected(connName) then
-		NAlib.disconnect(connName)
-		DoNotif("Disabled", 2)
-		return
-	end
-
-	local lastHealth = humanoid.Health
-
-	NAlib.connect(connName, humanoid.HealthChanged:Connect(function(newHealth)
-		if newHealth < lastHealth then
-			local msg = damageMessages[math.random(1, #damageMessages)]
-			NAlib.LocalPlayerChat(msg, "All")
-		end
-		lastHealth = newHealth
-	end))
-
-	DebugNotif("Enabled", 2)
-end)
-
-cmd.add({"undamagechat", "undmgchat", "unpainchat"}, {"undamagechat (undmgchat, unpainchat)", "Disables damage reaction chat"}, function()
-	if NAlib.isConnected("damagechat") then
-		NAlib.disconnect("damagechat")
-		DebugNotif("Disabled", 2)
-	else
-		DebugNotif("Already disabled", 2)
-	end
-end)
-
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
 	local hum = getHum()
 	if not hum then return end
@@ -9619,6 +9502,562 @@ cmd.add({"resetanims", "defaultanims", "animsreset"}, {"resetanims (defaultanims
 	end
 
 	storedAnims[hum] = nil
+end)
+
+cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>","Copy core animations from target"}, function(targetArg)
+	if not targetArg or targetArg == "" then return end
+	local targets = getPlr(targetArg)
+	local target = targets and targets[1]
+	if not target then return end
+	local myChar = getChar()
+	local targetChar = getPlrChar(target)
+	if not (myChar and targetChar) then return end
+	local myHum = getPlrHum(myChar)
+	local targetHum = getPlrHum(targetChar)
+	if not (myHum and targetHum) then return end
+	local myAnimate = myChar:FindFirstChild("Animate")
+	local targetAnimate = targetChar:FindFirstChild("Animate")
+	if not (myAnimate and targetAnimate) then return end
+	local function mapAnims(root)
+		local t = {}
+		for _, inst in ipairs(root:GetDescendants()) do
+			if inst:IsA("Animation") then
+				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+				t[k] = inst
+			end
+		end
+		return t
+	end
+	local function refresh(hum)
+		local char = hum and hum.Parent
+		local animScr = char and char:FindFirstChild("Animate")
+		if animScr and NAlib.isProperty(animScr, "Disabled") ~= nil then
+			animScr.Disabled = true
+			animScr.Disabled = false
+		else
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+		end
+	end
+	local function captureDefaults()
+		if NAStuff.SavedDefaultMap then return end
+		if not myAnimate then return end
+		NAStuff.SavedDefaultMap = {}
+		for _, a in ipairs(myAnimate:GetDescendants()) do
+			if a:IsA("Animation") then
+				local parentName = Lower((a.Parent and a.Parent.Name) or "root")
+				if NAStuff.CORE_FOLDERS[parentName] then
+					local key = Lower(parentName.."|"..a.Name)
+					NAStuff.SavedDefaultMap[key] = a.AnimationId
+				end
+			end
+		end
+	end
+	captureDefaults()
+	local src = mapAnims(targetAnimate)
+	local dst = mapAnims(myAnimate)
+	for key, dstAnim in pairs(dst) do
+		local folder = Match(key, "([^|]+)|")
+		if NAStuff.CORE_FOLDERS[folder or ""] then
+			local srcAnim = src[key]
+			if srcAnim and srcAnim.AnimationId ~= "" and dstAnim.AnimationId ~= srcAnim.AnimationId then
+				dstAnim.AnimationId = srcAnim.AnimationId
+			end
+		end
+	end
+	refresh(myHum)
+end)
+
+cmd.add({"syncanim","animsync"}, {"syncanim <target>","Mirror target animations (live)"}, function(targetArg)
+	if not targetArg or targetArg == "" then return end
+	local targets = getPlr(targetArg)
+	local target = targets and targets[1]
+	if not target then return end
+
+	local myChar = getChar()
+	local targetChar = getPlrChar(target)
+	if not (myChar and targetChar) then return end
+
+	local myHum = getPlrHum(myChar)
+	local targetHum = getPlrHum(targetChar)
+	if not (myHum and targetHum) then return end
+	if myHum.RigType ~= targetHum.RigType then return end
+
+	local function getAnimator(hum, create)
+		if not hum then return nil end
+		local a = hum:FindFirstChildOfClass("Animator")
+		if a then return a end
+		if create then return InstanceNew("Animator", hum) end
+	end
+
+	local myAnimator = getAnimator(myHum, true)
+	local targetAnimator = getAnimator(targetHum, false)
+	if not targetAnimator then return end
+
+	NAlib.disconnect(NAStuff.SYNC_TAG)
+
+	local myAnimate = myChar:FindFirstChild("Animate")
+	if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil then
+		NAStuff.Sync_AnimatePrevDisabled = myAnimate.Disabled
+		myAnimate.Disabled = true
+	end
+
+	for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+
+	local active = {}
+	local inverse = {}
+	local stopped = false
+
+	local function reactivateDefaults()
+		local anim = myChar and myChar:FindFirstChild("Animate")
+		if anim and NAlib.isProperty(anim, "Disabled") ~= nil then
+			anim.Disabled = false
+			anim.Disabled = true
+			anim.Disabled = false
+		end
+		pcall(function() myHum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+	end
+
+	local function stopAndRestore()
+		if stopped then return end
+		stopped = true
+		for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+		if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil then
+			myAnimate.Disabled = false
+		end
+		reactivateDefaults()
+		NAStuff.Sync_AnimatePrevDisabled = nil
+		NAlib.disconnect(NAStuff.SYNC_TAG)
+	end
+
+	local function allowOnlyMirrored()
+		table.clear(inverse)
+		for _, mt in pairs(active) do inverse[mt] = true end
+		for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do
+			if not inverse[tr] then pcall(function() tr:Stop(0) end) end
+		end
+		if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil and not myAnimate.Disabled then
+			myAnimate.Disabled = true
+		end
+	end
+
+	local function mirrorTrack(tTrack)
+		if not tTrack or not tTrack.Animation or tTrack.Animation.AnimationId == "" then return end
+		local mt = active[tTrack]
+		if mt and mt.IsPlaying then return end
+		for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+		local animClone = InstanceNew("Animation")
+		animClone.AnimationId = tTrack.Animation.AnimationId
+		mt = myAnimator:LoadAnimation(animClone)
+		active[tTrack] = mt
+		pcall(function()
+			mt.Looped = tTrack.Looped
+			mt:Play(0, 1, (type(tTrack.Speed)=="number" and tTrack.Speed) or 1)
+			pcall(function() mt.TimePosition = tTrack.TimePosition end)
+			mt:AdjustWeight(1)
+		end)
+		NAlib.connect(NAStuff.SYNC_TAG, tTrack.Stopped:Connect(function()
+			local mine = active[tTrack]
+			if mine then pcall(function() mine:Stop(0) end) active[tTrack] = nil end
+		end))
+	end
+
+	for _, tTrack in ipairs(targetAnimator:GetPlayingAnimationTracks()) do
+		mirrorTrack(tTrack)
+	end
+	allowOnlyMirrored()
+
+	NAlib.connect(NAStuff.SYNC_TAG, targetHum.AnimationPlayed:Connect(function(tTrack)
+		mirrorTrack(tTrack)
+		allowOnlyMirrored()
+	end))
+
+	NAlib.connect(NAStuff.SYNC_TAG, RunService.Heartbeat:Connect(function()
+		if stopped then return end
+		allowOnlyMirrored()
+		for tTrack, myTrack in pairs(active) do
+			if not tTrack or not myTrack then
+				active[tTrack] = nil
+			else
+				if not tTrack.IsPlaying then
+					pcall(function() myTrack:Stop(0) end)
+					active[tTrack] = nil
+				else
+					pcall(function()
+						if type(tTrack.Speed) == "number" then myTrack:AdjustSpeed(tTrack.Speed) end
+						if math.abs(myTrack.TimePosition - tTrack.TimePosition) > 0.15 then
+							myTrack.TimePosition = tTrack.TimePosition
+						end
+						if myTrack.Looped ~= tTrack.Looped then myTrack.Looped = tTrack.Looped end
+						myTrack:AdjustWeight(1)
+					end)
+				end
+			end
+		end
+	end))
+
+	NAlib.connect(NAStuff.SYNC_TAG, myChar.AncestryChanged:Connect(function() stopAndRestore() end))
+	NAlib.connect(NAStuff.SYNC_TAG, targetChar.AncestryChanged:Connect(function() stopAndRestore() end))
+
+	if typeof(target) == "Instance" and target:IsA("Player") then
+		NAlib.connect(NAStuff.SYNC_TAG, Players.PlayerRemoving:Connect(function(plr)
+			if plr == target then
+				stopAndRestore()
+			end
+		end))
+	end
+end)
+
+cmd.add({"syncstop","stopsync","syncend","endsync","syncoff"}, {"syncstop","Stop live sync and restore defaults"}, function()
+	NAlib.disconnect(NAStuff.SYNC_TAG)
+	local myChar = getChar()
+	local myHum = getPlrHum(myChar)
+	if myHum then
+		local myAnimator = myHum:FindFirstChildOfClass("Animator")
+		if myAnimator then
+			for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+		end
+	end
+	local myAnimate = myChar and myChar:FindFirstChild("Animate")
+	if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil then
+		myAnimate.Disabled = false
+		myAnimate.Disabled = true
+		myAnimate.Disabled = false
+	end
+	NAStuff.Sync_AnimatePrevDisabled = nil
+	pcall(function() myHum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+end)
+
+cmd.add({"animresetcore","animreset","resetanim","resetan"}, {"animresetcore","Reset core animations to saved"}, function()
+	local myChar = getChar()
+	local myHum = getPlrHum(myChar)
+	local myAnimate = myChar and myChar:FindFirstChild("Animate")
+	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
+	local function mapAnims(root)
+		local t = {}
+		for _, inst in ipairs(root:GetDescendants()) do
+			if inst:IsA("Animation") then
+				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+				t[k] = inst
+			end
+		end
+		return t
+	end
+	local function refresh(hum)
+		local char = hum and hum.Parent
+		local animScr = char and char:FindFirstChild("Animate")
+		if animScr and NAlib.isProperty(animScr, "Disabled") ~= nil then
+			animScr.Disabled = true
+			animScr.Disabled = false
+		else
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+		end
+	end
+	local dst = mapAnims(myAnimate)
+	for key, id in pairs(NAStuff.SavedDefaultMap) do
+		local dstAnim = dst[key]
+		if dstAnim and dstAnim.AnimationId ~= id then
+			dstAnim.AnimationId = id
+		end
+	end
+	refresh(myHum)
+end)
+
+cmd.add({"unsyncreset","unsync","unsres","unsr"}, {"unsyncreset","Stop sync and reset saved"}, function()
+	NAlib.disconnect(NAStuff.SYNC_TAG)
+	local myChar = getChar()
+	local myHum = getPlrHum(myChar)
+	if myHum then
+		local myAnimator = myHum:FindFirstChildOfClass("Animator")
+		if myAnimator then
+			for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+		end
+	end
+	local myAnimate = myChar and myChar:FindFirstChild("Animate")
+	if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil then
+		if NAStuff.Sync_AnimatePrevDisabled ~= nil then
+			myAnimate.Disabled = NAStuff.Sync_AnimatePrevDisabled
+		else
+			myAnimate.Disabled = false
+		end
+		NAStuff.Sync_AnimatePrevDisabled = nil
+	end
+	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
+	local function mapAnims(root)
+		local t = {}
+		for _, inst in ipairs(root:GetDescendants()) do
+			if inst:IsA("Animation") then
+				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+				t[k] = inst
+			end
+		end
+		return t
+	end
+	local function refresh(hum)
+		local char = hum and hum.Parent
+		local animScr = char and char:FindFirstChild("Animate")
+		if animScr and NAlib.isProperty(animScr, "Disabled") ~= nil then
+			animScr.Disabled = true
+			animScr.Disabled = false
+		else
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+		end
+	end
+	local dst = mapAnims(myAnimate)
+	for key, id in pairs(NAStuff.SavedDefaultMap) do
+		local dstAnim = dst[key]
+		if dstAnim and dstAnim.AnimationId ~= id then
+			dstAnim.AnimationId = id
+		end
+	end
+	refresh(myHum)
+end)
+
+cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","Clone target movement with optional delay"}, function(targetArg, delayArg)
+	if not targetArg or targetArg == "" then return end
+	local delay = tonumber(delayArg) or 0
+	if delay < 0 then delay = 0 end
+
+	local targets = getPlr(targetArg)
+	local target = targets and targets[1]
+	if not target then return end
+
+	local myChar = getChar()
+	local targetChar = getPlrChar(target)
+	if not (myChar and targetChar) then return end
+
+	local myHum = getPlrHum(myChar)
+	local targetHum = getPlrHum(targetChar)
+	if not (myHum and targetHum) then return end
+	if myHum.RigType ~= targetHum.RigType then return end
+
+	NAlib.disconnect(NAStuff.MIMIC_TAG)
+
+	local myAnimator = myHum:FindFirstChildOfClass("Animator") or InstanceNew("Animator", myHum)
+	for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+
+	local myAnimate = myChar:FindFirstChild("Animate")
+	if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil then
+		NAStuff.Mimic_AnimatePrevDisabled = myAnimate.Disabled
+		myAnimate.Disabled = true
+	end
+
+	local targetAnimator = targetHum:FindFirstChildOfClass("Animator")
+	if not targetAnimator then return end
+
+	local myRoot = getRoot(myChar)
+	local targetRoot = getRoot(targetChar)
+	if not (myRoot and targetRoot) then return end
+
+	local prevAutoRotate = myHum.AutoRotate
+	myHum.AutoRotate = false
+
+	local function now() return os.clock() end
+
+	local events, evHead = {}, 1
+	local slots = {}
+	local inverse = {}
+
+	local function addEvent(e) events[#events+1] = e end
+	local function newId() _mimic_uid += 1 return _mimic_uid end
+
+	local function stopAndRestore()
+		for _, s in pairs(slots) do
+			if s.mt then pcall(function() s.mt:Stop(0) end) end
+		end
+		for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end
+		myHum.AutoRotate = prevAutoRotate
+		local a = myChar and myChar:FindFirstChild("Animate")
+		if a and NAlib.isProperty(a, "Disabled") ~= nil then
+			if NAStuff.Mimic_AnimatePrevDisabled ~= nil then a.Disabled = NAStuff.Mimic_AnimatePrevDisabled else a.Disabled = false end
+			a.Disabled = true; a.Disabled = false
+		end
+		NAStuff.Mimic_AnimatePrevDisabled = nil
+		events, evHead, slots = {}, 1, {}
+		table.clear(inverse)
+		NAlib.disconnect(NAStuff.MIMIC_TAG)
+	end
+
+	local function allowOnlyMirrored()
+		table.clear(inverse)
+		for _, s in pairs(slots) do if s.alive and s.mt and s.mt.IsPlaying then inverse[s.mt] = true end end
+		for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do
+			if not inverse[tr] then pcall(function() tr:Stop(0) end) end
+		end
+		if myAnimate and NAlib.isProperty(myAnimate, "Disabled") ~= nil and not myAnimate.Disabled then
+			myAnimate.Disabled = true
+		end
+	end
+
+	local function scheduleTrackStart(tt, tStamp)
+		if not tt or not tt.Animation or tt.Animation.AnimationId == "" then return end
+		local spd = (type(tt.Speed) == "number" and tt.Speed) or 1
+		local baseTP = tt.TimePosition or 0
+		addEvent({t = tStamp + delay, kind = "start", track = tt, animId = tt.Animation.AnimationId, speed = spd, baseTP = baseTP, looped = tt.Looped})
+		NAlib.connect(NAStuff.MIMIC_TAG, tt:GetPropertyChangedSignal("Speed"):Connect(function()
+			local s = (type(tt.Speed) == "number" and tt.Speed) or 1
+			addEvent({t = now() + delay, kind = "speed", track = tt, speed = s})
+		end))
+		NAlib.connect(NAStuff.MIMIC_TAG, tt.Stopped:Connect(function()
+			addEvent({t = now() + delay, kind = "stop", track = tt})
+		end))
+	end
+
+	if delay == 0 then
+		for _, tt in ipairs(targetAnimator:GetPlayingAnimationTracks()) do
+			scheduleTrackStart(tt, now())
+		end
+	else
+		for _, tt in ipairs(targetAnimator:GetPlayingAnimationTracks()) do
+			local spd = (type(tt.Speed) == "number" and tt.Speed) or 1
+			local inferredStart = now() - (tt.TimePosition or 0)/math.max(spd, 1e-6)
+			addEvent({t = inferredStart + delay, kind = "start", track = tt, animId = tt.Animation.AnimationId, speed = spd, baseTP = 0, looped = tt.Looped})
+			NAlib.connect(NAStuff.MIMIC_TAG, tt:GetPropertyChangedSignal("Speed"):Connect(function()
+				local s = (type(tt.Speed) == "number" and tt.Speed) or 1
+				addEvent({t = now() + delay, kind = "speed", track = tt, speed = s})
+			end))
+			NAlib.connect(NAStuff.MIMIC_TAG, tt.Stopped:Connect(function()
+				addEvent({t = now() + delay, kind = "stop", track = tt})
+			end))
+		end
+	end
+
+	NAlib.connect(NAStuff.MIMIC_TAG, targetHum.AnimationPlayed:Connect(function(tt)
+		scheduleTrackStart(tt, now())
+	end))
+
+	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") then
+			local bp = getBp()
+			if bp then
+				local match = bp:FindFirstChild(child.Name)
+				if match and match:IsA("Tool") then pcall(function() myHum:EquipTool(match) end) end
+			end
+		end
+	end))
+	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.ChildRemoved:Connect(function(child)
+		if child:IsA("Tool") then pcall(function() myHum:UnequipTools() end) end
+	end))
+
+	local poseQ, poseHead = {}, 1
+	local lastLook = Vector3.new(0,0,-1)
+
+	NAlib.connect(NAStuff.MIMIC_TAG, RunService.Heartbeat:Connect(function()
+		if not (targetChar and targetChar.Parent and targetRoot and targetRoot.Parent) then stopAndRestore() return end
+		if not (myChar and myChar.Parent and myRoot and myRoot.Parent) then stopAndRestore() return end
+
+		local lv = targetRoot.CFrame.LookVector
+		local flat = Vector3.new(lv.X, 0, lv.Z)
+		if flat.Magnitude >= 1e-4 then lastLook = flat.Unit end
+		Insert(poseQ, {t = now(), pos = targetRoot.Position, look = lastLook, vel = targetRoot.AssemblyLinearVelocity, angY = targetRoot.AssemblyAngularVelocity.Y})
+		local cutoff = now() - delay
+		local snap
+		while poseHead <= #poseQ and poseQ[poseHead].t <= cutoff do snap = poseQ[poseHead]; poseHead += 1 end
+		if snap then
+			local cf = CFrame.lookAt(snap.pos, snap.pos + snap.look)
+			pcall(function()
+				myRoot.CFrame = cf
+				myRoot.AssemblyLinearVelocity = snap.vel
+				myRoot.AssemblyAngularVelocity = Vector3.new(0, snap.angY, 0)
+			end)
+			if poseHead > 64 then
+				local newBuf = {}
+				for i = poseHead, #poseQ do newBuf[#newBuf+1] = poseQ[i] end
+				poseQ, poseHead = newBuf, 1
+			end
+		end
+
+		while evHead <= #events and events[evHead].t <= now() do
+			local e = events[evHead]; evHead += 1
+			if e.kind == "start" then
+				if e.animId and e.animId ~= "" then
+					local id = newId()
+					local a = InstanceNew("Animation"); a.AnimationId = e.animId
+					local mt = myAnimator:LoadAnimation(a)
+					pcall(function() mt:Play(0, 1, 1) end)
+					pcall(function() mt:AdjustSpeed(0) end)
+					pcall(function() mt.TimePosition = e.baseTP or 0 end)
+					slots[id] = {
+						mt = mt,
+						looped = e.looped and true or false,
+						len = mt.Length or 0,
+						baseTP = e.baseTP or 0,
+						startLocal = e.t,
+						segments = { {t = e.t, speed = e.speed or 1} },
+						track = e.track,
+						alive = true,
+					}
+				end
+			elseif e.kind == "speed" then
+				for _, s in pairs(slots) do
+					if s.alive and s.track == e.track then
+						Insert(s.segments, {t = e.t, speed = e.speed or 1})
+					end
+				end
+			elseif e.kind == "stop" then
+				for id, s in pairs(slots) do
+					if s.alive and s.track == e.track then
+						if s.mt then pcall(function() s.mt:Stop(0) end) end
+						s.alive = false
+						slots[id] = nil
+					end
+				end
+			end
+		end
+		if evHead > 128 then
+			local ne = {}
+			for i = evHead, #events do ne[#ne+1] = events[i] end
+			events, evHead = ne, 1
+		end
+
+		for id, s in pairs(slots) do
+			if not s.alive or not s.mt then slots[id] = nil
+			else
+				if s.len == 0 then s.len = s.mt.Length or 0 end
+				local tnow = now()
+				local tp = s.baseTP
+				for i = 1, #s.segments do
+					local st = s.segments[i].t
+					local sp = s.segments[i].speed or 1
+					local en = (i < #s.segments) and s.segments[i+1].t or tnow
+					if en > st then tp = tp + (en - st) * sp end
+				end
+				if s.looped and s.len and s.len > 0 then
+					tp = tp % s.len
+				elseif s.len and s.len > 0 then
+					if tp > s.len - 1/30 then tp = s.len - 1/30 end
+					if tp < 0 then tp = 0 end
+				end
+				pcall(function()
+					if math.abs((s.mt.TimePosition or 0) - tp) > 0.02 then s.mt.TimePosition = tp end
+				end)
+			end
+		end
+
+		allowOnlyMirrored()
+	end))
+
+	NAlib.connect(NAStuff.MIMIC_TAG, myChar.AncestryChanged:Connect(function() stopAndRestore() end))
+	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.AncestryChanged:Connect(function() stopAndRestore() end))
+	if typeof(target) == "Instance" and target:IsA("Player") then
+		NAlib.connect(NAStuff.MIMIC_TAG, Players.PlayerRemoving:Connect(function(plr)
+			if plr == target then stopAndRestore() end
+		end))
+	end
+end)
+
+cmd.add({"mstop","moff","stopmimic","mend"}, {"mstop","Stop mimic and restore defaults"}, function()
+	NAlib.disconnect(NAStuff.MIMIC_TAG)
+	local myChar = getChar()
+	local myHum = getPlrHum(myChar)
+	local myAnimator = myHum and myHum:FindFirstChildOfClass("Animator")
+	if myAnimator then for _, tr in ipairs(myAnimator:GetPlayingAnimationTracks()) do pcall(function() tr:Stop(0) end) end end
+	if myHum then myHum.AutoRotate = true end
+	local a = myChar and myChar:FindFirstChild("Animate")
+	if a and NAlib.isProperty(a, "Disabled") ~= nil then
+		if NAStuff.Mimic_AnimatePrevDisabled ~= nil then a.Disabled = NAStuff.Mimic_AnimatePrevDisabled else a.Disabled = false end
+		a.Disabled = true; a.Disabled = false
+	end
+	NAStuff.Mimic_AnimatePrevDisabled = nil
 end)
 
 cmd.add({"bubblechat","bchat"},{"bubblechat (bchat)","Enables BubbleChat"},function()
@@ -12499,7 +12938,7 @@ cmd.add({"mimicchat", "mimic"}, {"mimicchat <player> (mimic)", "Mimics the chat 
 	end
 end, true)
 
-cmd.add({"stopmimic", "unmimic"}, {"stopmimic (unmimic)", "Stops mimicking a player"}, function()
+cmd.add({"stopmimicchat", "unmimicchat"}, {"stopmimicchat (unmimicchat)", "Stops mimicking a player"}, function()
 	NAlib.disconnect("mimicchat")
 	DebugNotif("Stopped mimicking", 2)
 end, true)
@@ -13379,7 +13818,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 				lo = mid + 1
 			end
 		end
-		table.insert(playerList, pos, plr)
+		Insert(playerList, pos, plr)
 		return pos
 	end
 
