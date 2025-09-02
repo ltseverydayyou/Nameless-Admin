@@ -4604,212 +4604,489 @@ cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your mes
 	return "Filter", "Reset"
 end)
 
-NAmanage.doWindows = function(position, Size, defaultText)
+windowCounter = (windowCounter or 0)
+NAregistry = NAregistry or {}
+
+NAmanage.doWindows = function(position, baseSize, titleText)
 	local screenGui = InstanceNew("ScreenGui")
 	NaProtectUI(screenGui)
 	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	windowCounter += 1
+	screenGui.DisplayOrder = 100 + windowCounter
+
+	local holder = InstanceNew("Frame")
+	holder.Name = "Holder"
+	holder.Parent = screenGui
+	holder.BackgroundTransparency = 1
+	holder.AnchorPoint = Vector2.new(0.5, 0.5)
+	holder.Position = position or UDim2.new(0.5, 0, 0.35, 0)
+	holder.Size = UDim2.new(0, 180, 0, 80)
 
 	local window = InstanceNew("Frame")
-	window.Parent = screenGui
-	window.BackgroundColor3 = Color3.fromRGB(32, 34, 40)
-	window.BackgroundTransparency = 0
-	window.Position = position
-	window.Size = Size
+	window.Parent = holder
+	window.Name = "Window"
+	window.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+	window.BorderSizePixel = 0
+	window.Size = UDim2.new(1, 0, 1, 0)
+	window.ZIndex = 1
 
-	local uiCorner = InstanceNew("UICorner")
-	uiCorner.CornerRadius = UDim.new(0, 12)
-	uiCorner.Parent = window
+	local corner = InstanceNew("UICorner")
+	corner.CornerRadius = UDim.new(0, 10)
+	corner.Parent = window
 
-	local uiStroke = InstanceNew("UIStroke")
-	uiStroke.Color = Color3.fromRGB(60, 60, 75)
-	uiStroke.Thickness = 2
-	uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	uiStroke.Parent = window
+	local stroke = InstanceNew("UIStroke")
+	stroke.Color = Color3.fromRGB(70, 72, 90)
+	stroke.Thickness = 1.5
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = window
 
-	local titleBar = InstanceNew("TextLabel")
-	titleBar.Parent = window
-	titleBar.BackgroundTransparency = 1
-	titleBar.Position = UDim2.new(0, 10, 0, 5)
-	titleBar.Size = UDim2.new(1, -70, 0, 25)
-	titleBar.Font = Enum.Font.GothamMedium
-	titleBar.Text = defaultText
-	titleBar.TextColor3 = Color3.fromRGB(235, 235, 255)
-	titleBar.TextSize = 16
-	titleBar.TextXAlignment = Enum.TextXAlignment.Left
+	local topBar = InstanceNew("Frame")
+	topBar.Name = "TopBar"
+	topBar.Parent = window
+	topBar.BackgroundColor3 = Color3.fromRGB(38, 41, 52)
+	topBar.BorderSizePixel = 0
+	topBar.Size = UDim2.new(1, 0, 0, IsOnMobile and 44 or 32)
+	topBar.ZIndex = 2
+
+	local topCorner = InstanceNew("UICorner")
+	topCorner.CornerRadius = UDim.new(0, 10)
+	topCorner.Parent = topBar
+
+	local title = InstanceNew("TextLabel")
+	title.Parent = topBar
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 12, 0, 0)
+	title.Size = UDim2.new(1, -90, 1, 0)
+	title.Font = Enum.Font.GothamMedium
+	title.Text = titleText
+	title.TextColor3 = Color3.fromRGB(230, 232, 245)
+	title.TextSize = IsOnMobile and 16 or 15
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.RichText = true
+	title.ZIndex = 3
 
 	local closeButton = InstanceNew("TextButton")
-	closeButton.Parent = window
+	closeButton.Parent = topBar
 	closeButton.BackgroundColor3 = Color3.fromRGB(220, 70, 70)
-	closeButton.Position = UDim2.new(1, -30, 0, 5)
-	closeButton.Size = UDim2.new(0, 20, 0, 20)
+	closeButton.Position = UDim2.new(1, -(IsOnMobile and 36 or 30), 0.5, 0)
+	closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
+	closeButton.Size = UDim2.new(0, IsOnMobile and 26 or 22, 0, IsOnMobile and 26 or 22)
 	closeButton.Font = Enum.Font.GothamBold
 	closeButton.Text = "X"
+	closeButton.TextScaled = true
 	closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	closeButton.TextSize = 14
-	closeButton.ZIndex = 10
+	closeButton.RichText = true
+	closeButton.ZIndex = 3
 
-	local closeUICorner = InstanceNew("UICorner")
-	closeUICorner.CornerRadius = UDim.new(1, 0)
-	closeUICorner.Parent = closeButton
+	local closeCorner = InstanceNew("UICorner")
+	closeCorner.CornerRadius = UDim.new(1, 0)
+	closeCorner.Parent = closeButton
+
+	local minimizeButton = InstanceNew("TextButton")
+	minimizeButton.Parent = topBar
+	minimizeButton.BackgroundColor3 = Color3.fromRGB(100, 120, 255)
+	minimizeButton.Position = UDim2.new(1, -(IsOnMobile and 68 or 56), 0.5, 0)
+	minimizeButton.AnchorPoint = Vector2.new(0.5, 0.5)
+	minimizeButton.Size = UDim2.new(0, IsOnMobile and 26 or 22, 0, IsOnMobile and 26 or 22)
+	minimizeButton.Font = Enum.Font.GothamBold
+	minimizeButton.Text = "–"
+	minimizeButton.TextScaled = true
+	minimizeButton.TextColor3 = Color3.fromRGB(255,255,255)
+	minimizeButton.RichText = true
+	minimizeButton.ZIndex = 3
+
+	local minCorner = InstanceNew("UICorner")
+	minCorner.CornerRadius = UDim.new(1, 0)
+	minCorner.Parent = minimizeButton
+
+	local content = InstanceNew("Frame")
+	content.Name = "Content"
+	content.Parent = window
+	content.BackgroundTransparency = 1
+	content.Position = UDim2.new(0, 10, 0, (IsOnMobile and 44 or 32) + 8)
+	content.Size = UDim2.new(1, -20, 1, -((IsOnMobile and 44 or 32) + 18))
+	content.ZIndex = 2
+
+	local padding = InstanceNew("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 8)
+	padding.PaddingRight = UDim.new(0, 8)
+	padding.PaddingTop = UDim.new(0, 2)
+	padding.PaddingBottom = UDim.new(0, 2)
+	padding.Parent = content
+
+	NAgui.draggerV2(holder, topBar)
+
+	local collapsed = false
+	local fullSizeW, fullSizeH = 0, 0
+	local baseTitle = titleText
+	local collapsedTitle = titleText
+
+	local function applyResponsiveSize()
+		local p = screenGui.AbsoluteSize
+		if p.X <= 0 or p.Y <= 0 or collapsed then return end
+		local maxW = math.floor(p.X - 24)
+		local maxH = math.floor(p.Y - 24)
+		local baseW = baseSize.X.Scale > 0 and math.floor(p.X * baseSize.X.Scale + baseSize.X.Offset) or baseSize.X.Offset
+		local baseH = baseSize.Y.Scale > 0 and math.floor(p.Y * baseSize.Y.Scale + baseSize.Y.Offset) or baseSize.Y.Offset
+		local mobileBoost = IsOnMobile and 1.1 or 1
+		local w = math.clamp(math.floor(baseW * mobileBoost), 180, maxW)
+		local h = math.clamp(math.floor(baseH * mobileBoost), (IsOnMobile and 100 or 90), maxH)
+		fullSizeW, fullSizeH = w, h
+		holder.Size = UDim2.fromOffset(w, h)
+	end
+
+	local function toggleMinimized()
+		collapsed = not collapsed
+		if collapsed then
+			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, (IsOnMobile and 52 or 40))
+			content.Visible = false
+			title.Text = collapsedTitle
+		else
+			content.Visible = true
+			title.Text = baseTitle
+			if fullSizeW == 0 or fullSizeH == 0 then applyResponsiveSize() else holder.Size = UDim2.fromOffset(fullSizeW, fullSizeH) end
+		end
+	end
+
+	NAlib.connect("UI:"..screenGui:GetDebugId()..":Resize", screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyResponsiveSize))
+	Defer(applyResponsiveSize)
+
+	MouseButtonFix(minimizeButton, toggleMinimized)
+	MouseButtonFix(closeButton, function() screenGui:Destroy() end)
 
 	return {
 		screenGui = screenGui;
+		holder = holder;
 		window = window;
+		titleBar = title;
+		topBar = topBar;
+		content = content;
 		closeButton = closeButton;
-		defaultText = defaultText;
-		titleBar = titleBar;
+		minimizeButton = minimizeButton;
+		toggleMinimized = toggleMinimized;
+		isCollapsed = function() return collapsed end;
+		setBaseTitle = function(t) baseTitle = t if not collapsed then title.Text = t end end;
+		setCollapsedTitle = function(t) collapsedTitle = t if collapsed then title.Text = t end end;
+		bringToFront = function() windowCounter += 1 screenGui.DisplayOrder = 100 + windowCounter end;
 	}
 end
 
-cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
-	local function setupClose(guiElements)
-		MouseButtonFix(guiElements.closeButton, function()
-			guiElements.screenGui:Destroy()
-		end)
+NAmanage.ensureSingle=function(key, buildFn)
+	local existing = NAregistry[key]
+	if existing and existing.screenGui and existing.screenGui.Parent then
+		existing.bringToFront()
+		return existing
 	end
-
-	local function setupDraggable(guiElements)
-		NAgui.draggerV2(guiElements.window)
-	end
-
-	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "Ping: --")
-	setupClose(guiElements)
-	setupDraggable(guiElements)
-	local lastUpdate = 0
-	local updateInterval = 0.5
-
-	RunService.RenderStepped:Connect(function()
-		local currentTime = tick()
-		if currentTime - lastUpdate >= updateInterval then
-			local pingValue = SafeGetService("Stats").Network.ServerStatsItem["Data Ping"]
-			local ping = tonumber(pingValue:GetValueString():match("%d+"))
-			local color
-			if ping <= 50 then
-				color = Color3.fromRGB(0, 255, 100)
-			elseif ping <= 100 then
-				color = Color3.fromRGB(255, 255, 0)
-			else
-				color = Color3.fromRGB(255, 50, 50)
-			end
-
-			guiElements.titleBar.Text = "Ping: "..ping.." ms"
-			guiElements.titleBar.TextColor3 = color
-
-			lastUpdate = currentTime
+	local ui = buildFn()
+	NAregistry[key] = ui
+	MouseButtonFix(ui.closeButton, function()
+		for k, v in pairs(NAregistry) do
+			if v == ui then NAregistry[k] = nil break end
 		end
+	end)
+	return ui
+end
+
+NAmanage.colorToHex=function(c)
+	local r = math.floor(c.R*255+0.5)
+	local g = math.floor(c.G*255+0.5)
+	local b = math.floor(c.B*255+0.5)
+	return Format("#%02X%02X%02X", r, g, b)
+end
+
+cmd.add({"ping"}, {"ping", "Shows your ping"}, function()
+	NAmanage.ensureSingle("Ping", function()
+		NAlib.disconnect("UI:Ping")
+		local baseH = IsOnMobile and 124 or 104
+		local ui = NAmanage.doWindows(UDim2.new(0.5, 0, 0.22, 0), UDim2.new(0, 240, 0, baseH), "Ping")
+
+		local label = InstanceNew("TextLabel")
+		label.Parent = ui.content
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, 0, 0, IsOnMobile and 36 or 32)
+		label.Position = UDim2.new(0, 0, 0, 0)
+		label.Font = Enum.Font.GothamSemibold
+		label.Text = "— ms"
+		label.TextSize = IsOnMobile and 28 or 24
+		label.TextColor3 = Color3.fromRGB(200, 200, 210)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.RichText = true
+
+		local sub = InstanceNew("TextLabel")
+		sub.Parent = ui.content
+		sub.BackgroundTransparency = 1
+		sub.Size = UDim2.new(1, 0, 0, IsOnMobile and 18 or 16)
+		sub.Position = UDim2.new(0, 0, 0, IsOnMobile and 40 or 36)
+		sub.Font = Enum.Font.Gotham
+		sub.Text = "Network latency"
+		sub.TextSize = IsOnMobile and 16 or 14
+		sub.TextColor3 = Color3.fromRGB(145, 148, 165)
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		sub.RichText = true
+
+		local function colorForPing(p)
+			if p <= 50 then return Color3.fromRGB(0, 255, 120) end
+			if p <= 100 then return Color3.fromRGB(255, 210, 0) end
+			return Color3.fromRGB(255, 80, 80)
+		end
+
+		local lastUpdate, updateInterval = 0, 0.5
+		local stats = SafeGetService("Stats")
+		local conn = RunService.RenderStepped:Connect(function()
+			local t = tick()
+			if t - lastUpdate < updateInterval then return end
+			local pingValue = stats and stats.Network and stats.Network.ServerStatsItem and stats.Network.ServerStatsItem["Data Ping"]
+			local n = tonumber(pingValue and pingValue:GetValueString():match("%d+")) or 0
+			local c = colorForPing(n)
+			label.Text = "<b>"..tostring(n).." ms</b>"
+			label.TextColor3 = c
+			ui.setBaseTitle("Ping")
+			ui.setCollapsedTitle("Ping: <font color='"..NAmanage.colorToHex(c).."'>"..tostring(n).." ms</font>")
+			ui.titleBar.TextColor3 = c
+			lastUpdate = t
+		end)
+		NAlib.connect("UI:Ping", conn)
+
+		MouseButtonFix(ui.closeButton, function()
+			NAlib.disconnect("UI:Ping")
+			NAregistry["Ping"] = nil
+			ui.screenGui:Destroy()
+		end)
+
+		return ui
 	end)
 end)
 
 cmd.add({"fps"}, {"fps", "Shows your fps"}, function()
-	local function setupClose(guiElements)
-		MouseButtonFix(guiElements.closeButton, function()
-			guiElements.screenGui:Destroy()
+	NAmanage.ensureSingle("FPS", function()
+		NAlib.disconnect("UI:FPS")
+		local baseH = IsOnMobile and 124 or 104
+		local ui = NAmanage.doWindows(UDim2.new(0.5, 0, 0.38, 0), UDim2.new(0, 240, 0, baseH), "FPS")
+
+		local label = InstanceNew("TextLabel")
+		label.Parent = ui.content
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.new(1, 0, 0, IsOnMobile and 36 or 32)
+		label.Position = UDim2.new(0, 0, 0, 0)
+		label.Font = Enum.Font.GothamSemibold
+		label.Text = "—"
+		label.TextSize = IsOnMobile and 28 or 24
+		label.TextColor3 = Color3.fromRGB(200, 200, 210)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.RichText = true
+
+		local sub = InstanceNew("TextLabel")
+		sub.Parent = ui.content
+		sub.BackgroundTransparency = 1
+		sub.Size = UDim2.new(1, 0, 0, IsOnMobile and 18 or 16)
+		sub.Position = UDim2.new(0, 0, 0, IsOnMobile and 40 or 36)
+		sub.Font = Enum.Font.Gotham
+		sub.Text = "Frames per second"
+		sub.TextSize = IsOnMobile and 16 or 14
+		sub.TextColor3 = Color3.fromRGB(145, 148, 165)
+		sub.TextXAlignment = Enum.TextXAlignment.Left
+		sub.RichText = true
+
+		local function colorForFps(f)
+			if f >= 50 then return Color3.fromRGB(0, 255, 120) end
+			if f >= 30 then return Color3.fromRGB(255, 210, 0) end
+			return Color3.fromRGB(255, 80, 80)
+		end
+
+		local frames, lastUpdate, updateInterval = {}, 0, 0.5
+		local conn = RunService.RenderStepped:Connect(function(dt)
+			Insert(frames, dt)
+			if #frames > 60 then table.remove(frames, 1) end
+			local t = tick()
+			if t - lastUpdate < updateInterval then return end
+			local s = 0
+			for i = 1, #frames do s += frames[i] end
+			local avg = s / math.max(1, #frames)
+			local fps = math.max(1, math.floor(1 / avg + 0.5))
+			local c = colorForFps(fps)
+			label.Text = "<b>"..tostring(fps).."</b>"
+			label.TextColor3 = c
+			ui.setBaseTitle("FPS")
+			ui.setCollapsedTitle("FPS: <font color='"..NAmanage.colorToHex(c).."'>"..tostring(fps).."</font>")
+			ui.titleBar.TextColor3 = c
+			lastUpdate = t
 		end)
-	end
+		NAlib.connect("UI:FPS", conn)
 
-	local function setupDraggable(guiElements)
-		NAgui.draggerV2(guiElements.window)
-	end
+		MouseButtonFix(ui.closeButton, function()
+			NAlib.disconnect("UI:FPS")
+			NAregistry["FPS"] = nil
+			ui.screenGui:Destroy()
+		end)
 
-	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 201, 0, 35), "FPS: --")
-	setupClose(guiElements)
-	setupDraggable(guiElements)
-	local frames = {}
-	local lastUpdate = 0
-	local updateInterval = 0.5
-
-	RunService.RenderStepped:Connect(function(deltaTime)
-		Insert(frames, deltaTime)
-		if #frames > 30 then
-			table.remove(frames, 1)
-		end
-
-		local currentTime = tick()
-		if currentTime - lastUpdate >= updateInterval then
-			local sum = 0
-			for _, frame in ipairs(frames) do
-				sum = sum + frame
-			end
-			local avgFrameTime = sum / #frames
-			local fps = math.round(1 / avgFrameTime)
-			local color
-			if fps >= 50 then
-				color = Color3.fromRGB(0, 255, 100)
-			elseif fps >= 30 then
-				color = Color3.fromRGB(255, 255, 0)
-			else
-				color = Color3.fromRGB(255, 50, 50)
-			end
-
-			guiElements.titleBar.Text = "FPS: "..fps
-			guiElements.titleBar.TextColor3 = color
-
-			lastUpdate = currentTime
-		end
+		return ui
 	end)
 end)
 
 cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
-	local function setupClose(guiElements)
-		MouseButtonFix(guiElements.closeButton, function()
-			guiElements.screenGui:Destroy()
+	NAmanage.ensureSingle("Stats", function()
+		NAlib.disconnect("UI:Stats")
+		NAlib.disconnect("UI:Stats:Auto")
+		local ui = NAmanage.doWindows(UDim2.new(0.5, 0, 0.3, 0), UDim2.new(0, 300, 0, IsOnMobile and 200 or 170), "Stats")
+
+		local stack = InstanceNew("Frame")
+		stack.Parent = ui.content
+		stack.BackgroundTransparency = 1
+		stack.Size = UDim2.new(1, 0, 0, 0)
+		stack.AutomaticSize = Enum.AutomaticSize.Y
+
+		local vLayout = InstanceNew("UIListLayout")
+		vLayout.Parent = stack
+		vLayout.FillDirection = Enum.FillDirection.Vertical
+		vLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		vLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+		vLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		vLayout.Padding = UDim.new(0, 8)
+
+		local grid = InstanceNew("Frame")
+		grid.Parent = stack
+		grid.BackgroundTransparency = 1
+		grid.Size = UDim2.new(1, 0, 0, 0)
+		grid.AutomaticSize = Enum.AutomaticSize.Y
+		grid.LayoutOrder = 1
+
+		local layout = InstanceNew("UIListLayout")
+		layout.Parent = grid
+		layout.FillDirection = Enum.FillDirection.Horizontal
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		layout.VerticalAlignment = Enum.VerticalAlignment.Top
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Padding = UDim.new(0, 8)
+
+		local function newStatBox(titleText, subtitle)
+			local box = InstanceNew("Frame")
+			box.Parent = grid
+			box.BackgroundColor3 = Color3.fromRGB(40, 42, 52)
+			box.BackgroundTransparency = 0.1
+			box.Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56)
+
+			local corner = InstanceNew("UICorner")
+			corner.CornerRadius = UDim.new(0, 8)
+			corner.Parent = box
+
+			local name = InstanceNew("TextLabel")
+			name.Parent = box
+			name.BackgroundTransparency = 1
+			name.Position = UDim2.new(0, 10, 0, 6)
+			name.Size = UDim2.new(1, -20, 0, IsOnMobile and 22 or 20)
+			name.Font = Enum.Font.GothamSemibold
+			name.Text = titleText
+			name.TextSize = IsOnMobile and 16 or 15
+			name.TextColor3 = Color3.fromRGB(210, 212, 225)
+			name.TextXAlignment = Enum.TextXAlignment.Left
+			name.RichText = true
+
+			local value = InstanceNew("TextLabel")
+			value.Parent = box
+			value.BackgroundTransparency = 1
+			value.Position = UDim2.new(0, 10, 0, IsOnMobile and 30 or 26)
+			value.Size = UDim2.new(1, -20, 0, IsOnMobile and 26 or 22)
+			value.Font = Enum.Font.Gotham
+			value.Text = subtitle
+			value.TextSize = IsOnMobile and 18 or 16
+			value.TextColor3 = Color3.fromRGB(145, 148, 165)
+			value.TextXAlignment = Enum.TextXAlignment.Left
+			value.RichText = true
+
+			return box, name, value
+		end
+
+		local pingBox, _, pingValue = newStatBox("Ping", "— ms")
+		local fpsBox, _, fpsValue = newStatBox("FPS", "—")
+
+		local info = InstanceNew("TextLabel")
+		info.Parent = stack
+		info.BackgroundTransparency = 1
+		info.Size = UDim2.new(1, 0, 0, IsOnMobile and 20 or 18)
+		info.Font = Enum.Font.Gotham
+		info.Text = "Live network and rendering stats"
+		info.TextSize = IsOnMobile and 15 or 14
+		info.TextColor3 = Color3.fromRGB(145, 148, 165)
+		info.TextXAlignment = Enum.TextXAlignment.Left
+		info.RichText = true
+		info.LayoutOrder = 2
+
+		local function pingColor(p)
+			if p <= 50 then return Color3.fromRGB(0, 255, 120) end
+			if p <= 100 then return Color3.fromRGB(255, 210, 0) end
+			return Color3.fromRGB(255, 80, 80)
+		end
+		local function fpsColor(f)
+			if f >= 50 then return Color3.fromRGB(0, 255, 120) end
+			if f >= 30 then return Color3.fromRGB(255, 210, 0) end
+			return Color3.fromRGB(255, 80, 80)
+		end
+
+		local function applyFlowAndHeight()
+			if ui.isCollapsed() then return end
+			local w = ui.content.AbsoluteSize.X
+			if w < 460 then
+				layout.FillDirection = Enum.FillDirection.Vertical
+				pingBox.Size = UDim2.new(1, 0, 0, IsOnMobile and 64 or 56)
+				fpsBox.Size = UDim2.new(1, 0, 0, IsOnMobile and 64 or 56)
+			else
+				layout.FillDirection = Enum.FillDirection.Horizontal
+				pingBox.Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56)
+				fpsBox.Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56)
+			end
+			Defer(function()
+				local tb = IsOnMobile and 44 or 32
+				local needed = tb + 8 + stack.AbsoluteSize.Y + 10
+				ui.holder.Size = UDim2.new(ui.holder.Size.X.Scale, ui.holder.Size.X.Offset, 0, math.max(needed, ui.holder.AbsoluteSize.Y))
+			end)
+		end
+		NAlib.connect("UI:Stats:Auto", ui.content:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyFlowAndHeight))
+		NAlib.connect("UI:Stats:Auto", stack:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyFlowAndHeight))
+		Defer(applyFlowAndHeight)
+
+		local frames, lastUpdate, updateInterval = {}, 0, 0.5
+		local stats = SafeGetService("Stats")
+
+		local conn = RunService.RenderStepped:Connect(function(dt)
+			Insert(frames, dt)
+			if #frames > 60 then table.remove(frames, 1) end
+			local t = tick()
+			if t - lastUpdate < updateInterval then return end
+
+			local s = 0
+			for i = 1, #frames do s += frames[i] end
+			local avg = s / math.max(1, #frames)
+			local fps = math.max(1, math.floor(1 / avg + 0.5))
+
+			local pingValueObj = stats and stats.Network and stats.Network.ServerStatsItem and stats.Network.ServerStatsItem["Data Ping"]
+			local p = tonumber(pingValueObj and pingValueObj:GetValueString():match("%d+")) or 0
+
+			pingValue.Text = "<b>"..tostring(p).." ms</b>"
+			pingValue.TextColor3 = pingColor(p)
+			fpsValue.Text = "<b>"..tostring(fps).."</b>"
+			fpsValue.TextColor3 = fpsColor(fps)
+
+			local pc = pingColor(p)
+			local fc = fpsColor(fps)
+			ui.setBaseTitle("Stats")
+			ui.setCollapsedTitle("Stats: <font color='"..NAmanage.colorToHex(pc).."'>"..tostring(p).." ms</font> | <font color='"..NAmanage.colorToHex(fc).."'>"..tostring(fps).." FPS</font>")
+			ui.titleBar.TextColor3 = Color3.fromRGB(230, 232, 245)
+
+			lastUpdate = t
 		end)
-	end
+		NAlib.connect("UI:Stats", conn)
 
-	local function setupDraggable(guiElements)
-		NAgui.draggerV2(guiElements.window)
-	end
+		MouseButtonFix(ui.closeButton, function()
+			NAlib.disconnect("UI:Stats")
+			NAlib.disconnect("UI:Stats:Auto")
+			NAregistry["Stats"] = nil
+			ui.screenGui:Destroy()
+		end)
 
-	local guiElements = NAmanage.doWindows(UDim2.new(0.445, 0, 0, 0), UDim2.new(0, 250, 0, 35), "Ping: -- ms | FPS: --")
-	setupClose(guiElements)
-	setupDraggable(guiElements)
-	local frames = {}
-	local lastUpdate = 0
-	local updateInterval = 0.5
-
-	RunService.RenderStepped:Connect(function(deltaTime)
-		Insert(frames, deltaTime)
-		if #frames > 30 then
-			table.remove(frames, 1)
-		end
-
-		local currentTime = tick()
-		if currentTime - lastUpdate >= updateInterval then
-			local sum = 0
-			for _, frame in ipairs(frames) do
-				sum = sum + frame
-			end
-			local avgFrameTime = sum / #frames
-			local fps = math.round(1 / avgFrameTime)
-			local pingValue = SafeGetService("Stats").Network.ServerStatsItem["Data Ping"]
-			local ping = tonumber(pingValue:GetValueString():match("%d+"))
-
-			local pingColor
-			if ping <= 50 then
-				pingColor = Color3.fromRGB(0, 255, 100)
-			elseif ping <= 100 then
-				pingColor = Color3.fromRGB(255, 255, 0)
-			else
-				pingColor = Color3.fromRGB(255, 50, 50)
-			end
-
-			local fpsColor
-			if fps >= 50 then
-				fpsColor = Color3.fromRGB(0, 255, 100)
-			elseif fps >= 30 then
-				fpsColor = Color3.fromRGB(255, 255, 0)
-			else
-				fpsColor = Color3.fromRGB(255, 50, 50)
-			end
-
-			guiElements.titleBar.Text = "Ping: "..ping.." ms | FPS: "..fps
-			guiElements.titleBar.TextColor3 = pingColor
-
-			lastUpdate = currentTime
-		end
+		return ui
 	end)
 end)
-
 
 cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
 	NAgui.commands()
@@ -11355,7 +11632,8 @@ cmd.add({"unorbit"}, {"unorbit", "Stop orbiting"}, function()
 	NAlib.disconnect("orbit")
 end)
 
-cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but lets you walk on the client"},function()
+-- unavailable and under maintance
+--[[cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but lets you walk on the client"},function()
 	local Character=getChar()
 	local Root=getRoot(Character)
 
@@ -11368,7 +11646,7 @@ cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but l
 		getTorso(Character).Root:Destroy()
 	end
 	DebugNotif("freezewalk is activated,reset to stop it")
-end)
+end)]]
 
 fcBTNTOGGLE = nil
 
@@ -11928,25 +12206,62 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 	end)
 end)
 
-cmd.add({"fakelag", "flag"}, {"fakelag (flag)", "fake lag"}, function()
-	if FakeLag then return end
-	FakeLag = true
+FakeLagCfg = { interval = 0.05, jitter = 0.02, duration = nil }
 
-	while FakeLag do
-		local root = getRoot(getChar())
-		if root then
-			root.Anchored = true
-			Wait(0.05)
-			root.Anchored = false
-			Wait(0.05)
-		else
-			FakeLag = false
-		end
-	end
+cmd.add({"fakelag", "flag"}, {"fakelag (flag)", "fake lag"}, function(interval, jitter, duration)
+    if type(interval) == "number" then FakeLagCfg.interval = math.max(0, interval) end
+    if type(jitter) == "number" then FakeLagCfg.jitter = math.max(0, jitter) end
+    if type(duration) == "number" then FakeLagCfg.duration = (duration > 0) and duration or nil end
+    if FakeLag then return end
+    FakeLag = true
+    NAlib.disconnect("FakeLag")
+
+    local function nextInterval()
+        local b = tonumber(FakeLagCfg.interval) or 0.05
+        local j = tonumber(FakeLagCfg.jitter) or 0
+        if j <= 0 then return math.max(0, b) end
+        return math.max(0, b + Random.new():NextNumber(-j, j))
+    end
+
+    local startTs = time()
+    local state = false
+    local nextFlipAt = time()
+
+    NAlib.connect("FakeLag", RunService.Heartbeat:Connect(function()
+        if not FakeLag then
+            NAlib.disconnect("FakeLag")
+            local r = getRoot(getChar())
+            if r then NAlib.setProperty(r, "Anchored", false) end
+            return
+        end
+        if FakeLagCfg.duration and (time() - startTs) > FakeLagCfg.duration then
+            FakeLag = false
+            NAlib.disconnect("FakeLag")
+            local r = getRoot(getChar())
+            if r then NAlib.setProperty(r, "Anchored", false) end
+            return
+        end
+        local now = time()
+        if now >= nextFlipAt then
+            local r = getRoot(getChar())
+            if r and r.Parent then
+                state = not state
+                NAlib.setProperty(r, "Anchored", state)
+                nextFlipAt = now + nextInterval()
+            else
+                FakeLag = false
+                NAlib.disconnect("FakeLag")
+            end
+        end
+    end))
 end)
 
 cmd.add({"unfakelag", "unflag"}, {"unfakelag (unflag)", "stops the fake lag command"}, function()
-	FakeLag = false
+    if not FakeLag and not NAlib.isConnected("FakeLag") then return end
+    FakeLag = false
+    NAlib.disconnect("FakeLag")
+    local r = getRoot(getChar())
+    if r then NAlib.setProperty(r, "Anchored", false) end
 end)
 
 local r=math.rad
@@ -13537,6 +13852,7 @@ end)
 
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
 	if not arg then return end
+
 	local userId = tonumber(arg)
 	if not userId then
 		local ok, id = pcall(Players.GetUserIdFromNameAsync, Players, arg)
@@ -13546,43 +13862,68 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 
 	local okD, desc = pcall(Players.GetHumanoidDescriptionFromUserId, Players, userId)
 	if not okD or not desc then return end
-	currentDesc = desc
+	local targetDesc = desc:Clone()
 
 	local char = getChar() or plr.CharacterAdded:Wait()
 	local hum = getHum() or char:WaitForChild("Humanoid", 3)
-	repeat Wait(.1) until getRoot(char)
+	repeat Wait(0.1) until getRoot(char)
 	if not hum then return end
 
 	if not NAStuff.originalDesc then
 		local okA, applied = pcall(function() return hum:GetAppliedDescription() end)
-		if okA then NAStuff.originalDesc = applied end
+		if okA and applied then NAStuff.originalDesc = applied:Clone() end
 	end
 
-	if plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then plr.CharacterAppearanceLoaded:Wait() end
-	plr:ClearCharacterAppearance()
-	hum:ApplyDescriptionClientServer(currentDesc)
+	if plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then
+		plr.CharacterAppearanceLoaded:Wait()
+	end
+
+	for _, inst in ipairs(char:GetChildren()) do
+		if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") then
+			inst:Destroy()
+		end
+	end
+	local hd = getHead(char)
+	if hd then
+		for _, d in ipairs(hd:GetChildren()) do
+			if d:IsA("Decal") then d:Destroy() end
+		end
+	end
+
+	local blank = InstanceNew("HumanoidDescription")
+	hum:ApplyDescriptionClientServer(blank)
+	Wait()
+	hum:ApplyDescriptionClientServer(targetDesc)
+	Wait()
+
+	local okA2, ap = pcall(Players.GetCharacterAppearanceAsync, Players, userId)
+	if okA2 and ap then
+		if not char:FindFirstChildOfClass("Shirt") then
+			local s = ap:FindFirstChildOfClass("Shirt")
+			if s then s:Clone().Parent = char end
+		end
+		if not char:FindFirstChildOfClass("Pants") then
+			local p = ap:FindFirstChildOfClass("Pants")
+			if p then p:Clone().Parent = char end
+		end
+		if not char:FindFirstChildOfClass("ShirtGraphic") then
+			local g = ap:FindFirstChildOfClass("ShirtGraphic")
+			if g then g:Clone().Parent = char end
+		end
+	end
 
 	if IsR6(plr) then
-		for _, x in ipairs(char:GetChildren()) do
-			if x:IsA("CharacterMesh") then x:Destroy() end
-		end
-
-		local okA, ap = pcall(Players.GetCharacterAppearanceAsync, Players, userId)
-		if okA and ap then
+		if okA2 and ap then
 			for _, v in ipairs(ap:GetDescendants()) do
 				if v:IsA("CharacterMesh") then
 					v:Clone().Parent = char
 				end
 			end
-
-			local hd = getHead(char)
-			if hd then
-				for _, d in ipairs(hd:GetChildren()) do
-					if d:IsA("Decal") then d:Destroy() end
-				end
+			local hd2 = getHead(char)
+			if hd2 then
 				for _, v in ipairs(ap:GetDescendants()) do
 					if v:IsA("Decal") and Lower(v.Name) == "face" then
-						v:Clone().Parent = hd
+						v:Clone().Parent = hd2
 						break
 					end
 				end
@@ -16661,7 +17002,7 @@ cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"
 		glueloop[name] = RunService.Stepped:Connect(function()
 			local target = Players:FindFirstChild(name)
 			if target and target.Character then
-				getChar():PivotTo(target.Character:GetPivot()*CFrame.new(0,1.5,0))
+				getRoot(getChar()).CFrame=getRoot(target.Character).CFrame
 			end
 		end)
 	end
@@ -16686,7 +17027,7 @@ cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport 
 		glueBACKER[name] = RunService.Stepped:Connect(function()
 			local tp = Players:FindFirstChild(name)
 			if not tp or not tp.Character then return end
-			getChar():PivotTo(tp.Character:GetPivot()*CFrame.new(0,1.5,3))
+			getRoot(getChar()).CFrame=getRoot(tp.Character).CFrame*CFrame.new(0,0,3)
 		end)
 	end
 end,true)
@@ -22788,9 +23129,8 @@ NAgui.dragger = function(ui, dragui)
 		end)
 	end)
 
-	local success, err = NACaller(function()
-		ui.Active = true
-	end)
+	pcall(function() ui.Active=true end)
+	pcall(function() dragui.Active=true end)
 	if not success then warn("[Dragger] Set Active error:", err) end
 end
 
@@ -22889,6 +23229,8 @@ NAgui.draggerV2 = function(ui, dragui)
 	if dragui and NAlib.isProperty(dragui, "Active") then
 		NAlib.setProperty(dragui, "Active", true)
 	end
+	pcall(function() ui.Active=true end)
+	pcall(function() dragui.Active=true end)
 end
 
 NAgui.menu = function(menu)
