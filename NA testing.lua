@@ -18375,28 +18375,28 @@ NAmanage.God_WireNoHooks = function(h, strong)
 	if not h then return end
 	if NAStuff._godSignals[h] then for _,c in ipairs(NAStuff._godSignals[h]) do if c then c:Disconnect() end end end
 	NAStuff._godSignals[h] = {}
-	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
+	Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
 		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 	end)))
-	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("Health"):Connect(function()
+	Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("Health"):Connect(function()
 		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 	end)))
-	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+	Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("MaxHealth"):Connect(function()
 		if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
 		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 	end)))
 	if strong then
-		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("BreakJointsOnDeath"):Connect(function()
+		Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("BreakJointsOnDeath"):Connect(function()
 			if NAlib.isProperty(h,"BreakJointsOnDeath") ~= false then NAlib.setProperty(h,"BreakJointsOnDeath", false) end
 		end)))
-		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.StateChanged:Connect(function(_, s)
+		Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.StateChanged:Connect(function(_, s)
 			if s == Enum.HumanoidStateType.Dead then
 				if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 				pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
 				pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
 			end
 		end)))
-		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.Died:Connect(function()
+		Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.Died:Connect(function()
 			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 			pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
 			pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
@@ -18507,7 +18507,7 @@ end
 
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
 	local args = {...}
-	local choice = args[1] and string.lower(args[1]) or nil
+	local choice = args[1] and Lower(args[1]) or nil
 	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function")
 
 	local function enableStrong()
