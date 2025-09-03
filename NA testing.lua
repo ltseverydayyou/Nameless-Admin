@@ -18333,86 +18333,232 @@ end,true)
 
 -- garbage that needs to be changed to something else
 
-cmd.add({"godmode","god"},{"godmode (god)","Toggles invincibility"},function()
+NAStuff._godEnabled = NAStuff._godEnabled or false
+NAStuff._godMethod  = NAStuff._godMethod  or "nohooks_strong"
+NAStuff._godTarget  = NAStuff._godTarget  or 1e9
+NAStuff._godOrig    = NAStuff._godOrig    or setmetatable({}, {__mode="k"})
+NAStuff._godSignals = NAStuff._godSignals or setmetatable({}, {__mode="k"})
+NAStuff._godHumRef  = NAStuff._godHumRef  or nil
+NAStuff._godHooked  = NAStuff._godHooked  or false
+NAStuff._godOldNC   = NAStuff._godOldNC   or nil
+NAStuff._godOldNI   = NAStuff._godOldNI   or nil
+
+NAmanage.God_ClearSignals = function()
+	for _,arr in pairs(NAStuff._godSignals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
+	for k in pairs(NAStuff._godSignals) do NAStuff._godSignals[k] = nil end
 	NAlib.disconnect("godmode")
-	NAStuff._godOrig = NAStuff._godOrig or setmetatable({}, {__mode="k"})
-	NAStuff._godSignals = NAStuff._godSignals or setmetatable({}, {__mode="k"})
-	NAStuff._godTarget = 1e9
-	local orig = NAStuff._godOrig
-	local signals = NAStuff._godSignals
-	local lp = Players.LocalPlayer
-	local hook = function(h)
-		if not h then return end
-		if orig[h] == nil then orig[h] = h.MaxHealth end
+	NAlib.disconnect("god_char")
+end
+
+NAmanage.God_UnhookMeta = function()
+	if NAStuff._godHooked and NAStuff._godOldNC and NAStuff._godOldNI and typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" then
+		local mt = getrawmetatable(game)
+		local ro = isreadonly and isreadonly(mt)
+		if ro then setreadonly(mt,false) end
+		mt.__namecall = NAStuff._godOldNC
+		mt.__newindex = NAStuff._godOldNI
+		if ro then setreadonly(mt,true) end
+	end
+	NAStuff._godHooked, NAStuff._godOldNC, NAStuff._godOldNI = false, nil, nil
+end
+
+NAmanage.God_CommonApply = function(h)
+	if not h then return end
+	NAStuff._godHumRef = h
+	if NAStuff._godOrig[h] == nil then NAStuff._godOrig[h] = { max = h.MaxHealth, bjd = NAlib.isProperty(h,"BreakJointsOnDeath") } end
+	if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
+	if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	if NAlib.isProperty(h,"BreakJointsOnDeath") ~= false then NAlib.setProperty(h,"BreakJointsOnDeath", false) end
+end
+
+NAmanage.God_WireNoHooks = function(h, strong)
+	if not h then return end
+	if NAStuff._godSignals[h] then for _,c in ipairs(NAStuff._godSignals[h]) do if c then c:Disconnect() end end end
+	NAStuff._godSignals[h] = {}
+	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
+		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	end)))
+	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("Health"):Connect(function()
+		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	end)))
+	table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("MaxHealth"):Connect(function()
 		if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
 		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
-		if signals[h] then for _,c in ipairs(signals[h]) do if c then c:Disconnect() end end end
-		signals[h] = {}
-		Insert(signals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
-			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	end)))
+	if strong then
+		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("BreakJointsOnDeath"):Connect(function()
+			if NAlib.isProperty(h,"BreakJointsOnDeath") ~= false then NAlib.setProperty(h,"BreakJointsOnDeath", false) end
 		end)))
-		Insert(signals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("Health"):Connect(function()
-			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.StateChanged:Connect(function(_, s)
+			if s == Enum.HumanoidStateType.Dead then
+				if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+				pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+				pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
+			end
 		end)))
-		Insert(signals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("MaxHealth"):Connect(function()
-			if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
+		table.insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.Died:Connect(function()
 			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+			pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+			pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
 		end)))
+		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+		if h:GetState() == Enum.HumanoidStateType.Dead then pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end) end
 	end
-	local waitHum = function(char)
-		local h = getHum()
-		if h then return h end
-		local c
-		c = char.DescendantAdded:Connect(function(inst)
-			if inst:IsA("Humanoid") then hook(inst) if c then c:Disconnect() end end
-		end)
-		NAlib.connect("godmode", c)
-		for i=1,120 do
-			local hh = getHum()
-			if hh then if c then c:Disconnect() end return hh end
-			Wait()
+	NAlib.connect("godmode", RunService.RenderStepped:Connect(function()
+		local hh = NAStuff._godHumRef
+		if not hh then return end
+		if hh.MaxHealth < NAStuff._godTarget then NAlib.setProperty(hh,"MaxHealth", NAStuff._godTarget) end
+		if hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
+		if strong then
+			if NAlib.isProperty(hh,"BreakJointsOnDeath") ~= false then NAlib.setProperty(hh,"BreakJointsOnDeath", false) end
+			pcall(function() hh:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+			if hh:GetState() == Enum.HumanoidStateType.Dead then pcall(function() hh:ChangeState(Enum.HumanoidStateType.Running) end) end
 		end
-		if c then c:Disconnect() end
-		return getHum()
-	end
-	local seed = function(char)
-		local h = getHum()
-		if not h and char then h = waitHum(char) end
-		hook(h)
-	end
-	if lp.Character then seed(lp.Character) end
-	NAlib.connect("godmode", lp.CharacterAdded:Connect(function(char)
-		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
-		for k in pairs(signals) do signals[k]=nil end
-		seed(char)
-	end))
-	NAlib.connect("godmode", lp.CharacterRemoving:Connect(function()
-		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
-		for k in pairs(signals) do signals[k]=nil end
 	end))
 	NAlib.connect("godmode", RunService.Stepped:Connect(function()
-		local h = getHum()
-		if not h then return end
-		if not signals[h] then hook(h) end
-		if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
-		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		local hh = NAStuff._godHumRef
+		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
 	end))
-	DebugNotif("Godmode ON",2)
+	NAlib.connect("godmode", RunService.Heartbeat:Connect(function()
+		local hh = NAStuff._godHumRef
+		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
+	end))
+end
+
+NAmanage.God_HookMeta = function()
+	if NAStuff._godHooked or not (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function") then return false end
+	NAStuff._godHooked = true
+	NAStuff._godOldNC = NAStuff._godOldNC or hookmetamethod(game,"__namecall",newcclosure(function(self,...)
+		local m = getnamecallmethod()
+		if NAStuff._godHumRef and typeof(self)=="Instance" then
+			if self==NAStuff._godHumRef and m=="ChangeState" then local st = ...; if st==Enum.HumanoidStateType.Dead then return end end
+			if self==NAStuff._godHumRef and m=="SetStateEnabled" then local st,en = ...; if st==Enum.HumanoidStateType.Dead and en==true then return end end
+			if self==NAStuff._godHumRef and m=="Destroy" then return end
+			local char = Players.LocalPlayer.Character
+			if char and self==char and m=="BreakJoints" then return end
+		end
+		return NAStuff._godOldNC(self,...)
+	end))
+	NAStuff._godOldNI = NAStuff._godOldNI or hookmetamethod(game,"__newindex",newcclosure(function(self,k,v)
+		if NAStuff._godHumRef and self==NAStuff._godHumRef then
+			if k=="Health" and type(v)=="number" and v<=0 then return end
+			if k=="MaxHealth" and type(v)=="number" and v<NAStuff._godTarget then return end
+			if k=="BreakJointsOnDeath" and v==true then return end
+			if k=="Parent" and v==nil then return end
+		end
+		return NAStuff._godOldNI(self,k,v)
+	end))
+	return true
+end
+
+NAmanage.God_Enable = function(method)
+	NAmanage.God_ClearSignals()
+	NAmanage.God_UnhookMeta()
+	NAStuff._godMethod = method or NAStuff._godMethod
+	local h = getHum()
+	if not h then
+		local lp = Players.LocalPlayer
+		NAlib.connect("god_char", lp.CharacterAdded:Connect(function(char)
+			local c; c = char.DescendantAdded:Connect(function(inst) if inst:IsA("Humanoid") then c:Disconnect(); NAmanage.God_Enable(NAStuff._godMethod) end end)
+		end))
+		return
+	end
+	NAStuff._godEnabled = true
+	NAmanage.God_CommonApply(h)
+	if NAStuff._godMethod == "nohooks_min" then
+		NAmanage.God_WireNoHooks(h, false)
+	elseif NAStuff._godMethod == "nohooks_strong" then
+		NAmanage.God_WireNoHooks(h, true)
+	elseif NAStuff._godMethod == "hook_meta" then
+		NAmanage.God_WireNoHooks(h, true)
+		if not NAmanage.God_HookMeta() then DebugNotif("hookmetamethod unavailable; using nohooks_strong",2) end
+	else
+		NAmanage.God_WireNoHooks(h, true)
+	end
+	NAlib.connect("god_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+		Wait()
+		local nh = getHum()
+		if nh then
+			NAmanage.God_CommonApply(nh)
+			if NAStuff._godMethod=="nohooks_min" then NAmanage.God_WireNoHooks(nh,false)
+			elseif NAStuff._godMethod=="hook_meta" then NAmanage.God_WireNoHooks(nh,true); NAmanage.God_HookMeta()
+			else NAmanage.God_WireNoHooks(nh,true) end
+		end
+	end))
+	DebugNotif("Godmode: "..NAStuff._godMethod, 2)
+end
+
+NAmanage.God_Disable = function()
+	NAStuff._godEnabled = false
+	NAmanage.God_ClearSignals()
+	NAmanage.God_UnhookMeta()
+	local h = getHum()
+	local o = h and NAStuff._godOrig[h]
+	if h and o then
+		NAlib.setProperty(h,"MaxHealth", o.max or 100)
+		if h.Health > h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		if o.bjd ~= nil then NAlib.setProperty(h,"BreakJointsOnDeath", o.bjd) end
+		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
+	end
+	for k in pairs(NAStuff._godOrig) do NAStuff._godOrig[k] = nil end
+	NAStuff._godHumRef = nil
+	DebugNotif("Godmode OFF",2)
+end
+
+cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
+	local args = {...}
+	local choice = args[1] and string.lower(args[1]) or nil
+	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function")
+
+	local function enableStrong()
+		NAStuff._godMethod = "strong"
+		if NAmanage and NAmanage.God_Enable then
+			NAmanage.God_Enable("nohooks_strong")
+		end
+		DebugNotif("Godmode ON (strong)",2)
+	end
+
+	local function enableHooking()
+		NAStuff._godMethod = "hooking"
+		if not useHooking then
+			DebugNotif("Hooking unavailable; falling back to strong",2)
+			return enableStrong()
+		end
+		if NAmanage and NAmanage.God_Enable then
+			NAmanage.God_Enable("hook_meta")
+		end
+		DebugNotif("Godmode ON (hooking)",2)
+	end
+
+	local function disableGod()
+		if NAmanage and NAmanage.God_Disable then
+			NAmanage.God_Disable()
+			DebugNotif("Godmode OFF",2)
+		else
+			NAlib.disconnect("godmode")
+			DebugNotif("Godmode OFF",2)
+		end
+	end
+
+	if choice == "strong" then return enableStrong() end
+	if choice == "hook" or choice == "hooking" then return enableHooking() end
+	if choice == "off" or choice == "disable" then return disableGod() end
+
+	local buttons = {}
+	Insert(buttons, { Text = "Enable: Strong (no hooks)",   Callback = enableStrong })
+	Insert(buttons, { Text = "Enable: Hooking (metamethod)", Callback = enableHooking })
+	if NAStuff._godEnabled then
+		Insert(buttons, { Text = "Disable Godmode", Callback = disableGod })
+	end
+
+	Window({
+		Title = "Godmode Methods",
+		Buttons = buttons
+	})
 end)
 
-cmd.add({"ungodmode","ungod"},{"ungodmode (ungod)","Disables invincibility"},function()
-	local orig = NAStuff._godOrig or {}
-	local signals = NAStuff._godSignals or {}
-	local h = getHum()
-	if h and orig[h] ~= nil then
-		NAlib.setProperty(h,"MaxHealth", orig[h])
-		if h.Health > h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
-	end
-	for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
-	for k in pairs(signals) do signals[k]=nil end
-	for k in pairs(orig) do orig[k]=nil end
-	NAlib.disconnect("godmode")
-	DebugNotif("Godmode OFF",2)
+cmd.add({"ungodmode","ungod"},{"ungodmode (ungod)","Disable invincibility"},function()
+	NAmanage.God_Disable()
 end)
 
 cmd.add({"controllock","ctrllock"},{"controllock (ctrllock)","Set Shiftlock keys to Control for this session"},function()
@@ -25075,9 +25221,39 @@ print(
 math.randomseed(os.time())
 
 Spawn(function()
-	while Wait() do
-		if getHum() then getHum().AutoJumpEnabled=false end -- bye bye useless autojump
+	NAlib.disconnect("autojump")
+	NAStuff._aajSignals = NAStuff._aajSignals or setmetatable({}, {__mode="k"})
+	local signals = NAStuff._aajSignals
+	local lp = Players.LocalPlayer
+
+	local hookHum = function(h)
+		if not h then return end
+		if signals[h] then for _,c in ipairs(signals[h]) do if c then c:Disconnect() end end end
+		signals[h] = {}
+		if h.AutoJumpEnabled then h.AutoJumpEnabled = false end
+		Insert(signals[h], NAlib.connect("autojump", h:GetPropertyChangedSignal("AutoJumpEnabled"):Connect(function()
+			if NAlib.isProperty(h,"AutoJumpEnabled") ~= false then NAlib.setProperty(h,"AutoJumpEnabled", false) end
+		end)))
 	end
+
+	local seed = function(char)
+		local h = getHum()
+		if h then
+			hookHum(h)
+		else
+			local c; c = char.DescendantAdded:Connect(function(inst)
+				if inst:IsA("Humanoid") then hookHum(inst) if c then c:Disconnect() end end
+			end)
+			NAlib.connect("autojump", c)
+		end
+	end
+
+	if lp.Character then seed(lp.Character) end
+	NAlib.connect("autojump", lp.CharacterAdded:Connect(seed))
+	NAlib.connect("autojump", lp.CharacterRemoving:Connect(function()
+		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
+		for k in pairs(signals) do signals[k] = nil end
+	end))
 end)
 
 Spawn(function() -- init
