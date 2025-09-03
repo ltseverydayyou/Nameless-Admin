@@ -1168,6 +1168,11 @@ _G.NAadminsLol={
 	4881709223; --bzz bzz byzren
 }
 
+NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
+if NAStuff._ctrlLockPersist == nil then NAStuff._ctrlLockPersist = false end
+NAStuff._ctrlLockList = NAStuff._ctrlLockList or {}
+NAStuff._ctrlLockSet  = NAStuff._ctrlLockSet  or {}
+
 if UserInputService.TouchEnabled then
 	IsOnMobile=true
 end
@@ -1417,6 +1422,80 @@ NAmanage.rebuildIndex=function()
 			extraAliases = extra,
 			frame = frame
 		})
+	end
+end
+
+NAmanage.ControlLock_FromString = function(s)
+	NAStuff._ctrlLockList = {}
+	NAStuff._ctrlLockSet = {}
+	for key in string.gmatch((s or ""), "([^,]+)") do
+		local k = key:gsub("%s+","")
+		if k ~= "" and not NAStuff._ctrlLockSet[k] then
+			Insert(NAStuff._ctrlLockList, k)
+			NAStuff._ctrlLockSet[k] = true
+		end
+	end
+	if #NAStuff._ctrlLockList == 0 then
+		NAStuff._ctrlLockList = {"LeftShift","RightShift"}
+		NAStuff._ctrlLockSet = {LeftShift=true, RightShift=true}
+	end
+	NAStuff._ctrlLockKeys = Concat(NAStuff._ctrlLockList, ",")
+end
+
+NAmanage.ControlLock_ToString = function()
+	NAStuff._ctrlLockKeys = Concat(NAStuff._ctrlLockList, ",")
+	return NAStuff._ctrlLockKeys
+end
+
+NAmanage.ControlLock_Apply = function(keys)
+	if not IsOnPC then DebugNotif("PC-only feature") return end
+	local player = Players.LocalPlayer
+	local mlc = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("CameraModule"):WaitForChild("MouseLockController")
+	local boundKeys = mlc:WaitForChild("BoundKeys")
+	boundKeys.Value = keys
+	DebugNotif("Shiftlock keys set to "..keys)
+end
+
+NAmanage.ControlLock_AddKey = function(keyName)
+	if not keyName or keyName == "" then return end
+	if not NAStuff._ctrlLockSet[keyName] then
+		Insert(NAStuff._ctrlLockList, keyName)
+		NAStuff._ctrlLockSet[keyName] = true
+		NAmanage.ControlLock_ToString()
+		NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+		DebugNotif("Added "..keyName.." to Shiftlock keys")
+	else
+		DebugNotif(keyName.." already in list")
+	end
+end
+
+NAmanage.ControlLock_RemoveKey = function(keyName)
+	if not keyName or keyName == "" then return end
+	if NAStuff._ctrlLockSet[keyName] then
+		local idx = Discover(NAStuff._ctrlLockList, keyName)
+		if idx then table.remove(NAStuff._ctrlLockList, idx) end
+		NAStuff._ctrlLockSet[keyName] = nil
+		NAmanage.ControlLock_ToString()
+		NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+		DebugNotif("Removed "..keyName.." from Shiftlock keys")
+	else
+		DebugNotif(keyName.." not in list")
+	end
+end
+
+NAmanage.ControlLock_ClearToDefault = function()
+	NAStuff._ctrlLockList = {"LeftShift","RightShift"}
+	NAStuff._ctrlLockSet = {LeftShift=true, RightShift=true}
+	NAmanage.ControlLock_ToString()
+	NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+end
+
+NAmanage.ControlLock_Bind = function()
+	NAlib.disconnect("controllock_persist")
+	if NAStuff._ctrlLockPersist and IsOnPC then
+		NAlib.connect("controllock_persist", Players.LocalPlayer.CharacterAdded:Connect(function()
+			NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+		end))
 	end
 end
 
@@ -11490,20 +11569,180 @@ end)
 	end, true)
 end]]
 
+-- idk what i am doing lol (bored af :P)
+
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
 	NAlib.disconnect("noclip")
-	NAlib.connect("noclip",RunService.Stepped:Connect(function()
-		if not getChar() then return end
-		for i,v in pairs(getChar():GetDescendants()) do
-			if v:IsA("BasePart") then
-				v.CanCollide=false
+	NAStuff._noclipTracked = NAStuff._noclipTracked or setmetatable({}, {__mode="k"})
+	NAStuff._noclipOrigCan = NAStuff._noclipOrigCan or setmetatable({}, {__mode="k"})
+	NAStuff._noclipOrigGrp = NAStuff._noclipOrigGrp or setmetatable({}, {__mode="k"})
+	NAStuff._noclipSignals = NAStuff._noclipSignals or setmetatable({}, {__mode="k"})
+	NAStuff._noclipGroup = "NA_NoClip"
+	local tracked = NAStuff._noclipTracked
+	local origCan = NAStuff._noclipOrigCan
+	local origGrp = NAStuff._noclipOrigGrp
+	local signals = NAStuff._noclipSignals
+	local lp = Players.LocalPlayer
+	local PS = SafeGetService("PhysicsService")
+	pcall(function() PS:RegisterCollisionGroup(NAStuff._noclipGroup) end)
+	pcall(function() PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, "Default", false) end)
+	pcall(function() PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, NAStuff._noclipGroup, false) end)
+	local enforce = function(p)
+		if p and p:IsA("BasePart") then
+			if origCan[p] == nil then origCan[p] = NAlib.isProperty(p,"CanCollide") end
+			if origGrp[p] == nil then origGrp[p] = (p.CollisionGroup or "Default") end
+			if p.CollisionGroup ~= NAStuff._noclipGroup then pcall(function() p.CollisionGroup = NAStuff._noclipGroup end) end
+			if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
+			if not signals[p] then
+				local c = p:GetPropertyChangedSignal("CanCollide"):Connect(function()
+					if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
+				end)
+				signals[p] = {c}
+				NAlib.connect("noclip", c)
+			end
+			tracked[p] = true
+		end
+	end
+	local seed = function(char)
+		if not char then return end
+		for _,d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then enforce(d) end
+		end
+		NAlib.connect("noclip", char.DescendantAdded:Connect(function(inst)
+			if inst:IsA("BasePart") then enforce(inst) end
+		end))
+		NAlib.connect("noclip", char.DescendantRemoving:Connect(function(inst)
+			if signals[inst] then for _,c in ipairs(signals[inst]) do if c then c:Disconnect() end end signals[inst]=nil end
+			tracked[inst] = nil
+			origCan[inst] = nil
+			origGrp[inst] = nil
+		end))
+	end
+	if lp.Character then seed(lp.Character) end
+	NAlib.connect("noclip", lp.CharacterAdded:Connect(function(char)
+		for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(origCan) do origCan[k]=nil end
+		for k in pairs(origGrp) do origGrp[k]=nil end
+		seed(char)
+	end))
+	NAlib.connect("noclip", lp.CharacterRemoving:Connect(function()
+		for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(origCan) do origCan[k]=nil end
+		for k in pairs(origGrp) do origGrp[k]=nil end
+	end))
+	NAlib.connect("noclip", RunService.Stepped:Connect(function()
+		local char = lp.Character
+		if not char then return end
+		for p in pairs(tracked) do
+			if typeof(p)=="Instance" and p:IsA("BasePart") and p:IsDescendantOf(char) then
+				if p.CollisionGroup ~= NAStuff._noclipGroup then pcall(function() p.CollisionGroup = NAStuff._noclipGroup end) end
+				if p.CanCollide ~= false then NAlib.setProperty(p,"CanCollide", false) end
 			end
 		end
 	end))
 end)
 
 cmd.add({"clip"},{"clip","Enable your player's collision"},function()
+	local tracked = NAStuff._noclipTracked or {}
+	local origCan = NAStuff._noclipOrigCan or {}
+	local origGrp = NAStuff._noclipOrigGrp or {}
+	local signals = NAStuff._noclipSignals or {}
+	for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+	for p in pairs(tracked) do
+		if typeof(p)=="Instance" and p:IsA("BasePart") then
+			local v = origCan[p]; if v == nil then v = true end
+			NAlib.setProperty(p,"CanCollide", v)
+			local g = origGrp[p]; if g == nil then g = "Default" end
+			pcall(function() p.CollisionGroup = g end)
+		end
+	end
+	for k in pairs(signals) do signals[k]=nil end
+	for k in pairs(tracked) do tracked[k]=nil end
+	for k in pairs(origCan) do origCan[k]=nil end
+	for k in pairs(origGrp) do origGrp[k]=nil end
 	NAlib.disconnect("noclip")
+end)
+
+cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchored"},function()
+	NAlib.disconnect("antianchor")
+	NAStuff._aaTracked = NAStuff._aaTracked or setmetatable({}, {__mode="k"})
+	NAStuff._aaOrig = NAStuff._aaOrig or setmetatable({}, {__mode="k"})
+	NAStuff._aaSignals = NAStuff._aaSignals or setmetatable({}, {__mode="k"})
+	local tracked = NAStuff._aaTracked
+	local orig = NAStuff._aaOrig
+	local signals = NAStuff._aaSignals
+	local lp = Players.LocalPlayer
+	local enforce = function(p)
+		if not (p and p:IsA("BasePart")) then return end
+		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"Anchored") end
+		tracked[p] = true
+		if NAlib.isProperty(p,"Anchored") ~= false then NAlib.setProperty(p,"Anchored", false) end
+		if not signals[p] then
+			local c = p:GetPropertyChangedSignal("Anchored"):Connect(function()
+				if NAlib.isProperty(p,"Anchored") ~= false then NAlib.setProperty(p,"Anchored", false) end
+			end)
+			signals[p] = c
+			NAlib.connect("antianchor", c)
+		end
+	end
+	local seed = function(char)
+		if not char then return end
+		for _,d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then enforce(d) end
+		end
+		NAlib.connect("antianchor", char.DescendantAdded:Connect(function(inst)
+			if inst:IsA("BasePart") then enforce(inst) end
+		end))
+		NAlib.connect("antianchor", char.DescendantRemoving:Connect(function(inst)
+			if signals[inst] then signals[inst]:Disconnect(); signals[inst] = nil end
+			tracked[inst] = nil
+			orig[inst] = nil
+		end))
+	end
+	if lp.Character then seed(lp.Character) end
+	NAlib.connect("antianchor", lp.CharacterAdded:Connect(function(char)
+		for _,conn in pairs(signals) do if conn then conn:Disconnect() end end
+		for k in pairs(signals) do signals[k] = nil end
+		for k in pairs(tracked) do tracked[k] = nil end
+		for k in pairs(orig) do orig[k] = nil end
+		seed(char)
+	end))
+	NAlib.connect("antianchor", lp.CharacterRemoving:Connect(function()
+		for _,conn in pairs(signals) do if conn then conn:Disconnect() end end
+		for k in pairs(signals) do signals[k] = nil end
+		for k in pairs(tracked) do tracked[k] = nil end
+		for k in pairs(orig) do orig[k] = nil end
+	end))
+	NAlib.connect("antianchor", RunService.Stepped:Connect(function()
+		local char = lp.Character
+		if not char then return end
+		for p in pairs(tracked) do
+			if typeof(p)=="Instance" and p:IsA("BasePart") and p:IsDescendantOf(char) then
+				if p.Anchored ~= false then NAlib.setProperty(p,"Anchored", false) end
+			end
+		end
+	end))
+end)
+
+cmd.add({"unantianchor","unaa"},{"unantianchor","Allow your parts to be anchored"},function()
+	local tracked = NAStuff._aaTracked or {}
+	local orig = NAStuff._aaOrig or {}
+	local signals = NAStuff._aaSignals or {}
+	for _,c in pairs(signals) do if c then c:Disconnect() end end
+	for p in pairs(tracked) do
+		if typeof(p)=="Instance" and p:IsA("BasePart") then
+			local v = orig[p]; if v == nil then v = false end
+			NAlib.setProperty(p,"Anchored", v)
+		end
+	end
+	for k in pairs(signals) do signals[k] = nil end
+	for k in pairs(tracked) do tracked[k] = nil end
+	for k in pairs(orig) do orig[k] = nil end
+	NAlib.disconnect("antianchor")
 end)
 
 originalPos = nil
@@ -13190,23 +13429,82 @@ cmd.add({"copyid", "id"}, {"copyid <player> (id)", "Copies the UserId of the tar
 end, true)
 
 --[ PLAYER ]--
-function toggleKB(enable)
-	local p = Players.LocalPlayer
-	local hrp = getRoot(p.Character)
-	local parts = workspace:GetPartBoundsInRadius(hrp.Position, 10)
-	for _, part in ipairs(parts) do
-		if part:IsA("BasePart") then
-			part.CanTouch = enable
+cmd.add({"antikillbrick","antikb"},{"antikillbrick (antikb)","Prevents kill bricks from killing you"},function()
+	NAlib.disconnect("antikb")
+	NAStuff._kbTracked = NAStuff._kbTracked or setmetatable({}, {__mode="k"})
+	NAStuff._kbOrig = NAStuff._kbOrig or setmetatable({}, {__mode="k"})
+	NAStuff._kbSignals = NAStuff._kbSignals or setmetatable({}, {__mode="k"})
+	local tracked = NAStuff._kbTracked
+	local orig = NAStuff._kbOrig
+	local signals = NAStuff._kbSignals
+	local lp = Players.LocalPlayer
+	local apply = function(p)
+		if not (p and p:IsA("BasePart")) then return end
+		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"CanTouch") end
+		if NAlib.isProperty(p,"CanTouch") ~= false then NAlib.setProperty(p,"CanTouch", false) end
+		tracked[p] = true
+		if not signals[p] then
+			local c = p:GetPropertyChangedSignal("CanTouch"):Connect(function()
+				if NAlib.isProperty(p,"CanTouch") ~= false then NAlib.setProperty(p,"CanTouch", false) end
+			end)
+			signals[p] = {c}
+			NAlib.connect("antikb", c)
 		end
 	end
-end
-
-cmd.add({"antikillbrick", "antikb"}, {"antikillbrick (antikb)", "Prevents kill bricks from killing you"}, function()
-	toggleKB(false)
+	local seed = function(char)
+		if not char then return end
+		for _,d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then apply(d) end
+		end
+		NAlib.connect("antikb", char.DescendantAdded:Connect(function(inst)
+			if inst:IsA("BasePart") then apply(inst) end
+		end))
+		NAlib.connect("antikb", char.DescendantRemoving:Connect(function(inst)
+			if signals[inst] then for _,c in ipairs(signals[inst]) do if c then c:Disconnect() end end signals[inst]=nil end
+			tracked[inst] = nil
+			orig[inst] = nil
+		end))
+	end
+	if lp.Character then seed(lp.Character) end
+	NAlib.connect("antikb", lp.CharacterAdded:Connect(function(char)
+		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
+		for k in pairs(signals) do signals[k] = nil end
+		for k in pairs(tracked) do tracked[k] = nil end
+		for k in pairs(orig) do orig[k] = nil end
+		seed(char)
+	end))
+	NAlib.connect("antikb", lp.CharacterRemoving:Connect(function()
+		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
+		for k in pairs(signals) do signals[k] = nil end
+		for k in pairs(tracked) do tracked[k] = nil end
+		for k in pairs(orig) do orig[k] = nil end
+	end))
+	NAlib.connect("antikb", RunService.Stepped:Connect(function()
+		local char = lp.Character
+		if not char then return end
+		for p in pairs(tracked) do
+			if typeof(p)=="Instance" and p:IsA("BasePart") and p:IsDescendantOf(char) then
+				if p.CanTouch ~= false then NAlib.setProperty(p,"CanTouch", false) end
+			end
+		end
+	end))
 end)
 
-cmd.add({"unantikillbrick", "unantikb"}, {"unantikillbrick (unantikb)", "Allows kill bricks to kill you"}, function()
-	toggleKB(true)
+cmd.add({"unantikillbrick","unantikb"},{"unantikillbrick (unantikb)","Allows kill bricks to kill you"},function()
+	local tracked = NAStuff._kbTracked or {}
+	local orig = NAStuff._kbOrig or {}
+	local signals = NAStuff._kbSignals or {}
+	for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
+	for p in pairs(tracked) do
+		if typeof(p)=="Instance" and p:IsA("BasePart") then
+			local v = orig[p]; if v == nil then v = true end
+			NAlib.setProperty(p,"CanTouch", v)
+		end
+	end
+	for k in pairs(signals) do signals[k] = nil end
+	for k in pairs(tracked) do tracked[k] = nil end
+	for k in pairs(orig) do orig[k] = nil end
+	NAlib.disconnect("antikb")
 end)
 
 cmd.add({"height","hipheight","hh"},{"height <number> (hipheight,hh)","Changes your hipheight"},function(...)
@@ -18035,37 +18333,96 @@ end,true)
 
 -- garbage that needs to be changed to something else
 
-cmd.add({"godmode", "god"}, {"godmode (god)", "Toggles invincibility"}, function()
-	local humanoid = getHum()
-	if humanoid then
-		NAlib.disconnect("godmode")
-
-		NAlib.connect("godmode", humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-			if humanoid.Health ~= humanoid.MaxHealth then
-				humanoid.Health = humanoid.MaxHealth
-			end
-		end))
-
-		humanoid.Health = humanoid.MaxHealth
-		DebugNotif("Godmode ON", 2)
-	else
-		DebugNotif("Humanoid not found", 2)
-	end
-end)
-
-cmd.add({"ungodmode", "ungod"}, {"ungodmode (ungod)", "Disables invincibility"}, function()
+cmd.add({"godmode","god"},{"godmode (god)","Toggles invincibility"},function()
 	NAlib.disconnect("godmode")
-	DebugNotif("Godmode OFF", 2)
+	NAStuff._godOrig = NAStuff._godOrig or setmetatable({}, {__mode="k"})
+	NAStuff._godSignals = NAStuff._godSignals or setmetatable({}, {__mode="k"})
+	NAStuff._godTarget = 1e9
+	local orig = NAStuff._godOrig
+	local signals = NAStuff._godSignals
+	local lp = Players.LocalPlayer
+	local hook = function(h)
+		if not h then return end
+		if orig[h] == nil then orig[h] = h.MaxHealth end
+		if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
+		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		if signals[h] then for _,c in ipairs(signals[h]) do if c then c:Disconnect() end end end
+		signals[h] = {}
+		Insert(signals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
+			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		end)))
+		Insert(signals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("Health"):Connect(function()
+			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		end)))
+		Insert(signals[h], NAlib.connect("godmode", h:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+			if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
+			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+		end)))
+	end
+	local waitHum = function(char)
+		local h = getHum()
+		if h then return h end
+		local c
+		c = char.DescendantAdded:Connect(function(inst)
+			if inst:IsA("Humanoid") then hook(inst) if c then c:Disconnect() end end
+		end)
+		NAlib.connect("godmode", c)
+		for i=1,120 do
+			local hh = getHum()
+			if hh then if c then c:Disconnect() end return hh end
+			Wait()
+		end
+		if c then c:Disconnect() end
+		return getHum()
+	end
+	local seed = function(char)
+		local h = getHum()
+		if not h and char then h = waitHum(char) end
+		hook(h)
+	end
+	if lp.Character then seed(lp.Character) end
+	NAlib.connect("godmode", lp.CharacterAdded:Connect(function(char)
+		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
+		for k in pairs(signals) do signals[k]=nil end
+		seed(char)
+	end))
+	NAlib.connect("godmode", lp.CharacterRemoving:Connect(function()
+		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
+		for k in pairs(signals) do signals[k]=nil end
+	end))
+	NAlib.connect("godmode", RunService.Stepped:Connect(function()
+		local h = getHum()
+		if not h then return end
+		if not signals[h] then hook(h) end
+		if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
+		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	end))
+	DebugNotif("Godmode ON",2)
 end)
 
-cmd.add({"controllock", "ctrllock"}, {"controllock (ctrllock)", "Sets your Shiftlock keybinds to the control keys"}, function()
-	local player = Players.LocalPlayer
-	local mouseLockController = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("CameraModule"):WaitForChild("MouseLockController")
-	local boundKeys = mouseLockController:WaitForChild("BoundKeys")
+cmd.add({"ungodmode","ungod"},{"ungodmode (ungod)","Disables invincibility"},function()
+	local orig = NAStuff._godOrig or {}
+	local signals = NAStuff._godSignals or {}
+	local h = getHum()
+	if h and orig[h] ~= nil then
+		NAlib.setProperty(h,"MaxHealth", orig[h])
+		if h.Health > h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
+	end
+	for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
+	for k in pairs(signals) do signals[k]=nil end
+	for k in pairs(orig) do orig[k]=nil end
+	NAlib.disconnect("godmode")
+	DebugNotif("Godmode OFF",2)
+end)
 
-	boundKeys.Value = "LeftControl,RightControl"
+cmd.add({"controllock","ctrllock"},{"controllock (ctrllock)","Set Shiftlock keys to Control for this session"},function()
+	if not IsOnPC then DebugNotif("PC-only feature") return end
+	NAmanage.ControlLock_Apply("LeftControl,RightControl")
+end)
 
-	DebugNotif("Set your Shiftlock keybinds to Ctrl")
+cmd.add({"uncontrollock","unctrllock"},{"uncontrollock (unctrllock)","Restore Shiftlock keys to default (Shift)"},function()
+	if not IsOnPC then DebugNotif("PC-only feature") return end
+	NAmanage.ControlLock_Apply("LeftShift,RightShift")
 end)
 
 cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default (LeftShift)"}, function()
@@ -21079,7 +21436,7 @@ NAmanage.StartBypassSpeedLoop = function(val)
 	NAlib.disconnect("na_bps_char")
 	local plr = Players.LocalPlayer
 	NAmanage.ApplyBypassSpeedOnce(val)
-	NAlib.connect("na_bps_apply", game:GetService("RunService").Heartbeat:Connect(function()
+	NAlib.connect("na_bps_apply", RunService.Heartbeat:Connect(function()
 		if not getgenv().NA_BPS_Enabled then return end
 		local hum = getHum()
 		if hum and hum.WalkSpeed ~= getgenv().NA_BPS_Val then
@@ -25085,6 +25442,26 @@ if FileSupport then
 		JoinLeaveConfig.SaveLog = v
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
 		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
+	end)
+end
+
+if IsOnPC then
+	NAgui.addSection("Control Lock")
+	NAgui.addKeybind("Add Shiftlock Key","LeftShift",function(k)
+		if k then NAmanage.ControlLock_AddKey(k) end
+	end)
+	NAgui.addKeybind("Remove Shiftlock Key","RightShift",function(k)
+		if k then NAmanage.ControlLock_RemoveKey(k) end
+	end)
+	NAgui.addButton("Apply Saved Keys",function()
+		NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+	end)
+	NAgui.addButton("Reset To Default (Shift)",function()
+		NAmanage.ControlLock_ClearToDefault()
+	end)
+	NAgui.addToggle("Reapply On Respawn",NAStuff._ctrlLockPersist,function(state)
+		NAStuff._ctrlLockPersist = state and true or false
+		NAmanage.ControlLock_Bind()
 	end)
 end
 
