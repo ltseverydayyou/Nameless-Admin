@@ -779,7 +779,7 @@ end
 
 local NAAssetsLoading = {}
 
-NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is preparing your session")
+NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is loading...")
 NaProtectUI(NAAssetsLoading.ui)
 
 NAAssetsLoading.setStatus("waiting for engine")

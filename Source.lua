@@ -1,5 +1,4 @@
 if getgenv().RealNamelessLoaded then return end
-
 pcall(function() getgenv().RealNamelessLoaded=true end)
 pcall(function() getgenv().NATestingVer=false end)
 
@@ -12,6 +11,9 @@ local function SafeGetService(name)
 	return Reference(Service(game, name));
 end
 
+local mainName = 'Nameless Admin'
+local testingName = 'NA Testing'
+local adminName = 'NA'
 local HttpService=SafeGetService('HttpService');
 local Lower = string.lower;
 local Sub = string.sub;
@@ -27,7 +29,7 @@ local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
-local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
+
 local Waypoints = {}
 local Bindings = Bindings or {}
 local NAStuff = {
@@ -39,7 +41,6 @@ local NAStuff = {
 	originalDesc = nil;
 	currentDesc = nil;
 	BlockedRemotes = {};
-
 	touchESPList = {};
 	proximityESPList = {};
 	clickESPList = {};
@@ -48,14 +49,11 @@ local NAStuff = {
 	unanchoredESPList = {};
 	collisionTrueESPList = {};
 	collisionFalseESPList = {};
-
 	espTriggers = {};
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
 	nameESPPartLists = { exact = {}, partial = {} };
-
 	NIL_SENTINEL = {};
-
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
 	BlockedEventSaved = {};
@@ -64,33 +62,22 @@ local NAStuff = {
 	BlockedRemoteReturns = {};
 	BlockedSignals = {};
 	RemoteFakeReturn = true;
-
 	AntiKickMode = "fakeok";
 	AntiKickHooked = false;
 	AntiKickOrig = {namecall=nil,index=nil,newindex=nil,kicks={}};
-
 	AntiTeleportMode = "fakeok";
 	AntiTeleportHooked = false;
 	AntiTeleportOrig = {namecall=nil,index=nil,newindex=nil,funcs={}};
-
 	SYNC_TAG = "ANIM_SYNC";
 	CORE_FOLDERS = {idle=true,walk=true,run=true,jump=true,fall=true,climb=true,swim=true,swimidle=true,toolnone=true,toolslash=true,toollunge=true};
 	SavedDefaultMap = nil;
 	Sync_AnimatePrevDisabled = nil;
-
 	MIMIC_TAG = "MIMIC_SYNC";
 	Mimic_AnimatePrevDisabled = nil;
 	mimic_uid = 0;
 }
-local interactTbl = {
-	click = {};
-	proxy = {};
-	touch = {};
-}
+local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
-local mainName = 'Nameless Admin'
-local testingName = 'NA Testing'
-local adminName = 'NA'
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local cmd={}
 local NAmanage={}
@@ -113,17 +100,8 @@ local NAImageAssets = {
 local prefixCheck = ";"
 local NAScale = 1
 local NAUIScale = 1
-local flingManager = {
-	FlingOldPos = nil;
-	lFlingOldPos = nil;
-	cFlingOldPos = nil;
-}
-local settingsLight = {
-	range = 30;
-	brightness = 1;
-	color = Color3.new(1,1,1);
-	LIGHTER = nil;
-}
+local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
+local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
 local events = {"OnSpawned","OnDeath","OnChatted","OnDamage","OnJoin","OnLeave"}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
@@ -136,146 +114,23 @@ NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
 
-for _, ev in ipairs(events) do
-	if type(Bindings[ev]) ~= "table" then
-		Bindings[ev] = {}
-	end
+NAmanage.centerFrame = function(f)
+	local cam = workspace.CurrentCamera
+	local vp = cam.ViewportSize
+	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
+	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
+	f.Position = UDim2.new(0.5 - totalX/2, 0, 0.5 - totalY/2, 0)
 end
 
-function isAprilFools()
-	local d = os.date("*t")
-	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
+NAmanage.guiCHECKINGAHHHHH=function()
+	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
-function yayApril(isTesting)
-	local baseNames = {
-		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
-		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
-		"Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
-		"Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
-		"Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
-		"Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
-		"Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
-		"Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
-		"Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
-		"Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
-		"Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
-		"Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
-		"Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
-		"Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
-		"Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
-		"Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
-		"Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
-		"Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
-		"Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
-		"Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
-		"Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
-		"Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
-		"Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
-		"Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
-		"Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
-		"Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
-		"Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
-		"Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
-		"Xeme", "Yonderly", "Zenobia"
-	}
-
-	local suffix = isTesting and "Testing" or "Admin"
-	local name = baseNames[math.random(#baseNames)]
-
-	return name.." "..suffix
-end
-
-function MockText(text)
-	local result = {}
-	local toggle = true
-	local glitchChars = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
-
-	math.randomseed(os.time())
-
-	for i = 1, #text do
-		local char = text:sub(i, i)
-		if char:match("%a") then
-			local transformed = toggle and char:upper() or char:lower()
-			toggle = not toggle
-
-			if math.random() < 0.15 then
-				local glitch = glitchChars[math.random(#glitchChars)]
-				transformed = transformed..glitch
-			end
-
-			Insert(result, transformed)
-		else
-			Insert(result, char)
-		end
-	end
-	return Concat(result)
-end
-
-function maybeMock(text)
-	return isAprilFools() and MockText(text) or text
-end
-
-if getgenv().NATestingVer then
-	if isAprilFools() then
-		testingName = yayApril(true)
-		testingName = maybeMock(testingName)
-	end
-	adminName = testingName
-else
-	if isAprilFools() then
-		mainName = yayApril(false)
-		mainName = maybeMock(mainName)
-	end
-	adminName = mainName
-end
-
-repeat
-	local success, result = pcall(function()
-		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
-	end)
-
-	if success then
-		Notification = result
-	else
-		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(result)))
-		Wait(0.3)
-	end
-until Notification
-
-local Notify = Notification.Notify
-local Window = Notification.Window
-local Popup  = Notification.Popup
-
-function DoNotif(text, duration, title)
-	Notify({
-		Title = title or adminName or nil,
-		Description = text or "something",
-		Duration = duration or 5
-	})
-end
-
-function DebugNotif(text, duration, title)
-	if not NAStuff.nuhuhNotifs then return end
-	Notify({
-		Title = title or adminName or nil,
-		Description = text or "something",
-		Duration = duration or 5
-	})
-end
-
-function DoWindow(text, title)
-	Window({
-		Title = title or adminName or nil,
-		Description = text or "something",
-	})
-end
-
-function DoPopup(text, title)
-	Popup({
-		Title = title or adminName or nil,
-		Description = text or "something",
-	})
+function InstanceNew(c,p)
+	local inst = Instance.new(c)
+	if p then inst.Parent = p end
+	inst.Name = "\0"
+	return inst
 end
 
 function NACaller(fn, ...)
@@ -283,21 +138,15 @@ function NACaller(fn, ...)
 	local function wrapped()
 		return fn(unpack(args))
 	end
-
 	local t = table.pack(xpcall(wrapped, function(msg)
 		return debug.traceback(msg, 2)
 	end))
-
 	if not t[1] then
 		local err = t[2]
 		warn("NA script error:\n"..err)
-
 		Popup({
 			Title       = adminName or "Oops!",
-			Description = Format(
-				"Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s",
-				err
-			),
+			Description = Format("Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s", err),
 			Buttons     = {
 				{
 					Text = "Copy Error",
@@ -324,7 +173,6 @@ function NACaller(fn, ...)
 			}
 		})
 	end
-
 	return Unpack(t, 1, t.n)
 end
 
@@ -345,7 +193,6 @@ function rStringgg()
 	local length = math.random(10, 20)
 	local result = {}
 	local glitchMarks = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
-
 	for i = 1, length do
 		local char = string.char(math.random(32, 126))
 		Insert(result, char)
@@ -356,23 +203,18 @@ function rStringgg()
 			end
 		end
 	end
-
 	if math.random() < 0.3 then
 		Insert(result, utf8.char(math.random(0x0300, 0x036F)))
 	end
-
 	if math.random() < 0.1 then
 		Insert(result, "\0")
 	end
-
 	if math.random() < 0.1 then
 		Insert(result, string.rep("​", math.random(5, 20)))
 	end
-
 	if math.random() < 0.2 then
 		Insert(result, utf8.char(0x202E))
 	end
-
 	return Concat(result)
 end
 
@@ -433,7 +275,7 @@ function NaProtectUI(gui)
 		end
 	end)
 	local hb
-	hb = RunService.Heartbeat:Connect(function()
+	hb = SafeGetService("RunService").Heartbeat:Connect(function()
 		for prop, val in pairs(props) do
 			if gui[prop] ~= val then
 				pcall(function() gui[prop] = val end)
@@ -446,26 +288,596 @@ function NaProtectUI(gui)
 	return gui
 end
 
-NAmanage.centerFrame = function(f)
-	local cam = workspace.CurrentCamera
-	local vp = cam.ViewportSize
-	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
-	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
-	f.Position = UDim2.new(
-		0.5 - totalX/2, 0,
-		0.5 - totalY/2, 0
-	)
+function isAprilFools()
+	local d = os.date("*t")
+	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
 end
 
-NAmanage.guiCHECKINGAHHHHH=function()
-	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+function yayApril(isTesting)
+	local baseNames = {
+		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
+		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
+		"Goblin", "Bingus", "Chonky", "Floofy", "Yeety", "Bonky", "Derpy",
+		"Cheesy", "Nugget", "Funky", "Floppy", "Chunky", "Snazzy", "Wonky",
+		"Goober", "Dorky", "Zany", "Glitchy", "Bubbly", "Wizzy", "Turbo",
+		"Pixel", "Nifty", "Jazzy", "Rascal", "Muddled", "Quasar", "Nimbus",
+		"Echo", "Froggy", "Gobsmack", "Hiccup", "Jinx", "Kooky", "Loco",
+		"Mango", "Noodle", "Oddball", "Peculiar", "Quibble", "Rumble",
+		"Snickle", "Tango", "Umbra", "Velcro", "Widdle", "Yonder", "Zephyr",
+		"Bamboozle", "Cranky", "Doodle", "Eerie", "Frisky", "Gizmo", "Hazy",
+		"Icicle", "Jolly", "Karma", "Lullaby", "Mystic", "Nebula", "Opal",
+		"Poppy", "Riddle", "Slinky", "Tickle", "Vortex", "Whimsy", "Xenon",
+		"Yummy", "Zodiac", "Astral", "Blizzard", "Cobalt", "Drifter", "Ember",
+		"Flux", "Glacier", "Harpy", "Inferno", "Jester", "Katana", "Labyrinth",
+		"Mirage", "Nomad", "Oracle", "Phantom", "Quill", "Rogue", "Specter",
+		"Tempest", "Uproar", "Vagabond", "Wraith", "Xylophone", "Yoshi", "Zenith",
+		"Arpeggio", "Basilisk", "Catalyst", "Dynamo", "Equinox", "Fortune",
+		"Griffin", "Horizon", "Illusion", "Jubilee", "Kismet", "Labyrinthine",
+		"Monsoon", "Nightfall", "Obsidian", "Paradox", "Quantum", "Requiem",
+		"Serenade", "Trilogy", "Unicorn", "Vortexial", "Wanderer", "Xenith",
+		"Yield", "Zeppelin", "Avalanche", "Banshee", "Comet", "Delta", "Eclipse",
+		"Fable", "Golem", "Helix", "Isotope", "Jargon", "Kodiak", "Lynx",
+		"Maelstrom", "Nimbus", "Oasis", "Pulse", "Quasar", "Rift", "Savage",
+		"Tempestuous", "Undertow", "Vertex", "Wavelength", "Xanadu", "Yukon",
+		"Zephyrine", "Apex", "Bravado", "Crescent", "Drizzle", "Emissary",
+		"Frenzy", "Gargoyle", "Harbinger", "Incognito", "Jubilation", "Kaleidoscope",
+		"Labour", "Mandala", "Nirvana", "Odyssey", "Palindrome", "Quintessence",
+		"Renaissance", "Symphony", "Tapestry", "Utopia", "Virtuoso", "Whirlpool",
+		"Xeme", "Yonderly", "Zenobia"
+	}
+	local suffix = isTesting and "Testing" or "Admin"
+	local name = baseNames[math.random(#baseNames)]
+	return name.." "..suffix
 end
 
-function InstanceNew(c,p)
-	local inst = Instance.new(c)
-	if p then inst.Parent = p end
-	inst.Name = "\0"
-	return inst
+function MockText(text)
+	local result = {}
+	local toggle = true
+	local glitchChars = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
+	math.randomseed(os.time())
+	for i = 1, #text do
+		local char = text:sub(i, i)
+		if char:match("%a") then
+			local transformed = toggle and char:upper() or char:lower()
+			toggle = not toggle
+			if math.random() < 0.15 then
+				local glitch = glitchChars[math.random(#glitchChars)]
+				transformed = transformed..glitch
+			end
+			Insert(result, transformed)
+		else
+			Insert(result, char)
+		end
+	end
+	return Concat(result)
+end
+
+function maybeMock(text)
+	return isAprilFools() and MockText(text) or text
+end
+
+if getgenv().NATestingVer then
+	if isAprilFools() then
+		testingName = yayApril(true)
+		testingName = maybeMock(testingName)
+	end
+	adminName = testingName
+else
+	if isAprilFools() then
+		mainName = yayApril(false)
+		mainName = maybeMock(mainName)
+	end
+	adminName = mainName
+end
+
+local function createLoadingUI(text)
+	local Players = SafeGetService("Players")
+	local RunService = SafeGetService("RunService")
+	local TweenService = SafeGetService("TweenService")
+
+	local screen = InstanceNew("ScreenGui")
+	screen.IgnoreGuiInset = true
+	screen.ResetOnSpawn = false
+	screen.DisplayOrder = 999999
+	screen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+	local overlay = InstanceNew("Frame", screen)
+	overlay.BackgroundTransparency = 1
+	overlay.Size = UDim2.fromScale(1,1)
+	overlay.ZIndex = 5
+	overlay.ClipsDescendants = false
+	local bgGrad = InstanceNew("UIGradient", overlay)
+	bgGrad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(8,10,14)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(14,16,22)),
+	}
+	bgGrad.Offset = Vector2.new(0,0)
+
+	local card = InstanceNew("Frame", overlay)
+	card.AnchorPoint = Vector2.new(0.5,0.5)
+	card.Position = UDim2.fromScale(0.5,0.5)
+	card.Size = UDim2.fromScale(0.42,0)
+	card.AutomaticSize = Enum.AutomaticSize.Y
+	card.BackgroundColor3 = Color3.fromRGB(22,24,30)
+	card.BorderSizePixel = 0
+	card.ZIndex = 10
+	card.ClipsDescendants = false
+	local cardCorner = InstanceNew("UICorner", card)
+	cardCorner.CornerRadius = UDim.new(0,10)
+	local cardStroke = InstanceNew("UIStroke", card)
+	cardStroke.Thickness = 1
+	cardStroke.Color = Color3.fromRGB(80,90,120)
+	cardStroke.Transparency = 0.35
+	local cardSizeLimit = InstanceNew("UISizeConstraint", card)
+	cardSizeLimit.MinSize = Vector2.new(240, 0)
+	cardSizeLimit.MaxSize = Vector2.new(560, math.huge)
+
+	local uiScale = InstanceNew("UIScale", card)
+	uiScale.Scale = 0.98
+
+	local pad = InstanceNew("UIPadding", card)
+	pad.PaddingLeft = UDim.new(0.03,0)
+	pad.PaddingRight = UDim.new(0.03,0)
+	pad.PaddingTop = UDim.new(0,8)
+	pad.PaddingBottom = UDim.new(0,10)
+
+	local vlist = InstanceNew("UIListLayout", card)
+	vlist.FillDirection = Enum.FillDirection.Vertical
+	vlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	vlist.VerticalAlignment = Enum.VerticalAlignment.Top
+	vlist.Padding = UDim.new(0,6)
+	vlist.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local header = InstanceNew("Frame", card)
+	header.BackgroundTransparency = 1
+	header.Size = UDim2.new(1,0,0,34)
+	header.LayoutOrder = 1
+	header.ZIndex = 20
+	header.ClipsDescendants = false
+
+	local spinner = InstanceNew("Frame", header)
+	spinner.AnchorPoint = Vector2.new(0,0.5)
+	spinner.Position = UDim2.new(0,0,0.5,0)
+	spinner.Size = UDim2.fromOffset(22,22)
+	spinner.BackgroundTransparency = 1
+	spinner.ClipsDescendants = false
+	spinner.ZIndex = 1000
+
+	local spinRing = InstanceNew("Frame", spinner)
+	spinRing.Size = UDim2.fromScale(1,1)
+	spinRing.BackgroundColor3 = Color3.fromRGB(125,190,255)
+	spinRing.ZIndex = 1001
+	local ringCorner = InstanceNew("UICorner", spinRing)
+	ringCorner.CornerRadius = UDim.new(1,0)
+	local ringGrad = InstanceNew("UIGradient", spinRing)
+	ringGrad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(125,190,255)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(125,190,255)),
+	}
+	ringGrad.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0.00, 0),
+		NumberSequenceKeypoint.new(0.04, 0),
+		NumberSequenceKeypoint.new(0.06, 1),
+		NumberSequenceKeypoint.new(1.00, 1),
+	}
+	ringGrad.Rotation = 0
+
+	local centerDot = InstanceNew("Frame", spinner)
+	centerDot.AnchorPoint = Vector2.new(0.5,0.5)
+	centerDot.Position = UDim2.fromScale(0.5,0.5)
+	centerDot.Size = UDim2.fromScale(0.26,0.26)
+	centerDot.BackgroundColor3 = Color3.fromRGB(220,235,255)
+	centerDot.ZIndex = 1002
+	local dotCorner = InstanceNew("UICorner", centerDot)
+	dotCorner.CornerRadius = UDim.new(1,0)
+	local dotStroke = InstanceNew("UIStroke", centerDot)
+	dotStroke.Thickness = 1
+	dotStroke.Color = Color3.fromRGB(160,200,255)
+	dotStroke.Transparency = 0.2
+
+	local title = InstanceNew("TextLabel", header)
+	title.BackgroundTransparency = 1
+	title.Text = text
+	title.Font = Enum.Font.GothamSemibold
+	title.TextColor3 = Color3.fromRGB(245,245,250)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Center
+	title.TextScaled = true
+	title.ZIndex = 20
+	title.Position = UDim2.new(0, 28, 0, 0)
+	title.Size = UDim2.new(1, -(28 + 92), 1, 0)
+	local titleTS = InstanceNew("UITextSizeConstraint", title)
+	titleTS.MinTextSize = 16
+	titleTS.MaxTextSize = 24
+
+	local skipBtn = InstanceNew("TextButton", header)
+	skipBtn.AnchorPoint = Vector2.new(1,0.5)
+	skipBtn.Position = UDim2.new(1,0,0.5,0)
+	skipBtn.Size = UDim2.fromOffset(86,26)
+	skipBtn.Text = "skip"
+	skipBtn.TextScaled = true
+	skipBtn.Font = Enum.Font.GothamSemibold
+	skipBtn.TextColor3 = Color3.fromRGB(240,240,255)
+	skipBtn.BackgroundColor3 = Color3.fromRGB(42,44,54)
+	skipBtn.ZIndex = 20
+	local skipCorner = InstanceNew("UICorner", skipBtn)
+	skipCorner.CornerRadius = UDim.new(0,7)
+	local skipStroke = InstanceNew("UIStroke", skipBtn)
+	skipStroke.Thickness = 1
+	skipStroke.Color = Color3.fromRGB(160,160,190)
+	skipStroke.Transparency = 0.55
+
+	local subtitle = InstanceNew("TextLabel", card)
+	subtitle.BackgroundTransparency = 1
+	subtitle.Text = "loading"
+	subtitle.Font = Enum.Font.Gotham
+	subtitle.TextColor3 = Color3.fromRGB(190,195,210)
+	subtitle.TextXAlignment = Enum.TextXAlignment.Left
+	subtitle.TextYAlignment = Enum.TextYAlignment.Center
+	subtitle.TextScaled = true
+	subtitle.LayoutOrder = 2
+	subtitle.ZIndex = 12
+	subtitle.Size = UDim2.new(1,0,0,0)
+	subtitle.AutomaticSize = Enum.AutomaticSize.Y
+	local subTS = InstanceNew("UITextSizeConstraint", subtitle)
+	subTS.MinTextSize = 14
+	subTS.MaxTextSize = 20
+
+	local meta = InstanceNew("Frame", card)
+	meta.BackgroundTransparency = 1
+	meta.LayoutOrder = 3
+	meta.ZIndex = 12
+	meta.Size = UDim2.new(1,0,0,18)
+	local metaLayout = InstanceNew("UIListLayout", meta)
+	metaLayout.FillDirection = Enum.FillDirection.Horizontal
+	metaLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	metaLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	metaLayout.Padding = UDim.new(0,6)
+
+	local stepLabel = InstanceNew("TextLabel", meta)
+	stepLabel.BackgroundTransparency = 1
+	stepLabel.Text = "initializing"
+	stepLabel.Font = Enum.Font.Gotham
+	stepLabel.TextColor3 = Color3.fromRGB(155,165,185)
+	stepLabel.TextScaled = true
+	stepLabel.TextXAlignment = Enum.TextXAlignment.Left
+	stepLabel.Size = UDim2.new(0.78,0,1,0)
+	local stepTS = InstanceNew("UITextSizeConstraint", stepLabel)
+	stepTS.MinTextSize = 11
+	stepTS.MaxTextSize = 15
+
+	local percentLabel = InstanceNew("TextLabel", meta)
+	percentLabel.BackgroundTransparency = 1
+	percentLabel.Text = "0%"
+	percentLabel.Font = Enum.Font.GothamSemibold
+	percentLabel.TextColor3 = Color3.fromRGB(210,220,255)
+	percentLabel.TextScaled = true
+	percentLabel.TextXAlignment = Enum.TextXAlignment.Right
+	percentLabel.Size = UDim2.new(0.22,0,1,0)
+
+	local progress = InstanceNew("Frame", card)
+	progress.BackgroundColor3 = Color3.fromRGB(40,44,56)
+	progress.BackgroundTransparency = 0.15
+	progress.BorderSizePixel = 0
+	progress.LayoutOrder = 4
+	progress.ZIndex = 12
+	progress.Size = UDim2.new(1,0,0,8)
+	progress.ClipsDescendants = true
+	local progCorner = InstanceNew("UICorner", progress)
+	progCorner.CornerRadius = UDim.new(0,5)
+	local progStroke = InstanceNew("UIStroke", progress)
+	progStroke.Thickness = 1
+	progStroke.Color = Color3.fromRGB(70,75,100)
+	progStroke.Transparency = 0.55
+
+	local fill = InstanceNew("Frame", progress)
+	fill.BackgroundColor3 = Color3.fromRGB(70,175,255)
+	fill.BorderSizePixel = 0
+	fill.Size = UDim2.new(0,0,1,0)
+	fill.ZIndex = 13
+	local fillCorner = InstanceNew("UICorner", fill)
+	fillCorner.CornerRadius = UDim.new(0,5)
+	local fillGrad = InstanceNew("UIGradient", fill)
+	fillGrad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(60,160,240)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,205,255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,160,240)),
+	}
+	fillGrad.Offset = Vector2.new(-1,0)
+
+	local runner = InstanceNew("Frame", progress)
+	runner.BackgroundColor3 = Color3.fromRGB(90,180,255)
+	runner.BorderSizePixel = 0
+	runner.Size = UDim2.new(0.18,0,1,0)
+	runner.Position = UDim2.new(-0.18,0,0,0)
+	runner.ZIndex = 14
+	local runnerCorner = InstanceNew("UICorner", runner)
+	runnerCorner.CornerRadius = UDim.new(0,5)
+	local runnerGrad = InstanceNew("UIGradient", runner)
+	runnerGrad.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
+		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(90,180,255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
+		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(90,180,255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
+	}
+	runnerGrad.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.2, 0.25),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(0.8, 0.25),
+		NumberSequenceKeypoint.new(1, 1),
+	}
+
+	local skipFlag = InstanceNew("BoolValue", screen)
+	skipFlag.Name = "SkipAssets"
+	skipFlag.Value = false
+
+	local function layout()
+		local s = overlay.AbsoluteSize
+		local portrait = s.Y > s.X
+		card.Size = UDim2.fromScale(portrait and 0.9 or 0.42, 0)
+		cardSizeLimit.MinSize = Vector2.new(240, 0)
+		cardSizeLimit.MaxSize = Vector2.new(portrait and 520 or 560, math.huge)
+		local h = math.clamp(math.floor(s.Y*0.042), 26, 36)
+		header.Size = UDim2.new(1,0,0,h)
+		spinner.Size = UDim2.fromOffset(math.floor(h*0.85), math.floor(h*0.85))
+		title.Position = UDim2.new(0, spinner.Size.X.Offset + 6, 0, 0)
+		local skH = math.floor(h*0.85)
+		local skW = math.clamp(math.floor(s.X*(portrait and 0.2 or 0.12)), 80, 120)
+		skipBtn.Size = UDim2.fromOffset(skW, skH)
+		title.Size = UDim2.new(1, -(spinner.Size.X.Offset + 6 + skW + 10), 1, 0)
+		local ph = math.clamp(math.floor(s.Y*0.010), 6, 9)
+		progress.Size = UDim2.new(1,0,0,ph)
+		titleTS.MaxTextSize = math.clamp(math.floor(s.Y*0.028), 22, 26)
+		subTS.MaxTextSize = math.clamp(math.floor(s.Y*0.024), 18, 20)
+		stepTS.MaxTextSize = math.clamp(math.floor(s.Y*0.020), 13, 15)
+	end
+	layout()
+	overlay:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+
+	local function tw(o, ti, props) local t = TweenService:Create(o, ti, props) t:Play() return t end
+	tw(overlay, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
+	tw(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
+
+	title.TextTransparency = 1
+	subtitle.TextTransparency = 1
+	stepLabel.TextTransparency = 1
+	tw(title, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
+	tw(subtitle, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
+	tw(stepLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
+
+	local alive = true
+	local baseStatus = "loading"
+
+	local hb1 = RunService.Heartbeat:Connect(function(dt)
+		bgGrad.Offset = Vector2.new((bgGrad.Offset.X + dt*0.02)%1, 0)
+		ringGrad.Rotation = (ringGrad.Rotation + dt*240)%360
+	end)
+
+	local dotsT, dotsN = 0, 0
+	local hb2 = RunService.RenderStepped:Connect(function(dt)
+		dotsT += dt
+		if dotsT >= 0.35 then
+			dotsT = 0
+			dotsN = (dotsN%3)+1
+			subtitle.Text = baseStatus .. string.rep(".", dotsN)
+		end
+	end)
+
+	Spawn(function()
+		while alive do
+			local dur = 0.95
+			runner.Position = UDim2.new(-0.18,0,0,0)
+			tw(runner, TweenInfo.new(dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(1,0,0,0)})
+			Wait(dur + 0.05)
+		end
+	end)
+
+	Spawn(function()
+		while alive do
+			fillGrad.Offset = Vector2.new(-1,0)
+			tw(fillGrad, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)})
+			Wait(1.3)
+		end
+	end)
+
+	local completed = InstanceNew("BoolValue", screen)
+	completed.Name = "Completed"
+	completed.Value = false
+
+	local function setStatus(t)
+		baseStatus = t or ""
+		stepLabel.Text = baseStatus
+	end
+
+	local function setPercent(p)
+		p = math.clamp(p,0,1)
+		percentLabel.Text = tostring(math.floor(p*100)).."%"
+		tw(fill, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+	end
+
+	skipBtn.Activated:Connect(function()
+		if skipFlag.Value then return end
+		skipFlag.Value = true
+		skipBtn.Text = "skipping..."
+		tw(skipBtn, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(55,58,70)})
+	end)
+
+	completed:GetPropertyChangedSignal("Value"):Connect(function()
+		if completed.Value then
+			alive = false
+			local o1 = TweenService:Create(overlay, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			o1.Completed:Connect(function() overlay.Visible = false end)
+			o1:Play()
+			tw(fill, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)})
+			local c1 = TweenService:Create(card, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			local t1 = TweenService:Create(title, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+			local t2 = TweenService:Create(subtitle, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+			local t3 = TweenService:Create(stepLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+			local t4 = TweenService:Create(percentLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
+			local d1 = TweenService:Create(centerDot, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			local ds = TweenService:Create(dotStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 1})
+			Wait(0.02)
+			c1:Play(); t1:Play(); t2:Play(); t3:Play(); t4:Play(); d1:Play(); ds:Play()
+			Wait(0.18)
+			screen:Destroy()
+		end
+	end)
+
+	screen.Destroying:Connect(function()
+		alive = false
+		if hb1 and hb1.Connected then hb1:Disconnect() end
+		if hb2 and hb2.Connected then hb2:Disconnect() end
+	end)
+
+	return screen, setStatus, setPercent, completed, function() return skipFlag.Value end
+end
+
+local function collectAssetsFrom(root, out, allow)
+	for _, d in ipairs(root:GetDescendants()) do
+		if allow[d.ClassName] then
+			out[#out+1] = d
+		end
+	end
+end
+
+local function preloadBatches(instances, onChunk, shouldSkip)
+	local ContentProvider = SafeGetService("ContentProvider")
+	local batch = 50
+	for i = 1, #instances, batch do
+		if shouldSkip and shouldSkip() then break end
+		local chunk = {}
+		for j = i, math.min(i + batch - 1, #instances) do
+			chunk[#chunk+1] = instances[j]
+		end
+		pcall(function() ContentProvider:PreloadAsync(chunk) end)
+		onChunk(#chunk)
+		Wait()
+	end
+end
+
+local NAAssetsLoading = {}
+
+NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is loading...")
+NaProtectUI(NAAssetsLoading.ui)
+
+NAAssetsLoading.setStatus("waiting for engine")
+if not game:IsLoaded() then game.Loaded:Wait() end
+NAAssetsLoading.setPercent(0.1)
+
+NAAssetsLoading.setStatus("loading notifications")
+repeat
+	NAAssetsLoading.ok, NAAssetsLoading.res = pcall(function()
+		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
+	end)
+	if NAAssetsLoading.ok then
+		Notification = NAAssetsLoading.res
+	else
+		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(NAAssetsLoading.res)))
+		Wait(0.3)
+	end
+until Notification or NAAssetsLoading.getSkip()
+if not Notification then
+	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
+end
+NAAssetsLoading.setPercent(0.3)
+
+NAAssetsLoading.setStatus("gathering assets")
+NAAssetsLoading.allow = {
+	ImageLabel=true, ImageButton=true, Decal=true, Texture=true, Beam=true,
+	MeshPart=true, SpecialMesh=true, SurfaceAppearance=true, UnionOperation=true,
+	ParticleEmitter=true, Trail=true, Sound=true, VideoFrame=true, Animation=true,
+	Sky=true, Shirt=true, Pants=true, ShirtGraphic=true,
+}
+NAAssetsLoading.targets = {}
+
+collectAssetsFrom(SafeGetService("StarterGui"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+collectAssetsFrom(SafeGetService("ReplicatedStorage"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+collectAssetsFrom(SafeGetService("ReplicatedFirst"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+collectAssetsFrom(SafeGetService("StarterPack"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+collectAssetsFrom(SafeGetService("SoundService"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+collectAssetsFrom(SafeGetService("Lighting"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+
+NAAssetsLoading.SP = SafeGetService("StarterPlayer")
+if NAAssetsLoading.SP then
+	collectAssetsFrom(NAAssetsLoading.SP, NAAssetsLoading.targets, NAAssetsLoading.allow)
+	NAAssetsLoading.c = NAAssetsLoading.SP:FindFirstChild("StarterPlayerScripts"); if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+	NAAssetsLoading.c = NAAssetsLoading.SP:FindFirstChild("StarterCharacterScripts"); if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+end
+
+NAAssetsLoading.Players = SafeGetService("Players")
+NAAssetsLoading.lp = NAAssetsLoading.Players.LocalPlayer
+if NAAssetsLoading.lp then
+	NAAssetsLoading.pg = NAAssetsLoading.lp:FindFirstChild("PlayerGui"); if NAAssetsLoading.pg then collectAssetsFrom(NAAssetsLoading.pg, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+	NAAssetsLoading.ps = NAAssetsLoading.lp:FindFirstChild("PlayerScripts"); if NAAssetsLoading.ps then collectAssetsFrom(NAAssetsLoading.ps, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+	NAAssetsLoading.bp = NAAssetsLoading.lp:FindFirstChild("Backpack"); if NAAssetsLoading.bp then collectAssetsFrom(NAAssetsLoading.bp, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+end
+
+NAAssetsLoading.ws = SafeGetService("Workspace")
+if NAAssetsLoading.ws then
+	if not NAAssetsLoading.ws.StreamingEnabled then
+		collectAssetsFrom(NAAssetsLoading.ws, NAAssetsLoading.targets, NAAssetsLoading.allow)
+	else
+		for _, name in ipairs({"Map","MapContainer","Assets","WorkspaceAssets"}) do
+			NAAssetsLoading.c = NAAssetsLoading.ws:FindFirstChild(name)
+			if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
+		end
+	end
+end
+
+NAAssetsLoading.seen, NAAssetsLoading.filtered = {}, {}
+for _, inst in ipairs(NAAssetsLoading.targets) do
+	if inst and inst.Parent and not NAAssetsLoading.seen[inst] then
+		NAAssetsLoading.seen[inst] = true
+		NAAssetsLoading.filtered[#NAAssetsLoading.filtered+1] = inst
+	end
+end
+NAAssetsLoading.targets = NAAssetsLoading.filtered
+NAAssetsLoading.setPercent(0.45)
+
+NAAssetsLoading.setStatus(NAAssetsLoading.getSkip() and "assets skipped" or "preloading assets")
+if not NAAssetsLoading.getSkip() and #NAAssetsLoading.targets > 0 then
+	NAAssetsLoading.count, NAAssetsLoading.done = #NAAssetsLoading.targets, 0
+	preloadBatches(NAAssetsLoading.targets, function(loaded)
+		NAAssetsLoading.done = NAAssetsLoading.done + loaded
+		NAAssetsLoading.setPercent(0.45 + 0.45*(NAAssetsLoading.done/NAAssetsLoading.count))
+	end, NAAssetsLoading.getSkip)
+else
+	NAAssetsLoading.setPercent(0.9)
+end
+
+NAAssetsLoading.setStatus("finalizing")
+NAAssetsLoading.setPercent(1)
+NAAssetsLoading.completed.Value = true
+
+local Notify = Notification.Notify
+local Window = Notification.Window
+local Popup  = Notification.Popup
+
+function DoNotif(text, duration, title)
+	Notify({ Title = title or adminName or nil, Description = text or "something", Duration = duration or 5 })
+end
+
+function DebugNotif(text, duration, title)
+	if not NAStuff.nuhuhNotifs then return end
+	Notify({ Title = title or adminName or nil, Description = text or "something", Duration = duration or 5 })
+end
+
+function DoWindow(text, title)
+	Window({ Title = title or adminName or nil, Description = text or "something" })
+end
+
+function DoPopup(text, title)
+	Popup({ Title = title or adminName or nil, Description = text or "something" })
+end
+
+local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
+
+for _, ev in ipairs(events) do
+	if type(Bindings[ev]) ~= "table" then
+		Bindings[ev] = {}
+	end
 end
 
 function countDictNA(tbl)
@@ -548,16 +960,6 @@ if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not firep
 		pp.HoldDuration=pp.HoldDuration
 		pp.RequiresLineOfSight=pp.RequiresLineOfSight
 	end
-end
-
-if not game:IsLoaded() then
-	local message = InstanceNew("Message")
-	message.Text = adminName.." is waiting for the game to load"
-	NaProtectUI(message)
-	game.Loaded:Wait()
-
-	repeat Wait(.1) until SafeGetService("Players").LocalPlayer
-	message:Destroy()
 end
 
 local JoinLeaveConfig = {
@@ -2838,7 +3240,6 @@ function sFLY(vfly, cfly)
 	end)
 
 	if cfly then
-		humanoid.PlatformStand = true
 		Head.Anchored = true
 
 		CFloop = RunService.Stepped:Connect(function()
@@ -3400,6 +3801,7 @@ NAmanage.RenderUserButtons = function()
 	local ActiveKeyBinding= {}
 	local ActionBindings  = {}
 	local tSize = 28
+	local DOUBLE_CLICK_WINDOW = 0.35
 
 	function ButtonInputPrompt(cmdName, cb)
 		local gui = InstanceNew("ScreenGui")
@@ -3486,7 +3888,7 @@ NAmanage.RenderUserButtons = function()
 		btn.Text            = data.Label
 		btn.Size            = UDim2.new(0,60, 0,60)
 		btn.AnchorPoint     = Vector2.new(0.5,1)
-		btn.Position        = UDim2.new(startX + (spacing*idx)/NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
+		btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
 		btn.Parent          = NAStuff.NASCREENGUI
 		btn.BackgroundColor3= Color3.fromRGB(0,0,0)
 		btn.TextColor3      = Color3.fromRGB(255,255,255)
@@ -3500,6 +3902,16 @@ NAmanage.RenderUserButtons = function()
 		btnCorner.CornerRadius = UDim.new(0.25,0)
 		btnCorner.Parent       = btn
 		NAgui.draggerV2(btn)
+
+		btn.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				local p = btn.Position
+				data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+				if FileSupport then
+					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+				end
+			end
+		end)
 
 		local toggled     = false
 		local saveEnabled = data.RunMode == "S"
@@ -3594,12 +4006,28 @@ NAmanage.RenderUserButtons = function()
 			ktCorner.CornerRadius = UDim.new(0.5,0)
 			ktCorner.Parent       = keyToggle
 
+			local lastClick = 0
+			local bindConn
+
 			MouseButtonFix(keyToggle, function()
+				local now = os.clock()
+				if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
+					lastClick = 0
+					if data.Keybind then ActionBindings[data.Keybind] = nil end
+					data.Keybind = nil
+					keyToggle.Text = "Key"
+					if FileSupport then
+						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+					end
+					if bindConn then bindConn:Disconnect() bindConn = nil end
+					ActiveKeyBinding[id] = nil
+					return
+				end
+				lastClick = now
 				if ActiveKeyBinding[id] then return end
 				ActiveKeyBinding[id] = true
 				keyToggle.Text = "..."
-				local conn
-				conn = UIS.InputBegan:Connect(function(input, gp)
+				bindConn = UIS.InputBegan:Connect(function(input, gp)
 					if gp or not input.KeyCode then return end
 					local old = data.Keybind
 					if old then ActionBindings[old] = nil end
@@ -3611,7 +4039,7 @@ NAmanage.RenderUserButtons = function()
 					end
 					ActionBindings[new] = function() runCmd(data.Args) end
 					ActiveKeyBinding[id] = nil
-					conn:Disconnect()
+					if bindConn then bindConn:Disconnect() bindConn = nil end
 				end)
 			end)
 
@@ -11429,7 +11857,6 @@ function toggleTFly()
 		coroutine.wrap(function()
 			repeat
 				Wait()
-				Humanoid.PlatformStand = true
 				local newPosition = gyro.cframe - gyro.cframe.p + pos.position
 
 				local moveVec = GetCustomMoveVector()
@@ -11447,7 +11874,6 @@ function toggleTFly()
 
 			if gyro then gyro:Destroy() end
 			if pos then pos:Destroy() end
-			Humanoid.PlatformStand = false
 		end)()
 
 		if flyVariables.TFLYBTN then
@@ -13309,8 +13735,6 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	local root = getRoot(character)
 	local humanoid = getHum()
 	if not root or not humanoid then return end
-
-	humanoid.PlatformStand = true
 
 	local part = InstanceNew("Part")
 	part.Size = Vector3.new(0.1, 0.1, 0.1)
@@ -18325,10 +18749,13 @@ NAStuff._godOldNC   = NAStuff._godOldNC   or nil
 NAStuff._godOldNI   = NAStuff._godOldNI   or nil
 
 NAmanage.God_ClearSignals = function()
-	for _,arr in pairs(NAStuff._godSignals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
-	for k in pairs(NAStuff._godSignals) do NAStuff._godSignals[k] = nil end
 	NAlib.disconnect("godmode")
 	NAlib.disconnect("god_char")
+	NAlib.disconnect("god_loops")
+	for _,arr in pairs(NAStuff._godSignals) do
+		for _,c in ipairs(arr) do if c then c:Disconnect() end end
+	end
+	for k in pairs(NAStuff._godSignals) do NAStuff._godSignals[k] = nil end
 end
 
 NAmanage.God_UnhookMeta = function()
@@ -18346,7 +18773,9 @@ end
 NAmanage.God_CommonApply = function(h)
 	if not h then return end
 	NAStuff._godHumRef = h
-	if NAStuff._godOrig[h] == nil then NAStuff._godOrig[h] = { max = h.MaxHealth, bjd = NAlib.isProperty(h,"BreakJointsOnDeath") } end
+	if NAStuff._godOrig[h] == nil then
+		NAStuff._godOrig[h] = { max = h.MaxHealth, bjd = NAlib.isProperty(h,"BreakJointsOnDeath") }
+	end
 	if h.MaxHealth < NAStuff._godTarget then NAlib.setProperty(h,"MaxHealth", NAStuff._godTarget) end
 	if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 	if NAlib.isProperty(h,"BreakJointsOnDeath") ~= false then NAlib.setProperty(h,"BreakJointsOnDeath", false) end
@@ -18385,9 +18814,10 @@ NAmanage.God_WireNoHooks = function(h, strong)
 		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
 		if h:GetState() == Enum.HumanoidStateType.Dead then pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end) end
 	end
-	NAlib.connect("godmode", RunService.RenderStepped:Connect(function()
-		local hh = NAStuff._godHumRef
+	NAlib.connect("god_loops", RunService.RenderStepped:Connect(function()
+		local hh = getHum()
 		if not hh then return end
+		NAStuff._godHumRef = hh
 		if hh.MaxHealth < NAStuff._godTarget then NAlib.setProperty(hh,"MaxHealth", NAStuff._godTarget) end
 		if hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
 		if strong then
@@ -18396,12 +18826,12 @@ NAmanage.God_WireNoHooks = function(h, strong)
 			if hh:GetState() == Enum.HumanoidStateType.Dead then pcall(function() hh:ChangeState(Enum.HumanoidStateType.Running) end) end
 		end
 	end))
-	NAlib.connect("godmode", RunService.Stepped:Connect(function()
-		local hh = NAStuff._godHumRef
+	NAlib.connect("god_loops", RunService.Stepped:Connect(function()
+		local hh = getHum()
 		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
 	end))
-	NAlib.connect("godmode", RunService.Heartbeat:Connect(function()
-		local hh = NAStuff._godHumRef
+	NAlib.connect("god_loops", RunService.Heartbeat:Connect(function()
+		local hh = getHum()
 		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
 	end))
 end
@@ -18411,17 +18841,19 @@ NAmanage.God_HookMeta = function()
 	NAStuff._godHooked = true
 	NAStuff._godOldNC = NAStuff._godOldNC or hookmetamethod(game,"__namecall",newcclosure(function(self,...)
 		local m = getnamecallmethod()
-		if NAStuff._godHumRef and typeof(self)=="Instance" then
-			if self==NAStuff._godHumRef and m=="ChangeState" then local st = ...; if st==Enum.HumanoidStateType.Dead then return end end
-			if self==NAStuff._godHumRef and m=="SetStateEnabled" then local st,en = ...; if st==Enum.HumanoidStateType.Dead and en==true then return end end
-			if self==NAStuff._godHumRef and m=="Destroy" then return end
+		local hum = NAStuff._godHumRef
+		if hum and typeof(self)=="Instance" then
+			if self==hum and m=="ChangeState" then local st = ...; if st==Enum.HumanoidStateType.Dead then return end end
+			if self==hum and m=="SetStateEnabled" then local st,en = ...; if st==Enum.HumanoidStateType.Dead and en==true then return end end
+			if self==hum and m=="Destroy" then return end
 			local char = Players.LocalPlayer.Character
 			if char and self==char and m=="BreakJoints" then return end
 		end
 		return NAStuff._godOldNC(self,...)
 	end))
 	NAStuff._godOldNI = NAStuff._godOldNI or hookmetamethod(game,"__newindex",newcclosure(function(self,k,v)
-		if NAStuff._godHumRef and self==NAStuff._godHumRef then
+		local hum = NAStuff._godHumRef
+		if hum and self==hum then
 			if k=="Health" and type(v)=="number" and v<=0 then return end
 			if k=="MaxHealth" and type(v)=="number" and v<NAStuff._godTarget then return end
 			if k=="BreakJointsOnDeath" and v==true then return end
@@ -18436,9 +18868,9 @@ NAmanage.God_Enable = function(method)
 	NAmanage.God_ClearSignals()
 	NAmanage.God_UnhookMeta()
 	NAStuff._godMethod = method or NAStuff._godMethod
+	local lp = Players.LocalPlayer
 	local h = getHum()
 	if not h then
-		local lp = Players.LocalPlayer
 		NAlib.connect("god_char", lp.CharacterAdded:Connect(function(char)
 			local c; c = char.DescendantAdded:Connect(function(inst) if inst:IsA("Humanoid") then c:Disconnect(); NAmanage.God_Enable(NAStuff._godMethod) end end)
 		end))
@@ -18446,27 +18878,25 @@ NAmanage.God_Enable = function(method)
 	end
 	NAStuff._godEnabled = true
 	NAmanage.God_CommonApply(h)
-	if NAStuff._godMethod == "nohooks_min" then
-		NAmanage.God_WireNoHooks(h, false)
-	elseif NAStuff._godMethod == "nohooks_strong" then
+	if NAStuff._godMethod == "hook_meta" then
 		NAmanage.God_WireNoHooks(h, true)
-	elseif NAStuff._godMethod == "hook_meta" then
-		NAmanage.God_WireNoHooks(h, true)
-		if not NAmanage.God_HookMeta() then DebugNotif("hookmetamethod unavailable; using nohooks_strong",2) end
+		NAmanage.God_HookMeta()
 	else
 		NAmanage.God_WireNoHooks(h, true)
 	end
-	NAlib.connect("god_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+	NAlib.connect("god_char", lp.CharacterAdded:Connect(function(char)
 		Wait()
 		local nh = getHum()
 		if nh then
 			NAmanage.God_CommonApply(nh)
-			if NAStuff._godMethod=="nohooks_min" then NAmanage.God_WireNoHooks(nh,false)
-			elseif NAStuff._godMethod=="hook_meta" then NAmanage.God_WireNoHooks(nh,true); NAmanage.God_HookMeta()
-			else NAmanage.God_WireNoHooks(nh,true) end
+			if NAStuff._godMethod=="hook_meta" then
+				NAmanage.God_WireNoHooks(nh, true)
+				NAmanage.God_HookMeta()
+			else
+				NAmanage.God_WireNoHooks(nh, true)
+			end
 		end
 	end))
-	DebugNotif("Godmode: "..NAStuff._godMethod, 2)
 end
 
 NAmanage.God_Disable = function()
@@ -18477,13 +18907,11 @@ NAmanage.God_Disable = function()
 	local o = h and NAStuff._godOrig[h]
 	if h and o then
 		NAlib.setProperty(h,"MaxHealth", o.max or 100)
-		if h.Health > h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
 		if o.bjd ~= nil then NAlib.setProperty(h,"BreakJointsOnDeath", o.bjd) end
 		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
 	end
 	for k in pairs(NAStuff._godOrig) do NAStuff._godOrig[k] = nil end
 	NAStuff._godHumRef = nil
-	DebugNotif("Godmode OFF",2)
 end
 
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
@@ -25830,6 +26258,11 @@ if FileSupport and CoreGui then
 				}
 				local ug = InstanceNew("UIGradient", o)
 				ug.Color, ug.Rotation = seq, 45
+				ug.Transparency = NumberSequence.new{
+					NumberSequenceKeypoint.new(0,   0, 0),
+					NumberSequenceKeypoint.new(0.5, 0, 0),
+					NumberSequenceKeypoint.new(1,   0, 0),
+				}
 			end
 		end
 
