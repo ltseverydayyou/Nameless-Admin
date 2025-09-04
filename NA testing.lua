@@ -11573,20 +11573,20 @@ end]]
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
 	NAlib.disconnect("noclip")
+	NAlib.disconnect("noclip_char")
 	NAStuff._noclipTracked = NAStuff._noclipTracked or setmetatable({}, {__mode="k"})
 	NAStuff._noclipOrigCan = NAStuff._noclipOrigCan or setmetatable({}, {__mode="k"})
 	NAStuff._noclipOrigGrp = NAStuff._noclipOrigGrp or setmetatable({}, {__mode="k"})
 	NAStuff._noclipSignals = NAStuff._noclipSignals or setmetatable({}, {__mode="k"})
 	NAStuff._noclipGroup = "NA_NoClip"
-	local tracked = NAStuff._noclipTracked
-	local origCan = NAStuff._noclipOrigCan
-	local origGrp = NAStuff._noclipOrigGrp
-	local signals = NAStuff._noclipSignals
+	local tracked, origCan, origGrp, signals = NAStuff._noclipTracked, NAStuff._noclipOrigCan, NAStuff._noclipOrigGrp, NAStuff._noclipSignals
 	local lp = Players.LocalPlayer
-	local PS = SafeGetService("PhysicsService")
-	pcall(function() PS:RegisterCollisionGroup(NAStuff._noclipGroup) end)
-	pcall(function() PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, "Default", false) end)
-	pcall(function() PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, NAStuff._noclipGroup, false) end)
+	pcall(function()
+		local PS = SafeGetService("PhysicsService")
+		PS:RegisterCollisionGroup(NAStuff._noclipGroup)
+		PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, "Default", false)
+		PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, NAStuff._noclipGroup, false)
+	end)
 	local enforce = function(p)
 		if p and p:IsA("BasePart") then
 			if origCan[p] == nil then origCan[p] = NAlib.isProperty(p,"CanCollide") end
@@ -11619,16 +11619,16 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 		end))
 	end
 	if lp.Character then seed(lp.Character) end
-	NAlib.connect("noclip", lp.CharacterAdded:Connect(function(char)
-		for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+	NAlib.connect("noclip_char", lp.CharacterAdded:Connect(function(char)
+		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
 		for k in pairs(signals) do signals[k]=nil end
 		for k in pairs(tracked) do tracked[k]=nil end
 		for k in pairs(origCan) do origCan[k]=nil end
 		for k in pairs(origGrp) do origGrp[k]=nil end
-		seed(char)
+		Wait(); seed(char)
 	end))
-	NAlib.connect("noclip", lp.CharacterRemoving:Connect(function()
-		for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+	NAlib.connect("noclip_char", lp.CharacterRemoving:Connect(function()
+		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
 		for k in pairs(signals) do signals[k]=nil end
 		for k in pairs(tracked) do tracked[k]=nil end
 		for k in pairs(origCan) do origCan[k]=nil end
@@ -11651,7 +11651,9 @@ cmd.add({"clip"},{"clip","Enable your player's collision"},function()
 	local origCan = NAStuff._noclipOrigCan or {}
 	local origGrp = NAStuff._noclipOrigGrp or {}
 	local signals = NAStuff._noclipSignals or {}
-	for _,c in pairs(signals) do if c then for _,x in ipairs(c) do if x then x:Disconnect() end end end end
+	NAlib.disconnect("noclip")
+	NAlib.disconnect("noclip_char")
+	for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
 	for p in pairs(tracked) do
 		if typeof(p)=="Instance" and p:IsA("BasePart") then
 			local v = origCan[p]; if v == nil then v = true end
@@ -11664,17 +11666,15 @@ cmd.add({"clip"},{"clip","Enable your player's collision"},function()
 	for k in pairs(tracked) do tracked[k]=nil end
 	for k in pairs(origCan) do origCan[k]=nil end
 	for k in pairs(origGrp) do origGrp[k]=nil end
-	NAlib.disconnect("noclip")
 end)
 
 cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchored"},function()
 	NAlib.disconnect("antianchor")
+	NAlib.disconnect("antianchor_char")
 	NAStuff._aaTracked = NAStuff._aaTracked or setmetatable({}, {__mode="k"})
 	NAStuff._aaOrig = NAStuff._aaOrig or setmetatable({}, {__mode="k"})
 	NAStuff._aaSignals = NAStuff._aaSignals or setmetatable({}, {__mode="k"})
-	local tracked = NAStuff._aaTracked
-	local orig = NAStuff._aaOrig
-	local signals = NAStuff._aaSignals
+	local tracked, orig, signals = NAStuff._aaTracked, NAStuff._aaOrig, NAStuff._aaSignals
 	local lp = Players.LocalPlayer
 	local enforce = function(p)
 		if not (p and p:IsA("BasePart")) then return end
@@ -11704,18 +11704,18 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 		end))
 	end
 	if lp.Character then seed(lp.Character) end
-	NAlib.connect("antianchor", lp.CharacterAdded:Connect(function(char)
-		for _,conn in pairs(signals) do if conn then conn:Disconnect() end end
-		for k in pairs(signals) do signals[k] = nil end
-		for k in pairs(tracked) do tracked[k] = nil end
-		for k in pairs(orig) do orig[k] = nil end
-		seed(char)
+	NAlib.connect("antianchor_char", lp.CharacterAdded:Connect(function(char)
+		for _,c in pairs(signals) do if c then c:Disconnect() end end
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(orig) do orig[k]=nil end
+		Wait(); seed(char)
 	end))
-	NAlib.connect("antianchor", lp.CharacterRemoving:Connect(function()
-		for _,conn in pairs(signals) do if conn then conn:Disconnect() end end
-		for k in pairs(signals) do signals[k] = nil end
-		for k in pairs(tracked) do tracked[k] = nil end
-		for k in pairs(orig) do orig[k] = nil end
+	NAlib.connect("antianchor_char", lp.CharacterRemoving:Connect(function()
+		for _,c in pairs(signals) do if c then c:Disconnect() end end
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(orig) do orig[k]=nil end
 	end))
 	NAlib.connect("antianchor", RunService.Stepped:Connect(function()
 		local char = lp.Character
@@ -11732,6 +11732,8 @@ cmd.add({"unantianchor","unaa"},{"unantianchor","Allow your parts to be anchored
 	local tracked = NAStuff._aaTracked or {}
 	local orig = NAStuff._aaOrig or {}
 	local signals = NAStuff._aaSignals or {}
+	NAlib.disconnect("antianchor")
+	NAlib.disconnect("antianchor_char")
 	for _,c in pairs(signals) do if c then c:Disconnect() end end
 	for p in pairs(tracked) do
 		if typeof(p)=="Instance" and p:IsA("BasePart") then
@@ -11739,10 +11741,9 @@ cmd.add({"unantianchor","unaa"},{"unantianchor","Allow your parts to be anchored
 			NAlib.setProperty(p,"Anchored", v)
 		end
 	end
-	for k in pairs(signals) do signals[k] = nil end
-	for k in pairs(tracked) do tracked[k] = nil end
-	for k in pairs(orig) do orig[k] = nil end
-	NAlib.disconnect("antianchor")
+	for k in pairs(signals) do signals[k]=nil end
+	for k in pairs(tracked) do tracked[k]=nil end
+	for k in pairs(orig) do orig[k]=nil end
 end)
 
 originalPos = nil
@@ -13431,12 +13432,11 @@ end, true)
 --[ PLAYER ]--
 cmd.add({"antikillbrick","antikb"},{"antikillbrick (antikb)","Prevents kill bricks from killing you"},function()
 	NAlib.disconnect("antikb")
+	NAlib.disconnect("antikb_char")
 	NAStuff._kbTracked = NAStuff._kbTracked or setmetatable({}, {__mode="k"})
 	NAStuff._kbOrig = NAStuff._kbOrig or setmetatable({}, {__mode="k"})
 	NAStuff._kbSignals = NAStuff._kbSignals or setmetatable({}, {__mode="k"})
-	local tracked = NAStuff._kbTracked
-	local orig = NAStuff._kbOrig
-	local signals = NAStuff._kbSignals
+	local tracked, orig, signals = NAStuff._kbTracked, NAStuff._kbOrig, NAStuff._kbSignals
 	local lp = Players.LocalPlayer
 	local apply = function(p)
 		if not (p and p:IsA("BasePart")) then return end
@@ -13466,18 +13466,18 @@ cmd.add({"antikillbrick","antikb"},{"antikillbrick (antikb)","Prevents kill bric
 		end))
 	end
 	if lp.Character then seed(lp.Character) end
-	NAlib.connect("antikb", lp.CharacterAdded:Connect(function(char)
+	NAlib.connect("antikb_char", lp.CharacterAdded:Connect(function(char)
 		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k] = nil end
-		for k in pairs(tracked) do tracked[k] = nil end
-		for k in pairs(orig) do orig[k] = nil end
-		seed(char)
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(orig) do orig[k]=nil end
+		Wait(); seed(char)
 	end))
-	NAlib.connect("antikb", lp.CharacterRemoving:Connect(function()
+	NAlib.connect("antikb_char", lp.CharacterRemoving:Connect(function()
 		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k] = nil end
-		for k in pairs(tracked) do tracked[k] = nil end
-		for k in pairs(orig) do orig[k] = nil end
+		for k in pairs(signals) do signals[k]=nil end
+		for k in pairs(tracked) do tracked[k]=nil end
+		for k in pairs(orig) do orig[k]=nil end
 	end))
 	NAlib.connect("antikb", RunService.Stepped:Connect(function()
 		local char = lp.Character
@@ -13494,6 +13494,8 @@ cmd.add({"unantikillbrick","unantikb"},{"unantikillbrick (unantikb)","Allows kil
 	local tracked = NAStuff._kbTracked or {}
 	local orig = NAStuff._kbOrig or {}
 	local signals = NAStuff._kbSignals or {}
+	NAlib.disconnect("antikb")
+	NAlib.disconnect("antikb_char")
 	for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
 	for p in pairs(tracked) do
 		if typeof(p)=="Instance" and p:IsA("BasePart") then
@@ -13504,7 +13506,6 @@ cmd.add({"unantikillbrick","unantikb"},{"unantikillbrick (unantikb)","Allows kil
 	for k in pairs(signals) do signals[k] = nil end
 	for k in pairs(tracked) do tracked[k] = nil end
 	for k in pairs(orig) do orig[k] = nil end
-	NAlib.disconnect("antikb")
 end)
 
 cmd.add({"height","hipheight","hh"},{"height <number> (hipheight,hh)","Changes your hipheight"},function(...)
