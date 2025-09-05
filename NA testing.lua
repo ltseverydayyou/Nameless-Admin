@@ -9434,6 +9434,76 @@ cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username
 	DebugNotif("Copied "..tostring(naem).."'s Username with ID of "..tostring(thingy))
 end,true)
 
+cmd.add({"ownerid"},{"ownerid","masks you as the game owner's ID and Username"},function()
+	local ownerUserId, ownerName
+	if game.CreatorType == Enum.CreatorType.User then
+		ownerUserId = game.CreatorId
+	elseif game.CreatorType == Enum.CreatorType.Group then
+		local ok, info = pcall(function() return SafeGetService("GroupService"):GetGroupInfoAsync(game.CreatorId) end)
+		if ok and info then
+			if info.Owner and info.Owner.Id then ownerUserId = info.Owner.Id end
+			if not ownerUserId and info.OwnerId then ownerUserId = info.OwnerId end
+		end
+	end
+	if not ownerUserId then DebugNotif("Owner not found",3) return end
+	local ok2, nameOrErr = pcall(function() return Players:GetNameFromUserIdAsync(ownerUserId) end)
+	if ok2 and nameOrErr and nameOrErr ~= "" then ownerName = nameOrErr else ownerName = "unknown" end
+	opt.hiddenprop(LocalPlayer, "UserId", ownerUserId)
+	opt.hiddenprop(LocalPlayer, "Name", ownerName)
+end)
+
+cmd.add({"userid"},{"userid","changes your UserId to any ID you enter"},function(...)
+	local arg = ({...})[1]
+	if not arg or arg == "" then
+		DebugNotif("usage: userid <userId|username>",3)
+		return nil
+	end
+	local text = tostring(arg):gsub("^%s+",""):gsub("%s+$","")
+	local resolvedId
+
+	local asNum = tonumber(text)
+	if asNum then
+		if asNum < 1 or asNum ~= math.floor(asNum) then
+			DebugNotif("invalid userId",3)
+			return nil
+		end
+		local ok, _ = pcall(function() return Players:GetNameFromUserIdAsync(asNum) end)
+		if not ok then
+			DebugNotif("invalid userId (not found)",3)
+			return nil
+		end
+		resolvedId = asNum
+	else
+		local uname = text:gsub("^@","")
+		local ok, uid = pcall(function() return Players:GetUserIdFromNameAsync(uname) end)
+		if not ok or not uid then
+			DebugNotif("invalid username",3)
+			return nil
+		end
+		local ok2, _ = pcall(function() return Players:GetNameFromUserIdAsync(uid) end)
+		if not ok2 then
+			DebugNotif("resolved user invalid",3)
+			return nil
+		end
+		resolvedId = uid
+	end
+
+	if resolvedId then
+		opt.hiddenprop(LocalPlayer, "UserId", resolvedId)
+		return resolvedId
+	end
+
+	return nil
+end)
+
+cmd.add({"username","name"},{"username","changes your Username to any name you enter"},function(...)
+	local arg = ({...})[1]
+	if not arg or arg == "" then
+		return DebugNotif("missing argument",3)
+	end
+	opt.hiddenprop(LocalPlayer, "Name", arg)
+end)
+
 cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explorer"},function()
 	local rng=Random.new()
 
@@ -9494,24 +9564,103 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 	Load(Dex)
 end)
 
-cmd.add({"antifling"}, {"antifling", "makes other players non-collidable with you"}, function()
+cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"},function()
 	NAlib.disconnect("antifling")
-	NAlib.connect("antifling", RunService.Stepped:Connect(function()
-		for _, pl in ipairs(Players:GetPlayers()) do
-			if pl ~= LocalPlayer and pl.Character then
-				for _, part in ipairs(pl.Character:GetDescendants()) do
-					if part:IsA("BasePart") and NAlib.isProperty(part, "CanCollide") then
-						NAlib.setProperty(part, "CanCollide", false)
-					end
+	NAlib.disconnect("antifling_players")
+	NAStuff._afTracked = NAStuff._afTracked or setmetatable({}, {__mode="k"})
+	NAStuff._afOrigCan = NAStuff._afOrigCan or setmetatable({}, {__mode="k"})
+	NAStuff._afSignals = NAStuff._afSignals or setmetatable({}, {__mode="k"})
+	local tracked, orig, sigs = NAStuff._afTracked, NAStuff._afOrigCan, NAStuff._afSignals
+	local lp = Players.LocalPlayer
+
+	local apply = function(p)
+		if not (p and p:IsA("BasePart")) or tracked[p] then return end
+		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"CanCollide") end
+		if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
+		tracked[p] = true
+		if not sigs[p] then
+			local c = p:GetPropertyChangedSignal("CanCollide"):Connect(function()
+				if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
+			end)
+			sigs[p] = c
+			NAlib.connect("antifling", c)
+		end
+	end
+
+	local seedChar = function(char)
+		if not char then return end
+		for _,d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then apply(d) end
+		end
+		NAlib.connect("antifling", char.DescendantAdded:Connect(function(inst)
+			if inst:IsA("BasePart") then apply(inst) end
+		end))
+		NAlib.connect("antifling", char.DescendantRemoving:Connect(function(inst)
+			if tracked[inst] then
+				if sigs[inst] then sigs[inst]:Disconnect(); sigs[inst] = nil end
+				tracked[inst] = nil
+				orig[inst] = nil
+			end
+		end))
+	end
+
+	local hookOther = function(plr)
+		if plr == lp then return end
+		if plr.Character then seedChar(plr.Character) end
+		NAlib.connect("antifling_players", plr.CharacterAdded:Connect(seedChar))
+		NAlib.connect("antifling_players", plr.CharacterRemoving:Connect(function(char)
+			for _,d in ipairs(char:GetDescendants()) do
+				if tracked[d] then
+					if sigs[d] then sigs[d]:Disconnect(); sigs[d] = nil end
+					tracked[d] = nil
+					orig[d] = nil
 				end
+			end
+		end))
+	end
+
+	for _,pl in ipairs(Players:GetPlayers()) do hookOther(pl) end
+	NAlib.connect("antifling_players", Players.PlayerAdded:Connect(hookOther))
+	NAlib.connect("antifling_players", Players.PlayerRemoving:Connect(function(pl)
+		if pl == lp then return end
+		local char = pl.Character
+		if not char then return end
+		for _,d in ipairs(char:GetDescendants()) do
+			if tracked[d] then
+				if sigs[d] then sigs[d]:Disconnect(); sigs[d] = nil end
+				tracked[d] = nil
+				orig[d] = nil
 			end
 		end
 	end))
+
+	NAlib.connect("antifling", RunService.Stepped:Connect(function()
+		for p in pairs(tracked) do
+			if typeof(p)=="Instance" and p:IsA("BasePart") and p.Parent then
+				if p.CanCollide ~= false then NAlib.setProperty(p,"CanCollide", false) end
+			end
+		end
+	end))
+
 	DebugNotif("Antifling Enabled")
 end)
 
-cmd.add({"unantifling"}, {"unantifling", "restores collision for other players"}, function()
+cmd.add({"unantifling"},{"unantifling","restores collision for other players"},function()
 	NAlib.disconnect("antifling")
+	NAlib.disconnect("antifling_players")
+	local tracked = NAStuff._afTracked or {}
+	local orig = NAStuff._afOrigCan or {}
+	local sigs = NAStuff._afSignals or {}
+	for p in pairs(tracked) do
+		if typeof(p)=="Instance" and p:IsA("BasePart") then
+			local v = orig[p]; if v == nil then v = true end
+			NAlib.setProperty(p,"CanCollide", v)
+		end
+	end
+	for _,c in pairs(sigs) do if c then c:Disconnect() end end
+	for k in pairs(sigs) do sigs[k]=nil end
+	for k in pairs(tracked) do tracked[k]=nil end
+	for k in pairs(orig) do orig[k]=nil end
 	DebugNotif("Antifling Disabled")
 end)
 
@@ -12482,12 +12631,6 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	NAStuff._noclipGroup = "NA_NoClip"
 	local tracked, origCan, origGrp, signals = NAStuff._noclipTracked, NAStuff._noclipOrigCan, NAStuff._noclipOrigGrp, NAStuff._noclipSignals
 	local lp = Players.LocalPlayer
-	pcall(function()
-		local PS = SafeGetService("PhysicsService")
-		PS:RegisterCollisionGroup(NAStuff._noclipGroup)
-		PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, "Default", false)
-		PS:CollisionGroupSetCollidable(NAStuff._noclipGroup, NAStuff._noclipGroup, false)
-	end)
 	local enforce = function(p)
 		if p and p:IsA("BasePart") then
 			if origCan[p] == nil then origCan[p] = NAlib.isProperty(p,"CanCollide") end
