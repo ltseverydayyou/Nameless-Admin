@@ -370,238 +370,463 @@ else
 	adminName = mainName
 end
 
-local function createLoadingUI(text)
+NAgui.dragger = function(ui, dragui)
+	dragui = dragui or ui
+	local UserInputService = SafeGetService("UserInputService")
+	local dragging = false
+	local dragInput
+	local dragStart
+	local startPos
+
+	local function update(input)
+		local success, err = NACaller(function()
+			local delta = input.Position - dragStart
+			local screenSize = ui.Parent.AbsoluteSize
+			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
+			local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
+			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+		end)
+		if not success then
+			warn("[Dragger] update error:", err)
+		end
+	end
+
+	NACaller(function()
+		dragui.InputBegan:Connect(function(input)
+			local success, err = NACaller(function()
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = ui.Position
+
+					NACaller(function()
+						input.Changed:Connect(function()
+							local ok, innerErr = NACaller(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+								end
+							end)
+							if not ok then warn("[Dragger] input.Changed error:", innerErr) end
+						end)
+					end)
+				end
+			end)
+			if not success then warn("[Dragger] InputBegan error:", err) end
+		end)
+	end)
+
+	NACaller(function()
+		dragui.InputChanged:Connect(function(input)
+			local success, err = NACaller(function()
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
+				end
+			end)
+			if not success then warn("[Dragger] InputChanged error:", err) end
+		end)
+	end)
+
+	NACaller(function()
+		UserInputService.InputChanged:Connect(function(input)
+			local success, err = NACaller(function()
+				if input == dragInput and dragging then
+					update(input)
+				end
+			end)
+			if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
+		end)
+	end)
+
+	pcall(function() ui.Active=true end)
+	pcall(function() dragui.Active=true end)
+	if not success then warn("[Dragger] Set Active error:", err) end
+end
+
+NAgui.draggerV2 = function(ui, dragui)
+	dragui = dragui or ui
+	local connName = "DraggerV2_"..ui:GetDebugId()
+	NAlib.disconnect(connName)
+	local UserInputService = SafeGetService("UserInputService")
+	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
+	local dragging, dragInput, dragStart, startPos
+	local anchor = ui.AnchorPoint
+
+	local function safeClamp(v, lo, hi)
+		if hi < lo then hi = lo end
+		return math.clamp(v, lo, hi)
+	end
+
+	local function update(input)
+		local ok, err = NACaller(function()
+			local p = screenGui.AbsoluteSize
+			local s = ui.AbsoluteSize
+			if p.X <= 0 or p.Y <= 0 then return end
+			local startX = startPos.X.Scale * p.X + startPos.X.Offset
+			local startY = startPos.Y.Scale * p.Y + startPos.Y.Offset
+			local dx = input.Position.X - dragStart.X
+			local dy = input.Position.Y - dragStart.Y
+			local minX = anchor.X * s.X
+			local maxX = p.X - (1 - anchor.X) * s.X
+			local minY = anchor.Y * s.Y
+			local maxY = p.Y - (1 - anchor.Y) * s.Y
+			local nx = safeClamp(startX + dx, minX, maxX)
+			local ny = safeClamp(startY + dy, minY, maxY)
+			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
+		end)
+		if not ok then warn("[DraggerV2] update error:", err) end
+	end
+
+	NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
+		local ok, err = NACaller(function()
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				dragStart = input.Position
+				startPos = ui.Position
+				local c = input.Changed:Connect(function()
+					local ok2, err2 = NACaller(function()
+						if input.UserInputState == Enum.UserInputState.End then dragging = false end
+					end)
+					if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
+				end)
+				NAlib.connect(connName, c)
+			end
+		end)
+		if not ok then warn("[DraggerV2] InputBegan error:", err) end
+	end))
+
+	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
+		local ok, err = NACaller(function()
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				dragInput = input
+			end
+		end)
+		if not ok then warn("[DraggerV2] InputChanged error:", err) end
+	end))
+
+	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
+		local ok, err = NACaller(function()
+			if input == dragInput and dragging then update(input) end
+		end)
+		if not ok then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
+	end))
+
+	local function onScreenSizeChanged()
+		local ok, err = NACaller(function()
+			local p = screenGui.AbsoluteSize
+			local s = ui.AbsoluteSize
+			if p.X <= 0 or p.Y <= 0 then return end
+			local curr = ui.Position
+			local absX = curr.X.Scale * p.X + curr.X.Offset
+			local absY = curr.Y.Scale * p.Y + curr.Y.Offset
+			local minX = anchor.X * s.X
+			local maxX = p.X - (1 - anchor.X) * s.X
+			local minY = anchor.Y * s.Y
+			local maxY = p.Y - (1 - anchor.Y) * s.Y
+			local nx = safeClamp(absX, minX, maxX)
+			local ny = safeClamp(absY, minY, maxY)
+			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
+		end)
+		if not ok then warn("[DraggerV2] Screen size update error:", err) end
+	end
+
+	NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
+
+	if ui and NAlib.isProperty(ui, "Active") then
+		NAlib.setProperty(ui, "Active", true)
+	end
+	if dragui and NAlib.isProperty(dragui, "Active") then
+		NAlib.setProperty(dragui, "Active", true)
+	end
+	pcall(function() ui.Active=true end)
+	pcall(function() dragui.Active=true end)
+end
+
+local function createLoadingUI(text, opts)
 	local Players = SafeGetService("Players")
 	local RunService = SafeGetService("RunService")
 	local TweenService = SafeGetService("TweenService")
 
-	local screen = InstanceNew("ScreenGui")
-	screen.IgnoreGuiInset = true
-	screen.ResetOnSpawn = false
-	screen.DisplayOrder = 999999
-	screen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	opts = opts or {}
+	local wsc = tonumber(opts.widthScale) or 0.30
 
-	local overlay = InstanceNew("Frame", screen)
-	overlay.BackgroundTransparency = 1
-	overlay.Size = UDim2.fromScale(1,1)
-	overlay.ZIndex = 5
-	overlay.ClipsDescendants = false
-	local bgGrad = InstanceNew("UIGradient", overlay)
-	bgGrad.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(8,10,14)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(14,16,22)),
-	}
-	bgGrad.Offset = Vector2.new(0,0)
+	local sg = InstanceNew("ScreenGui")
+	sg.IgnoreGuiInset = true
+	sg.ResetOnSpawn = false
+	sg.DisplayOrder = 999999
+	sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-	local card = InstanceNew("Frame", overlay)
-	card.AnchorPoint = Vector2.new(0.5,0.5)
-	card.Position = UDim2.fromScale(0.5,0.5)
-	card.Size = UDim2.fromScale(0.42,0)
-	card.AutomaticSize = Enum.AutomaticSize.Y
-	card.BackgroundColor3 = Color3.fromRGB(22,24,30)
-	card.BorderSizePixel = 0
-	card.ZIndex = 10
-	card.ClipsDescendants = false
-	local cardCorner = InstanceNew("UICorner", card)
-	cardCorner.CornerRadius = UDim.new(0,10)
-	local cardStroke = InstanceNew("UIStroke", card)
-	cardStroke.Thickness = 1
-	cardStroke.Color = Color3.fromRGB(80,90,120)
-	cardStroke.Transparency = 0.35
-	local cardSizeLimit = InstanceNew("UISizeConstraint", card)
-	cardSizeLimit.MinSize = Vector2.new(240, 0)
-	cardSizeLimit.MaxSize = Vector2.new(560, math.huge)
+	local ov = InstanceNew("Frame", sg)
+	ov.BackgroundTransparency = 1
+	ov.Size = UDim2.fromScale(1,1)
+	ov.ZIndex = 5
+	ov.ClipsDescendants = false
+	local ovg = InstanceNew("UIGradient", ov)
+	ovg.Color = ColorSequence.new(Color3.fromRGB(8,10,14), Color3.fromRGB(14,16,22))
+	ovg.Offset = Vector2.new(0,0)
 
-	local uiScale = InstanceNew("UIScale", card)
-	uiScale.Scale = 0.98
+	local cd = InstanceNew("Frame", ov)
+	cd.AnchorPoint = Vector2.new(0.5,0.5)
+	cd.Position = UDim2.fromScale(0.5,0.5)
+	cd.Size = UDim2.fromScale(wsc, 0)
+	cd.AutomaticSize = Enum.AutomaticSize.Y
+	cd.BackgroundColor3 = Color3.fromRGB(22,24,30)
+	cd.BorderSizePixel = 0
+	cd.ZIndex = 10
+	local cdc = InstanceNew("UICorner", cd)
+	cdc.CornerRadius = UDim.new(0,10)
+	local cds = InstanceNew("UIStroke", cd)
+	cds.Thickness = 1
+	cds.Color = Color3.fromRGB(80,90,120)
+	cds.Transparency = 0.3
+	local cdl = InstanceNew("UISizeConstraint", cd)
+	cdl.MinSize = Vector2.new(220, 0)
+	cdl.MaxSize = Vector2.new(500, math.huge)
+	local sc = InstanceNew("UIScale", cd)
+	sc.Scale = 0.98
+	local cdp = InstanceNew("UIPadding", cd)
+	cdp.PaddingLeft = UDim.new(0.03,0)
+	cdp.PaddingRight = UDim.new(0.03,0)
+	cdp.PaddingTop = UDim.new(0,8)
+	cdp.PaddingBottom = UDim.new(0,10)
 
-	local pad = InstanceNew("UIPadding", card)
-	pad.PaddingLeft = UDim.new(0.03,0)
-	pad.PaddingRight = UDim.new(0.03,0)
-	pad.PaddingTop = UDim.new(0,8)
-	pad.PaddingBottom = UDim.new(0,10)
+	local vl = InstanceNew("UIListLayout", cd)
+	vl.FillDirection = Enum.FillDirection.Vertical
+	vl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	vl.VerticalAlignment = Enum.VerticalAlignment.Top
+	vl.Padding = UDim.new(0,6)
+	vl.SortOrder = Enum.SortOrder.LayoutOrder
 
-	local vlist = InstanceNew("UIListLayout", card)
-	vlist.FillDirection = Enum.FillDirection.Vertical
-	vlist.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	vlist.VerticalAlignment = Enum.VerticalAlignment.Top
-	vlist.Padding = UDim.new(0,6)
-	vlist.SortOrder = Enum.SortOrder.LayoutOrder
+	local hd = InstanceNew("Frame", cd)
+	hd.BackgroundTransparency = 1
+	hd.Size = UDim2.new(1,0,0,30)
+	hd.LayoutOrder = 1
+	hd.ZIndex = 20
 
-	local header = InstanceNew("Frame", card)
-	header.BackgroundTransparency = 1
-	header.Size = UDim2.new(1,0,0,34)
-	header.LayoutOrder = 1
-	header.ZIndex = 20
-	header.ClipsDescendants = false
+	local dz = InstanceNew("Frame", hd)
+	dz.BackgroundTransparency = 1
+	dz.Active = true
+	dz.ZIndex = 21
+	dz.Size = UDim2.new(1,0,1,0)
 
-	local spinner = InstanceNew("Frame", header)
-	spinner.AnchorPoint = Vector2.new(0,0.5)
-	spinner.Position = UDim2.new(0,0,0.5,0)
-	spinner.Size = UDim2.fromOffset(22,22)
-	spinner.BackgroundTransparency = 1
-	spinner.ClipsDescendants = false
-	spinner.ZIndex = 1000
+	local sp = InstanceNew("Frame", hd)
+	sp.AnchorPoint = Vector2.new(0,0.5)
+	sp.Position = UDim2.new(0,0,0.5,0)
+	sp.Size = UDim2.fromOffset(20,20)
+	sp.BackgroundTransparency = 1
+	sp.ZIndex = 1000
 
-	local spinRing = InstanceNew("Frame", spinner)
-	spinRing.Size = UDim2.fromScale(1,1)
-	spinRing.BackgroundColor3 = Color3.fromRGB(125,190,255)
-	spinRing.ZIndex = 1001
-	local ringCorner = InstanceNew("UICorner", spinRing)
-	ringCorner.CornerRadius = UDim.new(1,0)
-	local ringGrad = InstanceNew("UIGradient", spinRing)
-	ringGrad.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(125,190,255)),
-		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(125,190,255)),
-	}
-	ringGrad.Transparency = NumberSequence.new{
+	local rg = InstanceNew("Frame", sp)
+	rg.Size = UDim2.fromScale(1,1)
+	rg.BackgroundColor3 = Color3.fromRGB(125,190,255)
+	rg.ZIndex = 1001
+	local rgc = InstanceNew("UICorner", rg)
+	rgc.CornerRadius = UDim.new(1,0)
+	local rgg = InstanceNew("UIGradient", rg)
+	rgg.Color = ColorSequence.new(Color3.fromRGB(125,190,255), Color3.fromRGB(125,190,255))
+	rgg.Transparency = NumberSequence.new{
 		NumberSequenceKeypoint.new(0.00, 0),
-		NumberSequenceKeypoint.new(0.04, 0),
-		NumberSequenceKeypoint.new(0.06, 1),
+		NumberSequenceKeypoint.new(0.05, 0),
+		NumberSequenceKeypoint.new(0.07, 1),
 		NumberSequenceKeypoint.new(1.00, 1),
 	}
-	ringGrad.Rotation = 0
 
-	local centerDot = InstanceNew("Frame", spinner)
-	centerDot.AnchorPoint = Vector2.new(0.5,0.5)
-	centerDot.Position = UDim2.fromScale(0.5,0.5)
-	centerDot.Size = UDim2.fromScale(0.26,0.26)
-	centerDot.BackgroundColor3 = Color3.fromRGB(220,235,255)
-	centerDot.ZIndex = 1002
-	local dotCorner = InstanceNew("UICorner", centerDot)
-	dotCorner.CornerRadius = UDim.new(1,0)
-	local dotStroke = InstanceNew("UIStroke", centerDot)
-	dotStroke.Thickness = 1
-	dotStroke.Color = Color3.fromRGB(160,200,255)
-	dotStroke.Transparency = 0.2
+	local ct = InstanceNew("Frame", sp)
+	ct.AnchorPoint = Vector2.new(0.5,0.5)
+	ct.Position = UDim2.fromScale(0.5,0.5)
+	ct.Size = UDim2.fromScale(0.28,0.28)
+	ct.BackgroundColor3 = Color3.fromRGB(220,235,255)
+	ct.ZIndex = 1002
+	local ctc = InstanceNew("UICorner", ct)
+	ctc.CornerRadius = UDim.new(1,0)
+	local cts = InstanceNew("UIStroke", ct)
+	cts.Thickness = 1
+	cts.Color = Color3.fromRGB(160,200,255)
+	cts.Transparency = 0.15
 
-	local title = InstanceNew("TextLabel", header)
-	title.BackgroundTransparency = 1
-	title.Text = text
-	title.Font = Enum.Font.GothamSemibold
-	title.TextColor3 = Color3.fromRGB(245,245,250)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextYAlignment = Enum.TextYAlignment.Center
-	title.TextScaled = true
-	title.ZIndex = 20
-	title.Position = UDim2.new(0, 28, 0, 0)
-	title.Size = UDim2.new(1, -(28 + 92), 1, 0)
-	local titleTS = InstanceNew("UITextSizeConstraint", title)
-	titleTS.MinTextSize = 16
-	titleTS.MaxTextSize = 24
+	local ti = InstanceNew("TextLabel", hd)
+	ti.BackgroundTransparency = 1
+	ti.Text = text
+	ti.Font = Enum.Font.GothamSemibold
+	ti.TextColor3 = Color3.fromRGB(245,245,250)
+	ti.TextXAlignment = Enum.TextXAlignment.Left
+	ti.TextYAlignment = Enum.TextYAlignment.Center
+	ti.TextScaled = true
+	ti.ZIndex = 22
+	ti.Position = UDim2.new(0, 26, 0, 0)
+	ti.Size = UDim2.new(1, -26, 1, 0)
+	local tits = InstanceNew("UITextSizeConstraint", ti)
+	tits.MinTextSize = 14
+	tits.MaxTextSize = 22
 
-	local skipBtn = InstanceNew("TextButton", header)
-	skipBtn.AnchorPoint = Vector2.new(1,0.5)
-	skipBtn.Position = UDim2.new(1,0,0.5,0)
-	skipBtn.Size = UDim2.fromOffset(86,26)
-	skipBtn.Text = "skip"
-	skipBtn.TextScaled = true
-	skipBtn.Font = Enum.Font.GothamSemibold
-	skipBtn.TextColor3 = Color3.fromRGB(240,240,255)
-	skipBtn.BackgroundColor3 = Color3.fromRGB(42,44,54)
-	skipBtn.ZIndex = 20
-	local skipCorner = InstanceNew("UICorner", skipBtn)
-	skipCorner.CornerRadius = UDim.new(0,7)
-	local skipStroke = InstanceNew("UIStroke", skipBtn)
-	skipStroke.Thickness = 1
-	skipStroke.Color = Color3.fromRGB(160,160,190)
-	skipStroke.Transparency = 0.55
+	local hr = InstanceNew("Frame", hd)
+	hr.AnchorPoint = Vector2.new(1,0.5)
+	hr.BackgroundTransparency = 1
+	hr.ZIndex = 23
+	hr.Position = UDim2.new(1,0,0.5,0)
+	hr.Size = UDim2.fromOffset(1,1)
+	local hrl = InstanceNew("UIListLayout", hr)
+	hrl.FillDirection = Enum.FillDirection.Horizontal
+	hrl.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	hrl.VerticalAlignment = Enum.VerticalAlignment.Center
+	hrl.Padding = UDim.new(0,6)
 
-	local subtitle = InstanceNew("TextLabel", card)
-	subtitle.BackgroundTransparency = 1
-	subtitle.Text = "loading"
-	subtitle.Font = Enum.Font.Gotham
-	subtitle.TextColor3 = Color3.fromRGB(190,195,210)
-	subtitle.TextXAlignment = Enum.TextXAlignment.Left
-	subtitle.TextYAlignment = Enum.TextYAlignment.Center
-	subtitle.TextScaled = true
-	subtitle.LayoutOrder = 2
-	subtitle.ZIndex = 12
-	subtitle.Size = UDim2.new(1,0,0,0)
-	subtitle.AutomaticSize = Enum.AutomaticSize.Y
-	local subTS = InstanceNew("UITextSizeConstraint", subtitle)
-	subTS.MinTextSize = 14
-	subTS.MaxTextSize = 20
+	local mb = InstanceNew("TextButton", hr)
+	mb.Size = UDim2.fromOffset(30,24)
+	mb.Text = "–"
+	mb.TextScaled = true
+	mb.Font = Enum.Font.GothamBold
+	mb.TextColor3 = Color3.fromRGB(240,240,255)
+	mb.BackgroundColor3 = Color3.fromRGB(42,44,54)
+	mb.ZIndex = 24
+	local mbc = InstanceNew("UICorner", mb)
+	mbc.CornerRadius = UDim.new(0,7)
+	local mbs = InstanceNew("UIStroke", mb)
+	mbs.Thickness = 1
+	mbs.Color = Color3.fromRGB(160,160,190)
+	mbs.Transparency = 0.35
 
-	local meta = InstanceNew("Frame", card)
-	meta.BackgroundTransparency = 1
-	meta.LayoutOrder = 3
-	meta.ZIndex = 12
-	meta.Size = UDim2.new(1,0,0,18)
-	local metaLayout = InstanceNew("UIListLayout", meta)
-	metaLayout.FillDirection = Enum.FillDirection.Horizontal
-	metaLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	metaLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	metaLayout.Padding = UDim.new(0,6)
+	local kb = InstanceNew("TextButton", hr)
+	kb.Size = UDim2.fromOffset(96,24)
+	kb.Text = "skip"
+	kb.TextScaled = true
+	kb.Font = Enum.Font.GothamSemibold
+	kb.TextColor3 = Color3.fromRGB(240,240,255)
+	kb.BackgroundColor3 = Color3.fromRGB(42,44,54)
+	kb.ZIndex = 24
+	local kbc = InstanceNew("UICorner", kb)
+	kbc.CornerRadius = UDim.new(0,7)
+	local kbs = InstanceNew("UIStroke", kb)
+	kbs.Thickness = 1
+	kbs.Color = Color3.fromRGB(160,160,190)
+	kbs.Transparency = 0.28
+	local ksc = InstanceNew("UIScale", kb)
+	ksc.Scale = 1
 
-	local stepLabel = InstanceNew("TextLabel", meta)
-	stepLabel.BackgroundTransparency = 1
-	stepLabel.Text = "initializing"
-	stepLabel.Font = Enum.Font.Gotham
-	stepLabel.TextColor3 = Color3.fromRGB(155,165,185)
-	stepLabel.TextScaled = true
-	stepLabel.TextXAlignment = Enum.TextXAlignment.Left
-	stepLabel.Size = UDim2.new(0.78,0,1,0)
-	local stepTS = InstanceNew("UITextSizeConstraint", stepLabel)
-	stepTS.MinTextSize = 11
-	stepTS.MaxTextSize = 15
+	local ksh = InstanceNew("Frame", kb)
+	ksh.BackgroundTransparency = 1
+	ksh.Size = UDim2.fromScale(1,1)
+	ksh.ZIndex = 25
+	local kshg = InstanceNew("UIGradient", ksh)
+	kshg.Color = ColorSequence.new(Color3.fromRGB(255,255,255), Color3.fromRGB(255,255,255))
+	kshg.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.45, 0.78),
+		NumberSequenceKeypoint.new(0.5, 0.35),
+		NumberSequenceKeypoint.new(0.55, 0.78),
+		NumberSequenceKeypoint.new(1, 1),
+	}
+	kshg.Offset = Vector2.new(-1,0)
 
-	local percentLabel = InstanceNew("TextLabel", meta)
-	percentLabel.BackgroundTransparency = 1
-	percentLabel.Text = "0%"
-	percentLabel.Font = Enum.Font.GothamSemibold
-	percentLabel.TextColor3 = Color3.fromRGB(210,220,255)
-	percentLabel.TextScaled = true
-	percentLabel.TextXAlignment = Enum.TextXAlignment.Right
-	percentLabel.Size = UDim2.new(0.22,0,1,0)
+	local ac = InstanceNew("Frame", cd)
+	ac.BackgroundColor3 = Color3.fromRGB(60,120,255)
+	ac.BackgroundTransparency = 0.25
+	ac.BorderSizePixel = 0
+	ac.Size = UDim2.new(1,0,0,2)
+	ac.LayoutOrder = 2
+	ac.ZIndex = 12
+	local acg = InstanceNew("UIGradient", ac)
+	acg.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(60,120,255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,200,255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,120,255)),
+	}
+	acg.Offset = Vector2.new(-1,0)
 
-	local progress = InstanceNew("Frame", card)
-	progress.BackgroundColor3 = Color3.fromRGB(40,44,56)
-	progress.BackgroundTransparency = 0.15
-	progress.BorderSizePixel = 0
-	progress.LayoutOrder = 4
-	progress.ZIndex = 12
-	progress.Size = UDim2.new(1,0,0,8)
-	progress.ClipsDescendants = true
-	local progCorner = InstanceNew("UICorner", progress)
-	progCorner.CornerRadius = UDim.new(0,5)
-	local progStroke = InstanceNew("UIStroke", progress)
-	progStroke.Thickness = 1
-	progStroke.Color = Color3.fromRGB(70,75,100)
-	progStroke.Transparency = 0.55
+	local st = InstanceNew("TextLabel", cd)
+	st.BackgroundTransparency = 1
+	st.Text = "loading"
+	st.Font = Enum.Font.Gotham
+	st.TextColor3 = Color3.fromRGB(190,195,210)
+	st.TextXAlignment = Enum.TextXAlignment.Left
+	st.TextYAlignment = Enum.TextYAlignment.Center
+	st.TextScaled = true
+	st.LayoutOrder = 3
+	st.ZIndex = 12
+	st.Size = UDim2.new(1,0,0,0)
+	st.AutomaticSize = Enum.AutomaticSize.Y
+	local stts = InstanceNew("UITextSizeConstraint", st)
+	stts.MinTextSize = 13
+	stts.MaxTextSize = 18
 
-	local fill = InstanceNew("Frame", progress)
-	fill.BackgroundColor3 = Color3.fromRGB(70,175,255)
-	fill.BorderSizePixel = 0
-	fill.Size = UDim2.new(0,0,1,0)
-	fill.ZIndex = 13
-	local fillCorner = InstanceNew("UICorner", fill)
-	fillCorner.CornerRadius = UDim.new(0,5)
-	local fillGrad = InstanceNew("UIGradient", fill)
-	fillGrad.Color = ColorSequence.new{
+	local mt = InstanceNew("Frame", cd)
+	mt.BackgroundTransparency = 1
+	mt.LayoutOrder = 4
+	mt.ZIndex = 12
+	mt.Size = UDim2.new(1,0,0,16)
+	local mtl = InstanceNew("UIListLayout", mt)
+	mtl.FillDirection = Enum.FillDirection.Horizontal
+	mtl.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	mtl.VerticalAlignment = Enum.VerticalAlignment.Center
+	mtl.Padding = UDim.new(0,6)
+
+	local sl = InstanceNew("TextLabel", mt)
+	sl.BackgroundTransparency = 1
+	sl.Text = "initializing"
+	sl.Font = Enum.Font.Gotham
+	sl.TextColor3 = Color3.fromRGB(155,165,185)
+	sl.TextScaled = true
+	sl.TextXAlignment = Enum.TextXAlignment.Left
+	sl.Size = UDim2.new(0.78,0,1,0)
+	local slts = InstanceNew("UITextSizeConstraint", sl)
+	slts.MinTextSize = 10
+	slts.MaxTextSize = 14
+
+	local pl = InstanceNew("TextLabel", mt)
+	pl.BackgroundTransparency = 1
+	pl.Text = "0%"
+	pl.Font = Enum.Font.GothamSemibold
+	pl.TextColor3 = Color3.fromRGB(210,220,255)
+	pl.TextScaled = true
+	pl.TextXAlignment = Enum.TextXAlignment.Right
+	pl.Size = UDim2.new(0.22,0,1,0)
+
+	local pr = InstanceNew("Frame", cd)
+	pr.BackgroundColor3 = Color3.fromRGB(40,44,56)
+	pr.BackgroundTransparency = 0.15
+	pr.BorderSizePixel = 0
+	pr.LayoutOrder = 5
+	pr.ZIndex = 12
+	pr.Size = UDim2.new(1,0,0,7)
+	pr.ClipsDescendants = true
+	local prc = InstanceNew("UICorner", pr)
+	prc.CornerRadius = UDim.new(0,5)
+	local prs = InstanceNew("UIStroke", pr)
+	prs.Thickness = 1
+	prs.Color = Color3.fromRGB(70,75,100)
+	prs.Transparency = 0.55
+
+	local fl = InstanceNew("Frame", pr)
+	fl.BackgroundColor3 = Color3.fromRGB(70,175,255)
+	fl.BorderSizePixel = 0
+	fl.Size = UDim2.new(0,0,1,0)
+	fl.ZIndex = 13
+	local flc = InstanceNew("UICorner", fl)
+	flc.CornerRadius = UDim.new(0,5)
+	local flg = InstanceNew("UIGradient", fl)
+	flg.Color = ColorSequence.new{
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(60,160,240)),
 		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,205,255)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,160,240)),
 	}
-	fillGrad.Offset = Vector2.new(-1,0)
+	flg.Offset = Vector2.new(-1,0)
 
-	local runner = InstanceNew("Frame", progress)
-	runner.BackgroundColor3 = Color3.fromRGB(90,180,255)
-	runner.BorderSizePixel = 0
-	runner.Size = UDim2.new(0.18,0,1,0)
-	runner.Position = UDim2.new(-0.18,0,0,0)
-	runner.ZIndex = 14
-	local runnerCorner = InstanceNew("UICorner", runner)
-	runnerCorner.CornerRadius = UDim.new(0,5)
-	local runnerGrad = InstanceNew("UIGradient", runner)
-	runnerGrad.Color = ColorSequence.new{
+	local rn = InstanceNew("Frame", pr)
+	rn.BackgroundColor3 = Color3.fromRGB(90,180,255)
+	rn.BorderSizePixel = 0
+	rn.Size = UDim2.new(0.18,0,1,0)
+	rn.Position = UDim2.new(-0.18,0,0,0)
+	rn.ZIndex = 14
+	local rnc = InstanceNew("UICorner", rn)
+	rnc.CornerRadius = UDim.new(0,5)
+	local rng = InstanceNew("UIGradient", rn)
+	rng.Color = ColorSequence.new{
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
 		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(90,180,255)),
 		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
 		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(90,180,255)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
 	}
-	runnerGrad.Transparency = NumberSequence.new{
+	rng.Transparency = NumberSequence.new{
 		NumberSequenceKeypoint.new(0, 1),
 		NumberSequenceKeypoint.new(0.2, 0.25),
 		NumberSequenceKeypoint.new(0.5, 0),
@@ -609,158 +834,456 @@ local function createLoadingUI(text)
 		NumberSequenceKeypoint.new(1, 1),
 	}
 
-	local skipFlag = InstanceNew("BoolValue", screen)
-	skipFlag.Name = "SkipAssets"
-	skipFlag.Value = false
+	local tb = InstanceNew("Frame", sg)
+	tb.AnchorPoint = Vector2.new(0.5,0)
+	tb.Position = UDim2.new(0.5,0,0,8)
+	tb.BackgroundColor3 = Color3.fromRGB(24,26,34)
+	tb.BorderSizePixel = 0
+	tb.ZIndex = 50
+	tb.Visible = false
+	tb.AutomaticSize = Enum.AutomaticSize.XY
+	tb.ClipsDescendants = false
+	local tbc = InstanceNew("UICorner", tb)
+	tbc.CornerRadius = UDim.new(1,0)
+	local tbs = InstanceNew("UIStroke", tb)
+	tbs.Thickness = 1
+	tbs.Color = Color3.fromRGB(90,100,140)
+	tbs.Transparency = 0.4
+	local tbp = InstanceNew("UIPadding", tb)
+	tbp.PaddingLeft = UDim.new(0,10)
+	tbp.PaddingRight = UDim.new(0,10)
+	tbp.PaddingTop = UDim.new(0,6)
+	tbp.PaddingBottom = UDim.new(0,6)
+	local tbl = InstanceNew("UIListLayout", tb)
+	tbl.FillDirection = Enum.FillDirection.Vertical
+	tbl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	tbl.VerticalAlignment = Enum.VerticalAlignment.Center
+	tbl.Padding = UDim.new(0,4)
+	local tblc = InstanceNew("UISizeConstraint", tb)
+	tblc.MinSize = Vector2.new(180, 0)
+	tblc.MaxSize = Vector2.new(520, math.huge)
+
+	local tr = InstanceNew("Frame", tb)
+	tr.BackgroundTransparency = 1
+	tr.AutomaticSize = Enum.AutomaticSize.XY
+	tr.ZIndex = 51
+	tr.LayoutOrder = 1
+	local trl = InstanceNew("UIListLayout", tr)
+	trl.FillDirection = Enum.FillDirection.Horizontal
+	trl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	trl.VerticalAlignment = Enum.VerticalAlignment.Center
+	trl.Padding = UDim.new(0,8)
+
+	local tl = InstanceNew("TextLabel", tr)
+	tl.BackgroundTransparency = 1
+	tl.Text = text
+	tl.Font = Enum.Font.GothamSemibold
+	tl.TextColor3 = Color3.fromRGB(230,235,255)
+	tl.TextScaled = true
+	tl.Size = UDim2.fromOffset(180,22)
+	tl.ZIndex = 52
+	local tlts = InstanceNew("UITextSizeConstraint", tl)
+	tlts.MinTextSize = 12
+	tlts.MaxTextSize = 18
+
+	local tp = InstanceNew("TextLabel", tr)
+	tp.BackgroundTransparency = 1
+	tp.Text = "0%"
+	tp.Font = Enum.Font.Gotham
+	tp.TextColor3 = Color3.fromRGB(200,210,255)
+	tp.TextScaled = 1
+	tp.Size = UDim2.fromOffset(40,22)
+	tp.ZIndex = 52
+	local tpts = InstanceNew("UITextSizeConstraint", tp)
+	tpts.MinTextSize = 12
+	tpts.MaxTextSize = 18
+
+	local to = InstanceNew("TextButton", tr)
+	to.Size = UDim2.fromOffset(72,22)
+	to.Text = "open"
+	to.TextScaled = true
+	to.Font = Enum.Font.GothamSemibold
+	to.TextColor3 = Color3.fromRGB(240,240,255)
+	to.BackgroundColor3 = Color3.fromRGB(52,54,66)
+	to.ZIndex = 52
+	local toc = InstanceNew("UICorner", to)
+	toc.CornerRadius = UDim.new(0,8)
+	local tos = InstanceNew("UIStroke", to)
+	tos.Thickness = 1
+	tos.Color = Color3.fromRGB(150,160,190)
+	tos.Transparency = 0.4
+
+	local ts = InstanceNew("TextButton", tr)
+	ts.Size = UDim2.fromOffset(72,22)
+	ts.Text = "skip"
+	ts.TextScaled = true
+	ts.Font = Enum.Font.GothamSemibold
+	ts.TextColor3 = Color3.fromRGB(255,255,255)
+	ts.BackgroundColor3 = Color3.fromRGB(70,75,95)
+	ts.ZIndex = 52
+	local tsc = InstanceNew("UICorner", ts)
+	tsc.CornerRadius = UDim.new(0,8)
+	local tss = InstanceNew("UIStroke", ts)
+	tss.Thickness = 1
+	tss.Color = Color3.fromRGB(150,160,200)
+	tss.Transparency = 0.25
+
+	local tpw = InstanceNew("Frame", tb)
+	tpw.BackgroundTransparency = 1
+	tpw.AutomaticSize = Enum.AutomaticSize.XY
+	tpw.ZIndex = 49
+	tpw.LayoutOrder = 2
+	local tpr = InstanceNew("Frame", tpw)
+	tpr.BackgroundColor3 = Color3.fromRGB(55,60,80)
+	tpr.BorderSizePixel = 0
+	tpr.ZIndex = 49
+	tpr.Size = UDim2.new(1,0,0,3)
+	local tprc = InstanceNew("UICorner", tpr)
+	tprc.CornerRadius = UDim.new(1,0)
+	local tfl = InstanceNew("Frame", tpr)
+	tfl.BackgroundColor3 = Color3.fromRGB(90,180,255)
+	tfl.BorderSizePixel = 0
+	tfl.Size = UDim2.new(0,0,1,0)
+	tfl.ZIndex = 49
+	local tflc = InstanceNew("UICorner", tfl)
+	tflc.CornerRadius = UDim.new(1,0)
+
+	local sf = InstanceNew("BoolValue", sg)
+	sf.Name = "SkipAssets"
+	sf.Value = false
+
+	local minimized = false
+	local ovp = nil
 
 	local function layout()
-		local s = overlay.AbsoluteSize
+		local s = ov.AbsoluteSize
 		local portrait = s.Y > s.X
-		card.Size = UDim2.fromScale(portrait and 0.9 or 0.42, 0)
-		cardSizeLimit.MinSize = Vector2.new(240, 0)
-		cardSizeLimit.MaxSize = Vector2.new(portrait and 520 or 560, math.huge)
-		local h = math.clamp(math.floor(s.Y*0.042), 26, 36)
-		header.Size = UDim2.new(1,0,0,h)
-		spinner.Size = UDim2.fromOffset(math.floor(h*0.85), math.floor(h*0.85))
-		title.Position = UDim2.new(0, spinner.Size.X.Offset + 6, 0, 0)
-		local skH = math.floor(h*0.85)
-		local skW = math.clamp(math.floor(s.X*(portrait and 0.2 or 0.12)), 80, 120)
-		skipBtn.Size = UDim2.fromOffset(skW, skH)
-		title.Size = UDim2.new(1, -(spinner.Size.X.Offset + 6 + skW + 10), 1, 0)
-		local ph = math.clamp(math.floor(s.Y*0.010), 6, 9)
-		progress.Size = UDim2.new(1,0,0,ph)
-		titleTS.MaxTextSize = math.clamp(math.floor(s.Y*0.028), 22, 26)
-		subTS.MaxTextSize = math.clamp(math.floor(s.Y*0.024), 18, 20)
-		stepTS.MaxTextSize = math.clamp(math.floor(s.Y*0.020), 13, 15)
+		cd.Size = UDim2.fromScale(portrait and math.min(0.84, wsc*1.8) or wsc, 0)
+		cdl.MaxSize = Vector2.new(portrait and 440 or 500, math.huge)
+		local h = math.clamp(math.floor(s.Y*0.038), 24, 32)
+		hd.Size = UDim2.new(1,0,0,h)
+		sp.Size = UDim2.fromOffset(math.floor(h*0.82), math.floor(h*0.82))
+		ti.Position = UDim2.new(0, sp.Size.X.Offset + 6, 0, 0)
+		local padR = math.clamp(math.floor(s.X*0.015), 10, 18)
+		local skH = math.floor(h*0.86)
+		local skW = math.clamp(math.floor(s.X*(portrait and 0.22 or 0.12)), 88, 132)
+		kb.Size = UDim2.fromOffset(skW, skH)
+		mb.Size = UDim2.fromOffset(math.max(26, math.floor(skH)), skH)
+		hr.Size = UDim2.fromOffset(skW + mb.Size.X.Offset + 6, h)
+		ti.Size = UDim2.new(1, -(sp.Size.X.Offset + 6 + hr.Size.X.Offset + padR + 6), 1, 0)
+		hr.Position = UDim2.new(1, -padR, 0.5, 0)
+		dz.Size = UDim2.new(1, -(hr.Size.X.Offset + padR + 6), 1, 0)
+		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.18), 120, 220), 22)
+		to.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.09), 62, 100), 22)
+		ts.Size = to.Size
+		tp.Size = UDim2.fromOffset(math.max(36, math.floor(to.Size.X.Offset*0.5)), 22)
 	end
 	layout()
-	overlay:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	ov:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	cd:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	tr:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 
-	local function tw(o, ti, props) local t = TweenService:Create(o, ti, props) t:Play() return t end
-	tw(overlay, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
-	tw(uiScale, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
-
-	title.TextTransparency = 1
-	subtitle.TextTransparency = 1
-	stepLabel.TextTransparency = 1
-	tw(title, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
-	tw(subtitle, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
-	tw(stepLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0})
+	local function tw(o, ti, pr) local t = TweenService:Create(o, ti, pr) t:Play() return t end
+	tw(ov, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
+	tw(sc, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
 
 	local alive = true
-	local baseStatus = "loading"
 
-	local hb1 = RunService.Heartbeat:Connect(function(dt)
-		bgGrad.Offset = Vector2.new((bgGrad.Offset.X + dt*0.02)%1, 0)
-		ringGrad.Rotation = (ringGrad.Rotation + dt*240)%360
-	end)
-
-	local dotsT, dotsN = 0, 0
-	local hb2 = RunService.RenderStepped:Connect(function(dt)
-		dotsT += dt
-		if dotsT >= 0.35 then
-			dotsT = 0
-			dotsN = (dotsN%3)+1
-			subtitle.Text = baseStatus .. string.rep(".", dotsN)
-		end
+	local hb = RunService.Heartbeat:Connect(function(dt)
+		ovg.Offset = Vector2.new((ovg.Offset.X + dt*0.02)%1, 0)
+		rgg.Rotation = (rgg.Rotation + dt*240)%360
+		acg.Offset = Vector2.new((acg.Offset.X + dt*0.25)%2 - 1, 0)
 	end)
 
 	Spawn(function()
 		while alive do
 			local dur = 0.95
-			runner.Position = UDim2.new(-0.18,0,0,0)
-			tw(runner, TweenInfo.new(dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(1,0,0,0)})
+			rn.Position = UDim2.new(-0.18,0,0,0)
+			tw(rn, TweenInfo.new(dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(1,0,0,0)})
 			Wait(dur + 0.05)
 		end
 	end)
 
 	Spawn(function()
 		while alive do
-			fillGrad.Offset = Vector2.new(-1,0)
-			tw(fillGrad, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)})
-			Wait(1.3)
+			kshg.Offset = Vector2.new(-1,0)
+			TweenService:Create(kshg, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
+			Wait(1.8)
 		end
 	end)
 
-	local completed = InstanceNew("BoolValue", screen)
-	completed.Name = "Completed"
-	completed.Value = false
+	local cmpl = InstanceNew("BoolValue", sg)
+	cmpl.Name = "Completed"
+	cmpl.Value = false
 
-	local function setStatus(t)
-		baseStatus = t or ""
-		stepLabel.Text = baseStatus
+	local function setS(t)
+		st.Text = t or ""
 	end
 
-	local function setPercent(p)
+	local function setP(p)
 		p = math.clamp(p,0,1)
-		percentLabel.Text = tostring(math.floor(p*100)).."%"
-		tw(fill, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		local pct = tostring(math.floor(p*100)).."%"
+		pl.Text = pct
+		tp.Text = pct
+		tw(fl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		tw(tfl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
 	end
 
-	skipBtn.Activated:Connect(function()
-		if skipFlag.Value then return end
-		skipFlag.Value = true
-		skipBtn.Text = "skipping..."
-		tw(skipBtn, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(55,58,70)})
-	end)
+	local function doMin()
+		if minimized then return end
+		minimized = true
+		tb.Visible = true
+		ovp = ov.Parent
+		ov.Parent = nil
+	end
 
-	completed:GetPropertyChangedSignal("Value"):Connect(function()
-		if completed.Value then
-			alive = false
-			local o1 = TweenService:Create(overlay, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-			o1.Completed:Connect(function() overlay.Visible = false end)
-			o1:Play()
-			tw(fill, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)})
-			local c1 = TweenService:Create(card, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-			local t1 = TweenService:Create(title, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-			local t2 = TweenService:Create(subtitle, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-			local t3 = TweenService:Create(stepLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-			local t4 = TweenService:Create(percentLabel, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 1})
-			local d1 = TweenService:Create(centerDot, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-			local ds = TweenService:Create(dotStroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 1})
-			Wait(0.02)
-			c1:Play(); t1:Play(); t2:Play(); t3:Play(); t4:Play(); d1:Play(); ds:Play()
-			Wait(0.18)
-			screen:Destroy()
-		end
-	end)
+	local function doMax()
+		if not minimized then return end
+		minimized = false
+		if ovp then ov.Parent = ovp end
+		tb.Visible = false
+		layout()
+	end
 
-	screen.Destroying:Connect(function()
+	mb.Activated:Connect(doMin)
+	to.Activated:Connect(doMax)
+
+	local function doSkip()
+		if sf.Value then return end
+		sf.Value = true
+		kb.Text = "skipping..."
+		ts.Text = "skipping..."
+		TweenService:Create(kb, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(55,58,70)}):Play()
+		TweenService:Create(ts, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(80,85,105)}):Play()
+	end
+	kb.Activated:Connect(doSkip)
+	ts.Activated:Connect(doSkip)
+
+	sg.Destroying:Connect(function()
 		alive = false
-		if hb1 and hb1.Connected then hb1:Disconnect() end
-		if hb2 and hb2.Connected then hb2:Disconnect() end
+		if hb and hb.Connected then hb:Disconnect() end
 	end)
 
-	return screen, setStatus, setPercent, completed, function() return skipFlag.Value end
+	pcall(function() NAgui.draggerV2(cd, dz) end)
+
+	cmpl:GetPropertyChangedSignal("Value"):Connect(function()
+		if cmpl.Value then
+			alive = false
+			local o1 = TweenService:Create(ov, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			o1.Completed:Connect(function() if ov and ov.Parent then ov.Visible = false end end)
+			o1:Play()
+			TweenService:Create(fl, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
+			TweenService:Create(cd, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+			Wait(0.2)
+			sg:Destroy()
+		end
+	end)
+
+	return sg, setS, setP, cmpl, function() return sf.Value end
 end
 
-local function collectAssetsFrom(root, out, allow)
+NAAssetsLoading = {}
+
+NAAssetsLoading.contentProps = {
+	ImageLabel={"Image"}, ImageButton={"Image"},
+	Decal={"Texture"}, Texture={"Texture"},
+	Beam={"Texture"}, Trail={"Texture"},
+	ParticleEmitter={"Texture"}, Fire={"HeatMap","ColorMap"},
+	Smoke={"Texture"}, Sparkles={"Texture"},
+	Sound={"SoundId"}, VideoFrame={"Video"},
+	Animation={"AnimationId"},
+	MeshPart={"MeshId","TextureID"}, SpecialMesh={"MeshId","TextureId"},
+	SurfaceAppearance={"ColorMap","NormalMap","MetalnessMap","RoughnessMap"},
+	UnionOperation={"AssetId"},
+	Sky={"SkyboxBk","SkyboxDn","SkyboxFt","SkyboxLf","SkyboxRt","SkyboxUp"},
+	Shirt={"ShirtTemplate"}, Pants={"PantsTemplate"}, ShirtGraphic={"Graphic"},
+}
+
+NAAssetsLoading.getRoots=function()
+	local roots = {}
+	local plrs = SafeGetService("Players")
+	local lp = plrs and plrs.LocalPlayer
+	local pg = lp and lp:FindFirstChild("PlayerGui")
+	local cg = SafeGetService("CoreGui")
+	local lgt = SafeGetService("Lighting")
+	local snd = SafeGetService("SoundService")
+	local rf  = SafeGetService("ReplicatedFirst")
+	local rs  = SafeGetService("ReplicatedStorage")
+	if pg then roots[#roots+1]=pg end
+	if cg then roots[#roots+1]=cg end
+	if lgt then roots[#roots+1]=lgt end
+	if snd then roots[#roots+1]=snd end
+	if rf  then roots[#roots+1]=rf  end
+	if rs  then roots[#roots+1]=rs  end
+	return roots
+end
+
+NAAssetsLoading.extractIdsFromInstance=function(inst, outSet, outList)
+	local props = NAAssetsLoading.contentProps[inst.ClassName]
+	if not props then return 0 end
+	local added = 0
+	for i=1,#props do
+		local ok, v = pcall(function() return inst[props[i]] end)
+		if ok and type(v)=="string" and #v>0 then
+			if not outSet[v] then
+				outSet[v] = true
+				outList[#outList+1] = v
+				added += 1
+			end
+		end
+	end
+	return added
+end
+
+NAAssetsLoading.collectContentIdsFrom=function(root, outList, outSet)
 	for _, d in ipairs(root:GetDescendants()) do
-		if allow[d.ClassName] then
-			out[#out+1] = d
+		NAAssetsLoading.extractIdsFromInstance(d, outSet, outList)
+	end
+end
+
+NAAssetsLoading.scanAll=function()
+	NAAssetsLoading.roots = NAAssetsLoading.getRoots()
+	NAAssetsLoading.contentIds, NAAssetsLoading.seenIds = {}, {}
+	for i=1,#NAAssetsLoading.roots do
+		local r = NAAssetsLoading.roots[i]
+		if r and r.Parent then
+			NAAssetsLoading.setStatus(Format("scanning %s", r.ClassName or r.Name or "container"))
+			NAAssetsLoading.collectContentIdsFrom(r, NAAssetsLoading.contentIds, NAAssetsLoading.seenIds)
 		end
 	end
 end
 
-local function preloadBatches(instances, onChunk, shouldSkip)
-	local ContentProvider = SafeGetService("ContentProvider")
-	local batch = 50
-	for i = 1, #instances, batch do
+NAAssetsLoading.preloadContentAdaptive=function(contentList, onStep, shouldSkip)
+	local CP = SafeGetService("ContentProvider")
+	local RunService = SafeGetService("RunService")
+	local total = #contentList
+	if total == 0 then return end
+	local idx, done = 1, 0
+	local dtAvg, dtAlpha = 1/90, 0.12
+	local hb = RunService.Heartbeat:Connect(function(dt) dtAvg = (1-dtAlpha)*dtAvg + dtAlpha*dt end)
+	local function nextChunkSize()
+		if dtAvg <= 1/90 then return 96 end
+		if dtAvg <= 1/70 then return 72 end
+		if dtAvg <= 1/55 then return 56 end
+		return 40
+	end
+	local function stepWait()
+		if dtAvg <= 1/90 then return 0.04 end
+		if dtAvg <= 1/70 then return 0.06 end
+		if dtAvg <= 1/55 then return 0.08 end
+		return 0.12
+	end
+	while idx <= total do
 		if shouldSkip and shouldSkip() then break end
-		local chunk = {}
-		for j = i, math.min(i + batch - 1, #instances) do
-			chunk[#chunk+1] = instances[j]
+		local take = math.min(nextChunkSize(), total - idx + 1)
+		local chunk, c = table.create(take), 0
+		for i = idx, idx + take - 1 do
+			local id = contentList[i]
+			if id then c += 1; chunk[c] = id end
 		end
-		pcall(function() ContentProvider:PreloadAsync(chunk) end)
-		onChunk(#chunk)
-		Wait()
+		idx = idx + take
+		if c > 0 then pcall(function() CP:PreloadAsync(chunk) end) done += c end
+		if onStep then onStep(done, total) end
+		Wait(stepWait())
 	end
+	if hb and hb.Connected then hb:Disconnect() end
 end
 
-local NAAssetsLoading = {}
+NAAssetsLoading.attachWatcher=function(root)
+	if not root then return end
+	if not NAAssetsLoading.bgSeen then NAAssetsLoading.bgSeen = {} end
+	if not NAAssetsLoading.bgQueue then NAAssetsLoading.bgQueue = {} end
+	if not NAAssetsLoading.bgConns then NAAssetsLoading.bgConns = {} end
+	NAAssetsLoading.bgConns[#NAAssetsLoading.bgConns+1] = root.DescendantAdded:Connect(function(inst)
+		local tmp = {}
+		local n = NAAssetsLoading.extractIdsFromInstance(inst, NAAssetsLoading.seenIds, tmp)
+		if n > 0 then
+			for i=1,#tmp do
+				local id = tmp[i]
+				if not NAAssetsLoading.bgSeen[id] then
+					NAAssetsLoading.bgSeen[id] = true
+					NAAssetsLoading.bgQueue[#NAAssetsLoading.bgQueue+1] = id
+				end
+			end
+		end
+	end)
+end
 
-NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is loading...")
-NaProtectUI(NAAssetsLoading.ui)
+NAAssetsLoading.startBackgroundWatcher=function()
+	NAAssetsLoading.bgQueue, NAAssetsLoading.bgSeen, NAAssetsLoading.bgConns = {}, {}, {}
+	for i=1,#NAAssetsLoading.roots do
+		local r = NAAssetsLoading.roots[i]
+		if r then NAAssetsLoading.attachWatcher(r) end
+	end
+	if not NAAssetsLoading.playerGuiWatched then
+		local plrs = SafeGetService("Players")
+		local lp = plrs and plrs.LocalPlayer
+		local pg = lp and lp:FindFirstChild("PlayerGui")
+		if not pg then
+			Spawn(function()
+				for _=1,200 do
+					local lp2 = SafeGetService("Players").LocalPlayer
+					local pg2 = lp2 and lp2:FindFirstChild("PlayerGui")
+					if pg2 then
+						NAAssetsLoading.playerGuiWatched = true
+						NAAssetsLoading.attachWatcher(pg2)
+						local tmp = {}
+						NAAssetsLoading.collectContentIdsFrom(pg2, tmp, NAAssetsLoading.seenIds)
+						for i=1,#tmp do
+							local id = tmp[i]
+							if not NAAssetsLoading.bgSeen[id] then
+								NAAssetsLoading.bgSeen[id] = true
+								NAAssetsLoading.bgQueue[#NAAssetsLoading.bgQueue+1] = id
+							end
+						end
+						break
+					end
+					Wait(0.25)
+				end
+			end)
+		end
+	end
+	if NAAssetsLoading.bgWorker then return end
+	NAAssetsLoading.bgWorker = Spawn(function()
+		local CP = SafeGetService("ContentProvider")
+		local RunService = SafeGetService("RunService")
+		local dtAvg, dtAlpha = 1/90, 0.08
+		local hb = RunService.Heartbeat:Connect(function(dt) dtAvg = (1-dtAlpha)*dtAvg + dtAlpha*dt end)
+		while true do
+			if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then break end
+			if #NAAssetsLoading.bgQueue > 0 then
+				local completed = (NAAssetsLoading.completed and NAAssetsLoading.completed.Value) and true or false
+				local take
+				if completed then
+					if dtAvg <= 1/90 then take = 48 elseif dtAvg <= 1/70 then take = 36 elseif dtAvg <= 1/55 then take = 24 else take = 12 end
+				else
+					if dtAvg <= 1/90 then take = 64 elseif dtAvg <= 1/70 then take = 48 elseif dtAvg <= 1/55 then take = 32 else take = 16 end
+				end
+				local chunk, c = table.create(math.min(take, #NAAssetsLoading.bgQueue)), 0
+				for i=1, math.min(take, #NAAssetsLoading.bgQueue) do
+					local id = table.remove(NAAssetsLoading.bgQueue)
+					if id then c += 1; chunk[c] = id end
+				end
+				if c > 0 then pcall(function() CP:PreloadAsync(chunk) end) end
+				local sl
+				if completed then
+					if dtAvg <= 1/90 then sl = 0.16 elseif dtAvg <= 1/70 then sl = 0.22 elseif dtAvg <= 1/55 then sl = 0.28 else sl = 0.35 end
+				else
+					if dtAvg <= 1/90 then sl = 0.12 elseif dtAvg <= 1/70 then sl = 0.16 elseif dtAvg <= 1/55 then sl = 0.22 else sl = 0.30 end
+				end
+				Wait(sl)
+			else
+				Wait(0.35)
+			end
+		end
+		if hb and hb.Connected then hb:Disconnect() end
+	end)
+end
+
+if not NAAssetsLoading.setStatus then
+	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
+	NaProtectUI(NAAssetsLoading.ui)
+end
 
 NAAssetsLoading.setStatus("waiting for engine")
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -774,78 +1297,30 @@ repeat
 	if NAAssetsLoading.ok then
 		Notification = NAAssetsLoading.res
 	else
-		warn(Format("[%d] Failed to load notification module: %s | retrying...", math.random(100000, 999999), tostring(NAAssetsLoading.res)))
-		Wait(0.3)
+		Wait(0.25)
 	end
 until Notification or NAAssetsLoading.getSkip()
 if not Notification then
 	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
-NAAssetsLoading.setPercent(0.3)
+NAAssetsLoading.setPercent(0.22)
 
-NAAssetsLoading.setStatus("gathering assets")
-NAAssetsLoading.allow = {
-	ImageLabel=true, ImageButton=true, Decal=true, Texture=true, Beam=true,
-	MeshPart=true, SpecialMesh=true, SurfaceAppearance=true, UnionOperation=true,
-	ParticleEmitter=true, Trail=true, Sound=true, VideoFrame=true, Animation=true,
-	Sky=true, Shirt=true, Pants=true, ShirtGraphic=true,
-}
-NAAssetsLoading.targets = {}
+NAAssetsLoading.setStatus("indexing assets")
+NAAssetsLoading.scanAll()
+local totalIds = #NAAssetsLoading.contentIds
+NAAssetsLoading.setStatus(Format("found %d assets (unique)", totalIds))
+NAAssetsLoading.setPercent(0.32)
 
-collectAssetsFrom(SafeGetService("StarterGui"), NAAssetsLoading.targets, NAAssetsLoading.allow)
-collectAssetsFrom(SafeGetService("ReplicatedStorage"), NAAssetsLoading.targets, NAAssetsLoading.allow)
-collectAssetsFrom(SafeGetService("ReplicatedFirst"), NAAssetsLoading.targets, NAAssetsLoading.allow)
-collectAssetsFrom(SafeGetService("StarterPack"), NAAssetsLoading.targets, NAAssetsLoading.allow)
-collectAssetsFrom(SafeGetService("SoundService"), NAAssetsLoading.targets, NAAssetsLoading.allow)
-collectAssetsFrom(SafeGetService("Lighting"), NAAssetsLoading.targets, NAAssetsLoading.allow)
+NAAssetsLoading.startBackgroundWatcher()
 
-NAAssetsLoading.SP = SafeGetService("StarterPlayer")
-if NAAssetsLoading.SP then
-	collectAssetsFrom(NAAssetsLoading.SP, NAAssetsLoading.targets, NAAssetsLoading.allow)
-	NAAssetsLoading.c = NAAssetsLoading.SP:FindFirstChild("StarterPlayerScripts"); if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-	NAAssetsLoading.c = NAAssetsLoading.SP:FindFirstChild("StarterCharacterScripts"); if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-end
-
-NAAssetsLoading.Players = SafeGetService("Players")
-NAAssetsLoading.lp = NAAssetsLoading.Players.LocalPlayer
-if NAAssetsLoading.lp then
-	NAAssetsLoading.pg = NAAssetsLoading.lp:FindFirstChild("PlayerGui"); if NAAssetsLoading.pg then collectAssetsFrom(NAAssetsLoading.pg, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-	NAAssetsLoading.ps = NAAssetsLoading.lp:FindFirstChild("PlayerScripts"); if NAAssetsLoading.ps then collectAssetsFrom(NAAssetsLoading.ps, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-	NAAssetsLoading.bp = NAAssetsLoading.lp:FindFirstChild("Backpack"); if NAAssetsLoading.bp then collectAssetsFrom(NAAssetsLoading.bp, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-end
-
-NAAssetsLoading.ws = SafeGetService("Workspace")
-if NAAssetsLoading.ws then
-	if not NAAssetsLoading.ws.StreamingEnabled then
-		collectAssetsFrom(NAAssetsLoading.ws, NAAssetsLoading.targets, NAAssetsLoading.allow)
-	else
-		for _, name in ipairs({"Map","MapContainer","Assets","WorkspaceAssets"}) do
-			NAAssetsLoading.c = NAAssetsLoading.ws:FindFirstChild(name)
-			if NAAssetsLoading.c then collectAssetsFrom(NAAssetsLoading.c, NAAssetsLoading.targets, NAAssetsLoading.allow) end
-		end
-	end
-end
-
-NAAssetsLoading.seen, NAAssetsLoading.filtered = {}, {}
-for _, inst in ipairs(NAAssetsLoading.targets) do
-	if inst and inst.Parent and not NAAssetsLoading.seen[inst] then
-		NAAssetsLoading.seen[inst] = true
-		NAAssetsLoading.filtered[#NAAssetsLoading.filtered+1] = inst
-	end
-end
-NAAssetsLoading.targets = NAAssetsLoading.filtered
-NAAssetsLoading.setPercent(0.45)
-
-NAAssetsLoading.setStatus(NAAssetsLoading.getSkip() and "assets skipped" or "preloading assets")
-if not NAAssetsLoading.getSkip() and #NAAssetsLoading.targets > 0 then
-	NAAssetsLoading.count, NAAssetsLoading.done = #NAAssetsLoading.targets, 0
-	preloadBatches(NAAssetsLoading.targets, function(loaded)
-		NAAssetsLoading.done = NAAssetsLoading.done + loaded
-		NAAssetsLoading.setPercent(0.45 + 0.45*(NAAssetsLoading.done/NAAssetsLoading.count))
-	end, NAAssetsLoading.getSkip)
-else
-	NAAssetsLoading.setPercent(0.9)
-end
+NAAssetsLoading.setStatus("preloading")
+local base, span = 0.32, 0.62
+NAAssetsLoading.preloadContentAdaptive(NAAssetsLoading.contentIds, function(done, total)
+	local p = base + span * (done/total)
+	if p > 0.94 then p = 0.94 end
+	NAAssetsLoading.setPercent(p)
+	if done % 300 == 0 then NAAssetsLoading.setStatus(Format("preloading %d/%d", done, total)) end
+end, NAAssetsLoading.getSkip)
 
 NAAssetsLoading.setStatus("finalizing")
 NAAssetsLoading.setPercent(1)
@@ -23992,177 +24467,6 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_follow")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
 	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
-end
-
-NAgui.dragger = function(ui, dragui)
-	dragui = dragui or ui
-	local UserInputService = SafeGetService("UserInputService")
-	local dragging = false
-	local dragInput
-	local dragStart
-	local startPos
-
-	local function update(input)
-		local success, err = NACaller(function()
-			local delta = input.Position - dragStart
-			local screenSize = ui.Parent.AbsoluteSize
-			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
-			local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
-		end)
-		if not success then
-			warn("[Dragger] update error:", err)
-		end
-	end
-
-	NACaller(function()
-		dragui.InputBegan:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
-
-					NACaller(function()
-						input.Changed:Connect(function()
-							local ok, innerErr = NACaller(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-								end
-							end)
-							if not ok then warn("[Dragger] input.Changed error:", innerErr) end
-						end)
-					end)
-				end
-			end)
-			if not success then warn("[Dragger] InputBegan error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		dragui.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-			if not success then warn("[Dragger] InputChanged error:", err) end
-		end)
-	end)
-
-	NACaller(function()
-		UserInputService.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input == dragInput and dragging then
-					update(input)
-				end
-			end)
-			if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
-		end)
-	end)
-
-	pcall(function() ui.Active=true end)
-	pcall(function() dragui.Active=true end)
-	if not success then warn("[Dragger] Set Active error:", err) end
-end
-
-NAgui.draggerV2 = function(ui, dragui)
-	dragui = dragui or ui
-	local connName = "DraggerV2_"..ui:GetDebugId()
-	NAlib.disconnect(connName)
-	local UserInputService = SafeGetService("UserInputService")
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
-	local dragging, dragInput, dragStart, startPos
-	local anchor = ui.AnchorPoint
-
-	local function safeClamp(v, lo, hi)
-		if hi < lo then hi = lo end
-		return math.clamp(v, lo, hi)
-	end
-
-	local function update(input)
-		local ok, err = NACaller(function()
-			local p = screenGui.AbsoluteSize
-			local s = ui.AbsoluteSize
-			if p.X <= 0 or p.Y <= 0 then return end
-			local startX = startPos.X.Scale * p.X + startPos.X.Offset
-			local startY = startPos.Y.Scale * p.Y + startPos.Y.Offset
-			local dx = input.Position.X - dragStart.X
-			local dy = input.Position.Y - dragStart.Y
-			local minX = anchor.X * s.X
-			local maxX = p.X - (1 - anchor.X) * s.X
-			local minY = anchor.Y * s.Y
-			local maxY = p.Y - (1 - anchor.Y) * s.Y
-			local nx = safeClamp(startX + dx, minX, maxX)
-			local ny = safeClamp(startY + dy, minY, maxY)
-			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
-		end)
-		if not ok then warn("[DraggerV2] update error:", err) end
-	end
-
-	NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
-		local ok, err = NACaller(function()
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				dragging = true
-				dragStart = input.Position
-				startPos = ui.Position
-				local c = input.Changed:Connect(function()
-					local ok2, err2 = NACaller(function()
-						if input.UserInputState == Enum.UserInputState.End then dragging = false end
-					end)
-					if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
-				end)
-				NAlib.connect(connName, c)
-			end
-		end)
-		if not ok then warn("[DraggerV2] InputBegan error:", err) end
-	end))
-
-	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		local ok, err = NACaller(function()
-			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-				dragInput = input
-			end
-		end)
-		if not ok then warn("[DraggerV2] InputChanged error:", err) end
-	end))
-
-	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		local ok, err = NACaller(function()
-			if input == dragInput and dragging then update(input) end
-		end)
-		if not ok then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
-	end))
-
-	local function onScreenSizeChanged()
-		local ok, err = NACaller(function()
-			local p = screenGui.AbsoluteSize
-			local s = ui.AbsoluteSize
-			if p.X <= 0 or p.Y <= 0 then return end
-			local curr = ui.Position
-			local absX = curr.X.Scale * p.X + curr.X.Offset
-			local absY = curr.Y.Scale * p.Y + curr.Y.Offset
-			local minX = anchor.X * s.X
-			local maxX = p.X - (1 - anchor.X) * s.X
-			local minY = anchor.Y * s.Y
-			local maxY = p.Y - (1 - anchor.Y) * s.Y
-			local nx = safeClamp(absX, minX, maxX)
-			local ny = safeClamp(absY, minY, maxY)
-			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
-		end)
-		if not ok then warn("[DraggerV2] Screen size update error:", err) end
-	end
-
-	NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
-
-	if ui and NAlib.isProperty(ui, "Active") then
-		NAlib.setProperty(ui, "Active", true)
-	end
-	if dragui and NAlib.isProperty(dragui, "Active") then
-		NAlib.setProperty(dragui, "Active", true)
-	end
-	pcall(function() ui.Active=true end)
-	pcall(function() dragui.Active=true end)
 end
 
 NAgui.menu = function(menu)
