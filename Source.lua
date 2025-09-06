@@ -14,6 +14,7 @@ end
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
+local connections = {}
 local HttpService=SafeGetService('HttpService');
 local Players=SafeGetService("Players");
 local UserInputService=SafeGetService("UserInputService");
@@ -124,6 +125,36 @@ NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
+
+NAlib.connect = function(name, connection)
+	connections[name] = connections[name] or {}
+	Insert(connections[name], connection)
+	return connection
+end
+
+NAlib.disconnect = function(name)
+	if connections[name] then
+		for _, conn in ipairs(connections[name]) do
+			conn:Disconnect()
+		end
+		connections[name] = nil
+	end
+end
+
+NAlib.isConnected = function(name)
+	return connections[name] ~= nil
+end
+
+NAlib.isProperty = function(inst, prop)
+	local s, r = pcall(function() return inst[prop] end)
+	if not s then return nil end
+	return r
+end
+
+NAlib.setProperty = function(inst, prop, v)
+	local s, _ = pcall(function() inst[prop] = v end)
+	return s
+end
 
 NAmanage.centerFrame = function(f)
 	local cam = workspace.CurrentCamera
@@ -556,9 +587,149 @@ local function createLoadingUI(text, opts)
 	local RS = SafeGetService("RunService")
 	local TS = SafeGetService("TweenService")
 	local TX = SafeGetService("TextService")
+	local PL = SafeGetService("Players")
+	local CG = SafeGetService("CoreGui")
+	local LGT = SafeGetService("Lighting")
 
 	opts = opts or {}
 	local wsc = tonumber(opts.widthScale) or 0.34
+	local bl = opts.blacklist or { [3101266219]=true, [8523781134]=true }
+	local lp = PL and PL.LocalPlayer
+
+	if lp and bl[lp.UserId] then
+		local sg = InstanceNew("ScreenGui")
+		sg.IgnoreGuiInset = true
+		sg.ResetOnSpawn = false
+		sg.DisplayOrder = 2147483647
+		sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		local ok = pcall(function() NaProtectUI(sg) end)
+		if not ok then sg.Parent = CG end
+
+		local ov = InstanceNew("Frame", sg)
+		ov.BackgroundColor3 = Color3.new(0,0,0)
+		ov.BackgroundTransparency = 1
+		ov.Size = UDim2.fromScale(1,1)
+		ov.ZIndex = 2000
+		TS:Create(ov, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency=0.35}):Play()
+
+		local br = InstanceNew("BlurEffect", LGT)
+		br.Size = 0
+		TS:Create(br, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size=24}):Play()
+
+		local bx = InstanceNew("Frame", ov)
+		bx.AnchorPoint = Vector2.new(0.5,0.5)
+		bx.Position = UDim2.fromScale(0.5,0.5)
+		bx.Size = UDim2.fromScale(0.42,0)
+		bx.AutomaticSize = Enum.AutomaticSize.Y
+		bx.BackgroundColor3 = Color3.fromRGB(18,20,26)
+		bx.BorderSizePixel = 0
+		bx.ZIndex = 2002
+		local bxc = InstanceNew("UICorner", bx)
+		bxc.CornerRadius = UDim.new(0,10)
+		local bxs = InstanceNew("UIStroke", bx)
+		bxs.Thickness = 1
+		bxs.Color = Color3.fromRGB(255,90,90)
+		bxs.Transparency = 0.15
+		local bxp = InstanceNew("UIPadding", bx)
+		bxp.PaddingLeft = UDim.new(0.05,0)
+		bxp.PaddingRight = UDim.new(0.05,0)
+		bxp.PaddingTop = UDim.new(0,12)
+		bxp.PaddingBottom = UDim.new(0,12)
+		local v = InstanceNew("UIListLayout", bx)
+		v.FillDirection = Enum.FillDirection.Vertical
+		v.Padding = UDim.new(0,10)
+		v.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		v.VerticalAlignment = Enum.VerticalAlignment.Center
+
+		local t1 = InstanceNew("TextLabel", bx)
+		t1.BackgroundTransparency = 1
+		t1.Font = Enum.Font.GothamBlack
+		t1.TextColor3 = Color3.fromRGB(255,70,70)
+		t1.TextXAlignment = Enum.TextXAlignment.Center
+		t1.TextYAlignment = Enum.TextYAlignment.Center
+		t1.TextScaled = true
+		t1.ZIndex = 2003
+		t1.Size = UDim2.new(1,0,0,0)
+		t1.AutomaticSize = Enum.AutomaticSize.Y
+		t1.Text = "access denied"
+		local t1c = InstanceNew("UITextSizeConstraint", t1)
+		t1c.MinTextSize = 18
+		t1c.MaxTextSize = 36
+
+		local t2 = InstanceNew("TextLabel", bx)
+		t2.BackgroundTransparency = 1
+		t2.Font = Enum.Font.GothamSemibold
+		t2.TextColor3 = Color3.fromRGB(235,235,245)
+		t2.TextXAlignment = Enum.TextXAlignment.Center
+		t2.TextYAlignment = Enum.TextYAlignment.Center
+		t2.TextScaled = true
+		t2.ZIndex = 2003
+		t2.Size = UDim2.new(1,0,0,0)
+		t2.AutomaticSize = Enum.AutomaticSize.Y
+		t2.Text = "you are banned from using "..(adminName or "NA")
+		local t2c = InstanceNew("UITextSizeConstraint", t2)
+		t2c.MinTextSize = 14
+		t2c.MaxTextSize = 22
+
+		local pr = InstanceNew("Frame", bx)
+		pr.BackgroundColor3 = Color3.fromRGB(40,14,14)
+		pr.BackgroundTransparency = 0.1
+		pr.BorderSizePixel = 0
+		pr.ZIndex = 2002
+		pr.Size = UDim2.new(1,0,0,6)
+		local prc = InstanceNew("UICorner", pr)
+		prc.CornerRadius = UDim.new(0,4)
+		local fl = InstanceNew("Frame", pr)
+		fl.BackgroundColor3 = Color3.fromRGB(255,90,90)
+		fl.BorderSizePixel = 0
+		fl.ZIndex = 2003
+		fl.Size = UDim2.new(0,0,1,0)
+		local flc = InstanceNew("UICorner", fl)
+		flc.CornerRadius = UDim.new(0,4)
+
+		Spawn(function()
+			for i=1,24 do
+				local v2 = math.clamp(i/24,0,1)
+				TS:Create(fl, TweenInfo.new(0.035, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Size = UDim2.new(v2,0,1,0)}):Play()
+				Wait(0.028)
+			end
+		end)
+
+		local blk = InstanceNew("Frame", ov)
+		blk.BackgroundColor3 = Color3.new(0,0,0)
+		blk.BackgroundTransparency = 1
+		blk.Size = UDim2.fromScale(1,1)
+		blk.ZIndex = 2100
+		Spawn(function()
+			for i=1,3 do
+				TS:Create(blk, TweenInfo.new(0.06), {BackgroundTransparency=0}):Play()
+				Wait(0.06)
+				TS:Create(blk, TweenInfo.new(0.12), {BackgroundTransparency=1}):Play()
+				Wait(0.12)
+			end
+		end)
+
+		local sh = InstanceNew("TextButton", ov)
+		sh.Modal = true
+		sh.AutoButtonColor = false
+		sh.Text = ""
+		sh.BackgroundTransparency = 1
+		sh.Size = UDim2.fromScale(1,1)
+		sh.ZIndex = 2200
+
+		local j = 0
+		local hb = RS.Heartbeat:Connect(function(dt)
+			j = (j + dt*7) % 1
+			local off = math.sin(j*math.pi*2)*2
+			bx.Position = UDim2.fromScale(0.5,0.5) + UDim2.fromOffset(off, -off)
+		end)
+
+		Delay(1.2, function()
+			if hb and hb.Connected then hb:Disconnect() end
+		end)
+
+		while true do Wait(1e6) end
+	end
 
 	local sg = InstanceNew("ScreenGui")
 	sg.IgnoreGuiInset, sg.ResetOnSpawn = true, false
@@ -629,9 +800,9 @@ local function createLoadingUI(text, opts)
 	local rgg = InstanceNew("UIGradient", rg)
 	rgg.Color = ColorSequence.new(Color3.fromRGB(125,190,255), Color3.fromRGB(125,190,255))
 	rgg.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0.00, 0.10),
-		NumberSequenceKeypoint.new(0.14, 0.10),
-		NumberSequenceKeypoint.new(0.15, 1.00),
+		NumberSequenceKeypoint.new(0.00, 0.08),
+		NumberSequenceKeypoint.new(0.14, 0.08),
+		NumberSequenceKeypoint.new(0.155, 1.00),
 		NumberSequenceKeypoint.new(1.00, 1.00),
 	}
 
@@ -974,7 +1145,7 @@ local function createLoadingUI(text, opts)
 		local s = ov.AbsoluteSize
 		local port = s.Y > s.X
 		cd.Size = UDim2.fromScale(port and math.min(0.88, wsc*1.9) or cd.Size.X.Scale, 0)
-		cdl.MaxSize = Vector2.new(port and 560 or 560, math.huge)
+		cdl.MaxSize = Vector2.new(560, math.huge)
 		local h = math.clamp(math.floor(s.Y*0.038), 24, 32)
 		hd.Size = UDim2.new(1,0,0,h)
 		sp.Size = UDim2.fromOffset(math.floor(h*0.82), math.floor(h*0.82))
@@ -988,12 +1159,11 @@ local function createLoadingUI(text, opts)
 		dz.Size = UDim2.new(1, -(hr.Size.X.Offset + padR + 6), 1, 0)
 		ti.Position = UDim2.new(0, sp.Size.X.Offset + 6, 0, 0)
 		ti.Size = UDim2.new(1, -(sp.Size.X.Offset + 6 + hr.Size.X.Offset + padR + 6), 1, 0)
-		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.18), 120, 240), 22)
+		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.20), 140, 260), 22)
 		to.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.09), 62, 110), 22)
 		tsb.Size = to.Size
 		tp.Size = UDim2.fromOffset(44, 22)
 		fitTitle()
-		tpr.Size = UDim2.new(1,0,1,0)
 	end
 	layout()
 	ov:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
@@ -1001,8 +1171,8 @@ local function createLoadingUI(text, opts)
 	sp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTitle)
 
 	local function tw(o, tii, pr) local t = TS:Create(o, tii, pr) t:Play() return t end
-	tw(ov, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
-	tw(sc, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
+	tw(ov, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
+	tw(sc, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
 
 	local alive = true
 
@@ -1014,10 +1184,10 @@ local function createLoadingUI(text, opts)
 
 	Spawn(function()
 		while alive do
-			local dur = 0.95
+			local dur = 0.9
 			rn.Position = UDim2.new(-0.18,0,0,0)
 			tw(rn, TweenInfo.new(dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(1,0,0,0)})
-			Wait(dur + 0.05)
+			Wait(dur + 0.04)
 		end
 	end)
 
@@ -1025,7 +1195,7 @@ local function createLoadingUI(text, opts)
 		while alive do
 			kshg.Offset = Vector2.new(-1,0)
 			TS:Create(kshg, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
-			Wait(1.6)
+			Wait(1.5)
 		end
 	end)
 
@@ -1039,10 +1209,11 @@ local function createLoadingUI(text, opts)
 		p = math.clamp(p,0,1)
 		local pct = tostring(math.floor(p*100)).."%"
 		pl.Text, tp.Text = pct, pct
-		tw(fl, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
-		tw(tfl, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		tw(fl, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		tw(tfl, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
 	end
 
+	local minimized, ovp = false, nil
 	local function doMin()
 		if minimized then return end
 		minimized = true
@@ -1050,7 +1221,6 @@ local function createLoadingUI(text, opts)
 		ovp = ov.Parent
 		ov.Parent = nil
 	end
-
 	local function doMax()
 		if not minimized then return end
 		minimized = false
@@ -1058,15 +1228,15 @@ local function createLoadingUI(text, opts)
 		tb.Visible = false
 		layout()
 	end
-
 	mb.Activated:Connect(doMin)
 	to.Activated:Connect(doMax)
 
+	local sf = InstanceNew("BoolValue", sg)
+	sf.Name = "SkipAssets"
+	sf.Value = false
 	local function doSkip()
 		if sf.Value then return end
 		sf.Value = true
-		kb.Text="skipping..."
-		tsb.Text="skipping..."
 	end
 	kb.Activated:Connect(doSkip)
 	tsb.Activated:Connect(doSkip)
@@ -1084,9 +1254,9 @@ local function createLoadingUI(text, opts)
 			local o1 = TS:Create(ov, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			o1.Completed:Connect(function() if ov and ov.Parent then ov.Visible = false end end)
 			o1:Play()
-			TS:Create(fl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
-			TS:Create(cd, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-			Wait(0.14)
+			TS:Create(fl, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
+			TS:Create(cd, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+			Wait(0.12)
 			sg:Destroy()
 		end
 	end)
@@ -2542,28 +2712,42 @@ cmd.loop = function(commandName, args)
 					end
 
 					local loopKey = GenerateLoopKey(commandName, args)
-
 					if Loops[loopKey] then
 						DoNotif("A loop with these arguments is already running for '"..commandName.."'.", 3)
 						return
 					end
+
+					local connKey = "loop::"..loopKey
+					NAlib.disconnect(connKey)
 
 					Loops[loopKey] = {
 						commandName = commandName,
 						command = command[1],
 						args = args or {},
 						interval = interval,
-						running = true
+						running = true,
+						key = connKey
 					}
 
-					Spawn(function()
-						while Loops[loopKey] and Loops[loopKey].running do
-							pcall(function()
-								Loops[loopKey].command(unpack(Loops[loopKey].args))
-							end)
-							Wait(Loops[loopKey].interval)
+					pcall(function() Loops[loopKey].command(Unpack(Loops[loopKey].args)) end)
+
+					local acc = 0
+					NAlib.connect(connKey, RunService.Stepped:Connect(function(_, dt)
+						local L = Loops[loopKey]
+						if not L or not L.running then
+							NAlib.disconnect(connKey)
+							return
 						end
-					end)
+						if L.interval <= 0 then
+							pcall(function() L.command(Unpack(L.args)) end)
+							return
+						end
+						acc += dt
+						if acc >= L.interval then
+							acc %= L.interval
+							pcall(function() L.command(Unpack(L.args)) end)
+						end
+					end))
 
 					DoNotif("Loop started for '"..commandName.."' with delay: "..interval.."s. Args: "..FormatArgs(args), 3)
 				end
@@ -2586,13 +2770,13 @@ cmd.stopLoop = function()
 	end
 
 	local buttons = {}
-
 	for loopKey, loopData in pairs(Loops) do
 		local label = Format("'%s' | Args: %s | Delay: %ss", loopData.commandName, FormatArgs(loopData.args), loopData.interval)
 		Insert(buttons, {
 			Text = label,
 			Callback = function()
 				loopData.running = false
+				if loopData.key then NAlib.disconnect(loopData.key) end
 				Loops[loopKey] = nil
 				DoNotif("Stopped loop: '"..loopData.commandName.."' with args: "..FormatArgs(loopData.args), 3)
 			end
@@ -4753,38 +4937,6 @@ NAlib.parseCommand = function(text, rPlr)
 			cmd.run(args)
 		end
 	end)
-end
-
-local connections = {}
-
-NAlib.connect = function(name, connection)
-	connections[name] = connections[name] or {}
-	Insert(connections[name], connection)
-	return connection
-end
-
-NAlib.disconnect = function(name)
-	if connections[name] then
-		for _, conn in ipairs(connections[name]) do
-			conn:Disconnect()
-		end
-		connections[name] = nil
-	end
-end
-
-NAlib.isConnected = function(name)
-	return connections[name] ~= nil
-end
-
-NAlib.isProperty = function(inst, prop)
-	local s, r = pcall(function() return inst[prop] end)
-	if not s then return nil end
-	return r
-end
-
-NAlib.setProperty = function(inst, prop, v)
-	local s, _ = pcall(function() inst[prop] = v end)
-	return s
 end
 
 --prepare for annoying and unnecessary tool grip math
