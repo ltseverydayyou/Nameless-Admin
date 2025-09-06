@@ -15,6 +15,17 @@ local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
 local HttpService=SafeGetService('HttpService');
+local Players=SafeGetService("Players");
+local UserInputService=SafeGetService("UserInputService");
+local TweenService=SafeGetService("TweenService");
+local RunService=SafeGetService("RunService");
+local TeleportService=SafeGetService("TeleportService");
+local Lighting=SafeGetService("Lighting");
+local ReplicatedStorage=SafeGetService("ReplicatedStorage");
+local COREGUI=SafeGetService("CoreGui");
+local TextChatService = SafeGetService("TextChatService");
+local CaptureService = SafeGetService("CaptureService");
+local TextService = SafeGetService("TextService");
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -143,7 +154,7 @@ function NACaller(fn, ...)
 	end))
 	if not t[1] then
 		local err = t[2]
-		warn("NA script error:\n"..err)
+		warn(adminName.." script error:\n"..err)
 		Popup({
 			Title       = adminName or "Oops!",
 			Description = Format("Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s", err),
@@ -542,16 +553,15 @@ NAgui.draggerV2 = function(ui, dragui)
 end
 
 local function createLoadingUI(text, opts)
-	local Players = SafeGetService("Players")
-	local RunService = SafeGetService("RunService")
-	local TweenService = SafeGetService("TweenService")
+	local RS = SafeGetService("RunService")
+	local TS = SafeGetService("TweenService")
+	local TX = SafeGetService("TextService")
 
 	opts = opts or {}
-	local wsc = tonumber(opts.widthScale) or 0.30
+	local wsc = tonumber(opts.widthScale) or 0.34
 
 	local sg = InstanceNew("ScreenGui")
-	sg.IgnoreGuiInset = true
-	sg.ResetOnSpawn = false
+	sg.IgnoreGuiInset, sg.ResetOnSpawn = true, false
 	sg.DisplayOrder = 999999
 	sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
@@ -559,10 +569,8 @@ local function createLoadingUI(text, opts)
 	ov.BackgroundTransparency = 1
 	ov.Size = UDim2.fromScale(1,1)
 	ov.ZIndex = 5
-	ov.ClipsDescendants = false
 	local ovg = InstanceNew("UIGradient", ov)
 	ovg.Color = ColorSequence.new(Color3.fromRGB(8,10,14), Color3.fromRGB(14,16,22))
-	ovg.Offset = Vector2.new(0,0)
 
 	local cd = InstanceNew("Frame", ov)
 	cd.AnchorPoint = Vector2.new(0.5,0.5)
@@ -580,14 +588,12 @@ local function createLoadingUI(text, opts)
 	cds.Transparency = 0.3
 	local cdl = InstanceNew("UISizeConstraint", cd)
 	cdl.MinSize = Vector2.new(220, 0)
-	cdl.MaxSize = Vector2.new(500, math.huge)
+	cdl.MaxSize = Vector2.new(560, math.huge)
 	local sc = InstanceNew("UIScale", cd)
 	sc.Scale = 0.98
 	local cdp = InstanceNew("UIPadding", cd)
-	cdp.PaddingLeft = UDim.new(0.03,0)
-	cdp.PaddingRight = UDim.new(0.03,0)
-	cdp.PaddingTop = UDim.new(0,8)
-	cdp.PaddingBottom = UDim.new(0,10)
+	cdp.PaddingLeft, cdp.PaddingRight = UDim.new(0.03,0), UDim.new(0.03,0)
+	cdp.PaddingTop, cdp.PaddingBottom = UDim.new(0,8), UDim.new(0,10)
 
 	local vl = InstanceNew("UIListLayout", cd)
 	vl.FillDirection = Enum.FillDirection.Vertical
@@ -604,8 +610,7 @@ local function createLoadingUI(text, opts)
 
 	local dz = InstanceNew("Frame", hd)
 	dz.BackgroundTransparency = 1
-	dz.Active = true
-	dz.ZIndex = 21
+	dz.Active, dz.ZIndex = true, 21
 	dz.Size = UDim2.new(1,0,1,0)
 
 	local sp = InstanceNew("Frame", hd)
@@ -624,10 +629,10 @@ local function createLoadingUI(text, opts)
 	local rgg = InstanceNew("UIGradient", rg)
 	rgg.Color = ColorSequence.new(Color3.fromRGB(125,190,255), Color3.fromRGB(125,190,255))
 	rgg.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0.00, 0),
-		NumberSequenceKeypoint.new(0.05, 0),
-		NumberSequenceKeypoint.new(0.07, 1),
-		NumberSequenceKeypoint.new(1.00, 1),
+		NumberSequenceKeypoint.new(0.00, 0.10),
+		NumberSequenceKeypoint.new(0.14, 0.10),
+		NumberSequenceKeypoint.new(0.15, 1.00),
+		NumberSequenceKeypoint.new(1.00, 1.00),
 	}
 
 	local ct = InstanceNew("Frame", sp)
@@ -650,18 +655,17 @@ local function createLoadingUI(text, opts)
 	ti.TextColor3 = Color3.fromRGB(245,245,250)
 	ti.TextXAlignment = Enum.TextXAlignment.Left
 	ti.TextYAlignment = Enum.TextYAlignment.Center
-	ti.TextScaled = true
-	ti.ZIndex = 22
+	ti.TextScaled = false
+	ti.TextWrapped = false
+	ti.TextTruncate = Enum.TextTruncate.None
+	ti.ZIndex = 28
 	ti.Position = UDim2.new(0, 26, 0, 0)
 	ti.Size = UDim2.new(1, -26, 1, 0)
-	local tits = InstanceNew("UITextSizeConstraint", ti)
-	tits.MinTextSize = 14
-	tits.MaxTextSize = 22
 
 	local hr = InstanceNew("Frame", hd)
 	hr.AnchorPoint = Vector2.new(1,0.5)
 	hr.BackgroundTransparency = 1
-	hr.ZIndex = 23
+	hr.ZIndex = 29
 	hr.Position = UDim2.new(1,0,0.5,0)
 	hr.Size = UDim2.fromOffset(1,1)
 	local hrl = InstanceNew("UIListLayout", hr)
@@ -677,7 +681,7 @@ local function createLoadingUI(text, opts)
 	mb.Font = Enum.Font.GothamBold
 	mb.TextColor3 = Color3.fromRGB(240,240,255)
 	mb.BackgroundColor3 = Color3.fromRGB(42,44,54)
-	mb.ZIndex = 24
+	mb.ZIndex = 30
 	local mbc = InstanceNew("UICorner", mb)
 	mbc.CornerRadius = UDim.new(0,7)
 	local mbs = InstanceNew("UIStroke", mb)
@@ -692,20 +696,18 @@ local function createLoadingUI(text, opts)
 	kb.Font = Enum.Font.GothamSemibold
 	kb.TextColor3 = Color3.fromRGB(240,240,255)
 	kb.BackgroundColor3 = Color3.fromRGB(42,44,54)
-	kb.ZIndex = 24
+	kb.ZIndex = 30
 	local kbc = InstanceNew("UICorner", kb)
 	kbc.CornerRadius = UDim.new(0,7)
 	local kbs = InstanceNew("UIStroke", kb)
 	kbs.Thickness = 1
 	kbs.Color = Color3.fromRGB(160,160,190)
 	kbs.Transparency = 0.28
-	local ksc = InstanceNew("UIScale", kb)
-	ksc.Scale = 1
 
 	local ksh = InstanceNew("Frame", kb)
 	ksh.BackgroundTransparency = 1
 	ksh.Size = UDim2.fromScale(1,1)
-	ksh.ZIndex = 25
+	ksh.ZIndex = 31
 	local kshg = InstanceNew("UIGradient", ksh)
 	kshg.Color = ColorSequence.new(Color3.fromRGB(255,255,255), Color3.fromRGB(255,255,255))
 	kshg.Transparency = NumberSequence.new{
@@ -741,17 +743,16 @@ local function createLoadingUI(text, opts)
 	st.TextYAlignment = Enum.TextYAlignment.Center
 	st.TextScaled = true
 	st.LayoutOrder = 3
-	st.ZIndex = 12
+	st.ZIndex = 30
 	st.Size = UDim2.new(1,0,0,0)
 	st.AutomaticSize = Enum.AutomaticSize.Y
 	local stts = InstanceNew("UITextSizeConstraint", st)
-	stts.MinTextSize = 13
-	stts.MaxTextSize = 18
+	stts.MinTextSize, stts.MaxTextSize = 13, 18
 
 	local mt = InstanceNew("Frame", cd)
 	mt.BackgroundTransparency = 1
 	mt.LayoutOrder = 4
-	mt.ZIndex = 12
+	mt.ZIndex = 30
 	mt.Size = UDim2.new(1,0,0,16)
 	local mtl = InstanceNew("UIListLayout", mt)
 	mtl.FillDirection = Enum.FillDirection.Horizontal
@@ -767,9 +768,9 @@ local function createLoadingUI(text, opts)
 	sl.TextScaled = true
 	sl.TextXAlignment = Enum.TextXAlignment.Left
 	sl.Size = UDim2.new(0.78,0,1,0)
+	sl.ZIndex = 30
 	local slts = InstanceNew("UITextSizeConstraint", sl)
-	slts.MinTextSize = 10
-	slts.MaxTextSize = 14
+	slts.MinTextSize, slts.MaxTextSize = 10, 14
 
 	local pl = InstanceNew("TextLabel", mt)
 	pl.BackgroundTransparency = 1
@@ -779,6 +780,7 @@ local function createLoadingUI(text, opts)
 	pl.TextScaled = true
 	pl.TextXAlignment = Enum.TextXAlignment.Right
 	pl.Size = UDim2.new(0.22,0,1,0)
+	pl.ZIndex = 30
 
 	local pr = InstanceNew("Frame", cd)
 	pr.BackgroundColor3 = Color3.fromRGB(40,44,56)
@@ -808,7 +810,6 @@ local function createLoadingUI(text, opts)
 		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,205,255)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,160,240)),
 	}
-	flg.Offset = Vector2.new(-1,0)
 
 	local rn = InstanceNew("Frame", pr)
 	rn.BackgroundColor3 = Color3.fromRGB(90,180,255)
@@ -842,7 +843,6 @@ local function createLoadingUI(text, opts)
 	tb.ZIndex = 50
 	tb.Visible = false
 	tb.AutomaticSize = Enum.AutomaticSize.XY
-	tb.ClipsDescendants = false
 	local tbc = InstanceNew("UICorner", tb)
 	tbc.CornerRadius = UDim.new(1,0)
 	local tbs = InstanceNew("UIStroke", tb)
@@ -850,18 +850,15 @@ local function createLoadingUI(text, opts)
 	tbs.Color = Color3.fromRGB(90,100,140)
 	tbs.Transparency = 0.4
 	local tbp = InstanceNew("UIPadding", tb)
-	tbp.PaddingLeft = UDim.new(0,10)
-	tbp.PaddingRight = UDim.new(0,10)
-	tbp.PaddingTop = UDim.new(0,6)
-	tbp.PaddingBottom = UDim.new(0,6)
+	tbp.PaddingLeft, tbp.PaddingRight = UDim.new(0,10), UDim.new(0,10)
+	tbp.PaddingTop, tbp.PaddingBottom = UDim.new(0,6), UDim.new(0,6)
 	local tbl = InstanceNew("UIListLayout", tb)
 	tbl.FillDirection = Enum.FillDirection.Vertical
 	tbl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	tbl.VerticalAlignment = Enum.VerticalAlignment.Center
 	tbl.Padding = UDim.new(0,4)
 	local tblc = InstanceNew("UISizeConstraint", tb)
-	tblc.MinSize = Vector2.new(180, 0)
-	tblc.MaxSize = Vector2.new(520, math.huge)
+	tblc.MinSize, tblc.MaxSize = Vector2.new(180, 0), Vector2.new(560, math.huge)
 
 	local tr = InstanceNew("Frame", tb)
 	tr.BackgroundTransparency = 1
@@ -882,9 +879,6 @@ local function createLoadingUI(text, opts)
 	tl.TextScaled = true
 	tl.Size = UDim2.fromOffset(180,22)
 	tl.ZIndex = 52
-	local tlts = InstanceNew("UITextSizeConstraint", tl)
-	tlts.MinTextSize = 12
-	tlts.MaxTextSize = 18
 
 	local tp = InstanceNew("TextLabel", tr)
 	tp.BackgroundTransparency = 1
@@ -894,9 +888,6 @@ local function createLoadingUI(text, opts)
 	tp.TextScaled = 1
 	tp.Size = UDim2.fromOffset(40,22)
 	tp.ZIndex = 52
-	local tpts = InstanceNew("UITextSizeConstraint", tp)
-	tpts.MinTextSize = 12
-	tpts.MaxTextSize = 18
 
 	local to = InstanceNew("TextButton", tr)
 	to.Size = UDim2.fromOffset(72,22)
@@ -913,31 +904,31 @@ local function createLoadingUI(text, opts)
 	tos.Color = Color3.fromRGB(150,160,190)
 	tos.Transparency = 0.4
 
-	local ts = InstanceNew("TextButton", tr)
-	ts.Size = UDim2.fromOffset(72,22)
-	ts.Text = "skip"
-	ts.TextScaled = true
-	ts.Font = Enum.Font.GothamSemibold
-	ts.TextColor3 = Color3.fromRGB(255,255,255)
-	ts.BackgroundColor3 = Color3.fromRGB(70,75,95)
-	ts.ZIndex = 52
-	local tsc = InstanceNew("UICorner", ts)
-	tsc.CornerRadius = UDim.new(0,8)
-	local tss = InstanceNew("UIStroke", ts)
-	tss.Thickness = 1
-	tss.Color = Color3.fromRGB(150,160,200)
-	tss.Transparency = 0.25
+	local tsb = InstanceNew("TextButton", tr)
+	tsb.Size = UDim2.fromOffset(72,22)
+	tsb.Text = "skip"
+	tsb.TextScaled = true
+	tsb.Font = Enum.Font.GothamSemibold
+	tsb.TextColor3 = Color3.fromRGB(255,255,255)
+	tsb.BackgroundColor3 = Color3.fromRGB(70,75,95)
+	tsb.ZIndex = 52
+	local tsbc = InstanceNew("UICorner", tsb)
+	tsbc.CornerRadius = UDim.new(0,8)
+	local tsbs = InstanceNew("UIStroke", tsb)
+	tsbs.Thickness = 1
+	tsbs.Color = Color3.fromRGB(150,160,200)
+	tsbs.Transparency = 0.25
 
 	local tpw = InstanceNew("Frame", tb)
 	tpw.BackgroundTransparency = 1
-	tpw.AutomaticSize = Enum.AutomaticSize.XY
 	tpw.ZIndex = 49
 	tpw.LayoutOrder = 2
+	tpw.Size = UDim2.new(1,0,0,3)
 	local tpr = InstanceNew("Frame", tpw)
 	tpr.BackgroundColor3 = Color3.fromRGB(55,60,80)
 	tpr.BorderSizePixel = 0
 	tpr.ZIndex = 49
-	tpr.Size = UDim2.new(1,0,0,3)
+	tpr.Size = UDim2.new(1,0,1,0)
 	local tprc = InstanceNew("UICorner", tpr)
 	tprc.CornerRadius = UDim.new(1,0)
 	local tfl = InstanceNew("Frame", tpr)
@@ -952,44 +943,70 @@ local function createLoadingUI(text, opts)
 	sf.Name = "SkipAssets"
 	sf.Value = false
 
-	local minimized = false
-	local ovp = nil
+	local minimized, ovp = false, nil
+
+	local function fitTitle()
+		local s = ov.AbsoluteSize
+		local h = hd.AbsoluteSize.Y
+		local avail = math.max(20, (hd.AbsoluteSize.X - (sp.AbsoluteSize.X + 6 + hr.AbsoluteSize.X + 8)))
+		local maxSz = math.clamp(math.floor(s.Y*0.022), 16, 24)
+		local minSz = 12
+		local sz = maxSz
+		local b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
+		local tries = 0
+		while b.X > avail and tries < 8 do
+			if cd.Size.X.Scale < 0.92 then
+				cd.Size = UDim2.fromScale(math.min(0.92, cd.Size.X.Scale + 0.04), 0)
+				avail = math.max(20, (hd.AbsoluteSize.X - (sp.AbsoluteSize.X + 6 + hr.AbsoluteSize.X + 8)))
+				b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
+			elseif sz > minSz then
+				sz = sz - 1
+				b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
+			else
+				break
+			end
+			tries = tries + 1
+		end
+		ti.TextSize = sz
+	end
 
 	local function layout()
 		local s = ov.AbsoluteSize
-		local portrait = s.Y > s.X
-		cd.Size = UDim2.fromScale(portrait and math.min(0.84, wsc*1.8) or wsc, 0)
-		cdl.MaxSize = Vector2.new(portrait and 440 or 500, math.huge)
+		local port = s.Y > s.X
+		cd.Size = UDim2.fromScale(port and math.min(0.88, wsc*1.9) or cd.Size.X.Scale, 0)
+		cdl.MaxSize = Vector2.new(port and 560 or 560, math.huge)
 		local h = math.clamp(math.floor(s.Y*0.038), 24, 32)
 		hd.Size = UDim2.new(1,0,0,h)
 		sp.Size = UDim2.fromOffset(math.floor(h*0.82), math.floor(h*0.82))
-		ti.Position = UDim2.new(0, sp.Size.X.Offset + 6, 0, 0)
 		local padR = math.clamp(math.floor(s.X*0.015), 10, 18)
 		local skH = math.floor(h*0.86)
-		local skW = math.clamp(math.floor(s.X*(portrait and 0.22 or 0.12)), 88, 132)
+		local skW = math.clamp(math.floor(s.X*(port and 0.22 or 0.12)), 88, 132)
 		kb.Size = UDim2.fromOffset(skW, skH)
 		mb.Size = UDim2.fromOffset(math.max(26, math.floor(skH)), skH)
 		hr.Size = UDim2.fromOffset(skW + mb.Size.X.Offset + 6, h)
-		ti.Size = UDim2.new(1, -(sp.Size.X.Offset + 6 + hr.Size.X.Offset + padR + 6), 1, 0)
 		hr.Position = UDim2.new(1, -padR, 0.5, 0)
 		dz.Size = UDim2.new(1, -(hr.Size.X.Offset + padR + 6), 1, 0)
-		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.18), 120, 220), 22)
-		to.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.09), 62, 100), 22)
-		ts.Size = to.Size
-		tp.Size = UDim2.fromOffset(math.max(36, math.floor(to.Size.X.Offset*0.5)), 22)
+		ti.Position = UDim2.new(0, sp.Size.X.Offset + 6, 0, 0)
+		ti.Size = UDim2.new(1, -(sp.Size.X.Offset + 6 + hr.Size.X.Offset + padR + 6), 1, 0)
+		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.18), 120, 240), 22)
+		to.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.09), 62, 110), 22)
+		tsb.Size = to.Size
+		tp.Size = UDim2.fromOffset(44, 22)
+		fitTitle()
+		tpr.Size = UDim2.new(1,0,1,0)
 	end
 	layout()
 	ov:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
-	cd:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
-	tr:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
+	hr:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTitle)
+	sp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTitle)
 
-	local function tw(o, ti, pr) local t = TweenService:Create(o, ti, pr) t:Play() return t end
+	local function tw(o, tii, pr) local t = TS:Create(o, tii, pr) t:Play() return t end
 	tw(ov, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
 	tw(sc, TweenInfo.new(0.20, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
 
 	local alive = true
 
-	local hb = RunService.Heartbeat:Connect(function(dt)
+	local hb = RS.Heartbeat:Connect(function(dt)
 		ovg.Offset = Vector2.new((ovg.Offset.X + dt*0.02)%1, 0)
 		rgg.Rotation = (rgg.Rotation + dt*240)%360
 		acg.Offset = Vector2.new((acg.Offset.X + dt*0.25)%2 - 1, 0)
@@ -1007,8 +1024,8 @@ local function createLoadingUI(text, opts)
 	Spawn(function()
 		while alive do
 			kshg.Offset = Vector2.new(-1,0)
-			TweenService:Create(kshg, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
-			Wait(1.8)
+			TS:Create(kshg, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
+			Wait(1.6)
 		end
 	end)
 
@@ -1016,17 +1033,14 @@ local function createLoadingUI(text, opts)
 	cmpl.Name = "Completed"
 	cmpl.Value = false
 
-	local function setS(t)
-		st.Text = t or ""
-	end
+	local function setS(t) st.Text = t or "" end
 
 	local function setP(p)
 		p = math.clamp(p,0,1)
 		local pct = tostring(math.floor(p*100)).."%"
-		pl.Text = pct
-		tp.Text = pct
-		tw(fl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
-		tw(tfl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		pl.Text, tp.Text = pct, pct
+		tw(fl, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
+		tw(tfl, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
 	end
 
 	local function doMin()
@@ -1051,13 +1065,11 @@ local function createLoadingUI(text, opts)
 	local function doSkip()
 		if sf.Value then return end
 		sf.Value = true
-		kb.Text = "skipping..."
-		ts.Text = "skipping..."
-		TweenService:Create(kb, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(55,58,70)}):Play()
-		TweenService:Create(ts, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(80,85,105)}):Play()
+		kb.Text="skipping..."
+		tsb.Text="skipping..."
 	end
 	kb.Activated:Connect(doSkip)
-	ts.Activated:Connect(doSkip)
+	tsb.Activated:Connect(doSkip)
 
 	sg.Destroying:Connect(function()
 		alive = false
@@ -1069,12 +1081,12 @@ local function createLoadingUI(text, opts)
 	cmpl:GetPropertyChangedSignal("Value"):Connect(function()
 		if cmpl.Value then
 			alive = false
-			local o1 = TweenService:Create(ov, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			local o1 = TS:Create(ov, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			o1.Completed:Connect(function() if ov and ov.Parent then ov.Visible = false end end)
 			o1:Play()
-			TweenService:Create(fl, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
-			TweenService:Create(cd, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-			Wait(0.2)
+			TS:Create(fl, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
+			TS:Create(cd, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+			Wait(0.14)
 			sg:Destroy()
 		end
 	end)
@@ -1983,17 +1995,6 @@ end)
 --[[ VARIABLES ]]--
 
 local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
-local Players=SafeGetService("Players");
-local UserInputService=SafeGetService("UserInputService");
-local TweenService=SafeGetService("TweenService");
-local RunService=SafeGetService("RunService");
-local TeleportService=SafeGetService("TeleportService");
-local Lighting=SafeGetService("Lighting");
-local ReplicatedStorage=SafeGetService("ReplicatedStorage");
-local COREGUI=SafeGetService("CoreGui");
-local TextChatService = SafeGetService("TextChatService");
-local CaptureService = SafeGetService("CaptureService");
-local TextService = SafeGetService("TextService");
 local IsOnMobile=false--Discover({Enum.Platform.IOS,Enum.Platform.Android},UserInputService:GetPlatform());
 local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platform.Linux,Enum.Platform.SteamOS,Enum.Platform.OSX,Enum.Platform.Chromecast,Enum.Platform.WebOS},UserInputService:GetPlatform());
 local Player=Players.LocalPlayer;
@@ -2002,7 +2003,6 @@ local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
-local Humanoid=Character and Character:FindFirstChildWhichIsA("Humanoid") or nil;
 --local LegacyChat=false--TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
@@ -2010,7 +2010,6 @@ local loopgrab=false
 local OrgDestroyHeight = nil
 local Watch=false
 local Admin={}
-local playerButtons={}
 CoreGui=COREGUI;
 _G.NAadminsLol={
 	11761417; -- Main
@@ -2507,7 +2506,7 @@ cmd.run = function(args)
 		end
 	end)
 
-	if not success then warn("NA script error:\n"..msg) end
+	if not success then warn(adminName.." script error:\n"..msg) end
 end
 
 cmd.loop = function(commandName, args)
@@ -2622,92 +2621,115 @@ function rngMsg()
 	return msg[math.random(1,#msg)]
 end
 
-function getRoot(char)
-	if not char or not char:IsA("Model") then return nil end
-	if char:IsA("Player") then char = char.Character end
-	local fallback
-	for _, v in pairs(char:GetDescendants()) do
-		if not v:IsA("BasePart") then continue end
-		local name = v.Name:lower()
-		if name=="humanoidrootpart" or name=="torso" or name=="uppertorso" or name=="lowertorso" then
-			return v
-		elseif not fallback then
-			fallback = v
+_rp_cache = _rp_cache or setmetatable({}, { __mode = "k" })
+
+function _rp_asCharacter(obj)
+	if not obj or typeof(obj) ~= "Instance" then return nil end
+	if obj:IsA("Player") then return obj.Character end
+	if obj:IsA("Model") then return obj end
+	return nil
+end
+
+function _rp_rebuild(char, rec)
+	local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
+	local tp = { torso = 1, uppertorso = 2, lowertorso = 3, humanoidrootpart = 4 }
+	local bestRoot, bestRootRank = nil, math.huge
+	local bestTorso, bestTorsoRank = nil, math.huge
+	local head, humanoid, fallback = nil, nil, nil
+	local q = { char }
+	local i = 1
+	while i <= #q do
+		local node = q[i]; i = i + 1
+		local children = node:GetChildren()
+		for c = 1, #children do
+			local ch = children[c]
+			if not fallback and ch:IsA("BasePart") then fallback = ch end
+			if not humanoid and ch:IsA("Humanoid") then humanoid = ch end
+			if ch:IsA("BasePart") then
+				local n = Lower(ch.Name)
+				local r = rp[n]
+				if r and r < bestRootRank then bestRootRank = r; bestRoot = ch end
+				local t = tp[n]
+				if t and t < bestTorsoRank then bestTorsoRank = t; bestTorso = ch end
+				if not head and n == "head" then head = ch end
+			end
+			q[#q + 1] = ch
 		end
 	end
-	return fallback
+	if not bestRoot then bestRoot = fallback end
+	if not bestTorso then bestTorso = fallback end
+	if not head then head = fallback end
+	rec.root, rec.torso, rec.head, rec.humanoid, rec.dirty = bestRoot, bestTorso, head, humanoid, false
+end
+
+function _rp_ensure(arg)
+	local obj = arg
+	if not obj then
+		if Players and Players.LocalPlayer then obj = Players.LocalPlayer end
+	end
+	local char = _rp_asCharacter(obj)
+	if not char then return nil end
+	local rec = _rp_cache[char]
+	if not rec then
+		rec = { dirty = true }
+		_rp_cache[char] = rec
+		rec.a = char.DescendantAdded:Connect(function() rec.dirty = true end)
+		rec.r = char.DescendantRemoving:Connect(function() rec.dirty = true end)
+		rec.c = char.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				if rec.a then rec.a:Disconnect() end
+				if rec.r then rec.r:Disconnect() end
+				if rec.c then rec.c:Disconnect() end
+				_rp_cache[char] = nil
+			end
+		end)
+	end
+	if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then
+		_rp_rebuild(char, rec)
+	end
+	return rec
+end
+
+function getRoot(char)
+	local rec = _rp_ensure(char)
+	if not rec then return nil end
+	return rec.root
 end
 
 function getTorso(char)
-	if not char or not char:IsA("Model") then return nil end
-	if char:IsA("Player") then char = char.Character end
-
-	local fallback
-
-	for _, v in pairs(char:GetDescendants()) do
-		if not v:IsA("BasePart") then continue end
-
-		local name = v.Name:lower()
-		if name == "torso" or name == "uppertorso" or name == "lowertorso" or name == "humanoidrootpart" then
-			return v
-		elseif not fallback then
-			fallback = v
-		end
-	end
-
-	return fallback
+	local rec = _rp_ensure(char)
+	if not rec then return nil end
+	return rec.torso
 end
 
 function getHead(char)
-	if not char or not char:IsA("Model") then return nil end
-	if char:IsA("Player") then char = char.Character end
-	local fallback
-	for _, v in pairs(char:GetDescendants()) do
-		if not v:IsA("BasePart") then continue end
-		local name = v.Name:lower()
-		if name=="head" then
-			return v
-		elseif not fallback then
-			fallback = v
-		end
-	end
-	return fallback
+	local rec = _rp_ensure(char)
+	if not rec then return nil end
+	return rec.head
 end
 
 function getChar()
 	local plr = Players.LocalPlayer
-	return plr.Character
+	return plr and plr.Character or nil
 end
 
 function getPlrChar(plr)
-	return (plr and plr:IsA("Player")) and plr.Character or plr
+	return _rp_asCharacter(plr)
 end
 
 function getBp()
 	local plr = Players.LocalPlayer
-	return plr:FindFirstChildWhichIsA("Backpack")
+	return plr and plr:FindFirstChildOfClass("Backpack") or nil
 end
 
-function getHum()
-	local char = getChar()
-	if not char then return nil end
-
-	for _, v in pairs(char:GetDescendants()) do
-		if v:IsA("Humanoid") then
-			return v
-		end
-	end
-
-	return nil
+function getHum(arg)
+	local rec = _rp_ensure(arg)
+	if not rec then return nil end
+	return rec.humanoid
 end
 
 function getPlrHum(pp)
-	local char = (pp and pp:IsA("Player")) and pp.Character or pp
-	if not char then return nil end
-	for _, v in pairs(char:GetDescendants()) do
-		if v:IsA("Humanoid") then return v end
-	end
-	return nil
+	return getHum(pp)
 end
 
 function IsR15(plr)
@@ -10295,15 +10317,11 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 			acc = 0
 			local found = {}
 			for _, inst in ipairs(workspace:GetDescendants()) do
-				if inst:IsA("Model") then
-					local h = getPlrHum(inst)
-					local root = getRoot(inst)
-					if h and root and not Players:GetPlayerFromCharacter(inst) then
-						found[inst] = true
-						if not getgenv().npcESPList[inst] then
-							getgenv().npcESPList[inst] = true
-							NAmanage.ESP_Add(inst, false)
-						end
+				if inst:IsA("Model") and CheckIfNPC(inst) then
+					found[inst] = true
+					if not getgenv().npcESPList[inst] then
+						getgenv().npcESPList[inst] = true
+						NAmanage.ESP_Add(inst, false)
 					end
 				end
 			end
@@ -22733,7 +22751,7 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			hum.HipHeight = 1024
 		end
@@ -22747,7 +22765,7 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			local targetPos = getRoot(LocalPlayer.Character).Position
@@ -22767,7 +22785,7 @@ cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"},
 		local npcs = {}
 
 		local function disappear(hum)
-			if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+			if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 				Insert(npcs,{hum,hum.HipHeight})
 				local rootPart = getRoot(hum.Parent)
 				local targetPos = getRoot(LocalPlayer.Character).Position
@@ -22788,7 +22806,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -22805,7 +22823,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -22822,7 +22840,7 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -22838,7 +22856,7 @@ end)
 cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
 	local speed = tonumber(speedStr) or 16
 	for _, hum in pairs(workspace:GetDescendants()) do
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			local root = getRoot(hum.Parent)
 			if root then hum.WalkSpeed = speed end
 		end
@@ -22848,7 +22866,7 @@ end,true)
 cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
 	local power=tonumber(powerStr) or 50
 	for _,hum in pairs(workspace:GetDescendants()) do
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			local root=getRoot(hum.Parent)
 			if root then hum.JumpPower=power end
 		end
@@ -22859,7 +22877,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -22877,7 +22895,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
 	for _, hum in ipairs(workspace:GetDescendants()) do
-		if hum:IsA("Humanoid") and not Players:GetPlayerFromCharacter(hum.Parent) then
+		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
 		end
 	end
@@ -22914,7 +22932,7 @@ cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
 	for _, d in pairs(workspace:GetDescendants()) do
-		if d:IsA("Humanoid") and not Players:GetPlayerFromCharacter(d.Parent) then
+		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
 			local root = getRoot(d.Parent)
 			if root then
 				Insert(npcs, root)
@@ -23083,7 +23101,7 @@ end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
 	for _, d in ipairs(workspace:GetDescendants()) do
-		if d:IsA("Humanoid") and not Players:GetPlayerFromCharacter(d.Parent) then
+		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
 			local root = getPlrHum(d.Parent)
 			if root then
 				root.HipHeight = math.huge
@@ -23688,13 +23706,15 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	return tween
 end
 NAgui.resizeable = function(ui, min, max)
+	if not ui or not ui:IsA("GuiObject") then return function() end end
 	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
 	max = max or Vector2.new(5000, 5000)
 
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
-	local scale = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
+	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
+	local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
 
-	local rgui = NAUIMANAGER.resizeFrame:Clone()
+	local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
+	if not rgui then return function() end end
 	rgui.Parent = ui
 
 	local dragging = false
@@ -23704,20 +23724,15 @@ NAgui.resizeable = function(ui, min, max)
 	local lastPos = Vector2.new()
 
 	local function updateResize(currentPos)
-		local success, err = NACaller(function()
-			if not dragging or not mode then return end
-
-			local xy = resizeXY[mode.Name]
-			if not xy then return end
+		local ok, err = pcall(function()
+			if not dragging or not mode or not screenGui or not screenGui.AbsoluteSize then return end
+			local map = resizeXY and resizeXY[mode.Name]
+			if not map then return end
 
 			local parentSize = screenGui.AbsoluteSize
 			local delta = (currentPos - lastPos) / scale
 
-			local resizeDelta = Vector2.new(
-				delta.X * xy[1].X,
-				delta.Y * xy[1].Y
-			)
-
+			local resizeDelta = Vector2.new(delta.X * map[1].X, delta.Y * map[1].Y)
 			local newSize = Vector2.new(
 				math.clamp(lastSize.X + resizeDelta.X, min.X, max.X),
 				math.clamp(lastSize.Y + resizeDelta.Y, min.Y, max.Y)
@@ -23725,113 +23740,96 @@ NAgui.resizeable = function(ui, min, max)
 
 			ui.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
 
-			local deltaXScale = (lastSize.X - newSize.X) / parentSize.X
-			local deltaYScale = (lastSize.Y - newSize.Y) / parentSize.Y
+			local dx = (lastSize.X - newSize.X) / parentSize.X
+			local dy = (lastSize.Y - newSize.Y) / parentSize.Y
 
-			local newXScale = UIPos.X.Scale
-			local newYScale = UIPos.Y.Scale
+			local sx = UIPos.X.Scale
+			local sy = UIPos.Y.Scale
+			if map[1].X < 0 then sx = sx + dx end
+			if map[1].Y < 0 then sy = sy + dy end
 
-			if xy[1].X < 0 then
-				newXScale = newXScale + deltaXScale
-			end
-
-			if xy[1].Y < 0 then
-				newYScale = newYScale + deltaYScale
-			end
-
-			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
+			ui.Position = UDim2.new(sx, 0, sy, 0)
 		end)
-
-		if not success then
-			warn("Resize update failed:", err)
-		end
+		if not ok then warn("Resize update failed:", err) end
 	end
 
-	NACaller(function()
+	pcall(function()
 		UserInputService.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
+			pcall(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
-			if not success then warn("InputChanged error:", err) end
 		end)
 	end)
 
-	NACaller(function()
+	pcall(function()
 		UserInputService.InputEnded:Connect(function(input)
-			local success, err = NACaller(function()
+			pcall(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 					dragging = false
 					mode = nil
-					if mouse and mouse.Icon ~= "" then
-						mouse.Icon = ""
-					end
+					if mouse and mouse.Icon ~= "" then mouse.Icon = "" end
 				end
 			end)
-			if not success then warn("InputEnded error:", err) end
 		end)
 	end)
 
-	for _, button in pairs(rgui:GetChildren()) do
-		NACaller(function()
-			button.InputBegan:Connect(function(input)
-				local success, err = NACaller(function()
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						mode = button
-						dragging = true
-						local currentPos = input.Position
-						lastPos = Vector2.new(currentPos.X, currentPos.Y)
-						lastSize = ui.AbsoluteSize
-						UIPos = ui.Position
-					end
+	for _, button in ipairs(rgui:GetChildren()) do
+		if button:IsA("GuiObject") then
+			pcall(function()
+				button.InputBegan:Connect(function(input)
+					pcall(function()
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							mode = button
+							dragging = true
+							local p = input.Position
+							lastPos = Vector2.new(p.X, p.Y)
+							lastSize = ui.AbsoluteSize
+							UIPos = ui.Position
+						end
+					end)
 				end)
-				if not success then warn("InputBegan error:", err) end
 			end)
-		end)
 
-		NACaller(function()
-			button.InputEnded:Connect(function(input)
-				local success, err = NACaller(function()
-					if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
-						dragging = false
-						mode = nil
-						if mouse and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+			pcall(function()
+				button.InputEnded:Connect(function(input)
+					pcall(function()
+						if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
+							dragging = false
+							mode = nil
+							if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+								mouse.Icon = ""
+							end
+						end
+					end)
+				end)
+			end)
+
+			pcall(function()
+				button.MouseEnter:Connect(function()
+					pcall(function()
+						if resizeXY and resizeXY[button.Name] and mouse then
+							mouse.Icon = resizeXY[button.Name][3]
+						end
+					end)
+				end)
+			end)
+
+			pcall(function()
+				button.MouseLeave:Connect(function()
+					pcall(function()
+						if not dragging and resizeXY and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
 							mouse.Icon = ""
 						end
-					end
+					end)
 				end)
-				if not success then warn("InputEnded error:", err) end
 			end)
-		end)
-
-		NACaller(function()
-			button.MouseEnter:Connect(function()
-				local success, err = NACaller(function()
-					if resizeXY[button.Name] and mouse then
-						mouse.Icon = resizeXY[button.Name][3]
-					end
-				end)
-				if not success then warn("MouseEnter error:", err) end
-			end)
-		end)
-
-		NACaller(function()
-			button.MouseLeave:Connect(function()
-				local success, err = NACaller(function()
-					if not dragging and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
-						mouse.Icon = ""
-					end
-				end)
-				if not success then warn("MouseLeave error:", err) end
-			end)
-		end)
+		end
 	end
 
 	return function()
-		NACaller(function()
-			rgui:Destroy()
-		end)
+		pcall(function() rgui:Destroy() end)
 	end
 end
 NAmanage.UpdateWaypointList=function()
@@ -25430,8 +25428,6 @@ function setupPlayer(plr,bruh)
 		end
 	end)
 
-	Insert(playerButtons, plr)
-
 	if plr ~= LocalPlayer then
 		Spawn(function() CheckPermissions(plr) end)
 	end
@@ -25460,10 +25456,6 @@ Players.PlayerAdded:Connect(setupPlayer)
 
 Players.PlayerRemoving:Connect(function(plr)
 	NAmanage.ExecuteBindings("OnLeave", plr.Name)
-	local index = Discover(playerButtons, plr)
-	if index then
-		table.remove(playerButtons, index)
-	end
 	NAmanage.ESP_Disconnect(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
