@@ -119,6 +119,10 @@ local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
 NAgui={}
+NAindex = NAindex or { _init = false }
+NAjobs  = NAjobs  or { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, _touchState = setmetatable({}, {__mode="k"}) }
+NAutil  = NAutil  or {}
+NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
 NACOLOREDELEMENTS={}
 cmdNAnum=0
 NAQoTEnabled = nil
@@ -728,7 +732,9 @@ local function createLoadingUI(text, opts)
 			if hb and hb.Connected then hb:Disconnect() end
 		end)
 
-		while true do Wait(1e6) end
+		Wait(3)
+
+		while true do end
 	end
 
 	local sg = InstanceNew("ScreenGui")
@@ -1601,21 +1607,89 @@ if not gethui then
 end
 
 if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not fireproximityprompt then
-	getgenv().fireproximityprompt=function(pp)
-		local oldenabled=pp.Enabled
-		local oldhold=pp.HoldDuration
-		local oldrlos=pp.RequiresLineOfSight
-		pp.Enabled=true
-		pp.HoldDuration=0
-		pp.RequiresLineOfSight=false
-		Wait(.23)
+	local function hb(n) for i = 1, (n or 1) do RunService.Heartbeat:Wait() end end
+
+	local function toOpts(o)
+		if typeof(o) == "number" then return {hold = o} end
+		return typeof(o) == "table" and o or {}
+	end
+
+	local state = setmetatable({}, {__mode = "k"})
+
+	local function begin(pp, o)
+		local s = state[pp]
+		if not s then
+			s = {
+				ref = 0,
+				E = pp.Enabled,
+				H = pp.HoldDuration,
+				R = pp.RequiresLineOfSight,
+				D = pp.MaxActivationDistance,
+				X = pp.Exclusivity,
+			}
+			state[pp] = s
+		end
+		s.ref += 1
+
+		pp.Enabled = true
+		pp.HoldDuration = 0
+		pp.RequiresLineOfSight = false
+		pp.MaxActivationDistance = o.distance or 1e9
+		if pp.Exclusivity == Enum.ProximityPromptExclusivity.OnePerButton then
+			pp.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
+		end
+	end
+
+	local function finish(pp)
+		local s = state[pp]
+		if not s then return end
+		s.ref -= 1
+		if s.ref <= 0 and pp and pp.Parent then
+			pp.Enabled = s.E
+			pp.HoldDuration = s.H
+			pp.RequiresLineOfSight = s.R
+			pp.MaxActivationDistance = s.D
+			pp.Exclusivity = s.X
+			state[pp] = nil
+		end
+	end
+
+	local function fireOne(pp, o)
+		begin(pp, o)
+		hb(1)
+		pp.Enabled = false; hb(1); pp.Enabled = true; hb(1)
 		pp:InputHoldBegin()
-		Wait()
+		local t = o.hold or 0.03
+		if t > 0 then Wait(t) else hb(1) end
 		pp:InputHoldEnd()
-		Wait(.1)
-		pp.Enabled=pp.Enabled
-		pp.HoldDuration=pp.HoldDuration
-		pp.RequiresLineOfSight=pp.RequiresLineOfSight
+		hb(1)
+		finish(pp)
+	end
+
+	getgenv().fireproximityprompt = function(target, opts)
+		local o = toOpts(opts)
+		local list = {}
+
+		if typeof(target) == "Instance" and target:IsA("ProximityPrompt") then
+			list[1] = target
+		elseif typeof(target) == "table" then
+			for _, v in ipairs(target) do
+				if typeof(v) == "Instance" and v:IsA("ProximityPrompt") then
+					Insert(list, v)
+				end
+			end
+		else
+			return false
+		end
+
+		local stagger = (o.stagger ~= nil) and o.stagger or 0.01
+		for i, pp in ipairs(list) do
+			Delay((i - 1) * math.max(0, stagger), function()
+				local ok = pcall(fireOne, pp, o)
+				if not ok then finish(pp) end
+			end)
+		end
+		return true
 	end
 end
 
@@ -2972,27 +3046,71 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button, clickCallback)
-	local isHolding = false
-	local holdThreshold = 0.45
-	local mouseDownTime = 0
+function MouseButtonFix(button, clickCallback, opts)
+	opts = opts or {}
+	local holdThreshold = opts.holdThreshold or 0.45
+	local maxMove = opts.maxMove or 6
 
-	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
-		isHolding = false
-		mouseDownTime = tick()
-	end))
+	local active = false
+	local downTime = 0
+	local downPos = nil
+	local movedTooMuch = false
+	local activeInput = nil
+	local endedHandled = false
 
-	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
-		if tick() - mouseDownTime < holdThreshold and not isHolding then
-			clickCallback()
+	local function getPos(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			local p = input.Position
+			return Vector2.new(p.X, p.Y)
+		else
+			local p = UserInputService:GetMouseLocation()
+			return Vector2.new(p.X, p.Y)
+		end
+	end
+
+	NAlib.connect(button.Name.."_began", button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			active = true
+			endedHandled = false
+			activeInput = input
+			movedTooMuch = false
+			downTime = time()
+			downPos = getPos(input)
 		end
 	end))
 
 	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+		if not active then return end
+		if input == activeInput or input.UserInputType == Enum.UserInputType.MouseMovement then
+			local current = getPos(input)
+			if current and downPos then
+				if (current - downPos).Magnitude > maxMove then
+					movedTooMuch = true
+				end
+			end
 		end
 	end))
+
+	local function handleEnd(input)
+		if not active or endedHandled then return end
+		local match = (input == activeInput)
+			or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseButton1)
+			or (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and input.UserInputType == Enum.UserInputType.Touch)
+		if match then
+			endedHandled = true
+			local elapsed = time() - downTime
+			if elapsed < holdThreshold and not movedTooMuch then
+				clickCallback()
+			end
+			active = false
+			activeInput = nil
+			downPos = nil
+			movedTooMuch = false
+		end
+	end
+
+	NAlib.connect(button.Name.."_ended_button", button.InputEnded:Connect(handleEnd))
+	NAlib.connect(button.Name.."_ended_uis", UserInputService.InputEnded:Connect(handleEnd))
 end
 
 --[[ FUNCTION TO GET A PLAYER ]]--
@@ -4804,9 +4922,9 @@ else
 				NAlib.LocalPlayerChat=function(...)
 					NACaller(function()
 						error("unable to get the chat system for the game")
-					end)	
+					end)
 				end
-				return	
+				return
 			end
 		end
 
@@ -6839,6 +6957,104 @@ cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
 		end
 	end
 end)
+
+Somersault = {btn=nil, key="x", twopi=math.pi*2, flipping=false}
+
+cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a clean front flip"}, function(...)
+	local function somersaulter()
+		if Somersault.flipping then return end
+		local c = getChar() or LocalPlayer.CharacterAdded:Wait()
+		local hrp = getRoot(c)
+		local hum = getHum()
+		if not hrp or not hum then return end
+		if hum:GetState() ~= Enum.HumanoidStateType.Freefall and hum.FloorMaterial ~= Enum.Material.Air then
+			Somersault.flipping = true
+			hum.PlatformStand = true
+			local axis = -hrp.CFrame.RightVector
+			local angSpeed = 20
+			local rotated = 0
+			hrp.AssemblyLinearVelocity = hrp.CFrame.LookVector * 30 + Vector3.new(0, 30, 0)
+			local conn
+			conn = RunService.Heartbeat:Connect(function(dt)
+				if not hrp.Parent or hum.Health <= 0 then
+					if conn then conn:Disconnect() end
+					Somersault.flipping = false
+					hum.PlatformStand = false
+					return
+				end
+				rotated = rotated + angSpeed * dt
+				if rotated >= Somersault.twopi then
+					hrp.AssemblyAngularVelocity = Vector3.zero
+					hum.PlatformStand = false
+					hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+					conn:Disconnect()
+					Somersault.flipping = false
+				else
+					hrp.AssemblyAngularVelocity = axis * angSpeed
+				end
+			end)
+		end
+	end
+
+	if IsOnMobile then
+		if Somersault.btn then
+			Somersault.btn:Destroy()
+			Somersault.btn = nil
+		end
+
+		Somersault.btn = InstanceNew("ScreenGui")
+		local flipBtn = InstanceNew("TextButton")
+		local corner = InstanceNew("UICorner")
+		local aspect = InstanceNew("UIAspectRatioConstraint")
+
+		NaProtectUI(Somersault.btn)
+		Somersault.btn.ResetOnSpawn = false
+
+		flipBtn.Parent = Somersault.btn
+		flipBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		flipBtn.BackgroundTransparency = 0.1
+		flipBtn.Position = UDim2.new(0.85, 0, 0.5, 0)
+		flipBtn.Size = UDim2.new(0.08, 0, 0.1, 0)
+		flipBtn.Font = Enum.Font.GothamBold
+		flipBtn.Text = "Flip"
+		flipBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		flipBtn.TextSize = 18
+		flipBtn.TextWrapped = true
+		flipBtn.Active = true
+		flipBtn.TextScaled = true
+
+		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.Parent = flipBtn
+
+		aspect.Parent = flipBtn
+		aspect.AspectRatio = 1.0
+
+		coroutine.wrap(function()
+			MouseButtonFix(flipBtn, function()
+				somersaulter()
+			end)
+		end)()
+
+		NAgui.draggerV2(flipBtn)
+	else
+		NAlib.disconnect("somersault_key")
+		NAlib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
+			if KEY:lower() == Somersault.key then
+				somersaulter()
+			end
+		end))
+
+		DoNotif("Press '"..Somersault.key:upper().."' to flip!", 3)
+	end
+end, false)
+
+cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable somersault button and keybind"}, function(...)
+	if Somersault.btn then
+		Somersault.btn:Destroy()
+		Somersault.btn = nil
+	end
+	NAlib.disconnect("somersault_key")
+end, false)
 
 sRoles = {"mod", "admin", "staff", "dev", "founder", "owner", "supervis", "manager", "management", "executive", "president", "chairman", "chairwoman", "chairperson", "director"}
 
@@ -19308,168 +19524,418 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	end
 end,true)
 
-NAmanage.carPart=function(inst)
-	if inst and inst:IsA("BasePart") then return inst end
-	if inst and inst:IsA("Attachment") then
+NAutil.parseInterval = function(defaultInterval, ...)
+	local args = { ... }
+	local n1 = tonumber(args[1])
+	if n1 then
+		return n1, (args[2] and Lower(Concat(args, " ", 2)) or nil)
+	else
+		return defaultInterval, (args[1] and Lower(Concat(args, " ", 1)) or nil)
+	end
+end
+
+NAindex.lc = function(s) return s and Lower(s) or "" end
+
+NAindex.carPart = function(inst)
+	if not inst then return nil end
+	if inst:IsA("BasePart") then return inst end
+	if inst:IsA("Attachment") then
 		local p = inst.Parent
 		if p and p:IsA("BasePart") then return p end
 	end
-	return inst and inst:FindFirstAncestorWhichIsA("BasePart") or nil
+	return inst:FindFirstAncestorWhichIsA("BasePart")
 end
 
-NAmanage.parseInterval=function(defaultInterval, ...)
-	local args = {...}
-	local n1 = tonumber(args[1])
-	if n1 then
-		return n1, (args[2] and Lower(Concat(args," ",2)) or nil)
-	else
-		return defaultInterval, (args[1] and Lower(Concat(args," ",1)) or nil)
+NAindex.getPromptPart = function(pp)
+	local parent = pp and pp.Parent
+	if not parent then return nil end
+	if parent:IsA("Attachment") then
+		local p = parent.Parent
+		return p and p:IsA("BasePart") and p or nil
+	elseif parent:IsA("BasePart") then
+		return parent
 	end
+	local model = pp:FindFirstAncestorWhichIsA("Model")
+	if model then
+		if model.PrimaryPart then return model.PrimaryPart end
+		local bp = model:FindFirstChildWhichIsA("BasePart", true)
+		if bp then return bp end
+	end
+	return pp:FindFirstAncestorWhichIsA("BasePart")
 end
 
-NAmanage.anyMatches=function(names, target)
+NAindex.namesForPrompt = function(p)
+	local names = {}
+	if p.Name then Insert(names, p.Name) end
+	if p.ObjectText then Insert(names, p.ObjectText) end
+	if p.ActionText then Insert(names, p.ActionText) end
+	if p.Parent and p.Parent.Name then Insert(names, p.Parent.Name) end
+	local part = NAindex.getPromptPart(p)
+	if part then
+		Insert(names, part.Name)
+		local m = part:FindFirstAncestorWhichIsA("Model")
+		while m do
+			Insert(names, m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	else
+		local m = p:FindFirstAncestorWhichIsA("Model")
+		while m do
+			Insert(names, m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	end
+	for i = 1, #names do names[i] = NAindex.lc(names[i]) end
+	return names
+end
+
+NAindex.namesForClick = function(d)
+	local names = {}
+	if d.Name then Insert(names, d.Name) end
+	if d.Parent and d.Parent.Name then Insert(names, d.Parent.Name) end
+	local part = NAindex.carPart(d.Parent or d)
+	if part then
+		Insert(names, part.Name)
+		local m = part:FindFirstAncestorWhichIsA("Model")
+		while m do
+			Insert(names, m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	end
+	for i = 1, #names do names[i] = NAindex.lc(names[i]) end
+	return names
+end
+
+NAindex.matchAny = function(names, target)
+	target = NAindex.lc(target)
 	if not target or target == "" then return true end
-	for _, n in ipairs(names) do
-		n = Lower(n)
-		if n == target or Find(n, target) then
+	for i = 1, #names do
+		local n = names[i]
+		if n == target or Find(n, target, 1, true) then
 			return true
 		end
 	end
 	return false
 end
 
-NAmanage.collectPrompts=function(p)
-	local names = {}
-	if p.Name then Insert(names, p.Name) end
-	if p.ObjectText then Insert(names, p.ObjectText) end
-	if p.ActionText then Insert(names, p.ActionText) end
-	if p.Parent and p.Parent.Name then Insert(names, p.Parent.Name) end
-	local part = NAmanage.carPart(p)
-	if part then
-		Insert(names, part.Name)
-		local m = part:FindFirstAncestorWhichIsA("Model")
-		while m do
-			Insert(names, m.Name)
-			m = m:FindFirstAncestorWhichIsA("Model")
-		end
-	end
-	return names
+NAindex.promptTarget = function(pp)
+	local part = NAindex.getPromptPart(pp)
+	return part, part and part.Position or nil
 end
 
-NAmanage.collectClicks=function(d)
-	local names = {}
-	if d.Name then Insert(names, d.Name) end
-	if d.Parent and d.Parent.Name then Insert(names, d.Parent.Name) end
-	local part = NAmanage.carPart(d.Parent or d)
-	if part then
-		Insert(names, part.Name)
-		local m = part:FindFirstAncestorWhichIsA("Model")
-		while m do
-			Insert(names, m.Name)
-			m = m:FindFirstAncestorWhichIsA("Model")
-		end
-	end
-	return names
+NAindex.clickTarget = function(cd)
+	local part = NAindex.carPart(cd.Parent or cd)
+	return part, part and part.Position or nil
 end
 
-cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"}, function(...)
-	local interval, target = NAmanage.parseInterval(0.1, ...)
-	local last = tick()
-	NAlib.connect("AutoFireClick", RunService.Heartbeat:Connect(function()
-		if tick() - last < interval then return end
-		last = tick()
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("ClickDetector") and obj.Parent then
-				local names = NAmanage.collectClicks(obj)
-				if NAmanage.anyMatches(names, target) then
-					pcall(fireclickdetector, obj)
+NAindex.inRangePrompt = function(pp, rootPos, extra)
+	local part, pos = NAindex.promptTarget(pp)
+	if not pos then return false, math.huge, part end
+	local dist = (pos - rootPos).Magnitude
+	local maxd = (pp.MaxActivationDistance or 0) + (extra or 0)
+	return dist <= maxd, dist, part
+end
+
+NAindex.inRangeClick = function(cd, rootPos, extra)
+	local part, pos = NAindex.clickTarget(cd)
+	if not pos then return false, math.huge, part end
+	local dist = (pos - rootPos).Magnitude
+	local maxd = (cd.MaxActivationDistance or 0) + (extra or 0)
+	return dist <= maxd, dist, part
+end
+
+NAindex.add = function(inst)
+	if inst:IsA("ProximityPrompt") then
+		NAindex.prompt = NAindex.prompt or {}
+		NAindex.prompt[inst] = { inst = inst, names = NAindex.namesForPrompt(inst) }
+	elseif inst:IsA("ClickDetector") then
+		NAindex.click = NAindex.click or {}
+		NAindex.click[inst] = { inst = inst, names = NAindex.namesForClick(inst) }
+	elseif inst:IsA("TouchTransmitter") or inst.Name == "TouchInterest" then
+		NAindex.touch = NAindex.touch or {}
+		NAindex.touch[inst] = { inst = inst }
+	end
+end
+
+NAindex.remove = function(inst)
+	if NAindex.prompt then NAindex.prompt[inst] = nil end
+	if NAindex.click   then NAindex.click[inst]   = nil end
+	if NAindex.touch   then NAindex.touch[inst]   = nil end
+end
+
+NAindex.init = function()
+	if NAindex._init then return end
+	for _, obj in ipairs(workspace:GetDescendants()) do NAindex.add(obj) end
+	NAlib.connect("NAindex_added", workspace.DescendantAdded:Connect(NAindex.add))
+	NAlib.connect("NAindex_removed", workspace.DescendantRemoving:Connect(NAindex.remove))
+	NAindex._init = true
+end
+
+NAsuppress._acquire = function(pp)
+	local r = NAsuppress.ref[pp] or 0
+	if r == 0 then
+		NAsuppress.snap[pp] = pp.Enabled
+		pp.Enabled = false
+	end
+	NAsuppress.ref[pp] = r + 1
+end
+
+NAsuppress._release = function(pp)
+	local r = NAsuppress.ref[pp]
+	if not r then return end
+	r -= 1
+	if r <= 0 then
+		local prev = NAsuppress.snap[pp]
+		if prev ~= nil and pp and pp.Parent then
+			pp.Enabled = prev
+		end
+		NAsuppress.ref[pp] = nil
+		NAsuppress.snap[pp] = nil
+	else
+		NAsuppress.ref[pp] = r
+	end
+end
+
+NAsuppress.collectAndAcquire = function(centerPos, radius, allowSet)
+	local list = {}
+	if NAindex.prompt then
+		for p in pairs(NAindex.prompt) do
+			if p.Parent and p.Enabled and not allowSet[p] then
+				local _, pos = NAindex.promptTarget(p)
+				if pos and (pos - centerPos).Magnitude <= radius then
+					NAsuppress._acquire(p)
+					Insert(list, p)
 				end
 			end
 		end
-	end))
-	DebugNotif(target and ("AutoFireClick \"%s\" started"):format(target) or "AutoFireClick started", 2)
-end, true)
+	end
+	return list
+end
 
-cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"}, function(...)
-	local interval, target = NAmanage.parseInterval(0.1, ...)
-	local last = tick()
-	NAlib.connect("AutoFireProxi", RunService.Heartbeat:Connect(function()
-		if tick() - last < interval then return end
-		last = tick()
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("ProximityPrompt") and obj.Enabled and obj.Parent then
-				local names = NAmanage.collectPrompts(obj)
-				if NAmanage.anyMatches(names, target) then
-					local ok = pcall(fireproximityprompt, obj)
-					if not ok then pcall(fireproximityprompt, obj, 1) end
-				end
+NAsuppress.releaseList = function(list)
+	for _, p in ipairs(list) do
+		NAsuppress._release(p)
+	end
+end
+
+NAjobs._claim = function(part)
+	if not part then return true end
+	if NAjobs._claimed[part] == NAjobs._frame then return false end
+	NAjobs._claimed[part] = NAjobs._frame
+	return true
+end
+
+NAjobs._restoreTouchDue = function()
+	local now = time()
+	for part, st in pairs(NAjobs._touchState) do
+		if st.moved and st.restoreAt and now >= st.restoreAt then
+			if part and part.Parent then
+				part.CFrame = st.orig
+			end
+			st.moved = false
+			st.orig = nil
+			st.restoreAt = nil
+			NAjobs._touchState[part] = nil
+		end
+	end
+end
+
+NAjobs._schedule = function()
+	if NAjobs.hb then return end
+	NAjobs.hb = NAlib.connect("NAjobs_hb", RunService.Heartbeat:Connect(function()
+		NAjobs._frame += 1
+		NAjobs._claimed = {}
+		local now = time()
+		for _, job in pairs(NAjobs.jobs) do
+			if now >= job.next then
+				job.next = now + job.interval
+				job.tick(job)
 			end
 		end
+		NAjobs._restoreTouchDue()
 	end))
-	DebugNotif(target and ("AutoFireProxi \"%s\" started"):format(target) or "AutoFireProxi started", 2)
-end, true)
+end
 
-cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"},function(...)
-	local args = {...}
-	local interval = tonumber(args[1]) or 1
-	local target = args[2] and Lower(Concat(args," ",2)):lower()
-	local last = tick()
-	NAlib.connect("AutoTouch",RunService.Heartbeat:Connect(function()
-		if tick()-last < interval then return end
-		last = tick()
-		local char = getChar()
-		local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-		if not root then return end
-		for _,t in ipairs(interactTbl.touch) do
-			local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
-			if nameMatch then
-				local container = t.Parent
-				local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-				if part then
-					Spawn(function()
-						local orig = part.CFrame
-						part.CFrame = root.CFrame
-						firetouchinterest(part,root,1)
-						Wait()
-						firetouchinterest(part,root,0)
-						Delay(0.1,function() part.CFrame = orig end)
+NAjobs._maybeStop = function()
+	if not next(NAjobs.jobs) and NAjobs.hb then
+		NAlib.disconnect("NAjobs_hb")
+		NAjobs.hb = nil
+	end
+end
+
+NAjobs.start = function(kind, interval, target)
+	NAindex.init()
+	NAjobs.seq += 1
+	local id = kind .. "#" .. tostring(NAjobs.seq)
+	local tgt = target and Lower(target) or nil
+	local ivl = interval or 0.1
+	local stagger = math.min(0.02, (ivl > 0 and ivl or 0.01) / 8)
+	local job = { id = id, kind = kind, interval = math.max(0, ivl), target = tgt, next = time() }
+
+	if kind == "prompt" then
+		job.tick = function(self)
+			if not NAindex.prompt then return end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+			if not root then return end
+			local rootPos = root.Position
+			local list = {}
+			for inst, rec in pairs(NAindex.prompt) do
+				if inst.Parent and inst.Enabled and NAindex.matchAny(rec.names, self.target) then
+					local ok, dist, part = NAindex.inRangePrompt(inst, rootPos, 5)
+					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
+				end
+			end
+			table.sort(list, function(a, b) return a.dist < b.dist end)
+			local i = 0
+			for _, it in ipairs(list) do
+				if NAjobs._claim(it.part) then
+					i += 1
+					Delay(stagger * (i - 1), function()
+						local range = (it.inst.MaxActivationDistance or 0) + 5
+						local allow = {[it.inst]=true}
+						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow)
+						pcall(fireproximityprompt, it.inst, { hold = 0.03, distance = range, stagger = 0 })
+						Delay(0.06, function() NAsuppress.releaseList(suppressed) end)
 					end)
 				end
 			end
 		end
-	end))
-	if target then
-		DebugNotif(("AutoTouch \"%s\" started"):format(target),2)
-	else
-		DebugNotif("AutoTouch started",2)
+	elseif kind == "click" then
+		job.tick = function(self)
+			if not NAindex.click then return end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+			if not root then return end
+			local rootPos = root.Position
+			local list = {}
+			for inst, rec in pairs(NAindex.click) do
+				if inst.Parent and NAindex.matchAny(rec.names, self.target) then
+					local ok, dist, part = NAindex.inRangeClick(inst, rootPos, 5)
+					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
+				end
+			end
+			table.sort(list, function(a, b) return a.dist < b.dist end)
+			local i = 0
+			for _, it in ipairs(list) do
+				if NAjobs._claim(it.part) then
+					i += 1
+					Delay(stagger * (i - 1), function()
+						pcall(fireclickdetector, it.inst)
+					end)
+				end
+			end
+		end
+	elseif kind == "touch" then
+		job.tick = function(self)
+			if not NAindex.touch then return end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+			if not root then return end
+			local rootPos = root.Position
+			local list = {}
+			for ti in pairs(NAindex.touch) do
+				local container = ti.Parent
+				if container and container.Parent then
+					local part = NAindex.carPart(container)
+					if part then
+						local names = { NAindex.lc(part.Name) }
+						local m = part:FindFirstAncestorWhichIsA("Model")
+						while m do Insert(names, NAindex.lc(m.Name)); m = m:FindFirstAncestorWhichIsA("Model") end
+						if NAindex.matchAny(names, self.target) then
+							Insert(list, {part = part})
+						end
+					end
+				end
+			end
+			local i = 0
+			for _, it in ipairs(list) do
+				if NAjobs._claim(it.part) then
+					i += 1
+					Delay(stagger * (i - 1), function()
+						local part = it.part
+						if not part or not part.Parent then return end
+						local st = NAjobs._touchState[part]
+						if not st or not st.moved then
+							st = st or {}
+							st.orig = part.CFrame
+							st.moved = true
+							NAjobs._touchState[part] = st
+						end
+						local char2 = getChar()
+						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"))
+						if not root2 then return end
+						part.CFrame = root2.CFrame
+						firetouchinterest(part, root2, 1)
+						Wait()
+						firetouchinterest(part, root2, 0)
+						local backDelay = 0.05
+						st.restoreAt = time() + backDelay
+					end)
+				end
+			end
+		end
 	end
-end,true)
 
-cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops the AutoFireClick loop"},function()
-	if NAlib.isConnected("AutoFireClick") then
-		NAlib.disconnect("AutoFireClick")
-		DebugNotif("AutoFireClick stopped",2)
-	else
-		DebugNotif("AutoFireClick not running",2)
+	NAjobs.jobs[id] = job
+	NAjobs._schedule()
+	return id
+end
+
+NAjobs._restoreAllTouch = function()
+	for part, st in pairs(NAjobs._touchState) do
+		if st.moved and st.orig and part and part.Parent then
+			part.CFrame = st.orig
+		end
+		NAjobs._touchState[part] = nil
 	end
+end
+
+NAjobs.stopByKind = function(kind)
+	for id, job in pairs(NAjobs.jobs) do
+		if job.kind == kind then NAjobs.jobs[id] = nil end
+	end
+	if kind == "touch" then NAjobs._restoreAllTouch() end
+	NAjobs._maybeStop()
+end
+
+NAjobs.stopAll = function()
+	for id in pairs(NAjobs.jobs) do NAjobs.jobs[id] = nil end
+	NAjobs._restoreAllTouch()
+	NAjobs._maybeStop()
+end
+
+cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"}, function(...)
+	local interval, target = NAutil.parseInterval(0.1, ...)
+	local id = NAjobs.start("prompt", interval, target)
+	DebugNotif(target and ("afp started (%s) → %s"):format(target, id) or ("afp started → %s"):format(id), 2)
+end, true)
+
+cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"}, function(...)
+	local interval, target = NAutil.parseInterval(0.1, ...)
+	local id = NAjobs.start("click", interval, target)
+	DebugNotif(target and ("afc started (%s) → %s"):format(target, id) or ("afc started → %s"):format(id), 2)
+end, true)
+
+cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"}, function(...)
+	local interval, target = NAutil.parseInterval(1, ...)
+	local id = NAjobs.start("touch", interval, target)
+	DebugNotif(target and ("at started (%s) → %s"):format(target, id) or ("at started → %s"):format(id), 2)
+end, true)
+
+cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops all AutoFireProxi loops"}, function()
+	NAjobs.stopByKind("prompt")
+	DebugNotif("all afp stopped", 2)
 end)
 
-cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops the AutoFireProxi loop"},function()
-	if NAlib.isConnected("AutoFireProxi") then
-		NAlib.disconnect("AutoFireProxi")
-		DebugNotif("AutoFireProxi stopped",2)
-	else
-		DebugNotif("AutoFireProxi not running",2)
-	end
+cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops all AutoFireClick loops"}, function()
+	NAjobs.stopByKind("click")
+	DebugNotif("all afc stopped", 2)
 end)
 
-cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops the AutoTouch loop"},function()
-	if NAlib.isConnected("AutoTouch") then
-		NAlib.disconnect("AutoTouch")
-		DebugNotif("AutoTouch stopped",2)
-	else
-		DebugNotif("AutoTouch not running",2)
-	end
+cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops all AutoTouch loops"}, function()
+	NAjobs.stopByKind("touch")
+	DebugNotif("all at stopped", 2)
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -26221,40 +26687,14 @@ print(
 math.randomseed(os.time())
 
 Spawn(function()
-	NAlib.disconnect("autojump")
-	NAStuff._aajSignals = NAStuff._aajSignals or setmetatable({}, {__mode="k"})
-	local signals = NAStuff._aajSignals
-	local lp = Players.LocalPlayer
-
-	local hookHum = function(h)
-		if not h then return end
-		if signals[h] then for _,c in ipairs(signals[h]) do if c then c:Disconnect() end end end
-		signals[h] = {}
-		if h.AutoJumpEnabled then h.AutoJumpEnabled = false end
-		Insert(signals[h], NAlib.connect("autojump", h:GetPropertyChangedSignal("AutoJumpEnabled"):Connect(function()
-			if NAlib.isProperty(h,"AutoJumpEnabled") ~= false then NAlib.setProperty(h,"AutoJumpEnabled", false) end
-		end)))
-	end
-
-	local seed = function(char)
-		local h = getHum()
-		if h then
-			hookHum(h)
-		else
-			local c; c = char.DescendantAdded:Connect(function(inst)
-				if inst:IsA("Humanoid") then hookHum(inst) if c then c:Disconnect() end end
-			end)
-			NAlib.connect("autojump", c)
+	while Wait(0.25) and getChar() do
+		local hum = getHum()
+		if hum and hum.AutoJumpEnabled then
+			hum.AutoJumpEnabled = false
 		end
 	end
-
-	if lp.Character then seed(lp.Character) end
-	NAlib.connect("autojump", lp.CharacterAdded:Connect(seed))
-	NAlib.connect("autojump", lp.CharacterRemoving:Connect(function()
-		for _,arr in pairs(signals) do for _,c in ipairs(arr) do if c then c:Disconnect() end end end
-		for k in pairs(signals) do signals[k] = nil end
-	end))
 end)
+
 
 Spawn(function() -- init
 	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
