@@ -3070,6 +3070,7 @@ function MouseButtonFix(button, clickCallback, opts)
 	opts = opts or {}
 	local holdThreshold = opts.holdThreshold or 0.45
 	local maxMove = opts.maxMove or 6
+	local requireEndInside = (opts.requireEndInside ~= false)
 
 	local active = false
 	local downTime = 0
@@ -3077,6 +3078,7 @@ function MouseButtonFix(button, clickCallback, opts)
 	local movedTooMuch = false
 	local activeInput = nil
 	local endedHandled = false
+	local leftBounds = false
 
 	local function getPos(input)
 		if input.UserInputType == Enum.UserInputType.Touch then
@@ -3088,12 +3090,31 @@ function MouseButtonFix(button, clickCallback, opts)
 		end
 	end
 
+	local function isInsideButton(screenPos)
+		local abs = button.AbsolutePosition
+		local size = button.AbsoluteSize
+		return screenPos.X >= abs.X and screenPos.X <= abs.X + size.X
+			and screenPos.Y >= abs.Y and screenPos.Y <= abs.Y + size.Y
+	end
+
+	local function reset()
+		active = false
+		endedHandled = false
+		activeInput = nil
+		downPos = nil
+		movedTooMuch = false
+		leftBounds = false
+		downTime = 0
+	end
+
 	NAlib.connect(button.Name.."_began", button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
 			active = true
 			endedHandled = false
 			activeInput = input
 			movedTooMuch = false
+			leftBounds = false
 			downTime = time()
 			downPos = getPos(input)
 		end
@@ -3107,29 +3128,35 @@ function MouseButtonFix(button, clickCallback, opts)
 				if (current - downPos).Magnitude > maxMove then
 					movedTooMuch = true
 				end
+				if requireEndInside and not isInsideButton(current) then
+					leftBounds = true
+				end
 			end
 		end
 	end))
 
 	local function handleEnd(input)
 		if not active or endedHandled then return end
-		local match = (input == activeInput)
-			or (activeInput and activeInput.UserInputType == Enum.UserInputType.MouseButton1 and input.UserInputType == Enum.UserInputType.MouseButton1)
-			or (activeInput and activeInput.UserInputType == Enum.UserInputType.Touch and input.UserInputType == Enum.UserInputType.Touch)
-		if match then
-			endedHandled = true
-			local elapsed = time() - downTime
-			if elapsed < holdThreshold and not movedTooMuch then
-				clickCallback()
-			end
-			active = false
-			activeInput = nil
-			downPos = nil
-			movedTooMuch = false
+		if input ~= activeInput then return end
+
+		endedHandled = true
+
+		local elapsed = time() - downTime
+		local pos = getPos(input)
+		local insideAtEnd = isInsideButton(pos)
+
+		local shouldClick =
+			(elapsed < holdThreshold) and
+			(not movedTooMuch) and
+			(not requireEndInside or (insideAtEnd and not leftBounds))
+
+		if shouldClick then
+			clickCallback()
 		end
+
+		reset()
 	end
 
-	NAlib.connect(button.Name.."_ended_button", button.InputEnded:Connect(handleEnd))
 	NAlib.connect(button.Name.."_ended_uis", UserInputService.InputEnded:Connect(handleEnd))
 end
 
