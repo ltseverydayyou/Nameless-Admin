@@ -3066,98 +3066,27 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button, clickCallback, opts)
-	opts = opts or {}
-	local holdThreshold = opts.holdThreshold or 0.45
-	local maxMove = opts.maxMove or 6
-	local requireEndInside = (opts.requireEndInside ~= false)
+function MouseButtonFix(button, clickCallback)
+	local isHolding = false
+	local holdThreshold = 0.45
+	local mouseDownTime = 0
 
-	local active = false
-	local downTime = 0
-	local downPos = nil
-	local movedTooMuch = false
-	local activeInput = nil
-	local endedHandled = false
-	local leftBounds = false
+	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
+		isHolding = false
+		mouseDownTime = tick()
+	end))
 
-	local function getPos(input)
-		if input.UserInputType == Enum.UserInputType.Touch then
-			local p = input.Position
-			return Vector2.new(p.X, p.Y)
-		else
-			local p = UserInputService:GetMouseLocation()
-			return Vector2.new(p.X, p.Y)
-		end
-	end
-
-	local function isInsideButton(screenPos)
-		local abs = button.AbsolutePosition
-		local size = button.AbsoluteSize
-		return screenPos.X >= abs.X and screenPos.X <= abs.X + size.X
-			and screenPos.Y >= abs.Y and screenPos.Y <= abs.Y + size.Y
-	end
-
-	local function reset()
-		active = false
-		endedHandled = false
-		activeInput = nil
-		downPos = nil
-		movedTooMuch = false
-		leftBounds = false
-		downTime = 0
-	end
-
-	NAlib.connect(button.Name.."_began", button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
-			active = true
-			endedHandled = false
-			activeInput = input
-			movedTooMuch = false
-			leftBounds = false
-			downTime = time()
-			downPos = getPos(input)
+	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
+		if tick() - mouseDownTime < holdThreshold and not isHolding then
+			clickCallback()
 		end
 	end))
 
 	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
-		if not active then return end
-		if input == activeInput or input.UserInputType == Enum.UserInputType.MouseMovement then
-			local current = getPos(input)
-			if current and downPos then
-				if (current - downPos).Magnitude > maxMove then
-					movedTooMuch = true
-				end
-				if requireEndInside and not isInsideButton(current) then
-					leftBounds = true
-				end
-			end
+		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+			isHolding = true
 		end
 	end))
-
-	local function handleEnd(input)
-		if not active or endedHandled then return end
-		if input ~= activeInput then return end
-
-		endedHandled = true
-
-		local elapsed = time() - downTime
-		local pos = getPos(input)
-		local insideAtEnd = isInsideButton(pos)
-
-		local shouldClick =
-			(elapsed < holdThreshold) and
-			(not movedTooMuch) and
-			(not requireEndInside or (insideAtEnd and not leftBounds))
-
-		if shouldClick then
-			clickCallback()
-		end
-
-		reset()
-	end
-
-	NAlib.connect(button.Name.."_ended_uis", UserInputService.InputEnded:Connect(handleEnd))
 end
 
 --[[ FUNCTION TO GET A PLAYER ]]--
