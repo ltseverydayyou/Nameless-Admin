@@ -1243,6 +1243,8 @@ local function createLoadingUI(text, opts)
 	local function doSkip()
 		if sf.Value then return end
 		sf.Value = true
+		kb.Text='skipping...'
+		tsb.Text='skipping...'
 	end
 	kb.Activated:Connect(doSkip)
 	tsb.Activated:Connect(doSkip)
@@ -14003,7 +14005,9 @@ cmd.add({"undance"},{"undance","Stops the dance command"},function()
 	theanim:Destroy()
 end)
 
-cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prevents you from getting banning when typing unspeakable messages (requires the new chat service)"},function()
+-- still worked on (i think)
+
+--[[cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prevents you from getting banning when typing unspeakable messages (requires the new chat service)"},function()
 	local Players=SafeGetService("Players")
 	local TextChatService=SafeGetService("TextChatService")
 	local CoreGui=SafeGetService("CoreGui")
@@ -14112,7 +14116,7 @@ cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prev
 		btn.MouseButton1Click:Connect(hook)
 	end)
 	DoNotif("antichatlogs activated (W.I.P)")
-end)
+end)]]
 
 cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Animation%20Spoofer"))()
@@ -14130,6 +14134,44 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		STROKE = Color3.fromRGB(60, 60, 65),
 		OWNED = Color3.fromRGB(65, 200, 120),
 	}
+
+	local OWNERSHIP_CACHE = getgenv().__BadgeOwnershipCache or {}
+	getgenv().__BadgeOwnershipCache = OWNERSHIP_CACHE
+	local CACHE_TTL_SECS = 600
+
+	local function cacheGet(userId, badgeId)
+		local u = OWNERSHIP_CACHE[userId]
+		if not u then return nil end
+		local e = u[badgeId]
+		if not e then return nil end
+		if os.time() - e.t > CACHE_TTL_SECS then return nil end
+		return e.v
+	end
+
+	local function cachePut(userId, badgeId, value)
+		OWNERSHIP_CACHE[userId] = OWNERSHIP_CACHE[userId] or {}
+		OWNERSHIP_CACHE[userId][badgeId] = { v = value, t = os.time() }
+	end
+
+	local function hasBadgeWithRetry(userId, badgeId)
+		local cached = cacheGet(userId, badgeId)
+		if cached ~= nil then
+			return true, cached
+		end
+		local tries, delay = 0, 0.5
+		while tries < 5 do
+			tries += 1
+			local ok, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, userId, badgeId)
+			if ok then
+				has = has == true
+				cachePut(userId, badgeId, has)
+				return true, has
+			end
+			Wait(delay)
+			delay = delay * 1.6
+		end
+		return false, nil
+	end
 
 	local function getBadges()
 		local all, cursor = {}, ""
@@ -14229,22 +14271,14 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		header.BackgroundColor3 = COLORS.TOP
 		header.BackgroundTransparency = 0.12
 		local headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 14)
-		local headerPad = InstanceNew("UIPadding", header)
-		headerPad.PaddingLeft = UDim.new(0, 10)
-		headerPad.PaddingRight = UDim.new(0, 10)
 
-		local row = InstanceNew("Frame", header)
-		row.BackgroundTransparency = 1
-		row.Size = UDim2.new(1, 0, 1, 0)
-		local rowLayout = InstanceNew("UIListLayout", row)
-		rowLayout.FillDirection = Enum.FillDirection.Horizontal
-		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-		rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-		rowLayout.Padding = UDim.new(0, 8)
+		local reservedLeft = 150
+		local reservedRight = 88
 
-		local title = InstanceNew("TextLabel", row)
-		title.Size = UDim2.new(0.22, 0, 1, 0)
-		title.Text = "🏅 Badge Viewer"
+		local title = InstanceNew("TextLabel", header)
+		title.Position = UDim2.new(0, 10, 0, 0)
+		title.Size = UDim2.new(0, reservedLeft-20, 1, 0)
+		title.Text = "Badge Viewer"
 		title.Font = Enum.Font.GothamBold
 		title.TextColor3 = COLORS.TEXT
 		title.BackgroundTransparency = 1
@@ -14252,14 +14286,42 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		title.TextScaled = true
 		local tsTitle = InstanceNew("UITextSizeConstraint", title); tsTitle.MinTextSize = 12; tsTitle.MaxTextSize = 20
 
-		local searchHolder = InstanceNew("Frame", row)
-		searchHolder.Size = UDim2.new(0.32, 0, 0.8, 0)
-		searchHolder.BackgroundTransparency = 1
-		local search = InstanceNew("TextBox", searchHolder)
-		search.AnchorPoint = Vector2.new(0.5,0.5)
-		search.Position = UDim2.new(0.5,0,0.5,0)
-		search.Size = UDim2.new(1, 0, 1, 0)
-		search.PlaceholderText = "🔎 Search badges…"
+		local topbar = InstanceNew("ScrollingFrame", header)
+		topbar.Position = UDim2.new(0, 6+reservedLeft, 0, 6)
+		topbar.Size = UDim2.new(1, -(reservedLeft + reservedRight + 12), 1, -12)
+		topbar.BackgroundTransparency = 1
+		topbar.ScrollBarThickness = 4
+		topbar.ScrollingDirection = Enum.ScrollingDirection.X
+		topbar.AutomaticCanvasSize = Enum.AutomaticSize.X
+		topbar.CanvasSize = UDim2.new(0,0,0,0)
+
+		local row = InstanceNew("Frame", topbar)
+		row.BackgroundTransparency = 1
+		row.AutomaticSize = Enum.AutomaticSize.XY
+		row.Size = UDim2.new(0,0,1,0)
+		local rowLayout = InstanceNew("UIListLayout", row)
+		rowLayout.FillDirection = Enum.FillDirection.Horizontal
+		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		rowLayout.Padding = UDim.new(0, 8)
+
+		local function mkBtn(parent, text, w)
+			local b = InstanceNew("TextButton", parent)
+			b.AutoButtonColor = true
+			b.Text = text
+			b.Font = Enum.Font.GothamSemibold
+			b.TextColor3 = COLORS.TEXT
+			b.Size = UDim2.new(0, w, 1, -4)
+			b.BackgroundColor3 = Color3.fromRGB(34,34,38)
+			b.BackgroundTransparency = 0.2
+			b.TextScaled = true
+			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 8)
+			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 10; ts.MaxTextSize = 18
+			return b
+		end
+
+		local search = InstanceNew("TextBox", row)
+		search.Size = UDim2.new(0, 240, 1, -4)
+		search.PlaceholderText = "Search badges..."
 		search.ClearTextOnFocus = false
 		search.Text = ""
 		search.BackgroundColor3 = Color3.fromRGB(34,34,38)
@@ -14268,7 +14330,6 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		search.PlaceholderColor3 = COLORS.MUTED
 		search.TextXAlignment = Enum.TextXAlignment.Left
 		search.Font = Enum.Font.Gotham
-		search.TextSize = 24
 		search.TextScaled = true
 		local sc = InstanceNew("UICorner", search); sc.CornerRadius = UDim.new(0, 8)
 		local sp = InstanceNew("UIPadding", search)
@@ -14276,46 +14337,40 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		sp.PaddingRight = UDim.new(0, 6)
 		local tsSearch = InstanceNew("UITextSizeConstraint", search); tsSearch.MinTextSize = 10; tsSearch.MaxTextSize = 18
 
-		local ownedOnlyBtn = InstanceNew("TextButton", row)
-		ownedOnlyBtn.AutoButtonColor = true
-		ownedOnlyBtn.Text = "🏆 Owned: OFF"
-		ownedOnlyBtn.Font = Enum.Font.GothamSemibold
-		ownedOnlyBtn.TextColor3 = COLORS.TEXT
-		ownedOnlyBtn.Size = UDim2.new(0.15, 0, 0.8, 0)
-		ownedOnlyBtn.BackgroundColor3 = Color3.fromRGB(34,34,38)
-		ownedOnlyBtn.BackgroundTransparency = 0.2
-		ownedOnlyBtn.TextScaled = true
-		local ooc = InstanceNew("UICorner", ownedOnlyBtn); ooc.CornerRadius = UDim.new(0, 8)
-		local tsOwned = InstanceNew("UITextSizeConstraint", ownedOnlyBtn); tsOwned.MinTextSize = 10; tsOwned.MaxTextSize = 18
+		local ownedOnlyBtn = mkBtn(row, "Owned: OFF", 110)
+		local unownedOnlyBtn = mkBtn(row, "Unowned: OFF", 130)
+		local layoutToggle = mkBtn(row, "List", 80)
+		local refreshBtn = mkBtn(row, "Refresh", 100)
 
-		local layoutToggle = InstanceNew("TextButton", row)
-		layoutToggle.AutoButtonColor = true
-		layoutToggle.Text = "🧩 Grid"
-		layoutToggle.Font = Enum.Font.GothamSemibold
-		layoutToggle.TextColor3 = COLORS.TEXT
-		layoutToggle.Size = UDim2.new(0.11, 0, 0.8, 0)
-		layoutToggle.BackgroundColor3 = Color3.fromRGB(34,34,38)
-		layoutToggle.BackgroundTransparency = 0.2
-		layoutToggle.TextScaled = true
-		local ltc = InstanceNew("UICorner", layoutToggle); ltc.CornerRadius = UDim.new(0, 8)
-		local tsLayout = InstanceNew("UITextSizeConstraint", layoutToggle); tsLayout.MinTextSize = 10; tsLayout.MaxTextSize = 18
+		local fixedBar = InstanceNew("Frame", header)
+		fixedBar.AnchorPoint = Vector2.new(1,0)
+		fixedBar.Position = UDim2.new(1, -6, 0, 6)
+		fixedBar.Size = UDim2.new(0, reservedRight, 1, -12)
+		fixedBar.BackgroundTransparency = 1
+		fixedBar.ZIndex = 5
+		local fixedLayout = InstanceNew("UIListLayout", fixedBar)
+		fixedLayout.FillDirection = Enum.FillDirection.Horizontal
+		fixedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		fixedLayout.Padding = UDim.new(0, 8)
 
-		local minBtn = InstanceNew("TextButton", row)
-		minBtn.Text = "—"
-		minBtn.Size = UDim2.new(0.05, 0, 0.8, 0)
+		local minBtn = InstanceNew("TextButton", fixedBar)
+		minBtn.Size = UDim2.new(0, 36, 1, 0)
+		minBtn.Text = "-"
 		minBtn.Font = Enum.Font.Gotham
 		minBtn.BackgroundTransparency = 1
 		minBtn.TextColor3 = COLORS.MUTED
 		minBtn.TextScaled = true
+		minBtn.ZIndex = 6
 		local tsMin = InstanceNew("UITextSizeConstraint", minBtn); tsMin.MinTextSize = 12; tsMin.MaxTextSize = 24
 
-		local closeBtn = InstanceNew("TextButton", row)
+		local closeBtn = InstanceNew("TextButton", fixedBar)
+		closeBtn.Size = UDim2.new(0, 36, 1, 0)
 		closeBtn.Text = "X"
-		closeBtn.Size = UDim2.new(0.05, 0, 0.8, 0)
 		closeBtn.Font = Enum.Font.Gotham
 		closeBtn.BackgroundTransparency = 1
 		closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
 		closeBtn.TextScaled = true
+		closeBtn.ZIndex = 6
 		local tsClose = InstanceNew("UITextSizeConstraint", closeBtn); tsClose.MinTextSize = 12; tsClose.MaxTextSize = 22
 
 		local content = InstanceNew("Frame", main)
@@ -14325,35 +14380,24 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		content.BackgroundTransparency = 1
 		content.ClipsDescendants = true
 
-		local listScroll = InstanceNew("ScrollingFrame", content)
-		listScroll.Size = UDim2.new(1, 0, 1, 0)
-		listScroll.BackgroundTransparency = 1
-		listScroll.ScrollBarThickness = 6
-		listScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		listScroll.CanvasSize = UDim2.new(0,0,0,0)
-		listScroll.Visible = false
-		local listLayout = InstanceNew("UIListLayout", listScroll)
+		local scroll = InstanceNew("ScrollingFrame", content)
+		scroll.Size = UDim2.new(1, 0, 1, 0)
+		scroll.BackgroundTransparency = 1
+		scroll.ScrollBarThickness = 6
+		scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		scroll.CanvasSize = UDim2.new(0,0,0,0)
+
+		local pad = InstanceNew("UIPadding", scroll)
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
+		pad.PaddingTop = UDim.new(0, 10)
+		pad.PaddingBottom = UDim.new(0, 10)
+
+		local listLayout = InstanceNew("UIListLayout")
 		listLayout.Padding = UDim.new(0, 10)
 		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		local listPad = InstanceNew("UIPadding", listScroll)
-		listPad.PaddingLeft = UDim.new(0, 10)
-		listPad.PaddingRight = UDim.new(0, 10)
-		listPad.PaddingTop = UDim.new(0, 10)
-		listPad.PaddingBottom = UDim.new(0, 10)
 
-		local gridScroll = InstanceNew("ScrollingFrame", content)
-		gridScroll.Size = UDim2.new(1, 0, 1, 0)
-		gridScroll.BackgroundTransparency = 1
-		gridScroll.ScrollBarThickness = 6
-		gridScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		gridScroll.CanvasSize = UDim2.new(0,0,0,0)
-		gridScroll.Visible = true
-		local gridPad = InstanceNew("UIPadding", gridScroll)
-		gridPad.PaddingLeft = UDim.new(0.01, 0)
-		gridPad.PaddingRight = UDim.new(0.01, 0)
-		gridPad.PaddingTop = UDim.new(0.01, 0)
-		gridPad.PaddingBottom = UDim.new(0.01, 0)
-		local gridLayout = InstanceNew("UIGridLayout", gridScroll)
+		local gridLayout = InstanceNew("UIGridLayout")
 		gridLayout.FillDirection = Enum.FillDirection.Horizontal
 		gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
@@ -14361,25 +14405,45 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		gridLayout.CellSize = UDim2.new(0.32, 0, 0, 190)
 		gridLayout.FillDirectionMaxCells = 0
 
+		local loadingOverlay = InstanceNew("Frame", content)
+		loadingOverlay.Size = UDim2.new(1,0,1,0)
+		loadingOverlay.BackgroundColor3 = Color3.new(0,0,0)
+		loadingOverlay.BackgroundTransparency = 0.8
+		loadingOverlay.Visible = true
+		loadingOverlay.ZIndex = 50
+		local loadingText = InstanceNew("TextLabel", loadingOverlay)
+		loadingText.AnchorPoint = Vector2.new(0.5,0.5)
+		loadingText.Position = UDim2.new(0.5,0,0.5,0)
+		loadingText.Size = UDim2.new(0.5,0,0,40)
+		loadingText.BackgroundTransparency = 1
+		loadingText.Text = "Loading..."
+		loadingText.Font = Enum.Font.GothamSemibold
+		loadingText.TextColor3 = COLORS.TEXT
+		loadingText.TextScaled = true
+		loadingText.ZIndex = 51
+		local ltSz = InstanceNew("UITextSizeConstraint", loadingText); ltSz.MinTextSize = 12; ltSz.MaxTextSize = 28
+
 		local function updateGridColumns()
-			local w = gridScroll.AbsoluteSize.X
+			local w = scroll.AbsoluteSize.X
 			local padScale, sidePadScale, minCellPx = 0.01, 0.01, 260
 			local cols = math.max(1, math.floor((w*(1 - sidePadScale*2) + (w*padScale)) / (minCellPx + (w*padScale))))
 			local widthScale = (1 - sidePadScale*2 - padScale*(cols-1)) / cols
 			gridLayout.CellSize = UDim2.new(math.clamp(widthScale, 0.18, 1), 0, 0, 190)
 		end
-		content:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
-		gridScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
+		scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
 		Defer(updateGridColumns)
 
 		local ownedOnly = false
-		local useGrid = true
-		local ownedMap: {[number]: boolean} = {}
+		local unownedOnly = false
+		local useGrid = false
+		local ownedMap = {}
 		local listCards, gridCards = {}, {}
-		local idToCards = {} -- [badgeId] = {list=card?, grid=card?}
+		local idToCards = {}
+		local badgesData = data
+		local gridBuilt = false
 
 		local function makeListCard(b)
-			local f = InstanceNew("Frame", listScroll)
+			local f = InstanceNew("Frame")
 			f.Size = UDim2.new(1, 0, 0, 118)
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
@@ -14428,8 +14492,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			stat.TextScaled = true
 			local tsLS = InstanceNew("UITextSizeConstraint", stat); tsLS.MinTextSize = 9; tsLS.MaxTextSize = 13
 
-			local ownedTag = pill(f, "✅ OWNED", COLORS.OWNED)
+			local ownedTag = pill(f, "OWNED", COLORS.OWNED)
 
+			f.Parent = scroll
 			local card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
 			idToCards[b.id] = idToCards[b.id] or {}
 			idToCards[b.id].list = card
@@ -14438,7 +14503,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 
 		local function makeGridCard(b)
-			local f = InstanceNew("Frame", gridScroll)
+			local f = InstanceNew("Frame")
+			f.Size = UDim2.new(1, 0, 0, 190)
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
 			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
@@ -14490,7 +14556,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			stat.TextScaled = true
 			local tsGS = InstanceNew("UITextSizeConstraint", stat); tsGS.MinTextSize = 9; tsGS.MaxTextSize = 12
 
-			local ownedTag = pill(f, "✅ OWNED", COLORS.OWNED)
+			local ownedTag = pill(f, "OWNED", COLORS.OWNED)
 
 			local card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
 			idToCards[b.id] = idToCards[b.id] or {}
@@ -14499,9 +14565,17 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			return card
 		end
 
-		for _, b in ipairs(data) do
+		for _, b in ipairs(badgesData) do
 			makeListCard(b)
-			makeGridCard(b)
+		end
+
+		local function buildGridIfNeeded()
+			if gridBuilt then return end
+			for _, b in ipairs(badgesData) do
+				local c = makeGridCard(b)
+				c.frame.Parent = nil
+			end
+			gridBuilt = true
 		end
 
 		local function textContains(h, n)
@@ -14513,49 +14587,94 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local function applyFilters()
 			local q = search.Text
 			for _, card in ipairs(listCards) do
-				local show = textContains(card.data.name.." "..card.data.desc, q)
-				if ownedOnly then show = show and (ownedMap[card.data.id] == true) end
-				card.frame.Visible = show
+				if card.frame.Parent == scroll then
+					local id = card.data.id
+					local show = textContains(card.data.name.." "..card.data.desc, q)
+					if ownedOnly then
+						show = show and (ownedMap[id] == true)
+					elseif unownedOnly then
+						show = show and (ownedMap[id] == false)
+					end
+					card.frame.Visible = show
+				end
 			end
 			for _, card in ipairs(gridCards) do
-				local show = textContains(card.data.name.." "..card.data.desc, q)
-				if ownedOnly then show = show and (ownedMap[card.data.id] == true) end
-				card.frame.Visible = show
+				if card.frame.Parent == scroll then
+					local id = card.data.id
+					local show = textContains(card.data.name.." "..card.data.desc, q)
+					if ownedOnly then
+						show = show and (ownedMap[id] == true)
+					elseif unownedOnly then
+						show = show and (ownedMap[id] == false)
+					end
+					card.frame.Visible = show
+				end
 			end
+		end
+
+		local function applyOwnedVisualsFor(id)
+			local pair = idToCards[id]
+			if not pair then return end
+			if pair.list then applyOwnedStyle(pair.list.frame, pair.list.stroke, pair.list.ownedTag) end
+			if pair.grid then applyOwnedStyle(pair.grid.frame, pair.grid.stroke, pair.grid.ownedTag) end
+		end
+
+		local function refreshOwnedStylesForAll()
+			for id, v in pairs(ownedMap) do
+				if v == true then applyOwnedVisualsFor(id) end
+			end
+		end
+
+		local function attachLayout()
+			listLayout.Parent = nil
+			gridLayout.Parent = nil
+			for _, c in ipairs(listCards) do c.frame.Parent = nil end
+			for _, c in ipairs(gridCards) do c.frame.Parent = nil end
+			if useGrid then
+				buildGridIfNeeded()
+				gridLayout.Parent = scroll
+				pad.PaddingLeft = UDim.new(0.01, 0)
+				pad.PaddingRight = UDim.new(0.01, 0)
+				pad.PaddingTop = UDim.new(0.01, 0)
+				pad.PaddingBottom = UDim.new(0.01, 0)
+				for _, c in ipairs(gridCards) do c.frame.Parent = scroll end
+				layoutToggle.Text = "Grid"
+			else
+				listLayout.Parent = scroll
+				pad.PaddingLeft = UDim.new(0, 10)
+				pad.PaddingRight = UDim.new(0, 10)
+				pad.PaddingTop = UDim.new(0, 10)
+				pad.PaddingBottom = UDim.new(0, 10)
+				for _, c in ipairs(listCards) do c.frame.Parent = scroll end
+				layoutToggle.Text = "List"
+			end
+			refreshOwnedStylesForAll()
+			applyFilters()
+		end
+
+		local function setOwnedOnly(v)
+			ownedOnly = v and true or false
+			if ownedOnly then unownedOnly = false end
+			ownedOnlyBtn.Text = ownedOnly and "Owned: ON" or "Owned: OFF"
+			unownedOnlyBtn.Text = "Unowned: OFF"
+			applyFilters()
+		end
+
+		local function setUnownedOnly(v)
+			unownedOnly = v and true or false
+			if unownedOnly then ownedOnly = false end
+			unownedOnlyBtn.Text = unownedOnly and "Unowned: ON" or "Unowned: OFF"
+			ownedOnlyBtn.Text = "Owned: OFF"
+			applyFilters()
 		end
 
 		search:GetPropertyChangedSignal("Text"):Connect(applyFilters)
-		ownedOnlyBtn.MouseButton1Click:Connect(function()
-			ownedOnly = not ownedOnly
-			ownedOnlyBtn.Text = ownedOnly and "🏆 Owned: ON" or "🏆 Owned: OFF"
-			applyFilters()
-		end)
-
-		local function updateGridOrListVisibility()
-			if useGrid then
-				listScroll.Visible = false
-				gridScroll.Visible = true
-			else
-				gridScroll.Visible = false
-				listScroll.Visible = true
-			end
-		end
-		updateGridColumns()
-		updateGridOrListVisibility()
+		ownedOnlyBtn.MouseButton1Click:Connect(function() setOwnedOnly(not ownedOnly) end)
+		unownedOnlyBtn.MouseButton1Click:Connect(function() setUnownedOnly(not unownedOnly) end)
 
 		layoutToggle.MouseButton1Click:Connect(function()
 			useGrid = not useGrid
-			layoutToggle.Text = useGrid and "🧩 Grid" or "📃 List"
-			updateGridOrListVisibility()
-		end)
-
-		closeBtn.MouseButton1Click:Connect(function()
-			local t1 = TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
-				Size = UDim2.new(0.02,0,0.02,0),
-				Position = UDim2.new(0.99,0,0.01,0)
-			})
-			t1:Play(); t1.Completed:Wait()
-			sgui:Destroy()
+			attachLayout()
 		end)
 
 		local minimized = false
@@ -14577,31 +14696,84 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			Delay(0.1, function() tweenTransparency(content, 0, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)) end)
 			minimized = false
 		end
-		minBtn.MouseButton1Click:Connect(function()
-			if minimized then restore() else minimize() end
+		minBtn.MouseButton1Click:Connect(function() if minimized then restore() else minimize() end end)
+
+		closeBtn.MouseButton1Click:Connect(function()
+			local t1 = TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+				Size = UDim2.new(0.02,0,0.02,0),
+				Position = UDim2.new(0.99,0,0.01,0)
+			})
+			t1:Play(); t1.Completed:Wait()
+			sgui:Destroy()
 		end)
 
 		NAgui.dragger(main, header)
 
-		local i = 0
-		for _, b in ipairs(data) do
-			Spawn(function()
-				i += 1
-				if i % 8 == 0 then Wait(0.2) end
-				local ok, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, Player.UserId, b.id)
-				ownedMap[b.id] = ok and has or false
-				local pair = idToCards[b.id]
-				if pair then
-					if ownedMap[b.id] then
-						if pair.list then applyOwnedStyle(pair.list.frame, pair.list.stroke, pair.list.ownedTag) end
-						if pair.grid then applyOwnedStyle(pair.grid.frame, pair.grid.stroke, pair.grid.ownedTag) end
+		local function runOwnershipChecks(dataset)
+			loadingOverlay.Visible = true
+			local pending = #dataset
+			if pending == 0 then
+				loadingOverlay.Visible = false
+				refreshBtn.AutoButtonColor = true
+				refreshBtn.Text = "Refresh"
+				refreshBtn.Active = true
+				return
+			end
+			local i = 0
+			for _, b in ipairs(dataset) do
+				Spawn(function()
+					i += 1
+					if i % 8 == 0 then Wait(0.2) end
+					local ok, has = hasBadgeWithRetry(Player.UserId, b.id)
+					if ok then
+						ownedMap[b.id] = has
+						if has then applyOwnedVisualsFor(b.id) end
+					else
+						ownedMap[b.id] = nil
 					end
-				end
-				if ownedOnly then applyFilters() end
-			end)
+					if ownedOnly or unownedOnly then applyFilters() end
+					pending -= 1
+					if pending <= 0 then
+						loadingOverlay.Visible = false
+						refreshBtn.AutoButtonColor = true
+						refreshBtn.Text = "Refresh"
+						refreshBtn.Active = true
+					end
+				end)
+			end
 		end
 
+		refreshBtn.MouseButton1Click:Connect(function()
+			if refreshBtn.Active == false then return end
+			refreshBtn.Active = false
+			refreshBtn.AutoButtonColor = false
+			refreshBtn.Text = "Refreshing..."
+			loadingOverlay.Visible = true
+			for _, c in ipairs(listCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
+			for _, c in ipairs(gridCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
+			listCards, gridCards, idToCards, ownedMap = {}, {}, {}, {}
+			gridBuilt = false
+			local ok2, res2 = NACaller(getBadges)
+			if ok2 then
+				badgesData = res2
+				for _, b in ipairs(badgesData) do
+					makeListCard(b)
+				end
+				useGrid = false
+				attachLayout()
+				runOwnershipChecks(badgesData)
+			else
+				loadingOverlay.Visible = false
+				refreshBtn.AutoButtonColor = true
+				refreshBtn.Text = "Refresh"
+				refreshBtn.Active = true
+				DoNotif("Failed to refresh badge data")
+			end
+		end)
+
 		tweenTransparency(content, 0, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+		attachLayout()
+		runOwnershipChecks(badgesData)
 	end
 
 	local ok, result = NACaller(getBadges)
