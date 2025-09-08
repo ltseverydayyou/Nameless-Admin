@@ -17314,6 +17314,10 @@ cmd.add({"untrussjump","untj","untjump","untrussj"},{"untrussjump","Disable trus
 	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 end)
 
+cmd.add({"chattranslate","ctranslate","chatt"},{"chattranslate","the very old chat translator came back after years"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/translatoooor"))();
+end)
+
 standParts = {}
 
 cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, function(p)
@@ -26606,7 +26610,8 @@ Spawn(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) -- it has better SaveInstance support and important functions that are required
+		Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) end) -- it has better SaveInstance support and important functions that are required
+		Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))() end) end) -- better chat
 
 		-- just ignore this section (personal stuff)
 		--[[Window({
