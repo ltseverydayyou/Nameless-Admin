@@ -47,6 +47,7 @@ local COREGUI=SafeGetService("CoreGui");
 local TextChatService = SafeGetService("TextChatService");
 local CaptureService = SafeGetService("CaptureService");
 local TextService = SafeGetService("TextService");
+local StarterGui = SafeGetService("StarterGui");
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -61,6 +62,9 @@ local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
+
+local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
+local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
 local Waypoints = {}
 local Bindings = Bindings or {}
@@ -107,6 +111,48 @@ local NAStuff = {
 	MIMIC_TAG = "MIMIC_SYNC";
 	Mimic_AnimatePrevDisabled = nil;
 	mimic_uid = 0;
+	ChatSettings = {
+		coreGuiChat = true;
+		window = {
+			enabled = true;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			textSize = 16;
+			textColor = {235,235,235};
+			strokeColor = {0,0,0};
+			strokeTransparency = 0.5;
+			backgroundColor = {25,27,29};
+			backgroundTransparency = 0.2;
+		};
+		tabs = {
+			enabled = false;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			textSize = 18;
+			backgroundTransparency = 0;
+			textColor = {255,255,255};
+			selectedTextColor = {170,255,170};
+			unselectedTextColor = {200,200,200};
+		};
+		input = {
+			enabled = true;
+			autocomplete = true;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			keyCode = "Slash";
+			textSize = 16;
+			textColor = {255,255,255};
+			strokeTransparency = 0.5;
+			backgroundTransparency = 0.2;
+			targetGeneral = false;
+		};
+		bubbles = {
+			enabled = false;
+			maxDistance = 100;
+			minimizeDistance = 20;
+			textSize = 14;
+			spacing = 4;
+			backgroundTransparency = 0.1;
+			tailVisible = true;
+		};
+	};
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -1735,7 +1781,7 @@ local opt={
 	currentTagText = "Tag";
 	currentTagColor = Color3.fromRGB(0, 255, 170);
 	currentTagRGB = false;
-	saveTag = false;
+	--saveTag = false;
 }
 
 if getgenv().NATestingVer then
@@ -1749,8 +1795,6 @@ else
 end
 
 --Custom file functions checker checker
-local CustomFunctionSupport=isfile and isfolder and writefile and readfile and listfiles and appendfile;
-local FileSupport = isfile and isfolder and writefile and readfile and makefolder
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
@@ -1769,12 +1813,13 @@ local NAfiles = {
 	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
 	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
 	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
-	NACHATTAG = "Nameless-Admin/ChatTag.json";
+	--NACHATTAG = "Nameless-Admin/ChatTag.json";
 	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
 	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
 	NABINDERS = "Nameless-Admin/Binders.json";
 	NAESPSETTINGSPATH = "Nameless-Admin/ESPSettings.json";
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
+	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 }
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -1797,7 +1842,7 @@ function NamelessMigrate:LoadIY_FE()
 	NamelessMigrate.LoadIY_FE = function() end -- too lazy to make a proper check just override it
 	return
 end
-function NamelessMigrate:Prefix() 
+function NamelessMigrate:Prefix()
 	NamelessMigrate:LoadIY_FE()
 	if FileSupport then
 		if NamelessMigrate.IY_FE then
@@ -1807,7 +1852,7 @@ function NamelessMigrate:Prefix()
 	return nil
 end
 
-function NamelessMigrate:UiSize() 
+function NamelessMigrate:UiSize()
 	NamelessMigrate:LoadIY_FE()
 	if FileSupport then
 		if NamelessMigrate.IY_FE then
@@ -1817,7 +1862,7 @@ function NamelessMigrate:UiSize()
 	return nil
 end
 
-function NamelessMigrate:Waypoints() 
+function NamelessMigrate:Waypoints()
 	NamelessMigrate:LoadIY_FE()
 	if not FileSupport then
 		return
@@ -1934,7 +1979,7 @@ if FileSupport then
 		}))
 	end
 
-	if not isfile(NAfiles.NACHATTAG) then
+	--[[if not isfile(NAfiles.NACHATTAG) then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
 			Text = "Tag";
 			Color = {
@@ -1944,7 +1989,7 @@ if FileSupport then
 			};
 			Save = false;
 		}))
-	end
+	end]]
 
 	if not isfile(NAfiles.NATOPBAR) then
 		writefile(NAfiles.NATOPBAR, "true")
@@ -1956,6 +2001,10 @@ if FileSupport then
 	
 	if not isfile(NAfiles.NATOPBARMODE) then
 		writefile(NAfiles.NATOPBARMODE, "bottom")
+	end
+
+	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
+		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
 	end
 end
 
@@ -2138,7 +2187,7 @@ if FileSupport then
 		end
 	end
 
-	if isfile(NAfiles.NACHATTAG) then
+	--[[if isfile(NAfiles.NACHATTAG) then
 		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NACHATTAG))
 		end)
@@ -2168,7 +2217,7 @@ if FileSupport then
 			opt.saveTag = false
 			DoNotif("Chat tag file was corrupt or unreadable. Loaded defaults",3)
 		end
-	end
+	end]]
 
 	if isfile(NAfiles.NAICONPOSPATH) then
 		local success, data = pcall(function()
@@ -2200,6 +2249,142 @@ if FileSupport then
 
 	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
 	Bindings = ok and type(data)=="table" and data or {}
+
+	local ChatConfigPath = NAfiles.NATEXTCHATSETTINGSPATH
+
+	local function tblToC3(t)
+		if typeof(t) == "Color3" then return t end
+		local r = (t and (t.R or t[1])) or 255
+		local g = (t and (t.G or t[2])) or 255
+		local b = (t and (t.B or t[3])) or 255
+		return Color3.fromRGB(r, g, b)
+	end
+	local function c3ToTbl(c)
+		return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
+	end
+	local function deepMerge(dst, src)
+		for k, v in pairs(src) do
+			if type(v) == "table" and type(dst[k]) == "table" then
+				deepMerge(dst[k], v)
+			else
+				dst[k] = v
+			end
+		end
+	end
+
+	local function loadChat()
+		local cfg = {}
+		deepMerge(cfg, Defaults)
+		if isfile(ChatConfigPath) then
+			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
+			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
+		end
+		return cfg
+	end
+
+	NAStuff.ChatSettings = loadChat()
+
+	NAmanage.SaveTextChatSettings = function()
+		local ok4, json = pcall(function() return HttpService:JSONEncode(NAStuff.ChatSettings) end)
+		if ok4 then pcall(writefile, ChatConfigPath, json) end
+	end
+
+	local function hasProp(inst, prop)
+		return inst and NAlib.isProperty(inst, prop) ~= nil
+	end
+	local function safeSet(inst, prop, val)
+		if inst and hasProp(inst, prop) then NAlib.setProperty(inst, prop, val) end
+	end
+	local function getDefaultChannel(TCS)
+		local container = TCS:FindFirstChild("TextChannels")
+		if not container then return nil end
+		local gen = container:FindFirstChild("RBXGeneral")
+		if gen and gen:IsA("TextChannel") then return gen end
+		for _, c in ipairs(container:GetChildren()) do
+			if c:IsA("TextChannel") then return c end
+		end
+		return nil
+	end
+
+	NAmanage.ApplyTextChatSettings = function()
+		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, NAStuff.ChatSettings.coreGuiChat) end)
+		local TCS = TextChatService
+		if hasProp(TCS, "ChatVersion") then TCS.ChatVersion = Enum.ChatVersion.TextChatService end
+
+		local Window = TCS:FindFirstChildOfClass("ChatWindowConfiguration")
+		local InputBar = TCS:FindFirstChildOfClass("ChatInputBarConfiguration")
+		local Bubbles = TCS:FindFirstChildOfClass("BubbleChatConfiguration")
+		local Tabs = TCS:FindFirstChildOfClass("ChannelTabsConfiguration")
+
+		if Window then
+			safeSet(Window, "Enabled", NAStuff.ChatSettings.window.enabled)
+			if hasProp(Window, "FontFace") and NAStuff.ChatSettings.window.font then pcall(function() Window.FontFace = Font.new(NAStuff.ChatSettings.window.font) end) end
+			safeSet(Window, "TextSize", NAStuff.ChatSettings.window.textSize)
+			safeSet(Window, "TextColor3", tblToC3(NAStuff.ChatSettings.window.textColor))
+			safeSet(Window, "TextStrokeColor3", tblToC3(NAStuff.ChatSettings.window.strokeColor))
+			safeSet(Window, "TextStrokeTransparency", NAStuff.ChatSettings.window.strokeTransparency)
+			safeSet(Window, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.window.backgroundColor))
+			safeSet(Window, "BackgroundTransparency", NAStuff.ChatSettings.window.backgroundTransparency)
+		end
+
+		if Tabs then
+			safeSet(Tabs, "Enabled", NAStuff.ChatSettings.tabs.enabled)
+			if hasProp(Tabs, "FontFace") and NAStuff.ChatSettings.tabs.font then pcall(function() Tabs.FontFace = Font.new(NAStuff.ChatSettings.tabs.font) end) end
+			safeSet(Tabs, "TextSize", NAStuff.ChatSettings.tabs.textSize)
+			safeSet(Tabs, "BackgroundTransparency", NAStuff.ChatSettings.tabs.backgroundTransparency)
+			safeSet(Tabs, "TextColor3", tblToC3(NAStuff.ChatSettings.tabs.textColor))
+			safeSet(Tabs, "SelectedTabTextColor3", tblToC3(NAStuff.ChatSettings.tabs.selectedTextColor))
+			safeSet(Tabs, "UnselectedTabTextColor3", tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor))
+		end
+
+		if InputBar then
+			safeSet(InputBar, "Enabled", NAStuff.ChatSettings.input.enabled)
+			safeSet(InputBar, "AutocompleteEnabled", NAStuff.ChatSettings.input.autocomplete)
+			if hasProp(InputBar, "FontFace") and NAStuff.ChatSettings.input.font then pcall(function() InputBar.FontFace = Font.new(NAStuff.ChatSettings.input.font) end) end
+			if NAStuff.ChatSettings.input.targetGeneral and hasProp(InputBar, "TargetTextChannel") then
+				local ch = getDefaultChannel(TCS)
+				if ch then safeSet(InputBar, "TargetTextChannel", ch) end
+			end
+			if not IsOnMobile then
+				local keyName = tostring(NAStuff.ChatSettings.input.keyCode or "Slash")
+				local enumKey = Enum.KeyCode[keyName] or Enum.KeyCode.Slash
+				safeSet(InputBar, "KeyboardKeyCode", enumKey)
+			end
+			safeSet(InputBar, "TextSize", NAStuff.ChatSettings.input.textSize)
+			safeSet(InputBar, "TextColor3", tblToC3(NAStuff.ChatSettings.input.textColor))
+			safeSet(InputBar, "TextStrokeTransparency", NAStuff.ChatSettings.input.strokeTransparency)
+			safeSet(InputBar, "BackgroundTransparency", NAStuff.ChatSettings.input.backgroundTransparency)
+		end
+
+		if Bubbles then
+			safeSet(Bubbles, "Enabled", NAStuff.ChatSettings.bubbles.enabled)
+			if hasProp(Bubbles, "MaxDistance") then safeSet(Bubbles, "MaxDistance", math.max(NAStuff.ChatSettings.bubbles.maxDistance, 0)) end
+			if hasProp(Bubbles, "MinimizeDistance") then safeSet(Bubbles, "MinimizeDistance", math.max(NAStuff.ChatSettings.bubbles.minimizeDistance, 0)) end
+			if hasProp(Bubbles, "TextSize") then safeSet(Bubbles, "TextSize", math.max(NAStuff.ChatSettings.bubbles.textSize, 1)) end
+			if hasProp(Bubbles, "BubblesSpacing") then safeSet(Bubbles, "BubblesSpacing", math.max(NAStuff.ChatSettings.bubbles.spacing, 0)) end
+			safeSet(Bubbles, "BackgroundTransparency", math.clamp(NAStuff.ChatSettings.bubbles.backgroundTransparency, 0, 1))
+			safeSet(Bubbles, "TailVisible", NAStuff.ChatSettings.bubbles.tailVisible)
+		end
+	end
+
+	NAlib.disconnect("TCS_OnDescendantAdded")
+	NAlib.connect("TCS_OnDescendantAdded", TextChatService.DescendantAdded:Connect(function()
+		Defer(NAmanage.ApplyTextChatSettings)
+	end))
+
+	NAlib.disconnect("TCS_ApplyLoop")
+	do
+		local last = os.clock()
+		NAlib.connect("TCS_ApplyLoop", RunService.Stepped:Connect(function()
+			local now = os.clock()
+			if now - last >= 0.2 then
+				last = now
+				NAmanage.ApplyTextChatSettings()
+			end
+		end))
+	end
+
+	NAmanage.ApplyTextChatSettings()
 else
 	prefixCheck = ";"
 	NAScale = 1
@@ -2209,19 +2394,19 @@ else
 	opt.currentTagText = "Tag"
 	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
 	opt.currentTagRGB = false
-	opt.saveTag = false
 	DoPopup("Your exploit does not support read/write file")
+	--opt.saveTag = fals
 end
 
 opt.prefix = prefixCheck
 
 local lastPrefix = opt.prefix
 
-if opt.saveTag then
+--[[if opt.saveTag then
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
-end
+end]]
 
 pcall(function()
 	local response = opt.NAREQUEST({
@@ -7102,7 +7287,7 @@ if IsOnMobile then
 	end)
 
 	cmd.add({"DefaultRotaionScreen","DefaultScreen","Defscreen"},{"DefaultRotaionScreen (DefaultScreen or Defscreen)","Changes ScreenOrientation to Portrait"},function()
-		PlrGui.ScreenOrientation=SafeGetService("StarterGui").ScreenOrientation
+		PlrGui.ScreenOrientation=StarterGui.ScreenOrientation
 	end)
 end
 cmd.add({"commandcount","cc"},{"commandcount (cc)","Counds how many commands NA has"},function()
@@ -10362,16 +10547,18 @@ end)
 cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 	local args = {...}
 	local enableName = args[1]
-	local hiddenNotif = args[2] -- scuffed way lmao
+	local hiddenNotif = args[2]
 	local buttons = {}
 
 	for _, coreGuiType in ipairs(Enum.CoreGuiType:GetEnumItems()) do
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				SafeGetService("StarterGui"):SetCoreGuiEnabled(coreGuiType, true)
+				StarterGui:SetCoreGuiEnabled(coreGuiType, true)
 				if coreGuiType == Enum.CoreGuiType.Chat or coreGuiType == Enum.CoreGuiType.All then
-					loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))()
+					NAStuff.ChatSettings.coreGuiChat = true
+					NAmanage.SaveTextChatSettings()
+					NAmanage.ApplyTextChatSettings()
 				end
 			end
 		})
@@ -10387,7 +10574,7 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 	Insert(buttons, {
 		Text = "Reset",
 		Callback = function()
-			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
+			StarterGui:SetCore("ResetButtonCallback", true)
 		end
 	})
 
@@ -10424,7 +10611,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				SafeGetService("StarterGui"):SetCoreGuiEnabled(coreGuiType, false)
+				StarterGui:SetCoreGuiEnabled(coreGuiType, false)
 			end
 		})
 	end
@@ -10439,7 +10626,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 	Insert(buttons, {
 		Text = "Reset",
 		Callback = function()
-			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
+			StarterGui:SetCore("ResetButtonCallback", false)
 		end
 	})
 
@@ -11834,11 +12021,15 @@ cmd.add({"mstop","moff","stopmimic","mend"}, {"mstop","Stop mimic and restore de
 end)
 
 cmd.add({"bubblechat","bchat"},{"bubblechat (bchat)","Enables BubbleChat"},function()
-	TextChatService.BubbleChatConfiguration.Enabled = true
+	NAStuff.ChatSettings.bubbles.enabled = true
+	NAmanage.SaveTextChatSettings()
+	NAmanage.ApplyTextChatSettings()
 end)
 
 cmd.add({"unbubblechat","unbchat"},{"unbubblechat (unbchat)","Disabled BubbleChat"},function()
-	TextChatService.BubbleChatConfiguration.Enabled = false
+	NAStuff.ChatSettings.bubbles.enabled = false
+	NAmanage.SaveTextChatSettings()
+	NAmanage.ApplyTextChatSettings()
 end)
 
 cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
@@ -21645,7 +21836,7 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 		{
 			Text = "Roblox Console",
 			Callback = function()
-				SafeGetService("StarterGui"):SetCore("DevConsoleVisible", true)
+				StarterGui:SetCore("DevConsoleVisible", true)
 			end
 		},
 		{
@@ -22796,7 +22987,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			root.CFrame = OriginalPosition
 		end
 		DebugNotif("Invisibility turned off.")
-		SafeGetService("StarterGui"):SetCore("ResetButtonCallback", true)
+		StarterGui:SetCore("ResetButtonCallback", true)
 	end
 
 	local function ToggleInvisibility()
@@ -22823,7 +23014,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			Players.LocalPlayer.Character = InvisibleCharacter
 			workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
 			DebugNotif("You are now invisible.")
-			SafeGetService("StarterGui"):SetCore("ResetButtonCallback", false)
+			StarterGui:SetCore("ResetButtonCallback", false)
 		else
 			TurnVisible()
 		end
@@ -26631,7 +26822,7 @@ Spawn(function()
 		end
 
 		Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) end) -- it has better SaveInstance support and important functions that are required
-		Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))() end) end) -- better chat
+		--Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))() end) end) -- better chat
 
 		-- just ignore this section (personal stuff)
 		--[[Window({
@@ -26741,8 +26932,8 @@ NAmanage.grayGradient=function(text)
 	end
 	return Concat(out)
 end
-
-TextChatService.OnIncomingMessage = function(message)
+-- temp disabled for fixing
+--[[TextChatService.OnIncomingMessage = function(message)
 	local ts = message.TextSource
 	if not ts then return end
 	local pl = Players:GetPlayerByUserId(ts.UserId)
@@ -26818,7 +27009,7 @@ TextChatService.OnIncomingMessage = function(message)
 		props.Text = message.Text
 		return props
 	end
-end
+end]]
 --[[
 print(
 	
@@ -27078,14 +27269,14 @@ end)
 
 ]]
 
-if Discover(_G.NAadminsLol or {}, LocalPlayer.UserId) then
+--[[if Discover(_G.NAadminsLol or {}, LocalPlayer.UserId) then
 	if NAgui.addSection then
 		NAgui.addSection("NA Admin")
 	end
 	NAgui.addToggle("Admin RGB Username", NAStuff.ForceAdminRainbow, function(state)
 		NAStuff.ForceAdminRainbow = state
 	end)
-end
+end]]
 
 NAgui.addSection("Prefix Settings")
 
@@ -27214,6 +27405,166 @@ if FileSupport then
 	end)
 end
 
+NAgui.addSection("ESP Settings")
+
+NAgui.addSlider("ESP Transparency", 0, 1, NAStuff.ESP_Transparency or 0.7, 0.05, "", function(v)
+	NAStuff.ESP_Transparency = v
+	for _, data in pairs(espCONS) do
+		for _, box in pairs(data.boxTable) do
+			if box then box.Transparency = v end
+		end
+	 end
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
+	NAStuff.ESP_BoxMaxDistance = v
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1000, 25, " studs", function(v)
+	NAStuff.ESP_LabelMaxDistance = v
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
+	NAStuff.ESP_ColorByTeam = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Team In Label", (NAStuff.ESP_ShowTeamText ~= false), function(state)
+	NAStuff.ESP_ShowTeamText = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Name In Label", (NAStuff.ESP_ShowName ~= false), function(state)
+	NAStuff.ESP_ShowName = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Health In Label", (NAStuff.ESP_ShowHealth ~= false), function(state)
+	NAStuff.ESP_ShowHealth = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
+	NAStuff.ESP_ShowDistance = state
+	NAmanage.SaveESPSettings()
+end)
+
+do
+	local function tblToC3(t)
+		if typeof(t) == "Color3" then return t end
+		local r = (t and (t.R or t[1])) or 255
+		local g = (t and (t.G or t[2])) or 255
+		local b = (t and (t.B or t[3])) or 255
+		return Color3.fromRGB(r, g, b)
+	end
+	local function c3ToTbl(c)
+		return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
+	end
+
+	NAgui.addSection("Text Chat")
+
+	NAgui.addToggle("Enable Chat (CoreGui)", NAStuff.ChatSettings.coreGuiChat, function(v)
+		NAStuff.ChatSettings.coreGuiChat = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+
+	NAgui.addSection("Chat Window")
+	NAgui.addToggle("Window Enabled", NAStuff.ChatSettings.window.enabled, function(v)
+		NAStuff.ChatSettings.window.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Size (Window)", 10, 30, NAStuff.ChatSettings.window.textSize, 1, " px", function(v)
+		NAStuff.ChatSettings.window.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Text Color", tblToC3(NAStuff.ChatSettings.window.textColor), function(c)
+		NAStuff.ChatSettings.window.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Text Stroke Color", tblToC3(NAStuff.ChatSettings.window.strokeColor), function(c)
+		NAStuff.ChatSettings.window.strokeColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Stroke Transparency", 0, 1, NAStuff.ChatSettings.window.strokeTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.window.strokeTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Window Background", tblToC3(NAStuff.ChatSettings.window.backgroundColor), function(c)
+		NAStuff.ChatSettings.window.backgroundColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Window Background Transparency", 0, 1, NAStuff.ChatSettings.window.backgroundTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.window.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+
+	NAgui.addSection("Channel Tabs")
+	NAgui.addToggle("Tabs Enabled", NAStuff.ChatSettings.tabs.enabled, function(v)
+		NAStuff.ChatSettings.tabs.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Size (Tabs)", 12, 28, NAStuff.ChatSettings.tabs.textSize, 1, " px", function(v)
+		NAStuff.ChatSettings.tabs.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Background Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.backgroundTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.tabs.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Text Color (Tabs)", tblToC3(NAStuff.ChatSettings.tabs.textColor), function(c)
+		NAStuff.ChatSettings.tabs.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Selected Text Color", tblToC3(NAStuff.ChatSettings.tabs.selectedTextColor), function(c)
+		NAStuff.ChatSettings.tabs.selectedTextColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Unselected Text Color", tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor), function(c)
+		NAStuff.ChatSettings.tabs.unselectedTextColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+
+	NAgui.addSection("Chat Input")
+	NAgui.addToggle("Input Enabled", NAStuff.ChatSettings.input.enabled, function(v)
+		NAStuff.ChatSettings.input.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addToggle("Autocomplete", NAStuff.ChatSettings.input.autocomplete, function(v)
+		NAStuff.ChatSettings.input.autocomplete = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addToggle("Target #RBXGeneral", NAStuff.ChatSettings.input.targetGeneral, function(v)
+		NAStuff.ChatSettings.input.targetGeneral = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Size (Input)", 10, 30, NAStuff.ChatSettings.input.textSize, 1, " px", function(v)
+		NAStuff.ChatSettings.input.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Text Color (Input)", tblToC3(NAStuff.ChatSettings.input.textColor), function(c)
+		NAStuff.ChatSettings.input.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Stroke Transparency (Input)", 0, 1, NAStuff.ChatSettings.input.strokeTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.input.strokeTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Background Transparency (Input)", 0, 1, NAStuff.ChatSettings.input.backgroundTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.input.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	if not IsOnMobile then
+		NAgui.addKeybind("Chat Key", NAStuff.ChatSettings.input.keyCode or "Slash", function(keyName)
+			NAStuff.ChatSettings.input.keyCode = tostring(keyName or "Slash"); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+		end)
+	end
+
+	NAgui.addSection("Bubble Chat")
+	NAgui.addToggle("Bubbles Enabled", NAStuff.ChatSettings.bubbles.enabled, function(v)
+		NAStuff.ChatSettings.bubbles.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Max Distance", 10, 250, NAStuff.ChatSettings.bubbles.maxDistance, 5, " u", function(v)
+		NAStuff.ChatSettings.bubbles.maxDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Minimize Distance", 0, 100, NAStuff.ChatSettings.bubbles.minimizeDistance, 2, " u", function(v)
+		NAStuff.ChatSettings.bubbles.minimizeDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Size (Bubble)", 10, 30, NAStuff.ChatSettings.bubbles.textSize, 1, " px", function(v)
+		NAStuff.ChatSettings.bubbles.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Bubble Spacing", 0, 12, NAStuff.ChatSettings.bubbles.spacing, 1, " px", function(v)
+		NAStuff.ChatSettings.bubbles.spacing = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Background Transparency (Bubble)", 0, 1, NAStuff.ChatSettings.bubbles.backgroundTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.bubbles.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addToggle("Tail Visible", NAStuff.ChatSettings.bubbles.tailVisible, function(v)
+		NAStuff.ChatSettings.bubbles.tailVisible = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+end
+
 if IsOnPC then
 	NAgui.addSection("Control Lock")
 	NAgui.addKeybind("Add Shiftlock Key","LeftShift",function(k)
@@ -27233,6 +27584,34 @@ if IsOnPC then
 		NAmanage.ControlLock_Bind()
 	end)
 end
+
+NAgui.addSection("Character Morph")
+NAgui.addInput("Target User", "UserId or Username", "", function(val)
+	morphTarget = val
+end)
+NAgui.addButton("Morph Character", function()
+	if morphTarget ~= "" then
+		cmd.run({"char", morphTarget})
+	end
+end)
+NAgui.addButton("Revert Character", function()
+	cmd.run({"unchar"})
+end)
+NAgui.addToggle("Auto Morph", false, function(state)
+	if state then
+		NAlib.disconnect("autochartoggle")
+		NAlib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
+			if morphTarget ~= "" then
+				cmd.run({"char", morphTarget})
+			end
+		end))
+		if morphTarget ~= "" then
+			cmd.run({"char", morphTarget})
+		end
+	else
+		NAlib.disconnect("autochartoggle")
+	end
+end)
 
 if IsOnPC then
 	NAgui.addSection("Fly Keybinds")
@@ -27299,81 +27678,6 @@ if IsOnPC then
 		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end)
 end
-
-NAgui.addSection("ESP Settings")
-
-NAgui.addSlider("ESP Transparency", 0, 1, NAStuff.ESP_Transparency or 0.7, 0.05, "", function(v)
-	NAStuff.ESP_Transparency = v
-	for _, data in pairs(espCONS) do
-		for _, box in pairs(data.boxTable) do
-			if box then box.Transparency = v end
-		end
-	 end
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
-	NAStuff.ESP_BoxMaxDistance = v
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1000, 25, " studs", function(v)
-	NAStuff.ESP_LabelMaxDistance = v
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
-	NAStuff.ESP_ColorByTeam = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Team In Label", (NAStuff.ESP_ShowTeamText ~= false), function(state)
-	NAStuff.ESP_ShowTeamText = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Name In Label", (NAStuff.ESP_ShowName ~= false), function(state)
-	NAStuff.ESP_ShowName = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Health In Label", (NAStuff.ESP_ShowHealth ~= false), function(state)
-	NAStuff.ESP_ShowHealth = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
-	NAStuff.ESP_ShowDistance = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addSection("Character Morph")
-NAgui.addInput("Target User", "UserId or Username", "", function(val)
-	morphTarget = val
-end)
-NAgui.addButton("Morph Character", function()
-	if morphTarget ~= "" then
-		cmd.run({"char", morphTarget})
-	end
-end)
-NAgui.addButton("Revert Character", function()
-	cmd.run({"unchar"})
-end)
-NAgui.addToggle("Auto Morph", false, function(state)
-	if state then
-		NAlib.disconnect("autochartoggle")
-		NAlib.connect("autochartoggle", Players.LocalPlayer.CharacterAdded:Connect(function()
-			if morphTarget ~= "" then
-				cmd.run({"char", morphTarget})
-			end
-		end))
-		if morphTarget ~= "" then
-			cmd.run({"char", morphTarget})
-		end
-	else
-		NAlib.disconnect("autochartoggle")
-	end
-end)
 
 NAgui.addSection("Character Light")
 
@@ -27514,9 +27818,9 @@ if FileSupport and CoreGui then
 end
 
 
-NAgui.addSection("Chat Tag Customization (Client Sided)")
+NAgui.addSection("Chat Tag Customization | disabled for fixing")
 
-NAgui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
+--[[NAgui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
 	opt.currentTagText = inputText
 end)
 
@@ -27569,4 +27873,4 @@ NAgui.addButton("Remove Chat Tag", function()
 	end
 
 	DebugNotif("Custom chat tag removed.",2.5)
-end)
+end)]]
