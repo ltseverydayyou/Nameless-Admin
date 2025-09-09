@@ -2254,7 +2254,7 @@ if FileSupport then
 
 	local function loadChat()
 		local cfg = {}
-		deepMerge(cfg, Defaults)
+		deepMerge(cfg, NAStuff.ChatSettings)
 		if isfile(ChatConfigPath) then
 			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
