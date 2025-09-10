@@ -9423,31 +9423,43 @@ cmd.add({"sit"},{"sit","Sit your player"},function()
 end)
 
 cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
-	local Lighting = SafeGetService("Lighting")
 	if Lighting:GetAttribute("NAOldRbx_Enabled") then return end
 	Lighting:SetAttribute("NAOldRbx_Enabled", true)
 
-	local function studAsset()
-		return (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud)) or "rbxassetid://48715260"
-	end
-	local function inletAsset()
-		return (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet)) or "rbxassetid://20299774"
-	end
-	local function skyAssets()
-		return {
-			bk = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk)) or "rbxassetid://161781263",
-			dn = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn)) or "rbxassetid://161781258",
-			ft = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft)) or "rbxassetid://161781261",
-			lf = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf)) or "rbxassetid://161781267",
-			rt = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt)) or "rbxassetid://161781268",
-			up = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up)) or "rbxassetid://161781260",
-		}
+	local studTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud)) or "rbxassetid://48715260"
+	local inletTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet)) or "rbxassetid://20299774"
+	local skyA = {
+		bk = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk)) or "rbxassetid://161781263",
+		dn = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn)) or "rbxassetid://161781258",
+		ft = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft)) or "rbxassetid://161781261",
+		lf = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf)) or "rbxassetid://161781267",
+		rt = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt)) or "rbxassetid://161781268",
+		up = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up)) or "rbxassetid://161781260",
+	}
+
+	local function ensureSky()
+		local s = Lighting:FindFirstChild("NAOldRobloxSky")
+		if s then return s end
+		local sky = InstanceNew("Sky")
+		sky.Name = "NAOldRobloxSky"
+		sky.SkyboxBk = skyA.bk
+		sky.SkyboxDn = skyA.dn
+		sky.SkyboxFt = skyA.ft
+		sky.SkyboxLf = skyA.lf
+		sky.SkyboxRt = skyA.rt
+		sky.SkyboxUp = skyA.up
+		sky.Parent = Lighting
+		return sky
 	end
 
 	local function applyToPart(v)
-		if not v or not v.Parent or not v:IsA("BasePart") or v:GetAttribute("NAOldRbx_Applied") then return end
-		v:SetAttribute("NAOldRbx_OrigMat", tostring(v.Material))
+		if not v or not v.Parent or not v:IsA("BasePart") then return end
+		if v:GetAttribute("NAOldRbx_Applied") then return end
 		v:SetAttribute("NAOldRbx_Applied", true)
+		if v:GetAttribute("NAOldRbx_OrigMatName") == nil then
+			local ok, name = pcall(function() return v.Material.Name end)
+			if ok then v:SetAttribute("NAOldRbx_OrigMatName", name) end
+		end
 
 		local stud = v:FindFirstChild("NAOldRobloxStud")
 		if not stud then
@@ -9455,7 +9467,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 			stud.Name = "NAOldRobloxStud"
 			stud.Parent = v
 		end
-		stud.Texture = studAsset()
+		stud.Texture = studTex
 		stud.Face = Enum.NormalId.Top
 		stud.StudsPerTileU = 1
 		stud.StudsPerTileV = 1
@@ -9467,7 +9479,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 			inlet.Name = "NAOldRobloxInlet"
 			inlet.Parent = v
 		end
-		inlet.Texture = inletAsset()
+		inlet.Texture = inletTex
 		inlet.Face = Enum.NormalId.Bottom
 		inlet.StudsPerTileU = 1
 		inlet.StudsPerTileV = 1
@@ -9476,29 +9488,14 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		v.Material = Enum.Material.Plastic
 	end
 
-	local function ensureSky()
-		local s = Lighting:FindFirstChild("NAOldRobloxSky")
-		if s then return s end
-		local a = skyAssets()
-		local sky = InstanceNew("Sky")
-		sky.Name = "NAOldRobloxSky"
-		sky.SkyboxBk = a.bk
-		sky.SkyboxDn = a.dn
-		sky.SkyboxFt = a.ft
-		sky.SkyboxLf = a.lf
-		sky.SkyboxRt = a.rt
-		sky.SkyboxUp = a.up
-		sky.Parent = Lighting
-		return sky
-	end
-
 	Lighting:SetAttribute("NAOldRbx_PrevClockTime", Lighting.ClockTime)
 	Lighting:SetAttribute("NAOldRbx_PrevGlobalShadows", Lighting.GlobalShadows)
 	local ok,outlines = pcall(function() return Lighting.Outlines end)
 	if ok then Lighting:SetAttribute("NAOldRbx_HadOutlines", true) Lighting:SetAttribute("NAOldRbx_PrevOutlines", outlines) end
 
-	local stash = workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder", workspace)
+	local stash = workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder")
 	stash.Name = "NAOldRbx_SkyStash"
+	stash.Parent = workspace
 	for _,v in ipairs(Lighting:GetChildren()) do
 		if v:IsA("Sky") then
 			local c = v:Clone()
@@ -9512,29 +9509,30 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	pcall(function() Lighting.Outlines = false end)
 	ensureSky()
 
-	local queue = {}
-	local qhead = 1
-	local function qpush(x) queue[#queue+1] = x end
-	local function qpop() local x = queue[qhead]; queue[qhead] = nil; qhead += 1; return x end
+	local RS = SafeGetService("RunService")
+
+	local q = {head = 1, tail = 0, data = {}}
+	local function qpush(x) q.tail += 1; q.data[q.tail] = x end
+	local function qpop() local i = q.head; if i > q.tail then return nil end; local x = q.data[i]; q.data[i] = nil; q.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do qpush(child) end
 
 	NAlib.disconnect("oldrbx_tick")
-	NAlib.connect("oldrbx_tick", SafeGetService("RunService").Heartbeat:Connect(function()
+	NAlib.connect("oldrbx_tick", RS.Heartbeat:Connect(function()
 		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
-		local step = 300
+		local budgetNodes = 200
 		local i = 0
-		while i < step do
+		while i < budgetNodes do
 			local node = qpop()
 			if not node then break end
 			if node.Parent then
 				if node:IsA("BasePart") then
 					applyToPart(node)
+					i += 1
 				end
 				for _,c in ipairs(node:GetChildren()) do
 					qpush(c)
 				end
 			end
-			i += 1
 		end
 	end))
 
@@ -9567,7 +9565,6 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 end)
 
 cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
-	local Lighting = SafeGetService("Lighting")
 	if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
 
 	NAlib.disconnect("oldrbx_desc")
@@ -9575,38 +9572,40 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	NAlib.disconnect("oldrbx_skyguard")
 	NAlib.disconnect("oldrbx_tick")
 
-	local removeQueue = {}
-	local rhead = 1
-	local function rpush(x) removeQueue[#removeQueue+1] = x end
-	local function rpop() local x = removeQueue[rhead]; removeQueue[rhead] = nil; rhead += 1; return x end
+	local RS = SafeGetService("RunService")
+
+	local rq = {head = 1, tail = 0, data = {}}
+	local function rpush(x) rq.tail += 1; rq.data[rq.tail] = x end
+	local function rpop() local i = rq.head; if i > rq.tail then return nil end; local x = rq.data[i]; rq.data[i] = nil; rq.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do rpush(child) end
 
 	NAlib.disconnect("oldrbx_untick")
-	NAlib.connect("oldrbx_untick", SafeGetService("RunService").Heartbeat:Connect(function()
-		local step = 300
+	NAlib.connect("oldrbx_untick", RS.Heartbeat:Connect(function()
+		local budgetNodes = 200
 		local i = 0
-		while i < step do
+		while i < budgetNodes do
 			local node = rpop()
 			if not node then break end
 			if node.Parent then
 				if node:IsA("BasePart") and node:GetAttribute("NAOldRbx_Applied") then
 					local a = node:FindFirstChild("NAOldRobloxStud"); if a then a:Destroy() end
 					local b = node:FindFirstChild("NAOldRobloxInlet"); if b then b:Destroy() end
-					local matName = node:GetAttribute("NAOldRbx_OrigMat")
-					if typeof(matName) == "string" and Enum.Material[matName] then
-						pcall(function() node.Material = Enum.Material[matName] end)
+					local matName = node:GetAttribute("NAOldRbx_OrigMatName")
+					if typeof(matName) == "string" then
+						local mat = Enum.Material[matName]
+						if mat then pcall(function() node.Material = mat end) end
 					end
 					node:SetAttribute("NAOldRbx_Applied", nil)
-					node:SetAttribute("NAOldRbx_OrigMat", nil)
+					node:SetAttribute("NAOldRbx_OrigMatName", nil)
+					i += 1
 				end
 				for _,c in ipairs(node:GetChildren()) do
 					rpush(c)
 				end
 			end
-			i += 1
 		end
 
-		if rhead > #removeQueue then
+		if rq.head > rq.tail then
 			NAlib.disconnect("oldrbx_untick")
 
 			for _,v in ipairs(Lighting:GetChildren()) do
