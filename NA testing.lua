@@ -25,10 +25,38 @@ pcall(function() getgenv().NATestingVer=true end)
 NAbegin=tick()
 CMDAUTOFILL = {}
 
-local function SafeGetService(name)
-	local Service = (game.GetService);
-	local Reference = (cloneref) or function(reference) return reference end
-	return Reference(Service(game, name));
+local Lower = string.lower;
+local Sub = string.sub;
+local GSub = string.gsub;
+local Find = string.find;
+local Match = string.match;
+local Format = string.format;
+local Unpack = table.unpack;
+local Insert = table.insert;
+local Spawn = task.spawn;
+local Delay = task.delay;
+local Wait = task.wait;
+local Discover = table.find;
+local Concat = table.concat;
+local Defer = task.defer;
+
+local function SafeGetService(name, timeoutSeconds)
+    timeoutSeconds = timeoutSeconds or 5
+
+    local Service = game.GetService
+    local Reference = cloneref or function(ref) return ref end
+
+    local elapsed = 0
+    while elapsed < timeoutSeconds do
+        local ok, svc = pcall(Service, game, name)
+        if ok and svc then
+            return Reference(svc)
+        end
+        local dt = Wait(0.1)
+        elapsed = elapsed + (dt or 0.1)
+    end
+
+    return nil
 end
 
 local mainName = 'Nameless Admin'
@@ -48,20 +76,6 @@ local TextChatService = SafeGetService("TextChatService");
 local CaptureService = SafeGetService("CaptureService");
 local TextService = SafeGetService("TextService");
 local StarterGui = SafeGetService("StarterGui");
-local Lower = string.lower;
-local Sub = string.sub;
-local GSub = string.gsub;
-local Find = string.find;
-local Match = string.match;
-local Format = string.format;
-local Unpack = table.unpack;
-local Insert = table.insert;
-local Spawn = task.spawn;
-local Delay = task.delay;
-local Wait = task.wait;
-local Discover = table.find;
-local Concat = table.concat;
-local Defer = task.defer;
 
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
@@ -238,6 +252,12 @@ NAmanage.guiCHECKINGAHHHHH=function()
 	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
+if not gethui then
+	getgenv().gethui=function()
+		return NAmanage.guiCHECKINGAHHHHH()
+	end
+end
+
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent = p end
@@ -341,14 +361,9 @@ function NAProtection(inst,var)
 end
 
 function NaProtectUI(gui)
-	local RunService = SafeGetService("RunService")
-	local Players    = SafeGetService("Players")
-	local CoreGui    = SafeGetService("CoreGui")
 	local INV = "\0"
 	local MAX_DO = 0x7FFFFFFF
-	local target = (gethui and gethui())
-		or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
-		or (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+	local target = NAmanage.guiCHECKINGAHHHHH()
 	if not target then return end
 	pcall(function() gui.Archivable = false end)
 	gui.Name   = INV
@@ -1666,12 +1681,6 @@ function getSeasonEmoji()
 	end
 
 	return ''
-end
-
-if not gethui then
-	getgenv().gethui=function()
-		return NAmanage.guiCHECKINGAHHHHH()
-	end
 end
 
 if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not fireproximityprompt then
@@ -4154,11 +4163,10 @@ local flyVariables = {
 
 cmdlp = Players.LocalPlayer
 plr = cmdlp
-local cmdm = plr:GetMouse()
 goofyFLY = nil
 
 function sFLY(vfly, cfly)
-	while not cmdlp or not getChar() or not getRoot(getChar()) or not getHum() or not cmdm do
+	while not cmdlp or not getChar() or not getRoot(getChar()) or not getHum() or not mouse do
 		Wait()
 	end
 
@@ -4178,12 +4186,13 @@ function sFLY(vfly, cfly)
 	goofyFLY.Transparency = 1
 	goofyFLY.CanCollide = false
 	goofyFLY.Anchored = cfly and true or false
+	goofyFLY:PivotTo(Head:GetPivot())
 
 	local CONTROL = { Q = 0, E = 0 }
 	local lCONTROL = { Q = 0, E = 0 }
 	local SPEED = 0
 
-	cmdm.KeyDown:Connect(function(KEY)
+	mouse.KeyDown:Connect(function(KEY)
 		local key = KEY:lower()
 		if key == 'q' then
 			CONTROL.Q = vfly and -speedofthevfly * 2 or -speedofthefly * 2
@@ -4192,7 +4201,7 @@ function sFLY(vfly, cfly)
 		end
 	end)
 
-	cmdm.KeyUp:Connect(function(KEY)
+	mouse.KeyUp:Connect(function(KEY)
 		local key = KEY:lower()
 		if key == 'q' then
 			CONTROL.Q = 0
@@ -7201,7 +7210,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		NAgui.draggerV2(flipBtn)
 	else
 		NAlib.disconnect("somersault_key")
-		NAlib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
+		NAlib.connect("somersault_key", mouse.KeyDown:Connect(function(KEY)
 			if KEY:lower() == Somersault.key then
 				somersaulter()
 			end
@@ -7672,7 +7681,7 @@ function connectVFlyKey()
 	if flyVariables.vKeybindConn then
 		flyVariables.vKeybindConn:Disconnect()
 	end
-	flyVariables.vKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.vKeybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.vToggleKey then
 			toggleVFly()
 		end
@@ -12623,7 +12632,7 @@ function connectFlyKey()
 	if flyVariables.keybindConn then
 		flyVariables.keybindConn:Disconnect()
 	end
-	flyVariables.keybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.keybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.toggleKey then
 			toggleFly()
 		end
@@ -12805,7 +12814,7 @@ function connectCFlyKey()
 	if flyVariables.cKeybindConn then
 		flyVariables.cKeybindConn:Disconnect()
 	end
-	flyVariables.cKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.cKeybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.cToggleKey then
 			toggleCFly()
 		end
@@ -13100,7 +13109,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 		NAgui.draggerV2(flyVariables.TFLYBTN)
 	else
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(key)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(key)
 			if key:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
@@ -13145,7 +13154,7 @@ end)
 		end
 		flyVariables.tflyToggleKey = key:lower()
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
 			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
@@ -24683,6 +24692,8 @@ NAgui.resizeable = function(ui, min, max)
 	local UIPos
 	local lastSize
 	local lastPos = Vector2.new()
+	local dragInput
+	local dragEndedConn
 
 	local function updateResize(currentPos)
 		local ok, err = pcall(function()
@@ -24717,7 +24728,7 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and (input == dragInput or input.UserInputType == Enum.UserInputType.MouseMovement) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
@@ -24727,9 +24738,11 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and (input == dragInput or input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 					dragging = false
 					mode = nil
+					dragInput = nil
+					if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
 					if mouse and mouse.Icon ~= "" then mouse.Icon = "" end
 				end
 			end)
@@ -24738,6 +24751,7 @@ NAgui.resizeable = function(ui, min, max)
 
 	for _, button in ipairs(rgui:GetChildren()) do
 		if button:IsA("GuiObject") then
+			button.Active = true
 			pcall(function()
 				button.InputBegan:Connect(function(input)
 					pcall(function()
@@ -24748,6 +24762,29 @@ NAgui.resizeable = function(ui, min, max)
 							lastPos = Vector2.new(p.X, p.Y)
 							lastSize = ui.AbsoluteSize
 							UIPos = ui.Position
+							dragInput = input
+							if dragEndedConn then dragEndedConn:Disconnect() end
+							dragEndedConn = input.Changed:Connect(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+									mode = nil
+									dragInput = nil
+									if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
+									if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+										mouse.Icon = ""
+									end
+								end
+							end)
+						end
+					end)
+				end)
+			end)
+
+			pcall(function()
+				button.InputChanged:Connect(function(input)
+					pcall(function()
+						if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+							dragInput = input
 						end
 					end)
 				end)
@@ -24759,6 +24796,8 @@ NAgui.resizeable = function(ui, min, max)
 						if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
 							dragging = false
 							mode = nil
+							dragInput = nil
+							if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
 							if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
 								mouse.Icon = ""
 							end
@@ -24790,6 +24829,7 @@ NAgui.resizeable = function(ui, min, max)
 	end
 
 	return function()
+		pcall(function() if dragEndedConn then dragEndedConn:Disconnect() end end)
 		pcall(function() rgui:Destroy() end)
 	end
 end
@@ -27670,7 +27710,7 @@ if IsOnPC then
 		if flyVariables.tflyKeyConn then
 			flyVariables.tflyKeyConn:Disconnect()
 		end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
 			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
