@@ -24738,7 +24738,7 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
-				if dragging and (input == dragInput or input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and input == dragInput then
 					dragging = false
 					mode = nil
 					dragInput = nil
@@ -24793,7 +24793,7 @@ NAgui.resizeable = function(ui, min, max)
 			pcall(function()
 				button.InputEnded:Connect(function(input)
 					pcall(function()
-						if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
+						if input == dragInput and mode == button and input.UserInputState == Enum.UserInputState.End then
 							dragging = false
 							mode = nil
 							dragInput = nil
