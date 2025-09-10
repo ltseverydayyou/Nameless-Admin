@@ -5,10 +5,38 @@ pcall(function() getgenv().NATestingVer=false end)
 NAbegin=tick()
 CMDAUTOFILL = {}
 
-local function SafeGetService(name)
-	local Service = (game.GetService);
-	local Reference = (cloneref) or function(reference) return reference end
-	return Reference(Service(game, name));
+local Lower = string.lower;
+local Sub = string.sub;
+local GSub = string.gsub;
+local Find = string.find;
+local Match = string.match;
+local Format = string.format;
+local Unpack = table.unpack;
+local Insert = table.insert;
+local Spawn = task.spawn;
+local Delay = task.delay;
+local Wait = task.wait;
+local Discover = table.find;
+local Concat = table.concat;
+local Defer = task.defer;
+
+local function SafeGetService(name, timeoutSeconds)
+    timeoutSeconds = timeoutSeconds or 5
+
+    local Service = game.GetService
+    local Reference = cloneref or function(ref) return ref end
+
+    local elapsed = 0
+    while elapsed < timeoutSeconds do
+        local ok, svc = pcall(Service, game, name)
+        if ok and svc then
+            return Reference(svc)
+        end
+        local dt = Wait(0.1)
+        elapsed = elapsed + (dt or 0.1)
+    end
+
+    return nil
 end
 
 local mainName = 'Nameless Admin'
@@ -28,20 +56,6 @@ local TextChatService = SafeGetService("TextChatService");
 local CaptureService = SafeGetService("CaptureService");
 local TextService = SafeGetService("TextService");
 local StarterGui = SafeGetService("StarterGui");
-local Lower = string.lower;
-local Sub = string.sub;
-local GSub = string.gsub;
-local Find = string.find;
-local Match = string.match;
-local Format = string.format;
-local Unpack = table.unpack;
-local Insert = table.insert;
-local Spawn = task.spawn;
-local Delay = task.delay;
-local Wait = task.wait;
-local Discover = table.find;
-local Concat = table.concat;
-local Defer = task.defer;
 
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
@@ -218,6 +232,12 @@ NAmanage.guiCHECKINGAHHHHH=function()
 	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
+if not gethui then
+	getgenv().gethui=function()
+		return NAmanage.guiCHECKINGAHHHHH()
+	end
+end
+
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent = p end
@@ -321,14 +341,9 @@ function NAProtection(inst,var)
 end
 
 function NaProtectUI(gui)
-	local RunService = SafeGetService("RunService")
-	local Players    = SafeGetService("Players")
-	local CoreGui    = SafeGetService("CoreGui")
 	local INV = "\0"
 	local MAX_DO = 0x7FFFFFFF
-	local target = (gethui and gethui())
-		or (CoreGui:FindFirstChild("RobloxGui") or CoreGui:FindFirstChildWhichIsA("ScreenGui") or CoreGui)
-		or (Players.LocalPlayer and Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui"))
+	local target = NAmanage.guiCHECKINGAHHHHH()
 	if not target then return end
 	pcall(function() gui.Archivable = false end)
 	gui.Name   = INV
@@ -464,7 +479,6 @@ end
 
 NAgui.dragger = function(ui, dragui)
 	dragui = dragui or ui
-	local UserInputService = SafeGetService("UserInputService")
 	local dragging = false
 	local dragInput
 	local dragStart
@@ -538,7 +552,6 @@ NAgui.draggerV2 = function(ui, dragui)
 	dragui = dragui or ui
 	local connName = "DraggerV2_"..ui:GetDebugId()
 	NAlib.disconnect(connName)
-	local UserInputService = SafeGetService("UserInputService")
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 	local dragging, dragInput, dragStart, startPos
 	local anchor = ui.AnchorPoint
@@ -1391,7 +1404,6 @@ end
 
 NAAssetsLoading.preloadContentAdaptive=function(contentList, onStep, shouldSkip)
 	local CP = SafeGetService("ContentProvider")
-	local RunService = SafeGetService("RunService")
 	local total = #contentList
 	if total == 0 then return end
 	local idx, done = 1, 0
@@ -1482,7 +1494,6 @@ NAAssetsLoading.startBackgroundWatcher=function()
 	if NAAssetsLoading.bgWorker then return end
 	NAAssetsLoading.bgWorker = Spawn(function()
 		local CP = SafeGetService("ContentProvider")
-		local RunService = SafeGetService("RunService")
 		local dtAvg, dtAlpha = 1/90, 0.08
 		local hb = RunService.Heartbeat:Connect(function(dt) dtAvg = (1-dtAlpha)*dtAvg + dtAlpha*dt end)
 		while true do
@@ -1646,12 +1657,6 @@ function getSeasonEmoji()
 	end
 
 	return ''
-end
-
-if not gethui then
-	getgenv().gethui=function()
-		return NAmanage.guiCHECKINGAHHHHH()
-	end
 end
 
 if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not fireproximityprompt then
@@ -2050,7 +2055,6 @@ end
 
 NAmanage.getPlrCursor = function()
 	local found = nil
-	local Players = SafeGetService("Players")
 	local ClosestDistance = math.huge
 	for _,v in pairs(Players:GetPlayers()) do
 		if v ~= Players.LocalPlayer and v.Character and v.Character:FindFirstChildOfClass("Humanoid") then
@@ -4134,11 +4138,10 @@ local flyVariables = {
 
 cmdlp = Players.LocalPlayer
 plr = cmdlp
-local cmdm = plr:GetMouse()
 goofyFLY = nil
 
 function sFLY(vfly, cfly)
-	while not cmdlp or not getChar() or not getRoot(getChar()) or not getHum() or not cmdm do
+	while not cmdlp or not getChar() or not getRoot(getChar()) or not getHum() or not mouse do
 		Wait()
 	end
 
@@ -4158,12 +4161,13 @@ function sFLY(vfly, cfly)
 	goofyFLY.Transparency = 1
 	goofyFLY.CanCollide = false
 	goofyFLY.Anchored = cfly and true or false
+	goofyFLY:PivotTo(Head:GetPivot())
 
 	local CONTROL = { Q = 0, E = 0 }
 	local lCONTROL = { Q = 0, E = 0 }
 	local SPEED = 0
 
-	cmdm.KeyDown:Connect(function(KEY)
+	mouse.KeyDown:Connect(function(KEY)
 		local key = KEY:lower()
 		if key == 'q' then
 			CONTROL.Q = vfly and -speedofthevfly * 2 or -speedofthefly * 2
@@ -4172,7 +4176,7 @@ function sFLY(vfly, cfly)
 		end
 	end)
 
-	cmdm.KeyUp:Connect(function(KEY)
+	mouse.KeyUp:Connect(function(KEY)
 		local key = KEY:lower()
 		if key == 'q' then
 			CONTROL.Q = 0
@@ -5622,9 +5626,6 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	local dragInput
 	local sliderStart, sliderWidth
 
-	local UserInputService = UserInputService
-	local RunService = RunService
-
 	knob.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -5705,7 +5706,6 @@ end)
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
 	local player=Players.LocalPlayer
-	local UserInputService=UserInputService
 	function teleportPlayer()
 		local character=player.Character or player.CharacterAdded:wait(1)
 		local camera=workspace.CurrentCamera
@@ -5726,7 +5726,7 @@ cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua"))()
 end)
 
-cmd.add({"discord", "invite", "support", "help"}, {"discord (invite, support, help)", "Copy an invite link"}, function()
+cmd.add({"discord", "invite", "support", "help"}, {"discord", "Copy an invite link"}, function()
 	if setclipboard then
 		Window({
 			Title = "Discord",
@@ -6566,7 +6566,6 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local CONN_KEY = "CharDebug"
 	local RENDER_BIND = "CharDebug"
 
-	local Lighting = SafeGetService("Lighting")
 	local LogService = SafeGetService("LogService")
 	local StatsService = SafeGetService("Stats")
 	local CoreGui = SafeGetService("CoreGui")
@@ -7181,7 +7180,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		NAgui.draggerV2(flipBtn)
 	else
 		NAlib.disconnect("somersault_key")
-		NAlib.connect("somersault_key", cmdm.KeyDown:Connect(function(KEY)
+		NAlib.connect("somersault_key", mouse.KeyDown:Connect(function(KEY)
 			if KEY:lower() == Somersault.key then
 				somersaulter()
 			end
@@ -7652,7 +7651,7 @@ function connectVFlyKey()
 	if flyVariables.vKeybindConn then
 		flyVariables.vKeybindConn:Disconnect()
 	end
-	flyVariables.vKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.vKeybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.vToggleKey then
 			toggleVFly()
 		end
@@ -8015,8 +8014,6 @@ local auraConn,auraViz
 
 cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with equipped tool"},function(dist)
 	dist=tonumber(dist) or 20
-	local Players=SafeGetService("Players")
-	local RunService=SafeGetService("RunService")
 	local LocalPlayer=Players.LocalPlayer
 	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
 	if auraConn then auraConn:Disconnect() auraConn=nil end
@@ -8181,7 +8178,6 @@ end)
 
 	DoNotif("Break layered clothing executed,if you havent already equip shirt,jacket,pants and shoes (Layered Clothing ones)")
 	local swimming=false
-	local RunService=RunService
 	oldgrav=workspace.Gravity
 	workspace.Gravity=0
 	local char=getChar()
@@ -8793,7 +8789,6 @@ cmd.add({"timestamp", "epoch"}, {"timestamp (epoch)", "Shows current Unix timest
 end)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
-	local RunService = RunService
 	local Workspace = workspace
 
 	repeat RunService.RenderStepped:Wait() until Player.Character
@@ -9038,7 +9033,6 @@ NAmanage.AntiTeleport_EnsureHook = function()
 	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
 	local meta = getRawMetatable(game)
 	if not meta then return end
-	local TeleportService = SafeGetService("TeleportService")
 	if not TeleportService then return end
 	NAStuff.AntiTeleportOrig.namecall = meta.__namecall
 	NAStuff.AntiTeleportOrig.index = meta.__index
@@ -9179,7 +9173,6 @@ cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disable
 		DoNotif("Anti-Teleport not active or missing references",3)
 		return
 	end
-	local TeleportService = SafeGetService("TeleportService")
 	for name,orig in pairs(NAStuff.AntiTeleportOrig.funcs or {}) do
 		local fn = TeleportService[name]
 		if typeof(fn)=="function" and orig then
@@ -9347,10 +9340,36 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 		local root = getRoot(char)
 		while not (hum and root) do Wait(.1) hum=getPlrHum(char) root=getRoot(char) end
 
+		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
+		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end)
+		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false) end)
+
+		local RS = SafeGetService("RunService")
+		local function recover()
+			pcall(function() root.AssemblyLinearVelocity = Vector3.zero end)
+			pcall(function() root.Velocity = Vector3.zero end)
+			pcall(function() hum.PlatformStand = false end)
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+		end
+
 		NAlib.disconnect("trip_fall")
 		NAlib.connect("trip_fall", hum.FallingDown:Connect(function()
-			root.Velocity = Vector3.zero
-			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			recover()
+		end))
+
+		NAlib.disconnect("trip_state")
+		NAlib.connect("trip_state", hum.StateChanged:Connect(function(_, new)
+			if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.PlatformStanding then
+				recover()
+			end
+		end))
+
+		NAlib.disconnect("trip_step")
+		NAlib.connect("trip_step", RS.Stepped:Connect(function()
+			local s = hum:GetState()
+			if s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Ragdoll or s == Enum.HumanoidStateType.PlatformStanding then
+				recover()
+			end
 		end))
 	end
 
@@ -9366,6 +9385,8 @@ end)
 
 cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
 	NAlib.disconnect("trip_fall")
+	NAlib.disconnect("trip_state")
+	NAlib.disconnect("trip_step")
 	NAlib.disconnect("trip_char")
 	DebugNotif("Antitrip Disabled", 2)
 end)
@@ -9382,39 +9403,223 @@ cmd.add({"sit"},{"sit","Sit your player"},function()
 end)
 
 cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
-	for i,v in pairs(workspace:GetDescendants()) do
-		if v:IsA("BasePart") then
-			local dec=InstanceNew("Texture",v)
-			dec.Texture=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud) or "rbxassetid://48715260"
-			dec.Face="Top"
-			dec.StudsPerTileU="1"
-			dec.StudsPerTileV="1"
-			dec.Transparency=v.Transparency
-			v.Material="Plastic"
-			local dec2=InstanceNew("Texture",v)
-			dec2.Texture=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet) or "rbxassetid://20299774"
-			dec2.Face="Bottom"
-			dec2.StudsPerTileU="1"
-			dec2.StudsPerTileV="1"
-			dec2.Transparency=v.Transparency
-			v.Material="Plastic"
-		end
+	local Lighting = SafeGetService("Lighting")
+	if Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+	Lighting:SetAttribute("NAOldRbx_Enabled", true)
+
+	local function studAsset()
+		return (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud)) or "rbxassetid://48715260"
 	end
-	Lighting.ClockTime=12
-	Lighting.GlobalShadows=false
-	Lighting.Outlines=false
-	for i,v in pairs(Lighting:GetDescendants()) do
+	local function inletAsset()
+		return (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet)) or "rbxassetid://20299774"
+	end
+	local function skyAssets()
+		return {
+			bk = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk)) or "rbxassetid://161781263",
+			dn = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn)) or "rbxassetid://161781258",
+			ft = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft)) or "rbxassetid://161781261",
+			lf = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf)) or "rbxassetid://161781267",
+			rt = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt)) or "rbxassetid://161781268",
+			up = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up)) or "rbxassetid://161781260",
+		}
+	end
+
+	local function applyToPart(v)
+		if not v or not v.Parent or not v:IsA("BasePart") or v:GetAttribute("NAOldRbx_Applied") then return end
+		v:SetAttribute("NAOldRbx_OrigMat", tostring(v.Material))
+		v:SetAttribute("NAOldRbx_Applied", true)
+
+		local stud = v:FindFirstChild("NAOldRobloxStud")
+		if not stud then
+			stud = InstanceNew("Texture")
+			stud.Name = "NAOldRobloxStud"
+			stud.Parent = v
+		end
+		stud.Texture = studAsset()
+		stud.Face = Enum.NormalId.Top
+		stud.StudsPerTileU = 1
+		stud.StudsPerTileV = 1
+		stud.Transparency = v.Transparency
+
+		local inlet = v:FindFirstChild("NAOldRobloxInlet")
+		if not inlet then
+			inlet = InstanceNew("Texture")
+			inlet.Name = "NAOldRobloxInlet"
+			inlet.Parent = v
+		end
+		inlet.Texture = inletAsset()
+		inlet.Face = Enum.NormalId.Bottom
+		inlet.StudsPerTileU = 1
+		inlet.StudsPerTileV = 1
+		inlet.Transparency = v.Transparency
+
+		v.Material = Enum.Material.Plastic
+	end
+
+	local function ensureSky()
+		local s = Lighting:FindFirstChild("NAOldRobloxSky")
+		if s then return s end
+		local a = skyAssets()
+		local sky = InstanceNew("Sky")
+		sky.Name = "NAOldRobloxSky"
+		sky.SkyboxBk = a.bk
+		sky.SkyboxDn = a.dn
+		sky.SkyboxFt = a.ft
+		sky.SkyboxLf = a.lf
+		sky.SkyboxRt = a.rt
+		sky.SkyboxUp = a.up
+		sky.Parent = Lighting
+		return sky
+	end
+
+	Lighting:SetAttribute("NAOldRbx_PrevClockTime", Lighting.ClockTime)
+	Lighting:SetAttribute("NAOldRbx_PrevGlobalShadows", Lighting.GlobalShadows)
+	local ok,outlines = pcall(function() return Lighting.Outlines end)
+	if ok then Lighting:SetAttribute("NAOldRbx_HadOutlines", true) Lighting:SetAttribute("NAOldRbx_PrevOutlines", outlines) end
+
+	local stash = workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder", workspace)
+	stash.Name = "NAOldRbx_SkyStash"
+	for _,v in ipairs(Lighting:GetChildren()) do
 		if v:IsA("Sky") then
+			local c = v:Clone()
+			c.Parent = stash
 			v:Destroy()
 		end
 	end
-	local sky=InstanceNew("Sky",Lighting)
-	sky.SkyboxBk=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk) or "rbxassetid://161781263"
-	sky.SkyboxDn=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn) or "rbxassetid://161781258"
-	sky.SkyboxFt=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft) or "rbxassetid://161781261"
-	sky.SkyboxLf=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf) or "rbxassetid://161781267"
-	sky.SkyboxRt=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt) or "rbxassetid://161781268"
-	sky.SkyboxUp=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up) or "rbxassetid://161781260"
+
+	Lighting.ClockTime = 12
+	pcall(function() Lighting.GlobalShadows = false end)
+	pcall(function() Lighting.Outlines = false end)
+	ensureSky()
+
+	local queue = {}
+	local qhead = 1
+	local function qpush(x) queue[#queue+1] = x end
+	local function qpop() local x = queue[qhead]; queue[qhead] = nil; qhead += 1; return x end
+	for _,child in ipairs(workspace:GetChildren()) do qpush(child) end
+
+	NAlib.disconnect("oldrbx_tick")
+	NAlib.connect("oldrbx_tick", SafeGetService("RunService").Heartbeat:Connect(function()
+		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		local step = 300
+		local i = 0
+		while i < step do
+			local node = qpop()
+			if not node then break end
+			if node.Parent then
+				if node:IsA("BasePart") then
+					applyToPart(node)
+				end
+				for _,c in ipairs(node:GetChildren()) do
+					qpush(c)
+				end
+			end
+			i += 1
+		end
+	end))
+
+	NAlib.disconnect("oldrbx_desc")
+	NAlib.connect("oldrbx_desc", workspace.DescendantAdded:Connect(function(obj)
+		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if obj:IsA("BasePart") then
+			qpush(obj)
+		end
+	end))
+
+	NAlib.disconnect("oldrbx_skywatch")
+	NAlib.connect("oldrbx_skywatch", Lighting.ChildAdded:Connect(function(obj)
+		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if obj:IsA("Sky") and obj.Name ~= "NAOldRobloxSky" then
+			local c = obj:Clone()
+			c.Parent = stash
+			obj:Destroy()
+			ensureSky()
+		end
+	end))
+
+	NAlib.disconnect("oldrbx_skyguard")
+	NAlib.connect("oldrbx_skyguard", Lighting.ChildRemoved:Connect(function(obj)
+		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if obj:IsA("Sky") and not Lighting:FindFirstChild("NAOldRobloxSky") then
+			ensureSky()
+		end
+	end))
+end)
+
+cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
+	local Lighting = SafeGetService("Lighting")
+	if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+
+	NAlib.disconnect("oldrbx_desc")
+	NAlib.disconnect("oldrbx_skywatch")
+	NAlib.disconnect("oldrbx_skyguard")
+	NAlib.disconnect("oldrbx_tick")
+
+	local removeQueue = {}
+	local rhead = 1
+	local function rpush(x) removeQueue[#removeQueue+1] = x end
+	local function rpop() local x = removeQueue[rhead]; removeQueue[rhead] = nil; rhead += 1; return x end
+	for _,child in ipairs(workspace:GetChildren()) do rpush(child) end
+
+	NAlib.disconnect("oldrbx_untick")
+	NAlib.connect("oldrbx_untick", SafeGetService("RunService").Heartbeat:Connect(function()
+		local step = 300
+		local i = 0
+		while i < step do
+			local node = rpop()
+			if not node then break end
+			if node.Parent then
+				if node:IsA("BasePart") and node:GetAttribute("NAOldRbx_Applied") then
+					local a = node:FindFirstChild("NAOldRobloxStud"); if a then a:Destroy() end
+					local b = node:FindFirstChild("NAOldRobloxInlet"); if b then b:Destroy() end
+					local matName = node:GetAttribute("NAOldRbx_OrigMat")
+					if typeof(matName) == "string" and Enum.Material[matName] then
+						pcall(function() node.Material = Enum.Material[matName] end)
+					end
+					node:SetAttribute("NAOldRbx_Applied", nil)
+					node:SetAttribute("NAOldRbx_OrigMat", nil)
+				end
+				for _,c in ipairs(node:GetChildren()) do
+					rpush(c)
+				end
+			end
+			i += 1
+		end
+
+		if rhead > #removeQueue then
+			NAlib.disconnect("oldrbx_untick")
+
+			for _,v in ipairs(Lighting:GetChildren()) do
+				if v:IsA("Sky") and v.Name == "NAOldRobloxSky" then
+					v:Destroy()
+				end
+			end
+			local stash = workspace:FindFirstChild("NAOldRbx_SkyStash")
+			if stash then
+				for _,c in ipairs(stash:GetChildren()) do
+					if c:IsA("Sky") then
+						c.Parent = Lighting
+					end
+				end
+				stash:Destroy()
+			end
+
+			local prevClock = Lighting:GetAttribute("NAOldRbx_PrevClockTime")
+			local prevShadows = Lighting:GetAttribute("NAOldRbx_PrevGlobalShadows")
+			if typeof(prevClock) == "number" then pcall(function() Lighting.ClockTime = prevClock end) end
+			if typeof(prevShadows) == "boolean" then pcall(function() Lighting.GlobalShadows = prevShadows end) end
+			if Lighting:GetAttribute("NAOldRbx_HadOutlines") then
+				local prevOut = Lighting:GetAttribute("NAOldRbx_PrevOutlines")
+				pcall(function() Lighting.Outlines = prevOut end)
+			end
+
+			Lighting:SetAttribute("NAOldRbx_Enabled", nil)
+			Lighting:SetAttribute("NAOldRbx_PrevClockTime", nil)
+			Lighting:SetAttribute("NAOldRbx_PrevGlobalShadows", nil)
+			Lighting:SetAttribute("NAOldRbx_HadOutlines", nil)
+			Lighting:SetAttribute("NAOldRbx_PrevOutlines", nil)
+		end
+	end))
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
@@ -9429,8 +9634,6 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	local ToggleKey = Enum.KeyCode.Z
 	local FieldOfView = 10
 
-	local Players = Players
-	local RunService = RunService
 	local UIS = UserInputService
 	local Camera = workspace.CurrentCamera
 
@@ -9534,7 +9737,6 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 end)
 
 cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
-	local Lighting=Lighting
 	Lighting.FogEnd=100000
 	for i,v in pairs(Lighting:GetDescendants()) do
 		if v:IsA("Atmosphere") then
@@ -9605,8 +9807,6 @@ cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", 
 end)
 
 cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
-	local UserInputService = SafeGetService("UserInputService")
-	local RunService = RunService
 	local Camera = workspace.CurrentCamera
 
 	local SPEED_MULTIPLIER = (...) or 30
@@ -10920,7 +11120,6 @@ cmd.add({"vehicleclip", "vclip", "unvnoclip", "unvehiclenoclip"}, {"vehicleclip 
 end)
 
 cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player using a tool that deals damage on touch"}, function(...)
-	local Players = SafeGetService("Players")
 	local LocalPlayer = Players.LocalPlayer
 
 	if not firetouchinterest then
@@ -12603,7 +12802,7 @@ function connectFlyKey()
 	if flyVariables.keybindConn then
 		flyVariables.keybindConn:Disconnect()
 	end
-	flyVariables.keybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.keybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.toggleKey then
 			toggleFly()
 		end
@@ -12785,7 +12984,7 @@ function connectCFlyKey()
 	if flyVariables.cKeybindConn then
 		flyVariables.cKeybindConn:Disconnect()
 	end
-	flyVariables.cKeybindConn = cmdm.KeyDown:Connect(function(KEY)
+	flyVariables.cKeybindConn = mouse.KeyDown:Connect(function(KEY)
 		if KEY:lower() == flyVariables.cToggleKey then
 			toggleCFly()
 		end
@@ -13080,7 +13279,7 @@ cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying
 		NAgui.draggerV2(flyVariables.TFLYBTN)
 	else
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(key)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(key)
 			if key:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
@@ -13125,7 +13324,7 @@ end)
 		end
 		flyVariables.tflyToggleKey = key:lower()
 		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
 			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
@@ -14199,8 +14398,6 @@ end)
 -- still worked on (i think)
 
 --[[cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prevents you from getting banning when typing unspeakable messages (requires the new chat service)"},function()
-	local Players=SafeGetService("Players")
-	local TextChatService=SafeGetService("TextChatService")
 	local CoreGui=SafeGetService("CoreGui")
 	local LocalPlayer=Players.LocalPlayer
 	local glyphs={
@@ -20697,7 +20894,6 @@ end,true)
 
 cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"},function()
 	local player=Players.LocalPlayer
-	local UserInputService=UserInputService
 	local TweenService=TweenService
 
 	function teleportPlayer()
@@ -21837,8 +22033,6 @@ local ogParts,resizeLoops={},{}
 local hbAddConn,hbRemConn=nil,nil
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
-	local Players=SafeGetService("Players")
-	local RunService=SafeGetService("RunService")
 	local targets=getPlr(pArg) if #targets==0 then DoNotif("No players found",2) return end
 	local n=tonumber(sArg) or 10
 	local global=(Lower(pArg)=="all" or Lower(pArg)=="others")
@@ -21895,7 +22089,6 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
-	local Players=SafeGetService("Players")
 	local targets=getPlr(pArg)
 	for _,plr in ipairs(targets)do
 		local char=getPlrChar(plr)
@@ -22080,8 +22273,6 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	local Player = Players.LocalPlayer
 	local Mouse = Player:GetMouse()
-	local RunService = RunService
-	local UserInputService = UserInputService
 
 	local Folder = InstanceNew("Folder")
 	Folder.Parent = workspace
@@ -22508,8 +22699,6 @@ cmd.add({"unloopnight", "unloopn", "unln"}, {"unloopnight (unloopn,unln)", "No m
 end)
 
 cmd.add({"loopnofog","lnofog","lnf", "loopnf"},{"loopnofog (lnofog,lnf,loopnf)","See clearly forever!"},function()
-	local Lighting = Lighting
-
 	NAlib.disconnect("nofog_con")
 	NAlib.disconnect("nofog_loop")
 
@@ -23869,7 +24058,6 @@ cmd.add({"unloopbringnpcs", "unlbnpcs"}, {"unloopbringnpcs (unlbnpcs)", "Stops N
 end)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
-	local Players = SafeGetService("Players")
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
 	for _, d in pairs(workspace:GetDescendants()) do
@@ -24663,6 +24851,8 @@ NAgui.resizeable = function(ui, min, max)
 	local UIPos
 	local lastSize
 	local lastPos = Vector2.new()
+	local dragInput
+	local dragEndedConn
 
 	local function updateResize(currentPos)
 		local ok, err = pcall(function()
@@ -24697,7 +24887,7 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and (input == dragInput or input.UserInputType == Enum.UserInputType.MouseMovement) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
@@ -24707,9 +24897,11 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
-				if dragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				if dragging and input == dragInput then
 					dragging = false
 					mode = nil
+					dragInput = nil
+					if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
 					if mouse and mouse.Icon ~= "" then mouse.Icon = "" end
 				end
 			end)
@@ -24718,6 +24910,7 @@ NAgui.resizeable = function(ui, min, max)
 
 	for _, button in ipairs(rgui:GetChildren()) do
 		if button:IsA("GuiObject") then
+			button.Active = true
 			pcall(function()
 				button.InputBegan:Connect(function(input)
 					pcall(function()
@@ -24728,6 +24921,29 @@ NAgui.resizeable = function(ui, min, max)
 							lastPos = Vector2.new(p.X, p.Y)
 							lastSize = ui.AbsoluteSize
 							UIPos = ui.Position
+							dragInput = input
+							if dragEndedConn then dragEndedConn:Disconnect() end
+							dragEndedConn = input.Changed:Connect(function()
+								if input.UserInputState == Enum.UserInputState.End then
+									dragging = false
+									mode = nil
+									dragInput = nil
+									if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
+									if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
+										mouse.Icon = ""
+									end
+								end
+							end)
+						end
+					end)
+				end)
+			end)
+
+			pcall(function()
+				button.InputChanged:Connect(function(input)
+					pcall(function()
+						if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+							dragInput = input
 						end
 					end)
 				end)
@@ -24736,9 +24952,11 @@ NAgui.resizeable = function(ui, min, max)
 			pcall(function()
 				button.InputEnded:Connect(function(input)
 					pcall(function()
-						if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and mode == button then
+						if input == dragInput and mode == button and input.UserInputState == Enum.UserInputState.End then
 							dragging = false
 							mode = nil
+							dragInput = nil
+							if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
 							if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
 								mouse.Icon = ""
 							end
@@ -24770,6 +24988,7 @@ NAgui.resizeable = function(ui, min, max)
 	end
 
 	return function()
+		pcall(function() if dragEndedConn then dragEndedConn:Disconnect() end end)
 		pcall(function() rgui:Destroy() end)
 	end
 end
@@ -26192,6 +26411,7 @@ end
 NAmanage.bindToDevConsole = function()
 	if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleExample then return end
 
+	local activeLogs, pool, pending = {}, {}, {}
 	local toggles = { Output = true, Info = true, Warn = true, Error = true }
 
 	local FilterButtons = InstanceNew("Frame")
@@ -26210,7 +26430,6 @@ NAmanage.bindToDevConsole = function()
 	layout.Parent = FilterButtons
 
 	local buttonTypes = { "Output", "Info", "Warn", "Error" }
-
 	for _, logType in ipairs(buttonTypes) do
 		local btnContainer = InstanceNew("Frame")
 		btnContainer.Name = logType
@@ -26258,14 +26477,15 @@ NAmanage.bindToDevConsole = function()
 			toggles[logType] = not toggles[logType]
 			local targetColor = toggles[logType] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
 			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-			local tween = TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor})
-			tween:Play()
+			TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor}):Play()
 
-			for _, label in pairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
-				if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-					local tag = label.Tag.Value
-					local matchesSearch = NAUIMANAGER.NAfilter.Text == "" or Find(label.Text:lower(), NAUIMANAGER.NAfilter.Text:lower())
-					label.Visible = toggles[tag] and matchesSearch
+			local query = NAUIMANAGER.NAfilter.Text:lower()
+			for i = 1, #activeLogs do
+				local lbl = activeLogs[i]
+				if lbl and lbl.Parent then
+					local tag = lbl:GetAttribute("Tag")
+					local matchesSearch = query == "" or Find(lbl.Text:lower(), query)
+					lbl.Visible = toggles[tag] and matchesSearch
 				end
 			end
 		end)
@@ -26273,29 +26493,91 @@ NAmanage.bindToDevConsole = function()
 
 	NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
 		local query = NAUIMANAGER.NAfilter.Text:lower()
-		for _, label in pairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
-			if label:IsA("TextLabel") and label:FindFirstChild("Tag") then
-				local tag = label.Tag.Value
-				local matches = query == "" or Find(label.Text:lower(), query)
-				label.Visible = toggles[tag] and matches
+		for i = 1, #activeLogs do
+			local lbl = activeLogs[i]
+			if lbl and lbl.Parent then
+				local tag = lbl:GetAttribute("Tag")
+				local matches = query == "" or Find(lbl.Text:lower(), query)
+				lbl.Visible = toggles[tag] and matches
 			end
 		end
 	end)
 
+	local function acquireLabel()
+		if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleLogs.Parent then return nil end
+		local lbl = table.remove(pool)
+		if not lbl then
+			lbl = NAUIMANAGER.NAconsoleExample:Clone()
+			lbl.RichText = true
+			lbl.AutoLocalize = false
+			pcall(function() lbl.Active = true end)
+			lbl.TextWrapped = true
+			lbl.TextScaled = true
+		end
+		if not pcall(function() lbl.Parent = NAUIMANAGER.NAconsoleLogs end) then return nil end
+		return lbl
+	end
+
+	local function recycleOldest()
+		local oldest = table.remove(activeLogs, 1)
+		if oldest then
+			oldest.Visible = false
+			oldest.Parent = nil
+			Insert(pool, oldest)
+		end
+	end
+
+	local function escape(s)
+		return s:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;")
+	end
+
+	local function measureHeight(lbl, width)
+		local plain = lbl.Text:gsub("<.->","")
+		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14
+		local vec = TextService:GetTextSize(plain, baseSize, lbl.Font, Vector2.new(width, 1e6))
+		local h = vec.Y
+		if h < 18 then h = 18 end
+		return math.floor(h + 0.5)
+	end
+
 	local messageCounter = 0
+	local MAX_MESSAGES = 200
+
+	RunService.Heartbeat:Connect(function()
+		if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleLogs.Parent then return end
+		local perStep = 30
+		local processed = 0
+		while processed < perStep and #pending > 0 do
+			local item = table.remove(pending, 1)
+			if toggles[item.t] then
+				local logLabel = acquireLabel()
+				if not logLabel then break end
+				messageCounter += 1
+				logLabel.Name = "Log_"..tostring(messageCounter)
+				logLabel.LayoutOrder = messageCounter
+				logLabel.Text = '<font color="'..item.c..'">['..item.t..']</font>: <font color="#ffffff">'..item.m..'</font>'
+				logLabel:SetAttribute("Tag", item.t)
+
+				local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X
+				local h = measureHeight(logLabel, width)
+				logLabel.Size = UDim2.new(1, 0, 0, h)
+
+				activeLogs[#activeLogs + 1] = logLabel
+				if #activeLogs > MAX_MESSAGES then
+					recycleOldest()
+				end
+
+				local query = NAUIMANAGER.NAfilter.Text:lower()
+				local matchesSearch = query == "" or Find(logLabel.Text:lower(), query)
+				logLabel.Visible = toggles[item.t] and matchesSearch
+				processed += 1
+			end
+		end
+	end)
 
 	SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
-		messageCounter = messageCounter + 1
-
-		local logLabel = NAUIMANAGER.NAconsoleExample:Clone()
-		logLabel.Name = "Log_"..tostring(math.random(100000, 999999))
-		logLabel.Parent = NAUIMANAGER.NAconsoleLogs
-		logLabel.LayoutOrder = messageCounter
-		logLabel.RichText = true
-
 		local tagColor = "#cccccc"
 		local tagText = "Output"
-
 		if msgTYPE == Enum.MessageType.MessageError then
 			tagColor = "#ff6464"
 			tagText = "Error"
@@ -26306,39 +26588,8 @@ NAmanage.bindToDevConsole = function()
 			tagColor = "#66ccff"
 			tagText = "Info"
 		end
-
-		local escapedMsg = msg:gsub("<", "&lt;"):gsub(">", "&gt;")
-
-		logLabel.Text = '<font color="'..tagColor..'">['..tagText..']</font>: <font color="#ffffff">'..escapedMsg..'</font>'
-
-		local tag = InstanceNew("StringValue")
-		tag.Name = "Tag"
-		tag.Value = tagText
-		tag.Parent = logLabel
-
-		local txtSize = NAgui.txtSize(logLabel, logLabel.AbsoluteSize.X, 100)
-		logLabel.Size = UDim2.new(1, -5, 0, txtSize.Y)
-
-		local MAX_MESSAGES = 200
-		local logFrames = {}
-
-		for _, v in pairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
-			if v:IsA("TextLabel") then
-				Insert(logFrames, v)
-			end
-		end
-
-		table.sort(logFrames, function(a, b)
-			return a.LayoutOrder < b.LayoutOrder
-		end)
-
-		while #logFrames > MAX_MESSAGES do
-			logFrames[1]:Destroy()
-			table.remove(logFrames, 1)
-		end
-
-		local matchesSearch = NAUIMANAGER.NAfilter.Text == "" or Find(logLabel.Text:lower(), NAUIMANAGER.NAfilter.Text:lower())
-		logLabel.Visible = toggles[tagText] and matchesSearch
+		if not toggles[tagText] then return end
+		Insert(pending, { m = escape(msg), t = tagText, c = tagColor })
 	end)
 end
 
@@ -27650,7 +27901,7 @@ if IsOnPC then
 		if flyVariables.tflyKeyConn then
 			flyVariables.tflyKeyConn:Disconnect()
 		end
-		flyVariables.tflyKeyConn = cmdm.KeyDown:Connect(function(k)
+		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
 			if k:lower() == flyVariables.tflyToggleKey then
 				toggleTFly()
 			end
