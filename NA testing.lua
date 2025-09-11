@@ -8120,6 +8120,69 @@ cmd.add({"unantivoid2"}, {"unantivoid2", "reverts FallenPartsDestroyHeight"}, fu
 	end
 end)
 
+comPart, comHL, comConn, comRadius = nil,nil,nil,nil
+
+cmd.add({"showcom","centerofmass","com"},{"showcom [radiusStuds]","Create a glass sphere with a Highlight at your center of mass"},function(...)
+	comRadius = tonumber(({...})[1]) or 0.35
+	if comConn then comConn:Disconnect() comConn=nil end
+	NAlib.disconnect("com_track")
+
+	local function ensureParts()
+		if not comPart or not comPart.Parent then
+			if comPart then pcall(function() comPart:Destroy() end) end
+			comPart = InstanceNew("Part")
+			comPart.Shape = Enum.PartType.Ball
+			comPart.Anchored = true
+			comPart.CanCollide = false
+			comPart.CanQuery = false
+			comPart.CanTouch = false
+			comPart.Massless = true
+			comPart.CastShadow = false
+			comPart.Material = Enum.Material.Glass
+			comPart.Transparency = 0
+			local sz = comRadius*2
+			comPart.Size = Vector3.new(sz, sz, sz)
+			comPart.Parent = workspace
+		end
+		if not comHL or not comHL.Parent or comHL.Adornee ~= comPart then
+			if comHL then pcall(function() comHL:Destroy() end) end
+			comHL = InstanceNew("Highlight")
+			comHL.Adornee = comPart
+			comHL.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			comHL.FillTransparency = 0.25
+			comHL.OutlineTransparency = 0
+			comHL.FillColor = Color3.fromRGB(255, 255, 0)
+			comHL.OutlineColor = Color3.fromRGB(255, 255, 0)
+			comHL.Parent = comPart
+		end
+	end
+
+	comConn = RunService.Heartbeat:Connect(function()
+		ensureParts()
+		local char = getChar()
+		local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+		if root and root:IsDescendantOf(workspace) and comPart and comPart.Parent then
+			local pos = root.AssemblyCenterOfMass or root.Position
+			comPart.Anchored = true
+			comPart.CanCollide = false
+			comPart.Material = Enum.Material.Glass
+			comPart.Transparency = 0
+			local sz = comRadius*2
+			if comPart.Size.X ~= sz then comPart.Size = Vector3.new(sz, sz, sz) end
+			comPart.CFrame = CFrame.new(pos)
+		end
+	end)
+
+	NAlib.connect("com_track", comConn)
+end,true)
+
+cmd.add({"hidecom","unshowcom","uncom"},{"hidecom","Remove COM tracker"},function()
+	NAlib.disconnect("com_track")
+	if comConn then comConn:Disconnect() comConn=nil end
+	if comHL then pcall(function() comHL:Destroy() end) comHL=nil end
+	if comPart then pcall(function() comPart:Destroy() end) comPart=nil end
+end)
+
 cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
 	local backpack = getBp()
 	local toolToDrop = nil
@@ -20149,6 +20212,17 @@ NAindex.matchAny = function(names, target)
 	target = NAindex.lc(target)
 	if not target or target == "" then return true end
 	for i = 1, #names do
+		if names[i] == target then
+			return true
+		end
+	end
+	return false
+end
+
+NAindex.matchAnyFind = function(names, target)
+	target = NAindex.lc(target)
+	if not target or target == "" then return true end
+	for i = 1, #names do
 		local n = names[i]
 		if n == target or Find(n, target, 1, true) then
 			return true
@@ -20257,10 +20331,10 @@ NAsuppress.releaseList = function(list)
 	end
 end
 
-NAjobs._claim = function(part)
-	if not part then return true end
-	if NAjobs._claimed[part] == NAjobs._frame then return false end
-	NAjobs._claimed[part] = NAjobs._frame
+NAjobs._claim = function(key)
+	if not key then return true end
+	if NAjobs._claimed[key] == NAjobs._frame then return false end
+	NAjobs._claimed[key] = NAjobs._frame
 	return true
 end
 
@@ -20281,14 +20355,18 @@ end
 
 NAjobs._schedule = function()
 	if NAjobs.hb then return end
-	NAjobs.hb = NAlib.connect("NAjobs_hb", RunService.Heartbeat:Connect(function()
+	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function()
 		NAjobs._frame += 1
 		NAjobs._claimed = {}
 		local now = time()
 		for _, job in pairs(NAjobs.jobs) do
-			if now >= job.next then
-				job.next = now + job.interval
+			if job.interval <= 0 then
 				job.tick(job)
+			else
+				if now >= job.next then
+					job.next = now + job.interval
+					job.tick(job)
+				end
 			end
 		end
 		NAjobs._restoreTouchDue()
@@ -20297,19 +20375,19 @@ end
 
 NAjobs._maybeStop = function()
 	if not next(NAjobs.jobs) and NAjobs.hb then
-		NAlib.disconnect("NAjobs_hb")
+		NAlib.disconnect("NAjobs_stp")
 		NAjobs.hb = nil
 	end
 end
 
-NAjobs.start = function(kind, interval, target)
+NAjobs.start = function(kind, interval, target, useFind)
 	NAindex.init()
 	NAjobs.seq += 1
-	local id = kind .. "#" .. tostring(NAjobs.seq)
+	local id = kind.."#"..tostring(NAjobs.seq)
 	local tgt = target and Lower(target) or nil
 	local ivl = interval or 0.1
-	local stagger = math.min(0.02, (ivl > 0 and ivl or 0.01) / 8)
-	local job = { id = id, kind = kind, interval = math.max(0, ivl), target = tgt, next = time() }
+	local stagger = (ivl > 0) and math.min(0.02, ivl / 8) or 0
+	local job = { id = id, kind = kind, interval = math.max(0, ivl), target = tgt, next = time(), stagger = stagger, m = (useFind and NAindex.matchAnyFind or NAindex.matchAny) }
 
 	if kind == "prompt" then
 		job.tick = function(self)
@@ -20320,17 +20398,18 @@ NAjobs.start = function(kind, interval, target)
 			local rootPos = root.Position
 			local list = {}
 			for inst, rec in pairs(NAindex.prompt) do
-				if inst.Parent and inst.Enabled and NAindex.matchAny(rec.names, self.target) then
+				if inst.Parent and inst.Enabled and self.m(rec.names, self.target) then
 					local ok, dist, part = NAindex.inRangePrompt(inst, rootPos, 5)
 					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
 				end
 			end
 			table.sort(list, function(a, b) return a.dist < b.dist end)
+			local step = (self.interval > 0) and self.stagger or 0
 			local i = 0
 			for _, it in ipairs(list) do
-				if NAjobs._claim(it.part) then
+				if NAjobs._claim(it.inst) then
 					i += 1
-					Delay(stagger * (i - 1), function()
+					Delay(step * (i - 1), function()
 						local range = (it.inst.MaxActivationDistance or 0) + 5
 						local allow = {[it.inst]=true}
 						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow)
@@ -20349,17 +20428,18 @@ NAjobs.start = function(kind, interval, target)
 			local rootPos = root.Position
 			local list = {}
 			for inst, rec in pairs(NAindex.click) do
-				if inst.Parent and NAindex.matchAny(rec.names, self.target) then
+				if inst.Parent and self.m(rec.names, self.target) then
 					local ok, dist, part = NAindex.inRangeClick(inst, rootPos, 5)
 					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
 				end
 			end
 			table.sort(list, function(a, b) return a.dist < b.dist end)
+			local step = (self.interval > 0) and self.stagger or 0
 			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
 					i += 1
-					Delay(stagger * (i - 1), function()
+					Delay(step * (i - 1), function()
 						pcall(fireclickdetector, it.inst)
 					end)
 				end
@@ -20370,8 +20450,7 @@ NAjobs.start = function(kind, interval, target)
 			if not NAindex.touch then return end
 			local char = getChar()
 			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-			if not root then return end
-			local rootPos = root.Position
+			if not root or not root:IsDescendantOf(workspace) then return end
 			local list = {}
 			for ti in pairs(NAindex.touch) do
 				local container = ti.Parent
@@ -20381,8 +20460,9 @@ NAjobs.start = function(kind, interval, target)
 						local names = { NAindex.lc(part.Name) }
 						local m = part:FindFirstAncestorWhichIsA("Model")
 						while m do Insert(names, NAindex.lc(m.Name)); m = m:FindFirstAncestorWhichIsA("Model") end
-						if NAindex.matchAny(names, self.target) then
-							Insert(list, {part = part})
+						if self.m(names, self.target) then
+							local asm = part.AssemblyRootPart or part
+							if asm then Insert(list, {part = asm}) end
 						end
 					end
 				end
@@ -20391,25 +20471,24 @@ NAjobs.start = function(kind, interval, target)
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
 					i += 1
-					Delay(stagger * (i - 1), function()
-						local part = it.part
-						if not part or not part.Parent then return end
-						local st = NAjobs._touchState[part]
+					Delay(self.stagger * (i - 1), function()
+						local asm = it.part
+						if not asm or not asm.Parent or not asm:IsDescendantOf(workspace) then return end
+						local st = NAjobs._touchState[asm]
 						if not st or not st.moved then
 							st = st or {}
-							st.orig = part.CFrame
+							st.orig = asm.CFrame
 							st.moved = true
-							NAjobs._touchState[part] = st
+							NAjobs._touchState[asm] = st
 						end
 						local char2 = getChar()
 						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"))
-						if not root2 then return end
-						part.CFrame = root2.CFrame
-						firetouchinterest(part, root2, 1)
+						if not root2 or not root2:IsDescendantOf(workspace) then return end
+						asm:PivotTo(root2.CFrame)
+						pcall(firetouchinterest, asm, root2, 1)
 						Wait()
-						firetouchinterest(part, root2, 0)
-						local backDelay = 0.05
-						st.restoreAt = time() + backDelay
+						pcall(firetouchinterest, asm, root2, 0)
+						st.restoreAt = time() + 0.05
 					end)
 				end
 			end
@@ -20438,43 +20517,158 @@ NAjobs.stopByKind = function(kind)
 	NAjobs._maybeStop()
 end
 
+NAjobs.stopById = function(id)
+	local job = NAjobs.jobs[id]
+	if not job then return end
+	NAjobs.jobs[id] = nil
+	if job.kind == "touch" then NAjobs._restoreAllTouch() end
+	NAjobs._maybeStop()
+end
+
 NAjobs.stopAll = function()
 	for id in pairs(NAjobs.jobs) do NAjobs.jobs[id] = nil end
 	NAjobs._restoreAllTouch()
 	NAjobs._maybeStop()
 end
 
-cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds (default 0.1)"}, function(...)
-	local interval, target = NAutil.parseInterval(0.1, ...)
+NAmanage._windowStopKind=function(kind, titleText)
+	local buttons = {}
+	for id, job in pairs(NAjobs.jobs) do
+		if job.kind == kind and job.m ~= NAindex.matchAnyFind then
+			local label = job.id..(job.target and (" • "..job.target) or "")
+			Insert(buttons, {
+				Text = label,
+				Callback = function()
+					NAjobs.stopById(job.id)
+					DebugNotif("stopped "..label, 2)
+				end
+			})
+		end
+	end
+	Insert(buttons, {
+		Text = "All",
+		Callback = function()
+			for jid, j in pairs(NAjobs.jobs) do
+				if j.kind == kind and j.m ~= NAindex.matchAnyFind then
+					NAjobs.stopById(jid)
+				end
+			end
+			DebugNotif("all "..kind.." stopped", 2)
+		end
+	})
+	Window({
+		Title = titleText,
+		Buttons = buttons
+	})
+end
+
+NAmanage._windowStopKindFind=function(kind, titleText)
+	local buttons = {}
+	for id, job in pairs(NAjobs.jobs) do
+		if job.kind == kind and job.m == NAindex.matchAnyFind then
+			local label = job.id..(job.target and (" • "..job.target) or "")
+			Insert(buttons, {
+				Text = label,
+				Callback = function()
+					NAjobs.stopById(job.id)
+					DebugNotif("stopped "..label, 2)
+				end
+			})
+		end
+	end
+	Insert(buttons, {
+		Text = "All",
+		Callback = function()
+			for jid, j in pairs(NAjobs.jobs) do
+				if j.kind == kind and j.m == NAindex.matchAnyFind then
+					NAjobs.stopById(jid)
+				end
+			end
+			DebugNotif("all "..kind.." (find) stopped", 2)
+		end
+	})
+	Window({
+		Title = titleText,
+		Buttons = buttons
+	})
+end
+
+cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	if args[1] and not tonumber(args[1]) then
+		interval = 0
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(0.1, ...)
+	end
 	local id = NAjobs.start("prompt", interval, target)
 	DebugNotif(target and ("afp started (%s) → %s"):format(target, id) or ("afp started → %s"):format(id), 2)
 end, true)
 
-cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds (default 0.1)"}, function(...)
-	local interval, target = NAutil.parseInterval(0.1, ...)
+cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] (afpfind)","Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	if args[1] and not tonumber(args[1]) then
+		interval = 0
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(0.1, ...)
+	end
+	local id = NAjobs.start("prompt", interval, target, true)
+	DebugNotif(target and ("afpfind started (%s) → %s"):format(target, id) or ("afpfind started → %s"):format(id), 2)
+end, true)
+
+cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	if args[1] and not tonumber(args[1]) then
+		interval = 0
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(0.1, ...)
+	end
 	local id = NAjobs.start("click", interval, target)
 	DebugNotif(target and ("afc started (%s) → %s"):format(target, id) or ("afc started → %s"):format(id), 2)
 end, true)
 
-cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds (default 1)"}, function(...)
+cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] (afcfind)","Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	if args[1] and not tonumber(args[1]) then
+		interval = 0
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(0.1, ...)
+	end
+	local id = NAjobs.start("click", interval, target, true)
+	DebugNotif(target and ("afcfind started (%s) → %s"):format(target, id) or ("afcfind started → %s"):format(id), 2)
+end, true)
+
+cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
 	local interval, target = NAutil.parseInterval(1, ...)
 	local id = NAjobs.start("touch", interval, target)
 	DebugNotif(target and ("at started (%s) → %s"):format(target, id) or ("at started → %s"):format(id), 2)
 end, true)
 
 cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops all AutoFireProxi loops"}, function()
-	NAjobs.stopByKind("prompt")
-	DebugNotif("all afp stopped", 2)
+	NAmanage._windowStopKind("prompt","AutoFireProxi Jobs")
 end)
 
 cmd.add({"unautofireclick","uafc"},{"unautofireclick (uafc)","Stops all AutoFireClick loops"}, function()
-	NAjobs.stopByKind("click")
-	DebugNotif("all afc stopped", 2)
+	NAmanage._windowStopKind("click","AutoFireClick Jobs")
 end)
 
 cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops all AutoTouch loops"}, function()
-	NAjobs.stopByKind("touch")
-	DebugNotif("all at stopped", 2)
+	NAmanage._windowStopKind("touch","AutoTouch Jobs")
+end)
+
+cmd.add({"unautofireproxifind","uafpfind"},{"unautofireproxifind (uafpfind)","Stops substring-matching AutoFireProxi loops"}, function()
+	NAmanage._windowStopKindFind("prompt","AutoFireProxiFind Jobs")
+end)
+
+cmd.add({"unautofireclickfind","uafcfind"},{"unautofireclickfind (uafcfind)","Stops substring-matching AutoFireClick loops"}, function()
+	NAmanage._windowStopKindFind("click","AutoFireClickFind Jobs")
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -20500,6 +20694,55 @@ end)
 
 cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximityprompts (uninstantpp,unipp)","Undo the cooldown removal"},function()
 	NAlib.disconnect("instantpp")
+end)
+
+cmd.add({"enableproximityprompts","enableprox","enprox","enprx","enpp"},{"enableproximityprompts [name]","Enable ProximityPrompts (all or matching)"},function(...)
+	local term = Lower(Concat({...}," "))
+	for _,obj in ipairs(interactTbl.proxy) do
+		if obj and obj.Parent then
+			if term=="" or Find(Lower(obj.Name), term) then
+				obj.Enabled = true
+			end
+		end
+	end
+end,true)
+
+cmd.add({"disableproximityprompts","disableprox","disprox","dprx","dpp"},{"disableproximityprompts [name]","Disable ProximityPrompts (all or matching)"},function(...)
+	local term = Lower(Concat({...}," "))
+	for _,obj in ipairs(interactTbl.proxy) do
+		if obj and obj.Parent then
+			if term=="" or Find(Lower(obj.Name), term) then
+				obj.Enabled = false
+			end
+		end
+	end
+end,true)
+
+proxyEnableLoopState = {active=false;}
+
+cmd.add({"loopenableproximityprompts","loopenableprox","lenprox","lenpp"},{"loopenableproximityprompts [name]","Continuously enable ProximityPrompts (all or matching)"},function(...)
+	local term = Lower(Concat({...}," "))
+	if proxyEnableLoopState then proxyEnableLoopState.active=false end
+	proxyEnableLoopState = {active=true}
+	Spawn(function()
+		while proxyEnableLoopState and proxyEnableLoopState.active do
+			for _,obj in ipairs(interactTbl.proxy) do
+				if obj and obj.Parent and obj:IsA("ProximityPrompt") then
+					if term=="" or Find(Lower(obj.Name), term) then
+						if obj.Enabled ~= true then obj.Enabled = true end
+					end
+				end
+			end
+			Wait(0.1)
+		end
+	end)
+end,true)
+
+cmd.add({"unloopenableproximityprompts","unloopenableprox","unlenprox","unlenpp"},{"unloopenableproximityprompts","Stop enabling loop"},function()
+	if proxyEnableLoopState then
+		proxyEnableLoopState.active=false
+		proxyEnableLoopState=nil
+	end
 end)
 
 cmd.add({"r6"},{"r6","Shows a prompt that will switch your character rig type into R6"},function()
@@ -21365,6 +21608,51 @@ cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a 
 	end
 end, true)
 
+cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","Brings all parts in a folder or a specified part"},function(...)
+	local raw = {...}
+	if #raw == 0 then return end
+	local lower = {}
+	for i=1,#raw do lower[i] = tostring(raw[i]):lower() end
+	local folder, partFilter
+	do
+		local nameAll = Concat(lower," ")
+		for _,obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("Folder") and obj.Name:lower() == nameAll then folder = obj break end
+		end
+		if not folder and #lower>=2 then
+			local nameWithoutLast = Concat(lower," ",1,#lower-1)
+			local last = lower[#lower]
+			for _,obj in ipairs(workspace:GetDescendants()) do
+				if obj:IsA("Folder") and obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
+			end
+		end
+		if not folder then
+			for _,obj in ipairs(workspace:GetDescendants()) do
+				if obj:IsA("Folder") and obj.Name:lower() == lower[1] then folder = obj break end
+			end
+			if folder and #lower>1 then
+				partFilter = Concat(lower," ",2,#lower)
+			end
+		end
+	end
+	if not folder then return end
+	local char = getChar()
+	if not char then return end
+	local pivot = char:GetPivot()
+	for _,desc in ipairs(folder:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			local ok = true
+			if partFilter and partFilter ~= "" then
+				local n = desc.Name:lower()
+				ok = (n == partFilter) or (Find(n, partFilter, 1, true) ~= nil)
+			end
+			if ok then
+				desc:PivotTo(pivot)
+			end
+		end
+	end
+end,true)
+
 cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each model with name once"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 	local commandKey = "gotomodel"
@@ -21427,6 +21715,34 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 		end
 	end
 end, true)
+
+cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all parts in a folder"},function(...)
+	local lower = {}
+	for i,v in ipairs({...}) do lower[i] = tostring(v):lower() end
+	local folderName = Concat(lower," ")
+	if folderName == "" then return end
+	local key = "gotofolder"
+	if activeTeleports[key] then activeTeleports[key].active = false end
+	local state = {active = true}
+	activeTeleports[key] = state
+	Spawn(function()
+		local folder
+		for _,obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("Folder") and obj.Name:lower() == folderName then folder = obj break end
+		end
+		if not folder then return end
+		for _,desc in ipairs(folder:GetDescendants()) do
+			if not state.active then return end
+			if desc:IsA("BasePart") then
+				local hum = getHum()
+				if hum then hum.Sit = false Wait(0.1) end
+				local char = getChar()
+				if char then char:PivotTo(desc:GetPivot()) end
+				Wait(0.2)
+			end
+		end
+	end)
+end,true)
 
 OGGRAVV = workspace.Gravity
 SWIMMERRRR = false
@@ -21961,6 +22277,76 @@ end)
 cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
 	NAmanage.DisableCollisionEsp(false)
 end)
+
+cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights all parts in a folder"},function(...)
+	local name = Lower(Concat({...}," "))
+	if name=="" then return end
+	if not NAStuff.folderESPMembers then NAStuff.folderESPMembers = {} end
+	if not NAStuff.folderESPKeys then NAStuff.folderESPKeys = {} end
+	local folder
+	for _,obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Folder") and Lower(obj.Name)==name then folder=obj break end
+	end
+	if not folder then return end
+	local list = NAStuff.folderESPMembers[folder]
+	if not list then list = {}; NAStuff.folderESPMembers[folder]=list end
+	local key = NAStuff.folderESPKeys[folder]
+	if not key then key = "esp_folder_"..tostring(folder); NAStuff.folderESPKeys[folder]=key end
+	for _,desc in ipairs(folder:GetDescendants()) do
+		if desc:IsA("BasePart") and not Discover(list,desc) then
+			Insert(list,desc)
+			NAmanage.CreateBox(desc, Color3.fromRGB(255,220,0), 0.45)
+		end
+	end
+	NAlib.connect(key, folder.DescendantAdded:Connect(function(obj)
+		if obj:IsA("BasePart") and not Discover(list,obj) then
+			Insert(list,obj)
+			NAmanage.CreateBox(obj, Color3.fromRGB(255,220,0), 0.45)
+		end
+	end))
+	NAlib.connect(key, folder.DescendantRemoving:Connect(function(obj)
+		if obj:IsA("BasePart") then
+			local idx = Discover(list,obj)
+			if idx then
+				NAmanage.RemoveEspFromPart(obj)
+				table.remove(list,idx)
+			end
+		end
+	end))
+end,true)
+
+cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ESP for a folder or all"},function(...)
+	local name = Lower(Concat({...}," "))
+	if not NAStuff.folderESPMembers then return end
+	if name=="" then
+		local keys = {}
+		for f,_ in pairs(NAStuff.folderESPMembers) do Insert(keys,f) end
+		for _,f in ipairs(keys) do
+			local k = NAStuff.folderESPKeys and NAStuff.folderESPKeys[f]
+			if k then NAlib.disconnect(k); NAStuff.folderESPKeys[f]=nil end
+			local list = NAStuff.folderESPMembers[f]
+			if list then
+				for _,p in ipairs(list) do NAmanage.RemoveEspFromPart(p) end
+				table.clear(list)
+				NAStuff.folderESPMembers[f]=nil
+			end
+		end
+	else
+		local folder
+		for _,obj in ipairs(workspace:GetDescendants()) do
+			if obj:IsA("Folder") and Lower(obj.Name)==name then folder=obj break end
+		end
+		if not folder then return end
+		local k = NAStuff.folderESPKeys and NAStuff.folderESPKeys[folder]
+		if k then NAlib.disconnect(k); NAStuff.folderESPKeys[folder]=nil end
+		local list = NAStuff.folderESPMembers[folder]
+		if list then
+			for _,p in ipairs(list) do NAmanage.RemoveEspFromPart(p) end
+			table.clear(list)
+			NAStuff.folderESPMembers[folder]=nil
+		end
+	end
+end,true)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
 	local partName = Concat({...}, " "):lower()
