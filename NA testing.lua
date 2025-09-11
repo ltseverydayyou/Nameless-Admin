@@ -16175,106 +16175,260 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	end
 end)
 
+NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
+NAmanage._waitCharReady=function(timeout)
+	local t=timeout or 5
+	local plr=Players.LocalPlayer
+	local t0=time()
+	while time()-t0<t do
+		local char=getChar()
+		if char and char.Parent==workspace then
+			local hum=getHum() or char:FindFirstChildOfClass("Humanoid")
+			local root=getRoot(char) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
+			local head=getHead(char) or char:FindFirstChild("Head")
+			if hum and root and head then
+				if plr and plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then plr.CharacterAppearanceLoaded:Wait() end
+				return char,hum,root,head
+			end
+		end
+		Wait(0.1)
+	end
+	local c=getChar();return c,(c and (getHum() or c:FindFirstChildOfClass("Humanoid"))),(c and (getRoot(c) or c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))),(c and (getHead(c) or c:FindFirstChild("Head")))
+end
+NAmanage._applyFixedDescription=function(desc,uidFallback)
+	if not desc then return end
+	local plr=Players.LocalPlayer
+	local char,hum=NAmanage._waitCharReady(5)
+	if not char or not hum then return end
+	if not NAStuff.originalDesc then local okA,ap=pcall(function()return hum:GetAppliedDescription() end);if okA and ap then NAStuff.originalDesc=ap:Clone() end end
+	for _,inst in ipairs(char:GetChildren()) do
+		if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") or inst:IsA("BodyColors") then inst:Destroy() end
+	end
+	local hd=getHead(char)
+	if hd then for _,d in ipairs(hd:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then d:Destroy() end end end
+	local success=false
+	for i=1,3 do
+		local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait(0.05*i);hum:ApplyDescriptionClientServer(desc);Wait(0.1*i)
+		local hasClothes=(char:FindFirstChildOfClass("Shirt") or char:FindFirstChildOfClass("Pants") or char:FindFirstChildOfClass("ShirtGraphic"))~=nil
+		local headNow=getHead(char);local hasFace=false
+		if headNow then for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end end
+		if hasClothes and hasFace then success=true break end
+	end
+	local headNow=getHead(char)
+	if headNow then
+		local hasFace=false
+		for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end
+		local faceId=0 pcall(function() faceId=desc.Face or 0 end)
+		if not hasFace then
+			if faceId and faceId>0 then local dec=Instance.new("Decal");dec.Name="face";dec.Texture="rbxassetid://"..tostring(faceId);dec.Face=Enum.NormalId.Front;dec.Parent=headNow
+			elseif uidFallback then local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA2 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("Decal") and Lower(v.Name)=="face" then v:Clone().Parent=headNow;break end end end
+			end
+		end
+	end
+	if not char:FindFirstChildOfClass("Shirt") then local sid=desc.Shirt;if sid and sid>0 then local s=Instance.new("Shirt");s.ShirtTemplate="rbxassetid://"..sid;s.Parent=char end end
+	if not char:FindFirstChildOfClass("Pants") then local pid=desc.Pants;if pid and pid>0 then local p=Instance.new("Pants");p.PantsTemplate="rbxassetid://"..pid;p.Parent=char end end
+	if not char:FindFirstChildOfClass("ShirtGraphic") then local gid=desc.GraphicTShirt or desc.TShirt;if gid and gid>0 then local g=Instance.new("ShirtGraphic");g.Graphic="rbxassetid://"..gid;g.Parent=char end end
+	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA3 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("CharacterMesh") then v:Clone().Parent=char end end end end
+end
+
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
 	if not arg then return end
-
-	local userId = tonumber(arg)
-	if not userId then
-		local ok, id = pcall(Players.GetUserIdFromNameAsync, Players, arg)
-		if not ok then return end
-		userId = id
-	end
-
-	local okD, desc = pcall(Players.GetHumanoidDescriptionFromUserId, Players, userId)
+	local userId=tonumber(arg)
+	if not userId then local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg);if not ok then return end;userId=id end
+	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
 	if not okD or not desc then return end
-	local targetDesc = desc:Clone()
-
-	local char = getChar() or plr.CharacterAdded:Wait()
-	local hum = getHum() or char:WaitForChild("Humanoid", 3)
-	repeat Wait(0.1) until getRoot(char)
-	if not hum then return end
-
-	if not NAStuff.originalDesc then
-		local okA, applied = pcall(function() return hum:GetAppliedDescription() end)
-		if okA and applied then NAStuff.originalDesc = applied:Clone() end
-	end
-
-	if plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then
-		plr.CharacterAppearanceLoaded:Wait()
-	end
-
-	for _, inst in ipairs(char:GetChildren()) do
-		if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") then
-			inst:Destroy()
-		end
-	end
-	local hd = getHead(char)
-	if hd then
-		for _, d in ipairs(hd:GetChildren()) do
-			if d:IsA("Decal") then d:Destroy() end
-		end
-	end
-
-	local blank = InstanceNew("HumanoidDescription")
-	hum:ApplyDescriptionClientServer(blank)
-	Wait()
-	hum:ApplyDescriptionClientServer(targetDesc)
-	Wait()
-
-	local okA2, ap = pcall(Players.GetCharacterAppearanceAsync, Players, userId)
-	if okA2 and ap then
-		if not char:FindFirstChildOfClass("Shirt") then
-			local s = ap:FindFirstChildOfClass("Shirt")
-			if s then s:Clone().Parent = char end
-		end
-		if not char:FindFirstChildOfClass("Pants") then
-			local p = ap:FindFirstChildOfClass("Pants")
-			if p then p:Clone().Parent = char end
-		end
-		if not char:FindFirstChildOfClass("ShirtGraphic") then
-			local g = ap:FindFirstChildOfClass("ShirtGraphic")
-			if g then g:Clone().Parent = char end
-		end
-	end
-
-	if IsR6(plr) then
-		if okA2 and ap then
-			for _, v in ipairs(ap:GetDescendants()) do
-				if v:IsA("CharacterMesh") then
-					v:Clone().Parent = char
-				end
-			end
-			local hd2 = getHead(char)
-			if hd2 then
-				for _, v in ipairs(ap:GetDescendants()) do
-					if v:IsA("Decal") and Lower(v.Name) == "face" then
-						v:Clone().Parent = hd2
-						break
-					end
-				end
-			end
-		end
-	end
-end, true)
+	Spawn(function() NAmanage._applyFixedDescription(desc:Clone(),userId) end)
+end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
-	local naem=Players.LocalPlayer.Name
-	cmd.run({"char", naem})
+	local plr=Players.LocalPlayer;if not plr then return end
+	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,plr.UserId);if not okD or not desc then return end
+	Spawn(function() NAmanage._applyFixedDescription(desc:Clone(),plr.UserId) end)
 end)
 
-cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(args)
-	local target = args
-	if not target then return end
+cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
+	if not target or target=="" then return end
 	NAlib.disconnect("autochar")
-	NAlib.connect("autochar", Players.LocalPlayer.CharacterAdded:Connect(function()
-		cmd.run({"char", target})
+	NAlib.connect("autochar",Players.LocalPlayer.CharacterAdded:Connect(function()
+		local id=tonumber(target);if not id then local ok,x=pcall(Players.GetUserIdFromNameAsync,Players,target);if not ok then return end;id=x end
+		Spawn(function()
+			local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,id)
+			if okD and desc then NAmanage._applyFixedDescription(desc:Clone(),id) end
+		end)
 	end))
-	cmd.run({"char", target})
-end, true)
+	cmd.run({"char",target})
+end,true)
 
 cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
 	NAlib.disconnect("autochar")
 end)
+
+cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a selected outfit on respawn"},function(arg)
+	if not arg or arg=="" then return end
+	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"AutoOutfit") return end
+	local uid=tonumber(arg);if not uid then local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg);if ok and id then uid=id else DoNotif("Couldn't resolve user",3,"AutoOutfit") return end end
+	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
+	local function hostOf(url)return Match(url,"^https?://([^/]+)") or"" end
+	local function httpJSON(url)
+		local host=hostOf(url)
+		local cd=NAStuff._httpCooldown[host];if cd and time()<cd then local left=math.max(0,cd-time());DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"AutoOutfit");return false,"cooldown" end
+		local okR,resp=pcall(req,{Url=url,Method="GET"})
+		local status=okR and (resp.StatusCode or resp.Status) or 0
+		local text=okR and (resp.Body or resp.body) or""
+		if status==200 and type(text)=="string" then local okJ,data=pcall(HttpService.JSONDecode,HttpService,text);if okJ then NAStuff._httpBackoff[host]=0 return true,data end return false,"bad json" end
+		if status==429 then
+			local hdrs=lowerKeys(resp and (resp.Headers or resp.headers) or{})
+			local ra=tonumber(hdrs["retry-after"]) or tonumber(hdrs["x-ratelimit-retryafter"]) or nil
+			local waitSec=math.clamp((ra or (NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*2 or 1.5))+math.random()*0.25,1,10)
+			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
+			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
+			return false,"retry"
+		end
+		if status>=500 and status<600 then
+			local waitSec=math.clamp((NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*1.5 or 1.0)+math.random()*0.2,0.8,8)
+			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
+			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
+			return false,"retry"
+		end
+		return false,"bad response "..tostring(status)
+	end
+	local outfits={}
+	local cache=NAStuff._outfitCache[uid]
+	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
+		outfits=cache.list
+	else
+		local cursor=nil
+		repeat
+			local url=Format("https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",uid,cursor and("&cursor="..HttpService:UrlEncode(cursor)) or"")
+			local okD,data=httpJSON(url);if not okD then return end
+			for _,it in ipairs(data.data or{})do if it and it.id and it.name and it.isEditable==true then Insert(outfits,{id=it.id,name=it.name}) end end
+			cursor=data.nextPageCursor
+			if cursor then Wait(0.4) end
+		until not cursor
+		if #outfits==0 then DoNotif("No user-created outfits for that user",2,"AutoOutfit") return end
+		NAStuff._outfitCache[uid]={t=time(),list=outfits}
+	end
+	local buttons={}
+	for _,o in ipairs(outfits)do
+		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
+			NAlib.disconnect("autooutfit")
+			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
+			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
+				Spawn(function()
+					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+					if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
+				end)
+			end))
+			Spawn(function()
+				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+				if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
+			end)
+			DoNotif("Auto outfit set: "..o.name,2,"AutoOutfit")
+		end})
+	end
+	Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
+end,true)
+
+cmd.add({"unautooutfit","unaoutfit"},{"unautooutfit","stop outfit auto-apply"},function()
+	NAlib.disconnect("autooutfit");NAStuff.autoOutfitState=nil;DoNotif("Auto outfit disabled",2,"AutoOutfit")
+end)
+
+cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved outfits"},function(arg)
+	if not arg or arg=="" then return end
+	NAStuff=NAStuff or{};NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
+	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"Outfits") return end
+	local uid=tonumber(arg)
+	if not uid then
+		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
+		if ok and id then uid=id else
+			local body=HttpService:JSONEncode({usernames={arg},excludeBannedUsers=true})
+			local okR,resp=pcall(req,{Url="https://users.roblox.com/v1/usernames/users",Method="POST",Headers={["Content-Type"]="application/json"},Body=body})
+			local status=okR and (resp.StatusCode or resp.Status) or 0
+			local text=okR and (resp.Body or resp.body) or""
+			if status==200 and type(text)=="string" then
+				local okJ,data=pcall(HttpService.JSONDecode,HttpService,text)
+				if okJ and data and data.data and data.data[1] and data.data[1].id then uid=data.data[1].id end
+			end
+			if not uid then DoNotif("Couldn't resolve user",3,"Outfits") return end
+		end
+	end
+	local cache=NAStuff._outfitCache[uid]
+	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
+		local buttons={}
+		for _,o in ipairs(cache.list) do
+			Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
+				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+				if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
+				NAStuff.lastSelectedOutfitId=o.id
+				if NAmanage._applyFixedDescription then
+					NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId)
+				else
+					local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
+					local hum=getHum() or char:WaitForChild("Humanoid",3)
+					if not hum then return end
+					local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
+				end
+				DoNotif("Outfit applied: "..o.name,2,"Outfits")
+			end})
+		end
+		Window({Title=Format("Outfits • %s (%d) [cache]",tostring(arg),uid),Buttons=buttons})
+		return
+	end
+	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
+	local function hostOf(url)return Match(url,"^https?://([^/]+)") or"" end
+	local function httpJSON(url)
+		local host=hostOf(url)
+		local cd=NAStuff._httpCooldown[host];if cd and time()<cd then local left=math.max(0,cd-time());DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"Outfits");return false,"cooldown" end
+		local okR,resp=pcall(req,{Url=url,Method="GET"})
+		local status=okR and (resp.StatusCode or resp.Status) or 0
+		local text=okR and (resp.Body or resp.body) or""
+		if status==200 and type(text)=="string" then local okJ,data=pcall(HttpService.JSONDecode,HttpService,text);if okJ then NAStuff._httpBackoff[host]=0 return true,data end return false,"bad json" end
+		if status==429 then
+			local hdrs=lowerKeys(resp and (resp.Headers or resp.headers) or{})
+			local ra=tonumber(hdrs["retry-after"]) or tonumber(hdrs["x-ratelimit-retryafter"]) or nil
+			local waitSec=math.clamp((ra or (NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*2 or 1.5))+math.random()*0.25,1,10)
+			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
+			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
+			return false,"429"
+		end
+		if status>=500 and status<600 then
+			local waitSec=math.clamp((NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*1.5 or 1.0)+math.random()*0.2,0.8,8)
+			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
+			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
+			return false,"5xx"
+		end
+		return false,"bad response "..tostring(status)
+	end
+	local outfits,cursor={},nil
+	repeat
+		local url=Format("https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",uid,cursor and("&cursor="..HttpService:UrlEncode(cursor)) or"")
+		local okD,data=httpJSON(url)
+		if not okD then if data=="429" or data=="5xx" or data=="cooldown" then return else DoNotif(data,3,"Outfits") return end end
+		for _,it in ipairs(data.data or{})do if it and it.id and it.name and it.isEditable==true then Insert(outfits,{id=it.id,name=it.name}) end end
+		cursor=data.nextPageCursor
+		if cursor then Wait(0.4) end
+	until not cursor
+	if #outfits==0 then DoNotif("No user-created outfits for that user",2,"Outfits") return end
+	NAStuff._outfitCache[uid]={t=time(),list=outfits}
+	local buttons={}
+	for _,o in ipairs(outfits)do
+		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
+			local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+			if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
+			NAStuff.lastSelectedOutfitId=o.id
+			if NAmanage._applyFixedDescription then
+				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId)
+			else
+				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
+				local hum=getHum() or char:WaitForChild("Humanoid",3)
+				if not hum then return end
+				local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
+			end
+			DoNotif("Outfit applied: "..o.name,2,"Outfits")
+		end})
+	end
+	Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
+end,true)
 
 cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
 	local input   = Concat({...}," ")
