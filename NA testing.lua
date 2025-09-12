@@ -4312,6 +4312,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		speedBox.Font=Enum.Font.GothamBold
 		speedBox.Text=tostring(getSpeed())
 		speedBox.TextColor3=Color3.fromRGB(255,255,255)
+		speedBox.TextSize=24
 		speedBox.TextScaled=true
 		speedBox.ClearTextOnFocus=false
 		speedBox.PlaceholderText="Speed"
