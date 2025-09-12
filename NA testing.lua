@@ -4152,6 +4152,8 @@ local flyVariables = {
 	TFLYBTN = nil;
 	tflyKeyConn = nil;
 	TflySpeed = 2;
+
+	uiPosConns = {};
 }
 
 -----------------------------
@@ -4160,129 +4162,664 @@ cmdlp = Players.LocalPlayer
 plr = cmdlp
 goofyFLY = nil
 
-function sFLY(vfly, cfly)
-	while not cmdlp or not getChar() or not getRoot(getChar()) or not getHum() or not mouse do
-		Wait()
+NAmanage._state={mode="none"}
+NAmanage._persist={lastMode="none",wasFlying=false,uiPos={}}
+FLYING=FLYING or false
+
+NAmanage._modeEnabled=function(m)
+	if m=="fly" then return flyVariables.flyEnabled
+	elseif m=="vfly" then return flyVariables.vFlyEnabled
+	elseif m=="cfly" then return flyVariables.cFlyEnabled
+	elseif m=="tfly" then return flyVariables.TFlyEnabled
 	end
+	return false
+end
 
-	if goofyFLY then goofyFLY:Destroy() end
-	if CFloop then CFloop:Disconnect() CFloop = nil end
+NAmanage._setFlagsExclusive=function(mode)
+	flyVariables.flyEnabled=(mode=="fly")
+	flyVariables.vFlyEnabled=(mode=="vfly")
+	flyVariables.cFlyEnabled=(mode=="cfly")
+	flyVariables.TFlyEnabled=(mode=="tfly")
+end
 
-	local char = getChar()
-	local humanoid = getHum()
-	local Head = getHead(char)
-	local root = getRoot(char)
-	if not root then return end
+NAmanage._releaseQE=function()
+	if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
+	if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
+	flyVariables.qeDownConn=nil
+	flyVariables.qeUpConn=nil
+end
 
-	local Camera = workspace.CurrentCamera
-
-	goofyFLY = InstanceNew("Part", workspace)
-	goofyFLY.Size = Vector3.new(0.05, 0.05, 0.05)
-	goofyFLY.Transparency = 1
-	goofyFLY.CanCollide = false
-	goofyFLY.Anchored = cfly and true or false
-	goofyFLY:PivotTo(Head:GetPivot())
-
-	local CONTROL = { Q = 0, E = 0 }
-	local lCONTROL = { Q = 0, E = 0 }
-	local SPEED = 0
-
-	mouse.KeyDown:Connect(function(KEY)
-		local key = KEY:lower()
-		if key == 'q' then
-			CONTROL.Q = vfly and -speedofthevfly * 2 or -speedofthefly * 2
-		elseif key == 'e' then
-			CONTROL.E = vfly and speedofthevfly * 2 or speedofthefly * 2
+NAmanage._bindQE=function()
+	NAmanage._releaseQE()
+	flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
+		k=Lower(k or "")
+		if k=="q" then
+			local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+			CONTROL.Q=-sp*2
+		elseif k=="e" then
+			local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+			CONTROL.E=sp*2
 		end
 	end)
+	flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
+		k=Lower(k or "")
+		if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
+	end)
+end
 
-	mouse.KeyUp:Connect(function(KEY)
-		local key = KEY:lower()
-		if key == 'q' then
-			CONTROL.Q = 0
-		elseif key == 'e' then
-			CONTROL.E = 0
+NAmanage._clearPhysics=function(full)
+	if CFloop then pcall(function() CFloop:Disconnect() end) end
+	CFloop=nil
+	if full then
+		if goofyFLY then pcall(function() goofyFLY:Destroy() end) end
+		goofyFLY=nil
+		if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) end
+		if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) end
+		flyVariables.TFpos=nil
+		flyVariables.TFgyro=nil
+		if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
+		if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
+		flyVariables.BG=nil
+		flyVariables.BV=nil
+		for _,v in ipairs(workspace:GetDescendants()) do
+			if v:GetAttribute("tflyPart") then pcall(function() v:Destroy() end) end
+		end
+	end
+end
+
+NAmanage.pauseCurrent=function()
+	if not FLYING then return end
+	FLYING=false
+	local hum=getHum()
+	local head=getHead(getChar())
+	if NAmanage._state.mode=="cfly" then
+		if head then head.Anchored=false end
+	elseif NAmanage._state.mode=="tfly" then
+		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(0,0,0) end
+		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0) end
+	else
+		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(0,0,0) end
+		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
+		if hum then hum.PlatformStand=false hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+	end
+end
+
+NAmanage.resumeCurrent=function()
+	if FLYING then return end
+	local hum=getHum()
+	local head=getHead(getChar())
+	local root=getRoot(getChar())
+	if NAmanage._state.mode=="cfly" then
+		if head then head.Anchored=true end
+	elseif NAmanage._state.mode=="tfly" then
+		if goofyFLY and flyVariables.TFpos then flyVariables.TFpos.position=goofyFLY.Position end
+		if flyVariables.TFgyro then flyVariables.TFgyro.cframe=workspace.CurrentCamera.CFrame end
+		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge) end
+		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9) end
+	elseif NAmanage._state.mode=="fly" then
+		if flyVariables.BV then flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9) end
+		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9) end
+		if hum then hum.PlatformStand=true end
+	elseif NAmanage._state.mode=="vfly" then
+		if flyVariables.BV then flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9) end
+		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9) end
+		if hum then hum.PlatformStand=false end
+	end
+	FLYING=true
+end
+
+NAmanage._destroyMobileFlyUI=function()
+	for m,conn in pairs(flyVariables.uiPosConns) do
+		pcall(function() conn:Disconnect() end)
+		flyVariables.uiPosConns[m]=nil
+	end
+	if flyVariables.uiUpdateConn then pcall(function() flyVariables.uiUpdateConn:Disconnect() end) end
+	flyVariables.uiUpdateConn=nil
+	if flyVariables.mFlyBruh then pcall(function() flyVariables.mFlyBruh:Destroy() end) flyVariables.mFlyBruh=nil end
+	if flyVariables.vRAHH then pcall(function() flyVariables.vRAHH:Destroy() end) flyVariables.vRAHH=nil end
+	if flyVariables.cFlyGUI then pcall(function() flyVariables.cFlyGUI:Destroy() end) flyVariables.cFlyGUI=nil end
+	if flyVariables.TFLYBTN then pcall(function() flyVariables.TFLYBTN:Destroy() end) flyVariables.TFLYBTN=nil end
+	if flyVariables.tflyButtonUI then pcall(function() flyVariables.tflyButtonUI:Destroy() end) flyVariables.tflyButtonUI=nil end
+end
+
+NAmanage._ensureMobileFlyUI=function(mode)
+	if not IsOnMobile then return end
+	NAmanage._destroyMobileFlyUI()
+	local mk=function(modeKey,btnText,onToggle,getSpeed,setSpeed,storeRefs)
+		local gui=InstanceNew("ScreenGui"); NaProtectUI(gui); gui.ResetOnSpawn=false
+		local btn=InstanceNew("TextButton",gui)
+		local speedBox=InstanceNew("TextBox",gui)
+		local toggleBtn=InstanceNew("TextButton",btn)
+		local corner=InstanceNew("UICorner",btn)
+		local corner2=InstanceNew("UICorner",speedBox)
+		local corner3=InstanceNew("UICorner",toggleBtn)
+		local aspect=InstanceNew("UIAspectRatioConstraint",btn)
+		btn.BackgroundColor3=Color3.fromRGB(30,30,30)
+		btn.BackgroundTransparency=0.1
+		btn.Position=NAmanage._persist.uiPos[modeKey] or UDim2.new(0.9,0,0.5,0)
+		btn.Size=UDim2.new(0.08,0,0.1,0)
+		btn.Font=Enum.Font.GothamBold
+		btn.Text=btnText()
+		btn.TextColor3=Color3.fromRGB(255,255,255)
+		btn.TextScaled=true
+		corner.CornerRadius=UDim.new(0.2,0)
+		aspect.AspectRatio=1
+		speedBox.BackgroundColor3=Color3.fromRGB(30,30,30)
+		speedBox.BackgroundTransparency=0.1
+		speedBox.AnchorPoint=Vector2.new(0.5,0)
+		speedBox.Position=UDim2.new(0.5,0,0,10)
+		speedBox.Size=UDim2.new(0,75,0,35)
+		speedBox.Font=Enum.Font.GothamBold
+		speedBox.Text=tostring(getSpeed())
+		speedBox.TextColor3=Color3.fromRGB(255,255,255)
+		speedBox.TextScaled=true
+		speedBox.ClearTextOnFocus=false
+		speedBox.PlaceholderText="Speed"
+		speedBox.Visible=false
+		corner2.CornerRadius=UDim.new(0.2,0)
+		toggleBtn.BackgroundColor3=Color3.fromRGB(50,50,50)
+		toggleBtn.BackgroundTransparency=0.1
+		toggleBtn.Position=UDim2.new(0.8,0,-0.1,0)
+		toggleBtn.Size=UDim2.new(0.4,0,0.4,0)
+		toggleBtn.Font=Enum.Font.SourceSans
+		toggleBtn.Text="+"
+		toggleBtn.TextColor3=Color3.fromRGB(255,255,255)
+		toggleBtn.TextScaled=true
+		toggleBtn.AutoButtonColor=true
+		corner3.CornerRadius=UDim.new(1,0)
+		MouseButtonFix(toggleBtn,function()
+			speedBox.Visible=not speedBox.Visible
+			toggleBtn.Text=speedBox.Visible and "-" or "+"
+		end)
+		MouseButtonFix(btn,function()
+			if not FLYING then
+				local ns=tonumber(speedBox.Text)
+				if ns then setSpeed(ns) speedBox.Text=tostring(getSpeed()) end
+			end
+			onToggle()
+			btn.Text=btnText()
+			btn.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+		end)
+		NAgui.draggerV2(btn)
+		NAgui.draggerV2(speedBox)
+		if flyVariables.uiPosConns[modeKey] then pcall(function() flyVariables.uiPosConns[modeKey]:Disconnect() end) end
+		flyVariables.uiPosConns[modeKey]=btn:GetPropertyChangedSignal("Position"):Connect(function()
+			NAmanage._persist.uiPos[modeKey]=btn.Position
+		end)
+		if storeRefs then storeRefs(gui,btn) end
+	end
+	if mode=="fly" then
+		mk("fly",function() return FLYING and "Unfly" or "Fly" end,function() NAmanage.toggleFly() end,function() return flyVariables.flySpeed end,function(v) flyVariables.flySpeed=v end,function(gui,btn) flyVariables.mFlyBruh=gui end)
+	elseif mode=="vfly" then
+		mk("vfly",function() return FLYING and "UnvFly" or "vFly" end,function() NAmanage.toggleVFly() end,function() return flyVariables.vFlySpeed end,function(v) flyVariables.vFlySpeed=v end,function(gui,btn) flyVariables.vRAHH=gui end)
+	elseif mode=="cfly" then
+		mk("cfly",function() return FLYING and "UnCfly" or "CFly" end,function() NAmanage.toggleCFly() end,function() return flyVariables.cFlySpeed end,function(v) flyVariables.cFlySpeed=v flyVariables.flySpeed=v end,function(gui,btn) flyVariables.cFlyGUI=gui end)
+	elseif mode=="tfly" then
+		mk("tfly",function() return FLYING and "UnTFly" or "TFly" end,function() NAmanage.toggleTFly() end,function() return flyVariables.TflySpeed end,function(v) flyVariables.TflySpeed=v end,function(gui,btn) flyVariables.tflyButtonUI=gui flyVariables.TFLYBTN=btn end)
+	end
+	if flyVariables.uiUpdateConn then pcall(function() flyVariables.uiUpdateConn:Disconnect() end) end
+	flyVariables.uiUpdateConn=RunService.Heartbeat:Connect(function()
+		if mode=="fly" and flyVariables.mFlyBruh then
+			local b=flyVariables.mFlyBruh:FindFirstChildOfClass("TextButton")
+			if b then b.Text=FLYING and "Unfly" or "Fly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
+		elseif mode=="vfly" and flyVariables.vRAHH then
+			local b=flyVariables.vRAHH:FindFirstChildOfClass("TextButton")
+			if b then b.Text=FLYING and "UnvFly" or "vFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
+		elseif mode=="cfly" and flyVariables.cFlyGUI then
+			local b=flyVariables.cFlyGUI:FindFirstChildOfClass("TextButton")
+			if b then b.Text=FLYING and "UnCfly" or "CFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
+		elseif mode=="tfly" and flyVariables.tflyButtonUI then
+			local b=flyVariables.tflyButtonUI:FindFirstChildOfClass("TextButton")
+			if b then b.Text=FLYING and "UnTFly" or "TFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
 		end
 	end)
+end
 
-	if cfly then
-		Head.Anchored = true
+NAmanage.deactivateMode=function(m)
+	local wasCurrent=(NAmanage._state.mode==m)
+	if wasCurrent then
+		NAmanage.pauseCurrent()
+		NAmanage._clearPhysics(true)
+		NAmanage._state.mode="none"
+		NAmanage._releaseQE()
+	end
+	if m=="fly" then flyVariables.flyEnabled=false end
+	if m=="vfly" then flyVariables.vFlyEnabled=false end
+	if m=="cfly" then flyVariables.cFlyEnabled=false end
+	if m=="tfly" then flyVariables.TFlyEnabled=false end
+	NAmanage._destroyMobileFlyUI()
+end
 
-		CFloop = RunService.Stepped:Connect(function()
-			local moveVec = GetCustomMoveVector()
-			local vertical = (CONTROL.E + CONTROL.Q)
-			local fullMove = Vector3.new(moveVec.X, vertical, -moveVec.Z)
+NAmanage._ensureGoofy=function(anchor)
+	local char=getChar()
+	local head=getHead(char)
+	if not goofyFLY then
+		goofyFLY=InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(.05,.05,.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+	end
+	goofyFLY.Anchored=anchor and true or false
+	if head then goofyFLY:PivotTo(head:GetPivot()) end
+	return goofyFLY
+end
 
-			local moveDirection =
-				(Camera.CFrame.RightVector * fullMove.X) +
-				(Camera.CFrame.UpVector * fullMove.Y) +
-				(Camera.CFrame.LookVector * fullMove.Z)
-
-			if moveDirection.Magnitude > 0 then
-				local newPos = Head.Position + moveDirection.Unit * flyVariables.flySpeed
-				local lookAt = newPos + Camera.CFrame.LookVector
-				Head.CFrame = CFrame.new(newPos, lookAt)
-				goofyFLY.CFrame = Head.CFrame
+NAmanage.sFLY=function(vfly,cfly,tfly)
+	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
+	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
+	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar()); local cam=workspace.CurrentCamera
+	NAmanage._bindQE()
+	if tfly then
+		local p=NAmanage._ensureGoofy(false)
+		p:SetAttribute("tflyPart",true)
+		if not p:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",p) w.Part0=p w.Part1=root w.C0=CFrame.new() end
+		flyVariables.TFpos=flyVariables.TFpos or InstanceNew("BodyPosition",p)
+		flyVariables.TFgyro=flyVariables.TFgyro or InstanceNew("BodyGyro",p)
+		flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
+		flyVariables.TFpos.position=p.Position
+		flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9)
+		flyVariables.TFgyro.cframe=p.CFrame
+		if not flyVariables._tflyLoop then
+			flyVariables._tflyLoop=true
+			Spawn(function()
+				while NAmanage._state.mode=="tfly" do
+					if FLYING then
+						local sp=tonumber(flyVariables.TflySpeed) or 1
+						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
+						local np=flyVariables.TFgyro.cframe-flyVariables.TFgyro.cframe.p+flyVariables.TFpos.position
+						if mv.Magnitude>0 then
+							np=np+(cam.CFrame.RightVector*mv.X*sp)
+							np=np+(cam.CFrame.LookVector*mv.Z*sp)
+						end
+						np=np+(cam.CFrame.UpVector*(CONTROL.E+CONTROL.Q)*sp)
+						flyVariables.TFpos.position=np.p
+						flyVariables.TFgyro.cframe=cam.CFrame
+					end
+					Wait()
+				end
+				flyVariables._tflyLoop=false
+			end)
+		end
+	elseif cfly then
+		NAmanage._ensureGoofy(true)
+		if head then head.Anchored=true end
+		if CFloop then CFloop:Disconnect() CFloop=nil end
+		CFloop=RunService.Stepped:Connect(function()
+			if NAmanage._state.mode~="cfly" or not FLYING then return end
+			local mv=GetCustomMoveVector()
+			local vertical=(CONTROL.E+CONTROL.Q)
+			local full=Vector3.new(mv.X,vertical,-mv.Z)
+			local md=(cam.CFrame.RightVector*full.X)+(cam.CFrame.UpVector*full.Y)+(cam.CFrame.LookVector*full.Z)
+			if head and md.Magnitude>0 then
+				local ns=head.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
+				local lk=ns+cam.CFrame.LookVector
+				head.CFrame=CFrame.new(ns,lk)
+				goofyFLY.CFrame=head.CFrame
 			end
 		end)
 	else
-		local Weld = InstanceNew("Weld", goofyFLY)
-		Weld.Part0 = goofyFLY
-		Weld.Part1 = root
-		Weld.C0 = CFrame.new()
-
-		local BG = InstanceNew("BodyGyro", goofyFLY)
-		BG.P = 9e4
-		BG.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-		BG.cframe = Camera.CFrame
-
-		local BV = InstanceNew("BodyVelocity", goofyFLY)
-		BV.velocity = Vector3.zero
-		BV.maxForce = Vector3.new(9e9, 9e9, 9e9)
-
-		FLYING = true
-
-		Spawn(function()
-			while FLYING do
-				if not vfly then
-					humanoid.PlatformStand = true
+		local p=NAmanage._ensureGoofy(false)
+		if not p:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",p) w.Part0=p w.Part1=root w.C0=CFrame.new() end
+		flyVariables.BG=flyVariables.BG or InstanceNew("BodyGyro",p)
+		flyVariables.BG.P=9e4
+		flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9)
+		flyVariables.BG.cframe=cam.CFrame
+		flyVariables.BV=flyVariables.BV or InstanceNew("BodyVelocity",p)
+		flyVariables.BV.velocity=Vector3.zero
+		flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9)
+		if NAmanage._state.mode=="fly" then if hum then hum.PlatformStand=true end else if hum then hum.PlatformStand=false end end
+		if not flyVariables._stdLoop then
+			flyVariables._stdLoop=true
+			Spawn(function()
+				while (NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly") do
+					if FLYING then
+						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
+						local has=mv.Magnitude>0 or CONTROL.Q~=0 or CONTROL.E~=0
+						if has then
+							SPEED=((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed)) or 1)*50
+						elseif SPEED~=0 then
+							SPEED=0
+						end
+						if has then
+							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+CONTROL.Q+CONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
+							lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
+						elseif SPEED~=0 then
+							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+lCONTROL.Q+lCONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
+						else
+							flyVariables.BV.velocity=Vector3.zero
+						end
+						flyVariables.BG.cframe=cam.CFrame
+					else
+						if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero end
+					end
+					Wait()
 				end
+				if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
+				if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
+				flyVariables.BG=nil flyVariables.BV=nil
+				if hum then hum.PlatformStand=false end
+				flyVariables._stdLoop=false
+			end)
+		end
+	end
+	FLYING=true
+end
 
-				local moveVec = GetCustomMoveVector()
-				moveVec = Vector3.new(moveVec.X, moveVec.Y, -moveVec.Z)
-				local hasInput = moveVec.Magnitude > 0 or CONTROL.Q ~= 0 or CONTROL.E ~= 0
-
-				if hasInput then
-					SPEED = (vfly and flyVariables.vFlySpeed or flyVariables.flySpeed) * 50
-				elseif SPEED ~= 0 then
-					SPEED = 0
+NAmanage._ensureLoops=function()
+	if NAmanage._state.mode=="tfly" then
+		if not flyVariables._tflyLoop then
+			flyVariables._tflyLoop=true
+			Spawn(function()
+				while NAmanage._state.mode=="tfly" do
+					if not goofyFLY or not flyVariables.TFpos or not flyVariables.TFgyro or goofyFLY.Parent==nil or flyVariables.TFpos.Parent~=goofyFLY or flyVariables.TFgyro.Parent~=goofyFLY then
+						NAmanage._ensureForces()
+						Wait()
+					else
+						if FLYING then
+							local cam=workspace.CurrentCamera
+							local sp=tonumber(flyVariables.TflySpeed) or 1
+							local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
+							local np=flyVariables.TFgyro.cframe-flyVariables.TFgyro.cframe.p+flyVariables.TFpos.position
+							if mv.Magnitude>0 then
+								np=np+(cam.CFrame.RightVector*mv.X*sp)
+								np=np+(cam.CFrame.LookVector*mv.Z*sp)
+							end
+							np=np+(cam.CFrame.UpVector*(CONTROL.E+CONTROL.Q)*sp)
+							pcall(function()
+								flyVariables.TFpos.position=np.p
+								flyVariables.TFgyro.cframe=cam.CFrame
+							end)
+						end
+					end
+					Wait()
 				end
-
-				if hasInput then
-					BV.velocity = ((Camera.CoordinateFrame.LookVector * moveVec.Z) +
-						((Camera.CoordinateFrame * CFrame.new(moveVec.X, (moveVec.Z + CONTROL.Q + CONTROL.E) * 0.2, 0).p) -
-							Camera.CoordinateFrame.p)) * SPEED
-					lCONTROL = { Q = CONTROL.Q, E = CONTROL.E }
-				elseif SPEED ~= 0 then
-					BV.velocity = ((Camera.CoordinateFrame.LookVector * moveVec.Z) +
-						((Camera.CoordinateFrame * CFrame.new(moveVec.X, (moveVec.Z + lCONTROL.Q + lCONTROL.E) * 0.2, 0).p) -
-							Camera.CoordinateFrame.p)) * SPEED
-				else
-					BV.velocity = Vector3.zero
+				flyVariables._tflyLoop=false
+			end)
+		end
+	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
+		if not flyVariables._stdLoop then
+			flyVariables._stdLoop=true
+			Spawn(function()
+				while NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" do
+					if not goofyFLY or not flyVariables.BG or not flyVariables.BV or goofyFLY.Parent==nil or flyVariables.BG.Parent~=goofyFLY or flyVariables.BV.Parent~=goofyFLY then
+						NAmanage._ensureForces()
+						Wait()
+					else
+						if FLYING then
+							local cam=workspace.CurrentCamera
+							local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
+							local has=mv.Magnitude>0 or CONTROL.Q~=0 or CONTROL.E~=0
+							if has then
+								SPEED=((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed)) or 1)*50
+							elseif SPEED~=0 then
+								SPEED=0
+							end
+							if has then
+								pcall(function()
+									flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+CONTROL.Q+CONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
+									flyVariables.BG.cframe=cam.CFrame
+								end)
+								lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
+							elseif SPEED~=0 then
+								pcall(function()
+									flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+lCONTROL.Q+lCONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
+									flyVariables.BG.cframe=cam.CFrame
+								end)
+							else
+								pcall(function()
+									flyVariables.BV.velocity=Vector3.zero
+									flyVariables.BG.cframe=cam.CFrame
+								end)
+							end
+						else
+							if flyVariables.BV then pcall(function() flyVariables.BV.velocity=Vector3.zero end) end
+						end
+					end
+					Wait()
 				end
+				flyVariables._stdLoop=false
+			end)
+		end
+	elseif NAmanage._state.mode=="cfly" then
+		if not CFloop or CFloop.Connected==false then
+			if CFloop then pcall(function() CFloop:Disconnect() end) end
+			CFloop=RunService.Stepped:Connect(function()
+				if NAmanage._state.mode~="cfly" or not FLYING then return end
+				NAmanage._ensureForces()
+				local head=getHead(getChar())
+				if not head then return end
+				local cam=workspace.CurrentCamera
+				local mv=GetCustomMoveVector()
+				local vertical=(CONTROL.E+CONTROL.Q)
+				local full=Vector3.new(mv.X,vertical,-mv.Z)
+				local md=(cam.CFrame.RightVector*full.X)+(cam.CFrame.UpVector*full.Y)+(cam.CFrame.LookVector*full.Z)
+				if md.Magnitude>0 then
+					local ns=head.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
+					local lk=ns+cam.CFrame.LookVector
+					head.CFrame=CFrame.new(ns,lk)
+					if goofyFLY then goofyFLY.CFrame=head.CFrame end
+				end
+			end)
+		end
+	end
+end
 
-				BG.cframe = Camera.CoordinateFrame
-				Wait()
+NAmanage.startWatcher=function()
+	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
+	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
+		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
+			NAmanage._ensureForces()
+			NAmanage._ensureLoops()
+		end
+	end)
+end
+
+NAmanage._ensureForces=function()
+	if NAmanage._state.mode=="none" then return end
+	local char=getChar(); if not char then return end
+	local hum=getHum(); if not hum then return end
+	local root=getRoot(char); if not root then return end
+	local cam=workspace.CurrentCamera
+	if not goofyFLY or goofyFLY.Parent==nil then
+		goofyFLY=InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+		goofyFLY.Anchored=(NAmanage._state.mode=="cfly")
+		local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
+		if flyVariables._goofyAC then pcall(function() flyVariables._goofyAC:Disconnect() end) end
+		flyVariables._goofyAC=goofyFLY.AncestryChanged:Connect(function(_,p) if not p then Defer(NAmanage._ensureForces) end end)
+	end
+	if NAmanage._state.mode=="tfly" then
+		if not goofyFLY:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new() end
+		if not flyVariables.TFpos or flyVariables.TFpos.Parent~=goofyFLY then
+			flyVariables.TFpos=InstanceNew("BodyPosition",goofyFLY)
+		end
+		if not flyVariables.TFgyro or flyVariables.TFgyro.Parent~=goofyFLY then
+			flyVariables.TFgyro=InstanceNew("BodyGyro",goofyFLY)
+		end
+		if FLYING then
+			flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
+			flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9)
+		else
+			flyVariables.TFpos.maxForce=Vector3.new(0,0,0)
+			flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0)
+		end
+	elseif NAmanage._state.mode=="cfly" then
+		goofyFLY.Anchored=true
+		local head=getHead(char)
+		if head and FLYING and not head.Anchored then head.Anchored=true end
+	else
+		if not goofyFLY:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new() end
+		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
+			flyVariables.BG=InstanceNew("BodyGyro",goofyFLY)
+			flyVariables.BG.P=9e4
+		end
+		if not flyVariables.BV or flyVariables.BV.Parent~=goofyFLY then
+			flyVariables.BV=InstanceNew("BodyVelocity",goofyFLY)
+			flyVariables.BV.velocity=Vector3.zero
+		end
+		flyVariables.BG.cframe=cam.CFrame
+		flyVariables.BG.maxTorque=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
+		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
+		if NAmanage._state.mode=="fly" then hum.PlatformStand=FLYING else hum.PlatformStand=false end
+	end
+	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
+		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
+		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
+			k=string.lower(k or "")
+			if k=="q" then
+				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+				CONTROL.Q=-sp*2
+			elseif k=="e" then
+				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+				CONTROL.E=sp*2
 			end
-
-			CONTROL = { Q = 0, E = 0 }
-			lCONTROL = { Q = 0, E = 0 }
-			SPEED = 0
-			BG:Destroy()
-			BV:Destroy()
-			humanoid.PlatformStand = false
 		end)
 	end
+	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
+		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
+		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
+			k=string.lower(k or "")
+			if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
+		end)
+	end
+end
+
+NAmanage.activateMode=function(mode)
+	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
+	if CFloop then pcall(function() CFloop:Disconnect() end) end
+	CFloop=nil
+	flyVariables.flyEnabled=(mode=="fly")
+	flyVariables.vFlyEnabled=(mode=="vfly")
+	flyVariables.cFlyEnabled=(mode=="cfly")
+	flyVariables.TFlyEnabled=(mode=="tfly")
+	NAmanage._state.mode=mode
+	if mode=="cfly" then
+		NAmanage.sFLY(false,true,false)
+	elseif mode=="tfly" then
+		NAmanage.sFLY(false,false,true)
+	elseif mode=="vfly" then
+		NAmanage.sFLY(true,false,false)
+	else
+		NAmanage.sFLY(false,false,false)
+	end
+	NAmanage._ensureMobileFlyUI(mode)
+	NAmanage.startWatcher()
+end
+
+NAmanage.keyToggle=function(mode)
+	if NAmanage._state.mode~=mode then return end
+	if not NAmanage._modeEnabled(mode) then return end
+	if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+end
+
+NAmanage.toggleFly=function()
+	if not flyVariables.flyEnabled then
+		NAmanage.activateMode("fly")
+	else
+		if NAmanage._state.mode~="fly" then
+			NAmanage.activateMode("fly")
+		else
+			if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+		end
+	end
+end
+
+NAmanage.toggleVFly=function()
+	if not flyVariables.vFlyEnabled then
+		NAmanage.activateMode("vfly")
+	else
+		if NAmanage._state.mode~="vfly" then
+			NAmanage.activateMode("vfly")
+		else
+			if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+		end
+	end
+end
+
+NAmanage.toggleCFly=function()
+	if not flyVariables.cFlyEnabled then
+		NAmanage.activateMode("cfly")
+	else
+		if NAmanage._state.mode~="cfly" then
+			NAmanage.activateMode("cfly")
+		else
+			if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+		end
+	end
+end
+
+NAmanage.toggleTFly=function()
+	if not flyVariables.TFlyEnabled then
+		NAmanage.activateMode("tfly")
+	else
+		if NAmanage._state.mode~="tfly" then
+			NAmanage.activateMode("tfly")
+		else
+			if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+		end
+	end
+end
+
+NAmanage.connectFlyKey=function()
+	if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() end
+	flyVariables.keybindConn=mouse.KeyDown:Connect(function(KEY)
+		if Lower(KEY)==Lower(flyVariables.toggleKey) then
+			NAmanage.keyToggle("fly")
+		end
+	end)
+end
+
+NAmanage.connectVFlyKey=function()
+	if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() end
+	flyVariables.vKeybindConn=mouse.KeyDown:Connect(function(KEY)
+		if Lower(KEY)==Lower(flyVariables.vToggleKey) then
+			NAmanage.keyToggle("vfly")
+		end
+	end)
+end
+
+NAmanage.connectCFlyKey=function()
+	if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() end
+	flyVariables.cKeybindConn=mouse.KeyDown:Connect(function(KEY)
+		if Lower(KEY)==Lower(flyVariables.cToggleKey) then
+			NAmanage.keyToggle("cfly")
+		end
+	end)
+end
+
+NAmanage.connectTFlyKey=function()
+	if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
+	flyVariables.tflyKeyConn=mouse.KeyDown:Connect(function(KEY)
+		if Lower(KEY)==Lower(flyVariables.tflyToggleKey) then
+			NAmanage.keyToggle("tfly")
+		end
+	end)
+end
+
+NAmanage.enableFlyCommand=function(spd)
+	if tonumber(spd) then flyVariables.flySpeed=tonumber(spd) end
+	NAmanage.activateMode("fly")
+	NAmanage.connectFlyKey()
+end
+
+NAmanage.enableVFlyCommand=function(spd)
+	if tonumber(spd) then flyVariables.vFlySpeed=tonumber(spd) end
+	NAmanage.activateMode("vfly")
+	NAmanage.connectVFlyKey()
+end
+
+NAmanage.enableCFlyCommand=function(spd)
+	if tonumber(spd) then flyVariables.cFlySpeed=tonumber(spd) flyVariables.flySpeed=flyVariables.cFlySpeed end
+	NAmanage.activateMode("cfly")
+	NAmanage.connectCFlyKey()
+end
+
+NAmanage.enableTFlyCommand=function(spd)
+	if tonumber(spd) then flyVariables.TflySpeed=tonumber(spd) end
+	NAmanage.activateMode("tfly")
+	NAmanage.connectTFlyKey()
 end
 
 NAmanage.readAliasFile = function()
@@ -7654,187 +8191,20 @@ cmd.add({"unhitboxes"},{"unhitboxes","removes the hitboxes outline"},function()
 	settings():GetService("RenderSettings").ShowBoundingBoxes=false
 end)
 
-function toggleVFly()
-	if flyVariables.vFlyEnabled then
-		FLYING = false
-		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-		if goofyFLY then goofyFLY:Destroy() end
-		flyVariables.vFlyEnabled = false
-	else
-		FLYING = true
-		sFLY(true)
-		flyVariables.vFlyEnabled = true
-	end
-end
-
-function connectVFlyKey()
-	if flyVariables.vKeybindConn then
-		flyVariables.vKeybindConn:Disconnect()
-	end
-	flyVariables.vKeybindConn = mouse.KeyDown:Connect(function(KEY)
-		if KEY:lower() == flyVariables.vToggleKey then
-			toggleVFly()
-		end
-	end)
-end
-
-cmd.add({"vfly", "vehiclefly"}, {"vehiclefly (vfly)", "be able to fly vehicles"}, function(...)
-	local arg = (...) or nil
-	flyVariables.vFlySpeed = arg or 1
-	connectVFlyKey()
-	flyVariables.vFlyEnabled = true
-
-	if flyVariables.vRAHH then
-		flyVariables.vRAHH:Destroy()
-		flyVariables.vRAHH = nil
-	end
-
-	cmd.run({"uncfly", ''})
-	cmd.run({"unfly", ''})
-
-	if IsOnMobile then
+cmd.add({"vfly","vehiclefly"},{"vehiclefly (vfly)","be able to fly vehicles"},function(...)
+	local arg=(...) or nil
+	flyVariables.vFlySpeed=tonumber(arg) or flyVariables.vFlySpeed or 1
+	NAmanage.connectVFlyKey()
+	NAmanage.activateMode("vfly")
+	if not IsOnMobile then
 		Wait()
-		DebugNotif(adminName.." detected mobile. vFly button added for easier use.", 2)
-
-		flyVariables.vRAHH = InstanceNew("ScreenGui")
-		local btn = InstanceNew("TextButton")
-		local speedBox = InstanceNew("TextBox")
-		local toggleBtn = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-		local corner2 = InstanceNew("UICorner")
-		local corner3 = InstanceNew("UICorner")
-		local aspect = InstanceNew("UIAspectRatioConstraint")
-
-		NaProtectUI(flyVariables.vRAHH)
-		flyVariables.vRAHH.ResetOnSpawn = false
-
-		btn.Parent = flyVariables.vRAHH
-		btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-		btn.BackgroundTransparency = 0.1
-		btn.Position = UDim2.new(0.9,0,0.5,0)
-		btn.Size = UDim2.new(0.08,0,0.1,0)
-		btn.Font = Enum.Font.GothamBold
-		btn.Text = "vFly"
-		btn.TextColor3 = Color3.fromRGB(255,255,255)
-		btn.TextSize = 18
-		btn.TextWrapped = true
-		btn.Active = true
-		btn.TextScaled = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = btn
-
-		aspect.Parent = btn
-		aspect.AspectRatio = 1.0
-
-		speedBox.Parent = flyVariables.vRAHH
-		speedBox.BackgroundColor3 = Color3.fromRGB(30,30,30)
-		speedBox.BackgroundTransparency = 0.1
-		speedBox.AnchorPoint = Vector2.new(0.5, 0)
-		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
-		speedBox.Size = UDim2.new(0, 75, 0, 35)
-		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(flyVariables.vFlySpeed)
-		speedBox.TextColor3 = Color3.fromRGB(255,255,255)
-		speedBox.TextSize = 18
-		speedBox.TextWrapped = true
-		speedBox.ClearTextOnFocus = false
-		speedBox.PlaceholderText = "Speed"
-		speedBox.Visible = false
-
-		corner2.CornerRadius = UDim.new(0.2,0)
-		corner2.Parent = speedBox
-
-		toggleBtn.Parent = btn
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-		toggleBtn.BackgroundTransparency = 0.1
-		toggleBtn.Position = UDim2.new(0.8,0,-0.1,0)
-		toggleBtn.Size = UDim2.new(0.4,0,0.4,0)
-		toggleBtn.Font = Enum.Font.SourceSans
-		toggleBtn.Text = "+"
-		toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
-		toggleBtn.TextScaled = true
-		toggleBtn.TextWrapped = true
-		toggleBtn.Active = true
-		toggleBtn.AutoButtonColor = true
-
-		corner3.CornerRadius = UDim.new(1, 0)
-		corner3.Parent = toggleBtn
-
-		MouseButtonFix(toggleBtn, function()
-			speedBox.Visible = not speedBox.Visible
-			toggleBtn.Text = speedBox.Visible and "-" or "+"
-		end)
-
-		coroutine.wrap(function()
-			MouseButtonFix(btn, function()
-				if not flyVariables.vOn then
-					local newSpeed = tonumber(speedBox.Text) or flyVariables.vFlySpeed
-					flyVariables.vFlySpeed = newSpeed
-					speedBox.Text = tostring(flyVariables.vFlySpeed)
-					flyVariables.vOn = true
-					btn.Text = "UnvFly"
-					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					sFLY(true)
-					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-				else
-					flyVariables.vOn = false
-					btn.Text = "vFly"
-					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-					FLYING = false
-					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-					if goofyFLY then goofyFLY:Destroy() end
-				end
-			end)
-		end)()
-
-		NAgui.draggerV2(btn)
-		NAgui.draggerV2(speedBox)
-	else
-		FLYING = false
-		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-		Wait()
-		DebugNotif("Vehicle fly enabled. Press '"..flyVariables.vToggleKey:upper().."' to toggle vehicle flying.")
-		sFLY(true)
-		speedofthevfly = flyVariables.vFlySpeed
-		speedofthefly = flyVariables.vFlySpeed
+		DebugNotif("Vehicle fly enabled. Press '"..string.upper(flyVariables.vToggleKey).."' to vfly/unvfly.")
 	end
-end, true)
+end,true)
 
-cmd.add({"unvfly", "unvehiclefly"}, {"unvehiclefly (unvfly)", "disable vehicle fly"}, function(bool)
-	Wait()
-	if not bool then DebugNotif("Not vFlying anymore", 2) end
-	FLYING = false
-	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-	if goofyFLY then goofyFLY:Destroy() end
-	flyVariables.vOn = false
-	if flyVariables.vRAHH then
-		flyVariables.vRAHH:Destroy()
-		flyVariables.vRAHH = nil
-	end
-	if flyVariables.vKeybindConn then
-		flyVariables.vKeybindConn:Disconnect()
-		flyVariables.vKeybindConn = nil
-	end
+cmd.add({"unvfly","unvehiclefly"},{"unvfly","disable vehicle fly"},function()
+	NAmanage.deactivateMode("vfly")
 end)
-
---[[if IsOnPC then
-	cmd.add({"vflybind", "vflykeybind","bindvfly"}, {"vflybind (vflykeybind, bindvfly)", "set a custom keybind for the 'vFly' command"}, function(...)
-		local newKey = (...):lower()
-		if newKey == "" or newKey==nil then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-
-		flyVariables.vToggleKey = newKey
-		if flyVariables.vKeybindConn then
-			flyVariables.vKeybindConn:Disconnect()
-		end
-		connectVFlyKey()
-
-		DoNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
-	end,true)
-end]]
 
 cmd.add({"equiptools","equipall"},{"equiptools","Equip all of your tools"},function()
 	local backpack=getBp()
@@ -9418,52 +9788,58 @@ cmd.add({"trip"},{"trip","get up NOW"},function()
 end)
 
 cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
-	local function doTRIPPER(char)
-		local hum = getPlrHum(char)
-		local root = getRoot(char)
-		while not (hum and root) do Wait(.1) hum=getPlrHum(char) root=getRoot(char) end
-
-		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
-		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end)
-		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false) end)
-
-		local RS = SafeGetService("RunService")
-		local function recover()
-			pcall(function() root.AssemblyLinearVelocity = Vector3.zero end)
-			pcall(function() root.Velocity = Vector3.zero end)
-			pcall(function() hum.PlatformStand = false end)
-			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+	local LocalPlayer=Players.LocalPlayer
+	local states={Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.PlatformStanding}
+	shared.__antitrip=shared.__antitrip or {saved={}}
+	local STORE=shared.__antitrip
+	local function saveAndDisableStates(h)
+		local saved={}
+		for _,st in ipairs(states) do
+			local ok,was=pcall(function() return h:GetStateEnabled(st) end)
+			if ok then
+				saved[st]=was
+				pcall(function() h:SetStateEnabled(st,false) end)
+			end
 		end
-
-		NAlib.disconnect("trip_fall")
-		NAlib.connect("trip_fall", hum.FallingDown:Connect(function()
-			recover()
-		end))
-
-		NAlib.disconnect("trip_state")
-		NAlib.connect("trip_state", hum.StateChanged:Connect(function(_, new)
-			if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll or new == Enum.HumanoidStateType.PlatformStanding then
-				recover()
-			end
-		end))
-
-		NAlib.disconnect("trip_step")
-		NAlib.connect("trip_step", RS.Stepped:Connect(function()
-			local s = hum:GetState()
-			if s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Ragdoll or s == Enum.HumanoidStateType.PlatformStanding then
-				recover()
-			end
-		end))
+		STORE.saved[h]=saved
 	end
-
-	if LocalPlayer.Character then
+	local function recover(hum,root)
+		pcall(function() root.AssemblyLinearVelocity=Vector3.zero end)
+		pcall(function() hum.PlatformStand=false end)
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+	end
+	local function doTRIPPER(char)
+		local hum=getPlrHum(char)
+		local root=getRoot(char)
+		while not (hum and root) do Wait(0.1) hum=getPlrHum(char) root=getRoot(char) end
+		saveAndDisableStates(hum)
+		NAlib.disconnect("trip_fall")
+		NAlib.connect("trip_fall",hum.FallingDown:Connect(function()
+			recover(hum,root)
+		end))
+		NAlib.disconnect("trip_state")
+		NAlib.connect("trip_state",hum.StateChanged:Connect(function(_,new)
+			if new==Enum.HumanoidStateType.FallingDown or new==Enum.HumanoidStateType.Ragdoll or new==Enum.HumanoidStateType.PlatformStanding then
+				recover(hum,root)
+			end
+		end))
+		NAlib.disconnect("trip_step")
+		NAlib.connect("trip_step",RunService.Stepped:Connect(function()
+			local s=hum:GetState()
+			if s==Enum.HumanoidStateType.FallingDown or s==Enum.HumanoidStateType.Ragdoll or s==Enum.HumanoidStateType.PlatformStanding then
+				recover(hum,root)
+			end
+		end))
+		hum.Destroying:Connect(function() STORE.saved[hum]=nil end)
+	end
+	if LocalPlayer and LocalPlayer.Character then
 		doTRIPPER(LocalPlayer.Character)
 	end
-
 	NAlib.disconnect("trip_char")
-	NAlib.connect("trip_char", LocalPlayer.CharacterAdded:Connect(doTRIPPER))
-
-	DebugNotif("Antitrip Enabled", 2)
+	NAlib.connect("trip_char",(LocalPlayer and LocalPlayer.CharacterAdded):Connect(function(char)
+		doTRIPPER(char)
+	end))
+	DebugNotif("Antitrip Enabled",2)
 end)
 
 cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
@@ -9471,7 +9847,25 @@ cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
 	NAlib.disconnect("trip_state")
 	NAlib.disconnect("trip_step")
 	NAlib.disconnect("trip_char")
-	DebugNotif("Antitrip Disabled", 2)
+	local STORE=shared.__antitrip
+	if STORE and STORE.saved then
+		for hum,saved in pairs(STORE.saved) do
+			if hum and hum.Parent and saved then
+				for st,was in pairs(saved) do
+					pcall(function() hum:SetStateEnabled(st,was) end)
+				end
+			end
+		end
+		STORE.saved={}
+	end
+	local char=getChar()
+	if char then
+		local hum=getPlrHum(char)
+		if hum then
+			pcall(function() hum.PlatformStand=false end)
+		end
+	end
+	DebugNotif("Antitrip Disabled",2)
 end)
 
 cmd.add({"checkrfe"},{"checkrfe","Checks if the game has respect filtering enabled off"},function()
@@ -12867,374 +13261,35 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	coroutine.wrap(PRML_fake_script)()
 end)
 
-function toggleFly()
-	if flyVariables.flyEnabled then
-		FLYING = false
-		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-		if goofyFLY then goofyFLY:Destroy() end
-		flyVariables.flyEnabled = false
-	else
-		FLYING = true
-		sFLY()
-		flyVariables.flyEnabled = true
-	end
-end
-
-function connectFlyKey()
-	if flyVariables.keybindConn then
-		flyVariables.keybindConn:Disconnect()
-	end
-	flyVariables.keybindConn = mouse.KeyDown:Connect(function(KEY)
-		if KEY:lower() == flyVariables.toggleKey then
-			toggleFly()
-		end
-	end)
-end
-
-cmd.add({"fly"}, {"fly [speed]", "Enable flight"}, function(...)
-	local arg = (...) or nil
-	flyVariables.flySpeed = arg or 1
-	connectFlyKey()
-	flyVariables.flyEnabled = true
-
-	if flyVariables.mFlyBruh then
-		flyVariables.mFlyBruh:Destroy()
-		flyVariables.mFlyBruh = nil
-	end
-	cmd.run({"uncfly", ''})
-	cmd.run({"unvfly", ''})
-
-	if IsOnMobile then
+cmd.add({"fly"},{"fly [speed]","Enable flight"},function(...)
+	local arg=(...) or nil
+	flyVariables.flySpeed=tonumber(arg) or flyVariables.flySpeed or 1
+	NAmanage.connectFlyKey()
+	NAmanage.activateMode("fly")
+	if not IsOnMobile then
 		Wait()
-		DebugNotif(adminName.." detected mobile. Fly button added for easier use.", 2)
-
-		flyVariables.mFlyBruh = InstanceNew("ScreenGui")
-		local btn = InstanceNew("TextButton")
-		local speedBox = InstanceNew("TextBox")
-		local toggleBtn = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-		local corner2 = InstanceNew("UICorner")
-		local corner3 = InstanceNew("UICorner")
-		local aspect = InstanceNew("UIAspectRatioConstraint")
-
-		NaProtectUI(flyVariables.mFlyBruh)
-		flyVariables.mFlyBruh.ResetOnSpawn = false
-
-		btn.Parent = flyVariables.mFlyBruh
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		btn.BackgroundTransparency = 0.1
-		btn.Position = UDim2.new(0.9, 0, 0.5, 0)
-		btn.Size = UDim2.new(0.08, 0, 0.1, 0)
-		btn.Font = Enum.Font.GothamBold
-		btn.Text = "Fly"
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.TextSize = 18
-		btn.TextWrapped = true
-		btn.Active = true
-		btn.TextScaled = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = btn
-
-		aspect.Parent = btn
-		aspect.AspectRatio = 1.0
-
-		speedBox.Parent = flyVariables.mFlyBruh
-		speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		speedBox.BackgroundTransparency = 0.1
-		speedBox.AnchorPoint = Vector2.new(0.5, 0)
-		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
-		speedBox.Size = UDim2.new(0, 75, 0, 35)
-		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(flyVariables.flySpeed)
-		speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-		speedBox.TextSize = 18
-		speedBox.TextWrapped = true
-		speedBox.ClearTextOnFocus = false
-		speedBox.PlaceholderText = "Speed"
-		speedBox.Visible = false
-
-		corner2.CornerRadius = UDim.new(0.2, 0)
-		corner2.Parent = speedBox
-
-		toggleBtn.Parent = btn
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		toggleBtn.BackgroundTransparency = 0.1
-		toggleBtn.Position = UDim2.new(0.8, 0, -0.1, 0)
-		toggleBtn.Size = UDim2.new(0.4, 0, 0.4, 0)
-		toggleBtn.Font = Enum.Font.SourceSans
-		toggleBtn.Text = "+"
-		toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		toggleBtn.TextScaled = true
-		toggleBtn.TextWrapped = true
-		toggleBtn.Active = true
-		toggleBtn.AutoButtonColor = true
-
-		corner3.CornerRadius = UDim.new(1, 0)
-		corner3.Parent = toggleBtn
-
-		MouseButtonFix(toggleBtn, function()
-			speedBox.Visible = not speedBox.Visible
-			toggleBtn.Text = speedBox.Visible and "-" or "+"
-		end)
-
-		coroutine.wrap(function()
-			MouseButtonFix(btn, function()
-				if not flyVariables.mOn then
-					local newSpeed = tonumber(speedBox.Text) or flyVariables.flySpeed
-					flyVariables.flySpeed = newSpeed
-					speedBox.Text = tostring(flyVariables.flySpeed)
-					flyVariables.mOn = true
-					btn.Text = "Unfly"
-					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					sFLY()
-				else
-					flyVariables.mOn = false
-					btn.Text = "Fly"
-					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-					FLYING = false
-					if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-					if goofyFLY then goofyFLY:Destroy() end
-				end
-			end)
-		end)()
-
-		NAgui.draggerV2(btn)
-		NAgui.draggerV2(speedBox)
-	else
-		FLYING = false
-		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-		Wait()
-		DebugNotif("Fly enabled. Press '"..flyVariables.toggleKey:upper().."' to toggle flying.")
-		sFLY()
-		speedofthevfly = flyVariables.flySpeed
-		speedofthefly = flyVariables.flySpeed
+		DebugNotif("Fly enabled. Press '"..string.upper(flyVariables.toggleKey).."' to fly/unfly.")
 	end
-end, true)
+end,true)
 
-cmd.add({"unfly"}, {"unfly", "Disable flight"}, function(bool)
-	Wait()
-	if not bool then DebugNotif("Not flying anymore", 2) end
-	FLYING = false
-	if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-	if goofyFLY then goofyFLY:Destroy() end
-	flyVariables.mOn = false
-	if flyVariables.mFlyBruh then
-		flyVariables.mFlyBruh:Destroy()
-		flyVariables.mFlyBruh = nil
-	end
-	if flyVariables.keybindConn then
-		flyVariables.keybindConn:Disconnect()
-		flyVariables.keybindConn = nil
-	end
+cmd.add({"unfly"},{"unfly","Disable flight"},function()
+	NAmanage.deactivateMode("fly")
 end)
 
-function toggleCFly()
-	local char = cmdlp.Character
-	local humanoid = getHum()
-	local head = getHead(char)
-
-	if flyVariables.cFlyEnabled then
-		FLYING = false
-		flyVariables.cFlyEnabled = false
-
-		if CFloop then
-			CFloop:Disconnect()
-			CFloop = nil
-		end
-
-		if humanoid then
-			humanoid.PlatformStand = false
-		end
-
-		if head then
-			head.Anchored = false
-		end
-
-		if goofyFLY then
-			goofyFLY:Destroy()
-			goofyFLY = nil
-		end
-	else
-		FLYING = true
-		flyVariables.cFlyEnabled = true
-		sFLY(nil, true)
-	end
-end
-
-function connectCFlyKey()
-	if flyVariables.cKeybindConn then
-		flyVariables.cKeybindConn:Disconnect()
-	end
-	flyVariables.cKeybindConn = mouse.KeyDown:Connect(function(KEY)
-		if KEY:lower() == flyVariables.cToggleKey then
-			toggleCFly()
-		end
-	end)
-end
-
-cmd.add({"cframefly", "cfly"}, {"cframefly [speed] (cfly)", "Enable CFrame-based flight"}, function(...)
-	local arg = (...) or nil
-	flyVariables.cFlySpeed = tonumber(arg) or flyVariables.cFlySpeed
-	flyVariables.flySpeed = flyVariables.cFlySpeed
-
-	connectCFlyKey()
-	flyVariables.cFlyEnabled = true
-
-	if flyVariables.cFlyGUI then
-		flyVariables.cFlyGUI:Destroy()
-		flyVariables.cFlyGUI = nil
-	end
-
-	cmd.run({"unfly", ''})
-	cmd.run({"unvfly", ''})
-
-	if IsOnMobile then
+cmd.add({"cframefly","cfly"},{"cframefly [speed] (cfly)","Enable CFrame-based flight"},function(...)
+	local arg=(...) or nil
+	flyVariables.cFlySpeed=tonumber(arg) or flyVariables.cFlySpeed or 1
+	flyVariables.flySpeed=flyVariables.cFlySpeed
+	NAmanage.connectCFlyKey()
+	NAmanage.activateMode("cfly")
+	if not IsOnMobile then
 		Wait()
-		DebugNotif(adminName.." detected mobile. CFrame Fly button added.", 2)
-
-		flyVariables.cFlyGUI = InstanceNew("ScreenGui")
-		local btn = InstanceNew("TextButton")
-		local speedBox = InstanceNew("TextBox")
-		local toggleBtn = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-		local corner2 = InstanceNew("UICorner")
-		local corner3 = InstanceNew("UICorner")
-		local aspect = InstanceNew("UIAspectRatioConstraint")
-
-		NaProtectUI(flyVariables.cFlyGUI)
-		flyVariables.cFlyGUI.ResetOnSpawn = false
-
-		btn.Parent = flyVariables.cFlyGUI
-		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		btn.BackgroundTransparency = 0.1
-		btn.Position = UDim2.new(0.9, 0, 0.6, 0)
-		btn.Size = UDim2.new(0.08, 0, 0.1, 0)
-		btn.Font = Enum.Font.GothamBold
-		btn.Text = "CFly"
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.TextSize = 18
-		btn.TextWrapped = true
-		btn.Active = true
-		btn.TextScaled = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = btn
-
-		aspect.Parent = btn
-		aspect.AspectRatio = 1.0
-
-		speedBox.Parent = flyVariables.cFlyGUI
-		speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		speedBox.BackgroundTransparency = 0.1
-		speedBox.AnchorPoint = Vector2.new(0.5, 0)
-		speedBox.Position = UDim2.new(0.5, 0, 0, 10)
-		speedBox.Size = UDim2.new(0, 75, 0, 35)
-		speedBox.Font = Enum.Font.GothamBold
-		speedBox.Text = tostring(flyVariables.cFlySpeed)
-		speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-		speedBox.TextSize = 18
-		speedBox.TextWrapped = true
-		speedBox.ClearTextOnFocus = false
-		speedBox.PlaceholderText = "Speed"
-		speedBox.Visible = false
-
-		corner2.CornerRadius = UDim.new(0.2, 0)
-		corner2.Parent = speedBox
-
-		toggleBtn.Parent = btn
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-		toggleBtn.BackgroundTransparency = 0.1
-		toggleBtn.Position = UDim2.new(0.8, 0, -0.1, 0)
-		toggleBtn.Size = UDim2.new(0.4, 0, 0.4, 0)
-		toggleBtn.Font = Enum.Font.SourceSans
-		toggleBtn.Text = "+"
-		toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		toggleBtn.TextScaled = true
-		toggleBtn.TextWrapped = true
-		toggleBtn.Active = true
-		toggleBtn.AutoButtonColor = true
-
-		corner3.CornerRadius = UDim.new(1, 0)
-		corner3.Parent = toggleBtn
-
-		MouseButtonFix(toggleBtn, function()
-			speedBox.Visible = not speedBox.Visible
-			toggleBtn.Text = speedBox.Visible and "-" or "+"
-		end)
-
-		coroutine.wrap(function()
-			MouseButtonFix(btn, function()
-				if not flyVariables.cOn then
-					local newSpeed = tonumber(speedBox.Text) or flyVariables.cFlySpeed
-					flyVariables.cFlySpeed = newSpeed
-					flyVariables.flySpeed = flyVariables.cFlySpeed
-					speedBox.Text = tostring(flyVariables.cFlySpeed)
-					flyVariables.cOn = true
-					btn.Text = "UnCfly"
-					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					sFLY(true, true)
-				else
-					flyVariables.cOn = false
-					btn.Text = "CFly"
-					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-					FLYING = false
-					local hum = getHum()
-					local head = getChar() and getHead(getChar())
-					head.Anchored = false
-					hum.PlatformStand = false
-					if CFloop then CFloop:Disconnect() CFloop = nil end
-					if goofyFLY then goofyFLY:Destroy() end
-				end
-			end)
-		end)()
-
-		NAgui.draggerV2(btn)
-		NAgui.draggerV2(speedBox)
-	else
-		FLYING = false
-		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
-		Wait()
-		DebugNotif("CFrame Fly enabled. Press '"..flyVariables.cToggleKey:upper().."' to toggle.")
-		sFLY(true, true)
+		DebugNotif("CFrame Fly enabled. Press '"..string.upper(flyVariables.cToggleKey).."' to cfly/uncfly.")
 	end
-end, true)
+end,true)
 
-cmd.add({"uncframefly","uncfly"}, {"uncframefly (uncfly)", "Disable CFrame-based flight"}, function(bool)
-	Wait()
-	if not bool then DebugNotif("CFrame Fly disabled.", 2) end
-	FLYING = false
-
-	local char = cmdlp.Character
-	local hum = getHum()
-	local head = getHead(char)
-
-	if CFloop then
-		CFloop:Disconnect()
-		CFloop = nil
-	end
-
-	if hum then
-		hum.PlatformStand = false
-	end
-
-	if head then
-		head.Anchored = false
-	end
-
-	if goofyFLY then
-		goofyFLY:Destroy()
-	end
-
-	flyVariables.cOn = false
-	if flyVariables.cFlyGUI then
-		flyVariables.cFlyGUI:Destroy()
-		flyVariables.cFlyGUI = nil
-	end
-	if flyVariables.cKeybindConn then
-		flyVariables.cKeybindConn:Disconnect()
-		flyVariables.cKeybindConn = nil
-	end
+cmd.add({"uncframefly","uncfly"},{"uncfly","Disable CFrame-based flight"},function()
+	NAmanage.deactivateMode("cfly")
 end)
 
 --[[if IsOnPC then
@@ -13258,143 +13313,19 @@ end)
 	end,true)
 end]]
 
-function toggleTFly()
-	if flyVariables.TFlyEnabled then
-		flyVariables.TFlyEnabled = false
-		for _, v in pairs(workspace:GetDescendants()) do
-			if v:GetAttribute("tflyPart") then
-				v:Destroy()
-			end
-		end
-		local hum = getHum()
-		if hum then hum.PlatformStand = false end
-		if flyVariables.TFLYBTN then
-			flyVariables.TFLYBTN.Text = "TFly"
-			flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-		end
-	else
-		flyVariables.TFlyEnabled = true
-		local speed = flyVariables.TflySpeed
-		local Humanoid = getHum()
-
-		flyVariables.tflyCORE = InstanceNew("Part", workspace)
-		flyVariables.tflyCORE:SetAttribute("tflyPart", true)
-		flyVariables.tflyCORE.Size = Vector3.new(0.05, 0.05, 0.05)
-		flyVariables.tflyCORE.CanCollide = false
-
-		local Weld = InstanceNew("Weld", flyVariables.tflyCORE)
-		Weld.Part0 = flyVariables.tflyCORE
-		Weld.Part1 = Humanoid.RootPart
-		Weld.C0 = CFrame.new(0, 0, 0)
-
-		local pos = InstanceNew("BodyPosition", flyVariables.tflyCORE)
-		local gyro = InstanceNew("BodyGyro", flyVariables.tflyCORE)
-		pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
-		pos.position = flyVariables.tflyCORE.Position
-		gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-		gyro.cframe = flyVariables.tflyCORE.CFrame
-
-		coroutine.wrap(function()
-			repeat
-				Wait()
-				local newPosition = gyro.cframe - gyro.cframe.p + pos.position
-
-				local moveVec = GetCustomMoveVector()
-				moveVec = Vector3.new(moveVec.X, moveVec.Y, -moveVec.Z)
-
-				if moveVec.Magnitude > 0 then
-					local camera = workspace.CurrentCamera
-					newPosition = newPosition + (camera.CFrame.RightVector * moveVec.X * speed)
-					newPosition = newPosition + (camera.CFrame.LookVector * moveVec.Z * speed)
-				end
-
-				pos.position = newPosition.p
-				gyro.cframe = workspace.CurrentCamera.CoordinateFrame
-			until not flyVariables.TFlyEnabled
-
-			if gyro then gyro:Destroy() end
-			if pos then pos:Destroy() end
-		end)()
-
-		if flyVariables.TFLYBTN then
-			flyVariables.TFLYBTN.Text = "UnTFly"
-			flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-		end
-	end
-end
-
-cmd.add({"tfly", "tweenfly"}, {"tfly [speed] (tweenfly)", "Enables smooth flying"}, function(...)
-	local arg = (...) or nil
-	flyVariables.TflySpeed = arg or 1
-
-	if IsOnMobile then
+cmd.add({"tfly","tweenfly"},{"tfly [speed] (tweenfly)","Enables smooth flying"},function(...)
+	local arg=(...) or nil
+	flyVariables.TflySpeed=tonumber(arg) or flyVariables.TflySpeed or 1
+	NAmanage.connectTFlyKey()
+	NAmanage.activateMode("tfly")
+	if not IsOnMobile then
 		Wait()
-		DebugNotif(adminName.." detected mobile. Tfly button added for easier use.", 2)
-
-		if flyVariables.tflyButtonUI then flyVariables.tflyButtonUI:Destroy() end
-		if flyVariables.TFLYBTN then flyVariables.TFLYBTN:Destroy() end
-
-		flyVariables.tflyButtonUI = InstanceNew("ScreenGui")
-		flyVariables.TFLYBTN = InstanceNew("TextButton")
-		local corner = InstanceNew("UICorner")
-
-		NaProtectUI(flyVariables.tflyButtonUI)
-		flyVariables.tflyButtonUI.ResetOnSpawn = false
-
-		flyVariables.TFLYBTN.Parent = flyVariables.tflyButtonUI
-		flyVariables.TFLYBTN.BackgroundColor3 = Color3.fromRGB(30,30,30)
-		flyVariables.TFLYBTN.BackgroundTransparency = 0.1
-		flyVariables.TFLYBTN.Position = UDim2.new(0.9,0,0.5,0)
-		flyVariables.TFLYBTN.Size = UDim2.new(0.08,0,0.1,0)
-		flyVariables.TFLYBTN.Font = Enum.Font.GothamBold
-		flyVariables.TFLYBTN.Text = "TFly"
-		flyVariables.TFLYBTN.TextColor3 = Color3.fromRGB(255,255,255)
-		flyVariables.TFLYBTN.TextSize = 18
-		flyVariables.TFLYBTN.TextWrapped = true
-		flyVariables.TFLYBTN.Active = true
-		flyVariables.TFLYBTN.TextScaled = true
-
-		corner.CornerRadius = UDim.new(0.2, 0)
-		corner.Parent = flyVariables.TFLYBTN
-
-		MouseButtonFix(flyVariables.TFLYBTN, toggleTFly)
-		NAgui.draggerV2(flyVariables.TFLYBTN)
-	else
-		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(key)
-			if key:lower() == flyVariables.tflyToggleKey then
-				toggleTFly()
-			end
-		end)
-		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'. Press to toggle.")
+		DebugNotif("TFly enabled. Press '"..string.upper(flyVariables.tflyToggleKey).."' to tfly/untfly.")
 	end
+end,true)
 
-	toggleTFly()
-end, true)
-
-cmd.add({"untfly", "untweenfly"}, {"untfly (untweenfly)", "Disables tween flying"}, function()
-	Wait()
-	DebugNotif("Not flying anymore", 2)
-	flyVariables.TFlyEnabled = false
-	for _, v in pairs(workspace:GetDescendants()) do
-		if v:GetAttribute("tflyPart") then
-			v:Destroy()
-		end
-	end
-	local hum = getHum()
-	if hum then hum.PlatformStand = false end
-	if flyVariables.tflyButtonUI then
-		flyVariables.tflyButtonUI:Destroy()
-		flyVariables.tflyButtonUI = nil
-	end
-	if flyVariables.TFLYBTN then
-		flyVariables.TFLYBTN:Destroy()
-		flyVariables.TFLYBTN = nil
-	end
-	if flyVariables.tflyKeyConn then
-		flyVariables.tflyKeyConn:Disconnect()
-		flyVariables.tflyKeyConn = nil
-	end
+cmd.add({"untfly","untweenfly"},{"untfly","Disables tween flying"},function()
+	NAmanage.deactivateMode("tfly")
 end)
 
 --[[if IsOnPC then
@@ -27278,14 +27209,15 @@ end)
 Spawn(function()
 	local function setupFLASHBACK(c)
 		if not c then return end
-
-		local hum = getHum()
+		local hum=getHum()
 		while not hum do Wait(.1) hum=getHum() end
 		hum.Died:Connect(function()
-			local root = getRoot(character)
+			local root=getRoot(character)
 			if root then
-				deathCFrame = root.CFrame
+				deathCFrame=root.CFrame
 			end
+			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
+			NAmanage._persist.wasFlying=FLYING and true or false
 		end)
 	end
 
@@ -27294,33 +27226,80 @@ Spawn(function()
 		setupFLASHBACK(c)
 		NAmanage.ExecuteBindings("OnSpawned", char)
 		Wait(.5)
-		local humanoid = getHum()
+		local humanoid=getHum()
 		if humanoid then
-			local lastHP = humanoid.Health
+			local lastHP=humanoid.Health
 			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
 			humanoid.HealthChanged:Connect(function(newHP)
-				if newHP < lastHP then
+				if newHP<lastHP then
 					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
 				end
-				lastHP = newHP
+				lastHP=newHP
 			end)
 		end
+		Spawn(function()
+			local t=0
+			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
+				t+=(Wait() or 0.03)
+			end
+			local mode="none"
+			if flyVariables.cFlyEnabled then mode="cfly"
+			elseif flyVariables.TFlyEnabled then mode="tfly"
+			elseif flyVariables.vFlyEnabled then mode="vfly"
+			elseif flyVariables.flyEnabled then mode="fly" end
+			if mode~="none" then
+				NAmanage.activateMode(mode)
+				NAmanage.connectFlyKey()
+				NAmanage.connectVFlyKey()
+				NAmanage.connectCFlyKey()
+				NAmanage.connectTFlyKey()
+				if NAmanage._persist and NAmanage._persist.lastMode==mode and NAmanage._persist.wasFlying==false then
+					NAmanage.pauseCurrent()
+				end
+			end
+			if flyVariables._watchConn then flyVariables._watchConn:Disconnect() end
+			flyVariables._watchConn=RunService.Heartbeat:Connect(function()
+				if (flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled) then
+					if not goofyFLY or goofyFLY.Parent==nil then
+						if NAmanage._state.mode=="cfly" then
+							NAmanage.sFLY(false,true,false)
+						elseif NAmanage._state.mode=="tfly" then
+							NAmanage.sFLY(false,false,true)
+						elseif NAmanage._state.mode=="vfly" then
+							NAmanage.sFLY(true,false,false)
+						elseif NAmanage._state.mode=="fly" then
+							NAmanage.sFLY(false,false,false)
+						end
+						if NAmanage._persist and NAmanage._persist.wasFlying==false then
+							NAmanage.pauseCurrent()
+						else
+							FLYING=true
+						end
+					end
+				end
+			end)
+		end)
 	end)
 
 	if LocalPlayer.Character then
-		local char = LocalPlayer.Character
-		local humanoid = getHum()
+		local char=LocalPlayer.Character
+		local humanoid=getHum()
 		if humanoid then
-			local lastHP = humanoid.Health
+			local lastHP=humanoid.Health
 			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
 			humanoid.HealthChanged:Connect(function(newHP)
-				if newHP < lastHP then
+				if newHP<lastHP then
 					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
 				end
-				lastHP = newHP
+				lastHP=newHP
 			end)
 		end
 	end
+end)
+
+Spawn(function()
+	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
+	NAmanage.startWatcher()
 end)
 
 mouse.Move:Connect(function()
@@ -28406,65 +28385,39 @@ end)
 if IsOnPC then
 	NAgui.addSection("Fly Keybinds")
 
-	NAgui.addInput("Fly Keybind", "Enter Keybind", "F", function(text)
-		local newKey = text:lower()
-		if newKey == "" then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-		flyVariables.toggleKey = newKey
-		if flyVariables.keybindConn then
-			flyVariables.keybindConn:Disconnect()
-			flyVariables.keybindConn = nil
-		end
-		connectFlyKey()
+	NAgui.addInput("Fly Keybind","Enter Keybind","F",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.toggleKey=newKey
+		if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() flyVariables.keybindConn=nil end
+		NAmanage.connectFlyKey()
 		DebugNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
 	end)
 
-	NAgui.addInput("vFly Keybind", "Enter Keybind", "V", function(text)
-		local newKey = text:lower()
-		if newKey == "" then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-		flyVariables.vToggleKey = newKey
-		if flyVariables.vKeybindConn then
-			flyVariables.vKeybindConn:Disconnect()
-		end
-		connectVFlyKey()
+	NAgui.addInput("vFly Keybind","Enter Keybind","V",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.vToggleKey=newKey
+		if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() flyVariables.vKeybindConn=nil end
+		NAmanage.connectVFlyKey()
 		DebugNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
 	end)
 
-	NAgui.addInput("cFly Keybind", "Enter Keybind", "C", function(text)
-		local newKey = (text or ""):lower()
-		if newKey == "" then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-		flyVariables.cToggleKey = newKey
-		if flyVariables.cKeybindConn then
-			flyVariables.cKeybindConn:Disconnect()
-			flyVariables.cKeybindConn = nil
-		end
-		connectCFlyKey()
+	NAgui.addInput("cFly Keybind","Enter Keybind","C",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.cToggleKey=newKey
+		if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() flyVariables.cKeybindConn=nil end
+		NAmanage.connectCFlyKey()
 		DebugNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
 	end)
 
-	NAgui.addInput("tFly Keybind", "Enter Keybind", "T", function(text)
-		local key = (text or ""):lower()
-		if key == "" then
-			DoNotif("Please provide a key.")
-			return
-		end
-		flyVariables.tflyToggleKey = key
-		if flyVariables.tflyKeyConn then
-			flyVariables.tflyKeyConn:Disconnect()
-		end
-		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
-			if k:lower() == flyVariables.tflyToggleKey then
-				toggleTFly()
-			end
-		end)
+	NAgui.addInput("tFly Keybind","Enter Keybind","T",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a key.") return end
+		flyVariables.tflyToggleKey=newKey
+		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() flyVariables.tflyKeyConn=nil end
+		NAmanage.connectTFlyKey()
 		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
 	end)
 end
