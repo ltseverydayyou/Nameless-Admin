@@ -2969,7 +2969,7 @@ NAmanage._selectorPasses = function(sel, ctx)
 		for _, term in ipairs(sel.terms) do
 			local ok, list = pcall(function() return resolver and resolver(lp, term) or {} end)
 			list = (ok and type(list) == "table") and list or {}
-			if table.find(list, plr) then
+			if Discover(list, plr) then
 				return true
 			end
 		end
