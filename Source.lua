@@ -21,22 +21,22 @@ local Concat = table.concat;
 local Defer = task.defer;
 
 local function SafeGetService(name, timeoutSeconds)
-    timeoutSeconds = timeoutSeconds or 5
+	timeoutSeconds = timeoutSeconds or 5
 
-    local Service = game.GetService
-    local Reference = cloneref or function(ref) return ref end
+	local Service = game.GetService
+	local Reference = cloneref or function(ref) return ref end
 
-    local elapsed = 0
-    while elapsed < timeoutSeconds do
-        local ok, svc = pcall(Service, game, name)
-        if ok and svc then
-            return Reference(svc)
-        end
-        local dt = Wait(0.1)
-        elapsed = elapsed + (dt or 0.1)
-    end
+	local elapsed = 0
+	while elapsed < timeoutSeconds do
+		local ok, svc = pcall(Service, game, name)
+		if ok and svc then
+			return Reference(svc)
+		end
+		local dt = Wait(0.1)
+		elapsed = elapsed + (dt or 0.1)
+	end
 
-    return nil
+	return nil
 end
 
 local mainName = 'Nameless Admin'
@@ -174,7 +174,7 @@ local NAScale = 1
 local NAUIScale = 1
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
 local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
-local events = {"OnSpawned","OnDeath","OnChatted","OnDamage","OnJoin","OnLeave"}
+local events = {"OnSpawn","OnDeath","OnChatted","OnDamage","OnJoin","OnLeave"}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
@@ -1983,7 +1983,7 @@ if FileSupport then
 	if not isfile(NAfiles.NABINDERS) then
 		writefile(NAfiles.NABINDERS, "{}")
 	end
-	
+
 	if not isfile(NAfiles.NATOPBARMODE) then
 		writefile(NAfiles.NATOPBARMODE, "bottom")
 	end
@@ -2234,6 +2234,22 @@ if FileSupport then
 	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
 	Bindings = ok and type(data)=="table" and data or {}
 
+	do
+		local src = Bindings["OnSpawned"]
+		if type(src) == "table" and #src > 0 then
+			Bindings["OnSpawn"] = Bindings["OnSpawn"] or {}
+			for _, line in ipairs(src) do
+				if line:match("^%s*[<%[]") then
+					Insert(Bindings["OnSpawn"], line)
+				else
+					Insert(Bindings["OnSpawn"], "<me> "..line)
+				end
+			end
+			Bindings["OnSpawned"] = nil
+			NAmanage.SaveBinders()
+		end
+	end
+
 	local ChatConfigPath = NAfiles.NATEXTCHATSETTINGSPATH
 
 	local function tblToC3(t)
@@ -2293,7 +2309,6 @@ if FileSupport then
 	NAmanage.ApplyTextChatSettings = function()
 		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, NAStuff.ChatSettings.coreGuiChat) end)
 		local TCS = TextChatService
-		if hasProp(TCS, "ChatVersion") then TCS.ChatVersion = Enum.ChatVersion.TextChatService end
 
 		local Window = TCS:FindFirstChildOfClass("ChatWindowConfiguration")
 		local InputBar = TCS:FindFirstChildOfClass("ChatInputBarConfiguration")
@@ -2438,7 +2453,7 @@ local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
---local LegacyChat=false--TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
+local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
@@ -2815,12 +2830,163 @@ function ParseArguments(input)
 	return args
 end
 
+NAmanage._normPlayer = function(p)
+	if typeof(p) == "Instance" and p:IsA("Player") then return p end
+	if type(p) == "string" then return Players:FindFirstChild(p) end
+	return nil
+end
+
+NAmanage._makeCtx = function(evName, ...)
+	local lp = Players and Players.LocalPlayer
+	local ctx = { event = evName, localPlayer = lp }
+	local a1, a2, a3 = ...
+
+	if evName == "OnChatted" then
+		if typeof(a1) == "Instance" and a1:IsA("Player") then
+			ctx.player, ctx.message = a1, a2
+		else
+			ctx.player, ctx.message = lp, a1
+		end
+	elseif evName == "OnJoin" or evName == "OnLeave" then
+		ctx.player = NAmanage._normPlayer(a1) or lp
+	elseif evName == "OnSpawn" then
+		ctx.player = NAmanage._normPlayer(a1) or lp
+		ctx.character = a2
+	elseif evName == "OnDeath" then
+		if typeof(a1) == "Instance" and a1:IsA("Player") then
+			ctx.player = a1
+		else
+			ctx.player = lp
+		end
+	elseif evName == "OnDamage" then
+		if typeof(a1) == "Instance" and a1:IsA("Player") then
+			ctx.player, ctx.oldhp, ctx.newhp = a1, a2, a3
+		else
+			ctx.player, ctx.oldhp, ctx.newhp = lp, a1, a2
+		end
+	else
+		ctx.player = lp
+	end
+
+	ctx.isSelf = (ctx.player == lp)
+	return ctx
+end
+
+NAmanage._parseSelectorPrefix = function(s)
+	local open, rest = s:match("^%s*([<%[].-[>%]])%s*(.*)$")
+	if not open then return nil, s end
+
+	local tag = open:sub(2, #open - 1)
+	local sel = { terms = {} }
+
+	for part in string.gmatch(tag, "[^,%s]+") do
+		local k, v = part:match("^([^:]+):(.+)$")
+		k = (k or part)
+		local kl = k:lower()
+		local vl = v and v:lower()
+
+		if kl == "me" then
+			sel.me = true
+		elseif kl == "notme" or kl == "others" then
+			sel.notme = true
+		elseif kl == "all" then
+			sel.all = true
+		elseif kl == "id" or kl == "userid" then
+			sel.id = tonumber(vl)
+		elseif kl == "friend" or kl == "friends" then
+			sel.friend = true
+		elseif kl == "player" or kl == "name" then
+			sel.namePrefix = vl
+		elseif kl == "display" or kl == "displayname" then
+			sel.displayPrefix = vl
+		elseif kl == "t" or kl == "target" then
+			if vl and vl ~= "" then Insert(sel.terms, vl) end
+		else
+			Insert(sel.terms, k:lower())
+		end
+	end
+
+	return sel, rest
+end
+
+NAmanage._selectorPasses = function(sel, ctx)
+	if not sel then return true end
+	local lp = Players and Players.LocalPlayer
+	local plr = ctx.player
+	if not plr or not lp then return false end
+
+	local ev = ctx.event
+	if ev == "OnJoin" or ev == "OnLeave" then
+		if plr == lp then return false end
+		if sel.me then return false end
+	end
+
+	if sel.me and plr ~= lp then return false end
+	if sel.notme and plr == lp then return false end
+	if sel.id and plr.UserId ~= sel.id then return false end
+	if sel.friend and not lp:IsFriendsWith(plr.UserId) then return false end
+
+	if sel.namePrefix and sel.namePrefix ~= "" then
+		local n = plr.Name:lower()
+		local d = (plr.DisplayName or ""):lower()
+		if not (n:sub(1, #sel.namePrefix) == sel.namePrefix or d:sub(1, #sel.namePrefix) == sel.namePrefix) then
+			return false
+		end
+	end
+	if sel.displayPrefix and sel.displayPrefix ~= "" then
+		local d = (plr.DisplayName or ""):lower()
+		if not (d:sub(1, #sel.displayPrefix) == sel.displayPrefix) then
+			return false
+		end
+	end
+
+	if sel.all then
+		return true
+	end
+
+	if sel.terms and #sel.terms > 0 then
+		local resolver = NAmanage.getPlr
+		for _, term in ipairs(sel.terms) do
+			local ok, list = pcall(function() return resolver and resolver(lp, term) or {} end)
+			list = (ok and type(list) == "table") and list or {}
+			if table.find(list, plr) then
+				return true
+			end
+		end
+		return false
+	end
+
+	return true
+end
+
+NAmanage._expandTokens = function(s, ctx)
+	local lp = Players and Players.LocalPlayer
+	return (s:gsub("{(.-)}", function(key)
+		key = key:lower()
+		if key == "me" then return (lp and lp.Name) or "" end
+		if key == "myid" then return (lp and tostring(lp.UserId)) or "" end
+		if key == "player" then return (ctx.player and ctx.player.Name) or "" end
+		if key == "display" or key == "displayname" then return (ctx.player and ctx.player.DisplayName) or "" end
+		if key == "userid" then return (ctx.player and tostring(ctx.player.UserId)) or "" end
+		if key == "message" then return ctx.message or "" end
+		if key == "oldhp" then return ctx.oldhp and tostring(math.floor(ctx.oldhp + 0.5)) or "" end
+		if key == "newhp" then return ctx.newhp and tostring(math.floor(ctx.newhp + 0.5)) or "" end
+		return ""
+	end))
+end
+
 NAmanage.ExecuteBindings = function(evName, ...)
 	local list = Bindings[evName]
 	if type(list) ~= "table" then return end
-	for _, cmdStr in ipairs(list) do
-		local args = ParseArguments(cmdStr) or {cmdStr}
-		Spawn(function() cmd.run(args) end)
+
+	local ctx = NAmanage._makeCtx(evName, ...)
+	for _, raw in ipairs(list) do
+		local sel, cmdText = NAmanage._parseSelectorPrefix(raw)
+		if NAmanage._selectorPasses(sel, ctx) then
+			local expanded = NAmanage._expandTokens(cmdText, ctx)
+			local args = ParseArguments(expanded) or { expanded }
+			Spawn(function() cmd.run(args) end)
+		end
 	end
 end
 
@@ -4585,13 +4751,33 @@ NAmanage._ensureLoops=function()
 	end
 end
 
-NAmanage.startWatcher=function()
-	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
-	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
-		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
-			NAmanage._ensureForces()
-			NAmanage._ensureLoops()
+NAmanage._stopWeldWatch=function()
+	if flyVariables._weldLoopConn then pcall(function() flyVariables._weldLoopConn:Disconnect() end) end
+	flyVariables._weldLoopConn=nil
+end
+
+NAmanage._ensureWeldTarget=function()
+	if flyVariables._weldLoopConn then return end
+	flyVariables._weldLoopConn=RunService.Heartbeat:Connect(function()
+		if NAmanage._state.mode=="none" or NAmanage._state.mode=="cfly" then return end
+		local char=getChar(); if not char then return end
+		local root=getRoot(char); if not root then return end
+		if not goofyFLY or goofyFLY.Parent==nil then
+			goofyFLY=InstanceNew("Part",workspace)
+			goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+			goofyFLY.Transparency=1
+			goofyFLY.CanCollide=false
+			goofyFLY.Anchored=false
+			local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
 		end
+		local w=goofyFLY:FindFirstChildOfClass("Weld")
+		if not w or w.Parent~=goofyFLY then
+			if w then pcall(function() w:Destroy() end) end
+			w=InstanceNew("Weld",goofyFLY)
+		end
+		if (not w.Part0) or w.Part0~=goofyFLY or w.Part0.Parent==nil then pcall(function() w.Part0=goofyFLY end) end
+		if (not w.Part1) or w.Part1~=root or w.Part1.Parent==nil or (not w.Part1:IsDescendantOf(char)) then pcall(function() w.Part1=root end) end
+		pcall(function() w.C0=CFrame.new() end)
 	end)
 end
 
@@ -4612,12 +4798,14 @@ NAmanage._ensureForces=function()
 		flyVariables._goofyAC=goofyFLY.AncestryChanged:Connect(function(_,p) if not p then Defer(NAmanage._ensureForces) end end)
 	end
 	if NAmanage._state.mode=="tfly" then
-		if not goofyFLY:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new() end
+		NAmanage._ensureWeldTarget()
 		if not flyVariables.TFpos or flyVariables.TFpos.Parent~=goofyFLY then
 			flyVariables.TFpos=InstanceNew("BodyPosition",goofyFLY)
+			flyVariables.TFpos.position=goofyFLY.Position
 		end
 		if not flyVariables.TFgyro or flyVariables.TFgyro.Parent~=goofyFLY then
 			flyVariables.TFgyro=InstanceNew("BodyGyro",goofyFLY)
+			flyVariables.TFgyro.cframe=goofyFLY.CFrame
 		end
 		if FLYING then
 			flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
@@ -4631,7 +4819,7 @@ NAmanage._ensureForces=function()
 		local head=getHead(char)
 		if head and FLYING and not head.Anchored then head.Anchored=true end
 	else
-		if not goofyFLY:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new() end
+		NAmanage._ensureWeldTarget()
 		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
 			flyVariables.BG=InstanceNew("BodyGyro",goofyFLY)
 			flyVariables.BG.P=9e4
@@ -4648,7 +4836,7 @@ NAmanage._ensureForces=function()
 	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
 		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
 		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
-			k=string.lower(k or "")
+			k=Lower(k or "")
 			if k=="q" then
 				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
 				CONTROL.Q=-sp*2
@@ -4661,10 +4849,21 @@ NAmanage._ensureForces=function()
 	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
 		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
 		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
-			k=string.lower(k or "")
+			k=Lower(k or "")
 			if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
 		end)
 	end
+end
+
+NAmanage.startWatcher=function()
+	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
+	NAmanage._ensureWeldTarget()
+	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
+		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
+			NAmanage._ensureForces()
+			NAmanage._ensureLoops()
+		end
+	end)
 end
 
 NAmanage.activateMode=function(mode)
@@ -5020,208 +5219,208 @@ NAmanage.LoadPlugins = function()
 end
 
 NAmanage.InitPlugs=function()
-    local lp = function(p)
-        p = (p or ""):gsub("\\","/"):gsub("/+","/")
-        return Lower(p:gsub("/+$",""))
-    end
-    local bn = function(p) return (p and p:match("[^\\/]+$")) or p end
-    local jp = function(d, n) d = d or ""; return (#d > 0) and (d.."/"..n) or n end
-    local mk = function(p) if p and #p > 0 and not isfolder(p) then makefolder(p) end end
-    local isna = function(p) return lp(p):match("%.na$") ~= nil end
-    local uniq = function(dir, fname)
-        local name, ext = fname:match("^(.*)(%.[^%.]+)$"); name, ext = name or fname, ext or ""
-        local try = jp(dir, fname); if not isfile(try) then return try end
-        local n = 1
-        while true do
-            try = jp(dir, Format("%s (%d)%s", name, n, ext))
-            if not isfile(try) then return try end
-            n += 1
-        end
-    end
-    local root = function()
-        for _, c in ipairs({"", ".", "/"}) do
-            local ok, t = pcall(listfiles, c)
-            if ok and type(t) == "table" then return c end
-        end
-        return ""
-    end
+	local lp = function(p)
+		p = (p or ""):gsub("\\","/"):gsub("/+","/")
+		return Lower(p:gsub("/+$",""))
+	end
+	local bn = function(p) return (p and p:match("[^\\/]+$")) or p end
+	local jp = function(d, n) d = d or ""; return (#d > 0) and (d.."/"..n) or n end
+	local mk = function(p) if p and #p > 0 and not isfolder(p) then makefolder(p) end end
+	local isna = function(p) return lp(p):match("%.na$") ~= nil end
+	local uniq = function(dir, fname)
+		local name, ext = fname:match("^(.*)(%.[^%.]+)$"); name, ext = name or fname, ext or ""
+		local try = jp(dir, fname); if not isfile(try) then return try end
+		local n = 1
+		while true do
+			try = jp(dir, Format("%s (%d)%s", name, n, ext))
+			if not isfile(try) then return try end
+			n += 1
+		end
+	end
+	local root = function()
+		for _, c in ipairs({"", ".", "/"}) do
+			local ok, t = pcall(listfiles, c)
+			if ok and type(t) == "table" then return c end
+		end
+		return ""
+	end
 
-    local plugsDir = NAfiles.NAPLUGINFILEPATH
-    local plugsNorm = lp(plugsDir)
-    local plugsTail = plugsNorm:match("([^/]+/[^/]+)$") or plugsNorm
-    local inPlugs = function(path)
-        local p = lp(path)
-        if p == plugsNorm then return true end
-        if p:sub(1, #plugsNorm + 1) == (plugsNorm.."/") then return true end
-        if p:find("/"..plugsTail.."/", 1, true) then return true end
-        return false
-    end
+	local plugsDir = NAfiles.NAPLUGINFILEPATH
+	local plugsNorm = lp(plugsDir)
+	local plugsTail = plugsNorm:match("([^/]+/[^/]+)$") or plugsNorm
+	local inPlugs = function(path)
+		local p = lp(path)
+		if p == plugsNorm then return true end
+		if p:sub(1, #plugsNorm + 1) == (plugsNorm.."/") then return true end
+		if p:find("/"..plugsTail.."/", 1, true) then return true end
+		return false
+	end
 
-    local scan = function(startDir)
-        local out = {}
-        local function rec(dir)
-            local ok, items = pcall(listfiles, dir)
-            if not ok or type(items) ~= "table" then return end
-            for _, p in ipairs(items) do
-                local okd, isd = pcall(isfolder, p)
-                if okd and isd then
-                    if not inPlugs(p) then rec(p) end
-                else
-                    if isna(p) and not inPlugs(p) then Insert(out, p) end
-                end
-            end
-        end
-        rec(startDir)
-        return out
-    end
+	local scan = function(startDir)
+		local out = {}
+		local function rec(dir)
+			local ok, items = pcall(listfiles, dir)
+			if not ok or type(items) ~= "table" then return end
+			for _, p in ipairs(items) do
+				local okd, isd = pcall(isfolder, p)
+				if okd and isd then
+					if not inPlugs(p) then rec(p) end
+				else
+					if isna(p) and not inPlugs(p) then Insert(out, p) end
+				end
+			end
+		end
+		rec(startDir)
+		return out
+	end
 
-    cmd.add(
-        {"addallplugins","addplugins","aap","aaplugs"},
-        {"addallplugins","Move all .na files from workspace into Nameless-Admin/Plugins and load them"},
-        function()
-            mk(plugsDir)
-            local ws = root()
-            local found = scan(ws)
-            local moved, errs = {}, 0
-            for _, src in ipairs(found) do
-                local okR, data = pcall(readfile, src)
-                if okR and data then
-                    local dst = uniq(plugsDir, bn(src))
-                    local okW = pcall(writefile, dst, data)
-                    if okW and delfile and pcall(delfile, src) then
-                        Insert(moved, bn(dst))
-                    else
-                        errs += 1
-                    end
-                else
-                    errs += 1
-                end
-            end
-            if #moved > 0 then
-                DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
-                if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
-            else
-                DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found outside Plugins", 3)
-            end
-        end
-    )
+	cmd.add(
+		{"addallplugins","addplugins","aap","aaplugs"},
+		{"addallplugins","Move all .na files from workspace into Nameless-Admin/Plugins and load them"},
+		function()
+			mk(plugsDir)
+			local ws = root()
+			local found = scan(ws)
+			local moved, errs = {}, 0
+			for _, src in ipairs(found) do
+				local okR, data = pcall(readfile, src)
+				if okR and data then
+					local dst = uniq(plugsDir, bn(src))
+					local okW = pcall(writefile, dst, data)
+					if okW and delfile and pcall(delfile, src) then
+						Insert(moved, bn(dst))
+					else
+						errs += 1
+					end
+				else
+					errs += 1
+				end
+			end
+			if #moved > 0 then
+				DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
+				if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+			else
+				DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found outside Plugins", 3)
+			end
+		end
+	)
 
-    cmd.add(
-        {"addplugin","addplug","ap","aplug"},
-        {"addplugin","Move one .na from workspace into Nameless-Admin/Plugins and load it"},
-        function(...)
-            mk(plugsDir)
-            local query = tostring((...) or ""):lower()
-            local ws = root()
-            local all = scan(ws) -- already excludes anything under Plugins
-            if #all == 0 then DoNotif("No .na files found outside Plugins",3); return end
+	cmd.add(
+		{"addplugin","addplug","ap","aplug"},
+		{"addplugin","Move one .na from workspace into Nameless-Admin/Plugins and load it"},
+		function(...)
+			mk(plugsDir)
+			local query = tostring((...) or ""):lower()
+			local ws = root()
+			local all = scan(ws) -- already excludes anything under Plugins
+			if #all == 0 then DoNotif("No .na files found outside Plugins",3); return end
 
-            local function moveOne(path)
-                local file = bn(path)
-                local okR, data = pcall(readfile, path)
-                if not okR or not data then DoNotif("Failed to read "..file,3); return end
-                local dst = uniq(plugsDir, file)
-                local okW = pcall(writefile, dst, data)
-                if not okW then DoNotif("Failed to write "..file,3); return end
-                if not (delfile and pcall(delfile, path)) then DoNotif("Wrote but couldn't delete source "..file,3); return end
-                DoNotif("Moved plugin "..file,3)
-                if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
-            end
+			local function moveOne(path)
+				local file = bn(path)
+				local okR, data = pcall(readfile, path)
+				if not okR or not data then DoNotif("Failed to read "..file,3); return end
+				local dst = uniq(plugsDir, file)
+				local okW = pcall(writefile, dst, data)
+				if not okW then DoNotif("Failed to write "..file,3); return end
+				if not (delfile and pcall(delfile, path)) then DoNotif("Wrote but couldn't delete source "..file,3); return end
+				DoNotif("Moved plugin "..file,3)
+				if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+			end
 
-            if #query > 0 then
-                local hits = {}
-                for _, p in ipairs(all) do
-                    local base = bn(p):lower()
-                    if base == query or base:find(query, 1, true) then Insert(hits, p) end
-                end
-                if #hits == 1 then moveOne(hits[1]); return end
-                if #hits == 0 then DoNotif("No match for '"..query.."'",3); return end
-                local btns = {}
-                for _, p in ipairs(hits) do
-                    local file = bn(p)
-                    Insert(btns, { Text = file, Callback = function() moveOne(p) end })
-                end
-                local show = Window or DoWindow
-                if show then show({Title = "Select Plugin", Buttons = btns}) else DoNotif("Multiple matches; refine name",3) end
-                return
-            end
+			if #query > 0 then
+				local hits = {}
+				for _, p in ipairs(all) do
+					local base = bn(p):lower()
+					if base == query or base:find(query, 1, true) then Insert(hits, p) end
+				end
+				if #hits == 1 then moveOne(hits[1]); return end
+				if #hits == 0 then DoNotif("No match for '"..query.."'",3); return end
+				local btns = {}
+				for _, p in ipairs(hits) do
+					local file = bn(p)
+					Insert(btns, { Text = file, Callback = function() moveOne(p) end })
+				end
+				local show = Window or DoWindow
+				if show then show({Title = "Select Plugin", Buttons = btns}) else DoNotif("Multiple matches; refine name",3) end
+				return
+			end
 
-            local btns = {}
-            for _, p in ipairs(all) do
-                local file = bn(p)
-                Insert(btns, { Text = file, Callback = function() moveOne(p) end })
-            end
-            local show = Window or DoWindow
-            if show then show({Title = "Add Plugin", Buttons = btns}) else DoNotif("UI not available",3) end
-        end
-    )
+			local btns = {}
+			for _, p in ipairs(all) do
+				local file = bn(p)
+				Insert(btns, { Text = file, Callback = function() moveOne(p) end })
+			end
+			local show = Window or DoWindow
+			if show then show({Title = "Add Plugin", Buttons = btns}) else DoNotif("UI not available",3) end
+		end
+	)
 
-    cmd.add(
-        {"removeplugin","rmplugin","delplugin","rmp"},
-        {"removeplugin","Move a plugin file from Nameless-Admin/Plugins back to workspace"},
-        function()
-            if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
-            local ok, items = pcall(listfiles, plugsDir)
-            if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
-            local btns = {}
-            for _, p in ipairs(items) do
-                if isna(p) then
-                    local file = bn(p)
-                    Insert(btns, {
-                        Text = file,
-                        Callback = function()
-                            local okR, data = pcall(readfile, p)
-                            if not okR or not data then DoNotif("Failed to read "..file,3); return end
-                            local dst = uniq("", file)
-                            local okW = pcall(writefile, dst, data)
-                            if okW and delfile and pcall(delfile, p) then
-                                DoNotif("Moved "..file.." to workspace",3)
-                            else
-                                DoNotif("Failed to move "..file,3)
-                            end
-                        end
-                    })
-                end
-            end
-            if #btns == 0 then DoNotif("No plugins found in Plugins folder",3); return end
-            local show = Window or DoWindow
-            if show then show({Title = "Move Plugin to Workspace", Buttons = btns}) else DoNotif("Window UI not available",3) end
-        end
-    )
+	cmd.add(
+		{"removeplugin","rmplugin","delplugin","rmp"},
+		{"removeplugin","Move a plugin file from Nameless-Admin/Plugins back to workspace"},
+		function()
+			if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
+			local ok, items = pcall(listfiles, plugsDir)
+			if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+			local btns = {}
+			for _, p in ipairs(items) do
+				if isna(p) then
+					local file = bn(p)
+					Insert(btns, {
+						Text = file,
+						Callback = function()
+							local okR, data = pcall(readfile, p)
+							if not okR or not data then DoNotif("Failed to read "..file,3); return end
+							local dst = uniq("", file)
+							local okW = pcall(writefile, dst, data)
+							if okW and delfile and pcall(delfile, p) then
+								DoNotif("Moved "..file.." to workspace",3)
+							else
+								DoNotif("Failed to move "..file,3)
+							end
+						end
+					})
+				end
+			end
+			if #btns == 0 then DoNotif("No plugins found in Plugins folder",3); return end
+			local show = Window or DoWindow
+			if show then show({Title = "Move Plugin to Workspace", Buttons = btns}) else DoNotif("Window UI not available",3) end
+		end
+	)
 
-    cmd.add(
-        {"removeallplugins","rmaplugins","clearplugins","rmap","rmaplugs"},
-        {"removeallplugins","Move all plugins from Nameless-Admin/Plugins back to workspace"},
-        function()
-            if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
-            local ok, items = pcall(listfiles, plugsDir)
-            if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
-            local moved, errs = {}, 0
-            for _, p in ipairs(items) do
-                if isna(p) then
-                    local file = bn(p)
-                    local okR, data = pcall(readfile, p)
-                    if okR and data then
-                        local dst = uniq("", file)
-                        local okW = pcall(writefile, dst, data)
-                        if okW and delfile and pcall(delfile, p) then
-                            Insert(moved, file)
-                        else
-                            errs += 1
-                        end
-                    else
-                        errs += 1
-                    end
-                end
-            end
-            if #moved > 0 then
-                DoNotif("Moved "..#moved.." plugin file(s) to workspace:\n\n"..Concat(moved, "\n"), 4.5)
-            else
-                DoNotif((errs>0) and ("No plugin files moved ("..errs.." error(s))") or "No plugins found",3)
-            end
-            if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
-        end
-    )
+	cmd.add(
+		{"removeallplugins","rmaplugins","clearplugins","rmap","rmaplugs"},
+		{"removeallplugins","Move all plugins from Nameless-Admin/Plugins back to workspace"},
+		function()
+			if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
+			local ok, items = pcall(listfiles, plugsDir)
+			if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+			local moved, errs = {}, 0
+			for _, p in ipairs(items) do
+				if isna(p) then
+					local file = bn(p)
+					local okR, data = pcall(readfile, p)
+					if okR and data then
+						local dst = uniq("", file)
+						local okW = pcall(writefile, dst, data)
+						if okW and delfile and pcall(delfile, p) then
+							Insert(moved, file)
+						else
+							errs += 1
+						end
+					else
+						errs += 1
+					end
+				end
+			end
+			if #moved > 0 then
+				DoNotif("Moved "..#moved.." plugin file(s) to workspace:\n\n"..Concat(moved, "\n"), 4.5)
+			else
+				DoNotif((errs>0) and ("No plugin files moved ("..errs.." error(s))") or "No plugins found",3)
+			end
+			if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+		end
+	)
 end
 
 NAmanage.SaveWaypoints = function()
@@ -5550,7 +5749,7 @@ local lp=Players.LocalPlayer
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks={}
 Playerchats={}
-local oldChat = false --TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+local oldChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
 	NAlib.LocalPlayerChat=function(...)
@@ -9637,6 +9836,42 @@ local ATPC = {
 	btn = nil
 }
 
+ATPC._getFlyMode=function()
+	if not NAmanage or not NAmanage._state then return "none" end
+	return NAmanage._state.mode or "none"
+end
+
+ATPC._flyAllowances=function(dt)
+	local m=ATPC._getFlyMode()
+	local maxS, maxD=ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
+	if m=="fly" then
+		local sp=tonumber(flyVariables.flySpeed) or 1
+		local v=sp*50
+		maxS=math.max(maxS, v*1.4)
+		maxD=math.max(maxD, v*dt*3)
+	elseif m=="vfly" then
+		local sp=tonumber(flyVariables.vFlySpeed) or 1
+		local v=sp*50
+		maxS=math.max(maxS, v*1.4)
+		maxD=math.max(maxD, v*dt*3)
+	elseif m=="cfly" then
+		local sp=tonumber(flyVariables.cFlySpeed) or 1
+		local step=sp*2
+		maxD=math.max(ATPC.MAX_STEP_DIST, step)
+		maxS=math.max(ATPC.MAX_SPEED, (maxD/dt)*1.25)
+	elseif m=="tfly" then
+		local sp=tonumber(flyVariables.TflySpeed) or 1
+		local step=sp*2.5
+		maxD=math.max(ATPC.MAX_STEP_DIST, step)
+		maxS=math.max(ATPC.MAX_SPEED, (maxD/dt)*1.5)
+	end
+	return maxS, maxD
+end
+
+ATPC._isFlyActive=function()
+	return FLYING==true and ATPC._getFlyMode()~="none"
+end
+
 ATPC._zero = function(char)
 	for _,d in ipairs(char:GetDescendants()) do
 		if d:IsA("BasePart") then
@@ -9695,36 +9930,45 @@ ATPC._buildGUI = function()
 	NAgui.draggerV2(b)
 end
 
-ATPC.Enable = function()
+ATPC.Enable=function()
 	if ATPC.state then return end
-	ATPC.state = true
+	ATPC.state=true
 	ATPC._bindChar(ATPC.plr.Character)
-	if not ATPC.cn.add then ATPC.cn.add = ATPC.plr.CharacterAdded:Connect(ATPC._bindChar) end
+	if not ATPC.cn.add then ATPC.cn.add=ATPC.plr.CharacterAdded:Connect(ATPC._bindChar) end
 	if not ATPC.cn.hb then
-		ATPC.cn.hb = RunService.Heartbeat:Connect(function()
+		ATPC.cn.hb=RunService.Heartbeat:Connect(function()
 			if not ATPC.state then return end
-			local char = ATPC.plr.Character
+			local char=ATPC.plr.Character
 			if not char then return end
-			local r = getRoot(char)
+			local r=getRoot(char)
 			if not r then return end
-			if not ATPC.lastCF then ATPC.lastCF, ATPC.lastT = r.CFrame, os.clock() return end
-			local now = os.clock()
-			local dt = math.max(now - ATPC.lastT, 1/240)
-			local cf = r.CFrame
-			local dist = (cf.Position - ATPC.lastCF.Position).Magnitude
-			local speed = dist / dt
-			if dist > ATPC.MAX_STEP_DIST or speed > ATPC.MAX_SPEED then
+
+			local now=os.clock()
+			local dt=math.max(now-(ATPC.lastT or now),1/240)
+			local cf=r.CFrame
+			if not ATPC.lastCF then ATPC.lastCF,ATPC.lastT=cf,now return end
+
+			local dist=(cf.Position-ATPC.lastCF.Position).Magnitude
+			local speed=dist/dt
+
+			local maxS, maxD=ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
+			if ATPC._isFlyActive() then
+				local fs, fd=ATPC._flyAllowances(dt)
+				maxS, maxD=math.max(maxS,fs), math.max(maxD,fd)
+			end
+
+			if dist>maxD or speed>maxS then
 				char:PivotTo(ATPC.lastCF)
 				ATPC._zero(char)
-				ATPC.hits += 1
-				if ATPC.hits >= ATPC.REPEAT then
+				ATPC.hits+=1
+				if ATPC.hits>=ATPC.REPEAT then
 					Defer(function() ATPC._zero(char) end)
-					Delay(ATPC.LOCK_TIME, function() ATPC.hits = 0 end)
+					Delay(ATPC.LOCK_TIME,function() ATPC.hits=0 end)
 				end
 			else
-				ATPC.hits = math.max(ATPC.hits - 1, 0)
-				ATPC.lastCF = cf
-				ATPC.lastT = now
+				ATPC.hits=math.max(ATPC.hits-1,0)
+				ATPC.lastCF=cf
+				ATPC.lastT=now
 			end
 		end)
 	end
@@ -14221,59 +14465,59 @@ end)
 FakeLagCfg = { interval = 0.05, jitter = 0.02, duration = nil }
 
 cmd.add({"fakelag", "flag"}, {"fakelag (flag)", "fake lag"}, function(interval, jitter, duration)
-    if type(interval) == "number" then FakeLagCfg.interval = math.max(0, interval) end
-    if type(jitter) == "number" then FakeLagCfg.jitter = math.max(0, jitter) end
-    if type(duration) == "number" then FakeLagCfg.duration = (duration > 0) and duration or nil end
-    if FakeLag then return end
-    FakeLag = true
-    NAlib.disconnect("FakeLag")
+	if type(interval) == "number" then FakeLagCfg.interval = math.max(0, interval) end
+	if type(jitter) == "number" then FakeLagCfg.jitter = math.max(0, jitter) end
+	if type(duration) == "number" then FakeLagCfg.duration = (duration > 0) and duration or nil end
+	if FakeLag then return end
+	FakeLag = true
+	NAlib.disconnect("FakeLag")
 
-    local function nextInterval()
-        local b = tonumber(FakeLagCfg.interval) or 0.05
-        local j = tonumber(FakeLagCfg.jitter) or 0
-        if j <= 0 then return math.max(0, b) end
-        return math.max(0, b + Random.new():NextNumber(-j, j))
-    end
+	local function nextInterval()
+		local b = tonumber(FakeLagCfg.interval) or 0.05
+		local j = tonumber(FakeLagCfg.jitter) or 0
+		if j <= 0 then return math.max(0, b) end
+		return math.max(0, b + Random.new():NextNumber(-j, j))
+	end
 
-    local startTs = time()
-    local state = false
-    local nextFlipAt = time()
+	local startTs = time()
+	local state = false
+	local nextFlipAt = time()
 
-    NAlib.connect("FakeLag", RunService.Heartbeat:Connect(function()
-        if not FakeLag then
-            NAlib.disconnect("FakeLag")
-            local r = getRoot(getChar())
-            if r then NAlib.setProperty(r, "Anchored", false) end
-            return
-        end
-        if FakeLagCfg.duration and (time() - startTs) > FakeLagCfg.duration then
-            FakeLag = false
-            NAlib.disconnect("FakeLag")
-            local r = getRoot(getChar())
-            if r then NAlib.setProperty(r, "Anchored", false) end
-            return
-        end
-        local now = time()
-        if now >= nextFlipAt then
-            local r = getRoot(getChar())
-            if r and r.Parent then
-                state = not state
-                NAlib.setProperty(r, "Anchored", state)
-                nextFlipAt = now + nextInterval()
-            else
-                FakeLag = false
-                NAlib.disconnect("FakeLag")
-            end
-        end
-    end))
+	NAlib.connect("FakeLag", RunService.Heartbeat:Connect(function()
+		if not FakeLag then
+			NAlib.disconnect("FakeLag")
+			local r = getRoot(getChar())
+			if r then NAlib.setProperty(r, "Anchored", false) end
+			return
+		end
+		if FakeLagCfg.duration and (time() - startTs) > FakeLagCfg.duration then
+			FakeLag = false
+			NAlib.disconnect("FakeLag")
+			local r = getRoot(getChar())
+			if r then NAlib.setProperty(r, "Anchored", false) end
+			return
+		end
+		local now = time()
+		if now >= nextFlipAt then
+			local r = getRoot(getChar())
+			if r and r.Parent then
+				state = not state
+				NAlib.setProperty(r, "Anchored", state)
+				nextFlipAt = now + nextInterval()
+			else
+				FakeLag = false
+				NAlib.disconnect("FakeLag")
+			end
+		end
+	end))
 end)
 
 cmd.add({"unfakelag", "unflag"}, {"unfakelag (unflag)", "stops the fake lag command"}, function()
-    if not FakeLag and not NAlib.isConnected("FakeLag") then return end
-    FakeLag = false
-    NAlib.disconnect("FakeLag")
-    local r = getRoot(getChar())
-    if r then NAlib.setProperty(r, "Anchored", false) end
+	if not FakeLag and not NAlib.isConnected("FakeLag") then return end
+	FakeLag = false
+	NAlib.disconnect("FakeLag")
+	local r = getRoot(getChar())
+	if r then NAlib.setProperty(r, "Anchored", false) end
 end)
 
 local r=math.rad
@@ -24891,9 +25135,9 @@ cmd.add({"unclicknpcjp","uncnpcjp"},{"unclicknpcjp","Disable clicknpcjp"},functi
 end)
 
 --[[ FUNCTIONALITY ]]--
-localPlayer.Chatted:Connect(function(str)
+LocalPlayer.Chatted:Connect(function(str)
 	NAlib.parseCommand(str)
-	NAmanage.ExecuteBindings("OnChatted", str)
+	NAmanage.ExecuteBindings("OnChatted", LocalPlayer, str)
 end)
 
 --[[ Admin Player]]
@@ -27079,16 +27323,11 @@ local logClrs={
 }
 
 function setupPlayer(plr,bruh)
-	NAmanage.ExecuteBindings("OnJoin", plr.Name)
+	NAmanage.ExecuteBindings("OnJoin", plr)
 
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
-		if plr~=LocalPlayer then
-			local t = msg:match("^!IY%s+(%S+)")
-			if t then
-				cmd.run({"char",t,plr})
-			end
-		end
+		NAmanage.ExecuteBindings("OnChatted", plr, msg)
 	end)
 
 	if plr ~= LocalPlayer then
@@ -27103,6 +27342,23 @@ function setupPlayer(plr,bruh)
 		end)
 	end
 
+	plr.CharacterAdded:Connect(function(char)
+		NAmanage.ExecuteBindings("OnSpawn", plr, char)
+		local hum = getPlrHum(plr)
+		if hum then
+			local lastHP = hum.Health
+			hum.Died:Connect(function()
+				NAmanage.ExecuteBindings("OnDeath", plr)
+			end)
+			hum.HealthChanged:Connect(function(newHP)
+				if newHP < lastHP then
+					NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+				end
+				lastHP = newHP
+			end)
+		end
+	end)
+
 	if JoinLeaveConfig.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
@@ -27113,12 +27369,28 @@ end
 
 for _, plr in pairs(Players:GetPlayers()) do
 	setupPlayer(plr, true)
+	if plr.Character then
+		--NAmanage.ExecuteBindings("OnSpawn", plr, plr.Character)
+		local hum = getPlrHum(plr)
+		if hum then
+			local lastHP = hum.Health
+			hum.Died:Connect(function()
+				NAmanage.ExecuteBindings("OnDeath", plr)
+			end)
+			hum.HealthChanged:Connect(function(newHP)
+				if newHP < lastHP then
+					NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+				end
+				lastHP = newHP
+			end)
+		end
+	end
 end
 
 Players.PlayerAdded:Connect(setupPlayer)
 
 Players.PlayerRemoving:Connect(function(plr)
-	NAmanage.ExecuteBindings("OnLeave", plr.Name)
+	NAmanage.ExecuteBindings("OnLeave", plr)
 	NAmanage.ESP_Disconnect(plr)
 	if JoinLeaveConfig.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
@@ -27205,7 +27477,7 @@ Spawn(function()
 	setupFLASHBACK(LocalPlayer.Character)
 	LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
-		NAmanage.ExecuteBindings("OnSpawned", char)
+		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
 		Wait(.5)
 		local humanoid=getHum()
 		if humanoid then
@@ -27962,23 +28234,441 @@ Spawn(function()
 
 		addBtn.MouseButton1Click:Connect(function()
 			Bindings[ev] = Bindings[ev] or {}
+			local allowMe = (ev ~= "OnJoin" and ev ~= "OnLeave")
+
 			Window({
-				Title       = ev.." Binders",
-				Description = "Enter commands for "..ev,
-				InputField  = true,
-				Buttons     = {{
-					Text     = "Submit",
-					Callback = function(input)
-						local cmdName = input:match("^(%S+)")
-						if not (cmds.Commands[cmdName:lower()] or cmds.Aliases[cmdName:lower()]) then
-							DoNotif("Command '"..cmdName.."' not found.")
-							return
+				Title       = ev.." Target",
+				Description = "Pick who this binder applies to.",
+				Buttons     = (function()
+					local B = {}
+
+					Insert(B, {
+						Text = "No Selector",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
 						end
-						Insert(Bindings[ev], input)
-						NAmanage.SaveBinders()
-						refreshItems()
+					})
+
+					if allowMe then
+						Insert(B, {
+							Text = "Me",
+							Callback = function()
+								Window({
+									Title = ev.." Binders",
+									Description = "Enter command (target: <me>)",
+									InputField = true,
+									Buttons = {{
+										Text = "Submit",
+										Callback = function(input)
+											local cmdName = input and input:match("^(%S+)")
+											if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+												DoNotif("Command '"..tostring(cmdName).."' not found."); return
+											end
+											Insert(Bindings[ev], "<me> "..input)
+											NAmanage.SaveBinders()
+											refreshItems()
+										end
+									}}
+								})
+							end
+						})
 					end
-				}}
+
+					Insert(B, {
+						Text = "Others",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <others>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<others> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "All",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <all>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<all> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Friends",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <friends>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<friends> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "NonFriends",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <nonfriends>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<nonfriends> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Team",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <team>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<team> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Nearest",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <nearest>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<nearest> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Farthest",
+						Callback = function()
+							Window({
+								Title = ev.." Binders",
+								Description = "Enter command (target: <farthest>)",
+								InputField = true,
+								Buttons = {{
+									Text = "Submit",
+									Callback = function(input)
+										local cmdName = input and input:match("^(%S+)")
+										if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+											DoNotif("Command '"..tostring(cmdName).."' not found."); return
+										end
+										Insert(Bindings[ev], "<farthest> "..input)
+										NAmanage.SaveBinders()
+										refreshItems()
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Random…",
+						Callback = function()
+							Window({
+								Title = "Random Count",
+								Description = "How many random players? (e.g. 1, 3, 5)",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(n)
+										n = tonumber(n) or 1
+										n = math.max(1, math.floor(n))
+										local prefix = "<#"..tostring(n).."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..prefix..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], prefix..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Radius…",
+						Callback = function()
+							Window({
+								Title = "Radius (studs)",
+								Description = "Players within this radius of you (e.g. 25)",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(r)
+										r = tonumber(r) or 25
+										r = math.max(1, math.floor(r))
+										local prefix = "<rad"..tostring(r).."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..prefix..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], prefix..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Team prefix…",
+						Callback = function()
+							Window({
+								Title = "Team Prefix",
+								Description = "e.g. red / blu / gua",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(prefix)
+										prefix = tostring(prefix or ""):gsub("%s+","")
+										if prefix == "" then DoNotif("Team prefix cannot be empty."); return end
+										local sel = "<%"..prefix.."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..sel..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], sel..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Specific player…",
+						Callback = function()
+							Window({
+								Title = "Player Name (prefix ok)",
+								Description = "Example: coolguy / coo",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(name)
+										name = tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
+										if name == "" then DoNotif("Name cannot be empty."); return end
+										local sel = "<player:"..name.."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..sel..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], sel..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "UserId…",
+						Callback = function()
+							Window({
+								Title = "UserId",
+								Description = "Numbers only",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(id)
+										id = tonumber(id)
+										if not id then DoNotif("Invalid UserId."); return end
+										local sel = "<id:"..tostring(id).."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..sel..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], sel..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					Insert(B, {
+						Text = "Custom term(s)…",
+						Callback = function()
+							Window({
+								Title = "Custom PlayerArgs terms",
+								Description = "Comma-separated: nearest,%blu,#3,group123,rad25",
+								InputField = true,
+								Buttons = {{
+									Text = "Next",
+									Callback = function(term)
+										term = tostring(term or ""):gsub("%s+", "")
+										if term == "" then DoNotif("Enter at least one term."); return end
+										local sel = "<"..term.."> "
+										Window({
+											Title = ev.." Binders",
+											Description = "Enter command (target: "..sel..")",
+											InputField = true,
+											Buttons = {{
+												Text = "Submit",
+												Callback = function(input)
+													local cmdName = input and input:match("^(%S+)")
+													if not (cmdName and (cmds.Commands[Lower(cmdName)] or cmds.Aliases[Lower(cmdName)])) then
+														DoNotif("Command '"..tostring(cmdName).."' not found."); return
+													end
+													Insert(Bindings[ev], sel..input)
+													NAmanage.SaveBinders()
+													refreshItems()
+												end
+											}}
+										})
+									end
+								}}
+							})
+						end
+					})
+
+					return B
+				end)()
 			})
 		end)
 
@@ -28163,7 +28853,7 @@ NAgui.addSlider("ESP Transparency", 0, 1, NAStuff.ESP_Transparency or 0.7, 0.05,
 		for _, box in pairs(data.boxTable) do
 			if box then box.Transparency = v end
 		end
-	 end
+	end
 	NAmanage.SaveESPSettings()
 end)
 
