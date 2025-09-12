@@ -2145,6 +2145,12 @@ NAmanage.SaveESPSettings = function()
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
 
+NAmanage.SaveBinders=function()
+	if FileSupport then
+		writefile(bindersPath, HttpService:JSONEncode(Bindings))
+	end
+end
+
 if FileSupport then
 	prefixCheck = readfile(NAfiles.NAPREFIXPATH)
 	NAsavedScale = tonumber(readfile(NAfiles.NABUTTONSIZEPATH))
@@ -5456,12 +5462,6 @@ NAmanage.SaveWaypoints = function()
 		else
 			writefile(path, "{}")
 		end
-	end
-end
-
-NAmanage.SaveBinders=function()
-	if FileSupport then
-		writefile(bindersPath, HttpService:JSONEncode(Bindings))
 	end
 end
 
