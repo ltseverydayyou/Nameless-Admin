@@ -4379,6 +4379,14 @@ NAmanage._clearPhysics=function(full)
 	end
 end
 
+NAmanage._isSeated=function()
+	local hum=getHum()
+	if not hum then return false end
+	if hum.Sit then return true end
+	local seat=hum.SeatPart
+	return seat and (seat:IsA("Seat") or seat:IsA("VehicleSeat")) or false
+end
+
 NAmanage.pauseCurrent=function()
 	if not FLYING then return end
 	FLYING=false
@@ -4389,10 +4397,13 @@ NAmanage.pauseCurrent=function()
 	elseif NAmanage._state.mode=="tfly" then
 		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0) end
-	else
+	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
 		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
-		if hum then hum.PlatformStand=false hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
+		if hum and not NAmanage._isSeated() then
+			hum.PlatformStand=false
+			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
 	end
 end
 
