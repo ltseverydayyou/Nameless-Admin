@@ -10604,37 +10604,77 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 end, true)
 
 cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked for being AFK"},function()
-	if NAlib.isConnected("antiAFK") then
+	if NAlib.isConnected("antiAFK") or NAlib.isConnected("antiAFK_scan") then
 		return DebugNotif("Anti AFK is already enabled")
 	end
 
-	local function enable()
-		local VIM = SafeGetService("VirtualInputManager")
-		if not VIM then
-			return DebugNotif("VirtualInputManager not available on this client")
-		end
-		local rng = Random.new()
-		local KEY = Enum.KeyCode.F15
-		NAlib.connect("antiAFK", Players.LocalPlayer.Idled:Connect(function(t)
+	local GETCONS = getconnections or get_signal_cons or (syn and syn.getconnections)
+	local rng = Random.new()
+	local KEY = Enum.KeyCode.F15
+
+	local function antiAFKHandler()
+		if not GETCONS then
+			local VIM = SafeGetService("VirtualInputManager")
+			if not VIM then return end
 			VIM:SendKeyEvent(true, KEY, false, game)
-			Wait(rng:NextNumber(0.04,0.08))
+			Wait(rng:NextNumber(0.04, 0.08))
 			VIM:SendKeyEvent(false, KEY, false, game)
-		end))
-		DebugNotif("Anti AFK enabled with VirtualInputManager (may be detected)")
+			Wait(rng:NextNumber(55, 75))
+		end
 	end
 
-	Window({
-		Title = "This Anti AFK uses VirtualInputManager key events and may be detected in some games.\nEnable anyway?",
-		Buttons = {
-			{ Text = "Enable Anyway", Callback = enable },
-			{ Text = "Cancel", Callback = function() DebugNotif("Anti AFK cancelled") end }
-		}
-	})
+	if GETCONS then
+		local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
+		NAlib.connect("antiAFK", myConn)
+		local function nukeOtherIdled()
+			local ok, conns = pcall(GETCONS, Players.LocalPlayer.Idled)
+			if not ok or type(conns) ~= "table" then return end
+			for _, c in ipairs(conns) do
+				local f
+				pcall(function() f = c.Function end)
+				if f ~= antiAFKHandler then
+					if c and c.Disable then pcall(function() c:Disable() end) end
+					if c and c.Disconnect then pcall(function() c:Disconnect() end) end
+				end
+			end
+		end
+		nukeOtherIdled()
+		--[[local acc = 0
+		local scanConn = RunService.Heartbeat:Connect(function(dt)
+			acc += dt
+			if acc >= 2 + rng:NextNumber(0, 0.75) then
+				acc = 0
+				nukeOtherIdled()
+			end
+		end)]]
+		NAlib.connect("antiAFK_scan", scanConn)
+		DebugNotif("Anti AFK enabled using getconnections")
+	else
+		local function enable()
+			local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
+			NAlib.connect("antiAFK", myConn)
+			Spawn(antiAFKHandler)
+			DebugNotif("Anti AFK enabled with VirtualInputManager")
+		end
+		Window({
+			Title = "This Anti AFK uses VirtualInputManager key events and may be detected in some games.\nEnable anyway?",
+			Buttons = {
+				{ Text = "Enable Anyway", Callback = enable },
+				{ Text = "Cancel", Callback = function() DebugNotif("Anti AFK cancelled") end }
+			}
+		})
+	end
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
+	local was = false
 	if NAlib.isConnected("antiAFK") then
-		NAlib.disconnect("antiAFK")
+		NAlib.disconnect("antiAFK"); was = true
+	end
+	if NAlib.isConnected("antiAFK_scan") then
+		NAlib.disconnect("antiAFK_scan"); was = true
+	end
+	if was then
 		DebugNotif("Anti AFK has been disabled")
 	else
 		DebugNotif("Anti AFK is already disabled")
