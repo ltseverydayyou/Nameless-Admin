@@ -10584,20 +10584,32 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 end, true)
 
 cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked for being AFK"},function()
-	if not NAlib.isConnected("antiAFK") then
-		local player = Players.LocalPlayer
-		local virtualUser = SafeGetService("VirtualUser")
-
-		NAlib.connect("antiAFK", player.Idled:Connect(function()
-			virtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-			Wait(1)
-			virtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-		end))
-
-		DebugNotif("Anti AFK has been enabled")
-	else
-		DebugNotif("Anti AFK is already enabled")
+	if NAlib.isConnected("antiAFK") then
+		return DebugNotif("Anti AFK is already enabled")
 	end
+
+	local function enable()
+		local VIM = SafeGetService("VirtualInputManager")
+		if not VIM then
+			return DebugNotif("VirtualInputManager not available on this client")
+		end
+		local rng = Random.new()
+		local KEY = Enum.KeyCode.F15
+		NAlib.connect("antiAFK", Players.LocalPlayer.Idled:Connect(function(t)
+			VIM:SendKeyEvent(true, KEY, false, game)
+			Wait(rng:NextNumber(0.04,0.08))
+			VIM:SendKeyEvent(false, KEY, false, game)
+		end))
+		DebugNotif("Anti AFK enabled with VirtualInputManager (may be detected)")
+	end
+
+	Window({
+		Title = "This Anti AFK uses VirtualInputManager key events and may be detected in some games.\nEnable anyway?",
+		Buttons = {
+			{ Text = "Enable Anyway", Callback = enable },
+			{ Text = "Cancel", Callback = function() DebugNotif("Anti AFK cancelled") end }
+		}
+	})
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
