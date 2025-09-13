@@ -15578,6 +15578,10 @@ cmd.add({"gameinfo","ginfo"},{"gameinfo (ginfo)","shows info about the game you'
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/GameInfo.lua"))()
 end)
 
+cmd.add({"userpreview","userp","upreview"},{"userpreview","show info about a user you name"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UserInfo.luau"))()
+end)
+
 cmd.add({"copyname", "cname"}, {"copyname <player> (cname)", "Copies the username of the target"}, function(...)
 	local usr = ...
 	local tgt = getPlr(usr)
