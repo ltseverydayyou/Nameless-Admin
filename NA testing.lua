@@ -10648,13 +10648,13 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 			end
 		end)]]
 		NAlib.connect("antiAFK_scan", scanConn)
-		DebugNotif("Anti AFK enabled using getconnections")
+		DebugNotif("Anti AFK enabled")
 	else
 		local function enable()
 			local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
 			NAlib.connect("antiAFK", myConn)
 			Spawn(antiAFKHandler)
-			DebugNotif("Anti AFK enabled with VirtualInputManager")
+			DebugNotif("Anti AFK enabled")
 		end
 		Window({
 			Title = "This Anti AFK uses VirtualInputManager key events and may be detected in some games.\nEnable anyway?",
