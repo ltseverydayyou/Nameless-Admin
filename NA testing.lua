@@ -4347,13 +4347,6 @@ NAmanage._modeEnabled=function(m)
 	return false
 end
 
-NAmanage._setFlagsExclusive=function(mode)
-	flyVariables.flyEnabled=(mode=="fly")
-	flyVariables.vFlyEnabled=(mode=="vfly")
-	flyVariables.cFlyEnabled=(mode=="cfly")
-	flyVariables.TFlyEnabled=(mode=="tfly")
-end
-
 NAmanage._releaseQE=function()
 	if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
 	if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
@@ -4427,16 +4420,27 @@ NAmanage.pauseCurrent=function()
 	end
 end
 
+NAmanage._camera=function()
+	local cam=workspace.CurrentCamera
+	if cam and cam.Parent then return cam end
+	return nil
+end
+
+NAmanage._bindCameraWatch=function()
+	if flyVariables._camChangedConn then pcall(function() flyVariables._camChangedConn:Disconnect() end) end
+	flyVariables._camChangedConn=workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() end)
+end
+
 NAmanage.resumeCurrent=function()
 	if FLYING then return end
 	local hum=getHum()
 	local head=getHead(getChar())
-	local root=getRoot(getChar())
 	if NAmanage._state.mode=="cfly" then
 		if head then head.Anchored=true end
 	elseif NAmanage._state.mode=="tfly" then
 		if goofyFLY and flyVariables.TFpos then flyVariables.TFpos.position=goofyFLY.Position end
-		if flyVariables.TFgyro then flyVariables.TFgyro.cframe=workspace.CurrentCamera.CFrame end
+		local cam=NAmanage._camera()
+		if flyVariables.TFgyro and cam then flyVariables.TFgyro.cframe=cam.CFrame end
 		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge) end
 		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9) end
 	elseif NAmanage._state.mode=="fly" then
@@ -4574,40 +4578,34 @@ NAmanage.deactivateMode=function(m)
 	NAmanage._destroyMobileFlyUI()
 end
 
-NAmanage._ensureGoofy=function(anchor)
-	local char=getChar()
-	local head=getHead(char)
-	if not goofyFLY then
-		goofyFLY=InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(.05,.05,.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
-	end
-	goofyFLY.Anchored=anchor and true or false
-	if head then goofyFLY:PivotTo(head:GetPivot()) end
-	return goofyFLY
-end
-
 NAmanage.sFLY=function(vfly,cfly,tfly)
 	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
 	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
-	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar()); local cam=workspace.CurrentCamera
+	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar())
 	NAmanage._bindQE()
 	if tfly then
-		local p=NAmanage._ensureGoofy(false)
-		p:SetAttribute("tflyPart",true)
-		if not p:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",p) w.Part0=p w.Part1=root w.C0=CFrame.new() end
-		flyVariables.TFpos=flyVariables.TFpos or InstanceNew("BodyPosition",p)
-		flyVariables.TFgyro=flyVariables.TFgyro or InstanceNew("BodyGyro",p)
+		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+		if not goofyFLY:FindFirstChildOfClass("Weld") then
+			local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
+		end
+		flyVariables.TFpos=flyVariables.TFpos or InstanceNew("BodyPosition",goofyFLY)
+		flyVariables.TFgyro=flyVariables.TFgyro or InstanceNew("BodyGyro",goofyFLY)
 		flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
-		flyVariables.TFpos.position=p.Position
+		flyVariables.TFpos.position=goofyFLY.Position
+		local cam0=NAmanage._camera()
 		flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9)
-		flyVariables.TFgyro.cframe=p.CFrame
+		flyVariables.TFgyro.cframe=cam0 and cam0.CFrame or CFrame.new()
+		if CFloop then pcall(function() CFloop:Disconnect() end) end
+		CFloop=nil
 		if not flyVariables._tflyLoop then
 			flyVariables._tflyLoop=true
 			Spawn(function()
 				while NAmanage._state.mode=="tfly" do
-					if FLYING then
+					local cam=NAmanage._camera()
+					if cam and FLYING and flyVariables.TFpos and flyVariables.TFgyro then
 						local sp=tonumber(flyVariables.TflySpeed) or 1
 						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
 						local np=flyVariables.TFgyro.cframe-flyVariables.TFgyro.cframe.p+flyVariables.TFpos.position
@@ -4616,8 +4614,10 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 							np=np+(cam.CFrame.LookVector*mv.Z*sp)
 						end
 						np=np+(cam.CFrame.UpVector*(CONTROL.E+CONTROL.Q)*sp)
-						flyVariables.TFpos.position=np.p
-						flyVariables.TFgyro.cframe=cam.CFrame
+						pcall(function()
+							flyVariables.TFpos.position=np.p
+							flyVariables.TFgyro.cframe=cam.CFrame
+						end)
 					end
 					Wait()
 				end
@@ -4625,11 +4625,16 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 			end)
 		end
 	elseif cfly then
-		NAmanage._ensureGoofy(true)
+		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+		goofyFLY.Anchored=true
 		if head then head.Anchored=true end
-		if CFloop then CFloop:Disconnect() CFloop=nil end
+		if CFloop then pcall(function() CFloop:Disconnect() end) end
 		CFloop=RunService.Stepped:Connect(function()
 			if NAmanage._state.mode~="cfly" or not FLYING then return end
+			local cam=NAmanage._camera(); if not cam then return end
 			local mv=GetCustomMoveVector()
 			local vertical=(CONTROL.E+CONTROL.Q)
 			local full=Vector3.new(mv.X,vertical,-mv.Z)
@@ -4642,21 +4647,27 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 			end
 		end)
 	else
-		local p=NAmanage._ensureGoofy(false)
-		if not p:FindFirstChildOfClass("Weld") then local w=InstanceNew("Weld",p) w.Part0=p w.Part1=root w.C0=CFrame.new() end
-		flyVariables.BG=flyVariables.BG or InstanceNew("BodyGyro",p)
+		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+		if not goofyFLY:FindFirstChildOfClass("Weld") then
+			local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
+		end
+		flyVariables.BG=flyVariables.BG or InstanceNew("BodyGyro",goofyFLY)
 		flyVariables.BG.P=9e4
 		flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9)
-		flyVariables.BG.cframe=cam.CFrame
-		flyVariables.BV=flyVariables.BV or InstanceNew("BodyVelocity",p)
+		flyVariables.BV=flyVariables.BV or InstanceNew("BodyVelocity",goofyFLY)
 		flyVariables.BV.velocity=Vector3.zero
 		flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9)
 		if NAmanage._state.mode=="fly" then if hum then hum.PlatformStand=true end else if hum then hum.PlatformStand=false end end
+		if CFloop then pcall(function() CFloop:Disconnect() end) end
 		if not flyVariables._stdLoop then
 			flyVariables._stdLoop=true
 			Spawn(function()
 				while (NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly") do
-					if FLYING then
+					local cam=NAmanage._camera()
+					if cam and FLYING and flyVariables.BV and flyVariables.BG then
 						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
 						local has=mv.Magnitude>0 or CONTROL.Q~=0 or CONTROL.E~=0
 						if has then
@@ -4673,14 +4684,14 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 							flyVariables.BV.velocity=Vector3.zero
 						end
 						flyVariables.BG.cframe=cam.CFrame
-					else
-						if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero end
+					elseif flyVariables.BV then
+						flyVariables.BV.velocity=Vector3.zero
 					end
 					Wait()
 				end
 				if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
 				if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
-				flyVariables.BG=nil flyVariables.BV=nil
+				flyVariables.BG=nil; flyVariables.BV=nil
 				if hum then hum.PlatformStand=false end
 				flyVariables._stdLoop=false
 			end)
@@ -4788,11 +4799,6 @@ NAmanage._ensureLoops=function()
 	end
 end
 
-NAmanage._stopWeldWatch=function()
-	if flyVariables._weldLoopConn then pcall(function() flyVariables._weldLoopConn:Disconnect() end) end
-	flyVariables._weldLoopConn=nil
-end
-
 NAmanage._ensureWeldTarget=function()
 	if flyVariables._weldLoopConn then return end
 	flyVariables._weldLoopConn=RunService.Heartbeat:Connect(function()
@@ -4823,7 +4829,7 @@ NAmanage._ensureForces=function()
 	local char=getChar(); if not char then return end
 	local hum=getHum(); if not hum then return end
 	local root=getRoot(char); if not root then return end
-	local cam=workspace.CurrentCamera
+	local cam=NAmanage._camera()
 	if not goofyFLY or goofyFLY.Parent==nil then
 		goofyFLY=InstanceNew("Part",workspace)
 		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
@@ -4842,7 +4848,7 @@ NAmanage._ensureForces=function()
 		end
 		if not flyVariables.TFgyro or flyVariables.TFgyro.Parent~=goofyFLY then
 			flyVariables.TFgyro=InstanceNew("BodyGyro",goofyFLY)
-			flyVariables.TFgyro.cframe=goofyFLY.CFrame
+			flyVariables.TFgyro.cframe=(cam and cam.CFrame) or CFrame.new()
 		end
 		if FLYING then
 			flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
@@ -4865,7 +4871,7 @@ NAmanage._ensureForces=function()
 			flyVariables.BV=InstanceNew("BodyVelocity",goofyFLY)
 			flyVariables.BV.velocity=Vector3.zero
 		end
-		flyVariables.BG.cframe=cam.CFrame
+		if cam then flyVariables.BG.cframe=cam.CFrame end
 		flyVariables.BG.maxTorque=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
 		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
 		if NAmanage._state.mode=="fly" then hum.PlatformStand=FLYING else hum.PlatformStand=false end
@@ -4894,13 +4900,14 @@ end
 
 NAmanage.startWatcher=function()
 	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
-	NAmanage._ensureWeldTarget()
 	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
 		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
+			NAmanage._ensureWeldTarget()
 			NAmanage._ensureForces()
 			NAmanage._ensureLoops()
 		end
 	end)
+	NAmanage._bindCameraWatch()
 end
 
 NAmanage.activateMode=function(mode)
@@ -4923,6 +4930,7 @@ NAmanage.activateMode=function(mode)
 	end
 	NAmanage._ensureMobileFlyUI(mode)
 	NAmanage.startWatcher()
+	NAmanage._bindCameraWatch()
 end
 
 NAmanage.keyToggle=function(mode)
