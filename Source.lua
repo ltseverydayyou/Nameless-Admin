@@ -10519,10 +10519,10 @@ cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", 
 		if character and getRoot(character) then
 			getRoot(character).CFrame = deathCFrame
 		else
-			DoNotif("Could not teleport, root is missing", 3)
+			DebugNotif("Could not teleport, root is missing", 3)
 		end
 	else
-		DoNotif("No available death location to teleport to! You need to die first", 3)
+		DebugNotif("No available death location to teleport to! You need to die first", 3)
 	end
 end)
 
@@ -23267,253 +23267,380 @@ cmd.add({"pastebinscraper","pastebinscrape"},{"pastebinscraper (pastebinscrape)"
 	DebugNotif("Pastebin scraper loaded")
 end)
 
-cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","Makes games that are really dark to have no darkness and be really light"},function()
-	if not getgenv().FullBrightExecuted then
-
-		getgenv().FullBrightEnabled=false
-
-		getgenv().NormalLightingSettings={
-			Brightness=Lighting.Brightness,
-			ClockTime=Lighting.ClockTime,
-			FogEnd=Lighting.FogEnd,
-			GlobalShadows=Lighting.GlobalShadows,
-			Ambient=Lighting.Ambient
-		}
-
-		Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-			if Lighting.Brightness~=1 and Lighting.Brightness~=getgenv().NormalLightingSettings.Brightness then
-				getgenv().NormalLightingSettings.Brightness=Lighting.Brightness
-				if not getgenv().FullBrightEnabled then
-					repeat
-						Wait()
-					until getgenv().FullBrightEnabled
-				end
-				Lighting.Brightness=1
-			end
-		end)
-
-		Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-			if Lighting.ClockTime~=12 and Lighting.ClockTime~=getgenv().NormalLightingSettings.ClockTime then
-				getgenv().NormalLightingSettings.ClockTime=Lighting.ClockTime
-				if not getgenv().FullBrightEnabled then
-					repeat
-						Wait()
-					until getgenv().FullBrightEnabled
-				end
-				Lighting.ClockTime=12
-			end
-		end)
-
-		Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-			if Lighting.FogEnd~=786543 and Lighting.FogEnd~=getgenv().NormalLightingSettings.FogEnd then
-				getgenv().NormalLightingSettings.FogEnd=Lighting.FogEnd
-				if not getgenv().FullBrightEnabled then
-					repeat
-						Wait()
-					until getgenv().FullBrightEnabled
-				end
-				Lighting.FogEnd=786543
-			end
-		end)
-
-		Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-			if Lighting.GlobalShadows~=false and Lighting.GlobalShadows~=getgenv().NormalLightingSettings.GlobalShadows then
-				getgenv().NormalLightingSettings.GlobalShadows=Lighting.GlobalShadows
-				if not getgenv().FullBrightEnabled then
-					repeat
-						Wait()
-					until getgenv().FullBrightEnabled
-				end
-				Lighting.GlobalShadows=false
-			end
-		end)
-
-		Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-			if Lighting.Ambient~=Color3.fromRGB(178,178,178) and Lighting.Ambient~=getgenv().NormalLightingSettings.Ambient then
-				getgenv().NormalLightingSettings.Ambient=Lighting.Ambient
-				if not getgenv().FullBrightEnabled then
-					repeat
-						Wait()
-					until getgenv().FullBrightEnabled
-				end
-				Lighting.Ambient=Color3.fromRGB(178,178,178)
-			end
-		end)
-
-		Lighting.Brightness=1
-		Lighting.ClockTime=12
-		Lighting.FogEnd=786543
-		Lighting.GlobalShadows=false
-		Lighting.Ambient=Color3.fromRGB(178,178,178)
-
-		local LatestValue=true
-		Spawn(function()
-			repeat
-				Wait()
-			until getgenv().FullBrightEnabled
-			while Wait() do
-				if getgenv().FullBrightEnabled~=LatestValue then
-					if not getgenv().FullBrightEnabled then
-						Lighting.Brightness=getgenv().NormalLightingSettings.Brightness
-						Lighting.ClockTime=getgenv().NormalLightingSettings.ClockTime
-						Lighting.FogEnd=getgenv().NormalLightingSettings.FogEnd
-						Lighting.GlobalShadows=getgenv().NormalLightingSettings.GlobalShadows
-						Lighting.Ambient=getgenv().NormalLightingSettings.Ambient
+cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games bright without destroying effects"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState or {}
+	getgenv()._LState = st
+	st.safeGet = st.safeGet or function(inst, prop) local ok,v=pcall(function() return inst[prop] end) if ok then return v end end
+	st.safeSet = st.safeSet or function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+	local function ensureFB()
+		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then local v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if not st.initFB then
+			st.initFB = function()
+				if st.fb.init then return end
+				st.fb.init = true
+				NAlib.connect("fb_brightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
 					else
-						Lighting.Brightness=1
-						Lighting.ClockTime=12
-						Lighting.FogEnd=786543
-						Lighting.GlobalShadows=false
-						Lighting.Ambient=Color3.fromRGB(178,178,178)
+						st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
 					end
-					LatestValue=not LatestValue
-				end
+				end))
+				NAlib.connect("fb_clocktime", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+					else
+						st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+					end
+				end))
+				NAlib.connect("fb_fogend", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+					else
+						st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+					end
+				end))
+				NAlib.connect("fb_shadows", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+					else
+						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+					end
+				end))
+				NAlib.connect("fb_ambient", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+					else
+						st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+					end
+				end))
 			end
-		end)
+		end
+		if not st.applyFB then
+			st.applyFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+			end
+		end
+		if not st.restoreFB then
+			st.restoreFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+			end
+		end
+		if not st.toggleFB then
+			st.toggleFB = function(on)
+				st.initFB()
+				st.fb.enabled = on
+				if on then st.applyFB() else st.restoreFB() end
+				getgenv().FullBrightExecuted = true
+				getgenv().FullBrightEnabled = st.fb.enabled
+			end
+		end
 	end
-
-	getgenv().FullBrightExecuted=true
-	getgenv().FullBrightEnabled=not getgenv().FullBrightEnabled
+	ensureFB()
+	st.toggleFB(not st.fb.enabled)
 end)
 
-cmd.add({"loopday", "lday"}, {"loopday (lday)", "Sunshiiiine!"}, function()
-	NAlib.disconnect("loopday")
-
-	Lighting.ClockTime = 14
-
-	NAlib.connect("loopday", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-		if Lighting.ClockTime ~= 14 then
-			Lighting.ClockTime = 14
-		end
-	end))
-end)
-
-cmd.add({"unloopday", "unlday"}, {"unloopday (unlday)", "No more sunshine"}, function()
-	NAlib.disconnect("loopday")
-end)
-
-cmd.add({"loopfullbright", "loopfb", "lfb"}, {"loopfullbright (loopfb,lfb)", "Sunshiiiine!"}, function()
-	NAlib.disconnect("fbCon")
-	NAlib.disconnect("fbCon1")
-	NAlib.disconnect("fbCon2")
-	NAlib.disconnect("fbCon3")
-	NAlib.disconnect("fbCon4")
-
-	Lighting.Brightness = 1
-	Lighting.ClockTime = 12
-	Lighting.FogEnd = 786543
-	Lighting.GlobalShadows = false
-	Lighting.Ambient = Color3.fromRGB(178, 178, 178)
-
-	NAlib.connect("fbCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-		if Lighting.Brightness ~= 1 then
-			Lighting.Brightness = 1
-		end
-	end))
-	NAlib.connect("fbCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-		if Lighting.ClockTime ~= 12 then
-			Lighting.ClockTime = 12
-		end
-	end))
-	NAlib.connect("fbCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-		if Lighting.FogEnd ~= 786543 then
-			Lighting.FogEnd = 786543
-		end
-	end))
-	NAlib.connect("fbCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-		if Lighting.GlobalShadows ~= false then
-			Lighting.GlobalShadows = false
-		end
-	end))
-	NAlib.connect("fbCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-		if Lighting.Ambient ~= Color3.fromRGB(178, 178, 178) then
-			Lighting.Ambient = Color3.fromRGB(178, 178, 178)
-		end
+cmd.add({"loopday","lday"},{"loopday (lday)","Sunshiiiine!"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st then
+		st = {}
+		getgenv()._LState = st
+		st.safeGet = function(inst, prop) local ok, v = pcall(function() return inst[prop] end); if ok then return v end end
+		st.safeSet = function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+		st.fb = st.fb or {enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
+		st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12
+	end
+	NAlib.disconnect("time_day")
+	st.safeSet(Lighting,"ClockTime",14)
+	NAlib.connect("time_day", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+		if st.safeGet(Lighting,"ClockTime") ~= 14 then st.safeSet(Lighting,"ClockTime",14) end
 	end))
 end)
 
-cmd.add({"unloopfullbright", "unloopfb", "unlfb"}, {"unloopfullbright (unloopfb,unlfb)", "No more sunshine"}, function()
-	NAlib.disconnect("fbCon")
-	NAlib.disconnect("fbCon1")
-	NAlib.disconnect("fbCon2")
-	NAlib.disconnect("fbCon3")
-	NAlib.disconnect("fbCon4")
+cmd.add({"unloopday","unlday"},{"unloopday (unlday)","No more sunshine"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st then return end
+	NAlib.disconnect("time_day")
+	local target = (st.fb and st.fb.enabled) and ((st.fb.target and st.fb.target.ClockTime) or 12) or ((st.fb and st.fb.baseline and st.fb.baseline.ClockTime) or (st.safeGet and st.safeGet(Lighting,"ClockTime")) or 12)
+	if st.safeSet then st.safeSet(Lighting,"ClockTime",target) else Lighting.ClockTime = target end
 end)
 
-cmd.add({"loopnight", "loopn", "ln"}, {"loopnight (loopn,ln)", "Moonlight."}, function()
-	NAlib.disconnect("nightCon")
-	NAlib.disconnect("nightCon1")
-	NAlib.disconnect("nightCon2")
-	NAlib.disconnect("nightCon3")
-	NAlib.disconnect("nightCon4")
+cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright (loopfb,lfb)","Sunshiiiine!"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState or {}
+	getgenv()._LState = st
+	st.safeGet = st.safeGet or function(inst, prop) local ok,v=pcall(function() return inst[prop] end) if ok then return v end end
+	st.safeSet = st.safeSet or function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+	local function ensureFB()
+		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then local v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if not st.initFB then
+			st.initFB = function()
+				if st.fb.init then return end
+				st.fb.init = true
+				NAlib.connect("fb_brightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+					else
+						st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+					end
+				end))
+				NAlib.connect("fb_clocktime", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+					else
+						st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+					end
+				end))
+				NAlib.connect("fb_fogend", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+					else
+						st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+					end
+				end))
+				NAlib.connect("fb_shadows", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+					else
+						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+					end
+				end))
+				NAlib.connect("fb_ambient", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+					else
+						st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+					end
+				end))
+			end
+		end
+		if not st.applyFB then
+			st.applyFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+			end
+		end
+		if not st.restoreFB then
+			st.restoreFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+			end
+		end
+		if not st.toggleFB then
+			st.toggleFB = function(on)
+				st.initFB()
+				st.fb.enabled = on
+				if on then st.applyFB() else st.restoreFB() end
+				getgenv().FullBrightExecuted = true
+				getgenv().FullBrightEnabled = st.fb.enabled
+			end
+		end
+	end
+	ensureFB()
+	st.toggleFB(true)
+end)
 
-	Lighting.Brightness = 1
-	Lighting.ClockTime = 0
-	Lighting.FogEnd = 786543
-	Lighting.GlobalShadows = false
-	Lighting.Ambient = Color3.fromRGB(178, 178, 178)
+cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright (unloopfb,unlfb)","No more sunshine"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState or {}
+	getgenv()._LState = st
+	st.safeGet = st.safeGet or function(inst, prop) local ok,v=pcall(function() return inst[prop] end) if ok then return v end end
+	st.safeSet = st.safeSet or function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+	local function ensureFB()
+		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then local v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if not st.initFB then
+			st.initFB = function()
+				if st.fb.init then return end
+				st.fb.init = true
+				NAlib.connect("fb_brightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+					else
+						st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+					end
+				end))
+				NAlib.connect("fb_clocktime", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+					else
+						st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+					end
+				end))
+				NAlib.connect("fb_fogend", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+					else
+						st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+					end
+				end))
+				NAlib.connect("fb_shadows", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+					else
+						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+					end
+				end))
+				NAlib.connect("fb_ambient", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+					if st.fb.enabled then
+						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+					else
+						st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+					end
+				end))
+			end
+		end
+		if not st.applyFB then
+			st.applyFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+			end
+		end
+		if not st.restoreFB then
+			st.restoreFB = function()
+				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+			end
+		end
+		if not st.toggleFB then
+			st.toggleFB = function(on)
+				st.initFB()
+				st.fb.enabled = on
+				if on then st.applyFB() else st.restoreFB() end
+				getgenv().FullBrightExecuted = true
+				getgenv().FullBrightEnabled = st.fb.enabled
+			end
+		end
+	end
+	ensureFB()
+	st.toggleFB(false)
+end)
 
-	NAlib.connect("nightCon", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-		if Lighting.Brightness ~= 1 then
-			Lighting.Brightness = 1
-		end
-	end))
-	NAlib.connect("nightCon1", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-		if Lighting.ClockTime ~= 0 then
-			Lighting.ClockTime = 0
-		end
-	end))
-	NAlib.connect("nightCon2", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-		if Lighting.FogEnd ~= 786543 then
-			Lighting.FogEnd = 786543
-		end
-	end))
-	NAlib.connect("nightCon3", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-		if Lighting.GlobalShadows ~= false then
-			Lighting.GlobalShadows = false
-		end
-	end))
-	NAlib.connect("nightCon4", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-		if Lighting.Ambient ~= Color3.fromRGB(178, 178, 178) then
-			Lighting.Ambient = Color3.fromRGB(178, 178, 178)
-		end
+cmd.add({"loopnight","loopn","ln"},{"loopnight (loopn,ln)","Moonlight."},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st then
+		st = {}
+		getgenv()._LState = st
+		st.safeGet = function(inst, prop) local ok, v = pcall(function() return inst[prop] end); if ok then return v end end
+		st.safeSet = function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+		st.fb = st.fb or {enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
+		st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12
+	end
+	NAlib.disconnect("time_night")
+	st.safeSet(Lighting,"ClockTime",0)
+	NAlib.connect("time_night", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+		if st.safeGet(Lighting,"ClockTime") ~= 0 then st.safeSet(Lighting,"ClockTime",0) end
 	end))
 end)
 
-cmd.add({"unloopnight", "unloopn", "unln"}, {"unloopnight (unloopn,unln)", "No more moonlight."}, function()
-	NAlib.disconnect("nightCon")
-	NAlib.disconnect("nightCon1")
-	NAlib.disconnect("nightCon2")
-	NAlib.disconnect("nightCon3")
-	NAlib.disconnect("nightCon4")
+cmd.add({"unloopnight","unloopn","unln"},{"unloopnight (unloopn,unln)","No more moonlight."},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st then return end
+	NAlib.disconnect("time_night")
+	local target = (st.fb and st.fb.enabled) and ((st.fb.target and st.fb.target.ClockTime) or 12) or ((st.fb and st.fb.baseline and st.fb.baseline.ClockTime) or (st.safeGet and st.safeGet(Lighting,"ClockTime")) or 12)
+	if st.safeSet then st.safeSet(Lighting,"ClockTime",target) else Lighting.ClockTime = target end
 end)
 
-cmd.add({"loopnofog","lnofog","lnf", "loopnf"},{"loopnofog (lnofog,lnf,loopnf)","See clearly forever!"},function()
-	NAlib.disconnect("nofog_con")
+cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog (lnofog,lnf,loopnf)","See clearly forever!"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st then
+		st = {}
+		getgenv()._LState = st
+		st.safeGet = function(inst, prop) local ok, v = pcall(function() return inst[prop] end); if ok then return v end end
+		st.safeSet = function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
+	end
+	st.nf = st.nf or {enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,cache=setmetatable({},{__mode="k"})}
+	local nf = st.nf
+	local function cacheOnce(inst, props)
+		if nf.cache[inst] then return end
+		local saved = {}
+		for _,p in ipairs(props) do local v = st.safeGet(inst,p); if v~=nil then saved[p]=v end end
+		nf.cache[inst]=saved
+	end
+	local function disableEffect(inst)
+		if inst and inst:IsA("PostEffect") then cacheOnce(inst,{"Enabled"}); st.safeSet(inst,"Enabled",false) end
+		if inst and inst:IsA("Atmosphere") then cacheOnce(inst,{"Density","Haze","Glare"}); st.safeSet(inst,"Density",0); st.safeSet(inst,"Haze",0); st.safeSet(inst,"Glare",0) end
+	end
+	local function restoreEffect(inst)
+		local saved = nf.cache[inst]; if not saved then return end
+		for p,v in pairs(saved) do st.safeSet(inst,p,v) end
+	end
+	local function scan()
+		for _,v in ipairs(Lighting:GetDescendants()) do disableEffect(v) end
+	end
+	NAlib.disconnect("nofog_prop")
 	NAlib.disconnect("nofog_loop")
-
-	Lighting.FogEnd = 786543
-
-	function fogFunc()
-		for i, v in pairs(Lighting:GetDescendants()) do
-			if v:IsA("Atmosphere") then
-				v:Destroy()
-			end
-		end
-	end
-
-	NAlib.connect("nofog_con", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-		if Lighting.FogEnd ~= 786543 then
-			Lighting.FogEnd = 786543
-		end
+	NAlib.disconnect("nofog_added")
+	nf.enabled = true
+	nf.baselineFogEnd = st.safeGet(Lighting,"FogEnd") or nf.baselineFogEnd
+	st.safeSet(Lighting,"FogEnd",786543)
+	NAlib.connect("nofog_prop", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+		if nf.enabled and st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
 	end))
-
-	NAlib.connect("nofog_loop", RunService.RenderStepped:Connect(fogFunc))
+	scan()
+	NAlib.connect("nofog_added", Lighting.DescendantAdded:Connect(function(inst)
+		if not nf.enabled then return end
+		disableEffect(inst)
+	end))
+	NAlib.connect("nofog_loop", RunService.RenderStepped:Connect(function()
+		if not nf.enabled then return end
+		for inst,_ in pairs(nf.cache) do if inst and inst.Parent then disableEffect(inst) end end
+	end))
 end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf"},{"unloopnofog (unlnofog,unlnf,unloopnf)","No more sight."},function()
-	NAlib.disconnect("nofog_con")
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st or not st.nf then
+		NAlib.disconnect("nofog_prop"); NAlib.disconnect("nofog_loop"); NAlib.disconnect("nofog_added")
+		return
+	end
+	local nf = st.nf
+	nf.enabled = false
+	NAlib.disconnect("nofog_prop")
 	NAlib.disconnect("nofog_loop")
+	NAlib.disconnect("nofog_added")
+	if st.safeSet then st.safeSet(Lighting,"FogEnd",nf.baselineFogEnd) else Lighting.FogEnd = nf.baselineFogEnd end
+	for inst,_ in pairs(nf.cache) do if inst and inst.Parent then local saved = nf.cache[inst]; if saved then for p,v in pairs(saved) do st.safeSet(inst,p,v) end end end end
 end)
 
 cmd.add({"brightness"},{"brightness","Changes the brightness lighting property"},function(...)
