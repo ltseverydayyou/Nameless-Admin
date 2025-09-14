@@ -1,6 +1,6 @@
 if getgenv().RealNamelessLoaded then return end
 pcall(function() getgenv().RealNamelessLoaded=true end)
-pcall(function() getgenv().NATestingVer=true end)
+pcall(function() getgenv().NATestingVer=false end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
