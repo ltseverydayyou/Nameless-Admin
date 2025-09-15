@@ -18,6 +18,13 @@ local Delay = task.delay;
 local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
+local LoadstringCommandAliases = {
+	loadstring = true;
+	ls = true;
+	lstring = true;
+	loads = true;
+	execute = true;
+};
 local Defer = task.defer;
 
 local function SafeGetService(name, timeoutSeconds)
@@ -5928,17 +5935,37 @@ NAlib.parseText = function(text, watch, rPlr)
 	text = text:sub(#prefix + 1)
 
 	local commands = {}
-	for segment in text:gmatch("[^\\]+") do
-		segment = segment:gsub("^%s+", ""):gsub("%s+$", "")
-		if #segment > 0 then
+	local position = 1
+	local textLength = #text
+
+	while position <= textLength do
+		local nextSlash = text:find("\\", position, true)
+		local segment = nextSlash and text:sub(position, nextSlash - 1) or text:sub(position)
+		local trimmed = segment:gsub("^%s+", ""):gsub("%s+$", "")
+		if #trimmed > 0 then
 			local parsed = {}
-			for arg in segment:gmatch("[^ ]+") do
+			for arg in trimmed:gmatch("[^ ]+") do
 				Insert(parsed, arg)
 			end
 			if #parsed > 0 then
+				local cmdName = parsed[1]:lower()
+				if LoadstringCommandAliases[cmdName] then
+					local commandStart = (segment:find(parsed[1], 1, true) or 1) + #parsed[1]
+					local afterCommand = segment:sub(commandStart + 1)
+					local remainder = afterCommand:gsub("^%s+", "")
+					if nextSlash then
+						remainder = remainder .. "\\" .. text:sub(nextSlash + 1)
+					end
+					Insert(commands, {parsed[1], remainder})
+					break
+				end
 				Insert(commands, parsed)
 			end
 		end
+		if not nextSlash then
+			break
+		end
+		position = nextSlash + 1
 	end
 
 	return commands
@@ -6241,20 +6268,35 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 	})
 end)
 
-cmd.add({"autoexecclear", "aexecclear", "aeclear"}, {"autoexecclear (aexecclear, aeclear)", "Clear all AutoExec commands"}, function()
+cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", "aeclear"}, {"clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)", "Clear all AutoExec commands"}, function()
+	NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
+	NAEXECDATA.commands = NAEXECDATA.commands or {}
+	NAEXECDATA.args = NAEXECDATA.args or {}
+
 	if #NAEXECDATA.commands == 0 then
 		DoNotif("No AutoExec commands to clear", 2)
 		return
 	end
 
-	NAEXECDATA.commands = {}
-	NAEXECDATA.args = {}
+	Window({
+		Title = "Clear AutoExec Commands",
+		Description = "Are you sure you want to clear all AutoExec commands?",
+		Buttons = {
+			{
+				Text = "Yes",
+				Callback = function()
+					table.clear(NAEXECDATA.commands)
+					table.clear(NAEXECDATA.args)
 
-	if FileSupport then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
-	end
+					if FileSupport then
+						writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+					end
 
-	DoNotif("Cleared all AutoExec commands", 2)
+					DoNotif("Cleared all AutoExec commands", 2)
+				end
+			}
+		}
+	})
 end)
 
 cmd.add({"executor","exec"},{"executor (exec)","Very simple executor"},function()
@@ -27150,27 +27192,54 @@ NAgui.loadCMDS = function()
 		local usageText = "Unknown"
 		local info = cmdData[2]
 		if type(info) == "table" and #info >= 1 then
-			usageText = info[1]
-			local aliasesList = {}
-			for alias, aliasCmdData in pairs(cmds.Aliases) do
-				if aliasCmdData == cmdData or cmds.Commands[alias] == cmdData then
-					Insert(aliasesList, alias)
+			usageText = info[1] or ""
+			usageText = usageText:gsub("^%s+", ""):gsub("%s+$", "")
+			local lowerName = Lower(name)
+			if usageText == "" or not Lower(usageText):find(lowerName, 1, true) then
+				local firstWord, rest = usageText:match("^(%S+)(.*)")
+				if rest and #rest > 0 then
+					if rest:match("^%s*%(") then
+						usageText = name..rest
+					else
+						usageText = name.." "..rest:gsub("^%s+", "")
+					end
+				else
+					usageText = name
 				end
 			end
-			if #aliasesList > 0 then
-				local listed = {}
-				for word in usageText:gmatch("%w+") do
-					listed[word:lower()] = true
-				end
-				local missing = {}
-				for _, alias in ipairs(aliasesList) do
-					if not listed[alias:lower()] then
-						Insert(missing, alias)
+
+			local aliasMap = {}
+			local prefix, aliasBlock = usageText:match("^(.-)%s*%(([^()]*)%)%s*$")
+			if aliasBlock then
+				usageText = prefix:gsub("%s+$", "")
+				for alias in aliasBlock:gmatch("[^,%s]+") do
+					local lowerAlias = Lower(alias)
+					if lowerAlias ~= lowerName and not aliasMap[lowerAlias] then
+						aliasMap[lowerAlias] = alias
 					end
 				end
-				if #missing > 0 then
-					usageText = usageText.." ("..Concat(missing, ", ")..")"
+			else
+				usageText = usageText:gsub("%s+$", "")
+			end
+
+			for alias, aliasCmdData in pairs(cmds.Aliases) do
+				if aliasCmdData == cmdData then
+					local lowerAlias = Lower(alias)
+					if lowerAlias ~= lowerName and not aliasMap[lowerAlias] then
+						aliasMap[lowerAlias] = alias
+					end
 				end
+			end
+
+			local aliasList = {}
+			for _, display in pairs(aliasMap) do
+				Insert(aliasList, display)
+			end
+			table.sort(aliasList, function(a, b)
+				return Lower(a) < Lower(b)
+			end)
+			if #aliasList > 0 then
+				usageText = usageText.." ("..Concat(aliasList, ", ")..")"
 			end
 		end
 		local btn = NAUIMANAGER.cmdExample:Clone()
