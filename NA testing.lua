@@ -158,7 +158,7 @@ local NAStuff = {
 			targetGeneral = false;
 		};
 		bubbles = {
-			enabled = false;
+			enabled = true; -- ENABLED IT SINCE YOU CAN'T STOP CRYING ABOUT IT
 			maxDistance = 100;
 			minimizeDistance = 20;
 			textSize = 14;
@@ -1679,7 +1679,7 @@ function getSeasonEmoji()
 	return ''
 end
 
-if (identifyexecutor() == "Solara" or identifyexecutor() == "Xeno") or not fireproximityprompt then
+if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") or not fireproximityprompt then
 	local function hb(n) for i = 1, (n or 1) do RunService.Heartbeat:Wait() end end
 
 	local function toOpts(o)
@@ -9257,11 +9257,49 @@ cmd.add({"throttle"}, {"throttle", "Set PhysicsEnvironmentalThrottle (1 = defaul
 	settings():GetService("PhysicsSettings").PhysicsEnvironmentalThrottle = tonumber(num) or 1
 end, true)
 
-cmd.add({"quality"}, {"quality", "Set Rendering QualityLevel (1-10)"}, function(level)
-	level = tonumber(level) or 5
-	level = math.clamp(level, 1, 10)
-	settings().Rendering.QualityLevel = level
-end, true)
+cmd.add({"quality","qualitylevel"},{"quality <1-21>","Manage rendering quality settings"},function(...)
+	local args = {...}
+	local target = args[1]
+	local buttons = {}
+	for _, ql in ipairs(Enum.QualityLevel:GetEnumItems()) do
+		Insert(buttons, {
+			Text = ql.Name,
+			Callback = function()
+				settings().Rendering.QualityLevel = ql
+			end
+		})
+	end
+	if target and target ~= "" then
+		local key = tostring(target)
+		local n = tonumber(key)
+		if n then
+			n = math.clamp(math.floor(n), 1, 21)
+			key = string.format("Level%02d", n)
+		else
+			local l = Lower(key)
+			if l == "auto" or l == "automatic" then
+				key = "Automatic"
+			end
+		end
+		local found = false
+		for _, btn in ipairs(buttons) do
+			if Match(Lower(btn.Text), Lower(key)) then
+				btn.Callback()
+				DebugNotif("Quality set to "..btn.Text, 3)
+				found = true
+				break
+			end
+		end
+		if not found then
+			DebugNotif("No matching quality level for: "..target, 3)
+		end
+	else
+		Window({
+			Title = "Rendering Quality Options",
+			Buttons = buttons
+		})
+	end
+end)
 
 cmd.add({"logphysics"}, {"logphysics", "Enable Physics Error Logging"}, function()
 	settings():GetService("NetworkSettings").PrintPhysicsErrors = true
@@ -29416,7 +29454,7 @@ do
 	NAgui.addToggle("Window Enabled", NAStuff.ChatSettings.window.enabled, function(v)
 		NAStuff.ChatSettings.window.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Text Size (Window)", 10, 30, NAStuff.ChatSettings.window.textSize, 1, " px", function(v)
+	NAgui.addSlider("Text Size (Window)", 5, 50, NAStuff.ChatSettings.window.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.window.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addColorPicker("Text Color", tblToC3(NAStuff.ChatSettings.window.textColor), function(c)
@@ -29439,7 +29477,7 @@ do
 	NAgui.addToggle("Tabs Enabled", NAStuff.ChatSettings.tabs.enabled, function(v)
 		NAStuff.ChatSettings.tabs.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Text Size (Tabs)", 12, 28, NAStuff.ChatSettings.tabs.textSize, 1, " px", function(v)
+	NAgui.addSlider("Text Size (Tabs)", 5, 50, NAStuff.ChatSettings.tabs.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.tabs.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addSlider("Background Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.backgroundTransparency, 0.05, "", function(v)
@@ -29465,7 +29503,7 @@ do
 	NAgui.addToggle("Target #RBXGeneral", NAStuff.ChatSettings.input.targetGeneral, function(v)
 		NAStuff.ChatSettings.input.targetGeneral = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Text Size (Input)", 10, 30, NAStuff.ChatSettings.input.textSize, 1, " px", function(v)
+	NAgui.addSlider("Text Size (Input)", 5, 25, NAStuff.ChatSettings.input.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.input.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addColorPicker("Text Color (Input)", tblToC3(NAStuff.ChatSettings.input.textColor), function(c)
@@ -29487,13 +29525,13 @@ do
 	NAgui.addToggle("Bubbles Enabled", NAStuff.ChatSettings.bubbles.enabled, function(v)
 		NAStuff.ChatSettings.bubbles.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Max Distance", 10, 250, NAStuff.ChatSettings.bubbles.maxDistance, 5, " u", function(v)
+	NAgui.addSlider("Max Distance", 10, 500, NAStuff.ChatSettings.bubbles.maxDistance, 5, " u", function(v)
 		NAStuff.ChatSettings.bubbles.maxDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Minimize Distance", 0, 100, NAStuff.ChatSettings.bubbles.minimizeDistance, 2, " u", function(v)
+	NAgui.addSlider("Minimize Distance", 0, 350, NAStuff.ChatSettings.bubbles.minimizeDistance, 2, " u", function(v)
 		NAStuff.ChatSettings.bubbles.minimizeDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
-	NAgui.addSlider("Text Size (Bubble)", 10, 30, NAStuff.ChatSettings.bubbles.textSize, 1, " px", function(v)
+	NAgui.addSlider("Text Size (Bubble)", 5, 30, NAStuff.ChatSettings.bubbles.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.bubbles.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addSlider("Bubble Spacing", 0, 12, NAStuff.ChatSettings.bubbles.spacing, 1, " px", function(v)
