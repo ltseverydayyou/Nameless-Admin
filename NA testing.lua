@@ -174,6 +174,20 @@ local NAStuff = {
 			tailVisible = true;
 		};
 	};
+	_prefetchedRemotes = {};
+	AutoExecBlockedCommands = {
+		exit = true;
+		rejoin = true;
+		rj = true;
+		serverhop = true;
+		shop = true;
+		smallserverhop = true;
+		sshop = true;
+		pingserverhop = true;
+		pshop = true;
+	};
+	NASettingsSchema = nil;
+	NASettingsData = nil;
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -313,6 +327,67 @@ function NACaller(fn, ...)
 		})
 	end
 	return Unpack(t, 1, t.n)
+end
+
+NAmanage.loaderState = NAmanage.loaderState or {
+	autoSkip = false;
+	loaded = false;
+	settingsPath = "Nameless-Admin/Settings.json";
+}
+
+NAmanage.getAutoSkipPreference = function()
+	local state = NAmanage.loaderState
+	if state.loaded then
+		return state.autoSkip
+	end
+	state.loaded = true
+	if not FileSupport then
+		state.autoSkip = false
+		return state.autoSkip
+	end
+	if type(isfile) == "function" and isfile(state.settingsPath) then
+		local ok, raw = NACaller(readfile, state.settingsPath)
+		if ok and type(raw) == "string" and raw ~= "" then
+			local decodeOk, decoded = NACaller(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if decodeOk and typeof(decoded) == "table" then
+				local value = decoded.autoSkipLoading
+				if type(value) == "boolean" then
+					state.autoSkip = value
+				end
+			end
+		end
+	end
+	return state.autoSkip
+end
+
+NAmanage.setAutoSkipPreference = function(enabled)
+	local state = NAmanage.loaderState
+	state.autoSkip = enabled and true or false
+	state.loaded = true
+	if not FileSupport then
+		return
+	end
+	local data = {}
+	if type(isfile) == "function" and isfile(state.settingsPath) then
+		local ok, raw = NACaller(readfile, state.settingsPath)
+		if ok and type(raw) == "string" and raw ~= "" then
+			local decodeOk, decoded = NACaller(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if decodeOk and typeof(decoded) == "table" then
+				data = decoded
+			end
+		end
+	end
+	data.autoSkipLoading = state.autoSkip
+	local encodeOk, encoded = NACaller(function()
+		return HttpService:JSONEncode(data)
+	end)
+	if encodeOk and type(encoded) == "string" then
+		NACaller(writefile, state.settingsPath, encoded)
+	end
 end
 
 pcall(function()
@@ -673,889 +748,569 @@ NAgui.draggerV2 = function(ui, dragui)
 	pcall(function() dragui.Active=true end)
 end
 
-local function createLoadingUI(text, opts)
-	local RS = SafeGetService("RunService")
-	local TS = SafeGetService("TweenService")
-	local TX = SafeGetService("TextService")
-	local PL = SafeGetService("Players")
-	local CG = SafeGetService("CoreGui")
-	local LGT = SafeGetService("Lighting")
-
+NAmanage.createLoadingUI=function(text, opts)
+	local services = {
+		RunService = SafeGetService("RunService");
+		TweenService = SafeGetService("TweenService");
+		TextService = SafeGetService("TextService");
+		Players = SafeGetService("Players");
+		CoreGui = SafeGetService("CoreGui");
+		Lighting = SafeGetService("Lighting");
+	}
+	local ui = {}
+	local flags = {
+		minimized = false;
+		autoSkip = false;
+	}
 	opts = opts or {}
-	local wsc = tonumber(opts.widthScale) or 0.34
-	local bl = opts.blacklist or { [3101266219]=true, [8523781134]=true }
-	local lp = PL and PL.LocalPlayer
+	local widthScale = tonumber(opts.widthScale) or 0.34
+	local blacklist = opts.blacklist or { [3101266219] = true, [8523781134] = true }
+	local lp = services.Players and services.Players.LocalPlayer
 
-	if lp and bl[lp.UserId] then
-		local sg = InstanceNew("ScreenGui")
-		sg.IgnoreGuiInset = true
-		sg.ResetOnSpawn = false
-		sg.DisplayOrder = 2147483647
-		sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		local ok = pcall(function() NaProtectUI(sg) end)
-		if not ok then sg.Parent = CG end
-
-		local ov = InstanceNew("Frame", sg)
-		ov.BackgroundColor3 = Color3.new(0,0,0)
-		ov.BackgroundTransparency = 1
-		ov.Size = UDim2.fromScale(1,1)
-		ov.ZIndex = 2000
-		TS:Create(ov, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency=0.35}):Play()
-
-		local br = InstanceNew("BlurEffect", LGT)
-		br.Size = 0
-		TS:Create(br, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size=24}):Play()
-
-		local bx = InstanceNew("Frame", ov)
-		bx.AnchorPoint = Vector2.new(0.5,0.5)
-		bx.Position = UDim2.fromScale(0.5,0.5)
-		bx.Size = UDim2.fromScale(0.42,0)
-		bx.AutomaticSize = Enum.AutomaticSize.Y
-		bx.BackgroundColor3 = Color3.fromRGB(18,20,26)
-		bx.BorderSizePixel = 0
-		bx.ZIndex = 2002
-		local bxc = InstanceNew("UICorner", bx)
-		bxc.CornerRadius = UDim.new(0,10)
-		local bxs = InstanceNew("UIStroke", bx)
-		bxs.Thickness = 1
-		bxs.Color = Color3.fromRGB(255,90,90)
-		bxs.Transparency = 0.15
-		local bxp = InstanceNew("UIPadding", bx)
-		bxp.PaddingLeft = UDim.new(0.05,0)
-		bxp.PaddingRight = UDim.new(0.05,0)
-		bxp.PaddingTop = UDim.new(0,12)
-		bxp.PaddingBottom = UDim.new(0,12)
-		local v = InstanceNew("UIListLayout", bx)
-		v.FillDirection = Enum.FillDirection.Vertical
-		v.Padding = UDim.new(0,10)
-		v.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		v.VerticalAlignment = Enum.VerticalAlignment.Center
-
-		local t1 = InstanceNew("TextLabel", bx)
-		t1.BackgroundTransparency = 1
-		t1.Font = Enum.Font.GothamBlack
-		t1.TextColor3 = Color3.fromRGB(255,70,70)
-		t1.TextXAlignment = Enum.TextXAlignment.Center
-		t1.TextYAlignment = Enum.TextYAlignment.Center
-		t1.TextScaled = true
-		t1.ZIndex = 2003
-		t1.Size = UDim2.new(1,0,0,0)
-		t1.AutomaticSize = Enum.AutomaticSize.Y
-		t1.Text = "access denied"
-		local t1c = InstanceNew("UITextSizeConstraint", t1)
-		t1c.MinTextSize = 18
-		t1c.MaxTextSize = 36
-
-		local t2 = InstanceNew("TextLabel", bx)
-		t2.BackgroundTransparency = 1
-		t2.Font = Enum.Font.GothamSemibold
-		t2.TextColor3 = Color3.fromRGB(235,235,245)
-		t2.TextXAlignment = Enum.TextXAlignment.Center
-		t2.TextYAlignment = Enum.TextYAlignment.Center
-		t2.TextScaled = true
-		t2.ZIndex = 2003
-		t2.Size = UDim2.new(1,0,0,0)
-		t2.AutomaticSize = Enum.AutomaticSize.Y
-		t2.Text = "you are banned from using "..(adminName or "NA")
-		local t2c = InstanceNew("UITextSizeConstraint", t2)
-		t2c.MinTextSize = 14
-		t2c.MaxTextSize = 22
-
-		local pr = InstanceNew("Frame", bx)
-		pr.BackgroundColor3 = Color3.fromRGB(40,14,14)
-		pr.BackgroundTransparency = 0.1
-		pr.BorderSizePixel = 0
-		pr.ZIndex = 2002
-		pr.Size = UDim2.new(1,0,0,6)
-		local prc = InstanceNew("UICorner", pr)
-		prc.CornerRadius = UDim.new(0,4)
-		local fl = InstanceNew("Frame", pr)
-		fl.BackgroundColor3 = Color3.fromRGB(255,90,90)
-		fl.BorderSizePixel = 0
-		fl.ZIndex = 2003
-		fl.Size = UDim2.new(0,0,1,0)
-		local flc = InstanceNew("UICorner", fl)
-		flc.CornerRadius = UDim.new(0,4)
-
-		Spawn(function()
-			for i=1,24 do
-				local v2 = math.clamp(i/24,0,1)
-				TS:Create(fl, TweenInfo.new(0.035, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {Size = UDim2.new(v2,0,1,0)}):Play()
-				Wait(0.028)
-			end
+	if lp and blacklist[lp.UserId] then
+		local blockedGui = InstanceNew("ScreenGui")
+		blockedGui.IgnoreGuiInset = true
+		blockedGui.ResetOnSpawn = false
+		blockedGui.DisplayOrder = 2147483647
+		blockedGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		local okProtect = pcall(function()
+			NaProtectUI(blockedGui)
 		end)
-
-		local blk = InstanceNew("Frame", ov)
-		blk.BackgroundColor3 = Color3.new(0,0,0)
-		blk.BackgroundTransparency = 1
-		blk.Size = UDim2.fromScale(1,1)
-		blk.ZIndex = 2100
-		Spawn(function()
-			for i=1,3 do
-				TS:Create(blk, TweenInfo.new(0.06), {BackgroundTransparency=0}):Play()
-				Wait(0.06)
-				TS:Create(blk, TweenInfo.new(0.12), {BackgroundTransparency=1}):Play()
-				Wait(0.12)
-			end
-		end)
-
-		local sh = InstanceNew("TextButton", ov)
-		sh.Modal = true
-		sh.AutoButtonColor = false
-		sh.Text = ""
-		sh.BackgroundTransparency = 1
-		sh.Size = UDim2.fromScale(1,1)
-		sh.ZIndex = 2200
-
-		local j = 0
-		local hb = RS.Heartbeat:Connect(function(dt)
-			j = (j + dt*7) % 1
-			local off = math.sin(j*math.pi*2)*2
-			bx.Position = UDim2.fromScale(0.5,0.5) + UDim2.fromOffset(off, -off)
-		end)
-
-		Delay(1.2, function()
-			if hb and hb.Connected then hb:Disconnect() end
-		end)
-
-		Wait(3)
-
-		while true do end
-	end
-
-	local sg = InstanceNew("ScreenGui")
-	sg.IgnoreGuiInset, sg.ResetOnSpawn = true, false
-	sg.DisplayOrder = 999999
-	sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
-
-	local ov = InstanceNew("Frame", sg)
-	ov.BackgroundTransparency = 1
-	ov.Size = UDim2.fromScale(1,1)
-	ov.ZIndex = 5
-	local ovg = InstanceNew("UIGradient", ov)
-	ovg.Color = ColorSequence.new(Color3.fromRGB(8,10,14), Color3.fromRGB(14,16,22))
-
-	local cd = InstanceNew("Frame", ov)
-	cd.AnchorPoint = Vector2.new(0.5,0.5)
-	cd.Position = UDim2.fromScale(0.5,0.5)
-	cd.Size = UDim2.fromScale(wsc, 0)
-	cd.AutomaticSize = Enum.AutomaticSize.Y
-	cd.BackgroundColor3 = Color3.fromRGB(22,24,30)
-	cd.BorderSizePixel = 0
-	cd.ZIndex = 10
-	local cdc = InstanceNew("UICorner", cd)
-	cdc.CornerRadius = UDim.new(0,10)
-	local cds = InstanceNew("UIStroke", cd)
-	cds.Thickness = 1
-	cds.Color = Color3.fromRGB(80,90,120)
-	cds.Transparency = 0.3
-	local cdl = InstanceNew("UISizeConstraint", cd)
-	cdl.MinSize = Vector2.new(220, 0)
-	cdl.MaxSize = Vector2.new(560, math.huge)
-	local sc = InstanceNew("UIScale", cd)
-	sc.Scale = 0.98
-	local cdp = InstanceNew("UIPadding", cd)
-	cdp.PaddingLeft, cdp.PaddingRight = UDim.new(0.03,0), UDim.new(0.03,0)
-	cdp.PaddingTop, cdp.PaddingBottom = UDim.new(0,8), UDim.new(0,10)
-
-	local vl = InstanceNew("UIListLayout", cd)
-	vl.FillDirection = Enum.FillDirection.Vertical
-	vl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	vl.VerticalAlignment = Enum.VerticalAlignment.Top
-	vl.Padding = UDim.new(0,6)
-	vl.SortOrder = Enum.SortOrder.LayoutOrder
-
-	local hd = InstanceNew("Frame", cd)
-	hd.BackgroundTransparency = 1
-	hd.Size = UDim2.new(1,0,0,30)
-	hd.LayoutOrder = 1
-	hd.ZIndex = 20
-
-	local dz = InstanceNew("Frame", hd)
-	dz.BackgroundTransparency = 1
-	dz.Active, dz.ZIndex = true, 21
-	dz.Size = UDim2.new(1,0,1,0)
-
-	local sp = InstanceNew("Frame", hd)
-	sp.AnchorPoint = Vector2.new(0,0.5)
-	sp.Position = UDim2.new(0,0,0.5,0)
-	sp.Size = UDim2.fromOffset(20,20)
-	sp.BackgroundTransparency = 1
-	sp.ZIndex = 1000
-
-	local rg = InstanceNew("Frame", sp)
-	rg.Size = UDim2.fromScale(1,1)
-	rg.BackgroundColor3 = Color3.fromRGB(125,190,255)
-	rg.ZIndex = 1001
-	local rgc = InstanceNew("UICorner", rg)
-	rgc.CornerRadius = UDim.new(1,0)
-	local rgg = InstanceNew("UIGradient", rg)
-	rgg.Color = ColorSequence.new(Color3.fromRGB(125,190,255), Color3.fromRGB(125,190,255))
-	rgg.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0.00, 0.08),
-		NumberSequenceKeypoint.new(0.14, 0.08),
-		NumberSequenceKeypoint.new(0.155, 1.00),
-		NumberSequenceKeypoint.new(1.00, 1.00),
-	}
-
-	local ct = InstanceNew("Frame", sp)
-	ct.AnchorPoint = Vector2.new(0.5,0.5)
-	ct.Position = UDim2.fromScale(0.5,0.5)
-	ct.Size = UDim2.fromScale(0.28,0.28)
-	ct.BackgroundColor3 = Color3.fromRGB(220,235,255)
-	ct.ZIndex = 1002
-	local ctc = InstanceNew("UICorner", ct)
-	ctc.CornerRadius = UDim.new(1,0)
-	local cts = InstanceNew("UIStroke", ct)
-	cts.Thickness = 1
-	cts.Color = Color3.fromRGB(160,200,255)
-	cts.Transparency = 0.15
-
-	local ti = InstanceNew("TextLabel", hd)
-	ti.BackgroundTransparency = 1
-	ti.Text = text
-	ti.Font = Enum.Font.GothamSemibold
-	ti.TextColor3 = Color3.fromRGB(245,245,250)
-	ti.TextXAlignment = Enum.TextXAlignment.Left
-	ti.TextYAlignment = Enum.TextYAlignment.Center
-	ti.TextScaled = false
-	ti.TextWrapped = false
-	ti.TextTruncate = Enum.TextTruncate.None
-	ti.ZIndex = 28
-	ti.Position = UDim2.new(0, 26, 0, 0)
-	ti.Size = UDim2.new(1, -26, 1, 0)
-
-	local hr = InstanceNew("Frame", hd)
-	hr.AnchorPoint = Vector2.new(1,0.5)
-	hr.BackgroundTransparency = 1
-	hr.ZIndex = 29
-	hr.Position = UDim2.new(1,0,0.5,0)
-	hr.Size = UDim2.fromOffset(1,1)
-	local hrl = InstanceNew("UIListLayout", hr)
-	hrl.FillDirection = Enum.FillDirection.Horizontal
-	hrl.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	hrl.VerticalAlignment = Enum.VerticalAlignment.Center
-	hrl.Padding = UDim.new(0,6)
-
-	local mb = InstanceNew("TextButton", hr)
-	mb.Size = UDim2.fromOffset(30,24)
-	mb.Text = "–"
-	mb.TextScaled = true
-	mb.Font = Enum.Font.GothamBold
-	mb.TextColor3 = Color3.fromRGB(240,240,255)
-	mb.BackgroundColor3 = Color3.fromRGB(42,44,54)
-	mb.ZIndex = 30
-	local mbc = InstanceNew("UICorner", mb)
-	mbc.CornerRadius = UDim.new(0,7)
-	local mbs = InstanceNew("UIStroke", mb)
-	mbs.Thickness = 1
-	mbs.Color = Color3.fromRGB(160,160,190)
-	mbs.Transparency = 0.35
-
-	local kb = InstanceNew("TextButton", hr)
-	kb.Size = UDim2.fromOffset(96,24)
-	kb.Text = "skip"
-	kb.TextScaled = true
-	kb.Font = Enum.Font.GothamSemibold
-	kb.TextColor3 = Color3.fromRGB(240,240,255)
-	kb.BackgroundColor3 = Color3.fromRGB(42,44,54)
-	kb.ZIndex = 30
-	local kbc = InstanceNew("UICorner", kb)
-	kbc.CornerRadius = UDim.new(0,7)
-	local kbs = InstanceNew("UIStroke", kb)
-	kbs.Thickness = 1
-	kbs.Color = Color3.fromRGB(160,160,190)
-	kbs.Transparency = 0.28
-
-	local ksh = InstanceNew("Frame", kb)
-	ksh.BackgroundTransparency = 1
-	ksh.Size = UDim2.fromScale(1,1)
-	ksh.ZIndex = 31
-	local kshg = InstanceNew("UIGradient", ksh)
-	kshg.Color = ColorSequence.new(Color3.fromRGB(255,255,255), Color3.fromRGB(255,255,255))
-	kshg.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.45, 0.78),
-		NumberSequenceKeypoint.new(0.5, 0.35),
-		NumberSequenceKeypoint.new(0.55, 0.78),
-		NumberSequenceKeypoint.new(1, 1),
-	}
-	kshg.Offset = Vector2.new(-1,0)
-
-	local ac = InstanceNew("Frame", cd)
-	ac.BackgroundColor3 = Color3.fromRGB(60,120,255)
-	ac.BackgroundTransparency = 0.25
-	ac.BorderSizePixel = 0
-	ac.Size = UDim2.new(1,0,0,2)
-	ac.LayoutOrder = 2
-	ac.ZIndex = 12
-	local acg = InstanceNew("UIGradient", ac)
-	acg.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(60,120,255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,200,255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,120,255)),
-	}
-	acg.Offset = Vector2.new(-1,0)
-
-	local st = InstanceNew("TextLabel", cd)
-	st.BackgroundTransparency = 1
-	st.Text = "loading"
-	st.Font = Enum.Font.Gotham
-	st.TextColor3 = Color3.fromRGB(190,195,210)
-	st.TextXAlignment = Enum.TextXAlignment.Left
-	st.TextYAlignment = Enum.TextYAlignment.Center
-	st.TextScaled = true
-	st.LayoutOrder = 3
-	st.ZIndex = 30
-	st.Size = UDim2.new(1,0,0,0)
-	st.AutomaticSize = Enum.AutomaticSize.Y
-	local stts = InstanceNew("UITextSizeConstraint", st)
-	stts.MinTextSize, stts.MaxTextSize = 13, 18
-
-	local mt = InstanceNew("Frame", cd)
-	mt.BackgroundTransparency = 1
-	mt.LayoutOrder = 4
-	mt.ZIndex = 30
-	mt.Size = UDim2.new(1,0,0,16)
-	local mtl = InstanceNew("UIListLayout", mt)
-	mtl.FillDirection = Enum.FillDirection.Horizontal
-	mtl.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	mtl.VerticalAlignment = Enum.VerticalAlignment.Center
-	mtl.Padding = UDim.new(0,6)
-
-	local sl = InstanceNew("TextLabel", mt)
-	sl.BackgroundTransparency = 1
-	sl.Text = "initializing"
-	sl.Font = Enum.Font.Gotham
-	sl.TextColor3 = Color3.fromRGB(155,165,185)
-	sl.TextScaled = true
-	sl.TextXAlignment = Enum.TextXAlignment.Left
-	sl.Size = UDim2.new(0.78,0,1,0)
-	sl.ZIndex = 30
-	local slts = InstanceNew("UITextSizeConstraint", sl)
-	slts.MinTextSize, slts.MaxTextSize = 10, 14
-
-	local pl = InstanceNew("TextLabel", mt)
-	pl.BackgroundTransparency = 1
-	pl.Text = "0%"
-	pl.Font = Enum.Font.GothamSemibold
-	pl.TextColor3 = Color3.fromRGB(210,220,255)
-	pl.TextScaled = true
-	pl.TextXAlignment = Enum.TextXAlignment.Right
-	pl.Size = UDim2.new(0.22,0,1,0)
-	pl.ZIndex = 30
-
-	local pr = InstanceNew("Frame", cd)
-	pr.BackgroundColor3 = Color3.fromRGB(40,44,56)
-	pr.BackgroundTransparency = 0.15
-	pr.BorderSizePixel = 0
-	pr.LayoutOrder = 5
-	pr.ZIndex = 12
-	pr.Size = UDim2.new(1,0,0,7)
-	pr.ClipsDescendants = true
-	local prc = InstanceNew("UICorner", pr)
-	prc.CornerRadius = UDim.new(0,5)
-	local prs = InstanceNew("UIStroke", pr)
-	prs.Thickness = 1
-	prs.Color = Color3.fromRGB(70,75,100)
-	prs.Transparency = 0.55
-
-	local fl = InstanceNew("Frame", pr)
-	fl.BackgroundColor3 = Color3.fromRGB(70,175,255)
-	fl.BorderSizePixel = 0
-	fl.Size = UDim2.new(0,0,1,0)
-	fl.ZIndex = 13
-	local flc = InstanceNew("UICorner", fl)
-	flc.CornerRadius = UDim.new(0,5)
-	local flg = InstanceNew("UIGradient", fl)
-	flg.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(60,160,240)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(130,205,255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(60,160,240)),
-	}
-
-	local rn = InstanceNew("Frame", pr)
-	rn.BackgroundColor3 = Color3.fromRGB(90,180,255)
-	rn.BorderSizePixel = 0
-	rn.Size = UDim2.new(0.18,0,1,0)
-	rn.Position = UDim2.new(-0.18,0,0,0)
-	rn.ZIndex = 14
-	local rnc = InstanceNew("UICorner", rn)
-	rnc.CornerRadius = UDim.new(0,5)
-	local rng = InstanceNew("UIGradient", rn)
-	rng.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(0,0,0)),
-		ColorSequenceKeypoint.new(0.25, Color3.fromRGB(90,180,255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255,255,255)),
-		ColorSequenceKeypoint.new(0.75, Color3.fromRGB(90,180,255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
-	}
-	rng.Transparency = NumberSequence.new{
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.2, 0.25),
-		NumberSequenceKeypoint.new(0.5, 0),
-		NumberSequenceKeypoint.new(0.8, 0.25),
-		NumberSequenceKeypoint.new(1, 1),
-	}
-
-	local tb = InstanceNew("Frame", sg)
-	tb.AnchorPoint = Vector2.new(0.5,0)
-	tb.Position = UDim2.new(0.5,0,0,8)
-	tb.BackgroundColor3 = Color3.fromRGB(24,26,34)
-	tb.BorderSizePixel = 0
-	tb.ZIndex = 50
-	tb.Visible = false
-	tb.AutomaticSize = Enum.AutomaticSize.XY
-	local tbc = InstanceNew("UICorner", tb)
-	tbc.CornerRadius = UDim.new(1,0)
-	local tbs = InstanceNew("UIStroke", tb)
-	tbs.Thickness = 1
-	tbs.Color = Color3.fromRGB(90,100,140)
-	tbs.Transparency = 0.4
-	local tbp = InstanceNew("UIPadding", tb)
-	tbp.PaddingLeft, tbp.PaddingRight = UDim.new(0,10), UDim.new(0,10)
-	tbp.PaddingTop, tbp.PaddingBottom = UDim.new(0,6), UDim.new(0,6)
-	local tbl = InstanceNew("UIListLayout", tb)
-	tbl.FillDirection = Enum.FillDirection.Vertical
-	tbl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	tbl.VerticalAlignment = Enum.VerticalAlignment.Center
-	tbl.Padding = UDim.new(0,4)
-	local tblc = InstanceNew("UISizeConstraint", tb)
-	tblc.MinSize, tblc.MaxSize = Vector2.new(180, 0), Vector2.new(560, math.huge)
-
-	local tr = InstanceNew("Frame", tb)
-	tr.BackgroundTransparency = 1
-	tr.AutomaticSize = Enum.AutomaticSize.XY
-	tr.ZIndex = 51
-	tr.LayoutOrder = 1
-	local trl = InstanceNew("UIListLayout", tr)
-	trl.FillDirection = Enum.FillDirection.Horizontal
-	trl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	trl.VerticalAlignment = Enum.VerticalAlignment.Center
-	trl.Padding = UDim.new(0,8)
-
-	local tl = InstanceNew("TextLabel", tr)
-	tl.BackgroundTransparency = 1
-	tl.Text = text
-	tl.Font = Enum.Font.GothamSemibold
-	tl.TextColor3 = Color3.fromRGB(230,235,255)
-	tl.TextScaled = true
-	tl.Size = UDim2.fromOffset(180,22)
-	tl.ZIndex = 52
-
-	local tp = InstanceNew("TextLabel", tr)
-	tp.BackgroundTransparency = 1
-	tp.Text = "0%"
-	tp.Font = Enum.Font.Gotham
-	tp.TextColor3 = Color3.fromRGB(200,210,255)
-	tp.TextScaled = 1
-	tp.Size = UDim2.fromOffset(40,22)
-	tp.ZIndex = 52
-
-	local to = InstanceNew("TextButton", tr)
-	to.Size = UDim2.fromOffset(72,22)
-	to.Text = "open"
-	to.TextScaled = true
-	to.Font = Enum.Font.GothamSemibold
-	to.TextColor3 = Color3.fromRGB(240,240,255)
-	to.BackgroundColor3 = Color3.fromRGB(52,54,66)
-	to.ZIndex = 52
-	local toc = InstanceNew("UICorner", to)
-	toc.CornerRadius = UDim.new(0,8)
-	local tos = InstanceNew("UIStroke", to)
-	tos.Thickness = 1
-	tos.Color = Color3.fromRGB(150,160,190)
-	tos.Transparency = 0.4
-
-	local tsb = InstanceNew("TextButton", tr)
-	tsb.Size = UDim2.fromOffset(72,22)
-	tsb.Text = "skip"
-	tsb.TextScaled = true
-	tsb.Font = Enum.Font.GothamSemibold
-	tsb.TextColor3 = Color3.fromRGB(255,255,255)
-	tsb.BackgroundColor3 = Color3.fromRGB(70,75,95)
-	tsb.ZIndex = 52
-	local tsbc = InstanceNew("UICorner", tsb)
-	tsbc.CornerRadius = UDim.new(0,8)
-	local tsbs = InstanceNew("UIStroke", tsb)
-	tsbs.Thickness = 1
-	tsbs.Color = Color3.fromRGB(150,160,200)
-	tsbs.Transparency = 0.25
-
-	local tpw = InstanceNew("Frame", tb)
-	tpw.BackgroundTransparency = 1
-	tpw.ZIndex = 49
-	tpw.LayoutOrder = 2
-	tpw.Size = UDim2.new(1,0,0,3)
-	local tpr = InstanceNew("Frame", tpw)
-	tpr.BackgroundColor3 = Color3.fromRGB(55,60,80)
-	tpr.BorderSizePixel = 0
-	tpr.ZIndex = 49
-	tpr.Size = UDim2.new(1,0,1,0)
-	local tprc = InstanceNew("UICorner", tpr)
-	tprc.CornerRadius = UDim.new(1,0)
-	local tfl = InstanceNew("Frame", tpr)
-	tfl.BackgroundColor3 = Color3.fromRGB(90,180,255)
-	tfl.BorderSizePixel = 0
-	tfl.Size = UDim2.new(0,0,1,0)
-	tfl.ZIndex = 49
-	local tflc = InstanceNew("UICorner", tfl)
-	tflc.CornerRadius = UDim.new(1,0)
-
-	local sf = InstanceNew("BoolValue", sg)
-	sf.Name = "SkipAssets"
-	sf.Value = false
-
-	local minimized, ovp = false, nil
-
-	local function fitTitle()
-		local s = ov.AbsoluteSize
-		local h = hd.AbsoluteSize.Y
-		local avail = math.max(20, (hd.AbsoluteSize.X - (sp.AbsoluteSize.X + 6 + hr.AbsoluteSize.X + 8)))
-		local maxSz = math.clamp(math.floor(s.Y*0.022), 16, 24)
-		local minSz = 12
-		local sz = maxSz
-		local b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
-		local tries = 0
-		while b.X > avail and tries < 8 do
-			if cd.Size.X.Scale < 0.92 then
-				cd.Size = UDim2.fromScale(math.min(0.92, cd.Size.X.Scale + 0.04), 0)
-				avail = math.max(20, (hd.AbsoluteSize.X - (sp.AbsoluteSize.X + 6 + hr.AbsoluteSize.X + 8)))
-				b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
-			elseif sz > minSz then
-				sz = sz - 1
-				b = TX:GetTextSize(ti.Text, sz, ti.Font, Vector2.new(10000, h))
-			else
-				break
-			end
-			tries = tries + 1
+		if not okProtect then
+			blockedGui.Parent = services.CoreGui
 		end
-		ti.TextSize = sz
-	end
-
-	local function layout()
-		local s = ov.AbsoluteSize
-		local port = s.Y > s.X
-		cd.Size = UDim2.fromScale(port and math.min(0.88, wsc*1.9) or cd.Size.X.Scale, 0)
-		cdl.MaxSize = Vector2.new(560, math.huge)
-		local h = math.clamp(math.floor(s.Y*0.038), 24, 32)
-		hd.Size = UDim2.new(1,0,0,h)
-		sp.Size = UDim2.fromOffset(math.floor(h*0.82), math.floor(h*0.82))
-		local padR = math.clamp(math.floor(s.X*0.015), 10, 18)
-		local skH = math.floor(h*0.86)
-		local skW = math.clamp(math.floor(s.X*(port and 0.22 or 0.12)), 88, 132)
-		kb.Size = UDim2.fromOffset(skW, skH)
-		mb.Size = UDim2.fromOffset(math.max(26, math.floor(skH)), skH)
-		hr.Size = UDim2.fromOffset(skW + mb.Size.X.Offset + 6, h)
-		hr.Position = UDim2.new(1, -padR, 0.5, 0)
-		dz.Size = UDim2.new(1, -(hr.Size.X.Offset + padR + 6), 1, 0)
-		ti.Position = UDim2.new(0, sp.Size.X.Offset + 6, 0, 0)
-		ti.Size = UDim2.new(1, -(sp.Size.X.Offset + 6 + hr.Size.X.Offset + padR + 6), 1, 0)
-		tl.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.20), 140, 260), 22)
-		to.Size = UDim2.fromOffset(math.clamp(math.floor(s.X*0.09), 62, 110), 22)
-		tsb.Size = to.Size
-		tp.Size = UDim2.fromOffset(44, 22)
-		fitTitle()
-	end
-	layout()
-	ov:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
-	hr:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTitle)
-	sp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitTitle)
-
-	local function tw(o, tii, pr) local t = TS:Create(o, tii, pr) t:Play() return t end
-	tw(ov, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.45})
-	tw(sc, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
-
-	local alive = true
-
-	local hb = RS.Heartbeat:Connect(function(dt)
-		ovg.Offset = Vector2.new((ovg.Offset.X + dt*0.02)%1, 0)
-		rgg.Rotation = (rgg.Rotation + dt*240)%360
-		acg.Offset = Vector2.new((acg.Offset.X + dt*0.25)%2 - 1, 0)
-	end)
-
-	Spawn(function()
-		while alive do
-			local dur = 0.9
-			rn.Position = UDim2.new(-0.18,0,0,0)
-			tw(rn, TweenInfo.new(dur, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Position = UDim2.new(1,0,0,0)})
-			Wait(dur + 0.04)
+		local overlay = InstanceNew("Frame", blockedGui)
+		overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+		overlay.BackgroundTransparency = 1
+		overlay.Size = UDim2.fromScale(1, 1)
+		overlay.ZIndex = 2000
+		services.TweenService:Create(overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.35}):Play()
+		local blur = InstanceNew("BlurEffect", services.Lighting)
+		blur.Size = 0
+		services.TweenService:Create(blur, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = 24}):Play()
+		local header = InstanceNew("TextLabel", overlay)
+		header.AnchorPoint = Vector2.new(0.5, 0.5)
+		header.Position = UDim2.fromScale(0.5, 0.45)
+		header.BackgroundTransparency = 1
+		header.Size = UDim2.fromScale(0.6, 0)
+		header.AutomaticSize = Enum.AutomaticSize.Y
+		header.Font = Enum.Font.GothamBlack
+		header.TextColor3 = Color3.fromRGB(255, 70, 70)
+		header.TextScaled = true
+		header.TextWrapped = true
+		header.Text = "access denied"
+		local desc = InstanceNew("TextLabel", overlay)
+		desc.AnchorPoint = Vector2.new(0.5, 0)
+		desc.Position = UDim2.fromScale(0.5, 0.53)
+		desc.BackgroundTransparency = 1
+		desc.Size = UDim2.fromScale(0.7, 0)
+		desc.AutomaticSize = Enum.AutomaticSize.Y
+		desc.Font = Enum.Font.Gotham
+		desc.TextColor3 = Color3.fromRGB(230, 230, 240)
+		desc.TextScaled = true
+		desc.TextWrapped = true
+		desc.Text = "you are banned from using "..(adminName or "Nameless Admin")
+		while true do
+			Wait(1)
 		end
-	end)
+	end
 
-	Spawn(function()
-		while alive do
-			kshg.Offset = Vector2.new(-1,0)
-			TS:Create(kshg, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {Offset = Vector2.new(1,0)}):Play()
-			Wait(1.5)
+	ui.sg = InstanceNew("ScreenGui")
+	ui.sg.IgnoreGuiInset = true
+	ui.sg.ResetOnSpawn = false
+	ui.sg.DisplayOrder = 999999
+	ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	local okProtect = pcall(function()
+		NaProtectUI(ui.sg)
+	end)
+	if not okProtect then
+		ui.sg.Parent = services.CoreGui
+	end
+
+	ui.overlay = InstanceNew("Frame", ui.sg)
+	ui.overlay.Active = false
+	ui.overlay.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
+	ui.overlay.BackgroundTransparency = 0.35
+	ui.overlay.ZIndex = -1
+	ui.overlay.Size = UDim2.fromScale(1, 1)
+	local overlayGradient = InstanceNew("UIGradient", ui.overlay)
+	overlayGradient.Color = ColorSequence.new(Color3.fromRGB(8, 10, 14), Color3.fromRGB(14, 16, 22))
+
+	ui.container = InstanceNew("Frame", ui.sg)
+	ui.container.ZIndex = 6
+	ui.container.AnchorPoint = Vector2.new(0.5, 0.5)
+	ui.container.Position = UDim2.fromScale(0.5, 0.5)
+	ui.container.Size = UDim2.fromScale(widthScale, 0)
+	ui.container.AutomaticSize = Enum.AutomaticSize.Y
+	ui.container.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
+	ui.container.BorderSizePixel = 0
+	ui.container.ZIndex = 1
+	local containerCorner = InstanceNew("UICorner", ui.container)
+	containerCorner.CornerRadius = UDim.new(0, 10)
+	local containerStroke = InstanceNew("UIStroke", ui.container)
+	containerStroke.Thickness = 1
+	containerStroke.Color = Color3.fromRGB(80, 90, 120)
+	containerStroke.Transparency = 0.35
+	local containerPadding = InstanceNew("UIPadding", ui.container)
+	containerPadding.PaddingTop = UDim.new(0, 12)
+	containerPadding.PaddingBottom = UDim.new(0, 14)
+	containerPadding.PaddingLeft = UDim.new(0, 14)
+	containerPadding.PaddingRight = UDim.new(0, 14)
+	local containerLayout = InstanceNew("UIListLayout", ui.container)
+	containerLayout.FillDirection = Enum.FillDirection.Vertical
+	containerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	containerLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	containerLayout.Padding = UDim.new(0, 10)
+	containerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	ui.header = InstanceNew("Frame", ui.container)
+	ui.header.ZIndex = 7
+	ui.header.BackgroundTransparency = 1
+	ui.header.Size = UDim2.new(1, 0, 0, 32)
+	ui.header.LayoutOrder = 1
+	ui.header.ZIndex = 12
+	ui.titleLabel = InstanceNew("TextLabel", ui.header)
+	ui.titleLabel.ZIndex = 8
+	ui.titleLabel.BackgroundTransparency = 1
+	ui.titleLabel.Position = UDim2.new(0, 0, 0, 0)
+	local buttonOffset = IsOnMobile and 88 or 64
+	ui.titleLabel.Size = UDim2.new(1, -buttonOffset, 1, 0)
+	ui.titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	ui.titleLabel.TextYAlignment = Enum.TextYAlignment.Center
+	ui.titleLabel.Font = Enum.Font.GothamSemibold
+	ui.titleLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
+	ui.titleLabel.TextScaled = true
+	ui.titleLabel.TextWrapped = true
+	ui.titleLabel.Text = text
+
+	local titleSizeConstraint = InstanceNew("UITextSizeConstraint", ui.titleLabel)
+	titleSizeConstraint.MinTextSize = 16
+	titleSizeConstraint.MaxTextSize = 28
+
+	ui.minimizeButton = InstanceNew("TextButton", ui.header)
+	ui.minimizeButton.AutoButtonColor = false
+	ui.minimizeButton.AnchorPoint = Vector2.new(1, 0.5)
+	ui.minimizeButton.Position = UDim2.new(1, -4, 0.5, 0)
+	ui.minimizeButton.Size = UDim2.new(0, IsOnMobile and 36 or 32, 0, IsOnMobile and 32 or 28)
+	ui.minimizeButton.Text = "-"
+	ui.minimizeButton.Font = Enum.Font.GothamBold
+	ui.minimizeButton.TextScaled = true
+	ui.minimizeButton.TextColor3 = Color3.fromRGB(240, 240, 255)
+	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(42, 44, 56)
+	ui.minimizeButton.ZIndex = 13
+	local minimizeCorner = InstanceNew("UICorner", ui.minimizeButton)
+	minimizeCorner.CornerRadius = UDim.new(0, 8)
+	local minimizeStroke = InstanceNew("UIStroke", ui.minimizeButton)
+	minimizeStroke.Thickness = 1
+	minimizeStroke.Color = Color3.fromRGB(150, 160, 190)
+	minimizeStroke.Transparency = 0.4
+
+	ui.statusLabel = InstanceNew("TextLabel", ui.container)
+	ui.statusLabel.ZIndex = 8
+	ui.statusLabel.BackgroundTransparency = 1
+	ui.statusLabel.Size = UDim2.new(1, 0, 0, 28)
+	ui.statusLabel.LayoutOrder = 2
+	ui.statusLabel.Font = Enum.Font.GothamSemibold
+	ui.statusLabel.TextColor3 = Color3.fromRGB(230, 235, 255)
+	ui.statusLabel.TextScaled = true
+	ui.statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	ui.statusLabel.Text = "loading"
+	local statusSize = InstanceNew("UITextSizeConstraint", ui.statusLabel)
+	statusSize.MinTextSize = 15
+	statusSize.MaxTextSize = 22
+
+	ui.detailRow = InstanceNew("Frame", ui.container)
+	ui.detailRow.ZIndex = 8
+	ui.detailRow.BackgroundTransparency = 1
+	ui.detailRow.LayoutOrder = 3
+	ui.detailRow.Size = UDim2.new(1, 0, 0, 24)
+	local detailLayout = InstanceNew("UIListLayout", ui.detailRow)
+	detailLayout.FillDirection = Enum.FillDirection.Horizontal
+	detailLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	detailLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	ui.detailLabel = InstanceNew("TextLabel", ui.detailRow)
+	ui.detailLabel.ZIndex = 8
+	ui.detailLabel.BackgroundTransparency = 1
+	ui.detailLabel.Size = UDim2.new(0.7, 0, 1, 0)
+	ui.detailLabel.TextXAlignment = Enum.TextXAlignment.Left
+	ui.detailLabel.TextYAlignment = Enum.TextYAlignment.Center
+	ui.detailLabel.Font = Enum.Font.Gotham
+	ui.detailLabel.TextColor3 = Color3.fromRGB(180, 190, 210)
+	ui.detailLabel.TextScaled = true
+	ui.detailLabel.Text = "initializing"
+	local detailSize = InstanceNew("UITextSizeConstraint", ui.detailLabel)
+	detailSize.MinTextSize = 12
+	detailSize.MaxTextSize = 16
+
+	ui.percentLabel = InstanceNew("TextLabel", ui.detailRow)
+	ui.percentLabel.ZIndex = 8
+	ui.percentLabel.BackgroundTransparency = 1
+	ui.percentLabel.Size = UDim2.new(0.3, 0, 1, 0)
+	ui.percentLabel.TextXAlignment = Enum.TextXAlignment.Right
+	ui.percentLabel.Font = Enum.Font.GothamSemibold
+	ui.percentLabel.TextColor3 = Color3.fromRGB(210, 220, 255)
+	ui.percentLabel.TextScaled = true
+	ui.percentLabel.Text = "0%"
+	local percentSize = InstanceNew("UITextSizeConstraint", ui.percentLabel)
+	percentSize.MinTextSize = 12
+	percentSize.MaxTextSize = 16
+
+	ui.progressHolder = InstanceNew("Frame", ui.container)
+	ui.progressHolder.BackgroundColor3 = Color3.fromRGB(32, 36, 48)
+	ui.progressHolder.BorderSizePixel = 0
+	ui.progressHolder.LayoutOrder = 4
+	ui.progressHolder.Size = UDim2.new(1, 0, 0, 8)
+	ui.progressHolder.ZIndex = 11
+	local progressCorner = InstanceNew("UICorner", ui.progressHolder)
+	progressCorner.CornerRadius = UDim.new(0, 6)
+
+	ui.progressFill = InstanceNew("Frame", ui.progressHolder)
+	ui.progressFill.BackgroundColor3 = Color3.fromRGB(90, 180, 255)
+	ui.progressFill.BorderSizePixel = 0
+	ui.progressFill.Size = UDim2.new(0, 0, 1, 0)
+	ui.progressFill.ZIndex = 12
+	local progressFillCorner = InstanceNew("UICorner", ui.progressFill)
+	progressFillCorner.CornerRadius = UDim.new(0, 6)
+
+	ui.buttonRow = InstanceNew("Frame", ui.container)
+	ui.buttonRow.ZIndex = 8
+	ui.buttonRow.BackgroundTransparency = 1
+	ui.buttonRow.LayoutOrder = 5
+	ui.buttonRow.Size = UDim2.new(1, 0, 0, 28)
+	local buttonLayout = InstanceNew("UIListLayout", ui.buttonRow)
+	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
+	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	buttonLayout.Padding = UDim.new(0, 8)
+
+	ui.skipButton = InstanceNew("TextButton", ui.buttonRow)
+	ui.skipButton.ZIndex = 9
+	ui.skipButton.Size = UDim2.new(0.45, 0, 1, 0)
+	ui.skipButton.Font = Enum.Font.GothamSemibold
+	ui.skipButton.TextScaled = true
+	ui.skipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.skipButton.Text = "Skip"
+	ui.skipButton.BackgroundColor3 = Color3.fromRGB(70, 80, 110)
+	ui.skipButton.AutoButtonColor = false
+	local skipCorner = InstanceNew("UICorner", ui.skipButton)
+	skipCorner.CornerRadius = UDim.new(0, 8)
+	local skipStroke = InstanceNew("UIStroke", ui.skipButton)
+	skipStroke.Color = Color3.fromRGB(150, 160, 200)
+	skipStroke.Transparency = 0.35
+	skipStroke.Thickness = 1
+
+	ui.autoSkipButton = InstanceNew("TextButton", ui.buttonRow)
+	ui.autoSkipButton.ZIndex = 9
+	ui.autoSkipButton.Size = UDim2.new(0.55, 0, 1, 0)
+	ui.autoSkipButton.Font = Enum.Font.Gotham
+	ui.autoSkipButton.TextScaled = true
+	ui.autoSkipButton.AutoButtonColor = false
+	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(44, 48, 62)
+	ui.autoSkipButton.TextColor3 = Color3.fromRGB(210, 220, 255)
+	local autoCorner = InstanceNew("UICorner", ui.autoSkipButton)
+	autoCorner.CornerRadius = UDim.new(0, 8)
+	local autoStroke = InstanceNew("UIStroke", ui.autoSkipButton)
+	autoStroke.Color = Color3.fromRGB(120, 130, 180)
+	autoStroke.Transparency = 0.45
+	autoStroke.Thickness = 1
+
+	ui.toast = InstanceNew("Frame", ui.sg)
+	ui.toast.AnchorPoint = Vector2.new(0.5, 0)
+	ui.toast.Position = UDim2.new(0.5, 0, 0, 8)
+	ui.toast.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
+	ui.toast.BorderSizePixel = 0
+	ui.toast.ZIndex = 50
+	ui.toast.Visible = false
+	ui.toast.AutomaticSize = Enum.AutomaticSize.XY
+	local toastCorner = InstanceNew("UICorner", ui.toast)
+	toastCorner.CornerRadius = UDim.new(1, 0)
+	local toastStroke = InstanceNew("UIStroke", ui.toast)
+	toastStroke.Color = Color3.fromRGB(80, 90, 120)
+	toastStroke.Transparency = 0.45
+	toastStroke.Thickness = 1
+	local toastPadding = InstanceNew("UIPadding", ui.toast)
+	toastPadding.PaddingLeft = UDim.new(0, 12)
+	toastPadding.PaddingRight = UDim.new(0, 12)
+	toastPadding.PaddingTop = UDim.new(0, 8)
+	toastPadding.PaddingBottom = UDim.new(0, 8)
+	local toastLayout = InstanceNew("UIListLayout", ui.toast)
+	toastLayout.FillDirection = Enum.FillDirection.Vertical
+	toastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	toastLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	toastLayout.Padding = UDim.new(0, 4)
+
+	ui.toastRow = InstanceNew("Frame", ui.toast)
+	ui.toastRow.BackgroundTransparency = 1
+	ui.toastRow.Size = UDim2.fromScale(1, 0)
+	ui.toastRow.AutomaticSize = Enum.AutomaticSize.XY
+	ui.toastRow.ZIndex = 51
+	local toastRowLayout = InstanceNew("UIListLayout", ui.toastRow)
+	toastRowLayout.FillDirection = Enum.FillDirection.Horizontal
+	toastRowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	toastRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	toastRowLayout.Padding = UDim.new(0, 8)
+
+	ui.toastLabel = InstanceNew("TextLabel", ui.toastRow)
+	ui.toastLabel.BackgroundTransparency = 1
+	ui.toastLabel.Font = Enum.Font.Gotham
+	ui.toastLabel.TextScaled = true
+	ui.toastLabel.TextColor3 = Color3.fromRGB(230, 235, 255)
+	ui.toastLabel.Text = text
+	ui.toastLabel.ZIndex = 52
+	ui.toastLabel.Size = UDim2.fromOffset(180, 22)
+
+	ui.toastPercent = InstanceNew("TextLabel", ui.toastRow)
+	ui.toastPercent.BackgroundTransparency = 1
+	ui.toastPercent.Font = Enum.Font.Gotham
+	ui.toastPercent.TextScaled = true
+	ui.toastPercent.TextColor3 = Color3.fromRGB(200, 210, 255)
+	ui.toastPercent.Text = "0%"
+	ui.toastPercent.ZIndex = 52
+	ui.toastPercent.Size = UDim2.fromOffset(44, 22)
+
+	ui.toastOpen = InstanceNew("TextButton", ui.toastRow)
+	ui.toastOpen.Size = UDim2.fromOffset(72, 22)
+	ui.toastOpen.Text = "Open"
+	ui.toastOpen.TextScaled = true
+	ui.toastOpen.Font = Enum.Font.GothamSemibold
+	ui.toastOpen.TextColor3 = Color3.fromRGB(240, 240, 255)
+	ui.toastOpen.ZIndex = 52
+	ui.toastOpen.BackgroundColor3 = Color3.fromRGB(52, 54, 66)
+	local toastOpenCorner = InstanceNew("UICorner", ui.toastOpen)
+	toastOpenCorner.CornerRadius = UDim.new(0, 8)
+	local toastOpenStroke = InstanceNew("UIStroke", ui.toastOpen)
+	toastOpenStroke.Thickness = 1
+	toastOpenStroke.Color = Color3.fromRGB(150, 160, 190)
+	toastOpenStroke.Transparency = 0.4
+
+	ui.toastSkip = InstanceNew("TextButton", ui.toastRow)
+	ui.toastSkip.Size = UDim2.fromOffset(72, 22)
+	ui.toastSkip.Text = "Skip"
+	ui.toastSkip.TextScaled = true
+	ui.toastSkip.Font = Enum.Font.GothamSemibold
+	ui.toastSkip.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.toastSkip.ZIndex = 52
+	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(70, 75, 95)
+	local toastSkipCorner = InstanceNew("UICorner", ui.toastSkip)
+	toastSkipCorner.CornerRadius = UDim.new(0, 8)
+	local toastSkipStroke = InstanceNew("UIStroke", ui.toastSkip)
+	toastSkipStroke.Thickness = 1
+	toastSkipStroke.Color = Color3.fromRGB(150, 160, 200)
+	toastSkipStroke.Transparency = 0.25
+
+	ui.toastProgress = InstanceNew("Frame", ui.toast)
+	ui.toastProgress.BackgroundTransparency = 1
+	ui.toastProgress.Size = UDim2.new(1, 0, 0, 3)
+	ui.toastProgress.ZIndex = 49
+	ui.toastProgress.LayoutOrder = 2
+	local toastProgressBack = InstanceNew("Frame", ui.toastProgress)
+	toastProgressBack.BackgroundColor3 = Color3.fromRGB(55, 60, 80)
+	toastProgressBack.BorderSizePixel = 0
+	toastProgressBack.ZIndex = 49
+	toastProgressBack.Size = UDim2.new(1, 0, 1, 0)
+	local toastProgressCorner = InstanceNew("UICorner", toastProgressBack)
+	toastProgressCorner.CornerRadius = UDim.new(1, 0)
+	ui.toastFill = InstanceNew("Frame", toastProgressBack)
+	ui.toastFill.BackgroundColor3 = Color3.fromRGB(90, 180, 255)
+	ui.toastFill.BorderSizePixel = 0
+	ui.toastFill.Size = UDim2.new(0, 0, 1, 0)
+	ui.toastFill.ZIndex = 50
+	local toastFillCorner = InstanceNew("UICorner", ui.toastFill)
+	toastFillCorner.CornerRadius = UDim.new(1, 0)
+
+	ui.skipFlag = InstanceNew("BoolValue", ui.sg)
+	ui.skipFlag.Name = "SkipAssets"
+	ui.skipFlag.Value = false
+
+	ui.completedFlag = InstanceNew("BoolValue", ui.sg)
+	ui.completedFlag.Name = "Completed"
+	ui.completedFlag.Value = false
+
+	local function tween(target, info, goal)
+		local tw = services.TweenService:Create(target, info, goal)
+		tw:Play()
+		return tw
+	end
+
+	local function applyMinimized()
+		if flags.minimized then
+			ui.container.Visible = false
+			ui.toast.Visible = true
+			ui.overlay.Visible = false
+		else
+			ui.container.Visible = true
+			ui.toast.Visible = false
+			ui.overlay.Visible = true
 		end
-	end)
-
-	local cmpl = InstanceNew("BoolValue", sg)
-	cmpl.Name = "Completed"
-	cmpl.Value = false
-
-	local function setS(t) st.Text = t or "" end
-
-	local function setP(p)
-		p = math.clamp(p,0,1)
-		local pct = tostring(math.floor(p*100)).."%"
-		pl.Text, tp.Text = pct, pct
-		tw(fl, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
-		tw(tfl, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(p,0,1,0)})
 	end
 
-	local minimized, ovp = false, nil
-	local function doMin()
-		if minimized then return end
-		minimized = true
-		tb.Visible = true
-		ovp = ov.Parent
-		ov.Parent = nil
-	end
-	local function doMax()
-		if not minimized then return end
-		minimized = false
-		if ovp then ov.Parent = ovp end
-		tb.Visible = false
-		layout()
-	end
-	mb.Activated:Connect(doMin)
-	to.Activated:Connect(doMax)
-
-	local sf = InstanceNew("BoolValue", sg)
-	sf.Name = "SkipAssets"
-	sf.Value = false
 	local function doSkip()
-		if sf.Value then return end
-		sf.Value = true
-		kb.Text='skipping...'
-		tsb.Text='skipping...'
+		if ui.skipFlag.Value then
+			return
+		end
+		ui.skipFlag.Value = true
+		ui.skipButton.Text = "Skipping..."
+		ui.toastSkip.Text = "Skipping..."
 	end
-	kb.Activated:Connect(doSkip)
-	tsb.Activated:Connect(doSkip)
 
-	sg.Destroying:Connect(function()
-		alive = false
-		if hb and hb.Connected then hb:Disconnect() end
+	local function updateAutoSkipButton()
+		if flags.autoSkip then
+			ui.autoSkipButton.Text = "Auto Skip: ON"
+			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
+			ui.autoSkipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+		else
+			ui.autoSkipButton.Text = "Auto Skip: OFF"
+			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(44, 48, 62)
+			ui.autoSkipButton.TextColor3 = Color3.fromRGB(210, 220, 255)
+		end
+	end
+
+	local function setStatus(statusText)
+		local value = statusText or ""
+		ui.statusLabel.Text = value
+		ui.detailLabel.Text = value
+	end
+
+	local function setPercent(pct)
+		local p = math.clamp(pct or 0, 0, 1)
+		local textValue = tostring(math.floor(p * 100)).."%"
+		ui.progressFill.Size = UDim2.new(p, 0, 1, 0)
+		ui.toastFill.Size = UDim2.new(p, 0, 1, 0)
+		ui.percentLabel.Text = textValue
+		ui.toastPercent.Text = textValue
+	end
+
+	flags.autoSkip = NAmanage.getAutoSkipPreference()
+	updateAutoSkipButton()
+
+	ui.minimizeButton.Activated:Connect(function()
+		flags.minimized = true
+		applyMinimized()
 	end)
 
-	pcall(function() NAgui.draggerV2(cd, dz) end)
+	ui.toastOpen.Activated:Connect(function()
+		flags.minimized = false
+		applyMinimized()
+	end)
 
-	cmpl:GetPropertyChangedSignal("Value"):Connect(function()
-		if cmpl.Value then
-			alive = false
-			local o1 = TS:Create(ov, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-			o1.Completed:Connect(function() if ov and ov.Parent then ov.Visible = false end end)
-			o1:Play()
-			TS:Create(fl, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1,0)}):Play()
-			TS:Create(cd, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
-			Wait(0.12)
-			sg:Destroy()
+	ui.skipButton.Activated:Connect(doSkip)
+	ui.toastSkip.Activated:Connect(doSkip)
+
+	ui.autoSkipButton.Activated:Connect(function()
+		flags.autoSkip = not flags.autoSkip
+		NAmanage.setAutoSkipPreference(flags.autoSkip)
+		updateAutoSkipButton()
+		if flags.autoSkip then
+			doSkip()
 		end
 	end)
 
-	return sg, setS, setP, cmpl, function() return sf.Value end
-end
-
-NAAssetsLoading = {}
-
-NAAssetsLoading.contentProps = {
-	ImageLabel={"Image"}, ImageButton={"Image"},
-	Decal={"Texture"}, Texture={"Texture"},
-	Beam={"Texture"}, Trail={"Texture"},
-	ParticleEmitter={"Texture"}, Fire={"HeatMap","ColorMap"},
-	Smoke={"Texture"}, Sparkles={"Texture"},
-	Sound={"SoundId"}, VideoFrame={"Video"},
-	Animation={"AnimationId"},
-	MeshPart={"MeshId","TextureID"}, SpecialMesh={"MeshId","TextureId"},
-	SurfaceAppearance={"ColorMap","NormalMap","MetalnessMap","RoughnessMap"},
-	UnionOperation={"AssetId"},
-	Sky={"SkyboxBk","SkyboxDn","SkyboxFt","SkyboxLf","SkyboxRt","SkyboxUp"},
-	Shirt={"ShirtTemplate"}, Pants={"PantsTemplate"}, ShirtGraphic={"Graphic"},
-}
-
-NAAssetsLoading.getRoots=function()
-	local roots = {}
-	local plrs = SafeGetService("Players")
-	local lp = plrs and plrs.LocalPlayer
-	local pg = lp and lp:FindFirstChild("PlayerGui")
-	local cg = SafeGetService("CoreGui")
-	local lgt = SafeGetService("Lighting")
-	local snd = SafeGetService("SoundService")
-	local rf  = SafeGetService("ReplicatedFirst")
-	local rs  = SafeGetService("ReplicatedStorage")
-	if pg then roots[#roots+1]=pg end
-	if cg then roots[#roots+1]=cg end
-	if lgt then roots[#roots+1]=lgt end
-	if snd then roots[#roots+1]=snd end
-	if rf  then roots[#roots+1]=rf  end
-	if rs  then roots[#roots+1]=rs  end
-	return roots
-end
-
-NAAssetsLoading.extractIdsFromInstance=function(inst, outSet, outList)
-	local props = NAAssetsLoading.contentProps[inst.ClassName]
-	if not props then return 0 end
-	local added = 0
-	for i=1,#props do
-		local ok, v = pcall(function() return inst[props[i]] end)
-		if ok and type(v)=="string" and #v>0 then
-			if not outSet[v] then
-				outSet[v] = true
-				outList[#outList+1] = v
-				added += 1
-			end
-		end
-	end
-	return added
-end
-
-NAAssetsLoading.collectContentIdsFrom=function(root, outList, outSet)
-	for _, d in ipairs(root:GetDescendants()) do
-		NAAssetsLoading.extractIdsFromInstance(d, outSet, outList)
-	end
-end
-
-NAAssetsLoading.scanAll=function()
-	NAAssetsLoading.roots = NAAssetsLoading.getRoots()
-	NAAssetsLoading.contentIds, NAAssetsLoading.seenIds = {}, {}
-	for i=1,#NAAssetsLoading.roots do
-		local r = NAAssetsLoading.roots[i]
-		if r and r.Parent then
-			NAAssetsLoading.setStatus(Format("scanning %s", r.ClassName or r.Name or "container"))
-			NAAssetsLoading.collectContentIdsFrom(r, NAAssetsLoading.contentIds, NAAssetsLoading.seenIds)
-		end
-	end
-end
-
-NAAssetsLoading.preloadContentAdaptive=function(contentList, onStep, shouldSkip)
-	local CP = SafeGetService("ContentProvider")
-	local total = #contentList
-	if total == 0 then return end
-	local idx, done = 1, 0
-	local dtAvg, dtAlpha = 1/90, 0.12
-	local hb = RunService.Heartbeat:Connect(function(dt) dtAvg = (1-dtAlpha)*dtAvg + dtAlpha*dt end)
-	local function nextChunkSize()
-		if dtAvg <= 1/90 then return 96 end
-		if dtAvg <= 1/70 then return 72 end
-		if dtAvg <= 1/55 then return 56 end
-		return 40
-	end
-	local function stepWait()
-		if dtAvg <= 1/90 then return 0.04 end
-		if dtAvg <= 1/70 then return 0.06 end
-		if dtAvg <= 1/55 then return 0.08 end
-		return 0.12
-	end
-	while idx <= total do
-		if shouldSkip and shouldSkip() then break end
-		local take = math.min(nextChunkSize(), total - idx + 1)
-		local chunk, c = table.create(take), 0
-		for i = idx, idx + take - 1 do
-			local id = contentList[i]
-			if id then c += 1; chunk[c] = id end
-		end
-		idx = idx + take
-		if c > 0 then pcall(function() CP:PreloadAsync(chunk) end) done += c end
-		if onStep then onStep(done, total) end
-		Wait(stepWait())
-	end
-	if hb and hb.Connected then hb:Disconnect() end
-end
-
-NAAssetsLoading.attachWatcher=function(root)
-	if not root then return end
-	if not NAAssetsLoading.bgSeen then NAAssetsLoading.bgSeen = {} end
-	if not NAAssetsLoading.bgQueue then NAAssetsLoading.bgQueue = {} end
-	if not NAAssetsLoading.bgConns then NAAssetsLoading.bgConns = {} end
-	NAAssetsLoading.bgConns[#NAAssetsLoading.bgConns+1] = root.DescendantAdded:Connect(function(inst)
-		local tmp = {}
-		local n = NAAssetsLoading.extractIdsFromInstance(inst, NAAssetsLoading.seenIds, tmp)
-		if n > 0 then
-			for i=1,#tmp do
-				local id = tmp[i]
-				if not NAAssetsLoading.bgSeen[id] then
-					NAAssetsLoading.bgSeen[id] = true
-					NAAssetsLoading.bgQueue[#NAAssetsLoading.bgQueue+1] = id
-				end
-			end
-		end
-	end)
-end
-
-NAAssetsLoading.startBackgroundWatcher=function()
-	NAAssetsLoading.bgQueue, NAAssetsLoading.bgSeen, NAAssetsLoading.bgConns = {}, {}, {}
-	for i=1,#NAAssetsLoading.roots do
-		local r = NAAssetsLoading.roots[i]
-		if r then NAAssetsLoading.attachWatcher(r) end
-	end
-	if not NAAssetsLoading.playerGuiWatched then
-		local plrs = SafeGetService("Players")
-		local lp = plrs and plrs.LocalPlayer
-		local pg = lp and lp:FindFirstChild("PlayerGui")
-		if not pg then
-			Spawn(function()
-				for _=1,200 do
-					local lp2 = SafeGetService("Players").LocalPlayer
-					local pg2 = lp2 and lp2:FindFirstChild("PlayerGui")
-					if pg2 then
-						NAAssetsLoading.playerGuiWatched = true
-						NAAssetsLoading.attachWatcher(pg2)
-						local tmp = {}
-						NAAssetsLoading.collectContentIdsFrom(pg2, tmp, NAAssetsLoading.seenIds)
-						for i=1,#tmp do
-							local id = tmp[i]
-							if not NAAssetsLoading.bgSeen[id] then
-								NAAssetsLoading.bgSeen[id] = true
-								NAAssetsLoading.bgQueue[#NAAssetsLoading.bgQueue+1] = id
-							end
-						end
-						break
-					end
-					Wait(0.25)
+	ui.completedFlag:GetPropertyChangedSignal("Value"):Connect(function()
+		if ui.completedFlag.Value then
+		tween(ui.overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			tween(ui.container, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			tween(ui.toast, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			Delay(0.2, function()
+				if ui.sg.Parent then
+					ui.sg:Destroy()
 				end
 			end)
 		end
+	end)
+
+	if NAgui and NAgui.draggerV2 then
+		pcall(function()
+			NAgui.draggerV2(ui.container, ui.header)
+		end)
 	end
-	if NAAssetsLoading.bgWorker then return end
-	NAAssetsLoading.bgWorker = Spawn(function()
-		local CP = SafeGetService("ContentProvider")
-		local dtAvg, dtAlpha = 1/90, 0.08
-		local hb = RunService.Heartbeat:Connect(function(dt) dtAvg = (1-dtAlpha)*dtAvg + dtAlpha*dt end)
-		while true do
-			if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then break end
-			if #NAAssetsLoading.bgQueue > 0 then
-				local completed = (NAAssetsLoading.completed and NAAssetsLoading.completed.Value) and true or false
-				local take
-				if completed then
-					if dtAvg <= 1/90 then take = 48 elseif dtAvg <= 1/70 then take = 36 elseif dtAvg <= 1/55 then take = 24 else take = 12 end
-				else
-					if dtAvg <= 1/90 then take = 64 elseif dtAvg <= 1/70 then take = 48 elseif dtAvg <= 1/55 then take = 32 else take = 16 end
-				end
-				local chunk, c = table.create(math.min(take, #NAAssetsLoading.bgQueue)), 0
-				for i=1, math.min(take, #NAAssetsLoading.bgQueue) do
-					local id = table.remove(NAAssetsLoading.bgQueue)
-					if id then c += 1; chunk[c] = id end
-				end
-				if c > 0 then pcall(function() CP:PreloadAsync(chunk) end) end
-				local sl
-				if completed then
-					if dtAvg <= 1/90 then sl = 0.16 elseif dtAvg <= 1/70 then sl = 0.22 elseif dtAvg <= 1/55 then sl = 0.28 else sl = 0.35 end
-				else
-					if dtAvg <= 1/90 then sl = 0.12 elseif dtAvg <= 1/70 then sl = 0.16 elseif dtAvg <= 1/55 then sl = 0.22 else sl = 0.30 end
-				end
-				Wait(sl)
-			else
-				Wait(0.35)
+
+	applyMinimized()
+	if flags.autoSkip then
+		doSkip()
+	end
+
+	return ui.sg, setStatus, setPercent, ui.completedFlag, function()
+		return ui.skipFlag.Value
+	end
+end
+
+NAAssetsLoading = NAAssetsLoading or {}
+NAAssetsLoading.remoteStatus = {}
+NAAssetsLoading.knownRemotes = {
+	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
+	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
+	{url="https://raw.githubusercontent.com/luau/SynSaveInstance/main/"; skip=true};
+}
+
+NAAssetsLoading.getRemoteTargets=function()
+	if NAAssetsLoading.remoteTargets then
+		return NAAssetsLoading.remoteTargets
+	end
+	local targets, seen = {}, {}
+	for _, entry in ipairs(NAAssetsLoading.knownRemotes) do
+		local url = entry.url
+		if type(url) == "string" and url ~= "" and not entry.skip then
+			if not seen[url] then
+				seen[url] = true
+				targets[#targets+1] = url
 			end
 		end
-		if hb and hb.Connected then hb:Disconnect() end
-	end)
+	end
+	NAAssetsLoading.remoteTargets = targets
+	return targets
+end
+
+NAAssetsLoading.registerRemote=function(url, options)
+	if type(url) ~= "string" or url == "" then
+		return
+	end
+	NAAssetsLoading.knownRemotes[#NAAssetsLoading.knownRemotes+1] = {
+		url = url;
+		skip = options and options.skip or false;
+	}
+	NAAssetsLoading.remoteTargets = nil
+end
+
+NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
+	local targets = NAAssetsLoading.getRemoteTargets()
+	local total = #targets
+	if total == 0 then
+		if onStep then
+			onStep(0, 0, nil, true)
+		end
+		return
+	end
+	for index = 1, total do
+		if shouldSkip and shouldSkip() then
+			return
+		end
+		local url = targets[index]
+		local ok, body = NACaller(game.HttpGet, game, url)
+		if ok and type(body) == "string" and body ~= "" then
+			NAStuff._prefetchedRemotes[url] = body
+			NAAssetsLoading.remoteStatus[url] = true
+		else
+			NAAssetsLoading.remoteStatus[url] = false
+		end
+		if onStep then
+			onStep(index, total, url, ok)
+		end
+		Wait(0.06)
+	end
+end
+
+
+NAmanage.getPrefetchedRemote=function(url)
+	return (NAStuff._prefetchedRemotes and NAStuff._prefetchedRemotes[url]) or nil
+end
+
+NAmanage.registerRemoteForPreload=function(url, options)
+	NAAssetsLoading.registerRemote(url, options)
 end
 
 if not NAAssetsLoading.setStatus then
-	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
+	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
 	NaProtectUI(NAAssetsLoading.ui)
 end
 
@@ -1579,21 +1334,26 @@ if not Notification then
 end
 NAAssetsLoading.setPercent(0.22)
 
-NAAssetsLoading.setStatus("indexing assets")
-NAAssetsLoading.scanAll()
-local totalIds = #NAAssetsLoading.contentIds
-NAAssetsLoading.setStatus(Format("found %d assets (unique)", totalIds))
+NAAssetsLoading.setStatus("collecting remote resources")
+local remoteTargets = NAAssetsLoading.getRemoteTargets()
+local totalRemotes = #remoteTargets
+if totalRemotes > 0 then
+	NAAssetsLoading.setStatus(Format("queued %d remote resources", totalRemotes))
+else
+	NAAssetsLoading.setStatus("queued 0 remote resources")
+end
 NAAssetsLoading.setPercent(0.32)
 
-NAAssetsLoading.startBackgroundWatcher()
-
-NAAssetsLoading.setStatus("preloading")
+NAAssetsLoading.setStatus("prefetching remote resources")
 local base, span = 0.32, 0.62
-NAAssetsLoading.preloadContentAdaptive(NAAssetsLoading.contentIds, function(done, total)
-	local p = base + span * (done/total)
-	if p > 0.94 then p = 0.94 end
-	NAAssetsLoading.setPercent(p)
-	if done % 300 == 0 then NAAssetsLoading.setStatus(Format("preloading %d/%d", done, total)) end
+NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
+	local fraction = (total > 0 and (done / total)) or 1
+	local progress = base + span * fraction
+	if progress > 0.94 then progress = 0.94 end
+	NAAssetsLoading.setPercent(progress)
+	if total > 0 and (done == total or done % 5 == 0) then
+		NAAssetsLoading.setStatus(Format("prefetching %d/%d", done, total))
+	end
 end, NAAssetsLoading.getSkip)
 
 NAAssetsLoading.setStatus("finalizing")
@@ -1812,6 +1572,7 @@ local NAfiles = {
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
 	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
 	NAASSETSFILEPATH = "Nameless-Admin/Assets";
+	NAMAINSETTINGSPATH = "Nameless-Admin/Settings.json";
 	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
 	NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt";
 	NAUISIZEPATH = "Nameless-Admin/UIScale.txt";
@@ -1833,6 +1594,7 @@ local NAfiles = {
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 }
+NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH
 NAUserButtons = {}
 UserButtonGuiList = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
@@ -1909,6 +1671,301 @@ function NamelessMigrate:Waypoints()
 
 end
 
+NAmanage.NASettingsResolveDefault=function(def)
+	local default = def.default
+	if typeof(default) == "function" then
+		local ok, value = pcall(default)
+		if ok then
+			default = value
+		else
+			default = nil
+		end
+	end
+	return default
+end
+
+NAmanage.NASettingsCoerce=function(def, value)
+	if value == nil then
+		return NAmanage.NASettingsResolveDefault(def)
+	end
+
+	if def.coerce then
+		local ok, coerced = pcall(def.coerce, value)
+		if ok and coerced ~= nil then
+			return coerced
+		end
+		return NAmanage.NASettingsResolveDefault(def)
+	end
+
+	return value
+end
+
+NAmanage.NASettingsGetSchema=function()
+	if NAStuff.NASettingsSchema then
+		return NAStuff.NASettingsSchema
+	end
+
+	local defaultStrokeColor = Color3.fromRGB(148, 93, 255)
+
+	local function coerceBoolean(value, fallback)
+		if type(value) == "boolean" then
+			return value
+		end
+		if type(value) == "string" then
+			local lowered = value:lower()
+			if lowered == "true" or lowered == "1" then
+				return true
+			end
+			if lowered == "false" or lowered == "0" then
+				return false
+			end
+		end
+		if type(value) == "number" then
+			return value ~= 0
+		end
+		return fallback
+	end
+
+	local function clampChannel(value)
+		local numberValue = tonumber(value)
+		if not numberValue then
+			return nil
+		end
+		if numberValue < 0 then
+			numberValue = 0
+		elseif numberValue > 1 then
+			numberValue = 1
+		end
+		return numberValue
+	end
+
+	NAStuff.NASettingsSchema = {
+		prefix = {
+			pathKey = "NAPREFIXPATH";
+			default = function()
+				return NamelessMigrate:Prefix() or ";"
+				end;
+					coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or ";")
+				end
+				if value == "" then
+					return ";"
+				end
+				return value
+			end;
+		};
+		buttonSize = {
+			pathKey = "NABUTTONSIZEPATH";
+			default = 1;
+				coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue or numberValue <= 0 then
+					return 1
+				end
+				return numberValue
+			end;
+		};
+		uiScale = {
+			pathKey = "NAUISIZEPATH";
+			default = function()
+				local migrated = NamelessMigrate:UiSize()
+				local numberValue = tonumber(migrated)
+				return numberValue and numberValue > 0 and numberValue or 1
+			end;
+				coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue or numberValue <= 0 then
+					return 1
+				end
+				return numberValue
+			end;
+		};
+		queueOnTeleport = {
+			pathKey = "NAQOTPATH";
+					default = false;
+				coerce = function(value)
+					return coerceBoolean(value, false)
+			end;
+		};
+		prediction = {
+			pathKey = "NAPREDICTIONPATH";
+			default = true;
+				coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		uiStroke = {
+			pathKey = "NASTROKETHINGY";
+			default = function()
+				return {
+					R = defaultStrokeColor.R;
+					G = defaultStrokeColor.G;
+					B = defaultStrokeColor.B;
+				}
+			end;
+				coerce = function(value)
+				local parsed = value
+				if typeof(value) == "Color3" then
+					parsed = {
+						R = value.R;
+						G = value.G;
+						B = value.B;
+					}
+				elseif type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return HttpService:JSONDecode(value)
+					end)
+					if ok and typeof(decoded) == "table" then
+						parsed = decoded
+					else
+						parsed = nil
+					end
+				end
+
+				if type(parsed) == "table" then
+					local r = clampChannel(parsed.R)
+					local g = clampChannel(parsed.G)
+					local b = clampChannel(parsed.B)
+					if r and g and b then
+						return {
+							R = r;
+							G = g;
+							B = b;
+						}
+					end
+				end
+
+				return {
+					R = defaultStrokeColor.R;
+					G = defaultStrokeColor.G;
+					B = defaultStrokeColor.B;
+				}
+			end;
+		};
+		topbarVisible = {
+			pathKey = "NATOPBAR";
+			default = true;
+				coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		notifsToggle = {
+			pathKey = "NANOTIFSTOGGLE";
+				default = false;
+				coerce = function(value)
+					return coerceBoolean(value, false)
+			end;
+		};
+		autoSkipLoading = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		topbarMode = {
+			pathKey = "NATOPBARMODE";
+			default = "bottom";
+				coerce = function(value)
+				if type(value) ~= "string" then
+					return "bottom"
+				end
+				if value == "side" then
+					return "side"
+				end
+				return "bottom"
+			end;
+		};
+	}
+
+	return NAStuff.NASettingsSchema
+end
+
+NAmanage.NASettingsSave=function()
+	if not FileSupport or not NAStuff.NASettingsData then
+		return
+	end
+
+	local ok, encoded = NACaller(function()
+		return HttpService:JSONEncode(NAStuff.NASettingsData)
+	end)
+
+	if ok and encoded then
+		NACaller(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
+	end
+end
+
+NAmanage.NASettingsEnsure=function()
+	if NAStuff.NASettingsData then
+		return NAStuff.NASettingsData
+	end
+
+	local schema = NAmanage.NASettingsGetSchema()
+	NAStuff.NASettingsData = {}
+
+	if FileSupport and type(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
+		local ok, raw = NACaller(readfile, NAfiles.NAMAINSETTINGSPATH)
+		if ok and raw and raw ~= "" then
+			local success, decoded = NACaller(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if success and typeof(decoded) == "table" then
+				NAStuff.NASettingsData = decoded
+			end
+		end
+	end
+
+	if typeof(NAStuff.NASettingsData) ~= "table" then
+		NAStuff.NASettingsData = {}
+	end
+
+	local legacyPaths = {}
+	for key, def in pairs(schema) do
+		legacyPaths[key] = def.pathKey and NAfiles[def.pathKey] or nil
+	end
+
+	for key, def in pairs(schema) do
+		local value = NAStuff.NASettingsData[key]
+
+		if value == nil and FileSupport and type(isfile) == "function" then
+			local legacyPath = legacyPaths[key]
+			if legacyPath and isfile(legacyPath) then
+				local ok, legacyRaw = NACaller(readfile, legacyPath)
+				if ok and legacyRaw ~= nil then
+					value = legacyRaw
+				end
+				if delfile then
+					NACaller(delfile, legacyPath)
+				end
+			end
+		end
+
+		NAStuff.NASettingsData[key] = NAmanage.NASettingsCoerce(def, value)
+	end
+
+	NAmanage.NASettingsSave()
+	return NAStuff.NASettingsData
+end
+
+NAmanage.NASettingsGet=function(key)
+	local settings = NAmanage.NASettingsEnsure()
+	return settings[key]
+end
+
+NAmanage.NASettingsSet=function(key, value)
+	local schema = NAmanage.NASettingsGetSchema()
+	local def = schema[key]
+	if not def then
+		return
+	end
+
+	local settings = NAmanage.NASettingsEnsure()
+	settings[key] = NAmanage.NASettingsCoerce(def, value)
+	NAmanage.NASettingsSave()
+	return settings[key]
+end
+
+
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
 	if not isfolder(NAfiles.NAFILEPATH) then
@@ -1931,25 +1988,10 @@ if FileSupport then
 		makefolder(NAfiles.NAASSETSFILEPATH)
 	end
 
-	if not isfile(NAfiles.NAPREFIXPATH) then
-		writefile(NAfiles.NAPREFIXPATH, NamelessMigrate:Prefix() or ";")
-	end
 
-	if not isfile(NAfiles.NABUTTONSIZEPATH) then
-		writefile(NAfiles.NABUTTONSIZEPATH, "1")
-	end
 
-	if not isfile(NAfiles.NAUISIZEPATH) then
-		writefile(NAfiles.NAUISIZEPATH, NamelessMigrate:UiSize() or "1")
-	end
 
-	if not isfile(NAfiles.NAQOTPATH) then
-		writefile(NAfiles.NAQOTPATH, "false")
-	end
 
-	if not isfile(NAfiles.NANOTIFSTOGGLE) then
-		writefile(NAfiles.NANOTIFSTOGGLE, "false")
-	end
 
 	if not isfile(NAfiles.NAALIASPATH) then
 		writefile(NAfiles.NAALIASPATH, "{}")
@@ -1971,17 +2013,7 @@ if FileSupport then
 		writefile(NAfiles.NAAUTOEXECPATH, "[]")
 	end
 
-	if not isfile(NAfiles.NAPREDICTIONPATH) then
-		writefile(NAfiles.NAPREDICTIONPATH, "true")
-	end
 
-	if not isfile(NAfiles.NASTROKETHINGY) then
-		writefile(NAfiles.NASTROKETHINGY, HttpService:JSONEncode({
-			R = 148 / 255;
-			G = 93 / 255;
-			B = 255 / 255;
-		}))
-	end
 
 	if not isfile(NAfiles.NAJOINLEAVE) then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
@@ -2003,24 +2035,20 @@ if FileSupport then
 		}))
 	end]]
 
-	if not isfile(NAfiles.NATOPBAR) then
-		writefile(NAfiles.NATOPBAR, "true")
-	end
 
 	if not isfile(NAfiles.NABINDERS) then
 		writefile(NAfiles.NABINDERS, "{}")
 	end
 
-	if not isfile(NAfiles.NATOPBARMODE) then
-		writefile(NAfiles.NATOPBARMODE, "bottom")
-	end
 
 	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
 		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
 	end
+
+	NAmanage.NASettingsEnsure()
 end
 
-function InitUIStroke(path)
+function InitUIStroke()
 	local defaultColor = Color3.fromRGB(148, 93, 255)
 
 	if not FileSupport then
@@ -2028,37 +2056,35 @@ function InitUIStroke(path)
 		return defaultColor
 	end
 
-	local success, content = NACaller(readfile, path)
-	if success and content then
-		local ok, data = NACaller(function()
-			return HttpService:JSONDecode(content)
-		end)
-
-		if ok and data and typeof(data) == "table" and data.R and data.G and data.B then
-			return Color3.new(data.R, data.G, data.B)
+	local data = NAmanage.NASettingsGet("uiStroke")
+	if type(data) == "table" then
+		local r = tonumber(data.R)
+		local g = tonumber(data.G)
+		local b = tonumber(data.B)
+		if r and g and b then
+			return Color3.new(r, g, b)
 		end
 	end
 
-	writefile(path, HttpService:JSONEncode({
+	NAmanage.NASettingsSet("uiStroke", {
 		R = defaultColor.R;
 		G = defaultColor.G;
 		B = defaultColor.B;
-	}))
+	})
 	DoNotif("UI Stroke color reset to default due to invalid or missing data.")
 	return defaultColor
 end
 
 NAmanage.topbar_readMode=function()
-	local m="bottom"
-	if FileSupport and NAfiles and NAfiles.NATOPBARMODE and isfile(NAfiles.NATOPBARMODE) then
-		local r=readfile(NAfiles.NATOPBARMODE)
-		if r=="bottom" or r=="side" then m=r end
-	end
-	return m
+	local mode = NAmanage.NASettingsGet("topbarMode")
+	return mode == "side" and "side" or "bottom"
 end
 
 NAmanage.topbar_writeMode=function(m)
-	if FileSupport and NAfiles and NAfiles.NATOPBARMODE then writefile(NAfiles.NATOPBARMODE,m) end
+	if m ~= "side" then
+		m = "bottom"
+	end
+	NAmanage.NASettingsSet("topbarMode", m)
 end
 
 NAmanage.GetWPPath=function()
@@ -2159,14 +2185,14 @@ NAmanage.SaveBinders=function()
 end
 
 if FileSupport then
-	prefixCheck = readfile(NAfiles.NAPREFIXPATH)
-	NAsavedScale = tonumber(readfile(NAfiles.NABUTTONSIZEPATH))
-	NAUISavedScale = tonumber(readfile(NAfiles.NAUISIZEPATH))
-	NAQoTEnabled = readfile(NAfiles.NAQOTPATH) == "true"
-	NAStuff.nuhuhNotifs = readfile(NAfiles.NANOTIFSTOGGLE) == "true"
-	doPREDICTION = readfile(NAfiles.NAPREDICTIONPATH) == "true"
-	NAUISTROKER = InitUIStroke(NAfiles.NASTROKETHINGY)
-	NATOPBARVISIBLE = readfile(NAfiles.NATOPBAR) == "true"
+	prefixCheck = NAmanage.NASettingsGet("prefix")
+	NAsavedScale = NAmanage.NASettingsGet("buttonSize")
+	NAUISavedScale = NAmanage.NASettingsGet("uiScale")
+	NAQoTEnabled = NAmanage.NASettingsGet("queueOnTeleport")
+	NAStuff.nuhuhNotifs = NAmanage.NASettingsGet("notifsToggle")
+	doPREDICTION = NAmanage.NASettingsGet("prediction")
+	NAUISTROKER = InitUIStroke()
+	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -2174,7 +2200,7 @@ if FileSupport then
 		or prefixCheck:match("&quot;") or prefixCheck:match("&#x27;") or prefixCheck:match("&#x60;") then
 
 		prefixCheck = ";"
-		writefile(NAfiles.NAPREFIXPATH, ";")
+		NAmanage.NASettingsSet("prefix", ";")
 		DoNotif("Your prefix has been reset to the default (;) due to invalid symbol.")
 	end
 
@@ -2182,7 +2208,7 @@ if FileSupport then
 		NAScale = NAsavedScale
 	else
 		NAScale = 1
-		writefile(NAfiles.NABUTTONSIZEPATH, "1")
+		NAmanage.NASettingsSet("buttonSize", 1)
 		DoNotif("ImageButton size has been reset to default due to invalid data.")
 	end
 
@@ -2190,10 +2216,9 @@ if FileSupport then
 		NAUIScale = NAUISavedScale
 	else
 		NAUIScale = 1
-		writefile(NAfiles.NAUISIZEPATH, "1")
+		NAmanage.NASettingsSet("uiScale", 1)
 		DoNotif("UI Scale has been reset to default due to invalid data.")
 	end
-
 	if isfile(NAfiles.NAJOINLEAVE) then
 		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
@@ -2532,6 +2557,18 @@ local cmds={
 	Aliases={};
 	NASAVEDALIASES = {};
 }
+
+NAmanage.resolveCommandName=function(name)
+	name = (name or ""):lower()
+	local entry = cmds.Commands[name] or cmds.Aliases[name]
+	if not entry then return nil end
+	for cmdName, data in pairs(cmds.Commands) do
+		if data == entry then
+			return cmdName
+		end
+	end
+	return name
+end
 
 Spawn(function()
 	pcall(function()
@@ -3898,14 +3935,16 @@ function placeName()
 	return name or "unknown"
 end
 
-function SaveUIStroke(path, color)
-	if FileSupport then
-		writefile(path, HttpService:JSONEncode({
-			R = color.R,
-			G = color.G,
-			B = color.B
-		}))
+function SaveUIStroke(color)
+	if typeof(color) ~= "Color3" then
+		return
 	end
+
+	NAmanage.NASettingsSet("uiStroke", {
+		R = color.R;
+		G = color.G;
+		B = color.B;
+	})
 end
 
 function placeCreator()
@@ -5104,6 +5143,29 @@ NAmanage.loadAutoExec = function()
 			if not NAEXECDATA.args then
 				NAEXECDATA.args = {}
 			end
+
+			local cleaned, cleanedArgs, seen = {}, {}, {}
+			local modified = false
+			for _, storedName in ipairs(NAEXECDATA.commands) do
+				local base = NAmanage.resolveCommandName(storedName)
+				if base and not NAStuff.AutoExecBlockedCommands[base] then
+					if not seen[base] then
+						seen[base] = true
+						cleaned[#cleaned+1] = base
+						local storedArgs = NAEXECDATA.args[storedName] or NAEXECDATA.args[base]
+						cleanedArgs[base] = storedArgs or ""
+						if base ~= storedName then modified = true end
+					end
+				else
+					modified = true
+				end
+			end
+			if #cleaned ~= #NAEXECDATA.commands then modified = true end
+			NAEXECDATA.commands = cleaned
+			NAEXECDATA.args = cleanedArgs
+			if modified and FileSupport then
+				writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+			end
 		end
 	end
 end
@@ -5512,6 +5574,7 @@ NAmanage.LogJoinLeave = function(message)
 	else
 		writefile(logPath, logMessage)
 	end
+
 end
 
 NAmanage.RenderUserButtons = function()
@@ -6216,12 +6279,20 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 	end
 
 	local args = {...}
-	local commandName = arg1:lower()
+	local rawName = arg1:lower()
+	local canonical = NAmanage.resolveCommandName(rawName)
 
-	if not cmds.Commands[commandName] and not cmds.Aliases[commandName] then
-		DoNotif("Command ["..commandName.."] does not exist", 2)
+	if not canonical then
+		DoNotif("Command ["..rawName.."] does not exist", 2)
 		return
 	end
+
+	if NAStuff.AutoExecBlockedCommands[canonical] then
+		DoNotif("Command ["..canonical.."] is blocked.", 2)
+		return
+	end
+
+	local commandName = canonical
 
 	NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
 	if not NAEXECDATA.commands then
@@ -6452,9 +6523,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
-					if FileSupport then
-						writefile(NAfiles.NAUISIZEPATH, tostring(NAUIScale))
-					end
+					NAmanage.NASettingsSet("uiScale", NAUIScale)
 				end
 			end)
 		end
@@ -6510,7 +6579,7 @@ cmd.add({"saveprefix"}, {"saveprefix <symbol>", "Saves the prefix to a file and 
 	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;") or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
 		DoNotif("Encoded/HTML characters are not allowed as a prefix")
 	else
-		writefile(NAfiles.NAPREFIXPATH, newPrefix)
+		NAmanage.NASettingsSet("prefix", newPrefix)
 		opt.prefix = newPrefix
 		DoNotif("Prefix saved to: "..newPrefix)
 	end
@@ -13236,9 +13305,8 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		end
 	end
 
-	NAlib.connect("autorejoin", SafeGetService("GuiService").ErrorMessageChanged:Connect(function()
-		Spawn(handleRejoin)
-	end))
+	local guiService = SafeGetService("GuiService")
+	NAlib.connect("autorejoin", guiService.ErrorMessageChanged:Connect(handleRejoin))
 
 	DebugNotif("Auto Rejoin is now enabled!")
 end)
@@ -24601,21 +24669,15 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 end)
 
 cmd.add({"keepna"}, {"keepna", "keep executing "..adminName.." every time you teleport"}, function()
-	NAQoTEnabled=true
-	if FileSupport then
-		writefile(NAfiles.NAQOTPATH, "true")
-		DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)")
-	end
+	NAQoTEnabled = true
+	NAmanage.NASettingsSet("queueOnTeleport", true)
+	DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)")
 end)
 
 cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time you teleport"}, function()
-	NAQoTEnabled=false
-	if FileSupport then
-		writefile(NAfiles.NAQOTPATH, "false")
-		if not NAQoTEnabled then
-			DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport")
-		end
-	end
+	NAQoTEnabled = false
+	NAmanage.NASettingsSet("queueOnTeleport", false)
+	DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport")
 end)
 
 loopedFOV = nil
@@ -26777,6 +26839,8 @@ NAmanage.Topbar_SetOpen=function(state)
 	TopBarApp.isOpen=state
 	local w,h=NAmanage.Topbar_ComputedSize()
 	TopBarApp.panel.Visible=true
+	TopBarApp.underlay.Visible = state
+	TopBarApp.scroll.Visible = state
 	TopBarApp.underlay.ZIndex=201
 	TopBarApp.scroll.ZIndex=202
 	NAlib.disconnect("tb_follow")
@@ -28211,11 +28275,9 @@ RunService.RenderStepped:Connect(function()
 			DoNotif("Invalid prefix detected. Resetting to default ';'")
 			lastPrefix = ";"
 
-			if FileSupport and isfile(NAfiles.NAPREFIXPATH) then
-				local filePrefix = readfile(NAfiles.NAPREFIXPATH)
-				if isInvalid(filePrefix) then
-					writefile(NAfiles.NAPREFIXPATH, ";")
-				end
+			local storedPrefix = NAmanage.NASettingsGet("prefix")
+			if isInvalid(storedPrefix) then
+				NAmanage.NASettingsSet("prefix", ";")
 			end
 		end
 	else
@@ -29350,12 +29412,8 @@ end)
 
 if FileSupport then
 	NAgui.addButton("Save Prefix", function()
-		if isfile(NAfiles.NAPREFIXPATH) then
-			writefile(NAfiles.NAPREFIXPATH, opt.prefix)
-			DoNotif("Prefix saved to file: "..NAfiles.NAPREFIXPATH)
-		else
-			DoNotif("File not found: "..NAfiles.NAPREFIXPATH)
-		end
+		NAmanage.NASettingsSet("prefix", opt.prefix)
+		DoNotif("Prefix saved to settings file: "..NAfiles.NAMAINSETTINGSPATH)
 	end)
 end
 
@@ -29363,9 +29421,7 @@ NAgui.addSection("Admin Utility")
 
 NAgui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
 	NAQoTEnabled = val
-	if FileSupport then
-		writefile(NAfiles.NAQOTPATH, tostring(val))
-	end
+	NAmanage.NASettingsSet("queueOnTeleport", val)
 	if NAQoTEnabled then
 		DoNotif(adminName.." will now auto-load after teleport (QueueOnTeleport enabled)", 3)
 	else
@@ -29376,17 +29432,19 @@ end)
 NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	doPREDICTION = v
 	DoNotif("Command Predictions "..(v and "Enabled" or "Disabled"), 2)
-	if FileSupport then
-		writefile(NAfiles.NAPREDICTIONPATH, tostring(v))
-	end
+	NAmanage.NASettingsSet("prediction", v)
 end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
 	NAStuff.nuhuhNotifs = v
 	DoNotif("Debug Notifications "..(v and "Enabled" or "Disabled"), 2)
-	if FileSupport then
-		writefile(NAfiles.NANOTIFSTOGGLE, tostring(v))
-	end
+	NAmanage.NASettingsSet("notifsToggle", v)
+end)
+
+local autoSkipSetting = NAmanage.getAutoSkipPreference()
+NAgui.addToggle("Auto Skip Loading Screen", autoSkipSetting, function(v)
+	NAmanage.setAutoSkipPreference(v)
+	DoNotif("Auto skip loading screen "..(v and "enabled" or "disabled"), 2)
 end)
 
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
@@ -29405,9 +29463,7 @@ NAgui.addSection("UI Customization")
 NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAScale = val
 	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
-	if FileSupport then
-		writefile(NAfiles.NABUTTONSIZEPATH, tostring(val))
-	end
+	NAmanage.NASettingsSet("buttonSize", val)
 end)
 
 NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
@@ -29416,7 +29472,7 @@ NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 			element.Color = color
 		end
 	end
-	SaveUIStroke(NAfiles.NASTROKETHINGY, color)
+	SaveUIStroke(color)
 end)
 
 NAgui.addSection("Topbar")
@@ -29427,9 +29483,7 @@ end)
 
 NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	TopBarApp.top.Enabled = v
-	if FileSupport then
-		writefile(NAfiles.NATOPBAR, tostring(v))
-	end
+	NAmanage.NASettingsSet("topbarVisible", v)
 end)
 
 if FileSupport then
