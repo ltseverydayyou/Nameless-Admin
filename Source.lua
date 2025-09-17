@@ -18114,6 +18114,387 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 	end
 end)
 
+NA_DEVPROD_GUI=nil
+
+cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Products"},function()
+	if NA_DEVPROD_GUI and NA_DEVPROD_GUI.Parent then NA_DEVPROD_GUI:Destroy() end
+	local MarketplaceService=SafeGetService("MarketplaceService")
+	local GROUP="DevProductsGUI"
+	NAlib.disconnect(GROUP)
+
+	local gui=InstanceNew("ScreenGui")
+	NAProtection(gui)
+	NaProtectUI(gui)
+	NA_DEVPROD_GUI=gui
+
+	local shadow=InstanceNew("Frame",gui)
+	shadow.BackgroundColor3=Color3.fromRGB(0,0,0)
+	shadow.BackgroundTransparency=0.6
+	shadow.BorderSizePixel=0
+	shadow.Size=UDim2.fromOffset(640,560)
+	shadow.ZIndex=0
+	local shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,24)
+
+	local win=InstanceNew("Frame",gui)
+	win.BackgroundColor3=Color3.fromRGB(20,20,20)
+	win.BorderSizePixel=0
+	win.Size=UDim2.fromOffset(640,560)
+	win.ZIndex=1
+	NAProtection(win)
+	NAmanage.centerFrame(win)
+	shadow.Position=win.Position
+	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
+
+	local corner=InstanceNew("UICorner",win)
+	corner.CornerRadius=UDim.new(0,24)
+	local stroke=InstanceNew("UIStroke",win)
+	stroke.Thickness=1
+	stroke.Transparency=0.6
+	stroke.Color=Color3.fromRGB(255,255,255)
+
+	local top=InstanceNew("Frame",win)
+	top.BackgroundColor3=Color3.fromRGB(26,26,26)
+	top.Size=UDim2.new(1,0,0,56)
+	top.BorderSizePixel=0
+	local topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,24)
+	local topMask=InstanceNew("Frame",top); topMask.BackgroundTransparency=1; topMask.Size=UDim2.new(1,-24,1,-16); topMask.Position=UDim2.fromOffset(12,8)
+	NAgui.draggerV2(win,topMask)
+
+	local title=InstanceNew("TextLabel",top)
+	title.BackgroundTransparency=1
+	title.Position=UDim2.fromOffset(20,0)
+	title.Size=UDim2.new(1,-200,1,0)
+	title.Font=Enum.Font.GothamBold
+	title.TextSize=20
+	title.TextXAlignment=Enum.TextXAlignment.Left
+	title.TextColor3=Color3.fromRGB(240,240,240)
+	title.Text="Developer Products"
+
+	local close=InstanceNew("TextButton",top)
+	close.Size=UDim2.fromOffset(34,34)
+	close.Position=UDim2.new(1,-42,0.5,-17)
+	close.Text="X"
+	close.Font=Enum.Font.GothamBold
+	close.TextSize=16
+	close.BackgroundColor3=Color3.fromRGB(50,50,50)
+	close.TextColor3=Color3.fromRGB(255,255,255)
+	local closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0,10)
+
+	local minimize=InstanceNew("TextButton",top)
+	minimize.Size=UDim2.fromOffset(34,34)
+	minimize.Position=UDim2.new(1,-82,0.5,-17)
+	minimize.Text="-"
+	minimize.Font=Enum.Font.GothamBold
+	minimize.TextSize=16
+	minimize.BackgroundColor3=Color3.fromRGB(50,50,50)
+	minimize.TextColor3=Color3.fromRGB(255,255,255)
+	local minCorner=InstanceNew("UICorner",minimize); minCorner.CornerRadius=UDim.new(0,10)
+
+	local head=InstanceNew("Frame",win)
+	head.BackgroundColor3=Color3.fromRGB(20,20,20)
+	head.Position=UDim2.fromOffset(16,64)
+	head.Size=UDim2.new(1,-32,0,44)
+	head.BorderSizePixel=0
+	local headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,16)
+	local headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
+
+	local refresh=InstanceNew("TextButton",head)
+	refresh.Size=UDim2.fromOffset(100,32)
+	refresh.Position=UDim2.fromOffset(8,6)
+	refresh.Text="Refresh"
+	refresh.Font=Enum.Font.GothamMedium
+	refresh.TextSize=14
+	refresh.BackgroundColor3=Color3.fromRGB(56,56,56)
+	refresh.TextColor3=Color3.fromRGB(255,255,255)
+	local rCorner=InstanceNew("UICorner",refresh); rCorner.CornerRadius=UDim.new(0,10)
+
+	local search=InstanceNew("TextBox",head)
+	search.Size=UDim2.new(1,-340,0,32)
+	search.Position=UDim2.fromOffset(116,6)
+	search.PlaceholderText="Search by name or ID"
+	search.ClearTextOnFocus=false
+	search.TextXAlignment=Enum.TextXAlignment.Left
+	search.Text=""
+	search.Font=Enum.Font.Gotham
+	search.TextSize=14
+	search.BackgroundColor3=Color3.fromRGB(34,34,34)
+	search.TextColor3=Color3.fromRGB(230,230,230)
+	local sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0,10)
+
+	local interval=InstanceNew("TextBox",head)
+	interval.Size=UDim2.fromOffset(120,32)
+	interval.Position=UDim2.new(1,-128,0,6)
+	interval.PlaceholderText="Interval (s)"
+	interval.Text="0.1"
+	interval.ClearTextOnFocus=false
+	interval.TextXAlignment=Enum.TextXAlignment.Center
+	interval.Font=Enum.Font.GothamMedium
+	interval.TextSize=14
+	interval.BackgroundColor3=Color3.fromRGB(34,34,34)
+	interval.TextColor3=Color3.fromRGB(255,255,255)
+	local iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0,10)
+
+	local status=InstanceNew("TextLabel",win)
+	status.BackgroundTransparency=1
+	status.Size=UDim2.new(1,-32,0,18)
+	status.Position=UDim2.fromOffset(16,110)
+	status.Font=Enum.Font.Gotham
+	status.TextSize=14
+	status.TextXAlignment=Enum.TextXAlignment.Left
+	status.TextColor3=Color3.fromRGB(190,190,190)
+	status.Text="Ready."
+
+	local body=InstanceNew("Frame",win)
+	body.BackgroundColor3=Color3.fromRGB(16,16,16)
+	body.Position=UDim2.fromOffset(16,136)
+	body.Size=UDim2.new(1,-32,1,-152)
+	body.BorderSizePixel=0
+	local bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,20)
+	local bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
+
+	local list=InstanceNew("ScrollingFrame",body)
+	list.BackgroundTransparency=1
+	list.BorderSizePixel=0
+	list.Position=UDim2.fromOffset(10,10)
+	list.Size=UDim2.new(1,-20,1,-20)
+	list.ScrollBarThickness=6
+	list.CanvasSize=UDim2.new()
+
+	local layout=InstanceNew("UIListLayout",list)
+	layout.Padding=UDim.new(0,10)
+	layout.SortOrder=Enum.SortOrder.LayoutOrder
+
+	local padding=InstanceNew("UIPadding",list)
+	padding.PaddingTop=UDim.new(0,2)
+	padding.PaddingBottom=UDim.new(0,2)
+	padding.PaddingLeft=UDim.new(0,2)
+	padding.PaddingRight=UDim.new(0,2)
+
+	local minimized=false
+	local fullSize=win.Size
+	local miniSize=UDim2.fromOffset(460,130)
+
+	local function notify(m,t) if DoNotif then DoNotif(m,t or 4,"DevProducts") else warn("[DevProducts] "..m) end status.Text=m end
+	local function setCanvas() list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+16) end
+	NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+
+	local loops={}
+
+	local function stopAllLoops()
+		for _,l in pairs(loops) do l.running=false end
+		loops={}
+	end
+
+	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function()
+		stopAllLoops()
+		NAlib.disconnect(GROUP)
+		pcall(gui.Destroy,gui)
+		NA_DEVPROD_GUI=nil
+	end))
+
+	NAlib.connect(GROUP,minimize.MouseButton1Click:Connect(function()
+		if minimized then
+			minimized=false
+			body.Visible=true
+			status.Visible=true
+			local tw=TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize})
+			local ts=TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize})
+			tw:Play(); ts:Play()
+			minimize.Text="-"
+		else
+			minimized=true
+			body.Visible=false
+			status.Visible=false
+			local tw=TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize})
+			local ts=TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize})
+			tw:Play(); ts:Play()
+			minimize.Text="+"
+		end
+	end))
+
+	local cam=workspace.CurrentCamera
+	if cam then
+		NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			NAmanage.centerFrame(win)
+			shadow.Position=win.Position
+		end))
+	end
+
+	local rows={}
+	local allItems={}
+
+	local function clearList()
+		for _,ch in ipairs(list:GetChildren()) do if ch:IsA("Frame") then ch:Destroy() end end
+		table.clear(rows)
+		setCanvas()
+	end
+
+	local function parseInterval()
+		local v=tonumber(interval.Text)
+		if not v then v=tonumber(string.match(interval.Text or "","%d*%.?%d+")) end
+		if not v then v=0.1 end
+		if v<0 then v=0 end
+		return v
+	end
+
+	local function makeRow(info)
+		local id=info.ProductId
+		local row=InstanceNew("Frame",list)
+		row.BackgroundColor3=Color3.fromRGB(24,24,24)
+		row.BorderSizePixel=0
+		row.Size=UDim2.new(1,0,0,78)
+		local rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,16)
+		local rStroke=InstanceNew("UIStroke",row); rStroke.Thickness=1; rStroke.Transparency=0.75
+
+		local nameL=InstanceNew("TextLabel",row)
+		nameL.BackgroundTransparency=1
+		nameL.Position=UDim2.fromOffset(14,8)
+		nameL.Size=UDim2.new(1,-260,0,26)
+		nameL.Font=Enum.Font.GothamMedium
+		nameL.TextSize=18
+		nameL.TextXAlignment=Enum.TextXAlignment.Left
+		nameL.TextColor3=Color3.fromRGB(245,245,245)
+		nameL.Text=info.Name or ("Product "..id)
+
+		local sub=InstanceNew("TextLabel",row)
+		sub.BackgroundTransparency=1
+		sub.Position=UDim2.fromOffset(14,40)
+		sub.Size=UDim2.new(1,-260,0,18)
+		sub.Font=Enum.Font.Gotham
+		sub.TextSize=14
+		sub.TextXAlignment=Enum.TextXAlignment.Left
+		sub.TextColor3=Color3.fromRGB(190,190,190)
+		sub.Text=Format("ID: %d  •  Price: %s",id,info.PriceInRobux and (info.PriceInRobux.." R$") or "…")
+
+		local purchase=InstanceNew("TextButton",row)
+		purchase.Size=UDim2.fromOffset(124,36)
+		purchase.Position=UDim2.new(1,-268,0.5,-18)
+		purchase.Font=Enum.Font.GothamBold
+		purchase.TextSize=16
+		purchase.AutoButtonColor=true
+		purchase.TextColor3=Color3.fromRGB(255,255,255)
+		purchase.BackgroundColor3=Color3.fromRGB(0,170,127)
+		purchase.Text="Purchase"
+		local pCorner=InstanceNew("UICorner",purchase); pCorner.CornerRadius=UDim.new(0,12)
+
+		local loopBtn=InstanceNew("TextButton",row)
+		loopBtn.Size=UDim2.fromOffset(124,36)
+		loopBtn.Position=UDim2.new(1,-136,0.5,-18)
+		loopBtn.Font=Enum.Font.GothamBold
+		loopBtn.TextSize=16
+		loopBtn.AutoButtonColor=true
+		loopBtn.TextColor3=Color3.fromRGB(255,255,255)
+		loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+		loopBtn.Text="Loop"
+		local lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
+
+		NAlib.connect(GROUP,purchase.MouseButton1Click:Connect(function()
+			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+		end))
+
+		NAlib.connect(GROUP,loopBtn.MouseButton1Click:Connect(function()
+			local l=loops[id]
+			if l and l.running then
+				l.running=false
+				loopBtn.Text="Loop"
+				loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+			else
+				local state={running=true}
+				loops[id]=state
+				loopBtn.Text="Stop"
+				loopBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
+				Spawn(function()
+					while state.running do
+						MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+						if not state.running then break end
+						Wait(parseInterval())
+					end
+					if loopBtn.Parent then
+						loopBtn.Text="Loop"
+						loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+					end
+					loops[id]=nil
+				end)
+			end
+		end))
+
+		rows[id]=row
+
+		Spawn(function()
+			local ok,pi=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.Product) end)
+			if ok and type(pi)=="table" and rows[id] and rows[id].Parent then
+				nameL.Text=pi.Name or nameL.Text
+				sub.Text=Format("ID: %d  •  Price: %s",id,pi.PriceInRobux and (pi.PriceInRobux.." R$") or "—")
+				info.Name=pi.Name or info.Name
+				info.PriceInRobux=pi.PriceInRobux
+				info.Description=pi.Description
+			end
+		end)
+
+		return row
+	end
+
+	local fetching=false
+	local function fetchAll()
+		if fetching then return end
+		fetching=true
+		clearList()
+		table.clear(allItems)
+		notify("Loading developer products…")
+		local ok,pagesOrErr=pcall(function() return MarketplaceService:GetDeveloperProductsAsync() end)
+		if not ok then notify("Failed to get pages: "..tostring(pagesOrErr),8) fetching=false return end
+		local pages=pagesOrErr
+		local count=0
+		while true do
+			local pOk,pRes=pcall(function() return pages:GetCurrentPage() end)
+			if not pOk then notify("Page error: "..tostring(pRes),8) break end
+			for _,entry in ipairs(pRes) do
+				local id=entry.ProductId or entry.DeveloperProductId
+				if id then
+					local info={ProductId=id,Name=entry.Name}
+					Insert(allItems,info)
+					makeRow(info)
+					count+=1
+					Wait()
+				end
+			end
+			if pages.IsFinished then break end
+			local aOk,aErr=pcall(function() pages:AdvanceToNextPageAsync() end)
+			if not aOk then notify("Advance failed: "..tostring(aErr),8) break end
+			Wait()
+		end
+		table.sort(allItems,function(a,b)
+			local an=a.Name and Lower(a.Name) or ""
+			local bn=b.Name and Lower(b.Name) or ""
+			return an<bn
+		end)
+		notify(Format("Loaded %d developer product(s).",count))
+		setCanvas()
+		fetching=false
+	end
+
+	local function applyFilter(q)
+		q=Lower(q or "")
+		for _,info in ipairs(allItems) do
+			local row=rows[info.ProductId]
+			if row then
+				local nameLabel=nil
+				for _,c in ipairs(row:GetChildren()) do if c:IsA("TextLabel") then nameLabel=c break end end
+				local nameText=nameLabel and nameLabel.Text or ""
+				local idStr=tostring(info.ProductId)
+				local vis=(q=="" or Find(Lower(nameText),q,1,true)~=nil or Find(idStr,q,1,true)~=nil)
+				row.Visible=vis
+			end
+		end
+		setCanvas()
+	end
+
+	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
+	NAlib.connect(GROUP,refresh.MouseButton1Click:Connect(function() search.Text="" fetchAll() end))
+
+	fetchAll()
+end)
+
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
 	local trg = getPlr(plr)
 
