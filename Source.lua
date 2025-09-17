@@ -18,6 +18,8 @@ local Delay = task.delay;
 local Wait = task.wait;
 local Discover = table.find;
 local Concat = table.concat;
+local Defer = task.defer;
+
 local LoadstringCommandAliases = {
 	loadstring = true;
 	ls = true;
@@ -25,7 +27,6 @@ local LoadstringCommandAliases = {
 	loads = true;
 	execute = true;
 };
-local Defer = task.defer;
 
 local function SafeGetService(name, timeoutSeconds)
 	timeoutSeconds = timeoutSeconds or 5
@@ -165,6 +166,7 @@ local NAStuff = {
 		sshop = true;
 		pingserverhop = true;
 		pshop = true;
+		saw = true;
 	};
 	NASettingsSchema = nil;
 	NASettingsData = nil;
