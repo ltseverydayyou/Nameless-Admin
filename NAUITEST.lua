@@ -986,14 +986,56 @@ G2L["70"]["Name"] = [[Container]];
 G2L["70"]["BackgroundTransparency"] = 0.3;
 
 
+-- StarterGui.AdminUI.setsettings.Container.Tabs
+G2L["70a"] = Instance.new("Frame", G2L["70"]);
+G2L["70a"]["BackgroundTransparency"] = 1;
+G2L["70a"]["Name"] = [[Tabs]];
+G2L["70a"]["Size"] = UDim2.new(1, -10, 0, 34);
+G2L["70a"]["Position"] = UDim2.new(0, 5, 0, 5);
+
+
+-- StarterGui.AdminUI.setsettings.Container.Tabs.UIListLayout
+G2L["70b"] = Instance.new("UIListLayout", G2L["70a"]);
+G2L["70b"]["Padding"] = UDim.new(0, 6);
+G2L["70b"]["VerticalAlignment"] = Enum.VerticalAlignment.Center;
+G2L["70b"]["FillDirection"] = Enum.FillDirection.Horizontal;
+G2L["70b"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+-- StarterGui.AdminUI.setsettings.Container.Tabs.TabButton
+G2L["70c"] = Instance.new("TextButton", G2L["70a"]);
+G2L["70c"]["AutoButtonColor"] = false;
+G2L["70c"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
+G2L["70c"]["BackgroundTransparency"] = 0.3;
+G2L["70c"]["TextSize"] = 16;
+G2L["70c"]["TextColor3"] = Color3.fromRGB(244, 244, 254);
+G2L["70c"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["70c"]["Size"] = UDim2.new(0, 120, 1, 0);
+G2L["70c"]["Name"] = [[TabButton]];
+G2L["70c"]["Text"] = [[Tab]];
+G2L["70c"]["LayoutOrder"] = 1;
+
+
+-- StarterGui.AdminUI.setsettings.Container.Tabs.TabButton.UICorner
+G2L["70d"] = Instance.new("UICorner", G2L["70c"]);
+G2L["70d"]["CornerRadius"] = UDim.new(0, 6);
+
+
+-- StarterGui.AdminUI.setsettings.Container.Tabs.TabButton.UIStroke
+G2L["70e"] = Instance.new("UIStroke", G2L["70c"]);
+G2L["70e"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["70e"]["Color"] = Color3.fromRGB(154, 99, 255);
+G2L["70e"]["Transparency"] = 0.4;
+
+
 -- StarterGui.AdminUI.setsettings.Container.List
 G2L["71"] = Instance.new("ScrollingFrame", G2L["70"]);
 G2L["71"]["BorderSizePixel"] = 0;
 G2L["71"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["71"]["Name"] = [[List]];
-G2L["71"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["71"]["Size"] = UDim2.new(1, -10, 1, -49);
 G2L["71"]["ScrollBarImageColor3"] = Color3.fromRGB(104, 104, 114);
-G2L["71"]["Position"] = UDim2.new(0, 5, 0, 5);
+G2L["71"]["Position"] = UDim2.new(0, 5, 0, 44);
 G2L["71"]["ScrollBarThickness"] = 3;
 G2L["71"]["BackgroundTransparency"] = 1;
 
