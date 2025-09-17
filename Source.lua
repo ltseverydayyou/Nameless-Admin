@@ -6091,6 +6091,29 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	Spawn(func)
 end, true)
 
+cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> (setff)", "Set a fast flag"}, function(flag, value)
+	local title = "Set Fast Flag"
+	if not flag or flag == "" then
+		DoNotif("Please provide a fast flag name", 3, title)
+		return
+	end
+	if value == nil then
+		DoNotif("Please provide a fast flag value", 3, title)
+		return
+	end
+	local method = setfflag or function(fastFlag, fastValue)
+		game:DefineFastFlag(fastFlag, fastValue)
+	end
+	local success, result = pcall(function()
+		method(flag, value)
+	end)
+	if success then
+		DoNotif(Format("Set %s's value to %s", flag, value), 5, title)
+	else
+		DoNotif("Error occurred setting fast flag: " .. tostring(result), 10, title)
+	end
+end, true)
+
 cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias for an existing command"}, function(original, alias)
 	if not original or not alias then
 		DoNotif("Usage: addalias <command> <alias>", 2)
@@ -18050,13 +18073,45 @@ cmd.add({"unloopfling"}, {"unloopfling", "Stops loop flinging a player"}, functi
 	repeat Wait() if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end until LOOPPROTECT == nil
 end)
 
-cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Returns true if the UserOwnsGamePassAsync function gets used"},function()
-	local Hook
-	Hook = hookfunction(SafeGetService("MarketplaceService").UserOwnsGamePassAsync, newcclosure(function(self, ...)
-		return true
-	end))
+cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own every gamepass and fires product purchase signals"},function()
+	local market = SafeGetService("MarketplaceService")
+	if not market then
+		DoNotif("MarketplaceService is unavailable in this session", 3, "Free Gamepasses")
+		return
+	end
 
-	DebugNotif("✅ Free gamepasses enabled! Rejoin to disable. Note: This only works in some games.")
+	if hookfunction and not NAStuff._freeGamepassHooked then
+		local ok = pcall(function()
+			return hookfunction(market.UserOwnsGamePassAsync, newcclosure(function(...)
+				return true
+			end))
+		end)
+		if ok then
+			NAStuff._freeGamepassHooked = true
+		end
+	end
+
+	local totalSignals = 0
+	local success, err = pcall(function()
+		local pages = market:GetDeveloperProductsAsync()
+		while true do
+			local page = pages:GetCurrentPage()
+			for _, product in ipairs(page) do
+				local id = product.ProductId or product.DeveloperProductId
+				if id then
+					market:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+					totalSignals += 1
+				end
+			end
+			if pages.IsFinished then break end
+			pages:AdvanceToNextPageAsync()
+		end
+	end)
+	if success then
+		DoNotif(Format("Hooked gamepass ownership and fired %d purchase signals", totalSignals), 6, "Free Gamepasses")
+	else
+		DoNotif("Failed to spoof gamepasses: " .. tostring(err), 8, "Free Gamepasses")
+	end
 end)
 
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
