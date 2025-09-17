@@ -18153,14 +18153,14 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	shadow.BackgroundColor3=Color3.fromRGB(0,0,0)
 	shadow.BackgroundTransparency=0.6
 	shadow.BorderSizePixel=0
-	shadow.Size=UDim2.fromOffset(640,560)
+	shadow.Size=UDim2.fromOffset(680,600)
 	shadow.ZIndex=0
-	local shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,24)
+	local shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,26)
 
 	local win=InstanceNew("Frame",gui)
 	win.BackgroundColor3=Color3.fromRGB(20,20,20)
 	win.BorderSizePixel=0
-	win.Size=UDim2.fromOffset(640,560)
+	win.Size=UDim2.fromOffset(680,600)
 	win.ZIndex=1
 	NAProtection(win)
 	NAmanage.centerFrame(win)
@@ -18168,7 +18168,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
 
 	local corner=InstanceNew("UICorner",win)
-	corner.CornerRadius=UDim.new(0,24)
+	corner.CornerRadius=UDim.new(0,26)
 	local stroke=InstanceNew("UIStroke",win)
 	stroke.Thickness=1
 	stroke.Transparency=0.6
@@ -18176,102 +18176,112 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 	local top=InstanceNew("Frame",win)
 	top.BackgroundColor3=Color3.fromRGB(26,26,26)
-	top.Size=UDim2.new(1,0,0,56)
+	top.Size=UDim2.new(1,0,0,60)
 	top.BorderSizePixel=0
-	local topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,24)
+	local topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,26)
 	local topMask=InstanceNew("Frame",top); topMask.BackgroundTransparency=1; topMask.Size=UDim2.new(1,-24,1,-16); topMask.Position=UDim2.fromOffset(12,8)
 	NAgui.draggerV2(win,topMask)
 
 	local title=InstanceNew("TextLabel",top)
 	title.BackgroundTransparency=1
 	title.Position=UDim2.fromOffset(20,0)
-	title.Size=UDim2.new(1,-200,1,0)
+	title.Size=UDim2.new(1,-260,1,0)
 	title.Font=Enum.Font.GothamBold
-	title.TextSize=20
 	title.TextXAlignment=Enum.TextXAlignment.Left
 	title.TextColor3=Color3.fromRGB(240,240,240)
 	title.Text="Developer Products"
+	title.TextScaled=true
 
 	local close=InstanceNew("TextButton",top)
-	close.Size=UDim2.fromOffset(34,34)
-	close.Position=UDim2.new(1,-42,0.5,-17)
+	close.Size=UDim2.fromOffset(36,36)
+	close.Position=UDim2.new(1,-44,0.5,-18)
 	close.Text="X"
 	close.Font=Enum.Font.GothamBold
-	close.TextSize=16
 	close.BackgroundColor3=Color3.fromRGB(50,50,50)
 	close.TextColor3=Color3.fromRGB(255,255,255)
+	close.TextScaled=true
 	local closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0,10)
 
 	local minimize=InstanceNew("TextButton",top)
-	minimize.Size=UDim2.fromOffset(34,34)
-	minimize.Position=UDim2.new(1,-82,0.5,-17)
+	minimize.Size=UDim2.fromOffset(36,36)
+	minimize.Position=UDim2.new(1,-88,0.5,-18)
 	minimize.Text="-"
 	minimize.Font=Enum.Font.GothamBold
-	minimize.TextSize=16
 	minimize.BackgroundColor3=Color3.fromRGB(50,50,50)
 	minimize.TextColor3=Color3.fromRGB(255,255,255)
+	minimize.TextScaled=true
 	local minCorner=InstanceNew("UICorner",minimize); minCorner.CornerRadius=UDim.new(0,10)
 
 	local head=InstanceNew("Frame",win)
 	head.BackgroundColor3=Color3.fromRGB(20,20,20)
-	head.Position=UDim2.fromOffset(16,64)
-	head.Size=UDim2.new(1,-32,0,44)
+	head.Position=UDim2.fromOffset(16,68)
+	head.Size=UDim2.new(1,-32,0,48)
 	head.BorderSizePixel=0
 	local headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,16)
 	local headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
 
 	local refresh=InstanceNew("TextButton",head)
-	refresh.Size=UDim2.fromOffset(100,32)
-	refresh.Position=UDim2.fromOffset(8,6)
+	refresh.Size=UDim2.fromOffset(104,34)
+	refresh.Position=UDim2.fromOffset(8,7)
 	refresh.Text="Refresh"
 	refresh.Font=Enum.Font.GothamMedium
-	refresh.TextSize=14
 	refresh.BackgroundColor3=Color3.fromRGB(56,56,56)
 	refresh.TextColor3=Color3.fromRGB(255,255,255)
+	refresh.TextScaled=true
 	local rCorner=InstanceNew("UICorner",refresh); rCorner.CornerRadius=UDim.new(0,10)
 
 	local search=InstanceNew("TextBox",head)
-	search.Size=UDim2.new(1,-340,0,32)
-	search.Position=UDim2.fromOffset(116,6)
+	search.Size=UDim2.new(1,-372,0,34)
+	search.Position=UDim2.fromOffset(120,7)
 	search.PlaceholderText="Search by name or ID"
 	search.ClearTextOnFocus=false
 	search.TextXAlignment=Enum.TextXAlignment.Left
 	search.Text=""
 	search.Font=Enum.Font.Gotham
-	search.TextSize=14
 	search.BackgroundColor3=Color3.fromRGB(34,34,34)
 	search.TextColor3=Color3.fromRGB(230,230,230)
+	search.TextScaled=true
 	local sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0,10)
 
+	local buyAll=InstanceNew("TextButton",head)
+	buyAll.Size=UDim2.fromOffset(108,34)
+	buyAll.Position=UDim2.new(1,-244,0,7)
+	buyAll.Text="Buy All"
+	buyAll.Font=Enum.Font.GothamMedium
+	buyAll.BackgroundColor3=Color3.fromRGB(70,70,110)
+	buyAll.TextColor3=Color3.fromRGB(255,255,255)
+	buyAll.TextScaled=true
+	local bCorner=InstanceNew("UICorner",buyAll); bCorner.CornerRadius=UDim.new(0,10)
+
 	local interval=InstanceNew("TextBox",head)
-	interval.Size=UDim2.fromOffset(120,32)
-	interval.Position=UDim2.new(1,-128,0,6)
+	interval.Size=UDim2.fromOffset(120,34)
+	interval.Position=UDim2.new(1,-124,0,7)
 	interval.PlaceholderText="Interval (s)"
 	interval.Text="0.1"
 	interval.ClearTextOnFocus=false
 	interval.TextXAlignment=Enum.TextXAlignment.Center
 	interval.Font=Enum.Font.GothamMedium
-	interval.TextSize=14
 	interval.BackgroundColor3=Color3.fromRGB(34,34,34)
 	interval.TextColor3=Color3.fromRGB(255,255,255)
+	interval.TextScaled=true
 	local iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0,10)
 
 	local status=InstanceNew("TextLabel",win)
 	status.BackgroundTransparency=1
-	status.Size=UDim2.new(1,-32,0,18)
-	status.Position=UDim2.fromOffset(16,110)
+	status.Size=UDim2.new(1,-32,0,20)
+	status.Position=UDim2.fromOffset(16,116)
 	status.Font=Enum.Font.Gotham
-	status.TextSize=14
 	status.TextXAlignment=Enum.TextXAlignment.Left
 	status.TextColor3=Color3.fromRGB(190,190,190)
 	status.Text="Ready."
+	status.TextScaled=true
 
 	local body=InstanceNew("Frame",win)
 	body.BackgroundColor3=Color3.fromRGB(16,16,16)
-	body.Position=UDim2.fromOffset(16,136)
-	body.Size=UDim2.new(1,-32,1,-152)
+	body.Position=UDim2.fromOffset(16,140)
+	body.Size=UDim2.new(1,-32,1,-156)
 	body.BorderSizePixel=0
-	local bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,20)
+	local bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,22)
 	local bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
 
 	local list=InstanceNew("ScrollingFrame",body)
@@ -18294,18 +18304,14 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 	local minimized=false
 	local fullSize=win.Size
-	local miniSize=UDim2.fromOffset(460,130)
+	local miniSize=UDim2.fromOffset(520,140)
 
 	local function notify(m,t) if DoNotif then DoNotif(m,t or 4,"DevProducts") else warn("[DevProducts] "..m) end status.Text=m end
 	local function setCanvas() list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+16) end
 	NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
 
 	local loops={}
-
-	local function stopAllLoops()
-		for _,l in pairs(loops) do l.running=false end
-		loops={}
-	end
+	local function stopAllLoops() for _,l in pairs(loops) do l.running=false end loops={} end
 
 	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function()
 		stopAllLoops()
@@ -18319,17 +18325,15 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			minimized=false
 			body.Visible=true
 			status.Visible=true
-			local tw=TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize})
-			local ts=TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize})
-			tw:Play(); ts:Play()
+			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
+			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			minimize.Text="-"
 		else
 			minimized=true
 			body.Visible=false
 			status.Visible=false
-			local tw=TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize})
-			local ts=TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize})
-			tw:Play(); ts:Play()
+			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
+			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
 			minimize.Text="+"
 		end
 	end))
@@ -18352,9 +18356,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	end
 
 	local function parseInterval()
-		local v=tonumber(interval.Text)
-		if not v then v=tonumber(string.match(interval.Text or "","%d*%.?%d+")) end
-		if not v then v=0.1 end
+		local v=tonumber(interval.Text) or tonumber(string.match(interval.Text or "","%d*%.?%d+")) or 0.1
 		if v<0 then v=0 end
 		return v
 	end
@@ -18364,56 +18366,57 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		local row=InstanceNew("Frame",list)
 		row.BackgroundColor3=Color3.fromRGB(24,24,24)
 		row.BorderSizePixel=0
-		row.Size=UDim2.new(1,0,0,78)
-		local rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,16)
+		row.Size=UDim2.new(1,0,0,90)
+		local rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,18)
 		local rStroke=InstanceNew("UIStroke",row); rStroke.Thickness=1; rStroke.Transparency=0.75
 
 		local nameL=InstanceNew("TextLabel",row)
 		nameL.BackgroundTransparency=1
-		nameL.Position=UDim2.fromOffset(14,8)
-		nameL.Size=UDim2.new(1,-260,0,26)
+		nameL.Position=UDim2.fromOffset(14,10)
+		nameL.Size=UDim2.new(1,-260,0,32)
 		nameL.Font=Enum.Font.GothamMedium
-		nameL.TextSize=18
 		nameL.TextXAlignment=Enum.TextXAlignment.Left
 		nameL.TextColor3=Color3.fromRGB(245,245,245)
 		nameL.Text=info.Name or ("Product "..id)
+		nameL.TextScaled=true
+		nameL.TextWrapped=true
 
 		local sub=InstanceNew("TextLabel",row)
 		sub.BackgroundTransparency=1
-		sub.Position=UDim2.fromOffset(14,40)
-		sub.Size=UDim2.new(1,-260,0,18)
+		sub.Position=UDim2.fromOffset(14,46)
+		sub.Size=UDim2.new(1,-260,0,24)
 		sub.Font=Enum.Font.Gotham
-		sub.TextSize=14
 		sub.TextXAlignment=Enum.TextXAlignment.Left
 		sub.TextColor3=Color3.fromRGB(190,190,190)
 		sub.Text=Format("ID: %d  •  Price: %s",id,info.PriceInRobux and (info.PriceInRobux.." R$") or "…")
+		sub.TextScaled=true
+		sub.TextWrapped=true
 
 		local purchase=InstanceNew("TextButton",row)
-		purchase.Size=UDim2.fromOffset(124,36)
-		purchase.Position=UDim2.new(1,-268,0.5,-18)
+		purchase.Size=UDim2.fromOffset(112,40)
+		purchase.Position=UDim2.new(1,-240,0.5,-20)
 		purchase.Font=Enum.Font.GothamBold
-		purchase.TextSize=16
 		purchase.AutoButtonColor=true
 		purchase.TextColor3=Color3.fromRGB(255,255,255)
 		purchase.BackgroundColor3=Color3.fromRGB(0,170,127)
 		purchase.Text="Purchase"
+		purchase.TextScaled=true
 		local pCorner=InstanceNew("UICorner",purchase); pCorner.CornerRadius=UDim.new(0,12)
 
 		local loopBtn=InstanceNew("TextButton",row)
-		loopBtn.Size=UDim2.fromOffset(124,36)
-		loopBtn.Position=UDim2.new(1,-136,0.5,-18)
+		loopBtn.Size=UDim2.fromOffset(112,40)
+		loopBtn.Position=UDim2.new(1,-120,0.5,-20)
 		loopBtn.Font=Enum.Font.GothamBold
-		loopBtn.TextSize=16
 		loopBtn.AutoButtonColor=true
 		loopBtn.TextColor3=Color3.fromRGB(255,255,255)
 		loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
 		loopBtn.Text="Loop"
+		loopBtn.TextScaled=true
 		local lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
 
 		NAlib.connect(GROUP,purchase.MouseButton1Click:Connect(function()
 			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
 		end))
-
 		NAlib.connect(GROUP,loopBtn.MouseButton1Click:Connect(function()
 			local l=loops[id]
 			if l and l.running then
@@ -18428,10 +18431,9 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 				Spawn(function()
 					while state.running do
 						MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
-						if not state.running then break end
 						Wait(parseInterval())
 					end
-					if loopBtn.Parent then
+					if loopBtn and loopBtn.Parent then
 						loopBtn.Text="Loop"
 						loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
 					end
@@ -18513,6 +18515,16 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
 	NAlib.connect(GROUP,refresh.MouseButton1Click:Connect(function() search.Text="" fetchAll() end))
+	NAlib.connect(GROUP,buyAll.MouseButton1Click:Connect(function()
+		if #allItems==0 then return end
+		local delayS=parseInterval()
+		Spawn(function()
+			for _,info in ipairs(allItems) do
+				MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
+				Wait(delayS)
+			end
+		end)
+	end))
 
 	fetchAll()
 end)
