@@ -986,14 +986,105 @@ G2L["70"]["Name"] = [[Container]];
 G2L["70"]["BackgroundTransparency"] = 0.3;
 
 
+-- StarterGui.AdminUI.setsettings.Container.TabContainer
+G2L["70a"] = Instance.new("Frame", G2L["70"]);
+G2L["70a"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70a"]["BackgroundTransparency"] = 1;
+G2L["70a"]["BorderSizePixel"] = 0;
+G2L["70a"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["70a"]["Name"] = [[TabContainer]];
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList
+G2L["70b"] = Instance.new("ScrollingFrame", G2L["70a"]);
+G2L["70b"]["AutomaticCanvasSize"] = Enum.AutomaticSize.X;
+G2L["70b"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70b"]["BackgroundTransparency"] = 1;
+G2L["70b"]["BorderSizePixel"] = 0;
+G2L["70b"]["ScrollBarImageColor3"] = Color3.fromRGB(104, 104, 114);
+G2L["70b"]["ScrollBarThickness"] = 3;
+G2L["70b"]["ScrollingDirection"] = Enum.ScrollingDirection.X;
+G2L["70b"]["Size"] = UDim2.new(1, -10, 0, 36);
+G2L["70b"]["Position"] = UDim2.new(0, 5, 0, 5);
+G2L["70b"]["Name"] = [[TabList]];
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.UIListLayout
+G2L["70c"] = Instance.new("UIListLayout", G2L["70b"]);
+G2L["70c"]["FillDirection"] = Enum.FillDirection.Horizontal;
+G2L["70c"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
+G2L["70c"]["Padding"] = UDim.new(0, 6);
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.UIPadding
+G2L["70d"] = Instance.new("UIPadding", G2L["70b"]);
+G2L["70d"]["PaddingBottom"] = UDim.new(0, 4);
+G2L["70d"]["PaddingLeft"] = UDim.new(0, 4);
+G2L["70d"]["PaddingRight"] = UDim.new(0, 4);
+G2L["70d"]["PaddingTop"] = UDim.new(0, 4);
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.TabButton
+G2L["70e"] = Instance.new("Frame", G2L["70b"]);
+G2L["70e"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["70e"]["BackgroundTransparency"] = 0.25;
+G2L["70e"]["BorderSizePixel"] = 0;
+G2L["70e"]["Size"] = UDim2.new(0, 120, 0, 28);
+G2L["70e"]["Visible"] = false;
+G2L["70e"]["Name"] = [[TabButton]];
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.TabButton.Title
+G2L["70f"] = Instance.new("TextLabel", G2L["70e"]);
+G2L["70f"]["TextWrapped"] = true;
+G2L["70f"]["BorderSizePixel"] = 0;
+G2L["70f"]["TextSize"] = 16;
+G2L["70f"]["TextXAlignment"] = Enum.TextXAlignment.Center;
+G2L["70f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70f"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+G2L["70f"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["70f"]["BackgroundTransparency"] = 1;
+G2L["70f"]["Size"] = UDim2.new(1, -10, 1, 0);
+G2L["70f"]["Position"] = UDim2.new(0, 5, 0, 0);
+G2L["70f"]["Text"] = [[Tab]];
+G2L["70f"]["Name"] = [[Title]];
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.TabButton.Interact
+G2L["70g"] = Instance.new("TextButton", G2L["70e"]);
+G2L["70g"]["BorderSizePixel"] = 0;
+G2L["70g"]["TextSize"] = 14;
+G2L["70g"]["TextColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70g"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70g"]["FontFace"] = Font.new([[rbxasset://fonts/families/SourceSansPro.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["70g"]["BackgroundTransparency"] = 1;
+G2L["70g"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["70g"]["Name"] = [[Interact]];
+G2L["70g"]["Text"] = [[]];
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.TabButton.UICorner
+G2L["70h"] = Instance.new("UICorner", G2L["70e"]);
+G2L["70h"]["CornerRadius"] = UDim.new(0, 6);
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.TabList.TabButton.UIStroke
+G2L["70i"] = Instance.new("UIStroke", G2L["70e"]);
+G2L["70i"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["70i"]["Thickness"] = 1.5;
+G2L["70i"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+-- StarterGui.AdminUI.setsettings.Container.TabContainer.Pages
+G2L["70j"] = Instance.new("Frame", G2L["70a"]);
+G2L["70j"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70j"]["BackgroundTransparency"] = 1;
+G2L["70j"]["BorderSizePixel"] = 0;
+G2L["70j"]["ClipsDescendants"] = true;
+G2L["70j"]["Size"] = UDim2.new(1, -10, 1, -55);
+G2L["70j"]["Position"] = UDim2.new(0, 5, 0, 45);
+G2L["70j"]["Name"] = [[Pages]];
+
+
 -- StarterGui.AdminUI.setsettings.Container.List
-G2L["71"] = Instance.new("ScrollingFrame", G2L["70"]);
+G2L["71"] = Instance.new("ScrollingFrame", G2L["70j"]);
 G2L["71"]["BorderSizePixel"] = 0;
 G2L["71"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["71"]["Name"] = [[List]];
-G2L["71"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["71"]["Size"] = UDim2.new(1, 0, 1, 0);
 G2L["71"]["ScrollBarImageColor3"] = Color3.fromRGB(104, 104, 114);
-G2L["71"]["Position"] = UDim2.new(0, 5, 0, 5);
+G2L["71"]["Position"] = UDim2.new(0, 0, 0, 0);
 G2L["71"]["ScrollBarThickness"] = 3;
 G2L["71"]["BackgroundTransparency"] = 1;
 
