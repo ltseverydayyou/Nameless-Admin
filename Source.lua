@@ -3288,91 +3288,102 @@ function rngMsg()
 	return msg[math.random(1,#msg)]
 end
 
-_rp_cache = _rp_cache or setmetatable({}, { __mode = "k" })
+NA_GRAB_BODY = (function()
+	local T = {}
+	local _cache = _rp_cache or setmetatable({}, { __mode = "k" })
 
-function _rp_asCharacter(obj)
-	if not obj or typeof(obj) ~= "Instance" then return nil end
-	if obj:IsA("Player") then return obj.Character end
-	if obj:IsA("Model") then return obj end
-	return nil
-end
+	local function asChar(obj)
+		if not obj or typeof(obj) ~= "Instance" then return nil end
+		if obj:IsA("Player") then return obj.Character end
+		if obj:IsA("Model") then return obj end
+		return nil
+	end
 
-function _rp_rebuild(char, rec)
-	local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
-	local tp = { torso = 1, uppertorso = 2, lowertorso = 3, humanoidrootpart = 4 }
-	local bestRoot, bestRootRank = nil, math.huge
-	local bestTorso, bestTorsoRank = nil, math.huge
-	local head, humanoid, fallback = nil, nil, nil
-	local q = { char }
-	local i = 1
-	while i <= #q do
-		local node = q[i]; i = i + 1
-		local children = node:GetChildren()
-		for c = 1, #children do
-			local ch = children[c]
-			if not fallback and ch:IsA("BasePart") then fallback = ch end
-			if not humanoid and ch:IsA("Humanoid") then humanoid = ch end
-			if ch:IsA("BasePart") then
-				local n = Lower(ch.Name)
-				local r = rp[n]
-				if r and r < bestRootRank then bestRootRank = r; bestRoot = ch end
-				local t = tp[n]
-				if t and t < bestTorsoRank then bestTorsoRank = t; bestTorso = ch end
-				if not head and n == "head" then head = ch end
-			end
-			q[#q + 1] = ch
+	local function firstPart(model)
+		for _,d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") then return d end
 		end
+		return nil
 	end
-	if not bestRoot then bestRoot = fallback end
-	if not bestTorso then bestTorso = fallback end
-	if not head then head = fallback end
-	rec.root, rec.torso, rec.head, rec.humanoid, rec.dirty = bestRoot, bestTorso, head, humanoid, false
-end
 
-function _rp_ensure(arg)
-	local obj = arg
-	if not obj then
-		if Players and Players.LocalPlayer then obj = Players.LocalPlayer end
-	end
-	local char = _rp_asCharacter(obj)
-	if not char then return nil end
-	local rec = _rp_cache[char]
-	if not rec then
-		rec = { dirty = true }
-		_rp_cache[char] = rec
-		rec.a = char.DescendantAdded:Connect(function() rec.dirty = true end)
-		rec.r = char.DescendantRemoving:Connect(function() rec.dirty = true end)
-		rec.c = char.AncestryChanged:Connect(function(_, parent)
-			if not parent then
-				if rec.a then rec.a:Disconnect() end
-				if rec.r then rec.r:Disconnect() end
-				if rec.c then rec.c:Disconnect() end
-				_rp_cache[char] = nil
+	local function rebuild(char, rec)
+		local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
+		local tp = { torso = 1, uppertorso = 2, lowertorso = 3, humanoidrootpart = 4 }
+		local bestRoot, bestRootRank = nil, math.huge
+		local bestTorso, bestTorsoRank = nil, math.huge
+		local head, humanoid, fallback = nil, nil, nil
+		local q = { char }
+		local i = 1
+		while i <= #q do
+			local node = q[i]; i = i + 1
+			local children = node:GetChildren()
+			for c = 1, #children do
+				local ch = children[c]
+				if not fallback and ch:IsA("BasePart") then fallback = ch end
+				if not humanoid and ch:IsA("Humanoid") then humanoid = ch end
+				if ch:IsA("BasePart") then
+					local n = Lower(ch.Name)
+					local r = rp[n]
+					if r and r < bestRootRank then bestRootRank = r; bestRoot = ch end
+					local t = tp[n]
+					if t and t < bestTorsoRank then bestTorsoRank = t; bestTorso = ch end
+					if not head and n == "head" then head = ch end
+				end
+				q[#q + 1] = ch
 			end
-		end)
+		end
+		if not bestRoot then bestRoot = fallback end
+		if not bestTorso then bestTorso = fallback end
+		if not head then head = fallback end
+		rec.root, rec.torso, rec.head, rec.humanoid, rec.dirty = bestRoot, bestTorso, head, humanoid, false
 	end
-	if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then
-		_rp_rebuild(char, rec)
+
+	local function ensure(char)
+		local obj = char
+		if not obj and Players and Players.LocalPlayer then obj = Players.LocalPlayer end
+		local model = asChar(obj)
+		if not model then return nil end
+		local rec = _cache[model]
+		if not rec then
+			rec = { dirty = true }
+			_cache[model] = rec
+			rec.a = model.DescendantAdded:Connect(function() rec.dirty = true end)
+			rec.r = model.DescendantRemoving:Connect(function() rec.dirty = true end)
+			rec.c = model.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					if rec.a then rec.a:Disconnect() end
+					if rec.r then rec.r:Disconnect() end
+					if rec.c then rec.c:Disconnect() end
+					_cache[model] = nil
+				end
+			end)
+		end
+		if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then rebuild(model, rec) end
+		return rec, model
 	end
-	return rec
-end
+
+	T.ensure = ensure
+	T.firstPart = firstPart
+	T.asChar = asChar
+	return T
+end)()
 
 function getRoot(char)
-	local rec = _rp_ensure(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
-	return rec.root
+	return rec.root or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
 function getTorso(char)
-	local rec = _rp_ensure(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
-	return rec.torso
+	return rec.torso or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
 function getHead(char)
-	local rec = _rp_ensure(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
-	return rec.head
+	return rec.head or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
 function getChar()
@@ -3381,7 +3392,7 @@ function getChar()
 end
 
 function getPlrChar(plr)
-	return _rp_asCharacter(plr)
+	return NA_GRAB_BODY.asChar(plr)
 end
 
 function getBp()
@@ -3389,22 +3400,21 @@ function getBp()
 	return plr and plr:FindFirstChildOfClass("Backpack") or nil
 end
 
-function getHum(arg)
-	local rec = _rp_ensure(arg)
+function getHum(char)
+	local rec = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
 	return rec.humanoid
 end
 
-function getPlrHum(pp)
-	return getHum(pp)
+function getPlrHum(plr)
+	return getHum(plr)
 end
 
 function IsR15(plr)
 	plr=(plr or Players.LocalPlayer)
 	if plr then
-		if getPlrHum(plr).RigType==Enum.HumanoidRigType.R15 then
-			return true
-		end
+		local h=getPlrHum(plr)
+		if h and h.RigType==Enum.HumanoidRigType.R15 then return true end
 	end
 	return false
 end
@@ -3412,9 +3422,8 @@ end
 function IsR6(plr)
 	plr=(plr or Players.LocalPlayer)
 	if plr then
-		if getPlrHum(plr).RigType==Enum.HumanoidRigType.R6 then
-			return true
-		end
+		local h=getPlrHum(plr)
+		if h and h.RigType==Enum.HumanoidRigType.R6 then return true end
 	end
 	return false
 end
@@ -5840,7 +5849,7 @@ local lp=Players.LocalPlayer
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks={}
 Playerchats={}
-local oldChat = TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
 	NAlib.LocalPlayerChat=function(...)
@@ -18507,6 +18516,329 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	end))
 
 	fetchAll()
+end)
+
+NA_GAMEPASS_GUI=nil
+
+cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
+	if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
+	local MarketplaceService=SafeGetService("MarketplaceService")
+	local Players=SafeGetService("Players")
+	local LocalPlayer=Players.LocalPlayer
+	local GROUP="GamePassesGUI"
+	NAlib.disconnect(GROUP)
+
+	local gui=InstanceNew("ScreenGui")
+	NAProtection(gui)
+	NaProtectUI(gui)
+	NA_GAMEPASS_GUI=gui
+
+	local shadow=InstanceNew("Frame",gui)
+	shadow.BackgroundColor3=Color3.fromRGB(0,0,0)
+	shadow.BackgroundTransparency=0.6
+	shadow.BorderSizePixel=0
+	shadow.Size=UDim2.fromOffset(640,520)
+	shadow.ZIndex=0
+	local shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,22)
+
+	local win=InstanceNew("Frame",gui)
+	win.BackgroundColor3=Color3.fromRGB(20,20,20)
+	win.BorderSizePixel=0
+	win.Size=UDim2.fromOffset(640,520)
+	win.ZIndex=1
+	NAProtection(win)
+	NAmanage.centerFrame(win)
+	shadow.Position=win.Position
+	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
+
+	local corner=InstanceNew("UICorner",win); corner.CornerRadius=UDim.new(0,22)
+	local stroke=InstanceNew("UIStroke",win); stroke.Thickness=1; stroke.Transparency=0.6; stroke.Color=Color3.fromRGB(255,255,255)
+
+	local top=InstanceNew("Frame",win)
+	top.BackgroundColor3=Color3.fromRGB(26,26,26)
+	top.Size=UDim2.new(1,0,0,56)
+	top.BorderSizePixel=0
+	local topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,22)
+	local topMask=InstanceNew("Frame",top); topMask.BackgroundTransparency=1; topMask.Size=UDim2.new(1,-24,1,-16); topMask.Position=UDim2.fromOffset(12,8)
+	NAgui.draggerV2(win,topMask)
+
+	local title=InstanceNew("TextLabel",top)
+	title.BackgroundTransparency=1
+	title.Position=UDim2.fromOffset(20,0)
+	title.Size=UDim2.new(1,-200,1,0)
+	title.Font=Enum.Font.GothamBold
+	title.TextXAlignment=Enum.TextXAlignment.Left
+	title.TextColor3=Color3.fromRGB(240,240,240)
+	title.Text="Game Passes"
+	title.TextScaled=true
+
+	local close=InstanceNew("TextButton",top)
+	close.Size=UDim2.fromOffset(36,36)
+	close.Position=UDim2.new(1,-44,0.5,-18)
+	close.Text="X"
+	close.Font=Enum.Font.GothamBold
+	close.BackgroundColor3=Color3.fromRGB(50,50,50)
+	close.TextColor3=Color3.fromRGB(255,255,255)
+	close.TextScaled=true
+	local closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0,10)
+
+	local head=InstanceNew("Frame",win)
+	head.BackgroundColor3=Color3.fromRGB(20,20,20)
+	head.Position=UDim2.fromOffset(16,64)
+	head.Size=UDim2.new(1,-32,0,140)
+	head.BorderSizePixel=0
+	local headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,14)
+	local headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
+
+	local idBox=InstanceNew("TextBox",head)
+	idBox.Size=UDim2.new(1,-16,0,64)
+	idBox.Position=UDim2.fromOffset(8,8)
+	idBox.PlaceholderText="Paste GamePass IDs (comma / space / newline separated)"
+	idBox.ClearTextOnFocus=false
+	idBox.TextXAlignment=Enum.TextXAlignment.Left
+	idBox.TextYAlignment=Enum.TextYAlignment.Top
+	idBox.MultiLine=true
+	idBox.Text=""
+	idBox.Font=Enum.Font.Gotham
+	idBox.BackgroundColor3=Color3.fromRGB(34,34,34)
+	idBox.TextColor3=Color3.fromRGB(230,230,230)
+	idBox.TextScaled=false
+	idBox.TextSize=16
+	local idCorner=InstanceNew("UICorner",idBox); idCorner.CornerRadius=UDim.new(0,10)
+
+	local addBtn=InstanceNew("TextButton",head)
+	addBtn.Size=UDim2.fromOffset(96,34)
+	addBtn.Position=UDim2.fromOffset(8,8+64+8)
+	addBtn.Text="Add IDs"
+	addBtn.Font=Enum.Font.GothamMedium
+	addBtn.BackgroundColor3=Color3.fromRGB(70,110,70)
+	addBtn.TextColor3=Color3.fromRGB(255,255,255)
+	addBtn.TextScaled=true
+	local addCorner=InstanceNew("UICorner",addBtn); addCorner.CornerRadius=UDim.new(0,10)
+
+	local interval=InstanceNew("TextBox",head)
+	interval.Size=UDim2.fromOffset(120,34)
+	interval.Position=UDim2.new(1,-120,0,8+64+8)
+	interval.PlaceholderText="Interval (s)"
+	interval.Text="0.5"
+	interval.ClearTextOnFocus=false
+	interval.TextXAlignment=Enum.TextXAlignment.Center
+	interval.Font=Enum.Font.GothamMedium
+	interval.BackgroundColor3=Color3.fromRGB(34,34,34)
+	interval.TextColor3=Color3.fromRGB(255,255,255)
+	interval.TextScaled=true
+	local iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0,10)
+
+	local allBtn=InstanceNew("TextButton",head)
+	allBtn.Size=UDim2.fromOffset(120,34)
+	allBtn.Position=UDim2.new(1,-120-8-120,0,8+64+8)
+	allBtn.Text="Prompt All"
+	allBtn.Font=Enum.Font.GothamMedium
+	allBtn.BackgroundColor3=Color3.fromRGB(70,70,110)
+	allBtn.TextColor3=Color3.fromRGB(255,255,255)
+	allBtn.TextScaled=true
+	local allCorner=InstanceNew("UICorner",allBtn); allCorner.CornerRadius=UDim.new(0,10)
+
+	local search=InstanceNew("TextBox",head)
+	search.Size=UDim2.new(1,-8-120-8-120-8-96-16,0,34)
+	search.Position=UDim2.fromOffset(8+96+8,8+64+8)
+	search.PlaceholderText="Search by name or ID"
+	search.ClearTextOnFocus=false
+	search.TextXAlignment=Enum.TextXAlignment.Left
+	search.Text=""
+	search.Font=Enum.Font.Gotham
+	search.BackgroundColor3=Color3.fromRGB(34,34,34)
+	search.TextColor3=Color3.fromRGB(230,230,230)
+	search.TextScaled=true
+	local sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0,10)
+
+	local status=InstanceNew("TextLabel",win)
+	status.BackgroundTransparency=1
+	status.Size=UDim2.new(1,-32,0,20)
+	status.Position=UDim2.fromOffset(16,208)
+	status.Font=Enum.Font.Gotham
+	status.TextXAlignment=Enum.TextXAlignment.Left
+	status.TextColor3=Color3.fromRGB(190,190,190)
+	status.Text="Ready."
+	status.TextScaled=true
+
+	local body=InstanceNew("Frame",win)
+	body.BackgroundColor3=Color3.fromRGB(16,16,16)
+	body.Position=UDim2.fromOffset(16,232)
+	body.Size=UDim2.new(1,-32,1,-248)
+	body.BorderSizePixel=0
+	local bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,18)
+	local bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
+
+	local list=InstanceNew("ScrollingFrame",body)
+	list.BackgroundTransparency=1
+	list.BorderSizePixel=0
+	list.Position=UDim2.fromOffset(10,10)
+	list.Size=UDim2.new(1,-20,1,-20)
+	list.ScrollBarThickness=6
+	list.CanvasSize=UDim2.new()
+
+	local layout=InstanceNew("UIListLayout",list)
+	layout.Padding=UDim.new(0,10)
+	layout.SortOrder=Enum.SortOrder.LayoutOrder
+
+	local padding=InstanceNew("UIPadding",list)
+	padding.PaddingTop=UDim.new(0,2)
+	padding.PaddingBottom=UDim.new(0,2)
+	padding.PaddingLeft=UDim.new(0,2)
+	padding.PaddingRight=UDim.new(0,2)
+
+	local function notify(m,t) if DoNotif then DoNotif(m,t or 4,"GamePasses") else warn("[GamePasses] "..m) end status.Text=m end
+	local function setCanvas() list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+16) end
+	NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
+
+	local function parseInterval()
+		local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.5
+		if v<0 then v=0 end
+		return v
+	end
+
+	local rows={}
+	local passList={}
+	local allPasses={}
+
+	local function makeRow(id:number, nameText:string?, priceText:string?)
+		if rows[id] then return end
+		local row=InstanceNew("Frame",list)
+		row.BackgroundColor3=Color3.fromRGB(24,24,24)
+		row.BorderSizePixel=0
+		row.Size=UDim2.new(1,0,0,84)
+		local rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,16)
+		local rStroke=InstanceNew("UIStroke",row); rStroke.Thickness=1; rStroke.Transparency=0.75
+
+		local nameL=InstanceNew("TextLabel",row)
+		nameL.BackgroundTransparency=1
+		nameL.Position=UDim2.fromOffset(14,10)
+		nameL.Size=UDim2.new(1,-240,0,30)
+		nameL.Font=Enum.Font.GothamMedium
+		nameL.TextXAlignment=Enum.TextXAlignment.Left
+		nameL.TextColor3=Color3.fromRGB(245,245,245)
+		nameL.Text=nameText or ("Pass "..id)
+		nameL.TextScaled=true
+		nameL.TextWrapped=true
+
+		local sub=InstanceNew("TextLabel",row)
+		sub.BackgroundTransparency=1
+		sub.Position=UDim2.fromOffset(14,44)
+		sub.Size=UDim2.new(1,-240,0,24)
+		sub.Font=Enum.Font.Gotham
+		sub.TextXAlignment=Enum.TextXAlignment.Left
+		sub.TextColor3=Color3.fromRGB(190,190,190)
+		sub.Text=Format("ID: %d  •  Price: %s",id, priceText or "—")
+		sub.TextScaled=true
+		sub.TextWrapped=true
+
+		local prompt=InstanceNew("TextButton",row)
+		prompt.Size=UDim2.fromOffset(104,38)
+		prompt.Position=UDim2.new(1,-220,0.5,-19)
+		prompt.Font=Enum.Font.GothamBold
+		prompt.AutoButtonColor=true
+		prompt.TextColor3=Color3.fromRGB(255,255,255)
+		prompt.BackgroundColor3=Color3.fromRGB(0,170,127)
+		prompt.Text="Prompt"
+		prompt.TextScaled=true
+		local pCorner=InstanceNew("UICorner",prompt); pCorner.CornerRadius=UDim.new(0,12)
+
+		local toggleBtn=InstanceNew("TextButton",row)
+		toggleBtn.Size=UDim2.fromOffset(104,38)
+		toggleBtn.Position=UDim2.new(1,-108,0.5,-19)
+		toggleBtn.Font=Enum.Font.GothamBold
+		toggleBtn.AutoButtonColor=true
+		toggleBtn.TextColor3=Color3.fromRGB(255,255,255)
+		toggleBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+		toggleBtn.Text="Queue"
+		toggleBtn.TextScaled=true
+		local lCorner=InstanceNew("UICorner",toggleBtn); lCorner.CornerRadius=UDim.new(0,12)
+
+		NAlib.connect(GROUP,prompt.MouseButton1Click:Connect(function()
+			MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+		end))
+		NAlib.connect(GROUP,toggleBtn.MouseButton1Click:Connect(function()
+			local idx=Discover(passList,id)
+			if idx then
+				table.remove(passList,idx)
+				toggleBtn.Text="Queue"
+				toggleBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+			else
+				Insert(passList,id)
+				toggleBtn.Text="Queued"
+				toggleBtn.BackgroundColor3=Color3.fromRGB(70,110,70)
+			end
+		end))
+
+		rows[id]=row
+		Spawn(function()
+			local ok,info=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.GamePass) end)
+			if ok and type(info)=="table" and rows[id] and rows[id].Parent then
+				nameL.Text=info.Name or nameL.Text
+				local price=info.PriceInRobux and (tostring(info.PriceInRobux).." R$") or "—"
+				sub.Text=Format("ID: %d  •  Price: %s",id,price)
+			end
+		end)
+		setCanvas()
+	end
+
+	local function addIdsFromText(text:string)
+		local clean=GSub(text or "","[,%s]+"," ")
+		local added=0
+		for token in clean:gmatch("%S+") do
+			local id=tonumber(token)
+			if id and not rows[id] then
+				Insert(allPasses,{id=id})
+				makeRow(id)
+				added+=1
+				Wait()
+			end
+		end
+		return added
+	end
+
+	local function applyFilter(q)
+		q=Lower(q or "")
+		for id,row in pairs(rows) do
+			local nameLabel
+			for _,c in ipairs(row:GetChildren()) do if c:IsA("TextLabel") then nameLabel=c break end end
+			local nameText=Lower(tostring(nameLabel and nameLabel.Text or ""))
+			local idStr=tostring(id)
+			row.Visible=(q=="" or (Find(nameText,q,1,true)~=nil) or (Find(idStr,q,1,true)~=nil))
+		end
+		setCanvas()
+	end
+
+	local function promptAllQueued()
+		if #passList==0 then return end
+		local delayS=parseInterval()
+		Spawn(function()
+			for _,id in ipairs(passList) do
+				MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+				Wait(delayS)
+			end
+		end)
+	end
+
+	NAlib.connect(GROUP,addBtn.MouseButton1Click:Connect(function()
+		local n=addIdsFromText(idBox.Text or "")
+		if n>0 then
+			idBox.Text=""
+			if n==1 then
+				status.Text="Added 1 pass."
+			else
+				status.Text=Format("Added %d passes.",n)
+			end
+		else
+			status.Text="No valid IDs."
+		end
+	end))
+
+	NAlib.connect(GROUP,allBtn.MouseButton1Click:Connect(function() promptAllQueued() end))
+	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
+	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 end)
 
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
