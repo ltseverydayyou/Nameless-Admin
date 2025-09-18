@@ -40,6 +40,15 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 
+local TAB_ALL = "All"
+local TAB_GENERAL = "General"
+local TAB_INTERFACE = "Interface"
+local TAB_LOGGING = "Logging"
+local TAB_ESP = "ESP"
+local TAB_CHAT = "Chat"
+local TAB_CHARACTER = "Character"
+local TAB_KEYBINDS = "Keybinds"
+
 local LoadstringCommandAliases = {
 	loadstring = true;
 	ls = true;
@@ -190,6 +199,7 @@ local NAStuff = {
 	};
 	NASettingsSchema = nil;
 	NASettingsData = nil;
+	elementOriginalParent = setmetatable({}, { __mode = "k" });
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -6453,6 +6463,7 @@ end)
 	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowResizable=true
 	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowDraggable=true
 end)]]
+
 
 local scaleFrame = nil
 cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
@@ -14816,6 +14827,7 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 		end
 	end
 end, true)
+
 
 if IsOnPC then
 	cmd.add({"aimbot","aimbotui","aimbotgui"},{"aimbot (aimbotui,aimbotgui)","aimbot and yeah"},function()
@@ -26676,37 +26688,69 @@ local NAUIMANAGER = {
 	SettingsFrame        = NAStuff.NASCREENGUI:FindFirstChild("setsettings");
 	SettingsContainer    = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container");
+	SettingsTabContainer = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer");
+	SettingsTabs         = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList");
+	SettingsPages        = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages");
 	SettingsList         = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List");
+	SettingsTabButton    = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList"):FindFirstChild("TabButton");
 	SettingsButton       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Button");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Button");
 	SettingsColorPicker  = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("ColorPicker");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("ColorPicker");
 	SettingsSectionTitle = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("SectionTitle");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("SectionTitle");
 	SettingsToggle       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Toggle");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Toggle");
 	SettingsInput        = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Input");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Input");
 	SettingsKeybind      = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Keybind");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Keybind");
 	SettingsSlider       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("Slider");
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Slider");
 	WaypointFrame        = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint");
 	WaypointContainer    = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
 		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container");
@@ -26793,6 +26837,10 @@ if NAUIMANAGER.SettingsSlider then
 	NAUIMANAGER.SettingsSlider.Parent = nil
 end
 
+if NAUIMANAGER.SettingsTabButton then
+	NAUIMANAGER.SettingsTabButton.Parent = nil
+end
+
 if NAUIMANAGER.WPFrame then
 	NAUIMANAGER.WPFrame.Parent = nil
 end
@@ -26806,8 +26854,359 @@ local templates = {
 	Keybind = NAUIMANAGER.SettingsKeybind;
 	Slider = NAUIMANAGER.SettingsSlider;
 	WaypointerFrame = NAUIMANAGER.WPFrame;
-	Index = 0;
 }
+
+local TabManager = {
+	holder = NAUIMANAGER.SettingsTabs;
+	container = NAUIMANAGER.SettingsPages;
+	template = NAUIMANAGER.SettingsTabButton;
+	defaultPage = NAUIMANAGER.SettingsList;
+	tabs = {};
+	order = {};
+	current = nil;
+	fallback = nil;
+	fallbackIndex = 0;
+}
+
+local tabsLayout = TabManager.holder and (TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout"))
+if tabsLayout and tabsLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
+	pcall(function()
+		tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	end)
+end
+
+if TabManager.template then
+	TabManager.template.Visible = false
+end
+
+if TabManager.defaultPage then
+	local maxOrder = 0
+	for _, child in ipairs(TabManager.defaultPage:GetChildren()) do
+		if child:IsA("GuiObject") and child.Name ~= "UIListLayout" then
+			maxOrder = math.max(maxOrder, child.LayoutOrder or 0)
+		end
+	end
+
+	TabManager.pageTemplate = TabManager.defaultPage:Clone()
+	TabManager.pageTemplate.Name = "TabPageTemplate"
+	TabManager.pageTemplate.CanvasPosition = Vector2.new(0, 0)
+	TabManager.pageTemplate.Parent = nil
+
+	TabManager.fallback = {
+		page = TabManager.defaultPage;
+		layoutIndex = maxOrder;
+	}
+	TabManager.fallbackIndex = maxOrder
+	TabManager.defaultPage.Visible = true
+end
+
+NAmanage.registerElementForCurrentTab=function(instance)
+	if not instance then
+		return
+	end
+	local currentName = TabManager.current
+	if not currentName or (TAB_ALL and currentName == TAB_ALL) then
+		return
+	end
+	if not NAStuff.elementOriginalParent[instance] then
+		NAStuff.elementOriginalParent[instance] = instance.Parent
+	end
+	pcall(function()
+		instance:SetAttribute("NAOriginalTab", currentName)
+	end)
+end
+
+NAmanage.clearAllTabWrappers=function(page)
+	if not page then return end
+	for _, child in ipairs(page:GetChildren()) do
+		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+			for _, element in ipairs(child:GetChildren()) do
+				if element:IsA("GuiObject") then
+					local originalParent = NAStuff.elementOriginalParent[element]
+					if not originalParent then
+						local originalTab = element:GetAttribute("NAOriginalTab")
+						if originalTab and TabManager.tabs then
+							local info = TabManager.tabs[originalTab]
+							originalParent = info and info.page
+						end
+					end
+					originalParent = originalParent or page
+					local origOrder = element:GetAttribute("NAOrigOrder")
+					if typeof(origOrder) == "number" then
+						element.LayoutOrder = origOrder
+					end
+					if element.Parent ~= originalParent then
+						element.Parent = originalParent
+					end
+				end
+			end
+			child:Destroy()
+		end
+	end
+end
+
+NAmanage.restoreAllTabElements=function()
+	local allInfo = (TabManager.tabs and TAB_ALL) and TabManager.tabs[TAB_ALL] or nil
+	if allInfo and allInfo.page then
+		NAmanage.clearAllTabWrappers(allInfo.page)
+	end
+end
+
+NAmanage.collectTabElements=function(tabInfo, tabName)
+	local elements = {}
+	if not tabInfo or not tabInfo.page then
+		return elements
+	end
+	for _, child in ipairs(tabInfo.page:GetChildren()) do
+		if child:IsA("GuiObject")
+			and not child:GetAttribute("NAAllWrapper")
+			and not child:IsA("UIListLayout")
+			and not child:IsA("UIPadding")
+			and not child:IsA("UIPageLayout") then
+			table.insert(elements, child)
+		end
+	end
+	table.sort(elements, function(a, b)
+		return (a.LayoutOrder or 0) < (b.LayoutOrder or 0)
+	end)
+	tabInfo.elements = elements
+	for _, element in ipairs(elements) do
+		if not NAStuff.elementOriginalParent[element] then
+			NAStuff.elementOriginalParent[element] = tabInfo.page
+		end
+		pcall(function()
+			element:SetAttribute("NAOriginalTab", tabName)
+		end)
+	end
+	return elements
+end
+
+NAmanage.prepareAllTabDisplay=function(allInfo)
+	if not allInfo or not allInfo.page then return end
+	NAmanage.clearAllTabWrappers(allInfo.page)
+
+	local page = allInfo.page
+	local layout = page:FindFirstChildWhichIsA("UIListLayout")
+	if not layout then
+		layout = Instance.new("UIListLayout")
+		layout.FillDirection = Enum.FillDirection.Vertical
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Padding = UDim.new(0, 10)
+		layout.Parent = page
+	else
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+	if page:IsA("ScrollingFrame") then
+		page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		page.CanvasPosition = Vector2.new(0, 0)
+	end
+
+	local merged = Instance.new("Frame")
+	merged.Name = "NAAllMerged"
+	merged.BackgroundTransparency = 1
+	merged.Size = UDim2.new(1, 0, 0, 0)
+	merged.AutomaticSize = Enum.AutomaticSize.Y
+	merged.LayoutOrder = -1
+	merged:SetAttribute("NAAllWrapper", true)
+	merged.Parent = page
+
+	local ml = Instance.new("UIListLayout")
+	ml.FillDirection = Enum.FillDirection.Vertical
+	ml.SortOrder = Enum.SortOrder.LayoutOrder
+	ml.Padding = UDim.new(0, 6)
+	ml.Parent = merged
+
+	local cursor = 0
+	for _, tabName in ipairs(TabManager.order) do
+		if tabName ~= TAB_ALL then
+			local tabInfo = TabManager.tabs[tabName]
+			if tabInfo and tabInfo.page then
+				local elements = NAmanage.collectTabElements(tabInfo, tabName)
+				for _, element in ipairs(elements) do
+					if element:GetAttribute("NAOrigOrder") == nil then
+						element:SetAttribute("NAOrigOrder", element.LayoutOrder or 0)
+					end
+					element.LayoutOrder = cursor
+					cursor += 1
+					if element.Parent ~= merged then
+						element.Parent = merged
+					end
+				end
+			end
+		end
+	end
+end
+
+NAmanage.updateTabVisual=function(tabInfo, isActive)
+	if not tabInfo or not tabInfo.button then
+		return
+	end
+	local btn = tabInfo.button
+	btn.BackgroundTransparency = isActive and 0.1 or 0.25
+	local stroke = btn:FindFirstChildWhichIsA("UIStroke")
+	if stroke then
+		stroke.Color = isActive and Color3.fromRGB(194, 132, 255) or Color3.fromRGB(154, 99, 255)
+	end
+	local title = btn:FindFirstChild("Title")
+	if title then
+		title.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(234, 234, 244)
+		if tabInfo.displayName then
+			title.Text = tabInfo.displayName
+		end
+	end
+end
+
+NAgui.getActiveTab=function()
+	return TabManager.current
+end
+
+NAgui._nextLayoutOrder=function()
+	local active = TabManager.current and TabManager.tabs[TabManager.current]
+	if active then
+		active.layoutIndex = (active.layoutIndex or 0) + 1
+		return active.layoutIndex
+	elseif TabManager.fallback then
+		TabManager.fallback.layoutIndex = (TabManager.fallback.layoutIndex or 0) + 1
+		TabManager.fallbackIndex = TabManager.fallback.layoutIndex
+		return TabManager.fallback.layoutIndex
+	else
+		TabManager.fallbackIndex = (TabManager.fallbackIndex or 0) + 1
+		return TabManager.fallbackIndex
+	end
+end
+
+NAgui.setTab=function(name)
+	local info = name and TabManager.tabs[name]
+	if not info then
+		return nil
+	end
+
+	local previousTab = TabManager.current
+	if previousTab == TAB_ALL and name ~= TAB_ALL then
+		NAmanage.restoreAllTabElements()
+	end
+
+	TabManager.current = name
+	if info.page then
+		NAUIMANAGER.SettingsList = info.page
+	end
+
+	for tabName, tabInfo in pairs(TabManager.tabs) do
+		local isActive = tabName == name
+		if tabInfo.page then
+			tabInfo.page.Visible = isActive
+		end
+		NAmanage.updateTabVisual(tabInfo, isActive)
+	end
+
+	if name == TAB_ALL then
+		NAmanage.prepareAllTabDisplay(info)
+	end
+
+	return info.page
+end
+
+NAgui.addTab=function(name, options)
+	if type(name) ~= "string" or name == "" then
+		return nil
+	end
+	if TabManager.tabs[name] then
+		if options and options.default then
+			NAgui.setTab(name)
+		end
+		return TabManager.tabs[name]
+	end
+
+	local displayName = (options and options.displayText) or name
+	local button
+	local layoutOrder = options and options.order or (#TabManager.order + 1)
+	if TabManager.holder then
+		local holderLayout = TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout")
+		if holderLayout then
+			pcall(function() holderLayout.SortOrder = Enum.SortOrder.LayoutOrder end)
+		end
+	end
+	if TabManager.template and TabManager.holder then
+		button = TabManager.template:Clone()
+		button.Visible = true
+		button.Name = name.."Tab"
+		local title = button:FindFirstChild("Title")
+		if title then
+			title.Text = displayName
+		end
+		button.LayoutOrder = layoutOrder
+		button.Parent = TabManager.holder
+		local interact = button:FindFirstChild("Interact") or button
+		MouseButtonFix(interact, function()
+			NAgui.setTab(name)
+		end)
+	end
+
+	local info
+	if TabManager.fallback and TabManager.fallback.page then
+		info = {
+			name = name;
+			displayName = displayName;
+			page = TabManager.fallback.page;
+			button = button;
+			layoutIndex = TabManager.fallback.layoutIndex or 0;
+		}
+		TabManager.fallback = nil
+	else
+		local pageTemplate = TabManager.pageTemplate
+		local page = pageTemplate and pageTemplate:Clone() or (TabManager.defaultPage and TabManager.defaultPage:Clone()) or Instance.new("ScrollingFrame")
+		page.Name = name.."Page"
+		page.Visible = false
+		page.CanvasPosition = Vector2.new(0, 0)
+		if not page:FindFirstChildWhichIsA("UIListLayout") and TabManager.defaultPage then
+			local layout = TabManager.defaultPage:FindFirstChildWhichIsA("UIListLayout")
+			if layout then
+				layout:Clone().Parent = page
+			end
+		end
+		page.Parent = TabManager.container or (TabManager.defaultPage and TabManager.defaultPage.Parent)
+		info = {
+			name = name;
+			displayName = displayName;
+			page = page;
+			button = button;
+			layoutIndex = 0;
+		}
+	end
+
+	info.order = layoutOrder
+	info.elements = info.elements or {}
+	TabManager.tabs[name] = info
+	table.insert(TabManager.order, name)
+	table.sort(TabManager.order, function(a, b)
+		local infoA = TabManager.tabs[a]
+		local infoB = TabManager.tabs[b]
+		local orderA = infoA and infoA.order or math.huge
+		local orderB = infoB and infoB.order or math.huge
+		if orderA == orderB then
+			return tostring(a) < tostring(b)
+		end
+		return orderA < orderB
+	end)
+	for _, orderedName in ipairs(TabManager.order) do
+		local tab = TabManager.tabs[orderedName]
+		if tab and tab.button then
+			tab.button.LayoutOrder = tab.order or layoutOrder
+		end
+	end
+
+	local shouldSet = (options and options.default) or not TabManager.current
+	if shouldSet then
+		NAgui.setTab(name)
+	else
+		if info.page then
+			info.page.Visible = false
+		end
+		NAmanage.updateTabVisual(info, false)
+	end
+
+	return info
+end
 
 Spawn(function()
 	for _,v in ipairs(NAStuff.NASCREENGUI:GetDescendants()) do
@@ -27194,8 +27593,8 @@ NAgui.addButton = function(label, callback)
 	local button = templates.Button:Clone()
 	button.Title.Text = label
 	button.Parent = NAUIMANAGER.SettingsList
-	button.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	button.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(button)
 
 	MouseButtonFix(button.Interact,function()
 		pcall(callback)
@@ -27207,8 +27606,8 @@ NAgui.addSection = function(titleText)
 	local section = templates.SectionTitle:Clone()
 	section.Title.Text = titleText
 	section.Parent = NAUIMANAGER.SettingsList
-	section.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	section.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(section)
 end
 
 NAgui.addToggle = function(label, defaultValue, callback)
@@ -27220,8 +27619,8 @@ NAgui.addToggle = function(label, defaultValue, callback)
 
 	toggle.Title.Text = label
 	toggle.Parent = NAUIMANAGER.SettingsList
-	toggle.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	toggle.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(toggle)
 
 	local state = defaultValue
 
@@ -27253,8 +27652,8 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	local picker = templates.ColorPicker:Clone()
 	picker.Title.Text = label
 	picker.Parent = NAUIMANAGER.SettingsList
-	picker.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	picker.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(picker)
 
 	local background = picker.CPBackground
 	local display = background.Display
@@ -27375,9 +27774,9 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	input.InputFrame.InputBox.Text = defaultText or ""
 	input.InputFrame.InputBox.PlaceholderText = placeholder or ""
 
-	input.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	input.LayoutOrder = NAgui._nextLayoutOrder()
 	input.Parent = NAUIMANAGER.SettingsList
+	NAmanage.registerElementForCurrentTab(input)
 
 	input.InputFrame.InputBox.FocusLost:Connect(function()
 		pcall(callback, input.InputFrame.InputBox.Text)
@@ -27399,9 +27798,9 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 	keybind.Title.Text = label
 	keybind.KeybindFrame.KeybindBox.Text = defaultKey
 
-	keybind.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	keybind.LayoutOrder = NAgui._nextLayoutOrder()
 	keybind.Parent = NAUIMANAGER.SettingsList
+	NAmanage.registerElementForCurrentTab(keybind)
 
 	local capturing = false
 
@@ -27446,9 +27845,9 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local slider = templates.Slider:Clone()
 	slider.Title.Text = label
 
-	slider.LayoutOrder = templates.Index
-	templates.Index = templates.Index + 1
+	slider.LayoutOrder = NAgui._nextLayoutOrder()
 	slider.Parent = NAUIMANAGER.SettingsList
+	NAmanage.registerElementForCurrentTab(slider)
 
 	local interact = slider.Main.Interact
 	local progress = slider.Main.Progress
@@ -30171,6 +30570,10 @@ end)
 	end)
 end]]
 
+NAgui.addTab(TAB_ALL, { default = true, order = 0 })
+NAgui.addTab(TAB_GENERAL, { order = 1 })
+NAgui.setTab(TAB_GENERAL)
+
 NAgui.addSection("Prefix Settings")
 
 NAgui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
@@ -30240,6 +30643,10 @@ NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
 end)
 
+NAgui.addTab(TAB_INTERFACE, { order = 2 })
+NAgui.setTab(TAB_INTERFACE)
+
+
 NAgui.addSection("UI Customization")
 
 NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
@@ -30269,6 +30676,9 @@ NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 end)
 
 if FileSupport then
+	NAgui.addTab(TAB_LOGGING, { order = 5 })
+	NAgui.setTab(TAB_LOGGING)
+
 	NAgui.addSection("Join/Leave Logging")
 
 	NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
@@ -30289,6 +30699,10 @@ if FileSupport then
 		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 	end)
 end
+
+NAgui.addTab(TAB_ESP, { order = 4 })
+NAgui.setTab(TAB_ESP)
+
 
 NAgui.addSection("ESP Settings")
 
@@ -30336,6 +30750,9 @@ NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), f
 	NAStuff.ESP_ShowDistance = state
 	NAmanage.SaveESPSettings()
 end)
+
+NAgui.addTab(TAB_CHAT, { order = 3 })
+NAgui.setTab(TAB_CHAT)
 
 do
 	local function tblToC3(t)
@@ -30450,6 +30867,9 @@ do
 	end)
 end
 
+NAgui.addTab(TAB_KEYBINDS, { order = 6 })
+NAgui.setTab(TAB_KEYBINDS)
+
 if IsOnPC then
 	NAgui.addSection("Control Lock")
 	NAgui.addKeybind("Add Shiftlock Key","LeftShift",function(k)
@@ -30468,7 +30888,44 @@ if IsOnPC then
 		NAStuff._ctrlLockPersist = state and true or false
 		NAmanage.ControlLock_Bind()
 	end)
+
+	NAgui.addSection("Fly Keybinds")
+	NAgui.addInput("Fly Keybind","Enter Keybind","F",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.toggleKey=newKey
+		if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() flyVariables.keybindConn=nil end
+		NAmanage.connectFlyKey()
+		DebugNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
+	end)
+	NAgui.addInput("vFly Keybind","Enter Keybind","V",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.vToggleKey=newKey
+		if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() flyVariables.vKeybindConn=nil end
+		NAmanage.connectVFlyKey()
+		DebugNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
+	end)
+	NAgui.addInput("cFly Keybind","Enter Keybind","C",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a keybind.") return end
+		flyVariables.cToggleKey=newKey
+		if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() flyVariables.cKeybindConn=nil end
+		NAmanage.connectCFlyKey()
+		DebugNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
+	end)
+	NAgui.addInput("tFly Keybind","Enter Keybind","T",function(text)
+		local newKey=(text or ""):lower()
+		if newKey=="" then DoNotif("Please provide a key.") return end
+		flyVariables.tflyToggleKey=newKey
+		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() flyVariables.tflyKeyConn=nil end
+		NAmanage.connectTFlyKey()
+		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
+	end)
 end
+
+NAgui.addTab(TAB_CHARACTER, { order = 7 })
+NAgui.setTab(TAB_CHARACTER)
 
 NAgui.addSection("Character Morph")
 NAgui.addInput("Target User", "UserId or Username", "", function(val)
@@ -30498,68 +30955,23 @@ NAgui.addToggle("Auto Morph", false, function(state)
 	end
 end)
 
-if IsOnPC then
-	NAgui.addSection("Fly Keybinds")
-
-	NAgui.addInput("Fly Keybind","Enter Keybind","F",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.toggleKey=newKey
-		if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() flyVariables.keybindConn=nil end
-		NAmanage.connectFlyKey()
-		DebugNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
-	end)
-
-	NAgui.addInput("vFly Keybind","Enter Keybind","V",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.vToggleKey=newKey
-		if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() flyVariables.vKeybindConn=nil end
-		NAmanage.connectVFlyKey()
-		DebugNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
-	end)
-
-	NAgui.addInput("cFly Keybind","Enter Keybind","C",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.cToggleKey=newKey
-		if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() flyVariables.cKeybindConn=nil end
-		NAmanage.connectCFlyKey()
-		DebugNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
-	end)
-
-	NAgui.addInput("tFly Keybind","Enter Keybind","T",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a key.") return end
-		flyVariables.tflyToggleKey=newKey
-		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() flyVariables.tflyKeyConn=nil end
-		NAmanage.connectTFlyKey()
-		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
-	end)
-end
-
 NAgui.addSection("Character Light")
-
 NAgui.addSlider("Range",      0,  60, settingsLight.range,      0.1,   "", function(val) settingsLight.range      = val end)
 NAgui.addSlider("Brightness", 0,   30, settingsLight.brightness, 0.1,   "", function(val) settingsLight.brightness = val end)
 NAgui.addColorPicker("Color",  settingsLight.color, function(col) settingsLight.color = col end)
-
 NAgui.addButton("Apply Light", function()
 	local root = getRoot(Player.Character)
 	if not root then return end
-
 	local light = settingsLight.LIGHTER
 	if not light or not light.Parent then
 		light = InstanceNew("PointLight")
 		settingsLight.LIGHTER = light
 	end
-
 	light.Parent     = root
 	light.Range      = settingsLight.range
 	light.Brightness = settingsLight.brightness
 	light.Color      = settingsLight.color
 end)
-
 NAgui.addButton("Remove Light", function()
 	if settingsLight.LIGHTER then
 		settingsLight.LIGHTER:Destroy()
@@ -30569,6 +30981,9 @@ end)
 
 if FileSupport and CoreGui then
 	Spawn(function()
+		local previousTab = NAgui.getActiveTab()
+		NAgui.setTab(TAB_INTERFACE)
+
 		local PT = {
 			path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
 			default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
@@ -30673,8 +31088,14 @@ if FileSupport and CoreGui then
 				writefile(PT.path, HttpService:JSONEncode(PT.data))
 			end
 		end)
+		if previousTab and previousTab ~= TAB_INTERFACE then
+			NAgui.setTab(previousTab)
+		end
 	end)
 end
+
+
+NAgui.setTab(TAB_CHAT)
 
 
 NAgui.addSection("Chat Tag Customization | disabled for fixing")
@@ -30733,3 +31154,5 @@ NAgui.addButton("Remove Chat Tag", function()
 
 	DebugNotif("Custom chat tag removed.",2.5)
 end)]]
+
+NAgui.setTab(TAB_ALL)
