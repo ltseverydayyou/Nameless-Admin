@@ -4062,6 +4062,10 @@ NAmanage.ESP_ClearAll = function()
 	for model,_ in pairs(espCONS) do
 		NAmanage.ESP_ClearModel(model)
 	end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
+	end
+	NAlib.disconnect("esp_update_global")
 end
 
 NAmanage.ESP_Disconnect = function(target)
@@ -4074,6 +4078,7 @@ end
 
 NAmanage.ESP_Add = function(target, persistent)
 	persistent = persistent or false
+	if not (ESPenabled or chamsEnabled) then return end
 	if typeof(target) ~= "Instance" then return end
 
 	if target:IsA("Player") then
@@ -4081,7 +4086,9 @@ NAmanage.ESP_Add = function(target, persistent)
 			NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
 			NAlib.connect("esp_charAdded_plr_"..tostring(target.UserId), target.CharacterAdded:Connect(function()
 				Wait(0.25)
-				NAmanage.ESP_Add(target, true)
+				if (ESPenabled or chamsEnabled) then
+					NAmanage.ESP_Add(target, true)
+				end
 			end))
 		end
 		if not target.Character then return end
@@ -4091,11 +4098,14 @@ NAmanage.ESP_Add = function(target, persistent)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 
-	espCONS[model] = { boxTable = {}, persistent = persistent }
+	espCONS[model] = { boxTable = {}, persistent = persistent, boxEnabled = false }
 	local key = NAmanage.ESP_Key(model)
 
 	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
-		if desc:IsA("BasePart") then NAmanage.ESP_AddBoxForPart(model, desc) end
+		if not (ESPenabled or chamsEnabled) then return end
+		if desc:IsA("BasePart") and espCONS[model] and espCONS[model].boxEnabled then
+			NAmanage.ESP_AddBoxForPart(model, desc)
+		end
 	end))
 
 	NAlib.connect(key.."_descRemoved", model.DescendantRemoving:Connect(function(desc)
@@ -4105,7 +4115,6 @@ NAmanage.ESP_Add = function(target, persistent)
 		if box then box:Destroy(); data.boxTable[desc] = nil end
 	end))
 
-	NAmanage.ESP_AddBoxes(model)
 	NAmanage.ESP_StartGlobal()
 end
 
@@ -4198,6 +4207,10 @@ NAmanage.ESP_StartGlobal = function()
 			NAmanage.ESP_UpdateOne(model, now, localRoot)
 		end
 	end))
+end
+
+NAmanage.ESP_StopGlobal = function()
+	NAlib.disconnect("esp_update_global")
 end
 
 --[[local Signal1, Signal2 = nil, nil
@@ -12290,7 +12303,11 @@ cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
 	if NAlib.isConnected(NPC_SCAN_KEY) then
 		NAlib.disconnect(NPC_SCAN_KEY)
 	end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
+	end
 	NAmanage.ESP_ClearAll()
+	NAmanage.ESP_StopGlobal()
 end)
 
 cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
@@ -29753,7 +29770,7 @@ Spawn(function()
 		local hum=getHum()
 		while not hum do Wait(.1) hum=getHum() end
 		hum.Died:Connect(function()
-			local root=getRoot(character)
+			local root=getRoot(c)
 			if root then
 				deathCFrame=root.CFrame
 			end
@@ -29788,16 +29805,25 @@ Spawn(function()
 			elseif flyVariables.TFlyEnabled then mode="tfly"
 			elseif flyVariables.vFlyEnabled then mode="vfly"
 			elseif flyVariables.flyEnabled then mode="fly" end
+
+			if NAmanage._persist then
+				NAmanage._persist.wasFlying=(NAmanage._persist.wasFlying==true)
+			end
+
 			if mode~="none" then
-				NAmanage.activateMode(mode)
 				NAmanage.connectFlyKey()
 				NAmanage.connectVFlyKey()
 				NAmanage.connectCFlyKey()
 				NAmanage.connectTFlyKey()
-				if NAmanage._persist and NAmanage._persist.lastMode==mode and NAmanage._persist.wasFlying==false then
+				if NAmanage._persist and NAmanage._persist.lastMode==mode and NAmanage._persist.wasFlying==true then
+					NAmanage.activateMode(mode)
+					FLYING=true
+				else
+					FLYING=false
 					NAmanage.pauseCurrent()
 				end
 			end
+
 			if flyVariables._watchConn then flyVariables._watchConn:Disconnect() end
 			flyVariables._watchConn=RunService.Heartbeat:Connect(function()
 				if (flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled) then
@@ -29811,10 +29837,11 @@ Spawn(function()
 						elseif NAmanage._state.mode=="fly" then
 							NAmanage.sFLY(false,false,false)
 						end
-						if NAmanage._persist and NAmanage._persist.wasFlying==false then
-							NAmanage.pauseCurrent()
-						else
+						if NAmanage._persist and NAmanage._persist.wasFlying==true then
 							FLYING=true
+						else
+							FLYING=false
+							NAmanage.pauseCurrent()
 						end
 					end
 				end
