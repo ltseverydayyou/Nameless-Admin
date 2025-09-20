@@ -6946,6 +6946,110 @@ cmd.add({"unclickscare","unclickspook"},{"unclickscare (unclickspook)","Disables
 	NAlib.disconnect("clickscare_mouse")
 end)
 
+hoverNameGui = nil
+hoverNameLabel = nil
+hoverNameSelection = nil
+
+NAmanage.cleanupHoverName=function()
+	NAlib.disconnect("hovername_track")
+	if hoverNameLabel then
+		hoverNameLabel:Destroy()
+		hoverNameLabel = nil
+	end
+	if hoverNameGui then
+		hoverNameGui:Destroy()
+		hoverNameGui = nil
+	end
+	if hoverNameSelection then
+		hoverNameSelection.Adornee = nil
+		hoverNameSelection.Parent = nil
+		hoverNameSelection:Destroy()
+		hoverNameSelection = nil
+	end
+end
+
+cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hover"}, function()
+	NAmanage.cleanupHoverName()
+
+	hoverNameGui = InstanceNew("ScreenGui")
+	NaProtectUI(hoverNameGui)
+
+	hoverNameLabel = InstanceNew("TextLabel")
+	hoverNameLabel.BackgroundTransparency = 1
+	hoverNameLabel.Size = UDim2.new(0,200,0,30)
+	hoverNameLabel.Font = Enum.Font.GothamBold
+	hoverNameLabel.TextSize = 16
+	hoverNameLabel.Text = ""
+	hoverNameLabel.TextColor3 = Color3.new(1,1,1)
+	hoverNameLabel.TextStrokeTransparency = 0
+	hoverNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	hoverNameLabel.Visible = false
+	hoverNameLabel.ZIndex = 10
+	hoverNameLabel.Parent = hoverNameGui
+
+	hoverNameSelection = InstanceNew("SelectionBox")
+	NAProtection(hoverNameSelection)
+	hoverNameSelection.LineThickness = 0.03
+	hoverNameSelection.Color3 = Color3.new(1,1,1)
+	hoverNameSelection.Adornee = nil
+	hoverNameSelection.Parent = nil
+
+	local mouse = player and player:GetMouse()
+	if not mouse then
+		NAmanage.cleanupHoverName()
+		return
+	end
+
+	local function updateHoverName()
+		local target = mouse.Target
+		local character
+		if target then
+			local parent = target.Parent
+			if parent then
+				local humanoid = parent:FindFirstChildOfClass("Humanoid")
+				if not humanoid and parent.Parent then
+					humanoid = parent.Parent:FindFirstChildOfClass("Humanoid")
+				end
+				if humanoid then
+					character = humanoid.Parent
+				end
+			end
+		end
+
+		if character and character:IsA("Model") then
+			local isPlr = nil
+			if Players:GetPlayerFromCharacter(character) then isPlr=Players:GetPlayerFromCharacter(character) end
+			local x = mouse.X
+			local y = mouse.Y
+			local xPos
+			if x > 200 then
+				xPos = x - 205
+				hoverNameLabel.TextXAlignment = Enum.TextXAlignment.Right
+			else
+				xPos = x + 25
+				hoverNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			end
+			hoverNameLabel.Position = UDim2.new(0, xPos, 0, y)
+			hoverNameLabel.Text = nameChecker(isPlr or character)
+			hoverNameLabel.Visible = true
+			hoverNameSelection.Parent = character
+			hoverNameSelection.Adornee = character
+		else
+			hoverNameLabel.Visible = false
+			hoverNameSelection.Parent = nil
+			hoverNameSelection.Adornee = nil
+		end
+	end
+
+	NAlib.disconnect("hovername_track")
+	NAlib.connect("hovername_track", mouse.Move:Connect(updateHoverName))
+	updateHoverName()
+end)
+
+cmd.add({"unhovername","unnamehover"}, {"unhovername", "Disables hovername"}, function()
+	NAmanage.cleanupHoverName()
+end)
+
 cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
 		Players:Chat(Format("/e hi"))
@@ -8846,6 +8950,148 @@ cmd.add({"unantivoid"},{"unantivoid","Disables antivoid"},function()
 	DebugNotif("AntiVoid Disabled", 3)
 end)
 
+cmd.add({"fakeout"}, {"fakeout", "tp to void and back"}, function()
+	local character = getChar()
+	local root = character and getRoot(character)
+	if not root then
+		DebugNotif("Fakeout failed: unable to find character root", 2)
+		return
+	end
+	local antivoidConnections = connections["antivoid"]
+	local antivoidWasActive = false
+	if antivoidConnections then
+		for _, conn in ipairs(antivoidConnections) do
+			if conn.Connected then
+				antivoidWasActive = true
+				break
+			end
+		end
+	end
+	if antivoidWasActive then
+		NAlib.disconnect("antivoid")
+	end
+	local originalDestroyHeight = workspace.FallenPartsDestroyHeight
+	local originalCFrame = root.CFrame
+	local dropHeight = OrgDestroyHeight or originalDestroyHeight or 0
+	workspace.FallenPartsDestroyHeight = 0/1/0
+	root.CFrame = CFrame.new(Vector3.new(0, dropHeight - 25, 0))
+	Wait(1)
+	root.CFrame = originalCFrame
+	workspace.FallenPartsDestroyHeight = originalDestroyHeight
+	if antivoidWasActive then
+		local antivoidCommand = cmds.Commands["antivoid"]
+		if antivoidCommand and antivoidCommand[1] then
+			antivoidCommand[1]()
+		end
+	end
+end)
+
+cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part is patched, try using the god command before using this)"}, function()
+	local player = Players.LocalPlayer
+	local character = getChar()
+	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	if not (player and character and humanoid) then
+		DebugNotif("Invisfling failed: missing character", 2)
+		return
+	end
+
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+	local proxyModel = InstanceNew("Model")
+	proxyModel.Name = "NA_InvisFlingProxy"
+	proxyModel.Parent = character
+
+	local torso = InstanceNew("Part")
+	torso.Name = "Torso"
+	torso.CanCollide = false
+	torso.Anchored = true
+	torso.Position = Vector3.new(0, 9999, 0)
+	torso.Parent = proxyModel
+
+	local head = InstanceNew("Part")
+	head.Name = "Head"
+	head.CanCollide = false
+	head.Anchored = true
+	head.Parent = proxyModel
+
+	local proxyHumanoid = InstanceNew("Humanoid")
+	proxyHumanoid.Name = "Humanoid"
+	proxyHumanoid.Parent = proxyModel
+
+	player.Character = proxyModel
+	Wait(3)
+	player.Character = character
+	Wait(3)
+
+	character = getChar()
+	if not character then
+		DebugNotif("Invisfling aborted: character missing", 2)
+		return
+	end
+
+	local activeHumanoid = character:FindFirstChildOfClass("Humanoid")
+	if not activeHumanoid then
+		activeHumanoid = InstanceNew("Humanoid")
+		activeHumanoid.Name = "Humanoid"
+		activeHumanoid.Parent = character
+	end
+
+	local root = getRoot(character)
+	if not root then
+		DebugNotif("Invisfling failed: missing root", 2)
+		return
+	end
+
+	for _, child in ipairs(character:GetChildren()) do
+		if child ~= root and child.Name ~= "Humanoid" then
+			child:Destroy()
+		end
+	end
+
+	root.Transparency = 0
+	root.Color = Color3.new(1, 1, 1)
+
+	local invisflingStepped
+	invisflingStepped = RunService.Stepped:Connect(function()
+		local currentChar = getChar()
+		local currentRoot = currentChar and getRoot(currentChar)
+		if currentRoot then
+			currentRoot.CanCollide = false
+		else
+			invisflingStepped:Disconnect()
+		end
+	end)
+
+	NAmanage.activateMode("fly")
+	workspace.CurrentCamera.CameraSubject = root
+
+	local thrust = InstanceNew("BodyThrust")
+	thrust.Parent = root
+	thrust.Force = Vector3.new(99999, 99999 * 10, 99999)
+	thrust.Location = root.Position
+end)
+
+cmd.add({"split"}, {"split", "Destroys waist joint"}, function()
+	if not IsR15() then
+		DoNotif("This command requires the R15 rig type.", 3, "split")
+		return
+	end
+
+	local character = getChar()
+	if not character then
+		DebugNotif("Split failed: no character", 2)
+		return
+	end
+
+	local upperTorso = getTorso(character)
+	local waist = upperTorso and upperTorso:FindFirstChild("Waist")
+	if waist then
+		waist:Destroy()
+		DebugNotif("Waist joint removed.", 2)
+	else
+		DebugNotif("Split failed: waist joint not found.", 2)
+	end
+end)
 originalFPDH = nil
 
 cmd.add({"antivoid2"}, {"antivoid2", "sets FallenPartsDestroyHeight to -inf"}, function()
@@ -9430,7 +9676,7 @@ cmd.add({"quality","qualitylevel"},{"quality <1-21>","Manage rendering quality s
 		local n = tonumber(key)
 		if n then
 			n = math.clamp(math.floor(n), 1, 21)
-			key = string.format("Level%02d", n)
+			key = Format("Level%02d", n)
 		else
 			local l = Lower(key)
 			if l == "auto" or l == "automatic" then
@@ -16559,7 +16805,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in pairs(target) do
-		local char = getPlrChar(plr)
+		local char = plr.Character or getPlrChar(plr)
 		if char then
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
@@ -16600,7 +16846,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in pairs(target) do
-		local char = getPlrChar(plr)
+		local char = plr.Character or getPlrChar(plr)
 		if char then
 			for _, v in pairs(char:GetDescendants()) do
 				if v:IsA("BasePart") then
@@ -16644,7 +16890,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback)
 	if hd then for _,d in ipairs(hd:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then d:Destroy() end end end
 	local success=false
 	for i=1,3 do
-		local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait(0.05*i);hum:ApplyDescriptionClientServer(desc);Wait(0.1*i)
+		local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait(0.05*i);hum:ApplyDescriptionClientServer(desc);Wait(0.1*i)
 		local hasClothes=(char:FindFirstChildOfClass("Shirt") or char:FindFirstChildOfClass("Pants") or char:FindFirstChildOfClass("ShirtGraphic"))~=nil
 		local headNow=getHead(char);local hasFace=false
 		if headNow then for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end end
@@ -16656,14 +16902,14 @@ NAmanage._applyFixedDescription=function(desc,uidFallback)
 		for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end
 		local faceId=0 pcall(function() faceId=desc.Face or 0 end)
 		if not hasFace then
-			if faceId and faceId>0 then local dec=Instance.new("Decal");dec.Name="face";dec.Texture="rbxassetid://"..tostring(faceId);dec.Face=Enum.NormalId.Front;dec.Parent=headNow
+			if faceId and faceId>0 then local dec=InstanceNew("Decal");dec.Name="face";dec.Texture="rbxassetid://"..tostring(faceId);dec.Face=Enum.NormalId.Front;dec.Parent=headNow
 			elseif uidFallback then local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA2 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("Decal") and Lower(v.Name)=="face" then v:Clone().Parent=headNow;break end end end
 			end
 		end
 	end
-	if not char:FindFirstChildOfClass("Shirt") then local sid=desc.Shirt;if sid and sid>0 then local s=Instance.new("Shirt");s.ShirtTemplate="rbxassetid://"..sid;s.Parent=char end end
-	if not char:FindFirstChildOfClass("Pants") then local pid=desc.Pants;if pid and pid>0 then local p=Instance.new("Pants");p.PantsTemplate="rbxassetid://"..pid;p.Parent=char end end
-	if not char:FindFirstChildOfClass("ShirtGraphic") then local gid=desc.GraphicTShirt or desc.TShirt;if gid and gid>0 then local g=Instance.new("ShirtGraphic");g.Graphic="rbxassetid://"..gid;g.Parent=char end end
+	if not char:FindFirstChildOfClass("Shirt") then local sid=desc.Shirt;if sid and sid>0 then local s=InstanceNew("Shirt");s.ShirtTemplate="rbxassetid://"..sid;s.Parent=char end end
+	if not char:FindFirstChildOfClass("Pants") then local pid=desc.Pants;if pid and pid>0 then local p=InstanceNew("Pants");p.PantsTemplate="rbxassetid://"..pid;p.Parent=char end end
+	if not char:FindFirstChildOfClass("ShirtGraphic") then local gid=desc.GraphicTShirt or desc.TShirt;if gid and gid>0 then local g=InstanceNew("ShirtGraphic");g.Graphic="rbxassetid://"..gid;g.Parent=char end end
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA3 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("CharacterMesh") then v:Clone().Parent=char end end end end
 end
 
@@ -16802,7 +17048,7 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 					local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 					local hum=getHum() or char:WaitForChild("Humanoid",3)
 					if not hum then return end
-					local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
+					local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
 				end
 				DoNotif("Outfit applied: "..o.name,2,"Outfits")
 			end})
@@ -16858,7 +17104,7 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 				local hum=getHum() or char:WaitForChild("Humanoid",3)
 				if not hum then return end
-				local blank=Instance.new("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
+				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
 			end
 			DoNotif("Outfit applied: "..o.name,2,"Outfits")
 		end})
@@ -18377,7 +18623,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	end
 
 	local function parseInterval()
-		local v=tonumber(interval.Text) or tonumber(string.match(interval.Text or "","%d*%.?%d+")) or 0.1
+		local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.1
 		if v<0 then v=0 end
 		return v
 	end
@@ -19354,170 +19600,257 @@ cmd.add({"tools", "gears"}, {"tools <player> (gears)", "Copies tools from Replic
 end)
 
 tviewBillboards = {}
+tviewAddConn, tviewRemoveConn = nil, nil
+tviewGlobalMode = nil
+
+if toolConnections then
+	for _, conn in pairs(toolConnections) do
+		NACaller(function() if conn and conn.Disconnect then conn:Disconnect() end end)
+	end
+else
+	toolConnections = {}
+end
+
+idkwhyididntmakethisbruh = nil
+
+NAmanage.tvCleanupVisual=function(data)
+	if data.renderConn then data.renderConn:Disconnect() data.renderConn = nil end
+	if data.headConn then data.headConn:Disconnect() data.headConn = nil end
+	if data.bb then data.bb:Destroy() data.bb = nil end
+	data.container = nil
+	data.char = nil
+	data.head = nil
+	data.lastToolNames = nil
+end
+
+NAmanage.tvDetach=function(plr)
+	local data = tviewBillboards[plr]
+	if not data then return end
+	NAmanage.tvCleanupVisual(data)
+	if data.charAddedConn then data.charAddedConn:Disconnect() data.charAddedConn = nil end
+	if data.charRemovingConn then data.charRemovingConn:Disconnect() data.charRemovingConn = nil end
+	if data.ancestryConn then data.ancestryConn:Disconnect() data.ancestryConn = nil end
+	tviewBillboards[plr] = nil
+end
+
+NAmanage.tvAttach=function(plr, data, char)
+	NAmanage.tvCleanupVisual(data)
+	if not char or not plr.Parent then return end
+
+	local head = getHead(char)
+	if not head then
+		if data.headConn then data.headConn:Disconnect() end
+		data.headConn = char.ChildAdded:Connect(function(child)
+			if child:IsA("BasePart") and child.Name == "Head" then
+				if data.headConn then data.headConn:Disconnect() data.headConn = nil end
+				NAmanage.tvAttach(plr, data, char)
+			end
+		end)
+		return
+	end
+
+	local bb = InstanceNew("BillboardGui")
+	bb.Name = "ToolViewDisplay"
+	bb.Size = UDim2.new(0, 0, 0, 0)
+	bb.StudsOffset = Vector3.new(0, 2.5, 0)
+	bb.Adornee = head
+	bb.AlwaysOnTop = true
+	bb.LightInfluence = 0
+	bb.ResetOnSpawn = false
+	bb.Parent = head
+
+	local container = InstanceNew("Frame")
+	container.BackgroundTransparency = 1
+	container.Size = UDim2.new(0, 0, 0, 50)
+	container.AutomaticSize = Enum.AutomaticSize.X
+	container.ClipsDescendants = false
+	container.Parent = bb
+
+	local layout = InstanceNew("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 6)
+	layout.Parent = container
+
+	local function makeToolBtn(tool)
+		local hasImg = tool.TextureId and tool.TextureId ~= ""
+		local btn = hasImg and InstanceNew("ImageButton") or InstanceNew("TextButton")
+		btn.Size = UDim2.new(0, 50, 0, 50)
+		btn.Name = tool.Name
+		btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		btn.AutoButtonColor = false
+		btn.ZIndex = 5
+		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
+		if hasImg then
+			btn.Image = tool.TextureId
+		else
+			btn.Text = tool.Name
+			btn.TextScaled = true
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.Font = Enum.Font.SourceSans
+		end
+		return btn
+	end
+
+	local function refresh()
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("GuiButton") then child:Destroy() end
+		end
+
+		local bp = plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")
+		if bp then
+			for _, t in ipairs(bp:GetChildren()) do
+				if t:IsA("Tool") then makeToolBtn(t).Parent = container end
+			end
+		end
+
+		local activeChar = getPlrChar(plr) or plr.Character
+		if activeChar then
+			for _, t in ipairs(activeChar:GetChildren()) do
+				if t:IsA("Tool") then makeToolBtn(t).Parent = container end
+			end
+		end
+	end
+
+	local function getToolNames()
+		local names = {}
+		local function add(t)
+			if t:IsA("Tool") then Insert(names, t.Name) end
+		end
+		local bp = plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")
+		if bp then
+			for _, t in ipairs(bp:GetChildren()) do add(t) end
+		end
+		local activeChar = getPlrChar(plr) or plr.Character
+		if activeChar then
+			for _, t in ipairs(activeChar:GetChildren()) do add(t) end
+		end
+		table.sort(names)
+		return names
+	end
+
+	refresh()
+	data.lastToolNames = getToolNames()
+
+	data.renderConn = RunService.RenderStepped:Connect(function()
+		if not plr.Parent then NAmanage.tvCleanupVisual(data) return end
+		local activeChar = plr.Character or getPlrChar(plr)
+		if activeChar ~= char then NAmanage.tvCleanupVisual(data) return end
+		local currentHead = getHead(activeChar)
+		if not currentHead then NAmanage.tvCleanupVisual(data) return end
+		if currentHead ~= head then
+			head = currentHead
+			bb.Adornee = head
+			bb.Parent = head
+		end
+		if not head:IsDescendantOf(workspace) then NAmanage.tvCleanupVisual(data) return end
+
+		local currentNames = getToolNames()
+		local previous = data.lastToolNames or {}
+		local changed = false
+		if #currentNames ~= #previous then
+			changed = true
+		else
+			for i = 1, #currentNames do
+				if currentNames[i] ~= previous[i] then changed = true break end
+			end
+		end
+		if changed then
+			data.lastToolNames = currentNames
+			refresh()
+		end
+		local width = container.AbsoluteSize.X
+		local height = container.AbsoluteSize.Y
+		bb.Size = UDim2.new(0, width, 0, height)
+	end)
+
+	data.bb = bb
+	data.container = container
+	data.char = char
+	data.head = head
+end
+
+NAmanage.tvEnsure=function(plr)
+	NAmanage.tvDetach(plr)
+	if not plr then return end
+
+	local data = {}
+	tviewBillboards[plr] = data
+
+	local function onCharAdded(char)
+		NAmanage.tvAttach(plr, data, char)
+	end
+
+	data.charAddedConn = plr.CharacterAdded:Connect(onCharAdded)
+	data.charRemovingConn = plr.CharacterRemoving:Connect(function()
+		NAmanage.tvCleanupVisual(data)
+	end)
+	data.ancestryConn = plr.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAmanage.tvDetach(plr)
+		end
+	end)
+
+	onCharAdded(getPlrChar(plr) or plr.Character)
+end
 
 cmd.add({"toolview", "tview"}, {"toolview <player> (tview)", "3D tool viewer above a player's head"}, function(...)
-	local targets = getPlr(...)
+	local args = {...}
+	local firstArg = args[1]
+	local lowerFirst = type(firstArg) == "string" and Lower(firstArg)
+	local isGlobal = lowerFirst == "all" or lowerFirst == "others"
+	local targets = getPlr(Unpack(args))
+	if #targets == 0 and not isGlobal then
+		DoNotif("No players found", 2)
+		return
+	end
+
 	for _, plr in ipairs(targets) do
-		local existing = tviewBillboards[plr]
-		if existing then
-			existing:Destroy()
-			tviewBillboards[plr] = nil
+		if plr and plr.Parent then
+			NAmanage.tvEnsure(plr)
 		end
+	end
 
-		local char = getPlrChar(plr)
-		if not char then continue end
-
-		local head = getHead(char)
-		if not head then continue end
-
-		local bb = InstanceNew("BillboardGui")
-		bb.Name = "ToolViewDisplay"
-		bb.Size = UDim2.new(0, 0, 0, 0)
-		bb.StudsOffset = Vector3.new(0, 2.5, 0)
-		bb.Adornee = head
-		bb.AlwaysOnTop = true
-		bb.LightInfluence = 0
-		bb.ResetOnSpawn = false
-		bb.Parent = head
-
-		local container = InstanceNew("Frame")
-		container.BackgroundTransparency = 1
-		container.Size = UDim2.new(0, 0, 0, 50)
-		container.AutomaticSize = Enum.AutomaticSize.X
-		container.ClipsDescendants = false
-		container.Parent = bb
-
-		local layout = InstanceNew("UIListLayout")
-		layout.FillDirection = Enum.FillDirection.Horizontal
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Padding = UDim.new(0, 6)
-		layout.Parent = container
-
-		tviewBillboards[plr] = bb
-
-		local function makeToolBtn(tool)
-			local hasImg = tool.TextureId and tool.TextureId ~= ""
-			local btn = hasImg and InstanceNew("ImageButton") or InstanceNew("TextButton")
-			btn.Size = UDim2.new(0, 50, 0, 50)
-			btn.Name = tool.Name
-			btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-			btn.AutoButtonColor = false
-			btn.ZIndex = 5
-			InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
-
-			if hasImg then
-				btn.Image = tool.TextureId
-			else
-				btn.Text = tool.Name
-				btn.TextScaled = true
-				btn.TextColor3 = Color3.new(1, 1, 1)
-				btn.Font = Enum.Font.SourceSans
-			end
-
-			return btn
-		end
-
-		local lastToolNames = {}
-
-		local function getToolNames()
-			local names = {}
-			local function add(t)
-				if t:IsA("Tool") then
-					Insert(names, t.Name)
-				end
-			end
-
-			local bp = plr:FindFirstChildOfClass("Backpack")
-			if bp then for _, t in ipairs(bp:GetChildren()) do add(t) end end
-
-			local char = getPlrChar(plr)
-			if char then for _, t in ipairs(char:GetChildren()) do add(t) end end
-
-			table.sort(names)
-			return names
-		end
-
-		local function toolListChanged()
-			local current = getToolNames()
-			if #current ~= #lastToolNames then
-				lastToolNames = current
-				return true
-			end
-			for i = 1, #current do
-				if current[i] ~= lastToolNames[i] then
-					lastToolNames = current
-					return true
-				end
-			end
-			return false
-		end
-
-		local function refresh()
-			for _, c in ipairs(container:GetChildren()) do
-				if c:IsA("GuiButton") then c:Destroy() end
-			end
-
-			local bp = plr:FindFirstChildOfClass("Backpack")
-			if bp then
-				for _, t in ipairs(bp:GetChildren()) do
-					if t:IsA("Tool") then makeToolBtn(t).Parent = container end
-				end
-			end
-
-			local char = getPlrChar(plr)
-			if char then
-				for _, t in ipairs(char:GetChildren()) do
-					if t:IsA("Tool") then makeToolBtn(t).Parent = container end
-				end
-			end
-		end
-
-		refresh()
-
-		local hb
-		hb = RunService.RenderStepped:Connect(function()
-			if not plr.Parent or not plr.Character or not head:IsDescendantOf(workspace) then
-				bb:Destroy()
-				tviewBillboards[plr] = nil
-				if hb then hb:Disconnect() end
-				return
-			end
-
-			if toolListChanged() then
-				refresh()
-			end
-
-			local width = container.AbsoluteSize.X
-			local height = container.AbsoluteSize.Y
-			bb.Size = UDim2.new(0, width, 0, height)
+	if isGlobal then
+		if tviewAddConn then tviewAddConn:Disconnect() end
+		if tviewRemoveConn then tviewRemoveConn:Disconnect() end
+		tviewGlobalMode = lowerFirst
+		tviewAddConn = Players.PlayerAdded:Connect(function(plr)
+			if tviewGlobalMode == "others" and plr == Players.LocalPlayer then return end
+			NAmanage.tvEnsure(plr)
 		end)
-
-		Insert(toolConnections, hb)
+		tviewRemoveConn = Players.PlayerRemoving:Connect(function(plr)
+			NAmanage.tvDetach(plr)
+		end)
 	end
 end, true)
 
-cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the tool viewer above a player’s head"}, function(...)
-	local targets = getPlr(...)
+cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the tool viewer above a player's head"}, function(...)
+	local args = {...}
+	local firstArg = args[1]
+	local lowerFirst = type(firstArg) == "string" and Lower(firstArg)
+	local targets = getPlr(Unpack(args))
+	if #targets == 0 and not (lowerFirst == "all" or lowerFirst == "others") then
+		DoNotif("No players found", 2)
+		return
+	end
+
 	for _, plr in ipairs(targets) do
-		local bb = tviewBillboards[plr]
-		if bb then
-			bb:Destroy()
-			tviewBillboards[plr] = nil
-		end
+		NAmanage.tvDetach(plr)
+	end
+
+	if lowerFirst == "all" or lowerFirst == "others" or lowerFirst == tviewGlobalMode then
+		if tviewAddConn then tviewAddConn:Disconnect() tviewAddConn = nil end
+		if tviewRemoveConn then tviewRemoveConn:Disconnect() tviewRemoveConn = nil end
+		tviewGlobalMode = nil
 	end
 end, true)
-
-renderConn = nil
-playerAddConn = nil
-playerRemoveConn = nil
-toolConnections = {}
-idkwhyididntmakethisbruh = nil
 
 cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool viewer"}, function()
 	if renderConn then renderConn:Disconnect() end
 	if playerAddConn then playerAddConn:Disconnect() end
 	if playerRemoveConn then playerRemoveConn:Disconnect() end
-	for _, c in pairs(toolConnections) do NACaller(function() c:Disconnect() end) end
+	for _, c in pairs(toolConnections) do NACaller(function() if c and c.Disconnect then c:Disconnect() end end) end
 	toolConnections = {}
 
 	if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
@@ -19605,6 +19938,23 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 
 	local sections = {}
 
+	local function disconnectAll(list)
+		for i = #list, 1, -1 do
+			local conn = list[i]
+			NACaller(function()
+				if conn and conn.Disconnect then conn:Disconnect() end
+			end)
+			list[i] = nil
+		end
+	end
+
+	local function registerConn(store, conn)
+		if conn then
+			Insert(store, conn)
+			Insert(toolConnections, conn)
+		end
+	end
+
 	local function makeToolBtn(tool)
 		local hasImg = tool.TextureId and tool.TextureId ~= ""
 		local btn = hasImg and InstanceNew("ImageButton") or InstanceNew("TextButton")
@@ -19612,7 +19962,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		btn.Name = tool.Name
 		btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 		btn.AutoButtonColor = false
-		btn.ZIndex = 5
+		btn.ZIndex = 10
 		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
 
 		if hasImg then
@@ -19627,7 +19977,50 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		return btn
 	end
 
+	local function updateTools(plr)
+		local sec = sections[plr]
+		if not sec then return end
+
+		for _, btn in ipairs(sec.Holder:GetChildren()) do
+			if btn:IsA("GuiButton") then btn:Destroy() end
+		end
+
+		if not plr then return end
+
+		local tools = {}
+
+		local bp = plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")
+		if bp then
+			for _, t in ipairs(bp:GetChildren()) do
+				if t:IsA("Tool") then Insert(tools, t) end
+			end
+		end
+
+		local char = plr.Character or getPlrChar(plr)
+		if char then
+			for _, t in ipairs(char:GetChildren()) do
+				if t:IsA("Tool") then Insert(tools, t) end
+			end
+		end
+
+		table.sort(tools, function(a, b)
+			return Lower((a and a.Name) or "") < Lower((b and b.Name) or "")
+		end)
+
+		for _, t in ipairs(tools) do
+			if t then
+				makeToolBtn(t).Parent = sec.Holder
+			end
+		end
+	end
+
 	local function createSection(plr)
+		if not plr then return end
+		if sections[plr] then
+			updateTools(plr)
+			return
+		end
+
 		local frame = InstanceNew("Frame")
 		frame.Size = UDim2.new(1, -10, 0, 100)
 		frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -19667,44 +20060,78 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		hList.SortOrder = Enum.SortOrder.LayoutOrder
 		hList.Parent = holder
 
-		sections[plr] = {
+		local sec = {
 			Frame = frame,
-			Holder = holder
+			Holder = holder,
+			charConns = {},
+			backpackConns = {},
+			playerConns = {}
 		}
+		sections[plr] = sec
+
+		local function connectBackpack(bp)
+			disconnectAll(sec.backpackConns)
+			if typeof(bp) ~= "Instance" then return end
+			registerConn(sec.backpackConns, bp.ChildAdded:Connect(function(item)
+				if item:IsA("Tool") then updateTools(plr) end
+			end))
+			registerConn(sec.backpackConns, bp.ChildRemoved:Connect(function(item)
+				if item:IsA("Tool") then updateTools(plr) end
+			end))
+		end
+
+		local function connectCharacter(char)
+			disconnectAll(sec.charConns)
+			if typeof(char) ~= "Instance" then return end
+			registerConn(sec.charConns, char.ChildAdded:Connect(function(item)
+				if item:IsA("Tool") then updateTools(plr) end
+			end))
+			registerConn(sec.charConns, char.ChildRemoved:Connect(function(item)
+				if item:IsA("Tool") then updateTools(plr) end
+			end))
+		end
+
+		registerConn(sec.playerConns, plr.ChildAdded:Connect(function(child)
+			if typeof(child) == "Instance" and child:IsA("Backpack") then
+				connectBackpack(child)
+				updateTools(plr)
+			end
+		end))
+		registerConn(sec.playerConns, plr.ChildRemoved:Connect(function(child)
+			if typeof(child) == "Instance" and child:IsA("Backpack") then
+				disconnectAll(sec.backpackConns)
+				updateTools(plr)
+			end
+		end))
+		registerConn(sec.playerConns, plr.CharacterAdded:Connect(function(char)
+			connectCharacter(char)
+			updateTools(plr)
+		end))
+		registerConn(sec.playerConns, plr.CharacterRemoving:Connect(function()
+			disconnectAll(sec.charConns)
+			updateTools(plr)
+		end))
+
+		connectBackpack(plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack"))
+		connectCharacter(plr.Character or getPlrChar(plr))
+		updateTools(plr)
 	end
 
-	local function updateTools(plr)
+	local function removeSection(plr)
 		local sec = sections[plr]
 		if not sec then return end
-
-		for _, btn in ipairs(sec.Holder:GetChildren()) do
-			if btn:IsA("GuiButton") then btn:Destroy() end
-		end
-
-		local tools = {}
-
-		local bp = plr:FindFirstChildOfClass("Backpack")
-		if bp then
-			for _, t in ipairs(bp:GetChildren()) do
-				if t:IsA("Tool") then Insert(tools, t) end
-			end
-		end
-
-		local char = getPlrChar(plr)
-		if char then
-			for _, t in ipairs(char:GetChildren()) do
-				if t:IsA("Tool") then Insert(tools, t) end
-			end
-		end
-
-		for _, t in ipairs(tools) do
-			makeToolBtn(t).Parent = sec.Holder
-		end
+		disconnectAll(sec.charConns)
+		disconnectAll(sec.backpackConns)
+		disconnectAll(sec.playerConns)
+		if sec.Frame then sec.Frame:Destroy() end
+		sections[plr] = nil
 	end
 
 	local function refreshAll()
 		for plr in pairs(sections) do
-			updateTools(plr)
+			if plr and plr.Parent == Players then
+				updateTools(plr)
+			end
 		end
 	end
 
@@ -19717,9 +20144,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		createSection(plr)
 	end)
 	playerRemoveConn = Players.PlayerRemoving:Connect(function(plr)
-		local sec = sections[plr]
-		if sec then sec.Frame:Destroy() end
-		sections[plr] = nil
+		removeSection(plr)
 	end)
 
 	local minimized = false
@@ -19733,12 +20158,21 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		if renderConn then renderConn:Disconnect() end
 		if playerAddConn then playerAddConn:Disconnect() end
 		if playerRemoveConn then playerRemoveConn:Disconnect() end
-		for _, c in pairs(toolConnections) do NACaller(function() c:Disconnect() end) end
+		local toRemove = {}
+		for plr in pairs(sections) do
+			Insert(toRemove, plr)
+		end
+		for _, plr in ipairs(toRemove) do
+			removeSection(plr)
+		end
+		for _, c in pairs(toolConnections) do NACaller(function() if c and c.Disconnect then c:Disconnect() end end) end
+		toolConnections = {}
 		if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 	end)
 
 	NAgui.dragger(main,topbar)
 end)
+
 
 cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, function(...)
 	local playerName = (...)
@@ -21164,7 +21598,7 @@ end, true)
 cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
 	local target = getPlr(...)
 	for _, plr in next, target do
-		local char = getPlrChar(plr)
+		local char = plr.Character or getPlrChar(plr)
 		if char then
 			local root = getRoot(char)
 			if root then
@@ -21179,7 +21613,7 @@ end, true)
 cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the position of another player"}, function(...)
 	local target = getPlr(...)
 	for _, plr in next, target do
-		local char = getPlrChar(plr)
+		local char = plr.Character or getPlrChar(plr)
 		if char then
 			local root = getRoot(char)
 			if root then
@@ -24749,7 +25183,7 @@ cmd.add({"nightmare","nm"},{"nightmare (nm)","Make it dark and spooky"},function
 	local function ensureEffect(className, key)
 		local name = "NA_nm_"..key
 		local inst = Lighting:FindFirstChild(name)
-		if not inst then inst = Instance.new(className); inst.Name = name; inst.Parent = Lighting end
+		if not inst then inst = InstanceNew(className); inst.Name = name; inst.Parent = Lighting end
 		st.nm.effects[key] = inst
 		return inst
 	end
@@ -26963,7 +27397,7 @@ NAmanage.collectTabElements=function(tabInfo, tabName)
 			and not child:IsA("UIListLayout")
 			and not child:IsA("UIPadding")
 			and not child:IsA("UIPageLayout") then
-			table.insert(elements, child)
+			Insert(elements, child)
 		end
 	end
 	table.sort(elements, function(a, b)
@@ -26988,7 +27422,7 @@ NAmanage.prepareAllTabDisplay=function(allInfo)
 	local page = allInfo.page
 	local layout = page:FindFirstChildWhichIsA("UIListLayout")
 	if not layout then
-		layout = Instance.new("UIListLayout")
+		layout = InstanceNew("UIListLayout")
 		layout.FillDirection = Enum.FillDirection.Vertical
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 		layout.Padding = UDim.new(0, 10)
@@ -27001,7 +27435,7 @@ NAmanage.prepareAllTabDisplay=function(allInfo)
 		page.CanvasPosition = Vector2.new(0, 0)
 	end
 
-	local merged = Instance.new("Frame")
+	local merged = InstanceNew("Frame")
 	merged.Name = "NAAllMerged"
 	merged.BackgroundTransparency = 1
 	merged.Size = UDim2.new(1, 0, 0, 0)
@@ -27010,7 +27444,7 @@ NAmanage.prepareAllTabDisplay=function(allInfo)
 	merged:SetAttribute("NAAllWrapper", true)
 	merged.Parent = page
 
-	local ml = Instance.new("UIListLayout")
+	local ml = InstanceNew("UIListLayout")
 	ml.FillDirection = Enum.FillDirection.Vertical
 	ml.SortOrder = Enum.SortOrder.LayoutOrder
 	ml.Padding = UDim.new(0, 6)
@@ -27154,7 +27588,7 @@ NAgui.addTab=function(name, options)
 		TabManager.fallback = nil
 	else
 		local pageTemplate = TabManager.pageTemplate
-		local page = pageTemplate and pageTemplate:Clone() or (TabManager.defaultPage and TabManager.defaultPage:Clone()) or Instance.new("ScrollingFrame")
+		local page = pageTemplate and pageTemplate:Clone() or (TabManager.defaultPage and TabManager.defaultPage:Clone()) or InstanceNew("ScrollingFrame")
 		page.Name = name.."Page"
 		page.Visible = false
 		page.CanvasPosition = Vector2.new(0, 0)
@@ -27177,7 +27611,7 @@ NAgui.addTab=function(name, options)
 	info.order = layoutOrder
 	info.elements = info.elements or {}
 	TabManager.tabs[name] = info
-	table.insert(TabManager.order, name)
+	Insert(TabManager.order, name)
 	table.sort(TabManager.order, function(a, b)
 		local infoA = TabManager.tabs[a]
 		local infoB = TabManager.tabs[b]
