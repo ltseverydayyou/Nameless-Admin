@@ -40,6 +40,10 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 
+local Notify = nil
+local Window = nil
+local Popup  = nil
+
 local TAB_ALL = "All"
 local TAB_GENERAL = "General"
 local TAB_INTERFACE = "Interface"
@@ -75,6 +79,8 @@ local function SafeGetService(name, timeoutSeconds)
 
 	return nil
 end
+
+local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
 
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
@@ -1372,9 +1378,9 @@ NAAssetsLoading.setStatus("finalizing")
 NAAssetsLoading.setPercent(1)
 NAAssetsLoading.completed.Value = true
 
-local Notify = Notification.Notify
-local Window = Notification.Window
-local Popup  = Notification.Popup
+Notify = Notification.Notify
+Window = Notification.Window
+Popup  = Notification.Popup
 
 function DoNotif(text, duration, title)
 	Notify({ Title = title or adminName or nil, Description = text or "something", Duration = duration or 5 })
@@ -2582,17 +2588,15 @@ NAmanage.resolveCommandName=function(name)
 	return name
 end
 
-Spawn(function()
-	pcall(function()
-		local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
-		local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
-		local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
+SpawnCall(function()
+	local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
+	local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
+	local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
 
-		local ok, result = pcall(require, controlModule)
-		if ok and result then
-			opt.ctrlModule = result
-		end
-	end)
+	local ok, result = pcall(require, controlModule)
+	if ok and result then
+		opt.ctrlModule = result
+	end
 end)
 
 customVECTORMOVE = Vector3.zero
@@ -3067,7 +3071,7 @@ NAmanage.ExecuteBindings = function(evName, ...)
 		if NAmanage._selectorPasses(sel, ctx) then
 			local expanded = NAmanage._expandTokens(cmdText, ctx)
 			local args = ParseArguments(expanded) or { expanded }
-			Spawn(function() cmd.run(args) end)
+			SpawnCall(function() cmd.run(args) end)
 		end
 	end
 end
@@ -3161,9 +3165,9 @@ cmd.run = function(args)
 								Callback = function(input)
 									local parsedArguments = ParseArguments(input)
 									if parsedArguments then
-										Spawn(function() commandFunc(unpack(parsedArguments)) end)
+										SpawnCall(function() commandFunc(unpack(parsedArguments)) end)
 									else
-										Spawn(function() commandFunc() end)
+										SpawnCall(function() commandFunc() end)
 									end
 								end
 							}
@@ -3177,9 +3181,7 @@ cmd.run = function(args)
 							{
 								Text = "Run Command",
 								Callback = function()
-									Spawn(function()
-										commandFunc()
-									end)
+									SpawnCall(function() commandFunc() end)
 								end
 							}
 						}
@@ -4682,7 +4684,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		CFloop=nil
 		if not flyVariables._tflyLoop then
 			flyVariables._tflyLoop=true
-			Spawn(function()
+			SpawnCall(function()
 				while NAmanage._state.mode=="tfly" do
 					local cam=NAmanage._camera()
 					if cam and FLYING and flyVariables.TFpos and flyVariables.TFgyro then
@@ -4744,7 +4746,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		if CFloop then pcall(function() CFloop:Disconnect() end) end
 		if not flyVariables._stdLoop then
 			flyVariables._stdLoop=true
-			Spawn(function()
+			SpawnCall(function()
 				while (NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly") do
 					local cam=NAmanage._camera()
 					if cam and FLYING and flyVariables.BV and flyVariables.BG then
@@ -4814,7 +4816,7 @@ NAmanage._ensureLoops=function()
 	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
 		if not flyVariables._stdLoop then
 			flyVariables._stdLoop=true
-			Spawn(function()
+			SpawnCall(function()
 				while NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" do
 					if not goofyFLY or not flyVariables.BG or not flyVariables.BV or goofyFLY.Parent==nil or flyVariables.BG.Parent~=goofyFLY or flyVariables.BV.Parent~=goofyFLY then
 						NAmanage._ensureForces()
@@ -5977,7 +5979,7 @@ else
 				end
 				if sendto==RBXGeneral then
 					chatmsgshooks[args[1]]={args[1],args}
-					Spawn(function()
+					SpawnCall(function()
 						RBXGeneral:SendAsync("/w @"..args[2])
 					end)
 					return "Hooking"
@@ -8433,7 +8435,7 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 			opt.queueteleport(tpScript)
 		end
 
-		Spawn(function()
+		SpawnCall(function()
 			DoNotif("Rejoining back to the same position...")
 
 			local success = NACaller(function()
@@ -8548,7 +8550,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 
 		return hook(...)
 	end))]]
-	Spawn(function()
+	SpawnCall(function()
 		local getgc = getgc or debug.getgc
 		local hookfunction = hookfunction
 		local getrenv = getrenv
@@ -9971,7 +9973,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 			isRunning = hum.MoveDirection.Magnitude > 0
 		end)
 
-		Spawn(function()
+		SpawnCall(function()
 			while isFlying do
 				flyg.CFrame = workspace.CurrentCamera.CFrame * CFrame.Angles(-math.rad(f * 50 * speed / maxSpeed), 0, 0)
 				flyv.Velocity = workspace.CurrentCamera.CFrame.LookVector * speed
@@ -11097,7 +11099,7 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		local function enable()
 			local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
 			NAlib.connect("antiAFK", myConn)
-			Spawn(antiAFKHandler)
+			SpawnCall(antiAFKHandler)
 			DebugNotif("Anti AFK enabled")
 		end
 		Window({
@@ -11782,7 +11784,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 				end
 
 				if root then
-					Spawn(function()
+					SpawnCall(function()
 						for i = 1, 10 do
 							if root:IsDescendantOf(game) then
 								root.AssemblyLinearVelocity=root.AssemblyLinearVelocity * .8
@@ -12387,7 +12389,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 	end
 
 	for _, targetPlayer in ipairs(targets) do
-		Spawn(function()
+		SpawnCall(function()
 			while Tool and getPlrChar(LocalPlayer) and getPlrChar(targetPlayer) and Tool.Parent == LocalPlayer.Character do
 				local humanoid = getPlrHum(targetPlayer)
 				if not humanoid or humanoid.Health <= 0 then
@@ -12847,7 +12849,7 @@ cmd.add({"setpsycho", "psychoanim"}, {"setpsycho (psychoanim)", "Sets psycho ani
 	local animator = hum:FindFirstChildOfClass("Animator")
 	if not animator then return end
 
-	Spawn(function()
+	SpawnCall(function()
 		while hum and hum.Parent and hum.Health > 0 do
 			for _, track in pairs(animator:GetPlayingAnimationTracks()) do
 				if track.Animation.AnimationId == "rbxassetid://33796059" and track.Speed < 50 then
@@ -14451,7 +14453,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	if NAlib.isConnected("freecam") then
 		NAlib.disconnect("freecam")
 		camera.CameraSubject = getChar()
-		Spawn(function() cmd.run({"unfr"}) end)
+		SpawnCall(function() cmd.run({"unfr"}) end)
 	end
 
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
@@ -14463,9 +14465,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		camPart.Anchored = true
 		camPart.CFrame = camera.CFrame
 
-		Spawn(function()
-			cmd.run({"fr",''})
-		end)
+		SpawnCall(function() cmd.run({"fr",''}) end)
 
 		NAlib.connect("freecam", RunService.Stepped:Connect(function(dt)
 			local primaryPart = camPart
@@ -14584,7 +14584,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 						NAlib.disconnect("freecam")
 					end
 					camera.CameraSubject = getChar()
-					Spawn(function() cmd.run({"unfr"}) end)
+					SpawnCall(function() cmd.run({"unfr"}) end)
 				end
 			end)
 		end)()
@@ -14600,9 +14600,7 @@ end, true)
 cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free camera"},function()
 	NAlib.disconnect("freecam")
 	camera.CameraSubject = getChar()
-	Spawn(function()
-		cmd.run({"unfr"})
-	end)
+	SpawnCall(function() cmd.run({"unfr"}) end)
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
 end)
 
@@ -14908,7 +14906,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 end)
 
 cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
-	Spawn(function()
+	SpawnCall(function()
 		if getgenv().Lzzz == true then return end
 
 		local Anim = InstanceNew("Animation")
@@ -14972,7 +14970,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 end)
 
 cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in real life noob"}, function()
-	Spawn(function()
+	SpawnCall(function()
 		if getgenv().Lzzz ~= true then return end
 
 		local Anim = InstanceNew("Animation")
@@ -15130,7 +15128,7 @@ cmd.add({"loopgrabtools"},{"loopgrabtools","Loop grabs dropped tools"},function(
 	end
 	loopgrab = true
 	DebugNotif("Started loop grabbing tools", 2)
-	Spawn(function()
+	SpawnCall(function()
 		while loopgrab do
 			NAmanage.grabAllTools()
 			Wait(1)
@@ -15886,7 +15884,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			end
 			local i = 0
 			for _, b in ipairs(dataset) do
-				Spawn(function()
+				SpawnCall(function()
 					i += 1
 					if i % 8 == 0 then Wait(0.2) end
 					local ok, has = hasBadgeWithRetry(Player.UserId, b.id)
@@ -16936,13 +16934,13 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 	if not userId then local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg);if not ok then return end;userId=id end
 	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
 	if not okD or not desc then return end
-	Spawn(function() NAmanage._applyFixedDescription(desc:Clone(),userId) end)
+	SpawnCall(function() NAmanage._applyFixedDescription(desc:Clone(),userId) end)
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
 	local plr=Players.LocalPlayer;if not plr then return end
 	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,plr.UserId);if not okD or not desc then return end
-	Spawn(function() NAmanage._applyFixedDescription(desc:Clone(),plr.UserId) end)
+	SpawnCall(function() NAmanage._applyFixedDescription(desc:Clone(),plr.UserId) end)
 end)
 
 cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
@@ -16950,7 +16948,7 @@ cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"
 	NAlib.disconnect("autochar")
 	NAlib.connect("autochar",Players.LocalPlayer.CharacterAdded:Connect(function()
 		local id=tonumber(target);if not id then local ok,x=pcall(Players.GetUserIdFromNameAsync,Players,target);if not ok then return end;id=x end
-		Spawn(function()
+		SpawnCall(function()
 			local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,id)
 			if okD and desc then NAmanage._applyFixedDescription(desc:Clone(),id) end
 		end)
@@ -17013,12 +17011,12 @@ cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a s
 			NAlib.disconnect("autooutfit")
 			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
 			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
-				Spawn(function()
+				SpawnCall(function()
 					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
 					if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
 				end)
 			end))
-			Spawn(function()
+			SpawnCall(function()
 				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
 				if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
 			end)
@@ -18712,7 +18710,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 				loops[id]=state
 				loopBtn.Text="Stop"
 				loopBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
-				Spawn(function()
+				SpawnCall(function()
 					while state.running do
 						MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
 						Wait(parseInterval())
@@ -18728,7 +18726,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 		rows[id]=row
 
-		Spawn(function()
+		SpawnCall(function()
 			local ok,pi=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.Product) end)
 			if ok and type(pi)=="table" and rows[id] and rows[id].Parent then
 				nameL.Text=pi.Name or nameL.Text
@@ -18802,7 +18800,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	NAlib.connect(GROUP,buyAll.MouseButton1Click:Connect(function()
 		if #allItems==0 then return end
 		local delayS=parseInterval()
-		Spawn(function()
+		SpawnCall(function()
 			for _,info in ipairs(allItems) do
 				MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
 				Wait(delayS)
@@ -19068,7 +19066,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		end))
 
 		rows[id]=row
-		Spawn(function()
+		SpawnCall(function()
 			local ok,info=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.GamePass) end)
 			if ok and type(info)=="table" and rows[id] and rows[id].Parent then
 				nameL.Text=info.Name or nameL.Text
@@ -19109,7 +19107,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	local function promptAllQueued()
 		if #passList==0 then return end
 		local delayS=parseInterval()
-		Spawn(function()
+		SpawnCall(function()
 			for _,id in ipairs(passList) do
 				MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
 				Wait(delayS)
@@ -21043,7 +21041,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 						end))
 					end
 
-					Spawn(function()
+					SpawnCall(function()
 						while hugModeEnabled and targetCharacter and getRoot(targetCharacter) and (currentHugTarget == targetCharacter) do
 							targetHRP = getRoot(targetCharacter)
 							offset = (hugFromFront and (targetHRP.CFrame.LookVector * offsetDistance)) or (-(targetHRP.CFrame.LookVector * offsetDistance))
@@ -21185,7 +21183,7 @@ cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a pla
 	end
 	loopspook = true
 
-	Spawn(function()
+	SpawnCall(function()
 		while loopspook do
 			for _, name in ipairs(names) do
 				local target = Players:FindFirstChild(name)
@@ -21893,7 +21891,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 			local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
 			if part then
 				found += 1
-				Spawn(function()
+				SpawnCall(function()
 					local orig = part.CFrame
 					part.CFrame = root.CFrame
 					firetouchinterest(part,root,1)
@@ -22513,7 +22511,7 @@ cmd.add({"loopenableproximityprompts","loopenableprox","lenprox","lenpp"},{"loop
 	local term = Lower(Concat({...}," "))
 	if proxyEnableLoopState then proxyEnableLoopState.active=false end
 	proxyEnableLoopState = {active=true}
-	Spawn(function()
+	SpawnCall(function()
 		while proxyEnableLoopState and proxyEnableLoopState.active do
 			for _,obj in ipairs(interactTbl.proxy) do
 				if obj and obj.Parent and obj:IsA("ProximityPrompt") then
@@ -23265,7 +23263,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
@@ -23283,7 +23281,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	if activeTeleports[key] then activeTeleports[key].active = false end
 	local state    = {active = true}
 	activeTeleports[key] = state
-	Spawn(function()
+	SpawnCall(function()
 		local char = getChar()
 		for _,obj in ipairs(workspace:GetDescendants()) do
 			if not state.active then return end
@@ -23314,7 +23312,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
@@ -23337,7 +23335,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
@@ -23361,7 +23359,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.ClassName:lower() == className then
@@ -23453,7 +23451,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, model in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower() == modelName then
@@ -23476,7 +23474,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 	local taskState = {active = true}
 	activeTeleports[commandKey] = taskState
 
-	Spawn(function()
+	SpawnCall(function()
 		for _, model in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower():find(name) then
@@ -23514,7 +23512,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	if activeTeleports[key] then activeTeleports[key].active = false end
 	local state = {active = true}
 	activeTeleports[key] = state
-	Spawn(function()
+	SpawnCall(function()
 		local folder
 		for _,obj in ipairs(workspace:GetDescendants()) do
 			if obj:IsA("Folder") and obj.Name:lower() == folderName then folder = obj break end
@@ -23609,7 +23607,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 
 	local targetCF=root.CFrame
 
-	Spawn(function()
+	SpawnCall(function()
 		while RunService.Heartbeat:Wait() do
 			NACaller(function()
 				opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
@@ -24483,7 +24481,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	local UpdatedPosition = Mouse.Hit + Vector3.new(0, 5, 0)
 
-	Spawn(function()
+	SpawnCall(function()
 		while Wait() do
 			for _, player in ipairs(Players:GetPlayers()) do
 				if player ~= Player then
@@ -24545,7 +24543,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		end
 	end)
 
-	Spawn(function()
+	SpawnCall(function()
 		while Wait() do
 			Attachment1.WorldCFrame = UpdatedPosition
 		end
@@ -25891,7 +25889,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 
 	for _, obj in ipairs(game:GetDescendants()) do
 		if not obj:IsDescendantOf(COREGUI) and (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
-			Spawn(function()
+			SpawnCall(function()
 				local ok
 				if obj:IsA("RemoteEvent") then
 					ok = pcall(function() obj:FireServer() end)
@@ -26643,7 +26641,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 				if rootPart and localRoot then
 					rootPart.CFrame = localRoot.CFrame
 				end
-				Spawn(function()
+				SpawnCall(function()
 					for _, part in ipairs(model:GetDescendants()) do
 						if part:IsA("BasePart") then
 							if NAlib.isProperty(part, "CanCollide") then
@@ -26672,7 +26670,7 @@ cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 			end
 		end
 	end
-	Spawn(function()
+	SpawnCall(function()
 		for _, npcRoot in ipairs(npcs) do
 			local char = LocalPlayer.Character
 			if char and getRoot(char) then
@@ -27659,7 +27657,7 @@ NAgui.addTab=function(name, options)
 	return info
 end
 
-Spawn(function()
+SpawnCall(function()
 	for _,v in ipairs(NAStuff.NASCREENGUI:GetDescendants()) do
 		if v:IsA("UIStroke") then
 			Insert(NACOLOREDELEMENTS, v)
@@ -28970,7 +28968,7 @@ NAgui.loadCMDS = function()
 	NAmanage.rebuildIndex()
 end
 
-Spawn(function() -- plugin tester
+SpawnCall(function() -- plugin tester
 	while Wait(2) do
 		if countDictNA(cmds.Commands) ~= cmdNAnum then
 			NAgui.loadCMDS()
@@ -28978,7 +28976,7 @@ Spawn(function() -- plugin tester
 	end
 end)
 
-Spawn(function()
+SpawnCall(function()
 	NAmanage.Topbar_Init()
 end)
 
@@ -29636,11 +29634,11 @@ function setupPlayer(plr,bruh)
 	end)
 
 	if plr ~= LocalPlayer then
-		Spawn(function() CheckPermissions(plr) end)
+		SpawnCall(function() CheckPermissions(plr) end)
 	end
 
 	if ESPenabled then
-		Spawn(function()
+		SpawnCall(function()
 			repeat Wait(.5) until plr.Character
 			Wait(.5)
 			NAmanage.ESP_Add(plr,true)
@@ -29705,7 +29703,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	end
 end)
 
-Spawn(function()
+SpawnCall(function()
 	NAmanage.UIrenamerFRIEND=function(o)
 		if type(o.Text) == "string" then
 			o.Text = o.Text:gsub("Connections","Friends"):gsub("Connection","Friend")
@@ -29764,7 +29762,7 @@ Spawn(function()
 	end)
 end)
 
-Spawn(function()
+SpawnCall(function()
 	local function setupFLASHBACK(c)
 		if not c then return end
 		local hum=getHum()
@@ -29795,7 +29793,7 @@ Spawn(function()
 				lastHP=newHP
 			end)
 		end
-		Spawn(function()
+		SpawnCall(function()
 			local t=0
 			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
 				t+=(Wait() or 0.03)
@@ -29865,7 +29863,7 @@ Spawn(function()
 	end
 end)
 
-Spawn(function()
+SpawnCall(function()
 	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
 	NAmanage.startWatcher()
 end)
@@ -30115,7 +30113,7 @@ end)
 
 --original by @qipu | loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/main/Source"))();
 
-Spawn(function()
+SpawnCall(function()
 	local NAresult = tick() - NAbegin
 	local nameCheck = nameChecker(Player)
 
@@ -30156,7 +30154,7 @@ Spawn(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) end) -- it has better SaveInstance support and important functions that are required
+		SpawnCall(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/SaveInstance.lua"))() end) end) -- it has better SaveInstance support and important functions that are required
 		--Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))() end) end) -- better chat
 
 		-- just ignore this section (personal stuff)
@@ -30183,7 +30181,7 @@ Spawn(function()
 			}
 		})]]
 	end)
-	Spawn(function()
+	SpawnCall(function()
 		Wait(.5)
 		for _, commandName in ipairs(NAEXECDATA.commands) do
 			local fullRun = {commandName}
@@ -30345,27 +30343,9 @@ end
 		return props
 	end
 end]]
---[[
-print(
-	
-███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░███████╗░██████╗░██████╗
-████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔════╝██╔════╝██╔════╝
-██╔██╗██║███████║██╔████╔██║█████╗░░██║░░░░░█████╗░░╚█████╗░╚█████╗░
-██║╚████║██╔══██║██║╚██╔╝██║██╔══╝░░██║░░░░░██╔══╝░░░╚═══██╗░╚═══██╗
-██║░╚███║██║░░██║██║░╚═╝░██║███████╗███████╗███████╗██████╔╝██████╔╝
-╚═╝░░╚══╝╚═╝░░╚═╝╚═╝░░░░░╚═╝╚══════╝╚══════╝╚══════╝╚═════╝░╚═════╝░
-
-░█████╗░██████╗░███╗░░░███╗██╗███╗░░██╗
-██╔══██╗██╔══██╗████╗░████║██║████╗░██║
-███████║██║░░██║██╔████╔██║██║██╔██╗██║
-██╔══██║██║░░██║██║╚██╔╝██║██║██║╚████║
-██║░░██║██████╔╝██║░╚═╝░██║██║██║░╚███║
-╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
-)
-]]
 math.randomseed(os.time())
 
-Spawn(function()
+SpawnCall(function()
 	while Wait(0.25) and getChar() do
 		local hum = getHum()
 		if hum and hum.AutoJumpEnabled then
@@ -30375,7 +30355,7 @@ Spawn(function()
 end)
 
 
-Spawn(function() -- init
+SpawnCall(function() -- init
 	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
 	if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
 	if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
@@ -30390,21 +30370,20 @@ Spawn(function() -- init
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
-Spawn(NAmanage.bindToDevConsole)
-Spawn(NAmanage.loadAliases)
-Spawn(NAmanage.loadButtonIDS)
-Spawn(NAmanage.RenderUserButtons)
-Spawn(NAmanage.loadAutoExec)
-Spawn(NAmanage.LoadPlugins)
-Spawn(NAmanage.InitPlugs)
-Spawn(NAmanage.UpdateWaypointList)
-Spawn(NAmanage.LoadESPSettings)
-
+SpawnCall(NAmanage.bindToDevConsole)
+SpawnCall(NAmanage.loadAliases)
+SpawnCall(NAmanage.loadButtonIDS)
+SpawnCall(NAmanage.RenderUserButtons)
+SpawnCall(NAmanage.loadAutoExec)
+SpawnCall(NAmanage.LoadPlugins)
+SpawnCall(NAmanage.InitPlugs)
+SpawnCall(NAmanage.UpdateWaypointList)
+SpawnCall(NAmanage.LoadESPSettings)
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
 local bindersList      = NAUIMANAGER.BindersList
-Spawn(function()
+SpawnCall(function()
 	local layoutOrder = 1
 	for _, evName in ipairs(events) do
 		local ev = evName
@@ -31441,7 +31420,7 @@ NAgui.addButton("Remove Light", function()
 end)
 
 if FileSupport and CoreGui then
-	Spawn(function()
+	SpawnCall(function()
 		local previousTab = NAgui.getActiveTab()
 		NAgui.setTab(TAB_INTERFACE)
 
@@ -31617,3 +31596,22 @@ NAgui.addButton("Remove Chat Tag", function()
 end)]]
 
 NAgui.setTab(TAB_ALL)
+
+--[[
+print(
+	
+███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░███████╗░██████╗░██████╗
+████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔════╝██╔════╝██╔════╝
+██╔██╗██║███████║██╔████╔██║█████╗░░██║░░░░░█████╗░░╚█████╗░╚█████╗░
+██║╚████║██╔══██║██║╚██╔╝██║██╔══╝░░██║░░░░░██╔══╝░░░╚═══██╗░╚═══██╗
+██║░╚███║██║░░██║██║░╚═╝░██║███████╗███████╗███████╗██████╔╝██████╔╝
+╚═╝░░╚══╝╚═╝░░╚═╝╚═╝░░░░░╚═╝╚══════╝╚══════╝╚══════╝╚═════╝░╚═════╝░
+
+░█████╗░██████╗░███╗░░░███╗██╗███╗░░██╗
+██╔══██╗██╔══██╗████╗░████║██║████╗░██║
+███████║██║░░██║██╔████╔██║██║██╔██╗██║
+██╔══██║██║░░██║██║╚██╔╝██║██║██║╚████║
+██║░░██║██████╔╝██║░╚═╝░██║██║██║░╚███║
+╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
+)
+]]
