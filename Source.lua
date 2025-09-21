@@ -2277,13 +2277,13 @@ if FileSupport then
 	end
 
 	local path = NAmanage.GetWPPath()
-	if not isfile(path) then
-		writefile(path, "{}")
-	end
+	local ok, data = false, nil
 
-	local ok, data = pcall(function()
-		return HttpService:JSONDecode(readfile(path))
-	end)
+	if isfile(path) then
+		ok, data = pcall(function()
+			return HttpService:JSONDecode(readfile(path))
+		end)
+	end
 
 	Waypoints = (ok and type(data) == "table") and data or {}
 
@@ -3968,12 +3968,22 @@ NAmanage.ESP_DestroyLabel = function(model)
 	if data.textLabel then data.textLabel:Destroy() data.textLabel=nil end
 end
 
+NAmanage.ESP_FirstBasePart = function(model)
+	if not model or not model.Parent then return nil end
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			return d
+		end
+	end
+	return nil
+end
+
 NAmanage.ESP_EnsureLabel = function(model)
 	if chamsEnabled then return end
 	local data = espCONS[model]
 	if not data then return end
 	if data.textLabel and data.billboard and data.billboard.Parent then return end
-	local anchor = getHead(model) or getRoot(model)
+	local anchor = getHead(model) or getRoot(model) or NAmanage.ESP_FirstBasePart(model)
 	if not anchor then return end
 	local billboard = InstanceNew("BillboardGui")
 	billboard.Adornee = anchor
@@ -4058,6 +4068,92 @@ NAmanage.ESP_Disconnect = function(target)
 	NAmanage.ESP_ClearModel(model)
 end
 
+NAmanage.ESP_UpdateOne = function(model, now, localRoot)
+	local data = espCONS[model]
+	if not data then return end
+	if not model.Parent then NAmanage.ESP_ClearModel(model) return end
+
+	local rootPart = getRoot(model)
+	local owner = Players:GetPlayerFromCharacter(model)
+	local team = owner and owner.Team or nil
+	local teamName = team and team.Name or nil
+	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
+
+	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
+	local budget = dist and ((dist<=50 and 0.05) or (dist<=150 and 0.15) or (dist<=400 and 0.3) or 0.6) or 0.2
+	if data.next and now < data.next then return end
+	data.next = now + budget
+
+	local distColor = dist and ((dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)) or Color3.new(1,1,1)
+	local finalColor = (NAStuff.ESP_ColorByTeam ~= false and teamColor) or distColor
+
+	local wantBoxes = ESPenabled and (dist == nil or dist <= (NAStuff.ESP_BoxMaxDistance or 120))
+	local wantLabel = ESPenabled and not chamsEnabled and (dist == nil or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
+
+	if wantBoxes and not data.boxEnabled then
+		NAmanage.ESP_AddBoxes(model)
+	elseif not wantBoxes and data.boxEnabled then
+		NAmanage.ESP_RemoveBoxes(model)
+	end
+
+	if wantLabel then
+		NAmanage.ESP_EnsureLabel(model)
+	else
+		NAmanage.ESP_DestroyLabel(model)
+	end
+
+	if data.boxEnabled then
+		for part, box in pairs(data.boxTable) do
+			if not part or not part.Parent then
+				if box then box:Destroy() end
+				data.boxTable[part] = nil
+			else
+				if box.Color3 ~= finalColor then box.Color3 = finalColor end
+				if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
+				local tr = NAStuff.ESP_Transparency or 0.7
+				if box.Transparency ~= tr then box.Transparency = tr end
+			end
+		end
+		if now % 0.5 < 0.05 then
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") and not data.boxTable[part] then
+					NAmanage.ESP_AddBoxForPart(model, part)
+				end
+			end
+		end
+	end
+
+	local pieces = {}
+	if NAStuff.ESP_ShowName ~= false then
+		local nm = owner and nameChecker(owner) or model.Name
+		if nm and nm ~= "" then pieces[#pieces+1] = nm end
+	end
+	if NAStuff.ESP_ShowHealth ~= false then
+		local hum = getPlrHum(model)
+		local h = hum and math.floor(hum.Health) or nil
+		local m = hum and math.floor(hum.MaxHealth) or nil
+		if h and m then pieces[#pieces+1] = tostring(h).."/"..tostring(m).." HP" end
+	end
+	if (NAStuff.ESP_ShowTeamText ~= false) and teamName and teamName ~= "None" then
+		pieces[#pieces+1] = teamName
+	end
+	if (NAStuff.ESP_ShowDistance ~= false) and dist then
+		pieces[#pieces+1] = tostring(dist).." studs"
+	end
+
+	if #pieces > 0 and wantLabel then
+		NAmanage.ESP_EnsureLabel(model)
+		if data.textLabel then
+			local txt = Concat(pieces, " | ")
+			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
+			local txtColor = finalColor or Color3.new(1,1,1)
+			if data.textLabel.TextColor3 ~= txtColor then data.textLabel.TextColor3 = txtColor end
+		end
+	else
+		NAmanage.ESP_DestroyLabel(model)
+	end
+end
+
 NAmanage.ESP_Add = function(target, persistent)
 	persistent = persistent or false
 	if not (ESPenabled or chamsEnabled) then return end
@@ -4085,7 +4181,8 @@ NAmanage.ESP_Add = function(target, persistent)
 
 	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
 		if not (ESPenabled or chamsEnabled) then return end
-		if desc:IsA("BasePart") and espCONS[model] and espCONS[model].boxEnabled then
+		if not espCONS[model] then return end
+		if desc:IsA("BasePart") and espCONS[model].boxEnabled then
 			NAmanage.ESP_AddBoxForPart(model, desc)
 		end
 	end))
@@ -4097,93 +4194,23 @@ NAmanage.ESP_Add = function(target, persistent)
 		if box then box:Destroy(); data.boxTable[desc] = nil end
 	end))
 
-	NAmanage.ESP_StartGlobal()
-end
+	NAmanage.ESP_AddBoxes(model)
+	NAmanage.ESP_EnsureLabel(model)
 
-NAmanage.ESP_UpdateOne = function(model, now, localRoot)
-	local data = espCONS[model]
-	if not data then return end
-	if not model.Parent then NAmanage.ESP_ClearModel(model) return end
-	local rootPart = getRoot(model)
-	if not rootPart then return end
-	local owner = Players:GetPlayerFromCharacter(model)
-	local team = owner and owner.Team or nil
-	local teamName = team and team.Name or nil
-	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
-	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
-	local budget = dist and ((dist<=50 and 0.05) or (dist<=150 and 0.15) or (dist<=400 and 0.3) or 0.6) or 0.2
-	if data.next and now < data.next then return end
-	data.next = now + budget
-	local distColor = dist and ((dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)) or Color3.new(1,1,1)
-	local finalColor = (NAStuff.ESP_ColorByTeam ~= false and teamColor) or distColor
-	local wantBoxes = ESPenabled and (not dist or dist <= (NAStuff.ESP_BoxMaxDistance or 120))
-	local wantLabel = ESPenabled and not chamsEnabled and (not dist or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
-	if wantBoxes and not data.boxEnabled then
-		NAmanage.ESP_AddBoxes(model)
-	elseif not wantBoxes and data.boxEnabled then
-		NAmanage.ESP_RemoveBoxes(model)
+	local ok, now = pcall(tick)
+	if ok then
+		NAmanage.ESP_UpdateOne(model, now, nil)
 	end
-	if wantLabel then
-		NAmanage.ESP_EnsureLabel(model)
-	else
-		NAmanage.ESP_DestroyLabel(model)
-	end
-	if data.boxEnabled then
-		for part, box in pairs(data.boxTable) do
-			if not part or not part.Parent then
-				if box then box:Destroy() end
-				data.boxTable[part] = nil
-			else
-				if box.Color3 ~= finalColor then box.Color3 = finalColor end
-				if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
-				local tr = NAStuff.ESP_Transparency or 0.7
-				if box.Transparency ~= tr then box.Transparency = tr end
-			end
-		end
-		if now % 0.5 < 0.05 then
-			for _, part in ipairs(model:GetDescendants()) do
-				if part:IsA("BasePart") and not data.boxTable[part] then
-					NAmanage.ESP_AddBoxForPart(model, part)
-				end
-			end
-		end
-	end
-	local pieces = {}
-	if NAStuff.ESP_ShowName ~= false then
-		local nm = owner and nameChecker(owner) or model.Name
-		if nm and nm ~= "" then pieces[#pieces+1] = nm end
-	end
-	if NAStuff.ESP_ShowHealth ~= false then
-		local hum = getPlrHum(model)
-		local h = hum and math.floor(hum.Health) or nil
-		local m = hum and math.floor(hum.MaxHealth) or nil
-		if h and m then pieces[#pieces+1] = tostring(h).."/"..tostring(m).." HP" end
-	end
-	if (NAStuff.ESP_ShowTeamText ~= false) and teamName and teamName ~= "None" then
-		pieces[#pieces+1] = teamName
-	end
-	if (NAStuff.ESP_ShowDistance ~= false) and dist then
-		pieces[#pieces+1] = tostring(dist).." studs"
-	end
-	if #pieces > 0 and wantLabel then
-		NAmanage.ESP_EnsureLabel(model)
-		if data.textLabel then
-			local txt = Concat(pieces, " | ")
-			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
-			local txtColor = finalColor or Color3.new(1,1,1)
-			if data.textLabel.TextColor3 ~= txtColor then data.textLabel.TextColor3 = txtColor end
-		end
-	else
-		NAmanage.ESP_DestroyLabel(model)
-	end
+
+	NAmanage.ESP_StartGlobal()
 end
 
 NAmanage.ESP_StartGlobal = function()
 	if NAlib.isConnected("esp_update_global") then return end
 	NAlib.connect("esp_update_global", RunService.Heartbeat:Connect(function()
 		local plr = Players.LocalPlayer
-		local char = plr and plr.Character
-		local localRoot = char and getRoot(char)
+		local char = plr and plr.Character or nil
+		local localRoot = (char and getRoot(char)) or nil
 		local now = tick()
 		for model,_ in pairs(espCONS) do
 			NAmanage.ESP_UpdateOne(model, now, localRoot)
@@ -4462,7 +4489,32 @@ NAmanage._isSeated=function()
 	return seat and (seat:IsA("Seat") or seat:IsA("VehicleSeat")) or false
 end
 
-NAmanage.pauseCurrent=function()
+NAmanage.FLY_Cleanup = function(char)
+	local c = char or getChar()
+	local hum = getHum(c)
+	local head = getHead(c)
+	if head then pcall(function() head.Anchored = false end) end
+	if hum then
+		pcall(function() hum.PlatformStand = false end)
+		pcall(function() hum.Sit = false end)
+		pcall(function() hum.AutoRotate = true end)
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+	end
+	if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) flyVariables.TFpos=nil end
+	if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) flyVariables.TFgyro=nil end
+	if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) flyVariables.BG=nil end
+	if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) flyVariables.BV=nil end
+	if goofyFLY then pcall(function() goofyFLY:Destroy() end) goofyFLY=nil end
+	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
+	FLYING=false
+end
+
+NAmanage.FLY_OnRespawnGround = function()
+	local c = getChar()
+	NAmanage.FLY_Cleanup(c)
+end
+
+NAmanage.pauseCurrent = function()
 	if not FLYING then return end
 	FLYING=false
 	local hum=getHum()
@@ -4477,7 +4529,8 @@ NAmanage.pauseCurrent=function()
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
 		if hum and not NAmanage._isSeated() then
 			hum.PlatformStand=false
-			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			hum.AutoRotate=true
+			hum:ChangeState(Enum.HumanoidStateType.Running)
 		end
 	end
 end
@@ -4762,6 +4815,80 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	FLYING=true
 end
 
+NAmanage._ensureForces=function()
+	if NAmanage._state.mode=="none" then return end
+	local char=getChar(); if not char then return end
+	local hum=getHum(); if not hum then return end
+	local root=getRoot(char); if not root then return end
+	local cam=NAmanage._camera()
+	if not goofyFLY or goofyFLY.Parent==nil then
+		goofyFLY=InstanceNew("Part",workspace)
+		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
+		goofyFLY.Transparency=1
+		goofyFLY.CanCollide=false
+		goofyFLY.Anchored=(NAmanage._state.mode=="cfly")
+		local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
+		if flyVariables._goofyAC then pcall(function() flyVariables._goofyAC:Disconnect() end) end
+		flyVariables._goofyAC=goofyFLY.AncestryChanged:Connect(function(_,p) if not p then Defer(NAmanage._ensureForces) end end)
+	end
+	if NAmanage._state.mode=="tfly" then
+		NAmanage._ensureWeldTarget()
+		if not flyVariables.TFpos or flyVariables.TFpos.Parent~=goofyFLY then
+			flyVariables.TFpos=InstanceNew("BodyPosition",goofyFLY)
+			flyVariables.TFpos.position=goofyFLY.Position
+		end
+		if not flyVariables.TFgyro or flyVariables.TFgyro.Parent~=goofyFLY then
+			flyVariables.TFgyro=InstanceNew("BodyGyro",goofyFLY)
+			flyVariables.TFgyro.cframe=(cam and cam.CFrame) or CFrame.new()
+		end
+		if FLYING then
+			flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
+			flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9)
+		else
+			flyVariables.TFpos.maxForce=Vector3.new(0,0,0)
+			flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0)
+		end
+	elseif NAmanage._state.mode=="cfly" then
+		goofyFLY.Anchored=true
+		local head=getHead(char)
+		if head and FLYING and not head.Anchored then head.Anchored=true end
+	else
+		NAmanage._ensureWeldTarget()
+		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
+			flyVariables.BG=InstanceNew("BodyGyro",goofyFLY)
+			flyVariables.BG.P=9e4
+		end
+		if not flyVariables.BV or flyVariables.BV.Parent~=goofyFLY then
+			flyVariables.BV=InstanceNew("BodyVelocity",goofyFLY)
+			flyVariables.BV.velocity=Vector3.zero
+		end
+		if cam then flyVariables.BG.cframe=cam.CFrame end
+		flyVariables.BG.maxTorque=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
+		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
+		if NAmanage._state.mode=="fly" then hum.PlatformStand=FLYING else hum.PlatformStand=false end
+	end
+	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
+		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
+		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
+			k=Lower(k or "")
+			if k=="q" then
+				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+				CONTROL.Q=-sp*2
+			elseif k=="e" then
+				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
+				CONTROL.E=sp*2
+			end
+		end)
+	end
+	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
+		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
+		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
+			k=Lower(k or "")
+			if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
+		end)
+	end
+end
+
 NAmanage._ensureLoops=function()
 	if NAmanage._state.mode=="tfly" then
 		if not flyVariables._tflyLoop then
@@ -4886,84 +5013,18 @@ NAmanage._ensureWeldTarget=function()
 	end)
 end
 
-NAmanage._ensureForces=function()
-	if NAmanage._state.mode=="none" then return end
-	local char=getChar(); if not char then return end
-	local hum=getHum(); if not hum then return end
-	local root=getRoot(char); if not root then return end
-	local cam=NAmanage._camera()
-	if not goofyFLY or goofyFLY.Parent==nil then
-		goofyFLY=InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
-		goofyFLY.Anchored=(NAmanage._state.mode=="cfly")
-		local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
-		if flyVariables._goofyAC then pcall(function() flyVariables._goofyAC:Disconnect() end) end
-		flyVariables._goofyAC=goofyFLY.AncestryChanged:Connect(function(_,p) if not p then Defer(NAmanage._ensureForces) end end)
-	end
-	if NAmanage._state.mode=="tfly" then
-		NAmanage._ensureWeldTarget()
-		if not flyVariables.TFpos or flyVariables.TFpos.Parent~=goofyFLY then
-			flyVariables.TFpos=InstanceNew("BodyPosition",goofyFLY)
-			flyVariables.TFpos.position=goofyFLY.Position
-		end
-		if not flyVariables.TFgyro or flyVariables.TFgyro.Parent~=goofyFLY then
-			flyVariables.TFgyro=InstanceNew("BodyGyro",goofyFLY)
-			flyVariables.TFgyro.cframe=(cam and cam.CFrame) or CFrame.new()
-		end
-		if FLYING then
-			flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge)
-			flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9)
-		else
-			flyVariables.TFpos.maxForce=Vector3.new(0,0,0)
-			flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0)
-		end
-	elseif NAmanage._state.mode=="cfly" then
-		goofyFLY.Anchored=true
-		local head=getHead(char)
-		if head and FLYING and not head.Anchored then head.Anchored=true end
-	else
-		NAmanage._ensureWeldTarget()
-		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
-			flyVariables.BG=InstanceNew("BodyGyro",goofyFLY)
-			flyVariables.BG.P=9e4
-		end
-		if not flyVariables.BV or flyVariables.BV.Parent~=goofyFLY then
-			flyVariables.BV=InstanceNew("BodyVelocity",goofyFLY)
-			flyVariables.BV.velocity=Vector3.zero
-		end
-		if cam then flyVariables.BG.cframe=cam.CFrame end
-		flyVariables.BG.maxTorque=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
-		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
-		if NAmanage._state.mode=="fly" then hum.PlatformStand=FLYING else hum.PlatformStand=false end
-	end
-	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
-		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
-		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
-			k=Lower(k or "")
-			if k=="q" then
-				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-				CONTROL.Q=-sp*2
-			elseif k=="e" then
-				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-				CONTROL.E=sp*2
-			end
-		end)
-	end
-	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
-		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
-		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
-			k=Lower(k or "")
-			if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
-		end)
-	end
-end
-
 NAmanage.startWatcher=function()
 	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
 	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
 		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
+			local desired="none"
+			if flyVariables.cFlyEnabled then desired="cfly"
+			elseif flyVariables.TFlyEnabled then desired="tfly"
+			elseif flyVariables.vFlyEnabled then desired="vfly"
+			elseif flyVariables.flyEnabled then desired="fly" end
+			if NAmanage._state.mode=="none" and desired~="none" then
+				NAmanage._state.mode=desired
+			end
 			NAmanage._ensureWeldTarget()
 			NAmanage._ensureForces()
 			NAmanage._ensureLoops()
@@ -4972,14 +5033,17 @@ NAmanage.startWatcher=function()
 	NAmanage._bindCameraWatch()
 end
 
-NAmanage.activateMode=function(mode)
-	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
-	if CFloop then pcall(function() CFloop:Disconnect() end) end
-	CFloop=nil
+NAmanage._forceEnableFlags = function(mode)
 	flyVariables.flyEnabled=(mode=="fly")
 	flyVariables.vFlyEnabled=(mode=="vfly")
 	flyVariables.cFlyEnabled=(mode=="cfly")
 	flyVariables.TFlyEnabled=(mode=="tfly")
+end
+
+NAmanage._applyMode = function(mode, resume)
+	if CFloop then pcall(function() CFloop:Disconnect() end) end
+	CFloop=nil
+	NAmanage._forceEnableFlags(mode)
 	NAmanage._state.mode=mode
 	if mode=="cfly" then
 		NAmanage.sFLY(false,true,false)
@@ -4990,9 +5054,42 @@ NAmanage.activateMode=function(mode)
 	else
 		NAmanage.sFLY(false,false,false)
 	end
+	if resume then
+		NAmanage.resumeCurrent()
+	else
+		NAmanage.pauseCurrent()
+	end
 	NAmanage._ensureMobileFlyUI(mode)
 	NAmanage.startWatcher()
 	NAmanage._bindCameraWatch()
+end
+
+NAmanage.activateMode = function(mode)
+	NAmanage._state.mode=mode
+	NAmanage._forceEnableFlags(mode)
+	local char=getChar()
+	local root=char and getRoot(char) or nil
+	local hum=char and getHum(char) or nil
+	if char and root and hum then
+		NAmanage._applyMode(mode,true)
+		return
+	end
+	NAmanage._persist.lastMode=mode
+	NAmanage._persist.resumeAfterSpawn=true
+	if NAlib.isConnected("fly_pending_char") then
+		NAlib.disconnect("fly_pending_char")
+	end
+	NAlib.connect("fly_pending_char", Players.LocalPlayer.CharacterAdded:Connect(function()
+		Spawn(function()
+			local t=0
+			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
+				t+=(Wait() or 0.03)
+			end
+			NAmanage._applyMode(mode,true)
+			NAmanage._persist.resumeAfterSpawn=false
+			NAlib.disconnect("fly_pending_char")
+		end)
+	end))
 end
 
 NAmanage.keyToggle=function(mode)
@@ -5083,30 +5180,6 @@ NAmanage.connectTFlyKey=function()
 			NAmanage.keyToggle("tfly")
 		end
 	end)
-end
-
-NAmanage.enableFlyCommand=function(spd)
-	if tonumber(spd) then flyVariables.flySpeed=tonumber(spd) end
-	NAmanage.activateMode("fly")
-	NAmanage.connectFlyKey()
-end
-
-NAmanage.enableVFlyCommand=function(spd)
-	if tonumber(spd) then flyVariables.vFlySpeed=tonumber(spd) end
-	NAmanage.activateMode("vfly")
-	NAmanage.connectVFlyKey()
-end
-
-NAmanage.enableCFlyCommand=function(spd)
-	if tonumber(spd) then flyVariables.cFlySpeed=tonumber(spd) flyVariables.flySpeed=flyVariables.cFlySpeed end
-	NAmanage.activateMode("cfly")
-	NAmanage.connectCFlyKey()
-end
-
-NAmanage.enableTFlyCommand=function(spd)
-	if tonumber(spd) then flyVariables.TflySpeed=tonumber(spd) end
-	NAmanage.activateMode("tfly")
-	NAmanage.connectTFlyKey()
 end
 
 NAmanage.readAliasFile = function()
@@ -5563,7 +5636,7 @@ NAmanage.SaveWaypoints = function()
 	else
 		if delfile and isfile(path) then
 			pcall(delfile, path)
-		else
+		elseif isfile(path) then
 			writefile(path, "{}")
 		end
 	end
@@ -10972,6 +11045,33 @@ cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", 
 	end
 end)
 
+cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"}, function()
+	local character = getChar()
+	if not character then
+		return DebugNotif("Character not found", 3)
+	end
+	local root = getRoot(character)
+	if not root then
+		return DebugNotif("Root not found", 3)
+	end
+	local closestSpawn = nil
+	local shortestDistance = math.huge
+	local rootPosition = root.Position
+	for _, descendant in ipairs(workspace:GetDescendants()) do
+		if descendant:IsA("SpawnLocation") then
+			local distance = (descendant.Position - rootPosition).Magnitude
+			if distance < shortestDistance then
+				shortestDistance = distance
+				closestSpawn = descendant
+			end
+		end
+	end
+	if not closestSpawn then
+		return DebugNotif("No SpawnLocation found in workspace", 3)
+	end
+	root.CFrame = closestSpawn.CFrame * CFrame.new(0, 5, 0)
+end)
+
 cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	local Camera = workspace.CurrentCamera
 
@@ -14409,19 +14509,38 @@ cmd.add({"unorbit"}, {"unorbit", "Stop orbiting"}, function()
 end)
 
 -- unavailable and under maintance
---[[cmd.add({"freezewalk"},{"freezewalk","Freezes your character on the server but lets you walk on the client"},function()
-	local Character=getChar()
-	local Root=getRoot(Character)
-
-	if IsR6() then
-		local Clone=Root:Clone()
-		Root:Destroy()
-		Clone.Parent=Character
-	else
-		getTorso(Character).Anchored=true
-		getTorso(Character).Root:Destroy()
+--[[cmd.add({"serverfreeze", "freezewalk"}, {"serverfreeze (freezewalk)", "Freezes your character on the server while keeping your client moving"}, function()
+	local character = getChar()
+	local humanoid = character and getHum(character)
+	if not character or not humanoid then
+		return DebugNotif("Character or humanoid unavailable", 3)
 	end
-	DebugNotif("freezewalk is activated,reset to stop it")
+
+	local root = getRoot(character)
+	if not root then
+		return DebugNotif("Root part not found", 3)
+	end
+
+	if humanoid.RigType == Enum.HumanoidRigType.R6 then
+		local clone = root:Clone()
+		clone.CFrame = root.CFrame
+		clone.Name = root.Name
+		clone.Anchored = root.Anchored
+		clone.Parent = character
+		root:Destroy()
+	else
+		local lowerTorso = character:FindFirstChild("LowerTorso")
+		if not lowerTorso then
+			return DebugNotif("LowerTorso missing; unable to server freeze", 3)
+		end
+		lowerTorso.Anchored = true
+		local rootJoint = lowerTorso:FindFirstChild("Root")
+		if rootJoint and rootJoint:IsA("Motor6D") then
+			rootJoint:Destroy()
+		end
+	end
+
+	DebugNotif("Server freeze enabled. Reset to stop it.")
 end)]]
 
 fcBTNTOGGLE = nil
@@ -27985,9 +28104,16 @@ NAmanage.UpdateWaypointList=function()
 				if copyBtn then
 					copyBtn.MouseButton1Click:Connect(function()
 						local comps = entry.Components
-						local cf = CFrame.new(unpack(comps))
+						if type(comps) ~= "table" then
+							return DebugNotif("Waypoint data missing", 3)
+						end
+						local posX, posY, posZ = comps[1], comps[2], comps[3]
+						if type(posX) ~= "number" or type(posY) ~= "number" or type(posZ) ~= "number" then
+							return DebugNotif("Waypoint position is invalid", 3)
+						end
+						local copyText = Format("%f, %f, %f", posX, posY, posZ)
 						if setclipboard then
-							pcall(setclipboard, tostring(cf))
+							pcall(setclipboard, copyText)
 							DebugNotif("Copied "..name)
 						else
 							DebugNotif("Copy not supported")
@@ -29753,7 +29879,8 @@ SpawnCall(function()
 				deathCFrame=root.CFrame
 			end
 			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
-			NAmanage._persist.wasFlying=FLYING and true or false
+			NAmanage._persist.wasFlying=(FLYING==true)
+			NAmanage._persist.resumeAfterSpawn=(FLYING==true)
 		end)
 	end
 
@@ -29778,34 +29905,39 @@ SpawnCall(function()
 			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
 				t+=(Wait() or 0.03)
 			end
+			NAmanage._persist.wasFlying=(NAmanage._persist and NAmanage._persist.wasFlying==true)
+			local lastMode=(NAmanage._persist and NAmanage._persist.lastMode) or "none"
 			local mode="none"
 			if flyVariables.cFlyEnabled then mode="cfly"
 			elseif flyVariables.TFlyEnabled then mode="tfly"
 			elseif flyVariables.vFlyEnabled then mode="vfly"
 			elseif flyVariables.flyEnabled then mode="fly" end
-
-			if NAmanage._persist then
-				NAmanage._persist.wasFlying=(NAmanage._persist.wasFlying==true)
-			end
-
-			if mode~="none" then
-				NAmanage.connectFlyKey()
-				NAmanage.connectVFlyKey()
-				NAmanage.connectCFlyKey()
-				NAmanage.connectTFlyKey()
-				if NAmanage._persist and NAmanage._persist.lastMode==mode and NAmanage._persist.wasFlying==true then
-					NAmanage.activateMode(mode)
-					FLYING=true
+			NAmanage.connectFlyKey()
+			NAmanage.connectVFlyKey()
+			NAmanage.connectCFlyKey()
+			NAmanage.connectTFlyKey()
+			if (NAmanage._persist and NAmanage._persist.resumeAfterSpawn==true) and lastMode~="none" then
+				NAmanage._applyMode(lastMode,true)
+				NAmanage._persist.resumeAfterSpawn=false
+			elseif mode~="none" then
+				if NAmanage._persist and NAmanage._persist.wasFlying==true and lastMode~="none" then
+					NAmanage._applyMode(lastMode,true)
 				else
 					FLYING=false
-					NAmanage.pauseCurrent()
+					NAmanage.FLY_OnRespawnGround()
+					NAmanage._state.mode=mode
+					NAmanage._ensureForces()
 				end
+			else
+				FLYING=false
+				NAmanage.FLY_OnRespawnGround()
 			end
-
-			if flyVariables._watchConn then flyVariables._watchConn:Disconnect() end
+			if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
 			flyVariables._watchConn=RunService.Heartbeat:Connect(function()
-				if (flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled) then
-					if not goofyFLY or goofyFLY.Parent==nil then
+				if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
+					if not goofyFLY or goofyFLY.Parent==nil
+						or (NAmanage._state.mode~="cfly" and (not flyVariables.BG or not flyVariables.BV))
+						or (NAmanage._state.mode=="tfly" and (not flyVariables.TFpos or not flyVariables.TFgyro)) then
 						if NAmanage._state.mode=="cfly" then
 							NAmanage.sFLY(false,true,false)
 						elseif NAmanage._state.mode=="tfly" then
@@ -29815,11 +29947,13 @@ SpawnCall(function()
 						elseif NAmanage._state.mode=="fly" then
 							NAmanage.sFLY(false,false,false)
 						end
-						if NAmanage._persist and NAmanage._persist.wasFlying==true then
-							FLYING=true
+						if (NAmanage._persist and NAmanage._persist.resumeAfterSpawn==true) or (NAmanage._persist and NAmanage._persist.wasFlying==true) then
+							NAmanage.resumeCurrent()
+							NAmanage._persist.resumeAfterSpawn=false
 						else
 							FLYING=false
-							NAmanage.pauseCurrent()
+							NAmanage.FLY_OnRespawnGround()
+							NAmanage._ensureForces()
 						end
 					end
 				end
