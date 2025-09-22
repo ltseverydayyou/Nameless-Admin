@@ -76,7 +76,6 @@ local Lighting=SafeGetService("Lighting");
 local ReplicatedStorage=SafeGetService("ReplicatedStorage");
 local COREGUI=SafeGetService("CoreGui");
 local TextChatService = SafeGetService("TextChatService");
-local CaptureService = SafeGetService("CaptureService");
 local TextService = SafeGetService("TextService");
 local StarterGui = SafeGetService("StarterGui");
 
@@ -100,8 +99,8 @@ local NAStuff = {
 	siteESPList = {};
 	vehicleSiteESPList = {};
 	unanchoredESPList = {};
-	collisionTrueESPList = {};
-	collisionFalseESPList = {};
+	collisiontrueESPList = {};
+	collisionfalseESPList = {};
 	espTriggers = {};
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
@@ -192,6 +191,80 @@ local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local cmd={}
 local NAmanage={}
+NAmanage._loaderStatus = NAmanage._loaderStatus or {}
+
+local function loaderWarn(label, detail)
+	warn(Format('[%s loader] %s: %s', adminName, label, detail))
+end
+
+function NAmanage.waitForScreenGui(timeoutSeconds)
+	timeoutSeconds = timeoutSeconds or 5
+	local deadline = tick() + timeoutSeconds
+	repeat
+		local gui = NAStuff.NASCREENGUI
+		if gui and gui.Parent then
+			return gui
+		end
+		Wait(0.1)
+	until tick() >= deadline
+	return nil
+end
+
+function NAmanage.runLoader(label, callback, opts)
+	opts = opts or {}
+	local attempts = opts.retries or 3
+	local delay = opts.delay or 0.35
+	local retryOnFalse = opts.retryOnFalse
+	local requireGui = opts.requiresGui
+	local guiTimeout = opts.guiTimeout or 5
+
+	if requireGui and not NAmanage.waitForScreenGui(guiTimeout) then
+		loaderWarn(label, 'aborted: interface not ready')
+		return false
+	end
+
+	local lastErr
+	for attempt = 1, attempts do
+		local ok, result = pcall(callback)
+		if ok and (result ~= false or not retryOnFalse) then
+			NAmanage._loaderStatus[label] = true
+			return true, result
+		end
+
+		if ok then
+			lastErr = 'callback returned false'
+			if retryOnFalse then
+				loaderWarn(label, Format('attempt %d/%d returned false', attempt, attempts))
+			end
+		else
+			lastErr = result
+			loaderWarn(label, Format('attempt %d/%d failed: %s', attempt, attempts, tostring(result)))
+		end
+
+		if attempt < attempts then
+			Wait(delay)
+			if requireGui then
+				local gui = NAmanage.waitForScreenGui(guiTimeout)
+				if not gui then
+					break
+				end
+			end
+		end
+	end
+
+	if opts.onFailure then
+		pcall(opts.onFailure, lastErr)
+	end
+	NAmanage._loaderStatus[label] = false
+	return false
+end
+
+function NAmanage.scheduleLoader(label, callback, opts)
+	Spawn(function()
+		NAmanage.runLoader(label, callback, opts)
+	end)
+end
+
 local searchIndex = {}
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
@@ -5219,48 +5292,101 @@ end
 NAmanage.loadAutoExec = function()
 	NAEXECDATA = {commands = {}, args = {}}
 
-	if FileSupport and isfile(NAfiles.NAAUTOEXECPATH) then
-		local success, decoded = NACaller(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAAUTOEXECPATH))
+	if not FileSupport then
+		return false
+	end
+
+	local path = NAfiles.NAAUTOEXECPATH
+
+	if not (isfile and isfile(path)) then
+		local ok, err = pcall(function()
+			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
-		if success and type(decoded) == "table" then
-			NAEXECDATA = decoded
+		if not ok then
+			loaderWarn('AutoExec', 'failed to create storage: '..tostring(err))
+			return false
+		end
+	end
 
-			if not NAEXECDATA.commands then
-				NAEXECDATA.commands = {}
-			end
-			if not NAEXECDATA.args then
-				NAEXECDATA.args = {}
-			end
+	local okRead, raw = pcall(readfile, path)
+	if not okRead or type(raw) ~= 'string' then
+		loaderWarn('AutoExec', 'failed to read storage')
+		return false
+	end
 
-			local cleaned, cleanedArgs, seen = {}, {}, {}
-			local modified = false
-			for _, storedName in ipairs(NAEXECDATA.commands) do
-				local base = NAmanage.resolveCommandName(storedName)
-				if base and not NAStuff.AutoExecBlockedCommands[base] then
-					if not seen[base] then
-						seen[base] = true
-						cleaned[#cleaned+1] = base
-						local storedArgs = NAEXECDATA.args[storedName] or NAEXECDATA.args[base]
-						cleanedArgs[base] = storedArgs or ""
-						if base ~= storedName then modified = true end
-					end
-				else
+	local okDecode, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+
+	if not okDecode or type(decoded) ~= 'table' then
+		local resetOk, resetErr = pcall(function()
+			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+		end)
+		if not resetOk then
+			error('failed to reset autoexec storage: '..tostring(resetErr))
+		end
+		return true
+	end
+
+	if decoded.commands == nil and next(decoded) then
+		decoded = { commands = decoded, args = {} }
+	end
+
+	decoded.commands = decoded.commands or {}
+	decoded.args = decoded.args or {}
+
+	local cleaned, cleanedArgs, seen = {}, {}, {}
+	local modified = false
+
+	for _, storedName in ipairs(decoded.commands) do
+		local base = NAmanage.resolveCommandName(storedName)
+		if base and not NAStuff.AutoExecBlockedCommands[base] then
+			if not seen[base] then
+				seen[base] = true
+				cleaned[#cleaned+1] = base
+				local storedArgs = decoded.args[storedName] or decoded.args[base]
+				cleanedArgs[base] = storedArgs or ''
+				if base ~= storedName then
 					modified = true
 				end
 			end
-			if #cleaned ~= #NAEXECDATA.commands then modified = true end
-			NAEXECDATA.commands = cleaned
-			NAEXECDATA.args = cleanedArgs
-			if modified and FileSupport then
-				writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
-			end
+		else
+			modified = true
 		end
 	end
+
+	if #cleaned ~= #decoded.commands then
+		modified = true
+	end
+
+	NAEXECDATA = { commands = cleaned, args = cleanedArgs }
+
+	if modified then
+		local okWrite, writeErr = pcall(function()
+			writefile(path, HttpService:JSONEncode(NAEXECDATA))
+		end)
+		if not okWrite then
+			loaderWarn('AutoExec', 'failed to update storage: '..tostring(writeErr))
+		end
+	end
+
+	return true
 end
 
+
 NAmanage.LoadPlugins = function()
-	if not CustomFunctionSupport then return end
+	if not CustomFunctionSupport then
+		return true
+	end
+
+	local pluginDir = NAfiles.NAPLUGINFILEPATH
+	if not (isfolder and isfolder(pluginDir)) then
+		local ok, err = pcall(makefolder, pluginDir)
+		if not ok then
+			loaderWarn('Plugins', 'failed to ensure folder: '..tostring(err))
+			return false
+		end
+	end
 
 	local function formatInfo(aliases, argsHint)
 		local main = aliases[1]
@@ -5303,7 +5429,12 @@ NAmanage.LoadPlugins = function()
 	end
 
 	local loadedSummaries = {}
-	local files = listfiles(NAfiles.NAPLUGINFILEPATH)
+	local okList, files = pcall(listfiles, pluginDir)
+	if not okList or type(files) ~= 'table' then
+		local errMsg = okList and 'invalid directory listing' or tostring(files)
+		loaderWarn('Plugins', 'failed to enumerate: '..errMsg)
+		return false
+	end
 
 	for _, file in ipairs(files) do
 		if Lower(file):match("%.na$") then
@@ -5419,6 +5550,8 @@ NAmanage.LoadPlugins = function()
 	if #loadedSummaries > 0 then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 5.7)
 	end
+
+	return true
 end
 
 NAmanage.InitPlugs=function()
@@ -5667,279 +5800,300 @@ NAmanage.LogJoinLeave = function(message)
 end
 
 NAmanage.RenderUserButtons = function()
-	if NAStuff.KeybindConnection then
-		NAStuff.KeybindConnection:Disconnect()
-		NAStuff.KeybindConnection = nil
+	local screenGui = NAmanage.waitForScreenGui(5)
+	if not screenGui then
+		loaderWarn('RenderUserButtons', 'aborted: interface not ready')
+		return false
 	end
-	for _, btn in pairs(UserButtonGuiList) do
-		btn:Destroy()
+	if NAmanage._renderUserButtonsRunning then
+		return true
 	end
-	table.clear(UserButtonGuiList)
+	NAmanage._renderUserButtonsRunning = true
 
-	local UIS = UserInputService
-	local SavedArgs       = {}
-	local ActivePrompts   = {}
-	local ActiveKeyBinding= {}
-	local ActionBindings  = {}
-	local tSize = 28
-	local DOUBLE_CLICK_WINDOW = 0.35
-
-	function ButtonInputPrompt(cmdName, cb)
-		local gui = InstanceNew("ScreenGui")
-		gui.IgnoreGuiInset = true
-		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		gui.Parent = NAStuff.NASCREENGUI
-
-		local f = InstanceNew("Frame")
-		f.Size = UDim2.new(0,260,0,140)
-		f.Position = UDim2.new(0.5,-130,0.5,-70)
-		f.BackgroundColor3 = Color3.fromRGB(30,30,30)
-		f.BorderSizePixel = 0
-		f.Parent = gui
-
-		local u = InstanceNew("UICorner")
-		u.CornerRadius = UDim.new(0.1,0)
-		u.Parent = f
-
-		local t = InstanceNew("TextLabel")
-		t.Size = UDim2.new(1,-20,0,30)
-		t.Position = UDim2.new(0,10,0,10)
-		t.BackgroundTransparency = 1
-		t.Text = "Arguments for: "..cmdName
-		t.TextColor3 = Color3.fromRGB(255,255,255)
-		t.Font = Enum.Font.GothamBold
-		t.TextSize = 16
-		t.TextWrapped = true
-		t.Parent = f
-
-		local tb = InstanceNew("TextBox")
-		tb.Size = UDim2.new(1,-20,0,30)
-		tb.Position = UDim2.new(0,10,0,50)
-		tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
-		tb.TextColor3 = Color3.fromRGB(255,255,255)
-		tb.PlaceholderText = "Type arguments here"
-		tb.Text=""
-		tb.TextSize = 16
-		tb.Font = Enum.Font.Gotham
-		tb.ClearTextOnFocus = false
-		tb.Parent = f
-
-		local s = InstanceNew("TextButton")
-		s.Size = UDim2.new(0.5,-15,0,30)
-		s.Position = UDim2.new(0,10,1,-40)
-		s.BackgroundColor3 = Color3.fromRGB(0,170,255)
-		s.Text = "Submit"
-		s.TextColor3 = Color3.fromRGB(255,255,255)
-		s.Font = Enum.Font.GothamBold
-		s.TextSize = 14
-		s.Parent = f
-
-		local c = InstanceNew("TextButton")
-		c.Size = UDim2.new(0.5,-15,0,30)
-		c.Position = UDim2.new(0.5,5,1,-40)
-		c.BackgroundColor3 = Color3.fromRGB(255,0,0)
-		c.Text = "Cancel"
-		c.TextColor3 = Color3.fromRGB(255,255,255)
-		c.Font = Enum.Font.GothamBold
-		c.TextSize = 14
-		c.Parent = f
-
-		MouseButtonFix(s, function()
-			cb(tb.Text)
-			ActivePrompts[cmdName] = nil
-			gui:Destroy()
-		end)
-		MouseButtonFix(c, function()
-			ActivePrompts[cmdName] = nil
-			gui:Destroy()
-		end)
-		NAgui.draggerV2(f)
-	end
-
-	local total   = #NAUserButtons
-	local totalW  = total * 110
-	local startX  = 0.5 - (totalW/2)/NAStuff.NASCREENGUI.AbsoluteSize.X
-	local spacing = 110
-	local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
-
-	local idx = 0
-	for id, data in pairs(NAUserButtons) do
-		local btn = InstanceNew("TextButton")
-		btn.Name            = "NAUserButton_"..id
-		btn.Text            = data.Label
-		btn.Size            = UDim2.new(0,60, 0,60)
-		btn.AnchorPoint     = Vector2.new(0.5,1)
-		btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/NAStuff.NASCREENGUI.AbsoluteSize.X, 0, 0.9, 0)
-		btn.Parent          = NAStuff.NASCREENGUI
-		btn.BackgroundColor3= Color3.fromRGB(0,0,0)
-		btn.TextColor3      = Color3.fromRGB(255,255,255)
-		btn.TextScaled      = true
-		btn.Font            = Enum.Font.GothamBold
-		btn.BorderSizePixel = 0
-		btn.ZIndex          = 9999
-		btn.AutoButtonColor = true
-
-		local btnCorner = InstanceNew("UICorner")
-		btnCorner.CornerRadius = UDim.new(0.25,0)
-		btnCorner.Parent       = btn
-		NAgui.draggerV2(btn)
-
-		btn.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				local p = btn.Position
-				data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
-				if FileSupport then
-					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-				end
+	local success, err = pcall(function()
+			NAStuff.NASCREENGUI = screenGui
+			if NAStuff.KeybindConnection then
+				NAStuff.KeybindConnection:Disconnect()
+				NAStuff.KeybindConnection = nil
 			end
-		end)
-
-		local toggled     = false
-		local saveEnabled = data.RunMode == "S"
-		SavedArgs[id]     = data.Args or {}
-
-		local cmd1      = data.Cmd1
-		local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
-		local needsArgs = cd1 and cd1[3]
-
-		if needsArgs then
-			local saveToggle = InstanceNew("TextButton")
-			saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
-			saveToggle.AnchorPoint      = Vector2.new(1,1)
-			saveToggle.Position         = UDim2.new(1,0,0,0)
-			saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-			saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
-			saveToggle.TextScaled       = true
-			saveToggle.Font             = Enum.Font.Gotham
-			saveToggle.Text             = saveEnabled and "S" or "N"
-			saveToggle.ZIndex           = 10000
-			saveToggle.Parent           = btn
-
-			local stCorner = InstanceNew("UICorner")
-			stCorner.CornerRadius = UDim.new(0.5,0)
-			stCorner.Parent       = saveToggle
-
-			MouseButtonFix(saveToggle, function()
-				saveEnabled = not saveEnabled
-				saveToggle.Text = saveEnabled and "S" or "N"
-				data.RunMode = saveEnabled and "S" or "N"
-				if FileSupport then
-					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-				end
-			end)
-		end
-
-		local function runCmd(args)
-			local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-			local arr   = {toRun}
-			if args then for _,v in ipairs(args) do Insert(arr, v) end end
-			cmd.run(arr)
-			if data.Cmd2 then
-				toggled = not toggled
-				btn.BackgroundColor3 = toggled and ON or OFF
+			for _, btn in pairs(UserButtonGuiList) do
+				btn:Destroy()
 			end
-		end
-
-		MouseButtonFix(btn, function()
-			local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-			local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
-			local na      = nd and nd[3]
-			if na then
-				if saveEnabled and data.Args and #data.Args>0 then
-					runCmd(data.Args)
-				else
-					if ActivePrompts[now] then return end
-					ActivePrompts[now] = true
-					ButtonInputPrompt(now, function(input)
-						ActivePrompts[now] = nil
-						local parsed = ParseArguments(input)
-						if parsed then
-							SavedArgs[id] = parsed
-							data.Args     = parsed
-							if FileSupport then
-								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-							end
-							runCmd(parsed)
-						else
-							runCmd(nil)
+			table.clear(UserButtonGuiList)
+		
+			local UIS = UserInputService
+			local SavedArgs       = {}
+			local ActivePrompts   = {}
+			local ActiveKeyBinding= {}
+			local ActionBindings  = {}
+			local tSize = 28
+			local DOUBLE_CLICK_WINDOW = 0.35
+		
+			function ButtonInputPrompt(cmdName, cb)
+				local gui = InstanceNew("ScreenGui")
+				gui.IgnoreGuiInset = true
+				gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+				gui.Parent = screenGui
+		
+				local f = InstanceNew("Frame")
+				f.Size = UDim2.new(0,260,0,140)
+				f.Position = UDim2.new(0.5,-130,0.5,-70)
+				f.BackgroundColor3 = Color3.fromRGB(30,30,30)
+				f.BorderSizePixel = 0
+				f.Parent = gui
+		
+				local u = InstanceNew("UICorner")
+				u.CornerRadius = UDim.new(0.1,0)
+				u.Parent = f
+		
+				local t = InstanceNew("TextLabel")
+				t.Size = UDim2.new(1,-20,0,30)
+				t.Position = UDim2.new(0,10,0,10)
+				t.BackgroundTransparency = 1
+				t.Text = "Arguments for: "..cmdName
+				t.TextColor3 = Color3.fromRGB(255,255,255)
+				t.Font = Enum.Font.GothamBold
+				t.TextSize = 16
+				t.TextWrapped = true
+				t.Parent = f
+		
+				local tb = InstanceNew("TextBox")
+				tb.Size = UDim2.new(1,-20,0,30)
+				tb.Position = UDim2.new(0,10,0,50)
+				tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
+				tb.TextColor3 = Color3.fromRGB(255,255,255)
+				tb.PlaceholderText = "Type arguments here"
+				tb.Text=""
+				tb.TextSize = 16
+				tb.Font = Enum.Font.Gotham
+				tb.ClearTextOnFocus = false
+				tb.Parent = f
+		
+				local s = InstanceNew("TextButton")
+				s.Size = UDim2.new(0.5,-15,0,30)
+				s.Position = UDim2.new(0,10,1,-40)
+				s.BackgroundColor3 = Color3.fromRGB(0,170,255)
+				s.Text = "Submit"
+				s.TextColor3 = Color3.fromRGB(255,255,255)
+				s.Font = Enum.Font.GothamBold
+				s.TextSize = 14
+				s.Parent = f
+		
+				local c = InstanceNew("TextButton")
+				c.Size = UDim2.new(0.5,-15,0,30)
+				c.Position = UDim2.new(0.5,5,1,-40)
+				c.BackgroundColor3 = Color3.fromRGB(255,0,0)
+				c.Text = "Cancel"
+				c.TextColor3 = Color3.fromRGB(255,255,255)
+				c.Font = Enum.Font.GothamBold
+				c.TextSize = 14
+				c.Parent = f
+		
+				MouseButtonFix(s, function()
+					cb(tb.Text)
+					ActivePrompts[cmdName] = nil
+					gui:Destroy()
+				end)
+				MouseButtonFix(c, function()
+					ActivePrompts[cmdName] = nil
+					gui:Destroy()
+				end)
+				NAgui.draggerV2(f)
+			end
+		
+			local total   = #NAUserButtons
+			local totalW  = total * 110
+			local screenWidth = math.max(screenGui.AbsoluteSize.X, 1)
+			local startX  = 0.5 - (totalW/2)/screenWidth
+			local spacing = 110
+			local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
+		
+			local idx = 0
+			for id, data in pairs(NAUserButtons) do
+				local btn = InstanceNew("TextButton")
+				btn.Name            = "NAUserButton_"..id
+				btn.Text            = data.Label
+				btn.Size            = UDim2.new(0,60, 0,60)
+				btn.AnchorPoint     = Vector2.new(0.5,1)
+				btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
+				btn.Parent          = screenGui
+				btn.BackgroundColor3= Color3.fromRGB(0,0,0)
+				btn.TextColor3      = Color3.fromRGB(255,255,255)
+				btn.TextScaled      = true
+				btn.Font            = Enum.Font.GothamBold
+				btn.BorderSizePixel = 0
+				btn.ZIndex          = 9999
+				btn.AutoButtonColor = true
+		
+				local btnCorner = InstanceNew("UICorner")
+				btnCorner.CornerRadius = UDim.new(0.25,0)
+				btnCorner.Parent       = btn
+				NAgui.draggerV2(btn)
+		
+				btn.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						local p = btn.Position
+						data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+						if FileSupport then
+							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						end
+					end
+				end)
+		
+				local toggled     = false
+				local saveEnabled = data.RunMode == "S"
+				SavedArgs[id]     = data.Args or {}
+		
+				local cmd1      = data.Cmd1
+				local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
+				local needsArgs = cd1 and cd1[3]
+		
+				if needsArgs then
+					local saveToggle = InstanceNew("TextButton")
+					saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
+					saveToggle.AnchorPoint      = Vector2.new(1,1)
+					saveToggle.Position         = UDim2.new(1,0,0,0)
+					saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+					saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
+					saveToggle.TextScaled       = true
+					saveToggle.Font             = Enum.Font.Gotham
+					saveToggle.Text             = saveEnabled and "S" or "N"
+					saveToggle.ZIndex           = 10000
+					saveToggle.Parent           = btn
+		
+					local stCorner = InstanceNew("UICorner")
+					stCorner.CornerRadius = UDim.new(0.5,0)
+					stCorner.Parent       = saveToggle
+		
+					MouseButtonFix(saveToggle, function()
+						saveEnabled = not saveEnabled
+						saveToggle.Text = saveEnabled and "S" or "N"
+						data.RunMode = saveEnabled and "S" or "N"
+						if FileSupport then
+							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 						end
 					end)
 				end
-			else
-				runCmd(nil)
-			end
-		end)
-
-		if IsOnPC then
-			local keyToggle = InstanceNew("TextButton")
-			keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
-			keyToggle.AnchorPoint      = Vector2.new(0,1)
-			keyToggle.Position         = UDim2.new(0,0,0,0)
-			keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-			keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
-			keyToggle.TextScaled       = true
-			keyToggle.Font             = Enum.Font.Gotham
-			keyToggle.Text             = data.Keybind or "Key"
-			keyToggle.ZIndex           = 10000
-			keyToggle.Parent           = btn
-
-			local ktCorner = InstanceNew("UICorner")
-			ktCorner.CornerRadius = UDim.new(0.5,0)
-			ktCorner.Parent       = keyToggle
-
-			local lastClick = 0
-			local bindConn
-
-			MouseButtonFix(keyToggle, function()
-				local now = os.clock()
-				if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
-					lastClick = 0
-					if data.Keybind then ActionBindings[data.Keybind] = nil end
-					data.Keybind = nil
-					keyToggle.Text = "Key"
-					if FileSupport then
-						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		
+				local function runCmd(args)
+					local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+					local arr   = {toRun}
+					if args then for _,v in ipairs(args) do Insert(arr, v) end end
+					cmd.run(arr)
+					if data.Cmd2 then
+						toggled = not toggled
+						btn.BackgroundColor3 = toggled and ON or OFF
 					end
-					if bindConn then bindConn:Disconnect() bindConn = nil end
-					ActiveKeyBinding[id] = nil
-					return
 				end
-				lastClick = now
-				if ActiveKeyBinding[id] then return end
-				ActiveKeyBinding[id] = true
-				keyToggle.Text = "..."
-				bindConn = UIS.InputBegan:Connect(function(input, gp)
-					if gp or not input.KeyCode then return end
-					local old = data.Keybind
-					if old then ActionBindings[old] = nil end
-					local new = input.KeyCode.Name
-					data.Keybind = new
-					keyToggle.Text = new
-					if FileSupport then
-						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		
+				MouseButtonFix(btn, function()
+					local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+					local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+					local na      = nd and nd[3]
+					if na then
+						if saveEnabled and data.Args and #data.Args>0 then
+							runCmd(data.Args)
+						else
+							if ActivePrompts[now] then return end
+							ActivePrompts[now] = true
+							ButtonInputPrompt(now, function(input)
+								ActivePrompts[now] = nil
+								local parsed = ParseArguments(input)
+								if parsed then
+									SavedArgs[id] = parsed
+									data.Args     = parsed
+									if FileSupport then
+										writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+									end
+									runCmd(parsed)
+								else
+									runCmd(nil)
+								end
+							end)
+						end
+					else
+						runCmd(nil)
 					end
-					ActionBindings[new] = function() runCmd(data.Args) end
-					ActiveKeyBinding[id] = nil
-					if bindConn then bindConn:Disconnect() bindConn = nil end
 				end)
-			end)
-
-			if data.Keybind then
-				ActionBindings[data.Keybind] = function() runCmd(data.Args) end
+		
+				if IsOnPC then
+					local keyToggle = InstanceNew("TextButton")
+					keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
+					keyToggle.AnchorPoint      = Vector2.new(0,1)
+					keyToggle.Position         = UDim2.new(0,0,0,0)
+					keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+					keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
+					keyToggle.TextScaled       = true
+					keyToggle.Font             = Enum.Font.Gotham
+					keyToggle.Text             = data.Keybind or "Key"
+					keyToggle.ZIndex           = 10000
+					keyToggle.Parent           = btn
+		
+					local ktCorner = InstanceNew("UICorner")
+					ktCorner.CornerRadius = UDim.new(0.5,0)
+					ktCorner.Parent       = keyToggle
+		
+					local lastClick = 0
+					local bindConn
+		
+					MouseButtonFix(keyToggle, function()
+						local now = os.clock()
+						if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
+							lastClick = 0
+							if data.Keybind then ActionBindings[data.Keybind] = nil end
+							data.Keybind = nil
+							keyToggle.Text = "Key"
+							if FileSupport then
+								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+							end
+							if bindConn then bindConn:Disconnect() bindConn = nil end
+							ActiveKeyBinding[id] = nil
+							return
+						end
+						lastClick = now
+						if ActiveKeyBinding[id] then return end
+						ActiveKeyBinding[id] = true
+						keyToggle.Text = "..."
+						bindConn = UIS.InputBegan:Connect(function(input, gp)
+							if gp or not input.KeyCode then return end
+							local old = data.Keybind
+							if old then ActionBindings[old] = nil end
+							local new = input.KeyCode.Name
+							data.Keybind = new
+							keyToggle.Text = new
+							if FileSupport then
+								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+							end
+							ActionBindings[new] = function() runCmd(data.Args) end
+							ActiveKeyBinding[id] = nil
+							if bindConn then bindConn:Disconnect() bindConn = nil end
+						end)
+					end)
+		
+					if data.Keybind then
+						ActionBindings[data.Keybind] = function() runCmd(data.Args) end
+					end
+				end
+		
+				Insert(UserButtonGuiList, btn)
+				idx = idx + 1
 			end
-		end
+		
+			if IsOnPC then
+				NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
+					if gp or not input.KeyCode then return end
+					local act = ActionBindings[input.KeyCode.Name]
+					if act then act() end
+				end)
+			end
+	end)
 
-		Insert(UserButtonGuiList, btn)
-		idx = idx + 1
-	end
+	NAmanage._renderUserButtonsRunning = nil
 
-	if IsOnPC then
-		NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
-			if gp or not input.KeyCode then return end
-			local act = ActionBindings[input.KeyCode.Name]
-			if act then act() end
-		end)
+	if not success then
+		error(err)
 	end
+	return true
 end
 
 local lp=Players.LocalPlayer
@@ -8302,22 +8456,40 @@ cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable
 	NAlib.disconnect("somersault_key")
 end, false)
 
-sRoles = {"mod", "admin", "staff", "dev", "founder", "owner", "supervis", "manager", "management", "executive", "president", "chairman", "chairwoman", "chairperson", "director"}
+StaffRoles = {"owner", "admin", "staff", "mod", "founder", "manager", "dev", "president", "leader", "supervisor", "chairman", "supervising", "executive", "director", "management", "chairwoman", "chairperson"}
+
+function IsStaff(player)
+	local role = ""
+	local ok, currentRole = pcall(function()
+		return player:GetRoleInGroup(game.CreatorId)
+	end)
+	if ok and currentRole then
+		role = currentRole
+	end
+	local lowered = Lower(role)
+	for _, staffRole in ipairs(StaffRoles) do
+		if lowered:find(staffRole) then
+			return true, role
+		end
+	end
+	return false, role
+end
 
 groupRole = function(player)
-	local role = player:GetRoleInGroup(game.CreatorId)
-	local info = {Role = role, IsStaff = false}
+	local info = {Role = "Guest", IsStaff = false}
+	local isStaff, role = IsStaff(player)
 	if player:IsInGroup(1200769) then
 		info.Role = "Roblox Employee"
 		info.IsStaff = true
+		return info
 	end
-	for _, staffRole in pairs(sRoles) do
-		if Find(Lower(role), staffRole) then
-			info.IsStaff = true
-		end
+	if role ~= nil and role ~= "" then
+		info.Role = role
 	end
+	info.IsStaff = isStaff
 	return info
 end
+NAmanage.IsStaff = IsStaff
 
 cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joins the server"}, function()
 	NAlib.disconnect("staffNotifier")
@@ -21777,11 +21949,41 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	end
 end, true)
 
+promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false}
+
 function nuhuhprompt(v)
 	NACaller(function()
-		for _, o in COREGUI:GetChildren() do
-			if o:IsA("GuiBase") and o.Name:lower():find("purchaseprompt") then
-				o.Enabled = v
+		if v == false then
+			if promptTBL.blocking then return end
+			promptTBL.blocking = true
+			for _, d in ipairs(COREGUI:GetDescendants()) do
+				local gui = d:IsA("ScreenGui") and d or d:FindFirstAncestorWhichIsA("ScreenGui")
+				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
+					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
+					pcall(function() gui.Enabled = false end)
+				end
+			end
+			local c = COREGUI.DescendantAdded:Connect(function(inst)
+				local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
+				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
+					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
+					pcall(function() gui.Enabled = false end)
+				end
+			end)
+			table.insert(promptTBL.conns, c)
+		else
+			if not promptTBL.blocking then return end
+			promptTBL.blocking = false
+			for i = #promptTBL.conns, 1, -1 do
+				local c = promptTBL.conns[i]
+				if c and c.Connected then c:Disconnect() end
+				promptTBL.conns[i] = nil
+			end
+			for gui, prev in pairs(promptTBL.tracked) do
+				if typeof(gui) == "Instance" and gui and gui.Parent ~= nil then
+					pcall(function() gui.Enabled = prev end)
+				end
+				promptTBL.tracked[gui] = nil
 			end
 		end
 	end)
@@ -24023,7 +24225,7 @@ NAmanage.DisableUnanchoredEsp = function()
 end
 
 NAmanage.EnableCollisionEsp = function(targetState, color)
-	local list = targetState and NAStuff.collisionTrueESPList or NAStuff.collisionFalseESPList
+	local list = targetState and NAStuff.collisiontrueESPList or NAStuff.collisionfalseESPList
 	local trigKey = targetState and "__cancollide_true" or "__cancollide_false"
 	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
 	local col = color or (targetState and Color3.fromRGB(0,200,255) or Color3.fromRGB(255,120,120))
@@ -24060,7 +24262,7 @@ NAmanage.EnableCollisionEsp = function(targetState, color)
 end
 
 NAmanage.DisableCollisionEsp = function(targetState)
-	local list = targetState and NAStuff.collisionTrueESPList or NAStuff.collisionFalseESPList
+	local list = targetState and NAStuff.collisiontrueESPList or NAStuff.collisionfalseESPList
 	local trigKey = targetState and "__cancollide_true" or "__cancollide_false"
 	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
 	if NAStuff.espTriggers[trigKey] then
@@ -29880,11 +30082,11 @@ SpawnCall(function()
 			end
 			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
 			NAmanage._persist.wasFlying=(FLYING==true)
-			NAmanage._persist.resumeAfterSpawn=(FLYING==true)
 		end)
 	end
 
 	setupFLASHBACK(LocalPlayer.Character)
+
 	LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
 		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
@@ -29900,69 +30102,14 @@ SpawnCall(function()
 				lastHP=newHP
 			end)
 		end
-		SpawnCall(function()
-			local t=0
-			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
-				t+=(Wait() or 0.03)
-			end
-			NAmanage._persist.wasFlying=(NAmanage._persist and NAmanage._persist.wasFlying==true)
-			local lastMode=(NAmanage._persist and NAmanage._persist.lastMode) or "none"
-			local mode="none"
-			if flyVariables.cFlyEnabled then mode="cfly"
-			elseif flyVariables.TFlyEnabled then mode="tfly"
-			elseif flyVariables.vFlyEnabled then mode="vfly"
-			elseif flyVariables.flyEnabled then mode="fly" end
-			NAmanage.connectFlyKey()
-			NAmanage.connectVFlyKey()
-			NAmanage.connectCFlyKey()
-			NAmanage.connectTFlyKey()
-			if (NAmanage._persist and NAmanage._persist.resumeAfterSpawn==true) and lastMode~="none" then
-				NAmanage._applyMode(lastMode,true)
-				NAmanage._persist.resumeAfterSpawn=false
-			elseif mode~="none" then
-				if NAmanage._persist and NAmanage._persist.wasFlying==true and lastMode~="none" then
-					NAmanage._applyMode(lastMode,true)
-				else
-					FLYING=false
-					NAmanage.FLY_OnRespawnGround()
-					NAmanage._state.mode=mode
-					NAmanage._ensureForces()
-				end
-			else
-				FLYING=false
-				NAmanage.FLY_OnRespawnGround()
-			end
-			if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
-			flyVariables._watchConn=RunService.Heartbeat:Connect(function()
-				if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
-					if not goofyFLY or goofyFLY.Parent==nil
-						or (NAmanage._state.mode~="cfly" and (not flyVariables.BG or not flyVariables.BV))
-						or (NAmanage._state.mode=="tfly" and (not flyVariables.TFpos or not flyVariables.TFgyro)) then
-						if NAmanage._state.mode=="cfly" then
-							NAmanage.sFLY(false,true,false)
-						elseif NAmanage._state.mode=="tfly" then
-							NAmanage.sFLY(false,false,true)
-						elseif NAmanage._state.mode=="vfly" then
-							NAmanage.sFLY(true,false,false)
-						elseif NAmanage._state.mode=="fly" then
-							NAmanage.sFLY(false,false,false)
-						end
-						if (NAmanage._persist and NAmanage._persist.resumeAfterSpawn==true) or (NAmanage._persist and NAmanage._persist.wasFlying==true) then
-							NAmanage.resumeCurrent()
-							NAmanage._persist.resumeAfterSpawn=false
-						else
-							FLYING=false
-							NAmanage.FLY_OnRespawnGround()
-							NAmanage._ensureForces()
-						end
-					end
-				end
-			end)
-		end)
+		NAmanage.connectFlyKey()
+		NAmanage.connectVFlyKey()
+		NAmanage.connectCFlyKey()
+		NAmanage.connectTFlyKey()
+		NAmanage.startWatcher()
 	end)
 
 	if LocalPlayer.Character then
-		local char=LocalPlayer.Character
 		local humanoid=getHum()
 		if humanoid then
 			local lastHP=humanoid.Health
@@ -29975,6 +30122,8 @@ SpawnCall(function()
 			end)
 		end
 	end
+
+	NAmanage.startWatcher()
 end)
 
 SpawnCall(function()
@@ -30313,20 +30462,6 @@ SpawnCall(function()
 	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
 end)
 
-CaptureService.CaptureBegan:Connect(function()
-	if TextButton then
-		TextButton.Visible=false
-	end
-end)
-
-CaptureService.CaptureEnded:Connect(function()
-	Delay(0.1, function()
-		if TextButton then
-			TextButton.Visible=true
-		end
-	end)
-end)
-
 NAmanage.hsv2rgb=function(h, s, v)
 	local c = v * s
 	local x = c * (1 - math.abs((h / 60) % 2 - 1))
@@ -30484,15 +30619,19 @@ SpawnCall(function() -- init
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
-SpawnCall(NAmanage.bindToDevConsole)
-SpawnCall(NAmanage.loadAliases)
-SpawnCall(NAmanage.loadButtonIDS)
-SpawnCall(NAmanage.RenderUserButtons)
-SpawnCall(NAmanage.loadAutoExec)
-SpawnCall(NAmanage.LoadPlugins)
-SpawnCall(NAmanage.InitPlugs)
-SpawnCall(NAmanage.UpdateWaypointList)
-SpawnCall(NAmanage.LoadESPSettings)
+NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
+NAmanage.scheduleLoader('Aliases', NAmanage.loadAliases)
+NAmanage.scheduleLoader('UserButtons', function()
+	NAmanage.loadButtonIDS()
+	return NAmanage.RenderUserButtons()
+end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
+NAmanage.scheduleLoader('AutoExec', NAmanage.loadAutoExec, { retries = 4, delay = 0.4, retryOnFalse = true })
+NAmanage.scheduleLoader('Plugins', function()
+	NAmanage.InitPlugs()
+	return NAmanage.LoadPlugins()
+end, { retries = 4, delay = 0.5, retryOnFalse = true })
+NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
+NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
