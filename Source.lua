@@ -82,6 +82,95 @@ local StarterGui = SafeGetService("StarterGui");
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
+if identifyexecutor():lower()=="solara" then
+	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
+		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
+
+		local function normalizePath(path)
+			if type(path) ~= "string" then
+				return path
+			end
+			if path:match("^[%w_]+://") then
+				return path
+			end
+			return path:gsub("/", "\\")
+		end
+
+		local function wrapWithFallback(fn, returnsBool)
+			if type(fn) ~= "function" then
+				return nil
+			end
+			return function(path, ...)
+				if type(path) ~= "string" then
+					local ok, result = pcall(fn, path, ...)
+					if ok then
+						return result
+					end
+					if returnsBool then
+						return false
+					end
+					error(result)
+				end
+
+				if path:match("^[%w_]+://") then
+					return fn(path, ...)
+				end
+
+				local ok, result = pcall(fn, path, ...)
+				if ok then
+					return result
+				end
+
+				local altPath = normalizePath(path)
+				if altPath ~= path then
+					ok, result = pcall(fn, altPath, ...)
+					if ok then
+						return result
+					end
+				end
+
+				if returnsBool then
+					return false
+				end
+				error(result)
+			end
+		end
+
+		if type(readfile) == "function" then
+			local original = readfile
+			readfile = wrapWithFallback(original, false)
+		end
+		if type(writefile) == "function" then
+			local original = writefile
+			writefile = wrapWithFallback(original, false)
+		end
+		if type(appendfile) == "function" then
+			local original = appendfile
+			appendfile = wrapWithFallback(original, false)
+		end
+		if type(listfiles) == "function" then
+			local original = listfiles
+			listfiles = wrapWithFallback(original, false)
+		end
+		if type(makefolder) == "function" then
+			local original = makefolder
+			makefolder = wrapWithFallback(original, false)
+		end
+		if type(delfile) == "function" then
+			local original = delfile
+			delfile = wrapWithFallback(original, false)
+		end
+		if type(isfile) == "function" then
+			local original = isfile
+			isfile = wrapWithFallback(original, true)
+		end
+		if type(isfolder) == "function" then
+			local original = isfolder
+			isfolder = wrapWithFallback(original, true)
+		end
+	end
+end
+
 local Waypoints = {}
 local Bindings = Bindings or {}
 local NAStuff = {
@@ -1279,7 +1368,7 @@ NAmanage.createLoadingUI=function(text, opts)
 
 	ui.completedFlag:GetPropertyChangedSignal("Value"):Connect(function()
 		if ui.completedFlag.Value then
-		tween(ui.overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			tween(ui.overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			tween(ui.container, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			tween(ui.toast, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			Delay(0.2, function()
@@ -1518,10 +1607,16 @@ function getSeasonEmoji()
 end
 
 if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") or not fireproximityprompt then
-	local function hb(n) for i = 1, (n or 1) do RunService.Heartbeat:Wait() end end
+	local function hb(n)
+		for i = 1, (n or 1) do
+			RunService.Heartbeat:Wait()
+		end
+	end
 
 	local function toOpts(o)
-		if typeof(o) == "number" then return { hold = o } end
+		if typeof(o) == "number" then
+			return { hold = o }
+		end
 		return typeof(o) == "table" and o or {}
 	end
 
@@ -1553,25 +1648,25 @@ if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") 
 		end
 		s.inFlight = true
 		s.ref += 1
-		if o.instant ~= false then
-			pp.HoldDuration = 0
-		elseif o.hold ~= nil then
-			pp.HoldDuration = 0
-		end
+
+		pp.HoldDuration = 0
 		if o.requireLoS ~= nil then
 			pp.RequiresLineOfSight = o.requireLoS and true or false
 		end
 		if o.distance ~= nil then
 			pp.MaxActivationDistance = o.distance
+		elseif o.autoDistance ~= false then
+			pp.MaxActivationDistance = 1e9
 		end
 		if o.exclusivity ~= nil then
 			pp.Exclusivity = o.exclusivity
-		elseif pp.Exclusivity == Enum.ProximityPromptExclusivity.OnePerButton then
+		else
 			pp.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 		end
 		if o.forceEnable then
 			pp.Enabled = true
 		end
+
 		return true
 	end
 
@@ -1624,16 +1719,19 @@ if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") 
 		else
 			return false
 		end
-		local stagger = (o.stagger ~= nil) and math.max(0, o.stagger) or 0.01
-		for i, pp in ipairs(list) do
-			Delay((i - 1) * stagger, function()
-				local s = state[pp]
-				if s and s.inFlight then
-					return
-				end
-				fireOne(pp, o)
-			end)
+
+		local stagger = (o.stagger ~= nil) and math.max(0, o.stagger) or 0
+
+		for _, pp in ipairs(list) do
+			Spawn(fireOne, pp, o)
 		end
+
+		if stagger > 0 then
+			for i = 2, #list do
+				Wait(stagger)
+			end
+		end
+
 		return true
 	end
 end
@@ -1849,8 +1947,8 @@ NAmanage.NASettingsGetSchema=function()
 			pathKey = "NAPREFIXPATH";
 			default = function()
 				return NamelessMigrate:Prefix() or ";"
-				end;
-					coerce = function(value)
+			end;
+			coerce = function(value)
 				if type(value) ~= "string" then
 					value = tostring(value or ";")
 				end
@@ -1863,7 +1961,7 @@ NAmanage.NASettingsGetSchema=function()
 		buttonSize = {
 			pathKey = "NABUTTONSIZEPATH";
 			default = 1;
-				coerce = function(value)
+			coerce = function(value)
 				local numberValue = tonumber(value)
 				if not numberValue or numberValue <= 0 then
 					return 1
@@ -1878,7 +1976,7 @@ NAmanage.NASettingsGetSchema=function()
 				local numberValue = tonumber(migrated)
 				return numberValue and numberValue > 0 and numberValue or 1
 			end;
-				coerce = function(value)
+			coerce = function(value)
 				local numberValue = tonumber(value)
 				if not numberValue or numberValue <= 0 then
 					return 1
@@ -1888,15 +1986,15 @@ NAmanage.NASettingsGetSchema=function()
 		};
 		queueOnTeleport = {
 			pathKey = "NAQOTPATH";
-					default = false;
-				coerce = function(value)
-					return coerceBoolean(value, false)
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
 			end;
 		};
 		prediction = {
 			pathKey = "NAPREDICTIONPATH";
 			default = true;
-				coerce = function(value)
+			coerce = function(value)
 				return coerceBoolean(value, true)
 			end;
 		};
@@ -1909,7 +2007,7 @@ NAmanage.NASettingsGetSchema=function()
 					B = defaultStrokeColor.B;
 				}
 			end;
-				coerce = function(value)
+			coerce = function(value)
 				local parsed = value
 				if typeof(value) == "Color3" then
 					parsed = {
@@ -1951,15 +2049,15 @@ NAmanage.NASettingsGetSchema=function()
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
-				coerce = function(value)
+			coerce = function(value)
 				return coerceBoolean(value, true)
 			end;
 		};
 		notifsToggle = {
 			pathKey = "NANOTIFSTOGGLE";
-				default = false;
-				coerce = function(value)
-					return coerceBoolean(value, false)
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
 			end;
 		};
 		autoSkipLoading = {
@@ -1971,7 +2069,7 @@ NAmanage.NASettingsGetSchema=function()
 		topbarMode = {
 			pathKey = "NATOPBARMODE";
 			default = "bottom";
-				coerce = function(value)
+			coerce = function(value)
 				if type(value) ~= "string" then
 					return "bottom"
 				end
@@ -5313,14 +5411,45 @@ NAmanage.loadAliases = function()
 end
 
 NAmanage.loadButtonIDS = function()
-	if FileSupport and isfile(NAfiles.NAUSERBUTTONSPATH) then
-		local success, data = NACaller(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAUSERBUTTONSPATH))
+	if not FileSupport then
+		return false
+	end
+
+	local path = NAfiles.NAUSERBUTTONSPATH
+
+	if not (isfile and isfile(path)) then
+		local okCreate, createErr = pcall(function()
+			writefile(path, HttpService:JSONEncode({}))
 		end)
-		if success and type(data) == "table" then
-			NAUserButtons = data
+		if not okCreate then
+			loaderWarn('UserButtons', 'failed to create storage: '..tostring(createErr))
+			return false
 		end
 	end
+
+	local okRead, raw = pcall(readfile, path)
+	if not okRead or type(raw) ~= "string" then
+		loaderWarn('UserButtons', 'failed to read storage: '..tostring(raw))
+		return false
+	end
+
+	local okDecode, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not okDecode or type(decoded) ~= "table" then
+		loaderWarn('UserButtons', 'invalid storage data; resetting')
+		NAUserButtons = {}
+		local okReset, resetErr = pcall(function()
+			writefile(path, HttpService:JSONEncode(NAUserButtons))
+		end)
+		if not okReset then
+			loaderWarn('UserButtons', 'failed to reset storage: '..tostring(resetErr))
+		end
+		return false
+	end
+
+	NAUserButtons = decoded
+	return true
 end
 
 NAmanage.loadAutoExec = function()
@@ -5845,281 +5974,281 @@ NAmanage.RenderUserButtons = function()
 	NAmanage._renderUserButtonsRunning = true
 
 	local success, err = pcall(function()
-			NAStuff.NASCREENGUI = screenGui
-			if NAStuff.KeybindConnection then
-				NAStuff.KeybindConnection:Disconnect()
-				NAStuff.KeybindConnection = nil
-			end
-			for _, btn in pairs(UserButtonGuiList) do
-				btn:Destroy()
-			end
-			table.clear(UserButtonGuiList)
-		
-			local UIS = UserInputService
-			local SavedArgs       = {}
-			local ActivePrompts   = {}
-			local ActiveKeyBinding= {}
-			local ActionBindings  = {}
-			local tSize = 28
-			local DOUBLE_CLICK_WINDOW = 0.35
-		
-			function ButtonInputPrompt(cmdName, cb)
-				local gui = InstanceNew("ScreenGui")
-				gui.IgnoreGuiInset = true
-				gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-				gui.Parent = screenGui
-		
-				local f = InstanceNew("Frame")
-				f.Size = UDim2.new(0,260,0,140)
-				f.Position = UDim2.new(0.5,-130,0.5,-70)
-				f.BackgroundColor3 = Color3.fromRGB(30,30,30)
-				f.BorderSizePixel = 0
-				f.Parent = gui
-		
-				local u = InstanceNew("UICorner")
-				u.CornerRadius = UDim.new(0.1,0)
-				u.Parent = f
-		
-				local t = InstanceNew("TextLabel")
-				t.Size = UDim2.new(1,-20,0,30)
-				t.Position = UDim2.new(0,10,0,10)
-				t.BackgroundTransparency = 1
-				t.Text = "Arguments for: "..cmdName
-				t.TextColor3 = Color3.fromRGB(255,255,255)
-				t.Font = Enum.Font.GothamBold
-				t.TextSize = 16
-				t.TextWrapped = true
-				t.Parent = f
-		
-				local tb = InstanceNew("TextBox")
-				tb.Size = UDim2.new(1,-20,0,30)
-				tb.Position = UDim2.new(0,10,0,50)
-				tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
-				tb.TextColor3 = Color3.fromRGB(255,255,255)
-				tb.PlaceholderText = "Type arguments here"
-				tb.Text=""
-				tb.TextSize = 16
-				tb.Font = Enum.Font.Gotham
-				tb.ClearTextOnFocus = false
-				tb.Parent = f
-		
-				local s = InstanceNew("TextButton")
-				s.Size = UDim2.new(0.5,-15,0,30)
-				s.Position = UDim2.new(0,10,1,-40)
-				s.BackgroundColor3 = Color3.fromRGB(0,170,255)
-				s.Text = "Submit"
-				s.TextColor3 = Color3.fromRGB(255,255,255)
-				s.Font = Enum.Font.GothamBold
-				s.TextSize = 14
-				s.Parent = f
-		
-				local c = InstanceNew("TextButton")
-				c.Size = UDim2.new(0.5,-15,0,30)
-				c.Position = UDim2.new(0.5,5,1,-40)
-				c.BackgroundColor3 = Color3.fromRGB(255,0,0)
-				c.Text = "Cancel"
-				c.TextColor3 = Color3.fromRGB(255,255,255)
-				c.Font = Enum.Font.GothamBold
-				c.TextSize = 14
-				c.Parent = f
-		
-				MouseButtonFix(s, function()
-					cb(tb.Text)
-					ActivePrompts[cmdName] = nil
-					gui:Destroy()
-				end)
-				MouseButtonFix(c, function()
-					ActivePrompts[cmdName] = nil
-					gui:Destroy()
-				end)
-				NAgui.draggerV2(f)
-			end
-		
-			local total   = #NAUserButtons
-			local totalW  = total * 110
-			local screenWidth = math.max(screenGui.AbsoluteSize.X, 1)
-			local startX  = 0.5 - (totalW/2)/screenWidth
-			local spacing = 110
-			local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
-		
-			local idx = 0
-			for id, data in pairs(NAUserButtons) do
-				local btn = InstanceNew("TextButton")
-				btn.Name            = "NAUserButton_"..id
-				btn.Text            = data.Label
-				btn.Size            = UDim2.new(0,60, 0,60)
-				btn.AnchorPoint     = Vector2.new(0.5,1)
-				btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
-				btn.Parent          = screenGui
-				btn.BackgroundColor3= Color3.fromRGB(0,0,0)
-				btn.TextColor3      = Color3.fromRGB(255,255,255)
-				btn.TextScaled      = true
-				btn.Font            = Enum.Font.GothamBold
-				btn.BorderSizePixel = 0
-				btn.ZIndex          = 9999
-				btn.AutoButtonColor = true
-		
-				local btnCorner = InstanceNew("UICorner")
-				btnCorner.CornerRadius = UDim.new(0.25,0)
-				btnCorner.Parent       = btn
-				NAgui.draggerV2(btn)
-		
-				btn.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						local p = btn.Position
-						data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
-						if FileSupport then
-							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-						end
-					end
-				end)
-		
-				local toggled     = false
-				local saveEnabled = data.RunMode == "S"
-				SavedArgs[id]     = data.Args or {}
-		
-				local cmd1      = data.Cmd1
-				local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
-				local needsArgs = cd1 and cd1[3]
-		
-				if needsArgs then
-					local saveToggle = InstanceNew("TextButton")
-					saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
-					saveToggle.AnchorPoint      = Vector2.new(1,1)
-					saveToggle.Position         = UDim2.new(1,0,0,0)
-					saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-					saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
-					saveToggle.TextScaled       = true
-					saveToggle.Font             = Enum.Font.Gotham
-					saveToggle.Text             = saveEnabled and "S" or "N"
-					saveToggle.ZIndex           = 10000
-					saveToggle.Parent           = btn
-		
-					local stCorner = InstanceNew("UICorner")
-					stCorner.CornerRadius = UDim.new(0.5,0)
-					stCorner.Parent       = saveToggle
-		
-					MouseButtonFix(saveToggle, function()
-						saveEnabled = not saveEnabled
-						saveToggle.Text = saveEnabled and "S" or "N"
-						data.RunMode = saveEnabled and "S" or "N"
-						if FileSupport then
-							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-						end
-					end)
-				end
-		
-				local function runCmd(args)
-					local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-					local arr   = {toRun}
-					if args then for _,v in ipairs(args) do Insert(arr, v) end end
-					cmd.run(arr)
-					if data.Cmd2 then
-						toggled = not toggled
-						btn.BackgroundColor3 = toggled and ON or OFF
+		NAStuff.NASCREENGUI = screenGui
+		if NAStuff.KeybindConnection then
+			NAStuff.KeybindConnection:Disconnect()
+			NAStuff.KeybindConnection = nil
+		end
+		for _, btn in pairs(UserButtonGuiList) do
+			btn:Destroy()
+		end
+		table.clear(UserButtonGuiList)
+
+		local UIS = UserInputService
+		local SavedArgs       = {}
+		local ActivePrompts   = {}
+		local ActiveKeyBinding= {}
+		local ActionBindings  = {}
+		local tSize = 28
+		local DOUBLE_CLICK_WINDOW = 0.35
+
+		function ButtonInputPrompt(cmdName, cb)
+			local gui = InstanceNew("ScreenGui")
+			gui.IgnoreGuiInset = true
+			gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+			gui.Parent = screenGui
+
+			local f = InstanceNew("Frame")
+			f.Size = UDim2.new(0,260,0,140)
+			f.Position = UDim2.new(0.5,-130,0.5,-70)
+			f.BackgroundColor3 = Color3.fromRGB(30,30,30)
+			f.BorderSizePixel = 0
+			f.Parent = gui
+
+			local u = InstanceNew("UICorner")
+			u.CornerRadius = UDim.new(0.1,0)
+			u.Parent = f
+
+			local t = InstanceNew("TextLabel")
+			t.Size = UDim2.new(1,-20,0,30)
+			t.Position = UDim2.new(0,10,0,10)
+			t.BackgroundTransparency = 1
+			t.Text = "Arguments for: "..cmdName
+			t.TextColor3 = Color3.fromRGB(255,255,255)
+			t.Font = Enum.Font.GothamBold
+			t.TextSize = 16
+			t.TextWrapped = true
+			t.Parent = f
+
+			local tb = InstanceNew("TextBox")
+			tb.Size = UDim2.new(1,-20,0,30)
+			tb.Position = UDim2.new(0,10,0,50)
+			tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
+			tb.TextColor3 = Color3.fromRGB(255,255,255)
+			tb.PlaceholderText = "Type arguments here"
+			tb.Text=""
+			tb.TextSize = 16
+			tb.Font = Enum.Font.Gotham
+			tb.ClearTextOnFocus = false
+			tb.Parent = f
+
+			local s = InstanceNew("TextButton")
+			s.Size = UDim2.new(0.5,-15,0,30)
+			s.Position = UDim2.new(0,10,1,-40)
+			s.BackgroundColor3 = Color3.fromRGB(0,170,255)
+			s.Text = "Submit"
+			s.TextColor3 = Color3.fromRGB(255,255,255)
+			s.Font = Enum.Font.GothamBold
+			s.TextSize = 14
+			s.Parent = f
+
+			local c = InstanceNew("TextButton")
+			c.Size = UDim2.new(0.5,-15,0,30)
+			c.Position = UDim2.new(0.5,5,1,-40)
+			c.BackgroundColor3 = Color3.fromRGB(255,0,0)
+			c.Text = "Cancel"
+			c.TextColor3 = Color3.fromRGB(255,255,255)
+			c.Font = Enum.Font.GothamBold
+			c.TextSize = 14
+			c.Parent = f
+
+			MouseButtonFix(s, function()
+				cb(tb.Text)
+				ActivePrompts[cmdName] = nil
+				gui:Destroy()
+			end)
+			MouseButtonFix(c, function()
+				ActivePrompts[cmdName] = nil
+				gui:Destroy()
+			end)
+			NAgui.draggerV2(f)
+		end
+
+		local total   = #NAUserButtons
+		local totalW  = total * 110
+		local screenWidth = math.max(screenGui.AbsoluteSize.X, 1)
+		local startX  = 0.5 - (totalW/2)/screenWidth
+		local spacing = 110
+		local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
+
+		local idx = 0
+		for id, data in pairs(NAUserButtons) do
+			local btn = InstanceNew("TextButton")
+			btn.Name            = "NAUserButton_"..id
+			btn.Text            = data.Label
+			btn.Size            = UDim2.new(0,60, 0,60)
+			btn.AnchorPoint     = Vector2.new(0.5,1)
+			btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
+			btn.Parent          = screenGui
+			btn.BackgroundColor3= Color3.fromRGB(0,0,0)
+			btn.TextColor3      = Color3.fromRGB(255,255,255)
+			btn.TextScaled      = true
+			btn.Font            = Enum.Font.GothamBold
+			btn.BorderSizePixel = 0
+			btn.ZIndex          = 9999
+			btn.AutoButtonColor = true
+
+			local btnCorner = InstanceNew("UICorner")
+			btnCorner.CornerRadius = UDim.new(0.25,0)
+			btnCorner.Parent       = btn
+			NAgui.draggerV2(btn)
+
+			btn.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					local p = btn.Position
+					data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+					if FileSupport then
+						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 					end
 				end
-		
-				MouseButtonFix(btn, function()
-					local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-					local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
-					local na      = nd and nd[3]
-					if na then
-						if saveEnabled and data.Args and #data.Args>0 then
-							runCmd(data.Args)
-						else
-							if ActivePrompts[now] then return end
-							ActivePrompts[now] = true
-							ButtonInputPrompt(now, function(input)
-								ActivePrompts[now] = nil
-								local parsed = ParseArguments(input)
-								if parsed then
-									SavedArgs[id] = parsed
-									data.Args     = parsed
-									if FileSupport then
-										writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-									end
-									runCmd(parsed)
-								else
-									runCmd(nil)
-								end
-							end)
-						end
+			end)
+
+			local toggled     = false
+			local saveEnabled = data.RunMode == "S"
+			SavedArgs[id]     = data.Args or {}
+
+			local cmd1      = data.Cmd1
+			local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
+			local needsArgs = cd1 and cd1[3]
+
+			if needsArgs then
+				local saveToggle = InstanceNew("TextButton")
+				saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
+				saveToggle.AnchorPoint      = Vector2.new(1,1)
+				saveToggle.Position         = UDim2.new(1,0,0,0)
+				saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+				saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
+				saveToggle.TextScaled       = true
+				saveToggle.Font             = Enum.Font.Gotham
+				saveToggle.Text             = saveEnabled and "S" or "N"
+				saveToggle.ZIndex           = 10000
+				saveToggle.Parent           = btn
+
+				local stCorner = InstanceNew("UICorner")
+				stCorner.CornerRadius = UDim.new(0.5,0)
+				stCorner.Parent       = saveToggle
+
+				MouseButtonFix(saveToggle, function()
+					saveEnabled = not saveEnabled
+					saveToggle.Text = saveEnabled and "S" or "N"
+					data.RunMode = saveEnabled and "S" or "N"
+					if FileSupport then
+						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+					end
+				end)
+			end
+
+			local function runCmd(args)
+				local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+				local arr   = {toRun}
+				if args then for _,v in ipairs(args) do Insert(arr, v) end end
+				cmd.run(arr)
+				if data.Cmd2 then
+					toggled = not toggled
+					btn.BackgroundColor3 = toggled and ON or OFF
+				end
+			end
+
+			MouseButtonFix(btn, function()
+				local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+				local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+				local na      = nd and nd[3]
+				if na then
+					if saveEnabled and data.Args and #data.Args>0 then
+						runCmd(data.Args)
 					else
-						runCmd(nil)
-					end
-				end)
-		
-				if IsOnPC then
-					local keyToggle = InstanceNew("TextButton")
-					keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
-					keyToggle.AnchorPoint      = Vector2.new(0,1)
-					keyToggle.Position         = UDim2.new(0,0,0,0)
-					keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-					keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
-					keyToggle.TextScaled       = true
-					keyToggle.Font             = Enum.Font.Gotham
-					keyToggle.Text             = data.Keybind or "Key"
-					keyToggle.ZIndex           = 10000
-					keyToggle.Parent           = btn
-		
-					local ktCorner = InstanceNew("UICorner")
-					ktCorner.CornerRadius = UDim.new(0.5,0)
-					ktCorner.Parent       = keyToggle
-		
-					local lastClick = 0
-					local bindConn
-		
-					MouseButtonFix(keyToggle, function()
-						local now = os.clock()
-						if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
-							lastClick = 0
-							if data.Keybind then ActionBindings[data.Keybind] = nil end
-							data.Keybind = nil
-							keyToggle.Text = "Key"
-							if FileSupport then
-								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						if ActivePrompts[now] then return end
+						ActivePrompts[now] = true
+						ButtonInputPrompt(now, function(input)
+							ActivePrompts[now] = nil
+							local parsed = ParseArguments(input)
+							if parsed then
+								SavedArgs[id] = parsed
+								data.Args     = parsed
+								if FileSupport then
+									writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+								end
+								runCmd(parsed)
+							else
+								runCmd(nil)
 							end
-							if bindConn then bindConn:Disconnect() bindConn = nil end
-							ActiveKeyBinding[id] = nil
-							return
-						end
-						lastClick = now
-						if ActiveKeyBinding[id] then return end
-						ActiveKeyBinding[id] = true
-						keyToggle.Text = "..."
-						bindConn = UIS.InputBegan:Connect(function(input, gp)
-							if gp or not input.KeyCode then return end
-							local old = data.Keybind
-							if old then ActionBindings[old] = nil end
-							local new = input.KeyCode.Name
-							data.Keybind = new
-							keyToggle.Text = new
-							if FileSupport then
-								writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-							end
-							ActionBindings[new] = function() runCmd(data.Args) end
-							ActiveKeyBinding[id] = nil
-							if bindConn then bindConn:Disconnect() bindConn = nil end
 						end)
-					end)
-		
-					if data.Keybind then
-						ActionBindings[data.Keybind] = function() runCmd(data.Args) end
 					end
+				else
+					runCmd(nil)
 				end
-		
-				Insert(UserButtonGuiList, btn)
-				idx = idx + 1
-			end
-		
+			end)
+
 			if IsOnPC then
-				NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
-					if gp or not input.KeyCode then return end
-					local act = ActionBindings[input.KeyCode.Name]
-					if act then act() end
+				local keyToggle = InstanceNew("TextButton")
+				keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
+				keyToggle.AnchorPoint      = Vector2.new(0,1)
+				keyToggle.Position         = UDim2.new(0,0,0,0)
+				keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
+				keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
+				keyToggle.TextScaled       = true
+				keyToggle.Font             = Enum.Font.Gotham
+				keyToggle.Text             = data.Keybind or "Key"
+				keyToggle.ZIndex           = 10000
+				keyToggle.Parent           = btn
+
+				local ktCorner = InstanceNew("UICorner")
+				ktCorner.CornerRadius = UDim.new(0.5,0)
+				ktCorner.Parent       = keyToggle
+
+				local lastClick = 0
+				local bindConn
+
+				MouseButtonFix(keyToggle, function()
+					local now = os.clock()
+					if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
+						lastClick = 0
+						if data.Keybind then ActionBindings[data.Keybind] = nil end
+						data.Keybind = nil
+						keyToggle.Text = "Key"
+						if FileSupport then
+							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						end
+						if bindConn then bindConn:Disconnect() bindConn = nil end
+						ActiveKeyBinding[id] = nil
+						return
+					end
+					lastClick = now
+					if ActiveKeyBinding[id] then return end
+					ActiveKeyBinding[id] = true
+					keyToggle.Text = "..."
+					bindConn = UIS.InputBegan:Connect(function(input, gp)
+						if gp or not input.KeyCode then return end
+						local old = data.Keybind
+						if old then ActionBindings[old] = nil end
+						local new = input.KeyCode.Name
+						data.Keybind = new
+						keyToggle.Text = new
+						if FileSupport then
+							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						end
+						ActionBindings[new] = function() runCmd(data.Args) end
+						ActiveKeyBinding[id] = nil
+						if bindConn then bindConn:Disconnect() bindConn = nil end
+					end)
 				end)
+
+				if data.Keybind then
+					ActionBindings[data.Keybind] = function() runCmd(data.Args) end
+				end
 			end
+
+			Insert(UserButtonGuiList, btn)
+			idx = idx + 1
+		end
+
+		if IsOnPC then
+			NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
+				if gp or not input.KeyCode then return end
+				local act = ActionBindings[input.KeyCode.Name]
+				if act then act() end
+			end)
+		end
 	end)
 
 	NAmanage._renderUserButtonsRunning = nil
@@ -22004,7 +22133,7 @@ function nuhuhprompt(v)
 					pcall(function() gui.Enabled = false end)
 				end
 			end)
-			table.insert(promptTBL.conns, c)
+			Insert(promptTBL.conns, c)
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
@@ -25079,49 +25208,49 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games b
 		if not st.initFB then
 			st.initFB = function()
 				st.hook("fb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-					else
-						st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+						else
+							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+						end
+					end) end)
 				st.hook("fb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-					else
-						st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+						else
+							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+						end
+					end) end)
 				st.hook("fb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-					else
-						st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+						else
+							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+						end
+					end) end)
 				st.hook("fb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-					else
-						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						else
+							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+						end
+					end) end)
 				st.hook("fb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
-					else
-						st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+						else
+							st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+						end
+					end) end)
 				st.hook("fb_loop", function() return RunService.RenderStepped:Connect(function()
-					if not (st.fb and st.fb.enabled) then return end
-					if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-					if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-					if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-					local gs = st.safeGet(Lighting,"GlobalShadows")
-					if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-					if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
-				end) end)
+						if not (st.fb and st.fb.enabled) then return end
+						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+						local gs = st.safeGet(Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+					end) end)
 			end
 		end
 		if not st.applyFB then
@@ -25192,49 +25321,49 @@ cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright (loopfb,lfb)","Sunshi
 		if not st.initFB then
 			st.initFB = function()
 				st.hook("fb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-					else
-						st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+						else
+							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+						end
+					end) end)
 				st.hook("fb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-					else
-						st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+						else
+							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+						end
+					end) end)
 				st.hook("fb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-					else
-						st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+						else
+							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+						end
+					end) end)
 				st.hook("fb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-					else
-						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						else
+							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+						end
+					end) end)
 				st.hook("fb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-					if st.fb and st.fb.enabled then
-						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
-					else
-						st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
-					end
-				end) end)
+						if st.fb and st.fb.enabled then
+							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+						else
+							st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+						end
+					end) end)
 				st.hook("fb_loop", function() return RunService.RenderStepped:Connect(function()
-					if not (st.fb and st.fb.enabled) then return end
-					if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-					if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-					if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-					local gs = st.safeGet(Lighting,"GlobalShadows")
-					if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-					if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
-				end) end)
+						if not (st.fb and st.fb.enabled) then return end
+						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+						local gs = st.safeGet(Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+					end) end)
 			end
 		end
 		if not st.applyFB then
@@ -25319,49 +25448,49 @@ cmd.add({"loopnight","loopn","ln"},{"loopnight (loopn,ln)","Moonlight."},functio
 		if not st.initNB then
 			st.initNB = function()
 				st.hook("nb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
-					if st.nb and st.nb.enabled then
-						if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
-					else
-						st.nb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.nb.baseline.Brightness
-					end
-				end) end)
+						if st.nb and st.nb.enabled then
+							if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
+						else
+							st.nb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.nb.baseline.Brightness
+						end
+					end) end)
 				st.hook("nb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-					if st.nb and st.nb.enabled then
-						if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
-					else
-						st.nb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.nb.baseline.ClockTime
-					end
-				end) end)
+						if st.nb and st.nb.enabled then
+							if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
+						else
+							st.nb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.nb.baseline.ClockTime
+						end
+					end) end)
 				st.hook("nb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-					if st.nb and st.nb.enabled then
-						if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
-					else
-						st.nb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.nb.baseline.FogEnd
-					end
-				end) end)
+						if st.nb and st.nb.enabled then
+							if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
+						else
+							st.nb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.nb.baseline.FogEnd
+						end
+					end) end)
 				st.hook("nb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
-					if st.nb and st.nb.enabled then
-						if st.safeGet(Lighting,"GlobalShadows") ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
-					else
-						local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.nb.baseline.GlobalShadows=v end
-					end
-				end) end)
+						if st.nb and st.nb.enabled then
+							if st.safeGet(Lighting,"GlobalShadows") ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
+						else
+							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.nb.baseline.GlobalShadows=v end
+						end
+					end) end)
 				st.hook("nb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
-					if st.nb and st.nb.enabled then
-						if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
-					else
-						st.nb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.nb.baseline.Ambient
-					end
-				end) end)
+						if st.nb and st.nb.enabled then
+							if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
+						else
+							st.nb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.nb.baseline.Ambient
+						end
+					end) end)
 				st.hook("nb_loop", function() return RunService.RenderStepped:Connect(function()
-					if not (st.nb and st.nb.enabled) then return end
-					if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
-					if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
-					if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
-					local gs = st.safeGet(Lighting,"GlobalShadows")
-					if gs~=nil and gs ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
-					if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
-				end) end)
+						if not (st.nb and st.nb.enabled) then return end
+						if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
+						if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
+						if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
+						local gs = st.safeGet(Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
+						if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
+					end) end)
 			end
 		end
 		if not st.applyNB then
@@ -25434,28 +25563,28 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopn
 	if not nf.init then
 		nf.init = true
 		st.hook("nf_prop_end", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-			if st.nf and st.nf.enabled then
-				if st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
-			end
-		end) end)
-		st.hook("nf_prop_start", function() return Lighting:GetPropertyChangedSignal("FogStart"):Connect(function()
-			if st.nf and st.nf.enabled then
-				if st.safeGet(Lighting,"FogStart") ~= 0 then st.safeSet(Lighting,"FogStart",0) end
-			end
-		end) end)
-		st.hook("nf_added", function() return Lighting.DescendantAdded:Connect(function(inst)
-			if not (st.nf and st.nf.enabled) then return end
-			disableEffect(inst)
-		end) end)
-		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function()
-			if not (st.nf and st.nf.enabled) then return end
-			for inst,saved in pairs(st.nf.cache) do
-				if inst and inst.Parent and saved then
-					for p,_ in pairs(saved) do st.safeSet(inst,p,inst[p]) end
-					disableEffect(inst)
+				if st.nf and st.nf.enabled then
+					if st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
 				end
-			end
-		end) end)
+			end) end)
+		st.hook("nf_prop_start", function() return Lighting:GetPropertyChangedSignal("FogStart"):Connect(function()
+				if st.nf and st.nf.enabled then
+					if st.safeGet(Lighting,"FogStart") ~= 0 then st.safeSet(Lighting,"FogStart",0) end
+				end
+			end) end)
+		st.hook("nf_added", function() return Lighting.DescendantAdded:Connect(function(inst)
+				if not (st.nf and st.nf.enabled) then return end
+				disableEffect(inst)
+			end) end)
+		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function()
+				if not (st.nf and st.nf.enabled) then return end
+				for inst,saved in pairs(st.nf.cache) do
+					if inst and inst.Parent and saved then
+						for p,_ in pairs(saved) do st.safeSet(inst,p,inst[p]) end
+						disableEffect(inst)
+					end
+				end
+			end) end)
 	end
 	nf.enabled = true
 	nf.baselineFogEnd = st.safeGet(Lighting,"FogEnd") or nf.baselineFogEnd
