@@ -1541,66 +1541,98 @@ if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") 
 	local function hb(n) for i = 1, (n or 1) do RunService.Heartbeat:Wait() end end
 
 	local function toOpts(o)
-		if typeof(o) == "number" then return {hold = o} end
+		if typeof(o) == "number" then return { hold = o } end
 		return typeof(o) == "table" and o or {}
 	end
 
-	local state = setmetatable({}, {__mode = "k"})
+	local state = setmetatable({}, { __mode = "k" })
+
+	local function snapshot(pp)
+		return {
+			E = pp.Enabled,
+			H = pp.HoldDuration,
+			R = pp.RequiresLineOfSight,
+			D = pp.MaxActivationDistance,
+			X = pp.Exclusivity,
+		}
+	end
 
 	local function begin(pp, o)
 		local s = state[pp]
 		if not s then
-			s = {
-				ref = 0,
-				E = pp.Enabled,
-				H = pp.HoldDuration,
-				R = pp.RequiresLineOfSight,
-				D = pp.MaxActivationDistance,
-				X = pp.Exclusivity,
-			}
+			s = snapshot(pp)
+			s.ref = 0
+			s.inFlight = false
+			pp.Destroying:Connect(function()
+				state[pp] = nil
+			end)
 			state[pp] = s
 		end
+		if s.inFlight then
+			return false
+		end
+		s.inFlight = true
 		s.ref += 1
-
-		pp.Enabled = true
-		pp.HoldDuration = 0
-		pp.RequiresLineOfSight = false
-		pp.MaxActivationDistance = o.distance or 1e9
-		if pp.Exclusivity == Enum.ProximityPromptExclusivity.OnePerButton then
+		if o.instant ~= false then
+			pp.HoldDuration = 0
+		elseif o.hold ~= nil then
+			pp.HoldDuration = 0
+		end
+		if o.requireLoS ~= nil then
+			pp.RequiresLineOfSight = o.requireLoS and true or false
+		end
+		if o.distance ~= nil then
+			pp.MaxActivationDistance = o.distance
+		end
+		if o.exclusivity ~= nil then
+			pp.Exclusivity = o.exclusivity
+		elseif pp.Exclusivity == Enum.ProximityPromptExclusivity.OnePerButton then
 			pp.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 		end
+		if o.forceEnable then
+			pp.Enabled = true
+		end
+		return true
 	end
 
 	local function finish(pp)
 		local s = state[pp]
 		if not s then return end
 		s.ref -= 1
+		s.inFlight = false
 		if s.ref <= 0 and pp and pp.Parent then
-			pp.Enabled = s.E
-			pp.HoldDuration = s.H
-			pp.RequiresLineOfSight = s.R
+			pp.Enabled               = s.E
+			pp.HoldDuration          = s.H
+			pp.RequiresLineOfSight   = s.R
 			pp.MaxActivationDistance = s.D
-			pp.Exclusivity = s.X
+			pp.Exclusivity           = s.X
 			state[pp] = nil
 		end
 	end
 
 	local function fireOne(pp, o)
-		begin(pp, o)
-		hb(1)
-		pp.Enabled = false; hb(1); pp.Enabled = true; hb(1)
-		pp:InputHoldBegin()
-		local t = o.hold or 0.03
-		if t > 0 then Wait(t) else hb(1) end
-		pp:InputHoldEnd()
-		hb(1)
+		if not begin(pp, o) then return end
+		local ok, err = pcall(function()
+			hb(1)
+			pp:InputHoldBegin()
+			local t = (o.hold ~= nil) and tonumber(o.hold) or 0
+			if t and t > 0 then
+				Wait(t)
+			else
+				hb(1)
+			end
+			pp:InputHoldEnd()
+			hb(1)
+		end)
 		finish(pp)
+		if not ok then
+			warn(("[fireproximityprompt] %s"):format(err))
+		end
 	end
 
 	getgenv().fireproximityprompt = function(target, opts)
 		local o = toOpts(opts)
 		local list = {}
-
 		if typeof(target) == "Instance" and target:IsA("ProximityPrompt") then
 			list[1] = target
 		elseif typeof(target) == "table" then
@@ -1612,12 +1644,14 @@ if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") 
 		else
 			return false
 		end
-
-		local stagger = (o.stagger ~= nil) and o.stagger or 0.01
+		local stagger = (o.stagger ~= nil) and math.max(0, o.stagger) or 0.01
 		for i, pp in ipairs(list) do
-			Delay((i - 1) * math.max(0, stagger), function()
-				local ok = pcall(fireOne, pp, o)
-				if not ok then finish(pp) end
+			Delay((i - 1) * stagger, function()
+				local s = state[pp]
+				if s and s.inFlight then
+					return
+				end
+				fireOne(pp, o)
 			end)
 		end
 		return true
