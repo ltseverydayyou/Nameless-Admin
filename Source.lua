@@ -42,22 +42,75 @@ local LoadstringCommandAliases = {
 };
 
 local function SafeGetService(name, timeoutSeconds)
-	timeoutSeconds = timeoutSeconds or 5
-
-	local Service = game.GetService
 	local Reference = cloneref or function(ref) return ref end
+	local startClock = tick()
 
-	local elapsed = 0
-	while elapsed < timeoutSeconds do
-		local ok, svc = pcall(Service, game, name)
-		if ok and svc then
-			return Reference(svc)
-		end
-		local dt = Wait(0.1)
-		elapsed = elapsed + (dt or 0.1)
+	local function timedOut()
+		return timeoutSeconds and (tick() - startClock) >= timeoutSeconds
 	end
 
-	return nil
+	local okImmediate, serviceImmediate = pcall(game.GetService, game, name)
+	if okImmediate and serviceImmediate then
+		return Reference(serviceImmediate)
+	end
+
+	local function waitForGameLoaded()
+		while true do
+			local okLoaded, isLoaded = pcall(game.IsLoaded, game)
+			if not okLoaded or isLoaded then
+				return true
+			end
+			if timedOut() then
+				return false
+			end
+
+			local loaded = false
+			local conn
+			local connected = pcall(function()
+				conn = game.Loaded:Connect(function()
+					loaded = true
+				end)
+			end)
+
+			if connected and conn then
+				while not loaded do
+					if timedOut() then
+						conn:Disconnect()
+						return false
+					end
+					local dt = Wait(0.05)
+					if not dt then dt = 0.05 end
+				end
+				conn:Disconnect()
+				return true
+			end
+
+			local dt = Wait(0.05)
+			if not dt then dt = 0.05 end
+		end
+	end
+
+	if not waitForGameLoaded() then
+		return nil
+	end
+
+	while true do
+		local okService, service = pcall(game.GetService, game, name)
+		if okService and service then
+			return Reference(service)
+		end
+
+		if timedOut() then
+			return nil
+		end
+
+		if not waitForGameLoaded() then
+			return nil
+		end
+
+		local dt = Wait(0.05)
+		if not dt then dt = 0.05 end
+	end
 end
 
 local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
