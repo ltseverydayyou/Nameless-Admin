@@ -3979,6 +3979,8 @@ function MouseButtonFix(button, clickCallback)
 			local now = tick()
 			if activeInput then
 				finalize(true)
+			elseif suppressActivated then
+				return
 			elseif now - lastActivationTick > activationDebounce then
 				suppressActivated = true
 				lastActivationTick = now
