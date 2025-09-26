@@ -3766,24 +3766,79 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(button, clickCallback)
-	local isHolding = false
 	local holdThreshold = 0.45
-	local mouseDownTime = 0
+	local moveThreshold = 8
+	local tracked = false
+	local activeInput = nil
+	local startPosition = Vector2.new(0, 0)
+	local startTick = 0
+	local moved = false
+	local result = nil
 
-	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
-		isHolding = false
-		mouseDownTime = tick()
-	end))
+	local function toVector2(pos)
+		local kind = typeof(pos)
+		if kind == "Vector2" then
+			return pos
+		elseif kind == "Vector3" then
+			return Vector2.new(pos.X, pos.Y)
+		end
+		return Vector2.new(0, 0)
+	end
 
-	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
-		if tick() - mouseDownTime < holdThreshold and not isHolding then
-			clickCallback()
+	local function evaluate()
+		if not tracked or startTick == 0 then
+			result = nil
+			return
+		end
+		local elapsed = tick() - startTick
+		result = (elapsed < holdThreshold) and not moved
+	end
+
+	local function reset()
+		tracked = false
+		activeInput = nil
+		startPosition = Vector2.new(0, 0)
+		startTick = 0
+		moved = false
+		result = nil
+	end
+
+	NAlib.connect(button.Name.."_begin", button.InputBegan:Connect(function(input)
+		if input.UserInputState ~= Enum.UserInputState.Begin then return end
+		local inputType = input.UserInputType
+		if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
+			tracked = true
+			activeInput = input
+			startPosition = toVector2(input.Position)
+			startTick = tick()
+			moved = false
+			result = nil
 		end
 	end))
 
-	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+	NAlib.connect(button.Name.."_change", button.InputChanged:Connect(function(input)
+		if not tracked or input ~= activeInput then return end
+		local current = toVector2(input.Position)
+		if (current - startPosition).Magnitude > moveThreshold then
+			moved = true
+		end
+	end))
+
+	NAlib.connect(button.Name.."_end", button.InputEnded:Connect(function(input)
+		if not tracked or input ~= activeInput then return end
+		evaluate()
+	end))
+
+	return NAlib.connect(button.Name.."_activated", button.Activated:Connect(function()
+		if result == nil and tracked then
+			evaluate()
+		end
+		local allow = result
+		reset()
+		if allow == nil then
+			clickCallback()
+		elseif allow then
+			clickCallback()
 		end
 	end))
 end
