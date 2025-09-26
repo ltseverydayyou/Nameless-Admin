@@ -3852,9 +3852,10 @@ FindInTable = function(tbl,val)
 	return false
 end
 
+
 function MouseButtonFix(button, clickCallback)
-	local holdThresholdMouse = 0.85
-	local holdThresholdTouch = 0.45
+	local holdThresholdMouse = 0.45
+	local holdThresholdTouch = 0.85
 	local moveThresholdMouse = 18
 	local moveThresholdTouch = 35
 	local activeInput = nil
@@ -3863,6 +3864,8 @@ function MouseButtonFix(button, clickCallback)
 	local moved = false
 	local lastActivationTick = 0
 	local activationDebounce = 0.1
+	local suppressActivated = false
+
 	local function toVector2(pos)
 		if typeof(pos) == 'Vector2' then
 			return pos
@@ -3871,22 +3874,28 @@ function MouseButtonFix(button, clickCallback)
 		end
 		return nil
 	end
+
 	local function reset()
 		activeInput = nil
 		startPos = nil
 		moved = false
 		downTick = 0
+		suppressActivated = false
 	end
+
 	local function finalize(isTouch)
 		local now = tick()
 		local holdLimit = isTouch and holdThresholdTouch or holdThresholdMouse
 		local allow = downTick > 0 and (now - downTick) <= holdLimit and not moved
 		reset()
 		lastActivationTick = now
+		suppressActivated = allow
 		if allow then
 			pcall(clickCallback)
 		end
+		return allow
 	end
+
 	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
 		if input.UserInputState ~= Enum.UserInputState.Begin then return end
 		local t = input.UserInputType
@@ -3898,7 +3907,9 @@ function MouseButtonFix(button, clickCallback)
 		if not startPos and t == Enum.UserInputType.MouseButton1 then
 			startPos = UserInputService:GetMouseLocation()
 		end
+		suppressActivated = false
 	end))
+
 	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
 		if not activeInput then return end
 		if input == activeInput then
@@ -3930,6 +3941,7 @@ function MouseButtonFix(button, clickCallback)
 			end
 		end
 	end))
+
 	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
 		if not activeInput or input ~= activeInput then return end
 		if input.UserInputState == Enum.UserInputState.Cancel then
@@ -3938,13 +3950,19 @@ function MouseButtonFix(button, clickCallback)
 		end
 		finalize(input.UserInputType == Enum.UserInputType.Touch)
 	end))
+
 	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
 		if activeInput then
 			moved = true
 		end
 	end))
+
 	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
 		local now = tick()
+		if suppressActivated then
+			suppressActivated = false
+			return
+		end
 		if now - lastActivationTick <= activationDebounce then
 			return
 		end
@@ -3955,6 +3973,7 @@ function MouseButtonFix(button, clickCallback)
 		lastActivationTick = now
 		pcall(clickCallback)
 	end))
+
 	if IsOnMobile then
 		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
 			if activeInput then
@@ -3963,6 +3982,7 @@ function MouseButtonFix(button, clickCallback)
 		end))
 	end
 end
+
 
 --[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
