@@ -176,61 +176,89 @@ local IsOnPC=(function()
 	return false
 end)()
 
-local execName = ""
-do
-	local ok, result = pcall(function()
-		return identifyexecutor and identifyexecutor()
-	end)
-	if ok and type(result) == "string" then
-		execName = result:lower()
+local originalIO = {}
+
+originalIO.captureIO=function(name)
+	local fn = rawget(_G, name)
+	if type(fn) == "function" then
+		originalIO[name] = fn
 	end
 end
 
-if execName:find("solara", 1, true) then
+if not originalIO.__captured then
+	originalIO.__captured = true
+	originalIO.captureIO('readfile')
+	originalIO.captureIO('writefile')
+	originalIO.captureIO('appendfile')
+	originalIO.captureIO('listfiles')
+	originalIO.captureIO('makefolder')
+	originalIO.captureIO('delfile')
+	originalIO.captureIO('isfile')
+	originalIO.captureIO('isfolder')
+end
+
+originalIO.pathVariants=function(path)
+	if type(path) ~= "string" then
+		return { path }
+	end
+	if path:match('^[%w_]+://') then
+		return { path }
+	end
+	local variants, seen = {}, {}
+	local function add(value)
+		if type(value) == "string" and value ~= "" and not seen[value] then
+			seen[value] = true
+			Insert(variants, value)
+		end
+	end
+	add(path)
+	add(path:gsub('\\+', '\\'))
+	add(path:gsub('//+', '/'))
+	add(path:gsub('/', '\\'))
+	add(path:gsub('\\', '/'))
+	local trimmed = path:gsub('^%.[/\]+', '')
+	if trimmed ~= path then
+		add(trimmed)
+		add(trimmed:gsub('/', '\\'))
+		add(trimmed:gsub('\\', '/'))
+	end
+	return variants
+end
+
+originalIO.resolveWithListfiles=function(target)
+	local lf = originalIO.listfiles
+	if type(lf) ~= "function" then
+		return nil
+	end
+	local dir, filename = target:match('^(.*)[/\\]([^/\\]+)$')
+	if not dir or filename == '' then
+		return nil
+	end
+	local dirVariants = originalIO.pathVariants(dir)
+	local results = {}
+	local lowered = filename:lower()
+	for _, candidateDir in ipairs(dirVariants) do
+		local ok, entries = pcall(lf, candidateDir)
+		if ok and type(entries) == "table" then
+			for _, entry in ipairs(entries) do
+				local name = entry:match('([^/\\]+)$')
+				if name and name:lower() == lowered then
+					Insert(results, entry)
+				end
+			end
+		end
+	end
+	if #results > 0 then
+		return results
+	end
+	return nil
+end
+
+if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") then
 	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
 		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
 
-		local function buildPathVariants(path)
-			if type(path) ~= "string" then
-				return { path }
-			end
-			if path:match("^[%w_]+://") then
-				return { path }
-			end
-
-			local variants = {}
-			local seen = {}
-
-			local function addVariant(value)
-				if type(value) == "string" and value ~= "" and not seen[value] then
-					seen[value] = true
-					Insert(variants, value)
-				end
-			end
-
-			local function addNormalized(value)
-				if type(value) ~= "string" or value == "" then
-					return
-				end
-				addVariant(value)
-				addVariant(value:gsub("/", "\\"))
-				addVariant(value:gsub("\\", "/"))
-			end
-
-			addNormalized(path)
-			local trimmed = path:gsub("^%.[/\\]+", "")
-			if trimmed ~= path then
-				addNormalized(trimmed)
-			end
-
-			if #variants == 0 then
-				addVariant(path)
-			end
-
-			return variants
-		end
-
-		local function wrapWithFallback(fn, returnsBool)
+		local function wrapWithFallback(fn, returnsBool, allowListResolve)
 			if type(fn) ~= "function" then
 				return nil
 			end
@@ -246,54 +274,55 @@ if execName:find("solara", 1, true) then
 					error(result)
 				end
 
-				local variants = buildPathVariants(path)
-				local lastErr
-				for _, candidate in ipairs(variants) do
+				for _, candidate in ipairs(originalIO.pathVariants(path)) do
 					local ok, result = pcall(fn, candidate, ...)
 					if ok then
 						return result
 					end
-					lastErr = result
+				end
+
+				if allowListResolve then
+					local resolved = originalIO.resolveWithListfiles(path)
+					if resolved then
+						for _, candidate in ipairs(resolved) do
+							local ok, result = pcall(fn, candidate, ...)
+							if ok then
+								return result
+							end
+						end
+					end
 				end
 
 				if returnsBool then
 					return false
 				end
-				error(lastErr or ("failed to access " .. tostring(path)))
+				error(("failed to access %s"):format(path))
 			end
 		end
 
-		if type(readfile) == "function" then
-			local original = readfile
-			readfile = wrapWithFallback(original, false)
+		if originalIO.readfile then
+			readfile = wrapWithFallback(originalIO.readfile, false, true)
 		end
-		if type(writefile) == "function" then
-			local original = writefile
-			writefile = wrapWithFallback(original, false)
+		if originalIO.writefile then
+			writefile = wrapWithFallback(originalIO.writefile, false, true)
 		end
-		if type(appendfile) == "function" then
-			local original = appendfile
-			appendfile = wrapWithFallback(original, false)
+		if originalIO.appendfile then
+			appendfile = wrapWithFallback(originalIO.appendfile, false, true)
 		end
-		if type(listfiles) == "function" then
-			local original = listfiles
-			listfiles = wrapWithFallback(original, false)
+		if originalIO.listfiles then
+			listfiles = wrapWithFallback(originalIO.listfiles, false, false)
 		end
-		if type(makefolder) == "function" then
-			local original = makefolder
-			makefolder = wrapWithFallback(original, false)
+		if originalIO.makefolder then
+			makefolder = wrapWithFallback(originalIO.makefolder, false, true)
 		end
-		if type(delfile) == "function" then
-			local original = delfile
-			delfile = wrapWithFallback(original, false)
+		if originalIO.delfile then
+			delfile = wrapWithFallback(originalIO.delfile, false, true)
 		end
-		if type(isfile) == "function" then
-			local original = isfile
-			isfile = wrapWithFallback(original, true)
+		if originalIO.isfile then
+			isfile = wrapWithFallback(originalIO.isfile, true, true)
 		end
-		if type(isfolder) == "function" then
-			local original = isfolder
-			isfolder = wrapWithFallback(original, true)
+		if originalIO.isfolder then
+			isfolder = wrapWithFallback(originalIO.isfolder, true, true)
 		end
 	end
 end
@@ -1733,7 +1762,7 @@ function getSeasonEmoji()
 	return ''
 end
 
-if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") or not fireproximityprompt then
+if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno")) or not fireproximityprompt then
 	local function hb(n)
 		for i = 1, (n or 1) do
 			RunService.Heartbeat:Wait()
@@ -2477,8 +2506,33 @@ NAmanage.LoadESPSettings = function()
 		if ok and raw then
 			local ok2, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
 			if ok2 and type(cfg)=="table" then
-				for k,v in pairs(d) do
-					if cfg[k]~=nil then d[k]=cfg[k] end
+				for key, defaultValue in pairs(d) do
+					local stored = cfg[key]
+					if stored ~= nil then
+						local kind = typeof(defaultValue)
+						if kind == "number" then
+							local numeric = tonumber(stored)
+							if numeric then
+								d[key] = numeric
+							end
+						elseif kind == "boolean" then
+							local valueType = typeof(stored)
+							if valueType == "boolean" then
+								d[key] = stored
+							elseif valueType == "number" then
+								d[key] = stored ~= 0
+							elseif valueType == "string" then
+								local lowered = stored:lower()
+								if lowered == "true" or lowered == "1" then
+									d[key] = true
+								elseif lowered == "false" or lowered == "0" then
+									d[key] = false
+								end
+							end
+						else
+							d[key] = stored
+						end
+					end
 				end
 			end
 		end
@@ -3801,64 +3855,78 @@ end
 function MouseButtonFix(button, clickCallback)
 	local holdThreshold = 0.45
 	local moveThreshold = 18
-	local tracking = false
-	local mouseDownTime = 0
-	local movedDistance = 0
-	local lastPosition = nil
+	local activeInput = nil
+	local downTick = 0
+	local startPos = nil
+	local moved = false
 
-	local function reset()
-		tracking = false
-		movedDistance = 0
-		lastPosition = nil
+	local function toVector2(pos)
+		if typeof(pos) == 'Vector2' then
+			return pos
+		elseif typeof(pos) == 'Vector3' then
+			return Vector2.new(pos.X, pos.Y)
+		end
+		return nil
 	end
 
-	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
-		tracking = true
-		mouseDownTime = tick()
-		movedDistance = 0
-		lastPosition = nil
+	local function reset()
+		activeInput = nil
+		startPos = nil
+		moved = false
+		downTick = 0
+	end
+
+	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
+		if input.UserInputState ~= Enum.UserInputState.Begin then return end
+		local t = input.UserInputType
+		if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+		activeInput = input
+		downTick = tick()
+		moved = false
+		startPos = toVector2(input.Position)
 	end))
 
-	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
-		if not tracking then
-			reset()
-			return
+	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
+		if not activeInput or input ~= activeInput then return end
+		if input.UserInputType == Enum.UserInputType.Touch then
+			local pos = toVector2(input.Position)
+			if pos and startPos then
+				moved = moved or (pos - startPos).Magnitude > moveThreshold
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Delta
+			if delta then
+				moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThreshold
+			elseif startPos then
+				local current = UserInputService:GetMouseLocation()
+				if current then
+					moved = moved or (current - startPos).Magnitude > moveThreshold
+				end
+			end
 		end
-		local elapsed = tick() - mouseDownTime
-		local allowClick = (elapsed < holdThreshold) and (movedDistance < moveThreshold)
+	end))
+
+	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
+		if not activeInput or input ~= activeInput then return end
+		local allow = (tick() - downTick) <= holdThreshold and not moved
 		reset()
-		if allowClick then
+		if allow then
 			pcall(clickCallback)
 		end
 	end))
 
-	NAlib.connect(button.Name.."_leave", button.MouseLeave:Connect(function()
-		reset()
+	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
+		if activeInput then
+			moved = true
+		end
 	end))
 
-	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
-		if not tracking then
-			return
-		end
-		if input.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = input.Delta
-			if delta then
-				movedDistance = movedDistance + math.abs(delta.X) + math.abs(delta.Y)
-			else
-				movedDistance = moveThreshold
-			end
-		elseif input.UserInputType == Enum.UserInputType.Touch and input.UserInputState == Enum.UserInputState.Change then
-			local pos = input.Position
-			if typeof(pos) == "Vector3" then
-				pos = Vector2.new(pos.X, pos.Y)
-			end
-			if lastPosition then
-				movedDistance = movedDistance + (pos - lastPosition).Magnitude
-			end
-			lastPosition = pos
-		end
+	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
+		if activeInput then return end
+		pcall(clickCallback)
 	end))
 end
+
 
 --[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
@@ -30950,6 +31018,7 @@ NAmanage.scheduleLoader('Plugins', function()
 	return NAmanage.LoadPlugins()
 end, { retries = 4, delay = 0.5, retryOnFalse = true })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
+NAmanage.LoadESPSettings()
 NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
@@ -32101,7 +32170,9 @@ if FileSupport and CoreGui then
 			end
 		end)
 		if previousTab and previousTab ~= TAB_INTERFACE then
-			NAgui.setTab(previousTab)
+			if NAgui.getActiveTab() == TAB_INTERFACE then
+				NAgui.setTab(previousTab)
+			end
 		end
 	end)
 end
@@ -32169,8 +32240,14 @@ end)]]
 
 NAgui.setTab(TAB_ALL)
 
---[[
-print(
+SpawnCall(function()
+	Wait()
+	if TabManager and TabManager.current ~= TAB_ALL then
+		NAgui.setTab(TAB_ALL)
+	end
+end)
+
+--[[print(
 	
 ███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░███████╗░██████╗░██████╗
 ████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔════╝██╔════╝██╔════╝
@@ -32185,5 +32262,4 @@ print(
 ██╔══██║██║░░██║██║╚██╔╝██║██║██║╚████║
 ██║░░██║██████╔╝██║░╚═╝░██║██║██║░╚███║
 ╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
-)
-]]
+)]]
