@@ -176,18 +176,58 @@ local IsOnPC=(function()
 	return false
 end)()
 
-if identifyexecutor():lower()=="solara" then
+local execName = ""
+do
+	local ok, result = pcall(function()
+		return identifyexecutor and identifyexecutor()
+	end)
+	if ok and type(result) == "string" then
+		execName = result:lower()
+	end
+end
+
+if execName:find("solara", 1, true) then
 	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
 		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
 
-		local function normalizePath(path)
+		local function buildPathVariants(path)
 			if type(path) ~= "string" then
-				return path
+				return { path }
 			end
 			if path:match("^[%w_]+://") then
-				return path
+				return { path }
 			end
-			return path:gsub("/", "\\")
+
+			local variants = {}
+			local seen = {}
+
+			local function addVariant(value)
+				if type(value) == "string" and value ~= "" and not seen[value] then
+					seen[value] = true
+					Insert(variants, value)
+				end
+			end
+
+			local function addNormalized(value)
+				if type(value) ~= "string" or value == "" then
+					return
+				end
+				addVariant(value)
+				addVariant(value:gsub("/", "\\"))
+				addVariant(value:gsub("\\", "/"))
+			end
+
+			addNormalized(path)
+			local trimmed = path:gsub("^%.[/\\]+", "")
+			if trimmed ~= path then
+				addNormalized(trimmed)
+			end
+
+			if #variants == 0 then
+				addVariant(path)
+			end
+
+			return variants
 		end
 
 		local function wrapWithFallback(fn, returnsBool)
@@ -206,27 +246,20 @@ if identifyexecutor():lower()=="solara" then
 					error(result)
 				end
 
-				if path:match("^[%w_]+://") then
-					return fn(path, ...)
-				end
-
-				local ok, result = pcall(fn, path, ...)
-				if ok then
-					return result
-				end
-
-				local altPath = normalizePath(path)
-				if altPath ~= path then
-					ok, result = pcall(fn, altPath, ...)
+				local variants = buildPathVariants(path)
+				local lastErr
+				for _, candidate in ipairs(variants) do
+					local ok, result = pcall(fn, candidate, ...)
 					if ok then
 						return result
 					end
+					lastErr = result
 				end
 
 				if returnsBool then
 					return false
 				end
-				error(result)
+				error(lastErr or ("failed to access " .. tostring(path)))
 			end
 		end
 
@@ -3767,78 +3800,62 @@ end
 
 function MouseButtonFix(button, clickCallback)
 	local holdThreshold = 0.45
-	local moveThreshold = 8
-	local tracked = false
-	local activeInput = nil
-	local startPosition = Vector2.new(0, 0)
-	local startTick = 0
-	local moved = false
-	local result = nil
-
-	local function toVector2(pos)
-		local kind = typeof(pos)
-		if kind == "Vector2" then
-			return pos
-		elseif kind == "Vector3" then
-			return Vector2.new(pos.X, pos.Y)
-		end
-		return Vector2.new(0, 0)
-	end
-
-	local function evaluate()
-		if not tracked or startTick == 0 then
-			result = nil
-			return
-		end
-		local elapsed = tick() - startTick
-		result = (elapsed < holdThreshold) and not moved
-	end
+	local moveThreshold = 18
+	local tracking = false
+	local mouseDownTime = 0
+	local movedDistance = 0
+	local lastPosition = nil
 
 	local function reset()
-		tracked = false
-		activeInput = nil
-		startPosition = Vector2.new(0, 0)
-		startTick = 0
-		moved = false
-		result = nil
+		tracking = false
+		movedDistance = 0
+		lastPosition = nil
 	end
 
-	NAlib.connect(button.Name.."_begin", button.InputBegan:Connect(function(input)
-		if input.UserInputState ~= Enum.UserInputState.Begin then return end
-		local inputType = input.UserInputType
-		if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
-			tracked = true
-			activeInput = input
-			startPosition = toVector2(input.Position)
-			startTick = tick()
-			moved = false
-			result = nil
-		end
+	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
+		tracking = true
+		mouseDownTime = tick()
+		movedDistance = 0
+		lastPosition = nil
 	end))
 
-	NAlib.connect(button.Name.."_change", button.InputChanged:Connect(function(input)
-		if not tracked or input ~= activeInput then return end
-		local current = toVector2(input.Position)
-		if (current - startPosition).Magnitude > moveThreshold then
-			moved = true
+	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
+		if not tracking then
+			reset()
+			return
 		end
-	end))
-
-	NAlib.connect(button.Name.."_end", button.InputEnded:Connect(function(input)
-		if not tracked or input ~= activeInput then return end
-		evaluate()
-	end))
-
-	return NAlib.connect(button.Name.."_activated", button.Activated:Connect(function()
-		if result == nil and tracked then
-			evaluate()
-		end
-		local allow = result
+		local elapsed = tick() - mouseDownTime
+		local allowClick = (elapsed < holdThreshold) and (movedDistance < moveThreshold)
 		reset()
-		if allow == nil then
-			clickCallback()
-		elseif allow then
-			clickCallback()
+		if allowClick then
+			pcall(clickCallback)
+		end
+	end))
+
+	NAlib.connect(button.Name.."_leave", button.MouseLeave:Connect(function()
+		reset()
+	end))
+
+	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
+		if not tracking then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Delta
+			if delta then
+				movedDistance = movedDistance + math.abs(delta.X) + math.abs(delta.Y)
+			else
+				movedDistance = moveThreshold
+			end
+		elseif input.UserInputType == Enum.UserInputType.Touch and input.UserInputState == Enum.UserInputState.Change then
+			local pos = input.Position
+			if typeof(pos) == "Vector3" then
+				pos = Vector2.new(pos.X, pos.Y)
+			end
+			if lastPosition then
+				movedDistance = movedDistance + (pos - lastPosition).Magnitude
+			end
+			lastPosition = pos
 		end
 	end))
 end
