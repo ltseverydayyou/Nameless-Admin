@@ -3832,9 +3832,9 @@ FindInTable = function(tbl,val)
 	return false
 end
 
+
 function MouseButtonFix(button, clickCallback)
-	local holdThresholdMouse = 0.85
-	local holdThresholdTouch = 0.45
+	local MouseThreshold = 0.45
 	local moveThresholdMouse = 18
 	local moveThresholdTouch = 35
 	local activeInput = nil
@@ -3843,6 +3843,8 @@ function MouseButtonFix(button, clickCallback)
 	local moved = false
 	local lastActivationTick = 0
 	local activationDebounce = 0.1
+	local suppressActivated = false
+
 	local function toVector2(pos)
 		if typeof(pos) == 'Vector2' then
 			return pos
@@ -3851,22 +3853,28 @@ function MouseButtonFix(button, clickCallback)
 		end
 		return nil
 	end
+
 	local function reset()
 		activeInput = nil
 		startPos = nil
 		moved = false
 		downTick = 0
+		suppressActivated = false
 	end
-	local function finalize(isTouch)
+
+	local function finalize()
 		local now = tick()
-		local holdLimit = isTouch and holdThresholdTouch or holdThresholdMouse
+		local holdLimit = MouseThreshold
 		local allow = downTick > 0 and (now - downTick) <= holdLimit and not moved
 		reset()
 		lastActivationTick = now
+		suppressActivated = allow
 		if allow then
 			pcall(clickCallback)
 		end
+		return allow
 	end
+
 	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
 		if input.UserInputState ~= Enum.UserInputState.Begin then return end
 		local t = input.UserInputType
@@ -3878,7 +3886,9 @@ function MouseButtonFix(button, clickCallback)
 		if not startPos and t == Enum.UserInputType.MouseButton1 then
 			startPos = UserInputService:GetMouseLocation()
 		end
+		suppressActivated = false
 	end))
+
 	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
 		if not activeInput then return end
 		if input == activeInput then
@@ -3910,41 +3920,60 @@ function MouseButtonFix(button, clickCallback)
 			end
 		end
 	end))
+
 	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
 		if not activeInput or input ~= activeInput then return end
 		if input.UserInputState == Enum.UserInputState.Cancel then
 			reset()
 			return
 		end
-		finalize(input.UserInputType == Enum.UserInputType.Touch)
+		finalize()
 	end))
+
 	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
 		if activeInput then
 			moved = true
 		end
 	end))
+
 	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
 		local now = tick()
+		if suppressActivated then
+			suppressActivated = false
+			return
+		end
 		if now - lastActivationTick <= activationDebounce then
 			return
 		end
 		if activeInput then
-			finalize(activeInput.UserInputType == Enum.UserInputType.Touch)
+			finalize()
 			return
 		end
 		lastActivationTick = now
 		pcall(clickCallback)
 	end))
+
 	if IsOnMobile then
 		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
 			local now = tick()
-			if now - lastActivationTick > activationDebounce then
+			if activeInput then
+				finalize()
+			elseif suppressActivated then
+				return
+			elseif now - lastActivationTick > activationDebounce then
+				suppressActivated = true
 				lastActivationTick = now
 				pcall(clickCallback)
+				Delay(activationDebounce, function()
+					if suppressActivated and (tick() - lastActivationTick) >= activationDebounce then
+						suppressActivated = false
+					end
+				end)
 			end
 		end))
 	end
 end
+
 
 --[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
@@ -25387,19 +25416,25 @@ NAmanage._ensureL=function()
 			NAlib.disconnect("time_day")
 			NAlib.disconnect("time_night")
 		end
-		st.disableNF = function()
-			if st.nf and st.nf.enabled then
-				st.nf.enabled = false
-				if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
-					if st.safeSet then
-						if st.nf.baselineFogEnd~=nil then st.safeSet(Lighting,"FogEnd",st.nf.baselineFogEnd) end
-						if st.safeGet(Lighting,"FogStart")~=nil and st.nf.baselineFogStart~=nil then st.safeSet(Lighting,"FogStart",st.nf.baselineFogStart) end
-					end
+		st.disableNF = function(force)
+			local nf = st.nf
+			if not nf then return end
+			if not force and nf.sticky then return end
+			local wasEnabled = nf.enabled
+			if wasEnabled then
+				nf.enabled = false
+			end
+			if force then nf.sticky = false end
+			if not wasEnabled then return end
+			if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
+				if st.safeSet then
+					if nf.baselineFogEnd~=nil then st.safeSet(Lighting,"FogEnd",nf.baselineFogEnd) end
+					if st.safeGet(Lighting,"FogStart")~=nil and nf.baselineFogStart~=nil then st.safeSet(Lighting,"FogStart",nf.baselineFogStart) end
 				end
-				for inst,saved in pairs(st.nf.cache or {}) do
-					if inst and inst.Parent and saved then
-						for p,v in pairs(saved) do st.safeSet(inst,p,v) end
-					end
+			end
+			for inst,saved in pairs(nf.cache or {}) do
+				if inst and inst.Parent and saved then
+					for p,v in pairs(saved) do st.safeSet(inst,p,v) end
 				end
 			end
 		end
@@ -25421,16 +25456,19 @@ NAmanage._ensureL=function()
 				st.disableTimeLoops()
 				st.disableNF()
 				st.disableNB()
+				if st.disableNM then st.disableNM() end
 			elseif mode=="day" then
 				st.disableFB()
 				st.disableNB()
+				if st.disableNM then st.disableNM() end
 			elseif mode=="night" then
 				st.disableTimeLoops()
 				st.disableFB()
-				st.disableNF()
+				if st.disableNM then st.disableNM() end
 			elseif mode=="nf" then
 				st.disableFB()
 				st.disableNB()
+				if st.disableNM then st.disableNM() end
 			end
 		end
 	end
@@ -25789,8 +25827,8 @@ end)
 cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopnf,nofog,nf)","See clearly forever!"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
-	st.cancelFor("nf")
-	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache=setmetatable({},{__mode="k"})}
+	if st.disableNM then st.disableNM() end
+	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache=setmetatable({},{__mode="k"}),sticky=false}
 	local nf = st.nf
 	local function cacheOnce(inst, props)
 		if nf.cache[inst] then return end
@@ -25829,6 +25867,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopn
 			end) end)
 	end
 	nf.enabled = true
+	nf.sticky = true
 	nf.baselineFogEnd = st.safeGet(Lighting,"FogEnd") or nf.baselineFogEnd
 	nf.baselineFogStart = st.safeGet(Lighting,"FogStart") or nf.baselineFogStart
 	st.safeSet(Lighting,"FogEnd",786543)
@@ -25840,6 +25879,7 @@ cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog (unln
 	if not Lighting then return end
 	local st = getgenv()._LState
 	if not st or not st.nf then return end
+	st.nf.sticky = false
 	st.nf.enabled = false
 	if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
 		if st.safeSet then
@@ -25894,7 +25934,7 @@ cmd.add({"nightmare","nm"},{"nightmare (nm)","Make it dark and spooky"},function
 				st.disableTimeLoops()
 				if st.disableNB then st.disableNB() end
 				st.disableFB()
-				st.disableNF()
+				st.disableNF(true)
 				st.disableNM()
 			end
 		end
