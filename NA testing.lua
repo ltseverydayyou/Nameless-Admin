@@ -3985,6 +3985,11 @@ function MouseButtonFix(button, clickCallback)
 				suppressActivated = true
 				lastActivationTick = now
 				pcall(clickCallback)
+				Delay(activationDebounce, function()
+					if suppressActivated and (tick() - lastActivationTick) >= activationDebounce then
+						suppressActivated = false
+					end
+				end)
 			end
 		end))
 	end
