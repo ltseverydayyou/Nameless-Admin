@@ -3853,8 +3853,8 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(button, clickCallback)
-	local holdThresholdMouse = 0.45
-	local holdThresholdTouch = 0.85
+	local holdThresholdMouse = 0.85
+	local holdThresholdTouch = 0.45
 	local moveThresholdMouse = 18
 	local moveThresholdTouch = 35
 	local activeInput = nil

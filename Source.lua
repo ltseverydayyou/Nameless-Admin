@@ -135,21 +135,110 @@ local StarterGui = SafeGetService("StarterGui");
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
-if identifyexecutor():lower()=="solara" then
+local IsOnMobile=(function()
+	local platform=UserInputService:GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+	end
+	return false
+end)()
+local IsOnPC=(function()
+	local platform=UserInputService:GetPlatform()
+	if platform==Enum.Platform.Windows or platform==Enum.Platform.OSX or platform==Enum.Platform.Linux or platform==Enum.Platform.SteamOS or platform==Enum.Platform.UWP or platform==Enum.Platform.DOS or platform==Enum.Platform.BeOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return UserInputService.KeyboardEnabled or UserInputService.MouseEnabled
+	end
+	return false
+end)()
+
+local originalIO = {}
+
+originalIO.captureIO=function(name)
+	local fn = rawget(_G, name)
+	if type(fn) == "function" then
+		originalIO[name] = fn
+	end
+end
+
+if not originalIO.__captured then
+	originalIO.__captured = true
+	originalIO.captureIO('readfile')
+	originalIO.captureIO('writefile')
+	originalIO.captureIO('appendfile')
+	originalIO.captureIO('listfiles')
+	originalIO.captureIO('makefolder')
+	originalIO.captureIO('delfile')
+	originalIO.captureIO('isfile')
+	originalIO.captureIO('isfolder')
+end
+
+originalIO.pathVariants=function(path)
+	if type(path) ~= "string" then
+		return { path }
+	end
+	if path:match('^[%w_]+://') then
+		return { path }
+	end
+	local variants, seen = {}, {}
+	local function add(value)
+		if type(value) == "string" and value ~= "" and not seen[value] then
+			seen[value] = true
+			Insert(variants, value)
+		end
+	end
+	add(path)
+	add(path:gsub('\\+', '\\'))
+	add(path:gsub('//+', '/'))
+	add(path:gsub('/', '\\'))
+	add(path:gsub('\\', '/'))
+	local trimmed = path:gsub('^%.[/\]+', '')
+	if trimmed ~= path then
+		add(trimmed)
+		add(trimmed:gsub('/', '\\'))
+		add(trimmed:gsub('\\', '/'))
+	end
+	return variants
+end
+
+originalIO.resolveWithListfiles=function(target)
+	local lf = originalIO.listfiles
+	if type(lf) ~= "function" then
+		return nil
+	end
+	local dir, filename = target:match('^(.*)[/\\]([^/\\]+)$')
+	if not dir or filename == '' then
+		return nil
+	end
+	local dirVariants = originalIO.pathVariants(dir)
+	local results = {}
+	local lowered = filename:lower()
+	for _, candidateDir in ipairs(dirVariants) do
+		local ok, entries = pcall(lf, candidateDir)
+		if ok and type(entries) == "table" then
+			for _, entry in ipairs(entries) do
+				local name = entry:match('([^/\\]+)$')
+				if name and name:lower() == lowered then
+					Insert(results, entry)
+				end
+			end
+		end
+	end
+	if #results > 0 then
+		return results
+	end
+	return nil
+end
+
+if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") then
 	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
 		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
 
-		local function normalizePath(path)
-			if type(path) ~= "string" then
-				return path
-			end
-			if path:match("^[%w_]+://") then
-				return path
-			end
-			return path:gsub("/", "\\")
-		end
-
-		local function wrapWithFallback(fn, returnsBool)
+		local function wrapWithFallback(fn, returnsBool, allowListResolve)
 			if type(fn) ~= "function" then
 				return nil
 			end
@@ -165,61 +254,55 @@ if identifyexecutor():lower()=="solara" then
 					error(result)
 				end
 
-				if path:match("^[%w_]+://") then
-					return fn(path, ...)
-				end
-
-				local ok, result = pcall(fn, path, ...)
-				if ok then
-					return result
-				end
-
-				local altPath = normalizePath(path)
-				if altPath ~= path then
-					ok, result = pcall(fn, altPath, ...)
+				for _, candidate in ipairs(originalIO.pathVariants(path)) do
+					local ok, result = pcall(fn, candidate, ...)
 					if ok then
 						return result
+					end
+				end
+
+				if allowListResolve then
+					local resolved = originalIO.resolveWithListfiles(path)
+					if resolved then
+						for _, candidate in ipairs(resolved) do
+							local ok, result = pcall(fn, candidate, ...)
+							if ok then
+								return result
+							end
+						end
 					end
 				end
 
 				if returnsBool then
 					return false
 				end
-				error(result)
+				error(("failed to access %s"):format(path))
 			end
 		end
 
-		if type(readfile) == "function" then
-			local original = readfile
-			readfile = wrapWithFallback(original, false)
+		if originalIO.readfile then
+			readfile = wrapWithFallback(originalIO.readfile, false, true)
 		end
-		if type(writefile) == "function" then
-			local original = writefile
-			writefile = wrapWithFallback(original, false)
+		if originalIO.writefile then
+			writefile = wrapWithFallback(originalIO.writefile, false, true)
 		end
-		if type(appendfile) == "function" then
-			local original = appendfile
-			appendfile = wrapWithFallback(original, false)
+		if originalIO.appendfile then
+			appendfile = wrapWithFallback(originalIO.appendfile, false, true)
 		end
-		if type(listfiles) == "function" then
-			local original = listfiles
-			listfiles = wrapWithFallback(original, false)
+		if originalIO.listfiles then
+			listfiles = wrapWithFallback(originalIO.listfiles, false, false)
 		end
-		if type(makefolder) == "function" then
-			local original = makefolder
-			makefolder = wrapWithFallback(original, false)
+		if originalIO.makefolder then
+			makefolder = wrapWithFallback(originalIO.makefolder, false, true)
 		end
-		if type(delfile) == "function" then
-			local original = delfile
-			delfile = wrapWithFallback(original, false)
+		if originalIO.delfile then
+			delfile = wrapWithFallback(originalIO.delfile, false, true)
 		end
-		if type(isfile) == "function" then
-			local original = isfile
-			isfile = wrapWithFallback(original, true)
+		if originalIO.isfile then
+			isfile = wrapWithFallback(originalIO.isfile, true, true)
 		end
-		if type(isfolder) == "function" then
-			local original = isfolder
-			isfolder = wrapWithFallback(original, true)
+		if originalIO.isfolder then
+			isfolder = wrapWithFallback(originalIO.isfolder, true, true)
 		end
 	end
 end
@@ -1659,7 +1742,7 @@ function getSeasonEmoji()
 	return ''
 end
 
-if (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") or not fireproximityprompt then
+if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno")) or not fireproximityprompt then
 	local function hb(n)
 		for i = 1, (n or 1) do
 			RunService.Heartbeat:Wait()
@@ -2403,8 +2486,33 @@ NAmanage.LoadESPSettings = function()
 		if ok and raw then
 			local ok2, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
 			if ok2 and type(cfg)=="table" then
-				for k,v in pairs(d) do
-					if cfg[k]~=nil then d[k]=cfg[k] end
+				for key, defaultValue in pairs(d) do
+					local stored = cfg[key]
+					if stored ~= nil then
+						local kind = typeof(defaultValue)
+						if kind == "number" then
+							local numeric = tonumber(stored)
+							if numeric then
+								d[key] = numeric
+							end
+						elseif kind == "boolean" then
+							local valueType = typeof(stored)
+							if valueType == "boolean" then
+								d[key] = stored
+							elseif valueType == "number" then
+								d[key] = stored ~= 0
+							elseif valueType == "string" then
+								local lowered = stored:lower()
+								if lowered == "true" or lowered == "1" then
+									d[key] = true
+								elseif lowered == "false" or lowered == "0" then
+									d[key] = false
+								end
+							end
+						else
+							d[key] = stored
+						end
+					end
 				end
 			end
 		end
@@ -2759,8 +2867,6 @@ end)
 --[[ VARIABLES ]]--
 
 local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
-local IsOnMobile=false--Discover({Enum.Platform.IOS,Enum.Platform.Android},UserInputService:GetPlatform());
-local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platform.Linux,Enum.Platform.SteamOS,Enum.Platform.OSX,Enum.Platform.Chromecast,Enum.Platform.WebOS},UserInputService:GetPlatform());
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
@@ -2792,14 +2898,6 @@ NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
 if NAStuff._ctrlLockPersist == nil then NAStuff._ctrlLockPersist = false end
 NAStuff._ctrlLockList = NAStuff._ctrlLockList or {}
 NAStuff._ctrlLockSet  = NAStuff._ctrlLockSet  or {}
-
-if UserInputService.TouchEnabled then
-	IsOnMobile=true
-end
-
-if UserInputService.KeyboardEnabled then
-	IsOnPC=true
-end
 
 --[[ Some more variables ]]--
 
@@ -3735,26 +3833,117 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(button, clickCallback)
-	local isHolding = false
-	local holdThreshold = 0.45
-	local mouseDownTime = 0
-
-	NAlib.connect(button.Name.."_down", button.MouseButton1Down:Connect(function()
-		isHolding = false
-		mouseDownTime = tick()
-	end))
-
-	NAlib.connect(button.Name.."_up", button.MouseButton1Up:Connect(function()
-		if tick() - mouseDownTime < holdThreshold and not isHolding then
-			clickCallback()
+	local holdThresholdMouse = 0.85
+	local holdThresholdTouch = 0.45
+	local moveThresholdMouse = 18
+	local moveThresholdTouch = 35
+	local activeInput = nil
+	local downTick = 0
+	local startPos = nil
+	local moved = false
+	local lastActivationTick = 0
+	local activationDebounce = 0.1
+	local function toVector2(pos)
+		if typeof(pos) == 'Vector2' then
+			return pos
+		elseif typeof(pos) == 'Vector3' then
+			return Vector2.new(pos.X, pos.Y)
+		end
+		return nil
+	end
+	local function reset()
+		activeInput = nil
+		startPos = nil
+		moved = false
+		downTick = 0
+	end
+	local function finalize(isTouch)
+		local now = tick()
+		local holdLimit = isTouch and holdThresholdTouch or holdThresholdMouse
+		local allow = downTick > 0 and (now - downTick) <= holdLimit and not moved
+		reset()
+		lastActivationTick = now
+		if allow then
+			pcall(clickCallback)
+		end
+	end
+	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
+		if input.UserInputState ~= Enum.UserInputState.Begin then return end
+		local t = input.UserInputType
+		if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
+		activeInput = input
+		downTick = tick()
+		moved = false
+		startPos = toVector2(input.Position)
+		if not startPos and t == Enum.UserInputType.MouseButton1 then
+			startPos = UserInputService:GetMouseLocation()
 		end
 	end))
-
-	NAlib.connect(button.Name.."_move", UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
+		if not activeInput then return end
+		if input == activeInput then
+			if input.UserInputType == Enum.UserInputType.Touch then
+				local pos = toVector2(input.Position)
+				if pos then
+					if not startPos then
+						startPos = pos
+					end
+					if startPos then
+						moved = moved or (pos - startPos).Magnitude > moveThresholdTouch
+					end
+				end
+			elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local delta = input.Delta
+				if delta then
+					moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
+				elseif startPos then
+					local current = UserInputService:GetMouseLocation()
+					if current then
+						moved = moved or (current - startPos).Magnitude > moveThresholdMouse
+					end
+				end
+			end
+		elseif input.UserInputType == Enum.UserInputType.MouseMovement and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
+			local delta = input.Delta
+			if delta then
+				moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
+			end
 		end
 	end))
+	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
+		if not activeInput or input ~= activeInput then return end
+		if input.UserInputState == Enum.UserInputState.Cancel then
+			reset()
+			return
+		end
+		finalize(input.UserInputType == Enum.UserInputType.Touch)
+	end))
+	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
+		if activeInput then
+			moved = true
+		end
+	end))
+	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
+		local now = tick()
+		if now - lastActivationTick <= activationDebounce then
+			return
+		end
+		if activeInput then
+			finalize(activeInput.UserInputType == Enum.UserInputType.Touch)
+			return
+		end
+		lastActivationTick = now
+		pcall(clickCallback)
+	end))
+	if UserInputService.TouchEnabled then
+		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
+			local now = tick()
+			if now - lastActivationTick > activationDebounce then
+				lastActivationTick = now
+				pcall(clickCallback)
+			end
+		end))
+	end
 end
 
 --[[ FUNCTION TO GET A PLAYER ]]--
@@ -30847,6 +31036,7 @@ NAmanage.scheduleLoader('Plugins', function()
 	return NAmanage.LoadPlugins()
 end, { retries = 4, delay = 0.5, retryOnFalse = true })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
+NAmanage.LoadESPSettings()
 NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
@@ -31998,7 +32188,9 @@ if FileSupport and CoreGui then
 			end
 		end)
 		if previousTab and previousTab ~= TAB_INTERFACE then
-			NAgui.setTab(previousTab)
+			if NAgui.getActiveTab() == TAB_INTERFACE then
+				NAgui.setTab(previousTab)
+			end
 		end
 	end)
 end
@@ -32066,8 +32258,14 @@ end)]]
 
 NAgui.setTab(TAB_ALL)
 
---[[
-print(
+SpawnCall(function()
+	Wait()
+	if TabManager and TabManager.current ~= TAB_ALL then
+		NAgui.setTab(TAB_ALL)
+	end
+end)
+
+--[[print(
 	
 ███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░███████╗░██████╗░██████╗
 ████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔════╝██╔════╝██╔════╝
@@ -32082,5 +32280,4 @@ print(
 ██╔══██║██║░░██║██║╚██╔╝██║██║██║╚████║
 ██║░░██║██████╔╝██║░╚═╝░██║██║██║░╚███║
 ╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
-)
-]]
+)]]
