@@ -33,6 +33,17 @@ local uis = Svc("UserInputService")
 local gsv = Svc("GuiService")
 local txtsvc = Svc("TextService")
 
+local IsOnMobile=(function()
+	local platform=uis:GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return uis.TouchEnabled and not (uis.KeyboardEnabled or uis.MouseEnabled)
+	end
+	return false
+end)()
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "NotepadX"
 ProtectGui(gui)
@@ -120,8 +131,8 @@ local function mkBtn(txt, col, par, h)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, 10)
     c.Parent = b
-    b.MouseEnter:Connect(function() if not uis.TouchEnabled then ts:Create(b, TweenInfo.new(0.12), {BackgroundTransparency = 0}):Play() end end)
-    b.MouseLeave:Connect(function() if not uis.TouchEnabled then ts:Create(b, TweenInfo.new(0.12), {BackgroundTransparency = 0.16}):Play() end end)
+    b.MouseEnter:Connect(function() if not IsOnMobile then ts:Create(b, TweenInfo.new(0.12), {BackgroundTransparency = 0}):Play() end end)
+    b.MouseLeave:Connect(function() if not IsOnMobile then ts:Create(b, TweenInfo.new(0.12), {BackgroundTransparency = 0.16}):Play() end end)
     return b
 end
 

@@ -3935,7 +3935,7 @@ function MouseButtonFix(button, clickCallback)
 		lastActivationTick = now
 		pcall(clickCallback)
 	end))
-	if UserInputService.TouchEnabled then
+	if IsOnMobile then
 		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
 			local now = tick()
 			if now - lastActivationTick > activationDebounce then

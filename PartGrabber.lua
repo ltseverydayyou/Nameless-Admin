@@ -56,6 +56,17 @@ local gsv = Svc("GuiService")
 local plrs = Svc("Players")
 local lp = plrs.LocalPlayer
 
+local IsOnMobile=(function()
+	local platform=uis:GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return uis.TouchEnabled and not (uis.KeyboardEnabled or uis.MouseEnabled)
+	end
+	return false
+end)()
+
 local _conns = {}
 local function track(c) if c then table.insert(_conns, c) end return c end
 local function discAll() for i=#_conns,1,-1 do local c=_conns[i] if c and c.Disconnect then pcall(function() c:Disconnect() end) end _conns[i]=nil end end
@@ -523,8 +534,8 @@ local function hideRen()
 end
 
 local function baseSize()
-    local bw = uis.TouchEnabled and 360 or 420
-    local bh = minimized and 56 or (uis.TouchEnabled and 300 or 300)
+    local bw = IsOnMobile and 360 or 420
+    local bh = minimized and 56 or (IsOnMobile and 300 or 300)
     return bw, bh
 end
 
@@ -558,7 +569,7 @@ local function applyScale()
     local uy = math.max(0, vp.Y - inset.Y*2)
     local bw, bh = baseSize()
     local sc = math.min(ux/(bw+24), uy/(bh+60))
-    sc = math.clamp(sc, uis.TouchEnabled and 0.45 or 0.6, 1)
+    sc = math.clamp(sc, IsOnMobile and 0.45 or 0.6, 1)
     uiScale.Scale = sc
     win.Size = UDim2.new(0,bw,0,bh)
 end

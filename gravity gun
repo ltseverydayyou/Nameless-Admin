@@ -19,6 +19,18 @@ local function ClonedService(name)
 	local Reference = (cloneref) or function(reference) return reference end
 	return Reference(Service(game, name));
 end
+
+local IsOnMobile=(function()
+	local platform=ClonedService("UserInputService"):GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return ClonedService("UserInputService").TouchEnabled and not (ClonedService("UserInputService").KeyboardEnabled or ClonedService("UserInputService").MouseEnabled)
+	end
+	return false
+end)()
+
 cors = {}
 mas = Instance.new("Model",ClonedService("Lighting"))
 Tool0 = Instance.new("Tool")
@@ -303,7 +315,7 @@ table.insert(cors,sandbox(LocalScript4,function()
 		mouse.Icon = "rbxassetid:// 2184939409"
 
 		-- Bind TouchMoved event if on mobile. Otherwise connect to renderstepped
-		if userInputService.TouchEnabled then
+		if IsOnMobile then
 			connection = userInputService.TouchMoved:connect(mobileFrame)
 		else
 			connection = render:connect(pcFrame)
