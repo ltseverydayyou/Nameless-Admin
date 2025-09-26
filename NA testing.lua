@@ -155,6 +155,27 @@ local StarterGui = SafeGetService("StarterGui");
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
+local IsOnMobile=(function()
+	local platform=UserInputService:GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+	end
+	return false
+end)()
+local IsOnPC=(function()
+	local platform=UserInputService:GetPlatform()
+	if platform==Enum.Platform.Windows or platform==Enum.Platform.OSX or platform==Enum.Platform.Linux or platform==Enum.Platform.SteamOS or platform==Enum.Platform.UWP or platform==Enum.Platform.DOS or platform==Enum.Platform.BeOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return UserInputService.KeyboardEnabled or UserInputService.MouseEnabled
+	end
+	return false
+end)()
+
 if identifyexecutor():lower()=="solara" then
 	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
 		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
@@ -2779,8 +2800,6 @@ end)
 --[[ VARIABLES ]]--
 
 local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
-local IsOnMobile=false--Discover({Enum.Platform.IOS,Enum.Platform.Android},UserInputService:GetPlatform());
-local IsOnPC=false--Discover({Enum.Platform.Windows,Enum.Platform.UWP,Enum.Platform.Linux,Enum.Platform.SteamOS,Enum.Platform.OSX,Enum.Platform.Chromecast,Enum.Platform.WebOS},UserInputService:GetPlatform());
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
@@ -2812,14 +2831,6 @@ NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
 if NAStuff._ctrlLockPersist == nil then NAStuff._ctrlLockPersist = false end
 NAStuff._ctrlLockList = NAStuff._ctrlLockList or {}
 NAStuff._ctrlLockSet  = NAStuff._ctrlLockSet  or {}
-
-if UserInputService.TouchEnabled then
-	IsOnMobile=true
-end
-
-if UserInputService.KeyboardEnabled then
-	IsOnPC=true
-end
 
 --[[ Some more variables ]]--
 
