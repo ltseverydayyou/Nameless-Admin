@@ -31794,6 +31794,118 @@ NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	NAmanage.NASettingsSet("topbarVisible", v)
 end)
 
+if FileSupport and CoreGui then
+	local PT = {
+		path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
+		default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
+		cg      = CoreGui,
+		images  = {}
+	}
+
+	if FileSupport and not isfile(PT.path) then
+		writefile(PT.path, HttpService:JSONEncode(PT.default))
+	end
+
+	local raw, tbl
+	if FileSupport and isfile(PT.path) then
+		local ok; ok, raw = pcall(readfile, PT.path)
+		if ok then
+			local ok2; ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
+			if not (ok2 and type(tbl)=="table") then tbl = nil end
+		end
+	end
+
+	PT.data = tbl or PT.default
+
+	NAmanage.plex_remove = function(o)
+		local g = o:FindFirstChildOfClass("UIGradient")
+		if g then g:Destroy() end
+	end
+
+	NAmanage.plex_apply = function(o)
+		NAmanage.plex_remove(o)
+		if PT.data.enabled then
+			local seq = ColorSequence.new{
+				ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
+				ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
+			}
+			local ug = InstanceNew("UIGradient", o)
+			ug.Color, ug.Rotation = seq, 45
+			ug.Transparency = NumberSequence.new{
+				NumberSequenceKeypoint.new(0,   0, 0),
+				NumberSequenceKeypoint.new(0.5, 0, 0),
+				NumberSequenceKeypoint.new(1,   0, 0),
+			}
+		end
+	end
+
+	NAmanage.plex_add = function(o)
+		if not PT.images[o] and (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+			local id = NAlib.isProperty(o, "Image")
+				or NAlib.isProperty(o, "Texture")
+				or NAlib.isProperty(o, "TextureId")
+			if type(id)=="string" and id:match("img_set_%dx_%d+%.png$") then
+				PT.images[o] = true
+				NAmanage.plex_apply(o)
+			end
+		end
+	end
+
+	NAmanage.plex_applyAll = function()
+		for o in pairs(PT.images) do
+			NAmanage.plex_apply(o)
+		end
+	end
+
+	for _, o in ipairs(PT.cg:GetDescendants()) do
+		NAmanage.plex_add(o)
+	end
+
+	if PT.data.enabled then
+		NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
+	end
+
+	NAgui.addSection("Plexity Theme")
+	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
+		PT.data.enabled = v
+		NAlib.disconnect("PlexyDesc")
+		if v then
+			NAmanage.plex_applyAll()
+			NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
+		else
+			for o in pairs(PT.images) do
+				NAmanage.plex_remove(o)
+			end
+		end
+		if FileSupport then
+			writefile(PT.path, HttpService:JSONEncode(PT.data))
+		end
+	end)
+
+	NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
+		local h, s, v = c:ToHSV()
+		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
+		NAmanage.plex_applyAll()
+		if FileSupport then
+			writefile(PT.path, HttpService:JSONEncode(PT.data))
+		end
+	end)
+
+	NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
+		local h, s, v = c:ToHSV()
+		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
+		NAmanage.plex_applyAll()
+		if FileSupport then
+			writefile(PT.path, HttpService:JSONEncode(PT.data))
+		end
+	end)
+	if previousTab and previousTab ~= TAB_INTERFACE then
+		if NAgui.getActiveTab() == TAB_INTERFACE then
+			NAgui.setTab(previousTab)
+		end
+	end
+end
+
 if FileSupport then
 	NAgui.addTab(TAB_LOGGING, { order = 5 })
 	NAgui.setTab(TAB_LOGGING)
@@ -32097,123 +32209,6 @@ NAgui.addButton("Remove Light", function()
 		settingsLight.LIGHTER = nil
 	end
 end)
-
-if FileSupport and CoreGui then
-	SpawnCall(function()
-		local previousTab = NAgui.getActiveTab()
-		NAgui.setTab(TAB_INTERFACE)
-
-		local PT = {
-			path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
-			default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
-			cg      = CoreGui,
-			images  = {}
-		}
-
-		if FileSupport and not isfile(PT.path) then
-			writefile(PT.path, HttpService:JSONEncode(PT.default))
-		end
-
-		local raw, tbl
-		if FileSupport and isfile(PT.path) then
-			local ok; ok, raw = pcall(readfile, PT.path)
-			if ok then
-				local ok2; ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-				if not (ok2 and type(tbl)=="table") then tbl = nil end
-			end
-		end
-
-		PT.data = tbl or PT.default
-
-		NAmanage.plex_remove = function(o)
-			local g = o:FindFirstChildOfClass("UIGradient")
-			if g then g:Destroy() end
-		end
-
-		NAmanage.plex_apply = function(o)
-			NAmanage.plex_remove(o)
-			if PT.data.enabled then
-				local seq = ColorSequence.new{
-					ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
-					ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
-				}
-				local ug = InstanceNew("UIGradient", o)
-				ug.Color, ug.Rotation = seq, 45
-				ug.Transparency = NumberSequence.new{
-					NumberSequenceKeypoint.new(0,   0, 0),
-					NumberSequenceKeypoint.new(0.5, 0, 0),
-					NumberSequenceKeypoint.new(1,   0, 0),
-				}
-			end
-		end
-
-		NAmanage.plex_add = function(o)
-			if not PT.images[o] and (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
-				local id = NAlib.isProperty(o, "Image")
-					or NAlib.isProperty(o, "Texture")
-					or NAlib.isProperty(o, "TextureId")
-				if type(id)=="string" and id:match("img_set_%dx_%d+%.png$") then
-					PT.images[o] = true
-					NAmanage.plex_apply(o)
-				end
-			end
-		end
-
-		NAmanage.plex_applyAll = function()
-			for o in pairs(PT.images) do
-				NAmanage.plex_apply(o)
-			end
-		end
-
-		for _, o in ipairs(PT.cg:GetDescendants()) do
-			NAmanage.plex_add(o)
-		end
-
-		if PT.data.enabled then
-			NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
-		end
-
-		NAgui.addSection("Plexity Theme")
-		NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
-			PT.data.enabled = v
-			NAlib.disconnect("PlexyDesc")
-			if v then
-				NAmanage.plex_applyAll()
-				NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
-			else
-				for o in pairs(PT.images) do
-					NAmanage.plex_remove(o)
-				end
-			end
-			if FileSupport then
-				writefile(PT.path, HttpService:JSONEncode(PT.data))
-			end
-		end)
-
-		NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
-			local h, s, v = c:ToHSV()
-			PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
-			NAmanage.plex_applyAll()
-			if FileSupport then
-				writefile(PT.path, HttpService:JSONEncode(PT.data))
-			end
-		end)
-
-		NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
-			local h, s, v = c:ToHSV()
-			PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
-			NAmanage.plex_applyAll()
-			if FileSupport then
-				writefile(PT.path, HttpService:JSONEncode(PT.data))
-			end
-		end)
-		if previousTab and previousTab ~= TAB_INTERFACE then
-			if NAgui.getActiveTab() == TAB_INTERFACE then
-				NAgui.setTab(previousTab)
-			end
-		end
-	end)
-end
 
 
 NAgui.setTab(TAB_CHAT)
