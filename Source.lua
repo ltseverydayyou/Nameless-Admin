@@ -315,6 +315,7 @@ local NAStuff = {
 	nuhuhNotifs = true;
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
+	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
 	BlockedRemotes = {};
@@ -416,6 +417,17 @@ local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local cmd={}
 local NAmanage={}
+NAmanage.resolveTweenDuration=function(scale)
+	local base = tonumber(NAStuff.tweenSpeed) or 1
+	if base <= 0 then
+		base = 1
+	end
+	scale = tonumber(scale) or 1
+	if scale <= 0 then
+		scale = 1
+	end
+	return math.max(0.05, base * scale)
+end
 NAmanage._loaderStatus = NAmanage._loaderStatus or {}
 
 local function loaderWarn(label, detail)
@@ -2120,6 +2132,16 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		tweenSpeed = {
+			default = 1;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue or numberValue <= 0 then
+					return 1
+				end
+				return numberValue
+			end;
+		};
 		queueOnTeleport = {
 			pathKey = "NAQOTPATH";
 			default = false;
@@ -2554,6 +2576,10 @@ if FileSupport then
 	NAUISavedScale = NAmanage.NASettingsGet("uiScale")
 	NAQoTEnabled = NAmanage.NASettingsGet("queueOnTeleport")
 	NAStuff.nuhuhNotifs = NAmanage.NASettingsGet("notifsToggle")
+	local savedTweenSpeed = NAmanage.NASettingsGet("tweenSpeed")
+	if type(savedTweenSpeed) == "number" and savedTweenSpeed > 0 then
+		NAStuff.tweenSpeed = savedTweenSpeed
+	end
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAUISTROKER = InitUIStroke()
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
@@ -5673,10 +5699,14 @@ end
 NAmanage.loadAliases = function()
 	local aliasMap = NAmanage.readAliasFile()
 	for alias, original in pairs(aliasMap) do
-		if cmds.Commands[original:lower()] then
-			local command = cmds.Commands[original:lower()]
-			cmds.Aliases[alias:lower()] = {command[1], command[2], command[3]}
-			cmds.NASAVEDALIASES[alias:lower()] = true
+		if type(alias) == "string" and type(original) == "string" then
+			local aliasLower = alias:lower()
+			local originalLower = original:lower()
+			local command = cmds.Commands[originalLower]
+			if command then
+				cmds.Aliases[aliasLower] = {command[1], command[2], command[3]}
+				cmds.NASAVEDALIASES[aliasLower] = originalLower
+			end
 		end
 	end
 end
@@ -6831,7 +6861,7 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 
 	local command = cmds.Commands[original]
 	cmds.Aliases[alias] = {command[1], command[2], command[3]}
-	cmds.NASAVEDALIASES[alias] = true
+	cmds.NASAVEDALIASES[alias] = original
 
 	if FileSupport then
 		local aliasMap = NAmanage.readAliasFile()
@@ -6840,28 +6870,45 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 	end
 
 	DoNotif("Alias '"..alias.."' has been added for command '"..original.."'", 2)
+	if not FileSupport then
+		DebugNotif("Alias stored for this session only (no file support detected).")
+	end
 end, true)
 
 cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, function()
-	local aliasMap = FileSupport and NAmanage.readAliasFile() or {}
+	local combined = {}
 
-	if next(aliasMap) == nil then
+	if FileSupport then
+		for alias, original in pairs(NAmanage.readAliasFile()) do
+			if type(alias) == "string" and type(original) == "string" then
+				combined[alias:lower()] = original:lower()
+			end
+		end
+	end
+
+	for alias, original in pairs(cmds.NASAVEDALIASES) do
+		if type(alias) == "string" and type(original) == "string" then
+			combined[alias:lower()] = original:lower()
+		end
+	end
+
+	if next(combined) == nil then
 		DoNotif("No saved aliases to remove", 2)
 		return
 	end
 
 	local buttons = {}
-
-	for alias, original in pairs(aliasMap) do
+	for alias, original in pairs(combined) do
 		Insert(buttons, {
 			Text = 'Alias: '..alias.." | Command: "..original,
 			Callback = function()
 				cmds.Aliases[alias] = nil
-				aliasMap[alias] = nil
+				cmds.NASAVEDALIASES[alias] = nil
+				combined[alias] = nil
 				if FileSupport then
-					writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(aliasMap))
+					writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(combined))
 				end
-				DoNotif("Removed alias '"..alias.."'", 2)
+				DoNotif(("Removed alias '%s'"):format(alias), 2)
 			end
 		})
 	end
@@ -6874,14 +6921,23 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 end)
 
 cmd.add({"clearaliases"}, {"clearaliases", "Removes all aliases created using addalias."}, function()
-	if not FileSupport then return end
+	if next(cmds.NASAVEDALIASES) == nil then
+		DoNotif("No saved aliases to clear", 2)
+		return
+	end
 
 	for alias in pairs(cmds.NASAVEDALIASES) do
 		cmds.Aliases[alias] = nil
 	end
 
 	cmds.NASAVEDALIASES = {}
-	writefile(NAfiles.NAALIASPATH, "{}")
+
+	if FileSupport then
+		writefile(NAfiles.NAALIASPATH, "{}")
+	else
+		DebugNotif("Aliases cleared for this session (no file support).")
+	end
+
 	DoNotif("All aliases have been removed", 2)
 end)
 
@@ -7266,8 +7322,6 @@ cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(..
 end, true)
 
 cmd.add({"saveprefix"}, {"saveprefix <symbol>", "Saves the prefix to a file and applies it"}, function(...)
-	if not FileSupport then return end
-
 	local newPrefix = (...)
 	if not newPrefix or newPrefix == "" then
 		DoNotif("Please enter a valid prefix")
@@ -7283,6 +7337,9 @@ cmd.add({"saveprefix"}, {"saveprefix <symbol>", "Saves the prefix to a file and 
 		NAmanage.NASettingsSet("prefix", newPrefix)
 		opt.prefix = newPrefix
 		DoNotif("Prefix saved to: "..newPrefix)
+		if not FileSupport then
+			DebugNotif("Prefix will reset when Roblox closes (no file support detected).")
+		end
 	end
 end, true)
 
@@ -8234,6 +8291,43 @@ cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current posit
 	NAmanage.SaveWaypoints()
 	NAmanage.UpdateWaypointList()
 	DebugNotif(("Waypoint '%s' set."):format(name))
+end,true)
+
+cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name>", "Teleport to a saved waypoint"},function(name)
+	if not name or name == "" then
+		DoNotif("Usage: gotowaypoint <name>")
+		return
+	end
+	local entry = Waypoints[name]
+	if not entry then
+		DoNotif(("No such waypoint '%s'."):format(name))
+		return
+	end
+	local comps = entry.Components
+	if type(comps) ~= "table" then
+		DoNotif(("Waypoint '%s' is invalid."):format(name))
+		return
+	end
+	local ok, cf = pcall(function()
+		return CFrame.new(unpack(comps))
+	end)
+	if not ok or typeof(cf) ~= "CFrame" then
+		DoNotif(("Failed to load waypoint '%s'."):format(name))
+		return
+	end
+	local char = getChar()
+	if not char then
+		char = LocalPlayer and LocalPlayer.Character or nil
+		if not char and LocalPlayer then
+			char = LocalPlayer.CharacterAdded:Wait()
+		end
+	end
+	if not char then
+		DoNotif("Unable to get your character.")
+		return
+	end
+	char:PivotTo(cf)
+	DebugNotif(("Teleported to waypoint '%s'."):format(name))
 end,true)
 
 cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a saved waypoint"},function(name)
@@ -9413,13 +9507,37 @@ cmd.add({"usetools","uset"},{"usetools (uset)","Equips all tools, uses them, and
 	end
 end)
 
+cmd.add({"settweenspeed","tweenspeed"},{"tweenspeed [seconds]","Set how long tween teleport commands take"},function(seconds)
+	if not seconds or seconds == "" then
+		local current = tonumber(NAStuff.tweenSpeed) or 1
+		DoNotif(("Current tween speed: %.2f seconds."):format(current))
+		return
+	end
+	local value = tonumber(seconds)
+	if not value then
+		DoNotif("Please provide a numeric tween speed (seconds).")
+		return
+	end
+	if value <= 0 then
+		DoNotif("Tween speed must be greater than zero.")
+		return
+	end
+	value = math.max(0.05, value)
+	NAStuff.tweenSpeed = value
+	NAmanage.NASettingsSet("tweenSpeed", value)
+	DoNotif(("Tween speed set to %.2f seconds."):format(value))
+	if not FileSupport then
+		DebugNotif("Tween speed will reset when Roblox closes (no file support detected).")
+	end
+end)
+
 cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
 	local char = getChar()
 	for _,plr in ipairs(getPlr(name)) do
 		local cfVal = InstanceNew("CFrameValue")
 		cfVal.Value = char:GetPivot()
 		cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-		local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
+		local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
 		tw:Play()
 		tw.Completed:Connect(function() cfVal:Destroy() end)
 	end
@@ -11907,7 +12025,7 @@ NAmanage.makeClickTweenUI = function()
 				cfVal.Changed:Connect(function(newCF)
 					char:PivotTo(newCF)
 				end)
-				local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
+				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
 				tw:Play()
 				tw.Completed:Connect(function()
 					if cfVal then
@@ -11947,7 +12065,7 @@ NAmanage.makeClickTweenTools = function()
 				cfVal.Changed:Connect(function(newCF)
 					char:PivotTo(newCF)
 				end)
-				local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
+				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
 				tw:Play()
 				tw.Completed:Connect(function()
 					cfVal:Destroy()
@@ -23685,7 +23803,7 @@ cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweent
 		local camera=workspace.CurrentCamera
 		local cameraPosition=camera.CFrame.Position
 
-		local tween=TweenService:Create(character.PrimaryPart,TweenInfo.new(2),{
+		local tween=TweenService:Create(character.PrimaryPart,TweenInfo.new(NAmanage.resolveTweenDuration(2)),{
 			CFrame=CFrame.new(cameraPosition)
 		})
 
@@ -24026,10 +24144,11 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 				local cfVal = InstanceNew("CFrameValue")
 				cfVal.Value = char:GetPivot()
 				cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-				local tw = TweenService:Create(cfVal, TweenInfo.new(1,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value = obj.CFrame})
+				local duration = NAmanage.resolveTweenDuration()
+				local tw = TweenService:Create(cfVal, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value = obj.CFrame})
 				tw:Play()
 				tw.Completed:Connect(function() cfVal:Destroy() end)
-				Wait(0.1)
+				Wait(duration + 0.1)
 			end
 		end
 	end)
@@ -24074,10 +24193,19 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 		for _, part in pairs(workspace:GetDescendants()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
-				if getHum() then getHum().Sit = false Wait(0.1) end
-				local tween = TweenService:Create(getRoot(getChar()), TweenInfo.new(1, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
-				tween:Play()
-				Wait(1.1)
+				local hum = getHum()
+				if hum then
+					hum.Sit = false
+					Wait(0.1)
+				end
+				local char = getChar()
+				local root = char and getRoot(char)
+				if root then
+					local duration = NAmanage.resolveTweenDuration()
+					local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
+					tween:Play()
+					Wait(duration + 0.1)
+				end
 			end
 		end
 	end)
