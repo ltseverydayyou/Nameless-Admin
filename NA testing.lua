@@ -3853,13 +3853,16 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(button, clickCallback)
-	local holdThreshold = 0.45
-	local moveThreshold = 18
+	local holdThresholdMouse = 0.45
+	local holdThresholdTouch = 0.85
+	local moveThresholdMouse = 18
+	local moveThresholdTouch = 35
 	local activeInput = nil
 	local downTick = 0
 	local startPos = nil
 	local moved = false
-
+	local lastActivationTick = 0
+	local activationDebounce = 0.1
 	local function toVector2(pos)
 		if typeof(pos) == 'Vector2' then
 			return pos
@@ -3868,14 +3871,22 @@ function MouseButtonFix(button, clickCallback)
 		end
 		return nil
 	end
-
 	local function reset()
 		activeInput = nil
 		startPos = nil
 		moved = false
 		downTick = 0
 	end
-
+	local function finalize(isTouch)
+		local now = tick()
+		local holdLimit = isTouch and holdThresholdTouch or holdThresholdMouse
+		local allow = downTick > 0 and (now - downTick) <= holdLimit and not moved
+		reset()
+		lastActivationTick = now
+		if allow then
+			pcall(clickCallback)
+		end
+	end
 	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
 		if input.UserInputState ~= Enum.UserInputState.Begin then return end
 		local t = input.UserInputType
@@ -3884,49 +3895,76 @@ function MouseButtonFix(button, clickCallback)
 		downTick = tick()
 		moved = false
 		startPos = toVector2(input.Position)
+		if not startPos and t == Enum.UserInputType.MouseButton1 then
+			startPos = UserInputService:GetMouseLocation()
+		end
 	end))
-
 	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
-		if not activeInput or input ~= activeInput then return end
-		if input.UserInputType == Enum.UserInputType.Touch then
-			local pos = toVector2(input.Position)
-			if pos and startPos then
-				moved = moved or (pos - startPos).Magnitude > moveThreshold
-			end
-		elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseMovement then
-			local delta = input.Delta
-			if delta then
-				moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThreshold
-			elseif startPos then
-				local current = UserInputService:GetMouseLocation()
-				if current then
-					moved = moved or (current - startPos).Magnitude > moveThreshold
+		if not activeInput then return end
+		if input == activeInput then
+			if input.UserInputType == Enum.UserInputType.Touch then
+				local pos = toVector2(input.Position)
+				if pos then
+					if not startPos then
+						startPos = pos
+					end
+					if startPos then
+						moved = moved or (pos - startPos).Magnitude > moveThresholdTouch
+					end
+				end
+			elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+				local delta = input.Delta
+				if delta then
+					moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
+				elseif startPos then
+					local current = UserInputService:GetMouseLocation()
+					if current then
+						moved = moved or (current - startPos).Magnitude > moveThresholdMouse
+					end
 				end
 			end
+		elseif input.UserInputType == Enum.UserInputType.MouseMovement and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
+			local delta = input.Delta
+			if delta then
+				moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
+			end
 		end
 	end))
-
 	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
 		if not activeInput or input ~= activeInput then return end
-		local allow = (tick() - downTick) <= holdThreshold and not moved
-		reset()
-		if allow then
-			pcall(clickCallback)
+		if input.UserInputState == Enum.UserInputState.Cancel then
+			reset()
+			return
 		end
+		finalize(input.UserInputType == Enum.UserInputType.Touch)
 	end))
-
 	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
 		if activeInput then
 			moved = true
 		end
 	end))
-
 	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
-		if activeInput then return end
+		local now = tick()
+		if now - lastActivationTick <= activationDebounce then
+			return
+		end
+		if activeInput then
+			finalize(activeInput.UserInputType == Enum.UserInputType.Touch)
+			return
+		end
+		lastActivationTick = now
 		pcall(clickCallback)
 	end))
+	if UserInputService.TouchEnabled then
+		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
+			local now = tick()
+			if now - lastActivationTick > activationDebounce then
+				lastActivationTick = now
+				pcall(clickCallback)
+			end
+		end))
+	end
 end
-
 
 --[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
