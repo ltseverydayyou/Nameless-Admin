@@ -2391,7 +2391,7 @@ if FileSupport then
 	end
 
 	if not isfile(NAfiles.NAAUTOEXECPATH) then
-		writefile(NAfiles.NAAUTOEXECPATH, "[]")
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
 	end
 
 
@@ -5733,7 +5733,8 @@ end
 
 NAmanage.loadButtonIDS = function()
 	if not FileSupport then
-		return false
+		NAUserButtons = NAUserButtons or {}
+		return true
 	end
 
 	local path = NAfiles.NAUSERBUTTONSPATH
@@ -5773,90 +5774,104 @@ NAmanage.loadButtonIDS = function()
 	return true
 end
 
-NAmanage.loadAutoExec = function()
-	NAEXECDATA = {commands = {}, args = {}}
-
-	if not FileSupport then
-		return false
+NAmanage.AutoExecSave=function(data, context)
+	if not FileSupport then return true end
+	local ok, err = pcall(function()
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(data))
+	end)
+	if not ok then
+		if context == 'loader' then
+			loaderWarn('AutoExec', 'failed to update storage: '..tostring(err))
+		else
+			warn("[NA] AutoExec save failed: "..tostring(err))
+		end
 	end
+	return ok
+end
 
+NAmanage.loadAutoExec = function()
+	local currentData = NAEXECDATA or { commands = {}, args = {} }
 	local path = NAfiles.NAAUTOEXECPATH
 
+	if not FileSupport then
+		NAEXECDATA = currentData
+		return true
+	end
+
 	if not (isfile and isfile(path)) then
-		local ok, err = pcall(function()
+		local okCreate, createErr = pcall(function()
 			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
-		if not ok then
-			loaderWarn('AutoExec', 'failed to create storage: '..tostring(err))
+		if not okCreate then
+			loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
 			return false
 		end
 	end
 
 	local okRead, raw = pcall(readfile, path)
 	if not okRead or type(raw) ~= 'string' then
-		loaderWarn('AutoExec', 'failed to read storage')
+		loaderWarn('AutoExec', 'failed to read storage: '..tostring(raw))
 		return false
 	end
 
 	local okDecode, decoded = pcall(function()
 		return HttpService:JSONDecode(raw)
 	end)
-
 	if not okDecode or type(decoded) ~= 'table' then
-		local resetOk, resetErr = pcall(function()
-			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
-		end)
-		if not resetOk then
-			error('failed to reset autoexec storage: '..tostring(resetErr))
-		end
-		return true
+		loaderWarn('AutoExec', 'failed to decode storage; keeping previous data')
+		return false
 	end
 
 	if decoded.commands == nil and next(decoded) then
 		decoded = { commands = decoded, args = {} }
 	end
 
-	decoded.commands = decoded.commands or {}
-	decoded.args = decoded.args or {}
+	local sourceCommands = decoded.commands
+	if type(sourceCommands) ~= 'table' then
+		sourceCommands = {}
+	end
+
+	local sourceArgs = decoded.args
+	if type(sourceArgs) ~= 'table' then
+		sourceArgs = {}
+	end
 
 	local cleaned, cleanedArgs, seen = {}, {}, {}
 	local modified = false
 
-	for _, storedName in ipairs(decoded.commands) do
+	for _, storedName in ipairs(sourceCommands) do
 		local base = NAmanage.resolveCommandName(storedName)
-		if base and not NAStuff.AutoExecBlockedCommands[base] then
-			if not seen[base] then
-				seen[base] = true
-				cleaned[#cleaned+1] = base
-				local storedArgs = decoded.args[storedName] or decoded.args[base]
-				cleanedArgs[base] = storedArgs or ''
-				if base ~= storedName then
+		if base and NAStuff.AutoExecBlockedCommands[base] then
+			modified = true
+		else
+			local key = base or storedName
+			local storedArgs = sourceArgs[storedName] or (base and sourceArgs[base]) or ''
+
+			if not seen[key] then
+				seen[key] = true
+				cleaned[#cleaned+1] = key
+				cleanedArgs[key] = storedArgs
+				if base and base ~= storedName then
 					modified = true
 				end
+			else
+				modified = true
 			end
-		else
-			modified = true
 		end
 	end
-
-	if #cleaned ~= #decoded.commands then
+	if #cleaned ~= #sourceCommands then
 		modified = true
 	end
 
-	NAEXECDATA = { commands = cleaned, args = cleanedArgs }
+	local newData = { commands = cleaned, args = cleanedArgs }
 
 	if modified then
-		local okWrite, writeErr = pcall(function()
-			writefile(path, HttpService:JSONEncode(NAEXECDATA))
-		end)
-		if not okWrite then
-			loaderWarn('AutoExec', 'failed to update storage: '..tostring(writeErr))
-		end
+		NAmanage.AutoExecSave(newData, 'loader')
 	end
 
+	NAEXECDATA = newData
 	return true
 end
-
 
 NAmanage.LoadPlugins = function()
 	if not CustomFunctionSupport then
@@ -7096,8 +7111,8 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 		NAEXECDATA.args[commandName] = ""
 	end
 
-	if FileSupport then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+	if not NAmanage.AutoExecSave(NAEXECDATA) then
+		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 	end
 
 	DoNotif("Added to AutoExec: "..arg1.." "..(args[1] or ""), 2)
@@ -7113,23 +7128,23 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 	for i, cmdName in ipairs(NAEXECDATA.commands) do
 		local args = NAEXECDATA.args[cmdName]
 		local display = args and args ~= "" and (cmdName.." "..args) or cmdName
+		local index = i
 		Insert(options, {
 			Text = display,
 			Callback = function()
-				local removedCommand = table.remove(NAEXECDATA.commands, i)
-				NAEXECDATA.args[removedCommand] = nil
-
-				if FileSupport then
-					writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+				local removedCommand = table.remove(NAEXECDATA.commands, index)
+				if removedCommand then
+					NAEXECDATA.args[removedCommand] = nil
+					if not NAmanage.AutoExecSave(NAEXECDATA) then
+						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+					end
+					DoNotif("Removed AutoExec command: "..display, 2)
+				else
+					DoNotif("Unable to remove AutoExec command.", 2)
 				end
-
-				DoNotif("Removed AutoExec command: "..display, 2)
 			end
 		})
 	end
-
-	Window({
-		Title = "Remove AutoExec Command",
 		Description = "Select which AutoExec to remove:",
 		Buttons = options
 	})
@@ -7155,8 +7170,8 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 					table.clear(NAEXECDATA.commands)
 					table.clear(NAEXECDATA.args)
 
-					if FileSupport then
-						writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+					if not NAmanage.AutoExecSave(NAEXECDATA) then
+						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 					end
 
 					DoNotif("Cleared all AutoExec commands", 2)
@@ -31962,7 +31977,7 @@ NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	NAmanage.NASettingsSet("topbarVisible", v)
 end)
 
-if FileSupport and CoreGui then
+if CoreGui then
 	local PT = {
 		path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
@@ -31970,20 +31985,22 @@ if FileSupport and CoreGui then
 		images  = {}
 	}
 
-	if FileSupport and not isfile(PT.path) then
-		writefile(PT.path, HttpService:JSONEncode(PT.default))
-	end
+	local data = PT.default
+	if FileSupport then
+		if not isfile(PT.path) then
+			writefile(PT.path, HttpService:JSONEncode(PT.default))
+		end
 
-	local raw, tbl
-	if FileSupport and isfile(PT.path) then
-		local ok; ok, raw = pcall(readfile, PT.path)
-		if ok then
-			local ok2; ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-			if not (ok2 and type(tbl)=="table") then tbl = nil end
+		local okRead, raw = pcall(readfile, PT.path)
+		if okRead and type(raw) == "string" then
+			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			if okDecode and type(decoded) == "table" then
+				data = decoded
+			end
 		end
 	end
 
-	PT.data = tbl or PT.default
+	PT.data = data
 
 	NAmanage.plex_remove = function(o)
 		local g = o:FindFirstChildOfClass("UIGradient")
@@ -32074,34 +32091,43 @@ if FileSupport and CoreGui then
 	end
 end
 
-if FileSupport then
-	NAgui.addTab(TAB_LOGGING, { order = 5 })
-	NAgui.setTab(TAB_LOGGING)
 
-	NAgui.addSection("Join/Leave Logging")
 
-	NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
-		JoinLeaveConfig.JoinLog = v
+local joinLeaveWarned = false
+local function persistJoinLeaveConfig()
+	if FileSupport then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
-	end)
-
-	NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
-		JoinLeaveConfig.LeaveLog = v
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
-	end)
-
-	NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
-		JoinLeaveConfig.SaveLog = v
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
-	end)
+	elseif not joinLeaveWarned then
+		joinLeaveWarned = true
+		DebugNotif("Join/Leave settings will reset after this session (no file support detected).")
+	end
 end
+
+NAgui.addTab(TAB_LOGGING, { order = 5 })
+NAgui.setTab(TAB_LOGGING)
+
+NAgui.addSection("Join/Leave Logging")
+
+NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
+	JoinLeaveConfig.JoinLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
+	JoinLeaveConfig.LeaveLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
+	JoinLeaveConfig.SaveLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
+end)
 
 NAgui.addTab(TAB_ESP, { order = 4 })
 NAgui.setTab(TAB_ESP)
-
 
 NAgui.addSection("ESP Settings")
 
