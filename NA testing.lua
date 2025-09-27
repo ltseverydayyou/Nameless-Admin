@@ -7145,6 +7145,8 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 			end
 		})
 	end
+	Window({
+		Title = "Remove AutoExec Command",
 		Description = "Select which AutoExec to remove:",
 		Buttons = options
 	})
