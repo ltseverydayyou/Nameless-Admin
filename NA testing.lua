@@ -10668,12 +10668,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 		elseif v:IsA("ShirtGraphic") and not decalsEnabled then
 			v.Graphic = ""
 		elseif (v:IsA("Shirt") or v:IsA("Pants")) and not decalsEnabled then
-			NACaller(function() v[v.ClassName.."Template"] = "" end)
+			SpawnCall(function() v[v.ClassName.."Template"] = "" end)
 		end
 	end
 
-	NACaller(function() opt.hiddenprop(l,"Technology",Enum.Technology.Compatibility) end)
-	NACaller(function() opt.hiddenprop(t,"Decoration",false) end)
+	SpawnCall(function() opt.hiddenprop(l,"Technology",Enum.Technology.Compatibility) end)
+	SpawnCall(function() opt.hiddenprop(t,"Decoration",false) end)
 	t.WaterWaveSize = 0
 	t.WaterWaveSpeed = 0
 	t.WaterReflectance = 0
@@ -10681,7 +10681,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 	l.GlobalShadows = false
 	l.FogEnd = math.huge
 	l.Brightness = 0
-	NACaller(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+	SpawnCall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
 
 	for _,v in ipairs(w:GetDescendants()) do optimizeInstance(v) end
 	for _,e in ipairs(l:GetChildren()) do
