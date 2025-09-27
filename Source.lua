@@ -331,6 +331,18 @@ local NAStuff = {
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
 	nameESPPartLists = { exact = {}, partial = {} };
+	ESP_RenderMode = "BoxHandleAdornment";
+	ESP_LabelTextSize = 12;
+	ESP_LabelTextScaled = false;
+	ESP_ShowPartDistance = false;
+	ESP_LastExactPart = "";
+	ESP_LastPartialPart = "";
+	ESP_LastFolderName = "";
+	partESPColors = setmetatable({}, { __mode = "k" });
+	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
+	partESPGlassCount = setmetatable({}, { __mode = "k" });
+	partESPEntries = setmetatable({}, { __mode = "k" });
+	partESPVisualMap = setmetatable({}, { __mode = "k" });
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
@@ -2371,7 +2383,7 @@ if FileSupport then
 	end
 
 	if not isfile(NAfiles.NAAUTOEXECPATH) then
-		writefile(NAfiles.NAAUTOEXECPATH, "[]")
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
 	end
 
 
@@ -2499,6 +2511,10 @@ NAmanage.LoadESPSettings = function()
 		ESP_ShowName = true;
 		ESP_ShowHealth = true;
 		ESP_ShowDistance = true;
+		ESP_RenderMode = "BoxHandleAdornment";
+		ESP_LabelTextSize = 12;
+		ESP_LabelTextScaled = false;
+		ESP_ShowPartDistance = false;
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -2539,6 +2555,26 @@ NAmanage.LoadESPSettings = function()
 			end
 		end
 	end
+	local mode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
+	if type(mode) == "string" then
+		local lowered = string.lower(mode)
+		if lowered == "highlight" then
+			mode = "Highlight"
+		else
+			mode = "BoxHandleAdornment"
+		end
+	else
+		mode = "BoxHandleAdornment"
+	end
+	d.ESP_RenderMode = mode
+	local sz = tonumber(d.ESP_LabelTextSize) or 12
+	if sz < 8 then
+		sz = 8
+	elseif sz > 72 then
+		sz = 72
+	end
+	d.ESP_LabelTextSize = sz
+	d.ESP_LabelTextScaled = d.ESP_LabelTextScaled == true
 	NAStuff.ESP_Transparency = d.ESP_Transparency
 	NAStuff.ESP_BoxMaxDistance = d.ESP_BoxMaxDistance
 	NAStuff.ESP_LabelMaxDistance = d.ESP_LabelMaxDistance
@@ -2547,10 +2583,27 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_ShowName = d.ESP_ShowName
 	NAStuff.ESP_ShowHealth = d.ESP_ShowHealth
 	NAStuff.ESP_ShowDistance = d.ESP_ShowDistance
+	NAStuff.ESP_ShowPartDistance = d.ESP_ShowPartDistance
+	NAStuff.ESP_RenderMode = d.ESP_RenderMode
+	NAStuff.ESP_LabelTextSize = d.ESP_LabelTextSize
+	NAStuff.ESP_LabelTextScaled = d.ESP_LabelTextScaled
 end
 
 NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
+	local mode = "BoxHandleAdornment"
+	if type(NAStuff.ESP_RenderMode) == "string" then
+		local lowered = string.lower(NAStuff.ESP_RenderMode)
+		if lowered == "highlight" then
+			mode = "Highlight"
+		end
+	end
+	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
+	if sz < 8 then
+		sz = 8
+	elseif sz > 72 then
+		sz = 72
+	end
 	local d = {
 		ESP_Transparency = NAStuff.ESP_Transparency or 0.7;
 		ESP_BoxMaxDistance = NAStuff.ESP_BoxMaxDistance or 120;
@@ -2560,6 +2613,10 @@ NAmanage.SaveESPSettings = function()
 		ESP_ShowName = (NAStuff.ESP_ShowName ~= false);
 		ESP_ShowHealth = (NAStuff.ESP_ShowHealth ~= false);
 		ESP_ShowDistance = (NAStuff.ESP_ShowDistance ~= false);
+		ESP_ShowPartDistance = (NAStuff.ESP_ShowPartDistance == true);
+		ESP_RenderMode = mode;
+		ESP_LabelTextSize = sz;
+		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled;
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -4419,6 +4476,417 @@ local chamsEnabled=false
 espCONS = espCONS or {}
 
 
+local function espUsesHighlight()
+	local mode = NAStuff.ESP_RenderMode
+	if type(mode) == "string" then
+		return string.lower(mode) == "highlight"
+	end
+	return false
+end
+
+local function sanitizeTransparency(value)
+	local tr = tonumber(value) or 0.7
+	if tr < 0 then
+		tr = 0
+	elseif tr > 1 then
+		tr = 1
+	end
+	return tr
+end
+
+local function sanitizeLabelSize(value)
+	local sz = tonumber(value) or 12
+	if sz < 8 then
+		sz = 8
+	elseif sz > 72 then
+		sz = 72
+	end
+	sz = math.floor(sz + 0.5)
+	return sz
+end
+
+local function getInstanceWorldPosition(inst)
+	if not inst then return nil end
+	if inst:IsA("BasePart") then
+		return inst.Position
+	elseif inst:IsA("Model") then
+		local primary = inst.PrimaryPart
+		if primary then
+			return primary.Position
+		end
+		local okPivot, pivot = pcall(inst.GetPivot, inst)
+		if okPivot and pivot then
+			return pivot.Position
+		end
+		local okBox, cf = pcall(inst.GetBoundingBox, inst)
+		if okBox and cf then
+			return cf.Position
+		end
+	end
+	return nil
+end
+
+local function updateLabelBounds(label)
+	if not label then return end
+	local billboard = label.Parent
+	if not billboard or not billboard:IsA("BillboardGui") then return end
+	local text = label.Text
+	if text == "" then
+		text = label.Name or " "
+	end
+	local targetSize = sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
+	local success, bounds = pcall(TextService.GetTextSize, TextService, text, targetSize, label.Font, Vector2.new(1e4, 1e4))
+	local width = 150
+	local height = math.max(targetSize + 12, 30)
+	if success and bounds then
+		width = math.clamp(math.floor(bounds.X + 16), 80, 600)
+		height = math.clamp(math.floor(bounds.Y + 12), 24, 200)
+	end
+	local size = billboard.Size
+	if size.X.Offset ~= width or size.Y.Offset ~= height then
+		billboard.Size = UDim2.new(0, width, 0, height)
+	end
+end
+
+local function applyLabelStyle(label)
+	if not label then return end
+	label.AutomaticSize = Enum.AutomaticSize.None
+	label.TextScaled = NAStuff.ESP_LabelTextScaled
+	label.TextWrapped = false
+	label.ClipsDescendants = false
+	label.TextSize = sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
+	updateLabelBounds(label)
+end
+
+local function updateLabelForInstance(inst)
+	if not inst or not inst.Parent then return end
+	for _, child in ipairs(inst:GetChildren()) do
+		if child:IsA("BillboardGui") and Sub(Lower(child.Name),-6) == "_label" then
+			local lbl = child:FindFirstChildWhichIsA("TextLabel")
+			if lbl then
+				applyLabelStyle(lbl)
+			end
+		end
+	end
+end
+
+NAmanage.ESP_ApplyLabelStyles = function()
+	for _, data in pairs(espCONS) do
+		if data and data.textLabel then
+			applyLabelStyle(data.textLabel)
+		end
+		if data and data.billboard then
+			local lbl = data.billboard:FindFirstChildWhichIsA("TextLabel")
+			if lbl then
+				applyLabelStyle(lbl)
+			end
+		end
+	end
+	local extraLists = {
+		NAStuff.touchESPList,
+		NAStuff.proximityESPList,
+		NAStuff.clickESPList,
+		NAStuff.siteESPList,
+		NAStuff.vehicleSiteESPList,
+		NAStuff.unanchoredESPList,
+		NAStuff.collisiontrueESPList,
+		NAStuff.collisionfalseESPList,
+	}
+	for _, list in ipairs(extraLists) do
+		if type(list) == "table" then
+			for _, inst in ipairs(list) do
+				updateLabelForInstance(inst)
+			end
+		end
+	end
+	if type(NAStuff.folderESPMembers) == "table" then
+		for _, members in pairs(NAStuff.folderESPMembers) do
+			if type(members) == "table" then
+				for _, inst in ipairs(members) do
+					updateLabelForInstance(inst)
+				end
+			end
+		end
+	end
+	if type(NAStuff.nameESPPartLists) == "table" then
+		for _, members in pairs(NAStuff.nameESPPartLists) do
+			if type(members) == "table" then
+				for _, inst in ipairs(members) do
+					updateLabelForInstance(inst)
+				end
+			end
+		end
+	end
+	NAmanage.PartESP_UpdateTexts(true)
+end
+
+local function adjustHighlightMaterialFor(target, enable)
+	if not target then return end
+	local originals = NAStuff.partESPGlassOriginal
+	local counts = NAStuff.partESPGlassCount
+	local function handlePart(base)
+		if not base or not base:IsA("BasePart") then return end
+		local current = counts[base] or 0
+		if enable then
+			if current == 0 then
+				originals[base] = base.Material
+			end
+			counts[base] = current + 1
+			if base.Material ~= Enum.Material.Glass then
+				NAlib.setProperty(base, "Material", Enum.Material.Glass)
+			end
+		else
+			if current > 0 then
+				current -= 1
+				if current <= 0 then
+					counts[base] = nil
+					local original = originals[base]
+					if original then
+						NAlib.setProperty(base, "Material", original)
+						originals[base] = nil
+					end
+				else
+					counts[base] = current
+				end
+			end
+		end
+	end
+	if target:IsA("BasePart") then
+		handlePart(target)
+	elseif target:IsA("Model") then
+		for _, desc in ipairs(target:GetDescendants()) do
+			if desc:IsA("BasePart") then
+				handlePart(desc)
+			end
+		end
+	end
+end
+
+NAmanage.ESP_AdjustHighlightMaterial = function(target, enable)
+	adjustHighlightMaterialFor(target, enable)
+end
+
+NAStuff.partESPEntries = NAStuff.partESPEntries or setmetatable({}, { __mode = "k" })
+NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or setmetatable({}, { __mode = "k" })
+
+NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
+	if not entry or entry.removed then return end
+	local part = entry.part
+	if not part or not part.Parent then
+		NAmanage.PartESP_UnregisterEntry(entry)
+		return
+	end
+	local billboard = entry.billboard
+	local label = entry.label
+	if not billboard or not billboard.Parent then
+		NAmanage.PartESP_UnregisterEntry(entry)
+		return
+	end
+	if not label or label.Parent ~= billboard then
+		label = billboard:FindFirstChildWhichIsA("TextLabel")
+		entry.label = label
+	end
+	local baseName = entry.customName or part.Name or "Part"
+	local display = baseName
+	local showDistance = (NAStuff.ESP_ShowPartDistance == true)
+	local root = rootPart
+	if showDistance and not root then
+		local plr = Players.LocalPlayer
+		local char = plr and plr.Character
+		root = char and getRoot(char)
+	end
+	if showDistance and root then
+		local pos = getInstanceWorldPosition(part)
+		if pos then
+			local dist = math.floor((root.Position - pos).Magnitude + 0.5)
+			display = Format("%s | %d studs", baseName, dist)
+		end
+	end
+	if label then
+		if label.Text ~= display then
+			label.Text = display
+		end
+		applyLabelStyle(label)
+	end
+	local visual = entry.visual
+	local transparency = sanitizeTransparency(NAStuff.ESP_Transparency or entry.transparency)
+	if visual and visual.Parent then
+		if visual:IsA("Highlight") then
+			if visual.FillTransparency ~= transparency then
+				visual.FillTransparency = transparency
+			end
+			local fill = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
+			local outline = entry.darkColor or fill
+			if visual.FillColor ~= fill then
+				visual.FillColor = fill
+			end
+			if visual.OutlineColor ~= outline then
+				visual.OutlineColor = outline
+			end
+		elseif visual:IsA("BoxHandleAdornment") then
+			if entry.lightColor and visual.Color3 ~= entry.lightColor then
+				visual.Color3 = entry.lightColor
+			end
+			if visual.Transparency ~= transparency then
+				visual.Transparency = transparency
+			end
+			if part:IsA("BasePart") then
+				local desired = part.Size + Vector3.new(0.1,0.1,0.1)
+				if visual.Size ~= desired then
+					visual.Size = desired
+				end
+			end
+		end
+	end
+end
+
+NAmanage.PartESP_UpdateTexts = function(force)
+	local entries = NAStuff.partESPEntries
+	if not entries then
+		return
+	end
+	if not force then
+		local now = tick()
+		local nextUpdate = NAStuff.partESPLastUpdate or 0
+		if now < nextUpdate then
+			return
+		end
+		NAStuff.partESPLastUpdate = now + 0.2
+	else
+		NAStuff.partESPLastUpdate = tick() + 0.2
+	end
+	local rootPart = nil
+	if NAStuff.ESP_ShowPartDistance == true then
+		local plr = Players.LocalPlayer
+		local char = plr and plr.Character
+		rootPart = char and getRoot(char)
+	end
+	local hasEntry = false
+	for _, entry in pairs(entries) do
+		if entry and not entry.removed then
+			hasEntry = true
+			NAmanage.PartESP_UpdateEntry(entry, force, rootPart)
+		end
+	end
+	if not hasEntry then
+		NAmanage.PartESP_StopHeartbeat()
+	end
+end
+
+NAmanage.PartESP_StartHeartbeat = function()
+	if NAlib.isConnected("esp_part_update") then return end
+	NAStuff.partESPLastUpdate = 0
+	NAlib.connect("esp_part_update", RunService.Heartbeat:Connect(function()
+		NAmanage.PartESP_UpdateTexts(false)
+	end))
+end
+
+NAmanage.PartESP_StopHeartbeat = function()
+	local entries = NAStuff.partESPEntries
+	if entries and next(entries) then return end
+	NAlib.disconnect("esp_part_update")
+end
+
+NAmanage.PartESP_RegisterEntry = function(entry)
+	if not entry or not entry.billboard then return end
+	NAStuff.partESPEntries[entry.billboard] = entry
+	if entry.visual then
+		NAStuff.partESPVisualMap[entry.visual] = entry
+	end
+	if entry.useHighlight and entry.part then
+		NAmanage.ESP_AdjustHighlightMaterial(entry.part, true)
+	end
+	if entry.billboardCleanup then
+		entry.billboardCleanup:Disconnect()
+	end
+	if entry.visualCleanup then
+		entry.visualCleanup:Disconnect()
+	end
+	entry.billboardCleanup = entry.billboard.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAmanage.PartESP_UnregisterEntry(entry)
+		end
+	end)
+	if entry.visual then
+		entry.visualCleanup = entry.visual.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end
+		end)
+	end
+	NAmanage.PartESP_StartHeartbeat()
+	NAmanage.PartESP_UpdateEntry(entry, true)
+end
+
+NAmanage.PartESP_UnregisterEntry = function(entry)
+	if not entry or entry.removed then return end
+	entry.removed = true
+	if entry.billboardCleanup then
+		entry.billboardCleanup:Disconnect()
+		entry.billboardCleanup = nil
+	end
+	if entry.visualCleanup then
+		entry.visualCleanup:Disconnect()
+		entry.visualCleanup = nil
+	end
+	if entry.updateKey then
+		NAlib.disconnect(entry.updateKey)
+		entry.updateKey = nil
+	end
+	if entry.billboard and NAStuff.partESPEntries then
+		NAStuff.partESPEntries[entry.billboard] = nil
+	end
+	if entry.visual and NAStuff.partESPVisualMap then
+		NAStuff.partESPVisualMap[entry.visual] = nil
+	end
+	if entry.useHighlight and entry.part then
+		NAmanage.ESP_AdjustHighlightMaterial(entry.part, false)
+	end
+	NAmanage.PartESP_StopHeartbeat()
+end
+
+NAmanage.PartESP_RebuildVisuals = function()
+	local entries = NAStuff.partESPEntries
+	if not entries or not next(entries) then
+		return
+	end
+	local grouped = {}
+	for _, entry in pairs(entries) do
+		if entry and not entry.removed and entry.part and entry.part.Parent then
+			local bucket = grouped[entry.part]
+			if not bucket then
+				bucket = {}
+				grouped[entry.part] = bucket
+			end
+			bucket[#bucket+1] = {
+				color = entry.baseColor or Color3.new(1,1,1),
+				transparency = entry.transparency or 0.45,
+			}
+		end
+	end
+	for part, bucket in pairs(grouped) do
+		NAmanage.RemoveEspFromPart(part)
+		for _, info in ipairs(bucket) do
+			NAmanage.CreateBox(part, info.color, info.transparency)
+		end
+	end
+	NAmanage.PartESP_UpdateTexts(true)
+end
+
+NAmanage.ESP_RebuildVisuals = function()
+	for model, data in pairs(espCONS) do
+		if data then
+			local wasEnabled = data.boxEnabled
+			NAmanage.ESP_RemoveBoxes(model)
+			if wasEnabled then
+				NAmanage.ESP_AddBoxes(model)
+			end
+		end
+	end
+	NAmanage.PartESP_RebuildVisuals()
+	NAmanage.ESP_ApplyLabelStyles()
+end
+
 function round(num,numDecimalPlaces)
 	local mult=10^(numDecimalPlaces or 0)
 	return math.floor(num*mult+0.5) / mult
@@ -4497,10 +4965,10 @@ NAmanage.ESP_EnsureLabel = function(model)
 	label.Size = UDim2.new(1,0,1,0)
 	label.BackgroundTransparency = 1
 	label.Font = Enum.Font.GothamBold
-	label.TextSize = 12
 	label.TextStrokeTransparency = 0.5
 	label.Text = ""
 	label.Parent = billboard
+	applyLabelStyle(label)
 	data.billboard = billboard
 	data.textLabel = label
 end
@@ -4509,11 +4977,12 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	local data = espCONS[model]
 	if not data or not part or not part:IsA("BasePart") then return end
 	if data.boxTable[part] then return end
+	if espUsesHighlight() then return end
 	local box = InstanceNew("BoxHandleAdornment")
 	box.Adornee = part
 	box.AlwaysOnTop = true
 	box.ZIndex = 1
-	box.Transparency = NAStuff.ESP_Transparency or 0.7
+	box.Transparency = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 	box.Size = part.Size
 	box.Color3 = Color3.new(1,1,1)
 	box.Parent = part
@@ -4523,6 +4992,32 @@ end
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
+	if espUsesHighlight() then
+		local highlight = data.highlight
+		if highlight and not highlight.Parent then
+			highlight = nil
+		end
+		if not highlight then
+			local hl = InstanceNew("Highlight")
+			hl.Name = "NAESP_Highlight"
+			hl.Adornee = model
+			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			hl.FillColor = Color3.new(1,1,1)
+			hl.OutlineColor = Color3.new(1,1,1)
+			hl.FillTransparency = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+			hl.OutlineTransparency = 0
+			hl.Parent = model
+			data.highlight = hl
+			NAmanage.ESP_AdjustHighlightMaterial(model, true)
+		else
+			data.highlight = highlight
+		end
+		if data.highlight then
+			data.highlight.Enabled = true
+		end
+		data.boxEnabled = true
+		return
+	end
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			NAmanage.ESP_AddBoxForPart(model, part)
@@ -4537,6 +5032,11 @@ NAmanage.ESP_RemoveBoxes = function(model)
 	for part, box in pairs(data.boxTable) do
 		if box then box:Destroy() end
 		data.boxTable[part] = nil
+	end
+	if data.highlight then
+		NAmanage.ESP_AdjustHighlightMaterial(model, false)
+		data.highlight:Destroy()
+		data.highlight = nil
 	end
 	data.boxEnabled = false
 end
@@ -4605,21 +5105,46 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 
 	if data.boxEnabled then
-		for part, box in pairs(data.boxTable) do
-			if not part or not part.Parent then
-				if box then box:Destroy() end
-				data.boxTable[part] = nil
-			else
-				if box.Color3 ~= finalColor then box.Color3 = finalColor end
-				if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
-				local tr = NAStuff.ESP_Transparency or 0.7
-				if box.Transparency ~= tr then box.Transparency = tr end
+		if espUsesHighlight() then
+			if next(data.boxTable) ~= nil then
+				for part, box in pairs(data.boxTable) do
+					if box then box:Destroy() end
+					data.boxTable[part] = nil
+				end
 			end
-		end
-		if now % 0.5 < 0.05 then
-			for _, part in ipairs(model:GetDescendants()) do
-				if part:IsA("BasePart") and not data.boxTable[part] then
-					NAmanage.ESP_AddBoxForPart(model, part)
+			local highlight = data.highlight
+			if not highlight or not highlight.Parent then
+				data.highlight = nil
+				if wantBoxes then
+					NAmanage.ESP_AddBoxes(model)
+					highlight = data.highlight
+				end
+			end
+			if highlight then
+				local tr = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
+				if highlight.OutlineTransparency ~= 0 then highlight.OutlineTransparency = 0 end
+				local color = finalColor or Color3.new(1,1,1)
+				if highlight.FillColor ~= color then highlight.FillColor = color end
+				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
+			end
+		else
+			local tr = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+			for part, box in pairs(data.boxTable) do
+				if not part or not part.Parent then
+					if box then box:Destroy() end
+					data.boxTable[part] = nil
+				else
+					if box.Color3 ~= finalColor then box.Color3 = finalColor end
+					if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
+					if box.Transparency ~= tr then box.Transparency = tr end
+				end
+			end
+			if now % 0.5 < 0.05 then
+				for _, part in ipairs(model:GetDescendants()) do
+					if part:IsA("BasePart") and not data.boxTable[part] then
+						NAmanage.ESP_AddBoxForPart(model, part)
+					end
 				end
 			end
 		end
@@ -4646,6 +5171,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if #pieces > 0 and wantLabel then
 		NAmanage.ESP_EnsureLabel(model)
 		if data.textLabel then
+			applyLabelStyle(data.textLabel)
 			local txt = Concat(pieces, " | ")
 			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
 			local txtColor = finalColor or Color3.new(1,1,1)
@@ -4678,7 +5204,7 @@ NAmanage.ESP_Add = function(target, persistent)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 
-	espCONS[model] = { boxTable = {}, persistent = persistent, boxEnabled = false }
+	espCONS[model] = { boxTable = {}, persistent = persistent, boxEnabled = false, highlight = nil }
 	local key = NAmanage.ESP_Key(model)
 
 	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
@@ -5713,7 +6239,8 @@ end
 
 NAmanage.loadButtonIDS = function()
 	if not FileSupport then
-		return false
+		NAUserButtons = NAUserButtons or {}
+		return true
 	end
 
 	local path = NAfiles.NAUSERBUTTONSPATH
@@ -5753,90 +6280,104 @@ NAmanage.loadButtonIDS = function()
 	return true
 end
 
-NAmanage.loadAutoExec = function()
-	NAEXECDATA = {commands = {}, args = {}}
-
-	if not FileSupport then
-		return false
+NAmanage.AutoExecSave=function(data, context)
+	if not FileSupport then return true end
+	local ok, err = pcall(function()
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(data))
+	end)
+	if not ok then
+		if context == 'loader' then
+			loaderWarn('AutoExec', 'failed to update storage: '..tostring(err))
+		else
+			warn("[NA] AutoExec save failed: "..tostring(err))
+		end
 	end
+	return ok
+end
 
+NAmanage.loadAutoExec = function()
+	local currentData = NAEXECDATA or { commands = {}, args = {} }
 	local path = NAfiles.NAAUTOEXECPATH
 
+	if not FileSupport then
+		NAEXECDATA = currentData
+		return true
+	end
+
 	if not (isfile and isfile(path)) then
-		local ok, err = pcall(function()
+		local okCreate, createErr = pcall(function()
 			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
-		if not ok then
-			loaderWarn('AutoExec', 'failed to create storage: '..tostring(err))
+		if not okCreate then
+			loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
 			return false
 		end
 	end
 
 	local okRead, raw = pcall(readfile, path)
 	if not okRead or type(raw) ~= 'string' then
-		loaderWarn('AutoExec', 'failed to read storage')
+		loaderWarn('AutoExec', 'failed to read storage: '..tostring(raw))
 		return false
 	end
 
 	local okDecode, decoded = pcall(function()
 		return HttpService:JSONDecode(raw)
 	end)
-
 	if not okDecode or type(decoded) ~= 'table' then
-		local resetOk, resetErr = pcall(function()
-			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
-		end)
-		if not resetOk then
-			error('failed to reset autoexec storage: '..tostring(resetErr))
-		end
-		return true
+		loaderWarn('AutoExec', 'failed to decode storage; keeping previous data')
+		return false
 	end
 
 	if decoded.commands == nil and next(decoded) then
 		decoded = { commands = decoded, args = {} }
 	end
 
-	decoded.commands = decoded.commands or {}
-	decoded.args = decoded.args or {}
+	local sourceCommands = decoded.commands
+	if type(sourceCommands) ~= 'table' then
+		sourceCommands = {}
+	end
+
+	local sourceArgs = decoded.args
+	if type(sourceArgs) ~= 'table' then
+		sourceArgs = {}
+	end
 
 	local cleaned, cleanedArgs, seen = {}, {}, {}
 	local modified = false
 
-	for _, storedName in ipairs(decoded.commands) do
+	for _, storedName in ipairs(sourceCommands) do
 		local base = NAmanage.resolveCommandName(storedName)
-		if base and not NAStuff.AutoExecBlockedCommands[base] then
-			if not seen[base] then
-				seen[base] = true
-				cleaned[#cleaned+1] = base
-				local storedArgs = decoded.args[storedName] or decoded.args[base]
-				cleanedArgs[base] = storedArgs or ''
-				if base ~= storedName then
+		if base and NAStuff.AutoExecBlockedCommands[base] then
+			modified = true
+		else
+			local key = base or storedName
+			local storedArgs = sourceArgs[storedName] or (base and sourceArgs[base]) or ''
+
+			if not seen[key] then
+				seen[key] = true
+				cleaned[#cleaned+1] = key
+				cleanedArgs[key] = storedArgs
+				if base and base ~= storedName then
 					modified = true
 				end
+			else
+				modified = true
 			end
-		else
-			modified = true
 		end
 	end
-
-	if #cleaned ~= #decoded.commands then
+	if #cleaned ~= #sourceCommands then
 		modified = true
 	end
 
-	NAEXECDATA = { commands = cleaned, args = cleanedArgs }
+	local newData = { commands = cleaned, args = cleanedArgs }
 
 	if modified then
-		local okWrite, writeErr = pcall(function()
-			writefile(path, HttpService:JSONEncode(NAEXECDATA))
-		end)
-		if not okWrite then
-			loaderWarn('AutoExec', 'failed to update storage: '..tostring(writeErr))
-		end
+		NAmanage.AutoExecSave(newData, 'loader')
 	end
 
+	NAEXECDATA = newData
 	return true
 end
-
 
 NAmanage.LoadPlugins = function()
 	if not CustomFunctionSupport then
@@ -7076,8 +7617,8 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 		NAEXECDATA.args[commandName] = ""
 	end
 
-	if FileSupport then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+	if not NAmanage.AutoExecSave(NAEXECDATA) then
+		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 	end
 
 	DoNotif("Added to AutoExec: "..arg1.." "..(args[1] or ""), 2)
@@ -7093,21 +7634,23 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 	for i, cmdName in ipairs(NAEXECDATA.commands) do
 		local args = NAEXECDATA.args[cmdName]
 		local display = args and args ~= "" and (cmdName.." "..args) or cmdName
+		local index = i
 		Insert(options, {
 			Text = display,
 			Callback = function()
-				local removedCommand = table.remove(NAEXECDATA.commands, i)
-				NAEXECDATA.args[removedCommand] = nil
-
-				if FileSupport then
-					writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+				local removedCommand = table.remove(NAEXECDATA.commands, index)
+				if removedCommand then
+					NAEXECDATA.args[removedCommand] = nil
+					if not NAmanage.AutoExecSave(NAEXECDATA) then
+						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+					end
+					DoNotif("Removed AutoExec command: "..display, 2)
+				else
+					DoNotif("Unable to remove AutoExec command.", 2)
 				end
-
-				DoNotif("Removed AutoExec command: "..display, 2)
 			end
 		})
 	end
-
 	Window({
 		Title = "Remove AutoExec Command",
 		Description = "Select which AutoExec to remove:",
@@ -7135,8 +7678,8 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 					table.clear(NAEXECDATA.commands)
 					table.clear(NAEXECDATA.args)
 
-					if FileSupport then
-						writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(NAEXECDATA))
+					if not NAmanage.AutoExecSave(NAEXECDATA) then
+						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 					end
 
 					DoNotif("Cleared all AutoExec commands", 2)
@@ -24571,72 +25114,128 @@ cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter 
 end)
 
 NAmanage.CreateBox = function(part, color, transparency)
-	local c = color or Color3.new(1,1,1)
-	local h,s,v = Color3.toHSV(c)
+	local c = (typeof(color) == "Color3" and color) or Color3.new(1,1,1)
+	local entryTransparency = sanitizeTransparency(transparency or 0.45)
+	local h, s, v = Color3.toHSV(c)
 	local off = 0.35
-	local dC = Color3.fromHSV(h,s,math.clamp(v-off,0,1))
-	local lC = Color3.fromHSV(h,s,math.clamp(v+off,0,1))
-	local b = InstanceNew("BoxHandleAdornment", part)
-	b.Name = Lower(part.Name).."_peepee"
-	b.Adornee = part
-	b.AlwaysOnTop = true
-	b.ZIndex = 0
-	b.Transparency = transparency or 0.45
-	b.Color3 = lC
+	local darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
+	local lighter = Color3.fromHSV(h, s, math.clamp(v + off, 0, 1))
+	local useHighlight = espUsesHighlight()
+	local adornName = Lower(part.Name).."_peepee"
+	local visual
+	if useHighlight then
+		visual = InstanceNew("Highlight", part)
+		visual.Name = adornName
+		visual.Adornee = part
+		visual.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		visual.FillColor = lighter
+		visual.OutlineColor = darker
+		visual.FillTransparency = entryTransparency
+		visual.OutlineTransparency = 0
+		visual.Enabled = true
+	else
+		visual = InstanceNew("BoxHandleAdornment", part)
+		visual.Name = adornName
+		visual.Adornee = part
+		visual.AlwaysOnTop = true
+		visual.ZIndex = 0
+		visual.Transparency = entryTransparency
+		visual.Color3 = lighter
+	end
 	local bb = InstanceNew("BillboardGui", part)
 	bb.Name = Lower(part.Name).."_label"
 	bb.Adornee = part
-	bb.Size = UDim2.new(0,100,0,30)
-	bb.StudsOffset = Vector3.new(0,0.5,0)
+	bb.Size = UDim2.new(0, 100, 0, 30)
+	bb.StudsOffset = Vector3.new(0, 0.5, 0)
 	bb.AlwaysOnTop = true
 	bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	local tl = InstanceNew("TextLabel", bb)
-	tl.Size = UDim2.new(1,0,1,0)
+	tl.Size = UDim2.new(1, 0, 1, 0)
 	tl.BackgroundTransparency = 1
 	tl.Text = part.Name
 	tl.TextColor3 = Color3.new(1,1,1)
 	tl.Font = Enum.Font.SourceSansBold
-	tl.TextSize = 14
 	tl.TextStrokeTransparency = 0.5
 	tl.ZIndex = 1
+	applyLabelStyle(tl)
 	local gr = InstanceNew("UIGradient", tl)
-	gr.Color = ColorSequence.new(dC, lC)
+	gr.Color = ColorSequence.new(darker, lighter)
+
 	local function update()
-		if not b.Parent then return end
+		if not part or not part.Parent then return end
+		if not bb.Parent then return end
+		local sizeY = 2.5
 		if part:IsA("Model") then
-			local _,ms = part:GetBoundingBox()
-			b.Size = ms + Vector3.new(0.1,0.1,0.1)
-		else
-			b.Size = part.Size + Vector3.new(0.1,0.1,0.1)
+			local ok, _, ms = pcall(part.GetBoundingBox, part)
+			if ok and ms then
+				sizeY = ms.Y
+				if not useHighlight and visual and visual:IsA("BoxHandleAdornment") then
+					local newSize = ms + Vector3.new(0.1,0.1,0.1)
+					if visual.Size ~= newSize then
+						visual.Size = newSize
+					end
+				end
+			end
+		elseif part:IsA("BasePart") then
+			sizeY = part.Size.Y
+			if not useHighlight and visual and visual:IsA("BoxHandleAdornment") then
+				local newSize = part.Size + Vector3.new(0.1,0.1,0.1)
+				if visual.Size ~= newSize then
+					visual.Size = newSize
+				end
+			end
 		end
-		bb.StudsOffset = Vector3.new(0,b.Size.Y/2+0.2,0)
+		bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
 	end
+
 	update()
 	Defer(update)
-	local key = "esp_update_"..tostring(b)
+	local key = "esp_update_" .. tostring(visual)
 	if part:IsA("Model") then
 		NAlib.connect(key, part.DescendantAdded:Connect(update))
 		NAlib.connect(key, part.DescendantRemoving:Connect(update))
-	elseif NAlib.isProperty(part,"Size") then
+	elseif NAlib.isProperty(part, "Size") then
 		NAlib.connect(key, part:GetPropertyChangedSignal("Size"):Connect(update))
 	end
-	b:GetPropertyChangedSignal("Parent"):Connect(function()
-		if not b.Parent then
-			NAlib.disconnect(key)
-		end
-	end)
-	return b
+
+	local entry = {
+		part = part,
+		billboard = bb,
+		label = tl,
+		visual = visual,
+		baseColor = c,
+		lightColor = lighter,
+		darkColor = darker,
+		transparency = entryTransparency,
+		gradient = gr,
+		useHighlight = useHighlight,
+		updateKey = key,
+	}
+
+	NAmanage.PartESP_RegisterEntry(entry)
+
+	return visual
 end
 
+
 NAmanage.RemoveEspFromPart = function(part)
-	for _,child in ipairs(part:GetChildren()) do
-		if child:IsA("BoxHandleAdornment") and Sub(child.Name,-7) == "_peepee" then
+	if not part then return end
+	for _, child in ipairs(part:GetChildren()) do
+		if (child:IsA("BoxHandleAdornment") or child:IsA("Highlight")) and Sub(child.Name,-7) == "_peepee" then
 			NAlib.disconnect("esp_update_"..tostring(child))
+			local entry = NAStuff.partESPVisualMap and NAStuff.partESPVisualMap[child]
+			if entry then
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end
 			child:Destroy()
 		end
 	end
-	for _,child in ipairs(part:GetChildren()) do
+	for _, child in ipairs(part:GetChildren()) do
 		if child:IsA("BillboardGui") and Sub(Lower(child.Name),-6) == "_label" then
+			local entry = NAStuff.partESPEntries and NAStuff.partESPEntries[child]
+			if entry then
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end
 			child:Destroy()
 		end
 	end
@@ -31942,7 +32541,7 @@ NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	NAmanage.NASettingsSet("topbarVisible", v)
 end)
 
-if FileSupport and CoreGui then
+if CoreGui then
 	local PT = {
 		path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
@@ -31950,20 +32549,22 @@ if FileSupport and CoreGui then
 		images  = {}
 	}
 
-	if FileSupport and not isfile(PT.path) then
-		writefile(PT.path, HttpService:JSONEncode(PT.default))
-	end
+	local data = PT.default
+	if FileSupport then
+		if not isfile(PT.path) then
+			writefile(PT.path, HttpService:JSONEncode(PT.default))
+		end
 
-	local raw, tbl
-	if FileSupport and isfile(PT.path) then
-		local ok; ok, raw = pcall(readfile, PT.path)
-		if ok then
-			local ok2; ok2, tbl = pcall(HttpService.JSONDecode, HttpService, raw)
-			if not (ok2 and type(tbl)=="table") then tbl = nil end
+		local okRead, raw = pcall(readfile, PT.path)
+		if okRead and type(raw) == "string" then
+			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			if okDecode and type(decoded) == "table" then
+				data = decoded
+			end
 		end
 	end
 
-	PT.data = tbl or PT.default
+	PT.data = data
 
 	NAmanage.plex_remove = function(o)
 		local g = o:FindFirstChildOfClass("UIGradient")
@@ -32054,44 +32655,72 @@ if FileSupport and CoreGui then
 	end
 end
 
-if FileSupport then
-	NAgui.addTab(TAB_LOGGING, { order = 5 })
-	NAgui.setTab(TAB_LOGGING)
 
-	NAgui.addSection("Join/Leave Logging")
 
-	NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
-		JoinLeaveConfig.JoinLog = v
+local joinLeaveWarned = false
+local function persistJoinLeaveConfig()
+	if FileSupport then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
-	end)
-
-	NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
-		JoinLeaveConfig.LeaveLog = v
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
-	end)
-
-	NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
-		JoinLeaveConfig.SaveLog = v
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-		DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
-	end)
+	elseif not joinLeaveWarned then
+		joinLeaveWarned = true
+		DebugNotif("Join/Leave settings will reset after this session (no file support detected).")
+	end
 end
+
+NAgui.addTab(TAB_LOGGING, { order = 5 })
+NAgui.setTab(TAB_LOGGING)
+
+NAgui.addSection("Join/Leave Logging")
+
+NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
+	JoinLeaveConfig.JoinLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
+	JoinLeaveConfig.LeaveLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
+	JoinLeaveConfig.SaveLog = v
+	persistJoinLeaveConfig()
+	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
+end)
 
 NAgui.addTab(TAB_ESP, { order = 4 })
 NAgui.setTab(TAB_ESP)
 
+local function isListActive(list)
+	return type(list) == "table" and next(list) ~= nil
+end
+
+local function trimText(str)
+	return (str or ""):match("^%s*(.-)%s*$")
+end
 
 NAgui.addSection("ESP Settings")
 
-NAgui.addSlider("ESP Transparency", 0, 1, NAStuff.ESP_Transparency or 0.7, 0.05, "", function(v)
-	NAStuff.ESP_Transparency = v
+NAgui.addToggle("Use Highlight Rendering (Highlight)", espUsesHighlight(), function(state)
+	NAStuff.ESP_RenderMode = state and "Highlight" or "BoxHandleAdornment"
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("ESP Transparency", 0, 1, sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
+	local alpha = sanitizeTransparency(v)
+	NAStuff.ESP_Transparency = alpha
 	for _, data in pairs(espCONS) do
+		if data.highlight then
+			data.highlight.FillTransparency = alpha
+		end
 		for _, box in pairs(data.boxTable) do
-			if box then box.Transparency = v end
+			if box then box.Transparency = alpha end
 		end
 	end
+	NAmanage.PartESP_UpdateTexts(true)
 	NAmanage.SaveESPSettings()
 end)
 
@@ -32104,6 +32733,23 @@ NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1
 	NAStuff.ESP_LabelMaxDistance = v
 	NAmanage.SaveESPSettings()
 end)
+
+NAgui.addSection("Label Styling")
+
+NAgui.addSlider("Label Text Size", 8, 72, sanitizeLabelSize(NAStuff.ESP_LabelTextSize), 1, " px", function(v)
+	local size = sanitizeLabelSize(v)
+	NAStuff.ESP_LabelTextSize = size
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addToggle("Label Text Scaled", NAStuff.ESP_LabelTextScaled, function(state)
+	NAStuff.ESP_LabelTextScaled = state
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addSection("Label Content")
 
 NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
 	NAStuff.ESP_ColorByTeam = state
@@ -32128,6 +32774,159 @@ end)
 NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
 	NAStuff.ESP_ShowDistance = state
 	NAmanage.SaveESPSettings()
+end)
+NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), function(state)
+	NAStuff.ESP_ShowPartDistance = state
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSection("Interactable ESP (touchesp/proximityesp/clickesp)")
+
+NAgui.addToggle("Touch ESP (touchesp)", isListActive(NAStuff.touchESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"touchesp"})
+		else
+			cmd.run({"untouchesp"})
+		end
+	end)
+end)
+
+NAgui.addToggle("Proximity ESP (proximityesp)", isListActive(NAStuff.proximityESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"proximityesp"})
+		else
+			cmd.run({"unproximityesp"})
+		end
+	end)
+end)
+
+NAgui.addToggle("Click Detector ESP (clickesp)", isListActive(NAStuff.clickESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"clickesp"})
+		else
+			cmd.run({"unclickesp"})
+		end
+	end)
+end)
+
+NAgui.addSection("Seat ESP (sitesp/vehiclesitesp)")
+
+NAgui.addToggle("Seat ESP (sitesp)", isListActive(NAStuff.siteESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"sitesp"})
+		else
+			cmd.run({"unsitesp"})
+		end
+	end)
+end)
+
+NAgui.addToggle("Vehicle Seat ESP (vehiclesitesp)", isListActive(NAStuff.vehicleSiteESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"vehiclesitesp"})
+		else
+			cmd.run({"unvehiclesitesp"})
+		end
+	end)
+end)
+
+NAgui.addSection("Physics ESP (unanchored/collisionesp/nocollisionesp)")
+
+NAgui.addToggle("Unanchored Parts (unanchored)", isListActive(NAStuff.unanchoredESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"unanchored"})
+		else
+			cmd.run({"ununanchored"})
+		end
+	end)
+end)
+
+NAgui.addToggle("Collidable Parts (collisionesp)", isListActive(NAStuff.collisiontrueESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"collisionesp"})
+		else
+			cmd.run({"uncollisionesp"})
+		end
+	end)
+end)
+
+NAgui.addToggle("Non-Collidable Parts (nocollisionesp)", isListActive(NAStuff.collisionfalseESPList), function(state)
+	SpawnCall(function()
+		if state then
+			cmd.run({"nocollisionesp"})
+		else
+			cmd.run({"unnocollisionesp"})
+		end
+	end)
+end)
+
+NAgui.addSection("Part ESP (partesp / pespfind)")
+
+NAgui.addInput("Exact Part Name", "Exact part name (partesp)", NAStuff.ESP_LastExactPart, function(text)
+	NAStuff.ESP_LastExactPart = text
+end)
+
+NAgui.addButton("Apply Exact Part ESP", function()
+	local name = trimText(NAStuff.ESP_LastExactPart)
+	if name == "" then
+		DoNotif("Enter an exact part name before using partesp.", 2)
+		return
+	end
+	SpawnCall(function() cmd.run({"pesp", name}) end)
+end)
+
+NAgui.addButton("Clear Exact Part ESP", function()
+	SpawnCall(function() cmd.run({"unpesp"}) end)
+end)
+
+NAgui.addInput("Partial Part Name", "Partial part name (pespfind)", NAStuff.ESP_LastPartialPart, function(text)
+	NAStuff.ESP_LastPartialPart = text
+end)
+
+NAgui.addButton("Apply Partial Part ESP", function()
+	local name = trimText(NAStuff.ESP_LastPartialPart)
+	if name == "" then
+		DoNotif("Enter a partial part name before using pespfind.", 2)
+		return
+	end
+	SpawnCall(function() cmd.run({"pespfind", name}) end)
+end)
+
+NAgui.addButton("Clear Partial Part ESP", function()
+	SpawnCall(function() cmd.run({"unpespfind"}) end)
+end)
+
+NAgui.addSection("Folder ESP (folderesp)")
+
+NAgui.addInput("Folder Name", "Folder name to highlight", NAStuff.ESP_LastFolderName, function(text)
+	NAStuff.ESP_LastFolderName = text
+end)
+
+NAgui.addButton("Apply Folder ESP", function()
+	local name = trimText(NAStuff.ESP_LastFolderName)
+	if name == "" then
+		DoNotif("Enter a folder name before using folderesp.", 2)
+		return
+	end
+	SpawnCall(function() cmd.run({"folderesp", name}) end)
+end)
+
+NAgui.addButton("Clear Folder ESP", function()
+	local name = trimText(NAStuff.ESP_LastFolderName)
+	SpawnCall(function()
+		if name ~= "" then
+			cmd.run({"unfolderesp", name})
+		else
+			cmd.run({"unfolderesp"})
+		end
+	end)
 end)
 
 NAgui.addTab(TAB_CHAT, { order = 3 })
