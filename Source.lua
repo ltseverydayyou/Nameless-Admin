@@ -4476,7 +4476,7 @@ local chamsEnabled=false
 espCONS = espCONS or {}
 
 
-local function espUsesHighlight()
+NAgui.espUsesHighlight=function()
 	local mode = NAStuff.ESP_RenderMode
 	if type(mode) == "string" then
 		return string.lower(mode) == "highlight"
@@ -4484,7 +4484,7 @@ local function espUsesHighlight()
 	return false
 end
 
-local function sanitizeTransparency(value)
+NAgui.sanitizeTransparency=function(value)
 	local tr = tonumber(value) or 0.7
 	if tr < 0 then
 		tr = 0
@@ -4494,7 +4494,7 @@ local function sanitizeTransparency(value)
 	return tr
 end
 
-local function sanitizeLabelSize(value)
+NAgui.sanitizeLabelSize=function(value)
 	local sz = tonumber(value) or 12
 	if sz < 8 then
 		sz = 8
@@ -4505,7 +4505,7 @@ local function sanitizeLabelSize(value)
 	return sz
 end
 
-local function getInstanceWorldPosition(inst)
+NAgui.getInstanceWorldPosition=function(inst)
 	if not inst then return nil end
 	if inst:IsA("BasePart") then
 		return inst.Position
@@ -4526,7 +4526,7 @@ local function getInstanceWorldPosition(inst)
 	return nil
 end
 
-local function updateLabelBounds(label)
+NAgui.updateLabelBounds=function(label)
 	if not label then return end
 	local billboard = label.Parent
 	if not billboard or not billboard:IsA("BillboardGui") then return end
@@ -4534,7 +4534,7 @@ local function updateLabelBounds(label)
 	if text == "" then
 		text = label.Name or " "
 	end
-	local targetSize = sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
+	local targetSize = NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
 	local success, bounds = pcall(TextService.GetTextSize, TextService, text, targetSize, label.Font, Vector2.new(1e4, 1e4))
 	local width = 150
 	local height = math.max(targetSize + 12, 30)
@@ -4548,23 +4548,23 @@ local function updateLabelBounds(label)
 	end
 end
 
-local function applyLabelStyle(label)
+NAgui.applyLabelStyle=function(label)
 	if not label then return end
 	label.AutomaticSize = Enum.AutomaticSize.None
 	label.TextScaled = NAStuff.ESP_LabelTextScaled
 	label.TextWrapped = false
 	label.ClipsDescendants = false
-	label.TextSize = sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
-	updateLabelBounds(label)
+	label.TextSize = NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
+	NAgui.updateLabelBounds(label)
 end
 
-local function updateLabelForInstance(inst)
+NAgui.updateLabelForInstance=function(inst)
 	if not inst or not inst.Parent then return end
 	for _, child in ipairs(inst:GetChildren()) do
 		if child:IsA("BillboardGui") and Sub(Lower(child.Name),-6) == "_label" then
 			local lbl = child:FindFirstChildWhichIsA("TextLabel")
 			if lbl then
-				applyLabelStyle(lbl)
+				NAgui.applyLabelStyle(lbl)
 			end
 		end
 	end
@@ -4573,12 +4573,12 @@ end
 NAmanage.ESP_ApplyLabelStyles = function()
 	for _, data in pairs(espCONS) do
 		if data and data.textLabel then
-			applyLabelStyle(data.textLabel)
+			NAgui.applyLabelStyle(data.textLabel)
 		end
 		if data and data.billboard then
 			local lbl = data.billboard:FindFirstChildWhichIsA("TextLabel")
 			if lbl then
-				applyLabelStyle(lbl)
+				NAgui.applyLabelStyle(lbl)
 			end
 		end
 	end
@@ -4595,7 +4595,7 @@ NAmanage.ESP_ApplyLabelStyles = function()
 	for _, list in ipairs(extraLists) do
 		if type(list) == "table" then
 			for _, inst in ipairs(list) do
-				updateLabelForInstance(inst)
+				NAgui.updateLabelForInstance(inst)
 			end
 		end
 	end
@@ -4603,7 +4603,7 @@ NAmanage.ESP_ApplyLabelStyles = function()
 		for _, members in pairs(NAStuff.folderESPMembers) do
 			if type(members) == "table" then
 				for _, inst in ipairs(members) do
-					updateLabelForInstance(inst)
+					NAgui.updateLabelForInstance(inst)
 				end
 			end
 		end
@@ -4612,7 +4612,7 @@ NAmanage.ESP_ApplyLabelStyles = function()
 		for _, members in pairs(NAStuff.nameESPPartLists) do
 			if type(members) == "table" then
 				for _, inst in ipairs(members) do
-					updateLabelForInstance(inst)
+					NAgui.updateLabelForInstance(inst)
 				end
 			end
 		end
@@ -4620,7 +4620,7 @@ NAmanage.ESP_ApplyLabelStyles = function()
 	NAmanage.PartESP_UpdateTexts(true)
 end
 
-local function adjustHighlightMaterialFor(target, enable)
+NAgui.adjustHighlightMaterialFor=function(target, enable)
 	if not target then return end
 	local originals = NAStuff.partESPGlassOriginal
 	local counts = NAStuff.partESPGlassCount
@@ -4663,7 +4663,7 @@ local function adjustHighlightMaterialFor(target, enable)
 end
 
 NAmanage.ESP_AdjustHighlightMaterial = function(target, enable)
-	adjustHighlightMaterialFor(target, enable)
+	NAgui.adjustHighlightMaterialFor(target, enable)
 end
 
 NAStuff.partESPEntries = NAStuff.partESPEntries or setmetatable({}, { __mode = "k" })
@@ -4696,7 +4696,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		root = char and getRoot(char)
 	end
 	if showDistance and root then
-		local pos = getInstanceWorldPosition(part)
+		local pos = NAgui.getInstanceWorldPosition(part)
 		if pos then
 			local dist = math.floor((root.Position - pos).Magnitude + 0.5)
 			display = Format("%s | %d studs", baseName, dist)
@@ -4706,10 +4706,10 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		if label.Text ~= display then
 			label.Text = display
 		end
-		applyLabelStyle(label)
+		NAgui.applyLabelStyle(label)
 	end
 	local visual = entry.visual
-	local transparency = sanitizeTransparency(NAStuff.ESP_Transparency or entry.transparency)
+	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or entry.transparency)
 	if visual and visual.Parent then
 		if visual:IsA("Highlight") then
 			if visual.FillTransparency ~= transparency then
@@ -4968,7 +4968,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 	label.TextStrokeTransparency = 0.5
 	label.Text = ""
 	label.Parent = billboard
-	applyLabelStyle(label)
+	NAgui.applyLabelStyle(label)
 	data.billboard = billboard
 	data.textLabel = label
 end
@@ -4977,12 +4977,12 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	local data = espCONS[model]
 	if not data or not part or not part:IsA("BasePart") then return end
 	if data.boxTable[part] then return end
-	if espUsesHighlight() then return end
+	if NAgui.espUsesHighlight() then return end
 	local box = InstanceNew("BoxHandleAdornment")
 	box.Adornee = part
 	box.AlwaysOnTop = true
 	box.ZIndex = 1
-	box.Transparency = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+	box.Transparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 	box.Size = part.Size
 	box.Color3 = Color3.new(1,1,1)
 	box.Parent = part
@@ -4992,7 +4992,7 @@ end
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	if espUsesHighlight() then
+	if NAgui.espUsesHighlight() then
 		local highlight = data.highlight
 		if highlight and not highlight.Parent then
 			highlight = nil
@@ -5004,7 +5004,7 @@ NAmanage.ESP_AddBoxes = function(model)
 			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 			hl.FillColor = Color3.new(1,1,1)
 			hl.OutlineColor = Color3.new(1,1,1)
-			hl.FillTransparency = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			hl.OutlineTransparency = 0
 			hl.Parent = model
 			data.highlight = hl
@@ -5105,7 +5105,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 
 	if data.boxEnabled then
-		if espUsesHighlight() then
+		if NAgui.espUsesHighlight() then
 			if next(data.boxTable) ~= nil then
 				for part, box in pairs(data.boxTable) do
 					if box then box:Destroy() end
@@ -5121,7 +5121,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if highlight then
-				local tr = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
 				if highlight.OutlineTransparency ~= 0 then highlight.OutlineTransparency = 0 end
 				local color = finalColor or Color3.new(1,1,1)
@@ -5129,7 +5129,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
 			end
 		else
-			local tr = sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+			local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			for part, box in pairs(data.boxTable) do
 				if not part or not part.Parent then
 					if box then box:Destroy() end
@@ -5171,7 +5171,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if #pieces > 0 and wantLabel then
 		NAmanage.ESP_EnsureLabel(model)
 		if data.textLabel then
-			applyLabelStyle(data.textLabel)
+			NAgui.applyLabelStyle(data.textLabel)
 			local txt = Concat(pieces, " | ")
 			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
 			local txtColor = finalColor or Color3.new(1,1,1)
@@ -23783,7 +23783,7 @@ cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Auto
 		interval = 0
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.1, ...)
+		interval, target = NAutil.parseInterval(0.01, ...)
 	end
 	local id = NAjobs.start("prompt", interval, target)
 	DebugNotif(target and ("afp started (%s) → %s"):format(target, id) or ("afp started → %s"):format(id), 2)
@@ -23796,7 +23796,7 @@ cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] 
 		interval = 0
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.1, ...)
+		interval, target = NAutil.parseInterval(0.01, ...)
 	end
 	local id = NAjobs.start("prompt", interval, target, true)
 	DebugNotif(target and ("afpfind started (%s) → %s"):format(target, id) or ("afpfind started → %s"):format(id), 2)
@@ -23809,7 +23809,7 @@ cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Auto
 		interval = 0
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.1, ...)
+		interval, target = NAutil.parseInterval(0.01, ...)
 	end
 	local id = NAjobs.start("click", interval, target)
 	DebugNotif(target and ("afc started (%s) → %s"):format(target, id) or ("afc started → %s"):format(id), 2)
@@ -23822,14 +23822,14 @@ cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] 
 		interval = 0
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.1, ...)
+		interval, target = NAutil.parseInterval(0.01, ...)
 	end
 	local id = NAjobs.start("click", interval, target, true)
 	DebugNotif(target and ("afcfind started (%s) → %s"):format(target, id) or ("afcfind started → %s"):format(id), 2)
 end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
-	local interval, target = NAutil.parseInterval(1, ...)
+	local interval, target = NAutil.parseInterval(0.5, ...)
 	local id = NAjobs.start("touch", interval, target)
 	DebugNotif(target and ("at started (%s) → %s"):format(target, id) or ("at started → %s"):format(id), 2)
 end, true)
@@ -25115,12 +25115,12 @@ end)
 
 NAmanage.CreateBox = function(part, color, transparency)
 	local c = (typeof(color) == "Color3" and color) or Color3.new(1,1,1)
-	local entryTransparency = sanitizeTransparency(transparency or 0.45)
+	local entryTransparency = NAgui.sanitizeTransparency(transparency or 0.45)
 	local h, s, v = Color3.toHSV(c)
 	local off = 0.35
 	local darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
 	local lighter = Color3.fromHSV(h, s, math.clamp(v + off, 0, 1))
-	local useHighlight = espUsesHighlight()
+	local useHighlight = NAgui.espUsesHighlight()
 	local adornName = Lower(part.Name).."_peepee"
 	local visual
 	if useHighlight then
@@ -25157,7 +25157,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	tl.Font = Enum.Font.SourceSansBold
 	tl.TextStrokeTransparency = 0.5
 	tl.ZIndex = 1
-	applyLabelStyle(tl)
+	NAgui.applyLabelStyle(tl)
 	local gr = InstanceNew("UIGradient", tl)
 	gr.Color = ColorSequence.new(darker, lighter)
 
@@ -26118,17 +26118,6 @@ cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, fu
 	Wait()
 	DebugNotif("X-ray disabled")
 	togXray(false)
-end)
-
-cmd.add({"pastebinscraper","pastebinscrape"},{"pastebinscraper (pastebinscrape)","Scrapes paste bin posts"},function()
-	Wait();
-
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/trash(paste)bin%20scrapper"))()
-	COREGUI.Scraper["Pastebin Scraper"].BackgroundTransparency=0.5
-	COREGUI.Scraper["Pastebin Scraper"].TextButton.Text="             ⭐ Pastebin Post Scraper ⭐"
-	COREGUI.Scraper["Pastebin Scraper"].Content.Search.PlaceholderText="Search for a post here..."
-	COREGUI.Scraper["Pastebin Scraper"].Content.Search.BackgroundTransparency=0.4
-	DebugNotif("Pastebin scraper loaded")
 end)
 
 NAmanage._ensureL=function()
@@ -32703,14 +32692,14 @@ end
 
 NAgui.addSection("ESP Settings")
 
-NAgui.addToggle("Use Highlight Rendering (Highlight)", espUsesHighlight(), function(state)
+NAgui.addToggle("Use Highlight Rendering (Highlight)", NAgui.espUsesHighlight(), function(state)
 	NAStuff.ESP_RenderMode = state and "Highlight" or "BoxHandleAdornment"
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_RebuildVisuals()
 end)
 
-NAgui.addSlider("ESP Transparency", 0, 1, sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
-	local alpha = sanitizeTransparency(v)
+NAgui.addSlider("ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
+	local alpha = NAgui.sanitizeTransparency(v)
 	NAStuff.ESP_Transparency = alpha
 	for _, data in pairs(espCONS) do
 		if data.highlight then
@@ -32736,8 +32725,8 @@ end)
 
 NAgui.addSection("Label Styling")
 
-NAgui.addSlider("Label Text Size", 8, 72, sanitizeLabelSize(NAStuff.ESP_LabelTextSize), 1, " px", function(v)
-	local size = sanitizeLabelSize(v)
+NAgui.addSlider("Label Text Size", 8, 72, NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize), 1, " px", function(v)
+	local size = NAgui.sanitizeLabelSize(v)
 	NAStuff.ESP_LabelTextSize = size
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ApplyLabelStyles()
