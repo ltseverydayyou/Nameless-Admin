@@ -4101,9 +4101,15 @@ local PlayerArgs = {
 	end,
 
 	["random"] = function()
-		local Amount = Players:GetPlayers()
-
-		return { Amount[math.random(1, #Amount)] }
+		local list = Players:GetPlayers()
+		if LocalPlayer then
+			local i = Discover(list, LocalPlayer)
+			if i then table.remove(list, i) end
+		end
+		if #list == 0 then
+			return {}
+		end
+		return { list[math.random(1, #list)] }
 	end,
 
 	["npc"] = function()
@@ -18192,7 +18198,7 @@ end,true)
 cmd.add({"torandom","tr"},{"torandom (tr)","Teleports to a random player"},function()
 	target=getPlr("random")
 	for _, plr in next, target do
-		getRoot(getChar()).CFrame=getPlrHum(plr).RootPart.CFrame
+		SpawnCall(function() getRoot(getChar()).CFrame=getPlrHum(plr).RootPart.CFrame end)
 	end
 end)
 
@@ -22605,6 +22611,7 @@ local airwalk = {
 		decrease = false,
 		increase = false,
 		offset = 0,
+		isTyping = false,
 	},
 	connections = {},
 	guis = {},
@@ -22662,11 +22669,16 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		airwalk.guis.up = guiUp
 		createButton(guiUp, "UP", UDim2.new(0.9, 0, 0.5, 0), function() airwalk.Vars.increase = true end, function() airwalk.Vars.increase = false end)
 	else
-		airwalk.connections.inputBegan = uis.InputBegan:Connect(function(input)
+		airwalk.connections.focused = UserInputService.TextBoxFocused:Connect(function() airwalk.Vars.isTyping = true end)
+		airwalk.connections.released = UserInputService.TextBoxFocusReleased:Connect(function() airwalk.Vars.isTyping = false end)
+
+		airwalk.connections.inputBegan = uis.InputBegan:Connect(function(input, gpe)
+			if gpe or airwalk.Vars.isTyping then return end
 			if input.KeyCode == airwalk.Vars.keybinds.Increase then airwalk.Vars.increase = true end
 			if input.KeyCode == airwalk.Vars.keybinds.Decrease then airwalk.Vars.decrease = true end
 		end)
-		airwalk.connections.inputEnded = uis.InputEnded:Connect(function(input)
+		airwalk.connections.inputEnded = uis.InputEnded:Connect(function(input, gpe)
+			if gpe then return end
 			if input.KeyCode == airwalk.Vars.keybinds.Increase then airwalk.Vars.increase = false end
 			if input.KeyCode == airwalk.Vars.keybinds.Decrease then airwalk.Vars.decrease = false end
 		end)
@@ -22674,22 +22686,38 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 
 	awPart = InstanceNew("Part", workspace)
 	awPart.Size = Vector3.new(7, 2, 3)
-	awPart.CFrame = getRoot(getChar()).CFrame - Vector3.new(0, 4, 0)
 	awPart.Transparency = 1
 	awPart.Anchored = true
-	airwalk.Y = getRoot(getChar()).CFrame.y
+	awPart.CanCollide = true
+
+	local lastBaseOffset = nil
 
 	Airwalker = RunService.Stepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
-		airwalk.Vars.offset = airwalk.Vars.decrease and 5 or (airwalk.Vars.increase and 3.5 or 4)
-		if airwalk.Vars.offset == 4 then
-			local smalldis = getRoot(getChar()).CFrame.y - airwalk.Y
-			if smalldis < 0.01 then
-				getRoot(getChar()).CFrame = CFrame.new(getRoot(getChar()).CFrame.X, airwalk.Y, getRoot(getChar()).CFrame.Z) * getRoot(getChar()).CFrame.Rotation
-			end
+
+		local char = getChar()
+		local root = getRoot(char)
+		local hum = getHum(char)
+		if not (char and root and hum) then return end
+		local hrpY = root.Position.Y
+		local hrpSizeY = (NAlib.isProperty(root, "Size") and root.Size.Y) or 2
+		local hip = hum.HipHeight or 2
+		local feetY = hrpY - (hrpSizeY * 0.5) - hip
+		local halfPart = awPart.Size.Y * 0.5
+		local baseFootOffset = (hrpY - feetY) + halfPart
+		if lastBaseOffset then
+			baseFootOffset = lastBaseOffset + math.clamp(baseFootOffset - lastBaseOffset, -0.1, 0.1)
 		end
-		airwalk.Y = getRoot(getChar()).CFrame.y
-		awPart.CFrame = getRoot(getChar()).CFrame - Vector3.new(0, airwalk.Vars.offset, 0)
+		lastBaseOffset = baseFootOffset
+
+		local delta =
+			(airwalk.Vars.decrease and 1.5) or
+			(airwalk.Vars.increase and -1.5) or
+			0
+
+		airwalk.Vars.offset = math.max(0.05, baseFootOffset + delta)
+
+		awPart.CFrame = CFrame.new(root.Position.X, hrpY - airwalk.Vars.offset, root.Position.Z) * root.CFrame.Rotation
 	end)
 end)
 
@@ -26850,13 +26878,22 @@ cmd.add({"unloopgamma", "unlgamma", "unloopexposure", "unlexposure"},{"unloopgam
 	NAlib.disconnect("loopgamma")
 end)
 
-cmd.add({"unsuspendvc", "fixvc", "rejoinvc", "restorevc"},{"unsuspendvc (fixvc, rejoinvc, restorevc)","allows you to use Voice Chat again"},function()
-	SafeGetService("VoiceChatService"):joinVoice()
+-- totally made you mad didn't i LMAO
+
+cmd.add({"unsuspendchat", "fixchat", "rejoinchat", "restorechat"},{"unsuspendchat","allows you to use text Chat again"},function()
+	if not replicatesignal then return DoNotif("Your executor does not support 'replicatesignal'") end
+	replicatesignal(TextChatService.UpdateChatTimeout, LocalPlayer.UserId, 0, 10)
+end)
+
+cmd.add({"unsuspendvc", "fixvc", "rejoinvc", "restorevc"},{"unsuspendvc","allows you to use Voice Chat again"},function()
+	if not replicatesignal then return DoNotif("Your executor does not support 'replicatesignal'") end
+
+	replicatesignal(SafeGetService("VoiceChatService").ClientRetryJoin)
 
 	if typeof(onVoiceModerated) ~= "RBXScriptConnection" then
 		onVoiceModerated = SafeGetService("VoiceChatInternal").LocalPlayerModerated:Connect(function()
 			Wait(1)
-			SafeGetService("VoiceChatService"):joinVoice()
+			replicatesignal(SafeGetService("VoiceChatService").ClientRetryJoin)
 		end)
 	end
 end)
