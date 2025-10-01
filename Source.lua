@@ -25718,10 +25718,14 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
-local ogParts, resizeLoops = setmetatable({}, {__mode="k"}), setmetatable({}, {__mode="k"})
-local hbAddConn, hbRemConn = nil, nil
-local hbNPCDescConn, hbNPCScanConn = nil, nil
-local charAddedConns = setmetatable({}, {__mode="k"})
+NAStuff.HitboxState = NAStuff.HitboxState or {}
+NAStuff.HitboxState._loops = NAStuff.HitboxState._loops or setmetatable({}, {__mode="k"})
+NAStuff.HitboxState._charAdded = NAStuff.HitboxState._charAdded or setmetatable({}, {__mode="k"})
+NAStuff.HitboxState._ogParts = NAStuff.HitboxState._ogParts or setmetatable({}, {__mode="k"})
+NAStuff.HitboxState._scopes = NAStuff.HitboxState._scopes or {
+	playersGlobal = { addConn=nil, remConn=nil },
+	npc = { descConn=nil, scanConn=nil },
+}
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 	local targets = getPlr(pArg) if #targets==0 then DoNotif("No targets found",2) return end
@@ -25753,14 +25757,10 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 		Insert(btns,{
 			Text = limb,
 			Callback = function()
-				if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
-				if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-				if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
-				if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
-
 				local newSize = Vector3.new(n,n,n)
 
 				local function cache(b, key)
+					local ogParts = NAStuff.HitboxState._ogParts
 					ogParts[key] = ogParts[key] or setmetatable({}, {__mode="k"})
 					if not ogParts[key][b] then
 						ogParts[key][b] = {
@@ -25786,8 +25786,9 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 				end
 
 				local function ensureLoop(t)
-					if resizeLoops[t] then resizeLoops[t]:Disconnect() end
-					resizeLoops[t] = RunService.Stepped:Connect(function()
+					local loops = NAStuff.HitboxState._loops
+					if loops[t] then loops[t]:Disconnect() end
+					loops[t] = RunService.Stepped:Connect(function()
 						local char = getCharacter(t)
 						if char then applyToChar(t, char) end
 					end)
@@ -25796,54 +25797,81 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 				for _,t in ipairs(targets) do
 					ensureLoop(t)
 					if typeof(t)=="Instance" and t:IsA("Player") then
-						if charAddedConns[t] then charAddedConns[t]:Disconnect() end
+						local ca = NAStuff.HitboxState._charAdded
+						if ca[t] then ca[t]:Disconnect() end
 						if t.CharacterAdded then
-							charAddedConns[t] = t.CharacterAdded:Connect(function(c)
+							ca[t] = t.CharacterAdded:Connect(function(c)
 								Defer(function() applyToChar(t, c) end)
 							end)
 						end
+					elseif typeof(t)=="Instance" and t:IsA("Model") then
+						local key = "hitbox_npc_added_"..t:GetDebugId()
+						NAlib.disconnect(key)
+						NAlib.connect(key, t.DescendantAdded:Connect(function()
+							applyToChar(t, t)
+						end))
 					end
 				end
 
 				if global then
-					hbAddConn = Players.PlayerAdded:Connect(function(plr)
+					local scopes = NAStuff.HitboxState._scopes
+					if scopes.playersGlobal.addConn then scopes.playersGlobal.addConn:Disconnect() end
+					if scopes.playersGlobal.remConn then scopes.playersGlobal.remConn:Disconnect() end
+					scopes.playersGlobal.addConn = Players.PlayerAdded:Connect(function(plr)
 						ensureLoop(plr)
-						if charAddedConns[plr] then charAddedConns[plr]:Disconnect() end
+						local ca = NAStuff.HitboxState._charAdded
+						if ca[plr] then ca[plr]:Disconnect() end
 						if plr.CharacterAdded then
-							charAddedConns[plr] = plr.CharacterAdded:Connect(function(c)
+							ca[plr] = plr.CharacterAdded:Connect(function(c)
 								Defer(function() applyToChar(plr, c) end)
 							end)
 						end
 					end)
-					hbRemConn = Players.PlayerRemoving:Connect(function(plr)
-						if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
+					scopes.playersGlobal.remConn = Players.PlayerRemoving:Connect(function(plr)
+						local loops = NAStuff.HitboxState._loops
+						local ogParts = NAStuff.HitboxState._ogParts
+						local ca = NAStuff.HitboxState._charAdded
+						if loops[plr] then loops[plr]:Disconnect() loops[plr]=nil end
 						ogParts[plr]=nil
-						if charAddedConns[plr] then charAddedConns[plr]:Disconnect() charAddedConns[plr]=nil end
+						if ca[plr] then ca[plr]:Disconnect() ca[plr]=nil end
 					end)
 				end
 
 				if npcMode then
+					local scopes = NAStuff.HitboxState._scopes
+					if scopes.npc.descConn then scopes.npc.descConn:Disconnect() end
+					if scopes.npc.scanConn then scopes.npc.scanConn:Disconnect() end
+
 					local function npcModelFrom(inst)
-						if inst:IsA("Model") then
-							return CheckIfNPC(inst) and inst or nil
-						end
+						if inst:IsA("Model") and CheckIfNPC(inst) then return inst end
 						local m = inst:FindFirstAncestorWhichIsA("Model")
 						if m and CheckIfNPC(m) then return m end
 						return nil
 					end
+
 					for _,desc in ipairs(workspace:GetDescendants()) do
 						local mdl = npcModelFrom(desc)
-						if mdl then ensureLoop(mdl) applyToChar(mdl, mdl) end
-					end
-					hbNPCDescConn = workspace.DescendantAdded:Connect(function(inst)
-						local mdl = npcModelFrom(inst)
 						if mdl then
 							ensureLoop(mdl)
 							applyToChar(mdl, mdl)
 						end
+					end
+
+					scopes.npc.descConn = workspace.DescendantAdded:Connect(function(inst)
+						local mdl = npcModelFrom(inst)
+						if mdl then
+							ensureLoop(mdl)
+							applyToChar(mdl, mdl)
+							local key = "hitbox_npc_added_"..mdl:GetDebugId()
+							NAlib.disconnect(key)
+							NAlib.connect(key, mdl.DescendantAdded:Connect(function()
+								applyToChar(mdl, mdl)
+							end))
+						end
 					end)
+
 					local acc = 0
-					hbNPCScanConn = RunService.Heartbeat:Connect(function(dt)
+					scopes.npc.scanConn = RunService.Heartbeat:Connect(function(dt)
 						acc += dt
 						if acc < 0.5 then return end
 						acc = 0
@@ -25864,29 +25892,46 @@ end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 	local targets = getPlr(pArg)
-	local function restore(key)
-		if not ogParts[key] then return end
-		for bp,props in pairs(ogParts[key]) do
-			if bp and bp.Parent then
-				bp.Size = props.Size
-				bp.Transparency = props.Transparency
-				bp.BrickColor = props.BrickColor
-				bp.Material = props.Material
-				bp.CanCollide = props.CanCollide
-				bp.Massless = props.Massless
+	local argLower = Lower(pArg)
+	local npcMode = (argLower == "npc")
+	local global = (argLower=="all" or argLower=="others")
+
+	local function restoreKey(key)
+		local ogParts = NAStuff.HitboxState._ogParts
+		local loops = NAStuff.HitboxState._loops
+		local ca = NAStuff.HitboxState._charAdded
+		if ogParts[key] then
+			for bp,props in pairs(ogParts[key]) do
+				if bp and bp.Parent then
+					bp.Size = props.Size
+					bp.Transparency = props.Transparency
+					bp.BrickColor = props.BrickColor
+					bp.Material = props.Material
+					bp.CanCollide = props.CanCollide
+					bp.Massless = props.Massless
+				end
 			end
+			ogParts[key] = nil
 		end
-		ogParts[key] = nil
+		if loops[key] then loops[key]:Disconnect() loops[key]=nil end
+		if ca[key] then ca[key]:Disconnect() ca[key]=nil end
 	end
+
 	for _,t in ipairs(targets) do
-		restore(t)
-		if resizeLoops[t] then resizeLoops[t]:Disconnect() resizeLoops[t]=nil end
-		if charAddedConns[t] then charAddedConns[t]:Disconnect() charAddedConns[t]=nil end
+		restoreKey(t)
 	end
-	if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
-	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-	if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
-	if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
+
+	if npcMode then
+		local scopes = NAStuff.HitboxState._scopes
+		if scopes.npc.descConn then scopes.npc.descConn:Disconnect() scopes.npc.descConn=nil end
+		if scopes.npc.scanConn then scopes.npc.scanConn:Disconnect() scopes.npc.scanConn=nil end
+	else
+		if global then
+			local scopes = NAStuff.HitboxState._scopes
+			if scopes.playersGlobal.addConn then scopes.playersGlobal.addConn:Disconnect() scopes.playersGlobal.addConn=nil end
+			if scopes.playersGlobal.remConn then scopes.playersGlobal.remConn:Disconnect() scopes.playersGlobal.remConn=nil end
+		end
+	end
 end,true)
 
 local PST = {
