@@ -2358,7 +2358,6 @@ NAmanage.NASettingsSet=function(key, value)
 	return settings[key]
 end
 
-
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
 	if not isfolder(NAfiles.NAFILEPATH) then
@@ -2381,11 +2380,6 @@ if FileSupport then
 		makefolder(NAfiles.NAASSETSFILEPATH)
 	end
 
-
-
-
-
-
 	if not isfile(NAfiles.NAALIASPATH) then
 		writefile(NAfiles.NAALIASPATH, "{}")
 	end
@@ -2405,8 +2399,6 @@ if FileSupport then
 	if not isfile(NAfiles.NAAUTOEXECPATH) then
 		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
 	end
-
-
 
 	if not isfile(NAfiles.NAJOINLEAVE) then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
@@ -2428,11 +2420,9 @@ if FileSupport then
 		}))
 	end]]
 
-
 	if not isfile(NAfiles.NABINDERS) then
 		writefile(NAfiles.NABINDERS, "{}")
 	end
-
 
 	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
 		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
@@ -4597,82 +4587,99 @@ NAgui.updateLabelForInstance=function(inst)
 end
 
 NAmanage.ESP_ApplyLabelStyles = function()
-	for _, data in pairs(espCONS) do
-		if data and data.textLabel then
-			NAgui.applyLabelStyle(data.textLabel)
-		end
-		if data and data.billboard then
-			local lbl = data.billboard:FindFirstChildWhichIsA("TextLabel")
-			if lbl then
-				NAgui.applyLabelStyle(lbl)
-			end
-		end
-	end
-	local extraLists = {
-		NAStuff.touchESPList,
-		NAStuff.proximityESPList,
-		NAStuff.clickESPList,
-		NAStuff.siteESPList,
-		NAStuff.vehicleSiteESPList,
-		NAStuff.unanchoredESPList,
-		NAStuff.collisiontrueESPList,
-		NAStuff.collisionfalseESPList,
-	}
-	for _, list in ipairs(extraLists) do
-		if type(list) == "table" then
-			for _, inst in ipairs(list) do
-				NAgui.updateLabelForInstance(inst)
-			end
-		end
-	end
-	if type(NAStuff.folderESPMembers) == "table" then
-		for _, members in pairs(NAStuff.folderESPMembers) do
-			if type(members) == "table" then
-				for _, inst in ipairs(members) do
-					NAgui.updateLabelForInstance(inst)
+	local scaled = (NAStuff.ESP_LabelTextScaled == true)
+	local size = NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
+	local seen = {}
+	if NAStuff.partESPEntries then
+		for _, entry in pairs(NAStuff.partESPEntries) do
+			if typeof(entry) == "table" and entry.label and not seen[entry] then
+				seen[entry] = true
+				entry.label.TextScaled = scaled
+				if not scaled then
+					entry.label.TextSize = size
 				end
 			end
 		end
 	end
-	if type(NAStuff.nameESPPartLists) == "table" then
-		for _, members in pairs(NAStuff.nameESPPartLists) do
-			if type(members) == "table" then
-				for _, inst in ipairs(members) do
-					NAgui.updateLabelForInstance(inst)
+	if NAStuff.partESPVisualMap then
+		for _, entry in pairs(NAStuff.partESPVisualMap) do
+			if typeof(entry) == "table" and entry.label and not seen[entry] then
+				seen[entry] = true
+				entry.label.TextScaled = scaled
+				if not scaled then
+					entry.label.TextSize = size
 				end
 			end
 		end
 	end
-	NAmanage.PartESP_UpdateTexts(true)
 end
 
-NAgui.adjustHighlightMaterialFor=function(target, enable)
+NAgui.adjustHighlightMaterialFor = function(target, enable)
 	if not target then return end
 	local originals = NAStuff.partESPGlassOriginal
 	local counts = NAStuff.partESPGlassCount
+	local ltOriginals = NAStuff.partESPLocalTransOriginal
+	local ltCounts = NAStuff.partESPLocalTransCount
+	if not originals then
+		originals = setmetatable({}, { __mode = "k" })
+		NAStuff.partESPGlassOriginal = originals
+	end
+	if not counts then
+		counts = setmetatable({}, { __mode = "k" })
+		NAStuff.partESPGlassCount = counts
+	end
+	if not ltOriginals then
+		ltOriginals = setmetatable({}, { __mode = "k" })
+		NAStuff.partESPLocalTransOriginal = ltOriginals
+	end
+	if not ltCounts then
+		ltCounts = setmetatable({}, { __mode = "k" })
+		NAStuff.partESPLocalTransCount = ltCounts
+	end
 	local function handlePart(base)
 		if not base or not base:IsA("BasePart") then return end
-		local current = counts[base] or 0
+		local gCount = counts[base] or 0
+		local tCount = ltCounts[base] or 0
 		if enable then
-			if current == 0 then
+			if gCount == 0 then
 				originals[base] = base.Material
 			end
-			counts[base] = current + 1
+			counts[base] = gCount + 1
 			if base.Material ~= Enum.Material.Glass then
 				NAlib.setProperty(base, "Material", Enum.Material.Glass)
 			end
+			if tCount == 0 then
+				ltOriginals[base] = base.LocalTransparencyModifier
+			end
+			ltCounts[base] = tCount + 1
+			if base.Transparency >= 1 or base.LocalTransparencyModifier >= 1 then
+				NAlib.setProperty(base, "LocalTransparencyModifier", 0.999)
+			end
 		else
-			if current > 0 then
-				current -= 1
-				if current <= 0 then
+			if gCount > 0 then
+				gCount -= 1
+				if gCount <= 0 then
 					counts[base] = nil
 					local original = originals[base]
-					if original then
+					if original ~= nil then
 						NAlib.setProperty(base, "Material", original)
 						originals[base] = nil
 					end
 				else
-					counts[base] = current
+					counts[base] = gCount
+				end
+			end
+			if tCount > 0 then
+				tCount -= 1
+				if tCount <= 0 then
+					ltCounts[base] = nil
+					local lt = ltOriginals[base]
+					if lt ~= nil then
+						NAlib.setProperty(base, "LocalTransparencyModifier", lt)
+						ltOriginals[base] = nil
+					end
+				else
+					ltCounts[base] = tCount
 				end
 			end
 		end
@@ -4819,9 +4826,6 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.visual then
 		NAStuff.partESPVisualMap[entry.visual] = entry
 	end
-	if entry.useHighlight and entry.part then
-		NAmanage.ESP_AdjustHighlightMaterial(entry.part, true)
-	end
 	if entry.billboardCleanup then
 		entry.billboardCleanup:Disconnect()
 	end
@@ -4864,9 +4868,6 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	end
 	if entry.visual and NAStuff.partESPVisualMap then
 		NAStuff.partESPVisualMap[entry.visual] = nil
-	end
-	if entry.useHighlight and entry.part then
-		NAmanage.ESP_AdjustHighlightMaterial(entry.part, false)
 	end
 	NAmanage.PartESP_StopHeartbeat()
 end
@@ -25162,8 +25163,10 @@ cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter 
 end)
 
 NAmanage.CreateBox = function(part, color, transparency)
+	if not part or not part.Parent then return end
+	NAmanage.RemoveEspFromPart(part)
 	local c = (typeof(color) == "Color3" and color) or Color3.new(1,1,1)
-	local entryTransparency = NAgui.sanitizeTransparency(transparency or 0.45)
+	local entryTransparency = NAgui.sanitizeTransparency(transparency or (NAStuff.ESP_Transparency or 0.45))
 	local h, s, v = Color3.toHSV(c)
 	local off = 0.35
 	local darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
@@ -25180,7 +25183,12 @@ NAmanage.CreateBox = function(part, color, transparency)
 		visual.OutlineColor = darker
 		visual.FillTransparency = entryTransparency
 		visual.OutlineTransparency = 0
-		visual.Enabled = true
+		visual.Enabled = false
+		Defer(function()
+			if visual and visual.Parent then
+				visual.Enabled = true
+			end
+		end)
 	else
 		visual = InstanceNew("BoxHandleAdornment", part)
 		visual.Name = adornName
@@ -25193,7 +25201,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local bb = InstanceNew("BillboardGui", part)
 	bb.Name = Lower(part.Name).."_label"
 	bb.Adornee = part
-	bb.Size = UDim2.new(0, 100, 0, 30)
+	bb.Size = UDim2.new(0, 160, 0, 28)
 	bb.StudsOffset = Vector3.new(0, 0.5, 0)
 	bb.AlwaysOnTop = true
 	bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -25208,7 +25216,6 @@ NAmanage.CreateBox = function(part, color, transparency)
 	NAgui.applyLabelStyle(tl)
 	local gr = InstanceNew("UIGradient", tl)
 	gr.Color = ColorSequence.new(darker, lighter)
-
 	local function update()
 		if not part or not part.Parent then return end
 		if not bb.Parent then return end
@@ -25235,7 +25242,6 @@ NAmanage.CreateBox = function(part, color, transparency)
 		end
 		bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
 	end
-
 	update()
 	Defer(update)
 	local key = "esp_update_" .. tostring(visual)
@@ -25245,7 +25251,11 @@ NAmanage.CreateBox = function(part, color, transparency)
 	elseif NAlib.isProperty(part, "Size") then
 		NAlib.connect(key, part:GetPropertyChangedSignal("Size"):Connect(update))
 	end
-
+	NAlib.connect(key, part.AncestryChanged:Connect(function(_, parentNow)
+		if not parentNow then
+			NAlib.disconnect(key)
+		end
+	end))
 	local entry = {
 		part = part,
 		billboard = bb,
@@ -25259,12 +25269,9 @@ NAmanage.CreateBox = function(part, color, transparency)
 		useHighlight = useHighlight,
 		updateKey = key,
 	}
-
 	NAmanage.PartESP_RegisterEntry(entry)
-
 	return visual
 end
-
 
 NAmanage.RemoveEspFromPart = function(part)
 	if not part then return end
@@ -29234,12 +29241,12 @@ cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the g
 	end
 end, true)
 
-cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function(...)
+cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function()
 	adminName = getgenv().NATestingVer and "NA Testing" or "Nameless Admin"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
 	end
-end, false)
+end)
 
 --[[ GUI FUNCTIONS ]]--
 NAgui.txtSize=function(ui,x,y)
@@ -32821,6 +32828,7 @@ NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), f
 	NAStuff.ESP_ShowDistance = state
 	NAmanage.SaveESPSettings()
 end)
+
 NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), function(state)
 	NAStuff.ESP_ShowPartDistance = state
 	NAmanage.SaveESPSettings()
