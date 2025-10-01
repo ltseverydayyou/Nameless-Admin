@@ -25738,24 +25738,18 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
-NAStuff.HitboxState = NAStuff.HitboxState or {}
-NAStuff.HitboxState._loops = NAStuff.HitboxState._loops or setmetatable({}, {__mode="k"})
-NAStuff.HitboxState._charAdded = NAStuff.HitboxState._charAdded or setmetatable({}, {__mode="k"})
-NAStuff.HitboxState._ogParts = NAStuff.HitboxState._ogParts or setmetatable({}, {__mode="k"})
-NAStuff.HitboxState._scopes = NAStuff.HitboxState._scopes or {
-	playersGlobal = { addConn=nil, remConn=nil },
-	npc = { descConn=nil, scanConn=nil },
-}
-
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
+	NAStuff.HB = NAStuff.HB or {}
+	NAStuff.HB.P = NAStuff.HB.P or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), charAdded=setmetatable({}, {__mode="k"}), addConn=nil, remConn=nil}
+	NAStuff.HB.N = NAStuff.HB.N or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), perModelAdded=setmetatable({}, {__mode="k"}), scanConn=nil, descConn=nil, config=nil}
+
 	local targets = getPlr(pArg) if #targets==0 then DoNotif("No targets found",2) return end
 	local n = tonumber(sArg) or 10
 	local argLower = Lower(pArg)
-	local npcMode = (argLower == "npc")
+	local npcMode = (argLower=="npc")
 	local global = (argLower=="all" or argLower=="others")
-	local partSet = {All=true}
 
-	local function getCharacter(t)
+	local function GetChar(t)
 		if typeof(t)=="Instance" and t:IsA("Player") then
 			return getPlrChar(t)
 		elseif typeof(t)=="Instance" and t:IsA("Model") then
@@ -25763,10 +25757,11 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 		end
 	end
 
+	local partSet = {All=true}
 	for _,t in ipairs(targets) do
-		local char = getCharacter(t)
-		if char then
-			for _,p in ipairs(char:GetChildren()) do
+		local c = GetChar(t)
+		if c then
+			for _,p in ipairs(c:GetChildren()) do
 				if p:IsA("BasePart") then partSet[p.Name]=true end
 			end
 		end
@@ -25779,129 +25774,156 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 			Callback = function()
 				local newSize = Vector3.new(n,n,n)
 
-				local function cache(b, key)
-					local ogParts = NAStuff.HitboxState._ogParts
-					ogParts[key] = ogParts[key] or setmetatable({}, {__mode="k"})
-					if not ogParts[key][b] then
-						ogParts[key][b] = {
-							Size=b.Size, Transparency=b.Transparency, BrickColor=b.BrickColor,
-							Material=b.Material, CanCollide=b.CanCollide, Massless=b.Massless
-						}
-					end
-				end
-
-				local function applyToChar(key, char)
-					if not char then return end
-					for _,bp in ipairs(char:GetChildren()) do
-						if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
-							cache(bp, key)
-							bp.Size = newSize
-							bp.Transparency = 0.9
-							bp.BrickColor = BrickColor.new("Really black")
-							bp.Material = Enum.Material.Neon
-							bp.CanCollide = false
-							bp.Massless = true
-						end
-					end
-				end
-
-				local function ensureLoop(t)
-					local loops = NAStuff.HitboxState._loops
-					if loops[t] then loops[t]:Disconnect() end
-					loops[t] = RunService.Stepped:Connect(function()
-						local char = getCharacter(t)
-						if char then applyToChar(t, char) end
-					end)
-				end
-
-				for _,t in ipairs(targets) do
-					ensureLoop(t)
-					if typeof(t)=="Instance" and t:IsA("Player") then
-						local ca = NAStuff.HitboxState._charAdded
-						if ca[t] then ca[t]:Disconnect() end
-						if t.CharacterAdded then
-							ca[t] = t.CharacterAdded:Connect(function(c)
-								Defer(function() applyToChar(t, c) end)
-							end)
-						end
-					elseif typeof(t)=="Instance" and t:IsA("Model") then
-						local key = "hitbox_npc_added_"..t:GetDebugId()
-						NAlib.disconnect(key)
-						NAlib.connect(key, t.DescendantAdded:Connect(function()
-							applyToChar(t, t)
-						end))
-					end
-				end
-
-				if global then
-					local scopes = NAStuff.HitboxState._scopes
-					if scopes.playersGlobal.addConn then scopes.playersGlobal.addConn:Disconnect() end
-					if scopes.playersGlobal.remConn then scopes.playersGlobal.remConn:Disconnect() end
-					scopes.playersGlobal.addConn = Players.PlayerAdded:Connect(function(plr)
-						ensureLoop(plr)
-						local ca = NAStuff.HitboxState._charAdded
-						if ca[plr] then ca[plr]:Disconnect() end
-						if plr.CharacterAdded then
-							ca[plr] = plr.CharacterAdded:Connect(function(c)
-								Defer(function() applyToChar(plr, c) end)
-							end)
-						end
-					end)
-					scopes.playersGlobal.remConn = Players.PlayerRemoving:Connect(function(plr)
-						local loops = NAStuff.HitboxState._loops
-						local ogParts = NAStuff.HitboxState._ogParts
-						local ca = NAStuff.HitboxState._charAdded
-						if loops[plr] then loops[plr]:Disconnect() loops[plr]=nil end
-						ogParts[plr]=nil
-						if ca[plr] then ca[plr]:Disconnect() ca[plr]=nil end
-					end)
-				end
-
 				if npcMode then
-					local scopes = NAStuff.HitboxState._scopes
-					if scopes.npc.descConn then scopes.npc.descConn:Disconnect() end
-					if scopes.npc.scanConn then scopes.npc.scanConn:Disconnect() end
+					local D = NAStuff.HB.N
+					D.config = {limb=limb,size=newSize}
 
-					local function npcModelFrom(inst)
+					local function Cache(key, bp)
+						D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
+						if not D.og[key][bp] then
+							D.og[key][bp] = {
+								Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
+								Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
+							}
+						end
+					end
+
+					local function ApplyTo(model)
+						if not model then return end
+						for _,bp in ipairs(model:GetChildren()) do
+							if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
+								Cache(model, bp)
+								bp.Size = newSize
+								bp.Transparency = 0.9
+								bp.BrickColor = BrickColor.new("Really black")
+								bp.Material = Enum.Material.Neon
+								bp.CanCollide = false
+								bp.Massless = true
+							end
+						end
+					end
+
+					local function EnsureLoop(model)
+						if D.loops[model] then D.loops[model]:Disconnect() end
+						D.loops[model] = RunService.Stepped:Connect(function()
+							if model and model.Parent then
+								ApplyTo(model)
+							end
+						end)
+					end
+
+					local function IsNPCModel(inst)
 						if inst:IsA("Model") and CheckIfNPC(inst) then return inst end
 						local m = inst:FindFirstAncestorWhichIsA("Model")
 						if m and CheckIfNPC(m) then return m end
 						return nil
 					end
 
-					for _,desc in ipairs(workspace:GetDescendants()) do
-						local mdl = npcModelFrom(desc)
-						if mdl then
-							ensureLoop(mdl)
-							applyToChar(mdl, mdl)
+					for _,t in ipairs(targets) do
+						local m = GetChar(t)
+						if m then
+							EnsureLoop(m)
+							Defer(function() ApplyTo(m) end)
+							if D.perModelAdded[m] then D.perModelAdded[m]:Disconnect() end
+							D.perModelAdded[m] = m.DescendantAdded:Connect(function()
+								ApplyTo(m)
+							end)
 						end
 					end
 
-					scopes.npc.descConn = workspace.DescendantAdded:Connect(function(inst)
-						local mdl = npcModelFrom(inst)
+					if D.descConn then D.descConn:Disconnect() D.descConn=nil end
+					D.descConn = workspace.DescendantAdded:Connect(function(inst)
+						local mdl = IsNPCModel(inst)
 						if mdl then
-							ensureLoop(mdl)
-							applyToChar(mdl, mdl)
-							local key = "hitbox_npc_added_"..mdl:GetDebugId()
-							NAlib.disconnect(key)
-							NAlib.connect(key, mdl.DescendantAdded:Connect(function()
-								applyToChar(mdl, mdl)
-							end))
+							EnsureLoop(mdl)
+							Defer(function() ApplyTo(mdl) end)
+							local key = D.perModelAdded[mdl]
+							if key then key:Disconnect() end
+							D.perModelAdded[mdl] = mdl.DescendantAdded:Connect(function()
+								ApplyTo(mdl)
+							end)
 						end
 					end)
 
+					if D.scanConn then D.scanConn:Disconnect() D.scanConn=nil end
 					local acc = 0
-					scopes.npc.scanConn = RunService.Heartbeat:Connect(function(dt)
+					D.scanConn = RunService.Heartbeat:Connect(function(dt)
 						acc += dt
-						if acc < 0.5 then return end
+						if acc < 0.4 then return end
 						acc = 0
 						for _,child in ipairs(workspace:GetChildren()) do
 							if child:IsA("Model") and CheckIfNPC(child) then
-								ensureLoop(child)
-								applyToChar(child, child)
+								EnsureLoop(child)
+								ApplyTo(child)
 							end
 						end
 					end)
+				else
+					local D = NAStuff.HB.P
+
+					local function Cache(key, bp)
+						D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
+						if not D.og[key][bp] then
+							D.og[key][bp] = {
+								Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
+								Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
+							}
+						end
+					end
+
+					local function ApplyTo(charKey, char)
+						if not char then return end
+						for _,bp in ipairs(char:GetChildren()) do
+							if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
+								Cache(charKey, bp)
+								bp.Size = newSize
+								bp.Transparency = 0.9
+								bp.BrickColor = BrickColor.new("Really black")
+								bp.Material = Enum.Material.Neon
+								bp.CanCollide = false
+								bp.Massless = true
+							end
+						end
+					end
+
+					local function EnsureLoop(key)
+						if D.loops[key] then D.loops[key]:Disconnect() end
+						D.loops[key] = RunService.Stepped:Connect(function()
+							local c = GetChar(key)
+							if c then ApplyTo(key, c) end
+						end)
+					end
+
+					for _,t in ipairs(targets) do
+						EnsureLoop(t)
+						if typeof(t)=="Instance" and t:IsA("Player") and t.CharacterAdded then
+							if D.charAdded[t] then D.charAdded[t]:Disconnect() end
+							D.charAdded[t] = t.CharacterAdded:Connect(function(c)
+								Defer(function() ApplyTo(t, c) end)
+							end)
+						end
+						local c = GetChar(t)
+						if c then Defer(function() ApplyTo(t, c) end) end
+					end
+
+					if global then
+						if D.addConn then D.addConn:Disconnect() end
+						if D.remConn then D.remConn:Disconnect() end
+						D.addConn = Players.PlayerAdded:Connect(function(plr)
+							EnsureLoop(plr)
+							if D.charAdded[plr] then D.charAdded[plr]:Disconnect() end
+							if plr.CharacterAdded then
+								D.charAdded[plr] = plr.CharacterAdded:Connect(function(c)
+									Defer(function() ApplyTo(plr, c) end)
+								end)
+							end
+						end)
+						D.remConn = Players.PlayerRemoving:Connect(function(plr)
+							if D.loops[plr] then D.loops[plr]:Disconnect() D.loops[plr]=nil end
+							if D.charAdded[plr] then D.charAdded[plr]:Disconnect() D.charAdded[plr]=nil end
+							D.og[plr]=nil
+						end)
+					end
 				end
 			end
 		})
@@ -25911,45 +25933,70 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
+	NAStuff.HB = NAStuff.HB or {}
+	NAStuff.HB.P = NAStuff.HB.P or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), charAdded=setmetatable({}, {__mode="k"}), addConn=nil, remConn=nil}
+	NAStuff.HB.N = NAStuff.HB.N or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), perModelAdded=setmetatable({}, {__mode="k"}), scanConn=nil, descConn=nil, config=nil}
+
 	local targets = getPlr(pArg)
+	if #targets==0 then DoNotif("No targets found",2) return end
 	local argLower = Lower(pArg)
-	local npcMode = (argLower == "npc")
+	local npcMode = (argLower=="npc")
 	local global = (argLower=="all" or argLower=="others")
 
-	local function restoreKey(key)
-		local ogParts = NAStuff.HitboxState._ogParts
-		local loops = NAStuff.HitboxState._loops
-		local ca = NAStuff.HitboxState._charAdded
-		if ogParts[key] then
-			for bp,props in pairs(ogParts[key]) do
-				if bp and bp.Parent then
-					bp.Size = props.Size
-					bp.Transparency = props.Transparency
-					bp.BrickColor = props.BrickColor
-					bp.Material = props.Material
-					bp.CanCollide = props.CanCollide
-					bp.Massless = props.Massless
-				end
-			end
-			ogParts[key] = nil
-		end
-		if loops[key] then loops[key]:Disconnect() loops[key]=nil end
-		if ca[key] then ca[key]:Disconnect() ca[key]=nil end
-	end
-
-	for _,t in ipairs(targets) do
-		restoreKey(t)
-	end
-
 	if npcMode then
-		local scopes = NAStuff.HitboxState._scopes
-		if scopes.npc.descConn then scopes.npc.descConn:Disconnect() scopes.npc.descConn=nil end
-		if scopes.npc.scanConn then scopes.npc.scanConn:Disconnect() scopes.npc.scanConn=nil end
-	else
+		local D = NAStuff.HB.N
+		for _,t in ipairs(targets) do
+			if D.og[t] then
+				for bp,props in pairs(D.og[t]) do
+					if bp and bp.Parent then
+						bp.Size = props.Size
+						bp.Transparency = props.Transparency
+						bp.BrickColor = props.BrickColor
+						bp.Material = props.Material
+						bp.CanCollide = props.CanCollide
+						bp.Massless = props.Massless
+					end
+				end
+				D.og[t] = nil
+			end
+			if D.loops[t] then D.loops[t]:Disconnect() D.loops[t]=nil end
+			if D.perModelAdded[t] then D.perModelAdded[t]:Disconnect() D.perModelAdded[t]=nil end
+		end
+		for mdl,conn in pairs(D.perModelAdded) do
+			if conn then conn:Disconnect() end
+			D.perModelAdded[mdl]=nil
+		end
+		for key,lp in pairs(D.loops) do
+			if lp then lp:Disconnect() end
+			D.loops[key]=nil
+		end
+		if D.descConn then D.descConn:Disconnect() D.descConn=nil end
+		if D.scanConn then D.scanConn:Disconnect() D.scanConn=nil end
+		return
+	end
+
+	do
+		local D = NAStuff.HB.P
+		for _,t in ipairs(targets) do
+			if D.og[t] then
+				for bp,props in pairs(D.og[t]) do
+					if bp and bp.Parent then
+						bp.Size = props.Size
+						bp.Transparency = props.Transparency
+						bp.BrickColor = props.BrickColor
+						bp.Material = props.Material
+						bp.CanCollide = props.CanCollide
+						bp.Massless = props.Massless
+					end
+				end
+				D.og[t] = nil
+			end
+			if D.loops[t] then D.loops[t]:Disconnect() D.loops[t]=nil end
+			if D.charAdded[t] then D.charAdded[t]:Disconnect() D.charAdded[t]=nil end
+		end
 		if global then
-			local scopes = NAStuff.HitboxState._scopes
-			if scopes.playersGlobal.addConn then scopes.playersGlobal.addConn:Disconnect() scopes.playersGlobal.addConn=nil end
-			if scopes.playersGlobal.remConn then scopes.playersGlobal.remConn:Disconnect() scopes.playersGlobal.remConn=nil end
+			if D.addConn then D.addConn:Disconnect() D.addConn=nil end
+			if D.remConn then D.remConn:Disconnect() D.remConn=nil end
 		end
 	end
 end,true)
