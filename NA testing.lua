@@ -25739,14 +25739,16 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 end)
 
 local ogParts, resizeLoops = setmetatable({}, {__mode="k"}), setmetatable({}, {__mode="k"})
-local hbAddConn, hbRemConn, hbNPCConn = nil, nil, nil
+local hbAddConn, hbRemConn = nil, nil
+local hbNPCDescConn, hbNPCScanConn = nil, nil
 local charAddedConns = setmetatable({}, {__mode="k"})
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 	local targets = getPlr(pArg) if #targets==0 then DoNotif("No targets found",2) return end
 	local n = tonumber(sArg) or 10
-	local npcMode = Lower(pArg) == "npc"
-	local global = (Lower(pArg)=="all" or Lower(pArg)=="others")
+	local argLower = Lower(pArg)
+	local npcMode = (argLower == "npc")
+	local global = (argLower=="all" or argLower=="others")
 	local partSet = {All=true}
 
 	local function getCharacter(t)
@@ -25773,7 +25775,8 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 			Callback = function()
 				if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
 				if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-				if hbNPCConn then hbNPCConn:Disconnect() hbNPCConn=nil end
+				if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
+				if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
 
 				local newSize = Vector3.new(n,n,n)
 
@@ -25819,15 +25822,6 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 								Defer(function() applyToChar(t, c) end)
 							end)
 						end
-					elseif typeof(t)=="Instance" and t:IsA("Model") then
-						local c = getCharacter(t)
-						if c then
-							local key = "hitbox_npc_added_"..t:GetDebugId()
-							NAlib.disconnect(key)
-							NAlib.connect(key, c.DescendantAdded:Connect(function()
-								applyToChar(t, c)
-							end))
-						end
 					end
 				end
 
@@ -25849,14 +25843,35 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 				end
 
 				if npcMode then
-					hbNPCConn = workspace.DescendantAdded:Connect(function(obj)
-						if obj:IsA("Model") and CheckIfNPC(obj) then
-							ensureLoop(obj)
-							local key = "hitbox_npc_added_"..obj:GetDebugId()
-							NAlib.disconnect(key)
-							NAlib.connect(key, obj.DescendantAdded:Connect(function()
-								applyToChar(obj, obj)
-							end))
+					local function npcModelFrom(inst)
+						if inst:IsA("Model") then
+							return CheckIfNPC(inst) and inst or nil
+						end
+						local m = inst:FindFirstAncestorWhichIsA("Model")
+						if m and CheckIfNPC(m) then return m end
+						return nil
+					end
+					for _,desc in ipairs(workspace:GetDescendants()) do
+						local mdl = npcModelFrom(desc)
+						if mdl then ensureLoop(mdl) applyToChar(mdl, mdl) end
+					end
+					hbNPCDescConn = workspace.DescendantAdded:Connect(function(inst)
+						local mdl = npcModelFrom(inst)
+						if mdl then
+							ensureLoop(mdl)
+							applyToChar(mdl, mdl)
+						end
+					end)
+					local acc = 0
+					hbNPCScanConn = RunService.Heartbeat:Connect(function(dt)
+						acc += dt
+						if acc < 0.5 then return end
+						acc = 0
+						for _,child in ipairs(workspace:GetChildren()) do
+							if child:IsA("Model") and CheckIfNPC(child) then
+								ensureLoop(child)
+								applyToChar(child, child)
+							end
 						end
 					end)
 				end
@@ -25869,7 +25884,7 @@ end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 	local targets = getPlr(pArg)
-	local function restore(key, char)
+	local function restore(key)
 		if not ogParts[key] then return end
 		for bp,props in pairs(ogParts[key]) do
 			if bp and bp.Parent then
@@ -25884,18 +25899,14 @@ cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 		ogParts[key] = nil
 	end
 	for _,t in ipairs(targets) do
-		restore(t, getPlrChar(t))
+		restore(t)
 		if resizeLoops[t] then resizeLoops[t]:Disconnect() resizeLoops[t]=nil end
 		if charAddedConns[t] then charAddedConns[t]:Disconnect() charAddedConns[t]=nil end
 	end
 	if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
 	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-	if hbNPCConn then hbNPCConn:Disconnect() hbNPCConn=nil end
-	for k,_ in pairs(NAlib._connections or {}) do
-		if type(k)=="string" and k:find("^hitbox_npc_added_") then
-			NAlib.disconnect(k)
-		end
-	end
+	if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
+	if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
 end,true)
 
 local PST = {

@@ -25718,86 +25718,175 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
-local ogParts,resizeLoops={},{}
-local hbAddConn,hbRemConn=nil,nil
+local ogParts, resizeLoops = setmetatable({}, {__mode="k"}), setmetatable({}, {__mode="k"})
+local hbAddConn, hbRemConn = nil, nil
+local hbNPCDescConn, hbNPCScanConn = nil, nil
+local charAddedConns = setmetatable({}, {__mode="k"})
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
-	local targets=getPlr(pArg) if #targets==0 then DoNotif("No players found",2) return end
-	local n=tonumber(sArg) or 10
-	local global=(Lower(pArg)=="all" or Lower(pArg)=="others")
-	local partSet={All=true}
-	for _,plr in ipairs(targets)do
-		local char=getPlrChar(plr)
+	local targets = getPlr(pArg) if #targets==0 then DoNotif("No targets found",2) return end
+	local n = tonumber(sArg) or 10
+	local argLower = Lower(pArg)
+	local npcMode = (argLower == "npc")
+	local global = (argLower=="all" or argLower=="others")
+	local partSet = {All=true}
+
+	local function getCharacter(t)
+		if typeof(t)=="Instance" and t:IsA("Player") then
+			return getPlrChar(t)
+		elseif typeof(t)=="Instance" and t:IsA("Model") then
+			return t
+		end
+	end
+
+	for _,t in ipairs(targets) do
+		local char = getCharacter(t)
 		if char then
-			for _,p in ipairs(char:GetChildren())do
+			for _,p in ipairs(char:GetChildren()) do
 				if p:IsA("BasePart") then partSet[p.Name]=true end
 			end
 		end
 	end
-	local btns={}
-	for limb,_ in pairs(partSet)do
+
+	local btns = {}
+	for limb,_ in pairs(partSet) do
 		Insert(btns,{
-			Text=limb,
-			Callback=function()
+			Text = limb,
+			Callback = function()
 				if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
 				if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
-				local newSize=Vector3.new(n,n,n)
-				local function cache(b,plr)
-					ogParts[plr][b]={Size=b.Size,Transparency=b.Transparency,BrickColor=b.BrickColor,Material=b.Material,CanCollide=b.CanCollide}
+				if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
+				if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
+
+				local newSize = Vector3.new(n,n,n)
+
+				local function cache(b, key)
+					ogParts[key] = ogParts[key] or setmetatable({}, {__mode="k"})
+					if not ogParts[key][b] then
+						ogParts[key][b] = {
+							Size=b.Size, Transparency=b.Transparency, BrickColor=b.BrickColor,
+							Material=b.Material, CanCollide=b.CanCollide, Massless=b.Massless
+						}
+					end
 				end
-				local function apply(plr)
-					ogParts[plr]=ogParts[plr] or {}
-					if resizeLoops[plr] then resizeLoops[plr]:Disconnect() end
-					resizeLoops[plr]=RunService.Stepped:Connect(function()
-						local char=getPlrChar(plr) if not char then return end
-						for _,bp in ipairs(char:GetChildren())do
-							if bp:IsA("BasePart") and (limb=="All" or bp.Name:lower()==limb:lower()) then
-								if not ogParts[plr][bp] then cache(bp,plr) end
-								bp.Size=newSize
-								bp.Transparency=0.9
-								bp.BrickColor=BrickColor.new("Really black")
-								bp.Material=Enum.Material.Neon
-								bp.CanCollide=false
-								bp.Massless=true
-							end
+
+				local function applyToChar(key, char)
+					if not char then return end
+					for _,bp in ipairs(char:GetChildren()) do
+						if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
+							cache(bp, key)
+							bp.Size = newSize
+							bp.Transparency = 0.9
+							bp.BrickColor = BrickColor.new("Really black")
+							bp.Material = Enum.Material.Neon
+							bp.CanCollide = false
+							bp.Massless = true
 						end
+					end
+				end
+
+				local function ensureLoop(t)
+					if resizeLoops[t] then resizeLoops[t]:Disconnect() end
+					resizeLoops[t] = RunService.Stepped:Connect(function()
+						local char = getCharacter(t)
+						if char then applyToChar(t, char) end
 					end)
 				end
-				for _,plr in ipairs(targets)do apply(plr) end
+
+				for _,t in ipairs(targets) do
+					ensureLoop(t)
+					if typeof(t)=="Instance" and t:IsA("Player") then
+						if charAddedConns[t] then charAddedConns[t]:Disconnect() end
+						if t.CharacterAdded then
+							charAddedConns[t] = t.CharacterAdded:Connect(function(c)
+								Defer(function() applyToChar(t, c) end)
+							end)
+						end
+					end
+				end
+
 				if global then
-					hbAddConn=Players.PlayerAdded:Connect(apply)
-					hbRemConn=Players.PlayerRemoving:Connect(function(plr)
+					hbAddConn = Players.PlayerAdded:Connect(function(plr)
+						ensureLoop(plr)
+						if charAddedConns[plr] then charAddedConns[plr]:Disconnect() end
+						if plr.CharacterAdded then
+							charAddedConns[plr] = plr.CharacterAdded:Connect(function(c)
+								Defer(function() applyToChar(plr, c) end)
+							end)
+						end
+					end)
+					hbRemConn = Players.PlayerRemoving:Connect(function(plr)
 						if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
 						ogParts[plr]=nil
+						if charAddedConns[plr] then charAddedConns[plr]:Disconnect() charAddedConns[plr]=nil end
+					end)
+				end
+
+				if npcMode then
+					local function npcModelFrom(inst)
+						if inst:IsA("Model") then
+							return CheckIfNPC(inst) and inst or nil
+						end
+						local m = inst:FindFirstAncestorWhichIsA("Model")
+						if m and CheckIfNPC(m) then return m end
+						return nil
+					end
+					for _,desc in ipairs(workspace:GetDescendants()) do
+						local mdl = npcModelFrom(desc)
+						if mdl then ensureLoop(mdl) applyToChar(mdl, mdl) end
+					end
+					hbNPCDescConn = workspace.DescendantAdded:Connect(function(inst)
+						local mdl = npcModelFrom(inst)
+						if mdl then
+							ensureLoop(mdl)
+							applyToChar(mdl, mdl)
+						end
+					end)
+					local acc = 0
+					hbNPCScanConn = RunService.Heartbeat:Connect(function(dt)
+						acc += dt
+						if acc < 0.5 then return end
+						acc = 0
+						for _,child in ipairs(workspace:GetChildren()) do
+							if child:IsA("Model") and CheckIfNPC(child) then
+								ensureLoop(child)
+								applyToChar(child, child)
+							end
+						end
 					end)
 				end
 			end
 		})
 	end
+
 	Window({Title="Hitbox Menu",Description="Choose limb to resize",Buttons=btns})
 end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
-	local targets=getPlr(pArg)
-	for _,plr in ipairs(targets)do
-		local char=getPlrChar(plr)
-		if char and ogParts[plr] then
-			for bp,props in pairs(ogParts[plr])do
-				local ref=char:FindFirstChild(bp.Name) or bp
-				if ref then
-					ref.Size=props.Size
-					ref.Transparency=props.Transparency
-					ref.BrickColor=props.BrickColor
-					ref.Material=props.Material
-					ref.CanCollide=props.CanCollide
-				end
+	local targets = getPlr(pArg)
+	local function restore(key)
+		if not ogParts[key] then return end
+		for bp,props in pairs(ogParts[key]) do
+			if bp and bp.Parent then
+				bp.Size = props.Size
+				bp.Transparency = props.Transparency
+				bp.BrickColor = props.BrickColor
+				bp.Material = props.Material
+				bp.CanCollide = props.CanCollide
+				bp.Massless = props.Massless
 			end
 		end
-		if resizeLoops[plr] then resizeLoops[plr]:Disconnect() resizeLoops[plr]=nil end
-		ogParts[plr]=nil
+		ogParts[key] = nil
+	end
+	for _,t in ipairs(targets) do
+		restore(t)
+		if resizeLoops[t] then resizeLoops[t]:Disconnect() resizeLoops[t]=nil end
+		if charAddedConns[t] then charAddedConns[t]:Disconnect() charAddedConns[t]=nil end
 	end
 	if hbAddConn then hbAddConn:Disconnect() hbAddConn=nil end
 	if hbRemConn then hbRemConn:Disconnect() hbRemConn=nil end
+	if hbNPCDescConn then hbNPCDescConn:Disconnect() hbNPCDescConn=nil end
+	if hbNPCScanConn then hbNPCScanConn:Disconnect() hbNPCScanConn=nil end
 end,true)
 
 local PST = {
