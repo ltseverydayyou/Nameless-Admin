@@ -336,6 +336,9 @@ local NAStuff = {
 	ESP_LabelTextScaled = false;
 	ESP_ShowPartDistance = false;
 	ESP_LocatorEnabled = false;
+	ESP_LocatorSize = 26;
+	ESP_LocatorShowText = false;
+	ESP_LocatorTextSize = 14;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
@@ -2509,6 +2512,9 @@ NAmanage.LoadESPSettings = function()
 		ESP_LabelTextScaled = false;
 		ESP_ShowPartDistance = false;
 		ESP_LocatorEnabled = false;
+		ESP_LocatorSize = 26;
+		ESP_LocatorShowText = false;
+		ESP_LocatorTextSize = 14;
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -2526,15 +2532,14 @@ NAmanage.LoadESPSettings = function()
 							local numeric = tonumber(stored)
 							if numeric then d[key] = numeric end
 						elseif kind == "boolean" then
-							local vt = typeof(stored)
-							if vt == "boolean" then
+							if typeof(stored)=="boolean" then
 								d[key] = stored
-							elseif vt == "number" then
+							elseif typeof(stored)=="number" then
 								d[key] = stored ~= 0
-							elseif vt == "string" then
-								local lowered = stored:lower()
-								if lowered == "true" or lowered == "1" then d[key] = true
-								elseif lowered == "false" or lowered == "0" then d[key] = false end
+							elseif typeof(stored)=="string" then
+								local s = stored:lower()
+								if s=="true" or s=="1" then d[key]=true
+								elseif s=="false" or s=="0" then d[key]=false end
 							end
 						else
 							d[key] = stored
@@ -2545,34 +2550,28 @@ NAmanage.LoadESPSettings = function()
 		end
 	end
 	local mode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
-	if type(mode) == "string" then
-		local lowered = string.lower(mode)
-		if lowered == "highlight" then
-			mode = "Highlight"
-		else
-			mode = "BoxHandleAdornment"
-		end
-	else
-		mode = "BoxHandleAdornment"
-	end
-	d.ESP_RenderMode = mode
+	mode = (type(mode)=="string" and (string.lower(mode)=="highlight" and "Highlight" or "BoxHandleAdornment")) or "BoxHandleAdornment"
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
-	d.ESP_LabelTextSize = sz
-	d.ESP_LabelTextScaled = d.ESP_LabelTextScaled == true
-	NAStuff.ESP_Transparency = d.ESP_Transparency
-	NAStuff.ESP_BoxMaxDistance = d.ESP_BoxMaxDistance
+
+	NAStuff.ESP_Transparency     = d.ESP_Transparency
+	NAStuff.ESP_BoxMaxDistance   = d.ESP_BoxMaxDistance
 	NAStuff.ESP_LabelMaxDistance = d.ESP_LabelMaxDistance
-	NAStuff.ESP_ColorByTeam = d.ESP_ColorByTeam
-	NAStuff.ESP_ShowTeamText = d.ESP_ShowTeamText
-	NAStuff.ESP_ShowName = d.ESP_ShowName
-	NAStuff.ESP_ShowHealth = d.ESP_ShowHealth
-	NAStuff.ESP_ShowDistance = d.ESP_ShowDistance
+	NAStuff.ESP_ColorByTeam      = d.ESP_ColorByTeam
+	NAStuff.ESP_ShowTeamText     = d.ESP_ShowTeamText
+	NAStuff.ESP_ShowName         = d.ESP_ShowName
+	NAStuff.ESP_ShowHealth       = d.ESP_ShowHealth
+	NAStuff.ESP_ShowDistance     = d.ESP_ShowDistance
 	NAStuff.ESP_ShowPartDistance = d.ESP_ShowPartDistance
-	NAStuff.ESP_RenderMode = d.ESP_RenderMode
-	NAStuff.ESP_LabelTextSize = d.ESP_LabelTextSize
-	NAStuff.ESP_LabelTextScaled = d.ESP_LabelTextScaled
-	NAStuff.ESP_LocatorEnabled = d.ESP_LocatorEnabled == true
+	NAStuff.ESP_RenderMode       = mode
+	NAStuff.ESP_LabelTextSize    = sz
+	NAStuff.ESP_LabelTextScaled  = d.ESP_LabelTextScaled == true
+
+	NAStuff.ESP_LocatorEnabled   = d.ESP_LocatorEnabled == true
+	NAStuff.ESP_LocatorSize      = math.clamp(tonumber(d.ESP_LocatorSize) or 26, 12, 128)
+	NAStuff.ESP_LocatorShowText  = d.ESP_LocatorShowText == true
+	NAStuff.ESP_LocatorTextSize  = math.clamp(tonumber(d.ESP_LocatorTextSize) or 14, 10, 48)
+
 	if NAStuff.ESP_LocatorEnabled then
 		NAmanage.ESP_LocatorEnable(true)
 	else
@@ -2583,18 +2582,11 @@ end
 NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
 	local mode = "BoxHandleAdornment"
-	if type(NAStuff.ESP_RenderMode) == "string" then
-		local lowered = string.lower(NAStuff.ESP_RenderMode)
-		if lowered == "highlight" then
-			mode = "Highlight"
-		end
+	if type(NAStuff.ESP_RenderMode) == "string" and string.lower(NAStuff.ESP_RenderMode)=="highlight" then
+		mode = "Highlight"
 	end
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
-	if sz < 8 then
-		sz = 8
-	elseif sz > 72 then
-		sz = 72
-	end
+	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local d = {
 		ESP_Transparency = NAStuff.ESP_Transparency or 0.7;
 		ESP_BoxMaxDistance = NAStuff.ESP_BoxMaxDistance or 120;
@@ -2609,6 +2601,9 @@ NAmanage.SaveESPSettings = function()
 		ESP_LabelTextSize = sz;
 		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
 		ESP_LocatorEnabled = NAStuff.ESP_LocatorEnabled == true;
+		ESP_LocatorSize = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128);
+		ESP_LocatorShowText = NAStuff.ESP_LocatorShowText == true;
+		ESP_LocatorTextSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48);
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -9775,16 +9770,16 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 
 	if #plrs:GetPlayers()<=1 then
 		local ok,err=pcall(function()
-			tp:Teleport(game.PlaceId,lp)
+			tp:Teleport(PlaceId,lp)
 		end)
 		if not ok then DoNotif("Teleport error: "..tostring(err)) end
 	else
 		local ok,err=pcall(function()
-			tp:TeleportToPlaceInstance(game.PlaceId,game.JobId,lp)
+			tp:TeleportToPlaceInstance(PlaceId,game.JobId,lp)
 		end)
 		if not ok then
 			DoNotif("TeleportToPlaceInstance error: "..tostring(err))
-			pcall(function() tp:Teleport(game.PlaceId,lp) end)
+			pcall(function() tp:Teleport(PlaceId,lp) end)
 		end
 	end
 
@@ -21911,6 +21906,135 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
 end)
 
+cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver","Teleports you into a reserved server"},function()
+	local md5={}
+	local hmac={}
+	local base64={}
+	do
+		local T={
+			0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+			0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+			0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+			0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+			0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+			0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+			0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+			0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+		}
+		local function add(a,b)
+			local lsw=bit32.band(a,0xFFFF)+bit32.band(b,0xFFFF)
+			local msw=bit32.rshift(a,16)+bit32.rshift(b,16)+bit32.rshift(lsw,16)
+			return bit32.bor(bit32.lshift(msw,16),bit32.band(lsw,0xFFFF))
+		end
+		local function rol(x,n) return bit32.bor(bit32.lshift(x,n),bit32.rshift(x,32-n)) end
+		local function F(x,y,z) return bit32.bor(bit32.band(x,y),bit32.band(bit32.bnot(x),z)) end
+		local function G(x,y,z) return bit32.bor(bit32.band(x,z),bit32.band(y,bit32.bnot(z))) end
+		local function H(x,y,z) return bit32.bxor(x,bit32.bxor(y,z)) end
+		local function I(x,y,z) return bit32.bxor(y,bit32.bor(x,bit32.bnot(z))) end
+		function md5.sum(message)
+			local a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+			local message_len=#message
+			local padded_message=message.."\128"
+			while #padded_message%64~=56 do
+				padded_message=padded_message.."\0"
+			end
+			local len_bytes=""
+			local len_bits=message_len*8
+			for i=0,7 do
+				len_bytes=len_bytes..string.char(bit32.band(bit32.rshift(len_bits,i*8),0xFF))
+			end
+			padded_message=padded_message..len_bytes
+			for i=1,#padded_message,64 do
+				local chunk=padded_message:sub(i,i+63)
+				local X={}
+				for j=0,15 do
+					local b1,b2,b3,b4=chunk:byte(j*4+1,j*4+4)
+					X[j]=bit32.bor(b1,bit32.lshift(b2,8),bit32.lshift(b3,16),bit32.lshift(b4,24))
+				end
+				local aa,bb,cc,dd=a,b,c,d
+				local s={7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21}
+				for j=0,63 do
+					local f,k,si
+					if j<16 then f=F(b,c,d) k=j si=j%4
+					elseif j<32 then f=G(b,c,d) k=(1+5*j)%16 si=4+(j%4)
+					elseif j<48 then f=H(b,c,d) k=(5+3*j)%16 si=8+(j%4)
+					else f=I(b,c,d) k=(7*j)%16 si=12+(j%4) end
+					local t=add(a,f)
+					t=add(t,X[k])
+					t=add(t,T[j+1])
+					t=rol(t,s[si+1])
+					local nb=add(b,t)
+					a,b,c,d=d,nb,b,c
+				end
+				a=add(a,aa) b=add(b,bb) c=add(c,cc) d=add(d,dd)
+			end
+			local function to_le(n)
+				local s=""
+				for i=0,3 do s=s..string.char(bit32.band(bit32.rshift(n,i*8),0xFF)) end
+				return s
+			end
+			return to_le(a)..to_le(b)..to_le(c)..to_le(d)
+		end
+	end
+	do
+		function hmac.new(key,msg,hash_func)
+			if #key>64 then key=hash_func(key) end
+			local o="" local i=""
+			for n=1,64 do
+				local by=(n<=#key and string.byte(key,n)) or 0
+				o=o..string.char(bit32.bxor(by,0x5C))
+				i=i..string.char(bit32.bxor(by,0x36))
+			end
+			return hash_func(o..hash_func(i..msg))
+		end
+	end
+	do
+		local b="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+		function base64.encode(data)
+			return ((data:gsub(".",function(x)
+				local r,bv="",x:byte()
+				for i=8,1,-1 do r=r..(bv%2^i-bv%2^(i-1)>0 and "1" or "0") end
+				return r
+			end).."0000"):gsub("%d%d%d?%d?%d?%d?",function(x)
+				if #x<6 then return "" end
+				local c=0
+				for i=1,6 do c=c+((x:sub(i,i)=="1") and 2^(6-i) or 0) end
+				return b:sub(c+1,c+1)
+			end)..({"","==","="})[#data%3+1])
+		end
+	end
+	local function Gen(placeId)
+		local uuid={}
+		for i=1,16 do uuid[i]=math.random(0,255) end
+		uuid[7]=bit32.bor(bit32.band(uuid[7],0x0F),0x40)
+		uuid[9]=bit32.bor(bit32.band(uuid[9],0x3F),0x80)
+		local firstBytes=""
+		for i=1,16 do firstBytes=firstBytes..string.char(uuid[i]) end
+		local placeIdBytes=""
+		local p=placeId
+		for _=1,8 do placeIdBytes=placeIdBytes..string.char(p%256) p=math.floor(p/256) end
+		local content=firstBytes..placeIdBytes
+		local key="e4Yn8ckbCJtw2sv7qmbg"
+		local sig=hmac.new(key,content,md5.sum)
+		local bytes=sig..content
+		local code=base64.encode(bytes)
+		code=GSub(code,"%+","-")
+		code=GSub(code,"/","_")
+		local pad=0
+		code=GSub(code,"=",function() pad=pad+1 return "" end)
+		return code..tostring(pad)
+	end
+	local placeId=PlaceId
+	DebugNotif("Generating access code...")
+	local accessCode=Gen(placeId)
+	local RRS=SafeGetService("RobloxReplicatedStorage") or game:FindFirstChild("RobloxReplicatedStorage") or (SafeGetService("ReplicatedStorage") and SafeGetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage"))
+	if not RRS then DoNotif("Teleport failed: RobloxReplicatedStorage not found") return end
+	local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
+	if not remote then DoNotif("Teleport failed: ContactListIrisInviteTeleport not found") return end
+	DoNotif("Teleporting...")
+	remote:FireServer(placeId,"",accessCode)
+end)
+
 HumanModCons = {}
 
 cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when you get to the edge of an object"}, function()
@@ -23247,6 +23371,10 @@ end)
 
 cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that supports both pc and mobile"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Turtle%20Spy.lua"))()
+end)
+
+cmd.add({"sigmaspy", "sspy","superspy"},{"sigmaspy","the strongest RemoteSpy able to detect (RemoteEvent/Function - BindableEvent/Function - OnClientEvent/OnClientInvoke) and can detect remotes that were fired from Actors"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/depthso/Sigma-Spy/refs/heads/main/Main.lua"))()
 end)
 
 cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to whatever u want"},function(...)
@@ -25504,22 +25632,80 @@ NAmanage.ESP_LocatorEnable = function(force)
 	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
 	local arrows = NAStuff.ESP_LocatorArrows
 
-	local function getArrow(entry)
-		local a = arrows[entry]
-		if a and a.Parent then return a end
-		a = InstanceNew("TextLabel")
-		a.Name = "arrow"
-		a.Size = UDim2.fromOffset(26, 26)
-		a.AnchorPoint = Vector2.new(0.5, 0.5)
-		a.BackgroundTransparency = 1
-		a.Text = "V"
-		a.TextScaled = true
-		a.TextStrokeTransparency = 0.5
-		a.Font = Enum.Font.SourceSansBold
-		a.Visible = false
-		a.Parent = gui
-		arrows[entry] = a
-		return a
+	local function getHolder(entry)
+		local holder = arrows[entry]
+		if holder and holder.Parent then return holder end
+
+		holder = InstanceNew("Frame")
+		holder.Name = "locator"
+		holder.Size = UDim2.fromOffset(1, 1)
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = 1
+		holder.Visible = false
+		holder.Parent = gui
+
+		local pointer = InstanceNew("TextLabel")
+		pointer.Name = "Pointer"
+		pointer.Size = UDim2.fromOffset(NAStuff.ESP_LocatorSize or 26, NAStuff.ESP_LocatorSize or 26)
+		pointer.AnchorPoint = Vector2.new(0.5, 0.5)
+		pointer.Position = UDim2.fromOffset(0, 0)
+		pointer.BackgroundTransparency = 1
+		pointer.Text = "V"
+		pointer.TextScaled = true
+		pointer.TextStrokeTransparency = 0.5
+		pointer.Font = Enum.Font.SourceSansBold
+		pointer.ZIndex = 3
+		pointer.Visible = true
+		pointer.Parent = holder
+
+		local label = InstanceNew("TextLabel")
+		label.Name = "Name"
+		label.Size = UDim2.fromOffset(150, 20)
+		label.AnchorPoint = Vector2.new(0.5, 0.5)
+		label.Position = UDim2.fromOffset(0, 0)
+		label.BackgroundTransparency = 1
+		label.Text = ""
+		label.TextScaled = false
+		label.TextSize = NAStuff.ESP_LocatorTextSize or 14
+		label.TextWrapped = true
+		label.Font = Enum.Font.SourceSansBold
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextStrokeTransparency = 0.5
+		label.ZIndex = 2
+		label.Visible = NAStuff.ESP_LocatorShowText == true
+		label.Parent = holder
+
+		arrows[entry] = holder
+		return holder
+	end
+
+	local function applyStyle(holder, col)
+		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
+		local showText = (NAStuff.ESP_LocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
+
+		local pointer = holder:FindFirstChild("Pointer")
+		local label = holder:FindFirstChild("Name")
+
+		if pointer then
+			if pointer.TextColor3 ~= col then pointer.TextColor3 = col end
+			local s = UDim2.fromOffset(size,size)
+			if pointer.Size ~= s then pointer.Size = s end
+		end
+		if label then
+			if label.TextColor3 ~= col then label.TextColor3 = col end
+			if label.TextSize ~= textSize then label.TextSize = textSize end
+			label.Visible = showText
+		end
+	end
+
+	local function measure(text, textSize, maxWidth)
+		local b = TextService:GetTextSize(text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
+		local w = math.clamp(b.X + 12, 40, maxWidth)
+		local h = math.max(b.Y + 6, textSize + 4)
+		return w, h
 	end
 
 	NAlib.disconnect("esp_locator_loop")
@@ -25530,12 +25716,23 @@ NAmanage.ESP_LocatorEnable = function(force)
 		local vp = cam.ViewportSize
 		if vp.X <= 0 or vp.Y <= 0 then return end
 
-		local cx, cy = vp.X * 0.5, vp.Y * 0.5
-		local margin = 16
-		local halfX = math.max(1, cx - margin)
-		local halfY = math.max(1, cy - margin)
+		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
+		local textOn = (NAStuff.ESP_LocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
 
-		local seenEntries = {}
+		local cx, cy = vp.X * 0.5, vp.Y * 0.5
+		local margin = 16 + size * 0.5
+		local minX, maxX = margin, vp.X - margin
+		local minY, maxY = margin, vp.Y - margin
+
+		local seen = {}
+
+		local root = nil
+		if NAStuff.ESP_ShowPartDistance == true then
+			local lp = Players.LocalPlayer
+			local ch = lp and lp.Character
+			root = ch and getRoot(ch)
+		end
 
 		for _, entry in pairs(NAStuff.partESPEntries or {}) do
 			if entry and not entry.removed and entry.part and entry.part.Parent then
@@ -25543,45 +25740,116 @@ NAmanage.ESP_LocatorEnable = function(force)
 				if pos then
 					local v3 = cam:WorldToViewportPoint(pos)
 					local x, y, z = v3.X, v3.Y, v3.Z
-					local arrow = getArrow(entry)
+					local holder = getHolder(entry)
+					local pointer = holder:FindFirstChild("Pointer")
+					local label = holder:FindFirstChild("Name")
 					local col = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
-					arrow.TextColor3 = col
-					arrow.TextTransparency = 0
+
+					applyStyle(holder, col)
 
 					if z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y then
-						arrow.Visible = false
+						holder.Visible = false
 					else
-						local dirX = x - cx
-						local dirY = y - cy
-						if z <= 0 then
-							dirX = -dirX
-							dirY = -dirY
-						end
+						local dirX, dirY = x - cx, y - cy
+						if z <= 0 then dirX = -dirX dirY = -dirY end
 						local mag = math.sqrt(dirX*dirX + dirY*dirY)
-						if mag < 1e-3 then
-							dirX, dirY = 0, -1
-						else
-							dirX, dirY = dirX / mag, dirY / mag
-						end
-						local sx = halfX / math.max(1e-4, math.abs(dirX))
-						local sy = halfY / math.max(1e-4, math.abs(dirY))
+						if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX/mag, dirY/mag end
+
+						local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
+						local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
 						local scale = math.min(sx, sy)
 						local px = cx + dirX * scale
 						local py = cy + dirY * scale
-						local ang = math.deg(math.atan2(dirY, dirX)) - 90
-						arrow.Position = UDim2.fromOffset(px, py)
-						arrow.Rotation = ang
-						arrow.Visible = true
+
+						if px < minX then px = minX elseif px > maxX then px = maxX end
+						if py < minY then py = minY elseif py > maxY then py = maxY end
+
+						local wantPos = UDim2.fromOffset(px, py)
+						if holder.Position.X.Offset ~= wantPos.X.Offset or holder.Position.Y.Offset ~= wantPos.Y.Offset then
+							holder.Position = wantPos
+						end
+
+						if pointer then
+							local ang = math.deg(math.atan2(dirY, dirX)) - 90
+							if pointer.Rotation ~= ang then pointer.Rotation = ang end
+						end
+
+						if textOn and label then
+							local nm = entry.customName or (entry.part and entry.part.Name) or "Part"
+							if NAStuff.ESP_ShowPartDistance == true and root and root.Position then
+								local d = math.floor((root.Position - pos).Magnitude + 0.5)
+								nm = nm.." | "..tostring(d).." studs"
+							end
+
+							local side = math.abs(dirX) > math.abs(dirY)
+							local textForSide = nm
+							if side then
+								local nameOnly, distOnly = nm, ""
+								local bar = string.find(nm, "|", 1, true)
+								if bar then
+									nameOnly = string.sub(nm, 1, bar-2)
+									distOnly = string.sub(nm, bar+2)
+								end
+								textForSide = nameOnly..(distOnly ~= "" and ("\n"..distOnly) or "")
+							end
+
+							if label.Text ~= (side and textForSide or nm) then
+								label.Text = side and textForSide or nm
+							end
+
+							if side then
+								local maxW = math.max(60, math.floor(size * 3.5))
+								local w, h = measure(textForSide, textSize, maxW)
+								if label.Size.X.Offset ~= maxW or label.Size.Y.Offset ~= h then
+									label.Size = UDim2.fromOffset(maxW, h)
+								end
+							else
+								local maxW = math.floor(vp.X * 0.25)
+								local w, h = measure(nm, textSize, maxW)
+								if label.Size.X.Offset ~= w or label.Size.Y.Offset ~= h then
+									label.Size = UDim2.fromOffset(w, h)
+								end
+							end
+
+							local gap = 6 + math.floor(size * 0.35)
+							local bx, by = -dirX, -dirY
+							local offX = bx * (size*0.5 + gap)
+							local offY = by * (size*0.5 + gap)
+
+							local lblAbsX = px + offX
+							local lblAbsY = py + offY
+
+							local halfW = label.Size.X.Offset * 0.5
+							local halfH = label.Size.Y.Offset * 0.5
+
+							if lblAbsX - halfW < 4 then lblAbsX = 4 + halfW end
+							if lblAbsX + halfW > vp.X - 4 then lblAbsX = vp.X - 4 - halfW end
+							if lblAbsY - halfH < 4 then lblAbsY = 4 + halfH end
+							if lblAbsY + halfH > vp.Y - 4 then lblAbsY = vp.Y - 4 - halfH end
+
+							local relX = lblAbsX - px
+							local relY = lblAbsY - py
+							local wantLabel = UDim2.fromOffset(relX, relY)
+							if label.Position.X.Offset ~= wantLabel.X.Offset or label.Position.Y.Offset ~= wantLabel.Y.Offset then
+								label.Position = wantLabel
+							end
+
+							if not label.Visible then label.Visible = true end
+						elseif label and label.Visible then
+							label.Visible = false
+						end
+
+						holder.Visible = true
 					end
 
-					seenEntries[entry] = true
+					seen[entry] = true
 				end
 			end
 		end
 
-		for entry, arrow in pairs(arrows) do
-			if (not entry) or entry.removed or (not seenEntries[entry]) or (not entry.part) or (not entry.part.Parent) then
-				if arrow and arrow.Parent then arrow:Destroy() end
+		for entry, holder in pairs(arrows) do
+			if (not entry) or entry.removed or (not seen[entry]) or (not entry.part) or (not entry.part.Parent) then
+				if holder and holder.Parent then holder:Destroy() end
 				arrows[entry] = nil
 			end
 		end
@@ -33279,6 +33547,24 @@ NAgui.addToggle("ESP Locator Arrows", NAStuff.ESP_LocatorEnabled == true, functi
 		NAmanage.ESP_LocatorDisable()
 	end
 	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Locator Size", 12, 128, math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128), 1, " px", function(v)
+	NAStuff.ESP_LocatorSize = math.clamp(tonumber(v) or 26, 12, 128)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_LocatorEnable(true)
+end)
+
+NAgui.addToggle("Locator Show Text", NAStuff.ESP_LocatorShowText == true, function(state)
+	NAStuff.ESP_LocatorShowText = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_LocatorEnable(true)
+end)
+
+NAgui.addSlider("Locator Text Size", 10, 48, math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48), 1, " px", function(v)
+	NAStuff.ESP_LocatorTextSize = math.clamp(tonumber(v) or 14, 10, 48)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_LocatorEnable(true)
 end)
 
 NAgui.addSection("Interactable ESP (touchesp/proximityesp/clickesp)")
