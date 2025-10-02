@@ -21926,7 +21926,7 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
 end)
 
-cmd.add({"reserveserver", "rs"}, {"reserveserver [code]", "Teleports to a reserved server or creates one if code is missing"}, function(code)
+cmd.add({"reserveserver","privateserver","ps", "rs"}, {"reserveserver [code]", "Teleports to a reserved server or creates one if code is missing"}, function(code)
 	local md5 = {}
 	local hmac = {}
 	local base64 = {}
