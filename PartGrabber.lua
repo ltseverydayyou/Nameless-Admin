@@ -40,6 +40,7 @@ local function ProtectGui(g)
         g.Parent = cg
         return g
     else
+        local lp = Svc("Players").LocalPlayer
         if lp and lp:FindFirstChildWhichIsA("PlayerGui") then
             NAP(g)
             g.Parent = lp:FindFirstChildWhichIsA("PlayerGui")
@@ -67,6 +68,9 @@ local IsOnMobile=(function()
 	return false
 end)()
 
+local BTN_H = IsOnMobile and 28 or 34
+local BTN_TEXT = IsOnMobile and 12 or 13
+
 local _conns = {}
 local function track(c) if c then table.insert(_conns, c) end return c end
 local function discAll() for i=#_conns,1,-1 do local c=_conns[i] if c and c.Disconnect then pcall(function() c:Disconnect() end) end _conns[i]=nil end end
@@ -77,13 +81,13 @@ local function mkBtn(txt, col, parent, h)
     b.Name = txt:gsub("%s+","")
     b.Text = txt
     b.Font = Enum.Font.GothamSemibold
-    b.TextSize = 13
+    b.TextSize = BTN_TEXT
     b.TextColor3 = Color3.fromRGB(235,235,255)
     b.BackgroundColor3 = col
     b.BackgroundTransparency = 0.2
     b.BorderSizePixel = 0
     b.AutoButtonColor = false
-    b.Size = UDim2.new(1,0,0,h or 34)
+    b.Size = UDim2.new(1,0,0,h or BTN_H)
     b.Parent = parent
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0,8)
@@ -237,7 +241,8 @@ lbl.Parent = body
 
 local pathFrame = Instance.new("Frame")
 pathFrame.Name = "PathFrame"
-pathFrame.Size = UDim2.new(1,0,0,40)
+pathFrame.AutomaticSize = Enum.AutomaticSize.Y
+pathFrame.Size = UDim2.new(1,0,0,0)
 pathFrame.BackgroundColor3 = Color3.fromRGB(30,30,44)
 pathFrame.BorderSizePixel = 0
 pathFrame.LayoutOrder = 2
@@ -249,21 +254,22 @@ pfCorner.Parent = pathFrame
 
 local pathTxt = Instance.new("TextLabel")
 pathTxt.Name = "PathText"
-pathTxt.Text = ". . ."
+pathTxt.Text = "..."
 pathTxt.Font = Enum.Font.Code
 pathTxt.TextWrapped = true
 pathTxt.TextXAlignment = Enum.TextXAlignment.Center
-pathTxt.TextYAlignment = Enum.TextYAlignment.Center
+pathTxt.TextYAlignment = Enum.TextYAlignment.Top
 pathTxt.TextSize = 13
+pathTxt.AutomaticSize = Enum.AutomaticSize.Y
 pathTxt.TextColor3 = Color3.fromRGB(230,230,255)
 pathTxt.BackgroundTransparency = 1
-pathTxt.Size = UDim2.new(1,-8,1,-6)
-pathTxt.Position = UDim2.new(0,4,0,3)
+pathTxt.Size = UDim2.new(1,-8,0,0)
+pathTxt.Position = UDim2.new(0,4,0,6)
 pathTxt.Parent = pathFrame
 
 local row1 = Instance.new("Frame")
 row1.BackgroundTransparency = 1
-row1.Size = UDim2.new(1,0,0,34)
+row1.Size = UDim2.new(1,0,0,BTN_H)
 row1.LayoutOrder = 3
 row1.Parent = body
 
@@ -272,12 +278,12 @@ grid1.CellPadding = UDim2.new(0,10,0,0)
 grid1.CellSize = UDim2.new(0.5,-5,1,0)
 grid1.Parent = row1
 
-local btnCopy = mkBtn("Copy Path", Color3.fromRGB(70,130,255), row1)
-local btnToggle = mkBtn("Selection: On", Color3.fromRGB(90,140,220), row1)
+local btnCopy = mkBtn("Copy Path", Color3.fromRGB(70,130,255), row1, BTN_H)
+local btnToggle = mkBtn("Selection: On", Color3.fromRGB(90,140,220), row1, BTN_H)
 
 local row2 = Instance.new("Frame")
 row2.BackgroundTransparency = 1
-row2.Size = UDim2.new(1,0,0,34)
+row2.Size = UDim2.new(1,0,0,BTN_H)
 row2.LayoutOrder = 4
 row2.Parent = body
 
@@ -286,12 +292,12 @@ grid2.CellPadding = UDim2.new(0,10,0,0)
 grid2.CellSize = UDim2.new(0.5,-5,1,0)
 grid2.Parent = row2
 
-local btnRen = mkBtn("Rename Part", Color3.fromRGB(90,90,150), row2)
-local btnBring = mkBtn("Bring Part", Color3.fromRGB(90,90,150), row2)
+local btnRen = mkBtn("Rename Part", Color3.fromRGB(90,90,150), row2, BTN_H)
+local btnBring = mkBtn("Bring Part", Color3.fromRGB(90,90,150), row2, BTN_H)
 
 local row3 = Instance.new("Frame")
 row3.BackgroundTransparency = 1
-row3.Size = UDim2.new(1,0,0,34)
+row3.Size = UDim2.new(1,0,0,BTN_H)
 row3.LayoutOrder = 5
 row3.Parent = body
 
@@ -300,8 +306,8 @@ grid3.CellPadding = UDim2.new(0,10,0,0)
 grid3.CellSize = UDim2.new(0.5,-5,1,0)
 grid3.Parent = row3
 
-local btnColl = mkBtn("CanCollide: ?", Color3.fromRGB(70,180,110), row3)
-local btnDel = mkBtn("Delete Part", Color3.fromRGB(230,70,70), row3)
+local btnColl = mkBtn("CanCollide: ?", Color3.fromRGB(70,180,110), row3, BTN_H)
+local btnDel = mkBtn("Delete Part", Color3.fromRGB(230,70,70), row3, BTN_H)
 
 local modal = Instance.new("Frame")
 modal.Visible = false
@@ -383,6 +389,7 @@ local minimized = false
 local dragging = false
 local dragInput = nil
 local dragStart, startPos = nil, nil
+local currentPath = nil
 
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = win
@@ -447,6 +454,9 @@ local function showAdorn(pv)
     bha.Adornee = pv
     bha.Color3 = Color3.fromRGB(140,170,255)
     bha.Transparency = 0.85
+    if pv:IsA("BasePart") then
+        bha.Size = pv.Size
+    end
     bha.Parent = f
     f.Parent = pv
     adorn = f
@@ -470,13 +480,15 @@ end
 local function setSel(p)
     selObj = p
     if p then
-        pathTxt.Text = " "..instPath(p)
+        currentPath = instPath(p)
+        pathTxt.Text = currentPath
         setStatus("Part selected: "..p.Name, true)
         showAdorn(p)
         updCollBtn()
         ts:Create(pathFrame, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(36,36,50)}):Play()
     else
-        pathTxt.Text = ". . ."
+        currentPath = nil
+        pathTxt.Text = "..."
         setStatus("No part selected", false)
         clearAdorn()
         updCollBtn()
@@ -492,15 +504,30 @@ local function onWin(p)
     return v.X >= a.X and v.X <= a.X + s.X and v.Y >= a.Y and v.Y <= a.Y + s.Y
 end
 
+local function raycastPick()
+    local cam = workspace.CurrentCamera
+    if not cam then return nil end
+    local pos = uis:GetMouseLocation()
+    local ray = cam:ViewportPointToRay(pos.X, pos.Y)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local excl = {}
+    local ch = lp.Character
+    if ch then table.insert(excl, ch) end
+    params.FilterDescendantsInstances = excl
+    params.IgnoreWater = false
+    local res = workspace:Raycast(ray.Origin, ray.Direction * 10000, params)
+    return res and res.Instance or nil
+end
+
 local function pick()
     if not selOn then return end
     if dragging then return end
     local pos = uis:GetMouseLocation()
     if onWin(pos) then return end
-    local m = lp:GetMouse()
-    local t = m.Target
-    if t and t:IsA("BasePart") then
-        setSel(t)
+    local hit = raycastPick()
+    if hit and hit:IsA("BasePart") then
+        setSel(hit)
     else
         setSel(nil)
     end
@@ -534,8 +561,8 @@ local function hideRen()
 end
 
 local function baseSize()
-    local bw = IsOnMobile and 360 or 420
-    local bh = minimized and 56 or (IsOnMobile and 300 or 300)
+    local bw = IsOnMobile and 390 or 420
+    local bh = minimized and 56 or 300
     return bw, bh
 end
 
@@ -569,8 +596,8 @@ local function applyScale()
     local uy = math.max(0, vp.Y - inset.Y*2)
     local bw, bh = baseSize()
     local sc = math.min(ux/(bw+24), uy/(bh+60))
-    sc = math.clamp(sc, IsOnMobile and 0.45 or 0.6, 1)
-    uiScale.Scale = sc
+    local minScale = IsOnMobile and 0.75 or 0.6
+    uiScale.Scale = math.clamp(sc, minScale, 1)
     win.Size = UDim2.new(0,bw,0,bh)
 end
 
@@ -611,8 +638,8 @@ btnExit.MouseButton1Click:Connect(function()
 end)
 
 btnCopy.MouseButton1Click:Connect(function()
-    if pathTxt.Text ~= ". . ." and setclipboard then
-        setclipboard(pathTxt.Text)
+    if currentPath and setclipboard then
+        setclipboard(currentPath)
         setStatus("Path copied", true)
         task.wait(0.22)
     else
@@ -659,7 +686,8 @@ btnSave.MouseButton1Click:Connect(function()
     if selObj and rbInput.Text ~= "" then
         selObj.Name = rbInput.Text
         setStatus("Renamed to "..rbInput.Text, true)
-        pathTxt.Text = " "..instPath(selObj)
+        pathTxt.Text = instPath(selObj)
+        currentPath = pathTxt.Text
     end
     hideRen()
 end)
@@ -716,6 +744,13 @@ ts:Create(win, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.
 ts:Create(winStroke, TweenInfo.new(0.35), {Transparency = 0.3}):Play()
 ts:Create(bodyStroke, TweenInfo.new(0.35), {Transparency = 0.6}):Play()
 ts:Create(titleGrad, TweenInfo.new(1.2, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360}):Play()
+
+local function hookViewport()
+    local function hookCam(c) if not c then return end track(c:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)) end
+    track(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() hookCam(workspace.CurrentCamera) applyScale() end))
+    if workspace.CurrentCamera then hookCam(workspace.CurrentCamera) end
+    track(sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(applyScale))
+end
 
 hookViewport()
 applyScale()
