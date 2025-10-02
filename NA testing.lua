@@ -355,14 +355,17 @@ local NAStuff = {
 	ESP_LabelTextSize = 12;
 	ESP_LabelTextScaled = false;
 	ESP_ShowPartDistance = false;
+	ESP_LocatorEnabled = false;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
+	ESP_LocatorGui = nil;
 	partESPColors = setmetatable({}, { __mode = "k" });
 	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
 	partESPGlassCount = setmetatable({}, { __mode = "k" });
 	partESPEntries = setmetatable({}, { __mode = "k" });
 	partESPVisualMap = setmetatable({}, { __mode = "k" });
+	nameESPExclusions = { exact = {}, partial = {} };
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
@@ -2525,6 +2528,7 @@ NAmanage.LoadESPSettings = function()
 		ESP_LabelTextSize = 12;
 		ESP_LabelTextScaled = false;
 		ESP_ShowPartDistance = false;
+		ESP_LocatorEnabled = false;
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -2540,22 +2544,17 @@ NAmanage.LoadESPSettings = function()
 						local kind = typeof(defaultValue)
 						if kind == "number" then
 							local numeric = tonumber(stored)
-							if numeric then
-								d[key] = numeric
-							end
+							if numeric then d[key] = numeric end
 						elseif kind == "boolean" then
-							local valueType = typeof(stored)
-							if valueType == "boolean" then
+							local vt = typeof(stored)
+							if vt == "boolean" then
 								d[key] = stored
-							elseif valueType == "number" then
+							elseif vt == "number" then
 								d[key] = stored ~= 0
-							elseif valueType == "string" then
+							elseif vt == "string" then
 								local lowered = stored:lower()
-								if lowered == "true" or lowered == "1" then
-									d[key] = true
-								elseif lowered == "false" or lowered == "0" then
-									d[key] = false
-								end
+								if lowered == "true" or lowered == "1" then d[key] = true
+								elseif lowered == "false" or lowered == "0" then d[key] = false end
 							end
 						else
 							d[key] = stored
@@ -2578,11 +2577,7 @@ NAmanage.LoadESPSettings = function()
 	end
 	d.ESP_RenderMode = mode
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
-	if sz < 8 then
-		sz = 8
-	elseif sz > 72 then
-		sz = 72
-	end
+	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	d.ESP_LabelTextSize = sz
 	d.ESP_LabelTextScaled = d.ESP_LabelTextScaled == true
 	NAStuff.ESP_Transparency = d.ESP_Transparency
@@ -2597,6 +2592,12 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_RenderMode = d.ESP_RenderMode
 	NAStuff.ESP_LabelTextSize = d.ESP_LabelTextSize
 	NAStuff.ESP_LabelTextScaled = d.ESP_LabelTextScaled
+	NAStuff.ESP_LocatorEnabled = d.ESP_LocatorEnabled == true
+	if NAStuff.ESP_LocatorEnabled then
+		NAmanage.ESP_LocatorEnable(true)
+	else
+		NAmanage.ESP_LocatorDisable()
+	end
 end
 
 NAmanage.SaveESPSettings = function()
@@ -2626,7 +2627,8 @@ NAmanage.SaveESPSettings = function()
 		ESP_ShowPartDistance = (NAStuff.ESP_ShowPartDistance == true);
 		ESP_RenderMode = mode;
 		ESP_LabelTextSize = sz;
-		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled;
+		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
+		ESP_LocatorEnabled = NAStuff.ESP_LocatorEnabled == true;
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -25331,18 +25333,32 @@ NAmanage.DisableEsp = function(objType, list)
 end
 
 NAmanage.EnableNameEsp = function(mode, color, ...)
+	NAStuff.nameESPExclusions = NAStuff.nameESPExclusions or { exact = {}, partial = {} }
 	local terms = {...}
 	local list = NAStuff.espNameLists[mode]
 	local parts = NAStuff.nameESPPartLists[mode]
 	for _,term in ipairs(terms) do
-		term = Lower(term)
-		if not Discover(list, term) then
-			Insert(list, term)
+		local t = Lower(term)
+		if mode == "exact" then
+			NAStuff.nameESPExclusions.exact[t] = nil
+		else
+			for nm,_ in pairs(NAStuff.nameESPExclusions.partial) do
+				if Find(nm, t) then
+					NAStuff.nameESPExclusions.partial[nm] = nil
+				end
+			end
+		end
+		if not Discover(list, t) then
+			Insert(list, t)
 		end
 	end
 	local function matchFn(obj)
 		if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
 		local nm = Lower(obj.Name)
+		local ex = NAStuff.nameESPExclusions and NAStuff.nameESPExclusions[mode]
+		if ex and ex[nm] then
+			return false
+		end
 		for _,term in ipairs(list) do
 			if (mode=="exact" and nm==term) or (mode=="partial" and Find(nm,term)) then
 				return true
@@ -25492,6 +25508,121 @@ NAmanage.DisableCollisionEsp = function(targetState)
 	table.clear(list)
 end
 
+NAmanage.ESP_LocatorEnsureGui = function()
+	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then return NAStuff.ESP_LocatorGui end
+	local g = InstanceNew("ScreenGui")
+	NaProtectUI(g)
+	NAStuff.ESP_LocatorGui = g
+	return g
+end
+
+NAmanage.ESP_LocatorEnable = function(force)
+	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") then return end
+	NAStuff.ESP_LocatorEnabled = true
+
+	local gui = NAmanage.ESP_LocatorEnsureGui()
+	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
+	local arrows = NAStuff.ESP_LocatorArrows
+
+	local function getArrow(entry)
+		local a = arrows[entry]
+		if a and a.Parent then return a end
+		a = InstanceNew("TextLabel")
+		a.Name = "arrow"
+		a.Size = UDim2.fromOffset(26, 26)
+		a.AnchorPoint = Vector2.new(0.5, 0.5)
+		a.BackgroundTransparency = 1
+		a.Text = "V"
+		a.TextScaled = true
+		a.TextStrokeTransparency = 0.5
+		a.Font = Enum.Font.SourceSansBold
+		a.Visible = false
+		a.Parent = gui
+		arrows[entry] = a
+		return a
+	end
+
+	NAlib.disconnect("esp_locator_loop")
+	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function()
+		if not NAStuff.ESP_LocatorEnabled then return end
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local vp = cam.ViewportSize
+		if vp.X <= 0 or vp.Y <= 0 then return end
+
+		local cx, cy = vp.X * 0.5, vp.Y * 0.5
+		local margin = 16
+		local halfX = math.max(1, cx - margin)
+		local halfY = math.max(1, cy - margin)
+
+		local seenEntries = {}
+
+		for _, entry in pairs(NAStuff.partESPEntries or {}) do
+			if entry and not entry.removed and entry.part and entry.part.Parent then
+				local pos = NAgui.getInstanceWorldPosition(entry.part)
+				if pos then
+					local v3 = cam:WorldToViewportPoint(pos)
+					local x, y, z = v3.X, v3.Y, v3.Z
+					local arrow = getArrow(entry)
+					local col = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
+					arrow.TextColor3 = col
+					arrow.TextTransparency = 0
+
+					if z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y then
+						arrow.Visible = false
+					else
+						local dirX = x - cx
+						local dirY = y - cy
+						if z <= 0 then
+							dirX = -dirX
+							dirY = -dirY
+						end
+						local mag = math.sqrt(dirX*dirX + dirY*dirY)
+						if mag < 1e-3 then
+							dirX, dirY = 0, -1
+						else
+							dirX, dirY = dirX / mag, dirY / mag
+						end
+						local sx = halfX / math.max(1e-4, math.abs(dirX))
+						local sy = halfY / math.max(1e-4, math.abs(dirY))
+						local scale = math.min(sx, sy)
+						local px = cx + dirX * scale
+						local py = cy + dirY * scale
+						local ang = math.deg(math.atan2(dirY, dirX)) - 90
+						arrow.Position = UDim2.fromOffset(px, py)
+						arrow.Rotation = ang
+						arrow.Visible = true
+					end
+
+					seenEntries[entry] = true
+				end
+			end
+		end
+
+		for entry, arrow in pairs(arrows) do
+			if (not entry) or entry.removed or (not seenEntries[entry]) or (not entry.part) or (not entry.part.Parent) then
+				if arrow and arrow.Parent then arrow:Destroy() end
+				arrows[entry] = nil
+			end
+		end
+	end))
+end
+
+NAmanage.ESP_LocatorDisable = function()
+	NAStuff.ESP_LocatorEnabled = false
+	NAlib.disconnect("esp_locator_loop")
+	if NAStuff.ESP_LocatorArrows then
+		for _, a in pairs(NAStuff.ESP_LocatorArrows) do
+			if a and a.Parent then a:Destroy() end
+		end
+	end
+	NAStuff.ESP_LocatorArrows = setmetatable({}, {__mode="k"})
+	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then
+		NAStuff.ESP_LocatorGui:Destroy()
+		NAStuff.ESP_LocatorGui = nil
+	end
+end
+
 cmd.add({"touchesp","tesp"},{"touchesp"},function()
 	NAmanage.EnableEsp("TouchTransmitter", Color3.fromRGB(255,0,0), NAStuff.touchESPList)
 end)
@@ -25541,9 +25672,76 @@ cmd.add({"pesp","esppart","partesp"},{"pesp {partname}"},function(...)
 	end
 end,true)
 
-cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp"},function()
-	NAmanage.DisableNameEsp("exact")
-end)
+cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp [name|All]","Remove exact-name part ESP by name or All"},function(...)
+	local mode = "exact"
+	local parts = NAStuff.nameESPPartLists and NAStuff.nameESPPartLists[mode] or {}
+	local terms = NAStuff.espNameLists and NAStuff.espNameLists[mode] or {}
+	if type(terms) ~= "table" or #terms == 0 then
+		DoNotif("No exact-name ESP terms are active.", 2)
+		return
+	end
+
+	local filter = Lower(Concat({...}," "))
+
+	local function removeAll()
+		NAmanage.DisableNameEsp(mode)
+		DoNotif("Cleared all exact-name part ESP.", 2)
+	end
+
+	local function termMatchesName(term, name)
+		return Lower(name) == term
+	end
+
+	local function removeByTerm(term)
+		for i = #terms, 1, -1 do
+			if terms[i] == term then
+				table.remove(terms, i)
+			end
+		end
+		for i = #parts, 1, -1 do
+			local p = parts[i]
+			if p and p.Parent and termMatchesName(term, p.Name) then
+				NAmanage.RemoveEspFromPart(p)
+				table.remove(parts, i)
+			end
+		end
+		DoNotif("Removed exact-name ESP for '"..term.."'.", 2)
+	end
+
+	if filter ~= "" then
+		if filter == "all" then
+			removeAll()
+			return
+		end
+		local picked = nil
+		for _, t in ipairs(terms) do
+			if t == filter then picked = t break end
+		end
+		if not picked then
+			for _, t in ipairs(terms) do
+				if Match(t, filter) then picked = t break end
+			end
+		end
+		if picked then
+			removeByTerm(picked)
+		else
+			DoNotif("No matching exact-name ESP term for: "..filter, 3)
+		end
+		return
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(terms) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "Remove Exact Part ESP",
+		Description = "Select a term to stop tracking (future spawns included).",
+		Buttons = buttons
+	})
+end,true)
 
 cmd.add({"pespfind","partespfind","esppartfind"},{"pespfind {partname}"},function(...)
 	local name = Concat({...}," ")
@@ -25554,9 +25752,76 @@ cmd.add({"pespfind","partespfind","esppartfind"},{"pespfind {partname}"},functio
 	end
 end,true)
 
-cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind"},function()
-	NAmanage.DisableNameEsp("partial")
-end)
+cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]","Remove partial-name part ESP by name or All"},function(...)
+	local mode = "partial"
+	local parts = NAStuff.nameESPPartLists and NAStuff.nameESPPartLists[mode] or {}
+	local terms = NAStuff.espNameLists and NAStuff.espNameLists[mode] or {}
+	if type(terms) ~= "table" or #terms == 0 then
+		DoNotif("No partial-name ESP terms are active.", 2)
+		return
+	end
+
+	local filter = Lower(Concat({...}," "))
+
+	local function removeAll()
+		NAmanage.DisableNameEsp(mode)
+		DoNotif("Cleared all partial-name part ESP.", 2)
+	end
+
+	local function termMatchesName(term, name)
+		return Find(Lower(name), term) ~= nil
+	end
+
+	local function removeByTerm(term)
+		for i = #terms, 1, -1 do
+			if terms[i] == term then
+				table.remove(terms, i)
+			end
+		end
+		for i = #parts, 1, -1 do
+			local p = parts[i]
+			if p and p.Parent and termMatchesName(term, p.Name) then
+				NAmanage.RemoveEspFromPart(p)
+				table.remove(parts, i)
+			end
+		end
+		DoNotif("Removed partial-name ESP for '"..term.."'.", 2)
+	end
+
+	if filter ~= "" then
+		if filter == "all" then
+			removeAll()
+			return
+		end
+		local picked = nil
+		for _, t in ipairs(terms) do
+			if t == filter then picked = t break end
+		end
+		if not picked then
+			for _, t in ipairs(terms) do
+				if Match(t, filter) then picked = t break end
+			end
+		end
+		if picked then
+			removeByTerm(picked)
+		else
+			DoNotif("No matching partial-name ESP term for: "..filter, 3)
+		end
+		return
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(terms) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "Remove Partial Part ESP",
+		Description = "Select a term to stop tracking (future spawns included).",
+		Buttons = buttons
+	})
+end,true)
 
 cmd.add({"unanchored","unanchoredesp","uaesp"},{"unanchored"},function()
 	NAmanage.EnableUnanchoredEsp(Color3.fromRGB(255,220,0))
@@ -25580,6 +25845,14 @@ end)
 
 cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
 	NAmanage.DisableCollisionEsp(false)
+end)
+
+cmd.add({"esplocator","locator","trackesp"},{"esplocator",""},function()
+	NAmanage.ESP_LocatorEnable(true)
+end)
+
+cmd.add({"unesplocator","unlocator","untrackesp"},{"unesplocator",""},function()
+	NAmanage.ESP_LocatorDisable()
 end)
 
 cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights all parts in a folder"},function(...)
@@ -32927,11 +33200,11 @@ end)
 NAgui.addTab(TAB_ESP, { order = 4 })
 NAgui.setTab(TAB_ESP)
 
-local function isListActive(list)
+NAgui.isListActive=function(list)
 	return type(list) == "table" and next(list) ~= nil
 end
 
-local function trimText(str)
+NAgui.trimText=function(str)
 	return (str or ""):match("^%s*(.-)%s*$")
 end
 
@@ -33010,15 +33283,27 @@ NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), f
 	NAmanage.SaveESPSettings()
 end)
 
+NAgui.addSection("PartEsp Section")
+
 NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), function(state)
 	NAStuff.ESP_ShowPartDistance = state
 	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
 end)
 
+NAgui.addToggle("ESP Locator Arrows", NAStuff.ESP_LocatorEnabled == true, function(state)
+	NAStuff.ESP_LocatorEnabled = state == true
+	if NAStuff.ESP_LocatorEnabled then
+		NAmanage.ESP_LocatorEnable(true)
+	else
+		NAmanage.ESP_LocatorDisable()
+	end
+	NAmanage.SaveESPSettings()
+end)
+
 NAgui.addSection("Interactable ESP (touchesp/proximityesp/clickesp)")
 
-NAgui.addToggle("Touch ESP (touchesp)", isListActive(NAStuff.touchESPList), function(state)
+NAgui.addToggle("Touch ESP", NAgui.isListActive(NAStuff.touchESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"touchesp"})
@@ -33028,7 +33313,7 @@ NAgui.addToggle("Touch ESP (touchesp)", isListActive(NAStuff.touchESPList), func
 	end)
 end)
 
-NAgui.addToggle("Proximity ESP (proximityesp)", isListActive(NAStuff.proximityESPList), function(state)
+NAgui.addToggle("Proximity Prompt ESP", NAgui.isListActive(NAStuff.proximityESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"proximityesp"})
@@ -33038,7 +33323,7 @@ NAgui.addToggle("Proximity ESP (proximityesp)", isListActive(NAStuff.proximityES
 	end)
 end)
 
-NAgui.addToggle("Click Detector ESP (clickesp)", isListActive(NAStuff.clickESPList), function(state)
+NAgui.addToggle("Click Detector ESP", NAgui.isListActive(NAStuff.clickESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"clickesp"})
@@ -33048,9 +33333,9 @@ NAgui.addToggle("Click Detector ESP (clickesp)", isListActive(NAStuff.clickESPLi
 	end)
 end)
 
-NAgui.addSection("Seat ESP (sitesp/vehiclesitesp)")
+NAgui.addSection("Seat ESP")
 
-NAgui.addToggle("Seat ESP (sitesp)", isListActive(NAStuff.siteESPList), function(state)
+NAgui.addToggle("Seat ESP", NAgui.isListActive(NAStuff.siteESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"sitesp"})
@@ -33060,7 +33345,7 @@ NAgui.addToggle("Seat ESP (sitesp)", isListActive(NAStuff.siteESPList), function
 	end)
 end)
 
-NAgui.addToggle("Vehicle Seat ESP (vehiclesitesp)", isListActive(NAStuff.vehicleSiteESPList), function(state)
+NAgui.addToggle("Vehicle Seat ESP", NAgui.isListActive(NAStuff.vehicleSiteESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"vehiclesitesp"})
@@ -33070,9 +33355,9 @@ NAgui.addToggle("Vehicle Seat ESP (vehiclesitesp)", isListActive(NAStuff.vehicle
 	end)
 end)
 
-NAgui.addSection("Physics ESP (unanchored/collisionesp/nocollisionesp)")
+NAgui.addSection("Physics ESP | AKA: lag section")
 
-NAgui.addToggle("Unanchored Parts (unanchored)", isListActive(NAStuff.unanchoredESPList), function(state)
+NAgui.addToggle("Unanchored Parts ESP", NAgui.isListActive(NAStuff.unanchoredESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"unanchored"})
@@ -33082,7 +33367,7 @@ NAgui.addToggle("Unanchored Parts (unanchored)", isListActive(NAStuff.unanchored
 	end)
 end)
 
-NAgui.addToggle("Collidable Parts (collisionesp)", isListActive(NAStuff.collisiontrueESPList), function(state)
+NAgui.addToggle("Collidable Parts ESP", NAgui.isListActive(NAStuff.collisiontrueESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"collisionesp"})
@@ -33092,7 +33377,7 @@ NAgui.addToggle("Collidable Parts (collisionesp)", isListActive(NAStuff.collisio
 	end)
 end)
 
-NAgui.addToggle("Non-Collidable Parts (nocollisionesp)", isListActive(NAStuff.collisionfalseESPList), function(state)
+NAgui.addToggle("Non-Collidable Parts ESP", NAgui.isListActive(NAStuff.collisionfalseESPList), function(state)
 	SpawnCall(function()
 		if state then
 			cmd.run({"nocollisionesp"})
@@ -33102,14 +33387,14 @@ NAgui.addToggle("Non-Collidable Parts (nocollisionesp)", isListActive(NAStuff.co
 	end)
 end)
 
-NAgui.addSection("Part ESP (partesp / pespfind)")
+NAgui.addSection("Part ESP")
 
 NAgui.addInput("Exact Part Name", "Exact part name (partesp)", NAStuff.ESP_LastExactPart, function(text)
 	NAStuff.ESP_LastExactPart = text
 end)
 
 NAgui.addButton("Apply Exact Part ESP", function()
-	local name = trimText(NAStuff.ESP_LastExactPart)
+	local name = NAgui.trimText(NAStuff.ESP_LastExactPart)
 	if name == "" then
 		DoNotif("Enter an exact part name before using partesp.", 2)
 		return
@@ -33126,7 +33411,7 @@ NAgui.addInput("Partial Part Name", "Partial part name (pespfind)", NAStuff.ESP_
 end)
 
 NAgui.addButton("Apply Partial Part ESP", function()
-	local name = trimText(NAStuff.ESP_LastPartialPart)
+	local name = NAgui.trimText(NAStuff.ESP_LastPartialPart)
 	if name == "" then
 		DoNotif("Enter a partial part name before using pespfind.", 2)
 		return
@@ -33138,14 +33423,14 @@ NAgui.addButton("Clear Partial Part ESP", function()
 	SpawnCall(function() cmd.run({"unpespfind"}) end)
 end)
 
-NAgui.addSection("Folder ESP (folderesp)")
+NAgui.addSection("Folder ESP")
 
 NAgui.addInput("Folder Name", "Folder name to highlight", NAStuff.ESP_LastFolderName, function(text)
 	NAStuff.ESP_LastFolderName = text
 end)
 
 NAgui.addButton("Apply Folder ESP", function()
-	local name = trimText(NAStuff.ESP_LastFolderName)
+	local name = NAgui.trimText(NAStuff.ESP_LastFolderName)
 	if name == "" then
 		DoNotif("Enter a folder name before using folderesp.", 2)
 		return
@@ -33154,7 +33439,7 @@ NAgui.addButton("Apply Folder ESP", function()
 end)
 
 NAgui.addButton("Clear Folder ESP", function()
-	local name = trimText(NAStuff.ESP_LastFolderName)
+	local name = NAgui.trimText(NAStuff.ESP_LastFolderName)
 	SpawnCall(function()
 		if name ~= "" then
 			cmd.run({"unfolderesp", name})
