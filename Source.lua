@@ -4466,6 +4466,7 @@ end)
 
 local ESPenabled=false
 local chamsEnabled=false
+local ESPAutoTrackAll=false
 espCONS = espCONS or {}
 
 
@@ -13573,6 +13574,7 @@ end)
 cmd.add({"esp"}, {"esp","locate where the players are"}, function()
 	ESPenabled = true
 	chamsEnabled = false
+	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
 		if player ~= Players.LocalPlayer then
 			NAmanage.ESP_Add(player, true)
@@ -13583,6 +13585,7 @@ end)
 cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
 	ESPenabled = true
 	chamsEnabled = true
+	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
 		if player ~= Players.LocalPlayer then
 			NAmanage.ESP_Add(player, true)
@@ -13593,9 +13596,21 @@ end)
 cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
 	ESPenabled = true
 	chamsEnabled = false
-	local args = {...}
-	if #args == 0 then args = {"all"} end
-	for _, token in ipairs(args) do
+	local tokens = {...}
+	local providedArgCount = select("#", ...)
+	if providedArgCount == 0 then tokens = {"all"} end
+	local shouldAuto = (providedArgCount == 0)
+	if not shouldAuto then
+		for _, token in ipairs(tokens) do
+			local lower = tostring(token):lower()
+			if lower == "all" or lower == "others" then
+				shouldAuto = true
+				break
+			end
+		end
+	end
+	ESPAutoTrackAll = shouldAuto
+	for _, token in ipairs(tokens) do
 		for _, target in ipairs(getPlr(token)) do
 			if target and target ~= Players.LocalPlayer then
 				NAmanage.ESP_Add(target, true)
@@ -13610,6 +13625,7 @@ getgenv().npcESPList = {}
 cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},function()
 	ESPenabled = true
 	chamsEnabled = false
+	ESPAutoTrackAll = false
 	getgenv().npcESPList = {}
 	if not NAlib.isConnected(NPC_SCAN_KEY) then
 		local acc = 0
@@ -13641,6 +13657,7 @@ end)
 cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},function()
 	ESPenabled = false
 	chamsEnabled = false
+	ESPAutoTrackAll = false
 	if NAlib.isConnected(NPC_SCAN_KEY) then
 		NAlib.disconnect(NPC_SCAN_KEY)
 	end
@@ -13653,6 +13670,7 @@ end)
 cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
 	ESPenabled = false
 	chamsEnabled = false
+	ESPAutoTrackAll = false
 	if NAlib.isConnected(NPC_SCAN_KEY) then
 		NAlib.disconnect(NPC_SCAN_KEY)
 	end
@@ -27412,8 +27430,21 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopn
 		if inst and inst:IsA("PostEffect") then cacheOnce(inst,{"Enabled"}); st.safeSet(inst,"Enabled",false) end
 		if inst and inst:IsA("Atmosphere") then cacheOnce(inst,{"Density","Haze","Glare"}); st.safeSet(inst,"Density",0); st.safeSet(inst,"Haze",0); st.safeSet(inst,"Glare",0) end
 	end
+	local function enforceNoFog()
+		if not (st.nf and st.nf.enabled) then return end
+		st.safeSet(Lighting,"FogEnd",786543)
+		if st.safeGet(Lighting,"FogStart") ~= nil then
+			st.safeSet(Lighting,"FogStart",0)
+		end
+		for inst,_ in pairs(nf.cache) do
+			if inst and inst.Parent then
+				disableEffect(inst)
+			end
+		end
+	end
 	if not nf.init then
 		nf.init = true
+		local scanAccumulator = 0
 		st.hook("nf_prop_end", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
 				if st.nf and st.nf.enabled then
 					if st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
@@ -27428,17 +27459,20 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopn
 				if not (st.nf and st.nf.enabled) then return end
 				disableEffect(inst)
 			end) end)
-		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function()
-				if not (st.nf and st.nf.enabled) then return end
-				for inst,saved in pairs(st.nf.cache) do
-					if inst and inst.Parent and saved then
-						for p,_ in pairs(saved) do st.safeSet(inst,p,inst[p]) end
-						disableEffect(inst)
-					end
+		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function(dt)
+			if not (st.nf and st.nf.enabled) then return end
+			enforceNoFog()
+			scanAccumulator = scanAccumulator + dt
+			if scanAccumulator >= 0.5 then
+				scanAccumulator = 0
+				for _, inst in ipairs(Lighting:GetDescendants()) do
+					disableEffect(inst)
 				end
-			end) end)
+			end
+		end) end)
 	end
 	nf.enabled = true
+	enforceNoFog()
 	nf.sticky = true
 	nf.baselineFogEnd = st.safeGet(Lighting,"FogEnd") or nf.baselineFogEnd
 	nf.baselineFogStart = st.safeGet(Lighting,"FogStart") or nf.baselineFogStart
@@ -31971,7 +32005,7 @@ function setupPlayer(plr,bruh)
 		SpawnCall(function() CheckPermissions(plr) end)
 	end
 
-	if ESPenabled then
+	if ESPenabled and ESPAutoTrackAll then
 		SpawnCall(function()
 			repeat Wait(.5) until plr.Character
 			Wait(.5)
