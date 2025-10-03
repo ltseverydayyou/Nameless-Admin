@@ -21926,13 +21926,12 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
 end)
 
-cmd.add({"reserveserver","privateserver","ps", "rs"}, {"reserveserver [code]", "Teleports to a reserved server or creates one if code is missing"}, function(code)
-	local md5 = {}
-	local hmac = {}
-	local base64 = {}
-
+cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
+	local md5={}
+	local hmac={}
+	local base64={}
 	do
-		local T = {
+		local T={
 			0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
 			0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
 			0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
@@ -21943,8 +21942,8 @@ cmd.add({"reserveserver","privateserver","ps", "rs"}, {"reserveserver [code]", "
 			0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
 		}
 		local function add(a,b)
-			local lsw = bit32.band(a,0xFFFF) + bit32.band(b,0xFFFF)
-			local msw = bit32.rshift(a,16) + bit32.rshift(b,16) + bit32.rshift(lsw,16)
+			local lsw=bit32.band(a,0xFFFF)+bit32.band(b,0xFFFF)
+			local msw=bit32.rshift(a,16)+bit32.rshift(b,16)+bit32.rshift(lsw,16)
 			return bit32.bor(bit32.lshift(msw,16),bit32.band(lsw,0xFFFF))
 		end
 		local function rol(x,n) return bit32.bor(bit32.lshift(x,n),bit32.rshift(x,32-n)) end
@@ -21953,123 +21952,225 @@ cmd.add({"reserveserver","privateserver","ps", "rs"}, {"reserveserver [code]", "
 		local function H(x,y,z) return bit32.bxor(x,bit32.bxor(y,z)) end
 		local function I(x,y,z) return bit32.bxor(y,bit32.bor(x,bit32.bnot(z))) end
 		function md5.sum(message)
-			local a,b,c,d = 0x67452301,0xefcdab89,0x98badcfe,0x10325476
-			local message_len = #message
-			local padded_message = message .. "\128"
-			while #padded_message % 64 ~= 56 do
-				padded_message = padded_message .. "\0"
+			local a,b,c,d=0x67452301,0xefcdab89,0x98badcfe,0x10325476
+			local message_len=#message
+			local padded_message=message.."\128"
+			while #padded_message%64~=56 do
+				padded_message=padded_message.."\0"
 			end
-			local len_bytes = ""
-			local len_bits = message_len * 8
-			for i = 0, 7 do
-				len_bytes = len_bytes .. string.char(bit32.band(bit32.rshift(len_bits,i*8),0xFF))
+			local len_bytes=""
+			local len_bits=message_len*8
+			for i=0,7 do
+				len_bytes=len_bytes..string.char(bit32.band(bit32.rshift(len_bits,i*8),0xFF))
 			end
-			padded_message = padded_message .. len_bytes
-			for i = 1, #padded_message, 64 do
-				local chunk = padded_message:sub(i,i+63)
-				local X = {}
-				for j = 0, 15 do
-					local b1,b2,b3,b4 = chunk:byte(j*4+1,j*4+4)
-					X[j] = bit32.bor(b1,bit32.lshift(b2,8),bit32.lshift(b3,16),bit32.lshift(b4,24))
+			padded_message=padded_message..len_bytes
+			for i=1,#padded_message,64 do
+				local chunk=padded_message:sub(i,i+63)
+				local X={}
+				for j=0,15 do
+					local b1,b2,b3,b4=chunk:byte(j*4+1,j*4+4)
+					X[j]=bit32.bor(b1,bit32.lshift(b2,8),bit32.lshift(b3,16),bit32.lshift(b4,24))
 				end
-				local aa,bb,cc,dd = a,b,c,d
-				local s = {7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21}
-				for j = 0, 63 do
+				local aa,bb,cc,dd=a,b,c,d
+				local s={7,12,17,22,5,9,14,20,4,11,16,23,6,10,15,21}
+				for j=0,63 do
 					local f,k,si
 					if j<16 then f=F(b,c,d) k=j si=j%4
 					elseif j<32 then f=G(b,c,d) k=(1+5*j)%16 si=4+(j%4)
 					elseif j<48 then f=H(b,c,d) k=(5+3*j)%16 si=8+(j%4)
 					else f=I(b,c,d) k=(7*j)%16 si=12+(j%4) end
-					local t = add(a,f)
-					t = add(t,X[k])
-					t = add(t,T[j+1])
-					t = rol(t,s[si+1])
-					local nb = add(b,t)
-					a,b,c,d = d,nb,b,c
+					local t=add(a,f)
+					t=add(t,X[k])
+					t=add(t,T[j+1])
+					t=rol(t,s[si+1])
+					local nb=add(b,t)
+					a,b,c,d=d,nb,b,c
 				end
-				a = add(a,aa) b = add(b,bb) c = add(c,cc) d = add(d,dd)
+				a=add(a,aa) b=add(b,bb) c=add(c,cc) d=add(d,dd)
 			end
 			local function to_le(n)
-				local s = ""
-				for i = 0, 3 do
-					s = s .. string.char(bit32.band(bit32.rshift(n,i*8),0xFF))
-				end
+				local s=""
+				for i=0,3 do s=s..string.char(bit32.band(bit32.rshift(n,i*8),0xFF)) end
 				return s
 			end
 			return to_le(a)..to_le(b)..to_le(c)..to_le(d)
 		end
 	end
-
-	function hmac.new(key, msg, hash_func)
-		if #key > 64 then key = hash_func(key) end
-		local o, i = "", ""
-		for n = 1, 64 do
-			local by = (n <= #key and string.byte(key,n)) or 0
-			o = o .. string.char(bit32.bxor(by,0x5C))
-			i = i .. string.char(bit32.bxor(by,0x36))
+	function hmac.new(key,msg,hash_func)
+		if #key>64 then key=hash_func(key) end
+		local o="" local i=""
+		for n=1,64 do
+			local by=(n<=#key and string.byte(key,n)) or 0
+			o=o..string.char(bit32.bxor(by,0x5C))
+			i=i..string.char(bit32.bxor(by,0x36))
 		end
-		return hash_func(o .. hash_func(i .. msg))
+		return hash_func(o..hash_func(i..msg))
 	end
-
 	do
-		local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+		local b="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 		function base64.encode(data)
-			return ((data:gsub(".", function(x)
-				local r, bv = "", x:byte()
-				for i = 8, 1, -1 do
-					r = r .. (bv % 2^i - bv % 2^(i-1) > 0 and "1" or "0")
-				end
+			return ((data:gsub(".",function(x)
+				local r,bv="",x:byte()
+				for i=8,1,-1 do r=r..(bv%2^i-bv%2^(i-1)>0 and "1" or "0") end
 				return r
-			end).."0000"):gsub("%d%d%d?%d?%d?%d?", function(x)
-				if #x < 6 then return "" end
-				local c = 0
-				for i = 1, 6 do
-					c = c + (x:sub(i,i) == "1" and 2^(6-i) or 0)
-				end
+			end).."0000"):gsub("%d%d%d?%d?%d?%d?",function(x)
+				if #x<6 then return "" end
+				local c=0
+				for i=1,6 do c=c+((x:sub(i,i)=="1") and 2^(6-i) or 0) end
 				return b:sub(c+1,c+1)
-			end)..({"", "==", "="})[#data%3+1])
+			end)..({"","==","="})[#data%3+1])
 		end
 	end
-
-	local function GenerateAccessCode(placeId)
-		local uuid = {}
-		for i = 1, 16 do uuid[i] = math.random(0, 255) end
-		uuid[7] = bit32.bor(bit32.band(uuid[7], 0x0F), 0x40)
-		uuid[9] = bit32.bor(bit32.band(uuid[9], 0x3F), 0x80)
-		local bytes = ""
-		for i = 1, 16 do bytes = bytes .. string.char(uuid[i]) end
-		local pid = placeId
-		for _ = 1, 8 do
-			bytes = bytes .. string.char(pid % 256)
-			pid = math.floor(pid / 256)
-		end
-		local key = "e4Yn8ckbCJtw2sv7qmbg"
-		local sig = hmac.new(key, bytes, md5.sum)
-		local final = base64.encode(sig .. bytes)
-		final = final:gsub("+", "-"):gsub("/", "_")
-		local pad = 0
-		final = final:gsub("=", function() pad += 1 return "" end)
-		return final .. tostring(pad)
+	local function isLikelyAccessCode(s)
+		if not s then return false end
+		if #s<20 then return false end
+		if not s:match("%d$") then return false end
+		if s:find("[_%-]") then return true end
+		return s:find("[A-Za-z]")~=nil
 	end
-
-	local placeId = game.PlaceId
-	local useCode = code
-
-	if not useCode or #tostring(useCode) < 10 then
-		useCode = GenerateAccessCode(placeId)
-		if setclipboard then setclipboard(useCode) end
-		DoNotif("New reserved server code copied to clipboard", 5, "reserveserver")
+	local function GenerateAccessCode(placeId,seed)
+		local firstBytes
+		if seed and seed~="" then
+			local dig=md5.sum(tostring(seed)..":"..tostring(placeId))
+			local t={}
+			for i=1,16 do t[i]=string.byte(dig,i) end
+			t[7]=bit32.bor(bit32.band(t[7],0x0F),0x40)
+			t[9]=bit32.bor(bit32.band(t[9],0x3F),0x80)
+			firstBytes=string.char(Unpack(t))
+		else
+			local uuid={}
+			for i=1,16 do uuid[i]=math.random(0,255) end
+			uuid[7]=bit32.bor(bit32.band(uuid[7],0x0F),0x40)
+			uuid[9]=bit32.bor(bit32.band(uuid[9],0x3F),0x80)
+			firstBytes=""
+			for i=1,16 do firstBytes=firstBytes..string.char(uuid[i]) end
+		end
+		local pid=placeId
+		local placeIdBytes=""
+		for _=1,8 do placeIdBytes=placeIdBytes..string.char(pid%256) pid=math.floor(pid/256) end
+		local content=firstBytes..placeIdBytes
+		local key="e4Yn8ckbCJtw2sv7qmbg"
+		local sig=hmac.new(key,content,md5.sum)
+		local final=base64.encode(sig..content)
+		final=final:gsub("%+","-"):gsub("/","_")
+		local pad=0
+		final=final:gsub("=",function() pad=pad+1 return "" end)
+		return final..tostring(pad)
+	end
+	local function getTeleportRemote()
+		local RRS=SafeGetService("RobloxReplicatedStorage") or game:GetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage")
+		if not RRS then DoNotif("Missing RRS",4,"reserveserver") return nil end
+		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
+		if not remote then DoNotif("Missing Teleport Remote",4,"reserveserver") return nil end
+		return remote
+	end
+	local function attemptTeleport(placeInfo,accessCode)
+		local remote=getTeleportRemote()
+		if not remote then return end
+		local ok,err=pcall(function()
+			remote:FireServer(placeInfo.PlaceId,"",accessCode)
+		end)
+		if ok then
+			DoNotif(Format("Joining reserved server using code: %s",accessCode),5,"reserveserver")
+		else
+			DoNotif("Teleport failed: "..tostring(err),4,"reserveserver")
+		end
+	end
+	local function copyCode(accessCode)
+		if setclipboard then setclipboard(accessCode) DoNotif("Reserved server code copied to clipboard",5,"reserveserver") return true end
+		DoNotif("Clipboard unavailable",3,"reserveserver")
+		return false
+	end
+	local providedRaw=code and tostring(code) or nil
+	if providedRaw and #providedRaw<1 then providedRaw=nil end
+	local assetService=SafeGetService("AssetService")
+	local places={}
+	local fetchErr
+	if assetService then
+		local ok,pages=pcall(function() return assetService:GetGamePlacesAsync() end)
+		if ok and pages then
+			while true do
+				for _,place in pages:GetCurrentPage() do
+					places[#places+1]={Name=place.Name or "",PlaceId=place.PlaceId}
+				end
+				if pages.IsFinished then break end
+				local advOk,advErr=pcall(function() pages:AdvanceToNextPageAsync() end)
+				if not advOk then fetchErr=advErr break end
+			end
+		else
+			fetchErr=pages
+		end
 	else
-		DoNotif("Joining reserved server using code: "..useCode, 5, "reserveserver")
+		fetchErr="AssetService unavailable"
 	end
-
-	local RRS = SafeGetService("RobloxReplicatedStorage") or game:GetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage")
-	if not RRS then DoNotif("Missing RRS", 4, "reserveserver") return end
-
-	local remote = RRS:FindFirstChild("ContactListIrisInviteTeleport")
-	if not remote then DoNotif("Missing Teleport Remote", 4, "reserveserver") return end
-
-	remote:FireServer(placeId, "", useCode)
+	local marketplace=SafeGetService("MarketplaceService")
+	local currentPlaceName=Format("Place %d",game.PlaceId)
+	if marketplace then
+		local ok,info=pcall(function() return marketplace:GetProductInfo(game.PlaceId) end)
+		if ok and info and info.Name and info.Name~="" then currentPlaceName=info.Name end
+	end
+	local seen,processed={},{}
+	for _,info in ipairs(places) do
+		if info.PlaceId and not seen[info.PlaceId] then
+			seen[info.PlaceId]=true
+			if not info.Name or info.Name=="" then info.Name=Format("Place %d",info.PlaceId) end
+			processed[#processed+1]=info
+		end
+	end
+	places=processed
+	if not seen[game.PlaceId] then
+		table.insert(places,1,{Name=currentPlaceName,PlaceId=game.PlaceId})
+	else
+		for _,info in ipairs(places) do if info.PlaceId==game.PlaceId then info.Name=currentPlaceName break end end
+	end
+	if fetchErr then DoNotif("Some places may be missing: "..tostring(fetchErr),3,"reserveserver") end
+	local function resolveName(info) return (info and info.Name and info.Name~="") and info.Name or Format("Place %d",info and info.PlaceId or game.PlaceId) end
+	local lastPage=1
+	local showPlacePicker
+	local function showCopyOptions(selectedInfo)
+		if not selectedInfo then DoNotif("Invalid place selection",4,"reserveserver") return end
+		local codeToUse
+		if providedRaw then
+			if isLikelyAccessCode(providedRaw) then
+				codeToUse=providedRaw
+			else
+				codeToUse=GenerateAccessCode(selectedInfo.PlaceId,providedRaw)
+			end
+		else
+			codeToUse=GenerateAccessCode(selectedInfo.PlaceId,nil)
+		end
+		local placeLabel=resolveName(selectedInfo)
+		local description=Format("Place: %s\nPlaceId: %d\nCode: %s",placeLabel,selectedInfo.PlaceId,codeToUse)
+		local buttons={}
+		buttons[#buttons+1]={Text="Copy & Join",Callback=function() copyCode(codeToUse) attemptTeleport(selectedInfo,codeToUse) end}
+		buttons[#buttons+1]={Text="Join (no copy)",Callback=function() attemptTeleport(selectedInfo,codeToUse) end}
+		buttons[#buttons+1]={Text="Back",Callback=function() showPlacePicker(lastPage) end}
+		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request",2,"reserveserver") end}
+		Popup({Title="Reserved Server Ready",Description=description,Buttons=buttons})
+	end
+	showPlacePicker=function(page)
+		if #places==0 then
+			showCopyOptions({Name=currentPlaceName,PlaceId=game.PlaceId})
+			return
+		end
+		local perPage=5
+		local totalPages=math.max(1,math.ceil(#places/perPage))
+		local currentPage=page or 1
+		if currentPage<1 then currentPage=totalPages elseif currentPage>totalPages then currentPage=1 end
+		lastPage=currentPage
+		local startIndex=(currentPage-1)*perPage+1
+		local buttons={}
+		for index=startIndex,math.min(startIndex+perPage-1,#places) do
+			local info=places[index]
+			buttons[#buttons+1]={Text=Format("%s (%d)",resolveName(info),info.PlaceId),Callback=function() showCopyOptions(info) end}
+		end
+		if totalPages>1 then
+			buttons[#buttons+1]={Text=Format("Next Page > (%d/%d)",currentPage,totalPages),Callback=function() local nextPage=currentPage==totalPages and 1 or currentPage+1 showPlacePicker(nextPage) end}
+		end
+		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request",2,"reserveserver") end}
+		Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
+	end
+	showPlacePicker(1)
 end)
 
 HumanModCons = {}
