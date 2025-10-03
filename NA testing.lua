@@ -22059,9 +22059,9 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 	end
 	local function getTeleportRemote()
 		local RRS=SafeGetService("RobloxReplicatedStorage") or game:GetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage")
-		if not RRS then DoNotif("Missing RRS",4,"reserveserver") return nil end
+		if not RRS then DoNotif("Missing RRS") return nil end
 		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
-		if not remote then DoNotif("Missing Teleport Remote",4,"reserveserver") return nil end
+		if not remote then DoNotif("Missing Teleport Remote") return nil end
 		return remote
 	end
 	local function attemptTeleport(placeInfo,accessCode)
@@ -22071,14 +22071,14 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 			remote:FireServer(placeInfo.PlaceId,"",accessCode)
 		end)
 		if ok then
-			DoNotif(Format("Joining reserved server using code: %s",accessCode),5,"reserveserver")
+			DoNotif(Format("Joining reserved server using code: %s",accessCode))
 		else
-			DoNotif("Teleport failed: "..tostring(err),4,"reserveserver")
+			DoNotif("Teleport failed: "..tostring(err))
 		end
 	end
 	local function copyCode(accessCode)
-		if setclipboard then setclipboard(accessCode) DoNotif("Reserved server code copied to clipboard",5,"reserveserver") return true end
-		DoNotif("Clipboard unavailable",3,"reserveserver")
+		if setclipboard then setclipboard(accessCode) DoNotif("Reserved server code copied to clipboard") return true end
+		DoNotif("Clipboard unavailable")
 		return false
 	end
 	local providedRaw=code and tostring(code) or nil
@@ -22111,11 +22111,11 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 	end
 	local seen,processed={},{}
 	for _,info in ipairs(places) do
-		if info.PlaceId and not seen[info.PlaceId] then
-			seen[info.PlaceId]=true
-			if not info.Name or info.Name=="" then info.Name=Format("Place %d",info.PlaceId) end
-			processed[#processed+1]=info
-		end
+	if info.PlaceId and not seen[info.PlaceId] then
+		seen[info.PlaceId]=true
+		if not info.Name or info.Name=="" then info.Name=Format("Place %d",info.PlaceId) end
+		processed[#processed+1]=info
+	end
 	end
 	places=processed
 	if not seen[game.PlaceId] then
@@ -22123,12 +22123,10 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 	else
 		for _,info in ipairs(places) do if info.PlaceId==game.PlaceId then info.Name=currentPlaceName break end end
 	end
-	if fetchErr then DoNotif("Some places may be missing: "..tostring(fetchErr),3,"reserveserver") end
+	if fetchErr then DoNotif("Some places may be missing: "..tostring(fetchErr)) end
 	local function resolveName(info) return (info and info.Name and info.Name~="") and info.Name or Format("Place %d",info and info.PlaceId or game.PlaceId) end
-	local lastPage=1
-	local showPlacePicker
-	local function showCopyOptions(selectedInfo)
-		if not selectedInfo then DoNotif("Invalid place selection",4,"reserveserver") return end
+	local function showOptions(selectedInfo)
+		if not selectedInfo then DoNotif("Invalid place selection") return end
 		local codeToUse
 		if providedRaw then
 			if isLikelyAccessCode(providedRaw) then
@@ -22144,33 +22142,16 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 		local buttons={}
 		buttons[#buttons+1]={Text="Copy & Join",Callback=function() copyCode(codeToUse) attemptTeleport(selectedInfo,codeToUse) end}
 		buttons[#buttons+1]={Text="Join (no copy)",Callback=function() attemptTeleport(selectedInfo,codeToUse) end}
-		buttons[#buttons+1]={Text="Back",Callback=function() showPlacePicker(lastPage) end}
-		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request",2,"reserveserver") end}
+		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
 		Popup({Title="Reserved Server Ready",Description=description,Buttons=buttons})
 	end
-	showPlacePicker=function(page)
-		if #places==0 then
-			showCopyOptions({Name=currentPlaceName,PlaceId=game.PlaceId})
-			return
-		end
-		local perPage=5
-		local totalPages=math.max(1,math.ceil(#places/perPage))
-		local currentPage=page or 1
-		if currentPage<1 then currentPage=totalPages elseif currentPage>totalPages then currentPage=1 end
-		lastPage=currentPage
-		local startIndex=(currentPage-1)*perPage+1
-		local buttons={}
-		for index=startIndex,math.min(startIndex+perPage-1,#places) do
-			local info=places[index]
-			buttons[#buttons+1]={Text=Format("%s (%d)",resolveName(info),info.PlaceId),Callback=function() showCopyOptions(info) end}
-		end
-		if totalPages>1 then
-			buttons[#buttons+1]={Text=Format("Next Page > (%d/%d)",currentPage,totalPages),Callback=function() local nextPage=currentPage==totalPages and 1 or currentPage+1 showPlacePicker(nextPage) end}
-		end
-		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request",2,"reserveserver") end}
-		Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
+	local buttons={}
+	for _,info in ipairs(places) do
+		local label=Format("%s (%d)",resolveName(info),info.PlaceId)
+		buttons[#buttons+1]={Text=label,Callback=function() showOptions(info) end}
 	end
-	showPlacePicker(1)
+	buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
+	Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
 end)
 
 HumanModCons = {}
