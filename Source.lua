@@ -32655,6 +32655,7 @@ end]]
 math.randomseed(os.time())
 
 SpawnCall(function()
+	SpawnCall(function() Lighting.LightingStyle=Enum.LightingStyle.Soft end)
 	while Wait(0.25) and getChar() do
 		local hum = getHum()
 		if hum and hum.AutoJumpEnabled then
