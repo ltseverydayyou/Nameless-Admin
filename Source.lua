@@ -22914,8 +22914,6 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 	awPart.Anchored = true
 	awPart.CanCollide = true
 
-	local lastBaseOffset = nil
-
 	Airwalker = RunService.Stepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
 
@@ -22923,25 +22921,26 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		local root = getRoot(char)
 		local hum = getHum(char)
 		if not (char and root and hum) then return end
+
 		local hrpY = root.Position.Y
-		local hrpSizeY = (NAlib.isProperty(root, "Size") and root.Size.Y) or 2
-		local hip = hum.HipHeight or 2
-		local feetY = hrpY - (hrpSizeY * 0.5) - hip
-		local halfPart = awPart.Size.Y * 0.5
-		local baseFootOffset = (hrpY - feetY) + halfPart
-		if lastBaseOffset then
-			baseFootOffset = lastBaseOffset + math.clamp(baseFootOffset - lastBaseOffset, -0.1, 0.1)
+		local hrpHalf = ((NAlib.isProperty(root, "Size") and root.Size.Y) or 2) * 0.5
+		local partHalf = awPart.Size.Y * 0.5
+
+		local feetFromRoot
+		if IsR6() then
+			feetFromRoot = hrpHalf + 2
+			if hum.HipHeight and hum.HipHeight > 0 then
+				feetFromRoot = hrpHalf + hum.HipHeight
+			end
+		else
+			feetFromRoot = hrpHalf + (hum.HipHeight or 2)
 		end
-		lastBaseOffset = baseFootOffset
 
-		local delta =
-			(airwalk.Vars.decrease and 1.5) or
-			(airwalk.Vars.increase and -1.5) or
-			0
+		local baseOffset = feetFromRoot + partHalf
+		local delta = (airwalk.Vars.decrease and 1.5) or (airwalk.Vars.increase and -1.5) or 0
+		airwalk.Vars.offset = math.max(0, baseOffset + delta)
 
-		airwalk.Vars.offset = math.max(0.05, baseFootOffset + delta)
-
-		awPart.CFrame = CFrame.new(root.Position.X, hrpY - airwalk.Vars.offset, root.Position.Z) * root.CFrame.Rotation
+		awPart.CFrame = CFrame.new(root.Position.X, hrpY - airwalk.Vars.offset, root.Position.Z)
 	end)
 end)
 
