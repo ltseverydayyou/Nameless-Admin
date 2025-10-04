@@ -1,6 +1,5 @@
-if getgenv().RealNamelessLoaded then return end
-pcall(function() getgenv().RealNamelessLoaded=true end)
-pcall(function() getgenv().NATestingVer=false end)
+if getgenv().RealNamelessLoaded~=nil then return end
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -19517,7 +19516,7 @@ cmd.add({"hatresize"},{"hatresize","Makes your hats very big r15 only"},function
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/DigitalityScripts/roblox-scripts/refs/heads/main/Patched/hat%20resize'))()
 end)
 
-cmd.add({"exit"},{"exit","Close down roblox"},function()
+cmd.add({"exit"},{"exit","Close down pedoblox"},function()
 	game:Shutdown()
 end)
 
@@ -22960,18 +22959,37 @@ end)
 
 bringc = {}
 
-cmd.add({"cbring", "clientbring"}, {"clientbring <player> (cbring)", "Brings the player on your client"}, function(...)
+cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player>", "Brings the player once on your client"}, function(...)
 	local username = (...)
 	local target = getPlr(username)
 	if #target == 0 then return end
-	if NAlib.isConnected("noclip") then
-		NAlib.disconnect("noclip")
+	local localChar = getChar()
+	if not localChar then return end
+	local localRoot = getRoot(localChar)
+	if not localRoot then return end
+	for _, plr in next, target do
+		local targetChar = getPlrChar(plr)
+		if targetChar then
+			local targetRoot = getRoot(targetChar)
+			if targetRoot then
+				targetRoot.CFrame = localRoot.CFrame + localRoot.CFrame.LookVector * 3
+			end
+		end
 	end
+end, true)
+
+cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player>", "Continuously brings the player on your client"}, function(...)
+	local username = (...)
+	local target = getPlr(username)
+	if #target == 0 then return end
 	for _, conn in ipairs(bringc) do
 		conn:Disconnect()
 	end
 	bringc = {}
-	NAlib.connect("noclip", RunService.Stepped:Connect(function()
+	if NAlib.isConnected("cbnoclip") then
+		NAlib.disconnect("cbnoclip")
+	end
+	NAlib.connect("cbnoclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _, descendant in pairs(char:GetDescendants()) do
@@ -22983,25 +23001,27 @@ cmd.add({"cbring", "clientbring"}, {"clientbring <player> (cbring)", "Brings the
 	for _, plr in next, target do
 		if not plr then return end
 		local conn = RunService.RenderStepped:Connect(function()
-			if getPlrChar(plr) then
-				local targetRoot = getRoot(getPlrChar(plr))
-				local localRoot = getRoot(getChar())
+			local targetChar = getPlrChar(plr)
+			local localChar = getChar()
+			if targetChar and localChar then
+				local targetRoot = getRoot(targetChar)
+				local localRoot = getRoot(localChar)
 				if targetRoot and localRoot then
 					targetRoot.CFrame = localRoot.CFrame + localRoot.CFrame.LookVector * 3
 				end
 			end
 		end)
-		Insert(bringc, conn)
+		table.insert(bringc, conn)
 	end
 end, true)
 
-cmd.add({"uncbring", "unclientbring"}, {"unclientbring (uncbring)", "Disable Client bring command"}, function()
+cmd.add({"unloopcbring", "unloopcientb", "unlcbring", "unlclientb", "uncbring", "unclientb"}, {"unloopcbring", "Disable looped client bring"}, function()
 	for _, conn in ipairs(bringc) do
 		conn:Disconnect()
 	end
 	bringc = {}
-	if NAlib.isConnected("noclip") then
-		NAlib.disconnect("noclip")
+	if NAlib.isConnected("cbnoclip") then
+		NAlib.disconnect("cbnoclip")
 	end
 end)
 
