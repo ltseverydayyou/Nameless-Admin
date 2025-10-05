@@ -10627,39 +10627,47 @@ end)
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
 end)]]
 
-cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics, boostfps, lowg)","Enables maximum-performance low graphics mode; run again to restore."},function()
+cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
 	local g=getgenv and getgenv() or _G
 	if g.NA_FPS_ACTIVE then
 		g.NA_FPS_ACTIVE=false
 		if g.NA_FPS_UNHOOK then g.NA_FPS_UNHOOK() end
 		return
 	end
-	local w=SafeGetService("Workspace")
-	local st=(NAmanage and NAmanage._ensureL and NAmanage._ensureL()) or {safeGet=function(i,p)local ok,v=pcall(function()return i[p]end)return ok and v or nil end,safeSet=function(i,p,v)NAlib.setProperty(i,p,v)end,hook=function(n,fn)if not NAlib.isConnected(n) then NAlib.connect(n,fn()) end end,disableTimeLoops=function()NAlib.disconnect("time_day");NAlib.disconnect("time_night") end,disableNF=function() end,disableNB=function() end,disableNM=function() end,cancelFor=function() end}
+
+	local w=workspace
+	local st=(NAmanage and NAmanage._ensureL and NAmanage._ensureL()) or {safeGet=function(i,p)local ok,v=pcall(function()return i[p]end)return ok and v or nil end,safeSet=function(i,p,v)NAlib.setProperty(i,p,v)end}
 	local opt=opt or {hiddenprop=function() end}
-	st.disableTimeLoops()
-	if st.disableNF then st.disableNF(true) end
-	if st.disableNB then st.disableNB() end
-	if st.disableNM then st.disableNM() end
+
+	local function setHiddenOrNormal(inst,prop,val)
+		local ok=false
+		if opt and opt.hiddenprop then ok=pcall(function() opt.hiddenprop(inst,prop,val) end) end
+		if not ok then st.safeSet(inst,prop,val) end
+	end
+
 	local active=false
-	local conName="NA_FPS_Connections"
 	local cons={}
 	local function connect(sig,fn)local c=sig:Connect(fn);Insert(cons,c);return c end
 	local function disconnectAll()for _,c in ipairs(cons) do pcall(function() c:Disconnect() end) end;cons={} end
-	local originals={quality=nil,lighting={},terrain={},workspace={},postFx={},postFxCam={}}
-	local function setHiddenOrNormal(inst,prop,val)local ok=false;if opt and opt.hiddenprop then ok=pcall(function() opt.hiddenprop(inst,prop,val) end) end;if not ok then st.safeSet(inst,prop,val) end end
-	local lockTargets={GlobalShadows=false,FogEnd=math.huge,Brightness=0,EnvironmentSpecularScale=0,EnvironmentDiffuseScale=0,ShadowSoftness=0,Ambient=Color3.new(0.4,0.4,0.4),OutdoorAmbient=Color3.new(0.4,0.4,0.4),LightingStyle=Enum.LightingStyle.Soft,Technology=Enum.Technology.Compatibility}
+
 	local A="NA_FPS_"
-	local function isCharacterOrNPC(inst)local a=inst while a do if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then return true end a=a.Parent end return false end
-	local function safeSet(i,p,v)st.safeSet(i,p,v) end
-	local function encEnum(val) return val and val.Name or nil end
-	local function decEnum(enumType,name) if not name then return nil end return enumType[name] end
-	local function remember(inst,prop,val)local key=A..prop if inst:GetAttribute(key)==nil then if typeof(val)=="EnumItem" then inst:SetAttribute(key,encEnum(val)) else inst:SetAttribute(key,val) end end end
-	local function recall(inst,prop)local key=A..prop return inst:GetAttribute(key) end
+	local function remember(inst,prop,val)
+		local key=A..prop
+		if inst:GetAttribute(key)==nil then
+			if typeof(val)=="EnumItem" then inst:SetAttribute(key,val.Name) else inst:SetAttribute(key,val) end
+		end
+	end
+	local function recall(inst,prop) return inst:GetAttribute(A..prop) end
 	local function clearAttr(inst,prop) inst:SetAttribute(A..prop,nil) end
+	local function isCharacterOrNPC(inst)local a=inst while a do if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then return true end a=a.Parent end return false end
+	local function isClothingLike(inst) return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription") end
+
+	local originals={quality=nil,lighting={},terrain={},workspace={},postFx={},postFxCam={}}
 	local function snapshotEnv()
 		if originals.quality==nil then pcall(function() originals.quality=settings().Rendering.QualityLevel end) end
-		for p,_ in pairs(lockTargets) do if originals.lighting[p]==nil then originals.lighting[p]=st.safeGet(Lighting,p) end end
+		for _,p in ipairs({"GlobalShadows","FogEnd","Brightness","Ambient","OutdoorAmbient","LightingStyle","Technology"}) do
+			if originals.lighting[p]==nil then originals.lighting[p]=st.safeGet(Lighting,p) end
+		end
 		for _,e in ipairs(Lighting:GetChildren()) do
 			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
 				if originals.postFx[e]==nil then local en=st.safeGet(e,"Enabled"); originals.postFx[e]=(en==nil) and true or en end
@@ -10683,128 +10691,129 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster (lowgraphics
 			if originals.workspace[p]==nil then originals.workspace[p]=st.safeGet(w,p) end
 		end
 	end
-	local function enforceLighting()for p,v in pairs(lockTargets) do if p=="LightingStyle" or p=="Technology" then setHiddenOrNormal(Lighting,p,v) else safeSet(Lighting,p,v) end end end
-	local function hookLightingLocks()
-		NAlib.disconnect("fps_lock_lprops")
-		st.hook("fps_lock_lprops",function()
-			local bucket={}
-			for p,v in pairs(lockTargets) do
-				Insert(bucket,Lighting:GetPropertyChangedSignal(p):Connect(function()
-					if not active then return end
-					if p=="LightingStyle" or p=="Technology" then setHiddenOrNormal(Lighting,p,v) else safeSet(Lighting,p,v) end
-				end))
-			end
-			Insert(bucket,Lighting.ChildAdded:Connect(function(e)
-				if not active then return end
-				if e:IsA("Atmosphere") then safeSet(e,"Density",0) end
-				if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-					Defer(function() safeSet(e,"Enabled",false) end)
-					connect(e:GetPropertyChangedSignal("Enabled"),function() if active then safeSet(e,"Enabled",false) end end)
-				end
-			end))
-			return {Disconnect=function() for _,c in ipairs(bucket) do pcall(function() c:Disconnect() end) end end}
-		end)
-		for _,e in ipairs(Lighting:GetChildren()) do
-			if e:IsA("Atmosphere") then safeSet(e,"Density",0) end
-			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-				Defer(function() safeSet(e,"Enabled",false) end)
-				connect(e:GetPropertyChangedSignal("Enabled"),function() if active then safeSet(e,"Enabled",false) end end)
-			end
-		end
-	end
-	local function hookCameraEffects(cam)
-		if not cam then return end
-		connect(cam.ChildAdded,function(e)
-			if not active then return end
-			if e:IsA("Atmosphere") then safeSet(e,"Density",0) end
-			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-				Defer(function() safeSet(e,"Enabled",false) end)
-				connect(e:GetPropertyChangedSignal("Enabled"),function() if active then safeSet(e,"Enabled",false) end end)
-			end
-		end)
-		for _,e in ipairs(cam:GetChildren()) do
-			if e:IsA("Atmosphere") then safeSet(e,"Density",0) end
-			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-				Defer(function() safeSet(e,"Enabled",false) end)
-				connect(e:GetPropertyChangedSignal("Enabled"),function() if active then safeSet(e,"Enabled",false) end end)
-			end
-		end
-	end
+
 	local function applyEnv()
 		pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end)
-		enforceLighting()
-		hookLightingLocks()
+		st.safeSet(Lighting,"GlobalShadows",false)
+		st.safeSet(Lighting,"FogEnd",math.huge)
+		st.safeSet(Lighting,"Brightness",0)
+		st.safeSet(Lighting,"Ambient",Color3.new(0.4,0.4,0.4))
+		st.safeSet(Lighting,"OutdoorAmbient",Color3.new(0.4,0.4,0.4))
+		setHiddenOrNormal(Lighting,"LightingStyle",Enum.LightingStyle.Soft)
+		setHiddenOrNormal(Lighting,"Technology",Enum.Technology.Compatibility)
 		local T=w:FindFirstChildOfClass("Terrain")
 		if T then
-			safeSet(T,"Decoration",false)
-			safeSet(T,"WaterWaveSize",0)
-			safeSet(T,"WaterWaveSpeed",0)
-			safeSet(T,"WaterReflectance",0)
-			safeSet(T,"WaterTransparency",0)
+			st.safeSet(T,"Decoration",false)
+			st.safeSet(T,"WaterWaveSize",0)
+			st.safeSet(T,"WaterWaveSpeed",0)
+			st.safeSet(T,"WaterReflectance",0)
+			st.safeSet(T,"WaterTransparency",0)
 		end
-		safeSet(w,"StreamingEnabled",true)
+		st.safeSet(w,"StreamingEnabled",true)
 		pcall(function() w.StreamOutBehavior=Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default end)
-		safeSet(w,"StreamingPauseMode",Enum.StreamingPauseMode.Default)
-		safeSet(w,"TargetRadius",96)
-		hookCameraEffects(w.CurrentCamera)
-		connect(w:GetPropertyChangedSignal("CurrentCamera"),function() if not active then return end hookCameraEffects(w.CurrentCamera) end)
+		st.safeSet(w,"StreamingPauseMode",Enum.StreamingPauseMode.Default)
+		st.safeSet(w,"TargetRadius",96)
+		for _,e in ipairs(Lighting:GetChildren()) do if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end end
+		local cam=w.CurrentCamera
+		if cam then for _,e in ipairs(cam:GetChildren()) do if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end end end
 	end
+
 	local function restoreEnv()
 		pcall(function() if originals.quality~=nil then settings().Rendering.QualityLevel=originals.quality end end)
-		for p,v in pairs(originals.lighting) do if v~=nil then if p=="LightingStyle" then setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft) elseif p=="Technology" then setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility) else safeSet(Lighting,p,v) end end end
-		for e,wasEnabled in pairs(originals.postFx) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then safeSet(e,"Enabled",wasEnabled) end end
-		for e,wasEnabled in pairs(originals.postFxCam) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then safeSet(e,"Enabled",wasEnabled) end end
+		for p,v in pairs(originals.lighting) do
+			if v~=nil then
+				if p=="LightingStyle" then
+					setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft)
+				elseif p=="Technology" then
+					setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility)
+				else
+					st.safeSet(Lighting,p,v)
+				end
+			end
+		end
+		for e,wasEnabled in pairs(originals.postFx) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then st.safeSet(e,"Enabled",wasEnabled) end end
+		for e,wasEnabled in pairs(originals.postFxCam) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then st.safeSet(e,"Enabled",wasEnabled) end end
 		local T=w:FindFirstChildOfClass("Terrain")
-		if T then for p,v in pairs(originals.terrain) do if v~=nil then safeSet(T,p,v) end end end
-		for p,v in pairs(originals.workspace) do if v~=nil then safeSet(w,p,v) end end
+		if T then for p,v in pairs(originals.terrain) do if v~=nil then st.safeSet(T,p,v) end end end
+		for p,v in pairs(originals.workspace) do if v~=nil then st.safeSet(w,p,v) end end
 	end
+
 	local function optimizeInstance(inst)
 		if not active then return end
 		if isCharacterOrNPC(inst) then return end
+		if isClothingLike(inst) then return end
 		if inst:IsA("BasePart") then
 			remember(inst,"Material",inst.Material)
 			remember(inst,"MaterialVariant",st.safeGet(inst,"MaterialVariant"))
 			remember(inst,"Reflectance",inst.Reflectance)
 			remember(inst,"CastShadow",inst.CastShadow)
+			st.safeSet(inst,"Material",Enum.Material.Plastic)
+			st.safeSet(inst,"MaterialVariant","")
+			st.safeSet(inst,"Reflectance",0)
+			st.safeSet(inst,"CastShadow",false)
 			if inst:IsA("MeshPart") then
-				local rf=st.safeGet(inst,"RenderFidelity")
-				if rf~=nil then remember(inst,"RenderFidelity",rf); pcall(function() inst.RenderFidelity=Enum.RenderFidelity.Performance end) end
-				if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); safeSet(inst,"TextureID","") end
+				if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); st.safeSet(inst,"TextureID","") end
 			end
-			safeSet(inst,"Material",Enum.Material.Plastic)
-			safeSet(inst,"MaterialVariant","")
-			safeSet(inst,"Reflectance",0)
-			safeSet(inst,"CastShadow",false)
 		end
-		if (inst:IsA("Decal") or inst:IsA("Texture")) and not isCharacterOrNPC(inst) then remember(inst,"Transparency",inst.Transparency); safeSet(inst,"Transparency",1) end
-		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then if not isCharacterOrNPC(inst) then remember(inst,"Enabled",inst.Enabled); safeSet(inst,"Enabled",false) end end
-		if inst:IsA("SpotLight") then remember(inst,"Enabled",inst.Enabled); safeSet(inst,"Enabled",false) end
-		if inst:IsA("Explosion") then remember(inst,"BlastPressure",inst.BlastPressure); remember(inst,"BlastRadius",inst.BlastRadius); safeSet(inst,"BlastPressure",1); safeSet(inst,"BlastRadius",1) end
-		if inst:IsA("SpecialMesh") and not isCharacterOrNPC(inst) then remember(inst,"TextureId",inst.TextureId); safeSet(inst,"TextureId","") end
+		if inst:IsA("SpecialMesh") then remember(inst,"TextureId",inst.TextureId); st.safeSet(inst,"TextureId","") end
+		if inst:IsA("Decal") or inst:IsA("Texture") then remember(inst,"Transparency",inst.Transparency); st.safeSet(inst,"Transparency",1) end
+		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then remember(inst,"Enabled",inst.Enabled); st.safeSet(inst,"Enabled",false) end
+		if inst:IsA("Beam") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
+		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then remember(inst,"Enabled",inst.Enabled); st.safeSet(inst,"Enabled",false) end
+		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
+		if inst:IsA("Explosion") then remember(inst,"BlastPressure",inst.BlastPressure); remember(inst,"BlastRadius",inst.BlastRadius); st.safeSet(inst,"BlastPressure",1); st.safeSet(inst,"BlastRadius",1) end
 	end
-	local function restoreFromAttributes(inst)
+
+	local function restoreInstance(inst)
 		if inst:IsA("BasePart") then
-			local m=recall(inst,"Material"); if m~=nil then safeSet(inst,"Material",decEnum(Enum.Material,m) or Enum.Material.Plastic); clearAttr(inst,"Material") end
-			local mv=recall(inst,"MaterialVariant"); if mv~=nil then safeSet(inst,"MaterialVariant",mv); clearAttr(inst,"MaterialVariant") end
-			local r=recall(inst,"Reflectance"); if r~=nil then safeSet(inst,"Reflectance",r); clearAttr(inst,"Reflectance") end
-			local cs=recall(inst,"CastShadow"); if cs~=nil then safeSet(inst,"CastShadow",cs); clearAttr(inst,"CastShadow") end
-			if inst:IsA("MeshPart") then
-				local rf=recall(inst,"RenderFidelity"); if rf~=nil then pcall(function() inst.RenderFidelity=decEnum(Enum.RenderFidelity,rf) or inst.RenderFidelity end); clearAttr(inst,"RenderFidelity") end
-				local tx=recall(inst,"TextureID"); if tx~=nil then safeSet(inst,"TextureID",tx); clearAttr(inst,"TextureID") end
-			end
+			local m=recall(inst,"Material"); if m~=nil then st.safeSet(inst,"Material",Enum.Material[m] or inst.Material) clearAttr(inst,"Material") end
+			local mv=recall(inst,"MaterialVariant"); if mv~=nil then st.safeSet(inst,"MaterialVariant",mv) clearAttr(inst,"MaterialVariant") end
+			local r=recall(inst,"Reflectance"); if r~=nil then st.safeSet(inst,"Reflectance",r) clearAttr(inst,"Reflectance") end
+			local cs=recall(inst,"CastShadow"); if cs~=nil then st.safeSet(inst,"CastShadow",cs) clearAttr(inst,"CastShadow") end
+			if inst:IsA("MeshPart") then local tx=recall(inst,"TextureID"); if tx~=nil then st.safeSet(inst,"TextureID",tx) clearAttr(inst,"TextureID") end end
 		end
-		if inst:IsA("Decal") or inst:IsA("Texture") then local t=recall(inst,"Transparency"); if t~=nil then safeSet(inst,"Transparency",t); clearAttr(inst,"Transparency") end end
-		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then local e=recall(inst,"Enabled"); if e~=nil then safeSet(inst,"Enabled",e); clearAttr(inst,"Enabled") end end
-		if inst:IsA("SpotLight") then local e=recall(inst,"Enabled"); if e~=nil then safeSet(inst,"Enabled",e); clearAttr(inst,"Enabled") end end
-		if inst:IsA("Explosion") then local bp=recall(inst,"BlastPressure"); if bp~=nil then safeSet(inst,"BlastPressure",bp); clearAttr(inst,"BlastPressure") end local br=recall(inst,"BlastRadius"); if br~=nil then safeSet(inst,"BlastRadius",br); clearAttr(inst,"BlastRadius") end end
-		if inst:IsA("SpecialMesh") then local t=recall(inst,"TextureId"); if t~=nil then safeSet(inst,"TextureId",t); clearAttr(inst,"TextureId") end end
+		if inst:IsA("SpecialMesh") then local t=recall(inst,"TextureId"); if t~=nil then st.safeSet(inst,"TextureId",t) clearAttr(inst,"TextureId") end end
+		if inst:IsA("Decal") or inst:IsA("Texture") then local t=recall(inst,"Transparency"); if t~=nil then st.safeSet(inst,"Transparency",t) clearAttr(inst,"Transparency") end end
+		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("Beam") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("Explosion") then local bp=recall(inst,"BlastPressure"); if bp~=nil then st.safeSet(inst,"BlastPressure",bp) clearAttr(inst,"BlastPressure") end local br=recall(inst,"BlastRadius"); if br~=nil then st.safeSet(inst,"BlastRadius",br) clearAttr(inst,"BlastRadius") end end
 	end
+
 	local function sweepAll() for _,v in ipairs(w:GetDescendants()) do Defer(function() optimizeInstance(v) end) end end
-	local function restoreAll() for _,v in ipairs(w:GetDescendants()) do Defer(function() restoreFromAttributes(v) end) end end
-	local function hookDescendants() if NAlib.isConnected(conName) then return end NAlib.connect(conName,w.DescendantAdded:Connect(function(v) Defer(function() optimizeInstance(v) end) end)) end
-	local function unhookAll() NAlib.disconnect(conName); NAlib.disconnect("fps_lock_lprops"); disconnectAll() end
-	local function enable() if active then return end active=true snapshotEnv() applyEnv() hookDescendants() sweepAll() end
-	local function disable() if not active then return end active=false unhookAll() restoreAll() restoreEnv() end
+	local function restoreAll() for _,v in ipairs(w:GetDescendants()) do Defer(function() restoreInstance(v) end) end end
+
+	local function enable()
+		if active then return end
+		active=true
+		snapshotEnv()
+		applyEnv()
+		for _,v in ipairs(Lighting:GetDescendants()) do Defer(function() optimizeInstance(v) end) end
+		sweepAll()
+		Insert(cons, connect(w.DescendantAdded,function(v) Defer(function() optimizeInstance(v) end) end))
+		Insert(cons, connect(Lighting.DescendantAdded,function(v) Defer(function() optimizeInstance(v) end) end))
+		Insert(cons, connect(w:GetPropertyChangedSignal("CurrentCamera"),function()
+			local cam=w.CurrentCamera
+			if not cam then return end
+			for _,e in ipairs(cam:GetChildren()) do Defer(function() optimizeInstance(e) end) end
+			Insert(cons, connect(cam.ChildAdded,function(e) Defer(function() optimizeInstance(e) end) end))
+		end))
+		local cam=w.CurrentCamera
+		if cam then
+			for _,e in ipairs(cam:GetChildren()) do Defer(function() optimizeInstance(e) end) end
+			Insert(cons, connect(cam.ChildAdded,function(e) Defer(function() optimizeInstance(e) end) end))
+		end
+	end
+
+	local function disable()
+		if not active then return end
+		active=false
+		disconnectAll()
+		restoreAll()
+		restoreEnv()
+	end
+
 	g.NA_FPS_UNHOOK=function() disable() g.NA_FPS_UNHOOK=nil end
 	enable()
 	g.NA_FPS_ACTIVE=true
