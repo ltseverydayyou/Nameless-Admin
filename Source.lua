@@ -21919,6 +21919,10 @@ cmd.add({"keyboard"},{"keyboard","provides a keyboard gui for mobile users"},fun
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/VirtualKeyboard.lua"))();
 end)
 
+cmd.add({"autoclicker"},{"autoclicker","provides a autoclicker gui"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AutoClicker.luau"))();
+end)
+
 cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
 end)
