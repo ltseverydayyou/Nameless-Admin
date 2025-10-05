@@ -2865,7 +2865,7 @@ if FileSupport then
 	NAlib.disconnect("TCS_ApplyLoop")
 	do
 		local last = os.clock()
-		NAlib.connect("TCS_ApplyLoop", RunService.Stepped:Connect(function()
+		NAlib.connect("TCS_ApplyLoop", RunService.RenderStepped:Connect(function()
 			local now = os.clock()
 			if now - last >= 0.2 then
 				last = now
@@ -3652,7 +3652,7 @@ cmd.loop = function(commandName, args)
 					pcall(function() Loops[loopKey].command(Unpack(Loops[loopKey].args)) end)
 
 					local acc = 0
-					NAlib.connect(connKey, RunService.Stepped:Connect(function(_, dt)
+					NAlib.connect(connKey, RunService.RenderStepped:Connect(function(_, dt)
 						local L = Loops[loopKey]
 						if not L or not L.running then
 							NAlib.disconnect(connKey)
@@ -5779,7 +5779,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		goofyFLY.Anchored=true
 		if head then head.Anchored=true end
 		if CFloop then pcall(function() CFloop:Disconnect() end) end
-		CFloop=RunService.Stepped:Connect(function()
+		CFloop=RunService.RenderStepped:Connect(function()
 			if NAmanage._state.mode~="cfly" or not FLYING then return end
 			local cam=NAmanage._camera(); if not cam then return end
 			local mv=GetCustomMoveVector()
@@ -5999,7 +5999,7 @@ NAmanage._ensureLoops=function()
 	elseif NAmanage._state.mode=="cfly" then
 		if not CFloop or CFloop.Connected==false then
 			if CFloop then pcall(function() CFloop:Disconnect() end) end
-			CFloop=RunService.Stepped:Connect(function()
+			CFloop=RunService.RenderStepped:Connect(function()
 				if NAmanage._state.mode~="cfly" or not FLYING then return end
 				NAmanage._ensureForces()
 				local head=getHead(getChar())
@@ -9666,7 +9666,7 @@ cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the b
 				hrp.Velocity = originalVelocity
 			end
 
-			RunService.Stepped:Wait()
+			RunService.RenderStepped:Wait()
 			if character and hrp then
 				hrp.Velocity = originalVelocity + Vector3.new(0, 0.1, 0)
 			end
@@ -10273,7 +10273,7 @@ end,true)
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
 	NAlib.disconnect("antivoid")
 
-	NAlib.connect("antivoid", RunService.Stepped:Connect(function()
+	NAlib.connect("antivoid", RunService.RenderStepped:Connect(function()
 		local character = getChar()
 		local root = character and getRoot(character)
 		if root and root.Position.Y <= OrgDestroyHeight + 25 then
@@ -12006,7 +12006,7 @@ cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 			end
 		end))
 		NAlib.disconnect("trip_step")
-		NAlib.connect("trip_step",RunService.Stepped:Connect(function()
+		NAlib.connect("trip_step",RunService.RenderStepped:Connect(function()
 			local s=hum:GetState()
 			if s==Enum.HumanoidStateType.FallingDown or s==Enum.HumanoidStateType.Ragdoll or s==Enum.HumanoidStateType.PlatformStanding then
 				recover(hum,root)
@@ -12376,7 +12376,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 		end
 	end)
 
-	RunService.Stepped:Connect(function()
+	RunService.RenderStepped:Connect(function()
 		CheckMode()
 		if Toggled then
 			local targetPlayer = GetClosestPlayer()
@@ -12423,7 +12423,7 @@ cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets yo
 		end
 	end
 
-	NAlib.connect("spawnCONNECTION", RunService.Stepped:Connect(handleRespawn))
+	NAlib.connect("spawnCONNECTION", RunService.RenderStepped:Connect(handleRespawn))
 
 	NAlib.connect("spawnCHARCON", LocalPlayer.CharacterAdded:Connect(function()
 		Wait(1)
@@ -13412,7 +13412,7 @@ function EnableShiftLock()
 		OriginalRotationType = currentRotation
 	end
 
-	NAlib.connect("shiftlock_loop", RunService.Stepped:Connect(function()
+	NAlib.connect("shiftlock_loop", RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			GameSettings.RotationType = Enum.RotationType.CameraRelative
 		end)
@@ -15993,7 +15993,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 
 		SpawnCall(function() cmd.run({"fr",''}) end)
 
-		NAlib.connect("freecam", RunService.Stepped:Connect(function(dt)
+		NAlib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
 			local primaryPart = camPart
 			camera.CameraSubject = primaryPart
 
@@ -22873,7 +22873,7 @@ cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"
 	for _, p in next, players do
 		local name = p.Name
 		if glueloop[name] then glueloop[name]:Disconnect() end
-		glueloop[name] = RunService.Stepped:Connect(function()
+		glueloop[name] = RunService.RenderStepped:Connect(function()
 			local target = Players:FindFirstChild(name)
 			if target and target.Character then
 				getRoot(getChar()).CFrame=getRoot(target.Character).CFrame
@@ -22898,7 +22898,7 @@ cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport 
 			glueBACKER[name]:Disconnect()
 			glueBACKER[name] = nil
 		end
-		glueBACKER[name] = RunService.Stepped:Connect(function()
+		glueBACKER[name] = RunService.RenderStepped:Connect(function()
 			local tp = Players:FindFirstChild(name)
 			if not tp or not tp.Character then return end
 			getRoot(getChar()).CFrame=getRoot(tp.Character).CFrame*CFrame.new(0,0,3)
@@ -23056,7 +23056,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 	awPart.Anchored = true
 	awPart.CanCollide = true
 
-	Airwalker = RunService.Stepped:Connect(function()
+	Airwalker = RunService.RenderStepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
 
 		local char = getChar()
@@ -23132,7 +23132,7 @@ cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"},
 	if NAlib.isConnected("cbnoclip") then
 		NAlib.disconnect("cbnoclip")
 	end
-	NAlib.connect("cbnoclip", RunService.Stepped:Connect(function()
+	NAlib.connect("cbnoclip", RunService.RenderStepped:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _, descendant in pairs(char:GetDescendants()) do
@@ -28464,7 +28464,7 @@ cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 
-		NAlib.connect("fov_loop", RunService.Stepped:Connect(function()
+		NAlib.connect("fov_loop", RunService.RenderStepped:Connect(function()
 			if cam.FieldOfView ~= loopedFOV then
 				cam.FieldOfView = loopedFOV
 			end
