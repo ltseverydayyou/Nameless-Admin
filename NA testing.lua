@@ -560,7 +560,18 @@ local NAScale = 1
 local NAUIScale = 1
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
 local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
-local events = {"OnSpawn","OnDeath","OnChatted","OnDamage","OnJoin","OnLeave"}
+local events = {
+	"OnSpawn",
+	"OnDeath",
+	"OnKill",
+	"OnDamage",
+	"OnChatted",
+	"OnJump",
+	"OnEquipItem",
+	"OnUnequipItem",
+	"OnJoin",
+	"OnLeave",
+}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
@@ -3375,6 +3386,15 @@ NAmanage._makeCtx = function(evName, ...)
 		else
 			ctx.player, ctx.oldhp, ctx.newhp = lp, a1, a2
 		end
+	elseif evName == "OnKill" then
+		ctx.player = NAmanage._normPlayer(a1)
+		ctx.victim = NAmanage._normPlayer(a2)
+	elseif evName == "OnJump" then
+		ctx.player = NAmanage._normPlayer(a1) or lp
+		ctx.humanoid = a2
+	elseif evName == "OnEquipItem" or evName == "OnUnequipItem" then
+		ctx.player = NAmanage._normPlayer(a1) or lp
+		ctx.item = a2
 	else
 		ctx.player = lp
 	end
@@ -3482,6 +3502,13 @@ NAmanage._expandTokens = function(s, ctx)
 		if key == "message" then return ctx.message or "" end
 		if key == "oldhp" then return ctx.oldhp and tostring(math.floor(ctx.oldhp + 0.5)) or "" end
 		if key == "newhp" then return ctx.newhp and tostring(math.floor(ctx.newhp + 0.5)) or "" end
+		if key == "killer" then return (ctx.player and ctx.player.Name) or "" end
+		if key == "killerid" then return (ctx.player and tostring(ctx.player.UserId)) or "" end
+		if key == "victim" then return (ctx.victim and ctx.victim.Name) or "" end
+		if key == "victimdisplay" or key == "victimdisplayname" then return (ctx.victim and ctx.victim.DisplayName) or "" end
+		if key == "victimid" then return (ctx.victim and tostring(ctx.victim.UserId)) or "" end
+		if key == "item" or key == "tool" then return (ctx.item and ctx.item.Name) or "" end
+		if key == "itemclass" or key == "toolclass" then return (ctx.item and ctx.item.ClassName) or "" end
 		return ""
 	end))
 end
@@ -7383,7 +7410,9 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	Spawn(func)
 end, true)
 
-cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> (setff)", "Set a fast flag"}, function(flag, value)
+-- detected by roblox so it's disabled
+
+--[[cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> (setff)", "Set a fast flag"}, function(flag, value)
 	local title = "Set Fast Flag"
 	if not flag or flag == "" then
 		DoNotif("Please provide a fast flag name", 3, title)
@@ -7404,7 +7433,7 @@ cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> (setff)", "Set a fast f
 	else
 		DoNotif("Error occurred setting fast flag: " .. tostring(result), 10, title)
 	end
-end, true)
+end, true)]]
 
 cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias for an existing command"}, function(original, alias)
 	if not original or not alias then
@@ -32175,6 +32204,145 @@ local logClrs={
 	RED     = "#FF0000";
 }
 
+binderKillerTags = {
+	"creator",
+	"Creator",
+	"creatorPlayer",
+	"creatorTag",
+	"killer",
+	"Killer",
+	"attacker",
+	"Attacker",
+	"DamageOwner",
+	"DamageTag",
+	"LastDamager",
+	"lastDamager",
+}
+
+originalIO.binderResolvePlayerFromValue=function(value)
+	if typeof(value) == "Instance" then
+		if value:IsA("Player") then
+			return value
+		end
+		return Players:GetPlayerFromCharacter(value)
+	end
+	if type(value) == "number" then
+		local ok, plr = pcall(function()
+			return Players:GetPlayerByUserId(value)
+		end)
+		if ok and plr then
+			return plr
+		end
+	elseif type(value) == "string" then
+		return Players:FindFirstChild(value)
+	end
+	return nil
+end
+
+originalIO.binderFindPlayerInTag=function(tag)
+	if not tag then
+		return nil
+	end
+	if tag:IsA("ObjectValue") then
+		return originalIO.binderResolvePlayerFromValue(tag.Value)
+	end
+	if tag:IsA("StringValue") then
+		return Players:FindFirstChild(tag.Value)
+	end
+	if tag:IsA("IntValue") or tag:IsA("NumberValue") then
+		local ok, plr = pcall(function()
+			return Players:GetPlayerByUserId(tag.Value)
+		end)
+		if ok and plr then
+			return plr
+		end
+	end
+	if tag:IsA("ValueBase") then
+		return originalIO.binderResolvePlayerFromValue(tag.Value)
+	end
+	if tag:IsA("Folder") or tag:IsA("Model") then
+		for _, child in ipairs(tag:GetChildren()) do
+			local result = originalIO.binderFindPlayerInTag(child)
+			if result then
+				return result
+			end
+		end
+	end
+	return originalIO.binderResolvePlayerFromValue(tag)
+end
+
+originalIO.binderFindKiller=function(humanoid)
+	if not humanoid then
+		return nil
+	end
+	for _, name in ipairs(binderKillerTags) do
+		local tag = humanoid:FindFirstChild(name)
+		local killer = originalIO.binderFindPlayerInTag(tag)
+		if killer then
+			return killer
+		end
+	end
+	for _, child in ipairs(humanoid:GetChildren()) do
+		local killer = originalIO.binderFindPlayerInTag(child)
+		if killer then
+			return killer
+		end
+	end
+	return nil
+end
+
+originalIO.binderAttachHumanoidListeners=function(plr, hum)
+	if not (plr and hum) then
+		return
+	end
+	local lastHP = hum.Health
+	hum.Died:Connect(function()
+		NAmanage.ExecuteBindings("OnDeath", plr)
+		local killer = originalIO.binderFindKiller(hum)
+		if killer then
+			NAmanage.ExecuteBindings("OnKill", killer, plr)
+		end
+	end)
+	hum.HealthChanged:Connect(function(newHP)
+		if newHP < lastHP then
+			NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+		end
+		lastHP = newHP
+	end)
+	hum.StateChanged:Connect(function(_, newState)
+		if newState == Enum.HumanoidStateType.Jumping then
+			NAmanage.ExecuteBindings("OnJump", plr, hum)
+		end
+	end)
+end
+
+originalIO.binderAttachToolListeners=function(plr, char)
+	if not (plr and char) then
+		return
+	end
+	char.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") then
+			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
+		end
+	end)
+	char.ChildRemoved:Connect(function(child)
+		if child:IsA("Tool") then
+			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
+		end
+	end)
+end
+
+originalIO.binderSetupCharacter=function(plr, char)
+	if not char then
+		return
+	end
+	originalIO.binderAttachToolListeners(plr, char)
+	local hum = getHum(char)
+	if hum then
+		originalIO.binderAttachHumanoidListeners(plr, hum)
+	end
+end
+
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr)
 
@@ -32197,20 +32365,12 @@ function setupPlayer(plr,bruh)
 
 	plr.CharacterAdded:Connect(function(char)
 		NAmanage.ExecuteBindings("OnSpawn", plr, char)
-		local hum = getPlrHum(plr)
-		if hum then
-			local lastHP = hum.Health
-			hum.Died:Connect(function()
-				NAmanage.ExecuteBindings("OnDeath", plr)
-			end)
-			hum.HealthChanged:Connect(function(newHP)
-				if newHP < lastHP then
-					NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
-				end
-				lastHP = newHP
-			end)
-		end
+		originalIO.binderSetupCharacter(plr, char)
 	end)
+
+	if not bruh and plr.Character then
+		originalIO.binderSetupCharacter(plr, plr.Character)
+	end
 
 	if JoinLeaveConfig.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
@@ -32223,20 +32383,7 @@ end
 for _, plr in pairs(Players:GetPlayers()) do
 	setupPlayer(plr, true)
 	if plr.Character then
-		--NAmanage.ExecuteBindings("OnSpawn", plr, plr.Character)
-		local hum = getPlrHum(plr)
-		if hum then
-			local lastHP = hum.Health
-			hum.Died:Connect(function()
-				NAmanage.ExecuteBindings("OnDeath", plr)
-			end)
-			hum.HealthChanged:Connect(function(newHP)
-				if newHP < lastHP then
-					NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
-				end
-				lastHP = newHP
-			end)
-		end
+		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 end
 
@@ -33617,10 +33764,11 @@ end)
 
 if CoreGui then
 	local PT = {
-		path    = NAfiles.NAFILEPATH.."/plexity_theme.json",
-		default = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
-		cg      = CoreGui,
-		images  = {}
+		path     = NAfiles.NAFILEPATH.."/plexity_theme.json",
+		default  = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
+		cg       = CoreGui,
+		images   = setmetatable({}, { __mode = "k" }),
+		watchers = setmetatable({}, { __mode = "k" }),
 	}
 
 	local data = PT.default
@@ -33640,7 +33788,91 @@ if CoreGui then
 
 	PT.data = data
 
+	local propertyWatchList = {"Image", "Texture", "TextureId"}
+
+	local function getImageId(o)
+		for _, prop in ipairs(propertyWatchList) do
+			local value = NAlib.isProperty(o, prop)
+			if type(value) == "string" and value ~= "" then
+				return value
+			end
+		end
+		return nil
+	end
+
+	local function clearWatch(o)
+		local conns = PT.watchers[o]
+		if conns then
+			for _, conn in ipairs(conns) do
+				conn:Disconnect()
+			end
+			PT.watchers[o] = nil
+		end
+	end
+
+	local function applyIfReady(o)
+		if not (o and o.Parent) then
+			return false
+		end
+
+		if PT.images[o] then
+			NAmanage.plex_apply(o)
+			return true
+		end
+
+		if not (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+			return false
+		end
+
+		local id = getImageId(o)
+		if type(id) == "string" and id:match("img_set_%dx_%d+%.png$") then
+			PT.images[o] = true
+			NAmanage.plex_apply(o)
+			return true
+		end
+
+		return false
+	end
+
+	local function watchUntilReady(o)
+		if PT.watchers[o] or not (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+			return
+		end
+
+		local conns = {}
+		local function track(conn)
+			if conn then
+				Insert(conns, conn)
+			end
+		end
+
+		for _, prop in ipairs(propertyWatchList) do
+			local ok, signal = pcall(function()
+				return o:GetPropertyChangedSignal(prop)
+			end)
+			if ok and signal then
+				track(signal:Connect(function()
+					if applyIfReady(o) then
+						clearWatch(o)
+					end
+				end))
+			end
+		end
+
+		track(o.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				clearWatch(o)
+				PT.images[o] = nil
+			end
+		end))
+
+		if #conns > 0 then
+			PT.watchers[o] = conns
+		end
+	end
+
 	NAmanage.plex_remove = function(o)
+		clearWatch(o)
 		local g = o:FindFirstChildOfClass("UIGradient")
 		if g then g:Destroy() end
 	end
@@ -33663,20 +33895,15 @@ if CoreGui then
 	end
 
 	NAmanage.plex_add = function(o)
-		if not PT.images[o] and (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
-			local id = NAlib.isProperty(o, "Image")
-				or NAlib.isProperty(o, "Texture")
-				or NAlib.isProperty(o, "TextureId")
-			if type(id)=="string" and id:match("img_set_%dx_%d+%.png$") then
-				PT.images[o] = true
-				NAmanage.plex_apply(o)
-			end
+		if applyIfReady(o) then
+			return
 		end
+		watchUntilReady(o)
 	end
 
 	NAmanage.plex_applyAll = function()
 		for o in pairs(PT.images) do
-			NAmanage.plex_apply(o)
+			NAmanage.plex_add(o)
 		end
 	end
 
@@ -33684,17 +33911,24 @@ if CoreGui then
 		NAmanage.plex_add(o)
 	end
 
-	if PT.data.enabled then
-		NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
+	local function onDescendantAdded(o)
+		NAmanage.plex_add(o)
+		for _, desc in ipairs(o:GetDescendants()) do
+			NAmanage.plex_add(desc)
+		end
 	end
+
+	NAlib.disconnect("PlexyDesc")
+	NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(onDescendantAdded))
 
 	NAgui.addSection("Plexity Theme")
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
-		NAlib.disconnect("PlexyDesc")
 		if v then
+			for _, o in ipairs(PT.cg:GetDescendants()) do
+				NAmanage.plex_add(o)
+			end
 			NAmanage.plex_applyAll()
-			NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(NAmanage.plex_add))
 		else
 			for o in pairs(PT.images) do
 				NAmanage.plex_remove(o)
