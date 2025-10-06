@@ -3652,7 +3652,7 @@ cmd.loop = function(commandName, args)
 					pcall(function() Loops[loopKey].command(Unpack(Loops[loopKey].args)) end)
 
 					local acc = 0
-					NAlib.connect(connKey, RunService.RenderStepped:Connect(function(_, dt)
+					NAlib.connect(connKey, RunService.Stepped:Connect(function(_, dt)
 						local L = Loops[loopKey]
 						if not L or not L.running then
 							NAlib.disconnect(connKey)
@@ -34324,4 +34324,5 @@ end)
 ██╔══██║██║░░██║██║╚██╔╝██║██║██║╚████║
 ██║░░██║██████╔╝██║░╚═╝░██║██║██║░╚███║
 ╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
+
 )]]
