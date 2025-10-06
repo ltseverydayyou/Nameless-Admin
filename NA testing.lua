@@ -32566,8 +32566,11 @@ function mainNameless()
 	local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
 	if FileSupport and isfile(NAfiles.NAICONPOSPATH) then
-		local data = HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
-		if data and data.X and data.Y then
+		local ok, data = pcall(function()
+			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
+		end)
+
+		if ok and type(data) == "table" and data.X and data.Y then
 			targetPos = UDim2.new(data.X, 0, data.Y, 0)
 		end
 	end
