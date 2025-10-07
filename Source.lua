@@ -23118,135 +23118,6 @@ cmd.add({"untpwalk"}, {"untpwalk", "Stops the tpwalk command"}, function()
 	NAlib.disconnect("TPWalkingConnection")
 end)
 
-local tptptpSPEED = {
-	enabled = false;
-	part = nil;
-	accumulator = 0;
-	pos = Vector3.new();
-	useCollisionCheck = false;
-	useStepMovement = false;
-	oldUI = nil;
-	oldSpeed = nil;
-	speedConn = nil;
-}
-
-cmd.add({"tpspeed","tpspeed"},{"tpspeed <number>","Teleport in leaps with visual target"}, function(...)
-	if tptptpSPEED.enabled then
-		tptptpSPEED.enabled = false
-		NAlib.disconnect("TPSpeedVisual")
-		if tptptpSPEED.part then tptptpSPEED.part:Destroy() tptptpSPEED.part = nil end
-		if tptptpSPEED.oldUI then tptptpSPEED.oldUI:Destroy() tptptpSPEED.oldUI = nil end
-		if tptptpSPEED.speedConn then tptptpSPEED.speedConn:Disconnect() tptptpSPEED.speedConn = nil end
-		local humanoid = getHum()
-		if humanoid and tptptpSPEED.oldSpeed then humanoid.WalkSpeed = tptptpSPEED.oldSpeed end
-	end
-
-	tptptpSPEED.enabled = true
-	local speed = tonumber(...) or 1
-	local char = getChar()
-	tptptpSPEED.pos = char:GetPivot().Position
-	tptptpSPEED.accumulator = 0
-
-	tptptpSPEED.part = InstanceNew("Part", workspace)
-	tptptpSPEED.part.Size = Vector3.new(2,2,2)
-	tptptpSPEED.part.Anchored = true
-	tptptpSPEED.part.CanCollide = false
-	tptptpSPEED.part.Material = Enum.Material.SmoothPlastic
-	tptptpSPEED.part.Color = Color3.fromRGB(0,255,0)
-	tptptpSPEED.part.Transparency = 0.5
-
-	tptptpSPEED.oldUI = InstanceNew("ScreenGui")
-	NaProtectUI(tptptpSPEED.oldUI)
-	tptptpSPEED.oldUI.Name = "TPSpeedGui"
-	tptptpSPEED.oldUI.ResetOnSpawn = false
-
-	local function createButton(name, text, xScale)
-		local btn = InstanceNew("TextButton", tptptpSPEED.oldUI)
-		btn.Name = name
-		btn.Text = text
-		btn.Size = UDim2.new(0.1,0,0.04,0)
-		btn.Position = UDim2.new(xScale,0,0.02,0)
-		btn.AnchorPoint = Vector2.new(0.5,0)
-		btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-		btn.TextColor3 = Color3.new(1,1,1)
-		local corner = InstanceNew("UICorner", btn)
-		corner.CornerRadius = UDim.new(0.5,0)
-		return btn
-	end
-
-	local collisionBtn = createButton("CollisionCheckButton","Collision: Off",0.4)
-	local movementBtn  = createButton("MovementModeButton",  "Mode: Snap",  0.6)
-
-	MouseButtonFix(collisionBtn, function()
-		tptptpSPEED.useCollisionCheck = not tptptpSPEED.useCollisionCheck
-		collisionBtn.Text = "Collision: "..(tptptpSPEED.useCollisionCheck and "On" or "Off")
-	end)
-	MouseButtonFix(movementBtn, function()
-		tptptpSPEED.useStepMovement = not tptptpSPEED.useStepMovement
-		movementBtn.Text = "Mode: "..(tptptpSPEED.useStepMovement and "Step" or "Snap")
-	end)
-	NAgui.draggerV2(collisionBtn)
-	NAgui.draggerV2(movementBtn)
-
-	do
-		local humanoid = getHum()
-		if humanoid then
-			tptptpSPEED.oldSpeed = humanoid.WalkSpeed
-			tptptpSPEED.speedConn = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-				local new = humanoid.WalkSpeed
-				if new > 0 then tptptpSPEED.oldSpeed = new end
-				humanoid.WalkSpeed = 0
-			end)
-			humanoid.WalkSpeed = 0
-		end
-	end
-
-	NAlib.connect("TPSpeedVisual", RunService.Stepped:Connect(function(_,dt)
-		if not tptptpSPEED.enabled then return end
-		local char = getChar()
-		local humanoid = getHum()
-		if humanoid and humanoid.MoveDirection.Magnitude > 0 then
-			local dir = humanoid.MoveDirection.Unit
-			local origin = char:GetPivot().Position
-			local leap = speed * 0.4 * 10
-			local newPos = (tptptpSPEED.useStepMovement
-				and tptptpSPEED.pos + dir * (speed * dt * 10)
-				or origin + dir * leap)
-
-			if tptptpSPEED.useCollisionCheck then
-				local half = tptptpSPEED.part.Size/2
-				local region = Region3.new(newPos-half, newPos+half)
-				local parts = workspace:FindPartsInRegion3WithIgnoreList(region,{char,tptptpSPEED.part},10)
-				local ok = true
-				for _,p in ipairs(parts) do if p.CanCollide then ok=false break end end
-				if ok then tptptpSPEED.pos = newPos end
-			else
-				tptptpSPEED.pos = newPos
-			end
-
-			tptptpSPEED.part.CFrame = CFrame.new(tptptpSPEED.pos)
-			tptptpSPEED.accumulator = tptptpSPEED.accumulator + dt
-			if tptptpSPEED.accumulator >= 0.4 then
-				tptptpSPEED.accumulator = tptptpSPEED.accumulator - 0.4
-				local pivot = char:GetPivot()
-				char:PivotTo(CFrame.new(tptptpSPEED.pos)*(pivot-pivot.Position))
-			end
-		end
-	end))
-end, true)
-
-cmd.add({"untpspeed"},{"untpspeed","Stops the tpspeed command"}, function()
-	if tptptpSPEED.enabled then
-		tptptpSPEED.enabled = false
-		NAlib.disconnect("TPSpeedVisual")
-		if tptptpSPEED.part then tptptpSPEED.part:Destroy() tptptpSPEED.part=nil end
-		if tptptpSPEED.oldUI then tptptpSPEED.oldUI:Destroy() tptptpSPEED.oldUI=nil end
-		if tptptpSPEED.speedConn then tptptpSPEED.speedConn:Disconnect() tptptpSPEED.speedConn=nil end
-		local humanoid = getHum()
-		if humanoid and tptptpSPEED.oldSpeed then humanoid.WalkSpeed = tptptpSPEED.oldSpeed end
-	end
-end)
-
 muteLOOP = {}
 
 cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)", "Loop mutes the player's boombox"}, function(...)
@@ -23387,6 +23258,19 @@ function nuhuhprompt(v)
 				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
+					for _, x in ipairs(gui:GetDescendants()) do
+						if x:IsA("ScreenGui") then
+							if promptTBL.tracked[x] == nil then promptTBL.tracked[x] = x.Enabled end
+							pcall(function() x.Enabled = false end)
+						end
+					end
+					local inner = gui.DescendantAdded:Connect(function(inst)
+						if inst:IsA("ScreenGui") then
+							if promptTBL.tracked[inst] == nil then promptTBL.tracked[inst] = inst.Enabled end
+							pcall(function() inst.Enabled = false end)
+						end
+					end)
+					Insert(promptTBL.conns, inner)
 				end
 			end
 			local c = COREGUI.DescendantAdded:Connect(function(inst)
@@ -23394,6 +23278,19 @@ function nuhuhprompt(v)
 				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
+					for _, x in ipairs(gui:GetDescendants()) do
+						if x:IsA("ScreenGui") then
+							if promptTBL.tracked[x] == nil then promptTBL.tracked[x] = x.Enabled end
+							pcall(function() x.Enabled = false end)
+						end
+					end
+					local inner = gui.DescendantAdded:Connect(function(inst2)
+						if inst2:IsA("ScreenGui") then
+							if promptTBL.tracked[inst2] == nil then promptTBL.tracked[inst2] = inst2.Enabled end
+							pcall(function() inst2.Enabled = false end)
+						end
+					end)
+					Insert(promptTBL.conns, inner)
 				end
 			end)
 			Insert(promptTBL.conns, c)
@@ -23429,11 +23326,12 @@ cmd.add({"wallwalk"},{"wallwalk","Makes you walk on walls"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/WallWalk.lua"))() -- backup cause i don't trust pastebin
 end)
 
-hiddenGUIS = {}
+hiddenGUIS = hiddenGUIS or {}
+showPrev = showPrev or {}
 
-cmd.add({"hideguis"}, {"hideguis", "Hides GUIs"}, function()
+cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
 	for _, guiElement in pairs(PlrGui:GetDescendants()) do
-		if (guiElement:IsA("Frame") or guiElement:IsA("ImageLabel") or guiElement:IsA("ScrollingFrame")) and guiElement.Visible then
+		if guiElement:IsA("GuiObject") and guiElement.Visible then
 			guiElement.Visible = false
 			if not Discover(hiddenGUIS, guiElement) then
 				Insert(hiddenGUIS, guiElement)
@@ -23442,11 +23340,35 @@ cmd.add({"hideguis"}, {"hideguis", "Hides GUIs"}, function()
 	end
 end)
 
-cmd.add({"showguis"}, {"showguis", "Shows GUIs that were hidden using hideguis"}, function()
+cmd.add({"unhideguis"}, {"unhideguis","Restores GUIs hidden by hideguis"}, function()
 	for _, guiElement in pairs(hiddenGUIS) do
-		guiElement.Visible = true
+		if guiElement and guiElement.Parent then
+			guiElement.Visible = true
+		end
 	end
 	hiddenGUIS = {}
+end)
+
+cmd.add({"showguis"}, {"showguis","Enables every UI"}, function()
+	for _, inst in pairs(PlrGui:GetDescendants()) do
+		if inst:IsA("ScreenGui") then
+			if not showPrev[inst] then showPrev[inst] = {enabled = inst.Enabled} end
+			inst.Enabled = true
+		elseif inst:IsA("GuiObject") then
+			if not showPrev[inst] then showPrev[inst] = {visible = inst.Visible} else if showPrev[inst].visible == nil then showPrev[inst].visible = inst.Visible end end
+			inst.Visible = true
+		end
+	end
+end)
+
+cmd.add({"unshowguis"}, {"unshowguis","Restores UI states set by showguis"}, function()
+	for inst, prev in pairs(showPrev) do
+		if inst and inst.Parent then
+			if prev.enabled ~= nil and inst:IsA("ScreenGui") then inst.Enabled = prev.enabled end
+			if prev.visible ~= nil and inst:IsA("GuiObject") then inst.Visible = prev.visible end
+		end
+		showPrev[inst] = nil
+	end
 end)
 
 spinThingy = nil
@@ -23517,6 +23439,7 @@ cmd.add({"scriptviewer","viewscripts"},{"scriptviewer (viewscripts)","Can view s
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true))()
 end)
 
+-- idk if this is either broken or patched but i'll keep it ig?
 cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},function()
 	if IsOnMobile then
 		local owner = "Hosvile"
@@ -23549,6 +23472,7 @@ cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that suppo
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Turtle%20Spy.lua"))()
 end)
 
+-- running this twice may lead to a crash (this shit is a bit broken idfk why)
 cmd.add({"sigmaspy", "sspy","superspy"},{"sigmaspy","the strongest RemoteSpy able to detect (RemoteEvent/Function - BindableEvent/Function - OnClientEvent/OnClientInvoke) and can detect remotes that were fired from Actors"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/depthso/Sigma-Spy/refs/heads/main/Main.lua"))()
 end)
@@ -23559,16 +23483,20 @@ end,true)
 
 cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every ClickDetector in Workspace"},function(...)
 	local args={...}
-	local target=args[1] and Concat(args," "):lower()
+	local targetText = args[1] and Concat(args," ")
+	local target = targetText and Lower(targetText) or nil
 	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
+	NAindex.init()
 	local list,f={},0
-	for _,d in ipairs(interactTbl.click) do
-		if not target or d.Name:lower()==target or (d.Parent and d.Parent.Name:lower()==target) then
-			Insert(list,d)
+	if NAindex.click then
+		for inst,rec in pairs(NAindex.click) do
+			if inst and inst.Parent and rec and rec.names and NAindex.matchAny(rec.names, target) then
+				Insert(list,inst)
+			end
 		end
 	end
 	if #list==0 then
-		if target then return DebugNotif("No ClickDetectors found matching \""..target.."\"",2) end
+		if target then return DebugNotif("No ClickDetectors found matching \""..targetText.."\"",2) end
 		return DebugNotif("No ClickDetectors found",2)
 	end
 	for _,d in ipairs(list) do
@@ -23584,16 +23512,20 @@ end,true)
 
 cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every ProximityPrompt in Workspace"},function(...)
 	local args={...}
-	local target=args[1] and Concat(args," "):lower()
+	local targetText = args[1] and Concat(args," ")
+	local target = targetText and Lower(targetText) or nil
 	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
+	NAindex.init()
 	local list,f={},0
-	for _,p in ipairs(interactTbl.proxy) do
-		if not target or p.Name:lower()==target or (p.Parent and p.Parent.Name:lower()==target) then
-			Insert(list,p)
+	if NAindex.prompt then
+		for inst,rec in pairs(NAindex.prompt) do
+			if inst and inst.Parent and rec and rec.names and NAindex.matchAny(rec.names, target) then
+				Insert(list,inst)
+			end
 		end
 	end
 	if #list==0 then
-		if target then return DebugNotif("No ProximityPrompts found matching \""..target.."\"",2) end
+		if target then return DebugNotif("No ProximityPrompts found matching \""..targetText.."\"",2) end
 		return DebugNotif("No ProximityPrompts found",2)
 	end
 	for _,p in ipairs(list) do
@@ -23609,33 +23541,52 @@ end,true)
 
 cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every TouchInterest in Workspace"},function(...)
 	local args = {...}
-	local target = args[1] and Lower(Concat(args," ")):lower()
+	local targetText = args[1] and Concat(args," ")
+	local target = targetText and Lower(targetText) or nil
 	if typeof(firetouchinterest) ~= "function" then return end
 	local char = getChar()
 	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 	if not root then return end
+	NAindex.init()
 	local found = 0
-	for _,t in ipairs(interactTbl.touch) do
-		local nameMatch = not target or Lower(t.Name)==target or (t.Parent and Lower(t.Parent.Name)==target)
-		if nameMatch then
-			local container = t.Parent
-			local part = container:IsA("BasePart") and container or container:FindFirstAncestorWhichIsA("BasePart")
-			if part then
-				found += 1
-				SpawnCall(function()
-					local orig = part.CFrame
-					part.CFrame = root.CFrame
-					firetouchinterest(part,root,1)
-					Wait()
-					firetouchinterest(part,root,0)
-					Delay(0.1,function() part.CFrame = orig end)
-				end)
+	if NAindex.touch then
+		for ti in pairs(NAindex.touch) do
+			local container = ti.Parent
+			if container and container.Parent then
+				local part = NAindex.carPart(container)
+				if part and part.Parent then
+					local names = {}
+					if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
+					if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
+					if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
+					local model = part:FindFirstAncestorWhichIsA("Model")
+					while model do
+						if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
+						model = model:FindFirstAncestorWhichIsA("Model")
+					end
+					if NAindex.matchAny(names, target) then
+						found += 1
+						local targetPart = part
+						SpawnCall(function()
+							local orig = targetPart.CFrame
+							targetPart.CFrame = root.CFrame
+							firetouchinterest(targetPart,root,1)
+							Wait()
+							firetouchinterest(targetPart,root,0)
+							Delay(0.1,function()
+								if targetPart and targetPart.Parent then
+									targetPart.CFrame = orig
+								end
+							end)
+						end)
+					end
+				end
 			end
 		end
 	end
 	if found == 0 then
 		if target then
-			DebugNotif(("No TouchInterests found matching \"%s\""):format(target),2)
+			DebugNotif(("No TouchInterests found matching \"%s\""):format(targetText),2)
 		else
 			DebugNotif("No TouchInterests found",2)
 		end
