@@ -9632,24 +9632,7 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 			opt.queueteleport(tpScript)
 		end
 
-		SpawnCall(function()
-			DoNotif("Rejoining back to the same position...")
-
-			local success = NACaller(function()
-				if #Players:GetPlayers() <= 1 then
-					LocalPlayer:Kick("\nRejoining...")
-					Wait(0.05)
-					TeleportService:Teleport(PlaceId, LocalPlayer)
-				else
-					TeleportService:TeleportToPlaceInstance(PlaceId, JobId, LocalPlayer)
-				end
-			end)
-
-			if not success then
-				Wait(1)
-				TeleportService:Teleport(PlaceId, LocalPlayer)
-			end
-		end)
+		cmd.run({"rj"})
 	end
 end)
 
@@ -21043,7 +21026,7 @@ tviewGlobalMode = nil
 
 if toolConnections then
 	for _, conn in pairs(toolConnections) do
-		NACaller(function() if conn and conn.Disconnect then conn:Disconnect() end end)
+		pcall(function() if conn and conn.Disconnect then conn:Disconnect() end end)
 	end
 else
 	toolConnections = {}
@@ -31763,7 +31746,7 @@ function bindToChat(plr, msg)
 		end
 	end
 
-	NACaller(function()
+	pcall(function()
 		if FileSupport and appendfile then
 			local cEntry = Format(
 				"[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
@@ -32393,7 +32376,7 @@ local UICorner2 = InstanceNew("UICorner")
 
 NAICONASSET = nil
 
-NACaller(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
+pcall(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
 
 if NAICONASSET then
 	TextButton = InstanceNew("ImageButton")
