@@ -24746,12 +24746,86 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 	DebugNotif("Auto deleting instances with name: "..targetName, 2.5)
 end, true)
 
-cmd.add({"unautodelete", "unautoremove", "unautodel"}, {"unautodelete {partname} (unautoremove, unautodel)", "Disables autodelete"}, function()
-	if autoRemoveConnection then
-		autoRemoveConnection:Disconnect()
-		autoRemoveConnection = nil
+cmd.add({"unautodelete", "unautoremove", "unautodel"}, {"unautodelete {partname} (unautoremove, unautodel)", "Disables autodelete"}, function(...)
+	if type(autoRemover) ~= "table" then
+		autoRemover = {}
 	end
-	autoRemover = {}
+
+	if #autoRemover == 0 then
+		DoNotif("No autodelete names are active.", 2)
+		return
+	end
+
+	local filter = Lower(Concat({...}, " "))
+
+	local function disconnectAutoRemove()
+		if autoRemoveConnection then
+			autoRemoveConnection:Disconnect()
+			autoRemoveConnection = nil
+		end
+	end
+
+	local function cleanupConnection()
+		if #autoRemover == 0 then
+			disconnectAutoRemove()
+		end
+	end
+
+	local function removeAll()
+		autoRemover = {}
+		disconnectAutoRemove()
+		DoNotif("Cleared all autodelete names.", 2)
+	end
+
+	local function removeByTerm(term)
+		for i = #autoRemover, 1, -1 do
+			if autoRemover[i] == term then
+				table.remove(autoRemover, i)
+			end
+		end
+		cleanupConnection()
+		DoNotif("Stopped autodeleting '"..term.."'.", 2)
+	end
+
+	if filter ~= "" then
+		if filter == "all" then
+			removeAll()
+			return
+		end
+		local picked = nil
+		for _, t in ipairs(autoRemover) do
+			if t == filter then
+				picked = t
+				break
+			end
+		end
+		if not picked then
+			for _, t in ipairs(autoRemover) do
+				if Match(t, filter) then
+					picked = t
+					break
+				end
+			end
+		end
+		if picked then
+			removeByTerm(picked)
+		else
+			DoNotif("No matching autodelete name for: "..filter, 3)
+		end
+		return
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(autoRemover) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "AutoDelete Names",
+		Description = "Choose a tracked name to stop deleting (future spawns included).",
+		Buttons = buttons
+	})
 end)
 
 autoFinder = {}
@@ -24798,12 +24872,86 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 	DebugNotif("Auto deleting parts containing: "..kw, 2.5)
 end, true)
 
-cmd.add({"unautodeletefind", "unautoremovefind", "unautodelfind"}, {"unautodeletefind (unautoremovefind,unautodelfind)", "Stops autodeletefind"}, function()
-	if finderConn then
-		finderConn:Disconnect()
-		finderConn = nil
+cmd.add({"unautodeletefind", "unautoremovefind", "unautodelfind"}, {"unautodeletefind (unautoremovefind,unautodelfind)", "Stops autodeletefind"}, function(...)
+	if type(autoFinder) ~= "table" then
+		autoFinder = {}
 	end
-	autoFinder = {}
+
+	if #autoFinder == 0 then
+		DoNotif("No autodeletefind keywords are active.", 2)
+		return
+	end
+
+	local filter = Lower(Concat({...}, " "))
+
+	local function disconnectFinder()
+		if finderConn then
+			finderConn:Disconnect()
+			finderConn = nil
+		end
+	end
+
+	local function cleanupConnection()
+		if #autoFinder == 0 then
+			disconnectFinder()
+		end
+	end
+
+	local function removeAll()
+		autoFinder = {}
+		disconnectFinder()
+		DoNotif("Cleared all autodeletefind keywords.", 2)
+	end
+
+	local function removeByTerm(term)
+		for i = #autoFinder, 1, -1 do
+			if autoFinder[i] == term then
+				table.remove(autoFinder, i)
+			end
+		end
+		cleanupConnection()
+		DoNotif("Stopped autodeleting parts containing '"..term.."'.", 2)
+	end
+
+	if filter ~= "" then
+		if filter == "all" then
+			removeAll()
+			return
+		end
+		local picked = nil
+		for _, t in ipairs(autoFinder) do
+			if t == filter then
+				picked = t
+				break
+			end
+		end
+		if not picked then
+			for _, t in ipairs(autoFinder) do
+				if Match(t, filter) then
+					picked = t
+					break
+				end
+			end
+		end
+		if picked then
+			removeByTerm(picked)
+		else
+			DoNotif("No matching autodeletefind keyword for: "..filter, 3)
+		end
+		return
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(autoFinder) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "AutoDeleteFind Keywords",
+		Description = "Select a keyword to stop clearing matching descendants.",
+		Buttons = buttons
+	})
 end)
 
 cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removeclass, dc)", "Removes any part with a certain classname from the workspace"}, function(...)
@@ -24867,12 +25015,86 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 	DebugNotif("Auto deleting instances with class: "..targetClass, 2.5)
 end, true)
 
-cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeleteclass {ClassName} (unautoremoveclass, unautodc)", "Disables autodeleteclass"}, function()
-	if autoClassConnection then
-		autoClassConnection:Disconnect()
-		autoClassConnection = nil
+cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeleteclass {ClassName} (unautoremoveclass, unautodc)", "Disables autodeleteclass"}, function(...)
+	if type(autoClassRemover) ~= "table" then
+		autoClassRemover = {}
 	end
-	autoClassRemover = {}
+
+	if #autoClassRemover == 0 then
+		DoNotif("No autodeleteclass entries are active.", 2)
+		return
+	end
+
+	local filter = Lower(Concat({...}, " "))
+
+	local function disconnectClass()
+		if autoClassConnection then
+			autoClassConnection:Disconnect()
+			autoClassConnection = nil
+		end
+	end
+
+	local function cleanupConnection()
+		if #autoClassRemover == 0 then
+			disconnectClass()
+		end
+	end
+
+	local function removeAll()
+		autoClassRemover = {}
+		disconnectClass()
+		DoNotif("Cleared all autodeleteclass entries.", 2)
+	end
+
+	local function removeByTerm(term)
+		for i = #autoClassRemover, 1, -1 do
+			if autoClassRemover[i] == term then
+				table.remove(autoClassRemover, i)
+			end
+		end
+		cleanupConnection()
+		DoNotif("Stopped autodeleting class '"..term.."'.", 2)
+	end
+
+	if filter ~= "" then
+		if filter == "all" then
+			removeAll()
+			return
+		end
+		local picked = nil
+		for _, t in ipairs(autoClassRemover) do
+			if t == filter then
+				picked = t
+				break
+			end
+		end
+		if not picked then
+			for _, t in ipairs(autoClassRemover) do
+				if Match(t, filter) then
+					picked = t
+					break
+				end
+			end
+		end
+		if picked then
+			removeByTerm(picked)
+		else
+			DoNotif("No matching autodeleteclass term for: "..filter, 3)
+		end
+		return
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(autoClassRemover) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "AutoDeleteClass",
+		Description = "Pick a class name to stop auto deleting.",
+		Buttons = buttons
+	})
 end)
 
 cmd.add({"chardelete", "charremove", "chardel", "cdelete", "cremove", "cdel"}, {"chardelete {partname} (charremove, chardel, cdelete, cremove, cdel)", "Removes any part with a certain name from your character"}, function(...)
@@ -32273,6 +32495,11 @@ SpawnCall(function()
 			end
 			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
 			NAmanage._persist.wasFlying=(FLYING==true)
+			if FLYING then
+				NAmanage.pauseCurrent()
+			end
+			NAmanage._clearPhysics(true)
+			NAmanage._persist.resumeAfterSpawn=false
 		end)
 	end
 
@@ -32298,6 +32525,34 @@ SpawnCall(function()
 		NAmanage.connectCFlyKey()
 		NAmanage.connectTFlyKey()
 		NAmanage.startWatcher()
+
+		SpawnCall(function()
+			if not NAmanage._persist or NAmanage._persist.resumeAfterSpawn then
+				return
+			end
+			if not NAmanage._persist.wasFlying then
+				return
+			end
+			local desired=NAmanage._persist.lastMode
+			if not desired or desired=="none" then
+				NAmanage._persist.wasFlying=false
+				return
+			end
+			if not NAmanage._modeEnabled(desired) then
+				NAmanage._persist.wasFlying=false
+				return
+			end
+			local elapsed=0
+			while elapsed<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
+				elapsed+=(Wait() or 0.03)
+			end
+			if not getChar() or not getRoot(getChar()) or not getHum() then
+				return
+			end
+			NAmanage._clearPhysics(true)
+			NAmanage._applyMode(desired,true)
+			NAmanage._persist.wasFlying=false
+		end)
 	end)
 
 	if LocalPlayer.Character then
