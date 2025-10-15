@@ -25139,6 +25139,464 @@ end, true)
 
 local activeTeleports = {}
 
+originalIO.gotoNext = originalIO.gotoNext or {}
+
+do
+	local gotoNext = originalIO.gotoNext
+	local state = gotoNext.state or {
+		teleporting = false,
+		totalDuplicates = 0,
+		duplicatesSessionOrder = {},
+		tracerPart = nil,
+		tracerConnection = nil,
+		tracerHue = 0,
+	}
+	gotoNext.state = state
+
+	function gotoNext.notify(message, duration)
+		DebugNotif(message, duration or 3, "GotoNext")
+	end
+
+	function gotoNext.clearTracer()
+		if state.tracerConnection then
+			state.tracerConnection:Disconnect()
+			state.tracerConnection = nil
+		end
+
+		if state.tracerPart and state.tracerPart.Parent then
+			state.tracerPart:Destroy()
+		end
+
+		state.tracerPart = nil
+	end
+
+	function gotoNext.setTracer(nextCFrame)
+		gotoNext.clearTracer()
+		if not nextCFrame then
+			return
+		end
+
+		local tracer = InstanceNew("Part", workspace)
+		tracer.Name = "NA_GotoNextTracer"
+		tracer.Anchored = true
+		tracer.CanCollide = false
+		tracer.Material = Enum.Material.Neon
+		tracer.Size = Vector3.new(2, 2, 2)
+		tracer.CFrame = nextCFrame + Vector3.new(0, 3, 0)
+		tracer.TopSurface = Enum.SurfaceType.Smooth
+		tracer.BottomSurface = Enum.SurfaceType.Smooth
+
+		state.tracerPart = tracer
+		state.tracerHue = 0
+		state.tracerConnection = RunService.Heartbeat:Connect(function(dt)
+			if not state.tracerPart or not state.tracerPart.Parent then
+				gotoNext.clearTracer()
+				return
+			end
+
+			state.tracerHue = (state.tracerHue + dt * 0.5) % 1
+			state.tracerPart.Color = Color3.fromHSV(state.tracerHue, 1, 1)
+		end)
+	end
+
+	function gotoNext.fullPath(inst)
+		if not inst then
+			return "Unknown"
+		end
+
+		local segments = {inst.Name}
+		local parent = inst.Parent
+		while parent do
+			Insert(segments, 1, parent.Name)
+			parent = parent.Parent
+		end
+
+		return Concat(segments, ".")
+	end
+
+	function gotoNext.findMatches(objectType, targetName)
+		local matches = {}
+		if not targetName or targetName == "" then
+			return matches
+		end
+
+		local queue = {workspace}
+		local index = 1
+
+		while queue[index] do
+			local current = queue[index]
+			index += 1
+
+			for _, child in ipairs(current:GetChildren()) do
+				local isValid = false
+				if objectType == "Part" then
+					isValid = child:IsA("BasePart")
+				elseif objectType == "Model" then
+					isValid = child:IsA("Model")
+				elseif objectType == "Folder" then
+					isValid = child:IsA("Folder")
+				end
+
+				if isValid and child.Name == targetName then
+					Insert(matches, {inst = child, parent = child.Parent})
+				end
+
+				queue[#queue + 1] = child
+			end
+		end
+
+		return matches
+	end
+
+	function gotoNext.resolveCFrame(inst)
+		if not inst then
+			return nil
+		end
+
+		if inst:IsA("BasePart") then
+			return inst.CFrame
+		elseif inst:IsA("Model") then
+			local ok, pivot = pcall(function()
+				return inst:GetPivot()
+			end)
+			if ok then
+				return pivot
+			end
+
+			local primary = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+			if primary then
+				return primary.CFrame
+			end
+		end
+
+		return nil
+	end
+
+	function gotoNext.teleportToInstance(inst)
+		local char = getChar()
+		if not char then
+			return false
+		end
+
+		local targetCFrame = gotoNext.resolveCFrame(inst)
+		if not targetCFrame then
+			return false
+		end
+
+		local hum = getHum(char)
+		if hum then
+			hum.Sit = false
+		end
+
+		pcall(function()
+			char:PivotTo(targetCFrame + Vector3.new(0, 3, 0))
+		end)
+
+		return true
+	end
+
+	function gotoNext.collectFolderParts(folder)
+		local parts = {}
+		for _, descendant in ipairs(folder:GetDescendants()) do
+			if descendant:IsA("BasePart") then
+				Insert(parts, descendant)
+			end
+		end
+
+		table.sort(parts, function(a, b)
+			return a:GetFullName() < b:GetFullName()
+		end)
+
+		return parts
+	end
+
+	function gotoNext.normalizeSelection(selection)
+		local normalized = {}
+		for _, inst in ipairs(selection or {}) do
+			if inst and inst.Parent then
+				Insert(normalized, {inst = inst, parent = inst.Parent})
+			end
+		end
+		return normalized
+	end
+
+	function gotoNext.promptDuplicates(name, duplicates)
+		local selectionEvent = InstanceNew("BindableEvent")
+		local selected
+		local resolved = false
+		local window
+
+		local descriptionLines = {
+			Format("Found %d duplicates for '%s'. Choose a starting instance or TP all.", #duplicates, name)
+		}
+
+		for idx, info in ipairs(duplicates) do
+			Insert(descriptionLines, Format("%d) %s", idx, gotoNext.fullPath(info.inst)))
+		end
+
+		local buttons = {}
+
+		local function finalize(choice)
+			if resolved then
+				return
+			end
+
+			selected = choice
+			resolved = true
+			if window and window.Parent then
+				window:Destroy()
+			end
+			selectionEvent:Fire()
+		end
+
+		for idx, info in ipairs(duplicates) do
+			Insert(buttons, {
+				Text = Format("Start #%d", idx),
+				Callback = function()
+					finalize({info.inst})
+				end
+			})
+		end
+
+		Insert(buttons, {
+			Text = Format("TP All (%d)", #duplicates),
+			Callback = function()
+				local all = {}
+				for _, entry in ipairs(duplicates) do
+					Insert(all, entry.inst)
+				end
+				finalize(all)
+			end
+		})
+
+		Insert(buttons, {
+			Text = "Cancel",
+			Callback = function()
+				finalize(nil)
+			end
+		})
+
+		window = Window({
+			Title = "GotoNext",
+			Description = Concat(descriptionLines, "\n"),
+			Buttons = buttons
+		})
+
+		if window then
+			window.AncestryChanged:Connect(function(_, parent)
+				if not parent and not resolved then
+					resolved = true
+					selected = nil
+					selectionEvent:Fire()
+				end
+			end)
+		end
+
+		selectionEvent.Event:Wait()
+		selectionEvent:Destroy()
+
+		return selected
+	end
+
+	function gotoNext.parseArgs(rawArgs)
+		local args = {}
+		for _, value in ipairs(rawArgs or {}) do
+			if type(value) == "string" and value ~= "" then
+				Insert(args, value)
+			end
+		end
+
+		local first = args[1]
+		if not first then
+			return nil, "Usage:\n- gotopartnext <start> [end] [delay]\n- gotopartnext <prefix> <start> [end] [delay]"
+		end
+
+		local prefix
+		local startNum
+		local endNum
+		local delay
+
+		if tonumber(first) then
+			startNum = tonumber(first)
+			endNum = tonumber(args[2]) or startNum
+			delay = tonumber(args[3])
+		else
+			prefix = first
+			startNum = tonumber(args[2])
+			if not startNum then
+				return nil, "Start number missing. Example: gotopartnext part 1 10 0.5"
+			end
+
+			endNum = tonumber(args[3]) or startNum
+			delay = tonumber(args[4])
+		end
+
+		startNum = math.floor(startNum)
+		endNum = math.floor(endNum)
+		delay = (delay and tonumber(delay)) or 0.5
+		if delay < 0 then
+			delay = 0
+		end
+
+		return {
+			prefix = prefix,
+			startNum = startNum,
+			endNum = endNum,
+			delay = delay
+		}
+	end
+
+	function gotoNext.handleSequence(objectType, rawArgs)
+		if state.teleporting then
+			gotoNext.notify("Sequence already running.", 2)
+			return
+		end
+
+		local parsed, err = gotoNext.parseArgs(rawArgs)
+		if not parsed then
+			gotoNext.notify(err or "Invalid arguments.", 4)
+			return
+		end
+
+		state.teleporting = true
+		state.totalDuplicates = 0
+
+		local descriptor
+		if parsed.prefix then
+			descriptor = Format("Teleporting %s '%s' %d -> %d (delay %.2fs)", objectType, parsed.prefix, parsed.startNum, parsed.endNum, parsed.delay)
+		else
+			descriptor = Format("Teleporting %s %d -> %d (delay %.2fs)", objectType, parsed.startNum, parsed.endNum, parsed.delay)
+		end
+		gotoNext.notify(descriptor, 3)
+
+		SpawnCall(function()
+			local step = parsed.startNum <= parsed.endNum and 1 or -1
+
+			for index = parsed.startNum, parsed.endNum, step do
+				if not state.teleporting then
+					break
+				end
+
+				local baseName = parsed.prefix and (parsed.prefix .. index) or tostring(index)
+				local namesToCheck = {baseName}
+				if parsed.prefix then
+					Insert(namesToCheck, parsed.prefix .. " " .. index)
+				end
+
+				local candidates = {}
+				local seen = {}
+
+				for _, name in ipairs(namesToCheck) do
+					local found = gotoNext.findMatches(objectType, name)
+					for _, info in ipairs(found) do
+						local inst = info.inst
+						if inst and not seen[inst] then
+							seen[inst] = true
+							Insert(candidates, info)
+						end
+					end
+				end
+
+				if #candidates == 0 then
+					gotoNext.notify(Format("No %s named '%s'.", objectType, baseName), 2)
+				else
+					if #candidates > 1 then
+						local sessionKey = baseName
+						local sessionChoice = state.duplicatesSessionOrder[sessionKey]
+
+						if sessionChoice then
+							sessionChoice = gotoNext.normalizeSelection(sessionChoice)
+							if #sessionChoice == 0 then
+								state.duplicatesSessionOrder[sessionKey] = nil
+								sessionChoice = nil
+							end
+						end
+
+						if not sessionChoice then
+							local selection = gotoNext.promptDuplicates(baseName, candidates)
+							if not selection or #selection == 0 then
+								gotoNext.notify("Sequence canceled.", 2)
+								state.teleporting = false
+								gotoNext.clearTracer()
+								return
+							end
+							state.duplicatesSessionOrder[sessionKey] = selection
+							sessionChoice = gotoNext.normalizeSelection(selection)
+						end
+
+						state.totalDuplicates = state.totalDuplicates + math.max(0, #sessionChoice - 1)
+						candidates = sessionChoice
+					end
+
+					for idx, info in ipairs(candidates) do
+						if not state.teleporting then
+							break
+						end
+
+						local inst = info.inst
+						if objectType == "Folder" then
+							local parts = gotoNext.collectFolderParts(inst)
+							for partIndex, part in ipairs(parts) do
+								if not state.teleporting then
+									break
+								end
+								local nextPart = parts[partIndex + 1]
+								gotoNext.setTracer(nextPart and nextPart.CFrame or nil)
+								gotoNext.teleportToInstance(part)
+								Wait(parsed.delay)
+							end
+						else
+							local nextInfo = candidates[idx + 1]
+							local nextTarget = nextInfo and gotoNext.resolveCFrame(nextInfo.inst) or nil
+							gotoNext.setTracer(nextTarget)
+							gotoNext.teleportToInstance(inst)
+							Wait(parsed.delay)
+						end
+					end
+				end
+			end
+
+			gotoNext.clearTracer()
+			if state.teleporting then
+				gotoNext.notify(Format("Finished teleporting! Duplicates: %d", state.totalDuplicates), 4)
+			else
+				gotoNext.notify("Sequence stopped.", 2)
+			end
+
+			state.teleporting = false
+		end)
+	end
+
+	function gotoNext.cancelSequence()
+		state.totalDuplicates = 0
+		state.duplicatesSessionOrder = {}
+		if state.teleporting then
+			state.teleporting = false
+			gotoNext.clearTracer()
+			gotoNext.notify("Teleport sequence stopped!", 3)
+		else
+			gotoNext.clearTracer()
+			gotoNext.notify("No teleport in progress.", 2)
+		end
+	end
+end
+
+cmd.add({"gotopartnext", "gpn"}, {"gotopartnext [prefix] <start> [end] [delay] (gpn)", "Teleport sequentially to parts with optional prefix and duplicate handling."}, function(...)
+	originalIO.gotoNext.handleSequence("Part", {...})
+end, true)
+
+cmd.add({"gotomodelnext", "gmn"}, {"gotomodelnext [prefix] <start> [end] [delay] (gmn)", "Teleport sequentially to models with optional prefix and duplicate handling."}, function(...)
+	originalIO.gotoNext.handleSequence("Model", {...})
+end, true)
+
+cmd.add({"gotofoldernext", "gfn"}, {"gotofoldernext [prefix] <start> [end] [delay] (gfn)", "Teleport sequentially through folder contents with optional prefix."}, function(...)
+	originalIO.gotoNext.handleSequence("Folder", {...})
+end, true)
+
+cmd.add({"gotobreak", "gb"}, {"gotobreak (gb)", "Stop the active goto sequence and clear duplicate selections."}, function()
+	originalIO.gotoNext.cancelSequence()
+end)
+
 cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you to each matching part by name once"}, function(...)
 	local partName = Concat({...}, " "):lower()
 	local commandKey = "gotopart"
