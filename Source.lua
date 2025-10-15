@@ -7316,7 +7316,7 @@ NAlib.parseText = function(text, watch, rPlr)
 					local afterCommand = segment:sub(commandStart + 1)
 					local remainder = afterCommand:gsub("^%s+", "")
 					if nextSlash then
-						remainder = remainder .. "\\" .. text:sub(nextSlash + 1)
+						remainder = remainder.."\\"..text:sub(nextSlash + 1)
 					end
 					Insert(commands, {parsed[1], remainder})
 					break
@@ -7411,7 +7411,7 @@ end, true)
 	if success then
 		DoNotif(Format("Set %s's value to %s", flag, value), 5, title)
 	else
-		DoNotif("Error occurred setting fast flag: " .. tostring(result), 10, title)
+		DoNotif("Error occurred setting fast flag: "..tostring(result), 10, title)
 	end
 end, true)]]
 
@@ -8568,7 +8568,7 @@ function NAstatsUI.createStatCommand(config)
             local value, rawValue = config.updateFn(dt)
             local color = config.colorFn(rawValue)
             
-            statDisplay.value.Text = "<b>" .. value .. "</b>"
+            statDisplay.value.Text = "<b>"..value.."</b>"
             statDisplay.value.TextColor3 = color
             
             local collapsedText = Format("%s: <font color='%s'>%s</font>", config.title, NAstatsUI.colorToHex(color), value)
@@ -8612,7 +8612,7 @@ cmd.add({"ping"}, {"ping", "Shows your network latency"}, function()
         updateFn = function()
             local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
             local rawPing = tonumber(pingItem:GetValueString():match("%d+")) or 0
-            return tostring(rawPing) .. " ms", rawPing
+            return tostring(rawPing).." ms", rawPing
         end,
         colorFn = function(ping)
             if ping <= 50 then return T.Colors.Good end
@@ -8682,9 +8682,9 @@ cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
             local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
             local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
 
-            pingValue.Text = "<b>" .. tostring(p) .. " ms</b>"
+            pingValue.Text = "<b>"..tostring(p).." ms</b>"
             pingValue.TextColor3 = pingColorFn(p)
-            fpsValue.Text = "<b>" .. tostring(fps) .. "</b>"
+            fpsValue.Text = "<b>"..tostring(fps).."</b>"
             fpsValue.TextColor3 = fpsColorFn(fps)
             
             local collapsedTitle = Format("Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>", NAstatsUI.colorToHex(pingColorFn(p)), p, NAstatsUI.colorToHex(fpsColorFn(fps)), fps)
@@ -19820,7 +19820,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 	if success then
 		DoNotif(Format("Hooked gamepass ownership and fired %d purchase signals", totalSignals), 6, "Free Gamepasses")
 	else
-		DoNotif("Failed to spoof gamepasses: " .. tostring(err), 8, "Free Gamepasses")
+		DoNotif("Failed to spoof gamepasses: "..tostring(err), 8, "Free Gamepasses")
 	end
 end)
 
@@ -25153,8 +25153,148 @@ do
 	}
 	gotoNext.state = state
 
+	function gotoNext.trim(str)
+		if type(str) ~= "string" then
+			return str
+		end
+		local trimmed = str:match("^%s*(.-)%s*$")
+		return trimmed or str
+	end
+
+	function gotoNext.tokenizeArgs(rawArgs)
+		local tokens = {}
+		if not rawArgs or #rawArgs == 0 then
+			return tokens
+		end
+
+		local combined = Concat(rawArgs, " ")
+		if combined == "" then
+			return tokens
+		end
+
+		local length = #combined
+		local index = 1
+
+		while index <= length do
+			while index <= length and combined:sub(index, index):match("%s") do
+				index = index + 1
+			end
+			if index > length then
+				break
+			end
+
+			local ch = combined:sub(index, index)
+			if ch == '"' or ch == "'" then
+				local quote = ch
+				index = index + 1
+				local buffer = {}
+
+				while index <= length do
+					local current = combined:sub(index, index)
+					if current == quote then
+						index = index + 1
+						break
+					end
+					buffer[#buffer + 1] = current
+					index = index + 1
+				end
+
+				tokens[#tokens + 1] = Concat(buffer)
+			else
+				local start = index
+				while index <= length and not combined:sub(index, index):match("%s") do
+					index = index + 1
+				end
+				tokens[#tokens + 1] = combined:sub(start, index - 1)
+			end
+		end
+
+		if #tokens == 0 then
+			for _, value in ipairs(rawArgs) do
+				if type(value) == "string" and value ~= "" then
+					tokens[#tokens + 1] = value
+				end
+			end
+		end
+
+		for i = 1, #tokens do
+			tokens[i] = gotoNext.trim(tokens[i])
+		end
+
+		return tokens
+	end
+
+	function gotoNext.buildSearchNames(rawPrefix, normalizedPrefix, index)
+		local variants = {}
+		local seen = {}
+		local function add(name)
+			if not name or name == "" then
+				return
+			end
+			local canonical = name:lower()
+			if not seen[canonical] then
+				variants[#variants + 1] = name
+				seen[canonical] = true
+			end
+		end
+
+		local idx = tostring(index)
+		add(idx)
+
+		local normalized = normalizedPrefix and gotoNext.trim(normalizedPrefix) or nil
+		if normalized and normalized ~= "" then
+			add(normalized.." "..idx)
+			add(normalized..idx)
+		end
+
+		if rawPrefix and rawPrefix ~= "" then
+			if not rawPrefix:match("%s$") then
+				add(rawPrefix.." "..idx)
+			end
+			add(rawPrefix..idx)
+		end
+
+		return variants
+	end
+
+	function gotoNext.extractIndexedToken(token)
+		if type(token) ~= "string" then
+			return nil
+		end
+
+		if token == "" then
+			return nil
+		end
+
+		local head, digits = token:match("^(.-)(%-?%d+)%s*$")
+		if not digits then
+			return nil
+		end
+
+		local rawPrefix = head
+		local normalized = gotoNext.trim(rawPrefix or "")
+		if normalized == "" then
+			normalized = nil
+			rawPrefix = nil
+		end
+
+		return {
+			raw = rawPrefix,
+			normalized = normalized,
+			number = tonumber(digits),
+		}
+	end
+
+	function gotoNext.sessionKey(objectType, normalizedLower, index)
+		local keyPrefix = gotoNext.trim(normalizedLower or "")
+		if keyPrefix ~= "" then
+			keyPrefix = keyPrefix:lower()
+		end
+		return (objectType or "Part").."|"..keyPrefix.."|"..tostring(index)
+	end
+
 	function gotoNext.notify(message, duration)
-		DebugNotif(message, duration or 3, "GotoNext")
+		DoNotif(message, duration or 3, "GotoNext")
 	end
 
 	function gotoNext.clearTracer()
@@ -25220,6 +25360,8 @@ do
 			return matches
 		end
 
+		local targetLower = targetName:lower()
+
 		local queue = {workspace}
 		local index = 1
 
@@ -25237,7 +25379,7 @@ do
 					isValid = child:IsA("Folder")
 				end
 
-				if isValid and child.Name == targetName then
+				if isValid and child.Name and child.Name:lower() == targetLower then
 					Insert(matches, {inst = child, parent = child.Parent})
 				end
 
@@ -25289,7 +25431,7 @@ do
 		end
 
 		pcall(function()
-			char:PivotTo(targetCFrame + Vector3.new(0, 3, 0))
+			char:PivotTo(targetCFrame + Vector3.new(0, 4, 0))
 		end)
 
 		return true
@@ -25399,8 +25541,9 @@ do
 	end
 
 	function gotoNext.parseArgs(rawArgs)
+		local tokens = gotoNext.tokenizeArgs(rawArgs)
 		local args = {}
-		for _, value in ipairs(rawArgs or {}) do
+		for _, value in ipairs(tokens) do
 			if type(value) == "string" and value ~= "" then
 				Insert(args, value)
 			end
@@ -25411,38 +25554,188 @@ do
 			return nil, "Usage:\n- gotopartnext <start> [end] [delay]\n- gotopartnext <prefix> <start> [end] [delay]"
 		end
 
-		local prefix
+		local prefixRaw
+		local prefixNormalized
 		local startNum
 		local endNum
 		local delay
 
-		if tonumber(first) then
-			startNum = tonumber(first)
-			endNum = tonumber(args[2]) or startNum
-			delay = tonumber(args[3])
-		else
-			prefix = first
-			startNum = tonumber(args[2])
-			if not startNum then
-				return nil, "Start number missing. Example: gotopartnext part 1 10 0.5"
+		local function applyPrefix(rawCandidate, normalizedCandidate)
+			if rawCandidate and rawCandidate ~= "" then
+				if not prefixRaw then
+					prefixRaw = rawCandidate
+				end
 			end
 
-			endNum = tonumber(args[3]) or startNum
-			delay = tonumber(args[4])
+			if normalizedCandidate and normalizedCandidate ~= "" then
+				normalizedCandidate = gotoNext.trim(normalizedCandidate)
+				if normalizedCandidate == "" then
+					normalizedCandidate = nil
+				end
+			else
+				normalizedCandidate = nil
+			end
+
+			if normalizedCandidate then
+				if prefixNormalized and prefixNormalized ~= normalizedCandidate then
+					return false
+				end
+				prefixNormalized = prefixNormalized or normalizedCandidate
+			end
+
+			if not prefixRaw and prefixNormalized then
+				prefixRaw = prefixNormalized
+			end
+
+			return true
 		end
 
-		startNum = math.floor(startNum)
-		endNum = math.floor(endNum)
-		delay = (delay and tonumber(delay)) or 0.5
+		local second = args[2]
+		local third = args[3]
+		local fourth = args[4]
+
+		local firstNumeric = tonumber(first)
+		local firstInfo = gotoNext.extractIndexedToken(first)
+		local secondNumeric = tonumber(second)
+		local secondInfo = gotoNext.extractIndexedToken(second)
+		local thirdNumeric = tonumber(third)
+		local thirdInfo = gotoNext.extractIndexedToken(third)
+
+		if firstNumeric then
+			startNum = math.floor(firstNumeric)
+			if secondNumeric then
+				endNum = math.floor(secondNumeric)
+				delay = tonumber(third)
+			elseif secondInfo and secondInfo.number then
+				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
+					return nil, "Start/end names use different prefixes."
+				end
+				endNum = math.floor(secondInfo.number)
+				delay = tonumber(third)
+			else
+				endNum = startNum
+				delay = tonumber(second)
+			end
+		elseif firstInfo and firstInfo.number then
+			if not applyPrefix(firstInfo.raw, firstInfo.normalized) then
+				return nil, "Start/end names use different prefixes."
+			end
+			startNum = math.floor(firstInfo.number)
+
+			if secondNumeric then
+				endNum = math.floor(secondNumeric)
+				delay = tonumber(third)
+			elseif secondInfo and secondInfo.number then
+				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
+					return nil, "Start/end names use different prefixes."
+				end
+				endNum = math.floor(secondInfo.number)
+				delay = tonumber(third)
+			else
+				endNum = startNum
+				delay = tonumber(second)
+			end
+		else
+			if not applyPrefix(first, first) then
+				return nil, "Invalid prefix value."
+			end
+
+			if not second then
+				return nil, "Start number missing. Example: gotopartnext checkpoint 1 5"
+			end
+
+			if secondNumeric then
+				startNum = math.floor(secondNumeric)
+				if thirdNumeric then
+					endNum = math.floor(thirdNumeric)
+					delay = tonumber(fourth)
+				elseif thirdInfo and thirdInfo.number then
+					if not applyPrefix(thirdInfo.raw, thirdInfo.normalized) then
+						return nil, "Start/end names use different prefixes."
+					end
+					endNum = math.floor(thirdInfo.number)
+					delay = tonumber(fourth)
+				else
+					endNum = startNum
+					delay = tonumber(third)
+				end
+			elseif secondInfo and secondInfo.number then
+				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
+					return nil, "Start/end names use different prefixes."
+				end
+				startNum = math.floor(secondInfo.number)
+				if thirdNumeric then
+					endNum = math.floor(thirdNumeric)
+					delay = tonumber(fourth)
+				elseif thirdInfo and thirdInfo.number then
+					if not applyPrefix(thirdInfo.raw, thirdInfo.normalized) then
+						return nil, "Start/end names use different prefixes."
+					end
+					endNum = math.floor(thirdInfo.number)
+					delay = tonumber(fourth)
+				else
+					endNum = startNum
+					delay = tonumber(third)
+				end
+			else
+				return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5"
+			end
+		end
+
+		if not startNum then
+			return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5"
+		end
+
+		endNum = endNum or startNum
+
+		delay = tonumber(delay) or 0.5
 		if delay < 0 then
 			delay = 0
 		end
 
+		local prefixRawOriginal = prefixRaw
+		if prefixRawOriginal then
+			local trimmedCandidate = gotoNext.trim(prefixRawOriginal)
+			if trimmedCandidate == "" then
+				prefixRawOriginal = nil
+			end
+		end
+
+		if prefixNormalized then
+			prefixNormalized = gotoNext.trim(prefixNormalized)
+			if prefixNormalized == "" then
+				prefixNormalized = nil
+			end
+		end
+
+		if not prefixNormalized and prefixRawOriginal then
+			local trimmedRaw = gotoNext.trim(prefixRawOriginal)
+			if trimmedRaw ~= "" then
+				prefixNormalized = trimmedRaw
+			end
+		end
+
+		local prefixDisplay = nil
+		if prefixRawOriginal then
+			prefixDisplay = gotoNext.trim(prefixRawOriginal)
+			if prefixDisplay == "" then
+				prefixDisplay = nil
+			end
+		end
+		if not prefixDisplay then
+			prefixDisplay = prefixNormalized
+		end
+
+		local prefixLower = prefixNormalized and prefixNormalized:lower() or nil
+
 		return {
-			prefix = prefix,
+			prefixRaw = prefixRawOriginal,
+			prefixNormalized = prefixNormalized,
+			prefixLower = prefixLower,
+			prefixDisplay = prefixDisplay,
 			startNum = startNum,
 			endNum = endNum,
-			delay = delay
+			delay = delay,
 		}
 	end
 
@@ -25461,9 +25754,10 @@ do
 		state.teleporting = true
 		state.totalDuplicates = 0
 
+		local prefixLabel = parsed.prefixDisplay
 		local descriptor
-		if parsed.prefix then
-			descriptor = Format("Teleporting %s '%s' %d -> %d (delay %.2fs)", objectType, parsed.prefix, parsed.startNum, parsed.endNum, parsed.delay)
+		if prefixLabel and prefixLabel ~= "" then
+			descriptor = Format("Teleporting %s '%s' %d -> %d (delay %.2fs)", objectType, prefixLabel, parsed.startNum, parsed.endNum, parsed.delay)
 		else
 			descriptor = Format("Teleporting %s %d -> %d (delay %.2fs)", objectType, parsed.startNum, parsed.endNum, parsed.delay)
 		end
@@ -25477,16 +25771,36 @@ do
 					break
 				end
 
-				local baseName = parsed.prefix and (parsed.prefix .. index) or tostring(index)
-				local namesToCheck = {baseName}
-				if parsed.prefix then
-					Insert(namesToCheck, parsed.prefix .. " " .. index)
+				local searchNames = gotoNext.buildSearchNames(parsed.prefixRaw, parsed.prefixNormalized, index)
+				if #searchNames == 0 then
+					searchNames = {tostring(index)}
 				end
+				local indexString = tostring(index)
+				local displayName = searchNames[1]
+				for _, candidateName in ipairs(searchNames) do
+					if candidateName:find(" "..indexString, 1, true) then
+						displayName = candidateName
+						break
+					end
+				end
+				if parsed.prefixDisplay and parsed.prefixDisplay ~= "" then
+					local prefixLowerForDisplay = parsed.prefixDisplay:lower()
+					for _, candidateName in ipairs(searchNames) do
+						local candidateLower = candidateName:lower()
+						if candidateLower:find(prefixLowerForDisplay, 1, true) then
+							displayName = candidateName
+							if candidateName:find(" "..indexString, 1, true) then
+								break
+							end
+						end
+					end
+				end
+				local sessionKey = gotoNext.sessionKey(objectType, parsed.prefixLower, index)
 
 				local candidates = {}
 				local seen = {}
 
-				for _, name in ipairs(namesToCheck) do
+				for _, name in ipairs(searchNames) do
 					local found = gotoNext.findMatches(objectType, name)
 					for _, info in ipairs(found) do
 						local inst = info.inst
@@ -25498,10 +25812,9 @@ do
 				end
 
 				if #candidates == 0 then
-					gotoNext.notify(Format("No %s named '%s'.", objectType, baseName), 2)
+					gotoNext.notify(Format("No %s named '%s'.", objectType, displayName), 2)
 				else
 					if #candidates > 1 then
-						local sessionKey = baseName
 						local sessionChoice = state.duplicatesSessionOrder[sessionKey]
 
 						if sessionChoice then
@@ -25513,7 +25826,7 @@ do
 						end
 
 						if not sessionChoice then
-							local selection = gotoNext.promptDuplicates(baseName, candidates)
+							local selection = gotoNext.promptDuplicates(displayName, candidates)
 							if not selection or #selection == 0 then
 								gotoNext.notify("Sequence canceled.", 2)
 								state.teleporting = false
@@ -26144,7 +26457,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	end
 	update()
 	Defer(update)
-	local key = "esp_update_" .. tostring(visual)
+	local key = "esp_update_"..tostring(visual)
 	if part:IsA("Model") then
 		NAlib.connect(key, part.DescendantAdded:Connect(update))
 		NAlib.connect(key, part.DescendantRemoving:Connect(update))
