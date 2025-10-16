@@ -930,9 +930,6 @@ NAgui.dragger = function(ui, dragui)
 			local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
 			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
 		end)
-		if not success then
-			warn("[Dragger] update error:", err)
-		end
 	end
 
 	NACaller(function()
@@ -950,12 +947,10 @@ NAgui.dragger = function(ui, dragui)
 									dragging = false
 								end
 							end)
-							if not ok then warn("[Dragger] input.Changed error:", innerErr) end
 						end)
 					end)
 				end
 			end)
-			if not success then warn("[Dragger] InputBegan error:", err) end
 		end)
 	end)
 
@@ -966,7 +961,6 @@ NAgui.dragger = function(ui, dragui)
 					dragInput = input
 				end
 			end)
-			if not success then warn("[Dragger] InputChanged error:", err) end
 		end)
 	end)
 
@@ -977,13 +971,11 @@ NAgui.dragger = function(ui, dragui)
 					update(input)
 				end
 			end)
-			if not success then warn("[Dragger] UserInputService.InputChanged error:", err) end
 		end)
 	end)
 
 	pcall(function() ui.Active=true end)
 	pcall(function() dragui.Active=true end)
-	if not success then warn("[Dragger] Set Active error:", err) end
 end
 
 NAgui.draggerV2 = function(ui, dragui)
@@ -1016,7 +1008,6 @@ NAgui.draggerV2 = function(ui, dragui)
 			local ny = safeClamp(startY + dy, minY, maxY)
 			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
 		end)
-		if not ok then warn("[DraggerV2] update error:", err) end
 	end
 
 	NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
@@ -1029,12 +1020,10 @@ NAgui.draggerV2 = function(ui, dragui)
 					local ok2, err2 = NACaller(function()
 						if input.UserInputState == Enum.UserInputState.End then dragging = false end
 					end)
-					if not ok2 then warn("[DraggerV2] input.Changed error:", err2) end
 				end)
 				NAlib.connect(connName, c)
 			end
 		end)
-		if not ok then warn("[DraggerV2] InputBegan error:", err) end
 	end))
 
 	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
@@ -1043,14 +1032,12 @@ NAgui.draggerV2 = function(ui, dragui)
 				dragInput = input
 			end
 		end)
-		if not ok then warn("[DraggerV2] InputChanged error:", err) end
 	end))
 
 	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
 		local ok, err = NACaller(function()
 			if input == dragInput and dragging then update(input) end
 		end)
-		if not ok then warn("[DraggerV2] UserInputService.InputChanged error:", err) end
 	end))
 
 	local function onScreenSizeChanged()
@@ -3679,7 +3666,7 @@ cmd.loop = function(commandName, args)
 					pcall(function() Loops[loopKey].command(Unpack(Loops[loopKey].args)) end)
 
 					local acc = 0
-					NAlib.connect(connKey, RunService.Stepped:Connect(function(_, dt)
+					NAlib.connect(connKey, RunService.RenderStepped:Connect(function(dt)
 						local L = Loops[loopKey]
 						if not L or not L.running then
 							NAlib.disconnect(connKey)
@@ -7389,6 +7376,609 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 
 	Spawn(func)
 end, true)
+
+NA_SHADER_EFFECT_NAMES = {
+	"NAShaderBloom",
+	"NAShaderTropic",
+	"NAShaderSky",
+	"NAShaderBlur",
+	"NAShaderEfecto",
+	"NAShaderInari",
+	"NAShaderNormal",
+	"NAShaderSunRays",
+	"NAShaderSunset",
+	"NAShaderTakayama",
+}
+
+NAmanage.NAremoveShaderEffects=function(lighting)
+	for _, name in ipairs(NA_SHADER_EFFECT_NAMES) do
+		local inst = lighting:FindFirstChild(name)
+		if inst then
+			inst:Destroy()
+		end
+	end
+end
+
+cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enable a shader preset for Lighting"}, function()
+	local lighting = Lighting or SafeGetService("Lighting")
+	if not lighting then
+		DoNotif("Lighting service unavailable", 3)
+		return
+	end
+
+	if not NAmanage._shaderSettingsBackup then
+		NAmanage._shaderSettingsBackup = {
+			Brightness = lighting.Brightness;
+			ColorShift_Bottom = lighting.ColorShift_Bottom;
+			ColorShift_Top = lighting.ColorShift_Top;
+			OutdoorAmbient = lighting.OutdoorAmbient;
+			ClockTime = lighting.ClockTime;
+			FogColor = lighting.FogColor;
+			FogEnd = lighting.FogEnd;
+			FogStart = lighting.FogStart;
+			ExposureCompensation = lighting.ExposureCompensation;
+			ShadowSoftness = lighting.ShadowSoftness;
+			Ambient = lighting.Ambient;
+		}
+	end
+
+	NAmanage.NAremoveShaderEffects(lighting)
+
+	local function createEffect(className, name)
+		local inst = InstanceNew(className)
+		inst.Name = name
+		inst.Parent = lighting
+		return inst
+	end
+
+	local bloom = createEffect("BloomEffect", "NAShaderBloom")
+	bloom.Intensity = 0.1
+	bloom.Threshold = 0
+	bloom.Size = 100
+
+	local tropic = createEffect("Sky", "NAShaderTropic")
+	tropic.SkyboxUp = "http://www.roblox.com/asset/?id=169210149"
+	tropic.SkyboxLf = "http://www.roblox.com/asset/?id=169210133"
+	tropic.SkyboxBk = "http://www.roblox.com/asset/?id=169210090"
+	tropic.SkyboxFt = "http://www.roblox.com/asset/?id=169210121"
+	tropic.StarCount = 100
+	tropic.SkyboxDn = "http://www.roblox.com/asset/?id=169210108"
+	tropic.SkyboxRt = "http://www.roblox.com/asset/?id=169210143"
+
+	local shaderSky = createEffect("Sky", "NAShaderSky")
+	shaderSky.SkyboxUp = "http://www.roblox.com/asset/?id=196263782"
+	shaderSky.SkyboxLf = "http://www.roblox.com/asset/?id=196263721"
+	shaderSky.SkyboxBk = "http://www.roblox.com/asset/?id=196263721"
+	shaderSky.SkyboxFt = "http://www.roblox.com/asset/?id=196263721"
+	shaderSky.CelestialBodiesShown = false
+	shaderSky.SkyboxDn = "http://www.roblox.com/asset/?id=196263643"
+	shaderSky.SkyboxRt = "http://www.roblox.com/asset/?id=196263721"
+
+	local blur = createEffect("BlurEffect", "NAShaderBlur")
+	blur.Size = 2
+
+	local efecto = createEffect("BlurEffect", "NAShaderEfecto")
+	efecto.Enabled = false
+	efecto.Size = 2
+
+	local inari = createEffect("ColorCorrectionEffect", "NAShaderInari")
+	inari.Saturation = 0.05
+	inari.TintColor = Color3.fromRGB(255, 224, 219)
+
+	local normal = createEffect("ColorCorrectionEffect", "NAShaderNormal")
+	normal.Enabled = false
+	normal.Saturation = -0.2
+	normal.TintColor = Color3.fromRGB(255, 232, 215)
+
+	local sunRays = createEffect("SunRaysEffect", "NAShaderSunRays")
+	sunRays.Intensity = 0.05
+
+	local sunset = createEffect("Sky", "NAShaderSunset")
+	sunset.SkyboxUp = "rbxassetid://323493360"
+	sunset.SkyboxLf = "rbxassetid://323494252"
+	sunset.SkyboxBk = "rbxassetid://323494035"
+	sunset.SkyboxFt = "rbxassetid://323494130"
+	sunset.SkyboxDn = "rbxassetid://323494368"
+	sunset.SunAngularSize = 14
+	sunset.SkyboxRt = "rbxassetid://323494067"
+
+	local takayama = createEffect("ColorCorrectionEffect", "NAShaderTakayama")
+	takayama.Enabled = false
+	takayama.Saturation = -0.3
+	takayama.Contrast = 0.1
+	takayama.TintColor = Color3.fromRGB(235, 214, 204)
+
+	lighting.Brightness = 2.14
+	lighting.ColorShift_Bottom = Color3.fromRGB(11, 0, 20)
+	lighting.ColorShift_Top = Color3.fromRGB(240, 127, 14)
+	lighting.OutdoorAmbient = Color3.fromRGB(34, 0, 49)
+	lighting.ClockTime = 6.7
+	lighting.FogColor = Color3.fromRGB(94, 76, 106)
+	lighting.FogEnd = 1000
+	lighting.FogStart = 0
+	lighting.ExposureCompensation = 0.24
+	lighting.ShadowSoftness = 0
+	lighting.Ambient = Color3.fromRGB(59, 33, 27)
+
+	DoNotif("Shader preset applied.", 3)
+end)
+
+cmd.add({"unshaders", "shadersoff", "rtxoff"}, {"unshaders (shadersoff, rtxoff)", "Disable the shader preset and restore Lighting"}, function()
+	local lighting = Lighting or SafeGetService("Lighting")
+	if not lighting then
+		DoNotif("Lighting service unavailable", 3)
+		return
+	end
+
+	NAmanage.NAremoveShaderEffects(lighting)
+
+	local backup = NAmanage._shaderSettingsBackup
+	if backup then
+		for prop, value in pairs(backup) do
+			pcall(function()
+				lighting[prop] = value
+			end)
+		end
+		NAmanage._shaderSettingsBackup = nil
+	end
+
+	DoNotif("Shader preset removed.", 3)
+end)
+
+NAmanage.NAibtoolsVectorString=function(vec)
+	return Format("Vector3.new(%s,%s,%s)", tostring(vec.X), tostring(vec.Y), tostring(vec.Z))
+end
+
+NAmanage.NAibtoolsCreateUI=function(state, actions)
+	local gui = InstanceNew("ScreenGui")
+	gui.Name = "iBToolsUI"
+	NaProtectUI(gui)
+
+	local frame = InstanceNew("Frame", gui)
+	frame.Name = "Panel"
+	frame.Size = UDim2.new(0, 240, 0, 260)
+	frame.Position = UDim2.new(0.05, 0, 0.4, 0)
+	frame.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
+	frame.BorderSizePixel = 0
+
+	local frameCorner = InstanceNew("UICorner", frame)
+	frameCorner.CornerRadius = UDim.new(0, 8)
+
+	local header = InstanceNew("Frame", frame)
+	header.Name = "Header"
+	header.Size = UDim2.new(1, 0, 0, 36)
+	header.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+	header.BorderSizePixel = 0
+	header.Active = true
+
+	local title = InstanceNew("TextLabel", header)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.GothamSemibold
+	title.TextSize = 16
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Text = "iBuild Tools"
+	title.Size = UDim2.new(1, -40, 1, 0)
+	title.Position = UDim2.new(0, 10, 0, 0)
+
+	local statusLabel = InstanceNew("TextLabel", frame)
+	statusLabel.Name = "Status"
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.Font = Enum.Font.Gotham
+	statusLabel.TextSize = 14
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	statusLabel.Position = UDim2.new(0, 12, 0, 46)
+	statusLabel.Size = UDim2.new(1, -24, 0, 20)
+	statusLabel.Text = "Target: none"
+
+	local buttonHolder = InstanceNew("Frame", frame)
+	buttonHolder.BackgroundTransparency = 1
+	buttonHolder.Position = UDim2.new(0, 12, 0, 72)
+	buttonHolder.Size = UDim2.new(1, -24, 1, -84)
+
+	local layout = InstanceNew("UIListLayout", buttonHolder)
+	layout.Padding = UDim.new(0, 6)
+	layout.FillDirection = Enum.FillDirection.Vertical
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local DEFAULT_COLOR = Color3.fromRGB(52, 52, 52)
+	local HOVER_COLOR = Color3.fromRGB(66, 66, 66)
+	local ACTIVE_COLOR = Color3.fromRGB(80, 110, 255)
+
+	local function makeButton(text)
+		local btn = InstanceNew("TextButton", buttonHolder)
+		btn.Name = text
+		btn.Size = UDim2.new(1, 0, 0, 34)
+		btn.BackgroundColor3 = DEFAULT_COLOR
+		btn.BorderSizePixel = 0
+		btn.AutoButtonColor = false
+		btn.Font = Enum.Font.GothamSemibold
+		btn.TextSize = 14
+		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		btn.Text = text
+		local corner = InstanceNew("UICorner", btn)
+		corner.CornerRadius = UDim.new(0, 6)
+		btn.MouseEnter:Connect(function()
+			if btn.BackgroundColor3 ~= ACTIVE_COLOR then
+				btn.BackgroundColor3 = HOVER_COLOR
+			end
+		end)
+		btn.MouseLeave:Connect(function()
+			if btn.BackgroundColor3 ~= ACTIVE_COLOR then
+				btn.BackgroundColor3 = DEFAULT_COLOR
+			end
+		end)
+		return btn
+	end
+
+	local modeButtons = {}
+
+	local function refreshModeButtons()
+		local selected = actions.getMode and actions.getMode() or nil
+		for mode, btn in pairs(modeButtons) do
+			if selected == mode then
+				btn.BackgroundColor3 = ACTIVE_COLOR
+			else
+				btn.BackgroundColor3 = DEFAULT_COLOR
+			end
+		end
+	end
+
+	local function createModeButton(label, mode)
+		local btn = makeButton(label)
+		modeButtons[mode] = btn
+		btn.MouseButton1Click:Connect(function()
+			if actions.setMode then
+				actions.setMode(mode)
+			end
+			refreshModeButtons()
+		end)
+		return btn
+	end
+
+	createModeButton("Delete", "delete")
+	createModeButton("Toggle Anchor", "anchor")
+	createModeButton("Toggle CanCollide", "collide")
+
+	local undoButton = makeButton("Undo Delete")
+	undoButton.MouseButton1Click:Connect(function()
+		if actions.undo then
+			actions.undo()
+		end
+	end)
+
+	local copyButton = makeButton("Copy Delete Script")
+	copyButton.MouseButton1Click:Connect(function()
+		if actions.copy then
+			actions.copy()
+		end
+	end)
+
+	NAgui.dragger(frame, header)
+
+	state.statusLabel = statusLabel
+	state.frame = frame
+	state.refreshModeButtons = refreshModeButtons
+	refreshModeButtons()
+
+	return gui
+end
+
+NAmanage.NAibtoolsCleanup=function(state)
+	if not state then
+		return
+	end
+	if state.connections then
+		for _, conn in ipairs(state.connections) do
+			if conn and conn.Disconnect then
+				conn:Disconnect()
+			end
+		end
+		table.clear(state.connections)
+	end
+	if state.highlight then
+		pcall(function()
+			state.highlight:Destroy()
+		end)
+		state.highlight = nil
+	end
+	if state.gui then
+		pcall(function()
+			state.gui:Destroy()
+		end)
+		state.gui = nil
+	end
+	state.statusLabel = nil
+	state.frame = nil
+	state.currentPart = nil
+	state.refreshModeButtons = nil
+end
+
+cmd.add({"ibtools"}, {"ibtools", "Load the iBuild Tools helper tool"}, function()
+	if not LocalPlayer then
+		DoNotif("Local player not ready.", 3)
+		return
+	end
+
+	local backpack = getBp()
+	if not backpack then
+		backpack = LocalPlayer:FindFirstChild("Backpack") or LocalPlayer:WaitForChild("Backpack", 3)
+	end
+	if not backpack then
+		DoNotif("Backpack not available.", 3)
+		return
+	end
+
+	local state = NAmanage._ibtools
+	if state and state.tool and state.tool.Parent then
+		DoNotif("iBTools is already loaded.", 3)
+		return
+	end
+
+	local tool = InstanceNew("Tool", backpack)
+	tool.Name = "iBTools"
+	tool.RequiresHandle = false
+
+	state = {
+		tool = tool,
+		history = {},
+		saveHistory = {},
+		connections = {},
+		toolConnections = {},
+		currentPart = nil,
+		currentMode = "delete",
+	}
+	NAmanage._ibtools = state
+
+	local function modeLabel()
+		local mode = state.currentMode
+		if not mode then
+			return "none"
+		end
+		return mode
+	end
+
+	local function updateStatus(part)
+		if not state.statusLabel then
+			return
+		end
+		local targetText = "none"
+		if part then
+			if not part.Parent then
+				targetText = part.Name.." (stored)"
+			else
+				local ok, fullName = pcall(part.GetFullName, part)
+				targetText = ok and fullName or part.Name
+			end
+		end
+		state.statusLabel.Text = Format("Mode: %s | Target: %s", modeLabel():upper(), targetText)
+	end
+
+	local function setTarget(part)
+		if part and not part:IsA("BasePart") then
+			part = nil
+		end
+		state.currentPart = part
+		if state.highlight then
+			state.highlight.Adornee = part
+		end
+		updateStatus(part)
+	end
+
+	local function onEquipped(mouse)
+		NAmanage.NAibtoolsCleanup(state)
+
+		local highlight = InstanceNew("SelectionBox")
+		highlight.Name = "iBToolsSelection"
+		highlight.LineThickness = 0.04
+		highlight.Color3 = Color3.fromRGB(0, 170, 255)
+		highlight.Adornee = nil
+		highlight.Parent = workspace.CurrentCamera or workspace
+		state.highlight = highlight
+
+		local function undoLast()
+			local record = table.remove(state.history)
+			if not record then
+				DoNotif("Nothing to undo.", 2)
+				return
+			end
+			local part = record.part
+			if part then
+				part.Parent = record.parent
+				if record.cframe then
+					pcall(function()
+						part.CFrame = record.cframe
+					end)
+				end
+				setTarget(part)
+				local saved = record.data
+				if saved then
+					for i = #state.saveHistory, 1, -1 do
+						if state.saveHistory[i] == saved then
+							table.remove(state.saveHistory, i)
+							break
+						end
+					end
+				end
+				DoNotif("Restored '"..part.Name.."'", 2)
+			end
+		end
+
+		local function copyScript()
+			if #state.saveHistory == 0 then
+				DoNotif("No deleted parts to export.", 3)
+				return
+			end
+			local lines = {}
+			for _, data in ipairs(state.saveHistory) do
+				local pos = data.position
+				local vec = NAmanage.NAibtoolsVectorString(pos)
+				lines[#lines + 1] = Format(
+					"for _,v in ipairs(workspace:FindPartsInRegion3(Region3.new(%s, %s), nil, math.huge)) do if v.Name == %q then v:Destroy() end end",
+					vec,
+					vec,
+					data.name
+				)
+			end
+			local scriptText = Concat(lines, "\n")
+			if setclipboard then
+				setclipboard(scriptText)
+				DoNotif("Copied delete script to clipboard.", 3)
+			else
+				DoWindow("Copy this script:\n\n"..scriptText)
+			end
+		end
+
+		local function applyDelete(part)
+			if not part or not part.Parent then
+				DoNotif("Selected part is no longer available.", 3)
+				setTarget(nil)
+				return
+			end
+			local record = {
+				part = part,
+				parent = part.Parent,
+				cframe = part.CFrame,
+			}
+			local data = {
+				name = part.Name,
+				position = part.Position,
+			}
+			record.data = data
+			Insert(state.history, record)
+			Insert(state.saveHistory, data)
+			part.Parent = nil
+			setTarget(nil)
+			DoNotif("Deleted '"..part.Name.."'", 2)
+		end
+
+		local function applyAnchor(part)
+			if not part or not part.Parent then
+				DoNotif("Selected part is no longer available.", 3)
+				setTarget(nil)
+				return
+			end
+			part.Anchored = not part.Anchored
+			updateStatus(part)
+			DoNotif(Format("%s anchored %s", part.Name, part.Anchored and "enabled" or "disabled"), 2)
+		end
+
+		local function applyCollide(part)
+			if not part or not part.Parent then
+				DoNotif("Selected part is no longer available.", 3)
+				setTarget(nil)
+				return
+			end
+			part.CanCollide = not part.CanCollide
+			updateStatus(part)
+			DoNotif(Format("%s CanCollide %s", part.Name, part.CanCollide and "enabled" or "disabled"), 2)
+		end
+
+		local modeHandlers = {
+			delete = applyDelete,
+			anchor = applyAnchor,
+			collide = applyCollide,
+		}
+
+		local function setMode(mode)
+			if not modeHandlers[mode] then
+				return
+			end
+			state.currentMode = mode
+			if state.refreshModeButtons then
+				state.refreshModeButtons()
+			end
+			updateStatus(state.currentPart)
+		end
+
+		local function applyMode(part)
+			if not part or not part:IsA("BasePart") then
+				DoNotif("Aim at a part first.", 3)
+				return
+			end
+			setTarget(part)
+			local handler = modeHandlers[state.currentMode or ""]
+			if not handler then
+				DoNotif("Select a mode first.", 3)
+				return
+			end
+			handler(part)
+		end
+
+		local uiActions = {
+			setMode = setMode,
+			getMode = function()
+				return state.currentMode
+			end,
+			undo = undoLast,
+			copy = copyScript,
+		}
+
+		state.gui = NAmanage.NAibtoolsCreateUI(state, uiActions)
+		if not modeHandlers[state.currentMode or ""] then
+			state.currentMode = "delete"
+		end
+		setMode(state.currentMode)
+		updateStatus(state.currentPart)
+
+		local function refreshTarget()
+			local target = mouse.Target
+			if target and target:IsA("BasePart") then
+				setTarget(target)
+			end
+		end
+
+		refreshTarget()
+
+		Insert(state.connections, mouse.Move:Connect(refreshTarget))
+		Insert(state.connections, mouse.Button1Down:Connect(function()
+			local target = mouse.Target
+			if target and target:IsA("BasePart") then
+				applyMode(target)
+			end
+		end))
+	end
+
+	Insert(state.toolConnections, tool.Equipped:Connect(onEquipped))
+	Insert(state.toolConnections, tool.Unequipped:Connect(function()
+		NAmanage.NAibtoolsCleanup(state)
+	end))
+	Insert(state.toolConnections, tool.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAmanage.NAibtoolsCleanup(state)
+			if NAmanage._ibtools == state then
+				NAmanage._ibtools = nil
+			end
+		end
+	end))
+
+	DoNotif("iBTools loaded. Equip the tool to use it.", 3)
+end)
+
+cmd.add({"unibtools"}, {"unibtools", "Remove the iBuild Tools helper tool"}, function()
+	local state = NAmanage._ibtools
+	if not state then
+		DoNotif("iBTools is not active.", 3)
+		return
+	end
+	if state.tool then
+		pcall(function()
+			state.tool:Destroy()
+		end)
+	end
+	NAmanage.NAibtoolsCleanup(state)
+	if state.toolConnections then
+		for _, conn in ipairs(state.toolConnections) do
+			if conn and conn.Disconnect then
+				conn:Disconnect()
+			end
+		end
+		state.toolConnections = nil
+	end
+	NAmanage._ibtools = nil
+	DoNotif("iBTools removed.", 3)
+end)
 
 -- detected by roblox so it's disabled
 
@@ -33794,6 +34384,258 @@ end
 end]]
 math.randomseed(os.time())
 
+NAmanage.injectNAConsole = function()
+	if NAmanage._naConsoleInitialized then
+		return true
+	end
+
+	local function ensureCommandHelpers()
+		if not NAmanage._naConsoleDispatch then
+			local function splitArgs(line)
+				local out, buf, quote = {}, "", nil
+				for i = 1, #line do
+					local ch = Sub(line, i, i)
+					if quote then
+						if ch == quote then
+							quote = nil
+						else
+							buf = buf..ch
+						end
+					else
+						if ch == "'" or ch == '"' then
+							quote = ch
+						elseif ch == " " or ch == "\t" then
+							if #buf > 0 then
+								out[#out+1] = buf
+								buf = ""
+							end
+						else
+							buf = buf..ch
+						end
+					end
+				end
+				if #buf > 0 then
+					out[#out+1] = buf
+				end
+				return out
+			end
+
+			local function dispatchRun(...)
+				local runner = cmd and (cmd.run or cmd.Run)
+				if not runner then
+					return nil, "cmd.run not available"
+				end
+
+				local n = select("#", ...)
+				local argv
+				if n == 1 then
+					local a = ...
+					if type(a) == "table" then
+						argv = a
+					elseif type(a) == "string" then
+						argv = splitArgs(a)
+					else
+						return nil, "invalid input to cmdRun"
+					end
+				else
+					argv = {}
+					for i = 1, n do
+						local v = select(i, ...)
+						argv[#argv+1] = type(v) == "string" and v or tostring(v)
+					end
+				end
+
+				if #argv == 0 then
+					return nil, "no command provided"
+				end
+
+				local ok1, res1 = NACaller(runner, argv)
+				if ok1 then
+					return res1
+				end
+
+				local ok2, res2 = NACaller(runner, Concat(argv, " "))
+				if ok2 then
+					return res2
+				end
+
+				return nil, res2
+			end
+
+			NAmanage._naConsoleDispatch = dispatchRun
+		end
+
+		local dispatch = NAmanage._naConsoleDispatch
+		local targetEnv = (getgenv and getgenv()) or _G or {}
+		targetEnv.cmdRun = dispatch
+		targetEnv.RunCommand = dispatch
+		targetEnv.runCommand = dispatch
+	end
+
+	local commandLine = InstanceNew("Frame")
+	commandLine.Name = "NAConsole"
+	commandLine.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	commandLine.BorderColor3 = Color3.fromRGB(184, 184, 184)
+	commandLine.Position = UDim2.new(0, 0, 1, -30)
+	commandLine.Size = UDim2.new(1, 0, 0, 30)
+	commandLine.ZIndex = 1
+	commandLine.AutoLocalize = false
+
+	local inputField = InstanceNew("Frame", commandLine)
+	inputField.Name = "InputField"
+	inputField.BackgroundTransparency = 1
+	inputField.ClipsDescendants = true
+	inputField.Position = UDim2.new(0, 30, 0, 0)
+	inputField.Size = UDim2.new(1, -30, 0, 30)
+	inputField.AutoLocalize = false
+	inputField.ZIndex = 1
+
+	local textbox = InstanceNew("TextBox", inputField)
+	textbox.Name = "TextBox"
+	textbox.BackgroundTransparency = 1
+	textbox.ClearTextOnFocus = false
+	textbox.Font = Enum.Font.Code
+	textbox.PlaceholderText = "NA Console Master"
+	textbox.Size = UDim2.new(1, 0, 1, 0)
+	textbox.Text = ""
+	textbox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textbox.TextSize = 15
+	textbox.TextXAlignment = Enum.TextXAlignment.Left
+	textbox.AutoLocalize = false
+	textbox.ZIndex = 2
+
+	local arrow = InstanceNew("TextLabel", commandLine)
+	arrow.Name = "Arrow"
+	arrow.BackgroundTransparency = 1
+	arrow.Font = Enum.Font.Code
+	arrow.Size = UDim2.new(0, 30, 1, 0)
+	arrow.Text = "> "
+	arrow.TextColor3 = Color3.fromRGB(255, 255, 255)
+	arrow.TextSize = 15
+	arrow.TextXAlignment = Enum.TextXAlignment.Right
+	arrow.AutoLocalize = false
+	arrow.ZIndex = 2
+
+	local function resetCommandLine()
+		if commandLine.Parent then
+			commandLine.Parent = nil
+		end
+		if textbox.Text ~= "" then
+			textbox.Text = ""
+		end
+	end
+
+	resetCommandLine()
+
+	local testService = SafeGetService("TestService")
+
+	local function reportError(message)
+		local filtered = tostring(message or "error")
+		filtered = filtered:gsub("%[string \"console\"%]:", "console:")
+		if testService then
+			pcall(function()
+				testService:Error(filtered)
+			end)
+		else
+			warn(filtered)
+		end
+	end
+
+	textbox.FocusLost:Connect(function(enterPressed)
+		if not enterPressed then
+			return
+		end
+		local commandText = textbox.Text
+		if commandText == "" or commandText:match("^%s*$") then
+			textbox.Text = ""
+			return
+		end
+		textbox.Text = ""
+		print("> "..commandText)
+
+		local trimmed = commandText:match("^%s*(.-)%s*$")
+		local commandLiteral = nil
+		if trimmed and trimmed ~= "" then
+			local firstChar = trimmed:sub(1, 1)
+			if (firstChar == '"' or firstChar == "'") and trimmed:sub(-1) == firstChar then
+				local literalChunk = loadstring("return "..trimmed, "console_literal")
+				if literalChunk then
+					local okLiteral, literalValue = pcall(literalChunk)
+					if okLiteral and type(literalValue) == "string" then
+						commandLiteral = literalValue
+					end
+				end
+			end
+		end
+
+		if commandLiteral then
+			ensureCommandHelpers()
+			local dispatch = NAmanage._naConsoleDispatch
+			if dispatch then
+				local okDispatch, dispatchErr = NACaller(dispatch, commandLiteral)
+				if not okDispatch then
+					reportError(dispatchErr or "command execution failed")
+				end
+			else
+				reportError("Command dispatcher unavailable")
+			end
+			return
+		end
+
+		local chunk, compileErr = loadstring(commandText, "console")
+		if not chunk then
+			reportError(compileErr or "compile error")
+			return
+		end
+
+		ensureCommandHelpers()
+
+		local ok, execErr = pcall(function()
+			if not cmd or not cmd.run then
+				error("cmd.run unavailable")
+			end
+			cmd.run({"loadstring", commandText})
+		end)
+		if not ok then
+			reportError(execErr or "execution error")
+		end
+	end)
+
+	local function ensureInjection()
+		local coreGui = COREGUI
+		if not coreGui then
+			resetCommandLine()
+			return
+		end
+
+		local master = coreGui:FindFirstChild("DevConsoleMaster")
+		if not master then
+			resetCommandLine()
+			return
+		end
+
+		local window = master:FindFirstChild("DevConsoleWindow")
+		if not window or window.Visible == false then
+			resetCommandLine()
+			return
+		end
+
+		if commandLine.Parent ~= window then
+			commandLine.Parent = window
+		end
+	end
+
+	NAlib.disconnect("naconsole_loop")
+	NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(ensureInjection))
+	ensureInjection()
+
+	NAmanage._naConsoleInitialized = true
+	NAmanage._naConsoleFrame = commandLine
+	NAmanage._naConsoleTextBox = textbox
+	NAmanage._naConsoleArrow = arrow
+	return true
+end
+
 SpawnCall(function()
 	SpawnCall(function() Lighting.LightingStyle=Enum.LightingStyle.Soft end)
 	while Wait(0.25) and getChar() do
@@ -33821,6 +34663,7 @@ SpawnCall(function() -- init
 end)
 
 NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
+NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
 NAmanage.scheduleLoader('Aliases', NAmanage.loadAliases)
 NAmanage.scheduleLoader('UserButtons', function()
 	NAmanage.loadButtonIDS()
