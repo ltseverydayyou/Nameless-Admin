@@ -1090,7 +1090,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	}
 	opts = opts or {}
 	local widthScale = tonumber(opts.widthScale) or 0.34
-	local blacklist = opts.blacklist or { [3101266219] = true, [8523781134] = true }
+	local blacklist = opts.blacklist or { [8523781134] = true }
 	local lp = services.Players and services.Players.LocalPlayer
 
 	if lp and blacklist[lp.UserId] then
