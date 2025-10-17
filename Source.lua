@@ -428,6 +428,9 @@ local NAStuff = {
 	NASettingsSchema = nil;
 	NASettingsData = nil;
 	elementOriginalParent = setmetatable({}, { __mode = "k" });
+	_lastCommand = nil;
+	_prevCommand = nil;
+	_removeAdsLoop = nil;
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -3201,15 +3204,20 @@ NAmanage.rebuildIndex=function()
 	for _,frame in ipairs(CMDAUTOFILL) do
 		local cmdName = frame.Name
 		local command = cmds.Commands[cmdName]
-		local displayInfo = command and command[2] and command[2][1] or ""
-		local lowerName = Lower(cmdName)
-		local searchable = NAmanage.stripMarkup(Lower(displayInfo))
+		local displayInfo = ""
 		local extra = {}
-		for group in displayInfo:gmatch("%(([^%)]+)%)") do
-			for alias in group:gmatch("[^,%s]+") do
-				Insert(extra,Lower(alias))
+		if command then
+			local updatedText, aliasList = fixStupidSearchGoober(cmdName, command)
+			if updatedText and type(command[2]) == "table" then
+				command[2][1] = updatedText
+			end
+			displayInfo = (command[2] and command[2][1]) or ""
+			for _, alias in ipairs(aliasList or {}) do
+				Insert(extra, alias)
 			end
 		end
+		local lowerName = Lower(cmdName)
+		local searchable = NAmanage.stripMarkup(Lower(displayInfo))
 		Insert(searchIndex,{
 			name = cmdName,
 			lowerName = lowerName,
@@ -3541,6 +3549,32 @@ LocalPlayer.OnTeleport:Connect(function(...)
 	end
 end)
 
+NAmanage.cloneArgsArray=function(source)
+	local out = {}
+	if source then
+		for i, v in ipairs(source) do
+			out[i] = v
+		end
+	end
+	return out
+end
+
+NAmanage.updateLastCommand=function(rawArgs)
+	if type(rawArgs) ~= "table" then return end
+	local first = rawArgs[1]
+	if type(first) ~= "string" then return end
+	local lowerFirst = Lower(first)
+	if lowerFirst == "lastcommand" or lowerFirst == "lastcmd" then
+		return
+	end
+	if NAStuff._lastCommand then
+		NAStuff._prevCommand = NAmanage.cloneArgsArray(NAStuff._lastCommand)
+	else
+		NAStuff._prevCommand = nil
+	end
+	NAStuff._lastCommand = rawArgs
+end
+
 --[[ COMMAND FUNCTIONS ]]--
 local commandcount=0
 Loops = {}
@@ -3548,27 +3582,48 @@ cmd.add = function(aliases, info, func, requiresArguments)
 	requiresArguments = requiresArguments or false
 	local data = {func, info, requiresArguments}
 
-	for i, cmdName in pairs(aliases) do
-		if i == 1 then
-			cmds.Commands[cmdName:lower()] = data
-		else
-			cmds.Aliases[cmdName:lower()] = data
-		end
+	if type(aliases) ~= "table" or #aliases == 0 then
+		return
 	end
 
-	commandcount += 1
+	local primary = aliases[1]
+	local primaryLower = primary and primary:lower() or nil
+	if primaryLower then
+		if not cmds.Commands[primaryLower] then
+			commandcount += 1
+		end
+		cmds.Commands[primaryLower] = data
+	end
+
+	for index = 2, #aliases do
+		local aliasName = aliases[index]
+		if type(aliasName) == "string" and aliasName ~= "" then
+			cmds.Aliases[aliasName:lower()] = data
+		end
+	end
 end
 
 cmd.run = function(args)
+	local rawArgs = {}
+	for i, v in ipairs(args) do
+		rawArgs[i] = v
+	end
+
 	local caller, arguments = args[1], args
 	table.remove(args, 1)
 
+	local callerLower = (type(caller) == "string") and caller:lower() or nil
+	local shouldRecord = callerLower ~= "lastcommand" and callerLower ~= "lastcmd"
+
 	local success, msg = pcall(function()
-		local command = cmds.Commands[caller:lower()] or cmds.Aliases[caller:lower()]
+		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
 		if command then
 			command[1](unpack(arguments))
+			if shouldRecord then
+				NAmanage.updateLastCommand(rawArgs)
+			end
 		else
-			local closest = didYouMean(caller:lower())
+			local closest = callerLower and didYouMean(callerLower) or nil
 			if closest and doPREDICTION then
 				local commandFunc = cmds.Commands[closest] and cmds.Commands[closest][1] or cmds.Aliases[closest] and cmds.Aliases[closest][1]
 				local requiresInput = cmds.Commands[closest] and cmds.Commands[closest][3] or cmds.Aliases[closest] and cmds.Aliases[closest][3]
@@ -3584,9 +3639,28 @@ cmd.run = function(args)
 								Callback = function(input)
 									local parsedArguments = ParseArguments(input)
 									if parsedArguments then
-										SpawnCall(function() commandFunc(unpack(parsedArguments)) end)
+										local predictedArguments = {}
+										for i, v in ipairs(parsedArguments) do
+											predictedArguments[i] = v
+										end
+										local record = {closest}
+										for _, v in ipairs(predictedArguments) do
+											record[#record + 1] = v
+										end
+										SpawnCall(function()
+											commandFunc(unpack(predictedArguments))
+											if shouldRecord then
+												NAmanage.updateLastCommand(record)
+											end
+										end)
 									else
-										SpawnCall(function() commandFunc() end)
+										local record = {closest}
+										SpawnCall(function()
+											commandFunc()
+											if shouldRecord then
+												NAmanage.updateLastCommand(record)
+											end
+										end)
 									end
 								end
 							}
@@ -3600,7 +3674,13 @@ cmd.run = function(args)
 							{
 								Text = "Run Command",
 								Callback = function()
-									SpawnCall(function() commandFunc() end)
+									local record = {closest}
+									SpawnCall(function()
+										commandFunc()
+										if shouldRecord then
+											NAmanage.updateLastCommand(record)
+										end
+									end)
 								end
 							}
 						}
@@ -6715,6 +6795,47 @@ NAmanage.InitPlugs=function()
 	)
 
 	cmd.add(
+		{"reloadplugin","relplug","rp"},
+		{"reloadplugin [name]","Reload plugin files (reloads all if no name provided)"},
+		function(...)
+			if not CustomFunctionSupport or not (NAmanage and NAmanage.LoadPlugins) then
+				DoNotif("Plugin loader unavailable",3)
+				return
+			end
+			local query = tostring((...) or ""):lower()
+			local pluginDir = NAfiles.NAPLUGINFILEPATH
+			if not isfolder or not isfolder(pluginDir) then
+				DoNotif("Plugins folder not found",3)
+				return
+			end
+			local ok, items = pcall(listfiles, pluginDir)
+			if not ok or type(items) ~= "table" then
+				DoNotif("Failed to list plugins",3)
+				return
+			end
+			if query ~= "" then
+				local matched = false
+				for _, path in ipairs(items) do
+					if Lower(path):match("%.na$") then
+						local name = path:match("[^\\/]+$") or path
+						if name and name:lower():find(query, 1, true) then
+							matched = true
+							break
+						end
+					end
+				end
+				if not matched then
+					DoNotif("No plugin matched '"..query.."'",3)
+					return
+				end
+			end
+			if not NAmanage.LoadPlugins() then
+				DoNotif("Failed to reload plugins",3)
+			end
+		end
+	)
+
+	cmd.add(
 		{"removeplugin","rmplugin","delplugin","rmp"},
 		{"removeplugin","Move a plugin file from Nameless-Admin/Plugins back to workspace"},
 		function()
@@ -8316,6 +8437,29 @@ cmd.add({"executor","exec"},{"executor (exec)","Very simple executor"},function(
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAexecutor.lua"))()
 end)
 
+cmd.add({"lastcommand","lastcmd"},{"lastcommand (lastcmd)","Re-run your previously executed command"},function()
+	local last=NAStuff._lastCommand
+	local first = last and last[1]
+	local lowerFirst = (type(first) == "string") and Lower(first) or nil
+	if not lowerFirst or lowerFirst == "lastcommand" or lowerFirst == "lastcmd" then
+		last = NAStuff._prevCommand
+		first = last and last[1]
+		lowerFirst = (type(first) == "string") and Lower(first) or nil
+	end
+	if type(last) ~= "table" or not lowerFirst or #last==0 then
+		DoNotif("No previous command recorded",2)
+		return
+	end
+	local replay=NAmanage.cloneArgsArray(last)
+	if #replay == 0 then
+		DoNotif("No previous command recorded",2)
+		return
+	end
+	SpawnCall(function()
+		cmd.run(replay)
+	end)
+end)
+
 cmd.add({"commandloop", "cmdloop"}, {"commandloop <command> {arguments} (cmdloop)", "Run a command on loop"}, function(...)
 	local args = {...}
 	local commandName = args[1]
@@ -8942,350 +9086,350 @@ windowRegistry = windowRegistry or {}
 StatsService = SafeGetService("Stats")
 
 NAstatsUI.Theme = {
-    Colors = {
-        Background = Color3.fromRGB(28, 30, 38),
-        Primary = Color3.fromRGB(38, 41, 52),
-        Secondary = Color3.fromRGB(40, 42, 52),
-        Border = Color3.fromRGB(70, 72, 90),
-        Text = Color3.fromRGB(230, 232, 245),
-        TextMuted = Color3.fromRGB(145, 148, 165),
-        TextSubtle = Color3.fromRGB(200, 200, 210),
-        Close = Color3.fromRGB(220, 70, 70),
-        Minimize = Color3.fromRGB(100, 120, 255),
-        Good = Color3.fromRGB(0, 255, 120),
-        Warn = Color3.fromRGB(255, 210, 0),
-        Bad = Color3.fromRGB(255, 80, 80),
-    },
-    Fonts = {
-        Title = Enum.Font.GothamMedium,
-        Body = Enum.Font.Gotham,
-        BodySemibold = Enum.Font.GothamSemibold,
-        BodyBold = Enum.Font.GothamBold,
-    },
-    Radius = {
-        Window = UDim.new(0, 10),
-        Container = UDim.new(0, 8),
-        Button = UDim.new(1, 0),
-    },
-    Sizes = {
-        TopBarHeight = IsOnMobile and 44 or 32,
-        ActionButton = IsOnMobile and 26 or 22,
-    }
+	Colors = {
+		Background = Color3.fromRGB(28, 30, 38),
+		Primary = Color3.fromRGB(38, 41, 52),
+		Secondary = Color3.fromRGB(40, 42, 52),
+		Border = Color3.fromRGB(70, 72, 90),
+		Text = Color3.fromRGB(230, 232, 245),
+		TextMuted = Color3.fromRGB(145, 148, 165),
+		TextSubtle = Color3.fromRGB(200, 200, 210),
+		Close = Color3.fromRGB(220, 70, 70),
+		Minimize = Color3.fromRGB(100, 120, 255),
+		Good = Color3.fromRGB(0, 255, 120),
+		Warn = Color3.fromRGB(255, 210, 0),
+		Bad = Color3.fromRGB(255, 80, 80),
+	},
+	Fonts = {
+		Title = Enum.Font.GothamMedium,
+		Body = Enum.Font.Gotham,
+		BodySemibold = Enum.Font.GothamSemibold,
+		BodyBold = Enum.Font.GothamBold,
+	},
+	Radius = {
+		Window = UDim.new(0, 10),
+		Container = UDim.new(0, 8),
+		Button = UDim.new(1, 0),
+	},
+	Sizes = {
+		TopBarHeight = IsOnMobile and 44 or 32,
+		ActionButton = IsOnMobile and 26 or 22,
+	}
 }
 
 NAstatsUI.createInstance=function(className, properties, parent)
-    local inst = InstanceNew(className)
-    for prop, value in pairs(properties) do
-        inst[prop] = value
-    end
-    if parent then
-        inst.Parent = parent
-    end
-    return inst
+	local inst = InstanceNew(className)
+	for prop, value in pairs(properties) do
+		inst[prop] = value
+	end
+	if parent then
+		inst.Parent = parent
+	end
+	return inst
 end
 
 function NAstatsUI.colorToHex(c)
-    return Format("#%02X%02X%02X", math.floor(c.R * 255), math.floor(c.G * 255), math.floor(c.B * 255))
+	return Format("#%02X%02X%02X", math.floor(c.R * 255), math.floor(c.G * 255), math.floor(c.B * 255))
 end
 
 function NAstatsUI.ensureSingle(key, buildFn)
-    local existing = windowRegistry[key]
-    if existing and existing.screenGui and existing.screenGui.Parent then
-        existing.bringToFront()
-        return existing
-    end
+	local existing = windowRegistry[key]
+	if existing and existing.screenGui and existing.screenGui.Parent then
+		existing.bringToFront()
+		return existing
+	end
 
-    local newUi = buildFn()
-    windowRegistry[key] = newUi
+	local newUi = buildFn()
+	windowRegistry[key] = newUi
 
-    local originalCloseFunction = newUi.closeFunction
-    newUi.closeButton.MouseButton1Click:Connect(function()
-        if windowRegistry[key] == newUi then
-            windowRegistry[key] = nil
-        end
-        if originalCloseFunction then
-            originalCloseFunction()
-        end
-        newUi.screenGui:Destroy()
-    end)
-    return newUi
+	local originalCloseFunction = newUi.closeFunction
+	newUi.closeButton.MouseButton1Click:Connect(function()
+		if windowRegistry[key] == newUi then
+			windowRegistry[key] = nil
+		end
+		if originalCloseFunction then
+			originalCloseFunction()
+		end
+		newUi.screenGui:Destroy()
+	end)
+	return newUi
 end
 
 function NAstatsUI.createWindow(position, baseSize, titleText)
-    windowCounter += 1
-    local T = NAstatsUI.Theme
+	windowCounter += 1
+	local T = NAstatsUI.Theme
 
-    local screenGui = NAstatsUI.createInstance("ScreenGui", {
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        DisplayOrder = 100 + windowCounter,
-    })
-    NaProtectUI(screenGui)
+	local screenGui = NAstatsUI.createInstance("ScreenGui", {
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 100 + windowCounter,
+	})
+	NaProtectUI(screenGui)
 
-    local holder = NAstatsUI.createInstance("Frame", {
-        Name = "Holder",
-        BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = position or UDim2.new(0.5, 0, 0.35, 0),
-        Size = baseSize,
-        Parent = screenGui,
-    })
+	local holder = NAstatsUI.createInstance("Frame", {
+		Name = "Holder",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = position or UDim2.new(0.5, 0, 0.35, 0),
+		Size = baseSize,
+		Parent = screenGui,
+	})
 
-    local window = NAstatsUI.createInstance("Frame", {
-        Name = "Window",
-        BackgroundColor3 = T.Colors.Background,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 1, 0),
-        Parent = holder
-    })
-    NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, window)
-    NAstatsUI.createInstance("UIStroke", { Color = T.Colors.Border, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, window)
+	local window = NAstatsUI.createInstance("Frame", {
+		Name = "Window",
+		BackgroundColor3 = T.Colors.Background,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 1, 0),
+		Parent = holder
+	})
+	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, window)
+	NAstatsUI.createInstance("UIStroke", { Color = T.Colors.Border, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, window)
 
-    local topBar = NAstatsUI.createInstance("Frame", {
-        Name = "TopBar",
-        BackgroundColor3 = T.Colors.Primary,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, T.Sizes.TopBarHeight),
-        ZIndex = 2,
-        Parent = window,
-    })
-    NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, topBar)
+	local topBar = NAstatsUI.createInstance("Frame", {
+		Name = "TopBar",
+		BackgroundColor3 = T.Colors.Primary,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, T.Sizes.TopBarHeight),
+		ZIndex = 2,
+		Parent = window,
+	})
+	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, topBar)
 
-    local title = NAstatsUI.createInstance("TextLabel", {
-        Name = "Title",
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 12, 0, 0),
-        Size = UDim2.new(1, -90, 1, 0),
-        Font = T.Fonts.Title,
-        Text = titleText,
-        TextColor3 = T.Colors.Text,
-        TextSize = IsOnMobile and 16 or 15,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        RichText = true,
-        ZIndex = 3,
-        Parent = topBar,
-    })
+	local title = NAstatsUI.createInstance("TextLabel", {
+		Name = "Title",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 12, 0, 0),
+		Size = UDim2.new(1, -90, 1, 0),
+		Font = T.Fonts.Title,
+		Text = titleText,
+		TextColor3 = T.Colors.Text,
+		TextSize = IsOnMobile and 16 or 15,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		RichText = true,
+		ZIndex = 3,
+		Parent = topBar,
+	})
 
-    local function createActionButton(name, text, color, offset)
-        local btn = NAstatsUI.createInstance("TextButton", {
-            Name = name,
-            BackgroundColor3 = color,
-            Position = UDim2.new(1, -offset, 0.5, 0),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Size = UDim2.fromOffset(T.Sizes.ActionButton, T.Sizes.ActionButton),
-            Font = T.Fonts.BodyBold,
-            Text = text,
-            TextScaled = true,
-            TextColor3 = Color3.new(1, 1, 1),
-            ZIndex = 3,
-            RichText = true,
-            Parent = topBar,
-        })
-        NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Button }, btn)
-        return btn
-    end
+	local function createActionButton(name, text, color, offset)
+		local btn = NAstatsUI.createInstance("TextButton", {
+			Name = name,
+			BackgroundColor3 = color,
+			Position = UDim2.new(1, -offset, 0.5, 0),
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.fromOffset(T.Sizes.ActionButton, T.Sizes.ActionButton),
+			Font = T.Fonts.BodyBold,
+			Text = text,
+			TextScaled = true,
+			TextColor3 = Color3.new(1, 1, 1),
+			ZIndex = 3,
+			RichText = true,
+			Parent = topBar,
+		})
+		NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Button }, btn)
+		return btn
+	end
 
-    local closeButton = createActionButton("Close", "X", T.Colors.Close, IsOnMobile and 36 or 30)
-    local minimizeButton = createActionButton("Minimize", "–", T.Colors.Minimize, IsOnMobile and 68 or 56)
+	local closeButton = createActionButton("Close", "X", T.Colors.Close, IsOnMobile and 36 or 30)
+	local minimizeButton = createActionButton("Minimize", "–", T.Colors.Minimize, IsOnMobile and 68 or 56)
 
-    local content = NAstatsUI.createInstance("Frame", {
-        Name = "Content",
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 10, 0, T.Sizes.TopBarHeight + 8),
-        Size = UDim2.new(1, -20, 1, -(T.Sizes.TopBarHeight + 18)),
-        ZIndex = 2,
-        Parent = window
-    })
-    NAstatsUI.createInstance("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2) }, content)
-    
-    NAgui.draggerV2(holder, topBar)
-    local collapsed = false
-    local baseTitleText = titleText
-    local collapsedTitleText = titleText
+	local content = NAstatsUI.createInstance("Frame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 10, 0, T.Sizes.TopBarHeight + 8),
+		Size = UDim2.new(1, -20, 1, -(T.Sizes.TopBarHeight + 18)),
+		ZIndex = 2,
+		Parent = window
+	})
+	NAstatsUI.createInstance("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2) }, content)
 
-    minimizeButton.MouseButton1Click:Connect(function()
-        collapsed = not collapsed
-        content.Visible = not collapsed
-        if collapsed then
-            holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
-            title.Text = collapsedTitleText
-        else
-            holder.Size = baseSize
-            title.Text = baseTitleText
-        end
-    end)
+	NAgui.draggerV2(holder, topBar)
+	local collapsed = false
+	local baseTitleText = titleText
+	local collapsedTitleText = titleText
 
-    return {
-        screenGui = screenGui, holder = holder, window = window, title = title, content = content, closeButton = closeButton, minimizeButton = minimizeButton,
-        setBaseTitle = function(t) baseTitleText = t if not collapsed then title.Text = t end end,
-        setCollapsedTitle = function(t) collapsedTitleText = t if collapsed then title.Text = t end end,
-        bringToFront = function() windowCounter += 1; screenGui.DisplayOrder = 100 + windowCounter end,
-    }
+	minimizeButton.MouseButton1Click:Connect(function()
+		collapsed = not collapsed
+		content.Visible = not collapsed
+		if collapsed then
+			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
+			title.Text = collapsedTitleText
+		else
+			holder.Size = baseSize
+			title.Text = baseTitleText
+		end
+	end)
+
+	return {
+		screenGui = screenGui, holder = holder, window = window, title = title, content = content, closeButton = closeButton, minimizeButton = minimizeButton,
+		setBaseTitle = function(t) baseTitleText = t if not collapsed then title.Text = t end end,
+		setCollapsedTitle = function(t) collapsedTitleText = t if collapsed then title.Text = t end end,
+		bringToFront = function() windowCounter += 1; screenGui.DisplayOrder = 100 + windowCounter end,
+	}
 end
 
 function NAstatsUI.createStatDisplay(parent, titleText, subtitleText)
-    local T = NAstatsUI.Theme
-    local container = NAstatsUI.createInstance("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = parent })
-    
-    local valueLabel = NAstatsUI.createInstance("TextLabel", {
-        Name = "ValueLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 36 or 32),
-        Font = T.Fonts.BodySemibold, Text = "—", TextSize = IsOnMobile and 28 or 24, TextColor3 = T.Colors.TextSubtle,
-        TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = container,
-    })
+	local T = NAstatsUI.Theme
+	local container = NAstatsUI.createInstance("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = parent })
 
-    local subtitleLabel = NAstatsUI.createInstance("TextLabel", {
-        Name = "SubtitleLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 18 or 16),
-        Position = UDim2.new(0, 0, 0, IsOnMobile and 40 or 36), Font = T.Fonts.Body, Text = subtitleText,
-        TextSize = IsOnMobile and 16 or 14, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
-        RichText = true, Parent = container,
-    })
+	local valueLabel = NAstatsUI.createInstance("TextLabel", {
+		Name = "ValueLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 36 or 32),
+		Font = T.Fonts.BodySemibold, Text = "—", TextSize = IsOnMobile and 28 or 24, TextColor3 = T.Colors.TextSubtle,
+		TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = container,
+	})
 
-    return { value = valueLabel, subtitle = subtitleLabel }
+	local subtitleLabel = NAstatsUI.createInstance("TextLabel", {
+		Name = "SubtitleLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 18 or 16),
+		Position = UDim2.new(0, 0, 0, IsOnMobile and 40 or 36), Font = T.Fonts.Body, Text = subtitleText,
+		TextSize = IsOnMobile and 16 or 14, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
+		RichText = true, Parent = container,
+	})
+
+	return { value = valueLabel, subtitle = subtitleLabel }
 end
 
 function NAstatsUI.createStatCommand(config)
-    return NAstatsUI.ensureSingle(config.key, function()
-        local baseHeight = IsOnMobile and 124 or 104
-        local ui = NAstatsUI.createWindow(config.position, UDim2.new(0, 240, 0, baseHeight), config.title)
-        local statDisplay = NAstatsUI.createStatDisplay(ui.content, config.title, config.subtitle)
-        local lastUpdate = 0
-        local updateInterval = 0.5
-        
-        local conn = RunService.RenderStepped:Connect(function(dt)
-            local now = os.clock()
-            if now - lastUpdate < updateInterval then return end
-            
-            local value, rawValue = config.updateFn(dt)
-            local color = config.colorFn(rawValue)
-            
-            statDisplay.value.Text = "<b>"..value.."</b>"
-            statDisplay.value.TextColor3 = color
-            
-            local collapsedText = Format("%s: <font color='%s'>%s</font>", config.title, NAstatsUI.colorToHex(color), value)
-            ui.setCollapsedTitle(collapsedText)
-            
-            lastUpdate = now
-        end)
-        NAlib.connect("UI:"..config.key, conn)
-        ui.closeFunction = function() NAlib.disconnect("UI:"..config.key) end
-        
-        return ui
-    end)
+	return NAstatsUI.ensureSingle(config.key, function()
+		local baseHeight = IsOnMobile and 124 or 104
+		local ui = NAstatsUI.createWindow(config.position, UDim2.new(0, 240, 0, baseHeight), config.title)
+		local statDisplay = NAstatsUI.createStatDisplay(ui.content, config.title, config.subtitle)
+		local lastUpdate = 0
+		local updateInterval = 0.5
+
+		local conn = RunService.RenderStepped:Connect(function(dt)
+			local now = os.clock()
+			if now - lastUpdate < updateInterval then return end
+
+			local value, rawValue = config.updateFn(dt)
+			local color = config.colorFn(rawValue)
+
+			statDisplay.value.Text = "<b>"..value.."</b>"
+			statDisplay.value.TextColor3 = color
+
+			local collapsedText = Format("%s: <font color='%s'>%s</font>", config.title, NAstatsUI.colorToHex(color), value)
+			ui.setCollapsedTitle(collapsedText)
+
+			lastUpdate = now
+		end)
+		NAlib.connect("UI:"..config.key, conn)
+		ui.closeFunction = function() NAlib.disconnect("UI:"..config.key) end
+
+		return ui
+	end)
 end
 
 function NAstatsUI.createStatBox(parent, titleText)
-    local T = NAstatsUI.Theme
-    local box = NAstatsUI.createInstance("Frame", {
-        BackgroundColor3 = T.Colors.Secondary, Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56), Parent = parent
-    })
-    NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Container }, box)
+	local T = NAstatsUI.Theme
+	local box = NAstatsUI.createInstance("Frame", {
+		BackgroundColor3 = T.Colors.Secondary, Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56), Parent = parent
+	})
+	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Container }, box)
 
-    NAstatsUI.createInstance("TextLabel", {
-        Name = "Title", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 6), Size = UDim2.new(1, -20, 0, IsOnMobile and 22 or 20),
-        Font = T.Fonts.BodySemibold, Text = titleText, TextSize = IsOnMobile and 16 or 15, TextColor3 = T.Colors.Text,
-        TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = box
-    })
+	NAstatsUI.createInstance("TextLabel", {
+		Name = "Title", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 6), Size = UDim2.new(1, -20, 0, IsOnMobile and 22 or 20),
+		Font = T.Fonts.BodySemibold, Text = titleText, TextSize = IsOnMobile and 16 or 15, TextColor3 = T.Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = box
+	})
 
-    local valueLabel = NAstatsUI.createInstance("TextLabel", {
-        Name = "Value", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, IsOnMobile and 30 or 26),
-        Size = UDim2.new(1, -20, 0, IsOnMobile and 26 or 22), Font = T.Fonts.Body, Text = "—",
-        TextSize = IsOnMobile and 18 or 16, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
-        RichText = true, Parent = box
-    })
-    return box, valueLabel
+	local valueLabel = NAstatsUI.createInstance("TextLabel", {
+		Name = "Value", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, IsOnMobile and 30 or 26),
+		Size = UDim2.new(1, -20, 0, IsOnMobile and 26 or 22), Font = T.Fonts.Body, Text = "—",
+		TextSize = IsOnMobile and 18 or 16, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
+		RichText = true, Parent = box
+	})
+	return box, valueLabel
 end
 
 cmd.add({"ping"}, {"ping", "Shows your network latency"}, function()
-    local T = NAstatsUI.Theme
-    NAstatsUI.createStatCommand({
-        key = "Ping", title = "Ping", subtitle = "Network latency", position = UDim2.new(0.5, 0, 0.22, 0),
-        updateFn = function()
-            local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
-            local rawPing = tonumber(pingItem:GetValueString():match("%d+")) or 0
-            return tostring(rawPing).." ms", rawPing
-        end,
-        colorFn = function(ping)
-            if ping <= 50 then return T.Colors.Good end
-            if ping <= 100 then return T.Colors.Warn end
-            return T.Colors.Bad
-        end,
-    })
+	local T = NAstatsUI.Theme
+	NAstatsUI.createStatCommand({
+		key = "Ping", title = "Ping", subtitle = "Network latency", position = UDim2.new(0.5, 0, 0.22, 0),
+		updateFn = function()
+			local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
+			local rawPing = tonumber(pingItem:GetValueString():match("%d+")) or 0
+			return tostring(rawPing).." ms", rawPing
+		end,
+		colorFn = function(ping)
+			if ping <= 50 then return T.Colors.Good end
+			if ping <= 100 then return T.Colors.Warn end
+			return T.Colors.Bad
+		end,
+	})
 end)
 
 cmd.add({"fps"}, {"fps", "Shows your frames per second"}, function()
-    local T = NAstatsUI.Theme
-    local frameHistory = {}
-    
-    NAstatsUI.createStatCommand({
-        key = "FPS", title = "FPS", subtitle = "Frames per second", position = UDim2.new(0.5, 0, 0.38, 0),
-        updateFn = function(dt)
-            Insert(frameHistory, dt)
-            if #frameHistory > 60 then table.remove(frameHistory, 1) end
-            
-            local sum = 0
-            for _, frameTime in ipairs(frameHistory) do sum += frameTime end
-            local avg = sum / math.max(1, #frameHistory)
-            local fps = math.floor(1 / avg + 0.5)
-            
-            return tostring(fps), fps
-        end,
-        colorFn = function(fps)
-            if fps >= 55 then return T.Colors.Good end
-            if fps >= 30 then return T.Colors.Warn end
-            return T.Colors.Bad
-        end,
-    })
+	local T = NAstatsUI.Theme
+	local frameHistory = {}
+
+	NAstatsUI.createStatCommand({
+		key = "FPS", title = "FPS", subtitle = "Frames per second", position = UDim2.new(0.5, 0, 0.38, 0),
+		updateFn = function(dt)
+			Insert(frameHistory, dt)
+			if #frameHistory > 60 then table.remove(frameHistory, 1) end
+
+			local sum = 0
+			for _, frameTime in ipairs(frameHistory) do sum += frameTime end
+			local avg = sum / math.max(1, #frameHistory)
+			local fps = math.floor(1 / avg + 0.5)
+
+			return tostring(fps), fps
+		end,
+		colorFn = function(fps)
+			if fps >= 55 then return T.Colors.Good end
+			if fps >= 30 then return T.Colors.Warn end
+			return T.Colors.Bad
+		end,
+	})
 end)
 
 cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
-    NAstatsUI.ensureSingle("Stats", function()
-        local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.3, 0), UDim2.new(0, 300, 0, IsOnMobile and 160 or 140), "Stats")
-        local T = NAstatsUI.Theme
+	NAstatsUI.ensureSingle("Stats", function()
+		local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.3, 0), UDim2.new(0, 300, 0, IsOnMobile and 160 or 140), "Stats")
+		local T = NAstatsUI.Theme
 
-        local grid = NAstatsUI.createInstance("Frame", {
-            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = ui.content
-        })
-        local layout = NAstatsUI.createInstance("UIListLayout", {
-            FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
-            VerticalAlignment = Enum.VerticalAlignment.Top, SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 8), Parent = grid,
-        })
+		local grid = NAstatsUI.createInstance("Frame", {
+			BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = ui.content
+		})
+		local layout = NAstatsUI.createInstance("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Top, SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 8), Parent = grid,
+		})
 
-        local pingBox, pingValue = NAstatsUI.createStatBox(grid, "Ping")
-        local fpsBox, fpsValue = NAstatsUI.createStatBox(grid, "FPS")
+		local pingBox, pingValue = NAstatsUI.createStatBox(grid, "Ping")
+		local fpsBox, fpsValue = NAstatsUI.createStatBox(grid, "FPS")
 
-        local frames, lastUpdate, updateInterval = {}, 0, 0.5
-        local pingColorFn = function(p) if p <= 50 then return T.Colors.Good end; if p <= 100 then return T.Colors.Warn end; return T.Colors.Bad end
-        local fpsColorFn = function(f) if f >= 55 then return T.Colors.Good end; if f >= 30 then return T.Colors.Warn end; return T.Colors.Bad end
-        
-        local conn = RunService.RenderStepped:Connect(function(dt)
-            Insert(frames, dt)
-            if #frames > 60 then table.remove(frames, 1) end
-            local t = os.clock()
-            if t - lastUpdate < updateInterval then return end
+		local frames, lastUpdate, updateInterval = {}, 0, 0.5
+		local pingColorFn = function(p) if p <= 50 then return T.Colors.Good end; if p <= 100 then return T.Colors.Warn end; return T.Colors.Bad end
+		local fpsColorFn = function(f) if f >= 55 then return T.Colors.Good end; if f >= 30 then return T.Colors.Warn end; return T.Colors.Bad end
 
-            local sum = 0
-            for i = 1, #frames do sum += frames[i] end
-            local avg = sum / math.max(1, #frames)
-            local fps = math.max(1, math.floor(1 / avg + 0.5))
+		local conn = RunService.RenderStepped:Connect(function(dt)
+			Insert(frames, dt)
+			if #frames > 60 then table.remove(frames, 1) end
+			local t = os.clock()
+			if t - lastUpdate < updateInterval then return end
 
-            local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
-            local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
+			local sum = 0
+			for i = 1, #frames do sum += frames[i] end
+			local avg = sum / math.max(1, #frames)
+			local fps = math.max(1, math.floor(1 / avg + 0.5))
 
-            pingValue.Text = "<b>"..tostring(p).." ms</b>"
-            pingValue.TextColor3 = pingColorFn(p)
-            fpsValue.Text = "<b>"..tostring(fps).."</b>"
-            fpsValue.TextColor3 = fpsColorFn(fps)
-            
-            local collapsedTitle = Format("Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>", NAstatsUI.colorToHex(pingColorFn(p)), p, NAstatsUI.colorToHex(fpsColorFn(fps)), fps)
-            ui.setCollapsedTitle(collapsedTitle)
-            lastUpdate = t
-        end)
-        NAlib.connect("UI:Stats", conn)
-        ui.closeFunction = function() NAlib.disconnect("UI:Stats") end
-        
-        return ui
-    end)
+			local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
+			local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
+
+			pingValue.Text = "<b>"..tostring(p).." ms</b>"
+			pingValue.TextColor3 = pingColorFn(p)
+			fpsValue.Text = "<b>"..tostring(fps).."</b>"
+			fpsValue.TextColor3 = fpsColorFn(fps)
+
+			local collapsedTitle = Format("Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>", NAstatsUI.colorToHex(pingColorFn(p)), p, NAstatsUI.colorToHex(fpsColorFn(fps)), fps)
+			ui.setCollapsedTitle(collapsedTitle)
+			lastUpdate = t
+		end)
+		NAlib.connect("UI:Stats", conn)
+		ui.closeFunction = function() NAlib.disconnect("UI:Stats") end
+
+		return ui
+	end)
 end)
 
 cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
@@ -10091,22 +10235,23 @@ end)
 
 --Mobile Commands for the screen
 if IsOnMobile then
-	cmd.add({"SensorRotationScreen","SensorScreen","SenScreen"},{"SensorRotaionScreen (SensorScreen or SenScreen)","Changes ScreenOrientation to Sensor"},function()
+	cmd.add({"sensorrotationscreen","sensorscreen","senscreen"},{"sensorrotationscreen","Changes ScreenOrientation to Sensor"},function()
 		PlrGui.ScreenOrientation=Enum.ScreenOrientation.Sensor
 	end)
 
-	cmd.add({"LandscapeRotationScreen","LandscapeScreen","LandScreen"},{"LandscapeRotaionScreen (LandscapeScreen or LandScreen)","Changes ScreenOrientation to Landscape Sensor"},function()
+	cmd.add({"landscaperotationscreen","landscapescreen","landscreen"},{"landscaperotationscreen","Changes ScreenOrientation to Landscape Sensor"},function()
 		PlrGui.ScreenOrientation=Enum.ScreenOrientation.LandscapeSensor
 	end)
 
-	cmd.add({"PortraitRotationScreen","PortraitScreen","Portscreen"},{"PortraitRotaionScreen (PortraitScreen or Portscreen)","Changes ScreenOrientation to Portrait"},function()
+	cmd.add({"portraitrotationscreen","portraitscreen","portscreen"},{"portraitrotationscreen","Changes ScreenOrientation to Portrait"},function()
 		PlrGui.ScreenOrientation=Enum.ScreenOrientation.Portrait
 	end)
 
-	cmd.add({"DefaultRotaionScreen","DefaultScreen","Defscreen"},{"DefaultRotaionScreen (DefaultScreen or Defscreen)","Changes ScreenOrientation to Portrait"},function()
+	cmd.add({"defaultrotaionscreen","defaultscreen","defscreen"},{"defaultrotaionscreen","Changes ScreenOrientation to Portrait"},function()
 		PlrGui.ScreenOrientation=StarterGui.ScreenOrientation
 	end)
 end
+
 cmd.add({"commandcount","cc"},{"commandcount (cc)","Counds how many commands NA has"},function()
 	DoNotif(adminName.." currently has "..commandcount.." commands")
 end)
@@ -10223,6 +10368,17 @@ cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and telepor
 		end
 
 		cmd.run({"rj"})
+	end
+end)
+
+cmd.add({"cancelteleport","canceltp"},{"cancelteleport (canceltp)","Cancel an in-progress teleport"},function()
+	local ok,err=pcall(function()
+		TeleportService:TeleportCancel()
+	end)
+	if ok then
+		DoNotif("Cancelled pending teleports.",2)
+	else
+		DoNotif("Failed to cancel teleport: "..tostring(err),3)
 	end
 end)
 
@@ -11589,6 +11745,73 @@ cmd.add({"uninvisibleparts","uninvisparts"},{"uninvisibleparts (uninvisparts)","
 		end
 	end
 	table.clear(shownParts)
+end)
+
+cmd.add({"datalimit"},{"datalimit <kbps>","Set outgoing bandwidth limit in KBps"},function(value)
+	local limit=tonumber(value)
+	if not limit then
+		DoNotif("Usage: datalimit <number>",2)
+		return
+	end
+	local networkClient=SafeGetService("NetworkClient")
+	if not networkClient then
+		DoNotif("NetworkClient unavailable",3)
+		return
+	end
+	local ok,err=pcall(function()
+		networkClient:SetOutgoingKBPSLimit(limit)
+	end)
+	if ok then
+		DoNotif("Outgoing limit set to "..tostring(limit).." kbps",2)
+	else
+		DoNotif("Failed to set limit: "..tostring(err),3)
+	end
+end,true)
+
+cmd.add({"removeads","adblock"},{"removeads (adblock)","Continuously removes billboard advertisements"},function()
+	if NAStuff._removeAdsLoop and NAStuff._removeAdsLoop.active then
+		DoNotif("Remove Ads already enabled",2)
+		return
+	end
+	local state={active=true}
+	NAStuff._removeAdsLoop=state
+	DoNotif("Remove Ads enabled",2)
+	SpawnCall(function()
+		while state.active do
+			pcall(function()
+				for _,obj in ipairs(workspace:GetDescendants()) do
+					if obj:IsA("PackageLink") then
+						local parent=obj.Parent
+						if parent then
+							if parent:FindFirstChild("ADpart") then
+								parent:Destroy()
+							elseif parent:FindFirstChild("AdGuiAdornee") then
+								local grand=parent.Parent
+								if grand then
+									grand:Destroy()
+								else
+									parent:Destroy()
+								end
+							end
+						end
+					end
+				end
+			end)
+			Wait(0.75)
+		end
+	end)
+end)
+
+cmd.add({"unremoveads","noadblock","disableads"},{"unremoveads (noadblock,disableads)","Stop removing billboard advertisements"},function()
+	local state=NAStuff._removeAdsLoop
+	if not state or not state.active then
+		DoNotif("Remove Ads is not active",2)
+		NAStuff._removeAdsLoop=nil
+		return
+	end
+	state.active=false
+	NAStuff._removeAdsLoop=nil
+	DoNotif("Remove Ads disabled",2)
 end)
 
 cmd.add({"replicationlag", "backtrack"}, {"replicationlag (backtrack)", "Set IncomingReplicationLag"}, function(num)
@@ -18924,6 +19147,61 @@ NAmanage._applyFixedDescription=function(desc,uidFallback)
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA3 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("CharacterMesh") then v:Clone().Parent=char end end end end
 end
 
+cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},function(...)
+	local args={...}
+	local teamName=Concat(args," ")
+	teamName=teamName and teamName:gsub("^%s+",""):gsub("%s+$","") or""
+	if teamName=="" then DoNotif("team <team name>",3,"Team") return end
+	local teamsService=SafeGetService("Teams")
+	if not teamsService then return end
+	local lookup=Lower(teamName)
+	local targetTeam=nil
+	for _,team in ipairs(teamsService:GetChildren()) do
+		if Lower(team.Name):find(lookup,1,true) then targetTeam=team break end
+	end
+	if not targetTeam then DoNotif(Format("Invalid team \"%s\"",teamName),3,"Team") return end
+	local localPlayer=Players.LocalPlayer
+	if not localPlayer then return end
+	local character=getChar()
+	local root=character and getRoot(character)
+	local function assignTeam()
+		pcall(function()
+			localPlayer.Neutral=false
+			localPlayer.Team=targetTeam
+		end)
+	end
+	if typeof(firetouchinterest)=="function" and root then
+		for _,spawnLocation in ipairs(workspace:GetDescendants()) do
+			if spawnLocation:IsA("SpawnLocation") and spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
+				pcall(firetouchinterest,spawnLocation,root,0)
+				Wait()
+				pcall(firetouchinterest,spawnLocation,root,1)
+				assignTeam()
+				return
+			end
+		end
+	end
+	assignTeam()
+end,true)
+
+cmd.add({"nilchar"},{"nilchar","Temporarily parent your character to nil"},function()
+	local char=getChar()
+	if not char then
+		DoNotif("Character unavailable",2)
+		return
+	end
+	char.Parent=nil
+end)
+
+cmd.add({"unnilchar","nonilchar"},{"unnilchar (nonilchar)","Move your character back to workspace"},function()
+	local char=getChar()
+	if not char then
+		DoNotif("Character unavailable",2)
+		return
+	end
+	char.Parent=workspace
+end)
+
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
 	if not arg then return end
 	local userId=tonumber(arg)
@@ -21558,6 +21836,28 @@ cmd.add({"stopanimations", "stopanims", "stopanim", "noanim"}, {"stopanimations 
 	end
 end)
 
+cmd.add({"refreshanimations", "refreshanimation", "refreshanims", "refreshanim"}, {"refreshanimations (refreshanimation,refreshanims,refreshanim)", "Reload character animations"}, function()
+	local char=getChar()
+	if not char then
+		DoNotif("Character unavailable",2)
+		return
+	end
+	local humanoid=char:FindFirstChildOfClass("Humanoid") or char:FindFirstChildOfClass("AnimationController")
+	local animate=char:FindFirstChild("Animate")
+	if not humanoid or not animate then
+		DoNotif("Failed to locate Animate or Humanoid",3)
+		return
+	end
+	animate.Disabled=true
+	pcall(function()
+		for _,track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+			track:Stop()
+		end
+	end)
+	animate.Disabled=false
+	DoNotif("Animations refreshed",2)
+end)
+
 loopwave = false
 
 cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a player in a loop"}, function(...)
@@ -22536,7 +22836,8 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
 end)
 
-cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
+-- patched
+--[[cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
 	local md5={}
 	local hmac={}
 	local base64={}
@@ -22762,7 +23063,7 @@ cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Tel
 	end
 	buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
 	Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
-end)
+end)]]
 
 HumanModCons = {}
 
@@ -24799,6 +25100,27 @@ cmd.add({"r15"},{"r15","Shows a prompt that will switch your character rig type 
 	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
 	getHum():ChangeState(Enum.HumanoidStateType.Dead)
 	getHum().Health=0
+end)
+
+cmd.add({"breakvelocity"},{"breakvelocity","Sets your character's velocity to zero momentarily"},function()
+	local char=getChar()
+	if not char then
+		DoNotif("Character unavailable",2)
+		return
+	end
+	local zero=Vector3.zero
+	local stopAt=time()+1
+	repeat
+		for _,part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then
+				NAlib.setProperty(part,"AssemblyLinearVelocity",zero)
+				NAlib.setProperty(part,"AssemblyAngularVelocity",zero)
+				NAlib.setProperty(part,"Velocity",zero)
+				NAlib.setProperty(part,"RotVelocity",zero)
+			end
+		end
+		Wait()
+	until time()>=stopAt or not char.Parent
 end)
 
 cmd.add({"maxslopeangle", "msa"}, {"maxslopeangle (msa)", "Changes your character's MaxSlopeAngle"}, function(...)
@@ -29036,16 +29358,16 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopn
 				disableEffect(inst)
 			end) end)
 		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function(dt)
-			if not (st.nf and st.nf.enabled) then return end
-			enforceNoFog()
-			scanAccumulator = scanAccumulator + dt
-			if scanAccumulator >= 0.5 then
-				scanAccumulator = 0
-				for _, inst in ipairs(Lighting:GetDescendants()) do
-					disableEffect(inst)
+				if not (st.nf and st.nf.enabled) then return end
+				enforceNoFog()
+				scanAccumulator = scanAccumulator + dt
+				if scanAccumulator >= 0.5 then
+					scanAccumulator = 0
+					for _, inst in ipairs(Lighting:GetDescendants()) do
+						disableEffect(inst)
+					end
 				end
-			end
-		end) end)
+			end) end)
 	end
 	nf.enabled = true
 	enforceNoFog()
@@ -31681,7 +32003,15 @@ NAgui.commands = function()
 		local Cmd = NAUIMANAGER.commandExample:Clone()
 		Cmd.Parent = cList
 		Cmd.Name = cmdName
-		Cmd.Text = " "..tbl[2][1]
+		local displayText = fixStupidSearchGoober(cmdName, tbl)
+		if displayText and displayText ~= "" then
+			if type(tbl[2]) == "table" then
+				tbl[2][1] = displayText
+			end
+		else
+			displayText = (type(tbl[2]) == "table" and tbl[2][1]) or cmdName
+		end
+		Cmd.Text = " "..displayText
 		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
 		Cmd.MouseEnter:Connect(function()
@@ -31702,6 +32032,9 @@ NAgui.commands = function()
 	cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 	--cFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	NAmanage.centerFrame(cFrame)
+	if NAgui.filterCommandList then
+		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
+	end
 end
 NAgui.chatlogs = function()
 	if NAUIMANAGER.chatLogsFrame then
@@ -32847,63 +33180,18 @@ NAgui.loadCMDS = function()
 	CMDAUTOFILL = {}
 	local i = 0
 	for name, cmdData in pairs(cmds.Commands) do
-		local usageText = "Unknown"
-		local info = cmdData[2]
-		if type(info) == "table" and #info >= 1 then
-			usageText = info[1] or ""
-			usageText = usageText:gsub("^%s+", ""):gsub("%s+$", "")
-			local lowerName = Lower(name)
-			if usageText == "" or not Lower(usageText):find(lowerName, 1, true) then
-				local firstWord, rest = usageText:match("^(%S+)(.*)")
-				if rest and #rest > 0 then
-					if rest:match("^%s*%(") then
-						usageText = name..rest
-					else
-						usageText = name.." "..rest:gsub("^%s+", "")
-					end
-				else
-					usageText = name
-				end
+		local displayText = fixStupidSearchGoober(name, cmdData)
+		if displayText and displayText ~= "" then
+			if type(cmdData[2]) == "table" then
+				cmdData[2][1] = displayText
 			end
-
-			local aliasMap = {}
-			local prefix, aliasBlock = usageText:match("^(.-)%s*%(([^()]*)%)%s*$")
-			if aliasBlock then
-				usageText = prefix:gsub("%s+$", "")
-				for alias in aliasBlock:gmatch("[^,%s]+") do
-					local lowerAlias = Lower(alias)
-					if lowerAlias ~= lowerName and not aliasMap[lowerAlias] then
-						aliasMap[lowerAlias] = alias
-					end
-				end
-			else
-				usageText = usageText:gsub("%s+$", "")
-			end
-
-			for alias, aliasCmdData in pairs(cmds.Aliases) do
-				if aliasCmdData == cmdData then
-					local lowerAlias = Lower(alias)
-					if lowerAlias ~= lowerName and not aliasMap[lowerAlias] then
-						aliasMap[lowerAlias] = alias
-					end
-				end
-			end
-
-			local aliasList = {}
-			for _, display in pairs(aliasMap) do
-				Insert(aliasList, display)
-			end
-			table.sort(aliasList, function(a, b)
-				return Lower(a) < Lower(b)
-			end)
-			if #aliasList > 0 then
-				usageText = usageText.." ("..Concat(aliasList, ", ")..")"
-			end
+		else
+			displayText = (type(cmdData[2]) == "table" and cmdData[2][1]) or name
 		end
 		local btn = NAUIMANAGER.cmdExample:Clone()
 		btn.Parent = NAUIMANAGER.cmdAutofill
 		btn.Name = name
-		btn.Input.Text = usageText
+		btn.Input.Text = displayText
 		i += 1
 		Insert(CMDAUTOFILL, btn)
 	end
@@ -33213,66 +33501,82 @@ if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) en
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
-NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
-	local searchText = Lower(GSub(NAUIMANAGER.commandsFilter.Text, ";", ""))
+NAgui.normalizeCommandFilter=function(text)
+	text = text or ""
+	return Lower(GSub(text, ";", ""))
+end
 
+NAgui.sanitizeCommandInfo=function(info)
+	local searchableInfo = Lower(info or "")
+	searchableInfo = GSub(searchableInfo, "<[^>]+>", "")
+	searchableInfo = GSub(searchableInfo, "%[[^%]]+%]", "")
+	searchableInfo = GSub(searchableInfo, "%([^%)]+%)", "")
+	searchableInfo = GSub(searchableInfo, "{[^}]+}", "")
+	searchableInfo = GSub(searchableInfo, "【[^】]+】", "")
+	searchableInfo = GSub(searchableInfo, "〖[^〗]+〗", "")
+	searchableInfo = GSub(searchableInfo, "«[^»]+»", "")
+	searchableInfo = GSub(searchableInfo, "‹[^›]+›", "")
+	searchableInfo = GSub(searchableInfo, "「[^」]+」", "")
+	searchableInfo = GSub(searchableInfo, "『[^』]+』", "")
+	searchableInfo = GSub(searchableInfo, "（[^）]+）", "")
+	searchableInfo = GSub(searchableInfo, "〔[^〕]+〕", "")
+	searchableInfo = GSub(searchableInfo, "‖[^‖]+‖", "")
+	searchableInfo = GSub(searchableInfo, "%s+", " ")
+	searchableInfo = GSub(searchableInfo, "^%s*(.-)%s*$", "%1")
+	return searchableInfo
+end
+
+NAgui.filterCommandList = function(rawText)
+	if not NAUIMANAGER.commandsList then return end
+	local searchText = NAgui.normalizeCommandFilter(rawText)
 	for _, label in ipairs(NAUIMANAGER.commandsList:GetChildren()) do
 		if label:IsA("TextLabel") then
-			local cmdName = Lower(label.Name)
+			local cmdName = Lower(label.Name or "")
 			local command = cmds.Commands[cmdName]
-			local displayInfo = command and command[2] and command[2][1] or ""
-			local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
-
-			local searchableInfo = Lower(displayInfo)
-			searchableInfo = GSub(searchableInfo, "<[^>]+>", "")
-			searchableInfo = GSub(searchableInfo, "%[[^%]]+%]", "")
-			searchableInfo = GSub(searchableInfo, "%([^%)]+%)", "")
-			searchableInfo = GSub(searchableInfo, "{[^}]+}", "")
-			searchableInfo = GSub(searchableInfo, "【[^】]+】", "")
-			searchableInfo = GSub(searchableInfo, "〖[^〗]+〗", "")
-			searchableInfo = GSub(searchableInfo, "«[^»]+»", "")
-			searchableInfo = GSub(searchableInfo, "‹[^›]+›", "")
-			searchableInfo = GSub(searchableInfo, "「[^」]+」", "")
-			searchableInfo = GSub(searchableInfo, "『[^』]+』", "")
-			searchableInfo = GSub(searchableInfo, "（[^）]+）", "")
-			searchableInfo = GSub(searchableInfo, "〔[^〕]+〕", "")
-			searchableInfo = GSub(searchableInfo, "‖[^‖]+‖", "")
-			searchableInfo = GSub(searchableInfo, "%s+", " ")
-			searchableInfo = GSub(searchableInfo, "^%s*(.-)%s*$", "%1")
-
-			local extraAliases = {}
-			local baseFunc = command and command[1]
-			for alias, aliasData in pairs(cmds.Aliases) do
-				if aliasData[1] == baseFunc then
-					Insert(extraAliases, Lower(alias))
+			if command then
+				local updatedText, aliasList = fixStupidSearchGoober(cmdName, command)
+				local displayText = updatedText
+				if not displayText or displayText == "" then
+					displayText = (type(command[2]) == "table" and command[2][1]) or cmdName
 				end
-			end
-
-			if #extraAliases > 0 and not Find(updatedText, "%b()") then
-				updatedText = updatedText.." ("..Concat(extraAliases, ", ")..")"
-			end
-
-			local matches = false
-
-			if Sub(cmdName, 1, #searchText) == searchText then
-				matches = true
-			elseif Find(searchableInfo, searchText, 1, true) then
-				matches = true
-			else
-				for _, alias in ipairs(extraAliases) do
-					if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
+				if type(command[2]) == "table" then
+					command[2][1] = displayText
+				end
+				aliasList = aliasList or {}
+				for i = 1, #aliasList do
+					aliasList[i] = Lower(aliasList[i])
+				end
+				local sanitizedInfo = NAgui.sanitizeCommandInfo(displayText)
+				local matches
+				if searchText == "" then
+					matches = true
+				else
+					if Sub(cmdName, 1, #searchText) == searchText then
 						matches = true
-						break
+					elseif Find(sanitizedInfo, searchText, 1, true) then
+						matches = true
+					else
+						for _, alias in ipairs(aliasList) do
+							if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
+								matches = true
+								break
+							end
+						end
 					end
 				end
-			end
-
-			label.Visible = matches
-			if matches then
-				label.Text = updatedText
+				label.Visible = matches and true or false
+				if matches then
+					label.Text = " "..displayText
+				end
+			else
+				label.Visible = searchText == ""
 			end
 		end
 	end
+end
+
+NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
+	NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
 end)
 
 --[[ CHAT TO USE COMMANDS ]]--
