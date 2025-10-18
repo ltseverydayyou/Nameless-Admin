@@ -51,6 +51,7 @@ local TAB_ESP = "ESP"
 local TAB_CHAT = "Chat"
 local TAB_CHARACTER = "Character"
 local TAB_KEYBINDS = "Keybinds"
+local TAB_ROBLOX_DATA = "Roblox Data"
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -32420,6 +32421,57 @@ NAgui.addSection = function(titleText)
 	NAmanage.registerElementForCurrentTab(section)
 end
 
+NAgui.addInfo = function(label, value)
+	if not NAUIMANAGER.SettingsList then return nil end
+	local info = templates.Input:Clone()
+	info.Title.Text = label
+	info.Parent = NAUIMANAGER.SettingsList
+	info.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(info)
+
+	local frame = info.InputFrame
+	if not frame then
+		return nil
+	end
+
+	local box = frame.InputBox
+	if not box then
+		return nil
+	end
+
+	box.Text = value or ""
+	box.PlaceholderText = ""
+	box.ClearTextOnFocus = false
+	box.TextEditable = false
+	box.Active = false
+	box.Selectable = false
+	box.CursorPosition = -1
+
+	box.Focused:Connect(function()
+		box:ReleaseFocus()
+	end)
+
+	local updateSize = function()
+		frame:TweenSize(
+			UDim2.new(0, box.TextBounds.X + 24, 0, 30),
+			Enum.EasingDirection.Out,
+			Enum.EasingStyle.Exponential,
+			0.2,
+			true
+		)
+	end
+
+	box:GetPropertyChangedSignal("Text"):Connect(updateSize)
+	updateSize()
+
+	local interact = frame:FindFirstChild("Interact")
+	if interact then
+		interact.Visible = false
+	end
+
+	return box
+end
+
 NAgui.addToggle = function(label, defaultValue, callback)
 	if not NAUIMANAGER.SettingsList then return end
 	local toggle = templates.Toggle:Clone()
@@ -36532,6 +36584,119 @@ NAgui.addButton("Remove Light", function()
 	if settingsLight.LIGHTER then
 		settingsLight.LIGHTER:Destroy()
 		settingsLight.LIGHTER = nil
+	end
+end)
+
+NAgui.addTab(TAB_ROBLOX_DATA, { order = 8 })
+NAgui.setTab(TAB_ROBLOX_DATA)
+
+NAStuff.RobloxVersionEndpoints = {
+	"https://weao.xyz/api/versions/current";
+	"http://weao.xyz/api/versions/current";
+}
+
+NAStuff.RobloxVersionHeaders = {
+	["User-Agent"] = "WEAO-3PService";
+	["Accept"] = "application/json";
+}
+
+originalIO.parseRobloxVersionBody=function(body)
+	if type(body) ~= "string" then
+		return nil
+	end
+	if body:sub(1, 3) == "\239\187\191" then
+		body = body:sub(4)
+	end
+	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	if ok and type(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
+originalIO.fetchRobloxVersionData=function(forceRefresh)
+	local cached = NAStuff.RobloxVersionData
+	local lastFetch = NAStuff.RobloxVersionLastFetch or 0
+	if cached and not forceRefresh and (tick() - lastFetch) < 300 then
+		return true, cached
+	end
+
+	local requestFunc = opt and opt.NAREQUEST
+	if requestFunc then
+		for _, url in ipairs(NAStuff.RobloxVersionEndpoints) do
+			local ok, response = pcall(requestFunc, {
+				Url = url;
+				Method = "GET";
+				Headers = NAStuff.RobloxVersionHeaders;
+			})
+			if ok and response then
+				local status = tonumber(response.StatusCode or response.Status)
+				if status and status >= 200 and status < 300 then
+					local body = response.Body or response.body or ""
+					local decoded = originalIO.parseRobloxVersionBody(body)
+					if decoded then
+						NAStuff.RobloxVersionData = decoded
+						NAStuff.RobloxVersionLastFetch = tick()
+						return true, decoded
+					end
+				end
+			end
+		end
+	end
+
+	for _, url in ipairs(NAStuff.RobloxVersionEndpoints) do
+		local ok, body = pcall(HttpService.GetAsync, HttpService, url)
+		if ok and type(body) == "string" then
+			local decoded = originalIO.parseRobloxVersionBody(body)
+			if decoded then
+				NAStuff.RobloxVersionData = decoded
+				NAStuff.RobloxVersionLastFetch = tick()
+				return true, decoded
+			end
+		end
+	end
+
+	return false, cached
+end
+
+NAStuff.RobloxVersionLoadingText = "Loading..."
+NAStuff.RobloxVersionMissingText = "Unavailable"
+NAStuff.RobloxVersionFailureText = "Failed to load"
+
+NAStuff.RobloxVersionRows = {}
+originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
+	NAgui.addSection(sectionTitle)
+
+	local versionField = NAgui.addInfo("Version", NAStuff.RobloxVersionLoadingText)
+	local updatedField = NAgui.addInfo("Last Updated", NAStuff.RobloxVersionLoadingText)
+
+	Insert(NAStuff.RobloxVersionRows, {
+		versionKey = versionKey;
+		dateKey = dateKey;
+		versionField = versionField;
+		dateField = updatedField;
+	})
+end
+
+NAgui.addSection("Powered by weao.xyz API")
+
+originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
+originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
+originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
+originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
+
+SpawnCall(function()
+	local ok, data = originalIO.fetchRobloxVersionData()
+	local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
+	for _, entry in ipairs(NAStuff.RobloxVersionRows) do
+		if entry.versionField then
+			local value = (type(data) == "table" and data[entry.versionKey]) or fallbackText
+			entry.versionField.Text = value and tostring(value) or fallbackText
+		end
+		if entry.dateField then
+			local value = (type(data) == "table" and data[entry.dateKey]) or fallbackText
+			entry.dateField.Text = value and tostring(value) or fallbackText
+		end
 	end
 end)
 
