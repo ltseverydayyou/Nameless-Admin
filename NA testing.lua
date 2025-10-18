@@ -30202,52 +30202,116 @@ cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time yo
 	DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport")
 end)
 
-loopedFOV = nil
+do
+	local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil}
 
-cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–120)"}, function(num)
-	local field = math.clamp(tonumber(num) or 70, 1, 120)
-	local cam = workspace.CurrentCamera
-	TweenService:Create(cam, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {FieldOfView = field}):Play()
-end, true)
+	originalIO.FOVstep=function()
+		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
+		FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or InstanceNew("Vector3Value", parent)
+		FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or InstanceNew("Vector3Value", parent)
 
-cmd.add({"loopfov", "lfov"}, {"loopfov <number> (lfov)", "Loops your FOV to stay at a custom value (1–120)"}, function(num)
-	loopedFOV = math.clamp(tonumber(num) or 70, 1, 120)
+		local o = FOVhandler.mem.o.Value or 0
+		local sum = 0
+		for i=1,#FOVhandler.mem.base do
+			local v = FOVhandler.mem.base[i]
+			if not v or not v.Parent then v = InstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
+			sum += (v.Value or 0)
+		end
+		local target = (o ~= 0 and o) or sum
+		local cam = workspace.CurrentCamera; if not cam then return end
 
-	local function apply()
-		NAlib.disconnect("fov_loop")
-		NAlib.disconnect("fov_refresh")
+		if cam ~= FOVhandler.cam then
+			FOVhandler.cam = cam
+			NAlib.disconnect("fov_refresh")
+			NAlib.connect("fov_refresh", cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+				if not FOVhandler.loop then return end
+				local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
+				if t > 0 then
+					local vis = math.clamp(t, 25, 120)
+					if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+				end
+			end))
+		end
 
-		local cam = workspace.CurrentCamera
-		if not cam then return end
+		if FOVhandler.loop and target > 0 then
+			local vis = math.clamp(target, 25, 120)
+			if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+		end
 
-		NAlib.connect("fov_loop", RunService.RenderStepped:Connect(function()
-			if cam.FieldOfView ~= loopedFOV then
-				cam.FieldOfView = loopedFOV
-			end
-		end))
+		if target <= 120 or target == 0 then
+			if FOVhandler.mem.r.Value.Magnitude > 0 then FOVhandler.mem.r.Value = Vector3.new() end
+			if FOVhandler.mem.u.Value.Magnitude > 0 then FOVhandler.mem.u.Value = Vector3.new() end
+			return
+		end
 
-		NAlib.connect("fov_refresh", cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
-			if cam.FieldOfView ~= loopedFOV then
-				cam.FieldOfView = loopedFOV
-			end
-		end))
+		local f = math.clamp((target - 120) * 0.005, 0, 0.9)
+		local v = Vector3.new(f,f,f)
+		if FOVhandler.mem.r.Value ~= v then FOVhandler.mem.r.Value = v end
+		if FOVhandler.mem.u.Value ~= v then FOVhandler.mem.u.Value = v end
+
+		local c = cam.CFrame
+		local p = c.Position
+		local r = c.RightVector
+		local u = c.UpVector
+		local l = -c.LookVector
+		local rs = Vector3.new(1,1,1) - FOVhandler.mem.r.Value
+		local us = Vector3.new(1,1,1) - FOVhandler.mem.u.Value
+		cam.CFrame = CFrame.fromMatrix(p, Vector3.new(r.X*rs.X, r.Y*rs.Y, r.Z*rs.Z), Vector3.new(u.X*us.X, u.Y*us.Y, u.Z*us.Z), l)
 	end
 
-	NAlib.disconnect("fov_watch")
-	NAlib.connect("fov_watch", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		Wait(0.05)
-		apply()
+	pcall(function() RunService:UnbindFromRenderStep("FOV_SYS") end)
+	RunService:BindToRenderStep("FOV_SYS", Enum.RenderPriority.Camera.Value+1, originalIO.FOVstep)
+
+	NAlib.disconnect("fov_watch_cc")
+	NAlib.connect("fov_watch_cc", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		FOVhandler.cam = workspace.CurrentCamera
 	end))
 
-	apply()
-end, true)
+	cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–300)"}, function(num)
+		local t = math.clamp(tonumber(num) or 70, 1, 300)
+		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		if FOVhandler.loop then
+			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
+			FOVhandler.mem.o.Value = t
+		else
+			FOVhandler.mem.base[1] = (FOVhandler.mem.base[1] and FOVhandler.mem.base[1].Parent) and FOVhandler.mem.base[1] or InstanceNew("NumberValue", parent)
+			FOVhandler.mem.base[1].Value = t
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			local vis = math.clamp(t, 25, 120)
+			TweenService:Create(cam, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {FieldOfView = vis}):Play()
+		end
+	end, true)
 
-cmd.add({"unloopfov", "unlfov"}, {"unloopfov (unlfov)", "Stops the looped FOV"}, function()
-	NAlib.disconnect("fov_loop")
-	NAlib.disconnect("fov_refresh")
-	NAlib.disconnect("fov_watch")
-	loopedFOV = nil
-end)
+	cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
+		local t = math.clamp(tonumber(num) or 70, 1, 300)
+		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
+		FOVhandler.mem.o.Value = t
+		FOVhandler.loop = true
+		NAlib.disconnect("fov_loop_hold")
+		NAlib.connect("fov_loop_hold", RunService.RenderStepped:Connect(function()
+			local p = NAmanage.guiCHECKINGAHHHHH()
+			if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = InstanceNew("NumberValue", p) end
+		end))
+		local cam = workspace.CurrentCamera
+		if cam then
+			local vis = math.clamp(t, 25, 120)
+			if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+		end
+	end, true)
+
+	cmd.add({"unloopfov","unlfov"}, {"unloopfov (unlfov)", "Stops FOV loop"}, function()
+		FOVhandler.loop = false
+		NAlib.disconnect("fov_loop_hold")
+		NAlib.disconnect("fov_refresh")
+		if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
+		if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
+		if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
+	end)
+end
 
 cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
 	getgenv().CustomUI=false
