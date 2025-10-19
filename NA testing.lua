@@ -471,7 +471,7 @@ NAmanage.resolveTweenDuration=function(scale)
 end
 NAmanage._loaderStatus = NAmanage._loaderStatus or {}
 
-local function loaderWarn(label, detail)
+NAmanage.loaderWarn=function(label, detail)
 	warn(Format('[%s loader] %s: %s', adminName, label, detail))
 end
 
@@ -497,7 +497,7 @@ function NAmanage.runLoader(label, callback, opts)
 	local guiTimeout = opts.guiTimeout or 5
 
 	if requireGui and not NAmanage.waitForScreenGui(guiTimeout) then
-		loaderWarn(label, 'aborted: interface not ready')
+		NAmanage.loaderWarn(label, 'aborted: interface not ready')
 		return false
 	end
 
@@ -512,11 +512,11 @@ function NAmanage.runLoader(label, callback, opts)
 		if ok then
 			lastErr = 'callback returned false'
 			if retryOnFalse then
-				loaderWarn(label, Format('attempt %d/%d returned false', attempt, attempts))
+				NAmanage.loaderWarn(label, Format('attempt %d/%d returned false', attempt, attempts))
 			end
 		else
 			lastErr = result
-			loaderWarn(label, Format('attempt %d/%d failed: %s', attempt, attempts, tostring(result)))
+			NAmanage.loaderWarn(label, Format('attempt %d/%d failed: %s', attempt, attempts, tostring(result)))
 		end
 
 		if attempt < attempts then
@@ -6369,14 +6369,14 @@ NAmanage.loadButtonIDS = function()
 			writefile(path, HttpService:JSONEncode({}))
 		end)
 		if not okCreate then
-			loaderWarn('UserButtons', 'failed to create storage: '..tostring(createErr))
+			NAmanage.loaderWarn('UserButtons', 'failed to create storage: '..tostring(createErr))
 			return false
 		end
 	end
 
 	local okRead, raw = pcall(readfile, path)
 	if not okRead or type(raw) ~= "string" then
-		loaderWarn('UserButtons', 'failed to read storage: '..tostring(raw))
+		NAmanage.loaderWarn('UserButtons', 'failed to read storage: '..tostring(raw))
 		return false
 	end
 
@@ -6384,13 +6384,13 @@ NAmanage.loadButtonIDS = function()
 		return HttpService:JSONDecode(raw)
 	end)
 	if not okDecode or type(decoded) ~= "table" then
-		loaderWarn('UserButtons', 'invalid storage data; resetting')
+		NAmanage.loaderWarn('UserButtons', 'invalid storage data; resetting')
 		NAUserButtons = {}
 		local okReset, resetErr = pcall(function()
 			writefile(path, HttpService:JSONEncode(NAUserButtons))
 		end)
 		if not okReset then
-			loaderWarn('UserButtons', 'failed to reset storage: '..tostring(resetErr))
+			NAmanage.loaderWarn('UserButtons', 'failed to reset storage: '..tostring(resetErr))
 		end
 		return false
 	end
@@ -6406,7 +6406,7 @@ NAmanage.AutoExecSave=function(data, context)
 	end)
 	if not ok then
 		if context == 'loader' then
-			loaderWarn('AutoExec', 'failed to update storage: '..tostring(err))
+			NAmanage.loaderWarn('AutoExec', 'failed to update storage: '..tostring(err))
 		else
 			warn("[NA] AutoExec save failed: "..tostring(err))
 		end
@@ -6428,14 +6428,14 @@ NAmanage.loadAutoExec = function()
 			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
 		if not okCreate then
-			loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
+			NAmanage.loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
 			return false
 		end
 	end
 
 	local okRead, raw = pcall(readfile, path)
 	if not okRead or type(raw) ~= 'string' then
-		loaderWarn('AutoExec', 'failed to read storage: '..tostring(raw))
+		NAmanage.loaderWarn('AutoExec', 'failed to read storage: '..tostring(raw))
 		return false
 	end
 
@@ -6443,7 +6443,7 @@ NAmanage.loadAutoExec = function()
 		return HttpService:JSONDecode(raw)
 	end)
 	if not okDecode or type(decoded) ~= 'table' then
-		loaderWarn('AutoExec', 'failed to decode storage; keeping previous data')
+		NAmanage.loaderWarn('AutoExec', 'failed to decode storage; keeping previous data')
 		return false
 	end
 
@@ -6507,7 +6507,7 @@ NAmanage.LoadPlugins = function()
 	if not (isfolder and isfolder(pluginDir)) then
 		local ok, err = pcall(makefolder, pluginDir)
 		if not ok then
-			loaderWarn('Plugins', 'failed to ensure folder: '..tostring(err))
+			NAmanage.loaderWarn('Plugins', 'failed to ensure folder: '..tostring(err))
 			return false
 		end
 	end
@@ -6556,7 +6556,7 @@ NAmanage.LoadPlugins = function()
 	local okList, files = pcall(listfiles, pluginDir)
 	if not okList or type(files) ~= 'table' then
 		local errMsg = okList and 'invalid directory listing' or tostring(files)
-		loaderWarn('Plugins', 'failed to enumerate: '..errMsg)
+		NAmanage.loaderWarn('Plugins', 'failed to enumerate: '..errMsg)
 		return false
 	end
 
@@ -6967,7 +6967,7 @@ end
 NAmanage.RenderUserButtons = function()
 	local screenGui = NAmanage.waitForScreenGui(5)
 	if not screenGui then
-		loaderWarn('RenderUserButtons', 'aborted: interface not ready')
+		NAmanage.loaderWarn('RenderUserButtons', 'aborted: interface not ready')
 		return false
 	end
 	if NAmanage._renderUserButtonsRunning then
@@ -36595,21 +36595,44 @@ NAStuff.RobloxVersionEndpoints = {
 	"http://weao.xyz/api/versions/current";
 }
 
+if getgenv and rawget(getgenv(), "WEAO_PROXY") and getgenv().WEAO_PROXY ~= "" then
+	Insert(NAStuff.RobloxVersionEndpoints, tostring(getgenv().WEAO_PROXY))
+end
+Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current")
+Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current?format=json")
+
 NAStuff.RobloxVersionHeaders = {
 	["User-Agent"] = "WEAO-3PService";
 	["Accept"] = "application/json";
+	["Origin"] = "https://weao.xyz";
+	["Referer"] = "https://weao.xyz/";
 }
 
+if getgenv and rawget(getgenv(), "WEAO_COOKIE") and getgenv().WEAO_COOKIE ~= "" then
+	NAStuff.RobloxVersionHeaders["Cookie"] = getgenv().WEAO_COOKIE
+end
+
 originalIO.parseRobloxVersionBody=function(body)
-	if type(body) ~= "string" then
-		return nil
-	end
-	if body:sub(1, 3) == "\239\187\191" then
-		body = body:sub(4)
-	end
+	if type(body) ~= "string" then return nil end
+	if body:sub(1,3) == "\239\187\191" then body = body:sub(4) end
 	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
-	if ok and type(decoded) == "table" then
-		return decoded
+	if ok and type(decoded) == "table" then return decoded end
+	local a,depth,inStr,esc=nil,0,false,false
+	for i=1,#body do
+		local c=body:sub(i,i)
+		if inStr then
+			if esc then esc=false elseif c=="\\" then esc=true elseif c=='"' then inStr=false end
+		else
+			if c=='"' then inStr=true
+			elseif c=='{' then depth=depth+1 a=a or i
+			elseif c=='}' and depth>0 then
+				depth=depth-1
+				if depth==0 and a then
+					local ok2, j = pcall(HttpService.JSONDecode, HttpService, body:sub(a,i))
+					if ok2 and type(j)=="table" then return j end
+				end
+			end
+		end
 	end
 	return nil
 end
@@ -36622,17 +36645,14 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 	end
 
 	local requestFunc = opt and opt.NAREQUEST
-	if requestFunc then
-		for _, url in ipairs(NAStuff.RobloxVersionEndpoints) do
-			local ok, response = pcall(requestFunc, {
-				Url = url;
-				Method = "GET";
-				Headers = NAStuff.RobloxVersionHeaders;
-			})
-			if ok and response then
-				local status = tonumber(response.StatusCode or response.Status)
-				if status and status >= 200 and status < 300 then
-					local body = response.Body or response.body or ""
+	for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
+		if baseUrl and baseUrl ~= "" then
+			local url = baseUrl .. ((Find(baseUrl, "?", 1, true) and "&" or "?") .. "_=" .. tostring(os.time()) .. tostring(math.random(1,1e6)))
+			if requestFunc then
+				local ok1, response = pcall(requestFunc, { Url = url; Method = "GET"; Headers = NAStuff.RobloxVersionHeaders; Timeout = 6; FollowRedirects = true; SslVerify = false; })
+				if ok1 and response then
+					local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
+					body = tostring(body or "")
 					local decoded = originalIO.parseRobloxVersionBody(body)
 					if decoded then
 						NAStuff.RobloxVersionData = decoded
@@ -36640,18 +36660,26 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 						return true, decoded
 					end
 				end
+				local ok2, response2 = pcall(requestFunc, { Url = url; Method = "GET"; Headers = {["Accept"]="application/json"}; Timeout = 6; FollowRedirects = true; SslVerify = false; })
+				if ok2 and response2 then
+					local body2 = response2.Body or response2.body or response2.Data or response2.data or response2.Text or response2.text or response2.Content or response2.content or response2[1]
+					body2 = tostring(body2 or "")
+					local decoded2 = originalIO.parseRobloxVersionBody(body2)
+					if decoded2 then
+						NAStuff.RobloxVersionData = decoded2
+						NAStuff.RobloxVersionLastFetch = tick()
+						return true, decoded2
+					end
+				end
 			end
-		end
-	end
-
-	for _, url in ipairs(NAStuff.RobloxVersionEndpoints) do
-		local ok, body = pcall(HttpService.GetAsync, HttpService, url)
-		if ok and type(body) == "string" then
-			local decoded = originalIO.parseRobloxVersionBody(body)
-			if decoded then
-				NAStuff.RobloxVersionData = decoded
-				NAStuff.RobloxVersionLastFetch = tick()
-				return true, decoded
+			local ok3, body3 = pcall(function() return game and game.HttpGet and game:HttpGet(url) end)
+			if ok3 and type(body3) == "string" then
+				local decoded3 = originalIO.parseRobloxVersionBody(body3)
+				if decoded3 then
+					NAStuff.RobloxVersionData = decoded3
+					NAStuff.RobloxVersionLastFetch = tick()
+					return true, decoded3
+				end
 			end
 		end
 	end
@@ -36666,10 +36694,8 @@ NAStuff.RobloxVersionFailureText = "Failed to load"
 NAStuff.RobloxVersionRows = {}
 originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 	NAgui.addSection(sectionTitle)
-
 	local versionField = NAgui.addInfo("Version", NAStuff.RobloxVersionLoadingText)
 	local updatedField = NAgui.addInfo("Last Updated", NAStuff.RobloxVersionLoadingText)
-
 	Insert(NAStuff.RobloxVersionRows, {
 		versionKey = versionKey;
 		dateKey = dateKey;
@@ -36679,7 +36705,6 @@ originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 end
 
 NAgui.addSection("Powered by weao.xyz API")
-
 originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
 originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
 originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
@@ -36690,16 +36715,15 @@ SpawnCall(function()
 	local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
 	for _, entry in ipairs(NAStuff.RobloxVersionRows) do
 		if entry.versionField then
-			local value = (type(data) == "table" and data[entry.versionKey]) or fallbackText
-			entry.versionField.Text = value and tostring(value) or fallbackText
+			local v = (type(data) == "table" and data[entry.versionKey]) or fallbackText
+			entry.versionField.Text = v and tostring(v) or fallbackText
 		end
 		if entry.dateField then
-			local value = (type(data) == "table" and data[entry.dateKey]) or fallbackText
-			entry.dateField.Text = value and tostring(value) or fallbackText
+			local d = (type(data) == "table" and data[entry.dateKey]) or fallbackText
+			entry.dateField.Text = d and tostring(d) or fallbackText
 		end
 	end
 end)
-
 
 NAgui.setTab(TAB_CHAT)
 
