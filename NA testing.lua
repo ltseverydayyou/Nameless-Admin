@@ -29896,26 +29896,6 @@ cmd.add({"unloopgamma", "unlgamma", "unloopexposure", "unlexposure"},{"unloopgam
 	NAlib.disconnect("loopgamma")
 end)
 
--- totally made you mad didn't i LMAO
-
-cmd.add({"unsuspendchat", "fixchat", "rejoinchat", "restorechat"},{"unsuspendchat","allows you to use text Chat again"},function()
-	if not replicatesignal then return DoNotif("Your executor does not support 'replicatesignal'") end
-	replicatesignal(TextChatService.UpdateChatTimeout, LocalPlayer.UserId, 0, 10)
-end)
-
-cmd.add({"unsuspendvc", "fixvc", "rejoinvc", "restorevc"},{"unsuspendvc","allows you to use Voice Chat again"},function()
-	if not replicatesignal then return DoNotif("Your executor does not support 'replicatesignal'") end
-
-	replicatesignal(SafeGetService("VoiceChatService").ClientRetryJoin)
-
-	if typeof(onVoiceModerated) ~= "RBXScriptConnection" then
-		onVoiceModerated = SafeGetService("VoiceChatInternal").LocalPlayerModerated:Connect(function()
-			Wait(1)
-			replicatesignal(SafeGetService("VoiceChatService").ClientRetryJoin)
-		end)
-	end
-end)
-
 --[[cmd.add({"iy"},{"iy {command}","Executes infinite yield scripts"},function(...)
 	if IYLOADED==false then
 		function copytable(tbl) local copy={} for i,v in pairs(tbl) do copy[i]=v end return copy end
