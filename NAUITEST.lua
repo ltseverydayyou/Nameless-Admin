@@ -52,6 +52,7 @@ G2L["6"] = Instance.new("TextLabel", G2L["4"]);
 G2L["6"]["TextWrapped"] = true;
 G2L["6"]["TextSize"] = 16;
 G2L["6"]["TextScaled"] = true;
+G2L["6"]["RichText"] = true;
 G2L["6"]["BackgroundColor3"] = Color3.fromRGB(49, 49, 54);
 G2L["6"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["6"]["TextColor3"] = Color3.fromRGB(224, 224, 234);
