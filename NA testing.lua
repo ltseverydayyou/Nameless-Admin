@@ -193,6 +193,7 @@ if not originalIO.__captured then
 	originalIO.captureIO('listfiles')
 	originalIO.captureIO('makefolder')
 	originalIO.captureIO('delfile')
+	originalIO.captureIO('delfolder')
 	originalIO.captureIO('isfile')
 	originalIO.captureIO('isfolder')
 end
@@ -318,6 +319,9 @@ if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecuto
 		if originalIO.delfile then
 			delfile = wrapWithFallback(originalIO.delfile, false, true)
 		end
+		if originalIO.delfolder then
+			delfolder = wrapWithFallback(originalIO.delfolder, false, true)
+		end
 		if originalIO.isfile then
 			isfile = wrapWithFallback(originalIO.isfile, true, true)
 		end
@@ -392,6 +396,7 @@ local NAStuff = {
 	Mimic_AnimatePrevDisabled = nil;
 	mimic_uid = 0;
 	ChatSettings = {
+		customEnabled = false;
 		coreGuiChat = true;
 		window = {
 			enabled = true;
@@ -433,6 +438,9 @@ local NAStuff = {
 			tailVisible = true;
 		};
 	};
+	ChatSettingsTemplate = nil;
+	ChatSettingsDefaults = nil;
+	ChatCustomizationActive = nil;
 	_prefetchedRemotes = {};
 	AutoExecBlockedCommands = {
 		exit = true;
@@ -2635,6 +2643,185 @@ NAmanage.SaveBinders=function()
 	end
 end
 
+local function deepCopyTable(value)
+	if type(value) ~= "table" then return value end
+	local copy = {}
+	for k, v in pairs(value) do
+		copy[k] = deepCopyTable(v)
+	end
+	return copy
+end
+
+local function safeDeleteFile(path)
+	if type(path) ~= "string" then
+		return false, "Invalid file path."
+	end
+	if not (delfile and isfile) then
+		return false, "File deletion not supported by this executor."
+	end
+	if not isfile(path) then
+		return true, "File already removed."
+	end
+	local ok, err = pcall(delfile, path)
+	if not ok then
+		return false, err or "Failed to delete file."
+	end
+	return true, "File deleted."
+end
+
+local function safeClearFolder(path, opts)
+	opts = opts or {}
+	if type(path) ~= "string" then
+		return false, "Invalid folder path."
+	end
+	if not (isfolder and listfiles and makefolder) then
+		return false, "Folder operations not supported by this executor."
+	end
+	if not isfolder(path) then
+		return true, "Folder already removed."
+	end
+
+	local okList, entries = pcall(listfiles, path)
+	if okList and type(entries) == "table" then
+		for _, entry in ipairs(entries) do
+			if isfolder(entry) then
+				local okSub, errSub = safeClearFolder(entry, { removeRoot = true })
+				if not okSub then
+					return false, errSub
+				end
+				if delfolder then
+					local okDel, errDel = pcall(delfolder, entry)
+					if not okDel then
+						return false, errDel or ("Failed to remove "..entry)
+					end
+				end
+			else
+				if isfile and isfile(entry) then
+					local okDel, errDel = pcall(delfile, entry)
+					if not okDel then
+						return false, errDel or ("Failed to delete "..entry)
+					end
+				end
+			end
+		end
+	end
+
+	local removedRoot = false
+	if opts.removeRoot then
+		if delfolder then
+			local okDel, errDel = pcall(delfolder, path)
+			if not okDel then
+				return false, errDel or ("Failed to remove "..path)
+			end
+			removedRoot = true
+		end
+	end
+
+	if (opts.recreate or (opts.removeRoot and not removedRoot)) and makefolder then
+		local okMk, errMk = pcall(makefolder, path)
+		if not okMk then
+			return false, errMk or ("Failed to recreate "..path)
+		end
+	end
+
+	if opts.removeRoot and not removedRoot and not delfolder then
+		return true, "Cleared folder contents (folder kept; executor lacks delfolder)."
+	end
+	if removedRoot and opts.recreate then
+		return true, "Folder rebuilt."
+	elseif removedRoot then
+		return true, "Folder removed."
+	end
+	return true, "Folder cleared."
+end
+
+local SettingsCleanupItems = {
+	{ label = "Main Settings", path = NAfiles.NAMAINSETTINGSPATH, kind = "file", displayType = "json", success = "Main settings deleted." },
+	{ label = "Aliases", path = NAfiles.NAALIASPATH, kind = "file", displayType = "json", success = "Alias list deleted." },
+	{ label = "User Buttons", path = NAfiles.NAUSERBUTTONSPATH, kind = "file", displayType = "json", success = "User buttons reset." },
+	{ label = "AutoExec Commands", path = NAfiles.NAAUTOEXECPATH, kind = "file", displayType = "json", success = "AutoExec commands cleared." },
+	{ label = "Binders", path = NAfiles.NABINDERS, kind = "file", displayType = "json", success = "Binders file deleted." },
+	{ label = "Join/Leave Settings", path = NAfiles.NAJOINLEAVE, kind = "file", displayType = "json", success = "Join/Leave settings deleted." },
+	{ label = "Join/Leave Log", path = NAfiles.NAJOINLEAVELOG, kind = "file", displayType = "txt", success = "Join/Leave log cleared." },
+	{ label = "Chat Logs", path = NAfiles.NACHATLOGS, kind = "file", displayType = "txt", success = "Chat logs cleared." },
+	{ label = "Icon Position", path = NAfiles.NAICONPOSPATH, kind = "file", displayType = "json", success = "Icon position reset." },
+	{ label = "ESP Settings", path = NAfiles.NAESPSETTINGSPATH, kind = "file", displayType = "json", success = "ESP settings deleted." },
+	{ label = "Topbar Layout", path = NAfiles.NATOPBAR, kind = "file", displayType = "txt", success = "Topbar layout reset." },
+	{ label = "Notification Toggle", path = NAfiles.NANOTIFSTOGGLE, kind = "file", displayType = "txt", success = "Notification toggle reset." },
+	{ label = "Text Chat Settings", path = NAfiles.NATEXTCHATSETTINGSPATH, kind = "file", displayType = "json", success = "Text chat settings deleted." },
+	{ label = "Waypoints", path = NAfiles.NAWAYPOINTFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Waypoints folder cleared." },
+	{ label = "Plugins", path = NAfiles.NAPLUGINFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Plugins folder cleared." },
+	{ label = "Assets Cache", path = NAfiles.NAASSETSFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Assets cache cleared." },
+	{ label = "All Saved Data", path = NAfiles.NAFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Nameless-Admin folder cleared." },
+}
+
+function NAmanage.buildSettingsCleanupButtons()
+	local buttons = {}
+	if not FileSupport then
+		return buttons
+	end
+
+	for _, entry in ipairs(SettingsCleanupItems) do
+		local exists = false
+		if entry.kind == "file" then
+			exists = isfile and isfile(entry.path)
+		elseif entry.kind == "folder" then
+			exists = listfiles and isfolder and isfolder(entry.path)
+		end
+
+		if exists then
+			local opt = entry
+			local buttonText = Format("%s (%s)", opt.label, opt.displayType or opt.kind)
+			Insert(buttons, {
+				Text = buttonText,
+				Callback = function()
+					local ok, info
+					if opt.kind == "file" then
+						ok, info = safeDeleteFile(opt.path)
+					else
+						ok, info = safeClearFolder(opt.path, { removeRoot = opt.removeRoot, recreate = opt.recreate })
+					end
+
+					if ok then
+						DoNotif(opt.success or info or Format("%s removed.", opt.label), 3)
+						if type(opt.after) == "function" then
+							pcall(opt.after)
+						end
+					else
+						DoNotif(opt.failure or Format("Failed to remove %s: %s", opt.label, tostring(info)), 4)
+					end
+				end,
+			})
+		end
+	end
+
+	return buttons
+end
+
+function NAmanage.openSettingsCleanupPopup()
+	if not FileSupport then
+		DoNotif("File support is required to delete saved settings.", 3)
+		return
+	end
+	if type(Popup) ~= "function" then
+		DoNotif("Popup UI is unavailable in this session.", 3)
+		return
+	end
+
+	local buttons = NAmanage.buildSettingsCleanupButtons()
+	if #buttons == 0 then
+		DoNotif("No saved Nameless-Admin files or folders were found.", 3)
+		return
+	end
+
+	Popup({
+		Title = "Delete Saved Settings",
+		Description = "Select a saved file or folder to remove. This action cannot be undone.",
+		Duration = 0,
+		Buttons = buttons,
+	})
+end
+
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
 	NAsavedScale = NAmanage.NASettingsGet("buttonSize")
@@ -2785,9 +2972,10 @@ if FileSupport then
 		end
 	end
 
+	NAStuff.ChatSettingsTemplate = deepCopyTable(NAStuff.ChatSettings)
+
 	local function loadChat()
-		local cfg = {}
-		deepMerge(cfg, NAStuff.ChatSettings)
+		local cfg = deepCopyTable(NAStuff.ChatSettingsTemplate or NAStuff.ChatSettings)
 		if isfile(ChatConfigPath) then
 			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
@@ -2819,6 +3007,64 @@ if FileSupport then
 		return nil
 	end
 
+	local function getChatDefaults()
+		if not NAStuff.ChatSettingsDefaults then
+			NAStuff.ChatSettingsDefaults = {
+				window = {};
+				tabs = {};
+				input = {};
+				bubbles = {};
+			}
+		end
+		return NAStuff.ChatSettingsDefaults
+	end
+
+	local function rememberChatDefault(group, inst, prop)
+		if not inst then return end
+		local defaults = getChatDefaults()
+		local groupDefaults = defaults[group]
+		local info = groupDefaults[prop]
+		if info and info.source == inst then return end
+		if not hasProp(inst, prop) then return end
+		local ok, value = pcall(function() return inst[prop] end)
+		if not ok then return end
+		groupDefaults[prop] = { has = true, value = value, source = inst }
+	end
+
+	local function captureChatDefaults(Window, Tabs, InputBar, Bubbles)
+		local function captureGroup(group, inst, props)
+			if not inst then return end
+			for _, prop in ipairs(props) do
+				rememberChatDefault(group, inst, prop)
+			end
+		end
+
+		getChatDefaults()
+		captureGroup("window", Window, { "Enabled", "FontFace", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
+		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundTransparency", "TextColor3", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
+		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "TextSize", "TextColor3", "TextStrokeTransparency", "BackgroundTransparency" })
+		captureGroup("bubbles", Bubbles, { "Enabled", "MaxDistance", "MinimizeDistance", "TextSize", "BubblesSpacing", "BackgroundTransparency", "TailVisible" })
+	end
+
+	local function applyChatDefaultGroup(group, inst)
+		local defaults = NAStuff.ChatSettingsDefaults
+		if not defaults or not inst then return end
+		local groupDefaults = defaults[group]
+		if not groupDefaults then return end
+		for prop, info in pairs(groupDefaults) do
+			if info and info.has then
+				safeSet(inst, prop, info.value)
+			end
+		end
+	end
+
+	local function restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
+		applyChatDefaultGroup("window", Window)
+		applyChatDefaultGroup("tabs", Tabs)
+		applyChatDefaultGroup("input", InputBar)
+		applyChatDefaultGroup("bubbles", Bubbles)
+	end
+
 	NAmanage.ApplyTextChatSettings = function()
 		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, NAStuff.ChatSettings.coreGuiChat) end)
 		local TCS = TextChatService
@@ -2827,6 +3073,17 @@ if FileSupport then
 		local InputBar = TCS:FindFirstChildOfClass("ChatInputBarConfiguration")
 		local Bubbles = TCS:FindFirstChildOfClass("BubbleChatConfiguration")
 		local Tabs = TCS:FindFirstChildOfClass("ChannelTabsConfiguration")
+
+		captureChatDefaults(Window, Tabs, InputBar, Bubbles)
+
+		if not NAStuff.ChatSettings.customEnabled then
+			if NAStuff.ChatCustomizationActive ~= false then
+				restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
+			end
+			NAStuff.ChatCustomizationActive = false
+			return
+		end
+		NAStuff.ChatCustomizationActive = true
 
 		if Window then
 			safeSet(Window, "Enabled", NAStuff.ChatSettings.window.enabled)
@@ -35821,6 +36078,13 @@ NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
 end)
 
+if FileSupport then
+	NAgui.addSection("Saved Data")
+	NAgui.addButton("Delete Saved Settings...", function()
+		NAmanage.openSettingsCleanupPopup()
+	end)
+end
+
 NAgui.addTab(TAB_INTERFACE, { order = 2 })
 NAgui.setTab(TAB_INTERFACE)
 
@@ -36375,6 +36639,48 @@ do
 	end
 
 	NAgui.addSection("Text Chat")
+	NAgui.addToggle("Enable Custom Chat Styling", NAStuff.ChatSettings.customEnabled, function(v)
+		NAStuff.ChatSettings.customEnabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addButton("Reset Custom Chat Settings", function()
+		local ok, err = pcall(function()
+			local template = NAStuff.ChatSettingsTemplate
+			if type(template) ~= "table" then
+				error("Chat default settings unavailable.")
+			end
+
+			local current = NAStuff.ChatSettings
+			local preserveCustom = (current and current.customEnabled) or false
+			local preserveCoreChat = (current and current.coreGuiChat ~= nil) and current.coreGuiChat or true
+			local templateCopy = deepCopyTable(template)
+
+			if type(current) ~= "table" then
+				current = {}
+				NAStuff.ChatSettings = current
+			end
+
+			for key in pairs(current) do
+				current[key] = nil
+			end
+			for key, value in pairs(templateCopy) do
+				current[key] = value
+			end
+
+			current.customEnabled = preserveCustom
+			current.coreGuiChat = preserveCoreChat
+
+			NAStuff.ChatCustomizationActive = nil
+			NAmanage.SaveTextChatSettings()
+			NAmanage.ApplyTextChatSettings()
+		end)
+
+		if ok then
+			DoNotif("Chat style options reset to defaults.", 2)
+		else
+			warn("[NA] Reset Custom Chat Settings failed:", err)
+			DoNotif("Failed to reset chat settings. Check console for details.", 3)
+		end
+	end)
 
 	NAgui.addToggle("Enable Chat (CoreGui)", NAStuff.ChatSettings.coreGuiChat, function(v)
 		NAStuff.ChatSettings.coreGuiChat = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
