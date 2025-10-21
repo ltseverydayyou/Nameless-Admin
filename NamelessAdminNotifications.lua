@@ -205,7 +205,7 @@ local function attachTimer(card,fil,dur)
 	return{pause=function()ext=true refresh()end,resume=function()ext=false refresh()end}
 end
 
-local function calcCellH(w,list,font)local h=32 for _,info in ipairs(list)do local t=tostring(info.Text or "")local iconSpace=0 do local raw=info.Image if raw~=nil then if typeof(raw)=="number"then raw="rbxassetid://"..raw elseif typeof(raw)~="string"then raw=nil end end if raw and raw~=""then iconSpace=28 end end local avail=math.max(10,w-12-iconSpace)local sz=ts:GetTextSize(t,14,font,Vector2.new(avail,math.huge))h=math.max(h,math.ceil(sz.Y)+12)end return math.clamp(h,32,78)end
+local function calcCellH(w,list,font)local h=32 for _,info in ipairs(list)do local t=tostring(info.Text or "")local iconSpace=0 do local raw=info.Image if raw~=nil then if typeof(raw)=="number"then raw="rbxassetid://"..raw elseif typeof(raw)~="string"then raw=nil end end if raw and raw~=""then iconSpace=28 end end local avail=math.max(10,w-24-iconSpace)local sz=ts:GetTextSize(t,14,font,Vector2.new(avail,math.huge))h=math.max(h,math.ceil(sz.Y)+12)end return math.clamp(h,32,78)end
 local function mkBtnArea(cnt,list,owner,z,maxH,font)
 	if not list or #list==0 then return end
 	local sf=Instance.new("ScrollingFrame")sf.BackgroundTransparency=1 sf.BorderSizePixel=0 sf.ScrollBarThickness=6 sf.AutomaticCanvasSize=Enum.AutomaticSize.Y sf.ScrollingEnabled=true sf.CanvasSize=UDim2.new()sf.Size=UDim2.new(1,0,0,0)sf.ZIndex=(z or 10)sf.ClipsDescendants=true sf.Parent=cnt
@@ -215,9 +215,62 @@ local function mkBtnArea(cnt,list,owner,z,maxH,font)
 	local function fitH()local need=grid.AbsoluteContentSize.Y local cap=math.min(420,math.max(32,maxH or math.floor(gui.AbsoluteSize.Y*0.5)))local h=math.min(need,cap)sf.Size=UDim2.new(1,0,0,h)sf.ScrollingEnabled=need>cap sf.ScrollBarThickness=need>cap and 6 or 0 end
 	grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fitH)rs.Heartbeat:Wait()fitCells()fitH()
 	local s=ctx(owner)s.sel=s.sel or {} s.btns=s.btns or {}
-	for _,info in ipairs(list)do local b=mkBtn(sf,info.Text or "",(z or 10)+1,font)b:SetAttribute("sel",false)s.btns[b]=info
-		local raw=info.Image if raw~=nil then if typeof(raw)=="number"then raw="rbxassetid://"..raw elseif typeof(raw)~="string"then raw=nil end end local icon=Instance.new("ImageLabel")icon.Name="Icon"icon.BackgroundTransparency=1 icon.AnchorPoint=Vector2.new(0,0.5)icon.Position=UDim2.new(0,10,0.5,0)icon.Size=UDim2.fromOffset(20,20)icon.Image=(raw and raw)or""icon.ImageTransparency=(raw and raw~="")and 0 or 1 icon.ScaleType=Enum.ScaleType.Fit icon.ZIndex=b.ZIndex+1 icon.Parent=b
-		local pad=b:FindFirstChildOfClass("UIPadding")or Instance.new("UIPadding")pad.PaddingTop=UDim.new(0,8)pad.PaddingBottom=UDim.new(0,8)pad.PaddingRight=UDim.new(0,12)pad.PaddingLeft=UDim.new(0,(raw and raw~="")and 36 or 12)pad.Parent=b b.TextXAlignment=(raw and raw~="")and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+	for _,info in ipairs(list)do
+		local b=mkBtn(sf,info.Text or "",(z or 10)+1,font)b:SetAttribute("sel",false)s.btns[b]=info
+
+		local raw=info.Image
+		if raw~=nil then
+			if typeof(raw)=="number"then raw="rbxassetid://"..raw
+			elseif typeof(raw)~="string"then raw=nil end
+		end
+		local hasIcon=(raw and raw~="")and true or false
+
+		b.Text=""
+		local pad=b:FindFirstChildOfClass("UIPadding")or Instance.new("UIPadding")
+		pad.PaddingTop=UDim.new(0,8)pad.PaddingBottom=UDim.new(0,8)pad.PaddingRight=UDim.new(0,12)pad.PaddingLeft=UDim.new(0,12)pad.Parent=b
+
+		local layout=b:FindFirstChild("ContentLayout")
+		if not layout then
+			layout=Instance.new("UIListLayout")
+			layout.Name="ContentLayout"
+			layout.FillDirection=Enum.FillDirection.Horizontal
+			layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
+			layout.VerticalAlignment=Enum.VerticalAlignment.Center
+			layout.SortOrder=Enum.SortOrder.LayoutOrder
+			layout.Parent=b
+		end
+
+		local icon=b:FindFirstChild("Icon")or Instance.new("ImageLabel")
+		icon.Name="Icon"
+		icon.BackgroundTransparency=1
+		icon.Image=(raw and raw)or""
+		icon.Visible=hasIcon
+		icon.ImageTransparency=hasIcon and 0 or 1
+		icon.ScaleType=Enum.ScaleType.Fit
+		icon.ZIndex=b.ZIndex+2
+		icon.LayoutOrder=10
+		icon.Size=hasIcon and UDim2.fromOffset(20,20)or UDim2.new(0,0,0,0)
+		icon.Parent=b
+
+		local lbl=b:FindFirstChild("Text")or Instance.new("TextLabel")
+		lbl.Name="Text"
+		lbl.BackgroundTransparency=1
+		lbl.TextColor3=CLR.Text
+		lbl.RichText=true
+		lbl.TextWrapped=true
+		lbl.TextScaled=true
+		lbl.Font=font or Enum.Font.Gotham
+		lbl.Text=info.Text or""
+		lbl.ZIndex=b.ZIndex+2
+		lbl.LayoutOrder=20
+		lbl.TextYAlignment=Enum.TextYAlignment.Center
+		lbl.TextXAlignment=hasIcon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+		local textOffset=hasIcon and 28 or 0
+		lbl.Size=UDim2.new(1,-textOffset,1,0)
+		if not lbl:FindFirstChildOfClass("UITextSizeConstraint")then local c=Instance.new("UITextSizeConstraint")c.MinTextSize=12 c.MaxTextSize=20 c.Parent=lbl end
+		lbl.Parent=b
+
+		layout.Padding=UDim.new(0,hasIcon and 8 or 0)
 		b.MouseButton1Click:Connect(function()
 			if s.multi then
 				local i=table.find(s.sel,info)
