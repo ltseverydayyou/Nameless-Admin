@@ -33585,7 +33585,7 @@ NAmanage.Topbar_UpdateToggleVisual=function(open)
 	local CLOSED_OFF=Vector2.new(456,440)
 	local CLOSED_SIZE=Vector2.new(36,36)
 	local OPENED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_5.png"
-	local OPENED_OFF=Vector2.new(436,258)
+	local OPENED_OFF=Vector2.new(474,258)
 	local OPENED_SIZE=Vector2.new(36,36)
 	if open then
 		NAmanage.Topbar_AnimateIcon(OPENED_IMG,OPENED_OFF,OPENED_SIZE)
