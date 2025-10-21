@@ -1931,6 +1931,8 @@ local opt={
 	currentTagText = "Tag";
 	currentTagColor = Color3.fromRGB(0, 255, 170);
 	currentTagRGB = false;
+	chatTranslateEnabled = true;
+	chatTranslateTarget = "en";
 	--saveTag = false;
 }
 
@@ -2181,6 +2183,25 @@ NAmanage.NASettingsGetSchema=function()
 			default = true;
 			coerce = function(value)
 				return coerceBoolean(value, true)
+			end;
+		};
+		chatTranslate = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		chatTranslateTarget = {
+			default = "en";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "en")
+				end
+				value = value:lower()
+				if value == "" then
+					return "en"
+				end
+				return value
 			end;
 		};
 		uiStroke = {
@@ -2801,6 +2822,9 @@ function NAmanage.openSettingsCleanupPopup()
 		Buttons = buttons,
 	})
 end
+
+opt.chatTranslateEnabled = NAmanage.NASettingsGet("chatTranslate")
+opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -11430,22 +11454,42 @@ end)
 
 cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 	local backpack = getBp()
-	local dropped = 0
+	local character = getChar()
+	if not character then
+		return DebugNotif("Character not available", 4)
+	end
 
-	if backpack then
-		for _, tool in ipairs(backpack:GetChildren()) do
+	local queue = {}
+	local function collect(from)
+		if not from then return end
+		for _, tool in ipairs(from:GetChildren()) do
 			if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
-				tool.Parent = getChar()
+				Insert(queue, tool)
 			end
 		end
 	end
 
-	Wait()
+	collect(character)
+	collect(backpack)
 
-	for _, tool in ipairs(getChar():GetChildren()) do
-		if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
-			tool.Parent = workspace
-			dropped += 1
+	if #queue == 0 then
+		return DebugNotif("No droppable tools found", 4)
+	end
+
+	local dropped = 0
+
+	for _, tool in ipairs(queue) do
+		if tool and tool.Parent then
+			if tool.Parent == backpack then
+				tool.Parent = character
+				Wait()
+			end
+
+			if tool.Parent == character then
+				tool.Parent = workspace
+				dropped += 1
+				Wait(.05)
+			end
 		end
 	end
 
@@ -13360,7 +13404,7 @@ cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets yo
 
 	function handleRespawn()
 		if stationaryRespawn and getHum() and getHum().Health == 0 then
-			if not hasPosition then
+			if not hasPosition and (getChar() and getRoot(getChar())) then
 				spawnPosition = getRoot(getChar()).CFrame
 				hasPosition = true
 			end
@@ -19271,9 +19315,22 @@ cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers 
 	cmd.run({'die'})
 end)
 
-cmd.add({"volume","vol"},{"volume <1-10> (vol)","Changes your volume"},function(vol)
-	amount=vol/10
+cmd.add({"volume","vol"},{"volume <0-10> (vol)","Changes your volume"},function(vol)
+	if not vol then return DoNotif("please provide a number between 0-10",2) end
+	local amount=math.clamp(vol, 0, 10)
 	UserSettings():GetService("UserGameSettings").MasterVolume=amount
+end,true)
+
+cmd.add({"perfstats"},{"perfstats <on/off>","Shows or hides performance stats"},function(t)
+	local s=UserSettings():GetService("UserGameSettings")
+	local a=tostring(t or ""):lower()
+	pcall(function() s.PerformanceStatsVisible=(a=="on" or a=="true" or a=="1") end)
+end,true)
+
+cmd.add({"preftransparency","prefalpha"},{"preftransparency <0-15>","Preferred UI transparency"},function(v)
+	local s=UserSettings():GetService("UserGameSettings")
+	local n=math.clamp(tonumber(v) or 0,0,15)
+	pcall(function() s.PreferredTransparency=n end)
 end,true)
 
 cmd.add({"sensitivity","sens"},{"sensitivity <1-10> (sens)","Changes your sensitivity"},function(ss)
@@ -23325,6 +23382,258 @@ end)]]
 
 HumanModCons = {}
 
+ToolLoopCons = {}
+
+originalIO.stopEquipToolLoop=function(silent)
+	if ToolLoopCons.loop then
+		ToolLoopCons.loop:Disconnect()
+		ToolLoopCons.loop = nil
+	end
+
+	if not silent then
+		if ToolLoopCons.display then
+			DoNotif(Format("Loop equip disabled for \"%s\".", ToolLoopCons.display), 2)
+		else
+			DoNotif("Loop equip disabled.", 2)
+		end
+	end
+
+	ToolLoopCons.filter = nil
+	ToolLoopCons.display = nil
+	ToolLoopCons.warned = nil
+end
+
+originalIO.gatherPlayerTools=function()
+	local char = getChar()
+	local backpack = getBp()
+	local tools = {}
+
+	if not char and not backpack then
+		return char, backpack, tools
+	end
+
+	local seen = {}
+	local function considerTool(tool)
+		if typeof(tool) == "Instance" and tool:IsA("Tool") and not seen[tool] then
+			seen[tool] = true
+			Insert(tools, tool)
+		end
+	end
+
+	if backpack then
+		for _, item in ipairs(backpack:GetChildren()) do
+			considerTool(item)
+		end
+	end
+
+	if char then
+		for _, item in ipairs(char:GetChildren()) do
+			considerTool(item)
+		end
+	end
+
+	table.sort(tools, function(a, b)
+		return Lower(a.Name) < Lower(b.Name)
+	end)
+
+	return char, backpack, tools
+end
+
+originalIO.safeToolImage=function(inst, props)
+	for _, propName in ipairs(props) do
+		local ok, value = pcall(function()
+			return inst[propName]
+		end)
+		if ok then
+			if typeof(value) == "number" then
+				value = "rbxassetid://" .. value
+			end
+			if typeof(value) == "string" and value ~= "" then
+				return value
+			end
+		end
+	end
+end
+
+originalIO.findToolImage=function(tool)
+	if not tool then
+		return nil
+	end
+
+	local direct = originalIO.safeToolImage(tool, { "TextureId", "TextureID", "Texture", "Image" })
+	if direct then
+		return direct
+	end
+
+	for _, desc in ipairs(tool:GetDescendants()) do
+		local image
+		if desc:IsA("Decal") or desc:IsA("Texture") then
+			image = originalIO.safeToolImage(desc, { "Texture" })
+		elseif desc:IsA("SpecialMesh") or desc:IsA("Mesh") or desc:IsA("DataModelMesh") then
+			image = originalIO.safeToolImage(desc, { "TextureId" })
+		elseif desc:IsA("MeshPart") or desc:IsA("UnionOperation") or desc:IsA("BasePart") then
+			image = originalIO.safeToolImage(desc, { "TextureID", "TextureId" })
+		elseif desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
+			image = originalIO.safeToolImage(desc, { "Image" })
+		else
+			image = originalIO.safeToolImage(desc, { "Texture", "TextureId", "TextureID", "Image" })
+		end
+		if image then
+			return image
+		end
+	end
+
+	return nil
+end
+
+originalIO.findToolByName=function(tools, query)
+	if type(query) ~= "string" or query == "" then
+		return nil
+	end
+
+	local lowerQuery = Lower(query)
+	local partial
+	for _, tool in ipairs(tools) do
+		local lowerName = Lower(tool.Name)
+		if lowerName == lowerQuery then
+			return tool
+		end
+		if not partial and lowerName:find(lowerQuery, 1, true) then
+			partial = tool
+		end
+	end
+	return partial
+end
+
+originalIO.equipToolInstance=function(toolRef)
+	if typeof(toolRef) ~= "Instance" or not toolRef:IsA("Tool") then
+		DoNotif("Tool is no longer available.", 2)
+		return false
+	end
+
+	local charNow = getChar()
+	if not charNow then
+		DoNotif("Could not find your character.", 2)
+		return false
+	end
+
+	local target = toolRef
+	if not (target and target.Parent) then
+		local currentBp = getBp()
+		if currentBp then
+			local found = currentBp:FindFirstChild(toolRef.Name)
+			if found and found:IsA("Tool") then
+				target = found
+			end
+		end
+	end
+
+	if not target or not target:IsA("Tool") then
+		DoNotif("Tool is no longer available.", 2)
+		return false
+	end
+
+	local targetRef = target
+	Defer(function()
+		local charLater = getChar()
+		if not charLater then
+			return
+		end
+
+		local toolToEquip = targetRef
+		if not (toolToEquip and toolToEquip.Parent) then
+			local laterBackpack = getBp()
+			if laterBackpack then
+				local foundLater = laterBackpack:FindFirstChild(toolRef.Name)
+				if foundLater and foundLater:IsA("Tool") then
+					toolToEquip = foundLater
+				end
+			end
+		end
+
+		if toolToEquip and toolToEquip:IsA("Tool") and toolToEquip.Parent ~= charLater then
+			toolToEquip.Parent = charLater
+		end
+	end)
+
+	return true
+end
+
+originalIO.buildToolButtons=function(tools, action)
+	local buttons = {}
+	for _, toolRef in ipairs(tools) do
+		local imageId = originalIO.findToolImage(toolRef) or ""
+		local toolName = toolRef.Name
+		buttons[#buttons + 1] = {
+			Text = toolName,
+			Image = imageId,
+			Callback = function()
+				action(toolRef)
+			end
+		}
+	end
+	buttons[#buttons + 1] = { Text = "Cancel", Callback = function() end }
+	return buttons
+end
+
+originalIO.startLoopForTool=function(toolRef)
+	if typeof(toolRef) ~= "Instance" or not toolRef:IsA("Tool") then
+		DoNotif("Select a valid tool to loop equip.", 2)
+		return
+	end
+
+	local displayName = toolRef.Name
+	local filterLower = Lower(displayName)
+
+	originalIO.stopEquipToolLoop(true)
+
+	ToolLoopCons.filter = filterLower
+	ToolLoopCons.display = displayName
+	ToolLoopCons.warned = false
+
+	originalIO.equipToolInstance(toolRef)
+
+	ToolLoopCons.loop = RunService.Stepped:Connect(function()
+		if not ToolLoopCons.filter then
+			return
+		end
+
+		local currentChar = getChar()
+		if not currentChar then
+			return
+		end
+
+		local currentBackpack = getBp()
+		if not currentBackpack then
+			return
+		end
+
+		local function findMatch(container)
+			for _, tool in ipairs(container:GetChildren()) do
+				if tool:IsA("Tool") and Lower(tool.Name):find(filterLower, 1, true) then
+					return tool
+				end
+			end
+		end
+
+		if findMatch(currentChar) then
+			ToolLoopCons.warned = false
+			return
+		end
+
+		local match = findMatch(currentBackpack)
+		if match then
+			ToolLoopCons.warned = false
+			originalIO.equipToolInstance(match)
+		elseif not ToolLoopCons.warned then
+			DoNotif(Format("Loop equip: \"%s\" not found.", ToolLoopCons.display), 2)
+			ToolLoopCons.warned = true
+		end
+	end)
+
+	DoNotif(Format("Loop equip enabled for \"%s\". Use unloopequiptool to stop.", displayName), 3)
+end
+
 cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when you get to the edge of an object"}, function()
 	local Char = speaker.Character
 	local Human = getHum()
@@ -23378,6 +23687,92 @@ cmd.add({"unequiptools"},{"unequiptools","Unequips every tool you are currently 
 	if getChar() then
 		getChar():FindFirstChildOfClass('Humanoid'):UnequipTools()
 	end
+end)
+
+cmd.add({"equiptool","etool"},{"equiptool (etool)","Equip a specific tool by name or selection"},function(...)
+	local char, backpack, tools = originalIO.gatherPlayerTools()
+	if not char or not backpack then
+		DoNotif("Could not find your character or backpack.", 2)
+		return
+	end
+
+	if #tools == 0 then
+		DoNotif("You do not have any tools to equip.", 2)
+		return
+	end
+
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+
+	if rawInput ~= "" then
+		local match = originalIO.findToolByName(tools, rawInput)
+		if match then
+			originalIO.equipToolInstance(match)
+		else
+			DoNotif(Format("No tools matching '%s' found.", rawInput), 2)
+		end
+		return
+	end
+
+	if type(Popup) ~= "function" then
+		DoNotif("Popup UI is unavailable in this session. Provide a tool name instead.", 3)
+		return
+	end
+
+	local buttons = originalIO.buildToolButtons(tools, function(toolRef)
+		originalIO.equipToolInstance(toolRef)
+	end)
+
+	Popup({
+		Title = "Equip Tool",
+		Description = "Select a tool to equip.",
+		Buttons = buttons
+	})
+end)
+
+cmd.add({"loopequiptool","lequiptool","loopet"},{"loopequiptool <tool name>","Keeps a specific tool equipped until disabled"},function(...)
+	local char, backpack, tools = originalIO.gatherPlayerTools()
+	if not char or not backpack then
+		DoNotif("Could not find your character or backpack.", 2)
+		return
+	end
+
+	if #tools == 0 then
+		DoNotif("You do not have any tools to loop equip.", 2)
+		return
+	end
+
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+
+	if rawInput ~= "" then
+		local match = originalIO.findToolByName(tools, rawInput)
+		if match then
+			originalIO.startLoopForTool(match)
+		else
+			DoNotif(Format("No tools matching '%s' found.", rawInput), 2)
+		end
+		return
+	end
+
+	if type(Popup) ~= "function" then
+		DoNotif("Popup UI is unavailable in this session. Provide a tool name instead.", 3)
+		return
+	end
+
+	local buttons = originalIO.buildToolButtons(tools, function(toolRef)
+		originalIO.startLoopForTool(toolRef)
+	end)
+
+	Popup({
+		Title = "Loop Equip Tool",
+		Description = "Select a tool to keep equipped.",
+		Buttons = buttons
+	})
+end)
+
+cmd.add({"unloopequiptool","unloopet","unlequiptool"},{"unloopequiptool","Stops the loop equip behaviour"},function()
+	originalIO.stopEquipToolLoop()
 end)
 
 bangLoop = nil
@@ -28414,36 +28809,141 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights all parts in 
 end,true)
 
 cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ESP for a folder or all"},function(...)
-	local name = Lower(Concat({...}," "))
-	if not NAStuff.folderESPMembers then return end
-	if name=="" then
-		local keys = {}
-		for f,_ in pairs(NAStuff.folderESPMembers) do Insert(keys,f) end
-		for _,f in ipairs(keys) do
-			local k = NAStuff.folderESPKeys and NAStuff.folderESPKeys[f]
-			if k then NAlib.disconnect(k); NAStuff.folderESPKeys[f]=nil end
-			local list = NAStuff.folderESPMembers[f]
-			if list then
-				for _,p in ipairs(list) do NAmanage.RemoveEspFromPart(p) end
-				table.clear(list)
-				NAStuff.folderESPMembers[f]=nil
+	local members = NAStuff.folderESPMembers
+	if type(members) ~= "table" then
+		DoNotif("No folder ESP entries are active.", 2)
+		return
+	end
+
+	local keysCache = NAStuff.folderESPKeys
+
+	local function detachFolder(folder)
+		if typeof(folder) ~= "Instance" then
+			return false
+		end
+
+		local removed = false
+
+		if keysCache then
+			local conn = keysCache[folder]
+			if conn then
+				NAlib.disconnect(conn)
+				keysCache[folder] = nil
+				removed = true
 			end
 		end
-	else
-		local folder
-		for _,obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("Folder") and Lower(obj.Name)==name then folder=obj break end
-		end
-		if not folder then return end
-		local k = NAStuff.folderESPKeys and NAStuff.folderESPKeys[folder]
-		if k then NAlib.disconnect(k); NAStuff.folderESPKeys[folder]=nil end
-		local list = NAStuff.folderESPMembers[folder]
+
+		local list = members[folder]
 		if list then
-			for _,p in ipairs(list) do NAmanage.RemoveEspFromPart(p) end
+			for _, part in ipairs(list) do
+				NAmanage.RemoveEspFromPart(part)
+			end
 			table.clear(list)
-			NAStuff.folderESPMembers[folder]=nil
+			members[folder] = nil
+			removed = true
+		end
+
+		return removed
+	end
+
+	local function collectTrackedFolders()
+		local tracked = {}
+		for folder, _ in pairs(members) do
+			if typeof(folder) == "Instance" then
+				tracked[#tracked + 1] = folder
+			else
+				members[folder] = nil
+			end
+		end
+		table.sort(tracked, function(a, b)
+			return Lower(a.Name) < Lower(b.Name)
+		end)
+		return tracked
+	end
+
+	local function removeAllFolders()
+		local tracked = collectTrackedFolders()
+		local removed = 0
+		for _, folder in ipairs(tracked) do
+			if detachFolder(folder) then
+				removed += 1
+			end
+		end
+		if removed > 0 then
+			DoNotif(Format("Stopped folder ESP for %d folder(s).", removed), 2)
+		else
+			DoNotif("No folder ESP entries were active.", 2)
 		end
 	end
+
+	local trackedFolders = collectTrackedFolders()
+
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	local loweredInput = Lower(rawInput)
+
+	if loweredInput ~= "" then
+		if loweredInput == "all" or loweredInput == "*" then
+			removeAllFolders()
+			return
+		end
+
+		local picked = nil
+		for _, folder in ipairs(trackedFolders) do
+			if Lower(folder.Name) == loweredInput then
+				picked = folder
+				break
+			end
+		end
+
+		if not picked then
+			for _, folder in ipairs(trackedFolders) do
+				if Match(Lower(folder.Name), loweredInput) then
+					picked = folder
+					break
+				end
+			end
+		end
+
+		if picked and detachFolder(picked) then
+			DoNotif(Format("Stopped folder ESP for '%s'.", picked.Name), 2)
+		else
+			DoNotif(Format("No folder ESP entry matching '%s'.", rawInput ~= "" and rawInput or loweredInput), 3)
+		end
+		return
+	end
+
+	if #trackedFolders == 0 then
+		DoNotif("No folder ESP entries are active.", 2)
+		return
+	end
+
+	local buttons = {
+		{
+			Text = "All",
+			Callback = removeAllFolders
+		}
+	}
+
+	for _, folder in ipairs(trackedFolders) do
+		local folderRef = folder
+		buttons[#buttons + 1] = {
+			Text = folderRef.Name,
+			Callback = function()
+				if detachFolder(folderRef) then
+					DoNotif(Format("Stopped folder ESP for '%s'.", folderRef.Name), 2)
+				else
+					DoNotif("Folder ESP entry was not active.", 2)
+				end
+			end
+		}
+	end
+
+	Window({
+		Title = "Folder ESP",
+		Description = "Select a folder ESP entry to disable.",
+		Buttons = buttons
+	})
 end,true)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
@@ -33507,6 +34007,12 @@ NAgui.menuv2 = function(menu)
 		end)
 	end
 
+	if translateButton and NAStuff.ChatTranslator then
+		NACaller(function()
+			NAStuff.ChatTranslator:registerButton(translateButton)
+		end)
+	end
+
 	NACaller(function()
 		NAgui.draggerV2(menu, menu.Topbar)
 	end)
@@ -33514,6 +34020,18 @@ NAgui.menuv2 = function(menu)
 	NACaller(function()
 		menu.Visible = false
 	end)
+end
+
+NAgui.menuv3 = function(menu)
+	if not menu then return end
+	NAgui.menuv2(menu)
+	local translator = NAStuff.ChatTranslator
+	local translateButton = menu:FindFirstChild("Translate", true)
+	local translateInput = menu:FindFirstChild("TranslateInput", true)
+
+	if translator then
+		translator:attachControls(translateButton, translateInput)
+	end
 end
 
 NAgui.hideFill = function()
@@ -33821,7 +34339,7 @@ end)
 NAgui.barDeselect(0)
 NAUIMANAGER.cmdBar.Visible=true
 if NAUIMANAGER.chatLogsFrame then
-	NAgui.menuv2(NAUIMANAGER.chatLogsFrame)
+	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
 end
 
 if NAUIMANAGER.NAconsoleFrame then
@@ -33932,6 +34450,490 @@ NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 	NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
 end)
 
+do
+	local Http = HttpService
+	local translator = NAStuff.ChatTranslator or {}
+	NAStuff.ChatTranslator = translator
+
+	translator.messages = translator.messages or {}
+	translator.enabled = opt.chatTranslateEnabled ~= false
+	opt.chatTranslateEnabled = translator.enabled
+
+	local function toIso(value)
+		if not value then return nil end
+		return tostring(value):lower()
+	end
+
+	local languages = {
+		auto="Automatic",af="Afrikaans",sq="Albanian",am="Amharic",ar="Arabic",hy="Armenian",az="Azerbaijani",eu="Basque",be="Belarusian",bn="Bengali",bs="Bosnian",bg="Bulgarian",ca="Catalan",ceb="Cebuano",ny="Chichewa",
+		["zh-cn"]="Chinese Simplified",["zh-tw"]="Chinese Traditional",co="Corsican",hr="Croatian",cs="Czech",da="Danish",nl="Dutch",en="English",eo="Esperanto",et="Estonian",tl="Filipino",fi="Finnish",fr="French",fy="Frisian",
+		gl="Galician",ka="Georgian",de="German",el="Greek",gu="Gujarati",ht="Haitian Creole",ha="Hausa",haw="Hawaiian",iw="Hebrew",he="Hebrew",hi="Hindi",hmn="Hmong",hu="Hungarian",is="Icelandic",ig="Igbo",id="Indonesian",ga="Irish",it="Italian",
+		ja="Japanese",jw="Javanese",kn="Kannada",kk="Kazakh",km="Khmer",ko="Korean",ku="Kurdish (Kurmanji)",ky="Kyrgyz",lo="Lao",la="Latin",lv="Latvian",lt="Lithuanian",lb="Luxembourgish",mk="Macedonian",mg="Malagasy",ms="Malay",
+		ml="Malayalam",mt="Maltese",mi="Maori",mr="Marathi",mn="Mongolian",my="Myanmar (Burmese)",ne="Nepali",no="Norwegian",ps="Pashto",fa="Persian",pl="Polish",pt="Portuguese",pa="Punjabi",ro="Romanian",ru="Russian",sm="Samoan",
+		gd="Scots Gaelic",sr="Serbian",st="Sesotho",sn="Shona",sd="Sindhi",si="Sinhala",sk="Slovak",sl="Slovenian",so="Somali",es="Spanish",su="Sundanese",sw="Swahili",sv="Swedish",tg="Tajik",ta="Tamil",te="Telugu",th="Thai",tr="Turkish",
+		uk="Ukrainian",ur="Urdu",uz="Uzbek",vi="Vietnamese",cy="Welsh",xh="Xhosa",yi="Yiddish",yo="Yoruba",zu="Zulu"
+	}
+
+	local function iso(value)
+		local lowered = toIso(value)
+		if not lowered then
+			return nil
+		end
+		if languages[lowered] then
+			return lowered
+		end
+		for code, name in pairs(languages) do
+			if type(name) == "string" and name:lower() == lowered then
+				return code
+			end
+		end
+		return nil
+	end
+
+	local function languageName(code)
+		return languages[code] or code
+	end
+
+	translator.target = iso(opt.chatTranslateTarget) or translator.target or "en"
+	opt.chatTranslateTarget = translator.target
+
+	translator._state = translator._state or {
+		gv = (isfile and isfile("googlev.txt") and readfile("googlev.txt")) or "";
+		fsid = nil;
+		bl = nil;
+		rid = math.random(1000, 9999);
+	}
+
+	local state = translator._state
+	local root = "https://translate.google.com/"
+	local exec = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute"
+	local rpc = "MkEWBc"
+
+	local function requestAsync(optArgs)
+		local fn = opt.NAREQUEST
+		if fn then
+			local ok, res = pcall(fn, optArgs)
+			if ok and res then
+				return res
+			end
+		end
+		local ok2, res2 = pcall(function()
+			return Http:RequestAsync(optArgs)
+		end)
+		if ok2 and res2 then
+			return res2
+		end
+		return nil
+	end
+
+	local function handleConsent(body)
+		local tokens = {}
+		for tag in body:gmatch('<input type="hidden" name=".-" value=".-">') do
+			local k, v = tag:match('<input type="hidden" name="(.-)" value="(.-)">')
+			if k and v then
+				tokens[k] = v
+			end
+		end
+		state.gv = tokens.v or state.gv or ""
+		if writefile then
+			pcall(writefile, "googlev.txt", state.gv)
+		end
+	end
+
+	local function fetch(url, method, body)
+		local res = requestAsync({
+			Url = url;
+			Method = method or "GET";
+			Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
+			Body = body;
+		})
+		if not res then
+			return nil
+		end
+		local b = res.Body or res.body or ""
+		if type(b) ~= "string" then
+			b = tostring(b)
+		end
+		if b:find("https://consent.google.com/s") then
+			handleConsent(b)
+			res = requestAsync({
+				Url = url;
+				Method = "GET";
+				Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
+			})
+			if not res then
+				return nil
+			end
+		end
+		return res
+	end
+
+	local function ensureSession()
+		if state.fsid and state.bl then
+			return true
+		end
+		local res = fetch(root)
+		if not res then
+			return false
+		end
+		local body = res.Body or res.body or ""
+		if type(body) ~= "string" then
+			body = tostring(body)
+		end
+		state.fsid = body:match('"FdrFJe":"(.-)"')
+		state.bl = body:match('"cfb2h":"(.-)"')
+		return state.fsid ~= nil and state.bl ~= nil
+	end
+
+	local function encodeQuery(data)
+		local s = ""
+		for k, v in pairs(data) do
+			if type(v) == "table" then
+				for _, vv in pairs(v) do
+					s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(vv)
+				end
+			else
+				s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(v)
+			end
+		end
+		return s:sub(2)
+	end
+
+	local jsonEncode = function(x) return Http:JSONEncode(x) end
+	local jsonDecode = function(x) return Http:JSONDecode(x) end
+
+	local function translateSimple(text, target, source)
+		target = iso(target) or "en"
+		source = iso(source) or "auto"
+		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
+			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
+		local res = requestAsync({Url = url, Method = "GET"})
+		if not res then return nil end
+		local body = res.Body or res.body or ""
+		local ok, data = pcall(function()
+			return Http:JSONDecode(body)
+		end)
+		if not ok or type(data) ~= "table" then
+			return nil
+		end
+		local segments = data[1]
+		local detected = data[3]
+		local parts = {}
+		if type(segments) == "table" then
+			for _, seg in ipairs(segments) do
+				if type(seg) == "table" and type(seg[1]) == "string" then
+					Insert(parts, seg[1])
+				end
+			end
+		end
+		local translated = Concat(parts, "")
+		if translated == "" then
+			translated = nil
+		end
+		return translated, detected
+	end
+
+	local function translatePayload(text, target, source)
+		if not text or text == "" then
+			return nil
+		end
+		local translated, detected = translateSimple(text, target, source)
+		if translated and translated ~= "" then
+			return translated, detected
+		end
+		if not ensureSession() then
+			return translated, detected
+		end
+		state.rid += 10000
+		target = iso(target) or "en"
+		source = iso(source) or "auto"
+		local data = { { text, source, target, true }, { nil } }
+		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
+		local url = exec.."?"..encodeQuery({
+			rpcids = rpc;
+			["f.sid"] = state.fsid;
+			bl = state.bl;
+			hl = "en";
+			_reqid = state.rid - 10000;
+			rt = "c";
+		})
+		local body = encodeQuery({ ["f.req"] = jsonEncode(freq) })
+		local res = fetch(url, "POST", body)
+		if not res then
+			return translated, detected
+		end
+		local raw = res.Body or res.body or ""
+		if type(raw) ~= "string" then
+			raw = tostring(raw)
+		end
+		local ok, parsed = pcall(function()
+			local arr = jsonDecode(raw:match("%[.-%]\n"))
+			return jsonDecode(arr[1][3])
+		end)
+		if not ok or type(parsed) ~= "table" then
+			return translated, detected
+		end
+		local fallTranslated = nil
+		pcall(function()
+			fallTranslated = parsed[2][1][1][6][1][1]
+		end)
+		if type(fallTranslated) ~= "string" or fallTranslated == "" then
+			return translated, detected
+		end
+		local detectedLang = parsed[3]
+		return fallTranslated, detectedLang or detected
+	end
+
+	local function resizeLabel(label)
+		if not (label and label.Parent and NAgui and NAgui.txtSize) then
+			return
+		end
+		local ok, size = pcall(NAgui.txtSize, label, label.AbsoluteSize.X, 200)
+		if ok and size then
+			label.Size = UDim2.new(1, -5, 0, size.Y)
+		end
+	end
+
+	function translator:isEnabled()
+		return self.enabled == true
+	end
+
+	function translator:updateUI()
+		if self.button then
+			if self:isEnabled() then
+				self.button.Text = "TR: "..string.upper(self.target or "EN")
+				self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
+				self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+			else
+				self.button.Text = "TR: OFF"
+				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+				self.button.TextColor3 = Color3.fromRGB(178, 178, 188)
+			end
+		end
+		if self.input and not self.input:IsFocused() then
+			self.input.Text = string.upper(self.target or "EN")
+		end
+	end
+
+	function translator:updateAllMessages()
+		for _, info in pairs(self.messages) do
+			if self:isEnabled() then
+				self:ensureTranslation(info)
+			end
+			self:applyDisplay(info)
+		end
+	end
+
+	function translator:setEnabled(state)
+		local newState = state and true or false
+		if self.enabled == newState then
+			self.enabled = newState
+			self:updateUI()
+			return
+		end
+		self.enabled = newState
+		opt.chatTranslateEnabled = newState
+		pcall(NAmanage.NASettingsSet, "chatTranslate", newState)
+		self:updateUI()
+		self:updateAllMessages()
+	end
+
+	function translator:toggle()
+		self:setEnabled(not self:isEnabled())
+		return self.enabled
+	end
+
+	function translator:applyDisplay(info)
+		if not info or not info.label then return end
+		local label = info.label
+		if not (label and label.Parent) then
+			self.messages[label] = nil
+			return
+		end
+		local text = info.base or ""
+		if self:isEnabled() and info.translationLine then
+			text = text.."\n"..info.translationLine
+		end
+		label.Text = text
+		resizeLabel(label)
+	end
+
+	function translator:ensureTranslation(info)
+		if not info or info.translating then
+			return
+		end
+		if info.translationLine and info.target == self.target then
+			return
+		end
+		if not info.message or info.message == "" then
+			return
+		end
+		info.translating = true
+		info.target = self.target
+		Spawn(function()
+			local ok, translated, detected = pcall(translatePayload, info.message, self.target, "auto")
+			info.translating = false
+			if not ok then
+				info.translationLine = nil
+				self:applyDisplay(info)
+				return
+			end
+			if not translated or translated == "" then
+				info.translationLine = nil
+				self:applyDisplay(info)
+				return
+			end
+			local code = iso(detected) or detected or "AUTO"
+			local tag = tostring(code):upper()
+			info.translationLine = ("[%s] %s"):format(self.target:upper(), translated)
+			info.detected = tag
+			self:applyDisplay(info)
+		end)
+	end
+
+	function translator:registerMessage(label, baseText, rawMessage)
+		if not label then return end
+		local info = self.messages[label]
+		if not info then
+			info = {
+				label = label;
+				base = baseText or "";
+				message = rawMessage or "";
+				translationLine = nil;
+				translating = false;
+				target = nil;
+			}
+			self.messages[label] = info
+			if label.Destroying then
+				label.Destroying:Connect(function()
+					self.messages[label] = nil
+				end)
+			end
+			label.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					self.messages[label] = nil
+				end
+			end)
+		else
+			info.base = baseText or info.base
+			info.message = rawMessage or info.message
+			info.translationLine = nil
+			info.target = nil
+		end
+
+		self:applyDisplay(info)
+		self:ensureTranslation(info)
+	end
+
+	function translator:setTarget(lang)
+		local code = iso(lang)
+		if not code then
+			return false
+		end
+		if self.target == code then
+			self:updateUI()
+			return true, code, languageName(code)
+		end
+		self.target = code
+		opt.chatTranslateTarget = code
+		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
+		for _, info in pairs(self.messages) do
+			info.translationLine = nil
+			info.target = nil
+			info.translating = false
+			self:applyDisplay(info)
+			self:ensureTranslation(info)
+		end
+		self:updateUI()
+		return true, code, languageName(code)
+	end
+
+	function translator:attachControls(button, input)
+		if button and self.button ~= button then
+			self.button = button
+			MouseButtonFix(button, function()
+				local nowEnabled = self:toggle()
+				self:updateUI()
+				DebugNotif("Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
+			end)
+		end
+		if input and self.input ~= input then
+			if self._inputConn then
+				self._inputConn:Disconnect()
+				self._inputConn = nil
+			end
+			self.input = input
+			input.PlaceholderText = "Lang"
+			input.ClearTextOnFocus = false
+			self._inputConn = input.FocusLost:Connect(function(enterPressed)
+				local text = input.Text or ""
+				text = text:match("^%s*(.-)%s*$") or ""
+				if text == "" then
+					self:updateUI()
+					return
+				end
+				local ok, code, name = self:setTarget(text)
+				if not ok then
+					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
+				else
+					DoNotif(("Chat translator target set to %s (%s)"):format(code:upper(), name), 1.5)
+				end
+				self:updateUI()
+				if enterPressed then
+					input:ReleaseFocus()
+				end
+			end)
+		end
+		self:updateUI()
+	end
+
+	function translator:tryAttach()
+		local frame = NAUIMANAGER and NAUIMANAGER.chatLogsFrame
+		if not frame then return end
+		local button = frame:FindFirstChild("Translate", true)
+		local input = frame:FindFirstChild("TranslateInput", true)
+		if button or input then
+			self:attachControls(button, input)
+		end
+	end
+
+	function translator:showLanguages()
+		local entries = {}
+		for code, name in pairs(languages) do
+			if code ~= "auto" then
+				Insert(entries, { code, name })
+			end
+		end
+		table.sort(entries, function(a, b)
+			return a[1] < b[1]
+		end)
+		local lines = {}
+		for _, info in ipairs(entries) do
+			Insert(lines, info[1]:upper().." - "..info[2])
+		end
+		local text = Concat(lines, "\n")
+		if typeof(DoWindow) == "function" then
+			DoWindow("Supported chat translator languages:\n\n"..text)
+		else
+			print("[ChatTranslator languages]\n"..text)
+			DoNotif("Supported languages printed to console output.", 4)
+		end
+	end
+
+	translator:tryAttach()
+	if NAStuff.NASCREENGUI and not translator._hookedWatcher then
+		translator._hookedWatcher = true
+		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
+			if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
+				Defer(function()
+					translator:tryAttach()
+				end)
+			end
+		end)
+	end
+	translator:updateUI()
+end
+
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
 	local chatMsg = NAUIMANAGER.chatExample:Clone()
@@ -33959,11 +34961,13 @@ function bindToChat(plr, msg)
 	end
 
 	local currentTime = os.date("%Y-%m-%d %H:%M:%S")
+	local baseText
 	if displayName == userName then
-		chatMsg.Text = ("@%s: %s"):format(userName, msg)
+		baseText = ("@%s: %s"):format(userName, msg)
 	else
-		chatMsg.Text = ("%s [@%s]: %s"):format(displayName, userName, msg)
+		baseText = ("%s [@%s]: %s"):format(displayName, userName, msg)
 	end
+	chatMsg.Text = baseText
 
 	if isNAadmin then
 		local function rainbowColor()
@@ -33984,6 +34988,11 @@ function bindToChat(plr, msg)
 		elseif LocalPlayer:IsFriendsWith(plr.UserId) then
 			chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
 		end
+	end
+
+	local translator = NAStuff.ChatTranslator
+	if translator then
+		translator:registerMessage(chatMsg, baseText, msg)
 	end
 
 	pcall(function()
@@ -36913,7 +37922,7 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 	local requestFunc = opt and opt.NAREQUEST
 	for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
 		if baseUrl and baseUrl ~= "" then
-			local url = baseUrl .. ((Find(baseUrl, "?", 1, true) and "&" or "?") .. "_=" .. tostring(os.time()) .. tostring(math.random(1,1e6)))
+			local url = baseUrl..((Find(baseUrl, "?", 1, true) and "&" or "?").."_="..tostring(os.time())..tostring(math.random(1,1e6)))
 			if requestFunc then
 				local ok1, response = pcall(requestFunc, { Url = url; Method = "GET"; Headers = NAStuff.RobloxVersionHeaders; Timeout = 6; FollowRedirects = true; SslVerify = false; })
 				if ok1 and response then
