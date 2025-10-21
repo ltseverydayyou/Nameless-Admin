@@ -127,6 +127,33 @@ G2L["c2"]["Thickness"] = 2;
 G2L["c2"]["Color"] = Color3.fromRGB(154, 99, 255);
 
 
+-- StarterGui.AdminUI.ChatLogs.Topbar.TranslateInput
+G2L["c3"] = Instance.new("TextBox", G2L["8"]);
+G2L["c3"]["BorderSizePixel"] = 0;
+G2L["c3"]["TextSize"] = 14;
+G2L["c3"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["c3"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 58);
+G2L["c3"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["c3"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["c3"]["PlaceholderText"] = [[Lang]];
+G2L["c3"]["Size"] = UDim2.new(0, 70, 0, 26);
+G2L["c3"]["Text"] = [[EN]];
+G2L["c3"]["Name"] = [[TranslateInput]];
+G2L["c3"]["Position"] = UDim2.new(0.98222, -235, 0.5, 0);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.TranslateInput.UICorner
+G2L["c4"] = Instance.new("UICorner", G2L["c3"]);
+G2L["c4"]["CornerRadius"] = UDim.new(0, 6);
+
+
+-- StarterGui.AdminUI.ChatLogs.Topbar.TranslateInput.UIStroke
+G2L["c5"] = Instance.new("UIStroke", G2L["c3"]);
+G2L["c5"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["c5"]["Thickness"] = 2;
+G2L["c5"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
 -- StarterGui.AdminUI.ChatLogs.Topbar.Clear
 G2L["c"] = Instance.new("TextButton", G2L["8"]);
 G2L["c"]["BorderSizePixel"] = 0;
