@@ -234,7 +234,7 @@ local function mkBtnArea(cnt,list,owner,z,maxH,font)
 			layout=Instance.new("UIListLayout")
 			layout.Name="ContentLayout"
 			layout.FillDirection=Enum.FillDirection.Horizontal
-			layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
+			layout.HorizontalAlignment=Enum.HorizontalAlignment.Center
 			layout.VerticalAlignment=Enum.VerticalAlignment.Center
 			layout.SortOrder=Enum.SortOrder.LayoutOrder
 			layout.Parent=b
