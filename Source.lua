@@ -1099,11 +1099,11 @@ NAmanage.createLoadingUI=function(text, opts)
 	}
 	opts = opts or {}
 	local widthScale = tonumber(opts.widthScale) or 0.34
-	local blacklist = opts.blacklist or { [8523781134] = true }
+	local blacklist = opts.blacklist or { [8523781134] = true, [3101266219] = true, [2521585756] = true }
 	local lp = services.Players and services.Players.LocalPlayer
 
 	if lp and blacklist[lp.UserId] then
-		local blockedGui = InstanceNew("ScreenGui")
+		--[[local blockedGui = InstanceNew("ScreenGui")
 		blockedGui.IgnoreGuiInset = true
 		blockedGui.ResetOnSpawn = false
 		blockedGui.DisplayOrder = 2147483647
@@ -1144,9 +1144,10 @@ NAmanage.createLoadingUI=function(text, opts)
 		desc.TextColor3 = Color3.fromRGB(230, 230, 240)
 		desc.TextScaled = true
 		desc.TextWrapped = true
-		desc.Text = "you are banned from using "..(adminName or "Nameless Admin")
+		desc.Text = "you are banned from using "..(adminName or "Nameless Admin")]]
 		while true do
 			Wait(1)
+			print'womp womp'
 		end
 	end
 
