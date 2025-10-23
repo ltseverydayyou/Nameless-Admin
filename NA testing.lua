@@ -460,6 +460,10 @@ local NAStuff = {
 	_lastCommand = nil;
 	_prevCommand = nil;
 	_removeAdsLoop = nil;
+	resizeVerticalAsset = nil;
+	resizeHorizontalAsset = nil;
+	resizeDiagonal1Asset = nil;
+	resizeDiagonal2Asset = nil;
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -566,6 +570,10 @@ local NAImageAssets = {
 	lf = "SkyLf.png";
 	rt = "SkyRt.png";
 	up = "SkyUp.png";
+	ResizeVertical = "Vertical16x16.png";
+	ResizeHorizontal = "Horizontal16x16.png";
+	ResizeDiagonal1 = "Diagonal116x16.png";
+	ResizeDiagonal2 = "Diagonal216x16.png";
 }
 local prefixCheck = ";"
 local NAScale = 1
@@ -32303,16 +32311,38 @@ local NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container"):FindFirstChild("List");
 }
 
-local resizeXY={
-	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    "rbxassetid://2911850935"},
-	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    "rbxassetid://2911850935"},
-	Left = {Vector2.new(-1,0),    Vector2.new(1,0),    "rbxassetid://2911851464"},
-	Right = {Vector2.new(1,0),    Vector2.new(0,0),    "rbxassetid://2911851464"},
+originalIO.resizeCursors=function(key, fallback)
+	if type(getcustomasset) ~= "function" then
+		return fallback
+	end
 
-	TopLeft = {Vector2.new(-1,-1),    Vector2.new(1,-1),    "rbxassetid://2911852219"},
-	TopRight = {Vector2.new(1,-1),    Vector2.new(0,-1),    "rbxassetid://2911851859"},
-	BottomLeft = {Vector2.new(-1,1),    Vector2.new(1,0),    "rbxassetid://2911851859"},
-	BottomRight = {Vector2.new(1,1),    Vector2.new(0,0),    "rbxassetid://2911852219"},
+	if not (NAfiles and NAfiles.NAASSETSFILEPATH and NAImageAssets and NAImageAssets[key]) then
+		return fallback
+	end
+
+	local suc, res = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets[key])
+	if suc and res then
+		return res
+	end
+
+	return fallback
+end
+
+NAStuff.resizeVerticalAsset = originalIO.resizeCursors("ResizeVertical", "rbxassetid://2911850935")
+NAStuff.resizeHorizontalAsset = originalIO.resizeCursors("ResizeHorizontal", "rbxassetid://2911851464")
+NAStuff.resizeDiagonal1Asset = originalIO.resizeCursors("ResizeDiagonal1", "rbxassetid://2911851859")
+NAStuff.resizeDiagonal2Asset = originalIO.resizeCursors("ResizeDiagonal2", "rbxassetid://2911852219")
+
+local resizeXY={
+	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
+	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
+	Left = {Vector2.new(-1,0),    Vector2.new(1,0),    NAStuff.resizeHorizontalAsset}, -- Horizontal16x16.png
+	Right = {Vector2.new(1,0),    Vector2.new(0,0),    NAStuff.resizeHorizontalAsset}, -- Horizontal16x16.png
+
+	TopLeft = {Vector2.new(-1,-1),    Vector2.new(1,-1),    NAStuff.resizeDiagonal2Asset}, -- Diagonal216x16.png
+	TopRight = {Vector2.new(1,-1),    Vector2.new(0,-1),    NAStuff.resizeDiagonal1Asset}, -- Diagonal116x16.png
+	BottomLeft = {Vector2.new(-1,1),    Vector2.new(1,0),    NAStuff.resizeDiagonal1Asset}, -- Diagonal116x16.png
+	BottomRight = {Vector2.new(1,1),    Vector2.new(0,0),    NAStuff.resizeDiagonal2Asset}, -- Diagonal216x16.png
 }
 
 local fillSizes={
