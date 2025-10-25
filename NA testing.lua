@@ -575,6 +575,33 @@ local NAImageAssets = {
 	ResizeDiagonal1 = "Diagonal116x16.png";
 	ResizeDiagonal2 = "Diagonal216x16.png";
 }
+local NAfiles = {
+	NAFILEPATH = "Nameless-Admin";
+	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
+	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
+	NAASSETSFILEPATH = "Nameless-Admin/Assets";
+	NAMAINSETTINGSPATH = "Nameless-Admin/Settings.json";
+	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
+	NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt";
+	NAUISIZEPATH = "Nameless-Admin/UIScale.txt";
+	NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt";
+	NAALIASPATH = "Nameless-Admin/Aliases.json";
+	NAICONPOSPATH = "Nameless-Admin/IconPosition.json";
+	NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json";
+	NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json";
+	NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt";
+	NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt";
+	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
+	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
+	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
+	--NACHATTAG = "Nameless-Admin/ChatTag.json";
+	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
+	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
+	NABINDERS = "Nameless-Admin/Binders.json";
+	NAESPSETTINGSPATH = "Nameless-Admin/ESPSettings.json";
+	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
+	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
+}
 local prefixCheck = ";"
 local NAScale = 1
 local NAUIScale = 1
@@ -592,6 +619,25 @@ local events = {
 	"OnJoin",
 	"OnLeave",
 }
+local opt={
+	prefix=prefixCheck;
+	NAupdDate='unknown'; --month,day,year
+	githubUrl = '';
+	loader='';
+	NAUILOADER='';
+	NAAUTOSCALER=nil;
+	NA_storage=nil;--Stupid Ahh script removing folders
+	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
+	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
+	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
+	ctrlModule = nil;
+	currentTagText = "Tag";
+	currentTagColor = Color3.fromRGB(0, 255, 170);
+	currentTagRGB = false;
+	chatTranslateEnabled = true;
+	chatTranslateTarget = "en";
+	--saveTag = false;
+}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
@@ -606,6 +652,16 @@ NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAUISTROKER = Color3.fromRGB(148, 93, 255)
 NATOPBARVISIBLE = true
+
+if getgenv().NATestingVer then
+	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
+	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
+	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
+else
+	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
+	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
+	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
+end
 
 NAlib.connect = function(name, connection)
 	connections[name] = connections[name] or {}
@@ -765,19 +821,6 @@ NAmanage.setAutoSkipPreference = function(enabled)
 		NACaller(writefile, state.settingsPath, encoded)
 	end
 end
-
-pcall(function()
-	repeat
-		Wait(0.1)
-		local okFetch, raw = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
-		if okFetch then
-			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-			if okDecode and type(decoded) == "table" then
-				NAStuff.NAjson = decoded
-			end
-		end
-	until NAStuff.NAjson
-end)
 
 function rStringgg()
 	local length = math.random(10, 20)
@@ -1604,7 +1647,6 @@ NAAssetsLoading.remoteStatus = {}
 NAAssetsLoading.knownRemotes = {
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
-	{url="https://raw.githubusercontent.com/luau/SynSaveInstance/main/"; skip=true};
 }
 
 NAAssetsLoading.getRemoteTargets=function()
@@ -1664,6 +1706,52 @@ NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
 	end
 end
 
+NAAssetsLoading.normalizeStatusError = function(text)
+	local err = tostring(text or "unknown error")
+	err = err:gsub("%s+", " ")
+	err = err:gsub("[%c]", " ")
+	if #err > 180 then
+		err = err:sub(1, 177).."..."
+	end
+	return err
+end
+
+NAAssetsLoading.runLoadingCheck = function(statusLabel, attemptFn, onSuccess)
+	local attempt = 0
+	while true do
+		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
+			return nil
+		end
+		attempt += 1
+		local attemptLabel = attempt == 1 and statusLabel or Format("%s (retry %d)", statusLabel, attempt)
+		if NAAssetsLoading.setStatus then
+			NAAssetsLoading.setStatus(attemptLabel)
+		end
+		local success, result, errMsg = attemptFn()
+		if success then
+			if onSuccess then
+				pcall(onSuccess, result)
+			end
+			return result
+		end
+		if NAAssetsLoading.setStatus then
+			local errText = NAAssetsLoading.normalizeStatusError(errMsg or result) or tostring(errMsg or result)
+			NAAssetsLoading.setStatus(Format("%s error #%d: %s", statusLabel, attempt, errText))
+		end
+		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
+			return nil
+		end
+		Wait(0.4)
+	end
+end
+
+NAAssetsLoading.cachePrefetchedRemote = function(url, body)
+	if type(url) == "string" and url ~= "" and type(body) == "string" and body ~= "" then
+		NAStuff._prefetchedRemotes = NAStuff._prefetchedRemotes or {}
+		NAStuff._prefetchedRemotes[url] = body
+	end
+end
+
 
 NAmanage.getPrefetchedRemote=function(url)
 	return (NAStuff._prefetchedRemotes and NAStuff._prefetchedRemotes[url]) or nil
@@ -1698,6 +1786,149 @@ if not Notification then
 end
 NAAssetsLoading.setPercent(0.22)
 
+NAAssetsLoading.setStatus("Loading Assets")
+local assetsReady = false
+repeat
+	local ok, res = pcall(function()
+		if not FileSupport then
+			return true
+		end
+		if type(NAImageAssets) ~= "table" then
+			return true
+		end
+		if type(isfolder) == "function" and not isfolder(NAfiles.NAASSETSFILEPATH) then
+			if type(makefolder) == "function" then
+				makefolder(NAfiles.NAASSETSFILEPATH)
+			end
+		end
+		if type(isfile) ~= "function" then
+			return true
+		end
+		for _, fileName in pairs(NAImageAssets) do
+			if type(fileName) == "string" and fileName ~= "" then
+				local fullPath = NAfiles.NAASSETSFILEPATH.."/"..fileName
+				if not isfile(fullPath) then
+					local data = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"..fileName)
+					if type(data) ~= "string" or data == "" then
+						return false
+					end
+					if type(writefile) ~= "function" then
+						return false
+					end
+					writefile(fullPath, data)
+				end
+			end
+		end
+		return true
+	end)
+	if ok and res then
+		assetsReady = true
+	else
+		Wait(0.25)
+	end
+until assetsReady or NAAssetsLoading.getSkip()
+NAAssetsLoading.setPercent(0.26)
+
+NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
+local naStuffReady = false
+repeat
+	local ok, res = pcall(function()
+		local raw = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
+		local decoded = HttpService:JSONDecode(raw)
+		return decoded
+	end)
+	if ok and type(res) == "table" then
+		NAStuff.NAjson = res
+		naStuffReady = true
+	else
+		Wait(0.25)
+	end
+until naStuffReady or NAAssetsLoading.getSkip()
+NAAssetsLoading.setPercent(0.30)
+
+NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
+	if type(opt.loaderUrl) ~= "string" or opt.loaderUrl == "" then
+		return false, nil, "missing loader url"
+	end
+	local ok, body = pcall(game.HttpGet, game, opt.loaderUrl)
+	if not ok then
+		return false, nil, body
+	end
+	if type(body) ~= "string" or body == "" then
+		return false, nil, "empty response"
+	end
+	return true, body
+end, function(body)
+	NAAssetsLoading.cachePrefetchedRemote(opt.loaderUrl, body)
+end)
+NAAssetsLoading.setPercent(0.32)
+
+NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
+	if type(opt.githubUrl) ~= "string" or opt.githubUrl == "" then
+		return false, nil, "missing github url"
+	end
+	if type(opt.NAREQUEST) == "function" then
+		local ok, response = pcall(opt.NAREQUEST, {
+			Url = opt.githubUrl,
+			Method = "GET"
+		})
+		if not ok then
+			return false, nil, response
+		end
+		if typeof(response) ~= "table" then
+			return false, nil, "invalid response"
+		end
+		local statusCode = tonumber(response.StatusCode)
+		if statusCode ~= 200 then
+			return false, nil, Format("http %s", tostring(statusCode or "nil"))
+		end
+		if type(response.Body) ~= "string" or response.Body == "" then
+			return false, nil, "empty body"
+		end
+		return true, response.Body
+	end
+	local ok, body = pcall(game.HttpGet, game, opt.githubUrl)
+	if not ok then
+		return false, nil, body
+	end
+	if type(body) ~= "string" or body == "" then
+		return false, nil, "empty response"
+	end
+	return true, body
+end, function(body)
+	NAStuff._githubMetadata = body
+	local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	if decodeOk and type(decoded) == "table" then
+		NAStuff._githubCommits = decoded
+		local top = decoded[1]
+		local date = top and top.commit and top.commit.author and top.commit.author.date
+		if type(date) == "string" then
+			local year, month, day = date:match("(%d+)-(%d+)-(%d+)")
+			if year and month and day then
+				opt.NAupdDate = month.."/"..day.."/"..year
+			end
+		end
+	end
+end)
+NAAssetsLoading.setPercent(0.34)
+
+NAAssetsLoading.runLoadingCheck("Loading UI", function()
+	if type(opt.NAUILOADER) ~= "string" or opt.NAUILOADER == "" then
+		return false, nil, "missing UI loader url"
+	end
+	local ok, body = pcall(game.HttpGet, game, opt.NAUILOADER)
+	if not ok then
+		return false, nil, body
+	end
+	if type(body) ~= "string" or body == "" then
+		return false, nil, "empty response"
+	end
+	return true, body
+end, function(body)
+	NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
+end)
+NAAssetsLoading.setPercent(0.36)
+
 NAAssetsLoading.setStatus("collecting remote resources")
 local remoteTargets = NAAssetsLoading.getRemoteTargets()
 local totalRemotes = #remoteTargets
@@ -1706,10 +1937,10 @@ if totalRemotes > 0 then
 else
 	NAAssetsLoading.setStatus("queued 0 remote resources")
 end
-NAAssetsLoading.setPercent(0.32)
+NAAssetsLoading.setPercent(0.38)
 
 NAAssetsLoading.setStatus("prefetching remote resources")
-local base, span = 0.32, 0.62
+local base, span = 0.38, 0.56
 NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
 	local fraction = (total > 0 and (done / total)) or 1
 	local progress = base + span * fraction
@@ -1945,64 +2176,10 @@ local JoinLeaveConfig = {
 	LeaveLog = false;
 	SaveLog = false;
 }
-local opt={
-	prefix=prefixCheck;
-	NAupdDate='unknown'; --month,day,year
-	githubUrl = '';
-	loader='';
-	NAUILOADER='';
-	NAAUTOSCALER=nil;
-	NA_storage=nil;--Stupid Ahh script removing folders
-	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
-	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
-	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
-	ctrlModule = nil;
-	currentTagText = "Tag";
-	currentTagColor = Color3.fromRGB(0, 255, 170);
-	currentTagRGB = false;
-	chatTranslateEnabled = true;
-	chatTranslateTarget = "en";
-	--saveTag = false;
-}
 
-if getgenv().NATestingVer then
-	opt.loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))();]]
-	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
-	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
-else
-	opt.loader=[[loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))();]]
-	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
-	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
-end
+opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 
 --Custom file functions checker checker
-local NAfiles = {
-	NAFILEPATH = "Nameless-Admin";
-	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
-	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
-	NAASSETSFILEPATH = "Nameless-Admin/Assets";
-	NAMAINSETTINGSPATH = "Nameless-Admin/Settings.json";
-	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
-	NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt";
-	NAUISIZEPATH = "Nameless-Admin/UIScale.txt";
-	NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt";
-	NAALIASPATH = "Nameless-Admin/Aliases.json";
-	NAICONPOSPATH = "Nameless-Admin/IconPosition.json";
-	NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json";
-	NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json";
-	NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt";
-	NASTROKETHINGY = "Nameless-Admin/NAUIStroker.txt";
-	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
-	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
-	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
-	--NACHATTAG = "Nameless-Admin/ChatTag.json";
-	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
-	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
-	NABINDERS = "Nameless-Admin/Binders.json";
-	NAESPSETTINGSPATH = "Nameless-Admin/ESPSettings.json";
-	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
-	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
-}
 NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH
 NAUserButtons = {}
 UserButtonGuiList = {}
@@ -2293,6 +2470,31 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
+			end;
+		};
+		devConsoleFilters = {
+			default = function()
+				return {
+					Output = true;
+					Info = true;
+					Warn = true;
+					Error = true;
+				}
+			end;
+			coerce = function(value)
+				local result = {
+					Output = true;
+					Info = true;
+					Warn = true;
+					Error = true;
+				}
+				if typeof(value) == "table" then
+					result.Output = coerceBoolean(value.Output, result.Output)
+					result.Info = coerceBoolean(value.Info, result.Info)
+					result.Warn = coerceBoolean(value.Warn, result.Warn)
+					result.Error = coerceBoolean(value.Error, result.Error)
+				end
+				return result
 			end;
 		};
 		autoSkipLoading = {
@@ -3209,41 +3411,6 @@ local lastPrefix = opt.prefix
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
 	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
 end]]
-
-pcall(function()
-	local response = opt.NAREQUEST({
-		Url = opt.githubUrl,
-		Method = "GET"
-	})
-
-	if response and response.StatusCode == 200 then
-		local json = HttpService:JSONDecode(response.Body)
-		if json and json[1] and json[1].commit and json[1].commit.author and json[1].commit.author.date then
-			local year, month, day = json[1].commit.author.date:match("(%d+)-(%d+)-(%d+)")
-			opt.NAupdDate = month.."/"..day.."/"..year
-		end
-	end
-end)
-
-NACaller(function()
-	if not FileSupport then return end
-	if type(NAImageAssets) ~= "table" then return end
-
-	local baseURL = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"
-	for _, fileName in pairs(NAImageAssets) do
-		local fullPath = NAfiles.NAASSETSFILEPATH.."/"..fileName
-		if not isfile(fullPath) then
-			local success, data = NACaller(function()
-				return game:HttpGet(baseURL..fileName)
-			end)
-			if success and data then
-				writefile(fullPath, data)
-			else
-				warn("[NA] Failed to download:", fileName)
-			end
-		end
-	end
-end)
 
 --[[ VARIABLES ]]--
 
@@ -11604,8 +11771,39 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 
 	local active=false
 	local cons={}
+	local watchers=setmetatable({}, {__mode="k"})
 	local function connect(sig,fn)local c=sig:Connect(fn);Insert(cons,c);return c end
-	local function disconnectAll()for _,c in ipairs(cons) do pcall(function() c:Disconnect() end) end;cons={} end
+	local function disconnectAll()
+		for _,c in ipairs(cons) do pcall(function() c:Disconnect() end) end
+		cons={}
+		watchers=setmetatable({}, {__mode="k"})
+	end
+	local function forceProperty(inst,prop,desired)
+		if not inst then return end
+		local bucket=watchers[inst]
+		if not bucket then
+			bucket={}
+			watchers[inst]=bucket
+		end
+		local function apply()
+			if not active then return end
+			local current=st.safeGet(inst,prop)
+			if current~=nil and current~=desired then
+				st.safeSet(inst,prop,desired)
+			end
+		end
+		apply()
+		if bucket[prop] then return end
+		local ok,conn=pcall(function()
+			return inst:GetPropertyChangedSignal(prop):Connect(function()
+				apply()
+			end)
+		end)
+		if ok and conn then
+			bucket[prop]=conn
+			Insert(cons,conn)
+		end
+	end
 
 	local A="NA_FPS_"
 	local function remember(inst,prop,val)
@@ -11718,6 +11916,19 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if inst:IsA("Beam") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
 		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then remember(inst,"Enabled",inst.Enabled); st.safeSet(inst,"Enabled",false) end
 		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
+		if inst:IsA("PostEffect") then
+			local enabledValue=st.safeGet(inst,"Enabled")
+			if enabledValue~=nil then remember(inst,"Enabled",enabledValue) end
+			forceProperty(inst,"Enabled",false)
+		end
+		if inst:IsA("Atmosphere") then
+			local density=st.safeGet(inst,"Density")
+			if density~=nil then remember(inst,"Density",density); forceProperty(inst,"Density",0) end
+			local haze=st.safeGet(inst,"Haze")
+			if haze~=nil then remember(inst,"Haze",haze); forceProperty(inst,"Haze",0) end
+			local glare=st.safeGet(inst,"Glare")
+			if glare~=nil then remember(inst,"Glare",glare); forceProperty(inst,"Glare",0) end
+		end
 		if inst:IsA("Explosion") then remember(inst,"BlastPressure",inst.BlastPressure); remember(inst,"BlastRadius",inst.BlastRadius); st.safeSet(inst,"BlastPressure",1); st.safeSet(inst,"BlastRadius",1) end
 	end
 
@@ -11735,6 +11946,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if inst:IsA("Beam") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
 		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
 		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("PostEffect") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+		if inst:IsA("Atmosphere") then
+			local d=recall(inst,"Density"); if d~=nil then st.safeSet(inst,"Density",d) clearAttr(inst,"Density") end
+			local h=recall(inst,"Haze"); if h~=nil then st.safeSet(inst,"Haze",h) clearAttr(inst,"Haze") end
+			local g=recall(inst,"Glare"); if g~=nil then st.safeSet(inst,"Glare",g) clearAttr(inst,"Glare") end
+		end
 		if inst:IsA("Explosion") then local bp=recall(inst,"BlastPressure"); if bp~=nil then st.safeSet(inst,"BlastPressure",bp) clearAttr(inst,"BlastPressure") end local br=recall(inst,"BlastRadius"); if br~=nil then st.safeSet(inst,"BlastRadius",br) clearAttr(inst,"BlastRadius") end end
 	end
 
@@ -15986,6 +16203,7 @@ end)
 
 cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
 	--saveinstance({})
+	if saveinstance then saveinstance() return end
 	local Params={
 		RepoURL="https://raw.githubusercontent.com/luau/SynSaveInstance/main/",
 		SSI="saveinstance",
@@ -30099,7 +30317,146 @@ cmd.add({"unloopnight","unloopn","unln"},{"unloopnight (unloopn,unln)","No more 
 	end
 end)
 
-cmd.add({"loopnofog","lnofog","lnf","loopnf","nf"},{"loopnofog (lnofog,lnf,loopnf,nofog,nf)","See clearly forever!"},function()
+cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Lighting and CurrentCamera effects disabled"},function()
+	if not Lighting then return end
+	local st = NAmanage._ensureL()
+	local w = workspace
+	st.ne = st.ne or {init=false,enabled=false,cache=setmetatable({},{__mode="k"}),sticky=false}
+	local ne = st.ne
+	ne.cache = ne.cache or setmetatable({},{__mode="k"})
+	local function cacheProperty(inst,prop,value)
+		if not inst then return end
+		local saved = ne.cache[inst]
+		if not saved then
+			saved={}
+			ne.cache[inst]=saved
+		end
+		if saved[prop]==nil then
+			local v=value
+			if v==nil then v=st.safeGet(inst,prop) end
+			if v~=nil then saved[prop]=v end
+		end
+	end
+	local function disableEffect(inst)
+		if not inst or not inst.Parent then return end
+		if inst:IsA("PostEffect") then
+			local enabled=st.safeGet(inst,"Enabled")
+			if enabled~=nil then
+				cacheProperty(inst,"Enabled",enabled)
+				if enabled~=false then st.safeSet(inst,"Enabled",false) end
+			end
+		end
+		if inst:IsA("Atmosphere") then
+			local density=st.safeGet(inst,"Density")
+			if density~=nil then cacheProperty(inst,"Density",density); if density~=0 then st.safeSet(inst,"Density",0) end end
+			local haze=st.safeGet(inst,"Haze")
+			if haze~=nil then cacheProperty(inst,"Haze",haze); if haze~=0 then st.safeSet(inst,"Haze",0) end end
+			local glare=st.safeGet(inst,"Glare")
+			if glare~=nil then cacheProperty(inst,"Glare",glare); if glare~=0 then st.safeSet(inst,"Glare",0) end end
+		end
+	end
+	local function processLighting()
+		for _,inst in ipairs(Lighting:GetDescendants()) do disableEffect(inst) end
+	end
+	local function processCamera()
+		local cam = w.CurrentCamera
+		if not cam then
+			ne.lastCamera=nil
+			return
+		end
+		if ne.lastCamera~=cam then
+			ne.lastCamera=cam
+		end
+		for _,inst in ipairs(cam:GetDescendants()) do disableEffect(inst) end
+	end
+	local function attachCameraWatcher()
+		if ne.camDescConn then
+			pcall(function() ne.camDescConn:Disconnect() end)
+			ne.camDescConn=nil
+		end
+		local cam = w.CurrentCamera
+		if not cam then
+			ne.lastCamera=nil
+			return
+		end
+		ne.lastCamera = cam
+		processCamera()
+		local ok,conn=pcall(function()
+			return cam.DescendantAdded:Connect(function(child)
+				if not (st.ne and st.ne.enabled) then return end
+				if not ne.lastCamera or (child and not child:IsDescendantOf(ne.lastCamera)) then return end
+				disableEffect(child)
+			end)
+		end)
+		if ok and conn then
+			ne.camDescConn=conn
+		end
+	end
+	if not ne.init then
+		ne.init=true
+		st.hook("ne_camera_changed", function() return w:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+				if not (st.ne and st.ne.enabled) then return end
+				attachCameraWatcher()
+			end) end)
+		st.hook("ne_loop", function() return RunService.RenderStepped:Connect(function()
+				if not (st.ne and st.ne.enabled) then return end
+				processLighting()
+				processCamera()
+			end) end)
+	end
+	ne.enabled=true
+	ne.sticky=true
+	processLighting()
+	processCamera()
+	attachCameraWatcher()
+end)
+
+cmd.add({"unloopnoeffect","unlnoeffect","unloopne","unlne"},{"unloopnoeffect","Restores Lighting and CurrentCamera effects"},function()
+	if not Lighting then return end
+	local st = getgenv()._LState
+	if not st or not st.ne then return end
+	local ne = st.ne
+	ne.sticky=false
+	ne.enabled=false
+	if ne.camDescConn then
+		pcall(function() ne.camDescConn:Disconnect() end)
+		ne.camDescConn=nil
+	end
+	for inst,saved in pairs(ne.cache or {}) do
+		if inst and inst.Parent and saved then
+			for prop,value in pairs(saved) do
+				if st.safeSet then st.safeSet(inst,prop,value) else pcall(function() inst[prop]=value end) end
+			end
+		end
+	end
+end)
+
+cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Lighting and CurrentCamera effects"},function()
+	if not Lighting then return end
+	local st = NAmanage._ensureL()
+	local function disableEffect(inst)
+		if not inst then return end
+		if inst:IsA("PostEffect") then
+			local enabled=st.safeGet(inst,"Enabled")
+			if enabled~=nil and enabled~=false then st.safeSet(inst,"Enabled",false) end
+		end
+		if inst:IsA("Atmosphere") then
+			local density=st.safeGet(inst,"Density")
+			if density~=nil and density~=0 then st.safeSet(inst,"Density",0) end
+			local haze=st.safeGet(inst,"Haze")
+			if haze~=nil and haze~=0 then st.safeSet(inst,"Haze",0) end
+			local glare=st.safeGet(inst,"Glare")
+			if glare~=nil and glare~=0 then st.safeSet(inst,"Glare",0) end
+		end
+	end
+	for _,inst in ipairs(Lighting:GetDescendants()) do disableEffect(inst) end
+	local cam = workspace.CurrentCamera
+	if cam then
+		for _,inst in ipairs(cam:GetDescendants()) do disableEffect(inst) end
+	end
+end)
+
+cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog (lnofog,lnf,loopnf,nofog,nf)","See clearly forever!"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
@@ -35091,7 +35448,28 @@ NAmanage.bindToDevConsole = function()
 	if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleExample then return end
 
 	local activeLogs, pool, pending = {}, {}, {}
-	local toggles = { Output = true, Info = true, Warn = true, Error = true }
+	local buttonTypes = { "Output", "Info", "Warn", "Error" }
+	local savedFilters
+	if NAmanage and NAmanage.NASettingsGet then
+		local ok, result = pcall(function()
+			return NAmanage.NASettingsGet("devConsoleFilters")
+		end)
+		if ok and type(result) == "table" then
+			savedFilters = result
+		end
+	end
+	local toggles = {}
+	for _, logType in ipairs(buttonTypes) do
+		local savedValue = savedFilters and savedFilters[logType]
+		if type(savedValue) == "boolean" then
+			toggles[logType] = savedValue
+		else
+			toggles[logType] = true
+		end
+	end
+
+	local SELECTED_COLOR = Color3.fromRGB(0, 255, 0)
+	local DESELECTED_COLOR = Color3.fromRGB(255, 255, 255)
 
 	local FilterButtons = InstanceNew("Frame")
 	FilterButtons.Name = "FilterButtons"
@@ -35108,7 +35486,6 @@ NAmanage.bindToDevConsole = function()
 	layout.Padding = UDim.new(0, 6)
 	layout.Parent = FilterButtons
 
-	local buttonTypes = { "Output", "Info", "Warn", "Error" }
 	for _, logType in ipairs(buttonTypes) do
 		local btnContainer = InstanceNew("Frame")
 		btnContainer.Name = logType
@@ -35125,7 +35502,7 @@ NAmanage.bindToDevConsole = function()
 		checkbox.Size = UDim2.new(0, 18, 0, 18)
 		checkbox.Position = UDim2.new(0, 5, 0.5, 0)
 		checkbox.AnchorPoint = Vector2.new(0, 0.5)
-		checkbox.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+		checkbox.BackgroundColor3 = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR
 		checkbox.BorderSizePixel = 0
 		checkbox.Parent = btnContainer
 
@@ -35154,7 +35531,22 @@ NAmanage.bindToDevConsole = function()
 
 		MouseButtonFix(clickZone, function()
 			toggles[logType] = not toggles[logType]
-			local targetColor = toggles[logType] and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+
+			if NAmanage and NAmanage.NASettingsSet then
+				local ok, saved = pcall(function()
+					return NAmanage.NASettingsSet("devConsoleFilters", toggles)
+				end)
+				if ok and type(saved) == "table" then
+					for _, key in ipairs(buttonTypes) do
+						local savedValue = saved[key]
+						if type(savedValue) == "boolean" then
+							toggles[key] = savedValue
+						end
+					end
+				end
+			end
+
+			local targetColor = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR
 			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
 			TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor}):Play()
 
