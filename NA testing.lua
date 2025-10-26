@@ -441,6 +441,8 @@ local NAStuff = {
 	ChatSettingsTemplate = nil;
 	ChatSettingsDefaults = nil;
 	ChatCustomizationActive = nil;
+	IconInvisible = false;
+	IconLocked = false;
 	_prefetchedRemotes = {};
 	AutoExecBlockedCommands = {
 		exit = true;
@@ -2458,6 +2460,25 @@ NAmanage.NASettingsGetSchema=function()
 				}
 			end;
 		};
+		iconInvisible = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		iconLocked = {
+			default = false;
+			coerce = function(value)
+				if type(value) == "boolean" then return value end
+				if type(value) == "string" then
+					local v = value:lower()
+					if v == "true" or v == "1" then return true end
+					if v == "false" or v == "0" then return false end
+				end
+				if type(value) == "number" then return value ~= 0 end
+				return false
+			end;
+		};
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
@@ -3069,6 +3090,8 @@ if FileSupport then
 	end
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAUISTROKER = InitUIStroke()
+	NAStuff.IconInvisible = NAmanage.NASettingsGet("iconInvisible")
+	NAStuff.IconLocked = NAmanage.NASettingsGet("iconLocked")
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
@@ -3446,6 +3469,10 @@ NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
 if NAStuff._ctrlLockPersist == nil then NAStuff._ctrlLockPersist = false end
 NAStuff._ctrlLockList = NAStuff._ctrlLockList or {}
 NAStuff._ctrlLockSet  = NAStuff._ctrlLockSet  or {}
+
+NAmanage.IconSetInvisible = NAmanage.IconSetInvisible or function(hidden)
+	NAStuff.IconInvisible = hidden and true or false
+end
 
 --[[ Some more variables ]]--
 
@@ -16199,6 +16226,30 @@ cmd.add({"unbubblechat","unbchat"},{"unbubblechat (unbchat)","Disabled BubbleCha
 	NAStuff.ChatSettings.bubbles.enabled = false
 	NAmanage.SaveTextChatSettings()
 	NAmanage.ApplyTextChatSettings()
+end)
+
+cmd.add({"hideicon","iconhide"},{"hideicon","Hides the NA icon"},function()
+	if NAmanage.IconSetInvisible then
+		NAmanage.IconSetInvisible(true)
+	end
+end)
+
+cmd.add({"showicon","iconshow"},{"showicon","Shows the NA icon"},function()
+	if NAmanage.IconSetInvisible then
+		NAmanage.IconSetInvisible(false)
+	end
+end)
+
+cmd.add({"lockiconposition","lockicon"},{"lockiconposition","Locks the NA icon's position (can't be dragged)"},function()
+	if NAgui.setIconLocked then
+		NAgui.setIconLocked(true)
+	end
+end)
+
+cmd.add({"unlockiconposition","unlockicon"},{"unlockiconposition","Unlocks the NA icon's position (can be dragged again)"},function()
+	if NAgui.setIconLocked then
+		NAgui.setIconLocked(false)
+	end
 end)
 
 cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
@@ -33597,6 +33648,8 @@ NAgui.addInfo = function(label, value)
 	return box
 end
 
+NAgui._toggleRegistry = NAgui._toggleRegistry or {}
+
 NAgui.addToggle = function(label, defaultValue, callback)
 	if not NAUIMANAGER.SettingsList then return end
 	local toggle = templates.Toggle:Clone()
@@ -33609,7 +33662,7 @@ NAgui.addToggle = function(label, defaultValue, callback)
 	toggle.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(toggle)
 
-	local state = defaultValue
+	local state = defaultValue and true or false
 
 	local function updateVisual()
 		if state then
@@ -33623,15 +33676,54 @@ NAgui.addToggle = function(label, defaultValue, callback)
 		end
 	end
 
-	updateVisual()
+	local function setState(newValue, opts)
+		opts = opts or {}
+		local desired = newValue and true or false
+		if not opts.force and state == desired then
+			if opts.fire then
+				pcall(callback, state)
+			end
+			return
+		end
+		state = desired
+		updateVisual()
+		if opts.fire ~= false then
+			pcall(callback, state)
+		end
+	end
+
+	setState(state, { force = true, fire = false })
 
 	MouseButtonFix(toggle.Interact,function()
-		state = not state
-		updateVisual()
-		pcall(function()
-			callback(state)
-		end)
+		setState(not state, { force = true, fire = true })
 	end)
+
+	local entry = {
+		button = toggle;
+		get = function()
+			return state
+		end;
+		set = function(value, opts)
+			opts = opts or {}
+			if opts.force == nil then opts.force = true end
+			setState(value, opts)
+		end;
+	}
+	NAgui._toggleRegistry[label] = entry
+
+	toggle:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not toggle.Parent and NAgui._toggleRegistry[label] == entry then
+			NAgui._toggleRegistry[label] = nil
+		end
+	end)
+
+	return toggle
+end
+
+NAgui.setToggleState = function(label, value, opts)
+	local entry = NAgui._toggleRegistry and NAgui._toggleRegistry[label]
+	if not entry then return end
+	entry.set(value, opts)
 end
 
 NAgui.addColorPicker = function(label, defaultColor, callback)
@@ -34456,9 +34548,27 @@ NAgui.loadCMDS = function()
 			v:Destroy()
 		end
 	end
+	local layout = NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
 	CMDAUTOFILL = {}
+	local names = {}
+	for name in pairs(cmds.Commands) do
+		Insert(names, name)
+	end
+	table.sort(names, function(a, b)
+		local la = a:lower()
+		local lb = b:lower()
+		if la == lb then
+			return a < b
+		end
+		return la < lb
+	end)
+
 	local i = 0
-	for name, cmdData in pairs(cmds.Commands) do
+	for _, name in ipairs(names) do
+		local cmdData = cmds.Commands[name]
 		local displayText = fixStupidSearchGoober(name, cmdData)
 		if displayText and displayText ~= "" then
 			if type(cmdData[2]) == "table" then
@@ -34472,6 +34582,7 @@ NAgui.loadCMDS = function()
 		btn.Name = name
 		btn.Input.Text = displayText
 		i += 1
+		btn.LayoutOrder = i
 		Insert(CMDAUTOFILL, btn)
 	end
 	cmdNAnum = i
@@ -34619,7 +34730,32 @@ NAmanage.performSearch=function(term)
 	for _,f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
-	if Match(term,"%s") or term == "" then
+	local function revealFrame(frame,index)
+		if not frame then return end
+		Insert(prevVisible,frame)
+		frame.Visible=true
+		local w=math.sqrt(index)*125
+		local y=(index-1)*28
+		local pos=UDim2.new(0.5,w,0,y)
+		local size=UDim2.new(0.5,w,0,25)
+		if canTween then
+			NAgui.tween(frame,"Quint","Out",0.2,{Size=size,Position=pos})
+		else
+			frame.Size=size
+			frame.Position=pos
+		end
+	end
+	if term == "" or Match(term,"^%s*$") then
+		predictionInput.Text = ""
+		for i=1,math.min(5,#searchIndex) do
+			local entry=searchIndex[i]
+			if entry then
+				revealFrame(entry.frame,i)
+			end
+		end
+		return
+	end
+	if Match(term,"%s") then
 		predictionInput.Text = ""
 		return
 	end
@@ -34637,19 +34773,7 @@ NAmanage.performSearch=function(term)
 	predictionInput.Text = (results[1] and results[1].text) or ""
 	for i=1,math.min(5,#results)do
 		local r=results[i]
-		local f=r.frame
-		Insert(prevVisible,f)
-		f.Visible=true
-		local w=math.sqrt(i)*125
-		local y=(i-1)*28
-		local pos=UDim2.new(0.5,w,0,y)
-		local size=UDim2.new(0.5,w,0,25)
-		if canTween then
-			NAgui.tween(f,"Quint","Out",0.2,{Size=size,Position=pos})
-		else
-			f.Size=size
-			f.Position=pos
-		end
+		revealFrame(r.frame,i)
 	end
 end
 
@@ -34657,7 +34781,8 @@ NAgui.searchCommands = function()
 	if NAlib.isConnected("SearchInput") then NAlib.disconnect("SearchInput") end
 	NAlib.connect("SearchInput",NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
-		if cleaned==lastSearchText then return end
+		local isBlank = cleaned == "" or cleaned:match("^%s*$")
+		if cleaned==lastSearchText and not isBlank then return end
 		lastSearchText=cleaned
 		gen+=1
 		local thisGen=gen
@@ -34670,6 +34795,21 @@ end
 
 NAgui.loadCMDS()
 NAgui.searchCommands()
+
+NAgui.autoFILLLL=function()
+	if not NAUIMANAGER.cmdInput then return end
+	local current = NAUIMANAGER.cmdInput.Text or ""
+	local cleaned = Lower(GSub(current, ";", ""))
+	lastSearchText = cleaned
+	gen += 1
+	NAmanage.performSearch(cleaned)
+end
+
+if NAUIMANAGER.cmdInput then
+	NAUIMANAGER.cmdInput.Focused:Connect(function()
+		Delay(0, NAgui.autoFILLLL)
+	end)
+end
 
 --[[ OPEN THE COMMAND BAR ]]--
 --[[mouse.KeyDown:Connect(function(k)
@@ -36139,7 +36279,7 @@ UICorner2.Parent = TextLabel
 
 UIStroke.Parent = TextLabel
 UIStroke.Thickness = 2
-UIStroke.Color = NAUISTROKER --Color3.fromRGB(148, 93, 255)
+UIStroke.Color = NAUISTROKER
 UIStroke.Transparency = 0.4
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
@@ -36167,13 +36307,108 @@ TextButton.MouseLeave:Connect(function()
 	}):Play()
 end)
 
+NAStuff.iconAppearance = NAStuff.iconAppearance or  {
+	background = TextButton.BackgroundTransparency;
+	text = TextButton:IsA("TextButton") and TextButton.TextTransparency or nil;
+	stroke = TextButton:IsA("TextButton") and TextButton.TextStrokeTransparency or nil;
+	image = TextButton:IsA("ImageButton") and TextButton.ImageTransparency or nil;
+}
+
+NAgui.applyIconVisibility=function(hidden)
+	if not TextButton then return end
+	if IsOnMobile and not IsOnPC then
+		TextButton.Visible = true
+		TextButton.BackgroundTransparency = hidden and 1 or NAStuff.iconAppearance.background
+		if TextButton:IsA("ImageButton") then
+			if hidden then
+				TextButton.ImageTransparency = 1
+			elseif NAStuff.iconAppearance.image ~= nil then
+				TextButton.ImageTransparency = NAStuff.iconAppearance.image
+			end
+		else
+			TextButton.TextTransparency = hidden and 1 or (NAStuff.iconAppearance.text or 0)
+			if NAStuff.iconAppearance.stroke ~= nil then
+				TextButton.TextStrokeTransparency = hidden and 1 or NAStuff.iconAppearance.stroke
+			end
+		end
+	else
+		TextButton.Visible = not hidden
+		TextButton.BackgroundTransparency = NAStuff.iconAppearance.background
+		if TextButton:IsA("ImageButton") then
+			if NAStuff.iconAppearance.image ~= nil then
+				TextButton.ImageTransparency = NAStuff.iconAppearance.image
+			end
+		else
+			if NAStuff.iconAppearance.text ~= nil then
+				TextButton.TextTransparency = NAStuff.iconAppearance.text
+			end
+			if NAStuff.iconAppearance.stroke ~= nil then
+				TextButton.TextStrokeTransparency = NAStuff.iconAppearance.stroke
+			end
+		end
+	end
+end
+
+NAgui.setIconHidden=function(hidden, opts)
+	opts = opts or {}
+	hidden = hidden and true or false
+	if NAStuff.IconInvisible == hidden and not opts.force then
+		return
+	end
+	NAStuff.IconInvisible = hidden
+	NAgui.applyIconVisibility(hidden)
+	if FileSupport then
+		pcall(NAmanage.NASettingsSet, "iconInvisible", hidden)
+	end
+	if not opts.skipToggle and NAgui.setToggleState then
+		NAgui.setToggleState("Hide NA Icon", hidden, { force = true, fire = false })
+	end
+end
+
+NAmanage.IconSetInvisible = NAgui.setIconHidden
+
+NAgui.setIconHidden(NAStuff.IconInvisible, { force = true, skipToggle = true })
+
+NAStuff.IconLocked = NAStuff.IconLocked or false
+
+NAgui._NAIconConnName=function()
+	return TextButton and "DraggerV2_"..TextButton:GetDebugId() or "DraggerV2_ICON"
+end
+
+NAgui.applyIconLock=function(locked)
+	if not TextButton then return end
+	if locked then
+		NAlib.disconnect(NAgui._NAIconConnName())
+		pcall(function() TextButton.Active=false end)
+	else
+		NAgui.draggerV2(TextButton)
+		pcall(function() TextButton.Active=true end)
+	end
+end
+
+NAgui.setIconLocked=function(locked, opts)
+	opts = opts or {}
+	locked = locked and true or false
+	if NAStuff.IconLocked == locked and not opts.force then return end
+	NAStuff.IconLocked = locked
+	NAgui.applyIconLock(locked)
+	if FileSupport then
+		NAmanage.NASettingsSet("iconLocked", locked)
+	end
+	if not opts.skipToggle and NAgui.setToggleState then
+		NAgui.setToggleState("Lock NA Icon", locked, { force = true, fire = false })
+	end
+end
+
+NAmanage.IconSetLocked = NAgui.setIconLocked
+
 swooshySWOOSH = false
 
 function Swoosh()
-	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Rotation = 720
-	}):Play()
-	NAgui.draggerV2(TextButton)
+	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Rotation = 720}):Play()
+	if not NAStuff.IconLocked then
+		NAgui.draggerV2(TextButton)
+	end
 	if swooshySWOOSH then return end
 	swooshySWOOSH = true
 	TextButton.InputBegan:Connect(function(input)
@@ -36261,6 +36496,8 @@ function mainNameless()
 end
 
 coroutine.wrap(mainNameless)()
+
+NAgui.setIconLocked(NAStuff.IconLocked, { force = true, skipToggle = true })
 
 MouseButtonFix(TextButton,function()
 	NAgui.barSelect()
@@ -37461,6 +37698,16 @@ NAgui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
 	end
 end)
 
+NAgui.addToggle("Hide NA Icon", NAStuff.IconInvisible, function(v)
+	NAmanage.IconSetInvisible(v, { skipToggle = true, force = true })
+	DoNotif("Icon Visibility is "..(v and "Off" or "On"), 2)
+end)
+
+NAgui.addToggle("Lock NA Icon", NAStuff.IconLocked, function(v)
+	NAgui.setIconLocked(v, { force = true, skipToggle = true })
+	DoNotif("Icon Position is "..(v and "Locked" or "Unlocked"), 2)
+end)
+
 NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	doPREDICTION = v
 	DoNotif("Command Predictions "..(v and "Enabled" or "Disabled"), 2)
@@ -37482,8 +37729,8 @@ end)
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	local pos = TextButton.Position
 	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-		X = v and pos.X.Scale or 0.5,
-		Y = v and pos.Y.Scale or 0.1,
+		X = (v and pos.X.Scale) or 0.5,
+		Y = (v and pos.Y.Scale) or 0.1,
 		Save = v
 	}))
 	NAiconSaveEnabled = v
