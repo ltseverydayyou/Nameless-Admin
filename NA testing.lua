@@ -38154,8 +38154,7 @@ NAmanage.RegisterToggleAutoSync("Debug Notifications", function()
 	return NAStuff.nuhuhNotifs == true
 end)
 
-local autoSkipSetting = NAmanage.getAutoSkipPreference()
-NAgui.addToggle("Auto Skip Loading Screen", autoSkipSetting, function(v)
+NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
 	NAmanage.setAutoSkipPreference(v)
 	DoNotif("Auto skip loading screen "..(v and "enabled" or "disabled"), 2)
 end)
@@ -38226,7 +38225,7 @@ if CoreGui then
 		path     = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default  = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg       = CoreGui,
-		images   = setmetatable({}, { __mode = "k" }),
+		images   = {},
 		watchers = setmetatable({}, { __mode = "k" }),
 	}
 
@@ -38362,7 +38361,11 @@ if CoreGui then
 
 	NAmanage.plex_applyAll = function()
 		for o in pairs(PT.images) do
-			NAmanage.plex_add(o)
+			if o and o.Parent then
+				NAmanage.plex_add(o)
+			else
+				PT.images[o] = nil
+			end
 		end
 	end
 
