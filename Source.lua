@@ -3147,7 +3147,25 @@ if FileSupport then
 		local success, data = pcall(function()
 			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
 		end)
-		if success and data then
+		if success and type(data) == "table" then
+			local rewrite = false
+			if type(data.X) == "number" then
+				local clampedX = math.clamp(data.X, 0, 1)
+				if clampedX ~= data.X then
+					data.X = clampedX
+					rewrite = true
+				end
+			end
+			if type(data.Y) == "number" then
+				local clampedY = math.clamp(data.Y, 0, 1)
+				if clampedY ~= data.Y then
+					data.Y = clampedY
+					rewrite = true
+				end
+			end
+			if rewrite then
+				pcall(writefile, NAfiles.NAICONPOSPATH, HttpService:JSONEncode(data))
+			end
 			if data.Save ~= nil then
 				NAiconSaveEnabled = data.Save
 			else
@@ -3295,20 +3313,20 @@ if FileSupport then
 
 		local function setToggle(label, value)
 			if not NAgui.setToggleState then return end
-			NAgui.setToggleState(label, value and true or false, { fire = shouldFire })
+			NAgui.setToggleState(label, value and true or false, { force = true, fire = shouldFire and true or false })
 		end
 
 		local function setSlider(label, value)
 			if value == nil or not NAgui.setSliderValue then return end
 			if type(value) ~= "number" then return end
-			NAgui.setSliderValue(label, value, { fire = shouldFire })
+			NAgui.setSliderValue(label, value, { force = true, fire = shouldFire and true or false })
 		end
 
 		local function setColor(label, value)
 			if value == nil or not NAgui.setColorPickerValue then return end
 			local ok, color = pcall(tblToC3, value)
 			if not ok or typeof(color) ~= "Color3" then return end
-			NAgui.setColorPickerValue(label, color, { fire = shouldFire })
+			NAgui.setColorPickerValue(label, color, { fire = shouldFire and true or false })
 		end
 
 		setToggle("Enable Custom Chat Styling", chat.customEnabled)
@@ -34118,9 +34136,10 @@ NAmanage.RunUIAutoSync = function()
 				if registry and registry[label] then
 					if watcher.last == nil or watcher.last ~= normalized then
 						watcher.last = normalized
+						local fireCallback = watcher.opts and watcher.opts.fire == true
 						NAgui.setToggleState(label, normalized, {
 							force = true,
-							fire = watcher.opts and watcher.opts.fire == true,
+							fire = fireCallback and true or false,
 						})
 					end
 				else
@@ -36637,6 +36656,51 @@ NAStuff.iconAppearance = NAStuff.iconAppearance or  {
 	image = TextButton:IsA("ImageButton") and TextButton.ImageTransparency or nil;
 }
 
+NAgui.clampIconPositionUDim=function(pos)
+	if typeof(pos) ~= "UDim2" then
+		return pos
+	end
+	if not TextButton or not TextButton.Parent then
+		return UDim2.new(math.clamp(pos.X.Scale, 0, 1), 0, math.clamp(pos.Y.Scale, 0, 1), 0)
+	end
+	local container = TextButton.Parent
+	local parentSize = container.AbsoluteSize
+	if parentSize.X <= 0 or parentSize.Y <= 0 then
+		local cam = workspace and workspace.CurrentCamera
+		if cam then
+			parentSize = cam.ViewportSize
+		end
+	end
+	if parentSize.X <= 0 or parentSize.Y <= 0 then
+		return UDim2.new(math.clamp(pos.X.Scale, 0, 1), 0, math.clamp(pos.Y.Scale, 0, 1), 0)
+	end
+	local anchor = TextButton.AnchorPoint or Vector2.new(0, 0)
+	local buttonSizeX = TextButton.AbsoluteSize.X
+	local buttonSizeY = TextButton.AbsoluteSize.Y
+	if buttonSizeX <= 0 then buttonSizeX = 32 * NAScale end
+	if buttonSizeY <= 0 then buttonSizeY = 32 * NAScale end
+	local absX = pos.X.Scale * parentSize.X + pos.X.Offset
+	local absY = pos.Y.Scale * parentSize.Y + pos.Y.Offset
+	local minX = anchor.X * buttonSizeX
+	local maxX = parentSize.X - (1 - anchor.X) * buttonSizeX
+	local minY = anchor.Y * buttonSizeY
+	local maxY = parentSize.Y - (1 - anchor.Y) * buttonSizeY
+	if maxX < minX then maxX = minX end
+	if maxY < minY then maxY = minY end
+	local clampedX = math.clamp(absX, minX, maxX)
+	local clampedY = math.clamp(absY, minY, maxY)
+	return UDim2.new(clampedX / parentSize.X, 0, clampedY / parentSize.Y, 0)
+end
+
+NAgui.getClampedIconPosition=function()
+	if not TextButton then return nil end
+	local clamped = NAgui.clampIconPositionUDim(TextButton.Position)
+	if clamped and clamped ~= TextButton.Position then
+		TextButton.Position = clamped
+	end
+	return clamped or TextButton.Position
+end
+
 NAgui.applyIconVisibility=function(hidden)
 	if not TextButton then return end
 	if IsOnMobile and not IsOnPC then
@@ -36739,7 +36803,7 @@ function Swoosh()
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					if FileSupport and NAiconSaveEnabled then
-						local pos = TextButton.Position
+						local pos = NAgui.getClampedIconPosition() or TextButton.Position
 						writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
 							X = pos.X.Scale,
 							Y = pos.Y.Scale,
@@ -36787,7 +36851,16 @@ function mainNameless()
 		end
 	end
 
-	TextButton.Position = UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)
+	targetPos = NAgui.clampIconPositionUDim(targetPos)
+	if FileSupport and NAiconSaveEnabled then
+		pcall(writefile, NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
+			X = targetPos.X.Scale,
+			Y = targetPos.Y.Scale,
+			Save = true
+		}))
+	end
+	local introPos = NAgui.clampIconPositionUDim(UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)) or targetPos
+	TextButton.Position = introPos
 
 	local tweenProps = {
 		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale),
@@ -38071,10 +38144,15 @@ NAmanage.RegisterToggleAutoSync("Auto Skip Loading Screen", function()
 end)
 
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
-	local pos = TextButton.Position
+	local pos = NAgui.getClampedIconPosition() or TextButton.Position
+	if v then
+		TextButton.Position = pos
+	else
+		pos = NAgui.clampIconPositionUDim(UDim2.new(0.5, 0, 0.1, 0))
+	end
 	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-		X = (v and pos.X.Scale) or 0.5,
-		Y = (v and pos.Y.Scale) or 0.1,
+		X = pos.X.Scale,
+		Y = pos.Y.Scale,
 		Save = v
 	}))
 	NAiconSaveEnabled = v
