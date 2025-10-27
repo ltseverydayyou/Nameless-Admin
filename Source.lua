@@ -32,6 +32,7 @@ local TAB_CHAT = "Chat"
 local TAB_CHARACTER = "Character"
 local TAB_KEYBINDS = "Keybinds"
 local TAB_ROBLOX_DATA = "Roblox Data"
+local TAB_ADMIN_INFO = "Admin Info"
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -421,6 +422,7 @@ local NAStuff = {
 	ChatSettingsTemplate = nil;
 	ChatSettingsDefaults = nil;
 	ChatCustomizationActive = nil;
+	ChatSettingsCustomBackup = nil;
 	IconInvisible = false;
 	IconLocked = false;
 	_prefetchedRemotes = {};
@@ -3223,9 +3225,123 @@ if FileSupport then
 
 	NAStuff.ChatSettings = loadChat()
 
+	originalIO.getChatTemplateSection=function(section)
+		local template = NAStuff.ChatSettingsTemplate
+		if type(template) ~= "table" then return nil end
+		return template[section]
+	end
+
+	originalIO.assignChatSectionFromTemplate=function(section)
+		local defaults = originalIO.getChatTemplateSection(section)
+		if defaults == nil then return false end
+		if type(defaults) == "table" then
+			NAStuff.ChatSettings[section] = deepCopyTable(defaults)
+		else
+			NAStuff.ChatSettings[section] = defaults
+		end
+		return true
+	end
+
+	originalIO.ensureChatCustomBackup=function()
+		if type(NAStuff.ChatSettingsCustomBackup) ~= "table" then
+			NAStuff.ChatSettingsCustomBackup = {}
+		end
+		return NAStuff.ChatSettingsCustomBackup
+	end
+
+	originalIO.backupChatSection=function(section)
+		if type(NAStuff.ChatSettings) ~= "table" then return end
+		local current = NAStuff.ChatSettings[section]
+		if current == nil then return end
+		local backup = originalIO.ensureChatCustomBackup()
+		if type(current) == "table" then
+			backup[section] = deepCopyTable(current)
+		else
+			backup[section] = current
+		end
+	end
+
+	originalIO.restoreChatSectionFromBackup=function(section)
+		local backup = NAStuff.ChatSettingsCustomBackup
+		if type(backup) ~= "table" then return false end
+		local saved = backup[section]
+		if saved == nil then return false end
+		if type(saved) == "table" then
+			NAStuff.ChatSettings[section] = deepCopyTable(saved)
+		else
+			NAStuff.ChatSettings[section] = saved
+		end
+		return true
+	end
+
 	NAmanage.SaveTextChatSettings = function()
 		local ok4, json = pcall(function() return HttpService:JSONEncode(NAStuff.ChatSettings) end)
 		if ok4 then pcall(writefile, ChatConfigPath, json) end
+		if NAmanage.SyncChatSettingsUI then
+			NAmanage.SyncChatSettingsUI()
+		end
+	end
+
+	NAmanage.SyncChatSettingsUI = function(opts)
+		opts = opts or {}
+		local shouldFire = opts.fire == true
+		local chat = NAStuff.ChatSettings
+		if type(chat) ~= "table" then return end
+
+		local window = chat.window or {}
+		local tabs = chat.tabs or {}
+		local input = chat.input or {}
+		local bubbles = chat.bubbles or {}
+
+		local function setToggle(label, value)
+			if not NAgui.setToggleState then return end
+			NAgui.setToggleState(label, value and true or false, { fire = shouldFire })
+		end
+
+		local function setSlider(label, value)
+			if value == nil or not NAgui.setSliderValue then return end
+			if type(value) ~= "number" then return end
+			NAgui.setSliderValue(label, value, { fire = shouldFire })
+		end
+
+		local function setColor(label, value)
+			if value == nil or not NAgui.setColorPickerValue then return end
+			local ok, color = pcall(tblToC3, value)
+			if not ok or typeof(color) ~= "Color3" then return end
+			NAgui.setColorPickerValue(label, color, { fire = shouldFire })
+		end
+
+		setToggle("Enable Custom Chat Styling", chat.customEnabled)
+		setToggle("Enable Chat (CoreGui)", chat.coreGuiChat)
+		setToggle("Window Enabled", window.enabled)
+		setToggle("Tabs Enabled", tabs.enabled)
+		setToggle("Input Enabled", input.enabled)
+		setToggle("Autocomplete", input.autocomplete)
+		setToggle("Target #RBXGeneral", input.targetGeneral)
+		setToggle("Bubbles Enabled", bubbles.enabled)
+		setToggle("Tail Visible", bubbles.tailVisible)
+
+		setSlider("Text Size (Window)", window.textSize)
+		setSlider("Text Stroke Transparency", window.strokeTransparency)
+		setSlider("Window Background Transparency", window.backgroundTransparency)
+		setSlider("Text Size (Tabs)", tabs.textSize)
+		setSlider("Background Transparency (Tabs)", tabs.backgroundTransparency)
+		setSlider("Text Size (Input)", input.textSize)
+		setSlider("Text Stroke Transparency (Input)", input.strokeTransparency)
+		setSlider("Background Transparency (Input)", input.backgroundTransparency)
+		setSlider("Max Distance", bubbles.maxDistance)
+		setSlider("Minimize Distance", bubbles.minimizeDistance)
+		setSlider("Text Size (Bubble)", bubbles.textSize)
+		setSlider("Bubble Spacing", bubbles.spacing)
+		setSlider("Background Transparency (Bubble)", bubbles.backgroundTransparency)
+
+		setColor("Text Color", window.textColor)
+		setColor("Text Stroke Color", window.strokeColor)
+		setColor("Window Background", window.backgroundColor)
+		setColor("Text Color (Tabs)", tabs.textColor)
+		setColor("Selected Text Color", tabs.selectedTextColor)
+		setColor("Unselected Text Color", tabs.unselectedTextColor)
+		setColor("Text Color (Input)", input.textColor)
 	end
 
 	local function hasProp(inst, prop)
@@ -3245,7 +3361,7 @@ if FileSupport then
 		return nil
 	end
 
-	local function getChatDefaults()
+	originalIO.getChatDefaults=function()
 		if not NAStuff.ChatSettingsDefaults then
 			NAStuff.ChatSettingsDefaults = {
 				window = {};
@@ -3257,9 +3373,9 @@ if FileSupport then
 		return NAStuff.ChatSettingsDefaults
 	end
 
-	local function rememberChatDefault(group, inst, prop)
+	originalIO.rememberChatDefault=function(group, inst, prop)
 		if not inst then return end
-		local defaults = getChatDefaults()
+		local defaults = originalIO.getChatDefaults()
 		local groupDefaults = defaults[group]
 		local info = groupDefaults[prop]
 		if info and info.source == inst then return end
@@ -3269,22 +3385,22 @@ if FileSupport then
 		groupDefaults[prop] = { has = true, value = value, source = inst }
 	end
 
-	local function captureChatDefaults(Window, Tabs, InputBar, Bubbles)
+	originalIO.captureChatDefaults=function(Window, Tabs, InputBar, Bubbles)
 		local function captureGroup(group, inst, props)
 			if not inst then return end
 			for _, prop in ipairs(props) do
-				rememberChatDefault(group, inst, prop)
+				originalIO.rememberChatDefault(group, inst, prop)
 			end
 		end
 
-		getChatDefaults()
+		originalIO.getChatDefaults()
 		captureGroup("window", Window, { "Enabled", "FontFace", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
 		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundTransparency", "TextColor3", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
 		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "TextSize", "TextColor3", "TextStrokeTransparency", "BackgroundTransparency" })
 		captureGroup("bubbles", Bubbles, { "Enabled", "MaxDistance", "MinimizeDistance", "TextSize", "BubblesSpacing", "BackgroundTransparency", "TailVisible" })
 	end
 
-	local function applyChatDefaultGroup(group, inst)
+	originalIO.applyChatDefaultGroup=function(group, inst)
 		local defaults = NAStuff.ChatSettingsDefaults
 		if not defaults or not inst then return end
 		local groupDefaults = defaults[group]
@@ -3296,11 +3412,11 @@ if FileSupport then
 		end
 	end
 
-	local function restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
-		applyChatDefaultGroup("window", Window)
-		applyChatDefaultGroup("tabs", Tabs)
-		applyChatDefaultGroup("input", InputBar)
-		applyChatDefaultGroup("bubbles", Bubbles)
+	originalIO.restoreChatDefaults=function(Window, Tabs, InputBar, Bubbles)
+		originalIO.applyChatDefaultGroup("window", Window)
+		originalIO.applyChatDefaultGroup("tabs", Tabs)
+		originalIO.applyChatDefaultGroup("input", InputBar)
+		originalIO.applyChatDefaultGroup("bubbles", Bubbles)
 	end
 
 	NAmanage.ApplyTextChatSettings = function()
@@ -3312,11 +3428,11 @@ if FileSupport then
 		local Bubbles = TCS:FindFirstChildOfClass("BubbleChatConfiguration")
 		local Tabs = TCS:FindFirstChildOfClass("ChannelTabsConfiguration")
 
-		captureChatDefaults(Window, Tabs, InputBar, Bubbles)
+		originalIO.captureChatDefaults(Window, Tabs, InputBar, Bubbles)
 
 		if not NAStuff.ChatSettings.customEnabled then
 			if NAStuff.ChatCustomizationActive ~= false then
-				restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
+				originalIO.restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
 			end
 			NAStuff.ChatCustomizationActive = false
 			return
@@ -3406,6 +3522,9 @@ else
 end
 
 opt.prefix = prefixCheck
+if NAmanage.SyncPrefixUI then
+	NAmanage.SyncPrefixUI()
+end
 
 local lastPrefix = opt.prefix
 
@@ -9113,6 +9232,9 @@ cmd.add({"prefix"}, {"prefix <symbol>", "Changes the admin prefix"}, function(..
 	else
 		opt.prefix = newPrefix
 		DoNotif("Prefix set to: "..newPrefix)
+		if NAmanage.SyncPrefixUI then
+			NAmanage.SyncPrefixUI()
+		end
 	end
 end, true)
 
@@ -9134,6 +9256,9 @@ cmd.add({"saveprefix"}, {"saveprefix <symbol>", "Saves the prefix to a file and 
 		DoNotif("Prefix saved to: "..newPrefix)
 		if not FileSupport then
 			DebugNotif("Prefix will reset when Roblox closes (no file support detected).")
+		end
+		if NAmanage.SyncPrefixUI then
+			NAmanage.SyncPrefixUI()
 		end
 	end
 end, true)
@@ -33213,12 +33338,18 @@ cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the g
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = newName
 	end
+	if NAmanage.UpdateAdminInfoTabDisplayName then
+		NAmanage.UpdateAdminInfoTabDisplayName()
+	end
 end, true)
 
 cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function()
 	adminName = getgenv().NATestingVer and "NA Testing" or "Nameless Admin"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
+	end
+	if NAmanage.UpdateAdminInfoTabDisplayName then
+		NAmanage.UpdateAdminInfoTabDisplayName()
 	end
 end)
 
@@ -33625,10 +33756,13 @@ NAgui.addInfo = function(label, value)
 		interact.Visible = false
 	end
 
-	return box
+return box
 end
 
 NAgui._toggleRegistry = NAgui._toggleRegistry or {}
+NAgui._colorPickerRegistry = NAgui._colorPickerRegistry or {}
+NAgui._sliderRegistry = NAgui._sliderRegistry or {}
+NAgui._inputRegistry = NAgui._inputRegistry or {}
 
 NAgui.addToggle = function(label, defaultValue, callback)
 	if not NAUIMANAGER.SettingsList then return end
@@ -33721,6 +33855,10 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	local rgb = picker.RGB
 	local hex = picker.HexInput
 
+	if typeof(defaultColor) ~= "Color3" then
+		defaultColor = Color3.fromRGB(255, 255, 255)
+	end
+
 	local h, s, v = defaultColor:ToHSV()
 	local draggingMain = false
 	local draggingSlider = false
@@ -33728,7 +33866,8 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	main.MainPoint.AnchorPoint = Vector2.new(0.5, 0.5)
 	slider.SliderPoint.AnchorPoint = Vector2.new(0.5, 0.5)
 
-	local function updateUI(pushToInputs)
+	local function updateUI(pushToInputs, opts)
+		opts = opts or {}
 		local color = Color3.fromHSV(h, s, v)
 		display.BackgroundColor3 = color
 		background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
@@ -33746,9 +33885,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 			hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
 		end
 
-		pcall(function()
-			callback(color)
-		end)
+		if opts.fire ~= false then
+			pcall(function()
+				callback(color)
+			end)
+		end
 	end
 
 	local function parseRGBInputs()
@@ -33824,33 +33965,187 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 		end
 	end)
 
+	local entry = {
+		get = function()
+			return Color3.fromHSV(h, s, v)
+		end;
+		set = function(color, opts)
+			if typeof(color) ~= "Color3" then return end
+			h, s, v = color:ToHSV()
+			updateUI(true, opts or {})
+		end;
+	}
+	NAgui._colorPickerRegistry[label] = entry
+
+	picker:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not picker.Parent and NAgui._colorPickerRegistry[label] == entry then
+			NAgui._colorPickerRegistry[label] = nil
+		end
+	end)
+
 	updateUI(true)
+
+	return picker
+end
+
+NAgui.setColorPickerValue = function(label, color, opts)
+	local entry = NAgui._colorPickerRegistry and NAgui._colorPickerRegistry[label]
+	if not entry then return end
+	entry.set(color, opts or { fire = false })
 end
 
 NAgui.addInput = function(label, placeholder, defaultText, callback)
 	local input = templates.Input:Clone()
+	local frame = input.InputFrame
+	local inputBox = frame.InputBox
+
 	input.Title.Text = label
-	input.InputFrame.InputBox.Text = defaultText or ""
-	input.InputFrame.InputBox.PlaceholderText = placeholder or ""
+	inputBox.Text = defaultText or ""
+	inputBox.PlaceholderText = placeholder or ""
 
 	input.LayoutOrder = NAgui._nextLayoutOrder()
 	input.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(input)
 
-	input.InputFrame.InputBox.FocusLost:Connect(function()
-		pcall(callback, input.InputFrame.InputBox.Text)
-	end)
-
-	input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
-		input.InputFrame:TweenSize(
-			UDim2.new(0, input.InputFrame.InputBox.TextBounds.X + 24, 0, 30),
+	local function resize()
+		frame:TweenSize(
+			UDim2.new(0, inputBox.TextBounds.X + 24, 0, 30),
 			Enum.EasingDirection.Out,
 			Enum.EasingStyle.Exponential,
 			0.2,
 			true
 		)
+	end
+
+	inputBox.FocusLost:Connect(function()
+		pcall(callback, inputBox.Text)
+	end)
+
+	inputBox:GetPropertyChangedSignal("Text"):Connect(resize)
+
+	local function setText(newValue, opts)
+		opts = opts or {}
+		local text = tostring(newValue or "")
+		if not opts.force and inputBox.Text == text then
+			if opts.fire then
+				pcall(callback, text)
+			end
+			return
+		end
+		inputBox.Text = text
+		if opts.fire then
+			pcall(callback, text)
+		end
+	end
+
+	local entry = {
+		input = input;
+		get = function()
+			return inputBox.Text
+		end;
+		set = function(value, opts)
+			setText(value, opts)
+		end;
+	}
+
+	NAgui._inputRegistry[label] = entry
+
+	input:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not input.Parent and NAgui._inputRegistry[label] == entry then
+			NAgui._inputRegistry[label] = nil
+		end
+	end)
+
+	resize()
+
+	return input
+end
+
+NAgui.setInputValue = function(label, value, opts)
+	local entry = NAgui._inputRegistry and NAgui._inputRegistry[label]
+	if not entry then return end
+	entry.set(value, opts or { fire = false })
+end
+
+NAmanage.SyncPrefixUI = function(opts)
+	if not (NAgui and NAgui.setInputValue) then return end
+	local prefixValue = opt and tostring(opt.prefix or "") or ""
+	if prefixValue == "" then
+		prefixValue = ";"
+	end
+	opts = opts or {}
+	local setterOpts = {
+		force = opts.force ~= false,
+		fire = opts.fire == true,
+	}
+	NAgui.setInputValue("Prefix", prefixValue, setterOpts)
+end
+
+NAmanage._uiAutoSync = NAmanage._uiAutoSync or { toggles = {} }
+
+NAmanage.RegisterToggleAutoSync = function(label, getter, opts)
+	if type(label) ~= "string" or type(getter) ~= "function" then return end
+	local store = NAmanage._uiAutoSync
+	local entry = store.toggles[label]
+	if not entry then
+		entry = { getter = getter, last = nil, opts = opts }
+		store.toggles[label] = entry
+	else
+		entry.getter = getter
+		entry.opts = opts or entry.opts
+	end
+end
+
+NAmanage.RunUIAutoSync = function()
+	local store = NAmanage._uiAutoSync
+	if not store then return end
+	local toggleStore = store.toggles
+	if toggleStore and NAgui and NAgui.setToggleState then
+		for label, watcher in pairs(toggleStore) do
+			local success, rawValue = pcall(watcher.getter)
+			if success then
+				local normalized = nil
+				if watcher.opts and type(watcher.opts.normalize) == "function" then
+					local ok, result = pcall(watcher.opts.normalize, rawValue)
+					if ok then
+						normalized = result
+					end
+				end
+				if normalized == nil then
+					normalized = rawValue and true or false
+				end
+				local registry = NAgui._toggleRegistry
+				if registry and registry[label] then
+					if watcher.last == nil or watcher.last ~= normalized then
+						watcher.last = normalized
+						NAgui.setToggleState(label, normalized, {
+							force = true,
+							fire = watcher.opts and watcher.opts.fire == true,
+						})
+					end
+				else
+					watcher.last = nil
+				end
+			end
+		end
+	end
+end
+
+NAmanage.StartUIAutoSyncLoop = function()
+	if NAmanage._uiAutoSyncLoopStarted then return end
+	NAmanage._uiAutoSyncLoopStarted = true
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			local ok, err = pcall(NAmanage.RunUIAutoSync)
+			if not ok then
+				warn("[NA] UI auto-sync failed:", err)
+			end
+		end
 	end)
 end
+
+NAmanage.StartUIAutoSyncLoop()
 
 NAgui.addKeybind = function(label, defaultKey, callback)
 	local keybind = templates.Keybind:Clone()
@@ -33913,16 +34208,39 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local infoText = slider.Main.Information
 
 	local dragging = false
+	local currentValue = defaultValue
+	local step = tonumber(increment) or 0
+	local range = max - min
+
+	local function quantize(value)
+		if step == 0 then
+			return math.clamp(value, min, max)
+		end
+		local scaled = (value - min) / step
+		local rounded = math.floor(scaled + 0.5)
+		local quantized = min + rounded * step
+		if quantized < min then quantized = min end
+		if quantized > max then quantized = max end
+		return quantized
+	 end
+
+	local function applyValue(value, opts)
+		opts = opts or {}
+		local quantized = quantize(value)
+		currentValue = quantized
+		local percent = (range ~= 0) and ((quantized - min) / range) or 0
+		progress.Size = UDim2.new(percent, 0, 1, 0)
+		infoText.Text = Format("%.14g", quantized)..(suffix or "")
+		if opts.fire ~= false then
+			pcall(callback, quantized)
+		end
+	end
 
 	local function updateSliderValueFromPos(x)
 		local relX = math.clamp(x - interact.AbsolutePosition.X, 0, interact.AbsoluteSize.X)
 		local percent = relX / interact.AbsoluteSize.X
-		local value = math.floor((min + (max - min) * percent) / increment + 0.5) * increment
-		value = math.clamp(value, min, max)
-
-		progress.Size = UDim2.new(percent, 0, 1, 0)
-		infoText.Text = Format("%.14g", value)..(suffix or "")
-		pcall(callback, value)
+		local value = min + range * percent
+		applyValue(value)
 	end
 
 	interact.InputBegan:Connect(function(input)
@@ -33943,9 +34261,31 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		end
 	end)
 
-	local initialPercent = (defaultValue - min) / (max - min)
-	progress.Size = UDim2.new(initialPercent, 0, 1, 0)
-	infoText.Text = Format("%.14g", defaultValue)..(suffix or "")
+	applyValue(defaultValue, { fire = false })
+
+	local entry = {
+		get = function()
+			return currentValue
+		end;
+		set = function(value, opts)
+			applyValue(value, opts or {})
+		end;
+	}
+	NAgui._sliderRegistry[label] = entry
+
+	slider:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not slider.Parent and NAgui._sliderRegistry[label] == entry then
+			NAgui._sliderRegistry[label] = nil
+		end
+	end)
+
+	return slider
+end
+
+NAgui.setSliderValue = function(label, value, opts)
+	local entry = NAgui._sliderRegistry and NAgui._sliderRegistry[label]
+	if not entry then return end
+	entry.set(value, opts or { fire = false })
 end
 
 NAmanage.Topbar_PlayTween=function(key,instance,info,props)
@@ -36193,6 +36533,9 @@ RunService.RenderStepped:Connect(function()
 			opt.prefix = ";"
 			DoNotif("Invalid prefix detected. Resetting to default ';'")
 			lastPrefix = ";"
+			if NAmanage.SyncPrefixUI then
+				NAmanage.SyncPrefixUI()
+			end
 
 			local storedPrefix = NAmanage.NASettingsGet("prefix")
 			if isInvalid(storedPrefix) then
@@ -37656,6 +37999,9 @@ NAgui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
 	else
 		opt.prefix = newPrefix
 		DoNotif("Prefix set to: "..newPrefix)
+		if NAmanage.SyncPrefixUI then
+			NAmanage.SyncPrefixUI()
+		end
 	end
 end)
 
@@ -37677,15 +38023,24 @@ NAgui.addToggle("Keep "..adminName, NAQoTEnabled, function(val)
 		DoNotif("QueueOnTeleport has been disabled. "..adminName.." will no longer auto-run after teleport", 3)
 	end
 end)
+NAmanage.RegisterToggleAutoSync("Keep "..adminName, function()
+	return NAQoTEnabled == true
+end)
 
 NAgui.addToggle("Hide NA Icon", NAStuff.IconInvisible, function(v)
 	NAmanage.IconSetInvisible(v, { skipToggle = true, force = true })
 	DoNotif("Icon Visibility is "..(v and "Off" or "On"), 2)
 end)
+NAmanage.RegisterToggleAutoSync("Hide NA Icon", function()
+	return NAStuff.IconInvisible == true
+end)
 
 NAgui.addToggle("Lock NA Icon", NAStuff.IconLocked, function(v)
 	NAgui.setIconLocked(v, { force = true, skipToggle = true })
 	DoNotif("Icon Position is "..(v and "Locked" or "Unlocked"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Lock NA Icon", function()
+	return NAStuff.IconLocked == true
 end)
 
 NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
@@ -37693,17 +38048,26 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 	DoNotif("Command Predictions "..(v and "Enabled" or "Disabled"), 2)
 	NAmanage.NASettingsSet("prediction", v)
 end)
+NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
+	return doPREDICTION == true
+end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
 	NAStuff.nuhuhNotifs = v
 	DoNotif("Debug Notifications "..(v and "Enabled" or "Disabled"), 2)
 	NAmanage.NASettingsSet("notifsToggle", v)
 end)
+NAmanage.RegisterToggleAutoSync("Debug Notifications", function()
+	return NAStuff.nuhuhNotifs == true
+end)
 
 local autoSkipSetting = NAmanage.getAutoSkipPreference()
 NAgui.addToggle("Auto Skip Loading Screen", autoSkipSetting, function(v)
 	NAmanage.setAutoSkipPreference(v)
 	DoNotif("Auto skip loading screen "..(v and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Auto Skip Loading Screen", function()
+	return NAmanage.getAutoSkipPreference() == true
 end)
 
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
@@ -37715,6 +38079,9 @@ NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	}))
 	NAiconSaveEnabled = v
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
+end)
+NAmanage.RegisterToggleAutoSync("Keep Icon Position", function()
+	return NAiconSaveEnabled == true
 end)
 
 if FileSupport then
@@ -38279,7 +38646,22 @@ do
 
 	NAgui.addSection("Text Chat")
 	NAgui.addToggle("Enable Custom Chat Styling", NAStuff.ChatSettings.customEnabled, function(v)
-		NAStuff.ChatSettings.customEnabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+		local wasEnabled = NAStuff.ChatSettings.customEnabled == true
+		NAStuff.ChatSettings.customEnabled = v
+
+		if wasEnabled and not v then
+			originalIO.backupChatSection("bubbles")
+			if not originalIO.assignChatSectionFromTemplate("bubbles") then
+				originalIO.restoreChatSectionFromBackup("bubbles")
+			end
+		elseif v and not wasEnabled then
+			if not originalIO.restoreChatSectionFromBackup("bubbles") and type(NAStuff.ChatSettings.bubbles) ~= "table" then
+				originalIO.assignChatSectionFromTemplate("bubbles")
+			end
+		end
+
+		NAmanage.SaveTextChatSettings()
+		NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addButton("Reset Custom Chat Settings", function()
 		local ok, err = pcall(function()
@@ -38305,6 +38687,7 @@ do
 				current[key] = value
 			end
 
+			NAStuff.ChatSettingsCustomBackup = nil
 			current.customEnabled = preserveCustom
 			current.coreGuiChat = preserveCoreChat
 
@@ -38420,61 +38803,81 @@ do
 	end)
 end
 
-NAgui.addTab(TAB_KEYBINDS, { order = 6 })
-NAgui.setTab(TAB_KEYBINDS)
+if not IsOnMobile then
+	NAgui.addTab(TAB_KEYBINDS, { order = 6 })
+	NAgui.setTab(TAB_KEYBINDS)
 
-if IsOnPC then
-	NAgui.addSection("Control Lock")
-	NAgui.addKeybind("Add Shiftlock Key","LeftShift",function(k)
-		if k then NAmanage.ControlLock_AddKey(k) end
-	end)
-	NAgui.addKeybind("Remove Shiftlock Key","RightShift",function(k)
-		if k then NAmanage.ControlLock_RemoveKey(k) end
-	end)
-	NAgui.addButton("Apply Saved Keys",function()
-		NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
-	end)
-	NAgui.addButton("Reset To Default (Shift)",function()
-		NAmanage.ControlLock_ClearToDefault()
-	end)
-	NAgui.addToggle("Reapply On Respawn",NAStuff._ctrlLockPersist,function(state)
-		NAStuff._ctrlLockPersist = state and true or false
-		NAmanage.ControlLock_Bind()
-	end)
+	if IsOnPC then
+		NAgui.addSection("Control Lock")
+		NAgui.addKeybind("Add Shiftlock Key","LeftShift",function(k)
+			if k then NAmanage.ControlLock_AddKey(k) end
+		end)
+		NAgui.addKeybind("Remove Shiftlock Key","RightShift",function(k)
+			if k then NAmanage.ControlLock_RemoveKey(k) end
+		end)
+		NAgui.addButton("Apply Saved Keys",function()
+			NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
+		end)
+		NAgui.addButton("Reset To Default (Shift)",function()
+			NAmanage.ControlLock_ClearToDefault()
+		end)
+		NAgui.addToggle("Reapply On Respawn",NAStuff._ctrlLockPersist,function(state)
+			NAStuff._ctrlLockPersist = state and true or false
+			NAmanage.ControlLock_Bind()
+		end)
 
-	NAgui.addSection("Fly Keybinds")
-	NAgui.addInput("Fly Keybind","Enter Keybind","F",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.toggleKey=newKey
-		if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() flyVariables.keybindConn=nil end
-		NAmanage.connectFlyKey()
-		DebugNotif("Fly keybind set to '"..flyVariables.toggleKey:upper().."'")
-	end)
-	NAgui.addInput("vFly Keybind","Enter Keybind","V",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.vToggleKey=newKey
-		if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() flyVariables.vKeybindConn=nil end
-		NAmanage.connectVFlyKey()
-		DebugNotif("vFly keybind set to '"..flyVariables.vToggleKey:upper().."'")
-	end)
-	NAgui.addInput("cFly Keybind","Enter Keybind","C",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a keybind.") return end
-		flyVariables.cToggleKey=newKey
-		if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() flyVariables.cKeybindConn=nil end
-		NAmanage.connectCFlyKey()
-		DebugNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
-	end)
-	NAgui.addInput("tFly Keybind","Enter Keybind","T",function(text)
-		local newKey=(text or ""):lower()
-		if newKey=="" then DoNotif("Please provide a key.") return end
-		flyVariables.tflyToggleKey=newKey
-		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() flyVariables.tflyKeyConn=nil end
-		NAmanage.connectTFlyKey()
-		DebugNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
-	end)
+		NAgui.addSection("Fly Keybinds")
+		local function createFlyKeybindHandler(varField, connField, connectFunc, successTemplate, emptyMessage)
+			emptyMessage = emptyMessage or "Please provide a keybind."
+			return function(keyName)
+				if keyName == nil then
+					return
+				end
+				local newKey = tostring(keyName or ""):lower()
+				if newKey == "" then
+					DoNotif(emptyMessage)
+					return
+				end
+				flyVariables[varField] = newKey
+				local existingConn = flyVariables[connField]
+				if existingConn then
+					existingConn:Disconnect()
+					flyVariables[connField] = nil
+				end
+				connectFunc()
+				DebugNotif(Format(successTemplate, newKey:upper()))
+			end
+		end
+
+		NAgui.addKeybind("Fly Keybind", string.upper(flyVariables.toggleKey or "F"), createFlyKeybindHandler(
+			"toggleKey",
+			"keybindConn",
+			NAmanage.connectFlyKey,
+			"Fly keybind set to '%s'"
+		))
+
+		NAgui.addKeybind("vFly Keybind", string.upper(flyVariables.vToggleKey or "V"), createFlyKeybindHandler(
+			"vToggleKey",
+			"vKeybindConn",
+			NAmanage.connectVFlyKey,
+			"vFly keybind set to '%s'"
+		))
+
+		NAgui.addKeybind("cFly Keybind", string.upper(flyVariables.cToggleKey or "C"), createFlyKeybindHandler(
+			"cToggleKey",
+			"cKeybindConn",
+			NAmanage.connectCFlyKey,
+			"CFrame fly keybind set to '%s'"
+		))
+
+		NAgui.addKeybind("tFly Keybind", string.upper(flyVariables.tflyToggleKey or "T"), createFlyKeybindHandler(
+			"tflyToggleKey",
+			"tflyKeyConn",
+			NAmanage.connectTFlyKey,
+			"TFly keybind set to '%s'",
+			"Please provide a key."
+		))
+	end
 end
 
 NAgui.addTab(TAB_CHARACTER, { order = 7 })
@@ -38535,6 +38938,34 @@ end)
 NAgui.addTab(TAB_ROBLOX_DATA, { order = 8 })
 NAgui.setTab(TAB_ROBLOX_DATA)
 
+NAStuff.GitHubLoadingText = "Loading..."
+NAStuff.GitHubFailureText = "Failed to load commits"
+NAStuff.GitHubEmptyText = "No commits found"
+NAStuff.GitHubEndpointField = nil
+NAStuff.GitHubCommits = nil
+NAStuff.GitHubCommitMessageField = nil
+NAStuff.GitHubCommitAuthorField = nil
+NAStuff.GitHubCommitDateField = nil
+NAStuff.GitHubCommitsLastFetch = 0
+NAStuff.GitHubTabInitialized = false
+NAStuff.GitHubCommitHeaders = {
+	["User-Agent"] = "NamelessAdmin/1.0";
+	["Accept"] = "application/vnd.github+json";
+	["X-GitHub-Api-Version"] = "2022-11-28";
+}
+
+if getgenv and rawget(getgenv(), "GITHUB_TOKEN") then
+	local token = tostring(getgenv().GITHUB_TOKEN)
+	if token ~= "" then
+		NAStuff.GitHubCommitHeaders["Authorization"] = "Bearer "..token
+	end
+elseif getgenv and rawget(getgenv(), "GITHUB_AUTH") then
+	local auth = tostring(getgenv().GITHUB_AUTH)
+	if auth ~= "" then
+		NAStuff.GitHubCommitHeaders["Authorization"] = auth
+	end
+end
+
 NAStuff.RobloxVersionEndpoints = {
 	"https://weao.xyz/api/versions/current";
 	"http://weao.xyz/api/versions/current";
@@ -38580,6 +39011,237 @@ originalIO.parseRobloxVersionBody=function(body)
 		end
 	end
 	return nil
+end
+
+originalIO.fetchGitHubCommits = function(forceRefresh)
+	local cached = NAStuff.GitHubCommits
+	local lastFetch = NAStuff.GitHubCommitsLastFetch or 0
+	if cached and not forceRefresh and (tick() - lastFetch) < 300 then
+		return true, cached
+	end
+
+	local requestFunc = opt and opt.NAREQUEST
+	if type(requestFunc) ~= "function" then
+		return false, "HTTP request function is unavailable"
+	end
+
+	local baseUrl = opt and opt.githubUrl
+	if type(baseUrl) ~= "string" or baseUrl == "" then
+		return false, "GitHub URL is not configured"
+	end
+
+	local endpoints = {}
+	local function appendEndpoint(url)
+		if url and url ~= "" then
+			Insert(endpoints, url)
+		end
+	end
+
+	appendEndpoint(baseUrl)
+
+	if not baseUrl:lower():find("^https?://r%.jina%.ai/") then
+		appendEndpoint("https://r.jina.ai/"..baseUrl)
+	end
+
+	if getgenv and rawget(getgenv(), "GITHUB_PROXY") then
+		local proxy = tostring(getgenv().GITHUB_PROXY)
+		if proxy ~= "" then
+			appendEndpoint(proxy)
+		end
+	end
+
+	local headers = {}
+	for key, value in pairs(NAStuff.GitHubCommitHeaders or {}) do
+		headers[key] = value
+	end
+
+	local lastError
+	for _, endpoint in ipairs(endpoints) do
+		local sep = endpoint:find("?", 1, true) and "&" or "?"
+		local cacheBuster = "_="..tostring(os.time())..tostring(math.random(1, 1e6))
+		local url = endpoint..sep..cacheBuster
+		local okRequest, response = pcall(requestFunc, {
+			Url = url;
+			Method = "GET";
+			Headers = headers;
+			Timeout = 8;
+			FollowRedirects = true;
+			SslVerify = false;
+		})
+		if okRequest and response then
+			local status = tonumber(response.StatusCode) or tonumber(response.Status)
+			local body = response.Body or response.body
+			if status == 200 and type(body) == "string" then
+				local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+				if decodeOk and type(decoded) == "table" then
+					NAStuff.GitHubCommits = decoded
+					NAStuff.GitHubCommitsLastFetch = tick()
+					return true, decoded
+				else
+					lastError = "Invalid JSON response"
+				end
+			elseif status == 304 and cached then
+				NAStuff.GitHubCommitsLastFetch = tick()
+				return true, cached
+			else
+				local statusText = status and tostring(status) or "unknown"
+				lastError = Format("GitHub request failed (HTTP %s)", statusText)
+			end
+		else
+			local err = okRequest and "Unknown response error" or tostring(response)
+			lastError = err
+		end
+	end
+
+	if type(baseUrl) == "string" and baseUrl ~= "" then
+		local sep = baseUrl:find("?", 1, true) and "&" or "?"
+		local cacheBuster = "_="..tostring(os.time())..tostring(math.random(1, 1e6))
+		local directUrl = baseUrl..sep..cacheBuster
+		local okDirect, bodyDirect = pcall(function()
+			return HttpService:GetAsync(directUrl)
+		end)
+		if okDirect and type(bodyDirect) == "string" then
+			local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, bodyDirect)
+			if decodeOk and type(decoded) == "table" then
+				NAStuff.GitHubCommits = decoded
+				NAStuff.GitHubCommitsLastFetch = tick()
+				return true, decoded
+			end
+		end
+	end
+
+	return false, lastError or NAStuff.GitHubFailureText
+end
+
+originalIO.sanitizeCommitMessage = function(message)
+	message = tostring(message or "(no message)")
+	message = message:gsub("[%c]", " ")
+	message = message:gsub("%s+", " ")
+	if #message > 70 then
+		message = message:sub(1, 67).."..."
+	end
+	return message
+end
+
+originalIO.formatCommitAuthor = function(commit)
+	if type(commit) ~= "table" then
+		return "Unknown author"
+	end
+	local commitInfo = commit.commit or {}
+	local authorInfo = commitInfo.author or {}
+	local fallbackAuthor = commit.author or {}
+	local nickname = authorInfo.name
+	local username = fallbackAuthor.login
+	if nickname and username then
+		if nickname == username then
+			return nickname
+		else
+			return Format("%s (%s)", nickname, username)
+		end
+	elseif nickname then
+		return nickname
+	elseif username then
+		return username
+	end
+	return "Unknown author"
+end
+
+originalIO.formatCommitDate = function(isoDate)
+	if type(isoDate) ~= "string" then
+		return "Unknown date", nil
+	end
+	local year, month, day, hour, minute = isoDate:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+)")
+	if year and month and day and hour and minute then
+		local display = Format("%02d/%02d/%s %s:%s UTC", tonumber(month), tonumber(day), year, hour, minute)
+		local shortDate = Format("%02d/%02d/%s", tonumber(month), tonumber(day), year)
+		return display, shortDate
+	end
+	return isoDate, nil
+end
+
+NAmanage.FormatGitHubCommitSummary = function(commit)
+	if type(commit) ~= "table" then
+		return NAStuff.GitHubFailureText
+	end
+	local sha = commit.sha and tostring(commit.sha):sub(1, 7) or "unknown"
+	local commitInfo = commit.commit or {}
+	local message = originalIO.sanitizeCommitMessage(commitInfo.message)
+	return Format("%s (%s)", message, sha)
+end
+
+NAmanage.UpdateGitHubCommitUI = function(commits, statusMessage)
+	commits = commits or NAStuff.GitHubCommits
+	local commit = (type(commits) == "table" and commits[1]) or nil
+	local messageField = NAStuff.GitHubCommitMessageField
+	local authorField = NAStuff.GitHubCommitAuthorField
+	local dateField = NAStuff.GitHubCommitDateField
+
+	local endpointField = NAStuff.GitHubEndpointField
+	if endpointField then
+		endpointField.Text = (type(opt.githubUrl) == "string" and opt.githubUrl ~= "" and opt.githubUrl) or "Unavailable"
+	end
+
+	if commit then
+		local message = NAmanage.FormatGitHubCommitSummary(commit)
+		local authorDisplay = originalIO.formatCommitAuthor(commit)
+		local commitInfo = commit.commit or {}
+		local authorInfo = commitInfo.author or commitInfo.committer or {}
+		local dateDisplay, shortDate = originalIO.formatCommitDate(authorInfo.date)
+
+		if messageField then
+			messageField.Text = message or NAStuff.GitHubEmptyText
+		end
+		if authorField then
+			authorField.Text = authorDisplay or NAStuff.GitHubEmptyText
+		end
+		if dateField then
+			dateField.Text = dateDisplay or NAStuff.GitHubEmptyText
+		end
+
+		if shortDate then
+			opt.NAupdDate = shortDate
+		end
+	else
+		local fallback = statusMessage or NAStuff.GitHubEmptyText
+		if messageField then
+			messageField.Text = fallback
+		end
+		if authorField then
+			authorField.Text = fallback
+		end
+		if dateField then
+			dateField.Text = fallback
+		end
+	end
+end
+
+NAmanage.RefreshGitHubCommits = function(forceRefresh)
+	local ok, result = originalIO.fetchGitHubCommits(forceRefresh)
+	if ok then
+		NAmanage.UpdateGitHubCommitUI(result)
+	else
+		local message = result or NAStuff.GitHubFailureText
+		if type(message) == "string" and #message > 128 then
+			message = message:sub(1, 125).."..."
+		end
+		warn("[NA] GitHub commit fetch failed:", message)
+		NAmanage.UpdateGitHubCommitUI(nil, "Error: "..message)
+	end
+	return ok
+end
+
+NAmanage.UpdateAdminInfoTabDisplayName = function()
+	if not TabManager or not TabManager.tabs then return end
+	local info = TabManager.tabs[TAB_ADMIN_INFO]
+	if not info then return end
+	local displayText = (adminName or "Admin").." Info"
+	info.displayName = displayText
+	if info.button then
+		local title = info.button:FindFirstChild("Title")
+		if title then
+			title.Text = displayText
+		end
+	end
 end
 
 originalIO.fetchRobloxVersionData=function(forceRefresh)
@@ -38669,6 +39331,53 @@ SpawnCall(function()
 		end
 	end
 end)
+
+NAgui.addTab(TAB_ADMIN_INFO, { order = 9, displayText = adminInfoDisplay })
+NAgui.setTab(TAB_ADMIN_INFO)
+
+if NAmanage.UpdateAdminInfoTabDisplayName then
+	NAmanage.UpdateAdminInfoTabDisplayName()
+end
+
+if not NAStuff.GitHubTabInitialized then
+	NAgui.addSection("Latest Commit")
+	NAStuff.GitHubCommitMessageField = NAgui.addInfo("Commit", NAStuff.GitHubLoadingText)
+	NAStuff.GitHubCommitAuthorField = NAgui.addInfo("Author", NAStuff.GitHubLoadingText)
+	NAStuff.GitHubCommitDateField = NAgui.addInfo("Updated", NAStuff.GitHubLoadingText)
+
+	NAgui.addButton("Refresh Commits", function()
+		NAmanage.UpdateGitHubCommitUI(nil, NAStuff.GitHubLoadingText)
+		SpawnCall(function()
+			local ok, result = originalIO.fetchGitHubCommits(true)
+			if ok then
+				NAmanage.UpdateGitHubCommitUI(result)
+				if DoNotif then
+					DoNotif("GitHub commits updated.", 2)
+				end
+			else
+				local message = result or NAStuff.GitHubFailureText
+				if type(message) == "string" and #message > 128 then
+					message = message:sub(1, 125).."..."
+				end
+				warn("[NA] GitHub commit refresh failed:", message)
+				NAmanage.UpdateGitHubCommitUI(nil, "Error: "..tostring(message))
+				if DoNotif then
+					DoNotif("Failed to refresh GitHub commits.", 3)
+				end
+			end
+		end)
+	end)
+
+	NAStuff.GitHubTabInitialized = true
+end
+
+NAmanage.UpdateGitHubCommitUI(nil, NAStuff.GitHubLoadingText)
+
+SpawnCall(function()
+	NAmanage.RefreshGitHubCommits(false)
+end)
+
+NAgui.setTab(NAgui.getActiveTab())
 
 NAgui.setTab(TAB_CHAT)
 
