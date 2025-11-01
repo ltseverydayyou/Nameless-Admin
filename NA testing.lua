@@ -32121,14 +32121,37 @@ end)
 -- [[ Body Mods Section ]] --
 do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
-		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil },
-		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil },
-		pp = { active = false },
+		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, ry = 0, rv = 0, lv = Vector3.zero, av = Vector3.zero },
+		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, ry = 0, rv = 0, lv = Vector3.zero, av = Vector3.zero },
+		pp = { active = false, len = 1 },
 		colorConn = nil,
 		spawnConn = nil
 	}
 
 	local state = originalIO.bodyModsState
+	local pinkColor = Color3.fromRGB(255, 100, 150)
+	local ringColor = Color3.fromRGB(225, 80, 120)
+
+	originalIO.bodyModsSpring = originalIO.bodyModsSpring or function(u, v, target, stiffness, damping, dt)
+		local accel = -stiffness * u - damping * v + stiffness * target
+		v = v + accel * dt
+		u = u + v * dt
+		return u, v
+	end
+
+	originalIO.bodyModsConnectAppearanceLoaded = function(humanoid, callback)
+		if not humanoid or type(callback) ~= "function" then
+			return nil
+		end
+		local ok, signal = pcall(function()
+			return humanoid.CharacterAppearanceLoaded
+		end)
+		if ok and typeof(signal) == "RBXScriptSignal" then
+			return signal:Connect(callback)
+		end
+		Defer(callback)
+		return nil
+	end
 
 	originalIO.bodyModsDisconnectConnection = function(conn)
 		if conn and conn.Connected then
@@ -32153,12 +32176,12 @@ do
 		if not character then
 			return nil
 		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		local humanoid = character:FindFirstChildOfClass('Humanoid')
 		if humanoid or not waitFor then
 			return humanoid
 		end
 		local ok, result = pcall(function()
-			return character:WaitForChild("Humanoid", 10)
+			return character:WaitForChild('Humanoid', 10)
 		end)
 		return ok and result or nil
 	end
@@ -32187,14 +32210,14 @@ do
 			return nil
 		end
 		if forBoobs then
-			return character:FindFirstChild("UpperTorso")
-				or character:FindFirstChild("Torso")
-				or originalIO.bodyModsWaitFor({ "UpperTorso", "Torso" }, 5)
+			return character:FindFirstChild('UpperTorso')
+				or character:FindFirstChild('Torso')
+				or originalIO.bodyModsWaitFor({ 'UpperTorso', 'Torso' }, 5)
 		end
 		if humanoid.RigType == Enum.HumanoidRigType.R15 then
-			return character:FindFirstChild("LowerTorso") or originalIO.bodyModsWaitFor({ "LowerTorso" }, 5)
+			return character:FindFirstChild('LowerTorso') or originalIO.bodyModsWaitFor({ 'LowerTorso' }, 5)
 		end
-		return character:FindFirstChild("Torso") or originalIO.bodyModsWaitFor({ "Torso" }, 5)
+		return character:FindFirstChild('Torso') or originalIO.bodyModsWaitFor({ 'Torso' }, 5)
 	end
 
 	originalIO.bodyModsGetSkinColor = function()
@@ -32203,14 +32226,14 @@ do
 			return Color3.new(1, 0.8, 0.6)
 		end
 		local part =
-			character:FindFirstChild("LeftUpperArm") or
-			character:FindFirstChild("Left Arm") or
-			character:FindFirstChild("RightUpperArm") or
-			character:FindFirstChild("Right Arm") or
-			character:FindFirstChild("LeftUpperLeg") or
-			character:FindFirstChild("Left Leg") or
-			character:FindFirstChild("UpperTorso") or
-			character:FindFirstChild("Torso")
+			character:FindFirstChild('LeftUpperArm') or
+			character:FindFirstChild('Left Arm') or
+			character:FindFirstChild('RightUpperArm') or
+			character:FindFirstChild('Right Arm') or
+			character:FindFirstChild('LeftUpperLeg') or
+			character:FindFirstChild('Left Leg') or
+			character:FindFirstChild('UpperTorso') or
+			character:FindFirstChild('Torso')
 		return (part and part.Color) or Color3.new(1, 0.8, 0.6)
 	end
 
@@ -32240,16 +32263,19 @@ do
 				return
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
-			local pink = Color3.fromRGB(255, 100, 150)
 			for _, part in ipairs(character:GetChildren()) do
-				if part:IsA("BasePart") then
-					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
+				if part:IsA('BasePart') then
+					if part.Name == 'Boob' or part.Name == 'Cheek' or part.Name == 'Balls' or (part.Name == 'penis' and part.Shape == Enum.PartType.Cylinder) then
 						if part.Color ~= skin then
 							part.Color = skin
 						end
-					elseif part.Name == "Nipple" or (part.Name == "penis" and part.Shape == Enum.PartType.Ball) then
-						if part.Color ~= pink then
-							part.Color = pink
+					elseif part.Name == 'Nipple' or (part.Name == 'penis' and part.Shape == Enum.PartType.Ball) then
+						if part.Color ~= pinkColor then
+							part.Color = pinkColor
+						end
+					elseif part.Name == 'Areola' then
+						if part.Color ~= ringColor then
+							part.Color = ringColor
 						end
 					end
 				end
@@ -32265,8 +32291,8 @@ do
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
 			for _, part in ipairs(character:GetChildren()) do
-				if part:IsA("BasePart") then
-					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
+				if part:IsA('BasePart') then
+					if part.Name == 'Boob' or part.Name == 'Cheek' or part.Name == 'Balls' or (part.Name == 'penis' and part.Shape == Enum.PartType.Cylinder) then
 						part.Color = skin
 					end
 				end
@@ -32286,24 +32312,28 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple") then
+			if part:IsA('BasePart') and (part.Name == 'Boob' or part.Name == 'Nipple' or part.Name == 'Areola') then
 				part:Destroy()
 			end
 		end
 
 		local skin = originalIO.bodyModsGetSkinColor()
 		local baseSize = Vector3.new(1.2, 1.2, 1.2)
-		local baseNipple = Vector3.new(0.15, 0.15, 0.15)
+		local baseNipple = Vector3.new(0.32, 0.32, 0.32)
 		local boobSize = baseSize * size
 		local nippleSize = baseNipple * size
+		local areolaSize = nippleSize * 2
+		local popForward = 0.02
+		local backGap = math.max(0.03, nippleSize.Z * 0.45)
+		local nudge = 0.02
 		local radius = boobSize.Z * 0.5
 		local torsoFront = torso.Size.Z * 0.5
 		state.boobs.oz = torsoFront + math.max(0.12, radius * 0.75)
 
-		local function nippleOffset(sphere, nipple)
-			local sphereRadius = (sphere and sphere.Z or baseSize.Z) * 0.5
-			local nippleRadius = (nipple and nipple.Z or baseNipple.Z) * 0.5
-			local offset = sphereRadius - (nippleRadius * 0.5) - 0.005
+		local function offsetToFront(sphereSize, attachSize)
+			local sphereRadius = (sphereSize and sphereSize.Z or baseSize.Z) * 0.5
+			local attachRadius = (attachSize and attachSize.Z or baseNipple.Z) * 0.5
+			local offset = sphereRadius - (attachRadius * 0.5) - 0.005
 			if offset < 0 then
 				offset = 0
 			end
@@ -32311,7 +32341,7 @@ do
 		end
 
 		local function createHalf(side)
-			local boob = Instance.new("Part")
+			local boob = Instance.new('Part')
 			boob.Shape = Enum.PartType.Ball
 			boob.Size = boobSize
 			boob.Color = skin
@@ -32320,79 +32350,124 @@ do
 			boob.CanCollide = false
 			boob.CanTouch = false
 			boob.CanQuery = false
-			boob.Name = "Boob"
+			boob.Name = 'Boob'
 			boob.Parent = character
 
-			local nipple = Instance.new("Part")
+			local nipple = Instance.new('Part')
 			nipple.Shape = Enum.PartType.Ball
 			nipple.Size = nippleSize
-			nipple.Color = Color3.fromRGB(255, 100, 150)
+			nipple.Color = pinkColor
 			nipple.Material = Enum.Material.SmoothPlastic
 			nipple.Anchored = false
 			nipple.CanCollide = false
 			nipple.CanTouch = false
 			nipple.CanQuery = false
-			nipple.Name = "Nipple"
+			nipple.Name = 'Nipple'
 			nipple.Parent = boob
 
-			local nippleWeld = Instance.new("Weld")
+			local areola = Instance.new('Part')
+			areola.Shape = Enum.PartType.Ball
+			areola.Size = areolaSize
+			areola.Color = ringColor
+			areola.Material = Enum.Material.SmoothPlastic
+			areola.Anchored = false
+			areola.CanCollide = false
+			areola.CanTouch = false
+			areola.CanQuery = false
+			areola.Name = 'Areola'
+			areola.Parent = boob
+
+			local nippleWeld = Instance.new('Weld')
 			nippleWeld.Part0 = nipple
 			nippleWeld.Part1 = boob
-			nippleWeld.C0 = CFrame.new(0, 0, nippleOffset(boob.Size, nipple.Size))
+			nippleWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, nipple.Size) + popForward)
 			nippleWeld.Parent = nipple
 
-			local weld = Instance.new("Weld")
+			local areolaWeld = Instance.new('Weld')
+			areolaWeld.Part0 = areola
+			areolaWeld.Part1 = boob
+			areolaWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, areola.Size) - (backGap - nudge))
+			areolaWeld.Parent = areola
+
+			local weld = Instance.new('Weld')
 			weld.Part0 = boob
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
 			weld.Parent = boob
 
-			return boob, nipple, weld, nippleWeld
+			return boob, nipple, areola, weld, nippleWeld, areolaWeld
 		end
 
-		local left, leftNipple, leftWeld, leftNippleWeld = createHalf(-1)
-		local right, rightNipple, rightWeld, rightNippleWeld = createHalf(1)
+		local left, leftNipple, leftAreola, leftWeld, leftNippleWeld, leftAreolaWeld = createHalf(-1)
+		local right, rightNipple, rightAreola, rightWeld, rightNippleWeld, rightAreolaWeld = createHalf(1)
 
 		state.boobs.size = size
 		state.boobs.active = true
 		state.boobs.conn = originalIO.bodyModsDisconnectConnection(state.boobs.conn)
-
-		local bounceAmplitude, bounceSpeed = 0.07, 7
-		local timer = 0
+		state.boobs.sy = state.boobs.sy or 0
+		state.boobs.vy = state.boobs.vy or 0
+		state.boobs.sz = state.boobs.sz or 0
+		state.boobs.vz = state.boobs.vz or 0
+		state.boobs.sx = state.boobs.sx or 0
+		state.boobs.vx = state.boobs.vx or 0
+		state.boobs.ry = state.boobs.ry or 0
+		state.boobs.rv = state.boobs.rv or 0
+		state.boobs.lv = state.boobs.lv or Vector3.zero
+		state.boobs.av = state.boobs.av or Vector3.zero
 
 		state.boobs.conn = RunService.RenderStepped:Connect(function(dt)
-			if not left or not left.Parent or not right or not right.Parent then
-				state.boobs.conn = originalIO.bodyModsDisconnectConnection(state.boobs.conn)
+			local currentChar = originalIO.bodyModsGetCharacter()
+			if not currentChar or not currentChar.Parent then
 				return
 			end
-			local currentHumanoid = originalIO.bodyModsGetHumanoid()
-			if currentHumanoid and currentHumanoid.MoveDirection.Magnitude > 0 then
-				timer += dt * bounceSpeed
-			else
-				timer = 0
-			end
-			local bounce = math.sin(timer) * bounceAmplitude
-			if leftWeld then
-				leftWeld.C0 = CFrame.new(-state.boobs.ox, state.boobs.oy + bounce, state.boobs.oz)
-			end
-			if rightWeld then
-				rightWeld.C0 = CFrame.new(state.boobs.ox, state.boobs.oy + bounce, state.boobs.oz)
-			end
-			if leftNippleWeld and left and leftNipple then
-				leftNippleWeld.C0 = CFrame.new(0, 0, (left.Size.Z * 0.5) - (leftNipple.Size.Z * 0.25) - 0.005)
-			end
-			if rightNippleWeld and right and rightNipple then
-				rightNippleWeld.C0 = CFrame.new(0, 0, (right.Size.Z * 0.5) - (rightNipple.Size.Z * 0.25) - 0.005)
-			end
+			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
+			local velocity = (hrp and (hrp.AssemblyLinearVelocity or hrp.Velocity)) or Vector3.zero
+			local angular = (hrp and (hrp.AssemblyAngularVelocity or Vector3.zero)) or Vector3.zero
+			local accel = (velocity - (state.boobs.lv or Vector3.zero)) / math.max(dt, 1/240)
+			local angAccel = (angular - (state.boobs.av or Vector3.zero)) / math.max(dt, 1/240)
+			state.boobs.lv = velocity
+			state.boobs.av = angular
+
+			local targetY = math.clamp(-accel.Y * 0.0065, -0.50, 0.50)
+			local targetZ = math.clamp(-accel.Magnitude * 0.0045, -0.40, 0.40)
+			local targetX = math.clamp(-angular.Y * 0.060 + -angAccel.Y * 0.020, -0.40, 0.40)
+			local targetRoll = math.clamp(-angular.Y * 0.180 + -angAccel.Y * 0.060, -0.50, 0.50)
+
+			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, 20, 1.2, dt)
+			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, 20, 1.2, dt)
+			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, 18, 1.1, dt)
+			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, 18, 1.0, dt)
+
+			state.boobs.sy = math.clamp(state.boobs.sy, -0.50, 0.50)
+			state.boobs.sz = math.clamp(state.boobs.sz, -0.40, 0.40)
+			state.boobs.sx = math.clamp(state.boobs.sx, -0.40, 0.40)
+			state.boobs.ry = math.clamp(state.boobs.ry, -0.50, 0.50)
+
+			local leftOffset = CFrame.new(-state.boobs.ox + (-state.boobs.sx), state.boobs.oy + state.boobs.sy, state.boobs.oz + state.boobs.sz) * CFrame.Angles(0, 0, state.boobs.ry)
+			local rightOffset = CFrame.new(state.boobs.ox + state.boobs.sx, state.boobs.oy + state.boobs.sy, state.boobs.oz + state.boobs.sz) * CFrame.Angles(0, 0, -state.boobs.ry)
+
+			if leftWeld then leftWeld.C0 = leftOffset end
+			if rightWeld then rightWeld.C0 = rightOffset end
+			if leftNippleWeld and left then leftNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(left.Size, leftNipple.Size) + popForward) end
+			if rightNippleWeld and right then rightNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(right.Size, rightNipple.Size) + popForward) end
+			if leftAreolaWeld and left then leftAreolaWeld.C0 = CFrame.new(0, 0, offsetToFront(left.Size, leftAreola.Size) - (backGap - nudge)) end
+			if rightAreolaWeld and right then rightAreolaWeld.C0 = CFrame.new(0, 0, offsetToFront(right.Size, rightAreola.Size) - (backGap - nudge)) end
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		if humanoid then
-			humanoid.CharacterAppearanceLoaded:Connect(originalIO.bodyModsOnAppearanceLoaded)
-		end
+		originalIO.bodyModsConnectAppearanceLoaded(humanoid, function()
+			Defer(function()
+				local refreshed = originalIO.bodyModsGetSkinColor()
+				for _, part in ipairs({ left, right }) do
+					if part and part.Parent then
+						part.Color = refreshed
+					end
+				end
+			end)
+		end)
 
 		originalIO.bodyModsEnsureSpawnConnection()
-		DoNotif("Boobs "..tostring(size),1.5)
+		DebugNotif('Boobs '..tostring(size),1.5)
 	end
 
 	originalIO.bodyModsRemoveBoobs = function()
@@ -32406,7 +32481,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple") then
+			if part:IsA('BasePart') and (part.Name == 'Boob' or part.Name == 'Nipple' or part.Name == 'Areola') then
 				Insert(toRemove, part)
 			end
 		end
@@ -32425,7 +32500,7 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		DoNotif("Boobs Removed",1.5)
+		DebugNotif('Boobs Removed',1.5)
 	end
 
 	originalIO.bodyModsApplyAss = function(size)
@@ -32440,7 +32515,7 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and part.Name == "Cheek" then
+			if part:IsA('BasePart') and part.Name == 'Cheek' then
 				part:Destroy()
 			end
 		end
@@ -32454,7 +32529,7 @@ do
 		state.ass.oz = -(torso.Size.Z * 0.5 + radius * 0.45)
 
 		local function createCheek(side)
-			local cheek = Instance.new("Part")
+			local cheek = Instance.new('Part')
 			cheek.Shape = Enum.PartType.Ball
 			cheek.Size = cheekSize
 			cheek.Color = skin
@@ -32463,10 +32538,10 @@ do
 			cheek.CanCollide = false
 			cheek.CanTouch = false
 			cheek.CanQuery = false
-			cheek.Name = "Cheek"
+			cheek.Name = 'Cheek'
 			cheek.Parent = character
 
-			local weld = Instance.new("Weld")
+			local weld = Instance.new('Weld')
 			weld.Part0 = cheek
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
@@ -32481,37 +32556,57 @@ do
 		state.ass.size = size
 		state.ass.active = true
 		state.ass.conn = originalIO.bodyModsDisconnectConnection(state.ass.conn)
-
-		local swayAmplitude, swaySpeed = 0.05, 5
-		local timer = 0
+		state.ass.sy = state.ass.sy or 0
+		state.ass.vy = state.ass.vy or 0
+		state.ass.sz = state.ass.sz or 0
+		state.ass.vz = state.ass.vz or 0
+		state.ass.sx = state.ass.sx or 0
+		state.ass.vx = state.ass.vx or 0
+		state.ass.ry = state.ass.ry or 0
+		state.ass.rv = state.ass.rv or 0
+		state.ass.lv = state.ass.lv or Vector3.zero
+		state.ass.av = state.ass.av or Vector3.zero
 
 		state.ass.conn = RunService.RenderStepped:Connect(function(dt)
-			if not left or not left.Parent or not right or not right.Parent then
-				state.ass.conn = originalIO.bodyModsDisconnectConnection(state.ass.conn)
+			local currentChar = originalIO.bodyModsGetCharacter()
+			if not currentChar or not currentChar.Parent then
 				return
 			end
-			local currentHumanoid = originalIO.bodyModsGetHumanoid()
-			if currentHumanoid and currentHumanoid.MoveDirection.Magnitude > 0 then
-				timer += dt * swaySpeed
-			else
-				timer = 0
-			end
-			local sway = math.sin(timer) * swayAmplitude
-			if leftWeld then
-				leftWeld.C0 = CFrame.new(-state.ass.ox, state.ass.oy + sway, state.ass.oz)
-			end
-			if rightWeld then
-				rightWeld.C0 = CFrame.new(state.ass.ox, state.ass.oy - sway, state.ass.oz)
-			end
+			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
+			local velocity = (hrp and (hrp.AssemblyLinearVelocity or hrp.Velocity)) or Vector3.zero
+			local angular = (hrp and (hrp.AssemblyAngularVelocity or Vector3.zero)) or Vector3.zero
+			local accel = (velocity - (state.ass.lv or Vector3.zero)) / math.max(dt, 1/240)
+			local angAccel = (angular - (state.ass.av or Vector3.zero)) / math.max(dt, 1/240)
+			state.ass.lv = velocity
+			state.ass.av = angular
+
+			local targetY = math.clamp(-accel.Y * 0.0045, -0.40, 0.40)
+			local targetZ = math.clamp(-accel.Magnitude * 0.0035, -0.32, 0.32)
+			local targetX = math.clamp(-angular.Y * 0.050 + -angAccel.Y * 0.018, -0.36, 0.36)
+			local targetRoll = math.clamp(-angular.Y * 0.140 + -angAccel.Y * 0.050, -0.42, 0.42)
+
+			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, 18, 1.2, dt)
+			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, 18, 1.2, dt)
+			state.ass.sx, state.ass.vx = originalIO.bodyModsSpring(state.ass.sx, state.ass.vx, targetX, 16, 1.1, dt)
+			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, 16, 1.0, dt)
+
+			state.ass.sy = math.clamp(state.ass.sy, -0.40, 0.40)
+			state.ass.sz = math.clamp(state.ass.sz, -0.32, 0.32)
+			state.ass.sx = math.clamp(state.ass.sx, -0.36, 0.36)
+			state.ass.ry = math.clamp(state.ass.ry, -0.42, 0.42)
+
+			local leftOffset = CFrame.new(-state.ass.ox + (-state.ass.sx), state.ass.oy + state.ass.sy, state.ass.oz + state.ass.sz) * CFrame.Angles(0, 0, state.ass.ry)
+			local rightOffset = CFrame.new(state.ass.ox + state.ass.sx, state.ass.oy + state.ass.sy, state.ass.oz + state.ass.sz) * CFrame.Angles(0, 0, -state.ass.ry)
+
+			if leftWeld then leftWeld.C0 = leftOffset end
+			if rightWeld then rightWeld.C0 = rightOffset end
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		if humanoid then
-			humanoid.CharacterAppearanceLoaded:Connect(originalIO.bodyModsOnAppearanceLoaded)
-		end
+		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
 
 		originalIO.bodyModsEnsureSpawnConnection()
-		DoNotif("Ass "..tostring(size),1.5)
+		DebugNotif('Ass '..tostring(size),1.5)
 	end
 
 	originalIO.bodyModsRemoveAss = function()
@@ -32525,7 +32620,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and part.Name == "Cheek" then
+			if part:IsA('BasePart') and part.Name == 'Cheek' then
 				Insert(toRemove, part)
 			end
 		end
@@ -32544,10 +32639,10 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		DoNotif("Ass Removed",1.5)
+		DebugNotif('Ass Removed',1.5)
 	end
 
-	originalIO.bodyModsApplyPP = function()
+	originalIO.bodyModsApplyPP = function(length)
 		local character = originalIO.bodyModsGetCharacter(true)
 		local humanoid = originalIO.bodyModsGetHumanoid(true)
 		if not character or not humanoid then
@@ -32559,16 +32654,22 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
+			if part:IsA('BasePart') and (part.Name == 'Balls' or part.Name == 'penis') then
 				part:Destroy()
 			end
 		end
 
+		local lengthValue = tonumber(length) or 1
+		lengthValue = math.clamp(lengthValue, 0.5, 6)
+		state.pp.len = lengthValue
+
 		local skin = originalIO.bodyModsGetSkinColor()
-		local pink = Color3.fromRGB(255, 100, 150)
+		local baseLength = 2.0
+		local shaftLength = baseLength * lengthValue
+		local pink = pinkColor
 
 		local function createPart(shape, size, color, name)
-			local part = Instance.new("Part")
+			local part = Instance.new('Part')
 			part.Shape = shape
 			part.Size = size
 			part.Color = color
@@ -32583,37 +32684,36 @@ do
 		end
 
 		local function weldConstraint(a, b)
-			local weld = Instance.new("WeldConstraint")
+			local weld = Instance.new('WeldConstraint')
 			weld.Part0 = a
 			weld.Part1 = b
 			weld.Parent = a
 		end
 
 		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -1.0 or -1.5
-		local left = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
-		local right = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
-		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(2.00, 0.70, 0.70), skin, "penis")
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pink, "penis")
+		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
+		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
+		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, 0.70, 0.70), skin, 'penis')
+		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pink, 'penis')
 
-		left.CFrame = torso.CFrame * CFrame.new(-0.25, offsetY, -0.80)
-		right.CFrame = torso.CFrame * CFrame.new(0.25, offsetY, -0.80)
-		shaft.CFrame = torso.CFrame * CFrame.new(0.00, offsetY + 0.70, -1.35) * CFrame.Angles(0, math.rad(270), 0)
-		tip.CFrame = shaft.CFrame * CFrame.new(-1.00, 0.00, 0.00)
+		leftBall.CFrame = torso.CFrame * CFrame.new(-0.25, offsetY, -0.80)
+		rightBall.CFrame = torso.CFrame * CFrame.new(0.25, offsetY, -0.80)
+		local forwardShift = (shaftLength - baseLength) * 0.5
+		shaft.CFrame = torso.CFrame * CFrame.new(0.00, offsetY + 0.70, -1.35) * CFrame.Angles(0, math.rad(270), 0) * CFrame.new(-forwardShift, 0, 0)
+		tip.CFrame = shaft.CFrame * CFrame.new(-shaftLength * 0.5, 0, 0)
 
-		weldConstraint(left, torso)
-		weldConstraint(right, torso)
+		weldConstraint(leftBall, torso)
+		weldConstraint(rightBall, torso)
 		weldConstraint(shaft, torso)
 		weldConstraint(tip, shaft)
 
 		state.pp.active = true
 
 		originalIO.bodyModsEnsureColorWatcher()
-		if humanoid then
-			humanoid.CharacterAppearanceLoaded:Connect(originalIO.bodyModsOnAppearanceLoaded)
-		end
+		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
 
 		originalIO.bodyModsEnsureSpawnConnection()
-		DoNotif("penis",1.5)
+		DebugNotif('penis '..tostring(lengthValue),1.5)
 	end
 
 	originalIO.bodyModsRemovePP = function()
@@ -32624,7 +32724,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
+			if part:IsA('BasePart') and (part.Name == 'Balls' or part.Name == 'penis') then
 				Insert(toRemove, part)
 			end
 		end
@@ -32644,15 +32744,15 @@ do
 
 		state.pp.active = false
 		originalIO.bodyModsEnsureColorWatcher()
-		DoNotif("PP Removed",1.5)
+		DebugNotif('PP Removed',1.5)
 	end
 
 	originalIO.bodyModsReapplyOnSpawn = function(newCharacter)
 		Spawn(function()
-			local humanoid = newCharacter:WaitForChild("Humanoid", 10)
+			local humanoid = newCharacter:WaitForChild('Humanoid', 10)
 			if state.boobs.active then
 				Spawn(function()
-					if originalIO.bodyModsWaitFor({ "UpperTorso", "Torso" }, 10) then
+					if originalIO.bodyModsWaitFor({ 'UpperTorso', 'Torso' }, 10) then
 						originalIO.bodyModsApplyBoobs(state.boobs.size or 1)
 					end
 				end)
@@ -32660,11 +32760,11 @@ do
 			if state.ass.active then
 				Spawn(function()
 					if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-						if originalIO.bodyModsWaitFor({ "LowerTorso" }, 10) then
+						if originalIO.bodyModsWaitFor({ 'LowerTorso' }, 10) then
 							originalIO.bodyModsApplyAss(state.ass.size or 1)
 						end
 					else
-						if originalIO.bodyModsWaitFor({ "Torso" }, 10) then
+						if originalIO.bodyModsWaitFor({ 'Torso' }, 10) then
 							originalIO.bodyModsApplyAss(state.ass.size or 1)
 						end
 					end
@@ -32673,12 +32773,12 @@ do
 			if state.pp.active then
 				Spawn(function()
 					if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-						if originalIO.bodyModsWaitFor({ "LowerTorso" }, 10) then
-							originalIO.bodyModsApplyPP()
+						if originalIO.bodyModsWaitFor({ 'LowerTorso' }, 10) then
+							originalIO.bodyModsApplyPP(state.pp.len or 1)
 						end
 					else
-						if originalIO.bodyModsWaitFor({ "Torso" }, 10) then
-							originalIO.bodyModsApplyPP()
+						if originalIO.bodyModsWaitFor({ 'Torso' }, 10) then
+							originalIO.bodyModsApplyPP(state.pp.len or 1)
 						end
 					end
 				end)
@@ -32695,36 +32795,37 @@ do
 
 	originalIO.bodyModsEnsureSpawnConnection()
 
-	cmd.add({"boobs","boobies"},{"boobs <size> (boobies)","Boobs"},function(arg)
-		local value=tonumber(arg) or 1
-		if value<=0 then value=1 end
-		if value>8 then value=8 end
+	cmd.add({'boobs','boobies'},{'boobs <size> (boobies)','Boobs'},function(arg)
+		local value = tonumber(arg) or state.boobs.size or 1
+		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyBoobs(value)
 	end, true)
 
-	cmd.add({"unboobs","unboobies","noboobs","noboobies"},{"unboobs (unboobies,noboobs,noboobies)","Boobs"},function()
+	cmd.add({'unboobs','unboobies','noboobs','noboobies'},{'unboobs (unboobies,noboobs,noboobies)','Boobs'},function()
 		originalIO.bodyModsRemoveBoobs()
 	end)
 
-	cmd.add({"ass","booty"},{"ass <size> (booty)","Ass"},function(arg)
-		local value=tonumber(arg) or 1
-		if value<=0 then value=1 end
-		if value>8 then value=8 end
+	cmd.add({'ass','booty'},{'ass <size> (booty)','Ass'},function(arg)
+		local value = tonumber(arg) or state.ass.size or 1
+		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyAss(value)
 	end, true)
 
-	cmd.add({"unass","noass"},{"unass (noass)","Ass"},function()
+	cmd.add({'unass','noass'},{'unass (noass)','Ass'},function()
 		originalIO.bodyModsRemoveAss()
 	end)
 
-	cmd.add({"penis","pp"},{"penis (pp)","penis"},function()
-		originalIO.bodyModsApplyPP()
-	end)
+	cmd.add({'penis','pp'},{'penis <length> (pp)','penis'},function(arg)
+		local value = tonumber(arg) or state.pp.len or 1
+		value = math.clamp(value, 0.5, 6)
+		originalIO.bodyModsApplyPP(value)
+	end, true)
 
-	cmd.add({"unpenis","unpp","nopenis","nopp"},{"unpenis (unpp,nopenis,nopp)","penis"},function()
+	cmd.add({'unpenis','unpp','nopenis','nopp'},{'unpenis (unpp,nopenis,nopp)','penis'},function()
 		originalIO.bodyModsRemovePP()
 	end)
 end
+
 
 -- [[ NPC SECTION ]] --
 cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
