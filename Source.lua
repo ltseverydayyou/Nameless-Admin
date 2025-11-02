@@ -32101,11 +32101,12 @@ end)
 -- [[ Body Mods Section ]] --
 do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
-		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, ry = 0, rv = 0, lv = Vector3.zero, av = Vector3.zero },
-		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, ry = 0, rv = 0, lv = Vector3.zero, av = Vector3.zero },
-		pp = { active = false, len = 1 },
+		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil, ccf = nil },
+		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil },
+		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, sh = nil, dr = nil },
 		colorConn = nil,
-		spawnConn = nil
+		spawnConn = nil,
+		apConn = nil
 	}
 
 	local state = originalIO.bodyModsState
@@ -32119,24 +32120,24 @@ do
 		return u, v
 	end
 
-	originalIO.bodyModsConnectAppearanceLoaded = function(humanoid, callback)
-		if not humanoid or type(callback) ~= "function" then
-			return nil
-		end
-		local ok, signal = pcall(function()
-			return humanoid.CharacterAppearanceLoaded
-		end)
-		if ok and typeof(signal) == "RBXScriptSignal" then
-			return signal:Connect(callback)
-		end
-		Defer(callback)
-		return nil
-	end
-
 	originalIO.bodyModsDisconnectConnection = function(conn)
 		if conn and conn.Connected then
 			conn:Disconnect()
 		end
+		return nil
+	end
+
+	originalIO.bodyModsConnectAppearanceLoaded = originalIO.bodyModsConnectAppearanceLoaded or function(object, callback)
+		if not object or type(callback) ~= 'function' then
+			return nil
+		end
+		local ok, signal = pcall(function()
+			return object.CharacterAppearanceLoaded
+		end)
+		if ok and typeof(signal) == 'RBXScriptSignal' then
+			return signal:Connect(callback)
+		end
+		Defer(callback)
 		return nil
 	end
 
@@ -32280,6 +32281,18 @@ do
 		end)
 	end
 
+	originalIO.bodyModsAppear = function(parts, scale, time)
+		local tweenInfo = TweenInfo.new(time or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		for _, part in ipairs(parts) do
+			if part and part:IsA('BasePart') then
+				local target = part.Size
+				part.Transparency = 1
+				part.Size = target * (scale or 0.2)
+				TweenService:Create(part, tweenInfo, { Transparency = 0, Size = target }):Play()
+			end
+		end
+	end
+
 	originalIO.bodyModsApplyBoobs = function(size)
 		local character = originalIO.bodyModsGetCharacter(true)
 		local humanoid = originalIO.bodyModsGetHumanoid(true)
@@ -32308,7 +32321,7 @@ do
 		local nudge = 0.02
 		local radius = boobSize.Z * 0.5
 		local torsoFront = torso.Size.Z * 0.5
-		state.boobs.oz = torsoFront + math.max(0.12, radius * 0.75)
+		state.boobs.oz = torsoFront + math.max(0.12, radius * 0.75) - 0.06
 
 		local function offsetToFront(sphereSize, attachSize)
 			local sphereRadius = (sphereSize and sphereSize.Z or baseSize.Z) * 0.5
@@ -32390,10 +32403,15 @@ do
 		state.boobs.vz = state.boobs.vz or 0
 		state.boobs.sx = state.boobs.sx or 0
 		state.boobs.vx = state.boobs.vx or 0
+		state.boobs.rx = state.boobs.rx or 0
+		state.boobs.vrx = state.boobs.vrx or 0
 		state.boobs.ry = state.boobs.ry or 0
 		state.boobs.rv = state.boobs.rv or 0
-		state.boobs.lv = state.boobs.lv or Vector3.zero
-		state.boobs.av = state.boobs.av or Vector3.zero
+		state.boobs.yw = state.boobs.yw or 0
+		state.boobs.vyw = state.boobs.vyw or 0
+		state.boobs.llv = state.boobs.llv or Vector3.zero
+		state.boobs.ccf = nil
+		state.boobs.hcf = nil
 
 		state.boobs.conn = RunService.RenderStepped:Connect(function(dt)
 			local currentChar = originalIO.bodyModsGetCharacter()
@@ -32401,30 +32419,50 @@ do
 				return
 			end
 			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
-			local velocity = (hrp and (hrp.AssemblyLinearVelocity or hrp.Velocity)) or Vector3.zero
-			local angular = (hrp and (hrp.AssemblyAngularVelocity or Vector3.zero)) or Vector3.zero
-			local accel = (velocity - (state.boobs.lv or Vector3.zero)) / math.max(dt, 1/240)
-			local angAccel = (angular - (state.boobs.av or Vector3.zero)) / math.max(dt, 1/240)
-			state.boobs.lv = velocity
-			state.boobs.av = angular
+			if not hrp then
+				return
+			end
+			local camera = workspace.CurrentCamera
+			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
+			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
+			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
+			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
+			local camAng = Vector3.zero
+			if camera and state.boobs.ccf then
+				local rel = state.boobs.ccf:toObjectSpace(camera.CFrame)
+				local x, y, z = rel:ToEulerAnglesXYZ()
+				camAng = Vector3.new(x, y, z) / math.max(dt, 1/240)
+			end
+			state.boobs.ccf = camera and camera.CFrame or nil
+			local useCam = (LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
+			local angInput = useCam and camAng or localAng
+			local accel = (localVel - state.boobs.llv) / math.max(dt, 1/240)
+			state.boobs.llv = localVel
 
-			local targetY = math.clamp(-accel.Y * 0.0065, -0.50, 0.50)
-			local targetZ = math.clamp(-accel.Magnitude * 0.0045, -0.40, 0.40)
-			local targetX = math.clamp(-angular.Y * 0.060 + -angAccel.Y * 0.020, -0.40, 0.40)
-			local targetRoll = math.clamp(-angular.Y * 0.180 + -angAccel.Y * 0.060, -0.50, 0.50)
+			local targetY = math.clamp((-localVel.Y * 0.015) - accel.Y * 0.006, -0.08, 0.08)
+			local targetZ = math.clamp((-localVel.Z * 0.020) - accel.Z * 0.006, -0.10, 0.10)
+			local targetX = math.clamp((-localVel.X * 0.016), -0.08, 0.08)
+			local targetPitch = math.clamp(((-localVel.Y * 0.015) - accel.Y * 0.006) + angInput.X * 0.60, -0.38, 0.38)
+			local targetRoll = math.clamp((-localVel.X * 0.06) + (-angInput.Y * 0.70), -0.42, 0.42)
+			local targetYaw = math.clamp((localVel.X * 0.06) + (angInput.Z * 0.70), -0.42, 0.42)
 
-			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, 20, 1.2, dt)
-			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, 20, 1.2, dt)
-			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, 18, 1.1, dt)
-			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, 18, 1.0, dt)
+			local stiffness, damping = 82, 4.4
+			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, stiffness, damping, dt)
+			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, stiffness, damping, dt)
+			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, stiffness, damping, dt)
+			state.boobs.rx, state.boobs.vrx = originalIO.bodyModsSpring(state.boobs.rx, state.boobs.vrx, targetPitch, stiffness, 4.0, dt)
+			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, stiffness, 4.0, dt)
+			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, stiffness, 4.0, dt)
 
 			state.boobs.sy = math.clamp(state.boobs.sy, -0.50, 0.50)
 			state.boobs.sz = math.clamp(state.boobs.sz, -0.40, 0.40)
 			state.boobs.sx = math.clamp(state.boobs.sx, -0.40, 0.40)
-			state.boobs.ry = math.clamp(state.boobs.ry, -0.50, 0.50)
+			state.boobs.ry = math.clamp(state.boobs.ry, -0.42, 0.42)
 
-			local leftOffset = CFrame.new(-state.boobs.ox + (-state.boobs.sx), state.boobs.oy + state.boobs.sy, state.boobs.oz + state.boobs.sz) * CFrame.Angles(0, 0, state.boobs.ry)
-			local rightOffset = CFrame.new(state.boobs.ox + state.boobs.sx, state.boobs.oy + state.boobs.sy, state.boobs.oz + state.boobs.sz) * CFrame.Angles(0, 0, -state.boobs.ry)
+			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.35, state.boobs.ox * 0.35)
+			local forwardZ = state.boobs.oz + state.boobs.sz * 0.08
+			local leftOffset = CFrame.new(-state.boobs.ox + (-sxCap), state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, state.boobs.yw, state.boobs.ry)
+			local rightOffset = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, -state.boobs.yw, -state.boobs.ry)
 
 			if leftWeld then leftWeld.C0 = leftOffset end
 			if rightWeld then rightWeld.C0 = rightOffset end
@@ -32469,9 +32507,9 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			TweenService:Create(part, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			TweenService:Create(part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
-		Delay(0.32, function()
+		Delay(0.30, function()
 			for _, part in ipairs(toRemove) do
 				if part and part.Parent then
 					part:Destroy()
@@ -32542,10 +32580,14 @@ do
 		state.ass.vz = state.ass.vz or 0
 		state.ass.sx = state.ass.sx or 0
 		state.ass.vx = state.ass.vx or 0
+		state.ass.rx = state.ass.rx or 0
+		state.ass.vrx = state.ass.vrx or 0
 		state.ass.ry = state.ass.ry or 0
 		state.ass.rv = state.ass.rv or 0
-		state.ass.lv = state.ass.lv or Vector3.zero
-		state.ass.av = state.ass.av or Vector3.zero
+		state.ass.yw = state.ass.yw or 0
+		state.ass.vyw = state.ass.vyw or 0
+		state.ass.llv = state.ass.llv or Vector3.zero
+		state.ass.hcf = nil
 
 		state.ass.conn = RunService.RenderStepped:Connect(function(dt)
 			local currentChar = originalIO.bodyModsGetCharacter()
@@ -32553,30 +32595,34 @@ do
 				return
 			end
 			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
-			local velocity = (hrp and (hrp.AssemblyLinearVelocity or hrp.Velocity)) or Vector3.zero
-			local angular = (hrp and (hrp.AssemblyAngularVelocity or Vector3.zero)) or Vector3.zero
-			local accel = (velocity - (state.ass.lv or Vector3.zero)) / math.max(dt, 1/240)
-			local angAccel = (angular - (state.ass.av or Vector3.zero)) / math.max(dt, 1/240)
-			state.ass.lv = velocity
-			state.ass.av = angular
+			if not hrp then
+				return
+			end
+			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
+			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
+			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
+			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
 
-			local targetY = math.clamp(-accel.Y * 0.0045, -0.40, 0.40)
-			local targetZ = math.clamp(-accel.Magnitude * 0.0035, -0.32, 0.32)
-			local targetX = math.clamp(-angular.Y * 0.050 + -angAccel.Y * 0.018, -0.36, 0.36)
-			local targetRoll = math.clamp(-angular.Y * 0.140 + -angAccel.Y * 0.050, -0.42, 0.42)
+			local targetY = math.clamp(-localVel.Y * 0.045, -0.20, 0.20)
+			local targetZ = math.clamp(localVel.Z * 0.042, -0.18, 0.18)
+			local targetX = math.clamp(localVel.X * 0.045, -0.18, 0.18)
+			local targetPitch = math.clamp(localAng.X * 0.70, -0.45, 0.45)
+			local targetRoll = math.clamp(-localAng.Y * 0.70, -0.45, 0.45)
+			local targetYaw = math.clamp(-localAng.Z * 0.60, -0.40, 0.40)
 
-			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, 18, 1.2, dt)
-			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, 18, 1.2, dt)
-			state.ass.sx, state.ass.vx = originalIO.bodyModsSpring(state.ass.sx, state.ass.vx, targetX, 16, 1.1, dt)
-			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, 16, 1.0, dt)
+			local kTrans, dTrans = 48, 2.4
+			local kRot, dRot = 44, 2.2
+			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
+			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
+			state.ass.sx, state.ass.vx = originalIO.bodyModsSpring(state.ass.sx, state.ass.vx, targetX, kTrans, dTrans, dt)
+			state.ass.rx, state.ass.vrx = originalIO.bodyModsSpring(state.ass.rx, state.ass.vrx, targetPitch, kRot, dRot, dt)
+			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
+			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
 
-			state.ass.sy = math.clamp(state.ass.sy, -0.40, 0.40)
-			state.ass.sz = math.clamp(state.ass.sz, -0.32, 0.32)
-			state.ass.sx = math.clamp(state.ass.sx, -0.36, 0.36)
-			state.ass.ry = math.clamp(state.ass.ry, -0.42, 0.42)
-
-			local leftOffset = CFrame.new(-state.ass.ox + (-state.ass.sx), state.ass.oy + state.ass.sy, state.ass.oz + state.ass.sz) * CFrame.Angles(0, 0, state.ass.ry)
-			local rightOffset = CFrame.new(state.ass.ox + state.ass.sx, state.ass.oy + state.ass.sy, state.ass.oz + state.ass.sz) * CFrame.Angles(0, 0, -state.ass.ry)
+			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.5, state.ass.ox * 0.5)
+			local tzCap = math.clamp(state.ass.sz, -0.14, 0.14)
+			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry)
+			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry)
 
 			if leftWeld then leftWeld.C0 = leftOffset end
 			if rightWeld then rightWeld.C0 = rightOffset end
@@ -32584,7 +32630,6 @@ do
 
 		originalIO.bodyModsEnsureColorWatcher()
 		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
-
 		originalIO.bodyModsEnsureSpawnConnection()
 		DebugNotif('Ass '..tostring(size),1.5)
 	end
@@ -32608,9 +32653,9 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			TweenService:Create(part, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			TweenService:Create(part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
-		Delay(0.32, function()
+		Delay(0.30, function()
 			for _, part in ipairs(toRemove) do
 				if part and part.Parent then
 					part:Destroy()
@@ -32639,14 +32684,13 @@ do
 			end
 		end
 
-		local lengthValue = tonumber(length) or 1
-		lengthValue = math.clamp(lengthValue, 0.5, 6)
-		state.pp.len = lengthValue
+		local value = tonumber(length) or 1
+		value = math.clamp(value, 0.5, 6)
+		state.pp.len = value
 
 		local skin = originalIO.bodyModsGetSkinColor()
-		local baseLength = 2.0
-		local shaftLength = baseLength * lengthValue
-		local pink = pinkColor
+		local shaftBaseLength = 2.0
+		local shaftLength = shaftBaseLength * value
 
 		local function createPart(shape, size, color, name)
 			local part = Instance.new('Part')
@@ -32663,22 +32707,22 @@ do
 			return part
 		end
 
-		local function weldConstraint(a, b)
+		local function weldConstraint(part0, part1)
 			local weld = Instance.new('WeldConstraint')
-			weld.Part0 = a
-			weld.Part1 = b
-			weld.Parent = a
+			weld.Part0 = part0
+			weld.Part1 = part1
+			weld.Parent = part0
 		end
 
 		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -1.0 or -1.5
 		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
 		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
 		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, 0.70, 0.70), skin, 'penis')
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pink, 'penis')
+		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pinkColor, 'penis')
 
 		leftBall.CFrame = torso.CFrame * CFrame.new(-0.25, offsetY, -0.80)
 		rightBall.CFrame = torso.CFrame * CFrame.new(0.25, offsetY, -0.80)
-		local forwardShift = (shaftLength - baseLength) * 0.5
+		local forwardShift = (shaftLength - shaftBaseLength) * 0.5
 		shaft.CFrame = torso.CFrame * CFrame.new(0.00, offsetY + 0.70, -1.35) * CFrame.Angles(0, math.rad(270), 0) * CFrame.new(-forwardShift, 0, 0)
 		tip.CFrame = shaft.CFrame * CFrame.new(-shaftLength * 0.5, 0, 0)
 
@@ -32688,12 +32732,15 @@ do
 		weldConstraint(tip, shaft)
 
 		state.pp.active = true
+		state.pp.wS = nil
+		state.pp.wTip = nil
+		state.pp.sh = shaft
+		state.pp.dr = tip
 
 		originalIO.bodyModsEnsureColorWatcher()
 		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
-
 		originalIO.bodyModsEnsureSpawnConnection()
-		DebugNotif('penis '..tostring(lengthValue),1.5)
+		DebugNotif('penis '..tostring(value),1.5)
 	end
 
 	originalIO.bodyModsRemovePP = function()
@@ -32722,7 +32769,12 @@ do
 			end
 		end)
 
+		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
 		state.pp.active = false
+		state.pp.wS = nil
+		state.pp.wTip = nil
+		state.pp.sh = nil
+		state.pp.dr = nil
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif('PP Removed',1.5)
 	end
@@ -32773,6 +32825,12 @@ do
 		state.spawnConn = LocalPlayer.CharacterAdded:Connect(originalIO.bodyModsReapplyOnSpawn)
 	end
 
+	originalIO.bodyModsEnsurePlayerAppearanceHook = function()
+		state.apConn = originalIO.bodyModsDisconnectConnection(state.apConn)
+		state.apConn = originalIO.bodyModsConnectAppearanceLoaded(LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+	end
+
+	originalIO.bodyModsEnsurePlayerAppearanceHook()
 	originalIO.bodyModsEnsureSpawnConnection()
 
 	cmd.add({'boobs','boobies'},{'boobs <size> (boobies)','Boobs'},function(arg)
