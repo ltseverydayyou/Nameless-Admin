@@ -51,6 +51,7 @@ local TAB_ESP = "ESP"
 local TAB_CHAT = "Chat"
 local TAB_CHARACTER = "Character"
 local TAB_KEYBINDS = "Keybinds"
+local TAB_BASIC_INFO = "Basic Info"
 local TAB_ROBLOX_DATA = "Roblox Data"
 local TAB_ADMIN_INFO = "Admin Info"
 
@@ -152,6 +153,8 @@ local COREGUI=SafeGetService("CoreGui");
 local TextChatService = SafeGetService("TextChatService");
 local TextService = SafeGetService("TextService");
 local StarterGui = SafeGetService("StarterGui");
+local LocalizationService = SafeGetService("LocalizationService");
+local MarketplaceService = SafeGetService("MarketplaceService");
 
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
@@ -651,10 +654,195 @@ NAjobs  = NAjobs  or { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, 
 NAutil  = NAutil  or {}
 NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
 NACOLOREDELEMENTS={}
+NACOLOREDELEMENTS_SET=setmetatable({}, {__mode="k"})
+
+DEFAULT_UI_STROKE_COLOR=Color3.fromRGB(148,93,255)
+COLOR_WHITE=Color3.new(1,1,1)
+COLOR_BLACK=Color3.new(0,0,0)
+
+local function FormatAccountAge(days)
+	if type(days) ~= "number" then
+		return "Unknown"
+	end
+	if days < 0 then
+		days = 0
+	end
+	local years=math.floor(days/365)
+	local remainingDays=days%365
+	local months=math.floor(remainingDays/30)
+	local finalDays=math.floor(remainingDays%30)
+	local parts={}
+	if years>0 then parts[#parts+1]=tostring(years).." yr" end
+	if months>0 then parts[#parts+1]=tostring(months).." mo" end
+	if finalDays>0 or #parts==0 then parts[#parts+1]=tostring(finalDays).." d" end
+	return table.concat(parts," ")
+end
+
+NAgui.RegisterColoredStroke=function(stroke)
+	if typeof(stroke) ~= "Instance" then return end
+	if not stroke:IsA("UIStroke") then return end
+	if NACOLOREDELEMENTS_SET[stroke] then return end
+	NACOLOREDELEMENTS_SET[stroke]=true
+	local baseColor=NAUISTROKER or DEFAULT_UI_STROKE_COLOR or stroke.Color
+	stroke.Color=baseColor
+	Insert(NACOLOREDELEMENTS,stroke)
+end
+
+NAgui.RegisterStrokesFrom=function(instance)
+	if typeof(instance) ~= "Instance" then return end
+	if instance:IsA("UIStroke") then
+		NAgui.RegisterColoredStroke(instance)
+		return
+	end
+	for _, descendant in ipairs(instance:GetDescendants()) do
+		if descendant:IsA("UIStroke") then
+			NAgui.RegisterColoredStroke(descendant)
+		end
+	end
+end
+
+NAgui.ComputeTabStrokeColor=function(isActive)
+	local base=NAUISTROKER or DEFAULT_UI_STROKE_COLOR
+	if isActive then
+		return base:Lerp(COLOR_WHITE,0.22)
+	end
+	return base:Lerp(COLOR_BLACK,0.12)
+end
+
+NAmanage.getTabStrokeColor = NAgui.ComputeTabStrokeColor
+
+NAmanage.GetBasicInfoSnapshot = function()
+	local snapshot = {
+		player = {};
+		platform = {};
+		game = {};
+		ids = {};
+		server = {};
+		system = {};
+		flags = {};
+		timestamp = "";
+	}
+
+	local player = Players and Players.LocalPlayer
+	local displayName = player and player.DisplayName or "Unknown"
+	local username = player and player.Name or "Unknown"
+	local userId = player and player.UserId or nil
+	local accountAgeDays = player and player.AccountAge or nil
+	local membership = "None"
+	if player and player.MembershipType == Enum.MembershipType.Premium then
+		membership = "Premium"
+	end
+
+	snapshot.player.displayName = displayName
+	snapshot.player.username = username
+	snapshot.player.userId = userId and tostring(userId) or "Unknown"
+	snapshot.player.accountAge = FormatAccountAge(accountAgeDays)
+	snapshot.player.membership = membership
+
+	local platformName = "Unknown"
+	if UserInputService then
+		local okPlatform, platformEnum = pcall(UserInputService.GetPlatform, UserInputService)
+		if okPlatform and platformEnum then
+			platformName = platformEnum.Name or tostring(platformEnum)
+		end
+	end
+
+	local executorName = "Unknown"
+	if identifyexecutor then
+		local okExec, execResult = pcall(identifyexecutor)
+		if okExec and execResult and execResult ~= "" then
+			executorName = execResult
+		end
+	elseif identifyexec then
+		local okExecAlt, execResultAlt = pcall(identifyexec)
+		if okExecAlt and execResultAlt and execResultAlt ~= "" then
+			executorName = execResultAlt
+		end
+	end
+
+	snapshot.platform.platform = platformName
+	snapshot.platform.executor = executorName
+
+	local robloxLocale = LocalizationService and LocalizationService.RobloxLocaleId or "Unknown"
+	local systemLocale = LocalizationService and LocalizationService.SystemLocaleId or "Unknown"
+
+	local qualitySetting = "Auto"
+	local okUGS, userGameSettings = pcall(function()
+		return UserSettings():GetService("UserGameSettings")
+	end)
+	if okUGS and userGameSettings then
+		local savedQuality = userGameSettings.SavedQualityLevel
+		if typeof(savedQuality) == "EnumItem" then
+			qualitySetting = savedQuality.Name or tostring(savedQuality)
+		elseif savedQuality ~= nil then
+			qualitySetting = tostring(savedQuality)
+		end
+	end
+
+	local voiceStatus = "Unknown"
+	local okVoiceService, voiceService = pcall(game.GetService, game, "VoiceChatService")
+	if okVoiceService and voiceService and userId then
+		local okVoice, voiceEnabled = pcall(function()
+			return voiceService:IsVoiceEnabledForUserIdAsync(userId)
+		end)
+		if okVoice then
+			voiceStatus = voiceEnabled and "Enabled" or "Disabled"
+		end
+	end
+
+	snapshot.system.robloxLocale = robloxLocale
+	snapshot.system.systemLocale = systemLocale
+	snapshot.system.quality = qualitySetting
+	snapshot.system.voice = voiceStatus
+
+	local placeId = tonumber(game.PlaceId) or 0
+	local gameId = game.GameId or "Unknown"
+	local jobIdValue = game.JobId
+	if jobIdValue == nil or jobIdValue == "" then
+		jobIdValue = "Unavailable"
+	end
+
+	local gameName = "Unknown"
+	local creatorName = "Unknown"
+	if MarketplaceService then
+		local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
+		if okInfo and type(infoResult) == "table" then
+			gameName = infoResult.Name or gameName
+			if infoResult.Creator and infoResult.Creator.Name then
+				creatorName = infoResult.Creator.Name
+			end
+		end
+	end
+
+	snapshot.game.name = gameName
+	snapshot.game.creator = creatorName
+
+	snapshot.ids.placeId = placeId ~= 0 and tostring(placeId) or "Unknown"
+	local gameIdText = tostring(gameId)
+	if gameIdText == "" or gameIdText == "0" then
+		gameIdText = "Unknown"
+	end
+	snapshot.ids.gameId = gameIdText
+	snapshot.ids.jobId = tostring(jobIdValue)
+
+	local playerCount = Players and Players.NumPlayers or 0
+	local maxPlayers = Players and Players.MaxPlayers or 0
+	snapshot.server.playerCount = string.format("%d/%d", playerCount, maxPlayers)
+
+	local isTesting = getgenv and getgenv().NATestingVer
+	local aprilMode = getgenv and getgenv().ActivateAprilMode
+
+	snapshot.flags.version = isTesting and "Testing" or "Normal"
+	snapshot.flags.aprilFools = aprilMode and "Enabled" or "Disabled"
+
+	snapshot.timestamp = os.date("%m/%d/%Y | %H:%M:%S")
+
+	return snapshot
+end
 cmdNAnum=0
 NAQoTEnabled = nil
 NAiconSaveEnabled = nil
-NAUISTROKER = Color3.fromRGB(148, 93, 255)
+NAUISTROKER = DEFAULT_UI_STROKE_COLOR
 NATOPBARVISIBLE = true
 
 if getgenv().NATestingVer then
@@ -33921,9 +34109,15 @@ NAmanage.updateTabVisual=function(tabInfo, isActive)
 	end
 	local btn = tabInfo.button
 	btn.BackgroundTransparency = isActive and 0.1 or 0.25
-	local stroke = btn:FindFirstChildWhichIsA("UIStroke")
+	local stroke = btn:FindFirstChildWhichIsA("UIStroke", true)
 	if stroke then
-		stroke.Color = isActive and Color3.fromRGB(194, 132, 255) or Color3.fromRGB(154, 99, 255)
+		NAgui.RegisterColoredStroke(stroke)
+		local computeColor = NAmanage.getTabStrokeColor
+		if typeof(computeColor) == "function" then
+			stroke.Color = computeColor(isActive)
+		else
+			stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
+		end
 	end
 	local title = btn:FindFirstChild("Title")
 	if title then
@@ -33965,6 +34159,9 @@ NAgui.setTab=function(name)
 	end
 
 	TabManager.current = name
+	if name == TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
+		pcall(NAgui.RefreshBasicInfo)
+	end
 	if info.page then
 		NAUIMANAGER.SettingsList = info.page
 	end
@@ -34014,6 +34211,7 @@ NAgui.addTab=function(name, options)
 		end
 		button.LayoutOrder = layoutOrder
 		button.Parent = TabManager.holder
+		NAgui.RegisterStrokesFrom(button)
 		local interact = button:FindFirstChild("Interact") or button
 		MouseButtonFix(interact, function()
 			NAgui.setTab(name)
@@ -34050,6 +34248,10 @@ NAgui.addTab=function(name, options)
 			button = button;
 			layoutIndex = 0;
 		}
+	end
+
+	if info.page then
+		NAgui.RegisterStrokesFrom(info.page)
 	end
 
 	info.order = layoutOrder
@@ -34089,7 +34291,7 @@ end
 SpawnCall(function()
 	for _,v in ipairs(NAStuff.NASCREENGUI:GetDescendants()) do
 		if v:IsA("UIStroke") then
-			Insert(NACOLOREDELEMENTS, v)
+			NAgui.RegisterColoredStroke(v)
 		end
 	end
 end)
@@ -34497,6 +34699,9 @@ NAgui.addButton = function(label, callback)
 	button.Parent = NAUIMANAGER.SettingsList
 	button.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(button)
+	if NAgui.RegisterStrokesFrom then
+		NAgui.RegisterStrokesFrom(button)
+	end
 
 	MouseButtonFix(button.Interact,function()
 		pcall(callback)
@@ -34510,6 +34715,9 @@ NAgui.addSection = function(titleText)
 	section.Parent = NAUIMANAGER.SettingsList
 	section.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(section)
+	if NAgui.RegisterStrokesFrom then
+		NAgui.RegisterStrokesFrom(section)
+	end
 end
 
 NAgui.addInfo = function(label, value)
@@ -34519,6 +34727,9 @@ NAgui.addInfo = function(label, value)
 	info.Parent = NAUIMANAGER.SettingsList
 	info.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(info)
+	if NAgui.RegisterStrokesFrom then
+		NAgui.RegisterStrokesFrom(info)
+	end
 
 	local frame = info.InputFrame
 	if not frame then
@@ -34529,6 +34740,8 @@ NAgui.addInfo = function(label, value)
 	if not box then
 		return nil
 	end
+
+	local baseSize = frame.Size
 
 	box.Text = value or ""
 	box.PlaceholderText = ""
@@ -34543,16 +34756,29 @@ NAgui.addInfo = function(label, value)
 	end)
 
 	local updateSize = function()
-		frame:TweenSize(
-			UDim2.new(0, box.TextBounds.X + 24, 0, 30),
-			Enum.EasingDirection.Out,
-			Enum.EasingStyle.Exponential,
-			0.2,
-			true
-		)
+		if frame:GetAttribute("NASkipAutoSize") then
+			frame.Size = baseSize
+			return
+		end
+
+		local width = box.TextBounds.X + 24
+		if width <= 24 then
+			local prev = frame:GetAttribute("NALastWidth")
+			if typeof(prev) == "number" and prev > 0 then
+				width = prev
+			end
+		end
+		local minWidth = frame:GetAttribute("NAMinWidth")
+		if typeof(minWidth) == "number" then
+			width = math.max(width, minWidth)
+		end
+
+		frame.Size = UDim2.new(0, width, 0, 30)
+		frame:SetAttribute("NALastWidth", width)
 	end
 
 	box:GetPropertyChangedSignal("Text"):Connect(updateSize)
+	frame:SetAttribute("NALastWidth", frame.AbsoluteSize.X > 0 and frame.AbsoluteSize.X or nil)
 	updateSize()
 
 	local interact = frame:FindFirstChild("Interact")
@@ -34560,7 +34786,7 @@ NAgui.addInfo = function(label, value)
 		interact.Visible = false
 	end
 
-return box
+	return box, info
 end
 
 NAgui._toggleRegistry = NAgui._toggleRegistry or {}
@@ -35027,7 +35253,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		if quantized < min then quantized = min end
 		if quantized > max then quantized = max end
 		return quantized
-	 end
+	end
 
 	local function applyValue(value, opts)
 		opts = opts or {}
@@ -35316,6 +35542,7 @@ NAmanage.Topbar_Rebuild=function()
 		stroke.Thickness=1
 		stroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 		stroke.Transparency=0.15
+		NAgui.RegisterColoredStroke(stroke)
 		local ic=InstanceNew("ImageLabel",bg)
 		ic.ZIndex=204
 		ic.BackgroundTransparency=1
@@ -35433,6 +35660,7 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.tStroke.Thickness=1.25
 	TopBarApp.tStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 	TopBarApp.tStroke.Transparency=0.15
+	NAgui.RegisterColoredStroke(TopBarApp.tStroke)
 	TopBarApp.icon=InstanceNew("ImageLabel",TopBarApp.toggle)
 	TopBarApp.icon.AnchorPoint=Vector2.new(0.5,0.5)
 	TopBarApp.icon.Position=UDim2.new(0.5,0,0.5,0)
@@ -35458,6 +35686,7 @@ NAmanage.Topbar_Init=function()
 	pStroke.Thickness=1
 	pStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 	pStroke.Transparency=0.2
+	NAgui.RegisterColoredStroke(pStroke)
 	TopBarApp.buttonDefs={
 		{name="settings",image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_8.png",ImageRectOffset=Vector2.new(416,464),ImageRectSize=Vector2.new(36,36),func=function()
 			if NAUIMANAGER.SettingsFrame then
@@ -37401,6 +37630,8 @@ TextLabel.TextWrapped = true
 TextLabel.TextStrokeTransparency = 0.7
 TextLabel.TextTransparency = 1
 TextLabel.ZIndex = 9999
+TextLabel.Active = true
+TextLabel.Selectable = false
 
 UICorner2.CornerRadius = UDim.new(0.25, 0)
 UICorner2.Parent = TextLabel
@@ -37604,6 +37835,29 @@ end
 
 function mainNameless()
 	local txtLabel = TextLabel
+	local fadeOutStarted = false
+
+	local function fadeOut()
+		if fadeOutStarted then return end
+		fadeOutStarted = true
+		local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
+			TextTransparency = 1,
+			BackgroundTransparency = 1,
+			Position = UDim2.new(0.5, 0, 0.52, 20),
+			Size = UDim2.new(0, 0, 0, 0)
+		})
+		fadeOutTween:Play()
+		fadeOutTween.Completed:Once(function()
+			txtLabel:Destroy()
+		end)
+	end
+
+	txtLabel.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			fadeOut()
+		end
+	end)
+
 	local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
 	local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
 
@@ -37663,18 +37917,7 @@ function mainNameless()
 	Swoosh()
 
 	Wait(2.5)
-
-	local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
-		TextTransparency = 1,
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0.5, 0, 0.52, 20),
-		Size = UDim2.new(0, 0, 0, 0)
-	})
-
-	fadeOutTween:Play()
-	fadeOutTween.Completed:Once(function()
-		txtLabel:Destroy()
-	end)
+	fadeOut()
 end
 
 coroutine.wrap(mainNameless)()
@@ -38967,9 +39210,28 @@ NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 end)
 
 NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
-	for _, element in ipairs(NACOLOREDELEMENTS) do
-		if element:IsA("UIStroke") then
-			element.Color = color
+	if typeof(color) == "Color3" then
+		NAUISTROKER = color
+		for _, element in ipairs(NACOLOREDELEMENTS) do
+			if typeof(element) == "Instance" and element:IsA("UIStroke") then
+				element.Color = color
+			end
+		end
+		if TabManager and TabManager.tabs then
+			for name, info in pairs(TabManager.tabs) do
+				local btn = info and info.button
+				if btn then
+					local stroke = btn:FindFirstChildWhichIsA("UIStroke", true)
+					if stroke then
+						local computeColor = NAmanage.getTabStrokeColor
+						if typeof(computeColor) == "function" then
+							stroke.Color = computeColor(TabManager.current == name)
+						else
+							stroke.Color = color
+						end
+					end
+				end
+			end
 		end
 	end
 	SaveUIStroke(color)
@@ -39721,21 +39983,21 @@ if not IsOnMobile then
 			"keybindConn",
 			NAmanage.connectFlyKey,
 			"Fly keybind set to '%s'"
-		))
+			))
 
 		NAgui.addKeybind("vFly Keybind", string.upper(flyVariables.vToggleKey or "V"), createFlyKeybindHandler(
 			"vToggleKey",
 			"vKeybindConn",
 			NAmanage.connectVFlyKey,
 			"vFly keybind set to '%s'"
-		))
+			))
 
 		NAgui.addKeybind("cFly Keybind", string.upper(flyVariables.cToggleKey or "C"), createFlyKeybindHandler(
 			"cToggleKey",
 			"cKeybindConn",
 			NAmanage.connectCFlyKey,
 			"CFrame fly keybind set to '%s'"
-		))
+			))
 
 		NAgui.addKeybind("tFly Keybind", string.upper(flyVariables.tflyToggleKey or "T"), createFlyKeybindHandler(
 			"tflyToggleKey",
@@ -39743,7 +40005,7 @@ if not IsOnMobile then
 			NAmanage.connectTFlyKey,
 			"TFly keybind set to '%s'",
 			"Please provide a key."
-		))
+			))
 	end
 end
 
@@ -39801,6 +40063,154 @@ NAgui.addButton("Remove Light", function()
 		settingsLight.LIGHTER = nil
 	end
 end)
+
+do
+	local previousTab = NAgui.getActiveTab()
+	NAgui.addTab(TAB_BASIC_INFO, { order = 7.5 })
+	NAgui.setTab(TAB_BASIC_INFO)
+
+	local basicInfoConfig = {
+		{
+			title = "Player";
+			fields = {
+				{ id = "playerDisplayName", label = "Display Name", path = {"player","displayName"} };
+				{ id = "playerUsername", label = "Username", path = {"player","username"} };
+				{ id = "playerUserId", label = "UserId", path = {"player","userId"} };
+				{ id = "playerAccountAge", label = "Account Age", path = {"player","accountAge"} };
+				{ id = "playerMembership", label = "Membership", path = {"player","membership"} };
+			};
+		},
+		{
+			title = "Platform";
+			fields = {
+				{ id = "platformName", label = "Platform", path = {"platform","platform"} };
+				{ id = "executorName", label = "Executor", path = {"platform","executor"} };
+			};
+		},
+		{
+			title = "Game";
+			fields = {
+				{ id = "gameName", label = "Game Name", path = {"game","name"} };
+				{ id = "gameCreator", label = "Creator", path = {"game","creator"} };
+			};
+		},
+		{
+			title = "Identifiers";
+			fields = {
+				{ id = "placeId", label = "Place ID", path = {"ids","placeId"} };
+				{ id = "gameId", label = "Game ID", path = {"ids","gameId"} };
+				{ id = "jobId", label = "Job ID", path = {"ids","jobId"} };
+			};
+		},
+		{
+			title = "Server";
+			fields = {
+				{ id = "serverPlayers", label = "Players", path = {"server","playerCount"} };
+			};
+		},
+		{
+			title = "System";
+			fields = {
+				{ id = "robloxLocale", label = "Roblox Locale", path = {"system","robloxLocale"} };
+				{ id = "systemLocale", label = "System Locale", path = {"system","systemLocale"} };
+				{ id = "qualitySetting", label = "Graphics Quality", path = {"system","quality"} };
+				{ id = "voiceStatus", label = "Voice Chat", path = {"system","voice"} };
+			};
+		},
+		{
+			title = "Flags";
+			fields = {
+				{ id = "naVersion", label = "NA Version", path = {"flags","version"} };
+				{ id = "aprilMode", label = "April Fools Mode", path = {"flags","aprilFools"} };
+				{ id = "timestamp", label = "Timestamp", path = "timestamp" };
+			};
+		},
+	}
+
+	local basicInfoBoxes = {}
+
+	local function resolveValue(snapshot, path)
+		local current = snapshot
+		if type(path) == "table" then
+			for _, key in ipairs(path) do
+				if current == nil then
+					break
+				end
+				current = current[key]
+			end
+		elseif path ~= nil then
+			current = current and current[path] or nil
+		end
+		if current == nil or current == "" then
+			return "Unknown"
+		end
+		return tostring(current)
+	end
+
+	for _, section in ipairs(basicInfoConfig) do
+		if NAgui.addSection then
+			NAgui.addSection(section.title)
+		end
+		for _, field in ipairs(section.fields) do
+			local box = NAgui.addInfo(field.label, "")
+			if box then
+				box.TextXAlignment = Enum.TextXAlignment.Left
+				box.TextYAlignment = Enum.TextYAlignment.Center
+				box.TextWrapped = false
+				box.TextScaled = false
+				box.Selectable = true
+				box.Active = true
+				local frame = box.Parent
+				if frame and frame:IsA("Frame") then
+					frame:SetAttribute("NAMinWidth", 180)
+				end
+			end
+			basicInfoBoxes[field.id] = box
+		end
+	end
+
+	local function refreshBasicInfo()
+		local snapshot = NAmanage.GetBasicInfoSnapshot()
+		for _, section in ipairs(basicInfoConfig) do
+			for _, field in ipairs(section.fields) do
+				local box = basicInfoBoxes[field.id]
+				if box then
+					local value = resolveValue(snapshot, field.path)
+					box.Text = value
+				end
+			end
+		end
+	end
+
+	NAgui.RefreshBasicInfo = refreshBasicInfo
+	refreshBasicInfo()
+	NAgui.addButton("Refresh Basic Info", refreshBasicInfo)
+
+	local updateInterval = 1
+	if not NAgui.BasicInfoUpdate then
+		NAgui.BasicInfoUpdate = { interval = updateInterval, last = 0 }
+		NAgui.BasicInfoUpdate.conn = RunService.Heartbeat:Connect(function()
+			local data = NAgui.BasicInfoUpdate
+			if not data then
+				return
+			end
+			if not TabManager or TabManager.current ~= TAB_BASIC_INFO then
+				return
+			end
+			local now = tick()
+			if now - data.last >= data.interval then
+				data.last = now
+				refreshBasicInfo()
+			end
+		end)
+	else
+		NAgui.BasicInfoUpdate.interval = updateInterval
+	end
+
+	if previousTab and previousTab ~= TAB_BASIC_INFO then
+		NAgui.setTab(previousTab)
+	end
+end
 
 NAgui.addTab(TAB_ROBLOX_DATA, { order = 8 })
 NAgui.setTab(TAB_ROBLOX_DATA)
