@@ -25,6 +25,7 @@ local Popup  = nil
 
 local TAB_ALL = "All"
 local TAB_GENERAL = "General"
+local TAB_INTEGRATIONS = "Integrations"
 local TAB_INTERFACE = "Interface"
 local TAB_LOGGING = "Logging"
 local TAB_ESP = "ESP"
@@ -457,6 +458,161 @@ local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local cmd={}
 local NAmanage={}
+NAmanage.btCount = 0
+
+NAmanage.btGetExecutorInfo=function(forceRefresh)
+	if forceRefresh or not NAmanage._btExecutorInfo then
+		local execName = "Unknown"
+		local execVersion = "Unknown"
+
+		if type(identifyexecutor) == "function" then
+			local ok, name, version = pcall(identifyexecutor)
+			if ok then
+				if type(name) == "string" and name ~= "" then
+					execName = name
+				elseif name ~= nil then
+					execName = tostring(name)
+				end
+
+				if type(version) == "string" and version ~= "" then
+					execVersion = version
+				elseif version ~= nil then
+					execVersion = tostring(version)
+				end
+			end
+		end
+
+		NAmanage._btExecutorInfo = {
+			name = execName;
+			version = execVersion;
+		}
+	end
+
+	return NAmanage._btExecutorInfo
+end
+
+NAmanage.btEnabled=function()
+	if type(NAmanage._btOverride) == "boolean" then
+		return NAmanage._btOverride
+	end
+	if NAmanage.NASettingsGet then
+		local value = NAmanage.NASettingsGet("bloxtrapRPC")
+		if type(value) == "boolean" then
+			return value
+		end
+	end
+	if NAStuff and typeof(NAStuff.NASettingsData) == "table" then
+		local stored = NAStuff.NASettingsData.bloxtrapRPC
+		if type(stored) == "boolean" then
+			return stored
+		end
+	end
+	return false
+end
+
+NAmanage.btSetEnabled=function(value)
+	NAmanage._btOverride = value == true
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("bloxtrapRPC", value == true)
+	end
+end
+
+NAmanage.btSend=function(command, data)
+	if not NAmanage.btEnabled() then
+		return
+	end
+
+	local payload = {
+		command = command;
+		data = data;
+	}
+
+	local ok, encoded = pcall(function()
+		return HttpService:JSONEncode(payload)
+	end)
+
+	if ok and encoded then
+		encoded = encoded:gsub('("assetId"%s*:%s*)([-%d%.eE%+]+)', function(prefix, numeric)
+			local numberValue = tonumber(numeric)
+			if numberValue then
+				return prefix .. Format('%.0f', numberValue)
+			end
+			return prefix .. numeric
+		end)
+		print("[BloxstrapRPC] "..encoded)
+	end
+end
+
+NAmanage.btUpdate=function(details, state)
+	if not NAmanage.btEnabled() then
+		return
+	end
+
+	local versionHover = (NAStuff and NAStuff.NAjson and NAStuff.NAjson.ver) or "Nameless Admin"
+	local count = NAmanage.btCount or 0
+	local displayDetails = details or adminName or "Nameless Admin"
+	if type(displayDetails) ~= "string" then
+		displayDetails = tostring(displayDetails)
+	end
+	local baseState = state
+
+	if baseState == nil then
+		if count > 0 then
+			baseState = "cmds ran: "..tostring(count)
+		else
+			baseState = "Idle"
+		end
+	end
+	if type(baseState) ~= "string" then
+		baseState = tostring(baseState)
+	end
+
+	local execInfo = NAmanage.btGetExecutorInfo()
+	local execNameLabel = execInfo and execInfo.name or "Unknown"
+	if execNameLabel == "" then
+		execNameLabel = "Unknown"
+	end
+	execNameLabel = tostring(execNameLabel)
+	local execLabel = execNameLabel
+
+	local displayState = Format("%s | Executor: %s", baseState, execLabel)
+
+	local largeAsset = 86994583496114
+	local smallAsset = placeIconAssetId and placeIconAssetId() or nil
+	if smallAsset == 0 then
+		smallAsset = nil
+	end
+	local smallHover = placeName and placeName() or nil
+	if not smallAsset then
+		smallAsset = 13409122839
+		if not smallHover or smallHover == "" or smallHover == "unknown" then
+			smallHover = "v1.0"
+		end
+	end
+
+	NAmanage.btSend("SetRichPresence", {
+		details = displayDetails;
+		state = displayState;
+		largeImage = {
+			assetId = largeAsset;
+			hoverText = tostring(versionHover);
+		};
+		smallImage = smallAsset and {
+			assetId = smallAsset;
+			hoverText = tostring(smallHover or "Game");
+		} or nil;
+	})
+end
+
+NAmanage.btBump=function()
+	NAmanage.btCount = (NAmanage.btCount or 0) + 1
+	NAmanage.btUpdate()
+end
+
+Defer(function()
+	NAmanage.btUpdate()
+end)
+
 NAmanage.resolveTweenDuration=function(scale)
 	local base = tonumber(NAStuff.tweenSpeed) or 1
 	if base <= 0 then
@@ -2011,6 +2167,7 @@ repeat
 	end)
 	if ok and type(res) == "table" then
 		NAStuff.NAjson = res
+		NAmanage.btUpdate()
 		naStuffReady = true
 	else
 		Wait(0.25)
@@ -2561,6 +2718,12 @@ NAmanage.NASettingsGetSchema=function()
 			default = true;
 			coerce = function(value)
 				return coerceBoolean(value, true)
+			end;
+		};
+		bloxtrapRPC = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
 			end;
 		};
 		chatTranslate = {
@@ -4427,11 +4590,12 @@ cmd.run = function(args)
 
 	local success, msg = pcall(function()
 		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
-		if command then
-			command[1](unpack(arguments))
-			if shouldRecord then
-				NAmanage.updateLastCommand(rawArgs)
-			end
+	if command then
+		command[1](unpack(arguments))
+		NAmanage.btBump()
+		if shouldRecord then
+			NAmanage.updateLastCommand(rawArgs)
+		end
 		else
 			local closest = callerLower and didYouMean(callerLower) or nil
 			if closest and doPREDICTION then
@@ -4459,6 +4623,7 @@ cmd.run = function(args)
 										end
 										SpawnCall(function()
 											commandFunc(unpack(predictedArguments))
+											NAmanage.btBump()
 											if shouldRecord then
 												NAmanage.updateLastCommand(record)
 											end
@@ -4467,6 +4632,7 @@ cmd.run = function(args)
 										local record = {closest}
 										SpawnCall(function()
 											commandFunc()
+											NAmanage.btBump()
 											if shouldRecord then
 												NAmanage.updateLastCommand(record)
 											end
@@ -4487,6 +4653,7 @@ cmd.run = function(args)
 									local record = {closest}
 									SpawnCall(function()
 										commandFunc()
+										NAmanage.btBump()
 										if shouldRecord then
 											NAmanage.updateLastCommand(record)
 										end
@@ -5814,6 +5981,28 @@ function placeName()
 	local info = getPlaceInfo()
 	local name = info and NAlib.isProperty(info, "Name")
 	return name or "unknown"
+end
+
+function placeIconAssetId()
+	local info = getPlaceInfo()
+	local icon = info and NAlib.isProperty(info, "IconImageAssetId")
+	if typeof(icon) == "number" then
+		return icon
+	end
+	if typeof(icon) == "string" then
+		local digits = icon:match("(%d+)")
+		if digits then
+			local numeric = tonumber(digits)
+			if numeric then
+				return numeric
+			end
+		end
+		local asNumber = tonumber(icon)
+		if asNumber then
+			return asNumber
+		end
+	end
+	return nil
 end
 
 function SaveUIStroke(color)
@@ -37596,6 +37785,8 @@ else
 	end
 end
 
+NAmanage.btUpdate()
+
 TextLabel.Parent = NAStuff.NASCREENGUI
 TextLabel.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
 TextLabel.BackgroundTransparency = 0.1
@@ -39176,6 +39367,22 @@ if FileSupport then
 		NAmanage.openSettingsCleanupPopup()
 	end)
 end
+
+NAgui.addTab(TAB_INTEGRATIONS, { order = 1.5 })
+NAgui.setTab(TAB_INTEGRATIONS)
+
+NAgui.addSection("Integrations")
+
+NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
+	NAmanage.btSetEnabled(v)
+	if v then
+		NAmanage.btGetExecutorInfo(true)
+		NAmanage.btUpdate()
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
+	return NAmanage.btEnabled()
+end)
 
 NAgui.addTab(TAB_INTERFACE, { order = 2 })
 NAgui.setTab(TAB_INTERFACE)
