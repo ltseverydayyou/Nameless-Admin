@@ -1,5 +1,5 @@
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="NAskiddler"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false; getgenv().NAverify="NAskiddler"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -19,6 +19,105 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 
+local Lx5 = { a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~"', l = {}, p = {} }
+do
+	local pow = 1
+	for i = 0, 32 do
+		Lx5.p[i] = pow
+		pow *= 2
+	end
+	for i = 1, #Lx5.a do
+		Lx5.l[string.byte(Lx5.a, i, i)] = i - 1
+	end
+end
+
+function Lx5.u(val, bits)
+	return val * Lx5.p[bits]
+end
+
+function Lx5.d(val, bits)
+	return math.floor(val / Lx5.p[bits])
+end
+
+function Lx5.e(src)
+	local b, n = 0, 0
+	local out = {}
+	local oi = 1
+	for i = 1, #src do
+		b = b + Lx5.u(string.byte(src, i, i), n)
+		n += 8
+		if n > 13 then
+			local v = b % 8192
+			if v <= 88 then
+				v = b % 16384
+				b = Lx5.d(b, 14)
+				n -= 14
+			else
+				b = Lx5.d(b, 13)
+				n -= 13
+			end
+			local a = (v % 91) + 1
+			local d = math.floor(v / 91) + 1
+			out[oi] = string.sub(Lx5.a, a, a)
+			out[oi + 1] = string.sub(Lx5.a, d, d)
+			oi += 2
+		end
+	end
+	if n > 0 then
+		local a = (b % 91) + 1
+		out[oi] = string.sub(Lx5.a, a, a)
+		oi += 1
+		if n > 7 or b > 90 then
+			local d = math.floor(b / 91) + 1
+			out[oi] = string.sub(Lx5.a, d, d)
+			oi += 1
+		end
+	end
+	return table.concat(out, "", 1, oi - 1)
+end
+
+function Lx5.g(src)
+	local b, n, v = 0, 0, -1
+	local out = {}
+	local oi = 1
+	for i = 1, #src do
+		local c = Lx5.l[string.byte(src, i, i)]
+		if c ~= nil then
+			if v < 0 then
+				v = c
+			else
+				v = v + c * 91
+				b = b + Lx5.u(v, n)
+				if (v % 8192) > 88 then
+					n += 13
+				else
+					n += 14
+				end
+				while n >= 8 do
+					out[oi] = string.char(b % 256)
+					oi += 1
+					b = Lx5.d(b, 8)
+					n -= 8
+				end
+				v = -1
+			end
+		end
+	end
+	if v >= 0 then
+		b = b + Lx5.u(v, n)
+		while n >= 8 do
+			out[oi] = string.char(b % 256)
+			oi += 1
+			b = Lx5.d(b, 8)
+			n -= 8
+		end
+	end
+	if oi == 1 then
+		return ""
+	end
+	return table.concat(out, "", 1, oi - 1)
+end
+
 local Notify = nil
 local Window = nil
 local Popup  = nil
@@ -35,6 +134,7 @@ local TAB_KEYBINDS = "Keybinds"
 local TAB_BASIC_INFO = "Basic Info"
 local TAB_ROBLOX_DATA = "Roblox Data"
 local TAB_ADMIN_INFO = "Admin Info"
+local opt
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -456,6 +556,43 @@ local NAStuff = {
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
+local prefixCheck = ";"
+local xCW = Lx5.g("l5VKR[9`aICv)j8j%ouJS[~j<R/@8P!qwre3:^#N]#@+1.UjA#!,l/JT@S")
+local FVx = {
+	vt = Lx5.g("KEDg4+6YxSq3`)9j$2,<8=2!<!8");
+	nohttp = Lx5.g("BP0=O:T[$y50eF>iTPX<.Wf[LRGv6xXi<i^IUc:{#Fwc$DhLf8@Ji>BZaH");
+	missing = Lx5.g("Pa8=O:/p#F#0,mHl3oh+d,8C");
+	badresp = Lx5.g("Ro^gU<:Y#F#0ZQBk2JzIP:T[#F90GFRn82^I");
+	badkey = Lx5.g("RoX<r@6erR7tp9Uo1a/2/WsefV");
+	reqfail = Lx5.g("BP0=O:T[$y50eFMo`w;gO[yC}!S6C9bj");
+	statusFmt = Lx5.g("[O9K%*mes!2t(PFlXP;IUc#RaH");
+	hContent = Lx5.g("`q$Jg,_Y\"H6@S9M");
+	hJson = Lx5.g("Hu@JN:/Hr%!&4^elqr$J");
+	hKey = Lx5.g("xlKdi`A");
+}
+opt={
+	prefix=prefixCheck;
+	NAupdDate='unknown'; --month,day,year
+	githubUrl = '';
+	loader='';
+	NAUILOADER='';
+	NAAUTOSCALER=nil;
+	NA_storage=nil;--Stupid Ahh script removing folders
+	NAREQUEST = (syn and syn.request)
+		or (http and http.request)
+		or http_request
+		or request
+		or function() end;
+	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
+	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
+	ctrlModule = nil;
+	currentTagText = "Tag";
+	currentTagColor = Color3.fromRGB(0, 255, 170);
+	currentTagRGB = false;
+	chatTranslateEnabled = true;
+	chatTranslateTarget = "en";
+	--saveTag = false;
+}
 local cmd={}
 local NAmanage={}
 NAmanage.btCount = 0
@@ -698,6 +835,69 @@ function NAmanage.scheduleLoader(label, callback, opts)
 	end)
 end
 
+function NAmanage.gaydeter()
+	local requestFunc = opt and opt.NAREQUEST
+	if type(requestFunc) ~= "function" then
+		return false, FVx.nohttp
+	end
+	local key = tostring((getgenv and getgenv().NAverify) or "")
+	if key == "" then
+		return false, FVx.missing
+	end
+	local requestUrl = xCW
+	if type(requestUrl) ~= "string" or requestUrl == "" then
+		return false, FVx.badresp
+	end
+	local encodedKey = key
+	if HttpService and HttpService.UrlEncode then
+		local ok, encoded = pcall(HttpService.UrlEncode, HttpService, key)
+		if ok and type(encoded) == "string" and encoded ~= "" then
+			encodedKey = encoded
+		end
+	end
+	local sep = requestUrl:find("?", 1, true) and "&" or "?"
+	local queryUrl = requestUrl .. sep .. "key=" .. encodedKey
+	local headerKey = FVx.hKey or "X-Key"
+	local ok, response = pcall(requestFunc, {
+		Url = queryUrl;
+		Method = "POST";
+		Headers = {
+			[FVx.hContent] = FVx.hJson;
+			[headerKey] = key;
+			["x-key"] = key;
+		};
+		Body = "{}";
+	})
+	if not ok then
+		return false, FVx.reqfail
+	end
+	if typeof(response) ~= "table" then
+		return false, FVx.badresp
+	end
+	local statusCode = tonumber(response.StatusCode or response.Status)
+	local body = response.Body or response.body or "{}"
+	if statusCode and statusCode ~= 200 then
+		local statusMsg = statusCode == 401 and FVx.badkey or Format(FVx.statusFmt, tostring(statusCode or "nil"))
+		return false, statusMsg
+	end
+	local decodedOk, decoded = pcall(function()
+		return HttpService:JSONDecode(body)
+	end)
+	if decodedOk and decoded and decoded.ok == true then
+		return true, decoded
+	end
+	local errMsg
+	if decodedOk and decoded then
+		errMsg = decoded.message or decoded.error
+	else
+		errMsg = decoded
+	end
+	if type(errMsg) ~= "string" or errMsg == "" then
+		errMsg = FVx.badkey
+	end
+	return false, errMsg
+end
+
 local searchIndex = {}
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
@@ -745,7 +945,6 @@ local NAfiles = {
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 }
-local prefixCheck = ";"
 local NAScale = 1
 local NAUIScale = 1
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
@@ -762,25 +961,6 @@ local events = {
 	"OnJoin",
 	"OnLeave",
 }
-local opt={
-	prefix=prefixCheck;
-	NAupdDate='unknown'; --month,day,year
-	githubUrl = '';
-	loader='';
-	NAUILOADER='';
-	NAAUTOSCALER=nil;
-	NA_storage=nil;--Stupid Ahh script removing folders
-	NAREQUEST = request or http_request or (syn and syn.request) or function() end;
-	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
-	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
-	ctrlModule = nil;
-	currentTagText = "Tag";
-	currentTagColor = Color3.fromRGB(0, 255, 170);
-	currentTagRGB = false;
-	chatTranslateEnabled = true;
-	chatTranslateTarget = "en";
-	--saveTag = false;
-}
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib={}
@@ -796,7 +976,7 @@ DEFAULT_UI_STROKE_COLOR=Color3.fromRGB(148,93,255)
 COLOR_WHITE=Color3.new(1,1,1)
 COLOR_BLACK=Color3.new(0,0,0)
 
-local function FormatAccountAge(days)
+NAmanage.FormatAccountAge=function(days)
 	if type(days) ~= "number" then
 		return "Unknown"
 	end
@@ -872,7 +1052,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.player.displayName = displayName
 	snapshot.player.username = username
 	snapshot.player.userId = userId and tostring(userId) or "Unknown"
-	snapshot.player.accountAge = FormatAccountAge(accountAgeDays)
+	snapshot.player.accountAge = NAmanage.FormatAccountAge(accountAgeDays)
 	snapshot.player.membership = membership
 
 	local platformName = "Unknown"
@@ -2094,6 +2274,20 @@ if not NAAssetsLoading.setStatus then
 	NaProtectUI(NAAssetsLoading.ui)
 end
 
+if NAmanage and type(NAmanage.gaydeter) == "function" then
+	NAAssetsLoading.setStatus(FVx.vt)
+	local ok, verified, detail = pcall(NAmanage.gaydeter)
+	if not ok or not verified then
+		local errText = ok and detail or verified
+		if type(errText) ~= "string" or errText == "" then
+			errText = FVx.badkey
+		end
+		NAAssetsLoading.setPercent(0)
+		NAAssetsLoading.setStatus(errText)
+		error(errText)
+	end
+end
+
 NAAssetsLoading.setStatus("waiting for engine")
 if not game:IsLoaded() then game.Loaded:Wait() end
 NAAssetsLoading.setPercent(0.1)
@@ -3229,16 +3423,16 @@ NAmanage.SaveBinders=function()
 	end
 end
 
-local function deepCopyTable(value)
+originalIO.deepCopyTable=function(value)
 	if type(value) ~= "table" then return value end
 	local copy = {}
 	for k, v in pairs(value) do
-		copy[k] = deepCopyTable(v)
+		copy[k] = originalIO.deepCopyTable(v)
 	end
 	return copy
 end
 
-local function safeDeleteFile(path)
+originalIO.safeDeleteFile=function(path)
 	if type(path) ~= "string" then
 		return false, "Invalid file path."
 	end
@@ -3255,7 +3449,7 @@ local function safeDeleteFile(path)
 	return true, "File deleted."
 end
 
-local function safeClearFolder(path, opts)
+originalIO.safeClearFolder=function(path, opts)
 	opts = opts or {}
 	if type(path) ~= "string" then
 		return false, "Invalid folder path."
@@ -3271,7 +3465,7 @@ local function safeClearFolder(path, opts)
 	if okList and type(entries) == "table" then
 		for _, entry in ipairs(entries) do
 			if isfolder(entry) then
-				local okSub, errSub = safeClearFolder(entry, { removeRoot = true })
+				local okSub, errSub = originalIO.safeClearFolder(entry, { removeRoot = true })
 				if not okSub then
 					return false, errSub
 				end
@@ -3363,9 +3557,9 @@ function NAmanage.buildSettingsCleanupButtons()
 				Callback = function()
 					local ok, info
 					if opt.kind == "file" then
-						ok, info = safeDeleteFile(opt.path)
+						ok, info = originalIO.safeDeleteFile(opt.path)
 					else
-						ok, info = safeClearFolder(opt.path, { removeRoot = opt.removeRoot, recreate = opt.recreate })
+						ok, info = originalIO.safeClearFolder(opt.path, { removeRoot = opt.removeRoot, recreate = opt.recreate })
 					end
 
 					if ok then
@@ -3581,10 +3775,10 @@ if FileSupport then
 		end
 	end
 
-	NAStuff.ChatSettingsTemplate = deepCopyTable(NAStuff.ChatSettings)
+	NAStuff.ChatSettingsTemplate = originalIO.deepCopyTable(NAStuff.ChatSettings)
 
 	local function loadChat()
-		local cfg = deepCopyTable(NAStuff.ChatSettingsTemplate or NAStuff.ChatSettings)
+		local cfg = originalIO.deepCopyTable(NAStuff.ChatSettingsTemplate or NAStuff.ChatSettings)
 		if isfile(ChatConfigPath) then
 			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
@@ -3604,7 +3798,7 @@ if FileSupport then
 		local defaults = originalIO.getChatTemplateSection(section)
 		if defaults == nil then return false end
 		if type(defaults) == "table" then
-			NAStuff.ChatSettings[section] = deepCopyTable(defaults)
+			NAStuff.ChatSettings[section] = originalIO.deepCopyTable(defaults)
 		else
 			NAStuff.ChatSettings[section] = defaults
 		end
@@ -3624,7 +3818,7 @@ if FileSupport then
 		if current == nil then return end
 		local backup = originalIO.ensureChatCustomBackup()
 		if type(current) == "table" then
-			backup[section] = deepCopyTable(current)
+			backup[section] = originalIO.deepCopyTable(current)
 		else
 			backup[section] = current
 		end
@@ -3636,7 +3830,7 @@ if FileSupport then
 		local saved = backup[section]
 		if saved == nil then return false end
 		if type(saved) == "table" then
-			NAStuff.ChatSettings[section] = deepCopyTable(saved)
+			NAStuff.ChatSettings[section] = originalIO.deepCopyTable(saved)
 		else
 			NAStuff.ChatSettings[section] = saved
 		end
@@ -39989,7 +40183,7 @@ do
 			local current = NAStuff.ChatSettings
 			local preserveCustom = (current and current.customEnabled) or false
 			local preserveCoreChat = (current and current.coreGuiChat ~= nil) and current.coreGuiChat or true
-			local templateCopy = deepCopyTable(template)
+			local templateCopy = originalIO.deepCopyTable(template)
 
 			if type(current) ~= "table" then
 				current = {}
