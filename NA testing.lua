@@ -19,7 +19,7 @@
 ]]
 
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="NAskiddler"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="legshot"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
