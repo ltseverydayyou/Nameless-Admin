@@ -71,7 +71,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Namele
 
 ---
 
-## Credits (Original Owners)
+## Credits (Original Owner)
 
 We appreciate the original creator of Nameless Admin.
 
@@ -93,3 +93,4 @@ Licensed under the [MIT License](https://github.com/ltseverydayyou/Nameless-Admi
 ---
 
 Feel free to open issues, submit PRs, or drop by the Discord with questions.
+
