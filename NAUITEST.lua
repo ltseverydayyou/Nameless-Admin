@@ -1717,6 +1717,92 @@ G2L["bb"]["BackgroundTransparency"] = 1;
 G2L["bc"] = Instance.new("UIStroke", G2L["b9"]);
 G2L["bc"]["Color"] = Color3.fromRGB(71, 71, 71);
 
+G2L["rgbToggleFrame"] = Instance.new("Frame", G2L["98"]);
+G2L["rgbToggleFrame"]["BorderSizePixel"] = 0;
+G2L["rgbToggleFrame"]["BackgroundColor3"] = Color3.fromRGB(44, 44, 49);
+G2L["rgbToggleFrame"]["ZIndex"] = 5;
+G2L["rgbToggleFrame"]["Size"] = UDim2.new(0, 150, 0, 32);
+G2L["rgbToggleFrame"]["Position"] = UDim2.new(0, 280, 0, 45);
+G2L["rgbToggleFrame"]["Name"] = [[RGBToggle]];
+
+
+G2L["rgbToggleCorner"] = Instance.new("UICorner", G2L["rgbToggleFrame"]);
+
+
+
+G2L["rgbToggleStroke"] = Instance.new("UIStroke", G2L["rgbToggleFrame"]);
+G2L["rgbToggleStroke"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["rgbToggleStroke"]["Color"] = Color3.fromRGB(71, 71, 71);
+
+
+G2L["rgbToggleTitle"] = Instance.new("TextLabel", G2L["rgbToggleFrame"]);
+G2L["rgbToggleTitle"]["BorderSizePixel"] = 0;
+G2L["rgbToggleTitle"]["TextSize"] = 14;
+G2L["rgbToggleTitle"]["TextXAlignment"] = Enum.TextXAlignment.Left;
+G2L["rgbToggleTitle"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["rgbToggleTitle"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["rgbToggleTitle"]["TextColor3"] = Color3.fromRGB(244, 244, 249);
+G2L["rgbToggleTitle"]["BackgroundTransparency"] = 1;
+G2L["rgbToggleTitle"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["rgbToggleTitle"]["Size"] = UDim2.new(1, -60, 0, 16);
+G2L["rgbToggleTitle"]["Text"] = [[RGB Cycle]];
+G2L["rgbToggleTitle"]["Name"] = [[Title]];
+G2L["rgbToggleTitle"]["Position"] = UDim2.new(0, 12, 0.5, 0);
+
+
+G2L["rgbToggleInteract"] = Instance.new("TextButton", G2L["rgbToggleFrame"]);
+G2L["rgbToggleInteract"]["BorderSizePixel"] = 0;
+G2L["rgbToggleInteract"]["TextTransparency"] = 1;
+G2L["rgbToggleInteract"]["TextSize"] = 14;
+G2L["rgbToggleInteract"]["TextColor3"] = Color3.fromRGB(0, 0, 0);
+G2L["rgbToggleInteract"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["rgbToggleInteract"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["rgbToggleInteract"]["ZIndex"] = 6;
+G2L["rgbToggleInteract"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
+G2L["rgbToggleInteract"]["BackgroundTransparency"] = 1;
+G2L["rgbToggleInteract"]["Size"] = UDim2.new(1, 0, 1, 0);
+G2L["rgbToggleInteract"]["Text"] = [[]];
+G2L["rgbToggleInteract"]["Name"] = [[Interact]];
+G2L["rgbToggleInteract"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+
+
+G2L["rgbToggleSwitch"] = Instance.new("Frame", G2L["rgbToggleFrame"]);
+G2L["rgbToggleSwitch"]["BorderSizePixel"] = 0;
+G2L["rgbToggleSwitch"]["BackgroundColor3"] = Color3.fromRGB(49, 49, 54);
+G2L["rgbToggleSwitch"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["rgbToggleSwitch"]["ZIndex"] = 6;
+G2L["rgbToggleSwitch"]["Size"] = UDim2.new(0, 45, 0, 22);
+G2L["rgbToggleSwitch"]["Position"] = UDim2.new(1, -12, 0.5, 0);
+G2L["rgbToggleSwitch"]["Name"] = [[Switch]];
+
+
+G2L["rgbToggleSwitchCorner"] = Instance.new("UICorner", G2L["rgbToggleSwitch"]);
+G2L["rgbToggleSwitchCorner"]["CornerRadius"] = UDim.new(0, 12);
+
+
+
+G2L["rgbToggleSwitchStroke"] = Instance.new("UIStroke", G2L["rgbToggleSwitch"]);
+G2L["rgbToggleSwitchStroke"]["Color"] = Color3.fromRGB(71, 71, 71);
+
+
+G2L["rgbToggleIndicator"] = Instance.new("Frame", G2L["rgbToggleSwitch"]);
+G2L["rgbToggleIndicator"]["BorderSizePixel"] = 0;
+G2L["rgbToggleIndicator"]["BackgroundColor3"] = Color3.fromRGB(114, 114, 124);
+G2L["rgbToggleIndicator"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["rgbToggleIndicator"]["ZIndex"] = 7;
+G2L["rgbToggleIndicator"]["Size"] = UDim2.new(0, 18, 0, 18);
+G2L["rgbToggleIndicator"]["Position"] = UDim2.new(0, 2, 0.5, 0);
+G2L["rgbToggleIndicator"]["Name"] = [[Indicator]];
+
+
+G2L["rgbToggleIndicatorCorner"] = Instance.new("UICorner", G2L["rgbToggleIndicator"]);
+G2L["rgbToggleIndicatorCorner"]["CornerRadius"] = UDim.new(1, 0);
+
+
+
+G2L["rgbToggleIndicatorStroke"] = Instance.new("UIStroke", G2L["rgbToggleIndicator"]);
+G2L["rgbToggleIndicatorStroke"]["Color"] = Color3.fromRGB(83, 83, 83);
+
 
 G2L["bd"] = Instance.new("Frame", G2L["71"]);
 G2L["bd"]["BorderSizePixel"] = 0;
