@@ -39626,12 +39626,14 @@ end)
 
 if CoreGui then
 	local PT = {
-		path     = NAfiles.NAFILEPATH.."/plexity_theme.json",
-		default  = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
-		cg       = CoreGui,
-		images   = {},
-		watchers = setmetatable({}, { __mode = "k" }),
-		scanning = false,
+		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
+		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
+		cg        = CoreGui,
+		images    = {},
+		queue     = {},
+		queueSet  = {},
+		processing = false,
+		applying   = false,
 	}
 
 	local data = PT.default
@@ -39652,8 +39654,6 @@ if CoreGui then
 	PT.data = data
 
 	local HUI = (typeof(gethui) == "function" and gethui()) or nil
-
-	local propertyWatchList = {"Image", "Texture", "TextureId", "FontFace"}
 
 	local function isPlexTarget(o)
 		if HUI and o:IsDescendantOf(HUI) then
@@ -39679,16 +39679,6 @@ if CoreGui then
 			return value
 		end
 		return nil
-	end
-
-	local function clearWatch(o)
-		local conns = PT.watchers[o]
-		if conns then
-			for _, conn in ipairs(conns) do
-				conn:Disconnect()
-			end
-			PT.watchers[o] = nil
-		end
 	end
 
 	local function applyIfReady(o)
@@ -39734,71 +39724,15 @@ if CoreGui then
 		return false
 	end
 
-	local function watchUntilReady(o)
-		if PT.watchers[o] or not isPlexTarget(o) then
-			return
-		end
-
-		local conns = {}
-		local function track(conn)
-			if conn then
-				Insert(conns, conn)
-			end
-		end
-
-		for _, prop in ipairs(propertyWatchList) do
-			local ok, signal = pcall(function()
-				return o:GetPropertyChangedSignal(prop)
-			end)
-			if ok and signal then
-				track(signal:Connect(function()
-					if applyIfReady(o) then
-						clearWatch(o)
-					end
-				end))
-			end
-		end
-
-		track(o.AncestryChanged:Connect(function(_, parent)
-			if not parent then
-				clearWatch(o)
-				PT.images[o] = nil
-			end
-		end))
-
-		if #conns > 0 then
-			PT.watchers[o] = conns
-		end
-	end
-
-	local function rescanAll()
-		if PT.scanning then
-			return
-		end
-		PT.scanning = true
-		coroutine.wrap(function()
-			local cg = PT.cg
-			if cg then
-				local n = 0
-				for _, o in ipairs(cg:GetDescendants()) do
-					NAmanage.plex_add(o)
-					n += 1
-					if n % 100 == 0 then
-						task.wait()
-					end
-				end
-			end
-			PT.scanning = false
-		end)()
-	end
-
 	NAmanage.plex_remove = function(o)
-		clearWatch(o)
-		local g = o:FindFirstChildOfClass("UIGradient")
+		local g = o and o:FindFirstChildOfClass("UIGradient")
 		if g then g:Destroy() end
 	end
 
 	NAmanage.plex_apply = function(o)
+		if not (o and o.Parent) then
+			return
+		end
 		if HUI and o:IsDescendantOf(HUI) then
 			return
 		end
@@ -39818,30 +39752,100 @@ if CoreGui then
 		end
 	end
 
-	NAmanage.plex_add = function(o)
-		if applyIfReady(o) then
+	local function enqueue(o)
+		if not o then
 			return
 		end
-		watchUntilReady(o)
+		if PT.queueSet[o] then
+			return
+		end
+		if HUI and o:IsDescendantOf(HUI) then
+			return
+		end
+		PT.queueSet[o] = true
+		table.insert(PT.queue, o)
+	end
+
+	local function processQueue()
+		if PT.processing then
+			return
+		end
+		PT.processing = true
+		coroutine.wrap(function()
+			while #PT.queue > 0 do
+				local stepCount = math.min(#PT.queue, 50)
+				for i = 1, stepCount do
+					local o = table.remove(PT.queue, 1)
+					if o then
+						PT.queueSet[o] = nil
+						if o.Parent then
+							applyIfReady(o)
+						end
+					end
+				end
+				task.wait()
+			end
+			PT.processing = false
+		end)()
+	end
+
+	NAmanage.plex_add = function(o)
+		enqueue(o)
+		processQueue()
 	end
 
 	NAmanage.plex_applyAll = function()
-		for o in pairs(PT.images) do
-			if o and o.Parent then
-				NAmanage.plex_apply(o)
-			else
-				PT.images[o] = nil
-			end
+		if PT.applying then
+			return
 		end
+		PT.applying = true
+		coroutine.wrap(function()
+			local n = 0
+			for o in pairs(PT.images) do
+				if o and o.Parent then
+					NAmanage.plex_apply(o)
+				else
+					PT.images[o] = nil
+				end
+				n += 1
+				if n % 50 == 0 then
+					task.wait()
+				end
+			end
+			PT.applying = false
+		end)()
+	end
+
+	local function rescanAll()
+		coroutine.wrap(function()
+			local cg = PT.cg
+			if cg then
+				local desc = cg:GetDescendants()
+				for i = 1, #desc do
+					enqueue(desc[i])
+					if i % 200 == 0 then
+						task.wait()
+					end
+				end
+				processQueue()
+			end
+		end)()
 	end
 
 	rescanAll()
 
 	local function onDescendantAdded(o)
-		NAmanage.plex_add(o)
-		for _, desc in ipairs(o:GetDescendants()) do
-			NAmanage.plex_add(desc)
-		end
+		coroutine.wrap(function()
+			enqueue(o)
+			local desc = o:GetDescendants()
+			for i = 1, #desc do
+				enqueue(desc[i])
+				if i % 100 == 0 then
+					task.wait()
+				end
+			end
+			processQueue()
+		end)()
 	end
 
 	NAlib.disconnect("PlexyDesc")
@@ -39851,7 +39855,6 @@ if CoreGui then
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
 		if v then
-			rescanAll()
 			NAmanage.plex_applyAll()
 		else
 			for o in pairs(PT.images) do
@@ -39880,6 +39883,7 @@ if CoreGui then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
 		end
 	end)
+
 	if previousTab and previousTab ~= TAB_INTERFACE then
 		if NAgui.getActiveTab() == TAB_INTERFACE then
 			NAgui.setTab(previousTab)
