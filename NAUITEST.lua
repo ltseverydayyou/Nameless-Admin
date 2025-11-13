@@ -1397,7 +1397,7 @@ G2L["97"]["Color"] = Color3.fromRGB(71, 71, 71);
 G2L["98"] = Instance.new("Frame", G2L["71"]);
 G2L["98"]["BorderSizePixel"] = 0;
 G2L["98"]["BackgroundColor3"] = Color3.fromRGB(44, 44, 49);
-G2L["98"]["Size"] = UDim2.new(1, -10, 0, 125);
+G2L["98"]["Size"] = UDim2.new(1, -10, 0, 150);
 G2L["98"]["Position"] = UDim2.new(0.01, 0, 0.573, 0);
 G2L["98"]["Name"] = [[ColorPicker]];
 
@@ -1721,8 +1721,8 @@ G2L["rgbToggleFrame"] = Instance.new("Frame", G2L["98"]);
 G2L["rgbToggleFrame"]["BorderSizePixel"] = 0;
 G2L["rgbToggleFrame"]["BackgroundColor3"] = Color3.fromRGB(44, 44, 49);
 G2L["rgbToggleFrame"]["ZIndex"] = 5;
-G2L["rgbToggleFrame"]["Size"] = UDim2.new(0, 150, 0, 32);
-G2L["rgbToggleFrame"]["Position"] = UDim2.new(0, 280, 0, 45);
+G2L["rgbToggleFrame"]["Size"] = UDim2.new(0, 240, 0, 32);
+G2L["rgbToggleFrame"]["Position"] = UDim2.new(0, 20, 0, 115);
 G2L["rgbToggleFrame"]["Name"] = [[RGBToggle]];
 
 
