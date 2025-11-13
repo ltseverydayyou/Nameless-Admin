@@ -39651,6 +39651,7 @@ if CoreGui then
 		cg       = CoreGui,
 		images   = {},
 		watchers = setmetatable({}, { __mode = "k" }),
+		scanning = false,
 	}
 
 	local data = PT.default
@@ -39670,9 +39671,14 @@ if CoreGui then
 
 	PT.data = data
 
+	local HUI = (typeof(gethui) == "function" and gethui()) or nil
+
 	local propertyWatchList = {"Image", "Texture", "TextureId", "FontFace"}
 
 	local function isPlexTarget(o)
+		if HUI and o:IsDescendantOf(HUI) then
+			return false
+		end
 		return o:IsA("ImageLabel")
 			or o:IsA("ImageButton")
 			or o:IsA("TextLabel")
@@ -39707,6 +39713,10 @@ if CoreGui then
 
 	local function applyIfReady(o)
 		if not (o and o.Parent) then
+			return false
+		end
+
+		if HUI and o:IsDescendantOf(HUI) then
 			return false
 		end
 
@@ -39781,6 +39791,27 @@ if CoreGui then
 		end
 	end
 
+	local function rescanAll()
+		if PT.scanning then
+			return
+		end
+		PT.scanning = true
+		coroutine.wrap(function()
+			local cg = PT.cg
+			if cg then
+				local n = 0
+				for _, o in ipairs(cg:GetDescendants()) do
+					NAmanage.plex_add(o)
+					n += 1
+					if n % 100 == 0 then
+						task.wait()
+					end
+				end
+			end
+			PT.scanning = false
+		end)()
+	end
+
 	NAmanage.plex_remove = function(o)
 		clearWatch(o)
 		local g = o:FindFirstChildOfClass("UIGradient")
@@ -39788,6 +39819,9 @@ if CoreGui then
 	end
 
 	NAmanage.plex_apply = function(o)
+		if HUI and o:IsDescendantOf(HUI) then
+			return
+		end
 		NAmanage.plex_remove(o)
 		if PT.data.enabled then
 			local seq = ColorSequence.new{
@@ -39814,16 +39848,14 @@ if CoreGui then
 	NAmanage.plex_applyAll = function()
 		for o in pairs(PT.images) do
 			if o and o.Parent then
-				NAmanage.plex_add(o)
+				NAmanage.plex_apply(o)
 			else
 				PT.images[o] = nil
 			end
 		end
 	end
 
-	for _, o in ipairs(PT.cg:GetDescendants()) do
-		NAmanage.plex_add(o)
-	end
+	rescanAll()
 
 	local function onDescendantAdded(o)
 		NAmanage.plex_add(o)
@@ -39839,9 +39871,7 @@ if CoreGui then
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
 		if v then
-			for _, o in ipairs(PT.cg:GetDescendants()) do
-				NAmanage.plex_add(o)
-			end
+			rescanAll()
 			NAmanage.plex_applyAll()
 		else
 			for o in pairs(PT.images) do
