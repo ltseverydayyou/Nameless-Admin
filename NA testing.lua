@@ -19,7 +19,7 @@
 ]]
 
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="legshot"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="stopskiddingdumbass"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -692,9 +692,9 @@ NAmanage.btSend=function(command, data)
 		encoded = encoded:gsub('("assetId"%s*:%s*)([-%d%.eE%+]+)', function(prefix, numeric)
 			local numberValue = tonumber(numeric)
 			if numberValue then
-				return prefix .. Format('%.0f', numberValue)
+				return prefix..Format('%.0f', numberValue)
 			end
-			return prefix .. numeric
+			return prefix..numeric
 		end)
 		print("[BloxstrapRPC] "..encoded)
 	end
@@ -876,7 +876,7 @@ function NAmanage.gaydeter()
 		end
 	end
 	local sep = requestUrl:find("?", 1, true) and "&" or "?"
-	local queryUrl = requestUrl .. sep .. "key=" .. encodedKey
+	local queryUrl = requestUrl..sep.."key="..encodedKey
 	local headerKey = FVx.hKey or "X-Key"
 	local ok, response = pcall(requestFunc, {
 		Url = queryUrl;
@@ -10306,37 +10306,38 @@ StatsService = SafeGetService("Stats")
 
 NAstatsUI.Theme = {
 	Colors = {
-		Background = Color3.fromRGB(28, 30, 38),
-		Primary = Color3.fromRGB(38, 41, 52),
-		Secondary = Color3.fromRGB(40, 42, 52),
-		Border = Color3.fromRGB(70, 72, 90),
-		Text = Color3.fromRGB(230, 232, 245),
-		TextMuted = Color3.fromRGB(145, 148, 165),
-		TextSubtle = Color3.fromRGB(200, 200, 210),
-		Close = Color3.fromRGB(220, 70, 70),
-		Minimize = Color3.fromRGB(100, 120, 255),
-		Good = Color3.fromRGB(0, 255, 120),
+		Background = Color3.fromRGB(10, 12, 20),
+		Primary = Color3.fromRGB(20, 23, 34),
+		Secondary = Color3.fromRGB(30, 33, 46),
+		Border = Color3.fromRGB(70, 75, 95),
+		Accent = Color3.fromRGB(90, 190, 255),
+		Text = Color3.fromRGB(235, 238, 250),
+		TextMuted = Color3.fromRGB(150, 154, 174),
+		TextSubtle = Color3.fromRGB(205, 208, 222),
+		Close = Color3.fromRGB(230, 80, 90),
+		Minimize = Color3.fromRGB(110, 130, 255),
+		Good = Color3.fromRGB(0, 255, 140),
 		Warn = Color3.fromRGB(255, 210, 0),
-		Bad = Color3.fromRGB(255, 80, 80),
+		Bad = Color3.fromRGB(255, 90, 90),
 	},
 	Fonts = {
-		Title = Enum.Font.GothamMedium,
+		Title = Enum.Font.GothamSemibold,
 		Body = Enum.Font.Gotham,
 		BodySemibold = Enum.Font.GothamSemibold,
 		BodyBold = Enum.Font.GothamBold,
 	},
 	Radius = {
-		Window = UDim.new(0, 10),
-		Container = UDim.new(0, 8),
+		Window = UDim.new(0, 14),
+		Container = UDim.new(0, 12),
 		Button = UDim.new(1, 0),
 	},
 	Sizes = {
-		TopBarHeight = IsOnMobile and 44 or 32,
-		ActionButton = IsOnMobile and 26 or 22,
+		TopBarHeight = IsOnMobile and 42 or 30,
+		ActionButton = IsOnMobile and 24 or 20,
 	}
 }
 
-NAstatsUI.createInstance=function(className, properties, parent)
+NAstatsUI.createInstance = function(className, properties, parent)
 	local inst = InstanceNew(className)
 	for prop, value in pairs(properties) do
 		inst[prop] = value
@@ -10389,53 +10390,70 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		Name = "Holder",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = position or UDim2.new(0.5, 0, 0.35, 0),
+		Position = position or UDim2.new(0.5, 0, 0.3, 0),
 		Size = baseSize,
 		Parent = screenGui,
 	})
 
 	local window = NAstatsUI.createInstance("Frame", {
 		Name = "Window",
-		BackgroundColor3 = T.Colors.Background,
+		BackgroundColor3 = T.Colors.Primary,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 1, 0),
 		Parent = holder
 	})
 	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, window)
-	NAstatsUI.createInstance("UIStroke", { Color = T.Colors.Border, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, window)
+	NAstatsUI.createInstance("UIStroke", {
+		Color = T.Colors.Border,
+		Thickness = 1.2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	}, window)
+	NAstatsUI.createInstance("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(7, 9, 16)),
+			ColorSequenceKeypoint.new(1, T.Colors.Primary),
+		}),
+		Rotation = 90,
+	}, window)
 
 	local topBar = NAstatsUI.createInstance("Frame", {
 		Name = "TopBar",
-		BackgroundColor3 = T.Colors.Primary,
+		BackgroundColor3 = Color3.fromRGB(16, 18, 27),
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, T.Sizes.TopBarHeight),
 		ZIndex = 2,
 		Parent = window,
 	})
-	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, topBar)
+	NAstatsUI.createInstance("UICorner", {
+		CornerRadius = UDim.new(0, T.Radius.Window.Offset),
+	}, topBar)
+
+	NAstatsUI.createInstance("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 8),
+	}, topBar)
 
 	local title = NAstatsUI.createInstance("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 12, 0, 0),
-		Size = UDim2.new(1, -90, 1, 0),
+		Size = UDim2.new(1, -80, 1, 0),
 		Font = T.Fonts.Title,
 		Text = titleText,
 		TextColor3 = T.Colors.Text,
-		TextSize = IsOnMobile and 16 or 15,
+		TextSize = IsOnMobile and 16 or 14,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		RichText = true,
 		ZIndex = 3,
 		Parent = topBar,
 	})
 
-	local function createActionButton(name, text, color, offset)
+	local function createActionButton(name, text, color, order)
 		local btn = NAstatsUI.createInstance("TextButton", {
 			Name = name,
 			BackgroundColor3 = color,
-			Position = UDim2.new(1, -offset, 0.5, 0),
-			AnchorPoint = Vector2.new(0.5, 0.5),
 			Size = UDim2.fromOffset(T.Sizes.ActionButton, T.Sizes.ActionButton),
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -(4 + (order - 1) * (T.Sizes.ActionButton + 4)), 0.5, 0),
 			Font = T.Fonts.BodyBold,
 			Text = text,
 			TextScaled = true,
@@ -10444,79 +10462,153 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 			RichText = true,
 			Parent = topBar,
 		})
-		NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Button }, btn)
+		NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(1, 0) }, btn)
 		return btn
 	end
 
-	local closeButton = createActionButton("Close", "X", T.Colors.Close, IsOnMobile and 36 or 30)
-	local minimizeButton = createActionButton("Minimize", "–", T.Colors.Minimize, IsOnMobile and 68 or 56)
+	local minimizeButton = createActionButton("Minimize", "–", T.Colors.Minimize, 2)
+	local closeButton = createActionButton("Close", "X", T.Colors.Close, 1)
 
 	local content = NAstatsUI.createInstance("Frame", {
 		Name = "Content",
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 10, 0, T.Sizes.TopBarHeight + 8),
-		Size = UDim2.new(1, -20, 1, -(T.Sizes.TopBarHeight + 18)),
+		Position = UDim2.new(0, 10, 0, T.Sizes.TopBarHeight + 6),
+		Size = UDim2.new(1, -20, 1, -(T.Sizes.TopBarHeight + 14)),
 		ZIndex = 2,
 		Parent = window
 	})
-	NAstatsUI.createInstance("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2) }, content)
+	NAstatsUI.createInstance("UIPadding", {
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
+		PaddingTop = UDim.new(0, 6),
+		PaddingBottom = UDim.new(0, 6),
+	}, content)
 
 	NAgui.draggerV2(holder, topBar)
 	local collapsed = false
 	local baseTitleText = titleText
 	local collapsedTitleText = titleText
+	local storedSize = baseSize
 
 	minimizeButton.MouseButton1Click:Connect(function()
 		collapsed = not collapsed
 		content.Visible = not collapsed
 		if collapsed then
+			storedSize = holder.Size
 			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
 			title.Text = collapsedTitleText
 		else
-			holder.Size = baseSize
+			holder.Size = storedSize
 			title.Text = baseTitleText
 		end
 	end)
 
 	return {
-		screenGui = screenGui, holder = holder, window = window, title = title, content = content, closeButton = closeButton, minimizeButton = minimizeButton,
-		setBaseTitle = function(t) baseTitleText = t if not collapsed then title.Text = t end end,
-		setCollapsedTitle = function(t) collapsedTitleText = t if collapsed then title.Text = t end end,
-		bringToFront = function() windowCounter += 1; screenGui.DisplayOrder = 100 + windowCounter end,
+		screenGui = screenGui,
+		holder = holder,
+		window = window,
+		title = title,
+		content = content,
+		closeButton = closeButton,
+		minimizeButton = minimizeButton,
+		setBaseTitle = function(t)
+			baseTitleText = t
+			if not collapsed then
+				title.Text = t
+			end
+		end,
+		setCollapsedTitle = function(t)
+			collapsedTitleText = t
+			if collapsed then
+				title.Text = t
+			end
+		end,
+		bringToFront = function()
+			windowCounter += 1
+			screenGui.DisplayOrder = 100 + windowCounter
+		end,
 	}
 end
 
 function NAstatsUI.createStatDisplay(parent, titleText, subtitleText)
 	local T = NAstatsUI.Theme
-	local container = NAstatsUI.createInstance("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = parent })
+	local container = NAstatsUI.createInstance("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Parent = parent,
+	})
+
+	NAstatsUI.createInstance("UIPadding", {
+		PaddingTop = UDim.new(0, 2),
+		PaddingBottom = UDim.new(0, 2),
+		PaddingLeft = UDim.new(0, 4),
+		PaddingRight = UDim.new(0, 4),
+	}, container)
+
+	local titleHeight = IsOnMobile and 16 or 14
+	local valueHeight = IsOnMobile and 26 or 24
+
+	local titleLabel = NAstatsUI.createInstance("TextLabel", {
+		Name = "TitleLabel",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, titleHeight),
+		Font = T.Fonts.BodySemibold,
+		Text = titleText,
+		TextSize = IsOnMobile and 13 or 12,
+		TextColor3 = T.Colors.TextMuted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
+		Parent = container,
+	})
 
 	local valueLabel = NAstatsUI.createInstance("TextLabel", {
-		Name = "ValueLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 36 or 32),
-		Font = T.Fonts.BodySemibold, Text = "—", TextSize = IsOnMobile and 28 or 24, TextColor3 = T.Colors.TextSubtle,
-		TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = container,
+		Name = "ValueLabel",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, titleHeight + 2),
+		Size = UDim2.new(1, 0, 0, valueHeight),
+		Font = T.Fonts.BodyBold,
+		Text = "—",
+		TextSize = IsOnMobile and 23 or 21,
+		TextColor3 = T.Colors.TextSubtle,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
+		Parent = container,
 	})
 
 	local subtitleLabel = NAstatsUI.createInstance("TextLabel", {
-		Name = "SubtitleLabel", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, IsOnMobile and 18 or 16),
-		Position = UDim2.new(0, 0, 0, IsOnMobile and 40 or 36), Font = T.Fonts.Body, Text = subtitleText,
-		TextSize = IsOnMobile and 16 or 14, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
-		RichText = true, Parent = container,
+		Name = "SubtitleLabel",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, titleHeight + valueHeight + 4),
+		Size = UDim2.new(1, 0, 0, IsOnMobile and 16 or 14),
+		Font = T.Fonts.Body,
+		Text = subtitleText,
+		TextSize = IsOnMobile and 12 or 12,
+		TextColor3 = T.Colors.TextMuted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
+		Parent = container,
 	})
 
-	return { value = valueLabel, subtitle = subtitleLabel }
+	return { value = valueLabel, subtitle = subtitleLabel, title = titleLabel }
 end
 
 function NAstatsUI.createStatCommand(config)
 	return NAstatsUI.ensureSingle(config.key, function()
-		local baseHeight = IsOnMobile and 124 or 104
-		local ui = NAstatsUI.createWindow(config.position, UDim2.new(0, 240, 0, baseHeight), config.title)
+		local baseHeight = IsOnMobile and 120 or 110
+		local baseWidth = IsOnMobile and 230 or 210
+		local ui = NAstatsUI.createWindow(config.position, UDim2.new(0, baseWidth, 0, baseHeight), config.title)
 		local statDisplay = NAstatsUI.createStatDisplay(ui.content, config.title, config.subtitle)
 		local lastUpdate = 0
 		local updateInterval = 0.5
 
 		local conn = RunService.RenderStepped:Connect(function(dt)
 			local now = os.clock()
-			if now - lastUpdate < updateInterval then return end
+			if now - lastUpdate < updateInterval then
+				return
+			end
 
 			local value, rawValue = config.updateFn(dt)
 			local color = config.colorFn(rawValue)
@@ -10530,7 +10622,9 @@ function NAstatsUI.createStatCommand(config)
 			lastUpdate = now
 		end)
 		NAlib.connect("UI:"..config.key, conn)
-		ui.closeFunction = function() NAlib.disconnect("UI:"..config.key) end
+		ui.closeFunction = function()
+			NAlib.disconnect("UI:"..config.key)
+		end
 
 		return ui
 	end)
@@ -10538,116 +10632,256 @@ end
 
 function NAstatsUI.createStatBox(parent, titleText)
 	local T = NAstatsUI.Theme
+	local boxHeight = IsOnMobile and 76 or 68
+	local boxWidthScale = IsOnMobile and 1 or 0.5
+	local boxWidthOffset = IsOnMobile and 0 or -6
+
 	local box = NAstatsUI.createInstance("Frame", {
-		BackgroundColor3 = T.Colors.Secondary, Size = UDim2.new(0.5, -4, 0, IsOnMobile and 64 or 56), Parent = parent
+		BackgroundColor3 = T.Colors.Secondary,
+		Size = UDim2.new(boxWidthScale, boxWidthOffset, 0, boxHeight),
+		Parent = parent,
 	})
 	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Container }, box)
+	NAstatsUI.createInstance("UIStroke", {
+		Color = T.Colors.Border,
+		Thickness = 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	}, box)
 
-	NAstatsUI.createInstance("TextLabel", {
-		Name = "Title", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 6), Size = UDim2.new(1, -20, 0, IsOnMobile and 22 or 20),
-		Font = T.Fonts.BodySemibold, Text = titleText, TextSize = IsOnMobile and 16 or 15, TextColor3 = T.Colors.Text,
-		TextXAlignment = Enum.TextXAlignment.Left, RichText = true, Parent = box
+	NAstatsUI.createInstance("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10),
+	}, box)
+
+	local titleHeight = IsOnMobile and 18 or 16
+	local valueHeight = IsOnMobile and 22 or 20
+
+	local title = NAstatsUI.createInstance("TextLabel", {
+		Name = "Title",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, 0, 0, titleHeight),
+		Font = T.Fonts.BodySemibold,
+		Text = titleText,
+		TextSize = IsOnMobile and 14 or 13,
+		TextColor3 = T.Colors.TextMuted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
+		Parent = box,
 	})
 
 	local valueLabel = NAstatsUI.createInstance("TextLabel", {
-		Name = "Value", BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, IsOnMobile and 30 or 26),
-		Size = UDim2.new(1, -20, 0, IsOnMobile and 26 or 22), Font = T.Fonts.Body, Text = "—",
-		TextSize = IsOnMobile and 18 or 16, TextColor3 = T.Colors.TextMuted, TextXAlignment = Enum.TextXAlignment.Left,
-		RichText = true, Parent = box
+		Name = "Value",
+		BackgroundTransparency = 1,
+		Position = UDim2.new(0, 0, 0, titleHeight + 2),
+		Size = UDim2.new(1, 0, 0, valueHeight),
+		Font = T.Fonts.BodyBold,
+		Text = "—",
+		TextSize = IsOnMobile and 18 or 16,
+		TextColor3 = T.Colors.TextSubtle,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
+		Parent = box,
 	})
-	return box, valueLabel
+
+	local barBg = NAstatsUI.createInstance("Frame", {
+		Name = "BarBg",
+		BackgroundColor3 = Color3.fromRGB(18, 20, 30),
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 3),
+		Parent = box,
+	})
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 2) }, barBg)
+
+	local bar = NAstatsUI.createInstance("Frame", {
+		Name = "Bar",
+		BackgroundColor3 = T.Colors.Accent,
+		BorderSizePixel = 0,
+		Size = UDim2.new(0, 0, 1, 0),
+		Parent = barBg,
+	})
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 2) }, bar)
+
+	return box, valueLabel, bar
 end
 
-cmd.add({"ping"}, {"ping", "Shows your network latency"}, function()
+cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
 	local T = NAstatsUI.Theme
 	NAstatsUI.createStatCommand({
-		key = "Ping", title = "Ping", subtitle = "Network latency", position = UDim2.new(0.5, 0, 0.22, 0),
+		key = "Ping",
+		title = "Ping",
+		subtitle = "Network latency",
+		position = UDim2.new(0.5, 0, 0.22, 0),
 		updateFn = function()
 			local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
 			local rawPing = tonumber(pingItem:GetValueString():match("%d+")) or 0
 			return tostring(rawPing).." ms", rawPing
 		end,
 		colorFn = function(ping)
-			if ping <= 50 then return T.Colors.Good end
-			if ping <= 100 then return T.Colors.Warn end
+			if ping <= 50 then
+				return T.Colors.Good
+			end
+			if ping <= 100 then
+				return T.Colors.Warn
+			end
 			return T.Colors.Bad
 		end,
 	})
 end)
 
-cmd.add({"fps"}, {"fps", "Shows your frames per second"}, function()
+cmd.add({ "fps" }, { "fps", "Shows your frames per second" }, function()
 	local T = NAstatsUI.Theme
 	local frameHistory = {}
 
 	NAstatsUI.createStatCommand({
-		key = "FPS", title = "FPS", subtitle = "Frames per second", position = UDim2.new(0.5, 0, 0.38, 0),
+		key = "FPS",
+		title = "FPS",
+		subtitle = "Frames per second",
+		position = UDim2.new(0.5, 0, 0.36, 0),
 		updateFn = function(dt)
 			Insert(frameHistory, dt)
-			if #frameHistory > 60 then table.remove(frameHistory, 1) end
+			if #frameHistory > 60 then
+				table.remove(frameHistory, 1)
+			end
 
 			local sum = 0
-			for _, frameTime in ipairs(frameHistory) do sum += frameTime end
+			for _, frameTime in ipairs(frameHistory) do
+				sum += frameTime
+			end
 			local avg = sum / math.max(1, #frameHistory)
 			local fps = math.floor(1 / avg + 0.5)
 
 			return tostring(fps), fps
 		end,
 		colorFn = function(fps)
-			if fps >= 55 then return T.Colors.Good end
-			if fps >= 30 then return T.Colors.Warn end
+			if fps >= 55 then
+				return T.Colors.Good
+			end
+			if fps >= 30 then
+				return T.Colors.Warn
+			end
 			return T.Colors.Bad
 		end,
 	})
 end)
 
-cmd.add({"stats"}, {"stats", "Shows both FPS and ping"}, function()
-	NAstatsUI.ensureSingle("Stats", function()
-		local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.3, 0), UDim2.new(0, 300, 0, IsOnMobile and 160 or 140), "Stats")
-		local T = NAstatsUI.Theme
+cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
+	local existing = windowRegistry["Stats"]
+	if existing and existing.screenGui and existing.screenGui.Parent then
+		NAlib.disconnect("UI:Stats")
+		existing.screenGui:Destroy()
+		windowRegistry["Stats"] = nil
+	end
 
-		local grid = NAstatsUI.createInstance("Frame", {
-			BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = ui.content
-		})
-		local layout = NAstatsUI.createInstance("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			VerticalAlignment = Enum.VerticalAlignment.Top, SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 8), Parent = grid,
-		})
+	local T = NAstatsUI.Theme
+	local height = IsOnMobile and 180 or 150
+	local width = IsOnMobile and 300 or 270
+	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.32, 0), UDim2.new(0, width, 0, height), "Stats")
 
-		local pingBox, pingValue = NAstatsUI.createStatBox(grid, "Ping")
-		local fpsBox, fpsValue = NAstatsUI.createStatBox(grid, "FPS")
+	windowRegistry["Stats"] = ui
 
-		local frames, lastUpdate, updateInterval = {}, 0, 0.5
-		local pingColorFn = function(p) if p <= 50 then return T.Colors.Good end; if p <= 100 then return T.Colors.Warn end; return T.Colors.Bad end
-		local fpsColorFn = function(f) if f >= 55 then return T.Colors.Good end; if f >= 30 then return T.Colors.Warn end; return T.Colors.Bad end
+	local grid = NAstatsUI.createInstance("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Parent = ui.content
+	})
 
-		local conn = RunService.RenderStepped:Connect(function(dt)
-			Insert(frames, dt)
-			if #frames > 60 then table.remove(frames, 1) end
-			local t = os.clock()
-			if t - lastUpdate < updateInterval then return end
+	local layout = NAstatsUI.createInstance("UIListLayout", {
+		FillDirection = IsOnMobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Top,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, IsOnMobile and 8 or 10),
+		Parent = grid,
+	})
 
-			local sum = 0
-			for i = 1, #frames do sum += frames[i] end
-			local avg = sum / math.max(1, #frames)
-			local fps = math.max(1, math.floor(1 / avg + 0.5))
+	local pingBox, pingValue, pingBar = NAstatsUI.createStatBox(grid, "Ping")
+	local fpsBox, fpsValue, fpsBar = NAstatsUI.createStatBox(grid, "FPS")
 
-			local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
-			local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
+	pingBox.LayoutOrder = 1
+	fpsBox.LayoutOrder = 2
 
-			pingValue.Text = "<b>"..tostring(p).." ms</b>"
-			pingValue.TextColor3 = pingColorFn(p)
-			fpsValue.Text = "<b>"..tostring(fps).."</b>"
-			fpsValue.TextColor3 = fpsColorFn(fps)
+	local frames = {}
+	local lastUpdate = 0
+	local updateInterval = 0.5
 
-			local collapsedTitle = Format("Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>", NAstatsUI.colorToHex(pingColorFn(p)), p, NAstatsUI.colorToHex(fpsColorFn(fps)), fps)
-			ui.setCollapsedTitle(collapsedTitle)
-			lastUpdate = t
-		end)
-		NAlib.connect("UI:Stats", conn)
-		ui.closeFunction = function() NAlib.disconnect("UI:Stats") end
+	local pingColorFn = function(p)
+		if p <= 50 then
+			return T.Colors.Good
+		end
+		if p <= 100 then
+			return T.Colors.Warn
+		end
+		return T.Colors.Bad
+	end
 
-		return ui
+	local fpsColorFn = function(f)
+		if f >= 55 then
+			return T.Colors.Good
+		end
+		if f >= 30 then
+			return T.Colors.Warn
+		end
+		return T.Colors.Bad
+	end
+
+	local conn = RunService.RenderStepped:Connect(function(dt)
+		Insert(frames, dt)
+		if #frames > 60 then
+			table.remove(frames, 1)
+		end
+		local t = os.clock()
+		if t - lastUpdate < updateInterval then
+			return
+		end
+
+		local sum = 0
+		for i = 1, #frames do
+			sum += frames[i]
+		end
+		local avg = sum / math.max(1, #frames)
+		local fps = math.max(1, math.floor(1 / avg + 0.5))
+
+		local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
+		local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
+
+		pingValue.Text = "<b>"..tostring(p).." ms</b>"
+		pingValue.TextColor3 = pingColorFn(p)
+		fpsValue.Text = "<b>"..tostring(fps).."</b>"
+		fpsValue.TextColor3 = fpsColorFn(fps)
+
+		local pingRatio = math.clamp(p == 0 and 0 or 1 - (p / 300), 0, 1)
+		local fpsRatio = math.clamp(fps / 120, 0, 1)
+
+		pingBar.Size = UDim2.new(pingRatio, 0, 1, 0)
+		pingBar.BackgroundColor3 = pingColorFn(p)
+		fpsBar.Size = UDim2.new(fpsRatio, 0, 1, 0)
+		fpsBar.BackgroundColor3 = fpsColorFn(fps)
+
+		local collapsedTitle = Format(
+			"Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>",
+			NAstatsUI.colorToHex(pingColorFn(p)),
+			p,
+			NAstatsUI.colorToHex(fpsColorFn(fps)),
+			fps
+		)
+		ui.setCollapsedTitle(collapsedTitle)
+		lastUpdate = t
+	end)
+	NAlib.connect("UI:Stats", conn)
+
+	ui.closeButton.MouseButton1Click:Connect(function()
+		NAlib.disconnect("UI:Stats")
+		if windowRegistry["Stats"] == ui then
+			windowRegistry["Stats"] = nil
+		end
+		ui.screenGui:Destroy()
 	end)
 end)
 
@@ -14990,78 +15224,146 @@ end)
 cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"},function()
 	NAlib.disconnect("antifling")
 	NAlib.disconnect("antifling_players")
-	NAStuff._afTracked = NAStuff._afTracked or setmetatable({}, {__mode="k"})
-	NAStuff._afOrigCan = NAStuff._afOrigCan or setmetatable({}, {__mode="k"})
-	NAStuff._afSignals = NAStuff._afSignals or setmetatable({}, {__mode="k"})
-	local tracked, orig, sigs = NAStuff._afTracked, NAStuff._afOrigCan, NAStuff._afSignals
-	local lp = Players.LocalPlayer
 
-	local apply = function(p)
-		if not (p and p:IsA("BasePart")) or tracked[p] then return end
-		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"CanCollide") end
-		if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
-		tracked[p] = true
-		if not sigs[p] then
-			local c = p:GetPropertyChangedSignal("CanCollide"):Connect(function()
-				if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
-			end)
-			sigs[p] = c
-			NAlib.connect("antifling", c)
+	NAStuff._afTracked = NAStuff._afTracked or setmetatable({}, {__mode = "k"})
+	NAStuff._afOrigCan = NAStuff._afOrigCan or setmetatable({}, {__mode = "k"})
+	NAStuff._afSignals = NAStuff._afSignals or setmetatable({}, {__mode = "k"})
+
+	local tracked = NAStuff._afTracked
+	local orig = NAStuff._afOrigCan
+	local sigs = NAStuff._afSignals
+
+	local lp = Players.LocalPlayer
+	if not lp then
+		DebugNotif("Antifling: LocalPlayer missing")
+		return
+	end
+
+	local function clearPart(p)
+		if tracked[p] then
+			tracked[p] = nil
+		end
+		if orig[p] ~= nil then
+			orig[p] = nil
+		end
+		if sigs[p] then
+			local c = sigs[p]
+			sigs[p] = nil
+			if c and c.Disconnect then
+				c:Disconnect()
+			end
 		end
 	end
 
-	local seedChar = function(char)
-		if not char then return end
-		for _,d in ipairs(char:GetDescendants()) do
-			if d:IsA("BasePart") then apply(d) end
+	local function isFlingPart(p)
+		local n = Lower(p.Name)
+		if n == "humanoidrootpart" or n == "torso" or n == "uppertorso" or n == "lowertorso" then
+			return true
+		end
+		return false
+	end
+
+	local function apply(p)
+		if not (p and typeof(p) == "Instance" and p:IsA("BasePart")) or tracked[p] then
+			return
+		end
+		if not isFlingPart(p) then
+			return
+		end
+		if orig[p] == nil then
+			orig[p] = NAlib.isProperty(p, "CanCollide")
+		end
+		if NAlib.isProperty(p, "CanCollide") ~= false then
+			NAlib.setProperty(p, "CanCollide", false)
+		end
+		tracked[p] = true
+	end
+
+	local function seedChar(char)
+		if not char then
+			return
+		end
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then
+				apply(d)
+			end
 		end
 		NAlib.connect("antifling", char.DescendantAdded:Connect(function(inst)
-			if inst:IsA("BasePart") then apply(inst) end
+			if inst:IsA("BasePart") then
+				apply(inst)
+			end
 		end))
 		NAlib.connect("antifling", char.DescendantRemoving:Connect(function(inst)
-			if tracked[inst] then
-				if sigs[inst] then sigs[inst]:Disconnect(); sigs[inst] = nil end
-				tracked[inst] = nil
-				orig[inst] = nil
+			if inst:IsA("BasePart") then
+				clearPart(inst)
 			end
 		end))
 	end
 
-	local hookOther = function(plr)
-		if plr == lp then return end
-		if plr.Character then seedChar(plr.Character) end
-		NAlib.connect("antifling_players", plr.CharacterAdded:Connect(seedChar))
-		NAlib.connect("antifling_players", plr.CharacterRemoving:Connect(function(char)
-			for _,d in ipairs(char:GetDescendants()) do
-				if tracked[d] then
-					if sigs[d] then sigs[d]:Disconnect(); sigs[d] = nil end
-					tracked[d] = nil
-					orig[d] = nil
-				end
-			end
-		end))
-	end
-
-	for _,pl in ipairs(Players:GetPlayers()) do hookOther(pl) end
-	NAlib.connect("antifling_players", Players.PlayerAdded:Connect(hookOther))
-	NAlib.connect("antifling_players", Players.PlayerRemoving:Connect(function(pl)
-		if pl == lp then return end
-		local char = pl.Character
-		if not char then return end
-		for _,d in ipairs(char:GetDescendants()) do
+	local function cleanupChar(char)
+		if not char then
+			return
+		end
+		for _, d in ipairs(char:GetDescendants()) do
 			if tracked[d] then
-				if sigs[d] then sigs[d]:Disconnect(); sigs[d] = nil end
-				tracked[d] = nil
-				orig[d] = nil
+				clearPart(d)
 			end
 		end
+	end
+
+	local function hookOther(plr)
+		if plr == lp then
+			return
+		end
+		if plr.Character then
+			seedChar(plr.Character)
+		end
+		NAlib.connect("antifling_players", plr.CharacterAdded:Connect(function(char)
+			seedChar(char)
+		end))
+		NAlib.connect("antifling_players", plr.CharacterRemoving:Connect(function(char)
+			cleanupChar(char)
+		end))
+	end
+
+	for _, pl in ipairs(Players:GetPlayers()) do
+		hookOther(pl)
+	end
+
+	NAlib.connect("antifling_players", Players.PlayerAdded:Connect(hookOther))
+	NAlib.connect("antifling_players", Players.PlayerRemoving:Connect(function(pl)
+		if pl == lp then
+			return
+		end
+		cleanupChar(pl.Character)
 	end))
 
+	local lastKey = nil
+	local quotaPerStep = 128
+
 	NAlib.connect("antifling", RunService.Stepped:Connect(function()
-		for p in pairs(tracked) do
-			if typeof(p)=="Instance" and p:IsA("BasePart") and p.Parent then
-				if p.CanCollide ~= false then NAlib.setProperty(p,"CanCollide", false) end
+		local t = tracked
+		if not t then
+			return
+		end
+		local quota = quotaPerStep
+		local k = lastKey
+		while quota > 0 do
+			k = next(t, k)
+			if not k then
+				lastKey = nil
+				break
 			end
+			local p = k
+			if typeof(p) == "Instance" and p:IsA("BasePart") and p.Parent then
+				if NAlib.isProperty(p, "CanCollide") ~= false then
+					NAlib.setProperty(p, "CanCollide", false)
+				end
+			else
+				clearPart(p)
+			end
+			lastKey = p
+			quota = quota - 1
 		end
 	end))
 
@@ -15071,19 +15373,37 @@ end)
 cmd.add({"unantifling"},{"unantifling","restores collision for other players"},function()
 	NAlib.disconnect("antifling")
 	NAlib.disconnect("antifling_players")
+
 	local tracked = NAStuff._afTracked or {}
 	local orig = NAStuff._afOrigCan or {}
 	local sigs = NAStuff._afSignals or {}
+
 	for p in pairs(tracked) do
-		if typeof(p)=="Instance" and p:IsA("BasePart") then
-			local v = orig[p]; if v == nil then v = true end
-			NAlib.setProperty(p,"CanCollide", v)
+		if typeof(p) == "Instance" and p:IsA("BasePart") then
+			local v = orig[p]
+			if v == nil then
+				v = true
+			end
+			NAlib.setProperty(p, "CanCollide", v)
 		end
 	end
-	for _,c in pairs(sigs) do if c then c:Disconnect() end end
-	for k in pairs(sigs) do sigs[k]=nil end
-	for k in pairs(tracked) do tracked[k]=nil end
-	for k in pairs(orig) do orig[k]=nil end
+
+	for _, c in pairs(sigs) do
+		if c and c.Disconnect then
+			c:Disconnect()
+		end
+	end
+
+	for k in pairs(sigs) do
+		sigs[k] = nil
+	end
+	for k in pairs(tracked) do
+		tracked[k] = nil
+	end
+	for k in pairs(orig) do
+		orig[k] = nil
+	end
+
 	DebugNotif("Antifling Disabled")
 end)
 
@@ -24458,7 +24778,7 @@ originalIO.safeToolImage=function(inst, props)
 		end)
 		if ok then
 			if typeof(value) == "number" then
-				value = "rbxassetid://" .. value
+				value = "rbxassetid://"..value
 			end
 			if typeof(value) == "string" and value ~= "" then
 				return value
@@ -28623,6 +28943,24 @@ cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "
 	end
 end, true)
 
+cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfind, bprtfind)","Brings all parts containing name to your character"},function(...)
+	local name = Concat({...}," "):lower()
+	if name == "" then return end
+
+	local char = getChar()
+	if not char then return end
+	local pivot = char:GetPivot()
+
+	for _, part in ipairs(workspace:GetDescendants()) do
+		if part:IsA("BasePart") then
+			local n = part.Name:lower()
+			if Find(n, name, 1, true) ~= nil then
+				part:PivotTo(pivot)
+			end
+		end
+	end
+end,true)
+
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
@@ -28634,6 +28972,24 @@ cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a 
 		end
 	end
 end, true)
+
+cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","Brings all models whose name contains the given text to your character"},function(...)
+	local name = Concat({...}," "):lower()
+	if name == "" then return end
+
+	local char = getChar()
+	if not char then return end
+	local pivot = char:GetPivot()
+
+	for _, model in ipairs(workspace:GetDescendants()) do
+		if model:IsA("Model") then
+			local n = model.Name:lower()
+			if Find(n, name, 1, true) ~= nil then
+				model:PivotTo(pivot)
+			end
+		end
+	end
+end,true)
 
 cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","Brings all parts in a folder or a specified part"},function(...)
 	local raw = {...}
@@ -35262,6 +35618,148 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	local slider = picker.ColorSlider
 	local rgb = picker.RGB
 	local hex = picker.HexInput
+	local rgbToggleContainer = picker:FindFirstChild("RGBToggle")
+	local autoRGBToggleButton
+	local autoRGBSwitch
+	local autoRGBIndicator
+	local autoRGBTitle
+
+	local function createRGBToggleContainer()
+		local frame = Instance.new("Frame")
+		frame.Name = "RGBToggle"
+		frame.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+		frame.BorderSizePixel = 0
+		frame.Size = UDim2.new(0, 150, 0, 32)
+		frame.Position = UDim2.new(0, 280, 0, 45)
+		frame.ZIndex = 5
+		frame.Parent = picker
+
+		local corner = Instance.new("UICorner")
+		corner.Parent = frame
+
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Color3.fromRGB(71, 71, 71)
+		stroke.Parent = frame
+
+		local title = Instance.new("TextLabel")
+		title.Name = "Title"
+		title.BackgroundTransparency = 1
+		title.Font = Enum.Font.Gotham
+		title.TextSize = 14
+		title.TextColor3 = Color3.fromRGB(244, 244, 249)
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.AnchorPoint = Vector2.new(0, 0.5)
+		title.Position = UDim2.new(0, 12, 0.5, 0)
+		title.Size = UDim2.new(1, -60, 0, 16)
+		title.Text = "RGB Cycle"
+		title.Parent = frame
+
+		return frame
+	end
+
+	if not (rgbToggleContainer and rgbToggleContainer:IsA("GuiObject")) then
+		rgbToggleContainer = createRGBToggleContainer()
+	end
+
+	autoRGBTitle = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Title")
+
+	autoRGBToggleButton = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Interact")
+	if not (autoRGBToggleButton and autoRGBToggleButton:IsA("GuiButton")) then
+		autoRGBToggleButton = Instance.new("TextButton")
+		autoRGBToggleButton.Name = "Interact"
+		autoRGBToggleButton.BackgroundTransparency = 1
+		autoRGBToggleButton.AutoButtonColor = false
+		autoRGBToggleButton.BorderSizePixel = 0
+		autoRGBToggleButton.Text = ""
+		autoRGBToggleButton.Size = UDim2.new(1, 0, 1, 0)
+		autoRGBToggleButton.ZIndex = (rgbToggleContainer and rgbToggleContainer.ZIndex or 1) + 1
+		autoRGBToggleButton.Parent = rgbToggleContainer
+	end
+
+	autoRGBSwitch = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Switch")
+	if not (autoRGBSwitch and autoRGBSwitch:IsA("GuiObject")) then
+		autoRGBSwitch = Instance.new("Frame")
+		autoRGBSwitch.Name = "Switch"
+		autoRGBSwitch.BorderSizePixel = 0
+		autoRGBSwitch.AnchorPoint = Vector2.new(1, 0.5)
+		autoRGBSwitch.Position = UDim2.new(1, -12, 0.5, 0)
+		autoRGBSwitch.Size = UDim2.new(0, 45, 0, 22)
+		autoRGBSwitch.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+		autoRGBSwitch.Parent = rgbToggleContainer
+
+		local switchCorner = Instance.new("UICorner")
+		switchCorner.CornerRadius = UDim.new(0, 12)
+		switchCorner.Parent = autoRGBSwitch
+
+		local switchStroke = Instance.new("UIStroke")
+		switchStroke.Color = Color3.fromRGB(71, 71, 71)
+		switchStroke.Parent = autoRGBSwitch
+	end
+
+	autoRGBIndicator = autoRGBSwitch and autoRGBSwitch:FindFirstChild("Indicator")
+	if not (autoRGBIndicator and autoRGBIndicator:IsA("GuiObject")) then
+		autoRGBIndicator = Instance.new("Frame")
+		autoRGBIndicator.Name = "Indicator"
+		autoRGBIndicator.BorderSizePixel = 0
+		autoRGBIndicator.AnchorPoint = Vector2.new(0, 0.5)
+		autoRGBIndicator.Position = UDim2.new(0, 2, 0.5, 0)
+		autoRGBIndicator.Size = UDim2.new(0, 18, 0, 18)
+		autoRGBIndicator.BackgroundColor3 = Color3.fromRGB(114, 114, 124)
+		autoRGBIndicator.Parent = autoRGBSwitch
+
+		local indicatorCorner = Instance.new("UICorner")
+		indicatorCorner.CornerRadius = UDim.new(1, 0)
+		indicatorCorner.Parent = autoRGBIndicator
+
+		local indicatorStroke = Instance.new("UIStroke")
+		indicatorStroke.Color = Color3.fromRGB(83, 83, 83)
+		indicatorStroke.Parent = autoRGBIndicator
+	end
+
+	local autoRGBEnabled = false
+	local autoRGBSpeed = 0.1
+
+	local function updateAutoRGBToggleVisual()
+		if autoRGBSwitch then
+			autoRGBSwitch.BackgroundColor3 = autoRGBEnabled and Color3.fromRGB(70, 49, 104) or Color3.fromRGB(49, 49, 54)
+		end
+		if autoRGBIndicator then
+			local indicatorWidth = autoRGBIndicator.Size.X.Offset
+			if indicatorWidth == 0 then
+				indicatorWidth = math.max(autoRGBIndicator.AbsoluteSize.X, 18)
+			end
+			local padding = 2
+			autoRGBIndicator.Position = autoRGBEnabled
+				and UDim2.new(1, -indicatorWidth - padding, 0.5, 0)
+				or UDim2.new(0, padding, 0.5, 0)
+			autoRGBIndicator.BackgroundColor3 = autoRGBEnabled and Color3.fromRGB(154, 99, 255) or Color3.fromRGB(114, 114, 124)
+		end
+		if autoRGBTitle and autoRGBTitle:IsA("TextLabel") then
+			autoRGBTitle.Text = autoRGBEnabled and "RGB Cycle (ON)" or "RGB Cycle"
+			autoRGBTitle.TextColor3 = autoRGBEnabled and Color3.fromRGB(194, 194, 255) or Color3.fromRGB(244, 244, 249)
+		end
+	end
+
+	local function applyAutoRGBState(state, opts)
+		local newState = state and true or false
+		if autoRGBEnabled == newState then
+			if not (opts and opts.skipVisual) then
+				updateAutoRGBToggleVisual()
+			end
+			return
+		end
+		autoRGBEnabled = newState
+		updateAutoRGBToggleVisual()
+	end
+
+	updateAutoRGBToggleVisual()
+
+	if autoRGBToggleButton then
+		autoRGBToggleButton.MouseButton1Click:Connect(function()
+			applyAutoRGBState(not autoRGBEnabled)
+		end)
+	end
 
 	if typeof(defaultColor) ~= "Color3" then
 		defaultColor = Color3.fromRGB(255, 255, 255)
@@ -35301,6 +35799,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	end
 
 	local function parseRGBInputs()
+		applyAutoRGBState(false)
 		local r = tonumber(rgb.RInput.InputBox.Text) or 0
 		local g = tonumber(rgb.GInput.InputBox.Text) or 0
 		local b = tonumber(rgb.BInput.InputBox.Text) or 0
@@ -35318,6 +35817,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	rgb.BInput.InputBox.FocusLost:Connect(parseRGBInputs)
 
 	hex.InputBox.FocusLost:Connect(function()
+		applyAutoRGBState(false)
 		local text = hex.InputBox.Text:gsub("#", ""):upper()
 		if text:match("^[0-9A-F]+$") and #text == 6 then
 			local r = tonumber(text:sub(1, 2), 16)
@@ -35333,6 +35833,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	end)
 
 	local mouse = lp:GetMouse()
+	local runService = SafeGetService("RunService")
 
 	local function setupDragDetection(obj, dragType)
 		obj.InputBegan:Connect(function(input)
@@ -35342,6 +35843,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 				elseif dragType == "slider" then
 					draggingSlider = true
 				end
+				applyAutoRGBState(false)
 			end
 		end)
 	end
@@ -35358,7 +35860,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 		end
 	end)
 
-	SafeGetService("RunService").RenderStepped:Connect(function()
+	runService.RenderStepped:Connect(function(deltaTime)
 		if draggingMain then
 			local relX = math.clamp(mouse.X - main.AbsolutePosition.X, 0, main.AbsoluteSize.X)
 			local relY = math.clamp(mouse.Y - main.AbsolutePosition.Y, 0, main.AbsoluteSize.Y)
@@ -35371,6 +35873,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 			h = relX / slider.AbsoluteSize.X
 			updateUI(true)
 		end
+		if autoRGBEnabled and not draggingMain and not draggingSlider then
+			local step = math.clamp(deltaTime or 0.016, 0.001, 0.1)
+			h = (h + step * autoRGBSpeed) % 1
+			updateUI(true)
+		end
 	end)
 
 	local entry = {
@@ -35381,6 +35888,12 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 			if typeof(color) ~= "Color3" then return end
 			h, s, v = color:ToHSV()
 			updateUI(true, opts or {})
+		end;
+		getAutoRGB = function()
+			return autoRGBEnabled
+		end;
+		setAutoRGB = function(state)
+			applyAutoRGBState(state)
 		end;
 	}
 	NAgui._colorPickerRegistry[label] = entry
@@ -35400,6 +35913,18 @@ NAgui.setColorPickerValue = function(label, color, opts)
 	local entry = NAgui._colorPickerRegistry and NAgui._colorPickerRegistry[label]
 	if not entry then return end
 	entry.set(color, opts or { fire = false })
+end
+
+NAgui.setColorPickerAutoRGB = function(label, enabled)
+	local entry = NAgui._colorPickerRegistry and NAgui._colorPickerRegistry[label]
+	if not entry or not entry.setAutoRGB then return end
+	entry.setAutoRGB(enabled)
+end
+
+NAgui.getColorPickerAutoRGB = function(label)
+	local entry = NAgui._colorPickerRegistry and NAgui._colorPickerRegistry[label]
+	if not entry or not entry.getAutoRGB then return nil end
+	return entry.getAutoRGB()
 end
 
 NAgui.addInput = function(label, placeholder, defaultText, callback)
