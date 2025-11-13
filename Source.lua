@@ -2987,6 +2987,23 @@ NAmanage.NASettingsGetSchema=function()
 				}
 			end;
 		};
+		colorPickerAutoRGB = {
+			default = function()
+				return {}
+			end;
+			coerce = function(value)
+				if type(value) ~= "table" then
+					value = {}
+				end
+				local sanitized = {}
+				for key, val in pairs(value) do
+					if type(key) == "string" then
+						sanitized[key] = val == true
+					end
+				end
+				return sanitized
+			end;
+		};
 		iconInvisible = {
 			default = false;
 			coerce = function(value)
@@ -35603,14 +35620,50 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	local autoRGBSwitch
 	local autoRGBIndicator
 	local autoRGBTitle
+	local function getSavedAutoRGBState()
+		if type(label) ~= "string" then
+			return nil
+		end
+		if not (NAmanage and type(NAmanage.NASettingsGet) == "function") then
+			return nil
+		end
+		local stored = NAmanage.NASettingsGet("colorPickerAutoRGB")
+		if type(stored) ~= "table" then
+			return nil
+		end
+		local value = stored[label]
+		if type(value) == "boolean" then
+			return value
+		end
+		return nil
+	end
+
+	local function persistAutoRGBState(state)
+		if type(label) ~= "string" then
+			return
+		end
+		if not (NAmanage and type(NAmanage.NASettingsGet) == "function" and type(NAmanage.NASettingsSet) == "function") then
+			return
+		end
+		local stored = NAmanage.NASettingsGet("colorPickerAutoRGB")
+		if type(stored) ~= "table" then
+			stored = {}
+		end
+		local nextStates = {}
+		for key, value in pairs(stored) do
+			nextStates[key] = value
+		end
+		nextStates[label] = state and true or false
+		NAmanage.NASettingsSet("colorPickerAutoRGB", nextStates)
+	end
 
 	local function createRGBToggleContainer()
 		local frame = Instance.new("Frame")
 		frame.Name = "RGBToggle"
 		frame.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
 		frame.BorderSizePixel = 0
-		frame.Size = UDim2.new(0, 150, 0, 32)
-		frame.Position = UDim2.new(0, 280, 0, 45)
+		frame.Size = UDim2.new(0, 240, 0, 32)
+		frame.Position = UDim2.new(0, 20, 0, 115)
 		frame.ZIndex = 5
 		frame.Parent = picker
 
@@ -35634,6 +35687,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 		title.Size = UDim2.new(1, -60, 0, 16)
 		title.Text = "RGB Cycle"
 		title.Parent = frame
+		title.ZIndex = 5
 
 		return frame
 	end
@@ -35722,15 +35776,24 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	end
 
 	local function applyAutoRGBState(state, opts)
+		opts = opts or {}
 		local newState = state and true or false
 		if autoRGBEnabled == newState then
-			if not (opts and opts.skipVisual) then
+			if not opts.skipVisual then
 				updateAutoRGBToggleVisual()
 			end
 			return
 		end
 		autoRGBEnabled = newState
+		if not opts.skipSave then
+			persistAutoRGBState(autoRGBEnabled)
+		end
 		updateAutoRGBToggleVisual()
+	end
+
+	local savedAutoRGB = getSavedAutoRGBState()
+	if type(savedAutoRGB) == "boolean" then
+		applyAutoRGBState(savedAutoRGB, { skipVisual = true, skipSave = true })
 	end
 
 	updateAutoRGBToggleVisual()
