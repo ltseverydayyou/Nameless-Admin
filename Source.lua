@@ -1,5 +1,25 @@
+--[[
+
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+─██████████████─██████████████─██████████████─██████████████────██████████████───██████──██████─██████████─██████─────────████████████───
+─██░░░░░░░░░░██─██░░░░░░░░░░██─██░░░░░░░░░░██─██░░░░░░░░░░██────██░░░░░░░░░░██───██░░██──██░░██─██░░░░░░██─██░░██─────────██░░░░░░░░████─
+─██████░░██████─██░░██████████─██░░██████████─██████░░██████────██░░██████░░██───██░░██──██░░██─████░░████─██░░██─────────██░░████░░░░██─
+─────██░░██─────██░░██─────────██░░██─────────────██░░██────────██░░██──██░░██───██░░██──██░░██───██░░██───██░░██─────────██░░██──██░░██─
+─────██░░██─────██░░██████████─██░░██████████─────██░░██────────██░░██████░░████─██░░██──██░░██───██░░██───██░░██─────────██░░██──██░░██─
+─────██░░██─────██░░░░░░░░░░██─██░░░░░░░░░░██─────██░░██────────██░░░░░░░░░░░░██─██░░██──██░░██───██░░██───██░░██─────────██░░██──██░░██─
+─────██░░██─────██░░██████████─██████████░░██─────██░░██────────██░░████████░░██─██░░██──██░░██───██░░██───██░░██─────────██░░██──██░░██─
+─────██░░██─────██░░██─────────────────██░░██─────██░░██────────██░░██────██░░██─██░░██──██░░██───██░░██───██░░██─────────██░░██──██░░██─
+─────██░░██─────██░░██████████─██████████░░██─────██░░██────────██░░████████░░██─██░░██████░░██─████░░████─██░░██████████─██░░████░░░░██─
+─────██░░██─────██░░░░░░░░░░██─██░░░░░░░░░░██─────██░░██────────██░░░░░░░░░░░░██─██░░░░░░░░░░██─██░░░░░░██─██░░░░░░░░░░██─██░░░░░░░░████─
+─────██████─────██████████████─██████████████─────██████────────████████████████─██████████████─██████████─██████████████─████████████───
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+]]
+
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false; getgenv().NAverify="legshot"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="legshot"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -39650,14 +39670,27 @@ if CoreGui then
 
 	PT.data = data
 
-	local propertyWatchList = {"Image", "Texture", "TextureId"}
+	local propertyWatchList = {"Image", "Texture", "TextureId", "FontFace"}
+
+	local function isPlexTarget(o)
+		return o:IsA("ImageLabel")
+			or o:IsA("ImageButton")
+			or o:IsA("TextLabel")
+			or o:IsA("TextButton")
+	end
 
 	local function getImageId(o)
-		for _, prop in ipairs(propertyWatchList) do
-			local value = NAlib.isProperty(o, prop)
-			if type(value) == "string" and value ~= "" then
-				return value
-			end
+		local value = NAlib.isProperty(o, "Image")
+		if type(value) == "string" and value ~= "" then
+			return value
+		end
+		value = NAlib.isProperty(o, "Texture")
+		if type(value) == "string" and value ~= "" then
+			return value
+		end
+		value = NAlib.isProperty(o, "TextureId")
+		if type(value) == "string" and value ~= "" then
+			return value
 		end
 		return nil
 	end
@@ -39682,22 +39715,37 @@ if CoreGui then
 			return true
 		end
 
-		if not (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+		if not isPlexTarget(o) then
 			return false
 		end
 
-		local id = getImageId(o)
-		if type(id) == "string" and id:match("img_set_%dx_%d+%.png$") then
+		local imgId = getImageId(o)
+		if type(imgId) == "string" and imgId:match("img_set_%dx_%d+%.png$") then
 			PT.images[o] = true
 			NAmanage.plex_apply(o)
 			return true
+		end
+
+		if o:IsA("TextLabel") or o:IsA("TextButton") then
+			local ff = NAlib.isProperty(o, "FontFace")
+			local ffType = ff and typeof(ff) or nil
+			local fam = ff and ff.Family or nil
+
+			if (ffType == "Font" or ffType == "FontFace")
+				and type(fam) == "string"
+				and fam:find("BuilderIcons/BuilderIcons.json", 1, true)
+			then
+				PT.images[o] = true
+				NAmanage.plex_apply(o)
+				return true
+			end
 		end
 
 		return false
 	end
 
 	local function watchUntilReady(o)
-		if PT.watchers[o] or not (o:IsA("ImageLabel") or o:IsA("ImageButton")) then
+		if PT.watchers[o] or not isPlexTarget(o) then
 			return
 		end
 
@@ -39828,8 +39876,6 @@ if CoreGui then
 		end
 	end
 end
-
-
 
 local joinLeaveWarned = false
 local function persistJoinLeaveConfig()
