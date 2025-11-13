@@ -1748,6 +1748,7 @@ G2L["rgbToggleTitle"]["Size"] = UDim2.new(1, -60, 0, 16);
 G2L["rgbToggleTitle"]["Text"] = [[RGB Cycle]];
 G2L["rgbToggleTitle"]["Name"] = [[Title]];
 G2L["rgbToggleTitle"]["Position"] = UDim2.new(0, 12, 0.5, 0);
+G2L["rgbToggleTitle"]["ZIndex"] = 5;
 
 
 G2L["rgbToggleInteract"] = Instance.new("TextButton", G2L["rgbToggleFrame"]);
