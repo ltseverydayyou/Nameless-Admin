@@ -39,48 +39,10 @@ function Lx5.d(val, bits)
 	return math.floor(val / Lx5.p[bits])
 end
 
-function Lx5.e(src)
-	local b, n = 0, 0
-	local out = {}
-	local oi = 1
-	for i = 1, #src do
-		b = b + Lx5.u(string.byte(src, i, i), n)
-		n += 8
-		if n > 13 then
-			local v = b % 8192
-			if v <= 88 then
-				v = b % 16384
-				b = Lx5.d(b, 14)
-				n -= 14
-			else
-				b = Lx5.d(b, 13)
-				n -= 13
-			end
-			local a = (v % 91) + 1
-			local d = math.floor(v / 91) + 1
-			out[oi] = string.sub(Lx5.a, a, a)
-			out[oi + 1] = string.sub(Lx5.a, d, d)
-			oi += 2
-		end
-	end
-	if n > 0 then
-		local a = (b % 91) + 1
-		out[oi] = string.sub(Lx5.a, a, a)
-		oi += 1
-		if n > 7 or b > 90 then
-			local d = math.floor(b / 91) + 1
-			out[oi] = string.sub(Lx5.a, d, d)
-			oi += 1
-		end
-	end
-	return table.concat(out, "", 1, oi - 1)
-end
-
 function Lx5.g(src)
 	local b, n, v = 0, 0, -1
 	local out = {}
 	local oi = 1
-
 	for i = 1, #src do
 		local c = Lx5.l[string.byte(src, i, i)]
 		if c ~= nil then
@@ -89,12 +51,12 @@ function Lx5.g(src)
 			else
 				v = v + c * 91
 				b = b + Lx5.u(v, n)
-				if v % 8192 > 88 then
+				if (v % 8192) > 88 then
 					n += 13
 				else
 					n += 14
 				end
-				while n > 7 do
+				while n >= 8 do
 					out[oi] = string.char(b % 256)
 					oi += 1
 					b = Lx5.d(b, 8)
@@ -104,13 +66,15 @@ function Lx5.g(src)
 			end
 		end
 	end
-
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		out[oi] = string.char(b % 256)
-		oi += 1
+		while n >= 8 do
+			out[oi] = string.char(b % 256)
+			oi += 1
+			b = Lx5.d(b, 8)
+			n -= 8
+		end
 	end
-
 	if oi == 1 then
 		return ""
 	end
@@ -220,8 +184,6 @@ local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but so
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
-Lx5.baseMainName = mainName
-Lx5.baseTestingName = testingName
 local connections = {}
 local HttpService=SafeGetService('HttpService');
 local Players=SafeGetService("Players");
@@ -571,12 +533,6 @@ local FVx = {
 	hJson = Lx5.g("Hu@JN:/Hr%!&4^elqr$J");
 	hKey = Lx5.g("xlKdi`A");
 }
-local GGx = {
-	main = Lx5.g("9DLgV<JTbU1B98GlTB");
-	testing = Lx5.g("9D<CY,DZxSq3B");
-	status = Lx5.g("hPzgC.b1m$0t:mUoPuVK`/eelTc6hQP");
-	failed = Lx5.g("{z/2(.1RsRb6{xlL5)n<y]!e7Ro4z^cjDS+f3+eG8!Y6=E&m6lmfK");
-}
 opt={
 	prefix=prefixCheck;
 	NAupdDate='unknown'; --month,day,year
@@ -903,22 +859,6 @@ function NAmanage.gaydeter()
 		errMsg = FVx.badkey
 	end
 	return false, errMsg
-end
-
-function NAmanage.stopSKIDDING()
-	local function eq(a, b)
-		return type(a) == "string" and type(b) == "string" and a == b
-	end
-
-	if not eq(Lx5.baseMainName, GGx.main) then
-		return false, GGx.failed
-	end
-
-	if not eq(Lx5.baseTestingName, GGx.testing) then
-		return false, GGx.failed
-	end
-
-	return true
 end
 
 local searchIndex = {}
@@ -2301,20 +2241,6 @@ if NAmanage and type(NAmanage.gaydeter) == "function" then
 		local errText = ok and detail or verified
 		if type(errText) ~= "string" or errText == "" then
 			errText = FVx.badkey
-		end
-		NAAssetsLoading.setPercent(0)
-		NAAssetsLoading.setStatus(errText)
-		error(errText)
-	end
-end
-
-if NAmanage and type(NAmanage.stopSKIDDING) == "function" then
-	NAAssetsLoading.setStatus(GGx.status)
-	local ok, verified, detail = pcall(NAmanage.stopSKIDDING)
-	if not ok or not verified then
-		local errText = ok and detail or verified
-		if type(errText) ~= "string" or errText == "" then
-			errText = GGx.failed
 		end
 		NAAssetsLoading.setPercent(0)
 		NAAssetsLoading.setStatus(errText)

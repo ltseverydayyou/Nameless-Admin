@@ -88,11 +88,6 @@ function Lx5.g(src)
 	end
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		if (v % 8192) > 88 then
-			n += 13
-		else
-			n += 14
-		end
 		while n >= 8 do
 			out[oi] = string.char(b % 256)
 			oi += 1
@@ -209,8 +204,6 @@ local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but so
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
-Lx5.baseMainName = mainName
-Lx5.baseTestingName = testingName
 local connections = {}
 local HttpService=SafeGetService('HttpService');
 local Players=SafeGetService("Players");
@@ -560,12 +553,6 @@ local FVx = {
 	hJson = Lx5.g("Hu@JN:/Hr%!&4^elqr$J");
 	hKey = Lx5.g("xlKdi`A");
 }
-local GGx = {
-	main = Lx5.g("9DLgV<JTbU1B98GlTB");
-	testing = Lx5.g("9D<CY,DZxSq3B");
-	status = Lx5.g("hPzgC.b1m$0t:mUoPuVK`/eelTc6hQP");
-	failed = Lx5.g("{z/2(.1RsRb6{xlL5)n<y]!e7Ro4z^cjDS+f3+eG8!Y6=E&m6lmfK");
-}
 opt={
 	prefix=prefixCheck;
 	NAupdDate='unknown'; --month,day,year
@@ -892,31 +879,6 @@ function NAmanage.gaydeter()
 		errMsg = FVx.badkey
 	end
 	return false, errMsg
-end
-
-function NAmanage.stopSKIDDING()
-	local function sanitizeName(value)
-		if type(value) ~= "string" then
-			return nil
-		end
-		return value:gsub("%z+$", "")
-	end
-
-	local function eq(a, b)
-		local aa = sanitizeName(a)
-		local bb = sanitizeName(b)
-		return aa ~= nil and bb ~= nil and aa == bb
-	end
-
-	if not eq(Lx5.baseMainName, GGx.main) then
-		return false, GGx.failed
-	end
-
-	if not eq(Lx5.baseTestingName, GGx.testing) then
-		return false, GGx.failed
-	end
-
-	return true
 end
 
 local searchIndex = {}
@@ -2299,20 +2261,6 @@ if NAmanage and type(NAmanage.gaydeter) == "function" then
 		local errText = ok and detail or verified
 		if type(errText) ~= "string" or errText == "" then
 			errText = FVx.badkey
-		end
-		NAAssetsLoading.setPercent(0)
-		NAAssetsLoading.setStatus(errText)
-		error(errText)
-	end
-end
-
-if NAmanage and type(NAmanage.stopSKIDDING) == "function" then
-	NAAssetsLoading.setStatus(GGx.status)
-	local ok, verified, detail = pcall(NAmanage.stopSKIDDING)
-	if not ok or not verified then
-		local errText = ok and detail or verified
-		if type(errText) ~= "string" or errText == "" then
-			errText = GGx.failed
 		end
 		NAAssetsLoading.setPercent(0)
 		NAAssetsLoading.setStatus(errText)
