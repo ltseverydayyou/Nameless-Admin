@@ -109,12 +109,12 @@ function Lx5.g(src)
 			else
 				v = v + c * 91
 				b = b + Lx5.u(v, n)
-				if v % 8192 > 88 then
+				if (v % 8192) > 88 then
 					n += 13
 				else
 					n += 14
 				end
-				while n > 7 do
+				while n >= 8 do
 					out[oi] = string.char(b % 256)
 					oi += 1
 					b = Lx5.d(b, 8)
