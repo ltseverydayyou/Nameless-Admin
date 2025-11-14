@@ -100,6 +100,7 @@ function Lx5.g(src)
 	local b, n, v = 0, 0, -1
 	local out = {}
 	local oi = 1
+
 	for i = 1, #src do
 		local c = Lx5.l[string.byte(src, i, i)]
 		if c ~= nil then
@@ -108,12 +109,12 @@ function Lx5.g(src)
 			else
 				v = v + c * 91
 				b = b + Lx5.u(v, n)
-				if (v % 8192) > 88 then
+				if v % 8192 > 88 then
 					n += 13
 				else
 					n += 14
 				end
-				while n >= 8 do
+				while n > 7 do
 					out[oi] = string.char(b % 256)
 					oi += 1
 					b = Lx5.d(b, 8)
@@ -123,15 +124,13 @@ function Lx5.g(src)
 			end
 		end
 	end
+
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		while n >= 8 do
-			out[oi] = string.char(b % 256)
-			oi += 1
-			b = Lx5.d(b, 8)
-			n -= 8
-		end
+		out[oi] = string.char(b % 256)
+		oi += 1
 	end
+
 	if oi == 1 then
 		return ""
 	end
@@ -590,6 +589,13 @@ local FVx = {
 	hJson = Lx5.g("Hu@JN:/Hr%!&4^elqr$J");
 	hKey = Lx5.g("xlKdi`A");
 }
+local GGx = {
+	main = Lx5.g("9DLgV<JTbU1B98GlTB");
+	testing = Lx5.g("9D<CY,DZxSq3B");
+	admin = Lx5.g("9DC");
+	status = Lx5.g("hPzgC.b1m$0t:mUoPuVK`/eelTc6hQP");
+	failed = Lx5.g("{z/2(.1RsRb6{xlL5)n<y]!e7Ro4z^cjDS+f3+eG8!Y6=E&m6lmfK");
+}
 opt={
 	prefix=prefixCheck;
 	NAupdDate='unknown'; --month,day,year
@@ -916,6 +922,24 @@ function NAmanage.gaydeter()
 		errMsg = FVx.badkey
 	end
 	return false, errMsg
+end
+
+function NAmanage.stopSKIDDING()
+	print(GGx.main)
+	print(GGx.testing)
+	local function eq(a, b)
+		return type(a) == "string" and type(b) == "string" and a == b
+	end
+
+	if not eq(mainName, GGx.main) then
+		return false, GGx.failed
+	end
+
+	if not eq(testingName, GGx.testing) then
+		return false, GGx.failed
+	end
+
+	return true
 end
 
 local searchIndex = {}
@@ -2301,6 +2325,20 @@ if NAmanage and type(NAmanage.gaydeter) == "function" then
 		local errText = ok and detail or verified
 		if type(errText) ~= "string" or errText == "" then
 			errText = FVx.badkey
+		end
+		NAAssetsLoading.setPercent(0)
+		NAAssetsLoading.setStatus(errText)
+		error(errText)
+	end
+end
+
+if NAmanage and type(NAmanage.stopSKIDDING) == "function" then
+	NAAssetsLoading.setStatus(GGx.status)
+	local ok, verified, detail = pcall(NAmanage.stopSKIDDING)
+	if not ok or not verified then
+		local errText = ok and detail or verified
+		if type(errText) ~= "string" or errText == "" then
+			errText = GGx.failed
 		end
 		NAAssetsLoading.setPercent(0)
 		NAAssetsLoading.setStatus(errText)
