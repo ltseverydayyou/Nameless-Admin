@@ -15272,28 +15272,24 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		end
 	end
 
-	local function isFlingPart(p)
-		local n = Lower(p.Name)
-		if n == "humanoidrootpart" or n == "torso" or n == "uppertorso" or n == "lowertorso" then
-			return true
-		end
-		return false
-	end
-
 	local function apply(p)
 		if not (p and typeof(p) == "Instance" and p:IsA("BasePart")) or tracked[p] then
 			return
 		end
-		if not isFlingPart(p) then
-			return
-		end
+		tracked[p] = true
 		if orig[p] == nil then
 			orig[p] = NAlib.isProperty(p, "CanCollide")
+		end
+		if not sigs[p] then
+			sigs[p] = p:GetPropertyChangedSignal("CanCollide"):Connect(function()
+				if tracked[p] and NAlib.isProperty(p, "CanCollide") ~= false then
+					NAlib.setProperty(p, "CanCollide", false)
+				end
+			end)
 		end
 		if NAlib.isProperty(p, "CanCollide") ~= false then
 			NAlib.setProperty(p, "CanCollide", false)
 		end
-		tracked[p] = true
 	end
 
 	local function seedChar(char)
@@ -15356,7 +15352,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 	end))
 
 	local lastKey = nil
-	local quotaPerStep = 128
+	local quotaPerStep = 256
 
 	NAlib.connect("antifling", RunService.Stepped:Connect(function()
 		local t = tracked
