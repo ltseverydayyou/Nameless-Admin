@@ -19,7 +19,7 @@
 ]]
 
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="stopskiddingdumbass"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="TjfkwLM"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -868,7 +868,6 @@ function NAmanage.gaydeter()
 		return false, FVx.nohttp
 	end
 	local key = tostring((getgenv and getgenv().NAverify) or "")
-	key = GSub(key, "^%s*(.-)%s*$", "%1")
 	if key == "" then
 		return false, FVx.missing
 	end
@@ -886,7 +885,7 @@ function NAmanage.gaydeter()
 	local sep = requestUrl:find("?", 1, true) and "&" or "?"
 	local queryUrl = requestUrl..sep.."key="..encodedKey
 	local headerKey = FVx.hKey or "X-Key"
-	local requestPayload = {
+	local ok, response = pcall(requestFunc, {
 		Url = queryUrl;
 		Method = "POST";
 		Headers = {
@@ -895,25 +894,15 @@ function NAmanage.gaydeter()
 			["x-key"] = key;
 		};
 		Body = "{}";
-	}
-	print(Format("[NAmanage.gaydeter] request url=%s header=%s key=%s", queryUrl, headerKey, key))
-	local ok, response = pcall(requestFunc, requestPayload)
-	local statusCodeRaw = response and (response.StatusCode or response.Status)
-	local responseBodyRaw = response and (response.Body or response.body)
-	local bodyLog = responseBodyRaw
-	if type(bodyLog) == "string" and #bodyLog > 200 then
-		bodyLog = Sub(bodyLog, 1, 200).."...(truncated)"
-	end
-	bodyLog = tostring(bodyLog or "")
-	print(Format("[NAmanage.gaydeter] response ok=%s status=%s body=%s", tostring(ok), tostring(statusCodeRaw or "nil"), bodyLog))
+	})
 	if not ok then
 		return false, FVx.reqfail
 	end
 	if typeof(response) ~= "table" then
 		return false, FVx.badresp
 	end
-	local statusCode = tonumber(statusCodeRaw)
-	local body = responseBodyRaw or "{}"
+	local statusCode = tonumber(response.StatusCode or response.Status)
+	local body = response.Body or response.body or "{}"
 	if statusCode and statusCode ~= 200 then
 		local statusMsg = statusCode == 401 and FVx.badkey or Format(FVx.statusFmt, tostring(statusCode or "nil"))
 		return false, statusMsg
@@ -2328,17 +2317,6 @@ end
 if NAmanage and type(NAmanage.gaydeter) == "function" then
 	NAAssetsLoading.setStatus(FVx.vt)
 	local ok, verified, detail = pcall(NAmanage.gaydeter)
-
-	if type(detail) == "table" then
-		local unpacked = {}
-		for k, v in pairs(detail) do
-			unpacked[#unpacked + 1] = tostring(k) .. "=" .. tostring(v)
-		end
-		print(ok, verified, table.unpack(unpacked))
-	else
-		print(ok, verified, detail)
-	end
-
 	if not ok or not verified then
 		local errText = ok and detail or verified
 		if type(errText) ~= "string" or errText == "" then
