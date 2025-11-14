@@ -1766,10 +1766,7 @@ NAmanage.createLoadingUI=function(text, opts)
 		desc.TextScaled = true
 		desc.TextWrapped = true
 		desc.Text = "you are banned from using "..(adminName or "Nameless Admin")]]
-		while true do
-			Wait(1)
-			print'womp womp'
-		end
+		return 'womp womp'
 	end
 
 	ui.sg = InstanceNew("ScreenGui")
