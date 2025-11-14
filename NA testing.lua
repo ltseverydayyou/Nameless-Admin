@@ -886,7 +886,7 @@ function NAmanage.gaydeter()
 	local sep = requestUrl:find("?", 1, true) and "&" or "?"
 	local queryUrl = requestUrl..sep.."key="..encodedKey
 	local headerKey = FVx.hKey or "X-Key"
-	local ok, response = pcall(requestFunc, {
+	local requestPayload = {
 		Url = queryUrl;
 		Method = "POST";
 		Headers = {
@@ -895,15 +895,25 @@ function NAmanage.gaydeter()
 			["x-key"] = key;
 		};
 		Body = "{}";
-	})
+	}
+	print(Format("[NAmanage.gaydeter] request url=%s header=%s key=%s", queryUrl, headerKey, key))
+	local ok, response = pcall(requestFunc, requestPayload)
+	local statusCodeRaw = response and (response.StatusCode or response.Status)
+	local responseBodyRaw = response and (response.Body or response.body)
+	local bodyLog = responseBodyRaw
+	if type(bodyLog) == "string" and #bodyLog > 200 then
+		bodyLog = Sub(bodyLog, 1, 200).."...(truncated)"
+	end
+	bodyLog = tostring(bodyLog or "")
+	print(Format("[NAmanage.gaydeter] response ok=%s status=%s body=%s", tostring(ok), tostring(statusCodeRaw or "nil"), bodyLog))
 	if not ok then
 		return false, FVx.reqfail
 	end
 	if typeof(response) ~= "table" then
 		return false, FVx.badresp
 	end
-	local statusCode = tonumber(response.StatusCode or response.Status)
-	local body = response.Body or response.body or "{}"
+	local statusCode = tonumber(statusCodeRaw)
+	local body = responseBodyRaw or "{}"
 	if statusCode and statusCode ~= 200 then
 		local statusMsg = statusCode == 401 and FVx.badkey or Format(FVx.statusFmt, tostring(statusCode or "nil"))
 		return false, statusMsg
