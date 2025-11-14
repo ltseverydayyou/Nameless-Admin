@@ -925,8 +925,6 @@ function NAmanage.gaydeter()
 end
 
 function NAmanage.stopSKIDDING()
-	print(GGx.main)
-	print(GGx.testing)
 	local function eq(a, b)
 		return type(a) == "string" and type(b) == "string" and a == b
 	end
