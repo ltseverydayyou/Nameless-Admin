@@ -97,7 +97,9 @@ function Lx5.e(src)
 end
 
 function Lx5.g(src)
-	local b, n, v = 0, 0, -1
+	local b = 0
+	local n = 0
+	local v = -1
 	local out = {}
 	local oi = 1
 
@@ -110,15 +112,15 @@ function Lx5.g(src)
 				v = v + c * 91
 				b = b + Lx5.u(v, n)
 				if (v % 8192) > 88 then
-					n += 13
+					n = n + 13
 				else
-					n += 14
+					n = n + 14
 				end
 				while n >= 8 do
 					out[oi] = string.char(b % 256)
-					oi += 1
+					oi = oi + 1
 					b = Lx5.d(b, 8)
-					n -= 8
+					n = n - 8
 				end
 				v = -1
 			end
@@ -127,23 +129,20 @@ function Lx5.g(src)
 
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		n += 13
+		n = n + 7
 		while n >= 8 do
 			out[oi] = string.char(b % 256)
-			oi += 1
+			oi = oi + 1
 			b = Lx5.d(b, 8)
-			n -= 8
+			n = n - 8
 		end
 	end
 
 	if oi == 1 then
 		return ""
 	end
-	local res = table.concat(out, "", 1, oi - 1)
-	if #res > 0 and res:byte(-1) == 0 then
-		res = res:sub(1, -2)
-	end
-	return res
+
+	return table.concat(out, "", 1, oi - 1)
 end
 
 local Notify = nil
