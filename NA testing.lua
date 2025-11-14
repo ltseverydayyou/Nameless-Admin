@@ -139,10 +139,18 @@ function Lx5.g(src)
 	end
 
 	if oi == 1 then
+		print("Lx5.g result: '' len 0 bytes: ")
 		return ""
 	end
 
-	return table.concat(out, "", 1, oi - 1)
+	local res = table.concat(out, "", 1, oi - 1)
+	local bytes = {}
+	for i = 1, #res do
+		bytes[i] = res:byte(i, i)
+	end
+	print("Lx5.g result:", res, "len", #res, "bytes:", table.concat(bytes, ","))
+
+	return res
 end
 
 local Notify = nil
