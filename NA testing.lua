@@ -127,14 +127,23 @@ function Lx5.g(src)
 
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		out[oi] = string.char(b % 256)
-		oi += 1
+		n += 13
+		while n >= 8 do
+			out[oi] = string.char(b % 256)
+			oi += 1
+			b = Lx5.d(b, 8)
+			n -= 8
+		end
 	end
 
 	if oi == 1 then
 		return ""
 	end
-	return table.concat(out, "", 1, oi - 1)
+	local res = table.concat(out, "", 1, oi - 1)
+	if #res > 0 and res:byte(-1) == 0 then
+		res = res:sub(1, -2)
+	end
+	return res
 end
 
 local Notify = nil
