@@ -163,7 +163,7 @@ local LoadstringCommandAliases = {
 	execute = true;
 };
 
-local function SafeGetService(name, timeoutSeconds)
+function SafeGetService(name, timeoutSeconds)
 	local Reference = cloneref or function(ref) return ref end
 	local startClock = tick()
 
@@ -240,6 +240,8 @@ local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but so
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
+Lx5.baseMainName = mainName
+Lx5.baseTestingName = testingName
 local connections = {}
 local HttpService=SafeGetService('HttpService');
 local Players=SafeGetService("Players");
@@ -592,7 +594,6 @@ local FVx = {
 local GGx = {
 	main = Lx5.g("9DLgV<JTbU1B98GlTB");
 	testing = Lx5.g("9D<CY,DZxSq3B");
-	admin = Lx5.g("9DC");
 	status = Lx5.g("hPzgC.b1m$0t:mUoPuVK`/eelTc6hQP");
 	failed = Lx5.g("{z/2(.1RsRb6{xlL5)n<y]!e7Ro4z^cjDS+f3+eG8!Y6=E&m6lmfK");
 }
@@ -929,11 +930,11 @@ function NAmanage.stopSKIDDING()
 		return type(a) == "string" and type(b) == "string" and a == b
 	end
 
-	if not eq(mainName, GGx.main) then
+	if not eq(Lx5.baseMainName, GGx.main) then
 		return false, GGx.failed
 	end
 
-	if not eq(testingName, GGx.testing) then
+	if not eq(Lx5.baseTestingName, GGx.testing) then
 		return false, GGx.failed
 	end
 
