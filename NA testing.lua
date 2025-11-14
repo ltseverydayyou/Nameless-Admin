@@ -868,6 +868,7 @@ function NAmanage.gaydeter()
 		return false, FVx.nohttp
 	end
 	local key = tostring((getgenv and getgenv().NAverify) or "")
+	key = GSub(key, "^%s*(.-)%s*$", "%1")
 	if key == "" then
 		return false, FVx.missing
 	end
