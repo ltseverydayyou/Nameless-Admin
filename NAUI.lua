@@ -1017,6 +1017,7 @@ G2L["70f"]["TextXAlignment"] = Enum.TextXAlignment.Center;
 G2L["70f"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["70f"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Medium, Enum.FontStyle.Normal);
 G2L["70f"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["70f"]["RichText"] = true;
 G2L["70f"]["BackgroundTransparency"] = 1;
 G2L["70f"]["Size"] = UDim2.new(1, -10, 1, 0);
 G2L["70f"]["Position"] = UDim2.new(0, 5, 0, 0);

@@ -3283,7 +3283,7 @@ function InitUIStroke()
 	local defaultColor = Color3.fromRGB(148, 93, 255)
 
 	if not FileSupport then
-		DoNotif("UI Stroke defaulted: no file support")
+		DoNotif("Main Color defaulted: no file support")
 		return defaultColor
 	end
 
@@ -3302,7 +3302,7 @@ function InitUIStroke()
 		G = defaultColor.G;
 		B = defaultColor.B;
 	})
-	DoNotif("UI Stroke color reset to default due to invalid or missing data.")
+	DoNotif("Main Color reset to default due to invalid or missing data.")
 	return defaultColor
 end
 
@@ -34697,10 +34697,149 @@ local TabManager = {
 	fallbackIndex = 0;
 }
 
-local tabsLayout = TabManager.holder and (TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout"))
-if tabsLayout and tabsLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
+BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
+
+originalIO.escapeRichTextText = function(text)
+	text = tostring(text or "")
+	if text == "" then
+		return ""
+	end
+	return text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+end
+
+originalIO.colorValueToHex = function(color)
+	if typeof(color) == "Color3" then
+		local r = math.clamp(math.floor(color.R * 255 + 0.5), 0, 255)
+		local g = math.clamp(math.floor(color.G * 255 + 0.5), 0, 255)
+		local b = math.clamp(math.floor(color.B * 255 + 0.5), 0, 255)
+		return string.format("#%02X%02X%02X", r, g, b)
+	elseif type(color) == "string" and color ~= "" then
+		return color
+	end
+	return nil
+end
+
+originalIO.resolveTabIconMarkup = function(iconOption, opts)
+	if iconOption == nil then
+		return nil
+	end
+	opts = opts or {}
+	local isActive = opts.isActive == true
+	local defaultColor = opts.defaultColor
+	local name = iconOption
+	local gap
+	local tint
+	local stateBold
+	if type(iconOption) == "table" then
+		name = iconOption.icon or iconOption.name or iconOption[1]
+		gap = iconOption.gap or iconOption.spacing
+		if iconOption.color or iconOption.tint then
+			tint = iconOption.color or iconOption.tint
+		end
+		if isActive and iconOption.activeBold ~= nil then
+			stateBold = iconOption.activeBold
+		elseif not isActive and iconOption.inactiveBold ~= nil then
+			stateBold = iconOption.inactiveBold
+		elseif isActive and iconOption.activeFilled ~= nil then
+			stateBold = iconOption.activeFilled
+		elseif not isActive and iconOption.inactiveFilled ~= nil then
+			stateBold = iconOption.inactiveFilled
+		end
+		if stateBold == nil then
+			if iconOption.bold ~= nil then
+				stateBold = iconOption.bold
+			elseif iconOption.filled ~= nil then
+				stateBold = iconOption.filled
+			elseif iconOption.weight == "bold" or iconOption.variant == "filled" then
+				stateBold = true
+			end
+		end
+	end
+	if type(name) ~= "string" then
+		return nil
+	end
+	local trimmed = name:match("^%s*(.-)%s*$")
+	if not trimmed or trimmed == "" then
+		return nil
+	end
+	local glyph = trimmed:gsub("%s+", "")
+	glyph = originalIO.escapeRichTextText(glyph)
+	if glyph == "" then
+		return nil
+	end
+	if stateBold == nil then
+		stateBold = isActive
+	end
+	if stateBold then
+		glyph = "<b>"..glyph.."</b>"
+	end
+	local markup = string.format('<font family="%s">%s</font>', BUILDER_ICON_FONT_PATH, glyph)
+	local colorHex = originalIO.colorValueToHex(tint or defaultColor)
+	if colorHex then
+		markup = string.format('<font color="%s">%s</font>', colorHex, markup)
+	end
+	local iconGap = " "
+	if type(gap) == "number" and gap > 0 then
+		iconGap = string.rep(" ", math.clamp(math.floor(gap + 0.5), 1, 8))
+	elseif type(gap) == "string" and gap ~= "" then
+		iconGap = gap
+	end
+	return markup, iconGap
+end
+
+originalIO.composeTabTitleText = function(info, opts)
+	if not info then
+		return ""
+	end
+	opts = opts or {}
+	local rawTitle = info.displayName
+	if type(rawTitle) ~= "string" or rawTitle == "" then
+		rawTitle = info.name or ""
+	end
+	local safeDisplay = originalIO.escapeRichTextText(rawTitle)
+	if safeDisplay == "" and info.name and info.name ~= rawTitle then
+		safeDisplay = originalIO.escapeRichTextText(info.name)
+	end
+	local iconMarkup, iconGap = originalIO.resolveTabIconMarkup(info.textIcon, {
+		isActive = opts.isActive,
+		defaultColor = opts.defaultColor,
+	})
+	if iconMarkup then
+		return iconMarkup .. (iconGap or " ") .. safeDisplay
+	end
+	return safeDisplay
+end
+
+originalIO.applyTabDisplayText = function(info, opts)
+	if not info or not info.button then
+		return
+	end
+	opts = opts or {}
+	local title = info.button:FindFirstChild("Title")
+	if not title then
+		return
+	end
+	if title.RichText ~= true then
+		title.RichText = true
+	end
+	local isActive = opts.isActive
+	if isActive == nil then
+		isActive = info._isActive
+	end
+	local defaultColor = opts.defaultColor
+	if defaultColor == nil then
+		defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
+	end
+	title.Text = originalIO.composeTabTitleText(info, {
+		isActive = isActive,
+		defaultColor = defaultColor,
+	})
+end
+
+NAStuff.tabsLayout = TabManager.holder and (TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout"))
+if NAStuff.tabsLayout and NAStuff.tabsLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
 	pcall(function()
-		tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		NAStuff.tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	end)
 end
 
@@ -34867,7 +35006,11 @@ NAmanage.prepareAllTabDisplay=function(allInfo)
 end
 
 NAmanage.updateTabVisual=function(tabInfo, isActive)
-	if not tabInfo or not tabInfo.button then
+	if not tabInfo then
+		return
+	end
+	tabInfo._isActive = isActive and true or false
+	if not tabInfo.button then
 		return
 	end
 	local btn = tabInfo.button
@@ -34884,10 +35027,13 @@ NAmanage.updateTabVisual=function(tabInfo, isActive)
 	end
 	local title = btn:FindFirstChild("Title")
 	if title then
-		title.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(234, 234, 244)
-		if tabInfo.displayName then
-			title.Text = tabInfo.displayName
+		if originalIO.applyTabDisplayText then
+			originalIO.applyTabDisplayText(tabInfo, {
+				isActive = isActive,
+				defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR,
+			})
 		end
+		title.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(234, 234, 244)
 	end
 end
 
@@ -34948,14 +35094,22 @@ NAgui.addTab=function(name, options)
 	if type(name) ~= "string" or name == "" then
 		return nil
 	end
+	local textIconOption = options and options.textIcon
 	if TabManager.tabs[name] then
+		local existingInfo = TabManager.tabs[name]
+		if textIconOption ~= nil and existingInfo then
+			existingInfo.textIcon = textIconOption
+			if originalIO.applyTabDisplayText then
+				originalIO.applyTabDisplayText(existingInfo, { isActive = existingInfo._isActive })
+			end
+		end
 		if options and options.default then
 			NAgui.setTab(name)
 		end
-		return TabManager.tabs[name]
+		return existingInfo
 	end
 
-	local displayName = (options and options.displayText) or name
+	local displayName = tostring((options and options.displayText) or name)
 	local button
 	local layoutOrder = options and options.order or (#TabManager.order + 1)
 	if TabManager.holder then
@@ -34989,6 +35143,8 @@ NAgui.addTab=function(name, options)
 			page = TabManager.fallback.page;
 			button = button;
 			layoutIndex = TabManager.fallback.layoutIndex or 0;
+			textIcon = textIconOption;
+			_isActive = false;
 		}
 		TabManager.fallback = nil
 	else
@@ -35010,11 +35166,16 @@ NAgui.addTab=function(name, options)
 			page = page;
 			button = button;
 			layoutIndex = 0;
+			textIcon = textIconOption;
+			_isActive = false;
 		}
 	end
 
 	if info.page then
 		NAgui.RegisterStrokesFrom(info.page)
+	end
+	if info.button and originalIO.applyTabDisplayText then
+		originalIO.applyTabDisplayText(info, { isActive = info._isActive })
 	end
 
 	info.order = layoutOrder
@@ -40060,8 +40221,8 @@ end)
 	end)
 end]]
 
-NAgui.addTab(TAB_ALL, { default = true, order = 0 })
-NAgui.addTab(TAB_GENERAL, { order = 1 })
+NAgui.addTab(TAB_ALL, { default = true, order = 0, textIcon = "grid" })
+NAgui.addTab(TAB_GENERAL, { order = 1, textIcon = "gear" })
 NAgui.setTab(TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
@@ -40178,7 +40339,7 @@ if FileSupport then
 	end)
 end
 
-NAgui.addTab(TAB_INTEGRATIONS, { order = 1.5 })
+NAgui.addTab(TAB_INTEGRATIONS, { order = 1.5, textIcon = "chain-link" })
 NAgui.setTab(TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
@@ -40194,7 +40355,7 @@ NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
 	return NAmanage.btEnabled()
 end)
 
-NAgui.addTab(TAB_INTERFACE, { order = 2 })
+NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "paint-brush" })
 NAgui.setTab(TAB_INTERFACE)
 
 
@@ -40206,7 +40367,7 @@ NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAmanage.NASettingsSet("buttonSize", val)
 end)
 
-NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
+NAgui.addColorPicker("Main Color", NAUISTROKER, function(color)
 	if typeof(color) == "Color3" then
 		NAUISTROKER = color
 		for _, element in ipairs(NACOLOREDELEMENTS) do
@@ -40226,6 +40387,12 @@ NAgui.addColorPicker("UI Stroke", NAUISTROKER, function(color)
 						else
 							stroke.Color = color
 						end
+					end
+					if originalIO.applyTabDisplayText then
+						originalIO.applyTabDisplayText(info, {
+							isActive = info._isActive,
+							defaultColor = color,
+						})
 					end
 				end
 			end
@@ -40522,7 +40689,7 @@ local function persistJoinLeaveConfig()
 	end
 end
 
-NAgui.addTab(TAB_LOGGING, { order = 5 })
+NAgui.addTab(TAB_LOGGING, { order = 5, textIcon = "list-bulleted" })
 NAgui.setTab(TAB_LOGGING)
 
 NAgui.addSection("Join/Leave Logging")
@@ -40545,7 +40712,7 @@ NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
 	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 end)
 
-NAgui.addTab(TAB_ESP, { order = 4 })
+NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
 NAgui.setTab(TAB_ESP)
 
 NAgui.isListActive=function(list)
@@ -40815,7 +40982,7 @@ NAgui.addButton("Clear Folder ESP", function()
 	end)
 end)
 
-NAgui.addTab(TAB_CHAT, { order = 3 })
+NAgui.addTab(TAB_CHAT, { order = 3, textIcon = "speech-bubble-align-center" })
 NAgui.setTab(TAB_CHAT)
 
 do
@@ -40990,7 +41157,7 @@ do
 end
 
 if not IsOnMobile then
-	NAgui.addTab(TAB_KEYBINDS, { order = 6 })
+	NAgui.addTab(TAB_KEYBINDS, { order = 6, textIcon = "xbox-a" })
 	NAgui.setTab(TAB_KEYBINDS)
 
 	if IsOnPC then
@@ -41066,7 +41233,7 @@ if not IsOnMobile then
 	end
 end
 
-NAgui.addTab(TAB_CHARACTER, { order = 7 })
+NAgui.addTab(TAB_CHARACTER, { order = 7, textIcon = "circle-person" })
 NAgui.setTab(TAB_CHARACTER)
 
 NAgui.addSection("Character Morph")
@@ -41123,7 +41290,7 @@ end)
 
 do
 	local previousTab = NAgui.getActiveTab()
-	NAgui.addTab(TAB_BASIC_INFO, { order = 7.5 })
+	NAgui.addTab(TAB_BASIC_INFO, { order = 7.5, textIcon = "circle-i" })
 	NAgui.setTab(TAB_BASIC_INFO)
 
 	local basicInfoConfig = {
@@ -41269,7 +41436,7 @@ do
 	end
 end
 
-NAgui.addTab(TAB_ROBLOX_DATA, { order = 8 })
+NAgui.addTab(TAB_ROBLOX_DATA, { order = 8, textIcon = "tilt" })
 NAgui.setTab(TAB_ROBLOX_DATA)
 
 NAStuff.GitHubLoadingText = "Loading..."
@@ -41570,7 +41737,9 @@ NAmanage.UpdateAdminInfoTabDisplayName = function()
 	if not info then return end
 	local displayText = (adminName or "Admin").." Info"
 	info.displayName = displayText
-	if info.button then
+	if originalIO.applyTabDisplayText then
+		originalIO.applyTabDisplayText(info, { isActive = info._isActive })
+	elseif info.button then
 		local title = info.button:FindFirstChild("Title")
 		if title then
 			title.Text = displayText
