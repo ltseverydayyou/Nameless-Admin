@@ -2317,6 +2317,17 @@ end
 if NAmanage and type(NAmanage.gaydeter) == "function" then
 	NAAssetsLoading.setStatus(FVx.vt)
 	local ok, verified, detail = pcall(NAmanage.gaydeter)
+
+	if type(detail) == "table" then
+		local unpacked = {}
+		for k, v in pairs(detail) do
+			unpacked[#unpacked + 1] = tostring(k) .. "=" .. tostring(v)
+		end
+		print(ok, verified, table.unpack(unpacked))
+	else
+		print(ok, verified, detail)
+	end
+
 	if not ok or not verified then
 		local errText = ok and detail or verified
 		if type(errText) ~= "string" or errText == "" then
