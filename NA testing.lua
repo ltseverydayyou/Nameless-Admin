@@ -59,50 +59,10 @@ function Lx5.d(val, bits)
 	return math.floor(val / Lx5.p[bits])
 end
 
-function Lx5.e(src)
-	local b, n = 0, 0
-	local out = {}
-	local oi = 1
-	for i = 1, #src do
-		b = b + Lx5.u(string.byte(src, i, i), n)
-		n += 8
-		if n > 13 then
-			local v = b % 8192
-			if v <= 88 then
-				v = b % 16384
-				b = Lx5.d(b, 14)
-				n -= 14
-			else
-				b = Lx5.d(b, 13)
-				n -= 13
-			end
-			local a = (v % 91) + 1
-			local d = math.floor(v / 91) + 1
-			out[oi] = string.sub(Lx5.a, a, a)
-			out[oi + 1] = string.sub(Lx5.a, d, d)
-			oi += 2
-		end
-	end
-	if n > 0 then
-		local a = (b % 91) + 1
-		out[oi] = string.sub(Lx5.a, a, a)
-		oi += 1
-		if n > 7 or b > 90 then
-			local d = math.floor(b / 91) + 1
-			out[oi] = string.sub(Lx5.a, d, d)
-			oi += 1
-		end
-	end
-	return table.concat(out, "", 1, oi - 1)
-end
-
 function Lx5.g(src)
-	local b = 0
-	local n = 0
-	local v = -1
+	local b, n, v = 0, 0, -1
 	local out = {}
 	local oi = 1
-
 	for i = 1, #src do
 		local c = Lx5.l[string.byte(src, i, i)]
 		if c ~= nil then
@@ -112,45 +72,38 @@ function Lx5.g(src)
 				v = v + c * 91
 				b = b + Lx5.u(v, n)
 				if (v % 8192) > 88 then
-					n = n + 13
+					n += 13
 				else
-					n = n + 14
+					n += 14
 				end
 				while n >= 8 do
 					out[oi] = string.char(b % 256)
-					oi = oi + 1
+					oi += 1
 					b = Lx5.d(b, 8)
-					n = n - 8
+					n -= 8
 				end
 				v = -1
 			end
 		end
 	end
-
 	if v >= 0 then
 		b = b + Lx5.u(v, n)
-		n = n + 7
+		if (v % 8192) > 88 then
+			n += 13
+		else
+			n += 14
+		end
 		while n >= 8 do
 			out[oi] = string.char(b % 256)
-			oi = oi + 1
+			oi += 1
 			b = Lx5.d(b, 8)
-			n = n - 8
+			n -= 8
 		end
 	end
-
 	if oi == 1 then
-		print("Lx5.g result: '' len 0 bytes: ")
 		return ""
 	end
-
-	local res = table.concat(out, "", 1, oi - 1)
-	local bytes = {}
-	for i = 1, #res do
-		bytes[i] = res:byte(i, i)
-	end
-	print("Lx5.g result:", res, "len", #res, "bytes:", table.concat(bytes, ","))
-
-	return res
+	return table.concat(out, "", 1, oi - 1)
 end
 
 local Notify = nil
@@ -942,8 +895,17 @@ function NAmanage.gaydeter()
 end
 
 function NAmanage.stopSKIDDING()
+	local function sanitizeName(value)
+		if type(value) ~= "string" then
+			return nil
+		end
+		return value:gsub("%z+$", "")
+	end
+
 	local function eq(a, b)
-		return type(a) == "string" and type(b) == "string" and a == b
+		local aa = sanitizeName(a)
+		local bb = sanitizeName(b)
+		return aa ~= nil and bb ~= nil and aa == bb
 	end
 
 	if not eq(Lx5.baseMainName, GGx.main) then
