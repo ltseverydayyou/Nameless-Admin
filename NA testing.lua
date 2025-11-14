@@ -36382,32 +36382,27 @@ NAmanage.Topbar_PositionPanel=function()
 	end
 end
 
-NAmanage.Topbar_AnimateIcon=function(img,off,size)
-	local ti=TweenInfo.new(0.12,Enum.EasingStyle.Sine,Enum.EasingDirection.Out)
-	local ti2=TweenInfo.new(0.14,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
-	NAmanage.Topbar_PlayTween("icon_shrink",TopBarApp.icon,ti,{Size=UDim2.new(0,0,0,0)}).Completed:Wait()
-	TopBarApp.icon.Image=img
-	if off then TopBarApp.icon.ImageRectOffset=off else TopBarApp.icon.ImageRectOffset=Vector2.new(0,0) end
-	if size then TopBarApp.icon.ImageRectSize=size else TopBarApp.icon.ImageRectSize=Vector2.new(0,0) end
-	NAmanage.Topbar_PlayTween("icon_grow",TopBarApp.icon,ti2,{Size=UDim2.new(0.8,0,0.8,0)})
+NAmanage.Topbar_AnimateIcon=function(iconText)
+	local ti=TweenInfo.new(0.1,Enum.EasingStyle.Sine,Enum.EasingDirection.Out)
+	local ti2=TweenInfo.new(0.1,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
+	NAmanage.Topbar_PlayTween("icon_shrink",TopBarApp.icon,ti,{TextSize=0}).Completed:Wait()
+	TopBarApp.icon.Text=iconText or ""
+	TopBarApp.icon.TextSize=0
+	NAmanage.Topbar_PlayTween("icon_grow",TopBarApp.icon,ti2,{TextSize=24})
 end
 
 NAmanage.Topbar_UpdateToggleVisual=function(open)
-	local ti=TweenInfo.new(0.14,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
+	local ti=TweenInfo.new(0.1,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
 	local bgTarget=open and 0.06 or 0.12
 	local strokeT=open and 0.05 or 0.15
 	NAmanage.Topbar_PlayTween("tglass_bg",TopBarApp.tGlass,ti,{BackgroundTransparency=bgTarget})
 	if TopBarApp.tStroke then NAmanage.Topbar_PlayTween("tglass_stroke",TopBarApp.tStroke,ti,{Transparency=strokeT}) end
-	local CLOSED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
-	local CLOSED_OFF=Vector2.new(456,440)
-	local CLOSED_SIZE=Vector2.new(36,36)
-	local OPENED_IMG="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_5.png"
-	local OPENED_OFF=Vector2.new(474,258)
-	local OPENED_SIZE=Vector2.new(36,36)
+	local CLOSED_ICON="three-bars-horizontal"
+	local OPENED_ICON="twitter"
 	if open then
-		NAmanage.Topbar_AnimateIcon(OPENED_IMG,OPENED_OFF,OPENED_SIZE)
+		NAmanage.Topbar_AnimateIcon(OPENED_ICON)
 	else
-		NAmanage.Topbar_AnimateIcon(CLOSED_IMG,CLOSED_OFF,CLOSED_SIZE)
+		NAmanage.Topbar_AnimateIcon(CLOSED_ICON)
 	end
 end
 
@@ -36491,12 +36486,14 @@ NAmanage.Topbar_Rebuild=function()
 	local i=0
 	for _,def in ipairs(TopBarApp.buttonDefs) do
 		i+=1
-		local btn=InstanceNew("ImageButton",TopBarApp.scroll)
+		local btn=InstanceNew("TextButton",TopBarApp.scroll)
 		btn.Name=def.name.."Btn"
 		btn.Size=UDim2.new(0, TopBarApp.mode=="bottom" and tileBottom or tileSide, 0, TopBarApp.mode=="bottom" and tileBottom or tileSide)
 		btn.BackgroundTransparency=1
 		btn.BorderSizePixel=0
 		btn.LayoutOrder=i
+		btn.Text=''
+		btn.TextTransparency=1
 		local bg=InstanceNew("Frame",btn)
 		bg.ZIndex=203
 		bg.Size=UDim2.new(1,0,1,0)
@@ -36509,15 +36506,17 @@ NAmanage.Topbar_Rebuild=function()
 		stroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 		stroke.Transparency=0.15
 		NAgui.RegisterColoredStroke(stroke)
-		local ic=InstanceNew("ImageLabel",bg)
+		local ic=InstanceNew("TextLabel",bg)
 		ic.ZIndex=204
 		ic.BackgroundTransparency=1
 		ic.Size=UDim2.new(0.65,0,0.65,0)
 		ic.Position=UDim2.new(0.5,0,0.5,0)
 		ic.AnchorPoint=Vector2.new(0.5,0.5)
-		ic.Image=def.image
-		if def.ImageRectOffset then ic.ImageRectOffset=def.ImageRectOffset end
-		if def.ImageRectSize then ic.ImageRectSize=def.ImageRectSize end
+		ic.FontFace=TopBarApp.icon.FontFace
+		ic.Text=def.icon or def.name or ""
+		ic.TextColor3=Color3.new(1,1,1)
+		ic.TextScaled=false
+		ic.TextSize=24
 		TopBarApp.childButtons[btn]=def.func
 		MouseButtonFix(btn,def.func)
 	end
@@ -36607,7 +36606,7 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.frame.Position=UDim2.new(0,0,0,0)
 	TopBarApp.frame.BackgroundTransparency=1
 	TopBarApp.frame.Parent=TopBarApp.top
-	TopBarApp.toggle=InstanceNew("ImageButton",TopBarApp.frame)
+	TopBarApp.toggle=InstanceNew("TextButton",TopBarApp.frame)
 	TopBarApp.toggle.Name="TopbarToggle"
 	TopBarApp.toggle.Size=UDim2.new(0,42,0,42)
 	TopBarApp.toggle.Position=UDim2.new(0.5,0,0,10)
@@ -36616,6 +36615,8 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.toggle.BorderSizePixel=0
 	TopBarApp.toggle.ClipsDescendants=false
 	TopBarApp.toggle.ZIndex=110
+	TopBarApp.toggle.Text=''
+	TopBarApp.toggle.TextTransparency=1
 	TopBarApp.tGlass=InstanceNew("Frame",TopBarApp.toggle)
 	TopBarApp.tGlass.Size=UDim2.new(1,0,1,0)
 	TopBarApp.tGlass.BackgroundColor3=Color3.fromRGB(20,20,24)
@@ -36627,16 +36628,16 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.tStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 	TopBarApp.tStroke.Transparency=0.15
 	NAgui.RegisterColoredStroke(TopBarApp.tStroke)
-	TopBarApp.icon=InstanceNew("ImageLabel",TopBarApp.toggle)
+	TopBarApp.icon=InstanceNew("TextLabel",TopBarApp.toggle)
 	TopBarApp.icon.AnchorPoint=Vector2.new(0.5,0.5)
 	TopBarApp.icon.Position=UDim2.new(0.5,0,0.5,0)
 	TopBarApp.icon.Size=UDim2.new(0.8,0,0.8,0)
 	TopBarApp.icon.BackgroundTransparency=1
-	TopBarApp.icon.ScaleType=Enum.ScaleType.Fit
-	TopBarApp.icon.Image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_6.png"
-	TopBarApp.icon.ImageRectOffset=Vector2.new(456,440)
-	TopBarApp.icon.ImageRectSize=Vector2.new(36,36)
 	TopBarApp.icon.ZIndex=112
+	TopBarApp.icon.FontFace=Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
+	TopBarApp.icon.TextColor3=Color3.new(1,1,1)
+	TopBarApp.icon.TextScaled=false
+	TopBarApp.icon.TextSize=24
 	TopBarApp.panel=InstanceNew("Frame",TopBarApp.top)
 	TopBarApp.panel.Visible=false
 	TopBarApp.panel.ClipsDescendants=true
@@ -36654,32 +36655,32 @@ NAmanage.Topbar_Init=function()
 	pStroke.Transparency=0.2
 	NAgui.RegisterColoredStroke(pStroke)
 	TopBarApp.buttonDefs={
-		{name="settings",image="rbxasset://LuaPackages/Packages/_Index/FoundationImages/FoundationImages/SpriteSheets/img_set_1x_8.png",ImageRectOffset=Vector2.new(416,464),ImageRectSize=Vector2.new(36,36),func=function()
+		{name="settings",icon="gear",func=function()
 			if NAUIMANAGER.SettingsFrame then
 				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
 			end
 		end},
-		{name="cmds",image="rbxasset://textures/ui/TopBar/moreOff@2x.png",func=NAgui.commands},
-		{name="chatlogs",image="rbxasset://textures/ui/Chat/ToggleChat@2x.png",func=function()
+		{name="cmds",icon="list-bulleted",func=NAgui.commands},
+		{name="chatlogs",icon="whatsapp",func=function()
 			if NAUIMANAGER.chatLogsFrame then
 				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 			end
 		end},
-		{name="console",image="rbxasset://textures/Icon_Stream_Off.png",func=function()
+		{name="console",icon="pencil-square",func=function()
 			if NAUIMANAGER.NAconsoleFrame then
 				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
 			end
 		end},
-		{name="waypp",image="rbxasset://textures/ui/waypoint.png",func=function()
+		{name="waypp",icon="location-pin",func=function()
 			if NAUIMANAGER.WaypointFrame then
 				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
 			end
 		end},
-		{name="bindd",image="rbxasset://textures/ui/PlayerList/developer@2x.png",func=function()
+		{name="bindd",icon="hammer-code",func=function()
 			if NAUIMANAGER.BindersFrame then
 				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
