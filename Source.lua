@@ -19,68 +19,6 @@ local Discover = table.find;
 local Concat = table.concat;
 local Defer = task.defer;
 
-local Lx5 = { a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_`{|}~"', l = {}, p = {} }
-do
-	local pow = 1
-	for i = 0, 32 do
-		Lx5.p[i] = pow
-		pow *= 2
-	end
-	for i = 1, #Lx5.a do
-		Lx5.l[string.byte(Lx5.a, i, i)] = i - 1
-	end
-end
-
-function Lx5.u(val, bits)
-	return val * Lx5.p[bits]
-end
-
-function Lx5.d(val, bits)
-	return math.floor(val / Lx5.p[bits])
-end
-
-function Lx5.g(src)
-	local b, n, v = 0, 0, -1
-	local out = {}
-	local oi = 1
-	for i = 1, #src do
-		local c = Lx5.l[string.byte(src, i, i)]
-		if c ~= nil then
-			if v < 0 then
-				v = c
-			else
-				v = v + c * 91
-				b = b + Lx5.u(v, n)
-				if (v % 8192) > 88 then
-					n += 13
-				else
-					n += 14
-				end
-				while n >= 8 do
-					out[oi] = string.char(b % 256)
-					oi += 1
-					b = Lx5.d(b, 8)
-					n -= 8
-				end
-				v = -1
-			end
-		end
-	end
-	if v >= 0 then
-		b = b + Lx5.u(v, n)
-		while n >= 8 do
-			out[oi] = string.char(b % 256)
-			oi += 1
-			b = Lx5.d(b, 8)
-			n -= 8
-		end
-	end
-	if oi == 1 then
-		return ""
-	end
-	return table.concat(out, "", 1, oi - 1)
-end
-
 local Notify = nil
 local Window = nil
 local Popup  = nil
@@ -520,19 +458,6 @@ local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local prefixCheck = ";"
-local xCW = Lx5.g("l5VKR[9`aICv)j8j%ouJS[~j<R/@8P!qwre3:^#N]#@+1.UjA#!,l/JT@S")
-local FVx = {
-	vt = Lx5.g("KEDg4+6YxSq3`)9j$2,<8=2!<!8");
-	nohttp = Lx5.g("BP0=O:T[$y50eF>iTPX<.Wf[LRGv6xXi<i^IUc:{#Fwc$DhLf8@Ji>BZaH");
-	missing = Lx5.g("Pa8=O:/p#F#0,mHl3oh+d,8C");
-	badresp = Lx5.g("Ro^gU<:Y#F#0ZQBk2JzIP:T[#F90GFRn82^I");
-	badkey = Lx5.g("RoX<r@6erR7tp9Uo1a/2/WsefV");
-	reqfail = Lx5.g("BP0=O:T[$y50eFMo`w;gO[yC}!S6C9bj");
-	statusFmt = Lx5.g("[O9K%*mes!2t(PFlXP;IUc#RaH");
-	hContent = Lx5.g("`q$Jg,_Y\"H6@S9M");
-	hJson = Lx5.g("Hu@JN:/Hr%!&4^elqr$J");
-	hKey = Lx5.g("xlKdi`A");
-}
 opt={
 	prefix=prefixCheck;
 	NAupdDate='unknown'; --month,day,year
@@ -796,69 +721,6 @@ function NAmanage.scheduleLoader(label, callback, opts)
 	Spawn(function()
 		NAmanage.runLoader(label, callback, opts)
 	end)
-end
-
-function NAmanage.gaydeter()
-	local requestFunc = opt and opt.NAREQUEST
-	if type(requestFunc) ~= "function" then
-		return false, FVx.nohttp
-	end
-	local key = tostring((getgenv and getgenv().NAverify) or "")
-	if key == "" then
-		return false, FVx.missing
-	end
-	local requestUrl = xCW
-	if type(requestUrl) ~= "string" or requestUrl == "" then
-		return false, FVx.badresp
-	end
-	local encodedKey = key
-	if HttpService and HttpService.UrlEncode then
-		local ok, encoded = pcall(HttpService.UrlEncode, HttpService, key)
-		if ok and type(encoded) == "string" and encoded ~= "" then
-			encodedKey = encoded
-		end
-	end
-	local sep = requestUrl:find("?", 1, true) and "&" or "?"
-	local queryUrl = requestUrl..sep.."key="..encodedKey
-	local headerKey = FVx.hKey or "X-Key"
-	local ok, response = pcall(requestFunc, {
-		Url = queryUrl;
-		Method = "POST";
-		Headers = {
-			[FVx.hContent] = FVx.hJson;
-			[headerKey] = key;
-			["x-key"] = key;
-		};
-		Body = "{}";
-	})
-	if not ok then
-		return false, FVx.reqfail
-	end
-	if typeof(response) ~= "table" then
-		return false, FVx.badresp
-	end
-	local statusCode = tonumber(response.StatusCode or response.Status)
-	local body = response.Body or response.body or "{}"
-	if statusCode and statusCode ~= 200 then
-		local statusMsg = statusCode == 401 and FVx.badkey or Format(FVx.statusFmt, tostring(statusCode or "nil"))
-		return false, statusMsg
-	end
-	local decodedOk, decoded = pcall(function()
-		return HttpService:JSONDecode(body)
-	end)
-	if decodedOk and decoded and decoded.ok == true then
-		return true, decoded
-	end
-	local errMsg
-	if decodedOk and decoded then
-		errMsg = decoded.message or decoded.error
-	else
-		errMsg = decoded
-	end
-	if type(errMsg) ~= "string" or errMsg == "" then
-		errMsg = FVx.badkey
-	end
-	return false, errMsg
 end
 
 local searchIndex = {}
@@ -2389,20 +2251,6 @@ end
 if not NAAssetsLoading.setStatus then
 	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
 	NaProtectUI(NAAssetsLoading.ui)
-end
-
-if NAmanage and type(NAmanage.gaydeter) == "function" then
-	NAAssetsLoading.setStatus(FVx.vt)
-	local ok, verified, detail = pcall(NAmanage.gaydeter)
-	if not ok or not verified then
-		local errText = ok and detail or verified
-		if type(errText) ~= "string" or errText == "" then
-			errText = FVx.badkey
-		end
-		NAAssetsLoading.setPercent(0)
-		NAAssetsLoading.setStatus(errText)
-		error(errText)
-	end
 end
 
 NAAssetsLoading.setStatus("waiting for engine")
