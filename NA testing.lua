@@ -882,8 +882,40 @@ function NAmanage.gaydeter()
 end
 
 local searchIndex = {}
+local cmds
+local defaultBarCommands = { "settings", "commands", "cmdloop", "binders", "discord" }
+local shouldShowDefaultAutofill = false
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
+
+NAmanage.defaultCommandMatches=function(entry, target)
+	if not (entry and target) then
+		return false
+	end
+	if entry.lowerName == target then
+		return true
+	end
+	if entry.extraAliases then
+		for _, alias in ipairs(entry.extraAliases) do
+			if alias and Lower(alias) == target then
+				return true
+			end
+		end
+	end
+	local baseLower = entry.name and Lower(entry.name) or nil
+	if baseLower then
+		local commandData = cmds.Commands[baseLower]
+		local aliasData = cmds.Aliases[target]
+		if commandData and aliasData and commandData == aliasData then
+			return true
+		end
+		local savedAliasTarget = cmds.NASAVEDALIASES[target]
+		if savedAliasTarget and Lower(savedAliasTarget) == baseLower then
+			return true
+		end
+	end
+	return false
+end
 local NAImageAssets = {
 	Icon = "NAnew.png";
 	sWare = "ScriptWare.png";
@@ -928,6 +960,131 @@ local NAfiles = {
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 }
+NAmanage.newCornerStore=function()
+	return {}
+end
+
+NAmanage.initCornerEditor=function(coreGui, HUI)
+	if not (coreGui and NAgui) then
+		return
+	end
+
+	local CE = {
+		path = NAfiles.NAFILEPATH.."/corner_editor.json",
+		default = { enabled = false, radius = 10 },
+		cg = coreGui,
+		store = NAmanage.newCornerStore(),
+	}
+
+	local data = {
+		enabled = CE.default.enabled,
+		radius = CE.default.radius,
+	}
+	if FileSupport then
+		if not isfile(CE.path) then
+			writefile(CE.path, HttpService:JSONEncode(CE.default))
+		end
+		local okRead, raw = pcall(readfile, CE.path)
+		if okRead and type(raw) == "string" then
+			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			if okDecode and type(decoded) == "table" then
+				data.enabled = decoded.enabled == true
+				local parsedRadius = tonumber(decoded.radius)
+				if parsedRadius then
+					data.radius = parsedRadius
+				end
+			end
+		end
+	end
+	data.radius = math.clamp(data.radius, 0, 64)
+	CE.data = data
+
+	local function getCornerRadius()
+		return UDim.new(0, math.clamp(tonumber(CE.data.radius) or CE.default.radius, 0, 64))
+	end
+
+	local function isCornerTarget(o)
+		if not (o and o:IsA("UICorner")) then
+			return false
+		end
+		if HUI and o:IsDescendantOf(HUI) then
+			return false
+		end
+		return true
+	end
+
+	local function applyCorner(o)
+		if not isCornerTarget(o) then
+			return
+		end
+		local info = CE.store[o]
+		if not info then
+			info = { original = o.CornerRadius }
+			CE.store[o] = info
+		end
+		o.CornerRadius = getCornerRadius()
+	end
+
+	local function restoreAllCorners()
+		for corner, info in pairs(CE.store) do
+			if corner and info and info.original then
+				corner.CornerRadius = info.original
+			end
+		end
+		CE.store = NAmanage.newCornerStore()
+	end
+
+	local function applyAllCorners()
+		if not CE.cg then
+			return
+		end
+		local descendants = CE.cg:GetDescendants()
+		for i = 1, #descendants do
+			applyCorner(descendants[i])
+		end
+	end
+
+	local function persistCornerData()
+		if FileSupport then
+			writefile(CE.path, HttpService:JSONEncode(CE.data))
+		end
+	end
+
+	local function onCornerDescendant(o)
+		if CE.data.enabled then
+			applyCorner(o)
+		end
+	end
+
+	if CE.cg then
+		NAlib.disconnect("CornerEditor")
+		NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCornerDescendant))
+	end
+	if CE.data.enabled then
+		applyAllCorners()
+	end
+
+	NAgui.addSection("Corner Editor")
+	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
+		CE.data.enabled = v
+		if CE.data.enabled then
+			applyAllCorners()
+		else
+			restoreAllCorners()
+		end
+		persistCornerData()
+	end)
+	local sliderRadius = math.clamp(CE.data.radius, 0, 64)
+	NAgui.addSlider("Corner Radius", 0, 64, sliderRadius, 0.5, " px", function(v)
+		local parsed = math.clamp(tonumber(v) or CE.default.radius, 0, 64)
+		CE.data.radius = parsed
+		if CE.data.enabled then
+			applyAllCorners()
+		end
+		persistCornerData()
+	end)
+end
+
 local NAScale = 1
 local NAUIScale = 1
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
@@ -4140,7 +4297,7 @@ LocalPlayer=Player
 local character=Player.Character
 local camera=workspace.CurrentCamera
 local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
-local cmds={
+cmds={
 	Commands={};
 	Aliases={};
 	NASAVEDALIASES = {};
@@ -35359,8 +35516,13 @@ NAgui.resizeable = function(ui, min, max)
 	local dragInput
 	local dragEndedConn
 
+	local function isMenuMinimized()
+		return ui and ui.GetAttribute and ui:GetAttribute("NAMenuMinimized") == true
+	end
+
 	local function updateResize(currentPos)
 		local ok, err = pcall(function()
+			if isMenuMinimized() then return end
 			if not dragging or not mode or not screenGui or not screenGui.AbsoluteSize then return end
 			local map = resizeXY and resizeXY[mode.Name]
 			if not map then return end
@@ -36837,13 +36999,21 @@ NAgui.menu = function(menu)
 	local isAnimating = false
 	local sizeX = InstanceNew("IntValue", menu)
 	local sizeY = InstanceNew("IntValue", menu)
+	local function setMinAtt(value)
+		minimized = value
+		if menu and menu.SetAttribute then
+			menu:SetAttribute("NAMenuMinimized", value)
+		end
+	end
+	setMinAtt(false)
 
 	local function toggleMinimize()
 		if isAnimating then return end
-		minimized = not minimized
+		local nextState = not minimized
+		setMinAtt(nextState)
 		isAnimating = true
 
-		if minimized then
+		if nextState then
 			sizeX.Value = menu.Size.X.Offset
 			sizeY.Value = menu.Size.Y.Offset
 			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, 35)})
@@ -36881,14 +37051,22 @@ NAgui.menuv2 = function(menu)
 	local isAnimating = false
 	local sizeX = InstanceNew("IntValue", menu)
 	local sizeY = InstanceNew("IntValue", menu)
+	local function setMinAtt(value)
+		minimized = value
+		if menu and menu.SetAttribute then
+			menu:SetAttribute("NAMenuMinimized", value)
+		end
+	end
+	setMinAtt(false)
 
 	local function toggleMinimize()
 		local success, err = NACaller(function()
 			if isAnimating then return end
-			minimized = not minimized
+			local nextState = not minimized
+			setMinAtt(nextState)
 			isAnimating = true
 
-			if minimized then
+			if nextState then
 				sizeX.Value = menu.Size.X.Offset
 				sizeY.Value = menu.Size.Y.Offset
 				NAgui.tween(menu, "Quart", "Out", 0.5, {
@@ -37042,6 +37220,7 @@ end)
 
 NAgui.barSelect = function(speed)
 	speed = speed or 0.4
+	shouldShowDefaultAutofill = true
 
 	NAUIMANAGER.centerBar.Size = UDim2.new(0, 0, 0, 0)
 
@@ -37067,6 +37246,8 @@ end
 
 NAgui.barDeselect = function(speed)
 	speed = speed or 0.4
+
+	shouldShowDefaultAutofill = false
 
 	NAgui.tween(NAUIMANAGER.centerBar, "Back", "InOut", speed, {
 		Size = UDim2.new(0, 0, 0, 0)
@@ -37185,10 +37366,28 @@ NAmanage.performSearch=function(term)
 	end
 	if term == "" or Match(term,"^%s*$") then
 		predictionInput.Text = ""
-		for i=1,math.min(5,#searchIndex) do
-			local entry=searchIndex[i]
-			if entry then
-				revealFrame(entry.frame,i)
+		if shouldShowDefaultAutofill then
+			shouldShowDefaultAutofill = false
+			local displayed = 0
+			for _, cmdName in ipairs(defaultBarCommands) do
+				if displayed >= 5 then
+					break
+				end
+				local target = Lower(cmdName)
+				for _, entry in ipairs(searchIndex) do
+					if NAmanage.defaultCommandMatches(entry, target) then
+						displayed += 1
+						revealFrame(entry.frame, displayed)
+						break
+					end
+				end
+			end
+		else
+			for i=1,math.min(5,#searchIndex) do
+				local entry=searchIndex[i]
+				if entry then
+					revealFrame(entry.frame,i)
+				end
 			end
 		end
 		return
@@ -37219,6 +37418,7 @@ NAgui.searchCommands = function()
 	if NAlib.isConnected("SearchInput") then NAlib.disconnect("SearchInput") end
 	NAlib.connect("SearchInput",NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
+		shouldShowDefaultAutofill = cleaned == ""
 		local isBlank = cleaned == "" or cleaned:match("^%s*$")
 		if cleaned==lastSearchText and not isBlank then return end
 		lastSearchText=cleaned
@@ -40274,6 +40474,16 @@ NAmanage.RegisterToggleAutoSync("Keep Icon Position", function()
 	return NAiconSaveEnabled == true
 end)
 
+NAgui.addSection("Support")
+NAgui.addButton("Join Discord", function()
+	if setclipboard then
+		setclipboard(inviteLink)
+		DoNotif("Discord link copied to clipboard!")
+	else
+		DoNotif("Unable to copy automatically. Invite: "..inviteLink, 3)
+	end
+end)
+
 if FileSupport then
 	NAgui.addSection("Saved Data")
 	NAgui.addButton("Delete Saved Settings...", function()
@@ -40613,6 +40823,8 @@ if CoreGui then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
 		end
 	end)
+
+	NAmanage.initCornerEditor(CoreGui, HUI)
 
 	if previousTab and previousTab ~= TAB_INTERFACE then
 		if NAgui.getActiveTab() == TAB_INTERFACE then
