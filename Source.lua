@@ -38849,10 +38849,8 @@ NAgui.applyIconLock=function(locked)
 	if not TextButton then return end
 	if locked then
 		NAlib.disconnect(NAgui._NAIconConnName())
-		pcall(function() TextButton.Active=false end)
 	else
 		NAgui.draggerV2(TextButton)
-		pcall(function() TextButton.Active=true end)
 	end
 end
 
