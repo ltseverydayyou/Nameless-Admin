@@ -9,6 +9,7 @@ local tw = Svc("TweenService")
 local ui = Svc("UserInputService")
 local hs = Svc("HttpService")
 local rs = Svc("RunService")
+local MarketplaceService = Svc("MarketplaceService")
 local eng = "ScriptBlox"
 
 local col = {
@@ -21,6 +22,21 @@ local col = {
     wa = Color3.fromRGB(255,179,71),
     er = Color3.fromRGB(244,63,94)
 }
+
+local isMobile=(function()
+	local platform=ui:GetPlatform()
+	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
+		return true
+	end
+	if platform==Enum.Platform.None then
+		return ui.TouchEnabled and not (ui.KeyboardEnabled or ui.MouseEnabled)
+	end
+	return false
+end)()
+local frameScaleX = isMobile and 0.75 or 0.45
+local frameScaleY = isMobile and 0.92 or 0.82
+local titleWidthScale = isMobile and 0.7 or 0.65
+local searchWidthScale = isMobile and 0.95 or 0.9
 
 local function Protect(g)
     if g:IsA("ScreenGui") then
@@ -48,8 +64,9 @@ sg.Name = "SBX"
 Protect(sg)
 
 local fr = Instance.new("Frame")
-fr.Size = UDim2.new(0, 580, 0, 500)
-fr.Position = UDim2.new(0.5, -290, 0.5, -250)
+fr.Size = UDim2.new(frameScaleX, 0, frameScaleY, 0)
+fr.AnchorPoint = Vector2.new(0.5, 0.5)
+fr.Position = UDim2.new(0.5, 0, 0.5, 0)
 fr.BackgroundColor3 = col.bg
 fr.BorderSizePixel = 0
 fr.Active = true
@@ -88,7 +105,7 @@ task.spawn(function()
 end)
 
 local ttl = Instance.new("TextLabel")
-ttl.Size = UDim2.new(1, -260, 1, 0)
+ttl.Size = UDim2.new(titleWidthScale, 0, 1, 0)
 ttl.Position = UDim2.new(0, 16, 0, 0)
 ttl.BackgroundTransparency = 1
 ttl.Font = Enum.Font.GothamBold
@@ -188,11 +205,11 @@ sLbl.TextScaled = true
 sLbl.Parent = sr
 
 local sbox = Instance.new("TextBox")
-sbox.Size = UDim2.new(1, -260, 1, -16)
+sbox.Size = UDim2.new(searchWidthScale, 0, 1, -16)
 sbox.Position = UDim2.new(0, 40, 0, 8)
 sbox.BackgroundTransparency = 1
 sbox.Font = Enum.Font.Gotham
-sbox.PlaceholderText = "Search for scripts…"
+sbox.PlaceholderText = "Search for scripts (scriptblox.com)"
 sbox.Text = ""
 sbox.TextColor3 = col.tx
 sbox.PlaceholderColor3 = Color3.fromRGB(140,146,160)
@@ -276,10 +293,13 @@ sf.ScrollBarImageColor3 = col.ac
 sf.CanvasSize = UDim2.new(0, 0, 0, 0)
 sf.Parent = rc
 
-local list = Instance.new("UIListLayout")
-list.Padding = UDim.new(0, 10)
-list.SortOrder = Enum.SortOrder.LayoutOrder
-list.Parent = sf
+local gridLayout = Instance.new("UIGridLayout")
+gridLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+gridLayout.CellSize = UDim2.new(isMobile and 1 or 0.48, -12, 0, isMobile and 300 or 300)
+gridLayout.FillDirection = Enum.FillDirection.Horizontal
+gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+gridLayout.Parent = sf
 
 local pad = Instance.new("UIPadding")
 pad.PaddingTop = UDim.new(0, 8)
@@ -322,15 +342,43 @@ local function btnAnim(b, baseCol, hoverCol)
         tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = hovering and hover or base}):Play()
     end)
 end
+local SCRIPTBLOX_BASE = "https://scriptblox.com"
+local function buildRobloxThumbnail(placeId)
+    local id = tostring(placeId or "")
+    if id == "" or id == "0" then return nil end
+    return "https://www.roblox.com/Thumbs/PlaceThumbnail.ashx?width=420&height=270&format=png&placeId="..id
+end
+
+local function resolveScriptBloxCover(placeId)
+    return buildRobloxThumbnail(placeId)
+end
+
+local function resolveRScriptsCover(placeId)
+    return buildRobloxThumbnail(placeId)
+end
+
+local function tryFetchPlaceIcon(placeId, imageLabel)
+    if not MarketplaceService or not placeId or not imageLabel then return end
+    coroutine.wrap(function()
+        local ok, info = pcall(function()
+            return MarketplaceService:GetProductInfo(tonumber(placeId), Enum.InfoType.Asset)
+        end)
+        if not ok or not info then return end
+        local iconId = info.IconImageAssetId
+        if iconId and iconId ~= 0 then
+            imageLabel.Image = "rbxassetid://"..iconId
+            imageLabel.ImageTransparency = 0
+        end
+    end)()
+end
 btnAnim(engb, col.bg, Color3.fromRGB(45,49,58))
 btnAnim(go, col.ac, Color3.fromRGB(58,160,255))
-btnAnim(mini, mini.BackgroundColor3, Color3.fromRGB(60,64,72))
 btnAnim(cls, cls.BackgroundColor3, Color3.fromRGB(72,24,32))
 
 local function sizeCanvas()
-    sf.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 12)
+    sf.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 12)
 end
-list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(sizeCanvas)
+gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(sizeCanvas)
 
 local function clearAll(anim)
     for _,v in ipairs(sf:GetChildren()) do
@@ -407,7 +455,8 @@ local function skeleton(n)
     for i=1,n do
         local s = Instance.new("Frame")
         s.Name = "Skel"
-        s.Size = UDim2.new(1, -8, 0, 120)
+        s.Size = UDim2.new(1, 0, 1, 0)
+        s.LayoutOrder = i
         s.BackgroundColor3 = Color3.fromRGB(40,44,52)
         s.BorderSizePixel = 0
         s.Parent = sf
@@ -449,8 +498,9 @@ local function mkMsg(txt, bg)
 end
 
 local minimized = false
-local fullS = UDim2.new(0, 580, 0, 500)
-local miniS = UDim2.new(0, 580, 0, 56)
+local fullS = fr.Size
+local miniHeight = isMobile and 70 or 56
+local miniS = UDim2.new(frameScaleX, 0, 0, miniHeight)
 
 local function setMin(s)
     minimized = s
@@ -487,16 +537,43 @@ sbox.FocusLost:Connect(function()
 end)
 
 local function mkCard(i, d)
-    local t = d.title
-    local rw = (eng == "ScriptBlox") and d.script or d.rawScript
-    local v = d.views
-    local k = (eng == "ScriptBlox") and d.key or d.keySystem
+    local t = d.title or d.name or "Untitled Script"
+    local rw = (eng == "ScriptBlox") and d.script or d.rawScript or d.scriptLink or d.raw or ""
+    local v = tostring(d.views or d.viewCount or 0)
+    local likes = tostring(d.likeCount or 0)
+    local keyFlag = (eng == "ScriptBlox") and d.key or d.keySystem
+    local scriptType = d.scriptType or "Free"
+    local verified = d.verified and "Verified" or "Unverified"
+    local status = d.isPatched and "Patched" or "Working"
+    local mobileStatus
+    if eng == "RScripts" then
+        mobileStatus = (d.mobileReady == true and "Mobile Ready") or (d.mobileReady == false and "PC Only") or "Unknown Platform"
+    end
+    local lastUpdated = d.lastBump or d.updatedAt or d.createdAt or ""
+    if lastUpdated ~= "" then
+        lastUpdated = lastUpdated:match("%d%d%d%d%-%d%d%-%d%d") or lastUpdated:sub(1, 10)
+    end
+    local placeSourceId
+    if eng == "ScriptBlox" then
+        placeSourceId = d.game and d.game.gameId
+    else
+        placeSourceId = d.game and (d.game.placeId or (d.game.gameLink and d.game.gameLink:match("/games/(%d+)")))
+    end
+    local placeId = tonumber(placeSourceId)
+    local hasPlaceId = placeId and placeId > 0
+    local gameName = hasPlaceId and (eng == "ScriptBlox" and (d.game and d.game.name) or (d.game and d.game.title)) or t
+    if not gameName or gameName == "" then
+        gameName = t
+    end
+    local displayGameId = hasPlaceId and tostring(placeId) or nil
 
     local c = Instance.new("Frame")
     c.Name = "Card"..i
-    c.Size = UDim2.new(1, -8, 0, 134)
+    c.Size = UDim2.new(1, 0, 1, 0)
     c.BackgroundColor3 = col.bg
     c.BorderSizePixel = 0
+    c.LayoutOrder = i
+    c.ClipsDescendants = true
     c.Parent = sf
 
     local cc = Instance.new("UICorner")
@@ -512,9 +589,95 @@ local function mkCard(i, d)
     c.MouseEnter:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.15}):Play() end)
     c.MouseLeave:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.35}):Play() end)
 
+    local coverHeight = 120
+    local showCover = hasPlaceId
+    local coverImage
+    if showCover then
+        if eng == "ScriptBlox" then
+            coverImage = resolveScriptBloxCover(placeId)
+        else
+            coverImage = resolveRScriptsCover(placeId)
+        end
+    end
+    if showCover then
+        local cover = Instance.new("ImageLabel")
+        cover.Size = UDim2.new(1, 0, 0, coverHeight)
+        cover.Position = UDim2.new(0, 0, 0, 0)
+        cover.BackgroundColor3 = Color3.fromRGB(12, 14, 22)
+        cover.BorderSizePixel = 0
+        cover.Image = coverImage or ""
+        cover.ImageTransparency = coverImage and 0 or 1
+        cover.ScaleType = Enum.ScaleType.Crop
+        cover.ClipsDescendants = true
+        cover.Parent = c
+        local coverCorner = Instance.new("UICorner")
+        coverCorner.CornerRadius = UDim.new(0, 10)
+        coverCorner.Parent = cover
+        local coverOverlay = Instance.new("Frame")
+        coverOverlay.Size = UDim2.new(1, 0, 1, 0)
+        coverOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
+        coverOverlay.BackgroundTransparency = 0.25
+        coverOverlay.Parent = cover
+        local grad = Instance.new("UIGradient")
+        grad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.new(0, 0, 0)),
+            ColorSequenceKeypoint.new(1, Color3.new(0, 0, 0))
+        })
+        grad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.2),
+            NumberSequenceKeypoint.new(1, 0.8)
+        })
+        grad.Rotation = 90
+        grad.Parent = coverOverlay
+        local gameBadge = Instance.new("TextLabel")
+        gameBadge.Size = UDim2.new(1, -24, 0, 26)
+        gameBadge.Position = UDim2.new(0, 12, 1, -38)
+        gameBadge.BackgroundTransparency = 1
+        gameBadge.Font = Enum.Font.GothamSemibold
+        gameBadge.TextSize = 14
+        gameBadge.TextXAlignment = Enum.TextXAlignment.Left
+        gameBadge.TextColor3 = col.tx
+        gameBadge.Text = ("Game: %s"):format(gameName)
+        gameBadge.Parent = cover
+        if displayGameId then
+            local gameIdLabel = Instance.new("TextLabel")
+            gameIdLabel.Size = UDim2.new(1, -24, 0, 18)
+            gameIdLabel.Position = UDim2.new(0, 12, 1, -18)
+            gameIdLabel.BackgroundTransparency = 1
+            gameIdLabel.Font = Enum.Font.Code
+            gameIdLabel.TextSize = 12
+            gameIdLabel.TextXAlignment = Enum.TextXAlignment.Left
+            gameIdLabel.TextColor3 = col.td
+            gameIdLabel.Text = ("ID: %s"):format(displayGameId)
+            gameIdLabel.Parent = cover
+        end
+        tryFetchPlaceIcon(displayGameId, cover)
+    end
+
+    local bodyOffset = showCover and (coverHeight + 12) or 12
+    local textContent = Instance.new("Frame")
+    textContent.Size = UDim2.new(1, -24, 0, 0)
+    textContent.AutomaticSize = Enum.AutomaticSize.Y
+    if showCover then
+        textContent.AnchorPoint = Vector2.new(0, 0)
+        textContent.Position = UDim2.new(0, 12, 0, bodyOffset)
+    else
+        textContent.AnchorPoint = Vector2.new(0, 0.5)
+        textContent.Position = UDim2.new(0, 12, 0.5, 0)
+    end
+    textContent.BackgroundTransparency = 1
+    textContent.ClipsDescendants = true
+    textContent.AutomaticSize = Enum.AutomaticSize.Y
+    textContent.Parent = c
+
+    local textLayout = Instance.new("UIListLayout")
+    textLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    textLayout.Padding = UDim.new(0, 6)
+    textLayout.Parent = textContent
+
     local tl = Instance.new("TextLabel")
-    tl.Size = UDim2.new(1, -20, 0, 32)
-    tl.Position = UDim2.new(0, 12, 0, 10)
+    tl.Size = UDim2.new(1, 0, 0, 0)
+    tl.AutomaticSize = Enum.AutomaticSize.Y
     tl.BackgroundTransparency = 1
     tl.Font = Enum.Font.GothamBold
     tl.Text = tostring(t)
@@ -522,29 +685,53 @@ local function mkCard(i, d)
     tl.TextSize = 15
     tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.TextWrapped = true
-    tl.Parent = c
+    tl.ZIndex = 2
+    tl.LayoutOrder = 1
+    tl.Parent = textContent
 
     local inf = Instance.new("TextLabel")
-    inf.Size = UDim2.new(1, -20, 0, 40)
-    inf.Position = UDim2.new(0, 12, 0, 46)
+    inf.Size = UDim2.new(1, 0, 0, 0)
+    inf.AutomaticSize = Enum.AutomaticSize.Y
     inf.BackgroundTransparency = 1
     inf.Font = Enum.Font.Gotham
-    if eng == "ScriptBlox" then
-        inf.Text = "🌐 "..(d.isUniversal and "Universal" or "Game-Specific").."   •   🔑 "..((d.key and "Key") or "No Key").."\n🛠️ "..((d.isPatched and "Patched") or "Working").."   •   👁️ "..tostring(v)
-    else
-        local dc = d.discord or "N/A"
-        inf.Text = "🔑 "..((k and "Key") or "No Key").."   •   👁️ "..tostring(v).."\n💬 "..dc.."   •   📱 "..((d.mobileReady and "Mobile") or "PC Only")
-    end
+    inf.TextWrapped = true
     inf.TextColor3 = col.td
     inf.TextSize = 12
     inf.TextXAlignment = Enum.TextXAlignment.Left
-    inf.Parent = c
-
+    inf.ZIndex = 2
+    inf.LayoutOrder = 2
+    local infoLines = {}
+    if displayGameId then
+        table.insert(infoLines, ("Game: %s%s"):format(gameName, displayGameId and (" (ID "..displayGameId..")") or ""))
+    end
+    table.insert(infoLines, ("Type: %s | %s | Key: %s"):format(scriptType, verified, keyFlag and "Key" or "No Key"))
+    if eng == "ScriptBlox" then
+        table.insert(infoLines, ("Status: %s | Views: %s | Likes: %s"):format(status, v, likes))
+    else
+        table.insert(infoLines, ("Status: %s | %s | Views: %s | Likes: %s"):format(status, mobileStatus or "Platform Unknown", v, likes))
+        table.insert(infoLines, ("Paid: %s"):format(d.paid and "Paid" or "Free"))
+        if d.description and d.description ~= "" then
+            local desc = d.description:gsub("%c", " ")
+            if #desc > 90 then
+                desc = desc:sub(1, 87).."..."
+            end
+            table.insert(infoLines, ("Desc: %s"):format(desc))
+        end
+    end
+    if lastUpdated ~= "" then
+        table.insert(infoLines, ("Updated: %s"):format(lastUpdated))
+    end
+    if eng == "RScripts" and d.discord then
+        table.insert(infoLines, ("Discord: %s"):format(d.discord))
+    end
+    inf.Text = table.concat(infoLines, "\n")
+    inf.Parent = textContent
     local row = Instance.new("Frame")
     row.BackgroundTransparency = 1
-    row.Size = UDim2.new(1, -24, 0, 40)
-    row.Position = UDim2.new(0, 12, 1, -50)
-    row.Parent = c
+    row.Size = UDim2.new(1, 0, 0, 34)
+    row.ZIndex = 2
+    row.LayoutOrder = 3
+    row.Parent = textContent
 
     local rl = Instance.new("UIListLayout")
     rl.FillDirection = Enum.FillDirection.Horizontal
@@ -554,7 +741,7 @@ local function mkCard(i, d)
 
     local function mkB(txt, bg)
         local b = Instance.new("TextButton")
-        b.Size = UDim2.new(0, 120, 1, 0)
+        b.Size = UDim2.new(0, 120, 0, 34)
         b.BackgroundColor3 = bg
         b.Text = txt
         b.TextColor3 = col.tx
@@ -567,9 +754,9 @@ local function mkCard(i, d)
         return b
     end
 
-    local ex = mkB("▶ Run", col.su)
-    local cp = setclipboard and mkB("📋 Copy", Color3.fromRGB(57,63,75)) or nil
-    local dc = (d.discord and setclipboard) and mkB("💬 Discord", Color3.fromRGB(28,116,224)) or nil
+    local ex = mkB("Run", col.su)
+    local cp = setclipboard and mkB("Copy", Color3.fromRGB(57,63,75)) or nil
+    local dc = (d.discord and setclipboard) and mkB("Discord", Color3.fromRGB(28,116,224)) or nil
 
     ex.MouseButton1Click:Connect(function()
         pcall(function()
@@ -583,10 +770,10 @@ local function mkCard(i, d)
             pcall(function()
                 if eng == "ScriptBlox" then setclipboard(rw) else setclipboard(game:HttpGet(rw)) end
             end)
-            cp.Text = "✅ Copied"
+            cp.Text = "Copied"
             tw:Create(cp, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(76,82,96)}):Play()
             task.delay(0.9, function()
-                cp.Text = "📋 Copy"
+                cp.Text = "Copy"
                 tw:Create(cp, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(57,63,75)}):Play()
             end)
         end)
@@ -595,8 +782,8 @@ local function mkCard(i, d)
     if dc then
         dc.MouseButton1Click:Connect(function()
             pcall(function() setclipboard(d.discord) end)
-            dc.Text = "✅ Copied"
-            task.delay(0.9, function() dc.Text = "💬 Discord" end)
+            dc.Text = "Copied"
+            task.delay(0.9, function() dc.Text = "Discord" end)
         end)
     end
 
@@ -604,15 +791,13 @@ local function mkCard(i, d)
     sca.Scale = 0.95
     sca.Parent = c
     c.BackgroundTransparency = 1
-    c.Position = UDim2.new(c.Position.X.Scale, c.Position.X.Offset, 0, 6)
     tl.TextTransparency = 1
     inf.TextTransparency = 1
-    tw:Create(c, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0, Position = UDim2.new(c.Position.X.Scale, c.Position.X.Offset, 0, 0)}):Play()
+    tw:Create(c, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
     tw:Create(sca, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
     tw:Create(tl, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
     tw:Create(inf, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
 end
-
 local searching = false
 
 local function fetch(q, empty)
@@ -623,8 +808,21 @@ local function fetch(q, empty)
     spin(true)
     go.Text = "Searching…"
     go.Active = false
-    local u = (eng == "ScriptBlox") and ("https://scriptblox.com/api/script/search?q="..q) or ("https://rscripts.net/api/v2/scripts?page=1&orderBy=date&sort=desc&q="..q)
-    if empty and eng == "ScriptBlox" then u = "https://www.scriptblox.com/api/script/fetch" end
+    local u
+    if eng == "ScriptBlox" then
+        if empty then
+            u = "https://www.scriptblox.com/api/script/fetch"
+        else
+            u = "https://scriptblox.com/api/script/search?q="..q
+        end
+    elseif eng == "RScripts" then
+        u = "https://rscripts.net/api/v2/scripts?page=1&orderBy=date&sort=desc&q="..q
+    else
+        u = "https://wearedevs.net/api/scripts/search"
+        if q ~= "" then
+            u = u .. "?s=" .. q
+        end
+    end
     local ok, res = pcall(function() return rq({Url = u, Method = "GET"}) end)
     clearAll(false)
     if not ok or not res or not res.Body then
@@ -659,6 +857,12 @@ engb.MouseButton1Click:Connect(function()
         sbox.PlaceholderText = "Search for scripts (rscripts.net)"
         tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(45,49,58)}):Play()
         toast("Switched to RScripts", col.tx)
+    elseif eng == "RScripts" then
+        eng = "WeAreDevs"
+        engb.Text = "Engine: wearedevs"
+        sbox.PlaceholderText = "Search for scripts (wearedevs.net)"
+        tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(41,128,185)}):Play()
+        toast("Switched to wearedevs", col.tx)
     else
         eng = "ScriptBlox"
         engb.Text = "Engine: ScriptBlox"
@@ -712,3 +916,6 @@ openS.Parent = fr
 fr.BackgroundTransparency = 1
 tw:Create(openS, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
 tw:Create(fr, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+
+
+
