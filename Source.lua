@@ -2969,6 +2969,36 @@ NAmanage.NASettingsGetSchema=function()
 				return sanitized
 			end;
 		};
+		customIconAssetId = {
+			default = "";
+			coerce = function(value)
+				if typeof(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				value = value:match("^%s*(.-)%s*$")
+				if value == "" then
+					return ""
+				end
+				local digits = value:match("^rbxassetid://(%d+)$") or value:match("(%d+)$")
+				if digits then
+					return "rbxassetid://"..digits
+				end
+				return ""
+			end;
+		};
+		customIconEnabled = {
+			default = false;
+			coerce = function(value)
+				if type(value) == "boolean" then return value end
+				if type(value) == "string" then
+					local lowered = value:lower()
+					if lowered == "true" or lowered == "1" then return true end
+					if lowered == "false" or lowered == "0" then return false end
+				end
+				if type(value) == "number" then return value ~= 0 end
+				return false
+			end;
+		};
 		iconInvisible = {
 			default = false;
 			coerce = function(value)
@@ -38706,27 +38736,40 @@ local TextLabel = InstanceNew("TextLabel")
 local UICorner = InstanceNew("UICorner")
 local UIStroke = InstanceNew("UIStroke")
 local TextButton
+local IconFallbackText
 local UICorner2 = InstanceNew("UICorner")
 
 NAICONASSET = nil
 
 pcall(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
 
+TextButton = InstanceNew("ImageButton")
+TextButton.Image = NAICONASSET or ""
+
 if NAICONASSET then
-	TextButton = InstanceNew("ImageButton")
 	TextButton.Image = NAICONASSET
 else
-	TextButton = InstanceNew("TextButton")
-	TextButton.Font = Enum.Font.SourceSansBold
-	TextButton.TextColor3 = Color3.fromRGB(241, 241, 241)
-	TextButton.TextSize = 22
+	IconFallbackText = InstanceNew("TextLabel")
+	IconFallbackText.Name = "NAFallbackIconText"
+	IconFallbackText.BackgroundTransparency = 1
+	IconFallbackText.AnchorPoint = Vector2.new(0.5, 0.5)
+	IconFallbackText.Position = UDim2.new(0.5, 0, 0.5, 0)
+	IconFallbackText.Size = UDim2.new(1, 0, 1, 0)
+	IconFallbackText.Font = Enum.Font.SourceSansBold
+	IconFallbackText.TextColor3 = Color3.fromRGB(241, 241, 241)
+	IconFallbackText.TextSize = 22
 	if isAprilFools() then
 		cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "Ø", "NA", "CMDX" }
-		TextButton.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
+		IconFallbackText.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
 	else
-		TextButton.Text = "NA"
+		IconFallbackText.Text = "NA"
 	end
+	IconFallbackText.TextStrokeTransparency = 0.7
+	IconFallbackText.Parent = TextButton
 end
+
+NAStuff.IconFallbackLabel = IconFallbackText
+
 
 NAmanage.btUpdate()
 
@@ -38764,6 +38807,9 @@ TextButton.BackgroundColor3 = Color3.fromRGB(25, 26, 30)
 TextButton.Position = UDim2.new(0.5, 0, -1, 0)
 TextButton.Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
 TextButton.ZIndex = 9999
+if IconFallbackText then
+	IconFallbackText.ZIndex = TextButton.ZIndex + 1
+end
 
 UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = TextButton
@@ -38782,10 +38828,144 @@ end)
 
 NAStuff.iconAppearance = NAStuff.iconAppearance or  {
 	background = TextButton.BackgroundTransparency;
-	text = TextButton:IsA("TextButton") and TextButton.TextTransparency or nil;
-	stroke = TextButton:IsA("TextButton") and TextButton.TextStrokeTransparency or nil;
+	text = (IconFallbackText and IconFallbackText.TextTransparency) or (TextButton:IsA("TextButton") and TextButton.TextTransparency) or nil;
+	stroke = (IconFallbackText and IconFallbackText.TextStrokeTransparency) or (TextButton:IsA("TextButton") and TextButton.TextStrokeTransparency) or nil;
 	image = TextButton:IsA("ImageButton") and TextButton.ImageTransparency or nil;
 }
+
+NAStuff.CustomIcon = NAStuff.CustomIcon or {}
+
+if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+	local storedAsset = NAmanage.NASettingsGet("customIconAssetId")
+	if typeof(storedAsset) == "string" and storedAsset ~= "" then
+		NAStuff.CustomIcon.assetId = storedAsset
+	end
+	local storedEnabled = NAmanage.NASettingsGet("customIconEnabled")
+	if typeof(storedEnabled) == "boolean" then
+		NAStuff.CustomIcon.enabled = storedEnabled
+	end
+end
+
+function NAgui.iconSupported()
+	return TextButton and TextButton:IsA("ImageButton")
+end
+
+if not NAgui.iconSupported() then
+	NAStuff.CustomIcon.enabled = false
+else
+	if typeof(TextButton.Image) == "string" and TextButton.Image ~= "" then
+		NAStuff.CustomIcon.defaultImage = NAStuff.CustomIcon.defaultImage or TextButton.Image
+	end
+	if typeof(NAStuff.CustomIcon.assetId) ~= "string" or NAStuff.CustomIcon.assetId == "" then
+		NAStuff.CustomIcon.assetId = nil
+		NAStuff.CustomIcon.enabled = false
+	end
+end
+
+if typeof(NAStuff.CustomIcon.enabled) ~= "boolean" then
+	NAStuff.CustomIcon.enabled = false
+end
+
+function NAgui._saveIconSettings()
+	if not (NAmanage and type(NAmanage.NASettingsSet) == "function") then
+		return
+	end
+	local assetValue = NAStuff.CustomIcon.assetId
+	if typeof(assetValue) ~= "string" or assetValue == "" then
+		assetValue = ""
+	end
+	pcall(NAmanage.NASettingsSet, "customIconAssetId", assetValue)
+	pcall(NAmanage.NASettingsSet, "customIconEnabled", NAStuff.CustomIcon.enabled == true)
+end
+
+function NAgui.getIconDigits()
+	if typeof(NAStuff.CustomIcon.assetId) == "string" then
+		return NAStuff.CustomIcon.assetId:match("(%d+)$") or ""
+	end
+	return ""
+end
+
+function NAgui._applyIconState()
+	if not NAgui.iconSupported() then
+		return false
+	end
+	local state = NAStuff.CustomIcon
+	local targetImage
+	if state.enabled and typeof(state.assetId) == "string" and state.assetId ~= "" then
+		targetImage = state.assetId
+	elseif typeof(state.defaultImage) == "string" and state.defaultImage ~= "" then
+		targetImage = state.defaultImage
+	end
+	local applied = false
+	if targetImage and targetImage ~= "" then
+		TextButton.Image = targetImage
+		applied = true
+	else
+		TextButton.Image = ""
+	end
+	if NAStuff.IconFallbackLabel then
+		NAStuff.IconFallbackLabel.Visible = not applied
+	end
+	return applied
+end
+
+function NAgui.setIconEnabled(enabled, opts)
+	opts = opts or {}
+	if not NAgui.iconSupported() then
+		return false, "Custom icon requires \"getcustomasset\" support for the NA icon."
+	end
+	enabled = enabled and true or false
+	if enabled and not NAStuff.CustomIcon.assetId then
+		if not opts.skipToggle and NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+		end
+		return false, "Add an asset id before enabling the custom icon."
+	end
+	if NAStuff.CustomIcon.enabled == enabled and not opts.force then
+		return true
+	end
+	NAStuff.CustomIcon.enabled = enabled
+	NAgui._applyIconState()
+	if not opts.skipToggle and NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom NA Icon", enabled, { force = true, fire = false })
+	end
+	NAgui._saveIconSettings()
+	return true
+end
+
+function NAgui.setIconAsset(inputValue, opts)
+	opts = opts or {}
+	if not NAgui.iconSupported() then
+		return false, "Custom icon requires \"getcustomasset\" support for the NA icon."
+	end
+	local raw = typeof(inputValue) == "string" and inputValue or tostring(inputValue)
+	if typeof(raw) ~= "string" then
+		return false, "Enter a valid numeric asset id."
+	end
+	raw = raw:match("^%s*(.-)%s*$")
+	if raw == "" then
+		return false, "Enter a valid numeric asset id."
+	end
+	local digits = raw:match("^rbxassetid://(%d+)$") or raw:match("id=(%d+)") or raw:match("(%d+)$")
+	if not digits then
+		return false, "Enter a valid numeric asset id."
+	end
+	local newAsset = "rbxassetid://"..digits
+	NAStuff.CustomIcon.assetId = newAsset
+	if opts.autoEnable ~= false then
+		NAStuff.CustomIcon.enabled = true
+	end
+	NAgui._applyIconState()
+	if opts.autoEnable ~= false and not opts.skipToggle and NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom NA Icon", true, { force = true, fire = false })
+	end
+	NAgui._saveIconSettings()
+	return true, digits
+end
+
+if NAStuff.CustomIcon.enabled and NAStuff.CustomIcon.assetId and NAgui.iconSupported() then
+	NAgui._applyIconState()
+end
 
 NAgui.clampIconPositionUDim=function(pos)
 	if typeof(pos) ~= "UDim2" then
@@ -38834,6 +39014,16 @@ end
 
 NAgui.applyIconVisibility=function(hidden)
 	if not TextButton then return end
+	local fallbackText = NAStuff.IconFallbackLabel
+	local function setFallbackTrans()
+		if not fallbackText then return end
+		local defaultText = NAStuff.iconAppearance.text
+		local defaultStroke = NAStuff.iconAppearance.stroke
+		fallbackText.TextTransparency = hidden and 1 or (defaultText ~= nil and defaultText or 0)
+		if defaultStroke ~= nil then
+			fallbackText.TextStrokeTransparency = hidden and 1 or defaultStroke
+		end
+	end
 	if IsOnMobile and not IsOnPC then
 		TextButton.Visible = true
 		TextButton.BackgroundTransparency = hidden and 1 or NAStuff.iconAppearance.background
@@ -38865,6 +39055,7 @@ NAgui.applyIconVisibility=function(hidden)
 			end
 		end
 	end
+	setFallbackTrans()
 end
 
 NAgui.setIconHidden=function(hidden, opts)
@@ -40338,6 +40529,53 @@ end)
 NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "paint-brush" })
 NAgui.setTab(TAB_INTERFACE)
 
+NAStuff.CustomIcon.pendingInput = NAStuff.CustomIcon.pendingInput or ((NAgui.getIconDigits and NAgui.getIconDigits()) or "")
+
+NAgui.addSection("Custom NA Icon")
+
+NAgui.addToggle("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true and NAgui.iconSupported(), function(v)
+	if not NAgui.iconSupported() then
+		DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+		end
+		return
+	end
+	local ok, err = NAgui.setIconEnabled(v, { skipToggle = true })
+	if not ok then
+		if err then
+			DoNotif(err, 3)
+		end
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true, { force = true, fire = false })
+		end
+		return
+	end
+	DoNotif("Custom NA Icon "..(v and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Use Custom NA Icon", function()
+	return NAStuff.CustomIcon.enabled == true and NAgui.iconSupported()
+end)
+
+NAgui.addInput("Custom Icon Asset ID", "Enter an asset id (e.g. 123456789)", NAStuff.CustomIcon.pendingInput, function(text)
+	NAStuff.CustomIcon.pendingInput = text or ""
+end)
+
+NAgui.addButton("Apply Custom Icon", function()
+	if not NAgui.iconSupported() then
+		DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
+		return
+	end
+	local ok, result = NAgui.setIconAsset(NAStuff.CustomIcon.pendingInput)
+	if ok then
+		if result and result ~= "" then
+			NAStuff.CustomIcon.pendingInput = result
+		end
+		DoNotif("Custom NA Icon updated.", 2)
+	else
+		DoNotif(result or "Unable to update custom icon.", 3)
+	end
+end)
 
 NAgui.addSection("UI Customization")
 
