@@ -1507,7 +1507,50 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		customFontMap = {},
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
+		watchers = {},
 	}
+
+	local function disconnectFontWatcher(target)
+		local watcher = FontEditor.watchers[target]
+		if not watcher then
+			return
+		end
+		if watcher.change then
+			watcher.change:Disconnect()
+		end
+		if watcher.ancestry then
+			watcher.ancestry:Disconnect()
+		end
+		FontEditor.watchers[target] = nil
+	end
+
+	local function ensureFontWatcher(target)
+		if not target or FontEditor.watchers[target] then
+			return
+		end
+		local watcher = {}
+		watcher.change = target:GetPropertyChangedSignal("FontFace"):Connect(function()
+			if not FontEditor.data.enabled then
+				return
+			end
+			if FontEditor.currentFontIsCustom then
+				local currentFace = NAlib.isProperty(target, "FontFace")
+				if currentFace ~= FontEditor.currentFont then
+					pcall(function()
+						target.FontFace = FontEditor.currentFont
+						target.Font = Enum.Font.Unknown
+					end)
+				end
+			end
+		end)
+		watcher.ancestry = target.AncestryChanged:Connect(function(obj)
+			if not obj.Parent then
+				disconnectFontWatcher(obj)
+				FontEditor.store[obj] = nil
+			end
+		end)
+		FontEditor.watchers[target] = watcher
+	end
 
 	persistFontData = function()
 		if not FileSupport then
@@ -1617,6 +1660,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		local storeInfo = FontEditor.store[o]
 		if FontEditor.currentFontIsCustom then
+			ensureFontWatcher(o)
 			if storeInfo and storeInfo.FontFaceSupported then
 				pcall(function()
 					o.FontFace = FontEditor.currentFont
@@ -1625,6 +1669,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			end
 		else
 			if storeInfo and storeInfo.FontFaceSupported then
+				ensureFontWatcher(o)
 				pcall(function()
 					o.FontFace = storeInfo.FontFace
 				end)
@@ -1681,8 +1726,10 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 					end)
 				end
 			end
+			disconnectFontWatcher(target)
 		end
 		FontEditor.store = newFontStore()
+		FontEditor.watchers = {}
 	end
 
 	local function applyAllFonts()
