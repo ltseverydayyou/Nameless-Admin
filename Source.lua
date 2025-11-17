@@ -801,6 +801,7 @@ local NAfiles = {
 	NAESPSETTINGSPATH = "Nameless-Admin/ESPSettings.json";
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
+	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 }
 NAmanage.newCornerStore=function()
 	return {}
@@ -813,7 +814,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 
 	local CE = {
 		path = NAfiles.NAFILEPATH.."/corner_editor.json",
-		default = { enabled = false, radius = 10 },
+		default = { enabled = false, radius = 10, targetCoreGui = true, targetPlayerGui = false },
 		cg = coreGui,
 		store = NAmanage.newCornerStore(),
 	}
@@ -821,6 +822,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	local data = {
 		enabled = CE.default.enabled,
 		radius = CE.default.radius,
+		targetCoreGui = CE.default.targetCoreGui,
+		targetPlayerGui = CE.default.targetPlayerGui,
 	}
 	if FileSupport then
 		if not isfile(CE.path) then
@@ -835,11 +838,25 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				if parsedRadius then
 					data.radius = parsedRadius
 				end
+				if type(decoded.targetCoreGui) == "boolean" then
+					data.targetCoreGui = decoded.targetCoreGui
+				end
+				if type(decoded.targetPlayerGui) == "boolean" then
+					data.targetPlayerGui = decoded.targetPlayerGui
+				end
 			end
 		end
 	end
 	data.radius = math.clamp(data.radius, 0, 64)
 	CE.data = data
+
+	local function getPlayerGui()
+		local lp = Players and Players.LocalPlayer
+		if not lp then
+			return nil
+		end
+		return lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
+	end
 
 	local function getCornerRadius()
 		return UDim.new(0, math.clamp(tonumber(CE.data.radius) or CE.default.radius, 0, 64))
@@ -853,6 +870,20 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return false
 		end
 		return true
+	end
+
+	local function getCornerTargets()
+		local containers = {}
+		if CE.data.targetCoreGui and CE.cg then
+			containers[#containers + 1] = CE.cg
+		end
+		if CE.data.targetPlayerGui then
+			local pg = getPlayerGui()
+			if pg then
+				containers[#containers + 1] = pg
+			end
+		end
+		return containers
 	end
 
 	local function applyCorner(o)
@@ -877,12 +908,14 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function applyAllCorners()
-		if not CE.cg then
+		if not CE.data.enabled then
 			return
 		end
-		local descendants = CE.cg:GetDescendants()
-		for i = 1, #descendants do
-			applyCorner(descendants[i])
+		for _, container in ipairs(getCornerTargets()) do
+			local descendants = container:GetDescendants()
+			for i = 1, #descendants do
+				applyCorner(descendants[i])
+			end
 		end
 	end
 
@@ -898,50 +931,595 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 	end
 
-	if CE.cg then
+	local function refreshCornerConnections()
 		NAlib.disconnect("CornerEditor")
-		NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCornerDescendant))
+		if CE.data.targetCoreGui and CE.cg then
+			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCornerDescendant))
+		end
+
+		NAlib.disconnect("CornerEditor_PlayerGui")
+		local pg = CE.data.targetPlayerGui and getPlayerGui()
+		if pg then
+			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCornerDescendant))
+		end
 	end
+
+	local function monitorCornerPlayerGui()
+		local lp = Players and Players.LocalPlayer
+		if not lp then
+			return
+		end
+		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
+		NAlib.connect("CornerEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
+			if child:IsA("PlayerGui") then
+				refreshCornerConnections()
+				if CE.data.enabled then
+					applyAllCorners()
+				end
+			end
+		end))
+		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
+		NAlib.connect("CornerEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
+			if child:IsA("PlayerGui") then
+				refreshCornerConnections()
+			end
+		end))
+	end
+
+	local function updateCornerTarget(field, value)
+		if CE.data[field] == value then
+			return
+		end
+		CE.data[field] = value
+		persistCornerData()
+		refreshCornerConnections()
+		if CE.data.enabled then
+			restoreAllCorners()
+			applyAllCorners()
+		end
+	end
+
+	refreshCornerConnections()
+	monitorCornerPlayerGui()
 	if CE.data.enabled then
 		applyAllCorners()
 	end
+
+	local FontEditor
+	local persistFontData
+	local persistFontData
 
 	local function newFontStore()
 		return {}
 	end
 
 	local FontChoices = {}
-	for _, enumFont in ipairs(Enum.Font:GetEnumItems()) do
-		FontChoices[#FontChoices + 1] = enumFont.Name
+	local CustomFontChoices = {}
+	local FontChoiceIndex = {}
+
+	local function clearFontChoices()
+		FontChoices = {}
+		CustomFontChoices = {}
+		FontChoiceIndex = {}
 	end
 
-	local FontEditor = {
-		path = NAfiles.NAFILEPATH.."/font_override.json",
-		default = { enabled = false, font = "Gotham" },
-		cg = CoreGui,
-		store = newFontStore(),
-		data = { enabled = false, font = "Gotham" },
-		currentFont = Enum.Font.Gotham,
-	}
+	local function addFontChoice(choice)
+		if not choice or not choice.key then
+			return
+		end
+		FontChoices[#FontChoices + 1] = choice
+		FontChoiceIndex[choice.key] = choice
+		if choice.kind == "custom" then
+			CustomFontChoices[#CustomFontChoices + 1] = choice
+		end
+	end
 
-	local function resolveFont(name)
-		if type(name) == "string" and name ~= "" then
-			local candidate = Enum.Font[name]
-			if candidate then
-				return candidate, candidate.Name
+	local function enforceCustomCycleAvailability()
+		if FontEditor.data.useCustomCycle and #CustomFontChoices == 0 then
+			FontEditor.data.useCustomCycle = false
+			persistFontData()
+		end
+	end
+
+	local function getActiveFontChoices()
+		if FontEditor.data.useCustomCycle and #CustomFontChoices > 0 then
+			return CustomFontChoices
+		end
+		return FontChoices
+	end
+
+	local function ensureCustomFontFolder()
+		if not FileSupport then
+			return false, "File support is required for custom fonts."
+		end
+		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+			return false, "Custom font directory is not configured."
+		end
+		if type(isfolder) == "function" then
+			local exists = false
+			local ok, res = pcall(isfolder, FontEditor.customDir)
+			if ok then
+				exists = res
+			end
+			if not exists then
+				if type(makefolder) ~= "function" then
+					return false, "\"makefolder\" is required for custom fonts."
+				end
+				local okMk, err = pcall(makefolder, FontEditor.customDir)
+				if not okMk then
+					return false, err or "Unable to create custom font directory."
+				end
 			end
 		end
-		local fallback = Enum.Font[FontEditor.default.font]
-		return fallback, fallback.Name
+		return true
 	end
 
-	local function persistFontData()
+	local function getCustomFontCount()
+		return type(FontEditor.customFonts) == "table" and #FontEditor.customFonts or 0
+	end
+
+	local function hasCustomFonts()
+		return getCustomFontCount() > 0
+	end
+
+	local function formatCustomFontStatus()
+		local count = getCustomFontCount()
+		if count == 0 then
+			return "No custom fonts installed"
+		end
+		if count == 1 then
+			return "1 custom font installed"
+		end
+		return string.format("%d custom fonts installed", count)
+	end
+
+	local function normalizeCustomFontUrl(url)
+		if type(url) ~= "string" then
+			return nil
+		end
+		local trimmed = url:match("^%s*(.-)%s*$") or ""
+		if trimmed == "" then
+			return nil
+		end
+		trimmed = trimmed:gsub(" ", "%%20")
+		local noQuery = trimmed:match("^(https?://[^%?]+)")
+		if noQuery then
+			trimmed = noQuery
+		end
+		local owner, repo, kind, rest = trimmed:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
+		if owner and repo and kind and rest then
+			local sanitizedRest = rest
+			if sanitizedRest:sub(1, 11) == "refs/heads/" then
+				sanitizedRest = sanitizedRest:sub(12)
+			elseif sanitizedRest:sub(1, 10) == "refs/tags/" then
+				sanitizedRest = sanitizedRest:sub(11)
+			end
+			local branch, path = sanitizedRest:match("^([^/]+)/(.+)$")
+			if branch and path then
+				branch = branch:gsub("%%2[Ff]", "/")
+				path = path:gsub("%%2[Ff]", "/")
+				if kind == "blob" or kind == "raw" then
+					return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+				end
+			end
+		end
+		local directRaw = trimmed:match("^https?://raw%.githubusercontent%.com/.+")
+		if directRaw then
+			return trimmed
+		end
+		return trimmed
+	end
+
+	local function sanitizeFileName(name)
+		if type(name) ~= "string" then
+			return nil
+		end
+		local trimmed = name:match("^%s*(.-)%s*$") or ""
+		local sanitized = trimmed:gsub("[^%w%._%-]", "_")
+		sanitized = sanitized:gsub("_+", "_")
+		sanitized = sanitized:gsub("^_+", "")
+		sanitized = sanitized:gsub("_+$", "")
+		if sanitized == "" then
+			return nil
+		end
+		return sanitized
+	end
+
+	local function sanitizeId(name)
+		if type(name) ~= "string" then
+			return nil
+		end
+		local lowered = name:lower()
+		local sanitized = lowered:gsub("[^%w]+", "_")
+		sanitized = sanitized:gsub("_+", "_")
+		sanitized = sanitized:gsub("^_+", "")
+		sanitized = sanitized:gsub("_+$", "")
+		if sanitized == "" then
+			return nil
+		end
+		return sanitized
+	end
+
+	local function saveCustomFontManifest()
+		if not FileSupport then
+			return
+		end
+		if type(writefile) ~= "function" then
+			return
+		end
+		local payload = { fonts = FontEditor.customFonts }
+		pcall(writefile, FontEditor.customManifest, HttpService:JSONEncode(payload))
+	end
+
+	local function customFontFileExists(fileName)
+		if type(fileName) ~= "string" or fileName == "" then
+			return false
+		end
+		if type(FontEditor) ~= "table" or type(FontEditor.customDir) ~= "string" then
+			return false
+		end
+		if type(isfile) ~= "function" then
+			return false
+		end
+		local ok, exists = pcall(isfile, FontEditor.customDir.."/"..fileName)
+		return ok and exists
+	end
+
+	local function deleteCustomFontFile(fileName)
+		if not (type(fileName) == "string" and fileName ~= "") then
+			return
+		end
+		if type(FontEditor) ~= "table" or type(FontEditor.customDir) ~= "string" then
+			return
+		end
+		if type(isfile) ~= "function" or type(delfile) ~= "function" then
+			return
+		end
+		local fullPath = FontEditor.customDir.."/"..fileName
+		local okExists, exists = pcall(isfile, fullPath)
+		if okExists and exists then
+			pcall(delfile, fullPath)
+		end
+	end
+
+	local function removeCustomFontEntry(entry, opts)
+		if not (entry and entry.id) then
+			return
+		end
+		opts = opts or {}
+		local id = entry.id
+		if opts.deleteFiles then
+			if entry.file then
+				deleteCustomFontFile(entry.file)
+			end
+			if entry.familyFile then
+				deleteCustomFontFile(entry.familyFile)
+			end
+		end
+		for i = #FontEditor.customFonts, 1, -1 do
+			local item = FontEditor.customFonts[i]
+			if item and item.id == id then
+				table.remove(FontEditor.customFonts, i)
+				break
+			end
+		end
+		FontEditor.customFontMap[id] = nil
+		if not opts.skipSave then
+			saveCustomFontManifest()
+		end
+		if FontEditor.refreshCustomFontUI then
+			FontEditor.refreshCustomFontUI()
+		end
+	end
+
+	local function removeAllCustomFonts()
+		if type(FontEditor.customFonts) ~= "table" or #FontEditor.customFonts == 0 then
+			return
+		end
+		local entries = {}
+		for _, entry in ipairs(FontEditor.customFonts) do
+			entries[#entries + 1] = entry
+		end
+		for _, entry in ipairs(entries) do
+			removeCustomFontEntry(entry, { deleteFiles = true, skipSave = true })
+		end
+		FontEditor.customFonts = {}
+		FontEditor.customFontMap = {}
+		saveCustomFontManifest()
+		rebuildFontChoices()
+		enforceCustomCycleAvailability()
+		if FontEditor.refreshCustomFontUI then
+			FontEditor.refreshCustomFontUI()
+		end
+	end
+
+	local function loadCustomFontManifest()
+		FontEditor.customFonts = {}
+		FontEditor.customFontMap = {}
+		if not FileSupport then
+			return
+		end
+		local okFolder = ensureCustomFontFolder()
+		if not okFolder then
+			return
+		end
+		if type(isfile) ~= "function" or type(readfile) ~= "function" then
+			return
+		end
+		if not isfile(FontEditor.customManifest) then
+			return
+		end
+		local ok, raw = pcall(readfile, FontEditor.customManifest)
+		if not (ok and type(raw) == "string" and raw ~= "") then
+			return
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okDecode and type(decoded) == "table") then
+			return
+		end
+		local items = decoded.fonts or decoded
+		if type(items) ~= "table" then
+			return
+		end
+		local manifestDirty = false
+		local validFonts = {}
+		local validMap = {}
+		for _, entry in ipairs(items) do
+			if type(entry) == "table" and type(entry.file) == "string" then
+				entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
+				entry.name = entry.name or entry.id
+				entry.displayName = entry.displayName or entry.name
+				entry.url = normalizeCustomFontUrl(entry.url) or entry.url
+				entry.familyFile = entry.familyFile
+				if not customFontFileExists(entry.file) then
+					if entry.familyFile then
+						deleteCustomFontFile(entry.familyFile)
+					end
+					manifestDirty = true
+				elseif validMap[entry.id] then
+					manifestDirty = true
+				else
+					validFonts[#validFonts + 1] = entry
+					validMap[entry.id] = entry
+				end
+			else
+				manifestDirty = true
+			end
+		end
+		FontEditor.customFonts = validFonts
+		FontEditor.customFontMap = validMap
+		if manifestDirty then
+			saveCustomFontManifest()
+		end
+	end
+
+	local function rebuildFontChoices()
+		clearFontChoices()
+		for _, enumFont in ipairs(Enum.Font:GetEnumItems()) do
+			addFontChoice({
+				key = "enum:"..enumFont.Name,
+				label = enumFont.Name,
+				kind = "enum",
+				enum = enumFont,
+			})
+		end
+		for _, entry in ipairs(FontEditor.customFonts) do
+			if type(entry.id) == "string" and type(entry.file) == "string" then
+				local label = entry.displayName or entry.name or entry.id
+				addFontChoice({
+					key = "custom:"..entry.id,
+					label = "[Custom] "..label,
+					kind = "custom",
+					entry = entry,
+				})
+			end
+		end
+		enforceCustomCycleAvailability()
+	end
+
+	local function getFontChoice(fontKey)
+		if type(fontKey) ~= "string" or fontKey == "" then
+			return nil
+		end
+		local choice = FontChoiceIndex[fontKey]
+		if choice then
+			return choice
+		end
+		if not fontKey:find(":", 1, true) then
+			local enumCandidate = Enum.Font[fontKey]
+			if enumCandidate then
+				return FontChoiceIndex["enum:"..fontKey]
+			end
+		end
+		return nil
+	end
+
+	local function normalizeFontKey(fontKey)
+		if type(fontKey) ~= "string" or fontKey == "" then
+			return FontEditor.default.fontKey
+		end
+		if FontChoiceIndex[fontKey] then
+			return fontKey
+		end
+		if not fontKey:find(":", 1, true) then
+			local enumCandidate = Enum.Font[fontKey]
+			if enumCandidate then
+				return "enum:"..fontKey
+			end
+		end
+		return FontEditor.default.fontKey
+	end
+
+	local function getCustomFontAsset(entry)
+		if type(entry) ~= "table" or type(entry.file) ~= "string" then
+			return nil, "Invalid custom font entry."
+		end
+		if type(getcustomasset) ~= "function" then
+			return nil, "Custom fonts require getcustomasset support."
+		end
+		if not FileSupport or type(writefile) ~= "function" then
+			return nil, "File support is required for custom fonts."
+		end
+		if not customFontFileExists(entry.file) then
+			removeCustomFontEntry(entry)
+			rebuildFontChoices()
+			enforceCustomCycleAvailability()
+			return nil, "Custom font file is missing."
+		end
+		local fullPath = FontEditor.customDir.."/"..entry.file
+		local okAsset, assetId = pcall(getcustomasset, fullPath)
+		if not (okAsset and type(assetId) == "string") then
+			return nil, "Unable to load custom font file."
+		end
+		local familyFile = entry.familyFile or (entry.id.."_family.json")
+		local familyPath = FontEditor.customDir.."/"..familyFile
+		if entry.familyFile and entry.familyFile ~= familyFile then
+			deleteCustomFontFile(entry.familyFile)
+		end
+		local needsPersist = entry.familyFile ~= familyFile
+		entry.familyFile = familyFile
+		local familyData = {
+			family = entry.displayName or entry.name or entry.id,
+			faces = {
+				{
+					assetId = assetId,
+					weight = "Regular",
+					style = "Normal",
+				},
+			},
+		}
+		local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
+		if not okWrite then
+			return nil, errWrite or "Unable to create font family data."
+		end
+		local okFamilyAsset, familyAssetId = pcall(getcustomasset, familyPath)
+		if not (okFamilyAsset and type(familyAssetId) == "string") then
+			return nil, "Unable to load custom font family."
+		end
+		if needsPersist then
+			saveCustomFontManifest()
+		end
+		local okFont, fontFace = pcall(Font.new, familyAssetId, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		if okFont and typeof(fontFace) == "Font" then
+			return fontFace
+		end
+		return nil, "Invalid font file."
+	end
+
+	local function deriveFileNameFromUrl(url)
+		if type(url) ~= "string" then
+			return nil
+		end
+		local candidate = url:match("/([^/%?]+)$")
+		return candidate
+	end
+
+	local function addOrUpdateCustomFont(name, url)
+		if not FileSupport then
+			return false, "File support is required for custom fonts."
+		end
+		if type(writefile) ~= "function" then
+			return false, "writefile is required for custom fonts."
+		end
+		if type(url) ~= "string" or url == "" then
+			return false, "A GitHub font URL is required."
+		end
+		local normalizedUrl = normalizeCustomFontUrl(url)
+		if not normalizedUrl then
+			return false, "Invalid font URL."
+		end
+		url = normalizedUrl
+		local okFolder, folderErr = ensureCustomFontFolder()
+		if not okFolder then
+			return false, folderErr
+		end
+		local rawName = name or ""
+		local httpOk, data = pcall(function()
+			return game:HttpGet(url)
+		end)
+		if not (httpOk and type(data) == "string" and data ~= "") then
+			return false, "Unable to download font file."
+		end
+		local remoteFile = deriveFileNameFromUrl(url)
+		local sanitizedRemote = sanitizeFileName(remoteFile or rawName)
+		if not sanitizedRemote then
+			sanitizedRemote = "font_"..tostring(os.time())..".otf"
+		end
+		local ext = sanitizedRemote:match("%.[^%.]+$") or ".otf"
+		local idSource = rawName ~= "" and rawName or sanitizedRemote:gsub("%.[^%.]+$", "")
+		local id = sanitizeId(idSource) or sanitizeId(HttpService:GenerateGUID(false)) or tostring(os.time())
+		local fileName = id..ext
+		local fullPath = FontEditor.customDir.."/"..fileName
+		local okWrite, errWrite = pcall(writefile, fullPath, data)
+		if not okWrite then
+			return false, errWrite or "Unable to save custom font file."
+		end
+		local existing = FontEditor.customFontMap[id]
+		if existing then
+			existing.file = fileName
+			existing.url = url
+			if rawName ~= "" then
+				existing.name = rawName
+				existing.displayName = rawName
+			end
+			existing.familyFile = existing.familyFile
+		else
+			local entry = {
+				id = id,
+				name = rawName ~= "" and rawName or idSource,
+				displayName = rawName ~= "" and rawName or idSource,
+				file = fileName,
+				url = url,
+			}
+			FontEditor.customFontMap[id] = entry
+			FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
+		end
+		saveCustomFontManifest()
+		rebuildFontChoices()
+		return true, FontEditor.customFontMap[id]
+	end
+
+	FontEditor = {
+		path = NAfiles.NAFILEPATH.."/font_override.json",
+		default = {
+			enabled = false,
+			font = "Gotham",
+			fontKey = "enum:Gotham",
+			targetCoreGui = true,
+			targetPlayerGui = false,
+			useCustomCycle = false,
+		},
+		cg = CoreGui,
+		store = newFontStore(),
+		data = {
+			enabled = false,
+			font = "Gotham",
+			fontKey = "enum:Gotham",
+			targetCoreGui = true,
+			targetPlayerGui = false,
+			useCustomCycle = false,
+		},
+		currentFont = Enum.Font.Gotham,
+		currentFontIsCustom = false,
+		customDir = NAfiles.NACUSTOMFONTPATH,
+		customManifest = NAfiles.NACUSTOMFONTPATH.."/fonts.json",
+		customFonts = {},
+		customFontMap = {},
+		customInputs = { name = "", url = "" },
+		refreshCustomFontUI = nil,
+	}
+
+	persistFontData = function()
 		if not FileSupport then
 			return
 		end
 		pcall(writefile, FontEditor.path, HttpService:JSONEncode({
 			enabled = FontEditor.data.enabled,
-			font = FontEditor.data.font,
+			font = FontEditor.data.fontKey or FontEditor.default.fontKey,
+			fontLabel = FontEditor.data.font,
+			targetCoreGui = FontEditor.data.targetCoreGui,
+			targetPlayerGui = FontEditor.data.targetPlayerGui,
+			useCustomCycle = FontEditor.data.useCustomCycle,
 		}))
 	end
 
@@ -959,13 +1537,27 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				end
 			end
 		end
-		local fontName = FontEditor.default.font
-		if type(stored.font) == "string" and stored.font ~= "" then
-			fontName = stored.font
+		local storedKey = stored.fontKey or stored.font or FontEditor.default.fontKey
+		local storedLabel = stored.fontLabel or stored.font or FontEditor.default.font
+		if type(storedKey) ~= "string" or storedKey == "" then
+			storedKey = FontEditor.default.fontKey
 		end
-		local resolvedFont, resolvedName = resolveFont(fontName)
-		FontEditor.currentFont = resolvedFont
-		FontEditor.data.font = resolvedName
+		if type(storedLabel) ~= "string" or storedLabel == "" then
+			storedLabel = FontEditor.default.font
+		end
+		FontEditor.data.fontKey = storedKey
+		FontEditor.data.font = storedLabel
+		FontEditor.data.useCustomCycle = stored.useCustomCycle == true
+		if type(stored.targetCoreGui) == "boolean" then
+			FontEditor.data.targetCoreGui = stored.targetCoreGui
+		else
+			FontEditor.data.targetCoreGui = FontEditor.default.targetCoreGui
+		end
+		if type(stored.targetPlayerGui) == "boolean" then
+			FontEditor.data.targetPlayerGui = stored.targetPlayerGui
+		else
+			FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
+		end
 		FontEditor.data.enabled = stored.enabled == true
 	end
 
@@ -995,6 +1587,16 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
 	end
 
+	local function captureFontFaceState(o)
+		local ok, value = pcall(function()
+			return o.FontFace
+		end)
+		if ok then
+			return true, value
+		end
+		return false, nil
+	end
+
 	local function applyFontToInstance(o)
 		if not isFontTarget(o) then
 			return
@@ -1006,15 +1608,35 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return
 		end
 		if not FontEditor.store[o] then
-			FontEditor.store[o] = { Font = NAlib.isProperty(o, "Font") }
+			local hasFF, ff = captureFontFaceState(o)
+			FontEditor.store[o] = {
+				Font = NAlib.isProperty(o, "Font"),
+				FontFace = ff,
+				FontFaceSupported = hasFF,
+			}
 		end
-		local currentFont = NAlib.isProperty(o, "Font")
-		if currentFont == FontEditor.currentFont then
-			return
+		local storeInfo = FontEditor.store[o]
+		if FontEditor.currentFontIsCustom then
+			if storeInfo and storeInfo.FontFaceSupported then
+				pcall(function()
+					o.FontFace = FontEditor.currentFont
+					o.Font = Enum.Font.Unknown
+				end)
+			end
+		else
+			if storeInfo and storeInfo.FontFaceSupported then
+				pcall(function()
+					o.FontFace = storeInfo.FontFace
+				end)
+			end
+			local currentFont = NAlib.isProperty(o, "Font")
+			if currentFont == FontEditor.currentFont then
+				return
+			end
+			pcall(function()
+				o.Font = FontEditor.currentFont
+			end)
 		end
-		pcall(function()
-			o.Font = FontEditor.currentFont
-		end)
 	end
 
 	local function applyFontToDescendants(container)
@@ -1031,48 +1653,116 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 	end
 
+	local function getFontTargets()
+		local containers = {}
+		if FontEditor.data.targetCoreGui and FontEditor.cg then
+			containers[#containers + 1] = FontEditor.cg
+		end
+		if FontEditor.data.targetPlayerGui then
+			local pg = getPlayerGui()
+			if pg then
+				containers[#containers + 1] = pg
+			end
+		end
+		return containers
+	end
+
 	local function restoreAllFonts()
 		for target, info in pairs(FontEditor.store) do
-			if target and info and info.Font then
-				pcall(function()
-					target.Font = info.Font
-				end)
+			if target and info then
+				if info.FontFaceSupported then
+					pcall(function()
+						target.FontFace = info.FontFace
+					end)
+				end
+				if info.Font ~= nil then
+					pcall(function()
+						target.Font = info.Font
+					end)
+				end
 			end
 		end
 		FontEditor.store = newFontStore()
 	end
 
 	local function applyAllFonts()
-		if not FontEditor.data.enabled or not FontEditor.cg then
+		if not FontEditor.data.enabled then
 			return
 		end
-		applyFontToDescendants(FontEditor.cg)
+		for _, container in ipairs(getFontTargets()) do
+			applyFontToDescendants(container)
+		end
 	end
 
-	local function setOverrideFont(name)
-		local resolvedFont, resolvedName = resolveFont(name)
+	local function applyFontChoice(choice, opts)
+		if not choice then
+			return false, "Invalid font choice."
+		end
+		opts = opts or {}
+		local resolvedFont = nil
+		local isCustom = choice.kind == "custom"
+		if isCustom then
+			local fontFace, err = getCustomFontAsset(choice.entry)
+			if not fontFace then
+				return false, err
+			end
+			resolvedFont = fontFace
+		else
+			resolvedFont = choice.enum
+		end
+		if not resolvedFont then
+			return false, "Unable to resolve font selection."
+		end
 		FontEditor.currentFont = resolvedFont
-		FontEditor.data.font = resolvedName
-		persistFontData()
-		if FontEditor.data.enabled then
+		FontEditor.currentFontIsCustom = isCustom
+		FontEditor.data.fontKey = choice.key
+		FontEditor.data.font = choice.label
+		if opts.persist ~= false then
+			persistFontData()
+		end
+		if FontEditor.data.enabled and opts.apply ~= false then
 			applyAllFonts()
+		end
+		return true
+	end
+
+	local function setOverrideFont(fontKey, opts)
+		opts = opts or {}
+		local normalized = normalizeFontKey(fontKey)
+		local choice = getFontChoice(normalized) or getFontChoice(FontEditor.default.fontKey)
+		if not choice then
+			return
+		end
+		local ok, err = applyFontChoice(choice, opts)
+		if not ok and choice.kind == "custom" then
+			if not opts.silent then
+				DoNotif(err or "Unable to load custom font.", 3)
+			end
+			local fallback = getFontChoice(FontEditor.default.fontKey)
+			if fallback then
+				applyFontChoice(fallback, opts)
+			end
+		elseif not ok and not opts.silent then
+			DoNotif(err or "Unable to update override font.", 3)
 		end
 	end
 
 	local function cycleOverrideFont(delta)
-		if #FontChoices == 0 then
+		local choices = getActiveFontChoices()
+		if #choices == 0 then
+			DoNotif("No fonts available to cycle.", 3)
 			return
 		end
-		local currentName = FontEditor.data.font
+		local currentKey = FontEditor.data.fontKey or FontEditor.default.fontKey
 		local index = 1
-		for i, fontName in ipairs(FontChoices) do
-			if fontName == currentName then
+		for i, choice in ipairs(choices) do
+			if choice.key == currentKey then
 				index = i
 				break
 			end
 		end
-		local nextIndex = ((index - 1 + delta) % #FontChoices) + 1
-		setOverrideFont(FontChoices[nextIndex])
+		local nextIndex = ((index - 1 + delta) % #choices) + 1
+		setOverrideFont(choices[nextIndex].key)
 	end
 
 	local function onFontDescendantAdded(o)
@@ -1081,12 +1771,61 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 	end
 
-	loadFontData()
-
-	if FontEditor.cg then
+	local function refreshFontConnections()
 		NAlib.disconnect("FontEditor")
-		NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(onFontDescendantAdded))
+		if FontEditor.data.targetCoreGui and FontEditor.cg then
+			NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(onFontDescendantAdded))
+		end
+
+		NAlib.disconnect("FontEditor_PlayerGui")
+		local pg = FontEditor.data.targetPlayerGui and getPlayerGui()
+		if pg then
+			NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(onFontDescendantAdded))
+		end
 	end
+
+	local function monitorFontPlayerGui()
+		local lp = Players and Players.LocalPlayer
+		if not lp then
+			return
+		end
+		NAlib.disconnect("FontEditor_PlayerGuiAdded")
+		NAlib.connect("FontEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
+			if child:IsA("PlayerGui") then
+				refreshFontConnections()
+				if FontEditor.data.enabled then
+					applyAllFonts()
+				end
+			end
+		end))
+		NAlib.disconnect("FontEditor_PlayerGuiRemoved")
+		NAlib.connect("FontEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
+			if child:IsA("PlayerGui") then
+				refreshFontConnections()
+			end
+		end))
+	end
+
+	local function updateFontTarget(field, value)
+		if FontEditor.data[field] == value then
+			return
+		end
+		FontEditor.data[field] = value
+		persistFontData()
+		refreshFontConnections()
+		if FontEditor.data.enabled then
+			restoreAllFonts()
+			applyAllFonts()
+		end
+	end
+
+	loadCustomFontManifest()
+	rebuildFontChoices()
+	loadFontData()
+	setOverrideFont(FontEditor.data.fontKey, { persist = false, apply = false, silent = true })
+
+	refreshFontConnections()
+	monitorFontPlayerGui()
 
 	if FontEditor.data.enabled then
 		applyAllFonts()
@@ -1101,6 +1840,12 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			restoreAllCorners()
 		end
 		persistCornerData()
+	end)
+	NAgui.addToggle("Corner Target: CoreGui", CE.data.targetCoreGui, function(v)
+		updateCornerTarget("targetCoreGui", v == true)
+	end)
+	NAgui.addToggle("Corner Target: PlayerGui", CE.data.targetPlayerGui, function(v)
+		updateCornerTarget("targetPlayerGui", v == true)
 	end)
 	local sliderRadius = math.clamp(CE.data.radius, 0, 64)
 	NAgui.addSlider("Corner Radius", 0, 64, sliderRadius, 0.5, " px", function(v)
@@ -1122,11 +1867,65 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		persistFontData()
 	end)
+	NAgui.addToggle("Font Target: CoreGui", FontEditor.data.targetCoreGui, function(v)
+		updateFontTarget("targetCoreGui", v == true)
+	end)
+	NAgui.addToggle("Font Target: PlayerGui", FontEditor.data.targetPlayerGui, function(v)
+		updateFontTarget("targetPlayerGui", v == true)
+	end)
 	local fontInfoBox = NAgui.addInfo("Current Font", FontEditor.data.font)
 	local function refreshFontInfo()
 		if fontInfoBox then
 			fontInfoBox.Text = FontEditor.data.font
 		end
+	end
+	local cfInfo
+	local cfCycleLabel = "Cycle Custom Fonts Only"
+	local cfNameLabel = "Custom Font Name"
+	local cfUrlLabel = "Custom Font URL"
+	local function refreshFontUI()
+		if cfInfo then
+			cfInfo.Text = formatCustomFontStatus()
+		end
+		if not hasCustomFonts() and NAgui.setToggleState then
+			NAgui.setToggleState(cfCycleLabel, false, { force = true, fire = false })
+		end
+	end
+	local function openFontDeletePopup()
+		if not hasCustomFonts() then
+			DoNotif("No custom fonts installed.", 3)
+			return
+		end
+		if type(Popup) ~= "function" then
+			DoNotif("Popup UI is unavailable in this session.", 3)
+			return
+		end
+		local buttons = {}
+		for _, entry in ipairs(FontEditor.customFonts) do
+			local label = (entry.displayName or entry.name or entry.id) or "Custom Font"
+			table.insert(buttons, {
+				Text = label,
+				Callback = function()
+					local key = entry.id and ("custom:"..entry.id) or nil
+					local wasCurrent = key and FontEditor.data.fontKey == key
+					removeCustomFontEntry(entry, { deleteFiles = true })
+					rebuildFontChoices()
+					if wasCurrent then
+						setOverrideFont(FontEditor.default.fontKey)
+						refreshFontInfo()
+					end
+					refreshFontUI()
+					DoNotif(string.format("Removed custom font \"%s\".", label), 2)
+				end,
+			})
+		end
+		table.insert(buttons, { Text = "Cancel", Callback = function() end })
+		Popup({
+			Title = "Remove Custom Font",
+			Description = "Select a custom font to delete.",
+			Duration = 0,
+			Buttons = buttons,
+		})
 	end
 	refreshFontInfo()
 	NAgui.addButton("Previous Font", function()
@@ -1138,8 +1937,73 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		refreshFontInfo()
 	end)
 	NAgui.addButton("Reset Font", function()
-		setOverrideFont(FontEditor.default.font)
+		setOverrideFont(FontEditor.default.fontKey)
 		refreshFontInfo()
+	end)
+	cfInfo = NAgui.addInfo("Custom Fonts", formatCustomFontStatus())
+	refreshFontUI()
+	FontEditor.refreshCustomFontUI = refreshFontUI
+	NAgui.addToggle(cfCycleLabel, FontEditor.data.useCustomCycle and hasCustomFonts(), function(v)
+		if v and not hasCustomFonts() then
+			DoNotif("Install a custom font first.", 3)
+			if NAgui.setToggleState then
+				NAgui.setToggleState(cfCycleLabel, false, { force = true, fire = false })
+			end
+			return
+		end
+		FontEditor.data.useCustomCycle = v == true
+		persistFontData()
+	end)
+	NAgui.addSection("Custom Font Loader")
+	NAgui.addInput(cfNameLabel, "Display name (optional)", FontEditor.customInputs.name, function(text)
+		FontEditor.customInputs.name = text or ""
+	end)
+	NAgui.addInput(cfUrlLabel, "GitHub font url (blob/raw)", FontEditor.customInputs.url, function(text)
+		FontEditor.customInputs.url = text or ""
+	end)
+	NAgui.addButton("Download Custom Font", function()
+		if not FileSupport then
+			DoNotif("Custom fonts require file support.", 3)
+			return
+		end
+		local ok, result = addOrUpdateCustomFont(FontEditor.customInputs.name, FontEditor.customInputs.url)
+		if ok and result and result.id then
+			setOverrideFont("custom:"..result.id)
+			refreshFontInfo()
+			refreshFontUI()
+			if NAgui.setInputValue then
+				NAgui.setInputValue(cfNameLabel, "", { force = true, fire = false })
+				NAgui.setInputValue(cfUrlLabel, "", { force = true, fire = false })
+			end
+			FontEditor.customInputs.name = ""
+			FontEditor.customInputs.url = ""
+			DoNotif("Custom font saved.", 2)
+		else
+			DoNotif(result or "Unable to save custom font.", 3)
+		end
+	end)
+	NAgui.addButton("Remove Custom Font...", openFontDeletePopup)
+	NAgui.addButton("Reload Custom Fonts", function()
+		loadCustomFontManifest()
+		rebuildFontChoices()
+		setOverrideFont(FontEditor.data.fontKey, { persist = false, apply = false, silent = true })
+		refreshFontInfo()
+		refreshFontUI()
+		DoNotif("Custom fonts reloaded.", 2)
+	end)
+	NAgui.addButton("Remove All Custom Fonts", function()
+		if not hasCustomFonts() then
+			DoNotif("No custom fonts installed.", 3)
+			return
+		end
+		local wasCustom = type(FontEditor.data.fontKey) == "string" and FontEditor.data.fontKey:find("^custom:") == 1
+		removeAllCustomFonts()
+		if wasCustom then
+			setOverrideFont(FontEditor.default.fontKey)
+			refreshFontInfo()
+		end
+		refreshFontUI()
+		DoNotif("Removed all custom fonts.", 2)
 	end)
 end
 
