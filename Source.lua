@@ -2487,6 +2487,7 @@ until Notification or NAAssetsLoading.getSkip()
 if not Notification then
 	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
+NAmanage.Notification = Notification
 NAAssetsLoading.setPercent(0.22)
 
 NAAssetsLoading.setStatus("Loading Assets")
@@ -2663,21 +2664,52 @@ Notify = Notification.Notify
 Window = Notification.Window
 Popup  = Notification.Popup
 
+local function cloneTable(tbl)
+	local copy = {}
+	for k, v in pairs(tbl) do
+		copy[k] = v
+	end
+	return copy
+end
+
+local function buildNotifArgs(input, duration, title, allowDurationDefault)
+	local args = type(input) == "table" and cloneTable(input) or {}
+	if type(input) ~= "table" then
+		args.Description = tostring((input ~= nil and input) or "something")
+	elseif args.Description == nil then
+		args.Description = "something"
+	end
+	local resolvedTitle = title or adminName
+	if resolvedTitle and args.Title == nil then
+		args.Title = resolvedTitle
+	end
+	if allowDurationDefault or duration ~= nil then
+		if args.Duration == nil then
+			if duration ~= nil then
+				args.Duration = duration
+			elseif allowDurationDefault then
+				args.Duration = 5
+			end
+		end
+	end
+	return args
+end
+
 function DoNotif(text, duration, title)
-	Notify({ Title = title or adminName or nil, Description = text or "something", Duration = duration or 5 })
+	Notify(buildNotifArgs(text, duration, title, true))
 end
 
 function DebugNotif(text, duration, title)
 	if not NAStuff.nuhuhNotifs then return end
-	Notify({ Title = title or adminName or nil, Description = text or "something", Duration = duration or 5 })
+	Notify(buildNotifArgs(text, duration, title, true))
 end
 
 function DoWindow(text, title)
-	Window({ Title = title or adminName or nil, Description = text or "something" })
+	Window(buildNotifArgs(text, nil, title, false))
 end
 
 function DoPopup(text, title)
-	Popup({ Title = title or adminName or nil, Description = text or "something" })
+	Popup(buildNotifArgs(text, nil, title, false))
 end
 
 local mouse=SafeGetService("Players").LocalPlayer:GetMouse()

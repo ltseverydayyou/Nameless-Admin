@@ -86,6 +86,41 @@ local function drag(frame,handle)
 	uis.InputChanged:Connect(function(i)if g and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local d=i.Position-sp frame.Position=UDim2.new(su.X.Scale,su.X.Offset+d.X,su.Y.Scale,su.Y.Offset+d.Y)end end)
 end
 
+local function centerPopupRoot(root)
+	if not root then return end
+	if typeof(NAmanage)=="table" and typeof(NAmanage.centerFrame)=="function" then
+		local ok=pcall(NAmanage.centerFrame,root)
+		if ok then return end
+	end
+	local cam=workspace.CurrentCamera
+	if not cam then return end
+	local vp=cam.ViewportSize
+	if vp.X==0 or vp.Y==0 then return end
+	local totalX=root.Size.X.Scale+(root.Size.X.Offset/vp.X)
+	local totalY=root.Size.Y.Scale+(root.Size.Y.Offset/vp.Y)
+	root.Position=UDim2.new(0.5-totalX/2,0,0.5-totalY/2,0)
+end
+
+local function trackPopupCenter(root,card)
+	if not (root and card) then return end
+	local function refresh()
+		if not (root and card and card.Parent) then return end
+		local abs=card.AbsoluteSize
+		if abs.X>0 and abs.Y>0 then
+			root.Size=UDim2.fromOffset(abs.X,abs.Y)
+		else
+			root.Size=card.Size
+		end
+		centerPopupRoot(root)
+	end
+	refresh()
+	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(refresh)
+	local cam=workspace.CurrentCamera
+	if cam then
+		cam:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
+	end
+end
+
 local function appear(card,st,sc,tgt,from,cnt)
 	setAAll(cnt,1) card.Rotation=from.rot or -3 card.BackgroundTransparency=0.5 st.Transparency=0.8 st.Thickness=2.3 sc.Scale=0.88
 	card.Position=UDim2.new(card.Position.X.Scale,card.Position.X.Offset+(from.dx or 0),card.Position.Y.Scale,card.Position.Y.Offset+(from.dy or 0))
@@ -391,7 +426,10 @@ local function build(kind,p)
 	trkRef.Visible=showProg
 	openIn(card,parent,card.Footer,showProg and trkRef or nil,showProg and trkRef.ProgressFill or nil,card:FindFirstChildOfClass("UIStroke"),card:FindFirstChildOfClass("UIScale"),from,card.Content)
 	if showProg then timCtl=attachTimer(card,trkRef.ProgressFill,dur) end
-	if kind=="Popup" then drag(parent,card.Header) end
+	if kind=="Popup" then
+		trackPopupCenter(grp,card)
+		drag(parent,card.Header)
+	end
 	return card
 end
 
