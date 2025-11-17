@@ -451,30 +451,12 @@ local function drag(frame, handle)
     end)
 end
 
-local function centerPopupRoot(root)
-    if not root then
-        return
-    end
-    if
-        typeof(NAmanage) == 'table'
-        and typeof(NAmanage.centerFrame) == 'function'
-    then
-        local ok = pcall(NAmanage.centerFrame, root)
-        if ok then
-            return
-        end
-    end
+local function centerPopupRoot(f)
     local cam = workspace.CurrentCamera
-    if not cam then
-        return
-    end
-    local vp = cam.ViewportSize
-    if vp.X == 0 or vp.Y == 0 then
-        return
-    end
-    local totalX = root.Size.X.Scale + (root.Size.X.Offset / vp.X)
-    local totalY = root.Size.Y.Scale + (root.Size.Y.Offset / vp.Y)
-    root.Position = UDim2.new(0.5 - totalX / 2, 0, 0.5 - totalY / 2, 0)
+	local vp = cam.ViewportSize
+	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
+	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
+	f.Position = UDim2.new(0.5 - totalX/2, 0, 0.5 - totalY/2, 0)
 end
 
 local function trackPopupCenter(root, card)
@@ -482,15 +464,6 @@ local function trackPopupCenter(root, card)
         return
     end
     local function refresh()
-        if not (root and card and card.Parent) then
-            return
-        end
-        local abs = card.AbsoluteSize
-        if abs.X > 0 and abs.Y > 0 then
-            root.Size = UDim2.fromOffset(abs.X, abs.Y)
-        else
-            root.Size = card.Size
-        end
         centerPopupRoot(root)
     end
     refresh()
@@ -1653,22 +1626,12 @@ local function build(kind, p)
     end
     if kind == 'Popup' then
         ov.BackgroundTransparency = 1
-		tw:Create(ov, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
-        local oldClose = s.close
+		local oldClose = s.close
         s.close = function()
             if s.closing then
                 return
             end
             oldClose()
-            tw:Create(
-                ov,
-                TweenInfo.new(
-                    0.18,
-                    Enum.EasingStyle.Sine,
-                    Enum.EasingDirection.Out
-                ),
-                { BackgroundTransparency = 1 }
-            ):Play()
         end
         trackPopupCenter(grp, card)
         drag(parent, card.Header)
