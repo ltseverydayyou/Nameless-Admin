@@ -906,6 +906,192 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		applyAllCorners()
 	end
 
+	local function newFontStore()
+		return {}
+	end
+
+	local FontChoices = {}
+	for _, enumFont in ipairs(Enum.Font:GetEnumItems()) do
+		FontChoices[#FontChoices + 1] = enumFont.Name
+	end
+
+	local FontEditor = {
+		path = NAfiles.NAFILEPATH.."/font_override.json",
+		default = { enabled = false, font = "Gotham" },
+		cg = CoreGui,
+		store = newFontStore(),
+		data = { enabled = false, font = "Gotham" },
+		currentFont = Enum.Font.Gotham,
+	}
+
+	local function resolveFont(name)
+		if type(name) == "string" and name ~= "" then
+			local candidate = Enum.Font[name]
+			if candidate then
+				return candidate, candidate.Name
+			end
+		end
+		local fallback = Enum.Font[FontEditor.default.font]
+		return fallback, fallback.Name
+	end
+
+	local function persistFontData()
+		if not FileSupport then
+			return
+		end
+		pcall(writefile, FontEditor.path, HttpService:JSONEncode({
+			enabled = FontEditor.data.enabled,
+			font = FontEditor.data.font,
+		}))
+	end
+
+	local function loadFontData()
+		local stored = FontEditor.default
+		if FileSupport then
+			if not isfile(FontEditor.path) then
+				writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
+			end
+			local ok, raw = pcall(readfile, FontEditor.path)
+			if ok and type(raw) == "string" then
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okDecode and type(decoded) == "table" then
+					stored = decoded
+				end
+			end
+		end
+		local fontName = FontEditor.default.font
+		if type(stored.font) == "string" and stored.font ~= "" then
+			fontName = stored.font
+		end
+		local resolvedFont, resolvedName = resolveFont(fontName)
+		FontEditor.currentFont = resolvedFont
+		FontEditor.data.font = resolvedName
+		FontEditor.data.enabled = stored.enabled == true
+	end
+
+	local function isBuilderIconFontFace(o)
+		local ff = NAlib.isProperty(o, "FontFace")
+		local ffType = ff and typeof(ff) or nil
+		local fam = ff and ff.Family or nil
+		return (ffType == "Font" or ffType == "FontFace")
+			and type(fam) == "string"
+			and fam:find("BuilderIcons/BuilderIcons.json", 1, true)
+	end
+
+	local function isNAUIElement(o)
+		return o and NAStuff and NAStuff.NASCREENGUI and o:IsDescendantOf(NAStuff.NASCREENGUI)
+	end
+
+	local function isFontTarget(o)
+		if not (o and o.Parent) then
+			return false
+		end
+		if HUI and o:IsDescendantOf(HUI) then
+			return false
+		end
+		if isNAUIElement(o) then
+			return false
+		end
+		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
+	end
+
+	local function applyFontToInstance(o)
+		if not isFontTarget(o) then
+			return
+		end
+		if isBuilderIconFontFace(o) then
+			return
+		end
+		if not FontEditor.currentFont then
+			return
+		end
+		if not FontEditor.store[o] then
+			FontEditor.store[o] = { Font = NAlib.isProperty(o, "Font") }
+		end
+		local currentFont = NAlib.isProperty(o, "Font")
+		if currentFont == FontEditor.currentFont then
+			return
+		end
+		pcall(function()
+			o.Font = FontEditor.currentFont
+		end)
+	end
+
+	local function applyFontToDescendants(container)
+		if not container then
+			return
+		end
+		if isFontTarget(container) then
+			applyFontToInstance(container)
+		end
+		for _, descendant in ipairs(container:GetDescendants()) do
+			if isFontTarget(descendant) then
+				applyFontToInstance(descendant)
+			end
+		end
+	end
+
+	local function restoreAllFonts()
+		for target, info in pairs(FontEditor.store) do
+			if target and info and info.Font then
+				pcall(function()
+					target.Font = info.Font
+				end)
+			end
+		end
+		FontEditor.store = newFontStore()
+	end
+
+	local function applyAllFonts()
+		if not FontEditor.data.enabled or not FontEditor.cg then
+			return
+		end
+		applyFontToDescendants(FontEditor.cg)
+	end
+
+	local function setOverrideFont(name)
+		local resolvedFont, resolvedName = resolveFont(name)
+		FontEditor.currentFont = resolvedFont
+		FontEditor.data.font = resolvedName
+		persistFontData()
+		if FontEditor.data.enabled then
+			applyAllFonts()
+		end
+	end
+
+	local function cycleOverrideFont(delta)
+		if #FontChoices == 0 then
+			return
+		end
+		local currentName = FontEditor.data.font
+		local index = 1
+		for i, fontName in ipairs(FontChoices) do
+			if fontName == currentName then
+				index = i
+				break
+			end
+		end
+		local nextIndex = ((index - 1 + delta) % #FontChoices) + 1
+		setOverrideFont(FontChoices[nextIndex])
+	end
+
+	local function onFontDescendantAdded(o)
+		if FontEditor.data.enabled then
+			applyFontToDescendants(o)
+		end
+	end
+
+	loadFontData()
+
+	if FontEditor.cg then
+		NAlib.disconnect("FontEditor")
+		NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(onFontDescendantAdded))
+	end
+
+	if FontEditor.data.enabled then
+		applyAllFonts()
+	end
+
 	NAgui.addSection("Corner Editor")
 	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
 		CE.data.enabled = v
@@ -924,6 +1110,36 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			applyAllCorners()
 		end
 		persistCornerData()
+	end)
+
+	NAgui.addSection("Font Changer")
+	NAgui.addToggle("Override Text Font", FontEditor.data.enabled, function(v)
+		FontEditor.data.enabled = v
+		if FontEditor.data.enabled then
+			applyAllFonts()
+		else
+			restoreAllFonts()
+		end
+		persistFontData()
+	end)
+	local fontInfoBox = NAgui.addInfo("Current Font", FontEditor.data.font)
+	local function refreshFontInfo()
+		if fontInfoBox then
+			fontInfoBox.Text = FontEditor.data.font
+		end
+	end
+	refreshFontInfo()
+	NAgui.addButton("Previous Font", function()
+		cycleOverrideFont(-1)
+		refreshFontInfo()
+	end)
+	NAgui.addButton("Next Font", function()
+		cycleOverrideFont(1)
+		refreshFontInfo()
+	end)
+	NAgui.addButton("Reset Font", function()
+		setOverrideFont(FontEditor.default.font)
+		refreshFontInfo()
 	end)
 end
 
