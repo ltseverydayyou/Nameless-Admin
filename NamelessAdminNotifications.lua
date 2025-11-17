@@ -414,6 +414,7 @@ end
 local function drag(frame, handle)
     local g = false
     local sp, su
+    local moved = false
     handle.InputBegan:Connect(function(i)
         if
             i.UserInputType == Enum.UserInputType.MouseButton1
@@ -422,6 +423,7 @@ local function drag(frame, handle)
             g = true
             sp = i.Position
             su = frame.Position
+            moved = false
         end
     end)
     handle.InputEnded:Connect(function(i)
@@ -441,6 +443,13 @@ local function drag(frame, handle)
             )
         then
             local d = i.Position - sp
+            if
+                not moved
+                and (math.abs(d.X) > 0 or math.abs(d.Y) > 0)
+            then
+                moved = true
+                ctx(frame).popupManual = true
+            end
             frame.Position = UDim2.new(
                 su.X.Scale,
                 su.X.Offset + d.X,
@@ -451,26 +460,37 @@ local function drag(frame, handle)
     end)
 end
 
-local function centerPopupRoot(f)
-    local cam = workspace.CurrentCamera
-	local vp = cam.ViewportSize
-	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
-	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
-	f.Position = UDim2.new(0.5 - totalX/2, 0, 0.5 - totalY/2, 0)
+local function centerPopupRoot(f, force)
+    if not f then
+        return
+    end
+    local state = ctx(f)
+    if not force and state.popupManual then
+        return
+    end
+    if force then
+        state.popupManual = nil
+    end
+    f.AnchorPoint = Vector2.new(0.5, 0.5)
+    f.Position = UDim2.new(0.5, 0, 0.5, 0)
 end
 
 local function trackPopupCenter(root, card)
     if not (root and card) then
         return
     end
-    local function refresh()
-        centerPopupRoot(root)
+    local function refresh(force)
+        centerPopupRoot(root, force)
     end
-    refresh()
-    card:GetPropertyChangedSignal('AbsoluteSize'):Connect(refresh)
+    refresh(true)
+    card:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+        refresh()
+    end)
     local cam = workspace.CurrentCamera
     if cam then
-        cam:GetPropertyChangedSignal('ViewportSize'):Connect(refresh)
+        cam:GetPropertyChangedSignal('ViewportSize'):Connect(function()
+            refresh()
+        end)
     end
 end
 
