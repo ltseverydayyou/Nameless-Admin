@@ -814,7 +814,14 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 
 	local CE = {
 		path = NAfiles.NAFILEPATH.."/corner_editor.json",
-		default = { enabled = false, radius = 10, targetCoreGui = true, targetPlayerGui = false },
+		default = {
+			enabled = false,
+			radius = 10,
+			targetCoreGui = true,
+			targetPlayerGui = false,
+			targetBillboardGui = false,
+			targetSurfaceGui = false,
+		},
 		cg = coreGui,
 		store = NAmanage.newCornerStore(),
 		watchers = {},
@@ -826,6 +833,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		radius = CE.default.radius,
 		targetCoreGui = CE.default.targetCoreGui,
 		targetPlayerGui = CE.default.targetPlayerGui,
+		targetBillboardGui = CE.default.targetBillboardGui,
+		targetSurfaceGui = CE.default.targetSurfaceGui,
 	}
 	if FileSupport then
 		if not isfile(CE.path) then
@@ -846,6 +855,12 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				if type(decoded.targetPlayerGui) == "boolean" then
 					data.targetPlayerGui = decoded.targetPlayerGui
 				end
+				if type(decoded.targetBillboardGui) == "boolean" then
+					data.targetBillboardGui = decoded.targetBillboardGui
+				end
+				if type(decoded.targetSurfaceGui) == "boolean" then
+					data.targetSurfaceGui = decoded.targetSurfaceGui
+				end
 			end
 		end
 	end
@@ -860,11 +875,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")
 	end
 
-	local function getCornerRadius()
+	local function getCRad()
 		return UDim.new(0, math.clamp(tonumber(CE.data.radius) or CE.default.radius, 0, 64))
 	end
 
-	local function isCornerTarget(o)
+	local function isCTgt(o)
 		if not (o and o:IsA("UICorner")) then
 			return false
 		end
@@ -874,7 +889,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return true
 	end
 
-	local function getCornerTargets()
+	local function getCTgts()
 		local containers = {}
 		if CE.data.targetCoreGui and CE.cg then
 			containers[#containers + 1] = CE.cg
@@ -885,10 +900,57 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				containers[#containers + 1] = pg
 			end
 		end
+		local world = workspace
+		if CE.data.targetBillboardGui and world and world.GetDescendants then
+			for _, inst in ipairs(world:GetDescendants()) do
+				if inst:IsA("BillboardGui") then
+					containers[#containers + 1] = inst
+				end
+			end
+		end
+		if CE.data.targetSurfaceGui and world and world.GetDescendants then
+			for _, inst in ipairs(world:GetDescendants()) do
+				if inst:IsA("SurfaceGui") then
+					containers[#containers + 1] = inst
+				end
+			end
+		end
 		return containers
 	end
 
-	local function disconnectCornerWatcher(target)
+	local function getCBB(o)
+		if not (CE.data.targetBillboardGui and typeof(o) == "Instance") then
+			return nil
+		end
+		if o:IsA("BillboardGui") then
+			return o
+		end
+		local ok, ancestor = pcall(function()
+			return o:FindFirstAncestorOfClass("BillboardGui")
+		end)
+		if ok then
+			return ancestor
+		end
+		return nil
+	end
+
+	local function getCSurf(o)
+		if not (CE.data.targetSurfaceGui and typeof(o) == "Instance") then
+			return nil
+		end
+		if o:IsA("SurfaceGui") then
+			return o
+		end
+		local ok, ancestor = pcall(function()
+			return o:FindFirstAncestorOfClass("SurfaceGui")
+		end)
+		if ok then
+			return ancestor
+		end
+		return nil
+	end
+
+	local function stopCWat(target)
 		local watcher = CE.watchers[target]
 		if not watcher then
 			return
@@ -902,7 +964,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		CE.watchers[target] = nil
 	end
 
-	local function ensureCornerWatcher(target)
+	local function setCWat(target)
 		if not target or CE.watchers[target] then
 			return
 		end
@@ -911,7 +973,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			if CE.restoring or not CE.data.enabled then
 				return
 			end
-			local desired = getCornerRadius()
+			local desired = getCRad()
 			if target.CornerRadius ~= desired then
 				pcall(function()
 					target.CornerRadius = desired
@@ -920,15 +982,15 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end)
 		watcher.ancestry = target.AncestryChanged:Connect(function(obj)
 			if not obj.Parent then
-				disconnectCornerWatcher(obj)
+				stopCWat(obj)
 				CE.store[obj] = nil
 			end
 		end)
 		CE.watchers[target] = watcher
 	end
 
-	local function applyCorner(o)
-		if not isCornerTarget(o) then
+	local function setCorner(o)
+		if not isCTgt(o) then
 			return
 		end
 		local info = CE.store[o]
@@ -936,11 +998,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			info = { original = o.CornerRadius }
 			CE.store[o] = info
 		end
-		o.CornerRadius = getCornerRadius()
-		ensureCornerWatcher(o)
+		o.CornerRadius = getCRad()
+		setCWat(o)
 	end
 
-	local function restoreAllCorners()
+	local function resetCorn()
 		CE.restoring = true
 		for corner, info in pairs(CE.store) do
 			if corner and info and info.original then
@@ -948,51 +1010,91 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 					corner.CornerRadius = info.original
 				end)
 			end
-			disconnectCornerWatcher(corner)
+			stopCWat(corner)
 		end
 		CE.restoring = false
 		CE.store = NAmanage.newCornerStore()
 		CE.watchers = {}
 	end
 
-	local function applyAllCorners()
+	local function applyCorn()
 		if not CE.data.enabled then
 			return
 		end
-		for _, container in ipairs(getCornerTargets()) do
+		for _, container in ipairs(getCTgts()) do
+			setCorner(container)
 			local descendants = container:GetDescendants()
 			for i = 1, #descendants do
-				applyCorner(descendants[i])
+				setCorner(descendants[i])
 			end
 		end
 	end
 
-	local function persistCornerData()
+	local function saveCData()
 		if FileSupport then
 			writefile(CE.path, HttpService:JSONEncode(CE.data))
 		end
 	end
 
-	local function onCornerDescendant(o)
+	local function onCDesc(o)
 		if CE.data.enabled then
-			applyCorner(o)
+			setCorner(o)
 		end
 	end
 
-	local function refreshCornerConnections()
+	local function onCBB(o)
+		if not CE.data.enabled then
+			return
+		end
+		local root = getCBB(o)
+		if root then
+			setCorner(root)
+			local kids = root:GetDescendants()
+			for i = 1, #kids do
+				setCorner(kids[i])
+			end
+		end
+	end
+
+	local function onCSurf(o)
+		if not CE.data.enabled then
+			return
+		end
+		local root = getCSurf(o)
+		if root then
+			setCorner(root)
+			local kids = root:GetDescendants()
+			for i = 1, #kids do
+				setCorner(kids[i])
+			end
+		end
+	end
+
+	local function syncCConn()
 		NAlib.disconnect("CornerEditor")
 		if CE.data.targetCoreGui and CE.cg then
-			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCornerDescendant))
+			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCDesc))
 		end
 
 		NAlib.disconnect("CornerEditor_PlayerGui")
 		local pg = CE.data.targetPlayerGui and getPlayerGui()
 		if pg then
-			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCornerDescendant))
+			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCDesc))
+		end
+
+		local world = workspace
+		NAlib.disconnect("CornerEditor_Billboard")
+		if CE.data.targetBillboardGui and world then
+			NAlib.connect("CornerEditor_Billboard", world.DescendantAdded:Connect(onCBB))
+		end
+
+		NAlib.disconnect("CornerEditor_Surface")
+		if CE.data.targetSurfaceGui and world then
+			NAlib.connect("CornerEditor_Surface", world.DescendantAdded:Connect(onCSurf))
 		end
 	end
 
-	local function monitorCornerPlayerGui()
+	local function monCPGui()
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
@@ -1000,37 +1102,37 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
 		NAlib.connect("CornerEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
 			if child:IsA("PlayerGui") then
-				refreshCornerConnections()
+				syncCConn()
 				if CE.data.enabled then
-					applyAllCorners()
+					applyCorn()
 				end
 			end
 		end))
 		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
 		NAlib.connect("CornerEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
 			if child:IsA("PlayerGui") then
-				refreshCornerConnections()
+				syncCConn()
 			end
 		end))
 	end
 
-	local function updateCornerTarget(field, value)
+	local function setCTgt(field, value)
 		if CE.data[field] == value then
 			return
 		end
 		CE.data[field] = value
-		persistCornerData()
-		refreshCornerConnections()
+		saveCData()
+		syncCConn()
 		if CE.data.enabled then
-			restoreAllCorners()
-			applyAllCorners()
+			resetCorn()
+			applyCorn()
 		end
 	end
 
-	refreshCornerConnections()
-	monitorCornerPlayerGui()
+	syncCConn()
+	monCPGui()
 	if CE.data.enabled then
-		applyAllCorners()
+		applyCorn()
 	end
 
 	local FontEditor
@@ -1044,6 +1146,24 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	local FontChoices = {}
 	local CustomFontChoices = {}
 	local FontChoiceIndex = {}
+	local FontExts = {
+		[".ttf"] = true,
+		[".otf"] = true,
+		[".ttc"] = true,
+		[".otc"] = true,
+		[".woff"] = true,
+		[".woff2"] = true,
+		[".fon"] = true,
+		[".fnt"] = true,
+		[".pfb"] = true,
+		[".pfa"] = true,
+		[".dfont"] = true,
+		[".eot"] = true,
+	}
+	local NAFontSrc = {
+		list = "https://api.github.com/repos/ltseverydayyou/uuuuuuu/contents/NAfonts?ref=main",
+		raw = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/NAfonts/",
+	}
 
 	local function clearFontChoices()
 		FontChoices = {}
@@ -1121,7 +1241,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return string.format("%d custom fonts installed", count)
 	end
 
-	local function normalizeCustomFontUrl(url)
+	local function preprocessFontUrl(url)
 		if type(url) ~= "string" then
 			return nil
 		end
@@ -1130,11 +1250,113 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return nil
 		end
 		trimmed = trimmed:gsub(" ", "%%20")
-		local noQuery = trimmed:match("^(https?://[^%?]+)")
-		if noQuery then
-			trimmed = noQuery
+		local qPos = trimmed:find("%?")
+		local base = qPos and trimmed:sub(1, qPos - 1) or trimmed
+		return trimmed, base
+	end
+
+	local function normalizeGitHubPath(path)
+		if type(path) ~= "string" then
+			return ""
 		end
-		local owner, repo, kind, rest = trimmed:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
+		local cleaned = path:gsub("^/+", "")
+		cleaned = cleaned:gsub("/+$", "")
+		return cleaned
+	end
+
+	local function encodeGitHubPath(path)
+		local normalized = normalizeGitHubPath(path or "")
+		if normalized == "" then
+			return ""
+		end
+		local segments = {}
+		for segment in normalized:gmatch("[^/]+") do
+			segments[#segments + 1] = HttpService:UrlEncode(segment)
+		end
+		return table.concat(segments, "/")
+	end
+
+	local function parseGitHubFolderUrl(baseUrl, originalUrl)
+		if type(baseUrl) ~= "string" or baseUrl == "" then
+			return nil
+		end
+		local owner, repo, kind, rest = baseUrl:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/?(.*)$")
+		if owner and repo and kind then
+			if kind == "tree" then
+				local sanitizedRest = rest or ""
+				if sanitizedRest:sub(1, 11) == "refs/heads/" then
+					sanitizedRest = sanitizedRest:sub(12)
+				elseif sanitizedRest:sub(1, 10) == "refs/tags/" then
+					sanitizedRest = sanitizedRest:sub(11)
+				end
+				local branch, path = sanitizedRest:match("^([^/]+)/(.*)$")
+				if not branch then
+					branch = sanitizedRest ~= "" and sanitizedRest or "main"
+					path = ""
+				end
+				branch = branch:gsub("%%2[Ff]", "/")
+				path = (path and path:gsub("%%2[Ff]", "/")) or ""
+				return {
+					owner = owner,
+					repo = repo,
+					branch = branch,
+					path = normalizeGitHubPath(path),
+					originalUrl = originalUrl or baseUrl,
+				}
+			end
+			return nil
+		end
+		local ownerOnly, repoOnly = baseUrl:match("^https?://github.com/([^/]+)/([^/?#]+)$")
+		if ownerOnly and repoOnly then
+			return {
+				owner = ownerOnly,
+				repo = repoOnly:gsub("%.git$", ""),
+				branch = "main",
+				path = "",
+				originalUrl = originalUrl or baseUrl,
+			}
+		end
+		return nil
+	end
+
+	local GitHubFolderLimits = {
+		depth = 4,
+		total = 40,
+	}
+
+	local function fetchGitHubFolderContents(info, relativePath)
+		if type(info) ~= "table" or type(info.owner) ~= "string" or type(info.repo) ~= "string" then
+			return false, "Invalid GitHub folder reference."
+		end
+		local branch = info.branch ~= "" and info.branch or "main"
+		local baseUrl = string.format("https://api.github.com/repos/%s/%s/contents", info.owner, info.repo)
+		local encodedPath = encodeGitHubPath(relativePath or "")
+		if encodedPath ~= "" then
+			baseUrl = baseUrl.."/"..encodedPath
+		end
+		baseUrl = baseUrl.."?ref="..HttpService:UrlEncode(branch)
+		local ok, raw = pcall(function()
+			return game:HttpGet(baseUrl)
+		end)
+		if not (ok and type(raw) == "string" and raw ~= "") then
+			return false, raw or "Unable to fetch GitHub folder contents."
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okDecode and type(decoded) == "table") then
+			return false, "Invalid GitHub folder response."
+		end
+		if type(decoded.message) == "string" and decoded.message ~= "" then
+			return false, decoded.message
+		end
+		return true, decoded
+	end
+
+	local function normalizeCustomFontUrl(url)
+		local trimmed, noQuery = preprocessFontUrl(url)
+		if not trimmed then
+			return nil
+		end
+		local owner, repo, kind, rest = noQuery:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
 		if owner and repo and kind and rest then
 			local sanitizedRest = rest
 			if sanitizedRest:sub(1, 11) == "refs/heads/" then
@@ -1151,7 +1373,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				end
 			end
 		end
-		local directRaw = trimmed:match("^https?://raw%.githubusercontent%.com/.+")
+		local directRaw = noQuery:match("^https?://raw%.githubusercontent%.com/.+")
 		if directRaw then
 			return trimmed
 		end
@@ -1186,6 +1408,106 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return nil
 		end
 		return sanitized
+	end
+
+	local function getFName(path)
+		if type(path) ~= "string" then
+			return nil
+		end
+		local normalized = path:gsub("\\", "/")
+		return normalized:match("([^/]+)$")
+	end
+
+	local function isFontExt(name)
+		if type(name) ~= "string" or name == "" then
+			return false
+		end
+		local ext = name:match("%.[^%.]+$")
+		return ext and FontExts[ext:lower()] == true
+	end
+
+	local function collectGitHubFontFiles(info)
+		if type(info) ~= "table" then
+			return false, "Invalid GitHub folder reference."
+		end
+		local fonts = {}
+		local visited = {}
+		local function visitKey(path)
+			return (path and path ~= "") and path or "/"
+		end
+		local function scan(path, depth)
+			depth = depth or 0
+			if depth > GitHubFolderLimits.depth then
+				return true
+			end
+			if #fonts >= GitHubFolderLimits.total then
+				return true
+			end
+			local okFetch, payload = fetchGitHubFolderContents(info, path or "")
+			if not okFetch then
+				return false, payload
+			end
+			local entries = {}
+			if payload.type == "file" then
+				entries[1] = payload
+			elseif #payload > 0 then
+				for _, entry in ipairs(payload) do
+					entries[#entries + 1] = entry
+				end
+			else
+				return true
+			end
+			for _, entry in ipairs(entries) do
+				if type(entry) == "table" then
+					if entry.type == "file" then
+						if entry.name and isFontExt(entry.name) and entry.download_url then
+							fonts[#fonts + 1] = {
+								name = entry.name,
+								label = entry.name:gsub("%.[^%.]+$", ""),
+								url = entry.download_url,
+							}
+							if #fonts >= GitHubFolderLimits.total then
+								break
+							end
+						end
+					elseif entry.type == "dir" and entry.path then
+						local key = visitKey(entry.path)
+						if not visited[key] then
+							visited[key] = true
+							local okChild, errChild = scan(entry.path, depth + 1)
+							if not okChild then
+								return false, errChild
+							end
+							if #fonts >= GitHubFolderLimits.total then
+								break
+							end
+						end
+					end
+				end
+			end
+			return true
+		end
+		local startPath = normalizeGitHubPath(info.path or "")
+		visited[visitKey(startPath)] = true
+		local okScan, errScan = scan(startPath, 0)
+		if not okScan then
+			return false, errScan
+		end
+		return true, fonts
+	end
+
+	local function uniqFontId(base)
+		local clean = base
+		if not clean or clean == "" then
+			clean = "font_"..tostring(os.time())
+		end
+		local id = clean
+		local idx = 1
+		while FontEditor.customFontMap and FontEditor.customFontMap[id] do
+			idx += 1
+			id = string.format("%s_%d", clean, idx)
+		end
+		return id
 	end
 
 	local function saveCustomFontManifest()
@@ -1279,6 +1601,59 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if FontEditor.refreshCustomFontUI then
 			FontEditor.refreshCustomFontUI()
 		end
+	end
+
+	local function scanFonts()
+		if not (FileSupport and listfiles) then
+			return false
+		end
+		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+			return false
+		end
+		if type(FontEditor.customFonts) ~= "table" or type(FontEditor.customFontMap) ~= "table" then
+			return false
+		end
+		local okFolder = ensureCustomFontFolder()
+		if not okFolder then
+			return false
+		end
+		local okList, items = pcall(listfiles, FontEditor.customDir)
+		if not (okList and type(items) == "table") then
+			return false
+		end
+		local known = {}
+		for _, entry in ipairs(FontEditor.customFonts) do
+			if entry.file then
+				known[entry.file:lower()] = true
+			end
+		end
+		local added = false
+		for _, fullPath in ipairs(items) do
+			local name = getFName(fullPath)
+			if name and isFontExt(name) then
+				local lower = name:lower()
+				if not known[lower] then
+					local base = name:gsub("%.[^%.]+$", "")
+					local id = uniqFontId(sanitizeId(base) or sanitizeId(name))
+					local label = base ~= "" and base or id
+					local entry = {
+						id = id,
+						name = label,
+						displayName = label,
+						file = name,
+						url = nil,
+					}
+					FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
+					FontEditor.customFontMap[id] = entry
+					known[lower] = true
+					added = true
+				end
+			end
+		end
+		if added then
+			saveCustomFontManifest()
+		end
+		return added
 	end
 
 	local function loadCustomFontManifest()
@@ -1462,33 +1837,16 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return candidate
 	end
 
-	local function addOrUpdateCustomFont(name, url)
-		if not FileSupport then
-			return false, "File support is required for custom fonts."
-		end
-		if type(writefile) ~= "function" then
-			return false, "writefile is required for custom fonts."
-		end
-		if type(url) ~= "string" or url == "" then
-			return false, "A GitHub font URL is required."
-		end
-		local normalizedUrl = normalizeCustomFontUrl(url)
-		if not normalizedUrl then
-			return false, "Invalid font URL."
-		end
-		url = normalizedUrl
-		local okFolder, folderErr = ensureCustomFontFolder()
-		if not okFolder then
-			return false, folderErr
-		end
-		local rawName = name or ""
+	local function installFontFromUrl(name, url, opts)
+		opts = opts or {}
+		local rawName = type(name) == "string" and (name:match("^%s*(.-)%s*$") or "") or ""
 		local httpOk, data = pcall(function()
 			return game:HttpGet(url)
 		end)
 		if not (httpOk and type(data) == "string" and data ~= "") then
 			return false, "Unable to download font file."
 		end
-		local remoteFile = deriveFileNameFromUrl(url)
+		local remoteFile = opts.remoteFileName or deriveFileNameFromUrl(url)
 		local sanitizedRemote = sanitizeFileName(remoteFile or rawName)
 		if not sanitizedRemote then
 			sanitizedRemote = "font_"..tostring(os.time())..".otf"
@@ -1502,29 +1860,173 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if not okWrite then
 			return false, errWrite or "Unable to save custom font file."
 		end
-		local existing = FontEditor.customFontMap[id]
-		if existing then
-			existing.file = fileName
-			existing.url = url
+		local entry = FontEditor.customFontMap[id]
+		if entry then
+			entry.file = fileName
+			entry.url = url
 			if rawName ~= "" then
-				existing.name = rawName
-				existing.displayName = rawName
+				entry.name = rawName
+				entry.displayName = rawName
 			end
-			existing.familyFile = existing.familyFile
 		else
-			local entry = {
+			local display = rawName ~= "" and rawName or sanitizedRemote:gsub("%.[^%.]+$", "")
+			entry = {
 				id = id,
-				name = rawName ~= "" and rawName or idSource,
-				displayName = rawName ~= "" and rawName or idSource,
+				name = display,
+				displayName = display,
 				file = fileName,
 				url = url,
 			}
 			FontEditor.customFontMap[id] = entry
 			FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
 		end
+		if not opts.deferSave then
+			saveCustomFontManifest()
+			rebuildFontChoices()
+		end
+		return true, entry
+	end
+
+	local function installFontsFromGitHubFolder(name, folderInfo)
+		local okFonts, fontList = collectGitHubFontFiles(folderInfo)
+		if not okFonts then
+			return false, fontList
+		end
+		if #fontList == 0 then
+			return false, "No font files were found in that folder."
+		end
+		local baseName = type(name) == "string" and (name:match("^%s*(.-)%s*$") or "") or ""
+		local installed = {}
+		local lastErr = nil
+		for _, font in ipairs(fontList) do
+			local label = font.label
+			if baseName ~= "" then
+				label = baseName.." - "..font.label
+			end
+			local okInstall, result = installFontFromUrl(label, font.url, {
+				remoteFileName = font.name,
+				deferSave = true,
+			})
+			if okInstall then
+				installed[#installed + 1] = result
+			else
+				lastErr = result
+			end
+		end
+		if #installed == 0 then
+			return false, lastErr or "Unable to install fonts from that folder."
+		end
 		saveCustomFontManifest()
 		rebuildFontChoices()
-		return true, FontEditor.customFontMap[id]
+		return true, {
+			multi = true,
+			entries = installed,
+			count = #installed,
+			source = folderInfo.originalUrl,
+		}
+	end
+
+	local function addOrUpdateCustomFont(name, url, opts)
+		opts = opts or {}
+		if not FileSupport then
+			return false, "File support is required for custom fonts."
+		end
+		if type(writefile) ~= "function" then
+			return false, "writefile is required for custom fonts."
+		end
+		if type(url) ~= "string" or url == "" then
+			return false, "A font URL is required."
+		end
+		local trimmed, baseUrl = preprocessFontUrl(url)
+		if not trimmed then
+			return false, "A font URL is required."
+		end
+		local okFolder, folderErr = ensureCustomFontFolder()
+		if not okFolder then
+			return false, folderErr
+		end
+		if not opts.skipFolderScan then
+			local folderInfo = parseGitHubFolderUrl(baseUrl, trimmed)
+			if folderInfo then
+				folderInfo.path = folderInfo.path or ""
+				return installFontsFromGitHubFolder(name, folderInfo)
+			end
+		end
+		local normalizedUrl = normalizeCustomFontUrl(trimmed)
+		if not normalizedUrl then
+			return false, "Invalid font URL."
+		end
+		return installFontFromUrl(name, normalizedUrl, opts)
+	end
+
+	local function getNAList()
+		local ok, raw = pcall(function()
+			return game:HttpGet(NAFontSrc.list)
+		end)
+		if not (ok and type(raw) == "string" and raw ~= "") then
+			return false, "Unable to fetch NA font catalog."
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okDecode and type(decoded) == "table") then
+			return false, "Invalid NA font catalog."
+		end
+		local items = {}
+		if #decoded > 0 then
+			for _, entry in ipairs(decoded) do
+				items[#items + 1] = entry
+			end
+		else
+			for _, entry in pairs(decoded) do
+				if type(entry) == "table" then
+					items[#items + 1] = entry
+				end
+			end
+		end
+		local fonts = {}
+		for _, entry in ipairs(items) do
+			if type(entry) == "table" and type(entry.name) == "string" then
+				if isFontExt(entry.name) then
+					fonts[#fonts + 1] = {
+						name = entry.name,
+						label = entry.name:gsub("%.[^%.]+$", ""),
+						url = NAFontSrc.raw..entry.name,
+					}
+				end
+			end
+		end
+		if #fonts == 0 then
+			return false, "No preset fonts available."
+		end
+		return true, fonts
+	end
+
+	local function dlNAFonts()
+		if not FileSupport then
+			return false, "Custom fonts require file support."
+		end
+		local okFolder, folderErr = ensureCustomFontFolder()
+		if not okFolder then
+			return false, folderErr
+		end
+		local okList, fonts = getNAList()
+		if not okList then
+			return false, fonts
+		end
+		local count = 0
+		local lastErr = nil
+		for _, font in ipairs(fonts) do
+			local label = font.label ~= "" and font.label or font.name
+			local okInstall, res = addOrUpdateCustomFont(label, font.url)
+			if okInstall then
+				count += 1
+			else
+				lastErr = res or ("Unable to install "..label)
+			end
+		end
+		if count == 0 then
+			return false, lastErr or "No preset fonts installed."
+		end
+		return true, count
 	end
 
 	FontEditor = {
@@ -1535,6 +2037,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			fontKey = "enum:Gotham",
 			targetCoreGui = true,
 			targetPlayerGui = false,
+			targetBillboardGui = false,
+			targetSurfaceGui = false,
 			useCustomCycle = false,
 		},
 		cg = CoreGui,
@@ -1545,6 +2049,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			fontKey = "enum:Gotham",
 			targetCoreGui = true,
 			targetPlayerGui = false,
+			targetBillboardGui = false,
+			targetSurfaceGui = false,
 			useCustomCycle = false,
 		},
 		currentFont = Enum.Font.Gotham,
@@ -1557,6 +2063,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		refreshCustomFontUI = nil,
 		watchers = {},
 		restoring = false,
+		dlBusy = false,
 	}
 
 	local function disconnectFontWatcher(target)
@@ -1614,6 +2121,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			fontLabel = FontEditor.data.font,
 			targetCoreGui = FontEditor.data.targetCoreGui,
 			targetPlayerGui = FontEditor.data.targetPlayerGui,
+			targetBillboardGui = FontEditor.data.targetBillboardGui,
+			targetSurfaceGui = FontEditor.data.targetSurfaceGui,
 			useCustomCycle = FontEditor.data.useCustomCycle,
 		}))
 	end
@@ -1653,6 +2162,16 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		else
 			FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
 		end
+		if type(stored.targetBillboardGui) == "boolean" then
+			FontEditor.data.targetBillboardGui = stored.targetBillboardGui
+		else
+			FontEditor.data.targetBillboardGui = FontEditor.default.targetBillboardGui
+		end
+		if type(stored.targetSurfaceGui) == "boolean" then
+			FontEditor.data.targetSurfaceGui = stored.targetSurfaceGui
+		else
+			FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
+		end
 		FontEditor.data.enabled = stored.enabled == true
 	end
 
@@ -1680,6 +2199,38 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return false
 		end
 		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
+	end
+
+	local function getFontBB(o)
+		if not (FontEditor.data.targetBillboardGui and typeof(o) == "Instance") then
+			return nil
+		end
+		if o:IsA("BillboardGui") then
+			return o
+		end
+		local ok, ancestor = pcall(function()
+			return o:FindFirstAncestorOfClass("BillboardGui")
+		end)
+		if ok then
+			return ancestor
+		end
+		return nil
+	end
+
+	local function getFontSurf(o)
+		if not (FontEditor.data.targetSurfaceGui and typeof(o) == "Instance") then
+			return nil
+		end
+		if o:IsA("SurfaceGui") then
+			return o
+		end
+		local ok, ancestor = pcall(function()
+			return o:FindFirstAncestorOfClass("SurfaceGui")
+		end)
+		if ok then
+			return ancestor
+		end
+		return nil
 	end
 
 	local function captureFontFaceState(o)
@@ -1759,6 +2310,21 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			local pg = getPlayerGui()
 			if pg then
 				containers[#containers + 1] = pg
+			end
+		end
+		local world = workspace
+		if FontEditor.data.targetBillboardGui and world and world.GetDescendants then
+			for _, inst in ipairs(world:GetDescendants()) do
+				if inst:IsA("BillboardGui") then
+					containers[#containers + 1] = inst
+				end
+			end
+		end
+		if FontEditor.data.targetSurfaceGui and world and world.GetDescendants then
+			for _, inst in ipairs(world:GetDescendants()) do
+				if inst:IsA("SurfaceGui") then
+					containers[#containers + 1] = inst
+				end
 			end
 		end
 		return containers
@@ -1872,6 +2438,26 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 	end
 
+	local function onFontBillboardAdded(o)
+		if not FontEditor.data.enabled then
+			return
+		end
+		local root = getFontBB(o)
+		if root then
+			applyFontToDescendants(root)
+		end
+	end
+
+	local function onFontSurfaceAdded(o)
+		if not FontEditor.data.enabled then
+			return
+		end
+		local root = getFontSurf(o)
+		if root then
+			applyFontToDescendants(root)
+		end
+	end
+
 	local function refreshFontConnections()
 		NAlib.disconnect("FontEditor")
 		if FontEditor.data.targetCoreGui and FontEditor.cg then
@@ -1882,6 +2468,17 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		local pg = FontEditor.data.targetPlayerGui and getPlayerGui()
 		if pg then
 			NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(onFontDescendantAdded))
+		end
+
+		local world = workspace
+		NAlib.disconnect("FontEditor_Billboard")
+		if FontEditor.data.targetBillboardGui and world then
+			NAlib.connect("FontEditor_Billboard", world.DescendantAdded:Connect(onFontBillboardAdded))
+		end
+
+		NAlib.disconnect("FontEditor_Surface")
+		if FontEditor.data.targetSurfaceGui and world then
+			NAlib.connect("FontEditor_Surface", world.DescendantAdded:Connect(onFontSurfaceAdded))
 		end
 	end
 
@@ -1921,6 +2518,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	loadCustomFontManifest()
+	scanFonts()
 	rebuildFontChoices()
 	loadFontData()
 	setOverrideFont(FontEditor.data.fontKey, { persist = false, apply = false, silent = true })
@@ -1936,26 +2534,32 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
 		CE.data.enabled = v
 		if CE.data.enabled then
-			applyAllCorners()
+			applyCorn()
 		else
-			restoreAllCorners()
+			resetCorn()
 		end
-		persistCornerData()
+		saveCData()
 	end)
 	NAgui.addToggle("Corner Target: CoreGui", CE.data.targetCoreGui, function(v)
-		updateCornerTarget("targetCoreGui", v == true)
+		setCTgt("targetCoreGui", v == true)
 	end)
 	NAgui.addToggle("Corner Target: PlayerGui", CE.data.targetPlayerGui, function(v)
-		updateCornerTarget("targetPlayerGui", v == true)
+		setCTgt("targetPlayerGui", v == true)
+	end)
+	NAgui.addToggle("Corner Target: BillboardGui", CE.data.targetBillboardGui, function(v)
+		setCTgt("targetBillboardGui", v == true)
+	end)
+	NAgui.addToggle("Corner Target: SurfaceGui", CE.data.targetSurfaceGui, function(v)
+		setCTgt("targetSurfaceGui", v == true)
 	end)
 	local sliderRadius = math.clamp(CE.data.radius, 0, 64)
 	NAgui.addSlider("Corner Radius", 0, 64, sliderRadius, 0.5, " px", function(v)
 		local parsed = math.clamp(tonumber(v) or CE.default.radius, 0, 64)
 		CE.data.radius = parsed
 		if CE.data.enabled then
-			applyAllCorners()
+			applyCorn()
 		end
-		persistCornerData()
+		saveCData()
 	end)
 
 	NAgui.addSection("Font Changer")
@@ -1974,6 +2578,12 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	NAgui.addToggle("Font Target: PlayerGui", FontEditor.data.targetPlayerGui, function(v)
 		updateFontTarget("targetPlayerGui", v == true)
 	end)
+	NAgui.addToggle("Font Target: BillboardGui", FontEditor.data.targetBillboardGui, function(v)
+		updateFontTarget("targetBillboardGui", v == true)
+	end)
+	NAgui.addToggle("Font Target: SurfaceGui", FontEditor.data.targetSurfaceGui, function(v)
+		updateFontTarget("targetSurfaceGui", v == true)
+	end)
 	local fontInfoBox = NAgui.addInfo("Current Font", FontEditor.data.font)
 	local function refreshFontInfo()
 		if fontInfoBox then
@@ -1985,6 +2595,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	local cfNameLabel = "Custom Font Name"
 	local cfUrlLabel = "Custom Font URL"
 	local function refreshFontUI()
+		if scanFonts() then
+			rebuildFontChoices()
+		end
 		if cfInfo then
 			cfInfo.Text = formatCustomFontStatus()
 		end
@@ -2059,7 +2672,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	NAgui.addInput(cfNameLabel, "Display name (optional)", FontEditor.customInputs.name, function(text)
 		FontEditor.customInputs.name = text or ""
 	end)
-	NAgui.addInput(cfUrlLabel, "GitHub font url (blob/raw)", FontEditor.customInputs.url, function(text)
+	NAgui.addInput(cfUrlLabel, "Font URL (GitHub/raw/external)", FontEditor.customInputs.url, function(text)
 		FontEditor.customInputs.url = text or ""
 	end)
 	NAgui.addButton("Download Custom Font", function()
@@ -2068,24 +2681,61 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return
 		end
 		local ok, result = addOrUpdateCustomFont(FontEditor.customInputs.name, FontEditor.customInputs.url)
-		if ok and result and result.id then
-			setOverrideFont("custom:"..result.id)
-			refreshFontInfo()
-			refreshFontUI()
-			if NAgui.setInputValue then
-				NAgui.setInputValue(cfNameLabel, "", { force = true, fire = false })
-				NAgui.setInputValue(cfUrlLabel, "", { force = true, fire = false })
+		if ok and type(result) == "table" then
+			local function clearInputs()
+				if NAgui.setInputValue then
+					NAgui.setInputValue(cfNameLabel, "", { force = true, fire = false })
+					NAgui.setInputValue(cfUrlLabel, "", { force = true, fire = false })
+				end
+				FontEditor.customInputs.name = ""
+				FontEditor.customInputs.url = ""
 			end
-			FontEditor.customInputs.name = ""
-			FontEditor.customInputs.url = ""
-			DoNotif("Custom font saved.", 2)
+			if result.multi and type(result.entries) == "table" and #result.entries > 0 then
+				local lastEntry = result.entries[#result.entries]
+				if lastEntry and lastEntry.id then
+					setOverrideFont("custom:"..lastEntry.id)
+				end
+				refreshFontInfo()
+				refreshFontUI()
+				clearInputs()
+				local count = result.count or #result.entries
+				DoNotif(string.format("Installed %d font%s from folder.", count, count == 1 and "" or "s"), 2)
+			elseif result.id then
+				setOverrideFont("custom:"..result.id)
+				refreshFontInfo()
+				refreshFontUI()
+				clearInputs()
+				DoNotif("Custom font saved.", 2)
+			else
+				refreshFontInfo()
+				refreshFontUI()
+				clearInputs()
+				DoNotif("Custom font saved.", 2)
+			end
 		else
 			DoNotif(result or "Unable to save custom font.", 3)
+		end
+	end)
+	NAgui.addButton("Download NA Fonts", function()
+		if FontEditor.dlBusy then
+			DoNotif("Preset font download already running.", 3)
+			return
+		end
+		FontEditor.dlBusy = true
+		local ok, res = dlNAFonts()
+		FontEditor.dlBusy = false
+		if ok then
+			refreshFontInfo()
+			refreshFontUI()
+			DoNotif(string.format("Installed %d NA font%s.", res, res == 1 and "" or "s"), 2)
+		else
+			DoNotif(res or "Unable to download NA fonts.", 3)
 		end
 	end)
 	NAgui.addButton("Remove Custom Font...", openFontDeletePopup)
 	NAgui.addButton("Reload Custom Fonts", function()
 		loadCustomFontManifest()
+		scanFonts()
 		rebuildFontChoices()
 		setOverrideFont(FontEditor.data.fontKey, { persist = false, apply = false, silent = true })
 		refreshFontInfo()
