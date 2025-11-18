@@ -837,6 +837,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		default = { enabled = false, radius = 10, targetCoreGui = true, targetPlayerGui = false },
 		cg = coreGui,
 		store = NAmanage.newCornerStore(),
+		watchers = {},
+		restoring = false,
 	}
 
 	local data = {
@@ -906,6 +908,45 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return containers
 	end
 
+	local function disconnectCornerWatcher(target)
+		local watcher = CE.watchers[target]
+		if not watcher then
+			return
+		end
+		if watcher.change then
+			watcher.change:Disconnect()
+		end
+		if watcher.ancestry then
+			watcher.ancestry:Disconnect()
+		end
+		CE.watchers[target] = nil
+	end
+
+	local function ensureCornerWatcher(target)
+		if not target or CE.watchers[target] then
+			return
+		end
+		local watcher = {}
+		watcher.change = target:GetPropertyChangedSignal("CornerRadius"):Connect(function()
+			if CE.restoring or not CE.data.enabled then
+				return
+			end
+			local desired = getCornerRadius()
+			if target.CornerRadius ~= desired then
+				pcall(function()
+					target.CornerRadius = desired
+				end)
+			end
+		end)
+		watcher.ancestry = target.AncestryChanged:Connect(function(obj)
+			if not obj.Parent then
+				disconnectCornerWatcher(obj)
+				CE.store[obj] = nil
+			end
+		end)
+		CE.watchers[target] = watcher
+	end
+
 	local function applyCorner(o)
 		if not isCornerTarget(o) then
 			return
@@ -916,15 +957,22 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			CE.store[o] = info
 		end
 		o.CornerRadius = getCornerRadius()
+		ensureCornerWatcher(o)
 	end
 
 	local function restoreAllCorners()
+		CE.restoring = true
 		for corner, info in pairs(CE.store) do
 			if corner and info and info.original then
-				corner.CornerRadius = info.original
+				pcall(function()
+					corner.CornerRadius = info.original
+				end)
 			end
+			disconnectCornerWatcher(corner)
 		end
+		CE.restoring = false
 		CE.store = NAmanage.newCornerStore()
+		CE.watchers = {}
 	end
 
 	local function applyAllCorners()
@@ -1528,6 +1576,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
 		watchers = {},
+		restoring = false,
 	}
 
 	local function disconnectFontWatcher(target)
@@ -1550,6 +1599,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		local watcher = {}
 		watcher.change = target:GetPropertyChangedSignal("FontFace"):Connect(function()
+			if FontEditor.restoring then
+				return
+			end
 			if not FontEditor.data.enabled then
 				return
 			end
@@ -1733,6 +1785,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function restoreAllFonts()
+		FontEditor.restoring = true
 		for target, info in pairs(FontEditor.store) do
 			if target and info then
 				if info.FontFaceSupported then
@@ -1748,6 +1801,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			end
 			disconnectFontWatcher(target)
 		end
+		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
 		FontEditor.watchers = {}
 	end
