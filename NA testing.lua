@@ -340,6 +340,7 @@ end
 local Waypoints = {}
 local Bindings = Bindings or {}
 local NAStuff = {
+	NAICONMAIN = nil;
 	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
 	nuhuhNotifs = true;
@@ -822,6 +823,7 @@ local NAfiles = {
 	NATOPBARMODE = "Nameless-Admin/TopbarMode.txt";
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
+	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
 }
 NAmanage.newCornerStore=function()
 	return {}
@@ -1514,6 +1516,127 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return false, errScan
 		end
 		return true, fonts
+	end
+
+	local IconExts = {
+		[".png"] = true,
+		[".jpg"] = true,
+		[".jpeg"] = true,
+		[".webp"] = true,
+		[".bmp"] = true,
+	}
+
+	local function isIconExt(name)
+		if type(name) ~= "string" or name == "" then
+			return false
+		end
+		local ext = name:match("%.[^%.]+$")
+		return ext and IconExts[ext:lower()] == true
+	end
+
+	local function collectGitHubIconFiles(info)
+		if type(info) ~= "table" then
+			return false, "Invalid GitHub folder reference."
+		end
+		local icons = {}
+		local visited = {}
+		local function key(path)
+			return (path and path ~= "") and path or "/"
+		end
+		local function scan(path, depth)
+			depth = depth or 0
+			if depth > GitHubFolderLimits.depth then
+				return true
+			end
+			if #icons >= GitHubFolderLimits.total then
+				return true
+			end
+			local okFetch, payload = fetchGitHubFolderContents(info, path or "")
+			if not okFetch then
+				return false, payload
+			end
+			local entries = {}
+			if payload.type == "file" then
+				entries[1] = payload
+			elseif #payload > 0 then
+				for _, e in ipairs(payload) do
+					entries[#entries + 1] = e
+				end
+			else
+				return true
+			end
+			for _, e in ipairs(entries) do
+				if type(e) == "table" then
+					if e.type == "file" then
+						if e.name and isIconExt(e.name) and e.download_url then
+							icons[#icons + 1] = {
+								name = e.name,
+								url = e.download_url,
+							}
+							if #icons >= GitHubFolderLimits.total then
+								break
+							end
+						end
+					elseif e.type == "dir" and e.path then
+						local k = key(e.path)
+						if not visited[k] then
+							visited[k] = true
+							local okChild, errChild = scan(e.path, depth + 1)
+							if not okChild then
+								return false, errChild
+							end
+							if #icons >= GitHubFolderLimits.total then
+								break
+							end
+						end
+					end
+				end
+			end
+			return true
+		end
+		local startPath = normalizeGitHubPath(info.path or "")
+		visited[key(startPath)] = true
+		local okScan, errScan = scan(startPath, 0)
+		if not okScan then
+			return false, errScan
+		end
+		return true, icons
+	end
+
+	NAgui.installIconsFromGitHubFolder = function(info)
+		if not NAgui.iconFsOk() then
+			return false, "Custom icons require file support and getcustomasset."
+		end
+		if not NAgui.ensureIconFolder() then
+			return false, "Unable to prepare CustomIcon folder."
+		end
+		local okList, list = collectGitHubIconFiles(info)
+		if not okList then
+			return false, list
+		end
+		if #list == 0 then
+			return false, "No image files were found in that folder."
+		end
+		local count = 0
+		local lastAsset
+		local lastErr
+		for _, ico in ipairs(list) do
+			local okSave, asset = NAgui.iconSaveFromUrl(ico.url)
+			if okSave and typeof(asset) == "string" then
+				count += 1
+				lastAsset = asset
+			else
+				lastErr = asset
+			end
+		end
+		if count == 0 then
+			return false, lastErr or "Unable to download icons from that folder."
+		end
+		return true, {
+			count = count,
+			asset = lastAsset,
+			source = info.originalUrl,
+		}
 	end
 
 	local function uniqFontId(base)
@@ -2775,6 +2898,723 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		refreshFontUI()
 		DoNotif("Removed all custom fonts.", 2)
+	end)
+
+	local Icfg = {
+		path = NAfiles.NAICONSETTINGSPATH or (NAfiles.NAFILEPATH.."/custom_icon.json"),
+		def = {
+			enabled = false,
+			assetId = "",
+			localPath = "",
+			index = 0,
+		},
+	}
+
+	local function loadIcfg()
+		local d = Icfg.def
+		if FileSupport then
+			if not isfile(Icfg.path) then
+				writefile(Icfg.path, HttpService:JSONEncode(Icfg.def))
+			end
+			local ok, raw = pcall(readfile, Icfg.path)
+			if ok and type(raw) == "string" then
+				local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okD and type(dec) == "table" then
+					d = dec
+				end
+			end
+		end
+		return d
+	end
+
+	local function saveIcfg()
+		if not FileSupport then
+			return
+		end
+		local payload = {
+			enabled = NAStuff.CustomIcon.enabled == true,
+			assetId = typeof(NAStuff.CustomIcon.assetId) == "string" and NAStuff.CustomIcon.assetId or "",
+			localPath = typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath or "",
+			index = tonumber(NAStuff.CustomIcon.index) or 0,
+		}
+		pcall(writefile, Icfg.path, HttpService:JSONEncode(payload))
+	end
+
+	NAStuff.iconAppearance = NAStuff.iconAppearance or {
+		background = NAStuff.NAICONMAIN.BackgroundTransparency;
+		text = (NAStuff.IconFallbackLabel and NAStuff.IconFallbackLabel.TextTransparency) or (NAStuff.NAICONMAIN:IsA("TextButton") and NAStuff.NAICONMAIN.TextTransparency) or nil;
+		stroke = (NAStuff.IconFallbackLabel and NAStuff.IconFallbackLabel.TextStrokeTransparency) or (NAStuff.NAICONMAIN:IsA("TextButton") and NAStuff.NAICONMAIN.TextStrokeTransparency) or nil;
+		image = NAStuff.NAICONMAIN:IsA("ImageButton") and NAStuff.NAICONMAIN.ImageTransparency or nil;
+	}
+
+	NAStuff.IconSrc = NAStuff.IconSrc or {
+		list = "https://api.github.com/repos/ltseverydayyou/uuuuuuu/contents/NAicons?ref=main";
+		raw = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/NAicons/";
+	}
+
+	NAStuff.CustomIcon = NAStuff.CustomIcon or {}
+	NAStuff.CustomIcon.entries = NAStuff.CustomIcon.entries or {}
+	NAStuff.CustomIcon.index = NAStuff.CustomIcon.index or 0
+
+	NAgui.iconFsOk = function()
+		return FileSupport and type(writefile) == "function" and type(getcustomasset) == "function"
+	end
+
+	local icfg = loadIcfg()
+	if type(icfg) == "table" then
+		if typeof(icfg.assetId) == "string" and icfg.assetId ~= "" then
+			NAStuff.CustomIcon.assetId = icfg.assetId
+		end
+		if typeof(icfg.localPath) == "string" and icfg.localPath ~= "" then
+			NAStuff.CustomIcon.localPath = icfg.localPath
+		end
+		if typeof(icfg.enabled) == "boolean" then
+			NAStuff.CustomIcon.enabled = icfg.enabled
+		end
+		if typeof(icfg.index) == "number" then
+			NAStuff.CustomIcon.index = icfg.index
+		end
+	end
+
+	if typeof(NAStuff.CustomIcon.localPath) == "string"
+		and NAStuff.CustomIcon.localPath ~= ""
+		and NAgui.iconFsOk()
+	then
+		local okA, assetFromFile = pcall(getcustomasset, NAStuff.CustomIcon.localPath)
+		if okA and typeof(assetFromFile) == "string" then
+			NAStuff.CustomIcon.assetId = assetFromFile
+		end
+	end
+
+	NAgui.getNAIconList = function()
+		local src = NAStuff.IconSrc
+		if not src or typeof(src.list) ~= "string" or src.list == "" then
+			return false, "NA icon catalog URL not configured."
+		end
+		local ok, raw = pcall(function()
+			return game:HttpGet(src.list)
+		end)
+		if not (ok and typeof(raw) == "string" and raw ~= "") then
+			return false, "Unable to fetch NA icon catalog."
+		end
+		local okD, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okD and type(decoded) == "table") then
+			return false, "Invalid NA icon catalog."
+		end
+		local items = {}
+		if #decoded > 0 then
+			for _, entry in ipairs(decoded) do
+				items[#items + 1] = entry
+			end
+		else
+			for _, entry in pairs(decoded) do
+				if type(entry) == "table" then
+					items[#items + 1] = entry
+				end
+			end
+		end
+		local icons = {}
+		for _, e in ipairs(items) do
+			if type(e) == "table" and type(e.name) == "string" and e.type == "file" then
+				local url = e.download_url or (src.raw and (src.raw..e.name))
+				if type(url) == "string" and url ~= "" then
+					icons[#icons + 1] = {
+						name = e.name;
+						url = url;
+					}
+				end
+			end
+		end
+		if #icons == 0 then
+			return false, "No NA icons available."
+		end
+		return true, icons
+	end
+	NAgui.downloadNAIcons = function()
+		if not NAgui.iconFsOk() then
+			return false, "Custom icons require file support and getcustomasset."
+		end
+		if not NAgui.ensureIconFolder() then
+			return false, "Unable to prepare CustomIcon folder."
+		end
+		local okList, icons = NAgui.getNAIconList()
+		if not okList then
+			return false, icons
+		end
+		local count = 0
+		local lastErr = nil
+		for _, ico in ipairs(icons) do
+			local okSave, errOrAsset = NAgui.iconSaveFromUrl(ico.url)
+			if okSave then
+				count += 1
+			else
+				lastErr = errOrAsset
+			end
+		end
+		if count == 0 then
+			return false, lastErr or "No NA icons downloaded."
+		end
+		return true, count
+	end
+
+	NAgui.ensureIconFolder = function()
+		if not FileSupport then
+			return false
+		end
+		local dir = NAfiles.NACUSTOMICONPATH
+		if typeof(dir) ~= "string" or dir == "" then
+			return false
+		end
+		if type(isfolder) == "function" then
+			local ok, exists = pcall(isfolder, dir)
+			if ok and exists then
+				return true
+			end
+			if type(makefolder) ~= "function" then
+				return false
+			end
+			local okMk = pcall(makefolder, dir)
+			return okMk == true
+		end
+		return true
+	end
+
+	NAgui.iconPreUrl = function(u)
+		if typeof(u) ~= "string" then
+			return nil
+		end
+		local t = u:match("^%s*(.-)%s*$") or ""
+		if t == "" then
+			return nil
+		end
+		t = t:gsub(" ", "%%20")
+		local q = t:find("%?")
+		local base = q and t:sub(1, q - 1) or t
+		return t, base
+	end
+
+	NAgui.iconNormUrl = function(u)
+		local t, base = NAgui.iconPreUrl(u)
+		if not t then
+			return nil
+		end
+		local owner, repo, kind, rest = base:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
+		if owner and repo and kind and rest then
+			local s = rest
+			if s:sub(1, 11) == "refs/heads/" then
+				s = s:sub(12)
+			elseif s:sub(1, 10) == "refs/tags/" then
+				s = s:sub(11)
+			end
+			local branch, path = s:match("^([^/]+)/(.+)$")
+			if branch and path and (kind == "blob" or kind == "raw") then
+				branch = branch:gsub("%%2[Ff]", "/")
+				path = path:gsub("%%2[Ff]", "/")
+				return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+			end
+		end
+		local rawDir = base:match("^https?://raw%.githubusercontent%.com/.+")
+		if rawDir then
+			return t
+		end
+		return t
+	end
+
+	NAgui.scanCustomIcons = function()
+		if not (FileSupport and listfiles) then
+			return
+		end
+		if not NAgui.ensureIconFolder() then
+			return
+		end
+		local dir = NAfiles.NACUSTOMICONPATH
+		local ok, items = pcall(listfiles, dir)
+		if not (ok and type(items) == "table") then
+			return
+		end
+		local list = {}
+		for _, fullPath in ipairs(items) do
+			local name = getFName(fullPath)
+			if name then
+				list[#list + 1] = { file = name }
+			end
+		end
+		NAStuff.CustomIcon.entries = list
+		local idx = 0
+		if typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath ~= "" then
+			local cur = getFName(NAStuff.CustomIcon.localPath)
+			if cur then
+				for i, e in ipairs(list) do
+					if e.file == cur then
+						idx = i
+						break
+					end
+				end
+			end
+		end
+		if idx == 0 and #list > 0 then
+			idx = 1
+		end
+		NAStuff.CustomIcon.index = idx
+	end
+
+	NAgui.formatCustomIconStatus = function()
+		local list = NAStuff.CustomIcon.entries or {}
+		local n = #list
+		if n == 0 then
+			return "No custom icons installed"
+		end
+		if n == 1 then
+			return "1 custom icon installed"
+		end
+		return tostring(n).." custom icons installed"
+	end
+
+	NAgui.refreshCustomIconUI = function()
+		local info = NAStuff.CustomIcon.info
+		if info then
+			info.Text = NAgui.formatCustomIconStatus()
+		end
+	end
+
+	NAgui.iconSaveFromUrl = function(url)
+		if not NAgui.iconFsOk() then
+			return false, "Custom image icons require file support and getcustomasset."
+		end
+		if not NAgui.ensureIconFolder() then
+			return false, "Unable to prepare CustomIcon folder."
+		end
+		local norm = NAgui.iconNormUrl(url)
+		if not norm then
+			return false, "Enter a valid image URL or asset id."
+		end
+		local ok, data = pcall(function()
+			return game:HttpGet(norm)
+		end)
+		if not (ok and typeof(data) == "string" and data ~= "") then
+			return false, "Unable to download custom icon image."
+		end
+		local remoteFile = deriveFileNameFromUrl(norm) or "CustomIcon.png"
+		local safeName = sanitizeFileName(remoteFile) or ("icon_"..tostring(os.time())..".png")
+		local fullPath = NAfiles.NACUSTOMICONPATH.."/"..safeName
+		local okW, errW = pcall(writefile, fullPath, data)
+		if not okW then
+			return false, errW or "Unable to save custom icon image."
+		end
+		local okA, asset = pcall(getcustomasset, fullPath)
+		if not (okA and typeof(asset) == "string") then
+			return false, "Unable to load custom icon image."
+		end
+		NAStuff.CustomIcon.localPath = fullPath
+		local list = NAStuff.CustomIcon.entries or {}
+		local idx = nil
+		for i, e in ipairs(list) do
+			if e.file == safeName then
+				idx = i
+				break
+			end
+		end
+		if not idx then
+			list[#list + 1] = { file = safeName }
+			idx = #list
+		end
+		NAStuff.CustomIcon.entries = list
+		NAStuff.CustomIcon.index = idx
+		return true, asset
+	end
+
+	if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+		local storedAsset = NAmanage.NASettingsGet("customIconAssetId")
+		local storedPath = NAmanage.NASettingsGet("customIconLocalPath")
+		if typeof(storedPath) == "string" and storedPath ~= "" and NAgui.iconFsOk() then
+			NAStuff.CustomIcon.localPath = storedPath
+			local okA, assetFromFile = pcall(getcustomasset, storedPath)
+			if okA and typeof(assetFromFile) == "string" then
+				NAStuff.CustomIcon.assetId = assetFromFile
+			elseif typeof(storedAsset) == "string" and storedAsset ~= "" then
+				NAStuff.CustomIcon.assetId = storedAsset
+			end
+		elseif typeof(storedAsset) == "string" and storedAsset ~= "" then
+			NAStuff.CustomIcon.assetId = storedAsset
+		end
+		local storedEnabled = NAmanage.NASettingsGet("customIconEnabled")
+		if typeof(storedEnabled) == "boolean" then
+			NAStuff.CustomIcon.enabled = storedEnabled
+		end
+	end
+
+	if NAgui.iconSupported() and NAStuff.NAICONMAIN and typeof(NAStuff.NAICONMAIN.Image) == "string" and NAStuff.NAICONMAIN.Image ~= "" then
+		NAStuff.CustomIcon.defaultImage = NAStuff.CustomIcon.defaultImage or NAStuff.NAICONMAIN.Image
+	end
+
+	if typeof(NAStuff.CustomIcon.assetId) ~= "string" or NAStuff.CustomIcon.assetId == "" then
+		NAStuff.CustomIcon.assetId = nil
+	end
+
+	if typeof(NAStuff.CustomIcon.enabled) ~= "boolean" then
+		NAStuff.CustomIcon.enabled = false
+	end
+
+	NAgui._saveIconSettings = function()
+		saveIcfg()
+	end
+
+	NAgui.getIconDigits = function()
+		if typeof(NAStuff.CustomIcon.assetId) == "string" then
+			return NAStuff.CustomIcon.assetId:match("(%d+)$") or ""
+		end
+		return ""
+	end
+
+	NAgui._applyIconState = function()
+		if not NAgui.iconSupported() then
+			return false
+		end
+		local state = NAStuff.CustomIcon
+		local targetImage
+		if state.enabled and typeof(state.assetId) == "string" and state.assetId ~= "" then
+			targetImage = state.assetId
+		elseif typeof(state.defaultImage) == "string" and state.defaultImage ~= "" then
+			targetImage = state.defaultImage
+		end
+		local applied = false
+		if targetImage and targetImage ~= "" then
+			NAStuff.NAICONMAIN.Image = targetImage
+			applied = true
+		else
+			NAStuff.NAICONMAIN.Image = ""
+		end
+		if NAStuff.IconFallbackLabel then
+			NAStuff.IconFallbackLabel.Visible = not applied
+		end
+		return applied
+	end
+
+	NAgui.useCustomIconEntry = function(entry, opts)
+		opts = opts or {}
+		if not NAgui.iconSupported() then
+			return false, "Custom icon requires getcustomasset support for the NA icon."
+		end
+		if not entry or not entry.file then
+			return false, "No custom icon entry."
+		end
+		if not NAgui.ensureIconFolder() then
+			return false, "Unable to prepare CustomIcon folder."
+		end
+		local fullPath = NAfiles.NACUSTOMICONPATH.."/"..entry.file
+		if type(isfile) == "function" then
+			local okEx, ex = pcall(isfile, fullPath)
+			if not (okEx and ex) then
+				return false, "Custom icon file is missing."
+			end
+		end
+		local okA, asset = pcall(getcustomasset, fullPath)
+		if not (okA and typeof(asset) == "string") then
+			return false, "Unable to load custom icon image."
+		end
+		NAStuff.CustomIcon.localPath = fullPath
+		NAStuff.CustomIcon.assetId = asset
+		if opts.autoEnable ~= false then
+			NAStuff.CustomIcon.enabled = true
+		end
+		NAgui._applyIconState()
+		NAgui._saveIconSettings()
+		return true
+	end
+
+	NAgui.cycleCustomIcon = function(delta)
+		local list = NAStuff.CustomIcon.entries or {}
+		if #list == 0 then
+			DoNotif("No custom icons installed.", 3)
+			return
+		end
+		delta = delta or 1
+		local idx = NAStuff.CustomIcon.index or 0
+		if idx < 1 or idx > #list then
+			idx = 1
+		end
+		idx = ((idx - 1 + delta) % #list) + 1
+		local ok, err = NAgui.useCustomIconEntry(list[idx])
+		if not ok then
+			if err then
+				DoNotif(err, 3)
+			end
+			return
+		end
+		NAStuff.CustomIcon.index = idx
+	end
+
+	NAgui.setIconEnabled = function(enabled, opts)
+		opts = opts or {}
+		if not NAgui.iconSupported() then
+			return false, "Custom icon requires getcustomasset support for the NA icon."
+		end
+		enabled = enabled and true or false
+		if enabled and not NAStuff.CustomIcon.assetId then
+			if not opts.skipToggle and NAgui.setToggleState then
+				NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+			end
+			return false, "Add an asset id or URL before enabling the custom icon."
+		end
+		if NAStuff.CustomIcon.enabled == enabled and not opts.force then
+			return true
+		end
+		NAStuff.CustomIcon.enabled = enabled
+		NAgui._applyIconState()
+		if not opts.skipToggle and NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", enabled, { force = true, fire = false })
+		end
+		NAgui._saveIconSettings()
+		return true
+	end
+
+	NAgui.setIconAsset = function(inputValue, opts)
+		opts = opts or {}
+		if not NAgui.iconSupported() then
+			return false, "Custom icon requires getcustomasset support for the NA icon."
+		end
+		local raw = typeof(inputValue) == "string" and inputValue or tostring(inputValue)
+		if typeof(raw) ~= "string" then
+			return false, "Enter a valid asset id or image URL."
+		end
+		raw = raw:match("^%s*(.-)%s*$")
+		if raw == "" then
+			return false, "Enter a valid asset id or image URL."
+		end
+		local digits = raw:match("^rbxassetid://(%d+)$") or raw:match("id=(%d+)") or raw:match("^(%d+)$")
+		local newAsset
+		NAStuff.CustomIcon.localPath = nil
+		if digits then
+			newAsset = "rbxassetid://"..digits
+		else
+			local t, base = NAgui.iconPreUrl(raw)
+			if not t then
+				return false, "Enter a valid asset id or image URL."
+			end
+			local folderInfo = parseGitHubFolderUrl(base, t)
+			if folderInfo then
+				local okFolder, res = NAgui.installIconsFromGitHubFolder(folderInfo)
+				if not okFolder then
+					return false, res or "Unable to save custom icon."
+				end
+				NAgui.scanCustomIcons()
+				NAgui.refreshCustomIconUI()
+				newAsset = res and res.asset
+				if not newAsset then
+					return false, "Installed icons but failed to apply one of them."
+				end
+			else
+				local okIcon, r = NAgui.iconSaveFromUrl(t)
+				if not okIcon then
+					return false, r or "Unable to save custom icon."
+				end
+				newAsset = r
+			end
+		end
+		NAStuff.CustomIcon.assetId = newAsset
+		if opts.autoEnable ~= false then
+			NAStuff.CustomIcon.enabled = true
+		end
+		NAgui._applyIconState()
+		if opts.autoEnable ~= false and not opts.skipToggle and NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", true, { force = true, fire = false })
+		end
+		NAgui._saveIconSettings()
+		if digits then
+			return true, digits
+		end
+		return true, raw
+	end
+
+	if NAStuff.CustomIcon.enabled and NAStuff.CustomIcon.assetId and NAgui.iconSupported() then
+		NAgui._applyIconState()
+	end
+
+	NAgui.scanCustomIcons()
+
+	NAStuff.CustomIcon.pendingInput = NAStuff.CustomIcon.pendingInput or ((NAgui.getIconDigits and NAgui.getIconDigits()) or "")
+
+	local function deleteIconFile(name)
+		if type(name) ~= "string" or name == "" then
+			return
+		end
+		if type(isfile) ~= "function" or type(delfile) ~= "function" then
+			return
+		end
+		local full = NAfiles.NACUSTOMICONPATH.."/"..name
+		local okEx, ex = pcall(isfile, full)
+		if okEx and ex then
+			pcall(delfile, full)
+		end
+	end
+
+	local function clearCurrentIconIf(fileName)
+		if type(fileName) ~= "string" or fileName == "" then
+			return
+		end
+		local full = NAfiles.NACUSTOMICONPATH.."/"..fileName
+		if NAStuff.CustomIcon.localPath == full then
+			NAStuff.CustomIcon.localPath = nil
+			NAStuff.CustomIcon.assetId = nil
+			NAStuff.CustomIcon.index = 0
+			NAStuff.CustomIcon.enabled = false
+			NAgui._applyIconState()
+			if NAgui.setToggleState then
+				NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+			end
+			NAgui._saveIconSettings()
+		end
+	end
+
+	local function removeCustomIconEntry(entry)
+		if not (entry and entry.file) then
+			return
+		end
+		deleteIconFile(entry.file)
+		clearCurrentIconIf(entry.file)
+		NAgui.scanCustomIcons()
+		NAgui.refreshCustomIconUI()
+	end
+
+	local function removeAllCustomIcons()
+		local list = NAStuff.CustomIcon.entries or {}
+		for _, entry in ipairs(list) do
+			if entry and entry.file then
+				deleteIconFile(entry.file)
+			end
+		end
+		NAStuff.CustomIcon.entries = {}
+		NAStuff.CustomIcon.index = 0
+		NAStuff.CustomIcon.localPath = nil
+		NAStuff.CustomIcon.assetId = nil
+		NAStuff.CustomIcon.enabled = false
+		NAgui._applyIconState()
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+		end
+		NAgui._saveIconSettings()
+		NAgui.scanCustomIcons()
+		NAgui.refreshCustomIconUI()
+	end
+
+	local function openIconDeletePopup()
+		local list = NAStuff.CustomIcon.entries or {}
+		if #list == 0 then
+			DoNotif("No custom icons installed.", 3)
+			return
+		end
+		if type(Popup) ~= "function" then
+			DoNotif("Popup UI is unavailable in this session.", 3)
+			return
+		end
+		local buttons = {}
+		for _, entry in ipairs(list) do
+			local label = entry.file or "Custom Icon"
+			table.insert(buttons, {
+				Text = label,
+				Callback = function()
+					removeCustomIconEntry(entry)
+					DoNotif('Removed custom icon "'..label..'".', 2)
+				end,
+			})
+		end
+		table.insert(buttons, { Text = "Cancel", Callback = function() end })
+		Popup({
+			Title = "Remove Custom Icon",
+			Description = "Select a custom icon to delete.",
+			Duration = 0,
+			Buttons = buttons,
+		})
+	end
+
+	NAgui.addSection("Custom NA Icon")
+
+	NAStuff.CustomIcon.info = NAgui.addInfo("Custom Icons", NAgui.formatCustomIconStatus())
+	NAgui.refreshCustomIconUI()
+
+	NAgui.addToggle("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true and NAgui.iconSupported(), function(v)
+		if not NAgui.iconSupported() then
+			DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
+			if NAgui.setToggleState then
+				NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+			end
+			return
+		end
+		local ok, err = NAgui.setIconEnabled(v, { skipToggle = true })
+		if not ok then
+			if err then
+				DoNotif(err, 3)
+			end
+			if NAgui.setToggleState then
+				NAgui.setToggleState("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true, { force = true, fire = false })
+			end
+			return
+		end
+		DoNotif("Custom NA Icon "..(v and "enabled" or "disabled"), 2)
+	end)
+
+	NAmanage.RegisterToggleAutoSync("Use Custom NA Icon", function()
+		return NAStuff.CustomIcon.enabled == true and NAgui.iconSupported()
+	end)
+
+	NAgui.addInput("Custom Icon Asset / URL", "Enter asset id or image URL", NAStuff.CustomIcon.pendingInput, function(text)
+		NAStuff.CustomIcon.pendingInput = text or ""
+	end)
+
+	NAgui.addButton("Apply Custom Icon", function()
+		if not NAgui.iconSupported() then
+			DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
+			return
+		end
+		local ok, result = NAgui.setIconAsset(NAStuff.CustomIcon.pendingInput)
+		if ok then
+			NAStuff.CustomIcon.pendingInput = ""
+			if NAgui.setInputValue then
+				NAgui.setInputValue("Custom Icon Asset / URL", "", { force = true, fire = false })
+			end
+			NAgui.scanCustomIcons()
+			NAgui.refreshCustomIconUI()
+			DoNotif("Custom NA Icon updated.", 2)
+		else
+			DoNotif(result or "Unable to update custom icon.", 3)
+		end
+	end)
+
+	NAgui.addButton("Previous Custom Icon", function()
+		NAgui.cycleCustomIcon(-1)
+	end)
+
+	NAgui.addButton("Next Custom Icon", function()
+		NAgui.cycleCustomIcon(1)
+	end)
+
+	NAgui.addButton("Download NA Icons", function()
+		local ok, res = NAgui.downloadNAIcons()
+		if ok then
+			NAgui.scanCustomIcons()
+			NAgui.refreshCustomIconUI()
+			DoNotif(string.format("Installed %d NA icon%s.", res, res == 1 and "" or "s"), 2)
+		else
+			DoNotif(res or "Unable to download NA icons.", 3)
+		end
+	end)
+
+	NAgui.addButton("Reload Custom Icons", function()
+		NAgui.scanCustomIcons()
+		NAgui.refreshCustomIconUI()
+		DoNotif("Custom icons reloaded.", 2)
+	end)
+
+	NAgui.addButton("Remove Custom Icon...", openIconDeletePopup)
+
+	NAgui.addButton("Remove All Custom Icons", function()
+		local list = NAStuff.CustomIcon.entries or {}
+		if #list == 0 then
+			DoNotif("No custom icons installed.", 3)
+			return
+		end
+		removeAllCustomIcons()
+		DoNotif("Removed all custom icons.", 2)
 	end)
 end
 
@@ -6679,12 +7519,12 @@ cmd.run = function(args)
 
 	local success, msg = pcall(function()
 		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
-	if command then
-		command[1](unpack(arguments))
-		NAmanage.btBump()
-		if shouldRecord then
-			NAmanage.updateLastCommand(rawArgs)
-		end
+		if command then
+			command[1](unpack(arguments))
+			NAmanage.btBump()
+			if shouldRecord then
+				NAmanage.updateLastCommand(rawArgs)
+			end
 		else
 			local closest = callerLower and didYouMean(callerLower) or nil
 			if closest and doPREDICTION then
@@ -40651,8 +41491,8 @@ else
 	IconFallbackText.Parent = TextButton
 end
 
+NAStuff.NAICONMAIN = TextButton
 NAStuff.IconFallbackLabel = IconFallbackText
-
 
 NAmanage.btUpdate()
 
@@ -42411,54 +43251,6 @@ end)
 
 NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "paint-brush" })
 NAgui.setTab(TAB_INTERFACE)
-
-NAStuff.CustomIcon.pendingInput = NAStuff.CustomIcon.pendingInput or ((NAgui.getIconDigits and NAgui.getIconDigits()) or "")
-
-NAgui.addSection("Custom NA Icon")
-
-NAgui.addToggle("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true and NAgui.iconSupported(), function(v)
-	if not NAgui.iconSupported() then
-		DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
-		if NAgui.setToggleState then
-			NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
-		end
-		return
-	end
-	local ok, err = NAgui.setIconEnabled(v, { skipToggle = true })
-	if not ok then
-		if err then
-			DoNotif(err, 3)
-		end
-		if NAgui.setToggleState then
-			NAgui.setToggleState("Use Custom NA Icon", NAStuff.CustomIcon.enabled == true, { force = true, fire = false })
-		end
-		return
-	end
-	DoNotif("Custom NA Icon "..(v and "enabled" or "disabled"), 2)
-end)
-NAmanage.RegisterToggleAutoSync("Use Custom NA Icon", function()
-	return NAStuff.CustomIcon.enabled == true and NAgui.iconSupported()
-end)
-
-NAgui.addInput("Custom Icon Asset ID", "Enter an asset id (e.g. 123456789)", NAStuff.CustomIcon.pendingInput, function(text)
-	NAStuff.CustomIcon.pendingInput = text or ""
-end)
-
-NAgui.addButton("Apply Custom Icon", function()
-	if not NAgui.iconSupported() then
-		DoNotif("Custom icon requires getcustomasset support for the NA icon.", 3)
-		return
-	end
-	local ok, result = NAgui.setIconAsset(NAStuff.CustomIcon.pendingInput)
-	if ok then
-		if result and result ~= "" then
-			NAStuff.CustomIcon.pendingInput = result
-		end
-		DoNotif("Custom NA Icon updated.", 2)
-	else
-		DoNotif(result or "Unable to update custom icon.", 3)
-	end
-end)
 
 NAgui.addSection("UI Customization")
 
