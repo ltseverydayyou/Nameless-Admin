@@ -3206,19 +3206,26 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	if NAmanage and type(NAmanage.NASettingsGet) == "function" then
 		local storedAsset = NAmanage.NASettingsGet("customIconAssetId")
 		local storedPath = NAmanage.NASettingsGet("customIconLocalPath")
-		if typeof(storedPath) == "string" and storedPath ~= "" and NAgui.iconFsOk() then
-			NAStuff.CustomIcon.localPath = storedPath
-			local okA, assetFromFile = pcall(getcustomasset, storedPath)
-			if okA and typeof(assetFromFile) == "string" then
-				NAStuff.CustomIcon.assetId = assetFromFile
+		local storedEnabled = NAmanage.NASettingsGet("customIconEnabled")
+		local hasAsset = typeof(NAStuff.CustomIcon.assetId) == "string" and NAStuff.CustomIcon.assetId ~= ""
+		local hasPath = typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath ~= ""
+		local hasEnabled = typeof(NAStuff.CustomIcon.enabled) == "boolean"
+
+		if not hasAsset and not hasPath then
+			if typeof(storedPath) == "string" and storedPath ~= "" and NAgui.iconFsOk() then
+				NAStuff.CustomIcon.localPath = storedPath
+				local okA, assetFromFile = pcall(getcustomasset, storedPath)
+				if okA and typeof(assetFromFile) == "string" then
+					NAStuff.CustomIcon.assetId = assetFromFile
+				elseif typeof(storedAsset) == "string" and storedAsset ~= "" then
+					NAStuff.CustomIcon.assetId = storedAsset
+				end
 			elseif typeof(storedAsset) == "string" and storedAsset ~= "" then
 				NAStuff.CustomIcon.assetId = storedAsset
 			end
-		elseif typeof(storedAsset) == "string" and storedAsset ~= "" then
-			NAStuff.CustomIcon.assetId = storedAsset
 		end
-		local storedEnabled = NAmanage.NASettingsGet("customIconEnabled")
-		if typeof(storedEnabled) == "boolean" then
+
+		if not hasEnabled and typeof(storedEnabled) == "boolean" then
 			NAStuff.CustomIcon.enabled = storedEnabled
 		end
 	end
