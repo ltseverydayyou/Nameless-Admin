@@ -7902,145 +7902,52 @@ FindInTable = function(tbl,val)
 end
 
 
-function MouseButtonFix(button, clickCallback)
-	local MouseThreshold = 0.45
-	local moveThresholdMouse = 18
-	local moveThresholdTouch = 35
-	local activeInput = nil
-	local downTick = 0
-	local startPos = nil
+function MouseButtonFix(btn, cb)
+	local tap = 0.45
+	local thMouse, thTouch = 18, 35
+	local t0 = 0
+	local p0 = nil
 	local moved = false
-	local lastActivationTick = 0
-	local activationDebounce = 0.1
-	local suppressActivated = false
+	local at = nil
 
-	local function toVector2(pos)
-		if typeof(pos) == 'Vector2' then
-			return pos
-		elseif typeof(pos) == 'Vector3' then
-			return Vector2.new(pos.X, pos.Y)
-		end
-		return nil
+	local function v2(p)
+		local t = typeof(p)
+		if t == "Vector2" then return p end
+		if t == "Vector3" then return Vector2.new(p.X, p.Y) end
 	end
 
-	local function reset()
-		activeInput = nil
-		startPos = nil
+	NAlib.connect(btn.Name.."_mbd", btn.MouseButton1Down:Connect(function(x, y)
+		t0 = tick()
+		p0 = (x and y) and Vector2.new(x, y) or UserInputService:GetMouseLocation()
 		moved = false
-		downTick = 0
-		suppressActivated = false
-	end
-
-	local function finalize()
-		local now = tick()
-		local holdLimit = MouseThreshold
-		local allow = downTick > 0 and (now - downTick) <= holdLimit and not moved
-		reset()
-		lastActivationTick = now
-		suppressActivated = allow
-		if allow then
-			pcall(clickCallback)
-		end
-		return allow
-	end
-
-	NAlib.connect(button.Name..'_begin', button.InputBegan:Connect(function(input)
-		if input.UserInputState ~= Enum.UserInputState.Begin then return end
-		local t = input.UserInputType
-		if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
-		activeInput = input
-		downTick = tick()
-		moved = false
-		startPos = toVector2(input.Position)
-		if not startPos and t == Enum.UserInputType.MouseButton1 then
-			startPos = UserInputService:GetMouseLocation()
-		end
-		suppressActivated = false
+		at = UserInputService.TouchEnabled and Enum.UserInputType.Touch or Enum.UserInputType.MouseButton1
 	end))
 
-	NAlib.connect(button.Name..'_change', button.InputChanged:Connect(function(input)
-		if not activeInput then return end
-		if input == activeInput then
-			if input.UserInputType == Enum.UserInputType.Touch then
-				local pos = toVector2(input.Position)
-				if pos then
-					if not startPos then
-						startPos = pos
-					end
-					if startPos then
-						moved = moved or (pos - startPos).Magnitude > moveThresholdTouch
-					end
-				end
-			elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-				local delta = input.Delta
-				if delta then
-					moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
-				elseif startPos then
-					local current = UserInputService:GetMouseLocation()
-					if current then
-						moved = moved or (current - startPos).Magnitude > moveThresholdMouse
-					end
-				end
-			end
-		elseif input.UserInputType == Enum.UserInputType.MouseMovement and activeInput.UserInputType == Enum.UserInputType.MouseButton1 then
-			local delta = input.Delta
-			if delta then
-				moved = moved or (math.abs(delta.X) + math.abs(delta.Y)) > moveThresholdMouse
-			end
-		end
-	end))
-
-	NAlib.connect(button.Name..'_end', button.InputEnded:Connect(function(input)
-		if not activeInput or input ~= activeInput then return end
-		if input.UserInputState == Enum.UserInputState.Cancel then
-			reset()
+	NAlib.connect(btn.Name.."_chg", btn.InputChanged:Connect(function(input)
+		if t0 == 0 then return end
+		local pos
+		if input.UserInputType == Enum.UserInputType.Touch then
+			pos = v2(input.Position)
+		elseif input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			pos = UserInputService:GetMouseLocation()
+		else
 			return
 		end
-		finalize()
+		if not p0 or not pos then return end
+		local th = (at == Enum.UserInputType.Touch) and thTouch or thMouse
+		if (pos - p0).Magnitude > th then moved = true end
 	end))
 
-	NAlib.connect(button.Name..'_leave', button.MouseLeave:Connect(function()
-		if activeInput then
-			moved = true
-		end
+	NAlib.connect(btn.Name.."_leave", btn.MouseLeave:Connect(function()
+		if t0 ~= 0 then moved = true end
 	end))
 
-	NAlib.connect(button.Name..'_activated', button.Activated:Connect(function()
-		local now = tick()
-		if suppressActivated then
-			suppressActivated = false
-			return
-		end
-		if now - lastActivationTick <= activationDebounce then
-			return
-		end
-		if activeInput then
-			finalize()
-			return
-		end
-		lastActivationTick = now
-		pcall(clickCallback)
+	NAlib.connect(btn.Name.."_click", btn.MouseButton1Click:Connect(function()
+		if t0 == 0 then return end
+		local ok = (tick() - t0) <= tap and not moved
+		t0, p0, moved, at = 0, nil, false, nil
+		if ok then pcall(cb) end
 	end))
-
-	if IsOnMobile then
-		NAlib.connect(button.Name..'_touchtap', button.TouchTap:Connect(function()
-			local now = tick()
-			if activeInput then
-				finalize()
-			elseif suppressActivated then
-				return
-			elseif now - lastActivationTick > activationDebounce then
-				suppressActivated = true
-				lastActivationTick = now
-				pcall(clickCallback)
-				Delay(activationDebounce, function()
-					if suppressActivated and (tick() - lastActivationTick) >= activationDebounce then
-						suppressActivated = false
-					end
-				end)
-			end
-		end))
-	end
 end
 
 
@@ -39354,6 +39261,7 @@ NAmanage.Topbar_Rebuild=function()
 		btn.LayoutOrder=i
 		btn.Text=''
 		btn.TextTransparency=1
+		btn.ZIndex=205
 		local bg=InstanceNew("Frame",btn)
 		bg.ZIndex=203
 		bg.Size=UDim2.new(1,0,1,0)
