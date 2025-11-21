@@ -39417,7 +39417,7 @@ NAmanage.Topbar_Init=function()
 			end
 		end},
 		{name="cmds",icon="list-bulleted",func=NAgui.commands},
-		{name="chatlogs",icon="whatsapp",func=function()
+		{name="chatlogs",icon="speech-bubble-align-center",func=function()
 			if NAUIMANAGER.chatLogsFrame then
 				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
@@ -43144,7 +43144,7 @@ NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
 	return NAmanage.btEnabled()
 end)
 
-NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "paint-brush" })
+NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "two-makeup-brushes" })
 NAgui.setTab(TAB_INTERFACE)
 
 NAgui.addSection("UI Customization")
