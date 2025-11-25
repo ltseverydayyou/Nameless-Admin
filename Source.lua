@@ -20778,67 +20778,11 @@ end]]
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
 	NAlib.disconnect("noclip")
-	NAlib.disconnect("noclip_char")
-	NAStuff._noclipTracked = NAStuff._noclipTracked or setmetatable({}, {__mode="k"})
-	NAStuff._noclipOrigCan = NAStuff._noclipOrigCan or setmetatable({}, {__mode="k"})
-	NAStuff._noclipOrigGrp = NAStuff._noclipOrigGrp or setmetatable({}, {__mode="k"})
-	NAStuff._noclipSignals = NAStuff._noclipSignals or setmetatable({}, {__mode="k"})
-	NAStuff._noclipGroup = "NA_NoClip"
-	local tracked, origCan, origGrp, signals = NAStuff._noclipTracked, NAStuff._noclipOrigCan, NAStuff._noclipOrigGrp, NAStuff._noclipSignals
-	local lp = Players.LocalPlayer
-	local enforce = function(p)
-		if p and p:IsA("BasePart") then
-			if origCan[p] == nil then origCan[p] = NAlib.isProperty(p,"CanCollide") end
-			if origGrp[p] == nil then origGrp[p] = (p.CollisionGroup or "Default") end
-			if p.CollisionGroup ~= NAStuff._noclipGroup then pcall(function() p.CollisionGroup = NAStuff._noclipGroup end) end
-			if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
-			if not signals[p] then
-				local c = p:GetPropertyChangedSignal("CanCollide"):Connect(function()
-					if NAlib.isProperty(p,"CanCollide") ~= false then NAlib.setProperty(p,"CanCollide", false) end
-				end)
-				signals[p] = {c}
-				NAlib.connect("noclip", c)
-			end
-			tracked[p] = true
-		end
-	end
-	local seed = function(char)
-		if not char then return end
-		for _,d in ipairs(char:GetDescendants()) do
-			if d:IsA("BasePart") then enforce(d) end
-		end
-		NAlib.connect("noclip", char.DescendantAdded:Connect(function(inst)
-			if inst:IsA("BasePart") then enforce(inst) end
-		end))
-		NAlib.connect("noclip", char.DescendantRemoving:Connect(function(inst)
-			if signals[inst] then for _,c in ipairs(signals[inst]) do if c then c:Disconnect() end end signals[inst]=nil end
-			tracked[inst] = nil
-			origCan[inst] = nil
-			origGrp[inst] = nil
-		end))
-	end
-	if lp.Character then seed(lp.Character) end
-	NAlib.connect("noclip_char", lp.CharacterAdded:Connect(function(char)
-		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k]=nil end
-		for k in pairs(tracked) do tracked[k]=nil end
-		for k in pairs(origCan) do origCan[k]=nil end
-		for k in pairs(origGrp) do origGrp[k]=nil end
-		Wait(); seed(char)
-	end))
-	NAlib.connect("noclip_char", lp.CharacterRemoving:Connect(function()
-		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k]=nil end
-		for k in pairs(tracked) do tracked[k]=nil end
-		for k in pairs(origCan) do origCan[k]=nil end
-		for k in pairs(origGrp) do origGrp[k]=nil end
-	end))
 	NAlib.connect("noclip", RunService.Stepped:Connect(function()
-		local char = lp.Character
+		local char = getChar()
 		if not char then return end
-		for p in pairs(tracked) do
-			if typeof(p)=="Instance" and p:IsA("BasePart") and p:IsDescendantOf(char) then
-				if p.CollisionGroup ~= NAStuff._noclipGroup then pcall(function() p.CollisionGroup = NAStuff._noclipGroup end) end
+		for _,p in pairs(char:GetDescendants()) do
+			if p:IsA("BasePart") then
 				if p.CanCollide ~= false then NAlib.setProperty(p,"CanCollide", false) end
 			end
 		end
@@ -20846,25 +20790,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 end)
 
 cmd.add({"clip"},{"clip","Enable your player's collision"},function()
-	local tracked = NAStuff._noclipTracked or {}
-	local origCan = NAStuff._noclipOrigCan or {}
-	local origGrp = NAStuff._noclipOrigGrp or {}
-	local signals = NAStuff._noclipSignals or {}
 	NAlib.disconnect("noclip")
-	NAlib.disconnect("noclip_char")
-	for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-	for p in pairs(tracked) do
-		if typeof(p)=="Instance" and p:IsA("BasePart") then
-			local v = origCan[p]; if v == nil then v = true end
-			NAlib.setProperty(p,"CanCollide", v)
-			local g = origGrp[p]; if g == nil then g = "Default" end
-			pcall(function() p.CollisionGroup = g end)
-		end
-	end
-	for k in pairs(signals) do signals[k]=nil end
-	for k in pairs(tracked) do tracked[k]=nil end
-	for k in pairs(origCan) do origCan[k]=nil end
-	for k in pairs(origGrp) do origGrp[k]=nil end
 end)
 
 cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchored"},function()
