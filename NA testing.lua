@@ -1,4 +1,4 @@
-﻿--[[
+--[[
 
 
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -374,6 +374,12 @@ local NAStuff = {
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
 	ESP_LocatorGui = nil;
+	ESP_LocatorArrows = {};
+	ESP_ModelList = {};
+	ESP_ModelIndex = 1;
+	ESP_MaxPerStep = 32;
+	NPC_ESP_MaxDist = 400;
+	NPC_ESP_MaxCount = 200;
 	partESPColors = setmetatable({}, { __mode = "k" });
 	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
 	partESPGlassCount = setmetatable({}, { __mode = "k" });
@@ -6217,6 +6223,7 @@ NAmanage.LoadESPSettings = function()
 	else
 		NAmanage.ESP_LocatorDisable()
 	end
+	NAmanage.ESP_LocatorApplyFlags()
 end
 
 NAmanage.SaveESPSettings = function()
@@ -6246,6 +6253,57 @@ NAmanage.SaveESPSettings = function()
 		ESP_LocatorTextSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48);
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+end
+
+NAmanage.ESP_LocatorRegisterArrow = function(key, frame, label)
+	if not key or not frame then return end
+	NAStuff.ESP_LocatorArrows[key] = {
+		frame = frame,
+		label = label,
+	}
+end
+
+NAmanage.ESP_LocatorRemoveArrow = function(key)
+	local d = NAStuff.ESP_LocatorArrows[key]
+	if not d then return end
+	NAStuff.ESP_LocatorArrows[key] = nil
+end
+
+NAmanage.ESP_LocatorApplyFlags = function()
+	local show = NAStuff.ESP_LocatorEnabled == true
+	local showTxt = show and NAStuff.ESP_LocatorShowText == true
+	local sz = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
+	local ts = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
+
+	for _, d in pairs(NAStuff.ESP_LocatorArrows) do
+		local f = d.frame
+		local l = d.label
+		if f then
+			f.Visible = show
+			f.Size = UDim2.fromOffset(sz, sz)
+		end
+		if l then
+			l.Visible = showTxt
+			l.TextSize = ts
+		end
+	end
+end
+
+NAmanage.ESP_SetLocatorEnabled = function(on)
+	NAStuff.ESP_LocatorEnabled = on == true
+	if NAStuff.ESP_LocatorEnabled then
+		NAmanage.ESP_LocatorEnable(true)
+	else
+		NAmanage.ESP_LocatorDisable()
+	end
+	NAmanage.ESP_LocatorApplyFlags()
+	NAmanage.SaveESPSettings()
+end
+
+NAmanage.ESP_SetLocatorShowText = function(on)
+	NAStuff.ESP_LocatorShowText = on == true
+	NAmanage.ESP_LocatorApplyFlags()
+	NAmanage.SaveESPSettings()
 end
 
 NAmanage.SaveBinders=function()
@@ -8005,7 +8063,6 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-
 function MouseButtonFix(btn, cb)
 	local tap = 0.45
 	local thMouse, thTouch = 18, 35
@@ -9084,6 +9141,7 @@ NAmanage.ESP_ClearModel = function(model)
 	NAlib.disconnect(key.."_descAdded")
 	NAlib.disconnect(key.."_descRemoved")
 	NAlib.disconnect(key.."_charAdded")
+	NAmanage.ESP_UnregisterModel(model)
 	NAmanage.ESP_RemoveBoxes(model)
 	NAmanage.ESP_DestroyLabel(model)
 	espCONS[model] = nil
@@ -9096,6 +9154,7 @@ NAmanage.ESP_ClearAll = function()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
 	end
+	NAStuff.ESP_ModelList = {}
 	NAlib.disconnect("esp_update_global")
 end
 
@@ -9219,6 +9278,31 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 end
 
+NAmanage.ESP_RegisterModel=function(m)
+	if not m then return end
+	local t = NAStuff.ESP_ModelList
+	for i = 1, #t do
+		if t[i] == m then
+			return
+		end
+	end
+	t[#t + 1] = m
+end
+
+NAmanage.ESP_UnregisterModel=function(m)
+	if not m then return end
+	local t = NAStuff.ESP_ModelList
+	for i = 1, #t do
+		if t[i] == m then
+			table.remove(t, i)
+			break
+		end
+	end
+	if NAStuff.ESP_ModelIndex > #t then
+		NAStuff.ESP_ModelIndex = 1
+	end
+end
+
 NAmanage.ESP_Add = function(target, persistent)
 	persistent = persistent or false
 	if not (ESPenabled or chamsEnabled) then return end
@@ -9242,6 +9326,7 @@ NAmanage.ESP_Add = function(target, persistent)
 	if not (model and model:IsA("Model")) then return end
 
 	espCONS[model] = { boxTable = {}, persistent = persistent, boxEnabled = false, highlight = nil }
+	NAmanage.ESP_RegisterModel(model)
 	local key = NAmanage.ESP_Key(model)
 
 	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
@@ -9273,13 +9358,33 @@ end
 NAmanage.ESP_StartGlobal = function()
 	if NAlib.isConnected("esp_update_global") then return end
 	NAlib.connect("esp_update_global", RunService.Heartbeat:Connect(function()
+		if not (ESPenabled or chamsEnabled) then return end
+		local list = NAStuff.ESP_ModelList
+		local n = list and #list or 0
+		if n == 0 then return end
+
 		local plr = Players.LocalPlayer
 		local char = plr and plr.Character or nil
-		local localRoot = (char and getRoot(char)) or nil
+		local root = char and getRoot(char) or nil
 		local now = tick()
-		for model,_ in pairs(espCONS) do
-			NAmanage.ESP_UpdateOne(model, now, localRoot)
+
+		local idx = NAStuff.ESP_ModelIndex or 1
+		local maxStep = NAStuff.ESP_MaxPerStep or 32
+		if idx > n then
+			idx = 1
 		end
+		local stop = math.min(n, idx + maxStep - 1)
+		for i = idx, stop do
+			local m = list[i]
+			if m and espCONS[m] then
+				NAmanage.ESP_UpdateOne(m, now, root)
+			end
+		end
+		idx = stop + 1
+		if idx > n then
+			idx = 1
+		end
+		NAStuff.ESP_ModelIndex = idx
 	end))
 end
 
@@ -18792,19 +18897,41 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 	if not NAlib.isConnected(NPC_SCAN_KEY) then
 		local acc = 0
 		NAlib.connect(NPC_SCAN_KEY, RunService.Heartbeat:Connect(function(dt)
+			if not ESPenabled then return end
 			acc = acc + dt
 			if acc < 0.6 then return end
 			acc = 0
+
+			local plr = Players.LocalPlayer
+			local char = plr and plr.Character
+			local root = char and getRoot(char)
+			if not root then return end
+
 			local found = {}
+			local cnt = 0
+			local maxCnt = NAStuff.NPC_ESP_MaxCount or 200
+			local maxDist = NAStuff.NPC_ESP_MaxDist or 400
+
 			for _, inst in ipairs(workspace:GetDescendants()) do
 				if inst:IsA("Model") and CheckIfNPC(inst) then
-					found[inst] = true
-					if not getgenv().npcESPList[inst] then
-						getgenv().npcESPList[inst] = true
-						NAmanage.ESP_Add(inst, false)
+					local rp = getRoot(inst)
+					if rp then
+						local d = (rp.Position - root.Position).Magnitude
+						if d <= maxDist then
+							found[inst] = true
+							if not getgenv().npcESPList[inst] then
+								getgenv().npcESPList[inst] = true
+								NAmanage.ESP_Add(inst, false)
+							end
+							cnt += 1
+							if cnt >= maxCnt then
+								break
+							end
+						end
 					end
 				end
 			end
+
 			for inst in pairs(getgenv().npcESPList) do
 				if not found[inst] then
 					getgenv().npcESPList[inst] = nil
@@ -22859,10 +22986,19 @@ end, true)
 cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
 	local ws = workspace
 	local plr = Players.LocalPlayer
-	ws.CurrentCamera:Remove()
-	Wait(0.1)
-	repeat Wait() until plr.Character
 	local cam = ws.CurrentCamera
+	if not cam then return end
+	local al = cam:FindFirstChildOfClass("AudioListener")
+	if al then
+		al.Parent = nil
+	end
+	cam:Remove()
+	Wait(0.1)
+	repeat Wait() until plr.Character and ws.CurrentCamera
+	cam = ws.CurrentCamera
+	if al then
+		al.Parent = cam
+	end
 	cam.CameraSubject = getHum()
 	cam.CameraType = "Custom"
 	plr.CameraMinZoomDistance = 0.5
@@ -43835,31 +43971,23 @@ NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), fu
 end)
 
 NAgui.addToggle("ESP Locator Arrows", NAStuff.ESP_LocatorEnabled == true, function(state)
-	NAStuff.ESP_LocatorEnabled = state == true
-	if NAStuff.ESP_LocatorEnabled then
-		NAmanage.ESP_LocatorEnable(true)
-	else
-		NAmanage.ESP_LocatorDisable()
-	end
-	NAmanage.SaveESPSettings()
+	NAmanage.ESP_SetLocatorEnabled(state)
 end)
 
 NAgui.addSlider("Locator Size", 12, 128, math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128), 1, " px", function(v)
 	NAStuff.ESP_LocatorSize = math.clamp(tonumber(v) or 26, 12, 128)
+	NAmanage.ESP_LocatorApplyFlags()
 	NAmanage.SaveESPSettings()
-	NAmanage.ESP_LocatorEnable(true)
 end)
 
 NAgui.addToggle("Locator Show Text", NAStuff.ESP_LocatorShowText == true, function(state)
-	NAStuff.ESP_LocatorShowText = state == true
-	NAmanage.SaveESPSettings()
-	NAmanage.ESP_LocatorEnable(true)
+	NAmanage.ESP_SetLocatorShowText(state)
 end)
 
 NAgui.addSlider("Locator Text Size", 10, 48, math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48), 1, " px", function(v)
 	NAStuff.ESP_LocatorTextSize = math.clamp(tonumber(v) or 14, 10, 48)
+	NAmanage.ESP_LocatorApplyFlags()
 	NAmanage.SaveESPSettings()
-	NAmanage.ESP_LocatorEnable(true)
 end)
 
 NAgui.addSection("Interactable ESP (touchesp/proximityesp/clickesp)")
