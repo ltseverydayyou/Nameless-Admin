@@ -3820,6 +3820,49 @@ NAQoTEnabled = nil
 NAiconSaveEnabled = nil
 NAUISTROKER = DEFAULT_UI_STROKE_COLOR
 NATOPBARVISIBLE = true
+NATopbarKeepPosition = false
+NATopbarPositionRatio = 0
+NALoadingStartMinimized = false
+
+do
+	if FileSupport then
+		pcall(function()
+			if typeof(isfolder) == "function" and not isfolder(NAfiles.NAFILEPATH) then
+				if typeof(makefolder) == "function" then
+					makefolder(NAfiles.NAFILEPATH)
+				end
+			end
+		end)
+		local ok, raw = pcall(function()
+			if typeof(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
+				return readfile(NAfiles.NAMAINSETTINGSPATH)
+			end
+			return nil
+		end)
+		if ok and type(raw) == "string" and raw ~= "" then
+			local decodedOk, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			if decodedOk and typeof(decoded) == "table" then
+				local val = decoded.loadingStartMinimized
+				local function parseBool(value)
+					if type(value) == "boolean" then return value end
+					if type(value) == "string" then
+						local lowered = value:lower()
+						if lowered == "true" or lowered == "1" then return true end
+						if lowered == "false" or lowered == "0" then return false end
+					end
+					if type(value) == "number" then
+						return value ~= 0
+					end
+					return nil
+				end
+				local parsed = parseBool(val)
+				if parsed ~= nil then
+					NALoadingStartMinimized = parsed
+				end
+			end
+		end
+	end
+end
 
 if getgenv().NATestingVer then
 	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
@@ -4323,6 +4366,16 @@ NAgui.draggerV2 = function(ui, dragui)
 end
 
 NAmanage.createLoadingUI=function(text, opts)
+	opts = opts or {}
+	local startMinimized = opts.startMinimized
+	if startMinimized == nil then
+		startMinimized = opts.minimized
+	end
+	if startMinimized == nil then
+		startMinimized = NALoadingStartMinimized == true
+	else
+		startMinimized = startMinimized and true or false
+	end
 	local services = {
 		RunService = SafeGetService("RunService");
 		TweenService = SafeGetService("TweenService");
@@ -4333,10 +4386,9 @@ NAmanage.createLoadingUI=function(text, opts)
 	}
 	local ui = {}
 	local flags = {
-		minimized = false;
+		minimized = startMinimized;
 		autoSkip = false;
 	}
-	opts = opts or {}
 	local widthScale = tonumber(opts.widthScale) or 0.34
 	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true }
 	local lp = services.Players and services.Players.LocalPlayer
@@ -4717,6 +4769,11 @@ NAmanage.createLoadingUI=function(text, opts)
 		end
 	end
 
+	local function setMinimizedState(state)
+		flags.minimized = state and true or false
+		applyMinimized()
+	end
+
 	local function doSkip()
 		if ui.skipFlag.Value then
 			return
@@ -4757,13 +4814,11 @@ NAmanage.createLoadingUI=function(text, opts)
 	updateAutoSkipButton()
 
 	ui.minimizeButton.Activated:Connect(function()
-		flags.minimized = true
-		applyMinimized()
+		setMinimizedState(true)
 	end)
 
 	ui.toastOpen.Activated:Connect(function()
-		flags.minimized = false
-		applyMinimized()
+		setMinimizedState(false)
 	end)
 
 	ui.skipButton.Activated:Connect(doSkip)
@@ -4804,7 +4859,7 @@ NAmanage.createLoadingUI=function(text, opts)
 
 	return ui.sg, setStatus, setPercent, ui.completedFlag, function()
 		return ui.skipFlag.Value
-	end
+	end, setMinimizedState
 end
 
 NAAssetsLoading = NAAssetsLoading or {}
@@ -4813,6 +4868,12 @@ NAAssetsLoading.knownRemotes = {
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
 }
+
+NAAssetsLoading.applyMinimizedPreference=function()
+	if type(NAAssetsLoading.setMinimizedState) == "function" then
+		pcall(NAAssetsLoading.setMinimizedState, NALoadingStartMinimized == true)
+	end
+end
 
 NAAssetsLoading.getRemoteTargets=function()
 	if NAAssetsLoading.remoteTargets then
@@ -4927,8 +4988,9 @@ NAmanage.registerRemoteForPreload=function(url, options)
 end
 
 if not NAAssetsLoading.setStatus then
-	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
+	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
 	NaProtectUI(NAAssetsLoading.ui)
+	NAAssetsLoading.applyMinimizedPreference()
 end
 
 NAAssetsLoading.setStatus("waiting for engine")
@@ -5728,6 +5790,27 @@ NAmanage.NASettingsGetSchema=function()
 				return false
 			end;
 		};
+		topbarKeepPosition = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		topbarPositionRatio = {
+			default = 0;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 0
+				end
+				if numberValue < -1 then
+					numberValue = -1
+				elseif numberValue > 1 then
+					numberValue = 1
+				end
+				return numberValue
+			end;
+		};
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
@@ -5768,6 +5851,12 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		autoSkipLoading = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
@@ -6342,6 +6431,10 @@ if FileSupport then
 	NAStuff.IconInvisible = NAmanage.NASettingsGet("iconInvisible")
 	NAStuff.IconLocked = NAmanage.NASettingsGet("iconLocked")
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
+	NATopbarKeepPosition = NAmanage.NASettingsGet("topbarKeepPosition")
+	NATopbarPositionRatio = NAmanage.NASettingsGet("topbarPositionRatio") or 0
+	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
+	NAAssetsLoading.applyMinimizedPreference()
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -6798,6 +6891,9 @@ else
 	NAScale = 1
 	NAQoTEnabled = false
 	NAiconSaveEnabled = false
+	NATopbarKeepPosition = false
+	NATopbarPositionRatio = 0
+	NALoadingStartMinimized = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
 	opt.currentTagText = "Tag"
 	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
@@ -6805,6 +6901,7 @@ else
 	DoPopup("Your exploit does not support read/write file")
 	--opt.saveTag = fals
 end
+NAAssetsLoading.applyMinimizedPreference()
 
 opt.prefix = prefixCheck
 if NAmanage.SyncPrefixUI then
@@ -39078,6 +39175,77 @@ NAmanage.Topbar_ComputedSize=function()
 	end
 end
 
+local function Topbar_GetMaxOffset()
+	if not (TopBarApp and TopBarApp.frame and TopBarApp.toggle) then
+		return nil
+	end
+	local fw = TopBarApp.frame.AbsoluteSize.X
+	local bw = TopBarApp.toggle.AbsoluteSize.X
+	if fw <= 0 then
+		return nil
+	end
+	local maxOffset = (fw - bw) * 0.5
+	if maxOffset < 0 then
+		maxOffset = 0
+	end
+	return maxOffset
+end
+
+NAmanage.Topbar_SavePositionPreference=function(opts)
+	opts = opts or {}
+	if not NATopbarKeepPosition and not opts.force then
+		return
+	end
+	local maxOffset = Topbar_GetMaxOffset()
+	if not maxOffset then
+		return
+	end
+	local offset = opts.offset
+	if type(offset) ~= "number" then
+		if not (TopBarApp and TopBarApp.toggle) then
+			return
+		end
+		offset = TopBarApp.toggle.Position.X.Offset
+	end
+	local ratio = 0
+	if maxOffset > 0 then
+		ratio = math.clamp(offset / maxOffset, -1, 1)
+	end
+	NATopbarPositionRatio = ratio
+	NAmanage.NASettingsSet("topbarPositionRatio", ratio)
+end
+
+NAmanage.Topbar_ResetPositionPreference=function()
+	NATopbarPositionRatio = 0
+	NAmanage.NASettingsSet("topbarPositionRatio", 0)
+	if TopBarApp and TopBarApp.toggle then
+		local pos = TopBarApp.toggle.Position
+		TopBarApp.toggle.Position = UDim2.new(0.5, 0, pos.Y.Scale, pos.Y.Offset)
+		if TopBarApp.isOpen then
+			NAmanage.Topbar_PositionPanel()
+		end
+	end
+end
+
+NAmanage.Topbar_ApplySavedPosition=function()
+	if not NATopbarKeepPosition then
+		return
+	end
+	local maxOffset = Topbar_GetMaxOffset()
+	if not maxOffset then
+		return
+	end
+	local ratio = math.clamp(NATopbarPositionRatio or 0, -1, 1)
+	local offset = ratio * maxOffset
+	if TopBarApp and TopBarApp.toggle then
+		local pos = TopBarApp.toggle.Position
+		TopBarApp.toggle.Position = UDim2.new(0.5, offset, pos.Y.Scale, pos.Y.Offset)
+		if TopBarApp.isOpen then
+			NAmanage.Topbar_PositionPanel()
+		end
+	end
+end
+
 NAmanage.Topbar_ChooseSide=function()
 	local cam=workspace.CurrentCamera
 	if not cam then return end
@@ -39297,10 +39465,22 @@ NAmanage.Topbar_AddButton=function(def)
 end
 
 NAmanage.Topbar_ClampToggle=function()
+	if not (TopBarApp and TopBarApp.frame and TopBarApp.toggle) then
+		return
+	end
+	if NATopbarKeepPosition then
+		NAmanage.Topbar_ApplySavedPosition()
+		return
+	end
 	local fw=TopBarApp.frame.AbsoluteSize.X
 	local bw=TopBarApp.toggle.AbsoluteSize.X
-	local off=math.clamp(TopBarApp.toggle.Position.X.Offset,-(fw-bw)/2,(fw-bw)/2)
-	TopBarApp.toggle.Position=UDim2.new(0.5,off,TopBarApp.toggle.Position.Y.Scale,TopBarApp.toggle.Position.Y.Offset)
+	local maxOffset=math.max((fw-bw)*0.5,0)
+	local off=math.clamp(TopBarApp.toggle.Position.X.Offset,-maxOffset,maxOffset)
+	local pos=TopBarApp.toggle.Position
+	TopBarApp.toggle.Position=UDim2.new(0.5,off,pos.Y.Scale,pos.Y.Offset)
+	if TopBarApp.isOpen then
+		NAmanage.Topbar_PositionPanel()
+	end
 end
 
 NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
@@ -39312,7 +39492,12 @@ NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
 			dragStart=input.Position
 			startPos=ui.Position
 			input.Changed:Connect(function()
-				if input.UserInputState==Enum.UserInputState.End then dragging=false end
+				if input.UserInputState==Enum.UserInputState.End then
+					dragging=false
+					if NATopbarKeepPosition then
+						NAmanage.Topbar_SavePositionPreference()
+					end
+				end
 			end)
 		end
 	end)
@@ -39446,6 +39631,7 @@ NAmanage.Topbar_Init=function()
 	NAmanage.Topbar_SetOpen(false)
 	MouseButtonFix(TopBarApp.toggle,NAmanage.Topbar_Toggle)
 	NAmanage.Topbar_MakeDraggableHorizontal(TopBarApp.toggle)
+	NAmanage.Topbar_ClampToggle()
 	NAlib.connect("tb_repos_frame",TopBarApp.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		NAmanage.Topbar_ClampToggle()
 		if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
@@ -43092,6 +43278,16 @@ NAmanage.RegisterToggleAutoSync("Auto Skip Loading Screen", function()
 	return NAmanage.getAutoSkipPreference() == true
 end)
 
+NAgui.addToggle("Loading Mode (Tray)", NALoadingStartMinimized, function(v)
+	NALoadingStartMinimized = v and true or false
+	NAmanage.NASettingsSet("loadingStartMinimized", NALoadingStartMinimized)
+	NAAssetsLoading.applyMinimizedPreference()
+	DoNotif("Loading screen will start "..(NALoadingStartMinimized and "in tray" or "expanded"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Loading Mode (Tray)", function()
+	return NALoadingStartMinimized == true
+end)
+
 NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	local pos = NAgui.getClampedIconPosition() or TextButton.Position
 	if v then
@@ -43196,8 +43392,30 @@ NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(st
 end)
 
 NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
-	TopBarApp.top.Enabled = v
-	NAmanage.NASettingsSet("topbarVisible", v)
+	NATOPBARVISIBLE = v and true or false
+	if TopBarApp and TopBarApp.top then
+		TopBarApp.top.Enabled = NATOPBARVISIBLE
+	end
+	NAmanage.NASettingsSet("topbarVisible", NATOPBARVISIBLE)
+end)
+NAmanage.RegisterToggleAutoSync("TopBar Visibility", function()
+	return NATOPBARVISIBLE == true
+end)
+
+NAgui.addToggle("Keep Topbar Position", NATopbarKeepPosition, function(v)
+	NATopbarKeepPosition = v and true or false
+	NAmanage.NASettingsSet("topbarKeepPosition", NATopbarKeepPosition)
+	if NATopbarKeepPosition then
+		NAmanage.Topbar_SavePositionPreference({ force = true })
+		DoNotif("Topbar position will be saved on exit", 2)
+	else
+		NAmanage.Topbar_ResetPositionPreference()
+		DoNotif("Topbar position reset to center", 2)
+	end
+	NAmanage.Topbar_ClampToggle()
+end)
+NAmanage.RegisterToggleAutoSync("Keep Topbar Position", function()
+	return NATopbarKeepPosition == true
 end)
 
 if CoreGui then
