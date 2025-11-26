@@ -69,6 +69,135 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Namele
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
 ```
 
+--- 
+
+## Plugin Support — How It Works
+
+Add custom commands to Nameless Admin by dropping `.na` plugin files in the `Plugins` folder.
+
+### Getting Started
+
+1. Open your executor’s `Workspace` folder.
+2. Create `Nameless-Admin/Plugins/` if it doesn’t exist.
+3. Add a `.na` file (e.g., `Workspace/Nameless-Admin/Plugins/test.na`).
+4. Put commands into that file using one of the supported formats below.
+
+---
+
+### Supported Formats
+
+You can define commands separately or as a grouped array, and you may mix both styles inside the same file.
+
+#### Separate Command Definitions
+
+```lua
+cmdPluginAdd = {
+    Aliases = {"test", "balls"},
+    ArgsHint = "<arg>",
+    Info = "Displays the argument using DoNotif",
+    Function = function(arg)
+        DoNotif("result: "..tostring(arg))
+    end,
+    RequiresArguments = true
+}
+
+cmdPluginAdd = {
+    Aliases = {"mixalis"},
+    Info = "test",
+    Function = function()
+        print("g")
+    end,
+    RequiresArguments = false
+}
+```
+
+#### Grouped as an Array
+
+```lua
+cmdPluginAdd = {
+    {
+        Aliases = {"test", "balls"},
+        ArgsHint = "<arg>",
+        Info = "Displays the argument using DoNotif",
+        Function = function(arg)
+            DoNotif("result: "..tostring(arg))
+        end,
+        RequiresArguments = true
+    },
+    {
+        Aliases = {"mixalis"},
+        Info = "test",
+        Function = function()
+            print("g")
+        end,
+        RequiresArguments = false
+    }
+}
+```
+
+---
+
+### Command Fields
+
+* **Aliases**: first item is the main command name; others are aliases.
+* **ArgsHint**: optional usage hint shown in help (e.g., `"<player> <amount>"`).
+* **Info**: short description shown in the command list.
+* **Function**: code that runs when the command is executed. Receives your arguments if `RequiresArguments` is true.
+* **RequiresArguments**: set to `true` if the command must be called with args.
+
+---
+
+### Running Other Commands From Plugins
+
+Inside plugin files you can call existing commands using any of these aliases:
+
+* `cmdRun(...)`
+* `RunCommand(...)`
+* `runCommand(...)`
+
+They behave like `cmd.run` and accept:
+
+* a single string: `runCommand("fly 50")`
+* varargs: `runCommand("fly", "50")`
+* a token table: `runCommand({"fly","50"})`
+
+Examples:
+
+```lua
+cmdPluginAdd = {
+    Aliases = {"callfly"},
+    ArgsHint = "<speed>",
+    Info = "run 'fly <speed>'",
+    Function = function(speed)
+        local _, err = runCommand("fly "..tostring(speed))
+        if err then DoNotif("run error: "..tostring(err)) end
+    end,
+    RequiresArguments = true
+}
+
+cmdPluginAdd = {
+    Aliases = {"openlogs"},
+    Info = "run 'chatlogs'",
+    Function = function()
+        local _, err = RunCommand("chatlogs")
+        if err then DoNotif("run error: "..tostring(err)) end
+    end,
+    RequiresArguments = false
+}
+```
+
+---
+
+### Load Notification
+
+When plugins load, you’ll see which file contributed which commands, for example:
+
+```
+Loaded plugins:
+
+plugin.na (test, mixalis)
+```
+
 ---
 
 ## Credits (Original Owner)
