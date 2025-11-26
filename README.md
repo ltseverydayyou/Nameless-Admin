@@ -11,13 +11,6 @@
 ---
 
 ## Table of Contents
-- Maintainers
-- Project Information
-- Plugin Support - How It Works
-- Loadstrings
-- Community
-- Credits (Original Owner)
-- License
 
 <details>
 <summary>Maintainers</summary>
