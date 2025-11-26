@@ -28980,6 +28980,14 @@ end, true)
 
 promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false}
 
+function isPromptGuiName(name)
+	if type(name) ~= "string" then
+		return false
+	end
+	local lowerName = name:lower()
+	return lowerName:find("purchaseprompt") or lowerName:find("foundationoverlay")
+end
+
 function nuhuhprompt(v)
 	NACaller(function()
 		if v == false then
@@ -28987,7 +28995,7 @@ function nuhuhprompt(v)
 			promptTBL.blocking = true
 			for _, d in ipairs(COREGUI:GetDescendants()) do
 				local gui = d:IsA("ScreenGui") and d or d:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
+				if gui and gui.Name and isPromptGuiName(gui.Name) then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
 					for _, x in ipairs(gui:GetDescendants()) do
@@ -29007,7 +29015,7 @@ function nuhuhprompt(v)
 			end
 			local c = COREGUI.DescendantAdded:Connect(function(inst)
 				local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and gui.Name:lower():find("purchaseprompt") then
+  				if gui and gui.Name and isPromptGuiName(gui.Name) then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
 					for _, x in ipairs(gui:GetDescendants()) do
