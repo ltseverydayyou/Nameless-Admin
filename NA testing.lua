@@ -65,76 +65,21 @@ local LoadstringCommandAliases = {
 	execute = true;
 };
 
+local NA_SRV = setmetatable({}, {
+	__index = function(self, name)
+		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref) return ref end
+		local ok, svc = pcall(function()
+			return Reference(game:GetService(name))
+		end)
+		if ok and svc then
+			rawset(self, name, svc)
+			return svc
+		end
+	end
+})
+
 function SafeGetService(name, timeoutSeconds)
-	local Reference = cloneref or function(ref) return ref end
-	local startClock = tick()
-
-	local function timedOut()
-		return timeoutSeconds and (tick() - startClock) >= timeoutSeconds
-	end
-
-	local okImmediate, serviceImmediate = pcall(game.GetService, game, name)
-	if okImmediate and serviceImmediate then
-		return Reference(serviceImmediate)
-	end
-
-	local function waitForGameLoaded()
-		while true do
-			local okLoaded, isLoaded = pcall(game.IsLoaded, game)
-			if not okLoaded or isLoaded then
-				return true
-			end
-			if timedOut() then
-				return false
-			end
-
-			local loaded = false
-			local conn
-			local connected = pcall(function()
-				conn = game.Loaded:Connect(function()
-					loaded = true
-				end)
-			end)
-
-			if connected and conn then
-				while not loaded do
-					if timedOut() then
-						conn:Disconnect()
-						return false
-					end
-					local dt = Wait(0.05)
-					if not dt then dt = 0.05 end
-				end
-				conn:Disconnect()
-				return true
-			end
-
-			local dt = Wait(0.05)
-			if not dt then dt = 0.05 end
-		end
-	end
-
-	if not waitForGameLoaded() then
-		return nil
-	end
-
-	while true do
-		local okService, service = pcall(game.GetService, game, name)
-		if okService and service then
-			return Reference(service)
-		end
-
-		if timedOut() then
-			return nil
-		end
-
-		if not waitForGameLoaded() then
-			return nil
-		end
-
-		local dt = Wait(0.05)
-		if not dt then dt = 0.05 end
-	end
+	return NA_SRV[name]
 end
 
 local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
@@ -10574,8 +10519,101 @@ NAmanage.LoadPlugins = function()
 		if #buf > 0 then out[#out+1] = buf end
 		return out
 	end
+	local function fetchRem(url, method)
+		if type(url) ~= "string" or url == "" or not game then
+			return nil
+		end
+		local httpFn = method and game[method] or game.HttpGet
+		if type(httpFn) ~= "function" then
+			return nil
+		end
+		local callers = {
+			function() return httpFn(game, url) end,
+			function() return httpFn(game, url, true) end,
+		}
+		for _, caller in ipairs(callers) do
+			local ok, result = pcall(caller)
+			if ok and type(result) == "string" and result ~= "" then
+				return result
+			end
+		end
+		return nil
+	end
 
-	local loadedSummaries = {}
+	local function isPlugin(content)
+		if type(content) ~= "string" then
+			return false
+		end
+		local lowerTxt = Lower(content)
+		if lowerTxt:find("cmdpluginadd", 1, true) then
+			return true
+		end
+		local seenRemote = {}
+		local loadPat = "loadstring%s*%(%s*game[:%.]([%w_]+)%s*%(%s*(['\"])(.-)%2"
+		for method, _, url in content:gmatch(loadPat) do
+			if url and url ~= "" and not seenRemote[url] then
+				local methodLow = method and method:lower() or ""
+				if methodLow == "httpget" or methodLow == "httpgetasync" then
+					seenRemote[url] = true
+					local remote = fetchRem(url, method)
+					if remote and type(remote) == "string" and Lower(remote):find("cmdpluginadd", 1, true) then
+						return true
+					end
+				end
+			end
+		end
+		return false
+	end
+
+	NAmanage._pluginCommandRecords = NAmanage._pluginCommandRecords or {}
+
+	local function normKey(path)
+		if not path then
+			return ""
+		end
+		local normalized = path:gsub("\\","/")
+		return Lower(normalized)
+	end
+
+	local function UnplugCmd(key)
+		if not key then
+			return
+		end
+		local record = NAmanage._pluginCommandRecords[key]
+		if not record then
+			return
+		end
+		for alias, data in pairs(record.aliases or {}) do
+			if cmds.Commands[alias] == data then
+				cmds.Commands[alias] = nil
+			end
+			if cmds.Aliases[alias] == data then
+				cmds.Aliases[alias] = nil
+			end
+		end
+		NAmanage._pluginCommandRecords[key] = nil
+	end
+
+	local function AddCmdPlug(key, aliases, dataRef)
+		if not key or not dataRef or type(aliases) ~= "table" then
+			return
+		end
+		local record = NAmanage._pluginCommandRecords[key]
+		if not record then
+			record = { aliases = {} }
+			NAmanage._pluginCommandRecords[key] = record
+		else
+			record.aliases = record.aliases or {}
+		end
+		for _, alias in ipairs(aliases) do
+			if type(alias) == "string" and alias ~= "" then
+				record.aliases[alias:lower()] = dataRef
+			end
+		end
+	end
+
+	local loadedSumm = {}
+	local seenKeys = {}
 	local okList, files = pcall(listfiles, pluginDir)
 	if not okList or type(files) ~= 'table' then
 		local errMsg = okList and 'invalid directory listing' or tostring(files)
@@ -10585,108 +10623,118 @@ NAmanage.LoadPlugins = function()
 
 	for _, file in ipairs(files) do
 		if Lower(file):match("%.na$") then
+			local pluginKey = normKey(file)
+			seenKeys[pluginKey] = true
+			UnplugCmd(pluginKey)
 			local success, content = NACaller(readfile, file)
 			if success and content then
-				local func, loadErr = loadstring(content)
-				if func then
-					local collectedPlugins = {}
-					local proxyEnv = {}
-					local baseEnv = getfenv()
+				if isPlugin(content) then
+					local func, loadErr = loadstring(content)
+					if func then
+						local colPlugins = {}
+						local proxyEnv = {}
+						local baseEnv = getfenv()
 
-					local function _dispatchRun(...)
-						local runner = cmd and (cmd.run or cmd.Run)
-						if not runner then return nil, "cmd.run not available" end
-						local n = select("#", ...)
-						local argv
-						if n == 1 then
-							local a = ...
-							if type(a) == "table" then
-								argv = a
-							elseif type(a) == "string" then
-								argv = splitArgs(a)
+						local function _runCmd(...)
+							local runner = cmd and (cmd.run or cmd.Run)
+							if not runner then return nil, "cmd.run not available" end
+							local n = select("#", ...)
+							local argv
+							if n == 1 then
+								local a = ...
+								if type(a) == "table" then
+									argv = a
+								elseif type(a) == "string" then
+									argv = splitArgs(a)
+								else
+									return nil, "invalid input to runCommand"
+								end
 							else
-								return nil, "invalid input to runCommand"
+								argv = {}
+								for i = 1, n do
+									local v = select(i, ...)
+									argv[#argv+1] = type(v) == "string" and v or tostring(v)
+								end
 							end
-						else
-							argv = {}
-							for i = 1, n do
-								local v = select(i, ...)
-								argv[#argv+1] = type(v) == "string" and v or tostring(v)
-							end
+							local ok1, res1 = NACaller(runner, argv)
+							if ok1 then return res1 end
+							local ok2, res2 = NACaller(runner, Concat(argv, " "))
+							if ok2 then return res2 end
+							return nil, res2
 						end
-						local ok1, res1 = NACaller(runner, argv)
-						if ok1 then return res1 end
-						local ok2, res2 = NACaller(runner, Concat(argv, " "))
-						if ok2 then return res2 end
-						return nil, res2
-					end
 
-					proxyEnv.cmdRun = _dispatchRun
-					proxyEnv.RunCommand = _dispatchRun
-					proxyEnv.runCommand = _dispatchRun
+						proxyEnv.cmdRun = _runCmd
+						proxyEnv.RunCommand = _runCmd
+						proxyEnv.runCommand = _runCmd
 
-					setmetatable(proxyEnv, {
-						__index = function(_, k)
-							if k == "loadstring" then
-								local baseLoadstring = baseEnv.loadstring or loadstring
-								return function(code, chunkname)
-									local f, e = baseLoadstring(code, chunkname)
-									if f then setfenv(f, proxyEnv) end
-									return f, e
-								end
-							elseif k == "load" then
-								local baseLoad = baseEnv.load
-								if not baseLoad then return nil end
-								return function(chunk, chunkname, mode, env)
-									return baseLoad(chunk, chunkname, mode, env or proxyEnv)
-								end
-							end
-							return baseEnv[k]
-						end,
-						__newindex = function(_, k, v)
-							if k == "cmdPluginAdd" then
-								if type(v) == "table" then
-									if v[1] and type(v[1]) == "table" then
-										for _, sub in ipairs(v) do
-											Insert(collectedPlugins, sub)
-										end
-									else
-										Insert(collectedPlugins, v)
+						setmetatable(proxyEnv, {
+							__index = function(_, k)
+								if k == "loadstring" then
+									local baseLoader = baseEnv.loadstring or loadstring
+									return function(code, chunkname)
+										local f, e = baseLoader(code, chunkname)
+										if f then setfenv(f, proxyEnv) end
+										return f, e
+									end
+								elseif k == "load" then
+									local baseLoad = baseEnv.load
+									if not baseLoad then return nil end
+									return function(chunk, chunkname, mode, env)
+										return baseLoad(chunk, chunkname, mode, env or proxyEnv)
 									end
 								end
-							else
-								rawset(baseEnv, k, v)
+								return baseEnv[k]
+							end,
+							__newindex = function(_, k, v)
+								if k == "cmdPluginAdd" then
+									if type(v) == "table" then
+										if v[1] and type(v[1]) == "table" then
+											for _, sub in ipairs(v) do
+												Insert(colPlugins, sub)
+											end
+										else
+											Insert(colPlugins, v)
+										end
+									end
+								else
+									rawset(baseEnv, k, v)
+								end
 							end
-						end
-					})
+						})
 
-					setfenv(func, proxyEnv)
+						setfenv(func, proxyEnv)
 
-					local ok, execErr = NACaller(func)
-					if ok then
-						local fileCommandNames = {}
-						for _, plugin in ipairs(collectedPlugins) do
-							local aliases = plugin.Aliases
-							local handler = plugin.Function
-							if type(aliases) == "table" and type(handler) == "function" then
-								local argsHint = plugin.ArgsHint or ""
-								local formattedDisplay = formatInfo(aliases, argsHint)
-								local info = { formattedDisplay, plugin.Info or "No description" }
-								cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
-								Insert(fileCommandNames, aliases[1])
-							else
-								DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+						local ok, execErr = NACaller(func)
+						if ok then
+							local cmdNames = {}
+							for _, plugin in ipairs(colPlugins) do
+								local aliases = plugin.Aliases
+								local handler = plugin.Function
+								if type(aliases) == "table" and type(handler) == "function" then
+									local argsHint = plugin.ArgsHint or ""
+									local formattedDisplay = formatInfo(aliases, argsHint)
+									local info = { formattedDisplay, plugin.Info or "No description" }
+									cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
+									local primaryLow = aliases[1] and type(aliases[1]) == "string" and aliases[1]:lower() or nil
+									local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+									AddCmdPlug(pluginKey, aliases, dataRef)
+									Insert(cmdNames, aliases[1])
+								else
+									DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+								end
 							end
-						end
-						if #fileCommandNames > 0 then
-							local fileName = file:match("[^\\/]+$") or file
-							Insert(loadedSummaries, fileName.." ("..Concat(fileCommandNames, ", ")..")")
+							if #cmdNames > 0 then
+								local fileName = file:match("[^\\/]+$") or file
+								Insert(loadedSumm, fileName.." ("..Concat(cmdNames, ", ")..")")
+							end
+						else
+							DoWindow("[Plugin Error] '"..file.."' => "..tostring(execErr))
 						end
 					else
-						DoWindow("[Plugin Error] '"..file.."' => "..tostring(execErr))
+						DoWindow("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
 					end
 				else
-					DoWindow("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
+					DoWindow("skipped '"..file.."' (no cmdPluginAdd)")
 				end
 			else
 				DoWindow("[Plugin Read Error] Failed to read '"..file.."'")
@@ -10694,8 +10742,18 @@ NAmanage.LoadPlugins = function()
 		end
 	end
 
-	if #loadedSummaries > 0 then
-		DoNotif("Loaded plugins:\n\n"..Concat(loadedSummaries, "\n\n"), 5.7)
+	local staleKeys = {}
+	for key in pairs(NAmanage._pluginCommandRecords) do
+		if not seenKeys[key] then
+			Insert(staleKeys, key)
+		end
+	end
+	for _, key in ipairs(staleKeys) do
+		UnplugCmd(key)
+	end
+
+	if #loadedSumm > 0 then
+		DoNotif("Loaded plugins:\n\n"..Concat(loadedSumm, "\n\n"), 5.7)
 	end
 
 	return true
@@ -25850,8 +25908,59 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 	end
 end,true)
 
+NAmanage.vcAll=function(state)
+	local svc=SafeGetService("VoiceChatInternal")
+	if not svc or type(svc.SubscribePauseAll) ~= "function" then
+		DoNotif("Voice chat mute/unmute is not supported in this session.", 3)
+		return
+	end
+
+	local verb=state and "mute" or "unmute"
+	local ok, err = pcall(function()
+		svc:SubscribePauseAll(state)
+	end)
+
+	if not ok then
+		DoNotif("Failed to "..verb.." all voice chats: "..tostring(err or "unknown error"), 3)
+		return
+	end
+
+	DoNotif("Voice chats "..(state and "muted" or "unmuted")..".", 2)
+end
+
+cmd.add({"muteallvcs"}, {"muteallvcs", "Mute every voice chat"}, function()
+	NAmanage.vcAll(true)
+end)
+
+cmd.add({"unmuteallvcs"}, {"unmuteallvcs", "Unmute every voice chat"}, function()
+	NAmanage.vcAll(false)
+end)
+
 cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
 	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
+end)
+
+cmd.add({"gear"}, {"gear [id]", "This is client sided and will probably not work"}, function(assetId)
+	assetId = tostring(assetId or ""):match("%d+")
+	if not assetId or assetId == "" then
+		DoNotif("Please provide a gear asset ID.", 3)
+		return
+	end
+
+	local ok, objects = pcall(game.GetObjects, "rbxassetid://"..assetId)
+	if not ok or not objects or #objects == 0 then
+		DoNotif("Failed to load gear "..assetId, 3)
+		return
+	end
+
+	local gear = objects[1]
+	local backpack = getBp()
+	if not backpack then
+		DoNotif("Unable to access your backpack.", 3)
+		return
+	end
+
+	gear.Parent = backpack
 end)
 
 if IsOnPC then
