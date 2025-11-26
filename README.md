@@ -10,7 +10,17 @@
 
 ---
 
-## Maintainers
+## Table of Contents
+- Maintainers
+- Project Information
+- Plugin Support - How It Works
+- Loadstrings
+- Community
+- Credits (Original Owner)
+- License
+
+<details>
+<summary>Maintainers</summary>
 
 Click a badge to view profiles.
 
@@ -32,53 +42,25 @@ Click a badge to view profiles.
   </a>
 </div>
 
----
+</details>
 
-## Project Information
+<details>
+<summary>Project Information</summary>
 
 - **Legacy Script Support:** Old scripts are being fixed and kept functional.
 - **Upcoming Features:** New commands and improvements are in active development.
 
----
+</details>
 
-## Community
-
-<div align="left">
-  <a href="https://discord.gg/zzjYhtMGFD">
-    <img src="https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=blue&labelColor=969ef2" alt="Join the Discord" />
-  </a>
-</div>
-
----
-
-## Loadstrings
-
-### Original Script
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/refs/heads/main/Source"))()
-```
-
-### Current Versions
-**Main**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
-```
-
-**Testing**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
-```
-
---- 
-
-## Plugin Support — How It Works
+<details open>
+<summary>Plugin Support - How It Works</summary>
 
 Add custom commands to Nameless Admin by dropping `.na` plugin files in the `Plugins` folder.
 
 ### Getting Started
 
-1. Open your executor’s `Workspace` folder.
-2. Create `Nameless-Admin/Plugins/` if it doesn’t exist.
+1. Open your executor's `Workspace` folder.
+2. Create `Nameless-Admin/Plugins/` if it doesn't exist.
 3. Add a `.na` file (e.g., `Workspace/Nameless-Admin/Plugins/test.na`).
 4. Put commands into that file using one of the supported formats below.
 
@@ -190,7 +172,7 @@ cmdPluginAdd = {
 
 ### Load Notification
 
-When plugins load, you’ll see which file contributed which commands, for example:
+When plugins load, you'll see which file contributed which commands, for example:
 
 ```
 Loaded plugins:
@@ -198,9 +180,42 @@ Loaded plugins:
 plugin.na (test, mixalis)
 ```
 
----
+</details>
 
-## Credits (Original Owner)
+<details>
+<summary>Loadstrings</summary>
+
+### Original Script
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/refs/heads/main/Source"))()
+```
+
+### Current Versions
+**Main**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
+```
+
+**Testing**
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
+```
+
+</details>
+
+<details>
+<summary>Community</summary>
+
+<div align="left">
+  <a href="https://discord.gg/zzjYhtMGFD">
+    <img src="https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=blue&labelColor=969ef2" alt="Join the Discord" />
+  </a>
+</div>
+
+</details>
+
+<details>
+<summary>Credits (Original Owner)</summary>
 
 We appreciate the original creator of Nameless Admin.
 
@@ -213,13 +228,15 @@ We appreciate the original creator of Nameless Admin.
   </a>
 </div>
 
----
+</details>
 
-## License
+<details>
+<summary>License</summary>
 
 Licensed under the [MIT License](https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE).
+
+</details>
 
 ---
 
 Feel free to open issues, submit PRs, or drop by the Discord with questions.
-
