@@ -8540,14 +8540,24 @@ local PlayerArgs = {
 	end,
 }
 
+originalIO.normalizePlayerQuery=function(query)
+	if type(query) == "string" then
+		return query:lower()
+	end
+	if type(query) == "table" and type(query.Name) == "string" then
+		return query.Name:lower()
+	end
+	return ""
+end
+
 local function getPlr(a, b)
 	local speaker, raw
 	if b == nil then
 		speaker = Players.LocalPlayer
-		raw = a:lower()
+		raw = originalIO.normalizePlayerQuery(a)
 	else
 		speaker = a
-		raw = b:lower()
+		raw = originalIO.normalizePlayerQuery(b)
 	end
 
 	if PlayerArgs[raw] then
