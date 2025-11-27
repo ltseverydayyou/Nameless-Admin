@@ -5949,11 +5949,11 @@ NAmanage.loadSettingsFile=function()
 	if not NAmanage.NACanUseSettingsFiles() then
 		return nil
 	end
-	local okExists, exists = attempt(isfile, NAfiles.NAMAINSETTINGSPATH)
+	local okExists, exists = NAmanage.fileAttempt(isfile, NAfiles.NAMAINSETTINGSPATH)
 	if not okExists or not exists then
 		return nil
 	end
-	local okRead, raw = attempt(readfile, NAfiles.NAMAINSETTINGSPATH)
+	local okRead, raw = NAmanage.fileAttempt(readfile, NAfiles.NAMAINSETTINGSPATH)
 	if not okRead or type(raw) ~= "string" or raw == "" then
 		return nil
 	end
@@ -5999,7 +5999,7 @@ NAmanage.NASettingsEnsure=function()
 		if value == nil then
 			local legacyPath = legacyPaths[key]
 			if legacyPath then
-				local okLegacyExists, legacyExists = attempt(isfile, legacyPath)
+				local okLegacyExists, legacyExists = NAmanage.fileAttempt(isfile, legacyPath)
 				if okLegacyExists and legacyExists then
 					local okLegacyRead, legacyRaw = NACaller(readfile, legacyPath)
 					if okLegacyRead and legacyRaw ~= nil then
