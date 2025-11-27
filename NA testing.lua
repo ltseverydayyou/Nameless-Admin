@@ -3955,13 +3955,19 @@ NAmanage.getAutoSkipPreference = function()
 		return state.autoSkip
 	end
 	state.loaded = true
-	if not FileSupport then
+	local canUseSettings = FileSupport and type(isfile) == "function" and type(readfile) == "function"
+	if not canUseSettings then
 		state.autoSkip = false
 		return state.autoSkip
 	end
-	if type(isfile) == "function" and isfile(state.settingsPath) then
-		local ok, raw = NACaller(readfile, state.settingsPath)
-		if ok and type(raw) == "string" and raw ~= "" then
+	local okHasFile, hasFile = pcall(isfile, state.settingsPath)
+	if not okHasFile then
+		state.autoSkip = false
+		return state.autoSkip
+	end
+	if hasFile then
+		local okRead, raw = pcall(readfile, state.settingsPath)
+		if okRead and type(raw) == "string" and raw ~= "" then
 			local decodeOk, decoded = NACaller(function()
 				return HttpService:JSONDecode(raw)
 			end)
@@ -3980,13 +3986,18 @@ NAmanage.setAutoSkipPreference = function(enabled)
 	local state = NAmanage.loaderState
 	state.autoSkip = enabled and true or false
 	state.loaded = true
-	if not FileSupport then
+	local canUseSettings = FileSupport
+		and type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+	if not canUseSettings then
 		return
 	end
 	local data = {}
-	if type(isfile) == "function" and isfile(state.settingsPath) then
-		local ok, raw = NACaller(readfile, state.settingsPath)
-		if ok and type(raw) == "string" and raw ~= "" then
+	local okHasFile, hasFile = pcall(isfile, state.settingsPath)
+	if okHasFile and hasFile then
+		local okRead, raw = pcall(readfile, state.settingsPath)
+		if okRead and type(raw) == "string" and raw ~= "" then
 			local decodeOk, decoded = NACaller(function()
 				return HttpService:JSONDecode(raw)
 			end)
@@ -4000,7 +4011,7 @@ NAmanage.setAutoSkipPreference = function(enabled)
 		return HttpService:JSONEncode(data)
 	end)
 	if encodeOk and type(encoded) == "string" then
-		NACaller(writefile, state.settingsPath, encoded)
+		pcall(writefile, state.settingsPath, encoded)
 	end
 end
 
@@ -4781,7 +4792,12 @@ NAmanage.createLoadingUI=function(text, opts)
 		ui.toastPercent.Text = textValue
 	end
 
-	flags.autoSkip = NAmanage.getAutoSkipPreference()
+	local okAutoSkip, autoSkipPref = pcall(NAmanage.getAutoSkipPreference)
+	if okAutoSkip then
+		flags.autoSkip = autoSkipPref == true
+	else
+		flags.autoSkip = false
+	end
 	updateAutoSkipButton()
 
 	ui.minimizeButton.Activated:Connect(function()
@@ -4959,9 +4975,38 @@ NAmanage.registerRemoteForPreload=function(url, options)
 end
 
 if not NAAssetsLoading.setStatus then
-	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
-	NaProtectUI(NAAssetsLoading.ui)
-	NAAssetsLoading.applyMinimizedPreference()
+	local okUI, ui, setStatus, setPercent, completedFlag, getSkip, setMinimizedState = pcall(NAmanage.createLoadingUI, (adminName or "NA").." is loading...", {widthScale=0.30})
+	if okUI then
+		NAAssetsLoading.ui = ui
+		NAAssetsLoading.setStatus = setStatus
+		NAAssetsLoading.setPercent = setPercent
+		NAAssetsLoading.completed = completedFlag
+		NAAssetsLoading.getSkip = getSkip
+		NAAssetsLoading.setMinimizedState = setMinimizedState
+		if NAAssetsLoading.ui then
+			NaProtectUI(NAAssetsLoading.ui)
+		end
+		NAAssetsLoading.applyMinimizedPreference()
+	else
+		warn(Format("%s loader: failed to create loading UI (%s)", adminName or "NA", tostring(ui)))
+	end
+	if not NAAssetsLoading.setStatus then
+		NAAssetsLoading.setStatus = function() end
+	end
+	if not NAAssetsLoading.setPercent then
+		NAAssetsLoading.setPercent = function() end
+	end
+	if not NAAssetsLoading.completed then
+		local completedValue = Instance.new("BoolValue")
+		completedValue.Name = "NAAssetsLoadingCompleted"
+		completedValue.Value = false
+		NAAssetsLoading.completed = completedValue
+	end
+	if not NAAssetsLoading.getSkip then
+		NAAssetsLoading.getSkip = function()
+			return false
+		end
+	end
 end
 
 NAAssetsLoading.setStatus("waiting for engine")
