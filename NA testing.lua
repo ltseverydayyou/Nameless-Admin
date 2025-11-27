@@ -24,6 +24,8 @@ pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true;
 NAbegin=tick()
 CMDAUTOFILL = {}
 
+local NAmanage={}
+
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -103,8 +105,36 @@ local StarterGui = SafeGetService("StarterGui");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 
-local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
-local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
+NAmanage.isCallable=function(fn)
+	return type(fn) == "function"
+end
+
+NAmanage.hasFileSupport=function()
+	return NAmanage.isCallable(isfile)
+		and NAmanage.isCallable(isfolder)
+		and NAmanage.isCallable(writefile)
+		and NAmanage.isCallable(readfile)
+end
+
+NAmanage.hasFullFileSupport=function()
+	return NAmanage.hasFileSupport() and NAmanage.isCallable(makefolder)
+end
+
+NAmanage.hasCustomFunctionSupport=function()
+	return NAmanage.hasFullFileSupport()
+		and NAmanage.isCallable(listfiles)
+		and NAmanage.isCallable(appendfile)
+end
+
+local FileSupport = NAmanage.hasFullFileSupport()
+local CustomFunctionSupport = NAmanage.hasCustomFunctionSupport()
+
+NAmanage.fileAttempt=function(fn, ...)
+	if type(fn) ~= "function" then
+		return false, nil
+	end
+	return pcall(fn, ...)
+end
 
 local IsOnMobile=(function()
 	local platform=UserInputService:GetPlatform()
@@ -454,7 +484,6 @@ opt={
 	--saveTag = false;
 }
 local cmd={}
-local NAmanage={}
 NAmanage.btCount = 0
 
 NAmanage.btGetExecutorInfo=function(forceRefresh)
@@ -6026,53 +6055,54 @@ end
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
-	if not isfolder(NAfiles.NAFILEPATH) then
-		makefolder(NAfiles.NAFILEPATH)
-	end
-
-	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-		makefolder(NAfiles.NAWAYPOINTFILEPATH)
-		-- imagine if it didn't make the folder
-		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-			NamelessMigrate:Waypoints()
+	local function ensureFolder(path)
+		local ok, exists = NAmanage.fileAttempt(isfolder, path)
+		if not ok then
+			return false
 		end
+		if exists then
+			return true
+		end
+		NAmanage.fileAttempt(makefolder, path)
+		local ok2, exists2 = NAmanage.fileAttempt(isfolder, path)
+		return ok2 and exists2
 	end
 
-	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
-		makefolder(NAfiles.NAPLUGINFILEPATH)
+	local function ensureFile(path, contents)
+		local ok, exists = NAmanage.fileAttempt(isfile, path)
+		if not ok then
+			return
+		end
+		if exists then
+			return
+		end
+		if type(contents) ~= "string" then
+			return
+		end
+		NAmanage.fileAttempt(writefile, path, contents)
 	end
 
-	if not isfolder(NAfiles.NAASSETSFILEPATH) then
-		makefolder(NAfiles.NAASSETSFILEPATH)
+	ensureFolder(NAfiles.NAFILEPATH)
+	local waypointReady = ensureFolder(NAfiles.NAWAYPOINTFILEPATH)
+	if waypointReady then
+		NamelessMigrate:Waypoints()
 	end
+	ensureFolder(NAfiles.NAPLUGINFILEPATH)
+	ensureFolder(NAfiles.NAASSETSFILEPATH)
 
-	if not isfile(NAfiles.NAALIASPATH) then
-		writefile(NAfiles.NAALIASPATH, "{}")
-	end
-
-	if not isfile(NAfiles.NAICONPOSPATH) then
-		writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-			X = 0.5;
-			Y = 0.1;
-			Save = false;
-		}))
-	end
-
-	if not isfile(NAfiles.NAUSERBUTTONSPATH) then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
-	end
-
-	if not isfile(NAfiles.NAAUTOEXECPATH) then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
-	end
-
-	if not isfile(NAfiles.NAJOINLEAVE) then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
-			JoinLog = false;
-			LeaveLog = false;
-			SaveLog = false;
-		}))
-	end
+	ensureFile(NAfiles.NAALIASPATH, "{}")
+	ensureFile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
+		X = 0.5;
+		Y = 0.1;
+		Save = false;
+	}))
+	ensureFile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+	ensureFile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
+	ensureFile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
+		JoinLog = false;
+		LeaveLog = false;
+		SaveLog = false;
+	}))
 
 	--[[if not isfile(NAfiles.NACHATTAG) then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
@@ -6086,13 +6116,8 @@ if FileSupport then
 		}))
 	end]]
 
-	if not isfile(NAfiles.NABINDERS) then
-		writefile(NAfiles.NABINDERS, "{}")
-	end
-
-	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
-		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
-	end
+	ensureFile(NAfiles.NABINDERS, "{}")
+	ensureFile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
 
 	NAmanage.NASettingsEnsure()
 end
