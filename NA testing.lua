@@ -5945,17 +5945,36 @@ NAmanage.NAEnsureSettingsDefaults=function()
 	return NAStuff.NASettingsData
 end
 
+NAmanage.loadSettingsFile=function()
+	if not NAmanage.NACanUseSettingsFiles() then
+		return nil
+	end
+	local okExists, exists = attempt(isfile, NAfiles.NAMAINSETTINGSPATH)
+	if not okExists or not exists then
+		return nil
+	end
+	local okRead, raw = attempt(readfile, NAfiles.NAMAINSETTINGSPATH)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return nil
+	end
+	local decodeOk, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if decodeOk and typeof(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
 NAmanage.NASettingsSave=function()
-	if not FileSupport or not NAStuff.NASettingsData then
+	if not NAmanage.NACanUseSettingsFiles() or not NAStuff.NASettingsData then
 		return
 	end
-
 	local ok, encoded = NACaller(function()
 		return HttpService:JSONEncode(NAStuff.NASettingsData)
 	end)
-
 	if ok and encoded then
-		NACaller(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
+		NAmanage.fileAttempt(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
 	end
 end
 
@@ -5963,72 +5982,62 @@ NAmanage.NASettingsEnsure=function()
 	if NAStuff.NASettingsData then
 		return NAStuff.NASettingsData
 	end
-
 	local schema = NAmanage.NASettingsGetSchema()
-	NAStuff.NASettingsData = {}
-
-	if FileSupport and type(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
-		local ok, raw = NACaller(readfile, NAfiles.NAMAINSETTINGSPATH)
-		if ok and raw and raw ~= "" then
-			local success, decoded = NACaller(function()
-				return HttpService:JSONDecode(raw)
-			end)
-			if success and typeof(decoded) == "table" then
-				NAStuff.NASettingsData = decoded
-			end
+	NAStuff.NASettingsData = NAmanage.NAEnsureSettingsDefaults()
+	local loaded = NAmanage.loadSettingsFile()
+	if loaded then
+		for key, value in pairs(loaded) do
+			NAStuff.NASettingsData[key] = value
 		end
 	end
-
-	if typeof(NAStuff.NASettingsData) ~= "table" then
-		NAStuff.NASettingsData = {}
-	end
-
 	local legacyPaths = {}
 	for key, def in pairs(schema) do
 		legacyPaths[key] = def.pathKey and NAfiles[def.pathKey] or nil
 	end
-
 	for key, def in pairs(schema) do
 		local value = NAStuff.NASettingsData[key]
-
-		if value == nil and FileSupport and type(isfile) == "function" then
+		if value == nil then
 			local legacyPath = legacyPaths[key]
-			if legacyPath and isfile(legacyPath) then
-				local ok, legacyRaw = NACaller(readfile, legacyPath)
-				if ok and legacyRaw ~= nil then
-					value = legacyRaw
-				end
-				if delfile then
-					NACaller(delfile, legacyPath)
+			if legacyPath then
+				local okLegacyExists, legacyExists = attempt(isfile, legacyPath)
+				if okLegacyExists and legacyExists then
+					local okLegacyRead, legacyRaw = NACaller(readfile, legacyPath)
+					if okLegacyRead and legacyRaw ~= nil then
+						value = legacyRaw
+					end
+					if delfile then
+						NACaller(delfile, legacyPath)
+					end
 				end
 			end
 		end
-
 		NAStuff.NASettingsData[key] = NAmanage.NASettingsCoerce(def, value)
 	end
-
 	NAmanage.NASettingsSave()
 	return NAStuff.NASettingsData
 end
 
+NAmanage.getSettingsStore=function()
+	if NAStuff.NASettingsData then
+		return NAStuff.NASettingsData
+	end
+	return NAmanage.NASettingsEnsure()
+end
+
 NAmanage.NASettingsGet=function(key)
-	local settings
-	if NAmanage.NACanUseSettingsFiles() then
-		local ok, result = pcall(NAmanage.NASettingsEnsure)
-		if ok and typeof(result) == "table" then
-			settings = result
-		end
-	end
+	local settings = NAmanage.getSettingsStore()
 	if not settings then
-		settings = NAmanage.NAEnsureSettingsDefaults()
+		return nil
 	end
-	if settings[key] == nil then
-		local schema = NAmanage.NASettingsGetSchema()
-		local def = schema[key]
-		if def then
-			settings[key] = NAmanage.NASettingsResolveDefault(def)
-		end
+	if settings[key] ~= nil then
+		return settings[key]
 	end
+	local schema = NAmanage.NASettingsGetSchema()
+	local def = schema[key]
+	if not def then
+		return nil
+	end
+	settings[key] = NAmanage.NASettingsResolveDefault(def)
 	return settings[key]
 end
 
@@ -6038,15 +6047,9 @@ NAmanage.NASettingsSet=function(key, value)
 	if not def then
 		return
 	end
-	local settings
-	if NAmanage.NACanUseSettingsFiles() then
-		local ok, result = pcall(NAmanage.NASettingsEnsure)
-		if ok and typeof(result) == "table" then
-			settings = result
-		end
-	end
+	local settings = NAmanage.getSettingsStore()
 	if not settings then
-		settings = NAmanage.NAEnsureSettingsDefaults()
+		return
 	end
 	settings[key] = NAmanage.NASettingsCoerce(def, value)
 	NAmanage.NASettingsSave()
@@ -42376,7 +42379,7 @@ SpawnCall(function()
 		DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
 
 		if not FileSupport then
-			warn("NAWWW NO FILE SUPPORT???????")
+			--warn("NAWWW NO FILE SUPPORT???????")
 			Window({
 				Title = maybeMock("Would you like to enable QueueOnTeleport?"),
 				Description = maybeMock("With QueueOnTeleport, "..adminName.." will automatically execute itself upon teleporting to a game or place."),
