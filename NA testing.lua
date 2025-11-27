@@ -5896,6 +5896,26 @@ NAmanage.NASettingsGetSchema=function()
 	return NAStuff.NASettingsSchema
 end
 
+NAmanage.NACanUseSettingsFiles=function()
+	return FileSupport
+		and type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+end
+
+NAmanage.NAEnsureSettingsDefaults=function()
+	if typeof(NAStuff.NASettingsData) ~= "table" then
+		NAStuff.NASettingsData = {}
+	end
+	local schema = NAmanage.NASettingsGetSchema()
+	for key, def in pairs(schema) do
+		if NAStuff.NASettingsData[key] == nil then
+			NAStuff.NASettingsData[key] = NAmanage.NASettingsResolveDefault(def)
+		end
+	end
+	return NAStuff.NASettingsData
+end
+
 NAmanage.NASettingsSave=function()
 	if not FileSupport or not NAStuff.NASettingsData then
 		return
@@ -5963,7 +5983,23 @@ NAmanage.NASettingsEnsure=function()
 end
 
 NAmanage.NASettingsGet=function(key)
-	local settings = NAmanage.NASettingsEnsure()
+	local settings
+	if NAmanage.NACanUseSettingsFiles() then
+		local ok, result = pcall(NAmanage.NASettingsEnsure)
+		if ok and typeof(result) == "table" then
+			settings = result
+		end
+	end
+	if not settings then
+		settings = NAmanage.NAEnsureSettingsDefaults()
+	end
+	if settings[key] == nil then
+		local schema = NAmanage.NASettingsGetSchema()
+		local def = schema[key]
+		if def then
+			settings[key] = NAmanage.NASettingsResolveDefault(def)
+		end
+	end
 	return settings[key]
 end
 
@@ -5973,8 +6009,16 @@ NAmanage.NASettingsSet=function(key, value)
 	if not def then
 		return
 	end
-
-	local settings = NAmanage.NASettingsEnsure()
+	local settings
+	if NAmanage.NACanUseSettingsFiles() then
+		local ok, result = pcall(NAmanage.NASettingsEnsure)
+		if ok and typeof(result) == "table" then
+			settings = result
+		end
+	end
+	if not settings then
+		settings = NAmanage.NAEnsureSettingsDefaults()
+	end
 	settings[key] = NAmanage.NASettingsCoerce(def, value)
 	NAmanage.NASettingsSave()
 	return settings[key]
