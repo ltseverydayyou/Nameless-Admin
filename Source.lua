@@ -24081,6 +24081,25 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	local playerList, currentIndex, spectatedPlayer = {}, 1, nil
 	local rows = {}
 	local searchTerm = ""
+	local thumbCache = {}
+	local fallbackThumbFmt = "rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"
+
+	local function getHeadshot(plr)
+		-- Roblox occasionally throws from GetUserThumbnailAsync, cache and fall back so the UI never breaks.
+		if not plr then
+			return Format(fallbackThumbFmt, 0)
+		end
+		local userId = tonumber(plr.UserId) or 0
+		if thumbCache[userId] then
+			return thumbCache[userId]
+		end
+		local ok, image = pcall(function()
+			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		end)
+		local resolved = (ok and image and image ~= "") and image or Format(fallbackThumbFmt, userId)
+		thumbCache[userId] = resolved
+		return resolved
+	end
 
 	local function insertSorted(plr)
 		local n = #playerList
@@ -24119,7 +24138,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		nameSub.Text = "Spectating"
 		nameMain.Text = nameChecker(plr)
 		nameMain.TextColor3 = (plr == LocalPlayer) and Color3.fromRGB(255,255,0) or Color3.fromRGB(255,255,255)
-		avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		avatar.Image = getHeadshot(plr)
 	end
 
 	local function recolor()
@@ -24171,7 +24190,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		local img = InstanceNew("ImageLabel", pb)
 		img.Size = UDim2.new(0, ROW_H, 0, ROW_H)
 		img.BackgroundTransparency = 1
-		img.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+		img.Image = getHeadshot(plr)
 		local nameLbl = InstanceNew("TextLabel", pb)
 		nameLbl.Name = "NameLabel"
 		nameLbl.BackgroundTransparency = 1
