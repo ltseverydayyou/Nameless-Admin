@@ -6997,6 +6997,7 @@ local Loopvoid=false
 local loopgrab=false
 local OrgDestroyHeight = nil
 local Watch=false
+local AntiVelocityLimit = nil
 local Admin={}
 CoreGui=COREGUI;
 _G.NAadminsLol={
@@ -15473,6 +15474,51 @@ cmd.add({"unantivoid2"}, {"unantivoid2", "reverts FallenPartsDestroyHeight"}, fu
 	else
 		DebugNotif("Original value was not stored. Cannot revert.",2)
 	end
+end)
+
+cmd.add({"antivelocity","antivelo","av","velcap"}, {"antivelocity [limit]", "Limits your character's velocity to the provided value"}, function(limitArg)
+	local limit = tonumber(limitArg)
+	if not limit then
+		DebugNotif("Please provide a number for antivelocity.", 3)
+		return
+	end
+	if limit <= 0 then
+		DebugNotif("Antivelocity requires a value greater than zero.", 3)
+		return
+	end
+
+	AntiVelocityLimit = limit
+	NAlib.disconnect("antivelocity_limit")
+
+	NAlib.connect("antivelocity_limit", RunService.Heartbeat:Connect(function()
+		if not AntiVelocityLimit then
+			return
+		end
+
+		local character = getChar()
+		local root = character and getRoot(character)
+		if not root then
+			return
+		end
+
+		local velocity = root.AssemblyLinearVelocity
+		local speed = velocity.Magnitude
+		if speed > AntiVelocityLimit then
+			if speed > 0 then
+				root.AssemblyLinearVelocity = velocity.Unit * AntiVelocityLimit
+			else
+				root.AssemblyLinearVelocity = Vector3.zero
+			end
+		end
+	end))
+
+	DebugNotif(("Velocity capped at %s studs/sec."):format(tostring(limit)), 3)
+end, true)
+
+cmd.add({"unantivelocity","unantivelo","unav","unvelcap"}, {"unantivelocity", "Disables the antivelocity limiter"}, function()
+	AntiVelocityLimit = nil
+	NAlib.disconnect("antivelocity_limit")
+	DebugNotif("Antivelocity disabled.", 2)
 end)
 
 comPart, comHL, comConn, comRadius = nil,nil,nil,nil
