@@ -85,7 +85,6 @@ function SafeGetService(name, timeoutSeconds)
 end
 
 NAmanage.waitForPlay=function()
-	local runSvc
 	local function ready()
 		local ok, playersSvc = pcall(game.GetService, game, "Players")
 		if not ok or not playersSvc then
@@ -117,22 +116,8 @@ NAmanage.waitForPlay=function()
 		return localPlayer
 	end
 
-	local ok, svc = pcall(game.GetService, game, "RunService")
-	if ok then
-		runSvc = svc
-	end
-
 	while not localPlayer do
-		if runSvc and runSvc.Heartbeat then
-			local hbOk = pcall(function()
-				runSvc.Heartbeat:Wait()
-			end)
-			if not hbOk then
-				Wait(0.1)
-			end
-		else
-			Wait(0.1)
-		end
+		Wait(0.1)
 		localPlayer = safeReady()
 	end
 
