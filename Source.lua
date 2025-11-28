@@ -4,6 +4,8 @@ pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false
 NAbegin=tick()
 CMDAUTOFILL = {}
 
+local NAmanage={}
+
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -83,8 +85,36 @@ local StarterGui = SafeGetService("StarterGui");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 
-local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
-local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
+NAmanage.isCallable=function(fn)
+	return type(fn) == "function"
+end
+
+NAmanage.hasFileSupport=function()
+	return NAmanage.isCallable(isfile)
+		and NAmanage.isCallable(isfolder)
+		and NAmanage.isCallable(writefile)
+		and NAmanage.isCallable(readfile)
+end
+
+NAmanage.hasFullFileSupport=function()
+	return NAmanage.hasFileSupport() and NAmanage.isCallable(makefolder)
+end
+
+NAmanage.hasCustomFunctionSupport=function()
+	return NAmanage.hasFullFileSupport()
+		and NAmanage.isCallable(listfiles)
+		and NAmanage.isCallable(appendfile)
+end
+
+local FileSupport = NAmanage.hasFullFileSupport()
+local CustomFunctionSupport = NAmanage.hasCustomFunctionSupport()
+
+NAmanage.fileAttempt=function(fn, ...)
+	if type(fn) ~= "function" then
+		return false, nil
+	end
+	return pcall(fn, ...)
+end
 
 local IsOnMobile=(function()
 	local platform=UserInputService:GetPlatform()
@@ -434,7 +464,6 @@ opt={
 	--saveTag = false;
 }
 local cmd={}
-local NAmanage={}
 NAmanage.btCount = 0
 
 NAmanage.btGetExecutorInfo=function(forceRefresh)
@@ -5876,17 +5905,56 @@ NAmanage.NASettingsGetSchema=function()
 	return NAStuff.NASettingsSchema
 end
 
+NAmanage.NACanUseSettingsFiles=function()
+	return FileSupport
+		and type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+end
+
+NAmanage.NAEnsureSettingsDefaults=function()
+	if typeof(NAStuff.NASettingsData) ~= "table" then
+		NAStuff.NASettingsData = {}
+	end
+	local schema = NAmanage.NASettingsGetSchema()
+	for key, def in pairs(schema) do
+		if NAStuff.NASettingsData[key] == nil then
+			NAStuff.NASettingsData[key] = NAmanage.NASettingsResolveDefault(def)
+		end
+	end
+	return NAStuff.NASettingsData
+end
+
+NAmanage.loadSettingsFile=function()
+	if not NAmanage.NACanUseSettingsFiles() then
+		return nil
+	end
+	local okExists, exists = NAmanage.fileAttempt(isfile, NAfiles.NAMAINSETTINGSPATH)
+	if not okExists or not exists then
+		return nil
+	end
+	local okRead, raw = NAmanage.fileAttempt(readfile, NAfiles.NAMAINSETTINGSPATH)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return nil
+	end
+	local decodeOk, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if decodeOk and typeof(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
 NAmanage.NASettingsSave=function()
-	if not FileSupport or not NAStuff.NASettingsData then
+	if not NAmanage.NACanUseSettingsFiles() or not NAStuff.NASettingsData then
 		return
 	end
-
 	local ok, encoded = NACaller(function()
 		return HttpService:JSONEncode(NAStuff.NASettingsData)
 	end)
-
 	if ok and encoded then
-		NACaller(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
+		NAmanage.fileAttempt(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
 	end
 end
 
@@ -5894,56 +5962,62 @@ NAmanage.NASettingsEnsure=function()
 	if NAStuff.NASettingsData then
 		return NAStuff.NASettingsData
 	end
-
 	local schema = NAmanage.NASettingsGetSchema()
-	NAStuff.NASettingsData = {}
-
-	if FileSupport and type(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
-		local ok, raw = NACaller(readfile, NAfiles.NAMAINSETTINGSPATH)
-		if ok and raw and raw ~= "" then
-			local success, decoded = NACaller(function()
-				return HttpService:JSONDecode(raw)
-			end)
-			if success and typeof(decoded) == "table" then
-				NAStuff.NASettingsData = decoded
-			end
+	NAStuff.NASettingsData = NAmanage.NAEnsureSettingsDefaults()
+	local loaded = NAmanage.loadSettingsFile()
+	if loaded then
+		for key, value in pairs(loaded) do
+			NAStuff.NASettingsData[key] = value
 		end
 	end
-
-	if typeof(NAStuff.NASettingsData) ~= "table" then
-		NAStuff.NASettingsData = {}
-	end
-
 	local legacyPaths = {}
 	for key, def in pairs(schema) do
 		legacyPaths[key] = def.pathKey and NAfiles[def.pathKey] or nil
 	end
-
 	for key, def in pairs(schema) do
 		local value = NAStuff.NASettingsData[key]
-
-		if value == nil and FileSupport and type(isfile) == "function" then
+		if value == nil then
 			local legacyPath = legacyPaths[key]
-			if legacyPath and isfile(legacyPath) then
-				local ok, legacyRaw = NACaller(readfile, legacyPath)
-				if ok and legacyRaw ~= nil then
-					value = legacyRaw
-				end
-				if delfile then
-					NACaller(delfile, legacyPath)
+			if legacyPath then
+				local okLegacyExists, legacyExists = NAmanage.fileAttempt(isfile, legacyPath)
+				if okLegacyExists and legacyExists then
+					local okLegacyRead, legacyRaw = NACaller(readfile, legacyPath)
+					if okLegacyRead and legacyRaw ~= nil then
+						value = legacyRaw
+					end
+					if delfile then
+						NACaller(delfile, legacyPath)
+					end
 				end
 			end
 		end
-
 		NAStuff.NASettingsData[key] = NAmanage.NASettingsCoerce(def, value)
 	end
-
 	NAmanage.NASettingsSave()
 	return NAStuff.NASettingsData
 end
 
+NAmanage.getSettingsStore=function()
+	if NAStuff.NASettingsData then
+		return NAStuff.NASettingsData
+	end
+	return NAmanage.NASettingsEnsure()
+end
+
 NAmanage.NASettingsGet=function(key)
-	local settings = NAmanage.NASettingsEnsure()
+	local settings = NAmanage.getSettingsStore()
+	if not settings then
+		return nil
+	end
+	if settings[key] ~= nil then
+		return settings[key]
+	end
+	local schema = NAmanage.NASettingsGetSchema()
+	local def = schema[key]
+	if not def then
+		return nil
+	end
+	settings[key] = NAmanage.NASettingsResolveDefault(def)
 	return settings[key]
 end
 
@@ -5953,8 +6027,10 @@ NAmanage.NASettingsSet=function(key, value)
 	if not def then
 		return
 	end
-
-	local settings = NAmanage.NASettingsEnsure()
+	local settings = NAmanage.getSettingsStore()
+	if not settings then
+		return
+	end
 	settings[key] = NAmanage.NASettingsCoerce(def, value)
 	NAmanage.NASettingsSave()
 	return settings[key]
@@ -5962,53 +6038,54 @@ end
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
-	if not isfolder(NAfiles.NAFILEPATH) then
-		makefolder(NAfiles.NAFILEPATH)
-	end
-
-	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-		makefolder(NAfiles.NAWAYPOINTFILEPATH)
-		-- imagine if it didn't make the folder
-		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-			NamelessMigrate:Waypoints()
+	local function ensureFolder(path)
+		local ok, exists = NAmanage.fileAttempt(isfolder, path)
+		if not ok then
+			return false
 		end
+		if exists then
+			return true
+		end
+		NAmanage.fileAttempt(makefolder, path)
+		local ok2, exists2 = NAmanage.fileAttempt(isfolder, path)
+		return ok2 and exists2
 	end
 
-	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
-		makefolder(NAfiles.NAPLUGINFILEPATH)
+	local function ensureFile(path, contents)
+		local ok, exists = NAmanage.fileAttempt(isfile, path)
+		if not ok then
+			return
+		end
+		if exists then
+			return
+		end
+		if type(contents) ~= "string" then
+			return
+		end
+		NAmanage.fileAttempt(writefile, path, contents)
 	end
 
-	if not isfolder(NAfiles.NAASSETSFILEPATH) then
-		makefolder(NAfiles.NAASSETSFILEPATH)
+	ensureFolder(NAfiles.NAFILEPATH)
+	local waypointReady = ensureFolder(NAfiles.NAWAYPOINTFILEPATH)
+	if waypointReady then
+		NamelessMigrate:Waypoints()
 	end
+	ensureFolder(NAfiles.NAPLUGINFILEPATH)
+	ensureFolder(NAfiles.NAASSETSFILEPATH)
 
-	if not isfile(NAfiles.NAALIASPATH) then
-		writefile(NAfiles.NAALIASPATH, "{}")
-	end
-
-	if not isfile(NAfiles.NAICONPOSPATH) then
-		writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-			X = 0.5;
-			Y = 0.1;
-			Save = false;
-		}))
-	end
-
-	if not isfile(NAfiles.NAUSERBUTTONSPATH) then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
-	end
-
-	if not isfile(NAfiles.NAAUTOEXECPATH) then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
-	end
-
-	if not isfile(NAfiles.NAJOINLEAVE) then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
-			JoinLog = false;
-			LeaveLog = false;
-			SaveLog = false;
-		}))
-	end
+	ensureFile(NAfiles.NAALIASPATH, "{}")
+	ensureFile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
+		X = 0.5;
+		Y = 0.1;
+		Save = false;
+	}))
+	ensureFile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+	ensureFile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
+	ensureFile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
+		JoinLog = false;
+		LeaveLog = false;
+		SaveLog = false;
+	}))
 
 	--[[if not isfile(NAfiles.NACHATTAG) then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
@@ -6022,13 +6099,8 @@ if FileSupport then
 		}))
 	end]]
 
-	if not isfile(NAfiles.NABINDERS) then
-		writefile(NAfiles.NABINDERS, "{}")
-	end
-
-	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
-		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
-	end
+	ensureFile(NAfiles.NABINDERS, "{}")
+	ensureFile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
 
 	NAmanage.NASettingsEnsure()
 end
@@ -24035,14 +24107,17 @@ end)
 local specUI = nil
 local connStep, connAdd, connRemove = nil, nil, nil
 
-function cleanup()
+function cleanup(preserveSpecUI)
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
 	if connRemove then connRemove:Disconnect() connRemove = nil end
-	if specUI then specUI:Destroy() specUI = nil end
+	if specUI and not preserveSpecUI then
+		specUI:Destroy()
+		specUI = nil
+	end
 	local hum = getHum()
 	local cam = workspace.CurrentCamera
 	if hum then cam.CameraSubject = hum end
@@ -24059,7 +24134,7 @@ function spectatePlayer(targetPlayer)
 	end))
 	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
-			cleanup()
+			cleanup(true)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
@@ -24143,15 +24218,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		if i then table.remove(playerList, i) return i end
 	end
 
-	local function cam(p)
-		local h = getPlrHum(p)
-		if h then workspace.CurrentCamera.CameraSubject = h
-		else
-			local r = p.Character and (getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart"))
-			if r then workspace.CurrentCamera.CameraSubject = r end
-		end
-	end
-
 	local function matchesFilter(plr)
 		if searchTerm == "" then return true end
 		return Find(Lower(nameChecker(plr)), searchTerm, 1, true) ~= nil
@@ -24191,7 +24257,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		spectatedPlayer = plr
 		currentIndex = Discover(playerList, plr) or currentIndex
 		setHeader(plr)
-		cam(plr)
+		spectatePlayer(plr)
 		recolor()
 	end
 
@@ -24492,10 +24558,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	buildCard()
 	specUI = ui
 	gotoIndex(1)
-
-	NAlib.connect("spectate2_step", RunService.RenderStepped:Connect(function()
-		if spectatedPlayer then cam(spectatedPlayer) end
-	end))
 
 	NAlib.connect("spectate2_add", Players.PlayerAdded:Connect(function(plr)
 		local wasOpen = listOpen
@@ -42297,7 +42359,7 @@ SpawnCall(function()
 		DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
 
 		if not FileSupport then
-			warn("NAWWW NO FILE SUPPORT???????")
+			--warn("NAWWW NO FILE SUPPORT???????")
 			Window({
 				Title = maybeMock("Would you like to enable QueueOnTeleport?"),
 				Description = maybeMock("With QueueOnTeleport, "..adminName.." will automatically execute itself upon teleporting to a game or place."),

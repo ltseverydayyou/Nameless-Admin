@@ -24127,14 +24127,17 @@ end)
 local specUI = nil
 local connStep, connAdd, connRemove = nil, nil, nil
 
-function cleanup()
+function cleanup(preserveSpecUI)
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
 	if connRemove then connRemove:Disconnect() connRemove = nil end
-	if specUI then specUI:Destroy() specUI = nil end
+	if specUI and not preserveSpecUI then
+		specUI:Destroy()
+		specUI = nil
+	end
 	local hum = getHum()
 	local cam = workspace.CurrentCamera
 	if hum then cam.CameraSubject = hum end
@@ -24151,7 +24154,7 @@ function spectatePlayer(targetPlayer)
 	end))
 	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
-			cleanup()
+			cleanup(true)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
@@ -24235,15 +24238,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		if i then table.remove(playerList, i) return i end
 	end
 
-	local function cam(p)
-		local h = getPlrHum(p)
-		if h then workspace.CurrentCamera.CameraSubject = h
-		else
-			local r = p.Character and (getRoot(p.Character) or p.Character:FindFirstChildWhichIsA("BasePart"))
-			if r then workspace.CurrentCamera.CameraSubject = r end
-		end
-	end
-
 	local function matchesFilter(plr)
 		if searchTerm == "" then return true end
 		return Find(Lower(nameChecker(plr)), searchTerm, 1, true) ~= nil
@@ -24283,7 +24277,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		spectatedPlayer = plr
 		currentIndex = Discover(playerList, plr) or currentIndex
 		setHeader(plr)
-		cam(plr)
+		spectatePlayer(plr)
 		recolor()
 	end
 
@@ -24584,10 +24578,6 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	buildCard()
 	specUI = ui
 	gotoIndex(1)
-
-	NAlib.connect("spectate2_step", RunService.RenderStepped:Connect(function()
-		if spectatedPlayer then cam(spectatedPlayer) end
-	end))
 
 	NAlib.connect("spectate2_add", Players.PlayerAdded:Connect(function(plr)
 		local wasOpen = listOpen
