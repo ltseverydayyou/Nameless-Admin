@@ -103,7 +103,16 @@ NAmanage.waitForPlay=function()
 		return localPlayer
 	end
 
-	local localPlayer = ready()
+	local function safeReady()
+		local ok, result = pcall(ready)
+		if ok then
+			return result
+		else
+			return nil
+		end
+	end
+
+	local localPlayer = safeReady()
 	if localPlayer then
 		return localPlayer
 	end
@@ -115,11 +124,16 @@ NAmanage.waitForPlay=function()
 
 	while not localPlayer do
 		if runSvc and runSvc.Heartbeat then
-			runSvc.Heartbeat:Wait()
+			local hbOk = pcall(function()
+				runSvc.Heartbeat:Wait()
+			end)
+			if not hbOk then
+				Wait(0.1)
+			end
 		else
 			Wait(0.1)
 		end
-		localPlayer = ready()
+		localPlayer = safeReady()
 	end
 
 	return localPlayer
