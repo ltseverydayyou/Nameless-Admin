@@ -4,6 +4,8 @@ pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false
 NAbegin=tick()
 CMDAUTOFILL = {}
 
+local NAmanage={}
+
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -61,6 +63,48 @@ local NA_SRV = setmetatable({}, {
 function SafeGetService(name, timeoutSeconds)
 	return NA_SRV[name]
 end
+
+NAmanage.waitForPlay=function()
+	local function ready()
+		local ok, playersSvc = pcall(game.GetService, game, "Players")
+		if not ok or not playersSvc then
+			return nil
+		end
+		local localPlayer = playersSvc.LocalPlayer
+		if not localPlayer or not localPlayer.Parent then
+			return nil
+		end
+		local placeId = tonumber(game.PlaceId) or 0
+		local gameId = tonumber(game.GameId) or 0
+		if placeId == 0 and gameId == 0 then
+			return nil
+		end
+		return localPlayer
+	end
+
+	local function safeReady()
+		local ok, result = pcall(ready)
+		if ok then
+			return result
+		else
+			return nil
+		end
+	end
+
+	local localPlayer = safeReady()
+	if localPlayer then
+		return localPlayer
+	end
+
+	while not localPlayer do
+		Wait(0.1)
+		localPlayer = safeReady()
+	end
+
+	return localPlayer
+end
+
+NAmanage.waitForPlay() -- avoid running in the App Shell before a real place loads
 
 local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
 
@@ -434,7 +478,6 @@ opt={
 	--saveTag = false;
 }
 local cmd={}
-local NAmanage={}
 NAmanage.btCount = 0
 
 NAmanage.btGetExecutorInfo=function(forceRefresh)
