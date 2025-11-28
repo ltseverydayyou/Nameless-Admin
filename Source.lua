@@ -37778,7 +37778,7 @@ originalIO.composeTabTitleText = function(info, opts)
 		defaultColor = opts.defaultColor,
 	})
 	if iconMarkup then
-		return iconMarkup .. (iconGap or " ") .. safeDisplay
+		return iconMarkup..(iconGap or " ")..safeDisplay
 	end
 	return safeDisplay
 end

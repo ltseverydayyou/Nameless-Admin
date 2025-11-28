@@ -4,7 +4,8 @@ local function Svc(n)
     return rf(g(game, n))
 end
 
-local rq = request or http_request or (syn and syn.request) or function() end
+local rawRequest = request or http_request or (syn and syn.request)
+local rq = rawRequest
 local tw = Svc("TweenService")
 local ui = Svc("UserInputService")
 local hs = Svc("HttpService")
@@ -153,7 +154,7 @@ engbs.Parent = engb
 local mini = Instance.new("TextButton")
 mini.Size = UDim2.new(0, 40, 1, 0)
 mini.BackgroundColor3 = Color3.fromRGB(45,49,58)
-mini.Text = "V"
+mini.Text = "^"
 mini.TextColor3 = col.tx
 mini.TextScaled = true
 mini.Font = Enum.Font.GothamBold
@@ -283,9 +284,140 @@ rcs.Transparency = 0.3
 rcs.Thickness = 1
 rcs.Parent = rc
 
+local function btnAnim(b, baseCol, hoverCol)
+    b:SetAttribute("BaseColor", baseCol)
+    local base = b.Size
+    local hover = UDim2.new(base.X.Scale, base.X.Offset+4, base.Y.Scale, base.Y.Offset+2)
+    local press = UDim2.new(base.X.Scale, base.X.Offset-2, base.Y.Scale, base.Y.Offset-1)
+    local hovering = false
+    b.MouseEnter:Connect(function()
+        if not b.Active then return end
+        hovering = true
+        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = hoverCol, Size = hover}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        if not b.Active then return end
+        hovering = false
+        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = baseCol, Size = base}):Play()
+    end)
+    b.MouseButton1Down:Connect(function()
+        if not b.Active then return end
+        tw:Create(b, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = press}):Play()
+    end)
+    b.MouseButton1Up:Connect(function()
+        if not b.Active then return end
+        tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = hovering and hover or base}):Play()
+    end)
+end
+
+local pageBarHeight = 44
+local pageBar = Instance.new("Frame")
+pageBar.Name = "PageControls"
+pageBar.Size = UDim2.new(1, -16, 0, pageBarHeight)
+pageBar.Position = UDim2.new(0, 8, 0, 8)
+pageBar.BackgroundTransparency = 1
+pageBar.Parent = rc
+
+local pageLayout = Instance.new("UIListLayout")
+pageLayout.FillDirection = Enum.FillDirection.Horizontal
+pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+pageLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+pageLayout.Padding = UDim.new(0, 8)
+pageLayout.Parent = pageBar
+
+local function mkPageBtn(txt, width, order)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, width or 76, 0, 34)
+    b.BackgroundColor3 = Color3.fromRGB(45,49,58)
+    b.BorderSizePixel = 0
+    b.AutoButtonColor = false
+    b.Font = Enum.Font.GothamSemibold
+    b.Text = txt
+    b.TextSize = 14
+    b.TextColor3 = col.tx
+    b.LayoutOrder = order or 1
+    b.Parent = pageBar
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(0, 8)
+    bc.Parent = b
+    btnAnim(b, b.BackgroundColor3, b.BackgroundColor3:Lerp(col.ac, 0.3))
+    return b
+end
+
+local firstBtn = mkPageBtn("First", nil, 1)
+local prevBtn = mkPageBtn("Prev", nil, 2)
+
+local pageInfo = Instance.new("TextLabel")
+pageInfo.Size = UDim2.new(0, 150, 0, 34)
+pageInfo.BackgroundTransparency = 1
+pageInfo.Font = Enum.Font.Gotham
+pageInfo.TextSize = 14
+pageInfo.TextColor3 = col.td
+pageInfo.Text = "Page 1 / 1"
+pageInfo.TextXAlignment = Enum.TextXAlignment.Center
+pageInfo.LayoutOrder = 3
+pageInfo.Parent = pageBar
+
+local nextBtn = mkPageBtn("Next", nil, 4)
+local lastBtn = mkPageBtn("Last", nil, 5)
+
+local pagination = {
+    current = 1,
+    total = 1,
+    query = "",
+    trending = false,
+    hasResults = false
+}
+
+local searching = false
+
+local function setNavButtonEnabled(btn, enabled)
+    if not btn then return end
+    local base = btn:GetAttribute("BaseColor") or btn.BackgroundColor3
+    btn.Active = enabled
+    btn.TextColor3 = enabled and col.tx or col.td
+    local disabledColor = base:Lerp(col.sc, 0.5)
+    if enabled then
+        btn.BackgroundColor3 = base
+    else
+        btn.BackgroundColor3 = disabledColor
+    end
+end
+
+local function updatePageControls()
+    local supports = (eng == "ScriptBlox" or eng == "RScripts")
+    pageBar.Visible = supports
+    if not supports then
+        return
+    end
+    local current = math.max(pagination.current, 1)
+    local total = math.max(pagination.total, 1)
+    pageInfo.Text = ("Page %d / %d"):format(current, total)
+    local ready = not searching
+    local hasPrev = current > 1
+    local hasNext = current < total
+    setNavButtonEnabled(firstBtn, ready and hasPrev)
+    setNavButtonEnabled(prevBtn, ready and hasPrev)
+    setNavButtonEnabled(nextBtn, ready and hasNext)
+    setNavButtonEnabled(lastBtn, ready and hasNext)
+end
+
+local function resetPagination(clearQuery)
+    pagination.current = 1
+    pagination.total = 1
+    pagination.hasResults = false
+    if clearQuery then
+        pagination.query = ""
+        pagination.trending = false
+    end
+    updatePageControls()
+end
+
+resetPagination(true)
+
 local sf = Instance.new("ScrollingFrame")
-sf.Size = UDim2.new(1, -16, 1, -16)
-sf.Position = UDim2.new(0, 8, 0, 8)
+sf.Size = UDim2.new(1, -16, 1, -(pageBarHeight + 24))
+sf.Position = UDim2.new(0, 8, 0, pageBarHeight + 16)
 sf.BackgroundTransparency = 1
 sf.BorderSizePixel = 0
 sf.ScrollBarThickness = 6
@@ -321,40 +453,281 @@ tnl.VerticalAlignment = Enum.VerticalAlignment.Top
 tnl.HorizontalAlignment = Enum.HorizontalAlignment.Right
 tnl.Padding = UDim.new(0, 8)
 tnl.Parent = tn
+local SCRIPTBLOX_API_BASE = "https://scriptblox.com"
+local SCRIPTBLOX_MEDIA_BASE = "https://scriptblox.com"
+local RSCRIPTS_BASE = "https://rscripts.net"
+local IMAGE_CACHE_DIR = "ScriptHubImages"
 
-local function btnAnim(b, baseCol, hoverCol)
-    local base = b.Size
-    local hover = UDim2.new(base.X.Scale, base.X.Offset+4, base.Y.Scale, base.Y.Offset+2)
-    local press = UDim2.new(base.X.Scale, base.X.Offset-2, base.Y.Scale, base.Y.Offset-1)
-    local hovering = false
-    b.MouseEnter:Connect(function()
-        hovering = true
-        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = hoverCol, Size = hover}):Play()
-    end)
-    b.MouseLeave:Connect(function()
-        hovering = false
-        tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = baseCol, Size = base}):Play()
-    end)
-    b.MouseButton1Down:Connect(function()
-        tw:Create(b, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = press}):Play()
-    end)
-    b.MouseButton1Up:Connect(function()
-        tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = hovering and hover or base}):Play()
-    end)
+local function sanitizeFileName(str)
+    return (str:gsub("[^%w%._%-]", "_"))
 end
-local SCRIPTBLOX_BASE = "https://scriptblox.com"
+
+local function hashString(str)
+    local hash = 0
+    for i = 1, #str do
+        hash = (hash * 31 + string.byte(str, i)) % 4294967296
+    end
+    return string.format("%08x", hash)
+end
+
+local function ensureImageFolder()
+    if type(isfolder) ~= "function" or type(makefolder) ~= "function" then
+        return false
+    end
+    local okExists, exists = pcall(isfolder, IMAGE_CACHE_DIR)
+    if not okExists then
+        return false
+    end
+    if not exists then
+        local okMk = pcall(makefolder, IMAGE_CACHE_DIR)
+        if not okMk then
+            return false
+        end
+    end
+    return true
+end
+
+local function deriveImageFileName(url)
+    local fileName = url:match("/([^/%?#]+)") or "image"
+    fileName = fileName:match("([^?#]+)") or fileName
+    local base = fileName:match("(.+)%.") or fileName
+    base = sanitizeFileName(base)
+    local ext = "txt"
+    local hashed = hashString(url)
+    return string.format("%s_%s.%s", base ~= "" and base or "image", hashed, ext)
+end
+
+local function normalizeImageUrl(url, base)
+    if type(url) ~= "string" or url == "" then
+        return nil
+    end
+    local trimmed = url:match("^%s*(.-)%s*$") or ""
+    if trimmed == "" then
+        return nil
+    end
+    if trimmed:match("^rbxassetid://") or trimmed:match("^rbxthumb://") then
+        return nil
+    end
+    if trimmed:match("^https?://") then
+        return trimmed
+    end
+    if trimmed:sub(1, 2) == "//" then
+        return "https:"..trimmed
+    end
+    if trimmed:sub(1, 1) == "/" then
+        if base then
+            return base..trimmed
+        end
+        return trimmed
+    end
+    if base then
+        return base.."/"..trimmed
+    end
+    return trimmed
+end
+
+local function isMeaningfulImageUrl(url)
+    if type(url) ~= "string" or url == "" then
+        return false
+    end
+    local lower = url:lower()
+    if lower:find("no%-script") then
+        return false
+    end
+    return true
+end
+
+local function httpGetBinary(url, headers)
+    if type(url) ~= "string" or url == "" then
+        return nil
+    end
+
+    local function tryRequest(customHeaders, tag)
+        if type(rq) ~= "function" then
+            return nil
+        end
+
+        local hdr = {}
+        if type(customHeaders) == "table" then
+            for k, v in pairs(customHeaders) do
+                hdr[k] = v
+            end
+        end
+        hdr["User-Agent"] = hdr["User-Agent"] or "Roblox/Http/1.1"
+        hdr["Accept"] = hdr["Accept"] or "*/*"
+
+        local okReq, res = pcall(rq, {Url = url, Method = "GET", Headers = hdr})
+
+        if okReq and res then
+            local status = res.StatusCode or res.Status or res.status_code or 0
+            local body = res.Body or res.body
+            if status == 0 or (status >= 200 and status < 300) then
+                if type(body) == "string" and body ~= "" then
+                    return body
+                end
+            end
+        end
+        return nil
+    end
+
+    local data = tryRequest(headers, "rq1")
+
+    if not (type(data) == "string" and data ~= "") then
+        local okDirect, direct = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if okDirect and type(direct) == "string" and direct ~= "" then
+            data = direct
+        else
+            data = tryRequest(nil, "rq2")
+        end
+    end
+
+    if type(data) == "string" and data ~= "" then
+        return data
+    end
+
+    return nil
+end
+
+local function downloadImageAsset(url)
+    if type(url) ~= "string" or url == "" then
+        return nil
+    end
+
+    if type(getcustomasset) ~= "function"
+        or type(writefile) ~= "function"
+        or type(isfile) ~= "function"
+        or type(isfolder) ~= "function"
+        or type(makefolder) ~= "function" then
+        return nil
+    end
+
+    if not ensureImageFolder() then
+        return nil
+    end
+
+    local fileName = deriveImageFileName(url)
+    local fullPath = IMAGE_CACHE_DIR.."/"..fileName
+
+    local needDownload = true
+    local okExists, exists = pcall(isfile, fullPath)
+    if okExists and exists then
+        needDownload = false
+    end
+
+    if needDownload then
+        local host = url:match("^https?://([^/]+)") or ""
+
+        local headers
+        if host:find("scriptblox%.com") then
+            headers = nil
+        elseif host:find("rscripts%.net") then
+            headers = {["Referer"] = RSCRIPTS_BASE}
+        elseif host:find("rbxcdn%.com") then
+            headers = {["Referer"] = "https://www.roblox.com/"}
+        end
+
+        local data = httpGetBinary(url, headers)
+
+        if not (type(data) == "string" and data ~= "") then
+            return nil
+        end
+
+        local okWrite, err = pcall(writefile, fullPath, data)
+        if not okWrite then
+            return nil
+        end
+    end
+
+    local okAsset, assetId = pcall(getcustomasset, fullPath)
+
+    if okAsset and assetId then
+        return assetId
+    end
+    return nil
+end
+
+local function resolveScriptBloxImage(data)
+    if not data then return nil end
+    local function pick(values)
+        for _, value in ipairs(values) do
+            local normalized = normalizeImageUrl(value, SCRIPTBLOX_MEDIA_BASE)
+            if normalized and isMeaningfulImageUrl(normalized) then
+                return normalized
+            end
+        end
+    end
+
+    local fromScript = pick({
+        data.image,
+        data.imageUrl,
+        data.thumbnail,
+        data.coverImage,
+        data.icon,
+    })
+    if fromScript then
+        return fromScript
+    end
+
+    local game = data.game or {}
+    local fromGame = pick({
+        game.imageUrl,
+        game.thumbnail,
+        game.image,
+        game.coverImage,
+        game.icon,
+    })
+    if fromGame then
+        return fromGame
+    end
+
+    return nil
+end
+
+local function resolveRScriptsImage(data)
+    if not data then return nil end
+    local candidates = {
+        data.image,
+        data.imageUrl,
+        data.thumbnail,
+        data.cover,
+        data.banner,
+        data.img,
+    }
+    for _, value in ipairs(candidates) do
+        local normalized = normalizeImageUrl(value, RSCRIPTS_BASE)
+        if normalized then
+            return normalized
+        end
+    end
+    local game = data.game
+    if game then
+        local gameFields = {
+            game.imgurl,
+            game.imageUrl,
+            game.image,
+            game.thumbnail,
+            game.cover,
+            game.banner,
+            game.gameLogo,
+        }
+        for _, value in ipairs(gameFields) do
+            local normalized = normalizeImageUrl(value, RSCRIPTS_BASE)
+            if normalized then
+                return normalized
+            end
+        end
+    end
+    return nil
+end
+
+ensureImageFolder()
+
 local function buildRobloxThumbnail(placeId)
     local id = tostring(placeId or "")
     if id == "" or id == "0" then return nil end
     return "https://www.roblox.com/Thumbs/PlaceThumbnail.ashx?width=420&height=270&format=png&placeId="..id
-end
-
-local function resolveScriptBloxCover(placeId)
-    return buildRobloxThumbnail(placeId)
-end
-
-local function resolveRScriptsCover(placeId)
-    return buildRobloxThumbnail(placeId)
 end
 
 local function tryFetchPlaceIcon(placeId, imageLabel)
@@ -373,6 +746,7 @@ local function tryFetchPlaceIcon(placeId, imageLabel)
 end
 btnAnim(engb, col.bg, Color3.fromRGB(45,49,58))
 btnAnim(go, col.ac, Color3.fromRGB(58,160,255))
+btnAnim(mini, mini.BackgroundColor3, mini.BackgroundColor3:Lerp(Color3.fromRGB(255,255,255), 0.12))
 btnAnim(cls, cls.BackgroundColor3, Color3.fromRGB(72,24,32))
 
 local function sizeCanvas()
@@ -505,11 +879,13 @@ local miniS = UDim2.new(frameScaleX, 0, 0, miniHeight)
 local function setMin(s)
     minimized = s
     if minimized then
+        mini.Text = "V"
         tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = miniS}):Play()
         tw:Create(mini, TweenInfo.new(0.2), {Rotation = 180}):Play()
         tw:Create(rc, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
         tw:Create(sr, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play()
     else
+        mini.Text = "^"
         tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = fullS}):Play()
         tw:Create(mini, TweenInfo.new(0.2), {Rotation = 0}):Play()
         tw:Create(rc, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
@@ -545,26 +921,39 @@ local function mkCard(i, d)
     local scriptType = d.scriptType or "Free"
     local verified = d.verified and "Verified" or "Unverified"
     local status = d.isPatched and "Patched" or "Working"
+
+    local isUniversal = (d.isUniversal == true) or (d.universal == true)
+
     local mobileStatus
     if eng == "RScripts" then
         mobileStatus = (d.mobileReady == true and "Mobile Ready") or (d.mobileReady == false and "PC Only") or "Unknown Platform"
     end
+
     local lastUpdated = d.lastBump or d.updatedAt or d.createdAt or ""
     if lastUpdated ~= "" then
         lastUpdated = lastUpdated:match("%d%d%d%d%-%d%d%-%d%d") or lastUpdated:sub(1, 10)
     end
+
     local placeSourceId
-    if eng == "ScriptBlox" then
-        placeSourceId = d.game and d.game.gameId
-    else
-        placeSourceId = d.game and (d.game.placeId or (d.game.gameLink and d.game.gameLink:match("/games/(%d+)")))
+    if not isUniversal then
+        if eng == "ScriptBlox" then
+            placeSourceId = d.game and d.game.gameId
+        else
+            placeSourceId = d.game and (d.game.placeId or (d.game.gameLink and d.game.gameLink:match("/games/(%d+)")))
+        end
     end
+
     local placeId = tonumber(placeSourceId)
     local hasPlaceId = placeId and placeId > 0
-    local gameName = hasPlaceId and (eng == "ScriptBlox" and (d.game and d.game.name) or (d.game and d.game.title)) or t
-    if not gameName or gameName == "" then
-        gameName = t
+
+    local gameName
+    if not isUniversal then
+        gameName = hasPlaceId and (eng == "ScriptBlox" and (d.game and d.game.name) or (d.game and d.game.title)) or t
+        if not gameName or gameName == "" then
+            gameName = t
+        end
     end
+
     local displayGameId = hasPlaceId and tostring(placeId) or nil
 
     local c = Instance.new("Frame")
@@ -589,16 +978,34 @@ local function mkCard(i, d)
     c.MouseEnter:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.15}):Play() end)
     c.MouseLeave:Connect(function() tw:Create(cs, TweenInfo.new(0.12), {Transparency = 0.35}):Play() end)
 
+    local remoteImageUrl
+    if eng == "ScriptBlox" then
+        remoteImageUrl = resolveScriptBloxImage(d)
+    else
+        remoteImageUrl = resolveRScriptsImage(d)
+    end
+
     local coverHeight = 120
-    local showCover = hasPlaceId
     local coverImage
-    if showCover then
-        if eng == "ScriptBlox" then
-            coverImage = resolveScriptBloxCover(placeId)
+    local usingCustomCover = false
+
+    local sourceUrl = remoteImageUrl
+    if not sourceUrl and hasPlaceId then
+        sourceUrl = buildRobloxThumbnail(placeId)
+    end
+
+    if sourceUrl then
+        local custom = downloadImageAsset(sourceUrl)
+        if custom then
+            coverImage = custom
+            usingCustomCover = true
         else
-            coverImage = resolveRScriptsCover(placeId)
+            coverImage = sourceUrl
+            usingCustomCover = false
         end
     end
+
+    local showCover = coverImage ~= nil
     if showCover then
         local cover = Instance.new("ImageLabel")
         cover.Size = UDim2.new(1, 0, 0, coverHeight)
@@ -629,29 +1036,34 @@ local function mkCard(i, d)
         })
         grad.Rotation = 90
         grad.Parent = coverOverlay
-        local gameBadge = Instance.new("TextLabel")
-        gameBadge.Size = UDim2.new(1, -24, 0, 26)
-        gameBadge.Position = UDim2.new(0, 12, 1, -38)
-        gameBadge.BackgroundTransparency = 1
-        gameBadge.Font = Enum.Font.GothamSemibold
-        gameBadge.TextSize = 14
-        gameBadge.TextXAlignment = Enum.TextXAlignment.Left
-        gameBadge.TextColor3 = col.tx
-        gameBadge.Text = ("Game: %s"):format(gameName)
-        gameBadge.Parent = cover
-        if displayGameId then
-            local gameIdLabel = Instance.new("TextLabel")
-            gameIdLabel.Size = UDim2.new(1, -24, 0, 18)
-            gameIdLabel.Position = UDim2.new(0, 12, 1, -18)
-            gameIdLabel.BackgroundTransparency = 1
-            gameIdLabel.Font = Enum.Font.Code
-            gameIdLabel.TextSize = 12
-            gameIdLabel.TextXAlignment = Enum.TextXAlignment.Left
-            gameIdLabel.TextColor3 = col.td
-            gameIdLabel.Text = ("ID: %s"):format(displayGameId)
-            gameIdLabel.Parent = cover
+        if not isUniversal and gameName and gameName ~= "" then
+            local gameBadge = Instance.new("TextLabel")
+            gameBadge.Size = UDim2.new(1, -24, 0, 26)
+            gameBadge.Position = UDim2.new(0, 12, 1, -38)
+            gameBadge.BackgroundTransparency = 1
+            gameBadge.Font = Enum.Font.GothamSemibold
+            gameBadge.TextSize = 14
+            gameBadge.TextXAlignment = Enum.TextXAlignment.Left
+            gameBadge.TextColor3 = col.tx
+            gameBadge.Text = ("Game: %s"):format(gameName)
+            gameBadge.Parent = cover
+
+            if displayGameId then
+                local gameIdLabel = Instance.new("TextLabel")
+                gameIdLabel.Size = UDim2.new(1, -24, 0, 18)
+                gameIdLabel.Position = UDim2.new(0, 12, 1, -18)
+                gameIdLabel.BackgroundTransparency = 1
+                gameIdLabel.Font = Enum.Font.Code
+                gameIdLabel.TextSize = 12
+                gameIdLabel.TextXAlignment = Enum.TextXAlignment.Left
+                gameIdLabel.TextColor3 = col.td
+                gameIdLabel.Text = ("ID: %s"):format(displayGameId)
+                gameIdLabel.Parent = cover
+            end
         end
-        tryFetchPlaceIcon(displayGameId, cover)
+        if not usingCustomCover then
+            tryFetchPlaceIcon(displayGameId, cover)
+        end
     end
 
     local bodyOffset = showCover and (coverHeight + 12) or 12
@@ -701,8 +1113,10 @@ local function mkCard(i, d)
     inf.ZIndex = 2
     inf.LayoutOrder = 2
     local infoLines = {}
-    if displayGameId then
-        table.insert(infoLines, ("Game: %s%s"):format(gameName, displayGameId and (" (ID "..displayGameId..")") or ""))
+    if not isUniversal and displayGameId and gameName and gameName ~= "" then
+        table.insert(infoLines, ("Game: %s (ID %s)"):format(gameName, displayGameId))
+    elseif isUniversal then
+        table.insert(infoLines, "Scope: Universal")
     end
     table.insert(infoLines, ("Type: %s | %s | Key: %s"):format(scriptType, verified, keyFlag and "Key" or "No Key"))
     if eng == "ScriptBlox" then
@@ -798,55 +1212,105 @@ local function mkCard(i, d)
     tw:Create(tl, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
     tw:Create(inf, TweenInfo.new(0.18), {TextTransparency = 0}):Play()
 end
-local searching = false
-
-local function fetch(q, empty)
-    if searching then return end
-    searching = true
-    clearAll(true)
-    skeleton(4)
-    spin(true)
-    go.Text = "Searching…"
-    go.Active = false
-    local u
-    if eng == "ScriptBlox" then
-        if empty then
-            u = "https://www.scriptblox.com/api/script/fetch"
-        else
-            u = "https://scriptblox.com/api/script/search?q="..q
-        end
-    elseif eng == "RScripts" then
-        u = "https://rscripts.net/api/v2/scripts?page=1&orderBy=date&sort=desc&q="..q
-    else
-        u = "https://wearedevs.net/api/scripts/search"
-        if q ~= "" then
-            u = u .. "?s=" .. q
-        end
-    end
-    local ok, res = pcall(function() return rq({Url = u, Method = "GET"}) end)
-    clearAll(false)
-    if not ok or not res or not res.Body then
-        mkMsg("Request failed", col.er)
-        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
-    end
-    local ok2, dec = pcall(function() return hs:JSONDecode(res.Body) end)
-    if not ok2 or not dec then
-        mkMsg("Invalid response", col.er)
-        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
-    end
-    local data = (eng == "ScriptBlox") and dec.result and dec.result.scripts or dec.scripts
-    if not data or #data == 0 then
-        mkMsg("No scripts found", col.wa)
-        spin(false) go.Text="Search" go.Active=true searching=false sizeCanvas() return
-    end
-    for i,d in ipairs(data) do
-        mkCard(i, d)
-        task.wait(0.02)
-    end
+local function finishSearch()
     spin(false)
     go.Text = "Search"
     go.Active = true
     searching = false
+    updatePageControls()
+end
+
+local fetch
+
+local function runSearchFromInput(forceTrending)
+    if searching then return end
+    local raw = (sbox.Text or "")
+    raw = raw:gsub("^%s+", ""):gsub("%s+$", "")
+    if raw ~= "" then
+        fetch(raw, false, 1)
+        return true
+    else
+        if eng == "ScriptBlox" then
+            fetch("", forceTrending == false and false or true, 1)
+            return true
+        elseif eng == "RScripts" then
+            fetch("", false, 1)
+            return true
+        end
+    end
+    return false
+end
+
+function fetch(searchText, trending, page)
+    if searching then return end
+    local supportsTrending = (eng == "ScriptBlox")
+    trending = supportsTrending and (trending == true) or false
+    page = math.max(tonumber(page) or 1, 1)
+    searchText = searchText or ""
+    pagination.query = searchText
+    pagination.trending = trending
+    pagination.current = page
+    pagination.hasResults = false
+    updatePageControls()
+    searching = true
+    updatePageControls()
+    clearAll(true)
+    skeleton(4)
+    spin(true)
+    go.Text = "Searching..."
+    go.Active = false
+    local encoded = hs:UrlEncode(searchText)
+    local url
+    if eng == "RScripts" then
+        url = string.format("https://rscripts.net/api/v2/scripts?page=%d&orderBy=date&sort=desc", page)
+        if searchText ~= "" then
+            url = url.."&q="..encoded
+        end
+    else
+        if trending then
+            url = string.format("%s/api/script/fetch?page=%d", SCRIPTBLOX_API_BASE, page)
+        else
+            url = string.format("%s/api/script/search?q=%s&page=%d", SCRIPTBLOX_API_BASE, encoded, page)
+        end
+    end
+    local ok, res = pcall(function() return rq({Url = url, Method = "GET"}) end)
+    clearAll(false)
+    if not ok or not res or not res.Body then
+        mkMsg("Request failed", col.er)
+        finishSearch()
+        sizeCanvas()
+        return
+    end
+    local ok2, dec = pcall(function() return hs:JSONDecode(res.Body) end)
+    if not ok2 or not dec then
+        mkMsg("Invalid response", col.er)
+        finishSearch()
+        sizeCanvas()
+        return
+    end
+    local data
+    local totalPages = 1
+    if eng == "RScripts" then
+        data = dec.scripts
+        totalPages = (dec.info and dec.info.maxPages) or 1
+    else
+        local result = dec.result or {}
+        data = result.scripts
+        totalPages = result.totalPages or 1
+    end
+    pagination.total = math.max(totalPages or 1, 1)
+    if not data or #data == 0 then
+        mkMsg("No scripts found", col.wa)
+        finishSearch()
+        sizeCanvas()
+        return
+    end
+    pagination.hasResults = true
+    for i, d in ipairs(data) do
+        mkCard(i, d)
+        task.wait(0.02)
+    end
+    finishSearch()
     sizeCanvas()
 end
 
@@ -857,12 +1321,6 @@ engb.MouseButton1Click:Connect(function()
         sbox.PlaceholderText = "Search for scripts (rscripts.net)"
         tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(45,49,58)}):Play()
         toast("Switched to RScripts", col.tx)
-    elseif eng == "RScripts" then
-        eng = "WeAreDevs"
-        engb.Text = "Engine: wearedevs"
-        sbox.PlaceholderText = "Search for scripts (wearedevs.net)"
-        tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = Color3.fromRGB(41,128,185)}):Play()
-        toast("Switched to wearedevs", col.tx)
     else
         eng = "ScriptBlox"
         engb.Text = "Engine: ScriptBlox"
@@ -870,22 +1328,44 @@ engb.MouseButton1Click:Connect(function()
         tw:Create(engb, TweenInfo.new(0.18), {BackgroundColor3 = col.bg}):Play()
         toast("Switched to ScriptBlox", col.tx)
     end
+    resetPagination(true)
 end)
 
 go.MouseButton1Click:Connect(function()
-    if searching then return end
-    local q = sbox.Text:gsub(" ", "%%20")
-    if q ~= "" then
-        fetch(q)
-    else
-        if eng == "ScriptBlox" then
-            fetch(q, true)
-        else
-            clearAll(true)
-            mkMsg("Please enter a search query", col.wa)
-            sizeCanvas()
-        end
+    runSearchFromInput()
+end)
+
+sbox.FocusLost:Connect(function(enter)
+    if enter then
+        runSearchFromInput()
     end
+end)
+
+local function requestPage(targetPage)
+    if searching then return end
+    if eng ~= "ScriptBlox" and eng ~= "RScripts" then return end
+    if not pagination.hasResults then return end
+    local total = math.max(pagination.total, 1)
+    if targetPage < 1 then targetPage = 1 end
+    if targetPage > total then targetPage = total end
+    if targetPage == pagination.current then return end
+    fetch(pagination.query, pagination.trending, targetPage)
+end
+
+firstBtn.MouseButton1Click:Connect(function()
+    requestPage(1)
+end)
+
+prevBtn.MouseButton1Click:Connect(function()
+    requestPage(pagination.current - 1)
+end)
+
+nextBtn.MouseButton1Click:Connect(function()
+    requestPage(pagination.current + 1)
+end)
+
+lastBtn.MouseButton1Click:Connect(function()
+    requestPage(pagination.total)
 end)
 
 local drag, dIn, dStart, start
@@ -916,6 +1396,3 @@ openS.Parent = fr
 fr.BackgroundTransparency = 1
 tw:Create(openS, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
 tw:Create(fr, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
-
-
-
