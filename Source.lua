@@ -10287,6 +10287,10 @@ NAmanage._applyMode = function(mode, resume)
 end
 
 NAmanage.activateMode = function(mode)
+	local currentMode=NAmanage._state.mode
+	if currentMode and currentMode~="none" and currentMode~=mode then
+		NAmanage.deactivateMode(currentMode)
+	end
 	NAmanage._state.mode=mode
 	NAmanage._forceEnableFlags(mode)
 	local char=getChar()
