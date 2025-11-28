@@ -23573,9 +23573,13 @@ cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers 
 end)
 
 cmd.add({"volume","vol"},{"volume <0-10> (vol)","Changes your volume"},function(vol)
-	if not vol then return DoNotif("please provide a number between 0-10",2) end
-	local amount=math.clamp(vol, 0, 10)
-	UserSettings():GetService("UserGameSettings").MasterVolume=amount
+	local numberValue = tonumber(vol)
+	if not numberValue then
+		return DoNotif("please provide a number between 0-10",2)
+	end
+	numberValue = numberValue / 10
+	local amount = math.clamp(numberValue, 0, 1)
+	UserSettings():GetService("UserGameSettings").MasterVolume = amount
 end,true)
 
 cmd.add({"perfstats"},{"perfstats <on/off>","Shows or hides performance stats"},function(t)
