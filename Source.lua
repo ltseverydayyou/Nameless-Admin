@@ -38499,11 +38499,13 @@ function NAmanage.SetSearch.info(element)
 	if not element then
 		return ""
 	end
-	local attr = element:GetAttribute("NASearchText")
-	if type(attr) == "string" and attr ~= "" then
-		return attr
+
+	local rawText = NAmanage.SetSearch.collectText and NAmanage.SetSearch.collectText(element) or ""
+	if rawText == "" then
+		rawText = NAmanage.SetSearch.label(element)
 	end
-	local cleaned = NAmanage.SetSearch.clean(NAmanage.SetSearch.label(element))
+
+	local cleaned = NAmanage.SetSearch.clean(rawText)
 	pcall(function()
 		element:SetAttribute("NASearchText", cleaned)
 	end)
@@ -38523,13 +38525,36 @@ end
 
 function NAmanage.SetSearch.clean(text)
 	text = text or ""
-	if NAgui.sanitizeCommandInfo then
-		return NAgui.sanitizeCommandInfo(text)
-	end
 	local lowered = Lower(text)
+	lowered = GSub(lowered, "<[^>]+>", "")
 	lowered = GSub(lowered, "%s+", " ")
 	lowered = GSub(lowered, "^%s*(.-)%s*$", "%1")
 	return lowered
+end
+
+function NAmanage.SetSearch.collectText(element)
+	if not element or typeof(element) ~= "Instance" then
+		return ""
+	end
+	local parts = {}
+
+	local function walk(obj)
+		if not obj or typeof(obj) ~= "Instance" then
+			return
+		end
+		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+			local t = obj.Text
+			if type(t) == "string" and t ~= "" then
+				table.insert(parts, t)
+			end
+		end
+		for _, child in ipairs(obj:GetChildren()) do
+			walk(child)
+		end
+	end
+
+	walk(element)
+	return table.concat(parts, " ")
 end
 
 function NAmanage.SetSearch.reset()
