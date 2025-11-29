@@ -37843,6 +37843,10 @@ local NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List");
+	SettingsSearchBox   = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
+		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("SearchBox");
 	SettingsTabButton    = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
 		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
@@ -38422,6 +38426,263 @@ NAgui.setTab=function(name)
 	return info.page
 end
 
+NAmanage.SetSearch = NAmanage.SetSearch or {}
+
+NAmanage.SetSearch.state = NAmanage.SetSearch.state or {
+	active = false;
+	last = "";
+	vis = setmetatable({}, { __mode = "k" });
+}
+
+function NAmanage.SetSearch.ignore(element)
+	if not element or typeof(element) ~= "Instance" then
+		return true
+	end
+	if not element:IsA("GuiObject") then
+		return true
+	end
+	return element:IsA("UIListLayout")
+		or element:IsA("UIPadding")
+		or element:IsA("UIPageLayout")
+end
+
+function NAmanage.SetSearch.scan(handler)
+	if type(handler) ~= "function" then
+		return
+	end
+
+	local list = NAUIMANAGER.SettingsList
+	if not list or typeof(list) ~= "Instance" then
+		return
+	end
+
+	local root = list
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+			root = child
+			break
+		end
+	end
+
+	for _, child in ipairs(root:GetChildren()) do
+		if not NAmanage.SetSearch.ignore(child) then
+			handler(child)
+		end
+	end
+end
+
+function NAmanage.SetSearch.tag(element, labelText)
+	if not element or typeof(element) ~= "Instance" then
+		return
+	end
+	if typeof(labelText) ~= "string" or labelText == "" then
+		return
+	end
+	local cleaned = NAmanage.SetSearch.clean(labelText)
+	pcall(function()
+		element:SetAttribute("NASearchLabel", labelText)
+		element:SetAttribute("NASearchText", cleaned)
+	end)
+end
+
+function NAmanage.SetSearch.label(element)
+	if not element then
+		return ""
+	end
+	local stored = element:GetAttribute("NASearchLabel")
+	if type(stored) == "string" and stored ~= "" then
+		return stored
+	end
+
+	local title = element:FindFirstChild("Title", true)
+	if title and (title:IsA("TextLabel") or title:IsA("TextBox") or title:IsA("TextButton")) then
+		return title.Text or ""
+	end
+
+	local fallbackNames = { "Description", "Desc", "Information" }
+	for _, name in ipairs(fallbackNames) do
+		local descendant = element:FindFirstChild(name, true)
+		if descendant and descendant:IsA("TextLabel") then
+			return descendant.Text or ""
+		end
+	end
+
+	local fallback = element:FindFirstChildWhichIsA("TextLabel", true)
+	if fallback then
+		return fallback.Text or ""
+	end
+
+	return element.Name or ""
+end
+
+function NAmanage.SetSearch.info(element)
+	if not element then
+		return ""
+	end
+	local attr = element:GetAttribute("NASearchText")
+	if type(attr) == "string" and attr ~= "" then
+		return attr
+	end
+	local cleaned = NAmanage.SetSearch.clean(NAmanage.SetSearch.label(element))
+	pcall(function()
+		element:SetAttribute("NASearchText", cleaned)
+	end)
+	return cleaned
+end
+
+function NAmanage.SetSearch.norm(text)
+	text = text or ""
+	if NAgui.normalizeCommandFilter then
+		text = NAgui.normalizeCommandFilter(text)
+	else
+		text = Lower(text)
+	end
+	text = GSub(text, "^%s*(.-)%s*$", "%1")
+	return text
+end
+
+function NAmanage.SetSearch.clean(text)
+	text = text or ""
+	if NAgui.sanitizeCommandInfo then
+		return NAgui.sanitizeCommandInfo(text)
+	end
+	local lowered = Lower(text)
+	lowered = GSub(lowered, "%s+", " ")
+	lowered = GSub(lowered, "^%s*(.-)%s*$", "%1")
+	return lowered
+end
+
+function NAmanage.SetSearch.reset()
+	for element, original in pairs(NAmanage.SetSearch.state.vis) do
+		if typeof(element) == "Instance" and element:IsA("GuiObject") then
+			element.Visible = original
+		end
+	end
+	table.clear(NAmanage.SetSearch.state.vis)
+	NAmanage.SetSearch.state.active = false
+	NAmanage.SetSearch.state.last = ""
+end
+
+function NAmanage.SetSearch.match(element, query)
+	if query == "" then
+		return true
+	end
+	local info = NAmanage.SetSearch.info(element)
+	if info == "" then
+		return false
+	end
+	if Sub(info, 1, #query) == query then
+		return true
+	end
+	return Find(info, query, 1, true) ~= nil
+end
+
+function NAmanage.SetSearch.isSect(element)
+	if not element or typeof(element) ~= "Instance" then
+		return false
+	end
+	if element:GetAttribute("NASettingsSection") == true then
+		return true
+	end
+	return element.Name == "SectionTitle" and element:IsA("GuiObject")
+end
+
+function NAmanage.SetSearch.sectVis(list, matchesMap)
+	if not list then
+		return
+	end
+
+	local root = list
+	for _, child in ipairs(list:GetChildren()) do
+		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+			root = child
+			break
+		end
+	end
+
+	local children = root:GetChildren()
+	for index = 1, #children do
+		local child = children[index]
+		if child and not NAmanage.SetSearch.ignore(child) and NAmanage.SetSearch.isSect(child) then
+			local visible = matchesMap[child]
+			if not visible then
+				visible = false
+				for j = index + 1, #children do
+					local candidate = children[j]
+					if candidate and not NAmanage.SetSearch.ignore(candidate) then
+						if NAmanage.SetSearch.isSect(candidate) then
+							break
+						end
+						if candidate.Visible then
+							visible = true
+							break
+						end
+					end
+				end
+			end
+			child.Visible = visible and true or false
+		end
+	end
+end
+
+function NAmanage.SetSearch.apply(rawText)
+	local list = NAUIMANAGER.SettingsList
+	if not list then
+		return
+	end
+
+	local query = NAmanage.SetSearch.norm(rawText)
+	NAmanage.SetSearch.state.last = rawText or ""
+
+	if query == "" then
+		if NAmanage.SetSearch.state.active then
+			NAmanage.SetSearch.reset()
+		end
+		return
+	end
+
+	NAmanage.SetSearch.state.active = true
+	local matchesMap = {}
+
+	NAmanage.SetSearch.scan(function(element)
+		if NAmanage.SetSearch.state.vis[element] == nil then
+			NAmanage.SetSearch.state.vis[element] = element.Visible
+		end
+		local matches = NAmanage.SetSearch.match(element, query)
+		matchesMap[element] = matches
+		element.Visible = matches
+	end)
+
+	NAmanage.SetSearch.sectVis(list, matchesMap)
+end
+
+function NAmanage.SetSearch.init()
+	local input = NAUIMANAGER.SettingsSearchBox
+	if not input then
+		return
+	end
+	input:GetPropertyChangedSignal("Text"):Connect(function()
+		NAmanage.SetSearch.apply(input.Text or "")
+	end)
+	NAmanage.SetSearch.apply(input.Text or "")
+end
+
+NAmanage.SetSearch.init()
+
+do
+	local baseSetTab = NAgui.setTab
+	NAgui.setTab = function(name)
+		local page = baseSetTab(name)
+		if page then
+			NAUIMANAGER.SettingsList = page
+		end
+		if NAmanage.SetSearch.state.active and NAmanage.SetSearch.state.last ~= "" then
+			NAmanage.SetSearch.apply(NAmanage.SetSearch.state.last)
+		end
+		return page
+	end
+end
+
 NAgui.addTab=function(name, options)
 	if type(name) ~= "string" or name == "" then
 		return nil
@@ -38957,6 +39218,7 @@ NAgui.addButton = function(label, callback)
 	if not NAUIMANAGER.SettingsList then return end
 	local button = templates.Button:Clone()
 	button.Title.Text = label
+	NAmanage.SetSearch.tag(button, label)
 	button.Parent = NAUIMANAGER.SettingsList
 	button.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(button)
@@ -38973,6 +39235,10 @@ NAgui.addSection = function(titleText)
 	if not NAUIMANAGER.SettingsList then return end
 	local section = templates.SectionTitle:Clone()
 	section.Title.Text = titleText
+	pcall(function()
+		section:SetAttribute("NASettingsSection", true)
+	end)
+	NAmanage.SetSearch.tag(section, titleText)
 	section.Parent = NAUIMANAGER.SettingsList
 	section.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(section)
@@ -38985,6 +39251,7 @@ NAgui.addInfo = function(label, value)
 	if not NAUIMANAGER.SettingsList then return nil end
 	local info = templates.Input:Clone()
 	info.Title.Text = label
+	NAmanage.SetSearch.tag(info, label)
 	info.Parent = NAUIMANAGER.SettingsList
 	info.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(info)
@@ -39063,6 +39330,7 @@ NAgui.addToggle = function(label, defaultValue, callback)
 	local stroke = indicator and indicator:FindFirstChild("UIStroke")
 
 	toggle.Title.Text = label
+	NAmanage.SetSearch.tag(toggle, label)
 	toggle.Parent = NAUIMANAGER.SettingsList
 	toggle.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(toggle)
@@ -39135,6 +39403,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	if not NAUIMANAGER.SettingsList then return end
 	local picker = templates.ColorPicker:Clone()
 	picker.Title.Text = label
+	NAmanage.SetSearch.tag(picker, label)
 	picker.Parent = NAUIMANAGER.SettingsList
 	picker.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(picker)
@@ -39501,11 +39770,13 @@ NAgui.getColorPickerAutoRGB = function(label)
 end
 
 NAgui.addInput = function(label, placeholder, defaultText, callback)
+	if not NAUIMANAGER.SettingsList then return end
 	local input = templates.Input:Clone()
 	local frame = input.InputFrame
 	local inputBox = frame.InputBox
 
 	input.Title.Text = label
+	NAmanage.SetSearch.tag(input, label)
 	inputBox.Text = defaultText or ""
 	inputBox.PlaceholderText = placeholder or ""
 
@@ -39655,8 +39926,10 @@ end
 NAmanage.StartUIAutoSyncLoop()
 
 NAgui.addKeybind = function(label, defaultKey, callback)
+	if not NAUIMANAGER.SettingsList then return end
 	local keybind = templates.Keybind:Clone()
 	keybind.Title.Text = label
+	NAmanage.SetSearch.tag(keybind, label)
 	keybind.KeybindFrame.KeybindBox.Text = defaultKey
 
 	keybind.LayoutOrder = NAgui._nextLayoutOrder()
@@ -39703,8 +39976,10 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
+	if not NAUIMANAGER.SettingsList then return end
 	local slider = templates.Slider:Clone()
 	slider.Title.Text = label
+	NAmanage.SetSearch.tag(slider, label)
 
 	slider.LayoutOrder = NAgui._nextLayoutOrder()
 	slider.Parent = NAUIMANAGER.SettingsList

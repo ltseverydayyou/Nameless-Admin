@@ -1043,17 +1043,54 @@ G2L["70i"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
 G2L["70i"]["Thickness"] = 1.5;
 G2L["70i"]["Color"] = Color3.fromRGB(154, 99, 255);
 
-G2L["70j"] = Instance.new("Frame", G2L["70a"]);
-G2L["70j"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-G2L["70j"]["BackgroundTransparency"] = 1;
+G2L["70j"] = Instance.new("TextBox", G2L["70a"]);
+G2L["70j"]["PlaceholderColor3"] = Color3.fromRGB(129, 129, 139);
 G2L["70j"]["BorderSizePixel"] = 0;
-G2L["70j"]["ClipsDescendants"] = true;
-G2L["70j"]["Size"] = UDim2.new(1, -10, 1, -55);
+G2L["70j"]["TextSize"] = 16;
+G2L["70j"]["TextXAlignment"] = Enum.TextXAlignment.Left;
+G2L["70j"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["70j"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["70j"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["70j"]["BackgroundTransparency"] = 0.2;
+G2L["70j"]["ClearTextOnFocus"] = false;
+G2L["70j"]["Size"] = UDim2.new(1, -10, 0, 30);
 G2L["70j"]["Position"] = UDim2.new(0, 5, 0, 45);
-G2L["70j"]["Name"] = [[Pages]];
+G2L["70j"]["Text"] = [[]];
+G2L["70j"]["PlaceholderText"] = [[Search settings...]];
+G2L["70j"]["Name"] = [[SearchBox]];
 
 
-G2L["71"] = Instance.new("ScrollingFrame", G2L["70j"]);
+G2L["70k"] = Instance.new("UICorner", G2L["70j"]);
+G2L["70k"]["CornerRadius"] = UDim.new(0, 8);
+
+
+G2L["70l"] = Instance.new("UIStroke", G2L["70j"]);
+G2L["70l"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["70l"]["Thickness"] = 1.5;
+G2L["70l"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["70m"] = Instance.new("UIPadding", G2L["70j"]);
+G2L["70m"]["PaddingRight"] = UDim.new(0, 8);
+G2L["70m"]["PaddingLeft"] = UDim.new(0, 10);
+
+
+G2L["70n"] = Instance.new("UITextSizeConstraint", G2L["70j"]);
+G2L["70n"]["MinTextSize"] = 12;
+G2L["70n"]["MaxTextSize"] = 18;
+
+
+G2L["70o"] = Instance.new("Frame", G2L["70a"]);
+G2L["70o"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["70o"]["BackgroundTransparency"] = 1;
+G2L["70o"]["BorderSizePixel"] = 0;
+G2L["70o"]["ClipsDescendants"] = true;
+G2L["70o"]["Size"] = UDim2.new(1, -10, 1, -95);
+G2L["70o"]["Position"] = UDim2.new(0, 5, 0, 85);
+G2L["70o"]["Name"] = [[Pages]];
+
+
+G2L["71"] = Instance.new("ScrollingFrame", G2L["70o"]);
 G2L["71"]["BorderSizePixel"] = 0;
 G2L["71"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["71"]["Name"] = [[List]];
