@@ -6397,25 +6397,87 @@ originalIO.safeClearFolder=function(path, opts)
 	return true, "Folder cleared."
 end
 
-local SettingsCleanupItems = {
-	{ label = "Main Settings", path = NAfiles.NAMAINSETTINGSPATH, kind = "file", displayType = "json", success = "Main settings deleted." },
-	{ label = "Aliases", path = NAfiles.NAALIASPATH, kind = "file", displayType = "json", success = "Alias list deleted." },
-	{ label = "User Buttons", path = NAfiles.NAUSERBUTTONSPATH, kind = "file", displayType = "json", success = "User buttons reset." },
-	{ label = "AutoExec Commands", path = NAfiles.NAAUTOEXECPATH, kind = "file", displayType = "json", success = "AutoExec commands cleared." },
-	{ label = "Binders", path = NAfiles.NABINDERS, kind = "file", displayType = "json", success = "Binders file deleted." },
-	{ label = "Join/Leave Settings", path = NAfiles.NAJOINLEAVE, kind = "file", displayType = "json", success = "Join/Leave settings deleted." },
-	{ label = "Join/Leave Log", path = NAfiles.NAJOINLEAVELOG, kind = "file", displayType = "txt", success = "Join/Leave log cleared." },
-	{ label = "Chat Logs", path = NAfiles.NACHATLOGS, kind = "file", displayType = "txt", success = "Chat logs cleared." },
-	{ label = "Icon Position", path = NAfiles.NAICONPOSPATH, kind = "file", displayType = "json", success = "Icon position reset." },
-	{ label = "ESP Settings", path = NAfiles.NAESPSETTINGSPATH, kind = "file", displayType = "json", success = "ESP settings deleted." },
-	{ label = "Topbar Layout", path = NAfiles.NATOPBAR, kind = "file", displayType = "txt", success = "Topbar layout reset." },
-	{ label = "Notification Toggle", path = NAfiles.NANOTIFSTOGGLE, kind = "file", displayType = "txt", success = "Notification toggle reset." },
-	{ label = "Text Chat Settings", path = NAfiles.NATEXTCHATSETTINGSPATH, kind = "file", displayType = "json", success = "Text chat settings deleted." },
-	{ label = "Waypoints", path = NAfiles.NAWAYPOINTFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Waypoints folder cleared." },
-	{ label = "Plugins", path = NAfiles.NAPLUGINFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Plugins folder cleared." },
-	{ label = "Assets Cache", path = NAfiles.NAASSETSFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Assets cache cleared." },
-	{ label = "All Saved Data", path = NAfiles.NAFILEPATH, kind = "folder", displayType = "folder", removeRoot = true, recreate = true, success = "Nameless-Admin folder cleared." },
+NAStuff.clnExtMap = NAStuff.clnExtMap or {
+	json = "JSON Source File",
+	txt = "Text Source File",
+	lua = "Lua Script",
+	luau = "Luau Script",
+	log = "Log File",
+	cfg = "Config File",
+	ini = "Config File",
+	dat = "Data File",
+	png = "PNG Image",
+	jpg = "JPEG Image",
+	jpeg = "JPEG Image",
+	webp = "WebP Image",
+	bmp = "Bitmap Image",
+	mp3 = "MP3 Audio",
+	wav = "WAV Audio",
+	ogg = "OGG Audio",
 }
+
+function NAmanage.clnBase(path)
+	return tostring(path):match("([^/\\]+)$") or tostring(path)
+end
+
+function NAmanage.clnDisp(path, kind)
+	if kind == "folder" then
+		return "Folder"
+	end
+	local name = NAmanage.clnBase(path)
+	local ext = name:match("%.([^%.]+)$")
+	if not ext then
+		return "File"
+	end
+	local extLower = Lower(ext)
+	return NAStuff.clnExtMap[extLower] or (string.upper(extLower).." File")
+end
+
+function NAmanage.clnList()
+	local entries = {}
+	if not FileSupport or not (listfiles and isfolder and isfolder(NAfiles.NAFILEPATH)) then
+		return entries
+	end
+
+	local okList, children = pcall(listfiles, NAfiles.NAFILEPATH)
+	if not okList or type(children) ~= "table" then
+		return entries
+	end
+
+	table.sort(children, function(a, b)
+		return NAmanage.clnBase(a):lower() < NAmanage.clnBase(b):lower()
+	end)
+
+	for _, path in ipairs(children) do
+		local label = NAmanage.clnBase(path)
+		if label and label ~= "" then
+			local isDir = isfolder(path)
+			entries[#entries + 1] = {
+				label = label,
+				path = path,
+				kind = isDir and "folder" or "file",
+				displayType = NAmanage.clnDisp(path, isDir and "folder" or "file"),
+				removeRoot = isDir and true or nil,
+				recreate = isDir and true or nil,
+				success = Format("%s removed.", label),
+			}
+		end
+	end
+
+	if #entries > 0 then
+		table.insert(entries, 1, {
+			label = "[Clear Entire Folder]",
+			path = NAfiles.NAFILEPATH,
+			kind = "folder",
+			displayType = "Nameless-Admin folder",
+			removeRoot = true,
+			recreate = true,
+			success = "Nameless-Admin folder cleared.",
+		})
+	end
+
+	return entries
+end
 
 function NAmanage.buildSettingsCleanupButtons()
 	local buttons = {}
@@ -6423,38 +6485,28 @@ function NAmanage.buildSettingsCleanupButtons()
 		return buttons
 	end
 
-	for _, entry in ipairs(SettingsCleanupItems) do
-		local exists = false
-		if entry.kind == "file" then
-			exists = isfile and isfile(entry.path)
-		elseif entry.kind == "folder" then
-			exists = listfiles and isfolder and isfolder(entry.path)
-		end
+	for _, opt in ipairs(NAmanage.clnList()) do
+		local buttonText = Format("%s (%s)", opt.label, opt.displayType or opt.kind)
+		Insert(buttons, {
+			Text = buttonText,
+			Callback = function()
+				local ok, info
+				if opt.kind == "file" then
+					ok, info = originalIO.safeDeleteFile(opt.path)
+				else
+					ok, info = originalIO.safeClearFolder(opt.path, { removeRoot = opt.removeRoot, recreate = opt.recreate })
+				end
 
-		if exists then
-			local opt = entry
-			local buttonText = Format("%s (%s)", opt.label, opt.displayType or opt.kind)
-			Insert(buttons, {
-				Text = buttonText,
-				Callback = function()
-					local ok, info
-					if opt.kind == "file" then
-						ok, info = originalIO.safeDeleteFile(opt.path)
-					else
-						ok, info = originalIO.safeClearFolder(opt.path, { removeRoot = opt.removeRoot, recreate = opt.recreate })
+				if ok then
+					DoNotif(opt.success or info or Format("%s removed.", opt.label), 3)
+					if type(opt.after) == "function" then
+						pcall(opt.after)
 					end
-
-					if ok then
-						DoNotif(opt.success or info or Format("%s removed.", opt.label), 3)
-						if type(opt.after) == "function" then
-							pcall(opt.after)
-						end
-					else
-						DoNotif(opt.failure or Format("Failed to remove %s: %s", opt.label, tostring(info)), 4)
-					end
-				end,
-			})
-		end
+				else
+					DoNotif(opt.failure or Format("Failed to remove %s: %s", opt.label, tostring(info)), 4)
+				end
+			end,
+		})
 	end
 
 	return buttons
