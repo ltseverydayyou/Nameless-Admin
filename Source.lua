@@ -4329,7 +4329,7 @@ NAgui.draggerV2 = function(ui, dragui)
 		end)
 	end))
 
-	local function onScreenSizeChanged()
+	local function clampToViewport()
 		local ok, err = NACaller(function()
 			local p = screenGui.AbsoluteSize
 			local s = ui.AbsoluteSize
@@ -4345,10 +4345,14 @@ NAgui.draggerV2 = function(ui, dragui)
 			local ny = safeClamp(absY, minY, maxY)
 			ui.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0)
 		end)
-		if not ok then warn("[DraggerV2] Screen size update error:", err) end
+		if not ok then warn("[DraggerV2] Clamp update error:", err) end
 	end
 
-	NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onScreenSizeChanged))
+	NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport))
+	if ui and ui.GetPropertyChangedSignal then
+		NAlib.connect(connName, ui:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport))
+	end
+	clampToViewport()
 
 	if ui and NAlib.isProperty(ui, "Active") then
 		NAlib.setProperty(ui, "Active", true)
@@ -23787,8 +23791,9 @@ NAmanage._waitCharReady=function(timeout)
 	end
 	local c=getChar();return c,(c and (getHum() or c:FindFirstChildOfClass("Humanoid"))),(c and (getRoot(c) or c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))),(c and (getHead(c) or c:FindFirstChild("Head")))
 end
-NAmanage._applyFixedDescription=function(desc,uidFallback)
+NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	if not desc then return end
+	opts = opts or {}
 	local plr=Players.LocalPlayer
 	local char,hum=NAmanage._waitCharReady(5)
 	if not char or not hum then return end
@@ -23868,6 +23873,12 @@ NAmanage._applyFixedDescription=function(desc,uidFallback)
 		end
 	end
 
+	if opts.forceRefresh then
+		NAStuff._blankCharDesc = NAStuff._blankCharDesc or InstanceNew("HumanoidDescription")
+		pcall(function() hum:ApplyDescriptionClientServer(NAStuff._blankCharDesc) end)
+		Wait(0.15)
+	end
+
 	clearAppearance()
 	hum:ApplyDescriptionClientServer(desc)
 	Wait(0.25)
@@ -23883,6 +23894,9 @@ if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
 		end
 	end
 end
+
+	local targetKey = opts.targetKey or (uidFallback and ("uid:"..tostring(uidFallback))) or nil
+	NAStuff._lastDescriptionKey = targetKey
 end
 
 NAmanage._resolveHumanoidDescription=function(target)
@@ -23965,8 +23979,13 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 		DoNotif("Unable to load that avatar.",3,"Char")
 		return
 	end
+	local targetKey="char:"..tostring(userId)
+	local opts={targetKey=targetKey}
+	if NAStuff._lastDescriptionKey==targetKey then
+		opts.forceRefresh=true
+	end
 	SpawnCall(function()
-		NAmanage._applyFixedDescription(desc:Clone(),userId)
+		NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
 	end)
 end,true)
 
@@ -23975,8 +23994,13 @@ cmd.add({"unchar"},{"unchar","revert to your character"},function()
 	if not plr then return end
 	local desc=NAmanage._resolveHumanoidDescription(tostring(plr.UserId))
 	if not desc then return end
+	local targetKey="char:"..tostring(plr.UserId)
+	local opts={targetKey=targetKey}
+	if NAStuff._lastDescriptionKey==targetKey then
+		opts.forceRefresh=true
+	end
 	SpawnCall(function()
-		NAmanage._applyFixedDescription(desc:Clone(),plr.UserId)
+		NAmanage._applyFixedDescription(desc:Clone(),plr.UserId,opts)
 	end)
 end)
 
@@ -23986,18 +24010,28 @@ cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"
 		DoNotif("Unable to load that avatar.",3,"Autochar")
 		return
 	end
+	local targetKey="char:"..tostring(userId)
 	NAStuff.AutoChar={UserId=userId,Description=desc}
 	NAlib.disconnect("autochar")
 	NAlib.connect("autochar",Players.LocalPlayer.CharacterAdded:Connect(function()
 		SpawnCall(function()
 			Wait(0.3)
 			if NAStuff.AutoChar and NAStuff.AutoChar.Description and NAStuff.AutoChar.UserId then
-				NAmanage._applyFixedDescription(NAStuff.AutoChar.Description:Clone(),NAStuff.AutoChar.UserId)
+				local evKey="char:"..tostring(NAStuff.AutoChar.UserId)
+				local opts={targetKey=evKey}
+				if NAStuff._lastDescriptionKey==evKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(NAStuff.AutoChar.Description:Clone(),NAStuff.AutoChar.UserId,opts)
 			end
 		end)
 	end))
 	SpawnCall(function()
-		NAmanage._applyFixedDescription(desc:Clone(),userId)
+		local opts={targetKey=targetKey}
+		if NAStuff._lastDescriptionKey==targetKey then
+			opts.forceRefresh=true
+		end
+		NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
 	end)
 end,true)
 
@@ -24056,15 +24090,23 @@ cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a s
 		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
 			NAlib.disconnect("autooutfit")
 			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
+			local outfitKey="autooutfit:"..tostring(o.id)
+			local function applyAutoOutfit(desc)
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
+			end
 			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
 				SpawnCall(function()
 					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-					if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
+					if okD and desc then applyAutoOutfit(desc) end
 				end)
 			end))
 			SpawnCall(function()
 				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-				if okD and desc then NAmanage._applyFixedDescription(desc,Players.LocalPlayer.UserId) end
+				if okD and desc then applyAutoOutfit(desc) end
 			end)
 			DoNotif("Auto outfit set: "..o.name,2,"AutoOutfit")
 		end})
@@ -24104,7 +24146,12 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 				if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
 				NAStuff.lastSelectedOutfitId=o.id
 				if NAmanage._applyFixedDescription then
-					NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId)
+					local outfitKey="outfit:"..tostring(o.id)
+					local opts={targetKey=outfitKey}
+					if NAStuff._lastDescriptionKey==outfitKey then
+						opts.forceRefresh=true
+					end
+					NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
 				else
 					local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 					local hum=getHum() or char:WaitForChild("Humanoid",3)
@@ -24160,7 +24207,12 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 			if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
 			NAStuff.lastSelectedOutfitId=o.id
 			if NAmanage._applyFixedDescription then
-				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId)
+				local outfitKey="outfit:"..tostring(o.id)
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
 			else
 				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 				local hum=getHum() or char:WaitForChild("Humanoid",3)
