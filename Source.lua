@@ -1235,7 +1235,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if count == 1 then
 			return "1 custom font installed"
 		end
-		return string.format("%d custom fonts installed", count)
+		return Format("%d custom fonts installed", count)
 	end
 
 	local function preprocessFontUrl(url)
@@ -1270,7 +1270,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		for segment in normalized:gmatch("[^/]+") do
 			segments[#segments + 1] = HttpService:UrlEncode(segment)
 		end
-		return table.concat(segments, "/")
+		return Concat(segments, "/")
 	end
 
 	local function parseGitHubFolderUrl(baseUrl, originalUrl)
@@ -1326,7 +1326,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			return false, "Invalid GitHub folder reference."
 		end
 		local branch = info.branch ~= "" and info.branch or "main"
-		local baseUrl = string.format("https://api.github.com/repos/%s/%s/contents", info.owner, info.repo)
+		local baseUrl = Format("https://api.github.com/repos/%s/%s/contents", info.owner, info.repo)
 		local encodedPath = encodeGitHubPath(relativePath or "")
 		if encodedPath ~= "" then
 			baseUrl = baseUrl.."/"..encodedPath
@@ -1366,7 +1366,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				branch = branch:gsub("%%2[Ff]", "/")
 				path = path:gsub("%%2[Ff]", "/")
 				if kind == "blob" or kind == "raw" then
-					return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+					return Format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
 				end
 			end
 		end
@@ -1623,7 +1623,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		local idx = 1
 		while FontEditor.customFontMap and FontEditor.customFontMap[id] do
 			idx += 1
-			id = string.format("%s_%d", clean, idx)
+			id = Format("%s_%d", clean, idx)
 		end
 		return id
 	end
@@ -2735,7 +2735,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		local buttons = {}
 		for _, entry in ipairs(FontEditor.customFonts) do
 			local label = (entry.displayName or entry.name or entry.id) or "Custom Font"
-			table.insert(buttons, {
+			Insert(buttons, {
 				Text = label,
 				Callback = function()
 					local key = entry.id and ("custom:"..entry.id) or nil
@@ -2747,11 +2747,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 						refreshFontInfo()
 					end
 					refreshFontUI()
-					DoNotif(string.format("Removed custom font \"%s\".", label), 2)
+					DoNotif(Format("Removed custom font \"%s\".", label), 2)
 				end,
 			})
 		end
-		table.insert(buttons, { Text = "Cancel", Callback = function() end })
+		Insert(buttons, { Text = "Cancel", Callback = function() end })
 		Popup({
 			Title = "Remove Custom Font",
 			Description = "Select a custom font to delete.",
@@ -2817,7 +2817,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				refreshFontUI()
 				clearInputs()
 				local count = result.count or #result.entries
-				DoNotif(string.format("Installed %d font%s from folder.", count, count == 1 and "" or "s"), 2)
+				DoNotif(Format("Installed %d font%s from folder.", count, count == 1 and "" or "s"), 2)
 			elseif result.id then
 				setOverrideFont("custom:"..result.id)
 				refreshFontInfo()
@@ -2845,7 +2845,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if ok then
 			refreshFontInfo()
 			refreshFontUI()
-			DoNotif(string.format("Installed %d NA font%s.", res, res == 1 and "" or "s"), 2)
+			DoNotif(Format("Installed %d NA font%s.", res, res == 1 and "" or "s"), 2)
 		else
 			DoNotif(res or "Unable to download NA fonts.", 3)
 		end
@@ -3085,7 +3085,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			if branch and path and (kind == "blob" or kind == "raw") then
 				branch = branch:gsub("%%2[Ff]", "/")
 				path = path:gsub("%%2[Ff]", "/")
-				return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+				return Format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
 			end
 		end
 		local rawDir = base:match("^https?://raw%.githubusercontent%.com/.+")
@@ -3492,7 +3492,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		local buttons = {}
 		for _, entry in ipairs(list) do
 			local label = entry.file or "Custom Icon"
-			table.insert(buttons, {
+			Insert(buttons, {
 				Text = label,
 				Callback = function()
 					removeCustomIconEntry(entry)
@@ -3500,7 +3500,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				end,
 			})
 		end
-		table.insert(buttons, { Text = "Cancel", Callback = function() end })
+		Insert(buttons, { Text = "Cancel", Callback = function() end })
 		Popup({
 			Title = "Remove Custom Icon",
 			Description = "Select a custom icon to delete.",
@@ -3575,7 +3575,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if ok then
 			NAgui.scanCustomIcons()
 			NAgui.refreshCustomIconUI()
-			DoNotif(string.format("Installed %d NA icon%s.", res, res == 1 and "" or "s"), 2)
+			DoNotif(Format("Installed %d NA icon%s.", res, res == 1 and "" or "s"), 2)
 		else
 			DoNotif(res or "Unable to download NA icons.", 3)
 		end
@@ -3646,7 +3646,7 @@ NAmanage.FormatAccountAge=function(days)
 	if years>0 then parts[#parts+1]=tostring(years).." yr" end
 	if months>0 then parts[#parts+1]=tostring(months).." mo" end
 	if finalDays>0 or #parts==0 then parts[#parts+1]=tostring(finalDays).." d" end
-	return table.concat(parts," ")
+	return Concat(parts," ")
 end
 
 NAgui.RegisterColoredStroke=function(stroke)
@@ -3798,7 +3798,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 
 	local playerCount = Players and Players.NumPlayers or 0
 	local maxPlayers = Players and Players.MaxPlayers or 0
-	snapshot.server.playerCount = string.format("%d/%d", playerCount, maxPlayers)
+	snapshot.server.playerCount = Format("%d/%d", playerCount, maxPlayers)
 
 	local isTesting = getgenv and getgenv().NATestingVer
 	local aprilMode = getgenv and getgenv().ActivateAprilMode
@@ -6445,7 +6445,7 @@ function NAmanage.clnList()
 	end
 
 	if #entries > 0 then
-		table.insert(entries, 1, {
+		Insert(entries, 1, {
 			label = "[Clear Entire Folder]",
 			path = NAfiles.NAFILEPATH,
 			kind = "folder",
@@ -14648,7 +14648,7 @@ function NAmanage.joinRolewatchName(...)
 	if #pieces == 0 then
 		return nil
 	end
-	local combined = table.concat(pieces, " "):match("^%s*(.-)%s*$")
+	local combined = Concat(pieces, " "):match("^%s*(.-)%s*$")
 	return combined ~= "" and combined or nil
 end
 
@@ -38028,7 +38028,7 @@ originalIO.colorValueToHex = function(color)
 		local r = math.clamp(math.floor(color.R * 255 + 0.5), 0, 255)
 		local g = math.clamp(math.floor(color.G * 255 + 0.5), 0, 255)
 		local b = math.clamp(math.floor(color.B * 255 + 0.5), 0, 255)
-		return string.format("#%02X%02X%02X", r, g, b)
+		return Format("#%02X%02X%02X", r, g, b)
 	elseif type(color) == "string" and color ~= "" then
 		return color
 	end
@@ -38089,10 +38089,10 @@ originalIO.resolveTabIconMarkup = function(iconOption, opts)
 	if stateBold then
 		glyph = "<b>"..glyph.."</b>"
 	end
-	local markup = string.format('<font family="%s">%s</font>', BUILDER_ICON_FONT_PATH, glyph)
+	local markup = Format('<font family="%s">%s</font>', BUILDER_ICON_FONT_PATH, glyph)
 	local colorHex = originalIO.colorValueToHex(tint or defaultColor)
 	if colorHex then
-		markup = string.format('<font color="%s">%s</font>', colorHex, markup)
+		markup = Format('<font color="%s">%s</font>', colorHex, markup)
 	end
 	local iconGap = " "
 	if type(gap) == "number" and gap > 0 then
@@ -38545,7 +38545,7 @@ function NAmanage.SetSearch.collectText(element)
 		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
 			local t = obj.Text
 			if type(t) == "string" and t ~= "" then
-				table.insert(parts, t)
+				Insert(parts, t)
 			end
 		end
 		for _, child in ipairs(obj:GetChildren()) do
@@ -38554,7 +38554,7 @@ function NAmanage.SetSearch.collectText(element)
 	end
 
 	walk(element)
-	return table.concat(parts, " ")
+	return Concat(parts, " ")
 end
 
 function NAmanage.SetSearch.reset()
@@ -39917,9 +39917,9 @@ end
 NAmanage.StartUIAutoSyncLoop = function()
 	if NAmanage._uiAutoSyncLoopStarted then return end
 	NAmanage._uiAutoSyncLoopStarted = true
-	task.spawn(function()
+	Spawn(function()
 		while true do
-			task.wait(0.25)
+			Wait(0.25)
 			local ok, err = pcall(NAmanage.RunUIAutoSync)
 			if not ok then
 				warn("[NA] UI auto-sync failed:", err)
@@ -44496,7 +44496,7 @@ if CoreGui then
 			return
 		end
 		PT.queueSet[o] = true
-		table.insert(PT.queue, o)
+		Insert(PT.queue, o)
 	end
 
 	local function processQueue()
@@ -44516,7 +44516,7 @@ if CoreGui then
 						end
 					end
 				end
-				task.wait()
+				Wait()
 			end
 			PT.processing = false
 		end)()
@@ -44542,7 +44542,7 @@ if CoreGui then
 				end
 				n += 1
 				if n % 50 == 0 then
-					task.wait()
+					Wait()
 				end
 			end
 			PT.applying = false
@@ -44557,7 +44557,7 @@ if CoreGui then
 				for i = 1, #desc do
 					enqueue(desc[i])
 					if i % 200 == 0 then
-						task.wait()
+						Wait()
 					end
 				end
 				processQueue()
@@ -44574,7 +44574,7 @@ if CoreGui then
 			for i = 1, #desc do
 				enqueue(desc[i])
 				if i % 100 == 0 then
-					task.wait()
+					Wait()
 				end
 			end
 			processQueue()
