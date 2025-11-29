@@ -338,6 +338,7 @@ local NAStuff = {
 	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
+	AutoChar = nil;
 	BlockedRemotes = {};
 	touchESPList = {};
 	proximityESPList = {};
@@ -14597,6 +14598,100 @@ groupRole = function(player)
 end
 NAmanage.IsStaff = IsStaff
 
+NAStuff.RolewatchData = NAStuff.RolewatchData or {Group = 0, Role = "", RoleLower = "", Leave = false}
+NAStuff.RolewatchConnection = NAStuff.RolewatchConnection or nil
+
+function NAmanage.joinRolewatchName(...)
+	local pieces = {}
+	for i = 1, select("#", ...) do
+		local part = select(i, ...)
+		if type(part) == "string" and part ~= "" then
+			pieces[#pieces + 1] = part
+		end
+	end
+	if #pieces == 0 then
+		return nil
+	end
+	local combined = table.concat(pieces, " "):match("^%s*(.-)%s*$")
+	return combined ~= "" and combined or nil
+end
+
+function NAmanage.handleRolewatchPlayer(player)
+	local data = NAStuff.RolewatchData
+	if not player or player == LocalPlayer or not data then
+		return
+	end
+	if data.Group == 0 or data.RoleLower == "" then
+		return
+	end
+	local okGroup, inGroup = pcall(player.IsInGroup, player, data.Group)
+	if not (okGroup and inGroup) then
+		return
+	end
+	local okRole, playerRole = pcall(player.GetRoleInGroup, player, data.Group)
+	if not (okRole and type(playerRole) == "string") then
+		return
+	end
+	if playerRole:lower() ~= data.RoleLower then
+		return
+	end
+	local message = Format("Player \"%s\" joined with role \"%s\".", player.Name, playerRole)
+	if data.Leave then
+		DoNotif(message, 4, "Rolewatch")
+		local exitSucceeded = false
+		if cmd and cmd.run then
+			local ok = pcall(function()
+				cmd.run({"exit"})
+			end)
+			exitSucceeded = ok
+		end
+		if not exitSucceeded and LocalPlayer then
+			LocalPlayer:Kick(Format("\n\nRolewatch\n%s\n", message))
+		end
+		return
+	end
+	DoNotif(message, 4, "Rolewatch")
+end
+
+function NAmanage.ensureRolewatchListener()
+	if NAStuff.RolewatchConnection then
+		return
+	end
+	NAStuff.RolewatchConnection = Players.PlayerAdded:Connect(NAmanage.handleRolewatchPlayer)
+end
+
+NAmanage.ensureRolewatchListener()
+
+cmd.add({"rolewatch"}, {"rolewatch <groupId> <role name>", "Notify if someone from a watched group joins with a specific role"}, function(groupIdArg, ...)
+	local groupId = tonumber(groupIdArg)
+	local roleName = NAmanage.joinRolewatchName(...)
+	if not groupId or not roleName then
+		DoNotif("Usage: rolewatch <groupId> <role name>", 4, "Rolewatch")
+		return
+	end
+	local data = NAStuff.RolewatchData
+	data.Group = groupId
+	data.Role = roleName
+	data.RoleLower = roleName:lower()
+	DoNotif(Format("Watching group %d for role \"%s\".", groupId, roleName), 3, "Rolewatch")
+end, true)
+
+cmd.add({"rolewatchstop"}, {"rolewatchstop", "Disable Rolewatch monitoring"}, function()
+	local data = NAStuff.RolewatchData
+	data.Group = 0
+	data.Role = ""
+	data.RoleLower = ""
+	data.Leave = false
+	DoNotif("Rolewatch disabled.", 3, "Rolewatch")
+end)
+
+cmd.add({"rolewatchleave", "unrolewatch"}, {"rolewatchleave (unrolewatch)", "Toggle leaving the server if the watched role joins"}, function()
+	local data = NAStuff.RolewatchData
+	data.Leave = not data.Leave
+	local stateText = data.Leave and "Leave enabled. You will leave if the watched role joins." or "Leave disabled."
+	DoNotif(stateText, 3, "Rolewatch")
+end)
+
 cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joins the server"}, function()
 	NAlib.disconnect("staffNotifier")
 
@@ -23699,7 +23794,12 @@ NAmanage._waitCharReady=function(timeout)
 			local root=getRoot(char) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
 			local head=getHead(char) or char:FindFirstChild("Head")
 			if hum and root and head then
-				if plr and plr.CanLoadCharacterAppearance and not plr:HasAppearanceLoaded() then plr.CharacterAppearanceLoaded:Wait() end
+				if plr and plr.CanLoadCharacterAppearance then
+					if not plr:HasAppearanceLoaded() then
+						plr.CharacterAppearanceLoaded:Wait()
+					end
+					Wait(0.15)
+				end
 				return char,hum,root,head
 			end
 		end
@@ -23712,35 +23812,116 @@ NAmanage._applyFixedDescription=function(desc,uidFallback)
 	local plr=Players.LocalPlayer
 	local char,hum=NAmanage._waitCharReady(5)
 	if not char or not hum then return end
-	if not NAStuff.originalDesc then local okA,ap=pcall(function()return hum:GetAppliedDescription() end);if okA and ap then NAStuff.originalDesc=ap:Clone() end end
-	for _,inst in ipairs(char:GetChildren()) do
-		if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") or inst:IsA("BodyColors") then inst:Destroy() end
+	if not NAStuff.originalDesc then
+		local okA,ap=pcall(function()return hum:GetAppliedDescription() end)
+		if okA and ap then
+			NAStuff.originalDesc=ap:Clone()
+		end
 	end
-	local hd=getHead(char)
-	if hd then for _,d in ipairs(hd:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then d:Destroy() end end end
-	local success=false
-	for i=1,3 do
-		local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait(0.05*i);hum:ApplyDescriptionClientServer(desc);Wait(0.1*i)
-		local hasClothes=(char:FindFirstChildOfClass("Shirt") or char:FindFirstChildOfClass("Pants") or char:FindFirstChildOfClass("ShirtGraphic"))~=nil
-		local headNow=getHead(char);local hasFace=false
-		if headNow then for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end end
-		if hasClothes and hasFace then success=true break end
-	end
-	local headNow=getHead(char)
-	if headNow then
-		local hasFace=false
-		for _,d in ipairs(headNow:GetChildren()) do if d:IsA("Decal") and Lower(d.Name)=="face" then hasFace=true break end end
-		local faceId=0 pcall(function() faceId=desc.Face or 0 end)
-		if not hasFace then
-			if faceId and faceId>0 then local dec=InstanceNew("Decal");dec.Name="face";dec.Texture="rbxassetid://"..tostring(faceId);dec.Face=Enum.NormalId.Front;dec.Parent=headNow
-			elseif uidFallback then local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA2 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("Decal") and Lower(v.Name)=="face" then v:Clone().Parent=headNow;break end end end
+
+	local function clearAppearance()
+		for _,inst in ipairs(char:GetChildren()) do
+			if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") or inst:IsA("BodyColors") then
+				inst:Destroy()
+			end
+		end
+		local hd=getHead(char)
+		if hd then
+			for _,d in ipairs(hd:GetChildren()) do
+				if d:IsA("Decal") and Lower(d.Name)=="face" then
+					d:Destroy()
+				end
 			end
 		end
 	end
-	if not char:FindFirstChildOfClass("Shirt") then local sid=desc.Shirt;if sid and sid>0 then local s=InstanceNew("Shirt");s.ShirtTemplate="rbxassetid://"..sid;s.Parent=char end end
-	if not char:FindFirstChildOfClass("Pants") then local pid=desc.Pants;if pid and pid>0 then local p=InstanceNew("Pants");p.PantsTemplate="rbxassetid://"..pid;p.Parent=char end end
-	if not char:FindFirstChildOfClass("ShirtGraphic") then local gid=desc.GraphicTShirt or desc.TShirt;if gid and gid>0 then local g=InstanceNew("ShirtGraphic");g.Graphic="rbxassetid://"..gid;g.Parent=char end end
-	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback);if okA3 and ap then for _,v in ipairs(ap:GetDescendants()) do if v:IsA("CharacterMesh") then v:Clone().Parent=char end end end end
+
+	local function ensureFace()
+		local headNow=getHead(char)
+		if not headNow then return end
+		local hasFace=false
+		for _,d in ipairs(headNow:GetChildren()) do
+			if d:IsA("Decal") and Lower(d.Name)=="face" then
+				hasFace=true
+				break
+			end
+		end
+		if hasFace then return end
+		local faceId=0
+		pcall(function() faceId=desc.Face or 0 end)
+		if faceId and faceId>0 then
+			local dec=InstanceNew("Decal")
+			dec.Name="face"
+			dec.Texture="rbxassetid://"..tostring(faceId)
+			dec.Face=Enum.NormalId.Front
+			dec.Parent=headNow
+		elseif uidFallback then
+			local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
+			if okA2 and ap then
+				for _,v in ipairs(ap:GetDescendants()) do
+					if v:IsA("Decal") and Lower(v.Name)=="face" then
+						v:Clone().Parent=headNow
+						break
+					end
+				end
+			end
+		end
+	end
+
+	local function ensureClothes()
+		local sid=desc.Shirt
+		local pid=desc.Pants
+		local gid=desc.GraphicTShirt or desc.TShirt
+		if not char:FindFirstChildOfClass("Shirt") and sid and sid>0 then
+			local s=InstanceNew("Shirt")
+			s.ShirtTemplate="rbxassetid://"..sid
+			s.Parent=char
+		end
+		if not char:FindFirstChildOfClass("Pants") and pid and pid>0 then
+			local p=InstanceNew("Pants")
+			p.PantsTemplate="rbxassetid://"..pid
+			p.Parent=char
+		end
+		if not char:FindFirstChildOfClass("ShirtGraphic") and gid and gid>0 then
+			local g=InstanceNew("ShirtGraphic")
+			g.Graphic="rbxassetid://"..gid
+			g.Parent=char
+		end
+	end
+
+	clearAppearance()
+	hum:ApplyDescriptionClientServer(desc)
+	Wait(0.25)
+	ensureFace()
+	ensureClothes()
+if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
+	local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
+	if okA3 and ap then
+		for _,v in ipairs(ap:GetDescendants()) do
+			if v:IsA("CharacterMesh") then
+				v:Clone().Parent=char
+			end
+		end
+	end
+end
+end
+
+NAmanage._resolveHumanoidDescription=function(target)
+	if not target or target=="" then
+		return nil
+	end
+	local userId=tonumber(target)
+	if not userId then
+		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,target)
+		if not ok or not id then
+			return nil
+		end
+		userId=id
+	end
+	local okDesc,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
+	if not okDesc or not desc then
+		return nil
+	end
+	return desc,userId
 end
 
 cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},function(...)
@@ -23799,35 +23980,50 @@ cmd.add({"unnilchar","nonilchar"},{"unnilchar (nonilchar)","Move your character 
 end)
 
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
-	if not arg then return end
-	local userId=tonumber(arg)
-	if not userId then local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg);if not ok then return end;userId=id end
-	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
-	if not okD or not desc then return end
-	SpawnCall(function() NAmanage._applyFixedDescription(desc:Clone(),userId) end)
+	local desc,userId=NAmanage._resolveHumanoidDescription(arg)
+	if not desc or not userId then
+		DoNotif("Unable to load that avatar.",3,"Char")
+		return
+	end
+	SpawnCall(function()
+		NAmanage._applyFixedDescription(desc:Clone(),userId)
+	end)
 end,true)
 
 cmd.add({"unchar"},{"unchar","revert to your character"},function()
-	local plr=Players.LocalPlayer;if not plr then return end
-	local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,plr.UserId);if not okD or not desc then return end
-	SpawnCall(function() NAmanage._applyFixedDescription(desc:Clone(),plr.UserId) end)
+	local plr=Players.LocalPlayer
+	if not plr then return end
+	local desc=NAmanage._resolveHumanoidDescription(tostring(plr.UserId))
+	if not desc then return end
+	SpawnCall(function()
+		NAmanage._applyFixedDescription(desc:Clone(),plr.UserId)
+	end)
 end)
 
 cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
-	if not target or target=="" then return end
+	local desc,userId=NAmanage._resolveHumanoidDescription(target)
+	if not desc or not userId then
+		DoNotif("Unable to load that avatar.",3,"Autochar")
+		return
+	end
+	NAStuff.AutoChar={UserId=userId,Description=desc}
 	NAlib.disconnect("autochar")
 	NAlib.connect("autochar",Players.LocalPlayer.CharacterAdded:Connect(function()
-		local id=tonumber(target);if not id then local ok,x=pcall(Players.GetUserIdFromNameAsync,Players,target);if not ok then return end;id=x end
 		SpawnCall(function()
-			local okD,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,id)
-			if okD and desc then NAmanage._applyFixedDescription(desc:Clone(),id) end
+			Wait(0.3)
+			if NAStuff.AutoChar and NAStuff.AutoChar.Description and NAStuff.AutoChar.UserId then
+				NAmanage._applyFixedDescription(NAStuff.AutoChar.Description:Clone(),NAStuff.AutoChar.UserId)
+			end
 		end)
 	end))
-	cmd.run({"char",target})
+	SpawnCall(function()
+		NAmanage._applyFixedDescription(desc:Clone(),userId)
+	end)
 end,true)
 
 cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
 	NAlib.disconnect("autochar")
+	NAStuff.AutoChar=nil
 end)
 
 cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a selected outfit on respawn"},function(arg)
@@ -26013,17 +26209,6 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 end)
 
-cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
-	local trg = getPlr(plr)
-
-	for _, plr in next, trg do
-		local Root = getRoot(plr.Character)
-		if Root then
-			SafeGetService("SoundService"):SetListener(Enum.ListenerType.ObjectPosition, Root)
-		end
-	end
-end,true)
-
 NAmanage.vcAll=function(state)
 	local svc=SafeGetService("VoiceChatInternal")
 	if not svc or type(svc.SubscribePauseAll) ~= "function" then
@@ -26044,6 +26229,40 @@ NAmanage.vcAll=function(state)
 	DoNotif("Voice chats "..(state and "muted" or "unmuted")..".", 2)
 end
 
+NAmanage.vcSetPlayers=function(target,state)
+	local svc=SafeGetService("VoiceChatInternal")
+	if not svc or type(svc.SubscribePause) ~= "function" then
+		DoNotif("Voice chat mute/unmute is not supported in this session.", 3)
+		return
+	end
+
+	local localPlayer = Players and Players.LocalPlayer
+	local processedNames = {}
+	local attempted = false
+	local verb = state and "mute" or "unmute"
+
+	for _, plr in next, target or {} do
+		if typeof(plr) == "Instance" and plr:IsA("Player") and plr ~= localPlayer then
+			attempted = true
+			local ok, err = pcall(function()
+				svc:SubscribePause(plr.UserId, state)
+			end)
+
+			if ok then
+				Insert(processedNames, nameChecker(plr))
+			else
+				DoNotif(("Failed to %s %s: %s"):format(verb, nameChecker(plr), tostring(err or "unknown error")), 3)
+			end
+		end
+	end
+
+	if #processedNames > 0 then
+		DoNotif(("%s voice chat for %s."):format(state and "Muted" or "Unmuted", Concat(processedNames, ", ")), 2)
+	elseif not attempted then
+		DoNotif("No valid players to "..verb..".", 3)
+	end
+end
+
 cmd.add({"muteallvcs"}, {"muteallvcs", "Mute every voice chat"}, function()
 	NAmanage.vcAll(true)
 end)
@@ -26051,6 +26270,27 @@ end)
 cmd.add({"unmuteallvcs"}, {"unmuteallvcs", "Unmute every voice chat"}, function()
 	NAmanage.vcAll(false)
 end)
+
+cmd.add({"mutevc"}, {"mutevc <player>", "Mute the specified player's voice chat"}, function(...)
+	local targets = getPlr((...))
+	NAmanage.vcSetPlayers(targets, true)
+end)
+
+cmd.add({"unmutevc"}, {"unmutevc <player>", "Unmute the specified player's voice chat"}, function(...)
+	local targets = getPlr((...))
+	NAmanage.vcSetPlayers(targets, false)
+end)
+
+cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
+	local trg = getPlr(plr)
+
+	for _, plr in next, trg do
+		local Root = getRoot(plr.Character)
+		if Root then
+			SafeGetService("SoundService"):SetListener(Enum.ListenerType.ObjectPosition, Root)
+		end
+	end
+end,true)
 
 cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
 	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
