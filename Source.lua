@@ -8131,7 +8131,7 @@ end
 
 function MouseButtonFix(button,clickCallback)
 	local isHolding = false
-	local holdThreshold = 0.5
+	local holdThreshold = IsOnMobile and 0.45 or 1.25
 	local mouseDownTime = 0
 
 	button.MouseButton1Down:Connect(function()
