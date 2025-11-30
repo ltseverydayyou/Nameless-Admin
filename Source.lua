@@ -3054,6 +3054,41 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		return true
 	end
 
+	local function getDefaultNAIconAsset()
+		local existing = NAStuff.CustomIcon.defaultImage
+		if typeof(existing) == "string" and existing ~= "" then
+			return existing
+		end
+		if type(getcustomasset) == "function"
+			and NAfiles and NAfiles.NAASSETSFILEPATH
+			and NAImageAssets and typeof(NAImageAssets.Icon) == "string" and NAImageAssets.Icon ~= ""
+		then
+			local ok, asset = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon)
+			if ok and typeof(asset) == "string" and asset ~= "" then
+				return asset
+			end
+		end
+		return ""
+	end
+
+	local function resetCustomIconToDefault()
+		local defaultImage = getDefaultNAIconAsset()
+		if defaultImage ~= "" then
+			NAStuff.CustomIcon.defaultImage = defaultImage
+		end
+		NAStuff.CustomIcon.localPath = nil
+		NAStuff.CustomIcon.assetId = nil
+		NAStuff.CustomIcon.index = 0
+		NAStuff.CustomIcon.enabled = false
+		if type(NAgui._applyIconState) == "function" then
+			NAgui._applyIconState()
+		end
+		saveIcfg()
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", false, { force = true, fire = false })
+		end
+	end
+
 	NAgui.iconPreUrl = function(u)
 		if typeof(u) ~= "string" then
 			return nil
@@ -3115,8 +3150,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			end
 		end
 		NAStuff.CustomIcon.entries = list
+		local hasLocalPath = typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath ~= ""
 		local idx = 0
-		if typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath ~= "" then
+		if hasLocalPath then
 			local cur = getFName(NAStuff.CustomIcon.localPath)
 			if cur then
 				for i, e in ipairs(list) do
@@ -3126,6 +3162,10 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 					end
 				end
 			end
+		end
+		if #list == 0 and hasLocalPath then
+			resetCustomIconToDefault()
+			return
 		end
 		if idx == 0 and #list > 0 then
 			idx = 1
@@ -8089,52 +8129,28 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(btn, cb)
-	local tap = 0.45
-	local thMouse, thTouch = 18, 35
-	local t0 = 0
-	local p0 = nil
-	local moved = false
-	local at = nil
+function MouseButtonFix(button,clickCallback)
+	local isHolding = false
+	local holdThreshold = 0.5
+	local mouseDownTime = 0
 
-	local function v2(p)
-		local t = typeof(p)
-		if t == "Vector2" then return p end
-		if t == "Vector3" then return Vector2.new(p.X, p.Y) end
-	end
+	button.MouseButton1Down:Connect(function()
+		isHolding = false
+		mouseDownTime = tick()
+	end)
 
-	NAlib.connect(btn.Name.."_mbd", btn.MouseButton1Down:Connect(function(x, y)
-		t0 = tick()
-		p0 = (x and y) and Vector2.new(x, y) or UserInputService:GetMouseLocation()
-		moved = false
-		at = UserInputService.TouchEnabled and Enum.UserInputType.Touch or Enum.UserInputType.MouseButton1
-	end))
-
-	NAlib.connect(btn.Name.."_chg", btn.InputChanged:Connect(function(input)
-		if t0 == 0 then return end
-		local pos
-		if input.UserInputType == Enum.UserInputType.Touch then
-			pos = v2(input.Position)
-		elseif input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			pos = UserInputService:GetMouseLocation()
-		else
-			return
+	button.MouseButton1Up:Connect(function()
+		local holdDuration = tick() - mouseDownTime
+		if holdDuration < holdThreshold and not isHolding then
+			clickCallback()
 		end
-		if not p0 or not pos then return end
-		local th = (at == Enum.UserInputType.Touch) and thTouch or thMouse
-		if (pos - p0).Magnitude > th then moved = true end
-	end))
+	end)
 
-	NAlib.connect(btn.Name.."_leave", btn.MouseLeave:Connect(function()
-		if t0 ~= 0 then moved = true end
-	end))
-
-	NAlib.connect(btn.Name.."_click", btn.MouseButton1Click:Connect(function()
-		if t0 == 0 then return end
-		local ok = (tick() - t0) <= tap and not moved
-		t0, p0, moved, at = 0, nil, false, nil
-		if ok then pcall(cb) end
-	end))
+	UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+			isHolding = true
+		end
+	end)
 end
 
 
