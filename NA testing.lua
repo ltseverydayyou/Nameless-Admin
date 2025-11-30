@@ -80,7 +80,7 @@ local NA_SRV = setmetatable({}, {
 	end
 })
 
-function SafeGetService(name, timeoutSeconds)
+function SafeGetService(name)
 	return NA_SRV[name]
 end
 
@@ -8151,7 +8151,7 @@ end
 
 function MouseButtonFix(button,clickCallback)
 	local isHolding = false
-	local holdThreshold = IsOnMobile and 0.45 or 1.25
+	local holdThreshold = IsOnMobile and 0.45 or 0.75
 	local mouseDownTime = 0
 
 	button.MouseButton1Down:Connect(function()
