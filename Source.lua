@@ -2215,7 +2215,6 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				if currentFace ~= FontEditor.currentFont then
 					pcall(function()
 						target.FontFace = FontEditor.currentFont
-						target.Font = Enum.Font.Unknown
 					end)
 				end
 			end
@@ -2385,7 +2384,6 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			if storeInfo and storeInfo.FontFaceSupported then
 				pcall(function()
 					o.FontFace = FontEditor.currentFont
-					o.Font = Enum.Font.Unknown
 				end)
 			end
 		else
