@@ -5688,6 +5688,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		deltaPrompted = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		bloxtrapRPC = {
 			default = false;
 			coerce = function(value)
@@ -6000,6 +6006,83 @@ NAmanage.NASettingsSet=function(key, value)
 	NAmanage.NASettingsSave()
 	return settings[key]
 end
+
+NAStuff.deltaPrompted = NAmanage.NASettingsGet("deltaPrompted") == true
+NAStuff.deltaScriptSource = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DeltaCustomizationModule.luau\"))();"
+NAStuff.deltaExecutor = typeof(NAStuff.deltaExecutor) == "boolean" and NAStuff.deltaExecutor or nil
+
+function NAmanage.isDeltaExecutor(forceRefresh)
+	if not forceRefresh and type(NAStuff.deltaExecutor) == "boolean" then
+		return NAStuff.deltaExecutor
+	end
+	if type(identifyexecutor) ~= "function" then
+		NAStuff.deltaExecutor = false
+		return false
+	end
+	local execName = nil
+	local ok, result = pcall(identifyexecutor)
+	if ok then
+		execName = result
+	end
+	if execName ~= nil and type(execName) ~= "string" then
+		execName = tostring(execName)
+	end
+	local isDelta = type(execName) == "string" and execName:lower() == "delta" or false
+	NAStuff.deltaExecutor = isDelta
+	return isDelta
+end
+
+function NAmanage.deltaRun()
+	local ok, err = pcall(function()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DeltaCustomizationModule.luau"))()
+	end)
+	if ok then
+		DoNotif("Loaded the Delta customization helper.", 3)
+	else
+		DoNotif("Failed to load the Delta customization helper: "..tostring(err), 5)
+	end
+end
+
+function NAmanage.deltaPopup()
+	if NAStuff.deltaPrompted then
+		return
+	end
+	if not NAmanage.isDeltaExecutor(true) then
+		return
+	end
+	NAStuff.deltaPrompted = true
+	pcall(NAmanage.NASettingsSet, "deltaPrompted", true)
+	local popupTitle = (adminName and (adminName.." Notice")) or "Nameless Admin"
+	local popupDescription = "Nameless Admin detected that you are using the Delta executor. This is a one-time reminder, so run it now to test Delta Customization or copy the script if you want to keep it permanently."
+	if type(Popup) == "function" then
+		Popup({
+			Title = popupTitle,
+			Description = popupDescription,
+			Duration = 0,
+			Buttons = {
+				{
+					Text = "Run Script",
+					Callback = NAmanage.deltaRun,
+				},
+				{
+					Text = "Copy Script",
+					Callback = function()
+						if setclipboard then
+							pcall(setclipboard, NAStuff.deltaScriptSource)
+							DoNotif("Delta customization script copied to clipboard.", 3)
+						else
+							DoNotif(NAStuff.deltaScriptSource, 8)
+						end
+					end,
+				},
+			},
+		})
+	else
+		DoNotif(popupDescription, 5)
+	end
+end
+
+NAmanage.deltaPopup()
 
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
@@ -44230,6 +44313,35 @@ end)
 NAmanage.RegisterToggleAutoSync("Auto Skip Loading Screen", function()
 	return NAmanage.getAutoSkipPreference() == true
 end)
+
+if type(NAmanage.isDeltaExecutor) == "function" and NAmanage.isDeltaExecutor(true) then
+	NAgui.addToggle("Delta Reminder", NAStuff.deltaPrompted ~= true, function(state)
+		if state then
+			if NAStuff.deltaPrompted ~= true then
+				DoNotif("Delta customization reminder is already enabled. The popup will appear soon.", 3)
+				Defer(function()
+					Wait(0.1)
+					NAmanage.deltaPopup()
+				end)
+				return
+			end
+			NAStuff.deltaPrompted = false
+			pcall(NAmanage.NASettingsSet, "deltaPrompted", false)
+			DoNotif("Delta customization reminder re-enabled. It will show again shortly and this toggle will switch off afterwards.", 4)
+			Defer(function()
+				Wait(0.1)
+				NAmanage.deltaPopup()
+			end)
+		else
+			NAStuff.deltaPrompted = true
+			pcall(NAmanage.NASettingsSet, "deltaPrompted", true)
+			DoNotif("Delta customization reminder disabled.", 3)
+		end
+	end)
+	NAmanage.RegisterToggleAutoSync("Delta Reminder", function()
+		return NAStuff.deltaPrompted ~= true
+	end)
+end
 
 NAgui.addToggle("Loading Mode (Tray)", NALoadingStartMinimized, function(v)
 	NALoadingStartMinimized = v and true or false
