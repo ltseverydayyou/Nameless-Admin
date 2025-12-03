@@ -6053,7 +6053,7 @@ function NAmanage.deltaPopup()
 	NAStuff.deltaPrompted = true
 	pcall(NAmanage.NASettingsSet, "deltaPrompted", true)
 	local popupTitle = (adminName and (adminName.." Notice")) or "Nameless Admin"
-	local popupDescription = "Nameless Admin detected that you are using the Delta executor. This is a one-time reminder, so run it now to test Delta Customization or copy the script if you want to keep it permanently."
+	local popupDescription = "Nameless Admin detected that you are using the Delta executor. This is a one-time reminder, so run it now to test Delta Customization or copy the script if you want to keep the script permanently."
 	if type(Popup) == "function" then
 		Popup({
 			Title = popupTitle,
