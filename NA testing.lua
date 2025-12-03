@@ -35969,6 +35969,9 @@ do
 		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
 		FOVhandler.mem.o.Value = t
 		FOVhandler.loop = true
+		if not NAlib.isConnected("fov_refresh") then
+			FOVhandler.cam = nil
+		end
 		NAlib.disconnect("fov_loop_hold")
 		NAlib.connect("fov_loop_hold", RunService.RenderStepped:Connect(function()
 			local p = NAmanage.guiCHECKINGAHHHHH()
