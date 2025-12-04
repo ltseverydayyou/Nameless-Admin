@@ -4999,8 +4999,12 @@ NAAssetsLoading.normalizeStatusError = function(text)
 	return err
 end
 
-NAAssetsLoading.runLoadingCheck = function(statusLabel, attemptFn, onSuccess)
+NAAssetsLoading.runLoadingCheck = function(statusLabel, attemptFn, onSuccess, opts)
 	local attempt = 0
+	local maxAttempts = math.huge
+	if type(opts) == "table" and type(opts.maxAttempts) == "number" and opts.maxAttempts >= 1 then
+		maxAttempts = math.floor(opts.maxAttempts)
+	end
 	while true do
 		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
 			return nil
@@ -5020,6 +5024,12 @@ NAAssetsLoading.runLoadingCheck = function(statusLabel, attemptFn, onSuccess)
 		if NAAssetsLoading.setStatus then
 			local errText = NAAssetsLoading.normalizeStatusError(errMsg or result) or tostring(errMsg or result)
 			NAAssetsLoading.setStatus(Format("%s error #%d: %s", statusLabel, attempt, errText))
+		end
+		if maxAttempts ~= math.huge and attempt >= maxAttempts then
+			if NAAssetsLoading.setStatus then
+				NAAssetsLoading.setStatus(Format("%s skipped after %d attempts", statusLabel, attempt))
+			end
+			return nil
 		end
 		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
 			return nil
@@ -5195,7 +5205,7 @@ end, function(body)
 			end
 		end
 	end
-end)
+end, {maxAttempts=10})
 NAAssetsLoading.setPercent(0.34)
 
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
