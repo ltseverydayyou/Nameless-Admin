@@ -21307,35 +21307,127 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 	local targetPlayer = nil
 	local toldNotif = false
 	local activationTime = nil
+	local backshotState = {}
 
 	LocalPlayer.CharacterAdded:Connect(function(char)
 		Wait(1)
 		root = getRoot(char)
 	end)
 
-	NAlib.connect("antibang_loop", RunService.Stepped:Connect(function()
+	local function startAntibang(player)
+		if not player then
+			return
+		end
+
+		inVoid = true
+		activationTime = tick()
+		targetPlayer = player
+		workspace.FallenPartsDestroyHeight = 0/1/0
+
+		if platformPart then
+			platformPart:Destroy()
+		end
+
+		platformPart = InstanceNew("Part")
+		platformPart.Size = Vector3.new(9999, 1, 9999)
+		platformPart.Anchored = true
+		platformPart.CanCollide = true
+		platformPart.Transparency = 1
+		platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
+		platformPart.Parent = workspace
+		root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
+
+		if not toldNotif then
+			toldNotif = true
+			DebugNotif("Antibang activated | Target: "..nameChecker(targetPlayer), 2)
+		end
+	end
+
+	local function detectBackshot(player, back, deltaTime)
+		local char = player.Character
+		local ehrp = char and getRoot(char)
+		local ehum = char and getHum(char)
+		local data = backshotState[player]
+		local ok = false
+		local triggered = false
+		local dt = deltaTime or 0
+
+		if ehrp and ehum and root then
+			local dist = (ehrp.Position - root.Position).Magnitude
+			if dist < 10 then
+				local dirToThem = (ehrp.Position - root.Position).Unit
+				local backDot = back:Dot(dirToThem)
+				if backDot > 0.5 then
+					local toMe = (root.Position - ehrp.Position).Unit
+					local faceDot = ehrp.CFrame.LookVector:Dot(toMe)
+					if faceDot > 0.4 then
+						local mv = ehum.MoveDirection
+						if mv.Magnitude > 0.1 then
+							ok = true
+							local mvDot = mv.Unit:Dot(back)
+							data = data or {lastSign = 0, flips = 0, t = 0}
+							backshotState[player] = data
+
+							local sign = 0
+							if mvDot > 0.3 then
+								sign = 1
+							elseif mvDot < -0.3 then
+								sign = -1
+							end
+
+							if sign ~= 0 and sign ~= data.lastSign then
+								data.flips += 1
+								data.lastSign = sign
+							end
+
+							data.t += dt
+							if data.t >= 1 then
+								if data.flips >= 3 then
+									triggered = true
+								end
+								data.flips = 0
+								data.t = 0
+							end
+						end
+					end
+				end
+			end
+		end
+
+		if not ok and data then
+			data.lastSign = 0
+			data.flips = 0
+			data.t = 0
+		end
+
+		return triggered
+	end
+
+	NAlib.connect("antibang_loop", RunService.Stepped:Connect(function(_, dt)
+		if not root then
+			return
+		end
+
+		local back = -root.CFrame.LookVector
+
 		for _, p in pairs(SafeGetService("Players"):GetPlayers()) do
-			if p ~= LocalPlayer and p.Character and getRoot(p.Character) then
-				if (getRoot(p.Character).Position - root.Position).Magnitude <= 10 then
-					local tracks = getPlrHum(p):GetPlayingAnimationTracks()
-					for _, t in pairs(tracks) do
-						if Discover(anims, t.Animation.AnimationId) then
-							if not inVoid then
-								inVoid = true
-								activationTime = tick()
-								targetPlayer = p
-								workspace.FallenPartsDestroyHeight = 0/1/0
-								platformPart = InstanceNew("Part")
-								platformPart.Size = Vector3.new(9999, 1, 9999)
-								platformPart.Anchored = true
-								platformPart.CanCollide = true
-								platformPart.Transparency = 1
-								platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
-								platformPart.Parent = workspace
-								root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
-								if not toldNotif then
-									toldNotif = true
-									DebugNotif("Antibang activated | Target: "..nameChecker(targetPlayer), 2)
+			if p ~= LocalPlayer then
+				local char = p.Character
+				local targetRoot = char and getRoot(char)
+				if targetRoot then
+					if not inVoid and detectBackshot(p, back, dt) then
+						startAntibang(p)
+					end
+
+					if (targetRoot.Position - root.Position).Magnitude <= 10 then
+						local humanoid = getPlrHum(p)
+						if humanoid then
+							local tracks = humanoid:GetPlayingAnimationTracks()
+							for _, t in pairs(tracks) do
+								if Discover(anims, t.Animation.AnimationId) then
+									if not inVoid then
+										startAntibang(p)
+									end
 								end
 							end
 						end
@@ -38928,6 +39020,15 @@ SpawnCall(function()
 	end
 end)
 
+NAmanage.stripChar = function(text)
+	if not text then
+		return ""
+	end
+	local cleaned = text:gsub("\t", "")
+	cleaned = cleaned:gsub("^%s*(.-)%s*$", "%1")
+	return cleaned
+end
+
 local predictionInput = NAUIMANAGER.cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
@@ -41056,26 +41157,28 @@ NAmanage.computeScore=function(entry,term,len)
 	end
 end
 
-NAmanage.performSearch=function(term)
-	for _,f in ipairs(prevVisible) do f.Visible = false end
+NAmanage.performSearch = function(term)
+	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
-	local function revealFrame(frame,index)
+
+	local function revealFrame(frame, index)
 		if not frame then return end
-		Insert(prevVisible,frame)
-		frame.Visible=true
-		local w=math.sqrt(index)*125
-		local y=(index-1)*28
-		local pos=UDim2.new(0.5,w,0,y)
-		local size=UDim2.new(0.5,w,0,25)
+		Insert(prevVisible, frame)
+		frame.Visible = true
+		local w = math.sqrt(index) * 125
+		local y = (index - 1) * 28
+		local pos = UDim2.new(0.5, w, 0, y)
+		local size = UDim2.new(0.5, w, 0, 25)
 		if canTween then
-			NAgui.tween(frame,"Quint","Out",0.2,{Size=size,Position=pos})
+			NAgui.tween(frame, "Quint", "Out", 0.2, {Size = size, Position = pos})
 		else
-			frame.Size=size
-			frame.Position=pos
+			frame.Size = size
+			frame.Position = pos
 		end
 	end
-	if term == "" or Match(term,"^%s*$") then
+
+	if term == "" or Match(term, "^%s*$") then
 		predictionInput.Text = ""
 		if shouldShowDefaultAutofill then
 			shouldShowDefaultAutofill = false
@@ -41094,34 +41197,40 @@ NAmanage.performSearch=function(term)
 				end
 			end
 		else
-			for i=1,math.min(5,#searchIndex) do
-				local entry=searchIndex[i]
+			for i = 1, math.min(5, #searchIndex) do
+				local entry = searchIndex[i]
 				if entry then
-					revealFrame(entry.frame,i)
+					revealFrame(entry.frame, i)
 				end
 			end
 		end
 		return
 	end
-	if Match(term,"%s") then
+
+	if Match(term, "%s") then
 		predictionInput.Text = ""
 		return
 	end
+
 	local len = #term
-	for _,entry in ipairs(searchIndex) do
-		local sc,txt = NAmanage.computeScore(entry,term,len)
+	for _, entry in ipairs(searchIndex) do
+		local sc, txt = NAmanage.computeScore(entry, term, len)
 		if sc then
-			Insert(results,{frame=entry.frame,score=sc,text=txt,name=entry.name})
+			Insert(results, {frame = entry.frame, score = sc, text = txt, name = entry.name})
 		end
 	end
-	table.sort(results,function(a,b)
-		if a.score==b.score then return a.name<b.name end
-		return a.score<b.score
+
+	table.sort(results, function(a, b)
+		if a.score == b.score then return a.name < b.name end
+		return a.score < b.score
 	end)
-	predictionInput.Text = (results[1] and results[1].text) or ""
-	for i=1,math.min(5,#results)do
-		local r=results[i]
-		revealFrame(r.frame,i)
+
+	local topText = (results[1] and results[1].text) or ""
+	predictionInput.Text = NAmanage.stripChar(topText)
+
+	for i = 1, math.min(5, #results) do
+		local r = results[i]
+		revealFrame(r.frame, i)
 	end
 end
 
@@ -41213,6 +41322,17 @@ NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 end)
 
 NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
+	if not NAUIMANAGER.cmdInput then
+		return
+	end
+
+	local box = NAUIMANAGER.cmdInput
+	local t = box.Text
+	local c = NAmanage.stripChar(t)
+	if c ~= t then
+		box.Text = c
+		box.CursorPosition = #c + 1
+	end
 	NAgui.searchCommands()
 end)
 
@@ -41223,12 +41343,15 @@ end
 UserInputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Tab
 		and UserInputService:GetFocusedTextBox() == NAUIMANAGER.cmdInput then
+
 		local predictionText = predictionInput and predictionInput.Text or ""
 		if predictionText ~= "" then
-			Wait()
-			NAUIMANAGER.cmdInput.Text = predictionText
-			NAUIMANAGER.cmdInput.CursorPosition = #predictionText + 1
-			predictionInput.Text = ""
+			task.defer(function()
+				local sanitizedText = NAmanage.stripChar(predictionText)
+				NAUIMANAGER.cmdInput.Text = sanitizedText
+				NAUIMANAGER.cmdInput.CursorPosition = #sanitizedText + 1
+				predictionInput.Text = ""
+			end)
 		end
 	end
 end)
