@@ -3857,6 +3857,8 @@ NATOPBARVISIBLE = true
 NATopbarKeepPosition = false
 NATopbarPositionRatio = 0
 NALoadingStartMinimized = false
+NASideSwipeSide = "left"
+NASideSwipeEnabled = false
 
 do
 	if FileSupport then
@@ -5871,6 +5873,21 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		sideSwipeSide = {
+			default = "left";
+			coerce = function(value)
+				if value == "right" then
+					return "right"
+				end
+				return "left"
+			end;
+		};
+		sideSwipeEnabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
@@ -6675,6 +6692,8 @@ if FileSupport then
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
 	NATopbarKeepPosition = NAmanage.NASettingsGet("topbarKeepPosition")
 	NATopbarPositionRatio = NAmanage.NASettingsGet("topbarPositionRatio") or 0
+	NASideSwipeSide = NAmanage.NASettingsGet("sideSwipeSide") or NASideSwipeSide
+	NASideSwipeEnabled = NAmanage.NASettingsGet("sideSwipeEnabled") or NASideSwipeEnabled
 	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
 	NAAssetsLoading.applyMinimizedPreference()
 
@@ -7165,6 +7184,7 @@ local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
+local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
@@ -24143,16 +24163,16 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	Wait(0.25)
 	ensureFace()
 	ensureClothes()
-if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
-	local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
-	if okA3 and ap then
-		for _,v in ipairs(ap:GetDescendants()) do
-			if v:IsA("CharacterMesh") then
-				v:Clone().Parent=char
+	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
+		local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
+		if okA3 and ap then
+			for _,v in ipairs(ap:GetDescendants()) do
+				if v:IsA("CharacterMesh") then
+					v:Clone().Parent=char
+				end
 			end
 		end
 	end
-end
 
 	local targetKey = opts.targetKey or (uidFallback and ("uid:"..tostring(uidFallback))) or nil
 	NAStuff._lastDescriptionKey = targetKey
@@ -29682,7 +29702,7 @@ function nuhuhprompt(v)
 			end
 			local c = COREGUI.DescendantAdded:Connect(function(inst)
 				local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-  				if gui and gui.Name and isPromptGuiName(gui.Name) then
+				if gui and gui.Name and isPromptGuiName(gui.Name) then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
 					for _, x in ipairs(gui:GetDescendants()) do
@@ -40331,10 +40351,13 @@ NAmanage.Topbar_ComputedSize=function()
 		return w,h
 	else
 		local tile=48
-		local visible=5
-		local w=visible*tile+(visible-1)*pad+12
-		local h=tile+12
-		w=math.min(w, vpX - margin*2)
+		local rows=math.max(1, count)
+		local w=tile+12
+		local h=rows*tile+(rows-1)*pad+12
+		local maxH = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720) - margin*2
+		if h > maxH then
+			h = maxH
+		end
 		return w,h
 	end
 end
@@ -40625,6 +40648,7 @@ end
 NAmanage.Topbar_AddButton=function(def)
 	TopBarApp.buttonDefs[#TopBarApp.buttonDefs+1]=def
 	NAmanage.Topbar_Rebuild()
+	NAmanage.SideSwipe_Rebuild()
 	if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 end
 
@@ -40696,6 +40720,42 @@ NAmanage.Topbar_SetMode=function(mode)
 	if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 end
 
+NAmanage.Topbar_BuildBaseButtons=function()
+	return {
+		{name="settings",icon="gear",func=function()
+			if NAUIMANAGER.SettingsFrame then
+				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+			end
+		end},
+		{name="cmds",icon="list-bulleted",func=NAgui.commands},
+		{name="chatlogs",icon="speech-bubble-align-center",func=function()
+			if NAUIMANAGER.chatLogsFrame then
+				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+			end
+		end},
+		{name="console",icon="pencil-square",func=function()
+			if NAUIMANAGER.NAconsoleFrame then
+				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+			end
+		end},
+		{name="waypp",icon="location-pin",func=function()
+			if NAUIMANAGER.WaypointFrame then
+				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+			end
+		end},
+		{name="bindd",icon="hammer-code",func=function()
+			if NAUIMANAGER.BindersFrame then
+				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+			end
+		end},
+	}
+end
+
 NAmanage.Topbar_Init=function()
 	if TopBarApp.top and TopBarApp.top.Parent then TopBarApp.top:Destroy() end
 	TopBarApp.top=InstanceNew("ScreenGui")
@@ -40758,39 +40818,7 @@ NAmanage.Topbar_Init=function()
 	pStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
 	pStroke.Transparency=0.2
 	NAgui.RegisterColoredStroke(pStroke)
-	TopBarApp.buttonDefs={
-		{name="settings",icon="gear",func=function()
-			if NAUIMANAGER.SettingsFrame then
-				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-			end
-		end},
-		{name="cmds",icon="list-bulleted",func=NAgui.commands},
-		{name="chatlogs",icon="speech-bubble-align-center",func=function()
-			if NAUIMANAGER.chatLogsFrame then
-				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-			end
-		end},
-		{name="console",icon="pencil-square",func=function()
-			if NAUIMANAGER.NAconsoleFrame then
-				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-			end
-		end},
-		{name="waypp",icon="location-pin",func=function()
-			if NAUIMANAGER.WaypointFrame then
-				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
-			end
-		end},
-		{name="bindd",icon="hammer-code",func=function()
-			if NAUIMANAGER.BindersFrame then
-				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
-			end
-		end},
-	}
+	TopBarApp.buttonDefs=NAmanage.Topbar_BuildBaseButtons()
 	NAmanage.Topbar_Rebuild()
 	NAmanage.Topbar_SetOpen(false)
 	MouseButtonFix(TopBarApp.toggle,NAmanage.Topbar_Toggle)
@@ -40815,6 +40843,386 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_follow")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
 	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
+end
+
+NAmanage.SideSwipe_GetButtons=function()
+	if TopBarApp and TopBarApp.buttonDefs and #TopBarApp.buttonDefs > 0 then
+		return TopBarApp.buttonDefs
+	end
+	return NAmanage.Topbar_BuildBaseButtons()
+end
+
+NAmanage.SideSwipe_PositionHandles=function()
+	if not (SideSwipeApp.gui and (SideSwipeApp.handles.left or SideSwipeApp.handles.right)) then return end
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	local y = vp.Y * 0.5
+	local inset = 6
+	local handleH = math.clamp(vp.Y * 0.22, 90, 180)
+	if SideSwipeApp.handles.left then
+		SideSwipeApp.handles.left.Position = UDim2.new(0, inset, 0, y)
+		SideSwipeApp.handles.left.Size = UDim2.new(0, 16, 0, handleH)
+	end
+	if SideSwipeApp.handles.right then
+		SideSwipeApp.handles.right.Position = UDim2.new(1, -inset, 0, y)
+		SideSwipeApp.handles.right.Size = UDim2.new(0, 16, 0, handleH)
+	end
+end
+
+NAmanage.SideSwipe_UpdateHandleSide=function()
+	local side = SideSwipeApp.side or "left"
+	if SideSwipeApp.handles.left then
+		SideSwipeApp.handles.left.Visible = side == "left"
+		SideSwipeApp.handles.left.Active = side == "left"
+	end
+	if SideSwipeApp.handles.right then
+		SideSwipeApp.handles.right.Visible = side == "right"
+		SideSwipeApp.handles.right.Active = side == "right"
+	end
+	NAmanage.SideSwipe_PositionHandles()
+end
+
+NAmanage.SideSwipe_PointInside=function(gui, point)
+	if not (gui and gui.Visible) then return false end
+	local pos = gui.AbsolutePosition
+	local size = gui.AbsoluteSize
+	return point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y
+end
+
+NAmanage.SideSwipe_ShouldCloseFrom=function(point)
+	if NAmanage.SideSwipe_PointInside(SideSwipeApp.panel, point)
+		or NAmanage.SideSwipe_PointInside(SideSwipeApp.underlay, point)
+		or NAmanage.SideSwipe_PointInside(SideSwipeApp.scroll, point) then
+		return false
+	end
+	if NAmanage.SideSwipe_PointInside(SideSwipeApp.handles.left, point) or NAmanage.SideSwipe_PointInside(SideSwipeApp.handles.right, point) then
+		return false
+	end
+	return true
+end
+
+NAmanage.SideSwipe_PositionPanel=function(opts)
+	opts = opts or {}
+	if not SideSwipeApp.panel then return end
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	local size = SideSwipeApp.panel.AbsoluteSize
+	local margin = 10
+	local xOn, xOff
+	local side = SideSwipeApp.side or "left"
+	local anchor = Vector2.new(0, 0.5)
+	if side == "right" then
+		anchor = Vector2.new(1, 0.5)
+		xOn = vp.X - margin
+		xOff = vp.X + size.X + margin
+	else
+		xOn = margin
+		xOff = -size.X - margin
+	end
+	local hClamp = math.clamp(vp.Y * 0.5, size.Y * 0.5 + margin, vp.Y - size.Y * 0.5 - margin)
+	local targetY = hClamp
+	if opts.state == false then
+		SideSwipeApp.panel.AnchorPoint = anchor
+		SideSwipeApp.panel.Position = UDim2.new(0, xOff, 0, targetY)
+	else
+		SideSwipeApp.panel.AnchorPoint = anchor
+		SideSwipeApp.panel.Position = UDim2.new(0, xOn, 0, targetY)
+	end
+end
+
+NAmanage.SideSwipe_UpdateCanvas=function()
+	if not (SideSwipeApp.scroll and SideSwipeApp.layout and SideSwipeApp.panel and SideSwipeApp.underlay) then return end
+	local content = SideSwipeApp.layout.AbsoluteContentSize
+	local totalH = content.Y + 16
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	local maxH = math.max(120, vp.Y - 40)
+	local height = math.min(totalH + 16, maxH)
+	local width = 80
+	SideSwipeApp.panel.Size = UDim2.new(0, width, 0, height)
+	SideSwipeApp.underlay.Size = UDim2.new(1, 0, 1, 0)
+	SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, totalH)
+	if not SideSwipeApp.animating then
+		NAmanage.SideSwipe_PositionPanel({ state = SideSwipeApp.isOpen })
+	end
+end
+
+NAmanage.SideSwipe_Rebuild=function()
+	if not (SideSwipeApp.panel and SideSwipeApp.underlay) then return end
+	if SideSwipeApp.scroll then SideSwipeApp.scroll:Destroy() end
+	for _, c in ipairs(SideSwipeApp.underlay:GetChildren()) do
+		local keep = c:IsA("UIStroke") or c:IsA("UICorner")
+		if not keep then
+			c:Destroy()
+		end
+	end
+	SideSwipeApp.scroll = InstanceNew("ScrollingFrame", SideSwipeApp.underlay)
+	SideSwipeApp.scroll.BackgroundTransparency = 1
+	SideSwipeApp.scroll.BorderSizePixel = 0
+	SideSwipeApp.scroll.Size = UDim2.new(1, 0, 1, 0)
+	SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	SideSwipeApp.scroll.ScrollBarThickness = 4
+	SideSwipeApp.scroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+	local pad = InstanceNew("UIPadding", SideSwipeApp.scroll)
+	pad.PaddingTop = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 8)
+	if SideSwipeApp.layout then SideSwipeApp.layout:Destroy() end
+	local list = InstanceNew("UIListLayout", SideSwipeApp.scroll)
+	list.FillDirection = Enum.FillDirection.Vertical
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	list.VerticalAlignment = Enum.VerticalAlignment.Top
+	list.Padding = UDim.new(0, 8)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	SideSwipeApp.layout = list
+	local tile = 48
+	local buttons = NAmanage.SideSwipe_GetButtons()
+	for i, def in ipairs(buttons) do
+		local btn = InstanceNew("TextButton", SideSwipeApp.scroll)
+		btn.Name = (def.name or ("btn"..i)).."Swipe"
+		btn.Size = UDim2.new(1, -6, 0, tile)
+		btn.BackgroundTransparency = 1
+		btn.BorderSizePixel = 0
+		btn.LayoutOrder = i
+		btn.Text = ""
+		btn.TextTransparency = 1
+		btn.AutoButtonColor = false
+		btn.ZIndex = 520
+		local bg = InstanceNew("Frame", btn)
+		bg.ZIndex = 518
+		bg.Size = UDim2.new(1, 0, 1, 0)
+		bg.BackgroundColor3 = Color3.fromRGB(25,25,28)
+		bg.BackgroundTransparency = 0.16
+		bg.BorderSizePixel = 0
+		local cr = InstanceNew("UICorner", bg)
+		cr.CornerRadius = UDim.new(0, 12)
+		local stroke = InstanceNew("UIStroke", bg)
+		stroke.Thickness = 1
+		stroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+		stroke.Transparency = 0.15
+		NAgui.RegisterColoredStroke(stroke)
+		local ic = InstanceNew("TextLabel", bg)
+		ic.ZIndex = 519
+		ic.BackgroundTransparency = 1
+		ic.Size = UDim2.new(0.65, 0, 0.65, 0)
+		ic.Position = UDim2.new(0.5, 0, 0.5, 0)
+		ic.AnchorPoint = Vector2.new(0.5, 0.5)
+		ic.FontFace = TopBarApp.icon and TopBarApp.icon.FontFace or Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
+		ic.Text = def.icon or def.name or ""
+		ic.TextColor3 = Color3.new(1,1,1)
+		ic.TextScaled = false
+		ic.TextSize = 24
+		SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, tile * i)
+		SideSwipeApp.scroll.Active = true
+		if def.func then
+			MouseButtonFix(btn, def.func)
+		end
+	end
+	local function update()
+		NAmanage.SideSwipe_UpdateCanvas()
+	end
+	NAlib.disconnect("ss_canvas")
+	NAlib.connect("ss_canvas", SideSwipeApp.layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update))
+	update()
+end
+
+NAmanage.SideSwipe_SetOpen=function(state)
+	if not SideSwipeApp.panel then return end
+	if SideSwipeApp.animating then return end
+	local wasOpen = SideSwipeApp.isOpen
+	SideSwipeApp.isOpen = state and true or false
+	SideSwipeApp.animating = true
+	SideSwipeApp.panel.Visible = true
+	NAmanage.SideSwipe_UpdateCanvas()
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	local size = SideSwipeApp.panel.AbsoluteSize
+	local margin = 10
+	local side = SideSwipeApp.side or "left"
+	local anchor = side == "right" and Vector2.new(1, 0.5) or Vector2.new(0, 0.5)
+	local xOn = side == "right" and (vp.X - margin) or margin
+	local xOff = side == "right" and (vp.X + size.X + margin) or (-size.X - margin)
+	local y = math.clamp(vp.Y * 0.5, size.Y * 0.5 + margin, vp.Y - size.Y * 0.5 - margin)
+	local startX = SideSwipeApp.isOpen and xOff or xOn
+	if wasOpen == SideSwipeApp.isOpen then
+		startX = SideSwipeApp.panel.Position.X.Offset
+	end
+	local targetX = SideSwipeApp.isOpen and xOn or xOff
+	SideSwipeApp.panel.AnchorPoint = anchor
+	SideSwipeApp.panel.Position = UDim2.new(0, startX, 0, y)
+	local ease = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(SideSwipeApp.panel, ease, { Position = UDim2.new(0, targetX, 0, y) })
+	if SideSwipeApp.underlay then
+		local underGoal = SideSwipeApp.isOpen and 0.08 or 0.35
+		TweenService:Create(SideSwipeApp.underlay, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = underGoal }):Play()
+	end
+	tween:Play()
+	tween.Completed:Connect(function()
+		if not SideSwipeApp.isOpen then
+			SideSwipeApp.panel.Visible = false
+		end
+		SideSwipeApp.animating = false
+	end)
+end
+
+NAmanage.SideSwipe_SetSide=function(side, opts)
+	opts = opts or {}
+	local resolved = side == "right" and "right" or "left"
+	if SideSwipeApp.side == resolved and not opts.force then
+		NAmanage.SideSwipe_UpdateHandleSide()
+		return
+	end
+	SideSwipeApp.side = resolved
+	NASideSwipeSide = resolved
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("sideSwipeSide", resolved)
+	end
+	NAmanage.SideSwipe_UpdateHandleSide()
+	if opts.skipAnimate then
+		NAmanage.SideSwipe_PositionPanel({ state = SideSwipeApp.isOpen })
+	else
+		NAmanage.SideSwipe_SetOpen(SideSwipeApp.isOpen)
+	end
+end
+
+NAmanage.SideSwipe_WireHandle=function(btn, side)
+	if not btn then return end
+	local SWIPE_THRESHOLD = 28
+	local dragging = false
+	local dragStart
+	local dragInput
+	local function resetDrag()
+		dragging = false
+		dragStart = nil
+		dragInput = nil
+	end
+	btn.MouseButton1Down:Connect(function()
+		NAmanage.SideSwipe_SetSide(side, { skipAnimate = true })
+	end)
+	btn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			NAmanage.SideSwipe_SetSide(side, { skipAnimate = true })
+			dragging = true
+			dragStart = input.Position
+			dragInput = input
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End or input.UserInputState == Enum.UserInputState.Cancel then
+					resetDrag()
+				end
+			end)
+		end
+	end)
+	btn.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging and dragStart then
+			local delta = input.Position - dragStart
+			if side == "left" and delta.X > SWIPE_THRESHOLD then
+				resetDrag()
+				NAmanage.SideSwipe_SetOpen(true)
+			elseif side == "right" and delta.X < -SWIPE_THRESHOLD then
+				resetDrag()
+				NAmanage.SideSwipe_SetOpen(true)
+			elseif SideSwipeApp.isOpen then
+				if side == "left" and delta.X < -SWIPE_THRESHOLD then
+					resetDrag()
+					NAmanage.SideSwipe_SetOpen(false)
+				elseif side == "right" and delta.X > SWIPE_THRESHOLD then
+					resetDrag()
+					NAmanage.SideSwipe_SetOpen(false)
+				end
+			end
+		end
+	end)
+end
+
+NAmanage.SideSwipe_Init=function()
+	if SideSwipeApp.gui and SideSwipeApp.gui.Parent then return true end
+	SideSwipeApp.gui = InstanceNew("ScreenGui")
+	SideSwipeApp.gui.Name = "NA_SideSwipe"
+	SideSwipeApp.gui.Enabled = NASideSwipeEnabled
+	NaProtectUI(SideSwipeApp.gui)
+	SideSwipeApp.panel = InstanceNew("Frame", SideSwipeApp.gui)
+	SideSwipeApp.panel.BackgroundTransparency = 1
+	SideSwipeApp.panel.ClipsDescendants = true
+	SideSwipeApp.panel.Visible = false
+	SideSwipeApp.panel.ZIndex = 510
+	SideSwipeApp.underlay = InstanceNew("Frame", SideSwipeApp.panel)
+	SideSwipeApp.underlay.Size = UDim2.new(1,0,1,0)
+	SideSwipeApp.underlay.BackgroundColor3 = Color3.fromRGB(18,18,22)
+	SideSwipeApp.underlay.BackgroundTransparency = 0.35
+	SideSwipeApp.underlay.ZIndex = 511
+	local uCorner = InstanceNew("UICorner", SideSwipeApp.underlay); uCorner.CornerRadius = UDim.new(0, 14)
+	local uStroke = InstanceNew("UIStroke", SideSwipeApp.underlay)
+	uStroke.Thickness = 1
+	uStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+	uStroke.Transparency = 0.18
+	NAgui.RegisterColoredStroke(uStroke)
+	NAmanage.SideSwipe_Rebuild()
+	SideSwipeApp.handles.left = InstanceNew("TextButton", SideSwipeApp.gui)
+	SideSwipeApp.handles.left.BackgroundColor3 = Color3.fromRGB(148,93,255)
+	SideSwipeApp.handles.left.BackgroundTransparency = 0.72
+	SideSwipeApp.handles.left.BorderSizePixel = 0
+	SideSwipeApp.handles.left.AutoButtonColor = false
+	SideSwipeApp.handles.left.Text = ""
+	SideSwipeApp.handles.left.AnchorPoint = Vector2.new(0,0.5)
+	SideSwipeApp.handles.left.ZIndex = 470
+	local lCorner = InstanceNew("UICorner", SideSwipeApp.handles.left); lCorner.CornerRadius = UDim.new(1,0)
+	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.left, "left")
+	SideSwipeApp.handles.right = InstanceNew("TextButton", SideSwipeApp.gui)
+	SideSwipeApp.handles.right.BackgroundColor3 = Color3.fromRGB(148,93,255)
+	SideSwipeApp.handles.right.BackgroundTransparency = 0.72
+	SideSwipeApp.handles.right.BorderSizePixel = 0
+	SideSwipeApp.handles.right.AutoButtonColor = false
+	SideSwipeApp.handles.right.Text = ""
+	SideSwipeApp.handles.right.AnchorPoint = Vector2.new(1,0.5)
+	SideSwipeApp.handles.right.ZIndex = 470
+	local rCorner = InstanceNew("UICorner", SideSwipeApp.handles.right); rCorner.CornerRadius = UDim.new(1,0)
+	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.right, "right")
+	SideSwipeApp.side = NASideSwipeSide or SideSwipeApp.side
+	NAmanage.SideSwipe_SetSide(SideSwipeApp.side, { skipAnimate = true, force = true })
+	NAmanage.SideSwipe_PositionHandles()
+	if workspace.CurrentCamera then
+		NAlib.connect("ss_vp", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			NAmanage.SideSwipe_PositionHandles()
+			NAmanage.SideSwipe_UpdateCanvas()
+		end))
+	end
+	local function SideSwipe_HookOutsideClose()
+		NAlib.disconnect("ss_click")
+
+		local function onInputBegan(input)
+			if not SideSwipeApp.isOpen then return end
+
+			if input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and input.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+
+			local pos = input.Position
+			local p = typeof(pos) == "Vector2" and pos or Vector2.new(pos.X, pos.Y)
+
+			if NAmanage.SideSwipe_ShouldCloseFrom(p) then
+				NAmanage.SideSwipe_SetOpen(false)
+			end
+		end
+
+		NAlib.connect("ss_click", UserInputService.InputBegan:Connect(onInputBegan))
+	end
+	SideSwipe_HookOutsideClose()
+	return true
+end
+
+NAmanage.SideSwipe_Destroy=function()
+	NAlib.disconnect("ss_canvas")
+	NAlib.disconnect("ss_vp")
+	NAlib.disconnect("ss_click")
+	if SideSwipeApp.gui then SideSwipeApp.gui:Destroy() end
+	SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
 end
 
 NAgui.menu = function(menu)
@@ -41042,6 +41450,11 @@ end)
 
 SpawnCall(function()
 	NAmanage.Topbar_Init()
+end)
+
+SpawnCall(function()
+	Wait(0.25)
+	NAmanage.SideSwipe_Init()
 end)
 
 NAgui.barSelect = function(speed)
@@ -44644,6 +45057,26 @@ NAgui.addToggle("Keep Topbar Position", NATopbarKeepPosition, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Keep Topbar Position", function()
 	return NATopbarKeepPosition == true
+end)
+
+NAgui.addSection("Side Swipe")
+
+NAgui.addToggle("Side Swipe On Left", NASideSwipeSide ~= "right", function(v)
+	NAmanage.SideSwipe_SetSide(v and "left" or "right")
+end)
+NAmanage.RegisterToggleAutoSync("Side Swipe On Left", function()
+	return NASideSwipeSide ~= "right"
+end)
+
+NAgui.addToggle("Side Swipe Enabled", NASideSwipeEnabled, function(v)
+	NASideSwipeEnabled = v and true or false
+	if SideSwipeApp and SideSwipeApp.gui then
+		SideSwipeApp.gui.Enabled = NASideSwipeEnabled
+	end
+	NAmanage.NASettingsSet("sideSwipeEnabled", NASideSwipeEnabled)
+end)
+NAmanage.RegisterToggleAutoSync("Side Swipe Enabled", function()
+	return NASideSwipeEnabled == true
 end)
 
 if CoreGui then
