@@ -39020,12 +39020,14 @@ SpawnCall(function()
 	end
 end)
 
-NAmanage.stripChar = function(text)
+NAmanage.stripChar = function(text, trimWhitespace)
 	if not text then
 		return ""
 	end
 	local cleaned = text:gsub("\t", "")
-	cleaned = cleaned:gsub("^%s*(.-)%s*$", "%1")
+	if trimWhitespace ~= false then
+		cleaned = cleaned:gsub("^%s*(.-)%s*$", "%1")
+	end
 	return cleaned
 end
 
@@ -41328,7 +41330,7 @@ NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 
 	local box = NAUIMANAGER.cmdInput
 	local t = box.Text
-	local c = NAmanage.stripChar(t)
+	local c = NAmanage.stripChar(t, false)
 	if c ~= t then
 		box.Text = c
 		box.CursorPosition = #c + 1
