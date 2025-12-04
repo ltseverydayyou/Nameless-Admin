@@ -335,6 +335,7 @@ local NAStuff = {
 	nuhuhNotifs = true;
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
+	AutoExecEnabled = true;
 	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
@@ -5718,6 +5719,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		autoExecEnabled = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		deltaPrompted = {
 			default = false;
 			coerce = function(value)
@@ -6669,6 +6676,7 @@ end
 
 opt.chatTranslateEnabled = NAmanage.NASettingsGet("chatTranslate")
 opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
+NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -43312,6 +43320,10 @@ SpawnCall(function()
 	end)
 	SpawnCall(function()
 		Wait(.5)
+		if NAStuff.AutoExecEnabled == false then
+			DebugNotif("AutoExec is disabled, skipping stored commands.")
+			return
+		end
 		for _, commandName in ipairs(NAEXECDATA.commands) do
 			local fullRun = {commandName}
 			local argsString = NAEXECDATA.args[commandName]
@@ -44466,6 +44478,15 @@ NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Debug Notifications", function()
 	return NAStuff.nuhuhNotifs == true
+end)
+
+NAgui.addToggle("Run AutoExec on Start", NAStuff.AutoExecEnabled ~= false, function(v)
+	NAStuff.AutoExecEnabled = v
+	NAmanage.NASettingsSet("autoExecEnabled", v)
+	DoNotif("AutoExec "..(v and "will run on start" or "is disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Run AutoExec on Start", function()
+	return NAStuff.AutoExecEnabled ~= false
 end)
 
 NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
