@@ -29887,6 +29887,10 @@ cmd.add({"remotespy","simplespy","rspy"},{"remotespy (simplespy,rspy)","executes
 	loadstring(game:HttpGet("https://gist.githubusercontent.com/ltseverydayyou/2398adb0db70abc4f752219a676f6cb2/raw/SimpleSpyRework.luau"))()
 end)
 
+cmd.add({"cobaltspy","cobalt","cspy"},{"cobaltspy (cobalt,cspy)"},function()
+	loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau"))()
+end)
+
 cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that supports both pc and mobile"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Turtle%20Spy.lua"))()
 end)
