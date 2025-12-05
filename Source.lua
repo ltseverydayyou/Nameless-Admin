@@ -3856,6 +3856,7 @@ NAUISTROKER = DEFAULT_UI_STROKE_COLOR
 NATOPBARVISIBLE = true
 NATopbarKeepPosition = false
 NATopbarPositionRatio = 0
+NATopbarDock = "top"
 NALoadingStartMinimized = false
 NASideSwipeSide = "left"
 NASideSwipeEnabled = false
@@ -5952,6 +5953,15 @@ NAmanage.NASettingsGetSchema=function()
 				return "bottom"
 			end;
 		};
+		topbarDock = {
+			default = "top";
+			coerce = function(value)
+				if value == "bottom" then
+					return "bottom"
+				end
+				return "top"
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
@@ -6228,6 +6238,18 @@ NAmanage.topbar_writeMode=function(m)
 		m = "bottom"
 	end
 	NAmanage.NASettingsSet("topbarMode", m)
+end
+
+NAmanage.topbar_readDock=function()
+	local dock = NAmanage.NASettingsGet("topbarDock")
+	return dock == "bottom" and "bottom" or "top"
+end
+
+NAmanage.topbar_writeDock=function(dock)
+	if dock ~= "bottom" then
+		dock = "top"
+	end
+	NAmanage.NASettingsSet("topbarDock", dock)
 end
 
 NAmanage.GetWPPath=function()
@@ -6692,6 +6714,7 @@ if FileSupport then
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
 	NATopbarKeepPosition = NAmanage.NASettingsGet("topbarKeepPosition")
 	NATopbarPositionRatio = NAmanage.NASettingsGet("topbarPositionRatio") or 0
+	NATopbarDock = NAmanage.topbar_readDock()
 	NASideSwipeSide = NAmanage.NASettingsGet("sideSwipeSide") or NASideSwipeSide
 	NASideSwipeEnabled = NAmanage.NASettingsGet("sideSwipeEnabled") or NASideSwipeEnabled
 	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
@@ -7154,6 +7177,7 @@ else
 	NAiconSaveEnabled = false
 	NATopbarKeepPosition = false
 	NATopbarPositionRatio = 0
+	NATopbarDock = "top"
 	NALoadingStartMinimized = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
 	opt.currentTagText = "Tag"
@@ -7183,7 +7207,7 @@ local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
-local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
+local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
 local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
@@ -40433,6 +40457,33 @@ NAmanage.Topbar_ApplySavedPosition=function()
 	end
 end
 
+NAmanage.Topbar_ApplyDock=function(dock)
+	dock = dock == "bottom" and "bottom" or "top"
+	NATopbarDock = dock
+	TopBarApp.dock = dock
+	NAmanage.topbar_writeDock(dock)
+	if TopBarApp.frame then
+		TopBarApp.frame.AnchorPoint = Vector2.new(0, dock == "bottom" and 1 or 0)
+		TopBarApp.frame.Position = dock == "bottom" and UDim2.new(0,0,1,0) or UDim2.new(0,0,0,0)
+	end
+	if TopBarApp.toggle then
+		local currentX = TopBarApp.toggle.Position.X.Offset
+		local anchor = dock == "bottom" and Vector2.new(0.5,1) or Vector2.new(0.5,0)
+		local yScale = dock == "bottom" and 1 or 0
+		local yOffset = dock == "bottom" and -10 or 10
+		TopBarApp.toggle.AnchorPoint = anchor
+		TopBarApp.toggle.Position = UDim2.new(0.5, currentX, yScale, yOffset)
+	end
+	if NATopbarKeepPosition then
+		NAmanage.Topbar_ApplySavedPosition()
+	else
+		NAmanage.Topbar_ClampToggle()
+	end
+	if TopBarApp.isOpen then
+		NAmanage.Topbar_PositionPanel()
+	end
+end
+
 NAmanage.Topbar_ChooseSide=function()
 	local cam=workspace.CurrentCamera
 	if not cam then return end
@@ -40454,39 +40505,77 @@ end
 
 NAmanage.Topbar_PositionPanel=function()
 	if not (TopBarApp.panel and TopBarApp.toggle) then return end
-	local cam=workspace.CurrentCamera if not cam then return end
-	local vp=cam.ViewportSize
-	local tap,tsz=TopBarApp.toggle.AbsolutePosition,TopBarApp.toggle.AbsoluteSize
-	local w,h=NAmanage.Topbar_ComputedSize()
-	local margin,gap=8,10
-	if TopBarApp.mode=="bottom" then
-		TopBarApp.panel.Parent=TopBarApp.toggle
-		TopBarApp.panel.Size=UDim2.new(0,w,0,TopBarApp.isOpen and h or 0)
-		TopBarApp.panel.AnchorPoint=Vector2.new(0.5,0)
-		TopBarApp.panel.Position=UDim2.new(0.5,0,1,gap)
-		local ap=TopBarApp.panel.AbsolutePosition
-		local aw=TopBarApp.panel.AbsoluteSize.X
-		local dx=0
-		if ap.X<margin then dx=margin-ap.X end
-		if ap.X+aw>vp.X-margin then dx=(vp.X-margin)-(ap.X+aw) end
-		if dx~=0 then TopBarApp.panel.Position=UDim2.new(0.5,dx,1,gap) end
+
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+
+	local vp = cam.ViewportSize
+	local tap, tsz = TopBarApp.toggle.AbsolutePosition, TopBarApp.toggle.AbsoluteSize
+	local w, h = NAmanage.Topbar_ComputedSize()
+	local marginX, gap = 8, 10
+	local dock = TopBarApp.dock or NATopbarDock or "top"
+
+	if TopBarApp.mode == "bottom" then
+		TopBarApp.panel.Parent = TopBarApp.toggle
+		TopBarApp.panel.Size = UDim2.new(0, w, 0, TopBarApp.isOpen and h or 0)
+
+		local openDown = dock ~= "bottom"
+		TopBarApp.panel.AnchorPoint = openDown and Vector2.new(0.5, 0) or Vector2.new(0.5, 1)
+		TopBarApp.panel.Position = openDown
+			and UDim2.new(0.5, 0, 1, gap)
+			or  UDim2.new(0.5, 0, 0, -gap)
+
+		local ap = TopBarApp.panel.AbsolutePosition
+		local aw = TopBarApp.panel.AbsoluteSize.X
+		local dx = 0
+
+		if ap.X < marginX then
+			dx = marginX - ap.X
+		end
+		if ap.X + aw > vp.X - marginX then
+			dx = (vp.X - marginX) - (ap.X + aw)
+		end
+
+		if dx ~= 0 then
+			if openDown then
+				TopBarApp.panel.Position = UDim2.new(0.5, dx, 1, gap)
+			else
+				TopBarApp.panel.Position = UDim2.new(0.5, dx, 0, -gap)
+			end
+		end
 	else
-		TopBarApp.panel.Parent=TopBarApp.top
-		TopBarApp.panel.Size=UDim2.new(0,w,0,TopBarApp.isOpen and h or 0)
-		local canRight=(tap.X+tsz.X+gap+w)<=vp.X-margin
-		local canLeft=(tap.X-gap-w)>=margin
-		if TopBarApp.sidePref=="right" and not canRight and canLeft then TopBarApp.sidePref="left" end
-		if TopBarApp.sidePref=="left" and not canLeft and canRight then TopBarApp.sidePref="right" end
-		if not canRight and not canLeft then TopBarApp.sidePref=((vp.X-(tap.X+tsz.X))>=tap.X) and "right" or "left" end
-		local y=math.clamp(tap.Y+tsz.Y*0.5, h*0.5+margin, vp.Y-h*0.5-margin)
-		if TopBarApp.sidePref=="right" then
-			TopBarApp.panel.AnchorPoint=Vector2.new(0,0.5)
-			local x=math.min(tap.X+tsz.X+gap, vp.X-margin-w)
-			TopBarApp.panel.Position=UDim2.new(0,x,0,y)
+		TopBarApp.panel.Parent = TopBarApp.top
+		TopBarApp.panel.Size = UDim2.new(0, w, 0, TopBarApp.isOpen and h or 0)
+
+		local canRight = (tap.X + tsz.X + gap + w) <= vp.X - marginX
+		local canLeft  = (tap.X - gap - w) >= marginX
+
+		if TopBarApp.sidePref == "right" and not canRight and canLeft then
+			TopBarApp.sidePref = "left"
+		elseif TopBarApp.sidePref == "left" and not canLeft and canRight then
+			TopBarApp.sidePref = "right"
+		elseif not canRight and not canLeft then
+			TopBarApp.sidePref = ((vp.X - (tap.X + tsz.X)) >= tap.X) and "right" or "left"
+		end
+
+		local dock  = TopBarApp.dock or NATopbarDock or "top"
+		local baseY = tap.Y + tsz.Y*0.5
+		local y
+
+		if dock == "bottom" then
+			y = math.max(baseY + 55, h*0.5 + 4)
 		else
-			TopBarApp.panel.AnchorPoint=Vector2.new(1,0.5)
-			local x=math.max(tap.X-gap, margin+w)
-			TopBarApp.panel.Position=UDim2.new(0,x,0,y)
+			y = math.clamp(baseY, h*0.5 + 8, vp.Y - h*0.5 - 8)
+		end
+
+		if TopBarApp.sidePref == "right" then
+			TopBarApp.panel.AnchorPoint = Vector2.new(0, 0.5)
+			local x = math.min(tap.X + tsz.X + gap, vp.X - marginX - w)
+			TopBarApp.panel.Position = UDim2.new(0, x, 0, y)
+		else
+			TopBarApp.panel.AnchorPoint = Vector2.new(1, 0.5)
+			local x = math.max(tap.X - gap, marginX + w)
+			TopBarApp.panel.Position = UDim2.new(0, x, 0, y)
 		end
 	end
 end
@@ -40720,6 +40809,14 @@ NAmanage.Topbar_SetMode=function(mode)
 	if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 end
 
+NAmanage.Topbar_SetDock=function(dock)
+	dock = dock == "bottom" and "bottom" or "top"
+	NATopbarDock = dock
+	TopBarApp.dock = dock
+	NAmanage.topbar_writeDock(dock)
+	NAmanage.Topbar_ApplyDock(dock)
+end
+
 NAmanage.Topbar_BuildBaseButtons=function()
 	return {
 		{name="settings",icon="gear",func=function()
@@ -40758,6 +40855,7 @@ end
 
 NAmanage.Topbar_Init=function()
 	if TopBarApp.top and TopBarApp.top.Parent then TopBarApp.top:Destroy() end
+	NATopbarDock = NAmanage.topbar_readDock()
 	TopBarApp.top=InstanceNew("ScreenGui")
 	TopBarApp.top.Name="NA_Topbar_Styled"
 	TopBarApp.top.ZIndexBehavior=Enum.ZIndexBehavior.Global
@@ -40802,6 +40900,8 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.icon.TextColor3=Color3.new(1,1,1)
 	TopBarApp.icon.TextScaled=false
 	TopBarApp.icon.TextSize=24
+	TopBarApp.dock = NATopbarDock or TopBarApp.dock or "top"
+	NAmanage.Topbar_ApplyDock(TopBarApp.dock)
 	TopBarApp.panel=InstanceNew("Frame",TopBarApp.top)
 	TopBarApp.panel.Visible=false
 	TopBarApp.panel.ClipsDescendants=true
@@ -40842,7 +40942,7 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_repos_vp")
 	NAlib.disconnect("tb_follow")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
-	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right" }
+	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NAmanage.topbar_readDock() }
 end
 
 NAmanage.SideSwipe_GetButtons=function()
@@ -40866,6 +40966,16 @@ NAmanage.SideSwipe_PositionHandles=function()
 	if SideSwipeApp.handles.right then
 		SideSwipeApp.handles.right.Position = UDim2.new(1, -inset, 0, y)
 		SideSwipeApp.handles.right.Size = UDim2.new(0, 16, 0, handleH)
+	end
+end
+
+NAmanage.SideSwipe_UpdateHandleColors=function(color)
+	local mainColor = typeof(color) == "Color3" and color or NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(148,93,255)
+	if SideSwipeApp.handles.left then
+		SideSwipeApp.handles.left.BackgroundColor3 = mainColor
+	end
+	if SideSwipeApp.handles.right then
+		SideSwipeApp.handles.right.BackgroundColor3 = mainColor
 	end
 end
 
@@ -41163,8 +41273,9 @@ NAmanage.SideSwipe_Init=function()
 	uStroke.Transparency = 0.18
 	NAgui.RegisterColoredStroke(uStroke)
 	NAmanage.SideSwipe_Rebuild()
+	local mainColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(148,93,255)
 	SideSwipeApp.handles.left = InstanceNew("TextButton", SideSwipeApp.gui)
-	SideSwipeApp.handles.left.BackgroundColor3 = Color3.fromRGB(148,93,255)
+	SideSwipeApp.handles.left.BackgroundColor3 = mainColor
 	SideSwipeApp.handles.left.BackgroundTransparency = 0.72
 	SideSwipeApp.handles.left.BorderSizePixel = 0
 	SideSwipeApp.handles.left.AutoButtonColor = false
@@ -41174,7 +41285,7 @@ NAmanage.SideSwipe_Init=function()
 	local lCorner = InstanceNew("UICorner", SideSwipeApp.handles.left); lCorner.CornerRadius = UDim.new(1,0)
 	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.left, "left")
 	SideSwipeApp.handles.right = InstanceNew("TextButton", SideSwipeApp.gui)
-	SideSwipeApp.handles.right.BackgroundColor3 = Color3.fromRGB(148,93,255)
+	SideSwipeApp.handles.right.BackgroundColor3 = mainColor
 	SideSwipeApp.handles.right.BackgroundTransparency = 0.72
 	SideSwipeApp.handles.right.BorderSizePixel = 0
 	SideSwipeApp.handles.right.AutoButtonColor = false
@@ -41183,6 +41294,7 @@ NAmanage.SideSwipe_Init=function()
 	SideSwipeApp.handles.right.ZIndex = 470
 	local rCorner = InstanceNew("UICorner", SideSwipeApp.handles.right); rCorner.CornerRadius = UDim.new(1,0)
 	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.right, "right")
+	NAmanage.SideSwipe_UpdateHandleColors(mainColor)
 	SideSwipeApp.side = NASideSwipeSide or SideSwipeApp.side
 	NAmanage.SideSwipe_SetSide(SideSwipeApp.side, { skipAnimate = true, force = true })
 	NAmanage.SideSwipe_PositionHandles()
@@ -45022,6 +45134,7 @@ NAgui.addColorPicker("Main Color", NAUISTROKER, function(color)
 				end
 			end
 		end
+		NAmanage.SideSwipe_UpdateHandleColors(color)
 	end
 	SaveUIStroke(color)
 end)
@@ -45030,6 +45143,14 @@ NAgui.addSection("Topbar")
 
 NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(state)
 	NAmanage.Topbar_SetMode(state and "bottom" or "side")
+end)
+
+NATopbarDock = NAmanage.topbar_readDock()
+NAgui.addToggle("Topbar on Bottom", NATopbarDock == "bottom", function(state)
+	NAmanage.Topbar_SetDock(state and "bottom" or "top")
+end)
+NAmanage.RegisterToggleAutoSync("Topbar on Bottom", function()
+	return NATopbarDock == "bottom"
 end)
 
 NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
