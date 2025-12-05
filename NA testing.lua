@@ -40370,13 +40370,13 @@ NAmanage.Topbar_ComputedSize=function()
 		w=math.min(w, vpX - margin*2)
 		return w,h
 	else
-		local tile=48
-		local rows=math.max(1, count)
-		local w=tile+12
-		local h=rows*tile+(rows-1)*pad+12
-		local maxH = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720) - margin*2
-		if h > maxH then
-			h = maxH
+		local tile = 48
+		local visible = math.max(1, math.min(4, count))
+		local w = visible*tile + (visible-1)*pad + 12
+		local h = tile + 12
+		local maxW = vpX - margin*2
+		if w > maxW then
+			w = maxW
 		end
 		return w,h
 	end
@@ -40603,14 +40603,14 @@ NAmanage.Topbar_Rebuild=function()
 		grid.SortOrder=Enum.SortOrder.LayoutOrder
 		TopBarApp.layout=grid
 	else
-		TopBarApp.scroll.ScrollingDirection=Enum.ScrollingDirection.X
-		local list=InstanceNew("UIListLayout",TopBarApp.scroll)
-		list.FillDirection=Enum.FillDirection.Horizontal
-		list.HorizontalAlignment=Enum.HorizontalAlignment.Left
-		list.VerticalAlignment=Enum.VerticalAlignment.Center
-		list.Padding=UDim.new(0,8)
-		list.SortOrder=Enum.SortOrder.LayoutOrder
-		TopBarApp.layout=list
+		TopBarApp.scroll.ScrollingDirection = Enum.ScrollingDirection.X
+		local list = InstanceNew("UIListLayout", TopBarApp.scroll)
+		list.FillDirection = Enum.FillDirection.Horizontal
+		list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		list.VerticalAlignment = Enum.VerticalAlignment.Center
+		list.Padding = UDim.new(0,8)
+		list.SortOrder = Enum.SortOrder.LayoutOrder
+		TopBarApp.layout = list
 	end
 	local i=0
 	for _,def in ipairs(TopBarApp.buttonDefs) do
@@ -40651,10 +40651,10 @@ NAmanage.Topbar_Rebuild=function()
 		MouseButtonFix(btn,def.func)
 	end
 	local function updateCanvas()
-		if TopBarApp.mode=="bottom" then
-			TopBarApp.scroll.CanvasSize=UDim2.new(0,0,0,TopBarApp.layout.AbsoluteContentSize.Y+12)
+		if TopBarApp.mode == "bottom" then
+			TopBarApp.scroll.CanvasSize = UDim2.new(0,0,0,TopBarApp.layout.AbsoluteContentSize.Y+12)
 		else
-			TopBarApp.scroll.CanvasSize=UDim2.new(0,TopBarApp.layout.AbsoluteContentSize.X+12,0,0)
+			TopBarApp.scroll.CanvasSize = UDim2.new(0,TopBarApp.layout.AbsoluteContentSize.X+12,0,0)
 		end
 		if not TopBarApp.animating then
 			NAmanage.Topbar_PositionPanel()
