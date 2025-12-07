@@ -11748,6 +11748,31 @@ NAlib.find=function(t,v)	--mmmmmm
 end
 
 NAlib.parseText = function(text, watch, rPlr)
+	local function stripRichText(str)
+		if type(str) ~= "string" then
+			return ""
+		end
+
+		local cleaned = str
+		repeat
+			local before = cleaned
+			cleaned = cleaned:gsub("^%s*<(%w+)[^>]->(.-)</%1>%s*$", "%2")
+		until cleaned == before
+
+		cleaned = cleaned:gsub("^%s+", ""):gsub("%s+$", "")
+		cleaned = cleaned
+			:gsub("&lt;", "<")
+			:gsub("&gt;", ">")
+			:gsub("&amp;", "&")
+			:gsub("&quot;", "\"")
+			:gsub("&#x27;", "'")
+			:gsub("&#x60;", "`")
+			:gsub("&#59;", ";")
+			:gsub("&#x3b;", ";")
+
+		return cleaned
+	end
+
 	local function FIIIX(str)
 		local chatPrefix = str:match("^/(%a+)%s")
 		if chatPrefix then
@@ -11757,6 +11782,8 @@ NAlib.parseText = function(text, watch, rPlr)
 	end
 
 	if not text then return nil end
+	text = stripRichText(text)
+	if text == "" then return nil end
 
 	local prefix
 	if rPlr then
@@ -11773,6 +11800,7 @@ NAlib.parseText = function(text, watch, rPlr)
 	end
 
 	text = FIIIX(text)
+	if text == "" then return nil end
 
 	if text:sub(1, #prefix) ~= prefix then
 		return nil
