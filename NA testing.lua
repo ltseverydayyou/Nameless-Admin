@@ -1215,33 +1215,33 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function ensureCustomFontFolder()
-    if isDelta then
-        return false, "Custom font files are disabled on this executor."
-    end
-    if not FileSupport then
-        return false, "File support is required for custom fonts."
-    end
-    if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
-        return false, "Custom font directory is not configured."
-    end
-    if type(isfolder) == "function" then
-        local exists = false
-        local ok, res = pcall(isfolder, FontEditor.customDir)
-        if ok then
-            exists = res
-        end
-        if not exists then
-            if type(makefolder) ~= "function" then
-                return false, "\"makefolder\" is required for custom fonts."
-            end
-            local okMk, err = pcall(makefolder, FontEditor.customDir)
-            if not okMk then
-                return false, err or "Unable to create custom font directory."
-            end
-        end
-    end
-    return true
-end
+		if isDelta then
+			return false, "Custom font files are disabled on this executor."
+		end
+		if not FileSupport then
+			return false, "File support is required for custom fonts."
+		end
+		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+			return false, "Custom font directory is not configured."
+		end
+		if type(isfolder) == "function" then
+			local exists = false
+			local ok, res = pcall(isfolder, FontEditor.customDir)
+			if ok then
+				exists = res
+			end
+			if not exists then
+				if type(makefolder) ~= "function" then
+					return false, "\"makefolder\" is required for custom fonts."
+				end
+				local okMk, err = pcall(makefolder, FontEditor.customDir)
+				if not okMk then
+					return false, err or "Unable to create custom font directory."
+				end
+			end
+		end
+		return true
+	end
 
 	local function getCustomFontCount()
 		return type(FontEditor.customFonts) == "table" and #FontEditor.customFonts or 0
@@ -1746,123 +1746,123 @@ end
 	end
 
 	local function scanFonts()
-    if isDelta then
-        return false
-    end
-    if not (FileSupport and listfiles) then
-        return false
-    end
-    if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
-        return false
-    end
-    if type(FontEditor.customFonts) ~= "table" or type(FontEditor.customFontMap) ~= "table" then
-        return false
-    end
-    local okFolder = ensureCustomFontFolder()
-    if not okFolder then
-        return false
-    end
-    local okList, items = pcall(listfiles, FontEditor.customDir)
-    if not (okList and type(items) == "table") then
-        return false
-    end
-    local known = {}
-    for _, entry in ipairs(FontEditor.customFonts) do
-        if entry.file then
-            known[entry.file:lower()] = true
-        end
-    end
-    local added = false
-    for _, fullPath in ipairs(items) do
-        local name = getFName(fullPath)
-        if name and isFontExt(name) then
-            local lower = name:lower()
-            if not known[lower] then
-                local base = name:gsub("%.[^%.]+$", "")
-                local id = uniqFontId(sanitizeId(base) or sanitizeId(name))
-                local label = base ~= "" and base or id
-                local entry = {
-                    id = id,
-                    name = label,
-                    displayName = label,
-                    file = name,
-                    url = nil,
-                }
-                FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
-                FontEditor.customFontMap[id] = entry
-                known[lower] = true
-                added = true
-            end
-        end
-    end
-    if added then
-        saveCustomFontManifest()
-    end
-    return added
-end
+		if isDelta then
+			return false
+		end
+		if not (FileSupport and listfiles) then
+			return false
+		end
+		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+			return false
+		end
+		if type(FontEditor.customFonts) ~= "table" or type(FontEditor.customFontMap) ~= "table" then
+			return false
+		end
+		local okFolder = ensureCustomFontFolder()
+		if not okFolder then
+			return false
+		end
+		local okList, items = pcall(listfiles, FontEditor.customDir)
+		if not (okList and type(items) == "table") then
+			return false
+		end
+		local known = {}
+		for _, entry in ipairs(FontEditor.customFonts) do
+			if entry.file then
+				known[entry.file:lower()] = true
+			end
+		end
+		local added = false
+		for _, fullPath in ipairs(items) do
+			local name = getFName(fullPath)
+			if name and isFontExt(name) then
+				local lower = name:lower()
+				if not known[lower] then
+					local base = name:gsub("%.[^%.]+$", "")
+					local id = uniqFontId(sanitizeId(base) or sanitizeId(name))
+					local label = base ~= "" and base or id
+					local entry = {
+						id = id,
+						name = label,
+						displayName = label,
+						file = name,
+						url = nil,
+					}
+					FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
+					FontEditor.customFontMap[id] = entry
+					known[lower] = true
+					added = true
+				end
+			end
+		end
+		if added then
+			saveCustomFontManifest()
+		end
+		return added
+	end
 
 	local function loadCustomFontManifest()
-    FontEditor.customFonts = {}
-    FontEditor.customFontMap = {}
-    if isDelta then
-        return
-    end
-    if not FileSupport then
-        return
-    end
-    local okFolder = ensureCustomFontFolder()
-    if not okFolder then
-        return
-    end
-    if type(isfile) ~= "function" or type(readfile) ~= "function" then
-        return
-    end
-    if not isfile(FontEditor.customManifest) then
-        return
-    end
-    local ok, raw = pcall(readfile, FontEditor.customManifest)
-    if not (ok and type(raw) == "string" and raw ~= "") then
-        return
-    end
-    local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-    if not (okDecode and type(decoded) == "table") then
-        return
-    end
-    local items = decoded.fonts or decoded
-    if type(items) ~= "table" then
-        return
-    end
-    local manifestDirty = false
-    local validFonts = {}
-    local validMap = {}
-    for _, entry in ipairs(items) do
-        if type(entry) == "table" and type(entry.file) == "string" then
-            entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
-            entry.name = entry.name or entry.id
-            entry.displayName = entry.displayName or entry.name
-            entry.url = normalizeCustomFontUrl(entry.url) or entry.url
-            entry.familyFile = entry.familyFile
-            if not customFontFileExists(entry.file) then
-                if entry.familyFile then
-                    deleteCustomFontFile(entry.familyFile)
-                end
-                manifestDirty = true
-            elseif validMap[entry.id] then
-                manifestDirty = true
-            else
-                validFonts[#validFonts + 1] = entry
-                validMap[entry.id] = entry
-            end
-        else
-            manifestDirty = true
-        end
-    end
-    FontEditor.customFonts = validFonts
-    FontEditor.customFontMap = validMap
-    if manifestDirty then
-        saveCustomFontManifest()
-    end
-end
+		FontEditor.customFonts = {}
+		FontEditor.customFontMap = {}
+		if isDelta then
+			return
+		end
+		if not FileSupport then
+			return
+		end
+		local okFolder = ensureCustomFontFolder()
+		if not okFolder then
+			return
+		end
+		if type(isfile) ~= "function" or type(readfile) ~= "function" then
+			return
+		end
+		if not isfile(FontEditor.customManifest) then
+			return
+		end
+		local ok, raw = pcall(readfile, FontEditor.customManifest)
+		if not (ok and type(raw) == "string" and raw ~= "") then
+			return
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okDecode and type(decoded) == "table") then
+			return
+		end
+		local items = decoded.fonts or decoded
+		if type(items) ~= "table" then
+			return
+		end
+		local manifestDirty = false
+		local validFonts = {}
+		local validMap = {}
+		for _, entry in ipairs(items) do
+			if type(entry) == "table" and type(entry.file) == "string" then
+				entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
+				entry.name = entry.name or entry.id
+				entry.displayName = entry.displayName or entry.name
+				entry.url = normalizeCustomFontUrl(entry.url) or entry.url
+				entry.familyFile = entry.familyFile
+				if not customFontFileExists(entry.file) then
+					if entry.familyFile then
+						deleteCustomFontFile(entry.familyFile)
+					end
+					manifestDirty = true
+				elseif validMap[entry.id] then
+					manifestDirty = true
+				else
+					validFonts[#validFonts + 1] = entry
+					validMap[entry.id] = entry
+				end
+			else
+				manifestDirty = true
+			end
+		end
+		FontEditor.customFonts = validFonts
+		FontEditor.customFontMap = validMap
+		if manifestDirty then
+			saveCustomFontManifest()
+		end
+	end
 
 	local function rebuildFontChoices()
 		clearFontChoices()
@@ -1891,102 +1891,102 @@ end
 	end
 
 	local function getFontChoice(fontKey)
-    if type(fontKey) ~= "string" or fontKey == "" then
-        return nil
-    end
-    local choice = FontChoiceIndex[fontKey]
-    if choice then
-        return choice
-    end
-    if not fontKey:find(":", 1, true) then
-        local ok, enumCandidate = pcall(function()
-            return Enum.Font[fontKey]
-        end)
-        if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
-            return FontChoiceIndex["enum:"..fontKey]
-        end
-    end
-    return nil
-end
+		if type(fontKey) ~= "string" or fontKey == "" then
+			return nil
+		end
+		local choice = FontChoiceIndex[fontKey]
+		if choice then
+			return choice
+		end
+		if not fontKey:find(":", 1, true) then
+			local ok, enumCandidate = pcall(function()
+				return Enum.Font[fontKey]
+			end)
+			if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
+				return FontChoiceIndex["enum:"..fontKey]
+			end
+		end
+		return nil
+	end
 
 	local function normalizeFontKey(fontKey)
-    if type(fontKey) ~= "string" or fontKey == "" then
-        return FontEditor.default.fontKey
-    end
-    if fontKey == "enum:Unknown" then
-        return FontEditor.default.fontKey
-    end
-    if FontChoiceIndex[fontKey] then
-        return fontKey
-    end
-    if not fontKey:find(":", 1, true) then
-        local ok, enumCandidate = pcall(function()
-            return Enum.Font[fontKey]
-        end)
-        if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
-            return "enum:"..fontKey
-        end
-    end
-    return FontEditor.default.fontKey
-end
+		if type(fontKey) ~= "string" or fontKey == "" then
+			return FontEditor.default.fontKey
+		end
+		if fontKey == "enum:Unknown" then
+			return FontEditor.default.fontKey
+		end
+		if FontChoiceIndex[fontKey] then
+			return fontKey
+		end
+		if not fontKey:find(":", 1, true) then
+			local ok, enumCandidate = pcall(function()
+				return Enum.Font[fontKey]
+			end)
+			if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
+				return "enum:"..fontKey
+			end
+		end
+		return FontEditor.default.fontKey
+	end
 	local function getCustomFontAsset(entry)
-    if isDelta then
-        return nil, "Custom font files are disabled on this executor."
-    end
-    if type(entry) ~= "table" or type(entry.file) ~= "string" then
-        return nil, "Invalid custom font entry."
-    end
-    if type(getcustomasset) ~= "function" then
-        return nil, "Custom fonts require getcustomasset support."
-    end
-    if not FileSupport or type(writefile) ~= "function" then
-        return nil, "File support is required for custom fonts."
-    end
-    if not customFontFileExists(entry.file) then
-        removeCustomFontEntry(entry)
-        rebuildFontChoices()
-        enforceCustomCycleAvailability()
-        return nil, "Custom font file is missing."
-    end
-    local fullPath = FontEditor.customDir.."/"..entry.file
-    local okAsset, assetId = pcall(getcustomasset, fullPath)
-    if not (okAsset and type(assetId) == "string") then
-        return nil, "Unable to load custom font file."
-    end
-    local familyFile = entry.familyFile or (entry.id.."_family.json")
-    local familyPath = FontEditor.customDir.."/"..familyFile
-    if entry.familyFile and entry.familyFile ~= familyFile then
-        deleteCustomFontFile(entry.familyFile)
-    end
-    local needsPersist = entry.familyFile ~= familyFile
-    entry.familyFile = familyFile
-    local familyData = {
-        family = entry.displayName or entry.name or entry.id,
-        faces = {
-            {
-                assetId = assetId,
-                weight = "Regular",
-                style = "Normal",
-            },
-        },
-    }
-    local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
-    if not okWrite then
-        return nil, errWrite or "Unable to create font family data."
-    end
-    local okFamilyAsset, familyAssetId = pcall(getcustomasset, familyPath)
-    if not (okFamilyAsset and type(familyAssetId) == "string") then
-        return nil, "Unable to load custom font family."
-    end
-    if needsPersist then
-        saveCustomFontManifest()
-    end
-    local okFont, fontFace = pcall(Font.new, familyAssetId, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-    if okFont and typeof(fontFace) == "Font" then
-        return fontFace
-    end
-    return nil, "Invalid font file."
-end
+		if isDelta then
+			return nil, "Custom font files are disabled on this executor."
+		end
+		if type(entry) ~= "table" or type(entry.file) ~= "string" then
+			return nil, "Invalid custom font entry."
+		end
+		if type(getcustomasset) ~= "function" then
+			return nil, "Custom fonts require getcustomasset support."
+		end
+		if not FileSupport or type(writefile) ~= "function" then
+			return nil, "File support is required for custom fonts."
+		end
+		if not customFontFileExists(entry.file) then
+			removeCustomFontEntry(entry)
+			rebuildFontChoices()
+			enforceCustomCycleAvailability()
+			return nil, "Custom font file is missing."
+		end
+		local fullPath = FontEditor.customDir.."/"..entry.file
+		local okAsset, assetId = pcall(getcustomasset, fullPath)
+		if not (okAsset and type(assetId) == "string") then
+			return nil, "Unable to load custom font file."
+		end
+		local familyFile = entry.familyFile or (entry.id.."_family.json")
+		local familyPath = FontEditor.customDir.."/"..familyFile
+		if entry.familyFile and entry.familyFile ~= familyFile then
+			deleteCustomFontFile(entry.familyFile)
+		end
+		local needsPersist = entry.familyFile ~= familyFile
+		entry.familyFile = familyFile
+		local familyData = {
+			family = entry.displayName or entry.name or entry.id,
+			faces = {
+				{
+					assetId = assetId,
+					weight = "Regular",
+					style = "Normal",
+				},
+			},
+		}
+		local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
+		if not okWrite then
+			return nil, errWrite or "Unable to create font family data."
+		end
+		local okFamilyAsset, familyAssetId = pcall(getcustomasset, familyPath)
+		if not (okFamilyAsset and type(familyAssetId) == "string") then
+			return nil, "Unable to load custom font family."
+		end
+		if needsPersist then
+			saveCustomFontManifest()
+		end
+		local okFont, fontFace = pcall(Font.new, familyAssetId, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		if okFont and typeof(fontFace) == "Font" then
+			return fontFace
+		end
+		return nil, "Invalid font file."
+	end
 
 	local function deriveFileNameFromUrl(url)
 		if type(url) ~= "string" then
@@ -2086,40 +2086,40 @@ end
 	end
 
 	local function addOrUpdateCustomFont(name, url, opts)
-    opts = opts or {}
-    if isDelta then
-        return false, "Custom font files are disabled on this executor."
-    end
-    if not FileSupport then
-        return false, "File support is required for custom fonts."
-    end
-    if type(writefile) ~= "function" then
-        return false, "writefile is required for custom fonts."
-    end
-    if type(url) ~= "string" or url == "" then
-        return false, "A font URL is required."
-    end
-    local trimmed, baseUrl = preprocessFontUrl(url)
-    if not trimmed then
-        return false, "A font URL is required."
-    end
-    local okFolder, folderErr = ensureCustomFontFolder()
-    if not okFolder then
-        return false, folderErr
-    end
-    if not opts.skipFolderScan then
-        local folderInfo = parseGitHubFolderUrl(baseUrl, trimmed)
-        if folderInfo then
-            folderInfo.path = folderInfo.path or ""
-            return installFontsFromGitHubFolder(name, folderInfo)
-        end
-    end
-    local normalizedUrl = normalizeCustomFontUrl(trimmed)
-    if not normalizedUrl then
-        return false, "Invalid font URL."
-    end
-    return installFontFromUrl(name, normalizedUrl, opts)
-end
+		opts = opts or {}
+		if isDelta then
+			return false, "Custom font files are disabled on this executor."
+		end
+		if not FileSupport then
+			return false, "File support is required for custom fonts."
+		end
+		if type(writefile) ~= "function" then
+			return false, "writefile is required for custom fonts."
+		end
+		if type(url) ~= "string" or url == "" then
+			return false, "A font URL is required."
+		end
+		local trimmed, baseUrl = preprocessFontUrl(url)
+		if not trimmed then
+			return false, "A font URL is required."
+		end
+		local okFolder, folderErr = ensureCustomFontFolder()
+		if not okFolder then
+			return false, folderErr
+		end
+		if not opts.skipFolderScan then
+			local folderInfo = parseGitHubFolderUrl(baseUrl, trimmed)
+			if folderInfo then
+				folderInfo.path = folderInfo.path or ""
+				return installFontsFromGitHubFolder(name, folderInfo)
+			end
+		end
+		local normalizedUrl = normalizeCustomFontUrl(trimmed)
+		if not normalizedUrl then
+			return false, "Invalid font URL."
+		end
+		return installFontFromUrl(name, normalizedUrl, opts)
+	end
 
 	local function getNAList()
 		local ok, raw = pcall(function()
@@ -2163,36 +2163,36 @@ end
 	end
 
 	local function dlNAFonts()
-    if isDelta then
-        return false, "NA preset fonts are disabled on this executor."
-    end
-    if not FileSupport then
-        return false, "Custom fonts require file support."
-    end
-    local okFolder, folderErr = ensureCustomFontFolder()
-    if not okFolder then
-        return false, folderErr
-    end
-    local okList, fonts = getNAList()
-    if not okList then
-        return false, fonts
-    end
-    local count = 0
-    local lastErr = nil
-    for _, font in ipairs(fonts) do
-        local label = font.label ~= "" and font.label or font.name
-        local okInstall, res = addOrUpdateCustomFont(label, font.url)
-        if okInstall then
-            count += 1
-        else
-            lastErr = res or ("Unable to install "..label)
-        end
-    end
-    if count == 0 then
-        return false, lastErr or "No preset fonts installed."
-    end
-    return true, count
-end
+		if isDelta then
+			return false, "NA preset fonts are disabled on this executor."
+		end
+		if not FileSupport then
+			return false, "Custom fonts require file support."
+		end
+		local okFolder, folderErr = ensureCustomFontFolder()
+		if not okFolder then
+			return false, folderErr
+		end
+		local okList, fonts = getNAList()
+		if not okList then
+			return false, fonts
+		end
+		local count = 0
+		local lastErr = nil
+		for _, font in ipairs(fonts) do
+			local label = font.label ~= "" and font.label or font.name
+			local okInstall, res = addOrUpdateCustomFont(label, font.url)
+			if okInstall then
+				count += 1
+			else
+				lastErr = res or ("Unable to install "..label)
+			end
+		end
+		if count == 0 then
+			return false, lastErr or "No preset fonts installed."
+		end
+		return true, count
+	end
 
 	FontEditor = {
 		path = NAfiles.NAFILEPATH.."/font_override.json",
@@ -2230,7 +2230,7 @@ end
 		restoring = false,
 		dlBusy = false,
 	}
-	
+
 	local ex = identifyexecutor and identifyexecutor():lower() or ""
 	local isDelta = (ex == "delta")
 
@@ -2279,78 +2279,78 @@ end
 	end
 
 	persistFontData = function()
-    if not FileSupport then
-        return
-    end
-    local payload = {
-        enabled = FontEditor.data.enabled,
-        fontKey = FontEditor.data.fontKey or FontEditor.default.fontKey,
-        fontLabel = FontEditor.data.font,
-        targetCoreGui = FontEditor.data.targetCoreGui,
-        targetPlayerGui = FontEditor.data.targetPlayerGui,
-        targetBillboardGui = FontEditor.data.targetBillboardGui,
-        targetSurfaceGui = FontEditor.data.targetSurfaceGui,
-        useCustomCycle = FontEditor.data.useCustomCycle,
-    }
-    pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
-end
+		if not FileSupport then
+			return
+		end
+		local payload = {
+			enabled = FontEditor.data.enabled,
+			fontKey = FontEditor.data.fontKey or FontEditor.default.fontKey,
+			fontLabel = FontEditor.data.font,
+			targetCoreGui = FontEditor.data.targetCoreGui,
+			targetPlayerGui = FontEditor.data.targetPlayerGui,
+			targetBillboardGui = FontEditor.data.targetBillboardGui,
+			targetSurfaceGui = FontEditor.data.targetSurfaceGui,
+			useCustomCycle = FontEditor.data.useCustomCycle,
+		}
+		pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
+	end
 
 	local function loadFontData()
-    local stored = FontEditor.default
+		local stored = FontEditor.default
 
-    if FileSupport then
-        if not isfile(FontEditor.path) then
-            writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
-        end
-        local ok, raw = pcall(readfile, FontEditor.path)
-        if ok and type(raw) == "string" then
-            local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
-            if okD and type(dec) == "table" then
-                stored = dec
-            end
-        end
-    end
+		if FileSupport then
+			if not isfile(FontEditor.path) then
+				writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
+			end
+			local ok, raw = pcall(readfile, FontEditor.path)
+			if ok and type(raw) == "string" then
+				local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okD and type(dec) == "table" then
+					stored = dec
+				end
+			end
+		end
 
-    local k = stored.fontKey or stored.font or FontEditor.default.fontKey
-    local lbl = stored.fontLabel or stored.font or FontEditor.default.font
+		local k = stored.fontKey or stored.font or FontEditor.default.fontKey
+		local lbl = stored.fontLabel or stored.font or FontEditor.default.font
 
-    if type(k) ~= "string" or k == "" then
-        k = FontEditor.default.fontKey
-    end
-    if type(lbl) ~= "string" or lbl == "" then
-        lbl = FontEditor.default.font
-    end
+		if type(k) ~= "string" or k == "" then
+			k = FontEditor.default.fontKey
+		end
+		if type(lbl) ~= "string" or lbl == "" then
+			lbl = FontEditor.default.font
+		end
 
-    FontEditor.data.fontKey = k
-    FontEditor.data.font = lbl
+		FontEditor.data.fontKey = k
+		FontEditor.data.font = lbl
 
-    if type(stored.targetCoreGui) == "boolean" then
-        FontEditor.data.targetCoreGui = stored.targetCoreGui
-    else
-        FontEditor.data.targetCoreGui = FontEditor.default.targetCoreGui
-    end
+		if type(stored.targetCoreGui) == "boolean" then
+			FontEditor.data.targetCoreGui = stored.targetCoreGui
+		else
+			FontEditor.data.targetCoreGui = FontEditor.default.targetCoreGui
+		end
 
-    if type(stored.targetPlayerGui) == "boolean" then
-        FontEditor.data.targetPlayerGui = stored.targetPlayerGui
-    else
-        FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
-    end
+		if type(stored.targetPlayerGui) == "boolean" then
+			FontEditor.data.targetPlayerGui = stored.targetPlayerGui
+		else
+			FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
+		end
 
-    if type(stored.targetBillboardGui) == "boolean" then
-        FontEditor.data.targetBillboardGui = stored.targetBillboardGui
-    else
-        FontEditor.data.targetBillboardGui = FontEditor.default.targetBillboardGui
-    end
+		if type(stored.targetBillboardGui) == "boolean" then
+			FontEditor.data.targetBillboardGui = stored.targetBillboardGui
+		else
+			FontEditor.data.targetBillboardGui = FontEditor.default.targetBillboardGui
+		end
 
-    if type(stored.targetSurfaceGui) == "boolean" then
-        FontEditor.data.targetSurfaceGui = stored.targetSurfaceGui
-    else
-        FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
-    end
+		if type(stored.targetSurfaceGui) == "boolean" then
+			FontEditor.data.targetSurfaceGui = stored.targetSurfaceGui
+		else
+			FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
+		end
 
-    FontEditor.data.useCustomCycle = stored.useCustomCycle == true
-    FontEditor.data.enabled = stored.enabled == true
-end
+		FontEditor.data.useCustomCycle = stored.useCustomCycle == true
+		FontEditor.data.enabled = stored.enabled == true
+	end
 
 	local function isBuilderIconFontFace(o)
 		local ff = NAlib.isProperty(o, "FontFace")
@@ -2377,13 +2377,13 @@ end
 		end
 		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
 	end
-	
+
 	local function isInPlayerGui(o)
-    local ok, pg = pcall(function()
-        return o:FindFirstAncestorOfClass("PlayerGui")
-    end)
-    return ok and pg ~= nil
-end
+		local ok, pg = pcall(function()
+			return o:FindFirstAncestorOfClass("PlayerGui")
+		end)
+		return ok and pg ~= nil
+	end
 
 	local function getFontBB(o)
 		if not (FontEditor.data.targetBillboardGui and typeof(o) == "Instance") then
@@ -2428,52 +2428,52 @@ end
 	end
 
 	local function applyFontToInstance(o)
-    if not isFontTarget(o) then
-        return
-    end
-    if isBuilderIconFontFace(o) then
-        return
-    end
-    if not FontEditor.currentFont then
-        return
-    end
+		if not isFontTarget(o) then
+			return
+		end
+		if isBuilderIconFontFace(o) then
+			return
+		end
+		if not FontEditor.currentFont then
+			return
+		end
 
-    if not FontEditor.store[o] then
-        local hasFF, ff = captureFontFaceState(o)
-        FontEditor.store[o] = {
-            Font = NAlib.isProperty(o, "Font"),
-            FontFace = ff,
-            FontFaceSupported = hasFF,
-        }
-    end
+		if not FontEditor.store[o] then
+			local hasFF, ff = captureFontFaceState(o)
+			FontEditor.store[o] = {
+				Font = NAlib.isProperty(o, "Font"),
+				FontFace = ff,
+				FontFaceSupported = hasFF,
+			}
+		end
 
-    local info = FontEditor.store[o]
+		local info = FontEditor.store[o]
 
-    if FontEditor.currentFontIsCustom then
-        if not isInPlayerGui(o) then
-            ensureFontWatcher(o)
-        end
-        if info and info.FontFaceSupported then
-            pcall(function()
-                o.FontFace = FontEditor.currentFont
-            end)
-        end
-    else
-        if info and info.FontFaceSupported then
-            ensureFontWatcher(o)
-            pcall(function()
-                o.FontFace = info.FontFace
-            end)
-        end
-        local cur = NAlib.isProperty(o, "Font")
-        if cur == FontEditor.currentFont then
-            return
-        end
-        pcall(function()
-            o.Font = FontEditor.currentFont
-        end)
-    end
-end
+		if FontEditor.currentFontIsCustom then
+			if not isInPlayerGui(o) then
+				ensureFontWatcher(o)
+			end
+			if info and info.FontFaceSupported then
+				pcall(function()
+					o.FontFace = FontEditor.currentFont
+				end)
+			end
+		else
+			if info and info.FontFaceSupported then
+				ensureFontWatcher(o)
+				pcall(function()
+					o.FontFace = info.FontFace
+				end)
+			end
+			local cur = NAlib.isProperty(o, "Font")
+			if cur == FontEditor.currentFont then
+				return
+			end
+			pcall(function()
+				o.Font = FontEditor.currentFont
+			end)
+		end
+	end
 
 	local function applyFontToDescendants(container)
 		if not container then
@@ -40969,30 +40969,30 @@ end
 
 NAmanage.Topbar_BuildBaseButtons=function()
 	return {
-	{name="settings",icon="gear",func=function()
-		if NAUIMANAGER.SettingsFrame then
-			NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
-			NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-		end
-	end},
-	{name="cmds",icon="list-bulleted",func=NAgui.commands},
-	{name="chatlogs",icon="speech-bubble-align-center",func=function()
-		if NAUIMANAGER.chatLogsFrame then
-			NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-			NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-		end
-	end},
-	{name="nachat",icon="we-chat",func=function()
-		if NAUIMANAGER.NAchatFrame then
-			NAUIMANAGER.NAchatFrame.Visible = not NAUIMANAGER.NAchatFrame.Visible
-			NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
-		end
-	end},
-	{name="console",icon="pencil-square",func=function()
-		if NAUIMANAGER.NAconsoleFrame then
-			NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-			NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-		end
+		{name="settings",icon="gear",func=function()
+			if NAUIMANAGER.SettingsFrame then
+				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+			end
+		end},
+		{name="cmds",icon="list-bulleted",func=NAgui.commands},
+		{name="chatlogs",icon="speech-bubble-align-center",func=function()
+			if NAUIMANAGER.chatLogsFrame then
+				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+			end
+		end},
+		{name="nachat",icon="we-chat",func=function()
+			if NAUIMANAGER.NAchatFrame then
+				NAUIMANAGER.NAchatFrame.Visible = not NAUIMANAGER.NAchatFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
+			end
+		end},
+		{name="console",icon="pencil-square",func=function()
+			if NAUIMANAGER.NAconsoleFrame then
+				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+			end
 		end},
 		{name="waypp",icon="location-pin",func=function()
 			if NAUIMANAGER.WaypointFrame then
@@ -42041,7 +42041,7 @@ UserInputService.InputBegan:Connect(function(input)
 
 		local predictionText = predictionInput and predictionInput.Text or ""
 		if predictionText ~= "" then
-			task.defer(function()
+			Defer(function()
 				local sanitizedText = NAmanage.stripChar(predictionText)
 				NAUIMANAGER.cmdInput.Text = sanitizedText
 				NAUIMANAGER.cmdInput.CursorPosition = #sanitizedText + 1
@@ -42669,7 +42669,7 @@ do
 	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 
-	if chatFrame and chatScroll and usersScroll and inputBox and sendBtn and statusLabel then
+	if chatFrame then
 		local NAChat = {
 			service = nil,
 			connecting = false,
@@ -42689,12 +42689,43 @@ do
 		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
 		local connect
 
-		local function setStatus(text, color)
+		local function setStatus(t, c)
 			if statusLabel then
-				statusLabel.Text = text
-				if color then
-					statusLabel.TextColor3 = color
+				statusLabel.Text = t
+				if c then
+					statusLabel.TextColor3 = c
 				end
+			end
+		end
+
+		local function refreshStatus()
+			if not statusLabel then
+				return
+			end
+
+			local svc = NAChat.service
+			local isConn = false
+
+			if svc and svc.IsConnected then
+				local ok, res = pcall(svc.IsConnected)
+				if ok and res then
+					isConn = true
+				end
+			end
+
+			if isConn then
+				local ct = #NAChat.users
+				if NAChat.isHidden then
+					setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
+				else
+					setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
+				end
+			elseif NAChat.isHidden then
+				setStatus("NA Chat: Hidden", STATUS_COLORS.info)
+			elseif NAChat.connecting then
+				setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+			else
+				setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
 			end
 		end
 
@@ -42717,47 +42748,47 @@ do
 			end)
 		end
 
-		local function makeChatLabel(text, color)
-			local label = InstanceNew("TextLabel", chatScroll)
-			label.Size = UDim2.new(1, -6, 0, 24)
-			label.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
-			label.BackgroundTransparency = 0.35
-			label.TextColor3 = color or Color3.fromRGB(224, 224, 234)
-			label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			label.TextSize = 16
-			label.TextWrapped = true
-			label.RichText = true
-			label.TextXAlignment = Enum.TextXAlignment.Left
-			label.TextYAlignment = Enum.TextYAlignment.Top
-			label.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
-			label.Text = text
+		local function makeChatLabel(t, c)
+			local lbl = InstanceNew("TextLabel", chatScroll)
+			lbl.Size = UDim2.new(1, -6, 0, 24)
+			lbl.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+			lbl.BackgroundTransparency = 0.35
+			lbl.TextColor3 = c or Color3.fromRGB(224, 224, 234)
+			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			lbl.TextSize = 16
+			lbl.TextWrapped = true
+			lbl.RichText = true
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.TextYAlignment = Enum.TextYAlignment.Top
+			lbl.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
+			lbl.Text = t
 
-			local corner = InstanceNew("UICorner", label)
-			corner.CornerRadius = UDim.new(0, 4)
+			local cr = InstanceNew("UICorner", lbl)
+			cr.CornerRadius = UDim.new(0, 4)
 
-			local size = NAgui.txtSize(label, label.AbsoluteSize.X, 200)
-			label.Size = UDim2.new(1, -6, 0, size.Y + 6)
+			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
+			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
 
-			local translator = NAStuff.ChatTranslator
-			if translator then
-				translator:registerMessage(label, text, text)
+			local tr = NAStuff.ChatTranslator
+			if tr then
+				tr:registerMessage(lbl, t, t)
 			end
 
 			updateCanvas(chatScroll, chatLayout)
 
-			local MAX_MESSAGES = 200
-			local labels = {}
+			local MAX_MSG = 200
+			local list = {}
 			for _, v in ipairs(chatScroll:GetChildren()) do
 				if v:IsA("TextLabel") then
-					table.insert(labels, v)
+					Insert(list, v)
 				end
 			end
-			table.sort(labels, function(a, b)
+			table.sort(list, function(a, b)
 				return a.LayoutOrder < b.LayoutOrder
 			end)
-			if #labels > MAX_MESSAGES then
-				for i = 1, #labels - MAX_MESSAGES do
-					labels[i]:Destroy()
+			if #list > MAX_MSG then
+				for i = 1, #list - MAX_MSG do
+					list[i]:Destroy()
 				end
 			end
 		end
@@ -42774,17 +42805,17 @@ do
 			end
 
 			if NAChat.isHidden then
-				local frame = InstanceNew("Frame", usersScroll)
-				frame.BackgroundTransparency = 1
-				frame.Size = UDim2.new(1, -6, 0, 40)
-				local label = InstanceNew("TextLabel", frame)
-				label.BackgroundTransparency = 1
-				label.Size = UDim2.new(1, 0, 1, 0)
-				label.Text = "Hidden mode - user list disabled"
-				label.TextColor3 = Color3.fromRGB(200, 200, 210)
-				label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				label.TextSize = 14
-				label.TextWrapped = true
+				local fr = InstanceNew("Frame", usersScroll)
+				fr.BackgroundTransparency = 1
+				fr.Size = UDim2.new(1, -6, 0, 40)
+				local lbl = InstanceNew("TextLabel", fr)
+				lbl.BackgroundTransparency = 1
+				lbl.Size = UDim2.new(1, 0, 1, 0)
+				lbl.Text = "Hidden mode - user list disabled"
+				lbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				lbl.TextSize = 14
+				lbl.TextWrapped = true
 				return
 			end
 
@@ -42792,24 +42823,24 @@ do
 				return
 			end
 
-			for _, username in ipairs(list) do
-				local frame = InstanceNew("Frame", usersScroll)
-				frame.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-				frame.Size = UDim2.new(1, -6, 0, 26)
-				frame.BackgroundTransparency = 0.15
+			for _, name in ipairs(list) do
+				local fr = InstanceNew("Frame", usersScroll)
+				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+				fr.Size = UDim2.new(1, -6, 0, 26)
+				fr.BackgroundTransparency = 0.15
 
-				local corner = InstanceNew("UICorner", frame)
-				corner.CornerRadius = UDim.new(0, 4)
+				local cr = InstanceNew("UICorner", fr)
+				cr.CornerRadius = UDim.new(0, 4)
 
-				local label = InstanceNew("TextLabel", frame)
-				label.BackgroundTransparency = 1
-				label.Size = UDim2.new(1, -10, 1, 0)
-				label.Position = UDim2.new(0, 5, 0, 0)
-				label.Text = tostring(username)
-				label.TextColor3 = Color3.fromRGB(180, 150, 230)
-				label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				label.TextSize = 14
-				label.TextXAlignment = Enum.TextXAlignment.Left
+				local lbl = InstanceNew("TextLabel", fr)
+				lbl.BackgroundTransparency = 1
+				lbl.Size = UDim2.new(1, -10, 1, 0)
+				lbl.Position = UDim2.new(0, 5, 0, 0)
+				lbl.Text = tostring(name)
+				lbl.TextColor3 = Color3.fromRGB(180, 150, 230)
+				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				lbl.TextSize = 14
+				lbl.TextXAlignment = Enum.TextXAlignment.Left
 			end
 
 			updateCanvas(usersScroll, usersLayout)
@@ -42831,7 +42862,6 @@ do
 				sendBtn.TextTransparency = newHidden and 0.5 or 0
 			end
 			if newHidden then
-				setStatus("NA Chat: Hidden", STATUS_COLORS.info)
 				updateUsersList({})
 			elseif NAChat.activeTab == "users" and NAChat.service and NAChat.service.GetUsers then
 				NAChat.service.GetUsers()
@@ -42839,6 +42869,7 @@ do
 			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
 				NAChat.service.SetHidden(newHidden)
 			end
+			refreshStatus()
 		end
 
 		local function switchTab(tab)
@@ -42866,15 +42897,15 @@ do
 
 		local function fetchIntegrationBody()
 			local body
-			local req = request or http_request or (syn and syn.request) or opt.NAREQUEST
+			local rq = request or http_request or (syn and syn.request) or opt.NAREQUEST
 
-			if type(req) == "function" then
-				local ok, response = pcall(req, {
+			if type(rq) == "function" then
+				local ok, res = pcall(rq, {
 					Url = INTEGRATION_URL,
 					Method = "GET"
 				})
-				if ok and type(response) == "table" then
-					body = response.Body or response.body
+				if ok and type(res) == "table" then
+					body = res.Body or res.body
 				end
 			end
 
@@ -42903,14 +42934,14 @@ do
 				return false
 			end
 
-			local okLoad, result = pcall(function()
+			local okLoad, res = pcall(function()
 				local chunk, err = loadstring(payload)
 				assert(chunk, err or "loadstring failed")
 				return chunk()
 			end)
 
-			if okLoad and type(result) == "table" then
-				NAChat.service = result
+			if okLoad and type(res) == "table" then
+				NAChat.service = res
 				return true
 			end
 
@@ -42931,47 +42962,59 @@ do
 			end)
 		end
 
+		local lastSysText, lastSysTime = nil, 0
+
 		local function wireEvents()
 			if NAChat.wired or not NAChat.service then
 				return
 			end
 			NAChat.wired = true
 
-			NAChat.service.OnChatMessage.Event:Connect(function(username, message)
-				makeChatLabel(("[%s]: %s"):format(username or "?", message or ""), STATUS_COLORS.blue)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg)
+				makeChatLabel(("[%s]: %s"):format(name or "?", msg or ""), STATUS_COLORS.blue)
 			end)
 
-			NAChat.service.OnSystemMessage.Event:Connect(function(message)
-				makeChatLabel(("[System]: %s"):format(tostring(message or "System message")), STATUS_COLORS.info)
+			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
+				local m = tostring(msg or "System message")
+				local now = os.clock()
+				if lastSysText == m and (now - lastSysTime) < 2 then
+					return
+				end
+				lastSysText, lastSysTime = m, now
+				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info)
 			end)
 
-			NAChat.service.OnUserListUpdate.Event:Connect(function(users)
-				NAChat.users = users or {}
-				setStatus(("NA Chat: %d online%s"):format(#NAChat.users, NAChat.isHidden and " (hidden)" or ""), STATUS_COLORS.ok)
+			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
+				NAChat.users = list or {}
 				if not NAChat.isHidden then
 					updateUsersList(NAChat.users)
 				end
+				refreshStatus()
 			end)
 
-			NAChat.service.OnConnected.Event:Connect(function(username, _, hidden)
+			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
+				NAChat.connecting = false
 				NAChat.isHidden = hidden or false
 				setHiddenState(NAChat.isHidden, true)
-				setStatus(("NA Chat: %s"):format(username or "Connected"), STATUS_COLORS.ok)
-				makeChatLabel(("[NA Chat] Connected as %s"):format(username or "?"), STATUS_COLORS.ok)
+				makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
 				if not NAChat.isHidden and NAChat.service and NAChat.service.GetUsers then
 					NAChat.service.GetUsers()
 				end
+				refreshStatus()
 			end)
 
 			NAChat.service.OnDisconnected.Event:Connect(function()
-				setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
+				NAChat.connecting = false
 				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
+				refreshStatus()
 				queueReconnect()
 			end)
 
 			NAChat.service.OnError.Event:Connect(function(err)
+				NAChat.connecting = false
 				setStatus("NA Chat error", STATUS_COLORS.err)
 				makeChatLabel("[NA Chat] " .. tostring(err or "Unknown error"), STATUS_COLORS.err)
+				refreshStatus()
 				queueReconnect()
 			end)
 		end
@@ -42992,9 +43035,9 @@ do
 
 				wireEvents()
 
-				local initOk = true
+				local okInit = true
 				if NAChat.service and NAChat.service.Init then
-					initOk = NAChat.service.Init({
+					okInit = NAChat.service.Init({
 						serverUrl = "wss://witty-minette-adonis-632b17c0.koyeb.app/swimhub",
 						heartbeatInterval = 5,
 						autoReconnect = true,
@@ -43002,7 +43045,7 @@ do
 					})
 				end
 
-				if not initOk then
+				if not okInit then
 					setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 					makeChatLabel("[NA Chat] Init failed (see console for [IntegrationService] errors)", STATUS_COLORS.err)
 					NAChat.connecting = false
@@ -43011,22 +43054,21 @@ do
 				end
 
 				setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
-				NAChat.connecting = false
 			end)
 		end
 
-		local function sendMessage(text)
+		local function sendMessage(t)
 			if NAChat.isHidden then
 				setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
 				return
 			end
 
-			if not text then
+			if not t then
 				return
 			end
 
-			text = tostring(text):gsub("^%s+", ""):gsub("%s+$", "")
-			if text == "" then
+			t = tostring(t):gsub("^%s+", ""):gsub("%s+$", "")
+			if t == "" then
 				return
 			end
 
@@ -43036,7 +43078,7 @@ do
 			end
 
 			if NAChat.service and NAChat.service.SendMessage then
-				local ok = NAChat.service.SendMessage(text)
+				local ok = NAChat.service.SendMessage(t)
 				if not ok then
 					setStatus("NA Chat: failed to send", STATUS_COLORS.err)
 				end
@@ -43054,15 +43096,15 @@ do
 
 		if inputBox then
 			inputBox.ClearTextOnFocus = false
-			inputBox.FocusLost:Connect(function(enterPressed)
-				if enterPressed then
+			inputBox.FocusLost:Connect(function(enter)
+				if enter then
 					sendMessage(inputBox.Text)
 					inputBox.Text = ""
 				end
 			end)
 		end
 
-		if clearBtn then
+		if clearBtn and chatScroll then
 			MouseButtonFix(clearBtn, function()
 				for _, v in ipairs(chatScroll:GetChildren()) do
 					if v:IsA("TextLabel") then
@@ -43090,6 +43132,21 @@ do
 				setHiddenState(not NAChat.isHidden, false)
 			end)
 		end
+
+		Spawn(function()
+			while true do
+				Wait(8)
+				if NAChat.service and NAChat.service.IsConnected then
+					local ok, res = pcall(NAChat.service.IsConnected)
+					if ok and res then
+						if not NAChat.isHidden and NAChat.service.GetUsers and NAChat.activeTab == "users" then
+							NAChat.service.GetUsers()
+						end
+					end
+				end
+				refreshStatus()
+			end
+		end)
 
 		switchTab("chat")
 		setHiddenState(false, true)
@@ -44845,13 +44902,13 @@ end)
 
 
 SpawnCall(function() -- init
-if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
-if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
-if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
-if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
-if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
-if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
-if NAUIMANAGER.description then NAProtection(NAUIMANAGER.description) end
+	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
+	if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
+	if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
+	if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
+	if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
+	if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
+	if NAUIMANAGER.description then NAProtection(NAUIMANAGER.description) end
 	if NAUIMANAGER.ModalFixer then NAProtection(NAUIMANAGER.ModalFixer) end
 	if NAUIMANAGER.AUTOSCALER then NAProtection(NAUIMANAGER.AUTOSCALER) NAUIMANAGER.AUTOSCALER.Scale = NAUIScale end
 	if NAUIMANAGER.SettingsFrame then NAProtection(NAUIMANAGER.SettingsFrame) end
