@@ -1215,30 +1215,33 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function ensureCustomFontFolder()
-		if not FileSupport then
-			return false, "File support is required for custom fonts."
-		end
-		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
-			return false, "Custom font directory is not configured."
-		end
-		if type(isfolder) == "function" then
-			local exists = false
-			local ok, res = pcall(isfolder, FontEditor.customDir)
-			if ok then
-				exists = res
-			end
-			if not exists then
-				if type(makefolder) ~= "function" then
-					return false, "\"makefolder\" is required for custom fonts."
-				end
-				local okMk, err = pcall(makefolder, FontEditor.customDir)
-				if not okMk then
-					return false, err or "Unable to create custom font directory."
-				end
-			end
-		end
-		return true
-	end
+    if isDelta then
+        return false, "Custom font files are disabled on this executor."
+    end
+    if not FileSupport then
+        return false, "File support is required for custom fonts."
+    end
+    if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+        return false, "Custom font directory is not configured."
+    end
+    if type(isfolder) == "function" then
+        local exists = false
+        local ok, res = pcall(isfolder, FontEditor.customDir)
+        if ok then
+            exists = res
+        end
+        if not exists then
+            if type(makefolder) ~= "function" then
+                return false, "\"makefolder\" is required for custom fonts."
+            end
+            local okMk, err = pcall(makefolder, FontEditor.customDir)
+            if not okMk then
+                return false, err or "Unable to create custom font directory."
+            end
+        end
+    end
+    return true
+end
 
 	local function getCustomFontCount()
 		return type(FontEditor.customFonts) == "table" and #FontEditor.customFonts or 0
@@ -1743,127 +1746,135 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function scanFonts()
-		if not (FileSupport and listfiles) then
-			return false
-		end
-		if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
-			return false
-		end
-		if type(FontEditor.customFonts) ~= "table" or type(FontEditor.customFontMap) ~= "table" then
-			return false
-		end
-		local okFolder = ensureCustomFontFolder()
-		if not okFolder then
-			return false
-		end
-		local okList, items = pcall(listfiles, FontEditor.customDir)
-		if not (okList and type(items) == "table") then
-			return false
-		end
-		local known = {}
-		for _, entry in ipairs(FontEditor.customFonts) do
-			if entry.file then
-				known[entry.file:lower()] = true
-			end
-		end
-		local added = false
-		for _, fullPath in ipairs(items) do
-			local name = getFName(fullPath)
-			if name and isFontExt(name) then
-				local lower = name:lower()
-				if not known[lower] then
-					local base = name:gsub("%.[^%.]+$", "")
-					local id = uniqFontId(sanitizeId(base) or sanitizeId(name))
-					local label = base ~= "" and base or id
-					local entry = {
-						id = id,
-						name = label,
-						displayName = label,
-						file = name,
-						url = nil,
-					}
-					FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
-					FontEditor.customFontMap[id] = entry
-					known[lower] = true
-					added = true
-				end
-			end
-		end
-		if added then
-			saveCustomFontManifest()
-		end
-		return added
-	end
+    if isDelta then
+        return false
+    end
+    if not (FileSupport and listfiles) then
+        return false
+    end
+    if type(FontEditor.customDir) ~= "string" or FontEditor.customDir == "" then
+        return false
+    end
+    if type(FontEditor.customFonts) ~= "table" or type(FontEditor.customFontMap) ~= "table" then
+        return false
+    end
+    local okFolder = ensureCustomFontFolder()
+    if not okFolder then
+        return false
+    end
+    local okList, items = pcall(listfiles, FontEditor.customDir)
+    if not (okList and type(items) == "table") then
+        return false
+    end
+    local known = {}
+    for _, entry in ipairs(FontEditor.customFonts) do
+        if entry.file then
+            known[entry.file:lower()] = true
+        end
+    end
+    local added = false
+    for _, fullPath in ipairs(items) do
+        local name = getFName(fullPath)
+        if name and isFontExt(name) then
+            local lower = name:lower()
+            if not known[lower] then
+                local base = name:gsub("%.[^%.]+$", "")
+                local id = uniqFontId(sanitizeId(base) or sanitizeId(name))
+                local label = base ~= "" and base or id
+                local entry = {
+                    id = id,
+                    name = label,
+                    displayName = label,
+                    file = name,
+                    url = nil,
+                }
+                FontEditor.customFonts[#FontEditor.customFonts + 1] = entry
+                FontEditor.customFontMap[id] = entry
+                known[lower] = true
+                added = true
+            end
+        end
+    end
+    if added then
+        saveCustomFontManifest()
+    end
+    return added
+end
 
 	local function loadCustomFontManifest()
-		FontEditor.customFonts = {}
-		FontEditor.customFontMap = {}
-		if not FileSupport then
-			return
-		end
-		local okFolder = ensureCustomFontFolder()
-		if not okFolder then
-			return
-		end
-		if type(isfile) ~= "function" or type(readfile) ~= "function" then
-			return
-		end
-		if not isfile(FontEditor.customManifest) then
-			return
-		end
-		local ok, raw = pcall(readfile, FontEditor.customManifest)
-		if not (ok and type(raw) == "string" and raw ~= "") then
-			return
-		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-		if not (okDecode and type(decoded) == "table") then
-			return
-		end
-		local items = decoded.fonts or decoded
-		if type(items) ~= "table" then
-			return
-		end
-		local manifestDirty = false
-		local validFonts = {}
-		local validMap = {}
-		for _, entry in ipairs(items) do
-			if type(entry) == "table" and type(entry.file) == "string" then
-				entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
-				entry.name = entry.name or entry.id
-				entry.displayName = entry.displayName or entry.name
-				entry.url = normalizeCustomFontUrl(entry.url) or entry.url
-				entry.familyFile = entry.familyFile
-				if not customFontFileExists(entry.file) then
-					if entry.familyFile then
-						deleteCustomFontFile(entry.familyFile)
-					end
-					manifestDirty = true
-				elseif validMap[entry.id] then
-					manifestDirty = true
-				else
-					validFonts[#validFonts + 1] = entry
-					validMap[entry.id] = entry
-				end
-			else
-				manifestDirty = true
-			end
-		end
-		FontEditor.customFonts = validFonts
-		FontEditor.customFontMap = validMap
-		if manifestDirty then
-			saveCustomFontManifest()
-		end
-	end
+    FontEditor.customFonts = {}
+    FontEditor.customFontMap = {}
+    if isDelta then
+        return
+    end
+    if not FileSupport then
+        return
+    end
+    local okFolder = ensureCustomFontFolder()
+    if not okFolder then
+        return
+    end
+    if type(isfile) ~= "function" or type(readfile) ~= "function" then
+        return
+    end
+    if not isfile(FontEditor.customManifest) then
+        return
+    end
+    local ok, raw = pcall(readfile, FontEditor.customManifest)
+    if not (ok and type(raw) == "string" and raw ~= "") then
+        return
+    end
+    local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not (okDecode and type(decoded) == "table") then
+        return
+    end
+    local items = decoded.fonts or decoded
+    if type(items) ~= "table" then
+        return
+    end
+    local manifestDirty = false
+    local validFonts = {}
+    local validMap = {}
+    for _, entry in ipairs(items) do
+        if type(entry) == "table" and type(entry.file) == "string" then
+            entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
+            entry.name = entry.name or entry.id
+            entry.displayName = entry.displayName or entry.name
+            entry.url = normalizeCustomFontUrl(entry.url) or entry.url
+            entry.familyFile = entry.familyFile
+            if not customFontFileExists(entry.file) then
+                if entry.familyFile then
+                    deleteCustomFontFile(entry.familyFile)
+                end
+                manifestDirty = true
+            elseif validMap[entry.id] then
+                manifestDirty = true
+            else
+                validFonts[#validFonts + 1] = entry
+                validMap[entry.id] = entry
+            end
+        else
+            manifestDirty = true
+        end
+    end
+    FontEditor.customFonts = validFonts
+    FontEditor.customFontMap = validMap
+    if manifestDirty then
+        saveCustomFontManifest()
+    end
+end
 
 	local function rebuildFontChoices()
 		clearFontChoices()
 		for _, enumFont in ipairs(Enum.Font:GetEnumItems()) do
-			addFontChoice({
-				key = "enum:"..enumFont.Name,
-				label = enumFont.Name,
-				kind = "enum",
-				enum = enumFont,
-			})
+			if enumFont ~= Enum.Font.Unknown then
+				addFontChoice({
+					key = "enum:"..enumFont.Name,
+					label = enumFont.Name,
+					kind = "enum",
+					enum = enumFont,
+				})
+			end
 		end
 		for _, entry in ipairs(FontEditor.customFonts) do
 			if type(entry.id) == "string" and type(entry.file) == "string" then
@@ -1880,93 +1891,102 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function getFontChoice(fontKey)
-		if type(fontKey) ~= "string" or fontKey == "" then
-			return nil
-		end
-		local choice = FontChoiceIndex[fontKey]
-		if choice then
-			return choice
-		end
-		if not fontKey:find(":", 1, true) then
-			local enumCandidate = Enum.Font[fontKey]
-			if enumCandidate then
-				return FontChoiceIndex["enum:"..fontKey]
-			end
-		end
-		return nil
-	end
+    if type(fontKey) ~= "string" or fontKey == "" then
+        return nil
+    end
+    local choice = FontChoiceIndex[fontKey]
+    if choice then
+        return choice
+    end
+    if not fontKey:find(":", 1, true) then
+        local ok, enumCandidate = pcall(function()
+            return Enum.Font[fontKey]
+        end)
+        if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
+            return FontChoiceIndex["enum:"..fontKey]
+        end
+    end
+    return nil
+end
 
 	local function normalizeFontKey(fontKey)
-		if type(fontKey) ~= "string" or fontKey == "" then
-			return FontEditor.default.fontKey
-		end
-		if FontChoiceIndex[fontKey] then
-			return fontKey
-		end
-		if not fontKey:find(":", 1, true) then
-			local enumCandidate = Enum.Font[fontKey]
-			if enumCandidate then
-				return "enum:"..fontKey
-			end
-		end
-		return FontEditor.default.fontKey
-	end
-
+    if type(fontKey) ~= "string" or fontKey == "" then
+        return FontEditor.default.fontKey
+    end
+    if fontKey == "enum:Unknown" then
+        return FontEditor.default.fontKey
+    end
+    if FontChoiceIndex[fontKey] then
+        return fontKey
+    end
+    if not fontKey:find(":", 1, true) then
+        local ok, enumCandidate = pcall(function()
+            return Enum.Font[fontKey]
+        end)
+        if ok and enumCandidate and enumCandidate ~= Enum.Font.Unknown then
+            return "enum:"..fontKey
+        end
+    end
+    return FontEditor.default.fontKey
+end
 	local function getCustomFontAsset(entry)
-		if type(entry) ~= "table" or type(entry.file) ~= "string" then
-			return nil, "Invalid custom font entry."
-		end
-		if type(getcustomasset) ~= "function" then
-			return nil, "Custom fonts require getcustomasset support."
-		end
-		if not FileSupport or type(writefile) ~= "function" then
-			return nil, "File support is required for custom fonts."
-		end
-		if not customFontFileExists(entry.file) then
-			removeCustomFontEntry(entry)
-			rebuildFontChoices()
-			enforceCustomCycleAvailability()
-			return nil, "Custom font file is missing."
-		end
-		local fullPath = FontEditor.customDir.."/"..entry.file
-		local okAsset, assetId = pcall(getcustomasset, fullPath)
-		if not (okAsset and type(assetId) == "string") then
-			return nil, "Unable to load custom font file."
-		end
-		local familyFile = entry.familyFile or (entry.id.."_family.json")
-		local familyPath = FontEditor.customDir.."/"..familyFile
-		if entry.familyFile and entry.familyFile ~= familyFile then
-			deleteCustomFontFile(entry.familyFile)
-		end
-		local needsPersist = entry.familyFile ~= familyFile
-		entry.familyFile = familyFile
-		local familyData = {
-			family = entry.displayName or entry.name or entry.id,
-			faces = {
-				{
-					assetId = assetId,
-					weight = "Regular",
-					style = "Normal",
-				},
-			},
-		}
-		local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
-		if not okWrite then
-			return nil, errWrite or "Unable to create font family data."
-		end
-		local okFamilyAsset, familyAssetId = pcall(getcustomasset, familyPath)
-		if not (okFamilyAsset and type(familyAssetId) == "string") then
-			return nil, "Unable to load custom font family."
-		end
-		if needsPersist then
-			saveCustomFontManifest()
-		end
-		local okFont, fontFace = pcall(Font.new, familyAssetId, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-		if okFont and typeof(fontFace) == "Font" then
-			return fontFace
-		end
-		return nil, "Invalid font file."
-	end
+    if isDelta then
+        return nil, "Custom font files are disabled on this executor."
+    end
+    if type(entry) ~= "table" or type(entry.file) ~= "string" then
+        return nil, "Invalid custom font entry."
+    end
+    if type(getcustomasset) ~= "function" then
+        return nil, "Custom fonts require getcustomasset support."
+    end
+    if not FileSupport or type(writefile) ~= "function" then
+        return nil, "File support is required for custom fonts."
+    end
+    if not customFontFileExists(entry.file) then
+        removeCustomFontEntry(entry)
+        rebuildFontChoices()
+        enforceCustomCycleAvailability()
+        return nil, "Custom font file is missing."
+    end
+    local fullPath = FontEditor.customDir.."/"..entry.file
+    local okAsset, assetId = pcall(getcustomasset, fullPath)
+    if not (okAsset and type(assetId) == "string") then
+        return nil, "Unable to load custom font file."
+    end
+    local familyFile = entry.familyFile or (entry.id.."_family.json")
+    local familyPath = FontEditor.customDir.."/"..familyFile
+    if entry.familyFile and entry.familyFile ~= familyFile then
+        deleteCustomFontFile(entry.familyFile)
+    end
+    local needsPersist = entry.familyFile ~= familyFile
+    entry.familyFile = familyFile
+    local familyData = {
+        family = entry.displayName or entry.name or entry.id,
+        faces = {
+            {
+                assetId = assetId,
+                weight = "Regular",
+                style = "Normal",
+            },
+        },
+    }
+    local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
+    if not okWrite then
+        return nil, errWrite or "Unable to create font family data."
+    end
+    local okFamilyAsset, familyAssetId = pcall(getcustomasset, familyPath)
+    if not (okFamilyAsset and type(familyAssetId) == "string") then
+        return nil, "Unable to load custom font family."
+    end
+    if needsPersist then
+        saveCustomFontManifest()
+    end
+    local okFont, fontFace = pcall(Font.new, familyAssetId, Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    if okFont and typeof(fontFace) == "Font" then
+        return fontFace
+    end
+    return nil, "Invalid font file."
+end
 
 	local function deriveFileNameFromUrl(url)
 		if type(url) ~= "string" then
@@ -2066,37 +2086,40 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function addOrUpdateCustomFont(name, url, opts)
-		opts = opts or {}
-		if not FileSupport then
-			return false, "File support is required for custom fonts."
-		end
-		if type(writefile) ~= "function" then
-			return false, "writefile is required for custom fonts."
-		end
-		if type(url) ~= "string" or url == "" then
-			return false, "A font URL is required."
-		end
-		local trimmed, baseUrl = preprocessFontUrl(url)
-		if not trimmed then
-			return false, "A font URL is required."
-		end
-		local okFolder, folderErr = ensureCustomFontFolder()
-		if not okFolder then
-			return false, folderErr
-		end
-		if not opts.skipFolderScan then
-			local folderInfo = parseGitHubFolderUrl(baseUrl, trimmed)
-			if folderInfo then
-				folderInfo.path = folderInfo.path or ""
-				return installFontsFromGitHubFolder(name, folderInfo)
-			end
-		end
-		local normalizedUrl = normalizeCustomFontUrl(trimmed)
-		if not normalizedUrl then
-			return false, "Invalid font URL."
-		end
-		return installFontFromUrl(name, normalizedUrl, opts)
-	end
+    opts = opts or {}
+    if isDelta then
+        return false, "Custom font files are disabled on this executor."
+    end
+    if not FileSupport then
+        return false, "File support is required for custom fonts."
+    end
+    if type(writefile) ~= "function" then
+        return false, "writefile is required for custom fonts."
+    end
+    if type(url) ~= "string" or url == "" then
+        return false, "A font URL is required."
+    end
+    local trimmed, baseUrl = preprocessFontUrl(url)
+    if not trimmed then
+        return false, "A font URL is required."
+    end
+    local okFolder, folderErr = ensureCustomFontFolder()
+    if not okFolder then
+        return false, folderErr
+    end
+    if not opts.skipFolderScan then
+        local folderInfo = parseGitHubFolderUrl(baseUrl, trimmed)
+        if folderInfo then
+            folderInfo.path = folderInfo.path or ""
+            return installFontsFromGitHubFolder(name, folderInfo)
+        end
+    end
+    local normalizedUrl = normalizeCustomFontUrl(trimmed)
+    if not normalizedUrl then
+        return false, "Invalid font URL."
+    end
+    return installFontFromUrl(name, normalizedUrl, opts)
+end
 
 	local function getNAList()
 		local ok, raw = pcall(function()
@@ -2140,33 +2163,36 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function dlNAFonts()
-		if not FileSupport then
-			return false, "Custom fonts require file support."
-		end
-		local okFolder, folderErr = ensureCustomFontFolder()
-		if not okFolder then
-			return false, folderErr
-		end
-		local okList, fonts = getNAList()
-		if not okList then
-			return false, fonts
-		end
-		local count = 0
-		local lastErr = nil
-		for _, font in ipairs(fonts) do
-			local label = font.label ~= "" and font.label or font.name
-			local okInstall, res = addOrUpdateCustomFont(label, font.url)
-			if okInstall then
-				count += 1
-			else
-				lastErr = res or ("Unable to install "..label)
-			end
-		end
-		if count == 0 then
-			return false, lastErr or "No preset fonts installed."
-		end
-		return true, count
-	end
+    if isDelta then
+        return false, "NA preset fonts are disabled on this executor."
+    end
+    if not FileSupport then
+        return false, "Custom fonts require file support."
+    end
+    local okFolder, folderErr = ensureCustomFontFolder()
+    if not okFolder then
+        return false, folderErr
+    end
+    local okList, fonts = getNAList()
+    if not okList then
+        return false, fonts
+    end
+    local count = 0
+    local lastErr = nil
+    for _, font in ipairs(fonts) do
+        local label = font.label ~= "" and font.label or font.name
+        local okInstall, res = addOrUpdateCustomFont(label, font.url)
+        if okInstall then
+            count += 1
+        else
+            lastErr = res or ("Unable to install "..label)
+        end
+    end
+    if count == 0 then
+        return false, lastErr or "No preset fonts installed."
+    end
+    return true, count
+end
 
 	FontEditor = {
 		path = NAfiles.NAFILEPATH.."/font_override.json",
@@ -2204,6 +2230,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		restoring = false,
 		dlBusy = false,
 	}
+	
+	local ex = identifyexecutor and identifyexecutor():lower() or ""
+	local isDelta = (ex == "delta")
 
 	local function disconnectFontWatcher(target)
 		local watcher = FontEditor.watchers[target]
@@ -2250,68 +2279,78 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	persistFontData = function()
-		if not FileSupport then
-			return
-		end
-		pcall(writefile, FontEditor.path, HttpService:JSONEncode({
-			enabled = FontEditor.data.enabled,
-			font = FontEditor.data.fontKey or FontEditor.default.fontKey,
-			fontLabel = FontEditor.data.font,
-			targetCoreGui = FontEditor.data.targetCoreGui,
-			targetPlayerGui = FontEditor.data.targetPlayerGui,
-			targetBillboardGui = FontEditor.data.targetBillboardGui,
-			targetSurfaceGui = FontEditor.data.targetSurfaceGui,
-			useCustomCycle = FontEditor.data.useCustomCycle,
-		}))
-	end
+    if not FileSupport then
+        return
+    end
+    local payload = {
+        enabled = FontEditor.data.enabled,
+        fontKey = FontEditor.data.fontKey or FontEditor.default.fontKey,
+        fontLabel = FontEditor.data.font,
+        targetCoreGui = FontEditor.data.targetCoreGui,
+        targetPlayerGui = FontEditor.data.targetPlayerGui,
+        targetBillboardGui = FontEditor.data.targetBillboardGui,
+        targetSurfaceGui = FontEditor.data.targetSurfaceGui,
+        useCustomCycle = FontEditor.data.useCustomCycle,
+    }
+    pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
+end
 
 	local function loadFontData()
-		local stored = FontEditor.default
-		if FileSupport then
-			if not isfile(FontEditor.path) then
-				writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
-			end
-			local ok, raw = pcall(readfile, FontEditor.path)
-			if ok and type(raw) == "string" then
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-				if okDecode and type(decoded) == "table" then
-					stored = decoded
-				end
-			end
-		end
-		local storedKey = stored.fontKey or stored.font or FontEditor.default.fontKey
-		local storedLabel = stored.fontLabel or stored.font or FontEditor.default.font
-		if type(storedKey) ~= "string" or storedKey == "" then
-			storedKey = FontEditor.default.fontKey
-		end
-		if type(storedLabel) ~= "string" or storedLabel == "" then
-			storedLabel = FontEditor.default.font
-		end
-		FontEditor.data.fontKey = storedKey
-		FontEditor.data.font = storedLabel
-		FontEditor.data.useCustomCycle = stored.useCustomCycle == true
-		if type(stored.targetCoreGui) == "boolean" then
-			FontEditor.data.targetCoreGui = stored.targetCoreGui
-		else
-			FontEditor.data.targetCoreGui = FontEditor.default.targetCoreGui
-		end
-		if type(stored.targetPlayerGui) == "boolean" then
-			FontEditor.data.targetPlayerGui = stored.targetPlayerGui
-		else
-			FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
-		end
-		if type(stored.targetBillboardGui) == "boolean" then
-			FontEditor.data.targetBillboardGui = stored.targetBillboardGui
-		else
-			FontEditor.data.targetBillboardGui = FontEditor.default.targetBillboardGui
-		end
-		if type(stored.targetSurfaceGui) == "boolean" then
-			FontEditor.data.targetSurfaceGui = stored.targetSurfaceGui
-		else
-			FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
-		end
-		FontEditor.data.enabled = stored.enabled == true
-	end
+    local stored = FontEditor.default
+
+    if FileSupport then
+        if not isfile(FontEditor.path) then
+            writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
+        end
+        local ok, raw = pcall(readfile, FontEditor.path)
+        if ok and type(raw) == "string" then
+            local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+            if okD and type(dec) == "table" then
+                stored = dec
+            end
+        end
+    end
+
+    local k = stored.fontKey or stored.font or FontEditor.default.fontKey
+    local lbl = stored.fontLabel or stored.font or FontEditor.default.font
+
+    if type(k) ~= "string" or k == "" then
+        k = FontEditor.default.fontKey
+    end
+    if type(lbl) ~= "string" or lbl == "" then
+        lbl = FontEditor.default.font
+    end
+
+    FontEditor.data.fontKey = k
+    FontEditor.data.font = lbl
+
+    if type(stored.targetCoreGui) == "boolean" then
+        FontEditor.data.targetCoreGui = stored.targetCoreGui
+    else
+        FontEditor.data.targetCoreGui = FontEditor.default.targetCoreGui
+    end
+
+    if type(stored.targetPlayerGui) == "boolean" then
+        FontEditor.data.targetPlayerGui = stored.targetPlayerGui
+    else
+        FontEditor.data.targetPlayerGui = FontEditor.default.targetPlayerGui
+    end
+
+    if type(stored.targetBillboardGui) == "boolean" then
+        FontEditor.data.targetBillboardGui = stored.targetBillboardGui
+    else
+        FontEditor.data.targetBillboardGui = FontEditor.default.targetBillboardGui
+    end
+
+    if type(stored.targetSurfaceGui) == "boolean" then
+        FontEditor.data.targetSurfaceGui = stored.targetSurfaceGui
+    else
+        FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
+    end
+
+    FontEditor.data.useCustomCycle = stored.useCustomCycle == true
+    FontEditor.data.enabled = stored.enabled == true
+end
 
 	local function isBuilderIconFontFace(o)
 		local ff = NAlib.isProperty(o, "FontFace")
@@ -2338,6 +2377,13 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
 	end
+	
+	local function isInPlayerGui(o)
+    local ok, pg = pcall(function()
+        return o:FindFirstAncestorOfClass("PlayerGui")
+    end)
+    return ok and pg ~= nil
+end
 
 	local function getFontBB(o)
 		if not (FontEditor.data.targetBillboardGui and typeof(o) == "Instance") then
@@ -2382,47 +2428,52 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function applyFontToInstance(o)
-		if not isFontTarget(o) then
-			return
-		end
-		if isBuilderIconFontFace(o) then
-			return
-		end
-		if not FontEditor.currentFont then
-			return
-		end
-		if not FontEditor.store[o] then
-			local hasFF, ff = captureFontFaceState(o)
-			FontEditor.store[o] = {
-				Font = NAlib.isProperty(o, "Font"),
-				FontFace = ff,
-				FontFaceSupported = hasFF,
-			}
-		end
-		local storeInfo = FontEditor.store[o]
-		if FontEditor.currentFontIsCustom then
-			ensureFontWatcher(o)
-			if storeInfo and storeInfo.FontFaceSupported then
-				pcall(function()
-					o.FontFace = FontEditor.currentFont
-				end)
-			end
-		else
-			if storeInfo and storeInfo.FontFaceSupported then
-				ensureFontWatcher(o)
-				pcall(function()
-					o.FontFace = storeInfo.FontFace
-				end)
-			end
-			local currentFont = NAlib.isProperty(o, "Font")
-			if currentFont == FontEditor.currentFont then
-				return
-			end
-			pcall(function()
-				o.Font = FontEditor.currentFont
-			end)
-		end
-	end
+    if not isFontTarget(o) then
+        return
+    end
+    if isBuilderIconFontFace(o) then
+        return
+    end
+    if not FontEditor.currentFont then
+        return
+    end
+
+    if not FontEditor.store[o] then
+        local hasFF, ff = captureFontFaceState(o)
+        FontEditor.store[o] = {
+            Font = NAlib.isProperty(o, "Font"),
+            FontFace = ff,
+            FontFaceSupported = hasFF,
+        }
+    end
+
+    local info = FontEditor.store[o]
+
+    if FontEditor.currentFontIsCustom then
+        if not isInPlayerGui(o) then
+            ensureFontWatcher(o)
+        end
+        if info and info.FontFaceSupported then
+            pcall(function()
+                o.FontFace = FontEditor.currentFont
+            end)
+        end
+    else
+        if info and info.FontFaceSupported then
+            ensureFontWatcher(o)
+            pcall(function()
+                o.FontFace = info.FontFace
+            end)
+        end
+        local cur = NAlib.isProperty(o, "Font")
+        if cur == FontEditor.currentFont then
+            return
+        end
+        pcall(function()
+            o.Font = FontEditor.currentFont
+        end)
+    end
+end
 
 	local function applyFontToDescendants(container)
 		if not container then
