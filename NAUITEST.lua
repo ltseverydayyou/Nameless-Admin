@@ -425,6 +425,7 @@ G2L["ndl"]["PlaceholderText"] = [[Send a message to NA chat...]];
 G2L["ndl"]["Size"] = UDim2.new(1, -110, 0, 32);
 G2L["ndl"]["Position"] = UDim2.new(0, 6, 1, -8);
 G2L["ndl"]["Text"] = [[]];
+G2L["ndl"]["TextScaled"] = true;
 G2L["ndl"]["Name"] = [[ChatInput]];
 G2L["ndl"]["BackgroundTransparency"] = 0.2;
 G2L["ndl"]["ClearTextOnFocus"] = false;

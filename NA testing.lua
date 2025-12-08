@@ -42729,25 +42729,6 @@ do
 			end
 		end
 
-		local function updateCanvas(frame, layout)
-			if frame and layout then
-				frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
-				frame.CanvasPosition = Vector2.new(0, math.max(0, layout.AbsoluteContentSize.Y - frame.AbsoluteWindowSize.Y + 8))
-			end
-		end
-
-		if chatLayout then
-			chatLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				updateCanvas(chatScroll, chatLayout)
-			end)
-		end
-
-		if usersLayout then
-			usersLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				updateCanvas(usersScroll, usersLayout)
-			end)
-		end
-
 		local function makeChatLabel(t, c)
 			local lbl = InstanceNew("TextLabel", chatScroll)
 			lbl.Size = UDim2.new(1, -6, 0, 24)
@@ -42773,8 +42754,6 @@ do
 			if tr then
 				tr:registerMessage(lbl, t, t)
 			end
-
-			updateCanvas(chatScroll, chatLayout)
 
 			local MAX_MSG = 200
 			local list = {}
@@ -42842,8 +42821,6 @@ do
 				lbl.TextSize = 14
 				lbl.TextXAlignment = Enum.TextXAlignment.Left
 			end
-
-			updateCanvas(usersScroll, usersLayout)
 		end
 
 		local function setHiddenState(newHidden, skipRemote)
@@ -43111,7 +43088,6 @@ do
 						v:Destroy()
 					end
 				end
-				updateCanvas(chatScroll, chatLayout)
 			end)
 		end
 
@@ -43866,6 +43842,8 @@ RunService.RenderStepped:Connect(function()
 	if NAUIMANAGER.SettingsList then updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.WaypointList then updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.BindersList then updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale) end
+	if NAUIMANAGER.NAchatChatScroll then updateCanvasSize(NAUIMANAGER.NAchatChatScroll, NAUIMANAGER.AUTOSCALER.Scale) end
+	if NAUIMANAGER.NAchatUsersScroll then updateCanvasSize(NAUIMANAGER.NAchatUsersScroll, NAUIMANAGER.AUTOSCALER.Scale) end
 end)
 
 RunService.RenderStepped:Connect(function()
