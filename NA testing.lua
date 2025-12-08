@@ -13120,6 +13120,10 @@ cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function(
 	NAgui.chatlogs()
 end)
 
+cmd.add({"nachat","nachatui","nachatbox"},{"nachat (nachatui, nachatbox)","Open the Nameless Admin chat UI"},function()
+	NAgui.nachat()
+end)
+
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
 	local player=Players.LocalPlayer
 	function teleportPlayer()
@@ -38132,6 +38136,45 @@ local NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs")
 		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs"):FindFirstChildWhichIsA("TextLabel");
 
+	NAchatFrame          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI");
+	NAchatContent        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container");
+	NAchatChatScroll     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll");
+	NAchatUsersScroll    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll");
+	NAchatListLayout     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll"):FindFirstChildWhichIsA("UIListLayout");
+	NAchatUserListLayout = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll"):FindFirstChildWhichIsA("UIListLayout");
+	NAchatInput          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatInput");
+	NAchatSendButton     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("SendButton");
+	NAchatClearButton    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("ClearChat");
+	NAchatStatusLabel    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatStatus");
+	NAchatChatTab        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("ChatTab");
+	NAchatUsersTab       = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("UsersTab");
+	NAchatVisibility     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("Visibility");
+
 	NAconsoleFrame       = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole");
 	NAconsoleLogs        = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
 		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container")
@@ -39311,6 +39354,14 @@ NAgui.chatlogs = function()
 		end
 		--NAUIMANAGER.chatLogsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 		NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+	end
+end
+NAgui.nachat = function()
+	if NAUIMANAGER.NAchatFrame then
+		if not NAUIMANAGER.NAchatFrame.Visible then
+			NAUIMANAGER.NAchatFrame.Visible = true
+		end
+		NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
 	end
 end
 NAgui.doModal = function(v)
@@ -40918,24 +40969,30 @@ end
 
 NAmanage.Topbar_BuildBaseButtons=function()
 	return {
-		{name="settings",icon="gear",func=function()
-			if NAUIMANAGER.SettingsFrame then
-				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
-			end
-		end},
-		{name="cmds",icon="list-bulleted",func=NAgui.commands},
-		{name="chatlogs",icon="speech-bubble-align-center",func=function()
-			if NAUIMANAGER.chatLogsFrame then
-				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-			end
-		end},
-		{name="console",icon="pencil-square",func=function()
-			if NAUIMANAGER.NAconsoleFrame then
-				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-			end
+	{name="settings",icon="gear",func=function()
+		if NAUIMANAGER.SettingsFrame then
+			NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
+			NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+		end
+	end},
+	{name="cmds",icon="list-bulleted",func=NAgui.commands},
+	{name="chatlogs",icon="speech-bubble-align-center",func=function()
+		if NAUIMANAGER.chatLogsFrame then
+			NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
+			NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+		end
+	end},
+	{name="nachat",icon="we-chat",func=function()
+		if NAUIMANAGER.NAchatFrame then
+			NAUIMANAGER.NAchatFrame.Visible = not NAUIMANAGER.NAchatFrame.Visible
+			NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
+		end
+	end},
+	{name="console",icon="pencil-square",func=function()
+		if NAUIMANAGER.NAconsoleFrame then
+			NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
+			NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+		end
 		end},
 		{name="waypp",icon="location-pin",func=function()
 			if NAUIMANAGER.WaypointFrame then
@@ -42000,6 +42057,10 @@ if NAUIMANAGER.chatLogsFrame then
 	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
 end
 
+if NAUIMANAGER.NAchatFrame then
+	NAgui.menuv2(NAUIMANAGER.NAchatFrame)
+end
+
 if NAUIMANAGER.NAconsoleFrame then
 	NAgui.menuv2(NAUIMANAGER.NAconsoleFrame)
 end
@@ -42023,6 +42084,7 @@ end
 --[[ GUI RESIZE FUNCTION ]]--
 
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
+if NAUIMANAGER.NAchatFrame then NAgui.resizeable(NAUIMANAGER.NAchatFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
 if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
@@ -42590,6 +42652,449 @@ do
 		end)
 	end
 	translator:updateUI()
+end
+
+--[[ NA CHAT (WEBSOCKET) ]]--
+do
+	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+	local chatScroll = NAUIMANAGER and NAUIMANAGER.NAchatChatScroll
+	local chatLayout = NAUIMANAGER and NAUIMANAGER.NAchatListLayout
+	local usersScroll = NAUIMANAGER and NAUIMANAGER.NAchatUsersScroll
+	local usersLayout = NAUIMANAGER and NAUIMANAGER.NAchatUserListLayout
+	local inputBox = NAUIMANAGER and NAUIMANAGER.NAchatInput
+	local sendBtn = NAUIMANAGER and NAUIMANAGER.NAchatSendButton
+	local clearBtn = NAUIMANAGER and NAUIMANAGER.NAchatClearButton
+	local statusLabel = NAUIMANAGER and NAUIMANAGER.NAchatStatusLabel
+	local chatTab = NAUIMANAGER and NAUIMANAGER.NAchatChatTab
+	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
+	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
+
+	if chatFrame and chatScroll and usersScroll and inputBox and sendBtn and statusLabel then
+		local NAChat = {
+			service = nil,
+			connecting = false,
+			wired = false,
+			isHidden = false,
+			activeTab = "chat",
+			users = {}
+		}
+
+		local STATUS_COLORS = {
+			ok = Color3.fromRGB(120, 200, 140),
+			err = Color3.fromRGB(200, 120, 120),
+			info = Color3.fromRGB(200, 200, 210),
+			blue = Color3.fromRGB(120, 170, 255)
+		}
+
+		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
+		local connect
+
+		local function setStatus(text, color)
+			if statusLabel then
+				statusLabel.Text = text
+				if color then
+					statusLabel.TextColor3 = color
+				end
+			end
+		end
+
+		local function updateCanvas(frame, layout)
+			if frame and layout then
+				frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
+				frame.CanvasPosition = Vector2.new(0, math.max(0, layout.AbsoluteContentSize.Y - frame.AbsoluteWindowSize.Y + 8))
+			end
+		end
+
+		if chatLayout then
+			chatLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				updateCanvas(chatScroll, chatLayout)
+			end)
+		end
+
+		if usersLayout then
+			usersLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				updateCanvas(usersScroll, usersLayout)
+			end)
+		end
+
+		local function makeChatLabel(text, color)
+			local label = InstanceNew("TextLabel", chatScroll)
+			label.Size = UDim2.new(1, -6, 0, 24)
+			label.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+			label.BackgroundTransparency = 0.35
+			label.TextColor3 = color or Color3.fromRGB(224, 224, 234)
+			label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			label.TextSize = 16
+			label.TextWrapped = true
+			label.RichText = true
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.TextYAlignment = Enum.TextYAlignment.Top
+			label.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
+			label.Text = text
+
+			local corner = InstanceNew("UICorner", label)
+			corner.CornerRadius = UDim.new(0, 4)
+
+			local size = NAgui.txtSize(label, label.AbsoluteSize.X, 200)
+			label.Size = UDim2.new(1, -6, 0, size.Y + 6)
+
+			local translator = NAStuff.ChatTranslator
+			if translator then
+				translator:registerMessage(label, text, text)
+			end
+
+			updateCanvas(chatScroll, chatLayout)
+
+			local MAX_MESSAGES = 200
+			local labels = {}
+			for _, v in ipairs(chatScroll:GetChildren()) do
+				if v:IsA("TextLabel") then
+					table.insert(labels, v)
+				end
+			end
+			table.sort(labels, function(a, b)
+				return a.LayoutOrder < b.LayoutOrder
+			end)
+			if #labels > MAX_MESSAGES then
+				for i = 1, #labels - MAX_MESSAGES do
+					labels[i]:Destroy()
+				end
+			end
+		end
+
+		local function updateUsersList(list)
+			if not usersScroll then
+				return
+			end
+
+			for _, v in ipairs(usersScroll:GetChildren()) do
+				if v:IsA("Frame") then
+					v:Destroy()
+				end
+			end
+
+			if NAChat.isHidden then
+				local frame = InstanceNew("Frame", usersScroll)
+				frame.BackgroundTransparency = 1
+				frame.Size = UDim2.new(1, -6, 0, 40)
+				local label = InstanceNew("TextLabel", frame)
+				label.BackgroundTransparency = 1
+				label.Size = UDim2.new(1, 0, 1, 0)
+				label.Text = "Hidden mode - user list disabled"
+				label.TextColor3 = Color3.fromRGB(200, 200, 210)
+				label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				label.TextSize = 14
+				label.TextWrapped = true
+				return
+			end
+
+			if type(list) ~= "table" then
+				return
+			end
+
+			for _, username in ipairs(list) do
+				local frame = InstanceNew("Frame", usersScroll)
+				frame.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+				frame.Size = UDim2.new(1, -6, 0, 26)
+				frame.BackgroundTransparency = 0.15
+
+				local corner = InstanceNew("UICorner", frame)
+				corner.CornerRadius = UDim.new(0, 4)
+
+				local label = InstanceNew("TextLabel", frame)
+				label.BackgroundTransparency = 1
+				label.Size = UDim2.new(1, -10, 1, 0)
+				label.Position = UDim2.new(0, 5, 0, 0)
+				label.Text = tostring(username)
+				label.TextColor3 = Color3.fromRGB(180, 150, 230)
+				label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				label.TextSize = 14
+				label.TextXAlignment = Enum.TextXAlignment.Left
+			end
+
+			updateCanvas(usersScroll, usersLayout)
+		end
+
+		local function setHiddenState(newHidden, skipRemote)
+			NAChat.isHidden = newHidden
+			if visibilityBtn then
+				visibilityBtn.Text = newHidden and "Hidden" or "Visible"
+				visibilityBtn.BackgroundColor3 = newHidden and Color3.fromRGB(54, 54, 64) or Color3.fromRGB(80, 120, 80)
+				visibilityBtn.TextColor3 = newHidden and Color3.fromRGB(220, 220, 230) or Color3.fromRGB(255, 255, 255)
+			end
+			if inputBox then
+				inputBox.TextEditable = not newHidden
+				inputBox.TextTransparency = newHidden and 0.5 or 0
+			end
+			if sendBtn then
+				sendBtn.AutoButtonColor = not newHidden
+				sendBtn.TextTransparency = newHidden and 0.5 or 0
+			end
+			if newHidden then
+				setStatus("NA Chat: Hidden", STATUS_COLORS.info)
+				updateUsersList({})
+			elseif NAChat.activeTab == "users" and NAChat.service and NAChat.service.GetUsers then
+				NAChat.service.GetUsers()
+			end
+			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
+				NAChat.service.SetHidden(newHidden)
+			end
+		end
+
+		local function switchTab(tab)
+			NAChat.activeTab = tab
+			if chatTab then
+				chatTab.BackgroundColor3 = tab == "chat" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
+			end
+			if usersTab then
+				usersTab.BackgroundColor3 = tab == "users" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
+			end
+			if chatScroll then
+				chatScroll.Visible = tab == "chat"
+			end
+			if usersScroll then
+				usersScroll.Visible = tab == "users"
+			end
+			if tab == "users" then
+				if NAChat.isHidden then
+					updateUsersList({})
+				elseif NAChat.service and NAChat.service.GetUsers then
+					NAChat.service.GetUsers()
+				end
+			end
+		end
+
+		local function fetchIntegrationBody()
+			local body
+			local req = request or http_request or (syn and syn.request) or opt.NAREQUEST
+
+			if type(req) == "function" then
+				local ok, response = pcall(req, {
+					Url = INTEGRATION_URL,
+					Method = "GET"
+				})
+				if ok and type(response) == "table" then
+					body = response.Body or response.body
+				end
+			end
+
+			if type(body) ~= "string" or body == "" then
+				local ok, fb = pcall(game.HttpGet, game, INTEGRATION_URL)
+				if ok and type(fb) == "string" and fb ~= "" then
+					body = fb
+				end
+			end
+
+			if type(body) == "string" and body ~= "" then
+				return true, body
+			end
+
+			return false, "failed to fetch IntegrationService script"
+		end
+
+		local function loadService()
+			if NAChat.service then
+				return true
+			end
+
+			local ok, payload = fetchIntegrationBody()
+			if not ok then
+				setStatus("NA Chat unavailable", STATUS_COLORS.err)
+				return false
+			end
+
+			local okLoad, result = pcall(function()
+				local chunk, err = loadstring(payload)
+				assert(chunk, err or "loadstring failed")
+				return chunk()
+			end)
+
+			if okLoad and type(result) == "table" then
+				NAChat.service = result
+				return true
+			end
+
+			setStatus("NA Chat unavailable", STATUS_COLORS.err)
+			return false
+		end
+
+		local function queueReconnect()
+			Delay(3, function()
+				if NAChat.connecting then
+					return
+				end
+				if NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected() then
+					return
+				end
+				NAChat.wired = false
+				connect()
+			end)
+		end
+
+		local function wireEvents()
+			if NAChat.wired or not NAChat.service then
+				return
+			end
+			NAChat.wired = true
+
+			NAChat.service.OnChatMessage.Event:Connect(function(username, message)
+				makeChatLabel(("[%s]: %s"):format(username or "?", message or ""), STATUS_COLORS.blue)
+			end)
+
+			NAChat.service.OnSystemMessage.Event:Connect(function(message)
+				makeChatLabel(("[System]: %s"):format(tostring(message or "System message")), STATUS_COLORS.info)
+			end)
+
+			NAChat.service.OnUserListUpdate.Event:Connect(function(users)
+				NAChat.users = users or {}
+				setStatus(("NA Chat: %d online%s"):format(#NAChat.users, NAChat.isHidden and " (hidden)" or ""), STATUS_COLORS.ok)
+				if not NAChat.isHidden then
+					updateUsersList(NAChat.users)
+				end
+			end)
+
+			NAChat.service.OnConnected.Event:Connect(function(username, _, hidden)
+				NAChat.isHidden = hidden or false
+				setHiddenState(NAChat.isHidden, true)
+				setStatus(("NA Chat: %s"):format(username or "Connected"), STATUS_COLORS.ok)
+				makeChatLabel(("[NA Chat] Connected as %s"):format(username or "?"), STATUS_COLORS.ok)
+				if not NAChat.isHidden and NAChat.service and NAChat.service.GetUsers then
+					NAChat.service.GetUsers()
+				end
+			end)
+
+			NAChat.service.OnDisconnected.Event:Connect(function()
+				setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
+				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
+				queueReconnect()
+			end)
+
+			NAChat.service.OnError.Event:Connect(function(err)
+				setStatus("NA Chat error", STATUS_COLORS.err)
+				makeChatLabel("[NA Chat] " .. tostring(err or "Unknown error"), STATUS_COLORS.err)
+				queueReconnect()
+			end)
+		end
+
+		connect = function()
+			if NAChat.connecting then
+				return
+			end
+			NAChat.connecting = true
+			Defer(function()
+				setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+
+				if not loadService() then
+					NAChat.connecting = false
+					queueReconnect()
+					return
+				end
+
+				wireEvents()
+
+				local initOk = true
+				if NAChat.service and NAChat.service.Init then
+					initOk = NAChat.service.Init({
+						serverUrl = "wss://witty-minette-adonis-632b17c0.koyeb.app/swimhub",
+						heartbeatInterval = 5,
+						autoReconnect = true,
+						hidden = NAChat.isHidden
+					})
+				end
+
+				if not initOk then
+					setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
+					makeChatLabel("[NA Chat] Init failed (see console for [IntegrationService] errors)", STATUS_COLORS.err)
+					NAChat.connecting = false
+					queueReconnect()
+					return
+				end
+
+				setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
+				NAChat.connecting = false
+			end)
+		end
+
+		local function sendMessage(text)
+			if NAChat.isHidden then
+				setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
+				return
+			end
+
+			if not text then
+				return
+			end
+
+			text = tostring(text):gsub("^%s+", ""):gsub("%s+$", "")
+			if text == "" then
+				return
+			end
+
+			if not (NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected()) then
+				connect()
+				setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
+			end
+
+			if NAChat.service and NAChat.service.SendMessage then
+				local ok = NAChat.service.SendMessage(text)
+				if not ok then
+					setStatus("NA Chat: failed to send", STATUS_COLORS.err)
+				end
+			end
+		end
+
+		if sendBtn then
+			MouseButtonFix(sendBtn, function()
+				sendMessage(inputBox and inputBox.Text)
+				if inputBox then
+					inputBox.Text = ""
+				end
+			end)
+		end
+
+		if inputBox then
+			inputBox.ClearTextOnFocus = false
+			inputBox.FocusLost:Connect(function(enterPressed)
+				if enterPressed then
+					sendMessage(inputBox.Text)
+					inputBox.Text = ""
+				end
+			end)
+		end
+
+		if clearBtn then
+			MouseButtonFix(clearBtn, function()
+				for _, v in ipairs(chatScroll:GetChildren()) do
+					if v:IsA("TextLabel") then
+						v:Destroy()
+					end
+				end
+				updateCanvas(chatScroll, chatLayout)
+			end)
+		end
+
+		if chatTab then
+			MouseButtonFix(chatTab, function()
+				switchTab("chat")
+			end)
+		end
+
+		if usersTab then
+			MouseButtonFix(usersTab, function()
+				switchTab("users")
+			end)
+		end
+
+		if visibilityBtn then
+			MouseButtonFix(visibilityBtn, function()
+				setHiddenState(not NAChat.isHidden, false)
+			end)
+		end
+
+		switchTab("chat")
+		setHiddenState(false, true)
+		connect()
+	end
 end
 
 --[[ CHAT TO USE COMMANDS ]]--
@@ -44340,12 +44845,13 @@ end)
 
 
 SpawnCall(function() -- init
-	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
-	if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
-	if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
-	if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
-	if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
-	if NAUIMANAGER.description then NAProtection(NAUIMANAGER.description) end
+if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
+if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
+if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
+if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
+if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
+if NAUIMANAGER.description then NAProtection(NAUIMANAGER.description) end
 	if NAUIMANAGER.ModalFixer then NAProtection(NAUIMANAGER.ModalFixer) end
 	if NAUIMANAGER.AUTOSCALER then NAProtection(NAUIMANAGER.AUTOSCALER) NAUIMANAGER.AUTOSCALER.Scale = NAUIScale end
 	if NAUIMANAGER.SettingsFrame then NAProtection(NAUIMANAGER.SettingsFrame) end

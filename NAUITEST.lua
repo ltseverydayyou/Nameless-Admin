@@ -107,6 +107,363 @@ G2L["7"] = Instance.new("UICorner", G2L["6"]);
 G2L["7"]["CornerRadius"] = UDim.new(0, 4);
 
 
+G2L["nc0"] = Instance.new("Frame", G2L["1"]);
+G2L["nc0"]["BorderSizePixel"] = 0;
+G2L["nc0"]["BackgroundColor3"] = Color3.fromRGB(24, 24, 29);
+G2L["nc0"]["Size"] = UDim2.new(0, 480, 0, 500);
+G2L["nc0"]["Position"] = UDim2.new(0.35, 0, 0.05, 0);
+G2L["nc0"]["Name"] = [[NAChatUI]];
+G2L["nc0"]["BackgroundTransparency"] = 0.05;
+G2L["nc0"]["ClipsDescendants"] = true;
+
+
+G2L["ndr"] = Instance.new("UICorner", G2L["nc0"]);
+G2L["ndr"]["CornerRadius"] = UDim.new(0, 10);
+
+
+G2L["nds"] = Instance.new("UIGradient", G2L["nc0"]);
+G2L["nds"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(29, 29, 34)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(24, 24, 29))};
+
+
+G2L["ndt"] = Instance.new("UIStroke", G2L["nc0"]);
+G2L["ndt"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndt"]["Thickness"] = 2;
+G2L["ndt"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["nc1"] = Instance.new("Frame", G2L["nc0"]);
+G2L["nc1"]["BorderSizePixel"] = 0;
+G2L["nc1"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
+G2L["nc1"]["Size"] = UDim2.new(1, 0, 0, 40);
+G2L["nc1"]["Name"] = [[Topbar]];
+G2L["nc1"]["BackgroundTransparency"] = 0.1;
+G2L["nc1"]["ZIndex"] = 5;
+
+
+G2L["nc2"] = Instance.new("TextButton", G2L["nc1"]);
+G2L["nc2"]["BorderSizePixel"] = 0;
+G2L["nc2"]["TextSize"] = 16;
+G2L["nc2"]["TextColor3"] = Color3.fromRGB(244, 244, 244);
+G2L["nc2"]["BackgroundColor3"] = Color3.fromRGB(184, 54, 54);
+G2L["nc2"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nc2"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["nc2"]["BackgroundTransparency"] = 0.2;
+G2L["nc2"]["Size"] = UDim2.new(0, 26, 0, 26);
+G2L["nc2"]["Text"] = [[×]];
+G2L["nc2"]["Name"] = [[Exit]];
+G2L["nc2"]["Position"] = UDim2.new(1, -10, 0.5, 0);
+G2L["nc2"]["ZIndex"] = 5;
+
+
+G2L["nc3"] = Instance.new("UICorner", G2L["nc2"]);
+G2L["nc3"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nc4"] = Instance.new("UIStroke", G2L["nc2"]);
+G2L["nc4"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["nc4"]["Thickness"] = 2;
+G2L["nc4"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["nc5"] = Instance.new("TextButton", G2L["nc1"]);
+G2L["nc5"]["BorderSizePixel"] = 0;
+G2L["nc5"]["TextSize"] = 16;
+G2L["nc5"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nc5"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nc5"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nc5"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["nc5"]["BackgroundTransparency"] = 0.2;
+G2L["nc5"]["Size"] = UDim2.new(0, 26, 0, 26);
+G2L["nc5"]["Text"] = [[−]];
+G2L["nc5"]["Name"] = [[Minimize]];
+G2L["nc5"]["Position"] = UDim2.new(1, -40, 0.5, 0);
+G2L["nc5"]["ZIndex"] = 5;
+
+
+G2L["nc6"] = Instance.new("UICorner", G2L["nc5"]);
+G2L["nc6"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nc7"] = Instance.new("UIStroke", G2L["nc5"]);
+G2L["nc7"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["nc7"]["Thickness"] = 2;
+G2L["nc7"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["nc8"] = Instance.new("TextButton", G2L["nc1"]);
+G2L["nc8"]["BorderSizePixel"] = 0;
+G2L["nc8"]["TextSize"] = 14;
+G2L["nc8"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nc8"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nc8"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nc8"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["nc8"]["BackgroundTransparency"] = 0.2;
+G2L["nc8"]["Size"] = UDim2.new(0, 70, 0, 26);
+G2L["nc8"]["Text"] = [[Clear]];
+G2L["nc8"]["Name"] = [[ClearChat]];
+G2L["nc8"]["Position"] = UDim2.new(1, -80, 0.5, 0);
+G2L["nc8"]["ZIndex"] = 5;
+
+
+G2L["nc9"] = Instance.new("UICorner", G2L["nc8"]);
+G2L["nc9"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nca"] = Instance.new("UIStroke", G2L["nc8"]);
+G2L["nca"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["nca"]["Thickness"] = 2;
+G2L["nca"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ncb"] = Instance.new("TextLabel", G2L["nc1"]);
+G2L["ncb"]["BorderSizePixel"] = 0;
+G2L["ncb"]["TextSize"] = 18;
+G2L["ncb"]["TextXAlignment"] = Enum.TextXAlignment.Left;
+G2L["ncb"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ncb"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ncb"]["BackgroundTransparency"] = 1;
+G2L["ncb"]["AnchorPoint"] = Vector2.new(0, 0.5);
+G2L["ncb"]["Size"] = UDim2.new(0.5, 0, 1, 0);
+G2L["ncb"]["Text"] = [[NA Chat]];
+G2L["ncb"]["Name"] = [[Title]];
+G2L["ncb"]["Position"] = UDim2.new(0, 12, 0.5, 0);
+G2L["ncb"]["ZIndex"] = 5;
+
+
+G2L["ncc"] = Instance.new("UIGradient", G2L["nc1"]);
+G2L["ncc"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(44, 44, 49)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(34, 34, 39))};
+
+
+G2L["ncd"] = Instance.new("UICorner", G2L["nc1"]);
+G2L["ncd"]["CornerRadius"] = UDim.new(0, 10);
+
+
+G2L["nce"] = Instance.new("UIStroke", G2L["nc1"]);
+G2L["nce"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["nce"]["Thickness"] = 2;
+G2L["nce"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ncf"] = Instance.new("Frame", G2L["nc0"]);
+G2L["ncf"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
+G2L["ncf"]["Size"] = UDim2.new(1, -20, 0, 32);
+G2L["ncf"]["Position"] = UDim2.new(0, 10, 0, 45);
+G2L["ncf"]["Name"] = [[Tabs]];
+G2L["ncf"]["BackgroundTransparency"] = 0.15;
+
+
+G2L["nd0"] = Instance.new("UICorner", G2L["ncf"]);
+G2L["nd0"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nd1"] = Instance.new("UIStroke", G2L["ncf"]);
+G2L["nd1"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["nd1"]["Thickness"] = 2;
+G2L["nd1"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["nd2"] = Instance.new("UIListLayout", G2L["ncf"]);
+G2L["nd2"]["FillDirection"] = Enum.FillDirection.Horizontal;
+G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
+G2L["nd2"]["Padding"] = UDim.new(0, 8);
+G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Center;
+
+
+G2L["nd3"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["nd3"]["BorderSizePixel"] = 0;
+G2L["nd3"]["TextSize"] = 14;
+G2L["nd3"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nd3"]["BackgroundColor3"] = Color3.fromRGB(100, 80, 180);
+G2L["nd3"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nd3"]["BackgroundTransparency"] = 0.1;
+G2L["nd3"]["Size"] = UDim2.new(0, 80, 1, -6);
+G2L["nd3"]["Text"] = [[Chat]];
+G2L["nd3"]["Name"] = [[ChatTab]];
+
+
+G2L["nd4"] = Instance.new("UICorner", G2L["nd3"]);
+G2L["nd4"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nd5"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["nd5"]["BorderSizePixel"] = 0;
+G2L["nd5"]["TextSize"] = 14;
+G2L["nd5"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nd5"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nd5"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nd5"]["BackgroundTransparency"] = 0.1;
+G2L["nd5"]["Size"] = UDim2.new(0, 80, 1, -6);
+G2L["nd5"]["Text"] = [[Users]];
+G2L["nd5"]["Name"] = [[UsersTab]];
+
+
+G2L["nd6"] = Instance.new("UICorner", G2L["nd5"]);
+G2L["nd6"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nd7"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["nd7"]["BorderSizePixel"] = 0;
+G2L["nd7"]["TextSize"] = 14;
+G2L["nd7"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nd7"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nd7"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nd7"]["BackgroundTransparency"] = 0.1;
+G2L["nd7"]["Size"] = UDim2.new(0, 90, 1, -6);
+G2L["nd7"]["Text"] = [[Visible]];
+G2L["nd7"]["Name"] = [[Visibility]];
+
+
+G2L["nd8"] = Instance.new("UICorner", G2L["nd7"]);
+G2L["nd8"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nd9"] = Instance.new("Frame", G2L["nc0"]);
+G2L["nd9"]["BorderSizePixel"] = 0;
+G2L["nd9"]["BackgroundColor3"] = Color3.fromRGB(34, 34, 39);
+G2L["nd9"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["nd9"]["ClipsDescendants"] = true;
+G2L["nd9"]["Size"] = UDim2.new(1, -16, 1, -170);
+G2L["nd9"]["Position"] = UDim2.new(0.5, 0, 0, 82);
+G2L["nd9"]["Name"] = [[Container]];
+G2L["nd9"]["BackgroundTransparency"] = 0.2;
+
+
+G2L["nda"] = Instance.new("UICorner", G2L["nd9"]);
+G2L["nda"]["CornerRadius"] = UDim.new(0, 8);
+
+
+G2L["ndb"] = Instance.new("UIGradient", G2L["nd9"]);
+G2L["ndb"]["Color"] = ColorSequence.new{ColorSequenceKeypoint.new(0.000, Color3.fromRGB(44, 44, 49)),ColorSequenceKeypoint.new(1.000, Color3.fromRGB(34, 34, 39))};
+
+
+G2L["ndc"] = Instance.new("UIStroke", G2L["nd9"]);
+G2L["ndc"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndc"]["Thickness"] = 2;
+G2L["ndc"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ndd"] = Instance.new("ScrollingFrame", G2L["nd9"]);
+G2L["ndd"]["BorderSizePixel"] = 0;
+G2L["ndd"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["ndd"]["Name"] = [[ChatScroll]];
+G2L["ndd"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["ndd"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["ndd"]["ScrollBarImageColor3"] = Color3.fromRGB(124, 124, 134);
+G2L["ndd"]["Position"] = UDim2.new(0.5, 0, 0, 6);
+G2L["ndd"]["ScrollBarThickness"] = 3;
+G2L["ndd"]["BackgroundTransparency"] = 1;
+G2L["ndd"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
+
+
+G2L["nde"] = Instance.new("UIListLayout", G2L["ndd"]);
+G2L["nde"]["Padding"] = UDim.new(0, 6);
+G2L["nde"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+G2L["ndf"] = Instance.new("ScrollingFrame", G2L["nd9"]);
+G2L["ndf"]["BorderSizePixel"] = 0;
+G2L["ndf"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+G2L["ndf"]["Name"] = [[UsersScroll]];
+G2L["ndf"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["ndf"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["ndf"]["ScrollBarImageColor3"] = Color3.fromRGB(124, 124, 134);
+G2L["ndf"]["Position"] = UDim2.new(0.5, 0, 0, 6);
+G2L["ndf"]["ScrollBarThickness"] = 3;
+G2L["ndf"]["BackgroundTransparency"] = 1;
+G2L["ndf"]["Visible"] = false;
+G2L["ndf"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
+
+
+G2L["ndg"] = Instance.new("UIListLayout", G2L["ndf"]);
+G2L["ndg"]["Padding"] = UDim.new(0, 6);
+G2L["ndg"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+
+
+G2L["ndh"] = Instance.new("Frame", G2L["nc0"]);
+G2L["ndh"]["BorderSizePixel"] = 0;
+G2L["ndh"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
+G2L["ndh"]["AnchorPoint"] = Vector2.new(0.5, 1);
+G2L["ndh"]["Size"] = UDim2.new(1, -16, 0, 78);
+G2L["ndh"]["Position"] = UDim2.new(0.5, 0, 1, -8);
+G2L["ndh"]["Name"] = [[MessageBar]];
+G2L["ndh"]["BackgroundTransparency"] = 0.1;
+
+
+G2L["ndi"] = Instance.new("UICorner", G2L["ndh"]);
+G2L["ndi"]["CornerRadius"] = UDim.new(0, 8);
+
+
+G2L["ndj"] = Instance.new("UIStroke", G2L["ndh"]);
+G2L["ndj"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndj"]["Thickness"] = 2;
+G2L["ndj"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ndk"] = Instance.new("TextLabel", G2L["ndh"]);
+G2L["ndk"]["TextWrapped"] = true;
+G2L["ndk"]["BorderSizePixel"] = 0;
+G2L["ndk"]["TextSize"] = 12;
+G2L["ndk"]["TextXAlignment"] = Enum.TextXAlignment.Left;
+G2L["ndk"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndk"]["TextColor3"] = Color3.fromRGB(214, 214, 224);
+G2L["ndk"]["BackgroundTransparency"] = 1;
+G2L["ndk"]["AnchorPoint"] = Vector2.new(0, 0);
+G2L["ndk"]["Size"] = UDim2.new(1, -12, 0, 14);
+G2L["ndk"]["Text"] = [[NA Chat: Connecting...]];
+G2L["ndk"]["Name"] = [[ChatStatus]];
+G2L["ndk"]["Position"] = UDim2.new(0, 6, 0, 6);
+
+
+G2L["ndl"] = Instance.new("TextBox", G2L["ndh"]);
+G2L["ndl"]["BorderSizePixel"] = 0;
+G2L["ndl"]["TextSize"] = 14;
+G2L["ndl"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndl"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 58);
+G2L["ndl"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndl"]["AnchorPoint"] = Vector2.new(0, 1);
+G2L["ndl"]["PlaceholderText"] = [[Send a message to NA chat...]];
+G2L["ndl"]["Size"] = UDim2.new(1, -110, 0, 32);
+G2L["ndl"]["Position"] = UDim2.new(0, 6, 1, -8);
+G2L["ndl"]["Text"] = [[]];
+G2L["ndl"]["Name"] = [[ChatInput]];
+G2L["ndl"]["BackgroundTransparency"] = 0.2;
+G2L["ndl"]["ClearTextOnFocus"] = false;
+
+
+G2L["ndm"] = Instance.new("UICorner", G2L["ndl"]);
+G2L["ndm"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["ndn"] = Instance.new("UIStroke", G2L["ndl"]);
+G2L["ndn"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndn"]["Thickness"] = 2;
+G2L["ndn"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ndo"] = Instance.new("TextButton", G2L["ndh"]);
+G2L["ndo"]["BorderSizePixel"] = 0;
+G2L["ndo"]["TextSize"] = 14;
+G2L["ndo"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndo"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["ndo"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndo"]["AnchorPoint"] = Vector2.new(1, 1);
+G2L["ndo"]["BackgroundTransparency"] = 0.1;
+G2L["ndo"]["Size"] = UDim2.new(0, 90, 0, 32);
+G2L["ndo"]["Text"] = [[Send]];
+G2L["ndo"]["Name"] = [[SendButton]];
+G2L["ndo"]["Position"] = UDim2.new(1, -6, 1, -8);
+
+
+G2L["ndp"] = Instance.new("UICorner", G2L["ndo"]);
+G2L["ndp"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["ndq"] = Instance.new("UIStroke", G2L["ndo"]);
+G2L["ndq"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndq"]["Thickness"] = 2;
+G2L["ndq"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
 G2L["8"] = Instance.new("Frame", G2L["2"]);
 G2L["8"]["BorderSizePixel"] = 0;
 G2L["8"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
