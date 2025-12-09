@@ -742,7 +742,7 @@ end
 
 local searchIndex = {}
 local cmds
-local defaultBarCommands = { "settings", "commands", "cmdloop", "binders", "discord" }
+local defaultBarCommands = { "settings", "commands", "cmdloop", "nachat", "discord" }
 local shouldShowDefaultAutofill = false
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
