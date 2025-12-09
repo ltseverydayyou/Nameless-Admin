@@ -374,6 +374,7 @@ G2L["ndd"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
 G2L["nde"] = Instance.new("UIListLayout", G2L["ndd"]);
 G2L["nde"]["Padding"] = UDim.new(0, 6);
 G2L["nde"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+G2L["nde"]["VerticalAlignment"] = Enum.VerticalAlignment.Bottom;
 
 
 G2L["ndf"] = Instance.new("ScrollingFrame", G2L["nd9"]);
@@ -381,9 +382,9 @@ G2L["ndf"]["BorderSizePixel"] = 0;
 G2L["ndf"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
 G2L["ndf"]["Name"] = [[UsersScroll]];
 G2L["ndf"]["AnchorPoint"] = Vector2.new(0.5, 0);
-G2L["ndf"]["Size"] = UDim2.new(1, -10, 1, -10);
+G2L["ndf"]["Size"] = UDim2.new(1, -10, 1, -40);
 G2L["ndf"]["ScrollBarImageColor3"] = Color3.fromRGB(124, 124, 134);
-G2L["ndf"]["Position"] = UDim2.new(0.5, 0, 0, 6);
+G2L["ndf"]["Position"] = UDim2.new(0.5, 0, 0, 36);
 G2L["ndf"]["ScrollBarThickness"] = 3;
 G2L["ndf"]["BackgroundTransparency"] = 1;
 G2L["ndf"]["Visible"] = false;
@@ -393,6 +394,32 @@ G2L["ndf"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
 G2L["ndg"] = Instance.new("UIListLayout", G2L["ndf"]);
 G2L["ndg"]["Padding"] = UDim.new(0, 6);
 G2L["ndg"]["SortOrder"] = Enum.SortOrder.Name;
+
+
+G2L["ndu"] = Instance.new("TextBox", G2L["nd9"]);
+G2L["ndu"]["BorderSizePixel"] = 0;
+G2L["ndu"]["TextSize"] = 14;
+G2L["ndu"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndu"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 58);
+G2L["ndu"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndu"]["AnchorPoint"] = Vector2.new(0.5, 0);
+G2L["ndu"]["PlaceholderText"] = [[Search users...]];
+G2L["ndu"]["Size"] = UDim2.new(1, -10, 0, 26);
+G2L["ndu"]["Text"] = [[]];
+G2L["ndu"]["Name"] = [[UsersSearch]];
+G2L["ndu"]["Position"] = UDim2.new(0.5, 0, 0, 6);
+G2L["ndu"]["ClearTextOnFocus"] = false;
+G2L["ndu"]["Visible"] = false;
+
+
+G2L["ndv"] = Instance.new("UICorner", G2L["ndu"]);
+G2L["ndv"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["ndw"] = Instance.new("UIStroke", G2L["ndu"]);
+G2L["ndw"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndw"]["Thickness"] = 1;
+G2L["ndw"]["Color"] = Color3.fromRGB(71, 71, 81);
 
 
 G2L["ndh"] = Instance.new("Frame", G2L["nc0"]);

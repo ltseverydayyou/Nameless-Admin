@@ -38232,6 +38232,9 @@ local NAUIMANAGER = {
 	NAchatUsersScroll    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll");
+	NAchatUsersSearch    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersSearch");
 	NAchatListLayout     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll")
@@ -43293,6 +43296,7 @@ do
 	local chatLayout = NAUIMANAGER and NAUIMANAGER.NAchatListLayout
 	local usersScroll = NAUIMANAGER and NAUIMANAGER.NAchatUsersScroll
 	local usersLayout = NAUIMANAGER and NAUIMANAGER.NAchatUserListLayout
+	local usersSearchBox = NAUIMANAGER and NAUIMANAGER.NAchatUsersSearch
 	local inputBox = NAUIMANAGER and NAUIMANAGER.NAchatInput
 	local sendBtn = NAUIMANAGER and NAUIMANAGER.NAchatSendButton
 	local clearBtn = NAUIMANAGER and NAUIMANAGER.NAchatClearButton
@@ -43313,6 +43317,7 @@ do
 			}
 			local usersUpdateGeneration = 0
 			local usersFetchInFlight = false
+			local userSearchTerm = ""
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -43495,6 +43500,14 @@ do
 						local placeId = type(info) == "table" and info.placeId or nil
 						local jobId = type(info) == "table" and info.jobId or nil
 
+						if userSearchTerm ~= "" then
+							local needle = userSearchTerm
+							local haystack = Lower(tostring(username or "") .. " " .. tostring(gameStatus or ""))
+							if not Find(haystack, needle, 1, true) then
+								continue
+							end
+						end
+
 						local key = userId or Lower(tostring(username or ""))
 						if key ~= nil then
 							if seen[key] then
@@ -43504,6 +43517,12 @@ do
 						end
 
 						local fr = InstanceNew("Frame", usersScroll)
+						local sortName = Lower(tostring(username or ""))
+						if userId then
+							fr.Name = ("%s|%09d"):format(sortName, userId)
+						else
+							fr.Name = sortName
+						end
 						fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
 						fr.Size = UDim2.new(1, -6, 0, 40)
 						fr.BackgroundTransparency = 0.15
@@ -43624,6 +43643,14 @@ do
 				inputBox.TextEditable = not newHidden
 				inputBox.TextTransparency = newHidden and 0.5 or 0
 			end
+			if usersSearchBox then
+				usersSearchBox.TextEditable = not newHidden
+				usersSearchBox.TextTransparency = newHidden and 0.5 or 0
+				if newHidden then
+					usersSearchBox.Text = ""
+					userSearchTerm = ""
+				end
+			end
 			if sendBtn then
 				sendBtn.AutoButtonColor = not newHidden
 				sendBtn.TextTransparency = newHidden and 0.5 or 0
@@ -43655,6 +43682,9 @@ do
 			end
 				if usersScroll then
 					usersScroll.Visible = tab == "users"
+				end
+				if usersSearchBox then
+					usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
 				end
 				if tab == "users" then
 					if NAChat.isHidden then
@@ -43742,6 +43772,16 @@ do
 				return
 			end
 			NAChat.wired = true
+
+			if usersSearchBox then
+				usersSearchBox.ClearTextOnFocus = false
+				usersSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+					userSearchTerm = Lower(usersSearchBox.Text or "")
+					if not NAChat.isHidden then
+						updateUsersList(NAChat.users or {})
+					end
+				end)
+			end
 
 				NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
 					local senderName = tostring(name or "?")
@@ -47767,7 +47807,6 @@ NAStuff.GitHubCommitDateField = nil
 NAStuff.GitHubCommitsLastFetch = 0
 NAStuff.GitHubTabInitialized = false
 NAStuff.GitHubCommitHeaders = {
-	["User-Agent"] = "NamelessAdmin/1.0";
 	["Accept"] = "application/vnd.github+json";
 	["X-GitHub-Api-Version"] = "2022-11-28";
 }
