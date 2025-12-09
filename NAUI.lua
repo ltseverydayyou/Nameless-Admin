@@ -457,6 +457,56 @@ G2L["ndn"]["Thickness"] = 2;
 G2L["ndn"]["Color"] = Color3.fromRGB(154, 99, 255);
 
 
+G2L["ndu"] = Instance.new("TextBox", G2L["nc1"]);
+G2L["ndu"]["BorderSizePixel"] = 0;
+G2L["ndu"]["TextSize"] = 14;
+G2L["ndu"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndu"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 58);
+G2L["ndu"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndu"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["ndu"]["PlaceholderText"] = [[Lang]];
+G2L["ndu"]["Size"] = UDim2.new(0, 70, 0, 24);
+G2L["ndu"]["Text"] = [[EN]];
+G2L["ndu"]["Name"] = [[NAChatTranslateInput]];
+G2L["ndu"]["Position"] = UDim2.new(1, -260, 0.5, 0);
+G2L["ndu"]["ZIndex"] = 5;
+
+
+G2L["ndv"] = Instance.new("UICorner", G2L["ndu"]);
+G2L["ndv"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["ndw"] = Instance.new("UIStroke", G2L["ndu"]);
+G2L["ndw"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndw"]["Thickness"] = 2;
+G2L["ndw"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
+G2L["ndx"] = Instance.new("TextButton", G2L["nc1"]);
+G2L["ndx"]["BorderSizePixel"] = 0;
+G2L["ndx"]["TextSize"] = 14;
+G2L["ndx"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndx"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["ndx"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndx"]["AnchorPoint"] = Vector2.new(1, 0.5);
+G2L["ndx"]["BackgroundTransparency"] = 0.2;
+G2L["ndx"]["Size"] = UDim2.new(0, 88, 0, 24);
+G2L["ndx"]["Text"] = [[Translate]];
+G2L["ndx"]["Name"] = [[NAChatTranslate]];
+G2L["ndx"]["Position"] = UDim2.new(1, -160, 0.5, 0);
+G2L["ndx"]["ZIndex"] = 5;
+
+
+G2L["ndy"] = Instance.new("UICorner", G2L["ndx"]);
+G2L["ndy"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["ndz"] = Instance.new("UIStroke", G2L["ndx"]);
+G2L["ndz"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
+G2L["ndz"]["Thickness"] = 2;
+G2L["ndz"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+
 G2L["ndo"] = Instance.new("TextButton", G2L["ndh"]);
 G2L["ndo"]["BorderSizePixel"] = 0;
 G2L["ndo"]["TextSize"] = 14;

@@ -507,6 +507,8 @@ opt={
 	currentTagRGB = false;
 	chatTranslateEnabled = true;
 	chatTranslateTarget = "en";
+	naChatTranslateEnabled = true;
+	naChatTranslateTarget = "en";
 	--saveTag = false;
 }
 local cmd={}
@@ -6797,6 +6799,8 @@ end
 
 opt.chatTranslateEnabled = NAmanage.NASettingsGet("chatTranslate")
 opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
+opt.naChatTranslateEnabled = NAmanage.NASettingsGet("naChatTranslate")
+opt.naChatTranslateTarget = NAmanage.NASettingsGet("naChatTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 
 if FileSupport then
@@ -38190,6 +38194,12 @@ local NAUIMANAGER = {
 	NAchatSendButton     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("SendButton");
+	NAchatTranslateButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslate");
+	NAchatTranslateInput = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslateInput");
 	NAchatClearButton    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("ClearChat");
@@ -42688,6 +42698,484 @@ do
 	translator:updateUI()
 end
 
+--[[ NA CHAT TRANSLATOR (separate from chat logs) ]]--
+do
+	local Http = HttpService
+	local translator = NAStuff.NAChatTranslator or {}
+	NAStuff.NAChatTranslator = translator
+
+	translator.messages = translator.messages or {}
+	translator.enabled = opt.naChatTranslateEnabled ~= false
+	opt.naChatTranslateEnabled = translator.enabled
+
+	local function toIso(value)
+		if not value then return nil end
+		return tostring(value):lower()
+	end
+
+	local languages = {
+		auto="Automatic",af="Afrikaans",sq="Albanian",am="Amharic",ar="Arabic",hy="Armenian",az="Azerbaijani",eu="Basque",be="Belarusian",bn="Bengali",bs="Bosnian",bg="Bulgarian",ca="Catalan",ceb="Cebuano",ny="Chichewa",
+		["zh-cn"]="Chinese Simplified",["zh-tw"]="Chinese Traditional",co="Corsican",hr="Croatian",cs="Czech",da="Danish",nl="Dutch",en="English",eo="Esperanto",et="Estonian",tl="Filipino",fi="Finnish",fr="French",fy="Frisian",
+		gl="Galician",ka="Georgian",de="German",el="Greek",gu="Gujarati",ht="Haitian Creole",ha="Hausa",haw="Hawaiian",iw="Hebrew",he="Hebrew",hi="Hindi",hmn="Hmong",hu="Hungarian",is="Icelandic",ig="Igbo",id="Indonesian",ga="Irish",it="Italian",
+		ja="Japanese",jw="Javanese",kn="Kannada",kk="Kazakh",km="Khmer",ko="Korean",ku="Kurdish (Kurmanji)",ky="Kyrgyz",lo="Lao",la="Latin",lv="Latvian",lt="Lithuanian",lb="Luxembourgish",mk="Macedonian",mg="Malagasy",ms="Malay",
+		ml="Malayalam",mt="Maltese",mi="Maori",mr="Marathi",mn="Mongolian",my="Myanmar (Burmese)",ne="Nepali",no="Norwegian",ps="Pashto",fa="Persian",pl="Polish",pt="Portuguese",pa="Punjabi",ro="Romanian",ru="Russian",sm="Samoan",
+		gd="Scots Gaelic",sr="Serbian",st="Sesotho",sn="Shona",sd="Sindhi",si="Sinhala",sk="Slovak",sl="Slovenian",so="Somali",es="Spanish",su="Sundanese",sw="Swahili",sv="Swedish",tg="Tajik",ta="Tamil",te="Telugu",th="Thai",tr="Turkish",
+		uk="Ukrainian",ur="Urdu",uz="Uzbek",vi="Vietnamese",cy="Welsh",xh="Xhosa",yi="Yiddish",yo="Yoruba",zu="Zulu"
+	}
+
+	local function iso(value)
+		local lowered = toIso(value)
+		if not lowered then
+			return nil
+		end
+		if languages[lowered] then
+			return lowered
+		end
+		for code, name in pairs(languages) do
+			if type(name) == "string" and name:lower() == lowered then
+				return code
+			end
+		end
+		return nil
+	end
+
+	local function languageName(code)
+		return languages[code] or code
+	end
+
+	translator.target = iso(opt.naChatTranslateTarget) or translator.target or "en"
+	opt.naChatTranslateTarget = translator.target
+
+	translator._state = translator._state or {
+		gv = (isfile and isfile("googlev.txt") and readfile("googlev.txt")) or "";
+		fsid = nil;
+		bl = nil;
+		rid = math.random(1000, 9999);
+	}
+
+	local state = translator._state
+	local root = "https://translate.google.com/"
+	local exec = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute"
+	local rpc = "MkEWBc"
+
+	local function requestAsync(optArgs)
+		local fn = opt.NAREQUEST
+		if fn then
+			local ok, res = pcall(fn, optArgs)
+			if ok and res then
+				return res
+			end
+		end
+		local ok2, res2 = pcall(function()
+			return Http:RequestAsync(optArgs)
+		end)
+		if ok2 and res2 then
+			return res2
+		end
+		return nil
+	end
+
+	local function handleConsent(body)
+		local tokens = {}
+		for tag in body:gmatch('<input type="hidden" name=".-" value=".-">') do
+			local k, v = tag:match('<input type="hidden" name="(.-)" value="(.-)">')
+			if k and v then
+				tokens[k] = v
+			end
+		end
+		state.gv = tokens.v or state.gv or ""
+		if writefile then
+			pcall(writefile, "googlev.txt", state.gv)
+		end
+	end
+
+	local function fetch(url, method, body)
+		local res = requestAsync({
+			Url = url;
+			Method = method or "GET";
+			Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
+			Body = body;
+		})
+		if not res then
+			return nil
+		end
+		local b = res.Body or res.body or ""
+		if type(b) ~= "string" then
+			b = tostring(b)
+		end
+		if b:find("https://consent.google.com/s") then
+			handleConsent(b)
+			res = requestAsync({
+				Url = url;
+				Method = "GET";
+				Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
+			})
+			if not res then
+				return nil
+			end
+		end
+		return res
+	end
+
+	local function ensureSession()
+		if state.fsid and state.bl then
+			return true
+		end
+		local res = fetch(root)
+		if not res then
+			return false
+		end
+		local body = res.Body or res.body or ""
+		if type(body) ~= "string" then
+			body = tostring(body)
+		end
+		state.fsid = body:match('"FdrFJe":"(.-)"')
+		state.bl = body:match('"cfb2h":"(.-)"')
+		return state.fsid ~= nil and state.bl ~= nil
+	end
+
+	local function encodeQuery(data)
+		local s = ""
+		for k, v in pairs(data) do
+			if type(v) == "table" then
+				for _, vv in pairs(v) do
+					s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(vv)
+				end
+			else
+				s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(v)
+			end
+		end
+		return s:sub(2)
+	end
+
+	local jsonEncode = function(x) return Http:JSONEncode(x) end
+	local jsonDecode = function(x) return Http:JSONDecode(x) end
+
+	local function translateSimple(text, target, source)
+		target = iso(target) or "en"
+		source = iso(source) or "auto"
+		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
+			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
+		local res = requestAsync({Url = url, Method = "GET"})
+		if not res then return nil end
+		local body = res.Body or res.body or ""
+		local ok, data = pcall(function()
+			return Http:JSONDecode(body)
+		end)
+		if not ok or type(data) ~= "table" then
+			return nil
+		end
+		local segments = data[1]
+		local detected = data[3]
+		local parts = {}
+		if type(segments) == "table" then
+			for _, seg in ipairs(segments) do
+				if type(seg) == "table" and type(seg[1]) == "string" then
+					Insert(parts, seg[1])
+				end
+			end
+		end
+		local translated = Concat(parts, "")
+		if translated == "" then
+			translated = nil
+		end
+		return translated, detected
+	end
+
+	local function translatePayload(text, target, source)
+		if not text or text == "" then
+			return nil
+		end
+		local translated, detected = translateSimple(text, target, source)
+		if translated and translated ~= "" then
+			return translated, detected
+		end
+		if not ensureSession() then
+			return translated, detected
+		end
+		state.rid += 10000
+		target = iso(target) or "en"
+		source = iso(source) or "auto"
+		local data = { { text, source, target, true }, { nil } }
+		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
+		local url = exec.."?"..encodeQuery({
+			rpcids = rpc;
+			["f.sid"] = state.fsid;
+			bl = state.bl;
+			hl = "en";
+			_reqid = state.rid - 10000;
+			rt = "c";
+		})
+		local body = encodeQuery({ ["f.req"] = jsonEncode(freq) })
+		local res = fetch(url, "POST", body)
+		if not res then
+			return translated, detected
+		end
+		local raw = res.Body or res.body or ""
+		if type(raw) ~= "string" then
+			raw = tostring(raw)
+		end
+		local ok, parsed = pcall(function()
+			local arr = jsonDecode(raw:match("%[.-%]\n"))
+			return jsonDecode(arr[1][3])
+		end)
+		if not ok or type(parsed) ~= "table" then
+			return translated, detected
+		end
+		local fallTranslated = nil
+		pcall(function()
+			fallTranslated = parsed[2][1][1][6][1][1]
+		end)
+		if type(fallTranslated) ~= "string" or fallTranslated == "" then
+			return translated, detected
+		end
+		local detectedLang = parsed[3]
+		return fallTranslated, detectedLang or detected
+	end
+
+	local function resizeLabel(label)
+		if not (label and label.Parent and NAgui and NAgui.txtSize) then
+			return
+		end
+		local ok, size = pcall(NAgui.txtSize, label, label.AbsoluteSize.X, 200)
+		if ok and size then
+			label.Size = UDim2.new(1, -5, 0, size.Y)
+		end
+	end
+
+	function translator:isEnabled()
+		return self.enabled == true
+	end
+
+	function translator:updateUI()
+		if self.button then
+			if self:isEnabled() then
+				self.button.Text = "TR: "..string.upper(self.target or "EN")
+				self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
+				self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+			else
+				self.button.Text = "TR: OFF"
+				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+				self.button.TextColor3 = Color3.fromRGB(184, 184, 194)
+			end
+		end
+		if self.input then
+			self.input.Text = string.upper(self.target or "EN")
+		end
+	end
+
+	function translator:toggle()
+		self.enabled = not self.enabled
+		opt.naChatTranslateEnabled = self.enabled
+		pcall(NAmanage.NASettingsSet, "naChatTranslate", self.enabled)
+		for _, info in pairs(self.messages) do
+			self:applyDisplay(info)
+			self:ensureTranslation(info)
+		end
+		return self.enabled
+	end
+
+	function translator:registerButton(button)
+		if not button then return end
+		MouseButtonFix(button, function()
+			local nowEnabled = self:toggle()
+			self:updateUI()
+			DebugNotif("NA Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
+		end)
+	end
+
+	function translator:applyDisplay(info)
+		if not (info and info.label) then
+			return
+		end
+
+		local lbl = info.label
+		local base = info.base or ""
+
+		if not self:isEnabled() or not info.translationLine then
+			lbl.Text = base
+			resizeLabel(lbl)
+			return
+		end
+
+		local line = info.translationLine
+		local text = base
+		local tr = line.translation or ""
+		local src = line.source or ""
+		local tgt = line.target or ""
+
+		if tr ~= "" then
+			text = base.."\n<font color=\"#A0FFA0\">[TR "..string.upper(src or "?").."→"..string.upper(tgt or "?").."]: "..tr.."</font>"
+		end
+
+		lbl.Text = text
+		resizeLabel(lbl)
+	end
+
+	function translator:ensureTranslation(info)
+		if not (info and info.label) then
+			return
+		end
+		if not self:isEnabled() then
+			return
+		end
+
+		if not info.translationLine then
+			info.translationLine = {
+				translation = nil;
+				source = nil;
+				target = nil;
+			}
+		end
+
+		local line = info.translationLine
+
+		if info.translating then
+			return
+		end
+
+		local target = self.target or "en"
+		if line.target == target and line.translation ~= nil then
+			self:applyDisplay(info)
+			return
+		end
+
+		info.translating = true
+		line.target = target
+
+		Defer(function()
+			local ok, translated, detected = pcall(function()
+				return translatePayload(info.message or info.base or "", target, nil)
+			end)
+
+			if not ok then
+				translated = nil
+			end
+
+			if translated and translated ~= "" and translated ~= info.base then
+				line.translation = translated
+				line.source = detected or "auto"
+			else
+				line.translation = nil
+				line.source = detected or "auto"
+			end
+
+			info.translating = false
+			self:applyDisplay(info)
+		end)
+	end
+
+	function translator:setTarget(lang)
+		local code = iso(lang)
+		if not code then
+			return false
+		end
+		if self.target == code then
+			self:updateUI()
+			return true, code, languageName(code)
+		end
+		self.target = code
+		opt.naChatTranslateTarget = code
+		pcall(NAmanage.NASettingsSet, "naChatTranslateTarget", code)
+		for _, info in pairs(self.messages) do
+			info.translationLine = nil
+			info.target = nil
+			info.translating = false
+			self:applyDisplay(info)
+			self:ensureTranslation(info)
+		end
+		self:updateUI()
+		return true, code, languageName(code)
+	end
+
+	function translator:attachControls(button, input)
+		if button and self.button ~= button then
+			self.button = button
+			MouseButtonFix(button, function()
+				local nowEnabled = self:toggle()
+				self:updateUI()
+				DebugNotif("NA Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
+			end)
+		end
+		if input and self.input ~= input then
+			if self._inputConn then
+				self._inputConn:Disconnect()
+				self._inputConn = nil
+			end
+			self.input = input
+			input.PlaceholderText = "Lang"
+			input.ClearTextOnFocus = false
+			self._inputConn = input.FocusLost:Connect(function(enterPressed)
+				local text = input.Text or ""
+				text = text:match("^%s*(.-)%s*$") or ""
+				if text == "" then
+					self:updateUI()
+					return
+				end
+				local ok, code, name = self:setTarget(text)
+				if not ok then
+					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
+				else
+					DoNotif(("NA Chat translator target set to %s (%s)"):format(code:upper(), name), 1.5)
+				end
+				self:updateUI()
+				if enterPressed then
+					input:ReleaseFocus()
+				end
+			end)
+		end
+		self:updateUI()
+	end
+
+	function translator:tryAttach()
+		local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+		if not frame then return end
+		local button = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateButton)
+			or frame:FindFirstChild("NAChatTranslate", true)
+		local input = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateInput)
+			or frame:FindFirstChild("NAChatTranslateInput", true)
+		if button or input then
+			self:attachControls(button, input)
+		end
+	end
+
+	function translator:showLanguages()
+		local entries = {}
+		for code, name in pairs(languages) do
+			if code ~= "auto" then
+				Insert(entries, { code, name })
+			end
+		end
+		table.sort(entries, function(a, b)
+			return a[1] < b[1]
+		end)
+		local lines = {}
+		for _, info in ipairs(entries) do
+			Insert(lines, info[1]:upper().." - "..info[2])
+		end
+		local text = Concat(lines, "\n")
+		if typeof(DoWindow) == "function" then
+			DoWindow("Supported NA Chat translator languages:\n\n"..text)
+		else
+			print("[NA Chat Translator languages]\n"..text)
+			DoNotif("Supported NA Chat languages printed to console output.", 4)
+		end
+	end
+
+	translator:tryAttach()
+	if NAStuff.NASCREENGUI and not translator._hookedWatcher then
+		translator._hookedWatcher = true
+		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
+			if inst and (inst.Name == "NAChatTranslate" or inst.Name == "NAChatTranslateInput") then
+				Defer(function()
+					translator:tryAttach()
+				end)
+			end
+		end)
+	end
+	translator:updateUI()
+end
+
 --[[ NA CHAT (WEBSOCKET) ]]--
 do
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
@@ -42800,7 +43288,7 @@ do
 			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
 			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
 
-			local tr = NAStuff.ChatTranslator
+			local tr = NAStuff.NAChatTranslator
 			if tr then
 				tr:registerMessage(lbl, t, t)
 			end
