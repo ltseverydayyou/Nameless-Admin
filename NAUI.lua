@@ -392,7 +392,7 @@ G2L["ndf"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
 
 G2L["ndg"] = Instance.new("UIListLayout", G2L["ndf"]);
 G2L["ndg"]["Padding"] = UDim.new(0, 6);
-G2L["ndg"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
+G2L["ndg"]["SortOrder"] = Enum.SortOrder.Name;
 
 
 G2L["ndh"] = Instance.new("Frame", G2L["nc0"]);
