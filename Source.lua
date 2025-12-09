@@ -43275,6 +43275,8 @@ do
 		end
 
 		if gameActivityBtn then
+			local gameActivityDebounce = false
+
 			local function refreshGameActivityButton()
 				local enabled = NAmanage.NAChatGameActivityEnabled()
 				gameActivityBtn.Text = enabled and "Game Activity On" or "Game Activity Off"
@@ -43284,6 +43286,11 @@ do
 			refreshGameActivityButton()
 
 			MouseButtonFix(gameActivityBtn, function()
+				if gameActivityDebounce then
+					return
+				end
+				gameActivityDebounce = true
+
 				local settings = NAmanage.NASettingsEnsure()
 				local current = settings.naChatGameActivity
 				if type(current) ~= "boolean" then
@@ -43302,6 +43309,11 @@ do
 				NAChat.wired = false
 				NAChat.connecting = false
 				connect()
+
+				Defer(function()
+					Wait(2)
+					gameActivityDebounce = false
+				end)
 			end)
 		end
 
