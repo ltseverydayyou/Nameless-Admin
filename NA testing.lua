@@ -8384,98 +8384,98 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-	function MouseButtonFix(button,clickCallback)
-		local isHolding = false
-		local holdThreshold = IsOnMobile and 0.45 or 0.75
-		local mouseDownTime = 0
-	
-		button.MouseButton1Down:Connect(function()
-			isHolding = false
-			mouseDownTime = tick()
-		end)
-	
-		button.MouseButton1Up:Connect(function()
-			local holdDuration = tick() - mouseDownTime
-			if holdDuration < holdThreshold and not isHolding then
-				clickCallback()
-			end
-		end)
-	
-		UserInputService.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-				isHolding = true
-			end
-		end)
-	end
-	
-	NAmanage.AttachMessageCopy = function(gui, rawMessage)
-		if not (gui and gui.InputBegan and gui.InputEnded) then
-			return
+function MouseButtonFix(button,clickCallback)
+	local isHolding = false
+	local holdThreshold = IsOnMobile and 0.45 or 0.75
+	local mouseDownTime = 0
+
+	button.MouseButton1Down:Connect(function()
+		isHolding = false
+		mouseDownTime = tick()
+	end)
+
+	button.MouseButton1Up:Connect(function()
+		local holdDuration = tick() - mouseDownTime
+		if holdDuration < holdThreshold and not isHolding then
+			clickCallback()
 		end
-	
-		local HOLD_TIME = 0.5
-		local isHolding = false
-		local holdToken = 0
-	
-		local function resolveMessage()
-			if type(rawMessage) == "function" then
-				local ok, value = pcall(rawMessage, gui)
-				if ok then
-					return value
-				end
-				return nil
-			end
-			return rawMessage
-		end
-	
-		local function startHold()
-			holdToken += 1
-			local myToken = holdToken
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
 			isHolding = true
-			Delay(HOLD_TIME, function()
-				if not isHolding or myToken ~= holdToken then
-					return
-				end
-				local msg = resolveMessage()
-				if msg == nil then
-					return
-				end
-				msg = tostring(msg)
-				if msg == "" then
-					return
-				end
-				if setclipboard then
-					pcall(setclipboard, msg)
-					if DoNotif then
-						DoNotif("Message copied to clipboard.", 1.5)
-					end
-				elseif DoNotif then
-					DoNotif("Clipboard unavailable", 1.5)
-				end
-			end)
 		end
-	
-		local function stopHold()
-			isHolding = false
-		end
-	
-		gui.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch then
-				startHold()
+	end)
+end
+
+NAmanage.AttachMessageCopy = function(gui, rawMessage)
+	if not (gui and gui.InputBegan and gui.InputEnded) then
+		return
+	end
+
+	local HOLD_TIME = 0.5
+	local isHolding = false
+	local holdToken = 0
+
+	local function resolveMessage()
+		if type(rawMessage) == "function" then
+			local ok, value = pcall(rawMessage, gui)
+			if ok then
+				return value
 			end
-		end)
-	
-		gui.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1
-				or input.UserInputType == Enum.UserInputType.Touch then
-				stopHold()
+			return nil
+		end
+		return rawMessage
+	end
+
+	local function startHold()
+		holdToken += 1
+		local myToken = holdToken
+		isHolding = true
+		Delay(HOLD_TIME, function()
+			if not isHolding or myToken ~= holdToken then
+				return
+			end
+			local msg = resolveMessage()
+			if msg == nil then
+				return
+			end
+			msg = tostring(msg)
+			if msg == "" then
+				return
+			end
+			if setclipboard then
+				pcall(setclipboard, msg)
+				if DoNotif then
+					DoNotif("Message copied to clipboard.", 1.5)
+				end
+			elseif DoNotif then
+				DoNotif("Clipboard unavailable", 1.5)
 			end
 		end)
 	end
-	
-	
-	--[[ FUNCTION TO GET A PLAYER ]]--
+
+	local function stopHold()
+		isHolding = false
+	end
+
+	gui.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			startHold()
+		end
+	end)
+
+	gui.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			stopHold()
+		end
+	end)
+end
+
+
+--[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
 	["all"] = function()
 		return Players:GetPlayers()
@@ -43022,51 +43022,51 @@ do
 		return self.enabled == true
 	end
 
-		function translator:updateUI()
-			if self.button then
-				if self:isEnabled() then
-					self.button.Text = "TR: "..string.upper(self.target or "EN")
-					self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
-					self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
-				else
-					self.button.Text = "TR: OFF"
-					self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
-					self.button.TextColor3 = Color3.fromRGB(184, 184, 194)
-				end
-			end
-			if self.input and not self.input:IsFocused() then
-				self.input.Text = string.upper(self.target or "EN")
+	function translator:updateUI()
+		if self.button then
+			if self:isEnabled() then
+				self.button.Text = "TR: "..string.upper(self.target or "EN")
+				self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
+				self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+			else
+				self.button.Text = "TR: OFF"
+				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+				self.button.TextColor3 = Color3.fromRGB(184, 184, 194)
 			end
 		end
-	
-		function translator:updateAllMessages()
-			for _, info in pairs(self.messages) do
-				if self:isEnabled() then
-					self:ensureTranslation(info)
-				end
-				self:applyDisplay(info)
-			end
+		if self.input and not self.input:IsFocused() then
+			self.input.Text = string.upper(self.target or "EN")
 		end
-	
-		function translator:setEnabled(state)
-			local newState = state and true or false
-			if self.enabled == newState then
-				self.enabled = newState
-				self:updateUI()
-				return
+	end
+
+	function translator:updateAllMessages()
+		for _, info in pairs(self.messages) do
+			if self:isEnabled() then
+				self:ensureTranslation(info)
 			end
+			self:applyDisplay(info)
+		end
+	end
+
+	function translator:setEnabled(state)
+		local newState = state and true or false
+		if self.enabled == newState then
 			self.enabled = newState
-			opt.naChatTranslateEnabled = newState
-			opt.chatTranslateEnabled = newState
-			pcall(NAmanage.NASettingsSet, "chatTranslate", newState)
 			self:updateUI()
-			self:updateAllMessages()
+			return
 		end
-	
-		function translator:toggle()
-			self:setEnabled(not self:isEnabled())
-			return self.enabled
-		end
+		self.enabled = newState
+		opt.naChatTranslateEnabled = newState
+		opt.chatTranslateEnabled = newState
+		pcall(NAmanage.NASettingsSet, "chatTranslate", newState)
+		self:updateUI()
+		self:updateAllMessages()
+	end
+
+	function translator:toggle()
+		self:setEnabled(not self:isEnabled())
+		return self.enabled
+	end
 
 	function translator:registerButton(button)
 		if not button then return end
@@ -43105,121 +43105,121 @@ do
 		resizeLabel(lbl)
 	end
 
-		function translator:ensureTranslation(info)
-			if not (info and info.label) then
-				return
-			end
-			if not self:isEnabled() then
-				return
-			end
-	
-			if not info.translationLine then
-				info.translationLine = {
-					translation = nil;
-					source = nil;
-					target = nil;
-				}
-			end
-	
-			local line = info.translationLine
-	
-			if info.translating then
-				return
-			end
-	
-			local target = self.target or "en"
-			if line.target == target and line.translation ~= nil then
-				self:applyDisplay(info)
-				return
-			end
-	
-			info.translating = true
-			line.target = target
-	
-			Defer(function()
-				local ok, translated, detected = pcall(function()
-					return translatePayload(info.message or info.base or "", target, nil)
-				end)
-	
-				if not ok then
-					translated = nil
-				end
-	
-				if translated and translated ~= "" and translated ~= info.base then
-					line.translation = translated
-					line.source = detected or "auto"
-				else
-					line.translation = nil
-					line.source = detected or "auto"
-				end
-	
-				info.translating = false
-				self:applyDisplay(info)
-			end)
+	function translator:ensureTranslation(info)
+		if not (info and info.label) then
+			return
 		end
-	
-		function translator:registerMessage(label, baseText, rawMessage)
-			if not label then
-				return
+		if not self:isEnabled() then
+			return
+		end
+
+		if not info.translationLine then
+			info.translationLine = {
+				translation = nil;
+				source = nil;
+				target = nil;
+			}
+		end
+
+		local line = info.translationLine
+
+		if info.translating then
+			return
+		end
+
+		local target = self.target or "en"
+		if line.target == target and line.translation ~= nil then
+			self:applyDisplay(info)
+			return
+		end
+
+		info.translating = true
+		line.target = target
+
+		Defer(function()
+			local ok, translated, detected = pcall(function()
+				return translatePayload(info.message or info.base or "", target, nil)
+			end)
+
+			if not ok then
+				translated = nil
 			end
-	
-			local info = self.messages[label]
-			if not info then
-				info = {
-					label = label;
-					base = baseText or "";
-					message = rawMessage or "";
-					translationLine = nil;
-					translating = false;
-					target = nil;
-				}
-				self.messages[label] = info
-	
-				if label.Destroying then
-					label.Destroying:Connect(function()
-						self.messages[label] = nil
-					end)
-				end
-	
-				label.AncestryChanged:Connect(function(_, parent)
-					if not parent then
-						self.messages[label] = nil
-					end
-				end)
+
+			if translated and translated ~= "" and translated ~= info.base then
+				line.translation = translated
+				line.source = detected or "auto"
 			else
-				info.base = baseText or info.base
-				info.message = rawMessage or info.message
-				info.translationLine = nil
-				info.target = nil
+				line.translation = nil
+				line.source = detected or "auto"
 			end
-	
+
+			info.translating = false
+			self:applyDisplay(info)
+		end)
+	end
+
+	function translator:registerMessage(label, baseText, rawMessage)
+		if not label then
+			return
+		end
+
+		local info = self.messages[label]
+		if not info then
+			info = {
+				label = label;
+				base = baseText or "";
+				message = rawMessage or "";
+				translationLine = nil;
+				translating = false;
+				target = nil;
+			}
+			self.messages[label] = info
+
+			if label.Destroying then
+				label.Destroying:Connect(function()
+					self.messages[label] = nil
+				end)
+			end
+
+			label.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					self.messages[label] = nil
+				end
+			end)
+		else
+			info.base = baseText or info.base
+			info.message = rawMessage or info.message
+			info.translationLine = nil
+			info.target = nil
+		end
+
+		self:applyDisplay(info)
+		self:ensureTranslation(info)
+	end
+
+	function translator:setTarget(lang)
+		local code = iso(lang)
+		if not code then
+			return false
+		end
+		if self.target == code then
+			self:updateUI()
+			return true, code, languageName(code)
+		end
+		self.target = code
+		opt.naChatTranslateTarget = code
+		opt.chatTranslateTarget = code
+		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
+		for _, info in pairs(self.messages) do
+			info.translationLine = nil
+			info.target = nil
+			info.translating = false
 			self:applyDisplay(info)
 			self:ensureTranslation(info)
 		end
-	
-			function translator:setTarget(lang)
-				local code = iso(lang)
-				if not code then
-					return false
-				end
-				if self.target == code then
-					self:updateUI()
-					return true, code, languageName(code)
-				end
-				self.target = code
-				opt.naChatTranslateTarget = code
-				opt.chatTranslateTarget = code
-				pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
-				for _, info in pairs(self.messages) do
-					info.translationLine = nil
-					info.target = nil
-					info.translating = false
-					self:applyDisplay(info)
-					self:ensureTranslation(info)
-				end
-				self:updateUI()
-				return true, code, languageName(code)
-			end
+		self:updateUI()
+		return true, code, languageName(code)
+	end
 
 	function translator:attachControls(button, input)
 		if button and self.button ~= button then
@@ -43326,18 +43326,18 @@ do
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 
-		if chatFrame then
-			local NAChat = {
-				service = nil,
-				connecting = false,
-				wired = false,
-				isHidden = false,
-				activeTab = "chat",
-				users = {}
-			}
-			local usersUpdateGeneration = 0
-			local usersFetchInFlight = false
-			local userSearchTerm = ""
+	if chatFrame then
+		local NAChat = {
+			service = nil,
+			connecting = false,
+			wired = false,
+			isHidden = false,
+			activeTab = "chat",
+			users = {}
+		}
+		local usersUpdateGeneration = 0
+		local usersFetchInFlight = false
+		local userSearchTerm = ""
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -43358,296 +43358,304 @@ do
 			end
 		end
 
-			local function refreshStatus()
-				if not statusLabel then
-					return
+		local function refreshStatus()
+			if not statusLabel then
+				return
+			end
+
+			local svc = NAChat.service
+			local isConn = false
+
+			if svc and svc.IsConnected then
+				local ok, res = pcall(svc.IsConnected)
+				if ok and res then
+					isConn = true
 				end
-	
-				local svc = NAChat.service
-				local isConn = false
-	
-				if svc and svc.IsConnected then
-					local ok, res = pcall(svc.IsConnected)
-					if ok and res then
-						isConn = true
-					end
-				end
-	
-				if isConn then
-					local ct = #NAChat.users
-					if NAChat.isHidden then
-						setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
-					else
-						setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
-					end
-				elseif NAChat.isHidden then
-					setStatus("NA Chat: Hidden", STATUS_COLORS.info)
-				elseif NAChat.connecting then
-					setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+			end
+
+			if isConn then
+				local ct = #NAChat.users
+				if NAChat.isHidden then
+					setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
 				else
-					setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
+					setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
 				end
+			elseif NAChat.isHidden then
+				setStatus("NA Chat: Hidden", STATUS_COLORS.info)
+			elseif NAChat.connecting then
+				setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+			else
+				setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
 			end
-	
-				local function makeChatLabel(t, c, rawMessage)
-				local shouldAutoScroll = false
-				if chatScroll then
-					local contentY = chatScroll.AbsoluteCanvasSize.Y
-					local windowY = chatScroll.AbsoluteWindowSize.Y
-					local currentY = chatScroll.CanvasPosition.Y
-					if contentY <= windowY + 1 then
+		end
+
+		local function makeChatLabel(t, c, rawMessage)
+			local shouldAutoScroll = false
+			if chatScroll then
+				local contentY = chatScroll.AbsoluteCanvasSize.Y
+				local windowY = chatScroll.AbsoluteWindowSize.Y
+				local currentY = chatScroll.CanvasPosition.Y
+				if contentY <= windowY + 1 then
+					shouldAutoScroll = true
+				else
+					local distanceFromBottom = contentY - (currentY + windowY)
+					if distanceFromBottom <= 8 then
 						shouldAutoScroll = true
-					else
-						local distanceFromBottom = contentY - (currentY + windowY)
-						if distanceFromBottom <= 8 then
-							shouldAutoScroll = true
-						end
 					end
 				end
-	
-				local lbl = InstanceNew("TextButton", chatScroll)
-				lbl.Size = UDim2.new(1, -6, 0, 24)
-				lbl.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
-				lbl.BackgroundTransparency = 0.35
-				lbl.TextColor3 = c or Color3.fromRGB(224, 224, 234)
-				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				lbl.TextSize = 16
-				lbl.TextWrapped = true
-				lbl.RichText = true
-				lbl.TextXAlignment = Enum.TextXAlignment.Left
-				lbl.TextYAlignment = Enum.TextYAlignment.Top
-				lbl.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
-				lbl.AutoButtonColor = false
-				lbl.Text = t
-	
-				local cr = InstanceNew("UICorner", lbl)
-				cr.CornerRadius = UDim.new(0, 4)
-	
-				local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
-				lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
-	
-				local tr = NAStuff.NAChatTranslator
-				if tr then
-					tr:registerMessage(lbl, t, t)
-				end
-	
-				if rawMessage and NAmanage.AttachMessageCopy then
-					NAmanage.AttachMessageCopy(lbl, tostring(rawMessage))
-				end
-	
-				local MAX_MSG = 500
-				local list = {}
-				for _, v in ipairs(chatScroll:GetChildren()) do
-					if v:IsA("TextLabel") or v:IsA("TextButton") then
-						Insert(list, v)
-					end
-				end
-				table.sort(list, function(a, b)
-					return a.LayoutOrder < b.LayoutOrder
-				end)
-				if #list > MAX_MSG then
-					for i = 1, #list - MAX_MSG do
-						list[i]:Destroy()
-					end
-				end
-	
-				if chatScroll and shouldAutoScroll then
-					local contentY = chatScroll.AbsoluteCanvasSize.Y
-					local windowY = chatScroll.AbsoluteWindowSize.Y
-					local targetY = math.max(0, contentY - windowY)
-					chatScroll.CanvasPosition = Vector2.new(0, targetY)
-				end
-	
-				return lbl
 			end
-	
-				local function updateUsersList(list)
-					if not usersScroll then
-						return
-					end
 
-					usersUpdateGeneration += 1
-					local myGeneration = usersUpdateGeneration
+			local lbl = InstanceNew("TextButton", chatScroll)
+			lbl.Size = UDim2.new(1, -6, 0, 24)
+			lbl.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+			lbl.BackgroundTransparency = 0.35
+			lbl.TextColor3 = c or Color3.fromRGB(224, 224, 234)
+			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			lbl.TextSize = 16
+			lbl.TextWrapped = true
+			lbl.RichText = true
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.TextYAlignment = Enum.TextYAlignment.Top
+			lbl.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
+			lbl.AutoButtonColor = false
+			lbl.Text = t
 
-					local shouldAutoScroll = false
-					if usersScroll then
-						local contentY = usersScroll.AbsoluteCanvasSize.Y
-						local windowY = usersScroll.AbsoluteWindowSize.Y
-						local currentY = usersScroll.CanvasPosition.Y
-						if contentY <= windowY + 1 then
-							shouldAutoScroll = true
-						else
-							local distanceFromBottom = contentY - (currentY + windowY)
-							if distanceFromBottom <= 8 then
-								shouldAutoScroll = true
-							end
-						end
-					end
+			local cr = InstanceNew("UICorner", lbl)
+			cr.CornerRadius = UDim.new(0, 4)
 
-					for _, v in ipairs(usersScroll:GetChildren()) do
-						if v:IsA("Frame") then
-							v:Destroy()
-						end
-					end
+			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
+			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
 
-					if NAChat.isHidden then
-						local fr = InstanceNew("Frame", usersScroll)
-						fr.BackgroundTransparency = 1
-						fr.Size = UDim2.new(1, -6, 0, 40)
-						local lbl = InstanceNew("TextLabel", fr)
-						lbl.BackgroundTransparency = 1
-						lbl.Size = UDim2.new(1, 0, 1, 0)
-						lbl.Text = "Hidden mode - user list disabled"
-						lbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-						lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-						lbl.TextSize = 14
-						lbl.TextWrapped = true
-						return
-					end
+			local tr = NAStuff.NAChatTranslator
+			if tr then
+				tr:registerMessage(lbl, t, t)
+			end
 
-					if type(list) ~= "table" then
-						return
-					end
+			if rawMessage and NAmanage.AttachMessageCopy then
+				NAmanage.AttachMessageCopy(lbl, tostring(rawMessage))
+			end
 
-					local avatarQueue = {}
-					local seen = {}
+			local MAX_MSG = 500
+			local list = {}
+			for _, v in ipairs(chatScroll:GetChildren()) do
+				if v:IsA("TextLabel") or v:IsA("TextButton") then
+					Insert(list, v)
+				end
+			end
+			table.sort(list, function(a, b)
+				return a.LayoutOrder < b.LayoutOrder
+			end)
+			if #list > MAX_MSG then
+				for i = 1, #list - MAX_MSG do
+					list[i]:Destroy()
+				end
+			end
 
-					for _, info in ipairs(list) do
-						local username = (type(info) == "table" and info.username) or tostring(info)
-						local userId = type(info) == "table" and tonumber(info.userId) or nil
-						local isAdmin = type(info) == "table" and (info.admin == true) or false
-						local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
-						local placeId = type(info) == "table" and info.placeId or nil
-						local jobId = type(info) == "table" and info.jobId or nil
+			if chatScroll and shouldAutoScroll then
+				local contentY = chatScroll.AbsoluteCanvasSize.Y
+				local windowY = chatScroll.AbsoluteWindowSize.Y
+				local targetY = math.max(0, contentY - windowY)
+				chatScroll.CanvasPosition = Vector2.new(0, targetY)
+			end
 
-						if userSearchTerm ~= "" then
-							local needle = userSearchTerm
-							local haystack = Lower(tostring(username or "") .. " " .. tostring(gameStatus or ""))
-							if not Find(haystack, needle, 1, true) then
-								continue
-							end
-						end
+			return lbl
+		end
 
-						local key = userId or Lower(tostring(username or ""))
-						if key ~= nil then
-							if seen[key] then
-								continue
-							end
-							seen[key] = true
-						end
+		local function updateUsersList(list)
+			if not usersScroll then
+				return
+			end
 
-						local fr = InstanceNew("Frame", usersScroll)
-						local sortName = Lower(tostring(username or ""))
-						if userId then
-							fr.Name = ("%s|%09d"):format(sortName, userId)
-						else
-							fr.Name = sortName
-						end
-						fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-						fr.Size = UDim2.new(1, -6, 0, 40)
-						fr.BackgroundTransparency = 0.15
+			usersUpdateGeneration += 1
+			local myGeneration = usersUpdateGeneration
 
-						local cr = InstanceNew("UICorner", fr)
-						cr.CornerRadius = UDim.new(0, 4)
-
-						local avatar = InstanceNew("ImageLabel", fr)
-						avatar.BackgroundTransparency = 1
-						avatar.Size = UDim2.new(0, 32, 0, 32)
-						avatar.Position = UDim2.new(0, 4, 0.5, -16)
-						avatar.Image = ""
-
-						if userId then
-							Insert(avatarQueue, { avatar = avatar, userId = userId })
-						end
-
-						local nameLbl = InstanceNew("TextLabel", fr)
-						nameLbl.BackgroundTransparency = 1
-						nameLbl.Size = UDim2.new(1, -44, 0, 18)
-						nameLbl.Position = UDim2.new(0, 40, 0, 4)
-						nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-						nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-						nameLbl.TextSize = 14
-						nameLbl.TextColor3 = isAdmin and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
-						nameLbl.Text = isAdmin and ("[ADMIN] " .. tostring(username)) or tostring(username)
-
-						local gameLbl = InstanceNew("TextLabel", fr)
-						gameLbl.BackgroundTransparency = 1
-						gameLbl.Size = UDim2.new(1, -130, 0, 16)
-						gameLbl.Position = UDim2.new(0, 40, 0, 20)
-						gameLbl.TextXAlignment = Enum.TextXAlignment.Left
-						gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-						gameLbl.TextSize = 12
-						gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-						gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
-
-						local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
-						local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
-
-						if canJoin and not isSelf then
-							local joinBtn = InstanceNew("TextButton", fr)
-							joinBtn.Size = UDim2.new(0, 80, 0, 24)
-							joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
-							joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
-							joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-							joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-							joinBtn.TextSize = 13
-							joinBtn.Text = "Join"
-
-							local jbCorner = InstanceNew("UICorner", joinBtn)
-							jbCorner.CornerRadius = UDim.new(0, 6)
-
-							MouseButtonFix(joinBtn, function()
-								local pid = tonumber(placeId)
-								local jid = tostring(jobId or "")
-								if not (pid and jid ~= "") then
-									return
-								end
-								local lp = Players.LocalPlayer
-								if not (lp and TeleportService) then
-									return
-								end
-								local ok, err = pcall(function()
-									TeleportService:TeleportToPlaceInstance(pid, jid, lp)
-								end)
-								if not ok then
-									if DoNotif then
-										DoNotif("Failed to join "..tostring(username)..": "..tostring(err), 4)
-									end
-								end
-							end)
-						end
-					end
-
-					if usersScroll and shouldAutoScroll then
-						local contentY = usersScroll.AbsoluteCanvasSize.Y
-						local windowY = usersScroll.AbsoluteWindowSize.Y
-						local targetY = math.max(0, contentY - windowY)
-						usersScroll.CanvasPosition = Vector2.new(0, targetY)
-					end
-
-					if #avatarQueue > 0 then
-						Spawn(function()
-							for _, taskInfo in ipairs(avatarQueue) do
-								if usersUpdateGeneration ~= myGeneration then
-									break
-								end
-								local avatar = taskInfo.avatar
-								local userId = taskInfo.userId
-								if avatar and avatar.Parent and userId then
-									local ok, image = pcall(function()
-										return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-									end)
-									if ok and image and image ~= "" then
-										avatar.Image = image
-									else
-										avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"):format(userId)
-									end
-								end
-								Wait(0.03)
-							end
-						end)
+			local shouldAutoScroll = false
+			if usersScroll then
+				local contentY = usersScroll.AbsoluteCanvasSize.Y
+				local windowY = usersScroll.AbsoluteWindowSize.Y
+				local currentY = usersScroll.CanvasPosition.Y
+				if contentY <= windowY + 1 then
+					shouldAutoScroll = true
+				else
+					local distanceFromBottom = contentY - (currentY + windowY)
+					if distanceFromBottom <= 8 then
+						shouldAutoScroll = true
 					end
 				end
+			end
+
+			for _, v in ipairs(usersScroll:GetChildren()) do
+				if v:IsA("Frame") then
+					v:Destroy()
+				end
+			end
+
+			if NAChat.isHidden then
+				local fr = InstanceNew("Frame", usersScroll)
+				fr.BackgroundTransparency = 1
+				fr.Size = UDim2.new(1, -6, 0, 40)
+				local lbl = InstanceNew("TextLabel", fr)
+				lbl.BackgroundTransparency = 1
+				lbl.Size = UDim2.new(1, 0, 1, 0)
+				lbl.Text = "Hidden mode - user list disabled"
+				lbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				lbl.TextSize = 14
+				lbl.TextWrapped = true
+				return
+			end
+
+			if type(list) ~= "table" then
+				return
+			end
+
+			local avatarQueue = {}
+			local seen = {}
+
+			for _, info in ipairs(list) do
+				local username = (type(info) == "table" and info.username) or tostring(info)
+				local userId = type(info) == "table" and tonumber(info.userId) or nil
+				local isAdmin = type(info) == "table" and (info.admin == true) or false
+				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
+				local placeId = type(info) == "table" and info.placeId or nil
+				local jobId = type(info) == "table" and info.jobId or nil
+
+				if userSearchTerm ~= "" then
+					local needle = userSearchTerm
+					local haystack = Lower(tostring(username or "") .. " " .. tostring(gameStatus or ""))
+					if not Find(haystack, needle, 1, true) then
+						continue
+					end
+				end
+
+				local key = userId or Lower(tostring(username or ""))
+				if key ~= nil then
+					if seen[key] then
+						continue
+					end
+					seen[key] = true
+				end
+
+				local fr = InstanceNew("Frame", usersScroll)
+				local sortName = Lower(tostring(username or ""))
+				if userId then
+					fr.Name = ("%s|%09d"):format(sortName, userId)
+				else
+					fr.Name = sortName
+				end
+				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+				fr.Size = UDim2.new(1, -6, 0, 40)
+				fr.BackgroundTransparency = 0.15
+
+				local cr = InstanceNew("UICorner", fr)
+				cr.CornerRadius = UDim.new(0, 4)
+
+				local avatar = InstanceNew("ImageLabel", fr)
+				avatar.BackgroundTransparency = 1
+				avatar.Size = UDim2.new(0, 32, 0, 32)
+				avatar.Position = UDim2.new(0, 4, 0.5, -16)
+				avatar.Image = ""
+
+				if userId then
+					Insert(avatarQueue, { avatar = avatar, userId = userId })
+				end
+
+				local isOwner = userId == 11761417 or userId == 530829101
+
+				local nameLbl = InstanceNew("TextLabel", fr)
+				nameLbl.BackgroundTransparency = 1
+				nameLbl.Size = UDim2.new(1, -44, 0, 18)
+				nameLbl.Position = UDim2.new(0, 40, 0, 4)
+				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+				nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				nameLbl.TextSize = 14
+				nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
+				if isOwner then
+					nameLbl.Text = "[OWNER] " .. tostring(username)
+				elseif isAdmin then
+					nameLbl.Text = "[ADMIN] " .. tostring(username)
+				else
+					nameLbl.Text = tostring(username)
+				end
+
+				local gameLbl = InstanceNew("TextLabel", fr)
+				gameLbl.BackgroundTransparency = 1
+				gameLbl.Size = UDim2.new(1, -130, 0, 16)
+				gameLbl.Position = UDim2.new(0, 40, 0, 20)
+				gameLbl.TextXAlignment = Enum.TextXAlignment.Left
+				gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				gameLbl.TextSize = 12
+				gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+				gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+
+				local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
+				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
+
+				if canJoin and not isSelf then
+					local joinBtn = InstanceNew("TextButton", fr)
+					joinBtn.Size = UDim2.new(0, 80, 0, 24)
+					joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
+					joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+					joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+					joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+					joinBtn.TextSize = 13
+					joinBtn.Text = "Join"
+
+					local jbCorner = InstanceNew("UICorner", joinBtn)
+					jbCorner.CornerRadius = UDim.new(0, 6)
+
+					MouseButtonFix(joinBtn, function()
+						local pid = tonumber(placeId)
+						local jid = tostring(jobId or "")
+						if not (pid and jid ~= "") then
+							return
+						end
+						local lp = Players.LocalPlayer
+						if not (lp and TeleportService) then
+							return
+						end
+						local ok, err = pcall(function()
+							TeleportService:TeleportToPlaceInstance(pid, jid, lp)
+						end)
+						if not ok then
+							if DoNotif then
+								DoNotif("Failed to join "..tostring(username)..": "..tostring(err), 4)
+							end
+						end
+					end)
+				end
+			end
+
+			if usersScroll and shouldAutoScroll then
+				local contentY = usersScroll.AbsoluteCanvasSize.Y
+				local windowY = usersScroll.AbsoluteWindowSize.Y
+				local targetY = math.max(0, contentY - windowY)
+				usersScroll.CanvasPosition = Vector2.new(0, targetY)
+			end
+
+			if #avatarQueue > 0 then
+				Spawn(function()
+					for _, taskInfo in ipairs(avatarQueue) do
+						if usersUpdateGeneration ~= myGeneration then
+							break
+						end
+						local avatar = taskInfo.avatar
+						local userId = taskInfo.userId
+						if avatar and avatar.Parent and userId then
+							local ok, image = pcall(function()
+								return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+							end)
+							if ok and image and image ~= "" then
+								avatar.Image = image
+							else
+								avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"):format(userId)
+							end
+						end
+						Wait(0.03)
+					end
+				end)
+			end
+		end
 
 		local function setHiddenState(newHidden, skipRemote)
 			NAChat.isHidden = newHidden
@@ -43675,14 +43683,14 @@ do
 				sendBtn.AutoButtonColor = not newHidden
 				sendBtn.TextTransparency = newHidden and 0.5 or 0
 			end
-				if newHidden then
-					updateUsersList({})
-				elseif NAChat.activeTab == "users" and NAChat.service and NAChat.service.GetUsers then
-					if not usersFetchInFlight then
-						usersFetchInFlight = true
-						NAChat.service.GetUsers()
-					end
+			if newHidden then
+				updateUsersList({})
+			elseif NAChat.activeTab == "users" and NAChat.service and NAChat.service.GetUsers then
+				if not usersFetchInFlight then
+					usersFetchInFlight = true
+					NAChat.service.GetUsers()
 				end
+			end
 			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
 				NAChat.service.SetHidden(newHidden)
 			end
@@ -43700,22 +43708,22 @@ do
 			if chatScroll then
 				chatScroll.Visible = tab == "chat"
 			end
-				if usersScroll then
-					usersScroll.Visible = tab == "users"
-				end
-				if usersSearchBox then
-					usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
-				end
-				if tab == "users" then
-					if NAChat.isHidden then
-						updateUsersList({})
-					elseif NAChat.service and NAChat.service.GetUsers then
-						if not usersFetchInFlight then
-							usersFetchInFlight = true
-							NAChat.service.GetUsers()
-						end
+			if usersScroll then
+				usersScroll.Visible = tab == "users"
+			end
+			if usersSearchBox then
+				usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
+			end
+			if tab == "users" then
+				if NAChat.isHidden then
+					updateUsersList({})
+				elseif NAChat.service and NAChat.service.GetUsers then
+					if not usersFetchInFlight then
+						usersFetchInFlight = true
+						NAChat.service.GetUsers()
 					end
 				end
+			end
 		end
 
 		local function fetchIntegrationBody()
@@ -43803,9 +43811,9 @@ do
 				end)
 			end
 
-				NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-					local senderName = tostring(name or "?")
-					local messageText = tostring(msg or "")
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
+				local senderName = tostring(name or "?")
+				local messageText = tostring(msg or "")
 
 				local isNAadmin = false
 				if type(isAdmin) == "boolean" then
@@ -43819,16 +43827,20 @@ do
 					end
 				end
 
-					local labelText
-					if isNAadmin then
-						labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
-					else
-						labelText = ("[%s]: %s"):format(senderName, messageText)
-					end
-	
-					local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+				local isOwner = userId == 11761417 or userId == 530829101
 
-				if isNAadmin and lbl then
+				local labelText
+				if isOwner then
+					labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
+				elseif isNAadmin then
+					labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
+				else
+					labelText = ("[%s]: %s"):format(senderName, messageText)
+				end
+
+				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+
+				if (isNAadmin or isOwner) and lbl then
 					local conn
 					conn = RunService.Heartbeat:Connect(function()
 						if not (lbl and lbl.Parent) then
@@ -43847,47 +43859,47 @@ do
 				end
 			end)
 
-				NAChat.service.OnSystemMessage.Event:Connect(function(msg)
-					local m = tostring(msg or "System message")
+			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
+				local m = tostring(msg or "System message")
 				local now = os.clock()
-					if lastSysText == m and (now - lastSysTime) < 2 then
-						return
-					end
-					lastSysText, lastSysTime = m, now
-					makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
-				end)
+				if lastSysText == m and (now - lastSysTime) < 2 then
+					return
+				end
+				lastSysText, lastSysTime = m, now
+				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
+			end)
 
-				NAChat.service.OnUserListUpdate.Event:Connect(function(list)
-					NAChat.users = list or {}
-					usersFetchInFlight = false
-					if not NAChat.isHidden then
-						updateUsersList(NAChat.users)
-					end
-					refreshStatus()
-				end)
+			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
+				NAChat.users = list or {}
+				usersFetchInFlight = false
+				if not NAChat.isHidden then
+					updateUsersList(NAChat.users)
+				end
+				refreshStatus()
+			end)
 
-				NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
-					NAChat.connecting = false
-					NAChat.isHidden = hidden or false
-					setHiddenState(NAChat.isHidden, true)
-					makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
+			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
+				NAChat.connecting = false
+				NAChat.isHidden = hidden or false
+				setHiddenState(NAChat.isHidden, true)
+				makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
 				if not NAChat.isHidden and NAChat.service and NAChat.service.GetUsers then
 					NAChat.service.GetUsers()
 				end
 				refreshStatus()
 			end)
 
-				NAChat.service.OnDisconnected.Event:Connect(function()
-					NAChat.connecting = false
-					makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
+			NAChat.service.OnDisconnected.Event:Connect(function()
+				NAChat.connecting = false
+				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
 				refreshStatus()
 				queueReconnect()
 			end)
 
-				NAChat.service.OnError.Event:Connect(function(err)
+			NAChat.service.OnError.Event:Connect(function(err)
 				NAChat.connecting = false
 				setStatus("NA Chat error", STATUS_COLORS.err)
-					local msg = "[NA Chat] " .. tostring(err or "Unknown error")
+				local msg = "[NA Chat] " .. tostring(err or "Unknown error")
 				local now = os.clock()
 				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 					lastErrText, lastErrTime = msg, now
@@ -43989,13 +44001,13 @@ do
 			end)
 		end
 
-			if clearBtn and chatScroll then
-				MouseButtonFix(clearBtn, function()
-					for _, v in ipairs(chatScroll:GetChildren()) do
-						if v:IsA("TextLabel") or v:IsA("TextButton") then
-							v:Destroy()
-						end
+		if clearBtn and chatScroll then
+			MouseButtonFix(clearBtn, function()
+				for _, v in ipairs(chatScroll:GetChildren()) do
+					if v:IsA("TextLabel") or v:IsA("TextButton") then
+						v:Destroy()
 					end
+				end
 			end)
 		end
 
@@ -44081,9 +44093,9 @@ do
 	end
 end
 
-	--[[ CHAT TO USE COMMANDS ]]--
-	function bindToChat(plr, msg)
-		local chatMsg = NAUIMANAGER.chatExample:Clone()
+--[[ CHAT TO USE COMMANDS ]]--
+function bindToChat(plr, msg)
+	local chatMsg = NAUIMANAGER.chatExample:Clone()
 
 	for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
 		if v:IsA("TextLabel") then
@@ -44109,16 +44121,16 @@ end
 
 	local currentTime = os.date("%Y-%m-%d %H:%M:%S")
 	local baseText
-		if displayName == userName then
-			baseText = ("@%s: %s"):format(userName, msg)
-		else
-			baseText = ("%s [@%s]: %s"):format(displayName, userName, msg)
-		end
-		chatMsg.Text = baseText
-	
-		if NAmanage.AttachMessageCopy then
-			NAmanage.AttachMessageCopy(chatMsg, tostring(msg or ""))
-		end
+	if displayName == userName then
+		baseText = ("@%s: %s"):format(userName, msg)
+	else
+		baseText = ("%s [@%s]: %s"):format(displayName, userName, msg)
+	end
+	chatMsg.Text = baseText
+
+	if NAmanage.AttachMessageCopy then
+		NAmanage.AttachMessageCopy(chatMsg, tostring(msg or ""))
+	end
 
 	if isNAadmin then
 		local function rainbowColor()
