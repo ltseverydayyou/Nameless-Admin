@@ -42682,6 +42682,7 @@ do
 	local chatTab = NAUIMANAGER and NAUIMANAGER.NAchatChatTab
 	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
+	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 
 	if chatFrame then
 		local NAChat = {
@@ -43273,16 +43274,16 @@ do
 			end)
 		end
 
-		if NAchatGameActivity then
+		if gameActivityBtn then
 			local function refreshGameActivityButton()
 				local enabled = NAmanage.NAChatGameActivityEnabled()
-				NAchatGameActivity.Text = enabled and "Game Activity On" or "Game Activity Off"
-				NAchatGameActivity.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
+				gameActivityBtn.Text = enabled and "Game Activity On" or "Game Activity Off"
+				gameActivityBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
 			end
 
 			refreshGameActivityButton()
 
-			MouseButtonFix(NAchatGameActivity, function()
+			MouseButtonFix(gameActivityBtn, function()
 				local settings = NAmanage.NASettingsEnsure()
 				local current = settings.naChatGameActivity
 				if type(current) ~= "boolean" then
