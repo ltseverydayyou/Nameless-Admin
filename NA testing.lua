@@ -26,6 +26,16 @@ CMDAUTOFILL = {}
 
 local NAmanage={}
 
+do
+	local g = getgenv and getgenv() or _G
+	if type(g) == "table" then
+		g.NAmanage = NAmanage
+	end
+	if type(_G) == "table" then
+		_G.NAmanage = NAmanage
+	end
+end
+
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -6020,6 +6030,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		naChatHidden = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -7312,9 +7328,9 @@ _G.NAadminsLol={
 	817571515; --Aimlock
 	1844177730; --glexinator
 	2624269701; --Akim
-	2502806181; --null
+	2502806181; --Main Alt
 	1594235217; --Purple
-	1620986547; --pc alt
+	2845101018; --alt
 	2019160453; --grim
 	4881709223; --bzz bzz byzren
 }
@@ -42939,6 +42955,9 @@ do
 
 		local function setHiddenState(newHidden, skipRemote)
 			NAChat.isHidden = newHidden
+			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+				pcall(NAmanage.NASettingsSet, "naChatHidden", newHidden)
+			end
 			if visibilityBtn then
 				visibilityBtn.Text = newHidden and "Hidden" or "Visible"
 				visibilityBtn.BackgroundColor3 = newHidden and Color3.fromRGB(54, 54, 64) or Color3.fromRGB(80, 120, 80)
@@ -43312,8 +43331,16 @@ do
 			end
 		end)
 
+		local initialHidden = false
+		if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+			local ok, saved = pcall(NAmanage.NASettingsGet, "naChatHidden")
+			if ok and saved ~= nil then
+				initialHidden = saved == true
+			end
+		end
+
 		switchTab("chat")
-		setHiddenState(false, true)
+		setHiddenState(initialHidden, true)
 		connect()
 	end
 end
