@@ -5539,6 +5539,15 @@ local JoinLeaveConfig = {
 	SaveLog = false;
 }
 
+NAmanage.NAChatGameActivityEnabled=function()
+	local settings = NAmanage.NASettingsEnsure()
+	local val = settings and settings.naChatGameActivity
+	if type(val) ~= "boolean" then
+		return true
+	end
+	return val
+end
+
 opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 
 --Custom file functions checker checker
@@ -5983,6 +5992,12 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
+			end;
+		};
+		naChatGameActivity = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
 			end;
 		};
 		loadingStartMinimized = {
@@ -38154,6 +38169,9 @@ local NAUIMANAGER = {
 	NAchatVisibility     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("Visibility");
+	NAchatGameActivity   = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("GameActivity");
 
 	NAconsoleFrame       = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole");
 	NAconsoleLogs        = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
@@ -42710,6 +42728,21 @@ do
 		end
 
 		local function makeChatLabel(t, c)
+			local shouldAutoScroll = false
+			if chatScroll then
+				local contentY = chatScroll.AbsoluteCanvasSize.Y
+				local windowY = chatScroll.AbsoluteWindowSize.Y
+				local currentY = chatScroll.CanvasPosition.Y
+				if contentY <= windowY + 1 then
+					shouldAutoScroll = true
+				else
+					local distanceFromBottom = contentY - (currentY + windowY)
+					if distanceFromBottom <= 8 then
+						shouldAutoScroll = true
+					end
+				end
+			end
+
 			local lbl = InstanceNew("TextLabel", chatScroll)
 			lbl.Size = UDim2.new(1, -6, 0, 24)
 			lbl.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
@@ -42735,7 +42768,7 @@ do
 				tr:registerMessage(lbl, t, t)
 			end
 
-			local MAX_MSG = 200
+			local MAX_MSG = 500
 			local list = {}
 			for _, v in ipairs(chatScroll:GetChildren()) do
 				if v:IsA("TextLabel") then
@@ -42750,6 +42783,15 @@ do
 					list[i]:Destroy()
 				end
 			end
+
+			if chatScroll and shouldAutoScroll then
+				local contentY = chatScroll.AbsoluteCanvasSize.Y
+				local windowY = chatScroll.AbsoluteWindowSize.Y
+				local targetY = math.max(0, contentY - windowY)
+				chatScroll.CanvasPosition = Vector2.new(0, targetY)
+			end
+
+			return lbl
 		end
 
 		local function updateUsersList(list)
@@ -42782,24 +42824,96 @@ do
 				return
 			end
 
-			for _, name in ipairs(list) do
+			for _, info in ipairs(list) do
+				local username = (type(info) == "table" and info.username) or tostring(info)
+				local userId = type(info) == "table" and tonumber(info.userId) or nil
+				local isAdmin = type(info) == "table" and (info.admin == true) or false
+				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
+				local placeId = type(info) == "table" and info.placeId or nil
+				local jobId = type(info) == "table" and info.jobId or nil
+
 				local fr = InstanceNew("Frame", usersScroll)
 				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-				fr.Size = UDim2.new(1, -6, 0, 26)
+				fr.Size = UDim2.new(1, -6, 0, 40)
 				fr.BackgroundTransparency = 0.15
 
 				local cr = InstanceNew("UICorner", fr)
 				cr.CornerRadius = UDim.new(0, 4)
 
-				local lbl = InstanceNew("TextLabel", fr)
-				lbl.BackgroundTransparency = 1
-				lbl.Size = UDim2.new(1, -10, 1, 0)
-				lbl.Position = UDim2.new(0, 5, 0, 0)
-				lbl.Text = tostring(name)
-				lbl.TextColor3 = Color3.fromRGB(180, 150, 230)
-				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				lbl.TextSize = 14
-				lbl.TextXAlignment = Enum.TextXAlignment.Left
+				local avatar = InstanceNew("ImageLabel", fr)
+				avatar.BackgroundTransparency = 1
+				avatar.Size = UDim2.new(0, 32, 0, 32)
+				avatar.Position = UDim2.new(0, 4, 0.5, -16)
+
+				if userId then
+					local ok, image = pcall(function()
+						return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+					end)
+					if ok and image and image ~= "" then
+						avatar.Image = image
+					else
+						avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"):format(userId)
+					end
+				else
+					avatar.Image = ""
+				end
+
+				local nameLbl = InstanceNew("TextLabel", fr)
+				nameLbl.BackgroundTransparency = 1
+				nameLbl.Size = UDim2.new(1, -44, 0, 18)
+				nameLbl.Position = UDim2.new(0, 40, 0, 4)
+				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+				nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				nameLbl.TextSize = 14
+				nameLbl.TextColor3 = isAdmin and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
+				nameLbl.Text = isAdmin and ("[ADMIN] " .. tostring(username)) or tostring(username)
+
+				local gameLbl = InstanceNew("TextLabel", fr)
+				gameLbl.BackgroundTransparency = 1
+				gameLbl.Size = UDim2.new(1, -130, 0, 16)
+				gameLbl.Position = UDim2.new(0, 40, 0, 20)
+				gameLbl.TextXAlignment = Enum.TextXAlignment.Left
+				gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				gameLbl.TextSize = 12
+				gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+				gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+
+				local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
+				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
+
+				if canJoin and not isSelf then
+					local joinBtn = InstanceNew("TextButton", fr)
+					joinBtn.Size = UDim2.new(0, 80, 0, 24)
+					joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
+					joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+					joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+					joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+					joinBtn.TextSize = 13
+					joinBtn.Text = "Join"
+
+					local jbCorner = InstanceNew("UICorner", joinBtn)
+					jbCorner.CornerRadius = UDim.new(0, 6)
+
+					MouseButtonFix(joinBtn, function()
+						local pid = tonumber(placeId)
+						local jid = tostring(jobId or "")
+						if not (pid and jid ~= "") then
+							return
+						end
+						local lp = Players.LocalPlayer
+						if not (lp and TeleportService) then
+							return
+						end
+						local ok, err = pcall(function()
+							TeleportService:TeleportToPlaceInstance(pid, jid, lp)
+						end)
+						if not ok then
+							if DoNotif then
+								DoNotif("Failed to join "..tostring(username)..": "..tostring(err), 4)
+							end
+						end
+					end)
+				end
 			end
 		end
 
@@ -42914,12 +43028,12 @@ do
 				if NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected() then
 					return
 				end
-				NAChat.wired = false
 				connect()
 			end)
 		end
 
 		local lastSysText, lastSysTime = nil, 0
+		local lastErrText, lastErrTime = nil, 0
 
 		local function wireEvents()
 			if NAChat.wired or not NAChat.service then
@@ -42927,8 +43041,48 @@ do
 			end
 			NAChat.wired = true
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg)
-				makeChatLabel(("[%s]: %s"):format(name or "?", msg or ""), STATUS_COLORS.blue)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
+				local senderName = tostring(name or "?")
+				local messageText = tostring(msg or "")
+
+				local isNAadmin = false
+				if type(isAdmin) == "boolean" then
+					isNAadmin = isAdmin
+				elseif _G.NAadminsLol and type(userId) == "number" then
+					for _, id in ipairs(_G.NAadminsLol) do
+						if id == userId then
+							isNAadmin = true
+							break
+						end
+					end
+				end
+
+				local labelText
+				if isNAadmin then
+					labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
+				else
+					labelText = ("[%s]: %s"):format(senderName, messageText)
+				end
+
+				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue)
+
+				if isNAadmin and lbl then
+					local conn
+					conn = RunService.Heartbeat:Connect(function()
+						if not (lbl and lbl.Parent) then
+							if conn then
+								conn:Disconnect()
+							end
+							return
+						end
+
+						local time = tick()
+						local r = math.sin(time * 0.5) * 127 + 128
+						local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
+						local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
+						lbl.TextColor3 = Color3.fromRGB(r, g, b)
+					end)
+				end
 			end)
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
@@ -42970,7 +43124,12 @@ do
 			NAChat.service.OnError.Event:Connect(function(err)
 				NAChat.connecting = false
 				setStatus("NA Chat error", STATUS_COLORS.err)
-				makeChatLabel("[NA Chat] " .. tostring(err or "Unknown error"), STATUS_COLORS.err)
+				local msg = "[NA Chat] " .. tostring(err or "Unknown error")
+				local now = os.clock()
+				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
+					lastErrText, lastErrTime = msg, now
+					makeChatLabel(msg, STATUS_COLORS.err)
+				end
 				refreshStatus()
 				queueReconnect()
 			end)
@@ -42996,7 +43155,8 @@ do
 				if NAChat.service and NAChat.service.Init then
 					okInit = NAChat.service.Init({
 						serverUrl = "wss://witty-minette-adonis-632b17c0.koyeb.app/swimhub",
-						heartbeatInterval = 5,
+						heartbeatInterval = 10,
+						reconnectDelay = 6,
 						autoReconnect = true,
 						hidden = NAChat.isHidden
 					})
@@ -43004,7 +43164,12 @@ do
 
 				if not okInit then
 					setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
-					makeChatLabel("[NA Chat] Init failed (see console for [IntegrationService] errors)", STATUS_COLORS.err)
+					local msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
+					local now = os.clock()
+					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
+						lastErrText, lastErrTime = msg, now
+						makeChatLabel(msg, STATUS_COLORS.err)
+					end
 					NAChat.connecting = false
 					queueReconnect()
 					return
@@ -43089,17 +43254,40 @@ do
 			end)
 		end
 
+		if NAchatGameActivity then
+			local function refreshGameActivityButton()
+				local enabled = NAmanage.NAChatGameActivityEnabled()
+				NAchatGameActivity.Text = enabled and "Game Activity On" or "Game Activity Off"
+				NAchatGameActivity.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
+			end
+
+			refreshGameActivityButton()
+
+			MouseButtonFix(NAchatGameActivity, function()
+				local settings = NAmanage.NASettingsEnsure()
+				local current = settings.naChatGameActivity
+				if type(current) ~= "boolean" then
+					current = true
+				end
+				settings.naChatGameActivity = not current
+				NAmanage.NASettingsSave()
+				refreshGameActivityButton()
+
+				local okSvc, svc = pcall(function() return NAChat.service end)
+				if okSvc and svc and svc.Disconnect then
+					pcall(svc.Disconnect)
+				end
+
+				NAChat.service = nil
+				NAChat.wired = false
+				NAChat.connecting = false
+				connect()
+			end)
+		end
+
 		Spawn(function()
 			while true do
-				Wait(8)
-				if NAChat.service and NAChat.service.IsConnected then
-					local ok, res = pcall(NAChat.service.IsConnected)
-					if ok and res then
-						if not NAChat.isHidden and NAChat.service.GetUsers and NAChat.activeTab == "users" then
-							NAChat.service.GetUsers()
-						end
-					end
-				end
+				Wait(1)
 				refreshStatus()
 			end
 		end)

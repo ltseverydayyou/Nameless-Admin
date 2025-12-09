@@ -317,6 +317,22 @@ G2L["nd8"] = Instance.new("UICorner", G2L["nd7"]);
 G2L["nd8"]["CornerRadius"] = UDim.new(0, 6);
 
 
+G2L["nd7b"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["nd7b"]["BorderSizePixel"] = 0;
+G2L["nd7b"]["TextSize"] = 14;
+G2L["nd7b"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nd7b"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nd7b"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nd7b"]["BackgroundTransparency"] = 0.1;
+G2L["nd7b"]["Size"] = UDim2.new(0, 110, 1, -6);
+G2L["nd7b"]["Text"] = [[Game Activity On]];
+G2L["nd7b"]["Name"] = [[GameActivity]];
+
+
+G2L["nd8b"] = Instance.new("UICorner", G2L["nd7b"]);
+G2L["nd8b"]["CornerRadius"] = UDim.new(0, 6);
+
+
 G2L["nd9"] = Instance.new("Frame", G2L["nc0"]);
 G2L["nd9"]["BorderSizePixel"] = 0;
 G2L["nd9"]["BackgroundColor3"] = Color3.fromRGB(34, 34, 39);
