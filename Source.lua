@@ -6,16 +6,6 @@ CMDAUTOFILL = {}
 
 local NAmanage={}
 
-do
-	local g = getgenv and getgenv() or _G
-	if type(g) == "table" then
-		g.NAmanage = NAmanage
-	end
-	if type(_G) == "table" then
-		_G.NAmanage = NAmanage
-	end
-end
-
 local Lower = string.lower;
 local Sub = string.sub;
 local GSub = string.gsub;
@@ -5551,7 +5541,7 @@ local JoinLeaveConfig = {
 	SaveLog = false;
 }
 
-NAmanage.NAChatGameActivityEnabled=function()
+NAChatGameActivityEnabled=function()
 	local settings = NAmanage.NASettingsEnsure()
 	local val = settings and settings.naChatGameActivity
 	if type(val) ~= "boolean" then
@@ -39216,7 +39206,7 @@ end
 
 NAmanage.SetSearch.init()
 
-do
+originalIO.applyTabIDK=function()
 	local baseSetTab = NAgui.setTab
 	NAgui.setTab = function(name)
 		local page = baseSetTab(name)
@@ -39229,6 +39219,7 @@ do
 		return page
 	end
 end
+originalIO.applyTabIDK()
 
 NAgui.addTab=function(name, options)
 	if type(name) ~= "string" or name == "" then
@@ -42312,7 +42303,7 @@ NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 	NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
 end)
 
-do
+originalIO.naTransLatooor=function()
 	local Http = HttpService
 	local translator = NAStuff.ChatTranslator or {}
 	NAStuff.ChatTranslator = translator
@@ -42795,9 +42786,9 @@ do
 	end
 	translator:updateUI()
 end
-
+originalIO.naTransLatooor()
 --[[ NA CHAT TRANSLATOR (separate from chat logs) ]]--
-do
+originalIO.naCHATtrans=function()
 	local Http = HttpService
 	local translator = NAStuff.NAChatTranslator or {}
 	NAStuff.NAChatTranslator = translator
@@ -43331,9 +43322,9 @@ do
 	end
 	translator:updateUI()
 end
-
+originalIO.naCHATtrans()
 --[[ NA CHAT (WEBSOCKET) ]]--
-do
+originalIO.runNACHAT=function()
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
 	local chatScroll = NAUIMANAGER and NAUIMANAGER.NAchatChatScroll
 	local chatLayout = NAUIMANAGER and NAUIMANAGER.NAchatListLayout
@@ -43363,6 +43354,8 @@ do
 		local userSearchTerm = ""
 		local serverUsers = {}
 		local serverUsersInit = false
+		local lastUserSig = nil
+		local userFrames = {}
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -43514,6 +43507,24 @@ do
 			return set
 		end
 
+		local function makeUserSignature(list)
+			if type(list) ~= "table" then
+				return ""
+			end
+			local tmp = {}
+			for _, info in ipairs(list) do
+				if type(info) == "table" then
+					local uid = tonumber(info.userId) or 0
+					local uname = tostring(info.username or "")
+					local pid = tonumber(info.placeId) or 0
+					local jid = tostring(info.jobId or "")
+					tmp[#tmp+1] = uid.."|"..uname.."|"..pid.."|"..jid
+				end
+			end
+			table.sort(tmp)
+			return Concat(tmp, ";")
+		end
+
 		local function updateUsersList(list)
 			if not usersScroll then
 				return
@@ -43537,13 +43548,14 @@ do
 				end
 			end
 
-			for _, v in ipairs(usersScroll:GetChildren()) do
-				if v:IsA("Frame") then
-					v:Destroy()
-				end
-			end
-
 			if NAChat.isHidden then
+				for _, v in ipairs(usersScroll:GetChildren()) do
+					if v:IsA("Frame") then
+						v:Destroy()
+					end
+				end
+				userFrames = {}
+
 				local fr = InstanceNew("Frame", usersScroll)
 				fr.BackgroundTransparency = 1
 				fr.Size = UDim2.new(1, -6, 0, 40)
@@ -43564,6 +43576,8 @@ do
 
 			local avatarQueue = {}
 			local seen = {}
+			local alive = {}
+			local idx = 0
 
 			for _, info in ipairs(list) do
 				local username = (type(info) == "table" and info.username) or tostring(info)
@@ -43581,101 +43595,134 @@ do
 					end
 				end
 
-				local key = userId or Lower(tostring(username or ""))
-				if key ~= nil then
-					if seen[key] then
-						continue
-					end
-					seen[key] = true
+				local keyBase = Lower(tostring(username or ""))
+				local uidKey
+				if userId then
+					uidKey = "id:" .. tostring(userId)
+				else
+					uidKey = "n:" .. keyBase
 				end
 
-				local fr = InstanceNew("Frame", usersScroll)
-				local sortName = Lower(tostring(username or ""))
-				if userId then
-					fr.Name = ("%s|%09d"):format(sortName, userId)
-				else
-					fr.Name = sortName
+				if seen[uidKey] then
+					continue
 				end
+				seen[uidKey] = true
+				alive[uidKey] = true
+				idx += 1
+
+				local fr = userFrames[uidKey]
+				if not (fr and fr.Parent) then
+					fr = InstanceNew("Frame", usersScroll)
+					userFrames[uidKey] = fr
+					local cr = InstanceNew("UICorner", fr)
+					cr.CornerRadius = UDim.new(0, 4)
+					local avatar = InstanceNew("ImageLabel", fr)
+					avatar.Name = "Avatar"
+					avatar.BackgroundTransparency = 1
+					avatar.Size = UDim2.new(0, 32, 0, 32)
+					avatar.Position = UDim2.new(0, 4, 0.5, -16)
+					avatar.Image = ""
+					local nameLbl = InstanceNew("TextLabel", fr)
+					nameLbl.Name = "NameLabel"
+					nameLbl.BackgroundTransparency = 1
+					nameLbl.Size = UDim2.new(1, -44, 0, 18)
+					nameLbl.Position = UDim2.new(0, 40, 0, 4)
+					nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+					nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+					nameLbl.TextSize = 14
+					local gameLbl = InstanceNew("TextLabel", fr)
+					gameLbl.Name = "GameLabel"
+					gameLbl.BackgroundTransparency = 1
+					gameLbl.Size = UDim2.new(1, -130, 0, 16)
+					gameLbl.Position = UDim2.new(0, 40, 0, 20)
+					gameLbl.TextXAlignment = Enum.TextXAlignment.Left
+					gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+					gameLbl.TextSize = 12
+				end
+
+				fr.Name = keyBase
 				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
 				fr.Size = UDim2.new(1, -6, 0, 40)
 				fr.BackgroundTransparency = 0.15
+				fr.LayoutOrder = idx
 
-				local cr = InstanceNew("UICorner", fr)
-				cr.CornerRadius = UDim.new(0, 4)
-
-				local avatar = InstanceNew("ImageLabel", fr)
-				avatar.BackgroundTransparency = 1
-				avatar.Size = UDim2.new(0, 32, 0, 32)
-				avatar.Position = UDim2.new(0, 4, 0.5, -16)
-				avatar.Image = ""
-
-				if userId then
-					Insert(avatarQueue, { avatar = avatar, userId = userId })
-				end
+				local avatar = fr:FindFirstChild("Avatar")
+				local nameLbl = fr:FindFirstChild("NameLabel")
+				local gameLbl = fr:FindFirstChild("GameLabel")
 
 				local isOwner = userId == 11761417 or userId == 530829101
 
-				local nameLbl = InstanceNew("TextLabel", fr)
-				nameLbl.BackgroundTransparency = 1
-				nameLbl.Size = UDim2.new(1, -44, 0, 18)
-				nameLbl.Position = UDim2.new(0, 40, 0, 4)
-				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-				nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				nameLbl.TextSize = 14
-				nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
-				if isOwner then
-					nameLbl.Text = "[OWNER] " .. tostring(username)
-				elseif isAdmin then
-					nameLbl.Text = "[ADMIN] " .. tostring(username)
-				else
-					nameLbl.Text = tostring(username)
+				if nameLbl then
+					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
+					if isOwner then
+						nameLbl.Text = "[OWNER] " .. tostring(username)
+					elseif isAdmin then
+						nameLbl.Text = "[ADMIN] " .. tostring(username)
+					else
+						nameLbl.Text = tostring(username)
+					end
 				end
 
-				local gameLbl = InstanceNew("TextLabel", fr)
-				gameLbl.BackgroundTransparency = 1
-				gameLbl.Size = UDim2.new(1, -130, 0, 16)
-				gameLbl.Position = UDim2.new(0, 40, 0, 20)
-				gameLbl.TextXAlignment = Enum.TextXAlignment.Left
-				gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				gameLbl.TextSize = 12
-				gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-				gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+				if gameLbl then
+					gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+					gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+				end
 
 				local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
 				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
 
-				if canJoin and not isSelf then
-					local joinBtn = InstanceNew("TextButton", fr)
-					joinBtn.Size = UDim2.new(0, 80, 0, 24)
-					joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
-					joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
-					joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-					joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-					joinBtn.TextSize = 13
-					joinBtn.Text = "Join"
-
-					local jbCorner = InstanceNew("UICorner", joinBtn)
-					jbCorner.CornerRadius = UDim.new(0, 6)
-
-					MouseButtonFix(joinBtn, function()
-						local pid = tonumber(placeId)
-						local jid = tostring(jobId or "")
-						if not (pid and jid ~= "") then
-							return
-						end
-						local lp = Players.LocalPlayer
-						if not (lp and TeleportService) then
-							return
-						end
-						local ok, err = pcall(function()
-							TeleportService:TeleportToPlaceInstance(pid, jid, lp)
-						end)
-						if not ok then
-							if DoNotif then
-								DoNotif("Failed to join " .. tostring(username) .. ": " .. tostring(err), 4)
+				local joinBtn = fr:FindFirstChild("JoinButton")
+				if not canJoin or isSelf then
+					if joinBtn then
+						joinBtn:Destroy()
+					end
+				else
+					if not joinBtn then
+						joinBtn = InstanceNew("TextButton", fr)
+						joinBtn.Name = "JoinButton"
+						joinBtn.Size = UDim2.new(0, 80, 0, 24)
+						joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
+						joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+						joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+						joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+						joinBtn.TextSize = 13
+						joinBtn.Text = "Join"
+						local jbCorner = InstanceNew("UICorner", joinBtn)
+						jbCorner.CornerRadius = UDim.new(0, 6)
+						MouseButtonFix(joinBtn, function()
+							local pid = tonumber(placeId)
+							local jid = tostring(jobId or "")
+							if not (pid and jid ~= "") then
+								return
 							end
-						end
-					end)
+							local lp = Players.LocalPlayer
+							if not (lp and TeleportService) then
+								return
+							end
+							local ok, err = pcall(function()
+								TeleportService:TeleportToPlaceInstance(pid, jid, lp)
+							end)
+							if not ok then
+								if DoNotif then
+									DoNotif("Failed to join " .. tostring(username) .. ": " .. tostring(err), 4)
+								end
+							end
+						end)
+					end
+				end
+
+				if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
+					avatar.Image = ""
+					Insert(avatarQueue, { avatar = avatar, userId = userId })
+				end
+			end
+
+			for key, fr in pairs(userFrames) do
+				if not alive[key] or not (fr and fr.Parent) then
+					if fr and fr.Parent then
+						fr:Destroy()
+					end
+					userFrames[key] = nil
 				end
 			end
 
@@ -43914,9 +43961,11 @@ do
 			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
 				NAChat.users = list or {}
 				usersFetchInFlight = false
-				if not NAChat.isHidden then
-					updateUsersList(NAChat.users)
-				end
+
+				local newSig = makeUserSignature(NAChat.users)
+				local changed = (newSig ~= lastUserSig)
+				lastUserSig = newSig
+
 				refreshStatus()
 
 				local newSet = buildServerSet(NAChat.users)
@@ -43924,20 +43973,22 @@ do
 				if not serverUsersInit then
 					serverUsers = newSet
 					serverUsersInit = true
-					return
-				end
-
-				for uid, name in pairs(newSet) do
-					if not serverUsers[uid] then
-						if DoNotif then
-							DoNotif(("NA Chat: %s joined your server."):format(name), 5)
-						else
-							makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+				else
+					for uid, name in pairs(newSet) do
+						if not serverUsers[uid] then
+							if DoNotif then
+								DoNotif(("NA Chat: %s joined your server."):format(name), 5)
+							else
+								makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+							end
 						end
 					end
+					serverUsers = newSet
 				end
 
-				serverUsers = newSet
+				if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
+					updateUsersList(NAChat.users)
+				end
 			end)
 
 			if NAChat.service.OnRemoteCommand then
@@ -44137,7 +44188,7 @@ do
 			local gameActivityDebounce = false
 
 			local function refreshGameActivityButton()
-				local enabled = NAmanage.NAChatGameActivityEnabled()
+				local enabled = NAChatGameActivityEnabled()
 				gameActivityBtn.Text = enabled and "Game Activity On" or "Game Activity Off"
 				gameActivityBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
 			end
@@ -44180,7 +44231,7 @@ do
 
 		Spawn(function()
 			while true do
-				Wait(2.5)
+				Wait(1)
 
 				refreshStatus()
 
@@ -44275,7 +44326,7 @@ do
 		connect()
 	end
 end
-
+originalIO.runNACHAT()
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
 	local chatMsg = NAUIMANAGER.chatExample:Clone()
