@@ -44200,7 +44200,7 @@ do
 
 		Spawn(function()
 			while true do
-				Wait(5)
+				Wait(2.5)
 
 				refreshStatus()
 
