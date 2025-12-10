@@ -7322,7 +7322,6 @@ _G.NAadminsLol={
 	1594235217; --Purple
 	2845101018; --alt
 	2019160453; --grim
-	4881709223; --bzz bzz byzren
 }
 
 NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
@@ -43836,52 +43835,41 @@ do
 			end
 
 			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-				local senderName = tostring(name or "?")
-				local messageText = tostring(msg or "")
+            local senderName = tostring(name or "?")
+            local messageText = tostring(msg or "")
 
-				local isNAadmin = false
-				if type(isAdmin) == "boolean" then
-					isNAadmin = isAdmin
-				elseif _G.NAadminsLol and type(userId) == "number" then
-					for _, id in ipairs(_G.NAadminsLol) do
-						if id == userId then
-							isNAadmin = true
-							break
-						end
-					end
-				end
+            local isNAadmin = (isAdmin == true)
+            local isOwner = userId == 11761417 or userId == 530829101
 
-				local isOwner = userId == 11761417 or userId == 530829101
+            local labelText
+            if isOwner then
+                labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
+            elseif isNAadmin then
+                labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
+            else
+                labelText = ("[%s]: %s"):format(senderName, messageText)
+            end
 
-				local labelText
-				if isOwner then
-					labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
-				elseif isNAadmin then
-					labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
-				else
-					labelText = ("[%s]: %s"):format(senderName, messageText)
-				end
+            local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
 
-				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+            if (isNAadmin or isOwner) and lbl then
+                local conn
+                conn = RunService.Heartbeat:Connect(function()
+                    if not (lbl and lbl.Parent) then
+                        if conn then
+                            conn:Disconnect()
+                        end
+                        return
+                    end
 
-				if (isNAadmin or isOwner) and lbl then
-					local conn
-					conn = RunService.Heartbeat:Connect(function()
-						if not (lbl and lbl.Parent) then
-							if conn then
-								conn:Disconnect()
-							end
-							return
-						end
-
-						local time = tick()
-						local r = math.sin(time * 0.5) * 127 + 128
-						local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
-						local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
-						lbl.TextColor3 = Color3.fromRGB(r, g, b)
-					end)
-				end
-			end)
+                    local t = tick()
+                    local r = math.sin(t * 0.5) * 127 + 128
+                    local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
+                    local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
+                    lbl.TextColor3 = Color3.fromRGB(r, g, b)
+                end)
+            end
+        end)
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
 				local m = tostring(msg or "System message")
