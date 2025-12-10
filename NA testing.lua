@@ -44200,8 +44200,17 @@ do
 
 		Spawn(function()
 			while true do
-				Wait(2)
+				Wait(5)
+
 				refreshStatus()
+
+				local svc = NAChat.service
+				if svc and svc.IsConnected and svc.IsConnected() and not NAChat.isHidden then
+					if not usersFetchInFlight and svc.GetUsers then
+						usersFetchInFlight = true
+						svc.GetUsers()
+					end
+				end
 			end
 		end)
 
