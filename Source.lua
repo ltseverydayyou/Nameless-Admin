@@ -5541,7 +5541,7 @@ local JoinLeaveConfig = {
 	SaveLog = false;
 }
 
-NAChatGameActivityEnabled=function()
+_G.NAChatGameActivityEnabled=function()
 	local settings = NAmanage.NASettingsEnsure()
 	local val = settings and settings.naChatGameActivity
 	if type(val) ~= "boolean" then
@@ -44188,7 +44188,7 @@ originalIO.runNACHAT=function()
 			local gameActivityDebounce = false
 
 			local function refreshGameActivityButton()
-				local enabled = NAChatGameActivityEnabled()
+				local enabled = _G.NAChatGameActivityEnabled()
 				gameActivityBtn.Text = enabled and "Game Activity On" or "Game Activity Off"
 				gameActivityBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
 			end
