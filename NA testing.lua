@@ -42298,7 +42298,7 @@ do
 	translator.enabled = opt.chatTranslateEnabled ~= false
 	opt.chatTranslateEnabled = translator.enabled
 
-	local function toIso(value)
+	NAmanage.toIso=function(value)
 		if not value then return nil end
 		return tostring(value):lower()
 	end
@@ -42313,8 +42313,8 @@ do
 		uk="Ukrainian",ur="Urdu",uz="Uzbek",vi="Vietnamese",cy="Welsh",xh="Xhosa",yi="Yiddish",yo="Yoruba",zu="Zulu"
 	}
 
-	local function iso(value)
-		local lowered = toIso(value)
+	NAmanage.iso2=function(value)
+		local lowered = NAmanage.toIso(value)
 		if not lowered then
 			return nil
 		end
@@ -42329,11 +42329,11 @@ do
 		return nil
 	end
 
-	local function languageName(code)
+	originalIO.languageName=function(code)
 		return languages[code] or code
 	end
 
-	translator.target = iso(opt.chatTranslateTarget) or translator.target or "en"
+	translator.target = NAmanage.iso2(opt.chatTranslateTarget) or translator.target or "en"
 	opt.chatTranslateTarget = translator.target
 
 	translator._state = translator._state or {
@@ -42348,7 +42348,7 @@ do
 	local exec = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute"
 	local rpc = "MkEWBc"
 
-	local function requestAsync(optArgs)
+	NAmanage.requestAsync=function(optArgs)
 		local fn = opt.NAREQUEST
 		if fn then
 			local ok, res = pcall(fn, optArgs)
@@ -42380,7 +42380,7 @@ do
 	end
 
 	local function fetch(url, method, body)
-		local res = requestAsync({
+		local res = NAmanage.requestAsync({
 			Url = url;
 			Method = method or "GET";
 			Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
@@ -42395,7 +42395,7 @@ do
 		end
 		if b:find("https://consent.google.com/s") then
 			handleConsent(b)
-			res = requestAsync({
+			res = NAmanage.requestAsync({
 				Url = url;
 				Method = "GET";
 				Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
@@ -42442,11 +42442,11 @@ do
 	local jsonDecode = function(x) return Http:JSONDecode(x) end
 
 	local function translateSimple(text, target, source)
-		target = iso(target) or "en"
-		source = iso(source) or "auto"
+		target = NAmanage.iso2(target) or "en"
+		source = NAmanage.iso2(source) or "auto"
 		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
 			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
-		local res = requestAsync({Url = url, Method = "GET"})
+		local res = NAmanage.requestAsync({Url = url, Method = "GET"})
 		if not res then return nil end
 		local body = res.Body or res.body or ""
 		local ok, data = pcall(function()
@@ -42484,8 +42484,8 @@ do
 			return translated, detected
 		end
 		state.rid += 10000
-		target = iso(target) or "en"
-		source = iso(source) or "auto"
+		target = NAmanage.iso2(target) or "en"
+		source = NAmanage.iso2(source) or "auto"
 		local data = { { text, source, target, true }, { nil } }
 		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
 		local url = exec.."?"..encodeQuery({
@@ -42622,7 +42622,7 @@ do
 				self:applyDisplay(info)
 				return
 			end
-			local code = iso(detected) or detected or "AUTO"
+			local code = NAmanage.iso2(detected) or detected or "AUTO"
 			local tag = tostring(code):upper()
 			info.translationLine = ("[%s] %s"):format(self.target:upper(), translated)
 			info.detected = tag
@@ -42665,13 +42665,13 @@ do
 	end
 
 	function translator:setTarget(lang)
-		local code = iso(lang)
+		local code = NAmanage.iso2(lang)
 		if not code then
 			return false
 		end
 		if self.target == code then
 			self:updateUI()
-			return true, code, languageName(code)
+			return true, code, originalIO.languageName(code)
 		end
 		self.target = code
 		opt.chatTranslateTarget = code
@@ -42684,7 +42684,7 @@ do
 			self:ensureTranslation(info)
 		end
 		self:updateUI()
-		return true, code, languageName(code)
+		return true, code, originalIO.languageName(code)
 	end
 
 	function translator:attachControls(button, input)
@@ -42783,7 +42783,7 @@ do
 	translator.enabled = opt.naChatTranslateEnabled ~= false
 	opt.naChatTranslateEnabled = translator.enabled
 
-	local function toIso(value)
+	NAmanage.toIso=function(value)
 		if not value then return nil end
 		return tostring(value):lower()
 	end
@@ -42798,8 +42798,8 @@ do
 		uk="Ukrainian",ur="Urdu",uz="Uzbek",vi="Vietnamese",cy="Welsh",xh="Xhosa",yi="Yiddish",yo="Yoruba",zu="Zulu"
 	}
 
-	local function iso(value)
-		local lowered = toIso(value)
+	NAmanage.iso=function(value)
+		local lowered = NAmanage.toIso(value)
 		if not lowered then
 			return nil
 		end
@@ -42814,11 +42814,11 @@ do
 		return nil
 	end
 
-	local function languageName(code)
+	NAmanage.languageName=function(code)
 		return languages[code] or code
 	end
 
-	translator.target = iso(opt.naChatTranslateTarget) or translator.target or "en"
+	translator.target = NAmanage.iso(opt.naChatTranslateTarget) or translator.target or "en"
 	opt.naChatTranslateTarget = translator.target
 
 	translator._state = translator._state or {
@@ -42833,7 +42833,7 @@ do
 	local exec = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute"
 	local rpc = "MkEWBc"
 
-	local function requestAsync(optArgs)
+	originalIO.requestAsync=function(optArgs)
 		local fn = opt.NAREQUEST
 		if fn then
 			local ok, res = pcall(fn, optArgs)
@@ -42865,7 +42865,7 @@ do
 	end
 
 	local function fetch(url, method, body)
-		local res = requestAsync({
+		local res = originalIO.requestAsync({
 			Url = url;
 			Method = method or "GET";
 			Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
@@ -42880,7 +42880,7 @@ do
 		end
 		if b:find("https://consent.google.com/s") then
 			handleConsent(b)
-			res = requestAsync({
+			res = originalIO.requestAsync({
 				Url = url;
 				Method = "GET";
 				Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
@@ -42927,11 +42927,11 @@ do
 	local jsonDecode = function(x) return Http:JSONDecode(x) end
 
 	local function translateSimple(text, target, source)
-		target = iso(target) or "en"
-		source = iso(source) or "auto"
+		target = NAmanage.iso(target) or "en"
+		source = NAmanage.iso(source) or "auto"
 		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
 			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
-		local res = requestAsync({Url = url, Method = "GET"})
+		local res = originalIO.requestAsync({Url = url, Method = "GET"})
 		if not res then return nil end
 		local body = res.Body or res.body or ""
 		local ok, data = pcall(function()
@@ -42969,8 +42969,8 @@ do
 			return translated, detected
 		end
 		state.rid += 10000
-		target = iso(target) or "en"
-		source = iso(source) or "auto"
+		target = NAmanage.iso(target) or "en"
+		source = NAmanage.iso(source) or "auto"
 		local data = { { text, source, target, true }, { nil } }
 		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
 		local url = exec.."?"..encodeQuery({
@@ -43198,13 +43198,13 @@ do
 	end
 
 	function translator:setTarget(lang)
-		local code = iso(lang)
+		local code = NAmanage.iso(lang)
 		if not code then
 			return false
 		end
 		if self.target == code then
 			self:updateUI()
-			return true, code, languageName(code)
+			return true, code, NAmanage.languageName(code)
 		end
 		self.target = code
 		opt.naChatTranslateTarget = code
@@ -43218,7 +43218,7 @@ do
 			self:ensureTranslation(info)
 		end
 		self:updateUI()
-		return true, code, languageName(code)
+		return true, code, NAmanage.languageName(code)
 	end
 
 	function translator:attachControls(button, input)
@@ -43349,7 +43349,7 @@ do
 		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
 		local connect
 
-		local function setStatus(t, c)
+		originalIO.setStatus=function(t, c)
 			if statusLabel then
 				statusLabel.Text = t
 				if c then
@@ -43376,16 +43376,16 @@ do
 			if isConn then
 				local ct = #NAChat.users
 				if NAChat.isHidden then
-					setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
+					originalIO.setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
 				else
-					setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
+					originalIO.setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
 				end
 			elseif NAChat.isHidden then
-				setStatus("NA Chat: Hidden", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Hidden", STATUS_COLORS.info)
 			elseif NAChat.connecting then
-				setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
 			else
-				setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
+				originalIO.setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
 			end
 		end
 
@@ -43657,7 +43657,7 @@ do
 			end
 		end
 
-		local function setHiddenState(newHidden, skipRemote)
+		originalIO.setHiddenState=function(newHidden, skipRemote)
 			NAChat.isHidden = newHidden
 			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
 				pcall(NAmanage.NASettingsSet, "naChatHidden", newHidden)
@@ -43761,7 +43761,7 @@ do
 
 			local ok, payload = fetchIntegrationBody()
 			if not ok then
-				setStatus("NA Chat unavailable", STATUS_COLORS.err)
+				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 				return false
 			end
 
@@ -43776,7 +43776,7 @@ do
 				return true
 			end
 
-			setStatus("NA Chat unavailable", STATUS_COLORS.err)
+			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 			return false
 		end
 
@@ -43881,7 +43881,7 @@ do
 			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
 				NAChat.connecting = false
 				NAChat.isHidden = hidden or false
-				setHiddenState(NAChat.isHidden, true)
+				originalIO.setHiddenState(NAChat.isHidden, true)
 				makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
 				if not NAChat.isHidden and NAChat.service and NAChat.service.GetUsers then
 					NAChat.service.GetUsers()
@@ -43898,7 +43898,7 @@ do
 
 			NAChat.service.OnError.Event:Connect(function(err)
 				NAChat.connecting = false
-				setStatus("NA Chat error", STATUS_COLORS.err)
+				originalIO.setStatus("NA Chat error", STATUS_COLORS.err)
 				local msg = "[NA Chat] " .. tostring(err or "Unknown error")
 				local now = os.clock()
 				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
@@ -43916,7 +43916,7 @@ do
 			end
 			NAChat.connecting = true
 			Defer(function()
-				setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
 
 				if not loadService() then
 					NAChat.connecting = false
@@ -43938,7 +43938,7 @@ do
 				end
 
 				if not okInit then
-					setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
+					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 					local msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
 					local now = os.clock()
 					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
@@ -43950,13 +43950,13 @@ do
 					return
 				end
 
-				setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
 			end)
 		end
 
 		local function sendMessage(t)
 			if NAChat.isHidden then
-				setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
 				return
 			end
 
@@ -43971,13 +43971,13 @@ do
 
 			if not (NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected()) then
 				connect()
-				setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
 			end
 
 			if NAChat.service and NAChat.service.SendMessage then
 				local ok = NAChat.service.SendMessage(t)
 				if not ok then
-					setStatus("NA Chat: failed to send", STATUS_COLORS.err)
+					originalIO.setStatus("NA Chat: failed to send", STATUS_COLORS.err)
 				end
 			end
 		end
@@ -44025,7 +44025,7 @@ do
 
 		if visibilityBtn then
 			MouseButtonFix(visibilityBtn, function()
-				setHiddenState(not NAChat.isHidden, false)
+				originalIO.setHiddenState(not NAChat.isHidden, false)
 			end)
 		end
 
@@ -44088,7 +44088,7 @@ do
 		end
 
 		switchTab("chat")
-		setHiddenState(initialHidden, true)
+		originalIO.setHiddenState(initialHidden, true)
 		connect()
 	end
 end
