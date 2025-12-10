@@ -19808,6 +19808,50 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum().Health=0
 end)
 
+cmd.add(
+	{"desync", "ngrep"},
+	{"desync (ngrep)", "Enable NextGenReplicator desync / server authority (RISKY – alt recommended)"},
+	function()
+		if type(Popup) ~= "function" then
+			DoNotif("Popup UI is unavailable; cannot confirm risk. Aborting.", 3)
+			return
+		end
+
+		if type(setfflag) ~= "function" then
+			DoNotif("Your executor does not support setfflag. Cannot enable desync.", 3)
+			return
+		end
+
+		Popup({
+			Title = "Enable Desync / Server Authority?",
+			Description = "This experimental NextGenReplicator method is highly detectable and can get your account banned.\n\nUse at your own risk. It is strongly recommended to use an alt account.\n\nDo you accept the risk and enable it?",
+			Buttons = {
+				{
+					Text = "Enable (I accept the risk)",
+					Callback = function()
+						local ok, err = pcall(function()
+							setfflag("NextGenReplicatorEnabledWrite4", "false")
+							setfflag("NextGenReplicatorEnabledWrite4", "true")
+						end)
+
+						if ok then
+							DoNotif("NextGenReplicator desync / server authority attempt applied.", 3)
+						else
+							DoNotif("Failed to apply NextGenReplicator flags: "..tostring(err), 4)
+						end
+					end
+				},
+				{
+					Text = "Cancel",
+					Callback = function()
+						DoNotif("Desync / server authority was not enabled.", 2)
+					end
+				}
+			}
+		})
+	end
+)
+
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
 	local hum = getHum()
 	if not hum then return end
