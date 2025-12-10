@@ -19,10 +19,13 @@ local gl = Instance.new("UIGridLayout")
 local ex = Instance.new("TextButton")
 local cl = Instance.new("TextButton")
 local cp = Instance.new("TextButton")
+local nlBtn = Instance.new("TextButton")
 local sb = Instance.new("TextLabel")
 
 local function S(n) return (cloneref and cloneref(game:GetService(n))) or game:GetService(n) end
 local ts, uis, gsv, txtsvc, rs = S("TweenService"), S("UserInputService"), S("GuiService"), S("TextService"), S("RunService")
+local isMobile = uis.TouchEnabled and not uis.KeyboardEnabled
+local BASE_SCALE = isMobile and 0.88 or 1
 
 local function protectUI(gui)
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
@@ -43,8 +46,16 @@ m.Name = "Main"; m.Parent = e; m.Active = true; m.BackgroundColor3 = Color3.from
 m.ClipsDescendants = true; m.AnchorPoint = Vector2.new(0.5,0.5); m.Position = UDim2.fromScale(0.5,0.5)
 m.Size = UDim2.new(0, 440, 0, 340)
 c1.CornerRadius = UDim.new(0, 12); c1.Parent = m
-local sc = Instance.new("UIScale", m); sc.Scale = 0.97; ts:Create(sc, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale=1}):Play()
-local sizeCons = Instance.new("UISizeConstraint", m); sizeCons.MinSize = Vector2.new(380, 300); sizeCons.MaxSize = Vector2.new(780, 640)
+
+local sc = Instance.new("UIScale", m)
+sc.Scale = BASE_SCALE * 0.97
+ts:Create(sc, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Scale = BASE_SCALE}):Play()
+
+local minW = isMobile and 340 or 380
+local minH = isMobile and 360 or 300
+local sizeCons = Instance.new("UISizeConstraint", m)
+sizeCons.MinSize = Vector2.new(minW, minH)
+sizeCons.MaxSize = Vector2.new(780, 640)
 local BASE_MIN = sizeCons.MinSize
 
 tb.Name = "TopBar"; tb.Parent = m; tb.BackgroundColor3 = Color3.fromRGB(28,30,42); tb.BorderSizePixel = 0; tb.Size = UDim2.new(1,0,0,44)
@@ -85,7 +96,7 @@ caret.Name = "Caret"; caret.Parent = s; caret.BackgroundColor3 = Color3.fromRGB(
 caret.Size = UDim2.fromOffset(2, 16); caret.Visible = false; caret.ZIndex = 5
 
 bf.Name = "Buttons"; bf.Parent = m; bf.BackgroundTransparency = 1; bf.Position = UDim2.new(0,12,1,-70); bf.Size = UDim2.new(1,-24,0,48)
-gl.Parent = bf; gl.SortOrder = Enum.SortOrder.LayoutOrder; gl.CellPadding = UDim2.new(0,10,0,0); gl.CellSize = UDim2.new(0.333,-8,1,0); gl.FillDirectionMaxCells = 3
+gl.Parent = bf; gl.SortOrder = Enum.SortOrder.LayoutOrder; gl.CellPadding = UDim2.new(0,10,0,0); gl.CellSize = UDim2.new(0.25,-8,1,0); gl.FillDirectionMaxCells = 4
 
 local function styleBtn(b, txt, bg, fg)
 	b.Name = txt; b.Parent = bf; b.Text = txt; b.BackgroundColor3 = bg; b.TextColor3 = fg; b.BorderSizePixel = 0
@@ -93,59 +104,158 @@ local function styleBtn(b, txt, bg, fg)
 	Instance.new("UICorner", b).CornerRadius = UDim.new(0,10)
 	local st = Instance.new("UIStroke", b); st.Thickness = 1; st.Color = Color3.fromRGB(60,65,95)
 	local scl = Instance.new("UIScale", b)
-	b.MouseEnter:Connect(function() ts:Create(scl, TweenInfo.new(0.12), {Scale=1.03}):Play() ts:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = bg:Lerp(Color3.new(1,1,1),0.05)}):Play() end)
-	b.MouseLeave:Connect(function() ts:Create(scl, TweenInfo.new(0.12), {Scale=1}):Play() ts:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = bg}):Play() end)
-	b.MouseButton1Down:Connect(function() ts:Create(scl, TweenInfo.new(0.06), {Scale=0.97}):Play() end)
-	b.MouseButton1Up:Connect(function() ts:Create(scl, TweenInfo.new(0.1), {Scale=1.03}):Play() end)
+	b.MouseEnter:Connect(function()
+		ts:Create(scl, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Scale = 1.03}):Play()
+		ts:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundColor3 = bg:Lerp(Color3.new(1,1,1),0.05)}):Play()
+	end)
+	b.MouseLeave:Connect(function()
+		ts:Create(scl, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		ts:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {BackgroundColor3 = bg}):Play()
+	end)
+	b.MouseButton1Down:Connect(function()
+		ts:Create(scl, TweenInfo.new(0.06, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Scale = 0.97}):Play()
+	end)
+	b.MouseButton1Up:Connect(function()
+		ts:Create(scl, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Scale = 1.03}):Play()
+	end)
 end
 
 styleBtn(ex, "Execute", Color3.fromRGB(68,128,255), Color3.fromRGB(255,255,255))
 styleBtn(cl, "Clear",   Color3.fromRGB(52,58,84),  Color3.fromRGB(230,235,255))
 styleBtn(cp, "Copy",    Color3.fromRGB(52,58,84),  Color3.fromRGB(230,235,255))
+styleBtn(nlBtn, "New Line", Color3.fromRGB(52,58,84), Color3.fromRGB(230,235,255))
 
 sb.Name = "Status"; sb.Parent = m; sb.BackgroundTransparency = 1; sb.Position = UDim2.new(0,14,1,-22)
 sb.Size = UDim2.new(1,-28,0,18); sb.Font = Enum.Font.Gotham; sb.Text = "Ready"; sb.TextColor3 = Color3.fromRGB(110,245,140); sb.TextSize = 14; sb.TextXAlignment = Enum.TextXAlignment.Left
 
 local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
-local function updateDrag(i) local d2 = i.Position - dragStart m.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d2.X, startPos.Y.Scale, startPos.Y.Offset + d2.Y) end
-tb.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true dragStart=i.Position startPos=m.Position i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
-tb.InputChanged:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch then dragInput=i end end)
-uis.InputChanged:Connect(function(i) if dragging and i==dragInput then updateDrag(i) end end)
+local function updateDrag(i)
+	local d2 = i.Position - dragStart
+	m.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d2.X, startPos.Y.Scale, startPos.Y.Offset + d2.Y)
+end
+
+tb.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = i.Position
+		startPos = m.Position
+		i.Changed:Connect(function()
+			if i.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+tb.InputChanged:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch then
+		dragInput = i
+	end
+end)
+
+uis.InputChanged:Connect(function(i)
+	if dragging and i == dragInput then
+		updateDrag(i)
+	end
+end)
 
 local function esc(x) return x:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;") end
-local kw = {"and","break","do","else","elseif","end","false","for","function","goto","if","in","local","nil","not","or","repeat","return","then","true","until","while"}
-local bi = {"self","pairs","ipairs","pcall","xpcall","type","next","assert","error","warn","string","table","math","debug","coroutine","os","utf8","game","workspace","script","Enum","Color3","Vector3","UDim2","CFrame","Instance","task","tick","time","wait","spawn"}
+
+local kw = {
+	"and","break","do","else","elseif","end","false","for","function","goto","if","in","local","nil","not","or",
+	"repeat","return","then","true","until","while",
+	"continue","typeof","export","declare"
+}
+
+local bi = {
+	"self","pairs","ipairs","pcall","xpcall","type","next","assert","error","warn","print",
+	"task","tick","time","wait","spawn","coroutine","string","table","math","debug","os","utf8",
+	"game","workspace","script","Enum","Color3","Vector2","Vector3","UDim","UDim2","Rect","CFrame","Instance",
+	"Ray","BrickColor","NumberRange","NumberSequence","ColorSequence","NumberSequenceKeypoint","ColorSequenceKeypoint",
+	"Players","RunService","UserInputService","TweenService","ReplicatedStorage","Lighting","TeleportService","HttpService"
+}
+
+local exf = {
+	"cloneref","loadstring","hookmetamethod","hookfunction","newcclosure","getgenv","getfenv","setfenv","getgc",
+	"getsenv","getreg","getupvalue","setupvalue","getconstant","setreadonly","getrawmetatable","setrawmetatable",
+	"identifyexecutor","checkcaller","getnamecallmethod","sethiddenproperty","gethiddenproperty","islclosure","isexecutorclosure"
+}
+
+local metamethods = {
+	"__index","__newindex","__namecall","__tostring","__metatable","__call","__add","__sub","__mul","__div","__unm"
+}
 
 local function colorize(txt)
 	local E, ph, n = esc(txt), {}, 0
-	local function keep(s2) n+=1 ph[n]=s2 return "\1PH"..n.."\2" end
+	local function keep(s2) n += 1 ph[n] = s2 return "\1PH"..n.."\2" end
+
 	E = E:gsub("%-%-%[%[[%s%S]-%]%]", function(s2) return keep('<font color="#8B949E">'..s2..'</font>') end)
 	E = E:gsub("%-%-[^\n]*", function(s2) return keep('<font color="#8B949E">'..s2..'</font>') end)
 	E = E:gsub("%[%[[%s%S]-%]%]", function(s2) return keep('<font color="#A3E635">'..s2..'</font>') end)
 	E = E:gsub('"(.-)"', function(s2) return keep('<font color="#A3E635">"'..s2..'"</font>') end)
 	E = E:gsub("'(.-)'", function(s2) return keep('<font color="#A3E635">\''..s2..'\'</font>') end)
+
+	E = E:gsub("0x[%da-fA-F]+", '<font color="#60A5FA">%0</font>')
 	E = E:gsub("(%f[%w_]%d[%d%.eE]*%f[^%w_])", '<font color="#60A5FA">%1</font>')
-	for _, w in ipairs(kw) do E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F472B6">'..w..'</font>') end
-	for _, w in ipairs(bi) do E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F59E0B">'..w..'</font>') end
+
+	for _, w in ipairs(kw) do
+		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F472B6">'..w..'</font>')
+	end
+
+	for _, w in ipairs(bi) do
+		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#F59E0B">'..w..'</font>')
+	end
+
+	for _, w in ipairs(exf) do
+		E = E:gsub("%f[%w_]"..w.."%f[^%w_]", '<font color="#22D3EE">'..w..'</font>')
+	end
+
+	for _, w in ipairs(metamethods) do
+		E = E:gsub(w, '<font color="#C4B5FD">'..w..'</font>')
+	end
+
 	E = E:gsub("\1PH(%d+)\2", function(i2) return ph[tonumber(i2)] or "" end)
 	return E
 end
 
-local function lineHeight() return txtsvc:GetTextSize("A", t.TextSize, t.Font, Vector2.new(1e5,1e5)).Y end
+local function lineHeight()
+	return txtsvc:GetTextSize("A", t.TextSize, t.Font, Vector2.new(1e5,1e5)).Y
+end
 
 local CHUNK_NAME, errorLine, runningCo = "UserScript", nil, nil
-local errMark = Instance.new("Frame"); errMark.Name="ErrMark"; errMark.Parent = s; errMark.BackgroundColor3 = Color3.fromRGB(255,90,90)
-errMark.BackgroundTransparency = 0.85; errMark.BorderSizePixel = 0; errMark.Visible=false; errMark.ZIndex=2
+local errMark = Instance.new("Frame")
+errMark.Name = "ErrMark"
+errMark.Parent = s
+errMark.BackgroundColor3 = Color3.fromRGB(255,90,90)
+errMark.BackgroundTransparency = 0.85
+errMark.BorderSizePixel = 0
+errMark.Visible = false
+errMark.ZIndex = 2
 
-local function gotoLine(n) local y = math.max(0,(n-1)*lineHeight() - s.AbsoluteSize.Y*0.3) s.CanvasPosition = Vector2.new(0,y) end
-local function clearErrorUI() errorLine=nil errMark.Visible=false end
+local function gotoLine(n)
+	local y = math.max(0,(n-1)*lineHeight() - s.AbsoluteSize.Y*0.3)
+	s.CanvasPosition = Vector2.new(0,y)
+end
+
+local function clearErrorUI()
+	errorLine = nil
+	errMark.Visible = false
+end
 
 local function updateLines()
-	local txt = t.Text; if txt == "" then txt = " " end
+	local txt = t.Text
+	if txt == "" then txt = " " end
 	local h = lineHeight()
-	local c = 1; for _ in txt:gmatch("\n") do c+=1 end
+	local c = 1
+	for _ in txt:gmatch("\n") do c += 1 end
 	local buf = {}
-	for i=1,c do if errorLine and i==errorLine then buf[#buf+1] = '<font color="#FF7A7A">'..i..'</font>' else buf[#buf+1]=tostring(i) end end
+	for i = 1, c do
+		if errorLine and i == errorLine then
+			buf[#buf+1] = '<font color="#FF7A7A">'..i..'</font>'
+		else
+			buf[#buf+1] = tostring(i)
+		end
+	end
 	ln.Text = table.concat(buf, "\n")
 	local widest = 0
 	for line in (t.Text.."\n"):gmatch("(.-)\n") do
@@ -154,22 +264,44 @@ local function updateLines()
 		if sz.X > widest then widest = sz.X end
 	end
 	local pad = 12
-	local minH = s.AbsoluteSize.Y
-	local tgtH = math.max(minH, c*h + pad)
+	local minH2 = s.AbsoluteSize.Y
+	local tgtH = math.max(minH2, c*h + pad)
 	local tgtW = math.max(s.AbsoluteSize.X - 52, widest + 6)
-	hl.Size = UDim2.new(0,tgtW,0,tgtH); t.Size = UDim2.new(0,tgtW,0,tgtH); ln.Size = UDim2.new(0,40,0,tgtH)
+	hl.Size = UDim2.new(0,tgtW,0,tgtH)
+	t.Size = UDim2.new(0,tgtW,0,tgtH)
+	ln.Size = UDim2.new(0,40,0,tgtH)
 	s.CanvasSize = UDim2.new(0, 46 + tgtW + 6, 0, tgtH)
-	if errorLine then errMark.Size = UDim2.new(0, tgtW, 0, h) errMark.Position = UDim2.new(0,46,0,(errorLine-1)*h) end
+	if errorLine then
+		errMark.Size = UDim2.new(0, tgtW, 0, h)
+		errMark.Position = UDim2.new(0,46,0,(errorLine-1)*h)
+	end
 end
 
-local function updateHL() hl.Text = colorize(t.Text) updateLines() end
+local function updateHL()
+	hl.Text = colorize(t.Text)
+	updateLines()
+end
+
 t:GetPropertyChangedSignal("Text"):Connect(updateHL)
 
 local blinkConn, blinkAccum = nil, 0
-local function stopBlink() if blinkConn then blinkConn:Disconnect() blinkConn=nil end end
 
-local function clearSelectionVisuals() for _,ch in ipairs(selLayer:GetChildren()) do ch:Destroy() end end
-local function wOf(s2) return txtsvc:GetTextSize(s2:gsub("\t","    "), t.TextSize, t.Font, Vector2.new(1e6,1e6)).X end
+local function stopBlink()
+	if blinkConn then
+		blinkConn:Disconnect()
+		blinkConn = nil
+	end
+end
+
+local function clearSelectionVisuals()
+	for _, ch in ipairs(selLayer:GetChildren()) do
+		ch:Destroy()
+	end
+end
+
+local function wOf(s2)
+	return txtsvc:GetTextSize(s2:gsub("\t","    "), t.TextSize, t.Font, Vector2.new(1e6,1e6)).X
+end
 
 local function drawSelection(a, b)
 	clearSelectionVisuals()
@@ -210,8 +342,8 @@ local function drawSelection(a, b)
 		rest = rest:sub(firstNL+1)
 		local lineY = y + h
 		while true do
-			local nl = rest:find("\n", 1, true)
-			if not nl then
+			local nl2 = rest:find("\n", 1, true)
+			if not nl2 then
 				if #rest > 0 then
 					local wlast = math.max(wOf(rest), MINW)
 					local frLast = Instance.new("Frame")
@@ -225,7 +357,7 @@ local function drawSelection(a, b)
 				end
 				break
 			else
-				local mid = rest:sub(1, nl-1)
+				local mid = rest:sub(1, nl2-1)
 				local wmid = math.max(wOf(mid), MINW)
 				local frMid = Instance.new("Frame")
 				frMid.BackgroundColor3 = Color3.fromRGB(120,140,220)
@@ -236,7 +368,7 @@ local function drawSelection(a, b)
 				frMid.Position = UDim2.new(0, 46, 0, lineY)
 				frMid.Parent = selLayer
 				lineY += h
-				rest = rest:sub(nl+1)
+				rest = rest:sub(nl2+1)
 			end
 		end
 	end
@@ -254,7 +386,11 @@ local function showCaretAt(pos)
 	if not blinkConn then
 		blinkAccum = 0
 		blinkConn = rs.RenderStepped:Connect(function(dt)
-			if not t:IsFocused() then stopBlink() caret.Visible = false return end
+			if not t:IsFocused() then
+				stopBlink()
+				caret.Visible = false
+				return
+			end
 			blinkAccum += dt
 			if blinkAccum >= 0.5 then
 				caret.Visible = not caret.Visible
@@ -265,7 +401,12 @@ local function showCaretAt(pos)
 end
 
 local function caretAndSelectionUpdate()
-	if not t:IsFocused() then stopBlink(); caret.Visible=false; clearSelectionVisuals(); return end
+	if not t:IsFocused() then
+		stopBlink()
+		caret.Visible = false
+		clearSelectionVisuals()
+		return
+	end
 	local pos = t.CursorPosition
 	local ss = t.SelectionStart
 	if not pos or pos <= 0 then pos = 1 end
@@ -279,30 +420,44 @@ local function caretAndSelectionUpdate()
 	end
 end
 
-t:GetPropertyChangedSignal("Text"):Connect(function() hl.Text = colorize(t.Text) updateLines() caretAndSelectionUpdate() end)
 t:GetPropertyChangedSignal("CursorPosition"):Connect(caretAndSelectionUpdate)
 t:GetPropertyChangedSignal("SelectionStart"):Connect(caretAndSelectionUpdate)
 t.Focused:Connect(caretAndSelectionUpdate)
-t.FocusLost:Connect(function() stopBlink(); caret.Visible=false; clearSelectionVisuals() end)
+t.FocusLost:Connect(function()
+	stopBlink()
+	caret.Visible = false
+	clearSelectionVisuals()
+end)
 s:GetPropertyChangedSignal("CanvasSize"):Connect(caretAndSelectionUpdate)
 
 uis.InputBegan:Connect(function(i,gpe)
 	if gpe then return end
 	if i.KeyCode == Enum.KeyCode.Tab and t:IsFocused() then
 		local pos = t.CursorPosition or 1
-		local tx = t.Text; if pos < 1 then pos = 1 end
-		local pre = tx:sub(1, pos-1); local suf = tx:sub(pos)
-		t.Text = pre.."    "..suf; t.CursorPosition = pos + 4
+		local tx = t.Text
+		if pos < 1 then pos = 1 end
+		local pre = tx:sub(1, pos-1)
+		local suf = tx:sub(pos)
+		t.Text = pre.."    "..suf
+		t.CursorPosition = pos + 4
 	end
 end)
 
 local function setStatus(msg, col, dur)
-	sb.Text = msg; sb.TextColor3 = col
-	if dur then task.spawn(function() task.wait(dur) sb.Text = "Ready"; sb.TextColor3 = Color3.fromRGB(110,245,140) end) end
+	sb.Text = msg
+	sb.TextColor3 = col
+	if dur then
+		task.spawn(function()
+			task.wait(dur)
+			sb.Text = "Ready"
+			sb.TextColor3 = Color3.fromRGB(110,245,140)
+		end)
+	end
 end
 
 ex.MouseButton1Click:Connect(function()
-	errorLine=nil; errMark.Visible=false
+	errorLine = nil
+	errMark.Visible = false
 	setStatus("Running...", Color3.fromRGB(255,230,120))
 	local f, cerr = loadstring(t.Text)
 	if not f then
@@ -314,7 +469,8 @@ ex.MouseButton1Click:Connect(function()
 			errMark.Visible = true
 			gotoLine(ln2)
 		end
-		sb.Text = tostring(cerr); sb.TextColor3 = Color3.fromRGB(255,120,120)
+		sb.Text = tostring(cerr)
+		sb.TextColor3 = Color3.fromRGB(255,120,120)
 		return
 	end
 	runningCo = coroutine.create(function()
@@ -328,36 +484,102 @@ ex.MouseButton1Click:Connect(function()
 				errMark.Visible = true
 				gotoLine(ln2)
 			end
-			sb.Text = tostring(e2); sb.TextColor3 = Color3.fromRGB(255,120,120)
+			sb.Text = tostring(e2)
+			sb.TextColor3 = Color3.fromRGB(255,120,120)
 		else
-			sb.Text = "Executed"; sb.TextColor3 = Color3.fromRGB(140,240,180)
-			task.delay(2, function() sb.Text = "Ready"; sb.TextColor3 = Color3.fromRGB(110,245,140) end)
+			sb.Text = "Executed"
+			sb.TextColor3 = Color3.fromRGB(140,240,180)
+			task.delay(2, function()
+				sb.Text = "Ready"
+				sb.TextColor3 = Color3.fromRGB(110,245,140)
+			end)
 		end
 		runningCo = nil
 	end)
-	task.spawn(function() local ok, e2 = coroutine.resume(runningCo) if not ok then sb.Text = tostring(e2) end end)
+	task.spawn(function()
+		local ok, e2 = coroutine.resume(runningCo)
+		if not ok then
+			sb.Text = tostring(e2)
+		end
+	end)
 end)
 
-cl.MouseButton1Click:Connect(function() t.Text = ""; errorLine=nil; errMark.Visible=false end)
-cp.MouseButton1Click:Connect(function() local ok=pcall(function() setclipboard(t.Text) end) if ok then sb.Text="Copied" sb.TextColor3=Color3.fromRGB(140,240,180) task.delay(1.6,function() sb.Text="Ready" sb.TextColor3=Color3.fromRGB(110,245,140) end) else sb.Text="Copy failed" sb.TextColor3=Color3.fromRGB(255,120,120) end end)
-xt.MouseButton1Click:Connect(function() ts:Create(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale=0.95}):Play(); task.delay(0.14, function() e:Destroy() end) end)
+cl.MouseButton1Click:Connect(function()
+	t.Text = ""
+	errorLine = nil
+	errMark.Visible = false
+end)
+
+cp.MouseButton1Click:Connect(function()
+	local ok = pcall(function() setclipboard(t.Text) end)
+	if ok then
+		sb.Text = "Copied"
+		sb.TextColor3 = Color3.fromRGB(140,240,180)
+		task.delay(1.6,function()
+			sb.Text = "Ready"
+			sb.TextColor3 = Color3.fromRGB(110,245,140)
+		end)
+	else
+		sb.Text = "Copy failed"
+		sb.TextColor3 = Color3.fromRGB(255,120,120)
+	end
+end)
+
+nlBtn.MouseButton1Click:Connect(function()
+	if not t:IsFocused() then
+		t:CaptureFocus()
+	end
+	local tx = t.Text or ""
+	local pos = t.CursorPosition or (#tx + 1)
+	if pos < 1 then pos = 1 end
+	local ss = t.SelectionStart
+	if ss and ss > 0 and ss ~= pos then
+		local a, b = ss, pos
+		if a > b then a, b = b, a end
+		tx = tx:sub(1, a-1)..tx:sub(b)
+		pos = a
+	end
+	t.Text = tx:sub(1, pos-1).."\n"..tx:sub(pos)
+	t.CursorPosition = pos + 1
+end)
+
+xt.MouseButton1Click:Connect(function()
+	ts:Create(sc, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {Scale = BASE_SCALE * 0.92}):Play()
+	ts:Create(m, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+	task.delay(0.16, function() e:Destroy() end)
+end)
 
 local minimized = false
+local expandedSize
+
 local function targetExpandedSize()
-	local cam = workspace.CurrentCamera; local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
-	local inset = gsv:GetGuiInset(); local ux = math.max(0, vp.X - inset.X*2); local uy = math.max(0, vp.Y - inset.Y*2)
-	local w = math.clamp(ux * 0.34, BASE_MIN.X, sizeCons.MaxSize.X)
-	local h = math.clamp(uy * 0.58, BASE_MIN.Y, sizeCons.MaxSize.Y)
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280,720)
+	local inset = gsv:GetGuiInset()
+	local ux = math.max(0, vp.X - inset.X*2)
+	local uy = math.max(0, vp.Y - inset.Y*2)
+	local w = math.clamp(ux * (isMobile and 0.72 or 0.34), BASE_MIN.X, sizeCons.MaxSize.X)
+	local h = math.clamp(uy * (isMobile and 0.8 or 0.58), BASE_MIN.Y, sizeCons.MaxSize.Y)
 	return math.floor(w), math.floor(h)
 end
-local function topbarOnlyHeight() return tb.AbsoluteSize.Y + 2 end
+
+local function topbarOnlyHeight()
+	return tb.AbsoluteSize.Y + 2
+end
+
+local function setContentVisible(v)
+	s.Visible = v
+	bf.Visible = v
+	sb.Visible = v
+	d.Visible = v
+end
 
 local function layout()
 	local topH, statusH, gap, btnH = tb.AbsoluteSize.Y, 18, 12, 48
 	if minimized then
-		s.Visible=false; bf.Visible=false; sb.Visible=false; d.Visible=false
+		setContentVisible(false)
 	else
-		s.Visible=true; bf.Visible=true; sb.Visible=true; d.Visible=true
+		setContentVisible(true)
 		local scrollTop = topH + gap + 2
 		local reserved = btnH + gap + statusH + gap + 2
 		s.Position = UDim2.new(0,12,0,scrollTop)
@@ -372,32 +594,65 @@ end
 workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 	if workspace.CurrentCamera then
 		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			if not minimized then local w,h = targetExpandedSize(); m.Size = UDim2.new(0,w,0,h) end
+			if not minimized then
+				local w,h = targetExpandedSize()
+				expandedSize = Vector2.new(w,h)
+				m.Size = UDim2.new(0,w,0,h)
+			end
 			layout()
 		end)
 	end
 end)
+
 e:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-	if not minimized then local w,h = targetExpandedSize(); m.Size = UDim2.new(0,w,0,h) end
+	if not minimized then
+		local w,h = targetExpandedSize()
+		expandedSize = Vector2.new(w,h)
+		m.Size = UDim2.new(0,w,0,h)
+	end
 	layout()
 end)
+
 m:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 
 mn.MouseButton1Click:Connect(function()
 	minimized = not minimized
-	ts:Create(mn, TweenInfo.new(0.18), {Rotation = minimized and 180 or 0}):Play()
+	local rot = minimized and 180 or 0
+	ts:Create(mn, TweenInfo.new(0.22, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Rotation = rot}):Play()
+
 	if minimized then
 		sizeCons.MinSize = Vector2.new(0,0)
-		local w, th = m.AbsoluteSize.X, topbarOnlyHeight()
-		ts:Create(m, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0,w,0,th)}):Play()
-		s.Visible=false; bf.Visible=false; sb.Visible=false; d.Visible=false
+		if not expandedSize then
+			local w,h = targetExpandedSize()
+			expandedSize = Vector2.new(w,h)
+		end
+		local w = expandedSize.X
+		local th = topbarOnlyHeight()
+		ts:Create(m, TweenInfo.new(0.24, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0,w,0,th)}):Play()
+		ts:Create(s, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CanvasPosition = Vector2.new(0,0)}):Play()
+		task.delay(0.12, function()
+			if minimized then
+				setContentVisible(false)
+			end
+		end)
 	else
 		sizeCons.MinSize = BASE_MIN
 		local w,h = targetExpandedSize()
-		ts:Create(m, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0,w,0,h)}):Play()
-		task.delay(0.02, function() s.Visible=true; bf.Visible=true; sb.Visible=true; d.Visible=true; layout() end)
+		expandedSize = Vector2.new(w,h)
+		setContentVisible(true)
+		m.Size = UDim2.new(0,w,0,topbarOnlyHeight())
+		ts:Create(m, TweenInfo.new(0.26, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = UDim2.new(0,w,0,h)}):Play()
+		task.delay(0.02, layout)
 	end
 end)
 
-local function firstShow() local w,h = targetExpandedSize(); m.Size = UDim2.new(0,w,0,h); layout(); hl.Text = colorize(t.Text) updateLines() end
+local function firstShow()
+	local w,h = targetExpandedSize()
+	expandedSize = Vector2.new(w,h)
+	m.Size = UDim2.new(0,w,0,h)
+	layout()
+	hl.Text = colorize(t.Text)
+	updateLines()
+end
+
 firstShow()
