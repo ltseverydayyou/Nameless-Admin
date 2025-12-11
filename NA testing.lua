@@ -44150,6 +44150,23 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
+			if NAChat.service.OnAnnouncement then
+				NAChat.service.OnAnnouncement.Event:Connect(function(fromName, text)
+					fromName = tostring(fromName or "Admin")
+					local msgText = tostring(text or "")
+
+					local title = ("Announcement from %s"):format(fromName)
+
+					if type(DoPopup) == "function" then
+						DoPopup(msgText, title)
+					elseif type(DoWindow) == "function" then
+						DoWindow(msgText, title)
+					else
+						makeChatLabel(("[Announcement] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+					end
+				end)
+			end
+
 			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
 				NAChat.users = list or {}
 				usersFetchInFlight = false
@@ -44332,6 +44349,41 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		local function findUserByPrefix(prefix)
+			prefix = tostring(prefix or "")
+			if prefix == "" then
+				return nil
+			end
+
+			local lowerPrefix = prefix:lower()
+			local bestMatch = nil
+
+			for _, info in ipairs(NAChat.users or {}) do
+				if type(info) == "table" then
+					local uname = tostring(info.username or "")
+					local display = tostring(info.displayName or "")
+					if uname ~= "" then
+						local lu = uname:lower()
+						if lu == lowerPrefix then
+							return uname
+						elseif lu:sub(1, #lowerPrefix) == lowerPrefix and bestMatch == nil then
+							bestMatch = uname
+						end
+					end
+					if bestMatch == nil and display ~= "" then
+						local ld = display:lower()
+						if ld == lowerPrefix then
+							return uname ~= "" and uname or display
+						elseif ld:sub(1, #lowerPrefix) == lowerPrefix and bestMatch == nil then
+							bestMatch = uname ~= "" and uname or display
+						end
+					end
+				end
+			end
+
+			return bestMatch
+		end
+
 		local function sendMessage(t)
 			if NAChat.isHidden then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
@@ -44357,6 +44409,22 @@ originalIO.runNACHAT=function()
 				return
 			end
 
+			local shortTarget = t:match("^/w%s+(%S+)$")
+			if shortTarget then
+				local resolved = findUserByPrefix(shortTarget)
+				if resolved then
+					NAChat.currentDMTarget = resolved
+					if inputBox then
+						inputBox.PlaceholderText = ("DM to %s..."):format(resolved)
+					end
+					originalIO.setStatus(("NA Chat: DM -> %s"):format(resolved), STATUS_COLORS.blue)
+				else
+					originalIO.setStatus(("NA Chat: user '%s' not found"):format(shortTarget), STATUS_COLORS.err)
+				end
+				clearTyping()
+				return
+			end
+
 			if not (NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected()) then
 				connect()
 				originalIO.setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
@@ -44367,7 +44435,8 @@ originalIO.runNACHAT=function()
 			-- command-style shortcuts
 			local dmTarget, dmMsg = t:match("^/w%s+(%S+)%s+(.+)$")
 			if dmTarget and dmMsg and NAChat.service and NAChat.service.SendPrivateMessage then
-				ok = NAChat.service.SendPrivateMessage(dmTarget, dmMsg)
+				local resolved = findUserByPrefix(dmTarget) or dmTarget
+				ok = NAChat.service.SendPrivateMessage(resolved, dmMsg)
 			elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
 				ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
 			elseif NAChat.service and NAChat.service.SendMessage then
@@ -44549,28 +44618,42 @@ originalIO.runNACHAT=function()
         end
 
 		if isLocalAdmin() then
-            cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
-                local svc = NAChat.service
-                if not (svc and svc.IsConnected and svc.IsConnected()) then
-                    --originalIO.setStatus("NA Chat: not connected", STATUS_COLORS.err)
-                    return
-                end
+			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected()) then
+					return
+				end
 
-                local args = { ... }
-                if #args == 0 then
-                    return
-                end
+				local args = { ... }
+				if #args == 0 then
+					return
+				end
 
-                local target = findTargets(targetSpec)
-                if not target then
-                    return
-                end
+				local target = findTargets(targetSpec)
+				if not target then
+					return
+				end
 
-                if svc.SendRemoteCommand then
-                    svc.SendRemoteCommand(target, args)
-                end
-            end, true)
-        end
+				if svc.SendRemoteCommand then
+					svc.SendRemoteCommand(target, args)
+				end
+			end, true)
+
+			cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message>", "Send an announcement to everyone"}, function(...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
+					return
+				end
+
+				local parts = { ... }
+				if #parts == 0 then
+					return
+				end
+
+				local msg = table.concat(parts, " ")
+				svc.SendAnnouncement(msg)
+			end, true)
+		end
 
 		switchTab("chat")
 		originalIO.setHiddenState(initialHidden, true)
