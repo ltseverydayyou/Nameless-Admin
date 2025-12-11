@@ -43831,11 +43831,7 @@ originalIO.runNACHAT=function()
 						MouseButtonFix(dmBtn, function()
 							local uname = tostring(username)
 							if NAChat.currentDMTarget == uname then
-								NAChat.currentDMTarget = nil
-								if inputBox then
-									inputBox.PlaceholderText = "Send a message (/w name)..."
-								end
-								originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
+								clearDMTarget("NA Chat: DM cleared")
 							else
 								NAChat.currentDMTarget = uname
 								if inputBox then
@@ -44137,8 +44133,34 @@ originalIO.runNACHAT=function()
 					local label
 					if toName == me then
 						label = ("[DM FROM %s]: %s"):format(fromName, base)
-						if DoNotif then
-							DoNotif(("NA DM from %s"):format(fromName), 3)
+						local chatVisible = chatFrame and chatFrame.Visible
+						if not chatVisible then
+							local function openChatView()
+								if chatTab then
+									switchTab("chat")
+								end
+								if type(NAgui) == "table" and type(NAgui.nachat) == "function" then
+									pcall(NAgui.nachat)
+								end
+							end
+
+							local payload = {
+								Title = adminName,
+								Description = ("DM from %s"):format(fromName),
+								Duration = 3,
+								Buttons = {
+									{
+										Text = "Open",
+										Callback = openChatView,
+									},
+								},
+							}
+
+							if type(DoNotif) == "function" then
+								DoNotif(payload)
+							elseif type(Notify) == "function" then
+								Notify(payload)
+							end
 						end
 					elseif fromName == me then
 						label = ("[DM TO %s]: %s"):format(toName, base)
@@ -44193,6 +44215,29 @@ originalIO.runNACHAT=function()
 						end
 					end
 					serverUsers = newSet
+				end
+
+				if NAChat.currentDMTarget then
+					local stillHere = false
+					for _, info in ipairs(NAChat.users or {}) do
+						if type(info) == "table" then
+							local uname = tostring(info.username or "")
+							if uname == NAChat.currentDMTarget then
+								stillHere = true
+								break
+							end
+						end
+					end
+					if not stillHere then
+						local hadTarget = NAChat.currentDMTarget ~= nil
+						NAChat.currentDMTarget = nil
+						if inputBox then
+							inputBox.PlaceholderText = "Send a message (/w name)..."
+						end
+						if hadTarget then
+							originalIO.setStatus("NA Chat: DM target left", STATUS_COLORS.info)
+						end
+					end
 				end
 
 				if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
@@ -44349,6 +44394,17 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		local function clearDMTarget(reason)
+			local hadTarget = NAChat.currentDMTarget ~= nil
+			NAChat.currentDMTarget = nil
+			if inputBox then
+				inputBox.PlaceholderText = "Send a message (/w name)..."
+			end
+			if reason and hadTarget then
+				originalIO.setStatus(reason, STATUS_COLORS.info)
+			end
+		end
+
 		local function findUserByPrefix(prefix)
 			prefix = tostring(prefix or "")
 			if prefix == "" then
@@ -44400,11 +44456,7 @@ originalIO.runNACHAT=function()
 			end
 
 			if t == "/w" or t == "/w off" or t == "/dm off" then
-				NAChat.currentDMTarget = nil
-				if inputBox then
-					inputBox.PlaceholderText = "Send a message (/w name)..."
-				end
-				originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
+				clearDMTarget("NA Chat: DM cleared")
 				clearTyping()
 				return
 			end

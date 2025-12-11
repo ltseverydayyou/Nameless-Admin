@@ -1025,12 +1025,71 @@ local function mkHdr(par, z, kind, onPause)
 end
 
 local function attachTimer(card, fil, dur)
-    if not fil then
-        return { pause = function() end, resume = function() end }
-    end
     local hover = uis.MouseEnabled
     local ext = false
     local hov = false
+
+    local function closeCard()
+        local s = ctx(card)
+        if s and s.close and not s.closing then
+            s.close()
+        end
+    end
+
+    if not fil then
+        local remaining = dur
+        local thread
+        local function startThread()
+            if thread and coroutine.status(thread) ~= 'dead' then
+                return
+            end
+            thread = task.spawn(function()
+                local last = os.clock()
+                while remaining > 0 do
+                    if ext or hov then
+                        last = os.clock()
+                        task.wait(0.05)
+                    else
+                        local now = os.clock()
+                        local delta = now - last
+                        remaining -= delta
+                        last = now
+                        task.wait(0.05)
+                    end
+                end
+                thread = nil
+                if not ext and not hov then
+                    closeCard()
+                end
+            end)
+        end
+        startThread()
+        card.Destroying:Connect(function()
+            ext = true
+            remaining = 0
+        end)
+        if hover then
+            card.MouseEnter:Connect(function()
+                hov = true
+            end)
+            card.MouseLeave:Connect(function()
+                hov = false
+            end)
+        end
+        return {
+            pause = function()
+                ext = true
+            end,
+            resume = function()
+                if not ext then
+                    return
+                end
+                ext = false
+                startThread()
+            end,
+        }
+    end
+
     local frac = 1
     local tween = nil
     local function stop()
@@ -1050,10 +1109,7 @@ local function attachTimer(card, fil, dur)
         )
         tween.Completed:Connect(function()
             if not ext and not hov and fil.Size.X.Scale <= 0.001 then
-                local s = ctx(card)
-                if s and s.close and not s.closing then
-                    s.close()
-                end
+                closeCard()
             end
         end)
         tween:Play()
@@ -1622,6 +1678,7 @@ local function build(kind, p)
     local dur = (typeof(p.Duration) == 'number' and p.Duration > 0) and p.Duration
         or nil
     local showProg = (kind == 'Notify' and (#btns == 0) and dur ~= nil)
+    local shouldTimer = (kind == 'Notify' and dur ~= nil)
     local parent
     if kind == 'Popup' then
         parent = grp
@@ -1641,8 +1698,8 @@ local function build(kind, p)
         from,
         cnt
     )
-    if showProg then
-        timCtl = attachTimer(card, fil, dur)
+    if shouldTimer then
+        timCtl = attachTimer(card, showProg and fil or nil, dur)
     end
     if kind == 'Popup' then
         ov.BackgroundTransparency = 1
