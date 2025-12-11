@@ -43813,7 +43813,7 @@ originalIO.runNACHAT=function()
 							if NAChat.currentDMTarget == uname then
 								NAChat.currentDMTarget = nil
 								if inputBox then
-									inputBox.PlaceholderText = "Send a message (/w name, /g group)..."
+									inputBox.PlaceholderText = "Send a message (/w name)..."
 								end
 								originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
 							else
@@ -43870,105 +43870,6 @@ originalIO.runNACHAT=function()
 						Wait(0.03)
 					end
 				end)
-			end
-		end
-
-		local function updateGroupsList(list)
-			if not groupsScroll then
-				return
-			end
-
-			for _, v in ipairs(groupsScroll:GetChildren()) do
-				if v:IsA("Frame") then
-					v:Destroy()
-				end
-			end
-			groupFrames = {}
-
-			if type(list) ~= "table" then
-				return
-			end
-
-			local lp = Players.LocalPlayer
-			local myId = lp and lp.UserId
-
-			local idx = 0
-			for _, info in ipairs(list) do
-				local username = (type(info) == "table" and info.username) or tostring(info)
-				local userId = type(info) == "table" and tonumber(info.userId) or nil
-				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
-
-				if userId and myId and userId == myId then
-					continue
-				end
-
-				idx += 1
-				local fr = InstanceNew("Frame", groupsScroll)
-				fr.Name = "GroupUser_" .. tostring(username)
-				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-				fr.BackgroundTransparency = 0.15
-				fr.Size = UDim2.new(1, -6, 0, 40)
-				fr.LayoutOrder = idx
-
-				local cr = InstanceNew("UICorner", fr)
-				cr.CornerRadius = UDim.new(0, 4)
-
-				local nameLbl = InstanceNew("TextLabel", fr)
-				nameLbl.Name = "NameLabel"
-				nameLbl.BackgroundTransparency = 1
-				nameLbl.Size = UDim2.new(0.6, -10, 0, 20)
-				nameLbl.Position = UDim2.new(0, 8, 0, 4)
-				nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-				nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				nameLbl.TextSize = 14
-				nameLbl.TextColor3 = Color3.fromRGB(200, 200, 230)
-				nameLbl.Text = tostring(username)
-
-				local gameLbl = InstanceNew("TextLabel", fr)
-				gameLbl.Name = "GameLabel"
-				gameLbl.BackgroundTransparency = 1
-				gameLbl.Size = UDim2.new(0.6, -10, 0, 16)
-				gameLbl.Position = UDim2.new(0, 8, 0, 22)
-				gameLbl.TextXAlignment = Enum.TextXAlignment.Left
-				gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				gameLbl.TextSize = 12
-				gameLbl.TextColor3 = Color3.fromRGB(190, 190, 210)
-				gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
-
-				local inviteBtn = InstanceNew("TextButton", fr)
-				inviteBtn.Name = "InviteButton"
-				inviteBtn.Size = UDim2.new(0, 90, 0, 24)
-				inviteBtn.Position = UDim2.new(1, -96, 0.5, -12)
-				inviteBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
-				inviteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-				inviteBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-				inviteBtn.TextSize = 13
-				inviteBtn.Text = "Invite"
-
-				local ibCorner = InstanceNew("UICorner", inviteBtn)
-				ibCorner.CornerRadius = UDim.new(0, 6)
-
-				MouseButtonFix(inviteBtn, function()
-					local gid = NAChat.currentGroupId
-					local svc = NAChat.service
-					if not (gid and svc and svc.InviteToGroup) then
-						originalIO.setStatus("NA Chat: no active group to invite into", STATUS_COLORS.err)
-						return
-					end
-					local ok, err = pcall(function()
-						return svc.InviteToGroup(gid, username)
-					end)
-					if ok then
-						originalIO.setStatus(("NA Chat: invited %s"):format(tostring(username)), STATUS_COLORS.info)
-					else
-						originalIO.setStatus("NA Chat: failed to invite", STATUS_COLORS.err)
-						if DoNotif then
-							DoNotif("Failed to invite: " .. tostring(err), 3)
-						end
-					end
-				end)
-
-				groupFrames[username] = fr
 			end
 		end
 
@@ -44229,69 +44130,6 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, fromName, text, _, groupName)
-					groupId = tostring(groupId or "")
-					fromName = tostring(fromName or "?")
-					local msgText = tostring(text or "")
-					groupName = tostring(groupName or groupId)
-
-					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
-
-					local base = select(1, formatMessageWithMentions(msgText))
-					if base == "" then base = msgText end
-
-					local label = ("[GROUP %s] %s: %s"):format(groupName, fromName, base)
-					makeChatLabel(label, Color3.fromRGB(180, 200, 255), msgText)
-				end)
-			end
-
-			if NAChat.service.OnGroupInvite then
-				NAChat.service.OnGroupInvite.Event:Connect(function(groupId, groupName, fromName)
-					groupId = tostring(groupId or "")
-					groupName = tostring(groupName or groupId)
-					fromName = tostring(fromName or "?")
-
-					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
-
-					local lbl = makeChatLabel(
-						("[GROUP INVITE] %s invited you to \"%s\" (click to join)"):format(fromName, groupName),
-						Color3.fromRGB(200, 230, 255),
-						nil
-					)
-					if lbl and NAChat.service.AcceptGroupInvite then
-						MouseButtonFix(lbl, function()
-							pcall(NAChat.service.AcceptGroupInvite, groupId)
-							originalIO.setStatus(("NA Chat: Joined group %s"):format(groupName), STATUS_COLORS.info)
-						end)
-					end
-				end)
-			end
-
-			if NAChat.service.OnGroupCreated then
-				NAChat.service.OnGroupCreated.Event:Connect(function(groupId, groupName, owner, members)
-					groupId = tostring(groupId or "")
-					groupName = tostring(groupName or groupId)
-					NAChat.currentGroupId = groupId
-					NAChat.groups[groupId] = NAChat.groups[groupId] or {}
-					NAChat.groups[groupId].name = groupName
-					originalIO.setStatus(('NA Chat: Created group "%s"'):format(groupName), STATUS_COLORS.info)
-					makeChatLabel(("[NA Chat] Created group \"%s\""):format(groupName), STATUS_COLORS.info, nil)
-				end)
-			end
-
-			if NAChat.service.OnGroupJoined then
-				NAChat.service.OnGroupJoined.Event:Connect(function(groupId, groupName, members)
-					groupId = tostring(groupId or "")
-					groupName = tostring(groupName or groupId)
-					NAChat.currentGroupId = groupId
-					NAChat.groups[groupId] = NAChat.groups[groupId] or {}
-					NAChat.groups[groupId].name = groupName
-					originalIO.setStatus(('NA Chat: Joined group "%s"'):format(groupName), STATUS_COLORS.info)
-					makeChatLabel(("[NA Chat] Joined group \"%s\""):format(groupName), STATUS_COLORS.info, nil)
-				end)
-			end
-
 			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
 				NAChat.users = list or {}
 				usersFetchInFlight = false
@@ -44320,12 +44158,8 @@ originalIO.runNACHAT=function()
 					serverUsers = newSet
 				end
 
-				if changed and not NAChat.isHidden then
-					if NAChat.activeTab == "users" then
-						updateUsersList(NAChat.users)
-					elseif NAChat.activeTab == "groups" then
-						updateGroupsList(NAChat.users)
-					end
+				if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
+					updateUsersList(NAChat.users)
 				end
 			end)
 
@@ -44496,7 +44330,7 @@ originalIO.runNACHAT=function()
 			if t == "/w" or t == "/w off" or t == "/dm off" then
 				NAChat.currentDMTarget = nil
 				if inputBox then
-					inputBox.PlaceholderText = "Send a message (/w name, /g group)..."
+					inputBox.PlaceholderText = "Send a message (/w name)..."
 				end
 				originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
 				clearTyping()
@@ -44516,17 +44350,6 @@ originalIO.runNACHAT=function()
 				ok = NAChat.service.SendPrivateMessage(dmTarget, dmMsg)
 			elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
 				ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
-			elseif t:sub(1, 3) == "/g " and NAChat.service and NAChat.service.SendGroupMessage then
-				local rest = t:sub(4)
-				local name, msg = rest:match("^(%S+)%s+(.+)$")
-				if name and msg then
-					for gid, info in pairs(NAChat.groups or {}) do
-						if info.name == name then
-							ok = NAChat.service.SendGroupMessage(gid, msg)
-							break
-						end
-					end
-				end
 			elseif NAChat.service and NAChat.service.SendMessage then
 				ok = NAChat.service.SendMessage(t)
 			end
@@ -44586,48 +44409,9 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
-		if groupsTab then
-			MouseButtonFix(groupsTab, function()
-				switchTab("groups")
-				if not NAChat.isHidden then
-					updateGroupsList(NAChat.users or {})
-				end
-			end)
-		end
-
 		if visibilityBtn then
 			MouseButtonFix(visibilityBtn, function()
 				originalIO.setHiddenState(not NAChat.isHidden, false)
-			end)
-		end
-
-		if newGroupBtn then
-			MouseButtonFix(newGroupBtn, function()
-				local svc = NAChat.service
-				if not (svc and svc.CreateGroup) then
-					originalIO.setStatus("NA Chat: group feature unavailable", STATUS_COLORS.err)
-					return
-				end
-
-				local lp = Players.LocalPlayer
-				local defaultName = (lp and (lp.Name .. "'s group")) or "NA Group"
-				local name = inputBox and (inputBox.Text or "") or ""
-				name = name:match("^%s*(.-)%s*$") or ""
-				if name == "" then
-					name = defaultName
-				end
-
-				local ok, err = pcall(function()
-					return svc.CreateGroup(name)
-				end)
-				if ok then
-					originalIO.setStatus(('NA Chat: creating group "%s"...'):format(name), STATUS_COLORS.info)
-				else
-					originalIO.setStatus("NA Chat: failed to create group", STATUS_COLORS.err)
-					if DoNotif then
-						DoNotif("Failed to create group: " .. tostring(err), 3)
-					end
-				end
 			end)
 		end
 
@@ -45492,7 +45276,6 @@ RunService.RenderStepped:Connect(function()
 	if NAUIMANAGER.BindersList then updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.NAchatChatScroll then updateCanvasSize(NAUIMANAGER.NAchatChatScroll, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.NAchatUsersScroll then updateCanvasSize(NAUIMANAGER.NAchatUsersScroll, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.NAchatGroupsScroll then updateCanvasSize(NAUIMANAGER.NAchatGroupsScroll, NAUIMANAGER.AUTOSCALER.Scale) end
 end)
 
 RunService.RenderStepped:Connect(function()
