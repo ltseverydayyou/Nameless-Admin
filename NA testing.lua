@@ -43367,7 +43367,10 @@ originalIO.runNACHAT=function()
 			wired = false,
 			isHidden = false,
 			activeTab = "chat",
-			users = {}
+			users = {},
+			currentDMTarget = nil,
+			currentGroupId = nil,
+			groups = {},
 		}
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
@@ -43384,16 +43387,93 @@ originalIO.runNACHAT=function()
 			blue = Color3.fromRGB(120, 170, 255)
 		}
 
+		-- Typing/mentions helpers
+		local typingUsers = {}
+		local baseStatusText = "NA Chat: Connecting..."
+		local baseStatusColor = STATUS_COLORS.info
+
+		local function updateStatusLabel()
+			if not statusLabel then
+				return
+			end
+
+			local now = os.clock()
+			local names = {}
+
+			for name, expires in pairs(typingUsers) do
+				if type(expires) ~= "number" or expires <= now then
+					typingUsers[name] = nil
+				else
+					Insert(names, tostring(name))
+				end
+			end
+
+			local text = baseStatusText or ""
+			if #names > 0 then
+				local who
+				if #names == 1 then
+					who = names[1]
+				elseif #names == 2 then
+					who = names[1] .. " and " .. names[2]
+				else
+					who = names[1] .. " and others"
+				end
+				if text ~= "" then
+					text = text .. "  •  "
+				end
+				text = text .. who .. " is typing..."
+			end
+
+			statusLabel.Text = text
+			statusLabel.TextColor3 = baseStatusColor or statusLabel.TextColor3
+		end
+
+		local function formatMessageWithMentions(rawText)
+			local plain = tostring(rawText or "")
+			if plain == "" then
+				return "", false
+			end
+
+			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(plain) or plain
+
+			local lp = Players.LocalPlayer
+			if not lp then
+				return safe, false
+			end
+
+			local lowerNames = {}
+			lowerNames[Lower(lp.Name)] = true
+			local disp = lp.DisplayName
+			if disp and disp ~= "" then
+				lowerNames[Lower(disp)] = true
+			end
+
+			local wasMentioned = false
+
+			local function repl(token)
+				local namePart = token:sub(2)
+				if lowerNames[Lower(namePart)] then
+					wasMentioned = true
+					return '<font color="#FFD966">' .. token .. '</font>'
+				end
+				return token
+			end
+
+			local withMarkup = safe:gsub("(@[%w_]+)", repl)
+			return withMarkup, wasMentioned
+		end
+
 		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
 		local connect
 
 		originalIO.setStatus = function(t, c)
-			if statusLabel then
-				statusLabel.Text = t
-				if c then
-					statusLabel.TextColor3 = c
-				end
+			if t then
+				baseStatusText = t
 			end
+			if c then
+				baseStatusColor = c
+			end
+			updateStatusLabel()
 		end
 
 		local function refreshStatus()
@@ -43466,7 +43546,7 @@ originalIO.runNACHAT=function()
 
 			local tr = NAStuff.NAChatTranslator
 			if tr then
-				tr:registerMessage(lbl, t, t)
+				tr:registerMessage(lbl, t, rawMessage or t)
 			end
 
 			if rawMessage and NAmanage.AttachMessageCopy then
@@ -43731,6 +43811,35 @@ originalIO.runNACHAT=function()
 					end
 				end
 
+				-- DM button
+				local dmBtn = fr:FindFirstChild("DMButton")
+				if isSelf then
+					if dmBtn then
+						dmBtn:Destroy()
+					end
+				else
+					if not dmBtn then
+						dmBtn = InstanceNew("TextButton", fr)
+						dmBtn.Name = "DMButton"
+						dmBtn.Size = UDim2.new(0, 60, 0, 24)
+						dmBtn.Position = UDim2.new(1, -150, 0.5, -12)
+						dmBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 130)
+						dmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+						dmBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+						dmBtn.TextSize = 13
+						dmBtn.Text = "DM"
+						local dmCorner = InstanceNew("UICorner", dmBtn)
+						dmCorner.CornerRadius = UDim.new(0, 6)
+						MouseButtonFix(dmBtn, function()
+							NAChat.currentDMTarget = tostring(username)
+							if inputBox then
+								inputBox.PlaceholderText = ("DM to %s..."):format(tostring(username))
+							end
+							originalIO.setStatus(("NA Chat: DM -> %s"):format(tostring(username)), STATUS_COLORS.blue)
+						end)
+					end
+				end
+
 				if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
 					avatar.Image = ""
 					Insert(avatarQueue, { avatar = avatar, userId = userId })
@@ -43932,41 +44041,50 @@ originalIO.runNACHAT=function()
 			end
 
 			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-                local senderName = tostring(name or "?")
-                local messageText = tostring(msg or "")
+				local senderName = tostring(name or "?")
+				local messageText = tostring(msg or "")
 
-                local isOwner = userId == 11761417 or userId == 530829101
-                local isNAadmin = (isAdmin == true)
+				local isOwner = userId == 11761417 or userId == 530829101
+				local isNAadmin = (isAdmin == true)
 
-                local labelText
-                if isOwner then
-                    labelText = ("[OWNER] %s: %s"):format(senderName, messageText)
-                elseif isNAadmin then
-                    labelText = ("[ADMIN] %s: %s"):format(senderName, messageText)
-                else
-                    labelText = ("[%s]: %s"):format(senderName, messageText)
-                end
+				local displayText, mentioned = formatMessageWithMentions(messageText)
+				if displayText == "" then
+					displayText = messageText
+				end
 
-                local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+				local labelText
+				if isOwner then
+					labelText = ("[OWNER] %s: %s"):format(senderName, displayText)
+				elseif isNAadmin then
+					labelText = ("[ADMIN] %s: %s"):format(senderName, displayText)
+				else
+					labelText = ("[%s]: %s"):format(senderName, displayText)
+				end
 
-                if (isNAadmin or isOwner) and lbl then
-                    local conn
-                    conn = RunService.Heartbeat:Connect(function()
-                        if not (lbl and lbl.Parent) then
-                            if conn then
-                                conn:Disconnect()
-                            end
-                            return
-                        end
+				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
 
-                        local t = tick()
-                        local r = math.sin(t * 0.5) * 127 + 128
-                        local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
-                        local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
-                        lbl.TextColor3 = Color3.fromRGB(r, g, b)
-                    end)
-                end
-            end)
+				if mentioned and DoNotif then
+					DoNotif(("%s mentioned you in NA Chat."):format(senderName), 3)
+				end
+
+				if (isNAadmin or isOwner) and lbl then
+					local conn
+					conn = RunService.Heartbeat:Connect(function()
+						if not (lbl and lbl.Parent) then
+							if conn then
+								conn:Disconnect()
+							end
+							return
+						end
+
+						local t = tick()
+						local r = math.sin(t * 0.5) * 127 + 128
+						local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
+						local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
+						lbl.TextColor3 = Color3.fromRGB(r, g, b)
+					end)
+				end
+			end)
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
 				local m = tostring(msg or "System message")
@@ -43977,6 +44095,91 @@ originalIO.runNACHAT=function()
 				lastSysText, lastSysTime = m, now
 				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
 			end)
+
+			if NAChat.service.OnTyping then
+				NAChat.service.OnTyping.Event:Connect(function(fromName, isTyping)
+					fromName = tostring(fromName or "")
+					if fromName == "" then
+						return
+					end
+					local lp = Players.LocalPlayer
+					if lp and fromName == lp.Name then
+						return
+					end
+					if isTyping then
+						typingUsers[fromName] = os.clock() + 6
+					else
+						typingUsers[fromName] = nil
+					end
+					updateStatusLabel()
+				end)
+			end
+
+			if NAChat.service.OnPrivateMessage then
+				NAChat.service.OnPrivateMessage.Event:Connect(function(fromName, toName, text)
+					local lp = Players.LocalPlayer
+					local me = lp and lp.Name or ""
+					fromName = tostring(fromName or "?")
+					toName = tostring(toName or "?")
+					local msgText = tostring(text or "")
+
+					local base, mentioned = formatMessageWithMentions(msgText)
+					if base == "" then base = msgText end
+
+					local label
+					if toName == me then
+						label = ("[DM FROM %s]: %s"):format(fromName, base)
+						if DoNotif then
+							DoNotif(("NA DM from %s"):format(fromName), 3)
+						end
+					elseif fromName == me then
+						label = ("[DM TO %s]: %s"):format(toName, base)
+					else
+						label = ("[DM %s -> %s]: %s"):format(fromName, toName, base)
+					end
+
+					makeChatLabel(label, Color3.fromRGB(250, 220, 140), msgText)
+				end)
+			end
+
+			if NAChat.service.OnGroupMessage then
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, fromName, text, _, groupName)
+					groupId = tostring(groupId or "")
+					fromName = tostring(fromName or "?")
+					local msgText = tostring(text or "")
+					groupName = tostring(groupName or groupId)
+
+					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
+
+					local base = select(1, formatMessageWithMentions(msgText))
+					if base == "" then base = msgText end
+
+					local label = ("[GROUP %s] %s: %s"):format(groupName, fromName, base)
+					makeChatLabel(label, Color3.fromRGB(180, 200, 255), msgText)
+				end)
+			end
+
+			if NAChat.service.OnGroupInvite then
+				NAChat.service.OnGroupInvite.Event:Connect(function(groupId, groupName, fromName)
+					groupId = tostring(groupId or "")
+					groupName = tostring(groupName or groupId)
+					fromName = tostring(fromName or "?")
+
+					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
+
+					local lbl = makeChatLabel(
+						("[GROUP INVITE] %s invited you to \"%s\" (click to join)"):format(fromName, groupName),
+						Color3.fromRGB(200, 230, 255),
+						nil
+					)
+					if lbl and NAChat.service.AcceptGroupInvite then
+						MouseButtonFix(lbl, function()
+							pcall(NAChat.service.AcceptGroupInvite, groupId)
+							originalIO.setStatus(("NA Chat: Joined group %s"):format(groupName), STATUS_COLORS.info)
+						end)
+					end
+				end)
+			end
 
 			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
 				NAChat.users = list or {}
@@ -44129,6 +44332,37 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
+		local myTyping = false
+		local lastTypeTime = 0
+
+		local function noteLocalTyping()
+			lastTypeTime = os.clock()
+			if myTyping then
+				return
+			end
+			myTyping = true
+			if NAChat.service and NAChat.service.SendTyping then
+				pcall(NAChat.service.SendTyping, true)
+			end
+			Spawn(function()
+				local stamp = lastTypeTime
+				Wait(5)
+				if stamp == lastTypeTime and myTyping then
+					myTyping = false
+					if NAChat.service and NAChat.service.SendTyping then
+						pcall(NAChat.service.SendTyping, false)
+					end
+				end
+			end)
+		end
+
+		local function clearTyping()
+			if myTyping and NAChat.service and NAChat.service.SendTyping then
+				myTyping = false
+				pcall(NAChat.service.SendTyping, false)
+			end
+		end
+
 		local function sendMessage(t)
 			if NAChat.isHidden then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
@@ -44149,12 +44383,34 @@ originalIO.runNACHAT=function()
 				originalIO.setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
 			end
 
-			if NAChat.service and NAChat.service.SendMessage then
-				local ok = NAChat.service.SendMessage(t)
-				if not ok then
-					originalIO.setStatus("NA Chat: failed to send", STATUS_COLORS.err)
+			local ok = true
+
+			-- command-style shortcuts
+			local dmTarget, dmMsg = t:match("^/w%s+(%S+)%s+(.+)$")
+			if dmTarget and dmMsg and NAChat.service and NAChat.service.SendPrivateMessage then
+				ok = NAChat.service.SendPrivateMessage(dmTarget, dmMsg)
+			elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
+				ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
+			elseif t:sub(1, 3) == "/g " and NAChat.service and NAChat.service.SendGroupMessage then
+				local rest = t:sub(4)
+				local name, msg = rest:match("^(%S+)%s+(.+)$")
+				if name and msg then
+					for gid, info in pairs(NAChat.groups or {}) do
+						if info.name == name then
+							ok = NAChat.service.SendGroupMessage(gid, msg)
+							break
+						end
+					end
 				end
+			elseif NAChat.service and NAChat.service.SendMessage then
+				ok = NAChat.service.SendMessage(t)
 			end
+
+			if not ok then
+				originalIO.setStatus("NA Chat: failed to send", STATUS_COLORS.err)
+			end
+
+			clearTyping()
 		end
 
 		if sendBtn then
@@ -44168,6 +44424,13 @@ originalIO.runNACHAT=function()
 
 		if inputBox then
 			inputBox.ClearTextOnFocus = false
+			inputBox:GetPropertyChangedSignal("Text"):Connect(function()
+				local txt = inputBox.Text or ""
+				txt = txt:match("^%s*(.-)%s*$") or ""
+				if txt ~= "" then
+					noteLocalTyping()
+				end
+			end)
 			inputBox.FocusLost:Connect(function(enter)
 				if enter then
 					sendMessage(inputBox.Text)
