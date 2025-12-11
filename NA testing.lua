@@ -43369,8 +43369,6 @@ originalIO.runNACHAT=function()
 			activeTab = "chat",
 			users = {},
 			currentDMTarget = nil,
-			currentGroupId = nil,
-			groups = {},
 		}
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
@@ -43831,11 +43829,20 @@ originalIO.runNACHAT=function()
 						local dmCorner = InstanceNew("UICorner", dmBtn)
 						dmCorner.CornerRadius = UDim.new(0, 6)
 						MouseButtonFix(dmBtn, function()
-							NAChat.currentDMTarget = tostring(username)
-							if inputBox then
-								inputBox.PlaceholderText = ("DM to %s..."):format(tostring(username))
+							local uname = tostring(username)
+							if NAChat.currentDMTarget == uname then
+								NAChat.currentDMTarget = nil
+								if inputBox then
+									inputBox.PlaceholderText = "Send a message (/w name)..."
+								end
+								originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
+							else
+								NAChat.currentDMTarget = uname
+								if inputBox then
+									inputBox.PlaceholderText = ("DM to %s..."):format(uname)
+								end
+								originalIO.setStatus(("NA Chat: DM -> %s"):format(uname), STATUS_COLORS.blue)
 							end
-							originalIO.setStatus(("NA Chat: DM -> %s"):format(tostring(username)), STATUS_COLORS.blue)
 						end)
 					end
 				end
@@ -43943,6 +43950,7 @@ originalIO.runNACHAT=function()
 			if usersSearchBox then
 				usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
 			end
+
 			if tab == "users" then
 				if NAChat.isHidden then
 					updateUsersList({})
@@ -44139,45 +44147,6 @@ originalIO.runNACHAT=function()
 					end
 
 					makeChatLabel(label, Color3.fromRGB(250, 220, 140), msgText)
-				end)
-			end
-
-			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, fromName, text, _, groupName)
-					groupId = tostring(groupId or "")
-					fromName = tostring(fromName or "?")
-					local msgText = tostring(text or "")
-					groupName = tostring(groupName or groupId)
-
-					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
-
-					local base = select(1, formatMessageWithMentions(msgText))
-					if base == "" then base = msgText end
-
-					local label = ("[GROUP %s] %s: %s"):format(groupName, fromName, base)
-					makeChatLabel(label, Color3.fromRGB(180, 200, 255), msgText)
-				end)
-			end
-
-			if NAChat.service.OnGroupInvite then
-				NAChat.service.OnGroupInvite.Event:Connect(function(groupId, groupName, fromName)
-					groupId = tostring(groupId or "")
-					groupName = tostring(groupName or groupId)
-					fromName = tostring(fromName or "?")
-
-					NAChat.groups[groupId] = NAChat.groups[groupId] or { name = groupName }
-
-					local lbl = makeChatLabel(
-						("[GROUP INVITE] %s invited you to \"%s\" (click to join)"):format(fromName, groupName),
-						Color3.fromRGB(200, 230, 255),
-						nil
-					)
-					if lbl and NAChat.service.AcceptGroupInvite then
-						MouseButtonFix(lbl, function()
-							pcall(NAChat.service.AcceptGroupInvite, groupId)
-							originalIO.setStatus(("NA Chat: Joined group %s"):format(groupName), STATUS_COLORS.info)
-						end)
-					end
 				end)
 			end
 
@@ -44378,6 +44347,16 @@ originalIO.runNACHAT=function()
 				return
 			end
 
+			if t == "/w" or t == "/w off" or t == "/dm off" then
+				NAChat.currentDMTarget = nil
+				if inputBox then
+					inputBox.PlaceholderText = "Send a message (/w name)..."
+				end
+				originalIO.setStatus("NA Chat: DM cleared", STATUS_COLORS.info)
+				clearTyping()
+				return
+			end
+
 			if not (NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected()) then
 				connect()
 				originalIO.setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
@@ -44391,17 +44370,6 @@ originalIO.runNACHAT=function()
 				ok = NAChat.service.SendPrivateMessage(dmTarget, dmMsg)
 			elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
 				ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
-			elseif t:sub(1, 3) == "/g " and NAChat.service and NAChat.service.SendGroupMessage then
-				local rest = t:sub(4)
-				local name, msg = rest:match("^(%S+)%s+(.+)$")
-				if name and msg then
-					for gid, info in pairs(NAChat.groups or {}) do
-						if info.name == name then
-							ok = NAChat.service.SendGroupMessage(gid, msg)
-							break
-						end
-					end
-				end
 			elseif NAChat.service and NAChat.service.SendMessage then
 				ok = NAChat.service.SendMessage(t)
 			end

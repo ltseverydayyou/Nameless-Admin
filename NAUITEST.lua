@@ -244,12 +244,16 @@ G2L["nce"]["Thickness"] = 2;
 G2L["nce"]["Color"] = Color3.fromRGB(154, 99, 255);
 
 
-G2L["ncf"] = Instance.new("Frame", G2L["nc0"]);
+G2L["ncf"] = Instance.new("ScrollingFrame", G2L["nc0"]);
 G2L["ncf"]["BackgroundColor3"] = Color3.fromRGB(39, 39, 44);
 G2L["ncf"]["Size"] = UDim2.new(1, -20, 0, 32);
 G2L["ncf"]["Position"] = UDim2.new(0, 10, 0, 45);
 G2L["ncf"]["Name"] = [[Tabs]];
 G2L["ncf"]["BackgroundTransparency"] = 0.15;
+G2L["ncf"]["ScrollingDirection"] = Enum.ScrollingDirection.X;
+G2L["ncf"]["ScrollBarThickness"] = 2;
+G2L["ncf"]["AutomaticCanvasSize"] = Enum.AutomaticSize.X;
+G2L["ncf"]["CanvasSize"] = UDim2.new(0, 0, 1, 0);
 
 
 G2L["nd0"] = Instance.new("UICorner", G2L["ncf"]);
@@ -264,9 +268,9 @@ G2L["nd1"]["Color"] = Color3.fromRGB(154, 99, 255);
 
 G2L["nd2"] = Instance.new("UIListLayout", G2L["ncf"]);
 G2L["nd2"]["FillDirection"] = Enum.FillDirection.Horizontal;
-G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
+G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
 G2L["nd2"]["Padding"] = UDim.new(0, 8);
-G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Center;
+G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Top;
 
 
 G2L["nd3"] = Instance.new("TextButton", G2L["ncf"]);
@@ -276,7 +280,7 @@ G2L["nd3"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["nd3"]["BackgroundColor3"] = Color3.fromRGB(100, 80, 180);
 G2L["nd3"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["nd3"]["BackgroundTransparency"] = 0.1;
-G2L["nd3"]["Size"] = UDim2.new(0, 80, 1, -6);
+G2L["nd3"]["Size"] = UDim2.new(0, 80, 0, 30);
 G2L["nd3"]["Text"] = [[Chat]];
 G2L["nd3"]["Name"] = [[ChatTab]];
 
@@ -292,7 +296,7 @@ G2L["nd5"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["nd5"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
 G2L["nd5"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["nd5"]["BackgroundTransparency"] = 0.1;
-G2L["nd5"]["Size"] = UDim2.new(0, 80, 1, -6);
+G2L["nd5"]["Size"] = UDim2.new(0, 80, 0, 30);
 G2L["nd5"]["Text"] = [[Users]];
 G2L["nd5"]["Name"] = [[UsersTab]];
 
@@ -308,7 +312,7 @@ G2L["nd7"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["nd7"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
 G2L["nd7"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["nd7"]["BackgroundTransparency"] = 0.1;
-G2L["nd7"]["Size"] = UDim2.new(0, 90, 1, -6);
+G2L["nd7"]["Size"] = UDim2.new(0, 90, 0, 30);
 G2L["nd7"]["Text"] = [[Visible]];
 G2L["nd7"]["Name"] = [[Visibility]];
 
@@ -324,7 +328,7 @@ G2L["nd7b"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["nd7b"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
 G2L["nd7b"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["nd7b"]["BackgroundTransparency"] = 0.1;
-G2L["nd7b"]["Size"] = UDim2.new(0, 110, 1, -6);
+G2L["nd7b"]["Size"] = UDim2.new(0, 110, 0, 30);
 G2L["nd7b"]["Text"] = [[Game Activity On]];
 G2L["nd7b"]["Name"] = [[GameActivity]];
 
@@ -396,6 +400,9 @@ G2L["ndg"]["Padding"] = UDim.new(0, 6);
 G2L["ndg"]["SortOrder"] = Enum.SortOrder.Name;
 
 
+
+
+
 G2L["ndu"] = Instance.new("TextBox", G2L["nd9"]);
 G2L["ndu"]["BorderSizePixel"] = 0;
 G2L["ndu"]["TextSize"] = 14;
@@ -464,7 +471,7 @@ G2L["ndl"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
 G2L["ndl"]["BackgroundColor3"] = Color3.fromRGB(48, 48, 58);
 G2L["ndl"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["ndl"]["AnchorPoint"] = Vector2.new(0, 1);
-G2L["ndl"]["PlaceholderText"] = [[Send a message (/w name, /g group)...]];
+G2L["ndl"]["PlaceholderText"] = [[Send a message (/w name)...]];
 G2L["ndl"]["Size"] = UDim2.new(1, -110, 0, 32);
 G2L["ndl"]["Position"] = UDim2.new(0, 6, 1, -8);
 G2L["ndl"]["Text"] = [[]];
