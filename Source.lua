@@ -44127,7 +44127,7 @@ originalIO.runNACHAT=function()
 							local payload = {
 								Title = adminName,
 								Description = ("DM from %s"):format(fromName),
-								Duration = 3,
+								Duration = 10,
 								Buttons = {
 									{
 										Text = "Open",
