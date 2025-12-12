@@ -43909,8 +43909,8 @@ originalIO.runNACHAT=function()
 			blue = Color3.fromRGB(120, 170, 255)
 		}
 
-		-- Typing/mentions helpers
 		local typingUsers = {}
+		local clearDMTarget
 		local baseStatusText = "NA Chat: Connecting..."
 		local baseStatusColor = STATUS_COLORS.info
 
@@ -45106,7 +45106,7 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		local function clearDMTarget(reason)
+		clearDMTarget = function(reason)
 			local hadTarget = NAChat.currentDMTarget ~= nil
 			NAChat.currentDMTarget = nil
 			if inputBox then
