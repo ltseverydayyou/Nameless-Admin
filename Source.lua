@@ -44771,7 +44771,7 @@ originalIO.runNACHAT=function()
 					local msgText = tostring(text or "")
 					local dur = tonumber(duration) or 5
 
-					local title = ("Notify from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoNotif) == "function" then
 						DoNotif(msgText, dur, title)
@@ -44787,7 +44787,7 @@ originalIO.runNACHAT=function()
 				NAChat.service.OnNotify2.Event:Connect(function(fromName, text)
 					fromName = tostring(fromName or "Admin")
 					local msgText = tostring(text or "")
-					local title = ("Window from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoWindow) == "function" then
 						DoWindow(msgText, title)
@@ -44803,7 +44803,7 @@ originalIO.runNACHAT=function()
 				NAChat.service.OnNotify3.Event:Connect(function(fromName, text)
 					fromName = tostring(fromName or "Admin")
 					local msgText = tostring(text or "")
-					local title = ("Popup from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoPopup) == "function" then
 						DoPopup(msgText, title)

@@ -3981,7 +3981,7 @@ end
 if getgenv().NATestingVer then
 	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
-	opt.NAUILOADER="https://pastebin.com/raw/62ZF2Thh"--"https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
+	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
 else
 	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
@@ -44791,7 +44791,7 @@ originalIO.runNACHAT=function()
 					local msgText = tostring(text or "")
 					local dur = tonumber(duration) or 5
 
-					local title = ("Notify from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoNotif) == "function" then
 						DoNotif(msgText, dur, title)
@@ -44807,7 +44807,7 @@ originalIO.runNACHAT=function()
 				NAChat.service.OnNotify2.Event:Connect(function(fromName, text)
 					fromName = tostring(fromName or "Admin")
 					local msgText = tostring(text or "")
-					local title = ("Window from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoWindow) == "function" then
 						DoWindow(msgText, title)
@@ -44823,7 +44823,7 @@ originalIO.runNACHAT=function()
 				NAChat.service.OnNotify3.Event:Connect(function(fromName, text)
 					fromName = tostring(fromName or "Admin")
 					local msgText = tostring(text or "")
-					local title = ("Popup from %s"):format(fromName)
+					local title = ("from %s"):format(fromName)
 
 					if type(DoPopup) == "function" then
 						DoPopup(msgText, title)
