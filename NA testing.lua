@@ -46151,12 +46151,12 @@ originalIO.runNACHAT=function()
 
 				svc.SendNotify3(target, msg)
 			end, true)
-		end
 
-		switchTab("chat")
-		originalIO.setHiddenState(initialHidden, true)
-		connect()
-	end
+			switchTab("chat")
+			originalIO.setHiddenState(initialHidden, true)
+			connect()
+		end
+end
 originalIO.runNACHAT()
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
