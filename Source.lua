@@ -43893,6 +43893,7 @@ originalIO.runNACHAT=function()
 				users = {},
 				currentDMTarget = nil,
 			}
+		local permanentFailureReason = nil
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
 		local userSearchTerm = ""
@@ -45011,6 +45012,11 @@ originalIO.runNACHAT=function()
 		end
 
 		connect = function()
+			if permanentFailureReason then
+				NAChat.connecting = false
+				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
+				return
+			end
 			if NAChat.connecting then
 				return
 			end
@@ -45026,27 +45032,42 @@ originalIO.runNACHAT=function()
 
 				wireEvents()
 
-				local okInit = true
+				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
-					okInit = NAChat.service.Init({
+					okInit, initErr = NAChat.service.Init({
 						serverUrl = "wss://witty-minette-adonis-632b17c0.koyeb.app/swimhub",
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
-						autoReconnect = true,
+						autoReconnect = false,
 						hidden = NAChat.isHidden
 					})
 				end
 
 				if not okInit then
 					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
-					local msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
+
+					local permanent = (initErr == "websocket_not_available" or initErr == "no_local_player")
+					if permanent then
+						permanentFailureReason = initErr or "unknown"
+					end
+
+					local msg
+					if initErr == "websocket_not_available" then
+						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
+					else
+						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
+					end
+
 					local now = os.clock()
 					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 						lastErrText, lastErrTime = msg, now
 						makeChatLabel(msg, STATUS_COLORS.err)
 					end
 					NAChat.connecting = false
-					queueReconnect()
+
+					if not permanent then
+						queueReconnect()
+					end
 					return
 				end
 
