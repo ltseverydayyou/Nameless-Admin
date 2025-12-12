@@ -7408,6 +7408,7 @@ _G.NAadminsLol={
 	1594235217; --Purple
 	2845101018; --alt
 	2019160453; --grim
+	417995559; -- keepoo
 }
 
 NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
@@ -43898,6 +43899,9 @@ originalIO.runNACHAT=function()
 	local statusLabel = NAUIMANAGER and NAUIMANAGER.NAchatStatusLabel
 	local chatTab = NAUIMANAGER and NAUIMANAGER.NAchatChatTab
 	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
+	local adminTab = nil
+	local adminFrame = nil
+	local adminFrameUpdateBanList = nil
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
@@ -43930,7 +43934,35 @@ originalIO.runNACHAT=function()
 		}
 
 		local typingUsers = {}
+		local mutedUsers = {}
 		local clearDMTarget
+		local mentionCooldowns = {}
+		local bannedFromChat = false
+		local banNoticeShown = false
+
+		local function isBanMessage(text)
+			local normalized = tostring(text or ""):lower()
+			if normalized == "" then
+				return false
+			end
+			return normalized:find("you are banned") ~= nil
+				or normalized:find("banned from na chat") ~= nil
+				or (normalized:find("banned") and normalized:find("na chat"))
+		end
+
+		local function markBannedState()
+			if bannedFromChat then
+				return
+			end
+			bannedFromChat = true
+			NAChat.bannedFromChat = true
+			originalIO.setStatus("NA Chat: Banned", STATUS_COLORS.err)
+		end
+		local MENTION_COOLDOWN_SECONDS = 10
+		local adminState = {
+			banned = {},
+			muted = {},
+		}
 		local baseStatusText = "NA Chat: Connecting..."
 		local baseStatusColor = STATUS_COLORS.info
 
@@ -44173,7 +44205,9 @@ originalIO.runNACHAT=function()
 					local activityFlag = ((info.activityHidden == true) or (info.activity_hidden == true)) and 1 or 0
 					local pid = tonumber(info.placeId) or 0
 					local jid = tostring(info.jobId or "")
-					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid
+					local adminFlag = (info.admin == true) and 1 or 0
+					local gameStr = tostring(info.game or "")
+					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid.."|"..adminFlag.."|"..gameStr
 				end
 			end
 			table.sort(tmp)
@@ -44531,18 +44565,27 @@ originalIO.runNACHAT=function()
 
 		local function switchTab(tab)
 			NAChat.activeTab = tab
+
 			if chatTab then
 				chatTab.BackgroundColor3 = tab == "chat" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
 			end
 			if usersTab then
 				usersTab.BackgroundColor3 = tab == "users" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
 			end
+			if adminTab then
+				adminTab.BackgroundColor3 = tab == "admin" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
+			end
+
 			if chatScroll then
-				chatScroll.Visible = tab == "chat"
+				chatScroll.Visible = (tab == "chat")
 			end
 			if usersScroll then
-				usersScroll.Visible = tab == "users"
+				usersScroll.Visible = (tab == "users")
 			end
+			if adminFrame then
+				adminFrame.Visible = (tab == "admin")
+			end
+
 			if usersSearchBox then
 				usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
 			end
@@ -44552,6 +44595,13 @@ originalIO.runNACHAT=function()
 					updateUsersList({})
 				else
 					requestUsersList()
+				end
+			end
+
+			if tab == "admin" then
+				local svc = NAChat.service
+				if svc and svc.SendAdminAction then
+					svc.SendAdminAction("refresh", "")
 				end
 			end
 		end
@@ -44649,6 +44699,11 @@ originalIO.runNACHAT=function()
 				local isNAadmin = (isAdmin == true)
 
 				local displayText, mentioned = formatMessageWithMentions(messageText)
+
+				if (isOwner or isNAadmin) and messageText:find("@everyone", 1, true) then
+					mentioned = true
+					displayText = displayText:gsub("@everyone", '<font color="#FFD966">@everyone</font>')
+				end
 				if displayText == "" then
 					displayText = messageText
 				end
@@ -44662,10 +44717,27 @@ originalIO.runNACHAT=function()
 					labelText = ("[%s]: %s"):format(senderName, displayText)
 				end
 
+				if mutedUsers[Lower(senderName)] then
+					return
+				end
+
 				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
 
 				if mentioned and DoNotif then
-					DoNotif(("%s mentioned you in NA Chat."):format(senderName), 3)
+					local now = os.clock()
+					local canNotify = true
+					if not (isOwner or isNAadmin) then
+						local last = mentionCooldowns[senderName] or 0
+						if (now - last) < MENTION_COOLDOWN_SECONDS then
+							canNotify = false
+						else
+							mentionCooldowns[senderName] = now
+						end
+					end
+
+					if canNotify then
+						DoNotif(("%s mentioned you in NA Chat."):format(senderName), 3)
+					end
 				end
 
 				if (isNAadmin or isOwner) and lbl then
@@ -44689,12 +44761,22 @@ originalIO.runNACHAT=function()
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
 				local m = tostring(msg or "System message")
+				local isBan = isBanMessage(m)
+				if isBan then
+					markBannedState()
+					if banNoticeShown then
+						return
+					end
+				end
 				local now = os.clock()
 				if lastSysText == m and (now - lastSysTime) < 2 then
 					return
 				end
 				lastSysText, lastSysTime = m, now
 				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
+				if isBan then
+					banNoticeShown = true
+				end
 			end)
 
 			if NAChat.service.OnTyping then
@@ -44713,6 +44795,32 @@ originalIO.runNACHAT=function()
 						typingUsers[fromName] = nil
 					end
 					updateStatusLabel()
+				end)
+			end
+
+			if NAChat.service.OnAdminState then
+				NAChat.service.OnAdminState.Event:Connect(function(state)
+					if type(state) ~= "table" then
+						return
+					end
+
+					local banned = {}
+					if type(state.banned) == "table" then
+						for _, name in ipairs(state.banned) do
+							if type(name) == "string" and name ~= "" then
+								Insert(banned, name)
+							end
+						end
+					end
+					adminState.banned = banned
+
+					if type(state.muted) == "table" then
+						adminState.muted = state.muted
+					end
+
+					if adminFrame and adminFrameUpdateBanList then
+						adminFrameUpdateBanList()
+					end
 				end)
 			end
 
@@ -45012,6 +45120,10 @@ originalIO.runNACHAT=function()
 
 			NAChat.service.OnDisconnected.Event:Connect(function()
 				NAChat.connecting = false
+				if bannedFromChat then
+					refreshStatus()
+					return
+				end
 				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
 				refreshStatus()
 				queueReconnect()
@@ -45019,15 +45131,25 @@ originalIO.runNACHAT=function()
 
 			NAChat.service.OnError.Event:Connect(function(err)
 				NAChat.connecting = false
-				originalIO.setStatus("NA Chat error", STATUS_COLORS.err)
+				local isBan = isBanMessage(err)
+				if isBan then
+					markBannedState()
+				else
+					originalIO.setStatus("NA Chat error", STATUS_COLORS.err)
+				end
 				local msg = "[NA Chat] " .. tostring(err or "Unknown error")
 				local now = os.clock()
 				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 					lastErrText, lastErrTime = msg, now
 					makeChatLabel(msg, STATUS_COLORS.err)
+					if isBan then
+						banNoticeShown = true
+					end
 				end
 				refreshStatus()
-				queueReconnect()
+				if not bannedFromChat then
+					queueReconnect()
+				end
 			end)
 		end
 
@@ -45276,18 +45398,18 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
-		if chatTab then
+		if chatTab and MouseButtonFix then
 			MouseButtonFix(chatTab, function()
 				switchTab("chat")
 			end)
 		end
-
-		if usersTab then
+		
+		if usersTab and MouseButtonFix then
 			MouseButtonFix(usersTab, function()
 				switchTab("users")
 			end)
 		end
-
+		
 		if visibilityBtn then
 			MouseButtonFix(visibilityBtn, function()
 				originalIO.setHiddenState(not NAChat.isHidden, false)
@@ -45399,6 +45521,380 @@ originalIO.runNACHAT=function()
 			return false
 		end
 
+		local function ensureAdminTabUI()
+			if not chatFrame then
+				return
+			end
+
+			if not adminTab then
+				if usersTab and usersTab.Parent then
+					local existing = usersTab.Parent:FindFirstChild("AdminTab")
+					if existing then
+						adminTab = existing
+					else
+						adminTab = usersTab:Clone()
+						adminTab.Name = "AdminTab"
+						adminTab.Text = "Admin"
+						adminTab.LayoutOrder = (usersTab.LayoutOrder or 0) + 1
+						adminTab.Parent = usersTab.Parent
+					end
+				end
+			end
+
+			if not adminFrame then
+				local container = NAUIMANAGER and NAUIMANAGER.NAchatContent
+				if container and usersScroll then
+					adminFrame = container:FindFirstChild("AdminFrame")
+					if not adminFrame then
+						adminFrame = InstanceNew("Frame", container)
+						adminFrame.Name = "AdminFrame"
+						adminFrame.BackgroundTransparency = 1
+					end
+
+					-- Keep admin frame aligned with the users list area
+					if usersScroll then
+						adminFrame.AnchorPoint = usersScroll.AnchorPoint or Vector2.new(0.5, 0)
+						adminFrame.Size = usersScroll.Size
+						adminFrame.Position = usersScroll.Position
+					end
+
+					for _, child in ipairs(adminFrame:GetChildren()) do
+						child:Destroy()
+					end
+
+					local title = InstanceNew("TextLabel", adminFrame)
+					title.BackgroundTransparency = 1
+					title.Size = UDim2.new(1, -12, 0, 24)
+					title.Position = UDim2.new(0, 10, 0, 6)
+					title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+					title.TextSize = 16
+					title.TextXAlignment = Enum.TextXAlignment.Left
+					title.TextColor3 = Color3.fromRGB(220, 220, 230)
+					title.Text = "NA Chat Admin Controls"
+
+					local function makeInputBox(parent, placeholder, size, pos)
+						local box = InstanceNew("TextBox", parent)
+						box.BorderSizePixel = 0
+						box.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+						box.BackgroundTransparency = 0.2
+						box.TextColor3 = Color3.fromRGB(234, 234, 244)
+						box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+						box.TextSize = 14
+						box.ClearTextOnFocus = false
+						box.Text = ""
+						box.Size = size
+						box.Position = pos
+						box.PlaceholderText = placeholder or ""
+						local corner = InstanceNew("UICorner", box)
+						corner.CornerRadius = UDim.new(0, 8)
+						local stroke = InstanceNew("UIStroke", box)
+						stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						stroke.Thickness = 1.5
+						stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
+						NAgui.RegisterColoredStroke(stroke)
+						NAgui.RegisterStrokesFrom(box)
+						return box
+					end
+
+					local function makeActionButton(parent, text, pos, size, color)
+						local btn = InstanceNew("TextButton", parent)
+						btn.BorderSizePixel = 0
+						btn.BackgroundTransparency = 0.2
+						btn.BackgroundColor3 = color or Color3.fromRGB(54, 54, 64)
+						btn.TextColor3 = Color3.fromRGB(234, 234, 244)
+						btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+						btn.TextSize = 14
+						btn.Text = text
+						btn.Position = pos
+						btn.Size = size
+						local c = InstanceNew("UICorner", btn)
+						c.CornerRadius = UDim.new(0, 8)
+						local s = InstanceNew("UIStroke", btn)
+						s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+						s.Thickness = 1.5
+						s.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
+						NAgui.RegisterColoredStroke(s)
+						NAgui.RegisterStrokesFrom(btn)
+						return btn
+					end
+
+					local userBox = makeInputBox(
+						adminFrame,
+						"Username",
+						UDim2.new(0.4, -12, 0, 30),
+						UDim2.new(0, 10, 0, 32)
+					)
+					userBox.Name = "AdminUserInput"
+
+					local durBox = makeInputBox(
+						adminFrame,
+						"Seconds",
+						UDim2.new(0.2, -6, 0, 30),
+						UDim2.new(0.4, 0, 0, 32)
+					)
+					durBox.Name = "AdminMuteDurationInput"
+
+					local muteBtn = makeActionButton(
+						adminFrame,
+						"Mute",
+						UDim2.new(0.6, 6, 0, 32),
+						UDim2.new(0.09, 0, 0, 30),
+						Color3.fromRGB(80, 120, 80)
+					)
+					muteBtn.Name = "AdminMuteButton"
+
+					local banBtn = makeActionButton(
+						adminFrame,
+						"Ban",
+						UDim2.new(0.69, 4, 0, 32),
+						UDim2.new(0.09, 0, 0, 30),
+						Color3.fromRGB(150, 90, 40)
+					)
+					banBtn.Name = "AdminBanButton"
+
+					local unmuteBtn = makeActionButton(
+						adminFrame,
+						"Unmute",
+						UDim2.new(0.78, 2, 0, 32),
+						UDim2.new(0.09, 0, 0, 30),
+						Color3.fromRGB(184, 54, 54)
+					)
+					unmuteBtn.Name = "AdminUnmuteButton"
+
+					local unbanBtn = makeActionButton(
+						adminFrame,
+						"Unban",
+						UDim2.new(0.87, 0, 0, 32),
+						UDim2.new(0.09, 0, 0, 30),
+						Color3.fromRGB(184, 96, 96)
+					)
+					unbanBtn.Name = "AdminUnbanButton"
+
+					local bannedLabel = InstanceNew("TextLabel", adminFrame)
+					bannedLabel.BackgroundTransparency = 1
+					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
+					bannedLabel.Position = UDim2.new(0, 10, 0, 72)
+					bannedLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+					bannedLabel.TextSize = 14
+					bannedLabel.TextXAlignment = Enum.TextXAlignment.Left
+					bannedLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
+					bannedLabel.Text = "Banned users"
+
+					local banScroll = InstanceNew("ScrollingFrame", adminFrame)
+					banScroll.Name = "AdminBanList"
+					banScroll.BackgroundTransparency = 1
+					banScroll.BorderSizePixel = 0
+					banScroll.Size = UDim2.new(1, -20, 1, -104)
+					banScroll.Position = UDim2.new(0, 10, 0, 96)
+					banScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+					banScroll.ScrollBarThickness = 3
+					banScroll.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
+
+					local layout = InstanceNew("UIListLayout", banScroll)
+					layout.FillDirection = Enum.FillDirection.Vertical
+					layout.SortOrder = Enum.SortOrder.LayoutOrder
+					layout.Padding = UDim.new(0, 4)
+
+					local function normalizeName(name)
+						return Lower(tostring(name or ""))
+					end
+
+					local function addBannedUser(name)
+						local candidate = tostring(name or "")
+						if candidate == "" then
+							return
+						end
+						local normalized = normalizeName(candidate)
+						local list = adminState.banned or {}
+						for _, existing in ipairs(list) do
+							if normalizeName(existing) == normalized then
+								return
+							end
+						end
+						Insert(list, candidate)
+						adminState.banned = list
+						if adminFrameUpdateBanList then
+							adminFrameUpdateBanList()
+						end
+					end
+
+					local function removeBannedUser(name)
+						local candidate = tostring(name or "")
+						if candidate == "" then
+							return
+						end
+						local normalized = normalizeName(candidate)
+						local list = adminState.banned or {}
+						local removed = false
+						for i = #list, 1, -1 do
+							if normalizeName(list[i]) == normalized then
+								table.remove(list, i)
+								removed = true
+							end
+						end
+						if removed then
+							adminState.banned = list
+							if adminFrameUpdateBanList then
+								adminFrameUpdateBanList()
+							end
+						end
+					end
+
+					local function updateBanList()
+						if not banScroll then
+							return
+						end
+						for _, child in ipairs(banScroll:GetChildren()) do
+							if child:IsA("Frame") then
+								child:Destroy()
+							end
+						end
+
+						local list = adminState.banned or {}
+						local order = 0
+						for _, name in ipairs(list) do
+							order += 1
+							local row = InstanceNew("Frame", banScroll)
+							row.Size = UDim2.new(1, 0, 0, 24)
+							row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+							row.BackgroundTransparency = 0.1
+							row.LayoutOrder = order
+							local rowCorner = InstanceNew("UICorner", row)
+							rowCorner.CornerRadius = UDim.new(0, 4)
+
+							local lbl = InstanceNew("TextLabel", row)
+							lbl.BackgroundTransparency = 1
+							lbl.Size = UDim2.new(0.6, -6, 1, 0)
+							lbl.Position = UDim2.new(0, 6, 0, 0)
+							lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+							lbl.TextSize = 14
+							lbl.TextXAlignment = Enum.TextXAlignment.Left
+							lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+							lbl.Text = tostring(name)
+
+							local unbanBtn = InstanceNew("TextButton", row)
+							unbanBtn.Size = UDim2.new(0.2, 0, 0, 20)
+							unbanBtn.Position = UDim2.new(0.8, -6, 0.5, -10)
+							unbanBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
+							unbanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+							unbanBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+							unbanBtn.TextSize = 12
+							unbanBtn.Text = "Unban"
+							local ubCorner = InstanceNew("UICorner", unbanBtn)
+							ubCorner.CornerRadius = UDim.new(0, 6)
+
+							if MouseButtonFix then
+								MouseButtonFix(unbanBtn, function()
+									local svc = NAChat.service
+									if svc and svc.SendAdminAction then
+										svc.SendAdminAction("unban", name)
+										removeBannedUser(name)
+									end
+								end)
+							end
+						end
+
+						banScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 4)
+					end
+
+					adminFrameUpdateBanList = updateBanList
+
+					if MouseButtonFix then
+						local function resolveTargetOrWarn(actionLabel)
+							local targetName = userBox.Text or ""
+							targetName = targetName:match("^%s*(.-)%s*$") or ""
+							if targetName ~= "" then
+								local resolved = findUserByPrefix(targetName)
+								if resolved then
+									targetName = resolved
+									userBox.Text = resolved
+								end
+							end
+							if targetName == "" then
+								local auto = getAdminActionTarget()
+								if auto then
+									targetName = auto
+									userBox.Text = auto
+								end
+							end
+							if targetName == "" then
+								if DoNotif then
+									DoNotif("NA Chat admin: enter a username to "..actionLabel..".", 2)
+								end
+								return nil
+							end
+							return targetName
+						end
+
+						MouseButtonFix(muteBtn, function()
+							local targetName = resolveTargetOrWarn("mute")
+							if not targetName then
+								return
+							end
+
+							local duration = tonumber(durBox.Text) or 300
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("mute", targetName, duration)
+							end
+						end)
+
+						MouseButtonFix(banBtn, function()
+							local targetName = resolveTargetOrWarn("ban")
+							if not targetName then
+								return
+							end
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("ban", targetName)
+								addBannedUser(targetName)
+							end
+						end)
+
+						MouseButtonFix(unbanBtn, function()
+							local targetName = resolveTargetOrWarn("unban")
+							if not targetName then
+								return
+							end
+
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("unban", targetName)
+								removeBannedUser(targetName)
+							end
+						end)
+
+						MouseButtonFix(unmuteBtn, function()
+							local targetName = resolveTargetOrWarn("unmute")
+							if not targetName then
+								return
+							end
+
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("unmute", targetName)
+							end
+						end)
+					end
+
+					updateBanList()
+				end
+			end
+		end
+
+		local function getAdminActionTarget()
+			if NAChat.currentDMTarget and NAChat.currentDMTarget ~= "" then
+				return NAChat.currentDMTarget
+			end
+			if usersSearchBox and usersSearchBox.Text and usersSearchBox.Text ~= "" then
+				local resolved = findUserByPrefix(usersSearchBox.Text)
+				if resolved then
+					return resolved
+				end
+			end
+			return nil
+		end
+
 		local function findTargets(spec)
 			spec = Lower(tostring(spec or ""))
 			if spec == "" then
@@ -45427,6 +45923,92 @@ originalIO.runNACHAT=function()
 		end
 
 		if isLocalAdmin() then
+			ensureAdminTabUI()
+			if adminTab and MouseButtonFix then
+				MouseButtonFix(adminTab, function()
+					switchTab("admin")
+				end)
+			end
+
+			local chatTopbar = chatFrame and chatFrame:FindFirstChild("Topbar")
+
+			local function attachAdminButton(name, text, offsetX, callback)
+				if not chatTopbar or type(MouseButtonFix) ~= "function" then
+					return
+				end
+
+				local btn = chatTopbar:FindFirstChild(name)
+				if not btn then
+					btn = InstanceNew("TextButton", chatTopbar)
+					btn.Name = name
+					btn.Size = UDim2.new(0, 60, 0, 24)
+					btn.Position = UDim2.new(1, offsetX, 0, 4)
+					btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+					btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+					btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+					btn.TextSize = 13
+					local corner = InstanceNew("UICorner", btn)
+					corner.CornerRadius = UDim.new(0, 6)
+				end
+
+				btn.Text = text
+				btn.AutoButtonColor = true
+
+				MouseButtonFix(btn, callback)
+			end
+
+			local function ensureTargetOrWarn()
+				local target = getAdminActionTarget()
+				if not target then
+					if DoNotif then
+						DoNotif("NA Chat admin: select a user (DM button or search) first.", 3)
+					end
+					return nil
+				end
+				return target
+			end
+
+			attachAdminButton("NAChatKick", "Kick", -210, function()
+				local target = ensureTargetOrWarn()
+				if not target then
+					return
+				end
+				local svc = NAChat.service
+				if svc and svc.SendAdminAction then
+					svc.SendAdminAction("kick", target)
+				end
+			end)
+
+			attachAdminButton("NAChatBan", "Ban", -140, function()
+				local target = ensureTargetOrWarn()
+				if not target then
+					return
+				end
+				local svc = NAChat.service
+				if svc and svc.SendAdminAction then
+					svc.SendAdminAction("ban", target)
+				end
+			end)
+
+			attachAdminButton("NAChatMute", "Mute", -70, function()
+				local target = ensureTargetOrWarn()
+				if not target then
+					return
+				end
+				local key = Lower(target)
+				if mutedUsers[key] then
+					mutedUsers[key] = nil
+					if DoNotif then
+						DoNotif(("NA Chat: unmuted %s."):format(target), 2)
+					end
+				else
+					mutedUsers[key] = true
+					if DoNotif then
+						DoNotif(("NA Chat: muted %s."):format(target), 2)
+					end
+				end
+			end)
+
 			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
 				local svc = NAChat.service
 				if not (svc and svc.IsConnected and svc.IsConnected()) then
