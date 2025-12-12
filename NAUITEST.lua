@@ -268,7 +268,7 @@ G2L["nd1"]["Color"] = Color3.fromRGB(154, 99, 255);
 
 G2L["nd2"] = Instance.new("UIListLayout", G2L["ncf"]);
 G2L["nd2"]["FillDirection"] = Enum.FillDirection.Horizontal;
-G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Center;
+G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
 G2L["nd2"]["Padding"] = UDim.new(0, 8);
 G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Top;
 
@@ -335,6 +335,22 @@ G2L["nd7b"]["Name"] = [[GameActivity]];
 
 G2L["nd8b"] = Instance.new("UICorner", G2L["nd7b"]);
 G2L["nd8b"]["CornerRadius"] = UDim.new(0, 6);
+
+
+G2L["nd7c"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["nd7c"]["BorderSizePixel"] = 0;
+G2L["nd7c"]["TextSize"] = 14;
+G2L["nd7c"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["nd7c"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["nd7c"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["nd7c"]["BackgroundTransparency"] = 0.1;
+G2L["nd7c"]["Size"] = UDim2.new(0, 120, 0, 30);
+G2L["nd7c"]["Text"] = [[DM Notifs On]];
+G2L["nd7c"]["Name"] = [[DMNotifs]];
+
+
+G2L["nd8c"] = Instance.new("UICorner", G2L["nd7c"]);
+G2L["nd8c"]["CornerRadius"] = UDim.new(0, 6);
 
 
 G2L["nd9"] = Instance.new("Frame", G2L["nc0"]);

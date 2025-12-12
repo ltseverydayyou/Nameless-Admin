@@ -34,6 +34,7 @@ local TAB_ESP = "ESP"
 local TAB_CHAT = "Chat"
 local TAB_CHARACTER = "Character"
 local TAB_KEYBINDS = "Keybinds"
+local TAB_COMMAND_KEYBINDS = "Command Keybinds"
 local TAB_BASIC_INFO = "Basic Info"
 local TAB_ROBLOX_DATA = "Roblox Data"
 local TAB_ADMIN_INFO = "Admin Info"
@@ -308,11 +309,13 @@ end
 
 local Waypoints = {}
 local Bindings = Bindings or {}
+local CommandKeybinds = CommandKeybinds or {}
 local NAStuff = {
 	NAICONMAIN = nil;
 	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
 	nuhuhNotifs = true;
+	dmNotificationsEnabled = true;
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
 	AutoExecEnabled = true;
@@ -802,6 +805,7 @@ local NAfiles = {
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
+	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
 }
 NAmanage.newCornerStore=function()
 	return {}
@@ -6008,6 +6012,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		naChatDmNotify = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -6238,6 +6248,10 @@ if FileSupport then
 
 	if not isfile(NAfiles.NAUSERBUTTONSPATH) then
 		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+	end
+
+	if not isfile(NAfiles.NACOMMANDKEYBINDS) then
+		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
 	end
 
 	if not isfile(NAfiles.NAAUTOEXECPATH) then
@@ -6536,6 +6550,65 @@ NAmanage.SaveBinders=function()
 	end
 end
 
+NAmanage.SaveCommandKeybinds=function()
+	if not FileSupport then return end
+	local ok, err = pcall(function()
+		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(CommandKeybinds))
+	end)
+	if not ok then
+		warn("[NA] Command keybind save failed: "..tostring(err))
+	end
+end
+
+NAmanage.ApplyCommandKeybinds=function()
+	if NAStuff.KeybindConnection then
+		NAStuff.KeybindConnection:Disconnect()
+		NAStuff.KeybindConnection = nil
+	end
+	local UIS = UserInputService
+	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if NAStuff._capturingCommandKeybind then return end
+		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+		local keyName = input.KeyCode.Name
+		local args = CommandKeybinds[keyName]
+		if type(args) ~= "table" or #args == 0 then
+			return
+		end
+		local argsCopy = {}
+		for i, v in ipairs(args) do
+			argsCopy[i] = v
+		end
+		cmd.run(argsCopy)
+	end)
+end
+
+NAmanage.LoadCommandKeybinds=function()
+	CommandKeybinds = {}
+	if FileSupport and isfile and isfile(NAfiles.NACOMMANDKEYBINDS) then
+		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
+		if okRead and type(raw) == "string" and raw ~= "" then
+			local okDecode, decoded = pcall(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if okDecode and type(decoded) == "table" then
+				for key, value in pairs(decoded) do
+					if type(key) == "string" and type(value) == "table" then
+						CommandKeybinds[key] = value
+					end
+				end
+			end
+		end
+	end
+	NAmanage.ApplyCommandKeybinds()
+	Defer(function()
+		if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
+			pcall(NAmanage.CommandKeybindsUIRefresh)
+		end
+	end)
+end
+
 originalIO.deepCopyTable=function(value)
 	if type(value) ~= "table" then return value end
 	local copy = {}
@@ -6785,6 +6858,7 @@ if FileSupport then
 	NAUISavedScale = NAmanage.NASettingsGet("uiScale")
 	NAQoTEnabled = NAmanage.NASettingsGet("queueOnTeleport")
 	NAStuff.nuhuhNotifs = NAmanage.NASettingsGet("notifsToggle")
+	NAStuff.dmNotificationsEnabled = NAmanage.NASettingsGet("naChatDmNotify")
 	local savedTweenSpeed = NAmanage.NASettingsGet("tweenSpeed")
 	if type(savedTweenSpeed) == "number" and savedTweenSpeed > 0 then
 		NAStuff.tweenSpeed = savedTweenSpeed
@@ -6933,6 +7007,8 @@ if FileSupport then
 			NAmanage.SaveBinders()
 		end
 	end
+
+	NAmanage.LoadCommandKeybinds()
 
 	local ChatConfigPath = NAfiles.NATEXTCHATSETTINGSPATH
 
@@ -10765,6 +10841,38 @@ NAmanage.loadButtonIDS = function()
 	end
 
 	NAUserButtons = decoded
+
+	local chg = false
+
+	for _, data in pairs(NAUserButtons) do
+		if type(data) == "table" and type(data.Keybind) == "string" and data.Keybind ~= "" then
+			local keyName = data.Keybind
+
+			if CommandKeybinds[keyName] == nil then
+				local parts = {}
+				if type(data.Cmd1) == "string" and data.Cmd1 ~= "" then
+					Insert(parts, data.Cmd1)
+				end
+				if type(data.Args) == "table" then
+					for _, v in ipairs(data.Args) do
+						Insert(parts, tostring(v))
+					end
+				end
+				if #parts > 0 then
+					CommandKeybinds[keyName] = parts
+				end
+			end
+
+			data.Keybind = nil
+			chg = true
+		end
+	end
+
+	if chg and FileSupport then
+		pcall(writefile, path, HttpService:JSONEncode(NAUserButtons))
+	end
+	NAmanage.SaveCommandKeybinds()
+	NAmanage.ApplyCommandKeybinds()
 	return true
 end
 
@@ -11460,8 +11568,6 @@ NAmanage.RenderUserButtons = function()
 	local success, err = pcall(function()
 		NAStuff.NASCREENGUI = screenGui
 		if NAStuff.KeybindConnection then
-			NAStuff.KeybindConnection:Disconnect()
-			NAStuff.KeybindConnection = nil
 		end
 		for _, btn in pairs(UserButtonGuiList) do
 			btn:Destroy()
@@ -11664,75 +11770,12 @@ NAmanage.RenderUserButtons = function()
 			end)
 
 			if IsOnPC then
-				local keyToggle = InstanceNew("TextButton")
-				keyToggle.Size             = UDim2.new(0,tSize,0,tSize)
-				keyToggle.AnchorPoint      = Vector2.new(0,1)
-				keyToggle.Position         = UDim2.new(0,0,0,0)
-				keyToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-				keyToggle.TextColor3       = Color3.fromRGB(255,255,255)
-				keyToggle.TextScaled       = true
-				keyToggle.Font             = Enum.Font.Gotham
-				keyToggle.Text             = data.Keybind or "Key"
-				keyToggle.ZIndex           = 10000
-				keyToggle.Parent           = btn
-
-				local ktCorner = InstanceNew("UICorner")
-				ktCorner.CornerRadius = UDim.new(0.5,0)
-				ktCorner.Parent       = keyToggle
-
-				local lastClick = 0
-				local bindConn
-
-				MouseButtonFix(keyToggle, function()
-					local now = os.clock()
-					if lastClick > 0 and (now - lastClick) <= DOUBLE_CLICK_WINDOW then
-						lastClick = 0
-						if data.Keybind then ActionBindings[data.Keybind] = nil end
-						data.Keybind = nil
-						keyToggle.Text = "Key"
-						if FileSupport then
-							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-						end
-						if bindConn then bindConn:Disconnect() bindConn = nil end
-						ActiveKeyBinding[id] = nil
-						return
-					end
-					lastClick = now
-					if ActiveKeyBinding[id] then return end
-					ActiveKeyBinding[id] = true
-					keyToggle.Text = "..."
-					bindConn = UIS.InputBegan:Connect(function(input, gp)
-						if gp or not input.KeyCode then return end
-						local old = data.Keybind
-						if old then ActionBindings[old] = nil end
-						local new = input.KeyCode.Name
-						data.Keybind = new
-						keyToggle.Text = new
-						if FileSupport then
-							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-						end
-						ActionBindings[new] = function() runCmd(data.Args) end
-						ActiveKeyBinding[id] = nil
-						if bindConn then bindConn:Disconnect() bindConn = nil end
-					end)
-				end)
-
-				if data.Keybind then
-					ActionBindings[data.Keybind] = function() runCmd(data.Args) end
-				end
 			end
 
 			Insert(UserButtonGuiList, btn)
 			idx = idx + 1
 		end
 
-		if IsOnPC then
-			NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gp)
-				if gp or not input.KeyCode then return end
-				local act = ActionBindings[input.KeyCode.Name]
-				if act then act() end
-			end)
-		end
 	end)
 
 	NAmanage._renderUserButtonsRunning = nil
@@ -38306,6 +38349,9 @@ local NAUIMANAGER = {
 	NAchatGameActivity   = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("GameActivity");
+	NAchatDmNotifyButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("DMNotifs");
 
 	NAconsoleFrame       = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole");
 	NAconsoleLogs        = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
@@ -39281,7 +39327,7 @@ NAgui.addTab=function(name, options)
 	else
 		local pageTemplate = TabManager.pageTemplate
 		local page = pageTemplate and pageTemplate:Clone() or (TabManager.defaultPage and TabManager.defaultPage:Clone()) or InstanceNew("ScrollingFrame")
-		page.Name = name.."Page"
+		page.Name = name.." Page"
 		page.Visible = false
 		page.CanvasPosition = Vector2.new(0, 0)
 		if not page:FindFirstChildWhichIsA("UIListLayout") and TabManager.defaultPage then
@@ -43323,6 +43369,501 @@ originalIO.naCHATtrans=function()
 	translator:updateUI()
 end
 originalIO.naCHATtrans()
+
+NAmanage.CommandKeybindsAdd=function()
+	local UIS = UserInputService
+	if not UIS then return end
+	local listening = true
+	local bindConn
+	DoNotif("Press a key to bind to a command...", 3)
+	NAStuff._capturingCommandKeybind = true
+	bindConn = UIS.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed or not listening then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+		listening = false
+		if bindConn then bindConn:Disconnect() bindConn = nil end
+		Defer(function()
+			NAStuff._capturingCommandKeybind = false
+		end)
+		local keyName = input.KeyCode.Name
+		Window({
+			Title = "Command Keybind",
+			Description = "Enter a command to run when "..keyName.." is pressed.",
+			InputField = true,
+			Buttons = {{
+				Text = "Save",
+				Callback = function(text)
+					local raw = tostring(text or ""):match("^%s*(.-)%s*$")
+					if raw == "" then
+						DoNotif("Command cannot be empty.", 2)
+						return
+					end
+					local args = ParseArguments(raw) or {}
+					if #args == 0 then
+						DoNotif("Command could not be parsed.", 2)
+						return
+					end
+					CommandKeybinds[keyName] = args
+					NAmanage.SaveCommandKeybinds()
+					NAmanage.ApplyCommandKeybinds()
+					DoNotif(("Bound %s to '%s'"):format(keyName, raw), 2)
+				end
+			}}
+		})
+	end)
+	Spawn(function()
+		Wait(5)
+		if listening then
+			listening = false
+			if bindConn then bindConn:Disconnect() bindConn = nil end
+			NAStuff._capturingCommandKeybind = false
+			DoNotif("Command keybind capture timed out.", 2)
+		end
+	end)
+end
+
+NAmanage.CommandKeybindsRemove=function()
+	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+		DoNotif("No command keybinds to remove.", 2)
+		return
+	end
+	local buttons = {}
+	for keyName, args in pairs(CommandKeybinds) do
+		local label = table.concat(args, " ")
+		Insert(buttons, {
+			Text = keyName.." -> "..label,
+			Callback = function()
+				CommandKeybinds[keyName] = nil
+				NAmanage.SaveCommandKeybinds()
+				NAmanage.ApplyCommandKeybinds()
+				DoNotif("Removed keybind for "..keyName, 2)
+			end
+		})
+	end
+	Window({
+		Title = "Remove Command Keybind",
+		Description = "Select a keybind to remove:",
+		Buttons = buttons,
+	})
+end
+
+NAmanage.CommandKeybindsList=function()
+	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+		DoNotif("No command keybinds set.", 2)
+		return
+	end
+	local lines = {}
+	for keyName, args in pairs(CommandKeybinds) do
+		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
+		Insert(lines, keyName.." > "..label)
+	end
+	local text = table.concat(lines, "\n")
+	if type(DoWindow) == "function" then
+		DoWindow(text, "Command Keybinds")
+	else
+		print("[Command Keybinds]\n"..text)
+		DoNotif("Command keybinds printed to console output.", 3)
+	end
+end
+
+NAmanage.CommandKeybindsUIInit=function()
+	local list = NAUIMANAGER and NAUIMANAGER.SettingsList
+	if not list then
+		return false
+	end
+
+	NAStuff._commandKeybindUI = NAStuff._commandKeybindUI or {}
+	local ui = NAStuff._commandKeybindUI
+
+	if ui.root and ui.root.Parent then
+		return true
+	end
+
+	local function cloneSearchBox(parent, placeholder)
+		local template = NAUIMANAGER and NAUIMANAGER.SettingsSearchBox
+		local box
+		if template and template.Parent then
+			box = template:Clone()
+		else
+			box = InstanceNew("TextBox")
+			box.BorderSizePixel = 0
+			box.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+			box.BackgroundTransparency = 0.2
+			box.TextColor3 = Color3.fromRGB(234, 234, 244)
+			box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			box.TextSize = 16
+			box.ClearTextOnFocus = false
+			local corner = InstanceNew("UICorner", box)
+			corner.CornerRadius = UDim.new(0, 8)
+			local stroke = InstanceNew("UIStroke", box)
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Thickness = 1.5
+			stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
+			NAgui.RegisterColoredStroke(stroke)
+		end
+		box.Parent = parent
+		box.Text = ""
+		box.PlaceholderText = placeholder or ""
+		box.ClearTextOnFocus = false
+		NAgui.RegisterStrokesFrom(box)
+		return box
+	end
+
+	local root = InstanceNew("Frame", list)
+	root.Name = "CommandKeybindsPanel"
+	root.BackgroundTransparency = 1
+	root.BorderSizePixel = 0
+	root.Size = UDim2.new(1, -10, 0, 260)
+	root.LayoutOrder = NAgui._nextLayoutOrder()
+	root.ClipsDescendants = false
+
+	-- editor (top)
+	local keyBox = cloneSearchBox(root, "Key")
+	keyBox.Name = "KeyBox"
+	keyBox.TextEditable = false
+	keyBox.Size = UDim2.new(0.28, -10, 0, 30)
+	keyBox.Position = UDim2.new(0, 10, 0, 8)
+
+	local cmdBox = cloneSearchBox(root, "Command")
+	cmdBox.Name = "CmdBox"
+	cmdBox.Size = UDim2.new(0.34, -10, 0, 30)
+	cmdBox.Position = UDim2.new(0.28, 10, 0, 8)
+
+	local argsBox = cloneSearchBox(root, "Args (space separated)")
+	argsBox.Name = "ArgsBox"
+	argsBox.Size = UDim2.new(0.38, -10, 0, 30)
+	argsBox.Position = UDim2.new(0.62, 10, 0, 8)
+
+	local function makeActionButton(parent, text, pos, size, color)
+		local btn = InstanceNew("TextButton", parent)
+		btn.BorderSizePixel = 0
+		btn.BackgroundTransparency = 0.2
+		btn.BackgroundColor3 = color or Color3.fromRGB(54, 54, 64)
+		btn.TextColor3 = Color3.fromRGB(234, 234, 244)
+		btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		btn.TextSize = 14
+		btn.Text = text
+		btn.Position = pos
+		btn.Size = size
+		local c = InstanceNew("UICorner", btn)
+		c.CornerRadius = UDim.new(0, 8)
+		local s = InstanceNew("UIStroke", btn)
+		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		s.Thickness = 1.5
+		s.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
+		NAgui.RegisterColoredStroke(s)
+		NAgui.RegisterStrokesFrom(btn)
+		return btn
+	end
+
+	local setKeyBtn = makeActionButton(root, "Set Key (click)", UDim2.new(0, 10, 0, 46), UDim2.new(0.28, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local newBtn = makeActionButton(root, "New", UDim2.new(0.28, 10, 0, 46), UDim2.new(0.17, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.45, 10, 0, 46), UDim2.new(0.27, -10, 0, 30), Color3.fromRGB(80, 120, 80))
+	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.72, 10, 0, 46), UDim2.new(0.28, -10, 0, 30), Color3.fromRGB(184, 54, 54))
+
+	local searchBox = cloneSearchBox(root, "Search keybinds...")
+	searchBox.Name = "Search"
+	searchBox.Size = UDim2.new(1, -20, 0, 30)
+	searchBox.Position = UDim2.new(0, 10, 0, 84)
+
+	local listFrame = InstanceNew("ScrollingFrame", root)
+	listFrame.Name = "List"
+	listFrame.BackgroundTransparency = 1
+	listFrame.BorderSizePixel = 0
+	listFrame.Size = UDim2.new(1, -20, 0, 130)
+	listFrame.Position = UDim2.new(0, 10, 0, 122)
+	listFrame.ScrollBarThickness = 3
+	listFrame.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
+	listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+	listFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	local layout = InstanceNew("UIListLayout", listFrame)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 6)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+	ui.root = root
+	ui.searchBox = searchBox
+	ui.listFrame = listFrame
+	ui.keyBox = keyBox
+	ui.cmdBox = cmdBox
+	ui.argsBox = argsBox
+	ui.setKeyBtn = setKeyBtn
+	ui.newBtn = newBtn
+	ui.saveBtn = saveBtn
+	ui.delBtn = delBtn
+	ui.selectedKey = nil
+
+	NAmanage.registerElementForCurrentTab(root)
+	NAgui.RegisterStrokesFrom(root)
+
+	return true
+end
+
+NAmanage.CommandKeybindsUIRefresh=function()
+	local ui = NAStuff._commandKeybindUI
+	if not (ui and ui.listFrame and ui.listFrame.Parent) then
+		return
+	end
+
+	local filter = ""
+	if ui.searchBox then
+		filter = Lower(tostring(ui.searchBox.Text or "")):match("^%s*(.-)%s*$") or ""
+	end
+
+	for _, child in ipairs(ui.listFrame:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	local keys = {}
+	for keyName in pairs(CommandKeybinds) do
+		Insert(keys, keyName)
+	end
+	table.sort(keys, function(a, b)
+		return tostring(a) < tostring(b)
+	end)
+
+	local function normalizeLabel(args)
+		if type(args) ~= "table" or #args == 0 then
+			return ""
+		end
+		return table.concat(args, " ")
+	end
+
+	local idx = 0
+	for _, keyName in ipairs(keys) do
+		local args = CommandKeybinds[keyName]
+		local label = normalizeLabel(args)
+		local hay = Lower(keyName.." "..label)
+		if filter ~= "" and not Find(hay, filter, 1, true) then
+			continue
+		end
+
+		idx += 1
+		local row = InstanceNew("Frame", ui.listFrame)
+		row.Name = "Row_"..tostring(keyName)
+		row.BorderSizePixel = 0
+		row.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+		row.BackgroundTransparency = 0.25
+		row.Size = UDim2.new(0.98, 0, 0, 32)
+		row.LayoutOrder = idx
+		local rc = InstanceNew("UICorner", row)
+		rc.CornerRadius = UDim.new(0, 8)
+		local rs = InstanceNew("UIStroke", row)
+		rs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		rs.Thickness = 1
+		NAgui.RegisterColoredStroke(rs)
+
+		local keyLbl = InstanceNew("TextLabel", row)
+		keyLbl.BackgroundTransparency = 1
+		keyLbl.Size = UDim2.new(0, 60, 1, 0)
+		keyLbl.Position = UDim2.new(0, 10, 0, 0)
+		keyLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		keyLbl.TextSize = 14
+		keyLbl.TextXAlignment = Enum.TextXAlignment.Left
+		keyLbl.TextColor3 = Color3.fromRGB(234, 234, 244)
+		keyLbl.Text = tostring(keyName)
+
+		local cmdLbl = InstanceNew("TextLabel", row)
+		cmdLbl.BackgroundTransparency = 1
+		cmdLbl.Size = UDim2.new(1, -190, 1, 0)
+		cmdLbl.Position = UDim2.new(0, 70, 0, 0)
+		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		cmdLbl.TextSize = 14
+		cmdLbl.TextXAlignment = Enum.TextXAlignment.Left
+		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
+		cmdLbl.Text = label ~= "" and label or "(empty)"
+
+		local editBtn = InstanceNew("TextButton", row)
+		editBtn.BorderSizePixel = 0
+		editBtn.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+		editBtn.BackgroundTransparency = 0.2
+		editBtn.Size = UDim2.new(0, 50, 0, 24)
+		editBtn.Position = UDim2.new(1, -120, 0.5, -12)
+		editBtn.Text = "Edit"
+		editBtn.TextColor3 = Color3.fromRGB(234, 234, 244)
+		editBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		editBtn.TextSize = 13
+		local ec = InstanceNew("UICorner", editBtn)
+		ec.CornerRadius = UDim.new(0, 8)
+		NAgui.RegisterStrokesFrom(editBtn)
+
+		local remBtn = InstanceNew("TextButton", row)
+		remBtn.BorderSizePixel = 0
+		remBtn.BackgroundColor3 = Color3.fromRGB(184, 54, 54)
+		remBtn.BackgroundTransparency = 0.2
+		remBtn.Size = UDim2.new(0, 60, 0, 24)
+		remBtn.Position = UDim2.new(1, -60, 0.5, -12)
+		remBtn.Text = "Delete"
+		remBtn.TextColor3 = Color3.fromRGB(244, 244, 244)
+		remBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		remBtn.TextSize = 13
+		local dc = InstanceNew("UICorner", remBtn)
+		dc.CornerRadius = UDim.new(0, 8)
+		NAgui.RegisterStrokesFrom(remBtn)
+
+		MouseButtonFix(editBtn, function()
+			ui.selectedKey = tostring(keyName)
+			if ui.keyBox then ui.keyBox.Text = tostring(keyName) end
+			if ui.cmdBox then ui.cmdBox.Text = (type(args) == "table" and tostring(args[1] or "")) or "" end
+			if ui.argsBox then
+				if type(args) == "table" and #args > 1 then
+					local parts = {}
+					for i = 2, #args do
+						Insert(parts, tostring(args[i]))
+					end
+					ui.argsBox.Text = Concat(parts, " ")
+				else
+					ui.argsBox.Text = ""
+				end
+			end
+		end)
+
+		MouseButtonFix(remBtn, function()
+			CommandKeybinds[tostring(keyName)] = nil
+			NAmanage.SaveCommandKeybinds()
+			NAmanage.ApplyCommandKeybinds()
+			if ui.selectedKey == tostring(keyName) then
+				ui.selectedKey = nil
+				if ui.keyBox then ui.keyBox.Text = "" end
+				if ui.cmdBox then ui.cmdBox.Text = "" end
+				if ui.argsBox then ui.argsBox.Text = "" end
+			end
+			NAmanage.CommandKeybindsUIRefresh()
+		end)
+	end
+end
+
+NAmanage.CommandKeybindsUIWire=function()
+	local ui = NAStuff._commandKeybindUI
+	if not (ui and ui.root and ui.root.Parent) then
+		return
+	end
+	if ui._wired then
+		return
+	end
+	ui._wired = true
+
+	if ui.searchBox then
+		ui.searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+			NAmanage.CommandKeybindsUIRefresh()
+		end)
+	end
+
+	local function clearEditor()
+		ui.selectedKey = nil
+		if ui.keyBox then ui.keyBox.Text = "" end
+		if ui.cmdBox then ui.cmdBox.Text = "" end
+		if ui.argsBox then ui.argsBox.Text = "" end
+	end
+
+	if ui.newBtn then
+		MouseButtonFix(ui.newBtn, function()
+			clearEditor()
+		end)
+	end
+
+	if ui.setKeyBtn then
+		MouseButtonFix(ui.setKeyBtn, function()
+			if ui._cap then
+				ui._cap = false
+				NAStuff._capturingCommandKeybind = false
+				ui.setKeyBtn.Text = "Set Key"
+				DoNotif("Cancelled", 1.5)
+				return
+			end
+
+			ui._cap = true
+			ui._capTok = (ui._capTok or 0) + 1
+			local tok = ui._capTok
+
+			NAStuff._capturingCommandKeybind = true
+			ui.setKeyBtn.Text = "Cancel"
+			DoNotif("Press a key to set...", 2)
+
+			local conn
+			local function stop(msg)
+				if tok ~= ui._capTok then return end
+				ui._cap = false
+				ui.setKeyBtn.Text = "Set Key"
+				if conn then conn:Disconnect() conn = nil end
+				Defer(function()
+					NAStuff._capturingCommandKeybind = false
+				end)
+				if msg then DoNotif(msg, 1.5) end
+			end
+
+			conn = UserInputService.InputBegan:Connect(function(input, gp)
+				if tok ~= ui._capTok then return end
+				if gp then return end
+				if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+
+				local keyName = input.KeyCode.Name
+				if ui.keyBox then ui.keyBox.Text = keyName end
+				stop()
+			end)
+
+			Spawn(function()
+				Wait(5)
+				if tok ~= ui._capTok then return end
+				stop("Key capture timed out.")
+			end)
+		end)
+	end
+
+	if ui.saveBtn then
+		MouseButtonFix(ui.saveBtn, function()
+			local keyName = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local cmdName = ui.cmdBox and tostring(ui.cmdBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local argsRaw = ui.argsBox and tostring(ui.argsBox.Text or "") or ""
+
+			if keyName == "" then
+				DoNotif("Pick a key first.", 2)
+				return
+			end
+			if cmdName == "" then
+				DoNotif("Command cannot be empty.", 2)
+				return
+			end
+			local args = { cmdName }
+			local extra = ParseArguments(argsRaw)
+			if extra then
+				for _, v in ipairs(extra) do
+					Insert(args, v)
+				end
+			end
+
+			local prevKey = ui.selectedKey
+			if prevKey and prevKey ~= "" and prevKey ~= keyName then
+				CommandKeybinds[prevKey] = nil
+			end
+			CommandKeybinds[keyName] = args
+			ui.selectedKey = keyName
+
+			NAmanage.SaveCommandKeybinds()
+			NAmanage.ApplyCommandKeybinds()
+			NAmanage.CommandKeybindsUIRefresh()
+			DoNotif(("Saved %s > %s"):format(keyName, table.concat(args, " ")), 2)
+		end)
+	end
+
+	if ui.delBtn then
+		MouseButtonFix(ui.delBtn, function()
+			local keyName = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			if keyName == "" then
+				DoNotif("No key selected.", 2)
+				return
+			end
+			CommandKeybinds[keyName] = nil
+			NAmanage.SaveCommandKeybinds()
+			NAmanage.ApplyCommandKeybinds()
+			clearEditor()
+			NAmanage.CommandKeybindsUIRefresh()
+			DoNotif("Deleted keybind "..keyName, 2)
+		end)
+	end
+end
 --[[ NA CHAT (WEBSOCKET) ]]--
 originalIO.runNACHAT=function()
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
@@ -43339,17 +43880,19 @@ originalIO.runNACHAT=function()
 	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
+	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
 
-	if chatFrame then
-		local NAChat = {
-			service = nil,
-			connecting = false,
-			wired = false,
-			isHidden = false,
-			activeTab = "chat",
-			users = {},
-			currentDMTarget = nil,
-		}
+		if chatFrame then
+			local NAChat = {
+				service = nil,
+				connecting = false,
+				wired = false,
+				isHidden = false,
+				serverIsAdmin = false,
+				activeTab = "chat",
+				users = {},
+				currentDMTarget = nil,
+			}
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
 		local userSearchTerm = ""
@@ -43369,6 +43912,17 @@ originalIO.runNACHAT=function()
 		local typingUsers = {}
 		local baseStatusText = "NA Chat: Connecting..."
 		local baseStatusColor = STATUS_COLORS.info
+
+		local function isDmNotifyEnabled()
+			local ok, settings = pcall(NAmanage.NASettingsEnsure)
+			if ok and settings then
+				local val = settings.naChatDmNotify
+				if type(val) == "boolean" then
+					return val
+				end
+			end
+			return true
+		end
 
 		local function updateStatusLabel()
 			if not statusLabel then
@@ -43594,13 +44148,38 @@ originalIO.runNACHAT=function()
 				if type(info) == "table" then
 					local uid = tonumber(info.userId) or 0
 					local uname = tostring(info.username or "")
+					local hiddenFlag = (info.hidden == true) and 1 or 0
+					local activityFlag = ((info.activityHidden == true) or (info.activity_hidden == true)) and 1 or 0
 					local pid = tonumber(info.placeId) or 0
 					local jid = tostring(info.jobId or "")
-					tmp[#tmp+1] = uid.."|"..uname.."|"..pid.."|"..jid
+					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid
 				end
 			end
 			table.sort(tmp)
 			return Concat(tmp, ";")
+		end
+
+		local function requestUsersList()
+			if NAChat.isHidden or not NAChat.service or usersFetchInFlight then
+				return
+			end
+
+			local svc = NAChat.service
+			usersFetchInFlight = true
+
+			local ok, res = false, nil
+			if NAChat.serverIsAdmin and svc.GetUsersAdmin then
+				ok, res = pcall(svc.GetUsersAdmin)
+			elseif svc.GetUsers then
+				ok, res = pcall(svc.GetUsers)
+			else
+				usersFetchInFlight = false
+				return
+			end
+
+			if not ok or res == false then
+				usersFetchInFlight = false
+			end
 		end
 
 		local function updateUsersList(list)
@@ -43664,6 +44243,8 @@ originalIO.runNACHAT=function()
 				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
 				local placeId = type(info) == "table" and info.placeId or nil
 				local jobId = type(info) == "table" and info.jobId or nil
+				local isHiddenUser = type(info) == "table" and (info.hidden == true) or false
+				local activityHidden = type(info) == "table" and ((info.activityHidden == true) or (info.activity_hidden == true)) or false
 
 				if userSearchTerm ~= "" then
 					local needle = userSearchTerm
@@ -43731,19 +44312,33 @@ originalIO.runNACHAT=function()
 				local isOwner = userId == 11761417 or userId == 530829101
 
 				if nameLbl then
-					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
-					if isOwner then
-						nameLbl.Text = "[OWNER] " .. tostring(username)
-					elseif isAdmin then
-						nameLbl.Text = "[ADMIN] " .. tostring(username)
-					else
-						nameLbl.Text = tostring(username)
+					local prefix = ""
+					if isHiddenUser then
+						prefix = prefix .. "[HIDDEN] "
 					end
+					if isOwner then
+						prefix = prefix .. "[OWNER] "
+					elseif isAdmin then
+						prefix = prefix .. "[ADMIN] "
+					end
+
+					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
+					if isHiddenUser then
+						nameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
+					end
+					nameLbl.Text = prefix .. tostring(username)
 				end
 
 				if gameLbl then
 					gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-					gameLbl.Text = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+					local line = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
+					if activityHidden then
+						line = line .. " (activity hidden)"
+					end
+					if isHiddenUser then
+						line = line .. " (invisible)"
+					end
+					gameLbl.Text = line
 				end
 
 				local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
@@ -43753,6 +44348,7 @@ originalIO.runNACHAT=function()
 				if not canJoin or isSelf then
 					if joinBtn then
 						joinBtn:Destroy()
+						joinBtn = nil
 					end
 				else
 					if not joinBtn then
@@ -43788,6 +44384,7 @@ originalIO.runNACHAT=function()
 						end)
 					end
 				end
+				local hasJoin = joinBtn ~= nil
 
 				-- DM button
 				local dmBtn = fr:FindFirstChild("DMButton")
@@ -43820,6 +44417,11 @@ originalIO.runNACHAT=function()
 								originalIO.setStatus(("NA Chat: DM -> %s"):format(uname), STATUS_COLORS.blue)
 							end
 						end)
+					end
+					if hasJoin then
+						dmBtn.Position = UDim2.new(1, -150, 0.5, -12)
+					else
+						dmBtn.Position = UDim2.new(1, -65, 0.5, -12)
 					end
 				end
 
@@ -43897,11 +44499,8 @@ originalIO.runNACHAT=function()
 			end
 			if newHidden then
 				updateUsersList({})
-			elseif NAChat.activeTab == "users" and NAChat.service and NAChat.service.GetUsers then
-				if not usersFetchInFlight then
-					usersFetchInFlight = true
-					NAChat.service.GetUsers()
-				end
+			elseif NAChat.activeTab == "users" then
+				requestUsersList()
 			end
 			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
 				NAChat.service.SetHidden(newHidden)
@@ -43930,11 +44529,8 @@ originalIO.runNACHAT=function()
 			if tab == "users" then
 				if NAChat.isHidden then
 					updateUsersList({})
-				elseif NAChat.service and NAChat.service.GetUsers then
-					if not usersFetchInFlight then
-						usersFetchInFlight = true
-						NAChat.service.GetUsers()
-					end
+				else
+					requestUsersList()
 				end
 			end
 		end
@@ -44114,7 +44710,7 @@ originalIO.runNACHAT=function()
 					if toName == me then
 						label = ("[DM FROM %s]: %s"):format(fromName, base)
 						local chatVisible = chatFrame and chatFrame.Visible
-						if not chatVisible then
+						if not chatVisible and isDmNotifyEnabled() then
 							local function openChatView()
 								if chatTab then
 									switchTab("chat")
@@ -44169,7 +44765,61 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
+			if NAChat.service.OnNotify then
+				NAChat.service.OnNotify.Event:Connect(function(fromName, text, duration)
+					fromName = tostring(fromName or "Admin")
+					local msgText = tostring(text or "")
+					local dur = tonumber(duration) or 5
+
+					local title = ("Notify from %s"):format(fromName)
+
+					if type(DoNotif) == "function" then
+						DoNotif(msgText, dur, title)
+					elseif type(Notify) == "function" then
+						Notify({ Title = title, Description = msgText, Duration = dur })
+					else
+						makeChatLabel(("[Notify] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+					end
+				end)
+			end
+
+			if NAChat.service.OnNotify2 then
+				NAChat.service.OnNotify2.Event:Connect(function(fromName, text)
+					fromName = tostring(fromName or "Admin")
+					local msgText = tostring(text or "")
+					local title = ("Window from %s"):format(fromName)
+
+					if type(DoWindow) == "function" then
+						DoWindow(msgText, title)
+					elseif type(Window) == "function" then
+						Window({ Title = title, Description = msgText })
+					else
+						makeChatLabel(("[Window] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+					end
+				end)
+			end
+
+			if NAChat.service.OnNotify3 then
+				NAChat.service.OnNotify3.Event:Connect(function(fromName, text)
+					fromName = tostring(fromName or "Admin")
+					local msgText = tostring(text or "")
+					local title = ("Popup from %s"):format(fromName)
+
+					if type(DoPopup) == "function" then
+						DoPopup(msgText, title)
+					elseif type(Popup) == "function" then
+						Popup({ Title = title, Description = msgText })
+					else
+						makeChatLabel(("[Popup] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+					end
+				end)
+			end
+
 			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
+				if NAChat.serverIsAdmin and NAChat.service and NAChat.service.OnUserListUpdateAdmin then
+					usersFetchInFlight = false
+					return
+				end
 				NAChat.users = list or {}
 				usersFetchInFlight = false
 
@@ -44225,6 +44875,68 @@ originalIO.runNACHAT=function()
 				end
 			end)
 
+			if NAChat.service.OnUserListUpdateAdmin then
+				NAChat.service.OnUserListUpdateAdmin.Event:Connect(function(list)
+					if not NAChat.serverIsAdmin then
+						usersFetchInFlight = false
+						return
+					end
+					NAChat.users = list or {}
+					usersFetchInFlight = false
+
+					local newSig = makeUserSignature(NAChat.users)
+					local changed = (newSig ~= lastUserSig)
+					lastUserSig = newSig
+
+					refreshStatus()
+
+					local newSet = buildServerSet(NAChat.users)
+
+					if not serverUsersInit then
+						serverUsers = newSet
+						serverUsersInit = true
+					else
+						for uid, name in pairs(newSet) do
+							if not serverUsers[uid] then
+								if DoNotif then
+									DoNotif(("NA Chat: %s joined your server."):format(name), 5)
+								else
+									makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+								end
+							end
+						end
+						serverUsers = newSet
+					end
+
+					if NAChat.currentDMTarget then
+						local stillHere = false
+						for _, info in ipairs(NAChat.users or {}) do
+							if type(info) == "table" then
+								local uname = tostring(info.username or "")
+								if uname == NAChat.currentDMTarget then
+									stillHere = true
+									break
+								end
+							end
+						end
+						if not stillHere then
+							local hadTarget = NAChat.currentDMTarget ~= nil
+							NAChat.currentDMTarget = nil
+							if inputBox then
+								inputBox.PlaceholderText = "Send a message (/w name)..."
+							end
+							if hadTarget then
+								originalIO.setStatus("NA Chat: DM target left", STATUS_COLORS.info)
+							end
+						end
+					end
+
+					if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
+						updateUsersList(NAChat.users)
+					end
+				end)
+			end
+
 			if NAChat.service.OnRemoteCommand then
 				NAChat.service.OnRemoteCommand.Event:Connect(function(fromId, fromName, argList, target)
 					local lp = Players.LocalPlayer
@@ -44267,14 +44979,13 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden)
+			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden, _, isAdmin)
 				NAChat.connecting = false
+				NAChat.serverIsAdmin = (isAdmin == true)
 				NAChat.isHidden = hidden or false
 				originalIO.setHiddenState(NAChat.isHidden, true)
 				makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
-				if not NAChat.isHidden and NAChat.service and NAChat.service.GetUsers then
-					NAChat.service.GetUsers()
-				end
+				requestUsersList()
 				refreshStatus()
 			end)
 
@@ -44435,44 +45146,50 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			if t == "/w" or t == "/w off" or t == "/dm off" then
+			local low = Lower(t)
+
+			if low == "/w" or low == "/whisper" or low == "/dm" or low == "/w off" or low == "/whisper off" or low == "/dm off" then
 				clearDMTarget("NA Chat: DM cleared")
 				clearTyping()
 				return
 			end
 
-			local shortTarget = t:match("^/w%s+(%S+)$")
+			local shortTarget = t:match("^/%a+%s+(%S+)$")
 			if shortTarget then
-				local resolved = findUserByPrefix(shortTarget)
-				if resolved then
-					NAChat.currentDMTarget = resolved
-					if inputBox then
-						inputBox.PlaceholderText = ("DM to %s..."):format(resolved)
+				local cmdName = (t:match("^/(%a+)%s+") or ""):lower()
+				if cmdName == "w" or cmdName == "whisper" or cmdName == "dm" then
+					local resolved = findUserByPrefix(shortTarget)
+					if resolved then
+						NAChat.currentDMTarget = resolved
+						if inputBox then
+							inputBox.PlaceholderText = ("DM to %s..."):format(resolved)
+						end
+						originalIO.setStatus(("NA Chat: DM -> %s"):format(resolved), STATUS_COLORS.blue)
+					else
+						originalIO.setStatus(("NA Chat: user '%s' not found"):format(shortTarget), STATUS_COLORS.err)
 					end
-					originalIO.setStatus(("NA Chat: DM -> %s"):format(resolved), STATUS_COLORS.blue)
-				else
-					originalIO.setStatus(("NA Chat: user '%s' not found"):format(shortTarget), STATUS_COLORS.err)
+					clearTyping()
+					return
 				end
-				clearTyping()
-				return
 			end
 
-			if not (NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected()) then
-				connect()
-				originalIO.setStatus("NA Chat: reconnecting...", STATUS_COLORS.info)
-			end
-
-			local ok = true
-
-			-- command-style shortcuts
-			local dmTarget, dmMsg = t:match("^/w%s+(%S+)%s+(.+)$")
-			if dmTarget and dmMsg and NAChat.service and NAChat.service.SendPrivateMessage then
-				local resolved = findUserByPrefix(dmTarget) or dmTarget
-				ok = NAChat.service.SendPrivateMessage(resolved, dmMsg)
-			elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
-				ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
-			elseif NAChat.service and NAChat.service.SendMessage then
-				ok = NAChat.service.SendMessage(t)
+			local dmTarget, dmMsg = t:match("^/%a+%s+(%S+)%s+(.+)$")
+			if dmTarget and dmMsg then
+				local cmdName = (t:match("^/(%a+)%s+") or ""):lower()
+				if (cmdName == "w" or cmdName == "whisper" or cmdName == "dm") and NAChat.service and NAChat.service.SendPrivateMessage then
+					local resolved = findUserByPrefix(dmTarget) or dmTarget
+					ok = NAChat.service.SendPrivateMessage(resolved, dmMsg)
+				elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
+					ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
+				elseif NAChat.service and NAChat.service.SendMessage then
+					ok = NAChat.service.SendMessage(t)
+				end
+			else
+				if NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
+					ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
+				elseif NAChat.service and NAChat.service.SendMessage then
+					ok = NAChat.service.SendMessage(t)
+				end
 			end
 
 			if not ok then
@@ -44581,6 +45298,28 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
+		if dmNotifBtn then
+			local function refreshDmNotifButton()
+				local enabled = isDmNotifyEnabled()
+				dmNotifBtn.Text = enabled and "DM Notifs On" or "DM Notifs Off"
+				dmNotifBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
+			end
+
+			refreshDmNotifButton()
+
+			MouseButtonFix(dmNotifBtn, function()
+				local settings = NAmanage.NASettingsEnsure()
+				local current = settings.naChatDmNotify
+				if type(current) ~= "boolean" then
+					current = true
+				end
+				settings.naChatDmNotify = not current
+				NAStuff.dmNotificationsEnabled = settings.naChatDmNotify
+				NAmanage.NASettingsSave()
+				refreshDmNotifButton()
+			end)
+		end
+
 		Spawn(function()
 			while true do
 				Wait(1)
@@ -44589,10 +45328,7 @@ originalIO.runNACHAT=function()
 
 				local svc = NAChat.service
 				if svc and svc.IsConnected and svc.IsConnected() and not NAChat.isHidden then
-					if not usersFetchInFlight and svc.GetUsers then
-						usersFetchInFlight = true
-						svc.GetUsers()
-					end
+					requestUsersList()
 				end
 			end
 		end)
@@ -44623,31 +45359,31 @@ originalIO.runNACHAT=function()
 		end
 
 		local function findTargets(spec)
-            spec = Lower(tostring(spec or ""))
-            if spec == "" then
-                return nil
-            end
+			spec = Lower(tostring(spec or ""))
+			if spec == "" then
+				return nil
+			end
 
-            if spec == "all" or spec == "*" then
-                return "all"
-            end
+			if spec == "all" or spec == "*" then
+				return "all"
+			end
 
-            local matchId = nil
-            local len = #spec
+			local matchId = nil
+			local len = #spec
 
-            for _, info in ipairs(NAChat.users or {}) do
-                if type(info) == "table" then
-                    local uname = Lower(tostring(info.username or ""))
-                    local uid = tonumber(info.userId)
-                    if uid and Sub(uname, 1, len) == spec then
-                        matchId = uid
-                        break
-                    end
-                end
-            end
+			for _, info in ipairs(NAChat.users or {}) do
+				if type(info) == "table" then
+					local uname = Lower(tostring(info.username or ""))
+					local uid = tonumber(info.userId)
+					if uid and Sub(uname, 1, len) == spec then
+						matchId = uid
+						break
+					end
+				end
+			end
 
-            return matchId
-        end
+			return matchId
+		end
 
 		if isLocalAdmin() then
 			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
@@ -44684,6 +45420,91 @@ originalIO.runNACHAT=function()
 
 				local msg = table.concat(parts, " ")
 				svc.SendAnnouncement(msg)
+			end, true)
+
+			cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a Notify to NA Chat user(s)"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
+					return
+				end
+
+				local parts = { ... }
+				if #parts == 0 then
+					return
+				end
+
+				local target = findTargets(targetSpec)
+				if not target then
+					return
+				end
+
+				local duration = 5
+				local msgStart = 1
+				local maybeDur = tonumber(parts[1])
+				if maybeDur and #parts >= 2 then
+					duration = maybeDur
+					msgStart = 2
+				end
+
+				local msgParts = {}
+				for i = msgStart, #parts do
+					msgParts[#msgParts + 1] = tostring(parts[i])
+				end
+
+				local msg = table.concat(msgParts, " ")
+				if msg == "" then
+					return
+				end
+
+				svc.SendNotify(target, msg, duration)
+			end, true)
+
+			cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a Window to NA Chat user(s)"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
+					return
+				end
+
+				local parts = { ... }
+				if #parts == 0 then
+					return
+				end
+
+				local target = findTargets(targetSpec)
+				if not target then
+					return
+				end
+
+				local msg = table.concat(parts, " ")
+				if msg == "" then
+					return
+				end
+
+				svc.SendNotify2(target, msg)
+			end, true)
+
+			cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a Popup to NA Chat user(s)"}, function(targetSpec, ...)
+				local svc = NAChat.service
+				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
+					return
+				end
+
+				local parts = { ... }
+				if #parts == 0 then
+					return
+				end
+
+				local target = findTargets(targetSpec)
+				if not target then
+					return
+				end
+
+				local msg = table.concat(parts, " ")
+				if msg == "" then
+					return
+				end
+
+				svc.SendNotify3(target, msg)
 			end, true)
 		end
 
@@ -48219,6 +49040,22 @@ if not IsOnMobile then
 			"TFly keybind set to '%s'",
 			"Please provide a key."
 			))
+
+		NAgui.addSection("Command Keybinds")
+		NAgui.addButton("Open Command Keybinds", function()
+			NAgui.setTab(TAB_COMMAND_KEYBINDS)
+			Defer(function()
+				NAmanage.CommandKeybindsUIRefresh()
+			end)
+		end)
+
+		local prevTab = NAgui.getActiveTab()
+		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 6.5, textIcon = "xbox-a" })
+		NAgui.setTab(TAB_COMMAND_KEYBINDS)
+		NAmanage.CommandKeybindsUIInit()
+		NAmanage.CommandKeybindsUIWire()
+		NAmanage.CommandKeybindsUIRefresh()
+		NAgui.setTab(prevTab)
 	end
 end
 
