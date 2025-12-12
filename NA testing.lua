@@ -46157,7 +46157,6 @@ originalIO.runNACHAT=function()
 		originalIO.setHiddenState(initialHidden, true)
 		connect()
 	end
-end
 originalIO.runNACHAT()
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
