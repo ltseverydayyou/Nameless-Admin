@@ -38338,6 +38338,9 @@ local NAUIMANAGER = {
 	NAchatStatusLabel    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatStatus");
+	NAchatReconnectButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
+		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ReconnectButton");
 	NAchatChatTab        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
 		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("ChatTab");
@@ -43877,6 +43880,7 @@ originalIO.runNACHAT=function()
 	local sendBtn = NAUIMANAGER and NAUIMANAGER.NAchatSendButton
 	local clearBtn = NAUIMANAGER and NAUIMANAGER.NAchatClearButton
 	local statusLabel = NAUIMANAGER and NAUIMANAGER.NAchatStatusLabel
+	local reconnectBtn = NAUIMANAGER and NAUIMANAGER.NAchatReconnectButton
 	local chatTab = NAUIMANAGER and NAUIMANAGER.NAchatChatTab
 	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
 	local adminTab = nil
@@ -45375,6 +45379,20 @@ originalIO.runNACHAT=function()
 						v:Destroy()
 					end
 				end
+			end)
+		end
+
+		if reconnectBtn and MouseButtonFix then
+			MouseButtonFix(reconnectBtn, function()
+				local svc = NAChat.service
+				if svc and svc.Disconnect then
+					pcall(svc.Disconnect)
+				end
+				NAChat.service = nil
+				NAChat.wired = false
+				NAChat.connecting = false
+				NAChat.serverIsAdmin = false
+				connect()
 			end)
 		end
 

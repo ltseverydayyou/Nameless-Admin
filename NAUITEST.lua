@@ -272,6 +272,21 @@ G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
 G2L["nd2"]["Padding"] = UDim.new(0, 8);
 G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Top;
 
+G2L["ndAdmin"] = Instance.new("TextButton", G2L["ncf"]);
+G2L["ndAdmin"]["BorderSizePixel"] = 0;
+G2L["ndAdmin"]["TextSize"] = 14;
+G2L["ndAdmin"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndAdmin"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["ndAdmin"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["ndAdmin"]["BackgroundTransparency"] = 0.1;
+G2L["ndAdmin"]["Size"] = UDim2.new(0, 80, 0, 30);
+G2L["ndAdmin"]["Text"] = [[Admin]];
+G2L["ndAdmin"]["Name"] = [[AdminTab]];
+G2L["ndAdmin"]["LayoutOrder"] = 0;
+
+G2L["ndAdminCorner"] = Instance.new("UICorner", G2L["ndAdmin"]);
+G2L["ndAdminCorner"]["CornerRadius"] = UDim.new(0, 6);
+
 
 G2L["nd3"] = Instance.new("TextButton", G2L["ncf"]);
 G2L["nd3"]["BorderSizePixel"] = 0;
@@ -283,6 +298,7 @@ G2L["nd3"]["BackgroundTransparency"] = 0.1;
 G2L["nd3"]["Size"] = UDim2.new(0, 80, 0, 30);
 G2L["nd3"]["Text"] = [[Chat]];
 G2L["nd3"]["Name"] = [[ChatTab]];
+G2L["nd3"]["LayoutOrder"] = 1;
 
 
 G2L["nd4"] = Instance.new("UICorner", G2L["nd3"]);
@@ -299,6 +315,7 @@ G2L["nd5"]["BackgroundTransparency"] = 0.1;
 G2L["nd5"]["Size"] = UDim2.new(0, 80, 0, 30);
 G2L["nd5"]["Text"] = [[Users]];
 G2L["nd5"]["Name"] = [[UsersTab]];
+G2L["nd5"]["LayoutOrder"] = 2;
 
 
 G2L["nd6"] = Instance.new("UICorner", G2L["nd5"]);
@@ -315,6 +332,7 @@ G2L["nd7"]["BackgroundTransparency"] = 0.1;
 G2L["nd7"]["Size"] = UDim2.new(0, 90, 0, 30);
 G2L["nd7"]["Text"] = [[Visible]];
 G2L["nd7"]["Name"] = [[Visibility]];
+G2L["nd7"]["LayoutOrder"] = 4;
 
 
 G2L["nd8"] = Instance.new("UICorner", G2L["nd7"]);
@@ -331,6 +349,7 @@ G2L["nd7b"]["BackgroundTransparency"] = 0.1;
 G2L["nd7b"]["Size"] = UDim2.new(0, 110, 0, 30);
 G2L["nd7b"]["Text"] = [[Game Activity On]];
 G2L["nd7b"]["Name"] = [[GameActivity]];
+G2L["nd7b"]["LayoutOrder"] = 5;
 
 
 G2L["nd8b"] = Instance.new("UICorner", G2L["nd7b"]);
@@ -347,6 +366,7 @@ G2L["nd7c"]["BackgroundTransparency"] = 0.1;
 G2L["nd7c"]["Size"] = UDim2.new(0, 120, 0, 30);
 G2L["nd7c"]["Text"] = [[DM Notifs On]];
 G2L["nd7c"]["Name"] = [[DMNotifs]];
+G2L["nd7c"]["LayoutOrder"] = 3;
 
 
 G2L["nd8c"] = Instance.new("UICorner", G2L["nd7c"]);
@@ -474,7 +494,7 @@ G2L["ndk"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enu
 G2L["ndk"]["TextColor3"] = Color3.fromRGB(214, 214, 224);
 G2L["ndk"]["BackgroundTransparency"] = 1;
 G2L["ndk"]["AnchorPoint"] = Vector2.new(0, 0);
-G2L["ndk"]["Size"] = UDim2.new(1, -12, 0, 14);
+G2L["ndk"]["Size"] = UDim2.new(1, -86, 0, 14);
 G2L["ndk"]["Text"] = [[NA Chat: Connecting...]];
 G2L["ndk"]["Name"] = [[ChatStatus]];
 G2L["ndk"]["Position"] = UDim2.new(0, 6, 0, 6);
@@ -505,6 +525,22 @@ G2L["ndn"] = Instance.new("UIStroke", G2L["ndl"]);
 G2L["ndn"]["ApplyStrokeMode"] = Enum.ApplyStrokeMode.Border;
 G2L["ndn"]["Thickness"] = 2;
 G2L["ndn"]["Color"] = Color3.fromRGB(154, 99, 255);
+
+G2L["ndReconnect"] = Instance.new("TextButton", G2L["ndh"]);
+G2L["ndReconnect"]["BorderSizePixel"] = 0;
+G2L["ndReconnect"]["TextSize"] = 12;
+G2L["ndReconnect"]["TextColor3"] = Color3.fromRGB(234, 234, 244);
+G2L["ndReconnect"]["BackgroundColor3"] = Color3.fromRGB(54, 54, 64);
+G2L["ndReconnect"]["FontFace"] = Font.new([[rbxasset://fonts/families/Roboto.json]], Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
+G2L["ndReconnect"]["BackgroundTransparency"] = 0.1;
+G2L["ndReconnect"]["AnchorPoint"] = Vector2.new(1, 0);
+G2L["ndReconnect"]["Size"] = UDim2.new(0, 72, 0, 18);
+G2L["ndReconnect"]["Position"] = UDim2.new(1, -6, 0, 6);
+G2L["ndReconnect"]["Text"] = [[Reconnect]];
+G2L["ndReconnect"]["Name"] = [[ReconnectButton]];
+
+G2L["ndReconnectCorner"] = Instance.new("UICorner", G2L["ndReconnect"]);
+G2L["ndReconnectCorner"]["CornerRadius"] = UDim.new(0, 6);
 
 
 G2L["ndu"] = Instance.new("TextBox", G2L["nc1"]);
