@@ -269,6 +269,7 @@ G2L["nd1"]["Color"] = Color3.fromRGB(154, 99, 255);
 G2L["nd2"] = Instance.new("UIListLayout", G2L["ncf"]);
 G2L["nd2"]["FillDirection"] = Enum.FillDirection.Horizontal;
 G2L["nd2"]["HorizontalAlignment"] = Enum.HorizontalAlignment.Left;
+G2L["nd2"]["SortOrder"] = Enum.SortOrder.LayoutOrder;
 G2L["nd2"]["Padding"] = UDim.new(0, 8);
 G2L["nd2"]["VerticalAlignment"] = Enum.VerticalAlignment.Top;
 
