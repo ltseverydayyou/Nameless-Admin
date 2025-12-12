@@ -45544,19 +45544,8 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			if not adminTab then
-				if usersTab and usersTab.Parent then
-					local existing = usersTab.Parent:FindFirstChild("AdminTab")
-					if existing then
-						adminTab = existing
-					else
-						adminTab = usersTab:Clone()
-						adminTab.Name = "AdminTab"
-						adminTab.Text = "Admin"
-						adminTab.LayoutOrder = (usersTab.LayoutOrder or 0) + 1
-						adminTab.Parent = usersTab.Parent
-					end
-				end
+			if not adminTab and usersTab and usersTab.Parent then
+				adminTab = usersTab.Parent:FindFirstChild("AdminTab")
 			end
 
 			if not adminFrame then
@@ -45942,11 +45931,26 @@ originalIO.runNACHAT=function()
 
 		if isLocalAdmin() then
 			ensureAdminTabUI()
-			if adminTab and MouseButtonFix then
-				MouseButtonFix(adminTab, function()
-					switchTab("admin")
-				end)
+			if adminTab then
+				adminTab.Visible = true
+				if MouseButtonFix then
+					MouseButtonFix(adminTab, function()
+						switchTab("admin")
+					end)
+				end
 			end
+		else
+			local tabsContainer = chatFrame and chatFrame:FindFirstChild("Tabs")
+			local tab = tabsContainer and tabsContainer:FindFirstChild("AdminTab")
+			if tab then
+				tab.Visible = false
+			end
+			if adminFrame then
+				adminFrame.Visible = false
+			end
+			adminTab = nil
+			adminFrame = nil
+		end
 
 			local chatTopbar = chatFrame and chatFrame:FindFirstChild("Topbar")
 
