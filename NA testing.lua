@@ -42823,6 +42823,25 @@ originalIO.naTransLatooor=function()
 		end
 	end
 
+	local function normalizeRichTextEntities(text)
+		text = tostring(text or "")
+		if text == "" then
+			return text
+		end
+		text = text:gsub("&amp;lt;", "&lt;")
+		text = text:gsub("&amp;gt;", "&gt;")
+		text = text:gsub("&amp;quot;", "&quot;")
+		text = text:gsub("&amp;apos;", "&apos;")
+		text = text:gsub("&amp;amp;", "&amp;")
+		return text
+	end
+
+	local function escapeForRichText(text)
+		local raw = tostring(text or "")
+		local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
+		return normalizeRichTextEntities(safe)
+	end
+
 	function translator:isEnabled()
 		return self.enabled == true
 	end
@@ -42838,6 +42857,44 @@ originalIO.naTransLatooor=function()
 				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
 				self.button.TextColor3 = Color3.fromRGB(178, 178, 188)
 			end
+		end
+
+		local function normalizeRichTextEntities(text)
+			text = tostring(text or "")
+			if text == "" then
+				return text
+			end
+			text = text:gsub("&amp;lt;", "&lt;")
+			text = text:gsub("&amp;gt;", "&gt;")
+			text = text:gsub("&amp;quot;", "&quot;")
+			text = text:gsub("&amp;apos;", "&apos;")
+			text = text:gsub("&amp;amp;", "&amp;")
+			return text
+		end
+
+		local function escapeForRichText(text)
+			local raw = tostring(text or "")
+			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
+			return normalizeRichTextEntities(safe)
+		end
+
+		local function normalizeRichTextEntities(text)
+			text = tostring(text or "")
+			if text == "" then
+				return text
+			end
+			text = text:gsub("&amp;lt;", "&lt;")
+			text = text:gsub("&amp;gt;", "&gt;")
+			text = text:gsub("&amp;quot;", "&quot;")
+			text = text:gsub("&amp;apos;", "&apos;")
+			text = text:gsub("&amp;amp;", "&amp;")
+			return text
+		end
+
+		local function escapeForRichText(text)
+			local raw = tostring(text or "")
+			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
+			return normalizeRichTextEntities(safe)
 		end
 		if self.input and not self.input:IsFocused() then
 			self.input.Text = string.upper(self.target or "EN")
@@ -42879,9 +42936,9 @@ originalIO.naTransLatooor=function()
 			self.messages[label] = nil
 			return
 		end
-		local text = info.base or ""
+		local text = normalizeRichTextEntities(info.base or "")
 		if self:isEnabled() and info.translationLine then
-			text = text.."\n"..info.translationLine
+			text = text.."\n"..normalizeRichTextEntities(info.translationLine)
 		end
 		label.Text = text
 		resizeLabel(label)
@@ -42914,7 +42971,7 @@ originalIO.naTransLatooor=function()
 			end
 			local code = NAmanage.iso2(detected) or detected or "AUTO"
 			local tag = tostring(code):upper()
-			info.translationLine = ("[%s] %s"):format(self.target:upper(), translated)
+			info.translationLine = ("[%s] %s"):format(self.target:upper(), escapeForRichText(translated))
 			info.detected = tag
 			self:applyDisplay(info)
 		end)
@@ -43308,6 +43365,25 @@ originalIO.naCHATtrans=function()
 		end
 	end
 
+	local function normalizeRichTextEntities(text)
+		text = tostring(text or "")
+		if text == "" then
+			return text
+		end
+		text = text:gsub("&amp;lt;", "&lt;")
+		text = text:gsub("&amp;gt;", "&gt;")
+		text = text:gsub("&amp;quot;", "&quot;")
+		text = text:gsub("&amp;apos;", "&apos;")
+		text = text:gsub("&amp;amp;", "&amp;")
+		return text
+	end
+
+	local function escapeForRichText(text)
+		local raw = tostring(text or "")
+		local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
+		return normalizeRichTextEntities(safe)
+	end
+
 	function translator:isEnabled()
 		return self.enabled == true
 	end
@@ -43373,7 +43449,7 @@ originalIO.naCHATtrans=function()
 		end
 
 		local lbl = info.label
-		local base = info.base or ""
+		local base = normalizeRichTextEntities(info.base or "")
 
 		if not self:isEnabled() or not info.translationLine then
 			lbl.Text = base
@@ -43388,7 +43464,8 @@ originalIO.naCHATtrans=function()
 		local tgt = line.target or ""
 
 		if tr ~= "" then
-			text = base.."\n<font color=\"#A0FFA0\">[TR "..string.upper(src or "?").."→"..string.upper(tgt or "?").."]: "..tr.."</font>"
+			local safeTr = escapeForRichText(tr)
+			text = base.."\n<font color=\"#A0FFA0\">[TR "..string.upper(src or "?").."→"..string.upper(tgt or "?").."]: "..safeTr.."</font>"
 		end
 
 		lbl.Text = text
@@ -44112,21 +44189,199 @@ originalIO.runNACHAT=function()
 	local adminTab = nil
 	local adminFrame = nil
 	local adminFrameUpdateBanList = nil
+	local adminListTickerActive = false
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
 
-		if chatFrame then
-			local NAChat = {
-				service = nil,
-				connecting = false,
-				wired = false,
-				isHidden = false,
-				serverIsAdmin = false,
-				activeTab = "chat",
-				users = {},
-				currentDMTarget = nil,
-			}
+	if chatFrame then
+		local NAChat = {
+			service = nil,
+			connecting = false,
+			wired = false,
+			isHidden = false,
+			serverIsAdmin = false,
+			activeTab = "chat",
+			users = {},
+			currentDMTarget = nil,
+		}
+
+		local function getUIScale()
+			local scaleObj = NAUIMANAGER and NAUIMANAGER.AUTOSCALER
+			local scale = (scaleObj and tonumber(scaleObj.Scale)) or 1
+			if not scale or scale <= 0 then
+				scale = 1
+			end
+			return scale
+		end
+
+		local function scrollMetrics(scrollFrame)
+			if not scrollFrame then
+				return 0, 0, 0, getUIScale()
+			end
+
+			local scale = getUIScale()
+
+			local canvasY = 0
+			pcall(function()
+				local cs = scrollFrame.CanvasSize
+				canvasY = (cs and cs.Y and cs.Y.Offset) or 0
+			end)
+			if canvasY <= 0 then
+				pcall(function()
+					local absCanvas = scrollFrame.AbsoluteCanvasSize
+					if typeof(absCanvas) == "Vector2" then
+						canvasY = absCanvas.Y / scale
+					end
+				end)
+			end
+
+			local windowY = 0
+			pcall(function()
+				local absWindow = scrollFrame.AbsoluteWindowSize
+				if typeof(absWindow) == "Vector2" then
+					windowY = absWindow.Y / scale
+				end
+			end)
+			if windowY <= 0 then
+				pcall(function()
+					local absSize = scrollFrame.AbsoluteSize
+					if typeof(absSize) == "Vector2" then
+						windowY = absSize.Y / scale
+					end
+				end)
+			end
+
+			local currentY = 0
+			pcall(function()
+				currentY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
+			end)
+
+			return canvasY, windowY, currentY, scale
+		end
+
+		local function shouldAutoScroll(scrollFrame)
+			local canvasY, windowY, currentY, scale = scrollMetrics(scrollFrame)
+			if canvasY <= 0 or windowY <= 0 then
+				return true
+			end
+
+			local threshold = 8 / scale
+			if canvasY <= windowY + (1 / scale) then
+				return true
+			end
+
+			local distanceFromBottom = canvasY - (currentY + windowY)
+			return distanceFromBottom <= threshold
+		end
+
+		local scrollSt = setmetatable({}, { __mode = "k" })
+
+		local function bindAutoScroll(sf, layout)
+			if not sf or not layout or sf:GetAttribute("NAChatAutoBound") then
+				return
+			end
+			sf:SetAttribute("NAChatAutoBound", true)
+
+			scrollSt[sf] = { locked = false, prog = false }
+
+			local function upd()
+				if not (sf and sf.Parent and layout and layout.Parent) then
+					return
+				end
+				local y = 0
+				pcall(function()
+					y = layout.AbsoluteContentSize.Y
+				end)
+				sf.CanvasSize = UDim2.new(0, 0, 0, y + 8)
+			end
+
+			upd()
+			layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(upd)
+
+			sf:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+				local st = scrollSt[sf]
+				if not st or st.prog then
+					return
+				end
+
+				local canvasY, windowY, currentY, scale = scrollMetrics(sf)
+				if canvasY <= 0 or windowY <= 0 then
+					st.locked = false
+					return
+				end
+
+				local th = 14 / (scale > 0 and scale or 1)
+				local dist = canvasY - (currentY + windowY)
+				st.locked = dist > th
+			end)
+		end
+
+		local function canAutoScroll(sf)
+			local st = sf and scrollSt[sf]
+			return not (st and st.locked)
+		end
+
+		local function scrollToBottom(scrollFrame)
+			if not scrollFrame or not canAutoScroll(scrollFrame) then
+				return
+			end
+
+			local st = scrollSt[scrollFrame]
+			if st then
+				st.prog = true
+			end
+
+			local canvasY, windowY = scrollMetrics(scrollFrame)
+			local targetY = math.max(0, canvasY - windowY)
+			scrollFrame.CanvasPosition = Vector2.new(0, targetY)
+
+			if st then
+				Defer(function()
+					Wait()
+					if scrollFrame and scrollFrame.Parent then
+						st.prog = false
+					end
+				end)
+			end
+		end
+
+		local function scrollToBottomSoon(scrollFrame)
+			if not scrollFrame or not canAutoScroll(scrollFrame) then
+				return
+			end
+
+			local scheduledY = 0
+			pcall(function()
+				scheduledY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
+			end)
+
+			Defer(function()
+				if not (scrollFrame and scrollFrame.Parent) then
+					return
+				end
+				Wait()
+				if not (scrollFrame and scrollFrame.Parent) then
+					return
+				end
+				if not canAutoScroll(scrollFrame) then
+					return
+				end
+
+				local currentY = 0
+				pcall(function()
+					currentY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
+				end)
+
+				local _, _, _, scale = scrollMetrics(scrollFrame)
+				local cancelDelta = 6 / (scale > 0 and scale or 1)
+				if currentY < (scheduledY - cancelDelta) then
+					return
+				end
+
+				scrollToBottom(scrollFrame)
+			end)
+		end
 		local permanentFailureReason = nil
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
@@ -44143,12 +44398,75 @@ originalIO.runNACHAT=function()
 			blue = Color3.fromRGB(120, 170, 255)
 		}
 
-		local typingUsers = {}
+		local typingUsersByName = {}
+		local typingUsersById = {}
+		local verifiedNameCache = {}
+		local verifiedNameFetchInFlight = {}
+		local queuedUsersRefresh = false
+		local queuedStatusRefresh = false
 		local mutedUsers = {}
 		local clearDMTarget
 		local mentionCooldowns = {}
 		local bannedFromChat = false
 		local banNoticeShown = false
+		local muteUntil = nil
+		local muteReason = nil
+		local muteCountdownActive = false
+
+		local function formatDurationSeconds(seconds)
+			local s = math.max(0, math.floor(tonumber(seconds) or 0))
+			if s < 60 then
+				return ("%ds"):format(s)
+			end
+			local m = math.floor(s / 60)
+			s = s % 60
+			if m < 60 then
+				return ("%dm%02ds"):format(m, s)
+			end
+			local h = math.floor(m / 60)
+			m = m % 60
+			return ("%dh%02dm%02ds"):format(h, m, s)
+		end
+
+		local function getMuteRemainingSeconds()
+			if type(muteUntil) ~= "number" then
+				return nil
+			end
+			local now = os.time()
+			if now >= muteUntil then
+				muteUntil = nil
+				muteReason = nil
+				return nil
+			end
+			return muteUntil - now
+		end
+
+		local function isMuteMessage(text)
+			local normalized = tostring(text or ""):lower()
+			return normalized ~= "" and normalized:find("muted") ~= nil and normalized:find("na chat") ~= nil
+		end
+
+		local function ensureMuteCountdown()
+			if muteCountdownActive then
+				return
+			end
+			if not getMuteRemainingSeconds() then
+				return
+			end
+			muteCountdownActive = true
+			Spawn(function()
+				while true do
+					local left = getMuteRemainingSeconds()
+					if not left then
+						break
+					end
+					refreshStatus()
+					Wait(1)
+				end
+				muteCountdownActive = false
+				refreshStatus()
+			end)
+		end
 
 		local function isBanMessage(text)
 			local normalized = tostring(text or ""):lower()
@@ -44175,6 +44493,9 @@ originalIO.runNACHAT=function()
 		}
 		local baseStatusText = "NA Chat: Connecting..."
 		local baseStatusColor = STATUS_COLORS.info
+		local updateStatusLabel
+		local updateUsersList
+		local refreshStatus
 
 		local function isDmNotifyEnabled()
 			local ok, settings = pcall(NAmanage.NASettingsEnsure)
@@ -44187,7 +44508,97 @@ originalIO.runNACHAT=function()
 			return true
 		end
 
-		local function updateStatusLabel()
+		local function queueUsersListRefresh()
+			if queuedUsersRefresh then
+				return
+			end
+			queuedUsersRefresh = true
+			Delay(0.15, function()
+				queuedUsersRefresh = false
+				if type(updateUsersList) == "function" and not NAChat.isHidden and NAChat.activeTab == "users" then
+					updateUsersList(NAChat.users or {})
+				end
+			end)
+		end
+
+		local function queueStatusLabelRefresh()
+			if queuedStatusRefresh then
+				return
+			end
+			queuedStatusRefresh = true
+			Delay(0.1, function()
+				queuedStatusRefresh = false
+				if type(updateStatusLabel) == "function" then
+					updateStatusLabel()
+				end
+			end)
+		end
+
+		local function getVerifiedUsernameCached(userId)
+			if type(userId) ~= "number" then
+				return nil
+			end
+			local cached = verifiedNameCache[userId]
+			if type(cached) == "string" and cached ~= "" then
+				return cached
+			end
+			return nil
+		end
+
+		local function fetchVerifiedUsernameAsync(userId)
+			if type(userId) ~= "number" or userId <= 0 then
+				return
+			end
+			if getVerifiedUsernameCached(userId) then
+				return
+			end
+			if verifiedNameFetchInFlight[userId] then
+				return
+			end
+			verifiedNameFetchInFlight[userId] = true
+			Spawn(function()
+				local ok, name = pcall(function()
+					return Players:GetNameFromUserIdAsync(userId)
+				end)
+				if ok and type(name) == "string" and name ~= "" then
+					verifiedNameCache[userId] = name
+				end
+				verifiedNameFetchInFlight[userId] = nil
+				queueUsersListRefresh()
+				queueStatusLabelRefresh()
+			end)
+		end
+
+		local function getVerifiedUsername(userId, fallback)
+			local cached = getVerifiedUsernameCached(userId)
+			if cached then
+				return cached
+			end
+			if type(userId) == "number" then
+				fetchVerifiedUsernameAsync(userId)
+			end
+			return fallback
+		end
+
+		local function getVerifiedUsernameBlocking(userId, fallback)
+			local cached = getVerifiedUsernameCached(userId)
+			if cached then
+				return cached
+			end
+			if type(userId) ~= "number" or userId <= 0 then
+				return fallback
+			end
+			local ok, name = pcall(function()
+				return Players:GetNameFromUserIdAsync(userId)
+			end)
+			if ok and type(name) == "string" and name ~= "" then
+				verifiedNameCache[userId] = name
+				return name
+			end
+			return fallback
+		end
+
+		updateStatusLabel = function()
 			if not statusLabel then
 				return
 			end
@@ -44195,11 +44606,29 @@ originalIO.runNACHAT=function()
 			local now = os.clock()
 			local names = {}
 
-			for name, expires in pairs(typingUsers) do
+			local seen = {}
+
+			for name, expires in pairs(typingUsersByName) do
 				if type(expires) ~= "number" or expires <= now then
-					typingUsers[name] = nil
+					typingUsersByName[name] = nil
 				else
-					Insert(names, tostring(name))
+					local display = tostring(name)
+					if display ~= "" and not seen[display] then
+						seen[display] = true
+						Insert(names, display)
+					end
+				end
+			end
+
+			for userId, expires in pairs(typingUsersById) do
+				if type(expires) ~= "number" or expires <= now then
+					typingUsersById[userId] = nil
+				else
+					local display = getVerifiedUsername(userId, tostring(userId))
+					if display ~= "" and not seen[display] then
+						seen[display] = true
+						Insert(names, display)
+					end
 				end
 			end
 
@@ -44209,18 +44638,31 @@ originalIO.runNACHAT=function()
 				if #names == 1 then
 					who = names[1]
 				elseif #names == 2 then
-					who = names[1] .. " and " .. names[2]
+					who = names[1].." and "..names[2]
 				else
-					who = names[1] .. " and others"
+					who = names[1].." and others"
 				end
 				if text ~= "" then
-					text = text .. "  •  "
+					text = text.."  •  "
 				end
-				text = text .. who .. " is typing..."
+				text = text..who.." is typing..."
 			end
 
 			statusLabel.Text = text
 			statusLabel.TextColor3 = baseStatusColor or statusLabel.TextColor3
+		end
+
+		local function normalizeRichTextEntities(text)
+			text = tostring(text or "")
+			if text == "" then
+				return text
+			end
+			text = text:gsub("&amp;lt;", "&lt;")
+			text = text:gsub("&amp;gt;", "&gt;")
+			text = text:gsub("&amp;quot;", "&quot;")
+			text = text:gsub("&amp;apos;", "&apos;")
+			text = text:gsub("&amp;amp;", "&amp;")
+			return text
 		end
 
 		local function formatMessageWithMentions(rawText)
@@ -44230,6 +44672,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(plain) or plain
+			safe = normalizeRichTextEntities(safe)
 
 			local lp = Players.LocalPlayer
 			if not lp then
@@ -44249,7 +44692,7 @@ originalIO.runNACHAT=function()
 				local namePart = token:sub(2)
 				if lowerNames[Lower(namePart)] then
 					wasMentioned = true
-					return '<font color="#FFD966">' .. token .. '</font>'
+					return '<font color="#FFD966">'..token..'</font>'
 				end
 				return token
 			end
@@ -44271,7 +44714,7 @@ originalIO.runNACHAT=function()
 			updateStatusLabel()
 		end
 
-		local function refreshStatus()
+		refreshStatus = function()
 			if not statusLabel then
 				return
 			end
@@ -44286,15 +44729,24 @@ originalIO.runNACHAT=function()
 				end
 			end
 
+			local muteLeft = getMuteRemainingSeconds()
+			local muteSuffix = ""
+			if muteLeft then
+				muteSuffix = " (muted "..formatDurationSeconds(muteLeft).." left)"
+				if type(muteReason) == "string" and muteReason ~= "" then
+					muteSuffix = muteSuffix.." - "..muteReason
+				end
+			end
+
 			if isConn then
 				local ct = #NAChat.users
 				if NAChat.isHidden then
-					originalIO.setStatus(("NA Chat: %d online (hidden)"):format(ct), STATUS_COLORS.ok)
+					originalIO.setStatus(("NA Chat: %d online (hidden)%s"):format(ct, muteSuffix), STATUS_COLORS.ok)
 				else
-					originalIO.setStatus(("NA Chat: %d online"):format(ct), STATUS_COLORS.ok)
+					originalIO.setStatus(("NA Chat: %d online%s"):format(ct, muteSuffix), STATUS_COLORS.ok)
 				end
 			elseif NAChat.isHidden then
-				originalIO.setStatus("NA Chat: Hidden", STATUS_COLORS.info)
+				originalIO.setStatus("NA Chat: Hidden"..muteSuffix, STATUS_COLORS.info)
 			elseif NAChat.connecting then
 				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
 			else
@@ -44302,21 +44754,10 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		local chatMessageOrder = 0
+
 		local function makeChatLabel(t, c, rawMessage)
-			local shouldAutoScroll = false
-			if chatScroll then
-				local contentY = chatScroll.AbsoluteCanvasSize.Y
-				local windowY = chatScroll.AbsoluteWindowSize.Y
-				local currentY = chatScroll.CanvasPosition.Y
-				if contentY <= windowY + 1 then
-					shouldAutoScroll = true
-				else
-					local distanceFromBottom = contentY - (currentY + windowY)
-					if distanceFromBottom <= 8 then
-						shouldAutoScroll = true
-					end
-				end
-			end
+			local doAutoScroll = chatScroll and canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
 
 			local lbl = InstanceNew("TextButton", chatScroll)
 			lbl.Size = UDim2.new(1, -6, 0, 24)
@@ -44329,7 +44770,8 @@ originalIO.runNACHAT=function()
 			lbl.RichText = true
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
 			lbl.TextYAlignment = Enum.TextYAlignment.Top
-			lbl.LayoutOrder = chatLayout and chatLayout.AbsoluteContentSize.Y or 0
+			chatMessageOrder += 1
+			lbl.LayoutOrder = chatMessageOrder
 			lbl.AutoButtonColor = false
 			lbl.Text = t
 
@@ -44364,11 +44806,8 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			if chatScroll and shouldAutoScroll then
-				local contentY = chatScroll.AbsoluteCanvasSize.Y
-				local windowY = chatScroll.AbsoluteWindowSize.Y
-				local targetY = math.max(0, contentY - windowY)
-				chatScroll.CanvasPosition = Vector2.new(0, targetY)
+			if chatScroll and doAutoScroll then
+				scrollToBottomSoon(chatScroll)
 			end
 
 			return lbl
@@ -44389,7 +44828,7 @@ originalIO.runNACHAT=function()
 					local uid = tonumber(info.userId)
 					local pid = tonumber(info.placeId)
 					local jid = tostring(info.jobId or "")
-					local name = tostring(info.username or "Unknown")
+					local name = getVerifiedUsername(uid, tostring(info.username or "Unknown"))
 
 					if uid and pid == myPlace and jid ~= "" and jid == myJob then
 						if not (lp and uid == lp.UserId) then
@@ -44447,28 +44886,21 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		local function updateUsersList(list)
+		updateUsersList = function(list)
 			if not usersScroll then
 				return
+			end
+
+			for _, child in ipairs(usersScroll:GetChildren()) do
+				if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
+					child:Destroy()
+				end
 			end
 
 			usersUpdateGeneration += 1
 			local myGeneration = usersUpdateGeneration
 
-			local shouldAutoScroll = false
-			if usersScroll then
-				local contentY = usersScroll.AbsoluteCanvasSize.Y
-				local windowY = usersScroll.AbsoluteWindowSize.Y
-				local currentY = usersScroll.CanvasPosition.Y
-				if contentY <= windowY + 1 then
-					shouldAutoScroll = true
-				else
-					local distanceFromBottom = contentY - (currentY + windowY)
-					if distanceFromBottom <= 8 then
-						shouldAutoScroll = true
-					end
-				end
-			end
+			local doAutoScroll = usersScroll and shouldAutoScroll(usersScroll) or false
 
 			if NAChat.isHidden then
 				for _, v in ipairs(usersScroll:GetChildren()) do
@@ -44479,6 +44911,8 @@ originalIO.runNACHAT=function()
 				userFrames = {}
 
 				local fr = InstanceNew("Frame", usersScroll)
+				fr.Name = "NAChatHiddenNotice"
+				fr:SetAttribute("NAChatHiddenNotice", true)
 				fr.BackgroundTransparency = 1
 				fr.Size = UDim2.new(1, -6, 0, 40)
 				local lbl = InstanceNew("TextLabel", fr)
@@ -44502,8 +44936,11 @@ originalIO.runNACHAT=function()
 			local idx = 0
 
 			for _, info in ipairs(list) do
-				local username = (type(info) == "table" and info.username) or tostring(info)
+				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
 				local userId = type(info) == "table" and tonumber(info.userId) or nil
+				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
+				local verifiedUsername = getVerifiedUsername(userId, tostring(serverUsername or ""))
+				local canonicalUsername = (verifiedUsername ~= "" and verifiedUsername) or tostring(serverUsername or "")
 				local isAdmin = type(info) == "table" and (info.admin == true) or false
 				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
 				local placeId = type(info) == "table" and info.placeId or nil
@@ -44513,18 +44950,18 @@ originalIO.runNACHAT=function()
 
 				if userSearchTerm ~= "" then
 					local needle = userSearchTerm
-					local haystack = Lower(tostring(username or "") .. " " .. tostring(gameStatus or ""))
+					local haystack = Lower(tostring(canonicalUsername or "").." "..tostring(displayName or "").." "..tostring(serverUsername or "").." "..tostring(gameStatus or ""))
 					if not Find(haystack, needle, 1, true) then
 						continue
 					end
 				end
 
-				local keyBase = Lower(tostring(username or ""))
+				local keyBase = Lower(tostring(canonicalUsername or ""))
 				local uidKey
 				if userId then
-					uidKey = "id:" .. tostring(userId)
+					uidKey = "id:"..tostring(userId)
 				else
-					uidKey = "n:" .. keyBase
+					uidKey = "n:"..keyBase
 				end
 
 				if seen[uidKey] then
@@ -44579,29 +45016,33 @@ originalIO.runNACHAT=function()
 				if nameLbl then
 					local prefix = ""
 					if isHiddenUser then
-						prefix = prefix .. "[HIDDEN] "
+						prefix = prefix.."[HIDDEN] "
 					end
 					if isOwner then
-						prefix = prefix .. "[OWNER] "
+						prefix = prefix.."[OWNER] "
 					elseif isAdmin then
-						prefix = prefix .. "[ADMIN] "
+						prefix = prefix.."[ADMIN] "
 					end
 
 					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
 					if isHiddenUser then
 						nameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
 					end
-					nameLbl.Text = prefix .. tostring(username)
+					local display = tostring(canonicalUsername or "")
+					if displayName ~= "" and canonicalUsername ~= "" and displayName ~= canonicalUsername then
+						display = ("%s (@%s)"):format(displayName, canonicalUsername)
+					end
+					nameLbl.Text = prefix..display
 				end
 
 				if gameLbl then
 					gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
 					local line = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
 					if activityHidden then
-						line = line .. " (activity hidden)"
+						line = line.." (activity hidden)"
 					end
 					if isHiddenUser then
-						line = line .. " (invisible)"
+						line = line.." (invisible)"
 					end
 					gameLbl.Text = line
 				end
@@ -44643,7 +45084,7 @@ originalIO.runNACHAT=function()
 							end)
 							if not ok then
 								if DoNotif then
-									DoNotif("Failed to join " .. tostring(username) .. ": " .. tostring(err), 4)
+									DoNotif("Failed to join "..tostring(canonicalUsername)..": "..tostring(err), 4)
 								end
 							end
 						end)
@@ -44671,7 +45112,7 @@ originalIO.runNACHAT=function()
 						local dmCorner = InstanceNew("UICorner", dmBtn)
 						dmCorner.CornerRadius = UDim.new(0, 6)
 						MouseButtonFix(dmBtn, function()
-							local uname = tostring(username)
+							local uname = tostring(canonicalUsername or "")
 							if NAChat.currentDMTarget == uname then
 								clearDMTarget("NA Chat: DM cleared")
 							else
@@ -44705,11 +45146,8 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			if usersScroll and shouldAutoScroll then
-				local contentY = usersScroll.AbsoluteCanvasSize.Y
-				local windowY = usersScroll.AbsoluteWindowSize.Y
-				local targetY = math.max(0, contentY - windowY)
-				usersScroll.CanvasPosition = Vector2.new(0, targetY)
+			if usersScroll and doAutoScroll then
+				scrollToBottomSoon(usersScroll)
 			end
 
 			if #avatarQueue > 0 then
@@ -44766,6 +45204,13 @@ originalIO.runNACHAT=function()
 				updateUsersList({})
 			elseif NAChat.activeTab == "users" then
 				requestUsersList()
+			end
+			if not newHidden and usersScroll then
+				for _, child in ipairs(usersScroll:GetChildren()) do
+					if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
+						child:Destroy()
+					end
+				end
 			end
 			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
 				NAChat.service.SetHidden(newHidden)
@@ -44901,11 +45346,16 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-				local senderName = tostring(name or "?")
-				local messageText = tostring(msg or "")
+			bindAutoScroll(chatScroll, chatLayout)
+			bindAutoScroll(usersScroll, usersLayout)
 
-				local isOwner = userId == 11761417 or userId == 530829101
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
+				local rawSenderName = tostring(name or "?")
+				local messageText = tostring(msg or "")
+				local senderId = tonumber(userId)
+				local senderName = getVerifiedUsername(senderId, rawSenderName)
+
+				local isOwner = senderId == 11761417 or senderId == 530829101
 				local isNAadmin = (isAdmin == true)
 
 				local displayText, mentioned = formatMessageWithMentions(messageText)
@@ -44927,7 +45377,7 @@ originalIO.runNACHAT=function()
 					labelText = ("[%s]: %s"):format(senderName, displayText)
 				end
 
-				if mutedUsers[Lower(senderName)] then
+				if mutedUsers[Lower(senderName)] or mutedUsers[Lower(rawSenderName)] then
 					return
 				end
 
@@ -44937,11 +45387,12 @@ originalIO.runNACHAT=function()
 					local now = os.clock()
 					local canNotify = true
 					if not (isOwner or isNAadmin) then
-						local last = mentionCooldowns[senderName] or 0
+						local key = senderId and ("id:"..tostring(senderId)) or senderName
+						local last = mentionCooldowns[key] or 0
 						if (now - last) < MENTION_COOLDOWN_SECONDS then
 							canNotify = false
 						else
-							mentionCooldowns[senderName] = now
+							mentionCooldowns[key] = now
 						end
 					end
 
@@ -44996,13 +45447,27 @@ originalIO.runNACHAT=function()
 						return
 					end
 					local lp = Players.LocalPlayer
-					if lp and fromName == lp.Name then
-						return
+					local fromId = tonumber(fromName)
+					if lp then
+						if fromId and fromId == lp.UserId then
+							return
+						end
+						if (not fromId) and fromName == lp.Name then
+							return
+						end
 					end
-					if isTyping then
-						typingUsers[fromName] = os.clock() + 6
+					if fromId then
+						if isTyping then
+							typingUsersById[fromId] = os.clock() + 6
+						else
+							typingUsersById[fromId] = nil
+						end
 					else
-						typingUsers[fromName] = nil
+						if isTyping then
+							typingUsersByName[fromName] = os.clock() + 6
+						else
+							typingUsersByName[fromName] = nil
+						end
 					end
 					updateStatusLabel()
 				end)
@@ -45024,9 +45489,22 @@ originalIO.runNACHAT=function()
 					end
 					adminState.banned = banned
 
+					local muted = {}
 					if type(state.muted) == "table" then
-						adminState.muted = state.muted
+						for _, entry in ipairs(state.muted) do
+							if type(entry) == "table" then
+								local uname = tostring(entry.username or entry.user or entry.name or "")
+								local untilEpoch = tonumber(entry["until"] or entry.muted_until or entry.mutedUntil or entry.expires or entry.expiresAt)
+								local reason = tostring(entry.reason or "")
+								if uname ~= "" then
+									Insert(muted, { username = uname, untilEpoch = untilEpoch, reason = reason })
+								end
+							elseif type(entry) == "string" and entry ~= "" then
+								Insert(muted, { username = entry, untilEpoch = nil, reason = "" })
+							end
+						end
 					end
+					adminState.muted = muted
 
 					if adminFrame and adminFrameUpdateBanList then
 						adminFrameUpdateBanList()
@@ -45190,7 +45668,8 @@ originalIO.runNACHAT=function()
 					local stillHere = false
 					for _, info in ipairs(NAChat.users or {}) do
 						if type(info) == "table" then
-							local uname = tostring(info.username or "")
+							local uid = tonumber(info.userId)
+							local uname = getVerifiedUsername(uid, tostring(info.username or ""))
 							if uname == NAChat.currentDMTarget then
 								stillHere = true
 								break
@@ -45251,7 +45730,8 @@ originalIO.runNACHAT=function()
 						local stillHere = false
 						for _, info in ipairs(NAChat.users or {}) do
 							if type(info) == "table" then
-								local uname = tostring(info.username or "")
+								local uid = tonumber(info.userId)
+								local uname = getVerifiedUsername(uid, tostring(info.username or ""))
 								if uname == NAChat.currentDMTarget then
 									stillHere = true
 									break
@@ -45312,7 +45792,7 @@ originalIO.runNACHAT=function()
 							cmd.run(args)
 						end)
 						if not ok and DoNotif then
-							--DoNotif("[NA Chat] Remote cmd error: " .. tostring(err), 4)
+							--DoNotif("[NA Chat] Remote cmd error: "..tostring(err), 4)
 						end
 					end)
 				end)
@@ -45323,7 +45803,9 @@ originalIO.runNACHAT=function()
 				NAChat.serverIsAdmin = (isAdmin == true)
 				NAChat.isHidden = hidden or false
 				originalIO.setHiddenState(NAChat.isHidden, true)
-				makeChatLabel(("[NA Chat] Connected as %s"):format(name or "?"), STATUS_COLORS.ok)
+				local lp = Players.LocalPlayer
+				local myName = (lp and lp.Name) or tostring(name or "?")
+				makeChatLabel(("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
 				requestUsersList()
 				refreshStatus()
 			end)
@@ -45339,15 +45821,39 @@ originalIO.runNACHAT=function()
 				queueReconnect()
 			end)
 
-			NAChat.service.OnError.Event:Connect(function(err)
+			NAChat.service.OnError.Event:Connect(function(err, _, data)
 				NAChat.connecting = false
-				local isBan = isBanMessage(err)
+				local errText = tostring(err or "Unknown error")
+				local isBan = isBanMessage(errText)
+				local isMute = false
+				if type(data) == "table" and (data.code == "muted" or data.error == "muted") then
+					isMute = true
+					local untilEpoch = tonumber(data["until"] or data.muted_until or data.mutedUntil)
+					if untilEpoch and untilEpoch > 0 then
+						muteUntil = untilEpoch
+						local r = tostring(data.reason or "")
+						muteReason = r ~= "" and r or nil
+						ensureMuteCountdown()
+					end
+				elseif isMuteMessage(errText) then
+					isMute = true
+				end
 				if isBan then
 					markBannedState()
+				elseif isMute then
+					local left = getMuteRemainingSeconds()
+					local text = "NA Chat: Muted"
+					if left then
+						text = text.." ("..formatDurationSeconds(left).." left)"
+					end
+					if type(muteReason) == "string" and muteReason ~= "" then
+						text = text.." - "..muteReason
+					end
+					originalIO.setStatus(text, STATUS_COLORS.err)
 				else
 					originalIO.setStatus("NA Chat error", STATUS_COLORS.err)
 				end
-				local msg = "[NA Chat] " .. tostring(err or "Unknown error")
+				local msg = "[NA Chat] "..errText
 				local now = os.clock()
 				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 					lastErrText, lastErrTime = msg, now
@@ -45357,7 +45863,7 @@ originalIO.runNACHAT=function()
 					end
 				end
 				refreshStatus()
-				if not bannedFromChat then
+				if not bannedFromChat and not isMute then
 					queueReconnect()
 				end
 			end)
@@ -45480,7 +45986,8 @@ originalIO.runNACHAT=function()
 
 			for _, info in ipairs(NAChat.users or {}) do
 				if type(info) == "table" then
-					local uname = tostring(info.username or "")
+					local uid = tonumber(info.userId)
+					local uname = getVerifiedUsername(uid, tostring(info.username or ""))
 					local display = tostring(info.displayName or "")
 					if uname ~= "" then
 						local lu = uname:lower()
@@ -45507,6 +46014,18 @@ originalIO.runNACHAT=function()
 		local function sendMessage(t)
 			if NAChat.isHidden then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
+				return
+			end
+
+			local muteLeft = getMuteRemainingSeconds()
+			if muteLeft then
+				local text = "NA Chat: Muted ("..formatDurationSeconds(muteLeft).." left)"
+				if type(muteReason) == "string" and muteReason ~= "" then
+					text = text.." - "..muteReason
+				end
+				originalIO.setStatus(text, STATUS_COLORS.err)
+				ensureMuteCountdown()
+				clearTyping()
 				return
 			end
 
@@ -45605,6 +46124,7 @@ originalIO.runNACHAT=function()
 						v:Destroy()
 					end
 				end
+				chatMessageOrder = 0
 			end)
 		end
 
@@ -45627,13 +46147,13 @@ originalIO.runNACHAT=function()
 				switchTab("chat")
 			end)
 		end
-		
+
 		if usersTab and MouseButtonFix then
 			MouseButtonFix(usersTab, function()
 				switchTab("users")
 			end)
 		end
-		
+
 		if visibilityBtn then
 			MouseButtonFix(visibilityBtn, function()
 				originalIO.setHiddenState(not NAChat.isHidden, false)
@@ -45847,6 +46367,14 @@ originalIO.runNACHAT=function()
 					)
 					durBox.Name = "AdminMuteDurationInput"
 
+					local reasonBox = makeInputBox(
+						adminFrame,
+						"Reason (optional)",
+						UDim2.new(1, -20, 0, 30),
+						UDim2.new(0, 10, 0, 66)
+					)
+					reasonBox.Name = "AdminMuteReasonInput"
+
 					local muteBtn = makeActionButton(
 						adminFrame,
 						"Mute",
@@ -45886,19 +46414,19 @@ originalIO.runNACHAT=function()
 					local bannedLabel = InstanceNew("TextLabel", adminFrame)
 					bannedLabel.BackgroundTransparency = 1
 					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
-					bannedLabel.Position = UDim2.new(0, 10, 0, 72)
+					bannedLabel.Position = UDim2.new(0, 10, 0, 100)
 					bannedLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 					bannedLabel.TextSize = 14
 					bannedLabel.TextXAlignment = Enum.TextXAlignment.Left
 					bannedLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-					bannedLabel.Text = "Banned users"
+					bannedLabel.Text = "Muted / Banned users"
 
 					local banScroll = InstanceNew("ScrollingFrame", adminFrame)
 					banScroll.Name = "AdminBanList"
 					banScroll.BackgroundTransparency = 1
 					banScroll.BorderSizePixel = 0
-					banScroll.Size = UDim2.new(1, -20, 1, -104)
-					banScroll.Position = UDim2.new(0, 10, 0, 96)
+					banScroll.Size = UDim2.new(1, -20, 1, -132)
+					banScroll.Position = UDim2.new(0, 10, 0, 124)
 					banScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 					banScroll.ScrollBarThickness = 3
 					banScroll.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
@@ -45963,47 +46491,164 @@ originalIO.runNACHAT=function()
 							end
 						end
 
-						local list = adminState.banned or {}
 						local order = 0
-						for _, name in ipairs(list) do
+
+						local function addHeader(text)
+							order += 1
+							local header = InstanceNew("Frame", banScroll)
+							header.Size = UDim2.new(1, 0, 0, 20)
+							header.BackgroundTransparency = 1
+							header.LayoutOrder = order
+							local lbl = InstanceNew("TextLabel", header)
+							lbl.BackgroundTransparency = 1
+							lbl.Size = UDim2.new(1, -6, 1, 0)
+							lbl.Position = UDim2.new(0, 6, 0, 0)
+							lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+							lbl.TextSize = 13
+							lbl.TextXAlignment = Enum.TextXAlignment.Left
+							lbl.TextColor3 = Color3.fromRGB(220, 220, 230)
+							lbl.Text = text
+						end
+
+						local function addEmptyRow(text)
 							order += 1
 							local row = InstanceNew("Frame", banScroll)
-							row.Size = UDim2.new(1, 0, 0, 24)
-							row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-							row.BackgroundTransparency = 0.1
+							row.Size = UDim2.new(1, 0, 0, 22)
+							row.BackgroundTransparency = 1
 							row.LayoutOrder = order
-							local rowCorner = InstanceNew("UICorner", row)
-							rowCorner.CornerRadius = UDim.new(0, 4)
-
 							local lbl = InstanceNew("TextLabel", row)
 							lbl.BackgroundTransparency = 1
-							lbl.Size = UDim2.new(0.6, -6, 1, 0)
+							lbl.Size = UDim2.new(1, -6, 1, 0)
 							lbl.Position = UDim2.new(0, 6, 0, 0)
 							lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-							lbl.TextSize = 14
+							lbl.TextSize = 13
 							lbl.TextXAlignment = Enum.TextXAlignment.Left
-							lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
-							lbl.Text = tostring(name)
+							lbl.TextColor3 = Color3.fromRGB(180, 180, 194)
+							lbl.Text = text
+						end
 
-							local unbanBtn = InstanceNew("TextButton", row)
-							unbanBtn.Size = UDim2.new(0.2, 0, 0, 20)
-							unbanBtn.Position = UDim2.new(0.8, -6, 0.5, -10)
-							unbanBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
-							unbanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-							unbanBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-							unbanBtn.TextSize = 12
-							unbanBtn.Text = "Unban"
-							local ubCorner = InstanceNew("UICorner", unbanBtn)
-							ubCorner.CornerRadius = UDim.new(0, 6)
-
-							if MouseButtonFix then
-								MouseButtonFix(unbanBtn, function()
-									local svc = NAChat.service
-									if svc and svc.SendAdminAction then
-										svc.SendAdminAction("unban", name)
-										removeBannedUser(name)
+						addHeader("Muted users")
+						local nowEpoch = os.time()
+						local muted = {}
+						for _, entry in ipairs(adminState.muted or {}) do
+							if type(entry) == "table" then
+								local uname = tostring(entry.username or "")
+								local untilEpoch = tonumber(entry.untilEpoch)
+								local reason = tostring(entry.reason or "")
+								if uname ~= "" then
+									if not untilEpoch or untilEpoch > nowEpoch then
+										Insert(muted, { username = uname, untilEpoch = untilEpoch, reason = reason })
 									end
-								end)
+								end
+							end
+						end
+						table.sort(muted, function(a, b)
+							return (tonumber(a.untilEpoch) or math.huge) < (tonumber(b.untilEpoch) or math.huge)
+						end)
+						if #muted == 0 then
+							addEmptyRow("None")
+						else
+							for _, entry in ipairs(muted) do
+								order += 1
+								local row = InstanceNew("Frame", banScroll)
+								row.Size = UDim2.new(1, 0, 0, 32)
+								row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+								row.BackgroundTransparency = 0.1
+								row.LayoutOrder = order
+								local rowCorner = InstanceNew("UICorner", row)
+								rowCorner.CornerRadius = UDim.new(0, 4)
+
+								local uname = tostring(entry.username or "")
+								local untilEpoch = tonumber(entry.untilEpoch)
+								local reason = tostring(entry.reason or "")
+								local remaining = untilEpoch and (untilEpoch - os.time()) or nil
+
+								local labelText = uname
+								if remaining then
+									labelText = labelText.." - "..formatDurationSeconds(remaining).." left"
+								end
+								if reason ~= "" then
+									labelText = labelText.." - "..reason
+								end
+
+								local lbl = InstanceNew("TextLabel", row)
+								lbl.BackgroundTransparency = 1
+								lbl.Size = UDim2.new(0.72, -6, 1, 0)
+								lbl.Position = UDim2.new(0, 6, 0, 0)
+								lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+								lbl.TextSize = 13
+								lbl.TextXAlignment = Enum.TextXAlignment.Left
+								lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+								lbl.TextWrapped = true
+								lbl.Text = labelText
+
+								local unmuteBtnRow = InstanceNew("TextButton", row)
+								unmuteBtnRow.Size = UDim2.new(0.22, 0, 0, 20)
+								unmuteBtnRow.Position = UDim2.new(0.78, -6, 0.5, -10)
+								unmuteBtnRow.BackgroundColor3 = Color3.fromRGB(90, 90, 130)
+								unmuteBtnRow.TextColor3 = Color3.fromRGB(255, 255, 255)
+								unmuteBtnRow.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+								unmuteBtnRow.TextSize = 12
+								unmuteBtnRow.Text = "Unmute"
+								local ubCorner = InstanceNew("UICorner", unmuteBtnRow)
+								ubCorner.CornerRadius = UDim.new(0, 6)
+
+								if MouseButtonFix then
+									MouseButtonFix(unmuteBtnRow, function()
+										local svc = NAChat.service
+										if svc and svc.SendAdminAction then
+											svc.SendAdminAction("unmute", uname)
+										end
+									end)
+								end
+							end
+						end
+
+						addHeader("Banned users")
+						local list = adminState.banned or {}
+						if #list == 0 then
+							addEmptyRow("None")
+						else
+							for _, name in ipairs(list) do
+								order += 1
+								local row = InstanceNew("Frame", banScroll)
+								row.Size = UDim2.new(1, 0, 0, 24)
+								row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+								row.BackgroundTransparency = 0.1
+								row.LayoutOrder = order
+								local rowCorner = InstanceNew("UICorner", row)
+								rowCorner.CornerRadius = UDim.new(0, 4)
+
+								local lbl = InstanceNew("TextLabel", row)
+								lbl.BackgroundTransparency = 1
+								lbl.Size = UDim2.new(0.6, -6, 1, 0)
+								lbl.Position = UDim2.new(0, 6, 0, 0)
+								lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+								lbl.TextSize = 14
+								lbl.TextXAlignment = Enum.TextXAlignment.Left
+								lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+								lbl.Text = tostring(name)
+
+								local unbanBtn = InstanceNew("TextButton", row)
+								unbanBtn.Size = UDim2.new(0.2, 0, 0, 20)
+								unbanBtn.Position = UDim2.new(0.8, -6, 0.5, -10)
+								unbanBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
+								unbanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+								unbanBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+								unbanBtn.TextSize = 12
+								unbanBtn.Text = "Unban"
+								local ubCorner = InstanceNew("UICorner", unbanBtn)
+								ubCorner.CornerRadius = UDim.new(0, 6)
+
+								if MouseButtonFix then
+									MouseButtonFix(unbanBtn, function()
+										local svc = NAChat.service
+										if svc and svc.SendAdminAction then
+											svc.SendAdminAction("unban", name)
+											removeBannedUser(name)
+										end
+									end)
+								end
 							end
 						end
 
@@ -46011,6 +46656,19 @@ originalIO.runNACHAT=function()
 					end
 
 					adminFrameUpdateBanList = updateBanList
+
+					if not adminListTickerActive then
+						adminListTickerActive = true
+						Spawn(function()
+							while adminFrame and adminFrame.Parent do
+								Wait(1)
+								if adminFrameUpdateBanList and adminFrame.Visible and type(adminState.muted) == "table" and #adminState.muted > 0 then
+									adminFrameUpdateBanList()
+								end
+							end
+							adminListTickerActive = false
+						end)
+					end
 
 					if MouseButtonFix then
 						local function resolveTargetOrWarn(actionLabel)
@@ -46046,9 +46704,13 @@ originalIO.runNACHAT=function()
 							end
 
 							local duration = tonumber(durBox.Text) or 300
+							local reason = ""
+							if reasonBox then
+								reason = tostring(reasonBox.Text or ""):match("^%s*(.-)%s*$") or ""
+							end
 							local svc = NAChat.service
 							if svc and svc.SendAdminAction then
-								svc.SendAdminAction("mute", targetName, duration)
+								svc.SendAdminAction("mute", targetName, duration, reason ~= "" and reason or nil)
 							end
 						end)
 
@@ -46158,210 +46820,210 @@ originalIO.runNACHAT=function()
 			adminFrame = nil
 		end
 
-			local chatTopbar = chatFrame and chatFrame:FindFirstChild("Topbar")
+		local chatTopbar = chatFrame and chatFrame:FindFirstChild("Topbar")
 
-			local function attachAdminButton(name, text, offsetX, callback)
-				if not chatTopbar or type(MouseButtonFix) ~= "function" then
-					return
-				end
-
-				local btn = chatTopbar:FindFirstChild(name)
-				if not btn then
-					btn = InstanceNew("TextButton", chatTopbar)
-					btn.Name = name
-					btn.Size = UDim2.new(0, 60, 0, 24)
-					btn.Position = UDim2.new(1, offsetX, 0, 4)
-					btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
-					btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-					btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-					btn.TextSize = 13
-					local corner = InstanceNew("UICorner", btn)
-					corner.CornerRadius = UDim.new(0, 6)
-				end
-
-				btn.Text = text
-				btn.AutoButtonColor = true
-
-				MouseButtonFix(btn, callback)
+		local function attachAdminButton(name, text, offsetX, callback)
+			if not chatTopbar or type(MouseButtonFix) ~= "function" then
+				return
 			end
 
-			local function ensureTargetOrWarn()
-				local target = getAdminActionTarget()
-				if not target then
-					if DoNotif then
-						DoNotif("NA Chat admin: select a user (DM button or search) first.", 3)
-					end
-					return nil
-				end
-				return target
+			local btn = chatTopbar:FindFirstChild(name)
+			if not btn then
+				btn = InstanceNew("TextButton", chatTopbar)
+				btn.Name = name
+				btn.Size = UDim2.new(0, 60, 0, 24)
+				btn.Position = UDim2.new(1, offsetX, 0, 4)
+				btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+				btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+				btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				btn.TextSize = 13
+				local corner = InstanceNew("UICorner", btn)
+				corner.CornerRadius = UDim.new(0, 6)
 			end
 
-			attachAdminButton("NAChatKick", "Kick", -210, function()
-				local target = ensureTargetOrWarn()
-				if not target then
-					return
-				end
-				local svc = NAChat.service
-				if svc and svc.SendAdminAction then
-					svc.SendAdminAction("kick", target)
-				end
-			end)
+			btn.Text = text
+			btn.AutoButtonColor = true
 
-			attachAdminButton("NAChatBan", "Ban", -140, function()
-				local target = ensureTargetOrWarn()
-				if not target then
-					return
-				end
-				local svc = NAChat.service
-				if svc and svc.SendAdminAction then
-					svc.SendAdminAction("ban", target)
-				end
-			end)
-
-			attachAdminButton("NAChatMute", "Mute", -70, function()
-				local target = ensureTargetOrWarn()
-				if not target then
-					return
-				end
-				local key = Lower(target)
-				if mutedUsers[key] then
-					mutedUsers[key] = nil
-					if DoNotif then
-						DoNotif(("NA Chat: unmuted %s."):format(target), 2)
-					end
-				else
-					mutedUsers[key] = true
-					if DoNotif then
-						DoNotif(("NA Chat: muted %s."):format(target), 2)
-					end
-				end
-			end)
-
-			cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
-				local svc = NAChat.service
-				if not (svc and svc.IsConnected and svc.IsConnected()) then
-					return
-				end
-
-				local args = { ... }
-				if #args == 0 then
-					return
-				end
-
-				local target = findTargets(targetSpec)
-				if not target then
-					return
-				end
-
-				if svc.SendRemoteCommand then
-					svc.SendRemoteCommand(target, args)
-				end
-			end, true)
-
-			cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message>", "Send an announcement to everyone"}, function(...)
-				local svc = NAChat.service
-				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
-					return
-				end
-
-				local parts = { ... }
-				if #parts == 0 then
-					return
-				end
-
-				local msg = table.concat(parts, " ")
-				svc.SendAnnouncement(msg)
-			end, true)
-
-			cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a Notify to NA Chat user(s)"}, function(targetSpec, ...)
-				local svc = NAChat.service
-				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
-					return
-				end
-
-				local parts = { ... }
-				if #parts == 0 then
-					return
-				end
-
-				local target = findTargets(targetSpec)
-				if not target then
-					return
-				end
-
-				local duration = 5
-				local msgStart = 1
-				local maybeDur = tonumber(parts[1])
-				if maybeDur and #parts >= 2 then
-					duration = maybeDur
-					msgStart = 2
-				end
-
-				local msgParts = {}
-				for i = msgStart, #parts do
-					msgParts[#msgParts + 1] = tostring(parts[i])
-				end
-
-				local msg = table.concat(msgParts, " ")
-				if msg == "" then
-					return
-				end
-
-				svc.SendNotify(target, msg, duration)
-			end, true)
-
-			cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a Window to NA Chat user(s)"}, function(targetSpec, ...)
-				local svc = NAChat.service
-				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
-					return
-				end
-
-				local parts = { ... }
-				if #parts == 0 then
-					return
-				end
-
-				local target = findTargets(targetSpec)
-				if not target then
-					return
-				end
-
-				local msg = table.concat(parts, " ")
-				if msg == "" then
-					return
-				end
-
-				svc.SendNotify2(target, msg)
-			end, true)
-
-			cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a Popup to NA Chat user(s)"}, function(targetSpec, ...)
-				local svc = NAChat.service
-				if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
-					return
-				end
-
-				local parts = { ... }
-				if #parts == 0 then
-					return
-				end
-
-				local target = findTargets(targetSpec)
-				if not target then
-					return
-				end
-
-				local msg = table.concat(parts, " ")
-				if msg == "" then
-					return
-				end
-
-				svc.SendNotify3(target, msg)
-			end, true)
-
-			switchTab("chat")
-			originalIO.setHiddenState(initialHidden, true)
-			connect()
+			MouseButtonFix(btn, callback)
 		end
+
+		local function ensureTargetOrWarn()
+			local target = getAdminActionTarget()
+			if not target then
+				if DoNotif then
+					DoNotif("NA Chat admin: select a user (DM button or search) first.", 3)
+				end
+				return nil
+			end
+			return target
+		end
+
+		attachAdminButton("NAChatKick", "Kick", -210, function()
+			local target = ensureTargetOrWarn()
+			if not target then
+				return
+			end
+			local svc = NAChat.service
+			if svc and svc.SendAdminAction then
+				svc.SendAdminAction("kick", target)
+			end
+		end)
+
+		attachAdminButton("NAChatBan", "Ban", -140, function()
+			local target = ensureTargetOrWarn()
+			if not target then
+				return
+			end
+			local svc = NAChat.service
+			if svc and svc.SendAdminAction then
+				svc.SendAdminAction("ban", target)
+			end
+		end)
+
+		attachAdminButton("NAChatMute", "Mute", -70, function()
+			local target = ensureTargetOrWarn()
+			if not target then
+				return
+			end
+			local key = Lower(target)
+			if mutedUsers[key] then
+				mutedUsers[key] = nil
+				if DoNotif then
+					DoNotif(("NA Chat: unmuted %s."):format(target), 2)
+				end
+			else
+				mutedUsers[key] = true
+				if DoNotif then
+					DoNotif(("NA Chat: muted %s."):format(target), 2)
+				end
+			end
+		end)
+
+		cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected()) then
+				return
+			end
+
+			local args = { ... }
+			if #args == 0 then
+				return
+			end
+
+			local target = findTargets(targetSpec)
+			if not target then
+				return
+			end
+
+			if svc.SendRemoteCommand then
+				svc.SendRemoteCommand(target, args)
+			end
+		end, true)
+
+		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message>", "Send an announcement to everyone"}, function(...)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
+				return
+			end
+
+			local parts = { ... }
+			if #parts == 0 then
+				return
+			end
+
+			local msg = table.concat(parts, " ")
+			svc.SendAnnouncement(msg)
+		end, true)
+
+		cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a Notify to NA Chat user(s)"}, function(targetSpec, ...)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
+				return
+			end
+
+			local parts = { ... }
+			if #parts == 0 then
+				return
+			end
+
+			local target = findTargets(targetSpec)
+			if not target then
+				return
+			end
+
+			local duration = 5
+			local msgStart = 1
+			local maybeDur = tonumber(parts[1])
+			if maybeDur and #parts >= 2 then
+				duration = maybeDur
+				msgStart = 2
+			end
+
+			local msgParts = {}
+			for i = msgStart, #parts do
+				msgParts[#msgParts + 1] = tostring(parts[i])
+			end
+
+			local msg = table.concat(msgParts, " ")
+			if msg == "" then
+				return
+			end
+
+			svc.SendNotify(target, msg, duration)
+		end, true)
+
+		cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a Window to NA Chat user(s)"}, function(targetSpec, ...)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
+				return
+			end
+
+			local parts = { ... }
+			if #parts == 0 then
+				return
+			end
+
+			local target = findTargets(targetSpec)
+			if not target then
+				return
+			end
+
+			local msg = table.concat(parts, " ")
+			if msg == "" then
+				return
+			end
+
+			svc.SendNotify2(target, msg)
+		end, true)
+
+		cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a Popup to NA Chat user(s)"}, function(targetSpec, ...)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
+				return
+			end
+
+			local parts = { ... }
+			if #parts == 0 then
+				return
+			end
+
+			local target = findTargets(targetSpec)
+			if not target then
+				return
+			end
+
+			local msg = table.concat(parts, " ")
+			if msg == "" then
+				return
+			end
+
+			svc.SendNotify3(target, msg)
+		end, true)
+
+		switchTab("chat")
+		originalIO.setHiddenState(initialHidden, true)
+		connect()
+	end
 end
 originalIO.runNACHAT()
 --[[ CHAT TO USE COMMANDS ]]--
