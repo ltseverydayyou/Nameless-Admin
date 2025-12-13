@@ -781,6 +781,7 @@ local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
 	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
+	NAIYPLUGINFILEPATH = "Nameless-Admin/PluginsIY";
 	NAASSETSFILEPATH = "Nameless-Admin/Assets";
 	NAMAINSETTINGSPATH = "Nameless-Admin/Settings.json";
 	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
@@ -6230,6 +6231,10 @@ if FileSupport then
 		makefolder(NAfiles.NAPLUGINFILEPATH)
 	end
 
+	if not isfolder(NAfiles.NAIYPLUGINFILEPATH) then
+		makefolder(NAfiles.NAIYPLUGINFILEPATH)
+	end
+
 	if not isfolder(NAfiles.NAASSETSFILEPATH) then
 		makefolder(NAfiles.NAASSETSFILEPATH)
 	end
@@ -10981,13 +10986,24 @@ NAmanage.LoadPlugins = function()
 		return true
 	end
 
-	local pluginDir = NAfiles.NAPLUGINFILEPATH
-	if not (isfolder and isfolder(pluginDir)) then
-		local ok, err = pcall(makefolder, pluginDir)
-		if not ok then
-			NAmanage.loaderWarn('Plugins', 'failed to ensure folder: '..tostring(err))
-			return false
+	local pluginDirNA = NAfiles.NAPLUGINFILEPATH
+	local pluginDirIY = NAfiles.NAIYPLUGINFILEPATH
+	local function ensureDir(dir, label)
+		if not (isfolder and isfolder(dir)) then
+			local ok, err = pcall(makefolder, dir)
+			if not ok then
+				NAmanage.loaderWarn(label, 'failed to ensure folder: '..tostring(err))
+				return false
+			end
 		end
+		return true
+	end
+
+	if not ensureDir(pluginDirNA, 'Plugins') then
+		return false
+	end
+	if not ensureDir(pluginDirIY, 'PluginsIY') then
+		return false
 	end
 
 	local function formatInfo(aliases, argsHint)
@@ -11050,7 +11066,7 @@ NAmanage.LoadPlugins = function()
 		return nil
 	end
 
-	local function isPlugin(content)
+	local function isNAPlugin(content)
 		if type(content) ~= "string" then
 			return false
 		end
@@ -11073,6 +11089,100 @@ NAmanage.LoadPlugins = function()
 			end
 		end
 		return false
+	end
+
+	local function isIYPlugin(content)
+		if type(content) ~= "string" then
+			return false
+		end
+		local lowerTxt = Lower(content)
+		if lowerTxt:find("pluginname", 1, true) and lowerTxt:find("commands", 1, true) then
+			return true
+		end
+		if lowerTxt:find("plugindescription", 1, true) and lowerTxt:find("commands", 1, true) then
+			return true
+		end
+		return false
+	end
+
+	local function appendIYCommands(out, iyPlugin)
+		if type(out) ~= "table" or type(iyPlugin) ~= "table" then
+			return
+		end
+		local commands = iyPlugin.Commands or iyPlugin.commands
+		if type(commands) ~= "table" then
+			return
+		end
+
+		local function pushCommand(nameKey, cmdDef)
+			if type(cmdDef) ~= "table" then
+				return
+			end
+			local listName = cmdDef.ListName or cmdDef.Name or nameKey
+			if type(listName) ~= "string" or listName == "" then
+				return
+			end
+
+			local iyFunc = cmdDef.Function or cmdDef.Callback
+			if type(iyFunc) ~= "function" then
+				return
+			end
+
+			local seen = {}
+			local aliases = {}
+			local function addAlias(a)
+				if type(a) == "string" and a ~= "" then
+					local low = a:lower()
+					if not seen[low] then
+						seen[low] = true
+						Insert(aliases, a)
+					end
+				end
+			end
+
+			addAlias(listName)
+			local extra = cmdDef.Aliases
+			if type(extra) == "table" then
+				for _, a in ipairs(extra) do
+					addAlias(a)
+				end
+			elseif type(extra) == "string" then
+				addAlias(extra)
+			end
+
+			local argsHint = cmdDef.ArgsHint or cmdDef.Args or cmdDef.Arguments or ""
+			local info = cmdDef.Description or cmdDef.Info or iyPlugin.PluginDescription or iyPlugin.Description or "No description"
+			local requires = cmdDef.RequiresArguments or cmdDef.RequiresArgs or false
+
+			Insert(out, {
+				Aliases = aliases,
+				ArgsHint = (type(argsHint) == "string") and argsHint or "",
+				Info = (type(info) == "string") and info or tostring(info),
+				Function = function(...)
+					local args = { ... }
+					return iyFunc(args, LocalPlayer)
+				end,
+				RequiresArguments = requires and true or false
+			})
+		end
+
+		if #commands > 0 then
+			for _, cmdDef in ipairs(commands) do
+				pushCommand(cmdDef and (cmdDef.ListName or cmdDef.Name), cmdDef)
+			end
+			return
+		end
+
+		local keys = {}
+		for k, v in pairs(commands) do
+			if type(v) == "table" then
+				Insert(keys, k)
+			end
+		end
+		table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+		for _, k in ipairs(keys) do
+			pushCommand(k, commands[k])
+		end
 	end
 
 	NAmanage._pluginCommandRecords = NAmanage._pluginCommandRecords or {}
@@ -11124,132 +11234,172 @@ NAmanage.LoadPlugins = function()
 
 	local loadedSumm = {}
 	local seenKeys = {}
-	local okList, files = pcall(listfiles, pluginDir)
-	if not okList or type(files) ~= 'table' then
-		local errMsg = okList and 'invalid directory listing' or tostring(files)
-		NAmanage.loaderWarn('Plugins', 'failed to enumerate: '..errMsg)
-		return false
-	end
 
-	for _, file in ipairs(files) do
-		if Lower(file):match("%.na$") then
-			local pluginKey = normKey(file)
-			seenKeys[pluginKey] = true
-			UnplugCmd(pluginKey)
-			local success, content = NACaller(readfile, file)
-			if success and content then
-				if isPlugin(content) then
-					local func, loadErr = loadstring(content)
-					if func then
-						local colPlugins = {}
-						local proxyEnv = {}
-						local baseEnv = getfenv()
-
-						local function _runCmd(...)
-							local runner = cmd and (cmd.run or cmd.Run)
-							if not runner then return nil, "cmd.run not available" end
-							local n = select("#", ...)
-							local argv
-							if n == 1 then
-								local a = ...
-								if type(a) == "table" then
-									argv = a
-								elseif type(a) == "string" then
-									argv = splitArgs(a)
-								else
-									return nil, "invalid input to runCommand"
-								end
-							else
-								argv = {}
-								for i = 1, n do
-									local v = select(i, ...)
-									argv[#argv+1] = type(v) == "string" and v or tostring(v)
-								end
-							end
-							local ok1, res1 = NACaller(runner, argv)
-							if ok1 then return res1 end
-							local ok2, res2 = NACaller(runner, Concat(argv, " "))
-							if ok2 then return res2 end
-							return nil, res2
-						end
-
-						proxyEnv.cmdRun = _runCmd
-						proxyEnv.RunCommand = _runCmd
-						proxyEnv.runCommand = _runCmd
-
-						setmetatable(proxyEnv, {
-							__index = function(_, k)
-								if k == "loadstring" then
-									local baseLoader = baseEnv.loadstring or loadstring
-									return function(code, chunkname)
-										local f, e = baseLoader(code, chunkname)
-										if f then setfenv(f, proxyEnv) end
-										return f, e
-									end
-								elseif k == "load" then
-									local baseLoad = baseEnv.load
-									if not baseLoad then return nil end
-									return function(chunk, chunkname, mode, env)
-										return baseLoad(chunk, chunkname, mode, env or proxyEnv)
-									end
-								end
-								return baseEnv[k]
-							end,
-							__newindex = function(_, k, v)
-								if k == "cmdPluginAdd" then
-									if type(v) == "table" then
-										if v[1] and type(v[1]) == "table" then
-											for _, sub in ipairs(v) do
-												Insert(colPlugins, sub)
-											end
-										else
-											Insert(colPlugins, v)
-										end
-									end
-								else
-									rawset(baseEnv, k, v)
-								end
-							end
-						})
-
-						setfenv(func, proxyEnv)
-
-						local ok, execErr = NACaller(func)
-						if ok then
-							local cmdNames = {}
-							for _, plugin in ipairs(colPlugins) do
-								local aliases = plugin.Aliases
-								local handler = plugin.Function
-								if type(aliases) == "table" and type(handler) == "function" then
-									local argsHint = plugin.ArgsHint or ""
-									local formattedDisplay = formatInfo(aliases, argsHint)
-									local info = { formattedDisplay, plugin.Info or "No description" }
-									cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
-									local primaryLow = aliases[1] and type(aliases[1]) == "string" and aliases[1]:lower() or nil
-									local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
-									AddCmdPlug(pluginKey, aliases, dataRef)
-									Insert(cmdNames, aliases[1])
-								else
-									DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
-								end
-							end
-							if #cmdNames > 0 then
-								local fileName = file:match("[^\\/]+$") or file
-								Insert(loadedSumm, fileName.." ("..Concat(cmdNames, ", ")..")")
-							end
-						else
-							DoWindow("[Plugin Error] '"..file.."' => "..tostring(execErr))
-						end
-					else
-						DoWindow("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
-					end
-				else
-					DoWindow("skipped '"..file.."' (no cmdPluginAdd)")
-				end
-			else
-				DoWindow("[Plugin Read Error] Failed to read '"..file.."'")
+	local function enumerate(dir, label, extPat)
+		local okList, files = pcall(listfiles, dir)
+		if not okList or type(files) ~= "table" then
+			local errMsg = okList and "invalid directory listing" or tostring(files)
+			NAmanage.loaderWarn(label, "failed to enumerate: "..errMsg)
+			return nil
+		end
+		local out = {}
+		for _, p in ipairs(files) do
+			if type(p) == "string" and Lower(p):match(extPat) then
+				Insert(out, p)
 			end
 		end
+		return out
+	end
+
+	local filesNA = enumerate(pluginDirNA, "Plugins", "%.na$") or {}
+	local filesIY = enumerate(pluginDirIY, "PluginsIY", "%.iy$") or {}
+
+	local function loadPluginFile(file, mode)
+		local baseName = file and (file:match("[^\\/]+$") or file) or ""
+		if mode == "iy" and type(baseName) == "string" and baseName:lower() == "iy_fe.iy" then
+			return
+		end
+
+		local pluginKey = normKey(file)
+		seenKeys[pluginKey] = true
+		UnplugCmd(pluginKey)
+
+		local success, content = NACaller(readfile, file)
+		if not (success and content) then
+			DoWindow("[Plugin Read Error] Failed to read '"..file.."'")
+			return
+		end
+
+		if mode == "na" and not isNAPlugin(content) then
+			DoWindow("skipped '"..file.."' (no cmdPluginAdd)")
+			return
+		end
+
+		local func, loadErr = loadstring(content)
+		if not func then
+			DoWindow("[Plugin Load Error] '"..file.."': "..tostring(loadErr))
+			return
+		end
+
+		local colPlugins = {}
+		local proxyEnv = {}
+		local baseEnv = getfenv()
+
+		local function _runCmd(...)
+			local runner = cmd and (cmd.run or cmd.Run)
+			if not runner then return nil, "cmd.run not available" end
+			local n = select("#", ...)
+			local argv
+			if n == 1 then
+				local a = ...
+				if type(a) == "table" then
+					argv = a
+				elseif type(a) == "string" then
+					argv = splitArgs(a)
+				else
+					return nil, "invalid input to runCommand"
+				end
+			else
+				argv = {}
+				for i = 1, n do
+					local v = select(i, ...)
+					argv[#argv+1] = type(v) == "string" and v or tostring(v)
+				end
+			end
+			local ok1, res1 = NACaller(runner, argv)
+			if ok1 then return res1 end
+			local ok2, res2 = NACaller(runner, Concat(argv, " "))
+			if ok2 then return res2 end
+			return nil, res2
+		end
+
+		proxyEnv.cmdRun = _runCmd
+		proxyEnv.RunCommand = _runCmd
+		proxyEnv.runCommand = _runCmd
+		proxyEnv.notify = function(msg, t)
+			if DoNotif then
+				DoNotif(tostring(msg), t or 3)
+			else
+				warn(tostring(msg))
+			end
+		end
+
+		setmetatable(proxyEnv, {
+			__index = function(_, k)
+				if k == "loadstring" then
+					local baseLoader = baseEnv.loadstring or loadstring
+					return function(code, chunkname)
+						local f, e = baseLoader(code, chunkname)
+						if f then setfenv(f, proxyEnv) end
+						return f, e
+					end
+				elseif k == "load" then
+					local baseLoad = baseEnv.load
+					if not baseLoad then return nil end
+					return function(chunk, chunkname, mode2, env)
+						return baseLoad(chunk, chunkname, mode2, env or proxyEnv)
+					end
+				end
+				return baseEnv[k]
+			end,
+			__newindex = function(_, k, v)
+				if k == "cmdPluginAdd" then
+					if type(v) == "table" then
+						if v[1] and type(v[1]) == "table" then
+							for _, sub in ipairs(v) do
+								Insert(colPlugins, sub)
+							end
+						else
+							Insert(colPlugins, v)
+						end
+					end
+				else
+					rawset(baseEnv, k, v)
+				end
+			end
+		})
+
+		setfenv(func, proxyEnv)
+
+		local ok, execRes = NACaller(func)
+		if not ok then
+			DoWindow("[Plugin Error] '"..file.."' => "..tostring(execRes))
+			return
+		end
+
+		if mode == "iy" and type(execRes) == "table" then
+			appendIYCommands(colPlugins, execRes)
+		end
+
+		local cmdNames = {}
+		for _, plugin in ipairs(colPlugins) do
+			local aliases = plugin.Aliases
+			local handler = plugin.Function
+			if type(aliases) == "table" and type(handler) == "function" then
+				local argsHint = plugin.ArgsHint or ""
+				local formattedDisplay = formatInfo(aliases, argsHint)
+				local info = { formattedDisplay, plugin.Info or "No description" }
+				cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
+				local primaryLow = aliases[1] and type(aliases[1]) == "string" and aliases[1]:lower() or nil
+				local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+				AddCmdPlug(pluginKey, aliases, dataRef)
+				Insert(cmdNames, aliases[1])
+			else
+				DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
+			end
+		end
+
+		if #cmdNames > 0 then
+			local fileName = file:match("[^\\/]+$") or file
+			Insert(loadedSumm, fileName.." ("..Concat(cmdNames, ", ")..")")
+		end
+	end
+
+	for _, file in ipairs(filesNA) do
+		loadPluginFile(file, "na")
+	end
+	for _, file in ipairs(filesIY) do
+		loadPluginFile(file, "iy")
 	end
 
 	local staleKeys = {}
@@ -11277,7 +11427,17 @@ NAmanage.InitPlugs=function()
 	local bn = function(p) return (p and p:match("[^\\/]+$")) or p end
 	local jp = function(d, n) d = d or ""; return (#d > 0) and (d.."/"..n) or n end
 	local mk = function(p) if p and #p > 0 and not isfolder(p) then makefolder(p) end end
-	local isna = function(p) return lp(p):match("%.na$") ~= nil end
+	local isIgnoredIY = function(p)
+		local base = bn(p)
+		return type(base) == "string" and base:lower() == "iy_fe.iy"
+	end
+	local isPluginFile = function(p)
+		local n = lp(p)
+		if isIgnoredIY(p) then
+			return false
+		end
+		return n:match("%.na$") ~= nil or n:match("%.iy$") ~= nil
+	end
 	local uniq = function(dir, fname)
 		local name, ext = fname:match("^(.*)(%.[^%.]+)$"); name, ext = name or fname, ext or ""
 		local try = jp(dir, fname); if not isfile(try) then return try end
@@ -11296,14 +11456,21 @@ NAmanage.InitPlugs=function()
 		return ""
 	end
 
-	local plugsDir = NAfiles.NAPLUGINFILEPATH
-	local plugsNorm = lp(plugsDir)
-	local plugsTail = plugsNorm:match("([^/]+/[^/]+)$") or plugsNorm
+	local plugsDirNA = NAfiles.NAPLUGINFILEPATH
+	local plugsDirIY = NAfiles.NAIYPLUGINFILEPATH or (NAfiles.NAFILEPATH.."/PluginsIY")
+	local plugsInfo = {}
+	for _, dir in ipairs({plugsDirNA, plugsDirIY}) do
+		local norm = lp(dir)
+		local tail = norm:match("([^/]+/[^/]+)$") or norm
+		Insert(plugsInfo, { norm = norm, tail = tail })
+	end
 	local inPlugs = function(path)
 		local p = lp(path)
-		if p == plugsNorm then return true end
-		if p:sub(1, #plugsNorm + 1) == (plugsNorm.."/") then return true end
-		if p:find("/"..plugsTail.."/", 1, true) then return true end
+		for _, info in ipairs(plugsInfo) do
+			if p == info.norm then return true end
+			if p:sub(1, #info.norm + 1) == (info.norm.."/") then return true end
+			if p:find("/"..info.tail.."/", 1, true) then return true end
+		end
 		return false
 	end
 
@@ -11317,7 +11484,7 @@ NAmanage.InitPlugs=function()
 				if okd and isd then
 					if not inPlugs(p) then rec(p) end
 				else
-					if isna(p) and not inPlugs(p) then Insert(out, p) end
+					if isPluginFile(p) and not inPlugs(p) then Insert(out, p) end
 				end
 			end
 		end
@@ -11327,16 +11494,22 @@ NAmanage.InitPlugs=function()
 
 	cmd.add(
 		{"addallplugins","addplugins","aap","aaplugs"},
-		{"addallplugins","Move all .na files from workspace into Nameless-Admin/Plugins and load them"},
+		{"addallplugins","Move all .na to Nameless-Admin/Plugins and all .iy to Nameless-Admin/PluginsIY, then load them"},
 		function()
-			mk(plugsDir)
+			mk(plugsDirNA)
+			mk(plugsDirIY)
 			local ws = root()
 			local found = scan(ws)
 			local moved, errs = {}, 0
 			for _, src in ipairs(found) do
+				if isIgnoredIY(src) then
+					continue
+				end
 				local okR, data = pcall(readfile, src)
 				if okR and data then
-					local dst = uniq(plugsDir, bn(src))
+					local isIY = lp(src):match("%.iy$") ~= nil
+					local dstDir = isIY and plugsDirIY or plugsDirNA
+					local dst = uniq(dstDir, bn(src))
 					local okW = pcall(writefile, dst, data)
 					if okW and delfile and pcall(delfile, src) then
 						Insert(moved, bn(dst))
@@ -11351,26 +11524,33 @@ NAmanage.InitPlugs=function()
 				DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
 				if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
 			else
-				DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na files found outside Plugins", 3)
+				DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na/.iy files found outside Plugins/PluginsIY", 3)
 			end
 		end
 	)
 
 	cmd.add(
 		{"addplugin","addplug","ap","aplug"},
-		{"addplugin","Move one .na from workspace into Nameless-Admin/Plugins and load it"},
+		{"addplugin","Move one .na to Plugins or one .iy to PluginsIY, then load it"},
 		function(...)
-			mk(plugsDir)
+			mk(plugsDirNA)
+			mk(plugsDirIY)
 			local query = tostring((...) or ""):lower()
 			local ws = root()
 			local all = scan(ws) -- already excludes anything under Plugins
-			if #all == 0 then DoNotif("No .na files found outside Plugins",3); return end
+			if #all == 0 then DoNotif("No .na/.iy files found outside Plugins/PluginsIY",3); return end
 
 			local function moveOne(path)
+				if isIgnoredIY(path) then
+					DoNotif("Skipping IY_FE.iy (Infinite Yield settings file)", 3)
+					return
+				end
 				local file = bn(path)
 				local okR, data = pcall(readfile, path)
 				if not okR or not data then DoNotif("Failed to read "..file,3); return end
-				local dst = uniq(plugsDir, file)
+				local isIY = lp(path):match("%.iy$") ~= nil
+				local dstDir = isIY and plugsDirIY or plugsDirNA
+				local dst = uniq(dstDir, file)
 				local okW = pcall(writefile, dst, data)
 				if not okW then DoNotif("Failed to write "..file,3); return end
 				if not (delfile and pcall(delfile, path)) then DoNotif("Wrote but couldn't delete source "..file,3); return end
@@ -11415,26 +11595,24 @@ NAmanage.InitPlugs=function()
 				return
 			end
 			local query = tostring((...) or ""):lower()
-			local pluginDir = NAfiles.NAPLUGINFILEPATH
-			if not isfolder or not isfolder(pluginDir) then
-				DoNotif("Plugins folder not found",3)
-				return
-			end
-			local ok, items = pcall(listfiles, pluginDir)
-			if not ok or type(items) ~= "table" then
-				DoNotif("Failed to list plugins",3)
-				return
-			end
 			if query ~= "" then
 				local matched = false
-				for _, path in ipairs(items) do
-					if Lower(path):match("%.na$") then
-						local name = path:match("[^\\/]+$") or path
-						if name and name:lower():find(query, 1, true) then
-							matched = true
-							break
+				for _, dir in ipairs({plugsDirNA, plugsDirIY}) do
+					if isfolder and isfolder(dir) then
+						local ok, items = pcall(listfiles, dir)
+						if ok and type(items) == "table" then
+							for _, path in ipairs(items) do
+								if isPluginFile(path) then
+									local name = path:match("[^\\/]+$") or path
+									if name and name:lower():find(query, 1, true) then
+										matched = true
+										break
+									end
+								end
+							end
 						end
 					end
+					if matched then break end
 				end
 				if not matched then
 					DoNotif("No plugin matched '"..query.."'",3)
@@ -11449,32 +11627,40 @@ NAmanage.InitPlugs=function()
 
 	cmd.add(
 		{"removeplugin","rmplugin","delplugin","rmp"},
-		{"removeplugin","Move a plugin file from Nameless-Admin/Plugins back to workspace"},
+		{"removeplugin","Move a plugin file from Nameless-Admin/Plugins or Nameless-Admin/PluginsIY back to workspace"},
 		function()
-			if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
-			local ok, items = pcall(listfiles, plugsDir)
-			if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+			if not (isfolder(plugsDirNA) or isfolder(plugsDirIY)) then DoNotif("Plugins folder not found",3); return end
 			local btns = {}
-			for _, p in ipairs(items) do
-				if isna(p) then
-					local file = bn(p)
-					Insert(btns, {
-						Text = file,
-						Callback = function()
-							local okR, data = pcall(readfile, p)
-							if not okR or not data then DoNotif("Failed to read "..file,3); return end
-							local dst = uniq("", file)
-							local okW = pcall(writefile, dst, data)
-							if okW and delfile and pcall(delfile, p) then
-								DoNotif("Moved "..file.." to workspace",3)
-							else
-								DoNotif("Failed to move "..file,3)
+			local function addButtons(dir, prefix, extPat)
+				if not isfolder(dir) then return end
+				local ok, items = pcall(listfiles, dir)
+				if not ok or type(items) ~= "table" then return end
+				for _, p in ipairs(items) do
+					if isIgnoredIY(p) then
+						continue
+					end
+					if type(p) == "string" and lp(p):match(extPat) then
+						local file = bn(p)
+						Insert(btns, {
+							Text = prefix..file,
+							Callback = function()
+								local okR, data = pcall(readfile, p)
+								if not okR or not data then DoNotif("Failed to read "..file,3); return end
+								local dst = uniq("", file)
+								local okW = pcall(writefile, dst, data)
+								if okW and delfile and pcall(delfile, p) then
+									DoNotif("Moved "..file.." to workspace",3)
+								else
+									DoNotif("Failed to move "..file,3)
+								end
 							end
-						end
-					})
+						})
+					end
 				end
 			end
-			if #btns == 0 then DoNotif("No plugins found in Plugins folder",3); return end
+			addButtons(plugsDirNA, "[NA] ", "%.na$")
+			addButtons(plugsDirIY, "[IY] ", "%.iy$")
+			if #btns == 0 then DoNotif("No plugins found in Plugins/PluginsIY folders",3); return end
 			local show = Window or DoWindow
 			if show then show({Title = "Move Plugin to Workspace", Buttons = btns}) else DoNotif("Window UI not available",3) end
 		end
@@ -11482,29 +11668,37 @@ NAmanage.InitPlugs=function()
 
 	cmd.add(
 		{"removeallplugins","rmaplugins","clearplugins","rmap","rmaplugs"},
-		{"removeallplugins","Move all plugins from Nameless-Admin/Plugins back to workspace"},
+		{"removeallplugins","Move all plugins from Nameless-Admin/Plugins and Nameless-Admin/PluginsIY back to workspace"},
 		function()
-			if not isfolder(plugsDir) then DoNotif("Plugins folder not found",3); return end
-			local ok, items = pcall(listfiles, plugsDir)
-			if not ok or type(items) ~= "table" then DoNotif("Failed to list plugins",3); return end
+			if not (isfolder(plugsDirNA) or isfolder(plugsDirIY)) then DoNotif("Plugins folder not found",3); return end
 			local moved, errs = {}, 0
-			for _, p in ipairs(items) do
-				if isna(p) then
-					local file = bn(p)
-					local okR, data = pcall(readfile, p)
-					if okR and data then
-						local dst = uniq("", file)
-						local okW = pcall(writefile, dst, data)
-						if okW and delfile and pcall(delfile, p) then
-							Insert(moved, file)
+			local function moveAll(dir, extPat)
+				if not isfolder(dir) then return end
+				local ok, items = pcall(listfiles, dir)
+				if not ok or type(items) ~= "table" then errs += 1; return end
+				for _, p in ipairs(items) do
+					if isIgnoredIY(p) then
+						continue
+					end
+					if type(p) == "string" and lp(p):match(extPat) then
+						local file = bn(p)
+						local okR, data = pcall(readfile, p)
+						if okR and data then
+							local dst = uniq("", file)
+							local okW = pcall(writefile, dst, data)
+							if okW and delfile and pcall(delfile, p) then
+								Insert(moved, file)
+							else
+								errs += 1
+							end
 						else
 							errs += 1
 						end
-					else
-						errs += 1
 					end
 				end
 			end
+			moveAll(plugsDirNA, "%.na$")
+			moveAll(plugsDirIY, "%.iy$")
 			if #moved > 0 then
 				DoNotif("Moved "..#moved.." plugin file(s) to workspace:\n\n"..Concat(moved, "\n"), 4.5)
 			else
@@ -39614,9 +39808,39 @@ NAgui.resizeable = function(ui, min, max)
 	local lastPos = Vector2.new()
 	local dragInput
 	local dragEndedConn
+	local cursorSaved
+	local cursorActive = false
 
 	local function isMenuMinimized()
 		return ui and ui.GetAttribute and ui:GetAttribute("NAMenuMinimized") == true
+	end
+
+	local function setCursor(icon)
+		if not mouse then return end
+		if not cursorActive then
+			cursorSaved = mouse.Icon
+			cursorActive = true
+		end
+		mouse.Icon = icon or ""
+	end
+
+	local function restoreCursor()
+		if not mouse then return end
+		if cursorActive then
+			mouse.Icon = cursorSaved or ""
+			cursorSaved = nil
+			cursorActive = false
+		elseif mouse.Icon ~= "" then
+			mouse.Icon = ""
+		end
+	end
+
+	local function endDrag()
+		dragging = false
+		mode = nil
+		dragInput = nil
+		if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
+		restoreCursor()
 	end
 
 	local function updateResize(currentPos)
@@ -39653,7 +39877,7 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
-				if dragging and (input == dragInput or input.UserInputType == Enum.UserInputType.MouseMovement) then
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
@@ -39663,12 +39887,11 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
-				if dragging and input == dragInput then
-					dragging = false
-					mode = nil
-					dragInput = nil
-					if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
-					if mouse and mouse.Icon ~= "" then mouse.Icon = "" end
+				if not dragging then return end
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					endDrag()
+				elseif input.UserInputType == Enum.UserInputType.Touch and input == dragInput then
+					endDrag()
 				end
 			end)
 		end)
@@ -39683,6 +39906,10 @@ NAgui.resizeable = function(ui, min, max)
 						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 							mode = button
 							dragging = true
+							local map = resizeXY and resizeXY[button.Name]
+							if map then
+								setCursor(map[3])
+							end
 							local p = input.Position
 							lastPos = Vector2.new(p.X, p.Y)
 							lastSize = ui.AbsoluteSize
@@ -39691,13 +39918,7 @@ NAgui.resizeable = function(ui, min, max)
 							if dragEndedConn then dragEndedConn:Disconnect() end
 							dragEndedConn = input.Changed:Connect(function()
 								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-									mode = nil
-									dragInput = nil
-									if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
-									if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
-										mouse.Icon = ""
-									end
+									endDrag()
 								end
 							end)
 						end
@@ -39706,26 +39927,13 @@ NAgui.resizeable = function(ui, min, max)
 			end)
 
 			pcall(function()
-				button.InputChanged:Connect(function(input)
-					pcall(function()
-						if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-							dragInput = input
-						end
-					end)
-				end)
-			end)
-
-			pcall(function()
 				button.InputEnded:Connect(function(input)
 					pcall(function()
-						if input == dragInput and mode == button and input.UserInputState == Enum.UserInputState.End then
-							dragging = false
-							mode = nil
-							dragInput = nil
-							if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
-							if mouse and resizeXY and resizeXY[button.Name] and mouse.Icon == resizeXY[button.Name][3] then
-								mouse.Icon = ""
-							end
+						if not dragging or mode ~= button or input.UserInputState ~= Enum.UserInputState.End then return end
+						if input.UserInputType == Enum.UserInputType.MouseButton1 then
+							endDrag()
+						elseif input.UserInputType == Enum.UserInputType.Touch and input == dragInput then
+							endDrag()
 						end
 					end)
 				end)
@@ -39734,9 +39942,8 @@ NAgui.resizeable = function(ui, min, max)
 			pcall(function()
 				button.MouseEnter:Connect(function()
 					pcall(function()
-						if resizeXY and resizeXY[button.Name] and mouse then
-							mouse.Icon = resizeXY[button.Name][3]
-						end
+						local map = resizeXY and resizeXY[button.Name]
+						if map then setCursor(map[3]) end
 					end)
 				end)
 			end)
@@ -39744,9 +39951,7 @@ NAgui.resizeable = function(ui, min, max)
 			pcall(function()
 				button.MouseLeave:Connect(function()
 					pcall(function()
-						if not dragging and resizeXY and resizeXY[button.Name] and mouse and mouse.Icon == resizeXY[button.Name][3] then
-							mouse.Icon = ""
-						end
+						if not dragging then restoreCursor() end
 					end)
 				end)
 			end)
@@ -39755,6 +39960,7 @@ NAgui.resizeable = function(ui, min, max)
 
 	return function()
 		pcall(function() if dragEndedConn then dragEndedConn:Disconnect() end end)
+		pcall(restoreCursor)
 		pcall(function() rgui:Destroy() end)
 	end
 end

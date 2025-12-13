@@ -48,13 +48,13 @@ Click a badge to view profiles.
 <details open>
 <summary>Plugin Support - How It Works</summary>
 
-Add custom commands to Nameless Admin by dropping `.na` plugin files in the `Plugins` folder.
+Add custom commands to Nameless Admin by dropping `.na` plugin files in `Plugins` and `.iy` plugin files in `PluginsIY`.
 
 ### Getting Started
 
 1. Open your executor's `Workspace` folder.
-2. Create `Nameless-Admin/Plugins/` if it doesn't exist.
-3. Add a `.na` file (e.g., `Workspace/Nameless-Admin/Plugins/test.na`).
+2. Create `Nameless-Admin/Plugins/` (for `.na`) and `Nameless-Admin/PluginsIY/` (for `.iy`) if they don't exist.
+3. Add a plugin file (e.g., `Workspace/Nameless-Admin/Plugins/test.na` or `Workspace/Nameless-Admin/PluginsIY/example.iy`).
 4. Put commands into that file using one of the supported formats below.
 
 ---
@@ -111,6 +111,38 @@ cmdPluginAdd = {
 ```
 
 ---
+
+#### Infinite Yield-style `.iy` Plugins
+
+Put `.iy` files in `Nameless-Admin/PluginsIY/`. You can use the common Infinite Yield plugin format (a returned `Plugin` table with `Commands`):
+
+```lua
+local Plugin = {
+    PluginName = "ExamplePlugin",
+    PluginDescription = "Shows how .iy plugins map into NA commands",
+    Commands = {
+        hello = {
+            ListName = "hello",
+            Description = "Say hello",
+            Aliases = {"hi", "hey"},
+            Function = function(args, speaker)
+                local name = args[1] or "world"
+                DoNotif("hello "..tostring(name))
+            end,
+        },
+        echo = {
+            ListName = "echo",
+            Description = "Echo back whatever you type",
+            Aliases = {},
+            Function = function(args, speaker)
+                DoNotif(table.concat(args, " "))
+            end,
+        },
+    },
+}
+
+return Plugin
+```
 
 ### Command Fields
 
