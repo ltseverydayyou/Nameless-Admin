@@ -43343,6 +43343,15 @@ originalIO.naCHATtrans=function()
 		if ok and size then
 			label.Size = UDim2.new(1, -5, 0, size.Y)
 		end
+
+		local a = originalIO.NAChatAuto
+		local fn = a and a.botSoon
+		if type(fn) == "function" then
+			local sf = label.Parent
+			if sf and sf:IsA("ScrollingFrame") then
+				pcall(fn, sf)
+			end
+		end
 	end
 
 	local function normalizeRichTextEntities(text)
@@ -44362,6 +44371,8 @@ originalIO.runNACHAT=function()
 				scrollToBottom(scrollFrame)
 			end)
 		end
+		originalIO.NAChatAuto = originalIO.NAChatAuto or {}
+		originalIO.NAChatAuto.botSoon = scrollToBottomSoon
 		local permanentFailureReason = nil
 		local usersUpdateGeneration = 0
 		local usersFetchInFlight = false
