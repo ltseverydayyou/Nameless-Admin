@@ -44915,7 +44915,7 @@ originalIO.runNACHAT=function()
 			return withMarkup, wasMentioned
 		end
 
-		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/Main.lua"
+		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau" -- i hate you qipu
 		local connect
 
 		originalIO.setStatus = function(t, c)
@@ -46107,7 +46107,7 @@ originalIO.runNACHAT=function()
 				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
 					okInit, initErr = NAChat.service.Init({
-						serverUrl = "wss://witty-minette-adonis-632b17c0.koyeb.app/swimhub",
+						serverUrl = "wss://ratty-erminia-adonis-98016d83.koyeb.app/swimhub",
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
