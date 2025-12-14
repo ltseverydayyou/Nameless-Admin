@@ -487,11 +487,7 @@ opt={
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
 	NA_storage=nil;--Stupid Ahh script removing folders
-	NAREQUEST = (syn and syn.request)
-		or (http and http.request)
-		or http_request
-		or request
-		or function() end;
+	NAREQUEST = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or function() end;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
 	ctrlModule = nil;
@@ -11333,9 +11329,55 @@ NAmanage.LoadPlugins = function()
 			return nil, res2
 		end
 
+		local function _pluginRequest(opts)
+			local rq = resolvedRequest or opt.NAREQUEST
+			if type(rq) ~= "function" then
+				return { StatusCode = 0, Body = "HTTP unavailable" }
+			end
+			if type(opts) == "table" then
+				if type(opts.HttpRequestType) == "boolean" then
+					opts = table.clone and table.clone(opts) or { }
+					if not table.clone then
+						for k, v in pairs(opts) do opts[k] = v end
+					end
+					opts.HttpRequestType = nil
+				end
+			end
+			local ok, res = pcall(rq, opts)
+			if ok then
+				return res
+			end
+			return { StatusCode = 0, Body = tostring(res) }
+		end
+
+		local rawGame = game
+		local gameProxy = {}
+		function gameProxy:GetService(serviceName)
+			return rawGame:GetService(serviceName)
+		end
+		function gameProxy:HttpGet(url, second)
+			if type(second) == "boolean" then
+				return rawGame:HttpGet(url)
+			end
+			return rawGame:HttpGet(url, second)
+		end
+		function gameProxy:HttpGetAsync(url, second)
+			if type(second) == "boolean" then
+				return rawGame:HttpGetAsync(url)
+			end
+			return rawGame:HttpGetAsync(url, second)
+		end
+		setmetatable(gameProxy, {
+			__index = function(_, k)
+				return rawGame[k]
+			end
+		})
+
 		proxyEnv.cmdRun = _runCmd
 		proxyEnv.RunCommand = _runCmd
 		proxyEnv.runCommand = _runCmd
+		proxyEnv.request = _pluginRequest
+		proxyEnv.http_request = _pluginRequest
 		proxyEnv.notify = function(msg, t)
 			if DoNotif then
 				DoNotif(tostring(msg), t or 3)
@@ -11359,6 +11401,10 @@ NAmanage.LoadPlugins = function()
 					return function(chunk, chunkname, mode2, env)
 						return baseLoad(chunk, chunkname, mode2, env or proxyEnv)
 					end
+				elseif k == "game" then
+					return gameProxy
+				elseif k == "httprequest" or k == "request" or k == "http_request" then
+					return _pluginRequest
 				end
 				return baseEnv[k]
 			end,
@@ -42234,29 +42280,47 @@ function fixStupidSearchGoober(cmdName, command)
 end
 
 NAmanage.computeScore=function(entry,term,len)
+	if not entry or not entry.name or not entry.lowerName then return end
+	local cmdEntry = cmds.Commands and cmds.Commands[entry.name] or nil
+	local aliasesTbl = cmds.Aliases or {}
+	local savedAliasesTbl = cmds.NASAVEDALIASES or {}
+
 	if entry.lowerName == term then return 1,entry.name end
 	if Sub(entry.lowerName,1,len) == term then return 2,entry.name end
-	if cmds.Aliases[term] and cmds.Aliases[term][1] == cmds.Commands[entry.name][1] then return 3,term end
-	if cmds.NASAVEDALIASES[term] == entry.name then return 3,term end
-	for alias,real in pairs(cmds.Aliases) do
-		if real[1] == cmds.Commands[entry.name][1] and Sub(alias,1,len) == term then
-			return 4,alias
+
+	local termAliases = aliasesTbl[term]
+	if cmdEntry and type(termAliases) == "table" and termAliases[1] == cmdEntry[1] then
+		return 3,term
+	end
+	if savedAliasesTbl[term] == entry.name then return 3,term end
+
+	if cmdEntry then
+		for alias,real in pairs(aliasesTbl) do
+			if type(real) == "table" and real[1] == cmdEntry[1] and Sub(alias,1,len) == term then
+				return 4,alias
+			end
 		end
 	end
-	for alias,real in pairs(cmds.NASAVEDALIASES) do
+	for alias,real in pairs(savedAliasesTbl) do
 		if real == entry.name and Sub(alias,1,len) == term then
 			return 4,alias
 		end
 	end
-	for _,a in ipairs(entry.extraAliases) do
+
+	local extraAliases = entry.extraAliases or {}
+	for _,a in ipairs(extraAliases) do
 		if a == term then return 3,entry.name end
 		if Sub(a,1,len) == term then return 4,entry.name end
 		if Find(a,term,1,true) then return 5,entry.name end
 	end
 	if len >= 2 then
 		if Find(entry.lowerName,term,1,true) then return 6,entry.name end
-		if Find(entry.searchable,term,1,true) then
-			return 7,(cmds.Commands[entry.name][2] and cmds.Commands[entry.name][2][1] or entry.name)
+		if entry.searchable and Find(entry.searchable,term,1,true) then
+			local displayName = entry.name
+			if cmdEntry and type(cmdEntry[2]) == "table" and cmdEntry[2][1] then
+				displayName = cmdEntry[2][1]
+			end
+			return 7,displayName
 		end
 	end
 end
@@ -46830,85 +46894,6 @@ originalIO.runNACHAT=function()
 			adminTab = nil
 			adminFrame = nil
 		end
-
-		local chatTopbar = chatFrame and chatFrame:FindFirstChild("Topbar")
-
-		local function attachAdminButton(name, text, offsetX, callback)
-			if not chatTopbar or type(MouseButtonFix) ~= "function" then
-				return
-			end
-
-			local btn = chatTopbar:FindFirstChild(name)
-			if not btn then
-				btn = InstanceNew("TextButton", chatTopbar)
-				btn.Name = name
-				btn.Size = UDim2.new(0, 60, 0, 24)
-				btn.Position = UDim2.new(1, offsetX, 0, 4)
-				btn.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
-				btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-				btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-				btn.TextSize = 13
-				local corner = InstanceNew("UICorner", btn)
-				corner.CornerRadius = UDim.new(0, 6)
-			end
-
-			btn.Text = text
-			btn.AutoButtonColor = true
-
-			MouseButtonFix(btn, callback)
-		end
-
-		local function ensureTargetOrWarn()
-			local target = getAdminActionTarget()
-			if not target then
-				if DoNotif then
-					DoNotif("NA Chat admin: select a user (DM button or search) first.", 3)
-				end
-				return nil
-			end
-			return target
-		end
-
-		attachAdminButton("NAChatKick", "Kick", -210, function()
-			local target = ensureTargetOrWarn()
-			if not target then
-				return
-			end
-			local svc = NAChat.service
-			if svc and svc.SendAdminAction then
-				svc.SendAdminAction("kick", target)
-			end
-		end)
-
-		attachAdminButton("NAChatBan", "Ban", -140, function()
-			local target = ensureTargetOrWarn()
-			if not target then
-				return
-			end
-			local svc = NAChat.service
-			if svc and svc.SendAdminAction then
-				svc.SendAdminAction("ban", target)
-			end
-		end)
-
-		attachAdminButton("NAChatMute", "Mute", -70, function()
-			local target = ensureTargetOrWarn()
-			if not target then
-				return
-			end
-			local key = Lower(target)
-			if mutedUsers[key] then
-				mutedUsers[key] = nil
-				if DoNotif then
-					DoNotif(("NA Chat: unmuted %s."):format(target), 2)
-				end
-			else
-				mutedUsers[key] = true
-				if DoNotif then
-					DoNotif(("NA Chat: muted %s."):format(target), 2)
-				end
-			end
-		end)
 
 		cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
 			local svc = NAChat.service
