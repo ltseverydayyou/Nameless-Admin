@@ -49,6 +49,7 @@ local TAB_ALL = "All"
 local TAB_GENERAL = "General"
 local TAB_INTEGRATIONS = "Integrations"
 local TAB_INTERFACE = "Interface"
+local TAB_USER_BUTTONS = "User Buttons"
 local TAB_LOGGING = "Logging"
 local TAB_ESP = "ESP"
 local TAB_CHAT = "Chat"
@@ -12045,6 +12046,92 @@ NAmanage.RenderUserButtons = function()
 		error(err)
 	end
 	return true
+end
+
+NAmanage.UserButtonColorFromTable = function(t, defaultColor)
+	if typeof(t) == "Color3" then
+		return t
+	end
+	if type(t) ~= "table" then
+		return defaultColor
+	end
+	local r = t.R or t[1]
+	local g = t.G or t[2]
+	local b = t.B or t[3]
+	if r == nil or g == nil or b == nil then
+		return defaultColor
+	end
+	return Color3.fromRGB(tonumber(r) or 0, tonumber(g) or 0, tonumber(b) or 0)
+end
+
+NAmanage.UserButtonColorToTable = function(c)
+	return {
+		math.floor(c.R * 255 + 0.5),
+		math.floor(c.G * 255 + 0.5),
+		math.floor(c.B * 255 + 0.5),
+	}
+end
+
+NAmanage.ApplyUserButtonStyles = function()
+	local ok, err = pcall(function()
+		for _, btn in ipairs(UserButtonGuiList) do
+			if typeof(btn) == "Instance" and btn:IsA("TextButton") then
+				local idStr = btn.Name:match("^NAUserButton_(%d+)$")
+				local id = idStr and tonumber(idStr) or nil
+				if id then
+					local data = NAUserButtons[id]
+					if type(data) == "table" then
+						local width = tonumber(data.Width)
+						local height = tonumber(data.Height)
+						if width or height then
+							local currentSize = btn.Size
+							local w = width or currentSize.X.Offset
+							local h = height or currentSize.Y.Offset
+							btn.Size = UDim2.new(0, w, 0, h)
+						end
+
+						if data.BgColor then
+							local bg = NAmanage.UserButtonColorFromTable(data.BgColor, btn.BackgroundColor3)
+							btn.BackgroundColor3 = bg
+						end
+
+						if data.TextColor then
+							local tc = NAmanage.UserButtonColorFromTable(data.TextColor, btn.TextColor3)
+							btn.TextColor3 = tc
+						end
+
+						if data.CornerRadius ~= nil then
+							local radius = tonumber(data.CornerRadius)
+							if radius and radius >= 0 and radius <= 1 then
+								local corner = btn:FindFirstChildOfClass("UICorner")
+								if corner then
+									corner.CornerRadius = UDim.new(radius, 0)
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+	if not ok then
+		warn("[UserButtons] style apply failed: "..tostring(err))
+	end
+end
+
+do
+	local _renderUserButtons = NAmanage.RenderUserButtons
+	NAmanage.RenderUserButtons = function(...)
+		local ok, result = pcall(_renderUserButtons, ...)
+		if ok then
+			if type(NAmanage.ApplyUserButtonStyles) == "function" then
+				pcall(NAmanage.ApplyUserButtonStyles)
+			end
+			return result
+		else
+			error(result)
+		end
+	end
 end
 
 local lp=Players.LocalPlayer
@@ -36064,7 +36151,8 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 	local GetConstants = (debug and debug.getconstants) or getconstants
 	local HasAdvancedAccess = (getgc and SetConstant and GetConstants)
 
-	if HasAdvancedAccess then
+	local function useAdvancedMode()
+		if not HasAdvancedAccess then return end
 		local PlayerModule = player:FindFirstChild("PlayerScripts") and player.PlayerScripts:FindFirstChild("PlayerModule")
 		local Popper = PlayerModule and PlayerModule:FindFirstChild("CameraModule") and PlayerModule.CameraModule:FindFirstChild("ZoomController") and PlayerModule.CameraModule.ZoomController:FindFirstChild("Popper")
 
@@ -36081,64 +36169,70 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 				end
 			end
 		end
-	else
-		--[[if _G._noclipConnection then _G._noclipConnection:Disconnect() end
-		if _G._noclipInput then _G._noclipInput:Disconnect() end
-		if _G._noclipZoom then _G._noclipZoom:Disconnect() end
-		if _G._noclipBegin then _G._noclipBegin:Disconnect() end
-		if _G._noclipEnd then _G._noclipEnd:Disconnect() end
+	end
 
-		local rootPart = (player.Character or player.CharacterAdded:Wait()):WaitForChild("HumanoidRootPart")
-		local zoom = (camera.CFrame.Position - rootPart.Position).Magnitude
-		local minZoom = player.CameraMinZoomDistance
-		local maxZoom = player.CameraMaxZoomDistance
-		local rotationX, rotationY = 0, 0
-		local sensitivity = 0.2
-		local rotating = false
-
-		camera.CameraType = Enum.CameraType.Scriptable
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-
-		_G._noclipBegin = UserInputService.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton2 then
-				rotating = true
-				UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
-			end
-		end)
-
-		_G._noclipEnd = UserInputService.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton2 then
-				rotating = false
-				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-			end
-		end)
-
-		_G._noclipInput = UserInputService.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement and rotating then
-				rotationX=rotationX - input.Delta.X * sensitivity
-				rotationY = math.clamp(rotationY + input.Delta.Y * sensitivity, -80, 80)
-			end
-		end)
-
-		_G._noclipZoom = UserInputService.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseWheel then
-				zoom = math.clamp(zoom - input.Position.Z * 2, minZoom, maxZoom)
-			end
-		end)
-
-		_G._noclipConnection = RunService.RenderStepped:Connect(function()
-			local targetPos = rootPart.Position + Vector3.new(0, 2, 0)
-			local rot = CFrame.Angles(0, math.rad(rotationX), 0) * CFrame.Angles(math.rad(rotationY), 0, 0)
-			local camPos = targetPos + rot:VectorToWorldSpace(Vector3.new(0, 0, -zoom))
-			camera.CFrame = CFrame.new(camPos, targetPos)
-		end)]]
-		if NAlib.isConnected("ilovesolara") then NAlib.disconnect("ilovesolara") player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Zoom return end
-		NAlib.connect("ilovesolara",player:GetPropertyChangedSignal("DevCameraOcclusionMode"):Connect(function()
-			if player.DevCameraOcclusionMode~=Enum.DevCameraOcclusionMode.Invisicam then
-				player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Invisicam
+	local function useInvisCamMode()
+		if NAlib.isConnected("ilovesolara") then
+			NAlib.disconnect("ilovesolara")
+			player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
+			return
+		end
+		NAlib.connect("ilovesolara", player:GetPropertyChangedSignal("DevCameraOcclusionMode"):Connect(function()
+			if player.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
+				player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
 			end
 		end))
-		player.DevCameraOcclusionMode=Enum.DevCameraOcclusionMode.Invisicam
+		player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+	end
+
+	local currentMode = NAStuff.cameranoclipMode
+	if currentMode == "advanced" then
+		useAdvancedMode()
+		NAStuff.cameranoclipMode = nil
+		return
+	elseif currentMode == "invis" then
+		useInvisCamMode()
+		NAStuff.cameranoclipMode = nil
+		return
+	elseif NAlib.isConnected("ilovesolara") then
+		useInvisCamMode()
+		NAStuff.cameranoclipMode = nil
+		return
+	end
+
+	if not HasAdvancedAccess then
+		useInvisCamMode()
+		NAStuff.cameranoclipMode = "invis"
+		return
+	end
+
+	local show = Window or DoWindow
+	local buttons = {
+		{
+			Text = "Invisicam (DevCameraOcclusionMode.Invisicam)",
+			Callback = function()
+				useInvisCamMode()
+				NAStuff.cameranoclipMode = "invis"
+			end
+		},
+		{
+			Text = "Current method (Popper getgc tweak)",
+			Callback = function()
+				useAdvancedMode()
+				NAStuff.cameranoclipMode = "advanced"
+			end
+		},
+	}
+
+	if type(show) == "function" then
+		show({
+			Title = "Camera noclip mode",
+			Description = "Choose how cameranoclip should behave.",
+			Buttons = buttons
+		})
+	else
+		useAdvancedMode()
+		NAStuff.cameranoclipMode = "advanced"
 	end
 end)
 
@@ -36150,7 +36244,10 @@ cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip 
 	local GetConstants = (debug and debug.getconstants) or getconstants
 	local HasAdvancedAccess = (getgc and SetConstant and GetConstants)
 
-	if HasAdvancedAccess then
+	local mode = NAStuff.cameranoclipMode
+	NAStuff.cameranoclipMode = nil
+
+	if mode == "advanced" and HasAdvancedAccess then
 		local PlayerModule = player:FindFirstChild("PlayerScripts") and player.PlayerScripts:FindFirstChild("PlayerModule")
 		local Popper = PlayerModule and PlayerModule:FindFirstChild("CameraModule") and PlayerModule.CameraModule:FindFirstChild("ZoomController") and PlayerModule.CameraModule.ZoomController:FindFirstChild("Popper")
 
@@ -36167,29 +36264,14 @@ cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip 
 				end
 			end
 		end
-	else
-		--[[if _G._noclipConnection then _G._noclipConnection:Disconnect() _G._noclipConnection = nil end
-		if _G._noclipInput then _G._noclipInput:Disconnect() _G._noclipInput = nil end
-		if _G._noclipZoom then _G._noclipZoom:Disconnect() _G._noclipZoom = nil end
-		if _G._noclipBegin then _G._noclipBegin:Disconnect() _G._noclipBegin = nil end
-		if _G._noclipEnd then _G._noclipEnd:Disconnect() _G._noclipEnd = nil end
+	end
 
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-		camera.CameraType = Enum.CameraType.Custom
-
-		local scripts = player:FindFirstChild("PlayerScripts")
-		if scripts then
-			local existingModule = scripts:FindFirstChild("PlayerModule")
-			if existingModule then existingModule:Destroy() end
-
-			local starterModule = SafeGetService("StarterPlayer"):FindFirstChild("StarterPlayerScripts"):FindFirstChild("PlayerModule")
-			if starterModule then
-				local newModule = starterModule:Clone()
-				newModule.Parent = scripts
-			end
-		end]]
+	if NAlib.isConnected("ilovesolara") then
 		NAlib.disconnect("ilovesolara")
-		LocalPlayer.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
+	end
+
+	if player and player.DevCameraOcclusionMode then
+		player.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
 	end
 end)
 
@@ -40280,6 +40362,7 @@ end
 
 NAgui.addColorPicker = function(label, defaultColor, callback)
 	if not NAUIMANAGER.SettingsList then return end
+
 	local picker = templates.ColorPicker:Clone()
 	picker.Title.Text = label
 	NAmanage.SetSearch.tag(picker, label)
@@ -40287,198 +40370,174 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	picker.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(picker)
 
-	local background = picker.CPBackground
-	local display = background.Display
-	local main = background.MainCP
-	local slider = picker.ColorSlider
+	local bg = picker.CPBackground
+	local disp = bg.Display
+	local main = bg.MainCP
+	local sl = picker.ColorSlider
 	local rgb = picker.RGB
 	local hex = picker.HexInput
-	local rgbToggleContainer = picker:FindFirstChild("RGBToggle")
-	local autoRGBToggleButton
-	local autoRGBSwitch
-	local autoRGBIndicator
-	local autoRGBTitle
-	local function getSavedAutoRGBState()
-		if type(label) ~= "string" then
-			return nil
-		end
-		if not (NAmanage and type(NAmanage.NASettingsGet) == "function") then
-			return nil
-		end
-		local stored = NAmanage.NASettingsGet("colorPickerAutoRGB")
-		if type(stored) ~= "table" then
-			return nil
-		end
-		local value = stored[label]
-		if type(value) == "boolean" then
-			return value
-		end
+
+	local rgbTog = picker:FindFirstChild("RGBToggle")
+	local rgbBtn, rgbSw, rgbDot, rgbTit
+
+	local function getSaved()
+		if type(label) ~= "string" then return nil end
+		if not (NAmanage and type(NAmanage.NASettingsGet) == "function") then return nil end
+		local st = NAmanage.NASettingsGet("colorPickerAutoRGB")
+		if type(st) ~= "table" then return nil end
+		local v = st[label]
+		if type(v) == "boolean" then return v end
 		return nil
 	end
 
-	local function persistAutoRGBState(state)
-		if type(label) ~= "string" then
+	local function saveState(sta)
+		if type(label) ~= "string" then return end
+		if not (NAmanage and type(NAmanage.NASettingsGet) == "function" and type(NAmanage.NASettingsSet) == "function") then return end
+		local st = NAmanage.NASettingsGet("colorPickerAutoRGB")
+		if type(st) ~= "table" then st = {} end
+		local nxt = {}
+		for k,v in pairs(st) do nxt[k] = v end
+		nxt[label] = sta and true or false
+		NAmanage.NASettingsSet("colorPickerAutoRGB", nxt)
+	end
+
+	local function mkTog()
+		local f = Instance.new("Frame")
+		f.Name = "RGBToggle"
+		f.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+		f.BorderSizePixel = 0
+		f.Size = UDim2.new(0, 240, 0, 32)
+		f.Position = UDim2.new(0, 20, 0, 115)
+		f.ZIndex = 5
+		f.Parent = picker
+
+		local c = Instance.new("UICorner")
+		c.Parent = f
+
+		local st = Instance.new("UIStroke")
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Color = Color3.fromRGB(71, 71, 71)
+		st.Parent = f
+
+		local t = Instance.new("TextLabel")
+		t.Name = "Title"
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.Gotham
+		t.TextSize = 14
+		t.TextColor3 = Color3.fromRGB(244, 244, 249)
+		t.TextXAlignment = Enum.TextXAlignment.Left
+		t.AnchorPoint = Vector2.new(0, 0.5)
+		t.Position = UDim2.new(0, 12, 0.5, 0)
+		t.Size = UDim2.new(1, -60, 0, 16)
+		t.Text = "RGB Cycle"
+		t.ZIndex = 5
+		t.Parent = f
+
+		return f
+	end
+
+	if not (rgbTog and rgbTog:IsA("GuiObject")) then
+		rgbTog = mkTog()
+	end
+
+	rgbTit = rgbTog:FindFirstChild("Title")
+
+	rgbBtn = rgbTog:FindFirstChild("Interact")
+	if not (rgbBtn and rgbBtn:IsA("GuiButton")) then
+		rgbBtn = Instance.new("TextButton")
+		rgbBtn.Name = "Interact"
+		rgbBtn.BackgroundTransparency = 1
+		rgbBtn.AutoButtonColor = false
+		rgbBtn.BorderSizePixel = 0
+		rgbBtn.Text = ""
+		rgbBtn.Size = UDim2.new(1, 0, 1, 0)
+		rgbBtn.ZIndex = (rgbTog.ZIndex or 1) + 1
+		rgbBtn.Parent = rgbTog
+	end
+
+	rgbSw = rgbTog:FindFirstChild("Switch")
+	if not (rgbSw and rgbSw:IsA("GuiObject")) then
+		rgbSw = Instance.new("Frame")
+		rgbSw.Name = "Switch"
+		rgbSw.BorderSizePixel = 0
+		rgbSw.AnchorPoint = Vector2.new(1, 0.5)
+		rgbSw.Position = UDim2.new(1, -12, 0.5, 0)
+		rgbSw.Size = UDim2.new(0, 45, 0, 22)
+		rgbSw.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+		rgbSw.Parent = rgbTog
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 12)
+		c.Parent = rgbSw
+
+		local st = Instance.new("UIStroke")
+		st.Color = Color3.fromRGB(71, 71, 71)
+		st.Parent = rgbSw
+	end
+
+	rgbDot = rgbSw:FindFirstChild("Indicator")
+	if not (rgbDot and rgbDot:IsA("GuiObject")) then
+		rgbDot = Instance.new("Frame")
+		rgbDot.Name = "Indicator"
+		rgbDot.BorderSizePixel = 0
+		rgbDot.AnchorPoint = Vector2.new(0, 0.5)
+		rgbDot.Position = UDim2.new(0, 2, 0.5, 0)
+		rgbDot.Size = UDim2.new(0, 18, 0, 18)
+		rgbDot.BackgroundColor3 = Color3.fromRGB(114, 114, 124)
+		rgbDot.Parent = rgbSw
+
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = rgbDot
+
+		local st = Instance.new("UIStroke")
+		st.Color = Color3.fromRGB(83, 83, 83)
+		st.Parent = rgbDot
+	end
+
+	local rgbOn = false
+	local rgbSpd = 0.1
+
+	local function updTog()
+		if rgbSw then
+			rgbSw.BackgroundColor3 = rgbOn and Color3.fromRGB(70, 49, 104) or Color3.fromRGB(49, 49, 54)
+		end
+		if rgbDot then
+			local w = rgbDot.Size.X.Offset
+			if w == 0 then w = math.max(rgbDot.AbsoluteSize.X, 18) end
+			local pad = 2
+			rgbDot.Position = rgbOn and UDim2.new(1, -w - pad, 0.5, 0) or UDim2.new(0, pad, 0.5, 0)
+			rgbDot.BackgroundColor3 = rgbOn and Color3.fromRGB(154, 99, 255) or Color3.fromRGB(114, 114, 124)
+		end
+		if rgbTit and rgbTit:IsA("TextLabel") then
+			rgbTit.Text = rgbOn and "RGB Cycle (ON)" or "RGB Cycle"
+			rgbTit.TextColor3 = rgbOn and Color3.fromRGB(194, 194, 255) or Color3.fromRGB(244, 244, 249)
+		end
+	end
+
+	local function setRGB(sta, opt)
+		opt = opt or {}
+		local ns = sta and true or false
+		if rgbOn == ns then
+			if not opt.skipVis then updTog() end
 			return
 		end
-		if not (NAmanage and type(NAmanage.NASettingsGet) == "function" and type(NAmanage.NASettingsSet) == "function") then
-			return
+		rgbOn = ns
+		if not opt.skipSave then
+			saveState(rgbOn)
 		end
-		local stored = NAmanage.NASettingsGet("colorPickerAutoRGB")
-		if type(stored) ~= "table" then
-			stored = {}
-		end
-		local nextStates = {}
-		for key, value in pairs(stored) do
-			nextStates[key] = value
-		end
-		nextStates[label] = state and true or false
-		NAmanage.NASettingsSet("colorPickerAutoRGB", nextStates)
+		updTog()
 	end
 
-	local function createRGBToggleContainer()
-		local frame = Instance.new("Frame")
-		frame.Name = "RGBToggle"
-		frame.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-		frame.BorderSizePixel = 0
-		frame.Size = UDim2.new(0, 240, 0, 32)
-		frame.Position = UDim2.new(0, 20, 0, 115)
-		frame.ZIndex = 5
-		frame.Parent = picker
-
-		local corner = Instance.new("UICorner")
-		corner.Parent = frame
-
-		local stroke = Instance.new("UIStroke")
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Color = Color3.fromRGB(71, 71, 71)
-		stroke.Parent = frame
-
-		local title = Instance.new("TextLabel")
-		title.Name = "Title"
-		title.BackgroundTransparency = 1
-		title.Font = Enum.Font.Gotham
-		title.TextSize = 14
-		title.TextColor3 = Color3.fromRGB(244, 244, 249)
-		title.TextXAlignment = Enum.TextXAlignment.Left
-		title.AnchorPoint = Vector2.new(0, 0.5)
-		title.Position = UDim2.new(0, 12, 0.5, 0)
-		title.Size = UDim2.new(1, -60, 0, 16)
-		title.Text = "RGB Cycle"
-		title.Parent = frame
-		title.ZIndex = 5
-
-		return frame
+	local sv = getSaved()
+	if type(sv) == "boolean" then
+		setRGB(sv, { skipVis = true, skipSave = true })
 	end
+	updTog()
 
-	if not (rgbToggleContainer and rgbToggleContainer:IsA("GuiObject")) then
-		rgbToggleContainer = createRGBToggleContainer()
-	end
-
-	autoRGBTitle = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Title")
-
-	autoRGBToggleButton = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Interact")
-	if not (autoRGBToggleButton and autoRGBToggleButton:IsA("GuiButton")) then
-		autoRGBToggleButton = Instance.new("TextButton")
-		autoRGBToggleButton.Name = "Interact"
-		autoRGBToggleButton.BackgroundTransparency = 1
-		autoRGBToggleButton.AutoButtonColor = false
-		autoRGBToggleButton.BorderSizePixel = 0
-		autoRGBToggleButton.Text = ""
-		autoRGBToggleButton.Size = UDim2.new(1, 0, 1, 0)
-		autoRGBToggleButton.ZIndex = (rgbToggleContainer and rgbToggleContainer.ZIndex or 1) + 1
-		autoRGBToggleButton.Parent = rgbToggleContainer
-	end
-
-	autoRGBSwitch = rgbToggleContainer and rgbToggleContainer:FindFirstChild("Switch")
-	if not (autoRGBSwitch and autoRGBSwitch:IsA("GuiObject")) then
-		autoRGBSwitch = Instance.new("Frame")
-		autoRGBSwitch.Name = "Switch"
-		autoRGBSwitch.BorderSizePixel = 0
-		autoRGBSwitch.AnchorPoint = Vector2.new(1, 0.5)
-		autoRGBSwitch.Position = UDim2.new(1, -12, 0.5, 0)
-		autoRGBSwitch.Size = UDim2.new(0, 45, 0, 22)
-		autoRGBSwitch.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
-		autoRGBSwitch.Parent = rgbToggleContainer
-
-		local switchCorner = Instance.new("UICorner")
-		switchCorner.CornerRadius = UDim.new(0, 12)
-		switchCorner.Parent = autoRGBSwitch
-
-		local switchStroke = Instance.new("UIStroke")
-		switchStroke.Color = Color3.fromRGB(71, 71, 71)
-		switchStroke.Parent = autoRGBSwitch
-	end
-
-	autoRGBIndicator = autoRGBSwitch and autoRGBSwitch:FindFirstChild("Indicator")
-	if not (autoRGBIndicator and autoRGBIndicator:IsA("GuiObject")) then
-		autoRGBIndicator = Instance.new("Frame")
-		autoRGBIndicator.Name = "Indicator"
-		autoRGBIndicator.BorderSizePixel = 0
-		autoRGBIndicator.AnchorPoint = Vector2.new(0, 0.5)
-		autoRGBIndicator.Position = UDim2.new(0, 2, 0.5, 0)
-		autoRGBIndicator.Size = UDim2.new(0, 18, 0, 18)
-		autoRGBIndicator.BackgroundColor3 = Color3.fromRGB(114, 114, 124)
-		autoRGBIndicator.Parent = autoRGBSwitch
-
-		local indicatorCorner = Instance.new("UICorner")
-		indicatorCorner.CornerRadius = UDim.new(1, 0)
-		indicatorCorner.Parent = autoRGBIndicator
-
-		local indicatorStroke = Instance.new("UIStroke")
-		indicatorStroke.Color = Color3.fromRGB(83, 83, 83)
-		indicatorStroke.Parent = autoRGBIndicator
-	end
-
-	local autoRGBEnabled = false
-	local autoRGBSpeed = 0.1
-
-	local function updateAutoRGBToggleVisual()
-		if autoRGBSwitch then
-			autoRGBSwitch.BackgroundColor3 = autoRGBEnabled and Color3.fromRGB(70, 49, 104) or Color3.fromRGB(49, 49, 54)
-		end
-		if autoRGBIndicator then
-			local indicatorWidth = autoRGBIndicator.Size.X.Offset
-			if indicatorWidth == 0 then
-				indicatorWidth = math.max(autoRGBIndicator.AbsoluteSize.X, 18)
-			end
-			local padding = 2
-			autoRGBIndicator.Position = autoRGBEnabled
-				and UDim2.new(1, -indicatorWidth - padding, 0.5, 0)
-				or UDim2.new(0, padding, 0.5, 0)
-			autoRGBIndicator.BackgroundColor3 = autoRGBEnabled and Color3.fromRGB(154, 99, 255) or Color3.fromRGB(114, 114, 124)
-		end
-		if autoRGBTitle and autoRGBTitle:IsA("TextLabel") then
-			autoRGBTitle.Text = autoRGBEnabled and "RGB Cycle (ON)" or "RGB Cycle"
-			autoRGBTitle.TextColor3 = autoRGBEnabled and Color3.fromRGB(194, 194, 255) or Color3.fromRGB(244, 244, 249)
-		end
-	end
-
-	local function applyAutoRGBState(state, opts)
-		opts = opts or {}
-		local newState = state and true or false
-		if autoRGBEnabled == newState then
-			if not opts.skipVisual then
-				updateAutoRGBToggleVisual()
-			end
-			return
-		end
-		autoRGBEnabled = newState
-		if not opts.skipSave then
-			persistAutoRGBState(autoRGBEnabled)
-		end
-		updateAutoRGBToggleVisual()
-	end
-
-	local savedAutoRGB = getSavedAutoRGBState()
-	if type(savedAutoRGB) == "boolean" then
-		applyAutoRGBState(savedAutoRGB, { skipVisual = true, skipSave = true })
-	end
-
-	updateAutoRGBToggleVisual()
-
-	if autoRGBToggleButton then
-		autoRGBToggleButton.MouseButton1Click:Connect(function()
-			applyAutoRGBState(not autoRGBEnabled)
+	if rgbBtn then
+		rgbBtn.MouseButton1Click:Connect(function()
+			setRGB(not rgbOn)
 		end)
 	end
 
@@ -40487,136 +40546,216 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 	end
 
 	local h, s, v = defaultColor:ToHSV()
-	local draggingMain = false
-	local draggingSlider = false
+	local dM, dS = false, false
+	local inM, inS
 
-	main.MainPoint.AnchorPoint = Vector2.new(0.5, 0.5)
-	slider.SliderPoint.AnchorPoint = Vector2.new(0.5, 0.5)
-
-	local function updateUI(pushToInputs, opts)
-		opts = opts or {}
-		local color = Color3.fromHSV(h, s, v)
-		display.BackgroundColor3 = color
-		background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+	local function updUI(push, opt)
+		opt = opt or {}
+		local col = Color3.fromHSV(h, s, v)
+		disp.BackgroundColor3 = col
+		bg.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 		main.MainPoint.Position = UDim2.new(s, 0, 1 - v, 0)
-		slider.SliderPoint.Position = UDim2.new(h, 0, 0.5, 0)
+		sl.SliderPoint.Position = UDim2.new(h, 0, 0.5, 0)
 
-		local r = math.floor(color.R * 255 + 0.5)
-		local g = math.floor(color.G * 255 + 0.5)
-		local b = math.floor(color.B * 255 + 0.5)
+		local r = math.floor(col.R * 255 + 0.5)
+		local g = math.floor(col.G * 255 + 0.5)
+		local b = math.floor(col.B * 255 + 0.5)
 
-		if pushToInputs then
+		if push then
 			rgb.RInput.InputBox.Text = tostring(r)
 			rgb.GInput.InputBox.Text = tostring(g)
 			rgb.BInput.InputBox.Text = tostring(b)
 			hex.InputBox.Text = Format("#%02X%02X%02X", r, g, b)
 		end
 
-		if opts.fire ~= false then
+		if opt.fire ~= false then
 			pcall(function()
-				callback(color)
+				callback(col)
 			end)
 		end
 	end
 
-	local function parseRGBInputs()
-		applyAutoRGBState(false)
+	local function parseRGB()
+		setRGB(false)
 		local r = tonumber(rgb.RInput.InputBox.Text) or 0
 		local g = tonumber(rgb.GInput.InputBox.Text) or 0
 		local b = tonumber(rgb.BInput.InputBox.Text) or 0
-
 		r = math.clamp(r, 0, 255)
 		g = math.clamp(g, 0, 255)
 		b = math.clamp(b, 0, 255)
-
 		h, s, v = Color3.fromRGB(r, g, b):ToHSV()
-		updateUI(false)
+		updUI(false)
 	end
 
-	rgb.RInput.InputBox.FocusLost:Connect(parseRGBInputs)
-	rgb.GInput.InputBox.FocusLost:Connect(parseRGBInputs)
-	rgb.BInput.InputBox.FocusLost:Connect(parseRGBInputs)
+	rgb.RInput.InputBox.FocusLost:Connect(parseRGB)
+	rgb.GInput.InputBox.FocusLost:Connect(parseRGB)
+	rgb.BInput.InputBox.FocusLost:Connect(parseRGB)
 
 	hex.InputBox.FocusLost:Connect(function()
-		applyAutoRGBState(false)
-		local text = hex.InputBox.Text:gsub("#", ""):upper()
-		if text:match("^[0-9A-F]+$") and #text == 6 then
-			local r = tonumber(text:sub(1, 2), 16)
-			local g = tonumber(text:sub(3, 4), 16)
-			local b = tonumber(text:sub(5, 6), 16)
+		setRGB(false)
+		local txt = (hex.InputBox.Text or ""):gsub("#", ""):upper()
+		if txt:match("^[0-9A-F]+$") and #txt == 6 then
+			local r = tonumber(txt:sub(1, 2), 16)
+			local g = tonumber(txt:sub(3, 4), 16)
+			local b = tonumber(txt:sub(5, 6), 16)
 			if r and g and b then
 				h, s, v = Color3.fromRGB(r, g, b):ToHSV()
-				updateUI(true)
+				updUI(true)
+				return
 			end
-		else
-			hex.InputBox.Text = Format("#%02X%02X%02X", math.floor(Color3.fromHSV(h,s,v).R * 255 + 0.5), math.floor(Color3.fromHSV(h,s,v).G * 255 + 0.5), math.floor(Color3.fromHSV(h,s,v).B * 255 + 0.5))
 		end
+		local col = Color3.fromHSV(h, s, v)
+		hex.InputBox.Text = Format("#%02X%02X%02X",
+			math.floor(col.R * 255 + 0.5),
+			math.floor(col.G * 255 + 0.5),
+			math.floor(col.B * 255 + 0.5)
+		)
 	end)
 
-	local mouse = lp:GetMouse()
-	local runService = SafeGetService("RunService")
+	pcall(function() main.MainPoint.AnchorPoint = Vector2.new(0.5, 0.5) end)
+	pcall(function() sl.SliderPoint.AnchorPoint = Vector2.new(0.5, 0.5) end)
 
-	local function setupDragDetection(obj, dragType)
-		obj.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				if dragType == "main" then
-					draggingMain = true
-				elseif dragType == "slider" then
-					draggingSlider = true
+	local UIS = SafeGetService("UserInputService")
+	local RS = SafeGetService("RunService")
+
+	local function v2(p)
+		if typeof(p) == "Vector2" then return p end
+		if typeof(p) == "Vector3" then return Vector2.new(p.X, p.Y) end
+		return UIS and UIS:GetMouseLocation() or Vector2.new(0, 0)
+	end
+
+	local function updMain(pos)
+		local sz = main.AbsoluteSize
+		if sz.X <= 0 or sz.Y <= 0 then return end
+		local ap = main.AbsolutePosition
+		local rx = math.clamp(pos.X - ap.X, 0, sz.X)
+		local ry = math.clamp(pos.Y - ap.Y, 0, sz.Y)
+		s = rx / sz.X
+		v = 1 - (ry / sz.Y)
+		updUI(true)
+	end
+
+	local function updSl(pos)
+		local sz = sl.AbsoluteSize
+		if sz.X <= 0 then return end
+		local ap = sl.AbsolutePosition
+		local rx = math.clamp(pos.X - ap.X, 0, sz.X)
+		h = rx / sz.X
+		updUI(true)
+	end
+
+	local function hit(obj)
+		if obj:IsA("GuiButton") then
+			pcall(function() obj.Active = true end)
+			return obj
+		end
+		pcall(function() obj.Active = true end)
+		local b = obj:FindFirstChild("__Hit")
+		if not (b and b:IsA("TextButton")) then
+			b = Instance.new("TextButton")
+			b.Name = "__Hit"
+			b.BackgroundTransparency = 1
+			b.AutoButtonColor = false
+			b.BorderSizePixel = 0
+			b.Text = ""
+			b.Size = UDim2.new(1, 0, 1, 0)
+			b.ZIndex = (obj.ZIndex or 1) + 20
+			b.Parent = obj
+		end
+		return b
+	end
+
+	local mHit = hit(main)
+	local sHit = hit(sl)
+	pcall(function() main.MainPoint.Interactable = false end)
+	pcall(function() sl.SliderPoint.Interactable = false end)
+	pcall(function() picker.Interact.Interactable = false end)
+
+	local function beg(t, input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		setRGB(false)
+		if t == "m" then
+			dM = true
+			inM = input
+			updMain(v2(input.Position))
+		else
+			dS = true
+			inS = input
+			updSl(v2(input.Position))
+		end
+	end
+
+	mHit.InputBegan:Connect(function(i) beg("m", i) end)
+	sHit.InputBegan:Connect(function(i) beg("s", i) end)
+
+	if UIS then
+		UIS.InputChanged:Connect(function(input)
+			if dM then
+				if inM and inM.UserInputType == Enum.UserInputType.Touch then
+					if input == inM then
+						updMain(v2(input.Position))
+					end
+				else
+					if input.UserInputType == Enum.UserInputType.MouseMovement then
+						updMain(v2(input.Position))
+					end
 				end
-				applyAutoRGBState(false)
+			end
+			if dS then
+				if inS and inS.UserInputType == Enum.UserInputType.Touch then
+					if input == inS then
+						updSl(v2(input.Position))
+					end
+				else
+					if input.UserInputType == Enum.UserInputType.MouseMovement then
+						updSl(v2(input.Position))
+					end
+				end
+			end
+		end)
+
+		UIS.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dM, dS = false, false
+				inM, inS = nil, nil
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.Touch then
+				if inM == input then dM, inM = false, nil end
+				if inS == input then dS, inS = false, nil end
 			end
 		end)
 	end
 
-	setupDragDetection(main, "main")
-	setupDragDetection(main.MainPoint, "main")
-	setupDragDetection(slider, "slider")
-	setupDragDetection(slider.SliderPoint, "slider")
-
-	SafeGetService("UserInputService").InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			draggingMain = false
-			draggingSlider = false
-		end
-	end)
-
-	runService.RenderStepped:Connect(function(deltaTime)
-		if draggingMain then
-			local relX = math.clamp(mouse.X - main.AbsolutePosition.X, 0, main.AbsoluteSize.X)
-			local relY = math.clamp(mouse.Y - main.AbsolutePosition.Y, 0, main.AbsoluteSize.Y)
-			s = relX / main.AbsoluteSize.X
-			v = 1 - (relY / main.AbsoluteSize.Y)
-			updateUI(true)
-		end
-		if draggingSlider then
-			local relX = math.clamp(mouse.X - slider.AbsolutePosition.X, 0, slider.AbsoluteSize.X)
-			h = relX / slider.AbsoluteSize.X
-			updateUI(true)
-		end
-		if autoRGBEnabled and not draggingMain and not draggingSlider then
-			local step = math.clamp(deltaTime or 0.016, 0.001, 0.1)
-			h = (h + step * autoRGBSpeed) % 1
-			updateUI(true)
-		end
-	end)
+	if RS then
+		RS.RenderStepped:Connect(function(dt)
+			if rgbOn and not dM and not dS then
+				local step = math.clamp(dt or 0.016, 0.001, 0.1)
+				h = (h + step * rgbSpd) % 1
+				updUI(true)
+			end
+		end)
+	end
 
 	local entry = {
 		get = function()
 			return Color3.fromHSV(h, s, v)
-		end;
-		set = function(color, opts)
-			if typeof(color) ~= "Color3" then return end
-			h, s, v = color:ToHSV()
-			updateUI(true, opts or {})
-		end;
+		end,
+		set = function(col, opt)
+			if typeof(col) ~= "Color3" then return end
+			h, s, v = col:ToHSV()
+			updUI(true, opt or {})
+		end,
 		getAutoRGB = function()
-			return autoRGBEnabled
-		end;
-		setAutoRGB = function(state)
-			applyAutoRGBState(state)
-		end;
+			return rgbOn
+		end,
+		setAutoRGB = function(sta)
+			setRGB(sta)
+		end,
 	}
+
 	NAgui._colorPickerRegistry[label] = entry
 
 	picker:GetPropertyChangedSignal("Parent"):Connect(function()
@@ -40625,7 +40764,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 		end
 	end)
 
-	updateUI(true)
+	updUI(true)
 
 	return picker
 end
@@ -50004,6 +50143,351 @@ if CoreGui then
 		end
 	end
 end
+
+NAgui.addTab(TAB_USER_BUTTONS, { order = 2.5, textIcon = "circle-plus" })
+NAgui.setTab(TAB_USER_BUTTONS)
+
+originalIO.UserBtnEditor=function()
+	local editorState = {
+		editAll = false,
+		currentIndex = 1,
+		currentId = nil,
+		width = 60,
+		height = 60,
+		corner = 0.25,
+		bgColor = Color3.fromRGB(0, 0, 0),
+		textColor = Color3.fromRGB(255, 255, 255),
+		lbl = "",
+	}
+
+	local function collectAllIds()
+		local ids = {}
+		for id, data in pairs(NAUserButtons) do
+			if type(id) == "number" and type(data) == "table" then
+				table.insert(ids, id)
+			end
+		end
+		table.sort(ids)
+		return ids
+	end
+
+	local function getTargetIds()
+		if editorState.editAll then
+			return collectAllIds()
+		end
+		if type(editorState.currentId) == "number" then
+			return { editorState.currentId }
+		end
+		return {}
+	end
+
+	local function applyToTargets(mutator, description)
+		if not next(NAUserButtons) then
+			DoNotif("No user buttons to customize", 2)
+			return
+		end
+
+		local targets = getTargetIds()
+		if #targets == 0 then
+			if editorState.editAll then
+				DoNotif("No user buttons found", 2)
+			else
+				DoNotif("Enter one or more valid button IDs", 2)
+			end
+			return
+		end
+
+		local applied = 0
+		for _, id in ipairs(targets) do
+			local data = NAUserButtons[id]
+			if type(data) == "table" then
+				mutator(data, id)
+				applied = applied + 1
+			end
+		end
+
+		if applied == 0 then
+			DoNotif("No valid user buttons to modify", 2)
+			return
+		end
+
+		if FileSupport then
+			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		end
+		if type(NAmanage.RenderUserButtons) == "function" then
+			NAmanage.RenderUserButtons()
+		end
+
+		if description then
+			local suffix = (applied == 1) and " button" or " buttons"
+			DoNotif(description.." applied to "..tostring(applied)..suffix, 2)
+		end
+	end
+
+	local function lblPr(def, cb)
+		local sg = NAmanage.waitForScreenGui and NAmanage.waitForScreenGui(5)
+		if not sg then
+			DoNotif("Interface not ready", 2)
+			return
+		end
+
+		local gui = InstanceNew("ScreenGui")
+		gui.IgnoreGuiInset = true
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		gui.Parent = sg
+
+		local f = InstanceNew("Frame")
+		f.Size = UDim2.new(0, 280, 0, 150)
+		f.Position = UDim2.new(0.5, -140, 0.5, -75)
+		f.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		f.BorderSizePixel = 0
+		f.Parent = gui
+
+		local u = InstanceNew("UICorner")
+		u.CornerRadius = UDim.new(0.1, 0)
+		u.Parent = f
+
+		local t = InstanceNew("TextLabel")
+		t.Size = UDim2.new(1, -20, 0, 30)
+		t.Position = UDim2.new(0, 10, 0, 10)
+		t.BackgroundTransparency = 1
+		t.Text = "Rename UserButton Label"
+		t.TextColor3 = Color3.fromRGB(255, 255, 255)
+		t.Font = Enum.Font.GothamBold
+		t.TextSize = 16
+		t.TextWrapped = true
+		t.Parent = f
+
+		local tb = InstanceNew("TextBox")
+		tb.Size = UDim2.new(1, -20, 0, 32)
+		tb.Position = UDim2.new(0, 10, 0, 55)
+		tb.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+		tb.TextColor3 = Color3.fromRGB(255, 255, 255)
+		tb.PlaceholderText = "Type new label"
+		tb.Text = type(def) == "string" and def or ""
+		tb.TextSize = 16
+		tb.Font = Enum.Font.Gotham
+		tb.ClearTextOnFocus = false
+		tb.Parent = f
+
+		local s = InstanceNew("TextButton")
+		s.Size = UDim2.new(0.5, -15, 0, 30)
+		s.Position = UDim2.new(0, 10, 1, -40)
+		s.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+		s.Text = "Save"
+		s.TextColor3 = Color3.fromRGB(255, 255, 255)
+		s.Font = Enum.Font.GothamBold
+		s.TextSize = 14
+		s.Parent = f
+
+		local c = InstanceNew("TextButton")
+		c.Size = UDim2.new(0.5, -15, 0, 30)
+		c.Position = UDim2.new(0.5, 5, 1, -40)
+		c.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+		c.Text = "Cancel"
+		c.TextColor3 = Color3.fromRGB(255, 255, 255)
+		c.Font = Enum.Font.GothamBold
+		c.TextSize = 14
+		c.Parent = f
+
+		MouseButtonFix(s, function()
+			local txt = tostring(tb.Text or "")
+			txt = GSub(txt, "^%s+", "")
+			txt = GSub(txt, "%s+$", "")
+			if txt == "" then
+				gui:Destroy()
+				return
+			end
+			gui:Destroy()
+			cb(txt)
+		end)
+
+		MouseButtonFix(c, function()
+			gui:Destroy()
+		end)
+
+		NAgui.draggerV2(f)
+	end
+
+	NAgui.addSection("Label")
+
+	NAgui.addInput("UserButton Label", "Type label", "", function(txt)
+		editorState.lbl = tostring(txt or "")
+	end)
+
+	NAgui.addButton("Apply Label", function()
+		local txt = tostring(editorState.lbl or "")
+		txt = GSub(txt, "^%s+", "")
+		txt = GSub(txt, "%s+$", "")
+		if txt == "" then
+			DoNotif("Type a label first", 2)
+			return
+		end
+		applyToTargets(function(data)
+			data.Label = txt
+		end, "Label")
+		updateSelectionLabel()
+	end)
+
+	local selectionInfo
+
+	local function updateSelectionLabel()
+		if not selectionInfo then
+			return
+		end
+		if type(editorState.currentId) ~= "number" then
+			selectionInfo.Text = "Selected: None"
+			editorState.lbl = ""
+			if NAgui and NAgui.setInputValue then
+				NAgui.setInputValue("UserButton Label", "", { force = true, fire = false })
+			end
+			return
+		end
+
+		local id = editorState.currentId
+		local data = NAUserButtons[id]
+
+		local raw = (type(data) == "table" and type(data.Label) == "string") and data.Label or ""
+		local label = raw
+		if label == "" then
+			label = "Button "..tostring(id)
+		end
+
+		selectionInfo.Text = ("Selected: [%d] %s"):format(id, label)
+
+		if editorState.editAll then
+			if NAgui and NAgui.setInputValue then
+				NAgui.setInputValue("UserButton Label", editorState.lbl or "", { force = true, fire = false })
+			end
+			return
+		end
+
+		editorState.lbl = raw
+		if NAgui and NAgui.setInputValue then
+			NAgui.setInputValue("UserButton Label", raw, { force = true, fire = false })
+		end
+
+		local w = tonumber(data and data.Width) or 60
+		local h = tonumber(data and data.Height) or 60
+		local cr = tonumber(data and data.CornerRadius) or 0.25
+		if cr < 0 then cr = 0 end
+		if cr > 1 then cr = 1 end
+
+		local bg = NAmanage.UserButtonColorFromTable(data and data.BgColor, Color3.fromRGB(0, 0, 0))
+		local tc = NAmanage.UserButtonColorFromTable(data and data.TextColor, Color3.fromRGB(255, 255, 255))
+
+		editorState.width = w
+		editorState.height = h
+		editorState.corner = cr
+		editorState.bgColor = bg
+		editorState.textColor = tc
+
+		if NAgui and NAgui.setSliderValue then
+			NAgui.setSliderValue("Button Width", w, { fire = false })
+			NAgui.setSliderValue("Button Height", h, { fire = false })
+			NAgui.setSliderValue("Corner Radius", cr, { fire = false })
+		end
+
+		if NAgui and NAgui.setColorPickerValue then
+			NAgui.setColorPickerValue("Background Color", bg, { fire = false })
+			NAgui.setColorPickerValue("Text Color", tc, { fire = false })
+		end
+	end
+
+	local function selectByDelta(delta)
+		local ids = collectAllIds()
+		if #ids == 0 then
+			editorState.currentId = nil
+			editorState.currentIndex = 0
+			updateSelectionLabel()
+			return
+		end
+		local idx = editorState.currentIndex
+		if idx < 1 or idx > #ids then
+			idx = 1
+		end
+		if delta ~= 0 then
+			idx = ((idx - 1 + delta) % #ids) + 1
+		end
+		editorState.currentIndex = idx
+		editorState.currentId = ids[idx]
+		updateSelectionLabel()
+	end
+
+	NAgui.addSection("Selection")
+
+	NAgui.addToggle("Edit All User Buttons", false, function(value)
+		editorState.editAll = value and true or false
+	end)
+
+	selectionInfo = NAgui.addInfo("Selected Button", "Selected: None")
+	selectByDelta(0)
+
+	NAgui.addButton("Previous Button", function()
+		selectByDelta(-1)
+	end)
+
+	NAgui.addButton("Next Button", function()
+		selectByDelta(1)
+	end)
+
+	NAgui.addSection("Appearance")
+
+	NAgui.addSlider("Button Width", 20, 500, editorState.width, 2, " px", function(value)
+		editorState.width = value
+		applyToTargets(function(data)
+			data.Width = math.floor(value + 0.5)
+		end)
+	end)
+
+	NAgui.addSlider("Button Height", 20, 500, editorState.height, 2, " px", function(value)
+		editorState.height = value
+		applyToTargets(function(data)
+			data.Height = math.floor(value + 0.5)
+		end)
+	end)
+
+	NAgui.addSlider("Corner Radius", 0, 1, editorState.corner, 0.05, "", function(value)
+		editorState.corner = value
+		applyToTargets(function(data)
+			data.CornerRadius = value
+		end)
+	end)
+
+	NAgui.addColorPicker("Background Color", editorState.bgColor, function(color)
+		if typeof(color) ~= "Color3" then
+			return
+		end
+		editorState.bgColor = color
+		local stored = NAmanage.UserButtonColorToTable(color)
+		applyToTargets(function(data)
+			data.BgColor = stored
+		end)
+	end)
+
+	NAgui.addColorPicker("Text Color", editorState.textColor, function(color)
+		if typeof(color) ~= "Color3" then
+			return
+		end
+		editorState.textColor = color
+		local stored = NAmanage.UserButtonColorToTable(color)
+		applyToTargets(function(data)
+			data.TextColor = stored
+		end)
+	end)
+
+	NAgui.addButton("Reset Appearance Overrides", function()
+		applyToTargets(function(data)
+			data.Width = nil
+			data.Height = nil
+			data.BgColor = nil
+			data.TextColor = nil
+			data.CornerRadius = nil
+		end, "Appearance reset")
+	end)
+	updateSelectionLabel()
+end
+originalIO.UserBtnEditor()
 
 local joinLeaveWarned = false
 local function persistJoinLeaveConfig()
