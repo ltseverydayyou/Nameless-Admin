@@ -50163,17 +50163,11 @@ originalIO.UserBtnEditor=function()
 
 	local function applyToTargets(mutator, description)
 		if not next(NAUserButtons) then
-			DoNotif("No user buttons to customize", 2)
 			return
 		end
 
 		local targets = getTargetIds()
 		if #targets == 0 then
-			if editorState.editAll then
-				DoNotif("No user buttons found", 2)
-			else
-				DoNotif("Enter one or more valid button IDs", 2)
-			end
 			return
 		end
 
@@ -50187,7 +50181,6 @@ originalIO.UserBtnEditor=function()
 		end
 
 		if applied == 0 then
-			DoNotif("No valid user buttons to modify", 2)
 			return
 		end
 
@@ -50200,14 +50193,13 @@ originalIO.UserBtnEditor=function()
 
 		if description then
 			local suffix = (applied == 1) and " button" or " buttons"
-			DoNotif(description.." applied to "..tostring(applied)..suffix, 2)
+			--DoNotif(description.." applied to "..tostring(applied)..suffix, 2)
 		end
 	end
 
 	local function lblPr(def, cb)
 		local sg = NAmanage.waitForScreenGui and NAmanage.waitForScreenGui(5)
 		if not sg then
-			DoNotif("Interface not ready", 2)
 			return
 		end
 
