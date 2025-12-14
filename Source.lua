@@ -44895,7 +44895,7 @@ originalIO.runNACHAT=function()
 			return withMarkup, wasMentioned
 		end
 
-		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau" -- i hate you qipu
+		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau"
 		local connect
 
 		originalIO.setStatus = function(t, c)
