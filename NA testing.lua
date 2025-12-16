@@ -8452,42 +8452,39 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(btn, cb)
-	local holdT = IsOnMobile and 0.45 or 0.75
-	local movT = IsOnMobile and 12 or 6
-
-	local down = false
+function MouseButtonFix(button,cb)
+	local isDown = false
 	local moved = false
-	local t0 = 0
-	local p0 = Vector2.zero
-	local active
+	local downTime = 0
+	local startPos = nil
+	local holdThreshold = IsOnMobile and 0.45 or 0.75
+	local moveThreshold = 6
 
-	btn.InputBegan:Connect(function(inp)
-		local t = inp.UserInputType
-		if t ~= Enum.UserInputType.MouseButton1 and t ~= Enum.UserInputType.Touch then return end
-
-		down = true
-		moved = false
-		active = inp
-		t0 = tick()
-		p0 = Vector2.new(inp.Position.X, inp.Position.Y)
-	end)
-
-	btn.InputChanged:Connect(function(inp)
-		if not down or inp ~= active then return end
-		local p = Vector2.new(inp.Position.X, inp.Position.Y)
-		if (p - p0).Magnitude >= movT then
-			moved = true
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			isDown = true
+			moved = false
+			downTime = tick()
+			startPos = input.Position
 		end
 	end)
 
-	btn.InputEnded:Connect(function(inp)
-		if not down or inp ~= active then return end
-		down = false
-		active = nil
+	button.InputChanged:Connect(function(input)
+		if not isDown then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			local pos = input.Position
+			if startPos and (pos - startPos).Magnitude >= moveThreshold then
+				moved = true
+			end
+		end
+	end)
 
-		local dt = tick() - t0
-		if dt < holdT and not moved then
+	button.InputEnded:Connect(function(input)
+		if not isDown then return end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+		isDown = false
+		local dt = tick() - downTime
+		if dt < holdThreshold and not moved then
 			cb()
 		end
 	end)
