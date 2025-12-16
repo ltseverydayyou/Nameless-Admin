@@ -8432,69 +8432,23 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(btn, cb)
-	local GuiService = SafeGetService("GuiService")
-	local inset = GuiService:GetGuiInset()
-
-	local holdT = IsOnMobile and 0.45 or 0.75
-	local movT = IsOnMobile and 12 or 6
-
-	local dn = false
-	local mv = false
-	local t0 = 0
-	local p0 = Vector2.zero
-	local lastTy = nil
-
-	local function GetPos(inp)
-		local ty = inp and inp.UserInputType
-		if ty == Enum.UserInputType.Touch then
-			local p = inp.Position
-			return Vector2.new(p.X - inset.X, p.Y - inset.Y)
-		end
-		local p = UserInputService:GetMouseLocation()
-		return Vector2.new(p.X - inset.X, p.Y - inset.Y)
-	end
-
-	local function InBtn(p)
-		local a = btn.AbsolutePosition
-		local s = btn.AbsoluteSize
-		return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
-	end
-
-	btn.InputBegan:Connect(function(inp)
-		local ty = inp.UserInputType
-		if ty ~= Enum.UserInputType.MouseButton1 and ty ~= Enum.UserInputType.Touch then return end
-		dn = true
-		mv = false
-		t0 = os.clock()
-		lastTy = ty
-		inset = GuiService:GetGuiInset()
-		p0 = GetPos(inp)
+function MouseButtonFix(button,clickCallback)
+	local isHolding = false
+	local holdThreshold = IsOnMobile and 0.45 or 0.75
+	local mouseDownTime = 0
+	button.MouseButton1Down:Connect(function()
+		isHolding = false
+		mouseDownTime = tick()
 	end)
-
-	btn.InputChanged:Connect(function(inp)
-		if not dn then return end
-		local ty = inp.UserInputType
-		if lastTy == Enum.UserInputType.Touch then
-			if ty ~= Enum.UserInputType.Touch then return end
-			local p = GetPos(inp)
-			if (p - p0).Magnitude >= movT then mv = true end
-		else
-			if ty ~= Enum.UserInputType.MouseMovement then return end
-			local p = GetPos(inp)
-			if (p - p0).Magnitude >= movT then mv = true end
+	button.MouseButton1Up:Connect(function()
+		local holdDuration = tick() - mouseDownTime
+		if holdDuration < holdThreshold and not isHolding then
+			clickCallback()
 		end
 	end)
-
-	btn.InputEnded:Connect(function(inp)
-		if not dn then return end
-		local ty = inp.UserInputType
-		if ty ~= lastTy then return end
-		dn = false
-		local dt = os.clock() - t0
-		local p = GetPos(inp)
-		if dt < holdT and (not mv) and InBtn(p) then
-			cb()
+	UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+			isHolding = true
 		end
 	end)
 end
