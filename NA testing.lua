@@ -8452,40 +8452,30 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button,cb)
+function MouseButtonFix(button, cb)
+	local isHolding = false
 	local isDown = false
-	local moved = false
 	local downTime = 0
-	local startPos = nil
 	local holdThreshold = IsOnMobile and 0.45 or 0.75
-	local moveThreshold = 6
 
-	button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			isDown = true
-			moved = false
-			downTime = tick()
-			startPos = input.Position
-		end
+	button.MouseButton1Down:Connect(function()
+		isHolding = false
+		isDown = true
+		downTime = tick()
 	end)
 
-	button.InputChanged:Connect(function(input)
-		if not isDown then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			local pos = input.Position
-			if startPos and (pos - startPos).Magnitude >= moveThreshold then
-				moved = true
-			end
-		end
-	end)
-
-	button.InputEnded:Connect(function(input)
-		if not isDown then return end
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
-		isDown = false
+	button.MouseButton1Up:Connect(function()
 		local dt = tick() - downTime
-		if dt < holdThreshold and not moved then
+		if isDown and dt < holdThreshold and not isHolding then
 			cb()
+		end
+		isDown = false
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not isDown then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+			isHolding = true
 		end
 	end)
 end
