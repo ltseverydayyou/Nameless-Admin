@@ -8453,17 +8453,24 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(btn, cb)
-	local GuiService = SafeGetService("GuiService")
-	local inset = GuiService:GetGuiInset()
+	local GuiService = (SafeGetService and SafeGetService("GuiService")) or game:GetService("GuiService")
 
 	local holdT = IsOnMobile and 0.45 or 0.75
-	local movT = IsOnMobile and 12 or 6
+	local movT = IsOnMobile and 28 or 6
 
 	local dn = false
 	local mv = false
 	local t0 = 0
 	local p0 = Vector2.zero
-	local lastTy = nil
+	local act = nil
+	local inset = Vector2.zero
+	local c1, c2
+
+	local function Stop()
+		if c1 then c1:Disconnect() c1=nil end
+		if c2 then c2:Disconnect() c2=nil end
+		act = nil
+	end
 
 	local function GetPos(inp)
 		local ty = inp and inp.UserInputType
@@ -8481,40 +8488,65 @@ function MouseButtonFix(btn, cb)
 		return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
 	end
 
+	local function Same(i)
+		if not act then return false end
+		if i == act then return true end
+		if act.UserInputType == Enum.UserInputType.Touch and i.UserInputType == Enum.UserInputType.Touch then
+			local a = (typeof(act.TouchId) ~= "nil") and act.TouchId or nil
+			local b = (typeof(i.TouchId) ~= "nil") and i.TouchId or nil
+			if a ~= nil and b ~= nil then
+				return a == b
+			end
+		end
+		return false
+	end
+
 	btn.InputBegan:Connect(function(inp)
 		local ty = inp.UserInputType
 		if ty ~= Enum.UserInputType.MouseButton1 and ty ~= Enum.UserInputType.Touch then return end
+
+		inset = Vector2.new((GuiService:GetGuiInset()))
 		dn = true
 		mv = false
 		t0 = os.clock()
-		lastTy = ty
-		inset = GuiService:GetGuiInset()
+		act = inp
 		p0 = GetPos(inp)
+
+		Stop()
+
+		c1 = UserInputService.InputChanged:Connect(function(i)
+			if not dn then return end
+			if not Same(i) then return end
+			local p = GetPos(i)
+
+			if act.UserInputType == Enum.UserInputType.Touch then
+				if not InBtn(p) then mv = true return end
+				if (p - p0).Magnitude >= movT then mv = true end
+			else
+				if (p - p0).Magnitude >= movT then mv = true end
+			end
+		end)
+
+		c2 = UserInputService.InputEnded:Connect(function(i)
+			if not dn then return end
+			if not Same(i) then return end
+
+			dn = false
+			local dt = os.clock() - t0
+			local p = GetPos(i)
+
+			Stop()
+
+			if dt < holdT and not mv and InBtn(p) then
+				cb()
+			end
+		end)
 	end)
 
-	btn.InputChanged:Connect(function(inp)
-		if not dn then return end
-		local ty = inp.UserInputType
-		if lastTy == Enum.UserInputType.Touch then
-			if ty ~= Enum.UserInputType.Touch then return end
-			local p = GetPos(inp)
-			if (p - p0).Magnitude >= movT then mv = true end
-		else
-			if ty ~= Enum.UserInputType.MouseMovement then return end
-			local p = GetPos(inp)
-			if (p - p0).Magnitude >= movT then mv = true end
-		end
-	end)
-
-	btn.InputEnded:Connect(function(inp)
-		if not dn then return end
-		local ty = inp.UserInputType
-		if ty ~= lastTy then return end
-		dn = false
-		local dt = os.clock() - t0
-		local p = GetPos(inp)
-		if dt < holdT and (not mv) and InBtn(p) then
-			cb()
+	btn.AncestryChanged:Connect(function(_, par)
+		if not par then
+			dn = false
+			Stop()
 		end
 	end)
 end
