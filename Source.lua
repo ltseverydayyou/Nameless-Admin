@@ -8432,22 +8432,34 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button,clickCallback)
+function MouseButtonFix(button, clickCallback)
+	if IsOnPC then
+		return button.MouseButton1Click:Connect(clickCallback)
+	end
+	if not IsOnMobile then
+		return
+	end
+
 	local isHolding = false
-	local holdThreshold = IsOnMobile and 0.45 or 0.75
+	local holdThreshold = 0.45
 	local mouseDownTime = 0
+
 	button.MouseButton1Down:Connect(function()
 		isHolding = false
 		mouseDownTime = tick()
 	end)
+
 	button.MouseButton1Up:Connect(function()
+		if mouseDownTime == 0 then return end
 		local holdDuration = tick() - mouseDownTime
+		mouseDownTime = 0
 		if holdDuration < holdThreshold and not isHolding then
 			clickCallback()
 		end
 	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
+
+	button.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch and input.UserInputState == Enum.UserInputState.Change then
 			isHolding = true
 		end
 	end)
