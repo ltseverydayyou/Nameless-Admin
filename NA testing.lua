@@ -8452,30 +8452,43 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button, cb)
-	local isHolding = false
-	local isDown = false
-	local downTime = 0
-	local holdThreshold = IsOnMobile and 0.45 or 0.75
+function MouseButtonFix(btn, cb)
+	local hold = IsOnMobile and 0.45 or 0.75
+	local moveTh = 8
+	local active, t0, p0, plast
 
-	button.MouseButton1Down:Connect(function()
-		isHolding = false
-		isDown = true
-		downTime = tick()
-	end)
+	local function inside(pos)
+		local ap = btn.AbsolutePosition
+		local as = btn.AbsoluteSize
+		local x, y = pos.X, pos.Y
+		return x >= ap.X and x <= ap.X + as.X and y >= ap.Y and y <= ap.Y + as.Y
+	end
 
-	button.MouseButton1Up:Connect(function()
-		local dt = tick() - downTime
-		if isDown and dt < holdThreshold and not isHolding then
-			cb()
+	btn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			active = input
+			t0 = tick()
+			p0 = input.Position
+			plast = p0
 		end
-		isDown = false
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if not isDown then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+	btn.InputChanged:Connect(function(input)
+		if input == active and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			plast = input.Position
+		end
+	end)
+
+	btn.InputEnded:Connect(function(input)
+		if input ~= active then return end
+		local t1 = tick()
+		local pos = input.Position or plast
+		active = nil
+		if not pos or not p0 then return end
+		local dt = t1 - t0
+		local dist = (pos - p0).Magnitude
+		if dt < hold and dist <= moveTh and inside(pos) then
+			cb()
 		end
 	end)
 end
