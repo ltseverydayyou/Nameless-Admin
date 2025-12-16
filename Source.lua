@@ -8432,26 +8432,69 @@ FindInTable = function(tbl,val)
 	return false
 end
 
-function MouseButtonFix(button,clickCallback)
-	local isHolding = false
-	local holdThreshold = IsOnMobile and 0.45 or 0.75
-	local mouseDownTime = 0
+function MouseButtonFix(btn, cb)
+	local GuiService = SafeGetService("GuiService")
+	local inset = GuiService:GetGuiInset()
 
-	button.MouseButton1Down:Connect(function()
-		isHolding = false
-		mouseDownTime = tick()
+	local holdT = IsOnMobile and 0.45 or 0.75
+	local movT = IsOnMobile and 12 or 6
+
+	local dn = false
+	local mv = false
+	local t0 = 0
+	local p0 = Vector2.zero
+	local lastTy = nil
+
+	local function GetPos(inp)
+		local ty = inp and inp.UserInputType
+		if ty == Enum.UserInputType.Touch then
+			local p = inp.Position
+			return Vector2.new(p.X - inset.X, p.Y - inset.Y)
+		end
+		local p = UserInputService:GetMouseLocation()
+		return Vector2.new(p.X - inset.X, p.Y - inset.Y)
+	end
+
+	local function InBtn(p)
+		local a = btn.AbsolutePosition
+		local s = btn.AbsoluteSize
+		return p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y
+	end
+
+	btn.InputBegan:Connect(function(inp)
+		local ty = inp.UserInputType
+		if ty ~= Enum.UserInputType.MouseButton1 and ty ~= Enum.UserInputType.Touch then return end
+		dn = true
+		mv = false
+		t0 = os.clock()
+		lastTy = ty
+		inset = GuiService:GetGuiInset()
+		p0 = GetPos(inp)
 	end)
 
-	button.MouseButton1Up:Connect(function()
-		local holdDuration = tick() - mouseDownTime
-		if holdDuration < holdThreshold and not isHolding then
-			clickCallback()
+	btn.InputChanged:Connect(function(inp)
+		if not dn then return end
+		local ty = inp.UserInputType
+		if lastTy == Enum.UserInputType.Touch then
+			if ty ~= Enum.UserInputType.Touch then return end
+			local p = GetPos(inp)
+			if (p - p0).Magnitude >= movT then mv = true end
+		else
+			if ty ~= Enum.UserInputType.MouseMovement then return end
+			local p = GetPos(inp)
+			if (p - p0).Magnitude >= movT then mv = true end
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+	btn.InputEnded:Connect(function(inp)
+		if not dn then return end
+		local ty = inp.UserInputType
+		if ty ~= lastTy then return end
+		dn = false
+		local dt = os.clock() - t0
+		local p = GetPos(inp)
+		if dt < holdT and (not mv) and InBtn(p) then
+			cb()
 		end
 	end)
 end
@@ -34587,14 +34630,31 @@ end)
 
 cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 	NAStuff.HB = NAStuff.HB or {}
-	NAStuff.HB.P = NAStuff.HB.P or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), charAdded=setmetatable({}, {__mode="k"}), addConn=nil, remConn=nil}
-	NAStuff.HB.N = NAStuff.HB.N or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), perModelAdded=setmetatable({}, {__mode="k"}), scanConn=nil, descConn=nil, config=nil}
 
-	local targets = getPlr(pArg) if #targets==0 then DoNotif("No targets found",2) return end
+	NAStuff.HB.P = NAStuff.HB.P or {
+		ps=setmetatable({}, {__mode="k"}),
+		og=setmetatable({}, {__mode="k"}),
+		ca=setmetatable({}, {__mode="k"}),
+		da=setmetatable({}, {__mode="k"}),
+		addConn=nil, remConn=nil,
+		run=nil, cfg=nil
+	}
+
+	NAStuff.HB.N = NAStuff.HB.N or {
+		ps=setmetatable({}, {__mode="k"}),
+		og=setmetatable({}, {__mode="k"}),
+		md=setmetatable({}, {__mode="k"}),
+		wc=nil,
+		run=nil, cfg=nil
+	}
+
+	local targets = getPlr(pArg)
+	if #targets==0 then DoNotif("No targets found",2) return end
+
 	local n = tonumber(sArg) or 10
-	local argLower = Lower(pArg)
-	local npcMode = (argLower=="npc")
-	local global = (argLower=="all" or argLower=="others")
+	local argL = Lower(pArg)
+	local npc = (argL=="npc")
+	local glb = (argL=="all" or argL=="others")
 
 	local function GetChar(t)
 		if typeof(t)=="Instance" and t:IsA("Player") then
@@ -34609,7 +34669,9 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 		local c = GetChar(t)
 		if c then
 			for _,p in ipairs(c:GetChildren()) do
-				if p:IsA("BasePart") then partSet[p.Name]=true end
+				if p:IsA("BasePart") then
+					partSet[p.Name]=true
+				end
 			end
 		end
 	end
@@ -34619,158 +34681,240 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 		Insert(btns,{
 			Text = limb,
 			Callback = function()
-				local newSize = Vector3.new(n,n,n)
+				local sz = Vector3.new(n,n,n)
+				local bc = BrickColor.new("Really black")
+				local mat = Enum.Material.Neon
+				local limbL = Lower(limb)
+				local isAll = (limb=="All")
 
-				if npcMode then
+				local function MatchBp(bp)
+					if isAll then return true end
+					return Lower(bp.Name)==limbL
+				end
+
+				local function Cache(D, key, bp)
+					D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
+					if not D.og[key][bp] then
+						D.og[key][bp] = {
+							Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
+							Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
+						}
+					end
+				end
+
+				local function ApplyBp(D, key, bp)
+					Cache(D, key, bp)
+					if bp.Size ~= D.cfg.sz then bp.Size = D.cfg.sz end
+					if bp.Transparency ~= 0.9 then bp.Transparency = 0.9 end
+					if bp.BrickColor ~= D.cfg.bc then bp.BrickColor = D.cfg.bc end
+					if bp.Material ~= D.cfg.mat then bp.Material = D.cfg.mat end
+					if bp.CanCollide then bp.CanCollide = false end
+					if not bp.Massless then bp.Massless = true end
+				end
+
+				if npc then
 					local D = NAStuff.HB.N
-					D.config = {limb=limb,size=newSize}
 
-					local function Cache(key, bp)
-						D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
-						if not D.og[key][bp] then
-							D.og[key][bp] = {
-								Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
-								Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
-							}
-						end
+					if D.run then D.run:Disconnect() D.run=nil end
+					if D.wc then D.wc:Disconnect() D.wc=nil end
+					for m,c in pairs(D.md) do
+						if c then c:Disconnect() end
+						D.md[m]=nil
+					end
+					for m,_ in pairs(D.ps) do
+						D.ps[m]=nil
 					end
 
-					local function ApplyTo(model)
-						if not model then return end
-						for _,bp in ipairs(model:GetChildren()) do
-							if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
-								Cache(model, bp)
-								bp.Size = newSize
-								bp.Transparency = 0.9
-								bp.BrickColor = BrickColor.new("Really black")
-								bp.Material = Enum.Material.Neon
-								bp.CanCollide = false
-								bp.Massless = true
+					D.cfg = {limb=limb, limbL=limbL, sz=sz, bc=bc, mat=mat}
+
+					local function Track(m, bp)
+						if not (bp and bp.Parent) then return end
+						if not bp:IsA("BasePart") then return end
+						if not MatchBp(bp) then return end
+						D.ps[m] = D.ps[m] or setmetatable({}, {__mode="k"})
+						D.ps[m][bp] = true
+						ApplyBp(D, m, bp)
+					end
+
+					local function Scan(m)
+						if not (m and m.Parent) then return end
+						for _,c in ipairs(m:GetChildren()) do
+							if c:IsA("BasePart") then
+								Track(m, c)
 							end
 						end
 					end
 
-					local function EnsureLoop(model)
-						if D.loops[model] then D.loops[model]:Disconnect() end
-						D.loops[model] = RunService.Stepped:Connect(function()
-							if model and model.Parent then
-								ApplyTo(model)
+					local function Setup(m)
+						if not (m and m.Parent) then return end
+						if D.md[m] then D.md[m]:Disconnect() end
+						D.md[m] = m.DescendantAdded:Connect(function(inst)
+							if inst and inst:IsA("BasePart") then
+								Track(m, inst)
 							end
 						end)
+						Scan(m)
 					end
 
-					local function IsNPCModel(inst)
-						if inst:IsA("Model") and CheckIfNPC(inst) then return inst end
-						local m = inst:FindFirstAncestorWhichIsA("Model")
+					local function IsNPC(inst)
+						if inst and inst:IsA("Model") and CheckIfNPC(inst) then return inst end
+						local m = inst and inst:FindFirstAncestorWhichIsA("Model") or nil
 						if m and CheckIfNPC(m) then return m end
 						return nil
 					end
 
 					for _,t in ipairs(targets) do
 						local m = GetChar(t)
-						if m then
-							EnsureLoop(m)
-							Defer(function() ApplyTo(m) end)
-							if D.perModelAdded[m] then D.perModelAdded[m]:Disconnect() end
-							D.perModelAdded[m] = m.DescendantAdded:Connect(function()
-								ApplyTo(m)
-							end)
-						end
+						if m then Setup(m) end
 					end
 
-					if D.descConn then D.descConn:Disconnect() D.descConn=nil end
-					D.descConn = workspace.DescendantAdded:Connect(function(inst)
-						local mdl = IsNPCModel(inst)
-						if mdl then
-							EnsureLoop(mdl)
-							Defer(function() ApplyTo(mdl) end)
-							local key = D.perModelAdded[mdl]
-							if key then key:Disconnect() end
-							D.perModelAdded[mdl] = mdl.DescendantAdded:Connect(function()
-								ApplyTo(mdl)
+					D.wc = workspace.DescendantAdded:Connect(function(inst)
+						local m = IsNPC(inst)
+						if m then
+							Defer(function()
+								if not D.md[m] then
+									Setup(m)
+								end
 							end)
 						end
 					end)
 
-					if D.scanConn then D.scanConn:Disconnect() D.scanConn=nil end
 					local acc = 0
-					D.scanConn = RunService.Heartbeat:Connect(function(dt)
+					local acc2 = 0
+					D.run = RunService.Heartbeat:Connect(function(dt)
 						acc += dt
-						if acc < 0.4 then return end
-						acc = 0
-						for _,child in ipairs(workspace:GetChildren()) do
-							if child:IsA("Model") and CheckIfNPC(child) then
-								EnsureLoop(child)
-								ApplyTo(child)
+						acc2 += dt
+
+						if acc >= 0.45 then
+							acc = 0
+							for m,set in pairs(D.ps) do
+								if not (m and m.Parent) then
+									D.ps[m]=nil
+									D.og[m]=nil
+								else
+									for bp,_ in pairs(set) do
+										if not (bp and bp.Parent) then
+											set[bp]=nil
+										else
+											if MatchBp(bp) then
+												ApplyBp(D, m, bp)
+											end
+										end
+									end
+								end
+							end
+						end
+
+						if acc2 >= 1.2 then
+							acc2 = 0
+							for _,ch in ipairs(workspace:GetChildren()) do
+								if ch:IsA("Model") and CheckIfNPC(ch) and not D.md[ch] then
+									Setup(ch)
+								end
 							end
 						end
 					end)
+
 				else
 					local D = NAStuff.HB.P
 
-					local function Cache(key, bp)
-						D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
-						if not D.og[key][bp] then
-							D.og[key][bp] = {
-								Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
-								Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
-							}
-						end
+					if D.run then D.run:Disconnect() D.run=nil end
+					if D.addConn then D.addConn:Disconnect() D.addConn=nil end
+					if D.remConn then D.remConn:Disconnect() D.remConn=nil end
+					for k,c in pairs(D.ca) do
+						if c then c:Disconnect() end
+						D.ca[k]=nil
+					end
+					for k,c in pairs(D.da) do
+						if c then c:Disconnect() end
+						D.da[k]=nil
+					end
+					for k,_ in pairs(D.ps) do
+						D.ps[k]=nil
 					end
 
-					local function ApplyTo(charKey, char)
-						if not char then return end
-						for _,bp in ipairs(char:GetChildren()) do
-							if bp:IsA("BasePart") and (limb=="All" or Lower(bp.Name)==Lower(limb)) then
-								Cache(charKey, bp)
-								bp.Size = newSize
-								bp.Transparency = 0.9
-								bp.BrickColor = BrickColor.new("Really black")
-								bp.Material = Enum.Material.Neon
-								bp.CanCollide = false
-								bp.Massless = true
+					D.cfg = {limb=limb, limbL=limbL, sz=sz, bc=bc, mat=mat}
+
+					local function Track(k, bp)
+						if not (bp and bp.Parent) then return end
+						if not bp:IsA("BasePart") then return end
+						if not MatchBp(bp) then return end
+						D.ps[k] = D.ps[k] or setmetatable({}, {__mode="k"})
+						D.ps[k][bp] = true
+						ApplyBp(D, k, bp)
+					end
+
+					local function Scan(k, ch)
+						if not (ch and ch.Parent) then return end
+						for _,c in ipairs(ch:GetChildren()) do
+							if c:IsA("BasePart") then
+								Track(k, c)
 							end
 						end
 					end
 
-					local function EnsureLoop(key)
-						if D.loops[key] then D.loops[key]:Disconnect() end
-						D.loops[key] = RunService.Stepped:Connect(function()
-							local c = GetChar(key)
-							if c then ApplyTo(key, c) end
+					local function SetupChar(k, ch)
+						if D.da[k] then D.da[k]:Disconnect() end
+						D.da[k] = ch.DescendantAdded:Connect(function(inst)
+							if inst and inst:IsA("BasePart") then
+								Track(k, inst)
+							end
 						end)
+						Scan(k, ch)
+					end
+
+					local function SetupKey(k)
+						local ch = GetChar(k)
+						if ch then SetupChar(k, ch) end
+						if typeof(k)=="Instance" and k:IsA("Player") and k.CharacterAdded then
+							if D.ca[k] then D.ca[k]:Disconnect() end
+							D.ca[k] = k.CharacterAdded:Connect(function(c)
+								Defer(function()
+									if c then SetupChar(k, c) end
+								end)
+							end)
+						end
 					end
 
 					for _,t in ipairs(targets) do
-						EnsureLoop(t)
-						if typeof(t)=="Instance" and t:IsA("Player") and t.CharacterAdded then
-							if D.charAdded[t] then D.charAdded[t]:Disconnect() end
-							D.charAdded[t] = t.CharacterAdded:Connect(function(c)
-								Defer(function() ApplyTo(t, c) end)
-							end)
-						end
-						local c = GetChar(t)
-						if c then Defer(function() ApplyTo(t, c) end) end
+						SetupKey(t)
 					end
 
-					if global then
-						if D.addConn then D.addConn:Disconnect() end
-						if D.remConn then D.remConn:Disconnect() end
+					if glb then
 						D.addConn = Players.PlayerAdded:Connect(function(plr)
-							EnsureLoop(plr)
-							if D.charAdded[plr] then D.charAdded[plr]:Disconnect() end
-							if plr.CharacterAdded then
-								D.charAdded[plr] = plr.CharacterAdded:Connect(function(c)
-									Defer(function() ApplyTo(plr, c) end)
-								end)
-							end
+							SetupKey(plr)
 						end)
 						D.remConn = Players.PlayerRemoving:Connect(function(plr)
-							if D.loops[plr] then D.loops[plr]:Disconnect() D.loops[plr]=nil end
-							if D.charAdded[plr] then D.charAdded[plr]:Disconnect() D.charAdded[plr]=nil end
+							if D.ca[plr] then D.ca[plr]:Disconnect() D.ca[plr]=nil end
+							if D.da[plr] then D.da[plr]:Disconnect() D.da[plr]=nil end
+							D.ps[plr]=nil
 							D.og[plr]=nil
 						end)
 					end
+
+					local acc = 0
+					D.run = RunService.Heartbeat:Connect(function(dt)
+						acc += dt
+						if acc < 0.45 then return end
+						acc = 0
+
+						for k,set in pairs(D.ps) do
+							local ch = GetChar(k)
+							if not (ch and ch.Parent) then
+								D.ps[k]=nil
+							else
+								for bp,_ in pairs(set) do
+									if not (bp and bp.Parent) then
+										set[bp]=nil
+									else
+										if MatchBp(bp) then
+											ApplyBp(D, k, bp)
+										end
+									end
+								end
+							end
+						end
+					end)
 				end
 			end
 		})
@@ -34781,70 +34925,106 @@ end,true)
 
 cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 	NAStuff.HB = NAStuff.HB or {}
-	NAStuff.HB.P = NAStuff.HB.P or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), charAdded=setmetatable({}, {__mode="k"}), addConn=nil, remConn=nil}
-	NAStuff.HB.N = NAStuff.HB.N or {loops=setmetatable({}, {__mode="k"}), og=setmetatable({}, {__mode="k"}), perModelAdded=setmetatable({}, {__mode="k"}), scanConn=nil, descConn=nil, config=nil}
+
+	NAStuff.HB.P = NAStuff.HB.P or {
+		ps=setmetatable({}, {__mode="k"}),
+		og=setmetatable({}, {__mode="k"}),
+		ca=setmetatable({}, {__mode="k"}),
+		da=setmetatable({}, {__mode="k"}),
+		addConn=nil, remConn=nil,
+		run=nil, cfg=nil
+	}
+
+	NAStuff.HB.N = NAStuff.HB.N or {
+		ps=setmetatable({}, {__mode="k"}),
+		og=setmetatable({}, {__mode="k"}),
+		md=setmetatable({}, {__mode="k"}),
+		wc=nil,
+		run=nil, cfg=nil
+	}
 
 	local targets = getPlr(pArg)
 	if #targets==0 then DoNotif("No targets found",2) return end
-	local argLower = Lower(pArg)
-	local npcMode = (argLower=="npc")
-	local global = (argLower=="all" or argLower=="others")
 
-	if npcMode then
-		local D = NAStuff.HB.N
-		for _,t in ipairs(targets) do
-			if D.og[t] then
-				for bp,props in pairs(D.og[t]) do
-					if bp and bp.Parent then
-						bp.Size = props.Size
-						bp.Transparency = props.Transparency
-						bp.BrickColor = props.BrickColor
-						bp.Material = props.Material
-						bp.CanCollide = props.CanCollide
-						bp.Massless = props.Massless
-					end
-				end
-				D.og[t] = nil
+	local argL = Lower(pArg)
+	local npc = (argL=="npc")
+	local glb = (argL=="all" or argL=="others")
+
+	local function GetChar(t)
+		if typeof(t)=="Instance" and t:IsA("Player") then
+			return getPlrChar(t)
+		elseif typeof(t)=="Instance" and t:IsA("Model") then
+			return t
+		end
+	end
+
+	local function RestoreMap(mp)
+		for bp,pr in pairs(mp) do
+			if bp and bp.Parent then
+				bp.Size = pr.Size
+				bp.Transparency = pr.Transparency
+				bp.BrickColor = pr.BrickColor
+				bp.Material = pr.Material
+				bp.CanCollide = pr.CanCollide
+				bp.Massless = pr.Massless
 			end
-			if D.loops[t] then D.loops[t]:Disconnect() D.loops[t]=nil end
-			if D.perModelAdded[t] then D.perModelAdded[t]:Disconnect() D.perModelAdded[t]=nil end
 		end
-		for mdl,conn in pairs(D.perModelAdded) do
-			if conn then conn:Disconnect() end
-			D.perModelAdded[mdl]=nil
+	end
+
+	if npc then
+		local D = NAStuff.HB.N
+
+		for m,mp in pairs(D.og) do
+			if mp then RestoreMap(mp) end
 		end
-		for key,lp in pairs(D.loops) do
-			if lp then lp:Disconnect() end
-			D.loops[key]=nil
+
+		for m,c in pairs(D.md) do
+			if c then c:Disconnect() end
+			D.md[m]=nil
 		end
-		if D.descConn then D.descConn:Disconnect() D.descConn=nil end
-		if D.scanConn then D.scanConn:Disconnect() D.scanConn=nil end
+
+		if D.wc then D.wc:Disconnect() D.wc=nil end
+		if D.run then D.run:Disconnect() D.run=nil end
+
+		for m,_ in pairs(D.ps) do D.ps[m]=nil end
+		for m,_ in pairs(D.og) do D.og[m]=nil end
+		D.cfg = nil
 		return
 	end
 
-	do
-		local D = NAStuff.HB.P
-		for _,t in ipairs(targets) do
-			if D.og[t] then
-				for bp,props in pairs(D.og[t]) do
-					if bp and bp.Parent then
-						bp.Size = props.Size
-						bp.Transparency = props.Transparency
-						bp.BrickColor = props.BrickColor
-						bp.Material = props.Material
-						bp.CanCollide = props.CanCollide
-						bp.Massless = props.Massless
-					end
-				end
-				D.og[t] = nil
+	local D = NAStuff.HB.P
+
+	for _,t in ipairs(targets) do
+		local k = t
+		local ch = GetChar(k)
+
+		if D.og[k] then
+			RestoreMap(D.og[k])
+			D.og[k]=nil
+		end
+
+		if D.ps[k] then D.ps[k]=nil end
+		if D.ca[k] then D.ca[k]:Disconnect() D.ca[k]=nil end
+		if D.da[k] then D.da[k]:Disconnect() D.da[k]=nil end
+
+		if typeof(k)=="Instance" and k:IsA("Model") and ch==k then
+			if D.og[k] then
+				RestoreMap(D.og[k])
+				D.og[k]=nil
 			end
-			if D.loops[t] then D.loops[t]:Disconnect() D.loops[t]=nil end
-			if D.charAdded[t] then D.charAdded[t]:Disconnect() D.charAdded[t]=nil end
 		end
-		if global then
-			if D.addConn then D.addConn:Disconnect() D.addConn=nil end
-			if D.remConn then D.remConn:Disconnect() D.remConn=nil end
-		end
+	end
+
+	if glb then
+		if D.addConn then D.addConn:Disconnect() D.addConn=nil end
+		if D.remConn then D.remConn:Disconnect() D.remConn=nil end
+	end
+
+	local any = false
+	for k,_ in pairs(D.ps) do any = true break end
+	if not any then
+		if D.run then D.run:Disconnect() D.run=nil end
+		D.cfg = nil
 	end
 end,true)
 
