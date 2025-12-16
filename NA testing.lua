@@ -8452,21 +8452,30 @@ FindInTable = function(tbl,val)
 	return false
 end
 
+function getGuiIns(btn)
+	local g = btn
+	while g and not g:IsA("ScreenGui") do
+		g = g.Parent
+	end
+	if g and g.IgnoreGuiInset then
+		return Vector2.zero
+	end
+	return SafeGetService("GuiService"):GetGuiInset()
+end
+
 function MouseButtonFix(btn, cb)
 	local down = false
 	local mv = false
 	local t0 = 0
 	local p0
 	local tid
+	local ins = Vector2.zero
 
 	local thr = IsOnMobile and 0.45 or 0.75
 	local drag = IsOnMobile and 16 or 6
 
-	local function curPos(inp)
-		if inp and inp.UserInputType == Enum.UserInputType.Touch then
-			return Vector2.new(inp.Position.X, inp.Position.Y)
-		end
-		return UserInputService:GetMouseLocation()
+	local function v2(p)
+		return Vector2.new(p.X, p.Y)
 	end
 
 	local function inBtn(p)
@@ -8475,43 +8484,42 @@ function MouseButtonFix(btn, cb)
 		return p.X >= ap.X and p.Y >= ap.Y and p.X <= ap.X + as.X and p.Y <= ap.Y + as.Y
 	end
 
-	btn.InputBegan:Connect(function(inp)
-		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 and inp.UserInputType ~= Enum.UserInputType.Touch then
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType ~= Enum.UserInputType.MouseButton1 and i.UserInputType ~= Enum.UserInputType.Touch then
 			return
 		end
+		ins = getGuiIns(btn)
 		down = true
 		mv = false
 		t0 = os.clock()
-		p0 = curPos(inp)
-		tid = (inp.UserInputType == Enum.UserInputType.Touch) and inp or nil
+		p0 = v2(i.Position) - ins
+		tid = (i.UserInputType == Enum.UserInputType.Touch) and i or nil
 	end)
 
-	UserInputService.InputChanged:Connect(function(inp)
+	btn.InputChanged:Connect(function(i)
 		if not down or not p0 then return end
-
 		if tid then
-			if inp ~= tid then return end
+			if i ~= tid then return end
 		else
-			if inp.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+			if i.UserInputType ~= Enum.UserInputType.MouseMovement then return end
 		end
-
-		local p = curPos(inp)
+		local p = v2(i.Position) - ins
 		if (p - p0).Magnitude > drag then
 			mv = true
 		end
 	end)
 
-	UserInputService.InputEnded:Connect(function(inp)
+	btn.InputEnded:Connect(function(i)
 		if not down then return end
-		if inp.UserInputType ~= Enum.UserInputType.MouseButton1 and inp.UserInputType ~= Enum.UserInputType.Touch then
+		if i.UserInputType ~= Enum.UserInputType.MouseButton1 and i.UserInputType ~= Enum.UserInputType.Touch then
 			return
 		end
-		if tid and inp ~= tid then return end
+		if tid and i ~= tid then return end
 
 		down = false
 
 		local dt = os.clock() - t0
-		local p = curPos(inp)
+		local p = v2(i.Position) - ins
 
 		if dt < thr and not mv and inBtn(p) then
 			cb()
