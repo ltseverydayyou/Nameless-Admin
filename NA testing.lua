@@ -282,6 +282,7 @@ NAmanage.CreateNAFreecam=function()
 	end
 
 	local capturing = false
+	local touchConnection = nil
 
 	local function onKeypress(_, inputState, input)
 		if input.KeyCode and keyboard[input.KeyCode] ~= nil then
@@ -431,8 +432,23 @@ NAmanage.CreateNAFreecam=function()
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
 			ContextActionService:BindActionAtPriority("NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
-			ContextActionService:BindActionAtPriority("NA_FreecamTouchPan", onTouchPan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.Touch)
 			ContextActionService:BindActionAtPriority("NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+		end
+
+		if IsOnMobile and not touchConnection then
+			touchConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+				if input.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+				if gameProcessed then
+					return
+				end
+				if input.UserInputState ~= Enum.UserInputState.Change then
+					return
+				end
+				local delta = input.Delta
+				mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+			end)
 		end
 
 		RunService:BindToRenderStep("NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
@@ -450,8 +466,12 @@ NAmanage.CreateNAFreecam=function()
 			capturing = false
 			ContextActionService:UnbindAction("NA_FreecamKeyboard")
 			ContextActionService:UnbindAction("NA_FreecamMousePan")
-			ContextActionService:UnbindAction("NA_FreecamTouchPan")
 			ContextActionService:UnbindAction("NA_FreecamMouseWheel")
+		end
+
+		if touchConnection then
+			touchConnection:Disconnect()
+			touchConnection = nil
 		end
 
 		zeroInput()
