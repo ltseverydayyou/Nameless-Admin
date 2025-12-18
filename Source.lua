@@ -27753,7 +27753,7 @@ cmd.add({"unloopwaveat", "unloopwat"}, {"unloopwaveat <player> (unloopwat)", "St
 	loopwave = false
 end)
 
-cmd.add({"tools", "gears"}, {"tools <player> (gears)", "Copies tools from ReplicatedStorage and Lighting"}, function()
+cmd.add({"tools", "gears"}, {"tools (gears)", "Copies tools from ReplicatedStorage and Lighting"}, function()
 	function copyTools(source)
 		for _, item in pairs(source:GetDescendants()) do
 			if item:IsA('Tool') or item:IsA('HopperBin') then
