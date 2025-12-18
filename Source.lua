@@ -8992,6 +8992,13 @@ NA_GRAB_BODY = (function()
 	local T = {}
 	local _cache = _rp_cache or setmetatable({}, { __mode = "k" })
 
+	local overrideModel = nil
+	local overrideConn = nil
+	local selectingOverride = false
+
+	local setOverrideModel
+	local pickOverrideModel
+
 	local function asChar(obj)
 		if not obj or typeof(obj) ~= "Instance" then return nil end
 		if obj:IsA("Player") then return obj.Character end
@@ -9004,6 +9011,129 @@ NA_GRAB_BODY = (function()
 			if d:IsA("BasePart") then return d end
 		end
 		return nil
+	end
+
+	setOverrideModel = function(model)
+		if overrideConn then
+			overrideConn:Disconnect()
+			overrideConn = nil
+		end
+		overrideModel = model
+		if model then
+			overrideConn = model.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					if overrideConn then
+						overrideConn:Disconnect()
+						overrideConn = nil
+					end
+					overrideModel = nil
+					selectingOverride = false
+					if Players and Players.LocalPlayer then
+						local localPlayer = Players.LocalPlayer
+						local currentChar = localPlayer.Character
+						if not (currentChar and currentChar.Parent == workspace) then
+							Spawn(function()
+								pickOverrideModel()
+							end)
+						end
+					end
+				end
+			end)
+		end
+	end
+
+	pickOverrideModel = function()
+		if selectingOverride then
+			while selectingOverride do
+				Wait(0.1)
+			end
+			return overrideModel
+		end
+
+		if not (Window and Players and Players.LocalPlayer and workspace) then
+			return overrideModel
+		end
+
+		local localPlayer = Players.LocalPlayer
+		local currentChar = localPlayer.Character
+		if currentChar and currentChar.Parent == workspace then
+			setOverrideModel(nil)
+			return nil
+		end
+
+		selectingOverride = true
+
+		local buttons = {}
+		local candidates = {}
+		local seen = {}
+
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local ch = plr.Character
+			if ch and ch.Parent == workspace and not seen[ch] then
+				seen[ch] = true
+				table.insert(candidates, ch)
+			end
+		end
+
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
+				seen[inst] = true
+				table.insert(candidates, inst)
+			end
+		end
+
+		local selectionDone = false
+
+		local function finish()
+			selectionDone = true
+			selectingOverride = false
+		end
+
+		if #candidates == 0 then
+			table.insert(buttons, {
+				Text = "No characters found",
+				Callback = function()
+					setOverrideModel(nil)
+					finish()
+				end
+			})
+		else
+			for _, model in ipairs(candidates) do
+				local label = model.Name
+				local owner = Players:GetPlayerFromCharacter(model)
+				if owner then
+					label = ("%s (%s)"):format(label, owner.Name)
+				end
+				table.insert(buttons, {
+					Text = label,
+					Callback = function()
+						setOverrideModel(model)
+						finish()
+					end
+				})
+			end
+		end
+
+		local card = Window({
+			Title = "Select Character",
+			Description = "Your character is not in Workspace. Pick a character model to use.",
+			Buttons = buttons
+		})
+
+		if card and card.Destroying then
+			card.Destroying:Connect(function()
+				if not selectionDone then
+					selectionDone = true
+					selectingOverride = false
+				end
+			end)
+		end
+
+		while not selectionDone do
+			Wait(0.1)
+		end
+
+		return overrideModel
 	end
 
 	local function rebuild(char, rec)
@@ -9040,7 +9170,31 @@ NA_GRAB_BODY = (function()
 
 	local function ensure(char)
 		local obj = char
-		if not obj and Players and Players.LocalPlayer then obj = Players.LocalPlayer end
+
+		if Players and Players.LocalPlayer then
+			local localPlayer = Players.LocalPlayer
+			local currentChar = localPlayer.Character
+
+			if not obj then
+				obj = localPlayer
+			end
+
+			if obj == localPlayer or obj == currentChar then
+				if not (currentChar and currentChar.Parent == workspace) then
+					local model = overrideModel
+					if not (model and model.Parent) then
+						model = pickOverrideModel()
+					end
+
+					if model and model.Parent then
+						obj = model
+					else
+						return nil
+					end
+				end
+			end
+		end
+
 		local model = asChar(obj)
 		if not model then return nil end
 		local rec = _cache[model]
@@ -9088,7 +9242,13 @@ end
 
 function getChar()
 	local plr = Players.LocalPlayer
-	return plr and plr.Character or nil
+	if not plr then return nil end
+	local ch = plr.Character
+	if ch and ch.Parent == workspace then
+		return ch
+	end
+	local rec, model = NA_GRAB_BODY.ensure(plr)
+	return model
 end
 
 function getPlrChar(plr)
