@@ -153,6 +153,661 @@ local IsOnPC=(function()
 	return false
 end)()
 
+NAmanage.CreateNAFreecam=function()
+	local module = {}
+
+	local pi = math.pi
+	local clamp = math.clamp
+	local exp = math.exp
+	local rad = math.rad
+	local sqrt = math.sqrt
+	local tan = math.tan
+
+	local Workspace = workspace
+	local Camera = Workspace.CurrentCamera
+	local ContextActionService = SafeGetService("ContextActionService")
+
+	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if Workspace.CurrentCamera then
+			Camera = Workspace.CurrentCamera
+		end
+	end)
+
+	local Spring = {} do
+		Spring.__index = Spring
+
+		function Spring.new(freq, pos)
+			local self = setmetatable({}, Spring)
+			self.f = freq
+			self.p = pos
+			self.v = pos*0
+			return self
+		end
+
+		function Spring:Update(dt, goal)
+			local f = self.f*2*pi
+			local p0 = self.p
+			local v0 = self.v
+
+			local offset = goal - p0
+			local decay = exp(-f*dt)
+
+			local p1 = goal + (v0*dt - offset*(f*dt + 1))*decay
+			local v1 = (f*dt*(offset*f - v0) + v0)*decay
+
+			self.p = p1
+			self.v = v1
+
+			return p1
+		end
+
+		function Spring:SetFreq(freq)
+			self.f = freq
+		end
+
+		function Spring:Reset(pos)
+			self.p = pos
+			self.v = pos*0
+		end
+	end
+
+	local cameraPos = Vector3.new()
+	local cameraRot = Vector2.new()
+	local cameraFov = 70
+
+	local velSpring = Spring.new(1.5, Vector3.new())
+	local panSpring = Spring.new(1.0, Vector2.new())
+	local fovSpring = Spring.new(4.0, 0)
+
+	local NAV_GAIN = Vector3.new(1, 1, 1)*64
+	local PAN_GAIN = Vector2.new(0.75, 1)*8
+	local FOV_GAIN = 300
+	local PITCH_LIMIT = rad(90)
+
+	local DEFAULT_FPS = 60
+	local PAN_MOUSE_SPEED = Vector2.new(1, 1)*(pi/64)
+	local PAN_MOUSE_SPEED_DT = PAN_MOUSE_SPEED/DEFAULT_FPS
+	local FOV_WHEEL_SPEED = 1.0
+	local FOV_WHEEL_SPEED_DT = FOV_WHEEL_SPEED/DEFAULT_FPS
+
+	local NAV_ADJ_SPEED = 0.75
+	local NAV_MIN_SPEED = 0.01
+	local NAV_MAX_SPEED = 4.0
+	local NAV_SHIFT_MUL = 0.25
+
+	local keyboard = {
+		[Enum.KeyCode.W] = 0,
+		[Enum.KeyCode.A] = 0,
+		[Enum.KeyCode.S] = 0,
+		[Enum.KeyCode.D] = 0,
+		[Enum.KeyCode.Q] = 0,
+		[Enum.KeyCode.E] = 0,
+		[Enum.KeyCode.Up] = 0,
+		[Enum.KeyCode.Down] = 0,
+	}
+
+	local mouse = {
+		Delta = Vector2.new(),
+		MouseWheel = 0,
+	}
+
+	local navSpeed = 1
+
+	local function zeroInput()
+		for key in pairs(keyboard) do
+			keyboard[key] = 0
+		end
+		mouse.Delta = Vector2.new()
+		mouse.MouseWheel = 0
+	end
+
+	local capturing = false
+	local touchConnection = nil
+
+	local function onKeypress(_, inputState, input)
+		if input.KeyCode and keyboard[input.KeyCode] ~= nil then
+			if inputState == Enum.UserInputState.Begin then
+				keyboard[input.KeyCode] = 1
+			elseif inputState == Enum.UserInputState.End then
+				keyboard[input.KeyCode] = 0
+			end
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end
+
+	local function onMousePan(_, inputState, input)
+		if inputState == Enum.UserInputState.Change then
+			local delta = input.Delta
+			mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+		end
+		return Enum.ContextActionResult.Sink
+	end
+
+	local function onTouchPan(_, inputState, input)
+		if inputState == Enum.UserInputState.Change then
+			local delta = input.Delta
+			mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+		end
+		return Enum.ContextActionResult.Pass
+	end
+
+	local function onMouseWheel(_, inputState, input)
+		if inputState == Enum.UserInputState.Change then
+			mouse.MouseWheel = -input.Position.Z
+		end
+		return Enum.ContextActionResult.Sink
+	end
+
+	local function inputVel(dt)
+		if not IsOnMobile then
+			navSpeed = clamp(navSpeed + dt*(keyboard[Enum.KeyCode.Up] - keyboard[Enum.KeyCode.Down])*NAV_ADJ_SPEED, NAV_MIN_SPEED, NAV_MAX_SPEED)
+		end
+
+		local move = Vector3.new()
+
+		if IsOnMobile and typeof(GetCustomMoveVector) == "function" then
+			local ok, vec = pcall(GetCustomMoveVector)
+			if ok and vec and vec.Magnitude > 0 then
+				move = vec
+			end
+		else
+			move = Vector3.new(
+				(keyboard[Enum.KeyCode.D] - keyboard[Enum.KeyCode.A]),
+				(keyboard[Enum.KeyCode.E] - keyboard[Enum.KeyCode.Q]),
+				-(keyboard[Enum.KeyCode.W] - keyboard[Enum.KeyCode.S])
+			)
+		end
+
+		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+
+		return move*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
+	end
+
+	local function inputPan(dt)
+		local kMouse = mouse.Delta*PAN_MOUSE_SPEED
+		if dt > 0 then
+			kMouse = (mouse.Delta/dt)*PAN_MOUSE_SPEED_DT
+		end
+		mouse.Delta = Vector2.new()
+		return kMouse
+	end
+
+	local function inputFov(dt)
+		local kMouse = mouse.MouseWheel*FOV_WHEEL_SPEED
+		if dt > 0 then
+			kMouse = (mouse.MouseWheel/dt)*FOV_WHEEL_SPEED_DT
+		end
+		mouse.MouseWheel = 0
+		return kMouse
+	end
+
+	local enabled = false
+	local storedState = {}
+
+	local function stepFreecam(dt)
+		if not Camera then
+			return
+		end
+
+		local vel = velSpring:Update(dt, inputVel(dt))
+		local pan = panSpring:Update(dt, inputPan(dt))
+		local fovStep = fovSpring:Update(dt, inputFov(dt))
+
+		local zoomFactor = sqrt(tan(rad(70/2))/tan(rad(cameraFov/2)))
+		cameraFov = clamp(cameraFov + fovStep*FOV_GAIN*(dt/zoomFactor), 1, 120)
+
+		cameraRot = cameraRot + pan*PAN_GAIN*(dt/zoomFactor)
+		cameraRot = Vector2.new(clamp(cameraRot.X, -PITCH_LIMIT, PITCH_LIMIT), cameraRot.Y%(2*pi))
+
+		local cf = CFrame.new(cameraPos)*CFrame.fromOrientation(cameraRot.X, cameraRot.Y, 0)*CFrame.new(vel*NAV_GAIN*dt)
+
+		cameraPos = cf.Position
+
+		Camera.CFrame = cf
+		Camera.Focus = cf
+		Camera.FieldOfView = cameraFov
+	end
+
+	function module.Start(initialSpeed)
+		if enabled or not Camera then
+			return
+		end
+
+		enabled = true
+
+		if initialSpeed ~= nil then
+			local scaled = tonumber(initialSpeed)
+			if scaled then
+				navSpeed = clamp(scaled, NAV_MIN_SPEED, NAV_MAX_SPEED)
+			end
+		end
+
+		storedState.cameraType = Camera.CameraType
+		storedState.cameraCFrame = Camera.CFrame
+		storedState.cameraFocus = Camera.Focus
+		storedState.cameraFov = Camera.FieldOfView
+		storedState.mouseIconEnabled = UserInputService.MouseIconEnabled
+		storedState.mouseBehavior = UserInputService.MouseBehavior
+
+		local cframe = Camera.CFrame
+		local x, y, _ = cframe:ToOrientation()
+		cameraPos = cframe.Position
+		cameraRot = Vector2.new(x, y)
+		cameraFov = Camera.FieldOfView
+
+		velSpring:Reset(Vector3.new())
+		panSpring:Reset(Vector2.new())
+		fovSpring:Reset(0)
+
+		Camera.CameraType = Enum.CameraType.Scriptable
+		UserInputService.MouseIconEnabled = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+		if not capturing and ContextActionService then
+			capturing = true
+			ContextActionService:BindActionAtPriority("NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
+				Enum.KeyCode.Q, Enum.KeyCode.E,
+				Enum.KeyCode.Up, Enum.KeyCode.Down
+			)
+			ContextActionService:BindActionAtPriority("NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			ContextActionService:BindActionAtPriority("NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+		end
+
+		if IsOnMobile and not touchConnection then
+			touchConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+				if input.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+				if gameProcessed then
+					return
+				end
+				if input.UserInputState ~= Enum.UserInputState.Change then
+					return
+				end
+				local delta = input.Delta
+				mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+			end)
+		end
+
+		RunService:BindToRenderStep("NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+	end
+
+	function module.Stop()
+		if not enabled then
+			return
+		end
+
+		enabled = false
+		RunService:UnbindFromRenderStep("NA_Freecam")
+
+		if capturing and ContextActionService then
+			capturing = false
+			ContextActionService:UnbindAction("NA_FreecamKeyboard")
+			ContextActionService:UnbindAction("NA_FreecamMousePan")
+			ContextActionService:UnbindAction("NA_FreecamMouseWheel")
+		end
+
+		if touchConnection then
+			touchConnection:Disconnect()
+			touchConnection = nil
+		end
+
+		zeroInput()
+
+		if Camera and storedState.cameraType then
+			Camera.CameraType = storedState.cameraType
+			Camera.CFrame = storedState.cameraCFrame
+			Camera.Focus = storedState.cameraFocus
+			Camera.FieldOfView = storedState.cameraFov
+		end
+
+		if storedState.mouseIconEnabled ~= nil then
+			UserInputService.MouseIconEnabled = storedState.mouseIconEnabled
+		end
+		if storedState.mouseBehavior ~= nil then
+			local behavior = storedState.mouseBehavior
+			if behavior == Enum.MouseBehavior.LockCenter then
+				behavior = Enum.MouseBehavior.Default
+			end
+			UserInputService.MouseBehavior = behavior
+		end
+	end
+
+	function module.Toggle(initialSpeed)
+		if enabled then
+			module.Stop()
+		else
+			module.Start(initialSpeed)
+		end
+	end
+
+	function module.IsEnabled()
+		return enabled
+	end
+
+	local FREECAM_MACRO_KEYS = { Enum.KeyCode.LeftShift, Enum.KeyCode.P }
+
+	local function checkMacro()
+		for i = 1, #FREECAM_MACRO_KEYS - 1 do
+			if not UserInputService:IsKeyDown(FREECAM_MACRO_KEYS[i]) then
+				return
+			end
+		end
+
+		if _G.NAFreecamKeybindEnabled ~= true then
+			return
+		end
+
+		module.Toggle()
+	end
+
+	if ContextActionService then
+		ContextActionService:BindActionAtPriority("NA_FreecamToggleKey", function(_, state, input)
+			if state == Enum.UserInputState.Begin and input.KeyCode == FREECAM_MACRO_KEYS[#FREECAM_MACRO_KEYS] then
+				checkMacro()
+			end
+			return Enum.ContextActionResult.Pass
+		end, false, Enum.ContextActionPriority.Low.Value, FREECAM_MACRO_KEYS[#FREECAM_MACRO_KEYS])
+	end
+
+	return module
+end
+
+local NAFreecam = NAmanage.CreateNAFreecam()
+
+--[[ legacy NAFreecam implementation (disabled)
+local NAFreecam = {}
+do
+	local pi = math.pi
+	local clamp = math.clamp
+	local exp = math.exp
+	local rad = math.rad
+	local sqrt = math.sqrt
+	local tan = math.tan
+
+	local Workspace = workspace
+	local Camera = Workspace.CurrentCamera
+	local ContextActionService = SafeGetService("ContextActionService")
+
+	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if Workspace.CurrentCamera then
+			Camera = Workspace.CurrentCamera
+		end
+	end)
+
+	local Spring = {} do
+		Spring.__index = Spring
+
+		function Spring.new(freq, pos)
+			local self = setmetatable({}, Spring)
+			self.f = freq
+			self.p = pos
+			self.v = pos*0
+			return self
+		end
+
+		function Spring:Update(dt, goal)
+			local f = self.f*2*pi
+			local p0 = self.p
+			local v0 = self.v
+
+			local offset = goal - p0
+			local decay = exp(-f*dt)
+
+			local p1 = goal + (v0*dt - offset*(f*dt + 1))*decay
+			local v1 = (f*dt*(offset*f - v0) + v0)*decay
+
+			self.p = p1
+			self.v = v1
+
+			return p1
+		end
+
+		function Spring:SetFreq(freq)
+			self.f = freq
+		end
+
+		function Spring:Reset(pos)
+			self.p = pos
+			self.v = pos*0
+		end
+	end
+
+	local cameraPos = Vector3.new()
+	local cameraRot = Vector2.new()
+	local cameraFov = 70
+
+	local velSpring = Spring.new(1.5, Vector3.new())
+	local panSpring = Spring.new(1.0, Vector2.new())
+	local fovSpring = Spring.new(4.0, 0)
+
+	local NAV_GAIN = Vector3.new(1, 1, 1)*64
+	local PAN_GAIN = Vector2.new(0.75, 1)*8
+	local FOV_GAIN = 300
+	local PITCH_LIMIT = rad(90)
+
+	local DEFAULT_FPS = 60
+	local PAN_MOUSE_SPEED = Vector2.new(1, 1)*(pi/64)
+	local PAN_MOUSE_SPEED_DT = PAN_MOUSE_SPEED/DEFAULT_FPS
+	local FOV_WHEEL_SPEED = 1.0
+	local FOV_WHEEL_SPEED_DT = FOV_WHEEL_SPEED/DEFAULT_FPS
+
+	local NAV_ADJ_SPEED = 0.75
+	local NAV_MIN_SPEED = 0.01
+	local NAV_MAX_SPEED = 4.0
+	local NAV_SHIFT_MUL = 0.25
+
+	local keyboard = {
+		[Enum.KeyCode.W] = 0,
+		[Enum.KeyCode.A] = 0,
+		[Enum.KeyCode.S] = 0,
+		[Enum.KeyCode.D] = 0,
+		[Enum.KeyCode.Q] = 0,
+		[Enum.KeyCode.E] = 0,
+		[Enum.KeyCode.Up] = 0,
+		[Enum.KeyCode.Down] = 0,
+	}
+
+	local mouse = {
+		Delta = Vector2.new(),
+		MouseWheel = 0,
+	}
+
+	local navSpeed = 1
+
+	local function zeroInput()
+		for key in pairs(keyboard) do
+			keyboard[key] = 0
+		end
+		mouse.Delta = Vector2.new()
+		mouse.MouseWheel = 0
+	end
+
+	local capturing = false
+
+	local function onKeypress(_, inputState, input)
+		if input.KeyCode and keyboard[input.KeyCode] ~= nil then
+			if inputState == Enum.UserInputState.Begin then
+				keyboard[input.KeyCode] = 1
+			elseif inputState == Enum.UserInputState.End then
+				keyboard[input.KeyCode] = 0
+			end
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end
+
+	local function onMousePan(_, inputState, input)
+		if inputState == Enum.UserInputState.Change then
+			local delta = input.Delta
+			mouse.Delta = Vector2.new(-delta.Y, -delta.X)
+		end
+		return Enum.ContextActionResult.Sink
+	end
+
+	local function onMouseWheel(_, inputState, input)
+		if inputState == Enum.UserInputState.Change then
+			mouse.MouseWheel = input.Position.Z
+		end
+		return Enum.ContextActionResult.Sink
+	end
+
+	local function inputVel(dt)
+		navSpeed = clamp(navSpeed + dt*(keyboard[Enum.KeyCode.Up] - keyboard[Enum.KeyCode.Down])*NAV_ADJ_SPEED, NAV_MIN_SPEED, NAV_MAX_SPEED)
+
+		local kKeyboard = Vector3.new(
+			(keyboard[Enum.KeyCode.D] - keyboard[Enum.KeyCode.A]),
+			(keyboard[Enum.KeyCode.E] - keyboard[Enum.KeyCode.Q]),
+			-(keyboard[Enum.KeyCode.W] - keyboard[Enum.KeyCode.S])
+		)
+
+		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+
+		return kKeyboard*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
+	end
+
+	local function inputPan(dt)
+		local kMouse = mouse.Delta*PAN_MOUSE_SPEED
+		if dt > 0 then
+			kMouse = (mouse.Delta/dt)*PAN_MOUSE_SPEED_DT
+		end
+		mouse.Delta = Vector2.new()
+		return kMouse
+	end
+
+	local function inputFov(dt)
+		local kMouse = mouse.MouseWheel*FOV_WHEEL_SPEED
+		if dt > 0 then
+			kMouse = (mouse.MouseWheel/dt)*FOV_WHEEL_SPEED_DT
+		end
+		mouse.MouseWheel = 0
+		return kMouse
+	end
+
+	local enabled = false
+	local storedState = {}
+
+	local function stepFreecam(dt)
+		if not Camera then
+			return
+		end
+
+		local vel = velSpring:Update(dt, inputVel(dt))
+		local pan = panSpring:Update(dt, inputPan(dt))
+		local fovStep = fovSpring:Update(dt, inputFov(dt))
+
+		local zoomFactor = sqrt(tan(rad(70/2))/tan(rad(cameraFov/2)))
+		cameraFov = clamp(cameraFov + fovStep*FOV_GAIN*(dt/zoomFactor), 1, 120)
+
+		cameraRot = cameraRot + pan*PAN_GAIN*(dt/zoomFactor)
+		cameraRot = Vector2.new(clamp(cameraRot.X, -PITCH_LIMIT, PITCH_LIMIT), cameraRot.Y%(2*pi))
+
+		local cf = CFrame.new(cameraPos)*CFrame.fromOrientation(cameraRot.X, cameraRot.Y, 0)*CFrame.new(vel*NAV_GAIN*dt)
+
+		cameraPos = cf.Position
+
+		Camera.CFrame = cf
+		Camera.Focus = cf
+		Camera.FieldOfView = cameraFov
+	end
+
+	function NAFreecam.Start(initialSpeed)
+		if enabled or not Camera then
+			return
+		end
+
+		enabled = true
+
+		if initialSpeed ~= nil then
+			local scaled = tonumber(initialSpeed)
+			if scaled then
+				navSpeed = clamp(scaled, NAV_MIN_SPEED, NAV_MAX_SPEED)
+			end
+		end
+
+		storedState.cameraType = Camera.CameraType
+		storedState.cameraCFrame = Camera.CFrame
+		storedState.cameraFocus = Camera.Focus
+		storedState.cameraFov = Camera.FieldOfView
+		storedState.mouseIconEnabled = UserInputService.MouseIconEnabled
+		storedState.mouseBehavior = UserInputService.MouseBehavior
+
+		local cframe = Camera.CFrame
+		local x, y, _ = cframe:ToOrientation()
+		cameraPos = cframe.Position
+		cameraRot = Vector2.new(x, y)
+		cameraFov = Camera.FieldOfView
+
+		velSpring:Reset(Vector3.new())
+		panSpring:Reset(Vector2.new())
+		fovSpring:Reset(0)
+
+		Camera.CameraType = Enum.CameraType.Scriptable
+		UserInputService.MouseIconEnabled = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+		if not capturing and ContextActionService then
+			capturing = true
+			ContextActionService:BindActionAtPriority("NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
+				Enum.KeyCode.Q, Enum.KeyCode.E,
+				Enum.KeyCode.Up, Enum.KeyCode.Down
+			)
+			ContextActionService:BindActionAtPriority("NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			ContextActionService:BindActionAtPriority("NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+		end
+
+		RunService:BindToRenderStep("NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+	end
+
+	function NAFreecam.Stop()
+		if not enabled then
+			return
+		end
+
+		enabled = false
+		RunService:UnbindFromRenderStep("NA_Freecam")
+
+		if capturing and ContextActionService then
+			capturing = false
+			ContextActionService:UnbindAction("NA_FreecamKeyboard")
+			ContextActionService:UnbindAction("NA_FreecamMousePan")
+			ContextActionService:UnbindAction("NA_FreecamMouseWheel")
+		end
+
+		zeroInput()
+
+		if Camera and storedState.cameraType then
+			Camera.CameraType = storedState.cameraType
+			Camera.CFrame = storedState.cameraCFrame
+			Camera.Focus = storedState.cameraFocus
+			Camera.FieldOfView = storedState.cameraFov
+		end
+
+		if storedState.mouseIconEnabled ~= nil then
+			UserInputService.MouseIconEnabled = storedState.mouseIconEnabled
+		end
+		if storedState.mouseBehavior ~= nil then
+			UserInputService.MouseBehavior = storedState.mouseBehavior
+		end
+	end
+
+	function NAFreecam.Toggle(initialSpeed)
+		if enabled then
+			NAFreecam.Stop()
+		else
+			NAFreecam.Start(initialSpeed)
+		end
+	end
+
+	function NAFreecam.IsEnabled()
+		return enabled
+	end
+end
+]]
+
 local originalIO = {}
 
 originalIO.captureIO=function(name)
@@ -5767,6 +6422,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		freecamKeybind = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		autoExecEnabled = {
 			default = true;
 			coerce = function(value)
@@ -6923,6 +7584,7 @@ if opt.naChatTranslateTarget == nil or opt.naChatTranslateTarget == "" then
 	opt.naChatTranslateTarget = opt.chatTranslateTarget
 end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
+_G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -22293,7 +22955,16 @@ fcBTNTOGGLE = nil
 
 cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera"},function(...)
 	argg = (...)
-	local speed = argg or 5
+	local numericArg = tonumber(argg)
+	local legacySpeed = numericArg or 5
+	local navSpeed = numericArg and (numericArg / 5) or nil
+	local speed = legacySpeed
+
+	if NAFreecam and NAFreecam.IsEnabled() then
+		NAFreecam.Stop()
+		camera.CameraSubject = getChar()
+		SpawnCall(function() cmd.run({"unfr"}) end)
+	end
 
 	if NAlib.isConnected("freecam") then
 		NAlib.disconnect("freecam")
@@ -22301,9 +22972,12 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		SpawnCall(function() cmd.run({"unfr"}) end)
 	end
 
-	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
+	if fcBTNTOGGLE then
+		fcBTNTOGGLE:Destroy()
+		fcBTNTOGGLE = nil
+	end
 
-	function runFREECAM()
+	local function runFREECAM()
 		local cf = InstanceNew("CFrameValue")
 		local camPart = InstanceNew("Part")
 		camPart.Transparency = 1
@@ -22334,7 +23008,10 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	end
 
 	if IsOnMobile then
-		if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
+		if fcBTNTOGGLE then
+			fcBTNTOGGLE:Destroy()
+			fcBTNTOGGLE = nil
+		end
 
 		fcBTNTOGGLE = InstanceNew("ScreenGui")
 		local btn = InstanceNew("TextButton")
@@ -22420,16 +23097,25 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 					flyVariables.mOn = true
 					btn.Text = "UNFC"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					runFREECAM()
+					SpawnCall(function() cmd.run({"fr",''}) end)
+					if NAFreecam then
+						NAFreecam.Start(speed and (speed / 5) or nil)
+					else
+						runFREECAM()
+					end
 				else
 					flyVariables.mOn = false
 					btn.Text = "FC"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+					if NAFreecam and NAFreecam.IsEnabled() then
+						NAFreecam.Stop()
+					end
 					if NAlib.isConnected("freecam") then
 						NAlib.disconnect("freecam")
 					end
 					camera.CameraSubject = getChar()
 					SpawnCall(function() cmd.run({"unfr"}) end)
+					DebugNotif("Freecam disabled", 2)
 				end
 			end)
 		end)()
@@ -22437,16 +23123,29 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		NAgui.draggerV2(btn)
 		NAgui.draggerV2(speedBox)
 	else
-		DebugNotif("Freecam is activated, use WASD to move around", 2)
-		runFREECAM()
+		if not IsOnPC then
+			return DebugNotif("Freecam is only available on PC and mobile", 3)
+		end
+
+		DebugNotif("Roblox-style freecam enabled (WASD + mouse, Q/E up/down, arrows change speed)", 3)
+		SpawnCall(function() cmd.run({"fr",''}) end)
+		if NAFreecam then
+			NAFreecam.Start(navSpeed)
+		else
+			runFREECAM()
+		end
 	end
 end, true)
 
 cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free camera"},function()
+	if NAFreecam and NAFreecam.IsEnabled() then
+		NAFreecam.Stop()
+	end
 	NAlib.disconnect("freecam")
 	camera.CameraSubject = getChar()
 	SpawnCall(function() cmd.run({"unfr"}) end)
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
+	DebugNotif("Freecam disabled", 2)
 end)
 
 cmd.add({"nohats","drophats"},{"nohats (drophats)","Drop all of your hats"},function()
@@ -50206,6 +50905,15 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
+end)
+
+NAgui.addToggle("Freecam Shift+P Keybind", _G.NAFreecamKeybindEnabled == true, function(v)
+	_G.NAFreecamKeybindEnabled = v and true or false
+	NAmanage.NASettingsSet("freecamKeybind", _G.NAFreecamKeybindEnabled)
+	DoNotif("Freecam Shift+P keybind "..(v and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Freecam Shift+P Keybind", function()
+	return _G.NAFreecamKeybindEnabled == true
 end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
