@@ -22983,11 +22983,13 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	if NAFreecam and NAFreecam.IsEnabled() then
 		NAFreecam.Stop()
 		camera.CameraSubject = getChar()
+		SpawnCall(function() cmd.run({"unfr"}) end)
 	end
 
 	if NAlib.isConnected("freecam") then
 		NAlib.disconnect("freecam")
 		camera.CameraSubject = getChar()
+		SpawnCall(function() cmd.run({"unfr"}) end)
 	end
 
 	if fcBTNTOGGLE then
@@ -23001,6 +23003,8 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		camPart.Transparency = 1
 		camPart.Anchored = true
 		camPart.CFrame = camera.CFrame
+
+		SpawnCall(function() cmd.run({"fr",''}) end)
 
 		NAlib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
 			local primaryPart = camPart
@@ -23113,6 +23117,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 					flyVariables.mOn = true
 					btn.Text = "UNFC"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+					SpawnCall(function() cmd.run({"fr",''}) end)
 					if NAFreecam then
 						NAFreecam.Start(speed and (speed / 5) or nil)
 					else
@@ -23129,6 +23134,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 						NAlib.disconnect("freecam")
 					end
 					camera.CameraSubject = getChar()
+					SpawnCall(function() cmd.run({"unfr"}) end)
 					DebugNotif("Freecam disabled", 2)
 				end
 			end)
@@ -23142,6 +23148,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		end
 
 		DebugNotif("Roblox-style freecam enabled (WASD + mouse, Q/E up/down, arrows change speed)", 3)
+		SpawnCall(function() cmd.run({"fr",''}) end)
 		if NAFreecam then
 			NAFreecam.Start(navSpeed)
 		else
@@ -23156,6 +23163,7 @@ cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free c
 	end
 	NAlib.disconnect("freecam")
 	camera.CameraSubject = getChar()
+	SpawnCall(function() cmd.run({"unfr"}) end)
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
 	DebugNotif("Freecam disabled", 2)
 end)
