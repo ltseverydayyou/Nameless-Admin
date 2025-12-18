@@ -210,28 +210,52 @@ local function Log(text, url, headers, copyable)
 end
 
 local HttpGet
-HttpGet = hookfunction(game.HttpGet, function(self, url, ...)
-    Log("HTTP GET", url)
-    return HttpGet(self, url, ...)
-end)
+do
+    local ok, err = pcall(function()
+        HttpGet = hookfunction(game.HttpGet, function(self, url, ...)
+            Log("HTTP GET", url)
+            return HttpGet(self, url, ...)
+        end)
+    end)
+    if not ok then
+        Log("WARNING", "Failed to hook HttpGet: "..tostring(err), nil, nil, false)
+    end
+end
 
 local HttpPost
-HttpPost = hookfunction(game.HttpPost, function(self, url, ...)
-    Log("HTTP POST", url)
-    return HttpPost(self, url, ...)
-end)
+do
+    local ok, err = pcall(function()
+        HttpPost = hookfunction(game.HttpPost, function(self, url, ...)
+            Log("HTTP POST", url)
+            return HttpPost(self, url, ...)
+        end)
+    end)
+    if not ok then
+        Log("WARNING", "Failed to hook HttpPost: "..tostring(err), nil, nil, false)
+    end
+end
 
 local RequestLog
 if syn and syn.request then
-    RequestLog = hookfunction(syn.request, function(dat)
-        Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
-        return RequestLog(dat)
+    local ok, err = pcall(function()
+        RequestLog = hookfunction(syn.request, function(dat)
+            Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
+            return RequestLog(dat)
+        end)
     end)
+    if not ok then
+        Log("WARNING", "Failed to hook syn.request: "..tostring(err), nil, nil, false)
+    end
 elseif request then
-    RequestLog = hookfunction(request, function(dat)
-        Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
-        return RequestLog(dat)
+    local ok, err = pcall(function()
+        RequestLog = hookfunction(request, function(dat)
+            Log(dat.Method or "REQUEST", dat.Url, dat.Headers)
+            return RequestLog(dat)
+        end)
     end)
+    if not ok then
+        Log("WARNING", "Failed to hook request: "..tostring(err), nil, nil, false)
+    end
 else
     Log("WARNING", "Your exploit is not supported!")
 end
