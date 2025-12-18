@@ -308,7 +308,7 @@ NAmanage.CreateNAFreecam=function()
 			local delta = input.Delta
 			mouse.Delta = Vector2.new(-delta.Y, -delta.X)
 		end
-		return Enum.ContextActionResult.Sink
+		return Enum.ContextActionResult.Pass
 	end
 
 	local function onMouseWheel(_, inputState, input)
