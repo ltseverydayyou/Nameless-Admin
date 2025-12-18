@@ -328,9 +328,10 @@ if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecuto
 	end
 end
 
-local Waypoints = {}
-local Bindings = Bindings or {}
-local CommandKeybinds = CommandKeybinds or {}
+  local Waypoints = {}
+  local Bindings = Bindings or {}
+  local CommandKeybinds = CommandKeybinds or {}
+  local CommandKeybindOptions = CommandKeybindOptions or {}
 local NAStuff = {
 	NAICONMAIN = nil;
 	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
@@ -6573,63 +6574,132 @@ NAmanage.SaveBinders=function()
 end
 
 NAmanage.SaveCommandKeybinds=function()
-	if not FileSupport then return end
-	local ok, err = pcall(function()
-		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(CommandKeybinds))
-	end)
-	if not ok then
-		warn("[NA] Command keybind save failed: "..tostring(err))
-	end
-end
+  	if not FileSupport then return end
+
+  	local payload = {}
+  	for key, args in pairs(CommandKeybinds) do
+  		if type(key) == "string" and type(args) == "table" then
+  			local opt = CommandKeybindOptions[key]
+  			if opt and opt.toggle then
+  				payload[key] = {
+  					args1 = args;
+  					args2 = opt.args2 or args;
+  				}
+  			else
+  				payload[key] = args
+  			end
+  		end
+  	end
+
+  	local ok, err = pcall(function()
+  		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
+  	end)
+  	if not ok then
+  		warn("[NA] Command keybind save failed: "..tostring(err))
+  	end
+  end
 
 NAmanage.ApplyCommandKeybinds=function()
-	if NAStuff.KeybindConnection then
-		NAStuff.KeybindConnection:Disconnect()
-		NAStuff.KeybindConnection = nil
-	end
-	local UIS = UserInputService
-	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then return end
-		if NAStuff._capturingCommandKeybind then return end
-		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
-		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
-		local keyName = input.KeyCode.Name
-		local args = CommandKeybinds[keyName]
-		if type(args) ~= "table" or #args == 0 then
-			return
-		end
-		local argsCopy = {}
-		for i, v in ipairs(args) do
-			argsCopy[i] = v
-		end
-		cmd.run(argsCopy)
-	end)
-end
+  	if NAStuff.KeybindConnection then
+  		NAStuff.KeybindConnection:Disconnect()
+  		NAStuff.KeybindConnection = nil
+  	end
+  	local UIS = UserInputService
+  	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+  		if gameProcessed then return end
+  		if NAStuff._capturingCommandKeybind then return end
+  		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
+  		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+  		local keyName = input.KeyCode.Name
+  		local args = CommandKeybinds[keyName]
+  		if type(args) ~= "table" or #args == 0 then
+  			return
+  		end
+  
+  		local function cloneArgs(src)
+  			local dst = {}
+  			for i, v in ipairs(src) do
+  				dst[i] = v
+  			end
+  			return dst
+  		end
+  
+    		local opt = CommandKeybindOptions[keyName]
+    		if opt and opt.toggle and type(opt.args2) == "table" then
+    			opt.state = not opt.state
+    			local runArgs
+    			if opt.state then
+    				runArgs = cloneArgs(args)
+    			else
+    				runArgs = cloneArgs(opt.args2)
+    			end
+    			cmd.run(runArgs)
+    		else
+    			cmd.run(cloneArgs(args))
+    		end
+  	end)
+  end
 
 NAmanage.LoadCommandKeybinds=function()
-	CommandKeybinds = {}
-	if FileSupport and isfile and isfile(NAfiles.NACOMMANDKEYBINDS) then
-		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
-		if okRead and type(raw) == "string" and raw ~= "" then
-			local okDecode, decoded = pcall(function()
-				return HttpService:JSONDecode(raw)
-			end)
-			if okDecode and type(decoded) == "table" then
-				for key, value in pairs(decoded) do
-					if type(key) == "string" and type(value) == "table" then
-						CommandKeybinds[key] = value
-					end
-				end
-			end
-		end
-	end
-	NAmanage.ApplyCommandKeybinds()
-	Defer(function()
-		if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
-			pcall(NAmanage.CommandKeybindsUIRefresh)
-		end
-	end)
-end
+  	CommandKeybinds = {}
+  	CommandKeybindOptions = {}
+  	if FileSupport and isfile and isfile(NAfiles.NACOMMANDKEYBINDS) then
+  		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
+  		if okRead and type(raw) == "string" and raw ~= "" then
+  			local okDecode, decoded = pcall(function()
+  				return HttpService:JSONDecode(raw)
+  			end)
+  			if okDecode and type(decoded) == "table" then
+  				for key, value in pairs(decoded) do
+  					if type(key) == "string" and type(value) == "table" then
+  						local args = value
+  						local opt = nil
+  						if type(value.args1) == "table" and type(value.args2) == "table" then
+  							args = value.args1
+  							opt = {
+  								toggle = true;
+  								state = false;
+  								args2 = value.args2;
+  							}
+  						elseif type(value.args) == "table" and value.toggle == true then
+  							args = value.args
+  							local args2 = {}
+  							for i, v in ipairs(args) do
+  								args2[i] = v
+  							end
+  							if type(args2[1]) == "string" then
+  								local cmdName = args2[1]
+  								local lower = string.lower(cmdName)
+  								if lower:sub(1, 2) == "un" then
+  									args2[1] = cmdName:sub(3)
+  								else
+  									args2[1] = "un"..cmdName
+  								end
+  							end
+  							opt = {
+  								toggle = true;
+  								state = false;
+  								args2 = args2;
+  							}
+  						end
+  						if type(args) == "table" then
+  							CommandKeybinds[key] = args
+  							if opt then
+  								CommandKeybindOptions[key] = opt
+  							end
+  						end
+  					end
+  				end
+  			end
+  		end
+  	end
+  	NAmanage.ApplyCommandKeybinds()
+  	Defer(function()
+  		if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
+  			pcall(NAmanage.CommandKeybindsUIRefresh)
+  		end
+  	end)
+  end
 
 originalIO.deepCopyTable=function(value)
 	if type(value) ~= "table" then return value end
@@ -44250,29 +44320,45 @@ NAmanage.CommandKeybindsAdd=function()
 		if listening then
 			listening = false
 			if bindConn then bindConn:Disconnect() bindConn = nil end
-			NAStuff._capturingCommandKeybind = false
-			DoNotif("Command keybind capture timed out.", 2)
+			if NAStuff._capturingCommandKeybind then
+				NAStuff._capturingCommandKeybind = false
+				DoNotif("Command keybind capture timed out.", 2)
+			end
 		end
 	end)
 end
 
 NAmanage.CommandKeybindsRemove=function()
-	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
-		DoNotif("No command keybinds to remove.", 2)
-		return
-	end
-	local buttons = {}
-	for keyName, args in pairs(CommandKeybinds) do
-		local label = table.concat(args, " ")
-		Insert(buttons, {
-			Text = keyName.." -> "..label,
-			Callback = function()
-				CommandKeybinds[keyName] = nil
-				NAmanage.SaveCommandKeybinds()
-				NAmanage.ApplyCommandKeybinds()
-				DoNotif("Removed keybind for "..keyName, 2)
-			end
-		})
+   	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+   		DoNotif("No command keybinds to remove.", 2)
+   		return
+   	end
+   	local buttons = {}
+   	for keyName, args in pairs(CommandKeybinds) do
+    		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
+    		local opt = CommandKeybindOptions[keyName]
+    		if opt and opt.toggle then
+    			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
+    			local secondCmd = ""
+    			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
+    				secondCmd = tostring(opt.args2[1])
+    			end
+    			if mainCmd ~= "" and secondCmd ~= "" then
+    				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+    			else
+    				label = "[toggle] "..label
+    			end
+    		end
+  		Insert(buttons, {
+  			Text = keyName.." -> "..label,
+  			Callback = function()
+  				CommandKeybinds[keyName] = nil
+  				CommandKeybindOptions[keyName] = nil
+  				NAmanage.SaveCommandKeybinds()
+  				NAmanage.ApplyCommandKeybinds()
+  				DoNotif("Removed keybind for "..keyName, 2)
+  			end
+  		})
 	end
 	Window({
 		Title = "Remove Command Keybind",
@@ -44281,16 +44367,29 @@ NAmanage.CommandKeybindsRemove=function()
 	})
 end
 
-NAmanage.CommandKeybindsList=function()
-	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
-		DoNotif("No command keybinds set.", 2)
-		return
-	end
-	local lines = {}
-	for keyName, args in pairs(CommandKeybinds) do
-		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
-		Insert(lines, keyName.." > "..label)
-	end
+  NAmanage.CommandKeybindsList=function()
+  	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+  		DoNotif("No command keybinds set.", 2)
+  		return
+  	end
+   	local lines = {}
+   	for keyName, args in pairs(CommandKeybinds) do
+    		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
+    		local opt = CommandKeybindOptions[keyName]
+    		if opt and opt.toggle then
+    			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
+    			local secondCmd = ""
+    			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
+    				secondCmd = tostring(opt.args2[1])
+    			end
+    			if mainCmd ~= "" and secondCmd ~= "" then
+    				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+    			else
+    				label = "[toggle] "..label
+    			end
+    		end
+  		Insert(lines, keyName.." > "..label)
+  	end
 	local text = table.concat(lines, "\n")
 	if type(DoWindow) == "function" then
 		DoWindow(text, "Command Keybinds")
@@ -44347,7 +44446,7 @@ NAmanage.CommandKeybindsUIInit=function()
 	root.Name = "CommandKeybindsPanel"
 	root.BackgroundTransparency = 1
 	root.BorderSizePixel = 0
-	root.Size = UDim2.new(1, -10, 0, 260)
+	root.Size = UDim2.new(1, -10, 0, 300)
 	root.LayoutOrder = NAgui._nextLayoutOrder()
 	root.ClipsDescendants = false
 
@@ -44367,6 +44466,18 @@ NAmanage.CommandKeybindsUIInit=function()
 	argsBox.Name = "ArgsBox"
 	argsBox.Size = UDim2.new(0.38, -10, 0, 30)
 	argsBox.Position = UDim2.new(0.62, 10, 0, 8)
+
+	local toggleCmdBox = cloneSearchBox(root, "Toggle Command")
+	toggleCmdBox.Name = "ToggleCmdBox"
+	toggleCmdBox.Size = UDim2.new(0.34, -10, 0, 30)
+	toggleCmdBox.Position = UDim2.new(0.28, 10, 0, 46)
+	toggleCmdBox.Visible = false
+
+	local toggleArgsBox = cloneSearchBox(root, "Toggle Args (space separated)")
+	toggleArgsBox.Name = "ToggleArgsBox"
+	toggleArgsBox.Size = UDim2.new(0.38, -10, 0, 30)
+	toggleArgsBox.Position = UDim2.new(0.62, 10, 0, 46)
+	toggleArgsBox.Visible = false
 
 	local function makeActionButton(parent, text, pos, size, color)
 		local btn = InstanceNew("TextButton", parent)
@@ -44392,20 +44503,21 @@ NAmanage.CommandKeybindsUIInit=function()
 
 	local setKeyBtn = makeActionButton(root, "Set Key (click)", UDim2.new(0, 10, 0, 46), UDim2.new(0.28, -10, 0, 30), Color3.fromRGB(54, 54, 64))
 	local newBtn = makeActionButton(root, "New", UDim2.new(0.28, 10, 0, 46), UDim2.new(0.17, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.45, 10, 0, 46), UDim2.new(0.27, -10, 0, 30), Color3.fromRGB(80, 120, 80))
-	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.72, 10, 0, 46), UDim2.new(0.28, -10, 0, 30), Color3.fromRGB(184, 54, 54))
+	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.45, 10, 0, 46), UDim2.new(0.18, -10, 0, 30), Color3.fromRGB(80, 120, 80))
+	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.63, 10, 0, 46), UDim2.new(0.17, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.80, 10, 0, 46), UDim2.new(0.20, -10, 0, 30), Color3.fromRGB(184, 54, 54))
 
 	local searchBox = cloneSearchBox(root, "Search keybinds...")
 	searchBox.Name = "Search"
 	searchBox.Size = UDim2.new(1, -20, 0, 30)
-	searchBox.Position = UDim2.new(0, 10, 0, 84)
+	searchBox.Position = UDim2.new(0, 10, 0, 122)
 
 	local listFrame = InstanceNew("ScrollingFrame", root)
 	listFrame.Name = "List"
 	listFrame.BackgroundTransparency = 1
 	listFrame.BorderSizePixel = 0
 	listFrame.Size = UDim2.new(1, -20, 0, 130)
-	listFrame.Position = UDim2.new(0, 10, 0, 122)
+	listFrame.Position = UDim2.new(0, 10, 0, 160)
 	listFrame.ScrollBarThickness = 3
 	listFrame.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
 	listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -44421,11 +44533,15 @@ NAmanage.CommandKeybindsUIInit=function()
 	ui.keyBox = keyBox
 	ui.cmdBox = cmdBox
 	ui.argsBox = argsBox
+	ui.toggleCmdBox = toggleCmdBox
+	ui.toggleArgsBox = toggleArgsBox
 	ui.setKeyBtn = setKeyBtn
 	ui.newBtn = newBtn
 	ui.saveBtn = saveBtn
+	ui.toggleBtn = toggleBtn
 	ui.delBtn = delBtn
 	ui.selectedKey = nil
+	ui.toggleState = false
 
 	NAmanage.registerElementForCurrentTab(root)
 	NAgui.RegisterStrokesFrom(root)
@@ -44433,11 +44549,38 @@ NAmanage.CommandKeybindsUIInit=function()
 	return true
 end
 
+NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
+  	if not ui then return end
+  	local show = ui.toggleState and ui.toggleCmdBox and ui.toggleArgsBox
+  	if ui.toggleCmdBox then ui.toggleCmdBox.Visible = show and true or false end
+  	if ui.toggleArgsBox then ui.toggleArgsBox.Visible = show and true or false end
+
+  	if show then
+  		if ui.toggleCmdBox then
+  			ui.toggleCmdBox.Position = UDim2.new(0.28, 10, 0, 46)
+  		end
+  		if ui.toggleArgsBox then
+  			ui.toggleArgsBox.Position = UDim2.new(0.62, 10, 0, 46)
+  		end
+  		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 84) end
+  		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 84) end
+  		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 84) end
+  		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 84) end
+  		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 84) end
+  	else
+  		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 46) end
+  		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 46) end
+  		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 46) end
+  		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 46) end
+  		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 46) end
+  	end
+  end
+
 NAmanage.CommandKeybindsUIRefresh=function()
-	local ui = NAStuff._commandKeybindUI
-	if not (ui and ui.listFrame and ui.listFrame.Parent) then
-		return
-	end
+  	local ui = NAStuff._commandKeybindUI
+  	if not (ui and ui.listFrame and ui.listFrame.Parent) then
+  		return
+  	end
 
 	local filter = ""
 	if ui.searchBox then
@@ -44465,10 +44608,30 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		return table.concat(args, " ")
 	end
 
+	local function buildDisplayLabel(keyName, args)
+		local baseLabel = normalizeLabel(args)
+		local opt = CommandKeybindOptions[keyName]
+		if not (opt and opt.toggle) then
+			return baseLabel ~= "" and baseLabel or "(empty)"
+		end
+
+		local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
+		local secondCmd = ""
+		if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
+			secondCmd = tostring(opt.args2[1])
+		end
+
+		if mainCmd ~= "" and secondCmd ~= "" then
+			return ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+		end
+
+		return "[toggle] "..(baseLabel ~= "" and baseLabel or "(empty)")
+	end
+
 	local idx = 0
 	for _, keyName in ipairs(keys) do
 		local args = CommandKeybinds[keyName]
-		local label = normalizeLabel(args)
+  		local label = normalizeLabel(args)
 		local hay = Lower(keyName.." "..label)
 		if filter ~= "" and not Find(hay, filter, 1, true) then
 			continue
@@ -44506,8 +44669,8 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		cmdLbl.TextSize = 14
 		cmdLbl.TextXAlignment = Enum.TextXAlignment.Left
-		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
-		cmdLbl.Text = label ~= "" and label or "(empty)"
+  		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
+  		cmdLbl.Text = buildDisplayLabel(keyName, args)
 
 		local editBtn = InstanceNew("TextButton", row)
 		editBtn.BorderSizePixel = 0
@@ -44552,10 +44715,39 @@ NAmanage.CommandKeybindsUIRefresh=function()
 					ui.argsBox.Text = ""
 				end
 			end
-		end)
+
+			local opt = CommandKeybindOptions[tostring(keyName)]
+			local isToggle = opt and opt.toggle or false
+
+			if ui.toggleBtn then
+				ui.toggleState = isToggle
+				ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
+			end
+
+			local args2 = (opt and type(opt.args2) == "table") and opt.args2 or nil
+			if ui.toggleCmdBox then
+				ui.toggleCmdBox.Text = args2 and tostring(args2[1] or "") or ""
+			end
+			if ui.toggleArgsBox then
+				if args2 and #args2 > 1 then
+					local tparts = {}
+					for i = 2, #args2 do
+						Insert(tparts, tostring(args2[i]))
+					end
+					ui.toggleArgsBox.Text = Concat(tparts, " ")
+				else
+					ui.toggleArgsBox.Text = ""
+				end
+			end
+
+  			if ui.toggleBtn then
+				NAmanage.CommandKeybindsUpdateToggleLayout(ui)
+			end
+  		end)
 
 		MouseButtonFix(remBtn, function()
 			CommandKeybinds[tostring(keyName)] = nil
+			CommandKeybindOptions[tostring(keyName)] = nil
 			NAmanage.SaveCommandKeybinds()
 			NAmanage.ApplyCommandKeybinds()
 			if ui.selectedKey == tostring(keyName) then
@@ -44570,33 +44762,51 @@ NAmanage.CommandKeybindsUIRefresh=function()
 end
 
 NAmanage.CommandKeybindsUIWire=function()
-	local ui = NAStuff._commandKeybindUI
-	if not (ui and ui.root and ui.root.Parent) then
-		return
+  	local ui = NAStuff._commandKeybindUI
+  	if not (ui and ui.root and ui.root.Parent) then
+  		return
 	end
 	if ui._wired then
 		return
 	end
 	ui._wired = true
 
-	if ui.searchBox then
-		ui.searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-			NAmanage.CommandKeybindsUIRefresh()
-		end)
-	end
+  	if ui.searchBox then
+  		ui.searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+  			NAmanage.CommandKeybindsUIRefresh()
+  		end)
+  	end
 
 	local function clearEditor()
 		ui.selectedKey = nil
 		if ui.keyBox then ui.keyBox.Text = "" end
 		if ui.cmdBox then ui.cmdBox.Text = "" end
 		if ui.argsBox then ui.argsBox.Text = "" end
-	end
+		if ui.toggleCmdBox then ui.toggleCmdBox.Text = "" end
+		if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
+  		if ui.toggleBtn then
+  			ui.toggleState = false
+  			ui.toggleBtn.Text = "Toggle: Off"
+  		end
+		NAmanage.CommandKeybindsUpdateToggleLayout(ui)
+  	end
 
 	if ui.newBtn then
 		MouseButtonFix(ui.newBtn, function()
 			clearEditor()
 		end)
 	end
+
+  	if ui.toggleBtn then
+  		MouseButtonFix(ui.toggleBtn, function()
+  			ui.toggleState = not ui.toggleState
+  			ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
+			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
+  		end)
+  	end
+  
+  	-- ensure initial layout matches default toggle state
+	NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 
 	if ui.setKeyBtn then
 		MouseButtonFix(ui.setKeyBtn, function()
@@ -44619,6 +44829,7 @@ NAmanage.CommandKeybindsUIWire=function()
 			local conn
 			local function stop(msg)
 				if tok ~= ui._capTok then return end
+				ui._capTok = (ui._capTok or 0) + 1
 				ui._cap = false
 				ui.setKeyBtn.Text = "Set Key"
 				if conn then conn:Disconnect() conn = nil end
@@ -44651,6 +44862,8 @@ NAmanage.CommandKeybindsUIWire=function()
 			local keyName = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
 			local cmdName = ui.cmdBox and tostring(ui.cmdBox.Text or ""):match("^%s*(.-)%s*$") or ""
 			local argsRaw = ui.argsBox and tostring(ui.argsBox.Text or "") or ""
+			local toggleCmdName = ui.toggleCmdBox and tostring(ui.toggleCmdBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local toggleArgsRaw = ui.toggleArgsBox and tostring(ui.toggleArgsBox.Text or "") or ""
 
 			if keyName == "" then
 				DoNotif("Pick a key first.", 2)
@@ -44671,8 +44884,33 @@ NAmanage.CommandKeybindsUIWire=function()
 			local prevKey = ui.selectedKey
 			if prevKey and prevKey ~= "" and prevKey ~= keyName then
 				CommandKeybinds[prevKey] = nil
+				CommandKeybindOptions[prevKey] = nil
 			end
 			CommandKeybinds[keyName] = args
+			if ui.toggleState then
+				CommandKeybindOptions[keyName] = CommandKeybindOptions[keyName] or {}
+				CommandKeybindOptions[keyName].toggle = true
+				CommandKeybindOptions[keyName].state = false
+				-- build second layer: either from explicit toggle fields or just reuse the first command
+				local args2 = nil
+				if toggleCmdName ~= "" then
+					args2 = { toggleCmdName }
+					local extra2 = ParseArguments(toggleArgsRaw)
+					if extra2 then
+						for _, v in ipairs(extra2) do
+							Insert(args2, v)
+						end
+					end
+				else
+					args2 = {}
+					for i, v in ipairs(args) do
+						args2[i] = v
+					end
+				end
+				CommandKeybindOptions[keyName].args2 = args2
+			else
+				CommandKeybindOptions[keyName] = nil
+			end
 			ui.selectedKey = keyName
 
 			NAmanage.SaveCommandKeybinds()
@@ -44690,6 +44928,7 @@ NAmanage.CommandKeybindsUIWire=function()
 				return
 			end
 			CommandKeybinds[keyName] = nil
+			CommandKeybindOptions[keyName] = nil
 			NAmanage.SaveCommandKeybinds()
 			NAmanage.ApplyCommandKeybinds()
 			clearEditor()
