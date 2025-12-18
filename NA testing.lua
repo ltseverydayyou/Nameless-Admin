@@ -22892,25 +22892,46 @@ if IsOnPC then
 	end)
 end
 
-NAmanage.grabAllTools=function()
+NAmanage.grabAllTools=function(range)
 	local char = getChar()
 	local hum = char and getHum()
-	if not hum then return 0 end
+	local root = char and getRoot(char)
+	if not hum or not root then return 0 end
+
+	range = tonumber(range)
+	local useRange = range and range > 0
+
 	local count = 0
 	for _, tool in ipairs(workspace:GetDescendants()) do
 		if tool:IsA("Tool") then
-			if NACaller(function() hum:EquipTool(tool) end) then
-				count += 1
+			if useRange then
+				local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+				if handle and (handle.Position - root.Position).Magnitude <= range then
+					if NACaller(function() hum:EquipTool(tool) end) then
+						count += 1
+					end
+				end
+			else
+				if NACaller(function() hum:EquipTool(tool) end) then
+					count += 1
+				end
 			end
 		end
 	end
 	return count
 end
 
-cmd.add({"grabtools"},{"grabtools","Grabs dropped tools"},function()
-	local count = NAmanage.grabAllTools()
+cmd.add({"grabtools"},{"grabtools [range]","Grabs dropped tools"},function(...)
+	local firstArg = ...
+	local range = tonumber(firstArg)
+
+	local count = NAmanage.grabAllTools(range)
 	if count > 0 then
-		DebugNotif(("Grabbed %d tools"):format(count), 2)
+		if range and range > 0 then
+			DebugNotif(("Grabbed %d tools within %d studs"):format(count, range), 2)
+		else
+			DebugNotif(("Grabbed %d tools"):format(count), 2)
+		end
 	else
 		DebugNotif("No tools to grab", 2)
 	end
@@ -40125,12 +40146,29 @@ NAgui.commands = function()
 		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
 		Cmd.MouseEnter:Connect(function()
-			NAUIMANAGER.description.Visible = true
-			NAUIMANAGER.description.Text = tbl[2][2]
+			local info = tbl[2]
+			local desc = (type(info) == "table" and info[2]) or ""
+			if desc ~= nil then
+				desc = tostring(desc)
+			end
+
+			if desc ~= "" then
+				NAUIMANAGER.description.Visible = true
+				NAUIMANAGER.description.Text = desc
+			else
+				NAUIMANAGER.description.Visible = false
+				NAUIMANAGER.description.Text = ""
+			end
 		end)
 
 		Cmd.MouseLeave:Connect(function()
-			if NAUIMANAGER.description.Text == tbl[2][2] then
+			local info = tbl[2]
+			local desc = (type(info) == "table" and info[2]) or ""
+			if desc ~= nil then
+				desc = tostring(desc)
+			end
+
+			if NAUIMANAGER.description.Text == desc then
 				NAUIMANAGER.description.Visible = false
 				NAUIMANAGER.description.Text = ""
 			end
