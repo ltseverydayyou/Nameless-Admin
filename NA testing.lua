@@ -19,7 +19,7 @@
 ]]
 
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="POJDHOUIS"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="ArysIsASkidFUCKYOU"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
@@ -48745,7 +48745,6 @@ SpawnCall(function()
 		end
 
 		SpawnCall(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))() end) end) -- manipulates coregui checks
-		--Spawn(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/EnableChat.lua"))() end) end) -- better chat
 
 		-- just ignore this section (personal stuff)
 		--[[Window({
@@ -49203,6 +49202,8 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.BindersFrame then NAProtection(NAUIMANAGER.BindersFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
+
+SpawnCall(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))() end) end) -- collab soon?????
 
 NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
 NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
