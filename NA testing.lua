@@ -517,6 +517,49 @@ end
 
 local NAFreecam = NAmanage.CreateNAFreecam()
 
+NAmanage.FreecamMobileZoomConnection = nil
+NAmanage.FreecamMobileZoomBaseFov = nil
+NAmanage.FreecamMobileZoomActive = false
+
+function NAmanage.FreecamMobileZoomStart()
+	if not IsOnMobile then return end
+	if NAmanage.FreecamMobileZoomActive then return end
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+	NAmanage.FreecamMobileZoomActive = true
+	NAmanage.FreecamMobileZoomBaseFov = cam.FieldOfView
+	NAmanage.FreecamMobileZoomConnection = UserInputService.TouchPinch:Connect(function(_, scale, velocity, state)
+		if state ~= Enum.UserInputState.Change then
+			return
+		end
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return
+		end
+		local deltaScale = scale - 1
+		if math.abs(deltaScale) < 0.01 then
+			return
+		end
+		local current = camera.FieldOfView
+		local target = math.clamp(current + deltaScale * 30, 20, 90)
+		camera.FieldOfView = target
+	end)
+end
+
+function NAmanage.FreecamMobileZoomStop()
+	if not NAmanage.FreecamMobileZoomActive then return end
+	NAmanage.FreecamMobileZoomActive = false
+	if NAmanage.FreecamMobileZoomConnection then
+		NAmanage.FreecamMobileZoomConnection:Disconnect()
+		NAmanage.FreecamMobileZoomConnection = nil
+	 end
+	local cam = workspace.CurrentCamera
+	if cam and NAmanage.FreecamMobileZoomBaseFov then
+		cam.FieldOfView = NAmanage.FreecamMobileZoomBaseFov
+	end
+	NAmanage.FreecamMobileZoomBaseFov = nil
+end
+
 --[[ legacy NAFreecam implementation (disabled)
 local NAFreecam = {}
 do
@@ -23008,6 +23051,9 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	end
 
 	if IsOnMobile then
+		if NAmanage.FreecamMobileZoomStart then
+			NAmanage.FreecamMobileZoomStart()
+		end
 		if fcBTNTOGGLE then
 			fcBTNTOGGLE:Destroy()
 			fcBTNTOGGLE = nil
@@ -23097,25 +23143,20 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 					flyVariables.mOn = true
 					btn.Text = "UNFC"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					SpawnCall(function() cmd.run({"fr",''}) end)
-					if NAFreecam then
-						NAFreecam.Start(speed and (speed / 5) or nil)
-					else
-						runFREECAM()
-					end
+					runFREECAM()
 				else
 					flyVariables.mOn = false
 					btn.Text = "FC"
 					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-					if NAFreecam and NAFreecam.IsEnabled() then
-						NAFreecam.Stop()
-					end
 					if NAlib.isConnected("freecam") then
 						NAlib.disconnect("freecam")
 					end
 					camera.CameraSubject = getChar()
 					SpawnCall(function() cmd.run({"unfr"}) end)
 					DebugNotif("Freecam disabled", 2)
+					if NAmanage.FreecamMobileZoomStop then
+						NAmanage.FreecamMobileZoomStop()
+					end
 				end
 			end)
 		end)()
@@ -23146,6 +23187,9 @@ cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free c
 	SpawnCall(function() cmd.run({"unfr"}) end)
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
 	DebugNotif("Freecam disabled", 2)
+	if IsOnMobile and NAmanage.FreecamMobileZoomStop then
+		NAmanage.FreecamMobileZoomStop()
+	end
 end)
 
 cmd.add({"nohats","drophats"},{"nohats (drophats)","Drop all of your hats"},function()
