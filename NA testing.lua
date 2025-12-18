@@ -9048,10 +9048,10 @@ NA_GRAB_BODY = (function()
 					end
 					overrideModel = nil
 					selectingOverride = false
-					if Players and Players.LocalPlayer then
+					if Players and Players.LocalPlayer and workspace then
 						local localPlayer = Players.LocalPlayer
 						local currentChar = localPlayer.Character
-						if not (currentChar and currentChar.Parent == workspace) then
+						if not (currentChar and currentChar:IsDescendantOf(workspace)) then
 							Spawn(function()
 								pickOverrideModel()
 							end)
@@ -9064,9 +9064,6 @@ NA_GRAB_BODY = (function()
 
 	pickOverrideModel = function()
 		if selectingOverride then
-			while selectingOverride do
-				Wait(0.1)
-			end
 			return overrideModel
 		end
 
@@ -9076,7 +9073,7 @@ NA_GRAB_BODY = (function()
 
 		local localPlayer = Players.LocalPlayer
 		local currentChar = localPlayer.Character
-		if currentChar and currentChar.Parent == workspace then
+		if currentChar and workspace and currentChar:IsDescendantOf(workspace) then
 			setOverrideModel(nil)
 			return nil
 		end
@@ -9089,7 +9086,7 @@ NA_GRAB_BODY = (function()
 
 		for _, plr in ipairs(Players:GetPlayers()) do
 			local ch = plr.Character
-			if ch and ch.Parent == workspace and not seen[ch] then
+			if ch and workspace and ch:IsDescendantOf(workspace) and not seen[ch] then
 				seen[ch] = true
 				table.insert(candidates, ch)
 			end
@@ -9105,6 +9102,7 @@ NA_GRAB_BODY = (function()
 		local selectionDone = false
 
 		local function finish()
+			if selectionDone then return end
 			selectionDone = true
 			selectingOverride = false
 		end
@@ -9147,10 +9145,6 @@ NA_GRAB_BODY = (function()
 					selectingOverride = false
 				end
 			end)
-		end
-
-		while not selectionDone do
-			Wait(0.1)
 		end
 
 		return overrideModel
@@ -9200,16 +9194,15 @@ NA_GRAB_BODY = (function()
 			end
 
 			if obj == localPlayer or obj == currentChar then
-				if not (currentChar and currentChar.Parent == workspace) then
+				if not (currentChar and workspace and currentChar:IsDescendantOf(workspace)) then
 					local model = overrideModel
 					if not (model and model.Parent) then
-						model = pickOverrideModel()
+						pickOverrideModel()
+						return nil
 					end
 
 					if model and model.Parent then
 						obj = model
-					else
-						return nil
 					end
 				end
 			end
@@ -9236,11 +9229,16 @@ NA_GRAB_BODY = (function()
 		return rec, model
 	end
 
-	T.ensure = ensure
-	T.firstPart = firstPart
-	T.asChar = asChar
-	return T
-end)()
+		T.ensure = ensure
+		T.firstPart = firstPart
+		T.asChar = asChar
+		T.pickOverride = function()
+			selectingOverride = false
+			setOverrideModel(nil)
+			return pickOverrideModel()
+		end
+		return T
+	end)()
 
 function getRoot(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
@@ -9264,7 +9262,7 @@ function getChar()
 	local plr = Players.LocalPlayer
 	if not plr then return nil end
 	local ch = plr.Character
-	if ch and ch.Parent == workspace then
+	if ch and workspace and ch:IsDescendantOf(workspace) then
 		return ch
 	end
 	local rec, model = NA_GRAB_BODY.ensure(plr)
@@ -52516,6 +52514,14 @@ NAgui.addToggle("Auto Morph", false, function(state)
 		end
 	else
 		NAlib.disconnect("autochartoggle")
+	end
+end)
+
+NAgui.addButton("Re-select Character (BETA)", function()
+	if NA_GRAB_BODY and NA_GRAB_BODY.pickOverride then
+		Spawn(function()
+			NA_GRAB_BODY.pickOverride()
+		end)
 	end
 end)
 
