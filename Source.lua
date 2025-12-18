@@ -17008,17 +17008,17 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 	NAgui.draggerV2(frame)
 end)
 
-local annoyLoop = false
+NAStuff.annoyLoop = false
 
 cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
-	if annoyLoop then
+	if NAStuff.annoyLoop then
 		DoNotif("Already annoying someone. Use :unannoy first.", 3)
 		return
 	end
 
-	annoyLoop = false
+	NAStuff.annoyLoop = false
 	Wait(0.2)
-	annoyLoop = true
+	NAStuff.annoyLoop = true
 
 	local user = ...
 	local targets = getPlr(user)
@@ -17063,7 +17063,7 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 		myRoot.CFrame = targetRoot.CFrame + offset
 
 		RunService.RenderStepped:Wait()
-	until not annoyLoop
+	until not NAStuff.annoyLoop
 
 	if myRoot and originalCFrame then
 		myRoot.CFrame = originalCFrame
@@ -17071,7 +17071,7 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 end, true)
 
 cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
-	annoyLoop = false
+	NAStuff.annoyLoop = false
 end)
 
 cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
@@ -17082,20 +17082,20 @@ cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (de
 	end
 end)
 
-local shownParts = {}
+NAStuff.shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
 	for _, v in ipairs(workspace:GetDescendants()) do
 		if v:IsA("BasePart") and v.Transparency == 1 then
 			local alreadyShown = false
-			for _, p in ipairs(shownParts) do
+			for _, p in ipairs(NAStuff.shownParts) do
 				if p == v then
 					alreadyShown = true
 					break
 				end
 			end
 			if not alreadyShown then
-				Insert(shownParts, v)
+				Insert(NAStuff.shownParts, v)
 			end
 			v.Transparency = 0
 		end
@@ -17103,12 +17103,12 @@ cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows in
 end)
 
 cmd.add({"uninvisibleparts","uninvisparts"},{"uninvisibleparts (uninvisparts)","Makes parts affected by invisparts return to normal"},function()
-	for _, v in ipairs(shownParts) do
+	for _, v in ipairs(NAStuff.shownParts) do
 		if v and v:IsA("BasePart") then
 			v.Transparency = 1
 		end
 	end
-	table.clear(shownParts)
+	table.clear(NAStuff.shownParts)
 end)
 
 cmd.add({"datalimit"},{"datalimit <kbps>","Set outgoing bandwidth limit in KBps"},function(value)
@@ -17835,7 +17835,7 @@ cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disable
 	DebugNotif("Anti-Teleport Disabled",2)
 end)
 
-local ATPC = {
+NAStuff.ATPC = {
 	state = false,
 	plr = Players.LocalPlayer,
 	lastCF = nil,
@@ -17849,15 +17849,16 @@ local ATPC = {
 	gui = nil,
 	btn = nil
 }
+ATPC = NAStuff.ATPC
 
-ATPC._getFlyMode=function()
+NAStuff.ATPC._getFlyMode=function()
 	if not NAmanage or not NAmanage._state then return "none" end
 	return NAmanage._state.mode or "none"
 end
 
 ATPC._flyAllowances=function(dt)
-	local m=ATPC._getFlyMode()
-	local maxS, maxD=ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
+	local m=NAStuff.ATPC._getFlyMode()
+	local maxS, maxD=NAStuff.ATPC.MAX_SPEED, NAStuff.ATPC.MAX_STEP_DIST
 	if m=="fly" then
 		local sp=tonumber(flyVariables.flySpeed) or 1
 		local v=sp*50
@@ -17871,13 +17872,13 @@ ATPC._flyAllowances=function(dt)
 	elseif m=="cfly" then
 		local sp=tonumber(flyVariables.cFlySpeed) or 1
 		local step=sp*2
-		maxD=math.max(ATPC.MAX_STEP_DIST, step)
-		maxS=math.max(ATPC.MAX_SPEED, (maxD/dt)*1.25)
+		maxD=math.max(NAStuff.ATPC.MAX_STEP_DIST, step)
+		maxS=math.max(NAStuff.ATPC.MAX_SPEED, (maxD/dt)*1.25)
 	elseif m=="tfly" then
 		local sp=tonumber(flyVariables.TflySpeed) or 1
 		local step=sp*2.5
-		maxD=math.max(ATPC.MAX_STEP_DIST, step)
-		maxS=math.max(ATPC.MAX_SPEED, (maxD/dt)*1.5)
+		maxD=math.max(NAStuff.ATPC.MAX_STEP_DIST, step)
+		maxS=math.max(NAStuff.ATPC.MAX_SPEED, (maxD/dt)*1.5)
 	end
 	return maxS, maxD
 end
@@ -18674,18 +18675,18 @@ cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked 
 	end
 end)
 
-local tpUI
-local tpTools = {}
+NAStuff.tpUI = nil
+NAStuff.tpTools = {}
 
 NAmanage.clearAllTP = function()
-	if tpUI then
-		tpUI:Destroy()
-		tpUI = nil
+	if NAStuff.tpUI then
+		NAStuff.tpUI:Destroy()
+		NAStuff.tpUI = nil
 	end
-	for _, t in ipairs(tpTools) do
+	for _, t in ipairs(NAStuff.tpTools) do
 		t:Destroy()
 	end
-	tpTools = {}
+	NAStuff.tpTools = {}
 	NAlib.disconnect("tp_down")
 	NAlib.disconnect("tp_up")
 end
@@ -18696,8 +18697,8 @@ NAmanage.makeClickTweenUI = function()
 	local player = Players.LocalPlayer
 	local mouse = player:GetMouse()
 
-	tpUI = InstanceNew("ScreenGui")
-	NaProtectUI(tpUI)
+	NAStuff.tpUI = InstanceNew("ScreenGui")
+	NaProtectUI(NAStuff.tpUI)
 
 	local clickTpButton = InstanceNew("TextButton")
 	clickTpButton.Size = UDim2.new(0,130,0,40)
@@ -18707,12 +18708,12 @@ NAmanage.makeClickTweenUI = function()
 	clickTpButton.TextColor3 = Color3.fromRGB(255,255,255)
 	clickTpButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
 	clickTpButton.BorderSizePixel = 0
-	clickTpButton.Parent = tpUI
+	clickTpButton.Parent = NAStuff.tpUI
 
 	local tweenTpButton = clickTpButton:Clone()
 	tweenTpButton.Position = UDim2.new(0.55,0,0.1,0)
 	tweenTpButton.Text = "Enable Tween TP"
-	tweenTpButton.Parent = tpUI
+	tweenTpButton.Parent = NAStuff.tpUI
 
 	InstanceNew("UICorner", clickTpButton)
 	InstanceNew("UICorner", tweenTpButton)
@@ -18817,7 +18818,7 @@ NAmanage.makeClickTweenTools = function()
 				char:PivotTo(CFrame.new(target.p))
 			end
 		end)
-		Insert(tpTools, tool)
+		Insert(NAStuff.tpTools, tool)
 	end
 
 	newTool("Click TP", false)
@@ -19524,21 +19525,21 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 	DebugNotif("Vehicle speed disabled")
 end)
 
-local active=false
-local players=Players
-local camera=workspace.CurrentCamera
+active=false
+players=Players
+camera=workspace.CurrentCamera
 
-local uis=UserInputService
+uis=UserInputService
 
-local active=false
+active=false
 function UpdateAutoRotate(BOOL)
 	humanoid.AutoRotate=BOOL
 end
 
-local GameSettings = UserSettings():GetService("UserGameSettings")
+GameSettings = UserSettings():GetService("UserGameSettings")
 
-local OriginalRotationType = nil
-local ShiftLockEnabled = false
+OriginalRotationType = nil
+ShiftLockEnabled = false
 
 function EnableShiftLock()
 	if ShiftLockEnabled then return end
@@ -20219,7 +20220,7 @@ cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)"
 	end)
 end, true)
 
-local storedAnims = {}
+NAStuff.storedAnims = {}
 builderAnim = nil
 
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
@@ -20235,7 +20236,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 
 	local uid = p.UserId
-	if not storedAnims[uid] then
+	if not NAStuff.storedAnims[uid] then
 		local _, animate0 = getData()
 		if not animate0 then return end
 		local store = {}
@@ -20245,7 +20246,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 				if a then store[v.Name:lower()] = a.AnimationId end
 			end
 		end
-		storedAnims[uid] = store
+		NAStuff.storedAnims[uid] = store
 	end
 
 	builderAnim = InstanceNew("ScreenGui")
@@ -20441,7 +20442,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 							anim.AnimationId = "rbxassetid://"..id
 						end
 					else
-						local raw = storedAnims[uid] and storedAnims[uid][key]
+						local raw = NAStuff.storedAnims[uid] and NAStuff.storedAnims[uid][key]
 						if raw then
 							anim.AnimationId = raw
 							local num = raw:match("%d+")
@@ -20457,7 +20458,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	local function prefill()
 		for _, k in ipairs(states) do
 			local key = Lower(k)
-			local raw = storedAnims[uid] and storedAnims[uid][key]
+			local raw = NAStuff.storedAnims[uid] and NAStuff.storedAnims[uid][key]
 			if raw then
 				local num = raw:match("%d+")
 				if num then inputs[key].Text = num end
@@ -20492,7 +20493,7 @@ cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer ani
 	local animate = hum.Parent:FindFirstChild("Animate")
 	if not animate then return end
 
-	if not storedAnims[hum] then
+	if not NAStuff.storedAnims[hum] then
 		local store = {}
 		for _, obj in pairs(animate:GetChildren()) do
 			if obj:IsA("StringValue") then
@@ -20502,7 +20503,7 @@ cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer ani
 				end
 			end
 		end
-		storedAnims[hum] = store
+		NAStuff.storedAnims[hum] = store
 	end
 
 	local function setAnim(name, id)
@@ -20529,7 +20530,7 @@ cmd.add({"setpsycho", "psychoanim"}, {"setpsycho (psychoanim)", "Sets psycho ani
 	local animate = hum.Parent:FindFirstChild("Animate")
 	if not animate then return end
 
-	if not storedAnims[hum] then
+	if not NAStuff.storedAnims[hum] then
 		local store = {}
 		for _, obj in pairs(animate:GetChildren()) do
 			if obj:IsA("StringValue") then
@@ -20539,7 +20540,7 @@ cmd.add({"setpsycho", "psychoanim"}, {"setpsycho (psychoanim)", "Sets psycho ani
 				end
 			end
 		end
-		storedAnims[hum] = store
+		NAStuff.storedAnims[hum] = store
 	end
 
 	local function setAnim(name, id)
@@ -20581,7 +20582,7 @@ cmd.add({"resetanims", "defaultanims", "animsreset"}, {"resetanims (defaultanims
 	local animate = hum.Parent:FindFirstChild("Animate")
 	if not animate then return end
 
-	local store = storedAnims[hum]
+	local store = NAStuff.storedAnims[hum]
 	if not store then return end
 
 	for name, id in pairs(store) do
@@ -20594,7 +20595,7 @@ cmd.add({"resetanims", "defaultanims", "animsreset"}, {"resetanims (defaultanims
 		end
 	end
 
-	storedAnims[hum] = nil
+	NAStuff.storedAnims[hum] = nil
 end)
 
 cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>","Copy core animations from target"}, function(targetArg)
@@ -22830,8 +22831,8 @@ cmd.add({"unfakelag", "unflag"}, {"unfakelag (unflag)", "stops the fake lag comm
 	if r then NAlib.setProperty(r, "Anchored", false) end
 end)
 
-local r=math.rad
-local center=CFrame.new(1.5,0.5,-1.5)
+r=math.rad
+center=CFrame.new(1.5,0.5,-1.5)
 
 cmd.add({"hide", "unshow"}, {"hide <player> (unshow)", "places the selected player to lighting"}, function(...)
 	Wait()
@@ -25238,8 +25239,8 @@ cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Sto
 	end
 end)
 
-local specUI = nil
-local connStep, connAdd, connRemove = nil, nil, nil
+specUI = nil
+connStep, connAdd, connRemove = nil, nil, nil
 
 function cleanup(preserveSpecUI)
 	NAlib.disconnect("spectate_char")
@@ -27578,12 +27579,12 @@ cmd.add({"unheadstand"}, {"unheadstand", "Stop the headstand command."}, functio
 end)
 
 getgenv().NamelessWs = nil
-local loopws = false
+NAStuff.loopws = false
 
 cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws)", "Loop walkspeed"}, function(...)
 	local val = tonumber(...) or 16
 	getgenv().NamelessWs = val
-	loopws = true
+	NAStuff.loopws = true
 
 	NAlib.disconnect("loopws_apply")
 	NAlib.disconnect("loopws_char")
@@ -27593,7 +27594,7 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 		if hum then
 			hum.WalkSpeed = val
 			NAlib.connect("loopws_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-				if loopws and hum.WalkSpeed ~= val then
+				if NAStuff.loopws and hum.WalkSpeed ~= val then
 					hum.WalkSpeed = val
 				end
 			end))
@@ -27604,23 +27605,23 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 
 	NAlib.connect("loopws_char", LocalPlayer.CharacterAdded:Connect(function()
 		while not getHum() do Wait(.1) end
-		if loopws then applyWS() end
+		if NAStuff.loopws then applyWS() end
 	end))
 end, true)
 
 cmd.add({"unloopwalkspeed", "unloopws", "unlws"}, {"unloopwalkspeed (unloopws,unlws)", "Disable loop walkspeed"}, function()
-	loopws = false
+	NAStuff.loopws = false
 	NAlib.disconnect("loopws_apply")
 	NAlib.disconnect("loopws_char")
 end)
 
 getgenv().NamelessJP = nil
-local loopjp = false
+NAStuff.loopjp = false
 
 cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp)", "Loop JumpPower"}, function(...)
 	local val = tonumber(...) or 50
 	getgenv().NamelessJP = val
-	loopjp = true
+	NAStuff.loopjp = true
 
 	NAlib.disconnect("loopjp_apply")
 	NAlib.disconnect("loopjp_char")
@@ -27632,14 +27633,14 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 		if hum.UseJumpPower then
 			hum.JumpPower = val
 			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
-				if loopjp and hum.JumpPower ~= val then
+				if NAStuff.loopjp and hum.JumpPower ~= val then
 					hum.JumpPower = val
 				end
 			end))
 		else
 			hum.JumpHeight = val
 			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpHeight"):Connect(function()
-				if loopjp and hum.JumpHeight ~= val then
+				if NAStuff.loopjp and hum.JumpHeight ~= val then
 					hum.JumpHeight = val
 				end
 			end))
@@ -27650,12 +27651,12 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 
 	NAlib.connect("loopjp_char", LocalPlayer.CharacterAdded:Connect(function()
 		while not getHum() do Wait(.1) end
-		if loopjp then applyJP() end
+		if NAStuff.loopjp then applyJP() end
 	end))
 end, true)
 
 cmd.add({"unloopjumppower", "unloopjp", "unljp"}, {"unloopjumppower (unloopjp,unljp)", "Disable loop jump power"}, function()
-	loopjp = false
+	NAStuff.loopjp = false
 	NAlib.disconnect("loopjp_apply")
 	NAlib.disconnect("loopjp_char")
 end)
@@ -29911,7 +29912,7 @@ cmd.add({"unloopspook","unloopscare"},{"unloopspook","Stops the loopspook comman
 end)
 
 Airwalker, awPart = nil, nil
-local airwalk = {
+NAStuff.airwalk = {
 	Vars = {
 		keybinds = {
 			Increase = Enum.KeyCode.E,
@@ -29969,27 +29970,27 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		local guiDown = InstanceNew("ScreenGui")
 		NaProtectUI(guiDown)
 		guiDown.ResetOnSpawn = false
-		airwalk.guis.down = guiDown
-		createButton(guiDown, "DOWN", UDim2.new(0.9, 0, 0.7, 0), function() airwalk.Vars.decrease = true end, function() airwalk.Vars.decrease = false end)
+		NAStuff.airwalk.guis.down = guiDown
+		createButton(guiDown, "DOWN", UDim2.new(0.9, 0, 0.7, 0), function() NAStuff.airwalk.Vars.decrease = true end, function() NAStuff.airwalk.Vars.decrease = false end)
 
 		local guiUp = InstanceNew("ScreenGui")
 		NaProtectUI(guiUp)
 		guiUp.ResetOnSpawn = false
-		airwalk.guis.up = guiUp
-		createButton(guiUp, "UP", UDim2.new(0.9, 0, 0.5, 0), function() airwalk.Vars.increase = true end, function() airwalk.Vars.increase = false end)
+		NAStuff.airwalk.guis.up = guiUp
+		createButton(guiUp, "UP", UDim2.new(0.9, 0, 0.5, 0), function() NAStuff.airwalk.Vars.increase = true end, function() NAStuff.airwalk.Vars.increase = false end)
 	else
-		airwalk.connections.focused = UserInputService.TextBoxFocused:Connect(function() airwalk.Vars.isTyping = true end)
-		airwalk.connections.released = UserInputService.TextBoxFocusReleased:Connect(function() airwalk.Vars.isTyping = false end)
+		NAStuff.airwalk.connections.focused = UserInputService.TextBoxFocused:Connect(function() NAStuff.airwalk.Vars.isTyping = true end)
+		NAStuff.airwalk.connections.released = UserInputService.TextBoxFocusReleased:Connect(function() NAStuff.airwalk.Vars.isTyping = false end)
 
-		airwalk.connections.inputBegan = uis.InputBegan:Connect(function(input, gpe)
-			if gpe or airwalk.Vars.isTyping then return end
-			if input.KeyCode == airwalk.Vars.keybinds.Increase then airwalk.Vars.increase = true end
-			if input.KeyCode == airwalk.Vars.keybinds.Decrease then airwalk.Vars.decrease = true end
+		NAStuff.airwalk.connections.inputBegan = uis.InputBegan:Connect(function(input, gpe)
+			if gpe or NAStuff.airwalk.Vars.isTyping then return end
+			if input.KeyCode == NAStuff.airwalk.Vars.keybinds.Increase then NAStuff.airwalk.Vars.increase = true end
+			if input.KeyCode == NAStuff.airwalk.Vars.keybinds.Decrease then NAStuff.airwalk.Vars.decrease = true end
 		end)
-		airwalk.connections.inputEnded = uis.InputEnded:Connect(function(input, gpe)
+		NAStuff.airwalk.connections.inputEnded = uis.InputEnded:Connect(function(input, gpe)
 			if gpe then return end
-			if input.KeyCode == airwalk.Vars.keybinds.Increase then airwalk.Vars.increase = false end
-			if input.KeyCode == airwalk.Vars.keybinds.Decrease then airwalk.Vars.decrease = false end
+			if input.KeyCode == NAStuff.airwalk.Vars.keybinds.Increase then NAStuff.airwalk.Vars.increase = false end
+			if input.KeyCode == NAStuff.airwalk.Vars.keybinds.Decrease then NAStuff.airwalk.Vars.decrease = false end
 		end)
 	end
 
@@ -30022,24 +30023,24 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		end
 
 		local baseOffset = feetFromRoot + partHalf
-		local delta = (airwalk.Vars.decrease and 1.5) or (airwalk.Vars.increase and -1.5) or 0
-		airwalk.Vars.offset = math.max(0, baseOffset + delta)
+		local delta = (NAStuff.airwalk.Vars.decrease and 1.5) or (NAStuff.airwalk.Vars.increase and -1.5) or 0
+		NAStuff.airwalk.Vars.offset = math.max(0, baseOffset + delta)
 
-		awPart.CFrame = CFrame.new(root.Position.X, hrpY - airwalk.Vars.offset, root.Position.Z)
+		awPart.CFrame = CFrame.new(root.Position.X, hrpY - NAStuff.airwalk.Vars.offset, root.Position.Z)
 	end)
 end)
 
 cmd.add({"unairwalk", "unfloat", "unaw"}, {"unairwalk (unfloat, unaw)", "Stops the airwalk command"}, function()
 	if Airwalker then Airwalker:Disconnect() Airwalker = nil end
 	if awPart then awPart:Destroy() awPart = nil end
-	for _, conn in pairs(airwalk.connections) do
+	for _, conn in pairs(NAStuff.airwalk.connections) do
 		if conn then conn:Disconnect() end
 	end
-	airwalk.connections = {}
-	for _, gui in pairs(airwalk.guis) do
+	NAStuff.airwalk.connections = {}
+	for _, gui in pairs(NAStuff.airwalk.guis) do
 		if gui then gui:Destroy() end
 	end
-	airwalk.guis = {}
+	NAStuff.airwalk.guis = {}
 	DebugNotif("Airwalk: OFF")
 end)
 
@@ -32045,12 +32046,12 @@ cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removec
 	end
 end, true)
 
-local autoClassRemover = {}
-local autoClassConnection = nil
+NAStuff.autoClassRemover = {}
+NAStuff.autoClassConnection = nil
 
 function handleClassDescendantAdd(part)
-	if #autoClassRemover > 0 then
-		if FindInTable(autoClassRemover, part.ClassName:lower()) then
+	if #NAStuff.autoClassRemover > 0 then
+		if FindInTable(NAStuff.autoClassRemover, part.ClassName:lower()) then
 			Defer(function()
 				if part and part.Parent then
 					part:Destroy()
@@ -32058,9 +32059,9 @@ function handleClassDescendantAdd(part)
 			end)
 		end
 	else
-		if autoClassConnection then
-			autoClassConnection:Disconnect()
-			autoClassConnection = nil
+		if NAStuff.autoClassConnection then
+			NAStuff.autoClassConnection:Disconnect()
+			NAStuff.autoClassConnection = nil
 		end
 	end
 end
@@ -32069,8 +32070,8 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 	local args = {...}
 	local targetClass = args[1]:lower()
 
-	if not FindInTable(autoClassRemover, targetClass) then
-		Insert(autoClassRemover, targetClass)
+	if not FindInTable(NAStuff.autoClassRemover, targetClass) then
+		Insert(NAStuff.autoClassRemover, targetClass)
 		for _, part in pairs(workspace:GetDescendants()) do
 			if part.ClassName:lower() == targetClass then
 				part:Destroy()
@@ -32078,8 +32079,8 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 		end
 	end
 
-	if not autoClassConnection then
-		autoClassConnection = workspace.DescendantAdded:Connect(handleClassDescendantAdd)
+	if not NAStuff.autoClassConnection then
+		NAStuff.autoClassConnection = workspace.DescendantAdded:Connect(handleClassDescendantAdd)
 	end
 
 	Wait()
@@ -32087,11 +32088,11 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 end, true)
 
 cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeleteclass {ClassName} (unautoremoveclass, unautodc)", "Disables autodeleteclass"}, function(...)
-	if type(autoClassRemover) ~= "table" then
-		autoClassRemover = {}
+	if type(NAStuff.autoClassRemover) ~= "table" then
+		NAStuff.autoClassRemover = {}
 	end
 
-	if #autoClassRemover == 0 then
+	if #NAStuff.autoClassRemover == 0 then
 		DoNotif("No autodeleteclass entries are active.", 2)
 		return
 	end
@@ -32099,28 +32100,28 @@ cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeletecl
 	local filter = Lower(Concat({...}, " "))
 
 	local function disconnectClass()
-		if autoClassConnection then
-			autoClassConnection:Disconnect()
-			autoClassConnection = nil
+		if NAStuff.autoClassConnection then
+			NAStuff.autoClassConnection:Disconnect()
+			NAStuff.autoClassConnection = nil
 		end
 	end
 
 	local function cleanupConnection()
-		if #autoClassRemover == 0 then
+		if #NAStuff.autoClassRemover == 0 then
 			disconnectClass()
 		end
 	end
 
 	local function removeAll()
-		autoClassRemover = {}
+		NAStuff.autoClassRemover = {}
 		disconnectClass()
 		DoNotif("Cleared all autodeleteclass entries.", 2)
 	end
 
 	local function removeByTerm(term)
-		for i = #autoClassRemover, 1, -1 do
-			if autoClassRemover[i] == term then
-				table.remove(autoClassRemover, i)
+		for i = #NAStuff.autoClassRemover, 1, -1 do
+			if NAStuff.autoClassRemover[i] == term then
+				table.remove(NAStuff.autoClassRemover, i)
 			end
 		end
 		cleanupConnection()
@@ -32133,14 +32134,14 @@ cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeletecl
 			return
 		end
 		local picked = nil
-		for _, t in ipairs(autoClassRemover) do
+		for _, t in ipairs(NAStuff.autoClassRemover) do
 			if t == filter then
 				picked = t
 				break
 			end
 		end
 		if not picked then
-			for _, t in ipairs(autoClassRemover) do
+			for _, t in ipairs(NAStuff.autoClassRemover) do
 				if Match(t, filter) then
 					picked = t
 					break
@@ -32157,7 +32158,7 @@ cmd.add({"unautodeleteclass", "unautoremoveclass", "unautodc"}, {"unautodeletecl
 
 	local buttons = {}
 	Insert(buttons, { Text = "All", Callback = removeAll })
-	for _, t in ipairs(autoClassRemover) do
+	for _, t in ipairs(NAStuff.autoClassRemover) do
 		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
 	end
 
@@ -32228,7 +32229,7 @@ cmd.add({"chardeleteclass", "charremoveclass", "chardeleteclassname", "cdc"}, {"
 	end
 end, true)
 
-local activeTeleports = {}
+NAStuff.activeTeleports = {}
 
 originalIO.gotoNext = originalIO.gotoNext or {}
 
@@ -33005,12 +33006,12 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	local partName = Concat({...}, " "):lower()
 	local commandKey = "gotopart"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
@@ -33027,9 +33028,9 @@ end, true)
 cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partName>","Tween to each matching part by name once"},function(...)
 	local partName = Concat({...}," "):lower()
 	local key      = "tweengotopart"
-	if activeTeleports[key] then activeTeleports[key].active = false end
+	if NAStuff.activeTeleports[key] then NAStuff.activeTeleports[key].active = false end
 	local state    = {active = true}
-	activeTeleports[key] = state
+	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
 		local char = getChar()
 		for _,obj in ipairs(workspace:GetDescendants()) do
@@ -33055,12 +33056,12 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 	local name = Concat({...}, " "):lower()
 	local commandKey = "gotopartfind"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
@@ -33078,12 +33079,12 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 	local name = Concat({...}, " "):lower()
 	local commandKey = "tweengotopartfind"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
@@ -33111,12 +33112,12 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	local className = ({...})[1]:lower()
 	local commandKey = "gotopartclass"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, part in pairs(workspace:GetDescendants()) do
@@ -33239,12 +33240,12 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 	local modelName = Concat({...}, " "):lower()
 	local commandKey = "gotomodel"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, model in pairs(workspace:GetDescendants()) do
@@ -33262,12 +33263,12 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 	local name = Concat({...}, " "):lower()
 	local commandKey = "gotomodelfind"
 
-	if activeTeleports[commandKey] then
-		activeTeleports[commandKey].active = false
+	if NAStuff.activeTeleports[commandKey] then
+		NAStuff.activeTeleports[commandKey].active = false
 	end
 
 	local taskState = {active = true}
-	activeTeleports[commandKey] = taskState
+	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
 		for _, model in pairs(workspace:GetDescendants()) do
@@ -33304,9 +33305,9 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	local folderName = Concat(lower," ")
 	if folderName == "" then return end
 	local key = "gotofolder"
-	if activeTeleports[key] then activeTeleports[key].active = false end
+	if NAStuff.activeTeleports[key] then NAStuff.activeTeleports[key].active = false end
 	local state = {active = true}
-	activeTeleports[key] = state
+	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
 		local folder
 		for _,obj in ipairs(workspace:GetDescendants()) do
@@ -34994,16 +34995,17 @@ cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
 	end
 end,true)
 
-local PST = {
+NAStuff.PST = {
 	orig   = {},
 	exact  = {},
 	partial= {},
 	sizeE  = {},
 	sizeP  = {},
 }
+PST = NAStuff.PST
 
 NAmanage.cachePart = function(p)
-	PST.orig[p] = {
+	NAStuff.PST.orig[p] = {
 		Size         = p.Size,
 		Transparency = p.Transparency,
 		CanCollide   = p.CanCollide,
@@ -35011,7 +35013,7 @@ NAmanage.cachePart = function(p)
 end
 
 NAmanage.resizePart = function(p, sizeVec, store)
-	if not PST.orig[p] then NAmanage.cachePart(p) end
+	if not NAStuff.PST.orig[p] then NAmanage.cachePart(p) end
 	p.Size         = sizeVec
 	p.Transparency = 0.5
 	p.CanCollide   = false
@@ -35022,10 +35024,10 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	local term, n = Lower(nameArg), tonumber(sizeArg)
 	if not n then DoNotif("Invalid size",2) return end
 	local sizeVec = Vector3.new(n,n,n)
-	PST.sizeE[term] = sizeVec
+	NAStuff.PST.sizeE[term] = sizeVec
 
 	local parts, elser = {}, {}
-	for _, obj in ipairs(workspace:GetDescendants()) do
+		for _, obj in ipairs(workspace:GetDescendants()) do
 		local nm = Lower(obj.Name)
 		if obj:IsA("BasePart") and nm == term then
 			Insert(parts, obj)
@@ -35035,7 +35037,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	end
 
 	for _, p in ipairs(parts) do
-		NAmanage.resizePart(p, sizeVec, PST.exact)
+				NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
 	end
 	for _, m in ipairs(elser) do
 		for _, d in ipairs(m:GetDescendants()) do
@@ -35049,13 +35051,13 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 		NAlib.connect("partsizeExact", workspace.DescendantAdded:Connect(function(obj)
 			if obj:IsA("BasePart") then
 				local nm = Lower(obj.Name)
-				local sz = PST.sizeE[nm]
+				local sz = NAStuff.PST.sizeE[nm]
 				if sz then
 					NAmanage.resizePart(obj, sz, PST.exact)
 					return
 				end
 			else
-				local sz = PST.sizeE[Lower(obj.Name)]
+				local sz = NAStuff.PST.sizeE[Lower(obj.Name)]
 				if sz then
 					for _, d in ipairs(obj:GetDescendants()) do
 						if d:IsA("BasePart") then
@@ -35122,7 +35124,15 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 end, true)
 
 cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—return those parts back to their original size and collision."},function()
-	for _, p in ipairs(PST.exact) do
+	local parts = PST.exact
+	local sizeMap = PST.sizeE
+
+	local terms = {}
+	for term, _ in pairs(sizeMap) do
+		Insert(terms, term)
+	end
+
+	local function restorePart(p)
 		local pr = PST.orig[p]
 		if pr then
 			p.Size         = pr.Size
@@ -35131,13 +35141,75 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 			PST.orig[p] = nil
 		end
 	end
-	table.clear(PST.exact)
-	table.clear(PST.sizeE)
-	NAlib.disconnect("partsizeExact")
+
+	local function termMatchesPart(term, part)
+		local obj = part
+		while obj do
+			if Lower(obj.Name) == term then
+				return true
+			end
+			obj = obj.Parent
+		end
+		return false
+	end
+
+	local function removeAll()
+		for _, p in ipairs(parts) do
+			restorePart(p)
+		end
+		table.clear(parts)
+		table.clear(sizeMap)
+		NAlib.disconnect("partsizeExact")
+		DoNotif("Cleared all exact-name partsize changes.", 2)
+	end
+
+	if #terms == 0 then
+		if #parts == 0 then
+			DoNotif("No exact-name partsize changes are active.", 2)
+		else
+			removeAll()
+		end
+		return
+	end
+
+	local function removeByTerm(term)
+		for i = #parts, 1, -1 do
+			local p = parts[i]
+			if p and p.Parent and termMatchesPart(term, p) then
+				restorePart(p)
+				table.remove(parts, i)
+			end
+		end
+		sizeMap[term] = nil
+		if not next(sizeMap) then
+			NAlib.disconnect("partsizeExact")
+		end
+		DoNotif("Reverted partsize for exact name '"..term.."'.", 2)
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(terms) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "Undo Exact Partsize",
+		Description = "Select a name to restore original size (future spawns included).",
+		Buttons = buttons
+	})
 end, true)
 
 cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo partsizefind—return those resized parts back to their original size and collision."},function()
-	for _, p in ipairs(PST.partial) do
+	local parts = PST.partial
+	local sizeMap = PST.sizeP
+
+	local terms = {}
+	for term, _ in pairs(sizeMap) do
+		Insert(terms, term)
+	end
+
+	local function restorePart(p)
 		local pr = PST.orig[p]
 		if pr then
 			p.Size         = pr.Size
@@ -35146,9 +35218,63 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 			PST.orig[p] = nil
 		end
 	end
-	table.clear(PST.partial)
-	table.clear(PST.sizeP)
-	NAlib.disconnect("partsizeFind")
+
+	local function termMatchesPart(term, part)
+		local obj = part
+		while obj do
+			if Find(Lower(obj.Name), term) ~= nil then
+				return true
+			end
+			obj = obj.Parent
+		end
+		return false
+	end
+
+	local function removeAll()
+		for _, p in ipairs(parts) do
+			restorePart(p)
+		end
+		table.clear(parts)
+		table.clear(sizeMap)
+		NAlib.disconnect("partsizeFind")
+		DoNotif("Cleared all partial-name partsize changes.", 2)
+	end
+
+	if #terms == 0 then
+		if #parts == 0 then
+			DoNotif("No partial-name partsize changes are active.", 2)
+		else
+			removeAll()
+		end
+		return
+	end
+
+	local function removeByTerm(term)
+		for i = #parts, 1, -1 do
+			local p = parts[i]
+			if p and p.Parent and termMatchesPart(term, p) then
+				restorePart(p)
+				table.remove(parts, i)
+			end
+		end
+		sizeMap[term] = nil
+		if not next(sizeMap) then
+			NAlib.disconnect("partsizeFind")
+		end
+		DoNotif("Reverted partsizefind for term '"..term.."'.", 2)
+	end
+
+	local buttons = {}
+	Insert(buttons, { Text = "All", Callback = removeAll })
+	for _, t in ipairs(terms) do
+		Insert(buttons, { Text = t, Callback = function() removeByTerm(t) end })
+	end
+
+	Window({
+		Title = "Undo Partial Partsize",
+		Description = "Select a term to restore original size (future spawns included).",
+		Buttons = buttons
+	})
 end, true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
@@ -38343,12 +38469,14 @@ cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	end)
 end)
 
-local NPCControl = {
+NAStuff.NPCControl = {
 	Enabled = false,
 	Connection = nil,
 	CurrentTarget = nil,
 	MoveCooldown = 0
 }
+
+NPCControl = NAStuff.NPCControl
 
 cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 	if NPCControl.Enabled then return end
@@ -38435,19 +38563,19 @@ cmd.add({"unactnpc", "stopnpc"}, {"unactnpc (stopnpc)", "Stop acting like an NPC
 	end
 end)
 
-clickkillUI = nil
-clickkillEnabled = false
+NAStuff.clickkillUI = nil
+NAStuff.clickkillEnabled = false
 
 cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to kill it"}, function()
-	clickkillEnabled = true
+	NAStuff.clickkillEnabled = true
 
-	if clickkillUI then clickkillUI:Destroy() end
+	if NAStuff.clickkillUI then NAStuff.clickkillUI:Destroy() end
 	NAlib.disconnect("clickkill_mouse")
 
 	local Mouse = player:GetMouse()
 
-	clickkillUI = InstanceNew("ScreenGui")
-	NaProtectUI(clickkillUI)
+	NAStuff.clickkillUI = InstanceNew("ScreenGui")
+	NaProtectUI(NAStuff.clickkillUI)
 
 	local toggleButton = InstanceNew("TextButton")
 	toggleButton.Size = UDim2.new(0, 120, 0, 40)
@@ -38458,7 +38586,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	toggleButton.Font = Enum.Font.GothamBold
 	toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 	toggleButton.BackgroundTransparency = 0.2
-	toggleButton.Parent = clickkillUI
+	toggleButton.Parent = NAStuff.clickkillUI
 
 	local uiCorner = InstanceNew("UICorner")
 	uiCorner.CornerRadius = UDim.new(0, 8)
@@ -38467,12 +38595,12 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	NAgui.draggerV2(toggleButton)
 
 	MouseButtonFix(toggleButton, function()
-		clickkillEnabled = not clickkillEnabled
-		toggleButton.Text = clickkillEnabled and "ClickKill: ON" or "ClickKill: OFF"
+		NAStuff.clickkillEnabled = not NAStuff.clickkillEnabled
+		toggleButton.Text = NAStuff.clickkillEnabled and "ClickKill: ON" or "ClickKill: OFF"
 	end)
 
 	NAlib.connect("clickkill_mouse", Mouse.Button1Down:Connect(function()
-		if not clickkillEnabled then return end
+		if not NAStuff.clickkillEnabled then return end
 
 		local Target = Mouse.Target
 		if Target and Target.Parent then
@@ -38488,8 +38616,8 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 end)
 
 cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable clickkillnpc"}, function()
-	clickkillEnabled = false
-	if clickkillUI then clickkillUI:Destroy() end
+	NAStuff.clickkillEnabled = false
+	if NAStuff.clickkillUI then NAStuff.clickkillUI:Destroy() end
 	NAlib.disconnect("clickkill_mouse")
 end)
 
@@ -38729,8 +38857,8 @@ repeat
 		Wait(.3)
 	end
 until NAStuff.NASCREENGUI
-local rPlayer=Players:FindFirstChildWhichIsA("Player")
-local coreGuiProtection={}
+rPlayer=Players:FindFirstChildWhichIsA("Player")
+coreGuiProtection={}
 if not RunService:IsStudio() then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI",true)
@@ -38740,7 +38868,7 @@ end
 
 NaProtectUI(NAStuff.NASCREENGUI)
 
-local NAUIMANAGER = {
+NAUIMANAGER = {
 	description          = NAStuff.NASCREENGUI:FindFirstChild("Description");
 	AUTOSCALER           = NAStuff.NASCREENGUI:FindFirstChild("AutoScale");
 	cmdBar               = NAStuff.NASCREENGUI:FindFirstChild("CmdBar");
@@ -38967,7 +39095,7 @@ NAStuff.resizeHorizontalAsset = originalIO.resizeCursors("ResizeHorizontal", "rb
 NAStuff.resizeDiagonal1Asset = originalIO.resizeCursors("ResizeDiagonal1", "rbxassetid://2911851859")
 NAStuff.resizeDiagonal2Asset = originalIO.resizeCursors("ResizeDiagonal2", "rbxassetid://2911852219")
 
-local resizeXY={
+resizeXY={
 	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
 	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
 	Left = {Vector2.new(-1,0),    Vector2.new(1,0),    NAStuff.resizeHorizontalAsset}, -- Horizontal16x16.png
@@ -38979,7 +39107,7 @@ local resizeXY={
 	BottomRight = {Vector2.new(1,1),    Vector2.new(0,0),    NAStuff.resizeDiagonal2Asset}, -- Diagonal216x16.png
 }
 
-local fillSizes={
+fillSizes={
 	right=NAUIMANAGER.rightFill.Size,
 	left=NAUIMANAGER.leftFill.Size,
 }
@@ -39040,7 +39168,7 @@ if NAUIMANAGER.WPFrame then
 	NAUIMANAGER.WPFrame.Parent = nil
 end
 
-local templates = {
+templates = {
 	Button = NAUIMANAGER.SettingsButton;
 	ColorPicker = NAUIMANAGER.SettingsColorPicker;
 	SectionTitle = NAUIMANAGER.SettingsSectionTitle;
@@ -39051,7 +39179,7 @@ local templates = {
 	WaypointerFrame = NAUIMANAGER.WPFrame;
 }
 
-local TabManager = {
+TabManager = {
 	holder = NAUIMANAGER.SettingsTabs;
 	container = NAUIMANAGER.SettingsPages;
 	template = NAUIMANAGER.SettingsTabButton;
@@ -39880,7 +40008,7 @@ NAmanage.stripChar = function(text, trimWhitespace)
 	return cleaned
 end
 
-local predictionInput = NAUIMANAGER.cmdInput:Clone()
+predictionInput = NAUIMANAGER.cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
 predictionInput.TextTransparency = 1
@@ -41256,7 +41384,7 @@ NAmanage.Topbar_ComputedSize=function()
 	end
 end
 
-local function Topbar_GetMaxOffset()
+function Topbar_GetMaxOffset()
 	if not (TopBarApp and TopBarApp.frame and TopBarApp.toggle) then
 		return nil
 	end
@@ -47621,7 +47749,7 @@ end
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
 end]]
 
-local logClrs={
+logClrs={
 	GREEN   = "#00FF00";
 	WHITE   = "#FFFFFF";
 	RED     = "#FF0000";
@@ -48047,12 +48175,12 @@ NACaller(function()
 end)
 
 --[[ COMMAND BAR BUTTON ]]--
-local TextLabel = InstanceNew("TextLabel")
-local UICorner = InstanceNew("UICorner")
-local UIStroke = InstanceNew("UIStroke")
-local TextButton
-local IconFallbackText
-local UICorner2 = InstanceNew("UICorner")
+TextLabel = InstanceNew("TextLabel")
+UICorner = InstanceNew("UICorner")
+UIStroke = InstanceNew("UIStroke")
+TextButton = nil
+IconFallbackText = nil
+UICorner2 = InstanceNew("UICorner")
 
 NAICONASSET = nil
 
@@ -49074,7 +49202,7 @@ NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
-local bindersList      = NAUIMANAGER.BindersList
+NAStuff.bindersList      = NAUIMANAGER.BindersList
 SpawnCall(function()
 	local layoutOrder = 1
 	for _, evName in ipairs(events) do
@@ -49083,7 +49211,7 @@ SpawnCall(function()
 
 		local binderFrame = InstanceNew("Frame")
 		binderFrame.Name             = ev.."Binder"
-		binderFrame.Parent           = bindersList
+		binderFrame.Parent           = NAStuff.bindersList
 		binderFrame.Size             = UDim2.new(1,0,0, HEADER_H)
 		binderFrame.LayoutOrder      = layoutOrder
 		binderFrame.ClipsDescendants = true
@@ -50607,12 +50735,12 @@ originalIO.UserBtnEditor=function()
 end
 originalIO.UserBtnEditor()
 
-local joinLeaveWarned = false
-local function persistJoinLeaveConfig()
+NAStuff.joinLeaveWarned = false
+function persistJoinLeaveConfig()
 	if FileSupport then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
-	elseif not joinLeaveWarned then
-		joinLeaveWarned = true
+	elseif not NAStuff.joinLeaveWarned then
+		NAStuff.joinLeaveWarned = true
 		DebugNotif("Join/Leave settings will reset after this session (no file support detected).")
 	end
 end
