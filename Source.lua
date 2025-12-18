@@ -22901,7 +22901,7 @@ NAmanage.grabAllTools=function(range)
 	return count
 end
 
-cmd.add({"grabtools"},{"grabtools [range]","Grabs dropped tools"},function(...)
+cmd.add({"grabtools","gtools","gtls"},{"grabtools [range]","Grabs dropped tools"},function(...)
 	local firstArg = ...
 	local range = tonumber(firstArg)
 
@@ -22917,16 +22917,19 @@ cmd.add({"grabtools"},{"grabtools [range]","Grabs dropped tools"},function(...)
 	end
 end)
 
-cmd.add({"loopgrabtools"},{"loopgrabtools","Loop grabs dropped tools"},function()
+cmd.add({"loopgrabtools","lgtools","lgtls"},{"loopgrabtools [range]","Loop grabs dropped tools"},function(...)
 	if loopgrab then
 		DebugNotif("Loop grab already running", 2)
 		return
 	end
+	local firstArg = ...
+	local range = tonumber(firstArg)
+
 	loopgrab = true
 	DebugNotif("Started loop grabbing tools", 2)
 	SpawnCall(function()
 		while loopgrab do
-			NAmanage.grabAllTools()
+			NAmanage.grabAllTools(range)
 			Wait(1)
 		end
 		DebugNotif("Stopped loop grabbing tools", 2)
