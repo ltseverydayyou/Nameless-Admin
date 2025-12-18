@@ -48744,7 +48744,15 @@ SpawnCall(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))() end) -- manipulates coregui checks
+		local coreGuiOk = pcall(function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))()
+		end) -- manipulates coregui checks
+
+		if coreGuiOk then
+			pcall(function()
+				loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))()
+			end) -- collab soon?????
+		end
 
 		-- just ignore this section (personal stuff)
 		--[[Window({
@@ -48772,17 +48780,33 @@ SpawnCall(function()
 	end)
 	SpawnCall(function()
 		Wait(.5)
+
+		if NAmanage.loadAutoExec then
+			pcall(NAmanage.loadAutoExec)
+		end
+
 		if NAStuff.AutoExecEnabled == false then
 			DebugNotif("AutoExec is disabled, skipping stored commands.")
 			return
 		end
-		for _, commandName in ipairs(NAEXECDATA.commands) do
+
+		local data = NAEXECDATA or {commands = {}, args = {}}
+		local commands = data.commands
+		local argsMap = data.args or {}
+
+		if type(commands) ~= "table" or #commands == 0 then
+			return
+		end
+
+		for _, commandName in ipairs(commands) do
 			local fullRun = {commandName}
-			local argsString = NAEXECDATA.args[commandName]
-			if argsString and argsString ~= "" then
+			local argsString = argsMap[commandName]
+			if type(argsString) == "string" and argsString ~= "" then
 				local extraArgs = ParseArguments(argsString)
-				for _, v in ipairs(extraArgs) do
-					Insert(fullRun, v)
+				if extraArgs then
+					for _, v in ipairs(extraArgs) do
+						Insert(fullRun, v)
+					end
 				end
 			end
 			cmd.run(fullRun)
@@ -49202,8 +49226,6 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.BindersFrame then NAProtection(NAUIMANAGER.BindersFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
-
-pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))() end) -- collab soon?????
 
 NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
 NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
