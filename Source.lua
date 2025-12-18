@@ -48724,7 +48724,7 @@ SpawnCall(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		SpawnCall(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))() end) end) -- manipulates coregui checks
+		pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))() end) -- manipulates coregui checks
 
 		-- just ignore this section (personal stuff)
 		--[[Window({
@@ -49183,7 +49183,7 @@ SpawnCall(function() -- init
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
-SpawnCall(function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))() end) end) -- collab soon?????
+pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))() end) -- collab soon?????
 
 NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
 NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
