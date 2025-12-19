@@ -9375,36 +9375,85 @@ FindInTable = function(tbl,val)
 end
 
 function MouseButtonFix(button, clickCallback)
-	if IsOnPC then
-		return button.MouseButton1Click:Connect(clickCallback)
-	end
-	if not IsOnMobile then
+	if not button or type(clickCallback) ~= "function" then
 		return
 	end
 
-	local isHolding = false
-	local holdThreshold = 0.45
-	local mouseDownTime = 0
+	local clickTimeThreshold = 0.45
+	local moveThreshold = 10
 
-	button.MouseButton1Down:Connect(function()
-		isHolding = false
+	local mouseDownTime = 0
+	local isPointerDown = false
+	local startPosition = nil
+	local maxMoveDistance = 0
+	local connections = {}
+
+	local function resetState()
+		mouseDownTime = 0
+		isPointerDown = false
+		startPosition = nil
+		maxMoveDistance = 0
+	end
+
+	connections[#connections+1] = button.MouseButton1Down:Connect(function()
+		isPointerDown = true
 		mouseDownTime = tick()
+		maxMoveDistance = 0
+		startPosition = nil
 	end)
 
-	button.MouseButton1Up:Connect(function()
-		if mouseDownTime == 0 then return end
+	connections[#connections+1] = button.MouseButton1Up:Connect(function()
+		if not isPointerDown or mouseDownTime == 0 then
+			resetState()
+			return
+		end
+
 		local holdDuration = tick() - mouseDownTime
-		mouseDownTime = 0
-		if holdDuration < holdThreshold and not isHolding then
+		local isClick = (holdDuration < clickTimeThreshold) and (maxMoveDistance <= moveThreshold)
+
+		resetState()
+
+		if isClick then
 			clickCallback()
 		end
 	end)
 
-	button.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch and input.UserInputState == Enum.UserInputState.Change then
-			isHolding = true
+	connections[#connections+1] = button.InputChanged:Connect(function(input)
+		if not isPointerDown then
+			return
+		end
+
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		local pos = input.Position
+		if not pos then
+			return
+		end
+
+		if not startPosition then
+			startPosition = Vector2.new(pos.X, pos.Y)
+			return
+		end
+
+		local currentPos = Vector2.new(pos.X, pos.Y)
+		local delta = (currentPos - startPosition).Magnitude
+		if delta > maxMoveDistance then
+			maxMoveDistance = delta
 		end
 	end)
+
+	return {
+		Disconnect = function()
+			for _, conn in ipairs(connections) do
+				if conn and conn.Disconnect then
+					conn:Disconnect()
+				end
+			end
+		end
+	}
 end
 
 NAmanage.AttachMessageCopy = function(gui, rawMessage)
