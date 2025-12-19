@@ -9062,7 +9062,7 @@ NA_GRAB_BODY = (function()
 		end
 	end
 
-	pickOverrideModel = function()
+	pickOverrideModel = function(force)
 		if selectingOverride then
 			return overrideModel
 		end
@@ -9073,7 +9073,7 @@ NA_GRAB_BODY = (function()
 
 		local localPlayer = Players.LocalPlayer
 		local currentChar = localPlayer.Character
-		if currentChar and workspace and currentChar:IsDescendantOf(workspace) then
+		if not force and currentChar and workspace and currentChar:IsDescendantOf(workspace) then
 			setOverrideModel(nil)
 			return nil
 		end
@@ -9121,6 +9121,9 @@ NA_GRAB_BODY = (function()
 				local owner = Players:GetPlayerFromCharacter(model)
 				if owner then
 					label = ("%s (%s)"):format(label, owner.Name)
+				end
+				if currentChar and model == currentChar then
+					label = label.." [Your Character]"
 				end
 				table.insert(buttons, {
 					Text = label,
@@ -9235,7 +9238,7 @@ NA_GRAB_BODY = (function()
 		T.pickOverride = function()
 			selectingOverride = false
 			setOverrideModel(nil)
-			return pickOverrideModel()
+			return pickOverrideModel(true)
 		end
 		return T
 	end)()
