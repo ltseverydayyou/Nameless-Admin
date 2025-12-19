@@ -9043,104 +9043,119 @@ NA_GRAB_BODY = (function()
 	end
 
 	pickOverrideModel = function(force)
-		if selectingOverride then
-			return overrideModel
-		end
-
-		if not (Window and Players and Players.LocalPlayer and workspace) then
-			return overrideModel
-		end
-
-		local lp = Players.LocalPlayer
-		local cur = lp.Character
-
-		if not cur then
-			return overrideModel
-		end
-
-		if not force then
-			if cur:IsDescendantOf(workspace) then
-				return overrideModel
-			end
-		end
-
-		selectingOverride = true
-
-		local buttons = {}
-		local candidates = {}
-		local seen = {}
-
-		for _, plr in ipairs(Players:GetPlayers()) do
-			local ch = plr.Character
-			if ch and workspace and ch:IsDescendantOf(workspace) and not seen[ch] then
-				seen[ch] = true
-				table.insert(candidates, ch)
-			end
-		end
-
-		for _, inst in ipairs(workspace:GetDescendants()) do
-			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
-				seen[inst] = true
-				table.insert(candidates, inst)
-			end
-		end
-
-		local selectionDone = false
-
-		local function finish()
-			if selectionDone then return end
-			selectionDone = true
-			selectingOverride = false
-		end
-
-		if #candidates == 0 then
-			table.insert(buttons, {
-				Text = "No characters found",
-				Callback = function()
-					setOverrideModel(nil)
-					finish()
-				end
-			})
-		else
-			for _, model in ipairs(candidates) do
-				local label = model.Name
-				local owner = Players:GetPlayerFromCharacter(model)
-				if owner then
-					label = ("%s (%s)"):format(label, owner.Name)
-				end
-				if cur and model == cur then
-					label = label.." [Your Character]"
-				end
-				if overrideModel and model == overrideModel then
-					label = label.." [Selected]"
-				end
-				table.insert(buttons, {
-					Text = label,
-					Callback = function()
-						setOverrideModel(model)
-						finish()
-					end
-				})
-			end
-		end
-
-		local card = Window({
-			Title = "Select Character",
-			Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
-			Buttons = buttons
-		})
-
-		if card and card.Destroying then
-			card.Destroying:Connect(function()
-				if not selectionDone then
-					selectionDone = true
-					selectingOverride = false
-				end
-			end)
-		end
-
+	if selectingOverride then
 		return overrideModel
 	end
+
+	if not (Window and Players and Players.LocalPlayer and workspace) then
+		return overrideModel
+	end
+
+	local lp = Players.LocalPlayer
+	local cur = lp.Character
+
+	if not cur then
+		return overrideModel
+	end
+
+	if not force and cur:IsDescendantOf(workspace) then
+		return overrideModel
+	end
+
+	selectingOverride = true
+
+	local btns = {}
+	local cands = {}
+	local seen = {}
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local ch = plr.Character
+		if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
+			seen[ch] = true
+			table.insert(cands, ch)
+		end
+	end
+
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
+			seen[inst] = true
+			table.insert(cands, inst)
+		end
+	end
+
+	local nCnt = {}
+	for i = 1, #cands do
+		local m = cands[i]
+		local n = m.Name
+		nCnt[n] = (nCnt[n] or 0) + 1
+	end
+	local nUse = {}
+
+	local done = false
+	local function fin()
+		if done then return end
+		done = true
+		selectingOverride = false
+	end
+
+	if #cands == 0 then
+		table.insert(btns, {
+			Text = "No characters found",
+			Callback = function()
+				setOverrideModel(nil)
+				fin()
+			end
+		})
+	else
+		for i = 1, #cands do
+			local m = cands[i]
+			local txt = m.Name
+
+			local own = Players:GetPlayerFromCharacter(m)
+			if own then
+				txt = ("%s (%s)"):format(txt, own.Name)
+			end
+			if m == cur then
+				txt = txt.." [Your Character]"
+			end
+			if overrideModel and m == overrideModel then
+				txt = txt.." [Selected]"
+			end
+
+			if (nCnt[m.Name] or 0) > 1 then
+				nUse[m.Name] = (nUse[m.Name] or 0) + 1
+				local idx = nUse[m.Name]
+				local par = m.Parent and m.Parent.Name or "nil"
+				txt = ("%s #%d @ %s"):format(txt, idx, par)
+			end
+
+			table.insert(btns, {
+				Text = txt,
+				Callback = function()
+					setOverrideModel(m)
+					fin()
+				end
+			})
+		end
+	end
+
+	local card = Window({
+		Title = "Select Character",
+		Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
+		Buttons = btns
+	})
+
+	if card and card.Destroying then
+		card.Destroying:Connect(function()
+			if not done then
+				done = true
+				selectingOverride = false
+			end
+		end)
+	end
+
+	return overrideModel
+end
 
 	local function rebuild(char, rec)
 		local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
