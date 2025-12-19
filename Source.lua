@@ -5943,8 +5943,11 @@ NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
 end, NAAssetsLoading.getSkip)
 
 NAAssetsLoading.setStatus("finalizing")
-NAAssetsLoading.setPercent(1)
-NAAssetsLoading.completed.Value = true
+pcall(function()
+	if NAAssetsLoading.setPercent then
+		NAAssetsLoading.setPercent(0.96)
+	end
+end)
 
 Notify = Notification.Notify
 Window = Notification.Window
@@ -39825,16 +39828,34 @@ end
 end]]
 
 --[[ GUI VARIABLES ]]--
+originalIO.NAfetchUILoaderSource=function()
+	if NAmanage and NAmanage.getPrefetchedRemote and opt and opt.NAUILOADER then
+		local cached = NAmanage.getPrefetchedRemote(opt.NAUILOADER)
+		if type(cached) == "string" and cached ~= "" then
+			return cached
+		end
+	end
+	local ok, body = pcall(game.HttpGet, game, opt.NAUILOADER)
+	if ok and type(body) == "string" and body ~= "" then
+		return body
+	end
+	return nil, body
+end
+
 repeat
 	local NASUC, resexy = pcall(function()
-		return loadstring(game:HttpGet(opt.NAUILOADER))()
+		local src, err = originalIO.NAfetchUILoaderSource()
+		if not src then
+			error(tostring(err or "no UI loader source"))
+		end
+		return loadstring(src)()
 	end)
 
-	if NASUC then
+	if NASUC and resexy then
 		NAStuff.NASCREENGUI = resexy
 	else
-		warn(math.random(1,999999).." | Failed to load UI module: "..resexy.." | retrying...")
-		Wait(.3)
+		warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(resexy)))
+		Wait(0.3)
 	end
 until NAStuff.NASCREENGUI
 rPlayer=Players:FindFirstChildWhichIsA("Player")
@@ -48621,18 +48642,37 @@ function bindToChat(plr, msg)
 	end
 
 	if isNAadmin then
-		local function rainbowColor()
-			local time = tick()
-			local r = math.sin(time * 0.5) * 127 + 128
-			local g = math.sin(time * 0.5 + 2 * math.pi / 3) * 127 + 128
-			local b = math.sin(time * 0.5 + 4 * math.pi / 3) * 127 + 128
+		local function rainbowColor(now)
+			local r = math.sin(now * 0.5) * 127 + 128
+			local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
+			local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
 			return Color3.fromRGB(r, g, b)
 		end
-		RunService.Heartbeat:Connect(function()
-			if chatMsg and chatMsg.Parent then
-				chatMsg.TextColor3 = rainbowColor()
-			end
-		end)
+
+		NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
+		Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
+
+		if not NAStuff.AdminChatRainbowConnection then
+			NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
+				local now = tick()
+				local list = NAStuff.AdminChatRainbowMessages
+				if not list then
+					return
+				end
+				for i = #list, 1, -1 do
+					local label = list[i]
+					if not label or not label.Parent then
+						table.remove(list, i)
+					else
+						label.TextColor3 = rainbowColor(now)
+					end
+				end
+				if #list == 0 and NAStuff.AdminChatRainbowConnection then
+					NAStuff.AdminChatRainbowConnection:Disconnect()
+					NAStuff.AdminChatRainbowConnection = nil
+				end
+			end)
+		end
 	else
 		if plr == LocalPlayer then
 			chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
@@ -51204,7 +51244,7 @@ if FileSupport then
 	end)
 end
 
-NAgui.addTab(TAB_INTEGRATIONS, { order = 1.5, textIcon = "chain-link" })
+NAgui.addTab(TAB_INTEGRATIONS, { order = 9, textIcon = "chain-link" })
 NAgui.setTab(TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
@@ -51596,7 +51636,7 @@ if CoreGui then
 	end
 end
 
-NAgui.addTab(TAB_USER_BUTTONS, { order = 2.5, textIcon = "circle-plus" })
+NAgui.addTab(TAB_USER_BUTTONS, { order = 8, textIcon = "circle-plus" })
 NAgui.setTab(TAB_USER_BUTTONS)
 
 originalIO.UserBtnEditor=function()
@@ -51943,7 +51983,7 @@ function persistJoinLeaveConfig()
 	end
 end
 
-NAgui.addTab(TAB_LOGGING, { order = 5, textIcon = "list-bulleted" })
+NAgui.addTab(TAB_LOGGING, { order = 10, textIcon = "list-bulleted" })
 NAgui.setTab(TAB_LOGGING)
 
 NAgui.addSection("Join/Leave Logging")
@@ -51966,7 +52006,7 @@ NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
 	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 end)
 
-NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
+NAgui.addTab(TAB_ESP, { order = 3, textIcon = "crosshairs" })
 NAgui.setTab(TAB_ESP)
 
 NAgui.isListActive=function(list)
@@ -52228,7 +52268,7 @@ NAgui.addButton("Clear Folder ESP", function()
 	end)
 end)
 
-NAgui.addTab(TAB_CHAT, { order = 3, textIcon = "speech-bubble-align-center" })
+NAgui.addTab(TAB_CHAT, { order = 5, textIcon = "speech-bubble-align-center" })
 NAgui.setTab(TAB_CHAT)
 
 do
@@ -52486,7 +52526,7 @@ if not IsOnMobile then
 		end)
 
 		local prevTab = NAgui.getActiveTab()
-		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 6.5, textIcon = "xbox-a" })
+		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 7, textIcon = "xbox-a" })
 		NAgui.setTab(TAB_COMMAND_KEYBINDS)
 		NAmanage.CommandKeybindsUIInit()
 		NAmanage.CommandKeybindsUIWire()
@@ -52495,7 +52535,7 @@ if not IsOnMobile then
 	end
 end
 
-NAgui.addTab(TAB_CHARACTER, { order = 7, textIcon = "circle-person" })
+NAgui.addTab(TAB_CHARACTER, { order = 4, textIcon = "circle-person" })
 NAgui.setTab(TAB_CHARACTER)
 
 NAgui.addSection("Character Morph")
@@ -52560,7 +52600,7 @@ end)
 
 do
 	local previousTab = NAgui.getActiveTab()
-	NAgui.addTab(TAB_BASIC_INFO, { order = 7.5, textIcon = "circle-i" })
+	NAgui.addTab(TAB_BASIC_INFO, { order = 11, textIcon = "circle-i" })
 	NAgui.setTab(TAB_BASIC_INFO)
 
 	local basicInfoConfig = {
@@ -52706,7 +52746,7 @@ do
 	end
 end
 
-NAgui.addTab(TAB_ROBLOX_DATA, { order = 8, textIcon = "tilt" })
+NAgui.addTab(TAB_ROBLOX_DATA, { order = 12, textIcon = "tilt" })
 NAgui.setTab(TAB_ROBLOX_DATA)
 
 NAStuff.GitHubLoadingText = "Loading..."
@@ -53104,7 +53144,7 @@ SpawnCall(function()
 	end
 end)
 
-NAgui.addTab(TAB_ADMIN_INFO, { order = 9, displayText = adminInfoDisplay })
+NAgui.addTab(TAB_ADMIN_INFO, { order = 13, displayText = adminInfoDisplay })
 NAgui.setTab(TAB_ADMIN_INFO)
 
 if NAmanage.UpdateAdminInfoTabDisplayName then
@@ -53217,6 +53257,14 @@ SpawnCall(function()
 	Wait()
 	if TabManager and TabManager.current ~= TAB_ALL then
 		NAgui.setTab(TAB_ALL)
+	end
+end)
+
+pcall(function()
+	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
+		NAAssetsLoading.setStatus("ready")
+		NAAssetsLoading.setPercent(1)
+		NAAssetsLoading.completed.Value = true
 	end
 end)
 
