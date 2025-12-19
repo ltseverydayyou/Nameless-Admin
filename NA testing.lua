@@ -10541,10 +10541,18 @@ end
 NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local data = espCONS[model]
 	if not data then return end
-	if not model.Parent then NAmanage.ESP_ClearModel(model) return end
+	local owner = Players:GetPlayerFromCharacter(model)
+	if not model.Parent then
+		if data.persistent and owner and owner.Character == model then
+			NAmanage.ESP_RemoveBoxes(model)
+			NAmanage.ESP_DestroyLabel(model)
+		else
+			NAmanage.ESP_ClearModel(model)
+		end
+		return
+	end
 
 	local rootPart = getRoot(model)
-	local owner = Players:GetPlayerFromCharacter(model)
 	local team = owner and owner.Team or nil
 	local teamName = team and team.Name or nil
 	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
