@@ -9031,7 +9031,7 @@ NA_GRAB_BODY = (function()
 					if Players and Players.LocalPlayer and workspace then
 						local lp = Players.LocalPlayer
 						local cur = lp.Character
-						if cur and not cur:IsDescendantOf(workspace) then
+						if cur and cur.Parent and not cur:IsDescendantOf(workspace) then
 							Spawn(function()
 								pickOverrideModel()
 							end)
@@ -9207,7 +9207,7 @@ end
 					if not cur then
 						return nil
 					end
-					if workspace and not cur:IsDescendantOf(workspace) then
+					if workspace and cur.Parent and not cur:IsDescendantOf(workspace) then
 						local model = overrideModel
 						if not (model and model.Parent) then
 							pickOverrideModel(false)
