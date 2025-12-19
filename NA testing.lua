@@ -32222,6 +32222,14 @@ cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximity
 	NAlib.disconnect("instantpp")
 end)
 
+cmd.add({"enableproximitypromptservice","enablepps","epps","ppson","ppon"},{"enableproximitypromptservice (enablepps,epps,ppson,ppon)","enable proximity prompt buttons"},function()
+	SafeGetService("ProximityPromptService").Enabled = true
+end,true)
+
+cmd.add({"disableproximitypromptservice","disablepps","dpps","ppsoff","ppoff"},{"disableproximitypromptservice (disablepps,dpps,ppsoff,ppoff)","disable proximity prompt buttons"},function()
+	SafeGetService("ProximityPromptService").Enabled = false
+end,true)
+
 cmd.add({"enableproximityprompts","enableprox","enprox","enprx","enpp"},{"enableproximityprompts [name]","Enable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
 	for _,obj in ipairs(interactTbl.proxy) do
