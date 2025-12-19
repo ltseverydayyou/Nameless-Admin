@@ -9049,9 +9049,9 @@ NA_GRAB_BODY = (function()
 					overrideModel = nil
 					selectingOverride = false
 					if Players and Players.LocalPlayer and workspace then
-						local localPlayer = Players.LocalPlayer
-						local currentChar = localPlayer.Character
-						if not (currentChar and currentChar:IsDescendantOf(workspace)) then
+						local lp = Players.LocalPlayer
+						local cur = lp.Character
+						if cur and not cur:IsDescendantOf(workspace) then
 							Spawn(function()
 								pickOverrideModel()
 							end)
@@ -9071,11 +9071,17 @@ NA_GRAB_BODY = (function()
 			return overrideModel
 		end
 
-		local localPlayer = Players.LocalPlayer
-		local currentChar = localPlayer.Character
-		if not force and currentChar and workspace and currentChar:IsDescendantOf(workspace) then
-			setOverrideModel(nil)
-			return nil
+		local lp = Players.LocalPlayer
+		local cur = lp.Character
+
+		if not cur then
+			return overrideModel
+		end
+
+		if not force then
+			if cur:IsDescendantOf(workspace) then
+				return overrideModel
+			end
 		end
 
 		selectingOverride = true
@@ -9122,8 +9128,11 @@ NA_GRAB_BODY = (function()
 				if owner then
 					label = ("%s (%s)"):format(label, owner.Name)
 				end
-				if currentChar and model == currentChar then
+				if cur and model == cur then
 					label = label.." [Your Character]"
+				end
+				if overrideModel and model == overrideModel then
+					label = label.." [Selected]"
 				end
 				table.insert(buttons, {
 					Text = label,
@@ -9137,7 +9146,7 @@ NA_GRAB_BODY = (function()
 
 		local card = Window({
 			Title = "Select Character",
-			Description = "Your character is not in Workspace. Pick a character model to use.",
+			Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
 			Buttons = buttons
 		})
 
@@ -9189,23 +9198,29 @@ NA_GRAB_BODY = (function()
 		local obj = char
 
 		if Players and Players.LocalPlayer then
-			local localPlayer = Players.LocalPlayer
-			local currentChar = localPlayer.Character
+			local lp = Players.LocalPlayer
+			local cur = lp.Character
 
 			if not obj then
-				obj = localPlayer
+				obj = lp
 			end
 
-			if obj == localPlayer or obj == currentChar then
-				if not (currentChar and workspace and currentChar:IsDescendantOf(workspace)) then
-					local model = overrideModel
-					if not (model and model.Parent) then
-						pickOverrideModel()
+			if obj == lp or obj == cur then
+				if overrideModel and overrideModel.Parent then
+					obj = overrideModel
+				else
+					if not cur then
 						return nil
 					end
-
-					if model and model.Parent then
-						obj = model
+					if workspace and not cur:IsDescendantOf(workspace) then
+						local model = overrideModel
+						if not (model and model.Parent) then
+							pickOverrideModel(false)
+							return nil
+						end
+						if model and model.Parent then
+							obj = model
+						end
 					end
 				end
 			end
@@ -9232,16 +9247,16 @@ NA_GRAB_BODY = (function()
 		return rec, model
 	end
 
-		T.ensure = ensure
-		T.firstPart = firstPart
-		T.asChar = asChar
-		T.pickOverride = function()
-			selectingOverride = false
-			setOverrideModel(nil)
-			return pickOverrideModel(true)
-		end
-		return T
-	end)()
+	T.ensure = ensure
+	T.firstPart = firstPart
+	T.asChar = asChar
+	T.pickOverride = function()
+		selectingOverride = false
+		setOverrideModel(nil)
+		return pickOverrideModel(true)
+	end
+	return T
+end)()
 
 function getRoot(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
@@ -9264,10 +9279,6 @@ end
 function getChar()
 	local plr = Players.LocalPlayer
 	if not plr then return nil end
-	local ch = plr.Character
-	if ch and workspace and ch:IsDescendantOf(workspace) then
-		return ch
-	end
 	local rec, model = NA_GRAB_BODY.ensure(plr)
 	return model
 end
