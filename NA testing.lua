@@ -983,10 +983,10 @@ if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecuto
 	end
 end
 
-  local Waypoints = {}
-  local Bindings = Bindings or {}
-  local CommandKeybinds = CommandKeybinds or {}
-  local CommandKeybindOptions = CommandKeybindOptions or {}
+local Waypoints = {}
+local Bindings = Bindings or {}
+local CommandKeybinds = CommandKeybinds or {}
+local CommandKeybindOptions = CommandKeybindOptions or {}
 local NAStuff = {
 	NAICONMAIN = nil;
 	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
@@ -7238,132 +7238,132 @@ NAmanage.SaveBinders=function()
 end
 
 NAmanage.SaveCommandKeybinds=function()
-  	if not FileSupport then return end
+	if not FileSupport then return end
 
-  	local payload = {}
-  	for key, args in pairs(CommandKeybinds) do
-  		if type(key) == "string" and type(args) == "table" then
-  			local opt = CommandKeybindOptions[key]
-  			if opt and opt.toggle then
-  				payload[key] = {
-  					args1 = args;
-  					args2 = opt.args2 or args;
-  				}
-  			else
-  				payload[key] = args
-  			end
-  		end
-  	end
+	local payload = {}
+	for key, args in pairs(CommandKeybinds) do
+		if type(key) == "string" and type(args) == "table" then
+			local opt = CommandKeybindOptions[key]
+			if opt and opt.toggle then
+				payload[key] = {
+					args1 = args;
+					args2 = opt.args2 or args;
+				}
+			else
+				payload[key] = args
+			end
+		end
+	end
 
-  	local ok, err = pcall(function()
-  		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
-  	end)
-  	if not ok then
-  		warn("[NA] Command keybind save failed: "..tostring(err))
-  	end
-  end
+	local ok, err = pcall(function()
+		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
+	end)
+	if not ok then
+		warn("[NA] Command keybind save failed: "..tostring(err))
+	end
+end
 
 NAmanage.ApplyCommandKeybinds=function()
-  	if NAStuff.KeybindConnection then
-  		NAStuff.KeybindConnection:Disconnect()
-  		NAStuff.KeybindConnection = nil
-  	end
-  	local UIS = UserInputService
-  	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
-  		if gameProcessed then return end
-  		if NAStuff._capturingCommandKeybind then return end
-  		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
-  		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
-  		local keyName = input.KeyCode.Name
-  		local args = CommandKeybinds[keyName]
-  		if type(args) ~= "table" or #args == 0 then
-  			return
-  		end
-  
-  		local function cloneArgs(src)
-  			local dst = {}
-  			for i, v in ipairs(src) do
-  				dst[i] = v
-  			end
-  			return dst
-  		end
-  
-    		local opt = CommandKeybindOptions[keyName]
-    		if opt and opt.toggle and type(opt.args2) == "table" then
-    			opt.state = not opt.state
-    			local runArgs
-    			if opt.state then
-    				runArgs = cloneArgs(args)
-    			else
-    				runArgs = cloneArgs(opt.args2)
-    			end
-    			cmd.run(runArgs)
-    		else
-    			cmd.run(cloneArgs(args))
-    		end
-  	end)
-  end
+	if NAStuff.KeybindConnection then
+		NAStuff.KeybindConnection:Disconnect()
+		NAStuff.KeybindConnection = nil
+	end
+	local UIS = UserInputService
+	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if NAStuff._capturingCommandKeybind then return end
+		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+		local keyName = input.KeyCode.Name
+		local args = CommandKeybinds[keyName]
+		if type(args) ~= "table" or #args == 0 then
+			return
+		end
+
+		local function cloneArgs(src)
+			local dst = {}
+			for i, v in ipairs(src) do
+				dst[i] = v
+			end
+			return dst
+		end
+
+		local opt = CommandKeybindOptions[keyName]
+		if opt and opt.toggle and type(opt.args2) == "table" then
+			opt.state = not opt.state
+			local runArgs
+			if opt.state then
+				runArgs = cloneArgs(args)
+			else
+				runArgs = cloneArgs(opt.args2)
+			end
+			cmd.run(runArgs)
+		else
+			cmd.run(cloneArgs(args))
+		end
+	end)
+end
 
 NAmanage.LoadCommandKeybinds=function()
-  	CommandKeybinds = {}
-  	CommandKeybindOptions = {}
-  	if FileSupport and isfile and isfile(NAfiles.NACOMMANDKEYBINDS) then
-  		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
-  		if okRead and type(raw) == "string" and raw ~= "" then
-  			local okDecode, decoded = pcall(function()
-  				return HttpService:JSONDecode(raw)
-  			end)
-  			if okDecode and type(decoded) == "table" then
-  				for key, value in pairs(decoded) do
-  					if type(key) == "string" and type(value) == "table" then
-  						local args = value
-  						local opt = nil
-  						if type(value.args1) == "table" and type(value.args2) == "table" then
-  							args = value.args1
-  							opt = {
-  								toggle = true;
-  								state = false;
-  								args2 = value.args2;
-  							}
-  						elseif type(value.args) == "table" and value.toggle == true then
-  							args = value.args
-  							local args2 = {}
-  							for i, v in ipairs(args) do
-  								args2[i] = v
-  							end
-  							if type(args2[1]) == "string" then
-  								local cmdName = args2[1]
-  								local lower = string.lower(cmdName)
-  								if lower:sub(1, 2) == "un" then
-  									args2[1] = cmdName:sub(3)
-  								else
-  									args2[1] = "un"..cmdName
-  								end
-  							end
-  							opt = {
-  								toggle = true;
-  								state = false;
-  								args2 = args2;
-  							}
-  						end
-  						if type(args) == "table" then
-  							CommandKeybinds[key] = args
-  							if opt then
-  								CommandKeybindOptions[key] = opt
-  							end
-  						end
-  					end
-  				end
-  			end
-  		end
-  	end
-  	NAmanage.ApplyCommandKeybinds()
-  	Defer(function()
-  		if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
-  			pcall(NAmanage.CommandKeybindsUIRefresh)
-  		end
-  	end)
-  end
+	CommandKeybinds = {}
+	CommandKeybindOptions = {}
+	if FileSupport and isfile and isfile(NAfiles.NACOMMANDKEYBINDS) then
+		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
+		if okRead and type(raw) == "string" and raw ~= "" then
+			local okDecode, decoded = pcall(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if okDecode and type(decoded) == "table" then
+				for key, value in pairs(decoded) do
+					if type(key) == "string" and type(value) == "table" then
+						local args = value
+						local opt = nil
+						if type(value.args1) == "table" and type(value.args2) == "table" then
+							args = value.args1
+							opt = {
+								toggle = true;
+								state = false;
+								args2 = value.args2;
+							}
+						elseif type(value.args) == "table" and value.toggle == true then
+							args = value.args
+							local args2 = {}
+							for i, v in ipairs(args) do
+								args2[i] = v
+							end
+							if type(args2[1]) == "string" then
+								local cmdName = args2[1]
+								local lower = Lower(cmdName)
+								if lower:sub(1, 2) == "un" then
+									args2[1] = cmdName:sub(3)
+								else
+									args2[1] = "un"..cmdName
+								end
+							end
+							opt = {
+								toggle = true;
+								state = false;
+								args2 = args2;
+							}
+						end
+						if type(args) == "table" then
+							CommandKeybinds[key] = args
+							if opt then
+								CommandKeybindOptions[key] = opt
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	NAmanage.ApplyCommandKeybinds()
+	Defer(function()
+		if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
+			pcall(NAmanage.CommandKeybindsUIRefresh)
+		end
+	end)
+end
 
 originalIO.deepCopyTable=function(value)
 	if type(value) ~= "table" then return value end
@@ -9066,119 +9066,119 @@ NA_GRAB_BODY = (function()
 	end
 
 	pickOverrideModel = function(force)
-	if selectingOverride then
-		return overrideModel
-	end
-
-	if not (Window and Players and Players.LocalPlayer and workspace) then
-		return overrideModel
-	end
-
-	local lp = Players.LocalPlayer
-	local cur = lp.Character
-
-	if not cur then
-		return overrideModel
-	end
-
-	if not force and cur:IsDescendantOf(workspace) then
-		return overrideModel
-	end
-
-	selectingOverride = true
-
-	local btns = {}
-	local cands = {}
-	local seen = {}
-
-	for _, plr in ipairs(Players:GetPlayers()) do
-		local ch = plr.Character
-		if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
-			seen[ch] = true
-			table.insert(cands, ch)
+		if selectingOverride then
+			return overrideModel
 		end
-	end
 
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
-			seen[inst] = true
-			table.insert(cands, inst)
+		if not (Window and Players and Players.LocalPlayer and workspace) then
+			return overrideModel
 		end
-	end
 
-	local nCnt = {}
-	for i = 1, #cands do
-		local m = cands[i]
-		local n = m.Name
-		nCnt[n] = (nCnt[n] or 0) + 1
-	end
-	local nUse = {}
+		local lp = Players.LocalPlayer
+		local cur = lp.Character
 
-	local done = false
-	local function fin()
-		if done then return end
-		done = true
-		selectingOverride = false
-	end
+		if not cur then
+			return overrideModel
+		end
 
-	if #cands == 0 then
-		table.insert(btns, {
-			Text = "No characters found",
-			Callback = function()
-				setOverrideModel(nil)
-				fin()
+		if not force and cur:IsDescendantOf(workspace) then
+			return overrideModel
+		end
+
+		selectingOverride = true
+
+		local btns = {}
+		local cands = {}
+		local seen = {}
+
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local ch = plr.Character
+			if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
+				seen[ch] = true
+				Insert(cands, ch)
 			end
-		})
-	else
+		end
+
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
+				seen[inst] = true
+				Insert(cands, inst)
+			end
+		end
+
+		local nCnt = {}
 		for i = 1, #cands do
 			local m = cands[i]
-			local txt = m.Name
+			local n = m.Name
+			nCnt[n] = (nCnt[n] or 0) + 1
+		end
+		local nUse = {}
 
-			local own = Players:GetPlayerFromCharacter(m)
-			if own then
-				txt = ("%s (%s)"):format(txt, own.Name)
-			end
-			if m == cur then
-				txt = txt.." [Your Character]"
-			end
-			if overrideModel and m == overrideModel then
-				txt = txt.." [Selected]"
-			end
+		local done = false
+		local function fin()
+			if done then return end
+			done = true
+			selectingOverride = false
+		end
 
-			if (nCnt[m.Name] or 0) > 1 then
-				nUse[m.Name] = (nUse[m.Name] or 0) + 1
-				local idx = nUse[m.Name]
-				local par = m.Parent and m.Parent.Name or "nil"
-				txt = ("%s #%d @ %s"):format(txt, idx, par)
-			end
-
-			table.insert(btns, {
-				Text = txt,
+		if #cands == 0 then
+			Insert(btns, {
+				Text = "No characters found",
 				Callback = function()
-					setOverrideModel(m)
+					setOverrideModel(nil)
 					fin()
 				end
 			})
-		end
-	end
+		else
+			for i = 1, #cands do
+				local m = cands[i]
+				local txt = m.Name
 
-	local card = Window({
-		Title = "Select Character",
-		Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
-		Buttons = btns
-	})
+				local own = Players:GetPlayerFromCharacter(m)
+				if own then
+					txt = ("%s (%s)"):format(txt, own.Name)
+				end
+				if m == cur then
+					txt = txt.." [Your Character]"
+				end
+				if overrideModel and m == overrideModel then
+					txt = txt.." [Selected]"
+				end
 
-	if card and card.Destroying then
-		card.Destroying:Connect(function()
-			if not done then
-				done = true
-				selectingOverride = false
+				if (nCnt[m.Name] or 0) > 1 then
+					nUse[m.Name] = (nUse[m.Name] or 0) + 1
+					local idx = nUse[m.Name]
+					local par = m.Parent and m.Parent.Name or "nil"
+					txt = ("%s #%d @ %s"):format(txt, idx, par)
+				end
+
+				Insert(btns, {
+					Text = txt,
+					Callback = function()
+						setOverrideModel(m)
+						fin()
+					end
+				})
 			end
-		end)
-	end
+		end
 
-	return overrideModel
-end
+		local card = Window({
+			Title = "Select Character",
+			Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
+			Buttons = btns
+		})
+
+		if card and card.Destroying then
+			card.Destroying:Connect(function()
+				if not done then
+					done = true
+					selectingOverride = false
+				end
+			end)
+		end
+
+		return overrideModel
+	end
 
 	local function rebuild(char, rec)
 		local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
@@ -24131,6 +24131,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		MUTED = Color3.fromRGB(180, 180, 185),
 		STROKE = Color3.fromRGB(60, 60, 65),
 		OWNED = Color3.fromRGB(65, 200, 120),
+		BAD = Color3.fromRGB(255, 90, 90),
+		BUTTON = Color3.fromRGB(34, 34, 38),
+		BUTTON_DARK = Color3.fromRGB(44, 44, 48),
 	}
 
 	local OWNERSHIP_CACHE = getgenv().__BadgeOwnershipCache or {}
@@ -24208,15 +24211,15 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		p.Size = UDim2.new(0, 0, 0, 0)
 		p.AutomaticSize = Enum.AutomaticSize.XY
 		p.AnchorPoint = Vector2.new(1,0)
-		p.Position = UDim2.new(1, 0, 0, 0)
+		p.Position = UDim2.new(1, -10, 0, 10)
 		p.TextScaled = true
-		local pc = InstanceNew("UICorner", p); pc.CornerRadius = UDim.new(0, 8)
+		local pc = InstanceNew("UICorner", p); pc.CornerRadius = UDim.new(0, 999)
 		local pad = InstanceNew("UIPadding", p)
-		pad.PaddingLeft = UDim.new(0, 8)
-		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingLeft = UDim.new(0, 10)
+		pad.PaddingRight = UDim.new(0, 10)
 		pad.PaddingTop = UDim.new(0, 6)
 		pad.PaddingBottom = UDim.new(0, 6)
-		local ts = InstanceNew("UITextSizeConstraint", p); ts.MinTextSize = 10; ts.MaxTextSize = 14
+		local ts = InstanceNew("UITextSizeConstraint", p); ts.MinTextSize = 10; ts.MaxTextSize = 16
 		p.Visible = false
 		return p
 	end
@@ -24244,17 +24247,30 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 	end
 
+	local function copyToClipboard(str, msg)
+		local s = tostring(str)
+		local ok
+		if setclipboard then
+			setclipboard(s)
+			ok = true
+		end
+		if ok then
+			DoNotif(msg or "Copied to clipboard",2)
+		end
+	end
+
 	local function createBadgeUI(data)
 		local sgui = InstanceNew("ScreenGui")
 		NaProtectUI(sgui)
 		sgui.Name = "BadgeViewer"
 
-		local headerH = 60
-		local expandedMainSize = UDim2.new(0.6,0,0.66,0)
+		local headerH = 70
+		local expandedMainSize = IsOnMobile and UDim2.new(0.96,0,0.86,0) or UDim2.new(0.75,0,0.78,0)
 
 		local main = InstanceNew("Frame", sgui)
 		main.Size = expandedMainSize
-		main.Position = UDim2.new(0.2,0,0.17,0)
+		main.Position = UDim2.new(0.5,0,0.5,0)
+		main.AnchorPoint = Vector2.new(0.5,0.5)
 		main.BackgroundColor3 = COLORS.PANEL
 		main.BackgroundTransparency = 0.08
 		main.BorderSizePixel = 0
@@ -24264,112 +24280,181 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 14)
 		local stroke = InstanceNew("UIStroke", main); stroke.Color = COLORS.STROKE; stroke.Thickness = 1; stroke.Transparency = 0.2
 
+		local grad = InstanceNew("UIGradient", main)
+		grad.Rotation = 90
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(40,40,46)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(20,20,24))
+		})
+		grad.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 0.25)
+		})
+
 		local header = InstanceNew("Frame", main)
 		header.Size = UDim2.new(1, 0, 0, headerH)
 		header.BackgroundColor3 = COLORS.TOP
 		header.BackgroundTransparency = 0.12
+
 		local headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 14)
 
-		local reservedLeft = 150
-		local reservedRight = 88
-
 		local title = InstanceNew("TextLabel", header)
-		title.Position = UDim2.new(0, 10, 0, 0)
-		title.Size = UDim2.new(0, reservedLeft-20, 1, 0)
+		title.Position = UDim2.new(0, 12, 0, 6)
+		title.Size = UDim2.new(0.5, -24, 0, 24)
 		title.Text = "Badge Viewer"
 		title.Font = Enum.Font.GothamBold
 		title.TextColor3 = COLORS.TEXT
 		title.BackgroundTransparency = 1
 		title.TextXAlignment = Enum.TextXAlignment.Left
 		title.TextScaled = true
-		local tsTitle = InstanceNew("UITextSizeConstraint", title); tsTitle.MinTextSize = 12; tsTitle.MaxTextSize = 20
+		local tsTitle = InstanceNew("UITextSizeConstraint", title); tsTitle.MinTextSize = 14; tsTitle.MaxTextSize = 20
 
-		local topbar = InstanceNew("ScrollingFrame", header)
-		topbar.Position = UDim2.new(0, 6+reservedLeft, 0, 6)
-		topbar.Size = UDim2.new(1, -(reservedLeft + reservedRight + 12), 1, -12)
-		topbar.BackgroundTransparency = 1
-		topbar.ScrollBarThickness = 4
-		topbar.ScrollingDirection = Enum.ScrollingDirection.X
-		topbar.AutomaticCanvasSize = Enum.AutomaticSize.X
-		topbar.CanvasSize = UDim2.new(0,0,0,0)
-
-		local row = InstanceNew("Frame", topbar)
-		row.BackgroundTransparency = 1
-		row.AutomaticSize = Enum.AutomaticSize.XY
-		row.Size = UDim2.new(0,0,1,0)
-		local rowLayout = InstanceNew("UIListLayout", row)
-		rowLayout.FillDirection = Enum.FillDirection.Horizontal
-		rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-		rowLayout.Padding = UDim.new(0, 8)
-
-		local function mkBtn(parent, text, w)
-			local b = InstanceNew("TextButton", parent)
-			b.AutoButtonColor = true
-			b.Text = text
-			b.Font = Enum.Font.GothamSemibold
-			b.TextColor3 = COLORS.TEXT
-			b.Size = UDim2.new(0, w, 1, -4)
-			b.BackgroundColor3 = Color3.fromRGB(34,34,38)
-			b.BackgroundTransparency = 0.2
-			b.TextScaled = true
-			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 8)
-			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 10; ts.MaxTextSize = 18
-			return b
-		end
-
-		local search = InstanceNew("TextBox", row)
-		search.Size = UDim2.new(0, 240, 1, -4)
-		search.PlaceholderText = "Search badges..."
-		search.ClearTextOnFocus = false
-		search.Text = ""
-		search.BackgroundColor3 = Color3.fromRGB(34,34,38)
-		search.BackgroundTransparency = 0.2
-		search.TextColor3 = COLORS.TEXT
-		search.PlaceholderColor3 = COLORS.MUTED
-		search.TextXAlignment = Enum.TextXAlignment.Left
-		search.Font = Enum.Font.Gotham
-		search.TextScaled = true
-		local sc = InstanceNew("UICorner", search); sc.CornerRadius = UDim.new(0, 8)
-		local sp = InstanceNew("UIPadding", search)
-		sp.PaddingLeft = UDim.new(0, 10)
-		sp.PaddingRight = UDim.new(0, 6)
-		local tsSearch = InstanceNew("UITextSizeConstraint", search); tsSearch.MinTextSize = 10; tsSearch.MaxTextSize = 18
-
-		local ownedOnlyBtn = mkBtn(row, "Owned: OFF", 110)
-		local unownedOnlyBtn = mkBtn(row, "Unowned: OFF", 130)
-		local layoutToggle = mkBtn(row, "List", 80)
-		local refreshBtn = mkBtn(row, "Refresh", 100)
+		local statLabel = InstanceNew("TextLabel", header)
+		statLabel.Position = UDim2.new(1, -160, 0, 6)
+		statLabel.Size = UDim2.new(0, 140, 0, 24)
+		statLabel.Text = ""
+		statLabel.Font = Enum.Font.Gotham
+		statLabel.TextColor3 = COLORS.MUTED
+		statLabel.BackgroundTransparency = 1
+		statLabel.TextXAlignment = Enum.TextXAlignment.Right
+		statLabel.TextScaled = true
+		statLabel.ZIndex = 6
+		local tsStat = InstanceNew("UITextSizeConstraint", statLabel); tsStat.MinTextSize = 11; tsStat.MaxTextSize = 16
 
 		local fixedBar = InstanceNew("Frame", header)
 		fixedBar.AnchorPoint = Vector2.new(1,0)
-		fixedBar.Position = UDim2.new(1, -6, 0, 6)
-		fixedBar.Size = UDim2.new(0, reservedRight, 1, -12)
+		fixedBar.Position = UDim2.new(1, -8, 0, headerH-28)
+		fixedBar.Size = UDim2.new(0, 72, 0, 22)
 		fixedBar.BackgroundTransparency = 1
 		fixedBar.ZIndex = 5
 		local fixedLayout = InstanceNew("UIListLayout", fixedBar)
 		fixedLayout.FillDirection = Enum.FillDirection.Horizontal
 		fixedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-		fixedLayout.Padding = UDim.new(0, 8)
+		fixedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		fixedLayout.Padding = UDim.new(0, 4)
 
 		local minBtn = InstanceNew("TextButton", fixedBar)
-		minBtn.Size = UDim2.new(0, 36, 1, 0)
+		minBtn.Size = UDim2.new(0, 32, 1, 0)
 		minBtn.Text = "-"
 		minBtn.Font = Enum.Font.Gotham
 		minBtn.BackgroundTransparency = 1
 		minBtn.TextColor3 = COLORS.MUTED
 		minBtn.TextScaled = true
 		minBtn.ZIndex = 6
-		local tsMin = InstanceNew("UITextSizeConstraint", minBtn); tsMin.MinTextSize = 12; tsMin.MaxTextSize = 24
+		local tsMin = InstanceNew("UITextSizeConstraint", minBtn); tsMin.MinTextSize = 14; tsMin.MaxTextSize = 22
 
 		local closeBtn = InstanceNew("TextButton", fixedBar)
-		closeBtn.Size = UDim2.new(0, 36, 1, 0)
+		closeBtn.Size = UDim2.new(0, 32, 1, 0)
 		closeBtn.Text = "X"
 		closeBtn.Font = Enum.Font.Gotham
 		closeBtn.BackgroundTransparency = 1
-		closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
+		closeBtn.TextColor3 = COLORS.BAD
 		closeBtn.TextScaled = true
 		closeBtn.ZIndex = 6
-		local tsClose = InstanceNew("UITextSizeConstraint", closeBtn); tsClose.MinTextSize = 12; tsClose.MaxTextSize = 22
+		local tsClose = InstanceNew("UITextSizeConstraint", closeBtn); tsClose.MinTextSize = 14; tsClose.MaxTextSize = 22
+
+		local tabsScroll = InstanceNew("ScrollingFrame", header)
+		tabsScroll.Name = "TabsScroll"
+		tabsScroll.Position = UDim2.new(0, 8, 0, headerH-30)
+		tabsScroll.Size = UDim2.new(1, -16, 0, 24)
+		tabsScroll.BackgroundTransparency = 1
+		tabsScroll.ScrollBarThickness = 4
+		tabsScroll.ScrollingDirection = Enum.ScrollingDirection.X
+		tabsScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+		tabsScroll.CanvasSize = UDim2.new(0,0,0,0)
+
+		local tabsRow = InstanceNew("Frame", tabsScroll)
+		tabsRow.BackgroundTransparency = 1
+		tabsRow.AutomaticSize = Enum.AutomaticSize.XY
+		tabsRow.Size = UDim2.new(0,0,1,0)
+		local tabsLayout = InstanceNew("UIListLayout", tabsRow)
+		tabsLayout.FillDirection = Enum.FillDirection.Horizontal
+		tabsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		tabsLayout.Padding = UDim.new(0, 8)
+
+		local function mkBtn(parent, text, w)
+			local b = InstanceNew("TextButton", parent)
+			b.AutoButtonColor = false
+			b.Text = text
+			b.Font = Enum.Font.GothamSemibold
+			b.TextColor3 = COLORS.TEXT
+			b.Size = UDim2.new(0, w, 0, 24)
+			b.BackgroundColor3 = COLORS.BUTTON
+			b.BackgroundTransparency = 0.2
+			b.TextScaled = true
+			b.ZIndex = 5
+			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 8)
+			local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.5
+			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 10; ts.MaxTextSize = 18
+
+			local function hover(v)
+				local target = v and 0.12 or 0.2
+				local st = v and 0.35 or 0.5
+				TweenService:Create(b, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = target}):Play()
+				TweenService:Create(s, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = st}):Play()
+			end
+
+			if IsOnPC then
+				NAlib.connect("BadgeViewer", b.MouseEnter:Connect(function() hover(true) end))
+				NAlib.connect("BadgeViewer", b.MouseLeave:Connect(function() hover(false) end))
+			end
+
+			return b
+		end
+
+		local searchWrap = InstanceNew("Frame", tabsRow)
+		searchWrap.BackgroundColor3 = COLORS.BUTTON
+		searchWrap.BackgroundTransparency = 0.18
+		searchWrap.Size = UDim2.new(0, 260, 0, 24)
+		local swC = InstanceNew("UICorner", searchWrap); swC.CornerRadius = UDim.new(0, 8)
+		local swS = InstanceNew("UIStroke", searchWrap); swS.Color = COLORS.STROKE; swS.Thickness = 1; swS.Transparency = 0.6
+
+		local swPad = InstanceNew("UIPadding", searchWrap)
+		swPad.PaddingLeft = UDim.new(0, 8)
+		swPad.PaddingRight = UDim.new(0, 8)
+
+		local swLayout = InstanceNew("UIListLayout", searchWrap)
+		swLayout.FillDirection = Enum.FillDirection.Horizontal
+		swLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		swLayout.Padding = UDim.new(0, 6)
+
+		local searchIcon = InstanceNew("TextLabel", searchWrap)
+		searchIcon.BackgroundTransparency = 1
+		searchIcon.Text = "🔎"
+		searchIcon.Font = Enum.Font.Gotham
+		searchIcon.TextColor3 = COLORS.MUTED
+		searchIcon.TextScaled = true
+		searchIcon.Size = UDim2.new(0, 18, 1, 0)
+		local tsSI = InstanceNew("UITextSizeConstraint", searchIcon); tsSI.MinTextSize = 12; tsSI.MaxTextSize = 18
+
+		local search = InstanceNew("TextBox", searchWrap)
+		search.Size = UDim2.new(1, -70, 1, 0)
+		search.PlaceholderText = "Search badges..."
+		search.ClearTextOnFocus = false
+		search.Text = ""
+		search.BackgroundTransparency = 1
+		search.TextColor3 = COLORS.TEXT
+		search.PlaceholderColor3 = COLORS.MUTED
+		search.TextXAlignment = Enum.TextXAlignment.Left
+		search.Font = Enum.Font.Gotham
+		search.TextScaled = true
+		local tsSearch = InstanceNew("UITextSizeConstraint", search); tsSearch.MinTextSize = 10; tsSearch.MaxTextSize = 18
+
+		local clearSearch = InstanceNew("TextButton", searchWrap)
+		clearSearch.BackgroundTransparency = 1
+		clearSearch.Text = "Clear"
+		clearSearch.Font = Enum.Font.GothamSemibold
+		clearSearch.TextColor3 = COLORS.MUTED
+		clearSearch.TextScaled = true
+		clearSearch.Size = UDim2.new(0, 40, 1, 0)
+		clearSearch.Visible = false
+		local tsClr = InstanceNew("UITextSizeConstraint", clearSearch); tsClr.MinTextSize = 10; tsClr.MaxTextSize = 16
+
+		local ownedOnlyBtn = mkBtn(tabsRow, "Owned: OFF", 110)
+		local unownedOnlyBtn = mkBtn(tabsRow, "Unowned: OFF", 130)
+		local layoutToggle = mkBtn(tabsRow, "List", 80)
+		local sortBtn = mkBtn(tabsRow, "Sort: Default", 130)
+		local refreshBtn = mkBtn(tabsRow, "Refresh", 100)
 
 		local content = InstanceNew("Frame", main)
 		content.Name = "Content"
@@ -24399,34 +24484,52 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		gridLayout.FillDirection = Enum.FillDirection.Horizontal
 		gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-		gridLayout.CellPadding = UDim2.new(0.01, 0, 0.01, 0)
-		gridLayout.CellSize = UDim2.new(0.32, 0, 0, 190)
-		gridLayout.FillDirectionMaxCells = 0
+		gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		gridLayout.CellPadding = UDim2.new(0.02, 0, 0, 8)
+		gridLayout.CellSize = UDim2.new(0.48, 0, 0, 200)
 
 		local loadingOverlay = InstanceNew("Frame", content)
 		loadingOverlay.Size = UDim2.new(1,0,1,0)
 		loadingOverlay.BackgroundColor3 = Color3.new(0,0,0)
-		loadingOverlay.BackgroundTransparency = 0.8
+		loadingOverlay.BackgroundTransparency = 0.6
 		loadingOverlay.Visible = true
 		loadingOverlay.ZIndex = 50
-		local loadingText = InstanceNew("TextLabel", loadingOverlay)
+		local loadingBox = InstanceNew("Frame", loadingOverlay)
+		loadingBox.AnchorPoint = Vector2.new(0.5,0.5)
+		loadingBox.Position = UDim2.new(0.5,0,0.5,0)
+		loadingBox.Size = UDim2.new(0,220,0,60)
+		loadingBox.BackgroundColor3 = COLORS.PANEL
+		loadingBox.BackgroundTransparency = 0.08
+		loadingBox.ZIndex = 51
+		local lbC = InstanceNew("UICorner", loadingBox); lbC.CornerRadius = UDim.new(0, 14)
+		local lbS = InstanceNew("UIStroke", loadingBox); lbS.Color = COLORS.STROKE; lbS.Thickness = 1; lbS.Transparency = 0.3
+		local loadingText = InstanceNew("TextLabel", loadingBox)
 		loadingText.AnchorPoint = Vector2.new(0.5,0.5)
 		loadingText.Position = UDim2.new(0.5,0,0.5,0)
-		loadingText.Size = UDim2.new(0.5,0,0,40)
+		loadingText.Size = UDim2.new(1,0,1,0)
 		loadingText.BackgroundTransparency = 1
 		loadingText.Text = "Loading..."
 		loadingText.Font = Enum.Font.GothamSemibold
 		loadingText.TextColor3 = COLORS.TEXT
 		loadingText.TextScaled = true
-		loadingText.ZIndex = 51
-		local ltSz = InstanceNew("UITextSizeConstraint", loadingText); ltSz.MinTextSize = 12; ltSz.MaxTextSize = 28
+		loadingText.ZIndex = 52
+		local ltSz = InstanceNew("UITextSizeConstraint", loadingText); ltSz.MinTextSize = 12; ltSz.MaxTextSize = 24
 
 		local function updateGridColumns()
 			local w = scroll.AbsoluteSize.X
-			local padScale, sidePadScale, minCellPx = 0.01, 0.01, 260
-			local cols = math.max(1, math.floor((w*(1 - sidePadScale*2) + (w*padScale)) / (minCellPx + (w*padScale))))
-			local widthScale = (1 - sidePadScale*2 - padScale*(cols-1)) / cols
-			gridLayout.CellSize = UDim2.new(math.clamp(widthScale, 0.18, 1), 0, 0, 190)
+			if w <= 0 then return end
+			local cols
+			if w < 480 then
+				cols = 1
+			elseif w < 900 then
+				cols = 2
+			else
+				cols = 3
+			end
+			local padScale = 0.02
+			local widthScale = (1 - padScale * (cols - 1)) / cols
+			gridLayout.CellPadding = UDim2.new(padScale,0,0,8)
+			gridLayout.CellSize = UDim2.new(widthScale,0,0,200)
 		end
 		scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
 		Defer(updateGridColumns)
@@ -24440,35 +24543,53 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local badgesData = data
 		local gridBuilt = false
 
+		local function mkToolBtn(parent, label, cb)
+			local b = InstanceNew("TextButton", parent)
+			b.BackgroundColor3 = COLORS.BUTTON_DARK
+			b.BackgroundTransparency = 0.18
+			b.AutoButtonColor = true
+			b.Text = label
+			b.Font = Enum.Font.GothamSemibold
+			b.TextColor3 = COLORS.TEXT
+			b.TextScaled = true
+			b.Size = UDim2.new(0, 54, 1, 0)
+			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
+			local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.4
+			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 9; ts.MaxTextSize = 13
+			NAlib.connect("BadgeViewer", b.MouseButton1Click:Connect(cb))
+			return b
+		end
+
 		local function makeListCard(b)
 			local f = InstanceNew("Frame")
-			f.Size = UDim2.new(1, 0, 0, 118)
+			f.Size = UDim2.new(1, 0, 0, 138)
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
-			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
+			f.ClipsDescendants = true
+			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 12)
 			local fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
 
 			local img = InstanceNew("ImageLabel", f)
 			img.Size = UDim2.new(0, 96, 0, 96)
-			img.Position = UDim2.new(0, 12, 0, 11)
+			img.Position = UDim2.new(0, 14, 0, 16)
 			img.BackgroundTransparency = 1
 			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
 
-			local title = InstanceNew("TextLabel", f)
-			title.Position = UDim2.new(0, 120, 0, 10)
-			title.Size = UDim2.new(1, -130, 0, 24)
-			title.Text = b.name or ("Badge "..tostring(b.id))
-			title.TextColor3 = COLORS.TEXT
-			title.BackgroundTransparency = 1
-			title.Font = Enum.Font.GothamSemibold
-			title.TextXAlignment = Enum.TextXAlignment.Left
-			title.TextTruncate = Enum.TextTruncate.AtEnd
-			title.TextScaled = true
-			local tsLT = InstanceNew("UITextSizeConstraint", title); tsLT.MinTextSize = 10; tsLT.MaxTextSize = 18
+			local titleL = InstanceNew("TextLabel", f)
+			titleL.Position = UDim2.new(0, 120, 0, 14)
+			titleL.Size = UDim2.new(1, -140, 0, 24)
+			titleL.Text = b.name or ("Badge "..tostring(b.id))
+			titleL.TextColor3 = COLORS.TEXT
+			titleL.BackgroundTransparency = 1
+			titleL.Font = Enum.Font.GothamSemibold
+			titleL.TextXAlignment = Enum.TextXAlignment.Left
+			titleL.TextTruncate = Enum.TextTruncate.AtEnd
+			titleL.TextScaled = true
+			local tsLT = InstanceNew("UITextSizeConstraint", titleL); tsLT.MinTextSize = 10; tsLT.MaxTextSize = 18
 
 			local desc = InstanceNew("TextLabel", f)
-			desc.Position = UDim2.new(0, 120, 0, 36)
-			desc.Size = UDim2.new(1, -130, 0, 32)
+			desc.Position = UDim2.new(0, 120, 0, 42)
+			desc.Size = UDim2.new(1, -140, 0, 34)
 			desc.Text = b.desc
 			desc.TextWrapped = true
 			desc.TextColor3 = COLORS.MUTED
@@ -24480,8 +24601,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			local tsLD = InstanceNew("UITextSizeConstraint", desc); tsLD.MinTextSize = 9; tsLD.MaxTextSize = 14
 
 			local stat = InstanceNew("TextLabel", f)
-			stat.Position = UDim2.new(0, 120, 0, 72)
-			stat.Size = UDim2.new(1, -130, 0, 28)
+			stat.Position = UDim2.new(0, 120, 0, 80)
+			stat.Size = UDim2.new(1, -200, 0, 26)
 			stat.Text = Format("🎯 %.2f%%   📈 %d   ⏱️ %d   🧭 %s", b.rarity, b.awarded, b.pastDay, b.universe)
 			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
 			stat.BackgroundTransparency = 1
@@ -24489,6 +24610,31 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			stat.TextXAlignment = Enum.TextXAlignment.Left
 			stat.TextScaled = true
 			local tsLS = InstanceNew("UITextSizeConstraint", stat); tsLS.MinTextSize = 9; tsLS.MaxTextSize = 13
+
+			local tools = InstanceNew("Frame", f)
+			tools.AnchorPoint = Vector2.new(1,1)
+			tools.Position = UDim2.new(1, -10, 1, -8)
+			tools.Size = UDim2.new(0, 190, 0, 22)
+			tools.BackgroundColor3 = COLORS.BUTTON
+			tools.BackgroundTransparency = 0.35
+			tools.BorderSizePixel = 0
+			local tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 999)
+			local tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
+			local tl = InstanceNew("UIListLayout", tools)
+			tl.FillDirection = Enum.FillDirection.Horizontal
+			tl.VerticalAlignment = Enum.VerticalAlignment.Center
+			tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			tl.Padding = UDim.new(0, 6)
+
+			mkToolBtn(tools, "Name", function()
+				copyToClipboard(b.name or ("Badge "..tostring(b.id)), "Copied badge name")
+			end)
+			mkToolBtn(tools, "ID", function()
+				copyToClipboard(b.id, "Copied badge ID")
+			end)
+			mkToolBtn(tools, "URL", function()
+				copyToClipboard("https://www.roblox.com/badges/"..tostring(b.id), "Copied badge URL")
+			end)
 
 			local ownedTag = pill(f, "OWNED", COLORS.OWNED)
 
@@ -24502,36 +24648,37 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 		local function makeGridCard(b)
 			local f = InstanceNew("Frame")
-			f.Size = UDim2.new(1, 0, 0, 190)
+			f.Size = UDim2.new(1, 0, 0, 200)
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
-			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
+			f.ClipsDescendants = true
+			local fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 12)
 			local fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
 
 			local img = InstanceNew("ImageLabel", f)
 			img.AnchorPoint = Vector2.new(0.5,0)
-			img.Position = UDim2.new(0.5, 0, 0, 10)
+			img.Position = UDim2.new(0.5, 0, 0, 12)
 			img.Size = UDim2.new(0, 72, 0, 72)
 			img.BackgroundTransparency = 1
 			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
 
-			local title = InstanceNew("TextLabel", f)
-			title.AnchorPoint = Vector2.new(0.5,0)
-			title.Position = UDim2.new(0.5, 0, 0, 88)
-			title.Size = UDim2.new(0.92, 0, 0, 20)
-			title.Text = b.name or ("Badge "..tostring(b.id))
-			title.TextColor3 = COLORS.TEXT
-			title.BackgroundTransparency = 1
-			title.Font = Enum.Font.GothamSemibold
-			title.TextXAlignment = Enum.TextXAlignment.Center
-			title.TextTruncate = Enum.TextTruncate.AtEnd
-			title.TextScaled = true
-			local tsGT = InstanceNew("UITextSizeConstraint", title); tsGT.MinTextSize = 10; tsGT.MaxTextSize = 16
+			local titleL = InstanceNew("TextLabel", f)
+			titleL.AnchorPoint = Vector2.new(0.5,0)
+			titleL.Position = UDim2.new(0.5, 0, 0, 90)
+			titleL.Size = UDim2.new(0.9, 0, 0, 20)
+			titleL.Text = b.name or ("Badge "..tostring(b.id))
+			titleL.TextColor3 = COLORS.TEXT
+			titleL.BackgroundTransparency = 1
+			titleL.Font = Enum.Font.GothamSemibold
+			titleL.TextXAlignment = Enum.TextXAlignment.Center
+			titleL.TextTruncate = Enum.TextTruncate.AtEnd
+			titleL.TextScaled = true
+			local tsGT = InstanceNew("UITextSizeConstraint", titleL); tsGT.MinTextSize = 10; tsGT.MaxTextSize = 16
 
 			local desc = InstanceNew("TextLabel", f)
 			desc.AnchorPoint = Vector2.new(0.5,0)
-			desc.Position = UDim2.new(0.5, 0, 0, 110)
-			desc.Size = UDim2.new(0.92, 0, 0, 28)
+			desc.Position = UDim2.new(0.5, 0, 0, 112)
+			desc.Size = UDim2.new(0.9, 0, 0, 30)
 			desc.Text = b.desc
 			desc.TextWrapped = true
 			desc.TextColor3 = COLORS.MUTED
@@ -24540,19 +24687,44 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			desc.TextXAlignment = Enum.TextXAlignment.Center
 			desc.TextYAlignment = Enum.TextYAlignment.Top
 			desc.TextScaled = true
-			local tsGD = InstanceNew("UITextSizeConstraint", desc); tsGD.MinTextSize = 9; tsGD.MaxTextSize = 12
+			local tsGD = InstanceNew("UITextSizeConstraint", desc); tsGD.MinTextSize = 9; tsGD.MaxTextSize = 13
 
 			local stat = InstanceNew("TextLabel", f)
 			stat.AnchorPoint = Vector2.new(0.5,0)
-			stat.Position = UDim2.new(0.5, 0, 0, 140)
-			stat.Size = UDim2.new(0.92, 0, 0, 24)
-			stat.Text = Format("🎯 %.1f%%  📈 %d  ⏱️ %d  🧭 %s", b.rarity, b.awarded, b.pastDay, b.universe)
+			stat.Position = UDim2.new(0.5, 0, 0, 144)
+			stat.Size = UDim2.new(0.9, 0, 0, 20)
+			stat.Text = Format("🎯 %.1f%%  📈 %d  ⏱️ %d", b.rarity, b.awarded, b.pastDay)
 			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
 			stat.BackgroundTransparency = 1
 			stat.Font = Enum.Font.Gotham
 			stat.TextXAlignment = Enum.TextXAlignment.Center
 			stat.TextScaled = true
-			local tsGS = InstanceNew("UITextSizeConstraint", stat); tsGS.MinTextSize = 9; tsGS.MaxTextSize = 12
+			local tsGS = InstanceNew("UITextSizeConstraint", stat); tsGS.MinTextSize = 9; tsGS.MaxTextSize = 13
+
+			local tools = InstanceNew("Frame", f)
+			tools.AnchorPoint = Vector2.new(0.5,1)
+			tools.Position = UDim2.new(0.5, 0, 1, -10)
+			tools.Size = UDim2.new(0.9, 0, 0, 22)
+			tools.BackgroundColor3 = COLORS.BUTTON
+			tools.BackgroundTransparency = 0.35
+			tools.BorderSizePixel = 0
+			local tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 999)
+			local tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
+			local tl = InstanceNew("UIListLayout", tools)
+			tl.FillDirection = Enum.FillDirection.Horizontal
+			tl.VerticalAlignment = Enum.VerticalAlignment.Center
+			tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			tl.Padding = UDim.new(0, 6)
+
+			mkToolBtn(tools, "Name", function()
+				copyToClipboard(b.name or ("Badge "..tostring(b.id)), "Copied badge name")
+			end)
+			mkToolBtn(tools, "ID", function()
+				copyToClipboard(b.id, "Copied badge ID")
+			end)
+			mkToolBtn(tools, "URL", function()
+				copyToClipboard("https://www.roblox.com/badges/"..tostring(b.id), "Copied badge URL")
+			end)
 
 			local ownedTag = pill(f, "OWNED", COLORS.OWNED)
 
@@ -24582,6 +24754,73 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			return Find(h, n, 1, true) ~= nil
 		end
 
+		local function setStatLabel()
+			local q = search.Text
+			local src = useGrid and gridCards or listCards
+			local visible = 0
+			for _, c in ipairs(src) do
+				if c.frame.Parent == scroll and c.frame.Visible then
+					visible += 1
+				end
+			end
+			local total = #badgesData
+			local extra = ""
+			if ownedOnly then extra = extra.." • owned" end
+			if unownedOnly then extra = extra.." • unowned" end
+			if q ~= "" then extra = extra.." • search" end
+			statLabel.Text = ("%d/%d%s"):format(visible, total, extra)
+		end
+
+		local function applyOwnedVisualsFor(id)
+			local pair = idToCards[id]
+			if not pair then return end
+			if pair.list then applyOwnedStyle(pair.list.frame, pair.list.stroke, pair.list.ownedTag) end
+			if pair.grid then applyOwnedStyle(pair.grid.frame, pair.grid.stroke, pair.grid.ownedTag) end
+		end
+
+		local function refreshOwnedStylesForAll()
+			for id, v in pairs(ownedMap) do
+				if v == true then applyOwnedVisualsFor(id) end
+			end
+		end
+
+		local sortModeIndex = 1
+		local sortMode = "default"
+		local sortModes = {
+			{id="default", label="Sort: Default"},
+			{id="rarityDesc", label="Sort: Rarity ↓"},
+			{id="rarityAsc", label="Sort: Rarity ↑"},
+			{id="nameAsc", label="Sort: Name A-Z"},
+			{id="nameDesc", label="Sort: Name Z-A"},
+		}
+
+		local function applySort()
+			local arr = {}
+			for _, b in ipairs(badgesData) do
+				Insert(arr, b)
+			end
+			table.sort(arr, function(a, b)
+				if sortMode == "rarityDesc" then
+					return (a.rarity or 0) > (b.rarity or 0)
+				elseif sortMode == "rarityAsc" then
+					return (a.rarity or 0) < (b.rarity or 0)
+				elseif sortMode == "nameAsc" then
+					return Lower(a.name or "") < Lower(b.name or "")
+				elseif sortMode == "nameDesc" then
+					return Lower(a.name or "") > Lower(b.name or "")
+				else
+					return (a.id or 0) < (b.id or 0)
+				end
+			end)
+			for i, b in ipairs(arr) do
+				local pair = idToCards[b.id]
+				if pair then
+					if pair.list and pair.list.frame then pair.list.frame.LayoutOrder = i end
+					if pair.grid and pair.grid.frame then pair.grid.frame.LayoutOrder = i end
+				end
+			end
+		end
+
 		local function applyFilters()
 			local q = search.Text
 			for _, card in ipairs(listCards) do
@@ -24608,19 +24847,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 					card.frame.Visible = show
 				end
 			end
-		end
-
-		local function applyOwnedVisualsFor(id)
-			local pair = idToCards[id]
-			if not pair then return end
-			if pair.list then applyOwnedStyle(pair.list.frame, pair.list.stroke, pair.list.ownedTag) end
-			if pair.grid then applyOwnedStyle(pair.grid.frame, pair.grid.stroke, pair.grid.ownedTag) end
-		end
-
-		local function refreshOwnedStylesForAll()
-			for id, v in pairs(ownedMap) do
-				if v == true then applyOwnedVisualsFor(id) end
-			end
+			clearSearch.Visible = (search.Text ~= "")
+			setStatLabel()
 		end
 
 		local function attachLayout()
@@ -24631,10 +24859,10 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			if useGrid then
 				buildGridIfNeeded()
 				gridLayout.Parent = scroll
-				pad.PaddingLeft = UDim.new(0.01, 0)
-				pad.PaddingRight = UDim.new(0.01, 0)
-				pad.PaddingTop = UDim.new(0.01, 0)
-				pad.PaddingBottom = UDim.new(0.01, 0)
+				pad.PaddingLeft = UDim.new(0, 10)
+				pad.PaddingRight = UDim.new(0, 10)
+				pad.PaddingTop = UDim.new(0, 10)
+				pad.PaddingBottom = UDim.new(0, 10)
 				for _, c in ipairs(gridCards) do c.frame.Parent = scroll end
 				layoutToggle.Text = "Grid"
 			else
@@ -24646,7 +24874,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				for _, c in ipairs(listCards) do c.frame.Parent = scroll end
 				layoutToggle.Text = "List"
 			end
+			updateGridColumns()
 			refreshOwnedStylesForAll()
+			applySort()
 			applyFilters()
 		end
 
@@ -24667,6 +24897,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 
 		search:GetPropertyChangedSignal("Text"):Connect(applyFilters)
+		clearSearch.MouseButton1Click:Connect(function()
+			search.Text = ""
+		end)
 		ownedOnlyBtn.MouseButton1Click:Connect(function() setOwnedOnly(not ownedOnly) end)
 		unownedOnlyBtn.MouseButton1Click:Connect(function() setUnownedOnly(not unownedOnly) end)
 
@@ -24675,12 +24908,21 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			attachLayout()
 		end)
 
+		sortBtn.MouseButton1Click:Connect(function()
+			sortModeIndex += 1
+			if sortModeIndex > #sortModes then sortModeIndex = 1 end
+			sortMode = sortModes[sortModeIndex].id
+			sortBtn.Text = sortModes[sortModeIndex].label
+			applySort()
+			applyFilters()
+		end)
+
 		local minimized = false
 		local function minimize()
 			if minimized then return end
 			tweenTransparency(content, 1, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
 			local tA = TweenService:Create(content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,0)})
-			local tB = TweenService:Create(main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(main.Size.X.Scale, 0, 0, headerH)})
+			local tB = TweenService:Create(main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(expandedMainSize.X.Scale, expandedMainSize.X.Offset, 0, headerH)})
 			tA:Play(); tB:Play()
 			Delay(0.18, function() content.Visible = false end)
 			minimized = true
@@ -24697,9 +24939,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		minBtn.MouseButton1Click:Connect(function() if minimized then restore() else minimize() end end)
 
 		closeBtn.MouseButton1Click:Connect(function()
-			local t1 = TweenService:Create(main, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+			local t1 = TweenService:Create(main, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 				Size = UDim2.new(0.02,0,0.02,0),
-				Position = UDim2.new(0.99,0,0.01,0)
+				Position = UDim2.new(0.99,0,0.02,0)
 			})
 			t1:Play(); t1.Completed:Wait()
 			sgui:Destroy()
@@ -24717,28 +24959,38 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				refreshBtn.Active = true
 				return
 			end
-			local i = 0
-			for _, b in ipairs(dataset) do
-				SpawnCall(function()
-					i += 1
-					if i % 8 == 0 then Wait(0.2) end
-					local ok, has = hasBadgeWithRetry(Player.UserId, b.id)
-					if ok then
-						ownedMap[b.id] = has
-						if has then applyOwnedVisualsFor(b.id) end
-					else
-						ownedMap[b.id] = nil
-					end
-					if ownedOnly or unownedOnly then applyFilters() end
-					pending -= 1
-					if pending <= 0 then
-						loadingOverlay.Visible = false
-						refreshBtn.AutoButtonColor = true
-						refreshBtn.Text = "Refresh"
-						refreshBtn.Active = true
-					end
-				end)
+			local active = 0
+			local maxActive = 12
+			local idx = 1
+			local function step()
+				while active < maxActive and idx <= #dataset do
+					local b = dataset[idx]
+					idx += 1
+					active += 1
+					Spawn(function()
+						local ok, has = hasBadgeWithRetry(Player.UserId, b.id)
+						if ok then
+							ownedMap[b.id] = has
+							if has then applyOwnedVisualsFor(b.id) end
+						else
+							ownedMap[b.id] = nil
+						end
+						active -= 1
+						pending -= 1
+						if ownedOnly or unownedOnly then applyFilters() end
+						if pending <= 0 then
+							loadingOverlay.Visible = false
+							refreshBtn.AutoButtonColor = true
+							refreshBtn.Text = "Refresh"
+							refreshBtn.Active = true
+							setStatLabel()
+						else
+							step()
+						end
+					end)
+				end
 			end
+			step()
 		end
 
 		refreshBtn.MouseButton1Click:Connect(function()
@@ -24751,13 +25003,23 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			for _, c in ipairs(gridCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
 			listCards, gridCards, idToCards, ownedMap = {}, {}, {}, {}
 			gridBuilt = false
+			ownedOnly = false
+			unownedOnly = false
+			useGrid = false
+			sortModeIndex = 1
+			sortMode = "default"
+			search.Text = ""
+			clearSearch.Visible = false
+			ownedOnlyBtn.Text = "Owned: OFF"
+			unownedOnlyBtn.Text = "Unowned: OFF"
+			layoutToggle.Text = "List"
+			sortBtn.Text = "Sort: Default"
 			local ok2, res2 = NACaller(getBadges)
 			if ok2 then
 				badgesData = res2
 				for _, b in ipairs(badgesData) do
 					makeListCard(b)
 				end
-				useGrid = false
 				attachLayout()
 				runOwnershipChecks(badgesData)
 			else
@@ -36095,7 +36357,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	NAStuff.PST.sizeE[term] = sizeVec
 
 	local parts, elser = {}, {}
-		for _, obj in ipairs(workspace:GetDescendants()) do
+	for _, obj in ipairs(workspace:GetDescendants()) do
 		local nm = Lower(obj.Name)
 		if obj:IsA("BasePart") and nm == term then
 			Insert(parts, obj)
@@ -36105,7 +36367,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	end
 
 	for _, p in ipairs(parts) do
-				NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
+		NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
 	end
 	for _, m in ipairs(elser) do
 		for _, d in ipairs(m:GetDescendants()) do
@@ -45301,36 +45563,36 @@ NAmanage.CommandKeybindsAdd=function()
 end
 
 NAmanage.CommandKeybindsRemove=function()
-   	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
-   		DoNotif("No command keybinds to remove.", 2)
-   		return
-   	end
-   	local buttons = {}
-   	for keyName, args in pairs(CommandKeybinds) do
-    		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
-    		local opt = CommandKeybindOptions[keyName]
-    		if opt and opt.toggle then
-    			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
-    			local secondCmd = ""
-    			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
-    				secondCmd = tostring(opt.args2[1])
-    			end
-    			if mainCmd ~= "" and secondCmd ~= "" then
-    				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
-    			else
-    				label = "[toggle] "..label
-    			end
-    		end
-  		Insert(buttons, {
-  			Text = keyName.." -> "..label,
-  			Callback = function()
-  				CommandKeybinds[keyName] = nil
-  				CommandKeybindOptions[keyName] = nil
-  				NAmanage.SaveCommandKeybinds()
-  				NAmanage.ApplyCommandKeybinds()
-  				DoNotif("Removed keybind for "..keyName, 2)
-  			end
-  		})
+	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+		DoNotif("No command keybinds to remove.", 2)
+		return
+	end
+	local buttons = {}
+	for keyName, args in pairs(CommandKeybinds) do
+		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
+		local opt = CommandKeybindOptions[keyName]
+		if opt and opt.toggle then
+			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
+			local secondCmd = ""
+			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
+				secondCmd = tostring(opt.args2[1])
+			end
+			if mainCmd ~= "" and secondCmd ~= "" then
+				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+			else
+				label = "[toggle] "..label
+			end
+		end
+		Insert(buttons, {
+			Text = keyName.." -> "..label,
+			Callback = function()
+				CommandKeybinds[keyName] = nil
+				CommandKeybindOptions[keyName] = nil
+				NAmanage.SaveCommandKeybinds()
+				NAmanage.ApplyCommandKeybinds()
+				DoNotif("Removed keybind for "..keyName, 2)
+			end
+		})
 	end
 	Window({
 		Title = "Remove Command Keybind",
@@ -45339,30 +45601,30 @@ NAmanage.CommandKeybindsRemove=function()
 	})
 end
 
-  NAmanage.CommandKeybindsList=function()
-  	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
-  		DoNotif("No command keybinds set.", 2)
-  		return
-  	end
-   	local lines = {}
-   	for keyName, args in pairs(CommandKeybinds) do
-    		local label = (type(args) == "table" and #args > 0) and table.concat(args, " ") or ""
-    		local opt = CommandKeybindOptions[keyName]
-    		if opt and opt.toggle then
-    			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
-    			local secondCmd = ""
-    			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
-    				secondCmd = tostring(opt.args2[1])
-    			end
-    			if mainCmd ~= "" and secondCmd ~= "" then
-    				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
-    			else
-    				label = "[toggle] "..label
-    			end
-    		end
-  		Insert(lines, keyName.." > "..label)
-  	end
-	local text = table.concat(lines, "\n")
+NAmanage.CommandKeybindsList=function()
+	if type(CommandKeybinds) ~= "table" or not next(CommandKeybinds) then
+		DoNotif("No command keybinds set.", 2)
+		return
+	end
+	local lines = {}
+	for keyName, args in pairs(CommandKeybinds) do
+		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
+		local opt = CommandKeybindOptions[keyName]
+		if opt and opt.toggle then
+			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
+			local secondCmd = ""
+			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
+				secondCmd = tostring(opt.args2[1])
+			end
+			if mainCmd ~= "" and secondCmd ~= "" then
+				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+			else
+				label = "[toggle] "..label
+			end
+		end
+		Insert(lines, keyName.." > "..label)
+	end
+	local text = Concat(lines, "\n")
 	if type(DoWindow) == "function" then
 		DoWindow(text, "Command Keybinds")
 	else
@@ -45522,37 +45784,37 @@ NAmanage.CommandKeybindsUIInit=function()
 end
 
 NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
-  	if not ui then return end
-  	local show = ui.toggleState and ui.toggleCmdBox and ui.toggleArgsBox
-  	if ui.toggleCmdBox then ui.toggleCmdBox.Visible = show and true or false end
-  	if ui.toggleArgsBox then ui.toggleArgsBox.Visible = show and true or false end
+	if not ui then return end
+	local show = ui.toggleState and ui.toggleCmdBox and ui.toggleArgsBox
+	if ui.toggleCmdBox then ui.toggleCmdBox.Visible = show and true or false end
+	if ui.toggleArgsBox then ui.toggleArgsBox.Visible = show and true or false end
 
-  	if show then
-  		if ui.toggleCmdBox then
-  			ui.toggleCmdBox.Position = UDim2.new(0.28, 10, 0, 46)
-  		end
-  		if ui.toggleArgsBox then
-  			ui.toggleArgsBox.Position = UDim2.new(0.62, 10, 0, 46)
-  		end
-  		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 84) end
-  		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 84) end
-  		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 84) end
-  		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 84) end
-  		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 84) end
-  	else
-  		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 46) end
-  		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 46) end
-  		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 46) end
-  		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 46) end
-  		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 46) end
-  	end
-  end
+	if show then
+		if ui.toggleCmdBox then
+			ui.toggleCmdBox.Position = UDim2.new(0.28, 10, 0, 46)
+		end
+		if ui.toggleArgsBox then
+			ui.toggleArgsBox.Position = UDim2.new(0.62, 10, 0, 46)
+		end
+		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 84) end
+		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 84) end
+		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 84) end
+		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 84) end
+		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 84) end
+	else
+		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 46) end
+		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 46) end
+		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 46) end
+		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 46) end
+		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 46) end
+	end
+end
 
 NAmanage.CommandKeybindsUIRefresh=function()
-  	local ui = NAStuff._commandKeybindUI
-  	if not (ui and ui.listFrame and ui.listFrame.Parent) then
-  		return
-  	end
+	local ui = NAStuff._commandKeybindUI
+	if not (ui and ui.listFrame and ui.listFrame.Parent) then
+		return
+	end
 
 	local filter = ""
 	if ui.searchBox then
@@ -45577,7 +45839,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		if type(args) ~= "table" or #args == 0 then
 			return ""
 		end
-		return table.concat(args, " ")
+		return Concat(args, " ")
 	end
 
 	local function buildDisplayLabel(keyName, args)
@@ -45603,7 +45865,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 	local idx = 0
 	for _, keyName in ipairs(keys) do
 		local args = CommandKeybinds[keyName]
-  		local label = normalizeLabel(args)
+		local label = normalizeLabel(args)
 		local hay = Lower(keyName.." "..label)
 		if filter ~= "" and not Find(hay, filter, 1, true) then
 			continue
@@ -45641,8 +45903,8 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		cmdLbl.TextSize = 14
 		cmdLbl.TextXAlignment = Enum.TextXAlignment.Left
-  		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
-  		cmdLbl.Text = buildDisplayLabel(keyName, args)
+		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
+		cmdLbl.Text = buildDisplayLabel(keyName, args)
 
 		local editBtn = InstanceNew("TextButton", row)
 		editBtn.BorderSizePixel = 0
@@ -45712,10 +45974,10 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				end
 			end
 
-  			if ui.toggleBtn then
+			if ui.toggleBtn then
 				NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 			end
-  		end)
+		end)
 
 		MouseButtonFix(remBtn, function()
 			CommandKeybinds[tostring(keyName)] = nil
@@ -45734,20 +45996,20 @@ NAmanage.CommandKeybindsUIRefresh=function()
 end
 
 NAmanage.CommandKeybindsUIWire=function()
-  	local ui = NAStuff._commandKeybindUI
-  	if not (ui and ui.root and ui.root.Parent) then
-  		return
+	local ui = NAStuff._commandKeybindUI
+	if not (ui and ui.root and ui.root.Parent) then
+		return
 	end
 	if ui._wired then
 		return
 	end
 	ui._wired = true
 
-  	if ui.searchBox then
-  		ui.searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-  			NAmanage.CommandKeybindsUIRefresh()
-  		end)
-  	end
+	if ui.searchBox then
+		ui.searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+			NAmanage.CommandKeybindsUIRefresh()
+		end)
+	end
 
 	local function clearEditor()
 		ui.selectedKey = nil
@@ -45756,12 +46018,12 @@ NAmanage.CommandKeybindsUIWire=function()
 		if ui.argsBox then ui.argsBox.Text = "" end
 		if ui.toggleCmdBox then ui.toggleCmdBox.Text = "" end
 		if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
-  		if ui.toggleBtn then
-  			ui.toggleState = false
-  			ui.toggleBtn.Text = "Toggle: Off"
-  		end
+		if ui.toggleBtn then
+			ui.toggleState = false
+			ui.toggleBtn.Text = "Toggle: Off"
+		end
 		NAmanage.CommandKeybindsUpdateToggleLayout(ui)
-  	end
+	end
 
 	if ui.newBtn then
 		MouseButtonFix(ui.newBtn, function()
@@ -45769,15 +46031,15 @@ NAmanage.CommandKeybindsUIWire=function()
 		end)
 	end
 
-  	if ui.toggleBtn then
-  		MouseButtonFix(ui.toggleBtn, function()
-  			ui.toggleState = not ui.toggleState
-  			ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
+	if ui.toggleBtn then
+		MouseButtonFix(ui.toggleBtn, function()
+			ui.toggleState = not ui.toggleState
+			ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
 			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
-  		end)
-  	end
-  
-  	-- ensure initial layout matches default toggle state
+		end)
+	end
+
+	-- ensure initial layout matches default toggle state
 	NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 
 	if ui.setKeyBtn then
@@ -45888,7 +46150,7 @@ NAmanage.CommandKeybindsUIWire=function()
 			NAmanage.SaveCommandKeybinds()
 			NAmanage.ApplyCommandKeybinds()
 			NAmanage.CommandKeybindsUIRefresh()
-			DoNotif(("Saved %s > %s"):format(keyName, table.concat(args, " ")), 2)
+			DoNotif(("Saved %s > %s"):format(keyName, Concat(args, " ")), 2)
 		end)
 	end
 
@@ -48592,7 +48854,7 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			local msg = table.concat(parts, " ")
+			local msg = Concat(parts, " ")
 			svc.SendAnnouncement(msg)
 		end, true)
 
@@ -48625,7 +48887,7 @@ originalIO.runNACHAT=function()
 				msgParts[#msgParts + 1] = tostring(parts[i])
 			end
 
-			local msg = table.concat(msgParts, " ")
+			local msg = Concat(msgParts, " ")
 			if msg == "" then
 				return
 			end
@@ -48649,7 +48911,7 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			local msg = table.concat(parts, " ")
+			local msg = Concat(parts, " ")
 			if msg == "" then
 				return
 			end
@@ -48673,7 +48935,7 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			local msg = table.concat(parts, " ")
+			local msg = Concat(parts, " ")
 			if msg == "" then
 				return
 			end
@@ -51741,7 +52003,7 @@ originalIO.UserBtnEditor=function()
 		local ids = {}
 		for id, data in pairs(NAUserButtons) do
 			if type(id) == "number" and type(data) == "table" then
-				table.insert(ids, id)
+				Insert(ids, id)
 			end
 		end
 		table.sort(ids)
