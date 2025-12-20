@@ -10429,8 +10429,25 @@ end
 NAmanage.ESP_DestroyLabel = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	if data.billboard then data.billboard:Destroy() data.billboard=nil end
-	if data.textLabel then data.textLabel:Destroy() data.textLabel=nil end
+	local uid = data.uid
+
+	if data.billboard then
+		data.billboard:Destroy()
+		data.billboard = nil
+	end
+
+	if data.textLabel then
+		data.textLabel:Destroy()
+		data.textLabel = nil
+	end
+
+	if uid and model and model.Parent then
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BillboardGui") and d:GetAttribute("NA_ESP_UID") == uid then
+				d:Destroy()
+			end
+		end
+	end
 end
 
 NAmanage.ESP_FirstBasePart = function(model)
@@ -10448,52 +10465,87 @@ NAmanage.ESP_EnsureLabel = function(model)
 	local data = espCONS[model]
 	if not data then return end
 
+	if not data.uid then
+		data.uid = HttpService:GenerateGUID(false)
+	end
+	local uid = data.uid
+
 	local anchor = getHead(model) or getRoot(model) or NAmanage.ESP_FirstBasePart(model)
 	if not anchor then
-		if data.billboard or data.textLabel then
-			NAmanage.ESP_DestroyLabel(model)
-		end
+		NAmanage.ESP_DestroyLabel(model)
 		return
 	end
 
-	local billboard = data.billboard
-	local label = data.textLabel
+	local bb = data.billboard
+	local tl = data.textLabel
 
-	local needNew = false
-
-	if not billboard or not label then
-		needNew = true
-	elseif billboard.Parent == nil then
-		needNew = true
-	elseif billboard.Adornee ~= anchor or billboard.Parent ~= anchor then
-		billboard.Adornee = anchor
-		billboard.Parent = anchor
+	if bb and not bb:IsDescendantOf(game) then
+		bb = nil
+		tl = nil
+		data.billboard = nil
+		data.textLabel = nil
 	end
 
-	if needNew then
-		if billboard then billboard:Destroy() end
-		if label then label:Destroy() end
-
-		billboard = InstanceNew("BillboardGui")
-		billboard.Adornee = anchor
-		billboard.AlwaysOnTop = true
-		billboard.Size = UDim2.new(0,150,0,40)
-		billboard.StudsOffset = Vector3.new(0,2.5,0)
-		billboard.Parent = anchor
-
-		label = InstanceNew("TextLabel")
-		label.Size = UDim2.new(1,0,1,0)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBold
-		label.TextStrokeTransparency = 0.5
-		label.Text = ""
-		label.Parent = billboard
-
-		NAgui.applyLabelStyle(label)
-
-		data.billboard = billboard
-		data.textLabel = label
+	local list = {}
+	if model.Parent then
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BillboardGui") and d:GetAttribute("NA_ESP_UID") == uid then
+				list[#list + 1] = d
+			end
+		end
 	end
+
+	local keep = nil
+	if bb and bb.Parent and bb:GetAttribute("NA_ESP_UID") == uid then
+		keep = bb
+	end
+	if not keep and #list > 0 then
+		keep = list[1]
+	end
+	for i = 1, #list do
+		local inst = list[i]
+		if inst ~= keep then
+			inst:Destroy()
+		end
+	end
+
+	if not keep then
+		keep = InstanceNew("BillboardGui")
+		keep:SetAttribute("NA_ESP_UID", uid)
+		keep.Adornee = anchor
+		keep.AlwaysOnTop = true
+		keep.Size = UDim2.new(0,150,0,40)
+		keep.StudsOffset = Vector3.new(0,2.5,0)
+		keep.Parent = anchor
+
+		tl = InstanceNew("TextLabel")
+		tl.Size = UDim2.new(1,0,1,0)
+		tl.BackgroundTransparency = 1
+		tl.Font = Enum.Font.GothamBold
+		tl.TextStrokeTransparency = 0.5
+		tl.Text = ""
+		tl.Parent = keep
+	else
+		if not (tl and tl.Parent == keep) then
+			tl = keep:FindFirstChildWhichIsA("TextLabel")
+			if not tl then
+				tl = InstanceNew("TextLabel")
+				tl.Size = UDim2.new(1,0,1,0)
+				tl.BackgroundTransparency = 1
+				tl.Font = Enum.Font.GothamBold
+				tl.TextStrokeTransparency = 0.5
+				tl.Text = ""
+				tl.Parent = keep
+			end
+		end
+	end
+
+	keep.Adornee = anchor
+	keep.Parent = anchor
+
+	NAgui.applyLabelStyle(tl)
+	data.billboard = keep
+	data.textLabel = tl
 end
 
 NAmanage.ESP_AddBoxForPart = function(model, part)
@@ -10631,12 +10683,6 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 		NAmanage.ESP_RemoveBoxes(model)
 	end
 
-	if wantLabel then
-		NAmanage.ESP_EnsureLabel(model)
-	else
-		NAmanage.ESP_DestroyLabel(model)
-	end
-
 	if data.boxEnabled then
 		if NAgui.espUsesHighlight() then
 			if next(data.boxTable) ~= nil then
@@ -10701,14 +10747,15 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 		pieces[#pieces+1] = tostring(dist).." studs"
 	end
 
-	if #pieces > 0 and wantLabel then
+	if wantLabel and #pieces > 0 then
 		NAmanage.ESP_EnsureLabel(model)
-		if data.textLabel then
-			NAgui.applyLabelStyle(data.textLabel)
+		local label = data.textLabel
+		if label then
+			NAgui.applyLabelStyle(label)
 			local txt = Concat(pieces, " | ")
-			if data.textLabel.Text ~= txt then data.textLabel.Text = txt end
+			if label.Text ~= txt then label.Text = txt end
 			local txtColor = finalColor or Color3.new(1,1,1)
-			if data.textLabel.TextColor3 ~= txtColor then data.textLabel.TextColor3 = txtColor end
+			if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
 		end
 	else
 		NAmanage.ESP_DestroyLabel(model)
