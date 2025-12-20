@@ -10467,25 +10467,53 @@ NAmanage.ESP_EnsureLabel = function(model)
 	if chamsEnabled then return end
 	local data = espCONS[model]
 	if not data then return end
-	if data.textLabel and data.billboard and data.billboard.Parent then return end
+
 	local anchor = getHead(model) or getRoot(model) or NAmanage.ESP_FirstBasePart(model)
-	if not anchor then return end
-	local billboard = InstanceNew("BillboardGui")
-	billboard.Adornee = anchor
-	billboard.AlwaysOnTop = true
-	billboard.Size = UDim2.new(0,150,0,40)
-	billboard.StudsOffset = Vector3.new(0,2.5,0)
-	billboard.Parent = anchor
-	local label = InstanceNew("TextLabel")
-	label.Size = UDim2.new(1,0,1,0)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.TextStrokeTransparency = 0.5
-	label.Text = ""
-	label.Parent = billboard
-	NAgui.applyLabelStyle(label)
-	data.billboard = billboard
-	data.textLabel = label
+	if not anchor then
+		if data.billboard or data.textLabel then
+			NAmanage.ESP_DestroyLabel(model)
+		end
+		return
+	end
+
+	local billboard = data.billboard
+	local label = data.textLabel
+
+	local needNew = false
+
+	if not billboard or not label then
+		needNew = true
+	elseif billboard.Parent == nil then
+		needNew = true
+	elseif billboard.Adornee ~= anchor or billboard.Parent ~= anchor then
+		billboard.Adornee = anchor
+		billboard.Parent = anchor
+	end
+
+	if needNew then
+		if billboard then billboard:Destroy() end
+		if label then label:Destroy() end
+
+		billboard = InstanceNew("BillboardGui")
+		billboard.Adornee = anchor
+		billboard.AlwaysOnTop = true
+		billboard.Size = UDim2.new(0,150,0,40)
+		billboard.StudsOffset = Vector3.new(0,2.5,0)
+		billboard.Parent = anchor
+
+		label = InstanceNew("TextLabel")
+		label.Size = UDim2.new(1,0,1,0)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextStrokeTransparency = 0.5
+		label.Text = ""
+		label.Parent = billboard
+
+		NAgui.applyLabelStyle(label)
+
+		data.billboard = billboard
+		data.textLabel = label
+	end
 end
 
 NAmanage.ESP_AddBoxForPart = function(model, part)
