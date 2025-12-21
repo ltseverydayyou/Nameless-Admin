@@ -379,8 +379,8 @@ sep.Parent = body
 
 local pathFrame = Instance.new("Frame")
 pathFrame.Name = "PathFrame"
-pathFrame.AutomaticSize = Enum.AutomaticSize.Y
-pathFrame.Size = UDim2.new(1,0,0,0)
+pathFrame.AutomaticSize = Enum.AutomaticSize.None
+pathFrame.Size = UDim2.new(1,0,0,72)
 pathFrame.BackgroundColor3 = Color3.fromRGB(12,12,12)
 pathFrame.BorderSizePixel = 0
 pathFrame.LayoutOrder = 3
@@ -414,6 +414,23 @@ pathLbl.Size = UDim2.new(1,0,0,16)
 pathLbl.TextXAlignment = Enum.TextXAlignment.Left
 pathLbl.Parent = pathFrame
 
+local pathScroll = Instance.new("ScrollingFrame")
+pathScroll.Name = "PathScroll"
+pathScroll.BackgroundTransparency = 1
+pathScroll.BorderSizePixel = 0
+pathScroll.Size = UDim2.new(1,0,1,-18)
+pathScroll.Position = UDim2.new(0,0,0,18)
+pathScroll.ScrollBarThickness = 4
+pathScroll.ScrollBarImageColor3 = Color3.fromRGB(220,220,220)
+pathScroll.ScrollBarImageTransparency = 0.1
+pathScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+pathScroll.CanvasSize = UDim2.new(0,0,0,0)
+pathScroll.ClipsDescendants = true
+pathScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+pathScroll.Active = true
+pathScroll.ScrollingEnabled = true
+pathScroll.Parent = pathFrame
+
 local pathTxt = Instance.new("TextLabel")
 pathTxt.Name = "PathText"
 pathTxt.Text = "..."
@@ -426,8 +443,8 @@ pathTxt.AutomaticSize = Enum.AutomaticSize.Y
 pathTxt.TextColor3 = Color3.fromRGB(235,235,235)
 pathTxt.BackgroundTransparency = 1
 pathTxt.Size = UDim2.new(1,0,0,0)
-pathTxt.Position = UDim2.new(0,0,0,18)
-pathTxt.Parent = pathFrame
+pathTxt.Position = UDim2.new(0,0,0,0)
+pathTxt.Parent = pathScroll
 
 local gridWrap = Instance.new("ScrollingFrame")
 gridWrap.Name = "GridWrap"
@@ -463,6 +480,22 @@ local btnAnch = mkBtn("Anchored: ?", Color3.fromRGB(12,12,12), gridWrap, BTN_H)
 local btnMass = mkBtn("Massless: ?", Color3.fromRGB(12,12,12), gridWrap, BTN_H)
 local btnRen = mkBtn("Rename Part", Color3.fromRGB(10,10,10), gridWrap, BTN_H)
 local btnDel = mkBtn("Delete Part", Color3.fromRGB(5,5,5), gridWrap, BTN_H)
+
+local function setPathText(t)
+    pathTxt.Text = t or "..."
+    task.defer(function()
+        local b = pathTxt.TextBounds
+        local needed = b.Y + 4
+        local visible = pathScroll.AbsoluteSize.Y
+        if needed <= 0 then
+            pathScroll.CanvasSize = UDim2.new(0,0,0,0)
+        else
+            pathScroll.CanvasSize = UDim2.new(0,0,0,math.max(needed, visible + 1))
+        end
+    end)
+end
+
+setPathText("...")
 
 local function updateCanvas()
 	local size = grid.AbsoluteContentSize
@@ -745,11 +778,11 @@ local function applySelSignals(p)
     end))
 end
 
-local function setSel(p)
+function setSel(p)
     selObj = p
     if p then
         currentPath = instPath(p)
-        pathTxt.Text = currentPath
+        setPathText(currentPath)
         setStatus("Part selected: "..p.Name, true)
         showAdorn(p)
         updAllBtns()
@@ -758,7 +791,7 @@ local function setSel(p)
         ts:Create(pfStroke, ti_fast, {Transparency = 0.3}):Play()
     else
         currentPath = nil
-        pathTxt.Text = "..."
+        setPathText("...")
         setStatus("No part selected", false)
         clearAdorn()
         clearPropConns()
@@ -941,14 +974,7 @@ end)
 
 btnExit.MouseButton1Click:Connect(function()
     selOn = false
-    selObj = nil
-    clearAdorn()
-    clearPropConns()
-    for _, v in pairs(game:GetDescendants()) do
-        if v:IsA("Highlight") and v.Name == "PGX_Highlight" then v:Destroy() end
-        if v:IsA("SelectionBox") and v.Name == "PGX_Select" then v:Destroy() end
-        if v:IsA("BoxHandleAdornment") and v.Name == "PGX_Box" then v:Destroy() end
-    end
+    setSel(nil)
     discAll()
     ts:Create(winScale, ti_fast, {Scale = 0.9}):Play()
     ts:Create(win, ti_fast, {BackgroundTransparency = 1}):Play()
@@ -1007,8 +1033,8 @@ btnSave.MouseButton1Click:Connect(function()
     if selObj and rbInput.Text ~= "" then
         selObj.Name = rbInput.Text
         setStatus("Renamed to "..rbInput.Text, true)
-        pathTxt.Text = instPath(selObj)
-        currentPath = pathTxt.Text
+        currentPath = instPath(selObj)
+        setPathText(currentPath)
     end
     hideRen()
 end)
@@ -1093,7 +1119,7 @@ btnPathMode.MouseButton1Click:Connect(function()
     btnPathMode.Text = pathModeLabel()
     if selObj then
         currentPath = instPath(selObj)
-        pathTxt.Text = currentPath
+        setPathText(currentPath)
         setStatus("Path mode: "..pathMode, true)
     else
         setStatus("Path mode: "..pathMode, nil)
