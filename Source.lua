@@ -5128,67 +5128,19 @@ NAmanage.createLoadingUI=function(text, opts)
 	else
 		startMinimized = startMinimized and true or false
 	end
-	local services = {
-		RunService = SafeGetService("RunService");
-		TweenService = SafeGetService("TweenService");
-		TextService = SafeGetService("TextService");
-		Players = SafeGetService("Players");
-		CoreGui = SafeGetService("CoreGui");
-		Lighting = SafeGetService("Lighting");
-	}
+
 	local ui = {}
 	local flags = {
-		minimized = startMinimized;
-		autoSkip = false;
+		minimized = startMinimized,
+		autoSkip = false,
 	}
+
 	local widthScale = tonumber(opts.widthScale) or 0.34
-	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true }
-	local lp = services.Players and services.Players.LocalPlayer
+	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
+	local lp = Players and Players.LocalPlayer
 
 	if lp and blacklist[lp.UserId] then
-		--[[local blockedGui = InstanceNew("ScreenGui")
-		blockedGui.IgnoreGuiInset = true
-		blockedGui.ResetOnSpawn = false
-		blockedGui.DisplayOrder = 2147483647
-		blockedGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		local okProtect = pcall(function()
-			NaProtectUI(blockedGui)
-		end)
-		if not okProtect then
-			blockedGui.Parent = services.CoreGui
-		end
-		local overlay = InstanceNew("Frame", blockedGui)
-		overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-		overlay.BackgroundTransparency = 1
-		overlay.Size = UDim2.fromScale(1, 1)
-		overlay.ZIndex = 2000
-		services.TweenService:Create(overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.35}):Play()
-		local blur = InstanceNew("BlurEffect", services.Lighting)
-		blur.Size = 0
-		services.TweenService:Create(blur, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = 24}):Play()
-		local header = InstanceNew("TextLabel", overlay)
-		header.AnchorPoint = Vector2.new(0.5, 0.5)
-		header.Position = UDim2.fromScale(0.5, 0.45)
-		header.BackgroundTransparency = 1
-		header.Size = UDim2.fromScale(0.6, 0)
-		header.AutomaticSize = Enum.AutomaticSize.Y
-		header.Font = Enum.Font.GothamBlack
-		header.TextColor3 = Color3.fromRGB(255, 70, 70)
-		header.TextScaled = true
-		header.TextWrapped = true
-		header.Text = "access denied"
-		local desc = InstanceNew("TextLabel", overlay)
-		desc.AnchorPoint = Vector2.new(0.5, 0)
-		desc.Position = UDim2.fromScale(0.5, 0.53)
-		desc.BackgroundTransparency = 1
-		desc.Size = UDim2.fromScale(0.7, 0)
-		desc.AutomaticSize = Enum.AutomaticSize.Y
-		desc.Font = Enum.Font.Gotham
-		desc.TextColor3 = Color3.fromRGB(230, 230, 240)
-		desc.TextScaled = true
-		desc.TextWrapped = true
-		desc.Text = "you are banned from using "..(adminName or "Nameless Admin")]]
-		return 'womp womp'
+		return "womp womp"
 	end
 
 	ui.sg = InstanceNew("ScreenGui")
@@ -5196,21 +5148,25 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.sg.ResetOnSpawn = false
 	ui.sg.DisplayOrder = 999999
 	ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
 	local okProtect = pcall(function()
 		NaProtectUI(ui.sg)
 	end)
 	if not okProtect then
-		ui.sg.Parent = services.CoreGui
+		ui.sg.Parent = COREGUI
 	end
 
 	ui.overlay = InstanceNew("Frame", ui.sg)
 	ui.overlay.Active = false
-	ui.overlay.BackgroundColor3 = Color3.fromRGB(10, 12, 16)
-	ui.overlay.BackgroundTransparency = 0.35
+	ui.overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.overlay.BackgroundTransparency = 1
 	ui.overlay.ZIndex = -1
 	ui.overlay.Size = UDim2.fromScale(1, 1)
 	local overlayGradient = InstanceNew("UIGradient", ui.overlay)
-	overlayGradient.Color = ColorSequence.new(Color3.fromRGB(8, 10, 14), Color3.fromRGB(14, 16, 22))
+	overlayGradient.Color = ColorSequence.new(
+		Color3.fromRGB(0, 0, 0),
+		Color3.fromRGB(16, 16, 16)
+	)
 
 	ui.container = InstanceNew("Frame", ui.sg)
 	ui.container.ZIndex = 6
@@ -5218,15 +5174,15 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.container.Position = UDim2.fromScale(0.5, 0.5)
 	ui.container.Size = UDim2.fromScale(widthScale, 0)
 	ui.container.AutomaticSize = Enum.AutomaticSize.Y
-	ui.container.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
+	ui.container.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 	ui.container.BorderSizePixel = 0
-	ui.container.ZIndex = 1
+	ui.container.BackgroundTransparency = 1
 	local containerCorner = InstanceNew("UICorner", ui.container)
 	containerCorner.CornerRadius = UDim.new(0, 10)
 	local containerStroke = InstanceNew("UIStroke", ui.container)
 	containerStroke.Thickness = 1
-	containerStroke.Color = Color3.fromRGB(80, 90, 120)
-	containerStroke.Transparency = 0.35
+	containerStroke.Color = Color3.fromRGB(255, 255, 255)
+	containerStroke.Transparency = 0.85
 	local containerPadding = InstanceNew("UIPadding", ui.container)
 	containerPadding.PaddingTop = UDim.new(0, 12)
 	containerPadding.PaddingBottom = UDim.new(0, 14)
@@ -5244,7 +5200,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.header.BackgroundTransparency = 1
 	ui.header.Size = UDim2.new(1, 0, 0, 32)
 	ui.header.LayoutOrder = 1
-	ui.header.ZIndex = 12
+
 	ui.titleLabel = InstanceNew("TextLabel", ui.header)
 	ui.titleLabel.ZIndex = 8
 	ui.titleLabel.BackgroundTransparency = 1
@@ -5254,11 +5210,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 	ui.titleLabel.Font = Enum.Font.GothamSemibold
-	ui.titleLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
+	ui.titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.titleLabel.TextScaled = true
 	ui.titleLabel.TextWrapped = true
 	ui.titleLabel.Text = text
-
 	local titleSizeConstraint = InstanceNew("UITextSizeConstraint", ui.titleLabel)
 	titleSizeConstraint.MinTextSize = 16
 	titleSizeConstraint.MaxTextSize = 28
@@ -5271,15 +5226,32 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.minimizeButton.Text = "-"
 	ui.minimizeButton.Font = Enum.Font.GothamBold
 	ui.minimizeButton.TextScaled = true
-	ui.minimizeButton.TextColor3 = Color3.fromRGB(240, 240, 255)
-	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(42, 44, 56)
+	ui.minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 	ui.minimizeButton.ZIndex = 13
 	local minimizeCorner = InstanceNew("UICorner", ui.minimizeButton)
 	minimizeCorner.CornerRadius = UDim.new(0, 8)
 	local minimizeStroke = InstanceNew("UIStroke", ui.minimizeButton)
 	minimizeStroke.Thickness = 1
-	minimizeStroke.Color = Color3.fromRGB(150, 160, 190)
-	minimizeStroke.Transparency = 0.4
+	minimizeStroke.Color = Color3.fromRGB(255, 255, 255)
+	minimizeStroke.Transparency = 0.8
+
+	ui.spinner = InstanceNew("Frame", ui.header)
+	ui.spinner.AnchorPoint = Vector2.new(1, 0.5)
+	ui.spinner.Position = UDim2.new(1, -(IsOnMobile and 44 or 40), 0.5, 0)
+	ui.spinner.Size = UDim2.fromOffset(IsOnMobile and 18 or 16, IsOnMobile and 18 or 16)
+	ui.spinner.BackgroundTransparency = 1
+	ui.spinner.ZIndex = 12
+	local spinnerCircle = InstanceNew("Frame", ui.spinner)
+	spinnerCircle.Size = UDim2.fromScale(1, 1)
+	spinnerCircle.BackgroundTransparency = 1
+	spinnerCircle.ZIndex = 12
+	local spinnerStroke = InstanceNew("UIStroke", spinnerCircle)
+	spinnerStroke.Thickness = 2
+	spinnerStroke.Color = Color3.fromRGB(255, 255, 255)
+	spinnerStroke.Transparency = 0.4
+	local spinnerCorner = InstanceNew("UICorner", spinnerCircle)
+	spinnerCorner.CornerRadius = UDim.new(1, 0)
 
 	ui.statusLabel = InstanceNew("TextLabel", ui.container)
 	ui.statusLabel.ZIndex = 8
@@ -5287,7 +5259,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.statusLabel.Size = UDim2.new(1, 0, 0, 28)
 	ui.statusLabel.LayoutOrder = 2
 	ui.statusLabel.Font = Enum.Font.GothamSemibold
-	ui.statusLabel.TextColor3 = Color3.fromRGB(230, 235, 255)
+	ui.statusLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
 	ui.statusLabel.TextScaled = true
 	ui.statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.statusLabel.Text = "loading"
@@ -5312,7 +5284,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.detailLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.detailLabel.TextYAlignment = Enum.TextYAlignment.Center
 	ui.detailLabel.Font = Enum.Font.Gotham
-	ui.detailLabel.TextColor3 = Color3.fromRGB(180, 190, 210)
+	ui.detailLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
 	ui.detailLabel.TextScaled = true
 	ui.detailLabel.Text = "initializing"
 	local detailSize = InstanceNew("UITextSizeConstraint", ui.detailLabel)
@@ -5325,7 +5297,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.percentLabel.Size = UDim2.new(0.3, 0, 1, 0)
 	ui.percentLabel.TextXAlignment = Enum.TextXAlignment.Right
 	ui.percentLabel.Font = Enum.Font.GothamSemibold
-	ui.percentLabel.TextColor3 = Color3.fromRGB(210, 220, 255)
+	ui.percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.percentLabel.TextScaled = true
 	ui.percentLabel.Text = "0%"
 	local percentSize = InstanceNew("UITextSizeConstraint", ui.percentLabel)
@@ -5333,7 +5305,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	percentSize.MaxTextSize = 16
 
 	ui.progressHolder = InstanceNew("Frame", ui.container)
-	ui.progressHolder.BackgroundColor3 = Color3.fromRGB(32, 36, 48)
+	ui.progressHolder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 	ui.progressHolder.BorderSizePixel = 0
 	ui.progressHolder.LayoutOrder = 4
 	ui.progressHolder.Size = UDim2.new(1, 0, 0, 8)
@@ -5342,12 +5314,17 @@ NAmanage.createLoadingUI=function(text, opts)
 	progressCorner.CornerRadius = UDim.new(0, 6)
 
 	ui.progressFill = InstanceNew("Frame", ui.progressHolder)
-	ui.progressFill.BackgroundColor3 = Color3.fromRGB(90, 180, 255)
+	ui.progressFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.progressFill.BorderSizePixel = 0
 	ui.progressFill.Size = UDim2.new(0, 0, 1, 0)
 	ui.progressFill.ZIndex = 12
 	local progressFillCorner = InstanceNew("UICorner", ui.progressFill)
 	progressFillCorner.CornerRadius = UDim.new(0, 6)
+	local progressGradient = InstanceNew("UIGradient", ui.progressFill)
+	progressGradient.Color = ColorSequence.new(
+		Color3.fromRGB(220, 220, 220),
+		Color3.fromRGB(255, 255, 255)
+	)
 
 	ui.buttonRow = InstanceNew("Frame", ui.container)
 	ui.buttonRow.ZIndex = 8
@@ -5365,15 +5342,15 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.skipButton.Size = UDim2.new(0.45, 0, 1, 0)
 	ui.skipButton.Font = Enum.Font.GothamSemibold
 	ui.skipButton.TextScaled = true
-	ui.skipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.skipButton.TextColor3 = Color3.fromRGB(0, 0, 0)
 	ui.skipButton.Text = "Skip"
-	ui.skipButton.BackgroundColor3 = Color3.fromRGB(70, 80, 110)
+	ui.skipButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.skipButton.AutoButtonColor = false
 	local skipCorner = InstanceNew("UICorner", ui.skipButton)
 	skipCorner.CornerRadius = UDim.new(0, 8)
 	local skipStroke = InstanceNew("UIStroke", ui.skipButton)
-	skipStroke.Color = Color3.fromRGB(150, 160, 200)
-	skipStroke.Transparency = 0.35
+	skipStroke.Color = Color3.fromRGB(255, 255, 255)
+	skipStroke.Transparency = 0.2
 	skipStroke.Thickness = 1
 
 	ui.autoSkipButton = InstanceNew("TextButton", ui.buttonRow)
@@ -5382,28 +5359,29 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.autoSkipButton.Font = Enum.Font.Gotham
 	ui.autoSkipButton.TextScaled = true
 	ui.autoSkipButton.AutoButtonColor = false
-	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(44, 48, 62)
-	ui.autoSkipButton.TextColor3 = Color3.fromRGB(210, 220, 255)
+	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	ui.autoSkipButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 	local autoCorner = InstanceNew("UICorner", ui.autoSkipButton)
 	autoCorner.CornerRadius = UDim.new(0, 8)
 	local autoStroke = InstanceNew("UIStroke", ui.autoSkipButton)
-	autoStroke.Color = Color3.fromRGB(120, 130, 180)
-	autoStroke.Transparency = 0.45
+	autoStroke.Color = Color3.fromRGB(255, 255, 255)
+	autoStroke.Transparency = 0.8
 	autoStroke.Thickness = 1
 
 	ui.toast = InstanceNew("Frame", ui.sg)
 	ui.toast.AnchorPoint = Vector2.new(0.5, 0)
 	ui.toast.Position = UDim2.new(0.5, 0, 0, 8)
-	ui.toast.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
+	ui.toast.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 	ui.toast.BorderSizePixel = 0
 	ui.toast.ZIndex = 50
 	ui.toast.Visible = false
 	ui.toast.AutomaticSize = Enum.AutomaticSize.XY
+	ui.toast.BackgroundTransparency = 1
 	local toastCorner = InstanceNew("UICorner", ui.toast)
 	toastCorner.CornerRadius = UDim.new(1, 0)
 	local toastStroke = InstanceNew("UIStroke", ui.toast)
-	toastStroke.Color = Color3.fromRGB(80, 90, 120)
-	toastStroke.Transparency = 0.45
+	toastStroke.Color = Color3.fromRGB(255, 255, 255)
+	toastStroke.Transparency = 0.85
 	toastStroke.Thickness = 1
 	local toastPadding = InstanceNew("UIPadding", ui.toast)
 	toastPadding.PaddingLeft = UDim.new(0, 12)
@@ -5431,7 +5409,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastLabel.BackgroundTransparency = 1
 	ui.toastLabel.Font = Enum.Font.Gotham
 	ui.toastLabel.TextScaled = true
-	ui.toastLabel.TextColor3 = Color3.fromRGB(230, 235, 255)
+	ui.toastLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
 	ui.toastLabel.Text = text
 	ui.toastLabel.ZIndex = 52
 	ui.toastLabel.Size = UDim2.fromOffset(180, 22)
@@ -5440,7 +5418,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastPercent.BackgroundTransparency = 1
 	ui.toastPercent.Font = Enum.Font.Gotham
 	ui.toastPercent.TextScaled = true
-	ui.toastPercent.TextColor3 = Color3.fromRGB(200, 210, 255)
+	ui.toastPercent.TextColor3 = Color3.fromRGB(230, 230, 230)
 	ui.toastPercent.Text = "0%"
 	ui.toastPercent.ZIndex = 52
 	ui.toastPercent.Size = UDim2.fromOffset(44, 22)
@@ -5450,15 +5428,16 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastOpen.Text = "Open"
 	ui.toastOpen.TextScaled = true
 	ui.toastOpen.Font = Enum.Font.GothamSemibold
-	ui.toastOpen.TextColor3 = Color3.fromRGB(240, 240, 255)
+	ui.toastOpen.TextColor3 = Color3.fromRGB(0, 0, 0)
 	ui.toastOpen.ZIndex = 52
-	ui.toastOpen.BackgroundColor3 = Color3.fromRGB(52, 54, 66)
+	ui.toastOpen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.toastOpen.AutoButtonColor = false
 	local toastOpenCorner = InstanceNew("UICorner", ui.toastOpen)
 	toastOpenCorner.CornerRadius = UDim.new(0, 8)
 	local toastOpenStroke = InstanceNew("UIStroke", ui.toastOpen)
 	toastOpenStroke.Thickness = 1
-	toastOpenStroke.Color = Color3.fromRGB(150, 160, 190)
-	toastOpenStroke.Transparency = 0.4
+	toastOpenStroke.Color = Color3.fromRGB(255, 255, 255)
+	toastOpenStroke.Transparency = 0.2
 
 	ui.toastSkip = InstanceNew("TextButton", ui.toastRow)
 	ui.toastSkip.Size = UDim2.fromOffset(72, 22)
@@ -5467,13 +5446,14 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastSkip.Font = Enum.Font.GothamSemibold
 	ui.toastSkip.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastSkip.ZIndex = 52
-	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(70, 75, 95)
+	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	ui.toastSkip.AutoButtonColor = false
 	local toastSkipCorner = InstanceNew("UICorner", ui.toastSkip)
 	toastSkipCorner.CornerRadius = UDim.new(0, 8)
 	local toastSkipStroke = InstanceNew("UIStroke", ui.toastSkip)
 	toastSkipStroke.Thickness = 1
-	toastSkipStroke.Color = Color3.fromRGB(150, 160, 200)
-	toastSkipStroke.Transparency = 0.25
+	toastSkipStroke.Color = Color3.fromRGB(255, 255, 255)
+	toastSkipStroke.Transparency = 0.4
 
 	ui.toastProgress = InstanceNew("Frame", ui.toast)
 	ui.toastProgress.BackgroundTransparency = 1
@@ -5481,19 +5461,24 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastProgress.ZIndex = 49
 	ui.toastProgress.LayoutOrder = 2
 	local toastProgressBack = InstanceNew("Frame", ui.toastProgress)
-	toastProgressBack.BackgroundColor3 = Color3.fromRGB(55, 60, 80)
+	toastProgressBack.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
 	toastProgressBack.BorderSizePixel = 0
 	toastProgressBack.ZIndex = 49
 	toastProgressBack.Size = UDim2.new(1, 0, 1, 0)
 	local toastProgressCorner = InstanceNew("UICorner", toastProgressBack)
 	toastProgressCorner.CornerRadius = UDim.new(1, 0)
 	ui.toastFill = InstanceNew("Frame", toastProgressBack)
-	ui.toastFill.BackgroundColor3 = Color3.fromRGB(90, 180, 255)
+	ui.toastFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastFill.BorderSizePixel = 0
 	ui.toastFill.Size = UDim2.new(0, 0, 1, 0)
 	ui.toastFill.ZIndex = 50
 	local toastFillCorner = InstanceNew("UICorner", ui.toastFill)
 	toastFillCorner.CornerRadius = UDim.new(1, 0)
+	local toastGradient = InstanceNew("UIGradient", ui.toastFill)
+	toastGradient.Color = ColorSequence.new(
+		Color3.fromRGB(220, 220, 220),
+		Color3.fromRGB(255, 255, 255)
+	)
 
 	ui.skipFlag = InstanceNew("BoolValue", ui.sg)
 	ui.skipFlag.Name = "SkipAssets"
@@ -5504,7 +5489,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.completedFlag.Value = false
 
 	local function tween(target, info, goal)
-		local tw = services.TweenService:Create(target, info, goal)
+		local tw = TweenService:Create(target, info, goal)
 		tw:Play()
 		return tw
 	end
@@ -5524,6 +5509,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	local function setMinimizedState(state)
 		flags.minimized = state and true or false
 		applyMinimized()
+		if flags.minimized and ui.toast.Visible then
+			ui.toast.BackgroundTransparency = 1
+			tween(ui.toast, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+		end
 	end
 
 	local function doSkip()
@@ -5538,12 +5527,12 @@ NAmanage.createLoadingUI=function(text, opts)
 	local function updateAutoSkipButton()
 		if flags.autoSkip then
 			ui.autoSkipButton.Text = "Auto Skip: ON"
-			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-			ui.autoSkipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			ui.autoSkipButton.TextColor3 = Color3.fromRGB(0, 0, 0)
 		else
 			ui.autoSkipButton.Text = "Auto Skip: OFF"
-			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(44, 48, 62)
-			ui.autoSkipButton.TextColor3 = Color3.fromRGB(210, 220, 255)
+			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+			ui.autoSkipButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 		end
 	end
 
@@ -5556,8 +5545,12 @@ NAmanage.createLoadingUI=function(text, opts)
 	local function setPercent(pct)
 		local p = math.clamp(pct or 0, 0, 1)
 		local textValue = tostring(math.floor(p * 100)).."%"
-		ui.progressFill.Size = UDim2.new(p, 0, 1, 0)
-		ui.toastFill.Size = UDim2.new(p, 0, 1, 0)
+		tween(ui.progressFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(p, 0, 1, 0),
+		})
+		tween(ui.toastFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = UDim2.new(p, 0, 1, 0),
+		})
 		ui.percentLabel.Text = textValue
 		ui.toastPercent.Text = textValue
 	end
@@ -5605,6 +5598,30 @@ NAmanage.createLoadingUI=function(text, opts)
 	end
 
 	applyMinimized()
+
+	if not flags.minimized then
+		ui.overlay.BackgroundTransparency = 1
+		ui.container.BackgroundTransparency = 1
+		tween(ui.overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25})
+		tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+	else
+		ui.toast.BackgroundTransparency = 1
+		if ui.toast.Visible then
+			tween(ui.toast, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+		end
+	end
+
+	local spinConn
+	if RunService then
+		spinConn = RunService.RenderStepped:Connect(function(dt)
+			if ui.spinner and ui.spinner.Parent then
+				ui.spinner.Rotation = (ui.spinner.Rotation + dt * 180) % 360
+			elseif spinConn then
+				spinConn:Disconnect()
+			end
+		end)
+	end
+
 	if flags.autoSkip then
 		doSkip()
 	end
