@@ -25248,30 +25248,236 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 	end
 end)
 
-cmd.add({"bodytransparency","btransparency", "bodyt"}, {"bodytransparency <number> (btransparency,bodyt)", "Sets LocalTransparencyModifier of bodyparts to whatever number you put (0-1)"}, function(v)
-	local vv = tonumber(v) or 0
+cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number> [part1] [part2] ... (btransparency,bodyt)", "Sets LocalTransparencyModifier on selected body parts (no Head) to a value (0-1). UI supports multi-select."}, function(...)
+	local a = {...}
+	local vv = nil
+	local q = {}
+	for i = 1, #a do
+		local s = a[i]
+		local n = tonumber(s)
+		if n ~= nil and vv == nil then
+			vv = n
+		elseif s ~= nil and tostring(s) ~= "" then
+			q[#q+1] = tostring(s)
+		end
+	end
+	if vv == nil then vv = 0.5 end
+	if vv < 0 then vv = 0 elseif vv > 1 then vv = 1 end
 
-	NAlib.disconnect("body_transparency")
+	local function okp(p)
+		if not p or not p.Parent then return false end
+		if not p:IsA("BasePart") then return false end
+		if Lower(p.Name) == "head" then return false end
+		if p:FindFirstAncestorOfClass("Accessory") then return false end
+		if p:FindFirstAncestorOfClass("Tool") then return false end
+		return true
+	end
 
-	NAlib.connect("body_transparency", RunService.Stepped:Connect(function()
-		local char = LocalPlayer.Character
-		if char then
-			for _, p in ipairs(char:GetChildren()) do
-				if p:IsA("BasePart") and p.Name:lower() ~= "head" then
-					p.LocalTransparencyModifier = vv
+	local st = getgenv().__na_btr_st
+	if type(st) ~= "table" then
+		st = {
+			ch = nil, d = true, a = nil, r = nil, mp = nil,
+			vv = 0, all = false, sel = {}, dirty = true,
+			pend = {}, pendF = false,
+		}
+		getgenv().__na_btr_st = st
+	end
+
+	local function setch(ch)
+		if st.a then st.a:Disconnect() st.a = nil end
+		if st.r then st.r:Disconnect() st.r = nil end
+		st.ch = ch
+		st.d = true
+		st.mp = {}
+		if ch then
+			st.a = ch.DescendantAdded:Connect(function() st.d = true end)
+			st.r = ch.DescendantRemoving:Connect(function() st.d = true end)
+		end
+	end
+
+	local function scan()
+		local ch = st.ch
+		if not ch then return end
+		local mp = {}
+		for _,p in ipairs(ch:GetDescendants()) do
+			if okp(p) then
+				local n = Lower(p.Name)
+				mp[n] = mp[n] or {}
+				mp[n][#mp[n]+1] = p
+			end
+		end
+		st.mp = mp
+		st.d = false
+	end
+
+	local function clr()
+		local ch = st.ch
+		if not ch then return end
+		for _,p in ipairs(ch:GetDescendants()) do
+			if okp(p) then
+				p.LocalTransparencyModifier = 0
+			end
+		end
+	end
+
+	local function apply()
+		local ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+		if ch ~= st.ch then
+			setch(ch)
+			if st.ch then
+				st.dirty = true
+			end
+		end
+		if st.ch and st.d then
+			scan()
+		end
+		if not st.ch then return end
+
+		if st.dirty then
+			clr()
+			st.dirty = false
+		end
+
+		if st.all then
+			for _,t in next, (st.mp or {}) do
+				for i = 1, #t do
+					local p = t[i]
+					if p and p.Parent then
+						p.LocalTransparencyModifier = st.vv
+					end
+				end
+			end
+			return
+		end
+
+		for n, on in next, (st.sel or {}) do
+			if on then
+				local t = st.mp and st.mp[n]
+				if t then
+					for i = 1, #t do
+						local p = t[i]
+						if p and p.Parent then
+							p.LocalTransparencyModifier = st.vv
+						end
+					end
 				end
 			end
 		end
-	end))
+	end
 
-	DebugNotif("Body transparency set to "..vv, 1.5)
+	local function start()
+		st.vv = vv
+		NAlib.disconnect("body_transparency")
+		apply()
+		NAlib.connect("body_transparency", RunService.RenderStepped:Connect(apply))
+	end
+
+	local function setSel(list, all)
+		st.all = all and true or false
+		st.sel = {}
+		if not st.all then
+			for i = 1, #list do
+				local n = Lower(tostring(list[i] or ""))
+				if n ~= "" and n ~= "head" then
+					st.sel[n] = true
+				end
+			end
+		end
+		st.dirty = true
+		start()
+	end
+
+	local function queuePick(name)
+		name = tostring(name or "")
+		local n = Lower(name)
+		if n == "" then return end
+		st.pend[n] = true
+		if st.pendF then return end
+		st.pendF = true
+		Defer(function()
+			st.pendF = false
+			local all = false
+			local list = {}
+			for k in next, st.pend do
+				if k == "__all" or k == "all" or k == "body" then
+					all = true
+				elseif k ~= "head" then
+					list[#list+1] = k
+				end
+			end
+			st.pend = {}
+			setSel(list, all)
+			DebugNotif("Body transparency "..Format("%.2f", vv).." applied", 1.5)
+		end)
+	end
+
+	if #q > 0 then
+		local all = false
+		local list = {}
+		for i = 1, #q do
+			local n = Lower(q[i])
+			if n == "all" or n == "body" then
+				all = true
+			elseif n ~= "head" then
+				list[#list+1] = q[i]
+			end
+		end
+		setSel(list, all)
+		DebugNotif("Body transparency "..Format("%.2f", vv).." set", 1.5)
+		return
+	end
+
+	local ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+	local btns = {}
+
+	Insert(btns, { Text = "All", Callback = function() queuePick("__all") end })
+
+	if ch then
+		local seen = {}
+		for _,p in ipairs(ch:GetDescendants()) do
+			if okp(p) then
+				local n = p.Name
+				if not seen[n] then
+					seen[n] = true
+					Insert(btns, { Text = n, Callback = function() queuePick(n) end })
+				end
+			end
+		end
+	else
+		Insert(btns, { Text = "No character", Callback = function() DebugNotif("No character found", 2) end })
+	end
+
+	Window({
+		Title = "Body Transparency",
+		Description = "Pick body parts to apply: "..Format("%.2f", vv),
+		Buttons = btns
+	})
 end, true)
 
-cmd.add({"unbodytransparency", "unbtransparency", "unbodyt"}, {"unbodytransparency (unbtransparency,unbodyt)", "Stops transparency loop"}, function()
-	if NAlib.isConnected("body_transparency") then
-		NAlib.disconnect("body_transparency")
-	else
+cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency (unbtransparency,unbodyt)", "Stops transparency loop"}, function()
+	if not NAlib.isConnected("body_transparency") then
 		DebugNotif("No loop running", 2)
+		return
+	end
+
+	NAlib.disconnect("body_transparency")
+
+	local ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+	if ch then
+		for _,p in ipairs(ch:GetDescendants()) do
+			if p:IsA("BasePart") and Lower(p.Name) ~= "head" and not p:FindFirstAncestorOfClass("Accessory") and not p:FindFirstAncestorOfClass("Tool") then
+				p.LocalTransparencyModifier = 0
+			end
+		end
+	end
+
+	local st = getgenv().__na_btr_st
+	if type(st) == "table" then
+		st.all = false
+		st.sel = {}
+		st.pend = {}
+		st.pendF = false
+		st.dirty = true
 	end
 end)
 
