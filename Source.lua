@@ -976,6 +976,7 @@ local NAStuff = {
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
 	AutoExecEnabled = true;
+	UserButtonsAutoLoad = true;
 	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
@@ -6471,6 +6472,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		userButtonsAutoLoad = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		deltaPrompted = {
 			default = false;
 			coerce = function(value)
@@ -7621,6 +7628,7 @@ if opt.naChatTranslateTarget == nil or opt.naChatTranslateTarget == "" then
 	opt.naChatTranslateTarget = opt.chatTranslateTarget
 end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
+NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 
 if FileSupport then
@@ -12998,7 +13006,7 @@ NAmanage.RenderUserButtons = function()
 		local screenWidth = math.max(screenGui.AbsoluteSize.X, 1)
 		local startX  = 0.5 - (totalW/2)/screenWidth
 		local spacing = 110
-		local ON, OFF = Color3.fromRGB(0,170,0), Color3.fromRGB(30,30,30)
+		local ON = Color3.fromRGB(0,170,0)
 
 		local idx = 0
 		for id, data in pairs(NAUserButtons) do
@@ -13022,6 +13030,9 @@ NAmanage.RenderUserButtons = function()
 			local btnCorner = InstanceNew("UICorner")
 			btnCorner.CornerRadius = UDim.new(0.25,0)
 			btnCorner.Parent       = btn
+
+			local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, btn.BackgroundColor3)
+			btn.BackgroundColor3 = baseBgColor
 
 			if not (type(data) == "table" and data.Locked) then
 				NAgui.draggerV2(btn)
@@ -13081,7 +13092,7 @@ NAmanage.RenderUserButtons = function()
 				cmd.run(arr)
 				if data.Cmd2 then
 					toggled = not toggled
-					btn.BackgroundColor3 = toggled and ON or OFF
+					btn.BackgroundColor3 = toggled and ON or baseBgColor
 				end
 			end
 
@@ -50997,6 +51008,9 @@ NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
 NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
 NAmanage.scheduleLoader('Aliases', NAmanage.loadAliases)
 NAmanage.scheduleLoader('UserButtons', function()
+	if NAStuff.UserButtonsAutoLoad == false then
+		return true
+	end
 	NAmanage.loadButtonIDS()
 	return NAmanage.RenderUserButtons()
 end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
@@ -51741,6 +51755,15 @@ NAmanage.RegisterToggleAutoSync("Run AutoExec on Start", function()
 	return NAStuff.AutoExecEnabled ~= false
 end)
 
+NAgui.addToggle("Run UserButtons on Start", NAStuff.UserButtonsAutoLoad ~= false, function(v)
+	NAStuff.UserButtonsAutoLoad = v
+	NAmanage.NASettingsSet("userButtonsAutoLoad", v)
+	DoNotif("User buttons "..(v and "will load on start" or "will not auto-load on start"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Run UserButtons on Start", function()
+	return NAStuff.UserButtonsAutoLoad ~= false
+end)
+
 NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
 	NAmanage.setAutoSkipPreference(v)
 	DoNotif("Auto skip loading screen "..(v and "enabled" or "disabled"), 2)
@@ -52231,6 +52254,18 @@ originalIO.UserBtnEditor=function()
 		textColor = Color3.fromRGB(255, 255, 255),
 		lbl = "",
 	}
+
+	NAgui.addSection("User Buttons Loader")
+
+	NAgui.addButton("Load User Buttons", function()
+		if type(NAmanage.loadButtonIDS) == "function" then
+			NAmanage.loadButtonIDS()
+		end
+		if type(NAmanage.RenderUserButtons) == "function" then
+			NAmanage.RenderUserButtons()
+		end
+		DoNotif("User buttons loaded", 2)
+	end)
 
 	local function collectAllIds()
 		local ids = {}
