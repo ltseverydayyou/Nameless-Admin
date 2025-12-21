@@ -5135,7 +5135,7 @@ NAmanage.createLoadingUI=function(text, opts)
 		autoSkip = false,
 	}
 
-	local widthScale = tonumber(opts.widthScale) or 0.34
+	local wScale = tonumber(opts.widthScale) or 0.34
 	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
 	local lp = Players and Players.LocalPlayer
 
@@ -5148,10 +5148,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.sg.ResetOnSpawn = false
 	ui.sg.DisplayOrder = 999999
 	ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
-
-	local okProtect = pcall(function()
-		NaProtectUI(ui.sg)
-	end)
+	local okProtect = pcall(function() NaProtectUI(ui.sg) end)
 	if not okProtect then
 		ui.sg.Parent = COREGUI
 	end
@@ -5162,51 +5159,73 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.overlay.BackgroundTransparency = 1
 	ui.overlay.ZIndex = -1
 	ui.overlay.Size = UDim2.fromScale(1, 1)
-	local overlayGradient = InstanceNew("UIGradient", ui.overlay)
-	overlayGradient.Color = ColorSequence.new(
-		Color3.fromRGB(0, 0, 0),
-		Color3.fromRGB(16, 16, 16)
-	)
+	local ovGrad = InstanceNew("UIGradient", ui.overlay)
+	ovGrad.Color = ColorSequence.new(Color3.fromRGB(0, 0, 0), Color3.fromRGB(18, 18, 18))
 
 	ui.container = InstanceNew("Frame", ui.sg)
 	ui.container.ZIndex = 6
 	ui.container.AnchorPoint = Vector2.new(0.5, 0.5)
-	ui.container.Position = UDim2.fromScale(0.5, 0.5)
-	ui.container.Size = UDim2.fromScale(widthScale, 0)
+	ui.container.Position = UDim2.fromScale(0.5, 0.55)
+	ui.container.Size = UDim2.fromScale(wScale, 0)
 	ui.container.AutomaticSize = Enum.AutomaticSize.Y
-	ui.container.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+	ui.container.BackgroundColor3 = Color3.fromRGB(6, 6, 6)
 	ui.container.BorderSizePixel = 0
 	ui.container.BackgroundTransparency = 1
-	local containerCorner = InstanceNew("UICorner", ui.container)
-	containerCorner.CornerRadius = UDim.new(0, 10)
-	local containerStroke = InstanceNew("UIStroke", ui.container)
-	containerStroke.Thickness = 1
-	containerStroke.Color = Color3.fromRGB(255, 255, 255)
-	containerStroke.Transparency = 0.85
-	local containerPadding = InstanceNew("UIPadding", ui.container)
-	containerPadding.PaddingTop = UDim.new(0, 12)
-	containerPadding.PaddingBottom = UDim.new(0, 14)
-	containerPadding.PaddingLeft = UDim.new(0, 14)
-	containerPadding.PaddingRight = UDim.new(0, 14)
-	local containerLayout = InstanceNew("UIListLayout", ui.container)
-	containerLayout.FillDirection = Enum.FillDirection.Vertical
-	containerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	containerLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-	containerLayout.Padding = UDim.new(0, 10)
-	containerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local cCorner = InstanceNew("UICorner", ui.container)
+	cCorner.CornerRadius = UDim.new(0, 14)
+
+	local cStroke = InstanceNew("UIStroke", ui.container)
+	cStroke.Thickness = 1
+	cStroke.Color = Color3.fromRGB(255, 255, 255)
+	cStroke.Transparency = 0.85
+
+	local cPad = InstanceNew("UIPadding", ui.container)
+	cPad.PaddingTop = UDim.new(0, 16)
+	cPad.PaddingBottom = UDim.new(0, 18)
+	cPad.PaddingLeft = UDim.new(0, 18)
+	cPad.PaddingRight = UDim.new(0, 18)
+
+	local cLayout = InstanceNew("UIListLayout", ui.container)
+	cLayout.FillDirection = Enum.FillDirection.Vertical
+	cLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	cLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	cLayout.Padding = UDim.new(0, 10)
+	cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local accent = InstanceNew("Frame", ui.container)
+	accent.LayoutOrder = 0
+	accent.Size = UDim2.new(1, 0, 0, 2)
+	accent.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	accent.BorderSizePixel = 0
+	local aGrad = InstanceNew("UIGradient", accent)
+	aGrad.Color = ColorSequence.new(
+		Color3.fromRGB(0, 0, 0),
+		Color3.fromRGB(255, 255, 255),
+		Color3.fromRGB(0, 0, 0)
+	)
 
 	ui.header = InstanceNew("Frame", ui.container)
 	ui.header.ZIndex = 7
 	ui.header.BackgroundTransparency = 1
-	ui.header.Size = UDim2.new(1, 0, 0, 32)
+	ui.header.Size = UDim2.new(1, 0, 0, 30)
 	ui.header.LayoutOrder = 1
 
-	ui.titleLabel = InstanceNew("TextLabel", ui.header)
+	local hLayout = InstanceNew("UIListLayout", ui.header)
+	hLayout.FillDirection = Enum.FillDirection.Horizontal
+	hLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	hLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	hLayout.Padding = UDim.new(0, 8)
+
+	local titleHolder = InstanceNew("Frame", ui.header)
+	titleHolder.BackgroundTransparency = 1
+	titleHolder.Size = UDim2.new(1, -60, 1, 0)
+
+	ui.titleLabel = InstanceNew("TextLabel", titleHolder)
 	ui.titleLabel.ZIndex = 8
 	ui.titleLabel.BackgroundTransparency = 1
 	ui.titleLabel.Position = UDim2.new(0, 0, 0, 0)
-	local buttonOffset = IsOnMobile and 88 or 64
-	ui.titleLabel.Size = UDim2.new(1, -buttonOffset, 1, 0)
+	ui.titleLabel.Size = UDim2.new(1, 0, 1, 0)
 	ui.titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 	ui.titleLabel.Font = Enum.Font.GothamSemibold
@@ -5214,128 +5233,120 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.titleLabel.TextScaled = true
 	ui.titleLabel.TextWrapped = true
 	ui.titleLabel.Text = text
-	local titleSizeConstraint = InstanceNew("UITextSizeConstraint", ui.titleLabel)
-	titleSizeConstraint.MinTextSize = 16
-	titleSizeConstraint.MaxTextSize = 28
+	local tSz = InstanceNew("UITextSizeConstraint", ui.titleLabel)
+	tSz.MinTextSize = 16
+	tSz.MaxTextSize = 28
 
 	ui.minimizeButton = InstanceNew("TextButton", ui.header)
 	ui.minimizeButton.AutoButtonColor = false
-	ui.minimizeButton.AnchorPoint = Vector2.new(1, 0.5)
-	ui.minimizeButton.Position = UDim2.new(1, -4, 0.5, 0)
-	ui.minimizeButton.Size = UDim2.new(0, IsOnMobile and 36 or 32, 0, IsOnMobile and 32 or 28)
+	ui.minimizeButton.Size = UDim2.new(0, IsOnMobile and 32 or 28, 0, IsOnMobile and 28 or 24)
 	ui.minimizeButton.Text = "-"
 	ui.minimizeButton.Font = Enum.Font.GothamBold
 	ui.minimizeButton.TextScaled = true
 	ui.minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 	ui.minimizeButton.ZIndex = 13
-	local minimizeCorner = InstanceNew("UICorner", ui.minimizeButton)
-	minimizeCorner.CornerRadius = UDim.new(0, 8)
-	local minimizeStroke = InstanceNew("UIStroke", ui.minimizeButton)
-	minimizeStroke.Thickness = 1
-	minimizeStroke.Color = Color3.fromRGB(255, 255, 255)
-	minimizeStroke.Transparency = 0.8
+	local mCorner = InstanceNew("UICorner", ui.minimizeButton)
+	mCorner.CornerRadius = UDim.new(0, 8)
+	local mStroke = InstanceNew("UIStroke", ui.minimizeButton)
+	mStroke.Thickness = 1
+	mStroke.Color = Color3.fromRGB(255, 255, 255)
+	mStroke.Transparency = 0.7
 
-	ui.spinner = InstanceNew("Frame", ui.header)
-	ui.spinner.AnchorPoint = Vector2.new(1, 0.5)
-	ui.spinner.Position = UDim2.new(1, -(IsOnMobile and 44 or 40), 0.5, 0)
-	ui.spinner.Size = UDim2.fromOffset(IsOnMobile and 18 or 16, IsOnMobile and 18 or 16)
-	ui.spinner.BackgroundTransparency = 1
-	ui.spinner.ZIndex = 12
-	local spinnerCircle = InstanceNew("Frame", ui.spinner)
-	spinnerCircle.Size = UDim2.fromScale(1, 1)
-	spinnerCircle.BackgroundTransparency = 1
-	spinnerCircle.ZIndex = 12
-	local spinnerStroke = InstanceNew("UIStroke", spinnerCircle)
-	spinnerStroke.Thickness = 2
-	spinnerStroke.Color = Color3.fromRGB(255, 255, 255)
-	spinnerStroke.Transparency = 0.4
-	local spinnerCorner = InstanceNew("UICorner", spinnerCircle)
-	spinnerCorner.CornerRadius = UDim.new(1, 0)
+	local midFrame = InstanceNew("Frame", ui.container)
+	midFrame.BackgroundTransparency = 1
+	midFrame.LayoutOrder = 2
+	midFrame.Size = UDim2.new(1, 0, 0, 60)
+	local midLayout = InstanceNew("UIListLayout", midFrame)
+	midLayout.FillDirection = Enum.FillDirection.Vertical
+	midLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	midLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	midLayout.Padding = UDim.new(0, 4)
 
-	ui.statusLabel = InstanceNew("TextLabel", ui.container)
+	ui.bigPercent = InstanceNew("TextLabel", midFrame)
+	ui.bigPercent.ZIndex = 8
+	ui.bigPercent.BackgroundTransparency = 1
+	ui.bigPercent.Size = UDim2.new(1, 0, 0, 34)
+	ui.bigPercent.Font = Enum.Font.GothamBlack
+	ui.bigPercent.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.bigPercent.TextScaled = true
+	ui.bigPercent.TextXAlignment = Enum.TextXAlignment.Left
+	ui.bigPercent.Text = "0%"
+	local bpSz = InstanceNew("UITextSizeConstraint", ui.bigPercent)
+	bpSz.MinTextSize = 20
+	bpSz.MaxTextSize = 40
+
+	ui.statusLabel = InstanceNew("TextLabel", midFrame)
 	ui.statusLabel.ZIndex = 8
 	ui.statusLabel.BackgroundTransparency = 1
-	ui.statusLabel.Size = UDim2.new(1, 0, 0, 28)
-	ui.statusLabel.LayoutOrder = 2
-	ui.statusLabel.Font = Enum.Font.GothamSemibold
-	ui.statusLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+	ui.statusLabel.Size = UDim2.new(1, 0, 0, 20)
+	ui.statusLabel.Font = Enum.Font.Gotham
+	ui.statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 	ui.statusLabel.TextScaled = true
 	ui.statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.statusLabel.Text = "loading"
-	local statusSize = InstanceNew("UITextSizeConstraint", ui.statusLabel)
-	statusSize.MinTextSize = 15
-	statusSize.MaxTextSize = 22
-
-	ui.detailRow = InstanceNew("Frame", ui.container)
-	ui.detailRow.ZIndex = 8
-	ui.detailRow.BackgroundTransparency = 1
-	ui.detailRow.LayoutOrder = 3
-	ui.detailRow.Size = UDim2.new(1, 0, 0, 24)
-	local detailLayout = InstanceNew("UIListLayout", ui.detailRow)
-	detailLayout.FillDirection = Enum.FillDirection.Horizontal
-	detailLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	detailLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-
-	ui.detailLabel = InstanceNew("TextLabel", ui.detailRow)
-	ui.detailLabel.ZIndex = 8
-	ui.detailLabel.BackgroundTransparency = 1
-	ui.detailLabel.Size = UDim2.new(0.7, 0, 1, 0)
-	ui.detailLabel.TextXAlignment = Enum.TextXAlignment.Left
-	ui.detailLabel.TextYAlignment = Enum.TextYAlignment.Center
-	ui.detailLabel.Font = Enum.Font.Gotham
-	ui.detailLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
-	ui.detailLabel.TextScaled = true
-	ui.detailLabel.Text = "initializing"
-	local detailSize = InstanceNew("UITextSizeConstraint", ui.detailLabel)
-	detailSize.MinTextSize = 12
-	detailSize.MaxTextSize = 16
-
-	ui.percentLabel = InstanceNew("TextLabel", ui.detailRow)
-	ui.percentLabel.ZIndex = 8
-	ui.percentLabel.BackgroundTransparency = 1
-	ui.percentLabel.Size = UDim2.new(0.3, 0, 1, 0)
-	ui.percentLabel.TextXAlignment = Enum.TextXAlignment.Right
-	ui.percentLabel.Font = Enum.Font.GothamSemibold
-	ui.percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	ui.percentLabel.TextScaled = true
-	ui.percentLabel.Text = "0%"
-	local percentSize = InstanceNew("UITextSizeConstraint", ui.percentLabel)
-	percentSize.MinTextSize = 12
-	percentSize.MaxTextSize = 16
+	local stSz = InstanceNew("UITextSizeConstraint", ui.statusLabel)
+	stSz.MinTextSize = 12
+	stSz.MaxTextSize = 18
 
 	ui.progressHolder = InstanceNew("Frame", ui.container)
 	ui.progressHolder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 	ui.progressHolder.BorderSizePixel = 0
-	ui.progressHolder.LayoutOrder = 4
+	ui.progressHolder.LayoutOrder = 3
 	ui.progressHolder.Size = UDim2.new(1, 0, 0, 8)
 	ui.progressHolder.ZIndex = 11
-	local progressCorner = InstanceNew("UICorner", ui.progressHolder)
-	progressCorner.CornerRadius = UDim.new(0, 6)
+	local phCorner = InstanceNew("UICorner", ui.progressHolder)
+	phCorner.CornerRadius = UDim.new(0, 6)
 
 	ui.progressFill = InstanceNew("Frame", ui.progressHolder)
 	ui.progressFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.progressFill.BorderSizePixel = 0
 	ui.progressFill.Size = UDim2.new(0, 0, 1, 0)
 	ui.progressFill.ZIndex = 12
-	local progressFillCorner = InstanceNew("UICorner", ui.progressFill)
-	progressFillCorner.CornerRadius = UDim.new(0, 6)
-	local progressGradient = InstanceNew("UIGradient", ui.progressFill)
-	progressGradient.Color = ColorSequence.new(
-		Color3.fromRGB(220, 220, 220),
+	local pfCorner = InstanceNew("UICorner", ui.progressFill)
+	pfCorner.CornerRadius = UDim.new(0, 6)
+	local pfGrad = InstanceNew("UIGradient", ui.progressFill)
+	pfGrad.Color = ColorSequence.new(
+		Color3.fromRGB(210, 210, 210),
 		Color3.fromRGB(255, 255, 255)
 	)
+
+	local barRow = InstanceNew("Frame", ui.container)
+	barRow.BackgroundTransparency = 1
+	barRow.LayoutOrder = 4
+	barRow.Size = UDim2.new(1, 0, 0, 18)
+	local brLayout = InstanceNew("UIListLayout", barRow)
+	brLayout.FillDirection = Enum.FillDirection.Horizontal
+	brLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	brLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+	local spacer = InstanceNew("Frame", barRow)
+	spacer.BackgroundTransparency = 1
+	spacer.Size = UDim2.new(0.7, 0, 1, 0)
+
+	ui.percentLabel = InstanceNew("TextLabel", barRow)
+	ui.percentLabel.ZIndex = 8
+	ui.percentLabel.BackgroundTransparency = 1
+	ui.percentLabel.Size = UDim2.new(0.3, 0, 1, 0)
+	ui.percentLabel.TextXAlignment = Enum.TextXAlignment.Right
+	ui.percentLabel.Font = Enum.Font.GothamSemibold
+	ui.percentLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+	ui.percentLabel.TextScaled = true
+	ui.percentLabel.Text = "0%"
+	local plSz = InstanceNew("UITextSizeConstraint", ui.percentLabel)
+	plSz.MinTextSize = 11
+	plSz.MaxTextSize = 16
 
 	ui.buttonRow = InstanceNew("Frame", ui.container)
 	ui.buttonRow.ZIndex = 8
 	ui.buttonRow.BackgroundTransparency = 1
 	ui.buttonRow.LayoutOrder = 5
-	ui.buttonRow.Size = UDim2.new(1, 0, 0, 28)
-	local buttonLayout = InstanceNew("UIListLayout", ui.buttonRow)
-	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
-	buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	buttonLayout.Padding = UDim.new(0, 8)
+	ui.buttonRow.Size = UDim2.new(1, 0, 0, 30)
+	local btnLayout = InstanceNew("UIListLayout", ui.buttonRow)
+	btnLayout.FillDirection = Enum.FillDirection.Horizontal
+	btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	btnLayout.Padding = UDim.new(0, 8)
 
 	ui.skipButton = InstanceNew("TextButton", ui.buttonRow)
 	ui.skipButton.ZIndex = 9
@@ -5346,12 +5357,12 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.skipButton.Text = "Skip"
 	ui.skipButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.skipButton.AutoButtonColor = false
-	local skipCorner = InstanceNew("UICorner", ui.skipButton)
-	skipCorner.CornerRadius = UDim.new(0, 8)
-	local skipStroke = InstanceNew("UIStroke", ui.skipButton)
-	skipStroke.Color = Color3.fromRGB(255, 255, 255)
-	skipStroke.Transparency = 0.2
-	skipStroke.Thickness = 1
+	local sCorner = InstanceNew("UICorner", ui.skipButton)
+	sCorner.CornerRadius = UDim.new(0, 8)
+	local sStroke = InstanceNew("UIStroke", ui.skipButton)
+	sStroke.Color = Color3.fromRGB(255, 255, 255)
+	sStroke.Transparency = 0.2
+	sStroke.Thickness = 1
 
 	ui.autoSkipButton = InstanceNew("TextButton", ui.buttonRow)
 	ui.autoSkipButton.ZIndex = 9
@@ -5359,51 +5370,51 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.autoSkipButton.Font = Enum.Font.Gotham
 	ui.autoSkipButton.TextScaled = true
 	ui.autoSkipButton.AutoButtonColor = false
-	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 	ui.autoSkipButton.TextColor3 = Color3.fromRGB(220, 220, 220)
-	local autoCorner = InstanceNew("UICorner", ui.autoSkipButton)
-	autoCorner.CornerRadius = UDim.new(0, 8)
-	local autoStroke = InstanceNew("UIStroke", ui.autoSkipButton)
-	autoStroke.Color = Color3.fromRGB(255, 255, 255)
-	autoStroke.Transparency = 0.8
-	autoStroke.Thickness = 1
+	local aCorner = InstanceNew("UICorner", ui.autoSkipButton)
+	aCorner.CornerRadius = UDim.new(0, 8)
+	local aStroke = InstanceNew("UIStroke", ui.autoSkipButton)
+	aStroke.Color = Color3.fromRGB(255, 255, 255)
+	aStroke.Transparency = 0.8
+	aStroke.Thickness = 1
 
 	ui.toast = InstanceNew("Frame", ui.sg)
 	ui.toast.AnchorPoint = Vector2.new(0.5, 0)
 	ui.toast.Position = UDim2.new(0.5, 0, 0, 8)
-	ui.toast.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+	ui.toast.BackgroundColor3 = Color3.fromRGB(6, 6, 6)
 	ui.toast.BorderSizePixel = 0
 	ui.toast.ZIndex = 50
 	ui.toast.Visible = false
 	ui.toast.AutomaticSize = Enum.AutomaticSize.XY
 	ui.toast.BackgroundTransparency = 1
-	local toastCorner = InstanceNew("UICorner", ui.toast)
-	toastCorner.CornerRadius = UDim.new(1, 0)
-	local toastStroke = InstanceNew("UIStroke", ui.toast)
-	toastStroke.Color = Color3.fromRGB(255, 255, 255)
-	toastStroke.Transparency = 0.85
-	toastStroke.Thickness = 1
-	local toastPadding = InstanceNew("UIPadding", ui.toast)
-	toastPadding.PaddingLeft = UDim.new(0, 12)
-	toastPadding.PaddingRight = UDim.new(0, 12)
-	toastPadding.PaddingTop = UDim.new(0, 8)
-	toastPadding.PaddingBottom = UDim.new(0, 8)
-	local toastLayout = InstanceNew("UIListLayout", ui.toast)
-	toastLayout.FillDirection = Enum.FillDirection.Vertical
-	toastLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	toastLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	toastLayout.Padding = UDim.new(0, 4)
+	local tCorner = InstanceNew("UICorner", ui.toast)
+	tCorner.CornerRadius = UDim.new(1, 0)
+	local tStroke = InstanceNew("UIStroke", ui.toast)
+	tStroke.Color = Color3.fromRGB(255, 255, 255)
+	tStroke.Transparency = 0.85
+	tStroke.Thickness = 1
+	local tPad = InstanceNew("UIPadding", ui.toast)
+	tPad.PaddingLeft = UDim.new(0, 12)
+	tPad.PaddingRight = UDim.new(0, 12)
+	tPad.PaddingTop = UDim.new(0, 8)
+	tPad.PaddingBottom = UDim.new(0, 8)
+	local tLayout = InstanceNew("UIListLayout", ui.toast)
+	tLayout.FillDirection = Enum.FillDirection.Vertical
+	tLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	tLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	tLayout.Padding = UDim.new(0, 4)
 
 	ui.toastRow = InstanceNew("Frame", ui.toast)
 	ui.toastRow.BackgroundTransparency = 1
 	ui.toastRow.Size = UDim2.fromScale(1, 0)
 	ui.toastRow.AutomaticSize = Enum.AutomaticSize.XY
 	ui.toastRow.ZIndex = 51
-	local toastRowLayout = InstanceNew("UIListLayout", ui.toastRow)
-	toastRowLayout.FillDirection = Enum.FillDirection.Horizontal
-	toastRowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	toastRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	toastRowLayout.Padding = UDim.new(0, 8)
+	local trLayout = InstanceNew("UIListLayout", ui.toastRow)
+	trLayout.FillDirection = Enum.FillDirection.Horizontal
+	trLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	trLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	trLayout.Padding = UDim.new(0, 8)
 
 	ui.toastLabel = InstanceNew("TextLabel", ui.toastRow)
 	ui.toastLabel.BackgroundTransparency = 1
@@ -5432,12 +5443,12 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastOpen.ZIndex = 52
 	ui.toastOpen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastOpen.AutoButtonColor = false
-	local toastOpenCorner = InstanceNew("UICorner", ui.toastOpen)
-	toastOpenCorner.CornerRadius = UDim.new(0, 8)
-	local toastOpenStroke = InstanceNew("UIStroke", ui.toastOpen)
-	toastOpenStroke.Thickness = 1
-	toastOpenStroke.Color = Color3.fromRGB(255, 255, 255)
-	toastOpenStroke.Transparency = 0.2
+	local toCorner = InstanceNew("UICorner", ui.toastOpen)
+	toCorner.CornerRadius = UDim.new(0, 8)
+	local toStroke = InstanceNew("UIStroke", ui.toastOpen)
+	toStroke.Thickness = 1
+	toStroke.Color = Color3.fromRGB(255, 255, 255)
+	toStroke.Transparency = 0.2
 
 	ui.toastSkip = InstanceNew("TextButton", ui.toastRow)
 	ui.toastSkip.Size = UDim2.fromOffset(72, 22)
@@ -5446,37 +5457,37 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastSkip.Font = Enum.Font.GothamSemibold
 	ui.toastSkip.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastSkip.ZIndex = 52
-	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 	ui.toastSkip.AutoButtonColor = false
-	local toastSkipCorner = InstanceNew("UICorner", ui.toastSkip)
-	toastSkipCorner.CornerRadius = UDim.new(0, 8)
-	local toastSkipStroke = InstanceNew("UIStroke", ui.toastSkip)
-	toastSkipStroke.Thickness = 1
-	toastSkipStroke.Color = Color3.fromRGB(255, 255, 255)
-	toastSkipStroke.Transparency = 0.4
+	local tsCorner = InstanceNew("UICorner", ui.toastSkip)
+	tsCorner.CornerRadius = UDim.new(0, 8)
+	local tsStroke = InstanceNew("UIStroke", ui.toastSkip)
+	tsStroke.Thickness = 1
+	tsStroke.Color = Color3.fromRGB(255, 255, 255)
+	tsStroke.Transparency = 0.4
 
 	ui.toastProgress = InstanceNew("Frame", ui.toast)
 	ui.toastProgress.BackgroundTransparency = 1
 	ui.toastProgress.Size = UDim2.new(1, 0, 0, 3)
 	ui.toastProgress.ZIndex = 49
 	ui.toastProgress.LayoutOrder = 2
-	local toastProgressBack = InstanceNew("Frame", ui.toastProgress)
-	toastProgressBack.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
-	toastProgressBack.BorderSizePixel = 0
-	toastProgressBack.ZIndex = 49
-	toastProgressBack.Size = UDim2.new(1, 0, 1, 0)
-	local toastProgressCorner = InstanceNew("UICorner", toastProgressBack)
-	toastProgressCorner.CornerRadius = UDim.new(1, 0)
-	ui.toastFill = InstanceNew("Frame", toastProgressBack)
+	local tpBack = InstanceNew("Frame", ui.toastProgress)
+	tpBack.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+	tpBack.BorderSizePixel = 0
+	tpBack.ZIndex = 49
+	tpBack.Size = UDim2.new(1, 0, 1, 0)
+	local tpCorner = InstanceNew("UICorner", tpBack)
+	tpCorner.CornerRadius = UDim.new(1, 0)
+	ui.toastFill = InstanceNew("Frame", tpBack)
 	ui.toastFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastFill.BorderSizePixel = 0
 	ui.toastFill.Size = UDim2.new(0, 0, 1, 0)
 	ui.toastFill.ZIndex = 50
-	local toastFillCorner = InstanceNew("UICorner", ui.toastFill)
-	toastFillCorner.CornerRadius = UDim.new(1, 0)
-	local toastGradient = InstanceNew("UIGradient", ui.toastFill)
-	toastGradient.Color = ColorSequence.new(
-		Color3.fromRGB(220, 220, 220),
+	local tfCorner = InstanceNew("UICorner", ui.toastFill)
+	tfCorner.CornerRadius = UDim.new(1, 0)
+	local tfGrad = InstanceNew("UIGradient", ui.toastFill)
+	tfGrad.Color = ColorSequence.new(
+		Color3.fromRGB(210, 210, 210),
 		Color3.fromRGB(255, 255, 255)
 	)
 
@@ -5488,8 +5499,8 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.completedFlag.Name = "Completed"
 	ui.completedFlag.Value = false
 
-	local function tween(target, info, goal)
-		local tw = TweenService:Create(target, info, goal)
+	local function tween(tg, info, goal)
+		local tw = TweenService:Create(tg, info, goal)
 		tw:Play()
 		return tw
 	end
@@ -5531,28 +5542,28 @@ NAmanage.createLoadingUI=function(text, opts)
 			ui.autoSkipButton.TextColor3 = Color3.fromRGB(0, 0, 0)
 		else
 			ui.autoSkipButton.Text = "Auto Skip: OFF"
-			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+			ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 			ui.autoSkipButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 		end
 	end
 
-	local function setStatus(statusText)
-		local value = statusText or ""
-		ui.statusLabel.Text = value
-		ui.detailLabel.Text = value
+	local function setStatus(st)
+		local v = st or ""
+		ui.statusLabel.Text = v
 	end
 
 	local function setPercent(pct)
 		local p = math.clamp(pct or 0, 0, 1)
-		local textValue = tostring(math.floor(p * 100)).."%"
+		local txt = tostring(math.floor(p * 100)).."%"
 		tween(ui.progressFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(p, 0, 1, 0),
+			Size = UDim2.new(p, 0, 1, 0)
 		})
 		tween(ui.toastFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = UDim2.new(p, 0, 1, 0),
+			Size = UDim2.new(p, 0, 1, 0)
 		})
-		ui.percentLabel.Text = textValue
-		ui.toastPercent.Text = textValue
+		ui.percentLabel.Text = txt
+		ui.bigPercent.Text = txt
+		ui.toastPercent.Text = txt
 	end
 
 	flags.autoSkip = NAmanage.getAutoSkipPreference()
@@ -5581,7 +5592,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.completedFlag:GetPropertyChangedSignal("Value"):Connect(function()
 		if ui.completedFlag.Value then
 			tween(ui.overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
-			tween(ui.container, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+			tween(ui.container, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.fromScale(0.5, 0.5)})
 			tween(ui.toast, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			Delay(0.2, function()
 				if ui.sg.Parent then
@@ -5602,8 +5613,12 @@ NAmanage.createLoadingUI=function(text, opts)
 	if not flags.minimized then
 		ui.overlay.BackgroundTransparency = 1
 		ui.container.BackgroundTransparency = 1
+		ui.container.Position = UDim2.fromScale(0.5, 0.6)
 		tween(ui.overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25})
-		tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+		tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 0,
+			Position = UDim2.fromScale(0.5, 0.55)
+		})
 	else
 		ui.toast.BackgroundTransparency = 1
 		if ui.toast.Visible then
@@ -5611,13 +5626,15 @@ NAmanage.createLoadingUI=function(text, opts)
 		end
 	end
 
-	local spinConn
+	local pulseConn
 	if RunService then
-		spinConn = RunService.RenderStepped:Connect(function(dt)
-			if ui.spinner and ui.spinner.Parent then
-				ui.spinner.Rotation = (ui.spinner.Rotation + dt * 180) % 360
-			elseif spinConn then
-				spinConn:Disconnect()
+		pulseConn = RunService.RenderStepped:Connect(function()
+			if ui.container and ui.container.Parent then
+				cStroke.Transparency = 0.8 + math.sin(tick() * 3) * 0.05
+			else
+				if pulseConn then
+					pulseConn:Disconnect()
+				end
 			end
 		end)
 	end
