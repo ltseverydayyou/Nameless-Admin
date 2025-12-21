@@ -41661,7 +41661,48 @@ NAgui.resizeable = function(ui, min, max)
 
 	local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
 	if not rgui then return function() end end
-	rgui.Parent = ui
+	rgui.Parent = screenGui
+	rgui.BackgroundTransparency = 1
+	rgui.ClipsDescendants = false
+
+	local function updateOverlay()
+		local ok = pcall(function()
+			if not ui or not ui.Parent or not rgui or not rgui.Parent or not screenGui then
+				return
+			end
+			local absPos = ui.AbsolutePosition
+			local absSize = ui.AbsoluteSize
+			local rootPos = screenGui.AbsolutePosition or Vector2.new(0, 0)
+			local relPos = absPos - rootPos
+			rgui.Position = UDim2.new(0, relPos.X, 0, relPos.Y)
+			rgui.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+		end)
+		if not ok then end
+	end
+
+	local function updateVisibility()
+		local ok = pcall(function()
+			if not ui or not ui.Parent or not rgui or not rgui.Parent then
+				return
+			end
+			rgui.Visible = ui.Visible
+		end)
+		if not ok then end
+	end
+
+	updateOverlay()
+	updateVisibility()
+
+	local overlayConns = {}
+	pcall(function()
+		Insert(overlayConns, ui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateOverlay))
+	end)
+	pcall(function()
+		Insert(overlayConns, ui:GetPropertyChangedSignal("AbsolutePosition"):Connect(updateOverlay))
+	end)
+	pcall(function()
+		Insert(overlayConns, ui:GetPropertyChangedSignal("Visible"):Connect(updateVisibility))
+	end)
 
 	local dragging = false
 	local mode
@@ -41821,6 +41862,9 @@ NAgui.resizeable = function(ui, min, max)
 	end
 
 	return function()
+		for _, conn in ipairs(overlayConns) do
+			pcall(function() conn:Disconnect() end)
+		end
 		pcall(function() if dragEndedConn then dragEndedConn:Disconnect() end end)
 		pcall(restoreCursor)
 		pcall(function() rgui:Destroy() end)
