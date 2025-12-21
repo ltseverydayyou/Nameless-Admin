@@ -1,7 +1,62 @@
-local function Svc(n)
-    local g = game.GetService
-    local rf = cloneref or function(v) return v end
-    return rf(g(game, n))
+local NA_SRV = setmetatable({}, {
+	__index = function(self, name)
+		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref) return ref end
+		local ok, svc = pcall(function()
+			return Reference(game:GetService(name))
+		end)
+		if ok and svc then
+			rawset(self, name, svc)
+			return svc
+		end
+	end
+})
+
+local function Svc(name)
+	return NA_SRV[name]
+end
+
+local function Protect(g)
+    if g:IsA("ScreenGui") then
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        g.DisplayOrder = 999999999
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
+    end
+    local cg = Svc("CoreGui")
+    local lp = Svc("Players").LocalPlayer
+    local function NAP(i, v)
+        if i then
+            if v then
+                i[v] = "\0"
+                i.Archivable = false
+            else
+                i.Name = "\0"
+                i.Archivable = false
+            end
+        end
+    end
+    if gethui then
+        NAP(g)
+        g.Parent = gethui()
+        return g
+    elseif cg and cg:FindFirstChild("RobloxGui") then
+        NAP(g)
+        g.Parent = cg:FindFirstChild("RobloxGui")
+        return g
+    elseif cg then
+        NAP(g)
+        g.Parent = cg
+        return g
+    else
+        local lp2 = Svc("Players").LocalPlayer
+        if lp2 and lp2:FindFirstChildWhichIsA("PlayerGui") then
+            NAP(g)
+            g.Parent = lp2:FindFirstChildWhichIsA("PlayerGui")
+            g.ResetOnSpawn = false
+            return g
+        end
+    end
+    return nil
 end
 
 local rawRequest = request or http_request or (syn and syn.request)
@@ -38,27 +93,6 @@ local frameScaleX = isMobile and 0.75 or 0.45
 local frameScaleY = isMobile and 0.92 or 0.82
 local titleWidthScale = isMobile and 0.7 or 0.65
 local searchWidthScale = isMobile and 0.95 or 0.9
-
-local function Protect(g)
-    if g:IsA("ScreenGui") then
-        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        g.DisplayOrder = 999999999
-        g.ResetOnSpawn = false
-        g.IgnoreGuiInset = true
-    end
-    local cg = Svc("CoreGui")
-    local lp = Svc("Players").LocalPlayer
-    local function NA(x,v)
-        if x then
-            if v then x[v] = "\0" x.Archivable = false else x.Name = "\0" x.Archivable = false end
-        end
-    end
-    if gethui then NA(g) g.Parent = gethui()
-    elseif cg and cg:FindFirstChild("RobloxGui") then NA(g) g.Parent = cg:FindFirstChild("RobloxGui")
-    elseif cg then NA(g) g.Parent = cg
-    elseif lp and lp:FindFirstChildWhichIsA("PlayerGui") then NA(g) g.Parent = lp:FindFirstChildWhichIsA("PlayerGui") g.ResetOnSpawn=false end
-    return g
-end
 
 local sg = Instance.new("ScreenGui")
 sg.Name = "SBX"

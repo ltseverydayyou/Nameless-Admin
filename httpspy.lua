@@ -27,7 +27,7 @@ local NA_SRV = setmetatable({}, {
 	end
 })
 
-function Svc(name)
+local function Svc(name)
 	return NA_SRV[name]
 end
 
