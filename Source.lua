@@ -12969,24 +12969,29 @@ NAmanage.RenderUserButtons = function()
 		local idx = 0
 		for id, data in pairs(NAUserButtons) do
 			local btn = InstanceNew("TextButton")
-			btn.Name            = "NAUserButton_"..id
-			btn.Text            = data.Label
-			btn.Size            = UDim2.new(0,60, 0,60)
-			btn.AnchorPoint     = Vector2.new(0.5,1)
-			btn.Position        = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
-			btn.Parent          = screenGui
-			btn.BackgroundColor3= Color3.fromRGB(0,0,0)
-			btn.TextColor3      = Color3.fromRGB(255,255,255)
-			btn.TextScaled      = true
-			btn.Font            = Enum.Font.GothamBold
-			btn.BorderSizePixel = 0
-			btn.ZIndex          = 9999
-			btn.AutoButtonColor = true
+			btn.Name                 = "NAUserButton_"..id
+			btn.Text                 = data.Label
+			btn.Size                 = UDim2.new(0,60, 0,60)
+			btn.AnchorPoint          = Vector2.new(0.5,1)
+			btn.Position             = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
+			btn.Parent               = screenGui
+			btn.BackgroundColor3     = Color3.fromRGB(0,0,0)
+			btn.TextColor3           = Color3.fromRGB(255,255,255)
+			btn.TextScaled           = true
+			btn.Font                 = Enum.Font.GothamBold
+			btn.BorderSizePixel      = 0
+			btn.ZIndex               = 9999
+			btn.AutoButtonColor      = true
+			btn.BackgroundTransparency = 0
+			btn.TextTransparency       = 0
 
 			local btnCorner = InstanceNew("UICorner")
 			btnCorner.CornerRadius = UDim.new(0.25,0)
 			btnCorner.Parent       = btn
-			NAgui.draggerV2(btn)
+
+			if not (type(data) == "table" and data.Locked) then
+				NAgui.draggerV2(btn)
+			end
 
 			btn.InputEnded:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -13008,16 +13013,18 @@ NAmanage.RenderUserButtons = function()
 
 			if needsArgs then
 				local saveToggle = InstanceNew("TextButton")
-				saveToggle.Size             = UDim2.new(0,tSize,0,tSize)
-				saveToggle.AnchorPoint      = Vector2.new(1,1)
-				saveToggle.Position         = UDim2.new(1,0,0,0)
-				saveToggle.BackgroundColor3 = Color3.fromRGB(50,50,50)
-				saveToggle.TextColor3       = Color3.fromRGB(255,255,255)
-				saveToggle.TextScaled       = true
-				saveToggle.Font             = Enum.Font.Gotham
-				saveToggle.Text             = saveEnabled and "S" or "N"
-				saveToggle.ZIndex           = 10000
-				saveToggle.Parent           = btn
+				saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
+				saveToggle.AnchorPoint            = Vector2.new(1,1)
+				saveToggle.Position               = UDim2.new(1,0,0,0)
+				saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
+				saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
+				saveToggle.TextScaled             = true
+				saveToggle.Font                   = Enum.Font.Gotham
+				saveToggle.Text                   = saveEnabled and "S" or "N"
+				saveToggle.ZIndex                 = 10000
+				saveToggle.BackgroundTransparency = 0
+				saveToggle.TextTransparency       = 0
+				saveToggle.Parent                 = btn
 
 				local stCorner = InstanceNew("UICorner")
 				stCorner.CornerRadius = UDim.new(0.5,0)
@@ -13074,6 +13081,19 @@ NAmanage.RenderUserButtons = function()
 				end
 			end)
 
+			if type(data) == "table" and data.Hidden then
+				btn.BackgroundTransparency = 1
+				btn.TextTransparency = 1
+				if btn:FindFirstChildOfClass("TextButton") then
+					for _, child in ipairs(btn:GetChildren()) do
+						if child:IsA("TextButton") then
+							child.BackgroundTransparency = 1
+							child.TextTransparency = 1
+						end
+					end
+				end
+			end
+
 			if IsOnPC then
 			end
 
@@ -13081,7 +13101,7 @@ NAmanage.RenderUserButtons = function()
 			idx = idx + 1
 		end
 
-	end)
+end)
 
 	NAmanage._renderUserButtonsRunning = nil
 
@@ -52233,6 +52253,9 @@ originalIO.UserBtnEditor=function()
 		local id = editorState.currentId
 		local data = NAUserButtons[id]
 
+		local hidden = (type(data) == "table" and data.Hidden) and true or false
+		local locked = (type(data) == "table" and data.Locked) and true or false
+
 		local raw = (type(data) == "table" and type(data.Label) == "string") and data.Label or ""
 		local label = raw
 		if label == "" then
@@ -52251,6 +52274,13 @@ originalIO.UserBtnEditor=function()
 		editorState.lbl = raw
 		if NAgui and NAgui.setInputValue then
 			NAgui.setInputValue("UserButton Label", raw, { force = true, fire = false })
+		end
+
+		editorState.hidden = hidden
+		editorState.locked = locked
+		if NAgui and NAgui.setToggleState then
+			NAgui.setToggleState("Hide Button", hidden, { force = true, fire = false })
+			NAgui.setToggleState("Lock Button", locked, { force = true, fire = false })
 		end
 
 		local w = tonumber(data and data.Width) or 60
@@ -52315,6 +52345,62 @@ originalIO.UserBtnEditor=function()
 
 	NAgui.addButton("Next Button", function()
 		selectByDelta(1)
+	end)
+
+	NAgui.addButton("Delete Button", function()
+		if not next(NAUserButtons) then
+			DoNotif("No user buttons to delete", 2)
+			return
+		end
+
+		local targets = getTargetIds()
+		if #targets == 0 then
+			DoNotif("No selected button to delete", 2)
+			return
+		end
+
+		local deleted = 0
+		for _, id in ipairs(targets) do
+			if NAUserButtons[id] ~= nil then
+				NAUserButtons[id] = nil
+				deleted = deleted + 1
+			end
+		end
+
+		if deleted == 0 then
+			DoNotif("No user buttons were deleted", 2)
+			return
+		end
+
+		if FileSupport then
+			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		end
+		if type(NAmanage.RenderUserButtons) == "function" then
+			NAmanage.RenderUserButtons()
+		end
+
+		editorState.currentId = nil
+		editorState.currentIndex = 0
+		updateSelectionLabel()
+
+		local suffix = (deleted == 1) and " button" or " buttons"
+		DoNotif("Deleted "..tostring(deleted)..suffix, 2)
+	end)
+
+	NAgui.addSection("Button State")
+
+	NAgui.addToggle("Hide Button", false, function(state)
+		editorState.hidden = state and true or false
+		applyToTargets(function(data)
+			data.Hidden = editorState.hidden or nil
+		end, "Visibility")
+	end)
+
+	NAgui.addToggle("Lock Button", false, function(state)
+		editorState.locked = state and true or false
+		applyToTargets(function(data)
+			data.Locked = editorState.locked or nil
+		end, "Lock")
 	end)
 
 	NAgui.addSection("Appearance")
