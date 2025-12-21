@@ -14,51 +14,65 @@ local UICorner_2 = Instance.new("UICorner")
 local TemplateText = Instance.new("TextButton")
 local TemplateCorner = Instance.new("UICorner")
 
-local function protectUI(sGui)
-    local function SafeGetService(name)
-        local Service = game.GetService
-        local Reference = cloneref or function(reference) return reference end
-        return Reference(Service(game, name))
+local NA_SRV = setmetatable({}, {
+	__index = function(self, name)
+		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref) return ref end
+		local ok, svc = pcall(function()
+			return Reference(game:GetService(name))
+		end)
+		if ok and svc then
+			rawset(self, name, svc)
+			return svc
+		end
+	end
+})
+
+function Svc(name)
+	return NA_SRV[name]
+end
+
+local function protectUI(g)
+    if g:IsA("ScreenGui") then
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+        g.DisplayOrder = 999999999
+        g.ResetOnSpawn = false
+        g.IgnoreGuiInset = true
     end
-    if sGui:IsA("ScreenGui") then
-        sGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-        sGui.DisplayOrder = 999999999
-        sGui.ResetOnSpawn = false
-        sGui.IgnoreGuiInset = true
-    end
-    local cGUI = SafeGetService("CoreGui")
-    local lPlr = SafeGetService("Players").LocalPlayer
-    local function NAProtection(inst, var)
-        if inst then
-            if var then
-                inst[var] = "\0"
-                inst.Archivable = false
+    local cg = Svc("CoreGui")
+    local lp = Svc("Players").LocalPlayer
+    local function NAP(i, v)
+        if i then
+            if v then
+                i[v] = "\0"
+                i.Archivable = false
             else
-                inst.Name = "\0"
-                inst.Archivable = false
+                i.Name = "\0"
+                i.Archivable = false
             end
         end
     end
     if gethui then
-        NAProtection(sGui)
-        sGui.Parent = gethui()
-        return sGui
-    elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
-        NAProtection(sGui)
-        sGui.Parent = cGUI:FindFirstChild("RobloxGui")
-        return sGui
-    elseif cGUI then
-        NAProtection(sGui)
-        sGui.Parent = cGUI
-        return sGui
-    elseif lPlr and lPlr:FindFirstChildWhichIsA("PlayerGui") then
-        NAProtection(sGui)
-        sGui.Parent = lPlr:FindFirstChildWhichIsA("PlayerGui")
-        sGui.ResetOnSpawn = false
-        return sGui
+        NAP(g)
+        g.Parent = gethui()
+        return g
+    elseif cg and cg:FindFirstChild("RobloxGui") then
+        NAP(g)
+        g.Parent = cg:FindFirstChild("RobloxGui")
+        return g
+    elseif cg then
+        NAP(g)
+        g.Parent = cg
+        return g
     else
-        return nil
+        local lp2 = Svc("Players").LocalPlayer
+        if lp2 and lp2:FindFirstChildWhichIsA("PlayerGui") then
+            NAP(g)
+            g.Parent = lp2:FindFirstChildWhichIsA("PlayerGui")
+            g.ResetOnSpawn = false
+            return g
+        end
     end
+    return nil
 end
 
 HttpSpy.Name = "HttpSpy"
