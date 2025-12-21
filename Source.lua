@@ -15787,7 +15787,7 @@ cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a 
 	end
 end,true)
 
-debugUI, isMinimized = nil, false
+debugUI, debugDock, isMinimized = nil, nil, false
 
 cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},function()
 	local CONN_KEY = "CharDebug"
@@ -15797,7 +15797,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local StatsService = SafeGetService("Stats")
 	local CoreGui = SafeGetService("CoreGui")
 
-	local UI_SIZE = Vector2.new(860, 520)
+	local UI_BASE = Vector2.new(860, 520)
 	local HEADER_H = 48
 	local TAB_H = 36
 	local BG_COLOR = Color3.fromRGB(20, 20, 20)
@@ -15813,7 +15813,17 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local activeTab = "Overview"
 	local logs, errCount, warnCount, infoCount = {}, 0, 0, 0
 
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1920,1080)
+	local w = math.min(UI_BASE.X, vp.X * (IsOnMobile and 0.96 or 0.7))
+	local h = math.min(UI_BASE.Y, vp.Y * (IsOnMobile and 0.86 or 0.75))
+	local UI_SIZE = Vector2.new(w, h)
+
 	if debugUI then
+		if debugDock then
+			pcall(function() debugDock:Destroy() end)
+			debugDock = nil
+		end
 		debugUI:Destroy()
 		debugUI = nil
 		NAlib.disconnect(CONN_KEY)
@@ -15892,7 +15902,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1000})
 	pcall(function() NaProtectUI(debugUI) end)
 
-	local window = new("Frame",{Name="Window", Size=UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), Position=UDim2.new(0.5,-UI_SIZE.X/2,0.22,0), BackgroundColor3=BG_COLOR, BorderSizePixel=0, ClipsDescendants=true, Parent=debugUI, ZIndex=10})
+	local window = new("Frame",{Name="Window", Size=UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), Position=UDim2.new(0.5,-UI_SIZE.X/2,0.5,-UI_SIZE.Y/2), BackgroundColor3=BG_COLOR, BorderSizePixel=0, ClipsDescendants=true, Parent=debugUI, ZIndex=10})
 	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=window})
 	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(35,35,35),Parent=window})
 
@@ -15905,7 +15915,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local right = new("Frame",{Name="Right", AnchorPoint=Vector2.new(1,0), Position=UDim2.new(1,-8,0,6), Size=UDim2.new(0,0,1,-12), BackgroundTransparency=1, AutomaticSize=Enum.AutomaticSize.X, Parent=hdr, ZIndex=60})
 	new("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,HorizontalAlignment=Enum.HorizontalAlignment.Right,VerticalAlignment=Enum.VerticalAlignment.Center,Padding=UDim.new(0,6),Parent=right})
 
-	local status = new("TextLabel",{Name="Status", Size=UDim2.fromOffset(178,HEADER_H-16), BackgroundTransparency=0, BackgroundColor3=Color3.fromRGB(30,30,30), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), TextXAlignment=Enum.TextXAlignment.Center, Text="FPS: -- | Ping: --", Parent=right, ZIndex=61})
+	local platformStr = tostring(UserInputService:GetPlatform())
+	local status = new("TextLabel",{Name="Status", Size=UDim2.fromOffset(210,HEADER_H-16), BackgroundTransparency=0, BackgroundColor3=Color3.fromRGB(30,30,30), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), TextXAlignment=Enum.TextXAlignment.Center, Text="FPS: -- | Ping: -- | "..platformStr, Parent=right, ZIndex=61})
 	new("UICorner",{CornerRadius=UDim.new(1,8),Parent=status})
 	local btnPause = new("TextButton",{Name="Pause", Size=UDim2.fromOffset(74,HEADER_H-16), BackgroundColor3=ACCENT, AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="Pause", Font=Enum.Font.Code, TextSize=16, Parent=right, ZIndex=61})
 	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnPause})
@@ -15914,15 +15925,18 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local btnClose = new("TextButton",{Name="Close", Size=UDim2.fromOffset(44,HEADER_H-16), BackgroundColor3=Color3.fromRGB(140,55,55), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="×", Font=Enum.Font.Code, TextSize=20, Parent=right, ZIndex=61})
 	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnClose})
 
-	local tabbar = new("ScrollingFrame",{Name="Tabs", Size=UDim2.new(1,0,0,TAB_H), Position=UDim2.new(0,0,0,HEADER_H), BackgroundColor3=Color3.fromRGB(28,28,28), BorderSizePixel=0, Parent=window, ScrollingDirection=Enum.ScrollingDirection.X, ScrollBarThickness=6, Active=true, CanvasSize=UDim2.new(), ZIndex=30})
+	NAgui.draggerV2(window, hdr)
+
+	local tabbar = new("ScrollingFrame",{Name="Tabs", Size=UDim2.new(1,0,0,TAB_H), Position=UDim2.new(0,0,0,HEADER_H), BackgroundColor3=Color3.fromRGB(28,28,28), BorderSizePixel=0, Parent=window, ScrollingDirection=Enum.ScrollingDirection.X, ScrollBarThickness=IsOnMobile and 10 or 6, Active=true, CanvasSize=UDim2.new(), ZIndex=30})
 	local tabsHolder = new("Frame",{Name="Holder", BackgroundTransparency=1, Size=UDim2.new(0,0,1,0), Parent=tabbar, ZIndex=31})
 	local uilist = new("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,6),HorizontalAlignment=Enum.HorizontalAlignment.Left,VerticalAlignment=Enum.VerticalAlignment.Center,Parent=tabsHolder})
 
 	local content = new("Frame",{Name="Content", Size=UDim2.new(1,0,1,-(HEADER_H+TAB_H)), Position=UDim2.new(0,0,0,HEADER_H+TAB_H), BackgroundTransparency=1, BorderSizePixel=0, Parent=window, ZIndex=20})
-	local cardsScroll = new("ScrollingFrame",{Name="CardsScroll", Active=true, ScrollingDirection=Enum.ScrollingDirection.Y, ScrollBarThickness=6, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
+	local cardsScroll = new("ScrollingFrame",{Name="CardsScroll", Active=true, ScrollingDirection=Enum.ScrollingDirection.Y, ScrollBarThickness=IsOnMobile and 10 or 6, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
 	new("UIPadding",{PaddingLeft=UDim.new(0,12),PaddingTop=UDim.new(0,12),Parent=cardsScroll})
 	local cardsHolder = new("Frame",{Name="CardsHolder", BackgroundTransparency=1, Size=UDim2.new(1,-24,0,0), Position=UDim2.new(0,12,0,12), Parent=cardsScroll, AutomaticSize=Enum.AutomaticSize.Y, ZIndex=22})
-	local grid = new("UIGridLayout",{Parent=cardsHolder, CellSize=UDim2.fromOffset(400,86), CellPadding=UDim2.new(0,10,0,10), StartCorner=Enum.StartCorner.TopLeft, SortOrder=Enum.SortOrder.LayoutOrder})
+	local grid = new("UIGridLayout",{Parent=cardsHolder, CellPadding=UDim2.new(0,10,0,10), StartCorner=Enum.StartCorner.TopLeft, SortOrder=Enum.SortOrder.LayoutOrder})
+	grid.CellSize = IsOnMobile and UDim2.new(1,-10,0,86) or UDim2.new(0.5,-10,0,86)
 	cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
 
 	local logsHolder = new("Frame",{Name="LogsHolder", BackgroundTransparency=1, Visible=false, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
@@ -15930,7 +15944,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	new("UICorner",{CornerRadius=UDim.new(0,10),Parent=panel})
 	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(40,40,40),Parent=panel})
 	local counts = new("TextLabel",{Name="Counts", BackgroundTransparency=1, Position=UDim2.new(0,10,0,8), Size=UDim2.new(1,-20,0,18), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(200,200,200), TextXAlignment=Enum.TextXAlignment.Left, Text="Info:0  Warn:0  Error:0", Parent=panel, ZIndex=23})
-	local logScroll = new("ScrollingFrame",{Name="Scroll", Active=true, ScrollBarThickness=6, ScrollingDirection=Enum.ScrollingDirection.Y, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.new(1,-20,1,-40), Position=UDim2.new(0,10,0,30), Parent=panel, ZIndex=23})
+	local logScroll = new("ScrollingFrame",{Name="Scroll", Active=true, ScrollBarThickness=IsOnMobile and 10 or 6, ScrollingDirection=Enum.ScrollingDirection.Y, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.new(1,-20,1,-40), Position=UDim2.new(0,10,0,30), Parent=panel, ZIndex=23})
 	local logText = new("TextLabel",{Name="Text", BackgroundTransparency=1, Size=UDim2.new(1,-4,0,0), Position=UDim2.new(0,2,0,0), Font=Enum.Font.Code, TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top, TextWrapped=false, TextScaled=false, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), Text="", Parent=logScroll, AutomaticSize=Enum.AutomaticSize.Y, ZIndex=23})
 	new("UITextSizeConstraint",{Parent=logText, MaxTextSize=18, MinTextSize=12})
 
@@ -15942,10 +15956,13 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		tabBtns[name] = b
 	end
 
-	local dockGui = new("ScreenGui",{Name="CharDebugDock",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1100,Parent=CoreGui})
-	local dock = new("Frame",{Name="Dock", Size=UDim2.fromOffset(64,64), AnchorPoint=Vector2.new(0,1), Position=UDim2.new(0,16,1,-16), BackgroundColor3=ACCENT, Visible=false, Parent=dockGui, ZIndex=100})
+	debugDock = new("ScreenGui",{Name="CharDebugDock",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1100})
+	pcall(function() NaProtectUI(debugDock) end)
+	local dock = new("Frame",{Name="Dock", Size=UDim2.fromOffset(IsOnMobile and 76 or 64,IsOnMobile and 76 or 64), AnchorPoint=Vector2.new(0,1), Position=UDim2.new(0,16,1,-16), BackgroundColor3=ACCENT, Visible=false, Parent=debugDock, ZIndex=100})
 	new("UICorner",{CornerRadius=UDim.new(0,20),Parent=dock})
 	local dockLabel = new("TextButton",{Name="Btn", BackgroundTransparency=1, Size=UDim2.fromScale(1,1), Text="CD", Font=Enum.Font.Code, TextSize=20, TextColor3=Color3.new(1,1,1), Parent=dock, ZIndex=101})
+
+	NAgui.draggerV2(dock, dockLabel)
 
 	local cards, values = {}, {}
 
@@ -15970,9 +15987,9 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
 	end))
 	NAlib.connect(CONN_KEY, uilist:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		local w = uilist.AbsoluteContentSize.X + 12
-		tabsHolder.Size = UDim2.fromOffset(w, TAB_H)
-		tabbar.CanvasSize = UDim2.fromOffset(w + 12, TAB_H)
+		local w2 = uilist.AbsoluteContentSize.X + 12
+		tabsHolder.Size = UDim2.fromOffset(w2, TAB_H)
+		tabbar.CanvasSize = UDim2.fromOffset(w2 + 12, TAB_H)
 	end))
 	NAlib.connect(CONN_KEY, tabbar.InputChanged:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseWheel then
@@ -15980,6 +15997,10 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 			tabbar.CanvasPosition = Vector2.new(x, 0)
 		end
 	end))
+
+	local function setVal(key, text) local lbl=values[key] if lbl then lbl.Text=text end end
+	local function getTool() local c=char() return c and c:FindFirstChildOfClass("Tool") or nil end
+	local function statsNetKbps() local i,o; local okI,vI=pcall(function() return StatsService.DataReceiveKbps end); if okI then i=vI end local okO,vO=pcall(function() return StatsService.DataSendKbps end); if okO then o=vO end return i,o end
 
 	local function setTab(name)
 		activeTab = name
@@ -15990,41 +16011,88 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		if not showLogs then
 			clearCards()
 			if name=="Overview" then
-				addCard("Username"); addCard("UserId")
-				addCard("Position"); addCard("Velocity"); addCard("Speed"); addCard("AngularVel")
-				addCard("Health"); addCard("State"); addCard("MoveDirection"); addCard("FloorMaterial")
-				addCard("Tool"); addCard("FOV")
+				addCard("CharacterStatus")
+				addCard("Platform")
+				addCard("Username")
+				addCard("UserId")
+				addCard("Position")
+				addCard("Velocity")
+				addCard("Speed")
+				addCard("AngularVel")
+				addCard("Health")
+				addCard("State")
+				addCard("MoveDirection")
+				addCard("FloorMaterial")
+				addCard("Tool")
+				addCard("FOV")
 			elseif name=="Movement" then
-				addCard("WalkSpeed"); addCard("JumpPower"); addCard("JumpHeight"); addCard("HipHeight")
-				addCard("AutoRotate"); addCard("AssemblyMass"); addCard("PlatformStand"); addCard("Sit"); addCard("Airborne")
+				addCard("WalkSpeed")
+				addCard("JumpPower")
+				addCard("JumpHeight")
+				addCard("HipHeight")
+				addCard("AutoRotate")
+				addCard("AssemblyMass")
+				addCard("PlatformStand")
+				addCard("Sit")
+				addCard("Airborne")
 			elseif name=="Humanoid" then
-				addCard("RigType"); addCard("MaxHealth"); addCard("HealthDisplayType"); addCard("StatesEnabled",110); addCard("SeatPart"); addCard("MoveTo")
+				addCard("RigType")
+				addCard("MaxHealth")
+				addCard("HealthDisplayType")
+				addCard("StatesEnabled",110)
+				addCard("SeatPart")
+				addCard("MoveTo")
 			elseif name=="Camera" then
-				addCard("CameraType"); addCard("Subject"); addCard("SubjectDistance"); addCard("CameraCFrame",110); addCard("FOV")
+				addCard("CameraType")
+				addCard("Subject")
+				addCard("SubjectDistance")
+				addCard("CameraCFrame",110)
+				addCard("FOV")
 			elseif name=="World" then
-				addCard("Gravity"); addCard("ClockTime"); addCard("Brightness"); addCard("EnvSpecular"); addCard("CurrentZone")
+				addCard("Gravity")
+				addCard("ClockTime")
+				addCard("Brightness")
+				addCard("EnvSpecular")
+				addCard("CurrentZone")
 			elseif name=="Network" then
-				addCard("Ping"); addCard("DataInKbps"); addCard("DataOutKbps")
+				addCard("Ping")
+				addCard("DataInKbps")
+				addCard("DataOutKbps")
 			elseif name=="Memory" then
-				addCard("TotalMB"); addCard("LuaHeapMB"); addCard("InstancesMB"); addCard("GraphicsTextureMB"); addCard("PhysicsMB"); addCard("TerrainMB"); addCard("PathfindingMB")
+				addCard("TotalMB")
+				addCard("LuaHeapMB")
+				addCard("InstancesMB")
+				addCard("GraphicsTextureMB")
+				addCard("PhysicsMB")
+				addCard("TerrainMB")
+				addCard("PathfindingMB")
 			elseif name=="Anim" then
 				addCard("PlayingTracks",130)
 			elseif name=="Tools" then
-				addCard("EquippedTool"); addCard("BackpackItems",130)
+				addCard("EquippedTool")
+				addCard("BackpackItems",130)
 			elseif name=="Inputs" then
-				addCard("KeysDown",130); addCard("LastInput")
+				addCard("KeysDown",130)
+				addCard("LastInput")
 			elseif name=="Physics" then
-				addCard("GroundDist"); addCard("GroundNormal"); addCard("SlopeAngle"); addCard("UnderPart"); addCard("HumanoidRootCFrame",110); addCard("PivotOffset")
+				addCard("GroundDist")
+				addCard("GroundNormal")
+				addCard("SlopeAngle")
+				addCard("UnderPart")
+				addCard("HumanoidRootCFrame",110)
+				addCard("PivotOffset")
 			elseif name=="Perf" then
-				addCard("HeartbeatDt"); addCard("ServerTime"); addCard("TouchingParts")
+				addCard("HeartbeatDt")
+				addCard("ServerTime")
+				addCard("TouchingParts")
 			end
 			cardsScroll.CanvasSize = UDim2.fromOffset(0, grid.AbsoluteContentSize.Y + 24)
 		else
 			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
 			logText.Text = (#logs>0) and Concat(logs,"\n") or ""
-			local h = logText.TextBounds.Y
-			logScroll.CanvasSize = UDim2.fromOffset(0, h)
-			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+			local h2 = logText.TextBounds.Y
+			logScroll.CanvasSize = UDim2.fromOffset(0, h2)
+			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h2 - logScroll.AbsoluteSize.Y))
 		end
 	end
 
@@ -16033,11 +16101,6 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		NAlib.connect(CONN_KEY, b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0.05}):Play() end))
 		NAlib.connect(CONN_KEY, b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0}):Play() end))
 	end
-
-	local dragging, dragStart, startPos
-	NAlib.connect(CONN_KEY, hdr.InputBegan:Connect(function(i) if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end dragging=true; dragStart=i.Position; startPos=window.Position end))
-	NAlib.connect(CONN_KEY, hdr.InputChanged:Connect(function(i) if not dragging then return end local d=i.Position-dragStart window.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,startPos.Y.Scale,startPos.Y.Offset+d.Y) end))
-	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end end))
 
 	local pressed, lastInput = {}, "-"
 	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input,gp)
@@ -16058,17 +16121,22 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		if activeTab=="Logs" then
 			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
 			logText.Text = (#logs>0) and Concat(logs,"\n") or ""
-			local h = logText.TextBounds.Y
-			logScroll.CanvasSize = UDim2.fromOffset(0, h)
-			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+			local h2 = logText.TextBounds.Y
+			logScroll.CanvasSize = UDim2.fromOffset(0, h2)
+			logScroll.CanvasPosition = Vector2.new(0, math.max(0, h2 - logScroll.AbsoluteSize.Y))
 		end
 	end))
 
-	local function setVal(key, text) local lbl=values[key] if lbl then lbl.Text=text end end
-	local function getTool() local c=char() return c and c:FindFirstChildOfClass("Tool") or nil end
-	local function statsNetKbps() local i,o; local okI,vI=pcall(function() return StatsService.DataReceiveKbps end); if okI then i=vI end local okO,vO=pcall(function() return StatsService.DataSendKbps end); if okO then o=vO end return i,o end
-
 	local function updateOverview(h, r)
+		local c = char()
+		if not c then
+			setVal("CharacterStatus","No character")
+		else
+			local rr = root(c)
+			local hh = hum()
+			setVal("CharacterStatus",Format("Char OK | Humanoid:%s | Root:%s", hh and "Yes" or "No", rr and "Yes" or "No"))
+		end
+		setVal("Platform",platformStr.." | Mobile:"..tostring(IsOnMobile).." | PC:"..tostring(IsOnPC))
 		setVal("Username", LocalPlayer and LocalPlayer.Name or "N/A")
 		setVal("UserId", LocalPlayer and tostring(LocalPlayer.UserId) or "N/A")
 		if r then
@@ -16089,8 +16157,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		end
 		local t = getTool()
 		setVal("Tool", t and t.Name or "None")
-		local cam = workspace.CurrentCamera
-		if cam then setVal("FOV", Format("%.1f", cam.FieldOfView)) end
+		local cc = workspace.CurrentCamera
+		if cc then setVal("FOV", Format("%.1f", cc.FieldOfView)) end
 	end
 	local function updateMovement(h, r)
 		if h then
@@ -16102,7 +16170,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 			setVal("AutoRotate", tostring(h.AutoRotate))
 			setVal("PlatformStand", tostring(h.PlatformStand))
 			setVal("Sit", tostring(h.Sit))
-			local airborne = h:GetState() == Enum.HumanoidStateType.Freefall or h:GetState() == Enum.HumanoidStateType.Jumping
+			local st = h:GetState()
+			local airborne = st == Enum.HumanoidStateType.Freefall or st == Enum.HumanoidStateType.Jumping
 			setVal("Airborne", tostring(airborne))
 		end
 		if r then setVal("AssemblyMass", Format("%.2f", r.AssemblyMass)) end
@@ -16122,16 +16191,16 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		setVal("MoveTo", Format("X: %.1f  Y: %.1f  Z: %.1f", mpos.X, mpos.Y, mpos.Z))
 	end
 	local function updateCamera(_, r)
-		local cam = workspace.CurrentCamera
-		if not cam then return end
-		setVal("CameraType", tostring(cam.CameraType))
-		local subj = cam.CameraSubject
+		local cc = workspace.CurrentCamera
+		if not cc then return end
+		setVal("CameraType", tostring(cc.CameraType))
+		local subj = cc.CameraSubject
 		setVal("Subject", subj and subj.Name or "None")
-		if r then setVal("SubjectDistance", Format("%.2f", (cam.CFrame.Position - r.Position).Magnitude)) else setVal("SubjectDistance", "N/A") end
-		local cf = cam.CFrame
+		if r then setVal("SubjectDistance", Format("%.2f", (cc.CFrame.Position - r.Position).Magnitude)) else setVal("SubjectDistance", "N/A") end
+		local cf = cc.CFrame
 		local rx,ry,rz = cf:ToOrientation()
 		setVal("CameraCFrame", Format("P(%.1f,%.1f,%.1f)  R(%.2f,%.2f,%.2f)", cf.X, cf.Y, cf.Z, rx, ry, rz))
-		setVal("FOV", Format("%.1f", cam.FieldOfView))
+		setVal("FOV", Format("%.1f", cc.FieldOfView))
 	end
 	local function updateWorld()
 		setVal("Gravity", Format("%.1f", workspace.Gravity))
@@ -16207,8 +16276,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		local rx,ry,rz = cf:ToOrientation()
 		setVal("HumanoidRootCFrame", Format("P(%.1f,%.1f,%.1f)  R(%.2f,%.2f,%.2f)", cf.X, cf.Y, cf.Z, rx, ry, rz))
 		local pv = char() and char():GetPivot() or CFrame.identity
-		local d = cf.Position - pv.Position
-		setVal("PivotOffset", Format("Δ(%.2f, %.2f, %.2f)", d.X, d.Y, d.Z))
+		local d2 = cf.Position - pv.Position
+		setVal("PivotOffset", Format("Δ(%.2f, %.2f, %.2f)", d2.X, d2.Y, d2.Z))
 	end
 	local function updatePerf()
 		setVal("HeartbeatDt", Format("%.4f s", lastDt))
@@ -16219,9 +16288,9 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local function updateLogs()
 		counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
 		logText.Text = (#logs>0) and Concat(logs,"\n") or ""
-		local h = logText.TextBounds.Y
-		logScroll.CanvasSize = UDim2.fromOffset(0, h)
-		logScroll.CanvasPosition = Vector2.new(0, math.max(0, h - logScroll.AbsoluteSize.Y))
+		local h2 = logText.TextBounds.Y
+		logScroll.CanvasSize = UDim2.fromOffset(0, h2)
+		logScroll.CanvasPosition = Vector2.new(0, math.max(0, h2 - logScroll.AbsoluteSize.Y))
 	end
 
 	local function safeFPS(dt)
@@ -16251,46 +16320,51 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		end
 		local p = getPingMs()
 		local f = (fps ~= fps or fps == math.huge or fps <= 0) and "--" or tostring(math.clamp(math.floor(fps + 0.5), 1, 999))
-		status.Text = Format("FPS: %s | Ping: %s", f, p and Format("%d ms", p) or "--")
+		local charOk = char() and "OK" or "None"
+		status.Text = Format("FPS: %s | Ping: %s | Char:%s", f, p and Format("%d ms", p) or "--", charOk)
 	end
 
 	NAlib.connect(CONN_KEY, btnPause.MouseButton1Click:Connect(function()
 		paused = not paused
+		isMinimized = false
 		btnPause.Text = paused and "Resume" or "Pause"
 		TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
 	end))
 
 	NAlib.connect(CONN_KEY, btnMin.MouseButton1Click:Connect(function()
 		if window.Visible then
+			isMinimized = true
 			local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
 			out.Completed:Connect(function()
 				window.Visible=false
 				dock.Visible=true
-				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(70,70)}):Play()
+				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(IsOnMobile and 80 or 70,IsOnMobile and 80 or 70)}):Play()
 			end)
 			out:Play()
-			Delay(0.25,function() if not window.Visible then dock.Visible=true end end)
 		end
 	end))
 
-	local dockDragging, dockStart, dockPos
-	NAlib.connect(CONN_KEY, dockLabel.InputBegan:Connect(function(i) if i.UserInputType~=Enum.UserInputType.MouseButton1 then return end dockDragging=true dockStart=i.Position dockPos=dock.Position end))
-	NAlib.connect(CONN_KEY, dockLabel.InputChanged:Connect(function(i) if not dockDragging then return end local d=i.Position-dockStart dock.Position=UDim2.new(dockPos.X.Scale,dockPos.X.Offset+d.X,dockPos.Y.Scale,dockPos.Y.Offset+d.Y) end))
-	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then dockDragging=false end end))
 	NAlib.connect(CONN_KEY, dockLabel.MouseButton1Click:Connect(function()
 		if not window.Visible then
+			isMinimized = false
 			dock.Visible=false
 			window.Visible=true
 			window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
 			window.BackgroundTransparency = 0.4
 			TweenService:Create(window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
+			NAmanage.centerFrame(window)
 		end
 	end))
 
 	NAlib.connect(CONN_KEY, btnClose.MouseButton1Click:Connect(function()
-		debugUI:Destroy()
-		dockGui:Destroy()
-		debugUI = nil
+		if debugUI then
+			debugUI:Destroy()
+			debugUI = nil
+		end
+		if debugDock then
+			debugDock:Destroy()
+			debugDock = nil
+		end
 		NAlib.disconnect(CONN_KEY)
 		RunService:UnbindFromRenderStep(RENDER_BIND)
 	end))
@@ -16307,6 +16381,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end)
 
 	window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
+	NAmanage.centerFrame(window)
 	TweenService:Create(window, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)}):Play()
 end)
 
@@ -16314,9 +16389,14 @@ cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character 
 	if debugUI then
 		debugUI:Destroy()
 		debugUI = nil
-		NAlib.disconnect("CharDebug")
-		SafeGetService("RunService"):UnbindFromRenderStep("CharDebug")
 	end
+	if debugDock then
+		debugDock:Destroy()
+		debugDock = nil
+	end
+	isMinimized = false
+	NAlib.disconnect("CharDebug")
+	SafeGetService("RunService"):UnbindFromRenderStep("CharDebug")
 end)
 
 cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
