@@ -23516,7 +23516,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	end))
 end)
 
-cmd.add({"clip"},{"clip","Enable your player's collision"},function()
+cmd.add({"clip","unnoclip","stopclip","unnclip","unnc"},{"clip","Enable your player's collision"},function()
 	NAlib.disconnect("noclip")
 end)
 
