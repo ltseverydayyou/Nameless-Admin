@@ -997,6 +997,7 @@ local NAStuff = {
 	ForceAdminRainbow = true;
 	AutoExecEnabled = true;
 	UserButtonsAutoLoad = true;
+	CmdBar2AutoRun = false;
 	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
@@ -6498,6 +6499,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		cmdbar2AutoRun = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		deltaPrompted = {
 			default = false;
 			coerce = function(value)
@@ -7649,6 +7656,7 @@ if opt.naChatTranslateTarget == nil or opt.naChatTranslateTarget == "" then
 end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
+NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 
 if FileSupport then
@@ -13513,6 +13521,272 @@ local clamp=math.clamp
 local tan=math.tan
 
 --[[ COMMANDS ]]--
+
+cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (black & white)"},function()
+	local gui = NAmanage._cb2
+	local fr = NAmanage._cb2f
+	local bx = NAmanage._cb2bx
+	local hist = NAmanage._cb2h or {}
+	NAmanage._cb2h = hist
+
+	local function tw(o,t,p)
+		local ti = TweenInfo.new(t or 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local tr = TweenService:Create(o, ti, p)
+		tr:Play()
+		return tr
+	end
+
+	local function trim(s)
+		s = tostring(s or "")
+		s = GSub(s, "^%s+", "")
+		s = GSub(s, "%s+$", "")
+		return s
+	end
+
+	local function parse(s)
+		s = trim(s)
+		s = GSub(s, "^[;:/!]+%s*", "")
+		if s == "" then return nil end
+
+		if type(ParseArguments) == "function" then
+			local ok, a = pcall(ParseArguments, s)
+			if ok and type(a) == "table" and #a > 0 then
+				return a
+			end
+		end
+
+		local a, q, cur = {}, false, ""
+		local i = 1
+		while i <= #s do
+			local ch = Sub(s, i, i)
+			if ch == '"' then
+				q = not q
+			elseif not q and (ch == " " or ch == "\t" or ch == "\n" or ch == "\r") then
+				if cur ~= "" then
+					Insert(a, cur)
+					cur = ""
+				end
+			else
+				cur ..= ch
+			end
+			i += 1
+		end
+		if cur ~= "" then Insert(a, cur) end
+		if #a == 0 then return nil end
+		return a
+	end
+
+	local function run()
+		if not bx then return end
+		local s = trim(bx.Text)
+		if s == "" then return end
+		local a = parse(s)
+		if not a then return end
+		pcall(function() cmd.run(a) end)
+	end
+
+	local function show(v)
+		if not gui or not fr then return end
+		gui.Enabled = v and true or false
+		if v then
+			fr.Visible = true
+			fr.BackgroundTransparency = 1
+			local p = NAmanage._cb2p or UDim2.new(0.5, -170, 0, 70)
+			fr.Position = p
+			tw(fr, 0.14, {BackgroundTransparency = 0})
+		else
+			NAmanage._cb2p = fr.Position
+			local tr = tw(fr, 0.12, {BackgroundTransparency = 1})
+			tr.Completed:Connect(function()
+				if fr then fr.Visible = false end
+			end)
+		end
+	end
+
+	if gui and gui.Parent and fr and bx then
+		show(not gui.Enabled)
+		return
+	end
+
+	local o1 = Color3.fromRGB(0, 0, 0)
+	local o2 = Color3.fromRGB(18, 18, 18)
+	local o3 = Color3.fromRGB(28, 28, 28)
+	local tx = Color3.fromRGB(245, 245, 245)
+	local tx2 = Color3.fromRGB(210, 210, 210)
+	local st1 = Color3.fromRGB(255, 255, 255)
+	local st2 = Color3.fromRGB(60, 60, 60)
+
+	gui = InstanceNew("ScreenGui")
+	NaProtectUI(gui)
+
+	fr = InstanceNew("Frame", gui)
+	fr.Position = NAmanage._cb2p or UDim2.new(0.5, -170, 0, 70)
+	fr.Size = UDim2.new(0, 340, 0, 78)
+	fr.BackgroundColor3 = o2
+	fr.BorderSizePixel = 0
+	fr.Visible = true
+	fr.ClipsDescendants = false
+
+	local cr = InstanceNew("UICorner", fr)
+	cr.CornerRadius = UDim.new(0, 6)
+
+	local st = InstanceNew("UIStroke", fr)
+	st.Thickness = 1
+	st.Color = st2
+	st.Transparency = 0.2
+
+	local top = InstanceNew("Frame", fr)
+	top.Position = UDim2.new(0, 0, 0, 0)
+	top.Size = UDim2.new(1, 0, 0, 26)
+	top.BackgroundColor3 = o1
+	top.BorderSizePixel = 0
+
+	local tcr = InstanceNew("UICorner", top)
+	tcr.CornerRadius = UDim.new(0, 6)
+
+	local tfix = InstanceNew("Frame", top)
+	tfix.Position = UDim2.new(0, 0, 1, -6)
+	tfix.Size = UDim2.new(1, 0, 0, 6)
+	tfix.BackgroundColor3 = o1
+	tfix.BorderSizePixel = 0
+
+	local ttl = InstanceNew("TextLabel", top)
+	ttl.BackgroundTransparency = 1
+	ttl.Position = UDim2.new(0, 10, 0, 0)
+	ttl.Size = UDim2.new(1, -120, 1, 0)
+	ttl.Font = Enum.Font.SourceSansBold
+	ttl.TextSize = 16
+	ttl.TextXAlignment = Enum.TextXAlignment.Left
+	ttl.TextColor3 = tx
+	ttl.Text = "CMDBAR2"
+
+	local mini = InstanceNew("TextButton", top)
+	mini.BackgroundTransparency = 1
+	mini.Position = UDim2.new(1, -68, 0, 0)
+	mini.Size = UDim2.new(0, 28, 1, 0)
+	mini.Font = Enum.Font.SourceSansBold
+	mini.TextSize = 18
+	mini.TextColor3 = tx2
+	mini.Text = "-"
+	mini.AutoButtonColor = false
+
+	local cls = InstanceNew("TextButton", top)
+	cls.BackgroundTransparency = 1
+	cls.Position = UDim2.new(1, -36, 0, 0)
+	cls.Size = UDim2.new(0, 36, 1, 0)
+	cls.Font = Enum.Font.SourceSansBold
+	cls.TextSize = 18
+	cls.TextColor3 = tx2
+	cls.Text = "X"
+	cls.AutoButtonColor = false
+
+	local body = InstanceNew("Frame", fr)
+	body.Position = UDim2.new(0, 8, 0, 34)
+	body.Size = UDim2.new(1, -16, 0, 36)
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+
+	local ibg = InstanceNew("Frame", body)
+	ibg.Position = UDim2.new(0, 0, 0, 0)
+	ibg.Size = UDim2.new(1, -98, 1, 0)
+	ibg.BackgroundColor3 = o3
+	ibg.BorderSizePixel = 0
+
+	local icr = InstanceNew("UICorner", ibg)
+	icr.CornerRadius = UDim.new(0, 6)
+
+	local ist = InstanceNew("UIStroke", ibg)
+	ist.Thickness = 1
+	ist.Color = st1
+	ist.Transparency = 0.85
+
+	bx = InstanceNew("TextBox", ibg)
+	bx.BackgroundTransparency = 1
+	bx.Position = UDim2.new(0, 10, 0, 0)
+	bx.Size = UDim2.new(1, -20, 1, 0)
+	bx.ClearTextOnFocus = false
+	bx.Font = Enum.Font.Code
+	bx.TextSize = 15
+	bx.TextColor3 = tx
+	bx.TextXAlignment = Enum.TextXAlignment.Left
+	bx.PlaceholderText = ":cmd args"
+	bx.PlaceholderColor3 = Color3.fromRGB(140, 140, 140)
+	bx.Text = ""
+
+	local exe = InstanceNew("TextButton", body)
+	exe.Position = UDim2.new(1, -90, 0, 0)
+	exe.Size = UDim2.new(0, 90, 1, 0)
+	exe.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
+	exe.BorderSizePixel = 0
+	exe.Font = Enum.Font.SourceSansBold
+	exe.TextSize = 16
+	exe.TextColor3 = Color3.fromRGB(0, 0, 0)
+	exe.Text = "EXECUTE"
+	exe.AutoButtonColor = false
+
+	local ecr = InstanceNew("UICorner", exe)
+	ecr.CornerRadius = UDim.new(0, 6)
+
+	local est = InstanceNew("UIStroke", exe)
+	est.Thickness = 1
+	est.Color = st1
+	est.Transparency = 0.7
+
+	NAgui.draggerV2(fr, top)
+
+	NAmanage._cb2sz = fr.Size
+	local min = false
+
+	local function setMin(v)
+		min = v and true or false
+		if min then
+			body.Visible = false
+			tw(fr, 0.14, {Size = UDim2.new(NAmanage._cb2sz.X.Scale, NAmanage._cb2sz.X.Offset, 0, 28)})
+		else
+			body.Visible = true
+			tw(fr, 0.14, {Size = NAmanage._cb2sz})
+		end
+	end
+
+	exe.MouseButton1Click:Connect(function()
+		run()
+	end)
+
+	cls.MouseButton1Click:Connect(function()
+		show(false)
+	end)
+
+	mini.MouseButton1Click:Connect(function()
+		setMin(not min)
+	end)
+
+	exe.MouseEnter:Connect(function()
+		tw(exe, 0.08, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)})
+	end)
+	exe.MouseLeave:Connect(function()
+		tw(exe, 0.10, {BackgroundColor3 = Color3.fromRGB(235, 235, 235)})
+	end)
+
+	cls.MouseEnter:Connect(function()
+		tw(cls, 0.08, {TextColor3 = Color3.fromRGB(255, 255, 255)})
+	end)
+	cls.MouseLeave:Connect(function()
+		tw(cls, 0.10, {TextColor3 = tx2})
+	end)
+
+	mini.MouseEnter:Connect(function()
+		tw(mini, 0.08, {TextColor3 = Color3.fromRGB(255, 255, 255)})
+	end)
+	mini.MouseLeave:Connect(function()
+		tw(mini, 0.10, {TextColor3 = tx2})
+	end)
+
+	NAmanage._cb2 = gui
+	NAmanage._cb2f = fr
+	NAmanage._cb2bx = bx
+
+	show(true)
+end)
 
 cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
 	local args = {...}
@@ -51241,6 +51515,12 @@ NAmanage.scheduleLoader('UserButtons', function()
 	return NAmanage.RenderUserButtons()
 end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
 NAmanage.scheduleLoader('AutoExec', NAmanage.loadAutoExec, { retries = 4, delay = 0.4, retryOnFalse = true })
+NAmanage.scheduleLoader('CmdBar2AutoRun', function()
+	if NAStuff.CmdBar2AutoRun == true and cmd and cmd.run then
+		cmd.run({"cmdbar2"})
+	end
+	return true
+end, { requiresGui = true, retries = 3, delay = 0.4 })
 NAmanage.scheduleLoader('Plugins', function()
 	NAmanage.InitPlugs()
 	return NAmanage.LoadPlugins()
@@ -51988,6 +52268,21 @@ NAgui.addToggle("Run UserButtons on Start", NAStuff.UserButtonsAutoLoad ~= false
 end)
 NAmanage.RegisterToggleAutoSync("Run UserButtons on Start", function()
 	return NAStuff.UserButtonsAutoLoad ~= false
+end)
+
+NAgui.addButton("cmdbar2", function()
+	if cmd and cmd.run then
+		cmd.run({"cmdbar2"})
+	end
+end)
+
+NAgui.addToggle("Run cmdbar2 on Start", NAStuff.CmdBar2AutoRun == true, function(v)
+	NAStuff.CmdBar2AutoRun = v and true or false
+	NAmanage.NASettingsSet("cmdbar2AutoRun", v)
+	DoNotif("cmdbar2 "..(v and "will open on start" or "will not auto-open on start"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Run cmdbar2 on Start", function()
+	return NAStuff.CmdBar2AutoRun == true
 end)
 
 NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
