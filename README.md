@@ -11,8 +11,14 @@ Nameless Admin keeps the original script alive and adds new commands, fixes, and
 ---
 
 ## TL;DR
-- Main: `loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()`
-- Testing: `loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()`
+- Main: 
+```
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
+```
+- Testing:
+```
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
+```
 - Drop `.na` plugins in `Nameless-Admin/Plugins`
 - Drop `.iy` (Infinite Yield style) plugins in `Nameless-Admin/PluginsIY`
 
