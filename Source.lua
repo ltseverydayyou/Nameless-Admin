@@ -475,6 +475,13 @@ NAmanage.CreateNAFreecam=function()
 		end
 	end
 
+	function module.SetSpeed(newSpeed)
+		local scaled = tonumber(newSpeed)
+		if scaled then
+			navSpeed = clamp(scaled, NAV_MIN_SPEED, NAV_MAX_SPEED)
+		end
+	end
+
 	function module.Toggle(initialSpeed)
 		if enabled then
 			module.Stop()
@@ -11446,6 +11453,13 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		speedBox.ClearTextOnFocus=false
 		speedBox.PlaceholderText="Speed"
 		speedBox.Visible=false
+		local function applySpeedFromBox()
+			local ns=tonumber(speedBox.Text)
+			if ns then
+				setSpeed(ns)
+			end
+			speedBox.Text=tostring(getSpeed())
+		end
 		corner2.CornerRadius=UDim.new(0.2,0)
 		toggleBtn.BackgroundColor3=Color3.fromRGB(50,50,50)
 		toggleBtn.BackgroundTransparency=0.1
@@ -11461,11 +11475,9 @@ NAmanage._ensureMobileFlyUI=function(mode)
 			speedBox.Visible=not speedBox.Visible
 			toggleBtn.Text=speedBox.Visible and "-" or "+"
 		end)
+		speedBox.FocusLost:Connect(applySpeedFromBox)
 		MouseButtonFix(btn,function()
-			if not FLYING then
-				local ns=tonumber(speedBox.Text)
-				if ns then setSpeed(ns) speedBox.Text=tostring(getSpeed()) end
-			end
+			applySpeedFromBox()
 			onToggle()
 			btn.Text=btnText()
 			btn.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
@@ -23971,17 +23983,21 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			toggleBtn.Text = speedBox.Visible and "-" or "+"
 		end)
 
+		local function applyMobileFreecamSpeed()
+			local newSpeed = tonumber(speedBox.Text) or 5
+			speed = newSpeed
+			speedBox.Text = tostring(speed)
+			if NAFreecam and NAFreecam.IsEnabled and NAFreecam.IsEnabled() and NAFreecam.SetSpeed then
+				NAFreecam.SetSpeed(speed / 5)
+			end
+		end
+
+		speedBox.FocusLost:Connect(applyMobileFreecamSpeed)
+
 		coroutine.wrap(function()
 			MouseButtonFix(btn, function()
+				applyMobileFreecamSpeed()
 				if not flyVariables.mOn then
-					local newSpeed = tonumber(speedBox.Text) or 5
-					if newSpeed then
-						speed = newSpeed
-						speedBox.Text = tostring(speed)
-					else
-						speed = 5
-						speedBox.Text = tostring(speed)
-					end
 					flyVariables.mOn = true
 					btn.Text = "UNFC"
 					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
