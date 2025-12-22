@@ -13134,7 +13134,13 @@ NAmanage.RenderUserButtons = function()
 				end
 			end)
 
-			if type(data) == "table" and data.Hidden then
+			local isHidden = (type(data) == "table" and data.Hidden) and true or false
+			local isInteractable = not (type(data) == "table" and data.Interactable == false)
+
+			if not isInteractable then
+				btn.Visible = false
+			elseif isHidden then
+				btn.Visible = true
 				btn.BackgroundTransparency = 1
 				btn.TextTransparency = 1
 				if btn:FindFirstChildOfClass("TextButton") then
@@ -13145,6 +13151,8 @@ NAmanage.RenderUserButtons = function()
 						end
 					end
 				end
+			else
+				btn.Visible = true
 			end
 
 			if IsOnPC then
@@ -52754,6 +52762,9 @@ originalIO.UserBtnEditor=function()
 		bgColor = Color3.fromRGB(0, 0, 0),
 		textColor = Color3.fromRGB(255, 255, 255),
 		lbl = "",
+		hidden = false,
+		locked = false,
+		interactable = true,
 	}
 
 	NAgui.addSection("User Buttons Loader")
@@ -52949,6 +52960,7 @@ originalIO.UserBtnEditor=function()
 
 		local hidden = (type(data) == "table" and data.Hidden) and true or false
 		local locked = (type(data) == "table" and data.Locked) and true or false
+		local interactable = not (type(data) == "table" and data.Interactable == false)
 
 		local raw = (type(data) == "table" and type(data.Label) == "string") and data.Label or ""
 		local label = raw
@@ -52972,9 +52984,11 @@ originalIO.UserBtnEditor=function()
 
 		editorState.hidden = hidden
 		editorState.locked = locked
+		editorState.interactable = interactable
 		if NAgui and NAgui.setToggleState then
 			NAgui.setToggleState("Hide Button", hidden, { force = true, fire = false })
 			NAgui.setToggleState("Lock Button", locked, { force = true, fire = false })
+			NAgui.setToggleState("Interactable", interactable, { force = true, fire = false })
 		end
 
 		local w = tonumber(data and data.Width) or 60
@@ -53095,6 +53109,17 @@ originalIO.UserBtnEditor=function()
 		applyToTargets(function(data)
 			data.Locked = editorState.locked or nil
 		end, "Lock")
+	end)
+
+	NAgui.addToggle("Toggle Interactable", true, function(state)
+		editorState.interactable = state and true or false
+		applyToTargets(function(data)
+			if editorState.interactable then
+				data.Interactable = nil
+			else
+				data.Interactable = false
+			end
+		end, "Interactable")
 	end)
 
 	NAgui.addSection("Appearance")
