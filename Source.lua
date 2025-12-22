@@ -998,6 +998,10 @@ local NAStuff = {
 	ESP_RenderMode = "BoxHandleAdornment";
 	ESP_LabelTextSize = 12;
 	ESP_LabelTextScaled = false;
+	ESP_LabelStrokeTransparency = 0.5;
+	ESP_UseCustomColor = false;
+	ESP_CustomColor = Color3.new(1, 1, 1);
+	ESP_OutlineTransparency = 0;
 	ESP_ShowPartDistance = false;
 	ESP_LocatorEnabled = false;
 	ESP_LocatorSize = 26;
@@ -1019,6 +1023,10 @@ local NAStuff = {
 	partESPEntries = setmetatable({}, { __mode = "k" });
 	partESPVisualMap = setmetatable({}, { __mode = "k" });
 	nameESPExclusions = { exact = {}, partial = {} };
+	TopbarGlassTransparency = 0.12;
+	TopbarStrokeTransparency = 0.15;
+	SideSwipeWidth = 80;
+	SideSwipeHandleTransparency = 0.72;
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
@@ -5232,12 +5240,9 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.titleLabel.TextYAlignment = Enum.TextYAlignment.Center
 	ui.titleLabel.Font = Enum.Font.GothamSemibold
 	ui.titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	ui.titleLabel.TextScaled = true
 	ui.titleLabel.TextWrapped = true
+	ui.titleLabel.TextScaled = true
 	ui.titleLabel.Text = text
-	local tSz = InstanceNew("UITextSizeConstraint", ui.titleLabel)
-	tSz.MinTextSize = 16
-	tSz.MaxTextSize = 28
 
 	ui.minimizeButton = InstanceNew("TextButton", ui.header)
 	ui.minimizeButton.AutoButtonColor = false
@@ -5274,9 +5279,6 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.bigPercent.TextScaled = true
 	ui.bigPercent.TextXAlignment = Enum.TextXAlignment.Left
 	ui.bigPercent.Text = "0%"
-	local bpSz = InstanceNew("UITextSizeConstraint", ui.bigPercent)
-	bpSz.MinTextSize = 20
-	bpSz.MaxTextSize = 40
 
 	ui.statusLabel = InstanceNew("TextLabel", midFrame)
 	ui.statusLabel.ZIndex = 8
@@ -5287,9 +5289,6 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.statusLabel.TextScaled = true
 	ui.statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 	ui.statusLabel.Text = "loading"
-	local stSz = InstanceNew("UITextSizeConstraint", ui.statusLabel)
-	stSz.MinTextSize = 12
-	stSz.MaxTextSize = 18
 
 	ui.progressHolder = InstanceNew("Frame", ui.container)
 	ui.progressHolder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
@@ -5335,9 +5334,6 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.percentLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
 	ui.percentLabel.TextScaled = true
 	ui.percentLabel.Text = "0%"
-	local plSz = InstanceNew("UITextSizeConstraint", ui.percentLabel)
-	plSz.MinTextSize = 11
-	plSz.MaxTextSize = 16
 
 	ui.buttonRow = InstanceNew("Frame", ui.container)
 	ui.buttonRow.ZIndex = 8
@@ -6422,6 +6418,38 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		iconBgTransparency = {
+			default = 0;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0 end
+				return n
+			end;
+		};
+		iconImageTransparency = {
+			default = 0;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0 end
+				return n
+			end;
+		};
+		iconTextTransparency = {
+			default = 0;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0 end
+				return n
+			end;
+		};
+		iconStrokeTransparency = {
+			default = 0.7;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.7 end
+				return n
+			end;
+		};
 		uiScale = {
 			pathKey = "NAUISIZEPATH";
 			default = function()
@@ -6666,11 +6694,45 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		sideSwipeWidth = {
+			default = 80;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 80
+				end
+				return math.clamp(math.floor(numberValue + 0.5), 60, 200)
+			end;
+		};
+		sideSwipeHandleTransparency = {
+			default = 0.72;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.72 end
+				return n
+			end;
+		};
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
 			coerce = function(value)
 				return coerceBoolean(value, true)
+			end;
+		};
+		topbarGlassTransparency = {
+			default = 0.12;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.12 end
+				return n
+			end;
+		};
+		topbarStrokeTransparency = {
+			default = 0.15;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.15 end
+				return n
 			end;
 		};
 		notifsToggle = {
@@ -7109,11 +7171,16 @@ NAmanage.LoadESPSettings = function()
 		ESP_RenderMode = "BoxHandleAdornment";
 		ESP_LabelTextSize = 12;
 		ESP_LabelTextScaled = false;
+		ESP_LabelStrokeTransparency = 0.5;
+		ESP_UseCustomColor = false;
+		ESP_CustomColor = {255, 255, 255};
+		ESP_OutlineTransparency = 0;
 		ESP_ShowPartDistance = false;
 		ESP_LocatorEnabled = false;
 		ESP_LocatorSize = 26;
 		ESP_LocatorShowText = false;
 		ESP_LocatorTextSize = 14;
+		ESP_MaxPerStep = 32;
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -7148,10 +7215,28 @@ NAmanage.LoadESPSettings = function()
 			end
 		end
 	end
+	local function sanitizeColor(value, defaultColor)
+		if typeof(value) == "Color3" then
+			return value
+		end
+		if type(value) == "table" then
+			local r = tonumber(value.R or value[1])
+			local g = tonumber(value.G or value[2])
+			local b = tonumber(value.B or value[3])
+			if r and g and b then
+				return Color3.fromRGB(r, g, b)
+			end
+		end
+		return defaultColor
+	end
 	local mode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
 	mode = (type(mode)=="string" and (Lower(mode)=="highlight" and "Highlight" or "BoxHandleAdornment")) or "BoxHandleAdornment"
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
+	local stroke = math.clamp(tonumber(d.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
+	local outline = NAgui.sanitizeTransparency(d.ESP_OutlineTransparency)
+	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
+	local customColor = sanitizeColor(d.ESP_CustomColor, Color3.new(1, 1, 1))
 
 	NAStuff.ESP_Transparency     = d.ESP_Transparency
 	NAStuff.ESP_BoxMaxDistance   = d.ESP_BoxMaxDistance
@@ -7165,6 +7250,11 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_RenderMode       = mode
 	NAStuff.ESP_LabelTextSize    = sz
 	NAStuff.ESP_LabelTextScaled  = d.ESP_LabelTextScaled == true
+	NAStuff.ESP_LabelStrokeTransparency = stroke
+	NAStuff.ESP_UseCustomColor   = d.ESP_UseCustomColor == true
+	NAStuff.ESP_CustomColor      = customColor
+	NAStuff.ESP_OutlineTransparency = outline
+	NAStuff.ESP_MaxPerStep       = maxPerStep
 
 	NAStuff.ESP_LocatorEnabled   = d.ESP_LocatorEnabled == true
 	NAStuff.ESP_LocatorSize      = math.clamp(tonumber(d.ESP_LocatorSize) or 26, 12, 128)
@@ -7200,10 +7290,15 @@ NAmanage.SaveESPSettings = function()
 		ESP_RenderMode = mode;
 		ESP_LabelTextSize = sz;
 		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
+		ESP_LabelStrokeTransparency = math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1);
+		ESP_UseCustomColor = NAStuff.ESP_UseCustomColor == true;
+		ESP_CustomColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_CustomColor or Color3.new(1, 1, 1));
+		ESP_OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0);
 		ESP_LocatorEnabled = NAStuff.ESP_LocatorEnabled == true;
 		ESP_LocatorSize = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128);
 		ESP_LocatorShowText = NAStuff.ESP_LocatorShowText == true;
 		ESP_LocatorTextSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48);
+		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256);
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -7660,8 +7755,24 @@ if FileSupport then
 	NATopbarDock = NAmanage.topbar_readDock()
 	NASideSwipeSide = NAmanage.NASettingsGet("sideSwipeSide") or NASideSwipeSide
 	NASideSwipeEnabled = NAmanage.NASettingsGet("sideSwipeEnabled") or NASideSwipeEnabled
+	local function clamp01(v, fallback)
+		local n = tonumber(v)
+		if not n then return fallback end
+		if n < 0 then n = 0 elseif n > 1 then n = 1 end
+		return n
+	end
+	NAStuff.SideSwipeWidth = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeWidth")) or 80) + 0.5), 60, 200)
+	NAStuff.SideSwipeHandleTransparency = clamp01(NAmanage.NASettingsGet("sideSwipeHandleTransparency") or 0.72, 0.72)
 	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
 	NAAssetsLoading.applyMinimizedPreference()
+	NAStuff.TopbarGlassTransparency = clamp01(NAmanage.NASettingsGet("topbarGlassTransparency") or 0.12, 0.12)
+	NAStuff.TopbarStrokeTransparency = clamp01(NAmanage.NASettingsGet("topbarStrokeTransparency") or 0.15, 0.15)
+	NAStuff.iconAppearancePrefs = {
+		background = NAmanage.NASettingsGet("iconBgTransparency"),
+		image = NAmanage.NASettingsGet("iconImageTransparency"),
+		text = NAmanage.NASettingsGet("iconTextTransparency"),
+		stroke = NAmanage.NASettingsGet("iconStrokeTransparency"),
+	}
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -10066,6 +10177,7 @@ NAgui.applyLabelStyle=function(label)
 	label.TextScaled = NAStuff.ESP_LabelTextScaled
 	label.TextWrapped = false
 	label.ClipsDescendants = false
+	label.TextStrokeTransparency = math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
 	label.TextSize = NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
 	NAgui.updateLabelBounds(label)
 end
@@ -10246,11 +10358,15 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 			end
 			local fill = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
 			local outline = entry.darkColor or fill
+			local outlineTr = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 			if visual.FillColor ~= fill then
 				visual.FillColor = fill
 			end
 			if visual.OutlineColor ~= outline then
 				visual.OutlineColor = outline
+			end
+			if visual.OutlineTransparency ~= outlineTr then
+				visual.OutlineTransparency = outlineTr
 			end
 		elseif visual:IsA("BoxHandleAdornment") then
 			if entry.lightColor and visual.Color3 ~= entry.lightColor then
@@ -10627,10 +10743,12 @@ NAmanage.ESP_AddBoxes = function(model)
 			hl.Name = "NAESP_Highlight"
 			hl.Adornee = model
 			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-			hl.FillColor = Color3.new(1,1,1)
-			hl.OutlineColor = Color3.new(1,1,1)
+			local baseColor = (NAStuff.ESP_UseCustomColor == true and typeof(NAStuff.ESP_CustomColor) == "Color3") and NAStuff.ESP_CustomColor or Color3.new(1, 1, 1)
+			local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+			hl.FillColor = baseColor
+			hl.OutlineColor = baseColor
 			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
-			hl.OutlineTransparency = 0
+			hl.OutlineTransparency = outline
 			hl.Parent = model
 			data.highlight = hl
 			NAmanage.ESP_AdjustHighlightMaterial(model, true)
@@ -10639,6 +10757,7 @@ NAmanage.ESP_AddBoxes = function(model)
 		end
 		if data.highlight then
 			data.highlight.Enabled = true
+			data.highlight.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 		end
 		data.boxEnabled = true
 		return
@@ -10722,7 +10841,10 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	data.next = now + budget
 
 	local distColor = dist and ((dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)) or Color3.new(1,1,1)
-	local finalColor = (NAStuff.ESP_ColorByTeam ~= false and teamColor) or distColor
+	local customColor = (NAStuff.ESP_UseCustomColor == true) and NAStuff.ESP_CustomColor or nil
+	local finalColor = (typeof(customColor) == "Color3" and customColor)
+		or ((NAStuff.ESP_ColorByTeam ~= false and teamColor) and teamColor)
+		or distColor
 
 	local wantBoxes = ESPenabled and (dist == nil or dist <= (NAStuff.ESP_BoxMaxDistance or 120))
 	local wantLabel = ESPenabled and not chamsEnabled and (dist == nil or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
@@ -10752,7 +10874,8 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			if highlight then
 				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
-				if highlight.OutlineTransparency ~= 0 then highlight.OutlineTransparency = 0 end
+				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+				if highlight.OutlineTransparency ~= outline then highlight.OutlineTransparency = outline end
 				local color = finalColor or Color3.new(1,1,1)
 				if highlight.FillColor ~= color then highlight.FillColor = color end
 				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
@@ -10903,7 +11026,7 @@ NAmanage.ESP_StartGlobal = function()
 		local now = tick()
 
 		local idx = NAStuff.ESP_ModelIndex or 1
-		local maxStep = NAStuff.ESP_MaxPerStep or 32
+		local maxStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256)
 		if idx > n then
 			idx = 1
 		end
@@ -12241,7 +12364,22 @@ NAmanage.LoadPlugins = function()
 			local seen = {}
 			local aliases = {}
 			local function addAlias(a)
-				if type(a) == "string" and a ~= "" then
+				if type(a) ~= "string" then
+					return
+				end
+				local added = false
+				for part in a:gmatch("[^/,|]+") do
+					local trimmed = part:match("^%s*(.-)%s*$")
+					if trimmed and trimmed ~= "" then
+						local low = trimmed:lower()
+						if not seen[low] then
+							seen[low] = true
+							Insert(aliases, trimmed)
+						end
+						added = true
+					end
+				end
+				if not added and a ~= "" then
 					local low = a:lower()
 					if not seen[low] then
 						seen[low] = true
@@ -12251,6 +12389,7 @@ NAmanage.LoadPlugins = function()
 			end
 
 			addAlias(listName)
+			addAlias(nameKey)
 			local extra = cmdDef.Aliases
 			if type(extra) == "table" then
 				for _, a in ipairs(extra) do
@@ -35541,7 +35680,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 		visual.FillColor = lighter
 		visual.OutlineColor = darker
 		visual.FillTransparency = entryTransparency
-		visual.OutlineTransparency = 0
+		visual.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 		visual.Enabled = false
 		Defer(function()
 			if visual and visual.Parent then
@@ -43686,8 +43825,16 @@ end
 
 NAmanage.Topbar_UpdateToggleVisual=function(open)
 	local ti=TweenInfo.new(0.1,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
-	local bgTarget=open and 0.06 or 0.12
-	local strokeT=open and 0.05 or 0.15
+	local function clamp01(v, fallback)
+		local n = tonumber(v)
+		if n == nil then return fallback end
+		if n < 0 then n = 0 elseif n > 1 then n = 1 end
+		return n
+	end
+	local baseGlass = clamp01(NAStuff.TopbarGlassTransparency or 0.12, 0.12)
+	local baseStroke = clamp01(NAStuff.TopbarStrokeTransparency or 0.15, 0.15)
+	local bgTarget=open and math.max(0, baseGlass - 0.06) or baseGlass
+	local strokeT=open and math.max(0, baseStroke - 0.1) or baseStroke
 	NAmanage.Topbar_PlayTween("tglass_bg",TopBarApp.tGlass,ti,{BackgroundTransparency=bgTarget})
 	if TopBarApp.tStroke then NAmanage.Topbar_PlayTween("tglass_stroke",TopBarApp.tStroke,ti,{Transparency=strokeT}) end
 	local CLOSED_ICON="three-bars-horizontal"
@@ -43983,13 +44130,13 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.tGlass=InstanceNew("Frame",TopBarApp.toggle)
 	TopBarApp.tGlass.Size=UDim2.new(1,0,1,0)
 	TopBarApp.tGlass.BackgroundColor3=Color3.fromRGB(20,20,24)
-	TopBarApp.tGlass.BackgroundTransparency=0.12
+	TopBarApp.tGlass.BackgroundTransparency=NAStuff.TopbarGlassTransparency or 0.12
 	TopBarApp.tGlass.ZIndex=111
 	local tCorner=InstanceNew("UICorner",TopBarApp.tGlass); tCorner.CornerRadius=UDim.new(0.5,0)
 	TopBarApp.tStroke=InstanceNew("UIStroke",TopBarApp.tGlass)
 	TopBarApp.tStroke.Thickness=1.25
 	TopBarApp.tStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
-	TopBarApp.tStroke.Transparency=0.15
+	TopBarApp.tStroke.Transparency=NAStuff.TopbarStrokeTransparency or 0.15
 	NAgui.RegisterColoredStroke(TopBarApp.tStroke)
 	TopBarApp.icon=InstanceNew("TextLabel",TopBarApp.toggle)
 	TopBarApp.icon.AnchorPoint=Vector2.new(0.5,0.5)
@@ -44149,7 +44296,7 @@ NAmanage.SideSwipe_UpdateCanvas=function()
 	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	local maxH = math.max(120, vp.Y - 40)
 	local height = math.min(totalH + 16, maxH)
-	local width = 80
+	local width = math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200)
 	SideSwipeApp.panel.Size = UDim2.new(0, width, 0, height)
 	SideSwipeApp.underlay.Size = UDim2.new(1, 0, 1, 0)
 	SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, totalH)
@@ -44377,7 +44524,7 @@ NAmanage.SideSwipe_Init=function()
 	local mainColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(148,93,255)
 	SideSwipeApp.handles.left = InstanceNew("TextButton", SideSwipeApp.gui)
 	SideSwipeApp.handles.left.BackgroundColor3 = mainColor
-	SideSwipeApp.handles.left.BackgroundTransparency = 0.72
+	SideSwipeApp.handles.left.BackgroundTransparency = NAStuff.SideSwipeHandleTransparency or 0.72
 	SideSwipeApp.handles.left.BorderSizePixel = 0
 	SideSwipeApp.handles.left.AutoButtonColor = false
 	SideSwipeApp.handles.left.Text = ""
@@ -44387,7 +44534,7 @@ NAmanage.SideSwipe_Init=function()
 	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.left, "left")
 	SideSwipeApp.handles.right = InstanceNew("TextButton", SideSwipeApp.gui)
 	SideSwipeApp.handles.right.BackgroundColor3 = mainColor
-	SideSwipeApp.handles.right.BackgroundTransparency = 0.72
+	SideSwipeApp.handles.right.BackgroundTransparency = NAStuff.SideSwipeHandleTransparency or 0.72
 	SideSwipeApp.handles.right.BorderSizePixel = 0
 	SideSwipeApp.handles.right.AutoButtonColor = false
 	SideSwipeApp.handles.right.Text = ""
@@ -50561,6 +50708,36 @@ NAStuff.iconAppearance = NAStuff.iconAppearance or  {
 	image = TextButton:IsA("ImageButton") and TextButton.ImageTransparency or nil;
 }
 
+do
+	local prefs = NAStuff.iconAppearancePrefs or {}
+	local function clamp01(v)
+		local n = tonumber(v)
+		if not n then return nil end
+		if n < 0 then n = 0 elseif n > 1 then n = 1 end
+		return n
+	end
+	local bg = clamp01(prefs.background)
+	local img = clamp01(prefs.image)
+	local txt = clamp01(prefs.text)
+	local stroke = clamp01(prefs.stroke)
+	if bg then
+		NAStuff.iconAppearance.background = bg
+		TextButton.BackgroundTransparency = bg
+	end
+	if img and TextButton:IsA("ImageButton") then
+		NAStuff.iconAppearance.image = img
+		TextButton.ImageTransparency = img
+	end
+	if txt and IconFallbackText then
+		NAStuff.iconAppearance.text = txt
+		IconFallbackText.TextTransparency = txt
+	end
+	if stroke and IconFallbackText then
+		NAStuff.iconAppearance.stroke = stroke
+		IconFallbackText.TextStrokeTransparency = stroke
+	end
+end
+
 NAStuff.CustomIcon = NAStuff.CustomIcon or {}
 
 if NAmanage and type(NAmanage.NASettingsGet) == "function" then
@@ -52375,6 +52552,131 @@ end)
 NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "two-makeup-brushes" })
 NAgui.setTab(TAB_INTERFACE)
 
+NAgui.clamp01 = NAgui.clamp01 or function(v, fallback)
+	local n = tonumber(v)
+	if n == nil then
+		return fallback or 0
+	end
+	if n < 0 then n = 0 elseif n > 1 then n = 1 end
+	return n
+end
+
+NAStuff.IconDefaultTrans = NAStuff.IconDefaultTrans or {
+	background = NAStuff.iconAppearance and NAStuff.iconAppearance.background or 0,
+	image = NAStuff.iconAppearance and NAStuff.iconAppearance.image or 0,
+	text = NAStuff.iconAppearance and NAStuff.iconAppearance.text or 0,
+	stroke = NAStuff.iconAppearance and NAStuff.iconAppearance.stroke or 0.7,
+}
+
+NAmanage.applyIconAppearance = function()
+	if not TextButton then return end
+	local clamp01 = NAgui.clamp01
+	local label = IconFallbackText
+	local bg = clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.background or 0, 0)
+	if NAStuff.iconAppearance then NAStuff.iconAppearance.background = bg end
+	TextButton.BackgroundTransparency = bg
+	if TextButton:IsA("ImageButton") then
+		local imgT = clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.image or 0, 0)
+		if NAStuff.iconAppearance then NAStuff.iconAppearance.image = imgT end
+		TextButton.ImageTransparency = imgT
+	else
+		local txtT = clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.text or 0, 0)
+		if NAStuff.iconAppearance then NAStuff.iconAppearance.text = txtT end
+		TextButton.TextTransparency = txtT
+		local strokeT = clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.stroke or 0.7, 0.7)
+		if NAStuff.iconAppearance then NAStuff.iconAppearance.stroke = strokeT end
+		TextButton.TextStrokeTransparency = strokeT
+	end
+	if label then
+		if NAStuff.iconAppearance and NAStuff.iconAppearance.text ~= nil then
+			label.TextTransparency = clamp01(NAStuff.iconAppearance.text, 0)
+		end
+		if NAStuff.iconAppearance and NAStuff.iconAppearance.stroke ~= nil then
+			label.TextStrokeTransparency = clamp01(NAStuff.iconAppearance.stroke, 0.7)
+		end
+	end
+end
+
+NAmanage.applyTopbarStyle = function()
+	local clamp01 = NAgui.clamp01
+	local glass = TopBarApp and TopBarApp.tGlass
+	if glass then
+		glass.BackgroundTransparency = clamp01(NAStuff.TopbarGlassTransparency or 0.12, 0.12)
+	end
+	local stroke = TopBarApp and TopBarApp.tStroke
+	if stroke then
+		stroke.Transparency = clamp01(NAStuff.TopbarStrokeTransparency or 0.15, 0.15)
+	end
+	if TopBarApp and TopBarApp.isOpen ~= nil and NAmanage.Topbar_UpdateToggleVisual then
+		NAmanage.Topbar_UpdateToggleVisual(TopBarApp.isOpen)
+	end
+end
+
+NAmanage.applySideSwipeStyle = function(opts)
+	local clamp01 = NAgui.clamp01
+	if NAmanage.SideSwipe_Init then
+		NAmanage.SideSwipe_Init()
+	end
+	if SideSwipeApp then
+		if SideSwipeApp.underlay then
+			SideSwipeApp.underlay.BackgroundTransparency = 0.35
+		end
+		if SideSwipeApp.handles then
+			local ht = clamp01(NAStuff.SideSwipeHandleTransparency or 0.72, 0.72)
+			if SideSwipeApp.handles.left then
+				SideSwipeApp.handles.left.BackgroundTransparency = ht
+			end
+			if SideSwipeApp.handles.right then
+				SideSwipeApp.handles.right.BackgroundTransparency = ht
+			end
+		end
+		local scroll = SideSwipeApp.scroll
+		if scroll then
+			scroll.ScrollBarThickness = 4
+		end
+		if SideSwipeApp.scroll then
+			for _, btn in ipairs(SideSwipeApp.scroll:GetChildren()) do
+				if btn:IsA("TextButton") then
+					local bg = btn:FindFirstChildOfClass("Frame")
+					if bg then
+						bg.BackgroundTransparency = 0.16
+					end
+				end
+			end
+		end
+		local layout = SideSwipeApp.layout
+		if layout and layout.Parent then
+			local pad = layout.Parent:FindFirstChildOfClass("UIPadding")
+			if pad then
+				-- force a layout refresh by toggling padding
+				local old = pad.PaddingTop
+				pad.PaddingTop = old + UDim.new(0, 0)
+				pad.PaddingTop = old
+			end
+		end
+		if SideSwipeApp.scroll and SideSwipeApp.scroll:FindFirstChildWhichIsA("UIListLayout", true) then
+			local list = SideSwipeApp.scroll:FindFirstChildWhichIsA("UIListLayout", true)
+			if list then
+				-- triggers AbsoluteContentSize recompute
+				list.Padding = list.Padding
+			end
+		end
+		if opts and opts.rebuild and NAmanage.SideSwipe_Rebuild then
+			NAmanage.SideSwipe_Rebuild()
+		end
+		if NAmanage.SideSwipe_UpdateCanvas then
+			NAmanage.SideSwipe_UpdateCanvas()
+		end
+		if NAmanage.SideSwipe_PositionHandles then
+			NAmanage.SideSwipe_PositionHandles()
+		end
+	end
+end
+
+NAmanage.applyIconAppearance()
+NAmanage.applyTopbarStyle()
+NAmanage.applySideSwipeStyle({ rebuild = false })
+
 NAgui.addSection("UI Customization")
 
 NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
@@ -52418,6 +52720,58 @@ NAgui.addColorPicker("Main Color", NAUISTROKER, function(color)
 	SaveUIStroke(color)
 end)
 
+NAgui.addSection("Icon Appearance")
+
+NAgui.addSlider("Icon Background Transparency", 0, 1, NAgui.clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.background or 0, 0), 0.05, "", function(val)
+	local v = NAgui.clamp01(val, 0)
+	NAStuff.iconAppearance.background = v
+	NAmanage.applyIconAppearance()
+	NAmanage.NASettingsSet("iconBgTransparency", v)
+end)
+
+if TextButton and TextButton:IsA("ImageButton") then
+	NAgui.addSlider("Icon Image Transparency", 0, 1, NAgui.clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.image or 0, 0), 0.05, "", function(val)
+		local v = NAgui.clamp01(val, 0)
+		NAStuff.iconAppearance.image = v
+		NAmanage.applyIconAppearance()
+		NAmanage.NASettingsSet("iconImageTransparency", v)
+	end)
+end
+
+NAgui.addSlider("Icon Text Transparency", 0, 1, NAgui.clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.text or 0, 0), 0.05, "", function(val)
+	local v = NAgui.clamp01(val, 0)
+	NAStuff.iconAppearance.text = v
+	NAmanage.applyIconAppearance()
+	NAmanage.NASettingsSet("iconTextTransparency", v)
+end)
+
+NAgui.addSlider("Icon Stroke Transparency", 0, 1, NAgui.clamp01(NAStuff.iconAppearance and NAStuff.iconAppearance.stroke or 0.7, 0.7), 0.05, "", function(val)
+	local v = NAgui.clamp01(val, 0.7)
+	NAStuff.iconAppearance.stroke = v
+	NAmanage.applyIconAppearance()
+	NAmanage.NASettingsSet("iconStrokeTransparency", v)
+end)
+
+NAgui.addButton("Reset Icon Transparency", function()
+	NAStuff.iconAppearance.background = NAStuff.IconDefaultTrans.background
+	NAStuff.iconAppearance.image = NAStuff.IconDefaultTrans.image
+	NAStuff.iconAppearance.text = NAStuff.IconDefaultTrans.text
+	NAStuff.iconAppearance.stroke = NAStuff.IconDefaultTrans.stroke
+	NAmanage.applyIconAppearance()
+	if NAgui.setSliderValue then
+		NAgui.setSliderValue("Icon Background Transparency", NAStuff.IconDefaultTrans.background or 0, { force = true, fire = false })
+		NAgui.setSliderValue("Icon Text Transparency", NAStuff.IconDefaultTrans.text or 0, { force = true, fire = false })
+		NAgui.setSliderValue("Icon Stroke Transparency", NAStuff.IconDefaultTrans.stroke or 0.7, { force = true, fire = false })
+		if TextButton and TextButton:IsA("ImageButton") then
+			NAgui.setSliderValue("Icon Image Transparency", NAStuff.IconDefaultTrans.image or 0, { force = true, fire = false })
+		end
+	end
+	NAmanage.NASettingsSet("iconBgTransparency", NAStuff.IconDefaultTrans.background or 0)
+	NAmanage.NASettingsSet("iconImageTransparency", NAStuff.IconDefaultTrans.image or 0)
+	NAmanage.NASettingsSet("iconTextTransparency", NAStuff.IconDefaultTrans.text or 0)
+	NAmanage.NASettingsSet("iconStrokeTransparency", NAStuff.IconDefaultTrans.stroke or 0.7)
+end)
+
 NAgui.addSection("Topbar")
 
 NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(state)
@@ -52459,6 +52813,18 @@ NAmanage.RegisterToggleAutoSync("Keep Topbar Position", function()
 	return NATopbarKeepPosition == true
 end)
 
+NAgui.addSlider("Topbar Glass Transparency", 0, 1, NAgui.clamp01(NAStuff.TopbarGlassTransparency or 0.12, 0.12), 0.05, "", function(v)
+	NAStuff.TopbarGlassTransparency = NAgui.clamp01(v, 0.12)
+	NAmanage.applyTopbarStyle()
+	NAmanage.NASettingsSet("topbarGlassTransparency", NAStuff.TopbarGlassTransparency)
+end)
+
+NAgui.addSlider("Topbar Stroke Transparency", 0, 1, NAgui.clamp01(NAStuff.TopbarStrokeTransparency or 0.15, 0.15), 0.05, "", function(v)
+	NAStuff.TopbarStrokeTransparency = NAgui.clamp01(v, 0.15)
+	NAmanage.applyTopbarStyle()
+	NAmanage.NASettingsSet("topbarStrokeTransparency", NAStuff.TopbarStrokeTransparency)
+end)
+
 NAgui.addSection("Side Swipe")
 
 NAgui.addToggle("Side Swipe On Left", NASideSwipeSide ~= "right", function(v)
@@ -52477,6 +52843,20 @@ NAgui.addToggle("Side Swipe Enabled", NASideSwipeEnabled, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Side Swipe Enabled", function()
 	return NASideSwipeEnabled == true
+end)
+
+NAgui.addSection("Side Swipe Styling")
+
+NAgui.addSlider("Side Swipe Width", 60, 200, math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200), 1, " px", function(v)
+	NAStuff.SideSwipeWidth = math.clamp(math.floor(tonumber(v) or 80 + 0.5), 60, 200)
+	NAmanage.NASettingsSet("sideSwipeWidth", NAStuff.SideSwipeWidth)
+	NAmanage.applySideSwipeStyle({ rebuild = true })
+end)
+
+NAgui.addSlider("Side Swipe Handle Transparency", 0, 1, NAgui.clamp01(NAStuff.SideSwipeHandleTransparency or 0.72, 0.72), 0.05, "", function(v)
+	NAStuff.SideSwipeHandleTransparency = NAgui.clamp01(v, 0.72)
+	NAmanage.NASettingsSet("sideSwipeHandleTransparency", NAStuff.SideSwipeHandleTransparency)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
 end)
 
 if CoreGui then
@@ -53224,12 +53604,32 @@ NAgui.trimText=function(str)
 	return (str or ""):match("^%s*(.-)%s*$")
 end
 
-NAgui.addSection("ESP Settings")
+NAgui.addSection("Visuals & Color")
 
 NAgui.addToggle("Use Highlight Rendering (Highlight)", NAgui.espUsesHighlight(), function(state)
 	NAStuff.ESP_RenderMode = state and "Highlight" or "BoxHandleAdornment"
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("Use Custom ESP Color", NAStuff.ESP_UseCustomColor == true, function(state)
+	NAStuff.ESP_UseCustomColor = state
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addColorPicker("Custom ESP Color", NAStuff.ESP_CustomColor or Color3.new(1, 1, 1), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.ESP_CustomColor = color
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
+	NAStuff.ESP_ColorByTeam = state
+	NAmanage.SaveESPSettings()
 end)
 
 NAgui.addSlider("ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
@@ -53247,6 +53647,20 @@ NAgui.addSlider("ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP
 	NAmanage.SaveESPSettings()
 end)
 
+NAgui.addSlider("Highlight Outline Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0), 0.05, "", function(v)
+	local outline = NAgui.sanitizeTransparency(v)
+	NAStuff.ESP_OutlineTransparency = outline
+	for _, data in pairs(espCONS) do
+		if data and data.highlight then
+			data.highlight.OutlineTransparency = outline
+		end
+	end
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSection("Visibility & Performance")
+
 NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
 	NAStuff.ESP_BoxMaxDistance = v
 	NAmanage.SaveESPSettings()
@@ -53257,7 +53671,34 @@ NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1
 	NAmanage.SaveESPSettings()
 end)
 
-NAgui.addSection("Label Styling")
+NAgui.addSlider("ESP Update Batch Size", 1, 256, math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256), 1, " models", function(v)
+	NAStuff.ESP_MaxPerStep = math.clamp(math.floor(tonumber(v) or 32), 1, 256)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSection("Label Content")
+
+NAgui.addToggle("Show Name In Label", (NAStuff.ESP_ShowName ~= false), function(state)
+	NAStuff.ESP_ShowName = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Health In Label", (NAStuff.ESP_ShowHealth ~= false), function(state)
+	NAStuff.ESP_ShowHealth = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Team In Label", (NAStuff.ESP_ShowTeamText ~= false), function(state)
+	NAStuff.ESP_ShowTeamText = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
+	NAStuff.ESP_ShowDistance = state
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSection("Label Appearance")
 
 NAgui.addSlider("Label Text Size", 8, 72, NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize), 1, " px", function(v)
 	local size = NAgui.sanitizeLabelSize(v)
@@ -53272,40 +53713,22 @@ NAgui.addToggle("Label Text Scaled", NAStuff.ESP_LabelTextScaled, function(state
 	NAmanage.ESP_ApplyLabelStyles()
 end)
 
-NAgui.addSection("Label Content")
-
-NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
-	NAStuff.ESP_ColorByTeam = state
+NAgui.addSlider("Label Stroke Transparency", 0, 1, math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1), 0.05, "", function(v)
+	NAStuff.ESP_LabelStrokeTransparency = math.clamp(tonumber(v) or 0.5, 0, 1)
 	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+	NAmanage.PartESP_UpdateTexts(true)
 end)
 
-NAgui.addToggle("Show Team In Label", (NAStuff.ESP_ShowTeamText ~= false), function(state)
-	NAStuff.ESP_ShowTeamText = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Name In Label", (NAStuff.ESP_ShowName ~= false), function(state)
-	NAStuff.ESP_ShowName = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Health In Label", (NAStuff.ESP_ShowHealth ~= false), function(state)
-	NAStuff.ESP_ShowHealth = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addToggle("Show Distance In Label", (NAStuff.ESP_ShowDistance ~= false), function(state)
-	NAStuff.ESP_ShowDistance = state
-	NAmanage.SaveESPSettings()
-end)
-
-NAgui.addSection("PartEsp Section")
+NAgui.addSection("Part ESP")
 
 NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), function(state)
 	NAStuff.ESP_ShowPartDistance = state
 	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
 end)
+
+NAgui.addSection("Locator Arrows")
 
 NAgui.addToggle("ESP Locator Arrows", NAStuff.ESP_LocatorEnabled == true, function(state)
 	NAmanage.ESP_SetLocatorEnabled(state)

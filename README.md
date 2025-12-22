@@ -2,140 +2,84 @@
 
 # Nameless Admin (Official Continuation)
 
+Nameless Admin keeps the original script alive and adds new commands, fixes, and plugin support.
+
 <p align="center">
   <img src="Github_Images/na_Proof.png" alt="Proof of Ownership" />
 </p>
 
-> Nameless Admin is the official continuation of the original script. The project maintains legacy functionality and introduces new commands and features.
+---
+
+## TL;DR
+- Main: `loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()`
+- Testing: `loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()`
+- Drop `.na` plugins in `Nameless-Admin/Plugins`
+- Drop `.iy` (Infinite Yield style) plugins in `Nameless-Admin/PluginsIY`
 
 ---
 
-## Table of Contents
-
-<details>
-<summary>Maintainers</summary>
-
-Click a badge to view profiles.
-
-<div align="left">
-  <a href="https://github.com/ltseverydayyou">
-    <img src="https://img.shields.io/badge/Vyperia%20(@ltseverydayyou)-black?logo=github&logoColor=white&labelColor=black" alt="Vyperia GitHub" />
-  </a>
-  <a href="https://github.com/Cosmella-v">
-    <img src="https://img.shields.io/badge/Viper%20(@Cosmella)-darkgreen?logo=github&logoColor=white" alt="Viper GitHub" />
-  </a>
-</div>
-
-<div align="left">
-  <a href="https://scriptblox.com/u/Vyperia">
-    <img src="https://img.shields.io/badge/Vyperia-black.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAKlBMVEVHcEyMff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+DauQDAAAADnRSTlMADFUlMrlw/5X0g+On0vgqudEAAADnSURBVHgBYiAZMKILMIEIZmMgcHFxNgRUIc+IEYUBFIVvbLuKFpE2O4htl3HuQ8wdRH1s2+xiZ9YyePzndOcDEAAgkGa5QBKAidn5Zq0mFXgA/PpglMVafwKhnSaU8DlIBoLbTCDbphRvWGK7COoqOSjC4wEJARJIdgEIN6GF5KANfigh+2BDUDTJTQFaMkkZAhy8ku0iUKUcLYA/yW0I4Ev2FYkQSOZ2ixBKBV4QwGwDKo7UkxPH6cMlDCBJyhWvMOGLZF9lkWLBAimPVVAG/CUNgqj3jJR2DfwM4B/TNEDyid7ZjbYuEbNd7qs3kgsAAAAASUVORK5CYII=" alt="Vyperia on ScriptBlox" />
-  </a>
-  <a href="https://scriptblox.com/u/Viper">
-    <img src="https://img.shields.io/badge/Viper-darkgreen.svg?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAKlBMVEVHcEyMff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+Mff+DauQDAAAADnRSTlMADFUlMrlw/5X0g+On0vgqudEAAADnSURBVHgBYiAZMKILMIEIZmMgcHFxNgRUIc+IEYUBFIVvbLuKFpE2O4htl3HuQ8wdRH1s2+xiZ9YyePzndOcDEAAgkGa5QBKAidn5Zq0mFXgA/PpglMVafwKhnSaU8DlIBoLbTCDbphRvWGK7COoqOSjC4wEJARJIdgEIN6GF5KANfigh+2BDUDTJTQFaMkkZAhy8ku0iUKUcLYA/yW0I4Ev2FYkQSOZ2ixBKBV4QwGwDKo7UkxPH6cMlDCBJyhWvMOGLZF9lkWLBAimPVVAG/CUNgqj3jJR2DfwM4B/TNEDyid7ZjbYuEbNd7qs3kgsAAAAASUVORK5CYII=" alt="Viper on ScriptBlox" />
-  </a>
-</div>
-
-</details>
-
-<details>
-<summary>Project Information</summary>
-
-- **Legacy Script Support:** Old scripts are being fixed and kept functional.
-- **Upcoming Features:** New commands and improvements are in active development.
-
-</details>
-
-<details open>
-<summary>Plugin Support - How It Works</summary>
-
-Add custom commands to Nameless Admin by dropping `.na` plugin files in `Plugins` and `.iy` plugin files in `PluginsIY`.
-
-### Getting Started
-
-1. Open your executor's `Workspace` folder.
-2. Create `Nameless-Admin/Plugins/` (for `.na`) and `Nameless-Admin/PluginsIY/` (for `.iy`) if they don't exist.
-3. Add a plugin file (e.g., `Workspace/Nameless-Admin/Plugins/test.na` or `Workspace/Nameless-Admin/PluginsIY/example.iy`).
-4. Put commands into that file using one of the supported formats below.
+## Quick Setup
+1. Open your executor’s `Workspace` folder.
+2. Make sure these folders exist (create if missing):
+   - `Nameless-Admin/Plugins` for `.na` files
+   - `Nameless-Admin/PluginsIY` for `.iy` files
+3. Put your plugin files inside those folders.
+4. Reload or execute the loader; the script will list what it loaded.
 
 ---
 
-### Supported Formats
-
-You can define commands separately or as a grouped array, and you may mix both styles inside the same file.
-
-#### Separate Command Definitions
+## Making a Simple `.na` Plugin
+Put this in `Nameless-Admin/Plugins/hello.na`:
 
 ```lua
 cmdPluginAdd = {
-    Aliases = {"test", "balls"},
-    ArgsHint = "<arg>",
-    Info = "Displays the argument using DoNotif",
-    Function = function(arg)
-        DoNotif("result: "..tostring(arg))
+    Aliases = {"hello", "hi"},
+    ArgsHint = "<name>",
+    Info = "Say hi",
+    Function = function(name)
+        DoNotif("Hello "..tostring(name))
     end,
     RequiresArguments = true
 }
-
-cmdPluginAdd = {
-    Aliases = {"mixalis"},
-    Info = "test",
-    Function = function()
-        print("g")
-    end,
-    RequiresArguments = false
-}
 ```
 
-#### Grouped as an Array
+You can also group multiple commands in one file:
 
 ```lua
 cmdPluginAdd = {
     {
-        Aliases = {"test", "balls"},
-        ArgsHint = "<arg>",
-        Info = "Displays the argument using DoNotif",
-        Function = function(arg)
-            DoNotif("result: "..tostring(arg))
-        end,
-        RequiresArguments = true
+        Aliases = {"ping"},
+        Info = "Replies with pong",
+        Function = function() DoNotif("pong") end,
+        RequiresArguments = false
     },
     {
-        Aliases = {"mixalis"},
-        Info = "test",
-        Function = function()
-            print("g")
-        end,
-        RequiresArguments = false
+        Aliases = {"say"},
+        ArgsHint = "<text>",
+        Info = "Repeat your text",
+        Function = function(text) DoNotif(text) end,
+        RequiresArguments = true
     }
 }
 ```
 
 ---
 
-#### Infinite Yield-style `.iy` Plugins
-
-Put `.iy` files in `Nameless-Admin/PluginsIY/`. You can use the common Infinite Yield plugin format (a returned `Plugin` table with `Commands`):
+## Making a Simple `.iy` Plugin
+Put this in `Nameless-Admin/PluginsIY/example.iy`:
 
 ```lua
 local Plugin = {
     PluginName = "ExamplePlugin",
-    PluginDescription = "Shows how .iy plugins map into NA commands",
+    PluginDescription = "Shows how .iy maps to NA commands",
     Commands = {
         hello = {
-            ListName = "hello",
+            ListName = "hello/greet",
             Description = "Say hello",
-            Aliases = {"hi", "hey"},
+            Aliases = {"hi"},
             Function = function(args, speaker)
                 local name = args[1] or "world"
-                DoNotif("hello "..tostring(name))
-            end,
-        },
-        echo = {
-            ListName = "echo",
-            Description = "Echo back whatever you type",
-            Aliases = {},
-            Function = function(args, speaker)
-                DoNotif(table.concat(args, " "))
+                DoNotif("Hello "..tostring(name))
             end,
         },
     },
@@ -144,124 +88,49 @@ local Plugin = {
 return Plugin
 ```
 
-### Command Fields
-
-* **Aliases**: first item is the main command name; others are aliases.
-* **ArgsHint**: optional usage hint shown in help (e.g., `"<player> <amount>"`).
-* **Info**: short description shown in the command list.
-* **Function**: code that runs when the command is executed. Receives your arguments if `RequiresArguments` is true.
-* **RequiresArguments**: set to `true` if the command must be called with args.
+Notes for `.iy`:
+- `ListName` can include slashes for multiple names (e.g., `hello/greet`).
+- `Aliases` adds extra names.
+- `Function` receives `(args, speaker)`.
 
 ---
 
-### Running Other Commands From Plugins
-
-Inside plugin files you can call existing commands using any of these aliases:
-
-* `cmdRun(...)`
-* `RunCommand(...)`
-* `runCommand(...)`
-
-They behave like `cmd.run` and accept:
-
-* a single string: `runCommand("fly 50")`
-* varargs: `runCommand("fly", "50")`
-* a token table: `runCommand({"fly","50"})`
-
-Examples:
-
-```lua
-cmdPluginAdd = {
-    Aliases = {"callfly"},
-    ArgsHint = "<speed>",
-    Info = "run 'fly <speed>'",
-    Function = function(speed)
-        local _, err = runCommand("fly "..tostring(speed))
-        if err then DoNotif("run error: "..tostring(err)) end
-    end,
-    RequiresArguments = true
-}
-
-cmdPluginAdd = {
-    Aliases = {"openlogs"},
-    Info = "run 'chatlogs'",
-    Function = function()
-        local _, err = RunCommand("chatlogs")
-        if err then DoNotif("run error: "..tostring(err)) end
-    end,
-    RequiresArguments = false
-}
-```
+## Calling Other Commands From Plugins
+- `cmdRun(...)`, `RunCommand(...)`, or `runCommand(...)`
+- Works with:
+  - a single string: `runCommand("fly 50")`
+  - separate args: `runCommand("fly", "50")`
+  - a token table: `runCommand({"fly","50"})`
 
 ---
 
-### Load Notification
-
-When plugins load, you'll see which file contributed which commands, for example:
+## What Loads Where
+When plugins load you’ll see a list like:
 
 ```
 Loaded plugins:
 
-plugin.na (test, mixalis)
+example.na (hello, greet, hi)
 ```
-
-</details>
-
-<details>
-<summary>Loadstrings</summary>
-
-### Original Script
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/refs/heads/main/Source"))()
-```
-
-### Current Versions
-**Main**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
-```
-
-**Testing**
-```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
-```
-
-</details>
-
-<details>
-<summary>Community</summary>
-
-<div align="left">
-  <a href="https://discord.gg/zzjYhtMGFD">
-    <img src="https://img.shields.io/badge/Nameless_Admin_Discord-969ef2?logo=discord&logoColor=blue&labelColor=969ef2" alt="Join the Discord" />
-  </a>
-</div>
-
-</details>
-
-<details>
-<summary>Credits (Original Owner)</summary>
-
-We appreciate the original creator of Nameless Admin.
-
-<div align="left">
-  <a href="https://github.com/FilteringEnabled">
-    <img src="https://img.shields.io/badge/FilteringEnabled-black?logo=github&logoColor=white&labelColor=black" alt="FilteringEnabled GitHub" />
-  </a>
-  <a href="https://github.com/lxte">
-    <img src="https://img.shields.io/badge/lxte-black?logo=github&logoColor=white" alt="lxte GitHub" />
-  </a>
-</div>
-
-</details>
-
-<details>
-<summary>License</summary>
-
-Licensed under the [MIT License](https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE).
-
-</details>
 
 ---
 
-Feel free to open issues, submit PRs, or drop by the Discord with questions.
+## Maintainers
+- [Vyperia (@ltseverydayyou)](https://github.com/ltseverydayyou)
+- [Viper (@Cosmella)](https://github.com/Cosmella-v)
+
+---
+
+## Community
+- Discord: [https://discord.gg/zzjYhtMGFD](https://discord.gg/zzjYhtMGFD)
+
+---
+
+## Credits (Original Owner)
+- [FilteringEnabled](https://github.com/FilteringEnabled)
+- [lxte](https://github.com/lxte)
+
+---
+
+## License
+MIT — see [LICENSE](https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE).
