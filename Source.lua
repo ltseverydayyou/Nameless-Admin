@@ -17078,6 +17078,43 @@ cmd.add({"rolewatchleave", "unrolewatch"}, {"rolewatchleave (unrolewatch)", "Tog
 	DoNotif(stateText, 3, "Rolewatch")
 end)
 
+cmd.add({"joingroup", "groupjoin"}, {"joingroup [groupId] (groupjoin)", "Open the Roblox join prompt for a group"}, function(groupIdArg)
+	local supplied = tostring(groupIdArg or "")
+	local hasInput = supplied ~= ""
+	local targetId = tonumber(groupIdArg)
+
+	if hasInput and (not targetId or targetId <= 0) then
+		DoNotif("Please provide a valid numeric group id.", 4)
+		return
+	end
+
+	if not targetId or targetId <= 0 then
+		if game.CreatorType == Enum.CreatorType.Group and tonumber(game.CreatorId) then
+			targetId = tonumber(game.CreatorId)
+		else
+			DoNotif("Provide a group id; this game is not owned by a group.", 4)
+			return
+		end
+	end
+
+	local groupService = SafeGetService("GroupService")
+	if not groupService or type(groupService.PromptJoinAsync) ~= "function" then
+		DoNotif("GroupService.PromptJoinAsync is unavailable.", 4)
+		return
+	end
+
+	local ok, res = pcall(function()
+		return groupService:PromptJoinAsync(targetId)
+	end)
+
+	if ok then
+		local groupName = res and res.Name or ("group "..tostring(targetId))
+		DebugNotif("Join prompt opened for "..groupName, 3)
+	else
+		DebugNotif("Failed to open join prompt: "..tostring(res), 4)
+	end
+end)
+
 cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joins the server"}, function()
 	NAlib.disconnect("staffNotifier")
 
@@ -33863,13 +33900,85 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
 	end
 end)
 
-cmd.add({"friend"}, {"friend", "Sends a friend request to your target"}, function(p)
-	local Targets = getPlr(p)
+cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}, function(p)
+	local tg = getPlr(p)
 
-	for Index, Target in next, Targets do
-		LocalPlayer:RequestFriendship(Target)
+	local function dlg()
+		local rg = COREGUI:FindFirstChild("RobloxGui")
+		if not rg then return nil end
+		return rg:FindFirstChild("PromptDialog", true) or rg:FindFirstChild("RobloxPromptGui", true)
 	end
-end,true)
+
+	local function waitPrompt()
+		local t0 = os.clock()
+		while os.clock() - t0 < 2.5 do
+			if dlg() then break end
+			Wait()
+		end
+		t0 = os.clock()
+		while os.clock() - t0 < 60 do
+			local d = dlg()
+			if not d then break end
+			if d:IsA("GuiObject") and not d.Visible then break end
+			Wait()
+		end
+	end
+
+	for _, t in ipairs(tg) do
+		if t and t ~= LocalPlayer and not LocalPlayer:IsFriendsWith(t.UserId) then
+			local ok = pcall(function()
+				StarterGui:SetCore("PromptSendFriendRequest", t)
+			end)
+			if ok then
+				waitPrompt()
+			else
+				pcall(function()
+					LocalPlayer:RequestFriendship(t)
+				end)
+			end
+		end
+	end
+end, true)
+
+cmd.add({"unfriend","unfr"}, {"unfriend <player> (unfr)", "Prompts to unfriend your target"}, function(p)
+	local tg = getPlr(p)
+
+	local function dlg()
+		local rg = COREGUI:FindFirstChild("RobloxGui")
+		if not rg then return nil end
+		return rg:FindFirstChild("PromptDialog", true) or rg:FindFirstChild("RobloxPromptGui", true)
+	end
+
+	local function waitPrompt()
+		local t0 = os.clock()
+		while os.clock() - t0 < 2.5 do
+			if dlg() then break end
+			Wait()
+		end
+		t0 = os.clock()
+		while os.clock() - t0 < 60 do
+			local d = dlg()
+			if not d then break end
+			if d:IsA("GuiObject") and not d.Visible then break end
+			Wait()
+		end
+	end
+
+	for _, t in ipairs(tg) do
+		if t and t ~= LocalPlayer and LocalPlayer:IsFriendsWith(t.UserId) then
+			local ok = pcall(function()
+				StarterGui:SetCore("PromptUnfriend", t)
+			end)
+			if ok then
+				waitPrompt()
+			else
+				pcall(function()
+					LocalPlayer:RevokeFriendship(t)
+				end)
+			end
+		end
+	end
+end, true)
 
 cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"},function()
 	local player=Players.LocalPlayer
