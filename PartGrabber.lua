@@ -317,10 +317,10 @@ bodyGrad.Rotation = 90
 bodyGrad.Parent = body
 
 local bodyPad = Instance.new("UIPadding")
-bodyPad.PaddingTop = UDim.new(0,10)
+bodyPad.PaddingTop = UDim.new(0,8)
 bodyPad.PaddingLeft = UDim.new(0,12)
 bodyPad.PaddingRight = UDim.new(0,12)
-bodyPad.PaddingBottom = UDim.new(0,10)
+bodyPad.PaddingBottom = UDim.new(0,8)
 bodyPad.Parent = body
 
 local bodyList = Instance.new("UIListLayout")
@@ -449,7 +449,7 @@ pathTxt.Parent = pathScroll
 local gridWrap = Instance.new("ScrollingFrame")
 gridWrap.Name = "GridWrap"
 gridWrap.BackgroundTransparency = 1
-gridWrap.Size = UDim2.new(1,0,0,BTN_H * 4 + 8 * 3)
+gridWrap.Size = UDim2.new(1,0,0,BTN_H * 3 + 8 * 2)
 gridWrap.LayoutOrder = 4
 gridWrap.BorderSizePixel = 0
 gridWrap.ScrollBarThickness = 3
