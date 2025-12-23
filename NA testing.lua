@@ -33960,7 +33960,7 @@ cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}
 	end
 end, true)
 
-cmd.add({"unfriend","unfr"}, {"unfriend <player> (unfr)", "Prompts to unfriend your target"}, function(p)
+cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, function(p)
 	local tg = getPlr(p)
 
 	local function dlg()
