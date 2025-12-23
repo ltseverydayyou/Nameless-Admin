@@ -1401,6 +1401,9 @@ local defaultBarCommands = { "settings", "commands", "cmdloop", "nachat", "disco
 local shouldShowDefaultAutofill = false
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
+local searchInputTarget
+local aliasExactCache, aliasPrefixCache = {}, {}
+local savedExactCache, savedPrefixCache = {}, {}
 
 NAmanage.defaultCommandMatches=function(entry, target)
 	if not (entry and target) then
@@ -12447,6 +12450,7 @@ NAmanage.LoadPlugins = function()
 	end
 
 	NAmanage._pluginCommandRecords = NAmanage._pluginCommandRecords or {}
+	NAmanage._pluginCommandSources = NAmanage._pluginCommandSources or {}
 
 	local function normKey(path)
 		if not path then
@@ -12471,6 +12475,9 @@ NAmanage.LoadPlugins = function()
 			if cmds.Aliases[alias] == data then
 				cmds.Aliases[alias] = nil
 			end
+			if type(NAmanage._pluginCommandSources) == "table" then
+				NAmanage._pluginCommandSources[alias] = nil
+			end
 		end
 		NAmanage._pluginCommandRecords[key] = nil
 	end
@@ -12486,9 +12493,14 @@ NAmanage.LoadPlugins = function()
 		else
 			record.aliases = record.aliases or {}
 		end
+		local sourceMap = NAmanage._pluginCommandSources
 		for _, alias in ipairs(aliases) do
 			if type(alias) == "string" and alias ~= "" then
-				record.aliases[alias:lower()] = dataRef
+				local lowerAlias = alias:lower()
+				record.aliases[lowerAlias] = dataRef
+				if type(sourceMap) == "table" then
+					sourceMap[lowerAlias] = { key = key, data = dataRef }
+				end
 			end
 		end
 	end
@@ -12728,6 +12740,33 @@ NAmanage.LoadPlugins = function()
 	end
 
 	return true
+end
+
+NAmanage.IsPluginCommand = function(cmdName)
+	if type(cmdName) ~= "string" then
+		return false
+	end
+	local sources = NAmanage and NAmanage._pluginCommandSources
+	if type(sources) ~= "table" then
+		return false
+	end
+	local lowerName = Lower(cmdName)
+	local entry = sources[lowerName]
+	if not entry then
+		return false
+	end
+	if entry.data and cmds and cmds.Commands and cmds.Commands[lowerName] ~= entry.data then
+		return false
+	end
+	local pluginType
+	if type(entry.key) == "string" then
+		if entry.key:match("%.na$") then
+			pluginType = ".na"
+		elseif entry.key:match("%.iy$") then
+			pluginType = ".iy"
+		end
+	end
+	return true, pluginType, entry.key
 end
 
 NAmanage.InitPlugs=function()
@@ -17170,8 +17209,62 @@ if IsOnMobile then
 	end)
 end
 
-cmd.add({"commandcount","cc"},{"commandcount (cc)","Counds how many commands NA has"},function()
-	DoNotif(adminName.." currently has "..commandcount.." commands")
+NAmanage.NACommandCount=function()
+	local total = 0
+	for _ in pairs(cmds.Commands) do
+		total += 1
+	end
+
+	local pluginTotal, naPluginCount, iyPluginCount = 0, 0, 0
+	local pluginRecords = NAmanage and NAmanage._pluginCommandRecords
+	if type(pluginRecords) == "table" then
+		local seenData = {}
+		for pluginKey, record in pairs(pluginRecords) do
+			local aliases = type(record) == "table" and record.aliases
+			if type(aliases) == "table" then
+				for alias, data in pairs(aliases) do
+					if data and not seenData[data] and cmds.Commands[alias] == data then
+						seenData[data] = true
+						pluginTotal += 1
+						if type(pluginKey) == "string" then
+							if pluginKey:match("%.na$") then
+								naPluginCount += 1
+							elseif pluginKey:match("%.iy$") then
+								iyPluginCount += 1
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	local core = total - pluginTotal
+	if core < 0 then
+		core = total
+	end
+
+	return total, core, naPluginCount, iyPluginCount, pluginTotal
+end
+
+cmd.add({"commandcount","cc"},{"commandcount (cc)","Counts how many commands NA has"},function()
+	local total, core, naPlugins, iyPlugins, pluginTotal = NAmanage.NACommandCount()
+	local msg = adminName.." currently has "..core.." core command"..((core == 1) and "" or "s")
+	if pluginTotal > 0 then
+		local pluginParts = {}
+		if naPlugins > 0 then
+			Insert(pluginParts, naPlugins.." from .na plugins")
+		end
+		if iyPlugins > 0 then
+			Insert(pluginParts, iyPlugins.." from .iy plugins")
+		end
+		msg = msg.." + "..pluginTotal.." plugin command"..((pluginTotal == 1) and "" or "s")
+		if #pluginParts > 0 then
+			msg = msg.." ("..Concat(pluginParts, ", ")..")"
+		end
+		msg = msg.." = "..total.." total"
+	end
+	DoNotif(msg)
 end)
 
 cmd.add({"flyfling","ff"}, {"flyfling (ff)", "makes you fly and fling"}, function()
@@ -42372,12 +42465,14 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 end)
 
 --[[ GUI FUNCTIONS ]]--
+local pluginCommandColor = Color3.fromRGB(255, 196, 125)
 NAgui.txtSize=function(ui,x,y)
 	local textService=TextService
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
 end
 NAgui.commands = function()
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
+	local defaultCmdColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
 
 	if not cFrame.Visible then
 		cFrame.Visible = true
@@ -42401,7 +42496,23 @@ NAgui.commands = function()
 		else
 			displayText = (type(tbl[2]) == "table" and tbl[2][1]) or cmdName
 		end
-		Cmd.Text = " "..displayText
+		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(cmdName)
+		local finalText = displayText
+		if isPluginCmd then
+			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
+			Cmd.TextColor3 = pluginCommandColor
+			if Cmd.SetAttribute then
+				Cmd:SetAttribute("IsPluginCommand", true)
+			end
+		else
+			if defaultCmdColor then
+				Cmd.TextColor3 = defaultCmdColor
+			end
+			if Cmd.SetAttribute then
+				Cmd:SetAttribute("IsPluginCommand", false)
+			end
+		end
+		Cmd.Text = " "..finalText
 		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
 		Cmd.MouseEnter:Connect(function()
@@ -44887,6 +44998,8 @@ NAgui.loadCMDS = function()
 	if layout then
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 	end
+	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
+	local defaultInputColor = templateInput and templateInput.TextColor3
 	CMDAUTOFILL = {}
 	local names = {}
 	for name in pairs(cmds.Commands) do
@@ -44915,7 +45028,25 @@ NAgui.loadCMDS = function()
 		local btn = NAUIMANAGER.cmdExample:Clone()
 		btn.Parent = NAUIMANAGER.cmdAutofill
 		btn.Name = name
-		btn.Input.Text = displayText
+		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(name)
+		local finalDisplay = displayText
+		if isPluginCmd then
+			finalDisplay = finalDisplay.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
+			if btn.Input then
+				btn.Input.TextColor3 = pluginCommandColor
+			end
+			if btn.SetAttribute then
+				btn:SetAttribute("IsPluginCommand", true)
+			end
+		else
+			if btn.Input and defaultInputColor then
+				btn.Input.TextColor3 = defaultInputColor
+			end
+			if btn.SetAttribute then
+				btn:SetAttribute("IsPluginCommand", false)
+			end
+		end
+		btn.Input.Text = finalDisplay
 		i += 1
 		btn.LayoutOrder = i
 		Insert(CMDAUTOFILL, btn)
@@ -45041,32 +45172,31 @@ function fixStupidSearchGoober(cmdName, command)
 	return updTxt, final
 end
 
-NAmanage.computeScore=function(entry,term,len)
+NAmanage.computeScore=function(entry,term,len,aliasExact,savedExact,aliasPrefix,savedPrefix)
 	if not entry or not entry.name or not entry.lowerName then return end
 	local cmdEntry = cmds.Commands and cmds.Commands[entry.name] or nil
-	local aliasesTbl = cmds.Aliases or {}
-	local savedAliasesTbl = cmds.NASAVEDALIASES or {}
 
 	if entry.lowerName == term then return 1,entry.name end
 	if Sub(entry.lowerName,1,len) == term then return 2,entry.name end
 
-	local termAliases = aliasesTbl[term]
-	if cmdEntry and type(termAliases) == "table" and termAliases[1] == cmdEntry[1] then
-		return 3,term
+	if cmdEntry then
+		local exactAlias = aliasExact[entry.name]
+		if exactAlias then
+			return 3, exactAlias
+		end
 	end
-	if savedAliasesTbl[term] == entry.name then return 3,term end
+	if savedExact[entry.name] then
+		return 3, savedExact[entry.name]
+	end
 
 	if cmdEntry then
-		for alias,real in pairs(aliasesTbl) do
-			if type(real) == "table" and real[1] == cmdEntry[1] and Sub(alias,1,len) == term then
-				return 4,alias
-			end
+		local prefixAlias = aliasPrefix[entry.name]
+		if prefixAlias then
+			return 4, prefixAlias
 		end
 	end
-	for alias,real in pairs(savedAliasesTbl) do
-		if real == entry.name and Sub(alias,1,len) == term then
-			return 4,alias
-		end
+	if savedPrefix[entry.name] then
+		return 4, savedPrefix[entry.name]
 	end
 
 	local extraAliases = entry.extraAliases or {}
@@ -45091,6 +45221,20 @@ NAmanage.performSearch = function(term)
 	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
+	local function pushTop(candidate)
+		local insertAt = #results + 1
+		for idx = 1, #results do
+			local existing = results[idx]
+			if candidate.score < existing.score or (candidate.score == existing.score and candidate.name < existing.name) then
+				insertAt = idx
+				break
+			end
+		end
+		table.insert(results, insertAt, candidate)
+		if #results > 5 then
+			table.remove(results)
+		end
+	end
 
 	local function revealFrame(frame, index)
 		if not frame then return end
@@ -45143,39 +45287,68 @@ NAmanage.performSearch = function(term)
 	end
 
 	local len = #term
-	for _, entry in ipairs(searchIndex) do
-		local sc, txt = NAmanage.computeScore(entry, term, len)
-		if sc then
-			Insert(results, {frame = entry.frame, score = sc, text = txt, name = entry.name})
+	table.clear(aliasExactCache)
+	table.clear(savedExactCache)
+	table.clear(aliasPrefixCache)
+	table.clear(savedPrefixCache)
+	local dataToName = {}
+	for cmdName, data in pairs(cmds.Commands or {}) do
+		dataToName[data] = cmdName
+	end
+	for alias, data in pairs(cmds.Aliases or {}) do
+		local targetName = dataToName[data]
+		if targetName then
+			if alias == term then
+				aliasExactCache[targetName] = alias
+			end
+			if Sub(alias,1,len) == term then
+				aliasPrefixCache[targetName] = alias
+			end
 		end
 	end
-
-	table.sort(results, function(a, b)
-		if a.score == b.score then return a.name < b.name end
-		return a.score < b.score
-	end)
+	for alias, original in pairs(cmds.NASAVEDALIASES or {}) do
+		if alias == term then
+			savedExactCache[original] = alias
+		end
+		if Sub(alias,1,len) == term then
+			savedPrefixCache[original] = alias
+		end
+	end
+	for _, entry in ipairs(searchIndex) do
+		local sc, txt = NAmanage.computeScore(entry, term, len, aliasExactCache, savedExactCache, aliasPrefixCache, savedPrefixCache)
+		if sc then
+			pushTop({frame = entry.frame, score = sc, text = txt, name = entry.name})
+		end
+	end
 
 	local topText = (results[1] and results[1].text) or ""
 	predictionInput.Text = NAmanage.stripChar(topText)
 
-	for i = 1, math.min(5, #results) do
+	for i = 1, #results do
 		local r = results[i]
 		revealFrame(r.frame, i)
 	end
 end
 
 NAgui.searchCommands = function()
+	if not NAUIMANAGER.cmdInput then return end
+	if searchInputTarget == NAUIMANAGER.cmdInput and NAlib.isConnected("SearchInput") then
+		return
+	end
 	if NAlib.isConnected("SearchInput") then NAlib.disconnect("SearchInput") end
+	searchInputTarget = NAUIMANAGER.cmdInput
 	NAlib.connect("SearchInput",NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
 		shouldShowDefaultAutofill = cleaned == ""
 		local isBlank = cleaned == "" or cleaned:match("^%s*$")
-		if cleaned==lastSearchText and not isBlank then return end
-		lastSearchText=cleaned
-		gen+=1
-		local thisGen=gen
+		if cleaned == lastSearchText then
+			return
+		end
+		lastSearchText = cleaned
+		gen += 1
+		local thisGen = gen
 		Delay(0.08,function()
-			if thisGen~=gen then return end
+			if thisGen ~= gen then return end
 			NAmanage.performSearch(cleaned)
 		end)
 	end))
@@ -45354,6 +45527,7 @@ end
 
 NAgui.filterCommandList = function(rawText)
 	if not NAUIMANAGER.commandsList then return end
+	local templateColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
 	local searchText = NAgui.normalizeCommandFilter(rawText)
 	for _, label in ipairs(NAUIMANAGER.commandsList:GetChildren()) do
 		if label:IsA("TextLabel") then
@@ -45392,7 +45566,23 @@ NAgui.filterCommandList = function(rawText)
 				end
 				label.Visible = matches and true or false
 				if matches then
-					label.Text = " "..displayText
+					local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(cmdName)
+					local finalText = displayText
+					if isPluginCmd then
+						finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
+						label.TextColor3 = pluginCommandColor
+						if label.SetAttribute then
+							label:SetAttribute("IsPluginCommand", true)
+						end
+					else
+						if templateColor then
+							label.TextColor3 = templateColor
+						end
+						if label.SetAttribute then
+							label:SetAttribute("IsPluginCommand", false)
+						end
+					end
+					label.Text = " "..finalText
 				end
 			else
 				label.Visible = searchText == ""
