@@ -1337,10 +1337,6 @@ end)
 
 NAmanage.loadCmdIntegration=function(opts)
 	opts = opts or {}
-	local detected, source = NAmanage.detectCmdManualLoad({ silent = true })
-	if detected and NAStuff.CmdIntegrationLoaded then
-		return true, source or "Cmd detected"
-	end
 
 	local function fetchFile(path)
 		if not (FileSupport and type(isfile) == "function" and isfile(path)) then
@@ -9303,7 +9299,6 @@ NAmanage.updateLastCommand=function(rawArgs)
 end
 
 NAmanage.tryCmdIntegration=function(rawArgs)
-	NAmanage.detectCmdManualLoad()
 	local bridge = NAStuff.CmdIntegrationBridge
 	if (not bridge or type(bridge.parse) ~= "function") and getgenv then
 		local g = getgenv()
@@ -43012,7 +43007,6 @@ NAgui.txtSize=function(ui,x,y)
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
 end
 NAmanage.buildCommandEntries=function()
-	NAmanage.detectCmdManualLoad({ silent = true })
 	local entries = {}
 	local metaByName = {}
 	local used = {}
@@ -43152,7 +43146,6 @@ NAmanage.buildCommandEntries=function()
 end
 
 NAmanage.totalCommandCount=function()
-	NAmanage.detectCmdManualLoad({ silent = true })
 	local count = countDictNA(cmds.Commands)
 	if type(NAStuff.CmdIntegrationCommands) == "table" then
 		count = count + #NAStuff.CmdIntegrationCommands
