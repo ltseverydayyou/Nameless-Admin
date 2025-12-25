@@ -985,6 +985,9 @@ local NAStuff = {
 	AutoExecEnabled = true;
 	UserButtonsAutoLoad = true;
 	CmdBar2AutoRun = false;
+	CmdIntegrationAutoRun = false;
+	CmdIntegrationLoaded = false;
+	CmdIntegrationLastSource = nil;
 	tweenSpeed = 1;
 	originalDesc = nil;
 	currentDesc = nil;
@@ -1141,6 +1144,8 @@ opt={
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
 	NA_storage=nil;--Stupid Ahh script removing folders
+	cmdIntegrationUrl = "https://raw.githubusercontent.com/lxte/cmd/main/main.lua";
+	cmdIntegrationFallbackUrl = "https://raw.githubusercontent.com/lxte/cmd/main/testing-main.lua";
 	NAREQUEST = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or function() end;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
@@ -1309,6 +1314,359 @@ end
 Defer(function()
 	NAmanage.btUpdate()
 end)
+
+NAmanage.loadCmdIntegration=function(opts)
+	opts = opts or {}
+	local detected, source = NAmanage.detectCmdManualLoad({ silent = true })
+	if detected and NAStuff.CmdIntegrationLoaded then
+		return true, source or "Cmd detected"
+	end
+
+	local function fetchFile(path)
+		if not (FileSupport and type(isfile) == "function" and isfile(path)) then
+			return nil, nil, "file not found"
+		end
+		local ok, raw = pcall(readfile, path)
+		if ok and type(raw) == "string" and raw ~= "" then
+			return raw, "file:"..path
+		end
+		return nil, nil, Format("unable to read %s", tostring(path))
+	end
+
+	local function fetchUrl(url)
+		if type(url) ~= "string" or url == "" then
+			return nil, nil, "invalid url"
+		end
+
+		local request = opt and opt.NAREQUEST
+		if type(request) == "function" then
+			local ok, response = pcall(request, {
+				Url = url;
+				Method = "GET";
+				Timeout = 10;
+				FollowRedirects = true;
+				SslVerify = false;
+			})
+			if ok and response then
+				local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
+				if type(body) == "string" and body ~= "" then
+					return body, url
+				end
+			end
+		end
+
+		local ok, body = pcall(function()
+			return game:HttpGet(url)
+		end)
+		if ok and type(body) == "string" and body ~= "" then
+			return body, url
+		end
+
+		return nil, nil, "request failed"
+	end
+
+	if NAStuff.CmdIntegrationLoading then
+		return false, "Cmd is already loading"
+	end
+	if NAStuff.CmdIntegrationLoaded then
+		if not opts.silent and type(DebugNotif) == "function" then
+			DebugNotif("Cmd is already loaded.", 2)
+		end
+		return true, NAStuff.CmdIntegrationLastSource
+	end
+
+	local sources = {}
+
+	local function pushFile(path)
+		if FileSupport and type(isfile) == "function" and path and path ~= "" and isfile(path) then
+			Insert(sources, { kind = "file", value = path })
+		end
+	end
+
+	pushFile(opts.path)
+	pushFile("cmd/main.lua")
+	pushFile("Cmd/main.lua")
+
+	local function pushUrl(url)
+		if url and url ~= "" then
+			Insert(sources, { kind = "url", value = url })
+		end
+	end
+
+	pushUrl(opts.url)
+	pushUrl(opt.cmdIntegrationUrl)
+	pushUrl(opt.cmdIntegrationFallbackUrl)
+
+	local raw, sourceLabel
+	local lastError
+
+	for _, src in ipairs(sources) do
+		if src.kind == "file" then
+			raw, sourceLabel, lastError = fetchFile(src.value)
+		else
+			raw, sourceLabel, lastError = fetchUrl(src.value)
+		end
+		if raw and raw ~= "" then
+			break
+		end
+	end
+
+	if not raw or raw == "" then
+		return false, lastError or "unable to fetch Cmd script"
+	end
+
+	local bridgeSuffix = [[
+;local _g=(getgenv and getgenv()) or _G
+;local function _cmdList()
+	local out={}
+	if type(Commands)=="table" then
+		for n,d in pairs(Commands) do
+			local aliases={}
+			if type(d)=="table" and type(d[1])=="table" then
+				for _,a in ipairs(d[1]) do
+					aliases[#aliases+1]=tostring(a)
+				end
+			end
+			local desc=""
+			if type(d)=="table" then
+				local ds=d[2]
+				if type(ds)=="table" then
+					desc=ds[1] or ""
+				elseif type(ds)=="string" then
+					desc=ds
+				end
+			end
+			out[#out+1]={name=tostring(n),aliases=aliases,desc=desc}
+		end
+	end
+	return out
+end
+;local _b={parse=(Command and Command.Parse),run=(Command and Command.Run),prefix=(Settings and Settings.Prefix),list=_cmdList}
+;if _g then _g.CmdIntegrationBridge=_b end
+;return _b]]
+	raw = raw..bridgeSuffix
+
+	local chunk, compileErr = loadstring(raw, "CmdIntegration")
+	if not chunk then
+		return false, compileErr or "compile error"
+	end
+
+	NAStuff.CmdIntegrationLoading = true
+	local ok, result = pcall(chunk)
+	NAStuff.CmdIntegrationLoading = false
+
+	if not ok then
+		return false, result
+	end
+
+	NAStuff.CmdIntegrationLoaded = true
+	NAStuff.CmdIntegrationLastSource = sourceLabel
+	local bridge = result or (getgenv and getgenv().CmdIntegrationBridge)
+	if type(bridge) == "table" then
+		NAStuff.CmdIntegrationBridge = bridge
+		if type(bridge.prefix) == "string" and bridge.prefix ~= "" then
+			NAStuff.CmdIntegrationPrefix = bridge.prefix
+		end
+		if type(bridge.list) == "function" then
+			local okList, list = pcall(bridge.list)
+			if okList and type(list) == "table" then
+				NAStuff.CmdIntegrationCommands = list
+			else
+				NAStuff.CmdIntegrationCommands = nil
+			end
+		end
+	end
+
+	if NAgui and NAgui.loadCMDS then
+		pcall(NAgui.loadCMDS)
+	end
+
+	if not opts.silent and type(DoNotif) == "function" then
+		local label = sourceLabel or "Cmd"
+		DoNotif("Cmd loaded", 3)
+	end
+
+	return true, sourceLabel
+end
+
+NAmanage._naIsCmdCommandEntry=function(data)
+	return type(data) == "table"
+		and type(data[1]) == "table"
+		and type(data[5]) == "function"
+end
+
+NAmanage._naIsCmdCommandsTable=function(tbl)
+	if type(tbl) ~= "table" then
+		return false
+	end
+	local seen = 0
+	for key, value in pairs(tbl) do
+		if type(key) ~= "string" then
+			return false
+		end
+		if NAmanage._naIsCmdCommandEntry(value) then
+			seen += 1
+			if seen >= 3 then
+				return true
+			end
+		end
+	end
+	return seen > 0
+end
+
+NAmanage.detectCmdManualLoad=function(opts)
+	opts = opts or {}
+
+	local function warnSafe(msg)
+		if opts.silent then return end
+		if type(warn) == "function" then
+			warn("[NA Cmd detect] "..tostring(msg))
+		end
+	end
+
+	local ok, result, label = pcall(function()
+		if NAStuff.CmdIntegrationLoaded and NAStuff.CmdIntegrationBridge then
+			return true, "already-loaded"
+		end
+
+		local existingBridge = (getgenv and getgenv().CmdIntegrationBridge) or nil
+		if type(existingBridge) == "table" and type(existingBridge.parse) == "function" then
+			NAStuff.CmdIntegrationBridge = existingBridge
+			NAStuff.CmdIntegrationLoaded = true
+			NAStuff.CmdIntegrationLastSource = "manual-bridge"
+			if type(existingBridge.prefix) == "string" and existingBridge.prefix ~= "" then
+				NAStuff.CmdIntegrationPrefix = existingBridge.prefix
+			end
+			if type(existingBridge.list) == "function" then
+				local okList, list = pcall(existingBridge.list)
+				if okList and type(list) == "table" then
+					NAStuff.CmdIntegrationCommands = list
+				end
+			end
+			return true, "manual-bridge"
+		end
+
+		local commandsTable
+		local commandModule
+		local settingsTable
+
+		local env = (getgenv and getgenv()) or _G or {}
+		if not commandsTable and NAmanage._naIsCmdCommandsTable(env.Commands) then
+			commandsTable = env.Commands
+		end
+		if not commandModule and type(env.Command) == "table" and type(env.Command.Parse) == "function" and type(env.Command.Run) == "function" then
+			commandModule = env.Command
+		end
+		if not settingsTable and type(env.Settings) == "table" and type(rawget(env.Settings, "Prefix")) == "string" and type(rawget(env.Settings, "ChatPrefix")) == "string" then
+			settingsTable = env.Settings
+		end
+
+		if type(getgc) ~= "function" then
+			if commandsTable and commandModule then else
+				return false, "introspection-unavailable"
+			end
+		end
+
+		if type(getgc) == "function" then
+			for _, obj in ipairs(getgc(true)) do
+				if type(obj) == "table" then
+					if not commandsTable and NAmanage._naIsCmdCommandsTable(obj) then
+						commandsTable = obj
+					end
+					if not commandModule and type(rawget(obj, "Parse")) == "function" and type(rawget(obj, "Run")) == "function" then
+						commandModule = obj
+					end
+					if not settingsTable and type(rawget(obj, "Prefix")) == "string" and type(rawget(obj, "ChatPrefix")) == "string" then
+						settingsTable = obj
+					end
+				end
+				if commandsTable and commandModule and settingsTable then
+					break
+				end
+			end
+		end
+
+		if (not commandsTable or not commandModule) and type(debug) == "table" and type(debug.getupvalue) == "function" then
+			if commandModule and type(commandModule.Parse) == "function" then
+				local idx = 1
+				while true do
+					local name, val = debug.getupvalue(commandModule.Parse, idx)
+					if not name then break end
+					if not commandsTable and NAmanage._naIsCmdCommandsTable(val) then
+						commandsTable = val
+					end
+					if not settingsTable and type(val) == "table" and type(rawget(val, "Prefix")) == "string" and type(rawget(val, "ChatPrefix")) == "string" then
+						settingsTable = val
+					end
+					idx += 1
+				end
+			end
+		end
+
+		if not commandsTable or not commandModule then
+			return false, "cmd-not-found"
+		end
+
+		local function buildList()
+			local out = {}
+			for name, data in pairs(commandsTable) do
+				local aliases = {}
+				if type(data[1]) == "table" then
+					for _, a in ipairs(data[1]) do
+						local aa = tostring(a or "")
+						if aa ~= "" then
+							Insert(aliases, aa)
+						end
+					end
+				end
+				local desc = ""
+				if type(data[2]) == "table" then
+					desc = data[2][1] or data[2][2] or ""
+				elseif type(data[2]) == "string" then
+					desc = data[2]
+				end
+				out[#out + 1] = { name = tostring(name), aliases = aliases, desc = desc }
+			end
+			table.sort(out, function(a, b)
+				return tostring(a.name) < tostring(b.name)
+			end)
+			return out
+		end
+
+		local prefix = (settingsTable and settingsTable.Prefix) or ";"
+		local bridge = {
+			parse = function(ignoreNotifs, line)
+				return commandModule.Parse(ignoreNotifs, line)
+			end;
+			run = commandModule.Run;
+			prefix = prefix;
+			list = buildList;
+		}
+
+		NAStuff.CmdIntegrationBridge = bridge
+		if type(prefix) == "string" and prefix ~= "" then
+			NAStuff.CmdIntegrationPrefix = prefix
+		end
+		local okList, list = pcall(buildList)
+		if okList and type(list) == "table" then
+			NAStuff.CmdIntegrationCommands = list
+		end
+		NAStuff.CmdIntegrationLoaded = true
+		NAStuff.CmdIntegrationLastSource = "manual-detect"
+
+		if not opts.silent and NAgui and NAgui.loadCMDS then
+			pcall(NAgui.loadCMDS)
+		end
+
+		return true, "manual-detect"
+	end)
+
+	if not ok then
+		warnSafe(result)
+		return false, "manual-detect-error"
+	end
+	return result, label
+end
 
 NAmanage.resolveTweenDuration=function(scale)
 	local base = tonumber(NAStuff.tweenSpeed) or 1
@@ -6535,6 +6893,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		cmdIntegrationAutoRun = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		chatTranslate = {
 			default = true;
 			coerce = function(value)
@@ -7742,6 +8106,7 @@ end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
+NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 
 if FileSupport then
@@ -8540,12 +8905,14 @@ end
 
 NAmanage.rebuildIndex=function()
 	table.clear(searchIndex)
+	local metaByName = NAStuff.AutofillMetaByName or {}
 	for _,frame in ipairs(CMDAUTOFILL) do
 		local cmdName = frame.Name
+		local meta = metaByName[cmdName]
 		local command = cmds.Commands[cmdName]
-		local displayInfo = ""
-		local extra = {}
-		if command then
+		local displayInfo = meta and meta.displayText or ""
+		local extra = (meta and meta.aliases) or {}
+		if command and displayInfo == "" then
 			local updatedText, aliasList = fixStupidSearchGoober(cmdName, command)
 			if updatedText and type(command[2]) == "table" then
 				command[2][1] = updatedText
@@ -8556,13 +8923,14 @@ NAmanage.rebuildIndex=function()
 			end
 		end
 		local lowerName = Lower(cmdName)
-		local searchable = NAmanage.stripMarkup(Lower(displayInfo))
+		local searchable = NAmanage.stripMarkup(Lower((meta and meta.searchable) or displayInfo))
 		Insert(searchIndex,{
 			name = cmdName,
 			lowerName = lowerName,
 			searchable = searchable,
 			extraAliases = extra,
-			frame = frame
+			frame = frame,
+			meta = meta
 		})
 	end
 end
@@ -8914,6 +9282,40 @@ NAmanage.updateLastCommand=function(rawArgs)
 	NAStuff._lastCommand = rawArgs
 end
 
+NAmanage.tryCmdIntegration=function(rawArgs)
+	NAmanage.detectCmdManualLoad()
+	local bridge = NAStuff.CmdIntegrationBridge
+	if (not bridge or type(bridge.parse) ~= "function") and getgenv then
+		local g = getgenv()
+		if g and type(g.CmdIntegrationBridge) == "table" and type(g.CmdIntegrationBridge.parse) == "function" then
+			bridge = g.CmdIntegrationBridge
+			NAStuff.CmdIntegrationBridge = bridge
+		end
+	end
+	if not bridge or type(bridge.parse) ~= "function" then
+		return false
+	end
+	local args = rawArgs
+	if type(args) == "table" and type(args[1]) == "string" then
+		local first = args[1]
+		if Sub(first, 1, 4):lower() == "cmd:" then
+			args = NAmanage.cloneArgsArray(rawArgs)
+			args[1] = Sub(first, 5)
+		end
+	end
+	local prefix = bridge.prefix
+	if type(prefix) ~= "string" or prefix == "" then
+		prefix = ";"
+	end
+	local parts = {}
+	for _, v in ipairs(args) do
+		parts[#parts + 1] = tostring(v or "")
+	end
+	local line = prefix..Concat(parts, " ")
+	local ok = pcall(bridge.parse, true, line)
+	return ok == true
+end
+
 --[[ COMMAND FUNCTIONS ]]--
 local commandcount=0
 Loops = {}
@@ -8963,6 +9365,12 @@ cmd.run = function(args)
 				NAmanage.updateLastCommand(rawArgs)
 			end
 		else
+			if NAmanage.tryCmdIntegration(rawArgs) then
+				if shouldRecord then
+					NAmanage.updateLastCommand(rawArgs)
+				end
+				return
+			end
 			local closest = callerLower and didYouMean(callerLower) or nil
 			if closest and doPREDICTION then
 				local commandFunc = cmds.Commands[closest] and cmds.Commands[closest][1] or cmds.Aliases[closest] and cmds.Aliases[closest][1]
@@ -12475,6 +12883,9 @@ NAmanage.LoadPlugins = function()
 			if cmds.Aliases[alias] == data then
 				cmds.Aliases[alias] = nil
 			end
+			if cmds.PluginSources then
+				cmds.PluginSources[alias] = nil
+			end
 			if type(NAmanage._pluginCommandSources) == "table" then
 				NAmanage._pluginCommandSources[alias] = nil
 			end
@@ -12493,16 +12904,87 @@ NAmanage.LoadPlugins = function()
 		else
 			record.aliases = record.aliases or {}
 		end
+		cmds.PluginSources = cmds.PluginSources or {}
 		local sourceMap = NAmanage._pluginCommandSources
 		for _, alias in ipairs(aliases) do
 			if type(alias) == "string" and alias ~= "" then
 				local lowerAlias = alias:lower()
 				record.aliases[lowerAlias] = dataRef
+				cmds.PluginSources[lowerAlias] = key
 				if type(sourceMap) == "table" then
 					sourceMap[lowerAlias] = { key = key, data = dataRef }
 				end
 			end
 		end
+	end
+
+	local function formatAliasSwapNote(replacements)
+		if not replacements then
+			return nil
+		end
+		local parts = {}
+		for from, to in pairs(replacements) do
+			parts[#parts + 1] = tostring(from).."→"..tostring(to)
+		end
+		if #parts == 0 then
+			return nil
+		end
+		table.sort(parts)
+		return "Conflicting aliases remapped: "..Concat(parts, ", ")
+	 end
+
+	local function makeUniqueAliases(key, aliases)
+		local out = {}
+		local replaced = {}
+		local seenLocal = {}
+		local sourceMap = NAmanage._pluginCommandSources or {}
+
+		local function aliasTaken(lowerAlias, thisKey)
+			local src = sourceMap[lowerAlias]
+			if src and src.key and src.key ~= thisKey then
+				return true
+			end
+			-- also consider core/other commands
+			if cmds and cmds.Commands and cmds.Commands[lowerAlias] then
+				local srcRec = sourceMap[lowerAlias]
+				if not srcRec or (srcRec.key ~= thisKey) then
+					return true
+				end
+			end
+			return false
+		end
+
+		local function reserveAlias(baseAlias)
+			local counter = 1
+			local attempt = "plugin:"..baseAlias
+			local lower = attempt:lower()
+			while aliasTaken(lower, key) do
+				counter += 1
+				attempt = "plugin"..tostring(counter)..":"..baseAlias
+				lower = attempt:lower()
+			end
+			return attempt, lower
+		end
+
+		for _, alias in ipairs(aliases or {}) do
+			local name = tostring(alias or "")
+			if name ~= "" then
+				local lower = name:lower()
+				if not seenLocal[lower] then
+					seenLocal[lower] = true
+					if aliasTaken(lower, key) then
+						local newAlias, newLower = reserveAlias(name)
+						replaced[name] = newAlias
+						out[#out + 1] = newAlias
+						seenLocal[newLower] = true
+					else
+						out[#out + 1] = name
+					end
+				end
+			end
+		end
+
+		return out, replaced
 	end
 
 	local loadedSumm = {}
@@ -12626,7 +13108,13 @@ NAmanage.LoadPlugins = function()
 		end
 		setmetatable(gameProxy, {
 			__index = function(_, k)
-				return rawGame[k]
+				local v = rawGame[k]
+				if type(v) == "function" then
+					return function(_, ...)
+						return v(rawGame, ...)
+					end
+				end
+				return v
 			end
 		})
 
@@ -12699,14 +13187,24 @@ NAmanage.LoadPlugins = function()
 			local aliases = plugin.Aliases
 			local handler = plugin.Function
 			if type(aliases) == "table" and type(handler) == "function" then
-				local argsHint = plugin.ArgsHint or ""
-				local formattedDisplay = formatInfo(aliases, argsHint)
-				local info = { formattedDisplay, plugin.Info or "No description" }
-				cmd.add(aliases, info, handler, plugin.RequiresArguments or false)
-				local primaryLow = aliases[1] and type(aliases[1]) == "string" and aliases[1]:lower() or nil
-				local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
-				AddCmdPlug(pluginKey, aliases, dataRef)
-				Insert(cmdNames, aliases[1])
+				local uniqueAliases, replacedAliases = makeUniqueAliases(pluginKey, aliases)
+				if #uniqueAliases == 0 then
+					DoWindow("[Plugin Invalid] '"..file.."' has no usable aliases (conflicts removed)")
+				else
+					local argsHint = plugin.ArgsHint or ""
+					local formattedDisplay = formatInfo(uniqueAliases, argsHint)
+					local desc = plugin.Info or "No description"
+					local note = formatAliasSwapNote(replacedAliases)
+					if note then
+						desc = desc .. " | " .. note
+					end
+					local info = { formattedDisplay, desc }
+					cmd.add(uniqueAliases, info, handler, plugin.RequiresArguments or false)
+					local primaryLow = uniqueAliases[1] and type(uniqueAliases[1]) == "string" and uniqueAliases[1]:lower() or nil
+					local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+					AddCmdPlug(pluginKey, uniqueAliases, dataRef)
+					Insert(cmdNames, uniqueAliases[1])
+				end
 			else
 				DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
 			end
@@ -12739,6 +13237,10 @@ NAmanage.LoadPlugins = function()
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSumm, "\n\n"), 5.7)
 	end
 
+	if NAgui and NAgui.loadCMDS then
+		pcall(NAgui.loadCMDS)
+	end
+
 	return true
 end
 
@@ -12748,25 +13250,39 @@ NAmanage.IsPluginCommand = function(cmdName)
 	end
 	local sources = NAmanage and NAmanage._pluginCommandSources
 	if type(sources) ~= "table" then
-		return false
+		sources = {}
 	end
 	local lowerName = Lower(cmdName)
 	local entry = sources[lowerName]
-	if not entry then
-		return false
-	end
-	if entry.data and cmds and cmds.Commands and cmds.Commands[lowerName] ~= entry.data then
-		return false
-	end
-	local pluginType
-	if type(entry.key) == "string" then
-		if entry.key:match("%.na$") then
-			pluginType = ".na"
-		elseif entry.key:match("%.iy$") then
-			pluginType = ".iy"
+	if entry then
+		if entry.data and cmds and cmds.Commands and cmds.Commands[lowerName] ~= entry.data then
+			return false
 		end
+		local pluginType
+		if type(entry.key) == "string" then
+			if entry.key:match("%.na$") then
+				pluginType = ".na"
+			elseif entry.key:match("%.iy$") then
+				pluginType = ".iy"
+			end
+		end
+		return true, pluginType, entry.key
 	end
-	return true, pluginType, entry.key
+
+	if cmds and cmds.PluginSources and cmds.PluginSources[lowerName] then
+		local key = cmds.PluginSources[lowerName]
+		local pluginType
+		if type(key) == "string" then
+			if key:match("%.na$") then
+				pluginType = ".na"
+			elseif key:match("%.iy$") then
+				pluginType = ".iy"
+			end
+		end
+		return true, pluginType, key
+	end
+
+	return false
 end
 
 NAmanage.InitPlugs=function()
@@ -12936,11 +13452,11 @@ NAmanage.InitPlugs=function()
 		end
 	)
 
-	cmd.add(
-		{"reloadplugin","relplug","rp"},
-		{"reloadplugin [name]","Reload plugin files (reloads all if no name provided)"},
-		function(...)
-			if not CustomFunctionSupport or not (NAmanage and NAmanage.LoadPlugins) then
+cmd.add(
+	{"reloadplugin","relplug","rp"},
+	{"reloadplugin [name]","Reload plugin files (reloads all if no name provided)"},
+	function(...)
+		if not CustomFunctionSupport or not (NAmanage and NAmanage.LoadPlugins) then
 				DoNotif("Plugin loader unavailable",3)
 				return
 			end
@@ -12971,6 +13487,10 @@ NAmanage.InitPlugs=function()
 			end
 			if not NAmanage.LoadPlugins() then
 				DoNotif("Failed to reload plugins",3)
+			else
+				if NAgui and NAgui.loadCMDS then
+					pcall(NAgui.loadCMDS)
+				end
 			end
 		end
 	)
@@ -42466,9 +42986,158 @@ end)
 
 --[[ GUI FUNCTIONS ]]--
 local pluginCommandColor = Color3.fromRGB(255, 196, 125)
+local cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
 NAgui.txtSize=function(ui,x,y)
 	local textService=TextService
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
+end
+NAmanage.buildCommandEntries=function()
+	NAmanage.detectCmdManualLoad({ silent = true })
+	local entries = {}
+	local metaByName = {}
+	local used = {}
+
+	local function addNACommand(name, data)
+		if not name or name == "" then return end
+		local displayText = fixStupidSearchGoober(name, data)
+		if displayText and displayText ~= "" then
+			if type(data[2]) == "table" then
+				data[2][1] = displayText
+			end
+		else
+			displayText = (type(data[2]) == "table" and data[2][1]) or name
+		end
+		local aliasList = {}
+		local _, extraAliases = fixStupidSearchGoober(name, data)
+		for _, alias in ipairs(extraAliases or {}) do
+			Insert(aliasList, alias:lower())
+		end
+		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(name)
+		local pluginTag = nil
+		if isPluginCmd then
+			pluginTag = pluginType or true -- keep a marker even if type is unknown so coloring works
+		end
+		local finalText = displayText
+		if isPluginCmd then
+			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
+		end
+		local desc = ""
+		if type(data[2]) == "table" then
+			desc = data[2][2] or ""
+		end
+		used[Lower(name)] = true
+		metaByName[name] = {
+			origin = "na";
+			displayText = finalText;
+			searchable = NAmanage.stripMarkup(Lower(displayText));
+			aliases = aliasList;
+			pluginType = pluginTag;
+			desc = desc;
+		}
+		entries[#entries + 1] = {
+			name = name;
+			display = finalText;
+			meta = metaByName[name];
+		}
+	end
+
+	for name, data in pairs(cmds.Commands) do
+		addNACommand(name, data)
+	end
+
+	local cmdList = NAStuff.CmdIntegrationCommands
+	if type(cmdList) == "table" then
+		for _, info in ipairs(cmdList) do
+			local baseName = info and info.name
+			if baseName then
+				baseName = tostring(baseName)
+			end
+			if baseName and baseName ~= "" then
+				local key = baseName
+				local duplicate = used[Lower(baseName)] == true
+				if duplicate then
+					key = "cmd:"..baseName
+				end
+				local aliases = {}
+				local displayAliases = {}
+				local seenDisplayAliases = {}
+				local function addDisplayAlias(alias)
+					if type(alias) ~= "string" then return end
+					local str = tostring(alias)
+					if str == "" then return end
+					local lowerStr = str:lower()
+					if lowerStr == "" then return end
+					if lowerStr ~= key:lower() and lowerStr ~= baseName:lower() and not seenDisplayAliases[lowerStr] then
+						seenDisplayAliases[lowerStr] = true
+						Insert(displayAliases, str)
+					end
+				end
+				if type(info.aliases) == "table" then
+					for _, a in ipairs(info.aliases) do
+						local aa = tostring(a or "")
+						if aa ~= "" then
+							Insert(aliases, aa:lower())
+							addDisplayAlias(aa)
+						end
+					end
+				end
+				Insert(aliases, key:lower())
+				if duplicate then
+					Insert(aliases, baseName:lower())
+				end
+				local displayName = tostring(baseName)
+				local desc = ""
+				if type(info.desc) == "string" then
+					desc = info.desc
+				end
+				local finalText = "[Cmd] "..displayName
+				if duplicate then
+					finalText = "[Cmd] "..displayName.." (use cmd:"..baseName..")"
+				end
+				if #displayAliases > 0 then
+					finalText = finalText.." ("..Concat(displayAliases, ", ")..")"
+				end
+				local searchable = NAmanage.stripMarkup(Lower(displayName))
+				if #aliases > 0 then
+					searchable = searchable.." "..Concat(aliases, " ")
+				end
+				if desc ~= "" then
+					searchable = searchable.." "..NAmanage.stripMarkup(Lower(desc))
+				end
+				used[Lower(key)] = true
+				metaByName[key] = {
+					origin = "cmd";
+					displayText = finalText;
+					searchable = searchable;
+					aliases = aliases;
+					sourceName = baseName;
+					duplicate = duplicate;
+					desc = desc;
+				}
+				entries[#entries + 1] = {
+					name = key;
+					display = finalText;
+					meta = metaByName[key];
+				}
+			end
+		end
+	end
+
+	table.sort(entries, function(a, b)
+		return Lower(tostring(a.display or a.name)) < Lower(tostring(b.display or b.name))
+	end)
+
+	NAStuff.AutofillMetaByName = metaByName
+	return entries, metaByName
+end
+
+NAmanage.totalCommandCount=function()
+	NAmanage.detectCmdManualLoad({ silent = true })
+	local count = countDictNA(cmds.Commands)
+	if type(NAStuff.CmdIntegrationCommands) == "table" then
+		count = count + #NAStuff.CmdIntegrationCommands
+	end
+	return count
 end
 NAgui.commands = function()
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
@@ -42484,22 +43153,27 @@ NAgui.commands = function()
 	end
 
 	local yOffset = 5
-	for cmdName, tbl in pairs(cmds.Commands) do
+	local entries = NAmanage.buildCommandEntries()
+	for _, entry in ipairs(entries) do
+		local cmdName = entry.name
+		local meta = entry.meta or {}
+		local tbl = cmds.Commands[cmdName]
 		local Cmd = NAUIMANAGER.commandExample:Clone()
 		Cmd.Parent = cList
 		Cmd.Name = cmdName
-		local displayText = fixStupidSearchGoober(cmdName, tbl)
-		if displayText and displayText ~= "" then
-			if type(tbl[2]) == "table" then
-				tbl[2][1] = displayText
-			end
-		else
-			displayText = (type(tbl[2]) == "table" and tbl[2][1]) or cmdName
+		local finalText = meta.displayText or entry.display or cmdName
+		local isCmdIntegration = meta.origin == "cmd"
+		local pluginType = meta.pluginType
+		local isPluginCmd = pluginType ~= nil
+		if not isPluginCmd and NAmanage.IsPluginCommand then
+			isPluginCmd = NAmanage.IsPluginCommand(cmdName)
 		end
-		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(cmdName)
-		local finalText = displayText
-		if isPluginCmd then
-			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
+		if isCmdIntegration then
+			Cmd.TextColor3 = cmdIntegrationColor
+			if Cmd.SetAttribute then
+				Cmd:SetAttribute("IsCmdIntegration", true)
+			end
+		elseif isPluginCmd then
 			Cmd.TextColor3 = pluginCommandColor
 			if Cmd.SetAttribute then
 				Cmd:SetAttribute("IsPluginCommand", true)
@@ -42516,11 +43190,14 @@ NAgui.commands = function()
 		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
 		Cmd.MouseEnter:Connect(function()
-			local info = tbl[2]
-			local desc = (type(info) == "table" and info[2]) or ""
+			local desc = meta.desc
+			if desc == nil and tbl and type(tbl[2]) == "table" then
+				desc = tbl[2][2]
+			end
 			if desc ~= nil then
 				desc = tostring(desc)
 			end
+			desc = desc or ""
 
 			if desc ~= "" then
 				NAUIMANAGER.description.Visible = true
@@ -42532,11 +43209,12 @@ NAgui.commands = function()
 		end)
 
 		Cmd.MouseLeave:Connect(function()
-			local info = tbl[2]
-			local desc = (type(info) == "table" and info[2]) or ""
-			if desc ~= nil then
-				desc = tostring(desc)
+			local desc = meta.desc
+			if desc == nil and tbl and type(tbl[2]) == "table" then
+				desc = tbl[2][2]
 			end
+			if desc ~= nil then desc = tostring(desc) end
+			desc = desc or ""
 
 			if NAUIMANAGER.description.Text == desc then
 				NAUIMANAGER.description.Visible = false
@@ -45001,52 +45679,38 @@ NAgui.loadCMDS = function()
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
 	CMDAUTOFILL = {}
-	local names = {}
-	for name in pairs(cmds.Commands) do
-		Insert(names, name)
-	end
-	table.sort(names, function(a, b)
-		local la = a:lower()
-		local lb = b:lower()
-		if la == lb then
-			return a < b
-		end
-		return la < lb
-	end)
-
+	local entries = NAmanage.buildCommandEntries()
 	local i = 0
-	for _, name in ipairs(names) do
+	for _, entry in ipairs(entries) do
+		local name = entry.name
+		local meta = entry.meta or {}
 		local cmdData = cmds.Commands[name]
-		local displayText = fixStupidSearchGoober(name, cmdData)
-		if displayText and displayText ~= "" then
-			if type(cmdData[2]) == "table" then
-				cmdData[2][1] = displayText
-			end
-		else
-			displayText = (type(cmdData[2]) == "table" and cmdData[2][1]) or name
-		end
 		local btn = NAUIMANAGER.cmdExample:Clone()
 		btn.Parent = NAUIMANAGER.cmdAutofill
 		btn.Name = name
-		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(name)
-		local finalDisplay = displayText
-		if isPluginCmd then
-			finalDisplay = finalDisplay.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
-			if btn.Input then
+		local finalDisplay = meta.displayText or entry.display or name
+		local isCmdIntegration = meta.origin == "cmd"
+		local pluginType = meta.pluginType
+		local isPluginCmd = pluginType ~= nil
+		if not isPluginCmd and NAmanage.IsPluginCommand then
+			isPluginCmd = NAmanage.IsPluginCommand(name)
+		end
+		if btn.Input then
+			if isCmdIntegration then
+				btn.Input.TextColor3 = cmdIntegrationColor
+			elseif isPluginCmd then
 				btn.Input.TextColor3 = pluginCommandColor
-			end
-			if btn.SetAttribute then
-				btn:SetAttribute("IsPluginCommand", true)
-			end
-		else
-			if btn.Input and defaultInputColor then
+			elseif defaultInputColor then
 				btn.Input.TextColor3 = defaultInputColor
 			end
-			if btn.SetAttribute then
-				btn:SetAttribute("IsPluginCommand", false)
-			end
+			btn.Input.Text = finalDisplay
+		else
+			btn.Text = finalDisplay
 		end
-		btn.Input.Text = finalDisplay
+		if btn.SetAttribute then
+			btn:SetAttribute("IsCmdIntegration", isCmdIntegration)
+			btn:SetAttribute("IsPluginCommand", isPluginCmd)
+		end
 		i += 1
 		btn.LayoutOrder = i
 		Insert(CMDAUTOFILL, btn)
@@ -45058,7 +45722,7 @@ end
 
 SpawnCall(function() -- plugin tester
 	while Wait(2) do
-		if countDictNA(cmds.Commands) ~= cmdNAnum then
+		if NAmanage.totalCommandCount() ~= cmdNAnum then
 			NAgui.loadCMDS()
 		end
 	end
@@ -45175,6 +45839,7 @@ end
 NAmanage.computeScore=function(entry,term,len,aliasExact,savedExact,aliasPrefix,savedPrefix)
 	if not entry or not entry.name or not entry.lowerName then return end
 	local cmdEntry = cmds.Commands and cmds.Commands[entry.name] or nil
+	local meta = entry.meta or (NAStuff.AutofillMetaByName and NAStuff.AutofillMetaByName[entry.name]) or nil
 
 	if entry.lowerName == term then return 1,entry.name end
 	if Sub(entry.lowerName,1,len) == term then return 2,entry.name end
@@ -45199,6 +45864,20 @@ NAmanage.computeScore=function(entry,term,len,aliasExact,savedExact,aliasPrefix,
 		return 4, savedPrefix[entry.name]
 	end
 
+	if meta and meta.aliases then
+		for _, alias in ipairs(meta.aliases) do
+			if alias == term then
+				return 3, entry.name
+			end
+			if Sub(alias, 1, len) == term then
+				return 4, entry.name
+			end
+			if len >= 2 and Find(alias, term, 1, true) then
+				return 5, entry.name
+			end
+		end
+	end
+
 	local extraAliases = entry.extraAliases or {}
 	for _,a in ipairs(extraAliases) do
 		if a == term then return 3,entry.name end
@@ -45209,7 +45888,9 @@ NAmanage.computeScore=function(entry,term,len,aliasExact,savedExact,aliasPrefix,
 		if Find(entry.lowerName,term,1,true) then return 6,entry.name end
 		if entry.searchable and Find(entry.searchable,term,1,true) then
 			local displayName = entry.name
-			if cmdEntry and type(cmdEntry[2]) == "table" and cmdEntry[2][1] then
+			if meta and meta.displayText then
+				displayName = meta.displayText
+			elseif cmdEntry and type(cmdEntry[2]) == "table" and cmdEntry[2][1] then
 				displayName = cmdEntry[2][1]
 			end
 			return 7,displayName
@@ -45529,63 +46210,93 @@ NAgui.filterCommandList = function(rawText)
 	if not NAUIMANAGER.commandsList then return end
 	local templateColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
 	local searchText = NAgui.normalizeCommandFilter(rawText)
+	local metaByName = NAStuff.AutofillMetaByName or {}
 	for _, label in ipairs(NAUIMANAGER.commandsList:GetChildren()) do
 		if label:IsA("TextLabel") then
-			local cmdName = Lower(label.Name or "")
+			local originalName = label.Name or ""
+			local cmdName = Lower(originalName)
+			local meta = metaByName[originalName] or metaByName[cmdName]
 			local command = cmds.Commands[cmdName]
+			local aliasList = {}
+			local displayText
+			local searchableInfo
+
 			if command then
-				local updatedText, aliasList = fixStupidSearchGoober(cmdName, command)
-				local displayText = updatedText
+				local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
+				displayText = updatedText
 				if not displayText or displayText == "" then
 					displayText = (type(command[2]) == "table" and command[2][1]) or cmdName
 				end
 				if type(command[2]) == "table" then
 					command[2][1] = displayText
 				end
-				aliasList = aliasList or {}
-				for i = 1, #aliasList do
-					aliasList[i] = Lower(aliasList[i])
+				extraAliases = extraAliases or {}
+				for i = 1, #extraAliases do
+					aliasList[#aliasList + 1] = Lower(extraAliases[i])
 				end
-				local sanitizedInfo = NAgui.sanitizeCommandInfo(displayText)
-				local matches
-				if searchText == "" then
+			end
+
+			if meta then
+				displayText = displayText or meta.displayText
+				searchableInfo = meta.searchable or searchableInfo
+				if type(meta.aliases) == "table" then
+					for _, alias in ipairs(meta.aliases) do
+						aliasList[#aliasList + 1] = Lower(alias)
+					end
+				end
+			end
+
+			displayText = displayText or originalName
+			searchableInfo = searchableInfo or NAgui.sanitizeCommandInfo(displayText)
+
+			local matches
+			if searchText == "" then
+				matches = true
+			else
+				if Sub(cmdName, 1, #searchText) == searchText then
+					matches = true
+				elseif searchableInfo ~= "" and Find(searchableInfo, searchText, 1, true) then
 					matches = true
 				else
-					if Sub(cmdName, 1, #searchText) == searchText then
-						matches = true
-					elseif Find(sanitizedInfo, searchText, 1, true) then
-						matches = true
-					else
-						for _, alias in ipairs(aliasList) do
-							if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
-								matches = true
-								break
-							end
+					for _, alias in ipairs(aliasList) do
+						if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
+							matches = true
+							break
 						end
 					end
 				end
-				label.Visible = matches and true or false
-				if matches then
-					local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(cmdName)
-					local finalText = displayText
-					if isPluginCmd then
-						finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
-						label.TextColor3 = pluginCommandColor
-						if label.SetAttribute then
-							label:SetAttribute("IsPluginCommand", true)
-						end
-					else
-						if templateColor then
-							label.TextColor3 = templateColor
-						end
-						if label.SetAttribute then
-							label:SetAttribute("IsPluginCommand", false)
-						end
-					end
-					label.Text = " "..finalText
+			end
+
+			label.Visible = matches and true or false
+			if matches then
+				local isCmdIntegration = meta and meta.origin == "cmd"
+				local pluginType = meta and meta.pluginType
+				local isPluginCmd = pluginType ~= nil
+				if not isPluginCmd and NAmanage.IsPluginCommand then
+					isPluginCmd, pluginType = NAmanage.IsPluginCommand(cmdName)
 				end
-			else
-				label.Visible = searchText == ""
+
+				local finalText = (meta and meta.displayText) or displayText
+				if isCmdIntegration then
+					label.TextColor3 = cmdIntegrationColor
+					if label.SetAttribute then
+						label:SetAttribute("IsCmdIntegration", true)
+					end
+				elseif isPluginCmd then
+					label.TextColor3 = pluginCommandColor
+					if label.SetAttribute then
+						label:SetAttribute("IsPluginCommand", true)
+					end
+				else
+					if templateColor then
+						label.TextColor3 = templateColor
+					end
+					if label.SetAttribute then
+						label:SetAttribute("IsPluginCommand", false)
+						label:SetAttribute("IsCmdIntegration", false)
+					end
+				end
+				label.Text = " "..finalText
 			end
 		end
 	end
@@ -51995,6 +52706,21 @@ NAmanage.scheduleLoader('UserButtons', function()
 	return NAmanage.RenderUserButtons()
 end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
 NAmanage.scheduleLoader('AutoExec', NAmanage.loadAutoExec, { retries = 4, delay = 0.4, retryOnFalse = true })
+NAmanage.scheduleLoader('CmdIntegrationAutoRun', function()
+	if NAStuff.CmdIntegrationAutoRun == true and NAmanage.loadCmdIntegration then
+		local ok, err = NAmanage.loadCmdIntegration({ silent = true })
+		if not ok then
+			local msg = Format("Cmd auto-load failed: %s", tostring(err))
+			if type(DebugNotif) == "function" then
+				DebugNotif(msg, 3)
+			else
+				warn(msg)
+			end
+			return false
+		end
+	end
+	return true
+end, { retries = 2, delay = 0.6, retryOnFalse = true })
 NAmanage.scheduleLoader('CmdBar2AutoRun', function()
 	if NAStuff.CmdBar2AutoRun == true and cmd and cmd.run then
 		cmd.run({"cmdbar2"})
@@ -52848,10 +53574,41 @@ if FileSupport then
 	end)
 end
 
-NAgui.addTab(TAB_INTEGRATIONS, { order = 9, textIcon = "chain-link" })
+NAgui.addTab(TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
 NAgui.setTab(TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
+
+NAgui.addButton("Load Cmd (lxte)", function()
+	local ok, err = NAmanage.loadCmdIntegration()
+	if not ok then
+		local msg = "Cmd failed to load: "..tostring(err)
+		if type(DoNotif) == "function" then
+			DoNotif(msg, 4)
+		else
+			warn(msg)
+		end
+	end
+end)
+
+NAgui.addToggle("Auto-load Cmd (lxte)", NAStuff.CmdIntegrationAutoRun == true, function(v)
+	NAStuff.CmdIntegrationAutoRun = v and true or false
+	pcall(NAmanage.NASettingsSet, "cmdIntegrationAutoRun", NAStuff.CmdIntegrationAutoRun)
+	if v then
+		local ok, err = NAmanage.loadCmdIntegration()
+		if not ok then
+			local msg = "Cmd failed to load: "..tostring(err)
+			if type(DoNotif) == "function" then
+				DoNotif(msg, 4)
+			else
+				warn(msg)
+			end
+		end
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Auto-load Cmd (lxte)", function()
+	return NAStuff.CmdIntegrationAutoRun == true
+end)
 
 NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
 	NAmanage.btSetEnabled(v)
@@ -52864,7 +53621,7 @@ NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
 	return NAmanage.btEnabled()
 end)
 
-NAgui.addTab(TAB_INTERFACE, { order = 2, textIcon = "two-makeup-brushes" })
+NAgui.addTab(TAB_INTERFACE, { order = 3, textIcon = "two-makeup-brushes" })
 NAgui.setTab(TAB_INTERFACE)
 
 NAgui.clamp01 = NAgui.clamp01 or function(v, fallback)
@@ -53443,7 +54200,7 @@ if CoreGui then
 	end
 end
 
-NAgui.addTab(TAB_USER_BUTTONS, { order = 8, textIcon = "circle-plus" })
+NAgui.addTab(TAB_USER_BUTTONS, { order = 9, textIcon = "circle-plus" })
 NAgui.setTab(TAB_USER_BUTTONS)
 
 originalIO.UserBtnEditor=function()
@@ -53908,7 +54665,7 @@ NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
 	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 end)
 
-NAgui.addTab(TAB_ESP, { order = 3, textIcon = "crosshairs" })
+NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
 NAgui.setTab(TAB_ESP)
 
 NAgui.isListActive=function(list)
@@ -54213,7 +54970,7 @@ NAgui.addButton("Clear Folder ESP", function()
 	end)
 end)
 
-NAgui.addTab(TAB_CHAT, { order = 5, textIcon = "speech-bubble-align-center" })
+NAgui.addTab(TAB_CHAT, { order = 6, textIcon = "speech-bubble-align-center" })
 NAgui.setTab(TAB_CHAT)
 
 do
@@ -54388,7 +55145,7 @@ do
 end
 
 if not IsOnMobile then
-	NAgui.addTab(TAB_KEYBINDS, { order = 6, textIcon = "xbox-a" })
+	NAgui.addTab(TAB_KEYBINDS, { order = 7, textIcon = "xbox-a" })
 	NAgui.setTab(TAB_KEYBINDS)
 
 	if IsOnPC then
@@ -54471,7 +55228,7 @@ if not IsOnMobile then
 		end)
 
 		local prevTab = NAgui.getActiveTab()
-		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 7, textIcon = "xbox-a" })
+		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 8, textIcon = "xbox-a" })
 		NAgui.setTab(TAB_COMMAND_KEYBINDS)
 		NAmanage.CommandKeybindsUIInit()
 		NAmanage.CommandKeybindsUIWire()
@@ -54480,7 +55237,7 @@ if not IsOnMobile then
 	end
 end
 
-NAgui.addTab(TAB_CHARACTER, { order = 4, textIcon = "circle-person" })
+NAgui.addTab(TAB_CHARACTER, { order = 5, textIcon = "circle-person" })
 NAgui.setTab(TAB_CHARACTER)
 
 NAgui.addSection("Character Morph")
