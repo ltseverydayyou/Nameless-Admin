@@ -6613,6 +6613,8 @@ opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH
 NAUserButtons = {}
 UserButtonGuiList = {}
+UserButtonGuiMap = {}
+UserButtonDropdowns = {}
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
 doPREDICTION = true
 -- make it so It's easier for IY users to move to nameless admin (yes i did this and it's funny)
@@ -12533,6 +12535,228 @@ NAmanage.loadButtonIDS = function()
 	return true
 end
 
+local function NAUserButtonNextId()
+	local maxId = 0
+	for id in pairs(NAUserButtons) do
+		if type(id) == "number" and id > maxId then
+			maxId = id
+		end
+	end
+	return maxId + 1
+end
+
+local function NAUserButtonCloneAsChild(data, fallbackLabel)
+	if type(data) ~= "table" then
+		return nil
+	end
+	local label = (type(data.Label) == "string" and data.Label ~= "" and data.Label) or fallbackLabel or "Button"
+	local child = {
+		Label = label,
+		Cmd1 = data.Cmd1,
+		Cmd2 = data.Cmd2,
+		Args = (type(data.Args) == "table") and originalIO.deepCopyTable(data.Args) or nil,
+		RunMode = data.RunMode,
+		BgColor = data.BgColor,
+		TextColor = data.TextColor,
+		Width = data.Width,
+		Height = data.Height,
+		CornerRadius = data.CornerRadius,
+		Hidden = data.Hidden,
+		Interactable = data.Interactable,
+		Locked = data.Locked,
+		Pos = data.Pos and originalIO.deepCopyTable(data.Pos),
+	}
+	return child
+end
+
+local function NAUserButtonCollectChildren(store, entry, fallbackLabel)
+	if type(entry) ~= "table" then
+		return
+	end
+	if entry.Type == "group" and type(entry.Children) == "table" then
+		for _, child in ipairs(entry.Children) do
+			local clone = NAUserButtonCloneAsChild(child, fallbackLabel)
+			if clone then
+				Insert(store, clone)
+			end
+		end
+	else
+		local clone = NAUserButtonCloneAsChild(entry, fallbackLabel)
+		if clone then
+			Insert(store, clone)
+		end
+	end
+end
+
+local function NAUserButtonRectOverlap(posA, sizeA, posB, sizeB, padding)
+	padding = padding or 0
+	if not (posA and sizeA and posB and sizeB) then return false end
+	return not (
+		posA.X + sizeA.X < posB.X - padding
+		or posB.X + sizeB.X < posA.X - padding
+		or posA.Y + sizeA.Y < posB.Y - padding
+		or posB.Y + sizeB.Y < posA.Y - padding
+	)
+end
+
+NAmanage.UserButtons_CombineButtons = function(targetId, sourceId, opts)
+	opts = opts or {}
+	if type(targetId) ~= "number" or type(sourceId) ~= "number" then
+		return false, "Invalid button ids."
+	end
+	if targetId == sourceId then
+		return false, "Pick two different buttons to combine."
+	end
+
+	local target = NAUserButtons[targetId]
+	local source = NAUserButtons[sourceId]
+	if type(target) ~= "table" or type(source) ~= "table" then
+		return false, "One of the buttons is missing."
+	end
+	if target.Locked or source.Locked then
+		return false, "Locked buttons cannot be combined."
+	end
+
+	local children = {}
+	local targetLabel = (type(target.Label) == "string" and target.Label ~= "" and target.Label) or ("Button "..targetId)
+	local sourceLabel = (type(source.Label) == "string" and source.Label ~= "" and source.Label) or ("Button "..sourceId)
+
+	NAUserButtonCollectChildren(children, target, targetLabel)
+	NAUserButtonCollectChildren(children, source, sourceLabel)
+
+	target.Type = "group"
+	target.Children = children
+	target.GroupMode = (opts.mode == "side") and "side" or "dropdown"
+	target.Cmd1, target.Cmd2, target.Args, target.RunMode = nil, nil, nil, nil
+
+	NAUserButtons[sourceId] = nil
+
+	if FileSupport then
+		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+	end
+
+	return true, ("Grouped %d buttons"):format(#children)
+end
+
+NAmanage.UserButtons_CheckCombine = function(sourceId, sourceBtn)
+	if type(sourceId) ~= "number" then
+		return
+	end
+	if not (sourceBtn and sourceBtn.AbsolutePosition) then
+		return
+	end
+	local sourceData = NAUserButtons[sourceId]
+	if type(sourceData) ~= "table" or sourceData.Locked then
+		return
+	end
+
+	local srcPos = sourceBtn.AbsolutePosition
+	local srcSize = sourceBtn.AbsoluteSize
+	local candidateId
+
+	for id, btn in pairs(UserButtonGuiMap) do
+		if id ~= sourceId and btn and btn.Parent and btn.Visible then
+			if NAUserButtonRectOverlap(srcPos, srcSize, btn.AbsolutePosition, btn.AbsoluteSize, 6) then
+				candidateId = id
+				break
+			end
+		end
+	end
+
+	if not candidateId then
+		return
+	end
+
+	local targetData = NAUserButtons[candidateId]
+	if type(targetData) ~= "table" or targetData.Locked then
+		return
+	end
+
+	local srcLabel = (type(sourceData.Label) == "string" and sourceData.Label ~= "" and sourceData.Label) or ("Button "..sourceId)
+	local targetLabel = (type(targetData.Label) == "string" and targetData.Label ~= "" and targetData.Label) or ("Button "..candidateId)
+
+	Window({
+		Title = "Combine User Buttons",
+		Description = ("Merge [%d] %s into [%d] %s?"):format(sourceId, srcLabel, candidateId, targetLabel),
+		Buttons = {
+			{
+				Text = "Dropdown Toggle",
+				Callback = function()
+					local ok, msg = NAmanage.UserButtons_CombineButtons(candidateId, sourceId, { mode = "dropdown" })
+					if ok then
+						DoNotif("Created dropdown group", 2)
+						NAmanage.RenderUserButtons()
+					else
+						DoNotif(msg or "Failed to combine buttons", 3)
+					end
+				end
+			},
+			{
+				Text = "Side Toggle",
+				Callback = function()
+					local ok, msg = NAmanage.UserButtons_CombineButtons(candidateId, sourceId, { mode = "side" })
+					if ok then
+						DoNotif("Created side group", 2)
+						NAmanage.RenderUserButtons()
+					else
+						DoNotif(msg or "Failed to combine buttons", 3)
+					end
+				end
+			},
+			{
+				Text = "Cancel",
+				Callback = function() end
+			},
+		}
+	})
+end
+
+NAmanage.UserButtons_Ungroup = function(groupId)
+	if type(groupId) ~= "number" then
+		return false, "Invalid group id"
+	end
+	local group = NAUserButtons[groupId]
+	if type(group) ~= "table" or group.Type ~= "group" then
+		return false, "Selected item is not a group"
+	end
+
+	local children = (type(group.Children) == "table") and group.Children or {}
+	if #children == 0 then
+		NAUserButtons[groupId] = nil
+		if FileSupport then
+			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		end
+		return true, "Removed empty group"
+	end
+
+	local basePos = group.Pos
+	local offset = 0
+	local offsetStep = 70
+	for _, child in ipairs(children) do
+		local newId = NAUserButtonNextId()
+		local clone = NAUserButtonCloneAsChild(child, child.Label)
+		if basePos and type(basePos) == "table" then
+			clone.Pos = {
+				basePos[1] or 0,
+				(basePos[2] or 0) + offset,
+				basePos[3] or 0,
+				basePos[4] or 0,
+			}
+			offset = offset + offsetStep
+		else
+			clone.Pos = nil
+		end
+		NAUserButtons[newId] = clone
+	end
+
+	NAUserButtons[groupId] = nil
+
+	if FileSupport then
+		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+	end
+	return true, ("Ungrouped %d buttons"):format(#children)
+end
+
 NAmanage.AutoExecSave=function(data, context)
 	if not FileSupport then return true end
 	local ok, err = pcall(function()
@@ -13629,10 +13853,24 @@ NAmanage.RenderUserButtons = function()
 		NAStuff.NASCREENGUI = screenGui
 		if NAStuff.KeybindConnection then
 		end
+		for _, drop in pairs(UserButtonDropdowns) do
+			if type(drop) == "table" then
+				if drop.conn then
+					pcall(function() drop.conn:Disconnect() end)
+				end
+				if drop.container then
+					pcall(function() drop.container:Destroy() end)
+				end
+			elseif typeof(drop) == "Instance" then
+				pcall(function() drop:Destroy() end)
+			end
+		end
+		table.clear(UserButtonDropdowns)
 		for _, btn in pairs(UserButtonGuiList) do
 			btn:Destroy()
 		end
 		table.clear(UserButtonGuiList)
+		table.clear(UserButtonGuiMap)
 
 		local UIS = UserInputService
 		local SavedArgs       = {}
@@ -13641,6 +13879,136 @@ NAmanage.RenderUserButtons = function()
 		local ActionBindings  = {}
 		local tSize = 28
 		local DOUBLE_CLICK_WINDOW = 0.35
+		local activeDropdowns = {}
+		local dropdownPos = {
+			gap = 10,
+			downOffset = 55,
+			upOffset = -60,
+			sideYOffset = 6,
+		}
+
+		local function placeGroupContainer(mode, btn, dropSize)
+			dropSize = dropSize or Vector2.new(0, 0)
+			local tap = btn.AbsolutePosition
+			local tsz = btn.AbsoluteSize
+			local cam = workspace.CurrentCamera
+			local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+			local margin = 8
+			local gapDown = (dropdownPos.gap or 0) + (dropdownPos.downOffset or 0)
+			local gapUp = (dropdownPos.gap or 0) + (dropdownPos.upOffset or 0)
+			local sideYOffset = dropdownPos.sideYOffset or 0
+
+			if mode == "side" then
+				local canRight = (tap.X + tsz.X + dropdownPos.gap + dropSize.X) <= (vp.X - margin)
+				local canLeft = (tap.X - dropdownPos.gap - dropSize.X) >= margin
+				local openRight = canRight
+				if not canRight and canLeft then
+					openRight = false
+				elseif not canLeft and not canRight then
+					openRight = ((vp.X - (tap.X + tsz.X)) >= tap.X)
+				end
+
+				local anchor = Vector2.new(openRight and 0 or 1, 0.5)
+				local x
+				if openRight then
+					x = math.min(tap.X + tsz.X + dropdownPos.gap, vp.X - margin - dropSize.X)
+					x = math.max(x, margin)
+				else
+					x = math.max(tap.X - dropdownPos.gap, margin + dropSize.X)
+					x = math.min(x, vp.X - margin)
+				end
+
+				local halfH = dropSize.Y * 0.5
+				local y = math.clamp(tap.Y + tsz.Y * 1.25 + sideYOffset, margin + halfH, vp.Y - margin - halfH)
+				return UDim2.fromOffset(x, y), anchor
+			end
+
+			local canDown = (tap.Y + tsz.Y + gapDown + dropSize.Y) <= (vp.Y - margin)
+			local canUp = (tap.Y - gapUp - dropSize.Y) >= margin
+			local openDown = canDown
+			if not canDown and canUp then
+				openDown = false
+			elseif not canUp and not canDown then
+				openDown = ((vp.Y - (tap.Y + tsz.Y)) >= tap.Y)
+			end
+
+			local anchor = Vector2.new(0.5, openDown and 0 or 1)
+			local halfW = dropSize.X * 0.5
+			local x = math.clamp(tap.X + tsz.X * 0.5, margin + halfW, vp.X - margin - halfW)
+
+			local y
+			if openDown then
+				y = tap.Y + tsz.Y + gapDown
+				if canDown then
+					y = math.min(y, vp.Y - margin - dropSize.Y)
+					y = math.max(y, margin)
+				end
+			else
+				y = tap.Y - gapUp
+				if canUp then
+					y = math.max(y, margin + dropSize.Y)
+					y = math.min(y, vp.Y - margin)
+				end
+			end
+
+			return UDim2.fromOffset(x, y), anchor
+		end
+
+		local function clearDropdownEntry(id)
+			local entry = activeDropdowns[id]
+			if not entry then
+				return
+			end
+			if entry.close then
+				entry.close()
+			elseif entry.container then
+				entry.container:Destroy()
+			end
+			if entry.conn then
+				entry.conn:Disconnect()
+			end
+			if entry.posConn then
+				entry.posConn:Disconnect()
+			end
+			if entry.sizeConn then
+				entry.sizeConn:Disconnect()
+			end
+			activeDropdowns[id] = nil
+			UserButtonDropdowns[id] = nil
+		end
+
+		local function closeAllDropdowns()
+			for id in pairs(activeDropdowns) do
+				clearDropdownEntry(id)
+			end
+		end
+
+		local function updateDropdownPosition(id)
+			local entry = activeDropdowns[id]
+			if not entry or not entry.container or not entry.btn then
+				return
+			end
+			local mode = entry.mode or "dropdown"
+			local size = entry.container.AbsoluteSize
+			local pos, anchor = placeGroupContainer(mode, entry.btn, size)
+			entry.container.AnchorPoint = anchor
+			entry.container.Position = pos
+		end
+
+		local function udim2ToArray(u)
+			return {u.X.Scale, u.X.Offset, u.Y.Scale, u.Y.Offset}
+		end
+
+		local function positionsChanged(a, b)
+			if type(a) ~= "table" or type(b) ~= "table" then
+				return true
+			end
+			local dx = math.abs((a[1] or 0) - (b[1] or 0))
+			local dy = math.abs((a[3] or 0) - (b[3] or 0))
+			local ox = math.abs((a[2] or 0) - (b[2] or 0))
+			local oy = math.abs((a[4] or 0) - (b[4] or 0))
+			return dx > 0.0005 or dy > 0.0005 or ox > 1.5 or oy > 1.5
+		end
 
 		function ButtonInputPrompt(cmdName, cb)
 			local gui = InstanceNew("ScreenGui")
@@ -13721,11 +14089,20 @@ NAmanage.RenderUserButtons = function()
 		local spacing = 110
 		local ON = Color3.fromRGB(0,170,0)
 
+		local function pointInsideGui(gui, point)
+			if not (gui and gui.AbsolutePosition) then return false end
+			local pos = gui.AbsolutePosition
+			local size = gui.AbsoluteSize
+			return point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y
+		end
+
 		local idx = 0
 		for id, data in pairs(NAUserButtons) do
+			if type(id) == "number" and type(data) == "table" then
+
 			local btn = InstanceNew("TextButton")
 			btn.Name                 = "NAUserButton_"..id
-			btn.Text                 = data.Label
+			btn.Text                 = data.Label or ("Button "..id)
 			btn.Size                 = UDim2.new(0,60, 0,60)
 			btn.AnchorPoint          = Vector2.new(0.5,1)
 			btn.Position             = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
@@ -13747,100 +14124,326 @@ NAmanage.RenderUserButtons = function()
 			local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, btn.BackgroundColor3)
 			btn.BackgroundColor3 = baseBgColor
 
-			if not (type(data) == "table" and data.Locked) then
+			UserButtonGuiMap[id] = btn
+
+			local dragStart = udim2ToArray(btn.Position)
+			if not data.Locked then
 				NAgui.draggerV2(btn)
 			end
+
+			btn.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragStart = udim2ToArray(btn.Position)
+				end
+			end)
 
 			btn.InputEnded:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					local p = btn.Position
-					data.Pos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+					local newPos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+					local moved = positionsChanged(dragStart or newPos, newPos)
+					data.Pos = newPos
 					if FileSupport then
 						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+					end
+					if moved and not data.Locked then
+						NAmanage.UserButtons_CheckCombine(id, btn)
 					end
 				end
 			end)
 
-			local toggled     = false
-			local saveEnabled = data.RunMode == "S"
-			SavedArgs[id]     = data.Args or {}
+			local isGroup = data.Type == "group"
+			local isHidden = (data.Hidden) and true or false
+			local isInteractable = not (data.Interactable == false)
 
-			local cmd1      = data.Cmd1
-			local cd1       = cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()]
-			local needsArgs = cd1 and cd1[3]
-
-			if needsArgs then
-				local saveToggle = InstanceNew("TextButton")
-				saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
-				saveToggle.AnchorPoint            = Vector2.new(1,1)
-				saveToggle.Position               = UDim2.new(1,0,0,0)
-				saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
-				saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
-				saveToggle.TextScaled             = true
-				saveToggle.Font                   = Enum.Font.Gotham
-				saveToggle.Text                   = saveEnabled and "S" or "N"
-				saveToggle.ZIndex                 = 10000
-				saveToggle.BackgroundTransparency = 0
-				saveToggle.TextTransparency       = 0
-				saveToggle.Parent                 = btn
-
-				local stCorner = InstanceNew("UICorner")
-				stCorner.CornerRadius = UDim.new(0.5,0)
-				stCorner.Parent       = saveToggle
-
-				MouseButtonFix(saveToggle, function()
-					saveEnabled = not saveEnabled
-					saveToggle.Text = saveEnabled and "S" or "N"
-					data.RunMode = saveEnabled and "S" or "N"
-					if FileSupport then
-						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-					end
-				end)
-			end
-
-			local function runCmd(args)
-				local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-				local arr   = {toRun}
-				if args then for _,v in ipairs(args) do Insert(arr, v) end end
-				cmd.run(arr)
-				if data.Cmd2 then
-					toggled = not toggled
-					btn.BackgroundColor3 = toggled and ON or baseBgColor
+			if isGroup then
+				local children = (type(data.Children) == "table") and data.Children or {}
+				local label = tostring(data.Label or ("Group "..id))
+				if #children > 0 then
+					btn.Text = ("%s (%d)"):format(label, #children)
+				else
+					btn.Text = label
 				end
-			end
+				local childHeight = 32
+				local mode = (data.GroupMode == "side") and "side" or "dropdown"
 
-			MouseButtonFix(btn, function()
-				local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-				local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
-				local na      = nd and nd[3]
-				if na then
-					if saveEnabled and data.Args and #data.Args>0 then
-						runCmd(data.Args)
-					else
-						if ActivePrompts[now] then return end
-						ActivePrompts[now] = true
-						ButtonInputPrompt(now, function(input)
-							ActivePrompts[now] = nil
-							local parsed = ParseArguments(input)
-							if parsed then
-								SavedArgs[id] = parsed
-								data.Args     = parsed
+				local function openDropdown()
+					if #children == 0 then
+						DoNotif("Add buttons to this group before opening it", 2)
+						return
+					end
+
+					closeAllDropdowns()
+					local container = InstanceNew("Frame")
+					container.Name = ("NAUserButtonDropdown_%d"):format(id)
+					container.BackgroundColor3 = Color3.fromRGB(18,18,22)
+					container.BackgroundTransparency = 0.1
+					container.BorderSizePixel = 0
+					container.ZIndex = 10000
+					container.ClipsDescendants = true
+					container.Parent = screenGui
+
+					local layout = InstanceNew("UIListLayout")
+					layout.SortOrder = Enum.SortOrder.LayoutOrder
+					layout.Padding = UDim.new(0, 6)
+					layout.FillDirection = Enum.FillDirection.Vertical
+					layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+					layout.VerticalAlignment = Enum.VerticalAlignment.Top
+					layout.Parent = container
+
+					local pad = InstanceNew("UIPadding", container)
+					pad.PaddingTop = UDim.new(0, 6)
+					pad.PaddingBottom = UDim.new(0, 6)
+					pad.PaddingLeft = UDim.new(0, 6)
+					pad.PaddingRight = UDim.new(0, 6)
+
+					local dropCorner = InstanceNew("UICorner")
+					dropCorner.CornerRadius = UDim.new(0, 8)
+					dropCorner.Parent = container
+
+					local dropStroke = InstanceNew("UIStroke")
+					dropStroke.Thickness = 1
+					dropStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+					dropStroke.Transparency = 0.15
+					dropStroke.Parent = container
+					NAgui.RegisterColoredStroke(dropStroke)
+
+					local dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
+					local dropHeight = (#children * (childHeight + 6)) + 12
+					local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, dropHeight))
+					container.AnchorPoint = anchor
+					container.Position = posUDim
+					container.Size = UDim2.new(0, dropWidth, 0, dropHeight)
+
+					Insert(UserButtonGuiList, container)
+
+					for childIndex, child in ipairs(children) do
+						local cBtn = InstanceNew("TextButton")
+						cBtn.Name = ("NAUserButtonChild_%d_%d"):format(id, childIndex)
+						cBtn.Size = UDim2.new(1, 0, 0, childHeight)
+						cBtn.BackgroundColor3 = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(30,30,30))
+						cBtn.TextColor3 = NAmanage.UserButtonColorFromTable(child.TextColor, Color3.fromRGB(255,255,255))
+						cBtn.TextScaled = false
+						cBtn.Font = Enum.Font.GothamBold
+						cBtn.TextSize = 14
+						cBtn.Text = tostring(child.Label or ("Action "..childIndex))
+						cBtn.ZIndex = container.ZIndex + 1
+						cBtn.AutoButtonColor = true
+						cBtn.BorderSizePixel = 0
+						cBtn.Parent = container
+
+						local cbCorner = InstanceNew("UICorner")
+						cbCorner.CornerRadius = UDim.new(0.25, 0)
+						cbCorner.Parent = cBtn
+
+						local childKey = "g"..tostring(id).."_"..tostring(childIndex)
+						SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
+						local childToggled = false
+						local childSaveEnabled = child.RunMode == "S"
+						local childBaseBg = cBtn.BackgroundColor3
+						local childCmd1 = child.Cmd1
+						local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
+						local childNeedsArgs = childCd1 and childCd1[3]
+
+						if childNeedsArgs then
+							local childToggleSize = math.max(14, math.min(tSize, childHeight - 6))
+							local saveToggle = InstanceNew("TextButton")
+							saveToggle.Size                   = UDim2.new(0, childToggleSize, 0, childToggleSize)
+							saveToggle.AnchorPoint            = Vector2.new(1, 0)
+							saveToggle.Position               = UDim2.new(1, -4, 0, 4)
+							saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
+							saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
+							saveToggle.TextScaled             = true
+							saveToggle.Font                   = Enum.Font.Gotham
+							saveToggle.Text                   = childSaveEnabled and "S" or "N"
+							saveToggle.ZIndex                 = cBtn.ZIndex + 1
+							saveToggle.BackgroundTransparency = 0
+							saveToggle.TextTransparency       = 0
+							saveToggle.Parent                 = cBtn
+
+							local stCorner = InstanceNew("UICorner")
+							stCorner.CornerRadius = UDim.new(0.5,0)
+							stCorner.Parent       = saveToggle
+
+							MouseButtonFix(saveToggle, function()
+								childSaveEnabled = not childSaveEnabled
+								saveToggle.Text = childSaveEnabled and "S" or "N"
+								child.RunMode = childSaveEnabled and "S" or "N"
 								if FileSupport then
 									writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
 								end
-								runCmd(parsed)
+							end)
+						end
+
+						local function runChild(args)
+							local toRun = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
+							if not toRun then return end
+							local arr = {toRun}
+							if args then for _, v in ipairs(args) do Insert(arr, v) end end
+							cmd.run(arr)
+							if child.Cmd2 then
+								childToggled = not childToggled
+								cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
+							end
+						end
+
+						MouseButtonFix(cBtn, function()
+							local now = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
+							if not now then
+								return
+							end
+							local nd = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+							local needsArgs = nd and nd[3]
+							if needsArgs then
+								if childSaveEnabled and child.Args and #child.Args > 0 then
+									runChild(child.Args)
+								else
+									if ActivePrompts[now] then return end
+									ActivePrompts[now] = true
+									ButtonInputPrompt(now, function(input)
+										ActivePrompts[now] = nil
+										local parsed = ParseArguments(input)
+										if parsed then
+											SavedArgs[childKey] = parsed
+											child.Args = parsed
+											if FileSupport then
+												writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+											end
+											runChild(parsed)
+										else
+											runChild(nil)
+										end
+									end)
+								end
 							else
-								runCmd(nil)
+								runChild(nil)
 							end
 						end)
 					end
-				else
-					runCmd(nil)
-				end
-			end)
 
-			local isHidden = (type(data) == "table" and data.Hidden) and true or false
-			local isInteractable = not (type(data) == "table" and data.Interactable == false)
+					local conn = UIS.InputBegan:Connect(function(input, gpe)
+						if gpe then return end
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							local posNow = UIS:GetMouseLocation()
+							if not (pointInsideGui(container, posNow) or pointInsideGui(btn, posNow)) then
+								clearDropdownEntry(id)
+							end
+						end
+					end)
+
+					activeDropdowns[id] = {
+						container = container,
+						conn = conn,
+						btn = btn,
+						mode = mode,
+						posConn = btn:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+							updateDropdownPosition(id)
+						end),
+						sizeConn = btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+							updateDropdownPosition(id)
+						end),
+						close = function()
+							if conn then conn:Disconnect() end
+							if activeDropdowns[id] and activeDropdowns[id].posConn then activeDropdowns[id].posConn:Disconnect() end
+							if activeDropdowns[id] and activeDropdowns[id].sizeConn then activeDropdowns[id].sizeConn:Disconnect() end
+							if container then container:Destroy() end
+							activeDropdowns[id] = nil
+						end
+					}
+					UserButtonDropdowns[id] = { container = container, conn = conn }
+					updateDropdownPosition(id)
+				end
+
+				MouseButtonFix(btn, function()
+					if activeDropdowns[id] then
+						clearDropdownEntry(id)
+					else
+						openDropdown()
+					end
+				end)
+			else
+				local toggled     = false
+				local saveEnabled = data.RunMode == "S"
+				SavedArgs[id]     = data.Args or {}
+
+				local cmd1      = data.Cmd1
+				local cd1       = cmd1 and (cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()])
+				local needsArgs = cd1 and cd1[3]
+
+				if needsArgs then
+					local saveToggle = InstanceNew("TextButton")
+					saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
+					saveToggle.AnchorPoint            = Vector2.new(1,1)
+					saveToggle.Position               = UDim2.new(1,0,0,0)
+					saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
+					saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
+					saveToggle.TextScaled             = true
+					saveToggle.Font                   = Enum.Font.Gotham
+					saveToggle.Text                   = saveEnabled and "S" or "N"
+					saveToggle.ZIndex                 = 10000
+					saveToggle.BackgroundTransparency = 0
+					saveToggle.TextTransparency       = 0
+					saveToggle.Parent                 = btn
+
+					local stCorner = InstanceNew("UICorner")
+					stCorner.CornerRadius = UDim.new(0.5,0)
+					stCorner.Parent       = saveToggle
+
+					MouseButtonFix(saveToggle, function()
+						saveEnabled = not saveEnabled
+						saveToggle.Text = saveEnabled and "S" or "N"
+						data.RunMode = saveEnabled and "S" or "N"
+						if FileSupport then
+							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+						end
+					end)
+				end
+
+				local function runCmd(args)
+					local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+					if not toRun then return end
+					local arr   = {toRun}
+					if args then for _,v in ipairs(args) do Insert(arr, v) end end
+					cmd.run(arr)
+					if data.Cmd2 then
+						toggled = not toggled
+						btn.BackgroundColor3 = toggled and ON or baseBgColor
+					end
+				end
+
+				MouseButtonFix(btn, function()
+					local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+					if not now then
+						return
+					end
+					local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+					local na      = nd and nd[3]
+					if na then
+						if saveEnabled and data.Args and #data.Args>0 then
+							runCmd(data.Args)
+						else
+							if ActivePrompts[now] then return end
+							ActivePrompts[now] = true
+							ButtonInputPrompt(now, function(input)
+								ActivePrompts[now] = nil
+								local parsed = ParseArguments(input)
+								if parsed then
+									SavedArgs[id] = parsed
+									data.Args     = parsed
+									if FileSupport then
+										writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+									end
+									runCmd(parsed)
+								else
+									runCmd(nil)
+								end
+							end)
+						end
+					else
+						runCmd(nil)
+					end
+				end)
+			end
 
 			if not isInteractable then
 				btn.Visible = false
@@ -13865,6 +14468,7 @@ NAmanage.RenderUserButtons = function()
 
 			Insert(UserButtonGuiList, btn)
 			idx = idx + 1
+			end
 		end
 
 end)
@@ -14315,6 +14919,7 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 	fr = InstanceNew("Frame", gui)
 	fr.Position = NAmanage._cb2p or UDim2.new(0.5, -170, 0, 70)
 	fr.Size = UDim2.new(0, 340, 0, 78)
+	NAmanage._cb2BaseSize = Vector2.new(fr.Size.X.Offset, fr.Size.Y.Offset)
 	fr.BackgroundColor3 = o2
 	fr.BorderSizePixel = 0
 	fr.Visible = true
@@ -14429,9 +15034,11 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 
 	NAmanage._cb2sz = fr.Size
 	local min = false
+	NAmanage._cb2Min = false
 
 	local function setMin(v)
 		min = v and true or false
+		NAmanage._cb2Min = min
 		if min then
 			body.Visible = false
 			tw(fr, 0.14, {Size = UDim2.new(NAmanage._cb2sz.X.Scale, NAmanage._cb2sz.X.Offset, 0, 28)})
@@ -14479,6 +15086,53 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 	NAmanage._cb2bx = bx
 
 	show(true)
+end)
+
+NAmanage.CmdBar2Fit = function()
+	local fr = NAmanage._cb2f
+	local gui = NAmanage._cb2
+	if not fr or not gui then
+		return false, "cmdbar2 not initialized"
+	end
+
+	local base = NAmanage._cb2BaseSize
+	if typeof(base) ~= "Vector2" then
+		local bw = fr.Size.X.Offset
+		local bh = fr.Size.Y.Offset
+		if bw <= 0 then bw = 340 end
+		if bh <= 0 then bh = 78 end
+		base = Vector2.new(bw, bh)
+		NAmanage._cb2BaseSize = base
+	end
+
+	local cam = workspace and workspace.CurrentCamera
+	local vp = (cam and cam.ViewportSize) or (gui.AbsoluteSize) or Vector2.new(1280, 720)
+	local maxWidth = math.max(1, math.floor(vp.X * 0.9 + 0.5))
+	local newWidth = math.min(base.X, maxWidth)
+	local targetSize = UDim2.new(0, newWidth, 0, base.Y)
+	NAmanage._cb2sz = targetSize
+
+	if NAmanage._cb2Min == true then
+		fr.Size = UDim2.new(0, newWidth, 0, 28)
+	else
+		fr.Size = targetSize
+	end
+
+	return true, newWidth, base.Y
+end
+
+cmd.add({"cmdbar2fit","cbar2fit"},{"cmdbar2fit (cbar2fit)","Resize cmdbar2 to fit your screen"},function()
+	if not NAmanage._cb2f then
+		if cmd and cmd.run then
+			cmd.run({"cmdbar2"})
+		end
+	end
+
+	local ok, width = NAmanage.CmdBar2Fit()
+	if not ok then
+		return DoNotif("cmdbar2 isn't available", 2)
+	end
+	DoNotif("cmdbar2 resized ("..tostring(width).."px)", 2)
 end)
 
 cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
@@ -15271,33 +15925,183 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 		return
 	end
 
-	local options = {}
-	for id, data in pairs(NAUserButtons) do
-		local label = data.Label or ("Button "..id)
-		local cmdDisplay = data.Cmd1 or "?"
-		if data.Cmd2 then
-			cmdDisplay = cmdDisplay.." / "..data.Cmd2
+	local function saveAndRender()
+		if FileSupport then
+			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		end
+		if type(NAmanage.RenderUserButtons) == "function" then
+			NAmanage.RenderUserButtons()
+		end
+	end
+
+	local function getLabel(data, fallback)
+		local label = data and data.Label
+		if type(label) ~= "string" or label == "" then
+			label = fallback
+		end
+		return label
+	end
+
+	local function getCmdDisplay(cmd1, cmd2)
+		local cmdDisplay = cmd1 or "?"
+		if cmd2 then
+			cmdDisplay = cmdDisplay.." / "..cmd2
+		end
+		return cmdDisplay
+	end
+
+	local function removeEntry(id, label)
+		NAUserButtons[id] = nil
+		saveAndRender()
+		DoNotif("Removed user button: ["..id.."] "..label, 2)
+	end
+
+	local function removeGroup(id, label)
+		NAUserButtons[id] = nil
+		saveAndRender()
+		DoNotif("Removed group: ["..id.."] "..label, 2)
+	end
+
+	local function openGroupChildRemove(groupId)
+		local group = NAUserButtons[groupId]
+		if not (type(group) == "table" and group.Type == "group") then
+			DoNotif("Group not found", 2)
+			return
 		end
 
-		Insert(options, {
-			Text = "["..id.."] "..label.." ("..cmdDisplay..")",
-			Callback = function()
-				NAUserButtons[id] = nil
+		local children = (type(group.Children) == "table") and group.Children or {}
+		if #children == 0 then
+			DoNotif("Group has no children", 2)
+			return
+		end
 
-				if FileSupport then
-					writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
+		local groupLabel = getLabel(group, "Group "..groupId)
+		local options = {}
+
+		for childIndex, child in ipairs(children) do
+			local childLabel = getLabel(child, "Action "..childIndex)
+			local cmdDisplay = getCmdDisplay(child.Cmd1, child.Cmd2)
+			local index = childIndex
+			Insert(options, {
+				Text = "["..index.."] "..childLabel.." ("..cmdDisplay..")",
+				Callback = function()
+					local groupNow = NAUserButtons[groupId]
+					if not (type(groupNow) == "table" and groupNow.Type == "group") then
+						DoNotif("Group not found", 2)
+						return
+					end
+					local childrenNow = (type(groupNow.Children) == "table") and groupNow.Children or {}
+					if index < 1 or index > #childrenNow then
+						DoNotif("Child not found", 2)
+						return
+					end
+					local removed = table.remove(childrenNow, index)
+					if #childrenNow == 0 then
+						NAUserButtons[groupId] = nil
+						saveAndRender()
+						DoNotif("Removed group: ["..groupId.."] "..groupLabel, 2)
+						return
+					end
+					groupNow.Children = childrenNow
+					saveAndRender()
+					local removedLabel = (removed and removed.Label) or childLabel
+					DoNotif("Removed child: "..tostring(removedLabel), 2)
 				end
+			})
+		end
 
-				NAmanage.RenderUserButtons()
+		Window({
+			Title = "Remove Group Child",
+			Description = "Select a child to remove from ["..groupId.."] "..groupLabel..":",
+			Buttons = options
+		})
+	end
 
-				DoNotif("Removed user button: ["..id.."] "..label, 2)
+	local function openGroupMenu(groupId)
+		local group = NAUserButtons[groupId]
+		if not (type(group) == "table" and group.Type == "group") then
+			return
+		end
+
+		local groupLabel = getLabel(group, "Group "..groupId)
+		local children = (type(group.Children) == "table") and group.Children or {}
+		local count = #children
+		local options = {}
+
+		Insert(options, {
+			Text = "Remove Group (delete all children)",
+			Callback = function()
+				removeGroup(groupId, groupLabel)
 			end
 		})
+
+		if count > 0 then
+			Insert(options, {
+				Text = "Remove Child",
+				Callback = function()
+					openGroupChildRemove(groupId)
+				end
+			})
+
+			Insert(options, {
+				Text = "Ungroup (keep children)",
+				Callback = function()
+					local ok, msg = NAmanage.UserButtons_Ungroup(groupId)
+					if ok then
+						if type(NAmanage.RenderUserButtons) == "function" then
+							NAmanage.RenderUserButtons()
+						end
+						DoNotif(msg or "Ungrouped", 2)
+					else
+						DoNotif(msg or "Failed to ungroup", 3)
+					end
+				end
+			})
+		end
+
+		Window({
+			Title = "Manage Group",
+			Description = Format("Group [%d] %s (%d child%s)", groupId, groupLabel, count, count == 1 and "" or "ren"),
+			Buttons = options
+		})
+	end
+
+	local ids = {}
+	for id, data in pairs(NAUserButtons) do
+		if type(id) == "number" and type(data) == "table" then
+			Insert(ids, id)
+		end
+	end
+	table.sort(ids)
+
+	local options = {}
+	for _, id in ipairs(ids) do
+		local data = NAUserButtons[id]
+		if data.Type == "group" then
+			local label = getLabel(data, "Group "..id)
+			local count = (type(data.Children) == "table") and #data.Children or 0
+			local mode = (data.GroupMode == "side") and "side" or "dropdown"
+			Insert(options, {
+				Text = Format("[%d] %s (group: %d, %s)", id, label, count, mode),
+				Callback = function()
+					openGroupMenu(id)
+				end
+			})
+		else
+			local label = getLabel(data, "Button "..id)
+			local cmdDisplay = getCmdDisplay(data.Cmd1, data.Cmd2)
+			Insert(options, {
+				Text = Format("[%d] %s (%s)", id, label, cmdDisplay),
+				Callback = function()
+					removeEntry(id, label)
+				end
+			})
+		end
 	end
 
 	Window({
 		Title = "Remove User Button",
-		Description = "Select a button to remove:",
+		Description = "Select a button or group to manage:",
 		Buttons = options
 	})
 end)
@@ -45904,7 +46708,7 @@ NAmanage.performSearch = function(term)
 				break
 			end
 		end
-		table.insert(results, insertAt, candidate)
+		Insert(results, insertAt, candidate)
 		if #results > 5 then
 			table.remove(results)
 		end
@@ -54413,7 +55217,13 @@ originalIO.UserBtnEditor=function()
 			label = "Button "..tostring(id)
 		end
 
-		selectionInfo.Text = ("Selected: [%d] %s"):format(id, label)
+		local groupSuffix = ""
+		if data.Type == "group" then
+			local count = (type(data.Children) == "table") and #data.Children or 0
+			groupSuffix = (" (group: %d)"):format(count)
+		end
+
+		selectionInfo.Text = ("Selected: [%d] %s%s"):format(id, label, groupSuffix)
 
 		if editorState.editAll then
 			if NAgui and NAgui.setInputValue then
@@ -54434,6 +55244,7 @@ originalIO.UserBtnEditor=function()
 			NAgui.setToggleState("Hide Button", hidden, { force = true, fire = false })
 			NAgui.setToggleState("Lock Button", locked, { force = true, fire = false })
 			NAgui.setToggleState("Interactable", interactable, { force = true, fire = false })
+			NAgui.setToggleState("Side Toggle Layout", data.Type == "group" and data.GroupMode == "side" or false, { force = true, fire = false })
 		end
 
 		local w = tonumber(data and data.Width) or 60
@@ -54538,6 +55349,41 @@ originalIO.UserBtnEditor=function()
 
 		local suffix = (deleted == 1) and " button" or " buttons"
 		DoNotif("Deleted "..tostring(deleted)..suffix, 2)
+	end)
+
+	NAgui.addSection("Grouping")
+
+	NAgui.addToggle("Side Toggle Layout", false, function(state)
+		local mode = state and "side" or "dropdown"
+		applyToTargets(function(data)
+			if data.Type == "group" then
+				data.GroupMode = mode
+			end
+		end, "Group mode")
+	end)
+
+	NAgui.addButton("Ungroup Selected", function()
+		if type(editorState.currentId) ~= "number" then
+			DoNotif("Select a group to ungroup", 2)
+			return
+		end
+		local data = NAUserButtons[editorState.currentId]
+		if not (type(data) == "table" and data.Type == "group") then
+			DoNotif("Selected item is not a group", 2)
+			return
+		end
+		local ok, msg = NAmanage.UserButtons_Ungroup(editorState.currentId)
+		if ok then
+			editorState.currentId = nil
+			editorState.currentIndex = 0
+			if type(NAmanage.RenderUserButtons) == "function" then
+				NAmanage.RenderUserButtons()
+			end
+			updateSelectionLabel()
+			DoNotif(msg or "Ungrouped", 2)
+		else
+			DoNotif(msg or "Failed to ungroup", 3)
+		end
 	end)
 
 	NAgui.addSection("Button State")
