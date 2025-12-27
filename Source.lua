@@ -25619,13 +25619,22 @@ end]]
 -- idk what i am doing lol (bored af :P)
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
+	NAStuff._ncColl = setmetatable({}, {__mode="k"})
+	local collMap = NAStuff._ncColl
+
 	NAlib.disconnect("noclip")
 	NAlib.connect("noclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _,p in pairs(char:GetDescendants()) do
 			if p:IsA("BasePart") then
-				if p.CanCollide ~= false then NAlib.setProperty(p,"CanCollide", false) end
+				local currentState = NAlib.isProperty(p, "CanCollide")
+				if collMap and collMap[p] == nil and currentState ~= nil then
+					collMap[p] = currentState
+				end
+				if currentState ~= false then
+					NAlib.setProperty(p,"CanCollide", false)
+				end
 			end
 		end
 	end))
@@ -25633,6 +25642,16 @@ end)
 
 cmd.add({"clip","unnoclip","stopclip","unnclip","unnc"},{"clip","Enable your player's collision"},function()
 	NAlib.disconnect("noclip")
+
+	local collMap = NAStuff._ncColl
+	if collMap then
+		for part, wasCollidable in pairs(collMap) do
+			if part and part:IsA("BasePart") and wasCollidable ~= nil then
+				NAlib.setProperty(part, "CanCollide", wasCollidable)
+			end
+		end
+	end
+	NAStuff._ncColl = nil
 end)
 
 cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchored"},function()
