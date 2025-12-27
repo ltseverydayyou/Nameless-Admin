@@ -26,20 +26,22 @@ CMDAUTOFILL = {}
 
 local NAmanage={}
 
-local Lower = string.lower;
-local Sub = string.sub;
-local GSub = string.gsub;
-local Find = string.find;
-local Match = string.match;
-local Format = string.format;
-local Unpack = table.unpack;
-local Insert = table.insert;
-local Spawn = task.spawn;
-local Delay = task.delay;
-local Wait = task.wait;
-local Discover = table.find;
-local Concat = table.concat;
-local Defer = task.defer;
+Lower    = string.lower
+Sub      = string.sub
+GSub     = string.gsub
+Find     = string.find
+Match    = string.match
+Format   = string.format
+
+Unpack   = table.unpack
+Insert   = table.insert
+Concat   = table.concat
+Discover = table.find
+
+Spawn    = task.spawn
+Delay    = task.delay
+Wait     = task.wait
+Defer    = task.defer
 
 local Notify = nil
 local Window = nil
@@ -12953,10 +12955,12 @@ NAmanage.loadAutoExec = function()
 	return true
 end
 
-NAmanage.LoadPlugins = function()
-	if not CustomFunctionSupport then
-		return true
-	end
+	NAmanage.LoadPlugins = function()
+		if not CustomFunctionSupport then
+			return true
+		end
+
+		local iyCallCtx = { args = nil, speaker = nil }
 
 	local pluginDirNA = NAfiles.NAPLUGINFILEPATH
 	local pluginDirIY = NAfiles.NAIYPLUGINFILEPATH
@@ -13077,11 +13081,11 @@ NAmanage.LoadPlugins = function()
 		return false
 	end
 
-	local function appendIYCommands(out, iyPlugin)
-		if type(out) ~= "table" or type(iyPlugin) ~= "table" then
-			return
-		end
-		local commands = iyPlugin.Commands or iyPlugin.commands
+		local function appendIYCommands(out, iyPlugin)
+			if type(out) ~= "table" or type(iyPlugin) ~= "table" then
+				return
+			end
+			local commands = iyPlugin.Commands or iyPlugin.commands
 		if type(commands) ~= "table" then
 			return
 		end
@@ -13148,7 +13152,15 @@ NAmanage.LoadPlugins = function()
 				Info = (type(info) == "string") and info or tostring(info),
 				Function = function(...)
 					local args = { ... }
-					return iyFunc(args, LocalPlayer)
+					iyCallCtx.args = args
+					iyCallCtx.speaker = LocalPlayer
+					local ok, res = pcall(iyFunc, args, LocalPlayer)
+					iyCallCtx.args = nil
+					iyCallCtx.speaker = nil
+					if not ok then
+						error(res)
+					end
+					return res
 				end,
 				RequiresArguments = requires and true or false
 			})
@@ -13439,11 +13451,275 @@ NAmanage.LoadPlugins = function()
 		proxyEnv.runCommand = _runCmd
 		proxyEnv.request = _pluginRequest
 		proxyEnv.http_request = _pluginRequest
-		proxyEnv.notify = function(msg, t)
-			if DoNotif then
-				DoNotif(tostring(msg), t or 3)
+		proxyEnv.notify = function(msg, detailOrTime, maybeTime)
+			local duration = 3
+			local text
+			if type(detailOrTime) == "string" then
+				text = tostring(msg)..": "..detailOrTime
+				duration = tonumber(maybeTime) or duration
 			else
-				warn(tostring(msg))
+				text = tostring(msg)
+				duration = tonumber(detailOrTime) or duration
+			end
+			if DoNotif then
+				DoNotif(text, duration)
+			else
+				warn(text)
+			end
+		end
+
+		if mode == "iy" then
+			local servicesCache = {}
+			local function fetchService(name)
+				if servicesCache[name] ~= nil then
+					return servicesCache[name]
+				end
+				local svc = nil
+				if SafeGetService then
+					svc = SafeGetService(name)
+				end
+				if not svc and game and game.GetService then
+					local ok, res = pcall(game.GetService, game, name)
+					if ok then
+						svc = res
+					end
+				end
+				servicesCache[name] = svc
+				return svc
+			end
+			local iyServices = setmetatable({}, {
+				__index = function(_, k)
+					return fetchService(k)
+				end
+			})
+			proxyEnv.Services = iyServices
+			proxyEnv.services = iyServices
+
+			local iySplitString
+
+			local function iyGetPlayers(query, speaker)
+				local results = {}
+				if not Players then
+					return results
+				end
+				local function add(plr)
+					if plr and plr.Name then
+						results[#results+1] = plr.Name
+					end
+				end
+				local tokens = iySplitString(query or "", ",")
+				if #tokens == 0 then
+					return results
+				end
+
+				local everyone = Players:GetPlayers()
+
+				for _, tokenRaw in ipairs(tokens) do
+					local token = tokenRaw:lower()
+					local resolved = false
+					if type(getPlr) == "function" then
+						local ok, list = pcall(function()
+							return getPlr(speaker, tokenRaw)
+						end)
+						if ok and type(list) == "table" then
+							for _, plr in ipairs(list) do
+								add(plr)
+							end
+							resolved = true
+						end
+					end
+					if resolved then
+						continue
+					end
+					if token == "all" or token == "*" or token == "everyone" then
+						for _, plr in ipairs(everyone) do
+							add(plr)
+						end
+					elseif token == "others" then
+						for _, plr in ipairs(everyone) do
+							if not speaker or plr ~= speaker then
+								add(plr)
+							end
+						end
+					elseif token == "me" or token == "self" then
+						if speaker then
+							add(speaker)
+						end
+					elseif token == "random" then
+						if #everyone > 0 then
+							add(everyone[math.random(1, #everyone)])
+						end
+					else
+						local search = token
+						local atName = false
+						if search:sub(1,1) == "@" then
+							search = search:sub(2)
+							atName = true
+						end
+						for _, plr in ipairs(everyone) do
+							local nm = plr.Name:lower()
+							local dn = (plr.DisplayName or ""):lower()
+							if atName then
+								if nm:sub(1, #search) == search then
+									add(plr)
+								end
+							else
+								if nm:sub(1, #search) == search or dn:sub(1, #search) == search then
+									add(plr)
+								end
+							end
+						end
+					end
+				end
+				return results
+			end
+			proxyEnv.getPlayersByName = iyGetPlayers
+			proxyEnv.getPlayer = iyGetPlayers
+			proxyEnv.GetPlayer = iyGetPlayers
+			proxyEnv.r15 = function(plr)
+				local target = plr
+				if not target and Players then
+					target = Players.LocalPlayer
+				end
+				local hum = target and target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+				return hum and hum.RigType == Enum.HumanoidRigType.R15
+			end
+			proxyEnv.Services = proxyEnv.Services or iyServices
+			proxyEnv.getstring = function(startIdx)
+				local args = iyCallCtx.args or {}
+				local start = tonumber(startIdx) or 1
+				if start < 1 then start = 1 end
+				local parts = {}
+				for i = start, #args do
+					parts[#parts+1] = tostring(args[i])
+				end
+				return Concat(parts, " ")
+			end
+			proxyEnv.getString = proxyEnv.getstring
+
+			local function iyIsNumber(str)
+				return tonumber(str) ~= nil
+			end
+			proxyEnv.isNumber = iyIsNumber
+			proxyEnv.isnumber = iyIsNumber
+
+			function iySplitString(str, delim)
+				local out = {}
+				str = tostring(str or "")
+				delim = tostring(delim or ",")
+				for part in string.gmatch(str, "[^"..delim.."]+") do
+					local trimmed = part:match("^%s*(.-)%s*$")
+					if trimmed and trimmed ~= "" then
+						out[#out+1] = trimmed
+					end
+				end
+				return out
+			end
+			proxyEnv.splitString = iySplitString
+
+			local function iyToClipboard(txt)
+				local payload = tostring(txt or "")
+				if typeof(setclipboard) == "function" then
+					local ok = pcall(setclipboard, payload)
+					if ok then
+						return true
+					end
+				end
+				warn("Clipboard unavailable; value: "..payload)
+				return false
+			end
+			proxyEnv.toClipboard = iyToClipboard
+			proxyEnv.toclipboard = iyToClipboard
+
+			local lp = Players and Players.LocalPlayer or nil
+			proxyEnv.Players = proxyEnv.Players or Players
+			proxyEnv.LocalPlayer = lp
+			proxyEnv.Player = lp
+			proxyEnv.lplr = lp
+			proxyEnv.Char = lp and lp.Character or nil
+			proxyEnv.Character = lp and lp.Character or nil
+			proxyEnv.PlayerGui = lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil
+			proxyEnv.PlaceId = tonumber(game and game.PlaceId) or 0
+			proxyEnv.JobId = tostring((game and game.JobId) or "")
+			proxyEnv.COREGUI = SafeGetService and SafeGetService("CoreGui") or nil
+			proxyEnv.UserInputService = proxyEnv.UserInputService or UserInputService
+			proxyEnv.RunService = proxyEnv.RunService or RunService
+			proxyEnv.TweenService = proxyEnv.TweenService or TweenService
+			proxyEnv.HttpService = proxyEnv.HttpService or HttpService
+			proxyEnv.TextChatService = proxyEnv.TextChatService or SafeGetService("TextChatService")
+			proxyEnv.TextService = proxyEnv.TextService or SafeGetService("TextService")
+			proxyEnv.StarterGui = proxyEnv.StarterGui or SafeGetService("StarterGui")
+			proxyEnv.ReplicatedStorage = proxyEnv.ReplicatedStorage or SafeGetService("ReplicatedStorage")
+			proxyEnv.Lighting = proxyEnv.Lighting or SafeGetService("Lighting")
+			proxyEnv.ContextActionService = proxyEnv.ContextActionService or SafeGetService("ContextActionService")
+
+			local function iyMouse()
+				if lp and lp.GetMouse then
+					local ok, m = pcall(lp.GetMouse, lp)
+					if ok and m then
+						return m
+					end
+				end
+				return nil
+			end
+			proxyEnv.IYMouse = iyMouse()
+
+			local function iyIsOnMobile()
+				if UserInputService and typeof(UserInputService.GetPlatform) == "function" then
+					local platform = UserInputService:GetPlatform()
+					return platform == Enum.Platform.Android or platform == Enum.Platform.IOS
+				end
+				return UserInputService and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+			end
+			proxyEnv.IsOnMobile = iyIsOnMobile()
+
+			local function iyLegacyChat()
+				if TextChatService and TextChatService.ChatVersion then
+					return TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
+				end
+				return false
+			end
+			proxyEnv.isLegacyChat = iyLegacyChat()
+
+			proxyEnv.currentVersion = proxyEnv.currentVersion or "IY-compat"
+
+			proxyEnv.getRoot = function(char)
+				if not char then
+					return nil
+				end
+				return char:FindFirstChild("HumanoidRootPart")
+					or char:FindFirstChild("Torso")
+					or char:FindFirstChild("UpperTorso")
+					or char.PrimaryPart
+			end
+
+			proxyEnv.Time = function()
+				return os.date("%X")
+			end
+
+			if not proxyEnv.buffer or type(proxyEnv.buffer.create) ~= "function" then
+				local bufShim = {}
+				bufShim.__index = bufShim
+				function bufShim.create(n)
+					return setmetatable({ len = tonumber(n) or 0, data = {} }, bufShim)
+				end
+				function bufShim.writeu8(b, idx, val)
+					if not (b and b.data) then
+						return
+					end
+					b.data[(idx or 0) + 1] = val
+				end
+				function bufShim.tostring(b)
+					if not b or not b.data then
+						return ""
+					end
+					local out = {}
+					for i = 1, b.len do
+						out[i] = string.char(b.data[i] or 0)
+					end
+					return table.concat(out)
+				end
+				proxyEnv.buffer = bufShim
 			end
 		end
 
@@ -49030,6 +49306,9 @@ originalIO.runNACHAT=function()
 			users = {},
 			currentDMTarget = nil,
 		}
+		local function isChatUiSuppressed()
+			return NAChat.isHidden and not NAChat.serverIsAdmin
+		end
 
 		local function getUIScale()
 			local scaleObj = NAUIMANAGER and NAUIMANAGER.AUTOSCALER
@@ -49342,7 +49621,7 @@ originalIO.runNACHAT=function()
 			queuedUsersRefresh = true
 			Delay(0.15, function()
 				queuedUsersRefresh = false
-				if type(updateUsersList) == "function" and not NAChat.isHidden and NAChat.activeTab == "users" then
+				if type(updateUsersList) == "function" and (not isChatUiSuppressed()) and NAChat.activeTab == "users" then
 					updateUsersList(NAChat.users or {})
 				end
 			end)
@@ -49691,7 +49970,7 @@ originalIO.runNACHAT=function()
 		end
 
 		local function requestUsersList()
-			if NAChat.isHidden or not NAChat.service or usersFetchInFlight then
+			if isChatUiSuppressed() or not NAChat.service or usersFetchInFlight then
 				return
 			end
 
@@ -49729,7 +50008,7 @@ originalIO.runNACHAT=function()
 
 			local doAutoScroll = usersScroll and shouldAutoScroll(usersScroll) or false
 
-			if NAChat.isHidden then
+			if isChatUiSuppressed() then
 				for _, v in ipairs(usersScroll:GetChildren()) do
 					if v:IsA("Frame") then
 						v:Destroy()
@@ -49874,7 +50153,9 @@ originalIO.runNACHAT=function()
 					gameLbl.Text = line
 				end
 
-				local canJoin = type(placeId) == "number" and jobId ~= nil and tostring(jobId) ~= "" and gameStatus ~= ""
+				local pidNum = tonumber(placeId)
+				local jobStr = tostring(jobId or "")
+				local canJoin = (pidNum ~= nil and pidNum > 0) and jobStr ~= ""
 				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
 
 				local joinBtn = fr:FindFirstChild("JoinButton")
@@ -49897,8 +50178,8 @@ originalIO.runNACHAT=function()
 						local jbCorner = InstanceNew("UICorner", joinBtn)
 						jbCorner.CornerRadius = UDim.new(0, 6)
 						MouseButtonFix(joinBtn, function()
-							local pid = tonumber(placeId)
-							local jid = tostring(jobId or "")
+							local pid = pidNum
+							local jid = jobStr
 							if not (pid and jid ~= "") then
 								return
 							end
@@ -50003,6 +50284,7 @@ originalIO.runNACHAT=function()
 
 		originalIO.setHiddenState = function(newHidden, skipRemote)
 			NAChat.isHidden = newHidden
+			local freezeUI = isChatUiSuppressed()
 			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
 				pcall(NAmanage.NASettingsSet, "naChatHidden", newHidden)
 			end
@@ -50012,22 +50294,22 @@ originalIO.runNACHAT=function()
 				visibilityBtn.TextColor3 = newHidden and Color3.fromRGB(220, 220, 230) or Color3.fromRGB(255, 255, 255)
 			end
 			if inputBox then
-				inputBox.TextEditable = not newHidden
-				inputBox.TextTransparency = newHidden and 0.5 or 0
+				inputBox.TextEditable = not freezeUI
+				inputBox.TextTransparency = freezeUI and 0.5 or 0
 			end
 			if usersSearchBox then
-				usersSearchBox.TextEditable = not newHidden
-				usersSearchBox.TextTransparency = newHidden and 0.5 or 0
-				if newHidden then
+				usersSearchBox.TextEditable = not freezeUI
+				usersSearchBox.TextTransparency = freezeUI and 0.5 or 0
+				if freezeUI then
 					usersSearchBox.Text = ""
 					userSearchTerm = ""
 				end
 			end
 			if sendBtn then
-				sendBtn.AutoButtonColor = not newHidden
-				sendBtn.TextTransparency = newHidden and 0.5 or 0
+				sendBtn.AutoButtonColor = not freezeUI
+				sendBtn.TextTransparency = freezeUI and 0.5 or 0
 			end
-			if newHidden then
+			if freezeUI then
 				updateUsersList({})
 			elseif NAChat.activeTab == "users" then
 				requestUsersList()
@@ -50069,11 +50351,11 @@ originalIO.runNACHAT=function()
 			end
 
 			if usersSearchBox then
-				usersSearchBox.Visible = (tab == "users") and not NAChat.isHidden
+				usersSearchBox.Visible = (tab == "users") and not isChatUiSuppressed()
 			end
 
 			if tab == "users" then
-				if NAChat.isHidden then
+				if isChatUiSuppressed() then
 					updateUsersList({})
 				else
 					requestUsersList()
@@ -50167,7 +50449,7 @@ originalIO.runNACHAT=function()
 				usersSearchBox.ClearTextOnFocus = false
 				usersSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 					userSearchTerm = Lower(usersSearchBox.Text or "")
-					if not NAChat.isHidden then
+					if not isChatUiSuppressed() then
 						updateUsersList(NAChat.users or {})
 					end
 				end)
@@ -50515,7 +50797,7 @@ originalIO.runNACHAT=function()
 					end
 				end
 
-				if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
+				if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
 					updateUsersList(NAChat.users)
 				end
 			end)
@@ -50577,7 +50859,7 @@ originalIO.runNACHAT=function()
 						end
 					end
 
-					if changed and not NAChat.isHidden and NAChat.activeTab == "users" then
+					if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
 						updateUsersList(NAChat.users)
 					end
 				end)
@@ -50849,11 +51131,49 @@ originalIO.runNACHAT=function()
 		local slurPunishing = false
 
 		local leetMap = {
-			a = "[a4@]", b = "[b8]", c = "[c%(]", d = "d", e = "[e3]", f = "f",
-			g = "[g69]", h = "h", i = "[i1!|l]", j = "j", k = "k", l = "[l1|!]",
-			m = "m", n = "n", o = "[o0]", p = "p", q = "q", r = "r", s = "[s5$]",
-			t = "[t7+]", u = "[uv]", v = "[vu]", w = "w", x = "x", y = "y", z = "[z2]"
+			a = "[a4@àáâãäåāăąα]", b = "[b8]", c = "[c%(çćč]", d = "d", e = "[e3èéêëēĕėęě]", f = "f",
+			g = "[g69]", h = "h", i = "[i1!|lìíîïīįı]", j = "j", k = "k", l = "[l1|!]",
+			m = "m", n = "[nñńņň]", o = "[o0òóôõöōŏőø]", p = "p", q = "q", r = "r", s = "[s5$śšșß]",
+			t = "[t7+țţť]", u = "[uvùúûüūůűŭ]", v = "[vuùúûüūůűŭ]", w = "w", x = "x", y = "[yýÿ]", z = "[z2źżž]"
 		}
+
+		local accentLowerMap = {
+			["Á"] = "á", ["À"] = "à", ["Â"] = "â", ["Ã"] = "ã", ["Ä"] = "ä", ["Å"] = "å", ["Ā"] = "ā", ["Ă"] = "ă", ["Ą"] = "ą",
+			["Ć"] = "ć", ["Č"] = "č", ["Ç"] = "ç",
+			["É"] = "é", ["È"] = "è", ["Ê"] = "ê", ["Ë"] = "ë", ["Ē"] = "ē", ["Ĕ"] = "ĕ", ["Ė"] = "ė", ["Ę"] = "ę", ["Ě"] = "ě",
+			["Í"] = "í", ["Ì"] = "ì", ["Î"] = "î", ["Ï"] = "ï", ["Ī"] = "ī", ["Į"] = "į",
+			["Ó"] = "ó", ["Ò"] = "ò", ["Ô"] = "ô", ["Õ"] = "õ", ["Ö"] = "ö", ["Ø"] = "ø", ["Ō"] = "ō", ["Ŏ"] = "ŏ", ["Ő"] = "ő",
+			["Ú"] = "ú", ["Ù"] = "ù", ["Û"] = "û", ["Ü"] = "ü", ["Ū"] = "ū", ["Ů"] = "ů", ["Ű"] = "ű", ["Ŭ"] = "ŭ",
+			["Ý"] = "ý", ["Ÿ"] = "ÿ",
+			["Š"] = "š", ["Ž"] = "ž",
+			["Ł"] = "ł", ["Ð"] = "ð", ["Þ"] = "þ",
+			["Ñ"] = "ñ",
+		}
+		local function normalizeTextLower(text)
+			text = tostring(text or "")
+			local lowered = Lower(text)
+			return lowered:gsub("[ÁÀÂÃÄÅĀĂĄĆČÇÉÈÊËĒĔĖĘĚÍÌÎÏĪĮÓÒÔÕÖØŌŎŐÚÙÛÜŪŮŰŬÝŸŠŽŁÐÞÑ]", accentLowerMap)
+		end
+
+		local function mergeExtraSlurs(target, extra)
+			if type(extra) == "string" then
+				for word in extra:gmatch("[^,%s]+") do
+					local clean = normalizeTextLower(word)
+					if clean ~= "" then
+						Insert(target, clean)
+					end
+				end
+			elseif type(extra) == "table" then
+				for _, word in ipairs(extra) do
+					if type(word) == "string" then
+						local clean = normalizeTextLower(word)
+						if clean ~= "" then
+							Insert(target, clean)
+						end
+					end
+				end
+			end
+		end
 
 		local encodedSlurs = {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
 		local function decodeSlurList()
@@ -50869,23 +51189,26 @@ originalIO.runNACHAT=function()
 			return list
 		end
 		local slurList = decodeSlurList()
+		mergeExtraSlurs(slurList, opt and opt.extraSlurs)
 
 		local slurPatterns = {}
 		for _, word in ipairs(slurList) do
 			local parts = {}
-			word = word:lower()
-			for i = 1, #word do
-				local ch = word:sub(i, i)
-				parts[#parts+1] = leetMap[ch] or ch
+			word = normalizeTextLower(word)
+			if word ~= "" then
+				for i = 1, #word do
+					local ch = word:sub(i, i)
+					parts[#parts+1] = leetMap[ch] or ch
+				end
+				slurPatterns[#slurPatterns+1] = Concat(parts, "[%W_]*")
 			end
-			slurPatterns[#slurPatterns+1] = Concat(parts, "[%W_]*")
 		end
 
 		local function isSlurAttempt(text)
 			if type(text) ~= "string" then
 				return false
 			end
-			local lower = Lower(text)
+			local lower = normalizeTextLower(text)
 			for _, pattern in ipairs(slurPatterns) do
 				if lower:match(pattern) then
 					return true
@@ -50929,7 +51252,7 @@ originalIO.runNACHAT=function()
 		end
 
 		local function sendMessage(t)
-			if NAChat.isHidden then
+			if isChatUiSuppressed() then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
 				return
 			end
@@ -51157,7 +51480,7 @@ originalIO.runNACHAT=function()
 				refreshStatus()
 
 				local svc = NAChat.service
-				if svc and svc.IsConnected and svc.IsConnected() and not NAChat.isHidden then
+				if svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
 					requestUsersList()
 				end
 			end
