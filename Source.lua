@@ -131,6 +131,43 @@ local StarterGui = SafeGetService("StarterGui");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 
+NAStuff = NAStuff or {}
+NAStuff.CmdBar2 = NAStuff.CmdBar2 or {
+	defaultWidth = 340;
+	defaultHeight = 78;
+	minWidth = 200;
+	maxWidth = 800;
+	minHeight = 70;
+	maxHeight = 160;
+	topHeight = 26;
+	bodyOffsetY = 34;
+	bodyBottomPadding = 8;
+	bodyMinHeight = 24;
+}
+
+function NAmanage.CmdBar2ClampValue(value, minValue, maxValue, fallback)
+	local numberValue = tonumber(value)
+	if not numberValue then
+		return fallback
+	end
+	numberValue = math.floor(numberValue + 0.5)
+	if numberValue < minValue then
+		return minValue
+	elseif numberValue > maxValue then
+		return maxValue
+	end
+	return numberValue
+end
+
+function NAmanage.CmdBar2ComputeBodyHeight(totalHeight)
+	local cfg = NAStuff.CmdBar2 or {}
+	local available = totalHeight - (cfg.bodyOffsetY or 0) - (cfg.bodyBottomPadding or 0)
+	if available < (cfg.bodyMinHeight or 0) then
+		return cfg.bodyMinHeight or 0
+	end
+	return available
+end
+
 local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
@@ -977,6 +1014,18 @@ local Bindings = Bindings or {}
 local CommandKeybinds = CommandKeybinds or {}
 local CommandKeybindOptions = CommandKeybindOptions or {}
 local NAStuff = {
+	CmdBar2 = (NAStuff and NAStuff.CmdBar2) or {
+		defaultWidth = 340;
+		defaultHeight = 78;
+		minWidth = 200;
+		maxWidth = 800;
+		minHeight = 70;
+		maxHeight = 160;
+		topHeight = 26;
+		bodyOffsetY = 34;
+		bodyBottomPadding = 8;
+		bodyMinHeight = 24;
+	};
 	NAICONMAIN = nil;
 	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
 	NAjson = nil;
@@ -4817,8 +4866,20 @@ NAmanage.GetBasicInfoSnapshot = function()
 		server = {};
 		system = {};
 		flags = {};
+		session = {};
 		timestamp = "";
 	}
+
+	local function formatDuration(seconds)
+		local value = tonumber(seconds) or 0
+		if value < 0 then
+			value = 0
+		end
+		local hours = math.floor(value / 3600)
+		local minutes = math.floor((value % 3600) / 60)
+		local secs = math.floor(value % 60)
+		return Format("%02d:%02d:%02d", hours, minutes, secs)
+	end
 
 	local player = Players and Players.LocalPlayer
 	local displayName = player and player.DisplayName or "Unknown"
@@ -4829,12 +4890,17 @@ NAmanage.GetBasicInfoSnapshot = function()
 	if player and player.MembershipType == Enum.MembershipType.Premium then
 		membership = "Premium"
 	end
+	local teamName = "None"
+	if player and player.Team then
+		teamName = player.Team.Name or "None"
+	end
 
 	snapshot.player.displayName = displayName
 	snapshot.player.username = username
 	snapshot.player.userId = userId and tostring(userId) or "Unknown"
 	snapshot.player.accountAge = NAmanage.FormatAccountAge(accountAgeDays)
 	snapshot.player.membership = membership
+	snapshot.player.team = teamName
 
 	local platformName = "Unknown"
 	if UserInputService then
@@ -4857,8 +4923,29 @@ NAmanage.GetBasicInfoSnapshot = function()
 		end
 	end
 
+	local deviceType = "Unknown"
+	if IsOnMobile then
+		deviceType = "Mobile"
+	elseif IsOnPC then
+		deviceType = "Desktop"
+	elseif platformName ~= "Unknown" then
+		deviceType = platformName
+	end
+
+	local inputs = {}
+	if UserInputService then
+		if UserInputService.TouchEnabled then Insert(inputs, "Touch") end
+		if UserInputService.GamepadEnabled then Insert(inputs, "Gamepad") end
+		if UserInputService.KeyboardEnabled or UserInputService.MouseEnabled then
+			Insert(inputs, "KB/M")
+		end
+	end
+	local controlScheme = #inputs > 0 and Concat(inputs, ", ") or "Unknown"
+
 	snapshot.platform.platform = platformName
 	snapshot.platform.executor = executorName
+	snapshot.platform.device = deviceType
+	snapshot.platform.input = controlScheme
 
 	local robloxLocale = LocalizationService and LocalizationService.RobloxLocaleId or "Unknown"
 	local systemLocale = LocalizationService and LocalizationService.SystemLocaleId or "Unknown"
@@ -4887,10 +4974,17 @@ NAmanage.GetBasicInfoSnapshot = function()
 		end
 	end
 
+	local resolution = "Unknown"
+	local camera = workspace and workspace.CurrentCamera
+	if camera and camera.ViewportSize then
+		resolution = Format("%dx%d", math.floor(camera.ViewportSize.X), math.floor(camera.ViewportSize.Y))
+	end
+
 	snapshot.system.robloxLocale = robloxLocale
 	snapshot.system.systemLocale = systemLocale
 	snapshot.system.quality = qualitySetting
 	snapshot.system.voice = voiceStatus
+	snapshot.system.resolution = resolution
 
 	local placeId = tonumber(game.PlaceId) or 0
 	local gameId = game.GameId or "Unknown"
@@ -4901,18 +4995,95 @@ NAmanage.GetBasicInfoSnapshot = function()
 
 	local gameName = "Unknown"
 	local creatorName = "Unknown"
-	if MarketplaceService then
-		local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
-		if okInfo and type(infoResult) == "table" then
-			gameName = infoResult.Name or gameName
-			if infoResult.Creator and infoResult.Creator.Name then
-				creatorName = infoResult.Creator.Name
+	local gameGenre = "Unknown"
+	local universeId = tonumber(gameId) or 0
+	local placeVersion = tonumber(game.PlaceVersion) or nil
+	local now = (os.clock and os.clock() or tick())
+
+	if NAmanage then
+		NAmanage.BasicInfoGameCache = NAmanage.BasicInfoGameCache or {}
+		local cache = NAmanage.BasicInfoGameCache
+
+		if cache.universeId ~= universeId then
+			cache.universeId = universeId
+			cache.name = nil
+			cache.creator = nil
+			cache.genre = nil
+			cache.fetching = false
+			cache.lastFetch = 0
+			cache.fetchId = 0
+			cache.marketplaceFetched = false
+		end
+
+		if cache.name then
+			gameName = cache.name
+		end
+		if cache.creator then
+			creatorName = cache.creator
+		end
+		if cache.genre then
+			gameGenre = cache.genre
+		end
+
+		local lastFetch = cache.lastFetch or 0
+		if universeId ~= 0 and not cache.fetching and not cache.genre and (lastFetch == 0 or (now - lastFetch > 30)) then
+			cache.fetching = true
+			cache.lastFetch = now
+			cache.fetchId = (cache.fetchId or 0) + 1
+			local fetchId = cache.fetchId
+
+			SpawnCall(function()
+				local url = "https://games.roblox.com/v1/games?universeIds=" .. tostring(universeId)
+				local body
+
+				local okBody, result = pcall(game.HttpGet, game, url)
+				if okBody and type(result) == "string" then
+					body = result
+				elseif type(NAREQUEST) == "function" then
+					local okReq, resp = pcall(NAREQUEST, { Url = url, Method = "GET" })
+					if okReq and type(resp) == "table" then
+						body = resp.Body or resp.body or resp.ResponseBody
+					end
+				end
+
+				if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
+					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+					if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1] and cache.fetchId == fetchId and cache.universeId == universeId then
+						local entry = decoded.data[1]
+						cache.name = cache.name or entry.name or entry.Name
+						if entry.creator and type(entry.creator) == "table" then
+							cache.creator = cache.creator or entry.creator.name or entry.creator.Name
+						end
+						cache.genre = cache.genre or entry.genre or entry.genre_l1 or entry.genre_l2 or entry.Genre
+					end
+				end
+
+				if cache.fetchId == fetchId then
+					cache.fetching = false
+				end
+			end)
+		end
+
+		if MarketplaceService and placeId ~= 0 and not cache.marketplaceFetched and (gameName == "Unknown" or creatorName == "Unknown") then
+			local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
+			if okInfo and type(infoResult) == "table" then
+				cache.name = cache.name or infoResult.Name
+				if infoResult.Creator and infoResult.Creator.Name then
+					cache.creator = cache.creator or infoResult.Creator.Name
+				end
 			end
+			cache.marketplaceFetched = true
+
+			gameName = cache.name or gameName
+			creatorName = cache.creator or creatorName
+			gameGenre = cache.genre or gameGenre
 		end
 	end
 
 	snapshot.game.name = gameName
 	snapshot.game.creator = creatorName
+	snapshot.game.genre = gameGenre
+	snapshot.game.placeVersion = placeVersion and tostring(placeVersion) or "Unknown"
 
 	snapshot.ids.placeId = placeId ~= 0 and tostring(placeId) or "Unknown"
 	local gameIdText = tostring(gameId)
@@ -4924,13 +5095,43 @@ NAmanage.GetBasicInfoSnapshot = function()
 
 	local playerCount = Players and Players.NumPlayers or 0
 	local maxPlayers = Players and Players.MaxPlayers or 0
+
+	local serverPing = "Unknown"
+	local statsService = SafeGetService and SafeGetService("Stats") or nil
+	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
+		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
+		if pingStat then
+			local okPingNum, pingNum = pcall(function()
+				if pingStat.GetValue then
+					return pingStat:GetValue()
+				end
+			end)
+			if okPingNum and type(pingNum) == "number" then
+				serverPing = Format("%d ms", math.floor(pingNum + 0.5))
+			else
+				local okPingStr, pingStr = pcall(function()
+					if pingStat.GetValueString then
+						return pingStat:GetValueString()
+					end
+				end)
+				if okPingStr and type(pingStr) == "string" and pingStr ~= "" then
+					serverPing = pingStr
+				end
+			end
+		end
+	end
+
 	snapshot.server.playerCount = Format("%d/%d", playerCount, maxPlayers)
+	snapshot.server.ping = serverPing
 
 	local isTesting = getgenv and getgenv().NATestingVer
 	local aprilMode = getgenv and getgenv().ActivateAprilMode
 
 	snapshot.flags.version = isTesting and "Testing" or "Normal"
 	snapshot.flags.aprilFools = aprilMode and "Enabled" or "Disabled"
+
+	local sessionSeconds = (os.clock and os.clock() or tick()) - (NASESSIONSTARTEDIDK or 0)
+	snapshot.session.uptime = formatDuration(sessionSeconds)
 
 	snapshot.timestamp = os.date("%m/%d/%Y | %H:%M:%S")
 
@@ -6594,11 +6795,56 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 	end
 end
 
-local JoinLeaveConfig = {
+NAmanage.jlPhys = function()
+	local okSettings, net = pcall(function()
+		return settings():GetService("NetworkSettings")
+	end)
+	if okSettings and net then
+		local okValue, value = pcall(function()
+			return net.PrintPhysicsErrors
+		end)
+		if okValue then
+			return value == true
+		end
+	end
+	return false
+end
+
+NAmanage.jlDef = {
 	JoinLog = false;
 	LeaveLog = false;
 	SaveLog = false;
+	ChatLog = true;
+	SaveChatLog = true;
+	PhysicsLog = NAmanage.jlPhys();
 }
+
+NAmanage.jlNorm = function(cfg)
+	local c = type(cfg) == "table" and cfg or {}
+	local function boolDef(v, d)
+		if type(v) == "boolean" then
+			return v
+		end
+		return d
+	end
+	for key, def in pairs(NAmanage.jlDef) do
+		c[key] = boolDef(c[key], def)
+	end
+	return c
+end
+
+NAmanage.jlCfg = NAmanage.jlNorm()
+
+NAmanage.logApply = function()
+	local okSettings, net = pcall(function()
+		return settings():GetService("NetworkSettings")
+	end)
+	if okSettings and net then
+		pcall(function()
+			net.PrintPhysicsErrors = NAmanage.jlCfg.PhysicsLog == true
+		end)
+	end
+end
 
 _G.NAChatGameActivityEnabled=function()
 	local settings = NAmanage.NASettingsEnsure()
@@ -6908,6 +7154,18 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
+			end;
+		};
+		cmdbar2Width = {
+			default = NAStuff.CmdBar2.defaultWidth;
+			coerce = function(value)
+				return NAmanage.CmdBar2ClampValue(value, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
+			end;
+		};
+		cmdbar2Height = {
+			default = NAStuff.CmdBar2.defaultHeight;
+			coerce = function(value)
+				return NAmanage.CmdBar2ClampValue(value, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 			end;
 		};
 		deltaPrompted = {
@@ -7439,11 +7697,7 @@ if FileSupport then
 	end
 
 	if not isfile(NAfiles.NAJOINLEAVE) then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode({
-			JoinLog = false;
-			LeaveLog = false;
-			SaveLog = false;
-		}))
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
 	end
 
 	--[[if not isfile(NAfiles.NACHATTAG) then
@@ -8136,6 +8390,8 @@ NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
+NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
+NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 
 if FileSupport then
@@ -8209,9 +8465,12 @@ if FileSupport then
 		end)
 
 		if success and type(data) == "table" then
-			JoinLeaveConfig = data
+			NAmanage.jlCfg = data
 		end
 	end
+
+	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
+	NAmanage.logApply()
 
 	--[[if isfile(NAfiles.NACHATTAG) then
 		local success, data = pcall(function()
@@ -12504,15 +12763,48 @@ NAmanage.decodeUserButtons=function(raw)
 	return nil
 end
 
+NAmanage.ubNorm=function(dt)
+	local norm = {}
+	local chg = false
+	if type(dt) ~= "table" then
+		return norm, false
+	end
+	for id, entry in pairs(dt) do
+		if type(id) == "number" then
+			norm[id] = entry
+		else
+			chg = true
+		end
+	end
+	for id, entry in pairs(dt) do
+		if type(id) == "string" then
+			local n = tonumber(id)
+			if n and norm[n] == nil then
+				norm[n] = entry
+				chg = true
+			end
+		end
+	end
+	return norm, chg
+end
+
 NAmanage.UserButtonsSave = function(reason, data)
+	local pay = data or NAUserButtons or {}
+	local norm, chg = NAmanage.ubNorm(pay)
+	if chg then
+		pay = norm
+		if data == nil or data == NAUserButtons then
+			NAUserButtons = norm
+		end
+	end
+
 	if not FileSupport then
 		return true
 	end
 
 	local path = NAfiles.NAUSERBUTTONSPATH
 	local backupPath = path..".bak"
-	local payload = data or NAUserButtons or {}
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, pay)
 	if not okEncode then
 		NAmanage.loaderWarn('UserButtons', 'failed to encode data'..(reason and (' ('..reason..')') or '')..': '..tostring(encoded))
 		return false
@@ -12580,9 +12872,9 @@ NAmanage.loadButtonIDS = function()
 		return false
 	end
 
-	NAUserButtons = decoded
-
-	local chg = false
+	local norm, normChg = NAmanage.ubNorm(decoded)
+	NAUserButtons = norm
+	local chg = normChg
 
 	for _, data in pairs(NAUserButtons) do
 		if type(data) == "table" and type(data.Keybind) == "string" and data.Keybind ~= "" then
@@ -12609,7 +12901,7 @@ NAmanage.loadButtonIDS = function()
 	end
 
 	if chg and FileSupport then
-		pcall(writefile, path, HttpService:JSONEncode(NAUserButtons))
+		NAmanage.UserButtonsSave("normalize ids")
 	end
 	NAmanage.SaveCommandKeybinds()
 	NAmanage.ApplyCommandKeybinds()
@@ -14168,7 +14460,7 @@ NAmanage.SaveWaypoints = function()
 end
 
 NAmanage.LogJoinLeave = function(message)
-	if not FileSupport or not appendfile or not JoinLeaveConfig.SaveLog then return end
+	if not FileSupport or not appendfile or not (NAmanage.jlCfg and NAmanage.jlCfg.SaveLog) then return end
 
 	local logPath = NAfiles.NAJOINLEAVELOG
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
@@ -14474,7 +14766,7 @@ NAmanage.RenderUserButtons = function()
 			btnCorner.CornerRadius = UDim.new(0.25,0)
 			btnCorner.Parent       = btn
 
-			local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, btn.BackgroundColor3)
+			local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, Color3.fromRGB(0,0,0))
 			btn.BackgroundColor3 = baseBgColor
 
 			UserButtonGuiMap[id] = btn
@@ -14591,7 +14883,8 @@ NAmanage.RenderUserButtons = function()
 						local cBtn = InstanceNew("TextButton")
 						cBtn.Name = ("NAUserButtonChild_%d_%d"):format(id, childIndex)
 						cBtn.Size = UDim2.new(1, 0, 0, childHeight)
-						cBtn.BackgroundColor3 = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(30,30,30))
+						local childBaseBg = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(0,0,0))
+						cBtn.BackgroundColor3 = childBaseBg
 						cBtn.TextColor3 = NAmanage.UserButtonColorFromTable(child.TextColor, Color3.fromRGB(255,255,255))
 						cBtn.TextScaled = false
 						cBtn.Font = Enum.Font.GothamBold
@@ -14610,7 +14903,6 @@ NAmanage.RenderUserButtons = function()
 						SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
 						local childToggled = childKey and UserButtonToggleState[childKey] == true or false
 						local childSaveEnabled = child.RunMode == "S"
-						local childBaseBg = cBtn.BackgroundColor3
 						local childCmd1 = child.Cmd1
 						local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
 						local childNeedsArgs = childCd1 and childCd1[3]
@@ -14618,8 +14910,8 @@ NAmanage.RenderUserButtons = function()
 						if not child.Cmd2 and childKey then
 							UserButtonToggleState[childKey] = nil
 							childToggled = false
-						elseif child.Cmd2 and childToggled then
-							cBtn.BackgroundColor3 = ON
+						elseif child.Cmd2 then
+							cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
 						end
 
 						if childNeedsArgs then
@@ -14749,8 +15041,9 @@ NAmanage.RenderUserButtons = function()
 				if not data.Cmd2 then
 					UserButtonToggleState[id] = nil
 					toggled = false
-				elseif toggled then
-					btn.BackgroundColor3 = ON
+					btn.BackgroundColor3 = baseBgColor
+				else
+					btn.BackgroundColor3 = toggled and ON or baseBgColor
 				end
 
 				if needsArgs then
@@ -15197,6 +15490,57 @@ local rad=math.rad
 local clamp=math.clamp
 local tan=math.tan
 
+NAmanage.CmdBar2ApplySize = function(opts)
+	opts = opts or {}
+	local width = NAmanage.CmdBar2ClampValue(opts.width or NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
+	local height = NAmanage.CmdBar2ClampValue(opts.height or NAStuff.CmdBar2Height, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
+	local previousBase = NAmanage._cb2BaseSize
+	local previousWidth = (typeof(previousBase) == "Vector2" and previousBase.X) or nil
+	local prevDefaultOffset = previousWidth and -math.floor(previousWidth / 2 + 0.5) or nil
+	local newDefaultOffset = -math.floor(width / 2 + 0.5)
+
+	NAStuff.CmdBar2Width = width
+	NAStuff.CmdBar2Height = height
+
+	NAmanage._cb2BaseSize = Vector2.new(width, height)
+	NAmanage._cb2sz = UDim2.new(0, width, 0, height)
+
+	if prevDefaultOffset and NAmanage._cb2p and NAmanage._cb2p.X.Scale == 0.5 and math.floor(NAmanage._cb2p.X.Offset + 0.5) == prevDefaultOffset then
+		local pos = NAmanage._cb2p
+		NAmanage._cb2p = UDim2.new(pos.X.Scale, newDefaultOffset, pos.Y.Scale, pos.Y.Offset)
+	end
+
+	local frame = NAmanage._cb2f
+	if frame then
+		if prevDefaultOffset and frame.Position.X.Scale == 0.5 and math.floor(frame.Position.X.Offset + 0.5) == prevDefaultOffset then
+			frame.Position = UDim2.new(frame.Position.X.Scale, newDefaultOffset, frame.Position.Y.Scale, frame.Position.Y.Offset)
+		end
+		if NAmanage._cb2Min == true then
+			frame.Size = UDim2.new(0, width, 0, 28)
+		else
+			frame.Size = NAmanage._cb2sz
+		end
+	end
+
+	local body = NAmanage._cb2Body
+	if body then
+		local bodyHeight = NAmanage.CmdBar2ComputeBodyHeight(height)
+		body.Size = UDim2.new(body.Size.X.Scale, body.Size.X.Offset, 0, bodyHeight)
+	end
+
+	if opts.syncUI ~= false and NAgui and NAgui.setSliderValue then
+		NAgui.setSliderValue("cmdbar2 Width", width, { fire = false })
+		NAgui.setSliderValue("cmdbar2 Height", height, { fire = false })
+	end
+
+	if opts.persist ~= false then
+		pcall(NAmanage.NASettingsSet, "cmdbar2Width", width)
+		pcall(NAmanage.NASettingsSet, "cmdbar2Height", height)
+	end
+
+	return width, height
+end
+
 --[[ COMMANDS ]]--
 
 cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (black & white)"},function()
@@ -15205,6 +15549,8 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 	local bx = NAmanage._cb2bx
 	local hist = NAmanage._cb2h or {}
 	NAmanage._cb2h = hist
+	local initialWidth = NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
+	local initialHeight = NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Height, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 
 	local function tw(o,t,p)
 		local ti = TweenInfo.new(t or 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -15262,13 +15608,18 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 		pcall(function() cmd.run(a) end)
 	end
 
+	local function getDefaultCmdBar2Position()
+		local width = NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
+		return UDim2.new(0.5, -math.floor(width / 2), 0, 70)
+	end
+
 	local function show(v)
 		if not gui or not fr then return end
 		gui.Enabled = v and true or false
 		if v then
 			fr.Visible = true
 			fr.BackgroundTransparency = 1
-			local p = NAmanage._cb2p or UDim2.new(0.5, -170, 0, 70)
+			local p = NAmanage._cb2p or getDefaultCmdBar2Position()
 			fr.Position = p
 			tw(fr, 0.14, {BackgroundTransparency = 0})
 		else
@@ -15297,9 +15648,8 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 	NaProtectUI(gui)
 
 	fr = InstanceNew("Frame", gui)
-	fr.Position = NAmanage._cb2p or UDim2.new(0.5, -170, 0, 70)
-	fr.Size = UDim2.new(0, 340, 0, 78)
-	NAmanage._cb2BaseSize = Vector2.new(fr.Size.X.Offset, fr.Size.Y.Offset)
+	fr.Position = NAmanage._cb2p or getDefaultCmdBar2Position()
+	fr.Size = UDim2.new(0, initialWidth, 0, initialHeight)
 	fr.BackgroundColor3 = o2
 	fr.BorderSizePixel = 0
 	fr.Visible = true
@@ -15360,7 +15710,7 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 
 	local body = InstanceNew("Frame", fr)
 	body.Position = UDim2.new(0, 8, 0, 34)
-	body.Size = UDim2.new(1, -16, 0, 36)
+	body.Size = UDim2.new(1, -16, 0, NAmanage.CmdBar2ComputeBodyHeight(initialHeight))
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
 
@@ -15412,9 +15762,13 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 
 	NAgui.draggerV2(fr, top)
 
-	NAmanage._cb2sz = fr.Size
 	local min = false
 	NAmanage._cb2Min = false
+	NAmanage._cb2 = gui
+	NAmanage._cb2f = fr
+	NAmanage._cb2bx = bx
+	NAmanage._cb2Body = body
+	NAmanage.CmdBar2ApplySize({ persist = false })
 
 	local function setMin(v)
 		min = v and true or false
@@ -15461,58 +15815,7 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 		tw(mini, 0.10, {TextColor3 = tx2})
 	end)
 
-	NAmanage._cb2 = gui
-	NAmanage._cb2f = fr
-	NAmanage._cb2bx = bx
-
 	show(true)
-end)
-
-NAmanage.CmdBar2Fit = function()
-	local fr = NAmanage._cb2f
-	local gui = NAmanage._cb2
-	if not fr or not gui then
-		return false, "cmdbar2 not initialized"
-	end
-
-	local base = NAmanage._cb2BaseSize
-	if typeof(base) ~= "Vector2" then
-		local bw = fr.Size.X.Offset
-		local bh = fr.Size.Y.Offset
-		if bw <= 0 then bw = 340 end
-		if bh <= 0 then bh = 78 end
-		base = Vector2.new(bw, bh)
-		NAmanage._cb2BaseSize = base
-	end
-
-	local cam = workspace and workspace.CurrentCamera
-	local vp = (cam and cam.ViewportSize) or (gui.AbsoluteSize) or Vector2.new(1280, 720)
-	local maxWidth = math.max(1, math.floor(vp.X * 0.9 + 0.5))
-	local newWidth = math.min(base.X, maxWidth)
-	local targetSize = UDim2.new(0, newWidth, 0, base.Y)
-	NAmanage._cb2sz = targetSize
-
-	if NAmanage._cb2Min == true then
-		fr.Size = UDim2.new(0, newWidth, 0, 28)
-	else
-		fr.Size = targetSize
-	end
-
-	return true, newWidth, base.Y
-end
-
-cmd.add({"cmdbar2fit","cbar2fit"},{"cmdbar2fit (cbar2fit)","Resize cmdbar2 to fit your screen"},function()
-	if not NAmanage._cb2f then
-		if cmd and cmd.run then
-			cmd.run({"cmdbar2"})
-		end
-	end
-
-	local ok, width = NAmanage.CmdBar2Fit()
-	if not ok then
-		return DoNotif("cmdbar2 isn't available", 2)
-	end
-	DoNotif("cmdbar2 resized ("..tostring(width).."px)", 2)
 end)
 
 cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
@@ -20700,10 +21003,14 @@ end)
 
 cmd.add({"logphysics"}, {"logphysics", "Enable Physics Error Logging"}, function()
 	settings():GetService("NetworkSettings").PrintPhysicsErrors = true
+	NAmanage.jlCfg.PhysicsLog = true
+	NAmanage.jlSave()
 end)
 
 cmd.add({"nologphysics"}, {"nologphysics", "Disable Physics Error Logging"}, function()
 	settings():GetService("NetworkSettings").PrintPhysicsErrors = false
+	NAmanage.jlCfg.PhysicsLog = false
+	NAmanage.jlSave()
 end)
 
 cmd.add({"norender"},{"norender","Disable 3d Rendering to decrease the amount of CPU the client uses"},function()
@@ -52175,30 +52482,15 @@ end
 originalIO.runNACHAT()
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
-	local chatMsg = NAUIMANAGER.chatExample:Clone()
+	local shouldDisplay = NAmanage.jlCfg.ChatLog ~= false
+	local shouldSave = NAmanage.jlCfg.SaveChatLog == true
 
-	for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
-		if v:IsA("TextLabel") then
-			v.LayoutOrder = v.LayoutOrder + 1
-		end
+	if not shouldDisplay and not shouldSave then
+		return
 	end
-
-	chatMsg.Name = '\0'
-	chatMsg.Parent = NAUIMANAGER.chatLogs
 
 	local displayName = plr.DisplayName or "Unknown"
 	local userName = plr.Name or "Unknown"
-
-	local isNAadmin = false
-	if _G.NAadminsLol then
-		for _, id in ipairs(_G.NAadminsLol) do
-			if plr.UserId == id then
-				isNAadmin = true
-				break
-			end
-		end
-	end
-
 	local currentTime = os.date("%Y-%m-%d %H:%M:%S")
 	local baseText
 	if displayName == userName then
@@ -52206,63 +52498,87 @@ function bindToChat(plr, msg)
 	else
 		baseText = ("%s [@%s]: %s"):format(displayName, userName, msg)
 	end
-	chatMsg.Text = baseText
 
-	if NAmanage.AttachMessageCopy then
-		NAmanage.AttachMessageCopy(chatMsg, tostring(msg or ""))
-	end
+	local chatMsg = nil
+	if shouldDisplay then
+		chatMsg = NAUIMANAGER.chatExample:Clone()
 
-	if isNAadmin then
-		local function rainbowColor(now)
-			local r = math.sin(now * 0.5) * 127 + 128
-			local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
-			local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
-			return Color3.fromRGB(r, g, b)
+		for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
+			if v:IsA("TextLabel") then
+				v.LayoutOrder = v.LayoutOrder + 1
+			end
 		end
 
-		NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
-		Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
+		chatMsg.Name = '\0'
+		chatMsg.Parent = NAUIMANAGER.chatLogs
+		chatMsg.Text = baseText
 
-		if not NAStuff.AdminChatRainbowConnection then
-			NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
-				local now = tick()
-				local list = NAStuff.AdminChatRainbowMessages
-				if not list then
-					return
+		if NAmanage.AttachMessageCopy then
+			NAmanage.AttachMessageCopy(chatMsg, tostring(msg or ""))
+		end
+
+		local isNAadmin = false
+		if _G.NAadminsLol then
+			for _, id in ipairs(_G.NAadminsLol) do
+				if plr.UserId == id then
+					isNAadmin = true
+					break
 				end
-				for i = #list, 1, -1 do
-					local label = list[i]
-					if not label or not label.Parent then
-						table.remove(list, i)
-					else
-						label.TextColor3 = rainbowColor(now)
+			end
+		end
+
+		if isNAadmin then
+			local function rainbowColor(now)
+				local r = math.sin(now * 0.5) * 127 + 128
+				local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
+				local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
+				return Color3.fromRGB(r, g, b)
+			end
+
+			NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
+			Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
+
+			if not NAStuff.AdminChatRainbowConnection then
+				NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
+					local now = tick()
+					local list = NAStuff.AdminChatRainbowMessages
+					if not list then
+						return
 					end
-				end
-				if #list == 0 and NAStuff.AdminChatRainbowConnection then
-					NAStuff.AdminChatRainbowConnection:Disconnect()
-					NAStuff.AdminChatRainbowConnection = nil
-				end
-			end)
+					for i = #list, 1, -1 do
+						local label = list[i]
+						if not label or not label.Parent then
+							table.remove(list, i)
+						else
+							label.TextColor3 = rainbowColor(now)
+						end
+					end
+					if #list == 0 and NAStuff.AdminChatRainbowConnection then
+						NAStuff.AdminChatRainbowConnection:Disconnect()
+						NAStuff.AdminChatRainbowConnection = nil
+					end
+				end)
+			end
+		else
+			if plr == LocalPlayer then
+				chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
+			elseif LocalPlayer:IsFriendsWith(plr.UserId) then
+				chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
+			end
 		end
-	else
-		if plr == LocalPlayer then
-			chatMsg.TextColor3 = Color3.fromRGB(0, 155, 255)
-		elseif LocalPlayer:IsFriendsWith(plr.UserId) then
-			chatMsg.TextColor3 = Color3.fromRGB(255, 255, 0)
-		end
-	end
 
-	local translator = NAStuff.ChatTranslator
-	if translator then
-		translator:registerMessage(chatMsg, baseText, msg)
+		local translator = NAStuff.ChatTranslator
+		if translator then
+			translator:registerMessage(chatMsg, baseText, msg)
+		end
 	end
 
 	pcall(function()
-		if FileSupport and appendfile then
+		if shouldSave and FileSupport and appendfile then
 			local cEntry = Format(
 				"[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
 				currentTime,
-				chatMsg.Text,
+				baseText,
 				placeName() or "unknown",
 				tostring(PlaceId),
 				tostring(GameId),
@@ -52276,24 +52592,26 @@ function bindToChat(plr, msg)
 		end
 	end)
 
-	local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 200)
-	chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
+	if shouldDisplay and chatMsg then
+		local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 200)
+		chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-	local MAX_MESSAGES = 200
-	local chatFrames = {}
-	for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
-		if v:IsA("TextLabel") then
-			Insert(chatFrames, v)
+		local MAX_MESSAGES = 200
+		local chatFrames = {}
+		for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
+			if v:IsA("TextLabel") then
+				Insert(chatFrames, v)
+			end
 		end
-	end
 
-	table.sort(chatFrames, function(a, b)
-		return a.LayoutOrder < b.LayoutOrder
-	end)
+		table.sort(chatFrames, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
+		end)
 
-	if #chatFrames > MAX_MESSAGES then
-		for i = MAX_MESSAGES + 1, #chatFrames do
-			chatFrames[i]:Destroy()
+		if #chatFrames > MAX_MESSAGES then
+			for i = MAX_MESSAGES + 1, #chatFrames do
+				chatFrames[i]:Destroy()
+			end
 		end
 	end
 end
@@ -52700,7 +53018,7 @@ function setupPlayer(plr,bruh)
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 
-	if JoinLeaveConfig.JoinLog and not bruh then
+	if NAmanage.jlCfg.JoinLog and not bruh then
 		local joinMsg = nameChecker(plr).." has joined the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
@@ -52720,7 +53038,7 @@ Players.PlayerAdded:Connect(setupPlayer)
 Players.PlayerRemoving:Connect(function(plr)
 	NAmanage.ExecuteBindings("OnLeave", plr)
 	NAmanage.ESP_Disconnect(plr)
-	if JoinLeaveConfig.LeaveLog then
+	if NAmanage.jlCfg.LeaveLog then
 		local leaveMsg = nameChecker(plr).." has left the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
 		DoNotif(leaveMsg, 1, categoryRT)
@@ -54810,6 +55128,20 @@ NAmanage.RegisterToggleAutoSync("Run cmdbar2 on Start", function()
 	return NAStuff.CmdBar2AutoRun == true
 end)
 
+NAgui.addSlider("cmdbar2 Width", NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth), 2, " px", function(val)
+	NAmanage.CmdBar2ApplySize({
+		width = val,
+		height = NAStuff.CmdBar2Height,
+	})
+end)
+
+NAgui.addSlider("cmdbar2 Height", NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Height, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight), 1, " px", function(val)
+	NAmanage.CmdBar2ApplySize({
+		width = NAStuff.CmdBar2Width,
+		height = val,
+	})
+end)
+
 NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
 	NAmanage.setAutoSkipPreference(v)
 	DoNotif("Auto skip loading screen "..(v and "enabled" or "disabled"), 2)
@@ -55536,6 +55868,10 @@ originalIO.UserBtnEditor=function()
 		hidden = false,
 		locked = false,
 		interactable = true,
+		childIdx = 1,
+		childLbl = "",
+		childBg = Color3.fromRGB(0,0,0),
+		childTc = Color3.fromRGB(255,255,255),
 	}
 
 	NAgui.addSection("User Buttons Loader")
@@ -55711,6 +56047,53 @@ originalIO.UserBtnEditor=function()
 
 	local selectionInfo
 
+	local function cData()
+		if type(editorState.currentId) ~= "number" then
+			return
+		end
+		local g = NAUserButtons[editorState.currentId]
+		if not (type(g) == "table" and g.Type == "group" and type(g.Children) == "table" and #g.Children > 0) then
+			return
+		end
+		local idx = tonumber(editorState.childIdx) or 1
+		if idx < 1 or idx > #g.Children then
+			idx = 1
+		end
+		editorState.childIdx = idx
+		return g, g.Children, idx, g.Children[idx]
+		end
+
+	local function cSync()
+		local g, list, idx, ch = cData()
+		if not ch then
+			editorState.childLbl = ""
+			editorState.childBg = Color3.fromRGB(0,0,0)
+			editorState.childTc = Color3.fromRGB(255,255,255)
+			if NAgui and NAgui.setInputValue then
+				NAgui.setInputValue("Child Index", "", { force = true, fire = false })
+				NAgui.setInputValue("Child Label", "", { force = true, fire = false })
+			end
+			if NAgui and NAgui.setColorPickerValue then
+				NAgui.setColorPickerValue("Child Background", Color3.fromRGB(0,0,0), { fire = false })
+				NAgui.setColorPickerValue("Child Text", Color3.fromRGB(255,255,255), { fire = false })
+			end
+			return
+		end
+		local bg = NAmanage.UserButtonColorFromTable(ch.BgColor, Color3.fromRGB(0,0,0))
+		local tc = NAmanage.UserButtonColorFromTable(ch.TextColor, Color3.fromRGB(255,255,255))
+		editorState.childLbl = ch.Label or ""
+		editorState.childBg = bg
+		editorState.childTc = tc
+		if NAgui and NAgui.setInputValue then
+			NAgui.setInputValue("Child Index", tostring(idx), { force = true, fire = false })
+			NAgui.setInputValue("Child Label", editorState.childLbl, { force = true, fire = false })
+		end
+		if NAgui and NAgui.setColorPickerValue then
+			NAgui.setColorPickerValue("Child Background", bg, { fire = false })
+			NAgui.setColorPickerValue("Child Text", tc, { fire = false })
+		end
+	end
+
 	local function updateSelectionLabel()
 		if not selectionInfo then
 			return
@@ -55718,9 +56101,12 @@ originalIO.UserBtnEditor=function()
 		if type(editorState.currentId) ~= "number" then
 			selectionInfo.Text = "Selected: None"
 			editorState.lbl = ""
+			editorState.childIdx = 1
+			editorState.childLbl = ""
 			if NAgui and NAgui.setInputValue then
 				NAgui.setInputValue("UserButton Label", "", { force = true, fire = false })
 			end
+			cSync()
 			return
 		end
 
@@ -55792,6 +56178,7 @@ originalIO.UserBtnEditor=function()
 			NAgui.setColorPickerValue("Background Color", bg, { fire = false })
 			NAgui.setColorPickerValue("Text Color", tc, { fire = false })
 		end
+		cSync()
 	end
 
 	local function selectByDelta(delta)
@@ -55812,6 +56199,60 @@ originalIO.UserBtnEditor=function()
 		editorState.currentIndex = idx
 		editorState.currentId = ids[idx]
 		updateSelectionLabel()
+	end
+
+	local function selectChildByDelta(delta)
+		local g, list, idx = cData()
+		if not (g and list) then
+			DoNotif("Select a group with children", 2)
+			return
+		end
+		idx = ((idx - 1 + delta) % #list) + 1
+		editorState.childIdx = idx
+		cSync()
+	end
+
+	local function getChildPickerColor(label, fallback)
+		local reg = NAgui and NAgui._colorPickerRegistry
+		local entry = reg and reg[label]
+		if entry and entry.get then
+			local ok, col = pcall(entry.get)
+			if ok and typeof(col) == "Color3" then
+				return col
+			end
+		end
+		return fallback
+	end
+
+	local function currentChildColors()
+		local bg = getChildPickerColor("Child Background", editorState.childBg or Color3.fromRGB(0,0,0))
+		local tc = getChildPickerColor("Child Text", editorState.childTc or Color3.fromRGB(255,255,255))
+		editorState.childBg = bg
+		editorState.childTc = tc
+		return bg, tc
+	end
+
+	local function applyChildUpdates()
+		local g, list, idx, ch = cData()
+		if not ch then
+			return
+		end
+		local label = tostring(editorState.childLbl or "")
+		label = GSub(label, "^%s+", "")
+		label = GSub(label, "%s+$", "")
+		if label == "" then
+			label = ch.Label or ("Action "..idx)
+		end
+		local bg, tc = currentChildColors()
+		list[idx].Label = label
+		list[idx].BgColor = NAmanage.UserButtonColorToTable(bg)
+		list[idx].TextColor = NAmanage.UserButtonColorToTable(tc)
+		NAmanage.UserButtonsSave("edit group child")
+		if type(NAmanage.RenderUserButtons) == "function" then
+			NAmanage.RenderUserButtons()
+		end
+		cSync()
+		return true
 	end
 
 	NAgui.addSection("Selection")
@@ -55914,6 +56355,42 @@ originalIO.UserBtnEditor=function()
 		end, "Visibility")
 	end)
 
+	NAgui.addSection("Group Children")
+
+	NAgui.addButton("Previous Child", function()
+		selectChildByDelta(-1)
+	end)
+
+	NAgui.addButton("Next Child", function()
+		selectChildByDelta(1)
+	end)
+
+	NAgui.addInput("Child Index", "Number in group", "", function(txt)
+		editorState.childIdx = tonumber(txt) or editorState.childIdx or 1
+		cSync()
+	end)
+
+	NAgui.addInput("Child Label", "Type child label", "", function(txt)
+		editorState.childLbl = tostring(txt or "")
+		applyChildUpdates()
+	end)
+
+	NAgui.addColorPicker("Child Background", editorState.childBg, function(color)
+		if typeof(color) ~= "Color3" then
+			return
+		end
+		editorState.childBg = color
+		applyChildUpdates()
+	end)
+
+	NAgui.addColorPicker("Child Text", editorState.childTc, function(color)
+		if typeof(color) ~= "Color3" then
+			return
+		end
+		editorState.childTc = color
+		applyChildUpdates()
+	end)
+
 	NAgui.addToggle("Lock Button", false, function(state)
 		editorState.locked = state and true or false
 		applyToTargets(function(data)
@@ -55991,12 +56468,14 @@ end
 originalIO.UserBtnEditor()
 
 NAStuff.joinLeaveWarned = false
-function persistJoinLeaveConfig()
+function NAmanage.jlSave()
+	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
+	NAmanage.logApply()
 	if FileSupport then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(JoinLeaveConfig))
+		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlCfg))
 	elseif not NAStuff.joinLeaveWarned then
 		NAStuff.joinLeaveWarned = true
-		DebugNotif("Join/Leave settings will reset after this session (no file support detected).")
+		DebugNotif("Logging settings will reset after this session (no file support detected).")
 	end
 end
 
@@ -56005,22 +56484,44 @@ NAgui.setTab(TAB_LOGGING)
 
 NAgui.addSection("Join/Leave Logging")
 
-NAgui.addToggle("Log Player Joins", JoinLeaveConfig.JoinLog, function(v)
-	JoinLeaveConfig.JoinLog = v
-	persistJoinLeaveConfig()
+NAgui.addToggle("Log Player Joins", NAmanage.jlCfg.JoinLog, function(v)
+	NAmanage.jlCfg.JoinLog = v
+	NAmanage.jlSave()
 	DoNotif("Join logging "..(v and "enabled" or "disabled"), 2)
 end)
 
-NAgui.addToggle("Log Player Leaves", JoinLeaveConfig.LeaveLog, function(v)
-	JoinLeaveConfig.LeaveLog = v
-	persistJoinLeaveConfig()
+NAgui.addToggle("Log Player Leaves", NAmanage.jlCfg.LeaveLog, function(v)
+	NAmanage.jlCfg.LeaveLog = v
+	NAmanage.jlSave()
 	DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 end)
 
-NAgui.addToggle("Save Join/Leave Logs", JoinLeaveConfig.SaveLog, function(v)
-	JoinLeaveConfig.SaveLog = v
-	persistJoinLeaveConfig()
+NAgui.addToggle("Save Join/Leave Logs", NAmanage.jlCfg.SaveLog, function(v)
+	NAmanage.jlCfg.SaveLog = v
+	NAmanage.jlSave()
 	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addSection("Chat Logging")
+
+NAgui.addToggle("Log Chat Messages", NAmanage.jlCfg.ChatLog, function(v)
+	NAmanage.jlCfg.ChatLog = v
+	NAmanage.jlSave()
+	DoNotif("Chat logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Save Chat Logs", NAmanage.jlCfg.SaveChatLog, function(v)
+	NAmanage.jlCfg.SaveChatLog = v
+	NAmanage.jlSave()
+	DoNotif("Chat log saving has been "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addSection("Other Logging")
+
+NAgui.addToggle("Log Physics Errors", NAmanage.jlCfg.PhysicsLog, function(v)
+	NAmanage.jlCfg.PhysicsLog = v
+	NAmanage.jlSave()
+	DoNotif("Physics error logging "..(v and "enabled" or "disabled"), 2)
 end)
 
 NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
@@ -56672,6 +57173,7 @@ do
 				{ id = "playerUserId", label = "UserId", path = {"player","userId"} };
 				{ id = "playerAccountAge", label = "Account Age", path = {"player","accountAge"} };
 				{ id = "playerMembership", label = "Membership", path = {"player","membership"} };
+				{ id = "playerTeam", label = "Team", path = {"player","team"} };
 			};
 		},
 		{
@@ -56679,6 +57181,7 @@ do
 			fields = {
 				{ id = "platformName", label = "Platform", path = {"platform","platform"} };
 				{ id = "executorName", label = "Executor", path = {"platform","executor"} };
+				{ id = "platformDevice", label = "Device", path = {"platform","device"} };
 			};
 		},
 		{
@@ -56686,6 +57189,8 @@ do
 			fields = {
 				{ id = "gameName", label = "Game Name", path = {"game","name"} };
 				{ id = "gameCreator", label = "Creator", path = {"game","creator"} };
+				{ id = "gameGenre", label = "Genre", path = {"game","genre"} };
+				{ id = "placeVersion", label = "Place Version", path = {"game","placeVersion"} };
 			};
 		},
 		{
@@ -56700,6 +57205,7 @@ do
 			title = "Server";
 			fields = {
 				{ id = "serverPlayers", label = "Players", path = {"server","playerCount"} };
+				{ id = "serverPing", label = "Ping", path = {"server","ping"} };
 			};
 		},
 		{
@@ -56709,6 +57215,13 @@ do
 				{ id = "systemLocale", label = "System Locale", path = {"system","systemLocale"} };
 				{ id = "qualitySetting", label = "Graphics Quality", path = {"system","quality"} };
 				{ id = "voiceStatus", label = "Voice Chat", path = {"system","voice"} };
+				{ id = "screenResolution", label = "Resolution", path = {"system","resolution"} };
+			};
+		},
+		{
+			title = "Session";
+			fields = {
+				{ id = "sessionUptime", label = "Session Uptime", path = {"session","uptime"} };
 			};
 		},
 		{
