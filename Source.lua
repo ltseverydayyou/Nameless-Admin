@@ -6615,6 +6615,35 @@ NAUserButtons = {}
 UserButtonGuiList = {}
 UserButtonGuiMap = {}
 UserButtonDropdowns = {}
+local UserButtonToggleState = {}
+
+originalIO.userButtonChildKey=function(groupId, childIndex)
+	if groupId == nil or childIndex == nil then
+		return nil
+	end
+	return ("g%s_%s"):format(tostring(groupId), tostring(childIndex))
+end
+
+originalIO.clearUserButtonState=function(id)
+	if id == nil then
+		return
+	end
+	UserButtonToggleState[id] = nil
+	local prefix = "g"..tostring(id).."_"
+	for key in pairs(UserButtonToggleState) do
+		if type(key) == "string" and key:sub(1, #prefix) == prefix then
+			UserButtonToggleState[key] = nil
+		end
+	end
+end
+
+originalIO.clearUserButtonChildState=function(groupId, childIndex)
+	local key = originalIO.userButtonChildKey(groupId, childIndex)
+	if key then
+		UserButtonToggleState[key] = nil
+	end
+end
+
 NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
 doPREDICTION = true
 -- make it so It's easier for IY users to move to nameless admin (yes i did this and it's funny)
@@ -12460,6 +12489,50 @@ NAmanage.loadAliases = function()
 	end
 end
 
+NAmanage.decodeUserButtons=function(raw)
+	if type(raw) ~= "string" or raw == "" then
+		return nil
+	end
+	local ok, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if ok and type(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
+NAmanage.UserButtonsSave = function(reason, data)
+	if not FileSupport then
+		return true
+	end
+
+	local path = NAfiles.NAUSERBUTTONSPATH
+	local backupPath = path..".bak"
+	local payload = data or NAUserButtons or {}
+	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+	if not okEncode then
+		NAmanage.loaderWarn('UserButtons', 'failed to encode data'..(reason and (' ('..reason..')') or '')..': '..tostring(encoded))
+		return false
+	end
+
+	local okRead, existing = pcall(readfile, path)
+	if okRead and type(existing) == "string" and existing ~= "" then
+		pcall(writefile, backupPath, existing)
+	end
+
+	local okWrite, errWrite = pcall(writefile, path, encoded)
+	if not okWrite then
+		if okRead and type(existing) == "string" then
+			pcall(writefile, path, existing)
+		end
+		NAmanage.loaderWarn('UserButtons', 'failed to save data'..(reason and (' ('..reason..')') or '')..': '..tostring(errWrite))
+		return false
+	end
+
+	return true
+end
+
 NAmanage.loadButtonIDS = function()
 	if not FileSupport then
 		NAUserButtons = NAUserButtons or {}
@@ -12484,18 +12557,24 @@ NAmanage.loadButtonIDS = function()
 		return false
 	end
 
-	local okDecode, decoded = pcall(function()
-		return HttpService:JSONDecode(raw)
-	end)
-	if not okDecode or type(decoded) ~= "table" then
+	local decoded = NAmanage.decodeUserButtons(raw)
+	if not decoded then
+		local backup = nil
+		local okBackup, rawBackup = pcall(readfile, path..".bak")
+		if okBackup then
+			backup = NAmanage.decodeUserButtons(rawBackup)
+		end
+
+		if backup then
+			NAmanage.loaderWarn('UserButtons', 'storage corrupted; recovered from backup')
+			NAUserButtons = backup
+			NAmanage.UserButtonsSave("restore backup")
+			return true
+		end
+
 		NAmanage.loaderWarn('UserButtons', 'invalid storage data; resetting')
 		NAUserButtons = {}
-		local okReset, resetErr = pcall(function()
-			writefile(path, HttpService:JSONEncode(NAUserButtons))
-		end)
-		if not okReset then
-			NAmanage.loaderWarn('UserButtons', 'failed to reset storage: '..tostring(resetErr))
-		end
+		NAmanage.UserButtonsSave("reset invalid data")
 		return false
 	end
 
@@ -12630,10 +12709,10 @@ NAmanage.UserButtons_CombineButtons = function(targetId, sourceId, opts)
 	target.Cmd1, target.Cmd2, target.Args, target.RunMode = nil, nil, nil, nil
 
 	NAUserButtons[sourceId] = nil
+	originalIO.clearUserButtonState(sourceId)
+	originalIO.clearUserButtonState(targetId)
 
-	if FileSupport then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-	end
+	NAmanage.UserButtonsSave("combine buttons")
 
 	return true, ("Grouped %d buttons"):format(#children)
 end
@@ -12723,9 +12802,8 @@ NAmanage.UserButtons_Ungroup = function(groupId)
 	local children = (type(group.Children) == "table") and group.Children or {}
 	if #children == 0 then
 		NAUserButtons[groupId] = nil
-		if FileSupport then
-			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-		end
+		originalIO.clearUserButtonState(groupId)
+		NAmanage.UserButtonsSave("ungroup empty")
 		return true, "Removed empty group"
 	end
 
@@ -12750,10 +12828,9 @@ NAmanage.UserButtons_Ungroup = function(groupId)
 	end
 
 	NAUserButtons[groupId] = nil
+	originalIO.clearUserButtonState(groupId)
 
-	if FileSupport then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-	end
+	NAmanage.UserButtonsSave("ungroup")
 	return true, ("Ungrouped %d buttons"):format(#children)
 end
 
@@ -14143,9 +14220,7 @@ NAmanage.RenderUserButtons = function()
 					local newPos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
 					local moved = positionsChanged(dragStart or newPos, newPos)
 					data.Pos = newPos
-					if FileSupport then
-						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-					end
+					NAmanage.UserButtonsSave("update position")
 					if moved and not data.Locked then
 						NAmanage.UserButtons_CheckCombine(id, btn)
 					end
@@ -14174,13 +14249,16 @@ NAmanage.RenderUserButtons = function()
 					end
 
 					closeAllDropdowns()
-					local container = InstanceNew("Frame")
+					local container = InstanceNew("ScrollingFrame")
 					container.Name = ("NAUserButtonDropdown_%d"):format(id)
 					container.BackgroundColor3 = Color3.fromRGB(18,18,22)
 					container.BackgroundTransparency = 0.1
 					container.BorderSizePixel = 0
 					container.ZIndex = 10000
 					container.ClipsDescendants = true
+					container.ScrollingDirection = Enum.ScrollingDirection.Y
+					container.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+					container.ScrollBarThickness = 5
 					container.Parent = screenGui
 
 					local layout = InstanceNew("UIListLayout")
@@ -14208,12 +14286,28 @@ NAmanage.RenderUserButtons = function()
 					dropStroke.Parent = container
 					NAgui.RegisterColoredStroke(dropStroke)
 
+					local cam = workspace.CurrentCamera
+					local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+					local margin = 8
 					local dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
-					local dropHeight = (#children * (childHeight + 6)) + 12
-					local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, dropHeight))
+					local visibleCount = math.min(#children, 5)
+					local dropHeight = (visibleCount * (childHeight + 6)) + 12
+					local maxHeight = math.max(120, (vp.Y - margin * 2) * 0.8)
+					local finalHeight = math.min(dropHeight, maxHeight)
+					local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, finalHeight))
 					container.AnchorPoint = anchor
 					container.Position = posUDim
-					container.Size = UDim2.new(0, dropWidth, 0, dropHeight)
+					container.Size = UDim2.new(0, dropWidth, 0, finalHeight)
+
+					local function refreshCanvas()
+						local content = layout.AbsoluteContentSize
+						local top = pad.PaddingTop.Offset
+						local bottom = pad.PaddingBottom.Offset
+						container.CanvasSize = UDim2.new(0, 0, 0, content.Y + top + bottom)
+						container.ScrollBarThickness = (content.Y + top + bottom > finalHeight) and 5 or 0
+					end
+					layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
+					refreshCanvas()
 
 					Insert(UserButtonGuiList, container)
 
@@ -14236,14 +14330,21 @@ NAmanage.RenderUserButtons = function()
 						cbCorner.CornerRadius = UDim.new(0.25, 0)
 						cbCorner.Parent = cBtn
 
-						local childKey = "g"..tostring(id).."_"..tostring(childIndex)
+						local childKey = originalIO.userButtonChildKey(id, childIndex)
 						SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
-						local childToggled = false
+						local childToggled = childKey and UserButtonToggleState[childKey] == true or false
 						local childSaveEnabled = child.RunMode == "S"
 						local childBaseBg = cBtn.BackgroundColor3
 						local childCmd1 = child.Cmd1
 						local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
 						local childNeedsArgs = childCd1 and childCd1[3]
+
+						if not child.Cmd2 and childKey then
+							UserButtonToggleState[childKey] = nil
+							childToggled = false
+						elseif child.Cmd2 and childToggled then
+							cBtn.BackgroundColor3 = ON
+						end
 
 						if childNeedsArgs then
 							local childToggleSize = math.max(14, math.min(tSize, childHeight - 6))
@@ -14269,9 +14370,7 @@ NAmanage.RenderUserButtons = function()
 								childSaveEnabled = not childSaveEnabled
 								saveToggle.Text = childSaveEnabled and "S" or "N"
 								child.RunMode = childSaveEnabled and "S" or "N"
-								if FileSupport then
-									writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-								end
+								NAmanage.UserButtonsSave("group child save toggle")
 							end)
 						end
 
@@ -14283,6 +14382,9 @@ NAmanage.RenderUserButtons = function()
 							cmd.run(arr)
 							if child.Cmd2 then
 								childToggled = not childToggled
+								if childKey then
+									UserButtonToggleState[childKey] = childToggled or nil
+								end
 								cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
 							end
 						end
@@ -14306,9 +14408,7 @@ NAmanage.RenderUserButtons = function()
 										if parsed then
 											SavedArgs[childKey] = parsed
 											child.Args = parsed
-											if FileSupport then
-												writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-											end
+											NAmanage.UserButtonsSave("group child args")
 											runChild(parsed)
 										else
 											runChild(nil)
@@ -14362,13 +14462,20 @@ NAmanage.RenderUserButtons = function()
 					end
 				end)
 			else
-				local toggled     = false
+				local toggled     = UserButtonToggleState[id] == true
 				local saveEnabled = data.RunMode == "S"
 				SavedArgs[id]     = data.Args or {}
 
 				local cmd1      = data.Cmd1
 				local cd1       = cmd1 and (cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()])
 				local needsArgs = cd1 and cd1[3]
+
+				if not data.Cmd2 then
+					UserButtonToggleState[id] = nil
+					toggled = false
+				elseif toggled then
+					btn.BackgroundColor3 = ON
+				end
 
 				if needsArgs then
 					local saveToggle = InstanceNew("TextButton")
@@ -14393,9 +14500,7 @@ NAmanage.RenderUserButtons = function()
 						saveEnabled = not saveEnabled
 						saveToggle.Text = saveEnabled and "S" or "N"
 						data.RunMode = saveEnabled and "S" or "N"
-						if FileSupport then
-							writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-						end
+						NAmanage.UserButtonsSave("button save toggle")
 					end)
 				end
 
@@ -14407,6 +14512,7 @@ NAmanage.RenderUserButtons = function()
 					cmd.run(arr)
 					if data.Cmd2 then
 						toggled = not toggled
+						UserButtonToggleState[id] = toggled or nil
 						btn.BackgroundColor3 = toggled and ON or baseBgColor
 					end
 				end
@@ -14430,9 +14536,7 @@ NAmanage.RenderUserButtons = function()
 								if parsed then
 									SavedArgs[id] = parsed
 									data.Args     = parsed
-									if FileSupport then
-										writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-									end
+									NAmanage.UserButtonsSave("button args")
 									runCmd(parsed)
 								else
 									runCmd(nil)
@@ -15903,16 +16007,14 @@ cmd.add({"addbutton", "ab"}, {"addbutton <command> <label> [<command2>] (ab)", "
 		return
 	end
 
-	local id = #NAUserButtons + 1
+	local id = NAUserButtonNextId()
 	NAUserButtons[id] = {
 		Cmd1 = arg1,
 		Label = arg2,
 		Cmd2 = arg3
 	}
 
-	if FileSupport then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-	end
+	NAmanage.UserButtonsSave("add button")
 
 	NAmanage.RenderUserButtons()
 
@@ -15926,9 +16028,7 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 	end
 
 	local function saveAndRender()
-		if FileSupport then
-			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-		end
+		NAmanage.UserButtonsSave("remove button")
 		if type(NAmanage.RenderUserButtons) == "function" then
 			NAmanage.RenderUserButtons()
 		end
@@ -15952,12 +16052,14 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 
 	local function removeEntry(id, label)
 		NAUserButtons[id] = nil
+		originalIO.clearUserButtonState(id)
 		saveAndRender()
 		DoNotif("Removed user button: ["..id.."] "..label, 2)
 	end
 
 	local function removeGroup(id, label)
 		NAUserButtons[id] = nil
+		originalIO.clearUserButtonState(id)
 		saveAndRender()
 		DoNotif("Removed group: ["..id.."] "..label, 2)
 	end
@@ -15998,11 +16100,13 @@ cmd.add({"removebutton", "rb"}, {"removebutton (rb)", "Remove a user button"}, f
 					local removed = table.remove(childrenNow, index)
 					if #childrenNow == 0 then
 						NAUserButtons[groupId] = nil
+						originalIO.clearUserButtonState(groupId)
 						saveAndRender()
 						DoNotif("Removed group: ["..groupId.."] "..groupLabel, 2)
 						return
 					end
 					groupNow.Children = childrenNow
+					originalIO.clearUserButtonChildState(groupId, index)
 					saveAndRender()
 					local removedLabel = (removed and removed.Label) or childLabel
 					DoNotif("Removed child: "..tostring(removedLabel), 2)
@@ -16120,10 +16224,9 @@ cmd.add({"clearbuttons", "clearbtns", "cb"}, {"clearbuttons (clearbtns, cb)", "C
 				Text = "Yes",
 				Callback = function()
 					table.clear(NAUserButtons)
+					table.clear(UserButtonToggleState)
 
-					if FileSupport then
-						writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-					end
+					NAmanage.UserButtonsSave("clear buttons")
 
 					NAmanage.RenderUserButtons()
 
@@ -55072,9 +55175,7 @@ originalIO.UserBtnEditor=function()
 			return
 		end
 
-		if FileSupport then
-			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-		end
+		NAmanage.UserButtonsSave("editor apply")
 		if type(NAmanage.RenderUserButtons) == "function" then
 			NAmanage.RenderUserButtons()
 		end
@@ -55327,6 +55428,7 @@ originalIO.UserBtnEditor=function()
 		for _, id in ipairs(targets) do
 			if NAUserButtons[id] ~= nil then
 				NAUserButtons[id] = nil
+				originalIO.clearUserButtonState(id)
 				deleted = deleted + 1
 			end
 		end
@@ -55336,9 +55438,7 @@ originalIO.UserBtnEditor=function()
 			return
 		end
 
-		if FileSupport then
-			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode(NAUserButtons))
-		end
+		NAmanage.UserButtonsSave("editor delete")
 		if type(NAmanage.RenderUserButtons) == "function" then
 			NAmanage.RenderUserButtons()
 		end
