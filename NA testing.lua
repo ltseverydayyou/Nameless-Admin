@@ -1097,6 +1097,7 @@ local NAStuff = {
 	ESP_ModelList = {};
 	ESP_ModelIndex = 1;
 	ESP_MaxPerStep = 32;
+	ESP_FolderMode = "parts";
 	NPC_ESP_MaxDist = 400;
 	NPC_ESP_MaxCount = 200;
 	partESPColors = setmetatable({}, { __mode = "k" });
@@ -5054,7 +5055,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 			local fetchId = cache.fetchId
 
 			SpawnCall(function()
-				local url = "https://games.roblox.com/v1/games?universeIds=" .. tostring(universeId)
+				local url = "https://games.roblox.com/v1/games?universeIds="..tostring(universeId)
 				local body
 
 				local okBody, result = pcall(game.HttpGet, game, url)
@@ -8026,6 +8027,7 @@ NAmanage.LoadESPSettings = function()
 		ESP_LocatorShowText = false;
 		ESP_LocatorTextSize = 14;
 		ESP_MaxPerStep = 32;
+		ESP_FolderMode = "parts";
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -8100,6 +8102,11 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_CustomColor      = customColor
 	NAStuff.ESP_OutlineTransparency = outline
 	NAStuff.ESP_MaxPerStep       = maxPerStep
+	local folderMode = Lower(tostring(d.ESP_FolderMode or "parts"))
+	if folderMode ~= "models" then
+		folderMode = "parts"
+	end
+	NAStuff.ESP_FolderMode = folderMode
 
 	NAStuff.ESP_LocatorEnabled   = d.ESP_LocatorEnabled == true
 	NAStuff.ESP_LocatorSize      = math.clamp(tonumber(d.ESP_LocatorSize) or 26, 12, 128)
@@ -8144,6 +8151,7 @@ NAmanage.SaveESPSettings = function()
 		ESP_LocatorShowText = NAStuff.ESP_LocatorShowText == true;
 		ESP_LocatorTextSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48);
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256);
+		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -14259,7 +14267,7 @@ end
 					local desc = plugin.Info or "No description"
 					local note = formatAliasSwapNote(replacedAliases)
 					if note then
-						desc = desc .. " | " .. note
+						desc = desc.." | "..note
 					end
 					local info = { formattedDisplay, desc }
 					cmd.add(uniqueAliases, info, handler, plugin.RequiresArguments or false)
@@ -39008,41 +39016,241 @@ cmd.add({"unesplocator","unlocator","untrackesp"},{"unesplocator",""},function()
 	NAmanage.ESP_LocatorDisable()
 end)
 
-cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights all parts in a folder"},function(...)
-	local name = Lower(Concat({...}," "))
-	if name=="" then return end
+originalIO.folderESPMode=function()
+	return (Lower(tostring(NAStuff.ESP_FolderMode or "parts")) == "models") and "models" or "parts"
+end
+
+NAmanage.FolderESP_Enable = function(folder)
+	if typeof(folder) ~= "Instance" or not folder:IsA("Folder") then
+		return
+	end
+
 	if not NAStuff.folderESPMembers then NAStuff.folderESPMembers = {} end
 	if not NAStuff.folderESPKeys then NAStuff.folderESPKeys = {} end
-	local folder
-	for _,obj in ipairs(workspace:GetDescendants()) do
-		if obj:IsA("Folder") and Lower(obj.Name)==name then folder=obj break end
+
+	local mode = originalIO.folderESPMode()
+	local highlightColor = Color3.fromRGB(255,220,0)
+
+	local function topModelFor(instance, rootFolder)
+		if not instance or not rootFolder then
+			return nil
+		end
+		local model = instance:IsA("Model") and instance or instance:FindFirstAncestorOfClass("Model")
+		while model and model.Parent and model.Parent:IsA("Model") and model.Parent:IsDescendantOf(rootFolder) do
+			model = model.Parent
+		end
+		if model and model:IsDescendantOf(rootFolder) then
+			return model
+		end
+		return nil
 	end
-	if not folder then return end
-	local list = NAStuff.folderESPMembers[folder]
-	if not list then list = {}; NAStuff.folderESPMembers[folder]=list end
-	local key = NAStuff.folderESPKeys[folder]
-	if not key then key = "esp_folder_"..tostring(folder); NAStuff.folderESPKeys[folder]=key end
-	for _,desc in ipairs(folder:GetDescendants()) do
-		if desc:IsA("BasePart") and not Discover(list,desc) then
-			Insert(list,desc)
-			NAmanage.CreateBox(desc, Color3.fromRGB(255,220,0), 0.45)
+
+	local function modelHasBasePart(model)
+		return model and model:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	local function addTarget(list, target)
+		if not target or not target.Parent then
+			return
+		end
+		if Discover(list, target) then
+			return
+		end
+		Insert(list, target)
+		NAmanage.CreateBox(target, highlightColor, 0.45)
+	end
+
+	local function removeTarget(list, target)
+		if not target then
+			return
+		end
+		local idx = Discover(list, target)
+		if idx then
+			NAmanage.RemoveEspFromPart(target)
+			table.remove(list, idx)
 		end
 	end
-	NAlib.connect(key, folder.DescendantAdded:Connect(function(obj)
-		if obj:IsA("BasePart") and not Discover(list,obj) then
-			Insert(list,obj)
-			NAmanage.CreateBox(obj, Color3.fromRGB(255,220,0), 0.45)
-		end
-	end))
-	NAlib.connect(key, folder.DescendantRemoving:Connect(function(obj)
-		if obj:IsA("BasePart") then
-			local idx = Discover(list,obj)
-			if idx then
-				NAmanage.RemoveEspFromPart(obj)
-				table.remove(list,idx)
+
+	local function rescanFolder(rootFolder, list)
+		for _, desc in ipairs(rootFolder:GetDescendants()) do
+			if mode == "models" then
+				if desc:IsA("Model") then
+					local top = topModelFor(desc, rootFolder)
+					if top == desc and modelHasBasePart(top) then
+						addTarget(list, top)
+					end
+				elseif desc:IsA("BasePart") then
+					local top = topModelFor(desc, rootFolder)
+					if top and modelHasBasePart(top) then
+						addTarget(list, top)
+					else
+						addTarget(list, desc)
+					end
+				end
+			elseif desc:IsA("BasePart") then
+				addTarget(list, desc)
 			end
 		end
-	end))
+	end
+
+	local list = NAStuff.folderESPMembers[folder]
+	if not list then
+		list = {}
+	else
+		for i = #list, 1, -1 do
+			NAmanage.RemoveEspFromPart(list[i])
+			list[i] = nil
+		end
+	end
+	NAStuff.folderESPMembers[folder] = list
+
+	local key = NAStuff.folderESPKeys[folder]
+	if not key then
+		key = "esp_folder_"..tostring(folder)
+		NAStuff.folderESPKeys[folder] = key
+	end
+
+	if NAlib.isConnected(key) then
+		NAlib.disconnect(key)
+	end
+
+	rescanFolder(folder, list)
+
+	local function onAdded(obj)
+		if mode == "models" then
+			if obj:IsA("Model") then
+				local top = topModelFor(obj, folder)
+				if top == obj and modelHasBasePart(top) then
+					addTarget(list, top)
+				end
+			elseif obj:IsA("BasePart") then
+				local top = topModelFor(obj, folder)
+				if top and modelHasBasePart(top) then
+					addTarget(list, top)
+				else
+					addTarget(list, obj)
+				end
+			end
+		elseif obj:IsA("BasePart") then
+			addTarget(list, obj)
+		end
+	end
+
+	local function onRemoving(obj)
+		if mode == "models" then
+			if obj:IsA("Model") then
+				removeTarget(list, obj)
+			elseif obj:IsA("BasePart") then
+				local top = topModelFor(obj, folder)
+				if top then
+					Defer(function()
+						if not modelHasBasePart(top) then
+							removeTarget(list, top)
+						end
+					end)
+				end
+				removeTarget(list, obj)
+			end
+		elseif obj:IsA("BasePart") then
+			removeTarget(list, obj)
+		end
+	end
+
+	NAlib.connect(key, folder.DescendantAdded:Connect(onAdded))
+	NAlib.connect(key, folder.DescendantRemoving:Connect(onRemoving))
+end
+
+NAmanage.FolderESP_RefreshActive = function()
+	local members = NAStuff.folderESPMembers
+	if type(members) ~= "table" then
+		return
+	end
+	local tracked = {}
+	for folder, _ in pairs(members) do
+		if typeof(folder) == "Instance" and folder:IsA("Folder") then
+			tracked[#tracked + 1] = folder
+		else
+			members[folder] = nil
+		end
+	end
+	for _, folder in ipairs(tracked) do
+		NAmanage.FolderESP_Enable(folder)
+	end
+end
+
+cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder contents (parts or models)"},function(...)
+	local rawInput = Concat({...}, " ")
+	local name = Lower(rawInput)
+	if name == "" then
+		return
+	end
+
+	local matches = {}
+	local exactFolder
+
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Folder") then
+			local lowered = Lower(obj.Name)
+			if lowered == name then
+				exactFolder = obj
+				break
+			elseif Find(lowered, name, 1, true) then
+				Insert(matches, obj)
+			end
+		end
+	end
+
+	if exactFolder then
+		NAmanage.FolderESP_Enable(exactFolder)
+		return
+	end
+
+	if #matches == 0 then
+		DoNotif(Format("No folders found containing '%s'.", rawInput), 3)
+		return
+	end
+
+	table.sort(matches, function(a, b)
+		local la, lb = Lower(a.Name), Lower(b.Name)
+		local pa = Find(la, name, 1, true) or math.huge
+		local pb = Find(lb, name, 1, true) or math.huge
+		if pa == pb then
+			if #la == #lb then
+				return la < lb
+			end
+			return #la < #lb
+		end
+		return pa < pb
+	end)
+
+	local buttons = {}
+
+	if #matches > 1 then
+		Insert(buttons, {
+			Text = "All Matches",
+			Callback = function()
+				for _, folder in ipairs(matches) do
+					NAmanage.FolderESP_Enable(folder)
+				end
+			end
+		})
+	end
+
+	for _, folder in ipairs(matches) do
+		local folderRef = folder
+		Insert(buttons, {
+			Text = folderRef.Name,
+			Callback = function()
+				NAmanage.FolderESP_Enable(folderRef)
+			end
+		})
+	end
+
+	Window({
+		Title = "Folder ESP",
+		Description = "Select folder(s) to highlight. Toggle multi-select in the header to pick several.",
+		Buttons = buttons
+	})
 end,true)
 
 cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ESP for a folder or all"},function(...)
@@ -51786,7 +51994,8 @@ originalIO.runNACHAT=function()
 			if word ~= "" then
 				for i = 1, #word do
 					local ch = word:sub(i, i)
-					parts[#parts+1] = leetMap[ch] or ch
+					local base = leetMap[ch] or ch
+					parts[#parts+1] = base.."+"
 				end
 				slurPatterns[#slurPatterns+1] = Concat(parts, "[%W_]*")
 			end
@@ -56990,6 +57199,17 @@ NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), fu
 	NAStuff.ESP_ShowPartDistance = state
 	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSection("Folder ESP")
+
+NAgui.addToggle("Highlight Folder ESP By Models", (NAStuff.ESP_FolderMode == "models"), function(state)
+	NAStuff.ESP_FolderMode = state and "models" or "parts"
+	NAmanage.SaveESPSettings()
+	DoNotif("Folder ESP will highlight by "..(state and "models" or "parts")..".", 2)
+	if NAmanage.FolderESP_RefreshActive then
+		NAmanage.FolderESP_RefreshActive()
+	end
 end)
 
 NAgui.addSection("Locator Arrows")
