@@ -1040,6 +1040,7 @@ local NAStuff = {
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
 	tweenSpeed = 1;
+	FreecamSpeed = 5;
 	originalDesc = nil;
 	currentDesc = nil;
 	AutoChar = nil;
@@ -5494,19 +5495,43 @@ function yayApril(isTesting)
 	return name.." "..suffix
 end
 
-function MockText(text)
+function maybeMock(text)
+	return isAprilFools() and MockText(text) or text
+end
+
+NAStuff.AprilFoolsData = NAStuff.AprilFoolsData or {}
+NAStuff.AprilFoolsData.started = NAStuff.AprilFoolsData.started or false
+NAStuff.AprilFoolsData.prankNotifs = NAStuff.AprilFoolsData.prankNotifs or {
+	"Breaking news: "..adminName.." now ships with free banana peel DLC",
+	"New feature unlocked: invisible UI. Close your eyes to see it",
+	"Reminder: every bug today is a surprise feature",
+	"Limited time event: type ;help for a coupon that does nothing",
+	"Security alert: unauthorized laughter detected",
+	"Patch notes: seriousness reduced by 200%",
+}
+NAStuff.AprilFoolsData.placeholderJokes = NAStuff.AprilFoolsData.placeholderJokes or {
+	"Enter a totally real command (promise)",
+	"Try ;clown ? We dare you",
+	"Command bar is in prank mode, proceed with giggles",
+	"Your keyboard is now a whoopee cushion",
+	"This placeholder is legally binding. (Not really)",
+	"Now with 300% more clown energy",
+}
+NAStuff.AprilFoolsData.originalColor = NAStuff.AprilFoolsData.originalColor or NAUISTROKER
+NAStuff.AprilFoolsData.reverted = NAStuff.AprilFoolsData.reverted or false
+
+MockText = function(text)
 	local result = {}
 	local toggle = true
-	local glitchChars = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
-	math.randomseed(os.time())
 	for i = 1, #text do
 		local char = text:sub(i, i)
 		if char:match("%a") then
 			local transformed = toggle and char:upper() or char:lower()
 			toggle = not toggle
-			if math.random() < 0.15 then
-				local glitch = glitchChars[math.random(#glitchChars)]
-				transformed = transformed..glitch
+			if math.random() < 0.25 then
+				transformed = transformed:upper()
+			elseif math.random() < 0.25 then
+				transformed = transformed:lower()
 			end
 			Insert(result, transformed)
 		else
@@ -5516,8 +5541,141 @@ function MockText(text)
 	return Concat(result)
 end
 
-function maybeMock(text)
-	return isAprilFools() and MockText(text) or text
+NAmanage.AprilPick = NAmanage.AprilPick or function(list)
+	if type(list) ~= "table" or #list == 0 then
+		return nil
+	end
+	return list[math.random(1, #list)]
+end
+
+NAmanage.nudgeAprilIcon = function()
+	if not (isAprilFools() and TextButton) then return end
+	local wobble = math.random(-15, 15)
+	pcall(function()
+		TweenService:Create(TextButton, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = wobble }):Play()
+		Delay(0.35, function()
+			TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+		end)
+	end)
+end
+
+NAmanage.startAprilPranks = function()
+	if not isAprilFools() then return end
+	local aprilData = NAStuff.AprilFoolsData or {}
+	if aprilData.started then return end
+	aprilData.started = true
+	aprilData.reverted = false
+	aprilData.originalColor = aprilData.originalColor or NAUISTROKER
+	NAStuff.AprilFoolsData = aprilData
+
+	local function refreshPlaceholder()
+		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+		if not box or not box.Parent then return end
+		if box:IsA("TextBox") and box:IsFocused() and box.Text ~= "" then
+			return
+		end
+		local phrase = NAmanage.AprilPick(aprilData.placeholderJokes)
+		if phrase then
+			box.PlaceholderText = maybeMock(phrase)
+		end
+	end
+
+	if TextButton and TextButton.MouseButton1Click then
+		TextButton.MouseButton1Click:Connect(function()
+			if not isAprilFools() then return end
+			NAmanage.nudgeAprilIcon()
+		end)
+	end
+
+	local function aprilWiggleCmdBar()
+		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+		if not box or not box.Parent then return end
+		local target = box.Parent
+		local basePos = target.Position
+		local baseRot = target.Rotation or 0
+		local offsetX = math.random(-8, 8)
+		local offsetY = math.random(-4, 4)
+		local rot = math.random(-6, 6)
+		local wiggleTween = TweenService:Create(target, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			Position = basePos + UDim2.new(0, offsetX, 0, offsetY);
+			Rotation = baseRot + rot;
+		})
+		wiggleTween:Play()
+		Delay(0.4, function()
+			TweenService:Create(target, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+				Position = basePos;
+				Rotation = baseRot;
+			}):Play()
+		end)
+	end
+
+	NAmanage.ApplyAprilColor = NAmanage.ApplyAprilColor or function(color)
+		if typeof(color) ~= "Color3" then return end
+		NAUISTROKER = color
+		for _, stroke in ipairs(NACOLOREDELEMENTS or {}) do
+			if stroke and stroke.Color then
+				stroke.Color = color
+			end
+		end
+	end
+
+	NAmanage.AprilRestoreColor = NAmanage.AprilRestoreColor or function()
+		local aprilData = NAStuff.AprilFoolsData
+		local base = aprilData and aprilData.originalColor or NAUISTROKER
+		if typeof(base) == "Color3" then
+			NAmanage.ApplyAprilColor(base)
+		end
+	end
+
+	local function aprilColorPulse()
+		local hue = math.random()
+		local color = Color3.fromHSV(hue, 0.9, 1)
+		NAmanage.ApplyAprilColor(color)
+	end
+
+	SpawnCall(function()
+		while isAprilFools() do
+			Wait(math.random(14, 30))
+			local msg = NAmanage.AprilPick(aprilData.prankNotifs)
+			if msg and type(DoNotif) == "function" then
+				DoNotif(maybeMock(msg), 4)
+			end
+			NAmanage.nudgeAprilIcon()
+		end
+	end)
+
+	SpawnCall(function()
+		while isAprilFools() do
+			refreshPlaceholder()
+			Wait(math.random(10, 18))
+		end
+	end)
+
+	SpawnCall(function()
+		while isAprilFools() do
+			aprilColorPulse()
+			Wait(math.random(6, 12))
+		end
+	end)
+
+	SpawnCall(function()
+		while isAprilFools() do
+			aprilWiggleCmdBar()
+			Wait(math.random(9, 16))
+		end
+	end)
+
+	SpawnCall(function()
+		while isAprilFools() do
+			Wait(3)
+		end
+		if not aprilData.reverted then
+			aprilData.reverted = true
+			if NAmanage.AprilRestoreColor then
+				NAmanage.AprilRestoreColor()
+			end
+		end
+	end)
 end
 
 if getgenv().NATestingVer then
@@ -7118,6 +7276,16 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		freecamSpeed = {
+			default = 5;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 5
+				end
+				return math.clamp(numberValue, 0.05, 20)
+			end;
+		};
 		queueOnTeleport = {
 			pathKey = "NAQOTPATH";
 			default = false;
@@ -8393,6 +8561,10 @@ NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
+NAStuff.FreecamSpeed = math.clamp(tonumber(NAmanage.NASettingsGet("freecamSpeed")) or 5, 0.05, 20)
+if NAFreecam and NAFreecam.SetSpeed then
+	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
+end
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -8407,6 +8579,9 @@ if FileSupport then
 	end
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAUISTROKER = InitUIStroke()
+	if NAStuff and NAStuff.AprilFoolsData then
+		NAStuff.AprilFoolsData.originalColor = NAUISTROKER
+	end
 	NAStuff.IconInvisible = NAmanage.NASettingsGet("iconInvisible")
 	NAStuff.IconLocked = NAmanage.NASettingsGet("iconLocked")
 	NATOPBARVISIBLE = NAmanage.NASettingsGet("topbarVisible")
@@ -11277,6 +11452,10 @@ end
 function SaveUIStroke(color)
 	if typeof(color) ~= "Color3" then
 		return
+	end
+
+	if NAStuff and NAStuff.AprilFoolsData then
+		NAStuff.AprilFoolsData.originalColor = color
 	end
 
 	NAmanage.NASettingsSet("uiStroke", {
@@ -26009,10 +26188,19 @@ fcBTNTOGGLE = nil
 
 cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera"},function(...)
 	argg = (...)
-	local numericArg = tonumber(argg)
-	local legacySpeed = numericArg or 5
-	local navSpeed = numericArg and (numericArg / 5) or nil
+	local function normalizeLegacySpeed(value)
+		local n = tonumber(value)
+		if not n then
+			return nil
+		end
+		return math.clamp(n, 0.05, 20)
+	end
+
+	local legacySpeed = normalizeLegacySpeed(argg) or normalizeLegacySpeed(NAStuff.FreecamSpeed) or 5
+	local navSpeed = legacySpeed / 5
 	local speed = legacySpeed
+	NAStuff.FreecamSpeed = legacySpeed
+	pcall(NAmanage.NASettingsSet, "freecamSpeed", legacySpeed)
 
 	if NAFreecam and NAFreecam.IsEnabled() then
 		NAFreecam.Stop()
@@ -26037,8 +26225,6 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		camPart.Transparency = 1
 		camPart.Anchored = true
 		camPart.CFrame = camera.CFrame
-
-		SpawnCall(function() cmd.run({"fr",''}) end)
 
 		NAlib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
 			local primaryPart = camPart
@@ -26138,11 +26324,29 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		end)
 
 		local function applyMobileFreecamSpeed()
-			local newSpeed = tonumber(speedBox.Text) or 5
+			local newSpeed = normalizeLegacySpeed(speedBox.Text) or speed
 			speed = newSpeed
 			speedBox.Text = tostring(speed)
+			NAStuff.FreecamSpeed = speed
+			pcall(NAmanage.NASettingsSet, "freecamSpeed", speed)
 			if NAFreecam and NAFreecam.IsEnabled and NAFreecam.IsEnabled() and NAFreecam.SetSpeed then
 				NAFreecam.SetSpeed(speed / 5)
+			end
+		end
+
+		local function startMobileFreecam()
+			applyMobileFreecamSpeed()
+			if flyVariables.mOn then
+				return
+			end
+			flyVariables.mOn = true
+			btn.Text = "UNFC"
+			btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+			SpawnCall(function() cmd.run({"fr",''}) end)
+			if NAFreecam then
+				NAFreecam.Start(speed and (speed / 5) or nil)
+			else
+				runFREECAM()
 			end
 		end
 
@@ -26152,15 +26356,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			MouseButtonFix(btn, function()
 				applyMobileFreecamSpeed()
 				if not flyVariables.mOn then
-					flyVariables.mOn = true
-					btn.Text = "UNFC"
-					btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-					SpawnCall(function() cmd.run({"fr",''}) end)
-					if NAFreecam then
-						NAFreecam.Start(speed and (speed / 5) or nil)
-					else
-						runFREECAM()
-					end
+					startMobileFreecam()
 				else
 					flyVariables.mOn = false
 					btn.Text = "FC"
@@ -26180,13 +26376,14 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 
 		NAgui.draggerV2(btn)
 		NAgui.draggerV2(speedBox)
+
+		startMobileFreecam()
 	else
 		if not IsOnPC then
 			return DebugNotif("Freecam is only available on PC and mobile", 3)
 		end
 
 		DebugNotif("Roblox-style freecam enabled (WASD + mouse, Q/E up/down, arrows change speed)", 3)
-		SpawnCall(function() cmd.run({"fr",''}) end)
 		if NAFreecam then
 			NAFreecam.Start(navSpeed)
 		else
@@ -30467,33 +30664,91 @@ cmd.add({"exit"},{"exit","Close down pedoblox"},function()
 end)
 
 cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
+	local args = {...}
+	local target = args[1]
 	local vim=SafeGetService("VirtualInputManager");
-	local input = (...)
 	local keyMap = {
 		["leftcontrol"] = Enum.KeyCode.LeftControl,
+		["lcontrol"] = Enum.KeyCode.LeftControl,
+		["ctrl"] = Enum.KeyCode.LeftControl,
+		["control"] = Enum.KeyCode.LeftControl,
 		["rightcontrol"] = Enum.KeyCode.RightControl,
+		["rcontrol"] = Enum.KeyCode.RightControl,
+		["rightctrl"] = Enum.KeyCode.RightControl,
 		["leftshift"] = Enum.KeyCode.LeftShift,
+		["lshift"] = Enum.KeyCode.LeftShift,
+		["shift"] = Enum.KeyCode.LeftShift,
 		["rightshift"] = Enum.KeyCode.RightShift,
+		["rshift"] = Enum.KeyCode.RightShift,
 		["leftalt"] = Enum.KeyCode.LeftAlt,
+		["lalt"] = Enum.KeyCode.LeftAlt,
+		["alt"] = Enum.KeyCode.LeftAlt,
 		["rightalt"] = Enum.KeyCode.RightAlt,
+		["ralt"] = Enum.KeyCode.RightAlt,
 		["space"] = Enum.KeyCode.Space,
+		["spacebar"] = Enum.KeyCode.Space,
 		["tab"] = Enum.KeyCode.Tab,
 		["escape"] = Enum.KeyCode.Escape,
+		["esc"] = Enum.KeyCode.Escape,
 		["enter"] = Enum.KeyCode.Return,
-		["backspace"] = Enum.KeyCode.Backspace
+		["return"] = Enum.KeyCode.Return,
+		["backspace"] = Enum.KeyCode.Backspace,
+		["0"] = Enum.KeyCode.Zero,
+		["1"] = Enum.KeyCode.One,
+		["2"] = Enum.KeyCode.Two,
+		["3"] = Enum.KeyCode.Three,
+		["4"] = Enum.KeyCode.Four,
+		["5"] = Enum.KeyCode.Five,
+		["6"] = Enum.KeyCode.Six,
+		["7"] = Enum.KeyCode.Seven,
+		["8"] = Enum.KeyCode.Eight,
+		["9"] = Enum.KeyCode.Nine,
+		["kp0"] = Enum.KeyCode.KeypadZero,
+		["kp1"] = Enum.KeyCode.KeypadOne,
+		["kp2"] = Enum.KeyCode.KeypadTwo,
+		["kp3"] = Enum.KeyCode.KeypadThree,
+		["kp4"] = Enum.KeyCode.KeypadFour,
+		["kp5"] = Enum.KeyCode.KeypadFive,
+		["kp6"] = Enum.KeyCode.KeypadSix,
+		["kp7"] = Enum.KeyCode.KeypadSeven,
+		["kp8"] = Enum.KeyCode.KeypadEight,
+		["kp9"] = Enum.KeyCode.KeypadNine
 	}
 
-	local keyCode
-
-	if keyMap[input:lower()] then
-		keyCode = keyMap[input:lower()]
-	else
-		keyCode = Enum.KeyCode[input:upper()]
+	local function normalizeKeyName(name)
+		return Lower(tostring(name)):gsub("%s+", ""):gsub("_", "")
 	end
+
+	local function findKeyCode(input)
+		if not input or input == "" then
+			return nil
+		end
+
+		local cleaned = normalizeKeyName(input)
+
+		if keyMap[cleaned] then
+			return keyMap[cleaned]
+		end
+
+		for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
+			local keyName = normalizeKeyName(keyCode.Name)
+			if keyName == cleaned or Match(keyName, cleaned) or Match(cleaned, keyName) then
+				return keyCode
+			end
+		end
+
+		return nil
+	end
+
+	local keyCode = findKeyCode(target)
 
 	if keyCode then
 		vim:SendKeyEvent(true, keyCode, 0, game)
 		vim:SendKeyEvent(false, keyCode, 0, game)
+	elseif not target or target == "" then
+		DebugNotif("firekey needs a key name (ex: firekey space)", 3)
+	else
+		DebugNotif("No matching keycode for: "..tostring(target), 3)
 	end
 end,true)
 
@@ -44524,6 +44779,9 @@ NAmanage.buildCommandEntries=function()
 		if isPluginCmd then
 			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
 		end
+		if isAprilFools() then
+			finalText = maybeMock(finalText)
+		end
 		local desc = ""
 		if type(data[2]) == "table" then
 			desc = data[2][2] or ""
@@ -44691,7 +44949,7 @@ NAgui.commands = function()
 		Cmd.Text = " "..finalText
 		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
-		Cmd.MouseEnter:Connect(function()
+		local function resolveDesc()
 			local desc = meta.desc
 			if desc == nil and tbl and type(tbl[2]) == "table" then
 				desc = tbl[2][2]
@@ -44700,7 +44958,14 @@ NAgui.commands = function()
 				desc = tostring(desc)
 			end
 			desc = desc or ""
+			if desc ~= "" and isAprilFools() then
+				desc = maybeMock(desc)
+			end
+			return desc
+		end
 
+		Cmd.MouseEnter:Connect(function()
+			local desc = resolveDesc()
 			if desc ~= "" then
 				NAUIMANAGER.description.Visible = true
 				NAUIMANAGER.description.Text = desc
@@ -44711,17 +44976,8 @@ NAgui.commands = function()
 		end)
 
 		Cmd.MouseLeave:Connect(function()
-			local desc = meta.desc
-			if desc == nil and tbl and type(tbl[2]) == "table" then
-				desc = tbl[2][2]
-			end
-			if desc ~= nil then desc = tostring(desc) end
-			desc = desc or ""
-
-			if NAUIMANAGER.description.Text == desc then
-				NAUIMANAGER.description.Visible = false
-				NAUIMANAGER.description.Text = ""
-			end
+			NAUIMANAGER.description.Visible = false
+			NAUIMANAGER.description.Text = ""
 		end)
 
 		yOffset = yOffset + 20
@@ -45266,8 +45522,10 @@ NAgui.setToggleState = function(label, value, opts)
 	entry.set(value, opts)
 end
 
-NAgui.addColorPicker = function(label, defaultColor, callback)
+NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+
+	local cfg = opts or {}
 
 	local picker = templates.ColorPicker:Clone()
 	picker.Title.Text = label
@@ -45476,7 +45734,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 
 		if opt.fire ~= false then
 			pcall(function()
-				callback(col)
+				callback(col, opt)
 			end)
 		end
 	end
@@ -45670,7 +45928,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback)
 		end
 	end)
 
-	updUI(true)
+	local initOpts = {
+		fire = cfg.fireOnInit ~= false;
+		context = "init";
+	}
+	updUI(true, initOpts)
 
 	return picker
 end
@@ -53938,6 +54200,7 @@ SpawnCall(function()
 	end)
 	NAUIMANAGER.cmdInput.ZIndex = 10
 	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
+	NAmanage.startAprilPranks()
 end)
 
 NAmanage.hsv2rgb=function(h, s, v)
@@ -55096,13 +55359,38 @@ NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
 end)
 
-NAgui.addToggle("Freecam Shift+P Keybind", _G.NAFreecamKeybindEnabled == true, function(v)
-	_G.NAFreecamKeybindEnabled = v and true or false
-	NAmanage.NASettingsSet("freecamKeybind", _G.NAFreecamKeybindEnabled)
-	DoNotif("Freecam Shift+P keybind "..(v and "enabled" or "disabled"), 2)
+tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
+NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, " s", function(val)
+	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
+	NAStuff.tweenSpeed = clamped
+	NAmanage.NASettingsSet("tweenSpeed", clamped)
 end)
-NAmanage.RegisterToggleAutoSync("Freecam Shift+P Keybind", function()
-	return _G.NAFreecamKeybindEnabled == true
+
+if IsOnPC then
+	NAgui.addToggle("Freecam Shift+P Keybind", _G.NAFreecamKeybindEnabled == true, function(v)
+		_G.NAFreecamKeybindEnabled = v and true or false
+		NAmanage.NASettingsSet("freecamKeybind", _G.NAFreecamKeybindEnabled)
+		DoNotif("Freecam Shift+P keybind "..(v and "enabled" or "disabled"), 2)
+	end)
+	NAmanage.RegisterToggleAutoSync("Freecam Shift+P Keybind", function()
+		return _G.NAFreecamKeybindEnabled == true
+	end)
+end
+
+freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
+NAgui.addInput("Freecam Speed", "Enter speed (e.g. 10)", tostring(freecamSpeedDefault), function(text)
+	local value = tonumber(text)
+	if not value then
+		DoNotif("Please enter a numeric freecam speed", 2)
+		return
+	end
+	local clamped = math.clamp(value, 0.05, 20)
+	NAStuff.FreecamSpeed = clamped
+	pcall(NAmanage.NASettingsSet, "freecamSpeed", clamped)
+	if NAFreecam and NAFreecam.SetSpeed then
+		NAFreecam.SetSpeed(math.clamp(clamped / 5, 0.01, 4))
+	end
+	DoNotif("Freecam speed set to "..Format("%.2f", clamped), 2)
 end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
@@ -55427,7 +55715,9 @@ NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAmanage.NASettingsSet("buttonSize", val)
 end)
 
-NAgui.addColorPicker("Main Color", NAUISTROKER, function(color)
+local mainColorDefault = (NAStuff and NAStuff.AprilFoolsData and NAStuff.AprilFoolsData.originalColor) or NAUISTROKER
+
+NAgui.addColorPicker("Main Color", mainColorDefault, function(color, meta)
 	if typeof(color) == "Color3" then
 		NAUISTROKER = color
 		for _, element in ipairs(NACOLOREDELEMENTS) do
@@ -55459,8 +55749,12 @@ NAgui.addColorPicker("Main Color", NAUISTROKER, function(color)
 		end
 		NAmanage.SideSwipe_UpdateHandleColors(color)
 	end
-	SaveUIStroke(color)
-end)
+	if not (meta and meta.context == "init") then
+		SaveUIStroke(color)
+	end
+end, {
+	fireOnInit = true,
+})
 
 NAgui.addSection("Icon Appearance")
 
