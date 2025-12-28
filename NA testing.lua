@@ -5601,12 +5601,12 @@ NAmanage.startAprilPranks = function()
 		end
 	end
 
-	if TextButton and TextButton.MouseButton1Click then
-		TextButton.MouseButton1Click:Connect(function()
-			if not isAprilFools() then return end
-			NAmanage.nudgeAprilIcon()
-		end)
-	end
+if TextButton then
+	MouseButtonFix(TextButton, function()
+		if not isAprilFools() then return end
+		NAmanage.nudgeAprilIcon()
+	end)
+end
 
 	local function aprilWiggleCmdBar()
 		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
@@ -6996,6 +6996,9 @@ NAmanage.jlDef = {
 	ChatLog = true;
 	SaveChatLog = true;
 	PhysicsLog = NAmanage.jlPhys();
+	WelcomeNotif = true;
+	KeybindNotif = true;
+	PluginNotif = true;
 }
 
 NAmanage.jlNorm = function(cfg)
@@ -8220,14 +8223,24 @@ NAmanage.SaveCommandKeybinds=function()
 	for key, args in pairs(CommandKeybinds) do
 		if type(key) == "string" and type(args) == "table" then
 			local opt = CommandKeybindOptions[key]
+			local disabled = opt and opt.disabled == true
+			local entry
 			if opt and opt.toggle then
-				payload[key] = {
+				entry = {
 					args1 = args;
 					args2 = opt.args2 or args;
 				}
+			elseif disabled then
+				entry = {
+					args = args;
+				}
 			else
-				payload[key] = args
+				entry = args
 			end
+			if disabled and type(entry) == "table" then
+				entry.disabled = true
+			end
+			payload[key] = entry
 		end
 	end
 
@@ -8265,6 +8278,9 @@ NAmanage.ApplyCommandKeybinds=function()
 		end
 
 		local opt = CommandKeybindOptions[keyName]
+		if opt and opt.disabled then
+			return
+		end
 		if opt and opt.toggle and type(opt.args2) == "table" then
 			opt.state = not opt.state
 			local runArgs
@@ -8292,8 +8308,9 @@ NAmanage.LoadCommandKeybinds=function()
 			if okDecode and type(decoded) == "table" then
 				for key, value in pairs(decoded) do
 					if type(key) == "string" and type(value) == "table" then
-						local args = value
+						local args = nil
 						local opt = nil
+						local disabled = value.disabled == true
 						if type(value.args1) == "table" and type(value.args2) == "table" then
 							args = value.args1
 							opt = {
@@ -8301,29 +8318,38 @@ NAmanage.LoadCommandKeybinds=function()
 								state = false;
 								args2 = value.args2;
 							}
-						elseif type(value.args) == "table" and value.toggle == true then
+						elseif type(value.args) == "table" then
 							args = value.args
-							local args2 = {}
-							for i, v in ipairs(args) do
-								args2[i] = v
-							end
-							if type(args2[1]) == "string" then
-								local cmdName = args2[1]
-								local lower = Lower(cmdName)
-								if lower:sub(1, 2) == "un" then
-									args2[1] = cmdName:sub(3)
-								else
-									args2[1] = "un"..cmdName
+							if value.toggle == true then
+								local args2 = {}
+								for i, v in ipairs(args) do
+									args2[i] = v
 								end
+								if type(args2[1]) == "string" then
+									local cmdName = args2[1]
+									local lower = Lower(cmdName)
+									if lower:sub(1, 2) == "un" then
+										args2[1] = cmdName:sub(3)
+									else
+										args2[1] = "un"..cmdName
+									end
+								end
+								opt = {
+									toggle = true;
+									state = false;
+									args2 = args2;
+								}
 							end
-							opt = {
-								toggle = true;
-								state = false;
-								args2 = args2;
-							}
+						end
+						if not args then
+							args = value
 						end
 						if type(args) == "table" then
 							CommandKeybinds[key] = args
+							if disabled then
+								opt = opt or {}
+								opt.disabled = true
+							end
 							if opt then
 								CommandKeybindOptions[key] = opt
 							end
@@ -13434,7 +13460,10 @@ NAmanage.loadAutoExec = function()
 	return true
 end
 
-	NAmanage.LoadPlugins = function()
+	NAmanage.LoadPlugins = function(opts)
+		opts = opts or {}
+		local silent = opts.silent == true
+		local forceNotify = opts.forceNotify == true
 		if not CustomFunctionSupport then
 			return true
 		end
@@ -14304,7 +14333,8 @@ end
 		UnplugCmd(key)
 	end
 
-	if #loadedSumm > 0 then
+	local allowNotif = (forceNotify == true) or (NAmanage.jlCfg.PluginNotif ~= false)
+	if #loadedSumm > 0 and allowNotif and not silent then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSumm, "\n\n"), 5.7)
 	end
 
@@ -14551,17 +14581,17 @@ cmd.add(
 					end
 					if matched then break end
 				end
-				if not matched then
-					DoNotif("No plugin matched '"..query.."'",3)
-					return
-				end
+			if not matched then
+				DoNotif("No plugin matched '"..query.."'",3)
+				return
 			end
-			if not NAmanage.LoadPlugins() then
-				DoNotif("Failed to reload plugins",3)
-			else
-				if NAgui and NAgui.loadCMDS then
-					pcall(NAgui.loadCMDS)
-				end
+		end
+		if not NAmanage.LoadPlugins({ forceNotify = true }) then
+			DoNotif("Failed to reload plugins",3)
+		else
+			if NAgui and NAgui.loadCMDS then
+				pcall(NAgui.loadCMDS)
+			end
 			end
 		end
 	)
@@ -15989,17 +16019,17 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 		end
 	end
 
-	exe.MouseButton1Click:Connect(function()
-		run()
-	end)
+MouseButtonFix(exe, function()
+	run()
+end)
 
-	cls.MouseButton1Click:Connect(function()
-		show(false)
-	end)
+MouseButtonFix(cls, function()
+	show(false)
+end)
 
-	mini.MouseButton1Click:Connect(function()
-		setMin(not min)
-	end)
+MouseButtonFix(mini, function()
+	setMin(not min)
+end)
 
 	exe.MouseEnter:Connect(function()
 		tw(exe, 0.08, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)})
@@ -16310,7 +16340,7 @@ NAmanage.NAibtoolsCreateUI=function(state, actions)
 	local function createModeButton(label, mode)
 		local btn = makeButton(label)
 		modeButtons[mode] = btn
-		btn.MouseButton1Click:Connect(function()
+		MouseButtonFix(btn, function()
 			if actions.setMode then
 				actions.setMode(mode)
 			end
@@ -16324,14 +16354,14 @@ NAmanage.NAibtoolsCreateUI=function(state, actions)
 	createModeButton("Toggle CanCollide", "collide")
 
 	local undoButton = makeButton("Undo Delete")
-	undoButton.MouseButton1Click:Connect(function()
+	MouseButtonFix(undoButton, function()
 		if actions.undo then
 			actions.undo()
 		end
 	end)
 
 	local copyButton = makeButton("Copy Delete Script")
-	copyButton.MouseButton1Click:Connect(function()
+	MouseButtonFix(copyButton, function()
 		if actions.copy then
 			actions.copy()
 		end
@@ -17860,19 +17890,19 @@ function NAstatsUI.ensureSingle(key, buildFn)
 		return existing
 	end
 
-	local newUi = buildFn()
-	windowRegistry[key] = newUi
+local newUi = buildFn()
+windowRegistry[key] = newUi
 
-	local originalCloseFunction = newUi.closeFunction
-	newUi.closeButton.MouseButton1Click:Connect(function()
-		if windowRegistry[key] == newUi then
-			windowRegistry[key] = nil
-		end
-		if originalCloseFunction then
-			originalCloseFunction()
-		end
-		newUi.screenGui:Destroy()
-	end)
+local originalCloseFunction = newUi.closeFunction
+MouseButtonFix(newUi.closeButton, function()
+	if windowRegistry[key] == newUi then
+		windowRegistry[key] = nil
+	end
+	if originalCloseFunction then
+		originalCloseFunction()
+	end
+	newUi.screenGui:Destroy()
+end)
 	return newUi
 end
 
@@ -17991,12 +18021,12 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 	local collapsedTitleText = titleText
 	local storedSize = baseSize
 
-	minimizeButton.MouseButton1Click:Connect(function()
-		collapsed = not collapsed
-		content.Visible = not collapsed
-		if collapsed then
-			storedSize = holder.Size
-			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
+MouseButtonFix(minimizeButton, function()
+	collapsed = not collapsed
+	content.Visible = not collapsed
+	if collapsed then
+		storedSize = holder.Size
+		holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
 			title.Text = collapsedTitleText
 		else
 			holder.Size = storedSize
@@ -18377,7 +18407,7 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 	end)
 	NAlib.connect("UI:Stats", conn)
 
-	ui.closeButton.MouseButton1Click:Connect(function()
+	MouseButtonFix(ui.closeButton, function()
 		NAlib.disconnect("UI:Stats")
 		if windowRegistry["Stats"] == ui then
 			windowRegistry["Stats"] = nil
@@ -18788,7 +18818,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end
 
 	for _,b in pairs(tabBtns) do
-		NAlib.connect(CONN_KEY, b.MouseButton1Click:Connect(function() setTab(b.Name) end))
+		NAlib.connect(CONN_KEY, MouseButtonFix(b, function() setTab(b.Name) end))
 		NAlib.connect(CONN_KEY, b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0.05}):Play() end))
 		NAlib.connect(CONN_KEY, b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0}):Play() end))
 	end
@@ -19015,44 +19045,44 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		status.Text = Format("FPS: %s | Ping: %s | Char:%s", f, p and Format("%d ms", p) or "--", charOk)
 	end
 
-	NAlib.connect(CONN_KEY, btnPause.MouseButton1Click:Connect(function()
-		paused = not paused
-		isMinimized = false
-		btnPause.Text = paused and "Resume" or "Pause"
-		TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
-	end))
+NAlib.connect(CONN_KEY, MouseButtonFix(btnPause, function()
+	paused = not paused
+	isMinimized = false
+	btnPause.Text = paused and "Resume" or "Pause"
+	TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
+end))
 
-	NAlib.connect(CONN_KEY, btnMin.MouseButton1Click:Connect(function()
-		if window.Visible then
-			isMinimized = true
-			local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
-			out.Completed:Connect(function()
-				window.Visible=false
+NAlib.connect(CONN_KEY, MouseButtonFix(btnMin, function()
+	if window.Visible then
+		isMinimized = true
+		local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
+		out.Completed:Connect(function()
+			window.Visible=false
 				dock.Visible=true
 				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(IsOnMobile and 80 or 70,IsOnMobile and 80 or 70)}):Play()
 			end)
 			out:Play()
-		end
-	end))
+	end
+end))
 
-	NAlib.connect(CONN_KEY, dockLabel.MouseButton1Click:Connect(function()
-		if not window.Visible then
-			isMinimized = false
-			dock.Visible=false
-			window.Visible=true
-			window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
+NAlib.connect(CONN_KEY, MouseButtonFix(dockLabel, function()
+	if not window.Visible then
+		isMinimized = false
+		dock.Visible=false
+		window.Visible=true
+		window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
 			window.BackgroundTransparency = 0.4
 			TweenService:Create(window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
 			NAmanage.centerFrame(window)
 		end
-	end))
+end))
 
-	NAlib.connect(CONN_KEY, btnClose.MouseButton1Click:Connect(function()
-		if debugUI then
-			debugUI:Destroy()
-			debugUI = nil
-		end
-		if debugDock then
+NAlib.connect(CONN_KEY, MouseButtonFix(btnClose, function()
+	if debugUI then
+		debugUI:Destroy()
+		debugUI = nil
+	end
+	if debugDock then
 			debugDock:Destroy()
 			debugDock = nil
 		end
@@ -24443,7 +24473,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 	prefill()
 
-	closeBtn.MouseButton1Click:Connect(function()
+	MouseButtonFix(closeBtn, function()
 		local t = TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 			Size = UDim2.new(0.02,0,0.02,0),
 			Position = UDim2.new(0.99,0,0.01,0)
@@ -24453,8 +24483,8 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		builderAnim = nil
 	end)
 
-	save.MouseButton1Click:Connect(function() applyAnims("save") end)
-	revert.MouseButton1Click:Connect(function() applyAnims("revert") end)
+	MouseButtonFix(save, function() applyAnims("save") end)
+	MouseButtonFix(revert, function() applyAnims("revert") end)
 
 	NAgui.dragger(main, header)
 end)
@@ -25555,19 +25585,19 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			btn.Name=name
 			btn.name.Text=name
 			btn.Visible=true
-			Insert(connections,btn.MouseButton1Click:Connect(function()
+			Insert(connections, MouseButtonFix(btn, function()
 				Main.RightPanel.output.Text=text
 				currentInfo=text
 			end))
 		end
 
-		Main.RightPanel.copy.MouseButton1Click:Connect(function()
+		MouseButtonFix(Main.RightPanel.copy, function()
 			if currentInfo~=nil then
 				setclipboard(tostring(currentInfo))
 			end
 		end)
 
-		Main.RightPanel.clear.MouseButton1Click:Connect(function()
+		MouseButtonFix(Main.RightPanel.clear, function()
 			for i,v in pairs(connections) do
 				v:Disconnect()
 			end
@@ -25716,7 +25746,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			end
 		end))
 
-		Insert(_G.functionspy.connections,FakeTitle.MouseButton1Click:Connect(function()
+		Insert(_G.functionspy.connections, MouseButtonFix(FakeTitle, function()
 			_G.functionspy.logging=not _G.functionspy.logging
 			if _G.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
@@ -25731,7 +25761,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	end
 	coroutine.wrap(BIPVKVC_fake_script)()
 	function PRML_fake_script()
-		clear.MouseButton1Click:Connect(function()
+		MouseButtonFix(clear, function()
 			_G.functionspy.shutdown()
 		end)
 	end
@@ -26721,13 +26751,13 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	cancel.Parent = frame
 	InstanceNew("UICorner", cancel)
 
-	confirm.MouseButton1Click:Connect(function()
+	MouseButtonFix(confirm, function()
 		applyGrip()
 		closeUI()
 	end)
 
-	preview.MouseButton1Click:Connect(applyGrip)
-	cancel.MouseButton1Click:Connect(closeUI)
+	MouseButtonFix(preview, applyGrip)
+	MouseButtonFix(cancel, closeUI)
 
 	NAgui.draggerV2(frame)
 end)
@@ -27127,7 +27157,7 @@ end)
 			end
 		end
 		box.FocusLost:Connect(function(e) if e then hook() end end)
-		btn.MouseButton1Click:Connect(hook)
+		MouseButtonFix(btn, hook)
 	end)
 	DoNotif("antichatlogs activated (W.I.P)")
 end)]]
@@ -27564,17 +27594,17 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			b.BackgroundColor3 = COLORS.BUTTON_DARK
 			b.BackgroundTransparency = 0.18
 			b.AutoButtonColor = true
-			b.Text = label
-			b.Font = Enum.Font.GothamSemibold
-			b.TextColor3 = COLORS.TEXT
-			b.TextScaled = true
-			b.Size = UDim2.new(0, 54, 1, 0)
-			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
-			local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.4
-			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 9; ts.MaxTextSize = 13
-			NAlib.connect("BadgeViewer", b.MouseButton1Click:Connect(cb))
-			return b
-		end
+		b.Text = label
+		b.Font = Enum.Font.GothamSemibold
+		b.TextColor3 = COLORS.TEXT
+		b.TextScaled = true
+		b.Size = UDim2.new(0, 54, 1, 0)
+		local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
+		local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.4
+		local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 9; ts.MaxTextSize = 13
+		NAlib.connect("BadgeViewer", MouseButtonFix(b, cb))
+		return b
+	end
 
 		local function makeListCard(b)
 			local f = InstanceNew("Frame")
@@ -27913,18 +27943,18 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 
 		search:GetPropertyChangedSignal("Text"):Connect(applyFilters)
-		clearSearch.MouseButton1Click:Connect(function()
+		MouseButtonFix(clearSearch, function()
 			search.Text = ""
 		end)
-		ownedOnlyBtn.MouseButton1Click:Connect(function() setOwnedOnly(not ownedOnly) end)
-		unownedOnlyBtn.MouseButton1Click:Connect(function() setUnownedOnly(not unownedOnly) end)
+		MouseButtonFix(ownedOnlyBtn, function() setOwnedOnly(not ownedOnly) end)
+		MouseButtonFix(unownedOnlyBtn, function() setUnownedOnly(not unownedOnly) end)
 
-		layoutToggle.MouseButton1Click:Connect(function()
+		MouseButtonFix(layoutToggle, function()
 			useGrid = not useGrid
 			attachLayout()
 		end)
 
-		sortBtn.MouseButton1Click:Connect(function()
+		MouseButtonFix(sortBtn, function()
 			sortModeIndex += 1
 			if sortModeIndex > #sortModes then sortModeIndex = 1 end
 			sortMode = sortModes[sortModeIndex].id
@@ -27952,9 +27982,9 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			Delay(0.1, function() tweenTransparency(content, 0, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)) end)
 			minimized = false
 		end
-		minBtn.MouseButton1Click:Connect(function() if minimized then restore() else minimize() end end)
+		MouseButtonFix(minBtn, function() if minimized then restore() else minimize() end end)
 
-		closeBtn.MouseButton1Click:Connect(function()
+		MouseButtonFix(closeBtn, function()
 			local t1 = TweenService:Create(main, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 				Size = UDim2.new(0.02,0,0.02,0),
 				Position = UDim2.new(0.99,0,0.02,0)
@@ -28009,7 +28039,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			step()
 		end
 
-		refreshBtn.MouseButton1Click:Connect(function()
+		MouseButtonFix(refreshBtn, function()
 			if refreshBtn.Active == false then return end
 			refreshBtn.Active = false
 			refreshBtn.AutoButtonColor = false
@@ -31211,18 +31241,18 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	local loops={}
 	local function stopAllLoops() for _,l in pairs(loops) do l.running=false end loops={} end
 
-	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function()
-		stopAllLoops()
-		NAlib.disconnect(GROUP)
-		pcall(gui.Destroy,gui)
-		NA_DEVPROD_GUI=nil
-	end))
+NAlib.connect(GROUP, MouseButtonFix(close, function()
+	stopAllLoops()
+	NAlib.disconnect(GROUP)
+	pcall(gui.Destroy,gui)
+	NA_DEVPROD_GUI=nil
+end))
 
-	NAlib.connect(GROUP,minimize.MouseButton1Click:Connect(function()
-		if minimized then
-			minimized=false
-			body.Visible=true
-			status.Visible=true
+NAlib.connect(GROUP, MouseButtonFix(minimize, function()
+	if minimized then
+		minimized=false
+		body.Visible=true
+		status.Visible=true
 			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			minimize.Text="-"
@@ -31312,10 +31342,10 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		loopBtn.TextScaled=true
 		local lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
 
-		NAlib.connect(GROUP,purchase.MouseButton1Click:Connect(function()
+		NAlib.connect(GROUP, MouseButtonFix(purchase, function()
 			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
 		end))
-		NAlib.connect(GROUP,loopBtn.MouseButton1Click:Connect(function()
+		NAlib.connect(GROUP, MouseButtonFix(loopBtn, function()
 			local l=loops[id]
 			if l and l.running then
 				l.running=false
@@ -31411,14 +31441,14 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		setCanvas()
 	end
 
-	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
-	NAlib.connect(GROUP,refresh.MouseButton1Click:Connect(function() search.Text="" fetchAll() end))
-	NAlib.connect(GROUP,buyAll.MouseButton1Click:Connect(function()
-		if #allItems==0 then return end
-		local delayS=parseInterval()
-		SpawnCall(function()
-			for _,info in ipairs(allItems) do
-				MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
+NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
+NAlib.connect(GROUP, MouseButtonFix(refresh, function() search.Text="" fetchAll() end))
+NAlib.connect(GROUP, MouseButtonFix(buyAll, function()
+	if #allItems==0 then return end
+	local delayS=parseInterval()
+	SpawnCall(function()
+		for _,info in ipairs(allItems) do
+			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
 				Wait(delayS)
 			end
 		end)
@@ -31599,8 +31629,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 	local function notify(m,t) if DoNotif then DoNotif(m,t or 4,"GamePasses") else warn("[GamePasses] "..m) end status.Text=m end
 	local function setCanvas() list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+16) end
-	NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
-	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
+NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 
 	local function parseInterval()
 		local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.5
@@ -31665,10 +31695,10 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		toggleBtn.TextScaled=true
 		local lCorner=InstanceNew("UICorner",toggleBtn); lCorner.CornerRadius=UDim.new(0,12)
 
-		NAlib.connect(GROUP,prompt.MouseButton1Click:Connect(function()
+		NAlib.connect(GROUP, MouseButtonFix(prompt, function()
 			MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
 		end))
-		NAlib.connect(GROUP,toggleBtn.MouseButton1Click:Connect(function()
+		NAlib.connect(GROUP, MouseButtonFix(toggleBtn, function()
 			local idx=Discover(passList,id)
 			if idx then
 				table.remove(passList,idx)
@@ -31731,12 +31761,12 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		end)
 	end
 
-	NAlib.connect(GROUP,addBtn.MouseButton1Click:Connect(function()
-		local n=addIdsFromText(idBox.Text or "")
-		if n>0 then
-			idBox.Text=""
-			if n==1 then
-				status.Text="Added 1 pass."
+NAlib.connect(GROUP, MouseButtonFix(addBtn, function()
+	local n=addIdsFromText(idBox.Text or "")
+	if n>0 then
+		idBox.Text=""
+		if n==1 then
+			status.Text="Added 1 pass."
 			else
 				status.Text=Format("Added %d passes.",n)
 			end
@@ -31745,9 +31775,9 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		end
 	end))
 
-	NAlib.connect(GROUP,allBtn.MouseButton1Click:Connect(function() promptAllQueued() end))
+	NAlib.connect(GROUP, MouseButtonFix(allBtn, function() promptAllQueued() end))
 	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
-	NAlib.connect(GROUP,close.MouseButton1Click:Connect(function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
+	NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 end)
 
 NAmanage.vcAll=function(state)
@@ -32896,13 +32926,13 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	end)
 
 	local minimized = false
-	minimizeBtn.MouseButton1Click:Connect(function()
+	MouseButtonFix(minimizeBtn, function()
 		minimized = not minimized
 		scroll.Visible = not minimized
 		main.Size = minimized and UDim2.new(0.4, 0, 0.05, 0) or UDim2.new(0.4, 0, 0.5, 0)
 	end)
 
-	closeBtn.MouseButton1Click:Connect(function()
+	MouseButtonFix(closeBtn, function()
 		if renderConn then renderConn:Disconnect() end
 		if playerAddConn then playerAddConn:Disconnect() end
 		if playerRemoveConn then playerRemoveConn:Disconnect() end
@@ -45524,7 +45554,7 @@ NAmanage.UpdateWaypointList=function()
 				local delBtn = actionFrame:FindFirstChild("DelBtn")
 				local tpBtn = actionFrame:FindFirstChild("TPBtn")
 				if copyBtn then
-					copyBtn.MouseButton1Click:Connect(function()
+					MouseButtonFix(copyBtn, function()
 						local comps = entry.Components
 						if type(comps) ~= "table" then
 							return DebugNotif("Waypoint data missing", 3)
@@ -45543,7 +45573,7 @@ NAmanage.UpdateWaypointList=function()
 					end)
 				end
 				if delBtn then
-					delBtn.MouseButton1Click:Connect(function()
+					MouseButtonFix(delBtn, function()
 						Waypoints[name] = nil
 						NAmanage.SaveWaypoints()
 						NAmanage.UpdateWaypointList()
@@ -45551,7 +45581,7 @@ NAmanage.UpdateWaypointList=function()
 					end)
 				end
 				if tpBtn then
-					tpBtn.MouseButton1Click:Connect(function()
+					MouseButtonFix(tpBtn, function()
 						local comps = entry.Components
 						local cf = CFrame.new(unpack(comps))
 						local char = getChar()
@@ -45928,7 +45958,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	updTog()
 
 	if rgbBtn then
-		rgbBtn.MouseButton1Click:Connect(function()
+		MouseButtonFix(rgbBtn, function()
 			setRGB(not rgbOn)
 		end)
 	end
@@ -49480,6 +49510,13 @@ NAmanage.CommandKeybindsRemove=function()
 				label = "[toggle] "..label
 			end
 		end
+		if opt and opt.disabled then
+			if label == "" then
+				label = "[disabled]"
+			else
+				label = label.." [disabled]"
+			end
+		end
 		Insert(buttons, {
 			Text = keyName.." -> "..label,
 			Callback = function()
@@ -49517,6 +49554,13 @@ NAmanage.CommandKeybindsList=function()
 				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
 			else
 				label = "[toggle] "..label
+			end
+		end
+		if opt and opt.disabled then
+			if label == "" then
+				label = "[disabled]"
+			else
+				label = label.." [disabled]"
 			end
 		end
 		Insert(lines, keyName.." > "..label)
@@ -49673,6 +49717,7 @@ NAmanage.CommandKeybindsUIInit=function()
 	ui.delBtn = delBtn
 	ui.selectedKey = nil
 	ui.toggleState = false
+	ui.disabledState = false
 
 	NAmanage.registerElementForCurrentTab(root)
 	NAgui.RegisterStrokesFrom(root)
@@ -49732,6 +49777,11 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		return tostring(a) < tostring(b)
 	end)
 
+	local function isDisabled(keyName)
+		local opt = CommandKeybindOptions[keyName]
+		return opt and opt.disabled == true
+	end
+
 	local function normalizeLabel(args)
 		if type(args) ~= "table" or #args == 0 then
 			return ""
@@ -49743,7 +49793,11 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		local baseLabel = normalizeLabel(args)
 		local opt = CommandKeybindOptions[keyName]
 		if not (opt and opt.toggle) then
-			return baseLabel ~= "" and baseLabel or "(empty)"
+			local label = baseLabel ~= "" and baseLabel or "(empty)"
+			if isDisabled(keyName) then
+				return label.." (disabled)"
+			end
+			return label
 		end
 
 		local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
@@ -49753,10 +49807,18 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		end
 
 		if mainCmd ~= "" and secondCmd ~= "" then
-			return ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+			local label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+			if isDisabled(keyName) then
+				return label.." (disabled)"
+			end
+			return label
 		end
 
-		return "[toggle] "..(baseLabel ~= "" and baseLabel or "(empty)")
+		local label = "[toggle] "..(baseLabel ~= "" and baseLabel or "(empty)")
+		if isDisabled(keyName) then
+			return label.." (disabled)"
+		end
+		return label
 	end
 
 	local idx = 0
@@ -49768,12 +49830,14 @@ NAmanage.CommandKeybindsUIRefresh=function()
 			continue
 		end
 
+		local disabled = isDisabled(keyName)
+
 		idx += 1
 		local row = InstanceNew("Frame", ui.listFrame)
 		row.Name = "Row_"..tostring(keyName)
 		row.BorderSizePixel = 0
 		row.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
-		row.BackgroundTransparency = 0.25
+		row.BackgroundTransparency = disabled and 0.35 or 0.25
 		row.Size = UDim2.new(0.98, 0, 0, 32)
 		row.LayoutOrder = idx
 		local rc = InstanceNew("UICorner", row)
@@ -49790,17 +49854,17 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		keyLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		keyLbl.TextSize = 14
 		keyLbl.TextXAlignment = Enum.TextXAlignment.Left
-		keyLbl.TextColor3 = Color3.fromRGB(234, 234, 244)
+		keyLbl.TextColor3 = disabled and Color3.fromRGB(184, 184, 194) or Color3.fromRGB(234, 234, 244)
 		keyLbl.Text = tostring(keyName)
 
 		local cmdLbl = InstanceNew("TextLabel", row)
 		cmdLbl.BackgroundTransparency = 1
-		cmdLbl.Size = UDim2.new(1, -190, 1, 0)
+		cmdLbl.Size = UDim2.new(1, -240, 1, 0)
 		cmdLbl.Position = UDim2.new(0, 70, 0, 0)
 		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		cmdLbl.TextSize = 14
 		cmdLbl.TextXAlignment = Enum.TextXAlignment.Left
-		cmdLbl.TextColor3 = Color3.fromRGB(214, 214, 224)
+		cmdLbl.TextColor3 = disabled and Color3.fromRGB(170, 170, 182) or Color3.fromRGB(214, 214, 224)
 		cmdLbl.Text = buildDisplayLabel(keyName, args)
 
 		local editBtn = InstanceNew("TextButton", row)
@@ -49808,7 +49872,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		editBtn.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
 		editBtn.BackgroundTransparency = 0.2
 		editBtn.Size = UDim2.new(0, 50, 0, 24)
-		editBtn.Position = UDim2.new(1, -120, 0.5, -12)
+		editBtn.Position = UDim2.new(1, -190, 0.5, -12)
 		editBtn.Text = "Edit"
 		editBtn.TextColor3 = Color3.fromRGB(234, 234, 244)
 		editBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
@@ -49816,6 +49880,20 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		local ec = InstanceNew("UICorner", editBtn)
 		ec.CornerRadius = UDim.new(0, 8)
 		NAgui.RegisterStrokesFrom(editBtn)
+
+		local disableBtn = InstanceNew("TextButton", row)
+		disableBtn.BorderSizePixel = 0
+		disableBtn.BackgroundColor3 = disabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(184, 124, 54)
+		disableBtn.BackgroundTransparency = 0.2
+		disableBtn.Size = UDim2.new(0, 60, 0, 24)
+		disableBtn.Position = UDim2.new(1, -130, 0.5, -12)
+		disableBtn.Text = disabled and "Enable" or "Disable"
+		disableBtn.TextColor3 = Color3.fromRGB(244, 244, 244)
+		disableBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		disableBtn.TextSize = 13
+		local dbc = InstanceNew("UICorner", disableBtn)
+		dbc.CornerRadius = UDim.new(0, 8)
+		NAgui.RegisterStrokesFrom(disableBtn)
 
 		local remBtn = InstanceNew("TextButton", row)
 		remBtn.BorderSizePixel = 0
@@ -49849,6 +49927,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 
 			local opt = CommandKeybindOptions[tostring(keyName)]
 			local isToggle = opt and opt.toggle or false
+			ui.disabledState = (opt and opt.disabled == true) or false
 
 			if ui.toggleBtn then
 				ui.toggleState = isToggle
@@ -49876,6 +49955,24 @@ NAmanage.CommandKeybindsUIRefresh=function()
 			end
 		end)
 
+		MouseButtonFix(disableBtn, function()
+			local k = tostring(keyName)
+			local opt = CommandKeybindOptions[k] or {}
+			opt.disabled = not (opt.disabled == true)
+			if not opt.toggle and not opt.disabled then
+				CommandKeybindOptions[k] = nil
+			else
+				CommandKeybindOptions[k] = opt
+			end
+			if ui.selectedKey == k then
+				ui.disabledState = opt and opt.disabled == true or false
+			end
+			NAmanage.SaveCommandKeybinds()
+			NAmanage.ApplyCommandKeybinds()
+			NAmanage.CommandKeybindsUIRefresh()
+			DoNotif(opt.disabled and ("Disabled keybind "..k) or ("Enabled keybind "..k), 2)
+		end)
+
 		MouseButtonFix(remBtn, function()
 			CommandKeybinds[tostring(keyName)] = nil
 			CommandKeybindOptions[tostring(keyName)] = nil
@@ -49886,6 +49983,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				if ui.keyBox then ui.keyBox.Text = "" end
 				if ui.cmdBox then ui.cmdBox.Text = "" end
 				if ui.argsBox then ui.argsBox.Text = "" end
+				ui.disabledState = false
 			end
 			NAmanage.CommandKeybindsUIRefresh()
 		end)
@@ -49915,6 +50013,7 @@ NAmanage.CommandKeybindsUIWire=function()
 		if ui.argsBox then ui.argsBox.Text = "" end
 		if ui.toggleCmdBox then ui.toggleCmdBox.Text = "" end
 		if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
+		ui.disabledState = false
 		if ui.toggleBtn then
 			ui.toggleState = false
 			ui.toggleBtn.Text = "Toggle: Off"
@@ -50018,10 +50117,10 @@ NAmanage.CommandKeybindsUIWire=function()
 				CommandKeybindOptions[prevKey] = nil
 			end
 			CommandKeybinds[keyName] = args
+			local opt = CommandKeybindOptions[keyName] or {}
 			if ui.toggleState then
-				CommandKeybindOptions[keyName] = CommandKeybindOptions[keyName] or {}
-				CommandKeybindOptions[keyName].toggle = true
-				CommandKeybindOptions[keyName].state = false
+				opt.toggle = true
+				opt.state = false
 				-- build second layer: either from explicit toggle fields or just reuse the first command
 				local args2 = nil
 				if toggleCmdName ~= "" then
@@ -50038,11 +50137,20 @@ NAmanage.CommandKeybindsUIWire=function()
 						args2[i] = v
 					end
 				end
-				CommandKeybindOptions[keyName].args2 = args2
+				opt.args2 = args2
 			else
+				opt.toggle = nil
+				opt.state = nil
+				opt.args2 = nil
+			end
+			opt.disabled = ui.disabledState and true or nil
+			if not opt.toggle and not opt.disabled then
 				CommandKeybindOptions[keyName] = nil
+			else
+				CommandKeybindOptions[keyName] = opt
 			end
 			ui.selectedKey = keyName
+			ui.disabledState = opt and opt.disabled == true or false
 
 			NAmanage.SaveCommandKeybinds()
 			NAmanage.ApplyCommandKeybinds()
@@ -51928,10 +52036,24 @@ originalIO.runNACHAT=function()
 
 		local leetMap = {
 			a = "[a4@àáâãäåāăąα]", b = "[b8]", c = "[c%(çćč]", d = "d", e = "[e3èéêëēĕėęě]", f = "f",
-			g = "[g69]", h = "h", i = "[i1!|lìíîïīįı]", j = "j", k = "k", l = "[l1|!]",
+			g = "[g69]", h = "h", i = "[i1!|lìíîïīįı8]", j = "j", k = "k", l = "[l1|!]",
 			m = "m", n = "[nñńņň]", o = "[o0òóôõöōŏőø]", p = "p", q = "q", r = "r", s = "[s5$śšșß]",
 			t = "[t7+țţť]", u = "[uvùúûüūůűŭ]", v = "[vuùúûüūůűŭ]", w = "w", x = "x", y = "[yýÿ]", z = "[z2źżž]"
 		}
+
+		local zeroWidthPattern = "[\226\128\139\226\128\140\226\128\141\239\187\191]"
+		local digitLeetMap = { ["0"]="o", ["1"]="i", ["2"]="z", ["3"]="e", ["4"]="a", ["5"]="s", ["6"]="g", ["7"]="t", ["8"]="b", ["9"]="g" }
+		local extraLeetMap = { ["$"]="s", ["€"]="e", ["£"]="l", ["@"]="a" }
+		local fancyAlphaMap = {}
+		do
+			local base = "abcdefghijklmnopqrstuvwxyz"
+			for i = 0, 25 do
+				fancyAlphaMap[utf8.char(0x24D0 + i)] = base:sub(i + 1, i + 1)
+				fancyAlphaMap[utf8.char(0x24B6 + i)] = base:sub(i + 1, i + 1)
+				fancyAlphaMap[utf8.char(0xFF41 + i)] = base:sub(i + 1, i + 1)
+				fancyAlphaMap[utf8.char(0xFF21 + i)] = base:sub(i + 1, i + 1)
+			end
+		end
 
 		local accentLowerMap = {
 			["Á"] = "á", ["À"] = "à", ["Â"] = "â", ["Ã"] = "ã", ["Ä"] = "ä", ["Å"] = "å", ["Ā"] = "ā", ["Ă"] = "ă", ["Ą"] = "ą",
@@ -51949,6 +52071,16 @@ originalIO.runNACHAT=function()
 			text = tostring(text or "")
 			local lowered = Lower(text)
 			return lowered:gsub("[ÁÀÂÃÄÅĀĂĄĆČÇÉÈÊËĒĔĖĘĚÍÌÎÏĪĮÓÒÔÕÖØŌŎŐÚÙÛÜŪŮŰŬÝŸŠŽŁÐÞÑ]", accentLowerMap)
+		end
+
+		local function normalizeForSlurs(text)
+			text = normalizeTextLower(text)
+			text = text:gsub(zeroWidthPattern, "")
+			text = text:gsub("[%c%p%s]+", "")
+			text = text:gsub(".", function(ch)
+				return digitLeetMap[ch] or extraLeetMap[ch] or fancyAlphaMap[ch] or ch
+			end)
+			return text
 		end
 
 		local function mergeExtraSlurs(target, extra)
@@ -51987,6 +52119,7 @@ originalIO.runNACHAT=function()
 		local slurList = decodeSlurList()
 		mergeExtraSlurs(slurList, opt and opt.extraSlurs)
 
+		local slurSeparator = "[%W_%d]*"
 		local slurPatterns = {}
 		for _, word in ipairs(slurList) do
 			local parts = {}
@@ -51997,7 +52130,7 @@ originalIO.runNACHAT=function()
 					local base = leetMap[ch] or ch
 					parts[#parts+1] = base.."+"
 				end
-				slurPatterns[#slurPatterns+1] = Concat(parts, "[%W_]*")
+				slurPatterns[#slurPatterns+1] = Concat(parts, slurSeparator)
 			end
 		end
 
@@ -52005,9 +52138,10 @@ originalIO.runNACHAT=function()
 			if type(text) ~= "string" then
 				return false
 			end
-			local lower = normalizeTextLower(text)
+			local lower = normalizeTextLower(text):gsub(zeroWidthPattern, "")
+			local squashed = normalizeForSlurs(text)
 			for _, pattern in ipairs(slurPatterns) do
-				if lower:match(pattern) then
+				if lower:match(pattern) or squashed:match(pattern) then
 					return true
 				end
 			end
@@ -54216,10 +54350,14 @@ end
 
 function mainNameless()
 	local txtLabel = TextLabel
+	local showIntroLabel = not (NAmanage.jlCfg and NAmanage.jlCfg.IconLabel == false)
+	if txtLabel and not showIntroLabel then
+		txtLabel.Visible = false
+	end
 	local fadeOutStarted = false
 
 	local function fadeOut()
-		if fadeOutStarted then return end
+		if fadeOutStarted or not showIntroLabel or not txtLabel then return end
 		fadeOutStarted = true
 		local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
 			TextTransparency = 1,
@@ -54233,27 +54371,29 @@ function mainNameless()
 		end)
 	end
 
-	txtLabel.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			fadeOut()
-		end
-	end)
+	if showIntroLabel and txtLabel then
+		txtLabel.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				fadeOut()
+			end
+		end)
 
-	local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
-	local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
+		local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
+		local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
 
-	local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Size = finalSize,
-		BackgroundTransparency = 0.1,
-		TextTransparency = 0,
-	})
+		local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			Size = finalSize,
+			BackgroundTransparency = 0.1,
+			TextTransparency = 0,
+		})
 
-	local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
-		Position = UDim2.new(0.5, 0, 0.48, 0)
-	})
+		local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			Position = UDim2.new(0.5, 0, 0.48, 0)
+		})
 
-	appearTween:Play()
-	riseTween:Play()
+		appearTween:Play()
+		riseTween:Play()
+	end
 
 	TextButton.Size = UDim2.new(0, 0, 0, 0)
 	if TextButton:IsA("TextButton") then
@@ -54297,8 +54437,10 @@ function mainNameless()
 
 	Swoosh()
 
-	Wait(2.5)
-	fadeOut()
+	if showIntroLabel and txtLabel then
+		Wait(2.5)
+		fadeOut()
+	end
 end
 
 coroutine.wrap(mainNameless)()
@@ -54334,7 +54476,9 @@ SpawnCall(function()
 			"\nUpdated on: "..opt.NAupdDate..
 			"\nTime Taken To Load: "..loadedResults(NAresult)
 
-		DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
+		if NAmanage.jlCfg.WelcomeNotif ~= false then
+			DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
+		end
 
 		if not FileSupport then
 			--warn("NAWWW NO FILE SUPPORT???????")
@@ -54354,7 +54498,7 @@ SpawnCall(function()
 
 		Wait(1)
 
-		if IsOnPC then
+		if IsOnPC and NAmanage.jlCfg.KeybindNotif ~= false then
 			local keybindMessage = maybeMock("Your Keybind Prefix: "..opt.prefix)
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
@@ -54877,7 +55021,8 @@ NAmanage.scheduleLoader('CmdBar2AutoRun', function()
 end, { requiresGui = true, retries = 3, delay = 0.4 })
 NAmanage.scheduleLoader('Plugins', function()
 	NAmanage.InitPlugs()
-	return NAmanage.LoadPlugins()
+	local silent = (NAmanage.jlCfg and NAmanage.jlCfg.PluginNotif == false) or false
+	return NAmanage.LoadPlugins({ silent = silent })
 end, { retries = 4, delay = 0.5, retryOnFalse = true })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
 NAmanage.LoadESPSettings()
@@ -54958,7 +55103,7 @@ SpawnCall(function()
 			end
 		end)
 
-		header.MouseButton1Click:Connect(function()
+		MouseButtonFix(header, function()
 			local exp = binderFrame:GetAttribute("Expanded")
 			binderFrame:SetAttribute("Expanded", not exp)
 			if exp then
@@ -55019,7 +55164,7 @@ SpawnCall(function()
 				rem.Font                 = Enum.Font.SourceSansBold
 				rem.TextSize             = 18
 				rem.TextColor3           = Color3.fromRGB(255,100,100)
-				rem.MouseButton1Click:Connect(function()
+				MouseButtonFix(rem, function()
 					table.remove(list, i)
 					NAmanage.SaveBinders()
 					refreshItems()
@@ -55027,7 +55172,7 @@ SpawnCall(function()
 			end
 		end
 
-		addBtn.MouseButton1Click:Connect(function()
+		MouseButtonFix(addBtn, function()
 			Bindings[ev] = Bindings[ev] or {}
 			local allowMe = (ev ~= "OnJoin" and ev ~= "OnLeave")
 
@@ -57058,12 +57203,58 @@ NAgui.addToggle("Save Chat Logs", NAmanage.jlCfg.SaveChatLog, function(v)
 	DoNotif("Chat log saving has been "..(v and "enabled" or "disabled"), 2)
 end)
 
+NAgui.addSection("Notification Preferences")
+
+NAgui.addToggle("Show Welcome Notification", NAmanage.jlCfg.WelcomeNotif ~= false, function(v)
+	NAmanage.jlCfg.WelcomeNotif = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Welcome notification "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Show Keybind Prefix Reminder", NAmanage.jlCfg.KeybindNotif ~= false, function(v)
+	NAmanage.jlCfg.KeybindNotif = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Keybind prefix reminder "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Show Plugin Load Summary", NAmanage.jlCfg.PluginNotif ~= false, function(v)
+	NAmanage.jlCfg.PluginNotif = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Plugin load summary "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Show Intro Text Label", NAmanage.jlCfg.IconLabel ~= false, function(v)
+	NAmanage.jlCfg.IconLabel = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Intro text label "..(v and "enabled" or "disabled"), 2)
+end)
+
 NAgui.addSection("Other Logging")
 
 NAgui.addToggle("Log Physics Errors", NAmanage.jlCfg.PhysicsLog, function(v)
 	NAmanage.jlCfg.PhysicsLog = v
 	NAmanage.jlSave()
 	DoNotif("Physics error logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addSection("Log Maintenance")
+
+NAgui.addButton("Clear Join/Leave Log File", function()
+	if not FileSupport then
+		DoNotif("File operations not supported by this executor.", 2)
+		return
+	end
+	local ok, msg = originalIO.safeDeleteFile(NAfiles.NAJOINLEAVELOG)
+	DoNotif(ok and "Join/Leave log cleared." or ("Failed to clear: "..tostring(msg)), 2.5)
+end)
+
+NAgui.addButton("Clear Chat Log File", function()
+	if not FileSupport then
+		DoNotif("File operations not supported by this executor.", 2)
+		return
+	end
+	local ok, msg = originalIO.safeDeleteFile(NAfiles.NACHATLOGS)
+	DoNotif(ok and "Chat log cleared." or ("Failed to clear: "..tostring(msg)), 2.5)
 end)
 
 NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
@@ -57652,6 +57843,24 @@ end
 NAgui.addTab(TAB_CHARACTER, { order = 5, textIcon = "circle-person" })
 NAgui.setTab(TAB_CHARACTER)
 
+NAmanage.ApplyWalkSpeed = function(val)
+	local hum = getHum(getChar())
+	if hum then
+		hum.WalkSpeed = val
+	end
+end
+
+NAmanage.ApplyJump = function(val)
+	local hum = getHum(getChar())
+	if hum then
+		if hum.UseJumpPower ~= false then
+			hum.JumpPower = val
+		elseif hum.ChangeState then
+			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end
+
 NAgui.addSection("Character Morph")
 NAgui.addInput("Target User", "UserId or Username", "", function(val)
 	morphTarget = val
@@ -57712,7 +57921,59 @@ NAgui.addButton("Remove Light", function()
 	end
 end)
 
-do
+NAgui.addSection("Movement Tweaks")
+local currentHum = getHum(getChar())
+local wsDefault = (currentHum and currentHum.WalkSpeed) or 16
+local jpDefault = (currentHum and currentHum.JumpPower) or 50
+NAgui.addSlider("WalkSpeed", 0, 150, wsDefault, 1, " u/s", function(v)
+	NAmanage.ApplyWalkSpeed(v)
+end)
+NAgui.addSlider("JumpPower", 0, 150, jpDefault, 1, "", function(v)
+	NAmanage.ApplyJump(v)
+end)
+NAgui.addButton("Reset Speed/Jump", function()
+	NAmanage.ApplyWalkSpeed(16)
+	NAmanage.ApplyJump(50)
+	DoNotif("WalkSpeed/Jump reset to defaults", 2)
+end)
+NAgui.addToggle("Noclip", NAStuff.CharacterNoclip == true, function(state)
+	NAStuff.CharacterNoclip = state and true or false
+	if state then
+		cmd.run({"noclip"})
+	else
+		cmd.run({"clip"})
+	end
+end)
+
+NAgui.addSection("Character Cleanup")
+NAgui.addButton("Remove Accessories", function()
+	local hum = getHum(getChar())
+	local char = hum and hum.Parent
+	if not char then
+		DoNotif("Character not found.", 2)
+		return
+	end
+	local removed = 0
+	for _, child in ipairs(char:GetChildren()) do
+		if child:IsA("Accessory") then
+			removed += 1
+			child:Destroy()
+		end
+	end
+	DoNotif(removed > 0 and ("Removed "..removed.." accessory(ies).") or "No accessories to remove.", 2)
+end)
+
+NAgui.addButton("Heal to Full", function()
+	local hum = getHum(getChar())
+	if not hum then
+		DoNotif("Humanoid not found.", 2)
+		return
+	end
+	hum.Health = hum.MaxHealth
+	DoNotif("Health restored.", 2)
+end)
+
+NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
 	NAgui.addTab(TAB_BASIC_INFO, { order = 11, textIcon = "circle-i" })
 	NAgui.setTab(TAB_BASIC_INFO)
@@ -57871,6 +58132,7 @@ do
 		NAgui.setTab(previousTab)
 	end
 end
+NAmanage.SetupBasicInfoTab()
 
 NAgui.addTab(TAB_ROBLOX_DATA, { order = 12, textIcon = "tilt" })
 NAgui.setTab(TAB_ROBLOX_DATA)
