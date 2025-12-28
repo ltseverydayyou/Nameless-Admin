@@ -31,6 +31,7 @@ local TAB_ALL = "All"
 local TAB_GENERAL = "General"
 local TAB_INTEGRATIONS = "Integrations"
 local TAB_INTERFACE = "Interface"
+local TAB_FFLAGS = "FFlags"
 local TAB_USER_BUTTONS = "User Buttons"
 local TAB_LOGGING = "Logging"
 local TAB_ESP = "ESP"
@@ -1887,6 +1888,7 @@ local NAfiles = {
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
+	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
 NAmanage.newCornerStore=function()
 	return {}
@@ -55871,10 +55873,239 @@ NAgui.addButton("Join Discord", function()
 end)
 
 if FileSupport then
-	NAgui.addSection("Saved Data")
+NAgui.addSection("Saved Data")
 	NAgui.addButton("Delete Saved Settings...", function()
 		NAmanage.openSettingsCleanupPopup()
 	end)
+end
+
+NAgui.addTab(TAB_FFLAGS, { order = 14, textIcon = "flag" })
+NAgui.setTab(TAB_FFLAGS)
+
+local NAFFlags = NAmanage.NAFFlags or {}
+NAmanage.NAFFlags = NAFFlags
+
+NAFFlags.whitelist = NAFFlags.whitelist or {
+	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
+	{ name = "PhysicsReceiveNumParallelTasks", default = 16, valueType = "number" };
+	{ name = "RuntimeConcurrency", default = 15, valueType = "number" };
+	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number" };
+	{ name = "ReplicationDataCacheNumParallelTasks", default = 16, valueType = "number" };
+	{ name = "NetworkClusterPacketCacheNumParallelTasks", default = 16, valueType = "number" };
+	{ name = "FixParticleEmissionBias2", default = false, valueType = "boolean" };
+	{ name = "InterpolationNumParallelTasks", default = 16, valueType = "number" };
+	{ name = "MegaReplicatorNumParallelTasks", default = 16, valueType = "number" };
+	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number" };
+	{ name = "FixParticleAttachmentCulling", default = false, valueType = "boolean" };
+	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
+	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean" };
+	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
+	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
+	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number" };
+	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
+	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
+	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
+	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
+	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
+}
+
+for _, entry in ipairs(NAFFlags.whitelist) do
+	entry.valueType = entry.valueType or type(entry.default)
+end
+
+NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
+NAFFlags.config = NAFFlags.config or { useFFlags = false, flags = {} }
+NAFFlags.values = NAFFlags.values or {}
+
+NAFFlags.normalizeValue = function(entry, rawValue, opts)
+	opts = opts or {}
+	if entry.valueType == "number" then
+		local numValue = tonumber(rawValue)
+		if numValue == nil then
+			if not opts.silent then
+				DoNotif(Format("%s expects a number", tostring(entry.name)), 3)
+			end
+			return nil
+		end
+		return numValue
+	elseif entry.valueType == "boolean" then
+		return rawValue and true or false
+	end
+	return rawValue
+end
+
+NAFFlags.getDefault = function(entry)
+	if entry.valueType == "boolean" then
+		return false
+	end
+	return entry.default
+end
+
+NAFFlags.applyDefaults = function()
+	NAFFlags.config.useFFlags = false
+	NAFFlags.config.flags = {}
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		NAFFlags.config.flags[entry.name] = NAFFlags.getDefault(entry)
+	end
+end
+
+NAFFlags.save = function()
+	if not FileSupport then
+		return
+	end
+	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, NAFFlags.config)
+	if okEncode and encoded then
+		pcall(writefile, NAFFlags.filePath, encoded)
+	end
+end
+
+NAFFlags.load = function()
+	NAFFlags.applyDefaults()
+	if not FileSupport then
+		return
+	end
+	local needsSave = false
+	local okRead, raw = pcall(readfile, NAFFlags.filePath)
+	if okRead and type(raw) == "string" and raw ~= "" then
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if okDecode and type(decoded) == "table" then
+			if type(decoded.useFFlags) == "boolean" then
+				NAFFlags.config.useFFlags = decoded.useFFlags
+			end
+			if type(decoded.flags) == "table" then
+				for _, entry in ipairs(NAFFlags.whitelist) do
+					local normalized = NAFFlags.normalizeValue(entry, decoded.flags[entry.name], { silent = true })
+					if normalized ~= nil then
+						NAFFlags.config.flags[entry.name] = normalized
+					else
+						needsSave = true
+					end
+				end
+			end
+		else
+			needsSave = true
+		end
+	else
+		needsSave = true
+	end
+	if needsSave then
+		NAFFlags.save()
+	end
+end
+
+NAFFlags.load()
+for _, entry in ipairs(NAFFlags.whitelist) do
+	NAFFlags.values[entry.name] = NAFFlags.config.flags[entry.name]
+end
+
+NAFFlags.hasSupport = function()
+	if type(setfflag) == "function" then
+		return true
+	end
+	local ok, define = pcall(function()
+		return game and game.DefineFastFlag
+	end)
+	return ok and type(define) == "function"
+end
+
+NAFFlags.enabled = function()
+	return NAFFlags.config.useFFlags == true
+end
+
+NAFFlags.apply = function(flagName, flagValue, opts)
+	opts = opts or {}
+	if not NAFFlags.enabled() then
+		if not opts.silent then
+			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
+		end
+		return false
+	end
+	if not NAFFlags.hasSupport() then
+		if not opts.silent then
+			DoNotif("setfflag / DefineFastFlag is unavailable on this executor.", 3)
+		end
+		return false
+	end
+	local setter = type(setfflag) == "function" and setfflag or function(name, value)
+		return game:DefineFastFlag(name, value)
+	end
+	local ok, err = pcall(setter, flagName, tostring(flagValue))
+	if not ok then
+		if not opts.silent then
+			DoNotif(Format("Failed to set %s: %s", tostring(flagName), tostring(err)), 4)
+		end
+		warn("[NA] FastFlag apply failed for "..tostring(flagName)..": "..tostring(err))
+		return false
+	end
+	if not opts.silent then
+		DoNotif(Format("%s set to %s", tostring(flagName), tostring(flagValue)), 2)
+	end
+	return true
+end
+
+NAgui.addSection("Whitelisted FastFlags")
+
+local supportText = NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
+NAgui.addInfo("FastFlag Support", supportText)
+
+NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
+	NAFFlags.config.useFFlags = state == true
+	NAFFlags.save()
+end)
+
+NAgui.addButton("Apply All Listed FFlags", function()
+	if not NAFFlags.enabled() then
+		DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
+		return
+	end
+	if not NAFFlags.hasSupport() then
+		DoNotif("FastFlag functions not available on this executor.", 3)
+		return
+	end
+	local applied = 0
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		local value = NAFFlags.values[entry.name]
+		if NAFFlags.apply(entry.name, value, { silent = true }) then
+			applied = applied + 1
+		end
+	end
+	DoNotif(Format("Applied %d/%d fast flags", applied, #NAFFlags.whitelist), 3)
+end)
+
+NAgui.addSection("Individual Flags")
+for _, entry in ipairs(NAFFlags.whitelist) do
+	if entry.valueType == "boolean" then
+		NAgui.addToggle(entry.name, NAFFlags.values[entry.name] == true, function(state)
+			local normalized = NAFFlags.normalizeValue(entry, state)
+			if normalized == nil then
+				return
+			end
+			NAFFlags.values[entry.name] = normalized
+			NAFFlags.config.flags[entry.name] = normalized
+			NAFFlags.save()
+			NAFFlags.apply(entry.name, normalized)
+		end)
+	else
+		local defaultText = NAFFlags.values[entry.name]
+		if defaultText == nil then
+			defaultText = entry.default
+		end
+		if defaultText ~= nil then
+			defaultText = tostring(defaultText)
+		else
+			defaultText = ""
+		end
+		NAgui.addInput(entry.name, "Enter value", defaultText, function(inputValue)
+			local normalized = NAFFlags.normalizeValue(entry, inputValue)
+			if normalized == nil then
+				return
+			end
+			NAFFlags.values[entry.name] = normalized
+			NAFFlags.config.flags[entry.name] = normalized
+			NAFFlags.save()
+			NAFFlags.apply(entry.name, normalized)
+		end)
+	end
 end
 
 NAgui.addTab(TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
