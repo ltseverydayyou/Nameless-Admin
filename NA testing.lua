@@ -24162,49 +24162,40 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum().Health=0
 end)
 
-cmd.add(
-	{"desync", "ngrep"},
-	{"desync (ngrep)", "Enable NextGenReplicator desync / server authority (RISKY – alt recommended)"},
-	function()
-		if type(Popup) ~= "function" then
-			DoNotif("Popup UI is unavailable; cannot confirm risk. Aborting.", 3)
-			return
-		end
+NAStuff.desyncOn = NAStuff.desyncOn or false
 
-		if type(setfflag) ~= "function" then
-			DoNotif("Your executor does not support setfflag. Cannot enable desync.", 3)
-			return
-		end
-
-		Popup({
-			Title = "Enable Desync / Server Authority?",
-			Description = "This experimental NextGenReplicator method is highly detectable and can get your account banned.\n\nUse at your own risk. It is strongly recommended to use an alt account.\n\nDo you accept the risk and enable it?",
-			Buttons = {
-				{
-					Text = "Enable (I accept the risk)",
-					Callback = function()
-						local ok, err = pcall(function()
-							setfflag("NextGenReplicatorEnabledWrite4", "false")
-							setfflag("NextGenReplicatorEnabledWrite4", "true")
-						end)
-
-						if ok then
-							DoNotif("NextGenReplicator desync / server authority attempt applied.", 3)
-						else
-							DoNotif("Failed to apply NextGenReplicator flags: "..tostring(err), 4)
-						end
-					end
-				},
-				{
-					Text = "Cancel",
-					Callback = function()
-						DoNotif("Desync / server authority was not enabled.", 2)
-					end
-				}
-			}
-		})
+cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
+	if type(setfflag) ~= "function" then
+		DoNotif("Your executor does not support setfflag. Cannot toggle desync", 3)
+		return
 	end
-)
+
+	if not NAStuff.desyncOn then
+		local ok, err = pcall(function()
+			setfflag("NextGenReplicatorEnabledWrite4", "false")
+			setfflag("NextGenReplicatorEnabledWrite4", "true")
+		end)
+
+		if ok then
+			NAStuff.desyncOn = true
+			DoNotif("NextGenReplicator desync / server authority enabled. Run the command again to disable it", 4)
+		else
+			DoNotif("Failed to apply NextGenReplicator flags: " .. tostring(err), 4)
+		end
+	else
+		local ok, err = pcall(function()
+			setfflag("NextGenReplicatorEnabledWrite4", "true")
+			setfflag("NextGenReplicatorEnabledWrite4", "false")
+		end)
+
+		if ok then
+			NAStuff.desyncOn = false
+			DoNotif("NextGenReplicator sync restored (desync disabled)", 3)
+		else
+			DoNotif("Failed to restore NextGenReplicator flags: " .. tostring(err), 4)
+		end
+	end
+end)
 
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
 	local hum = getHum()
