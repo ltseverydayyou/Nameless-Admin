@@ -57963,16 +57963,6 @@ NAgui.addButton("Remove Accessories", function()
 	DoNotif(removed > 0 and ("Removed "..removed.." accessory(ies).") or "No accessories to remove.", 2)
 end)
 
-NAgui.addButton("Heal to Full", function()
-	local hum = getHum(getChar())
-	if not hum then
-		DoNotif("Humanoid not found.", 2)
-		return
-	end
-	hum.Health = hum.MaxHealth
-	DoNotif("Health restored.", 2)
-end)
-
 NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
 	NAgui.addTab(TAB_BASIC_INFO, { order = 11, textIcon = "circle-i" })
