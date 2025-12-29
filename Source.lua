@@ -31835,78 +31835,6 @@ NAlib.connect(GROUP, MouseButtonFix(addBtn, function()
 	NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 end)
 
-NAmanage.vcAll=function(state)
-	local svc=SafeGetService("VoiceChatInternal")
-	if not svc or type(svc.SubscribePauseAll) ~= "function" then
-		DoNotif("Voice chat mute/unmute is not supported in this session.", 3)
-		return
-	end
-
-	local verb=state and "mute" or "unmute"
-	local ok, err = pcall(function()
-		svc:SubscribePauseAll(state)
-	end)
-
-	if not ok then
-		DoNotif("Failed to "..verb.." all voice chats: "..tostring(err or "unknown error"), 3)
-		return
-	end
-
-	DoNotif("Voice chats "..(state and "muted" or "unmuted")..".", 2)
-end
-
-NAmanage.vcSetPlayers=function(target,state)
-	local svc=SafeGetService("VoiceChatInternal")
-	if not svc or type(svc.SubscribePause) ~= "function" then
-		DoNotif("Voice chat mute/unmute is not supported in this session.", 3)
-		return
-	end
-
-	local localPlayer = Players and Players.LocalPlayer
-	local processedNames = {}
-	local attempted = false
-	local verb = state and "mute" or "unmute"
-
-	for _, plr in next, target or {} do
-		if typeof(plr) == "Instance" and plr:IsA("Player") and plr ~= localPlayer then
-			attempted = true
-			local ok, err = pcall(function()
-				svc:SubscribePause(plr.UserId, state)
-			end)
-
-			if ok then
-				Insert(processedNames, nameChecker(plr))
-			else
-				DoNotif(("Failed to %s %s: %s"):format(verb, nameChecker(plr), tostring(err or "unknown error")), 3)
-			end
-		end
-	end
-
-	if #processedNames > 0 then
-		DoNotif(("%s voice chat for %s."):format(state and "Muted" or "Unmuted", Concat(processedNames, ", ")), 2)
-	elseif not attempted then
-		DoNotif("No valid players to "..verb..".", 3)
-	end
-end
-
-cmd.add({"muteallvcs"}, {"muteallvcs", "Mute every voice chat"}, function()
-	NAmanage.vcAll(true)
-end)
-
-cmd.add({"unmuteallvcs"}, {"unmuteallvcs", "Unmute every voice chat"}, function()
-	NAmanage.vcAll(false)
-end)
-
-cmd.add({"mutevc"}, {"mutevc <player>", "Mute the specified player's voice chat"}, function(...)
-	local targets = getPlr((...))
-	NAmanage.vcSetPlayers(targets, true)
-end)
-
-cmd.add({"unmutevc"}, {"unmutevc <player>", "Unmute the specified player's voice chat"}, function(...)
-	local targets = getPlr((...))
-	NAmanage.vcSetPlayers(targets, false)
-end)
-
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
 	local trg = getPlr(plr)
 
@@ -56427,6 +56355,47 @@ NAFFlags.applyAll = function(opts)
 	return applied, true
 end
 
+NAFFlags.autoApplyWithRetry = function(opts)
+	opts = opts or {}
+	local initialDelays = opts.delays or { 0, 0.5, 1.5 }
+	local postLoadDelays = opts.postLoadDelays or { 0, 1 }
+
+	local function runAttempts(delayList)
+		for _, delay in ipairs(delayList) do
+			if delay > 0 then
+				Wait(delay)
+			end
+			if not (NAFFlags.config.autoApply and NAFFlags.enabled()) then
+				return true
+			end
+			if NAFFlags.hasSupport() then
+				local _, success = NAFFlags.applyAll({ notify = false })
+				if success then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	SpawnCall(function()
+		if runAttempts(initialDelays) then
+			return
+		end
+
+		local okLoaded, loaded = pcall(function()
+			return game:IsLoaded()
+		end)
+		if not (okLoaded and loaded) then
+			pcall(function()
+				game.Loaded:Wait()
+			end)
+		end
+
+		runAttempts(postLoadDelays)
+	end)
+end
+
 NAFFlags.buildSetfflagScript = function()
 	NAFFlags.normalizeRenderingPrefs()
 	local lines = { "if not setfflag then return warn(\"setfflag unavailable\") end" }
@@ -56441,16 +56410,30 @@ NAFFlags.buildSetfflagScript = function()
 end
 
 if NAFFlags.config.autoApply then
-	SpawnCall(function()
-		NAFFlags.applyAll({ notify = false })
-	end)
+	NAFFlags.autoApplyWithRetry()
 end
 
 NAgui.addSection("Whitelisted FastFlags")
 
-local supportText = NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
-NAgui.addInfo("FastFlag Support", supportText)
-NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
+NAStuff.supportText = NAStuff.supportText or NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
+NAmanage.styleFFlagInfo = function(box)
+	if not box then
+		return
+	end
+	box.TextWrapped = false
+	box.TextScaled = true
+	box.Selectable = true
+	box.Active = true
+	local frame = box.Parent
+	if frame and frame:IsA("Frame") then
+		frame:SetAttribute("NAMinWidth", 220)
+	end
+end
+
+NAStuff.supportInfo = NAStuff.supportInfo or  NAgui.addInfo("FastFlag Support", NAStuff.supportText)
+NAStuff.sessionWarningBox = NAStuff.sessionWarningBox or NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
+NAmanage.styleFFlagInfo(NAStuff.supportInfo)
+NAmanage.styleFFlagInfo(NAStuff.sessionWarningBox)
 
 NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
 	NAFFlags.config.useFFlags = state == true
@@ -56461,9 +56444,7 @@ NAgui.addToggle("Auto-apply FastFlags on load", NAFFlags.config.autoApply == tru
 	NAFFlags.config.autoApply = state == true
 	NAFFlags.save()
 	if state then
-		SpawnCall(function()
-			NAFFlags.applyAll({ notify = false })
-		end)
+		NAFFlags.autoApplyWithRetry()
 	end
 end)
 NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags on load", function()
