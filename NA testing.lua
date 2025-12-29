@@ -56011,17 +56011,11 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
 	{ name = "DebugPauseVoxelizer", default = true, valueType = "boolean" };
 	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
-	{ name = "WhitelistVerifiedUserId", default = "11761417", valueType = "string" };
 	{ name = "EnableSponsoredAdsSeeAllGamesListTooltip", default = false, valueType = "boolean" };
-	{ name = "EnableSponsoredAdsPerTileTooltipExperienceFooter", default = false, valueType = "boolean" };
-	{ name = "LuaAppSponsoredGridTiles", default = false, valueType = "boolean" };
 	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
 	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
-	{ name = "EnableSponsoredAdsGameCarouselTooltip3", default = false, valueType = "boolean" };
 	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
-	{ name = "EnableSponsoredTooltipForAvatarCatalog2", default = false, valueType = "boolean" };
-	{ name = "RenderShadowIntensity", default = 0, valueType = "number" };
 	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
