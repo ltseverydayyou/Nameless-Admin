@@ -12190,6 +12190,16 @@ cmdlp = Players.LocalPlayer
 plr = cmdlp
 goofyFLY = nil
 
+NAmanage.configureFlyHelper=function(part)
+	if not part then return end
+	part.Size = Vector3.new(0.05, 0.05, 0.05)
+	part.Transparency = 1
+	part.CanCollide = false
+	pcall(function() part.CanTouch = false end)
+	pcall(function() part.CanQuery = false end)
+	pcall(function() part.Massless = true end)
+end
+
 NAmanage._state={mode="none"}
 NAmanage._persist={lastMode="none",wasFlying=false,uiPos={}}
 FLYING=FLYING or false
@@ -12472,9 +12482,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	NAmanage._bindQE()
 	if tfly then
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
+		NAmanage.configureFlyHelper(goofyFLY)
 		if not goofyFLY:FindFirstChildOfClass("Weld") then
 			local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
 		end
@@ -12513,9 +12521,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		end
 	elseif cfly then
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
+		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=true
 		if head then head.Anchored=true end
 		if CFloop then pcall(function() CFloop:Disconnect() end) end
@@ -12535,9 +12541,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		end)
 	else
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
+		NAmanage.configureFlyHelper(goofyFLY)
 		if not goofyFLY:FindFirstChildOfClass("Weld") then
 			local w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
 		end
@@ -12595,9 +12599,7 @@ NAmanage._ensureForces=function()
 	local cam=NAmanage._camera()
 	if not goofyFLY or goofyFLY.Parent==nil then
 		goofyFLY=InstanceNew("Part",workspace)
-		goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-		goofyFLY.Transparency=1
-		goofyFLY.CanCollide=false
+		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=(NAmanage._state.mode=="cfly")
 		local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
 		if flyVariables._goofyAC then pcall(function() flyVariables._goofyAC:Disconnect() end) end
@@ -12768,9 +12770,7 @@ NAmanage._ensureWeldTarget=function()
 		local root=getRoot(char); if not root then return end
 		if not goofyFLY or goofyFLY.Parent==nil then
 			goofyFLY=InstanceNew("Part",workspace)
-			goofyFLY.Size=Vector3.new(0.05,0.05,0.05)
-			goofyFLY.Transparency=1
-			goofyFLY.CanCollide=false
+			NAmanage.configureFlyHelper(goofyFLY)
 			goofyFLY.Anchored=false
 			local head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
 		end
