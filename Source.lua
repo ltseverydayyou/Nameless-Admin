@@ -8588,11 +8588,12 @@ if opt.naChatTranslateEnabled == nil then
 	opt.naChatTranslateEnabled = opt.chatTranslateEnabled
 end
 if opt.naChatTranslateTarget == nil or opt.naChatTranslateTarget == "" then
-	opt.naChatTranslateTarget = opt.chatTranslateTarget
+opt.naChatTranslateTarget = opt.chatTranslateTarget
 end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
+NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
@@ -34900,7 +34901,7 @@ end, true)
 
 promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false}
 
-function isPromptGuiName(name)
+function NAmanage.isPromptGuiName(name)
 	if type(name) ~= "string" then
 		return false
 	end
@@ -34908,14 +34909,14 @@ function isPromptGuiName(name)
 	return lowerName:find("purchaseprompt") or lowerName:find("foundationoverlay")
 end
 
-function nuhuhprompt(v)
+function NAmanage.nuhuhprompt(v)
 	NACaller(function()
 		if v == false then
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
 			for _, d in ipairs(COREGUI:GetDescendants()) do
 				local gui = d:IsA("ScreenGui") and d or d:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and isPromptGuiName(gui.Name) then
+				if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
 					for _, x in ipairs(gui:GetDescendants()) do
@@ -34935,7 +34936,7 @@ function nuhuhprompt(v)
 			end
 			local c = COREGUI.DescendantAdded:Connect(function(inst)
 				local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and isPromptGuiName(gui.Name) then
+				if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
 					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
 					pcall(function() gui.Enabled = false end)
 					for _, x in ipairs(gui:GetDescendants()) do
@@ -34972,14 +34973,89 @@ function nuhuhprompt(v)
 	end)
 end
 
+networkPauseBlock = networkPauseBlock or {tracked = {}, conns = {}, blocking = false}
+
+function NAmanage.isNetworkPauseGuiName(name)
+	if type(name) ~= "string" then
+		return false
+	end
+	local lowerName = name:lower()
+	return lowerName:find("networkpause", 1, true) ~= nil
+end
+
+function NAmanage.trackNetworkPauseGui(inst)
+	if not inst then
+		return nil
+	end
+	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
+	if gui and gui.Name and NAmanage.isNetworkPauseGuiName(gui.Name) then
+		return gui
+	end
+	return nil
+end
+
+function NAmanage.setNetworkPauseBlocked(disable)
+	NACaller(function()
+		local tbl = networkPauseBlock
+		if disable then
+			if tbl.blocking then return end
+			tbl.blocking = true
+			local function disableGui(inst)
+				local gui = NAmanage.trackNetworkPauseGui(inst)
+				if gui then
+					if tbl.tracked[gui] == nil then tbl.tracked[gui] = gui.Enabled end
+					pcall(function() gui.Enabled = false end)
+				end
+			end
+			for _, d in ipairs(COREGUI:GetDescendants()) do
+				disableGui(d)
+			end
+			local c = COREGUI.DescendantAdded:Connect(disableGui)
+			Insert(tbl.conns, c)
+		else
+			if not tbl.blocking then return end
+			tbl.blocking = false
+			for i = #tbl.conns, 1, -1 do
+				local c = tbl.conns[i]
+				if c and c.Connected then c:Disconnect() end
+				tbl.conns[i] = nil
+			end
+			for gui, prev in pairs(tbl.tracked) do
+				if typeof(gui) == "Instance" and gui and gui.Parent ~= nil then
+					pcall(function() gui.Enabled = prev end)
+				end
+				tbl.tracked[gui] = nil
+			end
+		end
+	end)
+end
+
+if NAStuff and NAStuff.NetworkPauseDisabled == true then
+	NAmanage.setNetworkPauseBlocked(true)
+end
+
 cmd.add({"noprompt","nopurchaseprompts","noprompts"},{"noprompt (nopurchaseprompts,noprompts)","remove the stupid purchase prompt"},function()
-	nuhuhprompt(false)
+	NAmanage.nuhuhprompt(false)
 	DebugNotif("Purchase prompts have been disabled")
 end)
 
 cmd.add({"prompt","purchaseprompts","showprompts","showpurchaseprompts"},{"prompt (purchaseprompts,showprompts,showpurchaseprompts)","allows the stupid purchase prompt"},function()
-	nuhuhprompt(true)
+	NAmanage.nuhuhprompt(true)
 	DebugNotif("Purchase prompts have been enabled")
+end)
+
+cmd.add({"nonetworkpause","disableNetworkPause"},{"nonetworkpause (disableNetworkPause)","Disable Roblox network pause overlay"},function()
+	NAStuff.NetworkPauseDisabled = true
+	pcall(NAmanage.NASettingsSet, "networkPauseDisabled", true)
+	NAmanage.setNetworkPauseBlocked(true)
+	DoNotif("Network pause UI blocked", 3)
+end)
+
+cmd.add({"networkpause","enablenetworkpause"},{"networkpause (enablenetworkpause)","Re-enable Roblox network pause overlay"},function()
+	NAStuff.NetworkPauseDisabled = false
+	pcall(NAmanage.NASettingsSet, "networkPauseDisabled", false)
+	NAmanage.setNetworkPauseBlocked(false)
+	DoNotif("Network pause UI allowed", 3)
 end)
 
 cmd.add({"wallwalk"},{"wallwalk","Makes you walk on walls"},function()
@@ -55706,6 +55782,16 @@ NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
 end)
 
+NAgui.addToggle("Disable Network Pause", NAStuff.NetworkPauseDisabled == true, function(v)
+	NAStuff.NetworkPauseDisabled = v == true
+	pcall(NAmanage.NASettingsSet, "networkPauseDisabled", NAStuff.NetworkPauseDisabled)
+	NAmanage.setNetworkPauseBlocked(NAStuff.NetworkPauseDisabled)
+	DoNotif("Network pause UI "..(NAStuff.NetworkPauseDisabled and "blocked" or "allowed"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Network Pause", function()
+	return NAStuff.NetworkPauseDisabled == true
+end)
+
 tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
 NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, " s", function(val)
 	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
@@ -55886,7 +55972,6 @@ local NAFFlags = NAmanage.NAFFlags or {}
 NAmanage.NAFFlags = NAFFlags
 
 NAFFlags.whitelist = NAFFlags.whitelist or {
-	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
 	{ name = "PhysicsReceiveNumParallelTasks", default = 16, valueType = "number" };
 	{ name = "RuntimeConcurrency", default = 15, valueType = "number" };
 	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number" };
@@ -55897,16 +55982,32 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "MegaReplicatorNumParallelTasks", default = 16, valueType = "number" };
 	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number" };
 	{ name = "FixParticleAttachmentCulling", default = false, valueType = "boolean" };
-	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
 	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean" };
-	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
-	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
 	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number" };
-	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
 	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
-	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
+	{ name = "DFIntLCCageDeformLimit", default = -1, valueType = "number" };
+	{ name = "FIntFullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
+	{ name = "DFFlagDebugPauseVoxelizer", default = true, valueType = "boolean" };
+	{ name = "FIntRobloxGuiBlurIntensity", default = 0, valueType = "number" };
+	{ name = "FStringWhitelistVerifiedUserId", default = "11761417", valueType = "string" };
+	{ name = "FFlagEnableSponsoredAdsSeeAllGamesListTooltip", default = false, valueType = "boolean" };
+	{ name = "FFlagEnableSponsoredAdsPerTileTooltipExperienceFooter", default = false, valueType = "boolean" };
+	{ name = "FFlagLuaAppSponsoredGridTiles", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugDisplayFPS", default = true, valueType = "boolean" };
+	{ name = "FIntRenderShadowmapBias", default = -1, valueType = "number" };
+	{ name = "DFFlagDebugPerfMode", default = true, valueType = "boolean" };
+	{ name = "FFlagEnableSponsoredAdsGameCarouselTooltip3", default = false, valueType = "boolean" };
+	{ name = "FFlagAdServiceEnabled", default = false, valueType = "boolean" };
+	{ name = "FFlagEnableSponsoredTooltipForAvatarCatalog2", default = false, valueType = "boolean" };
+	{ name = "FIntRenderShadowIntensity", default = 0, valueType = "number" };
+	{ name = "FFlagHandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugGraphicsPreferVulkan", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
+	{ name = "FFlagDebugGraphicsDisableDirect3D11", default = false, valueType = "boolean" };
 }
 
 for _, entry in ipairs(NAFFlags.whitelist) do
@@ -55916,6 +56017,13 @@ end
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
 NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {} }
 NAFFlags.values = NAFFlags.values or {}
+NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
+	"FFlagDebugGraphicsPreferD3D11",
+	"FFlagDebugGraphicsPreferD3D11FL10",
+	"FFlagDebugGraphicsPreferVulkan",
+	"FFlagDebugGraphicsPreferOpenGL",
+}
+NAFFlags.renderingDisableFlag = "FFlagDebugGraphicsDisableDirect3D11"
 
 NAFFlags.normalizeValue = function(entry, rawValue, opts)
 	opts = opts or {}
@@ -55939,6 +56047,49 @@ NAFFlags.getDefault = function(entry)
 		return false
 	end
 	return entry.default
+end
+
+NAFFlags.normalizeRenderingPrefs = function(changedFlag)
+	if not NAFFlags.config or not NAFFlags.config.flags then
+		return
+	end
+	local preferFlags = NAFFlags.renderingPreferFlags or {}
+	local disableFlag = NAFFlags.renderingDisableFlag
+	local active = nil
+	if changedFlag and NAFFlags.values[changedFlag] == true then
+		active = changedFlag
+	end
+	if not active then
+		for _, name in ipairs(preferFlags) do
+			if NAFFlags.values[name] == true then
+				active = name
+				break
+			end
+		end
+	end
+	for _, name in ipairs(preferFlags) do
+		local shouldBe = name == active
+		NAFFlags.values[name] = shouldBe
+		NAFFlags.config.flags[name] = shouldBe
+	end
+	if disableFlag then
+		if active == "FFlagDebugGraphicsPreferVulkan" or active == "FFlagDebugGraphicsPreferOpenGL" then
+			NAFFlags.values[disableFlag] = true
+			NAFFlags.config.flags[disableFlag] = true
+		elseif active then
+			NAFFlags.values[disableFlag] = false
+			NAFFlags.config.flags[disableFlag] = false
+		end
+	end
+end
+
+NAFFlags.isRenderingPreferFlag = function(name)
+	for _, flagName in ipairs(NAFFlags.renderingPreferFlags) do
+		if flagName == name then
+			return true
+		end
+	end
+	return false
 end
 
 NAFFlags.applyDefaults = function()
@@ -56001,6 +56152,7 @@ NAFFlags.load()
 for _, entry in ipairs(NAFFlags.whitelist) do
 	NAFFlags.values[entry.name] = NAFFlags.config.flags[entry.name]
 end
+NAFFlags.normalizeRenderingPrefs()
 
 NAFFlags.hasSupport = function()
 	if type(setfflag) == "function" then
@@ -56050,6 +56202,7 @@ end
 NAFFlags.applyAll = function(opts)
 	opts = opts or {}
 	local shouldNotify = opts.notify ~= false
+	NAFFlags.normalizeRenderingPrefs()
 	if not NAFFlags.enabled() then
 		if shouldNotify then
 			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
@@ -56075,6 +56228,19 @@ NAFFlags.applyAll = function(opts)
 	return applied, true
 end
 
+NAFFlags.buildSetfflagScript = function()
+	NAFFlags.normalizeRenderingPrefs()
+	local lines = { "if not setfflag then return warn(\"setfflag unavailable\") end" }
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		local value = NAFFlags.values[entry.name]
+		if value == nil then
+			value = NAFFlags.getDefault(entry)
+		end
+		lines[#lines + 1] = Format("setfflag(%q, %q)", entry.name, tostring(value))
+	end
+	return Concat(lines, "\n")
+end
+
 if NAFFlags.config.autoApply then
 	SpawnCall(function()
 		NAFFlags.applyAll({ notify = false })
@@ -56085,6 +56251,7 @@ NAgui.addSection("Whitelisted FastFlags")
 
 local supportText = NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
 NAgui.addInfo("FastFlag Support", supportText)
+NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
 
 NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
 	NAFFlags.config.useFFlags = state == true
@@ -56108,6 +56275,20 @@ NAgui.addButton("Apply All Listed FFlags", function()
 	NAFFlags.applyAll()
 end)
 
+NAgui.addButton("Copy standalone setfflag script", function()
+	if not setclipboard then
+		DoNotif("Your executor does not support setclipboard", 3)
+		return
+	end
+	local scriptText = NAFFlags.buildSetfflagScript()
+	local ok, err = pcall(setclipboard, scriptText)
+	if not ok then
+		DoNotif("Failed to copy setfflag script: "..tostring(err), 3)
+		return
+	end
+	DoNotif("setfflag script copied to clipboard.", 2)
+end)
+
 NAgui.addSection("Individual Flags")
 for _, entry in ipairs(NAFFlags.whitelist) do
 	if entry.valueType == "boolean" then
@@ -56118,8 +56299,17 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 			end
 			NAFFlags.values[entry.name] = normalized
 			NAFFlags.config.flags[entry.name] = normalized
+			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entry.name)
+			local isRenderingDisable = entry.name == NAFFlags.renderingDisableFlag
+			if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
+				NAFFlags.normalizeRenderingPrefs(entry.name)
+			end
 			NAFFlags.save()
-			NAFFlags.apply(entry.name, normalized)
+			if isRenderingPrefer or isRenderingDisable then
+				NAFFlags.applyAll({ notify = false })
+			else
+				NAFFlags.apply(entry.name, normalized)
+			end
 		end)
 	else
 		local defaultText = NAFFlags.values[entry.name]
