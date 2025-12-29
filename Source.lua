@@ -35046,11 +35046,11 @@ function NAmanage.nuhuhprompt(v)
 			if not promptTBL.polling then
 				promptTBL.polling = true
 				SpawnCall(function()
-					while promptTBL.blocking do
+					Wait(1)
+					if promptTBL.blocking then
 						for _, d in ipairs(COREGUI:GetDescendants()) do
 							trackAndDisable(d)
 						end
-						Wait(0.5)
 					end
 					promptTBL.polling = false
 				end)
