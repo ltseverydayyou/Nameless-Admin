@@ -16776,30 +16776,38 @@ cmd.add({"unibtools"}, {"unibtools", "Remove the iBuild Tools helper tool"}, fun
 	DoNotif("iBTools removed.", 3)
 end)
 
--- detected by roblox so it's disabled
-
---[[cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> (setff)", "Set a fast flag"}, function(flag, value)
+cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> [save] (setff)", "Set a fast flag (use 'save' to store it)"}, function(flag, value, maybeSave)
 	local title = "Set Fast Flag"
 	if not flag or flag == "" then
-		DoNotif("Please provide a fast flag name", 3, title)
+		DoNotif("Usage: setfflag <flag> <value> [save]", 3, title)
 		return
 	end
 	if value == nil then
 		DoNotif("Please provide a fast flag value", 3, title)
 		return
 	end
-	local method = setfflag or function(fastFlag, fastValue)
-		game:DefineFastFlag(fastFlag, fastValue)
-	end
-	local success, result = pcall(function()
-		method(flag, value)
-	end)
-	if success then
-		DoNotif(Format("Set %s's value to %s", flag, value), 5, title)
+	local parsedValue = NAFFlags.parseCustomValue and NAFFlags.parseCustomValue(value) or value
+	local ok, err = NAFFlags.apply(flag, parsedValue, { allowDisabled = true, silent = true })
+	if ok then
+		local saveRequested = false
+		if type(maybeSave) == "string" then
+			local lowerSave = Lower(maybeSave)
+			saveRequested = lowerSave == "save" or lowerSave == "persist" or lowerSave == "keep"
+		end
+		local suffix = ""
+		if saveRequested then
+			local savedOk, saveErr = NAFFlags.setCustomFlag(flag, parsedValue)
+			if not savedOk then
+				DoNotif(Format("Applied %s but could not save: %s", tostring(flag), tostring(saveErr or "unknown error")), 4, title)
+			else
+				suffix = " (saved)"
+			end
+		end
+		DoNotif(Format("Set %s to %s%s", tostring(flag), tostring(parsedValue), suffix), 3, title)
 	else
-		DoNotif("Error occurred setting fast flag: "..tostring(result), 10, title)
+		DoNotif(Format("Failed to set %s: %s", tostring(flag), tostring(err or "unknown error")), 4, title)
 	end
-end, true)]]
+end, true)
 
 cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias for an existing command"}, function(original, alias)
 	if not original or not alias then
@@ -56162,7 +56170,8 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 end
 
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
-NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {} }
+NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {}, custom = {} }
+NAFFlags.config.custom = NAFFlags.config.custom or {}
 NAFFlags.values = NAFFlags.values or {}
 NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
 	"FFlagDebugGraphicsPreferD3D11",
@@ -56187,6 +56196,31 @@ NAFFlags.normalizeValue = function(entry, rawValue, opts)
 		return rawValue and true or false
 	end
 	return rawValue
+end
+
+NAFFlags.parseCustomValue = function(rawValue)
+	local str = tostring(rawValue or "")
+	local trimmed = str:match("^%s*(.-)%s*$") or str
+	local lower = trimmed:lower()
+	if lower == "true" then
+		return true
+	elseif lower == "false" then
+		return false
+	end
+	local num = tonumber(trimmed)
+	if num ~= nil then
+		return num
+	end
+	return trimmed
+end
+
+NAFFlags.isWhitelistedFlag = function(name)
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		if entry.name == name then
+			return true
+		end
+	end
+	return false
 end
 
 NAFFlags.getDefault = function(entry)
@@ -56243,6 +56277,7 @@ NAFFlags.applyDefaults = function()
 	NAFFlags.config.useFFlags = false
 	NAFFlags.config.autoApply = false
 	NAFFlags.config.flags = {}
+	NAFFlags.config.custom = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
 		NAFFlags.config.flags[entry.name] = NAFFlags.getDefault(entry)
 	end
@@ -56284,6 +56319,16 @@ NAFFlags.load = function()
 					end
 				end
 			end
+			if type(decoded.custom) == "table" then
+				NAFFlags.config.custom = {}
+				for customName, customValue in pairs(decoded.custom) do
+					if type(customName) == "string" then
+						NAFFlags.config.custom[customName] = customValue
+					end
+				end
+			else
+				needsSave = true
+			end
 		else
 			needsSave = true
 		end
@@ -56298,6 +56343,9 @@ end
 NAFFlags.load()
 for _, entry in ipairs(NAFFlags.whitelist) do
 	NAFFlags.values[entry.name] = NAFFlags.config.flags[entry.name]
+end
+for name, value in pairs(NAFFlags.config.custom or {}) do
+	NAFFlags.values[name] = value
 end
 NAFFlags.normalizeRenderingPrefs()
 
@@ -56317,17 +56365,18 @@ end
 
 NAFFlags.apply = function(flagName, flagValue, opts)
 	opts = opts or {}
-	if not NAFFlags.enabled() then
+	local requireEnabled = opts.allowDisabled ~= true
+	if requireEnabled and not NAFFlags.enabled() then
 		if not opts.silent then
 			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
 		end
-		return false
+		return false, "disabled"
 	end
 	if not NAFFlags.hasSupport() then
 		if not opts.silent then
 			DoNotif("setfflag / DefineFastFlag is unavailable on this executor.", 3)
 		end
-		return false
+		return false, "unsupported"
 	end
 	local setter = type(setfflag) == "function" and setfflag or function(name, value)
 		return game:DefineFastFlag(name, value)
@@ -56338,7 +56387,7 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 			DoNotif(Format("Failed to set %s: %s", tostring(flagName), tostring(err)), 4)
 		end
 		warn("[NA] FastFlag apply failed for "..tostring(flagName)..": "..tostring(err))
-		return false
+		return false, err
 	end
 	if not opts.silent then
 		DoNotif(Format("%s set to %s", tostring(flagName), tostring(flagValue)), 2)
@@ -56362,17 +56411,162 @@ NAFFlags.applyAll = function(opts)
 		end
 		return 0, false
 	end
-	local applied = 0
+	local targets = {}
+	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
-		local value = NAFFlags.values[entry.name]
-		if NAFFlags.apply(entry.name, value, { silent = true }) then
+		targets[#targets + 1] = { name = entry.name, value = NAFFlags.values[entry.name] }
+		seen[entry.name] = true
+	end
+	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+		if not seen[customName] and customValue ~= nil then
+			targets[#targets + 1] = { name = customName, value = customValue }
+		end
+	end
+	local applied = 0
+	for _, target in ipairs(targets) do
+		if NAFFlags.apply(target.name, target.value, { silent = true }) then
 			applied = applied + 1
 		end
 	end
 	if shouldNotify then
-		DoNotif(Format("Applied %d/%d fast flags", applied, #NAFFlags.whitelist), 3)
+		DoNotif(Format("Applied %d/%d fast flags", applied, #targets), 3)
 	end
 	return applied, true
+end
+
+NAFFlags.getSortedCustomNames = function()
+	local names = {}
+	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+		if customValue ~= nil then
+			Insert(names, customName)
+		end
+	end
+	table.sort(names, function(a, b)
+		return tostring(a):lower() < tostring(b):lower()
+	end)
+	return names
+end
+
+NAFFlags.updateSelectedDisplay = function()
+	local selectedInfo = NAStuff and NAStuff.customFlagSelectedInfo
+	if not selectedInfo then
+		return
+	end
+	local names = (NAStuff and NAStuff.customFlagNames) or NAFFlags.getSortedCustomNames()
+	local count = #names
+	local idx = tonumber(NAStuff and NAStuff.customFlagIndex) or 0
+	if count == 0 then
+		selectedInfo.Text = "Selected Custom Flag: None"
+		return
+	end
+	if idx < 1 or idx > count then
+		idx = 1
+		if NAStuff then
+			NAStuff.customFlagIndex = idx
+		end
+	end
+	local name = names[idx]
+	selectedInfo.Text = Format("Selected Custom Flag: %s (%d/%d)", tostring(name), idx, count)
+	selectedInfo.TextScaled = true
+end
+
+NAFFlags.refreshCustomListDisplay = function()
+	local countInfo = NAStuff and NAStuff.customFlagCountInfo
+	local names = NAFFlags.getSortedCustomNames()
+	local count = #names
+	if NAStuff then
+		NAStuff.customFlagNames = names
+		if count == 0 then
+			NAStuff.customFlagIndex = nil
+		else
+			local idx = tonumber(NAStuff.customFlagIndex) or 1
+			if idx > count then
+				idx = 1
+			end
+			if idx < 1 then
+				idx = 1
+			end
+			NAStuff.customFlagIndex = idx
+		end
+	end
+	if countInfo then
+		countInfo.Text = Format("Saved Custom Flags (%d)", count)
+	end
+	NAFFlags.updateSelectedDisplay()
+end
+
+NAFFlags.setCustomFlag = function(name, value)
+	local trimmedName = (tostring(name or ""):match("^%s*(.-)%s*$")) or ""
+	if trimmedName == "" then
+		return false, "Missing flag name"
+	end
+	if value == nil then
+		return false, "Missing flag value"
+	end
+	name = trimmedName
+	if NAFFlags.isWhitelistedFlag and NAFFlags.isWhitelistedFlag(name) then
+		return false, "Flag is already managed in the default list"
+	end
+	NAFFlags.config.custom = NAFFlags.config.custom or {}
+	NAFFlags.config.custom[name] = value
+	NAFFlags.values[name] = value
+	NAFFlags.save()
+	NAFFlags.refreshCustomListDisplay()
+	return true
+end
+
+NAFFlags.removeCustomFlag = function(name)
+	local trimmedName = (tostring(name or ""):match("^%s*(.-)%s*$")) or ""
+	if trimmedName == "" then
+		return false, "Missing flag name"
+	end
+	name = trimmedName
+	if NAFFlags.config.custom then
+		NAFFlags.config.custom[name] = nil
+	end
+	NAFFlags.values[name] = nil
+	NAFFlags.save()
+	NAFFlags.refreshCustomListDisplay()
+	return true
+end
+
+NAFFlags.setCustomInputFields = function(name)
+	NAStuff.customFFlagName = name or ""
+	local value = NAFFlags.config.custom and NAFFlags.config.custom[name] or nil
+	local valueText = value ~= nil and tostring(value) or ""
+	NAStuff.customFFlagValue = valueText
+	if NAgui and NAgui.setInputValue then
+		NAgui.setInputValue("Custom Flag Name", NAStuff.customFFlagName, { force = true, fire = true })
+		NAgui.setInputValue("Custom Flag Value", valueText, { force = true, fire = true })
+	end
+	NAFFlags.updateSelectedDisplay()
+end
+
+NAFFlags.cycleCustomFlag = function(direction)
+	direction = direction or 1
+	local names = NAFFlags.getSortedCustomNames()
+	local count = #names
+	if count == 0 then
+		DoNotif("No custom fast flags saved yet.", 3)
+		return
+	end
+	local idx = tonumber(NAStuff.customFlagIndex) or 1
+	if direction < 0 then
+		idx = idx - 1
+	else
+		idx = idx + 1
+	end
+	if idx < 1 then
+		idx = count
+	elseif idx > count then
+		idx = 1
+	end
+	NAStuff.customFlagIndex = idx
+	NAStuff.customFlagNames = names
+	local name = names[idx]
+	NAFFlags.setCustomInputFields(name)
+	NAFFlags.updateSelectedDisplay()
+	--DoNotif(Format("Viewing custom fast flag %d/%d: %s", idx, count, tostring(name)), 2)
 end
 
 NAFFlags.autoApplyWithRetry = function(opts)
@@ -56419,12 +56613,19 @@ end
 NAFFlags.buildSetfflagScript = function()
 	NAFFlags.normalizeRenderingPrefs()
 	local lines = { "if not setfflag then return warn(\"setfflag unavailable\") end" }
+	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
 		local value = NAFFlags.values[entry.name]
 		if value == nil then
 			value = NAFFlags.getDefault(entry)
 		end
 		lines[#lines + 1] = Format("setfflag(%q, %q)", entry.name, tostring(value))
+		seen[entry.name] = true
+	end
+	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+		if not seen[customName] and customValue ~= nil then
+			lines[#lines + 1] = Format("setfflag(%q, %q)", customName, tostring(customValue))
+		end
 	end
 	return Concat(lines, "\n")
 end
@@ -56471,7 +56672,7 @@ NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags on load", function()
 	return NAFFlags.config.autoApply == true
 end)
 
-NAgui.addButton("Apply All Listed FFlags", function()
+NAgui.addButton("Apply All FFlags (including custom)", function()
 	NAFFlags.applyAll()
 end)
 
@@ -56487,6 +56688,93 @@ NAgui.addButton("Copy standalone setfflag script", function()
 		return
 	end
 	DoNotif("setfflag script copied to clipboard.", 2)
+end)
+
+NAgui.addSection("Custom FastFlags")
+local function trimCustomFlagText(text)
+	local str = tostring(text or "")
+	return str:match("^%s*(.-)%s*$") or ""
+end
+NAStuff.customFFlagName = NAStuff.customFFlagName or ""
+NAStuff.customFFlagValue = NAStuff.customFFlagValue or ""
+NAgui.addInput("Custom Flag Name", "Enter fast flag name", NAStuff.customFFlagName, function(inputText)
+	NAStuff.customFFlagName = inputText
+end)
+NAgui.addInput("Custom Flag Value", "Enter fast flag value", NAStuff.customFFlagValue, function(inputText)
+	NAStuff.customFFlagValue = inputText
+end)
+NAStuff.customFlagCountInfo = NAStuff.customFlagCountInfo or NAgui.addInfo("Saved Custom Flags", "Saved Custom Flags (0)")
+NAStuff.customFlagSelectedInfo = NAStuff.customFlagSelectedInfo or NAgui.addInfo("Selected Custom Flag", "Selected Custom Flag: None")
+NAFFlags.refreshCustomListDisplay()
+
+NAgui.addButton("Add / Update Custom Flag", function()
+	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	local valueRaw = NAStuff.customFFlagValue
+	if name == "" then
+		DoNotif("Enter a fast flag name first.", 3)
+		return
+	end
+	if valueRaw == nil or valueRaw == "" then
+		DoNotif("Enter a fast flag value first.", 3)
+		return
+	end
+	if NAFFlags.isWhitelistedFlag and NAFFlags.isWhitelistedFlag(name) then
+		DoNotif("That flag already exists in the built-in list above.", 3)
+		return
+	end
+	local parsedValue = NAFFlags.parseCustomValue and NAFFlags.parseCustomValue(valueRaw) or valueRaw
+	local ok, err = NAFFlags.setCustomFlag(name, parsedValue)
+	if ok then
+		DoNotif(Format("Saved custom fast flag %s = %s", name, tostring(parsedValue)), 2)
+	else
+		DoNotif(tostring(err or "Failed to save custom fast flag"), 3)
+	end
+end)
+
+NAgui.addButton("Test Custom Flag", function()
+	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	local valueRaw = NAStuff.customFFlagValue
+	if name == "" then
+		DoNotif("Enter a fast flag name to test.", 3)
+		return
+	end
+	if valueRaw == nil or valueRaw == "" then
+		DoNotif("Enter a fast flag value to test.", 3)
+		return
+	end
+	local parsedValue = NAFFlags.parseCustomValue and NAFFlags.parseCustomValue(valueRaw) or valueRaw
+	local ok, err = NAFFlags.apply(name, parsedValue, { allowDisabled = true, silent = true })
+	if ok then
+		DoNotif(Format("Successfully set %s = %s", name, tostring(parsedValue)), 2)
+	else
+		DoNotif(Format("Failed to set %s: %s", name, tostring(err or "Unknown error")), 4)
+	end
+end)
+
+NAgui.addButton("Remove Custom Flag", function()
+	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	if name == "" then
+		DoNotif("Enter the custom flag name you want to remove.", 3)
+		return
+	end
+	if not (NAFFlags.config.custom and NAFFlags.config.custom[name]) then
+		DoNotif("No saved custom flag with that name.", 3)
+		return
+	end
+	local ok, err = NAFFlags.removeCustomFlag(name)
+	if ok then
+		DoNotif("Removed custom fast flag "..name, 2)
+	else
+		DoNotif(tostring(err or "Failed to remove custom fast flag"), 3)
+	end
+end)
+
+NAgui.addButton("Previous Custom Flag", function()
+	NAFFlags.cycleCustomFlag(-1)
+end)
+
+NAgui.addButton("Next Custom Flag", function()
+	NAFFlags.cycleCustomFlag(1)
 end)
 
 NAgui.addSection("Individual Flags")
