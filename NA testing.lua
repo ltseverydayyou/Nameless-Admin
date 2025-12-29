@@ -56007,27 +56007,27 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
 	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
-	{ name = "DFIntLCCageDeformLimit", default = -1, valueType = "number" };
-	{ name = "FIntFullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
-	{ name = "DFFlagDebugPauseVoxelizer", default = true, valueType = "boolean" };
-	{ name = "FIntRobloxGuiBlurIntensity", default = 0, valueType = "number" };
-	{ name = "FStringWhitelistVerifiedUserId", default = "11761417", valueType = "string" };
-	{ name = "FFlagEnableSponsoredAdsSeeAllGamesListTooltip", default = false, valueType = "boolean" };
-	{ name = "FFlagEnableSponsoredAdsPerTileTooltipExperienceFooter", default = false, valueType = "boolean" };
-	{ name = "FFlagLuaAppSponsoredGridTiles", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugDisplayFPS", default = true, valueType = "boolean" };
-	{ name = "FIntRenderShadowmapBias", default = -1, valueType = "number" };
-	{ name = "DFFlagDebugPerfMode", default = true, valueType = "boolean" };
-	{ name = "FFlagEnableSponsoredAdsGameCarouselTooltip3", default = false, valueType = "boolean" };
-	{ name = "FFlagAdServiceEnabled", default = false, valueType = "boolean" };
-	{ name = "FFlagEnableSponsoredTooltipForAvatarCatalog2", default = false, valueType = "boolean" };
-	{ name = "FIntRenderShadowIntensity", default = 0, valueType = "number" };
-	{ name = "FFlagHandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugGraphicsPreferVulkan", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
-	{ name = "FFlagDebugGraphicsDisableDirect3D11", default = false, valueType = "boolean" };
+	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
+	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
+	{ name = "DebugPauseVoxelizer", default = true, valueType = "boolean" };
+	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
+	{ name = "WhitelistVerifiedUserId", default = "11761417", valueType = "string" };
+	{ name = "EnableSponsoredAdsSeeAllGamesListTooltip", default = false, valueType = "boolean" };
+	{ name = "EnableSponsoredAdsPerTileTooltipExperienceFooter", default = false, valueType = "boolean" };
+	{ name = "LuaAppSponsoredGridTiles", default = false, valueType = "boolean" };
+	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
+	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
+	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
+	{ name = "EnableSponsoredAdsGameCarouselTooltip3", default = false, valueType = "boolean" };
+	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
+	{ name = "EnableSponsoredTooltipForAvatarCatalog2", default = false, valueType = "boolean" };
+	{ name = "RenderShadowIntensity", default = 0, valueType = "number" };
+	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsPreferVulkan", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsDisableDirect3D11", default = false, valueType = "boolean" };
 }
 
 for _, entry in ipairs(NAFFlags.whitelist) do
