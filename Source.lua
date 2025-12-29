@@ -7360,6 +7360,18 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		purchasePromptsDisabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		networkPauseDisabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		chatTranslate = {
 			default = true;
 			coerce = function(value)
@@ -8594,6 +8606,7 @@ NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
+NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
@@ -9184,6 +9197,7 @@ cmds={
 	Commands={};
 	Aliases={};
 	NASAVEDALIASES = {};
+	_skipAutoSuffix = false;
 }
 
 NAmanage.resolveCommandName=function(name)
@@ -9817,17 +9831,74 @@ end
 
 --[[ COMMAND FUNCTIONS ]]--
 local commandcount=0
+NAmanage.makeUniqueAlias=function(aliasName, seen)
+	local base = tostring(aliasName or "")
+	local lowerBase = Lower(base)
+	if base == "" then
+		return nil, false
+	end
+	if not seen[lowerBase] and not cmds.Commands[lowerBase] and not cmds.Aliases[lowerBase] then
+		return base, false
+	end
+	local idx = 1
+	while true do
+		local candidate = base..tostring(idx)
+		local lowerCandidate = Lower(candidate)
+		if not seen[lowerCandidate] and not cmds.Commands[lowerCandidate] and not cmds.Aliases[lowerCandidate] then
+			return candidate, true
+		end
+		idx = idx + 1
+	end
+end
 Loops = {}
 cmd.add = function(aliases, info, func, requiresArguments)
 	requiresArguments = requiresArguments or false
-	local data = {func, info, requiresArguments}
 
 	if type(aliases) ~= "table" or #aliases == 0 then
 		return
 	end
 
-	local primary = aliases[1]
+	local autoSuffix = cmds._skipAutoSuffix ~= true
+	local seen = {}
+	local normalized = {}
+	local renamed = false
+
+	for _, aliasName in ipairs(aliases) do
+		if type(aliasName) == "string" and aliasName ~= "" then
+			local finalName = aliasName
+			if autoSuffix then
+				local uniqueName, didRename = NAmanage.makeUniqueAlias(aliasName, seen)
+				if uniqueName then
+					finalName = uniqueName
+				end
+				if didRename then
+					renamed = true
+				end
+			else
+				finalName = tostring(aliasName)
+			end
+			local lowerFinal = Lower(finalName)
+			if not seen[lowerFinal] then
+				seen[lowerFinal] = true
+				Insert(normalized, finalName)
+			end
+		end
+	end
+
+	if #normalized == 0 then
+		return
+	end
+
+	local primary = normalized[1]
 	local primaryLower = primary and primary:lower() or nil
+	local infoTable = info
+	if renamed and type(info) == "table" then
+		infoTable = {
+			Format("%s [renamed to %s]", tostring(info[1] or primary), tostring(primary)),
+			tostring(info[2] or "")
+		}
+	end
+	local data = {func, infoTable, requiresArguments}
 	if primaryLower then
 		if not cmds.Commands[primaryLower] then
 			commandcount += 1
@@ -9835,10 +9906,10 @@ cmd.add = function(aliases, info, func, requiresArguments)
 		cmds.Commands[primaryLower] = data
 	end
 
-	for index = 2, #aliases do
-		local aliasName = aliases[index]
+	for index = 2, #normalized do
+		local aliasName = normalized[index]
 		if type(aliasName) == "string" and aliasName ~= "" then
-			cmds.Aliases[aliasName:lower()] = data
+			cmds.Aliases[Lower(aliasName)] = data
 		end
 	end
 end
@@ -14255,7 +14326,10 @@ end
 
 		setfenv(func, proxyEnv)
 
+		local prevSkipAdd = cmds._skipAutoSuffix
+		cmds._skipAutoSuffix = true
 		local ok, execRes = NACaller(func)
+		cmds._skipAutoSuffix = prevSkipAdd
 		if not ok then
 			DoWindow("[Plugin Error] '"..file.."' => "..tostring(execRes))
 			return
@@ -14282,11 +14356,18 @@ end
 						desc = desc.." | "..note
 					end
 					local info = { formattedDisplay, desc }
-					cmd.add(uniqueAliases, info, handler, plugin.RequiresArguments or false)
-					local primaryLow = uniqueAliases[1] and type(uniqueAliases[1]) == "string" and uniqueAliases[1]:lower() or nil
-					local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
-					AddCmdPlug(pluginKey, uniqueAliases, dataRef)
-					Insert(cmdNames, uniqueAliases[1])
+					local prevSkip = cmds._skipAutoSuffix
+					cmds._skipAutoSuffix = true
+					local okAdd, errAdd = pcall(cmd.add, uniqueAliases, info, handler, plugin.RequiresArguments or false)
+					cmds._skipAutoSuffix = prevSkip
+					if okAdd then
+						local primaryLow = uniqueAliases[1] and type(uniqueAliases[1]) == "string" and uniqueAliases[1]:lower() or nil
+						local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+						AddCmdPlug(pluginKey, uniqueAliases, dataRef)
+						Insert(cmdNames, uniqueAliases[1])
+					else
+						DoWindow("[Plugin Error] Failed to register command: "..tostring(errAdd))
+					end
 				end
 			else
 				DoWindow("[Plugin Invalid] '"..file.."' is missing valid Aliases or Function")
@@ -34899,7 +34980,7 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	end
 end, true)
 
-promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false}
+promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false, polling = false}
 
 function NAmanage.isPromptGuiName(name)
 	if type(name) ~= "string" then
@@ -34909,52 +34990,71 @@ function NAmanage.isPromptGuiName(name)
 	return lowerName:find("purchaseprompt") or lowerName:find("foundationoverlay")
 end
 
+function NAmanage.trackPromptGui(inst)
+	if not inst then
+		return nil
+	end
+	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
+	if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
+		return gui
+	end
+	return nil
+end
+
 function NAmanage.nuhuhprompt(v)
 	NACaller(function()
 		if v == false then
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
-			for _, d in ipairs(COREGUI:GetDescendants()) do
-				local gui = d:IsA("ScreenGui") and d or d:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
-					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
-					pcall(function() gui.Enabled = false end)
-					for _, x in ipairs(gui:GetDescendants()) do
-						if x:IsA("ScreenGui") then
-							if promptTBL.tracked[x] == nil then promptTBL.tracked[x] = x.Enabled end
-							pcall(function() x.Enabled = false end)
-						end
-					end
-					local inner = gui.DescendantAdded:Connect(function(inst)
-						if inst:IsA("ScreenGui") then
-							if promptTBL.tracked[inst] == nil then promptTBL.tracked[inst] = inst.Enabled end
-							pcall(function() inst.Enabled = false end)
-						end
-					end)
-					Insert(promptTBL.conns, inner)
+			local visited = {}
+			local function trackAndDisable(inst)
+				local gui = NAmanage.trackPromptGui(inst)
+				if not gui or visited[gui] then
+					return
 				end
+				visited[gui] = true
+				if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
+				pcall(function() gui.Enabled = false end)
+				local changeConn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+					if promptTBL.blocking then
+						pcall(function() gui.Enabled = false end)
+					end
+				end)
+				Insert(promptTBL.conns, changeConn)
+				for _, x in ipairs(gui:GetDescendants()) do
+					if x:IsA("ScreenGui") then
+						trackAndDisable(x)
+					end
+				end
+				local inner = gui.DescendantAdded:Connect(function(inst2)
+					if inst2:IsA("ScreenGui") then
+						trackAndDisable(inst2)
+					end
+				end)
+				Insert(promptTBL.conns, inner)
 			end
+
+			for _, d in ipairs(COREGUI:GetDescendants()) do
+				trackAndDisable(d)
+			end
+
 			local c = COREGUI.DescendantAdded:Connect(function(inst)
-				local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-				if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
-					if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
-					pcall(function() gui.Enabled = false end)
-					for _, x in ipairs(gui:GetDescendants()) do
-						if x:IsA("ScreenGui") then
-							if promptTBL.tracked[x] == nil then promptTBL.tracked[x] = x.Enabled end
-							pcall(function() x.Enabled = false end)
-						end
-					end
-					local inner = gui.DescendantAdded:Connect(function(inst2)
-						if inst2:IsA("ScreenGui") then
-							if promptTBL.tracked[inst2] == nil then promptTBL.tracked[inst2] = inst2.Enabled end
-							pcall(function() inst2.Enabled = false end)
-						end
-					end)
-					Insert(promptTBL.conns, inner)
-				end
+				trackAndDisable(inst)
 			end)
 			Insert(promptTBL.conns, c)
+
+			if not promptTBL.polling then
+				promptTBL.polling = true
+				SpawnCall(function()
+					while promptTBL.blocking do
+						for _, d in ipairs(COREGUI:GetDescendants()) do
+							trackAndDisable(d)
+						end
+						Wait(0.5)
+					end
+					promptTBL.polling = false
+				end)
+			end
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
@@ -34973,23 +35073,43 @@ function NAmanage.nuhuhprompt(v)
 	end)
 end
 
-networkPauseBlock = networkPauseBlock or {tracked = {}, conns = {}, blocking = false}
-
-function NAmanage.isNetworkPauseGuiName(name)
-	if type(name) ~= "string" then
-		return false
-	end
-	local lowerName = name:lower()
-	return lowerName:find("networkpause", 1, true) ~= nil
+if NAStuff and NAStuff.PurchasePromptsDisabled == true then
+	NAmanage.nuhuhprompt(false)
 end
 
-function NAmanage.trackNetworkPauseGui(inst)
-	if not inst then
+networkPauseBlock = networkPauseBlock or {tracked = {}, conns = {}, blocking = false, polling = false}
+
+function NAmanage.isNetworkPauseScript(inst)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	if not inst:IsA("BaseScript") then
+		return false
+	end
+	local name = inst.Name or ""
+	if not Lower(name):find("networkpause", 1, true) then
+		return false
+	end
+	local robloxGui = inst:FindFirstAncestor("RobloxGui")
+	if not robloxGui or not robloxGui:IsDescendantOf(COREGUI) then
+		return false
+	end
+	if name == "CoreScripts/NetworkPause" then
+		return true
+	end
+	local parent = inst.Parent
+	return parent and parent.Name == "CoreScripts" and parent:IsDescendantOf(robloxGui)
+end
+
+function NAmanage.getNetworkPauseScript()
+	local robloxGui = COREGUI:FindFirstChild("RobloxGui")
+	if not robloxGui then
 		return nil
 	end
-	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-	if gui and gui.Name and NAmanage.isNetworkPauseGuiName(gui.Name) then
-		return gui
+
+	local direct = robloxGui:FindFirstChild("CoreScripts/NetworkPause")
+	if direct and NAmanage.isNetworkPauseScript(direct) then
+		return direct
 	end
 	return nil
 end
@@ -34997,20 +35117,40 @@ end
 function NAmanage.setNetworkPauseBlocked(disable)
 	NACaller(function()
 		local tbl = networkPauseBlock
+		local function trackAndDisable(inst)
+			local scriptInst
+			if inst and NAmanage.isNetworkPauseScript(inst) then
+				scriptInst = inst
+			elseif inst == nil then
+				scriptInst = NAmanage.getNetworkPauseScript()
+			end
+			if scriptInst then
+				if tbl.tracked[scriptInst] == nil then tbl.tracked[scriptInst] = scriptInst.Disabled end
+				pcall(function() scriptInst.Disabled = true end)
+			end
+		end
+		local function startPolling()
+			if tbl.polling then
+				return
+			end
+			tbl.polling = true
+			SpawnCall(function()
+				while tbl.blocking do
+					trackAndDisable(nil)
+					Wait(0.5)
+				end
+				tbl.polling = false
+			end)
+		end
 		if disable then
 			if tbl.blocking then return end
 			tbl.blocking = true
-			local function disableGui(inst)
-				local gui = NAmanage.trackNetworkPauseGui(inst)
-				if gui then
-					if tbl.tracked[gui] == nil then tbl.tracked[gui] = gui.Enabled end
-					pcall(function() gui.Enabled = false end)
-				end
-			end
+			trackAndDisable(nil)
+			startPolling()
 			for _, d in ipairs(COREGUI:GetDescendants()) do
-				disableGui(d)
+				trackAndDisable(d)
 			end
-			local c = COREGUI.DescendantAdded:Connect(disableGui)
+			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
 			Insert(tbl.conns, c)
 		else
 			if not tbl.blocking then return end
@@ -35020,11 +35160,11 @@ function NAmanage.setNetworkPauseBlocked(disable)
 				if c and c.Connected then c:Disconnect() end
 				tbl.conns[i] = nil
 			end
-			for gui, prev in pairs(tbl.tracked) do
-				if typeof(gui) == "Instance" and gui and gui.Parent ~= nil then
-					pcall(function() gui.Enabled = prev end)
+			for scriptInst, prev in pairs(tbl.tracked) do
+				if typeof(scriptInst) == "Instance" and scriptInst and scriptInst.Parent ~= nil then
+					pcall(function() scriptInst.Disabled = prev end)
 				end
-				tbl.tracked[gui] = nil
+				tbl.tracked[scriptInst] = nil
 			end
 		end
 	end)
@@ -35034,24 +35174,28 @@ if NAStuff and NAStuff.NetworkPauseDisabled == true then
 	NAmanage.setNetworkPauseBlocked(true)
 end
 
-cmd.add({"noprompt","nopurchaseprompts","noprompts"},{"noprompt (nopurchaseprompts,noprompts)","remove the stupid purchase prompt"},function()
+cmd.add({"noprompt","nopurchaseprompts","noprompts","np"},{"noprompt (nopurchaseprompts,noprompts,np)","remove the stupid purchase prompt"},function()
+	NAStuff.PurchasePromptsDisabled = true
+	pcall(NAmanage.NASettingsSet, "purchasePromptsDisabled", true)
 	NAmanage.nuhuhprompt(false)
 	DebugNotif("Purchase prompts have been disabled")
 end)
 
-cmd.add({"prompt","purchaseprompts","showprompts","showpurchaseprompts"},{"prompt (purchaseprompts,showprompts,showpurchaseprompts)","allows the stupid purchase prompt"},function()
+cmd.add({"prompt","purchaseprompts","showprompts","showpurchaseprompts","ppr"},{"prompt (purchaseprompts,showprompts,showpurchaseprompts,ppr)","allows the stupid purchase prompt"},function()
+	NAStuff.PurchasePromptsDisabled = false
+	pcall(NAmanage.NASettingsSet, "purchasePromptsDisabled", false)
 	NAmanage.nuhuhprompt(true)
 	DebugNotif("Purchase prompts have been enabled")
 end)
 
-cmd.add({"nonetworkpause","disableNetworkPause"},{"nonetworkpause (disableNetworkPause)","Disable Roblox network pause overlay"},function()
+cmd.add({"nonetworkpause","disableNetworkPause","nnw","nnpause"},{"nonetworkpause (disableNetworkPause,nnw,nnpause)","Disable Roblox network pause overlay"},function()
 	NAStuff.NetworkPauseDisabled = true
 	pcall(NAmanage.NASettingsSet, "networkPauseDisabled", true)
 	NAmanage.setNetworkPauseBlocked(true)
 	DoNotif("Network pause UI blocked", 3)
 end)
 
-cmd.add({"networkpause","enablenetworkpause"},{"networkpause (enablenetworkpause)","Re-enable Roblox network pause overlay"},function()
+cmd.add({"networkpause","enablenetworkpause","nw","npause"},{"networkpause (enablenetworkpause,nw,npause)","Re-enable Roblox network pause overlay"},function()
 	NAStuff.NetworkPauseDisabled = false
 	pcall(NAmanage.NASettingsSet, "networkPauseDisabled", false)
 	NAmanage.setNetworkPauseBlocked(false)
@@ -54762,6 +54906,8 @@ NAmanage.injectNAConsole = function()
 		return true
 	end
 
+	local baseMainViewSize = nil
+
 	local function ensureCommandHelpers()
 		if not NAmanage._naConsoleDispatch then
 			local function splitArgs(line)
@@ -54902,6 +55048,46 @@ NAmanage.injectNAConsole = function()
 
 	local testService = SafeGetService("TestService")
 
+	local function adjustDevConsoleLayout(window)
+		if not window then
+			return
+		end
+
+		local consoleUI = window:FindFirstChild("DevConsoleUI") or window
+		if commandLine.Parent ~= consoleUI then
+			commandLine.Parent = consoleUI
+		end
+		commandLine.LayoutOrder = 9999
+
+		local mainView = consoleUI and consoleUI:FindFirstChild("MainView")
+		if not mainView then
+			return
+		end
+
+		if not baseMainViewSize then
+			baseMainViewSize = mainView.Size
+		end
+
+		local lineHeight = math.max(0, math.floor((commandLine.AbsoluteSize.Y > 0 and commandLine.AbsoluteSize.Y or 30) + 0.5))
+		local baseSize = baseMainViewSize
+		local targetSize = UDim2.new(baseSize.X.Scale, baseSize.X.Offset, baseSize.Y.Scale, baseSize.Y.Offset - lineHeight)
+		if mainView.Size ~= targetSize then
+			mainView.Size = targetSize
+		end
+
+		local padding = mainView:FindFirstChild("NAConsolePadding")
+		if not padding then
+			padding = InstanceNew("UIPadding")
+			padding.Name = "NAConsolePadding"
+			padding.Parent = mainView
+		end
+
+		local padValue = UDim.new(0, lineHeight)
+		if padding.PaddingBottom ~= padValue then
+			padding.PaddingBottom = padValue
+		end
+	end
+
 	local function reportError(message)
 		local filtered = tostring(message or "error")
 		filtered = filtered:gsub("%[string \"console\"%]:", "console:")
@@ -54993,9 +55179,7 @@ NAmanage.injectNAConsole = function()
 			return
 		end
 
-		if commandLine.Parent ~= window then
-			commandLine.Parent = window
-		end
+		adjustDevConsoleLayout(window)
 	end
 
 	NAlib.disconnect("naconsole_loop")
@@ -55780,6 +55964,16 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
+end)
+
+NAgui.addToggle("Disable Purchase Prompts", NAStuff.PurchasePromptsDisabled == true, function(v)
+	NAStuff.PurchasePromptsDisabled = v == true
+	pcall(NAmanage.NASettingsSet, "purchasePromptsDisabled", NAStuff.PurchasePromptsDisabled)
+	NAmanage.nuhuhprompt(not NAStuff.PurchasePromptsDisabled)
+	DoNotif("Purchase prompts "..(NAStuff.PurchasePromptsDisabled and "blocked" or "allowed"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Purchase Prompts", function()
+	return NAStuff.PurchasePromptsDisabled == true
 end)
 
 NAgui.addToggle("Disable Network Pause", NAStuff.NetworkPauseDisabled == true, function(v)
