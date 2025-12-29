@@ -35137,7 +35137,19 @@ end
 function NAmanage.setNetworkPauseBlocked(disable)
 	NACaller(function()
 		local tbl = networkPauseBlock
+		local function destroyNetworkPauseGui(inst)
+			if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
+				return
+			end
+			local name = inst.Name
+			if name and name ~= "" and Lower(name):find("networkpause", 1, true) then
+				pcall(function() inst:Destroy() end)
+			end
+		end
 		local function trackAndDisable(inst)
+			if inst then
+				destroyNetworkPauseGui(inst)
+			end
 			local scriptInst
 			if inst and NAmanage.isNetworkPauseScript(inst) then
 				scriptInst = inst
