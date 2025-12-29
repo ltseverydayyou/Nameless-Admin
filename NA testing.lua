@@ -55899,7 +55899,7 @@ NAgui.addSection("Saved Data")
 	end)
 end
 
-NAgui.addTab(TAB_FFLAGS, { order = 14, textIcon = "flag" })
+NAgui.addTab(TAB_FFLAGS, { order = 4, textIcon = "flag" })
 NAgui.setTab(TAB_FFLAGS)
 
 local NAFFlags = NAmanage.NAFFlags or {}
@@ -55934,7 +55934,7 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 end
 
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
-NAFFlags.config = NAFFlags.config or { useFFlags = false, flags = {} }
+NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {} }
 NAFFlags.values = NAFFlags.values or {}
 
 NAFFlags.normalizeValue = function(entry, rawValue, opts)
@@ -55963,6 +55963,7 @@ end
 
 NAFFlags.applyDefaults = function()
 	NAFFlags.config.useFFlags = false
+	NAFFlags.config.autoApply = false
 	NAFFlags.config.flags = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
 		NAFFlags.config.flags[entry.name] = NAFFlags.getDefault(entry)
@@ -55991,6 +55992,9 @@ NAFFlags.load = function()
 		if okDecode and type(decoded) == "table" then
 			if type(decoded.useFFlags) == "boolean" then
 				NAFFlags.config.useFFlags = decoded.useFFlags
+			end
+			if type(decoded.autoApply) == "boolean" then
+				NAFFlags.config.autoApply = decoded.autoApply
 			end
 			if type(decoded.flags) == "table" then
 				for _, entry in ipairs(NAFFlags.whitelist) do
@@ -56063,6 +56067,40 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 	return true
 end
 
+NAFFlags.applyAll = function(opts)
+	opts = opts or {}
+	local shouldNotify = opts.notify ~= false
+	if not NAFFlags.enabled() then
+		if shouldNotify then
+			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
+		end
+		return 0, false
+	end
+	if not NAFFlags.hasSupport() then
+		if shouldNotify then
+			DoNotif("FastFlag functions not available on this executor.", 3)
+		end
+		return 0, false
+	end
+	local applied = 0
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		local value = NAFFlags.values[entry.name]
+		if NAFFlags.apply(entry.name, value, { silent = true }) then
+			applied = applied + 1
+		end
+	end
+	if shouldNotify then
+		DoNotif(Format("Applied %d/%d fast flags", applied, #NAFFlags.whitelist), 3)
+	end
+	return applied, true
+end
+
+if NAFFlags.config.autoApply then
+	SpawnCall(function()
+		NAFFlags.applyAll({ notify = false })
+	end)
+end
+
 NAgui.addSection("Whitelisted FastFlags")
 
 local supportText = NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
@@ -56073,23 +56111,21 @@ NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(sta
 	NAFFlags.save()
 end)
 
+NAgui.addToggle("Auto-apply FastFlags on load", NAFFlags.config.autoApply == true, function(state)
+	NAFFlags.config.autoApply = state == true
+	NAFFlags.save()
+	if state then
+		SpawnCall(function()
+			NAFFlags.applyAll({ notify = false })
+		end)
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags on load", function()
+	return NAFFlags.config.autoApply == true
+end)
+
 NAgui.addButton("Apply All Listed FFlags", function()
-	if not NAFFlags.enabled() then
-		DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
-		return
-	end
-	if not NAFFlags.hasSupport() then
-		DoNotif("FastFlag functions not available on this executor.", 3)
-		return
-	end
-	local applied = 0
-	for _, entry in ipairs(NAFFlags.whitelist) do
-		local value = NAFFlags.values[entry.name]
-		if NAFFlags.apply(entry.name, value, { silent = true }) then
-			applied = applied + 1
-		end
-	end
-	DoNotif(Format("Applied %d/%d fast flags", applied, #NAFFlags.whitelist), 3)
+	NAFFlags.applyAll()
 end)
 
 NAgui.addSection("Individual Flags")
@@ -56760,7 +56796,7 @@ if CoreGui then
 	end
 end
 
-NAgui.addTab(TAB_USER_BUTTONS, { order = 9, textIcon = "circle-plus" })
+NAgui.addTab(TAB_USER_BUTTONS, { order = 10, textIcon = "circle-plus" })
 NAgui.setTab(TAB_USER_BUTTONS)
 
 originalIO.UserBtnEditor=function()
@@ -57388,7 +57424,7 @@ function NAmanage.jlSave()
 	end
 end
 
-NAgui.addTab(TAB_LOGGING, { order = 10, textIcon = "list-bulleted" })
+NAgui.addTab(TAB_LOGGING, { order = 11, textIcon = "list-bulleted" })
 NAgui.setTab(TAB_LOGGING)
 
 NAgui.addSection("Join/Leave Logging")
@@ -57479,7 +57515,7 @@ NAgui.addButton("Clear Chat Log File", function()
 	DoNotif(ok and "Chat log cleared." or ("Failed to clear: "..tostring(msg)), 2.5)
 end)
 
-NAgui.addTab(TAB_ESP, { order = 4, textIcon = "crosshairs" })
+NAgui.addTab(TAB_ESP, { order = 5, textIcon = "crosshairs" })
 NAgui.setTab(TAB_ESP)
 
 NAgui.isListActive=function(list)
@@ -57795,7 +57831,7 @@ NAgui.addButton("Clear Folder ESP", function()
 	end)
 end)
 
-NAgui.addTab(TAB_CHAT, { order = 6, textIcon = "speech-bubble-align-center" })
+NAgui.addTab(TAB_CHAT, { order = 7, textIcon = "speech-bubble-align-center" })
 NAgui.setTab(TAB_CHAT)
 
 do
@@ -57970,7 +58006,7 @@ do
 end
 
 if not IsOnMobile then
-	NAgui.addTab(TAB_KEYBINDS, { order = 7, textIcon = "xbox-a" })
+	NAgui.addTab(TAB_KEYBINDS, { order = 8, textIcon = "xbox-a" })
 	NAgui.setTab(TAB_KEYBINDS)
 
 	if IsOnPC then
@@ -58053,7 +58089,7 @@ if not IsOnMobile then
 		end)
 
 		local prevTab = NAgui.getActiveTab()
-		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 8, textIcon = "xbox-a" })
+		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 9, textIcon = "xbox-a" })
 		NAgui.setTab(TAB_COMMAND_KEYBINDS)
 		NAmanage.CommandKeybindsUIInit()
 		NAmanage.CommandKeybindsUIWire()
@@ -58062,7 +58098,7 @@ if not IsOnMobile then
 	end
 end
 
-NAgui.addTab(TAB_CHARACTER, { order = 5, textIcon = "circle-person" })
+NAgui.addTab(TAB_CHARACTER, { order = 6, textIcon = "circle-person" })
 NAgui.setTab(TAB_CHARACTER)
 
 NAmanage.ApplyWalkSpeed = function(val)
@@ -58187,7 +58223,7 @@ end)
 
 NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
-	NAgui.addTab(TAB_BASIC_INFO, { order = 11, textIcon = "circle-i" })
+	NAgui.addTab(TAB_BASIC_INFO, { order = 12, textIcon = "circle-i" })
 	NAgui.setTab(TAB_BASIC_INFO)
 
 	local basicInfoConfig = {
@@ -58346,7 +58382,7 @@ NAmanage.SetupBasicInfoTab = function()
 end
 NAmanage.SetupBasicInfoTab()
 
-NAgui.addTab(TAB_ROBLOX_DATA, { order = 12, textIcon = "tilt" })
+NAgui.addTab(TAB_ROBLOX_DATA, { order = 13, textIcon = "tilt" })
 NAgui.setTab(TAB_ROBLOX_DATA)
 
 NAStuff.GitHubLoadingText = "Loading..."
@@ -58744,7 +58780,7 @@ SpawnCall(function()
 	end
 end)
 
-NAgui.addTab(TAB_ADMIN_INFO, { order = 13, displayText = adminInfoDisplay })
+NAgui.addTab(TAB_ADMIN_INFO, { order = 14, displayText = adminInfoDisplay })
 NAgui.setTab(TAB_ADMIN_INFO)
 
 if NAmanage.UpdateAdminInfoTabDisplayName then
