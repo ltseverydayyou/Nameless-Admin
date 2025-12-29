@@ -56011,7 +56011,6 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
 	{ name = "DebugPauseVoxelizer", default = true, valueType = "boolean" };
 	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
-	{ name = "EnableSponsoredAdsSeeAllGamesListTooltip", default = false, valueType = "boolean" };
 	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
 	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
