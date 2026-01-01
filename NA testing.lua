@@ -21963,95 +21963,50 @@ end)
 NAStuff.ATPC = {
 	state = false,
 	plr = Players.LocalPlayer,
-	lastCF = nil,
-	lastT = 0,
-	hits = 0,
-	MAX_SPEED = 70,
-	MAX_STEP_DIST = 8,
-	REPEAT = 3,
-	LOCK_TIME = 0.1,
-	cn = {},
 	gui = nil,
-	btn = nil
+	btn = nil,
+	allowed = {},
+	old = {},
+	parts = {}
 }
-ATPC = NAStuff.ATPC
 
-NAStuff.ATPC._getFlyMode=function()
-	if not NAmanage or not NAmanage._state then return "none" end
-	return NAmanage._state.mode or "none"
-end
-
-ATPC._flyAllowances=function(dt)
-	local m=NAStuff.ATPC._getFlyMode()
-	local maxS, maxD=NAStuff.ATPC.MAX_SPEED, NAStuff.ATPC.MAX_STEP_DIST
-	if m=="fly" then
-		local sp=tonumber(flyVariables.flySpeed) or 1
-		local v=sp*50
-		maxS=math.max(maxS, v*1.4)
-		maxD=math.max(maxD, v*dt*3)
-	elseif m=="vfly" then
-		local sp=tonumber(flyVariables.vFlySpeed) or 1
-		local v=sp*50
-		maxS=math.max(maxS, v*1.4)
-		maxD=math.max(maxD, v*dt*3)
-	elseif m=="cfly" then
-		local sp=tonumber(flyVariables.cFlySpeed) or 1
-		local step=sp*2
-		maxD=math.max(NAStuff.ATPC.MAX_STEP_DIST, step)
-		maxS=math.max(NAStuff.ATPC.MAX_SPEED, (maxD/dt)*1.25)
-	elseif m=="tfly" then
-		local sp=tonumber(flyVariables.TflySpeed) or 1
-		local step=sp*2.5
-		maxD=math.max(NAStuff.ATPC.MAX_STEP_DIST, step)
-		maxS=math.max(NAStuff.ATPC.MAX_SPEED, (maxD/dt)*1.5)
+local function AntiOn()
+	if type(Get) == "function" then
+		local ok, v = pcall(Get, "AntiCFrame")
+		if ok then return v end
 	end
-	return maxS, maxD
+	return NAStuff.ATPC.state
 end
 
-ATPC._isFlyActive=function()
-	return FLYING==true and ATPC._getFlyMode()~="none"
-end
-
-ATPC._zero = function(char)
-	for _,d in ipairs(char:GetDescendants()) do
-		if d:IsA("BasePart") then
-			d.AssemblyLinearVelocity = Vector3.zero
-			d.AssemblyAngularVelocity = Vector3.zero
-		end
-	end
-end
-
-ATPC._bindChar = function()
-	local rec, mdl = NA_GRAB_BODY.ensure(ATPC.plr)
-	if not rec or not mdl then return end
-	local r = rec.root or NA_GRAB_BODY.firstPart(mdl)
-	if not r then return end
-	ATPC.lastCF = r.CFrame
-	ATPC.lastT = os.clock()
-	ATPC.hits = 0
-end
-
-ATPC._syncBtn = function()
-	if not ATPC.btn then return end
-	if ATPC.state then
-		ATPC.btn.Text = "UNACFTP"
-		ATPC.btn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+NAStuff.ATPC._syncBtn = function()
+	local b = NAStuff.ATPC.btn
+	if not b then return end
+	if NAStuff.ATPC.state then
+		b.Text = "UNACFTP"
+		b.BackgroundColor3 = Color3.fromRGB(0,170,0)
 	else
-		ATPC.btn.Text = "ACFTP"
-		ATPC.btn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		b.Text = "ACFTP"
+		b.BackgroundColor3 = Color3.fromRGB(170,0,0)
 	end
 end
 
-ATPC._buildGUI = function()
+NAStuff.ATPC._buildGUI = function()
 	if not IsOnMobile then return end
-	if ATPC.gui then ATPC.gui:Destroy() ATPC.gui=nil ATPC.btn=nil end
-	ATPC.gui = InstanceNew("ScreenGui")
+	if NAStuff.ATPC.gui then
+		NAStuff.ATPC.gui:Destroy()
+		NAStuff.ATPC.gui = nil
+		NAStuff.ATPC.btn = nil
+	end
+
+	local g = InstanceNew("ScreenGui")
+	NaProtectUI(g)
+	g.ResetOnSpawn = false
+
 	local b = InstanceNew("TextButton")
 	local c = InstanceNew("UICorner")
 	local a = InstanceNew("UIAspectRatioConstraint")
-	NaProtectUI(ATPC.gui)
-	ATPC.gui.ResetOnSpawn = false
-	b.Parent = ATPC.gui
+
+	b.Parent = g
 	b.BackgroundTransparency = 0.1
 	b.Position = UDim2.new(0.9,0,0.4,0)
 	b.Size = UDim2.new(0.08,0,0.1,0)
@@ -22060,126 +22015,150 @@ ATPC._buildGUI = function()
 	b.TextScaled = true
 	b.TextWrapped = true
 	b.Active = true
+
 	c.CornerRadius = UDim.new(0.2,0)
 	c.Parent = b
+
 	a.Parent = b
 	a.AspectRatio = 1
-	ATPC.btn = b
-	ATPC._syncBtn()
-	MouseButtonFix(b,function()
-		if ATPC.state then ATPC.Disable() else ATPC.Enable() end
+
+	NAStuff.ATPC.gui = g
+	NAStuff.ATPC.btn = b
+	NAStuff.ATPC._syncBtn()
+
+	MouseButtonFix(b, function()
+		if NAStuff.ATPC.state then
+			NAStuff.ATPC.Disable()
+		else
+			NAStuff.ATPC.Enable()
+		end
 	end)
+
 	NAgui.draggerV2(b)
 end
 
-ATPC.Enable = function()
-	if ATPC.state then return end
-	ATPC.state = true
-	ATPC._bindChar()
+NAStuff.ATPC._hookChar = function(char)
+	local allowed = NAStuff.ATPC.allowed
+	local old = NAStuff.ATPC.old
+	local parts = NAStuff.ATPC.parts
 
-	if not ATPC.cn.add then
-		ATPC.cn.add = ATPC.plr.CharacterAdded:Connect(function()
-			ATPC._bindChar()
+	local function hookPart(p)
+		if not p or not p.Parent or not p:IsA("BasePart") then return end
+		if allowed[p] ~= nil then return end
+
+		allowed[p] = false
+		old[p] = p.CFrame
+		table.insert(parts, p)
+
+		local sig = p:GetPropertyChangedSignal("CFrame")
+		local con = sig:Connect(function()
+			if not NAStuff.ATPC.state then return end
+			if not NAlib.isConnected("AntiCFrame") then return end
+			if not AntiOn() then return end
+			if not p.Parent then return end
+			if allowed[p] then return end
+
+			local o = old[p]
+			if not o then return end
+
+			allowed[p] = true
+			p.CFrame = o
+			Wait()
+			allowed[p] = false
 		end)
+
+		NAlib.connect("AntiCFrame", con)
 	end
 
-	if not ATPC.cn.hb then
-		ATPC.cn.hb = RunService.Heartbeat:Connect(function(dt)
-			if not ATPC.state then return end
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") then
+			hookPart(d)
+		end
+	end
 
-			local rec, mdl = NA_GRAB_BODY.ensure(ATPC.plr)
-			if not rec or not mdl then return end
+	local addCon = char.DescendantAdded:Connect(function(d)
+		if not NAStuff.ATPC.state then return end
+		if d:IsA("BasePart") then
+			hookPart(d)
+		end
+	end)
+	NAlib.connect("AntiCFrame", addCon)
 
-			local r = rec.root or NA_GRAB_BODY.firstPart(mdl)
-			if not r then return end
-
-			local now = os.clock()
-			dt = math.max(dt or (now - (ATPC.lastT or now)), 1/240)
-
-			local cf = r.CFrame
-			if not ATPC.lastCF then
-				ATPC.lastCF = cf
-				ATPC.lastT = now
-				ATPC.hits = 0
-				return
-			end
-
-			local dist = (cf.Position - ATPC.lastCF.Position).Magnitude
-			local spd = dist / dt
-
-			local maxS, maxD = ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
-
-			local hum = rec.humanoid
-			local ws = hum and hum.WalkSpeed or 16
-			local vel = r.AssemblyLinearVelocity.Magnitude
-
-			maxD = math.max(maxD, ws * dt * 3, vel * dt * 3 + 4)
-			maxS = math.max(maxS, ws * 3, vel * 2)
-
-			if ATPC._isFlyActive() then
-				local fs, fd = ATPC._flyAllowances(dt)
-				maxS = math.max(maxS, fs)
-				maxD = math.max(maxD, fd)
-			end
-
-			local tooFar = dist > maxD
-			local tooFast = spd > maxS
-			local velMismatch = vel < spd * 0.5
-
-			local isTp = false
-			if dist > maxD * 3 then
-				isTp = true
-			elseif tooFar and tooFast and velMismatch then
-				isTp = true
-			end
-
-			if isTp then
-				ATPC.hits += 1
-				ATPC.lastT = now
-
-				if ATPC.hits >= ATPC.REPEAT then
-					local back = ATPC.lastCF
-					if back then
-						mdl:PivotTo(back)
-					end
-					ATPC._zero(mdl)
-					Defer(function()
-						ATPC._zero(mdl)
-					end)
-					Delay(ATPC.LOCK_TIME, function()
-						ATPC.hits = 0
-					end)
+	task.spawn(function()
+		while NAStuff.ATPC.state and NAlib.isConnected("AntiCFrame") and char and char.Parent do
+			for _, p in ipairs(parts) do
+				if p and p.Parent and not allowed[p] then
+					old[p] = p.CFrame
 				end
-			else
-				ATPC.hits = math.max(ATPC.hits - 1, 0)
-				ATPC.lastCF = cf
-				ATPC.lastT = now
 			end
-		end)
+			Wait()
+		end
+	end)
+end
+
+NAStuff.ATPC.Enable = function()
+	if NAStuff.ATPC.state then return end
+
+	local plr = Players.LocalPlayer
+	if not plr then
+		DoNotif("Anti CFrame Teleport failed (no player)")
+		return
 	end
 
-	ATPC._syncBtn()
-	DebugNotif("Anti CFrame Teleport enabled", 1.5)
+	local char = getChar() or plr.Character
+	if not char or not char.Parent then
+		DoNotif("Anti CFrame Teleport failed (no character)")
+		return
+	end
+
+	NAStuff.ATPC.state = true
+	NAStuff.ATPC.allowed = {}
+	NAStuff.ATPC.old = {}
+	NAStuff.ATPC.parts = {}
+
+	if type(Refresh) == "function" then
+		pcall(Refresh, "AntiCFrame", true)
+	end
+
+	NAlib.disconnect("AntiCFrame")
+	NAStuff.ATPC._hookChar(char)
+	NAStuff.ATPC._syncBtn()
+	DoNotif("Anti CFrame Teleport has been enabled")
 end
 
-ATPC.Disable = function()
-	if not ATPC.state then return end
-	ATPC.state = false
-	for _,c in pairs(ATPC.cn) do c:Disconnect() end
-	ATPC.cn = {}
-	ATPC.lastCF, ATPC.lastT, ATPC.hits = nil, 0, 0
-	ATPC._syncBtn()
-	DebugNotif("Anti CFrame Teleport disabled",1.5)
+NAStuff.ATPC.Disable = function()
+	if not NAStuff.ATPC.state then return end
+
+	NAStuff.ATPC.state = false
+
+	if type(Add) == "function" then
+		pcall(Add, "AntiCFrame", false)
+	end
+
+	NAlib.disconnect("AntiCFrame")
+	NAStuff.ATPC.allowed = {}
+	NAStuff.ATPC.old = {}
+	NAStuff.ATPC.parts = {}
+	NAStuff.ATPC._syncBtn()
+	DoNotif("Anti CFrame Teleport has been disabled")
 end
 
-cmd.add({"anticframeteleport","acframetp","acftp"}, {"anticframeteleport (acframetp,acftp)","Prevents client teleports"}, function()
-	ATPC.Enable()
-	if IsOnMobile then ATPC._buildGUI() end
+cmd.add({ "anticframeteleport","acframetp","acftp" }, { "anticframeteleport (acframetp,acftp)","Prevents client teleports" }, function()
+	NAStuff.ATPC.Enable()
+	if IsOnMobile then
+		if not NAStuff.ATPC.gui then
+			NAStuff.ATPC._buildGUI()
+		end
+	end
 end)
 
-cmd.add({"unanticframeteleport","unacframetp","unacftp"}, {"unanticframeteleport (unacframetp,unacftp)","Disables Anti CFrame Teleport"}, function()
-	ATPC.Disable()
-	if ATPC.gui then ATPC.gui:Destroy() ATPC.gui=nil ATPC.btn=nil end
+cmd.add({ "unanticframeteleport","unacframetp","unacftp" }, { "unanticframeteleport (unacframetp,unacftp)","Disables Anti CFrame Teleport" }, function()
+	NAStuff.ATPC.Disable()
+	if NAStuff.ATPC.gui then
+		NAStuff.ATPC.gui:Destroy()
+		NAStuff.ATPC.gui = nil
+		NAStuff.ATPC.btn = nil
+	end
 end)
 
 cmd.add({"lay"},{"lay","zzzzzzzz"},function()
