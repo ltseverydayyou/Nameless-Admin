@@ -1217,7 +1217,6 @@ opt={
 	loader='';
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
-	NA_storage=nil;--Stupid Ahh script removing folders
 	cmdIntegrationUrl = "https://raw.githubusercontent.com/lxte/cmd/main/main.lua";
 	cmdIntegrationFallbackUrl = "https://raw.githubusercontent.com/lxte/cmd/main/testing-main.lua";
 	NAREQUEST = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or function() end;
@@ -9289,15 +9288,30 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 function GetCustomMoveVector()
+	local fallback = Vector3.new(customVECTORMOVE.X, customVECTORMOVE.Y, -customVECTORMOVE.Z)
+
 	if opt.ctrlModule then
-		local success, vec = pcall(function()
+		local ok, vec = pcall(function()
 			return opt.ctrlModule:GetMoveVector()
 		end)
-		if success and vec and vec.Magnitude > 0 then
+		if ok and typeof(vec) == "Vector3" and vec.Magnitude > 0 then
 			return vec
 		end
 	end
-	return Vector3.new(customVECTORMOVE.X, customVECTORMOVE.Y, -customVECTORMOVE.Z)
+
+	if fallback.Magnitude > 0 then
+		return fallback
+	end
+
+	local hum = getHum and getHum() or nil
+	if hum then
+		local md = hum.MoveDirection
+		if typeof(md) == "Vector3" and md.Magnitude > 0 then
+			return md
+		end
+	end
+
+	return Vector3.zero
 end
 
 local bringc={}
@@ -10144,10 +10158,6 @@ cmd.stopLoop = function()
 		Buttons = buttons
 	})
 end
-
---[[ Fully setup Nameless admin storage ]]
-opt.NA_storage = InstanceNew("ScreenGui")
-NaProtectUI(opt.NA_storage)
 
 --[[ LIBRARY FUNCTIONS ]]--
 NAlib.wrap=function(f)
@@ -19611,99 +19621,118 @@ end)
 
 hiddenfling = false
 
-cmd.add({"walkfling", "wfling", "wf"}, {"walkfling (wfling,wf)", "probably the best fling lol"}, function()
+cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best fling lol"},function()
 	if hiddenfling then return end
 
-	DebugNotif("Walkfling enabled", 2)
+	DebugNotif("Walkfling enabled",2)
 	hiddenfling = true
 
-	if not opt.NA_storage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
-		local detection = InstanceNew("Decal")
-		detection.Name = "juisdfj0i32i0eidsuf0iok"
-		detection.Parent = opt.NA_storage
-	end
-
 	NAlib.disconnect("walkflinger")
-	NAlib.connect("walkflinger", RunService.Heartbeat:Connect(function()
+	NAlib.connect("walkflinger",RunService.Heartbeat:Connect(function()
 		if not hiddenfling then return end
 
 		local lp = Players.LocalPlayer
-		local character = lp and lp.Character
-		local hrp = character and getRoot(character)
-		if character and hrp then
-			local originalVelocity = hrp.Velocity
-			hrp.Velocity = originalVelocity * 10000 + Vector3.new(0, 10000, 0)
+		if not lp then return end
+
+		local m = getChar()
+		local r = m and getRoot(m)
+		if r then
+			local v = r.Velocity
+			r.Velocity = v * 10000 + Vector3.new(0,10000,0)
 
 			RunService.RenderStepped:Wait()
-			if character and hrp then
-				hrp.Velocity = originalVelocity
+			if r then
+				r.Velocity = v
 			end
 
 			RunService.RenderStepped:Wait()
-			if character and hrp then
-				hrp.Velocity = originalVelocity + Vector3.new(0, 0.1, 0)
+			if r then
+				r.Velocity = v + Vector3.new(0,0.1,0)
 			end
 		end
 	end))
-
-	local lp = Players.LocalPlayer
-	if lp then
-		NAlib.disconnect("walkfling_charfix")
-		NAlib.connect("walkfling_charfix", lp.CharacterAdded:Connect(function()
-			if hiddenfling then
-				DebugNotif("Re-enabling Walkfling")
-			end
-		end))
-	end
 end)
-cmd.add({"unwalkfling", "unwfling", "unwf"}, {"unwalkfling (unwfling,unwf)", "stop the walkfling command"}, function()
+
+cmd.add({"unwalkfling","unwfling","unwf"},{"unwalkfling (unwfling,unwf)","stop the walkfling command"},function()
 	if not hiddenfling then return end
 
-	DebugNotif("Walkfling disabled", 2)
+	DebugNotif("Walkfling disabled",2)
 	hiddenfling = false
 
 	NAlib.disconnect("walkflinger")
-	NAlib.disconnect("walkfling_charfix")
 end)
 
-cmd.add({"rjre", "rejoinrefresh"}, {"rjre (rejoinrefresh)", "Rejoins and teleports you to your previous position"}, function()
+cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports you to your previous position"},function()
 	if not DONE then
 		DONE = true
-		local hrp = getRoot(LocalPlayer.Character)
 
+		local ch = getChar()
+		local hrp = ch and getRoot(ch) or getRoot(LocalPlayer)
 		if hrp then
 			local tpScript = Format([[
-                local success, err = pcall(function()
-                    repeat Wait() until game:IsLoaded()
-                    local lp = game:GetService("Players").LocalPlayer
-                    local char
-                    local startTime = tick()
-                    repeat
-                        char = lp.Character or lp.CharacterAdded:Wait()
-                        Wait(0.1)
-                    until char or (tick() - startTime > 10)
-                    
-                    if not char then return end
-                    
-                    local humRP
-                    startTime = tick()
-                    repeat
-                        humRP = char:FindFirstChild("HumanoidRootPart")
-                        Wait(0.1)
-                    until humRP or (tick() - startTime > 10)
-                    
-                    if not humRP then return end
-                    
-                    local targetPos = Vector3.new(%s)
-                    local targetCFrame = CFrame.new(%s)
-                    
-                    startTime = tick()
-                    repeat
-                        humRP.CFrame = targetCFrame
-                        Wait(0.1)
-                    until (humRP.Position - targetPos).Magnitude < 10 or (tick() - startTime > 5)
-                end)
-            ]], tostring(hrp.Position), tostring(hrp.CFrame))
+local s,err = pcall(function()
+	repeat Wait() until game:IsLoaded()
+	local plrs = game:GetService("Players")
+	local lp = plrs.LocalPlayer
+	if not lp then return end
+
+	local gb
+	local ok,env = pcall(function()
+		return getgenv and getgenv() or _G
+	end)
+	if ok and env then
+		gb = rawget(env,"NA_GRAB_BODY")
+	end
+
+	local rec, mdl
+	if gb and gb.ensure then
+		rec, mdl = gb.ensure(lp)
+	end
+
+	local char = mdl or lp.Character or lp.CharacterAdded:Wait()
+	if not char then return end
+
+	local root
+
+	if gb and gb.ensure then
+		rec, mdl = gb.ensure(char)
+		if rec then
+			root = rec.root
+			if not root and gb.firstPart and mdl then
+				root = gb.firstPart(mdl)
+			end
+		end
+	end
+
+	if not root then
+		local t0 = tick()
+		repeat
+			root = char:FindFirstChild("HumanoidRootPart")
+			if not root then
+				for _,d in ipairs(char:GetDescendants()) do
+					if d:IsA("BasePart") then
+						root = d
+						break
+					end
+				end
+			end
+			if root then break end
+			Wait(0.1)
+		until tick() - t0 > 10
+	end
+
+	if not root then return end
+
+	local targetPos = Vector3.new(%s)
+	local targetCFrame = CFrame.new(%s)
+
+	local t1 = tick()
+	repeat
+		root.CFrame = targetCFrame
+		Wait(0.1)
+	until (root.Position - targetPos).Magnitude < 10 or (tick() - t1 > 5)
+end)
+]], tostring(hrp.Position), tostring(hrp.CFrame))
 
 			opt.queueteleport(tpScript)
 		end
@@ -21992,8 +22021,10 @@ ATPC._zero = function(char)
 	end
 end
 
-ATPC._bindChar = function(char)
-	local r = getRoot(char)
+ATPC._bindChar = function()
+	local rec, mdl = NA_GRAB_BODY.ensure(ATPC.plr)
+	if not rec or not mdl then return end
+	local r = rec.root or NA_GRAB_BODY.firstPart(mdl)
 	if not r then return end
 	ATPC.lastCF = r.CFrame
 	ATPC.lastT = os.clock()
@@ -22041,50 +22072,94 @@ ATPC._buildGUI = function()
 	NAgui.draggerV2(b)
 end
 
-ATPC.Enable=function()
+ATPC.Enable = function()
 	if ATPC.state then return end
-	ATPC.state=true
-	ATPC._bindChar(ATPC.plr.Character)
-	if not ATPC.cn.add then ATPC.cn.add=ATPC.plr.CharacterAdded:Connect(ATPC._bindChar) end
+	ATPC.state = true
+	ATPC._bindChar()
+
+	if not ATPC.cn.add then
+		ATPC.cn.add = ATPC.plr.CharacterAdded:Connect(function()
+			ATPC._bindChar()
+		end)
+	end
+
 	if not ATPC.cn.hb then
-		ATPC.cn.hb=RunService.Heartbeat:Connect(function()
+		ATPC.cn.hb = RunService.Heartbeat:Connect(function(dt)
 			if not ATPC.state then return end
-			local char=ATPC.plr.Character
-			if not char then return end
-			local r=getRoot(char)
+
+			local rec, mdl = NA_GRAB_BODY.ensure(ATPC.plr)
+			if not rec or not mdl then return end
+
+			local r = rec.root or NA_GRAB_BODY.firstPart(mdl)
 			if not r then return end
 
-			local now=os.clock()
-			local dt=math.max(now-(ATPC.lastT or now),1/240)
-			local cf=r.CFrame
-			if not ATPC.lastCF then ATPC.lastCF,ATPC.lastT=cf,now return end
+			local now = os.clock()
+			dt = math.max(dt or (now - (ATPC.lastT or now)), 1/240)
 
-			local dist=(cf.Position-ATPC.lastCF.Position).Magnitude
-			local speed=dist/dt
-
-			local maxS, maxD=ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
-			if ATPC._isFlyActive() then
-				local fs, fd=ATPC._flyAllowances(dt)
-				maxS, maxD=math.max(maxS,fs), math.max(maxD,fd)
+			local cf = r.CFrame
+			if not ATPC.lastCF then
+				ATPC.lastCF = cf
+				ATPC.lastT = now
+				ATPC.hits = 0
+				return
 			end
 
-			if dist>maxD or speed>maxS then
-				char:PivotTo(ATPC.lastCF)
-				ATPC._zero(char)
-				ATPC.hits+=1
-				if ATPC.hits>=ATPC.REPEAT then
-					Defer(function() ATPC._zero(char) end)
-					Delay(ATPC.LOCK_TIME,function() ATPC.hits=0 end)
+			local dist = (cf.Position - ATPC.lastCF.Position).Magnitude
+			local spd = dist / dt
+
+			local maxS, maxD = ATPC.MAX_SPEED, ATPC.MAX_STEP_DIST
+
+			local hum = rec.humanoid
+			local ws = hum and hum.WalkSpeed or 16
+			local vel = r.AssemblyLinearVelocity.Magnitude
+
+			maxD = math.max(maxD, ws * dt * 3, vel * dt * 3 + 4)
+			maxS = math.max(maxS, ws * 3, vel * 2)
+
+			if ATPC._isFlyActive() then
+				local fs, fd = ATPC._flyAllowances(dt)
+				maxS = math.max(maxS, fs)
+				maxD = math.max(maxD, fd)
+			end
+
+			local tooFar = dist > maxD
+			local tooFast = spd > maxS
+			local velMismatch = vel < spd * 0.5
+
+			local isTp = false
+			if dist > maxD * 3 then
+				isTp = true
+			elseif tooFar and tooFast and velMismatch then
+				isTp = true
+			end
+
+			if isTp then
+				ATPC.hits += 1
+				ATPC.lastT = now
+
+				if ATPC.hits >= ATPC.REPEAT then
+					local back = ATPC.lastCF
+					if back then
+						mdl:PivotTo(back)
+					end
+					ATPC._zero(mdl)
+					Defer(function()
+						ATPC._zero(mdl)
+					end)
+					Delay(ATPC.LOCK_TIME, function()
+						ATPC.hits = 0
+					end)
 				end
 			else
-				ATPC.hits=math.max(ATPC.hits-1,0)
-				ATPC.lastCF=cf
-				ATPC.lastT=now
+				ATPC.hits = math.max(ATPC.hits - 1, 0)
+				ATPC.lastCF = cf
+				ATPC.lastT = now
 			end
 		end)
 	end
+
 	ATPC._syncBtn()
-	DebugNotif("Anti CFrame Teleport enabled",1.5)
+	DebugNotif("Anti CFrame Teleport enabled", 1.5)
 end
 
 ATPC.Disable = function()
@@ -22548,52 +22623,160 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	DebugNotif("Advanced Trigger Bot Loaded")
 end)
 
-stationaryRespawn = false
-needsRespawning = false
-hasPosition = false
-spawnPosition = CFrame.new()
+NAStuff.stationaryRespawn = NAStuff.stationaryRespawn or false
+NAStuff.hasPosition = NAStuff.hasPosition or false
+NAStuff.spawnPosition = NAStuff.spawnPosition or CFrame.new()
 
-cmd.add({"setspawn", "spawnpoint", "ss"}, {"setspawn (spawnpoint, ss)", "Sets your spawn point to the current character's position"}, function()
+NAStuff.spawnActive = NAStuff.spawnActive or false
+NAStuff.spawnStart = NAStuff.spawnStart or 0
+NAStuff.lastChar = NAStuff.lastChar or nil
+
+cmd.add({"setspawn","spawnpoint","ss"},{"setspawn (spawnpoint, ss)","Sets your spawn point to the current character's position"},function()
 	if NAlib.isConnected("spawnCONNECTION") and NAlib.isConnected("spawnCHARCON") then
-		return DoNotif("spawn point is already running", 3)
+		return DoNotif("spawn point is already running",3)
 	end
 
+	local ch = getChar()
+	local r = ch and getRoot(ch)
+	if not r then
+		return DoNotif("failed to get character root",3)
+	end
+
+	NAStuff.spawnPosition = r.CFrame
+	NAStuff.hasPosition = true
+	NAStuff.stationaryRespawn = true
 	DebugNotif("Spawn has been set")
-	stationaryRespawn = true
 
-	function handleRespawn()
-		if stationaryRespawn and getHum() and getHum().Health == 0 then
-			if not hasPosition and (getChar() and getRoot(getChar())) then
-				spawnPosition = getRoot(getChar()).CFrame
-				hasPosition = true
-			end
-			needsRespawning = true
+	NAStuff.lastChar = ch
+	NAStuff.spawnActive = false
+	NAStuff.spawnStart = 0
+
+	local function handleRespawn()
+		if not NAStuff.stationaryRespawn or not NAStuff.hasPosition then return end
+
+		local hum = getHum()
+		local ch2 = getChar()
+		if not hum or not ch2 then return end
+
+		if hum.Health <= 0 then
+			NAStuff.spawnActive = false
+			NAStuff.spawnStart = 0
+			return
 		end
 
-		if needsRespawning then
-			if getChar() and getRoot(getChar()) then
-				getRoot(getChar()).CFrame = spawnPosition
+		local r2 = getRoot(ch2)
+		if not r2 then return end
+
+		if ch2 ~= NAStuff.lastChar then
+			NAStuff.lastChar = ch2
+			NAStuff.spawnActive = true
+			NAStuff.spawnStart = 0
+		end
+
+		if not NAStuff.spawnActive then return end
+
+		r2.CFrame = NAStuff.spawnPosition
+
+		local d = (r2.Position - NAStuff.spawnPosition.Position).Magnitude
+		local now = tick()
+
+		if d < 5 then
+			if NAStuff.spawnStart == 0 then
+				NAStuff.spawnStart = now
+			elseif now - NAStuff.spawnStart >= 1.5 then
+				NAStuff.spawnActive = false
+				NAStuff.spawnStart = 0
 			end
+		else
+			NAStuff.spawnStart = 0
 		end
 	end
 
-	NAlib.connect("spawnCONNECTION", RunService.RenderStepped:Connect(handleRespawn))
+	NAlib.connect("spawnCONNECTION",RunService.RenderStepped:Connect(handleRespawn))
 
-	NAlib.connect("spawnCHARCON", LocalPlayer.CharacterAdded:Connect(function()
-		Wait(1)
-		needsRespawning = false
-		hasPosition = false
+	NAlib.connect("spawnCHARCON",LocalPlayer.CharacterAdded:Connect(function(ch2)
+		NAStuff.lastChar = ch2
+		NAStuff.spawnActive = true
+		NAStuff.spawnStart = 0
 	end))
 end)
 
-cmd.add({"disablespawn", "unsetspawn", "ds"}, {"disablespawn (unsetspawn, ds)", "Disables the previously set spawn point"}, function()
+cmd.add({"disablespawn","unsetspawn","ds"},{"disablespawn (unsetspawn, ds)","Disables the previously set spawn point"},function()
 	DebugNotif("Spawn point has been disabled")
 	NAlib.disconnect("spawnCONNECTION")
 	NAlib.disconnect("spawnCHARCON")
-	stationaryRespawn = false
-	needsRespawning = false
-	hasPosition = false
-	spawnPosition = CFrame.new()
+	NAStuff.stationaryRespawn = false
+	NAStuff.hasPosition = false
+	NAStuff.spawnActive = false
+	NAStuff.spawnStart = 0
+	NAStuff.lastChar = nil
+	NAStuff.spawnPosition = CFrame.new()
+end)
+
+NAStuff.adb_on = NAStuff.adb_on or false
+NAStuff.adb_done = NAStuff.adb_done or 0
+
+originalIO.adb_try=function()
+	if not deathCFrame then return false end
+	local t0 = tick()
+	local ok0 = 0
+
+	while NAStuff.adb_on and tick() - t0 < 10 do
+		local ch = getChar()
+		local r = ch and getRoot(ch)
+		local h = ch and getHum(ch)
+
+		if r and h and h.Health > 0 then
+			r.CFrame = deathCFrame
+
+			local d = (r.Position - deathCFrame.Position).Magnitude
+			local now = tick()
+
+			if d < 6 then
+				if ok0 == 0 then
+					ok0 = now
+				elseif now - ok0 >= 1.25 then
+					return true
+				end
+			else
+				ok0 = 0
+			end
+		end
+
+		Wait(0.1)
+	end
+
+	return false
+end
+
+cmd.add({"autoflashback","autodeathpos","deathback","adeath","db"},{"autoflashback","Auto-teleports you to your last death point on respawn"},function()
+	if NAlib.isConnected("adb_ca") then
+		return DoNotif("auto deathpos is already running",3)
+	end
+
+	NAStuff.adb_on = true
+
+	NAlib.connect("adb_ca", LocalPlayer.CharacterAdded:Connect(function()
+		if not NAStuff.adb_on then return end
+		if tick() < (NAStuff.adb_done or 0) then return end
+		if not deathCFrame then return end
+
+		Spawn(function()
+			local ok = originalIO.adb_try()
+			if ok then
+				NAStuff.adb_done = tick() + 4
+			end
+		end)
+	end))
+
+	DebugNotif("Auto deathpos enabled",2)
+end)
+
+cmd.add({"unautoflashback","undeathback","unadeath","undb"},{"unautoflashback","Disables auto deathpos"},function()
+	DebugNotif("Auto deathpos disabled",2)
+	NAlib.disconnect("adb_ca")
+	NAStuff.adb_on = false
+	NAStuff.adb_done = 0
 end)
 
 cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", "Teleports you to your last death point"}, function()
