@@ -24434,7 +24434,7 @@ cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync /
 			NAStuff.desyncOn = true
 			DoNotif("NextGenReplicator desync / server authority enabled. Run the command again to disable it", 4)
 		else
-			DoNotif("Failed to apply NextGenReplicator flags: " .. tostring(err), 4)
+			DoNotif("Failed to apply NextGenReplicator flags: "..tostring(err), 4)
 		end
 	else
 		local ok, err = pcall(function()
@@ -24446,7 +24446,7 @@ cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync /
 			NAStuff.desyncOn = false
 			DoNotif("NextGenReplicator sync restored (desync disabled)", 3)
 		else
-			DoNotif("Failed to restore NextGenReplicator flags: " .. tostring(err), 4)
+			DoNotif("Failed to restore NextGenReplicator flags: "..tostring(err), 4)
 		end
 	end
 end)
@@ -25513,79 +25513,117 @@ cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid> (joinjid,jjo
 	TeleportService:TeleportToPlaceInstance(PlaceId,id)
 end,true)
 
-cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
-	Wait();
+NAStuff.srv = NAStuff.srv or {}
 
-	DebugNotif("Searching")
-	local Number=0
-	local SomeSRVS={}
-	local found=0
-	for _,v in ipairs(HttpService:JSONDecode(game:HttpGetAsync("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")).data) do
-		if type(v)=="table" and v.maxPlayers>v.playing and v.id~=JobId then
-			if v.playing>Number then
-				Number=v.playing
-				SomeSRVS[1]=v.id
-				found=v.playing
+NAStuff.srv.b = NAStuff.srv.b or {
+	"https://games.roblox.com",
+	"https://games.roproxy.com",
+	"https://roxytheproxy.com/games.roblox.com",
+}
+
+NAStuff.srv.j = NAStuff.srv.j or function(self, s)
+	return HttpService:JSONDecode(s)
+end
+
+NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
+	local q = "?sortOrder=Asc&limit=100"
+	if cid and cid ~= "" then
+		q = q.."&cursor="..HttpService:UrlEncode(cid)
+	end
+
+	for _, b in ipairs(self.b) do
+		local url = b.."/v1/games/"..tostring(PlaceId).."/servers/Public"..q
+		local ok, body = pcall(function()
+			return game:HttpGetAsync(url)
+		end)
+
+		if ok and type(body) == "string" and #body > 0 then
+			local ok2, js = pcall(self.j, self, body)
+			if ok2 and type(js) == "table" and type(js.data) == "table" then
+				return js.data, js.nextPageCursor
 			end
 		end
 	end
-	if #SomeSRVS>0 then
-		DebugNotif("serverhopping | Player Count: "..found)
-		TeleportService:TeleportToPlaceInstance(PlaceId,SomeSRVS[1])
+
+	return nil, nil
+end
+
+NAStuff.srv.scan = NAStuff.srv.scan or function(self, mode)
+	local id, bp, bg = nil, nil, nil
+	local cid, pgc = nil, 0
+
+	while pgc < 8 do
+		pgc += 1
+		local dat, nxt = self:pg(cid)
+		if type(dat) ~= "table" then break end
+
+		for _, s in ipairs(dat) do
+			if type(s) == "table" and s.id and s.id ~= JobId then
+				local pl = tonumber(s.playing)
+				local mx = tonumber(s.maxPlayers)
+				local pn = tonumber(s.ping)
+
+				if pl and mx and mx > pl then
+					if mode == "high" then
+						if not bp or pl > bp then
+							bp, id = pl, s.id
+						end
+					elseif mode == "low" then
+						if not bp or pl < bp then
+							bp, id = pl, s.id
+						end
+					elseif mode == "ping" then
+						if pn and (not bg or pn < bg) then
+							bg, id, bp = pn, s.id, pl
+						end
+					end
+				end
+			end
+		end
+
+		if not nxt or nxt == "" then break end
+		cid = nxt
+	end
+
+	return id, bp, bg
+end
+
+cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
+	Wait()
+	DebugNotif("Searching")
+
+	local id, pl = NAStuff.srv:scan("high")
+	if id then
+		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
+		TeleportService:TeleportToPlaceInstance(PlaceId, id)
+	else
+		DebugNotif("No server found")
 	end
 end)
 
 cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a small server"},function()
-	Wait();
-
+	Wait()
 	DebugNotif("Searching")
 
-	local Number=math.huge
-	local SomeSRVS={}
-	local found=0
-
-	for _,v in ipairs(HttpService:JSONDecode(game:HttpGetAsync("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")).data) do
-		if type(v)=="table" and v.maxPlayers>v.playing and v.id~=JobId then
-			if v.playing<Number then
-				Number=v.playing
-				SomeSRVS[1]=v.id
-				found=v.playing
-			end
-		end
-	end
-
-	if #SomeSRVS>0 then
-		DebugNotif("serverhopping | Player Count: "..found)
-		TeleportService:TeleportToPlaceInstance(PlaceId,SomeSRVS[1])
+	local id, pl = NAStuff.srv:scan("low")
+	if id then
+		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
+		TeleportService:TeleportToPlaceInstance(PlaceId, id)
+	else
+		DebugNotif("No server found")
 	end
 end)
 
 cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a server with the best ping"},function()
-	Wait();
-
+	Wait()
 	DebugNotif("Searching for server with best ping")
 
-	local Servers = JSONDecode(HttpService, game:HttpGetAsync("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")).data
-	local BestPing = math.huge
-	local BestJobId = nil
-
-	if Servers and #Servers > 0 then
-		for _, Server in next, Servers do
-			if type(Server) == "table" and Server.id ~= JobId then
-				local ping = Server.ping
-				if ping and ping < BestPing then
-					BestPing = ping
-					BestJobId = Server.id
-				end
-			end
-		end
-	end
-
-	if BestJobId then
-		DebugNotif(Format("Serverhopping to server with ping: %s ms", tostring(BestPing)))
-		TeleportService:TeleportToPlaceInstance(PlaceId, BestJobId)
+	local id, pl, pn = NAStuff.srv:scan("ping")
+	if id and pn then
+		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
+		TeleportService:TeleportToPlaceInstance(PlaceId, id)
 	else
-		DebugNotif("No better server found")
+		DebugNotif("No server with ping found")
 	end
 end)
 
@@ -56853,7 +56891,7 @@ NAgui.addButton("Copy standalone setfflag script", function()
 end)
 
 NAgui.addSection("Custom FastFlags")
-local function trimCustomFlagText(text)
+NAmanage.trimCustomFlagText=function(text)
 	local str = tostring(text or "")
 	return str:match("^%s*(.-)%s*$") or ""
 end
@@ -56870,7 +56908,7 @@ NAStuff.customFlagSelectedInfo = NAStuff.customFlagSelectedInfo or NAgui.addInfo
 NAFFlags.refreshCustomListDisplay()
 
 NAgui.addButton("Add / Update Custom Flag", function()
-	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	local name = NAmanage.trimCustomFlagText(NAStuff.customFFlagName)
 	local valueRaw = NAStuff.customFFlagValue
 	if name == "" then
 		DoNotif("Enter a fast flag name first.", 3)
@@ -56894,7 +56932,7 @@ NAgui.addButton("Add / Update Custom Flag", function()
 end)
 
 NAgui.addButton("Test Custom Flag", function()
-	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	local name = NAmanage.trimCustomFlagText(NAStuff.customFFlagName)
 	local valueRaw = NAStuff.customFFlagValue
 	if name == "" then
 		DoNotif("Enter a fast flag name to test.", 3)
@@ -56914,7 +56952,7 @@ NAgui.addButton("Test Custom Flag", function()
 end)
 
 NAgui.addButton("Remove Custom Flag", function()
-	local name = trimCustomFlagText(NAStuff.customFFlagName)
+	local name = NAmanage.trimCustomFlagText(NAStuff.customFFlagName)
 	if name == "" then
 		DoNotif("Enter the custom flag name you want to remove.", 3)
 		return
@@ -56940,46 +56978,54 @@ NAgui.addButton("Next Custom Flag", function()
 end)
 
 NAgui.addSection("Individual Flags")
+
 for _, entry in ipairs(NAFFlags.whitelist) do
-	if entry.valueType == "boolean" then
-		NAgui.addToggle(entry.name, NAFFlags.values[entry.name] == true, function(state)
-			local normalized = NAFFlags.normalizeValue(entry, state)
-			if normalized == nil then
+		if entry.valueType == "boolean" then
+			local entryName = entry.name
+			NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
+				local normalized = NAFFlags.normalizeValue(entry, state)
+				if normalized == nil then
 				return
 			end
-			NAFFlags.values[entry.name] = normalized
-			NAFFlags.config.flags[entry.name] = normalized
-			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entry.name)
-			local isRenderingDisable = entry.name == NAFFlags.renderingDisableFlag
-			if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
-				NAFFlags.normalizeRenderingPrefs(entry.name)
+			NAFFlags.values[entryName] = normalized
+			NAFFlags.config.flags[entryName] = normalized
+			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entryName)
+				local isRenderingDisable = entryName == NAFFlags.renderingDisableFlag
+				if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
+					NAFFlags.normalizeRenderingPrefs(entryName)
+				end
+				NAFFlags.save()
+				if isRenderingPrefer or isRenderingDisable then
+					NAFFlags.applyAll({ notify = false })
+				else
+					NAFFlags.apply(entryName, normalized)
+				end
+			end)
+		else
+			local defaultText = NAFFlags.values[entry.name]
+			if defaultText == nil then
+				defaultText = entry.default
 			end
-			NAFFlags.save()
-			if isRenderingPrefer or isRenderingDisable then
-				NAFFlags.applyAll({ notify = false })
-			else
-				NAFFlags.apply(entry.name, normalized)
-			end
-		end)
-	else
-		local defaultText = NAFFlags.values[entry.name]
-		if defaultText == nil then
-			defaultText = entry.default
-		end
 		if defaultText ~= nil then
 			defaultText = tostring(defaultText)
 		else
 			defaultText = ""
 		end
-		NAgui.addInput(entry.name, "Enter value", defaultText, function(inputValue)
-			local normalized = NAFFlags.normalizeValue(entry, inputValue)
+		local function applyEntryValue(rawValue)
+			local normalized = NAFFlags.normalizeValue(entry, rawValue)
 			if normalized == nil then
-				return
+				return false
 			end
 			NAFFlags.values[entry.name] = normalized
 			NAFFlags.config.flags[entry.name] = normalized
 			NAFFlags.save()
-			NAFFlags.apply(entry.name, normalized)
+			return true
+		end
+
+		NAgui.addInput(entry.name, "Enter value", defaultText, function(inputValue)
+			if applyEntryValue(inputValue) then
+				NAFFlags.apply(entry.name, NAFFlags.values[entry.name])
+			end
 		end)
 	end
 end
@@ -57914,7 +57960,7 @@ originalIO.UserBtnEditor=function()
 		if NAgui and NAgui.setToggleState then
 			NAgui.setToggleState("Hide Button", hidden, { force = true, fire = false })
 			NAgui.setToggleState("Lock Button", locked, { force = true, fire = false })
-			NAgui.setToggleState("Interactable", interactable, { force = true, fire = false })
+			NAgui.setToggleState("Toggle Interactable", interactable, { force = true, fire = false })
 			NAgui.setToggleState("Side Toggle Layout", data.Type == "group" and data.GroupMode == "side" or false, { force = true, fire = false })
 		end
 
