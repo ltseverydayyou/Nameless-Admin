@@ -5288,34 +5288,48 @@ function NACaller(fn, ...)
 	if not t[1] then
 		local err = t[2]
 		warn(adminName.." script error:\n"..err)
-		Popup({
-			Title       = adminName or "Oops!",
-			Description = Format("Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s", err),
-			Buttons     = {
-				{
-					Text = "Copy Error",
-					Callback = function()
-						if setclipboard then
-							setclipboard(err)
-							DoNotif("Error details copied to clipboard!")
-						else
-							DoWindow("Error details:\n"..err)
+		if type(Popup) == "function" then
+			Popup({
+				Title       = adminName or "Oops!",
+				Description = Format("Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s", err),
+				Buttons     = {
+					{
+						Text = "Copy Error",
+						Callback = function()
+							if setclipboard then
+								setclipboard(err)
+								if type(DoNotif) == "function" then
+									DoNotif("Error details copied to clipboard!")
+								end
+							else
+								if type(DoWindow) == "function" then
+									DoWindow("Error details:\n"..err)
+								else
+									warn("Error details:\n"..err)
+								end
+							end
 						end
-					end
-				},
-				{
-					Text = "Discord Server",
-					Callback = function()
-						if setclipboard then
-							setclipboard(inviteLink)
-							DoNotif("Discord link copied to clipboard!")
-						else
-							DoWindow("Server Invite: "..inviteLink)
+					},
+					{
+						Text = "Discord Server",
+						Callback = function()
+							if setclipboard then
+								setclipboard(inviteLink)
+								if type(DoNotif) == "function" then
+									DoNotif("Discord link copied to clipboard!")
+								end
+							else
+								if type(DoWindow) == "function" then
+									DoWindow("Server Invite: "..inviteLink)
+								else
+									warn("Server Invite: "..inviteLink)
+								end
+							end
 						end
-					end
+					}
 				}
-			}
-		})
+			})
+		end
 	end
 	return Unpack(t, 1, t.n)
 end
@@ -6265,9 +6279,21 @@ NAmanage.createLoadingUI=function(text, opts)
 	local function setMinimizedState(state)
 		flags.minimized = state and true or false
 		applyMinimized()
-		if flags.minimized and ui.toast.Visible then
-			ui.toast.BackgroundTransparency = 1
-			tween(ui.toast, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+		if flags.minimized then
+			ui.overlay.BackgroundTransparency = 1
+			if ui.toast.Visible then
+				ui.toast.BackgroundTransparency = 1
+				tween(ui.toast, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+			end
+		else
+			ui.overlay.BackgroundTransparency = 1
+			ui.container.BackgroundTransparency = 1
+			ui.container.Position = UDim2.fromScale(0.5, 0.6)
+			tween(ui.overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25})
+			tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundTransparency = 0,
+				Position = UDim2.fromScale(0.5, 0.55)
+			})
 		end
 	end
 
@@ -34253,6 +34279,160 @@ cmd.add({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"}, functio
 	BANGPARTS = {}
 end)
 
+carpetLoop = nil
+carpetAnim = nil
+carpetTrack = nil
+carpetDied = nil
+CARPETPARTS = {}
+originalIO.stopCarpet=function()
+	if carpetLoop then
+		carpetLoop:Disconnect()
+		carpetLoop = nil
+	end
+	if carpetDied then
+		carpetDied:Disconnect()
+		carpetDied = nil
+	end
+	if carpetTrack then
+		carpetTrack:Stop()
+		carpetTrack = nil
+	end
+	if carpetAnim then
+		carpetAnim:Destroy()
+		carpetAnim = nil
+	end
+	for _, part in pairs(CARPETPARTS) do
+		part:Destroy()
+	end
+	CARPETPARTS = {}
+end
+
+cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(username)
+	if not IsR6() then
+		DoNotif("This command requires the R6 rig type", 3)
+		return
+	end
+
+	originalIO.stopCarpet()
+
+	local targets = getPlr(username)
+	if #targets == 0 then
+		DoNotif("No targets found", 2)
+		return
+	end
+
+	local character = getChar()
+	local humanoid = getHum(character)
+	local root = character and getRoot(character)
+	if not (character and humanoid and root) then
+		return DoNotif("Your character is unavailable.", 3)
+	end
+
+	local targetPlayer = targets[1]
+	local targetRoot = targetPlayer.Character and getRoot(targetPlayer.Character)
+	if not targetRoot then
+		return DoNotif("Target has no character or root.", 3)
+	end
+
+	carpetAnim = InstanceNew("Animation")
+	carpetAnim.AnimationId = "rbxassetid://282574440"
+	carpetTrack = humanoid:LoadAnimation(carpetAnim)
+	carpetTrack:Play(0.1, 1, 1)
+
+	local thick, halfWidth, halfDepth, halfHeight = 0.2, 2, 2, 3
+	local walls = {
+		{offset = CFrame.new(0, 0, halfDepth + thick/500),     size = Vector3.new(4, 6, thick)},
+		{offset = CFrame.new(0, 0, -(halfDepth + thick/500)),  size = Vector3.new(4, 6, thick)},
+		{offset = CFrame.new(halfWidth + thick/500, 0, 0),     size = Vector3.new(thick, 6, 4)},
+		{offset = CFrame.new(-(halfWidth + thick/500), 0, 0),  size = Vector3.new(thick, 6, 4)},
+		{offset = CFrame.new(0, halfHeight + thick/500, 0),    size = Vector3.new(4, thick, 4)},
+		{offset = CFrame.new(0, -(halfHeight + thick/500), 0), size = Vector3.new(4, thick, 4)},
+	}
+	for _, wall in ipairs(walls) do
+		local part = InstanceNew("Part")
+		part.Size = wall.size
+		part.Anchored = true
+		part.CanCollide = true
+		part.Transparency = 1
+		part.Parent = workspace
+		Insert(CARPETPARTS, part)
+	end
+
+	local targetName = targetPlayer.Name
+	carpetDied = humanoid.Died:Connect(originalIO.stopCarpet)
+	carpetLoop = RunService.Heartbeat:Connect(function()
+		NACaller(function()
+			local tgt = Players:FindFirstChild(targetName)
+			local tgtChar = tgt and tgt.Character
+			if not tgtChar then
+				return
+			end
+			local tgtRoot = getRoot(tgtChar)
+			local localChar = getChar()
+			local localRoot = localChar and getRoot(localChar)
+			if tgtRoot and localRoot then
+				localRoot.CFrame = tgtRoot.CFrame
+				for i, wall in ipairs(walls) do
+					CARPETPARTS[i].CFrame = localRoot.CFrame * wall.offset
+				end
+			end
+		end)
+	end)
+end, true)
+
+cmd.add({"uncarpet", "nocarpet"}, {"uncarpet (nocarpet)", "Undoes carpet"}, function()
+	originalIO.stopCarpet()
+end)
+
+climbPart = nil
+climbLoop = nil
+originalIO.stopClimb=function()
+	if climbLoop then
+		climbLoop:Disconnect()
+		climbLoop = nil
+	end
+	if climbPart then
+		climbPart:Destroy()
+		climbPart = nil
+	end
+end
+
+cmd.add({"climb"}, {"climb", "Allows you to climb while in air"}, function()
+	originalIO.stopClimb()
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	if not (char and root) then
+		return DoNotif and DoNotif("Your character is unavailable.", 3) or nil
+	end
+
+	climbPart = InstanceNew("TrussPart")
+	climbPart.Size = Vector3.new(2, 10, 2)
+	climbPart.Transparency = 1
+	climbPart.CanCollide = true
+	climbPart.Anchored = true
+	climbPart.Name = "NA_ClimbPart"
+	climbPart.Parent = workspace
+
+	climbLoop = RunService.Heartbeat:Connect(function()
+		NACaller(function()
+			if not climbPart or not climbPart.Parent then
+				return originalIO.stopClimb()
+			end
+			local c = getChar()
+			local r = c and getRoot(c)
+			if not r then
+				return originalIO.stopClimb()
+			end
+			climbPart.CFrame = r.CFrame * CFrame.new(0, 0, -1.5)
+		end)
+	end)
+end, true)
+
+cmd.add({"unclimb"}, {"unclimb", "Disables climb"}, function()
+	originalIO.stopClimb()
+end)
+
 inversebangLoop = nil
 inversebangAnim = nil
 inversebangAnim2 = nil
@@ -40910,7 +41090,7 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games b
 	st.toggleFB(not st.fb.enabled)
 end)
 
-cmd.add({"loopday","lday"},{"loopday (lday)","Sunshiiiine!"},function()
+cmd.add({"loopday","lday"},{"loopday","Sunshiiiine!"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	st.fb = st.fb or {enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
@@ -40923,7 +41103,7 @@ cmd.add({"loopday","lday"},{"loopday (lday)","Sunshiiiine!"},function()
 	end))
 end)
 
-cmd.add({"unloopday","unlday"},{"unloopday (unlday)","No more sunshine"},function()
+cmd.add({"unloopday","unlday"},{"unloopday","No more sunshine"},function()
 	if not Lighting then return end
 	local st = getgenv()._LState
 	if not st then return end
@@ -40932,7 +41112,7 @@ cmd.add({"unloopday","unlday"},{"unloopday (unlday)","No more sunshine"},functio
 	if st.safeSet then st.safeSet(Lighting,"ClockTime",target) else Lighting.ClockTime = target end
 end)
 
-cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright (loopfb,lfb)","Sunshiiiine!"},function()
+cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright","Sunshiiiine!"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	local function ensureFB()
@@ -41023,7 +41203,7 @@ cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright (loopfb,lfb)","Sunshi
 	st.toggleFB(true)
 end)
 
-cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright (unloopfb,unlfb)","No more sunshine"},function()
+cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright","No more sunshine"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	local function ensureFB()
@@ -41058,7 +41238,7 @@ cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright (unloopfb,unl
 	end
 end)
 
-cmd.add({"loopnight","loopn","ln"},{"loopnight (loopn,ln)","Moonlight."},function()
+cmd.add({"loopnight","loopn","ln"},{"loopnight","Moonlight."},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	st.cancelFor("night")
@@ -41147,7 +41327,7 @@ cmd.add({"loopnight","loopn","ln"},{"loopnight (loopn,ln)","Moonlight."},functio
 	st.toggleNB(true)
 end)
 
-cmd.add({"unloopnight","unloopn","unln"},{"unloopnight (unloopn,unln)","No more moonlight."},function()
+cmd.add({"unloopnight","unloopn","unln"},{"unloopnight","No more moonlight."},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	local function ensureNB()
@@ -41307,7 +41487,7 @@ cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Light
 	end
 end)
 
-cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog (lnofog,lnf,loopnf,nofog,nf)","See clearly forever!"},function()
+cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
@@ -41374,7 +41554,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog (lnofog,lnf,loopnf,nof
 	for _,v in ipairs(Lighting:GetDescendants()) do disableEffect(v) end
 end)
 
-cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog (unlnofog,unlnf,unloopnf,unnf)","No more sight."},function()
+cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No more sight."},function()
 	if not Lighting then return end
 	local st = getgenv()._LState
 	if not st or not st.nf then return end
@@ -41409,7 +41589,7 @@ cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
 	for _,v in ipairs(Lighting:GetDescendants()) do disableEffect(v) end
 end)
 
-cmd.add({"nightmare","nm"},{"nightmare (nm)","Make it dark and spooky"},function()
+cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	if not st.disableNM then
@@ -41579,11 +41759,27 @@ cmd.add({"unnightmare","unnm"},{"unnightmare (unnm)","Disable nightmare mode"},f
 	if st.disableNM then st.disableNM() end
 end)
 
-cmd.add({"brightness"},{"brightness","Changes the brightness lighting property"},function(...)
-	Lighting.Brightness=(...)
+cmd.add({"brightness"},{"brightness <number>","Changes the brightness lighting property"},function(num)
+	loopBrightnessValue = tonumber(num)
+	Lighting.Brightness = loopBrightnessValue
 end,true)
 
-cmd.add({"globalshadows","gshadows"},{"globalshadows (gshadows)","Enables global shadows"},function()
+cmd.add({"loopbrightness","loopbri","loopb"},{"loopbrightness (loopbri,loopb)","Lock the brightness lighting property"},function(num)
+	loopBrightnessValue = tonumber(num)
+	NAlib.disconnect("loopbrightness")
+	Lighting.Brightness = loopBrightnessValue
+	NAlib.connect("loopbrightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+		if Lighting.Brightness ~= loopBrightnessValue then
+			Lighting.Brightness = loopBrightnessValue
+		end
+	end))
+end,true)
+
+cmd.add({"unloopbrightness","unloopbri","unloopb"},{"unloopbrightness (unloopbri,unloopb)","Stop locking brightness"},function()
+	NAlib.disconnect("loopbrightness")
+end)
+
+cmd.add({"globalshadows","gshadows"},{"globalshadows","Enables global shadows"},function()
 	Lighting.GlobalShadows=true
 end)
 
@@ -41599,9 +41795,7 @@ end,true)
 cmd.add({"loopgamma", "loopexposure"},{"loopgamma (loopexposure)","loop gamma vision (mega real)"},function(num)
 	expose = tonumber(num) or 0
 	NAlib.disconnect("loopgamma")
-
 	Lighting.ExposureCompensation = expose
-
 	NAlib.connect("loopgamma", Lighting:GetPropertyChangedSignal("ExposureCompensation"):Connect(function()
 		if Lighting.ExposureCompensation ~= expose then
 			Lighting.ExposureCompensation = expose
@@ -48345,9 +48539,15 @@ NAmanage.performSearch = function(term)
 		return
 	end
 
+	local lockedTerm
 	if Match(term, "%s") then
-		predictionInput.Text = ""
-		return
+		local first = term:match("^%s*(%S+)")
+		if not first or first == "" then
+			predictionInput.Text = ""
+			return
+		end
+		lockedTerm = first
+		term = first
 	end
 
 	local len = #term
@@ -48378,10 +48578,50 @@ NAmanage.performSearch = function(term)
 			savedPrefixCache[original] = alias
 		end
 	end
+	local function matchesLockedEntry(entry)
+		if not lockedTerm then
+			return true
+		end
+		if entry.lowerName == lockedTerm then
+			return true
+		end
+		if aliasExactCache[entry.name] or savedExactCache[entry.name] then
+			return true
+		end
+		local meta = entry.meta
+		if meta and meta.aliases then
+			for _, alias in ipairs(meta.aliases) do
+				if alias and Lower(alias) == lockedTerm then
+					return true
+				end
+			end
+		end
+		if entry.extraAliases then
+			for _, alias in ipairs(entry.extraAliases) do
+				if alias and Lower(alias) == lockedTerm then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local lockedHasMatch = false
+	if lockedTerm then
+		for _, entry in ipairs(searchIndex) do
+			if matchesLockedEntry(entry) then
+				lockedHasMatch = true
+				break
+			end
+		end
+	end
+
 	for _, entry in ipairs(searchIndex) do
-		local sc, txt = NAmanage.computeScore(entry, term, len, aliasExactCache, savedExactCache, aliasPrefixCache, savedPrefixCache)
-		if sc then
-			pushTop({frame = entry.frame, score = sc, text = txt, name = entry.name})
+		if not lockedTerm or not lockedHasMatch or matchesLockedEntry(entry) then
+			local sc, txt = NAmanage.computeScore(entry, term, len, aliasExactCache, savedExactCache, aliasPrefixCache, savedPrefixCache)
+			if sc then
+				pushTop({frame = entry.frame, score = sc, text = txt, name = entry.name})
+			end
 		end
 	end
 
@@ -48403,17 +48643,19 @@ NAgui.searchCommands = function()
 	searchInputTarget = NAUIMANAGER.cmdInput
 	NAlib.connect("SearchInput",NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
+		local trimmed = cleaned:gsub("%s+$", "")
+		local query = (trimmed ~= "" and trimmed) or cleaned
 		shouldShowDefaultAutofill = cleaned == ""
 		local isBlank = cleaned == "" or cleaned:match("^%s*$")
-		if cleaned == lastSearchText then
+		if query == lastSearchText then
 			return
 		end
-		lastSearchText = cleaned
+		lastSearchText = query
 		gen += 1
 		local thisGen = gen
 		Delay(0.08,function()
 			if thisGen ~= gen then return end
-			NAmanage.performSearch(cleaned)
+			NAmanage.performSearch(query)
 		end)
 	end))
 end
@@ -48425,9 +48667,11 @@ NAgui.autoFILLLL=function()
 	if not NAUIMANAGER.cmdInput then return end
 	local current = NAUIMANAGER.cmdInput.Text or ""
 	local cleaned = Lower(GSub(current, ";", ""))
-	lastSearchText = cleaned
+	local trimmed = cleaned:gsub("%s+$", "")
+	local query = (trimmed ~= "" and trimmed) or cleaned
+	lastSearchText = query
 	gen += 1
-	NAmanage.performSearch(cleaned)
+	NAmanage.performSearch(query)
 end
 
 if NAUIMANAGER.cmdInput then
