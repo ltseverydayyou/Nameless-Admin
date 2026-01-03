@@ -51933,12 +51933,37 @@ originalIO.runNACHAT=function()
 			return false
 		end
 
+		local reconnectBackoff = {3, 8, 15, 30}
+		local reconnectAttempts = 0
+		local reconnectToken = 0
+
+		local function resetReconnectBackoff()
+			reconnectAttempts = 0
+			reconnectToken = reconnectToken + 1
+		end
+
 		local function queueReconnect()
-			Delay(3, function()
+			if reconnectAttempts >= #reconnectBackoff then
+				originalIO.setStatus("NA Chat: offline (auto-reconnect paused)", STATUS_COLORS.err)
+				if DoNotif then
+					DoNotif("NA Chat reconnect paused. Press Reconnect to try again.", 3)
+				end
+				return
+			end
+
+			reconnectAttempts = reconnectAttempts + 1
+			local token = reconnectToken
+			local delaySeconds = reconnectBackoff[math.min(reconnectAttempts, #reconnectBackoff)]
+
+			Delay(delaySeconds, function()
+				if token ~= reconnectToken then
+					return
+				end
 				if NAChat.connecting then
 					return
 				end
 				if NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected() then
+					resetReconnectBackoff()
 					return
 				end
 				connect()
@@ -52417,6 +52442,7 @@ originalIO.runNACHAT=function()
 			end
 
 			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden, _, isAdmin)
+				resetReconnectBackoff()
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = (isAdmin == true)
 				NAChat.isHidden = hidden or false
@@ -52920,6 +52946,7 @@ originalIO.runNACHAT=function()
 				NAChat.wired = false
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false
+				resetReconnectBackoff()
 				connect()
 			end)
 		end
@@ -52978,6 +53005,7 @@ originalIO.runNACHAT=function()
 				NAChat.service = nil
 				NAChat.wired = false
 				NAChat.connecting = false
+				resetReconnectBackoff()
 				connect()
 
 				Defer(function()
@@ -53725,6 +53753,7 @@ originalIO.runNACHAT=function()
 
 		switchTab("chat")
 		originalIO.setHiddenState(initialHidden, true)
+		resetReconnectBackoff()
 		connect()
 	end
 end
