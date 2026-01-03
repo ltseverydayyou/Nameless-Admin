@@ -31350,26 +31350,47 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 		end
 	end
 
-	local totalSignals = 0
-	local success, err = pcall(function()
-		local pages = market:GetDeveloperProductsAsync()
-		while true do
-			local page = pages:GetCurrentPage()
-			for _, product in ipairs(page) do
-				local id = product.ProductId or product.DeveloperProductId
-				if id then
-					market:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
-					totalSignals += 1
-				end
-			end
-			if pages.IsFinished then break end
-			pages:AdvanceToNextPageAsync()
-		end
+	local products = {}
+	local okProducts, errProducts = pcall(function()
+		products = market:GetDeveloperProductsAsync():GetCurrentPage()
 	end)
-	if success then
-		DoNotif(Format("Hooked gamepass ownership and fired %d purchase signals", totalSignals), 6, "Free Gamepasses")
+
+	local gamepasses = (function()
+		local result = {}
+
+		pcall(function()
+			local raw = game:HttpGet(Format("https://apis.roblox.com/game-passes/v1/universes/%s/game-passes?passView=Full&pageSize=100", tostring(GameId)))
+			local decoded = HttpService:JSONDecode(raw)
+
+			for _, gamepass in next, decoded.gamePasses do
+				Insert(result, gamepass.id)
+			end
+		end)
+
+		return result
+	end)()
+
+	local totalSignals = 0
+
+	for _, product in next, (products or {}) do
+		for key, id in next, product do
+			if (key == "ProductId") or (key == "DeveloperProductId") then
+				market:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+				totalSignals += 1
+			end
+		end
+	end
+
+	for _, gamepass in next, (gamepasses or {}) do
+		pcall(function()
+			market:SignalPromptGamePassPurchaseFinished(LocalPlayer, gamepass, true)
+		end)
+	end
+
+	if okProducts then
+		DoNotif(Format("Hooked gamepass ownership and fired %d purchase signals", totalSignals), 8, "Free Gamepasses")
 	else
-		DoNotif("Failed to spoof gamepasses: "..tostring(err), 8, "Free Gamepasses")
+		DoNotif("Failed to spoof gamepasses: "..tostring(errProducts), 8, "Free Gamepasses")
 	end
 end)
 
@@ -31833,40 +31854,14 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	local head=InstanceNew("Frame",win)
 	head.BackgroundColor3=Color3.fromRGB(20,20,20)
 	head.Position=UDim2.fromOffset(16,64)
-	head.Size=UDim2.new(1,-32,0,140)
+	head.Size=UDim2.new(1,-32,0,72)
 	head.BorderSizePixel=0
 	local headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,14)
 	local headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
 
-	local idBox=InstanceNew("TextBox",head)
-	idBox.Size=UDim2.new(1,-16,0,64)
-	idBox.Position=UDim2.fromOffset(8,8)
-	idBox.PlaceholderText="Paste GamePass IDs (comma / space / newline separated)"
-	idBox.ClearTextOnFocus=false
-	idBox.TextXAlignment=Enum.TextXAlignment.Left
-	idBox.TextYAlignment=Enum.TextYAlignment.Top
-	idBox.MultiLine=true
-	idBox.Text=""
-	idBox.Font=Enum.Font.Gotham
-	idBox.BackgroundColor3=Color3.fromRGB(34,34,34)
-	idBox.TextColor3=Color3.fromRGB(230,230,230)
-	idBox.TextScaled=false
-	idBox.TextSize=16
-	local idCorner=InstanceNew("UICorner",idBox); idCorner.CornerRadius=UDim.new(0,10)
-
-	local addBtn=InstanceNew("TextButton",head)
-	addBtn.Size=UDim2.fromOffset(96,34)
-	addBtn.Position=UDim2.fromOffset(8,8+64+8)
-	addBtn.Text="Add IDs"
-	addBtn.Font=Enum.Font.GothamMedium
-	addBtn.BackgroundColor3=Color3.fromRGB(70,110,70)
-	addBtn.TextColor3=Color3.fromRGB(255,255,255)
-	addBtn.TextScaled=true
-	local addCorner=InstanceNew("UICorner",addBtn); addCorner.CornerRadius=UDim.new(0,10)
-
 	local interval=InstanceNew("TextBox",head)
 	interval.Size=UDim2.fromOffset(120,34)
-	interval.Position=UDim2.new(1,-120,0,8+64+8)
+	interval.Position=UDim2.new(1,-120,0,8)
 	interval.PlaceholderText="Interval (s)"
 	interval.Text="0.5"
 	interval.ClearTextOnFocus=false
@@ -31879,8 +31874,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 	local allBtn=InstanceNew("TextButton",head)
 	allBtn.Size=UDim2.fromOffset(120,34)
-	allBtn.Position=UDim2.new(1,-120-8-120,0,8+64+8)
-	allBtn.Text="Prompt All"
+	allBtn.Position=UDim2.new(1,-120-8-120,0,8)
+	allBtn.Text="Buy All"
 	allBtn.Font=Enum.Font.GothamMedium
 	allBtn.BackgroundColor3=Color3.fromRGB(70,70,110)
 	allBtn.TextColor3=Color3.fromRGB(255,255,255)
@@ -31888,8 +31883,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	local allCorner=InstanceNew("UICorner",allBtn); allCorner.CornerRadius=UDim.new(0,10)
 
 	local search=InstanceNew("TextBox",head)
-	search.Size=UDim2.new(1,-8-120-8-120-8-96-16,0,34)
-	search.Position=UDim2.fromOffset(8+96+8,8+64+8)
+	search.Size=UDim2.new(1,-8-120-8-120-8,0,34)
+	search.Position=UDim2.fromOffset(8,8)
 	search.PlaceholderText="Search by name or ID"
 	search.ClearTextOnFocus=false
 	search.TextXAlignment=Enum.TextXAlignment.Left
@@ -31903,7 +31898,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	local status=InstanceNew("TextLabel",win)
 	status.BackgroundTransparency=1
 	status.Size=UDim2.new(1,-32,0,20)
-	status.Position=UDim2.fromOffset(16,208)
+	status.Position=UDim2.fromOffset(16,144)
 	status.Font=Enum.Font.Gotham
 	status.TextXAlignment=Enum.TextXAlignment.Left
 	status.TextColor3=Color3.fromRGB(190,190,190)
@@ -31912,8 +31907,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 	local body=InstanceNew("Frame",win)
 	body.BackgroundColor3=Color3.fromRGB(16,16,16)
-	body.Position=UDim2.fromOffset(16,232)
-	body.Size=UDim2.new(1,-32,1,-248)
+	body.Position=UDim2.fromOffset(16,172)
+	body.Size=UDim2.new(1,-32,1,-188)
 	body.BorderSizePixel=0
 	local bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,18)
 	local bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
@@ -31948,10 +31943,9 @@ NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pc
 	end
 
 	local rows={}
-	local passList={}
-	local allPasses={}
+	local loops={}
 
-	local function makeRow(id:number, nameText:string?, priceText:string?)
+	local function makeRow(id:number, nameText:string?, priceText:string?, isForSale:boolean?)
 		if rows[id] then return end
 		local row=InstanceNew("Frame",list)
 		row.BackgroundColor3=Color3.fromRGB(24,24,24)
@@ -31978,45 +31972,58 @@ NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pc
 		sub.Font=Enum.Font.Gotham
 		sub.TextXAlignment=Enum.TextXAlignment.Left
 		sub.TextColor3=Color3.fromRGB(190,190,190)
-		sub.Text=Format("ID: %d  •  Price: %s",id, priceText or "—")
+		sub.Text=Format("ID: %d | Price: %s%s",id, priceText or "Unknown", (isForSale == false) and " (Offsale)" or "")
 		sub.TextScaled=true
 		sub.TextWrapped=true
 
-		local prompt=InstanceNew("TextButton",row)
-		prompt.Size=UDim2.fromOffset(104,38)
-		prompt.Position=UDim2.new(1,-220,0.5,-19)
-		prompt.Font=Enum.Font.GothamBold
-		prompt.AutoButtonColor=true
-		prompt.TextColor3=Color3.fromRGB(255,255,255)
-		prompt.BackgroundColor3=Color3.fromRGB(0,170,127)
-		prompt.Text="Prompt"
-		prompt.TextScaled=true
-		local pCorner=InstanceNew("UICorner",prompt); pCorner.CornerRadius=UDim.new(0,12)
+		local buy=InstanceNew("TextButton",row)
+		buy.Size=UDim2.fromOffset(104,38)
+		buy.Position=UDim2.new(1,-220,0.5,-19)
+		buy.Font=Enum.Font.GothamBold
+		buy.AutoButtonColor=true
+		buy.TextColor3=Color3.fromRGB(255,255,255)
+		buy.BackgroundColor3=Color3.fromRGB(0,170,127)
+		buy.Text="Buy"
+		buy.TextScaled=true
+		local bCorner=InstanceNew("UICorner",buy); bCorner.CornerRadius=UDim.new(0,12)
 
-		local toggleBtn=InstanceNew("TextButton",row)
-		toggleBtn.Size=UDim2.fromOffset(104,38)
-		toggleBtn.Position=UDim2.new(1,-108,0.5,-19)
-		toggleBtn.Font=Enum.Font.GothamBold
-		toggleBtn.AutoButtonColor=true
-		toggleBtn.TextColor3=Color3.fromRGB(255,255,255)
-		toggleBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
-		toggleBtn.Text="Queue"
-		toggleBtn.TextScaled=true
-		local lCorner=InstanceNew("UICorner",toggleBtn); lCorner.CornerRadius=UDim.new(0,12)
+		local spamBtn=InstanceNew("TextButton",row)
+		spamBtn.Size=UDim2.fromOffset(104,38)
+		spamBtn.Position=UDim2.new(1,-108,0.5,-19)
+		spamBtn.Font=Enum.Font.GothamBold
+		spamBtn.AutoButtonColor=true
+		spamBtn.TextColor3=Color3.fromRGB(255,255,255)
+		spamBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+		spamBtn.Text="Spam"
+		spamBtn.TextScaled=true
+		local sCorner=InstanceNew("UICorner",spamBtn); sCorner.CornerRadius=UDim.new(0,12)
 
-		NAlib.connect(GROUP, MouseButtonFix(prompt, function()
+		NAlib.connect(GROUP, MouseButtonFix(buy, function()
 			MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
 		end))
-		NAlib.connect(GROUP, MouseButtonFix(toggleBtn, function()
-			local idx=Discover(passList,id)
-			if idx then
-				table.remove(passList,idx)
-				toggleBtn.Text="Queue"
-				toggleBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+		NAlib.connect(GROUP, MouseButtonFix(spamBtn, function()
+			local loop=loops[id]
+			if loop and loop.running then
+				loop.running=false
+				loops[id]=nil
+				spamBtn.Text="Spam"
+				spamBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
 			else
-				Insert(passList,id)
-				toggleBtn.Text="Queued"
-				toggleBtn.BackgroundColor3=Color3.fromRGB(70,110,70)
+				local state={running=true}
+				loops[id]=state
+				spamBtn.Text="Stop"
+				spamBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
+				SpawnCall(function()
+					while state.running do
+						MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+						Wait(parseInterval())
+					end
+					if spamBtn and spamBtn.Parent then
+						spamBtn.Text="Spam"
+						spamBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
+					end
+					loops[id]=nil
+				end)
 			end
 		end))
 
@@ -32025,26 +32032,11 @@ NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pc
 			local ok,info=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.GamePass) end)
 			if ok and type(info)=="table" and rows[id] and rows[id].Parent then
 				nameL.Text=info.Name or nameL.Text
-				local price=info.PriceInRobux and (tostring(info.PriceInRobux).." R$") or "—"
-				sub.Text=Format("ID: %d  •  Price: %s",id,price)
+				local price=info.PriceInRobux and (tostring(info.PriceInRobux).." R$") or "Unknown"
+				sub.Text=Format("ID: %d | Price: %s",id,price)
 			end
 		end)
 		setCanvas()
-	end
-
-	local function addIdsFromText(text:string)
-		local clean=GSub(text or "","[,%s]+"," ")
-		local added=0
-		for token in clean:gmatch("%S+") do
-			local id=tonumber(token)
-			if id and not rows[id] then
-				Insert(allPasses,{id=id})
-				makeRow(id)
-				added+=1
-				Wait()
-			end
-		end
-		return added
 	end
 
 	local function applyFilter(q)
@@ -32059,34 +32051,103 @@ NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pc
 		setCanvas()
 	end
 
-	local function promptAllQueued()
-		if #passList==0 then return end
+	local function buyAllQueued()
+		local ids={}
+		for id in pairs(rows) do Insert(ids,id) end
+		if #ids==0 then return end
 		local delayS=parseInterval()
 		SpawnCall(function()
-			for _,id in ipairs(passList) do
+			for _,id in ipairs(ids) do
 				MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
 				Wait(delayS)
 			end
 		end)
 	end
 
-NAlib.connect(GROUP, MouseButtonFix(addBtn, function()
-	local n=addIdsFromText(idBox.Text or "")
-	if n>0 then
-		idBox.Text=""
-		if n==1 then
-			status.Text="Added 1 pass."
-			else
-				status.Text=Format("Added %d passes.",n)
-			end
-		else
-			status.Text="No valid IDs."
+	local function clearRows()
+		for _, loop in pairs(loops) do
+			loop.running=false
 		end
-	end))
+		loops={}
+		for _, row in pairs(rows) do
+			pcall(row.Destroy, row)
+		end
+		rows={}
+	end
 
-	NAlib.connect(GROUP, MouseButtonFix(allBtn, function() promptAllQueued() end))
+	local function fetchFromApi()
+		clearRows()
+		status.Text="Fetching gamepasses..."
+
+		local function fetchPages()
+			local fetched={}
+			local base=Format("https://apis.roblox.com/game-passes/v1/universes/%s/game-passes?passView=Full&pageSize=100", tostring(GameId))
+			local nextToken=nil
+
+			repeat
+				local url=base
+				if nextToken and nextToken~="" then
+					url=Format("%s&pageToken=%s",base,tostring(nextToken))
+				end
+
+				local ok, decoded=pcall(function()
+					return HttpService:JSONDecode(game:HttpGet(url))
+				end)
+
+				if not ok or type(decoded)~="table" then
+					return nil, "Failed to decode API response"
+				end
+
+				if decoded.gamePasses and type(decoded.gamePasses)=="table" then
+					for _, gp in next, decoded.gamePasses do
+						if gp and gp.id then
+							Insert(fetched, gp)
+						end
+					end
+				end
+
+				nextToken=decoded.nextPageToken
+				if nextToken=="" then
+					nextToken=nil
+				end
+			until not nextToken
+
+			return fetched
+		end
+
+		local passes, err=fetchPages()
+		if not passes then
+			status.Text="Failed to fetch gamepasses."
+			notify("Failed to fetch gamepasses: "..tostring(err),6)
+			return
+		end
+
+		for _, gp in ipairs(passes) do
+			local priceText
+			if gp.isForSale == false then
+				priceText="Offsale"
+			elseif gp.price then
+				priceText=tostring(gp.price).." R$"
+			elseif gp.displayPrice then
+				priceText=tostring(gp.displayPrice)
+			else
+				priceText="Unknown"
+			end
+
+			local displayName=gp.displayName or gp.name or ("Pass "..tostring(gp.id))
+			makeRow(gp.id, displayName, priceText, gp.isForSale)
+			Wait()
+		end
+
+		applyFilter(search.Text)
+		status.Text=Format("Loaded %d gamepasses.", #passes)
+		notify(status.Text,4)
+	end
+
+	NAlib.connect(GROUP, MouseButtonFix(allBtn, function() buyAllQueued() end))
 	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
 	NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
+	fetchFromApi()
 end)
 
 cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, function(plr)
