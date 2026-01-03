@@ -56758,9 +56758,13 @@ NAFFlags.load = function()
 		if okDecode and type(decoded) == "table" then
 			if type(decoded.useFFlags) == "boolean" then
 				NAFFlags.config.useFFlags = decoded.useFFlags
+			else
+				needsSave = true
 			end
 			if type(decoded.autoApply) == "boolean" then
 				NAFFlags.config.autoApply = decoded.autoApply
+			else
+				needsSave = true
 			end
 			if type(decoded.flags) == "table" then
 				for _, entry in ipairs(NAFFlags.whitelist) do
@@ -57022,6 +57026,33 @@ NAFFlags.cycleCustomFlag = function(direction)
 	--DoNotif(Format("Viewing custom fast flag %d/%d: %s", idx, count, tostring(name)), 2)
 end
 
+NAFFlags.ensureMaintainLoop = function(opts)
+	opts = opts or {}
+	local interval = tonumber(opts.intervalSeconds) or 8
+	if interval < 2 then
+		interval = 2
+	end
+	if NAFFlags._maintainLoopRunning or not (NAFFlags.config.autoApply and NAFFlags.enabled()) then
+		return
+	end
+	NAFFlags._maintainLoopRunning = true
+	SpawnCall(function()
+		while NAFFlags.config.autoApply and NAFFlags.enabled() do
+			if NAFFlags.hasSupport() then
+				NAFFlags.applyAll({ notify = false })
+			end
+
+			local remaining = interval
+			while remaining > 0 and NAFFlags.config.autoApply and NAFFlags.enabled() do
+				local step = remaining > 2 and 2 or remaining
+				Wait(step)
+				remaining = remaining - step
+			end
+		end
+		NAFFlags._maintainLoopRunning = false
+	end)
+end
+
 NAFFlags.autoApplyWithRetry = function(opts)
 	opts = opts or {}
 	local initialDelays = opts.delays or { 0, 0.5, 1.5 }
@@ -57046,20 +57077,23 @@ NAFFlags.autoApplyWithRetry = function(opts)
 	end
 
 	SpawnCall(function()
-		if runAttempts(initialDelays) then
-			return
-		end
-
-		local okLoaded, loaded = pcall(function()
-			return game:IsLoaded()
-		end)
-		if not (okLoaded and loaded) then
-			pcall(function()
-				game.Loaded:Wait()
+		local success = runAttempts(initialDelays)
+		if not success then
+			local okLoaded, loaded = pcall(function()
+				return game:IsLoaded()
 			end)
+			if not (okLoaded and loaded) then
+				pcall(function()
+					game.Loaded:Wait()
+				end)
+			end
+
+			success = runAttempts(postLoadDelays) or success
 		end
 
-		runAttempts(postLoadDelays)
+		if NAFFlags.config.autoApply and NAFFlags.enabled() then
+			NAFFlags.ensureMaintainLoop()
+		end
 	end)
 end
 
@@ -57112,16 +57146,19 @@ NAmanage.styleFFlagInfo(NAStuff.sessionWarningBox)
 NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
 	NAFFlags.config.useFFlags = state == true
 	NAFFlags.save()
+	if NAFFlags.config.autoApply and state == true then
+		NAFFlags.autoApplyWithRetry()
+	end
 end)
 
-NAgui.addToggle("Auto-apply FastFlags on load", NAFFlags.config.autoApply == true, function(state)
+NAgui.addToggle("Auto-apply FastFlags", NAFFlags.config.autoApply == true, function(state)
 	NAFFlags.config.autoApply = state == true
 	NAFFlags.save()
 	if state then
 		NAFFlags.autoApplyWithRetry()
 	end
 end)
-NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags on load", function()
+NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags", function()
 	return NAFFlags.config.autoApply == true
 end)
 
