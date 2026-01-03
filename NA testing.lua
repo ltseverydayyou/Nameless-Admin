@@ -35264,20 +35264,38 @@ cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
 end, true)
 
 cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the position of another player"}, function(...)
-	local target = getPlr(...)
-	for _, plr in next, target do
-		local char = plr.Character or getPlrChar(plr)
-		if char then
-			local root = getRoot(char)
-			if root then
-				local pos = root.Position
-				DebugNotif(nameChecker(plr).."'s position is: "..tostring(pos))
-				if setclipboard then
-					setclipboard(tostring(pos))
-				end
-			end
-		end
-		Wait()
+	local args = {...}
+	local targetList
+
+	if #args == 0 then
+		targetList = {Players and Players.LocalPlayer}
+	else
+		targetList = getPlr(...)
+	end
+
+	local plr = targetList and targetList[1]
+	if not plr then
+		DebugNotif("No matching players found")
+		return
+	end
+
+	local char = plr.Character or getPlrChar(plr)
+	if not char then
+		DebugNotif("Unable to find "..tostring(plr.Name).."'s character")
+		return
+	end
+
+	local root = getRoot(char)
+	if not root then
+		DebugNotif("Unable to find "..tostring(plr.Name).."'s root part")
+		return
+	end
+
+	local pos = root.Position
+	local formatted = Format("%.3f, %.3f, %.3f", pos.X, pos.Y, pos.Z)
+	DebugNotif(nameChecker(plr).."'s position is: "..formatted)
+	if setclipboard then
+		setclipboard(formatted)
 	end
 end, true)
 
