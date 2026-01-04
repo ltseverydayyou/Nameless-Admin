@@ -35796,6 +35796,35 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 	end
 end,true)
 
+cmd.add({"fireclickdetectorsfind","fcdfind","firecdfind"},{"fireclickdetectorsfind <target> (fcdfind,firecdfind)","Fires ClickDetectors substring-matching [target] in Workspace"},function(...)
+	local args={...}
+	if not args[1] then return DebugNotif("Usage: fireclickdetectorsfind <target>",2) end
+	local targetText = Concat(args," ")
+	local target = Lower(targetText)
+	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
+	NAindex.init()
+	local list,f={},0
+	if NAindex.click then
+		for inst,rec in pairs(NAindex.click) do
+			if inst and inst.Parent and rec and rec.names and NAindex.matchAnyFind(rec.names, target) then
+				Insert(list,inst)
+			end
+		end
+	end
+	if #list==0 then
+		return DebugNotif(("No ClickDetectors found matching \"%s\""):format(targetText),2)
+	end
+	for _,d in ipairs(list) do
+		if not pcall(function() fireclickdetector(d) end) then f += 1 end
+	end
+	Wait()
+	if f>0 then
+		DebugNotif(("Fired %d ClickDetectors, Failed: %d"):format(#list,f),2)
+	else
+		DebugNotif(("Fired %d ClickDetectors"):format(#list),2)
+	end
+end,true)
+
 cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,firepp)","Fires every ProximityPrompt in Workspace"},function(...)
 	local args={...}
 	local targetText = args[1] and Concat(args," ")
@@ -35813,6 +35842,35 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 	if #list==0 then
 		if target then return DebugNotif("No ProximityPrompts found matching \""..targetText.."\"",2) end
 		return DebugNotif("No ProximityPrompts found",2)
+	end
+	for _,p in ipairs(list) do
+		if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
+	end
+	Wait()
+	if f>0 then
+		DebugNotif(("Fired %d ProximityPrompts, Failed: %d"):format(#list,f),2)
+	else
+		DebugNotif(("Fired %d ProximityPrompts"):format(#list),2)
+	end
+end,true)
+
+cmd.add({"fireproximitypromptsfind","fppfind","fireppfind"},{"fireproximitypromptsfind <target> (fppfind,fireppfind)","Fires ProximityPrompts substring-matching [target] in Workspace"},function(...)
+	local args={...}
+	if not args[1] then return DebugNotif("Usage: fireproximitypromptsfind <target>",2) end
+	local targetText = Concat(args," ")
+	local target = Lower(targetText)
+	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
+	NAindex.init()
+	local list,f={},0
+	if NAindex.prompt then
+		for inst,rec in pairs(NAindex.prompt) do
+			if inst and inst.Parent and rec and rec.names and NAindex.matchAnyFind(rec.names, target) then
+				Insert(list,inst)
+			end
+		end
+	end
+	if #list==0 then
+		return DebugNotif(("No ProximityPrompts found matching \"%s\""):format(targetText),2)
 	end
 	for _,p in ipairs(list) do
 		if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
@@ -35876,6 +35934,59 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 		else
 			DebugNotif("No TouchInterests found",2)
 		end
+	else
+		DebugNotif(("Fired %d TouchInterests"):format(found),2)
+	end
+end,true)
+
+cmd.add({"firetouchinterestsfind","ftifind","firetifind"},{"firetouchinterestsfind <target> (ftifind,firetifind)","Fires TouchInterests substring-matching [target] in Workspace"},function(...)
+	local args = {...}
+	if not args[1] then return DebugNotif("Usage: firetouchinterestsfind <target>",2) end
+	local targetText = Concat(args," ")
+	local target = Lower(targetText)
+	if typeof(firetouchinterest) ~= "function" then return end
+	local char = getChar()
+	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	if not root then return end
+	NAindex.init()
+	local found = 0
+	if NAindex.touch then
+		for ti in pairs(NAindex.touch) do
+			local container = ti.Parent
+			if container and container.Parent then
+				local part = NAindex.carPart(container)
+				if part and part.Parent then
+					local names = {}
+					if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
+					if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
+					if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
+					local model = part:FindFirstAncestorWhichIsA("Model")
+					while model do
+						if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
+						model = model:FindFirstAncestorWhichIsA("Model")
+					end
+					if NAindex.matchAnyFind(names, target) then
+						found += 1
+						local targetPart = part
+						SpawnCall(function()
+							local orig = targetPart.CFrame
+							targetPart.CFrame = root.CFrame
+							firetouchinterest(targetPart,root,1)
+							Wait()
+							firetouchinterest(targetPart,root,0)
+							Delay(0.1,function()
+								if targetPart and targetPart.Parent then
+									targetPart.CFrame = orig
+								end
+							end)
+						end)
+					end
+				end
+			end
+		end
+	end
+	if found == 0 then
+		DebugNotif(("No TouchInterests found matching \"%s\""):format(targetText),2)
 	else
 		DebugNotif(("Fired %d TouchInterests"):format(found),2)
 	end
@@ -36222,11 +36333,9 @@ NAjobs.start = function(kind, interval, target, useFind)
 					end
 				end
 			end
-			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
-					i += 1
-					Delay(self.stagger * (i - 1), function()
+					Spawn(function()
 						local asm = it.part
 						if not asm or not asm.Parent or not asm:IsDescendantOf(workspace) then return end
 						local st = NAjobs._touchState[asm]
