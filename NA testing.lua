@@ -55536,6 +55536,7 @@ NAmanage.injectNAConsole = function()
 	end
 
 	local baseMainViewSize = nil
+	local lastWindowSize = nil
 
 	local function ensureCommandHelpers()
 		if not NAmanage._naConsoleDispatch then
@@ -55624,7 +55625,8 @@ NAmanage.injectNAConsole = function()
 	commandLine.Name = "NAConsole"
 	commandLine.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	commandLine.BorderColor3 = Color3.fromRGB(184, 184, 184)
-	commandLine.Position = UDim2.new(0, 0, 1, -30)
+	commandLine.AnchorPoint = Vector2.new(0, 1)
+	commandLine.Position = UDim2.new(0, 0, 1, 0)
 	commandLine.Size = UDim2.new(1, 0, 0, 30)
 	commandLine.ZIndex = 1
 	commandLine.AutoLocalize = false
@@ -55677,43 +55679,79 @@ NAmanage.injectNAConsole = function()
 
 	local testService = SafeGetService("TestService")
 
+	local function getUIScaleFactor(inst)
+		local scale = 1
+		local current = inst
+		while current do
+			local uiScale = current:FindFirstChildOfClass("UIScale")
+			if uiScale and uiScale.Scale then
+				scale *= uiScale.Scale
+			end
+			current = current.Parent
+		end
+		return scale
+	end
+
+	local function resolveLineHeight(window)
+		local size = commandLine.Size
+		local height = (size and size.Y and size.Y.Offset) or 0
+		if height == 0 and size and size.Y and size.Y.Scale ~= 0 and window then
+			height = window.AbsoluteSize.Y * size.Y.Scale
+		end
+
+		if height == 0 and commandLine.AbsoluteSize.Y > 0 then
+			local scale = getUIScaleFactor(commandLine)
+			if scale > 0 then
+				height = commandLine.AbsoluteSize.Y / scale
+			end
+		end
+
+		if height <= 0 then
+			height = 30
+		end
+
+		return math.max(0, math.floor(height + 0.5))
+	end
+
 	local function adjustDevConsoleLayout(window)
 		if not window then
 			return
 		end
 
 		local consoleUI = window:FindFirstChild("DevConsoleUI") or window
-		if commandLine.Parent ~= consoleUI then
-			commandLine.Parent = consoleUI
+		if commandLine.Parent ~= window then
+			commandLine.Parent = window
 		end
-		commandLine.LayoutOrder = 9999
 
 		local mainView = consoleUI and consoleUI:FindFirstChild("MainView")
 		if not mainView then
 			return
 		end
 
-		if not baseMainViewSize then
-			baseMainViewSize = mainView.Size
+		local lineHeight = resolveLineHeight(window)
+
+		local targetPosition = UDim2.new(0, 0, 1, 0)
+		if commandLine.Position ~= targetPosition then
+			commandLine.Position = targetPosition
 		end
 
-		local lineHeight = math.max(0, math.floor((commandLine.AbsoluteSize.Y > 0 and commandLine.AbsoluteSize.Y or 30) + 0.5))
+		local windowAbs = window.AbsoluteSize
+		if not baseMainViewSize then
+			baseMainViewSize = mainView.Size
+		elseif not lastWindowSize or windowAbs.X ~= lastWindowSize.X or windowAbs.Y ~= lastWindowSize.Y then
+			baseMainViewSize = UDim2.new(
+				mainView.Size.X.Scale,
+				mainView.Size.X.Offset,
+				mainView.Size.Y.Scale,
+				mainView.Size.Y.Offset + lineHeight
+			)
+		end
+		lastWindowSize = windowAbs
+
 		local baseSize = baseMainViewSize
 		local targetSize = UDim2.new(baseSize.X.Scale, baseSize.X.Offset, baseSize.Y.Scale, baseSize.Y.Offset - lineHeight)
 		if mainView.Size ~= targetSize then
 			mainView.Size = targetSize
-		end
-
-		local padding = mainView:FindFirstChild("NAConsolePadding")
-		if not padding then
-			padding = InstanceNew("UIPadding")
-			padding.Name = "NAConsolePadding"
-			padding.Parent = mainView
-		end
-
-		local padValue = UDim.new(0, lineHeight)
-		if padding.PaddingBottom ~= padValue then
-			padding.PaddingBottom = padValue
 		end
 	end
 
