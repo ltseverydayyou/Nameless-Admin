@@ -35401,29 +35401,47 @@ function NAmanage.nuhuhprompt(v)
 		if v == false then
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
+
 			local visited = {}
+
+			local function disableGui(gui)
+				if not gui or typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then
+					return
+				end
+				if promptTBL.tracked[gui] == nil then
+					promptTBL.tracked[gui] = gui.Enabled
+				end
+				pcall(function()
+					gui.Enabled = false
+				end)
+				local c = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+					if promptTBL.blocking then
+						pcall(function()
+							gui.Enabled = false
+						end)
+					end
+				end)
+				Insert(promptTBL.conns, c)
+			end
+
 			local function trackAndDisable(inst)
 				local gui = NAmanage.trackPromptGui(inst)
 				if not gui or visited[gui] then
 					return
 				end
 				visited[gui] = true
-				if promptTBL.tracked[gui] == nil then promptTBL.tracked[gui] = gui.Enabled end
-				pcall(function() gui.Enabled = false end)
-				local changeConn = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-					if promptTBL.blocking then
-						pcall(function() gui.Enabled = false end)
-					end
-				end)
-				Insert(promptTBL.conns, changeConn)
+
+				disableGui(gui)
+
 				for _, x in ipairs(gui:GetDescendants()) do
 					if x:IsA("ScreenGui") then
-						trackAndDisable(x)
+						disableGui(x)
 					end
 				end
+
 				local inner = gui.DescendantAdded:Connect(function(inst2)
 					if inst2:IsA("ScreenGui") then
-						trackAndDisable(inst2)
+						disableGui(inst2)
 					end
 				end)
 				Insert(promptTBL.conns, inner)
@@ -35453,14 +35471,20 @@ function NAmanage.nuhuhprompt(v)
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
+
 			for i = #promptTBL.conns, 1, -1 do
 				local c = promptTBL.conns[i]
-				if c and c.Connected then c:Disconnect() end
+				if c and c.Connected then
+					c:Disconnect()
+				end
 				promptTBL.conns[i] = nil
 			end
+
 			for gui, prev in pairs(promptTBL.tracked) do
 				if typeof(gui) == "Instance" and gui and gui.Parent ~= nil then
-					pcall(function() gui.Enabled = prev end)
+					pcall(function()
+						gui.Enabled = prev
+					end)
 				end
 				promptTBL.tracked[gui] = nil
 			end
