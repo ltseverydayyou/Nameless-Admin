@@ -1,149 +1,132 @@
-local screenGui = Instance.new("ScreenGui")
-local main = Instance.new("Frame")
-local top = Instance.new("Frame")
-local body = Instance.new("Frame")
-local hdr = Instance.new("Frame")
-local srch = Instance.new("TextBox")
-local tab = Instance.new("Frame")
-local cont = Instance.new("Frame")
-
+local screenGui = Instance.new("ScreenGui");
+local main = Instance.new("Frame");
+local top = Instance.new("Frame");
+local body = Instance.new("Frame");
+local hdr = Instance.new("Frame");
+local srch = Instance.new("TextBox");
+local tab = Instance.new("Frame");
+local cont = Instance.new("Frame");
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
-		local Ref = cloneref and type(cloneref) == "function" and cloneref or function(r) return r end
+		local Ref = cloneref and type(cloneref) == "function" and cloneref or function(r)
+			return r;
+		end;
 		local ok, svc = pcall(function()
-			return Ref(game:GetService(name))
-		end)
+			return Ref(game:GetService(name));
+		end);
 		if ok and svc then
-			rawset(self, name, svc)
-			return svc
-		end
+			rawset(self, name, svc);
+			return svc;
+		end;
 	end
-})
-
+});
 local function SafeGetService(n)
-	return NA_SRV[n]
-end
-
+	return NA_SRV[n];
+end;
 local function protectUI(g)
 	if g:IsA("ScreenGui") then
-		g.ZIndexBehavior = Enum.ZIndexBehavior.Global
-		g.DisplayOrder = 999999999
-		g.ResetOnSpawn = false
-		g.IgnoreGuiInset = true
-	end
-	local cg = SafeGetService("CoreGui")
+		g.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+		g.DisplayOrder = 999999999;
+		g.ResetOnSpawn = false;
+		g.IgnoreGuiInset = true;
+	end;
+	local cg = SafeGetService("CoreGui");
 	local function NAP(i, v)
 		if i then
 			if v then
-				i[v] = "\0"
-				i.Archivable = false
+				i[v] = "\000";
+				i.Archivable = false;
 			else
-				i.Name = "\0"
-				i.Archivable = false
-			end
-		end
-	end
+				i.Name = "\000";
+				i.Archivable = false;
+			end;
+		end;
+	end;
 	if gethui then
-		NAP(g)
-		g.Parent = gethui()
-		return g
+		NAP(g);
+		g.Parent = gethui();
+		return g;
 	elseif cg and cg:FindFirstChild("RobloxGui") then
-		NAP(g)
-		g.Parent = cg:FindFirstChild("RobloxGui")
-		return g
+		NAP(g);
+		g.Parent = cg:FindFirstChild("RobloxGui");
+		return g;
 	elseif cg then
-		NAP(g)
-		g.Parent = cg
-		return g
+		NAP(g);
+		g.Parent = cg;
+		return g;
 	else
-		local lp = SafeGetService("Players").LocalPlayer
+		local lp = (SafeGetService("Players")).LocalPlayer;
 		if lp and lp:FindFirstChildWhichIsA("PlayerGui") then
-			NAP(g)
-			g.Parent = lp:FindFirstChildWhichIsA("PlayerGui")
-			g.ResetOnSpawn = false
-			return g
-		end
-	end
-	return nil
-end
-
+			NAP(g);
+			g.Parent = lp:FindFirstChildWhichIsA("PlayerGui");
+			g.ResetOnSpawn = false;
+			return g;
+		end;
+	end;
+	return nil;
+end;
 local function nameChecker(plr)
-	return plr.DisplayName == plr.Name and ("@" .. plr.Name) or (plr.DisplayName .. " (@" .. plr.Name .. ")")
-end
-
+	return plr.DisplayName == plr.Name and "@" .. plr.Name or plr.DisplayName .. " (@" .. plr.Name .. ")";
+end;
 local NAdragV2 = function(ui, dragui)
-	dragui = dragui or ui
-	local UIS = SafeGetService("UserInputService")
-	local sg = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
-	local drg, din, dst, spos
-
+	dragui = dragui or ui;
+	local UIS = SafeGetService("UserInputService");
+	local sg = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent;
+	local drg, din, dst, spos;
 	local function upd(inp)
-		local dlt = inp.Position - dst
-		local psz = sg.AbsoluteSize
-		local usz = ui.AbsoluteSize
-
-		local nx = spos.X.Scale + (dlt.X / psz.X)
-		local ny = spos.Y.Scale + (dlt.Y / psz.Y)
-
-		local a = ui.AnchorPoint
-		local mnx = a.X * (usz.X / psz.X)
-		local mxx = 1 - (1 - a.X) * (usz.X / psz.X)
-		local mny = a.Y * (usz.Y / psz.Y)
-		local mxy = 1 - (1 - a.Y) * (usz.Y / psz.Y)
-
-		nx = math.clamp(nx, mnx, mxx)
-		ny = math.clamp(ny, mny, mxy)
-
-		ui.Position = UDim2.new(nx, 0, ny, 0)
-	end
-
+		local dlt = inp.Position - dst;
+		local psz = sg.AbsoluteSize;
+		local usz = ui.AbsoluteSize;
+		local nx = spos.X.Scale + dlt.X / psz.X;
+		local ny = spos.Y.Scale + dlt.Y / psz.Y;
+		local a = ui.AnchorPoint;
+		local mnx = a.X * (usz.X / psz.X);
+		local mxx = 1 - (1 - a.X) * (usz.X / psz.X);
+		local mny = a.Y * (usz.Y / psz.Y);
+		local mxy = 1 - (1 - a.Y) * (usz.Y / psz.Y);
+		nx = math.clamp(nx, mnx, mxx);
+		ny = math.clamp(ny, mny, mxy);
+		ui.Position = UDim2.new(nx, 0, ny, 0);
+	end;
 	dragui.InputBegan:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-			drg = true
-			dst = inp.Position
-			spos = ui.Position
+			drg = true;
+			dst = inp.Position;
+			spos = ui.Position;
 			inp.Changed:Connect(function()
 				if inp.UserInputState == Enum.UserInputState.End then
-					drg = false
-				end
-			end)
-		end
-	end)
-
+					drg = false;
+				end;
+			end);
+		end;
+	end);
 	dragui.InputChanged:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
-			din = inp
-		end
-	end)
-
+			din = inp;
+		end;
+	end);
 	UIS.InputChanged:Connect(function(inp)
 		if inp == din and drg then
-			upd(inp)
-		end
-	end)
-
-	sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local psz = sg.AbsoluteSize
-		local usz = ui.AbsoluteSize
-		local cp = ui.Position
-		local a = ui.AnchorPoint
-
-		local mnx = a.X * (usz.X / psz.X)
-		local mxx = 1 - (1 - a.X) * (usz.X / psz.X)
-		local mny = a.Y * (usz.Y / psz.Y)
-		local mxy = 1 - (1 - a.Y) * (usz.Y / psz.Y)
-
-		ui.Position = UDim2.new(math.clamp(cp.X.Scale, mnx, mxx), 0, math.clamp(cp.Y.Scale, mny, mxy), 0)
-	end)
-
-	ui.Active = true
-end
-
-local TS = SafeGetService("TweenService")
-local Plrs = SafeGetService("Players")
-local MPS = SafeGetService("MarketplaceService")
-local Lgt = SafeGetService("Lighting")
-
+			upd(inp);
+		end;
+	end);
+	(sg:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+		local psz = sg.AbsoluteSize;
+		local usz = ui.AbsoluteSize;
+		local cp = ui.Position;
+		local a = ui.AnchorPoint;
+		local mnx = a.X * (usz.X / psz.X);
+		local mxx = 1 - (1 - a.X) * (usz.X / psz.X);
+		local mny = a.Y * (usz.Y / psz.Y);
+		local mxy = 1 - (1 - a.Y) * (usz.Y / psz.Y);
+		ui.Position = UDim2.new(math.clamp(cp.X.Scale, mnx, mxx), 0, math.clamp(cp.Y.Scale, mny, mxy), 0);
+	end);
+	ui.Active = true;
+end;
+local TS = SafeGetService("TweenService");
+local Plrs = SafeGetService("Players");
+local MPS = SafeGetService("MarketplaceService");
+local Lgt = SafeGetService("Lighting");
 local C = {
 	bg0 = Color3.fromRGB(0, 0, 0),
 	bg1 = Color3.fromRGB(12, 12, 12),
@@ -154,8 +137,7 @@ local C = {
 	tx0 = Color3.fromRGB(245, 245, 245),
 	tx1 = Color3.fromRGB(190, 190, 190),
 	tx2 = Color3.fromRGB(145, 145, 145)
-}
-
+};
 local opt = {
 	auto = true,
 	loc = true,
@@ -166,1046 +148,1093 @@ local opt = {
 	red = false,
 	blr = true,
 	int = 2
-}
-
+};
 local function ti(d, s)
 	if opt.red then
-		d = math.max(0.06, d * 0.6)
-	end
-	return TweenInfo.new(d, s or Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-end
-
+		d = math.max(0.06, d * 0.6);
+	end;
+	return TweenInfo.new(d, s or Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
+end;
 local function tw(i, d, p, s)
-	local tr = TS:Create(i, ti(d, s), p)
-	tr:Play()
-	return tr
-end
-
+	local tr = TS:Create(i, ti(d, s), p);
+	tr:Play();
+	return tr;
+end;
 local function crn(p, r)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, r)
-	c.Parent = p
-	return c
-end
-
+	local c = Instance.new("UICorner");
+	c.CornerRadius = UDim.new(0, r);
+	c.Parent = p;
+	return c;
+end;
 local function stk(p, th, tr, col)
-	local s = Instance.new("UIStroke")
-	s.Thickness = th or 1
-	s.Transparency = tr or 0
-	s.Color = col or C.stk
-	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	s.Parent = p
-	return s
-end
-
+	local s = Instance.new("UIStroke");
+	s.Thickness = th or 1;
+	s.Transparency = tr or 0;
+	s.Color = col or C.stk;
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+	s.Parent = p;
+	return s;
+end;
 local function pad(p, l, r, t, b)
-	local u = Instance.new("UIPadding")
-	u.PaddingLeft = UDim.new(0, l or 0)
-	u.PaddingRight = UDim.new(0, r or 0)
-	u.PaddingTop = UDim.new(0, t or 0)
-	u.PaddingBottom = UDim.new(0, b or 0)
-	u.Parent = p
-	return u
-end
-
+	local u = Instance.new("UIPadding");
+	u.PaddingLeft = UDim.new(0, l or 0);
+	u.PaddingRight = UDim.new(0, r or 0);
+	u.PaddingTop = UDim.new(0, t or 0);
+	u.PaddingBottom = UDim.new(0, b or 0);
+	u.Parent = p;
+	return u;
+end;
 local function mkTxt(p, txt, sz, w)
-	local t = Instance.new("TextLabel")
-	t.BackgroundTransparency = 1
-	t.Text = txt or ""
-	t.TextColor3 = C.tx0
-	t.TextSize = sz or 14
-	t.Font = w and Enum.Font.GothamSemibold or Enum.Font.Gotham
-	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.TextYAlignment = Enum.TextYAlignment.Center
-	t.Parent = p
-	return t
-end
-
+	local t = Instance.new("TextLabel");
+	t.BackgroundTransparency = 1;
+	t.Text = txt or "";
+	t.TextColor3 = C.tx0;
+	t.TextSize = sz or 14;
+	t.Font = w and Enum.Font.GothamSemibold or Enum.Font.Gotham;
+	t.TextXAlignment = Enum.TextXAlignment.Left;
+	t.TextYAlignment = Enum.TextYAlignment.Center;
+	t.Parent = p;
+	return t;
+end;
 local function mkBtn(p, txt)
-	local b = Instance.new("TextButton")
-	b.AutoButtonColor = false
-	b.Text = txt or ""
-	b.TextColor3 = C.tx0
-	b.TextSize = 13
-	b.Font = Enum.Font.GothamSemibold
-	b.BackgroundColor3 = C.bg2
-	b.BorderSizePixel = 0
-	b.Parent = p
-	crn(b, 12)
-	stk(b, 1, 0.1, C.stk)
-	return b
-end
-
+	local b = Instance.new("TextButton");
+	b.AutoButtonColor = false;
+	b.Text = txt or "";
+	b.TextColor3 = C.tx0;
+	b.TextSize = 13;
+	b.Font = Enum.Font.GothamSemibold;
+	b.BackgroundColor3 = C.bg2;
+	b.BorderSizePixel = 0;
+	b.Parent = p;
+	crn(b, 12);
+	stk(b, 1, 0.1, C.stk);
+	return b;
+end;
 local function hvr(b, c1, c2)
-	local o = b.BackgroundColor3
-	local s = b:FindFirstChildOfClass("UIStroke")
+	local o = b.BackgroundColor3;
+	local s = b:FindFirstChildOfClass("UIStroke");
 	b.MouseEnter:Connect(function()
-		tw(b, 0.12, {BackgroundColor3 = c1 or C.bg3})
-		if s then tw(s, 0.12, {Transparency = 0}) end
-	end)
+		tw(b, 0.12, {
+			BackgroundColor3 = c1 or C.bg3
+		});
+		if s then
+			tw(s, 0.12, {
+				Transparency = 0
+			});
+		end;
+	end);
 	b.MouseLeave:Connect(function()
-		tw(b, 0.12, {BackgroundColor3 = c2 or o})
-		if s then tw(s, 0.12, {Transparency = 0.1}) end
-	end)
-end
-
+		tw(b, 0.12, {
+			BackgroundColor3 = c2 or o
+		});
+		if s then
+			tw(s, 0.12, {
+				Transparency = 0.1
+			});
+		end;
+	end);
+end;
 local function safeClip(s)
 	if type(setclipboard) == "function" then
-		return pcall(setclipboard, s)
-	end
-	return false
-end
-
-screenGui.Name = "AnimationSpooferX"
-protectUI(screenGui)
-screenGui.ResetOnSpawn = false
-
-main.Name = "Main"
-main.Parent = screenGui
-main.AnchorPoint = Vector2.new(0.5, 0.5)
-main.Position = UDim2.new(0.68, 0, 0.56, 0)
-main.Size = UDim2.new(0, 480, 0, 372)
-main.BackgroundColor3 = C.bg0
-main.BorderSizePixel = 0
-main.ClipsDescendants = true
-crn(main, 16)
-stk(main, 1, 0, C.stk)
-
-local g = Instance.new("UIGradient")
-g.Parent = main
+		return pcall(setclipboard, s);
+	end;
+	return false;
+end;
+screenGui.Name = "AnimationSpooferX";
+protectUI(screenGui);
+screenGui.ResetOnSpawn = false;
+main.Name = "Main";
+main.Parent = screenGui;
+main.AnchorPoint = Vector2.new(0.5, 0.5);
+main.Position = UDim2.new(0.68, 0, 0.56, 0);
+main.Size = UDim2.new(0, 480, 0, 372);
+main.BackgroundColor3 = C.bg0;
+main.BorderSizePixel = 0;
+main.ClipsDescendants = true;
+crn(main, 16);
+stk(main, 1, 0, C.stk);
+local g = Instance.new("UIGradient");
+g.Parent = main;
 g.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, C.bg1),
 	ColorSequenceKeypoint.new(0.5, C.bg0),
 	ColorSequenceKeypoint.new(1, C.bg1)
-})
-g.Rotation = 90
-
-local gV = Instance.new("NumberValue")
-gV.Value = 90
+});
+g.Rotation = 90;
+local gV = Instance.new("NumberValue");
+gV.Value = 90;
 gV.Changed:Connect(function(v)
-	g.Rotation = v
-end)
+	g.Rotation = v;
+end);
 task.spawn(function()
 	while screenGui.Parent do
-		local t1 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Value = 270})
-		t1:Play()
-		t1.Completed:Wait()
-		local t2 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Value = 90})
-		t2:Play()
-		t2.Completed:Wait()
-	end
-end)
-
-top.Name = "Top"
-top.Parent = main
-top.BackgroundColor3 = C.bg1
-top.BorderSizePixel = 0
-top.Size = UDim2.new(1, 0, 0, 54)
-crn(top, 16)
-stk(top, 1, 0.25, C.stk)
-
-local topMask = Instance.new("Frame")
-topMask.Parent = top
-topMask.BackgroundColor3 = C.bg1
-topMask.BorderSizePixel = 0
-topMask.Position = UDim2.new(0, 0, 0.5, 0)
-topMask.Size = UDim2.new(1, 0, 0.5, 0)
-
-local dot = Instance.new("Frame")
-dot.Parent = top
-dot.BackgroundColor3 = C.tx0
-dot.BorderSizePixel = 0
-dot.Size = UDim2.new(0, 10, 0, 10)
-dot.Position = UDim2.new(0, 16, 0.5, -5)
-crn(dot, 99)
-
-local ttl = mkTxt(top, "Animation Spoofer X", 16, true)
-ttl.Position = UDim2.new(0, 36, 0, 8)
-ttl.Size = UDim2.new(1, -210, 0, 22)
-
-local sub = mkTxt(top, "Black & White tracker", 12, false)
-sub.TextColor3 = C.tx2
-sub.Position = UDim2.new(0, 36, 0, 30)
-sub.Size = UDim2.new(1, -210, 0, 18)
-
-local btnCfg = mkBtn(top, "CFG")
-btnCfg.Size = UDim2.new(0, 52, 0, 34)
-btnCfg.Position = UDim2.new(1, -174, 0.5, -17)
-hvr(btnCfg)
-
-local btnMin = mkBtn(top, "-")
-btnMin.Size = UDim2.new(0, 42, 0, 34)
-btnMin.Position = UDim2.new(1, -116, 0.5, -17)
-btnMin.TextSize = 18
-hvr(btnMin)
-
-local btnX = mkBtn(top, "X")
-btnX.Size = UDim2.new(0, 42, 0, 34)
-btnX.Position = UDim2.new(1, -64, 0.5, -17)
-hvr(btnX)
-
-body.Name = "Body"
-body.Parent = main
-body.BackgroundTransparency = 1
-body.Position = UDim2.new(0, 0, 0, 54)
-body.Size = UDim2.new(1, 0, 1, -54)
-
-hdr.Name = "Hdr"
-hdr.Parent = body
-hdr.BackgroundTransparency = 1
-hdr.Size = UDim2.new(1, 0, 0, 56)
-
-srch.Name = "Search"
-srch.Parent = hdr
-srch.BackgroundColor3 = C.bg1
-srch.BorderSizePixel = 0
-srch.Position = UDim2.new(0, 14, 0, 12)
-srch.Size = UDim2.new(1, -28, 0, 36)
-srch.Font = Enum.Font.Gotham
-srch.TextSize = 13
-srch.TextColor3 = C.tx0
-srch.PlaceholderText = "Search by name / id / player"
-srch.PlaceholderColor3 = C.tx2
-srch.ClearTextOnFocus = false
-srch.Text = ""
-crn(srch, 14)
-stk(srch, 1, 0.05, C.stk)
-pad(srch, 12, 12, 0, 0)
-
-tab.Name = "Tab"
-tab.Parent = body
-tab.BackgroundTransparency = 1
-tab.Position = UDim2.new(0, 0, 0, 56)
-tab.Size = UDim2.new(1, 0, 0, 44)
-
-local tL = mkBtn(tab, "Local")
-local tP = mkBtn(tab, "Players")
-local tR = mkBtn(tab, "Recent")
-
-tL.Size = UDim2.new(0, 130, 0, 34)
-tP.Size = UDim2.new(0, 130, 0, 34)
-tR.Size = UDim2.new(0, 130, 0, 34)
-
-tL.Position = UDim2.new(0, 14, 0, 5)
-tP.Position = UDim2.new(0, 150, 0, 5)
-tR.Position = UDim2.new(0, 286, 0, 5)
-
-hvr(tL)
-hvr(tP)
-hvr(tR)
-
-local ind = Instance.new("Frame")
-ind.Parent = tab
-ind.BackgroundColor3 = C.tx0
-ind.BorderSizePixel = 0
-ind.Position = UDim2.new(0, 14, 1, -2)
-ind.Size = UDim2.new(0, 130, 0, 2)
-crn(ind, 99)
-
-local sep = Instance.new("Frame")
-sep.Parent = body
-sep.BackgroundColor3 = C.stk
-sep.BorderSizePixel = 0
-sep.Position = UDim2.new(0, 14, 0, 100)
-sep.Size = UDim2.new(1, -28, 0, 1)
-sep.BackgroundTransparency = 0.6
-
-cont.Name = "Cont"
-cont.Parent = body
-cont.BackgroundTransparency = 1
-cont.Position = UDim2.new(0, 0, 0, 102)
-cont.Size = UDim2.new(1, 0, 1, -102)
-
+		local t1 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Value = 270
+		});
+		t1:Play();
+		t1.Completed:Wait();
+		local t2 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Value = 90
+		});
+		t2:Play();
+		t2.Completed:Wait();
+	end;
+end);
+top.Name = "Top";
+top.Parent = main;
+top.BackgroundColor3 = C.bg1;
+top.BorderSizePixel = 0;
+top.Size = UDim2.new(1, 0, 0, 54);
+crn(top, 16);
+stk(top, 1, 0.25, C.stk);
+local topMask = Instance.new("Frame");
+topMask.Parent = top;
+topMask.BackgroundColor3 = C.bg1;
+topMask.BorderSizePixel = 0;
+topMask.Position = UDim2.new(0, 0, 0.5, 0);
+topMask.Size = UDim2.new(1, 0, 0.5, 0);
+local dot = Instance.new("Frame");
+dot.Parent = top;
+dot.BackgroundColor3 = C.tx0;
+dot.BorderSizePixel = 0;
+dot.Size = UDim2.new(0, 10, 0, 10);
+dot.Position = UDim2.new(0, 16, 0.5, -5);
+crn(dot, 99);
+local ttl = mkTxt(top, "Animation Spoofer X", 16, true);
+ttl.Position = UDim2.new(0, 36, 0, 8);
+ttl.Size = UDim2.new(1, -210, 0, 22);
+local sub = mkTxt(top, "Black & White tracker", 12, false);
+sub.TextColor3 = C.tx2;
+sub.Position = UDim2.new(0, 36, 0, 30);
+sub.Size = UDim2.new(1, -210, 0, 18);
+local btnCfg = mkBtn(top, "CFG");
+btnCfg.Size = UDim2.new(0, 52, 0, 34);
+btnCfg.Position = UDim2.new(1, -174, 0.5, -17);
+hvr(btnCfg);
+local btnMin = mkBtn(top, "-");
+btnMin.Size = UDim2.new(0, 42, 0, 34);
+btnMin.Position = UDim2.new(1, -116, 0.5, -17);
+btnMin.TextSize = 18;
+hvr(btnMin);
+local btnX = mkBtn(top, "X");
+btnX.Size = UDim2.new(0, 42, 0, 34);
+btnX.Position = UDim2.new(1, -64, 0.5, -17);
+hvr(btnX);
+body.Name = "Body";
+body.Parent = main;
+body.BackgroundTransparency = 1;
+body.Position = UDim2.new(0, 0, 0, 54);
+body.Size = UDim2.new(1, 0, 1, -54);
+hdr.Name = "Hdr";
+hdr.Parent = body;
+hdr.BackgroundTransparency = 1;
+hdr.Size = UDim2.new(1, 0, 0, 56);
+srch.Name = "Search";
+srch.Parent = hdr;
+srch.BackgroundColor3 = C.bg1;
+srch.BorderSizePixel = 0;
+srch.Position = UDim2.new(0, 14, 0, 12);
+srch.Size = UDim2.new(1, -28, 0, 36);
+srch.Font = Enum.Font.Gotham;
+srch.TextSize = 13;
+srch.TextColor3 = C.tx0;
+srch.PlaceholderText = "Search by name / id / player";
+srch.PlaceholderColor3 = C.tx2;
+srch.ClearTextOnFocus = false;
+srch.Text = "";
+crn(srch, 14);
+stk(srch, 1, 0.05, C.stk);
+pad(srch, 12, 12, 0, 0);
+tab.Name = "Tab";
+tab.Parent = body;
+tab.BackgroundTransparency = 1;
+tab.Position = UDim2.new(0, 0, 0, 56);
+tab.Size = UDim2.new(1, 0, 0, 44);
+local tL = mkBtn(tab, "Local");
+local tP = mkBtn(tab, "Players");
+local tR = mkBtn(tab, "Recent");
+tL.Size = UDim2.new(0, 130, 0, 34);
+tP.Size = UDim2.new(0, 130, 0, 34);
+tR.Size = UDim2.new(0, 130, 0, 34);
+tL.Position = UDim2.new(0, 14, 0, 5);
+tP.Position = UDim2.new(0, 150, 0, 5);
+tR.Position = UDim2.new(0, 286, 0, 5);
+hvr(tL);
+hvr(tP);
+hvr(tR);
+local ind = Instance.new("Frame");
+ind.Parent = tab;
+ind.BackgroundColor3 = C.tx0;
+ind.BorderSizePixel = 0;
+ind.Position = UDim2.new(0, 14, 1, -2);
+ind.Size = UDim2.new(0, 130, 0, 2);
+crn(ind, 99);
+local sep = Instance.new("Frame");
+sep.Parent = body;
+sep.BackgroundColor3 = C.stk;
+sep.BorderSizePixel = 0;
+sep.Position = UDim2.new(0, 14, 0, 100);
+sep.Size = UDim2.new(1, -28, 0, 1);
+sep.BackgroundTransparency = 0.6;
+cont.Name = "Cont";
+cont.Parent = body;
+cont.BackgroundTransparency = 1;
+cont.Position = UDim2.new(0, 0, 0, 102);
+cont.Size = UDim2.new(1, 0, 1, -102);
 local function mkSc(p)
-	local sc = Instance.new("ScrollingFrame")
-	sc.Parent = p
-	sc.BackgroundTransparency = 1
-	sc.BorderSizePixel = 0
-	sc.Size = UDim2.new(1, 0, 1, 0)
-	sc.Position = UDim2.new(0, 0, 0, 0)
-	sc.ScrollBarThickness = 3
-	sc.ScrollBarImageColor3 = C.tx0
-	sc.ScrollBarImageTransparency = 0.82
-	sc.TopImage, sc.MidImage, sc.BottomImage = "", "", ""
-	pad(sc, 12, 12, 12, 12)
-	local lay = Instance.new("UIListLayout")
-	lay.Parent = sc
-	lay.SortOrder = Enum.SortOrder.LayoutOrder
-	lay.Padding = UDim.new(0, 10)
-	lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		sc.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 18)
-	end)
-	sc.CanvasSize = UDim2.new(0, 0, 0, 18)
-	return sc
-end
-
-local scL = mkSc(cont)
-local scP = mkSc(cont)
-local scR = mkSc(cont)
-scP.Visible = false
-scR.Visible = false
-
-local toast = Instance.new("TextLabel")
-toast.Parent = main
-toast.BackgroundColor3 = C.bg2
-toast.BorderSizePixel = 0
-toast.AnchorPoint = Vector2.new(0.5, 1)
-toast.Position = UDim2.new(0.5, 0, 1, -10)
-toast.Size = UDim2.new(0, 340, 0, 34)
-toast.TextColor3 = C.tx0
-toast.TextSize = 13
-toast.Font = Enum.Font.GothamSemibold
-toast.Text = ""
-toast.Visible = false
-toast.ZIndex = 60
-crn(toast, 14)
-stk(toast, 1, 0.1, C.stk)
-
+	local sc = Instance.new("ScrollingFrame");
+	sc.Parent = p;
+	sc.BackgroundTransparency = 1;
+	sc.BorderSizePixel = 0;
+	sc.Size = UDim2.new(1, 0, 1, 0);
+	sc.Position = UDim2.new(0, 0, 0, 0);
+	sc.ScrollBarThickness = 3;
+	sc.ScrollBarImageColor3 = C.tx0;
+	sc.ScrollBarImageTransparency = 0.82;
+	sc.TopImage, sc.MidImage, sc.BottomImage = "", "", "";
+	pad(sc, 12, 12, 12, 12);
+	local lay = Instance.new("UIListLayout");
+	lay.Parent = sc;
+	lay.SortOrder = Enum.SortOrder.LayoutOrder;
+	lay.Padding = UDim.new(0, 10);
+	(lay:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
+		sc.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 18);
+	end);
+	sc.CanvasSize = UDim2.new(0, 0, 0, 18);
+	return sc;
+end;
+local scL = mkSc(cont);
+local scP = mkSc(cont);
+local scR = mkSc(cont);
+scP.Visible = false;
+scR.Visible = false;
+local toast = Instance.new("TextLabel");
+toast.Parent = main;
+toast.BackgroundColor3 = C.bg2;
+toast.BorderSizePixel = 0;
+toast.AnchorPoint = Vector2.new(0.5, 1);
+toast.Position = UDim2.new(0.5, 0, 1, -10);
+toast.Size = UDim2.new(0, 340, 0, 34);
+toast.TextColor3 = C.tx0;
+toast.TextSize = 13;
+toast.Font = Enum.Font.GothamSemibold;
+toast.Text = "";
+toast.Visible = false;
+toast.ZIndex = 60;
+crn(toast, 14);
+stk(toast, 1, 0.1, C.stk);
 local function pop(s)
-	toast.Visible = true
-	toast.Text = s
-	toast.TextTransparency = 1
-	toast.BackgroundTransparency = 1
-	toast.Position = UDim2.new(0.5, 0, 1, -4)
-	tw(toast, 0.18, {TextTransparency = 0, BackgroundTransparency = 0.05, Position = UDim2.new(0.5, 0, 1, -10)})
+	toast.Visible = true;
+	toast.Text = s;
+	toast.TextTransparency = 1;
+	toast.BackgroundTransparency = 1;
+	toast.Position = UDim2.new(0.5, 0, 1, -4);
+	tw(toast, 0.18, {
+		TextTransparency = 0,
+		BackgroundTransparency = 0.05,
+		Position = UDim2.new(0.5, 0, 1, -10)
+	});
 	task.delay(1.35, function()
 		if toast.Visible then
-			tw(toast, 0.18, {TextTransparency = 1, BackgroundTransparency = 1, Position = UDim2.new(0.5, 0, 1, -4)}).Completed:Wait()
-			toast.Visible = false
-		end
-	end)
-end
-
-local blur = nil
+			(tw(toast, 0.18, {
+				TextTransparency = 1,
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0.5, 0, 1, -4)
+			})).Completed:Wait();
+			toast.Visible = false;
+		end;
+	end);
+end;
+local blur = nil;
 if Lgt then
-	blur = Lgt:FindFirstChild("ASX_Blur")
+	blur = Lgt:FindFirstChild("ASX_Blur");
 	if not blur then
-		blur = Instance.new("BlurEffect")
-		blur.Name = "ASX_Blur"
-		blur.Size = 0
-		blur.Parent = Lgt
-	end
-end
-
-local setP = Instance.new("Frame")
-setP.Parent = body
-setP.BackgroundTransparency = 1
-setP.Size = UDim2.new(1, 0, 1, 0)
-setP.Visible = false
-setP.ZIndex = 100
-
-local dim = Instance.new("Frame")
-dim.Parent = setP
-dim.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-dim.BackgroundTransparency = 1
-dim.BorderSizePixel = 0
-dim.Size = UDim2.new(1, 0, 1, 0)
-dim.ZIndex = 100
-
-local setC = Instance.new("Frame")
-setC.Parent = setP
-setC.BackgroundColor3 = C.bg1
-setC.BorderSizePixel = 0
-setC.AnchorPoint = Vector2.new(0.5, 0.5)
-setC.Position = UDim2.new(0.5, 0, 0.5, 0)
-setC.Size = UDim2.new(0, 430, 0, 282)
-setC.ZIndex = 101
-crn(setC, 16)
-stk(setC, 1, 0, C.stk)
-
-local sT = mkTxt(setC, "Settings", 16, true)
-sT.Position = UDim2.new(0, 14, 0, 12)
-sT.Size = UDim2.new(1, -70, 0, 20)
-sT.ZIndex = 102
-
-local sX = mkBtn(setC, "X")
-sX.Size = UDim2.new(0, 42, 0, 34)
-sX.Position = UDim2.new(1, -56, 0, 8)
-sX.ZIndex = 102
-hvr(sX)
-
-local sSc = Instance.new("ScrollingFrame")
-sSc.Parent = setC
-sSc.BackgroundTransparency = 1
-sSc.BorderSizePixel = 0
-sSc.Position = UDim2.new(0, 0, 0, 50)
-sSc.Size = UDim2.new(1, 0, 1, -50)
-sSc.ScrollBarThickness = 3
-sSc.ScrollBarImageColor3 = C.tx0
-sSc.ScrollBarImageTransparency = 0.82
-sSc.TopImage, sSc.MidImage, sSc.BottomImage = "", "", ""
-sSc.ZIndex = 102
-pad(sSc, 12, 12, 10, 12)
-
-local sLay = Instance.new("UIListLayout")
-sLay.Parent = sSc
-sLay.SortOrder = Enum.SortOrder.LayoutOrder
-sLay.Padding = UDim.new(0, 10)
-sLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	sSc.CanvasSize = UDim2.new(0, 0, 0, sLay.AbsoluteContentSize.Y + 18)
-end)
-sSc.CanvasSize = UDim2.new(0, 0, 0, 18)
-
+		blur = Instance.new("BlurEffect");
+		blur.Name = "ASX_Blur";
+		blur.Size = 0;
+		blur.Parent = Lgt;
+	end;
+end;
+local setP = Instance.new("Frame");
+setP.Parent = body;
+setP.BackgroundTransparency = 1;
+setP.Size = UDim2.new(1, 0, 1, 0);
+setP.Visible = false;
+setP.ZIndex = 100;
+local dim = Instance.new("Frame");
+dim.Parent = setP;
+dim.BackgroundColor3 = Color3.fromRGB(0, 0, 0);
+dim.BackgroundTransparency = 1;
+dim.BorderSizePixel = 0;
+dim.Size = UDim2.new(1, 0, 1, 0);
+dim.ZIndex = 100;
+local setC = Instance.new("Frame");
+setC.Parent = setP;
+setC.BackgroundColor3 = C.bg1;
+setC.BorderSizePixel = 0;
+setC.AnchorPoint = Vector2.new(0.5, 0.5);
+setC.Position = UDim2.new(0.5, 0, 0.5, 0);
+setC.Size = UDim2.new(0, 430, 0, 282);
+setC.ZIndex = 101;
+crn(setC, 16);
+stk(setC, 1, 0, C.stk);
+local sT = mkTxt(setC, "Settings", 16, true);
+sT.Position = UDim2.new(0, 14, 0, 12);
+sT.Size = UDim2.new(1, -70, 0, 20);
+sT.ZIndex = 102;
+local sX = mkBtn(setC, "X");
+sX.Size = UDim2.new(0, 42, 0, 34);
+sX.Position = UDim2.new(1, -56, 0, 8);
+sX.ZIndex = 102;
+hvr(sX);
+local sSc = Instance.new("ScrollingFrame");
+sSc.Parent = setC;
+sSc.BackgroundTransparency = 1;
+sSc.BorderSizePixel = 0;
+sSc.Position = UDim2.new(0, 0, 0, 50);
+sSc.Size = UDim2.new(1, 0, 1, -50);
+sSc.ScrollBarThickness = 3;
+sSc.ScrollBarImageColor3 = C.tx0;
+sSc.ScrollBarImageTransparency = 0.82;
+sSc.TopImage, sSc.MidImage, sSc.BottomImage = "", "", "";
+sSc.ZIndex = 102;
+pad(sSc, 12, 12, 10, 12);
+local sLay = Instance.new("UIListLayout");
+sLay.Parent = sSc;
+sLay.SortOrder = Enum.SortOrder.LayoutOrder;
+sLay.Padding = UDim.new(0, 10);
+(sLay:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
+	sSc.CanvasSize = UDim2.new(0, 0, 0, sLay.AbsoluteContentSize.Y + 18);
+end);
+sSc.CanvasSize = UDim2.new(0, 0, 0, 18);
 local function row(h)
-	local r = Instance.new("Frame")
-	r.Parent = sSc
-	r.BackgroundColor3 = C.bg2
-	r.BackgroundTransparency = 0.05
-	r.BorderSizePixel = 0
-	r.Size = UDim2.new(1, 0, 0, h or 44)
-	r.ZIndex = 102
-	crn(r, 14)
-	stk(r, 1, 0.2, C.stk)
-	return r
-end
-
+	local r = Instance.new("Frame");
+	r.Parent = sSc;
+	r.BackgroundColor3 = C.bg2;
+	r.BackgroundTransparency = 0.05;
+	r.BorderSizePixel = 0;
+	r.Size = UDim2.new(1, 0, 0, h or 44);
+	r.ZIndex = 102;
+	crn(r, 14);
+	stk(r, 1, 0.2, C.stk);
+	return r;
+end;
 local function tog(r, txt, getv, setv)
-	local t = mkTxt(r, txt, 13, true)
-	t.Position = UDim2.new(0, 12, 0, 0)
-	t.Size = UDim2.new(1, -90, 1, 0)
-	t.ZIndex = 103
-
-	local b = Instance.new("TextButton")
-	b.Parent = r
-	b.AutoButtonColor = false
-	b.Text = ""
-	b.BorderSizePixel = 0
-	b.BackgroundColor3 = C.bg1
-	b.Position = UDim2.new(1, -58, 0.5, -14)
-	b.Size = UDim2.new(0, 46, 0, 28)
-	b.ZIndex = 103
-	crn(b, 14)
-	stk(b, 1, 0.2, C.stk)
-
-	local k = Instance.new("Frame")
-	k.Parent = b
-	k.BorderSizePixel = 0
-	k.BackgroundColor3 = C.tx0
-	k.Size = UDim2.new(0, 18, 0, 18)
-	k.Position = UDim2.new(0, 6, 0.5, -9)
-	k.ZIndex = 104
-	crn(k, 99)
-
+	local t = mkTxt(r, txt, 13, true);
+	t.Position = UDim2.new(0, 12, 0, 0);
+	t.Size = UDim2.new(1, -90, 1, 0);
+	t.ZIndex = 103;
+	local b = Instance.new("TextButton");
+	b.Parent = r;
+	b.AutoButtonColor = false;
+	b.Text = "";
+	b.BorderSizePixel = 0;
+	b.BackgroundColor3 = C.bg1;
+	b.Position = UDim2.new(1, -58, 0.5, -14);
+	b.Size = UDim2.new(0, 46, 0, 28);
+	b.ZIndex = 103;
+	crn(b, 14);
+	stk(b, 1, 0.2, C.stk);
+	local k = Instance.new("Frame");
+	k.Parent = b;
+	k.BorderSizePixel = 0;
+	k.BackgroundColor3 = C.tx0;
+	k.Size = UDim2.new(0, 18, 0, 18);
+	k.Position = UDim2.new(0, 6, 0.5, -9);
+	k.ZIndex = 104;
+	crn(k, 99);
 	local function ap()
-		local on = getv()
+		local on = getv();
 		if on then
-			tw(b, 0.12, {BackgroundColor3 = C.bg3})
-			tw(k, 0.12, {Position = UDim2.new(1, -24, 0.5, -9)})
+			tw(b, 0.12, {
+				BackgroundColor3 = C.bg3
+			});
+			tw(k, 0.12, {
+				Position = UDim2.new(1, -24, 0.5, -9)
+			});
 		else
-			tw(b, 0.12, {BackgroundColor3 = C.bg1})
-			tw(k, 0.12, {Position = UDim2.new(0, 6, 0.5, -9)})
-		end
-	end
-	ap()
-
+			tw(b, 0.12, {
+				BackgroundColor3 = C.bg1
+			});
+			tw(k, 0.12, {
+				Position = UDim2.new(0, 6, 0.5, -9)
+			});
+		end;
+	end;
+	ap();
 	b.MouseButton1Click:Connect(function()
-		setv(not getv())
-		ap()
-	end)
-
-	return ap
-end
-
+		setv(not getv());
+		ap();
+	end);
+	return ap;
+end;
 local function step(r, txt, mn, mx, getv, setv)
-	local t = mkTxt(r, txt, 13, true)
-	t.Position = UDim2.new(0, 12, 0, 0)
-	t.Size = UDim2.new(1, -170, 1, 0)
-	t.ZIndex = 103
-
-	local vL = mkTxt(r, "", 12, false)
-	vL.TextColor3 = C.tx1
-	vL.TextXAlignment = Enum.TextXAlignment.Right
-	vL.Position = UDim2.new(1, -170, 0, 0)
-	vL.Size = UDim2.new(0, 110, 1, 0)
-	vL.ZIndex = 103
-
-	local box = Instance.new("Frame")
-	box.Parent = r
-	box.BackgroundColor3 = C.bg1
-	box.BorderSizePixel = 0
-	box.Position = UDim2.new(1, -56, 0.5, -10)
-	box.Size = UDim2.new(0, 44, 0, 20)
-	box.ZIndex = 103
-	crn(box, 10)
-	stk(box, 1, 0.2, C.stk)
-
-	local dn = mkBtn(box, "<")
-	dn.Size = UDim2.new(0.5, -2, 1, 0)
-	dn.Position = UDim2.new(0, 0, 0, 0)
-	dn.ZIndex = 104
-	dn.BackgroundColor3 = C.bg2
-	hvr(dn)
-
-	local up = mkBtn(box, ">")
-	up.Size = UDim2.new(0.5, -2, 1, 0)
-	up.Position = UDim2.new(0.5, 2, 0, 0)
-	up.ZIndex = 104
-	up.BackgroundColor3 = C.bg2
-	hvr(up)
-
+	local t = mkTxt(r, txt, 13, true);
+	t.Position = UDim2.new(0, 12, 0, 0);
+	t.Size = UDim2.new(1, -170, 1, 0);
+	t.ZIndex = 103;
+	local vL = mkTxt(r, "", 12, false);
+	vL.TextColor3 = C.tx1;
+	vL.TextXAlignment = Enum.TextXAlignment.Right;
+	vL.Position = UDim2.new(1, -170, 0, 0);
+	vL.Size = UDim2.new(0, 110, 1, 0);
+	vL.ZIndex = 103;
+	local box = Instance.new("Frame");
+	box.Parent = r;
+	box.BackgroundColor3 = C.bg1;
+	box.BorderSizePixel = 0;
+	box.Position = UDim2.new(1, -56, 0.5, -10);
+	box.Size = UDim2.new(0, 44, 0, 20);
+	box.ZIndex = 103;
+	crn(box, 10);
+	stk(box, 1, 0.2, C.stk);
+	local dn = mkBtn(box, "<");
+	dn.Size = UDim2.new(0.5, -2, 1, 0);
+	dn.Position = UDim2.new(0, 0, 0, 0);
+	dn.ZIndex = 104;
+	dn.BackgroundColor3 = C.bg2;
+	hvr(dn);
+	local up = mkBtn(box, ">");
+	up.Size = UDim2.new(0.5, -2, 1, 0);
+	up.Position = UDim2.new(0.5, 2, 0, 0);
+	up.ZIndex = 104;
+	up.BackgroundColor3 = C.bg2;
+	hvr(up);
 	local function ap()
-		vL.Text = tostring(getv()) .. "s"
-	end
-	ap()
-
+		vL.Text = tostring(getv()) .. "s";
+	end;
+	ap();
 	up.MouseButton1Click:Connect(function()
-		setv(math.clamp(getv() + 1, mn, mx))
-		ap()
-	end)
+		setv(math.clamp(getv() + 1, mn, mx));
+		ap();
+	end);
 	dn.MouseButton1Click:Connect(function()
-		setv(math.clamp(getv() - 1, mn, mx))
-		ap()
-	end)
-
-	return ap
-end
-
+		setv(math.clamp(getv() - 1, mn, mx));
+		ap();
+	end);
+	return ap;
+end;
 local function act(r, txt, cb)
-	local b = mkBtn(r, txt)
-	b.Size = UDim2.new(1, -24, 0, 36)
-	b.Position = UDim2.new(0, 12, 0.5, -18)
-	b.ZIndex = 103
-	hvr(b)
-	b.MouseButton1Click:Connect(cb)
-	return b
-end
-
-local a1 = tog(row(44), "Auto track (events + light scan)", function() return opt.auto end, function(v) opt.auto = v end)
-local a2 = tog(row(44), "Include Local animations", function() return opt.loc end, function(v) opt.loc = v end)
-local a3 = tog(row(44), "Include Players animations", function() return opt.plr end, function(v) opt.plr = v end)
-local a4 = tog(row(44), "Fetch animation names", function() return opt.nam end, function(v) opt.nam = v end)
-local a5 = tog(row(44), "Unique IDs (dedupe)", function() return opt.uni end, function(v) opt.uni = v end)
-local a6 = tog(row(44), "Compact rows", function() return opt.cmp end, function(v) opt.cmp = v end)
-local a7 = tog(row(44), "Reduce motion", function() return opt.red end, function(v) opt.red = v end)
-local a8 = tog(row(44), "Blur behind (menu)", function() return opt.blr end, function(v) opt.blr = v end)
-local a9 = step(row(44), "Scan interval", 1, 10, function() return opt.int end, function(v) opt.int = v end)
-
-local seen = {}
-local rows = {}
-local info = {}
-local q = {}
-local runQ = false
-
+	local b = mkBtn(r, txt);
+	b.Size = UDim2.new(1, -24, 0, 36);
+	b.Position = UDim2.new(0, 12, 0.5, -18);
+	b.ZIndex = 103;
+	hvr(b);
+	b.MouseButton1Click:Connect(cb);
+	return b;
+end;
+local a1 = tog(row(44), "Auto track (events + light scan)", function()
+	return opt.auto;
+end, function(v)
+	opt.auto = v;
+end);
+local a2 = tog(row(44), "Include Local animations", function()
+	return opt.loc;
+end, function(v)
+	opt.loc = v;
+end);
+local a3 = tog(row(44), "Include Players animations", function()
+	return opt.plr;
+end, function(v)
+	opt.plr = v;
+end);
+local a4 = tog(row(44), "Fetch animation names", function()
+	return opt.nam;
+end, function(v)
+	opt.nam = v;
+end);
+local a5 = tog(row(44), "Unique IDs (dedupe)", function()
+	return opt.uni;
+end, function(v)
+	opt.uni = v;
+end);
+local a6 = tog(row(44), "Compact rows", function()
+	return opt.cmp;
+end, function(v)
+	opt.cmp = v;
+end);
+local a7 = tog(row(44), "Reduce motion", function()
+	return opt.red;
+end, function(v)
+	opt.red = v;
+end);
+local a8 = tog(row(44), "Blur behind (menu)", function()
+	return opt.blr;
+end, function(v)
+	opt.blr = v;
+end);
+local a9 = step(row(44), "Scan interval", 1, 10, function()
+	return opt.int;
+end, function(v)
+	opt.int = v;
+end);
+local seen = {};
+local rows = {};
+local info = {};
+local q = {};
+local runQ = false;
 local function normId(id)
-	if not id then return nil end
-	local s = tostring(id)
-	local n = string.match(s, "%d+")
-	return n and tonumber(n) or nil
-end
-
+	if not id then
+		return nil;
+	end;
+	local s = tostring(id);
+	local n = string.match(s, "%d+");
+	return n and tonumber(n) or nil;
+end;
 local function keyOf(id, uid)
 	if opt.uni then
-		return tostring(id)
-	end
-	return tostring(id) .. ":" .. tostring(uid or 0)
-end
-
+		return tostring(id);
+	end;
+	return tostring(id) .. ":" .. tostring((uid or 0));
+end;
 local function setCmp()
 	for _, it in pairs(rows) do
 		if it and it.r and it.w then
-			it.r.Size = UDim2.new(1, 0, 0, opt.cmp and 58 or 76)
-			it.w.Visible = not opt.cmp
-			it.s.Position = UDim2.new(0, 14, 0, opt.cmp and 32 or 36)
-			it.w.Position = UDim2.new(0, 14, 0, 54)
-		end
-	end
-end
-
-local toast2 = Instance.new("Frame")
-toast2.Parent = main
-toast2.BackgroundColor3 = C.bg2
-toast2.BorderSizePixel = 0
-toast2.AnchorPoint = Vector2.new(1, 0)
-toast2.Position = UDim2.new(1, -12, 0, 62)
-toast2.Size = UDim2.new(0, 140, 0, 32)
-toast2.Visible = false
-toast2.ZIndex = 60
-crn(toast2, 14)
-stk(toast2, 1, 0.1, C.stk)
-
-local toast2t = mkTxt(toast2, "", 12, true)
-toast2t.TextXAlignment = Enum.TextXAlignment.Center
-toast2t.Position = UDim2.new(0, 0, 0, 0)
-toast2t.Size = UDim2.new(1, 0, 1, 0)
-toast2t.ZIndex = 61
-
+			it.r.Size = UDim2.new(1, 0, 0, opt.cmp and 58 or 76);
+			it.w.Visible = not opt.cmp;
+			it.s.Position = UDim2.new(0, 14, 0, opt.cmp and 32 or 36);
+			it.w.Position = UDim2.new(0, 14, 0, 54);
+		end;
+	end;
+end;
+local toast2 = Instance.new("Frame");
+toast2.Parent = main;
+toast2.BackgroundColor3 = C.bg2;
+toast2.BorderSizePixel = 0;
+toast2.AnchorPoint = Vector2.new(1, 0);
+toast2.Position = UDim2.new(1, -12, 0, 62);
+toast2.Size = UDim2.new(0, 140, 0, 32);
+toast2.Visible = false;
+toast2.ZIndex = 60;
+crn(toast2, 14);
+stk(toast2, 1, 0.1, C.stk);
+local toast2t = mkTxt(toast2, "", 12, true);
+toast2t.TextXAlignment = Enum.TextXAlignment.Center;
+toast2t.Position = UDim2.new(0, 0, 0, 0);
+toast2t.Size = UDim2.new(1, 0, 1, 0);
+toast2t.ZIndex = 61;
 local function pop2(s)
-	toast2.Visible = true
-	toast2t.Text = s
-	toast2.BackgroundTransparency = 1
-	toast2t.TextTransparency = 1
-	toast2.Position = UDim2.new(1, -8, 0, 62)
-	tw(toast2, 0.16, {BackgroundTransparency = 0.05, Position = UDim2.new(1, -12, 0, 62)})
-	tw(toast2t, 0.16, {TextTransparency = 0})
-	task.delay(1.0, function()
+	toast2.Visible = true;
+	toast2t.Text = s;
+	toast2.BackgroundTransparency = 1;
+	toast2t.TextTransparency = 1;
+	toast2.Position = UDim2.new(1, -8, 0, 62);
+	tw(toast2, 0.16, {
+		BackgroundTransparency = 0.05,
+		Position = UDim2.new(1, -12, 0, 62)
+	});
+	tw(toast2t, 0.16, {
+		TextTransparency = 0
+	});
+	task.delay(1, function()
 		if toast2.Visible then
-			tw(toast2, 0.16, {BackgroundTransparency = 1, Position = UDim2.new(1, -8, 0, 62)}).Completed:Wait()
-			toast2.Visible = false
-		end
-	end)
-end
-
+			(tw(toast2, 0.16, {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(1, -8, 0, 62)
+			})).Completed:Wait();
+			toast2.Visible = false;
+		end;
+	end);
+end;
 local function mkRow(id, sc, src, uid)
-	local r = Instance.new("Frame")
-	r.Parent = sc
-	r.BackgroundColor3 = C.bg1
-	r.BackgroundTransparency = 0.06
-	r.BorderSizePixel = 0
-	r.Size = UDim2.new(1, 0, 0, opt.cmp and 58 or 76)
-	r.ClipsDescendants = true
-	crn(r, 16)
-	stk(r, 1, 0.25, C.stk)
-
-	local n = mkTxt(r, "Loading...", 14, true)
-	n.Position = UDim2.new(0, 14, 0, 10)
-	n.Size = UDim2.new(1, -122, 0, 18)
-
-	local s = mkTxt(r, "ID: " .. tostring(id), 12, false)
-	s.TextColor3 = C.tx1
-	s.Position = UDim2.new(0, 14, 0, opt.cmp and 32 or 36)
-	s.Size = UDim2.new(1, -122, 0, 16)
-
-	local w = mkTxt(r, "", 12, false)
-	w.TextColor3 = C.tx2
-	w.Position = UDim2.new(0, 14, 0, 54)
-	w.Size = UDim2.new(1, -122, 0, 16)
-	w.Visible = not opt.cmp
-
-	local cpy = mkBtn(r, "COPY")
-	cpy.Size = UDim2.new(0, 90, 0, 32)
-	cpy.Position = UDim2.new(1, -104, 0.5, -16)
-	cpy.BackgroundColor3 = C.bg2
-	hvr(cpy)
-
-	local ok = Instance.new("TextLabel")
-	ok.Parent = r
-	ok.BackgroundTransparency = 1
-	ok.Text = "COPIED"
-	ok.TextColor3 = C.tx0
-	ok.TextTransparency = 1
-	ok.TextSize = 12
-	ok.Font = Enum.Font.GothamSemibold
-	ok.TextXAlignment = Enum.TextXAlignment.Center
-	ok.TextYAlignment = Enum.TextYAlignment.Center
-	ok.Position = UDim2.new(1, -104, 0, 10)
-	ok.Size = UDim2.new(0, 90, 0, 16)
-
-	local a = Instance.new("NumberValue")
-	a.Value = 0
+	local r = Instance.new("Frame");
+	r.Parent = sc;
+	r.BackgroundColor3 = C.bg1;
+	r.BackgroundTransparency = 0.06;
+	r.BorderSizePixel = 0;
+	r.Size = UDim2.new(1, 0, 0, opt.cmp and 58 or 76);
+	r.ClipsDescendants = true;
+	crn(r, 16);
+	stk(r, 1, 0.25, C.stk);
+	local n = mkTxt(r, "Loading...", 14, true);
+	n.Position = UDim2.new(0, 14, 0, 10);
+	n.Size = UDim2.new(1, -122, 0, 18);
+	local s = mkTxt(r, "ID: " .. tostring(id), 12, false);
+	s.TextColor3 = C.tx1;
+	s.Position = UDim2.new(0, 14, 0, opt.cmp and 32 or 36);
+	s.Size = UDim2.new(1, -122, 0, 16);
+	local w = mkTxt(r, "", 12, false);
+	w.TextColor3 = C.tx2;
+	w.Position = UDim2.new(0, 14, 0, 54);
+	w.Size = UDim2.new(1, -122, 0, 16);
+	w.Visible = not opt.cmp;
+	local cpy = mkBtn(r, "COPY");
+	cpy.Size = UDim2.new(0, 90, 0, 32);
+	cpy.Position = UDim2.new(1, -104, 0.5, -16);
+	cpy.BackgroundColor3 = C.bg2;
+	hvr(cpy);
+	local ok = Instance.new("TextLabel");
+	ok.Parent = r;
+	ok.BackgroundTransparency = 1;
+	ok.Text = "COPIED";
+	ok.TextColor3 = C.tx0;
+	ok.TextTransparency = 1;
+	ok.TextSize = 12;
+	ok.Font = Enum.Font.GothamSemibold;
+	ok.TextXAlignment = Enum.TextXAlignment.Center;
+	ok.TextYAlignment = Enum.TextYAlignment.Center;
+	ok.Position = UDim2.new(1, -104, 0, 10);
+	ok.Size = UDim2.new(0, 90, 0, 16);
+	local a = Instance.new("NumberValue");
+	a.Value = 0;
 	a.Changed:Connect(function(v)
-		r.BackgroundTransparency = 0.26 + (0.8 * (1 - v))
-		n.TextTransparency = 1 - v
-		s.TextTransparency = 1 - v
-		w.TextTransparency = 1 - v
-		cpy.TextTransparency = 1 - v
-		cpy.BackgroundTransparency = 0.12 + (0.88 * (1 - v))
-	end)
-
-	r.BackgroundTransparency = 1
-	n.TextTransparency = 1
-	s.TextTransparency = 1
-	w.TextTransparency = 1
-	cpy.TextTransparency = 1
-	cpy.BackgroundTransparency = 1
+		r.BackgroundTransparency = 0.26 + 0.8 * (1 - v);
+		n.TextTransparency = 1 - v;
+		s.TextTransparency = 1 - v;
+		w.TextTransparency = 1 - v;
+		cpy.TextTransparency = 1 - v;
+		cpy.BackgroundTransparency = 0.12 + 0.88 * (1 - v);
+	end);
+	r.BackgroundTransparency = 1;
+	n.TextTransparency = 1;
+	s.TextTransparency = 1;
+	w.TextTransparency = 1;
+	cpy.TextTransparency = 1;
+	cpy.BackgroundTransparency = 1;
 	task.defer(function()
-		tw(a, 0.2, {Value = 1}, Enum.EasingStyle.Quad)
-	end)
-
+		tw(a, 0.2, {
+			Value = 1
+		}, Enum.EasingStyle.Quad);
+	end);
 	cpy.MouseButton1Click:Connect(function()
-		local okc = safeClip(tostring(id))
+		local okc = safeClip(tostring(id));
 		if okc then
-			ok.TextTransparency = 1
-			tw(ok, 0.12, {TextTransparency = 0})
+			ok.TextTransparency = 1;
+			tw(ok, 0.12, {
+				TextTransparency = 0
+			});
 			task.delay(0.6, function()
-				tw(ok, 0.12, {TextTransparency = 1})
-			end)
+				tw(ok, 0.12, {
+					TextTransparency = 1
+				});
+			end);
 		else
-			pop("Clipboard not available")
-		end
-	end)
-
-	return {r=r, n=n, s=s, w=w, id=id, src=src, uid=uid}
-end
-
+			pop("Clipboard not available");
+		end;
+	end);
+	return {
+		r = r,
+		n = n,
+		s = s,
+		w = w,
+		id = id,
+		src = src,
+		uid = uid
+	};
+end;
 local function addRow(id, src, uid, pln)
-	if not id then return end
-	if src == "L" and not opt.loc then return end
-	if src == "P" and not opt.plr then return end
-
-	local k = keyOf(id, uid)
+	if not id then
+		return;
+	end;
+	if src == "L" and (not opt.loc) then
+		return;
+	end;
+	if src == "P" and (not opt.plr) then
+		return;
+	end;
+	local k = keyOf(id, uid);
 	if seen[k] then
 		if pln and rows[k] and rows[k].w then
-			local t = rows[k].w.Text
+			local t = rows[k].w.Text;
 			if t == "" then
-				rows[k].w.Text = "Player: " .. pln
+				rows[k].w.Text = "Player: " .. pln;
 			elseif not t:find(pln, 1, true) then
-				local x = t .. ", " .. pln
-				rows[k].w.Text = (#x > 58) and (t .. " (+)") or x
-			end
-		end
-		return
-	end
-	seen[k] = true
-
-	local sc = (src == "L") and scL or (src == "P" and scP or scR)
-	local it = mkRow(id, sc, src, uid)
-
+				local x = t .. ", " .. pln;
+				rows[k].w.Text = #x > 58 and t .. " (+)" or x;
+			end;
+		end;
+		return;
+	end;
+	seen[k] = true;
+	local sc = src == "L" and scL or (src == "P" and scP or scR);
+	local it = mkRow(id, sc, src, uid);
 	if src == "P" then
-		it.w.Text = pln and ("Player: " .. pln) or "Player: ?"
+		it.w.Text = pln and "Player: " .. pln or "Player: ?";
 	elseif src == "L" then
-		it.w.Text = "LocalPlayer"
+		it.w.Text = "LocalPlayer";
 	else
-		it.w.Text = "Recent"
-	end
-
-	rows[k] = it
-
+		it.w.Text = "Recent";
+	end;
+	rows[k] = it;
 	if opt.nam then
-		q[#q + 1] = id
-	end
-end
-
+		q[(#q) + 1] = id;
+	end;
+end;
 local function runInfo()
-	if runQ then return end
-	runQ = true
+	if runQ then
+		return;
+	end;
+	runQ = true;
 	while #q > 0 do
 		if not opt.nam then
-			table.clear(q)
-			break
-		end
-		local id = table.remove(q, 1)
+			table.clear(q);
+			break;
+		end;
+		local id = table.remove(q, 1);
 		if not info[id] then
-			info[id] = {n = "Unknown"}
+			info[id] = {
+				n = "Unknown"
+			};
 			local ok, res = pcall(function()
-				return MPS:GetProductInfo(tonumber(id))
-			end)
+				return MPS:GetProductInfo(tonumber(id));
+			end);
 			if ok and type(res) == "table" and res.Name then
-				info[id].n = tostring(res.Name)
-			end
+				info[id].n = tostring(res.Name);
+			end;
 			for _, it in pairs(rows) do
 				if it and it.id == id and it.n then
-					it.n.Text = info[id].n
-				end
-			end
+					it.n.Text = info[id].n;
+				end;
+			end;
 		else
 			for _, it in pairs(rows) do
 				if it and it.id == id and it.n then
-					it.n.Text = info[id].n
-				end
-			end
-		end
-		task.wait(0.045)
-	end
-	runQ = false
-end
-
+					it.n.Text = info[id].n;
+				end;
+			end;
+		end;
+		task.wait(0.045);
+	end;
+	runQ = false;
+end;
 local function pullName()
 	if opt.nam then
-		task.spawn(runInfo)
-	end
-end
-
+		task.spawn(runInfo);
+	end;
+end;
 local function onTrack(plr, hum, trk)
-	if not trk then return end
-	local anim = trk.Animation
-	if not anim then return end
-	local id = normId(anim.AnimationId)
-	if not id then return end
-
-	local src = "P"
-	local uid = plr and plr.UserId or 0
-	local pln = plr and nameChecker(plr) or nil
+	if not trk then
+		return;
+	end;
+	local anim = trk.Animation;
+	if not anim then
+		return;
+	end;
+	local id = normId(anim.AnimationId);
+	if not id then
+		return;
+	end;
+	local src = "P";
+	local uid = plr and plr.UserId or 0;
+	local pln = plr and nameChecker(plr) or nil;
 	if plr == Plrs.LocalPlayer then
-		src = "L"
-	end
-
-	addRow(id, src, uid, pln)
-	addRow(id, "R", uid, pln)
-	pullName()
-end
-
-local hCon, cCon, pCon = {}, {}, {}
-
+		src = "L";
+	end;
+	addRow(id, src, uid, pln);
+	addRow(id, "R", uid, pln);
+	pullName();
+end;
+local hCon, cCon, pCon = {}, {}, {};
 local function disCon(t)
 	for _, c in pairs(t) do
 		if typeof(c) == "RBXScriptConnection" then
-			pcall(function() c:Disconnect() end)
-		end
-	end
-	table.clear(t)
-end
-
+			pcall(function()
+				c:Disconnect();
+			end);
+		end;
+	end;
+	table.clear(t);
+end;
 local function hookHum(plr, hum)
-	if not hum or hCon[hum] then return end
-	local cons = {}
-	cons[#cons + 1] = hum.AnimationPlayed:Connect(function(trk)
-		onTrack(plr, hum, trk)
-	end)
+	if not hum or hCon[hum] then
+		return;
+	end;
+	local cons = {};
+	cons[(#cons) + 1] = hum.AnimationPlayed:Connect(function(trk)
+		onTrack(plr, hum, trk);
+	end);
 	pcall(function()
 		for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
-			onTrack(plr, hum, trk)
-		end
-	end)
-	hCon[hum] = cons
-end
-
+			onTrack(plr, hum, trk);
+		end;
+	end);
+	hCon[hum] = cons;
+end;
 local function hookChar(plr, chr)
-	if not chr or cCon[chr] then return end
-	local cons = {}
-
+	if not chr or cCon[chr] then
+		return;
+	end;
+	local cons = {};
 	local function try()
-		local hum = chr:FindFirstChildOfClass("Humanoid")
+		local hum = chr:FindFirstChildOfClass("Humanoid");
 		if hum then
-			hookHum(plr, hum)
-		end
-	end
-
-	try()
-	cons[#cons + 1] = chr.ChildAdded:Connect(function(ch)
+			hookHum(plr, hum);
+		end;
+	end;
+	try();
+	cons[(#cons) + 1] = chr.ChildAdded:Connect(function(ch)
 		if ch:IsA("Humanoid") then
-			hookHum(plr, ch)
-		end
-	end)
-
-	cons[#cons + 1] = chr.AncestryChanged:Connect(function(_, par)
+			hookHum(plr, ch);
+		end;
+	end);
+	cons[(#cons) + 1] = chr.AncestryChanged:Connect(function(_, par)
 		if not par then
-			disCon(cons)
-			cCon[chr] = nil
-		end
-	end)
-
-	cCon[chr] = cons
-end
-
+			disCon(cons);
+			cCon[chr] = nil;
+		end;
+	end);
+	cCon[chr] = cons;
+end;
 local function hookPlr(plr)
-	if pCon[plr] then return end
-	local cons = {}
-
-	cons[#cons + 1] = plr.CharacterAdded:Connect(function(chr)
-		hookChar(plr, chr)
-	end)
-
+	if pCon[plr] then
+		return;
+	end;
+	local cons = {};
+	cons[(#cons) + 1] = plr.CharacterAdded:Connect(function(chr)
+		hookChar(plr, chr);
+	end);
 	if plr.Character then
-		hookChar(plr, plr.Character)
-	end
-
-	cons[#cons + 1] = plr.AncestryChanged:Connect(function(_, par)
+		hookChar(plr, plr.Character);
+	end;
+	cons[(#cons) + 1] = plr.AncestryChanged:Connect(function(_, par)
 		if not par then
-			disCon(cons)
-			pCon[plr] = nil
-		end
-	end)
-
-	pCon[plr] = cons
-end
-
+			disCon(cons);
+			pCon[plr] = nil;
+		end;
+	end);
+	pCon[plr] = cons;
+end;
 for _, plr in ipairs(Plrs:GetPlayers()) do
-	hookPlr(plr)
-end
-Plrs.PlayerAdded:Connect(hookPlr)
+	hookPlr(plr);
+end;
+Plrs.PlayerAdded:Connect(hookPlr);
 Plrs.PlayerRemoving:Connect(function(plr)
-	local pc = pCon[plr]
-	if pc then disCon(pc) end
-	pCon[plr] = nil
-end)
-
+	local pc = pCon[plr];
+	if pc then
+		disCon(pc);
+	end;
+	pCon[plr] = nil;
+end);
 local function doFilter()
-	local txt = (srch.Text or ""):lower()
+	local txt = (srch.Text or ""):lower();
 	for _, it in pairs(rows) do
 		if it and it.r and it.r.Parent then
-			local n = it.n and it.n.Text or ""
-			local s = it.s and it.s.Text or ""
-			local w = it.w and it.w.Text or ""
-			local ok = (txt == "") or n:lower():find(txt, 1, true) or s:lower():find(txt, 1, true) or w:lower():find(txt, 1, true)
-			it.r.Visible = ok
-		end
-	end
-end
-
-local db = 0
-srch:GetPropertyChangedSignal("Text"):Connect(function()
-	db += 1
-	local c = db
+			local n = it.n and it.n.Text or "";
+			local s = it.s and it.s.Text or "";
+			local w = it.w and it.w.Text or "";
+			local ok = txt == "" or (n:lower()):find(txt, 1, true) or (s:lower()):find(txt, 1, true) or (w:lower()):find(txt, 1, true);
+			it.r.Visible = ok;
+		end;
+	end;
+end;
+local db = 0;
+(srch:GetPropertyChangedSignal("Text")):Connect(function()
+	db += 1;
+	local c = db;
 	task.delay(0.12, function()
 		if c == db then
-			doFilter()
-		end
-	end)
-end)
-
+			doFilter();
+		end;
+	end);
+end);
 local function setTab(n)
-	local x = (n == 1 and 14) or (n == 2 and 150) or 286
-	scL.Visible = (n == 1)
-	scP.Visible = (n == 2)
-	scR.Visible = (n == 3)
-	tw(ind, 0.18, {Position = UDim2.new(0, x, 1, -2)})
-end
-
-tL.MouseButton1Click:Connect(function() setTab(1) end)
-tP.MouseButton1Click:Connect(function() setTab(2) end)
-tR.MouseButton1Click:Connect(function() setTab(3) end)
-setTab(1)
-
+	local x = n == 1 and 14 or n == 2 and 150 or 286;
+	scL.Visible = n == 1;
+	scP.Visible = n == 2;
+	scR.Visible = n == 3;
+	tw(ind, 0.18, {
+		Position = UDim2.new(0, x, 1, -2)
+	});
+end;
+tL.MouseButton1Click:Connect(function()
+	setTab(1);
+end);
+tP.MouseButton1Click:Connect(function()
+	setTab(2);
+end);
+tR.MouseButton1Click:Connect(function()
+	setTab(3);
+end);
+setTab(1);
 local function openSet(v)
 	if v then
-		setP.Visible = true
-		dim.BackgroundTransparency = 1
-		setC.BackgroundTransparency = 1
-		setC.Size = UDim2.new(0, 412, 0, 264)
+		setP.Visible = true;
+		dim.BackgroundTransparency = 1;
+		setC.BackgroundTransparency = 1;
+		setC.Size = UDim2.new(0, 412, 0, 264);
 		if blur and opt.blr then
-			tw(blur, 0.18, {Size = 14}, Enum.EasingStyle.Quad)
-		end
-		tw(dim, 0.16, {BackgroundTransparency = 0.35})
-		tw(setC, 0.18, {BackgroundTransparency = 0, Size = UDim2.new(0, 430, 0, 282)})
+			tw(blur, 0.18, {
+				Size = 14
+			}, Enum.EasingStyle.Quad);
+		end;
+		tw(dim, 0.16, {
+			BackgroundTransparency = 0.35
+		});
+		tw(setC, 0.18, {
+			BackgroundTransparency = 0,
+			Size = UDim2.new(0, 430, 0, 282)
+		});
 	else
 		if blur then
-			tw(blur, 0.18, {Size = 0}, Enum.EasingStyle.Quad)
-		end
-		tw(dim, 0.14, {BackgroundTransparency = 1})
-		tw(setC, 0.14, {BackgroundTransparency = 1, Size = UDim2.new(0, 412, 0, 264)}).Completed:Wait()
-		setP.Visible = false
-		setCmp()
-	end
-end
-
+			tw(blur, 0.18, {
+				Size = 0
+			}, Enum.EasingStyle.Quad);
+		end;
+		tw(dim, 0.14, {
+			BackgroundTransparency = 1
+		});
+		(tw(setC, 0.14, {
+			BackgroundTransparency = 1,
+			Size = UDim2.new(0, 412, 0, 264)
+		})).Completed:Wait();
+		setP.Visible = false;
+		setCmp();
+	end;
+end;
 btnCfg.MouseButton1Click:Connect(function()
-	openSet(true)
-end)
-
+	openSet(true);
+end);
 sX.MouseButton1Click:Connect(function()
-	openSet(false)
-end)
-
+	openSet(false);
+end);
 dim.InputBegan:Connect(function(inp)
 	if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-		openSet(false)
-	end
-end)
-
+		openSet(false);
+	end;
+end);
 local function clearAll()
-	table.clear(seen)
+	table.clear(seen);
 	for _, it in pairs(rows) do
 		if it and it.r then
-			pcall(function() it.r:Destroy() end)
-		end
-	end
-	table.clear(rows)
-	pop("Cleared")
-end
-
+			pcall(function()
+				it.r:Destroy();
+			end);
+		end;
+	end;
+	table.clear(rows);
+	pop("Cleared");
+end;
 local function copyVis()
-	local out = {}
+	local out = {};
 	for _, it in pairs(rows) do
 		if it and it.r and it.r.Visible then
-			out[#out + 1] = tostring(it.id)
-		end
-	end
-	local s = table.concat(out, "\n")
+			out[(#out) + 1] = tostring(it.id);
+		end;
+	end;
+	local s = table.concat(out, "\n");
 	if s == "" then
-		pop("Nothing visible")
-		return
-	end
+		pop("Nothing visible");
+		return;
+	end;
 	if safeClip(s) then
-		pop2("COPIED LIST")
+		pop2("COPIED LIST");
 	else
-		pop("Clipboard not available")
-	end
-end
-
+		pop("Clipboard not available");
+	end;
+end;
 act(row(44), "Rescan now", function()
-	pop("Rescanning...")
+	pop("Rescanning...");
 	local function scanPlr(plr)
-		if not plr or not plr.Character then return end
-		local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-		if not hum then return end
+		if not plr or (not plr.Character) then
+			return;
+		end;
+		local hum = plr.Character:FindFirstChildOfClass("Humanoid");
+		if not hum then
+			return;
+		end;
 		pcall(function()
 			for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
-				onTrack(plr, hum, trk)
-			end
-		end)
-	end
-	if opt.loc then scanPlr(Plrs.LocalPlayer) end
+				onTrack(plr, hum, trk);
+			end;
+		end);
+	end;
+	if opt.loc then
+		scanPlr(Plrs.LocalPlayer);
+	end;
 	if opt.plr then
 		for _, plr in ipairs(Plrs:GetPlayers()) do
 			if plr ~= Plrs.LocalPlayer then
-				scanPlr(plr)
-			end
-		end
-	end
-	doFilter()
-end)
-
+				scanPlr(plr);
+			end;
+		end;
+	end;
+	doFilter();
+end);
 act(row(44), "Copy visible IDs", function()
-	copyVis()
-end)
-
+	copyVis();
+end);
 act(row(44), "Clear list", function()
-	clearAll()
-end)
-
+	clearAll();
+end);
 local function reAp()
-	a1(); a2(); a3(); a4(); a5(); a6(); a7(); a8(); a9()
-	setCmp()
-end
-
+	a1();
+	a2();
+	a3();
+	a4();
+	a5();
+	a6();
+	a7();
+	a8();
+	a9();
+	setCmp();
+end;
 task.spawn(function()
 	while screenGui.Parent do
 		if opt.auto then
 			local function scanPlr(plr)
-				if not plr or not plr.Character then return end
-				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-				if not hum then return end
+				if not plr or (not plr.Character) then
+					return;
+				end;
+				local hum = plr.Character:FindFirstChildOfClass("Humanoid");
+				if not hum then
+					return;
+				end;
 				pcall(function()
 					for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
-						onTrack(plr, hum, trk)
-					end
-				end)
-			end
-			if opt.loc then scanPlr(Plrs.LocalPlayer) end
+						onTrack(plr, hum, trk);
+					end;
+				end);
+			end;
+			if opt.loc then
+				scanPlr(Plrs.LocalPlayer);
+			end;
 			if opt.plr then
 				for _, plr in ipairs(Plrs:GetPlayers()) do
 					if plr ~= Plrs.LocalPlayer then
-						scanPlr(plr)
-					end
-				end
-			end
-			doFilter()
-		end
-		task.wait(math.clamp(opt.int, 1, 10))
-	end
-end)
-
-local min = false
-local h0 = main.Size
+						scanPlr(plr);
+					end;
+				end;
+			end;
+			doFilter();
+		end;
+		task.wait(math.clamp(opt.int, 1, 10));
+	end;
+end);
+local min = false;
+local h0 = main.Size;
 btnMin.MouseButton1Click:Connect(function()
-	min = not min
+	min = not min;
 	if min then
-		srch.Visible = false
-		tab.Visible = false
-		sep.Visible = false
-		cont.Visible = false
-		btnMin.Text = "+"
-		tw(main, 0.2, {Size = UDim2.new(0, h0.X.Offset, 0, 54)})
+		srch.Visible = false;
+		tab.Visible = false;
+		sep.Visible = false;
+		cont.Visible = false;
+		btnMin.Text = "+";
+		tw(main, 0.2, {
+			Size = UDim2.new(0, h0.X.Offset, 0, 54)
+		});
 	else
-		btnMin.Text = "-"
-		tw(main, 0.2, {Size = h0}).Completed:Wait()
-		srch.Visible = true
-		tab.Visible = true
-		sep.Visible = true
-		cont.Visible = true
-	end
-end)
-
+		btnMin.Text = "-";
+		(tw(main, 0.2, {
+			Size = h0
+		})).Completed:Wait();
+		srch.Visible = true;
+		tab.Visible = true;
+		sep.Visible = true;
+		cont.Visible = true;
+	end;
+end);
 btnX.MouseButton1Click:Connect(function()
-	if blur then pcall(function() blur:Destroy() end) end
-	screenGui:Destroy()
-end)
-
-setP:GetPropertyChangedSignal("Visible"):Connect(function()
-	reAp()
-end)
-
-reAp()
-NAdragV2(main, top)
-
-pop("Loaded")
+	if blur then
+		pcall(function()
+			blur:Destroy();
+		end);
+	end;
+	screenGui:Destroy();
+end);
+(setP:GetPropertyChangedSignal("Visible")):Connect(function()
+	reAp();
+end);
+reAp();
+NAdragV2(main, top);
+pop("Loaded");
