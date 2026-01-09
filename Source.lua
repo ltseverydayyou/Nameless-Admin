@@ -37674,597 +37674,518 @@ cmd.add({"chardeleteclass", "charremoveclass", "chardeleteclassname", "cdc"}, {"
 	end
 end, true)
 
-NAStuff.activeTeleports = {}
-
-originalIO.gotoNext = originalIO.gotoNext or {}
+NAStuff.activeTeleports = {};
+originalIO.gotoNext = originalIO.gotoNext or {};
 
 do
-	local gotoNext = originalIO.gotoNext
+	local gotoNext = originalIO.gotoNext;
 	local state = gotoNext.state or {
 		teleporting = false,
 		totalDuplicates = 0,
 		duplicatesSessionOrder = {},
 		tracerPart = nil,
 		tracerConnection = nil,
-		tracerHue = 0,
-	}
-	gotoNext.state = state
-
+		tracerHue = 0
+	};
+	gotoNext.state = state;
 	function gotoNext.trim(str)
 		if type(str) ~= "string" then
-			return str
-		end
-		local trimmed = str:match("^%s*(.-)%s*$")
-		return trimmed or str
-	end
-
+			return str;
+		end;
+		local trimmed = str:match("^%s*(.-)%s*$");
+		return trimmed or str;
+	end;
 	function gotoNext.tokenizeArgs(rawArgs)
-		local tokens = {}
+		local tokens = {};
 		if not rawArgs or #rawArgs == 0 then
-			return tokens
-		end
-
-		local combined = Concat(rawArgs, " ")
+			return tokens;
+		end;
+		local combined = Concat(rawArgs, " ");
 		if combined == "" then
-			return tokens
-		end
-
-		local length = #combined
-		local index = 1
-
+			return tokens;
+		end;
+		local length = #combined;
+		local index = 1;
 		while index <= length do
-			while index <= length and combined:sub(index, index):match("%s") do
-				index = index + 1
-			end
+			while index <= length and (combined:sub(index, index)):match("%s") do
+				index = index + 1;
+			end;
 			if index > length then
-				break
-			end
-
-			local ch = combined:sub(index, index)
-			if ch == '"' or ch == "'" then
-				local quote = ch
-				index = index + 1
-				local buffer = {}
-
+				break;
+			end;
+			local ch = combined:sub(index, index);
+			if ch == "\"" or ch == "'" then
+				local quote = ch;
+				index = index + 1;
+				local buffer = {};
 				while index <= length do
-					local current = combined:sub(index, index)
+					local current = combined:sub(index, index);
 					if current == quote then
-						index = index + 1
-						break
-					end
-					buffer[#buffer + 1] = current
-					index = index + 1
-				end
-
-				tokens[#tokens + 1] = Concat(buffer)
+						index = index + 1;
+						break;
+					end;
+					buffer[(#buffer) + 1] = current;
+					index = index + 1;
+				end;
+				tokens[(#tokens) + 1] = Concat(buffer);
 			else
-				local start = index
-				while index <= length and not combined:sub(index, index):match("%s") do
-					index = index + 1
-				end
-				tokens[#tokens + 1] = combined:sub(start, index - 1)
-			end
-		end
-
+				local start = index;
+				while index <= length and (not (combined:sub(index, index)):match("%s")) do
+					index = index + 1;
+				end;
+				tokens[(#tokens) + 1] = combined:sub(start, index - 1);
+			end;
+		end;
 		if #tokens == 0 then
 			for _, value in ipairs(rawArgs) do
 				if type(value) == "string" and value ~= "" then
-					tokens[#tokens + 1] = value
-				end
-			end
-		end
-
+					tokens[(#tokens) + 1] = value;
+				end;
+			end;
+		end;
 		for i = 1, #tokens do
-			tokens[i] = gotoNext.trim(tokens[i])
-		end
-
-		return tokens
-	end
-
+			tokens[i] = gotoNext.trim(tokens[i]);
+		end;
+		return tokens;
+	end;
 	function gotoNext.buildSearchNames(rawPrefix, normalizedPrefix, index)
-		local variants = {}
-		local seen = {}
+		local variants = {};
+		local seen = {};
 		local function add(name)
 			if not name or name == "" then
-				return
-			end
-			local canonical = name:lower()
+				return;
+			end;
+			local canonical = name:lower();
 			if not seen[canonical] then
-				variants[#variants + 1] = name
-				seen[canonical] = true
-			end
-		end
-
-		local idx = tostring(index)
-		add(idx)
-
-		local normalized = normalizedPrefix and gotoNext.trim(normalizedPrefix) or nil
+				variants[(#variants) + 1] = name;
+				seen[canonical] = true;
+			end;
+		end;
+		local idx = tostring(index);
+		add(idx);
+		local normalized = normalizedPrefix and gotoNext.trim(normalizedPrefix) or nil;
 		if normalized and normalized ~= "" then
-			add(normalized.." "..idx)
-			add(normalized..idx)
-		end
-
+			add(normalized .. " " .. idx);
+			add(normalized .. idx);
+		end;
 		if rawPrefix and rawPrefix ~= "" then
 			if not rawPrefix:match("%s$") then
-				add(rawPrefix.." "..idx)
-			end
-			add(rawPrefix..idx)
-		end
-
-		return variants
-	end
-
+				add(rawPrefix .. " " .. idx);
+			end;
+			add(rawPrefix .. idx);
+		end;
+		return variants;
+	end;
 	function gotoNext.extractIndexedToken(token)
 		if type(token) ~= "string" then
-			return nil
-		end
-
+			return nil;
+		end;
 		if token == "" then
-			return nil
-		end
-
-		local head, digits = token:match("^(.-)(%-?%d+)%s*$")
+			return nil;
+		end;
+		local head, digits = token:match("^(.-)(%-?%d+)%s*$");
 		if not digits then
-			return nil
-		end
-
-		local rawPrefix = head
-		local normalized = gotoNext.trim(rawPrefix or "")
+			return nil;
+		end;
+		local rawPrefix = head;
+		local normalized = gotoNext.trim(rawPrefix or "");
 		if normalized == "" then
-			normalized = nil
-			rawPrefix = nil
-		end
-
+			normalized = nil;
+			rawPrefix = nil;
+		end;
 		return {
 			raw = rawPrefix,
 			normalized = normalized,
-			number = tonumber(digits),
-		}
-	end
-
+			number = tonumber(digits)
+		};
+	end;
 	function gotoNext.sessionKey(objectType, normalizedLower, index)
-		local keyPrefix = gotoNext.trim(normalizedLower or "")
+		local keyPrefix = gotoNext.trim(normalizedLower or "");
 		if keyPrefix ~= "" then
-			keyPrefix = keyPrefix:lower()
-		end
-		return (objectType or "Part").."|"..keyPrefix.."|"..tostring(index)
-	end
-
+			keyPrefix = keyPrefix:lower();
+		end;
+		return (objectType or "Part") .. "|" .. keyPrefix .. "|" .. tostring(index);
+	end;
 	function gotoNext.notify(message, duration)
-		DoNotif(message, duration or 3, "GotoNext")
-	end
-
+		DoNotif(message, duration or 3, "GotoNext");
+	end;
 	function gotoNext.clearTracer()
 		if state.tracerConnection then
-			state.tracerConnection:Disconnect()
-			state.tracerConnection = nil
-		end
-
+			state.tracerConnection:Disconnect();
+			state.tracerConnection = nil;
+		end;
 		if state.tracerPart and state.tracerPart.Parent then
-			state.tracerPart:Destroy()
-		end
-
-		state.tracerPart = nil
-	end
-
+			state.tracerPart:Destroy();
+		end;
+		state.tracerPart = nil;
+	end;
 	function gotoNext.setTracer(nextCFrame)
-		gotoNext.clearTracer()
+		gotoNext.clearTracer();
 		if not nextCFrame then
-			return
-		end
-
-		local tracer = InstanceNew("Part", workspace)
-		tracer.Name = "NA_GotoNextTracer"
-		tracer.Anchored = true
-		tracer.CanCollide = false
-		tracer.Material = Enum.Material.Neon
-		tracer.Size = Vector3.new(2, 2, 2)
-		tracer.CFrame = nextCFrame + Vector3.new(0, 3, 0)
-		tracer.TopSurface = Enum.SurfaceType.Smooth
-		tracer.BottomSurface = Enum.SurfaceType.Smooth
-
-		state.tracerPart = tracer
-		state.tracerHue = 0
+			return;
+		end;
+		local tracer = InstanceNew("Part", workspace);
+		tracer.Name = "NA_GotoNextTracer";
+		tracer.Anchored = true;
+		tracer.CanCollide = false;
+		tracer.Material = Enum.Material.Neon;
+		tracer.Size = Vector3.new(2, 2, 2);
+		tracer.CFrame = nextCFrame + Vector3.new(0, 3, 0);
+		tracer.TopSurface = Enum.SurfaceType.Smooth;
+		tracer.BottomSurface = Enum.SurfaceType.Smooth;
+		state.tracerPart = tracer;
+		state.tracerHue = 0;
 		state.tracerConnection = RunService.Heartbeat:Connect(function(dt)
-			if not state.tracerPart or not state.tracerPart.Parent then
-				gotoNext.clearTracer()
-				return
-			end
-
-			state.tracerHue = (state.tracerHue + dt * 0.5) % 1
-			state.tracerPart.Color = Color3.fromHSV(state.tracerHue, 1, 1)
-		end)
-	end
-
+			if not state.tracerPart or (not state.tracerPart.Parent) then
+				gotoNext.clearTracer();
+				return;
+			end;
+			state.tracerHue = (state.tracerHue + dt * 0.5) % 1;
+			state.tracerPart.Color = Color3.fromHSV(state.tracerHue, 1, 1);
+		end);
+	end;
 	function gotoNext.fullPath(inst)
 		if not inst then
-			return "Unknown"
-		end
-
-		local segments = {inst.Name}
-		local parent = inst.Parent
+			return "Unknown";
+		end;
+		local segments = {
+			inst.Name
+		};
+		local parent = inst.Parent;
 		while parent do
-			Insert(segments, 1, parent.Name)
-			parent = parent.Parent
-		end
-
-		return Concat(segments, ".")
-	end
-
+			Insert(segments, 1, parent.Name);
+			parent = parent.Parent;
+		end;
+		return Concat(segments, ".");
+	end;
 	function gotoNext.findMatches(objectType, targetName)
-		local matches = {}
+		local matches = {};
 		if not targetName or targetName == "" then
-			return matches
-		end
-
-		local targetLower = targetName:lower()
-
-		local queue = {workspace}
-		local index = 1
-
+			return matches;
+		end;
+		local targetLower = targetName:lower();
+		local queue = {
+			workspace
+		};
+		local index = 1;
 		while queue[index] do
-			local current = queue[index]
-			index += 1
-
+			local current = queue[index];
+			index += 1;
 			for _, child in ipairs(current:GetChildren()) do
-				local isValid = false
+				local isValid = false;
 				if objectType == "Part" then
-					isValid = child:IsA("BasePart")
+					isValid = child:IsA("BasePart");
 				elseif objectType == "Model" then
-					isValid = child:IsA("Model")
+					isValid = child:IsA("Model");
 				elseif objectType == "Folder" then
-					isValid = child:IsA("Folder")
-				end
-
+					isValid = child:IsA("Folder");
+				end;
 				if isValid and child.Name and child.Name:lower() == targetLower then
-					Insert(matches, {inst = child, parent = child.Parent})
-				end
-
-				queue[#queue + 1] = child
-			end
-		end
-
-		return matches
-	end
-
+					Insert(matches, {
+						inst = child,
+						parent = child.Parent
+					});
+				end;
+				queue[(#queue) + 1] = child;
+			end;
+		end;
+		return matches;
+	end;
 	function gotoNext.resolveCFrame(inst)
 		if not inst then
-			return nil
-		end
-
+			return nil;
+		end;
 		if inst:IsA("BasePart") then
-			return inst.CFrame
+			return inst.CFrame;
 		elseif inst:IsA("Model") then
 			local ok, pivot = pcall(function()
-				return inst:GetPivot()
-			end)
+				return inst:GetPivot();
+			end);
 			if ok then
-				return pivot
-			end
-
-			local primary = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart")
+				return pivot;
+			end;
+			local primary = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart");
 			if primary then
-				return primary.CFrame
-			end
-		end
-
-		return nil
-	end
-
+				return primary.CFrame;
+			end;
+		end;
+		return nil;
+	end;
 	function gotoNext.teleportToInstance(inst)
-		local char = getChar()
+		local char = getChar();
 		if not char then
-			return false
-		end
-
-		local targetCFrame = gotoNext.resolveCFrame(inst)
+			return false;
+		end;
+		local targetCFrame = gotoNext.resolveCFrame(inst);
 		if not targetCFrame then
-			return false
-		end
-
-		local hum = getHum(char)
+			return false;
+		end;
+		local hum = getHum(char);
 		if hum then
-			hum.Sit = false
-		end
-
+			hum.Sit = false;
+		end;
 		pcall(function()
-			char:PivotTo(targetCFrame + Vector3.new(0, 4, 0))
-		end)
-
-		return true
-	end
-
+			char:PivotTo(targetCFrame + Vector3.new(0, 4, 0));
+		end);
+		return true;
+	end;
 	function gotoNext.collectFolderParts(folder)
-		local parts = {}
+		local parts = {};
 		for _, descendant in ipairs(folder:GetDescendants()) do
 			if descendant:IsA("BasePart") then
-				Insert(parts, descendant)
-			end
-		end
-
+				Insert(parts, descendant);
+			end;
+		end;
 		table.sort(parts, function(a, b)
-			return a:GetFullName() < b:GetFullName()
-		end)
-
-		return parts
-	end
-
+			return a:GetFullName() < b:GetFullName();
+		end);
+		return parts;
+	end;
 	function gotoNext.normalizeSelection(selection)
-		local normalized = {}
+		local normalized = {};
 		for _, inst in ipairs(selection or {}) do
 			if inst and inst.Parent then
-				Insert(normalized, {inst = inst, parent = inst.Parent})
-			end
-		end
-		return normalized
-	end
-
+				Insert(normalized, {
+					inst = inst,
+					parent = inst.Parent
+				});
+			end;
+		end;
+		return normalized;
+	end;
 	function gotoNext.promptDuplicates(name, duplicates)
-		local selectionEvent = InstanceNew("BindableEvent")
-		local selected
-		local resolved = false
-		local window
-
+		local selectionEvent = InstanceNew("BindableEvent");
+		local selected;
+		local resolved = false;
+		local window;
 		local descriptionLines = {
 			Format("Found %d duplicates for '%s'. Choose a starting instance or TP all.", #duplicates, name)
-		}
-
+		};
 		for idx, info in ipairs(duplicates) do
-			Insert(descriptionLines, Format("%d) %s", idx, gotoNext.fullPath(info.inst)))
-		end
-
-		local buttons = {}
-
+			Insert(descriptionLines, Format("%d) %s", idx, gotoNext.fullPath(info.inst)));
+		end;
+		local buttons = {};
 		local function finalize(choice)
 			if resolved then
-				return
-			end
-
-			selected = choice
-			resolved = true
+				return;
+			end;
+			selected = choice;
+			resolved = true;
 			if window and window.Parent then
-				window:Destroy()
-			end
-			selectionEvent:Fire()
-		end
-
+				window:Destroy();
+			end;
+			selectionEvent:Fire();
+		end;
 		for idx, info in ipairs(duplicates) do
 			Insert(buttons, {
 				Text = Format("Start #%d", idx),
 				Callback = function()
-					finalize({info.inst})
+					finalize({
+						info.inst
+					});
 				end
-			})
-		end
-
+			});
+		end;
 		Insert(buttons, {
 			Text = Format("TP All (%d)", #duplicates),
 			Callback = function()
-				local all = {}
+				local all = {};
 				for _, entry in ipairs(duplicates) do
-					Insert(all, entry.inst)
-				end
-				finalize(all)
+					Insert(all, entry.inst);
+				end;
+				finalize(all);
 			end
-		})
-
+		});
 		Insert(buttons, {
 			Text = "Cancel",
 			Callback = function()
-				finalize(nil)
+				finalize(nil);
 			end
-		})
-
+		});
 		window = Window({
 			Title = "GotoNext",
 			Description = Concat(descriptionLines, "\n"),
 			Buttons = buttons
-		})
-
+		});
 		if window then
 			window.AncestryChanged:Connect(function(_, parent)
-				if not parent and not resolved then
-					resolved = true
-					selected = nil
-					selectionEvent:Fire()
-				end
-			end)
-		end
-
-		selectionEvent.Event:Wait()
-		selectionEvent:Destroy()
-
-		return selected
-	end
-
+				if not parent and (not resolved) then
+					resolved = true;
+					selected = nil;
+					selectionEvent:Fire();
+				end;
+			end);
+		end;
+		selectionEvent.Event:Wait();
+		selectionEvent:Destroy();
+		return selected;
+	end;
 	function gotoNext.parseArgs(rawArgs)
-		local tokens = gotoNext.tokenizeArgs(rawArgs)
-		local args = {}
+		local tokens = gotoNext.tokenizeArgs(rawArgs);
+		local args = {};
 		for _, value in ipairs(tokens) do
 			if type(value) == "string" and value ~= "" then
-				Insert(args, value)
-			end
-		end
-
-		local first = args[1]
+				Insert(args, value);
+			end;
+		end;
+		local first = args[1];
 		if not first then
-			return nil, "Usage:\n- gotopartnext <start> [end] [delay]\n- gotopartnext <prefix> <start> [end] [delay]"
-		end
-
-		local prefixRaw
-		local prefixNormalized
-		local startNum
-		local endNum
-		local delay
-
+			return nil, "Usage:\n- gotopartnext <start> [end] [delay]\n- gotopartnext <prefix> <start> [end] [delay]";
+		end;
+		local prefixRaw;
+		local prefixNormalized;
+		local startNum;
+		local endNum;
+		local delay;
 		local function applyPrefix(rawCandidate, normalizedCandidate)
 			if rawCandidate and rawCandidate ~= "" then
 				if not prefixRaw then
-					prefixRaw = rawCandidate
-				end
-			end
-
+					prefixRaw = rawCandidate;
+				end;
+			end;
 			if normalizedCandidate and normalizedCandidate ~= "" then
-				normalizedCandidate = gotoNext.trim(normalizedCandidate)
+				normalizedCandidate = gotoNext.trim(normalizedCandidate);
 				if normalizedCandidate == "" then
-					normalizedCandidate = nil
-				end
+					normalizedCandidate = nil;
+				end;
 			else
-				normalizedCandidate = nil
-			end
-
+				normalizedCandidate = nil;
+			end;
 			if normalizedCandidate then
 				if prefixNormalized and prefixNormalized ~= normalizedCandidate then
-					return false
-				end
-				prefixNormalized = prefixNormalized or normalizedCandidate
-			end
-
+					return false;
+				end;
+				prefixNormalized = prefixNormalized or normalizedCandidate;
+			end;
 			if not prefixRaw and prefixNormalized then
-				prefixRaw = prefixNormalized
-			end
-
-			return true
-		end
-
-		local second = args[2]
-		local third = args[3]
-		local fourth = args[4]
-
-		local firstNumeric = tonumber(first)
-		local firstInfo = gotoNext.extractIndexedToken(first)
-		local secondNumeric = tonumber(second)
-		local secondInfo = gotoNext.extractIndexedToken(second)
-		local thirdNumeric = tonumber(third)
-		local thirdInfo = gotoNext.extractIndexedToken(third)
-
+				prefixRaw = prefixNormalized;
+			end;
+			return true;
+		end;
+		local second = args[2];
+		local third = args[3];
+		local fourth = args[4];
+		local firstNumeric = tonumber(first);
+		local firstInfo = gotoNext.extractIndexedToken(first);
+		local secondNumeric = tonumber(second);
+		local secondInfo = gotoNext.extractIndexedToken(second);
+		local thirdNumeric = tonumber(third);
+		local thirdInfo = gotoNext.extractIndexedToken(third);
 		if firstNumeric then
-			startNum = math.floor(firstNumeric)
+			startNum = math.floor(firstNumeric);
 			if secondNumeric then
-				endNum = math.floor(secondNumeric)
-				delay = tonumber(third)
+				endNum = math.floor(secondNumeric);
+				delay = tonumber(third);
 			elseif secondInfo and secondInfo.number then
 				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
-					return nil, "Start/end names use different prefixes."
-				end
-				endNum = math.floor(secondInfo.number)
-				delay = tonumber(third)
+					return nil, "Start/end names use different prefixes.";
+				end;
+				endNum = math.floor(secondInfo.number);
+				delay = tonumber(third);
 			else
-				endNum = startNum
-				delay = tonumber(second)
-			end
+				endNum = startNum;
+				delay = tonumber(second);
+			end;
 		elseif firstInfo and firstInfo.number then
 			if not applyPrefix(firstInfo.raw, firstInfo.normalized) then
-				return nil, "Start/end names use different prefixes."
-			end
-			startNum = math.floor(firstInfo.number)
-
+				return nil, "Start/end names use different prefixes.";
+			end;
+			startNum = math.floor(firstInfo.number);
 			if secondNumeric then
-				endNum = math.floor(secondNumeric)
-				delay = tonumber(third)
+				endNum = math.floor(secondNumeric);
+				delay = tonumber(third);
 			elseif secondInfo and secondInfo.number then
 				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
-					return nil, "Start/end names use different prefixes."
-				end
-				endNum = math.floor(secondInfo.number)
-				delay = tonumber(third)
+					return nil, "Start/end names use different prefixes.";
+				end;
+				endNum = math.floor(secondInfo.number);
+				delay = tonumber(third);
 			else
-				endNum = startNum
-				delay = tonumber(second)
-			end
+				endNum = startNum;
+				delay = tonumber(second);
+			end;
 		else
 			if not applyPrefix(first, first) then
-				return nil, "Invalid prefix value."
-			end
-
+				return nil, "Invalid prefix value.";
+			end;
 			if not second then
-				return nil, "Start number missing. Example: gotopartnext checkpoint 1 5"
-			end
-
+				return nil, "Start number missing. Example: gotopartnext checkpoint 1 5";
+			end;
 			if secondNumeric then
-				startNum = math.floor(secondNumeric)
+				startNum = math.floor(secondNumeric);
 				if thirdNumeric then
-					endNum = math.floor(thirdNumeric)
-					delay = tonumber(fourth)
+					endNum = math.floor(thirdNumeric);
+					delay = tonumber(fourth);
 				elseif thirdInfo and thirdInfo.number then
 					if not applyPrefix(thirdInfo.raw, thirdInfo.normalized) then
-						return nil, "Start/end names use different prefixes."
-					end
-					endNum = math.floor(thirdInfo.number)
-					delay = tonumber(fourth)
+						return nil, "Start/end names use different prefixes.";
+					end;
+					endNum = math.floor(thirdInfo.number);
+					delay = tonumber(fourth);
 				else
-					endNum = startNum
-					delay = tonumber(third)
-				end
+					endNum = startNum;
+					delay = tonumber(third);
+				end;
 			elseif secondInfo and secondInfo.number then
 				if not applyPrefix(secondInfo.raw, secondInfo.normalized) then
-					return nil, "Start/end names use different prefixes."
-				end
-				startNum = math.floor(secondInfo.number)
+					return nil, "Start/end names use different prefixes.";
+				end;
+				startNum = math.floor(secondInfo.number);
 				if thirdNumeric then
-					endNum = math.floor(thirdNumeric)
-					delay = tonumber(fourth)
+					endNum = math.floor(thirdNumeric);
+					delay = tonumber(fourth);
 				elseif thirdInfo and thirdInfo.number then
 					if not applyPrefix(thirdInfo.raw, thirdInfo.normalized) then
-						return nil, "Start/end names use different prefixes."
-					end
-					endNum = math.floor(thirdInfo.number)
-					delay = tonumber(fourth)
+						return nil, "Start/end names use different prefixes.";
+					end;
+					endNum = math.floor(thirdInfo.number);
+					delay = tonumber(fourth);
 				else
-					endNum = startNum
-					delay = tonumber(third)
-				end
+					endNum = startNum;
+					delay = tonumber(third);
+				end;
 			else
-				return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5"
-			end
-		end
-
+				return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5";
+			end;
+		end;
 		if not startNum then
-			return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5"
-		end
-
-		endNum = endNum or startNum
-
-		delay = tonumber(delay) or 0.5
+			return nil, "Start number missing. Example: gotopartnext checkpoint 1 10 0.5";
+		end;
+		endNum = endNum or startNum;
+		delay = tonumber(delay) or 0.5;
 		if delay < 0 then
-			delay = 0
-		end
-
-		local prefixRawOriginal = prefixRaw
+			delay = 0;
+		end;
+		local prefixRawOriginal = prefixRaw;
 		if prefixRawOriginal then
-			local trimmedCandidate = gotoNext.trim(prefixRawOriginal)
+			local trimmedCandidate = gotoNext.trim(prefixRawOriginal);
 			if trimmedCandidate == "" then
-				prefixRawOriginal = nil
-			end
-		end
-
+				prefixRawOriginal = nil;
+			end;
+		end;
 		if prefixNormalized then
-			prefixNormalized = gotoNext.trim(prefixNormalized)
+			prefixNormalized = gotoNext.trim(prefixNormalized);
 			if prefixNormalized == "" then
-				prefixNormalized = nil
-			end
-		end
-
+				prefixNormalized = nil;
+			end;
+		end;
 		if not prefixNormalized and prefixRawOriginal then
-			local trimmedRaw = gotoNext.trim(prefixRawOriginal)
+			local trimmedRaw = gotoNext.trim(prefixRawOriginal);
 			if trimmedRaw ~= "" then
-				prefixNormalized = trimmedRaw
-			end
-		end
-
-		local prefixDisplay = nil
+				prefixNormalized = trimmedRaw;
+			end;
+		end;
+		local prefixDisplay = nil;
 		if prefixRawOriginal then
-			prefixDisplay = gotoNext.trim(prefixRawOriginal)
+			prefixDisplay = gotoNext.trim(prefixRawOriginal);
 			if prefixDisplay == "" then
-				prefixDisplay = nil
-			end
-		end
+				prefixDisplay = nil;
+			end;
+		end;
 		if not prefixDisplay then
-			prefixDisplay = prefixNormalized
-		end
-
-		local prefixLower = prefixNormalized and prefixNormalized:lower() or nil
-
+			prefixDisplay = prefixNormalized;
+		end;
+		local prefixLower = prefixNormalized and prefixNormalized:lower() or nil;
 		return {
 			prefixRaw = prefixRawOriginal,
 			prefixNormalized = prefixNormalized,
@@ -38272,164 +38193,148 @@ do
 			prefixDisplay = prefixDisplay,
 			startNum = startNum,
 			endNum = endNum,
-			delay = delay,
-		}
-	end
-
+			delay = delay
+		};
+	end;
 	function gotoNext.handleSequence(objectType, rawArgs)
 		if state.teleporting then
-			gotoNext.notify("Sequence already running.", 2)
-			return
-		end
-
-		local parsed, err = gotoNext.parseArgs(rawArgs)
+			gotoNext.notify("Sequence already running.", 2);
+			return;
+		end;
+		local parsed, err = gotoNext.parseArgs(rawArgs);
 		if not parsed then
-			gotoNext.notify(err or "Invalid arguments.", 4)
-			return
-		end
-
-		state.teleporting = true
-		state.totalDuplicates = 0
-
-		local prefixLabel = parsed.prefixDisplay
-		local descriptor
+			gotoNext.notify(err or "Invalid arguments.", 4);
+			return;
+		end;
+		state.teleporting = true;
+		state.totalDuplicates = 0;
+		local prefixLabel = parsed.prefixDisplay;
+		local descriptor;
 		if prefixLabel and prefixLabel ~= "" then
-			descriptor = Format("Teleporting %s '%s' %d -> %d (delay %.2fs)", objectType, prefixLabel, parsed.startNum, parsed.endNum, parsed.delay)
+			descriptor = Format("Teleporting %s '%s' %d -> %d (delay %.2fs)", objectType, prefixLabel, parsed.startNum, parsed.endNum, parsed.delay);
 		else
-			descriptor = Format("Teleporting %s %d -> %d (delay %.2fs)", objectType, parsed.startNum, parsed.endNum, parsed.delay)
-		end
-		gotoNext.notify(descriptor, 3)
-
+			descriptor = Format("Teleporting %s %d -> %d (delay %.2fs)", objectType, parsed.startNum, parsed.endNum, parsed.delay);
+		end;
+		gotoNext.notify(descriptor, 3);
 		SpawnCall(function()
-			local step = parsed.startNum <= parsed.endNum and 1 or -1
-
+			local step = parsed.startNum <= parsed.endNum and 1 or (-1);
 			for index = parsed.startNum, parsed.endNum, step do
 				if not state.teleporting then
-					break
-				end
-
-				local searchNames = gotoNext.buildSearchNames(parsed.prefixRaw, parsed.prefixNormalized, index)
+					break;
+				end;
+				local searchNames = gotoNext.buildSearchNames(parsed.prefixRaw, parsed.prefixNormalized, index);
 				if #searchNames == 0 then
-					searchNames = {tostring(index)}
-				end
-				local indexString = tostring(index)
-				local displayName = searchNames[1]
+					searchNames = {
+						tostring(index)
+					};
+				end;
+				local indexString = tostring(index);
+				local displayName = searchNames[1];
 				for _, candidateName in ipairs(searchNames) do
-					if candidateName:find(" "..indexString, 1, true) then
-						displayName = candidateName
-						break
-					end
-				end
+					if candidateName:find(" " .. indexString, 1, true) then
+						displayName = candidateName;
+						break;
+					end;
+				end;
 				if parsed.prefixDisplay and parsed.prefixDisplay ~= "" then
-					local prefixLowerForDisplay = parsed.prefixDisplay:lower()
+					local prefixLowerForDisplay = parsed.prefixDisplay:lower();
 					for _, candidateName in ipairs(searchNames) do
-						local candidateLower = candidateName:lower()
+						local candidateLower = candidateName:lower();
 						if candidateLower:find(prefixLowerForDisplay, 1, true) then
-							displayName = candidateName
-							if candidateName:find(" "..indexString, 1, true) then
-								break
-							end
-						end
-					end
-				end
-				local sessionKey = gotoNext.sessionKey(objectType, parsed.prefixLower, index)
-
-				local candidates = {}
-				local seen = {}
-
+							displayName = candidateName;
+							if candidateName:find(" " .. indexString, 1, true) then
+								break;
+							end;
+						end;
+					end;
+				end;
+				local sessionKey = gotoNext.sessionKey(objectType, parsed.prefixLower, index);
+				local candidates = {};
+				local seen = {};
 				for _, name in ipairs(searchNames) do
-					local found = gotoNext.findMatches(objectType, name)
+					local found = gotoNext.findMatches(objectType, name);
 					for _, info in ipairs(found) do
-						local inst = info.inst
-						if inst and not seen[inst] then
-							seen[inst] = true
-							Insert(candidates, info)
-						end
-					end
-				end
-
+						local inst = info.inst;
+						if inst and (not seen[inst]) then
+							seen[inst] = true;
+							Insert(candidates, info);
+						end;
+					end;
+				end;
 				if #candidates == 0 then
-					gotoNext.notify(Format("No %s named '%s'.", objectType, displayName), 2)
+					gotoNext.notify(Format("No %s named '%s'.", objectType, displayName), 2);
 				else
 					if #candidates > 1 then
-						local sessionChoice = state.duplicatesSessionOrder[sessionKey]
-
+						local sessionChoice = state.duplicatesSessionOrder[sessionKey];
 						if sessionChoice then
-							sessionChoice = gotoNext.normalizeSelection(sessionChoice)
+							sessionChoice = gotoNext.normalizeSelection(sessionChoice);
 							if #sessionChoice == 0 then
-								state.duplicatesSessionOrder[sessionKey] = nil
-								sessionChoice = nil
-							end
-						end
-
+								state.duplicatesSessionOrder[sessionKey] = nil;
+								sessionChoice = nil;
+							end;
+						end;
 						if not sessionChoice then
-							local selection = gotoNext.promptDuplicates(displayName, candidates)
+							local selection = gotoNext.promptDuplicates(displayName, candidates);
 							if not selection or #selection == 0 then
-								gotoNext.notify("Sequence canceled.", 2)
-								state.teleporting = false
-								gotoNext.clearTracer()
-								return
-							end
-							state.duplicatesSessionOrder[sessionKey] = selection
-							sessionChoice = gotoNext.normalizeSelection(selection)
-						end
-
-						state.totalDuplicates = state.totalDuplicates + math.max(0, #sessionChoice - 1)
-						candidates = sessionChoice
-					end
-
+								gotoNext.notify("Sequence canceled.", 2);
+								state.teleporting = false;
+								gotoNext.clearTracer();
+								return;
+							end;
+							state.duplicatesSessionOrder[sessionKey] = selection;
+							sessionChoice = gotoNext.normalizeSelection(selection);
+						end;
+						state.totalDuplicates = state.totalDuplicates + math.max(0, ((#sessionChoice) - 1));
+						candidates = sessionChoice;
+					end;
 					for idx, info in ipairs(candidates) do
 						if not state.teleporting then
-							break
-						end
-
-						local inst = info.inst
+							break;
+						end;
+						local inst = info.inst;
 						if objectType == "Folder" then
-							local parts = gotoNext.collectFolderParts(inst)
+							local parts = gotoNext.collectFolderParts(inst);
 							for partIndex, part in ipairs(parts) do
 								if not state.teleporting then
-									break
-								end
-								local nextPart = parts[partIndex + 1]
-								gotoNext.setTracer(nextPart and nextPart.CFrame or nil)
-								gotoNext.teleportToInstance(part)
-								Wait(parsed.delay)
-							end
+									break;
+								end;
+								local nextPart = parts[partIndex + 1];
+								gotoNext.setTracer(nextPart and nextPart.CFrame or nil);
+								gotoNext.teleportToInstance(part);
+								Wait(parsed.delay);
+							end;
 						else
-							local nextInfo = candidates[idx + 1]
-							local nextTarget = nextInfo and gotoNext.resolveCFrame(nextInfo.inst) or nil
-							gotoNext.setTracer(nextTarget)
-							gotoNext.teleportToInstance(inst)
-							Wait(parsed.delay)
-						end
-					end
-				end
-			end
-
-			gotoNext.clearTracer()
+							local nextInfo = candidates[idx + 1];
+							local nextTarget = nextInfo and gotoNext.resolveCFrame(nextInfo.inst) or nil;
+							gotoNext.setTracer(nextTarget);
+							gotoNext.teleportToInstance(inst);
+							Wait(parsed.delay);
+						end;
+					end;
+				end;
+			end;
+			gotoNext.clearTracer();
 			if state.teleporting then
-				gotoNext.notify(Format("Finished teleporting! Duplicates: %d", state.totalDuplicates), 4)
+				gotoNext.notify(Format("Finished teleporting! Duplicates: %d", state.totalDuplicates), 4);
 			else
-				gotoNext.notify("Sequence stopped.", 2)
-			end
-
-			state.teleporting = false
-		end)
-	end
-
+				gotoNext.notify("Sequence stopped.", 2);
+			end;
+			state.teleporting = false;
+		end);
+	end;
 	function gotoNext.cancelSequence()
-		state.totalDuplicates = 0
-		state.duplicatesSessionOrder = {}
+		state.totalDuplicates = 0;
+		state.duplicatesSessionOrder = {};
 		if state.teleporting then
-			state.teleporting = false
-			gotoNext.clearTracer()
-			gotoNext.notify("Teleport sequence stopped!", 3)
+			state.teleporting = false;
+			gotoNext.clearTracer();
+			gotoNext.notify("Teleport sequence stopped!", 3);
 		else
-			gotoNext.clearTracer()
-			gotoNext.notify("No teleport in progress.", 2)
-		end
-	end
-end
+			gotoNext.clearTracer();
+			gotoNext.notify("No teleport in progress.", 2);
+		end;
+	end;
+end;
 
 cmd.add({"gotopartnext", "gpn"}, {"gotopartnext [prefix] <start> [end] [delay] (gpn)", "Teleport sequentially to parts with optional prefix and duplicate handling."}, function(...)
 	originalIO.gotoNext.handleSequence("Part", {...})
@@ -38772,67 +38677,89 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	end)
 end,true)
 
-OGGRAVV = workspace.Gravity
-SWIMMERRRR = false
+OGGRAVV = workspace.Gravity;
+SWIMMERRRR = false;
+
+NAStuff.SWIM_STATES = NAStuff.SWIM_STATES or {
+	Enum.HumanoidStateType.FallingDown,
+	Enum.HumanoidStateType.Freefall,
+	Enum.HumanoidStateType.Landed,
+	Enum.HumanoidStateType.PlatformStanding,
+	Enum.HumanoidStateType.Ragdoll,
+	Enum.HumanoidStateType.GettingUp,
+	Enum.HumanoidStateType.Seated
+};
 
 function ZEhumSTATE(humanoid, enabled)
-	local states = Enum.HumanoidStateType:GetEnumItems()
-	table.remove(states, Discover(states, Enum.HumanoidStateType.None))
-	for _, state in ipairs(states) do
-		humanoid:SetStateEnabled(state, enabled)
-	end
-end
+	for _, st in ipairs(NAStuff.SWIM_STATES) do
+		humanoid:SetStateEnabled(st, enabled);
+	end;
+end;
 
-cmd.add({"swim"}, {"swim {speed}", "Swim in the air"}, function(speed)
-	local player = Players.LocalPlayer
-	local humanoid = getHum()
+cmd.add({"swim"}, {"swim {speed}","Swim in the air"}, function(speed)
+	local humanoid = getHum();
+	if not humanoid or (not humanoid.Parent) or SWIMMERRRR then
+		return;
+	end;
+	local hrp = getRoot(humanoid.Parent);
+	if not hrp then
+		return;
+	end;
+	local spd = tonumber(speed) or 16;
+	OGGRAVV = workspace.Gravity;
+	workspace.Gravity = 0;
+	ZEhumSTATE(humanoid, false);
+	humanoid:ChangeState(Enum.HumanoidStateType.Swimming);
+	humanoid.WalkSpeed = spd;
+	NAlib.connect("swim_die", humanoid.Died:Connect(function()
+		workspace.Gravity = OGGRAVV;
+		SWIMMERRRR = false;
+		NAlib.disconnect("swim_heartbeat");
+		ZEhumSTATE(humanoid, true);
+	end));
+	NAlib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
+		NACaller(function()
+			if not SWIMMERRRR then
+				return;
+			end;
+			if not humanoid or (not humanoid.Parent) or (not hrp) then
+				return;
+			end;
+			local move = humanoid.MoveDirection;
+			local v = Vector3.zero;
+			if move.Magnitude > 0 then
+				v = move.Unit * spd;
+			end;
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+				v = v + Vector3.new(0, spd, 0);
+			end;
+			if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+				v = v + Vector3.new(0, spd, 0);
+				humanoid:ChangeState(Enum.HumanoidStateType.Swimming);
+			end;
+			hrp.Velocity = v;
+		end);
+	end));
+	SWIMMERRRR = true;
+end, true);
 
-	if not SWIMMERRRR and humanoid and humanoid.Parent then
-		local hrp = getRoot(humanoid.Parent)
-		if not hrp then return end
-
-		OGGRAVV = workspace.Gravity
-		workspace.Gravity = 0
-
-		ZEhumSTATE(humanoid, false)
-		humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-		humanoid.WalkSpeed = speed or 16
-
-		NAlib.connect("swim_die", humanoid.Died:Connect(function()
-			workspace.Gravity = OGGRAVV
-			SWIMMERRRR = false
-		end))
-
-		NAlib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
-			NACaller(function()
-				if humanoid and hrp then
-					local move = humanoid.MoveDirection
-					local velocity = (move.Magnitude > 0 or UserInputService:IsKeyDown(Enum.KeyCode.Space)) and hrp.Velocity or Vector3.zero
-					hrp.Velocity = velocity
-				end
-			end)
-		end))
-
-		SWIMMERRRR = true
-	end
-end, true)
-
-cmd.add({"unswim"}, {"unswim", "Stops the swim script"}, function()
-	local player = Players.LocalPlayer
-	local humanoid = getHum()
-
-	if humanoid then
-		workspace.Gravity = OGGRAVV
-		SWIMMERRRR = false
-
-		NAlib.disconnect("swim_die")
-		NAlib.disconnect("swim_heartbeat")
-
-		ZEhumSTATE(humanoid, true)
-		humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-		humanoid.WalkSpeed = 16
-	end
-end)
+cmd.add({"unswim"}, {"unswim","Stops the swim script"}, function()
+	local humanoid = getHum();
+	if not humanoid then
+		return;
+	end;
+	workspace.Gravity = OGGRAVV;
+	SWIMMERRRR = false;
+	NAlib.disconnect("swim_die");
+	NAlib.disconnect("swim_heartbeat");
+	ZEhumSTATE(humanoid, true);
+	humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics);
+	humanoid.WalkSpeed = 16;
+	local hrp = getRoot(humanoid.Parent);
+	if hrp then
+		hrp.Velocity = Vector3.zero;
+	end;
+end);
 
 cmd.add({"punch"},{"punch","punch tool that flings"},function()
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/puncher.luau'))()
@@ -43164,7 +43091,7 @@ do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
 		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil, ccf = nil },
 		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil },
-		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, sh = nil, dr = nil },
+		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, sh = nil, dr = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, baseC0 = nil },
 		colorConn = nil,
 		spawnConn = nil,
 		apConn = nil
@@ -43189,13 +43116,13 @@ do
 	end
 
 	originalIO.bodyModsConnectAppearanceLoaded = originalIO.bodyModsConnectAppearanceLoaded or function(object, callback)
-		if not object or type(callback) ~= 'function' then
+		if not object or type(callback) ~= "function" then
 			return nil
 		end
 		local ok, signal = pcall(function()
 			return object.CharacterAppearanceLoaded
 		end)
-		if ok and typeof(signal) == 'RBXScriptSignal' then
+		if ok and typeof(signal) == "RBXScriptSignal" then
 			return signal:Connect(callback)
 		end
 		Defer(callback)
@@ -43203,12 +43130,12 @@ do
 	end
 
 	originalIO.bodyModsGetCharacter = function(waitFor)
-		local character = LocalPlayer.Character
+		local character = Players.LocalPlayer and Players.LocalPlayer.Character
 		if character or not waitFor then
 			return character
 		end
 		local ok, result = pcall(function()
-			return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+			return Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
 		end)
 		return ok and result or nil
 	end
@@ -43218,12 +43145,12 @@ do
 		if not character then
 			return nil
 		end
-		local humanoid = character:FindFirstChildOfClass('Humanoid')
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if humanoid or not waitFor then
 			return humanoid
 		end
 		local ok, result = pcall(function()
-			return character:WaitForChild('Humanoid', 10)
+			return character:WaitForChild("Humanoid", 10)
 		end)
 		return ok and result or nil
 	end
@@ -43231,7 +43158,7 @@ do
 	originalIO.bodyModsWaitFor = function(partNames, timeout)
 		local deadline = os.clock() + (timeout or 10)
 		while os.clock() < deadline do
-			local character = LocalPlayer.Character
+			local character = Players.LocalPlayer and Players.LocalPlayer.Character
 			if character then
 				for _, name in ipairs(partNames) do
 					local part = character:FindFirstChild(name)
@@ -43252,30 +43179,30 @@ do
 			return nil
 		end
 		if forBoobs then
-			return character:FindFirstChild('UpperTorso')
-				or character:FindFirstChild('Torso')
-				or originalIO.bodyModsWaitFor({ 'UpperTorso', 'Torso' }, 5)
+			return character:FindFirstChild("UpperTorso")
+				or character:FindFirstChild("Torso")
+				or originalIO.bodyModsWaitFor({ "UpperTorso", "Torso" }, 5)
 		end
 		if humanoid.RigType == Enum.HumanoidRigType.R15 then
-			return character:FindFirstChild('LowerTorso') or originalIO.bodyModsWaitFor({ 'LowerTorso' }, 5)
+			return character:FindFirstChild("LowerTorso") or originalIO.bodyModsWaitFor({ "LowerTorso" }, 5)
 		end
-		return character:FindFirstChild('Torso') or originalIO.bodyModsWaitFor({ 'Torso' }, 5)
+		return character:FindFirstChild("Torso") or originalIO.bodyModsWaitFor({ "Torso" }, 5)
 	end
 
 	originalIO.bodyModsGetSkinColor = function()
-		local character = LocalPlayer.Character
+		local character = Players.LocalPlayer and Players.LocalPlayer.Character
 		if not character then
 			return Color3.new(1, 0.8, 0.6)
 		end
 		local part =
-			character:FindFirstChild('LeftUpperArm') or
-			character:FindFirstChild('Left Arm') or
-			character:FindFirstChild('RightUpperArm') or
-			character:FindFirstChild('Right Arm') or
-			character:FindFirstChild('LeftUpperLeg') or
-			character:FindFirstChild('Left Leg') or
-			character:FindFirstChild('UpperTorso') or
-			character:FindFirstChild('Torso')
+			character:FindFirstChild("LeftUpperArm") or
+			character:FindFirstChild("Left Arm") or
+			character:FindFirstChild("RightUpperArm") or
+			character:FindFirstChild("Right Arm") or
+			character:FindFirstChild("LeftUpperLeg") or
+			character:FindFirstChild("Left Leg") or
+			character:FindFirstChild("UpperTorso") or
+			character:FindFirstChild("Torso")
 		return (part and part.Color) or Color3.new(1, 0.8, 0.6)
 	end
 
@@ -43300,22 +43227,22 @@ do
 				originalIO.bodyModsDisconnectColorWatcher()
 				return
 			end
-			local character = LocalPlayer.Character
+			local character = Players.LocalPlayer and Players.LocalPlayer.Character
 			if not character then
 				return
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
 			for _, part in ipairs(character:GetChildren()) do
-				if part:IsA('BasePart') then
-					if part.Name == 'Boob' or part.Name == 'Cheek' or part.Name == 'Balls' or (part.Name == 'penis' and part.Shape == Enum.PartType.Cylinder) then
+				if part:IsA("BasePart") then
+					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
 						if part.Color ~= skin then
 							part.Color = skin
 						end
-					elseif part.Name == 'Nipple' or (part.Name == 'penis' and part.Shape == Enum.PartType.Ball) then
+					elseif part.Name == "Nipple" or (part.Name == "penis" and part.Shape == Enum.PartType.Ball) then
 						if part.Color ~= pinkColor then
 							part.Color = pinkColor
 						end
-					elseif part.Name == 'Areola' then
+					elseif part.Name == "Areola" then
 						if part.Color ~= ringColor then
 							part.Color = ringColor
 						end
@@ -43327,14 +43254,14 @@ do
 
 	originalIO.bodyModsOnAppearanceLoaded = function()
 		Defer(function()
-			local character = LocalPlayer.Character
+			local character = Players.LocalPlayer and Players.LocalPlayer.Character
 			if not character then
 				return
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
 			for _, part in ipairs(character:GetChildren()) do
-				if part:IsA('BasePart') then
-					if part.Name == 'Boob' or part.Name == 'Cheek' or part.Name == 'Balls' or (part.Name == 'penis' and part.Shape == Enum.PartType.Cylinder) then
+				if part:IsA("BasePart") then
+					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
 						part.Color = skin
 					end
 				end
@@ -43345,7 +43272,7 @@ do
 	originalIO.bodyModsAppear = function(parts, scale, time)
 		local tweenInfo = TweenInfo.new(time or 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		for _, part in ipairs(parts) do
-			if part and part:IsA('BasePart') then
+			if part and part:IsA("BasePart") then
 				local target = part.Size
 				part.Transparency = 1
 				part.Size = target * (scale or 0.2)
@@ -43366,7 +43293,7 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and (part.Name == 'Boob' or part.Name == 'Nipple' or part.Name == 'Areola') then
+			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple" or part.Name == "Areola") then
 				part:Destroy()
 			end
 		end
@@ -43395,7 +43322,7 @@ do
 		end
 
 		local function createHalf(side)
-			local boob = Instance.new('Part')
+			local boob = Instance.new("Part")
 			boob.Shape = Enum.PartType.Ball
 			boob.Size = boobSize
 			boob.Color = skin
@@ -43404,10 +43331,10 @@ do
 			boob.CanCollide = false
 			boob.CanTouch = false
 			boob.CanQuery = false
-			boob.Name = 'Boob'
+			boob.Name = "Boob"
 			boob.Parent = character
 
-			local nipple = Instance.new('Part')
+			local nipple = Instance.new("Part")
 			nipple.Shape = Enum.PartType.Ball
 			nipple.Size = nippleSize
 			nipple.Color = pinkColor
@@ -43416,10 +43343,10 @@ do
 			nipple.CanCollide = false
 			nipple.CanTouch = false
 			nipple.CanQuery = false
-			nipple.Name = 'Nipple'
+			nipple.Name = "Nipple"
 			nipple.Parent = boob
 
-			local areola = Instance.new('Part')
+			local areola = Instance.new("Part")
 			areola.Shape = Enum.PartType.Ball
 			areola.Size = areolaSize
 			areola.Color = ringColor
@@ -43428,22 +43355,22 @@ do
 			areola.CanCollide = false
 			areola.CanTouch = false
 			areola.CanQuery = false
-			areola.Name = 'Areola'
+			areola.Name = "Areola"
 			areola.Parent = boob
 
-			local nippleWeld = Instance.new('Weld')
+			local nippleWeld = Instance.new("Weld")
 			nippleWeld.Part0 = nipple
 			nippleWeld.Part1 = boob
 			nippleWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, nipple.Size) + popForward)
 			nippleWeld.Parent = nipple
 
-			local areolaWeld = Instance.new('Weld')
+			local areolaWeld = Instance.new("Weld")
 			areolaWeld.Part0 = areola
 			areolaWeld.Part1 = boob
 			areolaWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, areola.Size) - (backGap - nudge))
 			areolaWeld.Parent = areola
 
-			local weld = Instance.new('Weld')
+			local weld = Instance.new("Weld")
 			weld.Part0 = boob
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
@@ -43479,7 +43406,7 @@ do
 			if not currentChar or not currentChar.Parent then
 				return
 			end
-			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
+			local hrp = currentChar:FindFirstChild("HumanoidRootPart")
 			if not hrp then
 				return
 			end
@@ -43490,38 +43417,51 @@ do
 			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
 			local camAng = Vector3.zero
 			if camera and state.boobs.ccf then
-				local rel = state.boobs.ccf:toObjectSpace(camera.CFrame)
+				local rel = state.boobs.ccf:ToObjectSpace(camera.CFrame)
 				local x, y, z = rel:ToEulerAnglesXYZ()
 				camAng = Vector3.new(x, y, z) / math.max(dt, 1/240)
 			end
 			state.boobs.ccf = camera and camera.CFrame or nil
-			local useCam = (LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
+			local useCam = (Players.LocalPlayer and Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
 			local angInput = useCam and camAng or localAng
 			local accel = (localVel - state.boobs.llv) / math.max(dt, 1/240)
 			state.boobs.llv = localVel
+			local speed = localVel.Magnitude
+			local sizeScale = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
+			local softness = math.clamp(speed / 26, 0, 1)
 
-			local targetY = math.clamp((-localVel.Y * 0.015) - accel.Y * 0.006, -0.08, 0.08)
-			local targetZ = math.clamp((-localVel.Z * 0.020) - accel.Z * 0.006, -0.10, 0.10)
-			local targetX = math.clamp((-localVel.X * 0.016), -0.08, 0.08)
-			local targetPitch = math.clamp(((-localVel.Y * 0.015) - accel.Y * 0.006) + angInput.X * 0.60, -0.38, 0.38)
-			local targetRoll = math.clamp((-localVel.X * 0.06) + (-angInput.Y * 0.70), -0.42, 0.42)
-			local targetYaw = math.clamp((localVel.X * 0.06) + (angInput.Z * 0.70), -0.42, 0.42)
+			local targetY = math.clamp(((-localVel.Y * 0.016) - accel.Y * 0.0065) * (0.7 + sizeScale * 0.5), -0.14, 0.14)
+			local targetZ = math.clamp(((-localVel.Z * 0.022) - accel.Z * 0.0065) * (0.7 + sizeScale * 0.6), -0.16, 0.16)
+			local targetX = math.clamp((-localVel.X * 0.018) * (0.7 + sizeScale * 0.5), -0.14, 0.14)
 
-			local stiffness, damping = 82, 4.4
-			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, stiffness, damping, dt)
-			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, stiffness, damping, dt)
-			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, stiffness, damping, dt)
-			state.boobs.rx, state.boobs.vrx = originalIO.bodyModsSpring(state.boobs.rx, state.boobs.vrx, targetPitch, stiffness, 4.0, dt)
-			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, stiffness, 4.0, dt)
-			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, stiffness, 4.0, dt)
+			local targetPitch = math.clamp(((-localVel.Y * 0.016) - accel.Y * 0.006) * (0.4 + sizeScale * 0.4) + angInput.X * 0.65, -0.45, 0.45)
+			local targetRoll = math.clamp((-localVel.X * 0.065) * (0.5 + sizeScale * 0.3) + (-angInput.Y * 0.75), -0.46, 0.46)
+			local targetYaw = math.clamp((localVel.X * 0.065) * (0.5 + sizeScale * 0.3) + (angInput.Z * 0.75), -0.46, 0.46)
+
+			local kBase = 80
+			local dBase = 4.2
+			local kTrans = kBase - 18 * softness
+			local dTrans = dBase - 1.2 * softness
+			local kRot = kBase - 20 * softness
+			local dRot = 4.0 - 1.1 * softness
+
+			kTrans = kTrans / math.max(sizeScale, 0.5)
+			kRot = kRot / math.max(sizeScale * 0.9, 0.5)
+
+			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
+			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
+			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, kTrans, dTrans, dt)
+			state.boobs.rx, state.boobs.vrx = originalIO.bodyModsSpring(state.boobs.rx, state.boobs.vrx, targetPitch, kRot, dRot, dt)
+			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, kRot, dRot, dt)
+			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, kRot, dRot, dt)
 
 			state.boobs.sy = math.clamp(state.boobs.sy, -0.50, 0.50)
-			state.boobs.sz = math.clamp(state.boobs.sz, -0.40, 0.40)
-			state.boobs.sx = math.clamp(state.boobs.sx, -0.40, 0.40)
-			state.boobs.ry = math.clamp(state.boobs.ry, -0.42, 0.42)
+			state.boobs.sz = math.clamp(state.boobs.sz, -0.42, 0.42)
+			state.boobs.sx = math.clamp(state.boobs.sx, -0.42, 0.42)
+			state.boobs.ry = math.clamp(state.boobs.ry, -0.5, 0.5)
 
-			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.35, state.boobs.ox * 0.35)
-			local forwardZ = state.boobs.oz + state.boobs.sz * 0.08
+			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.4, state.boobs.ox * 0.4)
+			local forwardZ = state.boobs.oz + state.boobs.sz * 0.10
 			local leftOffset = CFrame.new(-state.boobs.ox + (-sxCap), state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, state.boobs.yw, state.boobs.ry)
 			local rightOffset = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, -state.boobs.yw, -state.boobs.ry)
 
@@ -43534,7 +43474,7 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(humanoid, function()
+		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, function()
 			Defer(function()
 				local refreshed = originalIO.bodyModsGetSkinColor()
 				for _, part in ipairs({ left, right }) do
@@ -43546,7 +43486,7 @@ do
 		end)
 
 		originalIO.bodyModsEnsureSpawnConnection()
-		DebugNotif('Boobs '..tostring(size),1.5)
+		DebugNotif("Boobs "..tostring(size),1.5)
 	end
 
 	originalIO.bodyModsRemoveBoobs = function()
@@ -43560,7 +43500,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and (part.Name == 'Boob' or part.Name == 'Nipple' or part.Name == 'Areola') then
+			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple" or part.Name == "Areola") then
 				Insert(toRemove, part)
 			end
 		end
@@ -43579,7 +43519,7 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		DebugNotif('Boobs Removed',1.5)
+		DebugNotif("Boobs Removed",1.5)
 	end
 
 	originalIO.bodyModsApplyAss = function(size)
@@ -43594,7 +43534,7 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and part.Name == 'Cheek' then
+			if part:IsA("BasePart") and part.Name == "Cheek" then
 				part:Destroy()
 			end
 		end
@@ -43608,7 +43548,7 @@ do
 		state.ass.oz = -(torso.Size.Z * 0.5 + radius * 0.45)
 
 		local function createCheek(side)
-			local cheek = Instance.new('Part')
+			local cheek = Instance.new("Part")
 			cheek.Shape = Enum.PartType.Ball
 			cheek.Size = cheekSize
 			cheek.Color = skin
@@ -43617,10 +43557,10 @@ do
 			cheek.CanCollide = false
 			cheek.CanTouch = false
 			cheek.CanQuery = false
-			cheek.Name = 'Cheek'
+			cheek.Name = "Cheek"
 			cheek.Parent = character
 
-			local weld = Instance.new('Weld')
+			local weld = Instance.new("Weld")
 			weld.Part0 = cheek
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
@@ -43655,7 +43595,7 @@ do
 			if not currentChar or not currentChar.Parent then
 				return
 			end
-			local hrp = currentChar:FindFirstChild('HumanoidRootPart')
+			local hrp = currentChar:FindFirstChild("HumanoidRootPart")
 			if not hrp then
 				return
 			end
@@ -43663,16 +43603,30 @@ do
 			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
 			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
 			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
+			local accel = (localVel - state.ass.llv) / math.max(dt, 1/240)
+			state.ass.llv = localVel
+			local speed = localVel.Magnitude
+			local sizeScale = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
+			local softness = math.clamp(speed / 24, 0, 1)
 
-			local targetY = math.clamp(-localVel.Y * 0.045, -0.20, 0.20)
-			local targetZ = math.clamp(localVel.Z * 0.042, -0.18, 0.18)
-			local targetX = math.clamp(localVel.X * 0.045, -0.18, 0.18)
-			local targetPitch = math.clamp(localAng.X * 0.70, -0.45, 0.45)
-			local targetRoll = math.clamp(-localAng.Y * 0.70, -0.45, 0.45)
-			local targetYaw = math.clamp(-localAng.Z * 0.60, -0.40, 0.40)
+			local targetY = math.clamp((-localVel.Y * 0.055 - accel.Y * 0.010) * (0.7 + sizeScale * 0.5), -0.28, 0.28)
+			local targetZ = math.clamp((localVel.Z * 0.048 + accel.Z * 0.008) * (0.7 + sizeScale * 0.6), -0.24, 0.24)
+			local targetX = math.clamp((localVel.X * 0.052) * (0.7 + sizeScale * 0.5), -0.24, 0.24)
 
-			local kTrans, dTrans = 48, 2.4
-			local kRot, dRot = 44, 2.2
+			local targetPitch = math.clamp(localAng.X * 0.80 * (0.6 + sizeScale * 0.4), -0.55, 0.55)
+			local targetRoll = math.clamp(-localAng.Y * 0.80 * (0.6 + sizeScale * 0.4), -0.55, 0.55)
+			local targetYaw = math.clamp(-localAng.Z * 0.70 * (0.6 + sizeScale * 0.4), -0.48, 0.48)
+
+			local kTransBase, dTransBase = 52, 2.6
+			local kRotBase, dRotBase = 48, 2.4
+			local kTrans = kTransBase - 14 * softness
+			local dTrans = dTransBase - 0.7 * softness
+			local kRot = kRotBase - 12 * softness
+			local dRot = dRotBase - 0.6 * softness
+
+			kTrans = kTrans / math.max(sizeScale * 0.85, 0.5)
+			kRot = kRot / math.max(sizeScale, 0.5)
+
 			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
 			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
 			state.ass.sx, state.ass.vx = originalIO.bodyModsSpring(state.ass.sx, state.ass.vx, targetX, kTrans, dTrans, dt)
@@ -43680,8 +43634,12 @@ do
 			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
 			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
 
-			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.5, state.ass.ox * 0.5)
-			local tzCap = math.clamp(state.ass.sz, -0.14, 0.14)
+			state.ass.sy = math.clamp(state.ass.sy, -0.32, 0.32)
+			state.ass.sz = math.clamp(state.ass.sz, -0.24, 0.24)
+			state.ass.sx = math.clamp(state.ass.sx, -0.26, 0.26)
+
+			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.55, state.ass.ox * 0.55)
+			local tzCap = math.clamp(state.ass.sz, -0.18, 0.18)
 			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry)
 			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry)
 
@@ -43690,9 +43648,9 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
+		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
-		DebugNotif('Ass '..tostring(size),1.5)
+		DebugNotif("Ass "..tostring(size),1.5)
 	end
 
 	originalIO.bodyModsRemoveAss = function()
@@ -43706,7 +43664,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and part.Name == 'Cheek' then
+			if part:IsA("BasePart") and part.Name == "Cheek" then
 				Insert(toRemove, part)
 			end
 		end
@@ -43725,7 +43683,7 @@ do
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		DebugNotif('Ass Removed',1.5)
+		DebugNotif("Ass Removed",1.5)
 	end
 
 	originalIO.bodyModsApplyPP = function(length)
@@ -43740,12 +43698,12 @@ do
 		end
 
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and (part.Name == 'Balls' or part.Name == 'penis') then
+			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
 				part:Destroy()
 			end
 		end
 
-		local value = tonumber(length) or 1
+		local value = tonumber(length) or state.pp.len or 1
 		value = math.clamp(value, 0.5, 6)
 		state.pp.len = value
 
@@ -43754,7 +43712,7 @@ do
 		local shaftLength = shaftBaseLength * value
 
 		local function createPart(shape, size, color, name)
-			local part = Instance.new('Part')
+			local part = Instance.new("Part")
 			part.Shape = shape
 			part.Size = size
 			part.Color = color
@@ -43769,17 +43727,17 @@ do
 		end
 
 		local function weldConstraint(part0, part1)
-			local weld = Instance.new('WeldConstraint')
+			local weld = Instance.new("WeldConstraint")
 			weld.Part0 = part0
 			weld.Part1 = part1
 			weld.Parent = part0
 		end
 
 		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -1.0 or -1.5
-		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
-		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, 'Balls')
-		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, 0.70, 0.70), skin, 'penis')
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pinkColor, 'penis')
+		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
+		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
+		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, 0.70, 0.70), skin, "penis")
+		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pinkColor, "penis")
 
 		leftBall.CFrame = torso.CFrame * CFrame.new(-0.25, offsetY, -0.80)
 		rightBall.CFrame = torso.CFrame * CFrame.new(0.25, offsetY, -0.80)
@@ -43789,19 +43747,80 @@ do
 
 		weldConstraint(leftBall, torso)
 		weldConstraint(rightBall, torso)
-		weldConstraint(shaft, torso)
 		weldConstraint(tip, shaft)
 
+		local shaftWeld = Instance.new("Weld")
+		shaftWeld.Part0 = torso
+		shaftWeld.Part1 = shaft
+		shaftWeld.C0 = torso.CFrame:ToObjectSpace(shaft.CFrame)
+		shaftWeld.C1 = CFrame.new()
+		shaftWeld.Parent = shaft
+
 		state.pp.active = true
-		state.pp.wS = nil
-		state.pp.wTip = nil
 		state.pp.sh = shaft
 		state.pp.dr = tip
+		state.pp.wS = shaftWeld
+		state.pp.sy = 0
+		state.pp.vy = 0
+		state.pp.sz = 0
+		state.pp.vz = 0
+		state.pp.sx = 0
+		state.pp.vx = 0
+		state.pp.rx = 0
+		state.pp.vrx = 0
+		state.pp.ry = 0
+		state.pp.vry = 0
+		state.pp.baseC0 = shaftWeld.C0
+
+		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
+		state.pp.animConn = RunService.RenderStepped:Connect(function(dt)
+			local currentChar = originalIO.bodyModsGetCharacter()
+			if not currentChar or not currentChar.Parent then
+				return
+			end
+			local hrp = currentChar:FindFirstChild("HumanoidRootPart")
+			if not hrp or not state.pp.wS or not state.pp.baseC0 then
+				return
+			end
+
+			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
+			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
+			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
+			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
+			local speed = localVel.Magnitude
+
+			local targetY = math.clamp((-localVel.Y * 0.020) - (localAng.X * 0.010), -0.20, 0.20)
+			local targetZ = math.clamp(-localVel.Z * (0.028 + 0.002 * value), -0.30, 0.30)
+			local targetX = math.clamp(-localVel.X * 0.020, -0.20, 0.20)
+			local targetPitch = math.clamp(localAng.Z * 0.030, -0.25, 0.25)
+			local targetRoll = math.clamp(localAng.X * 0.030, -0.25, 0.25)
+
+			local softness = math.clamp(speed / 28, 0, 1)
+			local kTrans = 54 - 16 * softness + value * 3
+			local dTrans = 3.2 - 0.8 * softness
+			local kRot = 42 - 10 * softness + value * 2
+			local dRot = 2.3 - 0.5 * softness
+
+			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
+			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
+			state.pp.sx, state.pp.vx = originalIO.bodyModsSpring(state.pp.sx, state.pp.vx, targetX, kTrans, dTrans, dt)
+			state.pp.rx, state.pp.vrx = originalIO.bodyModsSpring(state.pp.rx, state.pp.vrx, targetPitch, kRot, dRot, dt)
+			state.pp.ry, state.pp.vry = originalIO.bodyModsSpring(state.pp.ry, state.pp.vry, targetRoll, kRot, dRot, dt)
+
+			state.pp.sy = math.clamp(state.pp.sy, -0.22, 0.22)
+			state.pp.sz = math.clamp(state.pp.sz, -0.30, 0.30)
+			state.pp.sx = math.clamp(state.pp.sx, -0.22, 0.22)
+			state.pp.rx = math.clamp(state.pp.rx, -0.26, 0.26)
+			state.pp.ry = math.clamp(state.pp.ry, -0.26, 0.26)
+
+			local sway = CFrame.new(state.pp.sx, state.pp.sy, state.pp.sz) * CFrame.Angles(state.pp.rx, 0, state.pp.ry)
+			state.pp.wS.C0 = state.pp.baseC0 * sway
+		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(humanoid, originalIO.bodyModsOnAppearanceLoaded)
+		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
-		DebugNotif('penis '..tostring(value),1.5)
+		DebugNotif("penis "..tostring(value),1.5)
 	end
 
 	originalIO.bodyModsRemovePP = function()
@@ -43812,7 +43831,7 @@ do
 
 		local toRemove = {}
 		for _, part in ipairs(character:GetChildren()) do
-			if part:IsA('BasePart') and (part.Name == 'Balls' or part.Name == 'penis') then
+			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
 				Insert(toRemove, part)
 			end
 		end
@@ -43836,16 +43855,23 @@ do
 		state.pp.wTip = nil
 		state.pp.sh = nil
 		state.pp.dr = nil
+		state.pp.baseC0 = nil
+		state.pp.sy = 0
+		state.pp.sz = 0
+		state.pp.sx = 0
+		state.pp.rx = 0
+		state.pp.ry = 0
+
 		originalIO.bodyModsEnsureColorWatcher()
-		DebugNotif('PP Removed',1.5)
+		DebugNotif("PP Removed",1.5)
 	end
 
 	originalIO.bodyModsReapplyOnSpawn = function(newCharacter)
 		Spawn(function()
-			local humanoid = newCharacter:WaitForChild('Humanoid', 10)
+			local humanoid = newCharacter:WaitForChild("Humanoid", 10)
 			if state.boobs.active then
 				Spawn(function()
-					if originalIO.bodyModsWaitFor({ 'UpperTorso', 'Torso' }, 10) then
+					if originalIO.bodyModsWaitFor({ "UpperTorso", "Torso" }, 10) then
 						originalIO.bodyModsApplyBoobs(state.boobs.size or 1)
 					end
 				end)
@@ -43853,11 +43879,11 @@ do
 			if state.ass.active then
 				Spawn(function()
 					if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-						if originalIO.bodyModsWaitFor({ 'LowerTorso' }, 10) then
+						if originalIO.bodyModsWaitFor({ "LowerTorso" }, 10) then
 							originalIO.bodyModsApplyAss(state.ass.size or 1)
 						end
 					else
-						if originalIO.bodyModsWaitFor({ 'Torso' }, 10) then
+						if originalIO.bodyModsWaitFor({ "Torso" }, 10) then
 							originalIO.bodyModsApplyAss(state.ass.size or 1)
 						end
 					end
@@ -43866,11 +43892,11 @@ do
 			if state.pp.active then
 				Spawn(function()
 					if humanoid and humanoid.RigType == Enum.HumanoidRigType.R15 then
-						if originalIO.bodyModsWaitFor({ 'LowerTorso' }, 10) then
+						if originalIO.bodyModsWaitFor({ "LowerTorso" }, 10) then
 							originalIO.bodyModsApplyPP(state.pp.len or 1)
 						end
 					else
-						if originalIO.bodyModsWaitFor({ 'Torso' }, 10) then
+						if originalIO.bodyModsWaitFor({ "Torso" }, 10) then
 							originalIO.bodyModsApplyPP(state.pp.len or 1)
 						end
 					end
@@ -43883,48 +43909,47 @@ do
 		if state.spawnConn and state.spawnConn.Connected then
 			return
 		end
-		state.spawnConn = LocalPlayer.CharacterAdded:Connect(originalIO.bodyModsReapplyOnSpawn)
+		state.spawnConn = Players.LocalPlayer.CharacterAdded:Connect(originalIO.bodyModsReapplyOnSpawn)
 	end
 
 	originalIO.bodyModsEnsurePlayerAppearanceHook = function()
 		state.apConn = originalIO.bodyModsDisconnectConnection(state.apConn)
-		state.apConn = originalIO.bodyModsConnectAppearanceLoaded(LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+		state.apConn = originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 	end
 
 	originalIO.bodyModsEnsurePlayerAppearanceHook()
 	originalIO.bodyModsEnsureSpawnConnection()
 
-	cmd.add({'boobs','boobies'},{'boobs <size> (boobies)','Boobs'},function(arg)
+	cmd.add({"boobs","boobies"},{"boobs <size> (boobies)","Boobs"},function(arg)
 		local value = tonumber(arg) or state.boobs.size or 1
 		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyBoobs(value)
-	end, true)
+	end,true)
 
-	cmd.add({'unboobs','unboobies','noboobs','noboobies'},{'unboobs (unboobies,noboobs,noboobies)','Boobs'},function()
+	cmd.add({"unboobs","unboobies","noboobs","noboobies"},{"unboobs (unboobies,noboobs,noboobies)","Boobs"},function()
 		originalIO.bodyModsRemoveBoobs()
 	end)
 
-	cmd.add({'ass','booty'},{'ass <size> (booty)','Ass'},function(arg)
+	cmd.add({"ass","booty"},{"ass <size> (booty)","Ass"},function(arg)
 		local value = tonumber(arg) or state.ass.size or 1
 		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyAss(value)
-	end, true)
+	end,true)
 
-	cmd.add({'unass','noass'},{'unass (noass)','Ass'},function()
+	cmd.add({"unass","noass"},{"unass (noass)","Ass"},function()
 		originalIO.bodyModsRemoveAss()
 	end)
 
-	cmd.add({'penis','pp'},{'penis <length> (pp)','penis'},function(arg)
+	cmd.add({"penis","pp"},{"penis <length> (pp)","penis"},function(arg)
 		local value = tonumber(arg) or state.pp.len or 1
 		value = math.clamp(value, 0.5, 6)
 		originalIO.bodyModsApplyPP(value)
-	end, true)
+	end,true)
 
-	cmd.add({'unpenis','unpp','nopenis','nopp'},{'unpenis (unpp,nopenis,nopp)','penis'},function()
+	cmd.add({"unpenis","unpp","nopenis","nopp"},{"unpenis (unpp,nopenis,nopp)","penis"},function()
 		originalIO.bodyModsRemovePP()
 	end)
 end
-
 
 -- [[ NPC SECTION ]] --
 cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
