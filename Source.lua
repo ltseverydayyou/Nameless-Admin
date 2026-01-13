@@ -36272,14 +36272,49 @@ NAjobs._maybeStop = function()
 	end
 end
 
+NAjobs._findExisting = function(kind, target, useFind)
+	local findMode = useFind and true or false
+	for id, job in pairs(NAjobs.jobs) do
+		if job.kind == kind and (job.target or nil) == target and (job.useFind and true or false) == findMode then
+			return id, job
+		end
+	end
+	return nil
+end
+
+NAjobs._nextIdForKind = function(kind)
+	local used = {}
+	for id, job in pairs(NAjobs.jobs) do
+		if job.kind == kind then
+			local n = tonumber(tostring(id):match("^"..kind.."#(%d+)$"))
+			if n then used[n] = true end
+		end
+	end
+	local i = 1
+	while used[i] do i += 1 end
+	return kind.."#"..tostring(i)
+end
+
 NAjobs.start = function(kind, interval, target, useFind)
 	NAindex.init()
-	NAjobs.seq += 1
-	local id = kind.."#"..tostring(NAjobs.seq)
 	local tgt = target and Lower(target) or nil
 	local ivl = interval or 0.1
-	local stagger = (ivl > 0) and math.min(0.02, ivl / 8) or 0
-	local job = { id = id, kind = kind, interval = math.max(0, ivl), target = tgt, next = time(), stagger = stagger, m = (useFind and NAindex.matchAnyFind or NAindex.matchAny) }
+	local ivlClamped = math.max(0, ivl)
+	local stagger = (ivlClamped > 0) and math.min(0.02, ivlClamped / 8) or 0
+	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny
+	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind)
+	if existingJob then
+		existingJob.interval = ivlClamped
+		existingJob.target = tgt
+		existingJob.m = matcher
+		existingJob.useFind = useFind and true or false
+		existingJob.stagger = stagger
+		existingJob.next = time()
+		return existingId, true
+	end
+
+	local id = NAjobs._nextIdForKind(kind)
+	local job = { id = id, kind = kind, interval = ivlClamped, target = tgt, next = time(), stagger = stagger, m = matcher, useFind = useFind and true or false }
 
 	if kind == "prompt" then
 		job.tick = function(self)
@@ -36421,29 +36456,47 @@ NAjobs.stopAll = function()
 	NAjobs._maybeStop()
 end
 
-NAmanage._windowStopKind=function(kind, titleText)
-	local buttons = {}
-	for id, job in pairs(NAjobs.jobs) do
-		if job.kind == kind and job.m ~= NAindex.matchAnyFind then
-			local label = job.id..(job.target and (" • "..job.target) or "")
-			Insert(buttons, {
-				Text = label,
-				Callback = function()
-					NAjobs.stopById(job.id)
-					DebugNotif("stopped "..label, 2)
-				end
-			})
+NAmanage._sortedJobs = function(kind, useFind)
+	local list = {}
+	local findMode = useFind and true or false
+	for _, job in pairs(NAjobs.jobs) do
+		if job.kind == kind and (job.useFind and true or false) == findMode then
+			Insert(list, job)
 		end
+	end
+	table.sort(list, function(a, b)
+		local ai = tonumber(tostring(a.id):match("#(%d+)$")) or math.huge
+		local bi = tonumber(tostring(b.id):match("#(%d+)$")) or math.huge
+		if ai == bi then
+			return (a.target or "") < (b.target or "")
+		end
+		return ai < bi
+	end)
+	return list
+end
+
+local function buildStopWindow(kind, titleText, useFind)
+	local buttons = {}
+	for _, job in ipairs(NAmanage._sortedJobs(kind, useFind)) do
+		local label = job.id..(job.target and (" • "..job.target) or "")
+		Insert(buttons, {
+			Text = label,
+			Callback = function()
+				NAjobs.stopById(job.id)
+				DebugNotif("stopped "..label, 2)
+			end
+		})
 	end
 	Insert(buttons, {
 		Text = "All",
 		Callback = function()
 			for jid, j in pairs(NAjobs.jobs) do
-				if j.kind == kind and j.m ~= NAindex.matchAnyFind then
+				if j.kind == kind and (j.useFind and true or false) == (useFind and true or false) then
 					NAjobs.stopById(jid)
 				end
 			end
-			DebugNotif("all "..kind.." stopped", 2)
+			local suffix = useFind and " (find)" or ""
+			DebugNotif("all "..kind..suffix.." stopped", 2)
 		end
 	})
 	Window({
@@ -36452,35 +36505,12 @@ NAmanage._windowStopKind=function(kind, titleText)
 	})
 end
 
+NAmanage._windowStopKind=function(kind, titleText)
+	buildStopWindow(kind, titleText, false)
+end
+
 NAmanage._windowStopKindFind=function(kind, titleText)
-	local buttons = {}
-	for id, job in pairs(NAjobs.jobs) do
-		if job.kind == kind and job.m == NAindex.matchAnyFind then
-			local label = job.id..(job.target and (" • "..job.target) or "")
-			Insert(buttons, {
-				Text = label,
-				Callback = function()
-					NAjobs.stopById(job.id)
-					DebugNotif("stopped "..label, 2)
-				end
-			})
-		end
-	end
-	Insert(buttons, {
-		Text = "All",
-		Callback = function()
-			for jid, j in pairs(NAjobs.jobs) do
-				if j.kind == kind and j.m == NAindex.matchAnyFind then
-					NAjobs.stopById(jid)
-				end
-			end
-			DebugNotif("all "..kind.." (find) stopped", 2)
-		end
-	})
-	Window({
-		Title = titleText,
-		Buttons = buttons
-	})
+	buildStopWindow(kind, titleText, true)
 end
 
 cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
@@ -36492,8 +36522,9 @@ cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Auto
 	else
 		interval, target = NAutil.parseInterval(0.01, ...)
 	end
-	local id = NAjobs.start("prompt", interval, target)
-	DebugNotif(target and ("afp started (%s) → %s"):format(target, id) or ("afp started → %s"):format(id), 2)
+	local id, reused = NAjobs.start("prompt", interval, target)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afp %s (%s) → %s"):format(action, target, id) or ("afp %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] (afpfind)","Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"}, function(...)
@@ -36505,8 +36536,9 @@ cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] 
 	else
 		interval, target = NAutil.parseInterval(0.01, ...)
 	end
-	local id = NAjobs.start("prompt", interval, target, true)
-	DebugNotif(target and ("afpfind started (%s) → %s"):format(target, id) or ("afpfind started → %s"):format(id), 2)
+	local id, reused = NAjobs.start("prompt", interval, target, true)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afpfind %s (%s) → %s"):format(action, target, id) or ("afpfind %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds"}, function(...)
@@ -36518,8 +36550,9 @@ cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Auto
 	else
 		interval, target = NAutil.parseInterval(0.01, ...)
 	end
-	local id = NAjobs.start("click", interval, target)
-	DebugNotif(target and ("afc started (%s) → %s"):format(target, id) or ("afc started → %s"):format(id), 2)
+	local id, reused = NAjobs.start("click", interval, target)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afc %s (%s) → %s"):format(action, target, id) or ("afc %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] (afcfind)","Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"}, function(...)
@@ -36531,14 +36564,23 @@ cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] 
 	else
 		interval, target = NAutil.parseInterval(0.01, ...)
 	end
-	local id = NAjobs.start("click", interval, target, true)
-	DebugNotif(target and ("afcfind started (%s) → %s"):format(target, id) or ("afcfind started → %s"):format(id), 2)
+	local id, reused = NAjobs.start("click", interval, target, true)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afcfind %s (%s) → %s"):format(action, target, id) or ("afcfind %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
 	local interval, target = NAutil.parseInterval(0.5, ...)
-	local id = NAjobs.start("touch", interval, target)
-	DebugNotif(target and ("at started (%s) → %s"):format(target, id) or ("at started → %s"):format(id), 2)
+	local id, reused = NAjobs.start("touch", interval, target)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("at %s (%s) → %s"):format(action, target, id) or ("at %s → %s"):format(action, id), 2)
+end, true)
+
+cmd.add({"AutoTouchFind","atfind"},{"AutoTouchFind <interval> [target] (atfind)","Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"}, function(...)
+	local interval, target = NAutil.parseInterval(0.5, ...)
+	local id, reused = NAjobs.start("touch", interval, target, true)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("atfind %s (%s) → %s"):format(action, target, id) or ("atfind %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops all AutoFireProxi loops"}, function()
@@ -36551,6 +36593,10 @@ end)
 
 cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops all AutoTouch loops"}, function()
 	NAmanage._windowStopKind("touch","AutoTouch Jobs")
+end)
+
+cmd.add({"unautotouchfind","uatfind"},{"unautotouchfind (uatfind)","Stops substring-matching AutoTouch loops"}, function()
+	NAmanage._windowStopKindFind("touch","AutoTouchFind Jobs")
 end)
 
 cmd.add({"unautofireproxifind","uafpfind"},{"unautofireproxifind (uafpfind)","Stops substring-matching AutoFireProxi loops"}, function()
