@@ -117,6 +117,38 @@ local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
 local connections = {}
+NAlib = NAlib or {}
+
+NAlib.connect = function(name, connection)
+	connections[name] = connections[name] or {}
+	Insert(connections[name], connection)
+	return connection
+end
+
+NAlib.disconnect = function(name)
+	if connections[name] then
+		for _, conn in ipairs(connections[name]) do
+			conn:Disconnect()
+		end
+		connections[name] = nil
+	end
+end
+
+NAlib.isConnected = function(name)
+	return connections[name] ~= nil
+end
+
+NAlib.isProperty = function(inst, prop)
+	local s, r = pcall(function() return inst[prop] end)
+	if not s then return nil end
+	return r
+end
+
+NAlib.setProperty = function(inst, prop, v)
+	local s, _ = pcall(function() inst[prop] = v end)
+	return s
+end
+
 local HttpService=SafeGetService('HttpService');
 local Players=SafeGetService("Players");
 local UserInputService=SafeGetService("UserInputService");
@@ -4796,7 +4828,7 @@ local events = {
 }
 local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
-NAlib={}
+NAlib = NAlib or {}
 NAgui={}
 NAindex = NAindex or { _init = false }
 NAjobs  = NAjobs  or { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, _touchState = setmetatable({}, {__mode="k"}) }
@@ -5200,36 +5232,6 @@ else
 	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
 	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
-end
-
-NAlib.connect = function(name, connection)
-	connections[name] = connections[name] or {}
-	Insert(connections[name], connection)
-	return connection
-end
-
-NAlib.disconnect = function(name)
-	if connections[name] then
-		for _, conn in ipairs(connections[name]) do
-			conn:Disconnect()
-		end
-		connections[name] = nil
-	end
-end
-
-NAlib.isConnected = function(name)
-	return connections[name] ~= nil
-end
-
-NAlib.isProperty = function(inst, prop)
-	local s, r = pcall(function() return inst[prop] end)
-	if not s then return nil end
-	return r
-end
-
-NAlib.setProperty = function(inst, prop, v)
-	local s, _ = pcall(function() inst[prop] = v end)
-	return s
 end
 
 NAmanage.centerFrame = function(f)
@@ -42466,36 +42468,117 @@ cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time yo
 end)
 
 do
-	local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil}
-
-	originalIO.FOVstep=function()
-		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
-		FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or InstanceNew("Vector3Value", parent)
-		FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or InstanceNew("Vector3Value", parent)
-
-		local o = FOVhandler.mem.o.Value or 0
-		local sum = 0
-		for i=1,#FOVhandler.mem.base do
-			local v = FOVhandler.mem.base[i]
-			if not v or not v.Parent then v = InstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
-			sum += (v.Value or 0)
+	local SafeInstanceNew = InstanceNew
+	if type(SafeInstanceNew) ~= "function" then
+		SafeInstanceNew = function(className, parent)
+			local inst = Instance.new(className)
+			if parent then inst.Parent = parent end
+			inst.Name = "\0"
+			return inst
 		end
-		local target = (o ~= 0 and o) or sum
-		local cam = workspace.CurrentCamera; if not cam then return end
+		InstanceNew = SafeInstanceNew
+	end
 
-		if cam ~= FOVhandler.cam then
-			FOVhandler.cam = cam
-			NAlib.disconnect("fov_refresh")
-			NAlib.connect("fov_refresh", cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
-				if not FOVhandler.loop then return end
-				local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
-				if t > 0 then
-					local vis = math.clamp(t, 25, 120)
-					if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+		local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
+
+		local function disconnectFovRefresh()
+			if FOVhandler.refreshConn then
+				pcall(function() FOVhandler.refreshConn:Disconnect() end)
+				FOVhandler.refreshConn = nil
+			end
+			if NAlib and NAlib.disconnect then
+				pcall(NAlib.disconnect, "fov_refresh")
+			end
+		end
+
+		local function setFovRefreshConnection(conn)
+			disconnectFovRefresh()
+			FOVhandler.refreshConn = conn
+			if conn and NAlib and NAlib.connect then
+				pcall(NAlib.connect, "fov_refresh", conn)
+			end
+		end
+
+		local function hasFovRefresh()
+			if FOVhandler.refreshConn then
+				return true
+			end
+			if NAlib and NAlib.isConnected then
+				local ok, result = pcall(NAlib.isConnected, "fov_refresh")
+				if ok and result then
+					return true
 				end
-			end))
+			end
+			return false
 		end
+
+		local function disconnectLoopHold()
+			if FOVhandler.loopHoldConn then
+				pcall(function() FOVhandler.loopHoldConn:Disconnect() end)
+				FOVhandler.loopHoldConn = nil
+			end
+			if NAlib and NAlib.disconnect then
+				pcall(NAlib.disconnect, "fov_loop_hold")
+			end
+		end
+
+		local function setLoopHoldConnection(conn)
+			disconnectLoopHold()
+			FOVhandler.loopHoldConn = conn
+			if conn and NAlib and NAlib.connect then
+				pcall(NAlib.connect, "fov_loop_hold", conn)
+			end
+		end
+
+		local function connectCameraWatcher()
+			if FOVhandler.watchConn then
+				pcall(function() FOVhandler.watchConn:Disconnect() end)
+				FOVhandler.watchConn = nil
+			end
+			if NAlib and NAlib.disconnect then
+				pcall(NAlib.disconnect, "fov_watch_cc")
+			end
+			local ok, conn = pcall(function()
+				return workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+					FOVhandler.cam = workspace.CurrentCamera
+				end)
+			end)
+			if ok and conn then
+				FOVhandler.watchConn = conn
+				if NAlib and NAlib.connect then
+					pcall(NAlib.connect, "fov_watch_cc", conn)
+				end
+			end
+			FOVhandler.cam = workspace.CurrentCamera
+		end
+
+		originalIO.FOVstep=function()
+			local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
+			FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or SafeInstanceNew("Vector3Value", parent)
+			FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or SafeInstanceNew("Vector3Value", parent)
+
+			local o = FOVhandler.mem.o.Value or 0
+			local sum = 0
+			for i=1,#FOVhandler.mem.base do
+				local v = FOVhandler.mem.base[i]
+				if not v or not v.Parent then v = SafeInstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
+				sum += (v.Value or 0)
+			end
+			local target = (o ~= 0 and o) or sum
+			local cam = workspace.CurrentCamera; if not cam then return end
+
+			if cam ~= FOVhandler.cam then
+				FOVhandler.cam = cam
+				setFovRefreshConnection(cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+					if not FOVhandler.loop then return end
+					local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
+					if t > 0 then
+						local vis = math.clamp(t, 25, 120)
+						if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+					end
+				end))
+			end
 
 		if FOVhandler.loop and target > 0 then
 			local vis = math.clamp(target, 25, 120)
@@ -42526,19 +42609,16 @@ do
 	pcall(function() RunService:UnbindFromRenderStep("FOV_SYS") end)
 	RunService:BindToRenderStep("FOV_SYS", Enum.RenderPriority.Camera.Value+1, originalIO.FOVstep)
 
-	NAlib.disconnect("fov_watch_cc")
-	NAlib.connect("fov_watch_cc", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		FOVhandler.cam = workspace.CurrentCamera
-	end))
+		connectCameraWatcher()
 
 	cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–300)"}, function(num)
 		local t = math.clamp(tonumber(num) or 70, 1, 300)
 		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
 		if FOVhandler.loop then
-			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
+			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
 			FOVhandler.mem.o.Value = t
 		else
-			FOVhandler.mem.base[1] = (FOVhandler.mem.base[1] and FOVhandler.mem.base[1].Parent) and FOVhandler.mem.base[1] or InstanceNew("NumberValue", parent)
+			FOVhandler.mem.base[1] = (FOVhandler.mem.base[1] and FOVhandler.mem.base[1].Parent) and FOVhandler.mem.base[1] or SafeInstanceNew("NumberValue", parent)
 			FOVhandler.mem.base[1].Value = t
 		end
 		local cam = workspace.CurrentCamera
@@ -42548,35 +42628,34 @@ do
 		end
 	end, true)
 
-	cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
-		local t = math.clamp(tonumber(num) or 70, 1, 300)
-		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or InstanceNew("NumberValue", parent)
-		FOVhandler.mem.o.Value = t
-		FOVhandler.loop = true
-		if not NAlib.isConnected("fov_refresh") then
-			FOVhandler.cam = nil
-		end
-		NAlib.disconnect("fov_loop_hold")
-		NAlib.connect("fov_loop_hold", RunService.RenderStepped:Connect(function()
-			local p = NAmanage.guiCHECKINGAHHHHH()
-			if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = InstanceNew("NumberValue", p) end
-		end))
-		local cam = workspace.CurrentCamera
-		if cam then
-			local vis = math.clamp(t, 25, 120)
-			if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
-		end
+		cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
+			local t = math.clamp(tonumber(num) or 70, 1, 300)
+			local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
+			FOVhandler.mem.o.Value = t
+			FOVhandler.loop = true
+			if not hasFovRefresh() then
+				FOVhandler.cam = nil
+			end
+			setLoopHoldConnection(RunService.RenderStepped:Connect(function()
+				local p = NAmanage.guiCHECKINGAHHHHH()
+				if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = SafeInstanceNew("NumberValue", p) end
+			end))
+			local cam = workspace.CurrentCamera
+			if cam then
+				local vis = math.clamp(t, 25, 120)
+				if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+			end
 	end, true)
 
 	cmd.add({"unloopfov","unlfov"}, {"unloopfov (unlfov)", "Stops FOV loop"}, function()
-		FOVhandler.loop = false
-		NAlib.disconnect("fov_loop_hold")
-		NAlib.disconnect("fov_refresh")
-		if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
-		if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
-		if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
-	end)
+			FOVhandler.loop = false
+			disconnectLoopHold()
+			disconnectFovRefresh()
+			if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
+			if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
+			if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
+		end)
 end
 
 cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
