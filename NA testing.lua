@@ -52774,7 +52774,7 @@ originalIO.runNACHAT=function()
 				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
 					okInit, initErr = NAChat.service.Init({
-						serverUrl = "wss://ratty-erminia-adonis-98016d83.koyeb.app/swimhub",
+						serverUrl = "wss://open-cheating-network.onrender.com/swimhub",
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
