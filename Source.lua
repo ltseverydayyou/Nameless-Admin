@@ -47130,10 +47130,17 @@ NAmanage.StartUIAutoSyncLoop = function()
 	NAmanage._uiAutoSyncLoopStarted = true
 	Spawn(function()
 		while true do
-			Wait(0.25)
-			local ok, err = pcall(NAmanage.RunUIAutoSync)
-			if not ok then
-				warn("[NA] UI auto-sync failed:", err)
+			local store = NAmanage._uiAutoSync
+			local hasToggles = store and store.toggles and next(store.toggles) ~= nil
+
+			if not hasToggles then
+				Wait(1)
+			else
+				Wait(0.25)
+				local ok, err = pcall(NAmanage.RunUIAutoSync)
+				if not ok then
+					warn("[NA] UI auto-sync failed:", err)
+				end
 			end
 		end
 	end)
@@ -54022,25 +54029,31 @@ function bindToChat(plr, msg)
 			end
 		end
 
-		if isNAadmin then
-			local function rainbowColor(now)
-				local r = math.sin(now * 0.5) * 127 + 128
-				local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
-				local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
-				return Color3.fromRGB(r, g, b)
-			end
+			if isNAadmin then
+				local function rainbowColor(now)
+					local r = math.sin(now * 0.5) * 127 + 128
+					local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
+					local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
+					return Color3.fromRGB(r, g, b)
+				end
 
-			NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
-			Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
+				NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
+				Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
 
-			if not NAStuff.AdminChatRainbowConnection then
-				NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
-					local now = tick()
-					local list = NAStuff.AdminChatRainbowMessages
-					if not list then
-						return
-					end
-					for i = #list, 1, -1 do
+				if not NAStuff.AdminChatRainbowConnection then
+					local lastUpdate = 0
+					NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
+						local now = tick()
+						if now - lastUpdate < 0.12 then
+							return
+						end
+						lastUpdate = now
+
+						local list = NAStuff.AdminChatRainbowMessages
+						if not list then
+							return
+						end
+						for i = #list, 1, -1 do
 						local label = list[i]
 						if not label or not label.Parent then
 							table.remove(list, i)
