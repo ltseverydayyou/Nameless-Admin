@@ -17535,9 +17535,9 @@ cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function(
 	NAgui.chatlogs()
 end)
 
-cmd.add({"nachat","nachatui","nachatbox"},{"nachat (nachatui, nachatbox)","Open the Nameless Admin chat UI"},function()
+--[[cmd.add({"nachat","nachatui","nachatbox"},{"nachat (nachatui, nachatbox)","Open the Nameless Admin chat UI"},function()
 	NAgui.nachat()
-end)
+end)]]
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
 	local player=Players.LocalPlayer
@@ -44743,62 +44743,25 @@ NAUIMANAGER = {
 		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs")
 		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs"):FindFirstChildWhichIsA("TextLabel");
 
-	NAchatFrame          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI");
-	NAchatContent        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container");
-	NAchatChatScroll     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll");
-	NAchatUsersScroll    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll");
-	NAchatUsersSearch    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersSearch");
-	NAchatListLayout     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll"):FindFirstChildWhichIsA("UIListLayout");
-	NAchatUserListLayout = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll"):FindFirstChildWhichIsA("UIListLayout");
-	NAchatInput          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatInput");
-	NAchatSendButton     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("SendButton");
-	NAchatTranslateButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslate");
-	NAchatTranslateInput = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslateInput");
-	NAchatClearButton    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("ClearChat");
-	NAchatStatusLabel    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatStatus");
-	NAchatReconnectButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ReconnectButton");
-	NAchatChatTab        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("ChatTab");
-	NAchatUsersTab       = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("UsersTab");
-	NAchatVisibility     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("Visibility");
-	NAchatGameActivity   = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("GameActivity");
-	NAchatDmNotifyButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs")
-		and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("DMNotifs");
+	--NAchatFrame          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI");
+	--NAchatContent        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container");
+	--NAchatChatScroll     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll");
+	--NAchatUsersScroll    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll");
+	--NAchatUsersSearch    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersSearch");
+	--NAchatListLayout     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll"):FindFirstChildWhichIsA("UIListLayout");
+	--NAchatUserListLayout = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll"):FindFirstChildWhichIsA("UIListLayout");
+	--NAchatInput          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatInput");
+	--NAchatSendButton     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("SendButton");
+	--NAchatTranslateButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslate");
+	--NAchatTranslateInput = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslateInput");
+	--NAchatClearButton    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("ClearChat");
+	--NAchatStatusLabel    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatStatus");
+	--NAchatReconnectButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ReconnectButton");
+	--NAchatChatTab        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("ChatTab");
+	--NAchatUsersTab       = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("UsersTab");
+	--NAchatVisibility     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("Visibility");
+	--NAchatGameActivity   = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("GameActivity");
+	--NAchatDmNotifyButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("DMNotifs");
 
 	NAconsoleFrame       = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole");
 	NAconsoleLogs        = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
@@ -46174,14 +46137,14 @@ NAgui.chatlogs = function()
 		NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 	end
 end
-NAgui.nachat = function()
+--[[NAgui.nachat = function()
 	if NAUIMANAGER.NAchatFrame then
 		if not NAUIMANAGER.NAchatFrame.Visible then
 			NAUIMANAGER.NAchatFrame.Visible = true
 		end
 		NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
 	end
-end
+end]]
 NAgui.doModal = function(v)
 	NAUIMANAGER.ModalFixer.Modal = v
 end
@@ -47934,12 +47897,12 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 			end
 		end},
-		{name="nachat",icon="we-chat",func=function()
+		--[[{name="nachat",icon="we-chat",func=function()
 			if NAUIMANAGER.NAchatFrame then
 				NAUIMANAGER.NAchatFrame.Visible = not NAUIMANAGER.NAchatFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
 			end
-		end},
+		end},]]
 		{name="console",icon="pencil-square",func=function()
 			if NAUIMANAGER.NAconsoleFrame then
 				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
@@ -49142,9 +49105,9 @@ if NAUIMANAGER.chatLogsFrame then
 	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
 end
 
-if NAUIMANAGER.NAchatFrame then
+--[[if NAUIMANAGER.NAchatFrame then
 	NAgui.menuv2(NAUIMANAGER.NAchatFrame)
-end
+end]]
 
 if NAUIMANAGER.NAconsoleFrame then
 	NAgui.menuv2(NAUIMANAGER.NAconsoleFrame)
@@ -49169,7 +49132,7 @@ end
 --[[ GUI RESIZE FUNCTION ]]--
 
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
-if NAUIMANAGER.NAchatFrame then NAgui.resizeable(NAUIMANAGER.NAchatFrame) end
+--if NAUIMANAGER.NAchatFrame then NAgui.resizeable(NAUIMANAGER.NAchatFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
 if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
@@ -49844,6 +49807,7 @@ originalIO.naTransLatooor=function()
 end
 originalIO.naTransLatooor()
 --[[ NA CHAT TRANSLATOR (separate from chat logs) ]]--
+--[=[
 originalIO.naCHATtrans=function()
 	local Http = HttpService
 	local translator = NAStuff.NAChatTranslator or {}
@@ -50408,7 +50372,7 @@ originalIO.naCHATtrans=function()
 	translator:updateUI()
 end
 originalIO.naCHATtrans()
-
+]=]
 NAmanage.CommandKeybindsAdd=function()
 	local UIS = UserInputService
 	if not UIS then return end
@@ -51151,7 +51115,7 @@ NAmanage.CommandKeybindsUIWire=function()
 	end
 end
 --[[ NA CHAT (WEBSOCKET) ]]--
-originalIO.runNACHAT=function()
+--[=[originalIO.runNACHAT=function()
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
 	local chatScroll = NAUIMANAGER and NAUIMANAGER.NAchatChatScroll
 	local chatLayout = NAUIMANAGER and NAUIMANAGER.NAchatListLayout
@@ -54126,7 +54090,7 @@ originalIO.runNACHAT=function()
 		connect()
 	end
 end
-originalIO.runNACHAT()
+originalIO.runNACHAT()]=]
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
 	local shouldDisplay = NAmanage.jlCfg.ChatLog ~= false
@@ -54879,8 +54843,8 @@ RunService.RenderStepped:Connect(function()
 	if NAUIMANAGER.SettingsList then updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.WaypointList then updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale) end
 	if NAUIMANAGER.BindersList then updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.NAchatChatScroll then updateCanvasSize(NAUIMANAGER.NAchatChatScroll, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.NAchatUsersScroll then updateCanvasSize(NAUIMANAGER.NAchatUsersScroll, NAUIMANAGER.AUTOSCALER.Scale) end
+	--if NAUIMANAGER.NAchatChatScroll then updateCanvasSize(NAUIMANAGER.NAchatChatScroll, NAUIMANAGER.AUTOSCALER.Scale) end
+	--if NAUIMANAGER.NAchatUsersScroll then updateCanvasSize(NAUIMANAGER.NAchatUsersScroll, NAUIMANAGER.AUTOSCALER.Scale) end
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -56061,7 +56025,7 @@ end)
 SpawnCall(function() -- init
 	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
 	if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
-	if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
+	--if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
 	if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
 	if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
 	if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
