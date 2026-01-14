@@ -1260,8 +1260,6 @@ opt={
 	currentTagRGB = false;
 	chatTranslateEnabled = true;
 	chatTranslateTarget = "en";
-	naChatTranslateEnabled = true;
-	naChatTranslateTarget = "en";
 	--saveTag = false;
 }
 local cmd={}
@@ -1856,7 +1854,7 @@ end
 
 local searchIndex = {}
 local cmds
-local defaultBarCommands = { "settings", "commands", "cmdloop", "nachat", "discord" }
+local defaultBarCommands = { "settings", "commands", "cmdloop", "adonisbypass", "discord" }
 local shouldShowDefaultAutofill = false
 local prevVisible, results = {}, {}
 local lastSearchText, gen = "", 0
@@ -1894,7 +1892,7 @@ NAmanage.defaultCommandMatches=function(entry, target)
 end
 local NAImageAssets = {
 	Icon = "NAnew.png";
-	sWare = "ScriptWare.png";
+	nilsongamer99 = "nilsongamer99.png";
 	Sheet = "sheet.png";
 	Inlet = "Inlet.png";
 	Stud = "oldStud.png";
@@ -1929,7 +1927,6 @@ local NAfiles = {
 	NAJOINLEAVE = "Nameless-Admin/JoinLeave.json";
 	NAJOINLEAVELOG = "Nameless-Admin/JoinLeaveLog.txt";
 	NACHATLOGS = "Nameless-Admin/ChatLogs.txt";
-	--NACHATTAG = "Nameless-Admin/ChatTag.json";
 	NATOPBAR = "Nameless-Admin/TopBarApp.txt";
 	NANOTIFSTOGGLE = "Nameless-Admin/NotifsTgl.txt";
 	NABINDERS = "Nameless-Admin/Binders.json";
@@ -7057,15 +7054,6 @@ NAmanage.logApply = function()
 	end
 end
 
-_G.NAChatGameActivityEnabled=function()
-	local settings = NAmanage.NASettingsEnsure()
-	local val = settings and settings.naChatGameActivity
-	if type(val) ~= "boolean" then
-		return true
-	end
-	return val
-end
-
 opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 
 --Custom file functions checker checker
@@ -7667,24 +7655,6 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
-		naChatGameActivity = {
-			default = true;
-			coerce = function(value)
-				return coerceBoolean(value, true)
-			end;
-		};
-		naChatHidden = {
-			default = false;
-			coerce = function(value)
-				return coerceBoolean(value, false)
-			end;
-		};
-		naChatDmNotify = {
-			default = true;
-			coerce = function(value)
-				return coerceBoolean(value, true)
-			end;
-		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -7932,18 +7902,6 @@ if FileSupport then
 	if not isfile(NAfiles.NAJOINLEAVE) then
 		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
 	end
-
-	--[[if not isfile(NAfiles.NACHATTAG) then
-		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
-			Text = "Tag";
-			Color = {
-				R = 0;
-				G = 1;
-				B = 170 / 255;
-			};
-			Save = false;
-		}))
-	end]]
 
 	if not isfile(NAfiles.NABINDERS) then
 		writefile(NAfiles.NABINDERS, "{}")
@@ -8641,14 +8599,6 @@ end
 
 opt.chatTranslateEnabled = NAmanage.NASettingsGet("chatTranslate")
 opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
-opt.naChatTranslateEnabled = NAmanage.NASettingsGet("naChatTranslate")
-opt.naChatTranslateTarget = NAmanage.NASettingsGet("naChatTranslateTarget")
-if opt.naChatTranslateEnabled == nil then
-	opt.naChatTranslateEnabled = opt.chatTranslateEnabled
-end
-if opt.naChatTranslateTarget == nil or opt.naChatTranslateTarget == "" then
-opt.naChatTranslateTarget = opt.chatTranslateTarget
-end
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
@@ -8669,7 +8619,6 @@ if FileSupport then
 	NAUISavedScale = NAmanage.NASettingsGet("uiScale")
 	NAQoTEnabled = NAmanage.NASettingsGet("queueOnTeleport")
 	NAStuff.nuhuhNotifs = NAmanage.NASettingsGet("notifsToggle")
-	NAStuff.dmNotificationsEnabled = NAmanage.NASettingsGet("naChatDmNotify")
 	local savedTweenSpeed = NAmanage.NASettingsGet("tweenSpeed")
 	if type(savedTweenSpeed) == "number" and savedTweenSpeed > 0 then
 		NAStuff.tweenSpeed = savedTweenSpeed
@@ -8743,38 +8692,6 @@ if FileSupport then
 
 	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
 	NAmanage.logApply()
-
-	--[[if isfile(NAfiles.NACHATTAG) then
-		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NACHATTAG))
-		end)
-
-		if success and typeof(data) == "table" then
-			if type(data.Text) == "string" then
-				opt.currentTagText = data.Text
-			end
-
-			if type(data.Color) == "table" and data.Color.R and data.Color.G and data.Color.B then
-				opt.currentTagColor = Color3.new(data.Color.R, data.Color.G, data.Color.B)
-			end
-
-			if type(data.RGB) == "boolean" then
-				opt.currentTagRGB = data.RGB
-			end
-
-			if type(data.Save) == "boolean" then
-				opt.saveTag = data.Save
-			else
-				opt.saveTag = false
-			end
-		else
-			opt.currentTagText = "Tag"
-			opt.currentTagColor = Color3.fromRGB(0, 255, 170)
-			opt.currentTagRGB = false
-			opt.saveTag = false
-			DoNotif("Chat tag file was corrupt or unreadable. Loaded defaults",3)
-		end
-	end]]
 
 	if isfile(NAfiles.NAICONPOSPATH) then
 		local success, data = pcall(function()
@@ -17534,10 +17451,6 @@ end, true)
 cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function()
 	NAgui.chatlogs()
 end)
-
---[[cmd.add({"nachat","nachatui","nachatbox"},{"nachat (nachatui, nachatbox)","Open the Nameless Admin chat UI"},function()
-	NAgui.nachat()
-end)]]
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
 	local player=Players.LocalPlayer
@@ -44716,951 +44629,788 @@ end
 NaProtectUI(NAStuff.NASCREENGUI)
 
 NAUIMANAGER = {
-	description          = NAStuff.NASCREENGUI:FindFirstChild("Description");
-	AUTOSCALER           = NAStuff.NASCREENGUI:FindFirstChild("AutoScale");
-	cmdBar               = NAStuff.NASCREENGUI:FindFirstChild("CmdBar");
-	centerBar            = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("CenterBar");
-	cmdInput             = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("CenterBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("CenterBar"):FindFirstChild("Input");
-	cmdAutofill          = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("Autofill");
-	cmdExample           = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("Autofill")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("Autofill"):FindFirstChildWhichIsA("Frame");
-	leftFill             = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("LeftFill");
-	rightFill            = NAStuff.NASCREENGUI:FindFirstChild("CmdBar")
-		and NAStuff.NASCREENGUI:FindFirstChild("CmdBar"):FindFirstChild("RightFill");
+	description = NAStuff.NASCREENGUI:FindFirstChild("Description"),
+	AUTOSCALER = NAStuff.NASCREENGUI:FindFirstChild("AutoScale"),
+	cmdBar = NAStuff.NASCREENGUI:FindFirstChild("CmdBar"),
+	centerBar = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("CenterBar"),
+	cmdInput = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("CenterBar") and ((NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("CenterBar")):FindFirstChild("Input"),
+	cmdAutofill = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("Autofill"),
+	cmdExample = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("Autofill") and ((NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("Autofill")):FindFirstChildWhichIsA("Frame"),
+	leftFill = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("LeftFill"),
+	rightFill = NAStuff.NASCREENGUI:FindFirstChild("CmdBar") and (NAStuff.NASCREENGUI:FindFirstChild("CmdBar")):FindFirstChild("RightFill"),
+	chatLogsFrame = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"),
+	chatLogs = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs"),
+	chatExample = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs")):FindFirstChildWhichIsA("TextLabel"),
+	NAconsoleFrame = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"),
+	NAconsoleLogs = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs"),
+	NAconsoleExample = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs")):FindFirstChildWhichIsA("TextLabel"),
+	NAcontainer = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container"),
+	NAfilter = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Filter"),
+	commandsFrame = NAStuff.NASCREENGUI:FindFirstChild("Commands"),
+	commandsFilter = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("Filter"),
+	commandsList = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List"),
+	commandExample = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List")):FindFirstChild("TextLabel"),
+	resizeFrame = NAStuff.NASCREENGUI:FindFirstChild("Resizeable"),
+	ModalFixer = NAStuff.NASCREENGUI:FindFirstChildWhichIsA("ImageButton"),
+	SettingsFrame = NAStuff.NASCREENGUI:FindFirstChild("setsettings"),
+	SettingsContainer = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container"),
+	SettingsTabContainer = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer"),
+	SettingsTabs = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("TabList"),
+	SettingsPages = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages"),
+	SettingsList = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List"),
+	SettingsSearchBox = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("SearchBox"),
+	SettingsTabButton = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("TabList") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("TabList")):FindFirstChild("TabButton"),
+	SettingsButton = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Button"),
+	SettingsColorPicker = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("ColorPicker"),
+	SettingsSectionTitle = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("SectionTitle"),
+	SettingsToggle = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Toggle"),
+	SettingsInput = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Input"),
+	SettingsKeybind = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Keybind"),
+	SettingsSlider = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Slider"),
+	WaypointFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"),
+	WaypointContainer = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container"),
+	WaypointList = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List"),
+	filterBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChildWhichIsA("TextBox"),
+	WPFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List")):FindFirstChild("WP"),
+	BindersFrame = NAStuff.NASCREENGUI:FindFirstChild("binders"),
+	BindersContainer = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container"),
+	BindersList = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("List")
+};
 
-	chatLogsFrame        = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs");
-	chatLogs             = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")
-		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs");
-	chatExample          = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")
-		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs")
-		and NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"):FindFirstChild("Container"):FindFirstChild("Logs"):FindFirstChildWhichIsA("TextLabel");
-
-	--NAchatFrame          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI");
-	--NAchatContent        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container");
-	--NAchatChatScroll     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll");
-	--NAchatUsersScroll    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll");
-	--NAchatUsersSearch    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersSearch");
-	--NAchatListLayout     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("ChatScroll"):FindFirstChildWhichIsA("UIListLayout");
-	--NAchatUserListLayout = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Container"):FindFirstChild("UsersScroll"):FindFirstChildWhichIsA("UIListLayout");
-	--NAchatInput          = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatInput");
-	--NAchatSendButton     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("SendButton");
-	--NAchatTranslateButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslate");
-	--NAchatTranslateInput = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("NAChatTranslateInput");
-	--NAchatClearButton    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Topbar"):FindFirstChild("ClearChat");
-	--NAchatStatusLabel    = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ChatStatus");
-	--NAchatReconnectButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("MessageBar"):FindFirstChild("ReconnectButton");
-	--NAchatChatTab        = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("ChatTab");
-	--NAchatUsersTab       = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("UsersTab");
-	--NAchatVisibility     = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("Visibility");
-	--NAchatGameActivity   = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("GameActivity");
-	--NAchatDmNotifyButton = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs") and NAStuff.NASCREENGUI:FindFirstChild("NAChatUI"):FindFirstChild("Tabs"):FindFirstChild("DMNotifs");
-
-	NAconsoleFrame       = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole");
-	NAconsoleLogs        = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container"):FindFirstChild("Logs");
-	NAconsoleExample     = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container"):FindFirstChild("Logs")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container"):FindFirstChild("Logs"):FindFirstChildWhichIsA("TextLabel");
-	NAcontainer          = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container");
-	NAfilter             = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"):FindFirstChild("Container"):FindFirstChild("Filter");
-
-	commandsFrame        = NAStuff.NASCREENGUI:FindFirstChild("Commands");
-	commandsFilter       = NAStuff.NASCREENGUI:FindFirstChild("Commands")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container"):FindFirstChild("Filter");
-	commandsList         = NAStuff.NASCREENGUI:FindFirstChild("Commands")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container"):FindFirstChild("List");
-	commandExample       = NAStuff.NASCREENGUI:FindFirstChild("Commands")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("Commands"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("TextLabel");
-
-	resizeFrame          = NAStuff.NASCREENGUI:FindFirstChild("Resizeable");
-	ModalFixer           = NAStuff.NASCREENGUI:FindFirstChildWhichIsA("ImageButton");
-
-	SettingsFrame        = NAStuff.NASCREENGUI:FindFirstChild("setsettings");
-	SettingsContainer    = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container");
-	SettingsTabContainer = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer");
-	SettingsTabs         = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList");
-	SettingsPages        = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages");
-	SettingsList         = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List");
-	SettingsSearchBox   = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("SearchBox");
-	SettingsTabButton    = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("TabList"):FindFirstChild("TabButton");
-	SettingsButton       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Button");
-	SettingsColorPicker  = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("ColorPicker");
-	SettingsSectionTitle = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("SectionTitle");
-	SettingsToggle       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Toggle");
-	SettingsInput        = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Input");
-	SettingsKeybind      = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Keybind");
-	SettingsSlider       = NAStuff.NASCREENGUI:FindFirstChild("setsettings")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("setsettings"):FindFirstChild("Container"):FindFirstChild("TabContainer"):FindFirstChild("Pages"):FindFirstChild("List"):FindFirstChild("Slider");
-	WaypointFrame        = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint");
-	WaypointContainer    = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container");
-	WaypointList         = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChild("List");
-	filterBox             = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChildWhichIsA("TextBox");
-	WPFrame       = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChild("List")
-		and NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"):FindFirstChild("Container"):FindFirstChild("List"):FindFirstChild("WP");
-	BindersFrame        = NAStuff.NASCREENGUI:FindFirstChild("binders");
-	BindersContainer    = NAStuff.NASCREENGUI:FindFirstChild("binders")
-		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container");
-	BindersList         = NAStuff.NASCREENGUI:FindFirstChild("binders")
-		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container")
-		and NAStuff.NASCREENGUI:FindFirstChild("binders"):FindFirstChild("Container"):FindFirstChild("List");
-}
-
-originalIO.resizeCursors=function(key, fallback)
+originalIO.resizeCursors = function(key, fallback)
 	if type(getcustomasset) ~= "function" then
-		return fallback
-	end
-
+		return fallback;
+	end;
 	if not (NAfiles and NAfiles.NAASSETSFILEPATH and NAImageAssets and NAImageAssets[key]) then
-		return fallback
-	end
-
-	local suc, res = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets[key])
+		return fallback;
+	end;
+	local suc, res = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH .. "/" .. NAImageAssets[key]);
 	if suc and res then
-		return res
-	end
-
-	return fallback
-end
+		return res;
+	end;
+	return fallback;
+end;
 
 NAStuff.resizeVerticalAsset = originalIO.resizeCursors("ResizeVertical", "rbxassetid://2911850935")
 NAStuff.resizeHorizontalAsset = originalIO.resizeCursors("ResizeHorizontal", "rbxassetid://2911851464")
 NAStuff.resizeDiagonal1Asset = originalIO.resizeCursors("ResizeDiagonal1", "rbxassetid://2911851859")
 NAStuff.resizeDiagonal2Asset = originalIO.resizeCursors("ResizeDiagonal2", "rbxassetid://2911852219")
 
-resizeXY={
-	Top = {Vector2.new(0,-1),    Vector2.new(0,-1),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
-	Bottom = {Vector2.new(0,1),    Vector2.new(0,0),    NAStuff.resizeVerticalAsset}, -- Vertical16x16.png
-	Left = {Vector2.new(-1,0),    Vector2.new(1,0),    NAStuff.resizeHorizontalAsset}, -- Horizontal16x16.png
-	Right = {Vector2.new(1,0),    Vector2.new(0,0),    NAStuff.resizeHorizontalAsset}, -- Horizontal16x16.png
+resizeXY = {
+	Top = {
+		Vector2.new(0, -1),
+		Vector2.new(0, -1),
+		NAStuff.resizeVerticalAsset
+	},
+	Bottom = {
+		Vector2.new(0, 1),
+		Vector2.new(0, 0),
+		NAStuff.resizeVerticalAsset
+	},
+	Left = {
+		Vector2.new(-1, 0),
+		Vector2.new(1, 0),
+		NAStuff.resizeHorizontalAsset
+	},
+	Right = {
+		Vector2.new(1, 0),
+		Vector2.new(0, 0),
+		NAStuff.resizeHorizontalAsset
+	},
+	TopLeft = {
+		Vector2.new(-1, -1),
+		Vector2.new(1, -1),
+		NAStuff.resizeDiagonal2Asset
+	},
+	TopRight = {
+		Vector2.new(1, -1),
+		Vector2.new(0, -1),
+		NAStuff.resizeDiagonal1Asset
+	},
+	BottomLeft = {
+		Vector2.new(-1, 1),
+		Vector2.new(1, 0),
+		NAStuff.resizeDiagonal1Asset
+	},
+	BottomRight = {
+		Vector2.new(1, 1),
+		Vector2.new(0, 0),
+		NAStuff.resizeDiagonal2Asset
+	}
+};
 
-	TopLeft = {Vector2.new(-1,-1),    Vector2.new(1,-1),    NAStuff.resizeDiagonal2Asset}, -- Diagonal216x16.png
-	TopRight = {Vector2.new(1,-1),    Vector2.new(0,-1),    NAStuff.resizeDiagonal1Asset}, -- Diagonal116x16.png
-	BottomLeft = {Vector2.new(-1,1),    Vector2.new(1,0),    NAStuff.resizeDiagonal1Asset}, -- Diagonal116x16.png
-	BottomRight = {Vector2.new(1,1),    Vector2.new(0,0),    NAStuff.resizeDiagonal2Asset}, -- Diagonal216x16.png
-}
-
-fillSizes={
-	right=NAUIMANAGER.rightFill.Size,
-	left=NAUIMANAGER.leftFill.Size,
-}
-
+fillSizes = {
+	right = NAUIMANAGER.rightFill.Size,
+	left = NAUIMANAGER.leftFill.Size
+};
 if NAUIMANAGER.cmdExample then
-	NAUIMANAGER.cmdExample.Parent = nil
-end
-
+	NAUIMANAGER.cmdExample.Parent = nil;
+end;
 if NAUIMANAGER.chatExample then
-	NAUIMANAGER.chatExample.Parent = nil
-end
-
+	NAUIMANAGER.chatExample.Parent = nil;
+end;
 if NAUIMANAGER.NAconsoleExample then
-	NAUIMANAGER.NAconsoleExample.Parent = nil
-end
-
+	NAUIMANAGER.NAconsoleExample.Parent = nil;
+end;
 if NAUIMANAGER.commandExample then
-	NAUIMANAGER.commandExample.Parent = nil
-end
-
+	NAUIMANAGER.commandExample.Parent = nil;
+end;
 if NAUIMANAGER.resizeFrame then
-	NAUIMANAGER.resizeFrame.Parent = nil
-end
-
+	NAUIMANAGER.resizeFrame.Parent = nil;
+end;
 if NAUIMANAGER.SettingsButton then
-	NAUIMANAGER.SettingsButton.Parent = nil
-end
-
+	NAUIMANAGER.SettingsButton.Parent = nil;
+end;
 if NAUIMANAGER.SettingsColorPicker then
-	NAUIMANAGER.SettingsColorPicker.Parent = nil
-end
-
+	NAUIMANAGER.SettingsColorPicker.Parent = nil;
+end;
 if NAUIMANAGER.SettingsSectionTitle then
-	NAUIMANAGER.SettingsSectionTitle.Parent = nil
-end
-
+	NAUIMANAGER.SettingsSectionTitle.Parent = nil;
+end;
 if NAUIMANAGER.SettingsToggle then
-	NAUIMANAGER.SettingsToggle.Parent = nil
-end
-
+	NAUIMANAGER.SettingsToggle.Parent = nil;
+end;
 if NAUIMANAGER.SettingsInput then
-	NAUIMANAGER.SettingsInput.Parent = nil
-end
-
+	NAUIMANAGER.SettingsInput.Parent = nil;
+end;
 if NAUIMANAGER.SettingsKeybind then
-	NAUIMANAGER.SettingsKeybind.Parent = nil
-end
-
+	NAUIMANAGER.SettingsKeybind.Parent = nil;
+end;
 if NAUIMANAGER.SettingsSlider then
-	NAUIMANAGER.SettingsSlider.Parent = nil
-end
-
+	NAUIMANAGER.SettingsSlider.Parent = nil;
+end;
 if NAUIMANAGER.SettingsTabButton then
-	NAUIMANAGER.SettingsTabButton.Parent = nil
-end
-
+	NAUIMANAGER.SettingsTabButton.Parent = nil;
+end;
 if NAUIMANAGER.WPFrame then
-	NAUIMANAGER.WPFrame.Parent = nil
-end
-
+	NAUIMANAGER.WPFrame.Parent = nil;
+end;
 templates = {
-	Button = NAUIMANAGER.SettingsButton;
-	ColorPicker = NAUIMANAGER.SettingsColorPicker;
-	SectionTitle = NAUIMANAGER.SettingsSectionTitle;
-	Toggle = NAUIMANAGER.SettingsToggle;
-	Input = NAUIMANAGER.SettingsInput;
-	Keybind = NAUIMANAGER.SettingsKeybind;
-	Slider = NAUIMANAGER.SettingsSlider;
-	WaypointerFrame = NAUIMANAGER.WPFrame;
-}
-
+	Button = NAUIMANAGER.SettingsButton,
+	ColorPicker = NAUIMANAGER.SettingsColorPicker,
+	SectionTitle = NAUIMANAGER.SettingsSectionTitle,
+	Toggle = NAUIMANAGER.SettingsToggle,
+	Input = NAUIMANAGER.SettingsInput,
+	Keybind = NAUIMANAGER.SettingsKeybind,
+	Slider = NAUIMANAGER.SettingsSlider,
+	WaypointerFrame = NAUIMANAGER.WPFrame
+};
 TabManager = {
-	holder = NAUIMANAGER.SettingsTabs;
-	container = NAUIMANAGER.SettingsPages;
-	template = NAUIMANAGER.SettingsTabButton;
-	defaultPage = NAUIMANAGER.SettingsList;
-	tabs = {};
-	order = {};
-	current = nil;
-	fallback = nil;
-	fallbackIndex = 0;
-}
+	holder = NAUIMANAGER.SettingsTabs,
+	container = NAUIMANAGER.SettingsPages,
+	template = NAUIMANAGER.SettingsTabButton,
+	defaultPage = NAUIMANAGER.SettingsList,
+	tabs = {},
+	order = {},
+	current = nil,
+	fallback = nil,
+	fallbackIndex = 0
+};
 
 BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
 
 originalIO.escapeRichTextText = function(text)
-	text = tostring(text or "")
+	text = tostring(text or "");
 	if text == "" then
-		return ""
-	end
-	return text:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
-end
-
+		return "";
+	end;
+	return ((text:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
+end;
 originalIO.colorValueToHex = function(color)
 	if typeof(color) == "Color3" then
-		local r = math.clamp(math.floor(color.R * 255 + 0.5), 0, 255)
-		local g = math.clamp(math.floor(color.G * 255 + 0.5), 0, 255)
-		local b = math.clamp(math.floor(color.B * 255 + 0.5), 0, 255)
-		return Format("#%02X%02X%02X", r, g, b)
+		local r = math.clamp(math.floor(color.R * 255 + 0.5), 0, 255);
+		local g = math.clamp(math.floor(color.G * 255 + 0.5), 0, 255);
+		local b = math.clamp(math.floor(color.B * 255 + 0.5), 0, 255);
+		return Format("#%02X%02X%02X", r, g, b);
 	elseif type(color) == "string" and color ~= "" then
-		return color
-	end
-	return nil
-end
-
+		return color;
+	end;
+	return nil;
+end;
 originalIO.resolveTabIconMarkup = function(iconOption, opts)
 	if iconOption == nil then
-		return nil
-	end
-	opts = opts or {}
-	local isActive = opts.isActive == true
-	local defaultColor = opts.defaultColor
-	local name = iconOption
-	local gap
-	local tint
-	local stateBold
+		return nil;
+	end;
+	opts = opts or {};
+	local isActive = opts.isActive == true;
+	local defaultColor = opts.defaultColor;
+	local name = iconOption;
+	local gap;
+	local tint;
+	local stateBold;
 	if type(iconOption) == "table" then
-		name = iconOption.icon or iconOption.name or iconOption[1]
-		gap = iconOption.gap or iconOption.spacing
+		name = iconOption.icon or iconOption.name or iconOption[1];
+		gap = iconOption.gap or iconOption.spacing;
 		if iconOption.color or iconOption.tint then
-			tint = iconOption.color or iconOption.tint
-		end
+			tint = iconOption.color or iconOption.tint;
+		end;
 		if isActive and iconOption.activeBold ~= nil then
-			stateBold = iconOption.activeBold
+			stateBold = iconOption.activeBold;
 		elseif not isActive and iconOption.inactiveBold ~= nil then
-			stateBold = iconOption.inactiveBold
+			stateBold = iconOption.inactiveBold;
 		elseif isActive and iconOption.activeFilled ~= nil then
-			stateBold = iconOption.activeFilled
+			stateBold = iconOption.activeFilled;
 		elseif not isActive and iconOption.inactiveFilled ~= nil then
-			stateBold = iconOption.inactiveFilled
-		end
+			stateBold = iconOption.inactiveFilled;
+		end;
 		if stateBold == nil then
 			if iconOption.bold ~= nil then
-				stateBold = iconOption.bold
+				stateBold = iconOption.bold;
 			elseif iconOption.filled ~= nil then
-				stateBold = iconOption.filled
+				stateBold = iconOption.filled;
 			elseif iconOption.weight == "bold" or iconOption.variant == "filled" then
-				stateBold = true
-			end
-		end
-	end
+				stateBold = true;
+			end;
+		end;
+	end;
 	if type(name) ~= "string" then
-		return nil
-	end
-	local trimmed = name:match("^%s*(.-)%s*$")
+		return nil;
+	end;
+	local trimmed = name:match("^%s*(.-)%s*$");
 	if not trimmed or trimmed == "" then
-		return nil
-	end
-	local glyph = trimmed:gsub("%s+", "")
-	glyph = originalIO.escapeRichTextText(glyph)
+		return nil;
+	end;
+	local glyph = trimmed:gsub("%s+", "");
+	glyph = originalIO.escapeRichTextText(glyph);
 	if glyph == "" then
-		return nil
-	end
+		return nil;
+	end;
 	if stateBold == nil then
-		stateBold = isActive
-	end
+		stateBold = isActive;
+	end;
 	if stateBold then
-		glyph = "<b>"..glyph.."</b>"
-	end
-	local markup = Format('<font family="%s">%s</font>', BUILDER_ICON_FONT_PATH, glyph)
-	local colorHex = originalIO.colorValueToHex(tint or defaultColor)
+		glyph = "<b>" .. glyph .. "</b>";
+	end;
+	local markup = Format("<font family=\"%s\">%s</font>", BUILDER_ICON_FONT_PATH, glyph);
+	local colorHex = originalIO.colorValueToHex(tint or defaultColor);
 	if colorHex then
-		markup = Format('<font color="%s">%s</font>', colorHex, markup)
-	end
-	local iconGap = " "
+		markup = Format("<font color=\"%s\">%s</font>", colorHex, markup);
+	end;
+	local iconGap = " ";
 	if type(gap) == "number" and gap > 0 then
-		iconGap = string.rep(" ", math.clamp(math.floor(gap + 0.5), 1, 8))
+		iconGap = string.rep(" ", math.clamp(math.floor(gap + 0.5), 1, 8));
 	elseif type(gap) == "string" and gap ~= "" then
-		iconGap = gap
-	end
-	return markup, iconGap
-end
-
+		iconGap = gap;
+	end;
+	return markup, iconGap;
+end;
 originalIO.composeTabTitleText = function(info, opts)
 	if not info then
-		return ""
-	end
-	opts = opts or {}
-	local rawTitle = info.displayName
+		return "";
+	end;
+	opts = opts or {};
+	local rawTitle = info.displayName;
 	if type(rawTitle) ~= "string" or rawTitle == "" then
-		rawTitle = info.name or ""
-	end
-	local safeDisplay = originalIO.escapeRichTextText(rawTitle)
+		rawTitle = info.name or "";
+	end;
+	local safeDisplay = originalIO.escapeRichTextText(rawTitle);
 	if safeDisplay == "" and info.name and info.name ~= rawTitle then
-		safeDisplay = originalIO.escapeRichTextText(info.name)
-	end
+		safeDisplay = originalIO.escapeRichTextText(info.name);
+	end;
 	local iconMarkup, iconGap = originalIO.resolveTabIconMarkup(info.textIcon, {
 		isActive = opts.isActive,
-		defaultColor = opts.defaultColor,
-	})
+		defaultColor = opts.defaultColor
+	});
 	if iconMarkup then
-		return iconMarkup..(iconGap or " ")..safeDisplay
-	end
-	return safeDisplay
-end
-
+		return iconMarkup .. (iconGap or " ") .. safeDisplay;
+	end;
+	return safeDisplay;
+end;
 originalIO.applyTabDisplayText = function(info, opts)
-	if not info or not info.button then
-		return
-	end
-	opts = opts or {}
-	local title = info.button:FindFirstChild("Title")
+	if not info or (not info.button) then
+		return;
+	end;
+	opts = opts or {};
+	local title = info.button:FindFirstChild("Title");
 	if not title then
-		return
-	end
+		return;
+	end;
 	if title.RichText ~= true then
-		title.RichText = true
-	end
-	local isActive = opts.isActive
+		title.RichText = true;
+	end;
+	local isActive = opts.isActive;
 	if isActive == nil then
-		isActive = info._isActive
-	end
-	local defaultColor = opts.defaultColor
+		isActive = info._isActive;
+	end;
+	local defaultColor = opts.defaultColor;
 	if defaultColor == nil then
-		defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
-	end
+		defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR;
+	end;
 	title.Text = originalIO.composeTabTitleText(info, {
 		isActive = isActive,
-		defaultColor = defaultColor,
-	})
-end
-
-NAStuff.tabsLayout = TabManager.holder and (TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout"))
+		defaultColor = defaultColor
+	});
+end;
+NAStuff.tabsLayout = TabManager.holder and (TabManager.holder:FindFirstChildWhichIsA("UIListLayout") or TabManager.holder:FindFirstChildWhichIsA("UIGridLayout"));
 if NAStuff.tabsLayout and NAStuff.tabsLayout.SortOrder ~= Enum.SortOrder.LayoutOrder then
 	pcall(function()
-		NAStuff.tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	end)
-end
+		NAStuff.tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+	end);
+end;
 
 if TabManager.template then
-	TabManager.template.Visible = false
-end
-
+	TabManager.template.Visible = false;
+end;
 if TabManager.defaultPage then
-	local maxOrder = 0
+	local maxOrder = 0;
 	for _, child in ipairs(TabManager.defaultPage:GetChildren()) do
 		if child:IsA("GuiObject") and child.Name ~= "UIListLayout" then
-			maxOrder = math.max(maxOrder, child.LayoutOrder or 0)
-		end
-	end
-
-	TabManager.pageTemplate = TabManager.defaultPage:Clone()
-	TabManager.pageTemplate.Name = "TabPageTemplate"
-	TabManager.pageTemplate.CanvasPosition = Vector2.new(0, 0)
-	TabManager.pageTemplate.Parent = nil
-
+			maxOrder = math.max(maxOrder, child.LayoutOrder or 0);
+		end;
+	end;
+	TabManager.pageTemplate = TabManager.defaultPage:Clone();
+	TabManager.pageTemplate.Name = "TabPageTemplate";
+	TabManager.pageTemplate.CanvasPosition = Vector2.new(0, 0);
+	TabManager.pageTemplate.Parent = nil;
 	TabManager.fallback = {
-		page = TabManager.defaultPage;
-		layoutIndex = maxOrder;
-	}
-	TabManager.fallbackIndex = maxOrder
-	TabManager.defaultPage.Visible = true
-end
-
-NAmanage.registerElementForCurrentTab=function(instance)
+		page = TabManager.defaultPage,
+		layoutIndex = maxOrder
+	};
+	TabManager.fallbackIndex = maxOrder;
+	TabManager.defaultPage.Visible = true;
+end;
+NAmanage.registerElementForCurrentTab = function(instance)
 	if not instance then
-		return
-	end
-	local currentName = TabManager.current
-	if not currentName or (TAB_ALL and currentName == TAB_ALL) then
-		return
-	end
+		return;
+	end;
+	local currentName = TabManager.current;
+	if not currentName or TAB_ALL and currentName == TAB_ALL then
+		return;
+	end;
 	if not NAStuff.elementOriginalParent[instance] then
-		NAStuff.elementOriginalParent[instance] = instance.Parent
-	end
+		NAStuff.elementOriginalParent[instance] = instance.Parent;
+	end;
 	pcall(function()
-		instance:SetAttribute("NAOriginalTab", currentName)
-	end)
-end
-
-NAmanage.clearAllTabWrappers=function(page)
-	if not page then return end
+		instance:SetAttribute("NAOriginalTab", currentName);
+	end);
+end;
+NAmanage.clearAllTabWrappers = function(page)
+	if not page then
+		return;
+	end;
 	for _, child in ipairs(page:GetChildren()) do
 		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
 			for _, element in ipairs(child:GetChildren()) do
 				if element:IsA("GuiObject") then
-					local originalParent = NAStuff.elementOriginalParent[element]
+					local originalParent = NAStuff.elementOriginalParent[element];
 					if not originalParent then
-						local originalTab = element:GetAttribute("NAOriginalTab")
+						local originalTab = element:GetAttribute("NAOriginalTab");
 						if originalTab and TabManager.tabs then
-							local info = TabManager.tabs[originalTab]
-							originalParent = info and info.page
-						end
-					end
-					originalParent = originalParent or page
-					local origOrder = element:GetAttribute("NAOrigOrder")
+							local info = TabManager.tabs[originalTab];
+							originalParent = info and info.page;
+						end;
+					end;
+					originalParent = originalParent or page;
+					local origOrder = element:GetAttribute("NAOrigOrder");
 					if typeof(origOrder) == "number" then
-						element.LayoutOrder = origOrder
-					end
+						element.LayoutOrder = origOrder;
+					end;
 					if element.Parent ~= originalParent then
-						element.Parent = originalParent
-					end
-				end
-			end
-			child:Destroy()
-		end
-	end
-end
-
-NAmanage.restoreAllTabElements=function()
-	local allInfo = (TabManager.tabs and TAB_ALL) and TabManager.tabs[TAB_ALL] or nil
+						element.Parent = originalParent;
+					end;
+				end;
+			end;
+			child:Destroy();
+		end;
+	end;
+end;
+NAmanage.restoreAllTabElements = function()
+	local allInfo = TabManager.tabs and TAB_ALL and TabManager.tabs[TAB_ALL] or nil;
 	if allInfo and allInfo.page then
-		NAmanage.clearAllTabWrappers(allInfo.page)
-	end
-end
-
-NAmanage.collectTabElements=function(tabInfo, tabName)
-	local elements = {}
-	if not tabInfo or not tabInfo.page then
-		return elements
-	end
+		NAmanage.clearAllTabWrappers(allInfo.page);
+	end;
+end;
+NAmanage.collectTabElements = function(tabInfo, tabName)
+	local elements = {};
+	if not tabInfo or (not tabInfo.page) then
+		return elements;
+	end;
 	for _, child in ipairs(tabInfo.page:GetChildren()) do
-		if child:IsA("GuiObject")
-			and not child:GetAttribute("NAAllWrapper")
-			and not child:IsA("UIListLayout")
-			and not child:IsA("UIPadding")
-			and not child:IsA("UIPageLayout") then
-			Insert(elements, child)
-		end
-	end
+		if child:IsA("GuiObject") and (not child:GetAttribute("NAAllWrapper")) and (not child:IsA("UIListLayout")) and (not child:IsA("UIPadding")) and (not child:IsA("UIPageLayout")) then
+			Insert(elements, child);
+		end;
+	end;
 	table.sort(elements, function(a, b)
-		return (a.LayoutOrder or 0) < (b.LayoutOrder or 0)
-	end)
-	tabInfo.elements = elements
+		return (a.LayoutOrder or 0) < (b.LayoutOrder or 0);
+	end);
+	tabInfo.elements = elements;
 	for _, element in ipairs(elements) do
 		if not NAStuff.elementOriginalParent[element] then
-			NAStuff.elementOriginalParent[element] = tabInfo.page
-		end
+			NAStuff.elementOriginalParent[element] = tabInfo.page;
+		end;
 		pcall(function()
-			element:SetAttribute("NAOriginalTab", tabName)
-		end)
-	end
-	return elements
-end
-
-NAmanage.prepareAllTabDisplay=function(allInfo)
-	if not allInfo or not allInfo.page then return end
-	NAmanage.clearAllTabWrappers(allInfo.page)
-
-	local page = allInfo.page
-	local layout = page:FindFirstChildWhichIsA("UIListLayout")
+			element:SetAttribute("NAOriginalTab", tabName);
+		end);
+	end;
+	return elements;
+end;
+NAmanage.prepareAllTabDisplay = function(allInfo)
+	if not allInfo or (not allInfo.page) then
+		return;
+	end;
+	NAmanage.clearAllTabWrappers(allInfo.page);
+	local page = allInfo.page;
+	local layout = page:FindFirstChildWhichIsA("UIListLayout");
 	if not layout then
-		layout = InstanceNew("UIListLayout")
-		layout.FillDirection = Enum.FillDirection.Vertical
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Padding = UDim.new(0, 10)
-		layout.Parent = page
+		layout = InstanceNew("UIListLayout");
+		layout.FillDirection = Enum.FillDirection.Vertical;
+		layout.SortOrder = Enum.SortOrder.LayoutOrder;
+		layout.Padding = UDim.new(0, 10);
+		layout.Parent = page;
 	else
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-	end
+		layout.SortOrder = Enum.SortOrder.LayoutOrder;
+	end;
 	if page:IsA("ScrollingFrame") then
-		page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-		page.CanvasPosition = Vector2.new(0, 0)
-	end
-
-	local merged = InstanceNew("Frame")
-	merged.Name = "NAAllMerged"
-	merged.BackgroundTransparency = 1
-	merged.Size = UDim2.new(1, 0, 0, 0)
-	merged.AutomaticSize = Enum.AutomaticSize.Y
-	merged.LayoutOrder = -1
-	merged:SetAttribute("NAAllWrapper", true)
-	merged.Parent = page
-
-	local ml = InstanceNew("UIListLayout")
-	ml.FillDirection = Enum.FillDirection.Vertical
-	ml.SortOrder = Enum.SortOrder.LayoutOrder
-	ml.Padding = UDim.new(0, 6)
-	ml.Parent = merged
-
-	local cursor = 0
+		page.AutomaticCanvasSize = Enum.AutomaticSize.Y;
+		page.CanvasPosition = Vector2.new(0, 0);
+	end;
+	local merged = InstanceNew("Frame");
+	merged.Name = "NAAllMerged";
+	merged.BackgroundTransparency = 1;
+	merged.Size = UDim2.new(1, 0, 0, 0);
+	merged.AutomaticSize = Enum.AutomaticSize.Y;
+	merged.LayoutOrder = -1;
+	merged:SetAttribute("NAAllWrapper", true);
+	merged.Parent = page;
+	local ml = InstanceNew("UIListLayout");
+	ml.FillDirection = Enum.FillDirection.Vertical;
+	ml.SortOrder = Enum.SortOrder.LayoutOrder;
+	ml.Padding = UDim.new(0, 6);
+	ml.Parent = merged;
+	local cursor = 0;
 	for _, tabName in ipairs(TabManager.order) do
 		if tabName ~= TAB_ALL then
-			local tabInfo = TabManager.tabs[tabName]
+			local tabInfo = TabManager.tabs[tabName];
 			if tabInfo and tabInfo.page then
-				local elements = NAmanage.collectTabElements(tabInfo, tabName)
+				local elements = NAmanage.collectTabElements(tabInfo, tabName);
 				for _, element in ipairs(elements) do
 					if element:GetAttribute("NAOrigOrder") == nil then
-						element:SetAttribute("NAOrigOrder", element.LayoutOrder or 0)
-					end
-					element.LayoutOrder = cursor
-					cursor += 1
+						element:SetAttribute("NAOrigOrder", element.LayoutOrder or 0);
+					end;
+					element.LayoutOrder = cursor;
+					cursor += 1;
 					if element.Parent ~= merged then
-						element.Parent = merged
-					end
-				end
-			end
-		end
-	end
-end
-
-NAmanage.updateTabVisual=function(tabInfo, isActive)
+						element.Parent = merged;
+					end;
+				end;
+			end;
+		end;
+	end;
+end;
+NAmanage.updateTabVisual = function(tabInfo, isActive)
 	if not tabInfo then
-		return
-	end
-	tabInfo._isActive = isActive and true or false
+		return;
+	end;
+	tabInfo._isActive = isActive and true or false;
 	if not tabInfo.button then
-		return
-	end
-	local btn = tabInfo.button
-	btn.BackgroundTransparency = isActive and 0.1 or 0.25
-	local stroke = btn:FindFirstChildWhichIsA("UIStroke", true)
+		return;
+	end;
+	local btn = tabInfo.button;
+	btn.BackgroundTransparency = isActive and 0.1 or 0.25;
+	local stroke = btn:FindFirstChildWhichIsA("UIStroke", true);
 	if stroke then
-		NAgui.RegisterColoredStroke(stroke)
-		local computeColor = NAmanage.getTabStrokeColor
+		NAgui.RegisterColoredStroke(stroke);
+		local computeColor = NAmanage.getTabStrokeColor;
 		if typeof(computeColor) == "function" then
-			stroke.Color = computeColor(isActive)
+			stroke.Color = computeColor(isActive);
 		else
-			stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
-		end
-	end
-	local title = btn:FindFirstChild("Title")
+			stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR;
+		end;
+	end;
+	local title = btn:FindFirstChild("Title");
 	if title then
 		if originalIO.applyTabDisplayText then
 			originalIO.applyTabDisplayText(tabInfo, {
 				isActive = isActive,
-				defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR,
-			})
-		end
-		title.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(234, 234, 244)
-	end
-end
+				defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
+			});
+		end;
+		title.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(234, 234, 244);
+	end;
+end;
+NAgui.getActiveTab = function()
+	return TabManager.current;
+end;
 
-NAgui.getActiveTab=function()
-	return TabManager.current
-end
-
-NAgui._nextLayoutOrder=function()
-	local active = TabManager.current and TabManager.tabs[TabManager.current]
+NAgui._nextLayoutOrder = function()
+	local active = TabManager.current and TabManager.tabs[TabManager.current];
 	if active then
-		active.layoutIndex = (active.layoutIndex or 0) + 1
-		return active.layoutIndex
+		active.layoutIndex = (active.layoutIndex or 0) + 1;
+		return active.layoutIndex;
 	elseif TabManager.fallback then
-		TabManager.fallback.layoutIndex = (TabManager.fallback.layoutIndex or 0) + 1
-		TabManager.fallbackIndex = TabManager.fallback.layoutIndex
-		return TabManager.fallback.layoutIndex
+		TabManager.fallback.layoutIndex = (TabManager.fallback.layoutIndex or 0) + 1;
+		TabManager.fallbackIndex = TabManager.fallback.layoutIndex;
+		return TabManager.fallback.layoutIndex;
 	else
-		TabManager.fallbackIndex = (TabManager.fallbackIndex or 0) + 1
-		return TabManager.fallbackIndex
-	end
-end
-
-NAgui.setTab=function(name)
-	local info = name and TabManager.tabs[name]
+		TabManager.fallbackIndex = (TabManager.fallbackIndex or 0) + 1;
+		return TabManager.fallbackIndex;
+	end;
+end;
+NAgui.setTab = function(name)
+	local info = name and TabManager.tabs[name];
 	if not info then
-		return nil
-	end
-
-	local previousTab = TabManager.current
+		return nil;
+	end;
+	local previousTab = TabManager.current;
 	if previousTab == TAB_ALL and name ~= TAB_ALL then
-		NAmanage.restoreAllTabElements()
-	end
-
-	TabManager.current = name
+		NAmanage.restoreAllTabElements();
+	end;
+	TabManager.current = name;
 	if name == TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
-		pcall(NAgui.RefreshBasicInfo)
-	end
+		pcall(NAgui.RefreshBasicInfo);
+	end;
 	if info.page then
-		NAUIMANAGER.SettingsList = info.page
-	end
-
+		NAUIMANAGER.SettingsList = info.page;
+	end;
 	for tabName, tabInfo in pairs(TabManager.tabs) do
-		local isActive = tabName == name
+		local isActive = tabName == name;
 		if tabInfo.page then
-			tabInfo.page.Visible = isActive
-		end
-		NAmanage.updateTabVisual(tabInfo, isActive)
-	end
-
+			tabInfo.page.Visible = isActive;
+		end;
+		NAmanage.updateTabVisual(tabInfo, isActive);
+	end;
 	if name == TAB_ALL then
-		NAmanage.prepareAllTabDisplay(info)
-	end
-
-	return info.page
-end
-
-NAmanage.SetSearch = NAmanage.SetSearch or {}
-
+		NAmanage.prepareAllTabDisplay(info);
+	end;
+	return info.page;
+end;
+NAmanage.SetSearch = NAmanage.SetSearch or {};
 NAmanage.SetSearch.state = NAmanage.SetSearch.state or {
-	active = false;
-	last = "";
-	vis = setmetatable({}, { __mode = "k" });
-}
-
+	active = false,
+	last = "",
+	vis = setmetatable({}, {
+		__mode = "k"
+	})
+};
 function NAmanage.SetSearch.ignore(element)
 	if not element or typeof(element) ~= "Instance" then
-		return true
-	end
+		return true;
+	end;
 	if not element:IsA("GuiObject") then
-		return true
-	end
-	return element:IsA("UIListLayout")
-		or element:IsA("UIPadding")
-		or element:IsA("UIPageLayout")
-end
-
+		return true;
+	end;
+	return element:IsA("UIListLayout") or element:IsA("UIPadding") or element:IsA("UIPageLayout");
+end;
 function NAmanage.SetSearch.scan(handler)
 	if type(handler) ~= "function" then
-		return
-	end
-
-	local list = NAUIMANAGER.SettingsList
+		return;
+	end;
+	local list = NAUIMANAGER.SettingsList;
 	if not list or typeof(list) ~= "Instance" then
-		return
-	end
-
-	local root = list
+		return;
+	end;
+	local root = list;
 	for _, child in ipairs(list:GetChildren()) do
 		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
-			root = child
-			break
-		end
-	end
-
+			root = child;
+			break;
+		end;
+	end;
 	for _, child in ipairs(root:GetChildren()) do
 		if not NAmanage.SetSearch.ignore(child) then
-			handler(child)
-		end
-	end
-end
-
+			handler(child);
+		end;
+	end;
+end;
 function NAmanage.SetSearch.tag(element, labelText)
 	if not element or typeof(element) ~= "Instance" then
-		return
-	end
+		return;
+	end;
 	if typeof(labelText) ~= "string" or labelText == "" then
-		return
-	end
-	local cleaned = NAmanage.SetSearch.clean(labelText)
+		return;
+	end;
+	local cleaned = NAmanage.SetSearch.clean(labelText);
 	pcall(function()
-		element:SetAttribute("NASearchLabel", labelText)
-		element:SetAttribute("NASearchText", cleaned)
-	end)
-end
-
+		element:SetAttribute("NASearchLabel", labelText);
+		element:SetAttribute("NASearchText", cleaned);
+	end);
+end;
 function NAmanage.SetSearch.label(element)
 	if not element then
-		return ""
-	end
-	local stored = element:GetAttribute("NASearchLabel")
+		return "";
+	end;
+	local stored = element:GetAttribute("NASearchLabel");
 	if type(stored) == "string" and stored ~= "" then
-		return stored
-	end
-
-	local title = element:FindFirstChild("Title", true)
+		return stored;
+	end;
+	local title = element:FindFirstChild("Title", true);
 	if title and (title:IsA("TextLabel") or title:IsA("TextBox") or title:IsA("TextButton")) then
-		return title.Text or ""
-	end
-
-	local fallbackNames = { "Description", "Desc", "Information" }
+		return title.Text or "";
+	end;
+	local fallbackNames = {
+		"Description",
+		"Desc",
+		"Information"
+	};
 	for _, name in ipairs(fallbackNames) do
-		local descendant = element:FindFirstChild(name, true)
+		local descendant = element:FindFirstChild(name, true);
 		if descendant and descendant:IsA("TextLabel") then
-			return descendant.Text or ""
-		end
-	end
-
-	local fallback = element:FindFirstChildWhichIsA("TextLabel", true)
+			return descendant.Text or "";
+		end;
+	end;
+	local fallback = element:FindFirstChildWhichIsA("TextLabel", true);
 	if fallback then
-		return fallback.Text or ""
-	end
-
-	return element.Name or ""
-end
-
+		return fallback.Text or "";
+	end;
+	return element.Name or "";
+end;
 function NAmanage.SetSearch.info(element)
 	if not element then
-		return ""
-	end
-
-	local rawText = NAmanage.SetSearch.collectText and NAmanage.SetSearch.collectText(element) or ""
+		return "";
+	end;
+	local rawText = NAmanage.SetSearch.collectText and NAmanage.SetSearch.collectText(element) or "";
 	if rawText == "" then
-		rawText = NAmanage.SetSearch.label(element)
-	end
-
-	local cleaned = NAmanage.SetSearch.clean(rawText)
+		rawText = NAmanage.SetSearch.label(element);
+	end;
+	local cleaned = NAmanage.SetSearch.clean(rawText);
 	pcall(function()
-		element:SetAttribute("NASearchText", cleaned)
-	end)
-	return cleaned
-end
-
+		element:SetAttribute("NASearchText", cleaned);
+	end);
+	return cleaned;
+end;
 function NAmanage.SetSearch.norm(text)
-	text = text or ""
+	text = text or "";
 	if NAgui.normalizeCommandFilter then
-		text = NAgui.normalizeCommandFilter(text)
+		text = NAgui.normalizeCommandFilter(text);
 	else
-		text = Lower(text)
-	end
-	text = GSub(text, "^%s*(.-)%s*$", "%1")
-	return text
-end
-
+		text = Lower(text);
+	end;
+	text = GSub(text, "^%s*(.-)%s*$", "%1");
+	return text;
+end;
 function NAmanage.SetSearch.clean(text)
-	text = text or ""
-	local lowered = Lower(text)
-	lowered = GSub(lowered, "<[^>]+>", "")
-	lowered = GSub(lowered, "%s+", " ")
-	lowered = GSub(lowered, "^%s*(.-)%s*$", "%1")
-	return lowered
-end
-
+	text = text or "";
+	local lowered = Lower(text);
+	lowered = GSub(lowered, "<[^>]+>", "");
+	lowered = GSub(lowered, "%s+", " ");
+	lowered = GSub(lowered, "^%s*(.-)%s*$", "%1");
+	return lowered;
+end;
 function NAmanage.SetSearch.collectText(element)
 	if not element or typeof(element) ~= "Instance" then
-		return ""
-	end
-	local parts = {}
-
+		return "";
+	end;
+	local parts = {};
 	local function walk(obj)
 		if not obj or typeof(obj) ~= "Instance" then
-			return
-		end
+			return;
+		end;
 		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-			local t = obj.Text
+			local t = obj.Text;
 			if type(t) == "string" and t ~= "" then
-				Insert(parts, t)
-			end
-		end
+				Insert(parts, t);
+			end;
+		end;
 		for _, child in ipairs(obj:GetChildren()) do
-			walk(child)
-		end
-	end
-
-	walk(element)
-	return Concat(parts, " ")
-end
-
+			walk(child);
+		end;
+	end;
+	walk(element);
+	return Concat(parts, " ");
+end;
 function NAmanage.SetSearch.reset()
 	for element, original in pairs(NAmanage.SetSearch.state.vis) do
 		if typeof(element) == "Instance" and element:IsA("GuiObject") then
-			element.Visible = original
-		end
-	end
-	table.clear(NAmanage.SetSearch.state.vis)
-	NAmanage.SetSearch.state.active = false
-	NAmanage.SetSearch.state.last = ""
-end
-
+			element.Visible = original;
+		end;
+	end;
+	table.clear(NAmanage.SetSearch.state.vis);
+	NAmanage.SetSearch.state.active = false;
+	NAmanage.SetSearch.state.last = "";
+end;
 function NAmanage.SetSearch.match(element, query)
 	if query == "" then
-		return true
-	end
-	local info = NAmanage.SetSearch.info(element)
+		return true;
+	end;
+	local info = NAmanage.SetSearch.info(element);
 	if info == "" then
-		return false
-	end
+		return false;
+	end;
 	if Sub(info, 1, #query) == query then
-		return true
-	end
-	return Find(info, query, 1, true) ~= nil
-end
-
+		return true;
+	end;
+	return Find(info, query, 1, true) ~= nil;
+end;
 function NAmanage.SetSearch.isSect(element)
 	if not element or typeof(element) ~= "Instance" then
-		return false
-	end
+		return false;
+	end;
 	if element:GetAttribute("NASettingsSection") == true then
-		return true
-	end
-	return element.Name == "SectionTitle" and element:IsA("GuiObject")
-end
-
+		return true;
+	end;
+	return element.Name == "SectionTitle" and element:IsA("GuiObject");
+end;
 function NAmanage.SetSearch.sectVis(list, matchesMap)
 	if not list then
-		return
-	end
-
-	local root = list
+		return;
+	end;
+	local root = list;
 	for _, child in ipairs(list:GetChildren()) do
 		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
-			root = child
-			break
-		end
-	end
-
-	local children = root:GetChildren()
+			root = child;
+			break;
+		end;
+	end;
+	local children = root:GetChildren();
 	for index = 1, #children do
-		local child = children[index]
-		if child and not NAmanage.SetSearch.ignore(child) and NAmanage.SetSearch.isSect(child) then
-			local visible = matchesMap[child]
+		local child = children[index];
+		if child and (not NAmanage.SetSearch.ignore(child)) and NAmanage.SetSearch.isSect(child) then
+			local visible = matchesMap[child];
 			if not visible then
-				visible = false
+				visible = false;
 				for j = index + 1, #children do
-					local candidate = children[j]
-					if candidate and not NAmanage.SetSearch.ignore(candidate) then
+					local candidate = children[j];
+					if candidate and (not NAmanage.SetSearch.ignore(candidate)) then
 						if NAmanage.SetSearch.isSect(candidate) then
-							break
-						end
+							break;
+						end;
 						if candidate.Visible then
-							visible = true
-							break
-						end
-					end
-				end
-			end
-			child.Visible = visible and true or false
-		end
-	end
-end
-
+							visible = true;
+							break;
+						end;
+					end;
+				end;
+			end;
+			child.Visible = visible and true or false;
+		end;
+	end;
+end;
 function NAmanage.SetSearch.apply(rawText)
-	local list = NAUIMANAGER.SettingsList
+	local list = NAUIMANAGER.SettingsList;
 	if not list then
-		return
-	end
-
-	local query = NAmanage.SetSearch.norm(rawText)
-	NAmanage.SetSearch.state.last = rawText or ""
-
+		return;
+	end;
+	local query = NAmanage.SetSearch.norm(rawText);
+	NAmanage.SetSearch.state.last = rawText or "";
 	if query == "" then
 		if NAmanage.SetSearch.state.active then
-			NAmanage.SetSearch.reset()
-		end
-		return
-	end
-
-	NAmanage.SetSearch.state.active = true
-	local matchesMap = {}
-
+			NAmanage.SetSearch.reset();
+		end;
+		return;
+	end;
+	NAmanage.SetSearch.state.active = true;
+	local matchesMap = {};
 	NAmanage.SetSearch.scan(function(element)
 		if NAmanage.SetSearch.state.vis[element] == nil then
-			NAmanage.SetSearch.state.vis[element] = element.Visible
-		end
-		local matches = NAmanage.SetSearch.match(element, query)
-		matchesMap[element] = matches
-		element.Visible = matches
-	end)
-
-	NAmanage.SetSearch.sectVis(list, matchesMap)
-end
-
+			NAmanage.SetSearch.state.vis[element] = element.Visible;
+		end;
+		local matches = NAmanage.SetSearch.match(element, query);
+		matchesMap[element] = matches;
+		element.Visible = matches;
+	end);
+	NAmanage.SetSearch.sectVis(list, matchesMap);
+end;
 function NAmanage.SetSearch.init()
-	local input = NAUIMANAGER.SettingsSearchBox
+	local input = NAUIMANAGER.SettingsSearchBox;
 	if not input then
-		return
-	end
-	input:GetPropertyChangedSignal("Text"):Connect(function()
-		NAmanage.SetSearch.apply(input.Text or "")
-	end)
-	NAmanage.SetSearch.apply(input.Text or "")
-end
-
-NAmanage.SetSearch.init()
+		return;
+	end;
+	(input:GetPropertyChangedSignal("Text")):Connect(function()
+		NAmanage.SetSearch.apply(input.Text or "");
+	end);
+	NAmanage.SetSearch.apply(input.Text or "");
+end;
+NAmanage.SetSearch.init();
 
 originalIO.applyTabIDK=function()
 	local baseSetTab = NAgui.setTab
@@ -46137,14 +45887,6 @@ NAgui.chatlogs = function()
 		NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 	end
 end
---[[NAgui.nachat = function()
-	if NAUIMANAGER.NAchatFrame then
-		if not NAUIMANAGER.NAchatFrame.Visible then
-			NAUIMANAGER.NAchatFrame.Visible = true
-		end
-		NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
-	end
-end]]
 NAgui.doModal = function(v)
 	NAUIMANAGER.ModalFixer.Modal = v
 end
@@ -47897,12 +47639,6 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 			end
 		end},
-		--[[{name="nachat",icon="we-chat",func=function()
-			if NAUIMANAGER.NAchatFrame then
-				NAUIMANAGER.NAchatFrame.Visible = not NAUIMANAGER.NAchatFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.NAchatFrame)
-			end
-		end},]]
 		{name="console",icon="pencil-square",func=function()
 			if NAUIMANAGER.NAconsoleFrame then
 				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
@@ -49105,10 +48841,6 @@ if NAUIMANAGER.chatLogsFrame then
 	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
 end
 
---[[if NAUIMANAGER.NAchatFrame then
-	NAgui.menuv2(NAUIMANAGER.NAchatFrame)
-end]]
-
 if NAUIMANAGER.NAconsoleFrame then
 	NAgui.menuv2(NAUIMANAGER.NAconsoleFrame)
 end
@@ -49132,7 +48864,6 @@ end
 --[[ GUI RESIZE FUNCTION ]]--
 
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
---if NAUIMANAGER.NAchatFrame then NAgui.resizeable(NAUIMANAGER.NAchatFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
 if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
@@ -49806,573 +49537,7 @@ originalIO.naTransLatooor=function()
 	translator:updateUI()
 end
 originalIO.naTransLatooor()
---[[ NA CHAT TRANSLATOR (separate from chat logs) ]]--
---[=[
-originalIO.naCHATtrans=function()
-	local Http = HttpService
-	local translator = NAStuff.NAChatTranslator or {}
-	NAStuff.NAChatTranslator = translator
 
-	translator.messages = translator.messages or {}
-	translator.enabled = opt.naChatTranslateEnabled ~= false
-	opt.naChatTranslateEnabled = translator.enabled
-
-	NAmanage.toIso=function(value)
-		if not value then return nil end
-		return tostring(value):lower()
-	end
-
-	local languages = {
-		auto="Automatic",af="Afrikaans",sq="Albanian",am="Amharic",ar="Arabic",hy="Armenian",az="Azerbaijani",eu="Basque",be="Belarusian",bn="Bengali",bs="Bosnian",bg="Bulgarian",ca="Catalan",ceb="Cebuano",ny="Chichewa",
-		["zh-cn"]="Chinese Simplified",["zh-tw"]="Chinese Traditional",co="Corsican",hr="Croatian",cs="Czech",da="Danish",nl="Dutch",en="English",eo="Esperanto",et="Estonian",tl="Filipino",fi="Finnish",fr="French",fy="Frisian",
-		gl="Galician",ka="Georgian",de="German",el="Greek",gu="Gujarati",ht="Haitian Creole",ha="Hausa",haw="Hawaiian",iw="Hebrew",he="Hebrew",hi="Hindi",hmn="Hmong",hu="Hungarian",is="Icelandic",ig="Igbo",id="Indonesian",ga="Irish",it="Italian",
-		ja="Japanese",jw="Javanese",kn="Kannada",kk="Kazakh",km="Khmer",ko="Korean",ku="Kurdish (Kurmanji)",ky="Kyrgyz",lo="Lao",la="Latin",lv="Latvian",lt="Lithuanian",lb="Luxembourgish",mk="Macedonian",mg="Malagasy",ms="Malay",
-		ml="Malayalam",mt="Maltese",mi="Maori",mr="Marathi",mn="Mongolian",my="Myanmar (Burmese)",ne="Nepali",no="Norwegian",ps="Pashto",fa="Persian",pl="Polish",pt="Portuguese",pa="Punjabi",ro="Romanian",ru="Russian",sm="Samoan",
-		gd="Scots Gaelic",sr="Serbian",st="Sesotho",sn="Shona",sd="Sindhi",si="Sinhala",sk="Slovak",sl="Slovenian",so="Somali",es="Spanish",su="Sundanese",sw="Swahili",sv="Swedish",tg="Tajik",ta="Tamil",te="Telugu",th="Thai",tr="Turkish",
-		uk="Ukrainian",ur="Urdu",uz="Uzbek",vi="Vietnamese",cy="Welsh",xh="Xhosa",yi="Yiddish",yo="Yoruba",zu="Zulu"
-	}
-
-	NAmanage.iso=function(value)
-		local lowered = NAmanage.toIso(value)
-		if not lowered then
-			return nil
-		end
-		if languages[lowered] then
-			return lowered
-		end
-		for code, name in pairs(languages) do
-			if type(name) == "string" and name:lower() == lowered then
-				return code
-			end
-		end
-		return nil
-	end
-
-	NAmanage.languageName=function(code)
-		return languages[code] or code
-	end
-
-	translator.target = NAmanage.iso(opt.naChatTranslateTarget) or translator.target or "en"
-	opt.naChatTranslateTarget = translator.target
-
-	translator._state = translator._state or {
-		gv = (isfile and isfile("googlev.txt") and readfile("googlev.txt")) or "";
-		fsid = nil;
-		bl = nil;
-		rid = math.random(1000, 9999);
-	}
-
-	local state = translator._state
-	local root = "https://translate.google.com/"
-	local exec = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute"
-	local rpc = "MkEWBc"
-
-	originalIO.requestAsync=function(optArgs)
-		local fn = opt.NAREQUEST
-		if fn then
-			local ok, res = pcall(fn, optArgs)
-			if ok and res then
-				return res
-			end
-		end
-		local ok2, res2 = pcall(function()
-			return Http:RequestAsync(optArgs)
-		end)
-		if ok2 and res2 then
-			return res2
-		end
-		return nil
-	end
-
-	local function handleConsent(body)
-		local tokens = {}
-		for tag in body:gmatch('<input type="hidden" name=".-" value=".-">') do
-			local k, v = tag:match('<input type="hidden" name="(.-)" value="(.-)">')
-			if k and v then
-				tokens[k] = v
-			end
-		end
-		state.gv = tokens.v or state.gv or ""
-		if writefile then
-			pcall(writefile, "googlev.txt", state.gv)
-		end
-	end
-
-	local function fetch(url, method, body)
-		local res = originalIO.requestAsync({
-			Url = url;
-			Method = method or "GET";
-			Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
-			Body = body;
-		})
-		if not res then
-			return nil
-		end
-		local b = res.Body or res.body or ""
-		if type(b) ~= "string" then
-			b = tostring(b)
-		end
-		if b:find("https://consent.google.com/s") then
-			handleConsent(b)
-			res = originalIO.requestAsync({
-				Url = url;
-				Method = "GET";
-				Headers = { cookie = "CONSENT=YES+"..(state.gv or "") };
-			})
-			if not res then
-				return nil
-			end
-		end
-		return res
-	end
-
-	local function ensureSession()
-		if state.fsid and state.bl then
-			return true
-		end
-		local res = fetch(root)
-		if not res then
-			return false
-		end
-		local body = res.Body or res.body or ""
-		if type(body) ~= "string" then
-			body = tostring(body)
-		end
-		state.fsid = body:match('"FdrFJe":"(.-)"')
-		state.bl = body:match('"cfb2h":"(.-)"')
-		return state.fsid ~= nil and state.bl ~= nil
-	end
-
-	local function encodeQuery(data)
-		local s = ""
-		for k, v in pairs(data) do
-			if type(v) == "table" then
-				for _, vv in pairs(v) do
-					s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(vv)
-				end
-			else
-				s ..= "&"..Http:UrlEncode(k).."="..Http:UrlEncode(v)
-			end
-		end
-		return s:sub(2)
-	end
-
-	local jsonEncode = function(x) return Http:JSONEncode(x) end
-	local jsonDecode = function(x) return Http:JSONDecode(x) end
-
-	local function translateSimple(text, target, source)
-		target = NAmanage.iso(target) or "en"
-		source = NAmanage.iso(source) or "auto"
-		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
-			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
-		local res = originalIO.requestAsync({Url = url, Method = "GET"})
-		if not res then return nil end
-		local body = res.Body or res.body or ""
-		local ok, data = pcall(function()
-			return Http:JSONDecode(body)
-		end)
-		if not ok or type(data) ~= "table" then
-			return nil
-		end
-		local segments = data[1]
-		local detected = data[3]
-		local parts = {}
-		if type(segments) == "table" then
-			for _, seg in ipairs(segments) do
-				if type(seg) == "table" and type(seg[1]) == "string" then
-					Insert(parts, seg[1])
-				end
-			end
-		end
-		local translated = Concat(parts, "")
-		if translated == "" then
-			translated = nil
-		end
-		return translated, detected
-	end
-
-	local function translatePayload(text, target, source)
-		if not text or text == "" then
-			return nil
-		end
-		local translated, detected = translateSimple(text, target, source)
-		if translated and translated ~= "" then
-			return translated, detected
-		end
-		if not ensureSession() then
-			return translated, detected
-		end
-		state.rid += 10000
-		target = NAmanage.iso(target) or "en"
-		source = NAmanage.iso(source) or "auto"
-		local data = { { text, source, target, true }, { nil } }
-		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
-		local url = exec.."?"..encodeQuery({
-			rpcids = rpc;
-			["f.sid"] = state.fsid;
-			bl = state.bl;
-			hl = "en";
-			_reqid = state.rid - 10000;
-			rt = "c";
-		})
-		local body = encodeQuery({ ["f.req"] = jsonEncode(freq) })
-		local res = fetch(url, "POST", body)
-		if not res then
-			return translated, detected
-		end
-		local raw = res.Body or res.body or ""
-		if type(raw) ~= "string" then
-			raw = tostring(raw)
-		end
-		local ok, parsed = pcall(function()
-			local arr = jsonDecode(raw:match("%[.-%]\n"))
-			return jsonDecode(arr[1][3])
-		end)
-		if not ok or type(parsed) ~= "table" then
-			return translated, detected
-		end
-		local fallTranslated = nil
-		pcall(function()
-			fallTranslated = parsed[2][1][1][6][1][1]
-		end)
-		if type(fallTranslated) ~= "string" or fallTranslated == "" then
-			return translated, detected
-		end
-		local detectedLang = parsed[3]
-		return fallTranslated, detectedLang or detected
-	end
-
-	local function resizeLabel(label)
-		if not (label and label.Parent and NAgui and NAgui.txtSize) then
-			return
-		end
-		local ok, size = pcall(NAgui.txtSize, label, label.AbsoluteSize.X, 200)
-		if ok and size then
-			label.Size = UDim2.new(1, -5, 0, size.Y)
-		end
-
-		local a = originalIO.NAChatAuto
-		local fn = a and a.botSoon
-		if type(fn) == "function" then
-			local sf = label.Parent
-			if sf and sf:IsA("ScrollingFrame") then
-				pcall(fn, sf)
-			end
-		end
-	end
-
-	local function normalizeRichTextEntities(text)
-		text = tostring(text or "")
-		if text == "" then
-			return text
-		end
-		text = text:gsub("&amp;lt;", "&lt;")
-		text = text:gsub("&amp;gt;", "&gt;")
-		text = text:gsub("&amp;quot;", "&quot;")
-		text = text:gsub("&amp;apos;", "&apos;")
-		text = text:gsub("&amp;amp;", "&amp;")
-		return text
-	end
-
-	local function escapeForRichText(text)
-		local raw = tostring(text or "")
-		local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
-		return normalizeRichTextEntities(safe)
-	end
-
-	function translator:isEnabled()
-		return self.enabled == true
-	end
-
-	function translator:updateUI()
-		if self.button then
-			if self:isEnabled() then
-				self.button.Text = "TR: "..string.upper(self.target or "EN")
-				self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
-				self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
-			else
-				self.button.Text = "TR: OFF"
-				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
-				self.button.TextColor3 = Color3.fromRGB(184, 184, 194)
-			end
-		end
-		if self.input and not self.input:IsFocused() then
-			self.input.Text = string.upper(self.target or "EN")
-		end
-	end
-
-	function translator:updateAllMessages()
-		for _, info in pairs(self.messages) do
-			if self:isEnabled() then
-				self:ensureTranslation(info)
-			end
-			self:applyDisplay(info)
-		end
-	end
-
-	function translator:setEnabled(state)
-		local newState = state and true or false
-		if self.enabled == newState then
-			self.enabled = newState
-			self:updateUI()
-			return
-		end
-		self.enabled = newState
-		opt.naChatTranslateEnabled = newState
-		opt.chatTranslateEnabled = newState
-		pcall(NAmanage.NASettingsSet, "chatTranslate", newState)
-		self:updateUI()
-		self:updateAllMessages()
-	end
-
-	function translator:toggle()
-		self:setEnabled(not self:isEnabled())
-		return self.enabled
-	end
-
-	function translator:registerButton(button)
-		if not button then return end
-		MouseButtonFix(button, function()
-			local nowEnabled = self:toggle()
-			self:updateUI()
-			DebugNotif("NA Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
-		end)
-	end
-
-	function translator:applyDisplay(info)
-		if not (info and info.label) then
-			return
-		end
-
-		local lbl = info.label
-		local base = normalizeRichTextEntities(info.base or "")
-
-		if not self:isEnabled() or not info.translationLine then
-			lbl.Text = base
-			resizeLabel(lbl)
-			return
-		end
-
-		local line = info.translationLine
-		local text = base
-		local tr = line.translation or ""
-		local src = line.source or ""
-		local tgt = line.target or ""
-
-		if tr ~= "" then
-			local safeTr = escapeForRichText(tr)
-			text = base.."\n<font color=\"#A0FFA0\">[TR "..string.upper(src or "?").."→"..string.upper(tgt or "?").."]: "..safeTr.."</font>"
-		end
-
-		lbl.Text = text
-		resizeLabel(lbl)
-	end
-
-	function translator:ensureTranslation(info)
-		if not (info and info.label) then
-			return
-		end
-		if not self:isEnabled() then
-			return
-		end
-
-		if not info.translationLine then
-			info.translationLine = {
-				translation = nil;
-				source = nil;
-				target = nil;
-			}
-		end
-
-		local line = info.translationLine
-
-		if info.translating then
-			return
-		end
-
-		local target = self.target or "en"
-		if line.target == target and line.translation ~= nil then
-			self:applyDisplay(info)
-			return
-		end
-
-		info.translating = true
-		line.target = target
-
-		Defer(function()
-			local ok, translated, detected = pcall(function()
-				return translatePayload(info.message or info.base or "", target, nil)
-			end)
-
-			if not ok then
-				translated = nil
-			end
-
-			if translated and translated ~= "" and translated ~= info.base then
-				line.translation = translated
-				line.source = detected or "auto"
-			else
-				line.translation = nil
-				line.source = detected or "auto"
-			end
-
-			info.translating = false
-			self:applyDisplay(info)
-		end)
-	end
-
-	function translator:registerMessage(label, baseText, rawMessage)
-		if not label then
-			return
-		end
-
-		local info = self.messages[label]
-		if not info then
-			info = {
-				label = label;
-				base = baseText or "";
-				message = rawMessage or "";
-				translationLine = nil;
-				translating = false;
-				target = nil;
-			}
-			self.messages[label] = info
-
-			if label.Destroying then
-				label.Destroying:Connect(function()
-					self.messages[label] = nil
-				end)
-			end
-
-			label.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					self.messages[label] = nil
-				end
-			end)
-		else
-			info.base = baseText or info.base
-			info.message = rawMessage or info.message
-			info.translationLine = nil
-			info.target = nil
-		end
-
-		self:applyDisplay(info)
-		self:ensureTranslation(info)
-	end
-
-	function translator:setTarget(lang)
-		local code = NAmanage.iso(lang)
-		if not code then
-			return false
-		end
-		if self.target == code then
-			self:updateUI()
-			return true, code, NAmanage.languageName(code)
-		end
-		self.target = code
-		opt.naChatTranslateTarget = code
-		opt.chatTranslateTarget = code
-		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
-		for _, info in pairs(self.messages) do
-			info.translationLine = nil
-			info.target = nil
-			info.translating = false
-			self:applyDisplay(info)
-			self:ensureTranslation(info)
-		end
-		self:updateUI()
-		return true, code, NAmanage.languageName(code)
-	end
-
-	function translator:attachControls(button, input)
-		if button and self.button ~= button then
-			self.button = button
-			MouseButtonFix(button, function()
-				local nowEnabled = self:toggle()
-				self:updateUI()
-				DebugNotif("NA Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
-			end)
-		end
-		if input and self.input ~= input then
-			if self._inputConn then
-				self._inputConn:Disconnect()
-				self._inputConn = nil
-			end
-			self.input = input
-			input.PlaceholderText = "Lang"
-			input.ClearTextOnFocus = false
-			self._inputConn = input.FocusLost:Connect(function(enterPressed)
-				local text = input.Text or ""
-				text = text:match("^%s*(.-)%s*$") or ""
-				if text == "" then
-					self:updateUI()
-					return
-				end
-				local ok, code, name = self:setTarget(text)
-				if not ok then
-					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
-				else
-					DoNotif(("NA Chat translator target set to %s (%s)"):format(code:upper(), name), 1.5)
-				end
-				self:updateUI()
-				if enterPressed then
-					input:ReleaseFocus()
-				end
-			end)
-		end
-		self:updateUI()
-	end
-
-	function translator:tryAttach()
-		local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
-		if not frame then return end
-		local button = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateButton)
-			or frame:FindFirstChild("NAChatTranslate", true)
-		local input = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateInput)
-			or frame:FindFirstChild("NAChatTranslateInput", true)
-		if button or input then
-			self:attachControls(button, input)
-		end
-	end
-
-	function translator:showLanguages()
-		local entries = {}
-		for code, name in pairs(languages) do
-			if code ~= "auto" then
-				Insert(entries, { code, name })
-			end
-		end
-		table.sort(entries, function(a, b)
-			return a[1] < b[1]
-		end)
-		local lines = {}
-		for _, info in ipairs(entries) do
-			Insert(lines, info[1]:upper().." - "..info[2])
-		end
-		local text = Concat(lines, "\n")
-		if typeof(DoWindow) == "function" then
-			DoWindow("Supported NA Chat translator languages:\n\n"..text)
-		else
-			print("[NA Chat Translator languages]\n"..text)
-			DoNotif("Supported NA Chat languages printed to console output.", 4)
-		end
-	end
-
-	translator:tryAttach()
-	if NAStuff.NASCREENGUI and not translator._hookedWatcher then
-		translator._hookedWatcher = true
-		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
-			if inst and (inst.Name == "NAChatTranslate" or inst.Name == "NAChatTranslateInput") then
-				Defer(function()
-					translator:tryAttach()
-				end)
-			end
-		end)
-	end
-	translator:updateUI()
-end
-originalIO.naCHATtrans()
-]=]
 NAmanage.CommandKeybindsAdd=function()
 	local UIS = UserInputService
 	if not UIS then return end
@@ -51114,2983 +50279,7 @@ NAmanage.CommandKeybindsUIWire=function()
 		end)
 	end
 end
---[[ NA CHAT (WEBSOCKET) ]]--
---[=[originalIO.runNACHAT=function()
-	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
-	local chatScroll = NAUIMANAGER and NAUIMANAGER.NAchatChatScroll
-	local chatLayout = NAUIMANAGER and NAUIMANAGER.NAchatListLayout
-	local usersScroll = NAUIMANAGER and NAUIMANAGER.NAchatUsersScroll
-	local usersLayout = NAUIMANAGER and NAUIMANAGER.NAchatUserListLayout
-	local usersSearchBox = NAUIMANAGER and NAUIMANAGER.NAchatUsersSearch
-	local inputBox = NAUIMANAGER and NAUIMANAGER.NAchatInput
-	local sendBtn = NAUIMANAGER and NAUIMANAGER.NAchatSendButton
-	local clearBtn = NAUIMANAGER and NAUIMANAGER.NAchatClearButton
-	local statusLabel = NAUIMANAGER and NAUIMANAGER.NAchatStatusLabel
-	local reconnectBtn = NAUIMANAGER and NAUIMANAGER.NAchatReconnectButton
-	local chatTab = NAUIMANAGER and NAUIMANAGER.NAchatChatTab
-	local usersTab = NAUIMANAGER and NAUIMANAGER.NAchatUsersTab
-	local adminTab = nil
-	local adminFrame = nil
-	local adminFrameUpdateBanList = nil
-	local adminListTickerActive = false
-	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
-	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
-	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
 
-	if chatFrame then
-		local NAChat = {
-			service = nil,
-			connecting = false,
-			wired = false,
-			isHidden = false,
-			serverIsAdmin = false,
-			activeTab = "chat",
-			users = {},
-			currentDMTarget = nil,
-		}
-		local function isChatUiSuppressed()
-			return NAChat.isHidden and not NAChat.serverIsAdmin
-		end
-
-		local function getUIScale()
-			local scaleObj = NAUIMANAGER and NAUIMANAGER.AUTOSCALER
-			local scale = (scaleObj and tonumber(scaleObj.Scale)) or 1
-			if not scale or scale <= 0 then
-				scale = 1
-			end
-			return scale
-		end
-
-		local function scrollMetrics(scrollFrame)
-			if not scrollFrame then
-				return 0, 0, 0, getUIScale()
-			end
-
-			local scale = getUIScale()
-
-			local canvasY = 0
-			pcall(function()
-				local cs = scrollFrame.CanvasSize
-				canvasY = (cs and cs.Y and cs.Y.Offset) or 0
-			end)
-			if canvasY <= 0 then
-				pcall(function()
-					local absCanvas = scrollFrame.AbsoluteCanvasSize
-					if typeof(absCanvas) == "Vector2" then
-						canvasY = absCanvas.Y / scale
-					end
-				end)
-			end
-
-			local windowY = 0
-			pcall(function()
-				local absWindow = scrollFrame.AbsoluteWindowSize
-				if typeof(absWindow) == "Vector2" then
-					windowY = absWindow.Y / scale
-				end
-			end)
-			if windowY <= 0 then
-				pcall(function()
-					local absSize = scrollFrame.AbsoluteSize
-					if typeof(absSize) == "Vector2" then
-						windowY = absSize.Y / scale
-					end
-				end)
-			end
-
-			local currentY = 0
-			pcall(function()
-				currentY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
-			end)
-
-			return canvasY, windowY, currentY, scale
-		end
-
-		local function shouldAutoScroll(scrollFrame)
-			local canvasY, windowY, currentY, scale = scrollMetrics(scrollFrame)
-			if canvasY <= 0 or windowY <= 0 then
-				return true
-			end
-
-			local threshold = 8 / scale
-			if canvasY <= windowY + (1 / scale) then
-				return true
-			end
-
-			local distanceFromBottom = canvasY - (currentY + windowY)
-			return distanceFromBottom <= threshold
-		end
-
-		local scrollSt = setmetatable({}, { __mode = "k" })
-
-		local function bindAutoScroll(sf, layout)
-			if not sf or not layout or sf:GetAttribute("NAChatAutoBound") then
-				return
-			end
-			sf:SetAttribute("NAChatAutoBound", true)
-
-			scrollSt[sf] = { locked = false, prog = false }
-
-			local function upd()
-				if not (sf and sf.Parent and layout and layout.Parent) then
-					return
-				end
-				local y = 0
-				pcall(function()
-					y = layout.AbsoluteContentSize.Y
-				end)
-				sf.CanvasSize = UDim2.new(0, 0, 0, y + 8)
-			end
-
-			upd()
-			layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(upd)
-
-			sf:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-				local st = scrollSt[sf]
-				if not st or st.prog then
-					return
-				end
-
-				local canvasY, windowY, currentY, scale = scrollMetrics(sf)
-				if canvasY <= 0 or windowY <= 0 then
-					st.locked = false
-					return
-				end
-
-				local th = 14 / (scale > 0 and scale or 1)
-				local dist = canvasY - (currentY + windowY)
-				st.locked = dist > th
-			end)
-		end
-
-		local function canAutoScroll(sf)
-			local st = sf and scrollSt[sf]
-			return not (st and st.locked)
-		end
-
-		local function scrollToBottom(scrollFrame)
-			if not scrollFrame or not canAutoScroll(scrollFrame) then
-				return
-			end
-
-			local st = scrollSt[scrollFrame]
-			if st then
-				st.prog = true
-			end
-
-			local canvasY, windowY = scrollMetrics(scrollFrame)
-			local targetY = math.max(0, canvasY - windowY)
-			scrollFrame.CanvasPosition = Vector2.new(0, targetY)
-
-			if st then
-				Defer(function()
-					Wait()
-					if scrollFrame and scrollFrame.Parent then
-						st.prog = false
-					end
-				end)
-			end
-		end
-
-		local function scrollToBottomSoon(scrollFrame)
-			if not scrollFrame or not canAutoScroll(scrollFrame) then
-				return
-			end
-
-			local scheduledY = 0
-			pcall(function()
-				scheduledY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
-			end)
-
-			Defer(function()
-				if not (scrollFrame and scrollFrame.Parent) then
-					return
-				end
-				Wait()
-				if not (scrollFrame and scrollFrame.Parent) then
-					return
-				end
-				if not canAutoScroll(scrollFrame) then
-					return
-				end
-
-				local currentY = 0
-				pcall(function()
-					currentY = (scrollFrame.CanvasPosition and scrollFrame.CanvasPosition.Y) or 0
-				end)
-
-				local _, _, _, scale = scrollMetrics(scrollFrame)
-				local cancelDelta = 6 / (scale > 0 and scale or 1)
-				if currentY < (scheduledY - cancelDelta) then
-					return
-				end
-
-				scrollToBottom(scrollFrame)
-			end)
-		end
-		originalIO.NAChatAuto = originalIO.NAChatAuto or {}
-		originalIO.NAChatAuto.botSoon = scrollToBottomSoon
-		local permanentFailureReason = nil
-		local usersUpdateGeneration = 0
-		local usersFetchInFlight = false
-		local userSearchTerm = ""
-		local serverUsers = {}
-		local serverUsersInit = false
-		local lastUserSig = nil
-		local userFrames = {}
-
-		local STATUS_COLORS = {
-			ok = Color3.fromRGB(120, 200, 140),
-			err = Color3.fromRGB(200, 120, 120),
-			info = Color3.fromRGB(200, 200, 210),
-			blue = Color3.fromRGB(120, 170, 255)
-		}
-
-		local typingUsersByName = {}
-		local typingUsersById = {}
-		local verifiedNameCache = {}
-		local verifiedNameFetchInFlight = {}
-		local queuedUsersRefresh = false
-		local queuedStatusRefresh = false
-		local mutedUsers = {}
-		local clearDMTarget
-		local mentionCooldowns = {}
-		local bannedFromChat = false
-		local banNoticeShown = false
-		local muteUntil = nil
-		local muteReason = nil
-		local muteCountdownActive = false
-
-		local function formatDurationSeconds(seconds)
-			local s = math.max(0, math.floor(tonumber(seconds) or 0))
-			if s < 60 then
-				return ("%ds"):format(s)
-			end
-			local m = math.floor(s / 60)
-			s = s % 60
-			if m < 60 then
-				return ("%dm%02ds"):format(m, s)
-			end
-			local h = math.floor(m / 60)
-			m = m % 60
-			return ("%dh%02dm%02ds"):format(h, m, s)
-		end
-
-		local function getMuteRemainingSeconds()
-			if type(muteUntil) ~= "number" then
-				return nil
-			end
-			local now = os.time()
-			if now >= muteUntil then
-				muteUntil = nil
-				muteReason = nil
-				return nil
-			end
-			return muteUntil - now
-		end
-
-		local function isMuteMessage(text)
-			local normalized = tostring(text or ""):lower()
-			return normalized ~= "" and normalized:find("muted") ~= nil and normalized:find("na chat") ~= nil
-		end
-
-		local function ensureMuteCountdown()
-			if muteCountdownActive then
-				return
-			end
-			if not getMuteRemainingSeconds() then
-				return
-			end
-			muteCountdownActive = true
-			Spawn(function()
-				while true do
-					local left = getMuteRemainingSeconds()
-					if not left then
-						break
-					end
-					refreshStatus()
-					Wait(1)
-				end
-				muteCountdownActive = false
-				refreshStatus()
-			end)
-		end
-
-		local function isBanMessage(text)
-			local normalized = tostring(text or ""):lower()
-			if normalized == "" then
-				return false
-			end
-			return normalized:find("you are banned") ~= nil
-				or normalized:find("banned from na chat") ~= nil
-				or (normalized:find("banned") and normalized:find("na chat"))
-		end
-
-		local function markBannedState()
-			if bannedFromChat then
-				return
-			end
-			bannedFromChat = true
-			NAChat.bannedFromChat = true
-			originalIO.setStatus("NA Chat: Banned", STATUS_COLORS.err)
-		end
-		local MENTION_COOLDOWN_SECONDS = 10
-		local adminState = {
-			banned = {},
-			muted = {},
-		}
-		local baseStatusText = "NA Chat: Connecting..."
-		local baseStatusColor = STATUS_COLORS.info
-		local updateStatusLabel
-		local updateUsersList
-		local refreshStatus
-
-		local function isDmNotifyEnabled()
-			local ok, settings = pcall(NAmanage.NASettingsEnsure)
-			if ok and settings then
-				local val = settings.naChatDmNotify
-				if type(val) == "boolean" then
-					return val
-				end
-			end
-			return true
-		end
-
-		local function queueUsersListRefresh()
-			if queuedUsersRefresh then
-				return
-			end
-			queuedUsersRefresh = true
-			Delay(0.15, function()
-				queuedUsersRefresh = false
-				if type(updateUsersList) == "function" and (not isChatUiSuppressed()) and NAChat.activeTab == "users" then
-					updateUsersList(NAChat.users or {})
-				end
-			end)
-		end
-
-		local function queueStatusLabelRefresh()
-			if queuedStatusRefresh then
-				return
-			end
-			queuedStatusRefresh = true
-			Delay(0.1, function()
-				queuedStatusRefresh = false
-				if type(updateStatusLabel) == "function" then
-					updateStatusLabel()
-				end
-			end)
-		end
-
-		local function getVerifiedUsernameCached(userId)
-			if type(userId) ~= "number" then
-				return nil
-			end
-			local cached = verifiedNameCache[userId]
-			if type(cached) == "string" and cached ~= "" then
-				return cached
-			end
-			return nil
-		end
-
-		local function fetchVerifiedUsernameAsync(userId)
-			if type(userId) ~= "number" or userId <= 0 then
-				return
-			end
-			if getVerifiedUsernameCached(userId) then
-				return
-			end
-			if verifiedNameFetchInFlight[userId] then
-				return
-			end
-			verifiedNameFetchInFlight[userId] = true
-			Spawn(function()
-				local ok, name = pcall(function()
-					return Players:GetNameFromUserIdAsync(userId)
-				end)
-				if ok and type(name) == "string" and name ~= "" then
-					verifiedNameCache[userId] = name
-				end
-				verifiedNameFetchInFlight[userId] = nil
-				queueUsersListRefresh()
-				queueStatusLabelRefresh()
-			end)
-		end
-
-		local function getVerifiedUsername(userId, fallback)
-			local cached = getVerifiedUsernameCached(userId)
-			if cached then
-				return cached
-			end
-			if type(userId) == "number" then
-				fetchVerifiedUsernameAsync(userId)
-			end
-			return fallback
-		end
-
-		local function getVerifiedUsernameBlocking(userId, fallback)
-			local cached = getVerifiedUsernameCached(userId)
-			if cached then
-				return cached
-			end
-			if type(userId) ~= "number" or userId <= 0 then
-				return fallback
-			end
-			local ok, name = pcall(function()
-				return Players:GetNameFromUserIdAsync(userId)
-			end)
-			if ok and type(name) == "string" and name ~= "" then
-				verifiedNameCache[userId] = name
-				return name
-			end
-			return fallback
-		end
-
-		updateStatusLabel = function()
-			if not statusLabel then
-				return
-			end
-
-			local now = os.clock()
-			local names = {}
-
-			local seen = {}
-
-			for name, expires in pairs(typingUsersByName) do
-				if type(expires) ~= "number" or expires <= now then
-					typingUsersByName[name] = nil
-				else
-					local display = tostring(name)
-					if display ~= "" and not seen[display] then
-						seen[display] = true
-						Insert(names, display)
-					end
-				end
-			end
-
-			for userId, expires in pairs(typingUsersById) do
-				if type(expires) ~= "number" or expires <= now then
-					typingUsersById[userId] = nil
-				else
-					local display = getVerifiedUsername(userId, tostring(userId))
-					if display ~= "" and not seen[display] then
-						seen[display] = true
-						Insert(names, display)
-					end
-				end
-			end
-
-			local text = baseStatusText or ""
-			if #names > 0 then
-				local who
-				if #names == 1 then
-					who = names[1]
-				elseif #names == 2 then
-					who = names[1].." and "..names[2]
-				else
-					who = names[1].." and others"
-				end
-				if text ~= "" then
-					text = text.."  •  "
-				end
-				text = text..who.." is typing..."
-			end
-
-			statusLabel.Text = text
-			statusLabel.TextColor3 = baseStatusColor or statusLabel.TextColor3
-		end
-
-		local function normalizeRichTextEntities(text)
-			text = tostring(text or "")
-			if text == "" then
-				return text
-			end
-			text = text:gsub("&amp;lt;", "&lt;")
-			text = text:gsub("&amp;gt;", "&gt;")
-			text = text:gsub("&amp;quot;", "&quot;")
-			text = text:gsub("&amp;apos;", "&apos;")
-			text = text:gsub("&amp;amp;", "&amp;")
-			return text
-		end
-
-		local function formatMessageWithMentions(rawText)
-			local plain = tostring(rawText or "")
-			if plain == "" then
-				return "", false
-			end
-
-			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(plain) or plain
-			safe = normalizeRichTextEntities(safe)
-
-			local lp = Players.LocalPlayer
-			if not lp then
-				return safe, false
-			end
-
-			local lowerNames = {}
-			lowerNames[Lower(lp.Name)] = true
-			local disp = lp.DisplayName
-			if disp and disp ~= "" then
-				lowerNames[Lower(disp)] = true
-			end
-
-			local wasMentioned = false
-
-			local function repl(token)
-				local namePart = token:sub(2)
-				if lowerNames[Lower(namePart)] then
-					wasMentioned = true
-					return '<font color="#FFD966">'..token..'</font>'
-				end
-				return token
-			end
-
-			local withMarkup = safe:gsub("(@[%w_]+)", repl)
-			return withMarkup, wasMentioned
-		end
-
-		local INTEGRATION_URL = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau"
-		local connect
-
-		originalIO.setStatus = function(t, c)
-			if t then
-				baseStatusText = t
-			end
-			if c then
-				baseStatusColor = c
-			end
-			updateStatusLabel()
-		end
-
-		refreshStatus = function()
-			if not statusLabel then
-				return
-			end
-
-			local svc = NAChat.service
-			local isConn = false
-
-			if svc and svc.IsConnected then
-				local ok, res = pcall(svc.IsConnected)
-				if ok and res then
-					isConn = true
-				end
-			end
-
-			local muteLeft = getMuteRemainingSeconds()
-			local muteSuffix = ""
-			if muteLeft then
-				muteSuffix = " (muted "..formatDurationSeconds(muteLeft).." left)"
-				if type(muteReason) == "string" and muteReason ~= "" then
-					muteSuffix = muteSuffix.." - "..muteReason
-				end
-			end
-
-			if isConn then
-				local ct = #NAChat.users
-				if NAChat.isHidden then
-					originalIO.setStatus(("NA Chat: %d online (hidden)%s"):format(ct, muteSuffix), STATUS_COLORS.ok)
-				else
-					originalIO.setStatus(("NA Chat: %d online%s"):format(ct, muteSuffix), STATUS_COLORS.ok)
-				end
-			elseif NAChat.isHidden then
-				originalIO.setStatus("NA Chat: Hidden"..muteSuffix, STATUS_COLORS.info)
-			elseif NAChat.connecting then
-				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
-			else
-				originalIO.setStatus("NA Chat: Disconnected", STATUS_COLORS.err)
-			end
-		end
-
-		local chatMessageOrder = 0
-
-		local function makeChatLabel(t, c, rawMessage)
-			local doAutoScroll = chatScroll and canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
-
-			local lbl = InstanceNew("TextButton", chatScroll)
-			lbl.Size = UDim2.new(1, -6, 0, 24)
-			lbl.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
-			lbl.BackgroundTransparency = 0.35
-			lbl.TextColor3 = c or Color3.fromRGB(224, 224, 234)
-			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			lbl.TextSize = 16
-			lbl.TextWrapped = true
-			lbl.RichText = true
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.TextYAlignment = Enum.TextYAlignment.Top
-			chatMessageOrder += 1
-			lbl.LayoutOrder = chatMessageOrder
-			lbl.AutoButtonColor = false
-			lbl.Text = t
-
-			local cr = InstanceNew("UICorner", lbl)
-			cr.CornerRadius = UDim.new(0, 4)
-
-			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
-			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
-
-			local tr = NAStuff.NAChatTranslator
-			if tr then
-				tr:registerMessage(lbl, t, rawMessage or t)
-			end
-
-			if rawMessage and NAmanage.AttachMessageCopy then
-				NAmanage.AttachMessageCopy(lbl, tostring(rawMessage))
-			end
-
-			local MAX_MSG = 500
-			local list = {}
-			for _, v in ipairs(chatScroll:GetChildren()) do
-				if v:IsA("TextLabel") or v:IsA("TextButton") then
-					Insert(list, v)
-				end
-			end
-			table.sort(list, function(a, b)
-				return a.LayoutOrder < b.LayoutOrder
-			end)
-			if #list > MAX_MSG then
-				for i = 1, #list - MAX_MSG do
-					list[i]:Destroy()
-				end
-			end
-
-			if chatScroll and doAutoScroll then
-				scrollToBottomSoon(chatScroll)
-			end
-
-			return lbl
-		end
-
-		local function buildServerSet(list)
-			local set = {}
-			if type(list) ~= "table" then
-				return set
-			end
-
-			local lp = Players.LocalPlayer
-			local myJob = tostring(game.JobId or "")
-			local myPlace = game.PlaceId
-
-			for _, info in ipairs(list) do
-				if type(info) == "table" then
-					local uid = tonumber(info.userId)
-					local pid = tonumber(info.placeId)
-					local jid = tostring(info.jobId or "")
-					local name = getVerifiedUsername(uid, tostring(info.username or "Unknown"))
-
-					if uid and pid == myPlace and jid ~= "" and jid == myJob then
-						if not (lp and uid == lp.UserId) then
-							set[uid] = name
-						end
-					end
-				end
-			end
-
-			return set
-		end
-
-		local function makeUserSignature(list)
-			if type(list) ~= "table" then
-				return ""
-			end
-			local tmp = {}
-			for _, info in ipairs(list) do
-				if type(info) == "table" then
-					local uid = tonumber(info.userId) or 0
-					local uname = tostring(info.username or "")
-					local hiddenFlag = (info.hidden == true) and 1 or 0
-					local activityFlag = ((info.activityHidden == true) or (info.activity_hidden == true)) and 1 or 0
-					local pid = tonumber(info.placeId) or 0
-					local jid = tostring(info.jobId or "")
-					local adminFlag = (info.admin == true) and 1 or 0
-					local gameStr = tostring(info.game or "")
-					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid.."|"..adminFlag.."|"..gameStr
-				end
-			end
-			table.sort(tmp)
-			return Concat(tmp, ";")
-		end
-
-		local function requestUsersList()
-			if isChatUiSuppressed() or not NAChat.service or usersFetchInFlight then
-				return
-			end
-
-			local svc = NAChat.service
-			usersFetchInFlight = true
-
-			local ok, res = false, nil
-			if NAChat.serverIsAdmin and svc.GetUsersAdmin then
-				ok, res = pcall(svc.GetUsersAdmin)
-			elseif svc.GetUsers then
-				ok, res = pcall(svc.GetUsers)
-			else
-				usersFetchInFlight = false
-				return
-			end
-
-			if not ok or res == false then
-				usersFetchInFlight = false
-			end
-		end
-
-		updateUsersList = function(list)
-			if not usersScroll then
-				return
-			end
-
-			for _, child in ipairs(usersScroll:GetChildren()) do
-				if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
-					child:Destroy()
-				end
-			end
-
-			usersUpdateGeneration += 1
-			local myGeneration = usersUpdateGeneration
-
-			local doAutoScroll = usersScroll and shouldAutoScroll(usersScroll) or false
-
-			if isChatUiSuppressed() then
-				for _, v in ipairs(usersScroll:GetChildren()) do
-					if v:IsA("Frame") then
-						v:Destroy()
-					end
-				end
-				userFrames = {}
-
-				local fr = InstanceNew("Frame", usersScroll)
-				fr.Name = "NAChatHiddenNotice"
-				fr:SetAttribute("NAChatHiddenNotice", true)
-				fr.BackgroundTransparency = 1
-				fr.Size = UDim2.new(1, -6, 0, 40)
-				local lbl = InstanceNew("TextLabel", fr)
-				lbl.BackgroundTransparency = 1
-				lbl.Size = UDim2.new(1, 0, 1, 0)
-				lbl.Text = "Hidden mode - user list disabled"
-				lbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-				lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				lbl.TextSize = 14
-				lbl.TextWrapped = true
-				return
-			end
-
-			if type(list) ~= "table" then
-				return
-			end
-
-			local avatarQueue = {}
-			local seen = {}
-			local alive = {}
-			local idx = 0
-
-			for _, info in ipairs(list) do
-				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
-				local userId = type(info) == "table" and tonumber(info.userId) or nil
-				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
-				local verifiedUsername = getVerifiedUsername(userId, tostring(serverUsername or ""))
-				local canonicalUsername = (verifiedUsername ~= "" and verifiedUsername) or tostring(serverUsername or "")
-				local isAdmin = type(info) == "table" and (info.admin == true) or false
-				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
-				local placeId = type(info) == "table" and info.placeId or nil
-				local jobId = type(info) == "table" and info.jobId or nil
-				local isHiddenUser = type(info) == "table" and (info.hidden == true) or false
-				local activityHidden = type(info) == "table" and ((info.activityHidden == true) or (info.activity_hidden == true)) or false
-
-				if userSearchTerm ~= "" then
-					local needle = userSearchTerm
-					local haystack = Lower(tostring(canonicalUsername or "").." "..tostring(displayName or "").." "..tostring(serverUsername or "").." "..tostring(gameStatus or ""))
-					if not Find(haystack, needle, 1, true) then
-						continue
-					end
-				end
-
-				local keyBase = Lower(tostring(canonicalUsername or ""))
-				local uidKey
-				if userId then
-					uidKey = "id:"..tostring(userId)
-				else
-					uidKey = "n:"..keyBase
-				end
-
-				if seen[uidKey] then
-					continue
-				end
-				seen[uidKey] = true
-				alive[uidKey] = true
-				idx += 1
-
-				local fr = userFrames[uidKey]
-				if not (fr and fr.Parent) then
-					fr = InstanceNew("Frame", usersScroll)
-					userFrames[uidKey] = fr
-					local cr = InstanceNew("UICorner", fr)
-					cr.CornerRadius = UDim.new(0, 4)
-					local avatar = InstanceNew("ImageLabel", fr)
-					avatar.Name = "Avatar"
-					avatar.BackgroundTransparency = 1
-					avatar.Size = UDim2.new(0, 32, 0, 32)
-					avatar.Position = UDim2.new(0, 4, 0.5, -16)
-					avatar.Image = ""
-					local nameLbl = InstanceNew("TextLabel", fr)
-					nameLbl.Name = "NameLabel"
-					nameLbl.BackgroundTransparency = 1
-					nameLbl.Size = UDim2.new(1, -44, 0, 18)
-					nameLbl.Position = UDim2.new(0, 40, 0, 4)
-					nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-					nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-					nameLbl.TextSize = 14
-					local gameLbl = InstanceNew("TextLabel", fr)
-					gameLbl.Name = "GameLabel"
-					gameLbl.BackgroundTransparency = 1
-					gameLbl.Size = UDim2.new(1, -130, 0, 16)
-					gameLbl.Position = UDim2.new(0, 40, 0, 20)
-					gameLbl.TextXAlignment = Enum.TextXAlignment.Left
-					gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-					gameLbl.TextSize = 12
-				end
-
-				fr.Name = keyBase
-				fr.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-				fr.Size = UDim2.new(1, -6, 0, 40)
-				fr.BackgroundTransparency = 0.15
-				fr.LayoutOrder = idx
-
-				local avatar = fr:FindFirstChild("Avatar")
-				local nameLbl = fr:FindFirstChild("NameLabel")
-				local gameLbl = fr:FindFirstChild("GameLabel")
-
-				local isOwner = userId == 11761417 or userId == 530829101
-
-				if nameLbl then
-					local prefix = ""
-					if isHiddenUser then
-						prefix = prefix.."[HIDDEN] "
-					end
-					if isOwner then
-						prefix = prefix.."[OWNER] "
-					elseif isAdmin then
-						prefix = prefix.."[ADMIN] "
-					end
-
-					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 210, 100) or Color3.fromRGB(180, 150, 230)
-					if isHiddenUser then
-						nameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-					end
-					local display = tostring(canonicalUsername or "")
-					if displayName ~= "" and canonicalUsername ~= "" and displayName ~= canonicalUsername then
-						display = ("%s (@%s)"):format(displayName, canonicalUsername)
-					end
-					nameLbl.Text = prefix..display
-				end
-
-				if gameLbl then
-					gameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
-					local line = (gameStatus ~= "" and gameStatus) or "Game: Unknown"
-					if activityHidden then
-						line = line.." (activity hidden)"
-					end
-					if isHiddenUser then
-						line = line.." (invisible)"
-					end
-					gameLbl.Text = line
-				end
-
-				local pidNum = tonumber(placeId)
-				local jobStr = tostring(jobId or "")
-				local canJoin = (pidNum ~= nil and pidNum > 0) and jobStr ~= ""
-				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
-
-				local joinBtn = fr:FindFirstChild("JoinButton")
-				if not canJoin or isSelf then
-					if joinBtn then
-						joinBtn:Destroy()
-						joinBtn = nil
-					end
-				else
-					if not joinBtn then
-						joinBtn = InstanceNew("TextButton", fr)
-						joinBtn.Name = "JoinButton"
-						joinBtn.Size = UDim2.new(0, 80, 0, 24)
-						joinBtn.Position = UDim2.new(1, -84, 0.5, -12)
-						joinBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
-						joinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-						joinBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-						joinBtn.TextSize = 13
-						joinBtn.Text = "Join"
-						local jbCorner = InstanceNew("UICorner", joinBtn)
-						jbCorner.CornerRadius = UDim.new(0, 6)
-						MouseButtonFix(joinBtn, function()
-							local pid = pidNum
-							local jid = jobStr
-							if not (pid and jid ~= "") then
-								return
-							end
-							local lp = Players.LocalPlayer
-							if not (lp and TeleportService) then
-								return
-							end
-							local ok, err = pcall(function()
-								TeleportService:TeleportToPlaceInstance(pid, jid, lp)
-							end)
-							if not ok then
-								if DoNotif then
-									DoNotif("Failed to join "..tostring(canonicalUsername)..": "..tostring(err), 4)
-								end
-							end
-						end)
-					end
-				end
-				local hasJoin = joinBtn ~= nil
-
-				-- DM button
-				local dmBtn = fr:FindFirstChild("DMButton")
-				if isSelf then
-					if dmBtn then
-						dmBtn:Destroy()
-					end
-				else
-					if not dmBtn then
-						dmBtn = InstanceNew("TextButton", fr)
-						dmBtn.Name = "DMButton"
-						dmBtn.Size = UDim2.new(0, 60, 0, 24)
-						dmBtn.Position = UDim2.new(1, -150, 0.5, -12)
-						dmBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 130)
-						dmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-						dmBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-						dmBtn.TextSize = 13
-						dmBtn.Text = "DM"
-						local dmCorner = InstanceNew("UICorner", dmBtn)
-						dmCorner.CornerRadius = UDim.new(0, 6)
-						MouseButtonFix(dmBtn, function()
-							local uname = tostring(canonicalUsername or "")
-							if NAChat.currentDMTarget == uname then
-								clearDMTarget("NA Chat: DM cleared")
-							else
-								NAChat.currentDMTarget = uname
-								if inputBox then
-									inputBox.PlaceholderText = ("DM to %s..."):format(uname)
-								end
-								originalIO.setStatus(("NA Chat: DM -> %s"):format(uname), STATUS_COLORS.blue)
-							end
-						end)
-					end
-					if hasJoin then
-						dmBtn.Position = UDim2.new(1, -150, 0.5, -12)
-					else
-						dmBtn.Position = UDim2.new(1, -65, 0.5, -12)
-					end
-				end
-
-				if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
-					avatar.Image = ""
-					Insert(avatarQueue, { avatar = avatar, userId = userId })
-				end
-			end
-
-			for key, fr in pairs(userFrames) do
-				if not alive[key] or not (fr and fr.Parent) then
-					if fr and fr.Parent then
-						fr:Destroy()
-					end
-					userFrames[key] = nil
-				end
-			end
-
-			if usersScroll and doAutoScroll then
-				scrollToBottomSoon(usersScroll)
-			end
-
-			if #avatarQueue > 0 then
-				Spawn(function()
-					for _, taskInfo in ipairs(avatarQueue) do
-						if usersUpdateGeneration ~= myGeneration then
-							break
-						end
-						local avatar = taskInfo.avatar
-						local userId = taskInfo.userId
-						if avatar and avatar.Parent and userId then
-							local ok, image = pcall(function()
-								return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-							end)
-							if ok and image and image ~= "" then
-								avatar.Image = image
-							else
-								avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"):format(userId)
-							end
-						end
-						Wait(0.03)
-					end
-				end)
-			end
-		end
-
-		originalIO.setHiddenState = function(newHidden, skipRemote)
-			NAChat.isHidden = newHidden
-			local freezeUI = isChatUiSuppressed()
-			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
-				pcall(NAmanage.NASettingsSet, "naChatHidden", newHidden)
-			end
-			if visibilityBtn then
-				visibilityBtn.Text = newHidden and "Hidden" or "Visible"
-				visibilityBtn.BackgroundColor3 = newHidden and Color3.fromRGB(54, 54, 64) or Color3.fromRGB(80, 120, 80)
-				visibilityBtn.TextColor3 = newHidden and Color3.fromRGB(220, 220, 230) or Color3.fromRGB(255, 255, 255)
-			end
-			if inputBox then
-				inputBox.TextEditable = not freezeUI
-				inputBox.TextTransparency = freezeUI and 0.5 or 0
-			end
-			if usersSearchBox then
-				usersSearchBox.TextEditable = not freezeUI
-				usersSearchBox.TextTransparency = freezeUI and 0.5 or 0
-				if freezeUI then
-					usersSearchBox.Text = ""
-					userSearchTerm = ""
-				end
-			end
-			if sendBtn then
-				sendBtn.AutoButtonColor = not freezeUI
-				sendBtn.TextTransparency = freezeUI and 0.5 or 0
-			end
-			if freezeUI then
-				updateUsersList({})
-			elseif NAChat.activeTab == "users" then
-				requestUsersList()
-			end
-			if not newHidden and usersScroll then
-				for _, child in ipairs(usersScroll:GetChildren()) do
-					if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
-						child:Destroy()
-					end
-				end
-			end
-			if not skipRemote and NAChat.service and NAChat.service.SetHidden then
-				NAChat.service.SetHidden(newHidden)
-			end
-			refreshStatus()
-		end
-
-		local function switchTab(tab)
-			NAChat.activeTab = tab
-
-			if chatTab then
-				chatTab.BackgroundColor3 = tab == "chat" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
-			end
-			if usersTab then
-				usersTab.BackgroundColor3 = tab == "users" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
-			end
-			if adminTab then
-				adminTab.BackgroundColor3 = tab == "admin" and Color3.fromRGB(100, 80, 180) or Color3.fromRGB(54, 54, 64)
-			end
-
-			if chatScroll then
-				chatScroll.Visible = (tab == "chat")
-			end
-			if usersScroll then
-				usersScroll.Visible = (tab == "users")
-			end
-			if adminFrame then
-				adminFrame.Visible = (tab == "admin")
-			end
-
-			if usersSearchBox then
-				usersSearchBox.Visible = (tab == "users") and not isChatUiSuppressed()
-			end
-
-			if tab == "users" then
-				if isChatUiSuppressed() then
-					updateUsersList({})
-				else
-					requestUsersList()
-				end
-			end
-
-			if tab == "admin" then
-				local svc = NAChat.service
-				if svc and svc.SendAdminAction then
-					svc.SendAdminAction("refresh", "")
-				end
-			end
-		end
-
-		local function fetchIntegrationBody()
-			local body
-			local rq = request or http_request or (syn and syn.request) or opt.NAREQUEST
-
-			if type(rq) == "function" then
-				local ok, res = pcall(rq, {
-					Url = INTEGRATION_URL,
-					Method = "GET"
-				})
-				if ok and type(res) == "table" then
-					body = res.Body or res.body
-				end
-			end
-
-			if type(body) ~= "string" or body == "" then
-				local ok, fb = pcall(game.HttpGet, game, INTEGRATION_URL)
-				if ok and type(fb) == "string" and fb ~= "" then
-					body = fb
-				end
-			end
-
-			if type(body) == "string" and body ~= "" then
-				return true, body
-			end
-
-			return false, "failed to fetch IntegrationService script"
-		end
-
-		local function loadService()
-			if NAChat.service then
-				return true
-			end
-
-			local ok, payload = fetchIntegrationBody()
-			if not ok then
-				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
-				return false
-			end
-
-			local okLoad, res = pcall(function()
-				local chunk, err = loadstring(payload)
-				assert(chunk, err or "loadstring failed")
-				return chunk()
-			end)
-
-			if okLoad and type(res) == "table" then
-				NAChat.service = res
-				return true
-			end
-
-			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
-			return false
-		end
-
-		local reconnectBackoff = {3, 8, 15, 30}
-		local reconnectAttempts = 0
-		local reconnectToken = 0
-
-		local function resetReconnectBackoff()
-			reconnectAttempts = 0
-			reconnectToken = reconnectToken + 1
-		end
-
-		local function queueReconnect()
-			if reconnectAttempts >= #reconnectBackoff then
-				originalIO.setStatus("NA Chat: offline (auto-reconnect paused)", STATUS_COLORS.err)
-				if DoNotif then
-					DoNotif("NA Chat reconnect paused. Press Reconnect to try again.", 3)
-				end
-				return
-			end
-
-			reconnectAttempts = reconnectAttempts + 1
-			local token = reconnectToken
-			local delaySeconds = reconnectBackoff[math.min(reconnectAttempts, #reconnectBackoff)]
-
-			Delay(delaySeconds, function()
-				if token ~= reconnectToken then
-					return
-				end
-				if NAChat.connecting then
-					return
-				end
-				if NAChat.service and NAChat.service.IsConnected and NAChat.service.IsConnected() then
-					resetReconnectBackoff()
-					return
-				end
-				connect()
-			end)
-		end
-
-		local lastSysText, lastSysTime = nil, 0
-		local lastErrText, lastErrTime = nil, 0
-
-		local function wireEvents()
-			if NAChat.wired or not NAChat.service then
-				return
-			end
-			NAChat.wired = true
-
-			if usersSearchBox then
-				usersSearchBox.ClearTextOnFocus = false
-				usersSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-					userSearchTerm = Lower(usersSearchBox.Text or "")
-					if not isChatUiSuppressed() then
-						updateUsersList(NAChat.users or {})
-					end
-				end)
-			end
-
-			bindAutoScroll(chatScroll, chatLayout)
-			bindAutoScroll(usersScroll, usersLayout)
-
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
-				local rawSenderName = tostring(name or "?")
-				local messageText = tostring(msg or "")
-				local senderId = tonumber(userId)
-				local senderName = getVerifiedUsername(senderId, rawSenderName)
-
-				local isOwner = senderId == 11761417 or senderId == 530829101
-				local isNAadmin = (isAdmin == true)
-
-				local displayText, mentioned = formatMessageWithMentions(messageText)
-
-				if (isOwner or isNAadmin) and messageText:find("@everyone", 1, true) then
-					mentioned = true
-					displayText = displayText:gsub("@everyone", '<font color="#FFD966">@everyone</font>')
-				end
-				if displayText == "" then
-					displayText = messageText
-				end
-
-				local labelText
-				if isOwner then
-					labelText = ("[OWNER] %s: %s"):format(senderName, displayText)
-				elseif isNAadmin then
-					labelText = ("[ADMIN] %s: %s"):format(senderName, displayText)
-				else
-					labelText = ("[%s]: %s"):format(senderName, displayText)
-				end
-
-				if mutedUsers[Lower(senderName)] or mutedUsers[Lower(rawSenderName)] then
-					return
-				end
-
-				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
-
-				if mentioned and DoNotif then
-					local now = os.clock()
-					local canNotify = true
-					if not (isOwner or isNAadmin) then
-						local key = senderId and ("id:"..tostring(senderId)) or senderName
-						local last = mentionCooldowns[key] or 0
-						if (now - last) < MENTION_COOLDOWN_SECONDS then
-							canNotify = false
-						else
-							mentionCooldowns[key] = now
-						end
-					end
-
-					if canNotify then
-						DoNotif(("%s mentioned you in NA Chat."):format(senderName), 3)
-					end
-				end
-
-				if (isNAadmin or isOwner) and lbl then
-					local conn
-					conn = RunService.Heartbeat:Connect(function()
-						if not (lbl and lbl.Parent) then
-							if conn then
-								conn:Disconnect()
-							end
-							return
-						end
-
-						local t = tick()
-						local r = math.sin(t * 0.5) * 127 + 128
-						local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
-						local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
-						lbl.TextColor3 = Color3.fromRGB(r, g, b)
-					end)
-				end
-			end)
-
-			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
-				local m = tostring(msg or "System message")
-				local isBan = isBanMessage(m)
-				if isBan then
-					markBannedState()
-					if banNoticeShown then
-						return
-					end
-				end
-				local now = os.clock()
-				if lastSysText == m and (now - lastSysTime) < 2 then
-					return
-				end
-				lastSysText, lastSysTime = m, now
-				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
-				if isBan then
-					banNoticeShown = true
-				end
-			end)
-
-			if NAChat.service.OnTyping then
-				NAChat.service.OnTyping.Event:Connect(function(fromName, isTyping)
-					fromName = tostring(fromName or "")
-					if fromName == "" then
-						return
-					end
-					local lp = Players.LocalPlayer
-					local fromId = tonumber(fromName)
-					if lp then
-						if fromId and fromId == lp.UserId then
-							return
-						end
-						if (not fromId) and fromName == lp.Name then
-							return
-						end
-					end
-					if fromId then
-						if isTyping then
-							typingUsersById[fromId] = os.clock() + 6
-						else
-							typingUsersById[fromId] = nil
-						end
-					else
-						if isTyping then
-							typingUsersByName[fromName] = os.clock() + 6
-						else
-							typingUsersByName[fromName] = nil
-						end
-					end
-					updateStatusLabel()
-				end)
-			end
-
-			if NAChat.service.OnAdminState then
-				NAChat.service.OnAdminState.Event:Connect(function(state)
-					if type(state) ~= "table" then
-						return
-					end
-
-					local banned = {}
-					if type(state.banned) == "table" then
-						for _, name in ipairs(state.banned) do
-							if type(name) == "string" and name ~= "" then
-								Insert(banned, name)
-							end
-						end
-					end
-					adminState.banned = banned
-
-					local muted = {}
-					if type(state.muted) == "table" then
-						for _, entry in ipairs(state.muted) do
-							if type(entry) == "table" then
-								local uname = tostring(entry.username or entry.user or entry.name or "")
-								local untilEpoch = tonumber(entry["until"] or entry.muted_until or entry.mutedUntil or entry.expires or entry.expiresAt)
-								local reason = tostring(entry.reason or "")
-								if uname ~= "" then
-									Insert(muted, { username = uname, untilEpoch = untilEpoch, reason = reason })
-								end
-							elseif type(entry) == "string" and entry ~= "" then
-								Insert(muted, { username = entry, untilEpoch = nil, reason = "" })
-							end
-						end
-					end
-					adminState.muted = muted
-
-					if adminFrame and adminFrameUpdateBanList then
-						adminFrameUpdateBanList()
-					end
-				end)
-			end
-
-			if NAChat.service.OnPrivateMessage then
-				NAChat.service.OnPrivateMessage.Event:Connect(function(fromName, toName, text)
-					local lp = Players.LocalPlayer
-					local me = lp and lp.Name or ""
-					fromName = tostring(fromName or "?")
-					toName = tostring(toName or "?")
-					local msgText = tostring(text or "")
-
-					local base, mentioned = formatMessageWithMentions(msgText)
-					if base == "" then base = msgText end
-
-					local label
-					if toName == me then
-						label = ("[DM FROM %s]: %s"):format(fromName, base)
-						local chatVisible = chatFrame and chatFrame.Visible
-						if not chatVisible and isDmNotifyEnabled() then
-							local function openChatView()
-								if chatTab then
-									switchTab("chat")
-								end
-								if type(NAgui) == "table" and type(NAgui.nachat) == "function" then
-									pcall(NAgui.nachat)
-								end
-							end
-
-							local payload = {
-								Title = adminName,
-								Description = ("DM from %s"):format(fromName),
-								Duration = 10,
-								Buttons = {
-									{
-										Text = "Open",
-										Callback = openChatView,
-									},
-								},
-							}
-
-							if type(DoNotif) == "function" then
-								DoNotif(payload)
-							elseif type(Notify) == "function" then
-								Notify(payload)
-							end
-						end
-					elseif fromName == me then
-						label = ("[DM TO %s]: %s"):format(toName, base)
-					else
-						label = ("[DM %s -> %s]: %s"):format(fromName, toName, base)
-					end
-
-					makeChatLabel(label, Color3.fromRGB(250, 220, 140), msgText)
-				end)
-			end
-
-			if NAChat.service.OnAnnouncement then
-				NAChat.service.OnAnnouncement.Event:Connect(function(fromName, text)
-					fromName = tostring(fromName or "Admin")
-					local msgText = tostring(text or "")
-
-					local title = ("Announcement from %s"):format(fromName)
-
-					if type(DoPopup) == "function" then
-						DoPopup(msgText, title)
-					elseif type(DoWindow) == "function" then
-						DoWindow(msgText, title)
-					else
-						makeChatLabel(("[Announcement] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
-					end
-				end)
-			end
-
-			if NAChat.service.OnNotify then
-				NAChat.service.OnNotify.Event:Connect(function(fromName, text, duration)
-					fromName = tostring(fromName or "Admin")
-					local msgText = tostring(text or "")
-					local dur = tonumber(duration) or 5
-
-					local title = ("from %s"):format(fromName)
-
-					if type(DoNotif) == "function" then
-						DoNotif(msgText, dur, title)
-					elseif type(Notify) == "function" then
-						Notify({ Title = title, Description = msgText, Duration = dur })
-					else
-						makeChatLabel(("[Notify] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
-					end
-				end)
-			end
-
-			if NAChat.service.OnNotify2 then
-				NAChat.service.OnNotify2.Event:Connect(function(fromName, text)
-					fromName = tostring(fromName or "Admin")
-					local msgText = tostring(text or "")
-					local title = ("from %s"):format(fromName)
-
-					if type(DoWindow) == "function" then
-						DoWindow(msgText, title)
-					elseif type(Window) == "function" then
-						Window({ Title = title, Description = msgText })
-					else
-						makeChatLabel(("[Window] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
-					end
-				end)
-			end
-
-			if NAChat.service.OnNotify3 then
-				NAChat.service.OnNotify3.Event:Connect(function(fromName, text)
-					fromName = tostring(fromName or "Admin")
-					local msgText = tostring(text or "")
-					local title = ("from %s"):format(fromName)
-
-					if type(DoPopup) == "function" then
-						DoPopup(msgText, title)
-					elseif type(Popup) == "function" then
-						Popup({ Title = title, Description = msgText })
-					else
-						makeChatLabel(("[Popup] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
-					end
-				end)
-			end
-
-			NAChat.service.OnUserListUpdate.Event:Connect(function(list)
-				if NAChat.serverIsAdmin and NAChat.service and NAChat.service.OnUserListUpdateAdmin then
-					usersFetchInFlight = false
-					return
-				end
-				NAChat.users = list or {}
-				usersFetchInFlight = false
-
-				local newSig = makeUserSignature(NAChat.users)
-				local changed = (newSig ~= lastUserSig)
-				lastUserSig = newSig
-
-				refreshStatus()
-
-				local newSet = buildServerSet(NAChat.users)
-
-				if not serverUsersInit then
-					serverUsers = newSet
-					serverUsersInit = true
-				else
-					for uid, name in pairs(newSet) do
-						if not serverUsers[uid] then
-							if DoNotif then
-								DoNotif(("NA Chat: %s joined your server."):format(name), 5)
-							else
-								makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
-							end
-						end
-					end
-					serverUsers = newSet
-				end
-
-				if NAChat.currentDMTarget then
-					local stillHere = false
-					for _, info in ipairs(NAChat.users or {}) do
-						if type(info) == "table" then
-							local uid = tonumber(info.userId)
-							local uname = getVerifiedUsername(uid, tostring(info.username or ""))
-							if uname == NAChat.currentDMTarget then
-								stillHere = true
-								break
-							end
-						end
-					end
-					if not stillHere then
-						local hadTarget = NAChat.currentDMTarget ~= nil
-						NAChat.currentDMTarget = nil
-						if inputBox then
-							inputBox.PlaceholderText = "Send a message (/w name)..."
-						end
-						if hadTarget then
-							originalIO.setStatus("NA Chat: DM target left", STATUS_COLORS.info)
-						end
-					end
-				end
-
-				if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
-					updateUsersList(NAChat.users)
-				end
-			end)
-
-			if NAChat.service.OnUserListUpdateAdmin then
-				NAChat.service.OnUserListUpdateAdmin.Event:Connect(function(list)
-					if not NAChat.serverIsAdmin then
-						usersFetchInFlight = false
-						return
-					end
-					NAChat.users = list or {}
-					usersFetchInFlight = false
-
-					local newSig = makeUserSignature(NAChat.users)
-					local changed = (newSig ~= lastUserSig)
-					lastUserSig = newSig
-
-					refreshStatus()
-
-					local newSet = buildServerSet(NAChat.users)
-
-					if not serverUsersInit then
-						serverUsers = newSet
-						serverUsersInit = true
-					else
-						for uid, name in pairs(newSet) do
-							if not serverUsers[uid] then
-								if DoNotif then
-									DoNotif(("NA Chat: %s joined your server."):format(name), 5)
-								else
-									makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
-								end
-							end
-						end
-						serverUsers = newSet
-					end
-
-					if NAChat.currentDMTarget then
-						local stillHere = false
-						for _, info in ipairs(NAChat.users or {}) do
-							if type(info) == "table" then
-								local uid = tonumber(info.userId)
-								local uname = getVerifiedUsername(uid, tostring(info.username or ""))
-								if uname == NAChat.currentDMTarget then
-									stillHere = true
-									break
-								end
-							end
-						end
-						if not stillHere then
-							local hadTarget = NAChat.currentDMTarget ~= nil
-							NAChat.currentDMTarget = nil
-							if inputBox then
-								inputBox.PlaceholderText = "Send a message (/w name)..."
-							end
-							if hadTarget then
-								originalIO.setStatus("NA Chat: DM target left", STATUS_COLORS.info)
-							end
-						end
-					end
-
-					if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
-						updateUsersList(NAChat.users)
-					end
-				end)
-			end
-
-			if NAChat.service.OnRemoteCommand then
-				NAChat.service.OnRemoteCommand.Event:Connect(function(fromId, fromName, argList, target)
-					local lp = Players.LocalPlayer
-					if not lp then
-						return
-					end
-					local myId = lp.UserId
-
-					local runForMe = false
-					if target == nil or target == "" or target == "all" then
-						runForMe = true
-					else
-						local tNum = tonumber(target)
-						if tNum and tNum == myId then
-							runForMe = true
-						end
-					end
-
-					if not runForMe then
-						return
-					end
-
-					if type(argList) ~= "table" or #argList == 0 then
-						return
-					end
-
-					local args = {}
-					for i, v in ipairs(argList) do
-						args[i] = tostring(v)
-					end
-
-					SpawnCall(function()
-						local ok, err = pcall(function()
-							cmd.run(args)
-						end)
-						if not ok and DoNotif then
-							--DoNotif("[NA Chat] Remote cmd error: "..tostring(err), 4)
-						end
-					end)
-				end)
-			end
-
-			NAChat.service.OnConnected.Event:Connect(function(name, _, hidden, _, isAdmin)
-				resetReconnectBackoff()
-				NAChat.connecting = false
-				NAChat.serverIsAdmin = (isAdmin == true)
-				NAChat.isHidden = hidden or false
-				originalIO.setHiddenState(NAChat.isHidden, true)
-				local lp = Players.LocalPlayer
-				local myName = (lp and lp.Name) or tostring(name or "?")
-				makeChatLabel(("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
-				requestUsersList()
-				refreshStatus()
-			end)
-
-			NAChat.service.OnDisconnected.Event:Connect(function()
-				NAChat.connecting = false
-				if bannedFromChat then
-					refreshStatus()
-					return
-				end
-				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
-				refreshStatus()
-				queueReconnect()
-			end)
-
-			NAChat.service.OnError.Event:Connect(function(err, _, data)
-				NAChat.connecting = false
-				local errText = tostring(err or "Unknown error")
-				local isBan = isBanMessage(errText)
-				local isMute = false
-				if type(data) == "table" and (data.code == "muted" or data.error == "muted") then
-					isMute = true
-					local untilEpoch = tonumber(data["until"] or data.muted_until or data.mutedUntil)
-					if untilEpoch and untilEpoch > 0 then
-						muteUntil = untilEpoch
-						local r = tostring(data.reason or "")
-						muteReason = r ~= "" and r or nil
-						ensureMuteCountdown()
-					end
-				elseif isMuteMessage(errText) then
-					isMute = true
-				end
-				if isBan then
-					markBannedState()
-				elseif isMute then
-					local left = getMuteRemainingSeconds()
-					local text = "NA Chat: Muted"
-					if left then
-						text = text.." ("..formatDurationSeconds(left).." left)"
-					end
-					if type(muteReason) == "string" and muteReason ~= "" then
-						text = text.." - "..muteReason
-					end
-					originalIO.setStatus(text, STATUS_COLORS.err)
-				else
-					originalIO.setStatus("NA Chat error", STATUS_COLORS.err)
-				end
-				local msg = "[NA Chat] "..errText
-				local now = os.clock()
-				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
-					lastErrText, lastErrTime = msg, now
-					makeChatLabel(msg, STATUS_COLORS.err)
-					if isBan then
-						banNoticeShown = true
-					end
-				end
-				refreshStatus()
-				if not bannedFromChat and not isMute then
-					queueReconnect()
-				end
-			end)
-		end
-
-		connect = function()
-			if permanentFailureReason then
-				NAChat.connecting = false
-				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
-				return
-			end
-			if NAChat.connecting then
-				return
-			end
-			NAChat.connecting = true
-			Defer(function()
-				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
-
-				if not loadService() then
-					NAChat.connecting = false
-					queueReconnect()
-					return
-				end
-
-				wireEvents()
-
-				local okInit, initErr = true, nil
-				if NAChat.service and NAChat.service.Init then
-					okInit, initErr = NAChat.service.Init({
-						serverUrl = "wss://open-cheating-network.onrender.com/swimhub",
-						heartbeatInterval = 10,
-						reconnectDelay = 6,
-						autoReconnect = false,
-						hidden = NAChat.isHidden
-					})
-				end
-
-				if not okInit then
-					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
-
-					local permanent = (initErr == "websocket_not_available" or initErr == "no_local_player")
-					if permanent then
-						permanentFailureReason = initErr or "unknown"
-					end
-
-					local msg
-					if initErr == "websocket_not_available" then
-						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
-					else
-						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
-					end
-
-					local now = os.clock()
-					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
-						lastErrText, lastErrTime = msg, now
-						makeChatLabel(msg, STATUS_COLORS.err)
-					end
-					NAChat.connecting = false
-
-					if not permanent then
-						queueReconnect()
-					end
-					return
-				end
-
-				originalIO.setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
-			end)
-		end
-
-		local myTyping = false
-		local lastTypeTime = 0
-
-		local function noteLocalTyping()
-			lastTypeTime = os.clock()
-			if myTyping then
-				return
-			end
-			myTyping = true
-			if NAChat.service and NAChat.service.SendTyping then
-				pcall(NAChat.service.SendTyping, true)
-			end
-			Spawn(function()
-				local stamp = lastTypeTime
-				Wait(5)
-				if stamp == lastTypeTime and myTyping then
-					myTyping = false
-					if NAChat.service and NAChat.service.SendTyping then
-						pcall(NAChat.service.SendTyping, false)
-					end
-				end
-			end)
-		end
-
-		local function clearTyping()
-			if myTyping and NAChat.service and NAChat.service.SendTyping then
-				myTyping = false
-				pcall(NAChat.service.SendTyping, false)
-			end
-		end
-
-		clearDMTarget = function(reason)
-			local hadTarget = NAChat.currentDMTarget ~= nil
-			NAChat.currentDMTarget = nil
-			if inputBox then
-				inputBox.PlaceholderText = "Send a message (/w name)..."
-			end
-			if reason and hadTarget then
-				originalIO.setStatus(reason, STATUS_COLORS.info)
-			end
-		end
-
-		local function findUserByPrefix(prefix)
-			prefix = tostring(prefix or "")
-			if prefix == "" then
-				return nil
-			end
-
-			local lowerPrefix = prefix:lower()
-			local bestMatch = nil
-
-			for _, info in ipairs(NAChat.users or {}) do
-				if type(info) == "table" then
-					local uid = tonumber(info.userId)
-					local uname = getVerifiedUsername(uid, tostring(info.username or ""))
-					local display = tostring(info.displayName or "")
-					if uname ~= "" then
-						local lu = uname:lower()
-						if lu == lowerPrefix then
-							return uname
-						elseif lu:sub(1, #lowerPrefix) == lowerPrefix and bestMatch == nil then
-							bestMatch = uname
-						end
-					end
-					if bestMatch == nil and display ~= "" then
-						local ld = display:lower()
-						if ld == lowerPrefix then
-							return uname ~= "" and uname or display
-						elseif ld:sub(1, #lowerPrefix) == lowerPrefix and bestMatch == nil then
-							bestMatch = uname ~= "" and uname or display
-						end
-					end
-				end
-			end
-
-			return bestMatch
-		end
-
-		local slurWarnings = {
-			"NA Chat: Slurs are blocked here",
-			"NA Chat: Drop the slurs",
-			"NA Chat: Keep it respectful",
-			"NA Chat: That language isn't welcome",
-			"NA Chat: Stop trying to type slurs",
-		}
-		local slurAttempts = 0
-		local slurPunishing = false
-
-		local leetMap = {
-			a = "[a4@àáâãäåāăąα]", b = "[b8]", c = "[c%(çćč]", d = "d", e = "[e3èéêëēĕėęě]", f = "f",
-			g = "[g69]", h = "h", i = "[i1!|lìíîïīįı8]", j = "j", k = "k", l = "[l1|!]",
-			m = "m", n = "[nñńņň]", o = "[o0òóôõöōŏőø]", p = "p", q = "q", r = "r", s = "[s5$śšșß]",
-			t = "[t7+țţť]", u = "[uvùúûüūůűŭ]", v = "[vuùúûüūůűŭ]", w = "w", x = "x", y = "[yýÿ]", z = "[z2źżž]"
-		}
-
-		local zeroWidthPattern = "[\226\128\139\226\128\140\226\128\141\239\187\191]"
-		local digitLeetMap = { ["0"]="o", ["1"]="i", ["2"]="z", ["3"]="e", ["4"]="a", ["5"]="s", ["6"]="g", ["7"]="t", ["8"]="b", ["9"]="g" }
-		local extraLeetMap = { ["$"]="s", ["€"]="e", ["£"]="l", ["@"]="a" }
-		local fancyAlphaMap = {}
-		do
-			local base = "abcdefghijklmnopqrstuvwxyz"
-			for i = 0, 25 do
-				fancyAlphaMap[utf8.char(0x24D0 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0x24B6 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0xFF41 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0xFF21 + i)] = base:sub(i + 1, i + 1)
-			end
-		end
-
-		local accentLowerMap = {
-			["Á"] = "á", ["À"] = "à", ["Â"] = "â", ["Ã"] = "ã", ["Ä"] = "ä", ["Å"] = "å", ["Ā"] = "ā", ["Ă"] = "ă", ["Ą"] = "ą",
-			["Ć"] = "ć", ["Č"] = "č", ["Ç"] = "ç",
-			["É"] = "é", ["È"] = "è", ["Ê"] = "ê", ["Ë"] = "ë", ["Ē"] = "ē", ["Ĕ"] = "ĕ", ["Ė"] = "ė", ["Ę"] = "ę", ["Ě"] = "ě",
-			["Í"] = "í", ["Ì"] = "ì", ["Î"] = "î", ["Ï"] = "ï", ["Ī"] = "ī", ["Į"] = "į",
-			["Ó"] = "ó", ["Ò"] = "ò", ["Ô"] = "ô", ["Õ"] = "õ", ["Ö"] = "ö", ["Ø"] = "ø", ["Ō"] = "ō", ["Ŏ"] = "ŏ", ["Ő"] = "ő",
-			["Ú"] = "ú", ["Ù"] = "ù", ["Û"] = "û", ["Ü"] = "ü", ["Ū"] = "ū", ["Ů"] = "ů", ["Ű"] = "ű", ["Ŭ"] = "ŭ",
-			["Ý"] = "ý", ["Ÿ"] = "ÿ",
-			["Š"] = "š", ["Ž"] = "ž",
-			["Ł"] = "ł", ["Ð"] = "ð", ["Þ"] = "þ",
-			["Ñ"] = "ñ",
-		}
-		local function normalizeTextLower(text)
-			text = tostring(text or "")
-			local lowered = Lower(text)
-			return lowered:gsub("[ÁÀÂÃÄÅĀĂĄĆČÇÉÈÊËĒĔĖĘĚÍÌÎÏĪĮÓÒÔÕÖØŌŎŐÚÙÛÜŪŮŰŬÝŸŠŽŁÐÞÑ]", accentLowerMap)
-		end
-
-		local function normalizeForSlurs(text)
-			text = normalizeTextLower(text)
-			text = text:gsub(zeroWidthPattern, "")
-			text = text:gsub("[%c%p%s]+", "")
-			text = text:gsub(".", function(ch)
-				return digitLeetMap[ch] or extraLeetMap[ch] or fancyAlphaMap[ch] or ch
-			end)
-			return text
-		end
-
-		local function mergeExtraSlurs(target, extra)
-			if type(extra) == "string" then
-				for word in extra:gmatch("[^,%s]+") do
-					local clean = normalizeTextLower(word)
-					if clean ~= "" then
-						Insert(target, clean)
-					end
-				end
-			elseif type(extra) == "table" then
-				for _, word in ipairs(extra) do
-					if type(word) == "string" then
-						local clean = normalizeTextLower(word)
-						if clean ~= "" then
-							Insert(target, clean)
-						end
-					end
-				end
-			end
-		end
-
-		local encodedSlurs = {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
-		local function decodeSlurList()
-			local chars = {}
-			for i, v in ipairs(encodedSlurs) do
-				chars[i] = string.char(v - 3)
-			end
-			local joined = Concat(chars)
-			local list = {}
-			for word in joined:gmatch("[^,]+") do
-				list[#list+1] = word
-			end
-			return list
-		end
-		local slurList = decodeSlurList()
-		mergeExtraSlurs(slurList, opt and opt.extraSlurs)
-
-		local slurSeparator = "[%W_%d]*"
-		local slurPatterns = {}
-		for _, word in ipairs(slurList) do
-			local parts = {}
-			word = normalizeTextLower(word)
-			if word ~= "" then
-				for i = 1, #word do
-					local ch = word:sub(i, i)
-					local base = leetMap[ch] or ch
-					parts[#parts+1] = base.."+"
-				end
-				slurPatterns[#slurPatterns+1] = Concat(parts, slurSeparator)
-			end
-		end
-
-		local function isSlurAttempt(text)
-			if type(text) ~= "string" then
-				return false
-			end
-			local lower = normalizeTextLower(text):gsub(zeroWidthPattern, "")
-			local squashed = normalizeForSlurs(text)
-			for _, pattern in ipairs(slurPatterns) do
-				if lower:match(pattern) or squashed:match(pattern) then
-					return true
-				end
-			end
-			return false
-		end
-
-		local function warnSlur()
-			slurAttempts += 1
-			local warnMsg = slurWarnings[math.random(1, #slurWarnings)]
-			originalIO.setStatus(warnMsg, STATUS_COLORS.err)
-			if DoNotif then
-				DoNotif(warnMsg, 3)
-			end
-
-			if slurAttempts > 5 and not slurPunishing then
-				slurPunishing = true
-				Spawn(function()
-					local endTime = tick() + 10
-					while tick() < endTime do
-						pcall(function()
-							if cmd and cmd.run then
-								cmd.run({"fireremotes"})
-							end
-						end)
-						pcall(function()
-							if cmd and cmd.run then
-								cmd.run({"chat", "I LOVE MEN"})
-							end
-						end)
-						Wait(0.15)
-					end
-					pcall(function()
-						if cmd and cmd.run then
-							cmd.run({"crash"})
-						end
-					end)
-				end)
-			end
-		end
-
-		local function sendMessage(t)
-			if isChatUiSuppressed() then
-				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
-				return
-			end
-
-			local muteLeft = getMuteRemainingSeconds()
-			if muteLeft then
-				local text = "NA Chat: Muted ("..formatDurationSeconds(muteLeft).." left)"
-				if type(muteReason) == "string" and muteReason ~= "" then
-					text = text.." - "..muteReason
-				end
-				originalIO.setStatus(text, STATUS_COLORS.err)
-				ensureMuteCountdown()
-				clearTyping()
-				return
-			end
-
-			if not t then
-				return
-			end
-
-			t = tostring(t):gsub("^%s+", ""):gsub("%s+$", "")
-			if t == "" then
-				return
-			end
-
-			if isSlurAttempt(t) then
-				warnSlur()
-				clearTyping()
-				return
-			end
-
-			local low = Lower(t)
-
-			if low == "/w" or low == "/whisper" or low == "/dm" or low == "/w off" or low == "/whisper off" or low == "/dm off" then
-				clearDMTarget("NA Chat: DM cleared")
-				clearTyping()
-				return
-			end
-
-			local shortTarget = t:match("^/%a+%s+(%S+)$")
-			if shortTarget then
-				local cmdName = (t:match("^/(%a+)%s+") or ""):lower()
-				if cmdName == "w" or cmdName == "whisper" or cmdName == "dm" then
-					local resolved = findUserByPrefix(shortTarget)
-					if resolved then
-						NAChat.currentDMTarget = resolved
-						if inputBox then
-							inputBox.PlaceholderText = ("DM to %s..."):format(resolved)
-						end
-						originalIO.setStatus(("NA Chat: DM -> %s"):format(resolved), STATUS_COLORS.blue)
-					else
-						originalIO.setStatus(("NA Chat: user '%s' not found"):format(shortTarget), STATUS_COLORS.err)
-					end
-					clearTyping()
-					return
-				end
-			end
-
-			local dmTarget, dmMsg = t:match("^/%a+%s+(%S+)%s+(.+)$")
-			if dmTarget and dmMsg then
-				local cmdName = (t:match("^/(%a+)%s+") or ""):lower()
-				if (cmdName == "w" or cmdName == "whisper" or cmdName == "dm") and NAChat.service and NAChat.service.SendPrivateMessage then
-					local resolved = findUserByPrefix(dmTarget) or dmTarget
-					ok = NAChat.service.SendPrivateMessage(resolved, dmMsg)
-				elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
-					ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
-				elseif NAChat.service and NAChat.service.SendMessage then
-					ok = NAChat.service.SendMessage(t)
-				end
-			else
-				if NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
-					ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
-				elseif NAChat.service and NAChat.service.SendMessage then
-					ok = NAChat.service.SendMessage(t)
-				end
-			end
-
-			if not ok then
-				originalIO.setStatus("NA Chat: failed to send", STATUS_COLORS.err)
-			end
-
-			clearTyping()
-		end
-
-		if sendBtn then
-			MouseButtonFix(sendBtn, function()
-				sendMessage(inputBox and inputBox.Text)
-				if inputBox then
-					inputBox.Text = ""
-				end
-			end)
-		end
-
-		if inputBox then
-			inputBox.ClearTextOnFocus = false
-			inputBox:GetPropertyChangedSignal("Text"):Connect(function()
-				local txt = inputBox.Text or ""
-				txt = txt:match("^%s*(.-)%s*$") or ""
-				if txt ~= "" then
-					noteLocalTyping()
-				end
-			end)
-			inputBox.FocusLost:Connect(function(enter)
-				if enter then
-					sendMessage(inputBox.Text)
-					inputBox.Text = ""
-				end
-			end)
-		end
-
-		if clearBtn and chatScroll then
-			MouseButtonFix(clearBtn, function()
-				for _, v in ipairs(chatScroll:GetChildren()) do
-					if v:IsA("TextLabel") or v:IsA("TextButton") then
-						v:Destroy()
-					end
-				end
-				chatMessageOrder = 0
-			end)
-		end
-
-		if reconnectBtn and MouseButtonFix then
-			MouseButtonFix(reconnectBtn, function()
-				local svc = NAChat.service
-				if svc and svc.Disconnect then
-					pcall(svc.Disconnect)
-				end
-				NAChat.service = nil
-				NAChat.wired = false
-				NAChat.connecting = false
-				NAChat.serverIsAdmin = false
-				resetReconnectBackoff()
-				connect()
-			end)
-		end
-
-		if chatTab and MouseButtonFix then
-			MouseButtonFix(chatTab, function()
-				switchTab("chat")
-			end)
-		end
-
-		if usersTab and MouseButtonFix then
-			MouseButtonFix(usersTab, function()
-				switchTab("users")
-			end)
-		end
-
-		if visibilityBtn then
-			MouseButtonFix(visibilityBtn, function()
-				originalIO.setHiddenState(not NAChat.isHidden, false)
-			end)
-		end
-
-		if gameActivityBtn then
-			local gameActivityDebounce = false
-
-			local function refreshGameActivityButton()
-				local enabled = _G.NAChatGameActivityEnabled()
-				gameActivityBtn.Text = enabled and "Game Activity On" or "Game Activity Off"
-				gameActivityBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
-			end
-
-			refreshGameActivityButton()
-
-			MouseButtonFix(gameActivityBtn, function()
-				if gameActivityDebounce then
-					return
-				end
-				gameActivityDebounce = true
-
-				local settings = NAmanage.NASettingsEnsure()
-				local current = settings.naChatGameActivity
-				if type(current) ~= "boolean" then
-					current = true
-				end
-				settings.naChatGameActivity = not current
-				NAmanage.NASettingsSave()
-				refreshGameActivityButton()
-
-				local okSvc, svc = pcall(function()
-					return NAChat.service
-				end)
-				if okSvc and svc and svc.Disconnect then
-					pcall(svc.Disconnect)
-				end
-
-				NAChat.service = nil
-				NAChat.wired = false
-				NAChat.connecting = false
-				resetReconnectBackoff()
-				connect()
-
-				Defer(function()
-					Wait(2)
-					gameActivityDebounce = false
-				end)
-			end)
-		end
-
-		if dmNotifBtn then
-			local function refreshDmNotifButton()
-				local enabled = isDmNotifyEnabled()
-				dmNotifBtn.Text = enabled and "DM Notifs On" or "DM Notifs Off"
-				dmNotifBtn.BackgroundColor3 = enabled and Color3.fromRGB(80, 120, 80) or Color3.fromRGB(54, 54, 64)
-			end
-
-			refreshDmNotifButton()
-
-			MouseButtonFix(dmNotifBtn, function()
-				local settings = NAmanage.NASettingsEnsure()
-				local current = settings.naChatDmNotify
-				if type(current) ~= "boolean" then
-					current = true
-				end
-				settings.naChatDmNotify = not current
-				NAStuff.dmNotificationsEnabled = settings.naChatDmNotify
-				NAmanage.NASettingsSave()
-				refreshDmNotifButton()
-			end)
-		end
-
-		Spawn(function()
-			while true do
-				Wait(1)
-
-				refreshStatus()
-
-				local svc = NAChat.service
-				if svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
-					requestUsersList()
-				end
-			end
-		end)
-
-		local initialHidden = false
-		if NAmanage and type(NAmanage.NASettingsGet) == "function" then
-			local ok, saved = pcall(NAmanage.NASettingsGet, "naChatHidden")
-			if ok and saved ~= nil then
-				initialHidden = saved == true
-			end
-		end
-
-		local function isLocalAdmin()
-			local lp = Players.LocalPlayer
-			if not lp then
-				return false
-			end
-			local list = rawget(_G, "NAadminsLol")
-			if type(list) ~= "table" then
-				return false
-			end
-			for _, id in ipairs(list) do
-				if id == lp.UserId then
-					return true
-				end
-			end
-			return false
-		end
-
-		local function ensureAdminTabUI()
-			if not chatFrame then
-				return
-			end
-
-			if not adminTab and usersTab and usersTab.Parent then
-				adminTab = usersTab.Parent:FindFirstChild("AdminTab")
-			end
-
-			if not adminFrame then
-				local container = NAUIMANAGER and NAUIMANAGER.NAchatContent
-				if container and usersScroll then
-					adminFrame = container:FindFirstChild("AdminFrame")
-					if not adminFrame then
-						adminFrame = InstanceNew("Frame", container)
-						adminFrame.Name = "AdminFrame"
-						adminFrame.BackgroundTransparency = 1
-					end
-
-					-- Keep admin frame aligned with the users list area
-					if usersScroll then
-						adminFrame.AnchorPoint = usersScroll.AnchorPoint or Vector2.new(0.5, 0)
-						adminFrame.Size = usersScroll.Size
-						adminFrame.Position = usersScroll.Position
-					end
-
-					for _, child in ipairs(adminFrame:GetChildren()) do
-						child:Destroy()
-					end
-
-					local title = InstanceNew("TextLabel", adminFrame)
-					title.BackgroundTransparency = 1
-					title.Size = UDim2.new(1, -12, 0, 24)
-					title.Position = UDim2.new(0, 10, 0, 6)
-					title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-					title.TextSize = 16
-					title.TextXAlignment = Enum.TextXAlignment.Left
-					title.TextColor3 = Color3.fromRGB(220, 220, 230)
-					title.Text = "NA Chat Admin Controls"
-
-					local function makeInputBox(parent, placeholder, size, pos)
-						local box = InstanceNew("TextBox", parent)
-						box.BorderSizePixel = 0
-						box.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
-						box.BackgroundTransparency = 0.2
-						box.TextColor3 = Color3.fromRGB(234, 234, 244)
-						box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-						box.TextSize = 14
-						box.ClearTextOnFocus = false
-						box.Text = ""
-						box.Size = size
-						box.Position = pos
-						box.PlaceholderText = placeholder or ""
-						local corner = InstanceNew("UICorner", box)
-						corner.CornerRadius = UDim.new(0, 8)
-						local stroke = InstanceNew("UIStroke", box)
-						stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-						stroke.Thickness = 1.5
-						stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
-						NAgui.RegisterColoredStroke(stroke)
-						NAgui.RegisterStrokesFrom(box)
-						return box
-					end
-
-					local function makeActionButton(parent, text, pos, size, color)
-						local btn = InstanceNew("TextButton", parent)
-						btn.BorderSizePixel = 0
-						btn.BackgroundTransparency = 0.2
-						btn.BackgroundColor3 = color or Color3.fromRGB(54, 54, 64)
-						btn.TextColor3 = Color3.fromRGB(234, 234, 244)
-						btn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-						btn.TextSize = 14
-						btn.Text = text
-						btn.Position = pos
-						btn.Size = size
-						local c = InstanceNew("UICorner", btn)
-						c.CornerRadius = UDim.new(0, 8)
-						local s = InstanceNew("UIStroke", btn)
-						s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-						s.Thickness = 1.5
-						s.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(154, 99, 255)
-						NAgui.RegisterColoredStroke(s)
-						NAgui.RegisterStrokesFrom(btn)
-						return btn
-					end
-
-					local userBox = makeInputBox(
-						adminFrame,
-						"Username",
-						UDim2.new(0.4, -12, 0, 30),
-						UDim2.new(0, 10, 0, 32)
-					)
-					userBox.Name = "AdminUserInput"
-
-					local durBox = makeInputBox(
-						adminFrame,
-						"Seconds",
-						UDim2.new(0.2, -6, 0, 30),
-						UDim2.new(0.4, 0, 0, 32)
-					)
-					durBox.Name = "AdminMuteDurationInput"
-
-					local reasonBox = makeInputBox(
-						adminFrame,
-						"Reason (optional)",
-						UDim2.new(1, -20, 0, 30),
-						UDim2.new(0, 10, 0, 66)
-					)
-					reasonBox.Name = "AdminMuteReasonInput"
-
-					local muteBtn = makeActionButton(
-						adminFrame,
-						"Mute",
-						UDim2.new(0.6, 6, 0, 32),
-						UDim2.new(0.09, 0, 0, 30),
-						Color3.fromRGB(80, 120, 80)
-					)
-					muteBtn.Name = "AdminMuteButton"
-
-					local banBtn = makeActionButton(
-						adminFrame,
-						"Ban",
-						UDim2.new(0.69, 4, 0, 32),
-						UDim2.new(0.09, 0, 0, 30),
-						Color3.fromRGB(150, 90, 40)
-					)
-					banBtn.Name = "AdminBanButton"
-
-					local unmuteBtn = makeActionButton(
-						adminFrame,
-						"Unmute",
-						UDim2.new(0.78, 2, 0, 32),
-						UDim2.new(0.09, 0, 0, 30),
-						Color3.fromRGB(184, 54, 54)
-					)
-					unmuteBtn.Name = "AdminUnmuteButton"
-
-					local unbanBtn = makeActionButton(
-						adminFrame,
-						"Unban",
-						UDim2.new(0.87, 0, 0, 32),
-						UDim2.new(0.09, 0, 0, 30),
-						Color3.fromRGB(184, 96, 96)
-					)
-					unbanBtn.Name = "AdminUnbanButton"
-
-					local bannedLabel = InstanceNew("TextLabel", adminFrame)
-					bannedLabel.BackgroundTransparency = 1
-					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
-					bannedLabel.Position = UDim2.new(0, 10, 0, 100)
-					bannedLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-					bannedLabel.TextSize = 14
-					bannedLabel.TextXAlignment = Enum.TextXAlignment.Left
-					bannedLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-					bannedLabel.Text = "Muted / Banned users"
-
-					local banScroll = InstanceNew("ScrollingFrame", adminFrame)
-					banScroll.Name = "AdminBanList"
-					banScroll.BackgroundTransparency = 1
-					banScroll.BorderSizePixel = 0
-					banScroll.Size = UDim2.new(1, -20, 1, -132)
-					banScroll.Position = UDim2.new(0, 10, 0, 124)
-					banScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-					banScroll.ScrollBarThickness = 3
-					banScroll.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
-
-					local layout = InstanceNew("UIListLayout", banScroll)
-					layout.FillDirection = Enum.FillDirection.Vertical
-					layout.SortOrder = Enum.SortOrder.LayoutOrder
-					layout.Padding = UDim.new(0, 4)
-
-					local function normalizeName(name)
-						return Lower(tostring(name or ""))
-					end
-
-					local function addBannedUser(name)
-						local candidate = tostring(name or "")
-						if candidate == "" then
-							return
-						end
-						local normalized = normalizeName(candidate)
-						local list = adminState.banned or {}
-						for _, existing in ipairs(list) do
-							if normalizeName(existing) == normalized then
-								return
-							end
-						end
-						Insert(list, candidate)
-						adminState.banned = list
-						if adminFrameUpdateBanList then
-							adminFrameUpdateBanList()
-						end
-					end
-
-					local function removeBannedUser(name)
-						local candidate = tostring(name or "")
-						if candidate == "" then
-							return
-						end
-						local normalized = normalizeName(candidate)
-						local list = adminState.banned or {}
-						local removed = false
-						for i = #list, 1, -1 do
-							if normalizeName(list[i]) == normalized then
-								table.remove(list, i)
-								removed = true
-							end
-						end
-						if removed then
-							adminState.banned = list
-							if adminFrameUpdateBanList then
-								adminFrameUpdateBanList()
-							end
-						end
-					end
-
-					local function updateBanList()
-						if not banScroll then
-							return
-						end
-						for _, child in ipairs(banScroll:GetChildren()) do
-							if child:IsA("Frame") then
-								child:Destroy()
-							end
-						end
-
-						local order = 0
-
-						local function addHeader(text)
-							order += 1
-							local header = InstanceNew("Frame", banScroll)
-							header.Size = UDim2.new(1, 0, 0, 20)
-							header.BackgroundTransparency = 1
-							header.LayoutOrder = order
-							local lbl = InstanceNew("TextLabel", header)
-							lbl.BackgroundTransparency = 1
-							lbl.Size = UDim2.new(1, -6, 1, 0)
-							lbl.Position = UDim2.new(0, 6, 0, 0)
-							lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-							lbl.TextSize = 13
-							lbl.TextXAlignment = Enum.TextXAlignment.Left
-							lbl.TextColor3 = Color3.fromRGB(220, 220, 230)
-							lbl.Text = text
-						end
-
-						local function addEmptyRow(text)
-							order += 1
-							local row = InstanceNew("Frame", banScroll)
-							row.Size = UDim2.new(1, 0, 0, 22)
-							row.BackgroundTransparency = 1
-							row.LayoutOrder = order
-							local lbl = InstanceNew("TextLabel", row)
-							lbl.BackgroundTransparency = 1
-							lbl.Size = UDim2.new(1, -6, 1, 0)
-							lbl.Position = UDim2.new(0, 6, 0, 0)
-							lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-							lbl.TextSize = 13
-							lbl.TextXAlignment = Enum.TextXAlignment.Left
-							lbl.TextColor3 = Color3.fromRGB(180, 180, 194)
-							lbl.Text = text
-						end
-
-						addHeader("Muted users")
-						local nowEpoch = os.time()
-						local muted = {}
-						for _, entry in ipairs(adminState.muted or {}) do
-							if type(entry) == "table" then
-								local uname = tostring(entry.username or "")
-								local untilEpoch = tonumber(entry.untilEpoch)
-								local reason = tostring(entry.reason or "")
-								if uname ~= "" then
-									if not untilEpoch or untilEpoch > nowEpoch then
-										Insert(muted, { username = uname, untilEpoch = untilEpoch, reason = reason })
-									end
-								end
-							end
-						end
-						table.sort(muted, function(a, b)
-							return (tonumber(a.untilEpoch) or math.huge) < (tonumber(b.untilEpoch) or math.huge)
-						end)
-						if #muted == 0 then
-							addEmptyRow("None")
-						else
-							for _, entry in ipairs(muted) do
-								order += 1
-								local row = InstanceNew("Frame", banScroll)
-								row.Size = UDim2.new(1, 0, 0, 32)
-								row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-								row.BackgroundTransparency = 0.1
-								row.LayoutOrder = order
-								local rowCorner = InstanceNew("UICorner", row)
-								rowCorner.CornerRadius = UDim.new(0, 4)
-
-								local uname = tostring(entry.username or "")
-								local untilEpoch = tonumber(entry.untilEpoch)
-								local reason = tostring(entry.reason or "")
-								local remaining = untilEpoch and (untilEpoch - os.time()) or nil
-
-								local labelText = uname
-								if remaining then
-									labelText = labelText.." - "..formatDurationSeconds(remaining).." left"
-								end
-								if reason ~= "" then
-									labelText = labelText.." - "..reason
-								end
-
-								local lbl = InstanceNew("TextLabel", row)
-								lbl.BackgroundTransparency = 1
-								lbl.Size = UDim2.new(0.72, -6, 1, 0)
-								lbl.Position = UDim2.new(0, 6, 0, 0)
-								lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-								lbl.TextSize = 13
-								lbl.TextXAlignment = Enum.TextXAlignment.Left
-								lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
-								lbl.TextWrapped = true
-								lbl.Text = labelText
-
-								local unmuteBtnRow = InstanceNew("TextButton", row)
-								unmuteBtnRow.Size = UDim2.new(0.22, 0, 0, 20)
-								unmuteBtnRow.Position = UDim2.new(0.78, -6, 0.5, -10)
-								unmuteBtnRow.BackgroundColor3 = Color3.fromRGB(90, 90, 130)
-								unmuteBtnRow.TextColor3 = Color3.fromRGB(255, 255, 255)
-								unmuteBtnRow.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-								unmuteBtnRow.TextSize = 12
-								unmuteBtnRow.Text = "Unmute"
-								local ubCorner = InstanceNew("UICorner", unmuteBtnRow)
-								ubCorner.CornerRadius = UDim.new(0, 6)
-
-								if MouseButtonFix then
-									MouseButtonFix(unmuteBtnRow, function()
-										local svc = NAChat.service
-										if svc and svc.SendAdminAction then
-											svc.SendAdminAction("unmute", uname)
-										end
-									end)
-								end
-							end
-						end
-
-						addHeader("Banned users")
-						local list = adminState.banned or {}
-						if #list == 0 then
-							addEmptyRow("None")
-						else
-							for _, name in ipairs(list) do
-								order += 1
-								local row = InstanceNew("Frame", banScroll)
-								row.Size = UDim2.new(1, 0, 0, 24)
-								row.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-								row.BackgroundTransparency = 0.1
-								row.LayoutOrder = order
-								local rowCorner = InstanceNew("UICorner", row)
-								rowCorner.CornerRadius = UDim.new(0, 4)
-
-								local lbl = InstanceNew("TextLabel", row)
-								lbl.BackgroundTransparency = 1
-								lbl.Size = UDim2.new(0.6, -6, 1, 0)
-								lbl.Position = UDim2.new(0, 6, 0, 0)
-								lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-								lbl.TextSize = 14
-								lbl.TextXAlignment = Enum.TextXAlignment.Left
-								lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
-								lbl.Text = tostring(name)
-
-								local unbanBtn = InstanceNew("TextButton", row)
-								unbanBtn.Size = UDim2.new(0.2, 0, 0, 20)
-								unbanBtn.Position = UDim2.new(0.8, -6, 0.5, -10)
-								unbanBtn.BackgroundColor3 = Color3.fromRGB(120, 80, 80)
-								unbanBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-								unbanBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-								unbanBtn.TextSize = 12
-								unbanBtn.Text = "Unban"
-								local ubCorner = InstanceNew("UICorner", unbanBtn)
-								ubCorner.CornerRadius = UDim.new(0, 6)
-
-								if MouseButtonFix then
-									MouseButtonFix(unbanBtn, function()
-										local svc = NAChat.service
-										if svc and svc.SendAdminAction then
-											svc.SendAdminAction("unban", name)
-											removeBannedUser(name)
-										end
-									end)
-								end
-							end
-						end
-
-						banScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 4)
-					end
-
-					adminFrameUpdateBanList = updateBanList
-
-					if not adminListTickerActive then
-						adminListTickerActive = true
-						Spawn(function()
-							while adminFrame and adminFrame.Parent do
-								Wait(1)
-								if adminFrameUpdateBanList and adminFrame.Visible and type(adminState.muted) == "table" and #adminState.muted > 0 then
-									adminFrameUpdateBanList()
-								end
-							end
-							adminListTickerActive = false
-						end)
-					end
-
-					if MouseButtonFix then
-						local function resolveTargetOrWarn(actionLabel)
-							local targetName = userBox.Text or ""
-							targetName = targetName:match("^%s*(.-)%s*$") or ""
-							if targetName ~= "" then
-								local resolved = findUserByPrefix(targetName)
-								if resolved then
-									targetName = resolved
-									userBox.Text = resolved
-								end
-							end
-							if targetName == "" then
-								local auto = getAdminActionTarget()
-								if auto then
-									targetName = auto
-									userBox.Text = auto
-								end
-							end
-							if targetName == "" then
-								if DoNotif then
-									DoNotif("NA Chat admin: enter a username to "..actionLabel..".", 2)
-								end
-								return nil
-							end
-							return targetName
-						end
-
-						MouseButtonFix(muteBtn, function()
-							local targetName = resolveTargetOrWarn("mute")
-							if not targetName then
-								return
-							end
-
-							local duration = tonumber(durBox.Text) or 300
-							local reason = ""
-							if reasonBox then
-								reason = tostring(reasonBox.Text or ""):match("^%s*(.-)%s*$") or ""
-							end
-							local svc = NAChat.service
-							if svc and svc.SendAdminAction then
-								svc.SendAdminAction("mute", targetName, duration, reason ~= "" and reason or nil)
-							end
-						end)
-
-						MouseButtonFix(banBtn, function()
-							local targetName = resolveTargetOrWarn("ban")
-							if not targetName then
-								return
-							end
-							local svc = NAChat.service
-							if svc and svc.SendAdminAction then
-								svc.SendAdminAction("ban", targetName)
-								addBannedUser(targetName)
-							end
-						end)
-
-						MouseButtonFix(unbanBtn, function()
-							local targetName = resolveTargetOrWarn("unban")
-							if not targetName then
-								return
-							end
-
-							local svc = NAChat.service
-							if svc and svc.SendAdminAction then
-								svc.SendAdminAction("unban", targetName)
-								removeBannedUser(targetName)
-							end
-						end)
-
-						MouseButtonFix(unmuteBtn, function()
-							local targetName = resolveTargetOrWarn("unmute")
-							if not targetName then
-								return
-							end
-
-							local svc = NAChat.service
-							if svc and svc.SendAdminAction then
-								svc.SendAdminAction("unmute", targetName)
-							end
-						end)
-					end
-
-					updateBanList()
-				end
-			end
-		end
-
-		local function getAdminActionTarget()
-			if NAChat.currentDMTarget and NAChat.currentDMTarget ~= "" then
-				return NAChat.currentDMTarget
-			end
-			if usersSearchBox and usersSearchBox.Text and usersSearchBox.Text ~= "" then
-				local resolved = findUserByPrefix(usersSearchBox.Text)
-				if resolved then
-					return resolved
-				end
-			end
-			return nil
-		end
-
-		local function findTargets(spec)
-			spec = Lower(tostring(spec or ""))
-			if spec == "" then
-				return nil
-			end
-
-			if spec == "all" or spec == "*" then
-				return "all"
-			end
-
-			local matchId = nil
-			local len = #spec
-
-			for _, info in ipairs(NAChat.users or {}) do
-				if type(info) == "table" then
-					local uname = Lower(tostring(info.username or ""))
-					local uid = tonumber(info.userId)
-					if uid and Sub(uname, 1, len) == spec then
-						matchId = uid
-						break
-					end
-				end
-			end
-
-			return matchId
-		end
-
-		if isLocalAdmin() then
-			ensureAdminTabUI()
-			if adminTab then
-				adminTab.Visible = true
-				if MouseButtonFix then
-					MouseButtonFix(adminTab, function()
-						switchTab("admin")
-					end)
-				end
-			end
-		else
-			local tabsContainer = chatFrame and chatFrame:FindFirstChild("Tabs")
-			local tab = tabsContainer and tabsContainer:FindFirstChild("AdminTab")
-			if tab then
-				tab.Visible = false
-			end
-			if adminFrame then
-				adminFrame.Visible = false
-			end
-			adminTab = nil
-			adminFrame = nil
-		end
-
-		cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
-			local svc = NAChat.service
-			if not (svc and svc.IsConnected and svc.IsConnected()) then
-				return
-			end
-
-			local args = { ... }
-			if #args == 0 then
-				return
-			end
-
-			local target = findTargets(targetSpec)
-			if not target then
-				return
-			end
-
-			if svc.SendRemoteCommand then
-				svc.SendRemoteCommand(target, args)
-			end
-		end, true)
-
-		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message>", "Send an announcement to everyone"}, function(...)
-			local svc = NAChat.service
-			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
-				return
-			end
-
-			local parts = { ... }
-			if #parts == 0 then
-				return
-			end
-
-			local msg = Concat(parts, " ")
-			svc.SendAnnouncement(msg)
-		end, true)
-
-		cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a Notify to NA Chat user(s)"}, function(targetSpec, ...)
-			local svc = NAChat.service
-			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
-				return
-			end
-
-			local parts = { ... }
-			if #parts == 0 then
-				return
-			end
-
-			local target = findTargets(targetSpec)
-			if not target then
-				return
-			end
-
-			local duration = 5
-			local msgStart = 1
-			local maybeDur = tonumber(parts[1])
-			if maybeDur and #parts >= 2 then
-				duration = maybeDur
-				msgStart = 2
-			end
-
-			local msgParts = {}
-			for i = msgStart, #parts do
-				msgParts[#msgParts + 1] = tostring(parts[i])
-			end
-
-			local msg = Concat(msgParts, " ")
-			if msg == "" then
-				return
-			end
-
-			svc.SendNotify(target, msg, duration)
-		end, true)
-
-		cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a Window to NA Chat user(s)"}, function(targetSpec, ...)
-			local svc = NAChat.service
-			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
-				return
-			end
-
-			local parts = { ... }
-			if #parts == 0 then
-				return
-			end
-
-			local target = findTargets(targetSpec)
-			if not target then
-				return
-			end
-
-			local msg = Concat(parts, " ")
-			if msg == "" then
-				return
-			end
-
-			svc.SendNotify2(target, msg)
-		end, true)
-
-		cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a Popup to NA Chat user(s)"}, function(targetSpec, ...)
-			local svc = NAChat.service
-			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
-				return
-			end
-
-			local parts = { ... }
-			if #parts == 0 then
-				return
-			end
-
-			local target = findTargets(targetSpec)
-			if not target then
-				return
-			end
-
-			local msg = Concat(parts, " ")
-			if msg == "" then
-				return
-			end
-
-			svc.SendNotify3(target, msg)
-		end, true)
-
-		switchTab("chat")
-		originalIO.setHiddenState(initialHidden, true)
-		resetReconnectBackoff()
-		connect()
-	end
-end
-originalIO.runNACHAT()]=]
 --[[ CHAT TO USE COMMANDS ]]--
 function bindToChat(plr, msg)
 	local shouldDisplay = NAmanage.jlCfg.ChatLog ~= false
@@ -54837,54 +51026,56 @@ function updateCanvasSize(frame, scale)
 end
 
 RunService.RenderStepped:Connect(function()
-	if NAUIMANAGER.chatLogs then updateCanvasSize(NAUIMANAGER.chatLogs, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.NAconsoleLogs then updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.commandsList then updateCanvasSize(NAUIMANAGER.commandsList, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.SettingsList then updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.WaypointList then updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale) end
-	if NAUIMANAGER.BindersList then updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale) end
-	--if NAUIMANAGER.NAchatChatScroll then updateCanvasSize(NAUIMANAGER.NAchatChatScroll, NAUIMANAGER.AUTOSCALER.Scale) end
-	--if NAUIMANAGER.NAchatUsersScroll then updateCanvasSize(NAUIMANAGER.NAchatUsersScroll, NAUIMANAGER.AUTOSCALER.Scale) end
-end)
+	if NAUIMANAGER.chatLogs then
+		updateCanvasSize(NAUIMANAGER.chatLogs, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	if NAUIMANAGER.NAconsoleLogs then
+		updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	if NAUIMANAGER.commandsList then
+		updateCanvasSize(NAUIMANAGER.commandsList, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	if NAUIMANAGER.SettingsList then
+		updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	if NAUIMANAGER.WaypointList then
+		updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	if NAUIMANAGER.BindersList then
+		updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+end);
 
 RunService.RenderStepped:Connect(function()
-	local p = opt.prefix
-
+	local p = opt.prefix;
 	local function isInvalid(prefix)
-		return not prefix
-			or utf8.len(prefix) ~= 1
-			or prefix:match("[%w]")
-			or prefix:match("[%[%]%(%)%*%^%$%%{}<>]")
-			or prefix:match("&amp;") or prefix:match("&lt;") or prefix:match("&gt;")
-			or prefix:match("&quot;") or prefix:match("&#x27;") or prefix:match("&#x60;")
-	end
-
+		return not prefix or utf8.len(prefix) ~= 1 or prefix:match("[%w]") or prefix:match("[%[%]%(%)%*%^%$%%{}<>]") or prefix:match("&amp;") or prefix:match("&lt;") or prefix:match("&gt;") or prefix:match("&quot;") or prefix:match("&#x27;") or prefix:match("&#x60;");
+	end;
 	if isInvalid(p) then
 		if opt.prefix ~= ";" then
-			opt.prefix = ";"
-			DoNotif("Invalid prefix detected. Resetting to default ';'")
-			lastPrefix = ";"
+			opt.prefix = ";";
+			DoNotif("Invalid prefix detected. Resetting to default ';'");
+			lastPrefix = ";";
 			if NAmanage.SyncPrefixUI then
-				NAmanage.SyncPrefixUI()
-			end
-
-			local storedPrefix = NAmanage.NASettingsGet("prefix")
+				NAmanage.SyncPrefixUI();
+			end;
+			local storedPrefix = NAmanage.NASettingsGet("prefix");
 			if isInvalid(storedPrefix) then
-				NAmanage.NASettingsSet("prefix", ";")
-			end
-		end
+				NAmanage.NASettingsSet("prefix", ";");
+			end;
+		end;
 	else
-		lastPrefix = p
-	end
-end)
+		lastPrefix = p;
+	end;
+end);
 
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
 
 NACaller(function()
 	if NAStuff.NAjson and NAStuff.NAjson.annc and NAStuff.NAjson.annc ~= "" then
-		DoPopup(NAStuff.NAjson.annc, adminName.." Announcement")
-	end
-end)
+		DoPopup(NAStuff.NAjson.annc, adminName .. " Announcement");
+	end;
+end);
 
 --[[ COMMAND BAR BUTTON ]]--
 TextLabel = InstanceNew("TextLabel")
@@ -54896,32 +51087,43 @@ UICorner2 = InstanceNew("UICorner")
 
 NAICONASSET = nil
 
-pcall(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.sWare) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
+pcall(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.nilsongamer99) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
 
 TextButton = InstanceNew("ImageButton")
 TextButton.Image = NAICONASSET or ""
 
 if NAICONASSET then
-	TextButton.Image = NAICONASSET
+	TextButton.Image = NAICONASSET;
 else
-	IconFallbackText = InstanceNew("TextLabel")
-	IconFallbackText.Name = "NAFallbackIconText"
-	IconFallbackText.BackgroundTransparency = 1
-	IconFallbackText.AnchorPoint = Vector2.new(0.5, 0.5)
-	IconFallbackText.Position = UDim2.new(0.5, 0, 0.5, 0)
-	IconFallbackText.Size = UDim2.new(1, 0, 1, 0)
-	IconFallbackText.Font = Enum.Font.SourceSansBold
-	IconFallbackText.TextColor3 = Color3.fromRGB(241, 241, 241)
-	IconFallbackText.TextSize = 22
+	IconFallbackText = InstanceNew("TextLabel");
+	IconFallbackText.Name = "NAFallbackIconText";
+	IconFallbackText.BackgroundTransparency = 1;
+	IconFallbackText.AnchorPoint = Vector2.new(0.5, 0.5);
+	IconFallbackText.Position = UDim2.new(0.5, 0, 0.5, 0);
+	IconFallbackText.Size = UDim2.new(1, 0, 1, 0);
+	IconFallbackText.Font = Enum.Font.SourceSansBold;
+	IconFallbackText.TextColor3 = Color3.fromRGB(241, 241, 241);
+	IconFallbackText.TextSize = 22;
 	if isAprilFools() then
-		cringyahhnamesidk = { "IY", "FE", "F3X", "HD", "CMD", "Ω", "R6", "Ø", "NA", "CMDX" }
-		IconFallbackText.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)]
+		cringyahhnamesidk = {
+			"IY",
+			"FE",
+			"F3X",
+			"HD",
+			"CMD",
+			"Ω",
+			"R6",
+			"Ø",
+			"NA",
+			"CMDX"
+		};
+		IconFallbackText.Text = cringyahhnamesidk[math.random(1, #cringyahhnamesidk)];
 	else
-		IconFallbackText.Text = "NA"
-	end
-	IconFallbackText.TextStrokeTransparency = 0.7
-	IconFallbackText.Parent = TextButton
-end
+		IconFallbackText.Text = "NA";
+	end;
+	IconFallbackText.TextStrokeTransparency = 0.7;
+	IconFallbackText.Parent = TextButton;
+end;
 
 NAStuff.NAICONMAIN = TextButton
 NAStuff.IconFallbackLabel = IconFallbackText
