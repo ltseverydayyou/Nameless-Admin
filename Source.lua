@@ -16358,99 +16358,149 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 		return
 	end
 
-	if not NAmanage._shaderSettingsBackup then
-		NAmanage._shaderSettingsBackup = {
-			Brightness = lighting.Brightness;
-			ColorShift_Bottom = lighting.ColorShift_Bottom;
-			ColorShift_Top = lighting.ColorShift_Top;
-			OutdoorAmbient = lighting.OutdoorAmbient;
-			ClockTime = lighting.ClockTime;
-			FogColor = lighting.FogColor;
-			FogEnd = lighting.FogEnd;
-			FogStart = lighting.FogStart;
-			ExposureCompensation = lighting.ExposureCompensation;
-			ShadowSoftness = lighting.ShadowSoftness;
-			Ambient = lighting.Ambient;
-		}
+	local st = NAmanage._ensureL()
+	st.shader = st.shader or {enabled=false, baseline={}, target={}}
+	local shader = st.shader
+
+	local shaderTarget = {
+		Brightness = 2.14;
+		ColorShift_Bottom = Color3.fromRGB(11, 0, 20);
+		ColorShift_Top = Color3.fromRGB(240, 127, 14);
+		OutdoorAmbient = Color3.fromRGB(34, 0, 49);
+		ClockTime = 6.7;
+		FogColor = Color3.fromRGB(94, 76, 106);
+		FogEnd = 1000;
+		FogStart = 0;
+		ExposureCompensation = 0.24;
+		ShadowSoftness = 0;
+		Ambient = Color3.fromRGB(59, 33, 27);
+	}
+
+	shader.target = shader.target or {}
+	for prop, val in pairs(shaderTarget) do
+		shader.target[prop] = val
+	end
+	shader.baseline = shader.baseline or {}
+
+	local shaderEffects = {
+		{className="BloomEffect", name="NAShaderBloom", props={Intensity=0.1, Threshold=0, Size=100}},
+		{className="Sky", name="NAShaderTropic", props={
+			SkyboxUp="http://www.roblox.com/asset/?id=169210149",
+			SkyboxLf="http://www.roblox.com/asset/?id=169210133",
+			SkyboxBk="http://www.roblox.com/asset/?id=169210090",
+			SkyboxFt="http://www.roblox.com/asset/?id=169210121",
+			SkyboxDn="http://www.roblox.com/asset/?id=169210108",
+			SkyboxRt="http://www.roblox.com/asset/?id=169210143",
+			StarCount=100,
+		}},
+		{className="Sky", name="NAShaderSky", props={
+			SkyboxUp="http://www.roblox.com/asset/?id=196263782",
+			SkyboxLf="http://www.roblox.com/asset/?id=196263721",
+			SkyboxBk="http://www.roblox.com/asset/?id=196263721",
+			SkyboxFt="http://www.roblox.com/asset/?id=196263721",
+			SkyboxDn="http://www.roblox.com/asset/?id=196263643",
+			SkyboxRt="http://www.roblox.com/asset/?id=196263721",
+			CelestialBodiesShown=false,
+		}},
+		{className="BlurEffect", name="NAShaderBlur", props={Size=2}},
+		{className="BlurEffect", name="NAShaderEfecto", props={Size=2, Enabled=false}},
+		{className="ColorCorrectionEffect", name="NAShaderInari", props={Saturation=0.05, TintColor=Color3.fromRGB(255, 224, 219)}},
+		{className="ColorCorrectionEffect", name="NAShaderNormal", props={Enabled=false, Saturation=-0.2, TintColor=Color3.fromRGB(255, 232, 215)}},
+		{className="SunRaysEffect", name="NAShaderSunRays", props={Intensity=0.05}},
+		{className="Sky", name="NAShaderSunset", props={
+			SkyboxUp="rbxassetid://323493360",
+			SkyboxLf="rbxassetid://323494252",
+			SkyboxBk="rbxassetid://323494035",
+			SkyboxFt="rbxassetid://323494130",
+			SkyboxDn="rbxassetid://323494368",
+			SkyboxRt="rbxassetid://323494067",
+			SunAngularSize=14,
+		}},
+		{className="ColorCorrectionEffect", name="NAShaderTakayama", props={Enabled=false, Saturation=-0.3, Contrast=0.1, TintColor=Color3.fromRGB(235, 214, 204)}},
+	}
+
+	local function ensureEffects()
+		for _, def in ipairs(shaderEffects) do
+			local inst = lighting:FindFirstChild(def.name)
+			if not inst or not inst:IsA(def.className) then
+				if inst then pcall(function() inst:Destroy() end) end
+				inst = InstanceNew(def.className)
+				inst.Name = def.name
+				inst.Parent = lighting
+			elseif inst.Parent ~= lighting then
+				pcall(function() inst.Parent = lighting end)
+			end
+			for prop, val in pairs(def.props) do
+				st.safeSet(inst, prop, val)
+			end
+		end
 	end
 
-	NAmanage.NAremoveShaderEffects(lighting)
-
-	local function createEffect(className, name)
-		local inst = InstanceNew(className)
-		inst.Name = name
-		inst.Parent = lighting
-		return inst
+	local function captureBaseline()
+		for prop, _ in pairs(shader.target) do
+			if shader.baseline[prop] == nil then
+				shader.baseline[prop] = st.safeGet(lighting, prop)
+			end
+		end
+		NAmanage._shaderSettingsBackup = shader.baseline
 	end
 
-	local bloom = createEffect("BloomEffect", "NAShaderBloom")
-	bloom.Intensity = 0.1
-	bloom.Threshold = 0
-	bloom.Size = 100
+	if not shader.apply then
+		shader.apply = function()
+			for prop, val in pairs(shader.target) do
+				st.safeSet(lighting, prop, val)
+			end
+		end
+	end
 
-	local tropic = createEffect("Sky", "NAShaderTropic")
-	tropic.SkyboxUp = "http://www.roblox.com/asset/?id=169210149"
-	tropic.SkyboxLf = "http://www.roblox.com/asset/?id=169210133"
-	tropic.SkyboxBk = "http://www.roblox.com/asset/?id=169210090"
-	tropic.SkyboxFt = "http://www.roblox.com/asset/?id=169210121"
-	tropic.StarCount = 100
-	tropic.SkyboxDn = "http://www.roblox.com/asset/?id=169210108"
-	tropic.SkyboxRt = "http://www.roblox.com/asset/?id=169210143"
+	if not shader.restore then
+		shader.restore = function()
+			for prop, val in pairs(shader.baseline or {}) do
+				if val ~= nil then st.safeSet(lighting, prop, val) end
+			end
+			NAmanage._shaderSettingsBackup = nil
+		end
+	end
 
-	local shaderSky = createEffect("Sky", "NAShaderSky")
-	shaderSky.SkyboxUp = "http://www.roblox.com/asset/?id=196263782"
-	shaderSky.SkyboxLf = "http://www.roblox.com/asset/?id=196263721"
-	shaderSky.SkyboxBk = "http://www.roblox.com/asset/?id=196263721"
-	shaderSky.SkyboxFt = "http://www.roblox.com/asset/?id=196263721"
-	shaderSky.CelestialBodiesShown = false
-	shaderSky.SkyboxDn = "http://www.roblox.com/asset/?id=196263643"
-	shaderSky.SkyboxRt = "http://www.roblox.com/asset/?id=196263721"
+	if not shader.init then
+		shader.init = true
+		for prop, _ in pairs(shader.target) do
+			local connName = "shader_prop_"..Lower(prop)
+			st.hook(connName, function() return lighting:GetPropertyChangedSignal(prop):Connect(function()
+					if st.shader and st.shader.enabled then
+						if st.safeGet(lighting, prop) ~= st.shader.target[prop] then
+							st.safeSet(lighting, prop, st.shader.target[prop])
+						end
+					else
+						if st.shader and st.shader.baseline then
+							st.shader.baseline[prop] = st.safeGet(lighting, prop)
+							NAmanage._shaderSettingsBackup = st.shader.baseline
+						end
+					end
+				end) end)
+		end
 
-	local blur = createEffect("BlurEffect", "NAShaderBlur")
-	blur.Size = 2
+		st.hook("shader_effects_loop", function() return RunService.RenderStepped:Connect(function()
+				if not (st.shader and st.shader.enabled) then return end
+				ensureEffects()
+				shader.apply()
+			end) end)
 
-	local efecto = createEffect("BlurEffect", "NAShaderEfecto")
-	efecto.Enabled = false
-	efecto.Size = 2
+		st.hook("shader_effects_removed", function() return lighting.DescendantRemoving:Connect(function(inst)
+				if not (st.shader and st.shader.enabled) or not inst then return end
+				for _, name in ipairs(NA_SHADER_EFFECT_NAMES) do
+					if inst.Name == name then
+						Delay(0, ensureEffects)
+						break
+					end
+				end
+			end) end)
+	end
 
-	local inari = createEffect("ColorCorrectionEffect", "NAShaderInari")
-	inari.Saturation = 0.05
-	inari.TintColor = Color3.fromRGB(255, 224, 219)
-
-	local normal = createEffect("ColorCorrectionEffect", "NAShaderNormal")
-	normal.Enabled = false
-	normal.Saturation = -0.2
-	normal.TintColor = Color3.fromRGB(255, 232, 215)
-
-	local sunRays = createEffect("SunRaysEffect", "NAShaderSunRays")
-	sunRays.Intensity = 0.05
-
-	local sunset = createEffect("Sky", "NAShaderSunset")
-	sunset.SkyboxUp = "rbxassetid://323493360"
-	sunset.SkyboxLf = "rbxassetid://323494252"
-	sunset.SkyboxBk = "rbxassetid://323494035"
-	sunset.SkyboxFt = "rbxassetid://323494130"
-	sunset.SkyboxDn = "rbxassetid://323494368"
-	sunset.SunAngularSize = 14
-	sunset.SkyboxRt = "rbxassetid://323494067"
-
-	local takayama = createEffect("ColorCorrectionEffect", "NAShaderTakayama")
-	takayama.Enabled = false
-	takayama.Saturation = -0.3
-	takayama.Contrast = 0.1
-	takayama.TintColor = Color3.fromRGB(235, 214, 204)
-
-	lighting.Brightness = 2.14
-	lighting.ColorShift_Bottom = Color3.fromRGB(11, 0, 20)
-	lighting.ColorShift_Top = Color3.fromRGB(240, 127, 14)
-	lighting.OutdoorAmbient = Color3.fromRGB(34, 0, 49)
-	lighting.ClockTime = 6.7
-	lighting.FogColor = Color3.fromRGB(94, 76, 106)
-	lighting.FogEnd = 1000
-	lighting.FogStart = 0
-	lighting.ExposureCompensation = 0.24
-	lighting.ShadowSoftness = 0
-	lighting.Ambient = Color3.fromRGB(59, 33, 27)
+	captureBaseline()
+	shader.enabled = true
+	ensureEffects()
+	shader.apply()
 
 	DoNotif("Shader preset applied.", 3)
 end)
@@ -16462,17 +16512,24 @@ cmd.add({"unshaders", "shadersoff", "rtxoff"}, {"unshaders (shadersoff, rtxoff)"
 		return
 	end
 
-	NAmanage.NAremoveShaderEffects(lighting)
+	local st = NAmanage._ensureL()
+	if st.shader then
+		st.shader.enabled = false
+	end
 
-	local backup = NAmanage._shaderSettingsBackup
-	if backup then
-		for prop, value in pairs(backup) do
-			pcall(function()
-				lighting[prop] = value
-			end)
+	if st.shader and st.shader.restore then
+		st.shader.restore()
+	else
+		local backup = NAmanage._shaderSettingsBackup
+		if backup then
+			for prop, value in pairs(backup) do
+				st.safeSet(lighting, prop, value)
+			end
 		end
 		NAmanage._shaderSettingsBackup = nil
 	end
+
+	NAmanage.NAremoveShaderEffects(lighting)
 
 	DoNotif("Shader preset removed.", 3)
 end)
