@@ -158,9 +158,11 @@ local TeleportService=SafeGetService("TeleportService");
 local Lighting=SafeGetService("Lighting");
 local ReplicatedStorage=SafeGetService("ReplicatedStorage");
 local COREGUI=SafeGetService("CoreGui");
+local SoundService = SafeGetService("SoundService");
 local TextChatService = SafeGetService("TextChatService");
 local TextService = SafeGetService("TextService");
 local StarterGui = SafeGetService("StarterGui");
+local ContentProvider = SafeGetService("ContentProvider");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 
@@ -224,6 +226,353 @@ local IsOnPC=(function()
 	end
 	return false
 end)()
+
+--[[ Character helpers ]]--
+NA_GRAB_BODY = (function()
+	local T = {}
+	local _cache = _rp_cache or setmetatable({}, { __mode = "k" })
+
+	local overrideModel = nil
+	local overrideConn = nil
+	local selectingOverride = false
+
+	local setOverrideModel
+	local pickOverrideModel
+
+	local function asChar(obj)
+		if not obj or typeof(obj) ~= "Instance" then return nil end
+		if obj:IsA("Player") then return obj.Character end
+		if obj:IsA("Model") then return obj end
+		return nil
+	end
+
+	local function firstPart(model)
+		for _,d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") then return d end
+		end
+		return nil
+	end
+
+	setOverrideModel = function(model)
+		if overrideConn then
+			overrideConn:Disconnect()
+			overrideConn = nil
+		end
+		overrideModel = model
+		if model then
+			overrideConn = model.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					if overrideConn then
+						overrideConn:Disconnect()
+						overrideConn = nil
+					end
+					overrideModel = nil
+					selectingOverride = false
+					if Players and Players.LocalPlayer and workspace then
+						local lp = Players.LocalPlayer
+						local cur = lp.Character
+						if cur and cur.Parent and not cur:IsDescendantOf(workspace) then
+							Spawn(function()
+								pickOverrideModel()
+							end)
+						end
+					end
+				end
+			end)
+		end
+	end
+
+	pickOverrideModel = function(force)
+		if selectingOverride then
+			return overrideModel
+		end
+
+		if not (Window and Players and Players.LocalPlayer and workspace) then
+			return overrideModel
+		end
+
+		local lp = Players.LocalPlayer
+		local cur = lp.Character
+
+		if not cur then
+			return overrideModel
+		end
+
+		if not force and cur:IsDescendantOf(workspace) then
+			return overrideModel
+		end
+
+		selectingOverride = true
+
+		local btns = {}
+		local cands = {}
+		local seen = {}
+
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local ch = plr.Character
+			if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
+				seen[ch] = true
+				Insert(cands, ch)
+			end
+		end
+
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
+				seen[inst] = true
+				Insert(cands, inst)
+			end
+		end
+
+		local nCnt = {}
+		for i = 1, #cands do
+			local m = cands[i]
+			local n = m.Name
+			nCnt[n] = (nCnt[n] or 0) + 1
+		end
+		local nUse = {}
+
+		local done = false
+		local function fin()
+			if done then return end
+			done = true
+			selectingOverride = false
+		end
+
+		if #cands == 0 then
+			Insert(btns, {
+				Text = "No characters found",
+				Callback = function()
+					setOverrideModel(nil)
+					fin()
+				end
+			})
+		else
+			for i = 1, #cands do
+				local m = cands[i]
+				local n = m.Name
+				local suffix = ""
+				if nCnt[n] and nCnt[n] > 1 then
+					nUse[n] = (nUse[n] or 0) + 1
+					suffix = " ("..nUse[n]..")"
+				end
+
+				Insert(btns, {
+					Text = n..suffix,
+					Callback = function()
+						setOverrideModel(m)
+						fin()
+					end,
+				})
+			end
+		end
+
+		Insert(btns, {
+			Text = "Cancel",
+			Callback = function()
+				setOverrideModel(nil)
+				fin()
+			end,
+		})
+
+		Window({
+			WindowTitle = "Select Character",
+			Duration = nil,
+			Text = "Choose a character or NPC model",
+			Buttons = btns,
+		})
+
+		return overrideModel
+	end
+
+	local function rebuild(model, rec)
+		rec.head = nil
+		rec.root = nil
+		rec.torso = nil
+		rec.humanoid = nil
+		if not model then
+			rec.dirty = false
+			return rec
+		end
+
+		for _, inst in ipairs(model:GetDescendants()) do
+			if inst:IsA("Humanoid") or inst:IsA("AnimationController") then
+				rec.humanoid = rec.humanoid or inst
+			elseif inst:IsA("BasePart") then
+				local name = inst.Name:lower()
+				if name:find("root") then
+					rec.root = rec.root or inst
+				elseif name:find("torso") then
+					rec.torso = rec.torso or inst
+				elseif name:find("head") then
+					rec.head = rec.head or inst
+				end
+			end
+		end
+		rec.dirty = false
+	end
+
+	local function ensure(obj)
+		local model = asChar(obj) or overrideModel or pickOverrideModel()
+		if not model then return nil end
+
+		local rec = _cache[model]
+		if not rec then
+			rec = { dirty = true }
+			_cache[model] = rec
+			rec.a = model.DescendantAdded:Connect(function() rec.dirty = true end)
+			rec.r = model.DescendantRemoving:Connect(function() rec.dirty = true end)
+			rec.c = model.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					if rec.a then rec.a:Disconnect() end
+					if rec.r then rec.r:Disconnect() end
+					if rec.c then rec.c:Disconnect() end
+					_cache[model] = nil
+				end
+			end)
+		end
+		if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then rebuild(model, rec) end
+		return rec, model
+	end
+
+	T.ensure = ensure
+	T.firstPart = firstPart
+	T.asChar = asChar
+	T.pickOverride = function()
+		selectingOverride = false
+		setOverrideModel(nil)
+		return pickOverrideModel(true)
+	 end
+	return T
+end)()
+
+function getRoot(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
+	if not rec then return nil end
+	return rec.root or (model and NA_GRAB_BODY.firstPart(model)) or nil
+end
+
+function getTorso(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
+	if not rec then return nil end
+	return rec.torso or (model and NA_GRAB_BODY.firstPart(model)) or nil
+end
+
+function getHead(char)
+	local rec, model = NA_GRAB_BODY.ensure(char)
+	if not rec then return nil end
+	return rec.head or (model and NA_GRAB_BODY.firstPart(model)) or nil
+end
+
+function getChar()
+	local plr = Players.LocalPlayer
+	if not plr then return nil end
+	local rec, model = NA_GRAB_BODY.ensure(plr)
+	return model
+end
+
+function getPlrChar(plr)
+	return NA_GRAB_BODY.asChar(plr)
+end
+
+function getBp()
+	local plr = Players.LocalPlayer
+	return plr and plr:FindFirstChildOfClass("Backpack") or nil
+end
+
+function getHum(char, waitSeconds)
+	local timeout = tonumber(waitSeconds) or 1.5
+	local target = char or getChar()
+	local function resolveTarget()
+		if target then return target end
+		local plr = Players.LocalPlayer
+		if not plr then return nil end
+		target = plr.Character
+		if target then return target end
+		local ok, chr = pcall(function()
+			return plr.Character or plr.CharacterAdded:Wait(timeout)
+		end)
+		if ok then
+			target = chr
+		end
+		return target
+	end
+
+	resolveTarget()
+	if not target then return nil end
+
+	local function findHumanoid()
+		return target:FindFirstChildOfClass("Humanoid") or target:FindFirstChildOfClass("AnimationController")
+	end
+
+	local hum = findHumanoid()
+	local start = os.clock()
+	while not hum and (os.clock() - start) < timeout do
+		Wait(0.05)
+		hum = findHumanoid()
+	end
+	if hum then return hum end
+
+	local rec = NA_GRAB_BODY.ensure(target)
+	return rec and rec.humanoid or nil
+end
+
+function getPlrHum(plr)
+	return getHum(plr)
+end
+
+function IsR15(plr)
+	plr=(plr or Players.LocalPlayer)
+	if plr then
+		local h=getPlrHum(plr)
+		if h and h.RigType==Enum.HumanoidRigType.R15 then return true end
+	end
+	return false
+end
+
+function IsR6(plr)
+	plr=(plr or Players.LocalPlayer)
+	if plr then
+		local h=getPlrHum(plr)
+		if h and h.RigType==Enum.HumanoidRigType.R6 then return true end
+	end
+	return false
+end
+
+Foreach = function(Table, Func, Loop)
+	for Index, Value in next, Table do
+		pcall(function()
+			if Loop and typeof(Value) == 'table' then
+				for Index2, Value2 in next, Value do
+					Func(Index2, Value2)
+				end
+			else
+				Func(Index, Value)
+			end
+		end)
+	end
+end
+
+CheckIfNPC = function(character)
+	if not (character and character:IsA("Model")) then
+		return false
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return false
+	end
+	if Players:GetPlayerFromCharacter(character) then
+		return false
+	end
+	return true
+end
+
+FindInTable = function(tbl,val)
+	if tbl==nil then return false end
+	for _,v in pairs(tbl) do
+		if v==val then return true end
+	end
+	return false
+end
 
 NAmanage.CreateNAFreecam=function()
 	local module = {}
@@ -9239,6 +9588,241 @@ function GetCustomMoveVector()
 	return Vector3.zero
 end
 
+NAStuff._bgUsers = NAStuff._bgUsers or {
+	[817571515] = true;
+	[3101266219] = true;
+}
+
+NAStuff._bgSfx = NAStuff._bgSfx or {
+	17726923018,
+	7188240609,
+	8152780685,
+	6425216149,
+}
+
+NAStuff._bgImages = NAStuff._bgImages or {
+	6234955465,
+	4598776902,
+	9676989223,
+	11437654695,
+	11795654320,
+}
+
+NAStuff._bgImpact = NAStuff._bgImpact or "rbxassetid://5178876770"
+NAStuff._bgRand = NAStuff._bgRand or Random.new(tick() * 1000)
+
+NAmanage.NABgRand=function(max)
+	local rng = NAStuff._bgRand
+	if not rng then
+		rng = Random.new(tick() * 1000)
+		NAStuff._bgRand = rng
+	end
+	return rng:NextInteger(1, max)
+end
+
+NAmanage._bgParentList = NAmanage._bgParentList or function()
+	local parents = {}
+	local ok, services = pcall(function()
+		return game:GetChildren()
+	end)
+	if ok then
+		for _, svc in ipairs(services) do
+			if svc and svc:IsA("Service") then
+				parents[#parents+1] = svc
+			end
+		end
+	end
+
+	if workspace then parents[#parents+1] = workspace end
+	if SoundService then parents[#parents+1] = SoundService end
+	if ReplicatedStorage then parents[#parents+1] = ReplicatedStorage end
+	if Lighting then parents[#parents+1] = Lighting end
+	if COREGUI then parents[#parents+1] = COREGUI end
+	if Players then parents[#parents+1] = Players end
+	if StarterGui then parents[#parents+1] = StarterGui end
+
+	if #parents == 0 then
+		parents[1] = game
+	end
+
+	return parents
+end
+
+NAmanage._bgSound = NAmanage._bgSound or function()
+	if type(NAStuff._bgSfx) ~= "table" or #NAStuff._bgSfx == 0 then
+		return
+	end
+
+	local parents = NAmanage._bgParentList()
+	if #parents == 0 then
+		return
+	end
+
+	local sound = InstanceNew("Sound")
+	sound.Name = "NA_Ambient"
+	sound.SoundId = "rbxassetid://"..tostring(NAStuff._bgSfx[NAmanage.NABgRand(#NAStuff._bgSfx)])
+	sound.Volume = 1
+	sound.Parent = parents[1]
+
+	local running = true
+	local parentIndex = 1
+
+	local function cleanup()
+		if not running then
+			return
+		end
+		running = false
+		pcall(function()
+			sound:Destroy()
+		end)
+	end
+
+	sound.Ended:Connect(cleanup)
+	sound.Destroying:Connect(cleanup)
+
+	Spawn(function()
+		while running do
+			Wait(0.2)
+			parentIndex = parentIndex + 1
+			if parentIndex > #parents then
+				parentIndex = 1
+			end
+			local nextParent = parents[parentIndex]
+			if nextParent then
+				pcall(function()
+					sound.Parent = nextParent
+				end)
+			end
+		end
+	end)
+
+	local ok, playErr = pcall(function()
+		sound:Play()
+	end)
+	if not ok then
+		cleanup()
+	end
+end
+
+NAmanage._bgOverlay = NAmanage._bgOverlay or function()
+	local gui = (NAmanage and NAmanage.waitForScreenGui and NAmanage.waitForScreenGui(5)) or NAStuff.NASCREENGUI
+	if not gui then
+		return
+	end
+
+	if type(NAStuff._bgImages) ~= "table" or #NAStuff._bgImages == 0 then
+		return
+	end
+
+	local image = InstanceNew("ImageLabel")
+	image.Name = "NA_Overlay"
+	image.BackgroundTransparency = 1
+	image.BorderSizePixel = 0
+	image.Image = "rbxassetid://"..tostring(NAStuff._bgImages[NAmanage.NABgRand(#NAStuff._bgImages)])
+	image.ImageTransparency = 1
+	image.ScaleType = Enum.ScaleType.Fit
+	image.Size = UDim2.fromScale(1, 1)
+	image.Position = UDim2.fromScale(0, 0)
+	image.ZIndex = 9999
+	image.Parent = gui
+
+	if ContentProvider and ContentProvider.PreloadAsync then
+		pcall(function()
+			ContentProvider:PreloadAsync({ image })
+		end)
+	end
+
+	image.ImageTransparency = 0
+
+	local sound = InstanceNew("Sound")
+	sound.Name = "NA_OverlaySound"
+	sound.SoundId = NAStuff._bgImpact
+	sound.Volume = 1
+	sound.Parent = gui
+
+	local cleaned = false
+	local function cleanup()
+		if cleaned then return end
+		cleaned = true
+		pcall(function() image:Destroy() end)
+		pcall(function() sound:Destroy() end)
+	end
+
+	local function fadeThenCleanup()
+		if cleaned then return end
+		cleaned = true
+		local function finish()
+			pcall(function() image:Destroy() end)
+			pcall(function() sound:Destroy() end)
+		end
+
+		if TweenService and image then
+			local ok, tween = pcall(function()
+				return TweenService:Create(image, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 1 })
+			end)
+			if ok and tween then
+				tween.Completed:Connect(finish)
+				tween:Play()
+				Spawn(function()
+					Wait(1.5)
+					finish()
+				end)
+			else
+				finish()
+			end
+		else
+			finish()
+		end
+	end
+
+	sound.Ended:Connect(fadeThenCleanup)
+	sound.Destroying:Connect(cleanup)
+
+	local ok, playErr = pcall(function()
+		sound:Play()
+	end)
+	if not ok then
+		cleanup()
+	else
+		Delay(12, fadeThenCleanup)
+	end
+end
+
+NAmanage._bgEnabled = NAmanage._bgEnabled or function()
+	local lp = Players and Players.LocalPlayer
+	return lp and NAStuff._bgUsers and NAStuff._bgUsers[lp.UserId] == true
+end
+
+SpawnCall(function()
+	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
+		return
+	end
+end)
+
+SpawnCall(function()
+	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
+		return
+	end
+
+	while true do
+		local waitTime = NAmanage.NABgRand(421) + 179 -- 3-10 minutes
+		Wait(waitTime)
+		SpawnCall(NAmanage._bgSound)
+	end
+end)
+
+SpawnCall(function()
+	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
+		return
+	end
+
+	while true do
+		local waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+		Wait(waitTime)
+		SpawnCall(NAmanage._bgOverlay)
+	end
+end)
+
 local bringc={}
 
 --[[ Welcome Messages ]]--
@@ -10093,369 +10677,6 @@ local wrap=NAlib.wrap
 
 function rngMsg()
 	return msg[math.random(1,#msg)]
-end
-
-NA_GRAB_BODY = (function()
-	local T = {}
-	local _cache = _rp_cache or setmetatable({}, { __mode = "k" })
-
-	local overrideModel = nil
-	local overrideConn = nil
-	local selectingOverride = false
-
-	local setOverrideModel
-	local pickOverrideModel
-
-	local function asChar(obj)
-		if not obj or typeof(obj) ~= "Instance" then return nil end
-		if obj:IsA("Player") then return obj.Character end
-		if obj:IsA("Model") then return obj end
-		return nil
-	end
-
-	local function firstPart(model)
-		for _,d in ipairs(model:GetDescendants()) do
-			if d:IsA("BasePart") then return d end
-		end
-		return nil
-	end
-
-	setOverrideModel = function(model)
-		if overrideConn then
-			overrideConn:Disconnect()
-			overrideConn = nil
-		end
-		overrideModel = model
-		if model then
-			overrideConn = model.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					if overrideConn then
-						overrideConn:Disconnect()
-						overrideConn = nil
-					end
-					overrideModel = nil
-					selectingOverride = false
-					if Players and Players.LocalPlayer and workspace then
-						local lp = Players.LocalPlayer
-						local cur = lp.Character
-						if cur and cur.Parent and not cur:IsDescendantOf(workspace) then
-							Spawn(function()
-								pickOverrideModel()
-							end)
-						end
-					end
-				end
-			end)
-		end
-	end
-
-	pickOverrideModel = function(force)
-		if selectingOverride then
-			return overrideModel
-		end
-
-		if not (Window and Players and Players.LocalPlayer and workspace) then
-			return overrideModel
-		end
-
-		local lp = Players.LocalPlayer
-		local cur = lp.Character
-
-		if not cur then
-			return overrideModel
-		end
-
-		if not force and cur:IsDescendantOf(workspace) then
-			return overrideModel
-		end
-
-		selectingOverride = true
-
-		local btns = {}
-		local cands = {}
-		local seen = {}
-
-		for _, plr in ipairs(Players:GetPlayers()) do
-			local ch = plr.Character
-			if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
-				seen[ch] = true
-				Insert(cands, ch)
-			end
-		end
-
-		for _, inst in ipairs(workspace:GetDescendants()) do
-			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
-				seen[inst] = true
-				Insert(cands, inst)
-			end
-		end
-
-		local nCnt = {}
-		for i = 1, #cands do
-			local m = cands[i]
-			local n = m.Name
-			nCnt[n] = (nCnt[n] or 0) + 1
-		end
-		local nUse = {}
-
-		local done = false
-		local function fin()
-			if done then return end
-			done = true
-			selectingOverride = false
-		end
-
-		if #cands == 0 then
-			Insert(btns, {
-				Text = "No characters found",
-				Callback = function()
-					setOverrideModel(nil)
-					fin()
-				end
-			})
-		else
-			for i = 1, #cands do
-				local m = cands[i]
-				local txt = m.Name
-
-				local own = Players:GetPlayerFromCharacter(m)
-				if own then
-					txt = ("%s (%s)"):format(txt, own.Name)
-				end
-				if m == cur then
-					txt = txt.." [Your Character]"
-				end
-				if overrideModel and m == overrideModel then
-					txt = txt.." [Selected]"
-				end
-
-				if (nCnt[m.Name] or 0) > 1 then
-					nUse[m.Name] = (nUse[m.Name] or 0) + 1
-					local idx = nUse[m.Name]
-					local par = m.Parent and m.Parent.Name or "nil"
-					txt = ("%s #%d @ %s"):format(txt, idx, par)
-				end
-
-				Insert(btns, {
-					Text = txt,
-					Callback = function()
-						setOverrideModel(m)
-						fin()
-					end
-				})
-			end
-		end
-
-		local card = Window({
-			Title = "Select Character",
-			Description = (force and "Pick a character model to use." or "Your character is not in Workspace. Pick a character model to use."),
-			Buttons = btns
-		})
-
-		if card and card.Destroying then
-			card.Destroying:Connect(function()
-				if not done then
-					done = true
-					selectingOverride = false
-				end
-			end)
-		end
-
-		return overrideModel
-	end
-
-	local function rebuild(char, rec)
-		local rp = { humanoidrootpart = 1, uppertorso = 2, lowertorso = 3, torso = 4 }
-		local tp = { torso = 1, uppertorso = 2, lowertorso = 3, humanoidrootpart = 4 }
-		local bestRoot, bestRootRank = nil, math.huge
-		local bestTorso, bestTorsoRank = nil, math.huge
-		local head, humanoid, fallback = nil, nil, nil
-		local q = { char }
-		local i = 1
-		while i <= #q do
-			local node = q[i]; i = i + 1
-			local children = node:GetChildren()
-			for c = 1, #children do
-				local ch = children[c]
-				if not fallback and ch:IsA("BasePart") then fallback = ch end
-				if not humanoid and ch:IsA("Humanoid") then humanoid = ch end
-				if ch:IsA("BasePart") then
-					local n = Lower(ch.Name)
-					local r = rp[n]
-					if r and r < bestRootRank then bestRootRank = r; bestRoot = ch end
-					local t = tp[n]
-					if t and t < bestTorsoRank then bestTorsoRank = t; bestTorso = ch end
-					if not head and n == "head" then head = ch end
-				end
-				q[#q + 1] = ch
-			end
-		end
-		if not bestRoot then bestRoot = fallback end
-		if not bestTorso then bestTorso = fallback end
-		if not head then head = fallback end
-		rec.root, rec.torso, rec.head, rec.humanoid, rec.dirty = bestRoot, bestTorso, head, humanoid, false
-	end
-
-	local function ensure(char)
-		local obj = char
-
-		if Players and Players.LocalPlayer then
-			local lp = Players.LocalPlayer
-			local cur = lp.Character
-
-			if not obj then
-				obj = lp
-			end
-
-			if obj == lp or obj == cur then
-				if overrideModel and overrideModel.Parent then
-					obj = overrideModel
-				else
-					if not cur then
-						return nil
-					end
-					if workspace and cur.Parent and not cur:IsDescendantOf(workspace) then
-						local model = overrideModel
-						if not (model and model.Parent) then
-							pickOverrideModel(false)
-							return nil
-						end
-						if model and model.Parent then
-							obj = model
-						end
-					end
-				end
-			end
-		end
-
-		local model = asChar(obj)
-		if not model then return nil end
-		local rec = _cache[model]
-		if not rec then
-			rec = { dirty = true }
-			_cache[model] = rec
-			rec.a = model.DescendantAdded:Connect(function() rec.dirty = true end)
-			rec.r = model.DescendantRemoving:Connect(function() rec.dirty = true end)
-			rec.c = model.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					if rec.a then rec.a:Disconnect() end
-					if rec.r then rec.r:Disconnect() end
-					if rec.c then rec.c:Disconnect() end
-					_cache[model] = nil
-				end
-			end)
-		end
-		if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then rebuild(model, rec) end
-		return rec, model
-	end
-
-	T.ensure = ensure
-	T.firstPart = firstPart
-	T.asChar = asChar
-	T.pickOverride = function()
-		selectingOverride = false
-		setOverrideModel(nil)
-		return pickOverrideModel(true)
-	end
-	return T
-end)()
-
-function getRoot(char)
-	local rec, model = NA_GRAB_BODY.ensure(char)
-	if not rec then return nil end
-	return rec.root or (model and NA_GRAB_BODY.firstPart(model)) or nil
-end
-
-function getTorso(char)
-	local rec, model = NA_GRAB_BODY.ensure(char)
-	if not rec then return nil end
-	return rec.torso or (model and NA_GRAB_BODY.firstPart(model)) or nil
-end
-
-function getHead(char)
-	local rec, model = NA_GRAB_BODY.ensure(char)
-	if not rec then return nil end
-	return rec.head or (model and NA_GRAB_BODY.firstPart(model)) or nil
-end
-
-function getChar()
-	local plr = Players.LocalPlayer
-	if not plr then return nil end
-	local rec, model = NA_GRAB_BODY.ensure(plr)
-	return model
-end
-
-function getPlrChar(plr)
-	return NA_GRAB_BODY.asChar(plr)
-end
-
-function getBp()
-	local plr = Players.LocalPlayer
-	return plr and plr:FindFirstChildOfClass("Backpack") or nil
-end
-
-function getHum(char)
-	local rec = NA_GRAB_BODY.ensure(char)
-	if not rec then return nil end
-	return rec.humanoid
-end
-
-function getPlrHum(plr)
-	return getHum(plr)
-end
-
-function IsR15(plr)
-	plr=(plr or Players.LocalPlayer)
-	if plr then
-		local h=getPlrHum(plr)
-		if h and h.RigType==Enum.HumanoidRigType.R15 then return true end
-	end
-	return false
-end
-
-function IsR6(plr)
-	plr=(plr or Players.LocalPlayer)
-	if plr then
-		local h=getPlrHum(plr)
-		if h and h.RigType==Enum.HumanoidRigType.R6 then return true end
-	end
-	return false
-end
-
-Foreach = function(Table, Func, Loop)
-	for Index, Value in next, Table do
-		pcall(function()
-			if Loop and typeof(Value) == 'table' then
-				for Index2, Value2 in next, Value do
-					Func(Index2, Value2)
-				end
-			else
-				Func(Index, Value)
-			end
-		end)
-	end
-end
-
-CheckIfNPC = function(character)
-	if not (character and character:IsA("Model")) then
-		return false
-	end
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		return false
-	end
-	if Players:GetPlayerFromCharacter(character) then
-		return false
-	end
-	return true
-end
-
-FindInTable = function(tbl,val)
-	if tbl==nil then return false end
-	for _,v in pairs(tbl) do
-		if v==val then return true end
-	end
-	return false
 end
 
 function MouseButtonFix(button, clickCallback)
@@ -23130,7 +23351,7 @@ cmd.add({"ownerid"},{"ownerid","masks you as the game owner's ID and Username"},
 	opt.hiddenprop(LocalPlayer, "Name", ownerName)
 end)
 
-cmd.add({"userid"},{"userid","changes your UserId to any ID you enter"},function(...)
+cmd.add({"userid"},{"userid <id>","changes your UserId to any ID you enter"},function(...)
 	local arg = ({...})[1]
 	if not arg or arg == "" then
 		DebugNotif("usage: userid <userId|username>",3)
@@ -23174,7 +23395,7 @@ cmd.add({"userid"},{"userid","changes your UserId to any ID you enter"},function
 	return nil
 end)
 
-cmd.add({"username","name"},{"username","changes your Username to any name you enter"},function(...)
+cmd.add({"username","name"},{"username <name>","changes your Username to any name you enter"},function(...)
 	local arg = ({...})[1]
 	if not arg or arg == "" then
 		return DebugNotif("missing argument",3)
@@ -32084,10 +32305,10 @@ cmd.add({"gear"}, {"gear [id]", "This is client sided and will probably not work
 end)
 
 if IsOnPC then
-	cmd.add({"lockmouse", "lockm"}, {"lockmouse2 (lockm2)", "Default Mouse Behaviour (idk any description)"}, function()
+	cmd.add({"lockmouse", "lockm"}, {"lockmouse (lockm)", "Default Mouse Behaviour (idk any description)"}, function()
 		NAgui.doModal(false)
 	end)
-	cmd.add({"unlockmouse", "unlockm"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse (fr this time)"}, function()
+	cmd.add({"unlockmouse", "unlockm"}, {"unlockmouse (unlockm)", "Unlocks your mouse (fr this time)"}, function()
 		NAgui.doModal(true)
 	end)
 	cmd.add({"lockmouse2", "lockm2"}, {"lockmouse2 (lockm2)", "Locks your mouse in the center"}, function()
@@ -42430,7 +42651,7 @@ do
 	local SafeInstanceNew = InstanceNew
 	if type(SafeInstanceNew) ~= "function" then
 		SafeInstanceNew = function(className, parent)
-			local inst = Instance.new(className)
+			local inst = InstanceNew(className)
 			if parent then inst.Parent = parent end
 			inst.Name = "\0"
 			return inst
@@ -43360,7 +43581,7 @@ do
 		end
 
 		local function createHalf(side)
-			local boob = Instance.new("Part")
+			local boob = InstanceNew("Part")
 			boob.Shape = Enum.PartType.Ball
 			boob.Size = boobSize
 			boob.Color = skin
@@ -43372,7 +43593,7 @@ do
 			boob.Name = "Boob"
 			boob.Parent = character
 
-			local nipple = Instance.new("Part")
+			local nipple = InstanceNew("Part")
 			nipple.Shape = Enum.PartType.Ball
 			nipple.Size = nippleSize
 			nipple.Color = pinkColor
@@ -43384,7 +43605,7 @@ do
 			nipple.Name = "Nipple"
 			nipple.Parent = boob
 
-			local areola = Instance.new("Part")
+			local areola = InstanceNew("Part")
 			areola.Shape = Enum.PartType.Ball
 			areola.Size = areolaSize
 			areola.Color = ringColor
@@ -43396,19 +43617,19 @@ do
 			areola.Name = "Areola"
 			areola.Parent = boob
 
-			local nippleWeld = Instance.new("Weld")
+			local nippleWeld = InstanceNew("Weld")
 			nippleWeld.Part0 = nipple
 			nippleWeld.Part1 = boob
 			nippleWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, nipple.Size) + popForward)
 			nippleWeld.Parent = nipple
 
-			local areolaWeld = Instance.new("Weld")
+			local areolaWeld = InstanceNew("Weld")
 			areolaWeld.Part0 = areola
 			areolaWeld.Part1 = boob
 			areolaWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, areola.Size) - (backGap - nudge))
 			areolaWeld.Parent = areola
 
-			local weld = Instance.new("Weld")
+			local weld = InstanceNew("Weld")
 			weld.Part0 = boob
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
@@ -43586,7 +43807,7 @@ do
 		state.ass.oz = -(torso.Size.Z * 0.5 + radius * 0.45)
 
 		local function createCheek(side)
-			local cheek = Instance.new("Part")
+			local cheek = InstanceNew("Part")
 			cheek.Shape = Enum.PartType.Ball
 			cheek.Size = cheekSize
 			cheek.Color = skin
@@ -43598,7 +43819,7 @@ do
 			cheek.Name = "Cheek"
 			cheek.Parent = character
 
-			local weld = Instance.new("Weld")
+			local weld = InstanceNew("Weld")
 			weld.Part0 = cheek
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
@@ -43750,7 +43971,7 @@ do
 		local shaftLength = shaftBaseLength * value
 
 		local function createPart(shape, size, color, name)
-			local part = Instance.new("Part")
+			local part = InstanceNew("Part")
 			part.Shape = shape
 			part.Size = size
 			part.Color = color
@@ -43765,7 +43986,7 @@ do
 		end
 
 		local function weldConstraint(part0, part1)
-			local weld = Instance.new("WeldConstraint")
+			local weld = InstanceNew("WeldConstraint")
 			weld.Part0 = part0
 			weld.Part1 = part1
 			weld.Parent = part0
@@ -43787,7 +44008,7 @@ do
 		weldConstraint(rightBall, torso)
 		weldConstraint(tip, shaft)
 
-		local shaftWeld = Instance.new("Weld")
+		local shaftWeld = InstanceNew("Weld")
 		shaftWeld.Part0 = torso
 		shaftWeld.Part1 = shaft
 		shaftWeld.C0 = torso.CFrame:ToObjectSpace(shaft.CFrame)
@@ -46426,7 +46647,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	end
 
 	local function mkTog()
-		local f = Instance.new("Frame")
+		local f = InstanceNew("Frame")
 		f.Name = "RGBToggle"
 		f.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
 		f.BorderSizePixel = 0
@@ -46435,15 +46656,15 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		f.ZIndex = 5
 		f.Parent = picker
 
-		local c = Instance.new("UICorner")
+		local c = InstanceNew("UICorner")
 		c.Parent = f
 
-		local st = Instance.new("UIStroke")
+		local st = InstanceNew("UIStroke")
 		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		st.Color = Color3.fromRGB(71, 71, 71)
 		st.Parent = f
 
-		local t = Instance.new("TextLabel")
+		local t = InstanceNew("TextLabel")
 		t.Name = "Title"
 		t.BackgroundTransparency = 1
 		t.Font = Enum.Font.Gotham
@@ -46468,7 +46689,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 
 	rgbBtn = rgbTog:FindFirstChild("Interact")
 	if not (rgbBtn and rgbBtn:IsA("GuiButton")) then
-		rgbBtn = Instance.new("TextButton")
+		rgbBtn = InstanceNew("TextButton")
 		rgbBtn.Name = "Interact"
 		rgbBtn.BackgroundTransparency = 1
 		rgbBtn.AutoButtonColor = false
@@ -46481,7 +46702,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 
 	rgbSw = rgbTog:FindFirstChild("Switch")
 	if not (rgbSw and rgbSw:IsA("GuiObject")) then
-		rgbSw = Instance.new("Frame")
+		rgbSw = InstanceNew("Frame")
 		rgbSw.Name = "Switch"
 		rgbSw.BorderSizePixel = 0
 		rgbSw.AnchorPoint = Vector2.new(1, 0.5)
@@ -46490,18 +46711,18 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		rgbSw.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
 		rgbSw.Parent = rgbTog
 
-		local c = Instance.new("UICorner")
+		local c = InstanceNew("UICorner")
 		c.CornerRadius = UDim.new(0, 12)
 		c.Parent = rgbSw
 
-		local st = Instance.new("UIStroke")
+		local st = InstanceNew("UIStroke")
 		st.Color = Color3.fromRGB(71, 71, 71)
 		st.Parent = rgbSw
 	end
 
 	rgbDot = rgbSw:FindFirstChild("Indicator")
 	if not (rgbDot and rgbDot:IsA("GuiObject")) then
-		rgbDot = Instance.new("Frame")
+		rgbDot = InstanceNew("Frame")
 		rgbDot.Name = "Indicator"
 		rgbDot.BorderSizePixel = 0
 		rgbDot.AnchorPoint = Vector2.new(0, 0.5)
@@ -46510,11 +46731,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		rgbDot.BackgroundColor3 = Color3.fromRGB(114, 114, 124)
 		rgbDot.Parent = rgbSw
 
-		local c = Instance.new("UICorner")
+		local c = InstanceNew("UICorner")
 		c.CornerRadius = UDim.new(1, 0)
 		c.Parent = rgbDot
 
-		local st = Instance.new("UIStroke")
+		local st = InstanceNew("UIStroke")
 		st.Color = Color3.fromRGB(83, 83, 83)
 		st.Parent = rgbDot
 	end
@@ -46676,7 +46897,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		pcall(function() obj.Active = true end)
 		local b = obj:FindFirstChild("__Hit")
 		if not (b and b:IsA("TextButton")) then
-			b = Instance.new("TextButton")
+			b = InstanceNew("TextButton")
 			b.Name = "__Hit"
 			b.BackgroundTransparency = 1
 			b.AutoButtonColor = false
