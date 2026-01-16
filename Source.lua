@@ -116,6 +116,19 @@ local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but so
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
+
+NAmanage.syncNameGlobals=function()
+	local env = (getgenv and getgenv()) or _G
+	if not env then
+		return
+	end
+	env.mainName = mainName
+	env.testingName = testingName
+	env.adminName = adminName
+end
+
+pcall(NAmanage.syncNameGlobals)
+
 local connections = {}
 NAlib = NAlib or {}
 
