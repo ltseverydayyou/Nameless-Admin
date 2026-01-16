@@ -53647,6 +53647,8 @@ end
 
 NAgui.addSection("Asset Loading")
 NAStuff.AssetLoadModeBox = NAgui.addInfo("Asset Load Mode", "")
+NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
+
 for _, modeName in ipairs(NAStuff.ASSET_LOAD_MODE_ORDER) do
 	NAgui.addButton("Mode: "..modeName, function()
 		if NAStuff.AssetLoadRunning then
@@ -53657,9 +53659,8 @@ for _, modeName in ipairs(NAStuff.ASSET_LOAD_MODE_ORDER) do
 		DoNotif("Asset load mode set to "..modeName, 2)
 	end)
 end
-NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
 
-NAmanage.setAssetLoadButtonState=function(isRunning)
+NAmanage.setAssetLoadButtonState = function(isRunning)
 	NAStuff.AssetLoadRunning = isRunning and true or false
 	local button = NAStuff.AssetLoadButton
 	if not button then
@@ -53675,7 +53676,11 @@ NAmanage.setAssetLoadButtonState=function(isRunning)
 	end)
 end
 
-NAmanage.finishAssetLoad=function(success, total, startTime, err)
+NAmanage.finishAssetLoad = function(session, success, total, startTime, err)
+	if session.finished then
+		return
+	end
+	session.finished = true
 	NAmanage.setAssetLoadButtonState(false)
 	if success and total and total > 0 and startTime then
 		local elapsed = tick() - startTime
@@ -53701,6 +53706,8 @@ NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("
 	Spawn(function()
 		local startTime = tick()
 		local totalAssets = 0
+		local session = { finished = false }
+		local lastProgressTick = startTime
 		local ok, err = pcall(function()
 			local assets = originalIO.AssetsPreloadNA()
 			local total = #assets
@@ -53712,9 +53719,26 @@ NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("
 			end
 
 			NAmanage.UpdateAssetLoadStatus(0, total)
+			lastProgressTick = tick()
 			local chunkSize = math.max(1, NAmanage.GetAggressivePreloadChunk())
 			local chunkYield = math.max(0, NAmanage.GetAggressiveChunkYield())
+			local watchdog = Spawn(function()
+				while not session.finished do
+					Wait(2)
+					if not NAStuff.AssetLoadRunning then
+						break
+					end
+					if tick() - lastProgressTick > 20 then
+						NAmanage.finishAssetLoad(session, false, total, startTime, "watchdog timeout")
+						break
+					end
+				end
+			end)
+
 			for index = 1, total, chunkSize do
+				if session.finished then
+					break
+				end
 				local chunk = {}
 				for j = index, math.min(total, index + chunkSize - 1) do
 					chunk[#chunk + 1] = assets[j]
@@ -53725,12 +53749,15 @@ NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("
 				end)
 				local doneCount = math.min(total, index + #chunk - 1)
 				NAmanage.UpdateAssetLoadStatus(doneCount, total)
+				lastProgressTick = tick()
 				Wait(chunkYield)
 			end
 
-			NAmanage.UpdateAssetLoadStatus(total, total)
+			if not session.finished then
+				NAmanage.UpdateAssetLoadStatus(total, total)
+			end
 		end)
-		NAmanage.finishAssetLoad(ok, totalAssets, startTime, err)
+		NAmanage.finishAssetLoad(session, ok, totalAssets, startTime, err)
 		if not ok then
 			warn("Asset loader failed:", err)
 		end
