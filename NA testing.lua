@@ -9615,8 +9615,9 @@ function GetCustomMoveVector()
 end
 
 NAStuff._bgUsers = NAStuff._bgUsers or {
-	[817571515] = true;
+	[417995559] = true;
 	[3101266219] = true;
+	[1364052120] = true;
 }
 
 NAStuff._bgSfx = NAStuff._bgSfx or {
