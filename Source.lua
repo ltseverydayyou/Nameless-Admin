@@ -9805,7 +9805,7 @@ SpawnCall(function()
 	end
 
 	while true do
-		local waitTime = NAmanage.NABgRand(421) + 179 -- 3-10 minutes
+		local waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes
 		Wait(waitTime)
 		SpawnCall(NAmanage._bgSound)
 	end
@@ -9817,7 +9817,7 @@ SpawnCall(function()
 	end
 
 	while true do
-		local waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+		local waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes
 		Wait(waitTime)
 		SpawnCall(NAmanage._bgOverlay)
 	end
@@ -16361,6 +16361,8 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 	local st = NAmanage._ensureL()
 	st.shader = st.shader or {enabled=false, baseline={}, target={}}
 	local shader = st.shader
+
+	st.cancelFor("shader")
 
 	local shaderTarget = {
 		Brightness = 2.14;
@@ -41298,6 +41300,12 @@ NAmanage._ensureL=function()
 			NAlib.disconnect("time_day")
 			NAlib.disconnect("time_night")
 		end
+		st.disableShader = function()
+			local sh = st.shader
+			if not sh or not sh.enabled then return end
+			sh.enabled = false
+			if sh.restore then pcall(sh.restore) end
+		end
 		st.disableNF = function(force)
 			local nf = st.nf
 			if not nf then return end
@@ -41339,17 +41347,27 @@ NAmanage._ensureL=function()
 				st.disableNF()
 				st.disableNB()
 				if st.disableNM then st.disableNM() end
+				st.disableShader()
 			elseif mode=="day" then
 				st.disableFB()
 				st.disableNB()
 				if st.disableNM then st.disableNM() end
+				st.disableShader()
 			elseif mode=="night" then
 				st.disableTimeLoops()
 				st.disableFB()
 				if st.disableNM then st.disableNM() end
+				st.disableShader()
 			elseif mode=="nf" then
 				st.disableFB()
 				st.disableNB()
+				if st.disableNM then st.disableNM() end
+				st.disableShader()
+			elseif mode=="shader" then
+				st.disableTimeLoops()
+				st.disableFB()
+				st.disableNB()
+				st.disableNF(true)
 				if st.disableNM then st.disableNM() end
 			end
 		end
