@@ -500,7 +500,7 @@ function getBp()
 end
 
 function getHum(char, waitSeconds)
-	local timeout = tonumber(waitSeconds) or 1.5
+	local timeout = math.max(0, tonumber(waitSeconds) or 1.5)
 	local target = char or getChar()
 	local function resolveTarget()
 		if target then return target end
@@ -508,12 +508,18 @@ function getHum(char, waitSeconds)
 		if not plr then return nil end
 		target = plr.Character
 		if target then return target end
-		local ok, chr = pcall(function()
-			return plr.Character or plr.CharacterAdded:Wait(timeout)
-		end)
-		if ok then
+		local deadline = os.clock() + timeout
+		local conn
+		conn = plr.CharacterAdded:Connect(function(chr)
 			target = chr
+		end)
+		while not target and os.clock() < deadline do
+			Wait(0.05)
 		end
+		if conn then
+			conn:Disconnect()
+		end
+		target = target or plr.Character
 		return target
 	end
 
