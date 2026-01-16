@@ -1,5 +1,5 @@
 if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false; getgenv().NAverify="ArysIsASkidFUCKYOU"; end)
+pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=false; getgenv().NAverify="Haryas Admin Is SKIDDED AS FUCK"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
