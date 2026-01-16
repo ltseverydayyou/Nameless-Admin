@@ -9845,7 +9845,12 @@ SpawnCall(function()
 	end
 
 	while true do
-		local waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes
+		local waitTime
+		if isAprilFools and isAprilFools() then
+			waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes (AF mode)
+		else
+			waitTime = NAmanage.NABgRand(121) + 179 -- 3-5 minutes
+		end
 		Wait(waitTime)
 		SpawnCall(NAmanage._bgSound)
 	end
@@ -9857,7 +9862,12 @@ SpawnCall(function()
 	end
 
 	while true do
-		local waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes
+		local waitTime
+		if isAprilFools and isAprilFools() then
+			waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes (AF mode)
+		else
+			waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+		end
 		Wait(waitTime)
 		SpawnCall(NAmanage._bgOverlay)
 	end
@@ -30361,9 +30371,23 @@ function spectatePlayer(targetPlayer)
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
+	local function setCamToCharacter(character)
+		if not character then return end
+		local hum = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildOfClass("AnimationController")
+		if hum then
+			workspace.CurrentCamera.CameraSubject = hum
+			return
+		end
+		local root = getRoot(character)
+		if root then
+			workspace.CurrentCamera.CameraSubject = root
+		end
+	end
+
+	setCamToCharacter(targetPlayer.Character)
+
 	NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
-		while not getPlrHum(character) do Wait(.1) end
-		workspace.CurrentCamera.CameraSubject = getPlrHum(character)
+		setCamToCharacter(character)
 	end))
 	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer then
@@ -30371,22 +30395,9 @@ function spectatePlayer(targetPlayer)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
-	local loop = coroutine.create(function()
-		while true do
-			if getPlrHum(targetPlayer) then
-				workspace.CurrentCamera.CameraSubject = getPlrHum(targetPlayer)
-			end
-			Wait()
-		end
-	end)
-	NAlib.connect("spectate_loop", {
-		Disconnect = function()
-			if coroutine.status(loop) ~= "dead" then
-				coroutine.close(loop)
-			end
-		end
-	})
-	coroutine.resume(loop)
+	NAlib.connect("spectate_loop", RunService.RenderStepped:Connect(function()
+		setCamToCharacter(targetPlayer.Character)
+	end))
 end
 
 cmd.add({"watch", "view", "spectate"}, {"watch <Player> (view, spectate)", "Spectate player"}, function(...)
@@ -46548,6 +46559,7 @@ NAgui.addButton = function(label, callback)
 	MouseButtonFix(button.Interact,function()
 		pcall(callback)
 	end)
+	return button
 end
 
 NAgui.addSection = function(titleText)
@@ -53478,6 +53490,276 @@ NAmanage.RegisterToggleAutoSync("Keep Icon Position", function()
 	return NAiconSaveEnabled == true
 end)
 
+NAStuff.PRELOAD_ASSET_CLASS_PROPS = NAStuff.PRELOAD_ASSET_CLASS_PROPS or {
+	Animation = { "AnimationId" };
+	AnimationClip = { "AnimationId" };
+	AnimationTrack = { "Animation" };
+	Beam = { "Texture" };
+	Decal = { "Texture", "TextureId" };
+	Fire = { "Texture" };
+	ImageButton = { "Image" };
+	ImageLabel = { "Image" };
+	MeshPart = { "MeshId", "TextureId" };
+	ParticleEmitter = { "Texture" };
+	Pants = { "PantsTemplate" };
+	PantsGraphic = { "Graphic" };
+	Shirt = { "ShirtTemplate" };
+	ShirtGraphic = { "Graphic" };
+	Sky = { "SkyboxBk", "SkyboxDn", "SkyboxFt", "SkyboxLf", "SkyboxRt", "SkyboxUp" };
+	Smoke = { "Texture" };
+	Sound = { "SoundId" };
+	SpecialMesh = { "MeshId", "TextureId" };
+	SurfaceAppearance = { "AlbedoTexture", "MetalnessTexture", "RoughnessTexture", "NormalId" };
+	SurfaceTexture = { "Texture" };
+	Trail = { "Texture" };
+	Texture = { "Texture", "TextureId" };
+	Sparkles = { "Texture" };
+	VideoFrame = { "Video" };
+	CharacterMesh = { "BaseTextureId", "OverlayTextureId" };
+};
+NAStuff.PRELOAD_INSTANCE_CLASSES = NAStuff.PRELOAD_INSTANCE_CLASSES or {
+	Animation = true;
+	AnimationClip = true;
+	AnimationTrack = true;
+	Beam = true;
+	Decal = true;
+	Fire = true;
+	MeshPart = true;
+	ParticleEmitter = true;
+	Pants = true;
+	PantsGraphic = true;
+	Shirt = true;
+	ShirtGraphic = true;
+	Sky = true;
+	Smoke = true;
+	Sound = true;
+	SpecialMesh = true;
+	SurfaceAppearance = true;
+	SurfaceTexture = true;
+	Trail = true;
+	Texture = true;
+	Sparkles = true;
+	VideoFrame = true;
+	CharacterMesh = true;
+};
+
+NAStuff.ASSET_LOAD_MODE_DEFS = NAStuff.ASSET_LOAD_MODE_DEFS or {
+	Medium = { chunk = 200, delay = 0.025 };
+	Fast = { chunk = 360, delay = 0.016 };
+	Aggressive = { chunk = 640, delay = 0.008 };
+};
+NAStuff.ASSET_LOAD_MODE_ORDER = NAStuff.ASSET_LOAD_MODE_ORDER or { "Medium", "Fast", "Aggressive" };
+NAStuff.AssetLoadMode = NAStuff.AssetLoadMode or "Fast"
+
+NAmanage.ClampNumber = NAmanage.ClampNumber or function(value, minValue, maxValue)
+	if type(value) ~= "number" then
+		return value
+	end
+	minValue = minValue or value
+	maxValue = maxValue or value
+	if value < minValue then
+		value = minValue
+	end
+	if value > maxValue then
+		value = maxValue
+	end
+	return value
+end
+
+NAmanage.GetAssetLoadModeData = NAmanage.GetAssetLoadModeData or function()
+	local mode = NAStuff.AssetLoadMode or "Fast"
+	local def = NAStuff.ASSET_LOAD_MODE_DEFS[mode]
+	if not def then
+		mode = "Fast"
+		def = NAStuff.ASSET_LOAD_MODE_DEFS.Fast
+		NAStuff.AssetLoadMode = mode
+	end
+	return mode, def
+end
+
+NAmanage.SetAssetLoadMode = NAmanage.SetAssetLoadMode or function(mode)
+	if type(mode) ~= "string" then
+		return
+	end
+	local def = NAStuff.ASSET_LOAD_MODE_DEFS[mode]
+	if not def then
+		return
+	end
+	NAStuff.AssetLoadMode = mode
+	local box = NAStuff.AssetLoadModeBox
+	if box then
+		pcall(function()
+			box.Text = Format("%s Mode | %d chunk, %.3fs delay", mode, def.chunk, def.delay)
+		end)
+	end
+end
+
+NAmanage.GetAggressivePreloadChunk = NAmanage.GetAggressivePreloadChunk or function()
+	local _, def = NAmanage.GetAssetLoadModeData()
+	return def.chunk
+end
+
+NAmanage.GetAggressiveChunkYield = NAmanage.GetAggressiveChunkYield or function()
+	local _, def = NAmanage.GetAssetLoadModeData()
+	return def.delay
+end
+
+NAmanage.FormatAssetProgress = NAmanage.FormatAssetProgress or function(done, total)
+	local loaded = tonumber(done) or 0
+	local totalAssets = tonumber(total) or 0
+	if totalAssets <= 0 then
+		return "0/0 (0/0%)"
+	end
+	local percent = NAmanage.ClampNumber(loaded / totalAssets, 0, 1) * 100
+	return Format("%d/%d (%.0f%%)", loaded, totalAssets, percent)
+end
+
+NAmanage.UpdateAssetLoadStatus = NAmanage.UpdateAssetLoadStatus or function(done, total)
+	local box = NAStuff.AssetLoadStatusBox
+	if not box then
+		return
+	end
+	local text = NAmanage.FormatAssetProgress(done, total)
+	pcall(function()
+		box.Text = text
+	end)
+end
+
+originalIO.AssetsPreloadNA=function()
+	local entries = {}
+	local seenString = {}
+	local seenInstance = {}
+	local function addResource(value)
+		local valueType = typeof(value)
+		if valueType == "Instance" then
+			if not seenInstance[value] then
+				seenInstance[value] = true
+				entries[#entries + 1] = value
+			end
+		elseif valueType == "string" and value ~= "" and not value:match("^rbxassetid://0+$") then
+			if not seenString[value] then
+				seenString[value] = true
+				entries[#entries + 1] = value
+			end
+		end
+	end
+
+	for _, inst in ipairs(game:GetDescendants()) do
+		if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
+			addResource(inst)
+		end
+
+		local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
+		if props then
+			for _, prop in ipairs(props) do
+				local ok, value = pcall(function()
+					return inst[prop]
+				end)
+				if ok and value then
+					addResource(value)
+				end
+			end
+		end
+	end
+
+	return entries
+end
+
+NAgui.addSection("Asset Loading")
+NAStuff.AssetLoadModeBox = NAgui.addInfo("Asset Load Mode", "")
+for _, modeName in ipairs(NAStuff.ASSET_LOAD_MODE_ORDER) do
+	NAgui.addButton("Mode: "..modeName, function()
+		if NAStuff.AssetLoadRunning then
+			DoNotif("Finish the current load before changing modes.", 2)
+			return
+		end
+		NAmanage.SetAssetLoadMode(modeName)
+		DoNotif("Asset load mode set to "..modeName, 2)
+	end)
+end
+NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
+
+NAmanage.setAssetLoadButtonState=function(isRunning)
+	NAStuff.AssetLoadRunning = isRunning and true or false
+	local button = NAStuff.AssetLoadButton
+	if not button then
+		return
+	end
+	local interact = button:FindFirstChild("Interact")
+	if interact then
+		interact.Active = not isRunning
+		interact.AutoButtonColor = not isRunning
+	end
+	pcall(function()
+		button.Title.Text = isRunning and "Loading Game Assets..." or "Load Game Assets"
+	end)
+end
+
+NAmanage.finishAssetLoad=function(success, total, startTime, err)
+	NAmanage.setAssetLoadButtonState(false)
+	if success and total and total > 0 and startTime then
+		local elapsed = tick() - startTime
+		DoNotif(Format("Preloaded %d assets in %.2fs.", total, elapsed), 3)
+	elseif not success then
+		DoNotif("Asset preloading failed: "..tostring(err or "unknown"), 4)
+	end
+end
+
+NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("Load Game Assets", function()
+	if NAStuff.AssetLoadRunning then
+		DoNotif("Asset loader is already running.", 2)
+		return
+	end
+	if not ContentProvider or not ContentProvider.PreloadAsync then
+		DoNotif("ContentProvider preloading is unavailable on this platform.", 3)
+		return
+	end
+
+	NAmanage.setAssetLoadButtonState(true)
+	NAmanage.UpdateAssetLoadStatus(0, 0)
+	DoNotif("Scanning for assets to preload...", 2)
+	Spawn(function()
+		local startTime = tick()
+		local totalAssets = 0
+		local ok, err = pcall(function()
+			local assets = originalIO.AssetsPreloadNA()
+			local total = #assets
+			totalAssets = total
+			if total == 0 then
+				NAmanage.UpdateAssetLoadStatus(0, 0)
+				DoNotif("Could not find any assets to preload.", 3)
+				return
+			end
+
+			NAmanage.UpdateAssetLoadStatus(0, total)
+			local chunkSize = math.max(1, NAmanage.GetAggressivePreloadChunk())
+			local chunkYield = math.max(0, NAmanage.GetAggressiveChunkYield())
+			for index = 1, total, chunkSize do
+				local chunk = {}
+				for j = index, math.min(total, index + chunkSize - 1) do
+					chunk[#chunk + 1] = assets[j]
+				end
+
+				pcall(function()
+					ContentProvider:PreloadAsync(chunk)
+				end)
+				local doneCount = math.min(total, index + #chunk - 1)
+				NAmanage.UpdateAssetLoadStatus(doneCount, total)
+				Wait(chunkYield)
+			end
+
+			NAmanage.UpdateAssetLoadStatus(total, total)
+		end)
+		NAmanage.finishAssetLoad(ok, totalAssets, startTime, err)
+		if not ok then
+			warn("Asset loader failed:", err)
+		end
+	end)
+end)
+NAStuff.AssetLoadButton = NAStuff.loadGameAssetsButton
+NAmanage.setAssetLoadButtonState(false)
+NAmanage.SetAssetLoadMode(NAStuff.AssetLoadMode)
+
 NAgui.addSection("Support")
 NAgui.addButton("Join Discord", function()
 	if setclipboard then
@@ -53489,7 +53771,7 @@ NAgui.addButton("Join Discord", function()
 end)
 
 if FileSupport then
-NAgui.addSection("Saved Data")
+	NAgui.addSection("Saved Data")
 	NAgui.addButton("Delete Saved Settings...", function()
 		NAmanage.openSettingsCleanupPopup()
 	end)
