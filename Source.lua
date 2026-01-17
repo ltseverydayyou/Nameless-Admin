@@ -11914,7 +11914,7 @@ end
 
 NAmanage.ESP_AddBoxForPart = function(model, part)
 	local data = espCONS[model]
-	if not data or not part or not part:IsA("BasePart") then return end
+	if not data or data.isNPC or not part or not part:IsA("BasePart") then return end
 	if data.boxTable[part] then return end
 	if NAgui.espUsesHighlight() then return end
 	local box = InstanceNew("BoxHandleAdornment")
@@ -11931,40 +11931,95 @@ end
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	if NAgui.espUsesHighlight() then
+
+	if data.isNPC then
+		for part, box in pairs(data.boxTable) do
+			if box then box:Destroy() end
+			data.boxTable[part] = nil
+		end
+
 		local highlight = data.highlight
 		if highlight and not highlight.Parent then
 			highlight = nil
 		end
+
 		if not highlight then
 			local hl = InstanceNew("Highlight")
 			hl.Name = "NAESP_Highlight"
 			hl.Adornee = model
 			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-			local baseColor = (NAStuff.ESP_UseCustomColor == true and typeof(NAStuff.ESP_CustomColor) == "Color3") and NAStuff.ESP_CustomColor or Color3.new(1, 1, 1)
+
+			local baseColor = (NAStuff.ESP_UseCustomColor == true and typeof(NAStuff.ESP_CustomColor) == "Color3")
+				and NAStuff.ESP_CustomColor
+				or Color3.new(1, 1, 1)
+
 			local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+
 			hl.FillColor = baseColor
 			hl.OutlineColor = baseColor
 			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			hl.OutlineTransparency = outline
 			hl.Parent = model
+
 			data.highlight = hl
 			NAmanage.ESP_AdjustHighlightMaterial(model, true)
 		else
 			data.highlight = highlight
 		end
+
+		if data.highlight then
+			data.highlight.Enabled = true
+		end
+
+		data.boxEnabled = true
+		return
+	end
+
+	if NAgui.espUsesHighlight() then
+		local highlight = data.highlight
+		if highlight and not highlight.Parent then
+			highlight = nil
+		end
+
+		if not highlight then
+			local hl = InstanceNew("Highlight")
+			hl.Name = "NAESP_Highlight"
+			hl.Adornee = model
+			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+			local baseColor = (NAStuff.ESP_UseCustomColor == true and typeof(NAStuff.ESP_CustomColor) == "Color3")
+				and NAStuff.ESP_CustomColor
+				or Color3.new(1, 1, 1)
+
+			local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+
+			hl.FillColor = baseColor
+			hl.OutlineColor = baseColor
+			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+			hl.OutlineTransparency = outline
+			hl.Parent = model
+
+			data.highlight = hl
+			NAmanage.ESP_AdjustHighlightMaterial(model, true)
+		else
+			data.highlight = highlight
+		end
+
 		if data.highlight then
 			data.highlight.Enabled = true
 			data.highlight.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 		end
+
 		data.boxEnabled = true
 		return
 	end
+
 	for _, part in ipairs(model:GetDescendants()) do
 		if part:IsA("BasePart") then
 			NAmanage.ESP_AddBoxForPart(model, part)
 		end
 	end
+
 	data.boxEnabled = true
 end
 
@@ -12017,6 +12072,7 @@ end
 NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local data = espCONS[model]
 	if not data then return end
+
 	local owner = Players:GetPlayerFromCharacter(model)
 	if not model.Parent then
 		if data.persistent and owner and owner.Character == model then
@@ -12034,18 +12090,25 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
 
 	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
-	local budget = dist and ((dist<=50 and 0.05) or (dist<=150 and 0.15) or (dist<=400 and 0.3) or 0.6) or 0.2
+	local budget = dist and ((dist <= 50 and 0.05) or (dist <= 150 and 0.15) or (dist <= 400 and 0.3) or 0.6) or 0.2
+
+	if data.isNPC then
+		budget = budget * (NAStuff.NPC_ESP_Throttle or 2)
+	end
+
 	if data.next and now < data.next then return end
 	data.next = now + budget
 
-	local distColor = dist and ((dist>100 and Color3.fromRGB(0,255,0)) or (dist>50 and Color3.fromRGB(255,165,0)) or Color3.fromRGB(255,0,0)) or Color3.new(1,1,1)
+	local distColor = dist and ((dist > 100 and Color3.fromRGB(0, 255, 0)) or (dist > 50 and Color3.fromRGB(255, 165, 0)) or Color3.fromRGB(255, 0, 0)) or Color3.new(1, 1, 1)
 	local customColor = (NAStuff.ESP_UseCustomColor == true) and NAStuff.ESP_CustomColor or nil
 	local finalColor = (typeof(customColor) == "Color3" and customColor)
 		or ((NAStuff.ESP_ColorByTeam ~= false and teamColor) and teamColor)
 		or distColor
 
-	local wantBoxes = ESPenabled and (dist == nil or dist <= (NAStuff.ESP_BoxMaxDistance or 120))
-	local wantLabel = ESPenabled and not chamsEnabled and (dist == nil or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
+	local isNPC = data.isNPC == true
+	local boxDist = isNPC and (NAStuff.NPC_ESP_BoxMaxDistance or NAStuff.ESP_BoxMaxDistance or 120) or (NAStuff.ESP_BoxMaxDistance or 120)
+	local wantBoxes = ESPenabled and (dist == nil or dist <= boxDist)
+	local wantLabel = ESPenabled and not chamsEnabled and not isNPC and (dist == nil or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
 
 	if wantBoxes and not data.boxEnabled then
 		NAmanage.ESP_AddBoxes(model)
@@ -12054,7 +12117,25 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 
 	if data.boxEnabled then
-		if NAgui.espUsesHighlight() then
+		if isNPC then
+			local highlight = data.highlight
+			if not highlight or not highlight.Parent then
+				data.highlight = nil
+				if wantBoxes then
+					NAmanage.ESP_AddBoxes(model)
+					highlight = data.highlight
+				end
+			end
+			if highlight then
+				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
+				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+				if highlight.OutlineTransparency ~= outline then highlight.OutlineTransparency = outline end
+				local color = finalColor or Color3.new(1, 1, 1)
+				if highlight.FillColor ~= color then highlight.FillColor = color end
+				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
+			end
+		elseif NAgui.espUsesHighlight() then
 			if next(data.boxTable) ~= nil then
 				for part, box in pairs(data.boxTable) do
 					if box then box:Destroy() end
@@ -12074,7 +12155,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
 				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 				if highlight.OutlineTransparency ~= outline then highlight.OutlineTransparency = outline end
-				local color = finalColor or Color3.new(1,1,1)
+				local color = finalColor or Color3.new(1, 1, 1)
 				if highlight.FillColor ~= color then highlight.FillColor = color end
 				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
 			end
@@ -12100,32 +12181,35 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 		end
 	end
 
-	local pieces = {}
-	if NAStuff.ESP_ShowName ~= false then
-		local nm = owner and nameChecker(owner) or model.Name
-		if nm and nm ~= "" then pieces[#pieces+1] = nm end
-	end
-	if NAStuff.ESP_ShowHealth ~= false then
-		local hum = getPlrHum(model)
-		local h = hum and math.floor(hum.Health) or nil
-		local m = hum and math.floor(hum.MaxHealth) or nil
-		if h and m then pieces[#pieces+1] = tostring(h).."/"..tostring(m).." HP" end
-	end
-	if (NAStuff.ESP_ShowTeamText ~= false) and teamName and teamName ~= "None" then
-		pieces[#pieces+1] = teamName
-	end
-	if (NAStuff.ESP_ShowDistance ~= false) and dist then
-		pieces[#pieces+1] = tostring(dist).." studs"
+	local pieces
+	if wantLabel then
+		pieces = {}
+		if NAStuff.ESP_ShowName ~= false then
+			local nm = owner and nameChecker(owner) or model.Name
+			if nm and nm ~= "" then pieces[#pieces + 1] = nm end
+		end
+		if NAStuff.ESP_ShowHealth ~= false then
+			local hum = getPlrHum(model)
+			local h = hum and math.floor(hum.Health) or nil
+			local m = hum and math.floor(hum.MaxHealth) or nil
+			if h and m then pieces[#pieces + 1] = tostring(h) .. "/" .. tostring(m) .. " HP" end
+		end
+		if (NAStuff.ESP_ShowTeamText ~= false) and teamName and teamName ~= "None" then
+			pieces[#pieces + 1] = teamName
+		end
+		if (NAStuff.ESP_ShowDistance ~= false) and dist then
+			pieces[#pieces + 1] = tostring(dist) .. " studs"
+		end
 	end
 
-	if wantLabel and #pieces > 0 then
+	if wantLabel and pieces and #pieces > 0 then
 		NAmanage.ESP_EnsureLabel(model)
 		local label = data.textLabel
 		if label then
 			NAgui.applyLabelStyle(label)
 			local txt = Concat(pieces, " | ")
 			if label.Text ~= txt then label.Text = txt end
-			local txtColor = finalColor or Color3.new(1,1,1)
+			local txtColor = finalColor or Color3.new(1, 1, 1)
 			if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
 		end
 	else
@@ -12158,8 +12242,10 @@ NAmanage.ESP_UnregisterModel=function(m)
 	end
 end
 
-NAmanage.ESP_Add = function(target, persistent)
+NAmanage.ESP_Add = function(target, persistent, isNPC)
 	persistent = persistent or false
+	local npcFlag = isNPC == true
+
 	if not (ESPenabled or chamsEnabled) then return end
 	if typeof(target) ~= "Instance" then return end
 
@@ -12169,7 +12255,7 @@ NAmanage.ESP_Add = function(target, persistent)
 			NAlib.connect("esp_charAdded_plr_"..tostring(target.UserId), target.CharacterAdded:Connect(function()
 				Wait(0.25)
 				if (ESPenabled or chamsEnabled) then
-					NAmanage.ESP_Add(target, true)
+					NAmanage.ESP_Add(target, true, false)
 				end
 			end))
 		end
@@ -12180,14 +12266,22 @@ NAmanage.ESP_Add = function(target, persistent)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 
-	espCONS[model] = { boxTable = {}, persistent = persistent, boxEnabled = false, highlight = nil }
+	espCONS[model] = {
+		boxTable = {},
+		persistent = persistent,
+		boxEnabled = false,
+		highlight = nil,
+		isNPC = npcFlag
+	}
+
 	NAmanage.ESP_RegisterModel(model)
 	local key = NAmanage.ESP_Key(model)
 
 	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
 		if not (ESPenabled or chamsEnabled) then return end
-		if not espCONS[model] then return end
-		if desc:IsA("BasePart") and espCONS[model].boxEnabled then
+		local data = espCONS[model]
+		if not data or data.isNPC then return end
+		if desc:IsA("BasePart") and data.boxEnabled then
 			NAmanage.ESP_AddBoxForPart(model, desc)
 		end
 	end))
@@ -12196,7 +12290,10 @@ NAmanage.ESP_Add = function(target, persistent)
 		local data = espCONS[model]
 		if not data then return end
 		local box = data.boxTable[desc]
-		if box then box:Destroy(); data.boxTable[desc] = nil end
+		if box then
+			box:Destroy()
+			data.boxTable[desc] = nil
+		end
 	end))
 
 	NAmanage.ESP_AddBoxes(model)
@@ -17989,6 +18086,153 @@ cmd.add({"unclickfling","unmousefling"},{"unclickfling (unmousefling)","disables
 	NAlib.disconnect("clickfling_mouse")
 end)
 
+NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
+NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME or "NAundergroundBind"
+NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, 15, 0)
+
+if RunService and RunService.UnbindFromRenderStep then
+	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+end
+do
+	local st = NAStuff.NAundergroundState
+	if st.heartbeatConnection then
+		pcall(function() st.heartbeatConnection:Disconnect() end)
+	end
+	if st.highlight and st.highlight.Parent then
+		pcall(function() st.highlight:Destroy() end)
+	end
+	st.Underground = false
+	st.UndergroundBind = false
+	st.UndergroundCurrent = nil
+	st.heartbeatConnection = nil
+	st.highlight = nil
+end
+
+cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character underground on the server"},function(offset)
+	local state = NAStuff.NAundergroundState
+
+	local function UG_Get(key)
+		return state[key]
+	end
+	local function UG_Set(key, val)
+		state[key] = val
+		return val
+	end
+
+	local function fetchCharPieces()
+		local chr = getChar()
+		if not chr then
+			return nil, nil, nil
+		end
+		local hum = getHum()
+		local root = getRoot(chr)
+		if not root then
+			for _, part in ipairs(chr:GetChildren()) do
+				if part:IsA("BasePart") then
+					root = part
+					break
+				end
+			end
+		end
+		return chr, root, hum
+	end
+
+	local character, rootPart, humanoid = fetchCharPieces()
+	if not (character and rootPart and humanoid) then
+		if type(DoNotif) == "function" then
+			DoNotif("Character is not ready yet", 2)
+		end
+		return "Underground", "Character is not ready yet"
+	end
+
+	local defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, 15, 0)
+	local offsetNum = tonumber(offset)
+	if offsetNum then
+		offsetNum = math.max(0, offsetNum)
+	else
+		offsetNum = defaultOffset.Y
+	end
+	local offsetVec = Vector3.new(0, offsetNum, 0)
+
+	local Underground = UG_Get("Underground")
+	UG_Set("Underground", not Underground)
+
+	if not Underground then
+		UG_Set("UndergroundCurrent", rootPart.CFrame)
+		UG_Set("UndergroundOffset", offsetVec)
+
+		local prevHB = UG_Get("heartbeatConnection")
+		if prevHB then
+			pcall(function() prevHB:Disconnect() end)
+		end
+
+		UG_Set("heartbeatConnection", RunService.Heartbeat:Connect(function()
+			if not UG_Get("Underground") then
+				return
+			end
+
+			local _, currentRoot, hum = fetchCharPieces()
+			if not currentRoot then
+				return
+			end
+
+			UG_Set("UndergroundCurrent", currentRoot.CFrame)
+			if hum then
+				hum.Sit = false
+			end
+
+			currentRoot.CFrame = currentRoot.CFrame - (UG_Get("UndergroundOffset") or defaultOffset)
+		end))
+
+		if RunService and RunService.UnbindFromRenderStep then
+			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+		end
+		UG_Set("UndergroundBind", true)
+		RunService:BindToRenderStep(NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
+			local current = UG_Get("UndergroundCurrent")
+			if UG_Get("Underground") and current then
+				local _, r = fetchCharPieces()
+				if r then
+					r.CFrame = current
+				end
+			end
+		end)
+
+		if type(DoNotif) == "function" then
+			DoNotif("Underground enabled, hiding you from others", 2)
+		end
+		return "Underground", "Your character is now underground for everyone else"
+	end
+
+	for _ = 1, 10 do
+		local _, r = fetchCharPieces()
+		if r then
+			r.CFrame = UG_Get("UndergroundCurrent") or r.CFrame
+		end
+		Wait()
+	end
+
+	UG_Set("UndergroundCurrent", nil)
+
+	local hb = UG_Get("heartbeatConnection")
+	if hb then
+		hb:Disconnect()
+		UG_Set("heartbeatConnection", nil)
+	end
+	UG_Set("UndergroundOffset", nil)
+	if UG_Get("UndergroundBind") then
+		UG_Set("UndergroundBind", false)
+		if RunService and RunService.UnbindFromRenderStep then
+			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+		end
+	end
+
+	if type(DoNotif) == "function" then
+		DoNotif("Underground disabled, you're back to normal", 2)
+	end
+	return "Underground", "Disabled, you're back to normal"
+end)
+
 clickscareUI = nil
 clickscareEnabled = true
 
@@ -23673,23 +23917,33 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		if not t then
 			return
 		end
+
 		local quota = quotaPerStep
+
 		local k = lastKey
+		if k ~= nil and t[k] == nil then
+			k = nil
+		end
+
 		while quota > 0 do
 			k = next(t, k)
 			if not k then
 				lastKey = nil
 				break
 			end
+
 			local p = k
+
 			if typeof(p) == "Instance" and p:IsA("BasePart") and p.Parent then
 				if NAlib.isProperty(p, "CanCollide") ~= false then
 					NAlib.setProperty(p, "CanCollide", false)
 				end
+				lastKey = p
 			else
 				clearPart(p)
+				lastKey = nil
 			end
-			lastKey = p
+
 			quota = quota - 1
 		end
 	end))
@@ -24419,9 +24673,9 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 						local d = (rp.Position - root.Position).Magnitude
 						if d <= maxDist then
 							found[inst] = true
-							if not getgenv().npcESPList[inst] then
-								getgenv().npcESPList[inst] = true
-								NAmanage.ESP_Add(inst, false)
+							if not (getgenv()).npcESPList[inst] then
+								(getgenv()).npcESPList[inst] = true
+								NAmanage.ESP_Add(inst, false, true)
 							end
 							cnt += 1
 							if cnt >= maxCnt then
