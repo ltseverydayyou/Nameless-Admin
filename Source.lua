@@ -18147,9 +18147,7 @@ cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character 
 
 	local defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, 15, 0)
 	local offsetNum = tonumber(offset)
-	if offsetNum then
-		offsetNum = math.max(0, offsetNum)
-	else
+	if not offsetNum then
 		offsetNum = defaultOffset.Y
 	end
 	local offsetVec = Vector3.new(0, offsetNum, 0)
