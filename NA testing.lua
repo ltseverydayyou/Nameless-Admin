@@ -513,43 +513,47 @@ function getBp()
 end
 
 function getHum(char, waitSeconds)
-	local timeout = math.max(0, tonumber(waitSeconds) or 1.5)
-	local target = char or getChar()
-	local function resolveTarget()
-		if target then return target end
+	local target
+
+	if char then
+		target = NA_GRAB_BODY.asChar(char) or char
+	else
 		local plr = Players.LocalPlayer
-		if not plr then return nil end
-		target = plr.Character
-		if target then return target end
-		local deadline = os.clock() + timeout
-		local conn
-		conn = plr.CharacterAdded:Connect(function(chr)
-			target = chr
-		end)
-		while not target and os.clock() < deadline do
-			Wait(0.05)
+		if plr then
+			target = plr.Character
 		end
-		if conn then
-			conn:Disconnect()
-		end
-		target = target or plr.Character
-		return target
 	end
 
-	resolveTarget()
-	if not target then return nil end
+	if not target then
+		return nil
+	end
+
+	local hum = target:FindFirstChildOfClass("Humanoid") or target:FindFirstChildOfClass("AnimationController")
+	if hum then
+		return hum
+	end
+
+	local timeout = tonumber(waitSeconds)
+	if not timeout or timeout <= 0 then
+		local rec = NA_GRAB_BODY.ensure(target)
+		return rec and rec.humanoid or nil
+	end
+
+	timeout = math.max(0, timeout)
+	local deadline = os.clock() + timeout
 
 	local function findHumanoid()
 		return target:FindFirstChildOfClass("Humanoid") or target:FindFirstChildOfClass("AnimationController")
 	end
 
-	local hum = findHumanoid()
-	local start = os.clock()
-	while not hum and (os.clock() - start) < timeout do
+	while not hum and os.clock() < deadline do
 		Wait(0.05)
 		hum = findHumanoid()
 	end
-	if hum then return hum end
+
+	if hum then
+		return hum
+	end
 
 	local rec = NA_GRAB_BODY.ensure(target)
 	return rec and rec.humanoid or nil
@@ -35557,7 +35561,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 	end
 
 	awPart = InstanceNew("Part", workspace)
-	awPart.Size = Vector3.new(7, 2, 3)
+	awPart.Size = Vector3.new(10, 2, 10)
 	awPart.Transparency = 1
 	awPart.Anchored = true
 	awPart.CanCollide = true
