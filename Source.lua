@@ -30585,11 +30585,22 @@ end)
 
 specUI = nil
 connStep, connAdd, connRemove = nil, nil, nil
+local spectateTarget = nil
+local spectateConns = {char = nil, leave = nil, loop = nil}
 
-function cleanup(preserveSpecUI)
+local function disconnectSpectateConns()
+	if spectateConns.char then spectateConns.char:Disconnect() end
+	if spectateConns.leave then spectateConns.leave:Disconnect() end
+	if spectateConns.loop then spectateConns.loop:Disconnect() end
+	spectateConns.char, spectateConns.leave, spectateConns.loop = nil, nil, nil
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
+end
+
+function cleanup(preserveSpecUI)
+	spectateTarget = nil
+	disconnectSpectateConns()
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
 	if connRemove then connRemove:Disconnect() connRemove = nil end
@@ -30604,11 +30615,10 @@ end
 
 function spectatePlayer(targetPlayer)
 	if not targetPlayer then return end
-	NAlib.disconnect("spectate_char")
-	NAlib.disconnect("spectate_loop")
-	NAlib.disconnect("spectate_leave")
+	spectateTarget = targetPlayer
+	disconnectSpectateConns()
 	local function setCamToCharacter(character)
-		if not character then return end
+		if spectateTarget ~= targetPlayer or not character then return end
 		local hum = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildOfClass("AnimationController")
 		if hum then
 			workspace.CurrentCamera.CameraSubject = hum
@@ -30622,16 +30632,18 @@ function spectatePlayer(targetPlayer)
 
 	setCamToCharacter(targetPlayer.Character)
 
-	NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
+	spectateConns.char = NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
+		if spectateTarget ~= targetPlayer then return end
 		setCamToCharacter(character)
 	end))
-	NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
-		if player == targetPlayer then
+	spectateConns.leave = NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
+		if player == targetPlayer and spectateTarget == targetPlayer then
 			cleanup(true)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
-	NAlib.connect("spectate_loop", RunService.RenderStepped:Connect(function()
+	spectateConns.loop = NAlib.connect("spectate_loop", RunService.RenderStepped:Connect(function()
+		if spectateTarget ~= targetPlayer then return end
 		setCamToCharacter(targetPlayer.Character)
 	end))
 end
