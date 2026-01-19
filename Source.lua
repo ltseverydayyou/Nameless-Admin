@@ -242,221 +242,223 @@ end)()
 
 --[[ Character helpers ]]--
 NA_GRAB_BODY = (function()
-	local T = {}
-	local _cache = _rp_cache or setmetatable({}, { __mode = "k" })
-
-	local overrideModel = nil
-	local overrideConn = nil
-	local selectingOverride = false
-
-	local setOverrideModel
-	local pickOverrideModel
-
+	local T = {};
+	local _cache = _rp_cache or setmetatable({}, {
+		__mode = "k"
+	});
+	local overrideModel = nil;
+	local overrideConn = nil;
+	local selectingOverride = false;
+	local setOverrideModel;
+	local pickOverrideModel;
 	local function asChar(obj)
-		if not obj or typeof(obj) ~= "Instance" then return nil end
-		if obj:IsA("Player") then return obj.Character end
-		if obj:IsA("Model") then return obj end
-		return nil
-	end
-
+		if not obj or typeof(obj) ~= "Instance" then
+			return nil;
+		end;
+		if obj:IsA("Player") then
+			return obj.Character;
+		end;
+		if obj:IsA("Model") then
+			return obj;
+		end;
+		return nil;
+	end;
 	local function firstPart(model)
-		for _,d in ipairs(model:GetDescendants()) do
-			if d:IsA("BasePart") then return d end
-		end
-		return nil
-	end
-
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") then
+				return d;
+			end;
+		end;
+		return nil;
+	end;
 	setOverrideModel = function(model)
 		if overrideConn then
-			overrideConn:Disconnect()
-			overrideConn = nil
-		end
-		overrideModel = model
+			overrideConn:Disconnect();
+			overrideConn = nil;
+		end;
+		overrideModel = model;
 		if model then
 			overrideConn = model.AncestryChanged:Connect(function(_, parent)
 				if not parent then
 					if overrideConn then
-						overrideConn:Disconnect()
-						overrideConn = nil
-					end
-					overrideModel = nil
-					selectingOverride = false
+						overrideConn:Disconnect();
+						overrideConn = nil;
+					end;
+					overrideModel = nil;
+					selectingOverride = false;
 					if Players and Players.LocalPlayer and workspace then
-						local lp = Players.LocalPlayer
-						local cur = lp.Character
-						if cur and cur.Parent and not cur:IsDescendantOf(workspace) then
+						local lp = Players.LocalPlayer;
+						local cur = lp.Character;
+						if cur and cur.Parent and (not cur:IsDescendantOf(workspace)) then
 							Spawn(function()
-								pickOverrideModel()
-							end)
-						end
-					end
-				end
-			end)
-		end
-	end
-
+								pickOverrideModel();
+							end);
+						end;
+					end;
+				end;
+			end);
+		end;
+	end;
 	pickOverrideModel = function(force)
 		if selectingOverride then
-			return overrideModel
-		end
-
+			return overrideModel;
+		end;
 		if not (Window and Players and Players.LocalPlayer and workspace) then
-			return overrideModel
-		end
-
-		local lp = Players.LocalPlayer
-		local cur = lp.Character
-
+			return overrideModel;
+		end;
+		local lp = Players.LocalPlayer;
+		local cur = lp.Character;
 		if not cur then
-			return overrideModel
-		end
-
+			return overrideModel;
+		end;
 		if not force and cur:IsDescendantOf(workspace) then
-			return overrideModel
-		end
-
-		selectingOverride = true
-
-		local btns = {}
-		local cands = {}
-		local seen = {}
-
+			return overrideModel;
+		end;
+		selectingOverride = true;
+		local btns = {};
+		local cands = {};
+		local seen = {};
 		for _, plr in ipairs(Players:GetPlayers()) do
-			local ch = plr.Character
-			if ch and ch:IsDescendantOf(workspace) and not seen[ch] then
-				seen[ch] = true
-				Insert(cands, ch)
-			end
-		end
-
+			local ch = plr.Character;
+			if ch and ch:IsDescendantOf(workspace) and (not seen[ch]) then
+				seen[ch] = true;
+				Insert(cands, ch);
+			end;
+		end;
 		for _, inst in ipairs(workspace:GetDescendants()) do
-			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and not seen[inst] then
-				seen[inst] = true
-				Insert(cands, inst)
-			end
-		end
-
-		local nCnt = {}
+			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and (not seen[inst]) then
+				seen[inst] = true;
+				Insert(cands, inst);
+			end;
+		end;
+		local nCnt = {};
 		for i = 1, #cands do
-			local m = cands[i]
-			local n = m.Name
-			nCnt[n] = (nCnt[n] or 0) + 1
-		end
-		local nUse = {}
-
-		local done = false
+			local m = cands[i];
+			local n = m.Name;
+			nCnt[n] = (nCnt[n] or 0) + 1;
+		end;
+		local nUse = {};
+		local done = false;
 		local function fin()
-			if done then return end
-			done = true
-			selectingOverride = false
-		end
-
+			if done then
+				return;
+			end;
+			done = true;
+			selectingOverride = false;
+		end;
 		if #cands == 0 then
 			Insert(btns, {
 				Text = "No characters found",
 				Callback = function()
-					setOverrideModel(nil)
-					fin()
+					setOverrideModel(nil);
+					fin();
 				end
-			})
+			});
 		else
 			for i = 1, #cands do
-				local m = cands[i]
-				local n = m.Name
-				local suffix = ""
+				local m = cands[i];
+				local n = m.Name;
+				local suffix = "";
 				if nCnt[n] and nCnt[n] > 1 then
-					nUse[n] = (nUse[n] or 0) + 1
-					suffix = " ("..nUse[n]..")"
-				end
-
+					nUse[n] = (nUse[n] or 0) + 1;
+					suffix = " (" .. nUse[n] .. ")";
+				end;
 				Insert(btns, {
-					Text = n..suffix,
+					Text = n .. suffix,
 					Callback = function()
-						setOverrideModel(m)
-						fin()
-					end,
-				})
-			end
-		end
-
+						setOverrideModel(m);
+						fin();
+					end
+				});
+			end;
+		end;
 		Insert(btns, {
 			Text = "Cancel",
 			Callback = function()
-				setOverrideModel(nil)
-				fin()
-			end,
-		})
-
+				setOverrideModel(nil);
+				fin();
+			end
+		});
 		Window({
 			WindowTitle = "Select Character",
 			Duration = nil,
 			Text = "Choose a character or NPC model",
-			Buttons = btns,
-		})
-
-		return overrideModel
-	end
-
+			Buttons = btns
+		});
+		return overrideModel;
+	end;
 	local function rebuild(model, rec)
-		rec.head = nil
-		rec.root = nil
-		rec.torso = nil
-		rec.humanoid = nil
+		rec.head = nil;
+		rec.root = nil;
+		rec.torso = nil;
+		rec.humanoid = nil;
 		if not model then
-			rec.dirty = false
-			return rec
-		end
-
+			rec.dirty = false;
+			return rec;
+		end;
 		for _, inst in ipairs(model:GetDescendants()) do
 			if inst:IsA("Humanoid") or inst:IsA("AnimationController") then
-				rec.humanoid = rec.humanoid or inst
+				rec.humanoid = rec.humanoid or inst;
 			elseif inst:IsA("BasePart") then
-				local name = inst.Name:lower()
+				local name = inst.Name:lower();
 				if name:find("root") then
-					rec.root = rec.root or inst
+					rec.root = rec.root or inst;
 				elseif name:find("torso") then
-					rec.torso = rec.torso or inst
+					rec.torso = rec.torso or inst;
 				elseif name:find("head") then
-					rec.head = rec.head or inst
-				end
-			end
-		end
-		rec.dirty = false
-	end
-
+					rec.head = rec.head or inst;
+				end;
+			end;
+		end;
+		rec.dirty = false;
+	end;
 	local function ensure(obj)
-		local model = asChar(obj) or overrideModel or pickOverrideModel()
-		if not model then return nil end
-
-		local rec = _cache[model]
+		local model = asChar(obj) or overrideModel or pickOverrideModel();
+		if not model then
+			return nil;
+		end;
+		local rec = _cache[model];
 		if not rec then
-			rec = { dirty = true }
-			_cache[model] = rec
-			rec.a = model.DescendantAdded:Connect(function() rec.dirty = true end)
-			rec.r = model.DescendantRemoving:Connect(function() rec.dirty = true end)
+			rec = {
+				dirty = true
+			};
+			_cache[model] = rec;
+			rec.a = model.DescendantAdded:Connect(function()
+				rec.dirty = true;
+			end);
+			rec.r = model.DescendantRemoving:Connect(function()
+				rec.dirty = true;
+			end);
 			rec.c = model.AncestryChanged:Connect(function(_, parent)
 				if not parent then
-					if rec.a then rec.a:Disconnect() end
-					if rec.r then rec.r:Disconnect() end
-					if rec.c then rec.c:Disconnect() end
-					_cache[model] = nil
-				end
-			end)
-		end
-		if rec.dirty or (rec.humanoid and rec.humanoid.Parent == nil) then rebuild(model, rec) end
-		return rec, model
-	end
-
-	T.ensure = ensure
-	T.firstPart = firstPart
-	T.asChar = asChar
+					if rec.a then
+						rec.a:Disconnect();
+					end;
+					if rec.r then
+						rec.r:Disconnect();
+					end;
+					if rec.c then
+						rec.c:Disconnect();
+					end;
+					_cache[model] = nil;
+				end;
+			end);
+		end;
+		if rec.dirty or rec.humanoid and rec.humanoid.Parent == nil then
+			rebuild(model, rec);
+		end;
+		return rec, model;
+	end;
+	T.ensure = ensure;
+	T.firstPart = firstPart;
+	T.asChar = asChar;
 	T.pickOverride = function()
-		selectingOverride = false
-		setOverrideModel(nil)
-		return pickOverrideModel(true)
-	 end
-	return T
-end)()
+		selectingOverride = false;
+		setOverrideModel(nil);
+		return pickOverrideModel(true);
+	end;
+	return T;
+end)();
 
 function getRoot(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
@@ -579,14 +581,57 @@ CheckIfNPC = function(character)
 	if not (character and character:IsA("Model")) then
 		return false
 	end
+	local function isPlayerModel(model)
+		if not Players then
+			return false
+		end
+		local okPlr, plr = pcall(function()
+			return Players:GetPlayerFromCharacter(model)
+		end)
+		if okPlr and plr then
+			return true
+		end
+		for _, p in ipairs(Players:GetPlayers()) do
+			local ch = p.Character
+			if ch and (model == ch or model:IsDescendantOf(ch) or ch:IsDescendantOf(model)) then
+				return true
+			end
+		end
+		return false
+	end
+
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then
 		return false
 	end
-	if Players:GetPlayerFromCharacter(character) then
+	if isPlayerModel(character) then
 		return false
 	end
 	return true
+end
+
+NAmanage.IsValidESPModel = function(model, allowNPC)
+	if not (model and model:IsA("Model")) then
+		return false
+	end
+	if not model.Parent or not workspace or not model:IsDescendantOf(workspace) then
+		return false
+	end
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 or hum.Parent == nil then
+		return false
+	end
+	local root = getRoot(model)
+	if not root or root.Parent == nil then
+		return false
+	end
+	if allowNPC then
+		return true
+	end
+	local okPlr, plr = pcall(function()
+		return Players:GetPlayerFromCharacter(model)
+	end)
+	return okPlr and plr ~= nil
 end
 
 FindInTable = function(tbl,val)
@@ -1485,6 +1530,8 @@ local NAStuff = {
 	ESP_FolderMode = "parts";
 	NPC_ESP_MaxDist = 400;
 	NPC_ESP_MaxCount = 200;
+	NPC_ESP_ShowLabels = true;
+	NPC_ESP_LabelMaxDistance = 600;
 	partESPColors = setmetatable({}, { __mode = "k" });
 	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
 	partESPGlassCount = setmetatable({}, { __mode = "k" });
@@ -11294,7 +11341,13 @@ end)
 local ESPenabled=false
 local chamsEnabled=false
 local ESPAutoTrackAll=false
+local ESPPlayersEnabled=false
+local NPCESPenabled=false
 espCONS = espCONS or {}
+
+NAmanage.ESP_RecomputeEnabled=function()
+	ESPenabled = ESPPlayersEnabled or NPCESPenabled
+end
 
 
 NAgui.espUsesHighlight=function()
@@ -12063,6 +12116,20 @@ NAmanage.ESP_ClearAll = function()
 	end
 	NAStuff.ESP_ModelList = {}
 	NAlib.disconnect("esp_update_global")
+	ESPPlayersEnabled = false
+	NPCESPenabled = false
+	NAmanage.ESP_RecomputeEnabled()
+end
+
+NAmanage.ESP_ClearPlayers = function()
+	for model, data in pairs(espCONS) do
+		if not (data and data.isNPC) then
+			NAmanage.ESP_ClearModel(model)
+		end
+	end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
+	end
 end
 
 NAmanage.ESP_Disconnect = function(target)
@@ -12078,13 +12145,8 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if not data then return end
 
 	local owner = Players:GetPlayerFromCharacter(model)
-	if not model.Parent then
-		if data.persistent and owner and owner.Character == model then
-			NAmanage.ESP_RemoveBoxes(model)
-			NAmanage.ESP_DestroyLabel(model)
-		else
-			NAmanage.ESP_ClearModel(model)
-		end
+	if not NAmanage.IsValidESPModel(model, data.isNPC) then
+		NAmanage.ESP_ClearModel(model)
 		return
 	end
 
@@ -12112,7 +12174,9 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local isNPC = data.isNPC == true
 	local boxDist = isNPC and (NAStuff.NPC_ESP_BoxMaxDistance or NAStuff.ESP_BoxMaxDistance or 120) or (NAStuff.ESP_BoxMaxDistance or 120)
 	local wantBoxes = ESPenabled and (dist == nil or dist <= boxDist)
-	local wantLabel = ESPenabled and not chamsEnabled and not isNPC and (dist == nil or dist <= (NAStuff.ESP_LabelMaxDistance or 1000))
+	local labelDist = isNPC and (NAStuff.NPC_ESP_LabelMaxDistance or NAStuff.ESP_LabelMaxDistance or 600) or (NAStuff.ESP_LabelMaxDistance or 1000)
+	local allowLabel = (not isNPC) or (NAStuff.NPC_ESP_ShowLabels ~= false)
+	local wantLabel = ESPenabled and not chamsEnabled and allowLabel and (dist == nil or dist <= labelDist)
 
 	if wantBoxes and not data.boxEnabled then
 		NAmanage.ESP_AddBoxes(model)
@@ -12269,6 +12333,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	local model = target:IsA("Player") and target.Character or target
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
+	if not NAmanage.IsValidESPModel(model, npcFlag) then return end
 
 	espCONS[model] = {
 		boxTable = {},
@@ -24595,7 +24660,8 @@ cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys
 end)
 
 cmd.add({"esp"}, {"esp","locate where the players are"}, function()
-	ESPenabled = true
+	ESPPlayersEnabled = true
+	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
 	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
@@ -24606,7 +24672,8 @@ cmd.add({"esp"}, {"esp","locate where the players are"}, function()
 end)
 
 cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
-	ESPenabled = true
+	ESPPlayersEnabled = true
+	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = true
 	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
@@ -24617,7 +24684,8 @@ cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
 end)
 
 cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
-	ESPenabled = true
+	ESPPlayersEnabled = true
+	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
 	local tokens = {...}
 	local providedArgCount = select("#", ...)
@@ -24642,20 +24710,62 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	end
 end, true)
 
-NPC_SCAN_KEY = "npc_esp_scan"
-getgenv().npcESPList = {}
+NAStuff.NPC_SCAN_KEY = NAStuff.NPC_SCAN_KEY or "npc_esp_scan"
+NAStuff.npcESPList = NAStuff.npcESPList or getgenv().npcESPList or {}
+getgenv().npcESPList = NAStuff.npcESPList
+NAStuff.npcCandidates = NAStuff.npcCandidates or {}
+
+NAmanage.ClearNpcTables = function()
+	for inst in pairs(NAStuff.npcCandidates) do
+		NAStuff.npcCandidates[inst] = nil
+	end
+	for inst in pairs(NAStuff.npcESPList) do
+		NAStuff.npcESPList[inst] = nil
+		NAmanage.ESP_Disconnect(inst)
+	end
+end
+
+NAmanage.AddNpcCandidate = function(inst)
+	if inst and inst:IsA("Model") and CheckIfNPC(inst) then
+		NAStuff.npcCandidates[inst] = true
+	end
+end
+
+NAmanage.RemoveNpcCandidate = function(inst)
+	if not inst then
+		return
+	end
+	if inst:IsA("Model") then
+		NAStuff.npcCandidates[inst] = nil
+	end
+	if NAStuff.npcESPList[inst] then
+		NAStuff.npcESPList[inst] = nil
+		NAmanage.ESP_Disconnect(inst)
+	end
+end
+
+NAmanage.SeedNpcCandidates = function()
+	for inst in pairs(NAStuff.npcCandidates) do
+		NAStuff.npcCandidates[inst] = nil
+	end
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		NAmanage.AddNpcCandidate(inst)
+	end
+end
 
 cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},function()
-	ESPenabled = true
+	NPCESPenabled = true
+	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
 	ESPAutoTrackAll = false
-	getgenv().npcESPList = {}
-	if not NAlib.isConnected(NPC_SCAN_KEY) then
+	NAmanage.ClearNpcTables()
+	NAmanage.SeedNpcCandidates()
+	if not NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
 		local acc = 0
-		NAlib.connect(NPC_SCAN_KEY, RunService.Heartbeat:Connect(function(dt)
-			if not ESPenabled then return end
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, RunService.Heartbeat:Connect(function(dt)
+			if not NPCESPenabled then return end
 			acc = acc + dt
-			if acc < 0.6 then return end
+			if acc < (NAStuff.NPC_ESP_ScanInterval or 0.6) then return end
 			acc = 0
 
 			local plr = Players.LocalPlayer
@@ -24668,15 +24778,21 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 			local maxCnt = NAStuff.NPC_ESP_MaxCount or 200
 			local maxDist = NAStuff.NPC_ESP_MaxDist or 400
 
-			for _, inst in ipairs(workspace:GetDescendants()) do
-				if inst:IsA("Model") and CheckIfNPC(inst) then
+			for inst in pairs(NAStuff.npcCandidates) do
+				if inst and inst.Parent then
+					if not (CheckIfNPC(inst) and NAmanage.IsValidESPModel(inst, true)) then
+						NAStuff.npcCandidates[inst] = nil
+						NAStuff.npcESPList[inst] = nil
+						NAmanage.ESP_Disconnect(inst)
+						continue
+					end
 					local rp = getRoot(inst)
 					if rp then
 						local d = (rp.Position - root.Position).Magnitude
 						if d <= maxDist then
 							found[inst] = true
-							if not (getgenv()).npcESPList[inst] then
-								(getgenv()).npcESPList[inst] = true
+							if not NAStuff.npcESPList[inst] then
+								NAStuff.npcESPList[inst] = true
 								NAmanage.ESP_Add(inst, false, true)
 							end
 							cnt += 1
@@ -24685,13 +24801,35 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 							end
 						end
 					end
+				else
+					NAStuff.npcCandidates[inst] = nil
 				end
 			end
 
-			for inst in pairs(getgenv().npcESPList) do
+			for inst in pairs(NAStuff.npcESPList) do
 				if not found[inst] then
-					getgenv().npcESPList[inst] = nil
+					NAStuff.npcESPList[inst] = nil
 					NAmanage.ESP_Disconnect(inst)
+				end
+			end
+		end))
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, workspace.DescendantAdded:Connect(function(inst)
+			if inst:IsA("Model") then
+				NAmanage.AddNpcCandidate(inst)
+			elseif inst:IsA("Humanoid") then
+				local parent = inst.Parent
+				if parent and parent:IsA("Model") then
+					NAmanage.AddNpcCandidate(parent)
+				end
+			end
+		end))
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, workspace.DescendantRemoving:Connect(function(inst)
+			if inst:IsA("Model") then
+				NAmanage.RemoveNpcCandidate(inst)
+			elseif inst:IsA("Humanoid") then
+				local parent = inst.Parent
+				if parent and parent:IsA("Model") then
+					NAmanage.RemoveNpcCandidate(parent)
 				end
 			end
 		end))
@@ -24700,30 +24838,28 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 end)
 
 cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},function()
-	ESPenabled = false
-	chamsEnabled = false
-	ESPAutoTrackAll = false
-	if NAlib.isConnected(NPC_SCAN_KEY) then
-		NAlib.disconnect(NPC_SCAN_KEY)
+	NPCESPenabled = false
+	NAmanage.ESP_RecomputeEnabled()
+	if NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
+		NAlib.disconnect(NAStuff.NPC_SCAN_KEY)
 	end
-	for inst in pairs(getgenv().npcESPList) do
-		NAmanage.ESP_Disconnect(inst)
+	NAmanage.ClearNpcTables()
+	NAStuff.npcESPList = {}
+	getgenv().npcESPList = NAStuff.npcESPList
+	if not (ESPPlayersEnabled or chamsEnabled or NPCESPenabled) then
+		NAmanage.ESP_StopGlobal()
 	end
-	getgenv().npcESPList = {}
 end)
 
 cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
-	ESPenabled = false
+	ESPPlayersEnabled = false
+	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
 	ESPAutoTrackAll = false
-	if NAlib.isConnected(NPC_SCAN_KEY) then
-		NAlib.disconnect(NPC_SCAN_KEY)
+	NAmanage.ESP_ClearPlayers()
+	if not (NPCESPenabled or chamsEnabled) then
+		NAmanage.ESP_StopGlobal()
 	end
-	for _, plr in ipairs(Players:GetPlayers()) do
-		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
-	end
-	NAmanage.ESP_ClearAll()
-	NAmanage.ESP_StopGlobal()
 end)
 
 cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
@@ -51471,7 +51607,7 @@ function setupPlayer(plr,bruh)
 		SpawnCall(function() CheckPermissions(plr) end)
 	end
 
-	if ESPenabled and ESPAutoTrackAll then
+	if ESPPlayersEnabled and ESPAutoTrackAll then
 		SpawnCall(function()
 			repeat Wait(.5) until plr.Character
 			Wait(.5)
