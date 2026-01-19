@@ -37594,11 +37594,19 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
 	local args = {...}
 	local target = args[1]
 	local buttons = {}
+	local function applyLightingTechnology(tech)
+		if not Lighting or not tech then
+			return
+		end
+		Lighting.Technology = tech
+		local style = tech == Enum.Technology.Future and Enum.LightingStyle.Realistic or Enum.LightingStyle.Soft
+		NAlib.setProperty(Lighting, "LightingStyle", style)
+	end
 	for _, lt in ipairs(Enum.Technology:GetEnumItems()) do
 		Insert(buttons, {
 			Text = lt.Name,
 			Callback = function()
-				Lighting.Technology = lt
+				applyLightingTechnology(lt)
 			end
 		})
 	end
@@ -37703,50 +37711,130 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	end
 end, true)
 
-cmd.add({"tweengotocampos","tweentocampos","tweentcp"},{"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"},function()
-	local player=Players.LocalPlayer
-	local TweenService=TweenService
+NAmanage.NAgetFriendCircles=function()
+	local players = Players:GetPlayers()
+	local graph, seen, groups = {}, {}, {}
 
-	function teleportPlayer()
-		local character=player.Character or player.CharacterAdded:wait(1)
-		local camera=workspace.CurrentCamera
-		local cameraPosition=camera.CFrame.Position
-
-		local tween=TweenService:Create(character.PrimaryPart,TweenInfo.new(NAmanage.resolveTweenDuration(2)),{
-			CFrame=CFrame.new(cameraPosition)
-		})
-
-		tween:Play()
+	for _, plr in ipairs(players) do
+		graph[plr] = {}
 	end
 
+	local function areFriends(p1, p2)
+		local ok, result = pcall(function()
+			if p1.IsFriendsWithAsync then
+				return p1:IsFriendsWithAsync(p2.UserId)
+			end
+			return p1:IsFriendsWith(p2.UserId)
+		end)
+		if ok and result ~= nil then
+			return result
+		end
+		local okStatus, status = pcall(function()
+			return p1:GetFriendStatusAsync(p2.UserId)
+		end)
+		return okStatus and status == Enum.FriendStatus.Friend
+	end
 
-	local camera=workspace.CurrentCamera
-	repeat Wait() until camera.CFrame~=CFrame.new()
-
-	teleportPlayer()
-
-end)
-
-cmd.add({"delete", "remove", "del"}, {"delete {partname} (remove, del)", "Removes any part with a certain name from the workspace"}, function(...)
-	local deleteCount = 0
-	local args = {...}
-	local targetName = Concat(args, " ")
-
-	for _, d in pairs(workspace:GetDescendants()) do
-		if d.Name:lower() == targetName:lower() then
-			d:Destroy()
-			deleteCount = deleteCount + 1
+	for i = 1, #players do
+		for j = i + 1, #players do
+			local p1, p2 = players[i], players[j]
+			if areFriends(p1, p2) then
+				Insert(graph[p1], p2)
+				Insert(graph[p2], p1)
+			end
 		end
 	end
 
-	Wait()
-
-	if deleteCount > 0 then
-		DebugNotif("Deleted "..deleteCount.." instance(s) of '"..targetName.."'", 2.5)
-	else
-		DebugNotif("'"..targetName.."' not found to delete", 2.5)
+	local function dfs(plr, group)
+		seen[plr] = true
+		Insert(group, plr)
+		for _, other in ipairs(graph[plr]) do
+			if not seen[other] then
+				dfs(other, group)
+			end
+		end
 	end
-end, true)
+
+	for _, plr in ipairs(players) do
+		if not seen[plr] then
+			local group = {}
+			dfs(plr, group)
+			Insert(groups, group)
+		end
+	end
+
+	return groups
+end
+
+cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the current server"},function()
+	DoNotif("Looking for friend circles... I'll let you know what I find.", 4)
+
+	local groups = NAmanage.NAgetFriendCircles()
+	local useDisplayNames = false
+	local ok, enabled = pcall(function()
+		return StarterGui and StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.PlayerList)
+	end)
+	if ok and enabled then
+		useDisplayNames = true
+	end
+
+	local lines = {}
+	local index = 1
+	for _, group in ipairs(groups) do
+		if #group > 1 then
+			local names = {}
+			for _, plr in ipairs(group) do
+				Insert(names, useDisplayNames and plr.DisplayName or plr.Name)
+			end
+			Insert(lines, tostring(index)..". "..table.concat(names, ", "))
+			index = index + 1
+		end
+	end
+
+	local groupsFound = #lines
+	local body = (groupsFound == 0) and "No friend circles found in this server." or ("Here are the circles I found:\n"..table.concat(lines, "\n"))
+	DoNotif(Format("Friend scan finished: %d circle%s found.", groupsFound, groupsFound == 1 and "" or "s"), 4, "Friend Web")
+	DoPopup({ Title = "Friend Circles", Description = body })
+end)
+
+cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"}, function()
+	local player = Players.LocalPlayer;
+	local TweenService = TweenService;
+	function teleportPlayer()
+		local character = player.Character or player.CharacterAdded:wait(1);
+		local camera = workspace.CurrentCamera;
+		local cameraPosition = camera.CFrame.Position;
+		local tween = TweenService:Create(character.PrimaryPart, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
+			CFrame = CFrame.new(cameraPosition)
+		});
+		tween:Play();
+	end;
+	local camera = workspace.CurrentCamera;
+	repeat
+		Wait();
+	until camera.CFrame ~= CFrame.new();
+	teleportPlayer();
+end);
+
+cmd.add({"delete","remove","del"}, {"delete {partname} (remove, del)","Removes any part with a certain name from the workspace"}, function(...)
+	local deleteCount = 0;
+	local args = {
+		...
+	};
+	local targetName = Concat(args, " ");
+	for _, d in pairs(workspace:GetDescendants()) do
+		if d.Name:lower() == targetName:lower() then
+			d:Destroy();
+			deleteCount = deleteCount + 1;
+		end;
+	end;
+	Wait();
+	if deleteCount > 0 then
+		DebugNotif("Deleted " .. deleteCount .. " instance(s) of '" .. targetName .. "'", 2.5);
+	else
+		DebugNotif("'" .. targetName .. "' not found to delete", 2.5);
+	end;
+end, true);
 
 cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (removefind, delfind)", "Removes any part with a name containing the given text from the workspace"}, function(...)
 	local deFind = 0

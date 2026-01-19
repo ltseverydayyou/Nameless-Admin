@@ -43,6 +43,418 @@ local NA_SRV = setmetatable({}, {
 local function S(n)
 	return NA_SRV[n];
 end;
+local function AttachEditor(cfg)
+	local sf = cfg.sf;
+	local src = cfg.src;
+	local lines = cfg.lines;
+	src.MultiLine = true;
+	src.ClearTextOnFocus = false;
+	src.TextXAlignment = Enum.TextXAlignment.Left;
+	src.TextYAlignment = Enum.TextYAlignment.Top;
+	src.BackgroundTransparency = 1;
+	local TS = game:GetService("TextService");
+	local TweenService = game:GetService("TweenService");
+	src.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			task.defer(function()
+				local pos = src.CursorPosition;
+				if pos and pos > 0 then
+					src.SelectionStart = pos;
+				end;
+			end);
+		end;
+	end);
+	local function getLineHeight()
+		return src.TextSize + 4;
+	end;
+	local function newLayer(name, col, dz)
+		local l = Instance.new("TextLabel");
+		l.Name = name;
+		l.BackgroundTransparency = 1;
+		l.BorderSizePixel = 0;
+		l.ZIndex = src.ZIndex + (dz or 0);
+		l.FontFace = src.FontFace;
+		l.TextSize = src.TextSize;
+		l.TextXAlignment = src.TextXAlignment;
+		l.TextYAlignment = src.TextYAlignment;
+		l.TextColor3 = col;
+		l.RichText = false;
+		l.TextWrapped = false;
+		l.Size = UDim2.new(1, 0, 1, 0);
+		l.Position = UDim2.new(0, 0, 0, 0);
+		l.Text = "";
+		l.Parent = src;
+		return l;
+	end;
+	local layerComments = newLayer("Comments_", Color3.fromRGB(61, 202, 61), 1);
+	local layerGlobals = newLayer("Globals_", Color3.fromRGB(134, 216, 249), 1);
+	local layerKeywords = newLayer("Keywords_", Color3.fromRGB(250, 111, 126), 1);
+	local layerNumbers = newLayer("Numbers_", Color3.fromRGB(255, 200, 0), 0);
+	local layerRemote = newLayer("RemoteHighlight_", Color3.fromRGB(0, 146, 255), 1);
+	local layerStrings = newLayer("Strings_", Color3.fromRGB(175, 243, 151), 1);
+	local layerTokens = newLayer("Tokens_", Color3.fromRGB(255, 255, 255), 1);
+	local lua_keywords = {
+		"and",
+		"break",
+		"do",
+		"else",
+		"elseif",
+		"end",
+		"false",
+		"for",
+		"function",
+		"goto",
+		"if",
+		"in",
+		"local",
+		"nil",
+		"not",
+		"or",
+		"repeat",
+		"return",
+		"then",
+		"true",
+		"until",
+		"while"
+	};
+	local global_env = {
+		"game",
+		"workspace",
+		"script",
+		"math",
+		"string",
+		"table",
+		"print",
+		"wait",
+		"BrickColor",
+		"Color3",
+		"next",
+		"pairs",
+		"ipairs",
+		"select",
+		"unpack",
+		"Instance",
+		"Vector2",
+		"Vector3",
+		"CFrame",
+		"Ray",
+		"UDim2",
+		"Enum",
+		"assert",
+		"error",
+		"warn",
+		"tick",
+		"loadstring",
+		"_G",
+		"shared",
+		"getfenv",
+		"setfenv",
+		"setmetatable",
+		"getmetatable",
+		"os",
+		"debug",
+		"pcall",
+		"xpcall",
+		"type",
+		"typeof",
+		"require",
+		"spawn",
+		"delay",
+		"getgenv",
+		"getgc",
+		"getloadedmodules",
+		"getrunningscripts",
+		"getsenv",
+		"getrenv",
+		"identifyexecutor",
+		"cloneref",
+		"hookfunction",
+		"hookmetamethod",
+		"setreadonly",
+		"getnamecallmethod",
+		"checkcaller",
+		"isfile",
+		"writefile",
+		"readfile",
+		"listfiles",
+		"makefolder"
+	};
+	local function HighlightString(str, keywords)
+		local K = {};
+		local S = str;
+		local Token = {
+			["="] = true,
+			["."] = true,
+			[","] = true,
+			["("] = true,
+			[")"] = true,
+			["["] = true,
+			["]"] = true,
+			["{"] = true,
+			["}"] = true,
+			[":"] = true,
+			["*"] = true,
+			["/"] = true,
+			["+"] = true,
+			["-"] = true,
+			["%"] = true,
+			[";"] = true,
+			["~"] = true
+		};
+		for _, v in ipairs(keywords) do
+			K[v] = true;
+		end;
+		S = S:gsub(".", function(c)
+			if Token[c] ~= nil then
+				return " ";
+			else
+				return c;
+			end;
+		end);
+		S = S:gsub("%S+", function(c)
+			if K[c] ~= nil then
+				return c;
+			else
+				return (" "):rep(#c);
+			end;
+		end);
+		return S;
+	end;
+	local function HighlightTokens(str)
+		local Token = {
+			["="] = true,
+			["."] = true,
+			[","] = true,
+			["("] = true,
+			[")"] = true,
+			["["] = true,
+			["]"] = true,
+			["{"] = true,
+			["}"] = true,
+			[":"] = true,
+			["*"] = true,
+			["/"] = true,
+			["+"] = true,
+			["-"] = true,
+			["%"] = true,
+			[";"] = true,
+			["~"] = true
+		};
+		local A = "";
+		str:gsub(".", function(c)
+			if Token[c] then
+				A = A .. c;
+			elseif c == "\n" then
+				A = A .. "\n";
+			elseif c == "\t" then
+				A = A .. "\t";
+			else
+				A = A .. " ";
+			end;
+		end);
+		return A;
+	end;
+	local function HighlightStrings(str)
+		local res = "";
+		local quote = false;
+		str:gsub(".", function(c)
+			if not quote and c == "\"" then
+				quote = true;
+			elseif quote and c == "\"" then
+				quote = false;
+			end;
+			if not quote and c == "\"" then
+				res = res .. "\"";
+			elseif c == "\n" then
+				res = res .. "\n";
+			elseif c == "\t" then
+				res = res .. "\t";
+			elseif quote then
+				res = res .. c;
+			else
+				res = res .. " ";
+			end;
+		end);
+		return res;
+	end;
+	local function HighlightComments(str)
+		local ret = "";
+		str:gsub("[^\r\n]+", function(line)
+			local comm = false;
+			local i = 0;
+			line:gsub(".", function(n)
+				i = i + 1;
+				if line:sub(i, i + 1) == "--" then
+					comm = true;
+				end;
+				if comm then
+					ret = ret .. n;
+				else
+					ret = ret .. " ";
+				end;
+			end);
+		end);
+		return ret;
+	end;
+	local function HighlightNumbers(str)
+		local A = "";
+		str:gsub(".", function(c)
+			if tonumber(c) ~= nil then
+				A = A .. c;
+			elseif c == "\n" then
+				A = A .. "\n";
+			elseif c == "\t" then
+				A = A .. "\t";
+			else
+				A = A .. " ";
+			end;
+		end);
+		return A;
+	end;
+	local function updateLinesSize()
+		if not lines then
+			return;
+		end;
+		lines.Size = UDim2.new(lines.Size.X.Scale, lines.Size.X.Offset, 0, src.AbsoluteSize.Y);
+	end;
+	local function highlight_source()
+		local s = src.Text or "";
+		s = s:gsub("\r", "");
+		local sTabs = s:gsub("\t", "    ");
+		layerKeywords.Text = HighlightString(sTabs, lua_keywords);
+		layerGlobals.Text = HighlightString(sTabs, global_env);
+		layerRemote.Text = HighlightString(sTabs, {
+			"FireServer",
+			"fireServer",
+			"InvokeServer",
+			"invokeServer"
+		});
+		layerTokens.Text = HighlightTokens(sTabs);
+		layerNumbers.Text = HighlightNumbers(sTabs);
+		layerStrings.Text = HighlightStrings(sTabs);
+		layerComments.Text = HighlightComments(sTabs);
+		if lines then
+			local lin = 1;
+			s:gsub("\n", function()
+				lin = lin + 1;
+			end);
+			local t = {};
+			for i = 1, lin do
+				t[(#t) + 1] = tostring(i);
+			end;
+			lines.Text = table.concat(t, "\n");
+		end;
+	end;
+	local function updateCanvas()
+		local pad = sf:FindFirstChildOfClass("UIPadding");
+		local leftPad = pad and pad.PaddingLeft.Offset or 0;
+		local text = src.Text or "";
+		local lineHeight = getLineHeight();
+		local _, lineCount = text:gsub("\n", "");
+		lineCount = lineCount + 1;
+		local viewH = sf.AbsoluteSize.Y;
+		local contentH = math.max(viewH, lineCount * lineHeight + 5);
+		local maxW = 0;
+		local sTabs = (text:gsub("\r", "")):gsub("\t", "    ");
+		for line in (sTabs .. "\n"):gmatch("([^\n]*)\n") do
+			local l = line;
+			if l == "" then
+				l = " ";
+			end;
+			local bounds = TS:GetTextSize(l, src.TextSize, src.Font, Vector2.new(1000000, lineHeight));
+			if bounds.X > maxW then
+				maxW = bounds.X;
+			end;
+		end;
+		local viewW = sf.AbsoluteSize.X;
+		local textOffset = src.Position.X.Offset or 0;
+		local contentW = math.max(viewW, leftPad + textOffset + maxW + 20);
+		src.Size = UDim2.new(1, -leftPad, 0, contentH);
+		sf.CanvasSize = UDim2.new(0, contentW, 0, contentH);
+		updateLinesSize();
+	end;
+	local function getLineInfo()
+		local text = src.Text or "";
+		local cursorPos = src.CursorPosition;
+		if not cursorPos or cursorPos <= 0 then
+			local linesPos = {
+				0,
+				(#text) + 1
+			};
+			return linesPos, 0, 1;
+		end;
+		cursorPos -= 1;
+		local prefix = text:sub(1, cursorPos);
+		local _, lineNumber = prefix:gsub("\n", "");
+		lineNumber += 1;
+		local linesPos = {
+			0
+		};
+		for i = 1, #text do
+			if text:sub(i, i) == "\n" then
+				linesPos[(#linesPos) + 1] = i;
+			end;
+		end;
+		linesPos[(#linesPos) + 1] = (#text) + 1;
+		local maxLine = (#linesPos) - 1;
+		if lineNumber > maxLine then
+			lineNumber = maxLine;
+		end;
+		if lineNumber < 1 then
+			lineNumber = 1;
+		end;
+		local lineStart = linesPos[lineNumber] or 0;
+		return linesPos, lineStart, lineNumber;
+	end;
+	local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
+	local function updateHighlight()
+		local text = src.Text or "";
+		local cursorPos = src.CursorPosition;
+		if not cursorPos or cursorPos <= 0 then
+			return;
+		end;
+		local pad = sf:FindFirstChildOfClass("UIPadding");
+		local left = pad and pad.PaddingLeft.Offset or 0;
+		local w = math.max(1, src.AbsoluteSize.X - left);
+		local lineHeight = getLineHeight();
+		local before = text:sub(1, cursorPos - 1);
+		local bounds = TS:GetTextSize(before, src.TextSize, src.Font, Vector2.new(w, 99999));
+		local targetY = math.max(0, bounds.Y - lineHeight);
+		local maxY = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y);
+		local newY = math.clamp(targetY - sf.AbsoluteSize.Y * 0.3, 0, maxY);
+		(TweenService:Create(sf, tweenInfo, {
+			CanvasPosition = Vector2.new(0, newY)
+		})):Play();
+	end;
+	(src:GetPropertyChangedSignal("Text")):Connect(function()
+		highlight_source();
+		updateCanvas();
+		updateHighlight();
+	end);
+	(src:GetPropertyChangedSignal("CursorPosition")):Connect(updateHighlight);
+	(src:GetPropertyChangedSignal("SelectionStart")):Connect(updateHighlight);
+	src.Focused:Connect(updateHighlight);
+	src.FocusLost:Connect(function()
+	end);
+	(sf:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+		updateCanvas();
+		updateHighlight();
+	end);
+	(src:GetPropertyChangedSignal("AbsoluteSize")):Connect(updateLinesSize);
+	highlight_source();
+	updateCanvas();
+	updateHighlight();
+	return {
+		textbox = src,
+		scroll = sf,
+		lines = lines,
+		refresh = function()
+			highlight_source();
+			updateCanvas();
+			updateHighlight();
+		end
+	};
+end;
 local ts, uis, gsv, txt, rs, hs = S("TweenService"), S("UserInputService"), S("GuiService"), S("TextService"), S("RunService"), S("HttpService");
 local isM = uis.TouchEnabled and (not uis.KeyboardEnabled);
 local BS = isM and 0.84 or 1;
@@ -397,23 +809,8 @@ ln.TextColor3 = col.lnTx;
 ln.TextSize = TSZ;
 ln.TextXAlignment = Enum.TextXAlignment.Right;
 ln.TextYAlignment = Enum.TextYAlignment.Top;
-ln.RichText = true;
+ln.RichText = false;
 ln.ZIndex = 1;
-local hl = Instance.new("TextLabel");
-hl.Name = "HL";
-hl.Parent = s;
-hl.BackgroundTransparency = 1;
-hl.Position = UDim2.new(0, 46, 0, 0);
-hl.Size = UDim2.new(1, -52, 1, 0);
-hl.Font = Enum.Font.Code;
-hl.Text = "";
-hl.TextColor3 = col.tx;
-hl.TextSize = TSZ;
-hl.TextXAlignment = Enum.TextXAlignment.Left;
-hl.TextYAlignment = Enum.TextYAlignment.Top;
-hl.RichText = true;
-hl.ZIndex = 2;
-hl.TextWrapped = false;
 local t = Instance.new("TextBox");
 t.Name = "Text";
 t.Parent = s;
@@ -432,22 +829,12 @@ t.TextSize = TSZ;
 t.TextXAlignment = Enum.TextXAlignment.Left;
 t.TextYAlignment = Enum.TextYAlignment.Top;
 t.TextWrapped = false;
-t.TextTransparency = 1;
 t.ZIndex = 4;
-local sel = Instance.new("Frame");
-sel.Name = "Sel";
-sel.Parent = s;
-sel.BackgroundTransparency = 1;
-sel.BorderSizePixel = 0;
-sel.ZIndex = 3;
-local car = Instance.new("Frame");
-car.Name = "Car";
-car.Parent = s;
-car.BackgroundColor3 = col.car;
-car.BorderSizePixel = 0;
-car.Size = UDim2.fromOffset(2, TSZ);
-car.Visible = false;
-car.ZIndex = 5;
+local editorCore = AttachEditor({
+	sf = s,
+	src = t,
+	lines = ln
+});
 local bf = Instance.new("Frame");
 bf.Name = "Btns";
 bf.Parent = m;
@@ -1074,180 +1461,6 @@ local function tabCS()
 	tsf.CanvasSize = UDim2.new(0, math.floor(w), 0, 0);
 	twp.Size = UDim2.new(0, math.floor(w), 1, 0);
 end;
-local function esc(x)
-	return ((x:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
-end;
-local kw = {
-	"and",
-	"break",
-	"do",
-	"else",
-	"elseif",
-	"end",
-	"false",
-	"for",
-	"function",
-	"goto",
-	"if",
-	"in",
-	"local",
-	"nil",
-	"not",
-	"or",
-	"repeat",
-	"return",
-	"then",
-	"true",
-	"until",
-	"while",
-	"continue",
-	"typeof",
-	"export",
-	"declare",
-	"shared",
-	"switch"
-};
-local bi = {
-	"self",
-	"pairs",
-	"ipairs",
-	"pcall",
-	"xpcall",
-	"type",
-	"next",
-	"assert",
-	"error",
-	"warn",
-	"print",
-	"task",
-	"tick",
-	"time",
-	"wait",
-	"spawn",
-	"coroutine",
-	"string",
-	"table",
-	"math",
-	"debug",
-	"os",
-	"utf8",
-	"game",
-	"workspace",
-	"script",
-	"Enum",
-	"Color3",
-	"Vector2",
-	"Vector3",
-	"UDim",
-	"UDim2",
-	"Rect",
-	"CFrame",
-	"Instance",
-	"Players",
-	"RunService",
-	"UserInputService",
-	"TweenService",
-	"ReplicatedStorage",
-	"Lighting",
-	"TeleportService",
-	"HttpService"
-};
-local exf = {
-	"cloneref",
-	"loadstring",
-	"hookmetamethod",
-	"hookfunction",
-	"newcclosure",
-	"getgenv",
-	"getfenv",
-	"setfenv",
-	"getgc",
-	"getsenv",
-	"getreg",
-	"getupvalue",
-	"setupvalue",
-	"getconstant",
-	"setreadonly",
-	"getrawmetatable",
-	"setrawmetatable",
-	"identifyexecutor",
-	"checkcaller",
-	"getnamecallmethod",
-	"sethiddenproperty",
-	"gethiddenproperty",
-	"islclosure",
-	"isexecutorclosure",
-	"getrenv",
-	"getinstances",
-	"getnilinstances",
-	"getloadedmodules",
-	"getconnections",
-	"getscriptclosure",
-	"firesignal",
-	"firetouchinterest",
-	"fireproximityprompt",
-	"fireclickdetector",
-	"queue_on_teleport",
-	"setclipboard",
-	"http_request",
-	"request"
-};
-local mm = {
-	"__index",
-	"__newindex",
-	"__namecall",
-	"__tostring",
-	"__metatable",
-	"__call",
-	"__add",
-	"__sub",
-	"__mul",
-	"__div",
-	"__unm",
-	"__len",
-	"__eq"
-};
-local function colz(tx2)
-	local E, ph, n = esc(tx2), {}, 0;
-	local function keep(s2)
-		n += 1;
-		ph[n] = s2;
-		return "\001PH" .. n .. "\002";
-	end;
-	E = E:gsub("%-%-%[%[[%s%S]-%]%]", function(s2)
-		return keep("<font color=\"#8B949E\">" .. s2 .. "</font>");
-	end);
-	E = E:gsub("%-%-[^\n]*", function(s2)
-		return keep("<font color=\"#8B949E\">" .. s2 .. "</font>");
-	end);
-	E = E:gsub("%[%[[%s%S]-%]%]", function(s2)
-		return keep("<font color=\"#A3E635\">" .. s2 .. "</font>");
-	end);
-	E = E:gsub("\"(.-)\"", function(s2)
-		return keep("<font color=\"#A3E635\">\"" .. s2 .. "\"</font>");
-	end);
-	E = E:gsub("'(.-)'", function(s2)
-		return keep("<font color=\"#A3E635\">'" .. s2 .. "'</font>");
-	end);
-	E = E:gsub("0x[%da-fA-F]+", "<font color=\"#60A5FA\">%0</font>");
-	E = E:gsub("(%f[%w_]%d[%d%.eE]*%f[^%w_])", "<font color=\"#60A5FA\">%1</font>");
-	for _, w in ipairs(kw) do
-		E = E:gsub("%f[%w_]" .. w .. "%f[^%w_]", "<font color=\"#F472B6\">" .. w .. "</font>");
-	end;
-	for _, w in ipairs(bi) do
-		E = E:gsub("%f[%w_]" .. w .. "%f[^%w_]", "<font color=\"#F59E0B\">" .. w .. "</font>");
-	end;
-	for _, w in ipairs(exf) do
-		E = E:gsub("%f[%w_]" .. w .. "%f[^%w_]", "<font color=\"#22D3EE\">" .. w .. "</font>");
-	end;
-	for _, w in ipairs(mm) do
-		E = E:gsub(w, "<font color=\"#C4B5FD\">" .. w .. "</font>");
-	end;
-	E = E:gsub("\001PH(%d+)\002", function(i2)
-		return ph[tonumber(i2)] or "";
-	end);
-	return E;
-end;
 local function lh()
 	return TSZ + 4;
 end;
@@ -1264,215 +1477,15 @@ local function goLn(n)
 	local y = math.max(0, (n - 1) * lh() - s.AbsoluteSize.Y * 0.3);
 	s.CanvasPosition = Vector2.new(0, y);
 end;
-local function upLn()
-	local tx2 = t.Text;
-	if tx2 == "" then
-		tx2 = " ";
-	end;
-	local h = lh();
-	local c = 1;
-	for _ in tx2:gmatch("\n") do
-		c += 1;
-	end;
-	local b = {};
-	for i = 1, c do
-		if eLn and i == eLn then
-			b[(#b) + 1] = "<font color=\"#FFFFFF\">" .. i .. "</font>";
-		else
-			b[(#b) + 1] = tostring(i);
-		end;
-	end;
-	ln.Text = table.concat(b, "\n");
-	local wmx = 0;
-	for line in (t.Text .. "\n"):gmatch("(.-)\n") do
-		local l = line:gsub("\t", "    ");
-		local sz = txt:GetTextSize(l, t.TextSize, t.Font, Vector2.new(1000000, 1000000));
-		if sz.X > wmx then
-			wmx = sz.X;
-		end;
-	end;
-	local pad = 24;
-	local th = c * h + pad;
-	local tw2 = math.max(s.AbsoluteSize.X - 52, wmx + 6);
-	hl.Size = UDim2.new(0, tw2, 0, th);
-	t.Size = UDim2.new(0, tw2, 0, th);
-	ln.Visible = cfg.ln;
-	if cfg.ln then
-		ln.Size = UDim2.new(0, 40, 0, th);
-		hl.Position = UDim2.new(0, 46, 0, 0);
-		t.Position = UDim2.new(0, 46, 0, 0);
-		s.CanvasSize = UDim2.new(0, 46 + tw2 + 6, 0, th);
-	else
-		ln.Size = UDim2.new(0, 0, 0, th);
-		hl.Position = UDim2.new(0, 6, 0, 0);
-		t.Position = UDim2.new(0, 6, 0, 0);
-		s.CanvasSize = UDim2.new(0, 6 + tw2 + 6, 0, th);
-	end;
-	if eLn then
-		em.Size = UDim2.new(0, tw2, 0, h);
-		em.Position = UDim2.new(0, cfg.ln and 46 or 6, 0, (eLn - 1) * h);
-	end;
-end;
 local function syncTab()
 	if tabs[cur] then
 		tabs[cur].text = t.Text;
 	end;
 end;
-local function upHL()
-	hl.Text = colz(t.Text);
-	upLn();
+(t:GetPropertyChangedSignal("Text")):Connect(function()
 	syncTab();
 	schTabs();
-end;
-(t:GetPropertyChangedSignal("Text")):Connect(upHL);
-local bcn, bac = nil, 0;
-local function stopB()
-	if bcn then
-		bcn:Disconnect();
-		bcn = nil;
-	end;
-end;
-local function clrSel()
-	for _, ch in ipairs(sel:GetChildren()) do
-		ch:Destroy();
-	end;
-end;
-local function wof(s2)
-	return (txt:GetTextSize(s2:gsub("\t", "    "), t.TextSize, t.Font, Vector2.new(1000000, 1000000))).X;
-end;
-local function drawSel(a, b)
-	clrSel();
-	if not a or (not b) or a == b then
-		return;
-	end;
-	if a > b then
-		a, b = b, a;
-	end;
-	local tx2 = t.Text;
-	local pre = tx2:sub(1, a - 1);
-	local mid = tx2:sub(a, b - 1);
-	if #mid == 0 then
-		return;
-	end;
-	local h = lh();
-	local ltx = pre:match("([^\n]*)$") or "";
-	local sx = wof(ltx);
-	local y = (select(2, pre:gsub("\n", "")) or 0) * h;
-	local rest = mid;
-	local nl2 = rest:find("\n", 1, true);
-	local MW = 6;
-	local lx = cfg.ln and 46 or 6;
-	if not nl2 then
-		local w = math.max(wof(rest), MW);
-		local fr = Instance.new("Frame");
-		fr.BackgroundColor3 = col.sel;
-		fr.BackgroundTransparency = col.selT;
-		fr.BorderSizePixel = 0;
-		fr.ZIndex = 3;
-		fr.Size = UDim2.new(0, w, 0, h);
-		fr.Position = UDim2.new(0, lx + sx, 0, y);
-		fr.Parent = sel;
-	else
-		local c1 = rest:sub(1, nl2 - 1);
-		local w1 = math.max(wof(c1), MW);
-		local f1 = Instance.new("Frame");
-		f1.BackgroundColor3 = col.sel;
-		f1.BackgroundTransparency = col.selT;
-		f1.BorderSizePixel = 0;
-		f1.ZIndex = 3;
-		f1.Size = UDim2.new(0, w1, 0, h);
-		f1.Position = UDim2.new(0, lx + sx, 0, y);
-		f1.Parent = sel;
-		rest = rest:sub(nl2 + 1);
-		local yy = y + h;
-		while true do
-			local nl3 = rest:find("\n", 1, true);
-			if not nl3 then
-				if #rest > 0 then
-					local wl = math.max(wof(rest), MW);
-					local fl = Instance.new("Frame");
-					fl.BackgroundColor3 = col.sel;
-					fl.BackgroundTransparency = col.selT;
-					fl.BorderSizePixel = 0;
-					fl.ZIndex = 3;
-					fl.Size = UDim2.new(0, wl, 0, h);
-					fl.Position = UDim2.new(0, lx, 0, yy);
-					fl.Parent = sel;
-				end;
-				break;
-			else
-				local cm = rest:sub(1, nl3 - 1);
-				local wm = math.max(wof(cm), MW);
-				local fm = Instance.new("Frame");
-				fm.BackgroundColor3 = col.sel;
-				fm.BackgroundTransparency = col.selT;
-				fm.BorderSizePixel = 0;
-				fm.ZIndex = 3;
-				fm.Size = UDim2.new(0, wm, 0, h);
-				fm.Position = UDim2.new(0, lx, 0, yy);
-				fm.Parent = sel;
-				yy += h;
-				rest = rest:sub(nl3 + 1);
-			end;
-		end;
-	end;
-end;
-local function showCar(pos)
-	local lx = cfg.ln and 46 or 6;
-	local h = lh();
-	local pre = t.Text:sub(1, pos - 1);
-	local line = (select(2, pre:gsub("\n", "")) or 0) + 1;
-	local ltx = pre:match("([^\n]*)$") or "";
-	local w = wof(ltx);
-	car.Visible = true;
-	car.Size = UDim2.fromOffset(2, h - 2);
-	car.Position = UDim2.new(0, lx + w + 2, 0, (line - 1) * h + 1);
-end;
-local function upCar()
-	if not t:IsFocused() then
-		stopB();
-		car.Visible = false;
-		clrSel();
-		return;
-	end;
-	local pos = t.CursorPosition;
-	local ss2 = t.SelectionStart;
-	if not pos or pos <= 0 then
-		pos = 1;
-	end;
-	local hs2 = ss2 and ss2 > 0 and ss2 ~= pos and true or false;
-	if hs2 then
-		car.Visible = false;
-		drawSel(ss2, pos);
-	else
-		clrSel();
-		showCar(pos);
-	end;
-	if not bcn then
-		bac = 0;
-		bcn = rs.RenderStepped:Connect(function(dt)
-			if not t:IsFocused() then
-				stopB();
-				car.Visible = false;
-				return;
-			end;
-			bac += dt;
-			if bac >= 0.5 then
-				car.Visible = not car.Visible;
-				bac = 0;
-			end;
-		end);
-	end;
-end;
-(t:GetPropertyChangedSignal("CursorPosition")):Connect(upCar);
-(t:GetPropertyChangedSignal("SelectionStart")):Connect(upCar);
-t.Focused:Connect(upCar);
-t.FocusLost:Connect(function()
-	stopB();
-	car.Visible = false;
-	clrSel();
 end);
-(s:GetPropertyChangedSignal("CanvasSize")):Connect(upCar);
 uis.InputBegan:Connect(function(i, gpe)
 	if gpe then
 		return;
@@ -1844,8 +1857,9 @@ local function lay()
 		bf.Position = UDim2.new(0, pad, 1, -(sh + gp + bh));
 		bf.Size = UDim2.new(1, -(pad * 2 + hubW + gapHub), 0, bh);
 	end;
-	upLn();
-	upCar();
+	if editorCore and editorCore.refresh then
+		editorCore.refresh();
+	end;
 	tabCS();
 	refTabs();
 	sb.Position = UDim2.new(0, 14, 1, -22);
@@ -2325,8 +2339,9 @@ local function first()
 	local w, h = tgtSz();
 	exSz = Vector2.new(w, h);
 	m.Size = UDim2.new(0, w, 0, h);
-	hl.Text = colz(t.Text);
-	upLn();
+	if editorCore and editorCore.refresh then
+		editorCore.refresh();
+	end;
 	refTabs();
 	lay();
 	if cfg.hb then
