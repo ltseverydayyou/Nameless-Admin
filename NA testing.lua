@@ -187,6 +187,7 @@ local Players=SafeGetService("Players");
 local UserInputService=SafeGetService("UserInputService");
 local TweenService=SafeGetService("TweenService");
 local RunService=SafeGetService("RunService");
+local ContextActionService=SafeGetService("ContextActionService");
 local TeleportService=SafeGetService("TeleportService");
 local Lighting=SafeGetService("Lighting");
 local ReplicatedStorage=SafeGetService("ReplicatedStorage");
@@ -1562,6 +1563,27 @@ local NAStuff = {
 	TopbarStrokeTransparency = 0.15;
 	SideSwipeWidth = 80;
 	SideSwipeHandleTransparency = 0.72;
+	Integrations = {
+		webhook = {
+			url = "";
+			enableJoinLeave = false;
+			enableChat = false;
+			enableCommands = false;
+			minInterval = 2;
+			lastSent = 0;
+		};
+		health = {
+			endpoints = {};
+		};
+		notes = {
+			last = "";
+		};
+		rpc = {
+			useCustom = false;
+			details = "";
+			state = "";
+		};
+	};
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
@@ -1594,6 +1616,7 @@ local NAStuff = {
 			textColor = {235,235,235};
 			strokeColor = {0,0,0};
 			strokeTransparency = 0.5;
+			textTransparency = 0;
 			backgroundColor = {25,27,29};
 			backgroundTransparency = 0.2;
 		};
@@ -1601,7 +1624,9 @@ local NAStuff = {
 			enabled = false;
 			font = "rbxasset://fonts/families/BuilderSans.json";
 			textSize = 18;
+			backgroundColor = {25,27,29};
 			backgroundTransparency = 0;
+			textTransparency = 0;
 			textColor = {255,255,255};
 			selectedTextColor = {170,255,170};
 			unselectedTextColor = {200,200,200};
@@ -1613,7 +1638,9 @@ local NAStuff = {
 			keyCode = "Slash";
 			textSize = 16;
 			textColor = {255,255,255};
+			strokeColor = {0,0,0};
 			strokeTransparency = 0.5;
+			backgroundColor = {25,27,29};
 			backgroundTransparency = 0.2;
 			targetGeneral = false;
 		};
@@ -1622,8 +1649,13 @@ local NAStuff = {
 			maxDistance = 100;
 			minimizeDistance = 20;
 			textSize = 14;
+			textColor = {255,255,255};
+			textTransparency = 0;
 			spacing = 4;
+			backgroundColor = {25,27,29};
 			backgroundTransparency = 0.1;
+			maxBubbles = 3;
+			bubbleDuration = 15;
 			tailVisible = true;
 		};
 	};
@@ -1741,6 +1773,69 @@ NAmanage.btSetEnabled=function(value)
 	end
 end
 
+NAmanage.InitializeIntegration=function()
+	local integ = NAStuff.Integrations or {}
+	integ.webhook = integ.webhook or {}
+	integ.webhook.url = integ.webhook.url or ""
+	integ.webhook.enableJoinLeave = integ.webhook.enableJoinLeave == true
+	integ.webhook.enableChat = integ.webhook.enableChat == true
+	integ.webhook.enableCommands = integ.webhook.enableCommands == true
+	integ.webhook.minInterval = tonumber(integ.webhook.minInterval) or 2
+	integ.webhook.lastSent = integ.webhook.lastSent or 0
+	integ.health = integ.health or { endpoints = {} }
+	integ.health.endpoints = integ.health.endpoints or {}
+	integ.notes = integ.notes or { last = "" }
+	integ.notes.last = integ.notes.last or ""
+	integ.rpc = integ.rpc or {}
+	integ.rpc.useCustom = integ.rpc.useCustom == true
+	integ.rpc.details = integ.rpc.details or ""
+	integ.rpc.state = integ.rpc.state or ""
+
+	if NAmanage.NASettingsGet then
+		local clampNum = NAmanage.clampNumber or function(v, lo, hi, fallback)
+			local n = tonumber(v)
+			if not n then return fallback end
+			if lo and n < lo then n = lo end
+			if hi and n > hi then n = hi end
+			return n
+		end
+		local function asBool(v) return v == true end
+		local function asString(v) return type(v) == "string" and v or "" end
+
+		integ.webhook.url = asString(NAmanage.NASettingsGet("integrationWebhookUrl")) ~= "" and asString(NAmanage.NASettingsGet("integrationWebhookUrl")) or integ.webhook.url
+		integ.webhook.enableJoinLeave = NAmanage.NASettingsGet("integrationWebhookJoinLeave") == true or integ.webhook.enableJoinLeave
+		integ.webhook.enableChat = NAmanage.NASettingsGet("integrationWebhookChat") == true or integ.webhook.enableChat
+		integ.webhook.enableCommands = NAmanage.NASettingsGet("integrationWebhookCommands") == true or integ.webhook.enableCommands
+		integ.webhook.minInterval = clampNum(NAmanage.NASettingsGet("integrationWebhookInterval"), 0, 120, integ.webhook.minInterval)
+
+		local storedEndpoints = NAmanage.NASettingsGet("integrationHealthEndpoints")
+		if type(storedEndpoints) == "table" then
+			integ.health.endpoints = {}
+			for i = 1, math.min(#storedEndpoints, 3) do
+				if type(storedEndpoints[i]) == "string" and storedEndpoints[i] ~= "" then
+					integ.health.endpoints[i] = storedEndpoints[i]
+				end
+			end
+		elseif type(storedEndpoints) == "string" and storedEndpoints ~= "" then
+			integ.health.endpoints = { storedEndpoints }
+		end
+
+		local noteVal = NAmanage.NASettingsGet("integrationNotesLast")
+		if type(noteVal) == "string" then
+			integ.notes.last = noteVal
+		end
+
+		integ.rpc.useCustom = NAmanage.NASettingsGet("integrationRpcUseCustom") == true or integ.rpc.useCustom
+		local rpcDetails = NAmanage.NASettingsGet("integrationRpcDetails")
+		local rpcState = NAmanage.NASettingsGet("integrationRpcState")
+		if type(rpcDetails) == "string" then integ.rpc.details = rpcDetails end
+		if type(rpcState) == "string" then integ.rpc.state = rpcState end
+	end
+
+	NAStuff.Integrations = integ
+end
+NAmanage.InitializeIntegration()
+
 NAmanage.btSend=function(command, data)
 	if not NAmanage.btEnabled() then
 		return
@@ -1774,7 +1869,21 @@ NAmanage.btUpdate=function(details, state)
 
 	local versionHover = (NAStuff and NAStuff.NAjson and NAStuff.NAjson.ver) or "Nameless Admin"
 	local count = NAmanage.btCount or 0
+	local cfgRPC = (NAStuff.Integrations and NAStuff.Integrations.rpc) or {}
+	local placeLabel = placeName and placeName() or "Game"
+	local function applyTemplate(text, fallback)
+		local src = (text ~= nil and text ~= "") and text or fallback
+		if type(src) ~= "string" then
+			src = tostring(src)
+		end
+		return (src or ""):gsub("{cmds}", tostring(count))
+			:gsub("{game}", tostring(placeLabel))
+	end
+
 	local displayDetails = details or adminName or "Nameless Admin"
+	if cfgRPC.useCustom and cfgRPC.details and cfgRPC.details ~= "" then
+		displayDetails = applyTemplate(cfgRPC.details, displayDetails)
+	end
 	if type(displayDetails) ~= "string" then
 		displayDetails = tostring(displayDetails)
 	end
@@ -1786,6 +1895,9 @@ NAmanage.btUpdate=function(details, state)
 		else
 			baseState = "Idle"
 		end
+	end
+	if cfgRPC.useCustom and cfgRPC.state and cfgRPC.state ~= "" then
+		baseState = applyTemplate(cfgRPC.state, baseState)
 	end
 	if type(baseState) ~= "string" then
 		baseState = tostring(baseState)
@@ -2229,8 +2341,8 @@ function NAmanage.runLoader(label, callback, opts)
 		return false
 	end
 
-	local lastErr
-	for attempt = 1, attempts do
+local lastErr
+for attempt = 1, attempts do
 		local ok, result = pcall(callback)
 		if ok and (result ~= false or not retryOnFalse) then
 			NAmanage._loaderStatus[label] = true
@@ -2263,6 +2375,128 @@ function NAmanage.runLoader(label, callback, opts)
 	end
 	NAmanage._loaderStatus[label] = false
 	return false
+end
+
+NAmanage.clampNumber=function(value, minValue, maxValue, fallback)
+	local n = tonumber(value)
+	if n == nil then return fallback end
+	if minValue and n < minValue then n = minValue end
+	if maxValue and n > maxValue then n = maxValue end
+	return n
+end
+
+NAmanage.SendIntegrationWebhook=function(kind, content)
+	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
+	if not (cfg and cfg.url and cfg.url ~= "" and content and content ~= "") then
+		return false, "missing config"
+	end
+	local now = tick()
+	local minInt = NAmanage.clampNumber(cfg.minInterval, 0, 60, 2) or 2
+	if cfg.lastSent and (now - cfg.lastSent) < minInt then
+		return false, "rate-limited"
+	end
+	local payload = HttpService:JSONEncode({ content = content })
+	local ok, res = pcall(function()
+		if opt and type(opt.NAREQUEST) == "function" then
+			return opt.NAREQUEST({
+				Url = cfg.url;
+				Method = "POST";
+				Headers = { ["Content-Type"] = "application/json" };
+				Body = payload;
+			})
+		else
+			return HttpService:PostAsync(cfg.url, payload, Enum.HttpContentType.ApplicationJson, false)
+		end
+	end)
+	if ok then
+		cfg.lastSent = now
+		return true
+	end
+	return false, res
+end
+
+NAmanage.WebhookJoinLeave=function(plr, action)
+	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
+	if not (cfg and cfg.enableJoinLeave) then return end
+	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
+	local actLabel = action == "leave" and "left" or "joined"
+	local jobId = tostring(game.JobId or "")
+	local placeId = tostring(game.PlaceId or "")
+	local text = string.format("[Join/Leave] %s has %s. PlaceId: %s | JobId: %s", username, actLabel, placeId, jobId)
+	NAmanage.SendIntegrationWebhook("joinleave", text)
+end
+
+NAmanage.WebhookChat=function(plr, msg)
+	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
+	if not (cfg and cfg.enableChat) then return end
+	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
+	local text = string.format("[Chat] %s: %s", username, tostring(msg or ""))
+	NAmanage.SendIntegrationWebhook("chat", text)
+end
+
+NAmanage.WebhookCommand=function(rawArgs)
+	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
+	if not (cfg and cfg.enableCommands) then return end
+	if type(rawArgs) ~= "table" or #rawArgs == 0 then return end
+	local playerName = nameChecker and nameChecker(Players and Players.LocalPlayer) or (Players and Players.LocalPlayer and Players.LocalPlayer.Name) or "LocalPlayer"
+	local line = table.concat(rawArgs, " ")
+	local text = string.format("[Command] ran: %s", line)
+	NAmanage.SendIntegrationWebhook("command", text)
+end
+
+NAmanage.HealthPing=function(url)
+	if type(url) ~= "string" or url == "" then
+		return false, "missing url"
+	end
+	local start = os.clock()
+	local ok, res = pcall(function()
+		if opt and type(opt.NAREQUEST) == "function" then
+			return opt.NAREQUEST({ Url = url, Method = "GET", Timeout = 5, FollowRedirects = true })
+		else
+			return HttpService:GetAsync(url)
+		end
+	end)
+	local elapsed = os.clock() - start
+	if ok then
+		return true, elapsed
+	end
+	return false, res or "error", elapsed
+end
+
+NAmanage.HealthPingAll=function()
+	local eps = (NAStuff.Integrations and NAStuff.Integrations.health and NAStuff.Integrations.health.endpoints) or {}
+	local results = {}
+	for idx, url in ipairs(eps) do
+		if url and url ~= "" then
+			local ok, info, elapsed = NAmanage.HealthPing(url)
+			if ok then
+				Insert(results, string.format("#%d OK (%.2fs)", idx, tonumber(info) or elapsed or 0))
+			else
+				local errText = tostring(info or "error")
+				Insert(results, string.format("#%d FAIL: %s", idx, errText))
+			end
+		end
+	end
+	return results
+end
+
+NAmanage.ComposeServerNote=function(note)
+	local parts = {}
+	local jobId = tostring(game.JobId or "")
+	local placeId = tostring(game.PlaceId or "")
+	Insert(parts, "PlaceId: "..placeId)
+	if jobId and jobId ~= "" then
+		Insert(parts, "JobId: "..jobId)
+	end
+	local serverCount = Players and Players.NumPlayers or nil
+	if serverCount then
+		local max = Players.MaxPlayers or "?"
+		Insert(parts, string.format("Players: %s/%s", serverCount, max))
+	end
+	if note and note ~= "" then
+		Insert(parts, "Note: "..note)
+	end
+	return table.concat(parts, " | ")
 end
 
 function NAmanage.scheduleLoader(label, callback, opts)
@@ -7802,12 +8036,97 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
-		bloxtrapRPC = {
-			default = false;
-			coerce = function(value)
-				return coerceBoolean(value, false)
-			end;
-		};
+	bloxtrapRPC = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
+	integrationWebhookUrl = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookJoinLeave = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
+	integrationWebhookChat = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
+	integrationWebhookCommands = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
+	integrationWebhookInterval = {
+		default = 2;
+		coerce = function(value)
+			local n = tonumber(value)
+			if not n then return 2 end
+			if n < 0 then n = 0 elseif n > 30 then n = 30 end
+			return n
+		end;
+	};
+	integrationHealthEndpoints = {
+		default = {};
+		coerce = function(value)
+			if type(value) ~= "table" then
+				return {}
+			end
+			local out = {}
+			for i = 1, math.min(3, #value) do
+				local v = value[i]
+				if type(v) == "string" and v ~= "" then
+					out[#out + 1] = v
+				end
+			end
+			return out
+		end;
+	};
+	integrationNotesLast = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationRpcUseCustom = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
+	integrationRpcDetails = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationRpcState = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
 		cmdIntegrationAutoRun = {
 			default = false;
 			coerce = function(value)
@@ -9024,6 +9343,53 @@ NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
+
+NAmanage.loadIntegration=function()
+	local integ = NAStuff.Integrations or {}
+	integ.webhook = integ.webhook or {}
+	integ.webhook.url = NAmanage.NASettingsGet("integrationWebhookUrl") or integ.webhook.url or ""
+	integ.webhook.enableJoinLeave = NAmanage.NASettingsGet("integrationWebhookJoinLeave") == true or integ.webhook.enableJoinLeave == true
+	integ.webhook.enableChat = NAmanage.NASettingsGet("integrationWebhookChat") == true or integ.webhook.enableChat == true
+	integ.webhook.enableCommands = NAmanage.NASettingsGet("integrationWebhookCommands") == true or integ.webhook.enableCommands == true
+	local clampNum = (NAmanage and NAmanage.clampNumber) or function(v, lo, hi, fallback)
+		local n = tonumber(v)
+		if not n then return fallback end
+		if lo and n < lo then n = lo end
+		if hi and n > hi then n = hi end
+		return n
+	end
+	integ.webhook.minInterval = clampNum(NAmanage.NASettingsGet("integrationWebhookInterval"), 0, 120, integ.webhook.minInterval or 2)
+
+	local eps = NAmanage.NASettingsGet("integrationHealthEndpoints")
+	if type(eps) == "table" then
+		integ.health = integ.health or { endpoints = {} }
+		integ.health.endpoints = {}
+		for i = 1, math.min(#eps, 3) do
+			if type(eps[i]) == "string" and eps[i] ~= "" then
+				integ.health.endpoints[i] = eps[i]
+			end
+		end
+	elseif type(eps) == "string" and eps ~= "" then
+		integ.health = integ.health or { endpoints = {} }
+		integ.health.endpoints = { eps }
+	end
+
+	integ.notes = integ.notes or {}
+	local noteSaved = NAmanage.NASettingsGet("integrationNotesLast")
+	if type(noteSaved) == "string" then
+		integ.notes.last = noteSaved
+	end
+
+	integ.rpc = integ.rpc or {}
+	integ.rpc.useCustom = NAmanage.NASettingsGet("integrationRpcUseCustom") == true or integ.rpc.useCustom == true
+	local rd = NAmanage.NASettingsGet("integrationRpcDetails")
+	local rs = NAmanage.NASettingsGet("integrationRpcState")
+	if type(rd) == "string" then integ.rpc.details = rd end
+	if type(rs) == "string" then integ.rpc.state = rs end
+	NAStuff.Integrations = integ
+end
+NAmanage.loadIntegration()
+
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 _G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
@@ -9191,6 +9557,52 @@ if FileSupport then
 	local function c3ToTbl(c)
 		return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
 	end
+	local function clampAlpha(v)
+		return math.clamp(tonumber(v) or 0, 0, 1)
+	end
+	local function blendColorAlpha(base, bg, alpha)
+		bg = bg or Color3.new(0, 0, 0)
+		alpha = clampAlpha(alpha)
+		if alpha <= 0 then
+			return base
+		end
+		return Color3.new(
+			base.R + (bg.R - base.R) * alpha,
+			base.G + (bg.G - base.G) * alpha,
+			base.B + (bg.B - base.B) * alpha
+		)
+	end
+
+	NAStuff.ChatSettings = NAStuff.ChatSettings or {}
+	NAStuff.ChatSettings.input = NAStuff.ChatSettings.input or {}
+	NAStuff.ChatSettings.input.textTransparency = nil
+
+	local chatKeyBlockAction = "NA_BlockSlashChatKey"
+	NAmanage.ApplyChatKeyBlock = function(enumKey)
+		if not ContextActionService then
+			return
+		end
+		pcall(function()
+			ContextActionService:UnbindAction(chatKeyBlockAction)
+		end)
+		if IsOnMobile then
+			return
+		end
+		if enumKey == Enum.KeyCode.Slash then
+			return
+		end
+		local ok, err = pcall(function()
+			ContextActionService:BindActionAtPriority(chatKeyBlockAction, function(_, state)
+				if state == Enum.UserInputState.Begin then
+					return Enum.ContextActionResult.Sink
+				end
+				return Enum.ContextActionResult.Pass
+			end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Slash)
+		end)
+		if not ok then
+			warn("[NA] Chat key block failed:", err)
+		end
+	end
 	local function deepMerge(dst, src)
 		for k, v in pairs(src) do
 			if type(v) == "table" and type(dst[k]) == "table" then
@@ -9208,6 +9620,12 @@ if FileSupport then
 		if isfile(ChatConfigPath) then
 			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
+		end
+		if cfg and cfg.bubbles then
+			local mb = tonumber(cfg.bubbles.maxBubbles)
+			if mb then
+				cfg.bubbles.maxBubbles = math.max(1, math.min(5, mb))
+			end
 		end
 		return cfg
 	end
@@ -9311,9 +9729,11 @@ if FileSupport then
 		setToggle("Tail Visible", bubbles.tailVisible)
 
 		setSlider("Text Size (Window)", window.textSize)
+		setSlider("Text Transparency (Window)", window.textTransparency)
 		setSlider("Text Stroke Transparency", window.strokeTransparency)
 		setSlider("Window Background Transparency", window.backgroundTransparency)
 		setSlider("Text Size (Tabs)", tabs.textSize)
+		setSlider("Text Transparency (Tabs)", tabs.textTransparency)
 		setSlider("Background Transparency (Tabs)", tabs.backgroundTransparency)
 		setSlider("Text Size (Input)", input.textSize)
 		setSlider("Text Stroke Transparency (Input)", input.strokeTransparency)
@@ -9322,15 +9742,23 @@ if FileSupport then
 		setSlider("Minimize Distance", bubbles.minimizeDistance)
 		setSlider("Text Size (Bubble)", bubbles.textSize)
 		setSlider("Bubble Spacing", bubbles.spacing)
+		setSlider("Text Transparency (Bubble)", bubbles.textTransparency)
 		setSlider("Background Transparency (Bubble)", bubbles.backgroundTransparency)
+		setSlider("Bubble Duration", bubbles.bubbleDuration)
+		setSlider("Max Bubbles", bubbles.maxBubbles)
 
 		setColor("Text Color", window.textColor)
 		setColor("Text Stroke Color", window.strokeColor)
 		setColor("Window Background", window.backgroundColor)
+		setColor("Tab Background", tabs.backgroundColor)
 		setColor("Text Color (Tabs)", tabs.textColor)
 		setColor("Selected Text Color", tabs.selectedTextColor)
 		setColor("Unselected Text Color", tabs.unselectedTextColor)
 		setColor("Text Color (Input)", input.textColor)
+		setColor("Input Background", input.backgroundColor)
+		setColor("Input Stroke Color", input.strokeColor)
+		setColor("Bubble Text Color", bubbles.textColor)
+		setColor("Bubble Background", bubbles.backgroundColor)
 	end
 
 	local function hasProp(inst, prop)
@@ -9383,10 +9811,10 @@ if FileSupport then
 		end
 
 		originalIO.getChatDefaults()
-		captureGroup("window", Window, { "Enabled", "FontFace", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
-		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundTransparency", "TextColor3", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
-		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "TextSize", "TextColor3", "TextStrokeTransparency", "BackgroundTransparency" })
-		captureGroup("bubbles", Bubbles, { "Enabled", "MaxDistance", "MinimizeDistance", "TextSize", "BubblesSpacing", "BackgroundTransparency", "TailVisible" })
+		captureGroup("window", Window, { "Enabled", "FontFace", "TextSize", "TextColor3", "TextTransparency", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
+		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundColor3", "BackgroundTransparency", "TextColor3", "TextTransparency", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
+		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
+		captureGroup("bubbles", Bubbles, { "Enabled", "MaxDistance", "MinimizeDistance", "TextSize", "TextColor3", "TextTransparency", "BubblesSpacing", "BackgroundColor3", "BackgroundTransparency", "BubbleDuration", "MaxBubbles", "TailVisible" })
 	end
 
 	originalIO.applyChatDefaultGroup=function(group, inst)
@@ -9407,6 +9835,10 @@ if FileSupport then
 		originalIO.applyChatDefaultGroup("input", InputBar)
 		originalIO.applyChatDefaultGroup("bubbles", Bubbles)
 	end
+
+	NAStuff.ChatSettings = NAStuff.ChatSettings or {}
+	NAStuff.ChatSettings.input = NAStuff.ChatSettings.input or {}
+	NAStuff.ChatSettings.input.textTransparency = nil
 
 	NAmanage.ApplyTextChatSettings = function()
 		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, NAStuff.ChatSettings.coreGuiChat) end)
@@ -9429,10 +9861,18 @@ if FileSupport then
 		NAStuff.ChatCustomizationActive = true
 
 		if Window then
+			local windowText = tblToC3(NAStuff.ChatSettings.window.textColor)
+			local windowBg = tblToC3(NAStuff.ChatSettings.window.backgroundColor)
+			local windowAlpha = clampAlpha(NAStuff.ChatSettings.window.textTransparency)
+			local windowHasAlpha = hasProp(Window, "TextTransparency")
+			local windowColor = windowHasAlpha and windowText or blendColorAlpha(windowText, windowBg, windowAlpha)
 			safeSet(Window, "Enabled", NAStuff.ChatSettings.window.enabled)
 			if hasProp(Window, "FontFace") and NAStuff.ChatSettings.window.font then pcall(function() Window.FontFace = Font.new(NAStuff.ChatSettings.window.font) end) end
 			safeSet(Window, "TextSize", NAStuff.ChatSettings.window.textSize)
-			safeSet(Window, "TextColor3", tblToC3(NAStuff.ChatSettings.window.textColor))
+			safeSet(Window, "TextColor3", windowColor)
+			if windowHasAlpha then
+				safeSet(Window, "TextTransparency", windowAlpha)
+			end
 			safeSet(Window, "TextStrokeColor3", tblToC3(NAStuff.ChatSettings.window.strokeColor))
 			safeSet(Window, "TextStrokeTransparency", NAStuff.ChatSettings.window.strokeTransparency)
 			safeSet(Window, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.window.backgroundColor))
@@ -9440,16 +9880,28 @@ if FileSupport then
 		end
 
 		if Tabs then
+			local tabsBg = tblToC3(NAStuff.ChatSettings.tabs.backgroundColor)
+			local tabsAlpha = clampAlpha(NAStuff.ChatSettings.tabs.textTransparency)
+			local tabsText = tblToC3(NAStuff.ChatSettings.tabs.textColor)
+			local tabsSelected = tblToC3(NAStuff.ChatSettings.tabs.selectedTextColor)
+			local tabsUnselected = tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor)
+			local tabsHasAlpha = hasProp(Tabs, "TextTransparency")
 			safeSet(Tabs, "Enabled", NAStuff.ChatSettings.tabs.enabled)
 			if hasProp(Tabs, "FontFace") and NAStuff.ChatSettings.tabs.font then pcall(function() Tabs.FontFace = Font.new(NAStuff.ChatSettings.tabs.font) end) end
 			safeSet(Tabs, "TextSize", NAStuff.ChatSettings.tabs.textSize)
+			safeSet(Tabs, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.tabs.backgroundColor))
 			safeSet(Tabs, "BackgroundTransparency", NAStuff.ChatSettings.tabs.backgroundTransparency)
-			safeSet(Tabs, "TextColor3", tblToC3(NAStuff.ChatSettings.tabs.textColor))
-			safeSet(Tabs, "SelectedTabTextColor3", tblToC3(NAStuff.ChatSettings.tabs.selectedTextColor))
-			safeSet(Tabs, "UnselectedTabTextColor3", tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor))
+			safeSet(Tabs, "TextColor3", tabsHasAlpha and tabsText or blendColorAlpha(tabsText, tabsBg, tabsAlpha))
+			if tabsHasAlpha then
+				safeSet(Tabs, "TextTransparency", tabsAlpha)
+			end
+			safeSet(Tabs, "SelectedTabTextColor3", tabsHasAlpha and tabsSelected or blendColorAlpha(tabsSelected, tabsBg, tabsAlpha))
+			safeSet(Tabs, "UnselectedTabTextColor3", tabsHasAlpha and tabsUnselected or blendColorAlpha(tabsUnselected, tabsBg, tabsAlpha))
 		end
 
 		if InputBar then
+			local inputBg = tblToC3(NAStuff.ChatSettings.input.backgroundColor)
+			local inputText = tblToC3(NAStuff.ChatSettings.input.textColor)
 			safeSet(InputBar, "Enabled", NAStuff.ChatSettings.input.enabled)
 			safeSet(InputBar, "AutocompleteEnabled", NAStuff.ChatSettings.input.autocomplete)
 			if hasProp(InputBar, "FontFace") and NAStuff.ChatSettings.input.font then pcall(function() InputBar.FontFace = Font.new(NAStuff.ChatSettings.input.font) end) end
@@ -9461,20 +9913,36 @@ if FileSupport then
 				local keyName = tostring(NAStuff.ChatSettings.input.keyCode or "Slash")
 				local enumKey = Enum.KeyCode[keyName] or Enum.KeyCode.Slash
 				safeSet(InputBar, "KeyboardKeyCode", enumKey)
+				if NAmanage.ApplyChatKeyBlock then
+					NAmanage.ApplyChatKeyBlock(enumKey)
+				end
 			end
 			safeSet(InputBar, "TextSize", NAStuff.ChatSettings.input.textSize)
-			safeSet(InputBar, "TextColor3", tblToC3(NAStuff.ChatSettings.input.textColor))
+			safeSet(InputBar, "TextColor3", inputText)
+			safeSet(InputBar, "TextStrokeColor3", tblToC3(NAStuff.ChatSettings.input.strokeColor))
 			safeSet(InputBar, "TextStrokeTransparency", NAStuff.ChatSettings.input.strokeTransparency)
+			safeSet(InputBar, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.input.backgroundColor))
 			safeSet(InputBar, "BackgroundTransparency", NAStuff.ChatSettings.input.backgroundTransparency)
 		end
 
 		if Bubbles then
+			local bubbleBg = tblToC3(NAStuff.ChatSettings.bubbles.backgroundColor)
+			local bubbleAlpha = clampAlpha(NAStuff.ChatSettings.bubbles.textTransparency)
+			local bubbleText = tblToC3(NAStuff.ChatSettings.bubbles.textColor)
+			local bubbleHasAlpha = hasProp(Bubbles, "TextTransparency")
 			safeSet(Bubbles, "Enabled", NAStuff.ChatSettings.bubbles.enabled)
 			if hasProp(Bubbles, "MaxDistance") then safeSet(Bubbles, "MaxDistance", math.max(NAStuff.ChatSettings.bubbles.maxDistance, 0)) end
 			if hasProp(Bubbles, "MinimizeDistance") then safeSet(Bubbles, "MinimizeDistance", math.max(NAStuff.ChatSettings.bubbles.minimizeDistance, 0)) end
 			if hasProp(Bubbles, "TextSize") then safeSet(Bubbles, "TextSize", math.max(NAStuff.ChatSettings.bubbles.textSize, 1)) end
+			if hasProp(Bubbles, "TextColor3") then safeSet(Bubbles, "TextColor3", bubbleHasAlpha and bubbleText or blendColorAlpha(bubbleText, bubbleBg, bubbleAlpha)) end
+			if bubbleHasAlpha then
+				safeSet(Bubbles, "TextTransparency", bubbleAlpha)
+			end
 			if hasProp(Bubbles, "BubblesSpacing") then safeSet(Bubbles, "BubblesSpacing", math.max(NAStuff.ChatSettings.bubbles.spacing, 0)) end
+			if hasProp(Bubbles, "BackgroundColor3") then safeSet(Bubbles, "BackgroundColor3", bubbleBg) end
 			safeSet(Bubbles, "BackgroundTransparency", math.clamp(NAStuff.ChatSettings.bubbles.backgroundTransparency, 0, 1))
+			if hasProp(Bubbles, "BubbleDuration") then safeSet(Bubbles, "BubbleDuration", math.max(1, tonumber(NAStuff.ChatSettings.bubbles.bubbleDuration) or 0)) end
+			if hasProp(Bubbles, "MaxBubbles") then safeSet(Bubbles, "MaxBubbles", math.max(1, math.min(5, tonumber(NAStuff.ChatSettings.bubbles.maxBubbles) or 1))) end
 			safeSet(Bubbles, "TailVisible", NAStuff.ChatSettings.bubbles.tailVisible)
 		end
 	end
@@ -10578,10 +11046,16 @@ cmd.run = function(args)
 			if shouldRecord then
 				NAmanage.updateLastCommand(rawArgs)
 			end
+			if NAmanage.WebhookCommand then
+				NAmanage.WebhookCommand(rawArgs)
+			end
 		else
 			if NAmanage.tryCmdIntegration(rawArgs) then
 				if shouldRecord then
 					NAmanage.updateLastCommand(rawArgs)
+				end
+				if NAmanage.WebhookCommand then
+					NAmanage.WebhookCommand(rawArgs)
 				end
 				return
 			end
@@ -51639,6 +52113,9 @@ function setupPlayer(plr,bruh)
 	plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
 		NAmanage.ExecuteBindings("OnChatted", plr, msg)
+		if NAmanage.WebhookChat then
+			NAmanage.WebhookChat(plr, msg)
+		end
 	end)
 
 	if plr ~= LocalPlayer then
@@ -51668,6 +52145,9 @@ function setupPlayer(plr,bruh)
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
+		if NAmanage.WebhookJoinLeave then
+			NAmanage.WebhookJoinLeave(plr, "join")
+		end
 	end
 end
 
@@ -51688,6 +52168,9 @@ Players.PlayerRemoving:Connect(function(plr)
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
 		DoNotif(leaveMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(leaveMsg)
+		if NAmanage.WebhookJoinLeave then
+			NAmanage.WebhookJoinLeave(plr, "leave")
+		end
 	end
 end)
 
@@ -54327,30 +54810,36 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number" };
 	{ name = "ReplicationDataCacheNumParallelTasks", default = 16, valueType = "number" };
 	{ name = "NetworkClusterPacketCacheNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "FixParticleEmissionBias2", default = false, valueType = "boolean" };
+	{ name = "FixParticleEmissionBias2", default = true, valueType = "boolean" };
 	{ name = "InterpolationNumParallelTasks", default = 16, valueType = "number" };
 	{ name = "MegaReplicatorNumParallelTasks", default = 16, valueType = "number" };
 	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number" };
-	{ name = "FixParticleAttachmentCulling", default = false, valueType = "boolean" };
+	{ name = "FixParticleAttachmentCulling", default = true, valueType = "boolean" };
 	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean" };
 	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number" };
+	{ name = "TeleportReconnect", default = true, valueType = "boolean" };
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
+	{ name = "AddJoinAttemptId", default = true, valueType = "boolean" };
+	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean" };
+	{ name = "EnableQuickGameLaunch", default = false, valueType = "boolean" };
 	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
 	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
-	{ name = "DebugPauseVoxelizer", default = true, valueType = "boolean" };
+	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean" };
 	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
 	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
+	{ name = "MaxFrameBufferSize", default = 4, valueType = "number" };
 	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
+	{ name = "Order66", default = true, valueType = "boolean" };
 	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
 	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
-	{ name = "DebugGraphicsPreferVulkan", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsPreferVulkan", default = true, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
-	{ name = "DebugGraphicsDisableDirect3D11", default = false, valueType = "boolean" };
+	{ name = "DebugGraphicsDisableDirect3D11", default = true, valueType = "boolean" };
 }
 
 for _, entry in ipairs(NAFFlags.whitelist) do
@@ -54578,7 +55067,8 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 		if not opts.silent then
 			DoNotif(Format("Failed to set %s: %s", tostring(flagName), tostring(err)), 4)
 		end
-		warn("[NA] FastFlag apply failed for "..tostring(flagName)..": "..tostring(err))
+		-- disabled due to spam if the default ones fail
+		--warn("[NA] FastFlag apply failed for "..tostring(flagName)..": "..tostring(err))
 		return false, err
 	end
 	if not opts.silent then
@@ -55100,6 +55590,119 @@ NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
 	return NAmanage.btEnabled()
+end)
+
+NAgui.addSection("Discord Webhook")
+NAgui.addInput("Webhook URL", "https://discord.com/api/webhooks/...", NAStuff.Integrations.webhook.url, function(text)
+	NAStuff.Integrations.webhook.url = text or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookUrl", NAStuff.Integrations.webhook.url)
+	end
+end)
+NAgui.addSlider("Min Interval (sec)", 0, 30, NAmanage.clampNumber(NAStuff.Integrations.webhook.minInterval, 0, 30, 2), 1, " s", function(v)
+	NAStuff.Integrations.webhook.minInterval = NAmanage.clampNumber(v, 0, 30, 2)
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookInterval", NAStuff.Integrations.webhook.minInterval)
+	end
+end)
+NAgui.addToggle("Send Join/Leave", NAStuff.Integrations.webhook.enableJoinLeave, function(v)
+	NAStuff.Integrations.webhook.enableJoinLeave = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookJoinLeave", NAStuff.Integrations.webhook.enableJoinLeave)
+	end
+end)
+NAgui.addToggle("Send Chat Messages", NAStuff.Integrations.webhook.enableChat, function(v)
+	NAStuff.Integrations.webhook.enableChat = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookChat", NAStuff.Integrations.webhook.enableChat)
+	end
+end)
+NAgui.addToggle("Send Command Logs", NAStuff.Integrations.webhook.enableCommands, function(v)
+	NAStuff.Integrations.webhook.enableCommands = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookCommands", NAStuff.Integrations.webhook.enableCommands)
+	end
+end)
+NAgui.addButton("Test Webhook Ping", function()
+	local ok, err = NAmanage.SendIntegrationWebhook("test", string.format("[Test] %s ping", adminName or "NA"))
+	if ok then
+		DoNotif("Webhook ping sent.", 2)
+	else
+		DoNotif("Webhook failed: "..tostring(err), 3)
+	end
+end)
+
+NAgui.addSection("API Health Checks")
+local function setHealthEndpoint(i, val)
+	NAStuff.Integrations.health.endpoints[i] = val or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationHealthEndpoints", NAStuff.Integrations.health.endpoints)
+	end
+end
+local healthDefaults = NAStuff.Integrations.health.endpoints
+for i = 1, 3 do
+	NAgui.addInput("Endpoint #"..i, "https://example.com/health", healthDefaults[i] or "", function(text)
+		setHealthEndpoint(i, text)
+	end)
+end
+NAgui.addButton("Ping Endpoints", function()
+	local results = NAmanage.HealthPingAll()
+	if #results == 0 then
+		DoNotif("No endpoints configured.", 3)
+	else
+		DoNotif(table.concat(results, " | "), 4)
+	end
+end)
+
+NAgui.addSection("Notes / Clipboard")
+NAgui.addInput("Note Text", "Optional note to save/copy", NAStuff.Integrations.notes.last, function(text)
+	NAStuff.Integrations.notes.last = text or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationNotesLast", NAStuff.Integrations.notes.last)
+	end
+end)
+NAgui.addButton("Copy Server Info + Note", function()
+	local note = NAStuff.Integrations.notes.last or ""
+	local payload = NAmanage.ComposeServerNote(note)
+	if setclipboard then
+		setclipboard(payload)
+		DoNotif("Server info copied to clipboard.", 2)
+	else
+		DoNotif(payload, 3)
+	end
+end)
+
+NAgui.addSection("Bloxstrap RPC Settings")
+NAgui.addToggle("Custom RPC Text", NAStuff.Integrations.rpc.useCustom, function(v)
+	NAStuff.Integrations.rpc.useCustom = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationRpcUseCustom", NAStuff.Integrations.rpc.useCustom)
+	end
+	if NAmanage.btEnabled() then
+		NAmanage.btUpdate()
+	end
+end)
+NAgui.addInput("RPC Details Text", "Supports {cmds} {game}", NAStuff.Integrations.rpc.details, function(text)
+	NAStuff.Integrations.rpc.details = text or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationRpcDetails", NAStuff.Integrations.rpc.details)
+	end
+	if NAmanage.btEnabled() and NAStuff.Integrations.rpc.useCustom then
+		NAmanage.btUpdate()
+	end
+end)
+NAgui.addInput("RPC State Text", "Supports {cmds} {game}", NAStuff.Integrations.rpc.state, function(text)
+	NAStuff.Integrations.rpc.state = text or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationRpcState", NAStuff.Integrations.rpc.state)
+	end
+	if NAmanage.btEnabled() and NAStuff.Integrations.rpc.useCustom then
+		NAmanage.btUpdate()
+	end
+end)
+NAgui.addButton("Refresh RPC Presence", function()
+	NAmanage.btUpdate()
+	DoNotif("Bloxstrap RPC refreshed.", 2)
 end)
 
 NAgui.addTab(TAB_INTERFACE, { order = 3, textIcon = "two-makeup-brushes" })
@@ -56811,6 +57414,9 @@ do
 	NAgui.addColorPicker("Text Color", tblToC3(NAStuff.ChatSettings.window.textColor), function(c)
 		NAStuff.ChatSettings.window.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addSlider("Text Transparency (Window)", 0, 1, NAStuff.ChatSettings.window.textTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.window.textTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
 	NAgui.addColorPicker("Text Stroke Color", tblToC3(NAStuff.ChatSettings.window.strokeColor), function(c)
 		NAStuff.ChatSettings.window.strokeColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
@@ -56831,8 +57437,14 @@ do
 	NAgui.addSlider("Text Size (Tabs)", 5, 50, NAStuff.ChatSettings.tabs.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.tabs.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addColorPicker("Tab Background", tblToC3(NAStuff.ChatSettings.tabs.backgroundColor), function(c)
+		NAStuff.ChatSettings.tabs.backgroundColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
 	NAgui.addSlider("Background Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.backgroundTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.tabs.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.textTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.tabs.textTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addColorPicker("Text Color (Tabs)", tblToC3(NAStuff.ChatSettings.tabs.textColor), function(c)
 		NAStuff.ChatSettings.tabs.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -56860,8 +57472,14 @@ do
 	NAgui.addColorPicker("Text Color (Input)", tblToC3(NAStuff.ChatSettings.input.textColor), function(c)
 		NAStuff.ChatSettings.input.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addColorPicker("Input Stroke Color", tblToC3(NAStuff.ChatSettings.input.strokeColor), function(c)
+		NAStuff.ChatSettings.input.strokeColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
 	NAgui.addSlider("Text Stroke Transparency (Input)", 0, 1, NAStuff.ChatSettings.input.strokeTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.input.strokeTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Input Background", tblToC3(NAStuff.ChatSettings.input.backgroundColor), function(c)
+		NAStuff.ChatSettings.input.backgroundColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addSlider("Background Transparency (Input)", 0, 1, NAStuff.ChatSettings.input.backgroundTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.input.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -56885,11 +57503,26 @@ do
 	NAgui.addSlider("Text Size (Bubble)", 5, 30, NAStuff.ChatSettings.bubbles.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.bubbles.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addColorPicker("Bubble Text Color", tblToC3(NAStuff.ChatSettings.bubbles.textColor), function(c)
+		NAStuff.ChatSettings.bubbles.textColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Text Transparency (Bubble)", 0, 1, NAStuff.ChatSettings.bubbles.textTransparency, 0.05, "", function(v)
+		NAStuff.ChatSettings.bubbles.textTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
 	NAgui.addSlider("Bubble Spacing", 0, 12, NAStuff.ChatSettings.bubbles.spacing, 1, " px", function(v)
 		NAStuff.ChatSettings.bubbles.spacing = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addColorPicker("Bubble Background", tblToC3(NAStuff.ChatSettings.bubbles.backgroundColor), function(c)
+		NAStuff.ChatSettings.bubbles.backgroundColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
 	NAgui.addSlider("Background Transparency (Bubble)", 0, 1, NAStuff.ChatSettings.bubbles.backgroundTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.bubbles.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Bubble Duration", 3, 30, NAStuff.ChatSettings.bubbles.bubbleDuration, 1, " s", function(v)
+		NAStuff.ChatSettings.bubbles.bubbleDuration = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Max Bubbles", 1, 5, math.min(5, NAStuff.ChatSettings.bubbles.maxBubbles or 1), 1, "", function(v)
+		NAStuff.ChatSettings.bubbles.maxBubbles = math.min(5, v); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addToggle("Tail Visible", NAStuff.ChatSettings.bubbles.tailVisible, function(v)
 		NAStuff.ChatSettings.bubbles.tailVisible = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
