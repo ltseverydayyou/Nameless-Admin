@@ -51599,6 +51599,20 @@ originalIO.binderSetupCharacter=function(plr, char)
 	end
 end
 
+originalIO.waitForCharacterReady=function(plr)
+	if not plr then
+		return nil
+	end
+	while plr.Parent do
+		local char = plr.Character
+		if char and NAmanage.IsValidESPModel(char, false) then
+			return char
+		end
+		Wait(0.25)
+	end
+	return nil
+end
+
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr)
 
@@ -51613,9 +51627,10 @@ function setupPlayer(plr,bruh)
 
 	if ESPPlayersEnabled and ESPAutoTrackAll then
 		SpawnCall(function()
-			repeat Wait(.5) until plr.Character
-			Wait(.5)
-			NAmanage.ESP_Add(plr,true)
+			local char = originalIO.waitForCharacterReady(plr)
+			if char then
+				NAmanage.ESP_Add(plr,true)
+			end
 		end)
 	end
 
