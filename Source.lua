@@ -32972,6 +32972,10 @@ cmd.add({"unwallhop"},{"unwallhop","disable wallhop helper"},function()
 	NAlib.disconnect("wallhop_loop")
 end)
 
+cmd.add({"joinvoice", "joinvc"},{"joinvoice","let's you use vc if you were suspended"},function()
+	SafeGetService("VoiceChatService"):joinVoice()
+end)
+
 cmd.add({"jump"},{"jump","jump."},function()
 	getHum():ChangeState(Enum.HumanoidStateType.Jumping)
 end)
