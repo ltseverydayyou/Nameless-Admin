@@ -29830,8 +29830,12 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 	local function start()
 		st.vv = vv
 		NAlib.disconnect("body_transparency")
+
 		apply()
-		NAlib.connect("body_transparency", RunService.RenderStepped:Connect(apply))
+
+		NAlib.connect("body_transparency", RunService.RenderStepped:Connect(function()
+			task.defer(apply)
+		end))
 	end
 
 	local function setSel(list, all)
