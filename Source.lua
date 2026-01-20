@@ -2492,7 +2492,7 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 	local actLabel = action == "leave" and "left" or "joined"
 	local jobId = tostring(game.JobId or "")
 	local placeId = tostring(game.PlaceId or "")
-	local footerText = string.format("PlaceId: %s | JobId: %s", placeId, jobId)
+	local footerText = string.format("```PlaceId: %s | JobId: %s```", placeId, jobId)
 	local color = action == "leave" and 16711680 or 65280
 	local payload = {
 		content = "",
@@ -2501,13 +2501,6 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 				title = "Join/Leave Log",
 				description = string.format("%s has %s.", username, actLabel),
 				color = color,
-				fields = {
-					{
-						name = "User",
-						value = username,
-						inline = false,
-					},
-				},
 				footer = { text = footerText },
 			},
 		},
