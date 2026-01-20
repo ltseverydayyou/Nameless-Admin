@@ -26848,6 +26848,8 @@ end,true)
 
 NAStuff.srv = NAStuff.srv or {}
 
+NAStuff.srvWorker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
+
 NAStuff.srv.b = NAStuff.srv.b or {
 	"https://games.roblox.com",
 	"https://games.roproxy.com",
@@ -26855,7 +26857,16 @@ NAStuff.srv.b = NAStuff.srv.b or {
 }
 
 NAStuff.srv.j = NAStuff.srv.j or function(self, s)
-	return HttpService:JSONDecode(s)
+	if type(s) ~= "string" or #s == 0 then
+		return nil
+	end
+	local ok, js = pcall(function()
+		return HttpService:JSONDecode(s)
+	end)
+	if ok and type(js) == "table" then
+		return js
+	end
+	return nil
 end
 
 NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
@@ -26869,12 +26880,29 @@ NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
 		local ok, body = pcall(function()
 			return game:HttpGetAsync(url)
 		end)
-
 		if ok and type(body) == "string" and #body > 0 then
-			local ok2, js = pcall(self.j, self, body)
-			if ok2 and type(js) == "table" and type(js.data) == "table" then
+			local js = self:j(body)
+			if type(js) == "table" and type(js.data) == "table" then
 				return js.data, js.nextPageCursor
 			end
+		end
+	end
+
+	local wq = "placeId="..tostring(PlaceId)
+	if cid and cid ~= "" then
+		wq = wq.."&cursor="..HttpService:UrlEncode(cid)
+	end
+
+	local wurl = NAStuff.srvWorker.."/servers?"..wq
+	local wok, wbody = pcall(function()
+		return game:HttpGetAsync(wurl)
+	end)
+	if wok and type(wbody) == "string" and #wbody > 0 then
+		local ok2, js = pcall(function()
+			return HttpService:JSONDecode(wbody)
+		end)
+		if ok2 and type(js) == "table" and type(js.data) == "table" then
+			return js.data, js.nextPageCursor
 		end
 	end
 
@@ -26888,7 +26916,9 @@ NAStuff.srv.scan = NAStuff.srv.scan or function(self, mode)
 	while pgc < 8 do
 		pgc += 1
 		local dat, nxt = self:pg(cid)
-		if type(dat) ~= "table" then break end
+		if type(dat) ~= "table" then
+			break
+		end
 
 		for _, s in ipairs(dat) do
 			if type(s) == "table" and s.id and s.id ~= JobId then
@@ -26914,7 +26944,9 @@ NAStuff.srv.scan = NAStuff.srv.scan or function(self, mode)
 			end
 		end
 
-		if not nxt or nxt == "" then break end
+		if not nxt or nxt == "" then
+			break
+		end
 		cid = nxt
 	end
 
