@@ -1566,6 +1566,7 @@ local NAStuff = {
 	Integrations = {
 		webhook = {
 			url = "";
+			urls = { main = "" };
 			enableJoinLeave = false;
 			enableChat = false;
 			enableCommands = false;
@@ -1776,12 +1777,19 @@ end
 NAmanage.InitializeIntegration=function()
 	local integ = NAStuff.Integrations or {}
 	integ.webhook = integ.webhook or {}
-	integ.webhook.url = integ.webhook.url or ""
+	integ.webhook.urls = integ.webhook.urls or {}
+	integ.webhook.urls.main = integ.webhook.urls.main or integ.webhook.url or integ.webhook.urls.all or ""
+	integ.webhook.urls.all = integ.webhook.urls.all or integ.webhook.url or ""
+	integ.webhook.urls.joinleave = integ.webhook.urls.joinleave or ""
+	integ.webhook.urls.chat = integ.webhook.urls.chat or ""
+	integ.webhook.urls.commands = integ.webhook.urls.commands or ""
+	integ.webhook.useAll = integ.webhook.useAll == true
+	integ.webhook.url = integ.webhook.urls.all
 	integ.webhook.enableJoinLeave = integ.webhook.enableJoinLeave == true
 	integ.webhook.enableChat = integ.webhook.enableChat == true
 	integ.webhook.enableCommands = integ.webhook.enableCommands == true
 	integ.webhook.minInterval = tonumber(integ.webhook.minInterval) or 2
-	integ.webhook.lastSent = integ.webhook.lastSent or 0
+	integ.webhook.lastSent = type(integ.webhook.lastSent) == "number" and integ.webhook.lastSent or 0
 	integ.health = integ.health or { endpoints = {} }
 	integ.health.endpoints = integ.health.endpoints or {}
 	integ.notes = integ.notes or { last = "" }
@@ -1802,7 +1810,32 @@ NAmanage.InitializeIntegration=function()
 		local function asBool(v) return v == true end
 		local function asString(v) return type(v) == "string" and v or "" end
 
-		integ.webhook.url = asString(NAmanage.NASettingsGet("integrationWebhookUrl")) ~= "" and asString(NAmanage.NASettingsGet("integrationWebhookUrl")) or integ.webhook.url
+		local function readUrl(key, fallback)
+			local value = asString(NAmanage.NASettingsGet(key))
+			if value ~= "" then
+				return value
+			end
+			return fallback
+		end
+
+		integ.webhook.urls.main = readUrl("integrationWebhookUrlMain", integ.webhook.urls.main)
+		integ.webhook.urls.all = readUrl("integrationWebhookUrlAll", integ.webhook.urls.all)
+		integ.webhook.urls.joinleave = readUrl("integrationWebhookUrlJoinLeave", integ.webhook.urls.joinleave)
+		integ.webhook.urls.chat = readUrl("integrationWebhookUrlChat", integ.webhook.urls.chat)
+		integ.webhook.urls.commands = readUrl("integrationWebhookUrlCommands", integ.webhook.urls.commands)
+		if integ.webhook.urls.all == "" then
+			local legacy = asString(NAmanage.NASettingsGet("integrationWebhookUrl"))
+			if legacy ~= "" then
+				integ.webhook.urls.all = legacy
+			end
+		end
+		integ.webhook.url = integ.webhook.urls.all
+
+		local useAllSaved = NAmanage.NASettingsGet("integrationWebhookUseAll")
+		if type(useAllSaved) == "boolean" then
+			integ.webhook.useAll = useAllSaved
+		end
+
 		integ.webhook.enableJoinLeave = NAmanage.NASettingsGet("integrationWebhookJoinLeave") == true or integ.webhook.enableJoinLeave
 		integ.webhook.enableChat = NAmanage.NASettingsGet("integrationWebhookChat") == true or integ.webhook.enableChat
 		integ.webhook.enableCommands = NAmanage.NASettingsGet("integrationWebhookCommands") == true or integ.webhook.enableCommands
@@ -2387,7 +2420,49 @@ end
 
 NAmanage.SendIntegrationWebhook=function(kind, content)
 	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
-	if not (cfg and cfg.url and cfg.url ~= "" and content and content ~= "") then
+	if not (cfg and content and content ~= "") then
+		return false, "missing config"
+	end
+	local urlsCfg = cfg.urls or {}
+	local dedupe = {}
+	local targets = {}
+	local function addUrl(url)
+		if type(url) ~= "string" then
+			return
+		end
+		local trimmed = url:match("^%s*(.-)%s*$")
+		if trimmed ~= "" and not dedupe[trimmed] then
+			dedupe[trimmed] = true
+			Insert(targets, trimmed)
+		end
+	end
+	local kindKey = nil
+	local fallbackUrl = urlsCfg.all or cfg.url
+	if kind == "joinleave" then
+		kindKey = "joinleave"
+	elseif kind == "chat" then
+		kindKey = "chat"
+	elseif kind == "command" or kind == "commands" then
+		kindKey = "commands"
+	elseif kind == "main" or kind == "message" or kind == "msg" then
+		kindKey = "main"
+		fallbackUrl = urlsCfg.main or fallbackUrl
+	elseif urlsCfg.main and kind == nil then
+		fallbackUrl = urlsCfg.main
+	end
+	if kindKey and urlsCfg[kindKey] then
+		addUrl(urlsCfg[kindKey])
+	end
+	if kind == "test" then
+		addUrl(urlsCfg.joinleave)
+		addUrl(urlsCfg.chat)
+		addUrl(urlsCfg.commands)
+		addUrl(urlsCfg.main)
+	end
+	if cfg.useAll or #targets == 0 or kind == "test" then
+		addUrl(fallbackUrl)
+	end
+	if #targets == 0 then
 		return false, "missing config"
 	end
 	local now = tick()
@@ -2396,23 +2471,32 @@ NAmanage.SendIntegrationWebhook=function(kind, content)
 		return false, "rate-limited"
 	end
 	local payload = HttpService:JSONEncode({ content = content })
-	local ok, res = pcall(function()
-		if opt and type(opt.NAREQUEST) == "function" then
-			return opt.NAREQUEST({
-				Url = cfg.url;
-				Method = "POST";
-				Headers = { ["Content-Type"] = "application/json" };
-				Body = payload;
-			})
+	local sentCount = 0
+	local lastErr = nil
+	for _, url in ipairs(targets) do
+		local ok, res = pcall(function()
+			if opt and type(opt.NAREQUEST) == "function" then
+				return opt.NAREQUEST({
+					Url = url;
+					Method = "POST";
+					Headers = { ["Content-Type"] = "application/json" };
+					Body = payload;
+				})
+			else
+				return HttpService:PostAsync(url, payload, Enum.HttpContentType.ApplicationJson, false)
+			end
+		end)
+		if ok then
+			sentCount = sentCount + 1
 		else
-			return HttpService:PostAsync(cfg.url, payload, Enum.HttpContentType.ApplicationJson, false)
+			lastErr = res
 		end
-	end)
-	if ok then
+	end
+	if sentCount > 0 then
 		cfg.lastSent = now
 		return true
 	end
-	return false, res
+	return false, lastErr
 end
 
 NAmanage.WebhookJoinLeave=function(plr, action)
@@ -8051,6 +8135,57 @@ NAmanage.NASettingsGetSchema=function()
 			return value
 		end;
 	};
+	integrationWebhookUrlMain = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookUrlAll = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookUrlJoinLeave = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookUrlChat = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookUrlCommands = {
+		default = "";
+		coerce = function(value)
+			if type(value) ~= "string" then
+				value = tostring(value or "")
+			end
+			return value
+		end;
+	};
+	integrationWebhookUseAll = {
+		default = false;
+		coerce = function(value)
+			return coerceBoolean(value, false)
+		end;
+	};
 	integrationWebhookJoinLeave = {
 		default = false;
 		coerce = function(value)
@@ -9347,7 +9482,35 @@ NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAmanage.loadIntegration=function()
 	local integ = NAStuff.Integrations or {}
 	integ.webhook = integ.webhook or {}
-	integ.webhook.url = NAmanage.NASettingsGet("integrationWebhookUrl") or integ.webhook.url or ""
+	integ.webhook.urls = integ.webhook.urls or {}
+	local function asString(v)
+		return type(v) == "string" and v or ""
+	end
+	integ.webhook.urls.main = integ.webhook.urls.main or integ.webhook.url or integ.webhook.urls.all or ""
+	local function readUrl(key, fallback)
+		local value = asString(NAmanage.NASettingsGet(key))
+		if value ~= "" then
+			return value
+		end
+		return fallback
+	end
+	integ.webhook.urls.main = readUrl("integrationWebhookUrlMain", integ.webhook.urls.main or "")
+	integ.webhook.urls.all = readUrl("integrationWebhookUrlAll", integ.webhook.urls.all or "")
+	if integ.webhook.urls.all == "" then
+		local legacy = asString(NAmanage.NASettingsGet("integrationWebhookUrl"))
+		if legacy ~= "" then
+			integ.webhook.urls.all = legacy
+		end
+	end
+	integ.webhook.urls.joinleave = readUrl("integrationWebhookUrlJoinLeave", integ.webhook.urls.joinleave or "")
+	integ.webhook.urls.chat = readUrl("integrationWebhookUrlChat", integ.webhook.urls.chat or "")
+	integ.webhook.urls.commands = readUrl("integrationWebhookUrlCommands", integ.webhook.urls.commands or "")
+	integ.webhook.url = integ.webhook.urls.all
+	local useAllSaved = NAmanage.NASettingsGet("integrationWebhookUseAll")
+	if type(useAllSaved) == "boolean" then
+		integ.webhook.useAll = useAllSaved
+	end
+	integ.webhook.useAll = integ.webhook.useAll == true
 	integ.webhook.enableJoinLeave = NAmanage.NASettingsGet("integrationWebhookJoinLeave") == true or integ.webhook.enableJoinLeave == true
 	integ.webhook.enableChat = NAmanage.NASettingsGet("integrationWebhookChat") == true or integ.webhook.enableChat == true
 	integ.webhook.enableCommands = NAmanage.NASettingsGet("integrationWebhookCommands") == true or integ.webhook.enableCommands == true
@@ -12594,6 +12757,7 @@ NAmanage.ESP_ClearModel = function(model)
 	local key = NAmanage.ESP_Key(model)
 	NAlib.disconnect(key.."_descAdded")
 	NAlib.disconnect(key.."_descRemoved")
+	NAlib.disconnect(key.."_ancestry")
 	NAlib.disconnect(key.."_charAdded")
 	NAmanage.ESP_UnregisterModel(model)
 	NAmanage.ESP_RemoveBoxes(model)
@@ -12640,7 +12804,15 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	local owner = Players:GetPlayerFromCharacter(model)
 	if not NAmanage.IsValidESPModel(model, data.isNPC) then
-		NAmanage.ESP_ClearModel(model)
+		if data.persistent and owner then
+			Spawn(function()
+				if owner.Character and NAmanage.IsValidESPModel(owner.Character, false) then
+					NAmanage.ESP_Add(owner, true, false)
+				end
+			end)
+		else
+			NAmanage.ESP_ClearModel(model)
+		end
 		return
 	end
 
@@ -12856,6 +13028,27 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 		if box then
 			box:Destroy()
 			data.boxTable[desc] = nil
+		end
+	end))
+
+	NAlib.connect(key.."_ancestry", model.AncestryChanged:Connect(function(_, parent)
+		local data = espCONS[model]
+		if not data then return end
+		if data.persistent then
+			local owner = Players:GetPlayerFromCharacter(model)
+			if parent and workspace and model:IsDescendantOf(workspace) then
+				Spawn(function()
+					if owner then
+						NAmanage.ESP_Add(owner, true, false)
+					elseif NAmanage.IsValidESPModel(model, data.isNPC) then
+						NAmanage.ESP_Add(model, true, data.isNPC)
+					end
+				end)
+			end
+		else
+			if parent == nil or not (workspace and model:IsDescendantOf(workspace)) then
+				NAmanage.ESP_ClearModel(model)
+			end
 		end
 	end))
 
@@ -38328,31 +38521,45 @@ end, true)
 NAmanage.NAgetFriendCircles=function()
 	local players = Players:GetPlayers()
 	local graph, seen, groups = {}, {}, {}
+	local friendSets = {}
 
 	for _, plr in ipairs(players) do
 		graph[plr] = {}
 	end
 
-	local function areFriends(p1, p2)
-		local ok, result = pcall(function()
-			if p1.IsFriendsWithAsync then
-				return p1:IsFriendsWithAsync(p2.UserId)
-			end
-			return p1:IsFriendsWith(p2.UserId)
-		end)
-		if ok and result ~= nil then
-			return result
+	local function getFriendSet(plr)
+		if friendSets[plr] then
+			return friendSets[plr]
 		end
-		local okStatus, status = pcall(function()
-			return p1:GetFriendStatusAsync(p2.UserId)
-		end)
-		return okStatus and status == Enum.FriendStatus.Friend
+		local set = {}
+		local ok, pages = pcall(Players.GetFriendsAsync, Players, plr.UserId)
+		if ok and pages then
+			local function addPage(page)
+				for _, item in ipairs(page) do
+					if item and item.Id then
+						set[item.Id] = true
+					end
+				end
+			end
+			addPage(pages:GetCurrentPage())
+			while pages.IsFinished ~= nil and pages.IsFinished == false do
+				local okN, nextPage = pcall(pages.AdvanceToNextPageAsync, pages)
+				if not okN or not nextPage then
+					break
+				end
+				addPage(nextPage)
+			end
+		end
+		friendSets[plr] = set
+		return set
 	end
 
 	for i = 1, #players do
+		local p1 = players[i]
+		local set1 = getFriendSet(p1)
 		for j = i + 1, #players do
-			local p1, p2 = players[i], players[j]
-			if areFriends(p1, p2) then
+			local p2 = players[j]
+			if set1[p2.UserId] then
 				Insert(graph[p1], p2)
 				Insert(graph[p2], p1)
 			end
@@ -38377,13 +38584,17 @@ NAmanage.NAgetFriendCircles=function()
 		end
 	end
 
-	return groups
+	table.sort(groups, function(a, b)
+		return #a > #b
+	end)
+
+	return groups, graph
 end
 
 cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the current server"},function()
 	DoNotif("Looking for friend circles... I'll let you know what I find.", 4)
 
-	local groups = NAmanage.NAgetFriendCircles()
+	local groups, graph = NAmanage.NAgetFriendCircles()
 	local useDisplayNames = false
 	local ok, enabled = pcall(function()
 		return StarterGui and StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.PlayerList)
@@ -38396,11 +38607,18 @@ cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the cu
 	local index = 1
 	for _, group in ipairs(groups) do
 		if #group > 1 then
-			local names = {}
+			table.sort(group, function(a, b)
+				return (useDisplayNames and a.DisplayName or a.Name) < (useDisplayNames and b.DisplayName or b.Name)
+			end)
+			local edgeCount = 0
+			local parts = {}
 			for _, plr in ipairs(group) do
-				Insert(names, useDisplayNames and plr.DisplayName or plr.Name)
+				local deg = graph[plr] and #graph[plr] or 0
+				edgeCount += deg
+				parts[#parts + 1] = Format("%s [%d]", useDisplayNames and plr.DisplayName or plr.Name, deg)
 			end
-			Insert(lines, tostring(index)..". "..table.concat(names, ", "))
+			edgeCount = math.floor(edgeCount / 2)
+			Insert(lines, Format("%d) %s (links: %d)", index, table.concat(parts, ", "), edgeCount))
 			index = index + 1
 		end
 	end
@@ -47550,11 +47768,14 @@ end
 
 NAgui.addInfo = function(label, value)
 	if not NAUIMANAGER.SettingsList then return nil end
+
 	local info = templates.Input:Clone()
+	info.Name = "Info"
 	info.Title.Text = label
 	NAmanage.SetSearch.tag(info, label)
-	info.Parent = NAUIMANAGER.SettingsList
+
 	info.LayoutOrder = NAgui._nextLayoutOrder()
+	info.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(info)
 	if NAgui.RegisterStrokesFrom then
 		NAgui.RegisterStrokesFrom(info)
@@ -47570,8 +47791,6 @@ NAgui.addInfo = function(label, value)
 		return nil
 	end
 
-	local baseSize = frame.Size
-
 	box.Text = value or ""
 	box.PlaceholderText = ""
 	box.ClearTextOnFocus = false
@@ -47579,36 +47798,61 @@ NAgui.addInfo = function(label, value)
 	box.Active = false
 	box.Selectable = false
 	box.CursorPosition = -1
+	box.TextXAlignment = Enum.TextXAlignment.Center
+	box.TextWrapped = false
+	box.ClipsDescendants = true
+	frame.ClipsDescendants = true
 
 	box.Focused:Connect(function()
 		box:ReleaseFocus()
 	end)
 
-	local updateSize = function()
-		if frame:GetAttribute("NASkipAutoSize") then
-			frame.Size = baseSize
-			return
+	local sizedOnce = false
+
+	local function resize()
+		local textWidth = box.TextBounds.X + 24
+		local minWidth = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		local maxWidth
+
+		local containerWidth = info.AbsoluteSize.X
+		if containerWidth and containerWidth > 0 then
+			local titleWidth = (info.Title and info.Title.TextBounds.X or 0)
+			local gap = 32
+			maxWidth = containerWidth - titleWidth - gap
 		end
 
-		local width = box.TextBounds.X + 24
-		if width <= 24 then
-			local prev = frame:GetAttribute("NALastWidth")
-			if typeof(prev) == "number" and prev > 0 then
-				width = prev
+		local targetWidth = math.max(textWidth, minWidth)
+		local hitLimit = false
+		if maxWidth then
+			local clamped = math.max(minWidth, math.min(targetWidth, maxWidth))
+			hitLimit = clamped >= (maxWidth - 0.5)
+			targetWidth = clamped
+		end
+
+		box.TextXAlignment = hitLimit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+
+		local targetSize = UDim2.new(0, targetWidth, 0, 30)
+		local curSize = frame.Size
+
+		if not sizedOnce or (curSize.X.Scale == 0 and curSize.X.Offset == 0) then
+			frame.Size = targetSize
+			sizedOnce = true
+		else
+			if math.abs(curSize.X.Offset - targetWidth) > 0.5 or curSize.X.Scale ~= targetSize.X.Scale then
+				frame:TweenSize(
+					targetSize,
+					Enum.EasingDirection.Out,
+					Enum.EasingStyle.Exponential,
+					0.2,
+					true
+				)
 			end
 		end
-		local minWidth = frame:GetAttribute("NAMinWidth")
-		if typeof(minWidth) == "number" then
-			width = math.max(width, minWidth)
-		end
-
-		frame.Size = UDim2.new(0, width, 0, 30)
-		frame:SetAttribute("NALastWidth", width)
 	end
 
-	box:GetPropertyChangedSignal("Text"):Connect(updateSize)
-	frame:SetAttribute("NALastWidth", frame.AbsoluteSize.X > 0 and frame.AbsoluteSize.X or nil)
-	updateSize()
+	box:GetPropertyChangedSignal("Text"):Connect(resize)
+	info:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+	resize()
 
 	local interact = frame:FindFirstChild("Interact")
 	if interact then
@@ -48143,19 +48387,51 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	NAmanage.SetSearch.tag(input, label)
 	inputBox.Text = defaultText or ""
 	inputBox.PlaceholderText = placeholder or ""
+	inputBox.TextXAlignment = Enum.TextXAlignment.Center
 
 	input.LayoutOrder = NAgui._nextLayoutOrder()
 	input.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(input)
 
+	local sizedOnce = false
+
 	local function resize()
-		frame:TweenSize(
-			UDim2.new(0, inputBox.TextBounds.X + 24, 0, 30),
-			Enum.EasingDirection.Out,
-			Enum.EasingStyle.Exponential,
-			0.2,
-			true
-		)
+		local textWidth = inputBox.TextBounds.X + 24
+		local minWidth = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		local maxWidth
+		local containerWidth = input.AbsoluteSize.X
+		if containerWidth and containerWidth > 0 then
+			local titleWidth = (input.Title and input.Title.TextBounds.X or 0)
+			local gap = 32
+			maxWidth = containerWidth - titleWidth - gap
+		end
+
+		local targetWidth = math.max(textWidth, minWidth)
+		local hitLimit = false
+		if maxWidth then
+			local clamped = math.max(minWidth, math.min(targetWidth, maxWidth))
+			hitLimit = clamped >= (maxWidth - 0.5)
+			targetWidth = clamped
+		end
+		inputBox.TextXAlignment = hitLimit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+
+		local targetSize = UDim2.new(0, targetWidth, 0, 30)
+		local curSize = frame.Size
+
+		if not sizedOnce or (curSize.X.Scale == 0 and curSize.X.Offset == 0) then
+			frame.Size = targetSize
+			sizedOnce = true
+		else
+			if math.abs(curSize.X.Offset - targetWidth) > 0.5 or curSize.X.Scale ~= targetSize.X.Scale then
+				frame:TweenSize(
+					targetSize,
+					Enum.EasingDirection.Out,
+					Enum.EasingStyle.Exponential,
+					0.2,
+					true
+				)
+			end
+		end
 	end
 
 	inputBox.FocusLost:Connect(function()
@@ -48163,6 +48439,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	end)
 
 	inputBox:GetPropertyChangedSignal("Text"):Connect(resize)
+	input:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 
 	local function setText(newValue, opts)
 		opts = opts or {}
@@ -52145,9 +52422,9 @@ function setupPlayer(plr,bruh)
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
-		if NAmanage.WebhookJoinLeave then
-			NAmanage.WebhookJoinLeave(plr, "join")
-		end
+	end
+	if NAmanage.WebhookJoinLeave then
+		NAmanage.WebhookJoinLeave(plr, "join")
 	end
 end
 
@@ -52168,9 +52445,9 @@ Players.PlayerRemoving:Connect(function(plr)
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
 		DoNotif(leaveMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(leaveMsg)
-		if NAmanage.WebhookJoinLeave then
-			NAmanage.WebhookJoinLeave(plr, "leave")
-		end
+	end
+	if NAmanage.WebhookJoinLeave then
+		NAmanage.WebhookJoinLeave(plr, "leave")
 	end
 end)
 
@@ -55349,24 +55626,9 @@ end
 NAgui.addSection("Whitelisted FastFlags")
 
 NAStuff.supportText = NAStuff.supportText or NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
-NAmanage.styleFFlagInfo = function(box)
-	if not box then
-		return
-	end
-	box.TextWrapped = false
-	box.TextScaled = true
-	box.Selectable = true
-	box.Active = true
-	local frame = box.Parent
-	if frame and frame:IsA("Frame") then
-		frame:SetAttribute("NAMinWidth", 220)
-	end
-end
 
-NAStuff.supportInfo = NAStuff.supportInfo or  NAgui.addInfo("FastFlag Support", NAStuff.supportText)
-NAStuff.sessionWarningBox = NAStuff.sessionWarningBox or NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
-NAmanage.styleFFlagInfo(NAStuff.supportInfo)
-NAmanage.styleFFlagInfo(NAStuff.sessionWarningBox)
+NAgui.addInfo("FastFlag Support", NAStuff.supportText)
+NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
 
 NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
 	NAFFlags.config.useFFlags = state == true
@@ -55593,34 +55855,71 @@ NAmanage.RegisterToggleAutoSync("Bloxtrap RPC Presence", function()
 end)
 
 NAgui.addSection("Discord Webhook")
-NAgui.addInput("Webhook URL", "https://discord.com/api/webhooks/...", NAStuff.Integrations.webhook.url, function(text)
-	NAStuff.Integrations.webhook.url = text or ""
+NAStuff.Integrations = NAStuff.Integrations or {}
+local webhookCfg = NAStuff.Integrations.webhook or {}
+NAStuff.Integrations.webhook = webhookCfg
+webhookCfg.urls = webhookCfg.urls or {}
+webhookCfg.urls.main = webhookCfg.urls.main or webhookCfg.url or webhookCfg.urls.all or ""
+webhookCfg.urls.all = webhookCfg.urls.all or webhookCfg.url or ""
+webhookCfg.urls.joinleave = webhookCfg.urls.joinleave or ""
+webhookCfg.urls.chat = webhookCfg.urls.chat or ""
+webhookCfg.urls.commands = webhookCfg.urls.commands or ""
+webhookCfg.mainMessage = webhookCfg.mainMessage or ""
+
+NAgui.addInput("All Events Webhook", "https://discord.com/api/webhooks/...", webhookCfg.urls.all, function(text)
+	webhookCfg.urls.all = text or ""
+	webhookCfg.url = webhookCfg.urls.all
 	if NAmanage.NASettingsSet then
-		NAmanage.NASettingsSet("integrationWebhookUrl", NAStuff.Integrations.webhook.url)
+		NAmanage.NASettingsSet("integrationWebhookUrlAll", webhookCfg.urls.all)
+		NAmanage.NASettingsSet("integrationWebhookUrl", webhookCfg.urls.all)
 	end
 end)
-NAgui.addSlider("Min Interval (sec)", 0, 30, NAmanage.clampNumber(NAStuff.Integrations.webhook.minInterval, 0, 30, 2), 1, " s", function(v)
-	NAStuff.Integrations.webhook.minInterval = NAmanage.clampNumber(v, 0, 30, 2)
+NAgui.addInput("Join/Leave Webhook", "https://discord.com/api/webhooks/...", webhookCfg.urls.joinleave, function(text)
+	webhookCfg.urls.joinleave = text or ""
 	if NAmanage.NASettingsSet then
-		NAmanage.NASettingsSet("integrationWebhookInterval", NAStuff.Integrations.webhook.minInterval)
+		NAmanage.NASettingsSet("integrationWebhookUrlJoinLeave", webhookCfg.urls.joinleave)
 	end
 end)
-NAgui.addToggle("Send Join/Leave", NAStuff.Integrations.webhook.enableJoinLeave, function(v)
-	NAStuff.Integrations.webhook.enableJoinLeave = v and true or false
+NAgui.addInput("Chat Webhook", "https://discord.com/api/webhooks/...", webhookCfg.urls.chat, function(text)
+	webhookCfg.urls.chat = text or ""
 	if NAmanage.NASettingsSet then
-		NAmanage.NASettingsSet("integrationWebhookJoinLeave", NAStuff.Integrations.webhook.enableJoinLeave)
+		NAmanage.NASettingsSet("integrationWebhookUrlChat", webhookCfg.urls.chat)
 	end
 end)
-NAgui.addToggle("Send Chat Messages", NAStuff.Integrations.webhook.enableChat, function(v)
-	NAStuff.Integrations.webhook.enableChat = v and true or false
+NAgui.addInput("Command Webhook", "https://discord.com/api/webhooks/...", webhookCfg.urls.commands, function(text)
+	webhookCfg.urls.commands = text or ""
 	if NAmanage.NASettingsSet then
-		NAmanage.NASettingsSet("integrationWebhookChat", NAStuff.Integrations.webhook.enableChat)
+		NAmanage.NASettingsSet("integrationWebhookUrlCommands", webhookCfg.urls.commands)
 	end
 end)
-NAgui.addToggle("Send Command Logs", NAStuff.Integrations.webhook.enableCommands, function(v)
-	NAStuff.Integrations.webhook.enableCommands = v and true or false
+NAgui.addToggle("Send To All Webhooks", webhookCfg.useAll == true, function(v)
+	webhookCfg.useAll = v and true or false
 	if NAmanage.NASettingsSet then
-		NAmanage.NASettingsSet("integrationWebhookCommands", NAStuff.Integrations.webhook.enableCommands)
+		NAmanage.NASettingsSet("integrationWebhookUseAll", webhookCfg.useAll)
+	end
+end)
+NAgui.addSlider("Min Interval (sec)", 0, 30, NAmanage.clampNumber(webhookCfg.minInterval, 0, 30, 2), 1, " s", function(v)
+	webhookCfg.minInterval = NAmanage.clampNumber(v, 0, 30, 2)
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookInterval", webhookCfg.minInterval)
+	end
+end)
+NAgui.addToggle("Send Join/Leave", webhookCfg.enableJoinLeave, function(v)
+	webhookCfg.enableJoinLeave = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookJoinLeave", webhookCfg.enableJoinLeave)
+	end
+end)
+NAgui.addToggle("Send Chat Messages", webhookCfg.enableChat, function(v)
+	webhookCfg.enableChat = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookChat", webhookCfg.enableChat)
+	end
+end)
+NAgui.addToggle("Send Command Logs", webhookCfg.enableCommands, function(v)
+	webhookCfg.enableCommands = v and true or false
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookCommands", webhookCfg.enableCommands)
 	end
 end)
 NAgui.addButton("Test Webhook Ping", function()
@@ -55629,6 +55928,30 @@ NAgui.addButton("Test Webhook Ping", function()
 		DoNotif("Webhook ping sent.", 2)
 	else
 		DoNotif("Webhook failed: "..tostring(err), 3)
+	end
+end)
+
+NAgui.addSection("Main Webhook Sender")
+NAgui.addInput("Main Webhook", "https://discord.com/api/webhooks/...", webhookCfg.urls.main, function(text)
+	webhookCfg.urls.main = text or ""
+	if NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("integrationWebhookUrlMain", webhookCfg.urls.main)
+	end
+end)
+NAgui.addInput("Message", "Enter message to send", webhookCfg.mainMessage, function(text)
+	webhookCfg.mainMessage = text or ""
+end)
+NAgui.addButton("Send Main Webhook Message", function()
+	local msg = webhookCfg.mainMessage or ""
+	if msg == "" then
+		DoNotif("Please enter a message to send.", 3)
+		return
+	end
+	local ok, err = NAmanage.SendIntegrationWebhook("main", msg)
+	if ok then
+		DoNotif("Main webhook message sent.", 2)
+	else
+		DoNotif("Main webhook failed: "..tostring(err), 3)
 	end
 end)
 
@@ -57854,9 +58177,6 @@ NAmanage.SetupBasicInfoTab = function()
 				box.Selectable = true
 				box.Active = true
 				local frame = box.Parent
-				if frame and frame:IsA("Frame") then
-					frame:SetAttribute("NAMinWidth", 180)
-				end
 			end
 			basicInfoBoxes[field.id] = box
 		end
