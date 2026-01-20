@@ -54792,11 +54792,11 @@ NAStuff.PRELOAD_INSTANCE_CLASSES = NAStuff.PRELOAD_INSTANCE_CLASSES or {
 };
 
 NAStuff.ASSET_LOAD_MODE_DEFS = NAStuff.ASSET_LOAD_MODE_DEFS or {
-	Medium = { chunk = 200, delay = 0.025 };
-	Fast = { chunk = 360, delay = 0.016 };
-	Aggressive = { chunk = 640, delay = 0.008 };
-};
-NAStuff.ASSET_LOAD_MODE_ORDER = NAStuff.ASSET_LOAD_MODE_ORDER or { "Medium", "Fast", "Aggressive" };
+	Medium = { chunk = 256, delay = 0.02 };
+	Fast = { chunk = 512, delay = 0.01 };
+	Aggressive = { chunk = 768, delay = 0.005 };
+}
+NAStuff.ASSET_LOAD_MODE_ORDER = NAStuff.ASSET_LOAD_MODE_ORDER or { "Medium", "Fast", "Aggressive" }
 NAStuff.AssetLoadMode = NAStuff.AssetLoadMode or "Fast"
 
 NAmanage.ClampNumber = NAmanage.ClampNumber or function(value, minValue, maxValue)
@@ -54873,18 +54873,19 @@ NAmanage.UpdateAssetLoadStatus = NAmanage.UpdateAssetLoadStatus or function(done
 	end)
 end
 
-originalIO.AssetsPreloadNA=function()
+originalIO.AssetsPreloadNA = function()
 	local entries = {}
 	local seenString = {}
 	local seenInstance = {}
+
 	local function addResource(value)
-		local valueType = typeof(value)
-		if valueType == "Instance" then
+		local t = typeof(value)
+		if t == "Instance" then
 			if not seenInstance[value] then
 				seenInstance[value] = true
 				entries[#entries + 1] = value
 			end
-		elseif valueType == "string" and value ~= "" and not value:match("^rbxassetid://0+$") then
+		elseif t == "string" and value ~= "" and not value:match("^rbxassetid://0+$") then
 			if not seenString[value] then
 				seenString[value] = true
 				entries[#entries + 1] = value
@@ -54892,19 +54893,35 @@ originalIO.AssetsPreloadNA=function()
 		end
 	end
 
-	for _, inst in ipairs(game:GetDescendants()) do
-		if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
-			addResource(inst)
-		end
+	local roots = {
+		game:GetService("Workspace"),
+		game:GetService("ReplicatedStorage"),
+		game:GetService("ReplicatedFirst"),
+		game:GetService("Lighting"),
+		game:GetService("StarterGui"),
+		game:GetService("StarterPack"),
+		game:GetService("StarterPlayer"),
+		game:GetService("SoundService"),
+		game:GetService("Chat"),
+		game:GetService("TextChatService"),
+	}
 
-		local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
-		if props then
-			for _, prop in ipairs(props) do
-				local ok, value = pcall(function()
-					return inst[prop]
-				end)
-				if ok and value then
-					addResource(value)
+	for i = 1, #roots do
+		local root = roots[i]
+		for _, inst in ipairs(root:GetDescendants()) do
+			if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
+				addResource(inst)
+			end
+			local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
+			if props then
+				for j = 1, #props do
+					local prop = props[j]
+					local ok, value = pcall(function()
+						return inst[prop]
+					end)
+					if ok and value then
+						addResource(value)
+					end
 				end
 			end
 		end
