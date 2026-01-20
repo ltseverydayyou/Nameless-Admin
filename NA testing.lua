@@ -2470,7 +2470,13 @@ NAmanage.SendIntegrationWebhook=function(kind, content)
 	if cfg.lastSent and (now - cfg.lastSent) < minInt then
 		return false, "rate-limited"
 	end
-	local payload = HttpService:JSONEncode({ content = content })
+	local payloadData
+	if type(content) == "table" then
+		payloadData = content
+	else
+		payloadData = { content = content }
+	end
+	local payload = HttpService:JSONEncode(payloadData)
 	local sentCount = 0
 	local lastErr = nil
 	for _, url in ipairs(targets) do
@@ -2506,8 +2512,27 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 	local actLabel = action == "leave" and "left" or "joined"
 	local jobId = tostring(game.JobId or "")
 	local placeId = tostring(game.PlaceId or "")
-	local text = string.format("[Join/Leave] %s has %s. PlaceId: %s | JobId: %s", username, actLabel, placeId, jobId)
-	NAmanage.SendIntegrationWebhook("joinleave", text)
+	local footerText = string.format("PlaceId: %s | JobId: %s", placeId, jobId)
+	local color = action == "leave" and 16711680 or 65280
+	local payload = {
+		content = "",
+		embeds = {
+			{
+				title = "Join/Leave Log",
+				description = string.format("%s has %s.", username, actLabel),
+				color = color,
+				fields = {
+					{
+						name = "User",
+						value = username,
+						inline = false,
+					},
+				},
+				footer = { text = footerText },
+			},
+		},
+	}
+	NAmanage.SendIntegrationWebhook("joinleave", payload)
 end
 
 NAmanage.WebhookChat=function(plr, msg)
