@@ -47829,6 +47829,7 @@ NAgui.addInfo = function(label, value)
 	box.CursorPosition = -1
 	box.TextXAlignment = Enum.TextXAlignment.Center
 	box.TextWrapped = false
+	box.TextTruncate = Enum.TextTruncate.None
 	box.ClipsDescendants = true
 	frame.ClipsDescendants = true
 
@@ -47836,46 +47837,33 @@ NAgui.addInfo = function(label, value)
 		box:ReleaseFocus()
 	end)
 
-	local sizedOnce = false
+	local lastW
 
 	local function resize()
-		local textWidth = box.TextBounds.X + 24
-		local minWidth = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
-		local maxWidth
+		local textW = box.TextBounds.X + 24
+		local minW = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		local maxW
 
-		local containerWidth = info.AbsoluteSize.X
-		if containerWidth and containerWidth > 0 then
-			local titleWidth = (info.Title and info.Title.TextBounds.X or 0)
+		local cw = info.AbsoluteSize.X
+		if cw and cw > 0 then
+			local tw = (info.Title and info.Title.TextBounds.X or 0)
 			local gap = 32
-			maxWidth = containerWidth - titleWidth - gap
+			maxW = cw - tw - gap
 		end
 
-		local targetWidth = math.max(textWidth, minWidth)
-		local hitLimit = false
-		if maxWidth then
-			local clamped = math.max(minWidth, math.min(targetWidth, maxWidth))
-			hitLimit = clamped >= (maxWidth - 0.5)
-			targetWidth = clamped
+		local w = math.max(textW, minW)
+		local hit = false
+		if maxW then
+			local clamped = math.max(minW, math.min(w, maxW))
+			hit = clamped >= (maxW - 0.5)
+			w = clamped
 		end
 
-		box.TextXAlignment = hitLimit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 
-		local targetSize = UDim2.new(0, targetWidth, 0, 30)
-		local curSize = frame.Size
-
-		if not sizedOnce or (curSize.X.Scale == 0 and curSize.X.Offset == 0) then
-			frame.Size = targetSize
-			sizedOnce = true
-		else
-			if math.abs(curSize.X.Offset - targetWidth) > 0.5 or curSize.X.Scale ~= targetSize.X.Scale then
-				frame:TweenSize(
-					targetSize,
-					Enum.EasingDirection.Out,
-					Enum.EasingStyle.Exponential,
-					0.2,
-					true
-				)
-			end
+		if not lastW or math.abs(lastW - w) > 0.5 then
+			lastW = w
+			frame.Size = UDim2.new(0, w, 0, 30)
 		end
 	end
 
@@ -48408,78 +48396,69 @@ end
 
 NAgui.addInput = function(label, placeholder, defaultText, callback)
 	if not NAUIMANAGER.SettingsList then return end
+
 	local input = templates.Input:Clone()
 	local frame = input.InputFrame
-	local inputBox = frame.InputBox
+	local box = frame.InputBox
 
 	input.Title.Text = label
 	NAmanage.SetSearch.tag(input, label)
-	inputBox.Text = defaultText or ""
-	inputBox.PlaceholderText = placeholder or ""
-	inputBox.TextXAlignment = Enum.TextXAlignment.Center
+	box.Text = defaultText or ""
+	box.PlaceholderText = placeholder or ""
+	box.TextXAlignment = Enum.TextXAlignment.Center
+	box.TextTruncate = Enum.TextTruncate.None
 
 	input.LayoutOrder = NAgui._nextLayoutOrder()
 	input.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(input)
 
-	local sizedOnce = false
+	local lastW
 
 	local function resize()
-		local textWidth = inputBox.TextBounds.X + 24
-		local minWidth = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
-		local maxWidth
-		local containerWidth = input.AbsoluteSize.X
-		if containerWidth and containerWidth > 0 then
-			local titleWidth = (input.Title and input.Title.TextBounds.X or 0)
+		local textW = box.TextBounds.X + 24
+		local minW = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		local maxW
+
+		local cw = input.AbsoluteSize.X
+		if cw and cw > 0 then
+			local tw = (input.Title and input.Title.TextBounds.X or 0)
 			local gap = 32
-			maxWidth = containerWidth - titleWidth - gap
+			maxW = cw - tw - gap
 		end
 
-		local targetWidth = math.max(textWidth, minWidth)
-		local hitLimit = false
-		if maxWidth then
-			local clamped = math.max(minWidth, math.min(targetWidth, maxWidth))
-			hitLimit = clamped >= (maxWidth - 0.5)
-			targetWidth = clamped
+		local w = math.max(textW, minW)
+		local hit = false
+		if maxW then
+			local clamped = math.max(minW, math.min(w, maxW))
+			hit = clamped >= (maxW - 0.5)
+			w = clamped
 		end
-		inputBox.TextXAlignment = hitLimit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 
-		local targetSize = UDim2.new(0, targetWidth, 0, 30)
-		local curSize = frame.Size
+		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 
-		if not sizedOnce or (curSize.X.Scale == 0 and curSize.X.Offset == 0) then
-			frame.Size = targetSize
-			sizedOnce = true
-		else
-			if math.abs(curSize.X.Offset - targetWidth) > 0.5 or curSize.X.Scale ~= targetSize.X.Scale then
-				frame:TweenSize(
-					targetSize,
-					Enum.EasingDirection.Out,
-					Enum.EasingStyle.Exponential,
-					0.2,
-					true
-				)
-			end
+		if not lastW or math.abs(lastW - w) > 0.5 then
+			lastW = w
+			frame.Size = UDim2.new(0, w, 0, 30)
 		end
 	end
 
-	inputBox.FocusLost:Connect(function()
-		pcall(callback, inputBox.Text)
+	box.FocusLost:Connect(function()
+		pcall(callback, box.Text)
 	end)
 
-	inputBox:GetPropertyChangedSignal("Text"):Connect(resize)
+	box:GetPropertyChangedSignal("Text"):Connect(resize)
 	input:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 
 	local function setText(newValue, opts)
 		opts = opts or {}
 		local text = tostring(newValue or "")
-		if not opts.force and inputBox.Text == text then
+		if not opts.force and box.Text == text then
 			if opts.fire then
 				pcall(callback, text)
 			end
 			return
 		end
-		inputBox.Text = text
+		box.Text = text
 		if opts.fire then
 			pcall(callback, text)
 		end
@@ -48488,10 +48467,10 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	local entry = {
 		input = input;
 		get = function()
-			return inputBox.Text
+			return box.Text
 		end;
-		set = function(value, opts)
-			setText(value, opts)
+		set = function(v, opts)
+			setText(v, opts)
 		end;
 	}
 
