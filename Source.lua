@@ -52440,61 +52440,106 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 SpawnCall(function()
-	NAmanage.UIrenamerFRIEND=function(o)
-		if type(o.Text) == "string" then
-			o.Text = o.Text:gsub("Connections","Friends"):gsub("Connection","Friend")
+	NAmanage.UIrenamerFRIEND = function(o)
+		if not o or typeof(o) ~= "Instance" then return end
+		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then return end
+
+		if o:GetAttribute("NAFriendHooked") then return end
+		o:SetAttribute("NAFriendHooked", true)
+
+		local applying = false
+
+		local function apply()
+			if applying then return end
+			applying = true
+
+			local ok, t = pcall(function()
+				return o.Text
+			end)
+			if ok and type(t) == "string" and t ~= "" then
+				local new = t:gsub("Connections","Friends"):gsub("Connection","Friend")
+				if new ~= t then
+					pcall(function()
+						o.Text = new
+					end)
+				end
+			end
+
+			applying = false
 		end
+
+		task.defer(apply)
+
+		o:GetPropertyChangedSignal("Text"):Connect(function()
+			task.defer(apply)
+		end)
 	end
 
 	for _, internet in ipairs(workspace:GetDescendants()) do
-		if internet:IsA("ClickDetector") then
-			Insert(interactTbl.click, internet)
-		elseif internet:IsA("ProximityPrompt") then
-			Insert(interactTbl.proxy, internet)
-		elseif internet:IsA("TouchTransmitter") then
-			Insert(interactTbl.touch, internet)
-		end
-	end
-
-	if CoreGui then
-		for _, o in ipairs(CoreGui:GetDescendants()) do
-			if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
-				NAmanage.UIrenamerFRIEND(o)
-			end
-		end
-		CoreGui.DescendantAdded:Connect(function(o)
-			if o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
-				NAmanage.UIrenamerFRIEND(o)
-			end
-			for _, c in ipairs(o:GetDescendants()) do
-				if c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("TextBox") then
-					NAmanage.UIrenamerFRIEND(c)
-				end
+		local inst = internet
+		task.defer(function()
+			if inst:IsA("ClickDetector") then
+				Insert(interactTbl.click, inst)
+			elseif inst:IsA("ProximityPrompt") then
+				Insert(interactTbl.proxy, inst)
+			elseif inst:IsA("TouchTransmitter") then
+				Insert(interactTbl.touch, inst)
 			end
 		end)
 	end
 
-	workspace.DescendantAdded:Connect(function(internet)
-		if internet:IsA("ClickDetector") then
-			Insert(interactTbl.click, internet)
-		elseif internet:IsA("ProximityPrompt") then
-			Insert(interactTbl.proxy, internet)
-		elseif internet:IsA("TouchTransmitter") then
-			Insert(interactTbl.touch, internet)
+	if CoreGui then
+		for _, o in ipairs(CoreGui:GetDescendants()) do
+			local inst = o
+			task.defer(function()
+				NAmanage.UIrenamerFRIEND(inst)
+			end)
 		end
+
+		CoreGui.DescendantAdded:Connect(function(o)
+			local root = o
+			task.defer(function()
+				NAmanage.UIrenamerFRIEND(root)
+				for _, c in ipairs(root:GetDescendants()) do
+					NAmanage.UIrenamerFRIEND(c)
+				end
+			end)
+		end)
+	end
+
+	workspace.DescendantAdded:Connect(function(internet)
+		local inst = internet
+		task.defer(function()
+			if inst:IsA("ClickDetector") then
+				Insert(interactTbl.click, inst)
+			elseif inst:IsA("ProximityPrompt") then
+				Insert(interactTbl.proxy, inst)
+			elseif inst:IsA("TouchTransmitter") then
+				Insert(interactTbl.touch, inst)
+			end
+		end)
 	end)
 
 	workspace.DescendantRemoving:Connect(function(internet)
-		if internet:IsA("ClickDetector") then
-			local i = Discover(interactTbl.click, internet)
-			if i then table.remove(interactTbl.click, i) end
-		elseif internet:IsA("ProximityPrompt") then
-			local i = Discover(interactTbl.proxy, internet)
-			if i then table.remove(interactTbl.proxy, i) end
-		elseif internet:IsA("TouchTransmitter") then
-			local i = Discover(interactTbl.touch, internet)
-			if i then table.remove(interactTbl.touch, i) end
-		end
+		local inst = internet
+		task.defer(function()
+			if inst:IsA("ClickDetector") then
+				local i = Discover(interactTbl.click, inst)
+				if i then
+					table.remove(interactTbl.click, i)
+				end
+			elseif inst:IsA("ProximityPrompt") then
+				local i = Discover(interactTbl.proxy, inst)
+				if i then
+					table.remove(interactTbl.proxy, i)
+				end
+			elseif inst:IsA("TouchTransmitter") then
+				local i = Discover(interactTbl.touch, inst)
+				if i then
+					table.remove(interactTbl.touch, i)
+				end
+			end
+		end)
 	end)
 end)
 
