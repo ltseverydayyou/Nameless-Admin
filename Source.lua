@@ -414,7 +414,22 @@ NA_GRAB_BODY = (function()
 		rec.dirty = false;
 	end;
 	local function ensure(obj)
-		local model = asChar(obj) or overrideModel or pickOverrideModel();
+		local model = asChar(obj);
+
+		if obj == Players.LocalPlayer then
+			local inWorkspace = model and model:IsDescendantOf(workspace);
+			if overrideModel then
+				model = overrideModel;
+			elseif not inWorkspace then
+				model = pickOverrideModel(true) or model;
+			end;
+		elseif not model then
+			model = overrideModel;
+		end;
+
+		if not model then
+			model = pickOverrideModel();
+		end;
 		if not model then
 			return nil;
 		end;
@@ -8863,7 +8878,7 @@ NAmanage.getPlrCursor = function()
 	local found = nil
 	local ClosestDistance = math.huge
 	for _,v in pairs(Players:GetPlayers()) do
-		if v ~= Players.LocalPlayer and v.Character and v.Character:FindFirstChildOfClass("Humanoid") then
+		if v ~= Players.LocalPlayer and v.Character and getPlrHum(v.Character) then
 			for k, x in pairs(v.Character:GetChildren()) do
 				if Find(x.Name, "Torso") then
 					local Distance = (NAmanage.worlScreen(x) - NAmanage.mPosVector()).Magnitude
@@ -15204,7 +15219,7 @@ end
 				if not target and Players then
 					target = Players.LocalPlayer
 				end
-				local hum = target and target.Character and target.Character:FindFirstChildOfClass("Humanoid")
+				local hum = target and target.Character and getPlrHum(target.Character)
 				return hum and hum.RigType == Enum.HumanoidRigType.R15
 			end
 			proxyEnv.Services = proxyEnv.Services or iyServices
@@ -19898,7 +19913,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		return v
 	end
 	local function char() return LocalPlayer.Character end
-	local function hum() local c=char() return c and c:FindFirstChildOfClass("Humanoid") or nil end
+	local function hum() local c=char() return c and getHum() or nil end
 	local function root(c)
 		c = c or char()
 		return c and (c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Torso") or c:FindFirstChild("UpperTorso")) or nil
@@ -21555,7 +21570,7 @@ end)
 cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part is patched, try using the god command before using this)"}, function()
 	local player = Players.LocalPlayer
 	local character = getChar()
-	local humanoid = character and character:FindFirstChildWhichIsA("Humanoid")
+	local humanoid = getHum()
 	if not (player and character and humanoid) then
 		DebugNotif("Invisfling failed: missing character", 2)
 		return
@@ -21595,7 +21610,7 @@ cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part 
 		return
 	end
 
-	local activeHumanoid = character:FindFirstChildOfClass("Humanoid")
+	local activeHumanoid = getHum()
 	if not activeHumanoid then
 		activeHumanoid = InstanceNew("Humanoid")
 		activeHumanoid.Name = "Humanoid"
@@ -50641,7 +50656,7 @@ originalIO.naTransLatooor=function()
 	end
 
 	local languages = {
-		auto="Automatic",af="Afrikaans",sq="Albanian",am="Amharic",ar="Arabic",hy="Armenian",az="Azerbaijani",eu="Basque",be="Belarusian",bn="Bengali",bs="Bosnian",bg="Bulgarian",ca="Catalan",ceb="Cebuano",ny="Chichewa",
+		auto="Automatic",morse="Morse Code",af="Afrikaans",sq="Albanian",am="Amharic",ar="Arabic",hy="Armenian",az="Azerbaijani",eu="Basque",be="Belarusian",bn="Bengali",bs="Bosnian",bg="Bulgarian",ca="Catalan",ceb="Cebuano",ny="Chichewa",
 		["zh-cn"]="Chinese Simplified",["zh-tw"]="Chinese Traditional",co="Corsican",hr="Croatian",cs="Czech",da="Danish",nl="Dutch",en="English",eo="Esperanto",et="Estonian",tl="Filipino",fi="Finnish",fr="French",fy="Frisian",
 		gl="Galician",ka="Georgian",de="German",el="Greek",gu="Gujarati",ht="Haitian Creole",ha="Hausa",haw="Hawaiian",iw="Hebrew",he="Hebrew",hi="Hindi",hmn="Hmong",hu="Hungarian",is="Icelandic",ig="Igbo",id="Indonesian",ga="Irish",it="Italian",
 		ja="Japanese",jw="Javanese",kn="Kannada",kk="Kazakh",km="Khmer",ko="Korean",ku="Kurdish (Kurmanji)",ky="Kyrgyz",lo="Lao",la="Latin",lv="Latvian",lt="Lithuanian",lb="Luxembourgish",mk="Macedonian",mg="Malagasy",ms="Malay",
@@ -50668,6 +50683,57 @@ originalIO.naTransLatooor=function()
 
 	originalIO.languageName=function(code)
 		return languages[code] or code
+	end
+
+	local MORSE_MAP = {
+		["A"]=".-",["B"]="-...",["C"]="-.-.",["D"]="-..",["E"]=".",["F"]="..-.",["G"]="--.",["H"]="....",
+		["I"]="..",["J"]=".---",["K"]="-.-",["L"]=".-..",["M"]="--",["N"]="-.",["O"]="---",["P"]=".--.",
+		["Q"]="--.-",["R"]=".-.",["S"]="...",["T"]="-",["U"]="..-",["V"]="...-",["W"]=".--",["X"]="-..-",
+		["Y"]="-.--",["Z"]="--..",
+		["1"]=".----",["2"]="..---",["3"]="...--",["4"]="....-",["5"]=".....",["6"]="-....",["7"]="--...",["8"]="---..",["9"]="----.",["0"]="-----",
+		["."]=".-.-.-",[","]="--..--",["?"]="..--..",["'"]=".----.",["!"]="-.-.--",["/"]="-..-.",["("]="-.--.",[")"]="-.--.-",
+		["&"]=".-...",[":"]="---...",[";"]="-.-.-.",["="]="-...-",["+"]=".-.-.",["-"]="-....-",["_"]="..--.-",["\""]=".-..-.",["$"]="...-..-",["@"]=".--.-."
+	}
+	local MORSE_REVERSE = {}
+	for k,v in pairs(MORSE_MAP) do
+		MORSE_REVERSE[v] = k
+	end
+
+	local function isLikelyMorse(text)
+		if not text or text == "" then return false end
+		return not not text:match("^[%s%./%-]+$")
+	end
+
+	local function encodeMorse(text)
+		text = tostring(text or "")
+		if text == "" then return text end
+		local words = {}
+		for word in text:gmatch("%S+") do
+			local letters = {}
+			for i = 1, #word do
+				local c = word:sub(i, i):upper()
+				letters[#letters+1] = MORSE_MAP[c] or c
+			end
+			words[#words+1] = table.concat(letters, " ")
+		end
+		return table.concat(words, " / ")
+	end
+
+	local function decodeMorse(text)
+		text = tostring(text or "")
+		if text == "" then return text end
+		local words = {}
+		for word in text:gmatch("[^/]+") do
+			local trimmed = word:match("^%s*(.-)%s*$") or ""
+			if trimmed ~= "" then
+				local letters = {}
+				for token in trimmed:gmatch("%S+") do
+					letters[#letters+1] = MORSE_REVERSE[token] or "?"
+				end
+				words[#words+1] = table.concat(letters)
+			end
+		end
+		return table.concat(words, " ")
 	end
 
 	translator.target = NAmanage.iso2(opt.chatTranslateTarget) or translator.target or "en"
@@ -50813,7 +50879,28 @@ originalIO.naTransLatooor=function()
 		if not text or text == "" then
 			return nil
 		end
-		local translated, detected = translateSimple(text, target, source)
+
+		local targetCode = NAmanage.iso2(target) or "en"
+		local sourceCode = NAmanage.iso2(source) or "auto"
+
+		if targetCode == "morse" then
+			return encodeMorse(text), "morse"
+		end
+
+		local isMorseMsg = isLikelyMorse(text)
+		if sourceCode == "morse" or isMorseMsg then
+			local decoded = decodeMorse(text)
+			if not decoded or decoded == "" then
+				return nil
+			end
+			if targetCode == "auto" or targetCode == nil or targetCode == "en" then
+				return decoded, "morse"
+			end
+			text = decoded
+			sourceCode = "auto"
+		end
+
+		local translated, detected = translateSimple(text, targetCode, sourceCode)
 		if translated and translated ~= "" then
 			return translated, detected
 		end
@@ -50821,9 +50908,7 @@ originalIO.naTransLatooor=function()
 			return translated, detected
 		end
 		state.rid += 10000
-		target = NAmanage.iso2(target) or "en"
-		source = NAmanage.iso2(source) or "auto"
-		local data = { { text, source, target, true }, { nil } }
+		local data = { { text, sourceCode, targetCode, true }, { nil } }
 		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
 		local url = exec.."?"..encodeQuery({
 			rpcids = rpc;
