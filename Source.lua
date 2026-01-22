@@ -25741,7 +25741,9 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum().Health=0
 end)
 
-NAStuff.desyncOn = NAStuff.desyncOn or false
+
+-- ts got patched gg
+--[[NAStuff.desyncOn = NAStuff.desyncOn or false
 
 cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
 	if type(setfflag) ~= "function" then
@@ -25774,7 +25776,7 @@ cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync /
 			DoNotif("Failed to restore NextGenReplicator flags: "..tostring(err), 4)
 		end
 	end
-end)
+end)]]
 
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
 	local hum = getHum()
