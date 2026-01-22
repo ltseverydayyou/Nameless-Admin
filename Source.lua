@@ -2511,12 +2511,12 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 		embeds = {
 			{
 				title = "Join/Leave Log",
-				description = string.format("%s has %s.", username, actLabel),
+				description = Format("%s has %s.", username, actLabel),
 				color = color,
 				fields = {
 					{
 						name = "Place / Job",
-						value = string.format("PlaceId: ```%s``` | JobId: ```%s```", placeId, jobId),
+						value = Format("PlaceId: ```%s``` | JobId: ```%s```", placeId, jobId),
 						inline = false,
 					},
 				},
@@ -2530,7 +2530,7 @@ NAmanage.WebhookChat=function(plr, msg)
 	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableChat) then return end
 	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
-	local text = string.format("[Chat] %s: %s", username, tostring(msg or ""))
+	local text = Format("[Chat] %s: %s", username, tostring(msg or ""))
 	NAmanage.SendIntegrationWebhook("chat", text)
 end
 
@@ -2539,8 +2539,8 @@ NAmanage.WebhookCommand=function(rawArgs)
 	if not (cfg and cfg.enableCommands) then return end
 	if type(rawArgs) ~= "table" or #rawArgs == 0 then return end
 	local playerName = nameChecker and nameChecker(Players and Players.LocalPlayer) or (Players and Players.LocalPlayer and Players.LocalPlayer.Name) or "LocalPlayer"
-	local line = table.concat(rawArgs, " ")
-	local text = string.format("[Command] ran: %s", line)
+	local line = Concat(rawArgs, " ")
+	local text = Format("[Command] ran: %s", line)
 	NAmanage.SendIntegrationWebhook("command", text)
 end
 
@@ -2570,10 +2570,10 @@ NAmanage.HealthPingAll=function()
 		if url and url ~= "" then
 			local ok, info, elapsed = NAmanage.HealthPing(url)
 			if ok then
-				Insert(results, string.format("#%d OK (%.2fs)", idx, tonumber(info) or elapsed or 0))
+				Insert(results, Format("#%d OK (%.2fs)", idx, tonumber(info) or elapsed or 0))
 			else
 				local errText = tostring(info or "error")
-				Insert(results, string.format("#%d FAIL: %s", idx, errText))
+				Insert(results, Format("#%d FAIL: %s", idx, errText))
 			end
 		end
 	end
@@ -2591,12 +2591,12 @@ NAmanage.ComposeServerNote=function(note)
 	local serverCount = Players and Players.NumPlayers or nil
 	if serverCount then
 		local max = Players.MaxPlayers or "?"
-		Insert(parts, string.format("Players: %s/%s", serverCount, max))
+		Insert(parts, Format("Players: %s/%s", serverCount, max))
 	end
 	if note and note ~= "" then
 		Insert(parts, "Note: "..note)
 	end
-	return table.concat(parts, " | ")
+	return Concat(parts, " | ")
 end
 
 function NAmanage.scheduleLoader(label, callback, opts)
@@ -11142,8 +11142,54 @@ NAmanage.makeUniqueAlias=function(aliasName, seen)
 	end
 end
 Loops = {}
-cmd.add = function(aliases, info, func, requiresArguments)
+NAmanage.ensurePatchedInfo=function(info)
+	local title = ""
+	local desc = ""
+	if type(info) == "table" then
+		title = tostring(info[1] or "")
+		desc = tostring(info[2] or "")
+	elseif info ~= nil then
+		title = tostring(info)
+	end
+
+	local lowerTitle = Lower(title)
+	local lowerDesc = Lower(desc)
+
+	if title == "" then
+		title = "[PATCHED]"
+	elseif not lowerTitle:find("patched", 1, true) then
+		title = "[PATCHED] "..title
+	end
+
+	if desc == "" then
+		desc = "Patched / may not work"
+	elseif not lowerDesc:find("patched", 1, true) then
+		desc = desc.." (patched)"
+	end
+
+	return {title, desc}
+end
+
+NAmanage.wrapPatchedFunc=function(func)
+	if type(func) ~= "function" then
+		return function()
+			DoNotif("This command is patched and may not work", 3)
+		end
+	end
+	return function(...)
+		DoNotif("This command is patched and may not work", 3)
+		return func(...)
+	end
+end
+
+cmd.add = function(aliases, info, func, requiresArguments, meta)
+	if type(requiresArguments) == "table" and meta == nil then
+		meta = requiresArguments
+		requiresArguments = false
+	end
+
 	requiresArguments = requiresArguments or false
+	meta = type(meta) == "table" and meta or {}
 
 	if type(aliases) ~= "table" or #aliases == 0 then
 		return
@@ -11189,7 +11235,10 @@ cmd.add = function(aliases, info, func, requiresArguments)
 			tostring(info[2] or "")
 		}
 	end
-	local data = {func, infoTable, requiresArguments}
+	if meta.patched then
+		infoTable = NAmanage.ensurePatchedInfo(infoTable)
+	end
+	local data = {func, infoTable, requiresArguments, meta}
 	if primaryLower then
 		if not cmds.Commands[primaryLower] then
 			commandcount += 1
@@ -11203,6 +11252,10 @@ cmd.add = function(aliases, info, func, requiresArguments)
 			cmds.Aliases[Lower(aliasName)] = data
 		end
 	end
+end
+
+cmd.addPatched = function(aliases, info, func, requiresArguments)
+	return cmd.add(aliases, NAmanage.ensurePatchedInfo(info), NAmanage.wrapPatchedFunc(func), requiresArguments, { patched = true })
 end
 
 cmd.run = function(args)
@@ -15354,7 +15407,7 @@ end
 					for i = 1, b.len do
 						out[i] = string.char(b.data[i] or 0)
 					end
-					return table.concat(out)
+					return Concat(out)
 				end
 				proxyEnv.buffer = bufShim
 			end
@@ -18427,10 +18480,10 @@ cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts AP
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
 end)
 
---[[cmd.add({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
+cmd.addPatched({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
 	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowResizable=true
 	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowDraggable=true
-end)]]
+end)
 
 
 local scaleFrame = nil
@@ -21892,7 +21945,7 @@ cmd.add({"notools"},{"notools","Remove your tools"},function()
 end)
 
 -- leg resize sureeee
---[[cmd.add({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Streches your layered clothing"},function()
+cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Streches your layered clothing"},function()
 	Wait();
 
 	DoNotif("Break layered clothing executed,if you havent already equip shirt,jacket,pants and shoes (Layered Clothing ones)")
@@ -21931,7 +21984,7 @@ end)
 	end
 	Noclipping=RunService.Stepped:Connect(NoclipLoop)
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
-end)]]
+end)
 
 cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
 	local g=getgenv and getgenv() or _G
@@ -22922,16 +22975,6 @@ cmd.add({"UNCTest","UNC"},{"UNCTest (UNC)","Test how many functions your executo
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/UNC%20test"))()
 end)
 
--- game based so bye bye api
---[[cmd.add({"sUNCtest","sUNC"},{"sUNCtest (sUNC)","uses sUNC test that test the functions if they're working"},function()
-	getgenv().sUNCDebug = {
-		["printcheckpoints"] = false,
-		["delaybetweentests"] = 0
-	}
-
-	loadstring(game:HttpGet("https://script.sunc.su/"))()
-end)]]
-
 cmd.add({"vulnerabilitytest","vulntest"},{"vulnerabilitytest (vulntest)","Test if your executor is Vulnerable"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/VulnTest.lua"))()
 end)
@@ -23292,7 +23335,7 @@ NAStuff.ATPC._hookChar = function(char)
 
 		allowed[p] = false
 		old[p] = p.CFrame
-		table.insert(parts, p)
+		Insert(parts, p)
 
 		local sig = p:GetPropertyChangedSignal("CFrame")
 		local con = sig:Connect(function()
@@ -23328,7 +23371,7 @@ NAStuff.ATPC._hookChar = function(char)
 	end)
 	NAlib.connect("AntiCFrame", addCon)
 
-	task.spawn(function()
+	Spawn(function()
 		while NAStuff.ATPC.state and NAlib.isConnected("AntiCFrame") and char and char.Parent do
 			for _, p in ipairs(parts) do
 				if p and p.Parent and not allowed[p] then
@@ -25743,9 +25786,9 @@ end)
 
 
 -- ts got patched gg
---[[NAStuff.desyncOn = NAStuff.desyncOn or false
+NAStuff.desyncOn = NAStuff.desyncOn or false
 
-cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
+cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
 	if type(setfflag) ~= "function" then
 		DoNotif("Your executor does not support setfflag. Cannot toggle desync", 3)
 		return
@@ -25776,7 +25819,7 @@ cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync /
 			DoNotif("Failed to restore NextGenReplicator flags: "..tostring(err), 4)
 		end
 	end
-end)]]
+end)
 
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
 	local hum = getHum()
@@ -26818,11 +26861,6 @@ cmd.add({"partname","partpath","partgrabber"},{"partname (partpath,partgrabber)"
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/PartGrabber.lua"))()
 end)
 
--- patched (womp)
---[[cmd.add({"backdoor","backdoorscan"},{"backdoor (backdoorscan)","Scans for any backdoors using FraktureSS"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Frakture"))()
-end)]]
-
 cmd.add({"jobid"},{"jobid","Copies your job id"},function()
 	if setclipboard then
 		setclipboard(tostring(JobId))
@@ -27849,41 +27887,6 @@ cmd.add({"unorbit"}, {"unorbit", "Stop orbiting"}, function()
 	NAlib.disconnect("orbit")
 end)
 
--- unavailable and under maintance
---[[cmd.add({"serverfreeze", "freezewalk"}, {"serverfreeze (freezewalk)", "Freezes your character on the server while keeping your client moving"}, function()
-	local character = getChar()
-	local humanoid = character and getHum(character)
-	if not character or not humanoid then
-		return DebugNotif("Character or humanoid unavailable", 3)
-	end
-
-	local root = getRoot(character)
-	if not root then
-		return DebugNotif("Root part not found", 3)
-	end
-
-	if humanoid.RigType == Enum.HumanoidRigType.R6 then
-		local clone = root:Clone()
-		clone.CFrame = root.CFrame
-		clone.Name = root.Name
-		clone.Anchored = root.Anchored
-		clone.Parent = character
-		root:Destroy()
-	else
-		local lowerTorso = character:FindFirstChild("LowerTorso")
-		if not lowerTorso then
-			return DebugNotif("LowerTorso missing; unable to server freeze", 3)
-		end
-		lowerTorso.Anchored = true
-		local rootJoint = lowerTorso:FindFirstChild("Root")
-		if rootJoint and rootJoint:IsA("Motor6D") then
-			rootJoint:Destroy()
-		end
-	end
-
-	DebugNotif("Server freeze enabled. Reset to stop it.")
-end)]]
-
 fcBTNTOGGLE = nil
 
 cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera"},function(...)
@@ -28692,117 +28695,6 @@ cmd.add({"undance"},{"undance","Stops the dance command"},function()
 	theanim:Stop()
 	theanim:Destroy()
 end)
-
--- still worked on (i think)
-
---[[cmd.add({"antichatlogs","antichatlogger"},{"antichatlogs (antichatlogger)","Prevents you from getting banning when typing unspeakable messages (requires the new chat service)"},function()
-	local CoreGui=SafeGetService("CoreGui")
-	local LocalPlayer=Players.LocalPlayer
-	local glyphs={
-		b={"β","в","բ"},
-		c={"ծ"},
-		d={"δ","д","դ"},
-		e={"ε","է"},
-		f={"φ","ф","ֆ"},
-		h={"η","н"},
-		i={"ի"},
-		j={"ջ"},
-		k={"κ","к","կ"},
-		l={"λ","л","լ"},
-		m={"μ","м","մ"},
-		n={"η","н","ն"},
-		p={"պ"},
-		r={"ր"},
-		t={"τ","т","տ"},
-		u={"մ"},
-		v={"в"},
-		w={"ω","ш","վ"},
-		x={"χ","խ"},
-		y={"յ"},
-		z={"ζ","з"},
-		["1"]={"१"},
-		["2"]={"२","٢"},
-		["3"]={"३","٣"},
-		["4"]={"४","٤"},
-		["5"]={"५"},
-		["6"]={"६","٦"},
-		["7"]={"७"},
-		["8"]={"८","٨"},
-		["9"]={"९","٩"}
-	}
-	local function obfuscateMessage(msg)
-		local out={}
-		for _,code in utf8.codes(msg) do
-			local ch=utf8.char(code)
-			local lower=Lower(ch)
-			if glyphs[lower] then
-				local g=glyphs[lower][math.random(#glyphs[lower])]
-				if ch:match("%u") then g=g:upper() end
-				ch=g
-			end
-			Insert(out,ch)
-		end
-		return Concat(out)
-	end
-	local CachedChannels={}
-	NAlib.BypassChatMessage=function(message,recipient)
-		Spawn(function()
-			local text=obfuscateMessage(message)
-			local channel
-			if recipient and recipient~="All" then
-				channel=CachedChannels[recipient]
-				if not channel or not channel:IsDescendantOf(TextChatService) or not channel:FindFirstChild(recipient) then
-					channel=nil
-					for _,c in ipairs(TextChatService.TextChannels:GetChildren()) do
-						if Find(c.Name,"^RBXWhisper:") and c:FindFirstChild(recipient) then
-							channel=c
-							CachedChannels[recipient]=c
-							break
-						end
-					end
-				end
-			end
-			if not channel then channel=TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:FindFirstChild("General") end
-			if channel then NACaller(function() channel:SendAsync(text) end) end
-		end)
-	end
-	local function resolveRecipient(chip)
-		if chip and chip:IsA("TextButton") then
-			local txt=chip.Text or ""
-			local d=Match(txt,"^%[To%s+(.+)%]$")
-			if d and d~="" then
-				d=Lower(d)
-				for _,plr in ipairs(Players:GetPlayers()) do
-					if Lower(plr.DisplayName)==d then return plr.Name end
-				end
-			end
-		end
-		return "All"
-	end
-	Spawn(function()
-		repeat Wait() until CoreGui:FindFirstChild("ExperienceChat")
-		local ec=CoreGui:WaitForChild("ExperienceChat")
-		local al=ec:WaitForChild("appLayout")
-		local cb=al:WaitForChild("chatInputBar")
-		local bg=cb:WaitForChild("Background")
-		local ct=bg:WaitForChild("Container")
-		local tc=ct:WaitForChild("TextContainer")
-		local bc=tc:WaitForChild("TextBoxContainer")
-		local box=bc:WaitForChild("TextBox")
-		local btn=ct:WaitForChild("SendButton")
-		local chip=tc:FindFirstChild("TargetChannelChip")
-		local function hook()
-			local m=box.Text
-			if m~="" then
-				box.Text=""
-				NAlib.BypassChatMessage(m,resolveRecipient(chip))
-			end
-		end
-		box.FocusLost:Connect(function(e) if e then hook() end end)
-		MouseButtonFix(btn, hook)
-	end)
-	DoNotif("antichatlogs activated (W.I.P)")
-end)]]
 
 cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Animation%20Spoofer"))()
@@ -29860,7 +29752,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 		apply()
 
 		NAlib.connect("body_transparency", RunService.RenderStepped:Connect(function()
-			task.defer(apply)
+			Defer(apply)
 		end))
 	end
 
@@ -35014,7 +34906,7 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 end)
 
 -- patched
---[[cmd.add({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
+cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
 	local md5={}
 	local hmac={}
 	local base64={}
@@ -35240,7 +35132,7 @@ end)
 	end
 	buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
 	Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
-end)]]
+end)
 
 HumanModCons = {}
 
@@ -37581,9 +37473,9 @@ end
 
 NAindex.init = function()
 	if NAindex._init then return end
-	for _, obj in ipairs(workspace:GetDescendants()) do NAindex.add(obj) end
-	NAlib.connect("NAindex_added", workspace.DescendantAdded:Connect(NAindex.add))
-	NAlib.connect("NAindex_removed", workspace.DescendantRemoving:Connect(NAindex.remove))
+	NAindex.prompt = NAindex.prompt or {}
+	NAindex.click = NAindex.click or {}
+	NAindex.touch = NAindex.touch or {}
 	NAindex._init = true
 end
 
@@ -37614,9 +37506,9 @@ end
 
 NAsuppress.collectAndAcquire = function(centerPos, radius, allowSet)
 	local list = {}
-	if NAindex.prompt then
-		for p in pairs(NAindex.prompt) do
-			if p.Parent and p.Enabled and not allowSet[p] then
+	if interactTbl and type(interactTbl.proxy) == "table" then
+		for _, p in ipairs(interactTbl.proxy) do
+			if p and p.Parent and p.Enabled and not (allowSet and allowSet[p]) then
 				local _, pos = NAindex.promptTarget(p)
 				if pos and (pos - centerPos).Magnitude <= radius then
 					NAsuppress._acquire(p)
@@ -37707,134 +37599,211 @@ NAjobs._nextIdForKind = function(kind)
 end
 
 NAjobs.start = function(kind, interval, target, useFind)
-	NAindex.init()
-	local tgt = target and Lower(target) or nil
-	local ivl = interval or 0.1
-	local ivlClamped = math.max(0, ivl)
-	local stagger = (ivlClamped > 0) and math.min(0.02, ivlClamped / 8) or 0
-	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny
-	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind)
+	NAindex.init();
+	local tgt = target and Lower(target) or nil;
+	local ivl = interval or 0.1;
+	local ivlClamped = math.max(0, ivl);
+	local stagger = ivlClamped > 0 and math.min(0.02, ivlClamped / 8) or 0;
+	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny;
+	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind);
 	if existingJob then
-		existingJob.interval = ivlClamped
-		existingJob.target = tgt
-		existingJob.m = matcher
-		existingJob.useFind = useFind and true or false
-		existingJob.stagger = stagger
-		existingJob.next = time()
-		return existingId, true
-	end
-
-	local id = NAjobs._nextIdForKind(kind)
-	local job = { id = id, kind = kind, interval = ivlClamped, target = tgt, next = time(), stagger = stagger, m = matcher, useFind = useFind and true or false }
-
+		existingJob.interval = ivlClamped;
+		existingJob.target = tgt;
+		existingJob.m = matcher;
+		existingJob.useFind = useFind and true or false;
+		existingJob.stagger = stagger;
+		existingJob.next = time();
+		return existingId, true;
+	end;
+	local id = NAjobs._nextIdForKind(kind);
+	local job = {
+		id = id,
+		kind = kind,
+		interval = ivlClamped,
+		target = tgt,
+		next = time(),
+		stagger = stagger,
+		m = matcher,
+		useFind = useFind and true or false
+	};
 	if kind == "prompt" then
 		job.tick = function(self)
-			if not NAindex.prompt then return end
-			local char = getChar()
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-			if not root then return end
-			local rootPos = root.Position
-			local list = {}
-			for inst, rec in pairs(NAindex.prompt) do
-				if inst.Parent and inst.Enabled and self.m(rec.names, self.target) then
-					local ok, dist, part = NAindex.inRangePrompt(inst, rootPos, 5)
-					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
-				end
-			end
-			table.sort(list, function(a, b) return a.dist < b.dist end)
-			local step = (self.interval > 0) and self.stagger or 0
-			local i = 0
+			if not interactTbl or type(interactTbl.proxy) ~= "table" then
+				return;
+			end;
+			local char = getChar();
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+			if not root then
+				return;
+			end;
+			local rootPos = root.Position;
+			local list = {};
+			for _, inst in ipairs(interactTbl.proxy) do
+				if inst and inst.Parent and inst.Enabled then
+					local rec = NAindex.prompt and NAindex.prompt[inst];
+					if not rec then
+						rec = {
+							inst = inst,
+							names = NAindex.namesForPrompt(inst)
+						};
+						NAindex.prompt[inst] = rec;
+					end;
+					if self.m(rec.names, self.target) then
+						local ok, dist, part = NAindex.inRangePrompt(inst, rootPos, 5);
+						if ok then
+							Insert(list, {
+								inst = inst,
+								dist = dist,
+								part = part
+							});
+						end;
+					end;
+				end;
+			end;
+			table.sort(list, function(a, b)
+				return a.dist < b.dist;
+			end);
+			local step = self.interval > 0 and self.stagger or 0;
+			local i = 0;
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.inst) then
-					i += 1
+					i += 1;
 					Delay(step * (i - 1), function()
-						local range = (it.inst.MaxActivationDistance or 0) + 5
-						local allow = {[it.inst]=true}
-						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow)
-						pcall(fireproximityprompt, it.inst, { hold = 0.03, distance = range, stagger = 0 })
-						Delay(0.06, function() NAsuppress.releaseList(suppressed) end)
-					end)
-				end
-			end
-		end
+						local range = (it.inst.MaxActivationDistance or 0) + 5;
+						local allow = {
+							[it.inst] = true
+						};
+						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow);
+						pcall(fireproximityprompt, it.inst, {
+							hold = 0.03,
+							distance = range,
+							stagger = 0
+						});
+						Delay(0.06, function()
+							NAsuppress.releaseList(suppressed);
+						end);
+					end);
+				end;
+			end;
+		end;
 	elseif kind == "click" then
 		job.tick = function(self)
-			if not NAindex.click then return end
-			local char = getChar()
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-			if not root then return end
-			local rootPos = root.Position
-			local list = {}
-			for inst, rec in pairs(NAindex.click) do
-				if inst.Parent and self.m(rec.names, self.target) then
-					local ok, dist, part = NAindex.inRangeClick(inst, rootPos, 5)
-					if ok then Insert(list, {inst = inst, dist = dist, part = part}) end
-				end
-			end
-			table.sort(list, function(a, b) return a.dist < b.dist end)
-			local step = (self.interval > 0) and self.stagger or 0
-			local i = 0
+			if not interactTbl or type(interactTbl.click) ~= "table" then
+				return;
+			end;
+			local char = getChar();
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+			if not root then
+				return;
+			end;
+			local rootPos = root.Position;
+			local list = {};
+			for _, inst in ipairs(interactTbl.click) do
+				if inst and inst.Parent then
+					local rec = NAindex.click and NAindex.click[inst];
+					if not rec then
+						rec = {
+							inst = inst,
+							names = NAindex.namesForClick(inst)
+						};
+						NAindex.click[inst] = rec;
+					end;
+					if self.m(rec.names, self.target) then
+						local ok, dist, part = NAindex.inRangeClick(inst, rootPos, 5);
+						if ok then
+							Insert(list, {
+								inst = inst,
+								dist = dist,
+								part = part
+							});
+						end;
+					end;
+				end;
+			end;
+			table.sort(list, function(a, b)
+				return a.dist < b.dist;
+			end);
+			local step = self.interval > 0 and self.stagger or 0;
+			local i = 0;
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
-					i += 1
+					i += 1;
 					Delay(step * (i - 1), function()
-						pcall(fireclickdetector, it.inst)
-					end)
-				end
-			end
-		end
+						pcall(fireclickdetector, it.inst);
+					end);
+				end;
+			end;
+		end;
 	elseif kind == "touch" then
 		job.tick = function(self)
-			if not NAindex.touch then return end
-			local char = getChar()
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-			if not root or not root:IsDescendantOf(workspace) then return end
-			local list = {}
-			for ti in pairs(NAindex.touch) do
-				local container = ti.Parent
-				if container and container.Parent then
-					local part = NAindex.carPart(container)
-					if part then
-						local names = { NAindex.lc(part.Name) }
-						local m = part:FindFirstAncestorWhichIsA("Model")
-						while m do Insert(names, NAindex.lc(m.Name)); m = m:FindFirstAncestorWhichIsA("Model") end
-						if self.m(names, self.target) then
-							local asm = part.AssemblyRootPart or part
-							if asm then Insert(list, {part = asm}) end
-						end
-					end
-				end
-			end
+			if not interactTbl or type(interactTbl.touch) ~= "table" then
+				return;
+			end;
+			local char = getChar();
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+			if not root or (not root:IsDescendantOf(workspace)) then
+				return;
+			end;
+			local list = {};
+			for _, ti in ipairs(interactTbl.touch) do
+				if ti then
+					local container = ti.Parent;
+					if container and container.Parent then
+						local part = NAindex.carPart(container);
+						if part then
+							local names = {
+								NAindex.lc(part.Name)
+							};
+							local m = part:FindFirstAncestorWhichIsA("Model");
+							while m do
+								Insert(names, NAindex.lc(m.Name));
+								m = m:FindFirstAncestorWhichIsA("Model");
+							end;
+							if self.m(names, self.target) then
+								local asm = part.AssemblyRootPart or part;
+								if asm then
+									Insert(list, {
+										part = asm
+									});
+								end;
+							end;
+						end;
+					end;
+				end;
+			end;
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
 					Spawn(function()
-						local asm = it.part
-						if not asm or not asm.Parent or not asm:IsDescendantOf(workspace) then return end
-						local st = NAjobs._touchState[asm]
-						if not st or not st.moved then
-							st = st or {}
-							st.orig = asm.CFrame
-							st.moved = true
-							NAjobs._touchState[asm] = st
-						end
-						local char2 = getChar()
-						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"))
-						if not root2 or not root2:IsDescendantOf(workspace) then return end
-						asm:PivotTo(root2.CFrame)
-						pcall(firetouchinterest, asm, root2, 1)
-						Wait()
-						pcall(firetouchinterest, asm, root2, 0)
-						st.restoreAt = time() + 0.05
-					end)
-				end
-			end
-		end
-	end
-
-	NAjobs.jobs[id] = job
-	NAjobs._schedule()
-	return id
-end
+						local asm = it.part;
+						if not asm or (not asm.Parent) or (not asm:IsDescendantOf(workspace)) then
+							return;
+						end;
+						local st = NAjobs._touchState[asm];
+						if not st or (not st.moved) then
+							st = st or {};
+							st.orig = asm.CFrame;
+							st.moved = true;
+							NAjobs._touchState[asm] = st;
+						end;
+						local char2 = getChar();
+						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"));
+						if not root2 or (not root2:IsDescendantOf(workspace)) then
+							return;
+						end;
+						asm:PivotTo(root2.CFrame);
+						pcall(firetouchinterest, asm, root2, 1);
+						Wait();
+						pcall(firetouchinterest, asm, root2, 0);
+						st.restoreAt = time() + 0.05;
+					end);
+				end;
+			end;
+		end;
+	end;
+	NAjobs.jobs[id] = job;
+	NAjobs._schedule();
+	return id;
+end;
 
 NAjobs._restoreAllTouch = function()
 	for part, st in pairs(NAjobs._touchState) do
@@ -38710,13 +38679,13 @@ cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the cu
 				parts[#parts + 1] = Format("%s [%d]", useDisplayNames and plr.DisplayName or plr.Name, deg)
 			end
 			edgeCount = math.floor(edgeCount / 2)
-			Insert(lines, Format("%d) %s (links: %d)", index, table.concat(parts, ", "), edgeCount))
+			Insert(lines, Format("%d) %s (links: %d)", index, Concat(parts, ", "), edgeCount))
 			index = index + 1
 		end
 	end
 
 	local groupsFound = #lines
-	local body = (groupsFound == 0) and "No friend circles found in this server." or ("Here are the circles I found:\n"..table.concat(lines, "\n"))
+	local body = (groupsFound == 0) and "No friend circles found in this server." or ("Here are the circles I found:\n"..Concat(lines, "\n"))
 	DoNotif(Format("Friend scan finished: %d circle%s found.", groupsFound, groupsFound == 1 and "" or "s"), 4, "Friend Web")
 	DoPopup({ Title = "Friend Circles", Description = body })
 end)
@@ -43514,35 +43483,6 @@ cmd.add({"unloopgamma", "unlgamma", "unloopexposure", "unlexposure"},{"unloopgam
 	NAlib.disconnect("loopgamma")
 end)
 
---[[cmd.add({"iy"},{"iy {command}","Executes infinite yield scripts"},function(...)
-	if IYLOADED==false then
-		function copytable(tbl) local copy={} for i,v in pairs(tbl) do copy[i]=v end return copy end
-		local sandbox_env=copytable(getfenv())
-		setmetatable(sandbox_env,{
-			__index=function(self,i)
-				if rawget(sandbox_env,i) then
-					return rawget(sandbox_env,i)
-				elseif getfenv()[i] then
-					return getfenv()[i]
-				end
-			end
-		})
-		sandbox_env.game=nil
-		iy,_=game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"):gsub("local Main","Main"):gsub("Players.LocalPlayer.Chatted","Funny=Players.LocalPlayer.Chatted"):gsub("local lastMessage","notify=getgenv().notify\nlocal lastMessage")
-		setfenv(loadstring(iy),sandbox_env)()
-		iy_cmds_table=sandbox_env.CMDs
-		iy_gui=sandbox_env.Main
-		iy_chathandler=sandbox_env.Funny
-		execCmd=sandbox_env.execCmd
-		iy_gui:Destroy()
-		NACaller(function()
-			iy_chathandler:Disconnect()
-		end)
-		IYLOADED=true
-	end
-	execCmd((...))
-end,true)]]
-
 cmd.add({"firstp","1stp","firstperson","fp"},{"firstperson (1stp,firstp,fp)","Makes you go in first person mode"},function()
 	Player.CameraMode="LockFirstPerson"
 end)
@@ -47239,8 +47179,18 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 end)
 
 --[[ GUI FUNCTIONS ]]--
+local patchedCommandColor = Color3.fromRGB(255, 115, 115)
 local pluginCommandColor = Color3.fromRGB(255, 196, 125)
 local cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
+
+local function addPatchedLabel(text)
+	if not text then return text end
+	if Lower(text):find("patched", 1, true) then
+		return text
+	end
+	return "[PATCHED] "..text
+end
+
 NAgui.txtSize=function(ui,x,y)
 	local textService=TextService
 	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
@@ -47265,6 +47215,8 @@ NAmanage.buildCommandEntries=function()
 		for _, alias in ipairs(extraAliases or {}) do
 			Insert(aliasList, alias:lower())
 		end
+		local commandMeta = (type(data[4]) == "table") and data[4] or {}
+		local isPatched = commandMeta.patched == true
 		local isPluginCmd, pluginType = NAmanage.IsPluginCommand and NAmanage.IsPluginCommand(name)
 		local pluginTag = nil
 		if isPluginCmd then
@@ -47274,6 +47226,9 @@ NAmanage.buildCommandEntries=function()
 		if isPluginCmd then
 			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
 		end
+		if isPatched then
+			finalText = addPatchedLabel(finalText)
+		end
 		if isAprilFools() then
 			finalText = maybeMock(finalText)
 		end
@@ -47281,14 +47236,26 @@ NAmanage.buildCommandEntries=function()
 		if type(data[2]) == "table" then
 			desc = data[2][2] or ""
 		end
+		if isPatched then
+			if desc == "" then
+				desc = "Patched / may not work"
+			elseif not Lower(desc):find("patched", 1, true) then
+				desc = desc.." (patched)"
+			end
+		end
 		used[Lower(name)] = true
+		local searchable = NAmanage.stripMarkup(Lower(finalText or displayText or name))
+		if isPatched then
+			searchable = searchable.." patched"
+		end
 		metaByName[name] = {
 			origin = "na";
 			displayText = finalText;
-			searchable = NAmanage.stripMarkup(Lower(displayText));
+			searchable = searchable;
 			aliases = aliasList;
 			pluginType = pluginTag;
 			desc = desc;
+			patched = isPatched;
 		}
 		entries[#entries + 1] = {
 			name = name;
@@ -47417,21 +47384,34 @@ NAgui.commands = function()
 		Cmd.Parent = cList
 		Cmd.Name = cmdName
 		local finalText = meta.displayText or entry.display or cmdName
+		local isPatched = meta.patched == true
 		local isCmdIntegration = meta.origin == "cmd"
 		local pluginType = meta.pluginType
 		local isPluginCmd = pluginType ~= nil
 		if not isPluginCmd and NAmanage.IsPluginCommand then
 			isPluginCmd = NAmanage.IsPluginCommand(cmdName)
 		end
-		if isCmdIntegration then
+		if isPatched then
+			Cmd.TextColor3 = patchedCommandColor
+			if Cmd.SetAttribute then
+				Cmd:SetAttribute("IsPatchedCommand", true)
+				Cmd:SetAttribute("IsPluginCommand", false)
+				Cmd:SetAttribute("IsCmdIntegration", false)
+			end
+			finalText = addPatchedLabel(finalText)
+		elseif isCmdIntegration then
 			Cmd.TextColor3 = cmdIntegrationColor
 			if Cmd.SetAttribute then
 				Cmd:SetAttribute("IsCmdIntegration", true)
+				Cmd:SetAttribute("IsPatchedCommand", false)
+				Cmd:SetAttribute("IsPluginCommand", false)
 			end
 		elseif isPluginCmd then
 			Cmd.TextColor3 = pluginCommandColor
 			if Cmd.SetAttribute then
 				Cmd:SetAttribute("IsPluginCommand", true)
+				Cmd:SetAttribute("IsPatchedCommand", false)
+				Cmd:SetAttribute("IsCmdIntegration", false)
 			end
 		else
 			if defaultCmdColor then
@@ -47439,6 +47419,8 @@ NAgui.commands = function()
 			end
 			if Cmd.SetAttribute then
 				Cmd:SetAttribute("IsPluginCommand", false)
+				Cmd:SetAttribute("IsPatchedCommand", false)
+				Cmd:SetAttribute("IsCmdIntegration", false)
 			end
 		end
 		Cmd.Text = " "..finalText
@@ -49980,6 +49962,7 @@ NAgui.loadCMDS = function()
 		btn.Parent = NAUIMANAGER.cmdAutofill
 		btn.Name = name
 		local finalDisplay = meta.displayText or entry.display or name
+		local isPatched = meta.patched == true
 		local isCmdIntegration = meta.origin == "cmd"
 		local pluginType = meta.pluginType
 		local isPluginCmd = pluginType ~= nil
@@ -49987,7 +49970,10 @@ NAgui.loadCMDS = function()
 			isPluginCmd = NAmanage.IsPluginCommand(name)
 		end
 		if btn.Input then
-			if isCmdIntegration then
+			if isPatched then
+				btn.Input.TextColor3 = patchedCommandColor
+				finalDisplay = addPatchedLabel(finalDisplay)
+			elseif isCmdIntegration then
 				btn.Input.TextColor3 = cmdIntegrationColor
 			elseif isPluginCmd then
 				btn.Input.TextColor3 = pluginCommandColor
@@ -50001,6 +49987,7 @@ NAgui.loadCMDS = function()
 		if btn.SetAttribute then
 			btn:SetAttribute("IsCmdIntegration", isCmdIntegration)
 			btn:SetAttribute("IsPluginCommand", isPluginCmd)
+			btn:SetAttribute("IsPatchedCommand", isPatched)
 		end
 		i += 1
 		btn.LayoutOrder = i
@@ -50612,16 +50599,30 @@ NAgui.filterCommandList = function(rawText)
 					isPluginCmd, pluginType = NAmanage.IsPluginCommand(cmdName)
 				end
 
+				local isPatched = meta and meta.patched == true
+
 				local finalText = (meta and meta.displayText) or displayText
-				if isCmdIntegration then
+				if isPatched then
+					label.TextColor3 = patchedCommandColor
+					if label.SetAttribute then
+						label:SetAttribute("IsPatchedCommand", true)
+						label:SetAttribute("IsCmdIntegration", false)
+						label:SetAttribute("IsPluginCommand", false)
+					end
+					finalText = addPatchedLabel(finalText)
+				elseif isCmdIntegration then
 					label.TextColor3 = cmdIntegrationColor
 					if label.SetAttribute then
 						label:SetAttribute("IsCmdIntegration", true)
+						label:SetAttribute("IsPatchedCommand", false)
+						label:SetAttribute("IsPluginCommand", false)
 					end
 				elseif isPluginCmd then
 					label.TextColor3 = pluginCommandColor
 					if label.SetAttribute then
 						label:SetAttribute("IsPluginCommand", true)
+						label:SetAttribute("IsPatchedCommand", false)
+						label:SetAttribute("IsCmdIntegration", false)
 					end
 				else
 					if templateColor then
@@ -50629,6 +50630,7 @@ NAgui.filterCommandList = function(rawText)
 					end
 					if label.SetAttribute then
 						label:SetAttribute("IsPluginCommand", false)
+						label:SetAttribute("IsPatchedCommand", false)
 						label:SetAttribute("IsCmdIntegration", false)
 					end
 				end
@@ -50715,9 +50717,9 @@ originalIO.naTransLatooor=function()
 				local c = word:sub(i, i):upper()
 				letters[#letters+1] = MORSE_MAP[c] or c
 			end
-			words[#words+1] = table.concat(letters, " ")
+			words[#words+1] = Concat(letters, " ")
 		end
-		return table.concat(words, " / ")
+		return Concat(words, " / ")
 	end
 
 	local function decodeMorse(text)
@@ -50731,10 +50733,10 @@ originalIO.naTransLatooor=function()
 				for token in trimmed:gmatch("%S+") do
 					letters[#letters+1] = MORSE_REVERSE[token] or "?"
 				end
-				words[#words+1] = table.concat(letters)
+				words[#words+1] = Concat(letters)
 			end
 		end
-		return table.concat(words, " ")
+		return Concat(words, " ")
 	end
 
 	translator.target = NAmanage.iso2(opt.chatTranslateTarget) or translator.target or "en"
@@ -52593,89 +52595,104 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 SpawnCall(function()
-	NAmanage.UIrenamerFRIEND = function(o)
-		if not o or typeof(o) ~= "Instance" then return end
-		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then return end
+	local HUI = (typeof(gethui) == "function" and gethui()) or nil
 
+	local function hookFriendLabel(o)
+		if not o or typeof(o) ~= "Instance" then return end
+		if HUI and o:IsDescendantOf(HUI) then return end
+		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then return end
 		if o:GetAttribute("NAFriendHooked") then return end
 		o:SetAttribute("NAFriendHooked", true)
 
 		local applying = false
-
 		local function apply()
 			if applying then return end
 			applying = true
-
 			local ok, t = pcall(function()
 				return o.Text
 			end)
-			if ok and type(t) == "string" and t ~= "" then
-				local new = t:gsub("Connections","Friends"):gsub("Connection","Friend")
+			if ok and type(t) == "string" and t ~= "" and t:find("Connection") then
+				local new = t:gsub("Connections", "Friends"):gsub("Connection", "Friend")
 				if new ~= t then
 					pcall(function()
 						o.Text = new
 					end)
 				end
 			end
-
 			applying = false
 		end
 
-		task.defer(apply)
-
+		Defer(apply)
 		o:GetPropertyChangedSignal("Text"):Connect(function()
-			task.defer(apply)
+			Defer(apply)
 		end)
 	end
 
-	for _, internet in ipairs(workspace:GetDescendants()) do
-		local inst = internet
-		task.defer(function()
-			if inst:IsA("ClickDetector") then
-				Insert(interactTbl.click, inst)
-			elseif inst:IsA("ProximityPrompt") then
-				Insert(interactTbl.proxy, inst)
-			elseif inst:IsA("TouchTransmitter") then
-				Insert(interactTbl.touch, inst)
+	local function registerInteract(inst)
+		if HUI and inst:IsDescendantOf(HUI) then return end
+		if inst:IsA("ClickDetector") then
+			Insert(interactTbl.click, inst)
+		elseif inst:IsA("ProximityPrompt") then
+			Insert(interactTbl.proxy, inst)
+		elseif inst:IsA("TouchTransmitter") then
+			Insert(interactTbl.touch, inst)
+		end
+	end
+
+	local function batchedScan(root, fn, batchSize, timeBudget)
+		if not root then return end
+		batchSize = batchSize or 125
+		timeBudget = timeBudget or 0.006
+		local n, start = 0, os.clock()
+		for _, inst in ipairs(root:GetDescendants()) do
+			fn(inst)
+			n += 1
+			if n % batchSize == 0 and (os.clock() - start) >= timeBudget then
+				start = os.clock()
+				Wait()
 			end
-		end)
+		end
 	end
 
 	if CoreGui then
-		for _, o in ipairs(CoreGui:GetDescendants()) do
-			local inst = o
-			task.defer(function()
-				NAmanage.UIrenamerFRIEND(inst)
-			end)
-		end
-
+		Spawn(function()
+			batchedScan(CoreGui, hookFriendLabel, 100, 0.004)
+		end)
 		CoreGui.DescendantAdded:Connect(function(o)
-			local root = o
-			task.defer(function()
-				NAmanage.UIrenamerFRIEND(root)
-				for _, c in ipairs(root:GetDescendants()) do
-					NAmanage.UIrenamerFRIEND(c)
+			if HUI and o:IsDescendantOf(HUI) then return end
+			Defer(function()
+				hookFriendLabel(o)
+				for _, c in ipairs(o:GetDescendants()) do
+					hookFriendLabel(c)
 				end
 			end)
 		end)
 	end
 
-	workspace.DescendantAdded:Connect(function(internet)
-		local inst = internet
-		task.defer(function()
-			if inst:IsA("ClickDetector") then
-				Insert(interactTbl.click, inst)
-			elseif inst:IsA("ProximityPrompt") then
-				Insert(interactTbl.proxy, inst)
-			elseif inst:IsA("TouchTransmitter") then
-				Insert(interactTbl.touch, inst)
-			end
+	if PlrGui then
+		Spawn(function()
+			batchedScan(PlrGui, hookFriendLabel, 100, 0.004)
+		end)
+		PlrGui.DescendantAdded:Connect(function(o)
+			if HUI and o:IsDescendantOf(HUI) then return end
+			Defer(function()
+				hookFriendLabel(o)
+			end)
+		end)
+	end
+
+	Spawn(function()
+		batchedScan(workspace, registerInteract, 200, 0.006)
+	end)
+
+	workspace.DescendantAdded:Connect(function(inst)
+		Defer(function()
+			registerInteract(inst)
 		end)
 	end)
 
-	workspace.DescendantRemoving:Connect(function(internet)
-		local inst = internet
-		task.defer(function()
+	workspace.DescendantRemoving:Connect(function(inst)
+		Defer(function()
 			if inst:IsA("ClickDetector") then
 				local i = Discover(interactTbl.click, inst)
 				if i then
@@ -56126,7 +56143,7 @@ NAgui.addToggle("Send Command Logs", webhookCfg.enableCommands, function(v)
 	end
 end)
 NAgui.addButton("Test Webhook Ping", function()
-	local ok, err = NAmanage.SendIntegrationWebhook("test", string.format("[Test] %s ping", adminName or "NA"))
+	local ok, err = NAmanage.SendIntegrationWebhook("test", Format("[Test] %s ping", adminName or "NA"))
 	if ok then
 		DoNotif("Webhook ping sent.", 2)
 	else
@@ -56176,7 +56193,7 @@ NAgui.addButton("Ping Endpoints", function()
 	if #results == 0 then
 		DoNotif("No endpoints configured.", 3)
 	else
-		DoNotif(table.concat(results, " | "), 4)
+		DoNotif(Concat(results, " | "), 4)
 	end
 end)
 
