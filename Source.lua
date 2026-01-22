@@ -417,17 +417,16 @@ NA_GRAB_BODY = (function()
 		local model = asChar(obj);
 
 		if obj == Players.LocalPlayer then
-			local inWorkspace = model and model:IsDescendantOf(workspace);
 			if overrideModel then
 				model = overrideModel;
-			elseif not inWorkspace then
+			elseif model and (not model:IsDescendantOf(workspace)) then
 				model = pickOverrideModel(true) or model;
 			end;
 		elseif not model then
 			model = overrideModel;
 		end;
 
-		if not model then
+		if not model and obj ~= Players.LocalPlayer then
 			model = pickOverrideModel();
 		end;
 		if not model then
