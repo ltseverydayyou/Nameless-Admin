@@ -673,13 +673,12 @@ NAmanage.CreateNAFreecam=function()
 	local sqrt = math.sqrt
 	local tan = math.tan
 
-	local Workspace = workspace
-	local Camera = Workspace.CurrentCamera
+	local Camera = workspace.CurrentCamera
 	local ContextActionService = SafeGetService("ContextActionService")
 
-	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		if Workspace.CurrentCamera then
-			Camera = Workspace.CurrentCamera
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if workspace.CurrentCamera then
+			Camera = workspace.CurrentCamera
 		end
 	end)
 
@@ -22813,7 +22812,6 @@ cmd.add({"timestamp", "epoch"}, {"timestamp (epoch)", "Shows current Unix timest
 end)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	local Player = Players.LocalPlayer
-	local Workspace = workspace
 
 	repeat RunService.RenderStepped:Wait() until Player.Character
 	local Character = Player.Character
@@ -22823,7 +22821,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 	SPart.CanCollide = true
 	SPart.Size = Vector3.new(1, 100, 1)
 	SPart.Transparency = 0.4
-	SPart.Parent = Workspace
+	SPart.Parent = workspace
 
 	RunService.Stepped:Connect(function()
 		local hum = Character and getHum()
@@ -22831,7 +22829,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 			local rayOrigin = Character.PrimaryPart.Position + Character.PrimaryPart.CFrame.LookVector * 6
 			local rayDir = Vector3.new(0, -4, 0)
 			local ray = Ray.new(rayOrigin, rayDir)
-			local part = Workspace:FindPartOnRayWithIgnoreList(ray, {Character})
+			local part = workspace:FindPartOnRayWithIgnoreList(ray, {Character})
 			if part then
 				SPart.CFrame = Character.PrimaryPart.CFrame + Character.PrimaryPart.CFrame.LookVector * 6
 			end
@@ -29986,7 +29984,7 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 
 	NAlib.connect("animation_speed", RunService.Stepped:Connect(function()
 		local character = getChar()
-		local humanoid = getHum() or character:FindFirstChildOfClass("AnimationController")
+		local humanoid = getHum()
 		if humanoid then
 			for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
 				if track and track:IsA("AnimationTrack") then
@@ -31467,49 +31465,108 @@ end)
 
 specUI = nil
 connStep, connAdd, connRemove = nil, nil, nil
-local spectateTarget = nil
-local spectateConns = {char = nil, leave = nil, loop = nil}
 
-local function disconnectSpectateConns()
-	if spectateConns.char then spectateConns.char:Disconnect() end
-	if spectateConns.leave then spectateConns.leave:Disconnect() end
-	if spectateConns.loop then spectateConns.loop:Disconnect() end
-	spectateConns.char, spectateConns.leave, spectateConns.loop = nil, nil, nil
+local spectateTarget, spectateSubject = nil, nil
+local spectateConns = {
+	char = nil,
+	leave = nil,
+	loop = nil,
+	cam = nil,
+	camW = nil
+}
+
+originalIO.disconnectSpectateConns=function()
+	for k, c in pairs(spectateConns) do
+		if c then
+			c:Disconnect()
+			spectateConns[k] = nil
+		end
+	end
 	NAlib.disconnect("spectate_char")
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
+	NAlib.disconnect("spectate_cam")
+	NAlib.disconnect("spectate_camW")
+end
+
+originalIO.ensureCam=function()
+	if not spectateTarget or not spectateSubject then return end
+	if not workspace then return end
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+	if NAlib.isProperty(cam, "CameraSubject") == nil then return end
+	if cam.CameraSubject ~= spectateSubject then
+		NAlib.setProperty(cam, "CameraSubject", spectateSubject)
+	end
+end
+
+originalIO.hookCameraGuard=function()
+	if not workspace then return end
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+
+	if spectateConns.cam then
+		spectateConns.cam:Disconnect()
+		spectateConns.cam = nil
+	end
+
+	if NAlib.isProperty(cam, "CameraSubject") ~= nil then
+		spectateConns.cam = NAlib.connect("spectate_cam", cam:GetPropertyChangedSignal("CameraSubject"):Connect(function()
+			if not spectateTarget or not spectateSubject then return end
+			originalIO.ensureCam()
+		end))
+	end
+
+	if not spectateConns.camW and NAlib.isProperty(workspace, "CurrentCamera") ~= nil then
+		spectateConns.camW = NAlib.connect("spectate_camW", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+			if not spectateTarget or not spectateSubject then return end
+			originalIO.hookCameraGuard()
+			originalIO.ensureCam()
+		end))
+	end
 end
 
 function cleanup(preserveSpecUI)
 	spectateTarget = nil
-	disconnectSpectateConns()
+	spectateSubject = nil
+
+	originalIO.disconnectSpectateConns()
+
 	if connStep then connStep:Disconnect() connStep = nil end
 	if connAdd then connAdd:Disconnect() connAdd = nil end
 	if connRemove then connRemove:Disconnect() connRemove = nil end
+
 	if specUI and not preserveSpecUI then
 		specUI:Destroy()
 		specUI = nil
 	end
+
 	local hum = getHum()
-	local cam = workspace.CurrentCamera
-	if hum then cam.CameraSubject = hum end
+	if workspace then
+		local cam = workspace.CurrentCamera
+		if hum and cam and NAlib.isProperty(cam, "CameraSubject") ~= nil then
+			NAlib.setProperty(cam, "CameraSubject", hum)
+		end
+	end
 end
 
 function spectatePlayer(targetPlayer)
 	if not targetPlayer then return end
+
 	spectateTarget = targetPlayer
-	disconnectSpectateConns()
+	spectateSubject = nil
+	originalIO.disconnectSpectateConns()
+
 	local function setCamToCharacter(character)
 		if spectateTarget ~= targetPlayer or not character then return end
-		local hum = character:FindFirstChildOfClass("Humanoid") or character:FindFirstChildOfClass("AnimationController")
-		if hum then
-			workspace.CurrentCamera.CameraSubject = hum
-			return
-		end
-		local root = getRoot(character)
-		if root then
-			workspace.CurrentCamera.CameraSubject = root
-		end
+
+		local hum = getPlrHum(character)
+		local subj = hum or getRoot(character)
+		if not subj then return end
+
+		spectateSubject = subj
+		originalIO.ensureCam()
+		originalIO.hookCameraGuard()
 	end
 
 	setCamToCharacter(targetPlayer.Character)
@@ -31518,15 +31575,25 @@ function spectatePlayer(targetPlayer)
 		if spectateTarget ~= targetPlayer then return end
 		setCamToCharacter(character)
 	end))
+
 	spectateConns.leave = NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer and spectateTarget == targetPlayer then
 			cleanup(true)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
+
 	spectateConns.loop = NAlib.connect("spectate_loop", RunService.RenderStepped:Connect(function()
 		if spectateTarget ~= targetPlayer then return end
-		setCamToCharacter(targetPlayer.Character)
+
+		local char = targetPlayer.Character
+		if not char or not char.Parent then return end
+
+		if not spectateSubject or spectateSubject.Parent ~= char then
+			setCamToCharacter(char)
+		else
+			originalIO.ensureCam()
+		end
 	end))
 end
 
@@ -33953,7 +34020,7 @@ end)
 
 cmd.add({"stopanimations", "stopanims", "stopanim", "noanim"}, {"stopanimations (stopanims,stopanim,noanim)", "Stops running animations"}, function()
 	local char = Players.LocalPlayer and Players.LocalPlayer.Character
-	local hum = getHum() or (char and char:FindFirstChildOfClass("AnimationController"))
+	local hum = getHum()
 	if not hum then return end
 
 	for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
@@ -33967,7 +34034,7 @@ cmd.add({"refreshanimations", "refreshanimation", "refreshanims", "refreshanim"}
 		DoNotif("Character unavailable",2)
 		return
 	end
-	local humanoid=char:FindFirstChildOfClass("Humanoid") or char:FindFirstChildOfClass("AnimationController")
+	local humanoid=getPlrHum(char)
 	local animate=char:FindFirstChild("Animate")
 	if not humanoid or not animate then
 		DoNotif("Failed to locate Animate or Humanoid",3)
@@ -45822,7 +45889,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		local rayParams = RaycastParams.new()
 		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 		rayParams.FilterDescendantsInstances = {char}
-		local result = Workspace:Raycast(origin, forward * 3 + Vector3.new(0, -2, 0), rayParams)
+		local result = workspace:Raycast(origin, forward * 3 + Vector3.new(0, -2, 0), rayParams)
 
 		if result and NPCControl._jumpCooldown <= 0 then
 			local part = result.Instance
