@@ -2680,6 +2680,124 @@ local NAImageAssets = {
 	ResizeDiagonal1 = "Diagonal116x16.png";
 	ResizeDiagonal2 = "Diagonal216x16.png";
 }
+NAStuff._rf = NAStuff._rf or readfile
+NAStuff._wf = NAStuff._wf or writefile
+NAStuff._iff = NAStuff._iff or isfile
+NAStuff._df = NAStuff._df or delfile
+NAStuff.dotBad = NAStuff.dotBad or false
+NAmanage.stripExt=function(p)
+	if type(p) ~= "string" then
+		return p
+	end
+	return (p:gsub("([^/]+)%.[^/]+$", "%1"))
+end
+NAmanage.isInvalidPathErr=function(e)
+	return type(e) == "string" and e:find("Invalid path", 1, true) ~= nil
+end
+if type(NAStuff._wf) == "function" then
+	writefile = function(p, data, ...)
+		if type(p) ~= "string" then
+			return NAStuff._wf(p, data, ...)
+		end
+
+		local pNoExt = NAmanage.stripExt(p)
+		if NAStuff.dotBad and pNoExt ~= p then
+			return NAStuff._wf(pNoExt, data, ...)
+		end
+
+		local ok, err = pcall(NAStuff._wf, p, data, ...)
+		if ok then
+			return
+		end
+
+		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+			NAStuff.dotBad = true
+			return NAStuff._wf(pNoExt, data, ...)
+		end
+
+		error(err)
+	end
+end
+if type(NAStuff._rf) == "function" then
+	readfile = function(p, ...)
+		if type(p) ~= "string" then
+			return NAStuff._rf(p, ...)
+		end
+
+		local pNoExt = NAmanage.stripExt(p)
+
+		if NAStuff.dotBad and pNoExt ~= p then
+			local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
+			if ok2 then
+				return res2
+			end
+		end
+
+		local ok, res = pcall(NAStuff._rf, p, ...)
+		if ok and res ~= nil then
+			return res
+		end
+
+		if pNoExt ~= p then
+			local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
+			if ok2 then
+				return res2
+			end
+		end
+
+		return nil
+	end
+end
+if type(NAStuff._iff) == "function" then
+	isfile = function(p, ...)
+		if type(p) ~= "string" then
+			local ok, res = pcall(NAStuff._iff, p, ...)
+			return ok and res or false
+		end
+
+		local pNoExt = NAmanage.stripExt(p)
+
+		local ok, res = pcall(NAStuff._iff, p, ...)
+		if ok and res then
+			return true
+		end
+
+		if pNoExt ~= p then
+			local ok2, res2 = pcall(NAStuff._iff, pNoExt, ...)
+			if ok2 and res2 then
+				NAStuff.dotBad = true
+				return true
+			end
+		end
+
+		return false
+	end
+end
+if type(NAStuff._df) == "function" then
+	delfile = function(p, ...)
+		if type(p) ~= "string" then
+			return NAStuff._df(p, ...)
+		end
+
+		local pNoExt = NAmanage.stripExt(p)
+
+		if NAStuff.dotBad and pNoExt ~= p then
+			return NAStuff._df(pNoExt, ...)
+		end
+
+		local ok, err = pcall(NAStuff._df, p, ...)
+		if ok then
+			return
+		end
+
+		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+			NAStuff.dotBad = true
+			return NAStuff._df(pNoExt, ...)
+		end
+
+		error(err)
+	end
+end
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
