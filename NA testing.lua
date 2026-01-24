@@ -436,19 +436,14 @@ NA_GRAB_BODY = (function()
 	end;
 	local function ensure(obj)
 		local model = asChar(obj);
-
 		if obj == Players.LocalPlayer then
 			if overrideModel then
 				model = overrideModel;
-			elseif model and (not model:IsDescendantOf(workspace)) then
+			elseif model and model.Parent and (not model:IsDescendantOf(workspace)) then
 				model = pickOverrideModel(true) or model;
 			end;
 		elseif not model then
 			model = overrideModel;
-		end;
-
-		if not model and obj ~= Players.LocalPlayer then
-			model = pickOverrideModel();
 		end;
 		if not model then
 			return nil;
