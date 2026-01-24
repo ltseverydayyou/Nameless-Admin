@@ -47351,8 +47351,7 @@ originalIO.ApplyLastInputPatch = function()
 	if NAlib and NAlib.connect and NAlib.disconnect then
 		NAlib.disconnect("NA_LastInputTouch")
 		NAlib.connect("NA_LastInputTouch", GuiService:GetPropertyChangedSignal("TouchControlsEnabled"):Connect(function()
-			local u = game:GetService("UserInputService")
-			if u.TouchEnabled and (not u.KeyboardEnabled) and (not u.MouseEnabled) then
+			if IsOnMobile then
 				pcall(function()
 					GuiService.TouchControlsEnabled = true
 				end)
@@ -47360,8 +47359,7 @@ originalIO.ApplyLastInputPatch = function()
 		end))
 	else
 		GuiService:GetPropertyChangedSignal("TouchControlsEnabled"):Connect(function()
-			local u = game:GetService("UserInputService")
-			if u.TouchEnabled and (not u.KeyboardEnabled) and (not u.MouseEnabled) then
+			if IsOnMobile then
 				pcall(function()
 					GuiService.TouchControlsEnabled = true
 				end)
