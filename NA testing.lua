@@ -2383,8 +2383,8 @@ function NAmanage.runLoader(label, callback, opts)
 		return false
 	end
 
-local lastErr
-for attempt = 1, attempts do
+	local lastErr
+	for attempt = 1, attempts do
 		local ok, result = pcall(callback)
 		if ok and (result ~= false or not retryOnFalse) then
 			NAmanage._loaderStatus[label] = true
@@ -6635,12 +6635,12 @@ NAmanage.startAprilPranks = function()
 		end
 	end
 
-if TextButton then
-	MouseButtonFix(TextButton, function()
-		if not isAprilFools() then return end
-		NAmanage.nudgeAprilIcon()
-	end)
-end
+	if TextButton then
+		MouseButtonFix(TextButton, function()
+			if not isAprilFools() then return end
+			NAmanage.nudgeAprilIcon()
+		end)
+	end
 
 	local function aprilWiggleCmdBar()
 		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
@@ -8408,148 +8408,148 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
-	bloxtrapRPC = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationWebhookUrl = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUrlMain = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUrlAll = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUrlJoinLeave = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUrlChat = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUrlCommands = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationWebhookUseAll = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationWebhookJoinLeave = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationWebhookChat = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationWebhookCommands = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationWebhookInterval = {
-		default = 2;
-		coerce = function(value)
-			local n = tonumber(value)
-			if not n then return 2 end
-			if n < 0 then n = 0 elseif n > 30 then n = 30 end
-			return n
-		end;
-	};
-	integrationHealthEndpoints = {
-		default = {};
-		coerce = function(value)
-			if type(value) ~= "table" then
-				return {}
-			end
-			local out = {}
-			for i = 1, math.min(3, #value) do
-				local v = value[i]
-				if type(v) == "string" and v ~= "" then
-					out[#out + 1] = v
+		bloxtrapRPC = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationWebhookUrl = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
 				end
-			end
-			return out
-		end;
-	};
-	integrationNotesLast = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationRpcUseCustom = {
-		default = false;
-		coerce = function(value)
-			return coerceBoolean(value, false)
-		end;
-	};
-	integrationRpcDetails = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
-	integrationRpcState = {
-		default = "";
-		coerce = function(value)
-			if type(value) ~= "string" then
-				value = tostring(value or "")
-			end
-			return value
-		end;
-	};
+				return value
+			end;
+		};
+		integrationWebhookUrlMain = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationWebhookUrlAll = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationWebhookUrlJoinLeave = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationWebhookUrlChat = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationWebhookUrlCommands = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationWebhookUseAll = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationWebhookJoinLeave = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationWebhookChat = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationWebhookCommands = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationWebhookInterval = {
+			default = 2;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 2 end
+				if n < 0 then n = 0 elseif n > 30 then n = 30 end
+				return n
+			end;
+		};
+		integrationHealthEndpoints = {
+			default = {};
+			coerce = function(value)
+				if type(value) ~= "table" then
+					return {}
+				end
+				local out = {}
+				for i = 1, math.min(3, #value) do
+					local v = value[i]
+					if type(v) == "string" and v ~= "" then
+						out[#out + 1] = v
+					end
+				end
+				return out
+			end;
+		};
+		integrationNotesLast = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationRpcUseCustom = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		integrationRpcDetails = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
+		integrationRpcState = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value
+			end;
+		};
 		cmdIntegrationAutoRun = {
 			default = false;
 			coerce = function(value)
@@ -14667,9 +14667,9 @@ local function NAUserButtonRectOverlap(posA, sizeA, posB, sizeB, padding)
 	if not (posA and sizeA and posB and sizeB) then return false end
 	return not (
 		posA.X + sizeA.X < posB.X - padding
-		or posB.X + sizeB.X < posA.X - padding
-		or posA.Y + sizeA.Y < posB.Y - padding
-		or posB.Y + sizeB.Y < posA.Y - padding
+			or posB.X + sizeB.X < posA.X - padding
+			or posA.Y + sizeA.Y < posB.Y - padding
+			or posB.Y + sizeB.Y < posA.Y - padding
 	)
 end
 
@@ -14928,15 +14928,15 @@ NAmanage.loadAutoExec = function()
 	return true
 end
 
-	NAmanage.LoadPlugins = function(opts)
-		opts = opts or {}
-		local silent = opts.silent == true
-		local forceNotify = opts.forceNotify == true
-		if not CustomFunctionSupport then
-			return true
-		end
+NAmanage.LoadPlugins = function(opts)
+	opts = opts or {}
+	local silent = opts.silent == true
+	local forceNotify = opts.forceNotify == true
+	if not CustomFunctionSupport then
+		return true
+	end
 
-		local iyCallCtx = { args = nil, speaker = nil }
+	local iyCallCtx = { args = nil, speaker = nil }
 
 	local pluginDirNA = NAfiles.NAPLUGINFILEPATH
 	local pluginDirIY = NAfiles.NAIYPLUGINFILEPATH
@@ -15057,11 +15057,11 @@ end
 		return false
 	end
 
-		local function appendIYCommands(out, iyPlugin)
-			if type(out) ~= "table" or type(iyPlugin) ~= "table" then
-				return
-			end
-			local commands = iyPlugin.Commands or iyPlugin.commands
+	local function appendIYCommands(out, iyPlugin)
+		if type(out) ~= "table" or type(iyPlugin) ~= "table" then
+			return
+		end
+		local commands = iyPlugin.Commands or iyPlugin.commands
 		if type(commands) ~= "table" then
 			return
 		end
@@ -15235,7 +15235,7 @@ end
 		end
 		table.sort(parts)
 		return "Conflicting aliases remapped: "..Concat(parts, ", ")
-	 end
+	end
 
 	local function makeUniqueAliases(key, aliases)
 		local out = {}
@@ -16031,11 +16031,11 @@ NAmanage.InitPlugs=function()
 		end
 	)
 
-cmd.add(
-	{"reloadplugin","relplug","rp"},
-	{"reloadplugin [name]","Reload plugin files (reloads all if no name provided)"},
-	function(...)
-		if not CustomFunctionSupport or not (NAmanage and NAmanage.LoadPlugins) then
+	cmd.add(
+		{"reloadplugin","relplug","rp"},
+		{"reloadplugin [name]","Reload plugin files (reloads all if no name provided)"},
+		function(...)
+			if not CustomFunctionSupport or not (NAmanage and NAmanage.LoadPlugins) then
 				DoNotif("Plugin loader unavailable",3)
 				return
 			end
@@ -16059,17 +16059,17 @@ cmd.add(
 					end
 					if matched then break end
 				end
-			if not matched then
-				DoNotif("No plugin matched '"..query.."'",3)
-				return
+				if not matched then
+					DoNotif("No plugin matched '"..query.."'",3)
+					return
+				end
 			end
-		end
-		if not NAmanage.LoadPlugins({ forceNotify = true }) then
-			DoNotif("Failed to reload plugins",3)
-		else
-			if NAgui and NAgui.loadCMDS then
-				pcall(NAgui.loadCMDS)
-			end
+			if not NAmanage.LoadPlugins({ forceNotify = true }) then
+				DoNotif("Failed to reload plugins",3)
+			else
+				if NAgui and NAgui.loadCMDS then
+					pcall(NAgui.loadCMDS)
+				end
 			end
 		end
 	)
@@ -16460,406 +16460,406 @@ NAmanage.RenderUserButtons = function()
 		for id, data in pairs(NAUserButtons) do
 			if type(id) == "number" and type(data) == "table" then
 
-			local btn = InstanceNew("TextButton")
-			btn.Name                 = "NAUserButton_"..id
-			btn.Text                 = data.Label or ("Button "..id)
-			btn.Size                 = UDim2.new(0,60, 0,60)
-			btn.AnchorPoint          = Vector2.new(0.5,1)
-			btn.Position             = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
-			btn.Parent               = screenGui
-			btn.BackgroundColor3     = Color3.fromRGB(0,0,0)
-			btn.TextColor3           = Color3.fromRGB(255,255,255)
-			btn.TextScaled           = true
-			btn.Font                 = Enum.Font.GothamBold
-			btn.BorderSizePixel      = 0
-			btn.ZIndex               = 9999
-			btn.AutoButtonColor      = true
-			btn.BackgroundTransparency = 0
-			btn.TextTransparency       = 0
+				local btn = InstanceNew("TextButton")
+				btn.Name                 = "NAUserButton_"..id
+				btn.Text                 = data.Label or ("Button "..id)
+				btn.Size                 = UDim2.new(0,60, 0,60)
+				btn.AnchorPoint          = Vector2.new(0.5,1)
+				btn.Position             = data.Pos and UDim2.new(data.Pos[1], data.Pos[2], data.Pos[3], data.Pos[4]) or UDim2.new(startX + (spacing*idx)/screenWidth, 0, 0.9, 0)
+				btn.Parent               = screenGui
+				btn.BackgroundColor3     = Color3.fromRGB(0,0,0)
+				btn.TextColor3           = Color3.fromRGB(255,255,255)
+				btn.TextScaled           = true
+				btn.Font                 = Enum.Font.GothamBold
+				btn.BorderSizePixel      = 0
+				btn.ZIndex               = 9999
+				btn.AutoButtonColor      = true
+				btn.BackgroundTransparency = 0
+				btn.TextTransparency       = 0
 
-			local btnCorner = InstanceNew("UICorner")
-			btnCorner.CornerRadius = UDim.new(0.25,0)
-			btnCorner.Parent       = btn
+				local btnCorner = InstanceNew("UICorner")
+				btnCorner.CornerRadius = UDim.new(0.25,0)
+				btnCorner.Parent       = btn
 
-			local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, Color3.fromRGB(0,0,0))
-			btn.BackgroundColor3 = baseBgColor
+				local baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, Color3.fromRGB(0,0,0))
+				btn.BackgroundColor3 = baseBgColor
 
-			UserButtonGuiMap[id] = btn
+				UserButtonGuiMap[id] = btn
 
-			local dragStart = udim2ToArray(btn.Position)
-			if not data.Locked then
-				NAgui.draggerV2(btn)
-			end
-
-			btn.InputBegan:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragStart = udim2ToArray(btn.Position)
+				local dragStart = udim2ToArray(btn.Position)
+				if not data.Locked then
+					NAgui.draggerV2(btn)
 				end
-			end)
 
-			btn.InputEnded:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					local p = btn.Position
-					local newPos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
-					local moved = positionsChanged(dragStart or newPos, newPos)
-					data.Pos = newPos
-					NAmanage.UserButtonsSave("update position")
-					if moved and not data.Locked then
-						NAmanage.UserButtons_CheckCombine(id, btn)
+				btn.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragStart = udim2ToArray(btn.Position)
 					end
-				end
-			end)
+				end)
 
-			local isGroup = data.Type == "group"
-			local isHidden = (data.Hidden) and true or false
-			local isInteractable = not (data.Interactable == false)
-
-			if isGroup then
-				local children = (type(data.Children) == "table") and data.Children or {}
-				local label = tostring(data.Label or ("Group "..id))
-				if #children > 0 then
-					btn.Text = ("%s (%d)"):format(label, #children)
-				else
-					btn.Text = label
-				end
-				local childHeight = 32
-				local mode = (data.GroupMode == "side") and "side" or "dropdown"
-
-				local function openDropdown()
-					if #children == 0 then
-						DoNotif("Add buttons to this group before opening it", 2)
-						return
+				btn.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						local p = btn.Position
+						local newPos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
+						local moved = positionsChanged(dragStart or newPos, newPos)
+						data.Pos = newPos
+						NAmanage.UserButtonsSave("update position")
+						if moved and not data.Locked then
+							NAmanage.UserButtons_CheckCombine(id, btn)
+						end
 					end
+				end)
 
-					closeAllDropdowns()
-					local container = InstanceNew("ScrollingFrame")
-					container.Name = ("NAUserButtonDropdown_%d"):format(id)
-					container.BackgroundColor3 = Color3.fromRGB(18,18,22)
-					container.BackgroundTransparency = 0.1
-					container.BorderSizePixel = 0
-					container.ZIndex = 10000
-					container.ClipsDescendants = true
-					container.ScrollingDirection = Enum.ScrollingDirection.Y
-					container.VerticalScrollBarInset = Enum.ScrollBarInset.Always
-					container.ScrollBarThickness = 5
-					container.Parent = screenGui
+				local isGroup = data.Type == "group"
+				local isHidden = (data.Hidden) and true or false
+				local isInteractable = not (data.Interactable == false)
 
-					local layout = InstanceNew("UIListLayout")
-					layout.SortOrder = Enum.SortOrder.LayoutOrder
-					layout.Padding = UDim.new(0, 6)
-					layout.FillDirection = Enum.FillDirection.Vertical
-					layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-					layout.VerticalAlignment = Enum.VerticalAlignment.Top
-					layout.Parent = container
-
-					local pad = InstanceNew("UIPadding", container)
-					pad.PaddingTop = UDim.new(0, 6)
-					pad.PaddingBottom = UDim.new(0, 6)
-					pad.PaddingLeft = UDim.new(0, 6)
-					pad.PaddingRight = UDim.new(0, 6)
-
-					local dropCorner = InstanceNew("UICorner")
-					dropCorner.CornerRadius = UDim.new(0, 8)
-					dropCorner.Parent = container
-
-					local dropStroke = InstanceNew("UIStroke")
-					dropStroke.Thickness = 1
-					dropStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
-					dropStroke.Transparency = 0.15
-					dropStroke.Parent = container
-					NAgui.RegisterColoredStroke(dropStroke)
-
-					local cam = workspace.CurrentCamera
-					local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-					local margin = 8
-					local dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
-					local visibleCount = math.min(#children, 5)
-					local dropHeight = (visibleCount * (childHeight + 6)) + 12
-					local maxHeight = math.max(120, (vp.Y - margin * 2) * 0.8)
-					local finalHeight = math.min(dropHeight, maxHeight)
-					local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, finalHeight))
-					container.AnchorPoint = anchor
-					container.Position = posUDim
-					container.Size = UDim2.new(0, dropWidth, 0, finalHeight)
-
-					local function refreshCanvas()
-						local content = layout.AbsoluteContentSize
-						local top = pad.PaddingTop.Offset
-						local bottom = pad.PaddingBottom.Offset
-						container.CanvasSize = UDim2.new(0, 0, 0, content.Y + top + bottom)
-						container.ScrollBarThickness = (content.Y + top + bottom > finalHeight) and 5 or 0
+				if isGroup then
+					local children = (type(data.Children) == "table") and data.Children or {}
+					local label = tostring(data.Label or ("Group "..id))
+					if #children > 0 then
+						btn.Text = ("%s (%d)"):format(label, #children)
+					else
+						btn.Text = label
 					end
-					layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
-					refreshCanvas()
+					local childHeight = 32
+					local mode = (data.GroupMode == "side") and "side" or "dropdown"
 
-					Insert(UserButtonGuiList, container)
-
-					for childIndex, child in ipairs(children) do
-						local cBtn = InstanceNew("TextButton")
-						cBtn.Name = ("NAUserButtonChild_%d_%d"):format(id, childIndex)
-						cBtn.Size = UDim2.new(1, 0, 0, childHeight)
-						local childBaseBg = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(0,0,0))
-						cBtn.BackgroundColor3 = childBaseBg
-						cBtn.TextColor3 = NAmanage.UserButtonColorFromTable(child.TextColor, Color3.fromRGB(255,255,255))
-						cBtn.TextScaled = false
-						cBtn.Font = Enum.Font.GothamBold
-						cBtn.TextSize = 14
-						cBtn.Text = tostring(child.Label or ("Action "..childIndex))
-						cBtn.ZIndex = container.ZIndex + 1
-						cBtn.AutoButtonColor = true
-						cBtn.BorderSizePixel = 0
-						cBtn.Parent = container
-
-						local cbCorner = InstanceNew("UICorner")
-						cbCorner.CornerRadius = UDim.new(0.25, 0)
-						cbCorner.Parent = cBtn
-
-						local childKey = originalIO.userButtonChildKey(id, childIndex)
-						SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
-						local childToggled = childKey and UserButtonToggleState[childKey] == true or false
-						local childSaveEnabled = child.RunMode == "S"
-						local childCmd1 = child.Cmd1
-						local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
-						local childNeedsArgs = childCd1 and childCd1[3]
-
-						if not child.Cmd2 and childKey then
-							UserButtonToggleState[childKey] = nil
-							childToggled = false
-						elseif child.Cmd2 then
-							cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
+					local function openDropdown()
+						if #children == 0 then
+							DoNotif("Add buttons to this group before opening it", 2)
+							return
 						end
 
-						if childNeedsArgs then
-							local childToggleSize = math.max(14, math.min(tSize, childHeight - 6))
-							local saveToggle = InstanceNew("TextButton")
-							saveToggle.Size                   = UDim2.new(0, childToggleSize, 0, childToggleSize)
-							saveToggle.AnchorPoint            = Vector2.new(1, 0)
-							saveToggle.Position               = UDim2.new(1, -4, 0, 4)
-							saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
-							saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
-							saveToggle.TextScaled             = true
-							saveToggle.Font                   = Enum.Font.Gotham
-							saveToggle.Text                   = childSaveEnabled and "S" or "N"
-							saveToggle.ZIndex                 = cBtn.ZIndex + 1
-							saveToggle.BackgroundTransparency = 0
-							saveToggle.TextTransparency       = 0
-							saveToggle.Parent                 = cBtn
+						closeAllDropdowns()
+						local container = InstanceNew("ScrollingFrame")
+						container.Name = ("NAUserButtonDropdown_%d"):format(id)
+						container.BackgroundColor3 = Color3.fromRGB(18,18,22)
+						container.BackgroundTransparency = 0.1
+						container.BorderSizePixel = 0
+						container.ZIndex = 10000
+						container.ClipsDescendants = true
+						container.ScrollingDirection = Enum.ScrollingDirection.Y
+						container.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+						container.ScrollBarThickness = 5
+						container.Parent = screenGui
 
-							local stCorner = InstanceNew("UICorner")
-							stCorner.CornerRadius = UDim.new(0.5,0)
-							stCorner.Parent       = saveToggle
+						local layout = InstanceNew("UIListLayout")
+						layout.SortOrder = Enum.SortOrder.LayoutOrder
+						layout.Padding = UDim.new(0, 6)
+						layout.FillDirection = Enum.FillDirection.Vertical
+						layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+						layout.VerticalAlignment = Enum.VerticalAlignment.Top
+						layout.Parent = container
 
-							MouseButtonFix(saveToggle, function()
-								childSaveEnabled = not childSaveEnabled
-								saveToggle.Text = childSaveEnabled and "S" or "N"
-								child.RunMode = childSaveEnabled and "S" or "N"
-								NAmanage.UserButtonsSave("group child save toggle")
+						local pad = InstanceNew("UIPadding", container)
+						pad.PaddingTop = UDim.new(0, 6)
+						pad.PaddingBottom = UDim.new(0, 6)
+						pad.PaddingLeft = UDim.new(0, 6)
+						pad.PaddingRight = UDim.new(0, 6)
+
+						local dropCorner = InstanceNew("UICorner")
+						dropCorner.CornerRadius = UDim.new(0, 8)
+						dropCorner.Parent = container
+
+						local dropStroke = InstanceNew("UIStroke")
+						dropStroke.Thickness = 1
+						dropStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
+						dropStroke.Transparency = 0.15
+						dropStroke.Parent = container
+						NAgui.RegisterColoredStroke(dropStroke)
+
+						local cam = workspace.CurrentCamera
+						local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+						local margin = 8
+						local dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
+						local visibleCount = math.min(#children, 5)
+						local dropHeight = (visibleCount * (childHeight + 6)) + 12
+						local maxHeight = math.max(120, (vp.Y - margin * 2) * 0.8)
+						local finalHeight = math.min(dropHeight, maxHeight)
+						local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, finalHeight))
+						container.AnchorPoint = anchor
+						container.Position = posUDim
+						container.Size = UDim2.new(0, dropWidth, 0, finalHeight)
+
+						local function refreshCanvas()
+							local content = layout.AbsoluteContentSize
+							local top = pad.PaddingTop.Offset
+							local bottom = pad.PaddingBottom.Offset
+							container.CanvasSize = UDim2.new(0, 0, 0, content.Y + top + bottom)
+							container.ScrollBarThickness = (content.Y + top + bottom > finalHeight) and 5 or 0
+						end
+						layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas)
+						refreshCanvas()
+
+						Insert(UserButtonGuiList, container)
+
+						for childIndex, child in ipairs(children) do
+							local cBtn = InstanceNew("TextButton")
+							cBtn.Name = ("NAUserButtonChild_%d_%d"):format(id, childIndex)
+							cBtn.Size = UDim2.new(1, 0, 0, childHeight)
+							local childBaseBg = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(0,0,0))
+							cBtn.BackgroundColor3 = childBaseBg
+							cBtn.TextColor3 = NAmanage.UserButtonColorFromTable(child.TextColor, Color3.fromRGB(255,255,255))
+							cBtn.TextScaled = false
+							cBtn.Font = Enum.Font.GothamBold
+							cBtn.TextSize = 14
+							cBtn.Text = tostring(child.Label or ("Action "..childIndex))
+							cBtn.ZIndex = container.ZIndex + 1
+							cBtn.AutoButtonColor = true
+							cBtn.BorderSizePixel = 0
+							cBtn.Parent = container
+
+							local cbCorner = InstanceNew("UICorner")
+							cbCorner.CornerRadius = UDim.new(0.25, 0)
+							cbCorner.Parent = cBtn
+
+							local childKey = originalIO.userButtonChildKey(id, childIndex)
+							SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
+							local childToggled = childKey and UserButtonToggleState[childKey] == true or false
+							local childSaveEnabled = child.RunMode == "S"
+							local childCmd1 = child.Cmd1
+							local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
+							local childNeedsArgs = childCd1 and childCd1[3]
+
+							if not child.Cmd2 and childKey then
+								UserButtonToggleState[childKey] = nil
+								childToggled = false
+							elseif child.Cmd2 then
+								cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
+							end
+
+							if childNeedsArgs then
+								local childToggleSize = math.max(14, math.min(tSize, childHeight - 6))
+								local saveToggle = InstanceNew("TextButton")
+								saveToggle.Size                   = UDim2.new(0, childToggleSize, 0, childToggleSize)
+								saveToggle.AnchorPoint            = Vector2.new(1, 0)
+								saveToggle.Position               = UDim2.new(1, -4, 0, 4)
+								saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
+								saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
+								saveToggle.TextScaled             = true
+								saveToggle.Font                   = Enum.Font.Gotham
+								saveToggle.Text                   = childSaveEnabled and "S" or "N"
+								saveToggle.ZIndex                 = cBtn.ZIndex + 1
+								saveToggle.BackgroundTransparency = 0
+								saveToggle.TextTransparency       = 0
+								saveToggle.Parent                 = cBtn
+
+								local stCorner = InstanceNew("UICorner")
+								stCorner.CornerRadius = UDim.new(0.5,0)
+								stCorner.Parent       = saveToggle
+
+								MouseButtonFix(saveToggle, function()
+									childSaveEnabled = not childSaveEnabled
+									saveToggle.Text = childSaveEnabled and "S" or "N"
+									child.RunMode = childSaveEnabled and "S" or "N"
+									NAmanage.UserButtonsSave("group child save toggle")
+								end)
+							end
+
+							local function runChild(args)
+								local toRun = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
+								if not toRun then return end
+								local arr = {toRun}
+								if args then for _, v in ipairs(args) do Insert(arr, v) end end
+								cmd.run(arr)
+								if child.Cmd2 then
+									childToggled = not childToggled
+									if childKey then
+										UserButtonToggleState[childKey] = childToggled or nil
+									end
+									cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
+								end
+							end
+
+							MouseButtonFix(cBtn, function()
+								local now = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
+								if not now then
+									return
+								end
+								local nd = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+								local needsArgs = nd and nd[3]
+								if needsArgs then
+									if childSaveEnabled and child.Args and #child.Args > 0 then
+										runChild(child.Args)
+									else
+										if ActivePrompts[now] then return end
+										ActivePrompts[now] = true
+										ButtonInputPrompt(now, function(input)
+											ActivePrompts[now] = nil
+											local parsed = ParseArguments(input)
+											if parsed then
+												SavedArgs[childKey] = parsed
+												child.Args = parsed
+												NAmanage.UserButtonsSave("group child args")
+												runChild(parsed)
+											else
+												runChild(nil)
+											end
+										end)
+									end
+								else
+									runChild(nil)
+								end
 							end)
 						end
 
-						local function runChild(args)
-							local toRun = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
-							if not toRun then return end
-							local arr = {toRun}
-							if args then for _, v in ipairs(args) do Insert(arr, v) end end
-							cmd.run(arr)
-							if child.Cmd2 then
-								childToggled = not childToggled
-								if childKey then
-									UserButtonToggleState[childKey] = childToggled or nil
+						local conn = UIS.InputBegan:Connect(function(input, gpe)
+							if gpe then return end
+							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+								local posNow = UIS:GetMouseLocation()
+								if not (pointInsideGui(container, posNow) or pointInsideGui(btn, posNow)) then
+									clearDropdownEntry(id)
 								end
-								cBtn.BackgroundColor3 = childToggled and ON or childBaseBg
 							end
-						end
+						end)
 
-						MouseButtonFix(cBtn, function()
-							local now = (not childToggled or not child.Cmd2) and child.Cmd1 or child.Cmd2
-							if not now then
-								return
+						activeDropdowns[id] = {
+							container = container,
+							conn = conn,
+							btn = btn,
+							mode = mode,
+							posConn = btn:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+								updateDropdownPosition(id)
+							end),
+							sizeConn = btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+								updateDropdownPosition(id)
+							end),
+							close = function()
+								if conn then conn:Disconnect() end
+								if activeDropdowns[id] and activeDropdowns[id].posConn then activeDropdowns[id].posConn:Disconnect() end
+								if activeDropdowns[id] and activeDropdowns[id].sizeConn then activeDropdowns[id].sizeConn:Disconnect() end
+								if container then container:Destroy() end
+								activeDropdowns[id] = nil
 							end
-							local nd = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
-							local needsArgs = nd and nd[3]
-							if needsArgs then
-								if childSaveEnabled and child.Args and #child.Args > 0 then
-									runChild(child.Args)
-								else
-									if ActivePrompts[now] then return end
-									ActivePrompts[now] = true
-									ButtonInputPrompt(now, function(input)
-										ActivePrompts[now] = nil
-										local parsed = ParseArguments(input)
-										if parsed then
-											SavedArgs[childKey] = parsed
-											child.Args = parsed
-											NAmanage.UserButtonsSave("group child args")
-											runChild(parsed)
-										else
-											runChild(nil)
-										end
-									end)
-								end
-							else
-								runChild(nil)
-							end
+						}
+						UserButtonDropdowns[id] = { container = container, conn = conn }
+						updateDropdownPosition(id)
+					end
+
+					MouseButtonFix(btn, function()
+						if activeDropdowns[id] then
+							clearDropdownEntry(id)
+						else
+							openDropdown()
+						end
+					end)
+				else
+					local toggled     = UserButtonToggleState[id] == true
+					local saveEnabled = data.RunMode == "S"
+					SavedArgs[id]     = data.Args or {}
+
+					local cmd1      = data.Cmd1
+					local cd1       = cmd1 and (cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()])
+					local needsArgs = cd1 and cd1[3]
+
+					if not data.Cmd2 then
+						UserButtonToggleState[id] = nil
+						toggled = false
+						btn.BackgroundColor3 = baseBgColor
+					else
+						btn.BackgroundColor3 = toggled and ON or baseBgColor
+					end
+
+					if needsArgs then
+						local saveToggle = InstanceNew("TextButton")
+						saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
+						saveToggle.AnchorPoint            = Vector2.new(1,1)
+						saveToggle.Position               = UDim2.new(1,0,0,0)
+						saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
+						saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
+						saveToggle.TextScaled             = true
+						saveToggle.Font                   = Enum.Font.Gotham
+						saveToggle.Text                   = saveEnabled and "S" or "N"
+						saveToggle.ZIndex                 = 10000
+						saveToggle.BackgroundTransparency = 0
+						saveToggle.TextTransparency       = 0
+						saveToggle.Parent                 = btn
+
+						local stCorner = InstanceNew("UICorner")
+						stCorner.CornerRadius = UDim.new(0.5,0)
+						stCorner.Parent       = saveToggle
+
+						MouseButtonFix(saveToggle, function()
+							saveEnabled = not saveEnabled
+							saveToggle.Text = saveEnabled and "S" or "N"
+							data.RunMode = saveEnabled and "S" or "N"
+							NAmanage.UserButtonsSave("button save toggle")
 						end)
 					end
 
-					local conn = UIS.InputBegan:Connect(function(input, gpe)
-						if gpe then return end
-						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-							local posNow = UIS:GetMouseLocation()
-							if not (pointInsideGui(container, posNow) or pointInsideGui(btn, posNow)) then
-								clearDropdownEntry(id)
+					local function runCmd(args)
+						local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+						if not toRun then return end
+						local arr   = {toRun}
+						if args then for _,v in ipairs(args) do Insert(arr, v) end end
+						cmd.run(arr)
+						if data.Cmd2 then
+							toggled = not toggled
+							UserButtonToggleState[id] = toggled or nil
+							btn.BackgroundColor3 = toggled and ON or baseBgColor
+						end
+					end
+
+					MouseButtonFix(btn, function()
+						local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
+						if not now then
+							return
+						end
+						local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
+						local na      = nd and nd[3]
+						if na then
+							if saveEnabled and data.Args and #data.Args>0 then
+								runCmd(data.Args)
+							else
+								if ActivePrompts[now] then return end
+								ActivePrompts[now] = true
+								ButtonInputPrompt(now, function(input)
+									ActivePrompts[now] = nil
+									local parsed = ParseArguments(input)
+									if parsed then
+										SavedArgs[id] = parsed
+										data.Args     = parsed
+										NAmanage.UserButtonsSave("button args")
+										runCmd(parsed)
+									else
+										runCmd(nil)
+									end
+								end)
+							end
+						else
+							runCmd(nil)
+						end
+					end)
+				end
+
+				if not isInteractable then
+					btn.Visible = false
+				elseif isHidden then
+					btn.Visible = true
+					btn.BackgroundTransparency = 1
+					btn.TextTransparency = 1
+					if btn:FindFirstChildOfClass("TextButton") then
+						for _, child in ipairs(btn:GetChildren()) do
+							if child:IsA("TextButton") then
+								child.BackgroundTransparency = 1
+								child.TextTransparency = 1
 							end
 						end
-					end)
-
-					activeDropdowns[id] = {
-						container = container,
-						conn = conn,
-						btn = btn,
-						mode = mode,
-						posConn = btn:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-							updateDropdownPosition(id)
-						end),
-						sizeConn = btn:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-							updateDropdownPosition(id)
-						end),
-						close = function()
-							if conn then conn:Disconnect() end
-							if activeDropdowns[id] and activeDropdowns[id].posConn then activeDropdowns[id].posConn:Disconnect() end
-							if activeDropdowns[id] and activeDropdowns[id].sizeConn then activeDropdowns[id].sizeConn:Disconnect() end
-							if container then container:Destroy() end
-							activeDropdowns[id] = nil
-						end
-					}
-					UserButtonDropdowns[id] = { container = container, conn = conn }
-					updateDropdownPosition(id)
-				end
-
-				MouseButtonFix(btn, function()
-					if activeDropdowns[id] then
-						clearDropdownEntry(id)
-					else
-						openDropdown()
 					end
-				end)
-			else
-				local toggled     = UserButtonToggleState[id] == true
-				local saveEnabled = data.RunMode == "S"
-				SavedArgs[id]     = data.Args or {}
-
-				local cmd1      = data.Cmd1
-				local cd1       = cmd1 and (cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()])
-				local needsArgs = cd1 and cd1[3]
-
-				if not data.Cmd2 then
-					UserButtonToggleState[id] = nil
-					toggled = false
-					btn.BackgroundColor3 = baseBgColor
 				else
-					btn.BackgroundColor3 = toggled and ON or baseBgColor
+					btn.Visible = true
 				end
 
-				if needsArgs then
-					local saveToggle = InstanceNew("TextButton")
-					saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
-					saveToggle.AnchorPoint            = Vector2.new(1,1)
-					saveToggle.Position               = UDim2.new(1,0,0,0)
-					saveToggle.BackgroundColor3       = Color3.fromRGB(50,50,50)
-					saveToggle.TextColor3             = Color3.fromRGB(255,255,255)
-					saveToggle.TextScaled             = true
-					saveToggle.Font                   = Enum.Font.Gotham
-					saveToggle.Text                   = saveEnabled and "S" or "N"
-					saveToggle.ZIndex                 = 10000
-					saveToggle.BackgroundTransparency = 0
-					saveToggle.TextTransparency       = 0
-					saveToggle.Parent                 = btn
-
-					local stCorner = InstanceNew("UICorner")
-					stCorner.CornerRadius = UDim.new(0.5,0)
-					stCorner.Parent       = saveToggle
-
-					MouseButtonFix(saveToggle, function()
-						saveEnabled = not saveEnabled
-						saveToggle.Text = saveEnabled and "S" or "N"
-						data.RunMode = saveEnabled and "S" or "N"
-						NAmanage.UserButtonsSave("button save toggle")
-					end)
+				if IsOnPC then
 				end
 
-				local function runCmd(args)
-					local toRun = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-					if not toRun then return end
-					local arr   = {toRun}
-					if args then for _,v in ipairs(args) do Insert(arr, v) end end
-					cmd.run(arr)
-					if data.Cmd2 then
-						toggled = not toggled
-						UserButtonToggleState[id] = toggled or nil
-						btn.BackgroundColor3 = toggled and ON or baseBgColor
-					end
-				end
-
-				MouseButtonFix(btn, function()
-					local now     = (not toggled or not data.Cmd2) and data.Cmd1 or data.Cmd2
-					if not now then
-						return
-					end
-					local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
-					local na      = nd and nd[3]
-					if na then
-						if saveEnabled and data.Args and #data.Args>0 then
-							runCmd(data.Args)
-						else
-							if ActivePrompts[now] then return end
-							ActivePrompts[now] = true
-							ButtonInputPrompt(now, function(input)
-								ActivePrompts[now] = nil
-								local parsed = ParseArguments(input)
-								if parsed then
-									SavedArgs[id] = parsed
-									data.Args     = parsed
-									NAmanage.UserButtonsSave("button args")
-									runCmd(parsed)
-								else
-									runCmd(nil)
-								end
-							end)
-						end
-					else
-						runCmd(nil)
-					end
-				end)
-			end
-
-			if not isInteractable then
-				btn.Visible = false
-			elseif isHidden then
-				btn.Visible = true
-				btn.BackgroundTransparency = 1
-				btn.TextTransparency = 1
-				if btn:FindFirstChildOfClass("TextButton") then
-					for _, child in ipairs(btn:GetChildren()) do
-						if child:IsA("TextButton") then
-							child.BackgroundTransparency = 1
-							child.TextTransparency = 1
-						end
-					end
-				end
-			else
-				btn.Visible = true
-			end
-
-			if IsOnPC then
-			end
-
-			Insert(UserButtonGuiList, btn)
-			idx = idx + 1
+				Insert(UserButtonGuiList, btn)
+				idx = idx + 1
 			end
 		end
 
-end)
+	end)
 
 	NAmanage._renderUserButtonsRunning = nil
 
@@ -17497,17 +17497,17 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 		end
 	end
 
-MouseButtonFix(exe, function()
-	run()
-end)
+	MouseButtonFix(exe, function()
+		run()
+	end)
 
-MouseButtonFix(cls, function()
-	show(false)
-end)
+	MouseButtonFix(cls, function()
+		show(false)
+	end)
 
-MouseButtonFix(mini, function()
-	setMin(not min)
-end)
+	MouseButtonFix(mini, function()
+		setMin(not min)
+	end)
 
 	exe.MouseEnter:Connect(function()
 		tw(exe, 0.08, {BackgroundColor3 = Color3.fromRGB(255, 255, 255)})
@@ -19590,19 +19590,19 @@ function NAstatsUI.ensureSingle(key, buildFn)
 		return existing
 	end
 
-local newUi = buildFn()
-windowRegistry[key] = newUi
+	local newUi = buildFn()
+	windowRegistry[key] = newUi
 
-local originalCloseFunction = newUi.closeFunction
-MouseButtonFix(newUi.closeButton, function()
-	if windowRegistry[key] == newUi then
-		windowRegistry[key] = nil
-	end
-	if originalCloseFunction then
-		originalCloseFunction()
-	end
-	newUi.screenGui:Destroy()
-end)
+	local originalCloseFunction = newUi.closeFunction
+	MouseButtonFix(newUi.closeButton, function()
+		if windowRegistry[key] == newUi then
+			windowRegistry[key] = nil
+		end
+		if originalCloseFunction then
+			originalCloseFunction()
+		end
+		newUi.screenGui:Destroy()
+	end)
 	return newUi
 end
 
@@ -19721,12 +19721,12 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 	local collapsedTitleText = titleText
 	local storedSize = baseSize
 
-MouseButtonFix(minimizeButton, function()
-	collapsed = not collapsed
-	content.Visible = not collapsed
-	if collapsed then
-		storedSize = holder.Size
-		holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
+	MouseButtonFix(minimizeButton, function()
+		collapsed = not collapsed
+		content.Visible = not collapsed
+		if collapsed then
+			storedSize = holder.Size
+			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
 			title.Text = collapsedTitleText
 		else
 			holder.Size = storedSize
@@ -20745,44 +20745,44 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		status.Text = Format("FPS: %s | Ping: %s | Char:%s", f, p and Format("%d ms", p) or "--", charOk)
 	end
 
-NAlib.connect(CONN_KEY, MouseButtonFix(btnPause, function()
-	paused = not paused
-	isMinimized = false
-	btnPause.Text = paused and "Resume" or "Pause"
-	TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
-end))
+	NAlib.connect(CONN_KEY, MouseButtonFix(btnPause, function()
+		paused = not paused
+		isMinimized = false
+		btnPause.Text = paused and "Resume" or "Pause"
+		TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
+	end))
 
-NAlib.connect(CONN_KEY, MouseButtonFix(btnMin, function()
-	if window.Visible then
-		isMinimized = true
-		local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
-		out.Completed:Connect(function()
-			window.Visible=false
+	NAlib.connect(CONN_KEY, MouseButtonFix(btnMin, function()
+		if window.Visible then
+			isMinimized = true
+			local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
+			out.Completed:Connect(function()
+				window.Visible=false
 				dock.Visible=true
 				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(IsOnMobile and 80 or 70,IsOnMobile and 80 or 70)}):Play()
 			end)
 			out:Play()
-	end
-end))
+		end
+	end))
 
-NAlib.connect(CONN_KEY, MouseButtonFix(dockLabel, function()
-	if not window.Visible then
-		isMinimized = false
-		dock.Visible=false
-		window.Visible=true
-		window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
+	NAlib.connect(CONN_KEY, MouseButtonFix(dockLabel, function()
+		if not window.Visible then
+			isMinimized = false
+			dock.Visible=false
+			window.Visible=true
+			window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
 			window.BackgroundTransparency = 0.4
 			TweenService:Create(window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
 			NAmanage.centerFrame(window)
 		end
-end))
+	end))
 
-NAlib.connect(CONN_KEY, MouseButtonFix(btnClose, function()
-	if debugUI then
-		debugUI:Destroy()
-		debugUI = nil
-	end
-	if debugDock then
+	NAlib.connect(CONN_KEY, MouseButtonFix(btnClose, function()
+		if debugUI then
+			debugUI:Destroy()
+			debugUI = nil
+		end
+		if debugDock then
 			debugDock:Destroy()
 			debugDock = nil
 		end
@@ -29516,17 +29516,17 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			b.BackgroundColor3 = COLORS.BUTTON_DARK
 			b.BackgroundTransparency = 0.18
 			b.AutoButtonColor = true
-		b.Text = label
-		b.Font = Enum.Font.GothamSemibold
-		b.TextColor3 = COLORS.TEXT
-		b.TextScaled = true
-		b.Size = UDim2.new(0, 54, 1, 0)
-		local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
-		local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.4
-		local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 9; ts.MaxTextSize = 13
-		NAlib.connect("BadgeViewer", MouseButtonFix(b, cb))
-		return b
-	end
+			b.Text = label
+			b.Font = Enum.Font.GothamSemibold
+			b.TextColor3 = COLORS.TEXT
+			b.TextScaled = true
+			b.Size = UDim2.new(0, 54, 1, 0)
+			local c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
+			local s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.4
+			local ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 9; ts.MaxTextSize = 13
+			NAlib.connect("BadgeViewer", MouseButtonFix(b, cb))
+			return b
+		end
 
 		local function makeListCard(b)
 			local f = InstanceNew("Frame")
@@ -33270,18 +33270,18 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	local loops={}
 	local function stopAllLoops() for _,l in pairs(loops) do l.running=false end loops={} end
 
-NAlib.connect(GROUP, MouseButtonFix(close, function()
-	stopAllLoops()
-	NAlib.disconnect(GROUP)
-	pcall(gui.Destroy,gui)
-	NA_DEVPROD_GUI=nil
-end))
+	NAlib.connect(GROUP, MouseButtonFix(close, function()
+		stopAllLoops()
+		NAlib.disconnect(GROUP)
+		pcall(gui.Destroy,gui)
+		NA_DEVPROD_GUI=nil
+	end))
 
-NAlib.connect(GROUP, MouseButtonFix(minimize, function()
-	if minimized then
-		minimized=false
-		body.Visible=true
-		status.Visible=true
+	NAlib.connect(GROUP, MouseButtonFix(minimize, function()
+		if minimized then
+			minimized=false
+			body.Visible=true
+			status.Visible=true
 			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			minimize.Text="-"
@@ -33470,14 +33470,14 @@ NAlib.connect(GROUP, MouseButtonFix(minimize, function()
 		setCanvas()
 	end
 
-NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
-NAlib.connect(GROUP, MouseButtonFix(refresh, function() search.Text="" fetchAll() end))
-NAlib.connect(GROUP, MouseButtonFix(buyAll, function()
-	if #allItems==0 then return end
-	local delayS=parseInterval()
-	SpawnCall(function()
-		for _,info in ipairs(allItems) do
-			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
+	NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function() applyFilter(search.Text) end))
+	NAlib.connect(GROUP, MouseButtonFix(refresh, function() search.Text="" fetchAll() end))
+	NAlib.connect(GROUP, MouseButtonFix(buyAll, function()
+		if #allItems==0 then return end
+		local delayS=parseInterval()
+		SpawnCall(function()
+			for _,info in ipairs(allItems) do
+				MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
 				Wait(delayS)
 			end
 		end)
@@ -33632,8 +33632,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 	local function notify(m,t) if DoNotif then DoNotif(m,t or 4,"GamePasses") else warn("[GamePasses] "..m) end status.Text=m end
 	local function setCanvas() list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+16) end
-NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
-NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
+	NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+	NAlib.connect(GROUP, MouseButtonFix(close, function() NAlib.disconnect(GROUP) pcall(gui.Destroy,gui) NA_GAMEPASS_GUI=nil end))
 
 	local function parseInterval()
 		local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.5
@@ -35479,11 +35479,11 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 	end
 	local seen,processed={},{}
 	for _,info in ipairs(places) do
-	if info.PlaceId and not seen[info.PlaceId] then
-		seen[info.PlaceId]=true
-		if not info.Name or info.Name=="" then info.Name=Format("Place %d",info.PlaceId) end
-		processed[#processed+1]=info
-	end
+		if info.PlaceId and not seen[info.PlaceId] then
+			seen[info.PlaceId]=true
+			if not info.Name or info.Name=="" then info.Name=Format("Place %d",info.PlaceId) end
+			processed[#processed+1]=info
+		end
 	end
 	places=processed
 	if not seen[game.PlaceId] then
@@ -44393,106 +44393,106 @@ do
 		InstanceNew = SafeInstanceNew
 	end
 
-		local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
+	local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
 
-		local function disconnectFovRefresh()
-			if FOVhandler.refreshConn then
-				pcall(function() FOVhandler.refreshConn:Disconnect() end)
-				FOVhandler.refreshConn = nil
-			end
-			if NAlib and NAlib.disconnect then
-				pcall(NAlib.disconnect, "fov_refresh")
-			end
+	local function disconnectFovRefresh()
+		if FOVhandler.refreshConn then
+			pcall(function() FOVhandler.refreshConn:Disconnect() end)
+			FOVhandler.refreshConn = nil
 		end
-
-		local function setFovRefreshConnection(conn)
-			disconnectFovRefresh()
-			FOVhandler.refreshConn = conn
-			if conn and NAlib and NAlib.connect then
-				pcall(NAlib.connect, "fov_refresh", conn)
-			end
+		if NAlib and NAlib.disconnect then
+			pcall(NAlib.disconnect, "fov_refresh")
 		end
+	end
 
-		local function hasFovRefresh()
-			if FOVhandler.refreshConn then
+	local function setFovRefreshConnection(conn)
+		disconnectFovRefresh()
+		FOVhandler.refreshConn = conn
+		if conn and NAlib and NAlib.connect then
+			pcall(NAlib.connect, "fov_refresh", conn)
+		end
+	end
+
+	local function hasFovRefresh()
+		if FOVhandler.refreshConn then
+			return true
+		end
+		if NAlib and NAlib.isConnected then
+			local ok, result = pcall(NAlib.isConnected, "fov_refresh")
+			if ok and result then
 				return true
 			end
-			if NAlib and NAlib.isConnected then
-				local ok, result = pcall(NAlib.isConnected, "fov_refresh")
-				if ok and result then
-					return true
-				end
-			end
-			return false
 		end
+		return false
+	end
 
-		local function disconnectLoopHold()
-			if FOVhandler.loopHoldConn then
-				pcall(function() FOVhandler.loopHoldConn:Disconnect() end)
-				FOVhandler.loopHoldConn = nil
-			end
-			if NAlib and NAlib.disconnect then
-				pcall(NAlib.disconnect, "fov_loop_hold")
-			end
+	local function disconnectLoopHold()
+		if FOVhandler.loopHoldConn then
+			pcall(function() FOVhandler.loopHoldConn:Disconnect() end)
+			FOVhandler.loopHoldConn = nil
 		end
-
-		local function setLoopHoldConnection(conn)
-			disconnectLoopHold()
-			FOVhandler.loopHoldConn = conn
-			if conn and NAlib and NAlib.connect then
-				pcall(NAlib.connect, "fov_loop_hold", conn)
-			end
+		if NAlib and NAlib.disconnect then
+			pcall(NAlib.disconnect, "fov_loop_hold")
 		end
+	end
 
-		local function connectCameraWatcher()
-			if FOVhandler.watchConn then
-				pcall(function() FOVhandler.watchConn:Disconnect() end)
-				FOVhandler.watchConn = nil
-			end
-			if NAlib and NAlib.disconnect then
-				pcall(NAlib.disconnect, "fov_watch_cc")
-			end
-			local ok, conn = pcall(function()
-				return workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-					FOVhandler.cam = workspace.CurrentCamera
-				end)
+	local function setLoopHoldConnection(conn)
+		disconnectLoopHold()
+		FOVhandler.loopHoldConn = conn
+		if conn and NAlib and NAlib.connect then
+			pcall(NAlib.connect, "fov_loop_hold", conn)
+		end
+	end
+
+	local function connectCameraWatcher()
+		if FOVhandler.watchConn then
+			pcall(function() FOVhandler.watchConn:Disconnect() end)
+			FOVhandler.watchConn = nil
+		end
+		if NAlib and NAlib.disconnect then
+			pcall(NAlib.disconnect, "fov_watch_cc")
+		end
+		local ok, conn = pcall(function()
+			return workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+				FOVhandler.cam = workspace.CurrentCamera
 			end)
-			if ok and conn then
-				FOVhandler.watchConn = conn
-				if NAlib and NAlib.connect then
-					pcall(NAlib.connect, "fov_watch_cc", conn)
-				end
+		end)
+		if ok and conn then
+			FOVhandler.watchConn = conn
+			if NAlib and NAlib.connect then
+				pcall(NAlib.connect, "fov_watch_cc", conn)
 			end
-			FOVhandler.cam = workspace.CurrentCamera
 		end
+		FOVhandler.cam = workspace.CurrentCamera
+	end
 
-		originalIO.FOVstep=function()
-			local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
-			FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or SafeInstanceNew("Vector3Value", parent)
-			FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or SafeInstanceNew("Vector3Value", parent)
+	originalIO.FOVstep=function()
+		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
+		FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or SafeInstanceNew("Vector3Value", parent)
+		FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or SafeInstanceNew("Vector3Value", parent)
 
-			local o = FOVhandler.mem.o.Value or 0
-			local sum = 0
-			for i=1,#FOVhandler.mem.base do
-				local v = FOVhandler.mem.base[i]
-				if not v or not v.Parent then v = SafeInstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
-				sum += (v.Value or 0)
-			end
-			local target = (o ~= 0 and o) or sum
-			local cam = workspace.CurrentCamera; if not cam then return end
+		local o = FOVhandler.mem.o.Value or 0
+		local sum = 0
+		for i=1,#FOVhandler.mem.base do
+			local v = FOVhandler.mem.base[i]
+			if not v or not v.Parent then v = SafeInstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
+			sum += (v.Value or 0)
+		end
+		local target = (o ~= 0 and o) or sum
+		local cam = workspace.CurrentCamera; if not cam then return end
 
-			if cam ~= FOVhandler.cam then
-				FOVhandler.cam = cam
-				setFovRefreshConnection(cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
-					if not FOVhandler.loop then return end
-					local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
-					if t > 0 then
-						local vis = math.clamp(t, 25, 120)
-						if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
-					end
-				end))
-			end
+		if cam ~= FOVhandler.cam then
+			FOVhandler.cam = cam
+			setFovRefreshConnection(cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+				if not FOVhandler.loop then return end
+				local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
+				if t > 0 then
+					local vis = math.clamp(t, 25, 120)
+					if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+				end
+			end))
+		end
 
 		if FOVhandler.loop and target > 0 then
 			local vis = math.clamp(target, 25, 120)
@@ -44523,7 +44523,7 @@ do
 	pcall(function() RunService:UnbindFromRenderStep("FOV_SYS") end)
 	RunService:BindToRenderStep("FOV_SYS", Enum.RenderPriority.Camera.Value+1, originalIO.FOVstep)
 
-		connectCameraWatcher()
+	connectCameraWatcher()
 
 	cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–300)"}, function(num)
 		local t = math.clamp(tonumber(num) or 70, 1, 300)
@@ -44542,34 +44542,34 @@ do
 		end
 	end, true)
 
-		cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
-			local t = math.clamp(tonumber(num) or 70, 1, 300)
-			local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
-			FOVhandler.mem.o.Value = t
-			FOVhandler.loop = true
-			if not hasFovRefresh() then
-				FOVhandler.cam = nil
-			end
-			setLoopHoldConnection(RunService.RenderStepped:Connect(function()
-				local p = NAmanage.guiCHECKINGAHHHHH()
-				if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = SafeInstanceNew("NumberValue", p) end
-			end))
-			local cam = workspace.CurrentCamera
-			if cam then
-				local vis = math.clamp(t, 25, 120)
-				if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
-			end
+	cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
+		local t = math.clamp(tonumber(num) or 70, 1, 300)
+		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
+		FOVhandler.mem.o.Value = t
+		FOVhandler.loop = true
+		if not hasFovRefresh() then
+			FOVhandler.cam = nil
+		end
+		setLoopHoldConnection(RunService.RenderStepped:Connect(function()
+			local p = NAmanage.guiCHECKINGAHHHHH()
+			if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = SafeInstanceNew("NumberValue", p) end
+		end))
+		local cam = workspace.CurrentCamera
+		if cam then
+			local vis = math.clamp(t, 25, 120)
+			if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
+		end
 	end, true)
 
 	cmd.add({"unloopfov","unlfov"}, {"unloopfov (unlfov)", "Stops FOV loop"}, function()
-			FOVhandler.loop = false
-			disconnectLoopHold()
-			disconnectFovRefresh()
-			if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
-			if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
-			if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
-		end)
+		FOVhandler.loop = false
+		disconnectLoopHold()
+		disconnectFovRefresh()
+		if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
+		if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
+		if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
+	end)
 end
 
 cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
@@ -50459,6 +50459,7 @@ NAgui.loadCMDS = function()
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
 	local defaultCmdClear = nil
+	local autofillSelecting = false
 	local cmdFocusGuardUntil = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
@@ -50490,10 +50491,13 @@ NAgui.loadCMDS = function()
 				if not IsOnMobile then
 					NAgui.ensureCmdFocus(true)
 				else
+					autofillSelecting = true
+					NAUIMANAGER.cmdInput:ReleaseFocus()
 					task.delay(0.05, function()
 						if NAUIMANAGER and NAUIMANAGER.cmdInput then
 							NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear or false
 						end
+						autofillSelecting = false
 					end)
 				end
 				task.delay(0.5, function()
@@ -51031,6 +51035,9 @@ NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 		if sinceGuardStart > 0 and sinceGuardStart < 0.55 then
 			return
 		end
+	end
+	if autofillSelecting then
+		return
 	end
 	if enter then
 		local txt = NAUIMANAGER.cmdInput.Text
@@ -52659,31 +52666,31 @@ function bindToChat(plr, msg)
 			end
 		end
 
-			if isNAadmin then
-				local function rainbowColor(now)
-					local r = math.sin(now * 0.5) * 127 + 128
-					local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
-					local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
-					return Color3.fromRGB(r, g, b)
-				end
+		if isNAadmin then
+			local function rainbowColor(now)
+				local r = math.sin(now * 0.5) * 127 + 128
+				local g = math.sin(now * 0.5 + 2 * math.pi / 3) * 127 + 128
+				local b = math.sin(now * 0.5 + 4 * math.pi / 3) * 127 + 128
+				return Color3.fromRGB(r, g, b)
+			end
 
-				NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
-				Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
+			NAStuff.AdminChatRainbowMessages = NAStuff.AdminChatRainbowMessages or {}
+			Insert(NAStuff.AdminChatRainbowMessages, chatMsg)
 
-				if not NAStuff.AdminChatRainbowConnection then
-					local lastUpdate = 0
-					NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
-						local now = tick()
-						if now - lastUpdate < 0.12 then
-							return
-						end
-						lastUpdate = now
+			if not NAStuff.AdminChatRainbowConnection then
+				local lastUpdate = 0
+				NAStuff.AdminChatRainbowConnection = RunService.Heartbeat:Connect(function()
+					local now = tick()
+					if now - lastUpdate < 0.12 then
+						return
+					end
+					lastUpdate = now
 
-						local list = NAStuff.AdminChatRainbowMessages
-						if not list then
-							return
-						end
-						for i = #list, 1, -1 do
+					local list = NAStuff.AdminChatRainbowMessages
+					if not list then
+						return
+					end
+					for i = #list, 1, -1 do
 						local label = list[i]
 						if not label or not label.Parent then
 							table.remove(list, i)
@@ -56634,32 +56641,32 @@ end)
 NAgui.addSection("Individual Flags")
 
 for _, entry in ipairs(NAFFlags.whitelist) do
-		if entry.valueType == "boolean" then
-			local entryName = entry.name
-			NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
-				local normalized = NAFFlags.normalizeValue(entry, state)
-				if normalized == nil then
+	if entry.valueType == "boolean" then
+		local entryName = entry.name
+		NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
+			local normalized = NAFFlags.normalizeValue(entry, state)
+			if normalized == nil then
 				return
 			end
 			NAFFlags.values[entryName] = normalized
 			NAFFlags.config.flags[entryName] = normalized
 			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entryName)
-				local isRenderingDisable = entryName == NAFFlags.renderingDisableFlag
-				if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
-					NAFFlags.normalizeRenderingPrefs(entryName)
-				end
-				NAFFlags.save()
-				if isRenderingPrefer or isRenderingDisable then
-					NAFFlags.applyAll({ notify = false })
-				else
-					NAFFlags.apply(entryName, normalized)
-				end
-			end)
-		else
-			local defaultText = NAFFlags.values[entry.name]
-			if defaultText == nil then
-				defaultText = entry.default
+			local isRenderingDisable = entryName == NAFFlags.renderingDisableFlag
+			if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
+				NAFFlags.normalizeRenderingPrefs(entryName)
 			end
+			NAFFlags.save()
+			if isRenderingPrefer or isRenderingDisable then
+				NAFFlags.applyAll({ notify = false })
+			else
+				NAFFlags.apply(entryName, normalized)
+			end
+		end)
+	else
+		local defaultText = NAFFlags.values[entry.name]
+		if defaultText == nil then
+			defaultText = entry.default
+		end
 		if defaultText ~= nil then
 			defaultText = tostring(defaultText)
 		else
@@ -57700,7 +57707,7 @@ originalIO.UserBtnEditor=function()
 		end
 		editorState.childIdx = idx
 		return g, g.Children, idx, g.Children[idx]
-		end
+	end
 
 	local function cSync()
 		local g, list, idx, ch = cData()
