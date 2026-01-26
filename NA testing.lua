@@ -23,10 +23,6 @@ pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true;
 
 NAbegin=tick()
 CMDAUTOFILL = {}
-local defaultCmdClear = nil
-local autofillSelecting = false
-local cmdFocusGuardUntil = 0
-local autofillRefocusGuard = 0
 
 local NAmanage={}
 
@@ -1702,6 +1698,10 @@ local NAStuff = {
 	resizeHorizontalAsset = nil;
 	resizeDiagonal1Asset = nil;
 	resizeDiagonal2Asset = nil;
+	defaultCmdClear = nil;
+	autofillSelecting = false;
+	cmdFocusGuardUntil = 0;
+	autofillRefocusGuard = 0;
 }
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
@@ -50462,23 +50462,23 @@ NAgui.loadCMDS = function()
 	end
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
-	defaultCmdClear = nil
-	autofillSelecting = false
-	cmdFocusGuardUntil = 0
-	autofillRefocusGuard = 0
+	NAStuff.defaultCmdClear = nil
+	NAStuff.autofillSelecting = false
+	NAStuff.cmdFocusGuardUntil = 0
+	NAStuff.autofillRefocusGuard = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
 			if not NAUIMANAGER.cmdInput then
 				return
 			end
-			if defaultCmdClear == nil then
-				defaultCmdClear = NAUIMANAGER.cmdInput.ClearTextOnFocus
+			if NAStuff.defaultCmdClear == nil then
+				NAStuff.defaultCmdClear = NAUIMANAGER.cmdInput.ClearTextOnFocus
 			end
 			local raw = fillText or (textObj and textObj.Text) or (btn and btn.Text) or ""
 			local sanitizedText = NAmanage.stripChar(raw)
 			task.defer(function()
-				cmdFocusGuardUntil = os.clock() + 0.45
-				autofillRefocusGuard = os.clock() + 0.25
+				NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
+				NAStuff.autofillRefocusGuard = os.clock() + 0.25
 				NAUIMANAGER.cmdInput.Text = sanitizedText
 				local caret = #sanitizedText + 1
 				NAUIMANAGER.cmdInput.CursorPosition = caret
@@ -50497,18 +50497,18 @@ NAgui.loadCMDS = function()
 				if not IsOnMobile then
 					NAgui.ensureCmdFocus(true)
 				else
-					autofillSelecting = true
+					NAStuff.autofillSelecting = true
 					NAUIMANAGER.cmdInput:ReleaseFocus()
 					task.delay(0.2, function()
 						if NAUIMANAGER and NAUIMANAGER.cmdInput then
 							NAUIMANAGER.cmdInput:CaptureFocus()
 							NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear or false
 						end
-						autofillSelecting = false
+						NAStuff.autofillSelecting = false
 					end)
 				end
 				task.delay(0.5, function()
-					cmdFocusGuardUntil = 0
+					NAStuff.cmdFocusGuardUntil = 0
 				end)
 			end)
 		end
@@ -50652,7 +50652,7 @@ NAgui.barSelect = function(speed)
 end
 
 NAgui.barDeselect = function(speed)
-	if autofillRefocusGuard > 0 and os.clock() < autofillRefocusGuard then
+	if NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
 		return
 	end
 	speed = speed or 0.4
@@ -51037,19 +51037,19 @@ end)
 
 --[[ CLOSE THE COMMAND BAR ]]--
 NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
-	if cmdFocusGuardUntil and os.clock() < cmdFocusGuardUntil then
+	if NAStuff.cmdFocusGuardUntil and os.clock() < NAStuff.cmdFocusGuardUntil then
 		return
 	end
-	if autofillRefocusGuard > 0 and os.clock() < autofillRefocusGuard then
+	if NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
 		return
 	end
-	if IsOnMobile and cmdFocusGuardUntil then
-		local sinceGuardStart = os.clock() - (cmdFocusGuardUntil - 0.45)
+	if IsOnMobile and NAStuff.cmdFocusGuardUntil then
+		local sinceGuardStart = os.clock() - (NAStuff.cmdFocusGuardUntil - 0.45)
 		if sinceGuardStart > 0 and sinceGuardStart < 0.55 then
 			return
 		end
 	end
-	if autofillSelecting then
+	if NAStuff.autofillSelecting then
 		return
 	end
 	if enter then
@@ -51063,7 +51063,11 @@ NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 	if predictionInput then
 		predictionInput.Text = ""
 	end
-	Wait(.05)
+	local checkDelay = 0.05
+	if NAStuff.autofillRefocusGuard > 0 then
+		checkDelay = math.max(0.22, NAStuff.autofillRefocusGuard - os.clock())
+	end
+	Wait(checkDelay)
 	if not NAUIMANAGER.cmdInput:IsFocused() then NAgui.barDeselect() end
 end)
 
