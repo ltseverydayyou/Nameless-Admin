@@ -50458,6 +50458,59 @@ NAgui.loadCMDS = function()
 	end
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
+	local defaultCmdClear = nil
+	local function wireAutofillClick(btn, textObj, fillText)
+		local function applyFill()
+			if not NAUIMANAGER.cmdInput then
+				return
+			end
+			if defaultCmdClear == nil then
+				defaultCmdClear = NAUIMANAGER.cmdInput.ClearTextOnFocus
+			end
+			local raw = fillText or (textObj and textObj.Text) or (btn and btn.Text) or ""
+			local sanitizedText = NAmanage.stripChar(raw)
+			task.defer(function()
+				NAUIMANAGER.cmdInput.Text = sanitizedText
+				local caret = #sanitizedText + 1
+				NAUIMANAGER.cmdInput.CursorPosition = caret
+				if NAUIMANAGER.cmdInput.ClearTextOnFocus ~= false then
+					NAUIMANAGER.cmdInput.ClearTextOnFocus = false
+				end
+				if NAUIMANAGER.cmdInput.SelectionStart then
+					pcall(function()
+						NAUIMANAGER.cmdInput.SelectionStart = caret
+						NAUIMANAGER.cmdInput.SelectionEnd = caret
+					end)
+				end
+				if predictionInput then
+					predictionInput.Text = ""
+				end
+				NAUIMANAGER.cmdInput:CaptureFocus()
+				task.defer(function()
+					if NAUIMANAGER.cmdInput then
+						NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear
+					end
+				end)
+			end)
+		end
+		local function bind(obj)
+			if not obj then
+				return
+			end
+			if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+				obj.MouseButton1Click:Connect(applyFill)
+			end
+			if obj.InputBegan then
+				obj.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						applyFill()
+					end
+				end)
+			end
+		end
+		bind(btn)
+		bind(textObj)
+	end
 	CMDAUTOFILL = {}
 	local entries = NAmanage.buildCommandEntries()
 	local i = 0
@@ -50498,6 +50551,7 @@ NAgui.loadCMDS = function()
 		end
 		i += 1
 		btn.LayoutOrder = i
+		wireAutofillClick(btn, btn.Input, name)
 		Insert(CMDAUTOFILL, btn)
 	end
 	cmdNAnum = i
@@ -50523,26 +50577,32 @@ SpawnCall(function()
 end)
 
 NAgui.barSelect = function(speed)
-	speed = speed or 0.4
+	speed = speed or 0.18
 	shouldShowDefaultAutofill = true
 
-	NAUIMANAGER.centerBar.Size = UDim2.new(0, 0, 0, 0)
-
-	NAgui.tween(NAUIMANAGER.centerBar, "Back", "Out", speed, {
-		Size = UDim2.new(0, 280, 1, 10)
-	})
+	local targetSize = UDim2.new(0, 280, 1, 10)
+	local startSize = UDim2.new(0, 250, 1, 8)
+	NAUIMANAGER.centerBar.Size = startSize
+	NAUIMANAGER.centerBar.Visible = true
+	if speed > 0 then
+		NAgui.tween(NAUIMANAGER.centerBar, "Back", "Out", speed * 0.6, {
+			Size = targetSize
+		})
+	else
+		NAUIMANAGER.centerBar.Size = targetSize
+	end
 
 	NAUIMANAGER.leftFill.Position = UDim2.new(0.5, 0, 0.5, 0)
 	NAUIMANAGER.rightFill.Position = UDim2.new(0.5, 0, 0.5, 0)
 	NAUIMANAGER.leftFill.Size = UDim2.new(0, 0, fillSizes.left.Y.Scale, fillSizes.left.Y.Offset)
 	NAUIMANAGER.rightFill.Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 
-	Wait(speed * 0.1)
-	NAgui.tween(NAUIMANAGER.leftFill, "Quart", "Out", speed * 1.2, {
+	Wait(speed * 0.05)
+	NAgui.tween(NAUIMANAGER.leftFill, "Quart", "Out", math.max(speed * 1.2, 0.05), {
 		Position = UDim2.new(0, 0, 0.5, 0),
 		Size = fillSizes.left
 	})
-	NAgui.tween(NAUIMANAGER.rightFill, "Quart", "Out", speed * 1.2, {
+	NAgui.tween(NAUIMANAGER.rightFill, "Quart", "Out", math.max(speed * 1.2, 0.05), {
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
