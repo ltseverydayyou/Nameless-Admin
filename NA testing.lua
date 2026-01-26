@@ -50635,7 +50635,9 @@ NAgui.barSelect = function(speed)
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
-	task.delay(speed * 0.4, NAgui.ensureCmdFocus)
+	if not IsOnMobile then
+		task.delay(speed * 0.4, NAgui.ensureCmdFocus)
+	end
 end
 
 NAgui.barDeselect = function(speed)
