@@ -50487,7 +50487,15 @@ NAgui.loadCMDS = function()
 				if predictionInput then
 					predictionInput.Text = ""
 				end
-				NAgui.ensureCmdFocus(true)
+				if not IsOnMobile then
+					NAgui.ensureCmdFocus(true)
+				else
+					task.delay(0.05, function()
+						if NAUIMANAGER and NAUIMANAGER.cmdInput then
+							NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear or false
+						end
+					end)
+				end
 				task.delay(0.5, function()
 					cmdFocusGuardUntil = 0
 				end)
