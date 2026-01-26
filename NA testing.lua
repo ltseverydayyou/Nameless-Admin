@@ -50461,6 +50461,7 @@ NAgui.loadCMDS = function()
 	local defaultCmdClear = nil
 	local autofillSelecting = false
 	local cmdFocusGuardUntil = 0
+	local autofillRefocusGuard = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
 			if not NAUIMANAGER.cmdInput then
@@ -50473,6 +50474,7 @@ NAgui.loadCMDS = function()
 			local sanitizedText = NAmanage.stripChar(raw)
 			task.defer(function()
 				cmdFocusGuardUntil = os.clock() + 0.45
+				autofillRefocusGuard = os.clock() + 0.25
 				NAUIMANAGER.cmdInput.Text = sanitizedText
 				local caret = #sanitizedText + 1
 				NAUIMANAGER.cmdInput.CursorPosition = caret
@@ -50493,8 +50495,9 @@ NAgui.loadCMDS = function()
 				else
 					autofillSelecting = true
 					NAUIMANAGER.cmdInput:ReleaseFocus()
-					task.delay(0.05, function()
+					task.delay(0.2, function()
 						if NAUIMANAGER and NAUIMANAGER.cmdInput then
+							NAUIMANAGER.cmdInput:CaptureFocus()
 							NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear or false
 						end
 						autofillSelecting = false
@@ -50645,6 +50648,9 @@ NAgui.barSelect = function(speed)
 end
 
 NAgui.barDeselect = function(speed)
+	if autofillRefocusGuard > 0 and os.clock() < autofillRefocusGuard then
+		return
+	end
 	speed = speed or 0.4
 
 	shouldShowDefaultAutofill = false
@@ -51028,6 +51034,9 @@ end)
 --[[ CLOSE THE COMMAND BAR ]]--
 NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 	if cmdFocusGuardUntil and os.clock() < cmdFocusGuardUntil then
+		return
+	end
+	if autofillRefocusGuard > 0 and os.clock() < autofillRefocusGuard then
 		return
 	end
 	if IsOnMobile and cmdFocusGuardUntil then
