@@ -23,6 +23,10 @@ pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true;
 
 NAbegin=tick()
 CMDAUTOFILL = {}
+local defaultCmdClear = nil
+local autofillSelecting = false
+local cmdFocusGuardUntil = 0
+local autofillRefocusGuard = 0
 
 local NAmanage={}
 
@@ -50458,9 +50462,10 @@ NAgui.loadCMDS = function()
 	end
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
-	local defaultCmdClear = nil
-	local autofillSelecting = false
-	local cmdFocusGuardUntil = 0
+	defaultCmdClear = nil
+	autofillSelecting = false
+	cmdFocusGuardUntil = 0
+	autofillRefocusGuard = 0
 	local autofillRefocusGuard = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
