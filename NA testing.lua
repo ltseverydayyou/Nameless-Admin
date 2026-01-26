@@ -50466,7 +50466,6 @@ NAgui.loadCMDS = function()
 	autofillSelecting = false
 	cmdFocusGuardUntil = 0
 	autofillRefocusGuard = 0
-	local autofillRefocusGuard = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
 			if not NAUIMANAGER.cmdInput then
