@@ -50485,8 +50485,8 @@ NAgui.loadCMDS = function()
 				if predictionInput then
 					predictionInput.Text = ""
 				end
-				NAUIMANAGER.cmdInput:ReleaseFocus()
-				task.delay(0.03, function()
+				NAUIMANAGER.cmdInput:CaptureFocus()
+				task.delay(0.04, function()
 					if NAUIMANAGER.cmdInput then
 						NAUIMANAGER.cmdInput:CaptureFocus()
 						task.defer(function()
