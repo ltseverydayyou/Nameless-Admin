@@ -50485,17 +50485,7 @@ NAgui.loadCMDS = function()
 				if predictionInput then
 					predictionInput.Text = ""
 				end
-				NAUIMANAGER.cmdInput:CaptureFocus()
-				task.delay(0.04, function()
-					if NAUIMANAGER.cmdInput then
-						NAUIMANAGER.cmdInput:CaptureFocus()
-						task.defer(function()
-							if NAUIMANAGER.cmdInput then
-								NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear
-							end
-						end)
-					end
-				end)
+				NAgui.ensureCmdFocus(true)
 			end)
 		end
 		local function bind(obj)
@@ -50583,18 +50573,20 @@ end)
 
 local cmdDefaultClear = nil
 NAgui.ensureCmdFocus = function()
-	if not (NAUIMANAGER and NAUIMANAGER.cmdInput) then
-		return
-	end
+	if not (NAUIMANAGER and NAUIMANAGER.cmdInput) then return end
 	local box = NAUIMANAGER.cmdInput
 	if cmdDefaultClear == nil then
 		cmdDefaultClear = box.ClearTextOnFocus
 	end
 	box.ClearTextOnFocus = false
 	box:CaptureFocus()
-	task.delay(0.05, function()
-		if box and box.Parent then
+	local deadline = os.clock() + 0.35
+	task.spawn(function()
+		while box and box.Parent and not box:IsFocused() and os.clock() < deadline do
 			box:CaptureFocus()
+			task.wait(0.03)
+		end
+		if box then
 			box.ClearTextOnFocus = cmdDefaultClear
 		end
 	end)
@@ -50630,7 +50622,7 @@ NAgui.barSelect = function(speed)
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
-	task.delay(speed * 0.6, NAgui.ensureCmdFocus)
+	task.delay(speed * 0.4, NAgui.ensureCmdFocus)
 end
 
 NAgui.barDeselect = function(speed)
