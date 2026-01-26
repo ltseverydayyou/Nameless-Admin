@@ -51016,6 +51016,12 @@ NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 	if cmdFocusGuardUntil and os.clock() < cmdFocusGuardUntil then
 		return
 	end
+	if IsOnMobile and cmdFocusGuardUntil then
+		local sinceGuardStart = os.clock() - (cmdFocusGuardUntil - 0.45)
+		if sinceGuardStart > 0 and sinceGuardStart < 0.55 then
+			return
+		end
+	end
 	if enter then
 		local txt = NAUIMANAGER.cmdInput.Text
 		if txt and #txt > 0 then
