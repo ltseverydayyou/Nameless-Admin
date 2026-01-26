@@ -50459,6 +50459,7 @@ NAgui.loadCMDS = function()
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
 	local defaultInputColor = templateInput and templateInput.TextColor3
 	local defaultCmdClear = nil
+	local cmdFocusGuardUntil = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
 			if not NAUIMANAGER.cmdInput then
@@ -50470,6 +50471,7 @@ NAgui.loadCMDS = function()
 			local raw = fillText or (textObj and textObj.Text) or (btn and btn.Text) or ""
 			local sanitizedText = NAmanage.stripChar(raw)
 			task.defer(function()
+				cmdFocusGuardUntil = os.clock() + 0.45
 				NAUIMANAGER.cmdInput.Text = sanitizedText
 				local caret = #sanitizedText + 1
 				NAUIMANAGER.cmdInput.CursorPosition = caret
@@ -50486,6 +50488,9 @@ NAgui.loadCMDS = function()
 					predictionInput.Text = ""
 				end
 				NAgui.ensureCmdFocus(true)
+				task.delay(0.5, function()
+					cmdFocusGuardUntil = 0
+				end)
 			end)
 		end
 		local function bind(obj)
@@ -51008,6 +51013,9 @@ end)
 
 --[[ CLOSE THE COMMAND BAR ]]--
 NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
+	if cmdFocusGuardUntil and os.clock() < cmdFocusGuardUntil then
+		return
+	end
 	if enter then
 		local txt = NAUIMANAGER.cmdInput.Text
 		if txt and #txt > 0 then
