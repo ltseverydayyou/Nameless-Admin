@@ -50581,6 +50581,25 @@ SpawnCall(function()
 	NAmanage.SideSwipe_Init()
 end)
 
+local cmdDefaultClear = nil
+NAgui.ensureCmdFocus = function()
+	if not (NAUIMANAGER and NAUIMANAGER.cmdInput) then
+		return
+	end
+	local box = NAUIMANAGER.cmdInput
+	if cmdDefaultClear == nil then
+		cmdDefaultClear = box.ClearTextOnFocus
+	end
+	box.ClearTextOnFocus = false
+	box:CaptureFocus()
+	task.delay(0.05, function()
+		if box and box.Parent then
+			box:CaptureFocus()
+			box.ClearTextOnFocus = cmdDefaultClear
+		end
+	end)
+end
+
 NAgui.barSelect = function(speed)
 	speed = speed or 0.18
 	shouldShowDefaultAutofill = true
@@ -50611,6 +50630,7 @@ NAgui.barSelect = function(speed)
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
+	task.delay(speed * 0.6, NAgui.ensureCmdFocus)
 end
 
 NAgui.barDeselect = function(speed)
@@ -50639,6 +50659,12 @@ NAgui.barDeselect = function(speed)
 					Size = UDim2.new(0, 0, 0, 25)
 				})
 			end)
+		end
+	end
+	if NAUIMANAGER and NAUIMANAGER.cmdInput then
+		NAUIMANAGER.cmdInput:ReleaseFocus()
+		if cmdDefaultClear ~= nil then
+			NAUIMANAGER.cmdInput.ClearTextOnFocus = cmdDefaultClear
 		end
 	end
 end
