@@ -86,22 +86,82 @@ local isMobile = (function()
 	end;
 	return false;
 end)();
-local frameScaleX = isMobile and 0.75 or 0.45;
-local frameScaleY = isMobile and 0.92 or 0.82;
-local titleWidthScale = isMobile and 0.7 or 0.65;
-local searchWidthScale = isMobile and 0.95 or 0.9;
+local frameScaleX = isMobile and 0.7 or 0.42;
+local frameScaleY = isMobile and 0.8 or 0.7;
+local titleWidthScale = isMobile and 0.7 or 0.62;
+local searchWidthScale = isMobile and 0.94 or 0.88;
+local topHeight = isMobile and 52 or 48;
+local searchHeight = isMobile and 56 or 52;
+local sidePadding = 12;
+local verticalGap = 10;
+local NAmanageRef = (getgenv and getgenv().NAmanage) or rawget(_G, "NAmanage");
+local function centerFrame(f)
+	local cf = NAmanageRef and NAmanageRef.centerFrame;
+	if type(cf) == "function" then
+		return cf(f);
+	end;
+	local cam = workspace.CurrentCamera;
+	if not (cam and f) then
+		return;
+	end;
+	local vp = cam.ViewportSize;
+	if vp.X == 0 or vp.Y == 0 then
+		return;
+	end;
+	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X);
+	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y);
+	f.Position = UDim2.new(0.5 - totalX / 2, 0, 0.5 - totalY / 2, 0);
+end;
+local function clampFrameWithinViewport()
+	local cam = workspace.CurrentCamera;
+	if not (cam and fr) then
+		return;
+	end;
+	local vp = cam.ViewportSize;
+	local size = fr.AbsoluteSize;
+	local pos = fr.AbsolutePosition;
+	local margin = 8;
+	local maxX = math.max(margin, vp.X - size.X - margin);
+	local maxY = math.max(margin, vp.Y - size.Y - margin);
+	local newX = math.clamp(pos.X, margin, maxX);
+	local newY = math.clamp(pos.Y, margin, maxY);
+	if newX ~= pos.X or newY ~= pos.Y then
+		fr.Position = UDim2.fromOffset(newX, newY);
+	end;
+end;
+local autoCenter = true;
 local sg = Instance.new("ScreenGui");
 sg.Name = "SBX";
 Protect(sg);
 local fr = Instance.new("Frame");
 fr.Size = UDim2.new(frameScaleX, 0, frameScaleY, 0);
-fr.AnchorPoint = Vector2.new(0.5, 0.5);
-fr.Position = UDim2.new(0.5, 0, 0.5, 0);
+fr.AnchorPoint = Vector2.new(0, 0);
+fr.Position = UDim2.new(0, 0, 0, 0);
 fr.BackgroundColor3 = col.bg;
 fr.BorderSizePixel = 0;
 fr.Active = true;
 fr.ClipsDescendants = true;
 fr.Parent = sg;
+if autoCenter then
+	centerFrame(fr);
+end;
+local cam = workspace.CurrentCamera;
+if cam then
+	cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+		if autoCenter then
+			centerFrame(fr);
+		else
+			clampFrameWithinViewport();
+		end;
+	end);
+end;
+fr:GetPropertyChangedSignal("Size"):Connect(function()
+	if autoCenter then
+		centerFrame(fr);
+	else
+		clampFrameWithinViewport();
+	end;
+end);
 local frc = Instance.new("UICorner");
 frc.CornerRadius = UDim.new(0, 14);
 frc.Parent = fr;
@@ -111,7 +171,7 @@ fst.Color = Color3.fromRGB(70, 75, 85);
 fst.Transparency = 0.35;
 fst.Parent = fr;
 local top = Instance.new("Frame");
-top.Size = UDim2.new(1, 0, 0, 56);
+top.Size = UDim2.new(1, 0, 0, topHeight);
 top.BackgroundColor3 = col.sc;
 top.BorderSizePixel = 0;
 top.Parent = fr;
@@ -132,12 +192,12 @@ task.spawn(function()
 end);
 local ttl = Instance.new("TextLabel");
 ttl.Size = UDim2.new(titleWidthScale, 0, 1, 0);
-ttl.Position = UDim2.new(0, 16, 0, 0);
+ttl.Position = UDim2.new(0, sidePadding, 0, 0);
 ttl.BackgroundTransparency = 1;
 ttl.Font = Enum.Font.GothamBold;
 ttl.Text = "Script Hub • by @ltseverydayyou";
 ttl.TextColor3 = col.tx;
-ttl.TextSize = 18;
+ttl.TextSize = 16;
 ttl.TextXAlignment = Enum.TextXAlignment.Left;
 ttl.Parent = top;
 local tr = Instance.new("Frame");
@@ -151,14 +211,14 @@ local trl = Instance.new("UIListLayout");
 trl.FillDirection = Enum.FillDirection.Horizontal;
 trl.HorizontalAlignment = Enum.HorizontalAlignment.Right;
 trl.VerticalAlignment = Enum.VerticalAlignment.Center;
-trl.Padding = UDim.new(0, 8);
+trl.Padding = UDim.new(0, 6);
 trl.Parent = tr;
 local engb = Instance.new("TextButton");
-engb.Size = UDim2.new(0, 184, 1, 0);
+engb.Size = UDim2.new(0, 156, 1, 0);
 engb.BackgroundColor3 = col.bg;
 engb.Text = "Engine: ScriptBlox";
 engb.TextColor3 = col.tx;
-engb.TextSize = 14;
+engb.TextSize = 13;
 engb.Font = Enum.Font.GothamSemibold;
 engb.AutoButtonColor = false;
 engb.Parent = tr;
@@ -171,7 +231,7 @@ engbs.Color = Color3.fromRGB(70, 75, 85);
 engbs.Transparency = 0.25;
 engbs.Parent = engb;
 local mini = Instance.new("TextButton");
-mini.Size = UDim2.new(0, 40, 1, 0);
+mini.Size = UDim2.new(0, 36, 1, 0);
 mini.BackgroundColor3 = Color3.fromRGB(45, 49, 58);
 mini.Text = "^";
 mini.TextColor3 = col.tx;
@@ -184,7 +244,7 @@ local minic = Instance.new("UICorner");
 minic.CornerRadius = UDim.new(0, 8);
 minic.Parent = mini;
 local cls = Instance.new("TextButton");
-cls.Size = UDim2.new(0, 40, 1, 0);
+cls.Size = UDim2.new(0, 36, 1, 0);
 cls.BackgroundColor3 = Color3.fromRGB(45, 49, 58);
 cls.Text = "X";
 cls.TextColor3 = col.tx;
@@ -196,13 +256,13 @@ local clsc = Instance.new("UICorner");
 clsc.CornerRadius = UDim.new(0, 8);
 clsc.Parent = cls;
 local sr = Instance.new("Frame");
-sr.Size = UDim2.new(1, -32, 0, 64);
-sr.Position = UDim2.new(0, 16, 0, 72);
+sr.Size = UDim2.new(1, -(sidePadding * 2), 0, searchHeight);
+sr.Position = UDim2.new(0, sidePadding, 0, topHeight + verticalGap);
 sr.BackgroundColor3 = col.sc;
 sr.BorderSizePixel = 0;
 sr.Parent = fr;
 local src = Instance.new("UICorner");
-src.CornerRadius = UDim.new(0, 12);
+src.CornerRadius = UDim.new(0, 10);
 src.Parent = sr;
 local srs = Instance.new("UIStroke");
 srs.Thickness = 1;
@@ -210,43 +270,45 @@ srs.Color = Color3.fromRGB(70, 75, 85);
 srs.Transparency = 0.25;
 srs.Parent = sr;
 local sPad = Instance.new("UIPadding");
-sPad.PaddingLeft = UDim.new(0, 12);
-sPad.PaddingRight = UDim.new(0, 12);
+sPad.PaddingLeft = UDim.new(0, 10);
+sPad.PaddingRight = UDim.new(0, 10);
 sPad.Parent = sr;
 local sLbl = Instance.new("TextLabel");
-sLbl.Size = UDim2.new(0, 32, 1, 0);
+sLbl.Size = UDim2.new(0, 28, 1, 0);
 sLbl.BackgroundTransparency = 1;
 sLbl.Font = Enum.Font.GothamBold;
 sLbl.Text = "🔎";
 sLbl.TextColor3 = col.td;
 sLbl.TextScaled = true;
 sLbl.Parent = sr;
+local goWidth = isMobile and 118 or 128;
+local goHeight = isMobile and 34 or 36;
 local sbox = Instance.new("TextBox");
-sbox.Size = UDim2.new(searchWidthScale, 0, 1, -16);
-sbox.Position = UDim2.new(0, 40, 0, 8);
+sbox.Size = UDim2.new(searchWidthScale, -(goWidth + sidePadding + 32), 1, -12);
+sbox.Position = UDim2.new(0, 36, 0, 6);
 sbox.BackgroundTransparency = 1;
 sbox.Font = Enum.Font.Gotham;
 sbox.PlaceholderText = "Search for scripts (scriptblox.com)";
 sbox.Text = "";
 sbox.TextColor3 = col.tx;
 sbox.PlaceholderColor3 = Color3.fromRGB(140, 146, 160);
-sbox.TextSize = 16;
+sbox.TextSize = 15;
 sbox.TextXAlignment = Enum.TextXAlignment.Left;
 sbox.ClearTextOnFocus = false;
 sbox.Parent = sr;
 local go = Instance.new("TextButton");
-go.Size = UDim2.new(0, 148, 0, 40);
-go.Position = UDim2.new(1, -160, 0.5, -20);
+go.Size = UDim2.new(0, goWidth, 0, goHeight);
+go.Position = UDim2.new(1, -(sidePadding + goWidth), 0.5, -(goHeight / 2));
 go.BackgroundColor3 = col.ac;
 go.BorderSizePixel = 0;
 go.Font = Enum.Font.GothamSemibold;
 go.Text = "Search";
 go.TextColor3 = col.tx;
-go.TextSize = 16;
+go.TextSize = 14;
 go.AutoButtonColor = false;
 go.Parent = sr;
 local goc = Instance.new("UICorner");
-goc.CornerRadius = UDim.new(0, 10);
+goc.CornerRadius = UDim.new(0, 8);
 goc.Parent = go;
 local goGrad = Instance.new("UIGradient");
 goGrad.Color = ColorSequence.new(col.ac, Color3.fromRGB(58, 160, 255));
@@ -271,7 +333,7 @@ ub.BorderSizePixel = 0;
 ub.Parent = sr;
 local sp = Instance.new("TextLabel");
 sp.Size = UDim2.new(0, 30, 0, 30);
-sp.Position = UDim2.new(1, -200, 0.5, -15);
+sp.Position = UDim2.new(1, -(sidePadding + goWidth + 60), 0.5, -15);
 sp.BackgroundTransparency = 1;
 sp.Font = Enum.Font.Code;
 sp.Text = "";
@@ -279,14 +341,15 @@ sp.TextColor3 = col.tx;
 sp.TextScaled = true;
 sp.ZIndex = 2;
 sp.Parent = sr;
+local rcOffsetY = topHeight + verticalGap + searchHeight + 8;
 local rc = Instance.new("Frame");
-rc.Size = UDim2.new(1, -32, 1, -152);
-rc.Position = UDim2.new(0, 16, 0, 144);
+rc.Size = UDim2.new(1, -(sidePadding * 2), 1, -(rcOffsetY + 12));
+rc.Position = UDim2.new(0, sidePadding, 0, rcOffsetY);
 rc.BackgroundColor3 = col.sc;
 rc.BorderSizePixel = 0;
 rc.Parent = fr;
 local rcc = Instance.new("UICorner");
-rcc.CornerRadius = UDim.new(0, 12);
+rcc.CornerRadius = UDim.new(0, 10);
 rcc.Parent = rc;
 local rcs = Instance.new("UIStroke");
 rcs.Color = Color3.fromRGB(70, 75, 85);
@@ -336,7 +399,7 @@ local function btnAnim(b, baseCol, hoverCol)
 		})):Play();
 	end);
 end;
-local pageBarHeight = 44;
+local pageBarHeight = 40;
 local pageBar = Instance.new("Frame");
 pageBar.Name = "PageControls";
 pageBar.Size = UDim2.new(1, -16, 0, pageBarHeight);
@@ -347,17 +410,17 @@ local pageLayout = Instance.new("UIListLayout");
 pageLayout.FillDirection = Enum.FillDirection.Horizontal;
 pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
 pageLayout.VerticalAlignment = Enum.VerticalAlignment.Center;
-pageLayout.Padding = UDim.new(0, 8);
+pageLayout.Padding = UDim.new(0, 6);
 pageLayout.Parent = pageBar;
 local function mkPageBtn(txt, width, order)
 	local b = Instance.new("TextButton");
-	b.Size = UDim2.new(0, width or 76, 0, 34);
+	b.Size = UDim2.new(0, width or 72, 0, 30);
 	b.BackgroundColor3 = Color3.fromRGB(45, 49, 58);
 	b.BorderSizePixel = 0;
 	b.AutoButtonColor = false;
 	b.Font = Enum.Font.GothamSemibold;
 	b.Text = txt;
-	b.TextSize = 14;
+	b.TextSize = 13;
 	b.TextColor3 = col.tx;
 	b.LayoutOrder = order or 1;
 	b.Parent = pageBar;
@@ -370,10 +433,10 @@ end;
 local firstBtn = mkPageBtn("First", nil, 1);
 local prevBtn = mkPageBtn("Prev", nil, 2);
 local pageInfo = Instance.new("TextLabel");
-pageInfo.Size = UDim2.new(0, 150, 0, 34);
+pageInfo.Size = UDim2.new(0, 140, 0, 30);
 pageInfo.BackgroundTransparency = 1;
 pageInfo.Font = Enum.Font.Gotham;
-pageInfo.TextSize = 14;
+pageInfo.TextSize = 13;
 pageInfo.TextColor3 = col.td;
 pageInfo.Text = "Page 1 / 1";
 pageInfo.TextXAlignment = Enum.TextXAlignment.Center;
@@ -441,8 +504,8 @@ sf.ScrollBarImageColor3 = col.ac;
 sf.CanvasSize = UDim2.new(0, 0, 0, 0);
 sf.Parent = rc;
 local gridLayout = Instance.new("UIGridLayout");
-gridLayout.CellPadding = UDim2.new(0, 10, 0, 10);
-gridLayout.CellSize = UDim2.new(isMobile and 1 or 0.48, -12, 0, isMobile and 300 or 300);
+gridLayout.CellPadding = UDim2.new(0, 8, 0, 8);
+gridLayout.CellSize = UDim2.new(isMobile and 1 or 0.48, -10, 0, isMobile and 250 or 240);
 gridLayout.FillDirection = Enum.FillDirection.Horizontal;
 gridLayout.SortOrder = Enum.SortOrder.LayoutOrder;
 gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top;
@@ -456,7 +519,7 @@ pad.Parent = sf;
 local tn = Instance.new("Frame");
 tn.AnchorPoint = Vector2.new(1, 0);
 tn.BackgroundTransparency = 1;
-tn.Size = UDim2.new(0, 320, 1, 0);
+tn.Size = UDim2.new(0, 280, 1, 0);
 tn.Position = UDim2.new(1, -16, 0, 72);
 tn.ZIndex = 10;
 tn.Parent = fr;
@@ -465,8 +528,7 @@ tnl.VerticalAlignment = Enum.VerticalAlignment.Top;
 tnl.HorizontalAlignment = Enum.HorizontalAlignment.Right;
 tnl.Padding = UDim.new(0, 8);
 tnl.Parent = tn;
-local SCRIPTBLOX_API_BASE = "https://scriptblox.com";
-local SCRIPTBLOX_MEDIA_BASE = "https://scriptblox.com";
+local SCRIPTBLOX_BASE = "https://scriptblox.com";
 local RSCRIPTS_BASE = "https://rscripts.net";
 local IMAGE_CACHE_DIR = "ScriptHubImages";
 local function sanitizeFileName(str)
@@ -478,6 +540,25 @@ local function hashString(str)
 		hash = (hash * 31 + string.byte(str, i)) % 4294967296;
 	end;
 	return string.format("%08x", hash);
+end;
+local function clearImageCache()
+	if type(isfolder) ~= "function" or type(listfiles) ~= "function" or type(isfile) ~= "function" or type(delfile) ~= "function" then
+		return false;
+	end;
+	local okExists, exists = pcall(isfolder, IMAGE_CACHE_DIR);
+	if not okExists or not exists then
+		return false;
+	end;
+	local okList, files = pcall(listfiles, IMAGE_CACHE_DIR);
+	if not okList or type(files) ~= "table" then
+		return false;
+	end;
+	for _, path in ipairs(files) do
+		if type(path) == "string" and path ~= "" then
+			pcall(delfile, path);
+		end;
+	end;
+	return true;
 end;
 local function ensureImageFolder()
 	if type(isfolder) ~= "function" or type(makefolder) ~= "function" then
@@ -504,6 +585,7 @@ local function deriveImageFileName(url)
 	local hashed = hashString(url);
 	return string.format("%s_%s.%s", base ~= "" and base or "image", hashed, ext);
 end;
+clearImageCache();
 local function normalizeImageUrl(url, base)
 	if type(url) ~= "string" or url == "" then
 		return nil;
@@ -642,7 +724,7 @@ local function resolveScriptBloxImage(data)
 	end;
 	local function pick(values)
 		for _, value in ipairs(values) do
-			local normalized = normalizeImageUrl(value, SCRIPTBLOX_MEDIA_BASE);
+			local normalized = normalizeImageUrl(value, SCRIPTBLOX_BASE);
 			if normalized and isMeaningfulImageUrl(normalized) then
 				return normalized;
 			end;
@@ -916,7 +998,7 @@ local function mkMsg(txt, bg)
 end;
 local minimized = false;
 local fullS = fr.Size;
-local miniHeight = isMobile and 70 or 56;
+local miniHeight = isMobile and 58 or 48;
 local miniS = UDim2.new(frameScaleX, 0, 0, miniHeight);
 local function setMin(s)
 	minimized = s;
@@ -924,6 +1006,9 @@ local function setMin(s)
 		mini.Text = "V";
 		(tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = miniS
+		})):Play();
+		(tw:Create(fst, TweenInfo.new(0.2), {
+			Transparency = 1
 		})):Play();
 		(tw:Create(mini, TweenInfo.new(0.2), {
 			Rotation = 180
@@ -939,6 +1024,9 @@ local function setMin(s)
 		(tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = fullS
 		})):Play();
+		(tw:Create(fst, TweenInfo.new(0.2), {
+			Transparency = 0.35
+		})):Play();
 		(tw:Create(mini, TweenInfo.new(0.2), {
 			Rotation = 0
 		})):Play();
@@ -949,6 +1037,7 @@ local function setMin(s)
 			BackgroundTransparency = 0
 		})):Play();
 	end;
+	task.delay(0.3, clampFrameWithinViewport);
 end;
 mini.MouseButton1Click:Connect(function()
 	setMin(not minimized);
@@ -1046,7 +1135,7 @@ local function mkCard(i, d)
 	else
 		remoteImageUrl = resolveRScriptsImage(d);
 	end;
-	local coverHeight = 120;
+	local coverHeight = 108;
 	local coverImage;
 	local usingCustomCover = false;
 	local sourceUrl = remoteImageUrl;
@@ -1148,7 +1237,7 @@ local function mkCard(i, d)
 	tl.Font = Enum.Font.GothamBold;
 	tl.Text = tostring(t);
 	tl.TextColor3 = col.tx;
-	tl.TextSize = 15;
+	tl.TextSize = 14;
 	tl.TextXAlignment = Enum.TextXAlignment.Left;
 	tl.TextWrapped = true;
 	tl.ZIndex = 2;
@@ -1195,22 +1284,22 @@ local function mkCard(i, d)
 	inf.Parent = textContent;
 	local row = Instance.new("Frame");
 	row.BackgroundTransparency = 1;
-	row.Size = UDim2.new(1, 0, 0, 34);
+	row.Size = UDim2.new(1, 0, 0, 30);
 	row.ZIndex = 2;
 	row.LayoutOrder = 3;
 	row.Parent = textContent;
 	local rl = Instance.new("UIListLayout");
 	rl.FillDirection = Enum.FillDirection.Horizontal;
-	rl.Padding = UDim.new(0, 10);
+	rl.Padding = UDim.new(0, 8);
 	rl.SortOrder = Enum.SortOrder.LayoutOrder;
 	rl.Parent = row;
 	local function mkB(txt, bg)
 		local b = Instance.new("TextButton");
-		b.Size = UDim2.new(0, 120, 0, 34);
+		b.Size = UDim2.new(0, 104, 0, 30);
 		b.BackgroundColor3 = bg;
 		b.Text = txt;
 		b.TextColor3 = col.tx;
-		b.TextSize = 14;
+		b.TextSize = 13;
 		b.Font = Enum.Font.GothamSemibold;
 		b.AutoButtonColor = false;
 		b.Parent = row;
@@ -1314,6 +1403,7 @@ function fetch(searchText, trending, page)
 	if searching then
 		return;
 	end;
+	clearImageCache();
 	local supportsTrending = eng == "ScriptBlox";
 	trending = supportsTrending and trending == true or false;
 	page = math.max(tonumber(page) or 1, 1);
@@ -1338,9 +1428,9 @@ function fetch(searchText, trending, page)
 			url = url .. "&q=" .. encoded;
 		end;
 	elseif trending then
-		url = string.format("%s/api/script/fetch?page=%d", SCRIPTBLOX_API_BASE, page);
+		url = string.format("%s/api/script/fetch?page=%d", SCRIPTBLOX_BASE, page);
 	else
-		url = string.format("%s/api/script/search?q=%s&page=%d", SCRIPTBLOX_API_BASE, encoded, page);
+		url = string.format("%s/api/script/search?q=%s&page=%d", SCRIPTBLOX_BASE, encoded, page);
 	end;
 	local ok, res = pcall(function()
 		return rq({
@@ -1459,11 +1549,13 @@ end;
 top.InputBegan:Connect(function(i)
 	if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 		drag = true;
+		autoCenter = false;
 		dStart = i.Position;
 		start = fr.Position;
 		i.Changed:Connect(function()
 			if i.UserInputState == Enum.UserInputState.End then
 				drag = false;
+				clampFrameWithinViewport();
 			end;
 		end);
 	end;
