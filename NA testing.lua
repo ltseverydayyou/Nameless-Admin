@@ -8816,6 +8816,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		autoPreloadAssets = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -9772,6 +9778,7 @@ NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
+NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 
 NAmanage.loadIntegration=function()
 	local integ = NAStuff.Integrations or {}
@@ -19192,7 +19199,7 @@ end)
 
 NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
 NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME or "NAundergroundBind"
-NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, 15, 0)
+NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
 
 if RunService and RunService.UnbindFromRenderStep then
 	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
@@ -24547,10 +24554,22 @@ NAmanage.safePivotModel = function(model, cf)
 		return false
 	end
 
+	local function updateUndergroundState()
+		local st = NAStuff and NAStuff.NAundergroundState
+		if not (st and st.Underground) then
+			return
+		end
+		local myChar = (typeof(getChar) == "function") and getChar()
+		if myChar and typeof(model) == "Instance" and (model == myChar or model:IsDescendantOf(myChar)) then
+			st.UndergroundCurrent = cf
+		end
+	end
+
 	local ok = pcall(function()
 		model:PivotTo(cf)
 	end)
 	if ok then
+		updateUndergroundState()
 		return true
 	end
 
@@ -24571,6 +24590,9 @@ NAmanage.safePivotModel = function(model, cf)
 		root.Anchored = false
 		root.CFrame = cf
 	end)
+	if okRoot then
+		updateUndergroundState()
+	end
 	return okRoot
 end
 
@@ -55651,6 +55673,14 @@ NAgui.addSection("Asset Loading")
 NAStuff.AssetLoadModeBox = NAgui.addInfo("Asset Load Mode", "")
 NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
 
+NAgui.addToggle("Preload Assets On Load", NAStuff.AutoPreloadAssets == true, function(v)
+	NAStuff.AutoPreloadAssets = v and true or false
+	pcall(NAmanage.NASettingsSet, "autoPreloadAssets", NAStuff.AutoPreloadAssets)
+end)
+NAmanage.RegisterToggleAutoSync("Preload Assets On Load", function()
+	return NAStuff.AutoPreloadAssets == true
+end)
+
 for _, modeName in ipairs(NAStuff.ASSET_LOAD_MODE_ORDER) do
 	NAgui.addButton("Mode: "..modeName, function()
 		if NAStuff.AssetLoadRunning then
@@ -55692,19 +55722,27 @@ NAmanage.finishAssetLoad = function(session, success, total, startTime, err)
 	end
 end
 
-NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("Load Game Assets", function()
+NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
+	local silent = opts and opts.silent
 	if NAStuff.AssetLoadRunning then
-		DoNotif("Asset loader is already running.", 2)
+		if not silent then
+			DoNotif("Asset loader is already running.", 2)
+		end
 		return
 	end
 	if not ContentProvider or not ContentProvider.PreloadAsync then
-		DoNotif("ContentProvider preloading is unavailable on this platform.", 3)
+		if not silent then
+			DoNotif("ContentProvider preloading is unavailable on this platform.", 3)
+		end
 		return
 	end
 
 	NAmanage.setAssetLoadButtonState(true)
 	NAmanage.UpdateAssetLoadStatus(0, 0)
-	DoNotif("Scanning for assets to preload...", 2)
+	if not silent then
+		DoNotif("Scanning for assets to preload...", 2)
+	end
+
 	Spawn(function()
 		local startTime = tick()
 		local totalAssets = 0
@@ -55716,7 +55754,9 @@ NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("
 			totalAssets = total
 			if total == 0 then
 				NAmanage.UpdateAssetLoadStatus(0, 0)
-				DoNotif("Could not find any assets to preload.", 3)
+				if not silent then
+					DoNotif("Could not find any assets to preload.", 3)
+				end
 				return
 			end
 
@@ -55764,6 +55804,10 @@ NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("
 			warn("Asset loader failed:", err)
 		end
 	end)
+end
+
+NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("Load Game Assets", function()
+	NAmanage.StartAssetPreload()
 end)
 NAStuff.AssetLoadButton = NAStuff.loadGameAssetsButton
 NAmanage.setAssetLoadButtonState(false)
@@ -59471,6 +59515,12 @@ pcall(function()
 		NAAssetsLoading.setStatus("ready")
 		NAAssetsLoading.setPercent(1)
 		NAAssetsLoading.completed.Value = true
+	end
+	if NAStuff.AutoPreloadAssets then
+		Defer(function()
+			Wait(0.1)
+			NAmanage.StartAssetPreload({silent = true})
+		end)
 	end
 end)
 
