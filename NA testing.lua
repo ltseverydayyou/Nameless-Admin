@@ -2847,6 +2847,8 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		cg = coreGui,
 		store = NAmanage.newCornerStore(),
 		watchers = {},
+		guiRootWatchers = {},
+		guiRootSeen = setmetatable({}, { __mode = "k" }),
 		restoring = false,
 	}
 
@@ -3024,6 +3026,15 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		setCWat(o)
 	end
 
+	local function clearGuiRootWatchers()
+		for root, conns in pairs(CE.guiRootWatchers) do
+			if conns.desc then conns.desc:Disconnect() end
+			if conns.anc then conns.anc:Disconnect() end
+			CE.guiRootWatchers[root] = nil
+		end
+		CE.guiRootSeen = setmetatable({}, { __mode = "k" })
+	end
+
 	local function resetCorn()
 		CE.restoring = true
 		for corner, info in pairs(CE.store) do
@@ -3037,17 +3048,34 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		CE.restoring = false
 		CE.store = NAmanage.newCornerStore()
 		CE.watchers = {}
+		clearGuiRootWatchers()
 	end
+
+	local function applyCornersIn(container)
+		if not container then
+			return
+		end
+		if container:IsA("UICorner") then
+			setCorner(container)
+		end
+		for _, d in ipairs(container:GetDescendants()) do
+			if d:IsA("UICorner") then
+				setCorner(d)
+			end
+		end
+	end
+
+	local watchGuiRoot
 
 	local function applyCorn()
 		if not CE.data.enabled then
 			return
 		end
 		for _, container in ipairs(getCTgts()) do
-			setCorner(container)
-			local descendants = container:GetDescendants()
-			for i = 1, #descendants do
-				setCorner(descendants[i])
+			applyCornersIn(container)
+			if container:IsA("BillboardGui") or container:IsA("SurfaceGui") then
+				CE.guiRootSeen[container] = true
+				watchGuiRoot(container)
 			end
 		end
 	end
@@ -3059,37 +3087,74 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end
 
 	local function onCDesc(o)
-		if CE.data.enabled then
+		if CE.data.enabled and o:IsA("UICorner") then
 			setCorner(o)
 		end
+	end
+
+	function watchGuiRoot(root)
+		if not root or CE.guiRootWatchers[root] then
+			return
+		end
+		local conns = {}
+		conns.desc = root.DescendantAdded:Connect(function(d)
+			if CE.data.enabled and d:IsA("UICorner") then
+				setCorner(d)
+			end
+		end)
+		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
+			if parent == nil then
+				if CE.guiRootWatchers[root] then
+					if conns.desc then conns.desc:Disconnect() end
+					if conns.anc then conns.anc:Disconnect() end
+					CE.guiRootWatchers[root] = nil
+				end
+				CE.guiRootSeen[root] = nil
+			end
+		end)
+		CE.guiRootWatchers[root] = conns
 	end
 
 	local function onCBB(o)
 		if not CE.data.enabled then
 			return
 		end
-		local root = getCBB(o)
-		if root then
-			setCorner(root)
-			local kids = root:GetDescendants()
-			for i = 1, #kids do
-				setCorner(kids[i])
-			end
+		if not o:IsA("BillboardGui") then
+			return
 		end
+		local root = getCBB(o)
+		if not root then
+			return
+		end
+		if not CE.guiRootSeen[root] then
+			CE.guiRootSeen[root] = true
+			applyCornersIn(root)
+		end
+		if o:IsA("UICorner") then
+			setCorner(o)
+		end
+		watchGuiRoot(root)
 	end
 
 	local function onCSurf(o)
 		if not CE.data.enabled then
 			return
 		end
-		local root = getCSurf(o)
-		if root then
-			setCorner(root)
-			local kids = root:GetDescendants()
-			for i = 1, #kids do
-				setCorner(kids[i])
-			end
+		if not o:IsA("SurfaceGui") then
+			return
 		end
+		local root = getCSurf(o)
+		if not root then
+			return
+		end
+		if not CE.guiRootSeen[root] then
+			CE.guiRootSeen[root] = true
+			applyCornersIn(root)
+		end
+		if o:IsA("UICorner") then
+			setCorner(o)
+		end
+		watchGuiRoot(root)
 	end
 
 	local function syncCConn()
@@ -6076,6 +6141,73 @@ NAmanage.GetBasicInfoSnapshot = function()
 
 	return snapshot
 end
+
+NAmanage.prefetchRobloxGameInfo = function()
+	local cache = NAmanage.BasicInfoGameCache or {}
+	NAmanage.BasicInfoGameCache = cache
+
+	local placeId = tonumber(game.PlaceId) or 0
+	local universeId = tonumber(game.GameId) or 0
+	if universeId == 0 then
+		return false, "no universe id"
+	end
+
+	if cache.universeId ~= universeId then
+		cache.universeId = universeId
+		cache.name = nil
+		cache.creator = nil
+		cache.genre = nil
+		cache.fetching = false
+		cache.lastFetch = 0
+		cache.fetchId = 0
+		cache.marketplaceFetched = false
+	end
+
+	if cache.genre and cache.name and cache.creator then
+		return true
+	end
+
+	local url = "https://games.roblox.com/v1/games?universeIds="..tostring(universeId)
+	local body
+
+	local okBody, result = pcall(game.HttpGet, game, url)
+	if okBody and type(result) == "string" then
+		body = result
+	elseif type(NAREQUEST) == "function" then
+		local okReq, resp = pcall(NAREQUEST, { Url = url, Method = "GET" })
+		if okReq and type(resp) == "table" then
+			body = resp.Body or resp.body or resp.ResponseBody
+		end
+	end
+
+	if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+		if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1] then
+			local entry = decoded.data[1]
+			cache.name = cache.name or entry.name or entry.Name
+			if entry.creator and type(entry.creator) == "table" then
+				cache.creator = cache.creator or entry.creator.name or entry.creator.Name
+			end
+			cache.genre = cache.genre or entry.genre or entry.genre_l1 or entry.genre_l2 or entry.Genre
+		end
+	end
+
+	local cachedName = cache.name or "Unknown"
+	local cachedCreator = cache.creator or "Unknown"
+	if (not cache.marketplaceFetched) and (cachedName == "Unknown" or cachedCreator == "Unknown") and MarketplaceService and placeId ~= 0 then
+		local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
+		if okInfo and type(infoResult) == "table" then
+			cache.name = cache.name or infoResult.Name
+			if infoResult.Creator and infoResult.Creator.Name then
+				cache.creator = cache.creator or infoResult.Creator.Name
+			end
+		end
+		cache.marketplaceFetched = true
+	end
+
+	local success = cache.genre ~= nil or cache.name ~= nil
+	return success
+end
 cmdNAnum=0
 NAQoTEnabled = nil
 NAiconSaveEnabled = nil
@@ -7634,12 +7766,17 @@ NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
 	end
 end, NAAssetsLoading.getSkip)
 
-NAAssetsLoading.setStatus("finalizing")
+NAAssetsLoading.setStatus("Fetching Roblox API")
 pcall(function()
+	if NAmanage and NAmanage.prefetchRobloxGameInfo then
+		NAmanage.prefetchRobloxGameInfo()
+	end
 	if NAAssetsLoading.setPercent then
 		NAAssetsLoading.setPercent(0.96)
 	end
 end)
+
+NAAssetsLoading.setStatus("finalizing")
 
 Notify = Notification.Notify
 Window = Notification.Window
@@ -19075,7 +19212,7 @@ do
 	st.highlight = nil
 end
 
-cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character underground on the server"},function(offset)
+cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
 	local state = NAStuff.NAundergroundState
 
 	local function UG_Get(key)
@@ -19109,15 +19246,29 @@ cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character 
 		if type(DoNotif) == "function" then
 			DoNotif("Character is not ready yet", 2)
 		end
-		return "Underground", "Character is not ready yet"
+		return
 	end
 
-	local defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, 15, 0)
-	local offsetNum = tonumber(offset)
-	if not offsetNum then
-		offsetNum = defaultOffset.Y
+	local defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+	local function parseOffsetVector(...)
+		local raw = Concat({...}, " ")
+		local nums = {}
+		for token in tostring(raw):gmatch("[^,%s]+") do
+			local n = tonumber(token)
+			if n then
+				Insert(nums, n)
+			end
+		end
+		if #nums >= 3 then
+			return Vector3.new(nums[1], nums[2], nums[3])
+		elseif #nums == 2 then
+			return Vector3.new(nums[1], nums[2], 0)
+		elseif #nums == 1 then
+			return Vector3.new(0, nums[1], 0)
+		end
+		return nil
 	end
-	local offsetVec = Vector3.new(0, offsetNum, 0)
+	local offsetVec = parseOffsetVector(...) or defaultOffset
 
 	local Underground = UG_Get("Underground")
 	UG_Set("Underground", not Underground)
@@ -19146,7 +19297,7 @@ cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character 
 				hum.Sit = false
 			end
 
-			currentRoot.CFrame = currentRoot.CFrame - (UG_Get("UndergroundOffset") or defaultOffset)
+			currentRoot.CFrame = currentRoot.CFrame + (UG_Get("UndergroundOffset") or defaultOffset)
 		end))
 
 		if RunService and RunService.UnbindFromRenderStep then
@@ -19164,9 +19315,9 @@ cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character 
 		end)
 
 		if type(DoNotif) == "function" then
-			DoNotif("Underground enabled, hiding you from others", 2)
+			DoNotif("Offset enabled (replicates for others)", 2)
 		end
-		return "Underground", "Your character is now underground for everyone else"
+		return
 	end
 
 	for _ = 1, 10 do
@@ -19193,9 +19344,9 @@ cmd.add({"underground","ug"},{"underground [offset] (ug)","Makes your character 
 	end
 
 	if type(DoNotif) == "function" then
-		DoNotif("Underground disabled, you're back to normal", 2)
+		DoNotif("Offset disabled, you're back to normal", 2)
 	end
-	return "Underground", "Disabled, you're back to normal"
+	return
 end)
 
 clickscareUI = nil
@@ -24365,6 +24516,64 @@ end)
 NAStuff.tpUI = nil
 NAStuff.tpTools = {}
 
+NAmanage._tpTargetFromMouse=function(mouse, char)
+	if not mouse then
+		return nil
+	end
+
+	local hit = mouse.Hit
+	if typeof(hit) == "CFrame" then
+		return hit
+	end
+
+	local unitRay = mouse.UnitRay
+	if unitRay and workspace and workspace.Raycast then
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		if char then
+			params.FilterDescendantsInstances = { char }
+		end
+		local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 512, params)
+		if result and result.Position then
+			return CFrame.new(result.Position)
+		end
+	end
+
+	return nil
+end
+
+NAmanage.safePivotModel = function(model, cf)
+	if not (model and typeof(cf) == "CFrame") then
+		return false
+	end
+
+	local ok = pcall(function()
+		model:PivotTo(cf)
+	end)
+	if ok then
+		return true
+	end
+
+	local root = model.PrimaryPart or getRoot(model)
+	if not root then
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				root = part
+				break
+			end
+		end
+	end
+	if not root then
+		return false
+	end
+
+	local okRoot = pcall(function()
+		root.Anchored = false
+		root.CFrame = cf
+	end)
+	return okRoot
+end
+
 NAmanage.clearAllTP = function()
 	if NAStuff.tpUI then
 		NAStuff.tpUI:Destroy()
@@ -24439,12 +24648,21 @@ NAmanage.makeClickTweenUI = function()
 
 	NAlib.connect("tp_up", mouse.Button1Up:Connect(function()
 		if not initialPos then return end
+		local char = player.Character
+		if not char then
+			initialPos = nil
+			return
+		end
 		local currentPos = Vector2.new(mouse.X, mouse.Y)
 		if (currentPos - initialPos).Magnitude <= dragThreshold then
-			local target = mouse.Hit + Vector3.new(0,2.5,0)
-			local char = player.Character
+			local hit = NAmanage._tpTargetFromMouse(mouse, char)
+			if not hit then
+				initialPos = nil
+				return
+			end
+			local target = hit + Vector3.new(0,2.5,0)
 			if clickEnabled then
-				char:PivotTo(CFrame.new(target.p))
+				NAmanage.safePivotModel(char, CFrame.new(target.p))
 			elseif tweenEnabled then
 				if ctCFVal then
 					ctCFVal:Destroy()
@@ -24454,7 +24672,7 @@ NAmanage.makeClickTweenUI = function()
 				ctCFVal = cfVal
 				cfVal.Value = char:GetPivot()
 				cfVal.Changed:Connect(function(newCF)
-					char:PivotTo(newCF)
+					NAmanage.safePivotModel(char, newCF)
 				end)
 				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
 				tw:Play()
@@ -24488,13 +24706,20 @@ NAmanage.makeClickTweenTools = function()
 		tool.Parent = player.Backpack
 		tool.Activated:Connect(function()
 			local mouse = player:GetMouse()
-			local target = mouse.Hit + Vector3.new(0,2.5,0)
 			local char = player.Character
+			if not (mouse and char) then
+				return
+			end
+			local hit = NAmanage._tpTargetFromMouse(mouse, char)
+			if not hit then
+				return
+			end
+			local target = hit + Vector3.new(0,2.5,0)
 			if tween then
 				local cfVal = InstanceNew("CFrameValue")
 				cfVal.Value = char:GetPivot()
 				cfVal.Changed:Connect(function(newCF)
-					char:PivotTo(newCF)
+					NAmanage.safePivotModel(char, newCF)
 				end)
 				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
 				tw:Play()
@@ -24502,7 +24727,7 @@ NAmanage.makeClickTweenTools = function()
 					cfVal:Destroy()
 				end)
 			else
-				char:PivotTo(CFrame.new(target.p))
+				NAmanage.safePivotModel(char, CFrame.new(target.p))
 			end
 		end)
 		Insert(NAStuff.tpTools, tool)
@@ -48045,6 +48270,46 @@ NAgui.addSection = function(titleText)
 	end
 end
 
+NAgui.getInputMinWidth=function(frame, fallback)
+	fallback = fallback or 32
+	if not (frame and frame.GetAttribute) then
+		return fallback
+	end
+	local ok, attr = pcall(function()
+		return frame:GetAttribute("NAMinWidth")
+	end)
+	local minAttr = tonumber(ok and attr or nil)
+	if not minAttr then
+		return fallback
+	end
+	return math.max(fallback, minAttr)
+end
+
+NAgui.getInputTextWidth=function(box, padding)
+	padding = padding or 24
+	if not box then
+		return padding
+	end
+
+	local okBounds, bounds = pcall(function()
+		return box.TextBounds
+	end)
+	if okBounds and bounds and type(bounds.X) == "number" then
+		return bounds.X + padding
+	end
+
+	if TextService then
+		local okSize, size = pcall(function()
+			return TextService:GetTextSize(tostring(box.Text or ""), box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
+		end)
+		if okSize and size and type(size.X) == "number" then
+			return size.X + padding
+		end
+	end
+
+	return 56
+end
+
 NAgui.addInfo = function(label, value)
 	if not NAUIMANAGER.SettingsList then return nil end
 
@@ -48090,8 +48355,11 @@ NAgui.addInfo = function(label, value)
 	local lastW
 
 	local function resize()
-		local textW = box.TextBounds.X + 24
-		local minW = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		if not (info and frame and box) then
+			return
+		end
+		local textW = NAgui.getInputTextWidth(box)
+		local minW = NAgui.getInputMinWidth(frame)
 		local maxW
 
 		local cw = info.AbsoluteSize.X
@@ -48110,6 +48378,10 @@ NAgui.addInfo = function(label, value)
 		end
 
 		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+
+		if type(w) ~= "number" then
+			return
+		end
 
 		if not lastW or math.abs(lastW - w) > 0.5 then
 			lastW = w
@@ -48665,8 +48937,12 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	local lastW
 
 	local function resize()
-		local textW = box.TextBounds.X + 24
-		local minW = math.max(32, tonumber(frame:GetAttribute("NAMinWidth")) or 0)
+		if not (input and frame and box) then
+			return
+		end
+
+		local textW = NAgui.getInputTextWidth(box)
+		local minW = NAgui.getInputMinWidth(frame)
 		local maxW
 
 		local cw = input.AbsoluteSize.X
@@ -48685,6 +48961,10 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 		end
 
 		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+
+		if type(w) ~= "number" then
+			return
+		end
 
 		if not lastW or math.abs(lastW - w) > 0.5 then
 			lastW = w
