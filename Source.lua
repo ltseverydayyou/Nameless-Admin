@@ -2664,119 +2664,126 @@ NAStuff._rf = NAStuff._rf or readfile
 NAStuff._wf = NAStuff._wf or writefile
 NAStuff._iff = NAStuff._iff or isfile
 NAStuff._df = NAStuff._df or delfile
+
 NAStuff.dotBad = NAStuff.dotBad or false
+
 NAmanage.stripExt=function(p)
-	if type(p) ~= "string" then
-		return p
-	end
-	return (p:gsub("([^/]+)%.[^/]+$", "%1"))
+    if type(p) ~= "string" then
+        return p
+    end
+    return (p:gsub("([^/]+)%.[^/]+$", "%1"))
 end
+
 NAmanage.isInvalidPathErr=function(e)
-	return type(e) == "string" and e:find("Invalid path", 1, true) ~= nil
+    return type(e) == "string" and e:find("Invalid path", 1, true) ~= nil
 end
+
 if type(NAStuff._wf) == "function" then
-	writefile = function(p, data, ...)
-		if type(p) ~= "string" then
-			return NAStuff._wf(p, data, ...)
-		end
+    getgenv().writefile = function(p, data, ...)
+        if type(p) ~= "string" then
+            return NAStuff._wf(p, data, ...)
+        end
 
-		local pNoExt = NAmanage.stripExt(p)
-		if NAStuff.dotBad and pNoExt ~= p then
-			return NAStuff._wf(pNoExt, data, ...)
-		end
+        local pNoExt = NAmanage.stripExt(p)
+        if NAStuff.dotBad and pNoExt ~= p then
+            return NAStuff._wf(pNoExt, data, ...)
+        end
 
-		local ok, err = pcall(NAStuff._wf, p, data, ...)
-		if ok then
-			return
-		end
+        local ok, err = pcall(NAStuff._wf, p, data, ...)
+        if ok then
+            return
+        end
 
-		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-			NAStuff.dotBad = true
-			return NAStuff._wf(pNoExt, data, ...)
-		end
+        if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+            NAStuff.dotBad = true
+            return NAStuff._wf(pNoExt, data, ...)
+        end
 
-		error(err)
-	end
+        error(err)
+    end
 end
+
 if type(NAStuff._rf) == "function" then
-	readfile = function(p, ...)
-		if type(p) ~= "string" then
-			return NAStuff._rf(p, ...)
-		end
+    getgenv().readfile = function(p, ...)
+        if type(p) ~= "string" then
+            return NAStuff._rf(p, ...)
+        end
 
-		local pNoExt = NAmanage.stripExt(p)
+        local pNoExt = NAmanage.stripExt(p)
 
-		if NAStuff.dotBad and pNoExt ~= p then
-			local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
-			if ok2 then
-				return res2
-			end
-		end
+        if NAStuff.dotBad and pNoExt ~= p then
+            local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
+            if ok2 then
+                return res2
+            end
+        end
 
-		local ok, res = pcall(NAStuff._rf, p, ...)
-		if ok and res ~= nil then
-			return res
-		end
+        local ok, res = pcall(NAStuff._rf, p, ...)
+        if ok and res ~= nil then
+            return res
+        end
 
-		if pNoExt ~= p then
-			local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
-			if ok2 then
-				return res2
-			end
-		end
+        if pNoExt ~= p then
+            local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
+            if ok2 then
+                return res2
+            end
+        end
 
-		return nil
-	end
+        return nil
+    end
 end
+
 if type(NAStuff._iff) == "function" then
-	isfile = function(p, ...)
-		if type(p) ~= "string" then
-			local ok, res = pcall(NAStuff._iff, p, ...)
-			return ok and res or false
-		end
+    getgenv().isfile = function(p, ...)
+        if type(p) ~= "string" then
+            local ok, res = pcall(NAStuff._iff, p, ...)
+            return ok and res or false
+        end
 
-		local pNoExt = NAmanage.stripExt(p)
+        local pNoExt = NAmanage.stripExt(p)
 
-		local ok, res = pcall(NAStuff._iff, p, ...)
-		if ok and res then
-			return true
-		end
+        local ok, res = pcall(NAStuff._iff, p, ...)
+        if ok and res then
+            return true
+        end
 
-		if pNoExt ~= p then
-			local ok2, res2 = pcall(NAStuff._iff, pNoExt, ...)
-			if ok2 and res2 then
-				NAStuff.dotBad = true
-				return true
-			end
-		end
+        if pNoExt ~= p then
+            local ok2, res2 = pcall(NAStuff._iff, pNoExt, ...)
+            if ok2 and res2 then
+                NAStuff.dotBad = true
+                return true
+            end
+        end
 
-		return false
-	end
+        return false
+    end
 end
+
 if type(NAStuff._df) == "function" then
-	delfile = function(p, ...)
-		if type(p) ~= "string" then
-			return NAStuff._df(p, ...)
-		end
+    getgenv().delfile = function(p, ...)
+        if type(p) ~= "string" then
+            return NAStuff._df(p, ...)
+        end
 
-		local pNoExt = NAmanage.stripExt(p)
+        local pNoExt = NAmanage.stripExt(p)
 
-		if NAStuff.dotBad and pNoExt ~= p then
-			return NAStuff._df(pNoExt, ...)
-		end
+        if NAStuff.dotBad and pNoExt ~= p then
+            return NAStuff._df(pNoExt, ...)
+        end
 
-		local ok, err = pcall(NAStuff._df, p, ...)
-		if ok then
-			return
-		end
+        local ok, err = pcall(NAStuff._df, p, ...)
+        if ok then
+            return
+        end
 
-		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-			NAStuff.dotBad = true
-			return NAStuff._df(pNoExt, ...)
-		end
+        if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+            NAStuff.dotBad = true
+            return NAStuff._df(pNoExt, ...)
+        end
 
-		error(err)
-	end
+        error(err)
+    end
 end
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
@@ -4532,12 +4539,17 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if not container then
 			return
 		end
-		if isFontTarget(container) then
-			applyFontToInstance(container)
+		local function handle(inst)
+			if isFontTarget(inst) then
+				applyFontToInstance(inst)
+			end
 		end
-		for _, descendant in ipairs(container:GetDescendants()) do
-			if isFontTarget(descendant) then
-				applyFontToInstance(descendant)
+		handle(container)
+		local desc = container:GetDescendants()
+		for i = 1, #desc do
+			handle(desc[i])
+			if i % 200 == 0 then
+				Wait()
 			end
 		end
 	end
@@ -4597,8 +4609,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if not FontEditor.data.enabled then
 			return
 		end
-		for _, container in ipairs(getFontTargets()) do
+		for idx, container in ipairs(getFontTargets()) do
 			applyFontToDescendants(container)
+			if idx % 3 == 0 then
+				Wait()
+			end
 		end
 	end
 
@@ -4675,7 +4690,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 
 	local function onFontDescendantAdded(o)
 		if FontEditor.data.enabled then
-			applyFontToDescendants(o)
+			applyFontToInstance(o)
 		end
 	end
 
@@ -4685,7 +4700,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		local root = getFontBB(o)
 		if root then
-			applyFontToDescendants(root)
+			applyFontToInstance(root)
 		end
 	end
 
@@ -4695,7 +4710,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		end
 		local root = getFontSurf(o)
 		if root then
-			applyFontToDescendants(root)
+			applyFontToInstance(root)
 		end
 	end
 
@@ -7326,8 +7341,22 @@ NAmanage.createLoadingUI=function(text, opts)
 		ui.statusLabel.Text = v
 	end
 
+	local function normalizePercent(pct)
+		local p = tonumber(pct) or 0
+		if p > 1 then
+			if p <= 10 then
+				p = p / 10
+			elseif p <= 100 then
+				p = p / 100
+			else
+				p = p / 100
+			end
+		end
+		return math.clamp(p, 0, 1)
+	end
+
 	local function setPercent(pct)
-		local p = math.clamp(pct or 0, 0, 1)
+		local p = normalizePercent(pct)
 		local txt = tostring(math.floor(p * 100)).."%"
 		tween(ui.progressFill, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(p, 0, 1, 0)
@@ -7561,11 +7590,59 @@ if not NAAssetsLoading.setStatus then
 	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
 	NaProtectUI(NAAssetsLoading.ui)
 	NAAssetsLoading.applyMinimizedPreference()
+	local stageOrder = {
+		"engine",
+		"notifications",
+		"assets",
+		"nastuff",
+		"loader",
+		"changelog",
+		"uiloader",
+		"queue",
+		"prefetch",
+		"final",
+	}
+	local stageWeight = {
+		engine = 1,
+		notifications = 1,
+		assets = 1,
+		nastuff = 1,
+		loader = 1,
+		changelog = 1,
+		uiloader = 1,
+		queue = 0.5,
+		prefetch = 4,
+		final = 0.5,
+	}
+	local totalWeight = 0
+	for _, key in ipairs(stageOrder) do
+		totalWeight += stageWeight[key] or 1
+	end
+	NAAssetsLoading.progress = {
+		order = stageOrder,
+		weight = stageWeight,
+		total = totalWeight,
+	}
+	NAAssetsLoading.progressPercent = function(stage, fraction)
+		fraction = math.clamp(tonumber(fraction) or 1, 0, 1)
+		local data = NAAssetsLoading.progress
+		if not data then return end
+		local acc = 0
+		for _, key in ipairs(data.order) do
+			if key == stage then
+				acc += (data.weight[key] or 1) * fraction
+				break
+			end
+			acc += (data.weight[key] or 1)
+		end
+		local pct = (data.total > 0) and (acc / data.total) or 0
+		NAAssetsLoading.setPercent(pct)
+	end
 end
 
 NAAssetsLoading.setStatus("waiting for engine")
 if not game:IsLoaded() then game.Loaded:Wait() end
-NAAssetsLoading.setPercent(0.1)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("engine") end
 
 NAAssetsLoading.setStatus("loading notifications")
 repeat
@@ -7582,7 +7659,7 @@ if not Notification then
 	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
 NAmanage.Notification = Notification
-NAAssetsLoading.setPercent(0.22)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("notifications") end
 
 NAAssetsLoading.setStatus("Loading Assets")
 local assetsReady = false
@@ -7625,7 +7702,7 @@ repeat
 		Wait(0.25)
 	end
 until assetsReady or NAAssetsLoading.getSkip()
-NAAssetsLoading.setPercent(0.26)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets") end
 
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
@@ -7643,7 +7720,7 @@ repeat
 		Wait(0.25)
 	end
 until naStuffReady or NAAssetsLoading.getSkip()
-NAAssetsLoading.setPercent(0.30)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("nastuff") end
 
 NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
 	if type(opt.loaderUrl) ~= "string" or opt.loaderUrl == "" then
@@ -7660,7 +7737,7 @@ NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
 end, function(body)
 	NAAssetsLoading.cachePrefetchedRemote(opt.loaderUrl, body)
 end)
-NAAssetsLoading.setPercent(0.32)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("loader") end
 
 NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
 	if type(opt.githubUrl) ~= "string" or opt.githubUrl == "" then
@@ -7709,7 +7786,7 @@ end, function(body)
 		end
 	end
 end, {maxAttempts=10})
-NAAssetsLoading.setPercent(0.34)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("changelog") end
 
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
 	if type(opt.NAUILOADER) ~= "string" or opt.NAUILOADER == "" then
@@ -7726,7 +7803,7 @@ NAAssetsLoading.runLoadingCheck("Loading UI", function()
 end, function(body)
 	NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
 end)
-NAAssetsLoading.setPercent(0.36)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("uiloader") end
 
 NAAssetsLoading.setStatus("collecting remote resources")
 local remoteTargets = NAAssetsLoading.getRemoteTargets()
@@ -7736,15 +7813,20 @@ if totalRemotes > 0 then
 else
 	NAAssetsLoading.setStatus("queued 0 remote resources")
 end
-NAAssetsLoading.setPercent(0.38)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("queue") end
 
 NAAssetsLoading.setStatus("prefetching remote resources")
-local base, span = 0.38, 0.56
+NAAssetsLoading.applyPrefetchPercent=function(done, total)
+	if not NAAssetsLoading.progressPercent then return end
+	if total and total > 0 then
+		local frac = math.clamp(done / total, 0, 1)
+		NAAssetsLoading.progressPercent("prefetch", frac)
+	else
+		NAAssetsLoading.progressPercent("prefetch", 1)
+	 end
+end
 NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
-	local fraction = (total > 0 and (done / total)) or 1
-	local progress = base + span * fraction
-	if progress > 0.94 then progress = 0.94 end
-	NAAssetsLoading.setPercent(progress)
+	NAAssetsLoading.applyPrefetchPercent(done, total)
 	if total > 0 and (done == total or done % 5 == 0) then
 		NAAssetsLoading.setStatus(Format("prefetching %d/%d", done, total))
 	end
@@ -8806,6 +8888,28 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		assetLoadMode = {
+			default = "Fast";
+			coerce = function(value)
+				local map = {
+					batch = "Batch";
+					medium = "Medium";
+					fast = "Fast";
+					aggressive = "Aggressive";
+				}
+				local mode = nil
+				if type(value) == "string" then
+					mode = value
+				elseif value ~= nil then
+					mode = tostring(value)
+				end
+				if type(mode) == "string" then
+					mode = mode:match("^%s*(.-)%s*$") or mode
+					mode = map[mode:lower()]
+				end
+				return mode or "Fast"
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -9763,6 +9867,9 @@ NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
+NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
+
+pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 
 NAmanage.loadIntegration=function()
 	local integ = NAStuff.Integrations or {}
@@ -11452,13 +11559,30 @@ NAmanage.wrapPatchedFunc=function(func)
 	end
 end
 
+NAmanage.inferRequiresArguments=function(infoTable)
+	if type(infoTable) == "table" then
+		for i = 1, 2 do
+			local text = infoTable[i]
+			if type(text) == "string" then
+				if text:find("%b<>") or text:find("%[") then
+					return true
+				end
+			end
+		end
+	end
+	return nil
+end
+
 cmd.add = function(aliases, info, func, requiresArguments, meta)
 	if type(requiresArguments) == "table" and meta == nil then
 		meta = requiresArguments
-		requiresArguments = false
+		requiresArguments = nil
 	end
 
-	requiresArguments = requiresArguments or false
+	if requiresArguments == nil then
+		requiresArguments = NAmanage.inferRequiresArguments(info) or false
+	end
+
 	meta = type(meta) == "table" and meta or {}
 
 	if type(aliases) ~= "table" or #aliases == 0 then
@@ -16664,8 +16788,12 @@ NAmanage.RenderUserButtons = function()
 								local nd = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
 								local needsArgs = nd and nd[3]
 								if needsArgs then
-									if childSaveEnabled and child.Args and #child.Args > 0 then
-										runChild(child.Args)
+									if childSaveEnabled then
+										if child.Args and #child.Args > 0 then
+											runChild(child.Args)
+										else
+											runChild(nil)
+										end
 									else
 										if ActivePrompts[now] then return end
 										ActivePrompts[now] = true
@@ -47800,25 +47928,44 @@ end
 NAgui.commands = function()
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
 	local defaultCmdColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
+	NAStuff.CommandLabelPool = NAStuff.CommandLabelPool or {}
+	local pool = NAStuff.CommandLabelPool
 
 	if not cFrame.Visible then
 		cFrame.Visible = true
 		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
 	end
 
-	for _, v in ipairs(cList:GetChildren()) do
-		if v:IsA("TextLabel") then v:Destroy() end
-	end
-
 	local yOffset = 5
+	local active = {}
 	local entries = NAmanage.buildCommandEntries()
 	for _, entry in ipairs(entries) do
 		local cmdName = entry.name
 		local meta = entry.meta or {}
 		local tbl = cmds.Commands[cmdName]
-		local Cmd = NAUIMANAGER.commandExample:Clone()
-		Cmd.Parent = cList
-		Cmd.Name = cmdName
+		local Cmd = pool[cmdName]
+		if not Cmd then
+			Cmd = NAUIMANAGER.commandExample:Clone()
+			Cmd.Parent = cList
+			Cmd.Name = cmdName
+			Cmd.MouseEnter:Connect(function()
+				local desc = Cmd:GetAttribute("CmdDesc")
+				if type(desc) == "string" and desc ~= "" then
+					NAUIMANAGER.description.Visible = true
+					NAUIMANAGER.description.Text = desc
+				else
+					NAUIMANAGER.description.Visible = false
+					NAUIMANAGER.description.Text = ""
+				end
+			end)
+			Cmd.MouseLeave:Connect(function()
+				NAUIMANAGER.description.Visible = false
+				NAUIMANAGER.description.Text = ""
+			end)
+			pool[cmdName] = Cmd
+		end
+		active[cmdName] = true
+
 		local finalText = meta.displayText or entry.display or cmdName
 		local isPatched = meta.patched == true
 		local isCmdIntegration = meta.origin == "cmd"
@@ -47859,8 +48006,6 @@ NAgui.commands = function()
 				Cmd:SetAttribute("IsCmdIntegration", false)
 			end
 		end
-		Cmd.Text = " "..finalText
-		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
 
 		local function resolveDesc()
 			local desc = meta.desc
@@ -47877,27 +48022,24 @@ NAgui.commands = function()
 			return desc
 		end
 
-		Cmd.MouseEnter:Connect(function()
-			local desc = resolveDesc()
-			if desc ~= "" then
-				NAUIMANAGER.description.Visible = true
-				NAUIMANAGER.description.Text = desc
-			else
-				NAUIMANAGER.description.Visible = false
-				NAUIMANAGER.description.Text = ""
-			end
-		end)
+		if Cmd.SetAttribute then
+			Cmd:SetAttribute("CmdDesc", resolveDesc())
+		end
 
-		Cmd.MouseLeave:Connect(function()
-			NAUIMANAGER.description.Visible = false
-			NAUIMANAGER.description.Text = ""
-		end)
+		Cmd.Text = " "..finalText
+		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
+		Cmd.Visible = true
 
 		yOffset = yOffset + 20
 	end
 
+	for name, label in pairs(pool) do
+		if not active[name] and label.Parent == cList then
+			label.Visible = false
+		end
+	end
+
 	cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-	--cFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 	NAmanage.centerFrame(cFrame)
 	if NAgui.filterCommandList then
 		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
@@ -47960,16 +48102,22 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	tween:Play()
 	return tween
 end
-NAgui.resizeable = function(ui, min, max)
-	if not ui or not ui:IsA("GuiObject") then return function() end end
-	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
-	max = max or Vector2.new(5000, 5000)
+	NAgui.resizeable = function(ui, min, max)
+		if not ui or not ui:IsA("GuiObject") then return function() end end
+		min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
+		max = max or Vector2.new(5000, 5000)
 
-	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
-	local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
+		local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
+		local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
+		local mouse
+		pcall(function()
+			if Players and Players.LocalPlayer then
+				mouse = Players.LocalPlayer:GetMouse()
+			end
+		end)
 
-	local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
-	if not rgui then return function() end end
+		local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
+		if not rgui then return function() end end
 	rgui.Parent = screenGui
 	rgui.BackgroundTransparency = 1
 	rgui.ClipsDescendants = false
@@ -48027,7 +48175,18 @@ NAgui.resizeable = function(ui, min, max)
 		return ui and ui.GetAttribute and ui:GetAttribute("NAMenuMinimized") == true
 	end
 
+	local function ensureMouse()
+		if mouse then return mouse end
+		pcall(function()
+			if Players and Players.LocalPlayer then
+				mouse = Players.LocalPlayer:GetMouse()
+			end
+		end)
+		return mouse
+	end
+
 	local function setCursor(icon)
+		if not ensureMouse() then return end
 		if not mouse then return end
 		if not cursorActive then
 			cursorSaved = mouse.Icon
@@ -48118,10 +48277,6 @@ NAgui.resizeable = function(ui, min, max)
 						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 							mode = button
 							dragging = true
-							local map = resizeXY and resizeXY[button.Name]
-							if map then
-								setCursor(map[3])
-							end
 							local p = input.Position
 							lastPos = Vector2.new(p.X, p.Y)
 							lastSize = ui.AbsoluteSize
@@ -55642,11 +55797,12 @@ NAStuff.PRELOAD_INSTANCE_CLASSES = NAStuff.PRELOAD_INSTANCE_CLASSES or {
 };
 
 NAStuff.ASSET_LOAD_MODE_DEFS = NAStuff.ASSET_LOAD_MODE_DEFS or {
+	Batch = { chunk = 96, delay = 0.03 };
 	Medium = { chunk = 256, delay = 0.02 };
 	Fast = { chunk = 512, delay = 0.01 };
 	Aggressive = { chunk = 768, delay = 0.005 };
 }
-NAStuff.ASSET_LOAD_MODE_ORDER = NAStuff.ASSET_LOAD_MODE_ORDER or { "Medium", "Fast", "Aggressive" }
+NAStuff.ASSET_LOAD_MODE_ORDER = NAStuff.ASSET_LOAD_MODE_ORDER or { "Batch", "Medium", "Fast", "Aggressive" }
 NAStuff.AssetLoadMode = NAStuff.AssetLoadMode or "Fast"
 
 NAmanage.ClampNumber = NAmanage.ClampNumber or function(value, minValue, maxValue)
@@ -55684,6 +55840,9 @@ NAmanage.SetAssetLoadMode = NAmanage.SetAssetLoadMode or function(mode)
 		return
 	end
 	NAStuff.AssetLoadMode = mode
+	if NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "assetLoadMode", mode)
+	end
 	local box = NAStuff.AssetLoadModeBox
 	if box then
 		pcall(function()
@@ -55727,6 +55886,9 @@ originalIO.AssetsPreloadNA = function()
 	local entries = {}
 	local seenString = {}
 	local seenInstance = {}
+	local scanChunk = math.max(100, NAmanage.GetAggressivePreloadChunk())
+	local scanYield = math.max(0, NAmanage.GetAggressiveChunkYield())
+	local scanned = 0
 
 	local function addResource(value)
 		local t = typeof(value)
@@ -55758,22 +55920,40 @@ originalIO.AssetsPreloadNA = function()
 
 	for i = 1, #roots do
 		local root = roots[i]
-		for _, inst in ipairs(root:GetDescendants()) do
-			if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
-				addResource(inst)
-			end
-			local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
-			if props then
-				for j = 1, #props do
-					local prop = props[j]
-					local ok, value = pcall(function()
-						return inst[prop]
-					end)
-					if ok and value then
-						addResource(value)
+		local ok, descendants = pcall(function()
+			return root:GetDescendants()
+		end)
+		if ok and descendants then
+			for _, inst in ipairs(descendants) do
+				if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
+					addResource(inst)
+				end
+				local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
+				if props then
+					for j = 1, #props do
+						local prop = props[j]
+						local okProp, value = pcall(function()
+							return inst[prop]
+						end)
+						if okProp and value then
+							addResource(value)
+						end
+					end
+				end
+				scanned += 1
+				if scanned % scanChunk == 0 then
+					if scanYield > 0 then
+						Wait(scanYield)
+					else
+						Wait()
 					end
 				end
 			end
+		end
+		if scanYield > 0 then
+			Wait(scanYield)
+		else
+			Wait()
 		end
 	end
 
@@ -57438,13 +57618,6 @@ if CoreGui then
 	local function onDescendantAdded(o)
 		coroutine.wrap(function()
 			enqueue(o)
-			local desc = o:GetDescendants()
-			for i = 1, #desc do
-				enqueue(desc[i])
-				if i % 100 == 0 then
-					Wait()
-				end
-			end
 			processQueue()
 		end)()
 	end
