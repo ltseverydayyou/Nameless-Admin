@@ -2685,18 +2685,19 @@ if type(NAStuff._wf) == "function" then
         end
 
         local pNoExt = NAmanage.stripExt(p)
-        if NAStuff.dotBad and pNoExt ~= p then
-            return NAStuff._wf(pNoExt, data, ...)
-        end
-
         local ok, err = pcall(NAStuff._wf, p, data, ...)
         if ok then
+            NAStuff.dotBad = false
             return
         end
 
         if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-            NAStuff.dotBad = true
-            return NAStuff._wf(pNoExt, data, ...)
+            local ok2, err2 = pcall(NAStuff._wf, pNoExt, data, ...)
+            if ok2 then
+                NAStuff.dotBad = true
+                return
+            end
+            error(err2 or err)
         end
 
         error(err)
@@ -2710,22 +2711,16 @@ if type(NAStuff._rf) == "function" then
         end
 
         local pNoExt = NAmanage.stripExt(p)
-
-        if NAStuff.dotBad and pNoExt ~= p then
-            local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
-            if ok2 then
-                return res2
-            end
-        end
-
         local ok, res = pcall(NAStuff._rf, p, ...)
         if ok and res ~= nil then
+            NAStuff.dotBad = false
             return res
         end
 
         if pNoExt ~= p then
             local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
             if ok2 then
+                NAStuff.dotBad = true
                 return res2
             end
         end
@@ -2768,18 +2763,19 @@ if type(NAStuff._df) == "function" then
 
         local pNoExt = NAmanage.stripExt(p)
 
-        if NAStuff.dotBad and pNoExt ~= p then
-            return NAStuff._df(pNoExt, ...)
-        end
-
         local ok, err = pcall(NAStuff._df, p, ...)
         if ok then
+            NAStuff.dotBad = false
             return
         end
 
         if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-            NAStuff.dotBad = true
-            return NAStuff._df(pNoExt, ...)
+            local ok2, err2 = pcall(NAStuff._df, pNoExt, ...)
+            if ok2 then
+                NAStuff.dotBad = true
+                return
+            end
+            error(err2 or err)
         end
 
         error(err)
@@ -2797,7 +2793,6 @@ local NAfiles = {
 	NAUISIZEPATH = "Nameless-Admin/UIScale.txt";
 	NAQOTPATH = "Nameless-Admin/QueueOnTeleport.txt";
 	NAALIASPATH = "Nameless-Admin/Aliases.json";
-	NAICONPOSPATH = "Nameless-Admin/IconPosition.json";
 	NAUSERBUTTONSPATH = "Nameless-Admin/UserButtons.json";
 	NAAUTOEXECPATH = "Nameless-Admin/AutoExecCommands.json";
 	NAPREDICTIONPATH = "Nameless-Admin/Prediction.txt";
@@ -8383,6 +8378,46 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		iconPosition = {
+			default = function()
+				return { X = 0.5; Y = 0.1 }
+			end;
+			coerce = function(value)
+				local parsed = value
+				if type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return HttpService:JSONDecode(value)
+					end)
+					if ok and typeof(decoded) == "table" then
+						parsed = decoded
+					else
+						parsed = nil
+					end
+				end
+
+				if type(parsed) == "table" then
+					local x = tonumber(parsed.X or parsed.x)
+					local y = tonumber(parsed.Y or parsed.y)
+					if x then
+						x = math.clamp(x, 0, 1)
+					end
+					if y then
+						y = math.clamp(y, 0, 1)
+					end
+					if x ~= nil and y ~= nil then
+						return { X = x; Y = y }
+					end
+				end
+
+				return { X = 0.5; Y = 0.1 }
+			end;
+		};
+		iconKeepPosition = {
+			default = false;
+			coerce = function(value)
+				return value == true
+			end;
+		};
 		uiScale = {
 			pathKey = "NAUISIZEPATH";
 			default = function()
@@ -8987,6 +9022,29 @@ NAmanage.NASettingsEnsure=function()
 		NAStuff.NASettingsData = {}
 	end
 
+	local legacyIconPath = "Nameless-Admin/IconPosition.json"
+	if FileSupport and type(isfile) == "function" and isfile(legacyIconPath) then
+		local okRaw, legacyRaw = NACaller(readfile, legacyIconPath)
+		if okRaw and type(legacyRaw) == "string" and legacyRaw ~= "" then
+			local okDecoded, legacyDecoded = NACaller(function()
+				return HttpService:JSONDecode(legacyRaw)
+			end)
+			if okDecoded and typeof(legacyDecoded) == "table" then
+				if NAStuff.NASettingsData.iconPosition == nil then
+					local lx = math.clamp(tonumber(legacyDecoded.X) or 0.5, 0, 1)
+					local ly = math.clamp(tonumber(legacyDecoded.Y) or 0.1, 0, 1)
+					NAStuff.NASettingsData.iconPosition = { X = lx; Y = ly }
+				end
+				if NAStuff.NASettingsData.iconKeepPosition == nil and legacyDecoded.Save ~= nil then
+					NAStuff.NASettingsData.iconKeepPosition = legacyDecoded.Save == true
+				end
+			end
+		end
+		if delfile then
+			NACaller(delfile, legacyIconPath)
+		end
+	end
+
 	local legacyPaths = {}
 	for key, def in pairs(schema) do
 		legacyPaths[key] = def.pathKey and NAfiles[def.pathKey] or nil
@@ -9110,66 +9168,95 @@ end
 
 NAmanage.deltaPopup()
 
--- Creates folder & files for Prefix, Plugins, and etc
-if FileSupport then
-	if not isfolder(NAfiles.NAFILEPATH) then
-		makefolder(NAfiles.NAFILEPATH)
+local function NAensureFolder(path)
+	if not (FileSupport and type(path) == "string") then
+		return false, "no file support or invalid path"
+	end
+	if type(isfolder) == "function" and isfolder(path) then
+		return true
+	end
+	if type(isfile) == "function" and isfile(path) and type(delfile) == "function" then
+		pcall(delfile, path)
 	end
 
-	if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-		makefolder(NAfiles.NAWAYPOINTFILEPATH)
-		-- imagine if it didn't make the folder
-		if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
-			NamelessMigrate:Waypoints()
+	local ok, err = NACaller(function()
+		if type(makefolder) == "function" then
+			return makefolder(path)
+		else
+			error("makefolder missing")
+		end
+	end)
+
+	if ok then
+		return true
+	end
+
+	if NAmanage.stripExt then
+		local alt = NAmanage.stripExt(path)
+		if alt ~= path then
+			local ok2 = NACaller(makefolder, alt)
+			if ok2 then
+				return true
+			end
 		end
 	end
+	return false, err
+end
 
-	if not isfolder(NAfiles.NAPLUGINFILEPATH) then
-		makefolder(NAfiles.NAPLUGINFILEPATH)
-	end
+-- Creates folder & files for Prefix, Plugins, and etc
+if FileSupport then
+	local baseOk = NAensureFolder(NAfiles.NAFILEPATH)
+	if not baseOk then
+		FileSupport = false
+	else
+		if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+			if NAensureFolder(NAfiles.NAWAYPOINTFILEPATH) then
+				-- imagine if it didn't make the folder
+				if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+					NamelessMigrate:Waypoints()
+				end
+			end
+		end
 
-	if not isfolder(NAfiles.NAIYPLUGINFILEPATH) then
-		makefolder(NAfiles.NAIYPLUGINFILEPATH)
-	end
+		if not isfolder(NAfiles.NAPLUGINFILEPATH) then
+			NAensureFolder(NAfiles.NAPLUGINFILEPATH)
+		end
 
-	if not isfolder(NAfiles.NAASSETSFILEPATH) then
-		makefolder(NAfiles.NAASSETSFILEPATH)
-	end
+		if not isfolder(NAfiles.NAIYPLUGINFILEPATH) then
+			NAensureFolder(NAfiles.NAIYPLUGINFILEPATH)
+		end
 
-	if not isfile(NAfiles.NAALIASPATH) then
-		writefile(NAfiles.NAALIASPATH, "{}")
-	end
+		if not isfolder(NAfiles.NAASSETSFILEPATH) then
+			NAensureFolder(NAfiles.NAASSETSFILEPATH)
+		end
 
-	if not isfile(NAfiles.NAICONPOSPATH) then
-		writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-			X = 0.5;
-			Y = 0.1;
-			Save = false;
-		}))
-	end
+		if not isfile(NAfiles.NAALIASPATH) then
+			writefile(NAfiles.NAALIASPATH, "{}")
+		end
 
-	if not isfile(NAfiles.NAUSERBUTTONSPATH) then
-		writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
-	end
+		if not isfile(NAfiles.NAUSERBUTTONSPATH) then
+			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+		end
 
-	if not isfile(NAfiles.NACOMMANDKEYBINDS) then
-		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
-	end
+		if not isfile(NAfiles.NACOMMANDKEYBINDS) then
+			writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
+		end
 
-	if not isfile(NAfiles.NAAUTOEXECPATH) then
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
-	end
+		if not isfile(NAfiles.NAAUTOEXECPATH) then
+			writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
+		end
 
-	if not isfile(NAfiles.NAJOINLEAVE) then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
-	end
+		if not isfile(NAfiles.NAJOINLEAVE) then
+			writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
+		end
 
-	if not isfile(NAfiles.NABINDERS) then
-		writefile(NAfiles.NABINDERS, "{}")
-	end
+		if not isfile(NAfiles.NABINDERS) then
+			writefile(NAfiles.NABINDERS, "{}")
+		end
 
-	if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
-		writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
+		if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
+			writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
+		end
 	end
 
 	NAmanage.NASettingsEnsure()
@@ -10034,40 +10121,23 @@ if FileSupport then
 	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
 	NAmanage.logApply()
 
-	if isfile(NAfiles.NAICONPOSPATH) then
-		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
-		end)
-		if success and type(data) == "table" then
-			local rewrite = false
-			if type(data.X) == "number" then
-				local clampedX = math.clamp(data.X, 0, 1)
-				if clampedX ~= data.X then
-					data.X = clampedX
-					rewrite = true
-				end
-			end
-			if type(data.Y) == "number" then
-				local clampedY = math.clamp(data.Y, 0, 1)
-				if clampedY ~= data.Y then
-					data.Y = clampedY
-					rewrite = true
-				end
-			end
-			if rewrite then
-				pcall(writefile, NAfiles.NAICONPOSPATH, HttpService:JSONEncode(data))
-			end
-			if data.Save ~= nil then
-				NAiconSaveEnabled = data.Save
-			else
-				NAiconSaveEnabled = false
-			end
-		else
-			NAiconSaveEnabled = false
-		end
-	else
-		NAiconSaveEnabled = false
+	local iconPosData = NAmanage.NASettingsGet and NAmanage.NASettingsGet("iconPosition") or nil
+	if type(iconPosData) ~= "table" then
+		iconPosData = { X = 0.5; Y = 0.1 }
+		pcall(NAmanage.NASettingsSet, "iconPosition", iconPosData)
 	end
+
+	local clampedX = math.clamp(tonumber(iconPosData.X) or 0.5, 0, 1)
+	local clampedY = math.clamp(tonumber(iconPosData.Y) or 0.1, 0, 1)
+	if clampedX ~= iconPosData.X or clampedY ~= iconPosData.Y then
+		pcall(NAmanage.NASettingsSet, "iconPosition", {
+			X = clampedX;
+			Y = clampedY;
+		})
+	end
+
+	local keepIcon = NAmanage.NASettingsGet and NAmanage.NASettingsGet("iconKeepPosition")
+	NAiconSaveEnabled = keepIcon == true
 
 	local path = NAmanage.GetWPPath()
 	local ok, data = false, nil
@@ -54086,11 +54156,11 @@ function Swoosh()
 				if input.UserInputState == Enum.UserInputState.End then
 					if FileSupport and NAiconSaveEnabled then
 						local pos = NAgui.getClampedIconPosition() or TextButton.Position
-						writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-							X = pos.X.Scale,
-							Y = pos.Y.Scale,
-							Save = NAiconSaveEnabled
-						}))
+						pcall(NAmanage.NASettingsSet, "iconPosition", {
+							X = pos.X.Scale;
+							Y = pos.Y.Scale;
+						})
+						pcall(NAmanage.NASettingsSet, "iconKeepPosition", true)
 					end
 				end
 			end)
@@ -54152,23 +54222,22 @@ function mainNameless()
 
 	local targetPos = UDim2.new(0.5, 0, 0.1, 0)
 
-	if FileSupport and isfile(NAfiles.NAICONPOSPATH) then
-		local ok, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAICONPOSPATH))
-		end)
-
-		if ok and type(data) == "table" and data.X and data.Y then
-			targetPos = UDim2.new(data.X, 0, data.Y, 0)
+	if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+		local data = NAmanage.NASettingsGet("iconPosition")
+		if type(data) == "table" then
+			local x = math.clamp(tonumber(data.X) or 0.5, 0, 1)
+			local y = math.clamp(tonumber(data.Y) or 0.1, 0, 1)
+			targetPos = UDim2.new(x, 0, y, 0)
 		end
 	end
 
 	targetPos = NAgui.clampIconPositionUDim(targetPos)
 	if FileSupport and NAiconSaveEnabled then
-		pcall(writefile, NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-			X = targetPos.X.Scale,
-			Y = targetPos.Y.Scale,
-			Save = true
-		}))
+		pcall(NAmanage.NASettingsSet, "iconPosition", {
+			X = targetPos.X.Scale;
+			Y = targetPos.Y.Scale;
+		})
+		pcall(NAmanage.NASettingsSet, "iconKeepPosition", true)
 	end
 	local introPos = NAgui.clampIconPositionUDim(UDim2.new(targetPos.X.Scale, 0, targetPos.Y.Scale - 0.15, -20)) or targetPos
 	TextButton.Position = introPos
@@ -55731,12 +55800,12 @@ NAgui.addToggle("Keep Icon Position", NAiconSaveEnabled, function(v)
 	else
 		pos = NAgui.clampIconPositionUDim(UDim2.new(0.5, 0, 0.1, 0))
 	end
-	writefile(NAfiles.NAICONPOSPATH, HttpService:JSONEncode({
-		X = pos.X.Scale,
-		Y = pos.Y.Scale,
-		Save = v
-	}))
-	NAiconSaveEnabled = v
+	pcall(NAmanage.NASettingsSet, "iconPosition", {
+		X = pos.X.Scale;
+		Y = pos.Y.Scale;
+	})
+	pcall(NAmanage.NASettingsSet, "iconKeepPosition", v == true)
+	NAiconSaveEnabled = v == true
 	DoNotif("Icon position "..(v and "will be saved" or "won't be saved").." on exit", 2)
 end)
 NAmanage.RegisterToggleAutoSync("Keep Icon Position", function()
