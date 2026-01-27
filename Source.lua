@@ -2810,17 +2810,6 @@ local NAfiles = {
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
-	NAOFFSETSETTINGSPATH = "Nameless-Admin/Offset.json";
-}
-
-NAStuff.OffsetConfigDefaults = NAStuff.OffsetConfigDefaults or {
-	visualizerEnabled = true;
-	modelTransparency = 0.7;
-	highlightFillTransparency = 0.9;
-	highlightOutlineTransparency = 1;
-	highlightFillColor = {255, 255, 255};
-	highlightOutlineColor = {255, 255, 255};
-	offsetVector = {0, -15, 0};
 }
 NAmanage.newCornerStore=function()
 	return {}
@@ -9267,10 +9256,6 @@ if FileSupport then
 
 		if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
 			writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
-		end
-
-		if not isfile(NAfiles.NAOFFSETSETTINGSPATH) then
-			writefile(NAfiles.NAOFFSETSETTINGSPATH, HttpService:JSONEncode(NAStuff.OffsetConfigDefaults))
 		end
 	end
 
@@ -19153,7 +19138,7 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 		local character=player.Character or player.CharacterAdded:wait(1)
 		local camera=workspace.CurrentCamera
 		local cameraPosition=camera.CFrame.Position
-		NAmanage.TeleportCharacter(CFrame.new(cameraPosition))
+		character:SetPrimaryPartCFrame(CFrame.new(cameraPosition))
 	end
 	local camera=workspace.CurrentCamera
 	repeat Wait() until camera.CFrame~=CFrame.new()
@@ -19397,523 +19382,34 @@ end)
 NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
 NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME or "NAundergroundBind"
 NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
-NAStuff.NAdesyncState = NAStuff.NAdesyncState or {}
-NAStuff.NA_DESYNC_BIND_NAME = NAStuff.NA_DESYNC_BIND_NAME or "NAdesyncBind"
-NAStuff._teleportBypassCount = NAStuff._teleportBypassCount or 0
 
 if RunService and RunService.UnbindFromRenderStep then
 	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
-	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_DESYNC_BIND_NAME)
 end
-
 do
-	if NAStuff.NAundergroundState.heartbeatConnection then
-		pcall(function() NAStuff.NAundergroundState.heartbeatConnection:Disconnect() end)
-	end
-	if NAStuff.NAundergroundState.highlight and NAStuff.NAundergroundState.highlight.Parent then
-		pcall(function() NAStuff.NAundergroundState.highlight:Destroy() end)
-	end
-	if NAStuff.NAundergroundState.vModel and NAStuff.NAundergroundState.vModel.Parent then
-		pcall(function() NAStuff.NAundergroundState.vModel:Destroy() end)
-	end
-	NAStuff.NAundergroundState.Underground = false
-	NAStuff.NAundergroundState.UndergroundBind = false
-	NAStuff.NAundergroundState.UndergroundCurrent = nil
-	NAStuff.NAundergroundState.heartbeatConnection = nil
-	NAStuff.NAundergroundState.highlight = nil
-	NAStuff.NAundergroundState.vModel = nil
-end
-
-do
-	if NAStuff.NAdesyncState and NAStuff.NAdesyncState.hb then
-		pcall(function() NAStuff.NAdesyncState.hb:Disconnect() end)
-	end
-	if NAStuff.NAdesyncState and NAStuff.NAdesyncState.highlight and NAStuff.NAdesyncState.highlight.Parent then
-		pcall(function() NAStuff.NAdesyncState.highlight:Destroy() end)
-	end
-	if NAStuff.NAdesyncState and NAStuff.NAdesyncState.vModel and NAStuff.NAdesyncState.vModel.Parent then
-		pcall(function() NAStuff.NAdesyncState.vModel:Destroy() end)
-	end
-	NAStuff.NAdesyncState.Enabled = false
-	NAStuff.NAdesyncState.FrozenCFrame = nil
-	NAStuff.NAdesyncState.VisualCurrent = nil
-	NAStuff.NAdesyncState.hb = nil
-	NAStuff.NAdesyncState.highlight = nil
-	NAStuff.NAdesyncState.vModel = nil
-end
-NAStuff.OFFSET_COMPONENT_LIMIT = NAStuff.OFFSET_COMPONENT_LIMIT or 1000
-
-NAmanage.TeleportBypass = function(enable)
-	local count = NAStuff._teleportBypassCount or 0
-	if enable == nil or enable == true then
-		count += 1
-	else
-		count -= 1
-	end
-	if count < 0 then
-		count = 0
-	end
-	NAStuff._teleportBypassCount = count
-	local active = count > 0
-	if NAStuff.NAundergroundState then
-		NAStuff.NAundergroundState.TeleportBypass = active
-	end
-	if NAStuff.NAdesyncState then
-		NAStuff.NAdesyncState.TeleportBypass = active
-	end
-	return active
-end
-
-NAmanage.WithTeleportBypass = function(callback)
-	NAmanage.TeleportBypass(true)
-	local ok, res = pcall(callback)
-	NAmanage.TeleportBypass(false)
-	if not ok then
-		error(res)
-	end
-	return res
-end
-
-NAmanage.TeleportCharacter = function(cf, opts)
-	opts = opts or {}
-	if typeof(cf) ~= "CFrame" then
-		return false
-	end
-	local char = getChar()
-	if not char then
-		return false
-	end
-	local hum = getHum()
-	if hum then
-		hum.Sit = false
-	end
-
-	local doCleanup = opts.persistent ~= true
-	if doCleanup then
-		NAmanage.TeleportBypass(true)
-	end
-
-	pcall(function()
-		char:PivotTo(cf)
-	end)
-
-	local offsetState = NAStuff.NAundergroundState
-	if offsetState and offsetState.Underground then
-		offsetState.UndergroundCurrent = cf
-		local offset = offsetState.UndergroundOffset or NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new()
-		if offsetState.vModel and offsetState.vModel.PrimaryPart then
-			offsetState.vModel:SetPrimaryPartCFrame(cf + offset)
-		end
-	end
-
-	local ds = NAStuff.NAdesyncState
-	if ds and ds.Enabled then
-		-- When desync is active, keep the frozen anchor untouched so others still see you at the frozen spot.
-		-- VisualCurrent will refresh automatically via the desync heartbeat.
-	else
-		-- Only adjust desync visuals if desync isn't active.
-		if ds and ds.vModel and ds.vModel.PrimaryPart then
-			ds.vModel:SetPrimaryPartCFrame(cf)
-		end
-	end
-
-	if doCleanup then
-		NAmanage.TeleportBypass(false)
-	end
-	return true
-end
-
-NAmanage.OffsetClamp01=function(value, fallback)
-	local num = tonumber(value)
-	if num == nil then
-		return fallback
-	end
-	if num < 0 then
-		return 0
-	elseif num > 1 then
-		return 1
-	end
-	return num
-end
-
-NAmanage.OffsetDefaultColor=function()
-	local def = NAStuff.OffsetConfigDefaults.highlightFillColor
-	local r = 255
-	local g = 255
-	local b = 255
-	if type(def) == "table" then
-		r = tonumber(def.R or def[1]) or r
-		g = tonumber(def.G or def[2]) or g
-		b = tonumber(def.B or def[3]) or b
-	end
-	return Color3.fromRGB(r, g, b)
-end
-
-NAmanage.OffsetSanitizeColor=function(value, fallback)
-	return NAmanage.UserButtonColorFromTable(value, fallback or NAmanage.OffsetDefaultColor())
-end
-
-NAmanage.OffsetClampComponent=function(value, fallback)
-	local num = tonumber(value)
-	if num == nil then
-		return fallback or 0
-	end
-	return math.clamp(num, -NAStuff.OFFSET_COMPONENT_LIMIT, NAStuff.OFFSET_COMPONENT_LIMIT)
-end
-
-NAmanage.OffsetSanitizeVector=function(value, fallback)
-	local fb = fallback or Vector3.new(0, -15, 0)
-	if typeof(value) == "Vector3" then
-		return Vector3.new(
-			NAmanage.OffsetClampComponent(value.X, fb.X),
-			NAmanage.OffsetClampComponent(value.Y, fb.Y),
-			NAmanage.OffsetClampComponent(value.Z, fb.Z)
-		)
-	end
-	if type(value) == "table" then
-		local x = NAmanage.OffsetClampComponent(value.X or value[1], fb.X)
-		local y = NAmanage.OffsetClampComponent(value.Y or value[2], fb.Y)
-		local z = NAmanage.OffsetClampComponent(value.Z or value[3], fb.Z)
-		return Vector3.new(x, y, z)
-	end
-	return fb
-end
-
-NAmanage.OffsetVectorToTable=function(vec)
-	if typeof(vec) ~= "Vector3" then
-		return { 0, -15, 0 }
-	end
-	return {
-		X = vec.X;
-		Y = vec.Y;
-		Z = vec.Z;
-	}
-end
-
-NAmanage.BuildVisualizer=function(state, rootPart, cfg, name)
-	if not cfg or cfg.visualizerEnabled == false then
-		return nil
-	end
-
-	local character = getChar()
-	if not (character and rootPart) then
-		return nil
-	end
-
-	local vm = state.vModel
-	if not (vm and vm.Parent) then
-		local oldArch = character.Archivable
-		local clone
-		local ok = pcall(function()
-			character.Archivable = true
-			clone = character:Clone()
-			character.Archivable = oldArch
-		end)
-		if not (ok and clone) then
-			character.Archivable = oldArch
-			if type(DoNotif) == "function" then
-				DoNotif("Failed to create visualizer", 2)
-			end
-			return nil
-		end
-
-		clone.Name = name or "NAVisualizerClone"
-		clone.Parent = workspace
-
-		for _, d in ipairs(clone:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Anchored = true
-				d.CanCollide = false
-				pcall(function() d.CanTouch = false end)
-				pcall(function() d.CanQuery = false end)
-				d.Material = Enum.Material.Glass
-				d.Transparency = 1
-			elseif d:IsA("Humanoid") or d:IsA("Animator") then
-				d:Destroy()
-			elseif d:IsA("Script") or d:IsA("LocalScript") then
-				d.Disabled = true
-			end
-		end
-
-		local pp = clone:FindFirstChild(rootPart.Name, true)
-		if pp and pp:IsA("BasePart") then
-			clone.PrimaryPart = pp
-		else
-			for _, d in ipairs(clone:GetDescendants()) do
-				if d:IsA("BasePart") then
-					clone.PrimaryPart = d
-					break
-				end
-			end
-		end
-
-		state.vModel = clone
-		vm = clone
-	else
-		for _, d in ipairs(vm:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Anchored = true
-				d.CanCollide = false
-				pcall(function() d.CanTouch = false end)
-				pcall(function() d.CanQuery = false end)
-				d.Material = Enum.Material.Glass
-				d.Transparency = 1
-			end
-		end
-	end
-
-	if not vm then
-		return nil
-	end
-
-	local h = state.highlight
-	if not (h and h.Parent) then
-		h = Instance.new("Highlight")
-		h.Name = (name or "NAVisualizerClone").."_Highlight"
-		h.Adornee = vm
-		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		h.Parent = vm
-		state.highlight = h
-	else
-		h.Adornee = vm
-	end
-
-	h.FillColor = cfg.highlightFillColor or Color3.fromRGB(255,255,255)
-	h.FillTransparency = cfg.highlightFillTransparency or 0.9
-	h.OutlineColor = cfg.highlightOutlineColor or h.FillColor
-	h.OutlineTransparency = cfg.highlightOutlineTransparency or 1
-
-	return vm
-end
-
-NAmanage.LoadOffsetConfig = function(forceReload)
-	if NAStuff.OffsetConfig and not forceReload then
-		return NAStuff.OffsetConfig
-	end
-
-	local cfg = {
-		visualizerEnabled = NAStuff.OffsetConfigDefaults.visualizerEnabled ~= false;
-		modelTransparency = NAmanage.OffsetClamp01(NAStuff.OffsetConfigDefaults.modelTransparency, 0.7);
-		highlightFillTransparency = NAmanage.OffsetClamp01(NAStuff.OffsetConfigDefaults.highlightFillTransparency, 0.9);
-		highlightOutlineTransparency = NAmanage.OffsetClamp01(NAStuff.OffsetConfigDefaults.highlightOutlineTransparency, 1);
-		highlightFillColor = NAmanage.OffsetDefaultColor();
-		highlightOutlineColor = NAmanage.OffsetDefaultColor();
-		offsetVector = NAmanage.OffsetSanitizeVector(NAStuff.OffsetConfigDefaults.offsetVector, NAStuff.NA_UNDERGROUND_OFFSET);
-	}
-
-	if FileSupport and type(isfile) == "function" and isfile(NAfiles.NAOFFSETSETTINGSPATH) then
-		local ok, raw = pcall(readfile, NAfiles.NAOFFSETSETTINGSPATH)
-		if ok and type(raw) == "string" and raw ~= "" then
-			local okDec, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-			if okDec and type(decoded) == "table" then
-				cfg.visualizerEnabled = decoded.visualizerEnabled ~= false
-				cfg.modelTransparency = NAmanage.OffsetClamp01(decoded.modelTransparency or decoded.visualizerTransparency, cfg.modelTransparency)
-				cfg.highlightFillTransparency = NAmanage.OffsetClamp01(decoded.highlightFillTransparency, cfg.highlightFillTransparency)
-				cfg.highlightOutlineTransparency = NAmanage.OffsetClamp01(decoded.highlightOutlineTransparency, cfg.highlightOutlineTransparency)
-				cfg.highlightFillColor = NAmanage.OffsetSanitizeColor(decoded.highlightFillColor, cfg.highlightFillColor)
-				cfg.highlightOutlineColor = NAmanage.OffsetSanitizeColor(decoded.highlightOutlineColor, cfg.highlightOutlineColor)
-				cfg.offsetVector = NAmanage.OffsetSanitizeVector(decoded.offsetVector or decoded.defaultOffset or decoded.UndergroundOffset, cfg.offsetVector)
-			end
-		end
-	end
-
-	NAStuff.OffsetConfig = cfg
-	NAStuff.NA_UNDERGROUND_OFFSET = cfg.offsetVector or NAStuff.NA_UNDERGROUND_OFFSET
-	return cfg
-end
-
-NAmanage.SaveOffsetConfig = function(updates)
-	local cfg = NAmanage.LoadOffsetConfig()
-	if type(updates) == "table" then
-		if updates.visualizerEnabled ~= nil then
-			cfg.visualizerEnabled = updates.visualizerEnabled == true
-		end
-		if updates.modelTransparency ~= nil then
-			cfg.modelTransparency = NAmanage.OffsetClamp01(updates.modelTransparency, cfg.modelTransparency)
-		end
-		if updates.highlightFillTransparency ~= nil then
-			cfg.highlightFillTransparency = NAmanage.OffsetClamp01(updates.highlightFillTransparency, cfg.highlightFillTransparency)
-		end
-		if updates.highlightOutlineTransparency ~= nil then
-			cfg.highlightOutlineTransparency = NAmanage.OffsetClamp01(updates.highlightOutlineTransparency, cfg.highlightOutlineTransparency)
-		end
-		if updates.highlightFillColor ~= nil then
-			cfg.highlightFillColor = NAmanage.OffsetSanitizeColor(updates.highlightFillColor, cfg.highlightFillColor)
-		end
-		if updates.highlightOutlineColor ~= nil then
-			cfg.highlightOutlineColor = NAmanage.OffsetSanitizeColor(updates.highlightOutlineColor, cfg.highlightOutlineColor)
-		end
-		if updates.offsetVector ~= nil then
-			cfg.offsetVector = NAmanage.OffsetSanitizeVector(updates.offsetVector, cfg.offsetVector)
-		end
-	end
-
-	NAStuff.OffsetConfig = cfg
-
-	if FileSupport and type(writefile) == "function" then
-		local payload = {
-			visualizerEnabled = cfg.visualizerEnabled == true;
-			modelTransparency = NAmanage.OffsetClamp01(cfg.modelTransparency, NAStuff.OffsetConfigDefaults.modelTransparency);
-			highlightFillTransparency = NAmanage.OffsetClamp01(cfg.highlightFillTransparency, NAStuff.OffsetConfigDefaults.highlightFillTransparency);
-			highlightOutlineTransparency = NAmanage.OffsetClamp01(cfg.highlightOutlineTransparency, NAStuff.OffsetConfigDefaults.highlightOutlineTransparency);
-			highlightFillColor = NAmanage.UserButtonColorToTable(cfg.highlightFillColor or NAmanage.OffsetDefaultColor());
-			highlightOutlineColor = NAmanage.UserButtonColorToTable(cfg.highlightOutlineColor or NAmanage.OffsetDefaultColor());
-			offsetVector = NAmanage.OffsetVectorToTable(cfg.offsetVector or Vector3.new(0, -15, 0));
-		}
-		pcall(writefile, NAfiles.NAOFFSETSETTINGSPATH, HttpService:JSONEncode(payload))
-	end
-
-	return cfg
-end
-
-NAmanage.ClearOffsetVisualizer = function()
 	local st = NAStuff.NAundergroundState
-	if not st then
-		return
+	if st.heartbeatConnection then
+		pcall(function() st.heartbeatConnection:Disconnect() end)
 	end
 	if st.highlight and st.highlight.Parent then
-		st.highlight:Destroy()
+		pcall(function() st.highlight:Destroy() end)
 	end
+	st.Underground = false
+	st.UndergroundBind = false
+	st.UndergroundCurrent = nil
+	st.heartbeatConnection = nil
 	st.highlight = nil
-	if st.vModel and st.vModel.Parent then
-		st.vModel:Destroy()
-	end
-	st.vModel = nil
-end
-
-NAmanage.ClearDesyncVisualizer = function()
-	local st = NAStuff.NAdesyncState
-	if not st then
-		return
-	end
-	if st.highlight and st.highlight.Parent then
-		st.highlight:Destroy()
-	end
-	st.highlight = nil
-	if st.vModel and st.vModel.Parent then
-		st.vModel:Destroy()
-	end
-	st.vModel = nil
-end
-
-NAmanage.ApplyDesyncVisualizerConfig = function()
-	local cfg = NAmanage.LoadOffsetConfig()
-	local st = NAStuff.NAdesyncState
-	if not st then
-		return cfg
-	end
-
-	if cfg.visualizerEnabled ~= true or not st.Enabled then
-		NAmanage.ClearDesyncVisualizer()
-		return cfg
-	end
-
-	local chr = getChar()
-	local root = chr and getRoot(chr)
-	local vm = st.vModel
-	if not (vm and vm.Parent) then
-		vm = NAmanage.BuildVisualizer(st, root, cfg, "NADesyncClone")
-	else
-		for _, d in ipairs(vm:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Transparency = 1
-				d.Material = Enum.Material.Glass
-			end
-		end
-	end
-
-	if vm and vm.PrimaryPart then
-		local target = st.FrozenCFrame or st.VisualCurrent or (root and root.CFrame) or CFrame.new()
-		vm:SetPrimaryPartCFrame(target)
-	end
-
-	local h = st.highlight
-	if h and h.Parent then
-		h.Adornee = vm
-		h.FillColor = cfg.highlightFillColor or NAmanage.OffsetDefaultColor()
-		h.FillTransparency = cfg.highlightFillTransparency or 0.9
-		h.OutlineColor = cfg.highlightOutlineColor or h.FillColor
-		h.OutlineTransparency = cfg.highlightOutlineTransparency or 1
-	end
-
-	return cfg
-end
-
-NAmanage.ApplyOffsetVisualizerConfig = function()
-	local cfg = NAmanage.LoadOffsetConfig()
-	local st = NAStuff.NAundergroundState
-	if not st then
-		return cfg
-	end
-
-	if cfg.visualizerEnabled ~= true or not st.Underground then
-		NAmanage.ClearOffsetVisualizer()
-		return cfg
-	end
-
-	local chr = getChar()
-	local root = chr and getRoot(chr)
-	local vm = st.vModel
-	if not (vm and vm.Parent) then
-		vm = NAmanage.BuildVisualizer(st, root, cfg, "NAOffsetClone")
-	else
-		for _, d in ipairs(vm:GetDescendants()) do
-			if d:IsA("BasePart") then
-				d.Transparency = 1
-				d.Material = Enum.Material.Glass
-			end
-		end
-	end
-
-	if vm and vm.PrimaryPart and st.UndergroundCurrent then
-		vm:SetPrimaryPartCFrame(st.UndergroundCurrent + (cfg.offsetVector or Vector3.new()))
-	elseif vm and vm.PrimaryPart and root then
-		vm:SetPrimaryPartCFrame(root.CFrame + (cfg.offsetVector or Vector3.new()))
-	end
-
-	local h = st.highlight
-	if h and h.Parent then
-		h.Adornee = vm
-		h.FillColor = cfg.highlightFillColor
-		h.FillTransparency = cfg.highlightFillTransparency
-		h.OutlineColor = cfg.highlightOutlineColor
-		h.OutlineTransparency = cfg.highlightOutlineTransparency
-	end
-
-	return cfg
-end
-
-NAmanage.UpdateOffsetVector = function(vec)
-	local cfg = NAmanage.SaveOffsetConfig({ offsetVector = vec })
-	NAStuff.NA_UNDERGROUND_OFFSET = cfg.offsetVector
-	local st = NAStuff.NAundergroundState
-	if st then
-		st.UndergroundOffset = cfg.offsetVector
-	end
-	return cfg
 end
 
 cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
 	local state = NAStuff.NAundergroundState
 
-	local function UG_Get(k)
-		return state[k]
+	local function UG_Get(key)
+		return state[key]
 	end
-
-	local function UG_Set(k, v)
-		state[k] = v
-		return v
-	end
-
-	local function UG_EnsureVisualizer(chr, rootPart)
-		local cfg = NAmanage.LoadOffsetConfig()
-		if not (cfg and cfg.visualizerEnabled) then
-			NAmanage.ClearOffsetVisualizer()
-			return nil
-		end
-		local vm = NAmanage.BuildVisualizer(state, rootPart, cfg, "NAOffsetClone")
-		NAmanage.ApplyOffsetVisualizerConfig()
-		return vm
+	local function UG_Set(key, val)
+		state[key] = val
+		return val
 	end
 
 	local function fetchCharPieces()
@@ -19942,8 +19438,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		return
 	end
 
-	local cfg = NAmanage.LoadOffsetConfig()
-	local defaultOffset = cfg.offsetVector or NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+	local defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
 	local function parseOffsetVector(...)
 		local raw = Concat({...}, " ")
 		local nums = {}
@@ -19962,10 +19457,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		end
 		return nil
 	end
-
 	local offsetVec = parseOffsetVector(...) or defaultOffset
-	NAStuff.NA_UNDERGROUND_OFFSET = offsetVec
-	NAStuff.NAundergroundState.UndergroundOffset = offsetVec
 
 	local Underground = UG_Get("Underground")
 	UG_Set("Underground", not Underground)
@@ -19974,11 +19466,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		UG_Set("UndergroundCurrent", rootPart.CFrame)
 		UG_Set("UndergroundOffset", offsetVec)
 
-		local vm = UG_EnsureVisualizer(character, rootPart)
-		if vm and vm.PrimaryPart then
-			vm:SetPrimaryPartCFrame(rootPart.CFrame + offsetVec)
-		end
-
 		local prevHB = UG_Get("heartbeatConnection")
 		if prevHB then
 			pcall(function() prevHB:Disconnect() end)
@@ -19986,9 +19473,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 
 		UG_Set("heartbeatConnection", RunService.Heartbeat:Connect(function()
 			if not UG_Get("Underground") then
-				return
-			end
-			if UG_Get("TeleportBypass") then
 				return
 			end
 
@@ -20002,13 +19486,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 				hum.Sit = false
 			end
 
-			local offset = UG_Get("UndergroundOffset") or defaultOffset
-			currentRoot.CFrame = currentRoot.CFrame + offset
-
-			local vm2 = UG_Get("vModel")
-			if vm2 and vm2.PrimaryPart then
-				vm2:SetPrimaryPartCFrame(currentRoot.CFrame)
-			end
+			currentRoot.CFrame = currentRoot.CFrame + (UG_Get("UndergroundOffset") or defaultOffset)
 		end))
 
 		if RunService and RunService.UnbindFromRenderStep then
@@ -20016,9 +19494,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		end
 		UG_Set("UndergroundBind", true)
 		RunService:BindToRenderStep(NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
-			if UG_Get("TeleportBypass") then
-				return
-			end
 			local current = UG_Get("UndergroundCurrent")
 			if UG_Get("Underground") and current then
 				local _, r = fetchCharPieces()
@@ -20044,18 +19519,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 
 	UG_Set("UndergroundCurrent", nil)
 
-	local vm = UG_Get("vModel")
-	if vm and vm.Parent then
-		vm:Destroy()
-	end
-	UG_Set("vModel", nil)
-
-	local hl = UG_Get("highlight")
-	if hl and hl.Parent then
-		hl:Destroy()
-	end
-	UG_Set("highlight", nil)
-
 	local hb = UG_Get("heartbeatConnection")
 	if hb then
 		hb:Disconnect()
@@ -20073,148 +19536,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		DoNotif("Offset disabled, you're back to normal", 2)
 	end
 	return
-end)
-
-cmd.add({"desync"},{"desync","Freezes your server position at your current spot (toggle)"},function()
-	local st = NAStuff.NAdesyncState
-
-	local function DG(k)
-		return st[k]
-	end
-
-	local function DS(k,v)
-		st[k] = v
-		return v
-	end
-
-	local function fetchCharPieces()
-		local chr = getChar()
-		if not chr then
-			return nil,nil,nil
-		end
-		local hum = getHum()
-		local root = getRoot(chr)
-		if not root then
-			for _, part in ipairs(chr:GetChildren()) do
-				if part:IsA("BasePart") then
-					root = part
-					break
-				end
-			end
-		end
-		return chr,root,hum
-	end
-
-	local _, root, hum = fetchCharPieces()
-	if not (root and hum) then
-		if type(DoNotif) == "function" then
-			DoNotif("Character is not ready yet",2)
-		end
-		return
-	end
-
-	local enabled = DG("Enabled")
-	DS("Enabled", not enabled)
-
-	if not enabled then
-		local cfg = NAmanage.LoadOffsetConfig()
-		local frozen = root.CFrame
-		DS("FrozenCFrame", frozen)
-		DS("VisualCurrent", frozen)
-
-		NAmanage.ClearDesyncVisualizer()
-		if cfg.visualizerEnabled ~= false then
-			local vm = NAmanage.BuildVisualizer(st, root, cfg, "NADesyncClone")
-			if vm and vm.PrimaryPart then
-				vm:SetPrimaryPartCFrame(frozen)
-			end
-			NAmanage.ApplyDesyncVisualizerConfig()
-		end
-
-		local prev = DG("hb")
-		if prev then
-			pcall(function() prev:Disconnect() end)
-		end
-
-		DS("hb", RunService.Heartbeat:Connect(function()
-			if not DG("Enabled") then
-				return
-			end
-			if DG("TeleportBypass") then
-				return
-			end
-			local _, r, h = fetchCharPieces()
-			if not r then
-				return
-			end
-			local fc = DG("FrozenCFrame")
-			if not fc then
-				DS("FrozenCFrame", r.CFrame)
-				fc = r.CFrame
-			end
-			DS("VisualCurrent", r.CFrame)
-			if h then
-				h.Sit = false
-			end
-			r.CFrame = fc
-
-			if st.vModel and st.vModel.PrimaryPart then
-				st.vModel:SetPrimaryPartCFrame(fc)
-			end
-		end))
-
-		if RunService and RunService.UnbindFromRenderStep then
-			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_DESYNC_BIND_NAME)
-		end
-
-		RunService:BindToRenderStep(NAStuff.NA_DESYNC_BIND_NAME, Enum.RenderPriority.First.Value, function()
-			if not DG("Enabled") then
-				return
-			end
-			if DG("TeleportBypass") then
-				return
-			end
-			local vc = DG("VisualCurrent")
-			if not vc then
-				return
-			end
-			local _, r = fetchCharPieces()
-			if r then
-				r.CFrame = vc
-			end
-		end)
-
-		if type(DoNotif) == "function" then
-			DoNotif("Desync enabled (others see you frozen here)",2)
-		end
-		return
-	end
-
-	local hb = DG("hb")
-	if hb then
-		hb:Disconnect()
-		DS("hb", nil)
-	end
-
-	if RunService and RunService.UnbindFromRenderStep then
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_DESYNC_BIND_NAME)
-	end
-
-		NAmanage.ClearDesyncVisualizer()
-
-	local vc = DG("VisualCurrent")
-	local _, r = fetchCharPieces()
-	if r and vc then
-		r.CFrame = vc
-	end
-
-	DS("FrozenCFrame", nil)
-	DS("VisualCurrent", nil)
-	DS("Enabled", false)
-
-	if type(DoNotif) == "function" then
-		DoNotif("Desync disabled, back to normal",2)
-	end
 end)
 
 clickscareUI = nil
@@ -21049,7 +20370,7 @@ cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name>", "Teleport to a saved w
 		DoNotif("Unable to get your character.")
 		return
 	end
-	NAmanage.TeleportCharacter(cf)
+	char:PivotTo(cf)
 	DebugNotif(("Teleported to waypoint '%s'."):format(name))
 end,true)
 
@@ -22538,14 +21859,10 @@ cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation met
 	for _,plr in ipairs(getPlr(name)) do
 		local cfVal = InstanceNew("CFrameValue")
 		cfVal.Value = char:GetPivot()
-		NAmanage.TeleportBypass(true)
-		cfVal.Changed:Connect(function(newCF) NAmanage.TeleportCharacter(newCF, { persistent = true }) end)
+		cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
 		local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
 		tw:Play()
-		tw.Completed:Connect(function()
-			cfVal:Destroy()
-			NAmanage.TeleportBypass(false)
-		end)
+		tw.Completed:Connect(function() cfVal:Destroy() end)
 	end
 end,true)
 
@@ -27042,7 +26359,7 @@ end)
 -- ts got patched gg
 NAStuff.desyncOn = NAStuff.desyncOn or false
 
-cmd.addPatched({"olddesync"},{"olddesync","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
+cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
 	if type(setfflag) ~= "function" then
 		DoNotif("Your executor does not support setfflag. Cannot toggle desync", 3)
 		return
@@ -32503,15 +31820,12 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the gi
 	local char    = getChar()
 	if #targets > 0 then
 		for _,plr in ipairs(targets) do
-			local pivot = plr.Character and plr.Character:GetPivot()
-			if pivot then
-				NAmanage.TeleportCharacter(pivot)
-			end
+			char:PivotTo(plr.Character:GetPivot())
 		end
 	else
 		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
 		if x and y and z then
-			NAmanage.TeleportCharacter(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+			char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
 		else
 			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
 		end
@@ -39953,19 +39267,10 @@ cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tween
 		local character = player.Character or player.CharacterAdded:wait(1);
 		local camera = workspace.CurrentCamera;
 		local cameraPosition = camera.CFrame.Position;
-		if not character then return end
-		local cfVal = InstanceNew("CFrameValue")
-		cfVal.Value = character:GetPivot()
-		NAmanage.TeleportBypass(true)
-		cfVal.Changed:Connect(function(newCF) NAmanage.TeleportCharacter(newCF, { persistent = true }) end)
-		local tween = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
-			Value = CFrame.new(cameraPosition)
+		local tween = TweenService:Create(character.PrimaryPart, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
+			CFrame = CFrame.new(cameraPosition)
 		});
 		tween:Play();
-		tween.Completed:Connect(function()
-			cfVal:Destroy()
-			NAmanage.TeleportBypass(false)
-		end)
 	end;
 	local camera = workspace.CurrentCamera;
 	repeat
@@ -40730,7 +40035,9 @@ do
 		if hum then
 			hum.Sit = false;
 		end;
-		NAmanage.TeleportCharacter(targetCFrame + Vector3.new(0, 4, 0));
+		pcall(function()
+			char:PivotTo(targetCFrame + Vector3.new(0, 4, 0));
+		end);
 		return true;
 	end;
 	function gotoNext.collectFolderParts(folder)
@@ -41172,7 +40479,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then NAmanage.TeleportCharacter(part:GetPivot()) end
+				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(.2)
 			end
 		end
@@ -41185,28 +40492,24 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	if NAStuff.activeTeleports[key] then NAStuff.activeTeleports[key].active = false end
 	local state    = {active = true}
 	NAStuff.activeTeleports[key] = state
-		SpawnCall(function()
-			local char = getChar()
-			for _,obj in ipairs(workspace:GetDescendants()) do
-				if not state.active then return end
-				if obj:IsA("BasePart") and obj.Name:lower() == partName then
-					local hum = getHum()
-					if hum then hum.Sit = false end
-					local cfVal = InstanceNew("CFrameValue")
-					cfVal.Value = char:GetPivot()
-					NAmanage.TeleportBypass(true)
-					cfVal.Changed:Connect(function(newCF) NAmanage.TeleportCharacter(newCF, { persistent = true }) end)
-					local duration = NAmanage.resolveTweenDuration()
-					local tw = TweenService:Create(cfVal, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value = obj.CFrame})
-					tw:Play()
-					tw.Completed:Connect(function()
-						cfVal:Destroy()
-						NAmanage.TeleportBypass(false)
-					end)
-					Wait(duration + 0.1)
-				end
+	SpawnCall(function()
+		local char = getChar()
+		for _,obj in ipairs(workspace:GetDescendants()) do
+			if not state.active then return end
+			if obj:IsA("BasePart") and obj.Name:lower() == partName then
+				local hum = getHum()
+				if hum then hum.Sit = false end
+				local cfVal = InstanceNew("CFrameValue")
+				cfVal.Value = char:GetPivot()
+				cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
+				local duration = NAmanage.resolveTweenDuration()
+				local tw = TweenService:Create(cfVal, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value = obj.CFrame})
+				tw:Play()
+				tw.Completed:Connect(function() cfVal:Destroy() end)
+				Wait(duration + 0.1)
 			end
-		end)
+		end
+	end)
 end,true)
 
 
@@ -41226,7 +40529,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then NAmanage.TeleportCharacter(part:GetPivot()) end
+				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(.2)
 			end
 		end
@@ -41282,7 +40585,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then NAmanage.TeleportCharacter(part:GetPivot()) end
+				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(.2)
 			end
 		end
@@ -41478,7 +40781,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 				local hum = getHum()
 				if hum then hum.Sit = false Wait(0.1) end
 				local char = getChar()
-				if char then NAmanage.TeleportCharacter(desc:GetPivot()) end
+				if char then char:PivotTo(desc:GetPivot()) end
 				Wait(0.2)
 			end
 		end
@@ -49149,18 +48452,18 @@ NAmanage.UpdateWaypointList=function()
 						DebugNotif("Removed '"..name.."'")
 					end)
 				end
-					if tpBtn then
-						MouseButtonFix(tpBtn, function()
-							local comps = entry.Components
-							local cf = CFrame.new(unpack(comps))
-							local char = getChar()
-							if char then
-								NAmanage.TeleportCharacter(cf)
-							end
-						end)
-					end
+				if tpBtn then
+					MouseButtonFix(tpBtn, function()
+						local comps = entry.Components
+						local cf = CFrame.new(unpack(comps))
+						local char = getChar()
+						if char then
+							char:PivotTo(cf)
+						end
+					end)
 				end
 			end
+		end
 	end
 end
 
@@ -59822,162 +59125,6 @@ NAgui.addButton("Re-select Character (BETA)", function()
 	end
 end)
 
-NAgui.addSection("Offset / Desync Settings")
-NAStuff.offsetCfg = NAStuff.offsetCfg or NAmanage.LoadOffsetConfig()
-NAmanage.updateOffsetCfg=function(update)
-	NAStuff.offsetCfg = NAmanage.SaveOffsetConfig(update)
-	NAmanage.ApplyOffsetVisualizerConfig()
-	NAmanage.ApplyDesyncVisualizerConfig()
-	return NAStuff.offsetCfg
-end
-
-NAmanage.applyOffsetVector=function(vec)
-	NAStuff.offsetCfg = NAmanage.UpdateOffsetVector(vec)
-	return NAStuff.offsetCfg
-end
-
-NAmanage.getOffsetEnabled=function()
-	local st = NAStuff.NAundergroundState
-	return st and st.Underground == true
-end
-
-NAmanage.getDesyncEnabled=function()
-	local st = NAStuff.NAdesyncState
-	return st and st.Enabled == true
-end
-
-NAmanage.getCurrentOffsetVector=function()
-	local vec = NAStuff.offsetCfg.offsetVector or NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
-	if typeof(vec) ~= "Vector3" then
-		vec = NAmanage.OffsetSanitizeVector(vec, Vector3.new(0, -15, 0))
-	end
-	return vec
-end
-
-NAmanage.syncOffsetControls=function()
-	local cfg = NAStuff.offsetCfg or NAmanage.LoadOffsetConfig()
-	if NAgui.setToggleState then
-		NAgui.setToggleState("Visualizer Enabled", cfg.visualizerEnabled ~= false, { force = true, fire = false })
-		NAgui.setToggleState("Offset Enabled", NAmanage.getOffsetEnabled(), { force = true, fire = false })
-		NAgui.setToggleState("Desync Enabled", NAmanage.getDesyncEnabled(), { force = true, fire = false })
-	end
-	if NAgui.setInputValue then
-		local vec = NAmanage.getCurrentOffsetVector()
-		NAgui.setInputValue("Offset X", tostring(vec.X), { force = true, fire = false })
-		NAgui.setInputValue("Offset Y", tostring(vec.Y), { force = true, fire = false })
-		NAgui.setInputValue("Offset Z", tostring(vec.Z), { force = true, fire = false })
-	end
-end
-
-NAgui.addToggle("Visualizer Enabled", NAStuff.offsetCfg.visualizerEnabled ~= false, function(state)
-	NAmanage.updateOffsetCfg({ visualizerEnabled = state })
-	NAmanage.ApplyOffsetVisualizerConfig()
-	if not state then
-		NAmanage.ClearOffsetVisualizer()
-		NAmanage.ClearDesyncVisualizer()
-	end
-	if NAmanage.getOffsetEnabled() then
-		local chr = getChar()
-		local root = chr and getRoot(chr)
-		if chr and root then
-			NAmanage.BuildVisualizer(NAStuff.NAundergroundState, root, NAStuff.offsetCfg, "NAOffsetClone")
-			NAmanage.ApplyOffsetVisualizerConfig()
-		end
-	end
-	if NAmanage.getDesyncEnabled() then
-		local chr = getChar()
-		local root = chr and getRoot(chr)
-		if chr and root then
-			local vm = NAmanage.BuildVisualizer(NAStuff.NAdesyncState, root, NAStuff.offsetCfg, "NADesyncClone")
-			local st = NAStuff.NAdesyncState
-			local target = (st and (st.FrozenCFrame or st.VisualCurrent)) or root.CFrame
-			if vm and vm.PrimaryPart and target then
-				vm:SetPrimaryPartCFrame(target)
-			end
-			NAmanage.ApplyDesyncVisualizerConfig()
-		end
-	end
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addToggle("Offset Enabled", NAmanage.getOffsetEnabled(), function(state)
-	local current = NAmanage.getOffsetEnabled()
-	if state ~= current then
-		cmd.run({"offset"})
-	end
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addToggle("Desync Enabled", NAmanage.getDesyncEnabled(), function(state)
-	local current = NAmanage.getDesyncEnabled()
-	if state ~= current then
-		cmd.run({"desync"})
-	end
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addColorPicker("Highlight Fill Color", NAStuff.offsetCfg.highlightFillColor, function(col)
-	if typeof(col) ~= "Color3" then
-		return
-	end
-	NAmanage.updateOffsetCfg({ highlightFillColor = col })
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addSlider("Highlight Fill Transparency", 0, 1, NAStuff.offsetCfg.highlightFillTransparency or 0.9, 0.05, "", function(v)
-	NAmanage.updateOffsetCfg({ highlightFillTransparency = NAmanage.OffsetClamp01(v, NAStuff.offsetCfg.highlightFillTransparency) })
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addColorPicker("Highlight Outline Color", NAStuff.offsetCfg.highlightOutlineColor, function(col)
-	if typeof(col) ~= "Color3" then
-		return
-	end
-	NAmanage.updateOffsetCfg({ highlightOutlineColor = col })
-	NAmanage.syncOffsetControls()
-end)
-
-NAgui.addSlider("Highlight Outline Transparency", 0, 1, NAStuff.offsetCfg.highlightOutlineTransparency or 1, 0.05, "", function(v)
-	NAmanage.updateOffsetCfg({ highlightOutlineTransparency = NAmanage.OffsetClamp01(v, NAStuff.offsetCfg.highlightOutlineTransparency) })
-	NAmanage.syncOffsetControls()
-end)
-
-NAmanage.applyInputOffset=function(axis, text)
-	local num = tonumber(text)
-	if num == nil then
-		return
-	end
-	local vec = NAmanage.getCurrentOffsetVector()
-	if axis == "X" then
-		vec = Vector3.new(NAmanage.OffsetClampComponent(num, vec.X), vec.Y, vec.Z)
-	elseif axis == "Y" then
-		vec = Vector3.new(vec.X, NAmanage.OffsetClampComponent(num, vec.Y), vec.Z)
-	elseif axis == "Z" then
-		vec = Vector3.new(vec.X, vec.Y, NAmanage.OffsetClampComponent(num, vec.Z))
-	end
-	NAmanage.applyOffsetVector(vec)
-	NAmanage.syncOffsetControls()
-end
-
-NAgui.addInput("Offset X", "Enter X offset (studs)", tostring(NAmanage.getCurrentOffsetVector().X), function(text)
-	NAmanage.applyInputOffset("X", text)
-end)
-
-NAgui.addInput("Offset Y", "Enter Y offset (studs)", tostring(NAmanage.getCurrentOffsetVector().Y), function(text)
-	NAmanage.applyInputOffset("Y", text)
-end)
-
-NAgui.addInput("Offset Z", "Enter Z offset (studs)", tostring(NAmanage.getCurrentOffsetVector().Z), function(text)
-	NAmanage.applyInputOffset("Z", text)
-end)
-
-NAgui.addButton("Reset Offset", function()
-	NAmanage.applyOffsetVector(Vector3.new(0, -15, 0))
-	NAmanage.syncOffsetControls()
-end)
-
-NAmanage.syncOffsetControls()
-
 NAgui.addSection("Character Light")
 NAgui.addSlider("Range",      0,  120, settingsLight.range,      0.1,   "", function(val) settingsLight.range      = val end)
 NAgui.addSlider("Brightness", 0,   100, settingsLight.brightness, 0.5,   "", function(val) settingsLight.brightness = val end)
@@ -60043,7 +59190,6 @@ NAgui.addButton("Remove Accessories", function()
 	end
 	DoNotif(removed > 0 and ("Removed "..removed.." accessory(ies).") or "No accessories to remove.", 2)
 end)
-
 
 NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
