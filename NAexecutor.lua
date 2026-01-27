@@ -86,13 +86,15 @@ local function AttachEditor(cfg)
 		l.Parent = src;
 		return l;
 	end;
-	local layerComments = newLayer("Comments_", Color3.fromRGB(61, 202, 61), 1);
-	local layerGlobals = newLayer("Globals_", Color3.fromRGB(134, 216, 249), 1);
-	local layerKeywords = newLayer("Keywords_", Color3.fromRGB(250, 111, 126), 1);
 	local layerNumbers = newLayer("Numbers_", Color3.fromRGB(255, 200, 0), 0);
-	local layerRemote = newLayer("RemoteHighlight_", Color3.fromRGB(0, 146, 255), 1);
-	local layerStrings = newLayer("Strings_", Color3.fromRGB(175, 243, 151), 1);
 	local layerTokens = newLayer("Tokens_", Color3.fromRGB(255, 255, 255), 1);
+	local layerKeywords = newLayer("Keywords_", Color3.fromRGB(250, 111, 126), 2);
+	local layerGlobals = newLayer("Globals_", Color3.fromRGB(134, 216, 249), 2);
+	local layerTypes = newLayer("Types_", Color3.fromRGB(204, 153, 255), 2);
+	local layerRobloxAPI = newLayer("RobloxAPI_", Color3.fromRGB(255, 225, 140), 2);
+	local layerRemote = newLayer("RemoteHighlight_", Color3.fromRGB(0, 146, 255), 2);
+	local layerStrings = newLayer("Strings_", Color3.fromRGB(175, 243, 151), 3);
+	local layerComments = newLayer("Comments_", Color3.fromRGB(120, 120, 120), 4);
 	local lua_keywords = {
 		"and",
 		"break",
@@ -117,6 +119,21 @@ local function AttachEditor(cfg)
 		"until",
 		"while"
 	};
+	local lua_types = {
+		"any",
+		"nil",
+		"boolean",
+		"number",
+		"string",
+		"table",
+		"thread",
+		"userdata",
+		"vector",
+		"Instance",
+		"CFrame",
+		"Vector2",
+		"Vector3"
+	};
 	local global_env = {
 		"game",
 		"workspace",
@@ -124,13 +141,17 @@ local function AttachEditor(cfg)
 		"math",
 		"string",
 		"table",
+		"coroutine",
+		"task",
+		"bit32",
 		"print",
+		"warn",
+		"error",
 		"wait",
-		"BrickColor",
-		"Color3",
-		"next",
+		"tick",
 		"pairs",
 		"ipairs",
+		"next",
 		"select",
 		"unpack",
 		"Instance",
@@ -139,11 +160,10 @@ local function AttachEditor(cfg)
 		"CFrame",
 		"Ray",
 		"UDim2",
+		"BrickColor",
+		"Color3",
 		"Enum",
 		"assert",
-		"error",
-		"warn",
-		"tick",
 		"loadstring",
 		"_G",
 		"shared",
@@ -166,18 +186,68 @@ local function AttachEditor(cfg)
 		"getrunningscripts",
 		"getsenv",
 		"getrenv",
-		"identifyexecutor",
-		"cloneref",
+		"getreg",
+		"getregistry",
+		"getrawmetatable",
+		"setrawmetatable",
+		"newcclosure",
 		"hookfunction",
 		"hookmetamethod",
 		"setreadonly",
 		"getnamecallmethod",
 		"checkcaller",
+		"islclosure",
+		"isexecutorclosure",
+		"isourclosure",
+		"getinstances",
+		"getnilinstances",
+		"getscripts",
+		"gethui",
+		"fireclickdetector",
+		"fireproximityprompt",
+		"firetouchinterest",
+		"firesignal",
+		"gethiddenproperty",
+		"sethiddenproperty",
+		"setclipboard",
 		"isfile",
 		"writefile",
 		"readfile",
 		"listfiles",
-		"makefolder"
+		"makefolder",
+		"isfolder",
+		"delfile",
+		"appendfile",
+		"loadfile",
+		"saveinstance",
+		"identifyexecutor",
+		"cloneref",
+		"setfpscap",
+		"request",
+		"http_request",
+		"syn"
+	};
+
+	local roblox_api = {
+		"GetService",
+		"WaitForChild",
+		"FindFirstChild",
+		"FindFirstChildOfClass",
+		"FindFirstChildWhichIsA",
+		"IsA",
+		"Destroy",
+		"Clone",
+		"ClearAllChildren",
+		"GetChildren",
+		"GetDescendants",
+		"GetPropertyChangedSignal",
+		"GetPlayers",
+		"GetMouse",
+		"GetFocusedTextBox",
+		"GetFullName",
+		"Kick",
+		"SetPrimaryPartCFrame",
+		"PivotTo"
 	};
 	local function HighlightString(str, keywords)
 		local K = {};
@@ -255,46 +325,90 @@ local function AttachEditor(cfg)
 		return A;
 	end;
 	local function HighlightStrings(str)
-		local res = "";
-		local quote = false;
-		str:gsub(".", function(c)
-			if not quote and c == "\"" then
-				quote = true;
-			elseif quote and c == "\"" then
-				quote = false;
-			end;
-			if not quote and c == "\"" then
-				res = res .. "\"";
-			elseif c == "\n" then
-				res = res .. "\n";
-			elseif c == "\t" then
-				res = res .. "\t";
-			elseif quote then
-				res = res .. c;
+		local res = {}
+		local i = 1
+		local n = #str
+		local inString = false
+		local quote = nil
+		while i <= n do
+			local c = str:sub(i, i)
+			if not inString then
+				local two = i < n and str:sub(i, i + 1) or ""
+				if c == "[" and two == "[[" then
+					inString = true
+					quote = "[["
+					res[#res + 1] = "["
+					res[#res + 1] = "["
+					i = i + 2
+				elseif c == "\"" or c == "'" then
+					inString = true
+					quote = c
+					res[#res + 1] = c
+					i = i + 1
+				else
+					if c == "\n" or c == "\t" then
+						res[#res + 1] = c
+					else
+						res[#res + 1] = " "
+					end
+					i = i + 1
+				end
 			else
-				res = res .. " ";
-			end;
-		end);
-		return res;
+				if quote == "[[" then
+					local two = i < n and str:sub(i, i + 1) or ""
+					if c == "]" and two == "]]" then
+						res[#res + 1] = "]"
+						res[#res + 1] = "]"
+						i = i + 2
+						inString = false
+						quote = nil
+					else
+						res[#res + 1] = c
+						i = i + 1
+					end
+				else
+					res[#res + 1] = c
+					if c == quote then
+						inString = false
+						quote = nil
+					end
+					i = i + 1
+				end
+			end
+		end
+		return table.concat(res)
 	end;
 	local function HighlightComments(str)
-		local ret = "";
-		str:gsub("[^\r\n]+", function(line)
-			local comm = false;
-			local i = 0;
-			line:gsub(".", function(n)
-				i = i + 1;
-				if line:sub(i, i + 1) == "--" then
-					comm = true;
-				end;
-				if comm then
-					ret = ret .. n;
+		local res = {}
+		local inComm = false
+		local i = 1
+		local n = #str
+
+		while i <= n do
+			local c = str:sub(i, i)
+
+			if c == "\n" then
+				inComm = false
+				res[#res + 1] = "\n"
+				i = i + 1
+			elseif not inComm and c == "-" and i < n and str:sub(i + 1, i + 1) == "-" then
+				inComm = true
+				res[#res + 1] = "-"
+				res[#res + 1] = "-"
+				i = i + 2
+			else
+				if inComm then
+					res[#res + 1] = c
+				elseif c == "\t" then
+					res[#res + 1] = "\t"
 				else
-					ret = ret .. " ";
-				end;
-			end);
-		end);
-		return ret;
+					res[#res + 1] = " "
+				end
+				i = i + 1
+			end
+		end
+
+		return table.concat(res)
 	end;
 	local function HighlightNumbers(str)
 		local A = "";
@@ -317,22 +431,153 @@ local function AttachEditor(cfg)
 		end;
 		lines.Size = UDim2.new(lines.Size.X.Scale, lines.Size.X.Offset, 0, src.AbsoluteSize.Y);
 	end;
+	local function BuildLayers(str)
+		local n = #str
+		local code = {}
+		local sLayer = {}
+		local cLayer = {}
+
+		local i = 1
+		local inLineComment = false
+		local inBlockComment = false
+		local inString = false
+		local stringType = nil
+
+		while i <= n do
+			local c = str:sub(i, i)
+
+			if c == "\n" then
+				inLineComment = false
+				code[#code + 1] = "\n"
+				sLayer[#sLayer + 1] = "\n"
+				cLayer[#cLayer + 1] = "\n"
+				i = i + 1
+			elseif inBlockComment then
+				if i < n and str:sub(i, i + 1) == "]]" then
+					cLayer[#cLayer + 1] = "]"
+					cLayer[#cLayer + 1] = "]"
+					code[#code + 1] = " "
+					code[#code + 1] = " "
+					sLayer[#sLayer + 1] = " "
+					sLayer[#sLayer + 1] = " "
+					inBlockComment = false
+					i = i + 2
+				else
+					cLayer[#cLayer + 1] = c
+					code[#code + 1] = " "
+					sLayer[#sLayer + 1] = " "
+					i = i + 1
+				end
+			elseif inString then
+				if stringType == "[[" then
+					if i < n and str:sub(i, i + 1) == "]]" then
+						sLayer[#sLayer + 1] = "]"
+						sLayer[#sLayer + 1] = "]"
+						code[#code + 1] = " "
+						code[#code + 1] = " "
+						cLayer[#cLayer + 1] = " "
+						cLayer[#cLayer + 1] = " "
+						inString = false
+						stringType = nil
+						i = i + 2
+					else
+						sLayer[#sLayer + 1] = c
+						code[#code + 1] = " "
+						cLayer[#cLayer + 1] = " "
+						i = i + 1
+					end
+				else
+					sLayer[#sLayer + 1] = c
+					code[#code + 1] = " "
+					cLayer[#cLayer + 1] = " "
+					if c == stringType then
+						inString = false
+						stringType = nil
+					end
+					i = i + 1
+				end
+			else
+				if i < n and str:sub(i, i + 1) == "--" then
+					if i + 3 <= n and str:sub(i + 2, i + 3) == "[[" then
+						cLayer[#cLayer + 1] = "-"
+						cLayer[#cLayer + 1] = "-"
+						cLayer[#cLayer + 1] = "["
+						cLayer[#cLayer + 1] = "["
+						code[#code + 1] = " "
+						code[#code + 1] = " "
+						code[#code + 1] = " "
+						code[#code + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						inBlockComment = true
+						i = i + 4
+					else
+						cLayer[#cLayer + 1] = "-"
+						cLayer[#cLayer + 1] = "-"
+						code[#code + 1] = " "
+						code[#code + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						sLayer[#sLayer + 1] = " "
+						inLineComment = true
+						i = i + 2
+					end
+				elseif i < n and str:sub(i, i + 1) == "[[" then
+					sLayer[#sLayer + 1] = "["
+					sLayer[#sLayer + 1] = "["
+					code[#code + 1] = " "
+					code[#code + 1] = " "
+					cLayer[#cLayer + 1] = " "
+					cLayer[#cLayer + 1] = " "
+					inString = true
+					stringType = "[["
+					i = i + 2
+				elseif c == "\"" or c == "'" then
+					sLayer[#sLayer + 1] = c
+					code[#code + 1] = " "
+					cLayer[#cLayer + 1] = " "
+					inString = true
+					stringType = c
+					i = i + 1
+				elseif inLineComment then
+					cLayer[#cLayer + 1] = c
+					code[#code + 1] = " "
+					sLayer[#sLayer + 1] = " "
+					i = i + 1
+				else
+					code[#code + 1] = c
+					sLayer[#sLayer + 1] = " "
+					cLayer[#cLayer + 1] = " "
+					i = i + 1
+				end
+			end
+		end
+
+		return table.concat(code), table.concat(sLayer), table.concat(cLayer)
+	end;
 	local function highlight_source()
 		local s = src.Text or "";
 		s = s:gsub("\r", "");
 		local sTabs = s:gsub("\t", "    ");
-		layerKeywords.Text = HighlightString(sTabs, lua_keywords);
-		layerGlobals.Text = HighlightString(sTabs, global_env);
-		layerRemote.Text = HighlightString(sTabs, {
+
+		local codeText, strLayer, comLayer = BuildLayers(sTabs);
+
+		layerKeywords.Text = HighlightString(codeText, lua_keywords);
+		layerGlobals.Text = HighlightString(codeText, global_env);
+		layerTypes.Text = HighlightString(codeText, lua_types);
+		layerRobloxAPI.Text = HighlightString(codeText, roblox_api);
+		layerRemote.Text = HighlightString(codeText, {
 			"FireServer",
 			"fireServer",
 			"InvokeServer",
 			"invokeServer"
 		});
-		layerTokens.Text = HighlightTokens(sTabs);
-		layerNumbers.Text = HighlightNumbers(sTabs);
-		layerStrings.Text = HighlightStrings(sTabs);
-		layerComments.Text = HighlightComments(sTabs);
+		layerTokens.Text = HighlightTokens(codeText);
+		layerNumbers.Text = HighlightNumbers(codeText);
+		layerStrings.Text = strLayer;
+		layerComments.Text = comLayer;
+
 		if lines then
 			local lin = 1;
 			s:gsub("\n", function()
@@ -340,7 +585,7 @@ local function AttachEditor(cfg)
 			end);
 			local t = {};
 			for i = 1, lin do
-				t[(#t) + 1] = tostring(i);
+				t[#t + 1] = tostring(i);
 			end;
 			lines.Text = table.concat(t, "\n");
 		end;
@@ -785,6 +1030,7 @@ tads.Color = col.st;
 tads.Transparency = 0.25;
 local tadscl = Instance.new("UIScale", tad);
 tadscl.Scale = 1;
+local editorCore
 local s = Instance.new("ScrollingFrame");
 s.Name = "Scroll";
 s.Parent = m;
@@ -830,19 +1076,34 @@ t.TextXAlignment = Enum.TextXAlignment.Left;
 t.TextYAlignment = Enum.TextYAlignment.Top;
 t.TextWrapped = false;
 t.ZIndex = 4;
-local editorCore = AttachEditor({
+local function updateEditorLayout()
+	if cfg.ln then
+		ln.Visible = true;
+		t.Position = UDim2.new(0, 46, 0, 0);
+		t.Size = UDim2.new(1, -52, 1, 0);
+	else
+		ln.Visible = false;
+		t.Position = UDim2.new(0, 6, 0, 0);
+		t.Size = UDim2.new(1, -12, 1, 0);
+	end;
+	if editorCore and editorCore.refresh then
+		editorCore.refresh();
+	end;
+end;
+editorCore = AttachEditor({
 	sf = s,
 	src = t,
 	lines = ln
 });
+updateEditorLayout();
 local bf = Instance.new("Frame");
 bf.Name = "Btns";
 bf.Parent = m;
 bf.BackgroundTransparency = 1;
 local gl = Instance.new("UIGridLayout", bf);
 gl.SortOrder = Enum.SortOrder.LayoutOrder;
-gl.CellPadding = UDim2.new(0, isM and 12 or 10, 0, 0);
-gl.CellSize = UDim2.new(0.25, -8, 1, 0);
+gl.CellPadding = UDim2.new(0, isM and 10 or 8, 0, isM and 6 or 4);
+gl.CellSize = UDim2.new(0.25, -6, 0, isM and 34 or 28);
 gl.FillDirectionMaxCells = 4;
 local function sbtn(tx2, bg)
 	local b = Instance.new("TextButton");
@@ -1001,7 +1262,8 @@ local function mkLbl(p, tx2)
 	l.ZIndex = 53;
 	return l;
 end;
-local function mkPick(p, mnv, mxv, curP, onSet)
+local function mkPick(p, mnv, mxv, curP, onSet, step)
+	step = step or 10
 	local sf = Instance.new("ScrollingFrame");
 	sf.Parent = p;
 	sf.BackgroundTransparency = 1;
@@ -1031,10 +1293,10 @@ local function mkPick(p, mnv, mxv, curP, onSet)
 	local btns = {};
 	local function ref()
 		for i, b in ipairs(btns) do
-			b.BackgroundColor3 = i - 1 == curP and col.btnA or col.btn;
+			b.BackgroundColor3 = (i - 1) * step == curP and col.btnA or col.btn;
 		end;
 	end;
-	for p2 = 0, 100 do
+	for p2 = 0, 100, step do
 		local b = Instance.new("TextButton");
 		b.Parent = cn;
 		b.BackgroundColor3 = col.btn;
@@ -1164,28 +1426,12 @@ local opPick = mkPick(opRow, 0, 1, math.floor((cfg.a or 0) * 100 + 0.5), functio
 	cfg.a = v;
 	applyA();
 	schCfg();
-end);
-local zsRow = mkRow(98);
-mkLbl(zsRow, "UI Size");
-local function zToP(z)
-	return (z - 0.6) / (1.35 - 0.6) * 100;
-end;
-local zsPick = mkPick(zsRow, 0.6, 1.35, math.floor(zToP(cfg.z) + 0.5), function(v)
-	cfg.z = v;
-	if cfg.an then
-		tw(sc, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			Scale = cfg.z
-		});
-	else
-		sc.Scale = cfg.z;
-	end;
-	schCfg();
-end);
+end, 10);
 mkTg("Line Numbers", function()
 	return cfg.ln;
 end, function(v)
 	cfg.ln = v;
-	ln.Visible = cfg.ln;
+	updateEditorLayout();
 	schCfg();
 end);
 mkTg("Animations", function()
@@ -1199,9 +1445,8 @@ mkAct("Reset (UI)", function()
 	cfg.z = BS;
 	cfg.ln = true;
 	cfg.an = true;
-	opPick.setP(math.floor(cfg.a * 100 + 0.5));
-	zsPick.setP(math.floor(zToP(cfg.z) + 0.5));
-	ln.Visible = cfg.ln;
+	opPick.setP(0);
+	updateEditorLayout();
 	if cfg.an then
 		tw(sc, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 			Scale = cfg.z
@@ -1808,22 +2053,26 @@ local function topH()
 end;
 local min = false;
 local exSz;
+local exPos;
 local function tgtSz()
-	local cam = workspace.CurrentCamera;
-	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720);
-	local ins = gsv:GetGuiInset();
-	local ux = math.max(0, vp.X - ins.X * 2);
-	local uy = math.max(0, vp.Y - ins.Y * 2);
-	local w, h;
+	local cam = workspace.CurrentCamera
+	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+	local ins = gsv:GetGuiInset()
+	local ux = math.max(0, vp.X - ins.X * 2)
+	local uy = math.max(0, vp.Y - ins.Y * 2)
+	local w, h
 	if cfg.fs then
-		w = math.clamp(ux * (isM and 0.97 or 0.93), BMIN.X, 1000000);
-		h = math.clamp(uy * (isM and 0.94 or 0.88), BMIN.Y, 1000000);
+		local scale = cfg.z > 0 and cfg.z or 1
+		local targetW = ux
+		local targetH = uy
+		w = math.max(BMIN.X, math.floor(targetW / scale))
+		h = math.max(BMIN.Y, math.floor(targetH / scale))
 	else
-		w = math.clamp(ux * (isM and 0.92 or 0.56), BMIN.X, szc.MaxSize.X);
-		h = math.clamp(uy * (isM and 0.86 or 0.66), BMIN.Y, szc.MaxSize.Y);
-	end;
-	return math.floor(w), math.floor(h);
-end;
+		w = math.clamp(ux * (isM and 0.92 or 0.56), BMIN.X, szc.MaxSize.X)
+		h = math.clamp(uy * (isM and 0.86 or 0.66), BMIN.Y, szc.MaxSize.Y)
+	end
+	return w, h
+end
 local function setVis(v)
 	s.Visible = v;
 	bf.Visible = v;
@@ -1835,7 +2084,8 @@ local function setVis(v)
 	end;
 end;
 local function lay()
-	local th, sh, gp, bh = tb.AbsoluteSize.Y, 18, 10, 48;
+	local th, sh, gp = tb.AbsoluteSize.Y, 18, 10;
+	local bh = isM and 46 or 38;
 	local tbh = tbar.AbsoluteSize.Y;
 	local hubW = cfg.hb and (isM and 260 or 240) or 0;
 	local pad = 12;
@@ -1899,18 +2149,18 @@ end);
 	tabCS();
 end);
 local function upFS()
-	szc.MaxSize = cfg.fs and Vector2.new(1000000, 1000000) or MAX0;
-	local w, h = tgtSz();
-	exSz = Vector2.new(w, h);
+	szc.MaxSize = cfg.fs and Vector2.new(1000000, 1000000) or MAX0
+	local w, h = tgtSz()
+	exSz = Vector2.new(w, h)
 	if cfg.an then
 		tw(m, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, w, 0, h)
-		});
+		})
 	else
-		m.Size = UDim2.new(0, w, 0, h);
-	end;
-	task.delay(0.02, lay);
-end;
+		m.Size = UDim2.new(0, w, 0, h)
+	end
+	task.delay(0.02, lay)
+end
 local function chkErr(msg)
 	local ln2 = tonumber((tostring(msg)):match(CH .. ":(%d+):") or (tostring(msg)):match(":(%d+):"));
 	if ln2 then
@@ -2227,66 +2477,76 @@ hbb.MouseButton1Click:Connect(function()
 	end;
 end);
 mn.MouseButton1Click:Connect(function()
-	min = not min;
-	local rot = min and 180 or 0;
+	min = not min
+	local rot = min and 180 or 0
+
 	if cfg.an then
 		tw(mn, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 			Rotation = rot
-		});
+		})
 	else
-		mn.Rotation = rot;
-	end;
+		mn.Rotation = rot
+	end
+
 	if min then
-		szc.MinSize = Vector2.new(0, 0);
+		szc.MinSize = Vector2.new(0, 0)
 		if not exSz then
-			local w, h = tgtSz();
-			exSz = Vector2.new(w, h);
-		end;
-		local w = exSz.X;
-		local th = topH();
+			local w0, h0 = tgtSz()
+			exSz = Vector2.new(w0, h0)
+		end
+		exPos = m.Position
+		local w = exSz.X
+		local th = topH()
+
 		if cfg.an then
 			tw(m, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, w, 0, th)
-			});
+			})
 			tw(sc, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Scale = cfg.z * 0.94
-			});
+			})
 			tw(s, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 				CanvasPosition = Vector2.new(0, 0)
-			});
+			})
 		else
-			m.Size = UDim2.new(0, w, 0, th);
-			sc.Scale = cfg.z * 0.94;
-			s.CanvasPosition = Vector2.new(0, 0);
-		end;
+			m.Size = UDim2.new(0, w, 0, th)
+			sc.Scale = cfg.z * 0.94
+			s.CanvasPosition = Vector2.new(0, 0)
+		end
+
 		task.delay(0.1, function()
 			if min then
-				setVis(false);
-				hp.Visible = false;
-			end;
-		end);
+				setVis(false)
+				hp.Visible = false
+			end
+		end)
 	else
-		szc.MinSize = BMIN;
-		szc.MaxSize = cfg.fs and Vector2.new(1000000, 1000000) or MAX0;
-		local w, h = tgtSz();
-		exSz = Vector2.new(w, h);
-		setVis(true);
-		m.Size = UDim2.new(0, w, 0, topH());
-		sc.Scale = cfg.z * 0.94;
+		szc.MinSize = BMIN
+		szc.MaxSize = cfg.fs and Vector2.new(1000000, 1000000) or MAX0
+
+		local w, h = tgtSz()
+		exSz = Vector2.new(w, h)
+		setVis(true)
+
+		if exPos then
+			m.Position = exPos
+		end
+
 		if cfg.an then
 			tw(m, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, w, 0, h)
-			});
-			tw(sc, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			})
+			tw(sc, TweenInfo.new(0.22, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 				Scale = cfg.z
-			});
+			})
 		else
-			m.Size = UDim2.new(0, w, 0, h);
-			sc.Scale = cfg.z;
-		end;
-		task.delay(0.02, lay);
-	end;
-end);
+			m.Size = UDim2.new(0, w, 0, h)
+			sc.Scale = cfg.z
+		end
+
+		task.delay(0.02, lay)
+	end
+end)
 xt.MouseButton1Click:Connect(function()
 	if cfg.an then
 		tw(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -2302,11 +2562,12 @@ xt.MouseButton1Click:Connect(function()
 		e:Destroy();
 	end;
 end);
-(workspace:GetPropertyChangedSignal("CurrentCamera")):Connect(function()
-	local cam = workspace.CurrentCamera;
-	if not cam then
+local lastCam = nil;
+local function bindCam(cam)
+	if not cam or cam == lastCam then
 		return;
 	end;
+	lastCam = cam;
 	(cam:GetPropertyChangedSignal("ViewportSize")):Connect(function()
 		if not min then
 			local w, h = tgtSz();
@@ -2321,6 +2582,10 @@ end);
 		end;
 		lay();
 	end);
+end;
+bindCam(workspace.CurrentCamera);
+(workspace:GetPropertyChangedSignal("CurrentCamera")):Connect(function()
+	bindCam(workspace.CurrentCamera);
 end);
 local function first()
 	initTabs();
@@ -2329,7 +2594,7 @@ local function first()
 	refMode();
 	updFSUI();
 	updHBUI();
-	ln.Visible = cfg.ln;
+	updateEditorLayout();
 	applyA();
 	if cfg.fs then
 		szc.MaxSize = Vector2.new(1000000, 1000000);
