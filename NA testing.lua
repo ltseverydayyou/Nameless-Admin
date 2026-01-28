@@ -673,6 +673,18 @@ FindInTable = function(tbl,val)
 	return false
 end
 
+updateCanvasSize = function(frame, scale)
+	local layout = frame:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		if scale then
+			local adjustedHeight = layout.AbsoluteContentSize.Y / scale
+			frame.CanvasSize = UDim2.new(0, 0, 0, adjustedHeight)
+		else
+			frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
+		end
+	end
+end
+
 NAmanage.CreateNAFreecam=function()
 	local module = {}
 
@@ -9597,6 +9609,9 @@ NAmanage.SaveCommandKeybinds=function()
 					args1 = args;
 					args2 = opt.args2 or args;
 				}
+				if opt.hold then
+					entry.hold = true
+				end
 			elseif disabled then
 				entry = {
 					args = args;
@@ -9624,11 +9639,34 @@ NAmanage.ApplyCommandKeybinds=function()
 		NAStuff.KeybindConnection:Disconnect()
 		NAStuff.KeybindConnection = nil
 	end
+	if NAStuff.KeybindEndConnection then
+		NAStuff.KeybindEndConnection:Disconnect()
+		NAStuff.KeybindEndConnection = nil
+	end
 	local UIS = UserInputService
+	if not UIS then
+		return
+	end
+
+	local function cloneArgs(src)
+		local dst = {}
+		for i, v in ipairs(src) do
+			dst[i] = v
+		end
+		return dst
+	end
+
+	local function shouldBlock(gameProcessed)
+		if gameProcessed then return true end
+		if NAStuff._capturingCommandKeybind then return true end
+		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return true end
+		return false
+	end
+
+	local activeHoldKeys = {}
+
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed then return end
-		if NAStuff._capturingCommandKeybind then return end
-		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return end
+		if shouldBlock(gameProcessed) then return end
 		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 		local keyName = input.KeyCode.Name
 		local args = CommandKeybinds[keyName]
@@ -9636,16 +9674,14 @@ NAmanage.ApplyCommandKeybinds=function()
 			return
 		end
 
-		local function cloneArgs(src)
-			local dst = {}
-			for i, v in ipairs(src) do
-				dst[i] = v
-			end
-			return dst
-		end
-
 		local opt = CommandKeybindOptions[keyName]
 		if opt and opt.disabled then
+			return
+		end
+		if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
+			activeHoldKeys[keyName] = true
+			opt.state = true
+			cmd.run(cloneArgs(args))
 			return
 		end
 		if opt and opt.toggle and type(opt.args2) == "table" then
@@ -9660,6 +9696,37 @@ NAmanage.ApplyCommandKeybinds=function()
 		else
 			cmd.run(cloneArgs(args))
 		end
+	end)
+
+	NAStuff.KeybindEndConnection = UIS.InputEnded:Connect(function(input, gameProcessed)
+		if not (input and input.KeyCode and input.KeyCode.Name) then
+			return
+		end
+		local keyName = input.KeyCode.Name
+		if not activeHoldKeys[keyName] and shouldBlock(gameProcessed) then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then
+			return
+		end
+		local opt = CommandKeybindOptions[keyName]
+		if not opt then
+			activeHoldKeys[keyName] = nil
+			return
+		end
+		if not (opt.toggle and opt.hold) then
+			activeHoldKeys[keyName] = nil
+			return
+		end
+		if opt.disabled then
+			activeHoldKeys[keyName] = nil
+			return
+		end
+		if type(opt.args2) == "table" then
+			cmd.run(cloneArgs(opt.args2))
+		end
+		activeHoldKeys[keyName] = nil
+		opt.state = false
 	end)
 end
 
@@ -9684,6 +9751,7 @@ NAmanage.LoadCommandKeybinds=function()
 								toggle = true;
 								state = false;
 								args2 = value.args2;
+								hold = value.hold == true;
 							}
 						elseif type(value.args) == "table" then
 							args = value.args
@@ -9705,6 +9773,7 @@ NAmanage.LoadCommandKeybinds=function()
 									toggle = true;
 									state = false;
 									args2 = args2;
+									hold = value.hold == true;
 								}
 							end
 						end
@@ -23179,6 +23248,14 @@ cmd.add({"render"},{"render","Enable 3d Rendering"},function()
 	RunService:Set3dRenderingEnabled(true)
 end)
 
+cmd.add({"noreset","disablereset"},{"noreset","disable reset button"},function()
+	StarterGui:SetCore("ResetButtonCallback",false)
+end,true)
+
+cmd.add({"resetbtn","enablereset"},{"resetbtn","enable reset button"},function()
+	StarterGui:SetCore("ResetButtonCallback",true)
+end,true)
+
 oofing = false
 
 cmd.add({"loopoof"},{"loopoof","Loops everyone's character sounds (everyone can hear)"},function()
@@ -34062,6 +34139,17 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 	end
 end,true)
 
+cmd.add({"vcworld","vcdefault"},{"vcworld <on/off>","Toggle default spatial voice routing"},function(mode)
+	local vcs = SafeGetService("VoiceChatService")
+	local m = Lower(tostring(mode or ""))
+	if m ~= "on" and m ~= "off" then
+		DoNotif("Usage: vcworld <on/off>",2)
+		return
+	end
+	local target = (m == "on")
+	NAlib.setProperty(vcs,"EnableDefaultVoice",target)
+end,true)
+
 cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
 	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
 end)
@@ -39168,6 +39256,15 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 		end
 	end
 end, true)
+
+cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unblock prompt for target player"},function(p)
+	local tg = getPlr(p)
+	for _,t in ipairs(tg) do
+		if t ~= LocalPlayer then
+			StarterGui:SetCore("PromptBlockPlayer",t)
+		end
+	end
+end,true)
 
 NAmanage.NAgetFriendCircles=function()
 	local players = Players:GetPlayers()
@@ -52183,15 +52280,16 @@ NAmanage.CommandKeybindsRemove=function()
 		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
 		local opt = CommandKeybindOptions[keyName]
 		if opt and opt.toggle then
+			local toggleTag = opt.hold and "[hold]" or "[toggle]"
 			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
 			local secondCmd = ""
 			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
 				secondCmd = tostring(opt.args2[1])
 			end
 			if mainCmd ~= "" and secondCmd ~= "" then
-				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+				label = ("%s %s / %s"):format(toggleTag, mainCmd, secondCmd)
 			else
-				label = "[toggle] "..label
+				label = toggleTag.." "..label
 			end
 		end
 		if opt and opt.disabled then
@@ -52229,15 +52327,16 @@ NAmanage.CommandKeybindsList=function()
 		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
 		local opt = CommandKeybindOptions[keyName]
 		if opt and opt.toggle then
+			local toggleTag = opt.hold and "[hold]" or "[toggle]"
 			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
 			local secondCmd = ""
 			if opt.args2 and type(opt.args2) == "table" and opt.args2[1] then
 				secondCmd = tostring(opt.args2[1])
 			end
 			if mainCmd ~= "" and secondCmd ~= "" then
-				label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+				label = ("%s %s / %s"):format(toggleTag, mainCmd, secondCmd)
 			else
-				label = "[toggle] "..label
+				label = toggleTag.." "..label
 			end
 		end
 		if opt and opt.disabled then
@@ -52305,11 +52404,10 @@ NAmanage.CommandKeybindsUIInit=function()
 	root.Name = "CommandKeybindsPanel"
 	root.BackgroundTransparency = 1
 	root.BorderSizePixel = 0
-	root.Size = UDim2.new(1, -10, 0, 300)
+	root.Size = UDim2.new(1, -10, 1, 0)
 	root.LayoutOrder = NAgui._nextLayoutOrder()
 	root.ClipsDescendants = false
 
-	-- editor (top)
 	local keyBox = cloneSearchBox(root, "Key")
 	keyBox.Name = "KeyBox"
 	keyBox.TextEditable = false
@@ -52360,11 +52458,12 @@ NAmanage.CommandKeybindsUIInit=function()
 		return btn
 	end
 
-	local setKeyBtn = makeActionButton(root, "Set Key (click)", UDim2.new(0, 10, 0, 46), UDim2.new(0.28, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local newBtn = makeActionButton(root, "New", UDim2.new(0.28, 10, 0, 46), UDim2.new(0.17, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.45, 10, 0, 46), UDim2.new(0.18, -10, 0, 30), Color3.fromRGB(80, 120, 80))
-	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.63, 10, 0, 46), UDim2.new(0.17, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.80, 10, 0, 46), UDim2.new(0.20, -10, 0, 30), Color3.fromRGB(184, 54, 54))
+	local setKeyBtn = makeActionButton(root, "Set Key (click)", UDim2.new(0, 10, 0, 46), UDim2.new(0.22, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local newBtn = makeActionButton(root, "New", UDim2.new(0.22, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.36, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(80, 120, 80))
+	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.52, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local holdBtn = makeActionButton(root, "Hold: Off", UDim2.new(0.68, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.82, 10, 0, 46), UDim2.new(0.18, -10, 0, 30), Color3.fromRGB(184, 54, 54))
 
 	local searchBox = cloneSearchBox(root, "Search keybinds...")
 	searchBox.Name = "Search"
@@ -52375,12 +52474,11 @@ NAmanage.CommandKeybindsUIInit=function()
 	listFrame.Name = "List"
 	listFrame.BackgroundTransparency = 1
 	listFrame.BorderSizePixel = 0
-	listFrame.Size = UDim2.new(1, -20, 0, 130)
-	listFrame.Position = UDim2.new(0, 10, 0, 160)
+	listFrame.Size = UDim2.new(1, -10, 1, 0)
+	listFrame.Position = UDim2.new(0, 5, 0, 160)
 	listFrame.ScrollBarThickness = 3
 	listFrame.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
 	listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-	listFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	local layout = InstanceNew("UIListLayout", listFrame)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Padding = UDim.new(0, 6)
@@ -52398,13 +52496,16 @@ NAmanage.CommandKeybindsUIInit=function()
 	ui.newBtn = newBtn
 	ui.saveBtn = saveBtn
 	ui.toggleBtn = toggleBtn
+	ui.holdBtn = holdBtn
 	ui.delBtn = delBtn
 	ui.selectedKey = nil
 	ui.toggleState = false
+	ui.holdState = false
 	ui.disabledState = false
 
 	NAmanage.registerElementForCurrentTab(root)
 	NAgui.RegisterStrokesFrom(root)
+	SpawnCall(function() RunService.RenderStepped:Connect(function() if root.Parent.ClassName:lower()=="scrollingframe" then updateCanvasSize(root.Parent) end updateCanvasSize(listFrame) end) end)
 
 	return true
 end
@@ -52415,6 +52516,14 @@ NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
 	if ui.toggleCmdBox then ui.toggleCmdBox.Visible = show and true or false end
 	if ui.toggleArgsBox then ui.toggleArgsBox.Visible = show and true or false end
 
+	local rowY = show and 84 or 46
+
+	local function place(btn, pos, size)
+		if not btn then return end
+		btn.Position = UDim2.new(pos, 10, 0, rowY)
+		btn.Size = UDim2.new(size, -10, 0, 30)
+	end
+
 	if show then
 		if ui.toggleCmdBox then
 			ui.toggleCmdBox.Position = UDim2.new(0.28, 10, 0, 46)
@@ -52422,17 +52531,20 @@ NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
 		if ui.toggleArgsBox then
 			ui.toggleArgsBox.Position = UDim2.new(0.62, 10, 0, 46)
 		end
-		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 84) end
-		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 84) end
-		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 84) end
-		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 84) end
-		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 84) end
-	else
-		if ui.setKeyBtn then ui.setKeyBtn.Position = UDim2.new(0, 10, 0, 46) end
-		if ui.newBtn then ui.newBtn.Position = UDim2.new(0.28, 10, 0, 46) end
-		if ui.saveBtn then ui.saveBtn.Position = UDim2.new(0.45, 10, 0, 46) end
-		if ui.toggleBtn then ui.toggleBtn.Position = UDim2.new(0.63, 10, 0, 46) end
-		if ui.delBtn then ui.delBtn.Position = UDim2.new(0.80, 10, 0, 46) end
+	end
+
+	place(ui.setKeyBtn, 0, 0.22)
+	place(ui.newBtn, 0.22, 0.14)
+	place(ui.saveBtn, 0.36, 0.16)
+	place(ui.toggleBtn, 0.52, 0.16)
+	place(ui.holdBtn, 0.68, 0.14)
+	place(ui.delBtn, 0.82, 0.18)
+
+	if ui.holdBtn then
+		ui.holdBtn.AutoButtonColor = ui.toggleState and true or false
+		ui.holdBtn.BackgroundTransparency = ui.toggleState and 0.2 or 0.5
+		ui.holdBtn.TextColor3 = ui.toggleState and Color3.fromRGB(234, 234, 244) or Color3.fromRGB(180, 180, 190)
+		ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
 	end
 end
 
@@ -52490,15 +52602,17 @@ NAmanage.CommandKeybindsUIRefresh=function()
 			secondCmd = tostring(opt.args2[1])
 		end
 
+		local tag = (opt and opt.hold) and "[hold]" or "[toggle]"
+
 		if mainCmd ~= "" and secondCmd ~= "" then
-			local label = ("[toggle] %s / %s"):format(mainCmd, secondCmd)
+			local label = ("%s %s / %s"):format(tag, mainCmd, secondCmd)
 			if isDisabled(keyName) then
 				return label.." (disabled)"
 			end
 			return label
 		end
 
-		local label = "[toggle] "..(baseLabel ~= "" and baseLabel or "(empty)")
+		local label = tag.." "..(baseLabel ~= "" and baseLabel or "(empty)")
 		if isDisabled(keyName) then
 			return label.." (disabled)"
 		end
@@ -52537,6 +52651,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		keyLbl.Position = UDim2.new(0, 10, 0, 0)
 		keyLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		keyLbl.TextSize = 14
+		keyLbl.TextWrapped = true
 		keyLbl.TextXAlignment = Enum.TextXAlignment.Left
 		keyLbl.TextColor3 = disabled and Color3.fromRGB(184, 184, 194) or Color3.fromRGB(234, 234, 244)
 		keyLbl.Text = tostring(keyName)
@@ -52547,6 +52662,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		cmdLbl.Position = UDim2.new(0, 70, 0, 0)
 		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		cmdLbl.TextSize = 14
+		cmdLbl.TextWrapped = true
 		cmdLbl.TextXAlignment = Enum.TextXAlignment.Left
 		cmdLbl.TextColor3 = disabled and Color3.fromRGB(170, 170, 182) or Color3.fromRGB(214, 214, 224)
 		cmdLbl.Text = buildDisplayLabel(keyName, args)
@@ -52617,6 +52733,13 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				ui.toggleState = isToggle
 				ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
 			end
+			ui.holdState = (opt and opt.hold == true) or false
+			if not ui.toggleState then
+				ui.holdState = false
+			end
+			if ui.holdBtn then
+				ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
+			end
 
 			local args2 = (opt and type(opt.args2) == "table") and opt.args2 or nil
 			if ui.toggleCmdBox then
@@ -52634,9 +52757,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				end
 			end
 
-			if ui.toggleBtn then
-				NAmanage.CommandKeybindsUpdateToggleLayout(ui)
-			end
+			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 		end)
 
 		MouseButtonFix(disableBtn, function()
@@ -52667,7 +52788,14 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				if ui.keyBox then ui.keyBox.Text = "" end
 				if ui.cmdBox then ui.cmdBox.Text = "" end
 				if ui.argsBox then ui.argsBox.Text = "" end
+				if ui.toggleCmdBox then ui.toggleCmdBox.Text = "" end
+				if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
 				ui.disabledState = false
+				ui.toggleState = false
+				ui.holdState = false
+				if ui.toggleBtn then ui.toggleBtn.Text = "Toggle: Off" end
+				if ui.holdBtn then ui.holdBtn.Text = "Hold: Off" end
+				NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 			end
 			NAmanage.CommandKeybindsUIRefresh()
 		end)
@@ -52702,6 +52830,10 @@ NAmanage.CommandKeybindsUIWire=function()
 			ui.toggleState = false
 			ui.toggleBtn.Text = "Toggle: Off"
 		end
+		ui.holdState = false
+		if ui.holdBtn then
+			ui.holdBtn.Text = "Hold: Off"
+		end
 		NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 	end
 
@@ -52714,7 +52846,25 @@ NAmanage.CommandKeybindsUIWire=function()
 	if ui.toggleBtn then
 		MouseButtonFix(ui.toggleBtn, function()
 			ui.toggleState = not ui.toggleState
+			if not ui.toggleState then
+				ui.holdState = false
+			end
 			ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
+			if ui.holdBtn then
+				ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
+			end
+			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
+		end)
+	end
+
+	if ui.holdBtn then
+		MouseButtonFix(ui.holdBtn, function()
+			if not ui.toggleState then
+				DoNotif("Enable Toggle before using Hold mode.", 1.5)
+				return
+			end
+			ui.holdState = not ui.holdState
+			ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
 			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 		end)
 	end
@@ -52805,6 +52955,7 @@ NAmanage.CommandKeybindsUIWire=function()
 			if ui.toggleState then
 				opt.toggle = true
 				opt.state = false
+				opt.hold = ui.holdState and true or nil
 				-- build second layer: either from explicit toggle fields or just reuse the first command
 				local args2 = nil
 				if toggleCmdName ~= "" then
@@ -52826,6 +52977,8 @@ NAmanage.CommandKeybindsUIWire=function()
 				opt.toggle = nil
 				opt.state = nil
 				opt.args2 = nil
+				opt.hold = nil
+				ui.holdState = false
 			end
 			opt.disabled = ui.disabledState and true or nil
 			if not opt.toggle and not opt.disabled then
@@ -53681,14 +53834,6 @@ mouse.Move:Connect(function()
 	local newSize = NAgui.txtSize(NAUIMANAGER.description, 200, 100)
 	NAUIMANAGER.description.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
 end)
-
-function updateCanvasSize(frame, scale)
-	local layout = frame:FindFirstChildOfClass("UIListLayout")
-	if layout then
-		local adjustedHeight = layout.AbsoluteContentSize.Y / scale
-		frame.CanvasSize = UDim2.new(0, 0, 0, adjustedHeight)
-	end
-end
 
 RunService.RenderStepped:Connect(function()
 	if NAUIMANAGER.chatLogs then
@@ -56849,30 +56994,28 @@ NAFFlags.cycleCustomFlag = function(direction)
 	--DoNotif(Format("Viewing custom fast flag %d/%d: %s", idx, count, tostring(name)), 2)
 end
 
-NAFFlags.ensureMaintainLoop = function(opts)
-	opts = opts or {}
-	local interval = tonumber(opts.intervalSeconds) or 8
-	if interval < 2 then
-		interval = 2
+NAFFlags.ensureMaintainLoop = function()
+	if NAFFlags._maintainLoopRunning then
+		return
 	end
-	if NAFFlags._maintainLoopRunning or not (NAFFlags.config.autoApply and NAFFlags.enabled()) then
+	if not (NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()) then
 		return
 	end
 	NAFFlags._maintainLoopRunning = true
-	SpawnCall(function()
-		while NAFFlags.config.autoApply and NAFFlags.enabled() do
-			if NAFFlags.hasSupport() then
-				NAFFlags.applyAll({ notify = false })
+	if NAFFlags._maintainConn then
+		NAFFlags._maintainConn:Disconnect()
+		NAFFlags._maintainConn = nil
+	end
+	NAFFlags._maintainConn = RunService.Heartbeat:Connect(function()
+		if not (NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()) then
+			if NAFFlags._maintainConn then
+				NAFFlags._maintainConn:Disconnect()
+				NAFFlags._maintainConn = nil
 			end
-
-			local remaining = interval
-			while remaining > 0 and NAFFlags.config.autoApply and NAFFlags.enabled() do
-				local step = remaining > 2 and 2 or remaining
-				Wait(step)
-				remaining = remaining - step
-			end
+			NAFFlags._maintainLoopRunning = false
+			return
 		end
-		NAFFlags._maintainLoopRunning = false
+		NAFFlags.applyAll({ notify = false })
 	end)
 end
 
