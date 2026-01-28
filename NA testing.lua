@@ -56292,8 +56292,6 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "DebugRestrictGCDistance", default = 1, valueType = "number" };
 	{ name = "MSRefactor5", default = false, valueType = "boolean" };
 	{ name = "DebugTextureManagerSkipMips", default = -1, valueType = "number" };
-	{ name = "PartTexturePackTablePre2022", default = "", valueType = "string" };
-	{ name = "TerrainMaterialTable2022", default = "", valueType = "string" };
 	{ name = "GlobalWindActivated", default = false, valueType = "boolean" };
 	{ name = "GlobalWindRendering", default = false, valueType = "boolean" };
 	{ name = "DebugDontRenderScreenGui", default = false, valueType = "boolean" };
