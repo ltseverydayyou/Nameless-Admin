@@ -56282,7 +56282,7 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "AnimationLodFacsDistanceMax", default = 0, valueType = "number" };
 	{ name = "AnimationLodFacsVisibilityDenominator", default = 0, valueType = "number" };
 	{ name = "TextureCompositorActiveJobs", default = 1, valueType = "number" };
-	{ name = "ViewportFrameMaxSize", default = 0, valueType = "number" };
+	{ name = "ViewportFrameMaxSize", default = 9999999, valueType = "number" };
 	{ name = "FRMMaxGrassDistance", default = 0, valueType = "number" };
 	{ name = "FRMMinGrassDistance", default = 0, valueType = "number" };
 	{ name = "RenderGrassDetailStrands", default = 0, valueType = "number" };
