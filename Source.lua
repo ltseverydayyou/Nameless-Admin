@@ -56268,7 +56268,7 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "CSGVoxelizerFadeRadius", default = 0, valueType = "number" };
 	{ name = "TerrainArraySliceSize", default = 0, valueType = "number" };
 	{ name = "RomarkStartWithGraphicQualityLevel", default = 1, valueType = "number" };
-	{ name = "DebugFRMQualityLevelOverride", default = 1, valueType = "number" };
+	{ name = "DebugFRMQualityLevelOverride", default = 0, valueType = "number" };
 	{ name = "DebugRestrictGCDistance", default = 1, valueType = "number" };
 	{ name = "MSRefactor5", default = false, valueType = "boolean" };
 	{ name = "DebugTextureManagerSkipMips", default = -1, valueType = "number" };
