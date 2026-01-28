@@ -18,8 +18,8 @@
 
 ]]
 
-if getgenv().RealNamelessLoaded~=nil then return end
-pcall(function() getgenv().RealNamelessLoaded=true; getgenv().NATestingVer=true; getgenv().NAverify="Haryas Admin Is SKIDDED AS FUCK"; end)
+if getgenv().ltseverydayyou_NA~=nil then return end
+pcall(function() getgenv().ltseverydayyou_NA=true; getgenv().NATestingVer=true; getgenv().NAverify="Haryas Admin Is SKIDDED AS FUCK"; end)
 
 NAbegin=tick()
 CMDAUTOFILL = {}
