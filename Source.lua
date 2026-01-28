@@ -56304,6 +56304,122 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "DisableDPIScale", default = true, valueType = "boolean" };
 }
 
+NAFFlags.info = NAFFlags.info or {
+	PhysicsReceiveNumParallelTasks = "Splits incoming physics work across more threads. Higher can help multi-core CPUs.";
+	RuntimeConcurrency = "Global concurrency limit for internal worker threads.";
+	SimWorldTaskQueueParallelTasks = "Parallelism for world simulation task queue.";
+	ReplicationDataCacheNumParallelTasks = "Parallelism for replication data cache processing.";
+	NetworkClusterPacketCacheNumParallelTasks = "Parallelism for network packet cache handling.";
+	FixParticleEmissionBias2 = "Fixes uneven particle emission behavior.";
+	InterpolationNumParallelTasks = "Parallel interpolation jobs used for smoothing replicated motion.";
+	MegaReplicatorNumParallelTasks = "Parallel jobs for large-scale replication operations.";
+	LuaGcParallelMinMultiTasks = "Minimum parallel tasks used by the Luau garbage collector.";
+	FixParticleAttachmentCulling = "Fixes particle attachment culling glitches.";
+	DebugRenderingSetDeterministic = "Makes some rendering behavior more deterministic and stable.";
+
+	TaskSchedulerAutoThreadLimit = "Upper bound for automatically created scheduler worker threads.";
+	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum thread count for async tasks.";
+	SmoothClusterTaskQueueMaxParallelTasks = "Max parallel tasks for smooth-cluster network queue.";
+
+	TeleportReconnect = "Enables reconnect logic on failed teleports.";
+	TeleportReconnect3 = "Newer reconnect path for teleports.";
+	AddJoinAttemptId = "Tags join attempts with IDs to improve robustness.";
+	ChatTranslationSettingEnabled3 = "Enables current chat translation behavior.";
+	EnableQuickGameLaunch = "Faster game launch flow; may spike CPU at load.";
+
+	LCCageDeformLimit = "Limit for cage-based mesh deformation. -1 removes the limit.";
+	FullscreenTitleBarTriggerDelayMillis = "Delay before fullscreen title bar appears when hitting screen top.";
+	DebugPauseVoxelizer = "Pauses voxelizer (lighting voxel updates). Keep false.";
+	RobloxGuiBlurIntensity = "Blur intensity for core UI. 0 disables blur.";
+	DebugDisplayFPS = "Shows a debug FPS counter overlay.";
+	RenderShadowmapBias = "Overrides shadowmap bias. -1 uses engine default.";
+	MaxFrameBufferSize = "Max number of buffered frames. Lower = less latency, higher = smoother.";
+	DebugPerfMode = "Enables performance-focused debug behaviors.";
+	Order66 = "Internal debug/perf flag. Leave enabled.";
+	AdServiceEnabled = "Enables AdService (video ads). Off removes ad overhead.";
+	HandleAltEnterFullscreenManually = "Changes how Alt+Enter fullscreen is handled.";
+
+	DebugGraphicsPreferD3D11 = "Prefer D3D11 graphics backend.";
+	DebugGraphicsPreferD3D11FL10 = "Prefer D3D11 FL10 for older GPUs.";
+	DebugGraphicsPreferVulkan = "Prefer Vulkan graphics backend.";
+	DebugGraphicsPreferOpenGL = "Prefer OpenGL graphics backend.";
+	DebugGraphicsDisableDirect3D11 = "Disables D3D11 backend when true.";
+
+	TaskSchedulerTargetFps = "Target FPS used by internal scheduler.";
+	TaskSchedulerLimitTargetFpsTo2402 = "Clamp target FPS to 240 when true.";
+
+	DebugForceMSAASamples = "Forces MSAA sample count. 0 disables forced MSAA.";
+
+	TextureQualityOverrideEnabled = "Allows manual override of texture quality.";
+	TextureQualityOverride = "Texture quality level (0 = lowest, higher = better).";
+	TextureCompositorLowResFactor = "Base resolution factor for composited avatar textures.";
+	PerformanceControlTextureQualityBestUtility = "Weight for automatic texture quality choice. -1 lets engine decide.";
+	EnableRequestAsyncCompression = "Compresses some assets asynchronously when loading.";
+	DisablePostFx = "Disables most post-processing effects (bloom, AO, etc.).";
+	DebugRenderForceTechnologyVoxel = "Forces voxel lighting pipeline.";
+
+	CSGLevelOfDetailSwitchingDistance = "Base distance where CSG LOD switching starts.";
+	CSGLevelOfDetailSwitchingDistanceL12 = "LOD switch distance between CSG L1 and L2.";
+	CSGLevelOfDetailSwitchingDistanceL23 = "LOD switch distance between CSG L2 and L3.";
+	CSGLevelOfDetailSwitchingDistanceL34 = "LOD switch distance between CSG L3 and L4.";
+	CSGv2LodsToGenerate = "How many CSGv2 LOD levels to generate.";
+	CSGv2LodMinTriangleCount = "Minimum triangle count for generating CSGv2 LODs.";
+
+	NewLightAttenuation = "Enables new light attenuation model.";
+	RenderShadowIntensity = "Global multiplier for shadow intensity.";
+	CSGVoxelizerFadeRadius = "Fade radius used by CSG voxelizer.";
+
+	TerrainArraySliceSize = "Internal slice size for terrain storage.";
+
+	RomarkStartWithGraphicQualityLevel = "Initial graphics quality level at launch.";
+	DebugFRMQualityLevelOverride = "Forces a fixed FRM (render) quality level.";
+	DebugRestrictGCDistance = "Restriction on GC distance in FRM; lower = more aggressive culling.";
+
+	MSRefactor5 = "Enables a refactored rendering path. Experimental.";
+	DebugTextureManagerSkipMips = "If >= 0, skips top texture mips (lower-res textures).";
+
+	GlobalWindActivated = "Turns on global wind simulation.";
+	GlobalWindRendering = "Renders wind on foliage/parts when global wind is active.";
+
+	DebugDontRenderScreenGui = "Stops ScreenGui from rendering when true.";
+	DebugSSAOForce = "Forces SSAO debug behavior.";
+	SSAOMipLevels = "Number of SSAO mip levels (AO quality).";
+
+	EnableCommandAutocomplete = "Enables autocomplete in developer command bar.";
+
+	AnimationLodFacsDistanceMin = "Minimum distance for animation LOD falloff.";
+	AnimationLodFacsDistanceMax = "Maximum distance for animation LOD falloff.";
+	AnimationLodFacsVisibilityDenominator = "Visibility scale factor for animation LOD.";
+
+	TextureCompositorActiveJobs = "Number of active avatar texture compositor jobs. Very low values can cause gray avatars.";
+
+	ViewportFrameMaxSize = "Max resolution for ViewportFrame rendering. 0 uses default.";
+
+	FRMMaxGrassDistance = "Maximum distance grass is rendered.";
+	FRMMinGrassDistance = "Minimum distance grass starts rendering.";
+	RenderGrassDetailStrands = "Amount of detailed grass strands rendered.";
+	GrassMovementReducedMotionFactor = "Scales grass movement; higher = less waving.";
+
+	DebugSkyGray = "Replaces skybox with simple gray debug sky.";
+	CoreGuiTypeSelfViewPresent = "Marks that self-view CoreGui is present.";
+	RenderCheckThreading = "Enables threaded render checks.";
+
+	OptimizeNetworkTransport = "Enables optimized network transport implementation.";
+	OptimizeNetworkRouting = "Enables optimized network routing.";
+	RakNetResendBufferArrayLength = "Size of RakNet resend buffer array.";
+	WaitOnRecvFromLoopEndedMS = "Wait time after receive loop ends before shutdown.";
+
+	DebugDisableTelemetryEphemeralCounter = "Disable ephemeral counter telemetry.";
+	DebugDisableTelemetryEphemeralStat = "Disable ephemeral stat telemetry.";
+	DebugDisableTelemetryEventIngest = "Disable telemetry event ingest.";
+	DebugDisableTelemetryPoint = "Disable telemetry points.";
+	DebugDisableTelemetryV2Counter = "Disable v2 telemetry counters.";
+	DebugDisableTelemetryV2Event = "Disable v2 telemetry events.";
+	DebugDisableTelemetryV2Stat = "Disable v2 telemetry stats.";
+
+	DisableDPIScale = "Disables OS DPI scaling for the Roblox window.";
+}
+
 for _, entry in ipairs(NAFFlags.whitelist) do
 	entry.valueType = entry.valueType or type(entry.default)
 end
@@ -56942,8 +57058,10 @@ end)
 NAgui.addSection("Individual Flags")
 
 for _, entry in ipairs(NAFFlags.whitelist) do
+	local entryName = entry.name
+	local desc = NAFFlags.info and NAFFlags.info[entryName] or nil
+
 	if entry.valueType == "boolean" then
-		local entryName = entry.name
 		NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
 			local normalized = NAFFlags.normalizeValue(entry, state)
 			if normalized == nil then
@@ -56964,7 +57082,7 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 			end
 		end)
 	else
-		local defaultText = NAFFlags.values[entry.name]
+		local defaultText = NAFFlags.values[entryName]
 		if defaultText == nil then
 			defaultText = entry.default
 		end
@@ -56973,22 +57091,27 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 		else
 			defaultText = ""
 		end
+
 		local function applyEntryValue(rawValue)
 			local normalized = NAFFlags.normalizeValue(entry, rawValue)
 			if normalized == nil then
 				return false
 			end
-			NAFFlags.values[entry.name] = normalized
-			NAFFlags.config.flags[entry.name] = normalized
+			NAFFlags.values[entryName] = normalized
+			NAFFlags.config.flags[entryName] = normalized
 			NAFFlags.save()
 			return true
 		end
 
-		NAgui.addInput(entry.name, "Enter value", defaultText, function(inputValue)
+		NAgui.addInput(entryName, "Enter value", defaultText, function(inputValue)
 			if applyEntryValue(inputValue) then
-				NAFFlags.apply(entry.name, NAFFlags.values[entry.name])
+				NAFFlags.apply(entryName, NAFFlags.values[entryName])
 			end
 		end)
+	end
+
+	if desc then
+		NAgui.addSection(entryName.." – "..desc)
 	end
 end
 
