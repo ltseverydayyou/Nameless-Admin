@@ -56368,18 +56368,21 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number" };
 	{ name = "FixParticleAttachmentCulling", default = true, valueType = "boolean" };
 	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean" };
+
 	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number" };
 	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
+
 	{ name = "TeleportReconnect", default = true, valueType = "boolean" };
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
 	{ name = "AddJoinAttemptId", default = true, valueType = "boolean" };
 	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean" };
 	{ name = "EnableQuickGameLaunch", default = false, valueType = "boolean" };
+
 	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
 	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean" };
-	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
+    { name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
 	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
 	{ name = "MaxFrameBufferSize", default = 4, valueType = "number" };
@@ -56387,14 +56390,18 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "Order66", default = true, valueType = "boolean" };
 	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
 	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
+
 	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferVulkan", default = true, valueType = "boolean" };
 	{ name = "DebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
 	{ name = "DebugGraphicsDisableDirect3D11", default = true, valueType = "boolean" };
+
 	{ name = "TaskSchedulerTargetFps", default = 2147483647, valueType = "number" };
 	{ name = "TaskSchedulerLimitTargetFpsTo2402", default = false, valueType = "boolean" };
+
 	{ name = "DebugForceMSAASamples", default = 0, valueType = "number" };
+
 	{ name = "TextureQualityOverrideEnabled", default = true, valueType = "boolean" };
 	{ name = "TextureQualityOverride", default = 0, valueType = "number" };
 	{ name = "TextureCompositorLowResFactor", default = 1, valueType = "number" };
@@ -56402,43 +56409,58 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "EnableRequestAsyncCompression", default = false, valueType = "boolean" };
 	{ name = "DisablePostFx", default = true, valueType = "boolean" };
 	{ name = "DebugRenderForceTechnologyVoxel", default = true, valueType = "boolean" };
+
 	{ name = "CSGLevelOfDetailSwitchingDistance", default = 0, valueType = "number" };
 	{ name = "CSGLevelOfDetailSwitchingDistanceL12", default = 0, valueType = "number" };
 	{ name = "CSGLevelOfDetailSwitchingDistanceL23", default = 0, valueType = "number" };
 	{ name = "CSGLevelOfDetailSwitchingDistanceL34", default = 0, valueType = "number" };
 	{ name = "CSGv2LodsToGenerate", default = 0, valueType = "number" };
 	{ name = "CSGv2LodMinTriangleCount", default = 0, valueType = "number" };
+
 	{ name = "NewLightAttenuation", default = false, valueType = "boolean" };
 	{ name = "RenderShadowIntensity", default = 0, valueType = "number" };
 	{ name = "CSGVoxelizerFadeRadius", default = 0, valueType = "number" };
+
 	{ name = "TerrainArraySliceSize", default = 0, valueType = "number" };
+
 	{ name = "RomarkStartWithGraphicQualityLevel", default = 1, valueType = "number" };
 	{ name = "DebugFRMQualityLevelOverride", default = 0, valueType = "number" };
 	{ name = "DebugRestrictGCDistance", default = 50, valueType = "number" };
+
 	{ name = "MSRefactor5", default = false, valueType = "boolean" };
 	{ name = "DebugTextureManagerSkipMips", default = -1, valueType = "number" };
+
 	{ name = "GlobalWindActivated", default = false, valueType = "boolean" };
 	{ name = "GlobalWindRendering", default = false, valueType = "boolean" };
+
 	{ name = "DebugDontRenderScreenGui", default = false, valueType = "boolean" };
 	{ name = "DebugSSAOForce", default = false, valueType = "boolean" };
 	{ name = "SSAOMipLevels", default = 0, valueType = "number" };
+
 	{ name = "EnableCommandAutocomplete", default = false, valueType = "boolean" };
+
 	{ name = "AnimationLodFacsDistanceMin", default = 0, valueType = "number" };
 	{ name = "AnimationLodFacsDistanceMax", default = 0, valueType = "number" };
 	{ name = "AnimationLodFacsVisibilityDenominator", default = 0, valueType = "number" };
+
 	{ name = "TextureCompositorActiveJobs", default = 1, valueType = "number" };
+
 	{ name = "ViewportFrameMaxSize", default = 9999999, valueType = "number" };
+
 	{ name = "FRMMaxGrassDistance", default = 0, valueType = "number" };
 	{ name = "FRMMinGrassDistance", default = 0, valueType = "number" };
 	{ name = "RenderGrassDetailStrands", default = 0, valueType = "number" };
 	{ name = "GrassMovementReducedMotionFactor", default = 100, valueType = "number" };
+
 	{ name = "DebugSkyGray", default = false, valueType = "boolean" };
 	{ name = "CoreGuiTypeSelfViewPresent", default = false, valueType = "boolean" };
 	{ name = "RenderCheckThreading", default = true, valueType = "boolean" };
+
 	{ name = "OptimizeNetworkTransport", default = true, valueType = "boolean" };
 	{ name = "OptimizeNetworkRouting", default = true, valueType = "boolean" };
 	{ name = "RakNetResendBufferArrayLength", default = 128, valueType = "number" };
 	{ name = "WaitOnRecvFromLoopEndedMS", default = 100, valueType = "number" };
+
 	{ name = "DebugDisableTelemetryEphemeralCounter", default = true, valueType = "boolean" };
 	{ name = "DebugDisableTelemetryEphemeralStat", default = true, valueType = "boolean" };
 	{ name = "DebugDisableTelemetryEventIngest", default = true, valueType = "boolean" };
@@ -56446,123 +56468,198 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "DebugDisableTelemetryV2Counter", default = true, valueType = "boolean" };
 	{ name = "DebugDisableTelemetryV2Event", default = true, valueType = "boolean" };
 	{ name = "DebugDisableTelemetryV2Stat", default = true, valueType = "boolean" };
+
 	{ name = "DisableDPIScale", default = true, valueType = "boolean" };
+
+	{ name = "OptimizeNetwork", default = true, valueType = "boolean" };
+	{ name = "OptimizeServerTickRate", default = true, valueType = "boolean" };
+	{ name = "OptimizePingThreshold", default = true, valueType = "boolean" };
+	{ name = "QueueDataPingFromSendData", default = true, valueType = "boolean" };
+	{ name = "DontCreatePingJob", default = false, valueType = "boolean" };
+
+	{ name = "RenderPerformanceTelemetry", default = false, valueType = "boolean" };
+
+	{ name = "CommitToGraphicsQualityFix", default = true, valueType = "boolean" };
+	{ name = "FixGraphicsQuality", default = true, valueType = "boolean" };
+	{ name = "GraphicsSettingsOnlyShowValidModes", default = true, valueType = "boolean" };
+
+	{ name = "PreloadAllFonts", default = true, valueType = "boolean" };
+
+	{ name = "PartTexturePackTable2022", default = true, valueType = "boolean" };
+	{ name = "PartTexturePackTablePre2022", default = false, valueType = "boolean" };
+
+	{ name = "CloudsReflectOnWater", default = false, valueType = "boolean" };
+	{ name = "DebugForceFutureIsBrightPhase3", default = false, valueType = "boolean" };
+
+	{ name = "InGameMenuV1FullScreenTitleBar", default = false, valueType = "boolean" };
+
+	{ name = "EnableHardwareTelemetry", default = false, valueType = "boolean" };
+	{ name = "AudioDeviceTelemetry", default = false, valueType = "boolean" };
+	{ name = "EnableSoundTelemetry", default = false, valueType = "boolean" };
+	{ name = "EnableFmodErrorsTelemetry", default = false, valueType = "boolean" };
+	{ name = "SimReportCPUInfo", default = false, valueType = "boolean" };
+	{ name = "EnableGCapsHardwareTelemetry", default = false, valueType = "boolean" };
+
+	{ name = "BatchAssetApi", default = true, valueType = "boolean" };
+	{ name = "BatchAssetApiNoFallbackOnFail", default = false, valueType = "boolean" };
+
+	{ name = "GameBasicSettingsFramerateCap", default = 0, valueType = "number" };
+	{ name = "RenderGrassHeightScaler", default = 0, valueType = "number" };
+	{ name = "HttpBatchApi_maxWaitMs", default = 50, valueType = "number" };
+	{ name = "HttpBatchApi_bgDelayMs", default = 10, valueType = "number" };
 }
 
 NAFFlags.info = NAFFlags.info or {
-	PhysicsReceiveNumParallelTasks = "Splits incoming physics work across more threads. Higher can help multi-core CPUs.";
-	RuntimeConcurrency = "Global concurrency limit for internal worker threads.";
-	SimWorldTaskQueueParallelTasks = "Parallelism for world simulation task queue.";
-	ReplicationDataCacheNumParallelTasks = "Parallelism for replication data cache processing.";
-	NetworkClusterPacketCacheNumParallelTasks = "Parallelism for network packet cache handling.";
-	FixParticleEmissionBias2 = "Fixes uneven particle emission behavior.";
+	PhysicsReceiveNumParallelTasks = "Splits incoming physics work across more worker threads. Higher can help multi-core CPUs handle replication smoother.";
+	RuntimeConcurrency = "Global concurrency limit for internal worker threads used across subsystems.";
+	SimWorldTaskQueueParallelTasks = "Parallelism for world simulation job queue (physics/streaming).";
+	ReplicationDataCacheNumParallelTasks = "Number of parallel jobs used to process replication data cache.";
+	NetworkClusterPacketCacheNumParallelTasks = "Parallel packet cache handling for clustered network traffic.";
+	FixParticleEmissionBias2 = "Fixes uneven/biased particle emission so particle systems behave consistently.";
 	InterpolationNumParallelTasks = "Parallel interpolation jobs used for smoothing replicated motion.";
-	MegaReplicatorNumParallelTasks = "Parallel jobs for large-scale replication operations.";
-	LuaGcParallelMinMultiTasks = "Minimum parallel tasks used by the Luau garbage collector.";
-	FixParticleAttachmentCulling = "Fixes particle attachment culling glitches.";
-	DebugRenderingSetDeterministic = "Makes some rendering behavior more deterministic and stable.";
+	MegaReplicatorNumParallelTasks = "Parallel jobs for large-scale replication (many instances updating).";
+	LuaGcParallelMinMultiTasks = "Minimum number of parallel tasks used by the Luau garbage collector.";
+	FixParticleAttachmentCulling = "Fixes particle attachment culling so particles don't disappear incorrectly.";
+	DebugRenderingSetDeterministic = "Makes some rendering behavior more deterministic, reducing random variation between runs.";
 
 	TaskSchedulerAutoThreadLimit = "Upper bound for automatically created scheduler worker threads.";
-	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum thread count for async tasks.";
-	SmoothClusterTaskQueueMaxParallelTasks = "Max parallel tasks for smooth-cluster network queue.";
+	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum worker threads kept for async engine tasks.";
+	SmoothClusterTaskQueueMaxParallelTasks = "Max parallel tasks for smooth-cluster networking queue.";
 
 	TeleportReconnect = "Enables reconnect logic on failed teleports.";
-	TeleportReconnect3 = "Newer reconnect path for teleports.";
-	AddJoinAttemptId = "Tags join attempts with IDs to improve robustness.";
-	ChatTranslationSettingEnabled3 = "Enables current chat translation behavior.";
-	EnableQuickGameLaunch = "Faster game launch flow; may spike CPU at load.";
+	TeleportReconnect3 = "Newer reconnect path for teleport failures.";
+	AddJoinAttemptId = "Tags join attempts with IDs to improve reconnect and error handling.";
+	ChatTranslationSettingEnabled3 = "Controls current chat translation system behavior.";
+	EnableQuickGameLaunch = "Faster game launch flow; can spike CPU usage at load time.";
 
 	LCCageDeformLimit = "Limit for cage-based mesh deformation. -1 removes the limit.";
-	FullscreenTitleBarTriggerDelayMillis = "Delay before fullscreen title bar appears when hitting screen top.";
-	DebugPauseVoxelizer = "Pauses voxelizer (lighting voxel updates). Keep false.";
-	RobloxGuiBlurIntensity = "Blur intensity for core UI. 0 disables blur.";
+	FullscreenTitleBarTriggerDelayMillis = "Delay before fullscreen title bar appears when hitting the top edge.";
+	DebugPauseVoxelizer = "Pauses voxelizer (lighting voxel updates). Keep false unless debugging.";
+	RobloxGuiBlurIntensity = "Blur intensity for core UI overlays. 0 disables blur.";
 	DebugDisplayFPS = "Shows a debug FPS counter overlay.";
-	RenderShadowmapBias = "Overrides shadowmap bias. -1 uses engine default.";
-	MaxFrameBufferSize = "Max number of buffered frames. Lower = less latency, higher = smoother.";
-	DebugPerfMode = "Enables performance-focused debug behaviors.";
-	Order66 = "Internal debug/perf flag. Leave enabled.";
-	AdServiceEnabled = "Enables AdService (video ads). Off removes ad overhead.";
-	HandleAltEnterFullscreenManually = "Changes how Alt+Enter fullscreen is handled.";
+	RenderShadowmapBias = "Overrides shadowmap bias. -1 lets engine choose default.";
+	MaxFrameBufferSize = "Maximum number of buffered frames. Lower = lower latency, higher = smoother feel.";
+	DebugPerfMode = "Enables performance-focused internal debug paths.";
+	Order66 = "Internal engine flag used in perf/debug paths. Leave as configured in the pack.";
+	AdServiceEnabled = "Enables AdService (video/engagement ads). Off avoids ad-related overhead.";
+	HandleAltEnterFullscreenManually = "Changes how Alt+Enter fullscreen is processed (engine vs OS).";
 
-	DebugGraphicsPreferD3D11 = "Prefer D3D11 graphics backend.";
-	DebugGraphicsPreferD3D11FL10 = "Prefer D3D11 FL10 for older GPUs.";
+	DebugGraphicsPreferD3D11 = "Prefer D3D11 graphics backend when available.";
+	DebugGraphicsPreferD3D11FL10 = "Prefer D3D11 feature level 10 for older GPUs.";
 	DebugGraphicsPreferVulkan = "Prefer Vulkan graphics backend.";
 	DebugGraphicsPreferOpenGL = "Prefer OpenGL graphics backend.";
-	DebugGraphicsDisableDirect3D11 = "Disables D3D11 backend when true.";
+	DebugGraphicsDisableDirect3D11 = "Disables D3D11 backend when true (use Vulkan/OpenGL instead).";
 
-	TaskSchedulerTargetFps = "Target FPS used by internal scheduler.";
-	TaskSchedulerLimitTargetFpsTo2402 = "Clamp target FPS to 240 when true.";
+	TaskSchedulerTargetFps = "Target FPS value used by some internal scheduler heuristics.";
+	TaskSchedulerLimitTargetFpsTo2402 = "Clamp internal target FPS to 240 when enabled.";
 
-	DebugForceMSAASamples = "Forces MSAA sample count. 0 disables forced MSAA.";
+	DebugForceMSAASamples = "Forces MSAA sample count. 0 disables forced MSAA override.";
 
 	TextureQualityOverrideEnabled = "Allows manual override of texture quality.";
-	TextureQualityOverride = "Texture quality level (0 = lowest, higher = better).";
-	TextureCompositorLowResFactor = "Base resolution factor for composited avatar textures.";
-	PerformanceControlTextureQualityBestUtility = "Weight for automatic texture quality choice. -1 lets engine decide.";
-	EnableRequestAsyncCompression = "Compresses some assets asynchronously when loading.";
-	DisablePostFx = "Disables most post-processing effects (bloom, AO, etc.).";
-	DebugRenderForceTechnologyVoxel = "Forces voxel lighting pipeline.";
+	TextureQualityOverride = "Texture quality override level (0 = lowest, higher = better).";
+	TextureCompositorLowResFactor = "Base resolution factor for composited avatar and character textures.";
+	PerformanceControlTextureQualityBestUtility = "Weight/utility for choosing automatic texture quality. -1 lets engine pick.";
+	EnableRequestAsyncCompression = "Compresses some assets asynchronously during loading.";
+	DisablePostFx = "Disables post-processing (bloom, AO, motion blur etc.) for extra FPS.";
+	DebugRenderForceTechnologyVoxel = "Forces voxel lighting pipeline instead of newer lighting tech.";
 
 	CSGLevelOfDetailSwitchingDistance = "Base distance where CSG LOD switching starts.";
 	CSGLevelOfDetailSwitchingDistanceL12 = "LOD switch distance between CSG L1 and L2.";
 	CSGLevelOfDetailSwitchingDistanceL23 = "LOD switch distance between CSG L2 and L3.";
 	CSGLevelOfDetailSwitchingDistanceL34 = "LOD switch distance between CSG L3 and L4.";
-	CSGv2LodsToGenerate = "How many CSGv2 LOD levels to generate.";
-	CSGv2LodMinTriangleCount = "Minimum triangle count for generating CSGv2 LODs.";
+	CSGv2LodsToGenerate = "How many CSGv2 LOD levels to generate for complex meshes.";
+	CSGv2LodMinTriangleCount = "Minimum triangle count required to generate CSGv2 LODs.";
 
-	NewLightAttenuation = "Enables new light attenuation model.";
+	NewLightAttenuation = "Enables newer light attenuation model (different light falloff).";
 	RenderShadowIntensity = "Global multiplier for shadow intensity.";
-	CSGVoxelizerFadeRadius = "Fade radius used by CSG voxelizer.";
+	CSGVoxelizerFadeRadius = "Fade radius parameter used by the CSG voxelizer.";
 
-	TerrainArraySliceSize = "Internal slice size for terrain storage.";
+	TerrainArraySliceSize = "Internal slice size for terrain voxel storage. Higher = bigger chunks.";
 
 	RomarkStartWithGraphicQualityLevel = "Initial graphics quality level at launch.";
-	DebugFRMQualityLevelOverride = "Forces a fixed FRM (render) quality level.";
-	DebugRestrictGCDistance = "Restriction on GC distance in FRM; lower = more aggressive culling.";
+	DebugFRMQualityLevelOverride = "Forces a fixed FRM render quality level.";
+	DebugRestrictGCDistance = "Restricts distance that FRM considers for geometry culling.";
 
-	MSRefactor5 = "Enables a refactored rendering path. Experimental.";
-	DebugTextureManagerSkipMips = "If >= 0, skips top texture mips (lower-res textures).";
+	MSRefactor5 = "Refactored rendering/systems code path. Experimental; affects performance and behavior.";
+	DebugTextureManagerSkipMips = "If >= 0, skips top texture mips to force lower-res textures.";
 
 	GlobalWindActivated = "Turns on global wind simulation.";
-	GlobalWindRendering = "Renders wind on foliage/parts when global wind is active.";
+	GlobalWindRendering = "Renders global wind effects on foliage/parts.";
 
-	DebugDontRenderScreenGui = "Stops ScreenGui from rendering when true.";
-	DebugSSAOForce = "Forces SSAO debug behavior.";
-	SSAOMipLevels = "Number of SSAO mip levels (AO quality).";
+	DebugDontRenderScreenGui = "Stops ScreenGui from rendering when true (useful for testing world-only FPS).";
+	DebugSSAOForce = "Forces SSAO debug behavior. Affects AO quality and perf.";
+	SSAOMipLevels = "Number of SSAO mip levels to use (AO quality vs performance).";
 
-	EnableCommandAutocomplete = "Enables autocomplete in developer command bar.";
+	EnableCommandAutocomplete = "Enables autocomplete in the developer console/command bar.";
 
-	AnimationLodFacsDistanceMin = "Minimum distance for animation LOD falloff.";
-	AnimationLodFacsDistanceMax = "Maximum distance for animation LOD falloff.";
-	AnimationLodFacsVisibilityDenominator = "Visibility scale factor for animation LOD.";
+	AnimationLodFacsDistanceMin = "Minimum distance for animation LOD fade-out.";
+	AnimationLodFacsDistanceMax = "Maximum distance for animation LOD fade-out.";
+	AnimationLodFacsVisibilityDenominator = "Visibility scaling factor for animation LOD.";
 
-	TextureCompositorActiveJobs = "Number of active avatar texture compositor jobs. Very low values can cause gray avatars.";
+	TextureCompositorActiveJobs = "Number of active avatar texture compositor jobs. Too low can cause gray avatars.";
 
-	ViewportFrameMaxSize = "Max resolution for ViewportFrame rendering. 0 uses default.";
+	ViewportFrameMaxSize = "Max resolution for ViewportFrame rendering. 0 uses default resolution.";
 
 	FRMMaxGrassDistance = "Maximum distance grass is rendered.";
-	FRMMinGrassDistance = "Minimum distance grass starts rendering.";
-	RenderGrassDetailStrands = "Amount of detailed grass strands rendered.";
-	GrassMovementReducedMotionFactor = "Scales grass movement; higher = less waving.";
+	FRMMinGrassDistance = "Minimum distance where grass starts rendering.";
+	RenderGrassDetailStrands = "Number of detailed grass strands rendered. Lower = less grass detail.";
+	GrassMovementReducedMotionFactor = "Scales grass movement amount. Higher = less waving motion.";
 
-	DebugSkyGray = "Replaces skybox with simple gray debug sky.";
-	CoreGuiTypeSelfViewPresent = "Marks that self-view CoreGui is present.";
-	RenderCheckThreading = "Enables threaded render checks.";
+	DebugSkyGray = "Replaces skybox with a simple gray debug sky.";
+	CoreGuiTypeSelfViewPresent = "Marks that a self-view CoreGui (camera preview) is present.";
+	RenderCheckThreading = "Enables threaded render validation and checks.";
 
-	OptimizeNetworkTransport = "Enables optimized network transport implementation.";
-	OptimizeNetworkRouting = "Enables optimized network routing.";
-	RakNetResendBufferArrayLength = "Size of RakNet resend buffer array.";
-	WaitOnRecvFromLoopEndedMS = "Wait time after receive loop ends before shutdown.";
+	OptimizeNetworkTransport = "Enables optimized implementation of the network transport layer.";
+	OptimizeNetworkRouting = "Enables optimized routing for network traffic.";
+	RakNetResendBufferArrayLength = "Size of RakNet resend buffer array for resending packets.";
+	WaitOnRecvFromLoopEndedMS = "Wait time after receive loop ends before shutting down networking.";
 
-	DebugDisableTelemetryEphemeralCounter = "Disable ephemeral counter telemetry.";
-	DebugDisableTelemetryEphemeralStat = "Disable ephemeral stat telemetry.";
-	DebugDisableTelemetryEventIngest = "Disable telemetry event ingest.";
-	DebugDisableTelemetryPoint = "Disable telemetry points.";
-	DebugDisableTelemetryV2Counter = "Disable v2 telemetry counters.";
-	DebugDisableTelemetryV2Event = "Disable v2 telemetry events.";
-	DebugDisableTelemetryV2Stat = "Disable v2 telemetry stats.";
+	DebugDisableTelemetryEphemeralCounter = "Disables ephemeral counter telemetry.";
+	DebugDisableTelemetryEphemeralStat = "Disables ephemeral stat telemetry.";
+	DebugDisableTelemetryEventIngest = "Disables ingestion of some telemetry events.";
+	DebugDisableTelemetryPoint = "Disables generic telemetry points.";
+	DebugDisableTelemetryV2Counter = "Disables V2 counter telemetry.";
+	DebugDisableTelemetryV2Event = "Disables V2 event telemetry.";
+	DebugDisableTelemetryV2Stat = "Disables V2 stat telemetry.";
 
-	DisableDPIScale = "Disables OS DPI scaling for the Roblox window.";
+	DisableDPIScale = "Disables OS DPI scaling for the Roblox window (can make UI sharper on some displays).";
+
+	OptimizeNetwork = "Enables additional network optimization paths to reduce overhead and latency.";
+	OptimizeServerTickRate = "Tunes server tick scheduling for more consistent physics/network timing.";
+	OptimizePingThreshold = "Adjusts thresholds used for ping/latency smoothing; can reduce small spikes.";
+	QueueDataPingFromSendData = "Queues ping measurements from outgoing data instead of a separate job to cut overhead.";
+	DontCreatePingJob = "Disables creation of a dedicated ping job. Less background work but less detailed ping data.";
+
+	RenderPerformanceTelemetry = "Controls render/performance telemetry being sent to Roblox. Off reduces background telemetry load.";
+
+	CommitToGraphicsQualityFix = "Uses newer graphics quality selection logic to keep quality/perf in sync with hardware.";
+	FixGraphicsQuality = "Applies a correction pass to incorrectly stored graphics quality levels.";
+	GraphicsSettingsOnlyShowValidModes = "Hides graphics options that are not valid for your hardware/driver.";
+
+	PreloadAllFonts = "Loads all fonts up-front to avoid stutters when fonts are first used in UI.";
+
+	PartTexturePackTable2022 = "Uses the newer (2022) texture pack table for parts for better packing/caching.";
+	PartTexturePackTablePre2022 = "Uses the older pre-2022 part texture pack table (useful if new one causes issues).";
+
+	CloudsReflectOnWater = "Enables clouds being reflected in water. Looks nicer but costs GPU performance.";
+	DebugForceFutureIsBrightPhase3 = "Forces the latest Future is Bright lighting phase; better visuals, higher GPU cost.";
+
+	InGameMenuV1FullScreenTitleBar = "Enables V1 in-game menu fullscreen title bar behavior when hitting the top edge.";
+
+	EnableHardwareTelemetry = "Controls hardware telemetry upload. Off reduces hardware profiling traffic.";
+	AudioDeviceTelemetry = "Telemetry about audio device configuration and changes.";
+	EnableSoundTelemetry = "Telemetry for sound playback performance and errors.";
+	EnableFmodErrorsTelemetry = "Telemetry for FMOD audio backend errors.";
+	SimReportCPUInfo = "Reports CPU information as part of simulation telemetry.";
+	EnableGCapsHardwareTelemetry = "Uploads graphics capability (GCaps) telemetry for hardware profiling.";
+
+	BatchAssetApi = "Enables HTTP batch asset requests to reduce the number of asset HTTP calls.";
+	BatchAssetApiNoFallbackOnFail = "Disables fallback to non-batch asset requests when a batch fails.";
+
+	GameBasicSettingsFramerateCap = "Framerate cap used by basic game settings. 0 generally means uncapped.";
+	RenderGrassHeightScaler = "Scales the height of rendered grass. Lower = shorter grass blades.";
+	HttpBatchApi_maxWaitMs = "Max wait time before sending a HTTP batch. Higher = more batching, fewer requests.";
+	HttpBatchApi_bgDelayMs = "Extra delay before sending background HTTP batches to avoid spikes.";
 }
 
 for _, entry in ipairs(NAFFlags.whitelist) do
@@ -56628,6 +56725,32 @@ NAFFlags.getDefault = function(entry)
 		return false
 	end
 	return entry.default
+end
+
+NAFFlags.existsCache = NAFFlags.existsCache or {}
+
+NAFFlags.flagExists = function(name)
+	if NAFFlags.existsCache[name] ~= nil then
+		return NAFFlags.existsCache[name]
+	end
+
+	if type(getfflag) ~= "function" then
+		return nil
+	end
+
+	local ok, res = pcall(getfflag, name)
+	if ok then
+		NAFFlags.existsCache[name] = true
+		return true
+	end
+
+	local msg = tostring(res):lower()
+	if msg:find("fflag is not exist") or msg:find("fflag does not exist") then
+		NAFFlags.existsCache[name] = false
+		return false
+	end
+
+	return nil
 end
 
 NAFFlags.normalizeRenderingPrefs = function(changedFlag)
@@ -56763,6 +56886,28 @@ NAFFlags.hasSupport = function()
 	return ok and type(define) == "function"
 end
 
+NAFFlags._availableFlags = NAFFlags._availableFlags or {}
+
+NAFFlags.isFlagAvailable = function(name, opts)
+	opts = opts or {}
+	local cache = NAFFlags._availableFlags
+	if cache[name] ~= nil then
+		return cache[name]
+	end
+	if type(getfflag) ~= "function" then
+		cache[name] = true
+		return true
+	end
+	local ok = pcall(function()
+		return getfflag(name)
+	end)
+	cache[name] = ok
+	if not ok and opts.notify then
+		DoNotif(Format("%s is not available on this client and will be skipped.", tostring(name)), 3)
+	end
+	return ok
+end
+
 NAFFlags.enabled = function()
 	return NAFFlags.config.useFFlags == true
 end
@@ -56782,6 +56927,9 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 		end
 		return false, "unsupported"
 	end
+	if NAFFlags.isFlagAvailable and not NAFFlags.isFlagAvailable(flagName, { notify = not opts.silent }) then
+		return false, "unavailable"
+	end
 	local setter = type(setfflag) == "function" and setfflag or function(name, value)
 		return game:DefineFastFlag(name, value)
 	end
@@ -56790,8 +56938,6 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 		if not opts.silent then
 			DoNotif(Format("Failed to set %s: %s", tostring(flagName), tostring(err)), 4)
 		end
-		-- disabled due to spam if the default ones fail
-		--warn("[NA] FastFlag apply failed for "..tostring(flagName)..": "..tostring(err))
 		return false, err
 	end
 	if not opts.silent then
@@ -56803,39 +56949,49 @@ end
 NAFFlags.applyAll = function(opts)
 	opts = opts or {}
 	local shouldNotify = opts.notify ~= false
+
 	NAFFlags.normalizeRenderingPrefs()
+
 	if not NAFFlags.enabled() then
 		if shouldNotify then
 			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
 		end
 		return 0, false
 	end
+
 	if not NAFFlags.hasSupport() then
 		if shouldNotify then
 			DoNotif("FastFlag functions not available on this executor.", 3)
 		end
 		return 0, false
 	end
+
 	local targets = {}
 	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
-		targets[#targets + 1] = { name = entry.name, value = NAFFlags.values[entry.name] }
-		seen[entry.name] = true
+		local name = entry.name
+		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(name) then
+			targets[#targets + 1] = { name = name, value = NAFFlags.values[name] }
+			seen[name] = true
+		end
 	end
 	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
 		if not seen[customName] and customValue ~= nil then
 			targets[#targets + 1] = { name = customName, value = customValue }
 		end
 	end
+
 	local applied = 0
 	for _, target in ipairs(targets) do
 		if NAFFlags.apply(target.name, target.value, { silent = true }) then
 			applied = applied + 1
 		end
 	end
+
 	if shouldNotify then
 		DoNotif(Format("Applied %d/%d fast flags", applied, #targets), 3)
 	end
+
 	return applied, true
 end
 
@@ -57048,12 +57204,15 @@ NAFFlags.buildSetfflagScript = function()
 	local lines = { "if not setfflag then return warn(\"setfflag unavailable\") end" }
 	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
-		local value = NAFFlags.values[entry.name]
-		if value == nil then
-			value = NAFFlags.getDefault(entry)
+		local name = entry.name
+		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(name) then
+			local value = NAFFlags.values[name]
+			if value == nil then
+				value = NAFFlags.getDefault(entry)
+			end
+			lines[#lines + 1] = Format("setfflag(%q, %q)", name, tostring(value))
+			seen[name] = true
 		end
-		lines[#lines + 1] = Format("setfflag(%q, %q)", entry.name, tostring(value))
-		seen[entry.name] = true
 	end
 	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
 		if not seen[customName] and customValue ~= nil then
@@ -57204,6 +57363,10 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 	local entryName = entry.name
 	local desc = NAFFlags.info and NAFFlags.info[entryName] or nil
 
+	if NAFFlags.isFlagAvailable and not NAFFlags.isFlagAvailable(entryName) then
+		continue
+	end
+
 	if entry.valueType == "boolean" then
 		NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
 			local normalized = NAFFlags.normalizeValue(entry, state)
@@ -57253,8 +57416,8 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 		end)
 	end
 
-	if desc then
-		NAgui.addSection(entryName.." – "..desc)
+	if desc and desc ~= "" then
+		NAgui.addSection(desc)
 	end
 end
 
