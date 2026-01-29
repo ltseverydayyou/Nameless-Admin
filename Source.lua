@@ -1,8 +1,36 @@
-if getgenv().ltseverydayyou_NA~=nil then return end
-pcall(function() getgenv().ltseverydayyou_NA=true; getgenv().NATestingVer=false; getgenv().NAverify="Haryas Admin Is SKIDDED AS FUCK"; end)
+local _na_env = (getgenv and getgenv()) or _G or {}
+local _na_shared = rawget(_G, "shared")
+
+local function naAlreadyLoaded()
+	if _na_env and (_na_env.ltseverydayyou_NA or _na_env.NA_LOADED) then
+		return true
+	end
+	if _na_shared and (_na_shared.ltseverydayyou_NA or _na_shared.NA_LOADED) then
+		return true
+	end
+	return false
+end
+
+if naAlreadyLoaded() then
+	return
+end
+
+local naFlagValue = tick()
+pcall(function()
+	if _na_env then
+		_na_env.ltseverydayyou_NA = naFlagValue
+		_na_env.NA_LOADED = naFlagValue
+		_na_env.NATestingVer = false
+		_na_env.NAverify = "Haryas Admin Is SKIDDED AS FUCK"
+	end
+	if _na_shared then
+		_na_shared.ltseverydayyou_NA = naFlagValue
+		_na_shared.NA_LOADED = naFlagValue
+	end
+end)
 
 NAbegin=tick()
-CMDAUTOFILL = {}
+CMDAUTOFILL={}
 
 local NAmanage={}
 
@@ -27,21 +55,25 @@ local Notify = nil
 local Window = nil
 local Popup  = nil
 
-local TAB_ALL = "All"
-local TAB_GENERAL = "General"
-local TAB_INTEGRATIONS = "Integrations"
-local TAB_INTERFACE = "Interface"
-local TAB_FFLAGS = "FFlags"
-local TAB_USER_BUTTONS = "User Buttons"
-local TAB_LOGGING = "Logging"
-local TAB_ESP = "ESP"
-local TAB_CHAT = "Chat"
-local TAB_CHARACTER = "Character"
-local TAB_KEYBINDS = "Keybinds"
-local TAB_COMMAND_KEYBINDS = "Command Keybinds"
-local TAB_BASIC_INFO = "Basic Info"
-local TAB_ROBLOX_DATA = "Roblox Data"
-local TAB_ADMIN_INFO = "Admin Info"
+local NA_TABS = {
+	TAB_ALL = "All";
+	TAB_GENERAL = "General";
+	TAB_INTEGRATIONS = "Integrations";
+	TAB_INTERFACE = "Interface";
+	TAB_FFLAGS = "FFlags";
+	TAB_AUTOMATION = "Automation";
+	TAB_USER_BUTTONS = "User Buttons";
+	TAB_LOGGING = "Logging";
+	TAB_ESP = "ESP";
+	TAB_CHAT = "Chat";
+	TAB_CHARACTER = "Character";
+	TAB_KEYBINDS = "Keybinds";
+	TAB_COMMAND_KEYBINDS = "Command Keybinds";
+	TAB_BASIC_INFO = "Basic Info";
+	TAB_ROBLOX_DATA = "Roblox Data";
+	TAB_ADMIN_INFO = "Admin Info";
+}
+
 local opt
 
 local LoadstringCommandAliases = {
@@ -118,13 +150,9 @@ local testingName = 'NA Testing'
 local adminName = 'NA'
 
 NAmanage.syncNameGlobals=function()
-	local env = (getgenv and getgenv()) or _G
-	if not env then
-		return
-	end
-	env.mainName = mainName
-	env.testingName = testingName
-	env.adminName = adminName
+	_na_env.mainName = mainName
+	_na_env.testingName = testingName
+	_na_env.adminName = adminName
 end
 
 pcall(NAmanage.syncNameGlobals)
@@ -186,7 +214,7 @@ NAStuff.CmdBar2 = NAStuff.CmdBar2 or {
 	defaultWidth = 340;
 	defaultHeight = 78;
 	minWidth = 200;
-	maxWidth = 800;
+	maxWidth = 500;
 	minHeight = 70;
 	maxHeight = 160;
 	topHeight = 26;
@@ -1014,7 +1042,7 @@ NAmanage.CreateNAFreecam=function()
 			end
 		end
 
-		if _G.NAFreecamKeybindEnabled ~= true then
+		if _na_env.NAFreecamKeybindEnabled ~= true then
 			return
 		end
 
@@ -1406,8 +1434,8 @@ originalIO.resolveWithListfiles=function(target)
 end
 
 if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") then
-	if not getgenv()["__NA_SOLARA_PATH_FIX__"] then
-		getgenv()["__NA_SOLARA_PATH_FIX__"] = true
+	if not _na_env["__NA_SOLARA_PATH_FIX__"] then
+		_na_env["__NA_SOLARA_PATH_FIX__"] = true
 
 		local function wrapWithFallback(fn, returnsBool, allowListResolve)
 			if type(fn) ~= "function" then
@@ -1490,7 +1518,7 @@ local NAStuff = {
 		defaultWidth = 340;
 		defaultHeight = 78;
 		minWidth = 200;
-		maxWidth = 800;
+		maxWidth = 500;
 		minHeight = 70;
 		maxHeight = 160;
 		topHeight = 26;
@@ -2129,7 +2157,7 @@ end
 
 	NAStuff.CmdIntegrationLoaded = true
 	NAStuff.CmdIntegrationLastSource = sourceLabel
-	local bridge = result or (getgenv and getgenv().CmdIntegrationBridge)
+	local bridge = result or (getgenv and _na_env.CmdIntegrationBridge)
 	if type(bridge) == "table" then
 		NAStuff.CmdIntegrationBridge = bridge
 		if type(bridge.prefix) == "string" and bridge.prefix ~= "" then
@@ -2197,7 +2225,7 @@ NAmanage.detectCmdManualLoad=function(opts)
 			return true, "already-loaded"
 		end
 
-		local existingBridge = (getgenv and getgenv().CmdIntegrationBridge) or nil
+		local existingBridge = (getgenv and _na_env.CmdIntegrationBridge) or nil
 		if type(existingBridge) == "table" and type(existingBridge.parse) == "function" then
 			NAStuff.CmdIntegrationBridge = existingBridge
 			NAStuff.CmdIntegrationLoaded = true
@@ -2218,15 +2246,14 @@ NAmanage.detectCmdManualLoad=function(opts)
 		local commandModule
 		local settingsTable
 
-		local env = (getgenv and getgenv()) or _G or {}
-		if not commandsTable and NAmanage._naIsCmdCommandsTable(env.Commands) then
-			commandsTable = env.Commands
+		if not commandsTable and NAmanage._naIsCmdCommandsTable(_na_env.Commands) then
+			commandsTable = _na_env.Commands
 		end
-		if not commandModule and type(env.Command) == "table" and type(env.Command.Parse) == "function" and type(env.Command.Run) == "function" then
-			commandModule = env.Command
+		if not commandModule and type(_na_env.Command) == "table" and type(_na_env.Command.Parse) == "function" and type(_na_env.Command.Run) == "function" then
+			commandModule = _na_env.Command
 		end
-		if not settingsTable and type(env.Settings) == "table" and type(rawget(env.Settings, "Prefix")) == "string" and type(rawget(env.Settings, "ChatPrefix")) == "string" then
-			settingsTable = env.Settings
+		if not settingsTable and type(_na_env.Settings) == "table" and type(rawget(_na_env.Settings, "Prefix")) == "string" and type(rawget(_na_env.Settings, "ChatPrefix")) == "string" then
+			settingsTable = _na_env.Settings
 		end
 
 		if type(getgc) ~= "function" then
@@ -2691,7 +2718,7 @@ NAmanage.isInvalidPathErr=function(e)
 end
 
 if type(NAStuff._wf) == "function" then
-    getgenv().writefile = function(p, data, ...)
+    _na_env.writefile = function(p, data, ...)
         if type(p) ~= "string" then
             return NAStuff._wf(p, data, ...)
         end
@@ -2717,7 +2744,7 @@ if type(NAStuff._wf) == "function" then
 end
 
 if type(NAStuff._rf) == "function" then
-    getgenv().readfile = function(p, ...)
+    _na_env.readfile = function(p, ...)
         if type(p) ~= "string" then
             return NAStuff._rf(p, ...)
         end
@@ -2742,7 +2769,7 @@ if type(NAStuff._rf) == "function" then
 end
 
 if type(NAStuff._iff) == "function" then
-    getgenv().isfile = function(p, ...)
+    _na_env.isfile = function(p, ...)
         if type(p) ~= "string" then
             local ok, res = pcall(NAStuff._iff, p, ...)
             return ok and res or false
@@ -2768,7 +2795,7 @@ if type(NAStuff._iff) == "function" then
 end
 
 if type(NAStuff._df) == "function" then
-    getgenv().delfile = function(p, ...)
+    _na_env.delfile = function(p, ...)
         if type(p) ~= "string" then
             return NAStuff._df(p, ...)
         end
@@ -6134,8 +6161,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.server.playerCount = Format("%d/%d", playerCount, maxPlayers)
 	snapshot.server.ping = serverPing
 
-	local isTesting = getgenv and getgenv().NATestingVer
-	local aprilMode = getgenv and getgenv().ActivateAprilMode
+	local isTesting = getgenv and _na_env.NATestingVer
+	local aprilMode = getgenv and _na_env.ActivateAprilMode
 
 	snapshot.flags.version = isTesting and "Testing" or "Normal"
 	snapshot.flags.aprilFools = aprilMode and "Enabled" or "Disabled"
@@ -6267,7 +6294,7 @@ do
 	end
 end
 
-if getgenv().NATestingVer then
+if _na_env.NATestingVer then
 	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
 	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
@@ -6290,7 +6317,7 @@ NAmanage.guiCHECKINGAHHHHH=function()
 end
 
 if not gethui then
-	getgenv().gethui=function()
+	_na_env.gethui=function()
 		return NAmanage.guiCHECKINGAHHHHH()
 	end
 end
@@ -6516,7 +6543,7 @@ end
 
 function isAprilFools()
 	local d = os.date("*t")
-	return (d.month == 4 and d.day == 1) or getgenv().ActivateAprilMode or false
+	return (d.month == 4 and d.day == 1) or _na_env.ActivateAprilMode or false
 end
 
 function yayApril(isTesting)
@@ -6739,7 +6766,7 @@ NAmanage.startAprilPranks = function()
 	end)
 end
 
-if getgenv().NATestingVer then
+if _na_env.NATestingVer then
 	if isAprilFools() then
 		testingName = yayApril(true)
 		testingName = maybeMock(testingName)
@@ -8067,7 +8094,7 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 		end
 	end
 
-	getgenv().fireproximityprompt = function(target, opts)
+	_na_env.fireproximityprompt = function(target, opts)
 		local o = toOpts(opts)
 		local list = {}
 		if typeof(target) == "Instance" and target:IsA("ProximityPrompt") then
@@ -8927,6 +8954,22 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
+			end;
+		};
+		autoInteractDistanceEnabled = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		autoInteractExtraRange = {
+			default = 5;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 5 end
+				if n < 0 then n = 0 end
+				if n > 1000 then n = 1000 end
+				return n
 			end;
 		};
 		autoPreloadAssets = {
@@ -10103,11 +10146,14 @@ NAmanage.loadIntegration()
 
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
-_G.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
+_na_env.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 NAStuff.FreecamSpeed = math.clamp(tonumber(NAmanage.NASettingsGet("freecamSpeed")) or 5, 0.05, 20)
 if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
 end
+
+NAStuff.AutoInteractDistanceEnabled = true
+NAStuff.AutoInteractExtraRange = 5
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -10120,6 +10166,8 @@ if FileSupport then
 		NAStuff.tweenSpeed = savedTweenSpeed
 	end
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
+	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
+	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
 	NAUISTROKER = InitUIStroke()
 	if NAStuff and NAStuff.AprilFoolsData then
 		NAStuff.AprilFoolsData.originalColor = NAUISTROKER
@@ -10710,7 +10758,7 @@ local Watch=false
 local AntiVelocityLimit = nil
 local Admin={}
 CoreGui=COREGUI;
-_G.NAadminsLol={
+_na_env.NAadminsLol={
 	11761417; -- Main
 	530829101; --Viper
 	817571515; --Aimlock
@@ -11216,7 +11264,7 @@ function randomahhfunctionthatyouwontgetit(data)
 	end))
 end]]
 function isRelAdmin(Player)
-	for _, id in ipairs(_G.NAadminsLol) do
+	for _, id in ipairs(_na_env.NAadminsLol) do
 		if Player.UserId == id then
 			return true
 		end
@@ -11573,7 +11621,7 @@ LocalPlayer.OnTeleport:Connect(function(...)
 		opt.queueteleport(opt.loader)
 	end
 	if isAprilFools() then
-		opt.queueteleport("getgenv().ActivateAprilMode=true")
+		opt.queueteleport("_na_env.ActivateAprilMode=true")
 	end
 end)
 
@@ -11606,9 +11654,8 @@ end
 NAmanage.tryCmdIntegration=function(rawArgs)
 	local bridge = NAStuff.CmdIntegrationBridge
 	if (not bridge or type(bridge.parse) ~= "function") and getgenv then
-		local g = getgenv()
-		if g and type(g.CmdIntegrationBridge) == "table" and type(g.CmdIntegrationBridge.parse) == "function" then
-			bridge = g.CmdIntegrationBridge
+		if _na_env and type(_na_env.CmdIntegrationBridge) == "table" and type(_na_env.CmdIntegrationBridge.parse) == "function" then
+			bridge = _na_env.CmdIntegrationBridge
 			NAStuff.CmdIntegrationBridge = bridge
 		end
 	end
@@ -15958,8 +16005,8 @@ NAmanage.LoadPlugins = function(opts)
 				elseif k == "load" then
 					local baseLoad = baseEnv.load
 					if not baseLoad then return nil end
-					return function(chunk, chunkname, mode2, env)
-						return baseLoad(chunk, chunkname, mode2, env or proxyEnv)
+					return function(chunk, chunkname, mode2, _na_env)
+						return baseLoad(chunk, chunkname, mode2, _na_env or proxyEnv)
 					end
 				elseif k == "game" then
 					return gameProxy
@@ -19419,7 +19466,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 				end
 			end
 
-			getgenv().Welcome = true
+			_na_env.Welcome = true
 			if Targets[1] then
 				for _,x in next,Targets do GetPlayer(x) end
 			else
@@ -20878,8 +20925,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		setVal("Gravity", Format("%.1f", workspace.Gravity))
 		setVal("ClockTime", Format("%.2f", Lighting.ClockTime))
 		setVal("Brightness", Format("%.2f", Lighting.Brightness))
-		local okE, env = pcall(function() return Lighting.EnvironmentSpecularScale end)
-		setVal("EnvSpecular", okE and Format("%.2f", env) or "N/A")
+		local okE, _na_env = pcall(function() return Lighting.EnvironmentSpecularScale end)
+		setVal("EnvSpecular", okE and Format("%.2f", _na_env) or "N/A")
 		setVal("CurrentZone", "N/A")
 	end
 	local function updateNetwork()
@@ -22538,10 +22585,9 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 end)
 
 cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
-	local g=getgenv and getgenv() or _G
-	if g.NA_FPS_ACTIVE then
-		g.NA_FPS_ACTIVE=false
-		if g.NA_FPS_UNHOOK then g.NA_FPS_UNHOOK() end
+	if _na_env.NA_FPS_ACTIVE then
+		_na_env.NA_FPS_ACTIVE=false
+		if _na_env.NA_FPS_UNHOOK then _na_env.NA_FPS_UNHOOK() end
 		return
 	end
 
@@ -22774,9 +22820,9 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		restoreEnv()
 	end
 
-	g.NA_FPS_UNHOOK=function() disable() g.NA_FPS_UNHOOK=nil end
+	_na_env.NA_FPS_UNHOOK=function() disable() _na_env.NA_FPS_UNHOOK=nil end
 	enable()
-	g.NA_FPS_ACTIVE=true
+	_na_env.NA_FPS_ACTIVE=true
 end)
 
 cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
@@ -22960,7 +23006,7 @@ cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 	runBtn.Parent = content
 
 	MouseButtonFix(runBtn,function()
-		getgenv().Settings = userSettings
+		_na_env.Settings = userSettings
 		sGUI:Destroy()
 		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/low%20detail"))()
 	end)
@@ -25092,8 +25138,8 @@ cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/Module
 			return call("/konstant/disassemble", scriptPath)
 		end
 
-		getgenv().decompile = decompile
-		getgenv().disassemble = disassemble
+		_na_env.decompile = decompile
+		_na_env.disassemble = disassemble
 
 		-- by lovrewe
 	end)
@@ -26104,8 +26150,8 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 end, true)
 
 NAStuff.NPC_SCAN_KEY = NAStuff.NPC_SCAN_KEY or "npc_esp_scan"
-NAStuff.npcESPList = NAStuff.npcESPList or getgenv().npcESPList or {}
-getgenv().npcESPList = NAStuff.npcESPList
+NAStuff.npcESPList = NAStuff.npcESPList or _na_env.npcESPList or {}
+_na_env.npcESPList = NAStuff.npcESPList
 NAStuff.npcCandidates = NAStuff.npcCandidates or {}
 
 NAmanage.ClearNpcTables = function()
@@ -26238,7 +26284,7 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 	end
 	NAmanage.ClearNpcTables()
 	NAStuff.npcESPList = {}
-	getgenv().npcESPList = NAStuff.npcESPList
+	_na_env.npcESPList = NAStuff.npcESPList
 	if not (ESPPlayersEnabled or chamsEnabled or NPCESPenabled) then
 		NAmanage.ESP_StopGlobal()
 	end
@@ -27887,18 +27933,18 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	--Scripts:
 
 	function AKIHDI_fake_script()
-		_G.functionspy={
+		_na_env.functionspy={
 			instance=Main.Parent;
 			logging=true;
 			connections={};
 		}
 
-		_G.functionspy.shutdown=function()
-			for i,v in pairs(_G.functionspy.connections) do
+		_na_env.functionspy.shutdown=function()
+			for i,v in pairs(_na_env.functionspy.connections) do
 				v:Disconnect()
 			end
-			_G.functionspy.connections={}
-			_G.functionspy=nil
+			_na_env.functionspy.connections={}
+			_na_env.functionspy=nil
 			Main.Parent:Destroy()
 		end
 
@@ -27945,7 +27991,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 					local func=loadstring("return "..v)()
 					hooked[i]=hookfunction(func,function(...)
 						local args={...}
-						if _G.functionspy then
+						if _na_env.functionspy then
 							NACaller(function()
 								out=""
 								out=out..(v..",Args-> {")..("\n"):format()
@@ -27965,7 +28011,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 									end
 								end
 								out=out..("},Result-> "..tostring(nil))..("\n"):format()
-								if _G.functionspy.logging==true then
+								if _na_env.functionspy.logging==true then
 									log(v,out)
 								end
 							end)
@@ -27980,7 +28026,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 				local suc,err=NACaller(function()
 					hooked[i]=hookfunction(v,function(...)
 						local args={...}
-						if _G.functionspy then
+						if _na_env.functionspy then
 							NACaller(function() 
 								out=""
 								out=out..(getinfo(v).name..",Args-> {")..("\n"):format()
@@ -28000,7 +28046,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 									end
 								end
 								out=out..("},Result-> "..tostring(nil))..("\n"):format()
-								if _G.functionspy.logging==true then
+								if _na_env.functionspy.logging==true then
 									log(getinfo(v).name,out)
 								end
 							end)
@@ -28031,7 +28077,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			TweenService:Create(frame,TweenInfo.new(dragSpeed),{Position=position}):Play()
 		end
 
-		Insert(_G.functionspy.connections,frame.Title.InputBegan:Connect(function(input)
+		Insert(_na_env.functionspy.connections,frame.Title.InputBegan:Connect(function(input)
 			if (input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch) then 
 				dragToggle=true
 				dragStart=input.Position
@@ -28044,7 +28090,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			end
 		end))
 
-		Insert(_G.functionspy.connections,UIS.InputChanged:Connect(function(input)
+		Insert(_na_env.functionspy.connections,UIS.InputChanged:Connect(function(input)
 			if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
 				if dragToggle then
 					updateInput(input)
@@ -28057,39 +28103,39 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	function BIPVKVC_fake_script()
 		local script=InstanceNew('LocalScript',FakeTitle)
 
-		Insert(_G.functionspy.connections,FakeTitle.MouseEnter:Connect(function()
-			if _G.functionspy.logging==true then
+		Insert(_na_env.functionspy.connections,FakeTitle.MouseEnter:Connect(function()
+			if _na_env.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif _G.functionspy.logging==false then
+			elseif _na_env.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(_G.functionspy.connections,FakeTitle.MouseMoved:Connect(function()
-			if _G.functionspy.logging==true then
+		Insert(_na_env.functionspy.connections,FakeTitle.MouseMoved:Connect(function()
+			if _na_env.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif _G.functionspy.logging==false then
+			elseif _na_env.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(_G.functionspy.connections, MouseButtonFix(FakeTitle, function()
-			_G.functionspy.logging=not _G.functionspy.logging
-			if _G.functionspy.logging==true then
+		Insert(_na_env.functionspy.connections, MouseButtonFix(FakeTitle, function()
+			_na_env.functionspy.logging=not _na_env.functionspy.logging
+			if _na_env.functionspy.logging==true then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
-			elseif _G.functionspy.logging==false then
+			elseif _na_env.functionspy.logging==false then
 				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
-		Insert(_G.functionspy.connections,FakeTitle.MouseLeave:Connect(function()
+		Insert(_na_env.functionspy.connections,FakeTitle.MouseLeave:Connect(function()
 			TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,1,1)}):Play()
 		end))
 	end
 	coroutine.wrap(BIPVKVC_fake_script)()
 	function PRML_fake_script()
 		MouseButtonFix(clear, function()
-			_G.functionspy.shutdown()
+			_na_env.functionspy.shutdown()
 		end)
 	end
 	coroutine.wrap(PRML_fake_script)()
@@ -29056,7 +29102,7 @@ end)
 
 cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 	SpawnCall(function()
-		if getgenv().Lzzz == true then return end
+		if _na_env.Lzzz == true then return end
 
 		local Anim = InstanceNew("Animation")
 		if IsR15() then
@@ -29065,17 +29111,17 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			Anim.AnimationId = "rbxassetid://180436148"
 		end
 		local k = getHum():LoadAnimation(Anim)
-		getgenv().ssss = LocalPlayer:GetMouse()
-		getgenv().Lzzz = false
+		_na_env.ssss = LocalPlayer:GetMouse()
+		_na_env.Lzzz = false
 
 		if Lzzz == false then
-			getgenv().Lzzz = true
+			_na_env.Lzzz = true
 			if IsR15() then
 				Anim.AnimationId = "rbxassetid://507767968"
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
-			getgenv().currentnormal = workspace.Gravity
+			_na_env.currentnormal = workspace.Gravity
 			workspace.Gravity = 196.2
 			LocalPlayer.Character:PivotTo(LocalPlayer.Character:GetPivot() * CFrame.Angles(2, 0, 0))
 			Wait(0.5)
@@ -29087,7 +29133,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 
 			LocalPlayer.Character.Animate.Disabled = true
 		else
-			getgenv().Lzzz = false
+			_na_env.Lzzz = false
 			if IsR15() then
 				Anim.AnimationId = "rbxassetid://507767968"
 			else
@@ -29120,7 +29166,7 @@ end)
 
 cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in real life noob"}, function()
 	SpawnCall(function()
-		if getgenv().Lzzz ~= true then return end
+		if _na_env.Lzzz ~= true then return end
 
 		local Anim = InstanceNew("Animation")
 		if IsR15() then
@@ -29131,7 +29177,7 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 
 		local k = getHum():LoadAnimation(Anim)
 
-		getgenv().Lzzz = false
+		_na_env.Lzzz = false
 		workspace.Gravity = currentnormal
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		getHum().Jump = true
@@ -29363,8 +29409,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		BUTTON_DARK = Color3.fromRGB(44, 44, 48),
 	}
 
-	local OWNERSHIP_CACHE = getgenv().__BadgeOwnershipCache or {}
-	getgenv().__BadgeOwnershipCache = OWNERSHIP_CACHE
+	local OWNERSHIP_CACHE = _na_env.__BadgeOwnershipCache or {}
+	_na_env.__BadgeOwnershipCache = OWNERSHIP_CACHE
 	local CACHE_TTL_SECS = 600
 
 	local function cacheGet(userId, badgeId)
@@ -30300,14 +30346,14 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 		return true
 	end
 
-	local st = getgenv().__na_btr_st
+	local st = _na_env.__na_btr_st
 	if type(st) ~= "table" then
 		st = {
 			ch = nil, d = true, a = nil, r = nil, mp = nil,
 			vv = 0, all = false, sel = {}, dirty = true,
 			pend = {}, pendF = false,
 		}
-		getgenv().__na_btr_st = st
+		_na_env.__na_btr_st = st
 	end
 
 	local function setch(ch)
@@ -30502,7 +30548,7 @@ cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency
 		end
 	end
 
-	local st = getgenv().__na_btr_st
+	local st = _na_env.__na_btr_st
 	if type(st) == "table" then
 		st.all = false
 		st.sel = {}
@@ -30841,7 +30887,7 @@ end)
 
 cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	local challenge = Concat({...}, " ")
-	getgenv().SawFinish = false
+	_na_env.SawFinish = false
 
 	local function playSound(id, vol)
 		local sfx = InstanceNew("Sound")
@@ -30882,7 +30928,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	}, background)
 
 	coroutine.wrap(function()
-		while not getgenv().SawFinish do
+		while not _na_env.SawFinish do
 			local tween = TweenService:Create(
 				staticOverlay,
 				TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
@@ -30926,7 +30972,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	}, ScreenGui)
 
 	coroutine.wrap(function()
-		while not getgenv().SawFinish do
+		while not _na_env.SawFinish do
 			local newSize = math.random(140, 160)
 			local newRotation = math.random(-10, 10)
 			local tween = TweenService:Create(
@@ -31001,7 +31047,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	}, ScreenGui)
 
 	local function flickerText()
-		while not getgenv().SawFinish do
+		while not _na_env.SawFinish do
 			local newColor = Color3.fromRGB(math.random(200, 255), 0, 0)
 			ttLabelLeft.TextColor3 = newColor
 			ttLabelRight.TextColor3 = newColor
@@ -31044,7 +31090,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 	local function count()
 		local num = 180
 		while Wait(1) do
-			if not getgenv().SawFinish then
+			if not _na_env.SawFinish then
 				if num > 0 then
 					num = num - 1
 					playSound(138081500, num <= 10 and 2 or 1)
@@ -31135,7 +31181,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 end, true)
 
 cmd.add({"jend"}, {"jend", "nil"}, function()
-	getgenv().SawFinish = true
+	_na_env.SawFinish = true
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
@@ -32863,9 +32909,9 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	Part.Anchored=true Part.CanCollide=false Part.Transparency=1
 
 	local Updated=Mouse.Hit+Vector3.new(0,5,0)
-	_G.BlackholeAttachment=Attachment1
-	_G.BlackholeTarget=Updated
-	_G.BlackholeActive=false
+	_na_env.BlackholeAttachment=Attachment1
+	_na_env.BlackholeTarget=Updated
+	_na_env.BlackholeActive=false
 
 	NAlib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
@@ -32882,13 +32928,13 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	end))
 
 	NAlib.connect("blackhole_pos",RunService.RenderStepped:Connect(function()
-		if _G.BlackholeAttachment then
-			_G.BlackholeAttachment.WorldCFrame=_G.BlackholeTarget
+		if _na_env.BlackholeAttachment then
+			_na_env.BlackholeAttachment.WorldCFrame=_na_env.BlackholeTarget
 		end
 	end))
 
 	local function ForcePart(v)
-		if not _G.BlackholeActive then return end
+		if not _na_env.BlackholeActive then return end
 		if v:IsA("Part") and not v.Anchored and not v.Parent:FindFirstChildWhichIsA("Humanoid") and not v.Parent:FindFirstChild("Head") and v.Name~="Handle" then
 			for _,x in next,v:GetChildren() do
 				if x:IsA("BodyMover") or x:IsA("RocketPropulsion") then x:Destroy() end
@@ -32898,7 +32944,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 			local a2=InstanceNew("Attachment",v)
 			local align=InstanceNew("AlignPosition",v)
 			local torque=InstanceNew("Torque",v)
-			align.Attachment0=a2 align.Attachment1=_G.BlackholeAttachment
+			align.Attachment0=a2 align.Attachment1=_na_env.BlackholeAttachment
 			align.MaxForce=1e9 align.MaxVelocity=math.huge align.Responsiveness=200
 			torque.Attachment0=a2 torque.Torque=Vector3.new(100000,100000,100000)
 		end
@@ -32909,7 +32955,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	UIS.InputBegan:Connect(function(k,chat)
 		if k.KeyCode==Enum.KeyCode.E and not chat then
-			_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
+			_na_env.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
 		end
 	end)
 
@@ -32929,9 +32975,9 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	toggleCorner.CornerRadius=UDim.new(0.25,0)
 
 	MouseButtonFix(toggleBtn,function()
-		_G.BlackholeActive=not _G.BlackholeActive
-		toggleBtn.Text=_G.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
-		if not _G.BlackholeActive then
+		_na_env.BlackholeActive=not _na_env.BlackholeActive
+		toggleBtn.Text=_na_env.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
+		if not _na_env.BlackholeActive then
 			for _,p in ipairs(workspace:GetDescendants()) do
 				if p:IsA("BasePart") and not p.Anchored then
 					for _,o in ipairs(p:GetChildren()) do
@@ -32959,7 +33005,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	moveCorner.CornerRadius=UDim.new(0.25,0)
 
 	MouseButtonFix(moveBtn,function()
-		_G.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
+		_na_env.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
 	end)
 
 	NAgui.draggerV2(toggleBtn)
@@ -33263,8 +33309,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				return
 			end
 		end
-		if not getgenv().Welcome then DebugNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
-		getgenv().Welcome = true
+		if not _na_env.Welcome then DebugNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
+		_na_env.Welcome = true
 		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
 		if AllBool then
 			for _, x in next, Players:GetPlayers() do
@@ -34481,12 +34527,12 @@ cmd.add({"unheadstand"}, {"unheadstand", "Stop the headstand command."}, functio
 	standParts = {}
 end)
 
-getgenv().NamelessWs = nil
+_na_env.NamelessWs = nil
 NAStuff.loopws = false
 
 cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws)", "Loop walkspeed"}, function(...)
 	local val = tonumber(...) or 16
-	getgenv().NamelessWs = val
+	_na_env.NamelessWs = val
 	NAStuff.loopws = true
 
 	NAlib.disconnect("loopws_apply")
@@ -34518,12 +34564,12 @@ cmd.add({"unloopwalkspeed", "unloopws", "unlws"}, {"unloopwalkspeed (unloopws,un
 	NAlib.disconnect("loopws_char")
 end)
 
-getgenv().NamelessJP = nil
+_na_env.NamelessJP = nil
 NAStuff.loopjp = false
 
 cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp)", "Loop JumpPower"}, function(...)
 	local val = tonumber(...) or 50
-	getgenv().NamelessJP = val
+	_na_env.NamelessJP = val
 	NAStuff.loopjp = true
 
 	NAlib.disconnect("loopjp_apply")
@@ -35296,7 +35342,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	bangParts = {}
 	local bangOffset = CFrame.new(0, 1, -1.1)
 	if bangplr then
-		bangLoop = RunService.Stepped:Connect(function()
+		bangLoop = RunService.RenderStepped:Connect(function()
 			NACaller(function()
 				local targetPlayer = Players:FindFirstChild(bangplr)
 				if not targetPlayer or not targetPlayer.Character then
@@ -35396,7 +35442,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 	end
 
 	local jerkOffset = CFrame.new(0, -2.5, -0.25) * CFrame.Angles(math.pi * 0.5, 0, math.pi)
-	jerkLoop = RunService.Stepped:Connect(function()
+	jerkLoop = RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			for i, wall in ipairs(walls) do
 				jerkParts[i].CFrame = root.CFrame * wall.offset
@@ -36005,7 +36051,7 @@ originalIO.startLoopForTool=function(toolRef)
 
 	originalIO.equipToolInstance(toolRef)
 
-	ToolLoopCons.loop = RunService.Stepped:Connect(function()
+	ToolLoopCons.loop = RunService.RenderStepped:Connect(function()
 		if not ToolLoopCons.filter then
 			return
 		end
@@ -36067,12 +36113,12 @@ cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when yo
 	end
 
 	edgeJump()
-	HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.Stepped:Connect(edgeJump)
+	HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.RenderStepped:Connect(edgeJump)
 	HumanModCons.ejCA = (HumanModCons.ejCA and HumanModCons.ejCA:Disconnect() and false) or speaker.CharacterAdded:Connect(function(newChar)
 		Char = newChar
 		Human = getPlrHum(newChar)
 		edgeJump()
-		HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.Stepped:Connect(edgeJump)
+		HumanModCons.ejLoop = (HumanModCons.ejLoop and HumanModCons.ejLoop:Disconnect() and false) or RunService.RenderStepped:Connect(edgeJump)
 	end)
 end)
 
@@ -36249,7 +36295,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 
 	local bangOffset = CFrame.new(0, 0, 1.1)
 	if bangplr then
-		bangLoop = RunService.Stepped:Connect(function()
+		bangLoop = RunService.RenderStepped:Connect(function()
 			NACaller(function()
 				local targetPlayer = Players:FindFirstChild(bangplr)
 				if not targetPlayer or not targetPlayer.Character then
@@ -36760,7 +36806,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Parent = workspace
 							Insert(huggiePARTS, part)
 						end
-						NAlib.connect("hug_plat", RunService.Stepped:Connect(function()
+						NAlib.connect("hug_plat", RunService.RenderStepped:Connect(function()
 							local charRoot = getRoot(LocalPlayer.Character)
 							if charRoot then
 								for i, wall in ipairs(walls) do
@@ -37175,7 +37221,7 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 	TPWalk = true
 	local Speed = ...
 
-	NAlib.connect("TPWalkingConnection", RunService.Stepped:Connect(function(_, deltaTime)
+	NAlib.connect("TPWalkingConnection", RunService.RenderStepped:Connect(function(_, deltaTime)
 		if TPWalk then
 			local humanoid = getHum()
 			if humanoid and humanoid.MoveDirection.Magnitude > 0 then
@@ -37761,9 +37807,10 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
 	NAindex.init()
 	local list,f={},0
-	if NAindex.click then
-		for inst,rec in pairs(NAindex.click) do
-			if inst and inst.Parent and rec and rec.names and NAindex.matchAny(rec.names, target) then
+	for _,inst in ipairs(interactTbl.click or {}) do
+		if inst and inst.Parent then
+			local names = NAindex.namesForClick(inst)
+			if NAindex.matchAny(names, target) then
 				Insert(list,inst)
 			end
 		end
@@ -37791,9 +37838,10 @@ cmd.add({"fireclickdetectorsfind","fcdfind","firecdfind"},{"fireclickdetectorsfi
 	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
 	NAindex.init()
 	local list,f={},0
-	if NAindex.click then
-		for inst,rec in pairs(NAindex.click) do
-			if inst and inst.Parent and rec and rec.names and NAindex.matchAnyFind(rec.names, target) then
+	for _,inst in ipairs(interactTbl.click or {}) do
+		if inst and inst.Parent then
+			local names = NAindex.namesForClick(inst)
+			if NAindex.matchAnyFind(names, target) then
 				Insert(list,inst)
 			end
 		end
@@ -37819,9 +37867,10 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
 	NAindex.init()
 	local list,f={},0
-	if NAindex.prompt then
-		for inst,rec in pairs(NAindex.prompt) do
-			if inst and inst.Parent and rec and rec.names and NAindex.matchAny(rec.names, target) then
+	for _,inst in ipairs(interactTbl.proxy or {}) do
+		if inst and inst.Parent and inst.Enabled then
+			local names = NAindex.namesForPrompt(inst)
+			if NAindex.matchAny(names, target) then
 				Insert(list,inst)
 			end
 		end
@@ -37849,9 +37898,10 @@ cmd.add({"fireproximitypromptsfind","fppfind","fireppfind"},{"fireproximitypromp
 	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
 	NAindex.init()
 	local list,f={},0
-	if NAindex.prompt then
-		for inst,rec in pairs(NAindex.prompt) do
-			if inst and inst.Parent and rec and rec.names and NAindex.matchAnyFind(rec.names, target) then
+	for _,inst in ipairs(interactTbl.proxy or {}) do
+		if inst and inst.Parent and inst.Enabled then
+			local names = NAindex.namesForPrompt(inst)
+			if NAindex.matchAnyFind(names, target) then
 				Insert(list,inst)
 			end
 		end
@@ -37880,37 +37930,35 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	if not root then return end
 	NAindex.init()
 	local found = 0
-	if NAindex.touch then
-		for ti in pairs(NAindex.touch) do
-			local container = ti.Parent
-			if container and container.Parent then
-				local part = NAindex.carPart(container)
-				if part and part.Parent then
-					local names = {}
-					if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
-					if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
-					if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
-					local model = part:FindFirstAncestorWhichIsA("Model")
-					while model do
-						if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
-						model = model:FindFirstAncestorWhichIsA("Model")
-					end
-					if NAindex.matchAny(names, target) then
-						found += 1
-						local targetPart = part
-						SpawnCall(function()
-							local orig = targetPart.CFrame
-							targetPart.CFrame = root.CFrame
-							firetouchinterest(targetPart,root,1)
-							Wait()
-							firetouchinterest(targetPart,root,0)
-							Delay(0.1,function()
-								if targetPart and targetPart.Parent then
-									targetPart.CFrame = orig
-								end
-							end)
+	for _,ti in ipairs(interactTbl.touch or {}) do
+		local container = ti.Parent
+		if container and container.Parent then
+			local part = NAindex.carPart(container)
+			if part and part.Parent then
+				local names = {}
+				if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
+				if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
+				if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
+				local model = part:FindFirstAncestorWhichIsA("Model")
+				while model do
+					if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
+					model = model:FindFirstAncestorWhichIsA("Model")
+				end
+				if NAindex.matchAny(names, target) then
+					found += 1
+					local targetPart = part
+					SpawnCall(function()
+						local orig = targetPart.CFrame
+						targetPart.CFrame = root.CFrame
+						firetouchinterest(targetPart,root,1)
+						Wait()
+						firetouchinterest(targetPart,root,0)
+						Delay(0.1,function()
+							if targetPart and targetPart.Parent then
+								targetPart.CFrame = orig
+							end
 						end)
-					end
+					end)
 				end
 			end
 		end
@@ -37937,37 +37985,35 @@ cmd.add({"firetouchinterestsfind","ftifind","firetifind"},{"firetouchinterestsfi
 	if not root then return end
 	NAindex.init()
 	local found = 0
-	if NAindex.touch then
-		for ti in pairs(NAindex.touch) do
-			local container = ti.Parent
-			if container and container.Parent then
-				local part = NAindex.carPart(container)
-				if part and part.Parent then
-					local names = {}
-					if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
-					if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
-					if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
-					local model = part:FindFirstAncestorWhichIsA("Model")
-					while model do
-						if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
-						model = model:FindFirstAncestorWhichIsA("Model")
-					end
-					if NAindex.matchAnyFind(names, target) then
-						found += 1
-						local targetPart = part
-						SpawnCall(function()
-							local orig = targetPart.CFrame
-							targetPart.CFrame = root.CFrame
-							firetouchinterest(targetPart,root,1)
-							Wait()
-							firetouchinterest(targetPart,root,0)
-							Delay(0.1,function()
-								if targetPart and targetPart.Parent then
-									targetPart.CFrame = orig
-								end
-							end)
+	for _,ti in ipairs(interactTbl.touch or {}) do
+		local container = ti.Parent
+		if container and container.Parent then
+			local part = NAindex.carPart(container)
+			if part and part.Parent then
+				local names = {}
+				if ti.Name and ti.Name ~= "" then Insert(names, NAindex.lc(ti.Name)) end
+				if container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
+				if part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
+				local model = part:FindFirstAncestorWhichIsA("Model")
+				while model do
+					if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
+					model = model:FindFirstAncestorWhichIsA("Model")
+				end
+				if NAindex.matchAnyFind(names, target) then
+					found += 1
+					local targetPart = part
+					SpawnCall(function()
+						local orig = targetPart.CFrame
+						targetPart.CFrame = root.CFrame
+						firetouchinterest(targetPart,root,1)
+						Wait()
+						firetouchinterest(targetPart,root,0)
+						Delay(0.1,function()
+							if targetPart and targetPart.Parent then
+								targetPart.CFrame = orig
+							end
 						end)
-					end
+					end)
 				end
 			end
 		end
@@ -38110,30 +38156,8 @@ NAindex.inRangeClick = function(cd, rootPos, extra)
 	return dist <= maxd, dist, part
 end
 
-NAindex.add = function(inst)
-	if inst:IsA("ProximityPrompt") then
-		NAindex.prompt = NAindex.prompt or {}
-		NAindex.prompt[inst] = { inst = inst, names = NAindex.namesForPrompt(inst) }
-	elseif inst:IsA("ClickDetector") then
-		NAindex.click = NAindex.click or {}
-		NAindex.click[inst] = { inst = inst, names = NAindex.namesForClick(inst) }
-	elseif inst:IsA("TouchTransmitter") or inst.Name == "TouchInterest" then
-		NAindex.touch = NAindex.touch or {}
-		NAindex.touch[inst] = { inst = inst }
-	end
-end
-
-NAindex.remove = function(inst)
-	if NAindex.prompt then NAindex.prompt[inst] = nil end
-	if NAindex.click   then NAindex.click[inst]   = nil end
-	if NAindex.touch   then NAindex.touch[inst]   = nil end
-end
-
 NAindex.init = function()
 	if NAindex._init then return end
-	NAindex.prompt = NAindex.prompt or {}
-	NAindex.click = NAindex.click or {}
-	NAindex.touch = NAindex.touch or {}
 	NAindex._init = true
 end
 
@@ -38296,18 +38320,19 @@ NAjobs.start = function(kind, interval, target, useFind)
 			end;
 			local rootPos = root.Position;
 			local list = {};
+			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false;
+			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5;
 			for _, inst in ipairs(interactTbl.proxy) do
 				if inst and inst.Parent and inst.Enabled then
-					local rec = NAindex.prompt and NAindex.prompt[inst];
-					if not rec then
-						rec = {
-							inst = inst,
-							names = NAindex.namesForPrompt(inst)
-						};
-						NAindex.prompt[inst] = rec;
-					end;
-					if self.m(rec.names, self.target) then
-						local ok, dist, part = NAindex.inRangePrompt(inst, rootPos, 5);
+					local names = NAindex.namesForPrompt(inst);
+					if self.m(names, self.target) then
+						local ok, dist, part
+						if useRange then
+							ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange);
+						else
+							part = NAindex.getPromptPart(inst)
+							ok, dist = true, 0
+						end
 						if ok then
 							Insert(list, {
 								inst = inst,
@@ -38356,18 +38381,19 @@ NAjobs.start = function(kind, interval, target, useFind)
 			end;
 			local rootPos = root.Position;
 			local list = {};
+			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false;
+			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5;
 			for _, inst in ipairs(interactTbl.click) do
 				if inst and inst.Parent then
-					local rec = NAindex.click and NAindex.click[inst];
-					if not rec then
-						rec = {
-							inst = inst,
-							names = NAindex.namesForClick(inst)
-						};
-						NAindex.click[inst] = rec;
-					end;
-					if self.m(rec.names, self.target) then
-						local ok, dist, part = NAindex.inRangeClick(inst, rootPos, 5);
+					local names = NAindex.namesForClick(inst);
+					if self.m(names, self.target) then
+						local ok, dist, part
+						if useRange then
+							ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange);
+						else
+							part = NAindex.carPart(inst.Parent or inst)
+							ok, dist = true, 0
+						end
 						if ok then
 							Insert(list, {
 								inst = inst,
@@ -38551,7 +38577,7 @@ NAmanage._windowStopKindFind=function(kind, titleText)
 	buildStopWindow(kind, titleText, true)
 end
 
-cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
+cmd.add({"autofireproxi","afp"},{"autofireproxi <interval> [target]","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
@@ -38565,7 +38591,7 @@ cmd.add({"AutoFireProxi","afp"},{"AutoFireProxi <interval> [target] (afp)","Auto
 	DebugNotif(target and ("afp %s (%s) → %s"):format(action, target, id) or ("afp %s → %s"):format(action, id), 2)
 end, true)
 
-cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] (afpfind)","Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"}, function(...)
+cmd.add({"autofireproxifind","afpfind"},{"autofireproxifind <interval> [target]","Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
@@ -38579,7 +38605,7 @@ cmd.add({"AutoFireProxiFind","afpfind"},{"AutoFireProxiFind <interval> [target] 
 	DebugNotif(target and ("afpfind %s (%s) → %s"):format(action, target, id) or ("afpfind %s → %s"):format(action, id), 2)
 end, true)
 
-cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Automatically fires ClickDetectors matching [target] every <interval> seconds"}, function(...)
+cmd.add({"autofireclick","afc"},{"autofireclick <interval> [target]","Automatically fires ClickDetectors matching [target] every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
@@ -38593,7 +38619,7 @@ cmd.add({"AutoFireClick","afc"},{"AutoFireClick <interval> [target] (afc)","Auto
 	DebugNotif(target and ("afc %s (%s) → %s"):format(action, target, id) or ("afc %s → %s"):format(action, id), 2)
 end, true)
 
-cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] (afcfind)","Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"}, function(...)
+cmd.add({"autofireclickfind","afcfind"},{"autofireclickfind <interval> [target]","Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
@@ -38607,14 +38633,14 @@ cmd.add({"AutoFireClickFind","afcfind"},{"AutoFireClickFind <interval> [target] 
 	DebugNotif(target and ("afcfind %s (%s) → %s"):format(action, target, id) or ("afcfind %s → %s"):format(action, id), 2)
 end, true)
 
-cmd.add({"AutoTouch","at"},{"AutoTouch <interval> [target] (at)","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
+cmd.add({"autotouch","at"},{"autotouch <interval> [target]","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
 	local interval, target = NAutil.parseInterval(0.5, ...)
 	local id, reused = NAjobs.start("touch", interval, target)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("at %s (%s) → %s"):format(action, target, id) or ("at %s → %s"):format(action, id), 2)
 end, true)
 
-cmd.add({"AutoTouchFind","atfind"},{"AutoTouchFind <interval> [target] (atfind)","Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"}, function(...)
+cmd.add({"autotouchfind","atfind"},{"autotouchfind <interval> [target]","Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"}, function(...)
 	local interval, target = NAutil.parseInterval(0.5, ...)
 	local id, reused = NAjobs.start("touch", interval, target, true)
 	local action = reused and "updated" or "started"
@@ -40925,7 +40951,7 @@ cmd.add({"swim"}, {"swim {speed}","Swim in the air"}, function(speed)
 		NAlib.disconnect("swim_heartbeat");
 		ZEhumSTATE(humanoid, true);
 	end));
-	NAlib.connect("swim_heartbeat", RunService.Stepped:Connect(function()
+	NAlib.connect("swim_heartbeat", RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			if not SWIMMERRRR then
 				return;
@@ -43256,8 +43282,8 @@ cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, fu
 end)
 
 NAmanage._ensureL=function()
-	local st = getgenv()._LState or {}
-	getgenv()._LState = st
+	local st = _na_env._LState or {}
+	_na_env._LState = st
 	st.safeGet = st.safeGet or function(inst, prop) local ok,v=pcall(function() return inst[prop] end) if ok then return v end end
 	st.safeSet = st.safeSet or function(inst, prop, v) return NAlib.setProperty(inst, prop, v) end
 	if not st._utils then
@@ -43299,7 +43325,7 @@ NAmanage._ensureL=function()
 			if st.fb and st.fb.enabled then
 				if st.restoreFB then st.restoreFB() end
 				st.fb.enabled = false
-				getgenv().FullBrightEnabled = false
+				_na_env.FullBrightEnabled = false
 			end
 		end
 		st.disableNB = function()
@@ -43423,8 +43449,8 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games b
 				st.initFB()
 				st.fb.enabled = on
 				if on then st.applyFB() else st.restoreFB() end
-				getgenv().FullBrightExecuted = true
-				getgenv().FullBrightEnabled = st.fb.enabled
+				_na_env.FullBrightExecuted = true
+				_na_env.FullBrightEnabled = st.fb.enabled
 			end
 		end
 	end
@@ -43448,7 +43474,7 @@ end)
 
 cmd.add({"unloopday","unlday"},{"unloopday","No more sunshine"},function()
 	if not Lighting then return end
-	local st = getgenv()._LState
+	local st = _na_env._LState
 	if not st then return end
 	NAlib.disconnect("time_day")
 	local target = (st.fb and st.fb.enabled) and ((st.fb.target and st.fb.target.ClockTime) or 12) or ((st.fb and st.fb.baseline and st.fb.baseline.ClockTime) or (st.safeGet and st.safeGet(Lighting,"ClockTime")) or 12)
@@ -43536,8 +43562,8 @@ cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright","Sunshiiiine!"},func
 				st.initFB()
 				st.fb.enabled = on
 				if on then st.applyFB() else st.restoreFB() end
-				getgenv().FullBrightExecuted = true
-				getgenv().FullBrightEnabled = st.fb.enabled
+				_na_env.FullBrightExecuted = true
+				_na_env.FullBrightEnabled = st.fb.enabled
 			end
 		end
 	end
@@ -43787,7 +43813,7 @@ end)
 
 cmd.add({"unloopnoeffect","unlnoeffect","unloopne","unlne"},{"unloopnoeffect","Restores Lighting and CurrentCamera effects"},function()
 	if not Lighting then return end
-	local st = getgenv()._LState
+	local st = _na_env._LState
 	if not st or not st.ne then return end
 	local ne = st.ne
 	ne.sticky=false
@@ -43899,7 +43925,7 @@ end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No more sight."},function()
 	if not Lighting then return end
-	local st = getgenv()._LState
+	local st = _na_env._LState
 	if not st or not st.nf then return end
 	st.nf.sticky = false
 	st.nf.enabled = false
@@ -44852,7 +44878,7 @@ do
 end
 
 cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
-	getgenv().CustomUI=false
+	_na_env.CustomUI=false
 	loadstring(game:HttpGet(('https://raw.githubusercontent.com/mgamingpro/HomebrewAdmin/master/Main'),true))()
 end)
 
@@ -45026,7 +45052,7 @@ NAmanage.UnblockRemote = function(remote)
 end
 
 NAmanage.EnsureHook = function()
-	if getgenv().NA_BlockHooked then return end
+	if _na_env.NA_BlockHooked then return end
 	local mt = getrawmetatable(game)
 	local oldNamecall = mt.__namecall
 	setreadonly(mt, false)
@@ -45069,7 +45095,7 @@ NAmanage.EnsureHook = function()
 		return oldNamecall(self, ...)
 	end)
 	setreadonly(mt, true)
-	getgenv().NA_BlockHooked = true
+	_na_env.NA_BlockHooked = true
 end
 
 cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
@@ -45209,7 +45235,7 @@ cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by
 end,true)
 
 NAmanage.EnsureWalkSpeedBypassHook = function()
-	if getgenv().NA_WSBP_Hooked then return end
+	if _na_env.NA_WSBP_Hooked then return end
 	local mt = getrawmetatable(game)
 	local oldIndex = mt.__index
 	setreadonly(mt, false)
@@ -45220,7 +45246,7 @@ NAmanage.EnsureWalkSpeedBypassHook = function()
 		return oldIndex(self, key)
 	end)
 	setreadonly(mt, true)
-	getgenv().NA_WSBP_Hooked = true
+	_na_env.NA_WSBP_Hooked = true
 	DebugNotif("WalkSpeed bypass installed", 2, "Bypass Speed")
 end
 
@@ -45234,31 +45260,31 @@ end
 
 NAmanage.StartBypassSpeedLoop = function(val)
 	if not val or val <= 0 then return end
-	getgenv().NA_BPS_Enabled = true
-	getgenv().NA_BPS_Val = val
+	_na_env.NA_BPS_Enabled = true
+	_na_env.NA_BPS_Val = val
 	NAlib.disconnect("na_bps_apply")
 	NAlib.disconnect("na_bps_char")
 	local plr = Players.LocalPlayer
 	NAmanage.ApplyBypassSpeedOnce(val)
 	NAlib.connect("na_bps_apply", RunService.Heartbeat:Connect(function()
-		if not getgenv().NA_BPS_Enabled then return end
+		if not _na_env.NA_BPS_Enabled then return end
 		local hum = getHum()
-		if hum and hum.WalkSpeed ~= getgenv().NA_BPS_Val then
-			hum.WalkSpeed = getgenv().NA_BPS_Val
+		if hum and hum.WalkSpeed ~= _na_env.NA_BPS_Val then
+			hum.WalkSpeed = _na_env.NA_BPS_Val
 		end
 	end))
 	NAlib.connect("na_bps_char", plr.CharacterAdded:Connect(function(char)
 		NAmanage.EnsureWalkSpeedBypassHook()
 		while not getHum() do Wait(.05) end
-		if getgenv().NA_BPS_Enabled then
-			NAmanage.ApplyBypassSpeedOnce(getgenv().NA_BPS_Val)
+		if _na_env.NA_BPS_Enabled then
+			NAmanage.ApplyBypassSpeedOnce(_na_env.NA_BPS_Val)
 		end
 	end))
 	DebugNotif(("LoopBypassSpeed: %s"):format(val), 2, "Bypass Speed")
 end
 
 NAmanage.StopBypassSpeedLoop = function()
-	getgenv().NA_BPS_Enabled = false
+	_na_env.NA_BPS_Enabled = false
 	NAlib.disconnect("na_bps_apply")
 	NAlib.disconnect("na_bps_char")
 	DebugNotif("LoopBypassSpeed: OFF", 2, "Bypass Speed")
@@ -45296,10 +45322,10 @@ cmd.add({"unloopbypassspeed","unlbps","unloopbypasswalkspeed","unlbws"},{"unloop
 end)
 
 cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
-	getgenv().enabled = true
-	getgenv().speed = 100
+	_na_env.enabled = true
+	_na_env.speed = 100
 	local HRP = Humanoid.RootPart or getRoot(Humanoid.Parent)
-	if not Humanoid or not getgenv().enabled then
+	if not Humanoid or not _na_env.enabled then
 		if Humanoid and Humanoid.Health <= 0 then
 			Humanoid:Destroy()
 		end
@@ -45319,7 +45345,7 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	Wait(Players.RespawnTime + 0.1)
 
 	NAlib.connect("oofspam_loop", RunService.Heartbeat:Connect(function()
-		if not getgenv().enabled then
+		if not _na_env.enabled then
 			NAlib.disconnect("oofspam_loop")
 			return
 		end
@@ -46377,7 +46403,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 		end
 	end
 
-	NAlib.connect("loopbringnpcs", RunService.Stepped:Connect(function()
+	NAlib.connect("loopbringnpcs", RunService.RenderStepped:Connect(function()
 		for _, hum in ipairs(npcCache) do
 			if hum.Parent and hum.Health > 0 then
 				local model = hum.Parent
@@ -47188,7 +47214,7 @@ NAmanage.registerElementForCurrentTab = function(instance)
 		return;
 	end;
 	local currentName = TabManager.current;
-	if not currentName or TAB_ALL and currentName == TAB_ALL then
+	if not currentName or NA_TABS.TAB_ALL and currentName == NA_TABS.TAB_ALL then
 		return;
 	end;
 	if not NAStuff.elementOriginalParent[instance] then
@@ -47229,7 +47255,7 @@ NAmanage.clearAllTabWrappers = function(page)
 	end;
 end;
 NAmanage.restoreAllTabElements = function()
-	local allInfo = TabManager.tabs and TAB_ALL and TabManager.tabs[TAB_ALL] or nil;
+	local allInfo = TabManager.tabs and NA_TABS.TAB_ALL and TabManager.tabs[NA_TABS.TAB_ALL] or nil;
 	if allInfo and allInfo.page then
 		NAmanage.clearAllTabWrappers(allInfo.page);
 	end;
@@ -47293,7 +47319,7 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 	ml.Parent = merged;
 	local cursor = 0;
 	for _, tabName in ipairs(TabManager.order) do
-		if tabName ~= TAB_ALL then
+		if tabName ~= NA_TABS.TAB_ALL then
 			local tabInfo = TabManager.tabs[tabName];
 			if tabInfo and tabInfo.page then
 				local elements = NAmanage.collectTabElements(tabInfo, tabName);
@@ -47366,11 +47392,11 @@ NAgui.setTab = function(name)
 		return nil;
 	end;
 	local previousTab = TabManager.current;
-	if previousTab == TAB_ALL and name ~= TAB_ALL then
+	if previousTab == NA_TABS.TAB_ALL and name ~= NA_TABS.TAB_ALL then
 		NAmanage.restoreAllTabElements();
 	end;
 	TabManager.current = name;
-	if name == TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
+	if name == NA_TABS.TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
 		pcall(NAgui.RefreshBasicInfo);
 	end;
 	if info.page then
@@ -47383,7 +47409,7 @@ NAgui.setTab = function(name)
 		end;
 		NAmanage.updateTabVisual(tabInfo, isActive);
 	end;
-	if name == TAB_ALL then
+	if name == NA_TABS.TAB_ALL then
 		NAmanage.prepareAllTabDisplay(info);
 	end;
 	return info.page;
@@ -47836,7 +47862,7 @@ cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the g
 end, true)
 
 cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function()
-	adminName = getgenv().NATestingVer and "NA Testing" or "Nameless Admin"
+	adminName = _na_env.NATestingVer and "NA Testing" or "Nameless Admin"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
 	end
@@ -53032,8 +53058,8 @@ function bindToChat(plr, msg)
 		end
 
 		local isNAadmin = false
-		if _G.NAadminsLol then
-			for _, id in ipairs(_G.NAadminsLol) do
+		if _na_env.NAadminsLol then
+			for _, id in ipairs(_na_env.NAadminsLol) do
 				if plr.UserId == id then
 					isNAadmin = true
 					break
@@ -54636,7 +54662,7 @@ end
 		end
 	end
 
-	for _, id in ipairs(_G.NAadminsLol or {}) do
+	for _, id in ipairs(_na_env.NAadminsLol or {}) do
 		if pl.UserId == id then
 			local props = InstanceNew("TextChatMessageProperties")
 			local tag = NAmanage.grayGradient("[NA ADMIN]")
@@ -54757,10 +54783,9 @@ NAmanage.injectNAConsole = function()
 		end
 
 		local dispatch = NAmanage._naConsoleDispatch
-		local targetEnv = (getgenv and getgenv()) or _G or {}
-		targetEnv.cmdRun = dispatch
-		targetEnv.RunCommand = dispatch
-		targetEnv.runCommand = dispatch
+		_na_env.cmdRun = dispatch
+		_na_env.RunCommand = dispatch
+		_na_env.runCommand = dispatch
 	end
 
 	local commandLine = InstanceNew("Frame")
@@ -55697,7 +55722,7 @@ end)
 
 ]]
 
---[[if Discover(_G.NAadminsLol or {}, LocalPlayer.UserId) then
+--[[if Discover(_na_env.NAadminsLol or {}, LocalPlayer.UserId) then
 	if NAgui.addSection then
 		NAgui.addSection("NA Admin")
 	end
@@ -55706,9 +55731,10 @@ end)
 	end)
 end]]
 
-NAgui.addTab(TAB_ALL, { default = true, order = 0, textIcon = "grid" })
-NAgui.addTab(TAB_GENERAL, { order = 1, textIcon = "gear" })
-NAgui.setTab(TAB_GENERAL)
+NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
+NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
+NAgui.addTab(NA_TABS.TAB_AUTOMATION, { order = 2, textIcon = "cube-vertexes" })
+NAgui.setTab(NA_TABS.TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
 
@@ -55801,40 +55827,6 @@ NAmanage.RegisterToggleAutoSync("Disable Network Pause", function()
 	return NAStuff.NetworkPauseDisabled == true
 end)
 
-tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
-NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, " s", function(val)
-	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
-	NAStuff.tweenSpeed = clamped
-	NAmanage.NASettingsSet("tweenSpeed", clamped)
-end)
-
-if IsOnPC then
-	NAgui.addToggle("Freecam Shift+P Keybind", _G.NAFreecamKeybindEnabled == true, function(v)
-		_G.NAFreecamKeybindEnabled = v and true or false
-		NAmanage.NASettingsSet("freecamKeybind", _G.NAFreecamKeybindEnabled)
-		DoNotif("Freecam Shift+P keybind "..(v and "enabled" or "disabled"), 2)
-	end)
-	NAmanage.RegisterToggleAutoSync("Freecam Shift+P Keybind", function()
-		return _G.NAFreecamKeybindEnabled == true
-	end)
-end
-
-freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
-NAgui.addInput("Freecam Speed", "Enter speed (e.g. 10)", tostring(freecamSpeedDefault), function(text)
-	local value = tonumber(text)
-	if not value then
-		DoNotif("Please enter a numeric freecam speed", 2)
-		return
-	end
-	local clamped = math.clamp(value, 0.05, 20)
-	NAStuff.FreecamSpeed = clamped
-	pcall(NAmanage.NASettingsSet, "freecamSpeed", clamped)
-	if NAFreecam and NAFreecam.SetSpeed then
-		NAFreecam.SetSpeed(math.clamp(clamped / 5, 0.01, 4))
-	end
-	DoNotif("Freecam speed set to "..Format("%.2f", clamped), 2)
-end)
-
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
 	NAStuff.nuhuhNotifs = v
 	DoNotif("Debug Notifications "..(v and "Enabled" or "Disabled"), 2)
@@ -55860,35 +55852,6 @@ NAgui.addToggle("Run UserButtons on Start", NAStuff.UserButtonsAutoLoad ~= false
 end)
 NAmanage.RegisterToggleAutoSync("Run UserButtons on Start", function()
 	return NAStuff.UserButtonsAutoLoad ~= false
-end)
-
-NAgui.addButton("cmdbar2", function()
-	if cmd and cmd.run then
-		cmd.run({"cmdbar2"})
-	end
-end)
-
-NAgui.addToggle("Run cmdbar2 on Start", NAStuff.CmdBar2AutoRun == true, function(v)
-	NAStuff.CmdBar2AutoRun = v and true or false
-	NAmanage.NASettingsSet("cmdbar2AutoRun", v)
-	DoNotif("cmdbar2 "..(v and "will open on start" or "will not auto-open on start"), 2)
-end)
-NAmanage.RegisterToggleAutoSync("Run cmdbar2 on Start", function()
-	return NAStuff.CmdBar2AutoRun == true
-end)
-
-NAgui.addSlider("cmdbar2 Width", NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth), 2, " px", function(val)
-	NAmanage.CmdBar2ApplySize({
-		width = val,
-		height = NAStuff.CmdBar2Height,
-	})
-end)
-
-NAgui.addSlider("cmdbar2 Height", NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Height, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight), 1, " px", function(val)
-	NAmanage.CmdBar2ApplySize({
-		width = NAStuff.CmdBar2Width,
-		height = val,
-	})
 end)
 
 NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), function(v)
@@ -56350,8 +56313,92 @@ if FileSupport then
 	end)
 end
 
-NAgui.addTab(TAB_FFLAGS, { order = 4, textIcon = "flag" })
-NAgui.setTab(TAB_FFLAGS)
+NAgui.setTab(NA_TABS.TAB_AUTOMATION)
+NAgui.addSection("Command & AutoFire Options")
+
+local autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
+NAgui.addToggle("Use Distance Check for AutoFire", NAStuff.AutoInteractDistanceEnabled ~= false, function(v)
+	NAStuff.AutoInteractDistanceEnabled = v ~= false
+	pcall(NAmanage.NASettingsSet, "autoInteractDistanceEnabled", NAStuff.AutoInteractDistanceEnabled)
+	DoNotif("AutoFire distance check "..(NAStuff.AutoInteractDistanceEnabled and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Use Distance Check for AutoFire", function()
+	return NAStuff.AutoInteractDistanceEnabled ~= false
+end)
+
+NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, " studs", function(val)
+	local n = tonumber(val) or autoInteractExtraDefault
+	n = math.clamp(n, 0, 250)
+	NAStuff.AutoInteractExtraRange = n
+	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+if IsOnPC then
+	NAgui.addToggle("Freecam Shift+P Keybind", _na_env.NAFreecamKeybindEnabled == true, function(v)
+		_na_env.NAFreecamKeybindEnabled = v and true or false
+		NAmanage.NASettingsSet("freecamKeybind", _na_env.NAFreecamKeybindEnabled)
+		DoNotif("Freecam Shift+P keybind "..(v and "enabled" or "disabled"), 2)
+	end)
+	NAmanage.RegisterToggleAutoSync("Freecam Shift+P Keybind", function()
+		return _na_env.NAFreecamKeybindEnabled == true
+	end)
+end
+
+tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
+NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, " s", function(val)
+	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
+	NAStuff.tweenSpeed = clamped
+	NAmanage.NASettingsSet("tweenSpeed", clamped)
+end)
+
+local freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
+NAgui.addInput("Freecam Speed", "Enter speed (e.g. 10)", tostring(freecamSpeedDefault), function(text)
+	local value = tonumber(text)
+	if not value then
+		DoNotif("Please enter a numeric freecam speed", 2)
+		return
+	end
+	local clamped = math.clamp(value, 0.05, 20)
+	NAStuff.FreecamSpeed = clamped
+	pcall(NAmanage.NASettingsSet, "freecamSpeed", clamped)
+	if NAFreecam and NAFreecam.SetSpeed then
+		NAFreecam.SetSpeed(math.clamp(clamped / 5, 0.01, 4))
+	end
+	DoNotif("Freecam speed set to "..Format("%.2f", clamped), 2)
+end)
+
+NAgui.addButton("cmdbar2", function()
+	if cmd and cmd.run then
+		cmd.run({"cmdbar2"})
+	end
+end)
+
+NAgui.addToggle("Run cmdbar2 on Start", NAStuff.CmdBar2AutoRun == true, function(v)
+	NAStuff.CmdBar2AutoRun = v and true or false
+	NAmanage.NASettingsSet("cmdbar2AutoRun", v)
+	DoNotif("cmdbar2 "..(v and "will open on start" or "will not auto-open on start"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Run cmdbar2 on Start", function()
+	return NAStuff.CmdBar2AutoRun == true
+end)
+
+NAgui.addSlider("cmdbar2 Width", NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Width, NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth), 2, " px", function(val)
+	NAmanage.CmdBar2ApplySize({
+		width = val,
+		height = NAStuff.CmdBar2Height,
+	})
+end)
+
+NAgui.addSlider("cmdbar2 Height", NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAmanage.CmdBar2ClampValue(NAStuff.CmdBar2Height, NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight), 1, " px", function(val)
+	NAmanage.CmdBar2ApplySize({
+		width = NAStuff.CmdBar2Width,
+		height = val,
+	})
+end)
+
+NAgui.addTab(NA_TABS.TAB_FFLAGS, { order = 4, textIcon = "flag" })
+NAgui.setTab(NA_TABS.TAB_FFLAGS)
+NAgui.setTab(NA_TABS.TAB_FFLAGS)
 
 local NAFFlags = NAmanage.NAFFlags or {}
 NAmanage.NAFFlags = NAFFlags
@@ -56946,6 +56993,24 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 	return true
 end
 
+NAFFlags.getTargets = function()
+	local targets = {}
+	local seen = {}
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		local name = entry.name
+		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(name) then
+			targets[#targets + 1] = { name = name, value = NAFFlags.values[name] }
+			seen[name] = true
+		end
+	end
+	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+		if not seen[customName] and customValue ~= nil then
+			targets[#targets + 1] = { name = customName, value = customValue }
+		end
+	end
+	return targets
+end
+
 NAFFlags.applyAll = function(opts)
 	opts = opts or {}
 	local shouldNotify = opts.notify ~= false
@@ -56966,20 +57031,7 @@ NAFFlags.applyAll = function(opts)
 		return 0, false
 	end
 
-	local targets = {}
-	local seen = {}
-	for _, entry in ipairs(NAFFlags.whitelist) do
-		local name = entry.name
-		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(name) then
-			targets[#targets + 1] = { name = name, value = NAFFlags.values[name] }
-			seen[name] = true
-		end
-	end
-	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
-		if not seen[customName] and customValue ~= nil then
-			targets[#targets + 1] = { name = customName, value = customValue }
-		end
-	end
+	local targets = NAFFlags.getTargets()
 
 	local applied = 0
 	for _, target in ipairs(targets) do
@@ -57137,21 +57189,27 @@ NAFFlags.ensureMaintainLoop = function()
 	if not (NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()) then
 		return
 	end
+
+	local function stillActive()
+		return NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()
+	end
+
+	local function loopDelay()
+		return math.random(1000, 3000) / 1000
+	end
+
 	NAFFlags._maintainLoopRunning = true
 	if NAFFlags._maintainConn then
 		NAFFlags._maintainConn:Disconnect()
 		NAFFlags._maintainConn = nil
 	end
-	NAFFlags._maintainConn = RunService.Heartbeat:Connect(function()
-		if not (NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()) then
-			if NAFFlags._maintainConn then
-				NAFFlags._maintainConn:Disconnect()
-				NAFFlags._maintainConn = nil
-			end
-			NAFFlags._maintainLoopRunning = false
-			return
+	SpawnCall(function()
+		while stillActive() do
+			Wait(loopDelay())
+			NAFFlags.applyAll({ notify = false })
 		end
-		NAFFlags.applyAll({ notify = false })
+
+		NAFFlags._maintainLoopRunning = false
 	end)
 end
 
@@ -57421,8 +57479,8 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 	end
 end
 
-NAgui.addTab(TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
-NAgui.setTab(TAB_INTEGRATIONS)
+NAgui.addTab(NA_TABS.TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
+NAgui.setTab(NA_TABS.TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
 
@@ -57642,8 +57700,8 @@ NAgui.addButton("Refresh RPC Presence", function()
 	DoNotif("Bloxstrap RPC refreshed.", 2)
 end)
 
-NAgui.addTab(TAB_INTERFACE, { order = 3, textIcon = "two-makeup-brushes" })
-NAgui.setTab(TAB_INTERFACE)
+NAgui.addTab(NA_TABS.TAB_INTERFACE, { order = 3, textIcon = "two-makeup-brushes" })
+NAgui.setTab(NA_TABS.TAB_INTERFACE)
 
 NAgui.clamp01 = NAgui.clamp01 or function(v, fallback)
 	local n = tonumber(v)
@@ -58213,15 +58271,15 @@ if CoreGui then
 
 	NAmanage.initCornerEditor(CoreGui, HUI)
 
-	if previousTab and previousTab ~= TAB_INTERFACE then
-		if NAgui.getActiveTab() == TAB_INTERFACE then
+	if previousTab and previousTab ~= NA_TABS.TAB_INTERFACE then
+		if NAgui.getActiveTab() == NA_TABS.TAB_INTERFACE then
 			NAgui.setTab(previousTab)
 		end
 	end
 end
 
-NAgui.addTab(TAB_USER_BUTTONS, { order = 10, textIcon = "circle-plus" })
-NAgui.setTab(TAB_USER_BUTTONS)
+NAgui.addTab(NA_TABS.TAB_USER_BUTTONS, { order = 10, textIcon = "circle-plus" })
+NAgui.setTab(NA_TABS.TAB_USER_BUTTONS)
 
 originalIO.UserBtnEditor=function()
 	local editorState = {
@@ -58848,8 +58906,8 @@ function NAmanage.jlSave()
 	end
 end
 
-NAgui.addTab(TAB_LOGGING, { order = 11, textIcon = "list-bulleted" })
-NAgui.setTab(TAB_LOGGING)
+NAgui.addTab(NA_TABS.TAB_LOGGING, { order = 11, textIcon = "list-bulleted" })
+NAgui.setTab(NA_TABS.TAB_LOGGING)
 
 NAgui.addSection("Join/Leave Logging")
 
@@ -58939,8 +58997,8 @@ NAgui.addButton("Clear Chat Log File", function()
 	DoNotif(ok and "Chat log cleared." or ("Failed to clear: "..tostring(msg)), 2.5)
 end)
 
-NAgui.addTab(TAB_ESP, { order = 5, textIcon = "crosshairs" })
-NAgui.setTab(TAB_ESP)
+NAgui.addTab(NA_TABS.TAB_ESP, { order = 5, textIcon = "crosshairs" })
+NAgui.setTab(NA_TABS.TAB_ESP)
 
 NAgui.isListActive=function(list)
 	return type(list) == "table" and next(list) ~= nil
@@ -59255,8 +59313,8 @@ NAgui.addButton("Clear Folder ESP", function()
 	end)
 end)
 
-NAgui.addTab(TAB_CHAT, { order = 7, textIcon = "speech-bubble-align-center" })
-NAgui.setTab(TAB_CHAT)
+NAgui.addTab(NA_TABS.TAB_CHAT, { order = 7, textIcon = "speech-bubble-align-center" })
+NAgui.setTab(NA_TABS.TAB_CHAT)
 
 do
 	local function tblToC3(t)
@@ -59460,8 +59518,8 @@ do
 end
 
 if not IsOnMobile then
-	NAgui.addTab(TAB_KEYBINDS, { order = 8, textIcon = "xbox-a" })
-	NAgui.setTab(TAB_KEYBINDS)
+	NAgui.addTab(NA_TABS.TAB_KEYBINDS, { order = 8, textIcon = "xbox-a" })
+	NAgui.setTab(NA_TABS.TAB_KEYBINDS)
 
 	if IsOnPC then
 		NAgui.addSection("Control Lock")
@@ -59536,15 +59594,15 @@ if not IsOnMobile then
 
 		NAgui.addSection("Command Keybinds")
 		NAgui.addButton("Open Command Keybinds", function()
-			NAgui.setTab(TAB_COMMAND_KEYBINDS)
+			NAgui.setTab(NA_TABS.TAB_COMMAND_KEYBINDS)
 			Defer(function()
 				NAmanage.CommandKeybindsUIRefresh()
 			end)
 		end)
 
 		local prevTab = NAgui.getActiveTab()
-		NAgui.addTab(TAB_COMMAND_KEYBINDS, { order = 9, textIcon = "xbox-a" })
-		NAgui.setTab(TAB_COMMAND_KEYBINDS)
+		NAgui.addTab(NA_TABS.TAB_COMMAND_KEYBINDS, { order = 9, textIcon = "xbox-a" })
+		NAgui.setTab(NA_TABS.TAB_COMMAND_KEYBINDS)
 		NAmanage.CommandKeybindsUIInit()
 		NAmanage.CommandKeybindsUIWire()
 		NAmanage.CommandKeybindsUIRefresh()
@@ -59552,8 +59610,8 @@ if not IsOnMobile then
 	end
 end
 
-NAgui.addTab(TAB_CHARACTER, { order = 6, textIcon = "circle-person" })
-NAgui.setTab(TAB_CHARACTER)
+NAgui.addTab(NA_TABS.TAB_CHARACTER, { order = 6, textIcon = "circle-person" })
+NAgui.setTab(NA_TABS.TAB_CHARACTER)
 
 NAmanage.ApplyWalkSpeed = function(val)
 	local hum = getHum(getChar())
@@ -59677,8 +59735,8 @@ end)
 
 NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
-	NAgui.addTab(TAB_BASIC_INFO, { order = 12, textIcon = "circle-i" })
-	NAgui.setTab(TAB_BASIC_INFO)
+	NAgui.addTab(NA_TABS.TAB_BASIC_INFO, { order = 12, textIcon = "circle-i" })
+	NAgui.setTab(NA_TABS.TAB_BASIC_INFO)
 
 	local basicInfoConfig = {
 		{
@@ -59814,7 +59872,7 @@ NAmanage.SetupBasicInfoTab = function()
 			if not data then
 				return
 			end
-			if not TabManager or TabManager.current ~= TAB_BASIC_INFO then
+			if not TabManager or TabManager.current ~= NA_TABS.TAB_BASIC_INFO then
 				return
 			end
 			local now = tick()
@@ -59827,14 +59885,14 @@ NAmanage.SetupBasicInfoTab = function()
 		NAgui.BasicInfoUpdate.interval = updateInterval
 	end
 
-	if previousTab and previousTab ~= TAB_BASIC_INFO then
+	if previousTab and previousTab ~= NA_TABS.TAB_BASIC_INFO then
 		NAgui.setTab(previousTab)
 	end
 end
 NAmanage.SetupBasicInfoTab()
 
-NAgui.addTab(TAB_ROBLOX_DATA, { order = 13, textIcon = "tilt" })
-NAgui.setTab(TAB_ROBLOX_DATA)
+NAgui.addTab(NA_TABS.TAB_ROBLOX_DATA, { order = 13, textIcon = "tilt" })
+NAgui.setTab(NA_TABS.TAB_ROBLOX_DATA)
 
 NAStuff.GitHubLoadingText = "Loading..."
 NAStuff.GitHubFailureText = "Failed to load commits"
@@ -59851,13 +59909,13 @@ NAStuff.GitHubCommitHeaders = {
 	["X-GitHub-Api-Version"] = "2022-11-28";
 }
 
-if getgenv and rawget(getgenv(), "GITHUB_TOKEN") then
-	local token = tostring(getgenv().GITHUB_TOKEN)
+if _na_env and rawget(_na_env, "GITHUB_TOKEN") then
+	local token = tostring(_na_env.GITHUB_TOKEN)
 	if token ~= "" then
 		NAStuff.GitHubCommitHeaders["Authorization"] = "Bearer "..token
 	end
-elseif getgenv and rawget(getgenv(), "GITHUB_AUTH") then
-	local auth = tostring(getgenv().GITHUB_AUTH)
+elseif _na_env and rawget(_na_env, "GITHUB_AUTH") then
+	local auth = tostring(_na_env.GITHUB_AUTH)
 	if auth ~= "" then
 		NAStuff.GitHubCommitHeaders["Authorization"] = auth
 	end
@@ -59868,8 +59926,8 @@ NAStuff.RobloxVersionEndpoints = {
 	"http://weao.xyz/api/versions/current";
 }
 
-if getgenv and rawget(getgenv(), "WEAO_PROXY") and getgenv().WEAO_PROXY ~= "" then
-	Insert(NAStuff.RobloxVersionEndpoints, tostring(getgenv().WEAO_PROXY))
+if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
+	Insert(NAStuff.RobloxVersionEndpoints, tostring(_na_env.WEAO_PROXY))
 end
 Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current")
 Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current?format=json")
@@ -59881,8 +59939,8 @@ NAStuff.RobloxVersionHeaders = {
 	["Referer"] = "https://weao.xyz/";
 }
 
-if getgenv and rawget(getgenv(), "WEAO_COOKIE") and getgenv().WEAO_COOKIE ~= "" then
-	NAStuff.RobloxVersionHeaders["Cookie"] = getgenv().WEAO_COOKIE
+if _na_env and rawget(_na_env, "WEAO_COOKIE") and _na_env.WEAO_COOKIE ~= "" then
+	NAStuff.RobloxVersionHeaders["Cookie"] = _na_env.WEAO_COOKIE
 end
 
 originalIO.parseRobloxVersionBody=function(body)
@@ -59940,8 +59998,8 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 		appendEndpoint("https://r.jina.ai/"..baseUrl)
 	end
 
-	if getgenv and rawget(getgenv(), "GITHUB_PROXY") then
-		local proxy = tostring(getgenv().GITHUB_PROXY)
+	if _na_env and rawget(_na_env, "GITHUB_PROXY") then
+		local proxy = tostring(_na_env.GITHUB_PROXY)
 		if proxy ~= "" then
 			appendEndpoint(proxy)
 		end
@@ -60129,7 +60187,7 @@ end
 
 NAmanage.UpdateAdminInfoTabDisplayName = function()
 	if not TabManager or not TabManager.tabs then return end
-	local info = TabManager.tabs[TAB_ADMIN_INFO]
+	local info = TabManager.tabs[NA_TABS.TAB_ADMIN_INFO]
 	if not info then return end
 	local displayText = (adminName or "Admin").." Info"
 	info.displayName = displayText
@@ -60231,8 +60289,8 @@ SpawnCall(function()
 	end
 end)
 
-NAgui.addTab(TAB_ADMIN_INFO, { order = 14, displayText = adminInfoDisplay })
-NAgui.setTab(TAB_ADMIN_INFO)
+NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 14, displayText = adminInfoDisplay })
+NAgui.setTab(NA_TABS.TAB_ADMIN_INFO)
 
 if NAmanage.UpdateAdminInfoTabDisplayName then
 	NAmanage.UpdateAdminInfoTabDisplayName()
@@ -60278,7 +60336,7 @@ end)
 
 NAgui.setTab(NAgui.getActiveTab())
 
-NAgui.setTab(TAB_CHAT)
+NAgui.setTab(NA_TABS.TAB_CHAT)
 
 
 NAgui.addSection("Chat Tag Customization | disabled for fixing")
@@ -60338,12 +60396,12 @@ NAgui.addButton("Remove Chat Tag", function()
 	DebugNotif("Custom chat tag removed.",2.5)
 end)]]
 
-NAgui.setTab(TAB_ALL)
+NAgui.setTab(NA_TABS.TAB_ALL)
 
 SpawnCall(function()
 	Wait()
-	if TabManager and TabManager.current ~= TAB_ALL then
-		NAgui.setTab(TAB_ALL)
+	if TabManager and TabManager.current ~= NA_TABS.TAB_ALL then
+		NAgui.setTab(NA_TABS.TAB_ALL)
 	end
 end)
 
