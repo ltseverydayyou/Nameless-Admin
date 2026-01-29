@@ -37241,7 +37241,7 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 	TPWalk = true
 	local Speed = ...
 
-	NAlib.connect("TPWalkingConnection", RunService.RenderStepped:Connect(function(_, deltaTime)
+	NAlib.connect("TPWalkingConnection", RunService.Stepped:Connect(function(_, deltaTime)
 		if TPWalk then
 			local humanoid = getHum()
 			if humanoid and humanoid.MoveDirection.Magnitude > 0 then
