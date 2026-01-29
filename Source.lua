@@ -48717,6 +48717,13 @@ NAgui.addInfo = function(label, value)
 		local maxW
 
 		local cw = info.AbsoluteSize.X
+		if (not cw or cw <= 0) and info.Parent then
+			cw = info.Parent.AbsoluteSize.X
+		end
+		if (not cw or cw <= 0) and NAUIMANAGER and NAUIMANAGER.SettingsList then
+			cw = NAUIMANAGER.SettingsList.AbsoluteSize.X
+		end
+
 		if cw and cw > 0 then
 			local tw = (info.Title and info.Title.TextBounds.X or 0)
 			local gap = 32
@@ -49300,6 +49307,13 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 		local maxW
 
 		local cw = input.AbsoluteSize.X
+		if (not cw or cw <= 0) and input.Parent then
+			cw = input.Parent.AbsoluteSize.X
+		end
+		if (not cw or cw <= 0) and NAUIMANAGER and NAUIMANAGER.SettingsList then
+			cw = NAUIMANAGER.SettingsList.AbsoluteSize.X
+		end
+
 		if cw and cw > 0 then
 			local tw = (input.Title and input.Title.TextBounds.X or 0)
 			local gap = 32
@@ -49330,6 +49344,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 		pcall(callback, box.Text)
 	end)
 
+	box:GetPropertyChangedSignal("TextBounds"):Connect(resize)
 	box:GetPropertyChangedSignal("Text"):Connect(resize)
 	input:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 
@@ -49343,6 +49358,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 			return
 		end
 		box.Text = text
+		resize()
 		if opts.fire then
 			pcall(callback, text)
 		end
