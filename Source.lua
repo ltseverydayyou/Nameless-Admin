@@ -38451,19 +38451,20 @@ NAjobs._restoreTouchDue = function()
 end
 
 NAjobs._schedule = function()
-	if NAjobs.hb then return end
+	if NAjobs.hb then
+		return
+	end
 	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function()
 		NAjobs._frame = (NAjobs._frame or 0) + 1
 		NAjobs._claimed = {}
 		local now = time()
 		for _, job in pairs(NAjobs.jobs) do
-			if job.interval <= 0 then
+			local ivl = job.interval or 0
+			if ivl <= 0 then
 				job.tick(job)
-			else
-				if now >= job.next then
-					job.next = now + job.interval
-					job.tick(job)
-				end
+			elseif now >= (job.next or 0) then
+				job.next = now + ivl
+				job.tick(job)
 			end
 		end
 		NAjobs._restoreTouchDue()
