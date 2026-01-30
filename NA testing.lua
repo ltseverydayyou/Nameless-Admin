@@ -49099,7 +49099,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		it.Size = UDim2.new(0, 45, 0, 22)
 
 		local cind = chip:FindFirstChild("Indicator")
-		local cst = (cind and cind:FindFirstChild("UIStroke")) or chip:FindFirstChildOfClass("UIStroke")
+		local cst = chip:FindFirstChildOfClass("UIStroke")
 		local con = false
 
 		local function cupd()
@@ -49107,7 +49107,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 				local onx = chip.AbsoluteSize.X - cind.AbsoluteSize.X - 4
 				local offx = 2
 				cind.Position = UDim2.new(0, con and onx or offx, 0.5, 0)
-				cind.Visible = true
+				cind.Visible = false
 			end
 			if cst then
 				cst.Color = con and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
@@ -49123,7 +49123,8 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		cbtn = Instance.new("TextButton")
 		cbtn.Name = "ChipInteract"
 		cbtn.BackgroundTransparency = 1
-		cbtn.Text = ""
+		cbtn.Text = "Use"
+		cbtn.TextColor3 = Color3.new(1, 1, 1)
 		cbtn.AutoButtonColor = false
 		cbtn.Size = UDim2.new(1, 0, 1, 0)
 		cbtn.Parent = chip
@@ -49679,8 +49680,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 					local onX = chip.AbsoluteSize.X - chipInd.AbsoluteSize.X - 4
 					local offX = 2
 					chipInd.Position = UDim2.new(0, chipOn and onX or offX, 0.5, 0)
-					chipInd.Visible = true
-					chipInd.ZIndex = 2
+					chipInd.Visible = false
 				end
 				if chipStroke then
 					chipStroke.Color = chipOn and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
@@ -49699,7 +49699,8 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 			local btn = Instance.new("TextButton")
 			btn.Name = "ChipInteract"
 			btn.BackgroundTransparency = 1
-			btn.Text = ""
+			btn.Text = "Use"
+			btn.TextColor3 = Color3.new(1, 1, 1)
 			btn.Size = UDim2.new(1, 0, 1, 0)
 			btn.ZIndex = (chip.ZIndex or 1) + 1
 			btn.Parent = chip
