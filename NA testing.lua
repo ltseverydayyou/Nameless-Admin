@@ -49099,7 +49099,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		it.Size = UDim2.new(0, 45, 0, 22)
 
 		local cind = chip:FindFirstChild("Indicator")
-		local cst = chip:FindFirstChildOfClass("UIStroke")
+		local cst = chip:FindFirstChildWhichIsA("UIStroke", true)
 		local con = false
 
 		local function cupd()
@@ -49672,7 +49672,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 			frame.Position = UDim2.new(1, -15, 0.5, 0)
 
 			local chipInd = chip:FindFirstChild("Indicator")
-			local chipStroke = chip:FindFirstChildOfClass("UIStroke")
+			local chipStroke = chip:FindFirstChildWhichIsA("UIStroke", true)
 			local chipOn = false
 
 			local function updChip2()
@@ -57406,9 +57406,15 @@ NAFFlags.load = function()
 			else
 				needsSave = true
 			end
-
-			NAFFlags.config.enabledFlags = {}
-			needsSave = true
+			if type(decoded.enabledFlags) == "table" then
+				NAFFlags.config.enabledFlags = {}
+				for _, e in ipairs(NAFFlags.whitelist) do
+					local n = e.name
+					NAFFlags.config.enabledFlags[n] = decoded.enabledFlags[n] == true
+				end
+			else
+				needsSave = true
+			end
 		else
 			needsSave = true
 		end
@@ -57822,6 +57828,37 @@ NAFFlags.buildSetfflagScript = function()
 	return Concat(lines, "\n")
 end
 
+NAFFlags.buildSetfflagScriptEnabled = function()
+	NAFFlags.normalizeRenderingPrefs()
+	local lines = { "if not setfflag then return warn(\"setfflag unavailable\") end" }
+	local seen = {}
+
+	for _, e in ipairs(NAFFlags.whitelist) do
+		local n = e.name
+		if NAFFlags.isFlagEnabled and not NAFFlags.isFlagEnabled(n) then
+			continue
+		end
+		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(n) then
+			local v = NAFFlags.values[n]
+			if v == nil then
+				v = NAFFlags.getDefault(e)
+			end
+			lines[#lines + 1] = Format("setfflag(%q, %q)", n, tostring(v))
+			seen[n] = true
+		end
+	end
+
+	if not NAFFlags.config.applyWhitelistOnly then
+		for n, v in pairs(NAFFlags.config.custom or {}) do
+			if not seen[n] and v ~= nil then
+				lines[#lines + 1] = Format("setfflag(%q, %q)", n, tostring(v))
+			end
+		end
+	end
+
+	return Concat(lines, "\n")
+end
+
 if NAFFlags.config.autoApply then
 	NAFFlags.autoApplyWithRetry()
 end
@@ -57878,6 +57915,20 @@ NAgui.addButton("Copy standalone setfflag script", function()
 		return
 	end
 	DoNotif("setfflag script copied to clipboard.", 2)
+end)
+
+NAgui.addButton("Copy enabled setfflag script", function()
+	if not setclipboard then
+		DoNotif("Your executor does not support setclipboard", 3)
+		return
+	end
+	local txt = NAFFlags.buildSetfflagScriptEnabled()
+	local ok, err = pcall(setclipboard, txt)
+	if not ok then
+		DoNotif("Failed to copy setfflag script: "..tostring(err), 3)
+		return
+	end
+	DoNotif("Enabled setfflag script copied to clipboard.", 2)
 end)
 
 NAgui.addSection("Custom FastFlags")
