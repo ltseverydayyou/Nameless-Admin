@@ -34,6 +34,12 @@ CMDAUTOFILL={}
 
 local NAmanage={}
 
+NAjobs = NAjobs or {}
+NAjobs.jobs = NAjobs.jobs or {}
+NAjobs._touchState = NAjobs._touchState or {}
+NAjobs._frame = NAjobs._frame or 0
+NAjobs._claimed = NAjobs._claimed or {}
+
 Lower    = string.lower
 Sub      = string.sub
 GSub     = string.gsub
@@ -38065,42 +38071,105 @@ NAutil.parseInterval = function(defaultInterval, ...)
 	end
 end
 
-NAindex.lc = function(s) return s and Lower(s) or "" end
+local promptPartCache = setmetatable({}, { __mode = "k" })
+local carPartCache = setmetatable({}, { __mode = "k" })
+local promptNamesCache = setmetatable({}, { __mode = "k" })
+local clickNamesCache = setmetatable({}, { __mode = "k" })
+local partNamesCache = setmetatable({}, { __mode = "k" })
+
+NAindex.lc = function(s)
+	if s then
+		return Lower(s)
+	end
+	return ""
+end
 
 NAindex.carPart = function(inst)
-	if not inst then return nil end
-	if inst:IsA("BasePart") then return inst end
-	if inst:IsA("Attachment") then
-		local p = inst.Parent
-		if p and p:IsA("BasePart") then return p end
+	if not inst then
+		return nil
 	end
-	return inst:FindFirstAncestorWhichIsA("BasePart")
+	local c = carPartCache[inst]
+	if c ~= nil then
+		if c == false then
+			return nil
+		end
+		return c
+	end
+	local part
+	if inst:IsA("BasePart") then
+		part = inst
+	elseif inst:IsA("Attachment") then
+		local p = inst.Parent
+		if p and p:IsA("BasePart") then
+			part = p
+		end
+	end
+	if not part then
+		part = inst:FindFirstAncestorWhichIsA("BasePart")
+	end
+	carPartCache[inst] = part or false
+	return part
 end
 
 NAindex.getPromptPart = function(pp)
-	local parent = pp and pp.Parent
-	if not parent then return nil end
-	if parent:IsA("Attachment") then
-		local p = parent.Parent
-		return p and p:IsA("BasePart") and p or nil
-	elseif parent:IsA("BasePart") then
-		return parent
+	if not pp then
+		return nil
 	end
-	local model = pp:FindFirstAncestorWhichIsA("Model")
-	if model then
-		if model.PrimaryPart then return model.PrimaryPart end
-		local bp = model:FindFirstChildWhichIsA("BasePart", true)
-		if bp then return bp end
+	local c = promptPartCache[pp]
+	if c ~= nil then
+		if c == false then
+			return nil
+		end
+		return c
 	end
-	return pp:FindFirstAncestorWhichIsA("BasePart")
+	local parent = pp.Parent
+	local part
+	if parent then
+		if parent:IsA("Attachment") then
+			local p = parent.Parent
+			if p and p:IsA("BasePart") then
+				part = p
+			end
+		elseif parent:IsA("BasePart") then
+			part = parent
+		end
+	end
+	if not part then
+		local model = pp:FindFirstAncestorWhichIsA("Model")
+		if model then
+			if model.PrimaryPart then
+				part = model.PrimaryPart
+			else
+				part = model:FindFirstChildWhichIsA("BasePart", true)
+			end
+		end
+	end
+	if not part then
+		part = pp:FindFirstAncestorWhichIsA("BasePart")
+	end
+	promptPartCache[pp] = part or false
+	return part
 end
 
 NAindex.namesForPrompt = function(p)
+	local cached = promptNamesCache[p]
+	if cached then
+		return cached
+	end
 	local names = {}
-	if p.Name then Insert(names, p.Name) end
-	if p.ObjectText then Insert(names, p.ObjectText) end
-	if p.ActionText then Insert(names, p.ActionText) end
-	if p.Parent and p.Parent.Name then Insert(names, p.Parent.Name) end
+	if p.Name then
+		Insert(names, p.Name)
+	end
+	if p.ObjectText then
+		Insert(names, p.ObjectText)
+	end
+	if p.ActionText then
+		Insert(names, p.ActionText)
+	end
+	local parent = p.Parent
+	if parent and parent.Name then
+		Insert(names, parent.Name)
+	end
 	local part = NAindex.getPromptPart(p)
 	if part then
 		Insert(names, part.Name)
@@ -38116,15 +38185,27 @@ NAindex.namesForPrompt = function(p)
 			m = m:FindFirstAncestorWhichIsA("Model")
 		end
 	end
-	for i = 1, #names do names[i] = NAindex.lc(names[i]) end
+	for i = 1, #names do
+		names[i] = NAindex.lc(names[i])
+	end
+	promptNamesCache[p] = names
 	return names
 end
 
 NAindex.namesForClick = function(d)
+	local cached = clickNamesCache[d]
+	if cached then
+		return cached
+	end
 	local names = {}
-	if d.Name then Insert(names, d.Name) end
-	if d.Parent and d.Parent.Name then Insert(names, d.Parent.Name) end
-	local part = NAindex.carPart(d.Parent or d)
+	if d.Name then
+		Insert(names, d.Name)
+	end
+	local parent = d.Parent
+	if parent and parent.Name then
+		Insert(names, parent.Name)
+	end
+	local part = NAindex.carPart(parent or d)
 	if part then
 		Insert(names, part.Name)
 		local m = part:FindFirstAncestorWhichIsA("Model")
@@ -38133,13 +38214,37 @@ NAindex.namesForClick = function(d)
 			m = m:FindFirstAncestorWhichIsA("Model")
 		end
 	end
-	for i = 1, #names do names[i] = NAindex.lc(names[i]) end
+	for i = 1, #names do
+		names[i] = NAindex.lc(names[i])
+	end
+	clickNamesCache[d] = names
+	return names
+end
+
+NAindex.namesForPart = function(part)
+	if not part then
+		return {}
+	end
+	local cached = partNamesCache[part]
+	if cached then
+		return cached
+	end
+	local names = {}
+	Insert(names, NAindex.lc(part.Name))
+	local m = part:FindFirstAncestorWhichIsA("Model")
+	while m do
+		Insert(names, NAindex.lc(m.Name))
+		m = m:FindFirstAncestorWhichIsA("Model")
+	end
+	partNamesCache[part] = names
 	return names
 end
 
 NAindex.matchAny = function(names, target)
 	target = NAindex.lc(target)
-	if not target or target == "" then return true end
+	if not target or target == "" then
+		return true
+	end
 	for i = 1, #names do
 		if names[i] == target then
 			return true
@@ -38150,7 +38255,9 @@ end
 
 NAindex.matchAnyFind = function(names, target)
 	target = NAindex.lc(target)
-	if not target or target == "" then return true end
+	if not target or target == "" then
+		return true
+	end
 	for i = 1, #names do
 		local n = names[i]
 		if n == target or Find(n, target, 1, true) then
@@ -38172,7 +38279,9 @@ end
 
 NAindex.inRangePrompt = function(pp, rootPos, extra)
 	local part, pos = NAindex.promptTarget(pp)
-	if not pos then return false, math.huge, part end
+	if not pos then
+		return false, math.huge, part
+	end
 	local dist = (pos - rootPos).Magnitude
 	local maxd = (pp.MaxActivationDistance or 0) + (extra or 0)
 	return dist <= maxd, dist, part
@@ -38180,7 +38289,9 @@ end
 
 NAindex.inRangeClick = function(cd, rootPos, extra)
 	local part, pos = NAindex.clickTarget(cd)
-	if not pos then return false, math.huge, part end
+	if not pos then
+		return false, math.huge, part
+	end
 	local dist = (pos - rootPos).Magnitude
 	local maxd = (cd.MaxActivationDistance or 0) + (extra or 0)
 	return dist <= maxd, dist, part
@@ -38263,7 +38374,7 @@ end
 NAjobs._schedule = function()
 	if NAjobs.hb then return end
 	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function()
-		NAjobs._frame += 1
+		NAjobs._frame = (NAjobs._frame or 0) + 1
 		NAjobs._claimed = {}
 		local now = time()
 		for _, job in pairs(NAjobs.jobs) do
@@ -38311,23 +38422,23 @@ NAjobs._nextIdForKind = function(kind)
 end
 
 NAjobs.start = function(kind, interval, target, useFind)
-	NAindex.init();
-	local tgt = target and Lower(target) or nil;
-	local ivl = interval or 0.1;
-	local ivlClamped = math.max(0, ivl);
-	local stagger = ivlClamped > 0 and math.min(0.02, ivlClamped / 8) or 0;
-	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny;
-	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind);
+	NAindex.init()
+	local tgt = target and Lower(target) or nil
+	local ivl = interval or 0.1
+	local ivlClamped = math.max(0, ivl)
+	local stagger = ivlClamped > 0 and math.min(0.02, ivlClamped / 8) or 0
+	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny
+	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind)
 	if existingJob then
-		existingJob.interval = ivlClamped;
-		existingJob.target = tgt;
-		existingJob.m = matcher;
-		existingJob.useFind = useFind and true or false;
-		existingJob.stagger = stagger;
-		existingJob.next = time();
-		return existingId, true;
-	end;
-	local id = NAjobs._nextIdForKind(kind);
+		existingJob.interval = ivlClamped
+		existingJob.target = tgt
+		existingJob.m = matcher
+		existingJob.useFind = useFind and true or false
+		existingJob.stagger = stagger
+		existingJob.next = time()
+		return existingId, true
+	end
+	local id = NAjobs._nextIdForKind(kind)
 	local job = {
 		id = id,
 		kind = kind,
@@ -38337,187 +38448,226 @@ NAjobs.start = function(kind, interval, target, useFind)
 		stagger = stagger,
 		m = matcher,
 		useFind = useFind and true or false
-	};
+	}
 	if kind == "prompt" then
 		job.tick = function(self)
 			if not interactTbl or type(interactTbl.proxy) ~= "table" then
-				return;
-			end;
-			local char = getChar();
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+				return
+			end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 			if not root then
-				return;
-			end;
-			local rootPos = root.Position;
-			local list = {};
-			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false;
-			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5;
-			for _, inst in ipairs(interactTbl.proxy) do
+				return
+			end
+			local rootPos = root.Position
+			local list = {}
+			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
+			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
+			local proxy = interactTbl.proxy
+			local hasTarget = self.target ~= nil and self.target ~= ""
+			for i = 1, #proxy do
+				local inst = proxy[i]
 				if inst and inst.Parent and inst.Enabled then
-					local names = NAindex.namesForPrompt(inst);
-					if self.m(names, self.target) then
-						local ok, dist, part
+					local ok = false
+					local dist = 0
+					local part
+					if hasTarget then
+						local names = NAindex.namesForPrompt(inst)
+						if self.m(names, self.target) then
+							if useRange then
+								ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange)
+							else
+								part = NAindex.getPromptPart(inst)
+								ok = part ~= nil
+							end
+						end
+					else
 						if useRange then
-							ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange);
+							ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange)
 						else
 							part = NAindex.getPromptPart(inst)
-							ok, dist = true, 0
+							ok = part ~= nil
 						end
-						if ok then
-							Insert(list, {
-								inst = inst,
-								dist = dist,
-								part = part
-							});
-						end;
-					end;
-				end;
-			end;
-			table.sort(list, function(a, b)
-				return a.dist < b.dist;
-			end);
-			local step = self.interval > 0 and self.stagger or 0;
-			local i = 0;
+					end
+					if ok and part then
+						local n = #list + 1
+						list[n] = {
+							inst = inst,
+							dist = dist,
+							part = part
+						}
+					end
+				end
+			end
+			if #list > 1 then
+				table.sort(list, function(a, b)
+					return a.dist < b.dist
+				end)
+			end
+			local step = self.interval > 0 and self.stagger or 0
+			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.inst) then
-					i += 1;
+					i += 1
 					Delay(step * (i - 1), function()
-						local range = (it.inst.MaxActivationDistance or 0) + 5;
+						local range = (it.inst.MaxActivationDistance or 0) + 5
 						local allow = {
 							[it.inst] = true
-						};
-						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow);
+						}
+						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow)
 						pcall(fireproximityprompt, it.inst, {
 							hold = 0.03,
 							distance = range,
 							stagger = 0
-						});
+						})
 						Delay(0.06, function()
-							NAsuppress.releaseList(suppressed);
-						end);
-					end);
-				end;
-			end;
-		end;
+							NAsuppress.releaseList(suppressed)
+						end)
+					end)
+				end
+			end
+		end
 	elseif kind == "click" then
 		job.tick = function(self)
 			if not interactTbl or type(interactTbl.click) ~= "table" then
-				return;
-			end;
-			local char = getChar();
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+				return
+			end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 			if not root then
-				return;
-			end;
-			local rootPos = root.Position;
-			local list = {};
-			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false;
-			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5;
-			for _, inst in ipairs(interactTbl.click) do
+				return
+			end
+			local rootPos = root.Position
+			local list = {}
+			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
+			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
+			local clickTbl = interactTbl.click
+			local hasTarget = self.target ~= nil and self.target ~= ""
+			for i = 1, #clickTbl do
+				local inst = clickTbl[i]
 				if inst and inst.Parent then
-					local names = NAindex.namesForClick(inst);
-					if self.m(names, self.target) then
-						local ok, dist, part
+					local ok = false
+					local dist = 0
+					local part
+					if hasTarget then
+						local names = NAindex.namesForClick(inst)
+						if self.m(names, self.target) then
+							if useRange then
+								ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange)
+							else
+								part = NAindex.carPart(inst.Parent or inst)
+								ok = part ~= nil
+							end
+						end
+					else
 						if useRange then
-							ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange);
+							ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange)
 						else
 							part = NAindex.carPart(inst.Parent or inst)
-							ok, dist = true, 0
+							ok = part ~= nil
 						end
-						if ok then
-							Insert(list, {
-								inst = inst,
-								dist = dist,
-								part = part
-							});
-						end;
-					end;
-				end;
-			end;
-			table.sort(list, function(a, b)
-				return a.dist < b.dist;
-			end);
-			local step = self.interval > 0 and self.stagger or 0;
-			local i = 0;
+					end
+					if ok and part then
+						local n = #list + 1
+						list[n] = {
+							inst = inst,
+							dist = dist,
+							part = part
+						}
+					end
+				end
+			end
+			if #list > 1 then
+				table.sort(list, function(a, b)
+					return a.dist < b.dist
+				end)
+			end
+			local step = self.interval > 0 and self.stagger or 0
+			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
-					i += 1;
+					i += 1
 					Delay(step * (i - 1), function()
-						pcall(fireclickdetector, it.inst);
-					end);
-				end;
-			end;
-		end;
+						pcall(fireclickdetector, it.inst)
+					end)
+				end
+			end
+		end
 	elseif kind == "touch" then
 		job.tick = function(self)
 			if not interactTbl or type(interactTbl.touch) ~= "table" then
-				return;
-			end;
-			local char = getChar();
-			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"));
+				return
+			end
+			local char = getChar()
+			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 			if not root or (not root:IsDescendantOf(workspace)) then
-				return;
-			end;
-			local list = {};
-			for _, ti in ipairs(interactTbl.touch) do
+				return
+			end
+			local list = {}
+			local touchTbl = interactTbl.touch
+			local hasTarget = self.target ~= nil and self.target ~= ""
+			for i = 1, #touchTbl do
+				local ti = touchTbl[i]
 				if ti then
-					local container = ti.Parent;
+					local container = ti.Parent
 					if container and container.Parent then
-						local part = NAindex.carPart(container);
+						local part = NAindex.carPart(container)
 						if part then
-							local names = {
-								NAindex.lc(part.Name)
-							};
-							local m = part:FindFirstAncestorWhichIsA("Model");
-							while m do
-								Insert(names, NAindex.lc(m.Name));
-								m = m:FindFirstAncestorWhichIsA("Model");
-							end;
-							if self.m(names, self.target) then
-								local asm = part.AssemblyRootPart or part;
+							local ok = false
+							if hasTarget then
+								local names = NAindex.namesForPart(part)
+								if self.m(names, self.target) then
+									ok = true
+								end
+							else
+								ok = true
+							end
+							if ok then
+								local asm = part.AssemblyRootPart or part
 								if asm then
-									Insert(list, {
+									local n = #list + 1
+									list[n] = {
 										part = asm
-									});
-								end;
-							end;
-						end;
-					end;
-				end;
-			end;
+									}
+								end
+							end
+						end
+					end
+				end
+			end
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
 					Spawn(function()
-						local asm = it.part;
+						local asm = it.part
 						if not asm or (not asm.Parent) or (not asm:IsDescendantOf(workspace)) then
-							return;
-						end;
-						local st = NAjobs._touchState[asm];
+							return
+						end
+						local st = NAjobs._touchState[asm]
 						if not st or (not st.moved) then
-							st = st or {};
-							st.orig = asm.CFrame;
-							st.moved = true;
-							NAjobs._touchState[asm] = st;
-						end;
-						local char2 = getChar();
-						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"));
+							st = st or {}
+							st.orig = asm.CFrame
+							st.moved = true
+							NAjobs._touchState[asm] = st
+						end
+						local char2 = getChar()
+						local root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"))
 						if not root2 or (not root2:IsDescendantOf(workspace)) then
-							return;
-						end;
-						asm:PivotTo(root2.CFrame);
-						pcall(firetouchinterest, asm, root2, 1);
-						Wait();
-						pcall(firetouchinterest, asm, root2, 0);
-						st.restoreAt = time() + 0.05;
-					end);
-				end;
-			end;
-		end;
-	end;
-	NAjobs.jobs[id] = job;
-	NAjobs._schedule();
-	return id;
-end;
+							return
+						end
+						asm:PivotTo(root2.CFrame)
+						pcall(firetouchinterest, asm, root2, 1)
+						Wait()
+						pcall(firetouchinterest, asm, root2, 0)
+						st.restoreAt = time() + 0.05
+					end)
+				end
+			end
+		end
+	end
+	NAjobs.jobs[id] = job
+	NAjobs._schedule()
+	return id
+end
 
 NAjobs._restoreAllTouch = function()
 	for part, st in pairs(NAjobs._touchState) do
