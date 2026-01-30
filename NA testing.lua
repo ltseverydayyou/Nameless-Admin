@@ -11429,6 +11429,85 @@ function ParseArguments(input)
 	return args
 end
 
+NAgui.MakeSwitchRow=function(parent, name, labelText)
+	local f = InstanceNew("Frame")
+	f.Name = name or "SwitchRow"
+	f.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
+	f.BorderSizePixel = 0
+	f.Size = UDim2.new(1, -10, 0, 32)
+	f.BackgroundTransparency = 0.2
+	f.Parent = parent
+
+	local c = InstanceNew("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
+	c.Parent = f
+
+	local st = InstanceNew("UIStroke")
+	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	st.Color = Color3.fromRGB(71, 71, 71)
+	st.Parent = f
+
+	local t = InstanceNew("TextLabel")
+	t.Name = "Title"
+	t.BackgroundTransparency = 1
+	t.Font = Enum.Font.Gotham
+	t.TextSize = 14
+	t.TextColor3 = Color3.fromRGB(244, 244, 249)
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	t.AnchorPoint = Vector2.new(0, 0.5)
+	t.Position = UDim2.new(0, 12, 0.5, 0)
+	t.Size = UDim2.new(1, -80, 0, 16)
+	t.TextTruncate = Enum.TextTruncate.AtEnd
+	t.Text = labelText or "Toggle"
+	t.Parent = f
+
+	local btn = InstanceNew("TextButton")
+	btn.Name = "Interact"
+	btn.BackgroundTransparency = 1
+	btn.AutoButtonColor = false
+	btn.BorderSizePixel = 0
+	btn.Text = ""
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.ZIndex = (f.ZIndex or 1) + 1
+	btn.Parent = f
+
+	local sw = InstanceNew("Frame")
+	sw.Name = "Switch"
+	sw.BorderSizePixel = 0
+	sw.AnchorPoint = Vector2.new(1, 0.5)
+	sw.Position = UDim2.new(1, -12, 0.5, 0)
+	sw.Size = UDim2.new(0, 45, 0, 22)
+	sw.BackgroundColor3 = Color3.fromRGB(49, 49, 54)
+	sw.Parent = f
+
+	local c2 = InstanceNew("UICorner")
+	c2.CornerRadius = UDim.new(0, 12)
+	c2.Parent = sw
+
+	local st2 = InstanceNew("UIStroke")
+	st2.Color = Color3.fromRGB(71, 71, 71)
+	st2.Parent = sw
+
+	local dot = InstanceNew("Frame")
+	dot.Name = "Indicator"
+	dot.BorderSizePixel = 0
+	dot.AnchorPoint = Vector2.new(0, 0.5)
+	dot.Position = UDim2.new(0, 2, 0.5, 0)
+	dot.Size = UDim2.new(0, 18, 0, 18)
+	dot.BackgroundColor3 = Color3.fromRGB(114, 114, 124)
+	dot.Parent = sw
+
+	local c3 = InstanceNew("UICorner")
+	c3.CornerRadius = UDim.new(1, 0)
+	c3.Parent = dot
+
+	local st3 = InstanceNew("UIStroke")
+	st3.Color = Color3.fromRGB(83, 83, 83)
+	st3.Parent = dot
+
+	return f, btn, sw, dot, t
+end
+
 NAmanage._normPlayer = function(p)
 	if typeof(p) == "Instance" and p:IsA("Player") then return p end
 	if type(p) == "string" then return Players:FindFirstChild(p) end
@@ -48967,75 +49046,178 @@ NAgui._colorPickerRegistry = NAgui._colorPickerRegistry or {}
 NAgui._sliderRegistry = NAgui._sliderRegistry or {}
 NAgui._inputRegistry = NAgui._inputRegistry or {}
 
-NAgui.addToggle = function(label, defaultValue, callback)
+NAgui.addToggle = function(lbl, def, cb, opt)
 	if not NAUIMANAGER.SettingsList then return end
-	local toggle = templates.Toggle:Clone()
-	local switch = toggle:FindFirstChild("Switch")
-	local indicator = switch and switch:FindFirstChild("Indicator")
-	local stroke = indicator and indicator:FindFirstChild("UIStroke")
+	opt = opt or {}
 
-	toggle.Title.Text = label
-	NAmanage.SetSearch.tag(toggle, label)
-	toggle.Parent = NAUIMANAGER.SettingsList
-	toggle.LayoutOrder = NAgui._nextLayoutOrder()
-	NAmanage.registerElementForCurrentTab(toggle)
+	local tgl = templates.Toggle:Clone()
+	local sw = tgl:FindFirstChild("Switch")
+	local ind = sw and sw:FindFirstChild("Indicator")
+	local st = ind and ind:FindFirstChild("UIStroke")
 
-	local state = defaultValue and true or false
+	if sw then
+		pcall(function() sw.Active = false end)
+		pcall(function() sw.Selectable = false end)
+	end
 
-	local function updateVisual()
-		if state then
-			indicator.Position = UDim2.new(1, -20, 0.5, 0)
-			indicator.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
-			stroke.Color = Color3.fromRGB(50, 255, 80)
+	local it = tgl:FindFirstChild("Interact")
+	if it then
+		it:Destroy()
+	end
+
+	it = Instance.new("ImageButton")
+	it.Name = "Interact"
+	it.BackgroundTransparency = 1
+	it.ImageTransparency = 1
+	it.AutoButtonColor = false
+	it.Active = true
+	it.Selectable = false
+	it.ZIndex = 999999
+	it.AnchorPoint = Vector2.new(1, 0.5)
+	it.Position = UDim2.new(1, -15, 0.5, 0)
+	it.Size = UDim2.new(0, 45, 0, 22)
+	it.Parent = tgl
+
+	local cbtn
+	if opt.sideChip and sw then
+		local chip = sw:Clone()
+		chip.Name = "SideSwitch"
+		chip.Parent = tgl
+
+		local w = sw.Size.X.Offset
+		if w <= 0 then w = 45 end
+
+		sw.AnchorPoint = Vector2.new(1, 0.5)
+		sw.Position = UDim2.new(1, -15, 0.5, 0)
+
+		chip.AnchorPoint = Vector2.new(1, 0.5)
+		chip.Position = UDim2.new(1, -15 - w - 6, 0.5, 0)
+		chip.Size = UDim2.new(0, w, 0, sw.Size.Y.Offset)
+
+		it.AnchorPoint = Vector2.new(1, 0.5)
+		it.Position = UDim2.new(1, -15, 0.5, 0)
+		it.Size = UDim2.new(0, 45, 0, 22)
+
+		local cind = chip:FindFirstChild("Indicator")
+		local cst = (cind and cind:FindFirstChild("UIStroke")) or chip:FindFirstChildOfClass("UIStroke")
+		local con = false
+
+		local function cupd()
+			if cind then
+				local onx = chip.AbsoluteSize.X - cind.AbsoluteSize.X - 4
+				local offx = 2
+				cind.Position = UDim2.new(0, con and onx or offx, 0.5, 0)
+				cind.Visible = true
+			end
+			if cst then
+				cst.Color = con and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
+			end
+		end
+
+		if type(opt.sideGet) == "function" then
+			local ok, v = pcall(opt.sideGet)
+			if ok then con = v and true or false end
+		end
+		cupd()
+
+		cbtn = Instance.new("TextButton")
+		cbtn.Name = "ChipInteract"
+		cbtn.BackgroundTransparency = 1
+		cbtn.Text = ""
+		cbtn.AutoButtonColor = false
+		cbtn.Size = UDim2.new(1, 0, 1, 0)
+		cbtn.Parent = chip
+
+		chip.ZIndex = it.ZIndex + 1
+		for _, d in ipairs(chip:GetDescendants()) do
+			if d:IsA("GuiObject") then
+				d.ZIndex = it.ZIndex + 2
+			end
+		end
+		cbtn.ZIndex = it.ZIndex + 3
+
+		MouseButtonFix(cbtn, function()
+			con = not con
+			cupd()
+			if type(opt.sideSet) == "function" then
+				pcall(opt.sideSet, con)
+			end
+		end)
+	end
+
+	tgl.Title.Text = lbl
+	NAmanage.SetSearch.tag(tgl, lbl)
+	tgl.Parent = NAUIMANAGER.SettingsList
+	tgl.ZIndex = 1
+	for _, d in ipairs(tgl:GetDescendants()) do
+		if d:IsA("GuiObject") then
+			d.ZIndex = d == it and 999999 or d.ZIndex
+		end
+	end
+	tgl.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(tgl)
+
+	local on = def and true or false
+
+	local function vupd()
+		if not (ind and st) then return end
+		if on then
+			ind.Position = UDim2.new(1, -20, 0.5, 0)
+			ind.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
+			st.Color = Color3.fromRGB(50, 255, 80)
 		else
-			indicator.Position = UDim2.new(1, -40, 0.5, 0)
-			indicator.BackgroundColor3 = Color3.fromRGB(111, 111, 121)
-			stroke.Color = Color3.fromRGB(80, 80, 80)
+			ind.Position = UDim2.new(1, -40, 0.5, 0)
+			ind.BackgroundColor3 = Color3.fromRGB(111, 111, 121)
+			st.Color = Color3.fromRGB(80, 80, 80)
 		end
 	end
 
-	local function setState(newValue, opts)
-		opts = opts or {}
-		local desired = newValue and true or false
-		if not opts.force and state == desired then
-			if opts.fire then
-				pcall(callback, state)
-			end
+	local function set(v, o)
+		o = o or {}
+		local want = v and true or false
+		if not o.force and on == want then
+			if o.fire then pcall(cb, on) end
 			return
 		end
-		state = desired
-		updateVisual()
-		if opts.fire ~= false then
-			pcall(callback, state)
+		on = want
+		vupd()
+		if o.fire ~= false then
+			pcall(cb, on)
 		end
 	end
 
-	setState(state, { force = true, fire = false })
+	set(on, { force = true, fire = false })
 
-	MouseButtonFix(toggle.Interact,function()
-		setState(not state, { force = true, fire = true })
-	end)
+	local busy = false
+	local function clk()
+		if busy then return end
+		busy = true
+		set(not on, { force = true, fire = true })
+		Defer(function()
+			busy = false
+		end)
+	end
 
-	local entry = {
-		button = toggle;
-		get = function()
-			return state
-		end;
-		set = function(value, opts)
-			opts = opts or {}
-			if opts.force == nil then opts.force = true end
-			setState(value, opts)
+	MouseButtonFix(it, clk)
+
+	local ent = {
+		button = tgl;
+		get = function() return on end;
+		set = function(v, o)
+			o = o or {}
+			if o.force == nil then o.force = true end
+			set(v, o)
 		end;
 	}
-	NAgui._toggleRegistry[label] = entry
+	NAgui._toggleRegistry[lbl] = ent
 
-	toggle:GetPropertyChangedSignal("Parent"):Connect(function()
-		if not toggle.Parent and NAgui._toggleRegistry[label] == entry then
-			NAgui._toggleRegistry[label] = nil
+	tgl:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not tgl.Parent and NAgui._toggleRegistry[lbl] == ent then
+			NAgui._toggleRegistry[lbl] = nil
 		end
 	end)
 
-	return toggle
+	return tgl
 end
 
 NAgui.setToggleState = function(label, value, opts)
@@ -49066,6 +49248,19 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local rgbTog = picker:FindFirstChild("RGBToggle")
 	local rgbBtn, rgbSw, rgbDot, rgbTit
 
+	if rgbTog and rgbTog:IsA("GuiObject") then
+		rgbBtn = rgbTog:FindFirstChild("Interact")
+		rgbSw = rgbTog:FindFirstChild("Switch")
+		if rgbSw then
+			rgbDot = rgbSw:FindFirstChild("Indicator")
+		end
+		rgbTit = rgbTog:FindFirstChild("Title")
+	end
+
+	if not (rgbTog and rgbBtn and rgbSw and rgbDot and rgbTit) then
+		rgbTog, rgbBtn, rgbSw, rgbDot, rgbTit = NAgui.MakeSwitchRow(picker, "RGBToggle", "RGB Cycle")
+	end
+
 	local function getSaved()
 		if type(label) ~= "string" then return nil end
 		if not (NAmanage and type(NAmanage.NASettingsGet) == "function") then return nil end
@@ -49085,45 +49280,6 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		for k,v in pairs(st) do nxt[k] = v end
 		nxt[label] = sta and true or false
 		NAmanage.NASettingsSet("colorPickerAutoRGB", nxt)
-	end
-
-	local function mkTog()
-		local f = InstanceNew("Frame")
-		f.Name = "RGBToggle"
-		f.BackgroundColor3 = Color3.fromRGB(44, 44, 49)
-		f.BorderSizePixel = 0
-		f.Size = UDim2.new(0, 240, 0, 32)
-		f.Position = UDim2.new(0, 20, 0, 115)
-		f.ZIndex = 5
-		f.Parent = picker
-
-		local c = InstanceNew("UICorner")
-		c.Parent = f
-
-		local st = InstanceNew("UIStroke")
-		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		st.Color = Color3.fromRGB(71, 71, 71)
-		st.Parent = f
-
-		local t = InstanceNew("TextLabel")
-		t.Name = "Title"
-		t.BackgroundTransparency = 1
-		t.Font = Enum.Font.Gotham
-		t.TextSize = 14
-		t.TextColor3 = Color3.fromRGB(244, 244, 249)
-		t.TextXAlignment = Enum.TextXAlignment.Left
-		t.AnchorPoint = Vector2.new(0, 0.5)
-		t.Position = UDim2.new(0, 12, 0.5, 0)
-		t.Size = UDim2.new(1, -60, 0, 16)
-		t.Text = "RGB Cycle"
-		t.ZIndex = 5
-		t.Parent = f
-
-		return f
-	end
-
-	if not (rgbTog and rgbTog:IsA("GuiObject")) then
-		rgbTog = mkTog()
 	end
 
 	rgbTit = rgbTog:FindFirstChild("Title")
@@ -49477,12 +49633,94 @@ NAgui.getColorPickerAutoRGB = function(label)
 	return entry.getAutoRGB()
 end
 
-NAgui.addInput = function(label, placeholder, defaultText, callback)
+NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	opts = opts or {}
 
 	local input = templates.Input:Clone()
 	local frame = input.InputFrame
 	local box = frame.InputBox
+	local chipRow, chipBtn
+	local sideOn = true
+	local function updChip()
+		if not chipRow then return end
+		local t = sideOn and 0.15 or 0.8
+		chipRow.BackgroundTransparency = t
+	end
+	if opts.sideChip then
+		local tgl = templates.Toggle:Clone()
+		local sw = tgl:FindFirstChild("Switch")
+		if sw then
+			local chip = sw:Clone()
+			chip.Name = "SideSwitch"
+			chip.Parent = input
+			tgl:Destroy()
+
+			local swW = chip.Size.X.Offset
+			if swW <= 0 then
+				swW = 45
+			end
+
+			chip.AnchorPoint = Vector2.new(1, 0.5)
+			chip.Position = UDim2.new(1, -15, 0.5, 0)
+			chip.Size = UDim2.new(0, swW, 0, chip.Size.Y.Offset)
+
+			chipRow = chip
+
+			frame.AnchorPoint = Vector2.new(1, 0.5)
+			frame.Position = UDim2.new(1, -15, 0.5, 0)
+
+			local chipInd = chip:FindFirstChild("Indicator")
+			local chipStroke = chip:FindFirstChildOfClass("UIStroke")
+			local chipOn = false
+
+			local function updChip2()
+				if chipInd then
+					local onX = chip.AbsoluteSize.X - chipInd.AbsoluteSize.X - 4
+					local offX = 2
+					chipInd.Position = UDim2.new(0, chipOn and onX or offX, 0.5, 0)
+					chipInd.Visible = true
+					chipInd.ZIndex = 2
+				end
+				if chipStroke then
+					chipStroke.Color = chipOn and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
+				end
+			end
+
+			if type(opts.sideGet) == "function" then
+				local ok, v = pcall(opts.sideGet)
+				if ok then
+					chipOn = v and true or false
+				end
+			end
+
+			updChip2()
+
+			local btn = Instance.new("TextButton")
+			btn.Name = "ChipInteract"
+			btn.BackgroundTransparency = 1
+			btn.Text = ""
+			btn.Size = UDim2.new(1, 0, 1, 0)
+			btn.ZIndex = (chip.ZIndex or 1) + 1
+			btn.Parent = chip
+
+			chipBtn = btn
+
+			MouseButtonFix(btn, function()
+				if type(opts.sideSet) == "function" or type(opts.sideGet) == "function" then
+					chipOn = not chipOn
+					updChip2()
+					if type(opts.sideSet) == "function" then
+						pcall(opts.sideSet, chipOn)
+					end
+				else
+					box:CaptureFocus()
+				end
+			end)
+		else
+			tgl:Destroy()
+		end
+	end
 
 	input.Title.Text = label
 	NAmanage.SetSearch.tag(input, label)
@@ -49517,6 +49755,13 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 		if cw and cw > 0 then
 			local tw = (input.Title and input.Title.TextBounds.X or 0)
 			local gap = 32
+			if chipRow then
+				local extra = chipRow.Size.X.Offset
+				if extra <= 0 then
+					extra = 45
+				end
+				gap = gap + extra
+			end
 			maxW = cw - tw - gap
 		end
 
@@ -49537,6 +49782,12 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 		if not lastW or math.abs(lastW - w) > 0.5 then
 			lastW = w
 			frame.Size = UDim2.new(0, w, 0, 30)
+			if chipRow then
+				local fw = frame.Size.X.Offset
+				if fw <= 0 then fw = w end
+				chipRow.Position = UDim2.new(1, -15 - fw - 6, 0.5, 0)
+				frame.Position = UDim2.new(1, -15, 0.5, 0)
+			end
 		end
 	end
 
@@ -49547,6 +49798,21 @@ NAgui.addInput = function(label, placeholder, defaultText, callback)
 	box:GetPropertyChangedSignal("TextBounds"):Connect(resize)
 	box:GetPropertyChangedSignal("Text"):Connect(resize)
 	input:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+	if chipBtn then
+		if type(opts.sideSet) == "function" or type(opts.sideGet) == "function" then
+			MouseButtonFix(chipBtn, function()
+				sideOn = not sideOn
+				updChip()
+				if type(opts.sideSet) == "function" then
+					pcall(opts.sideSet, sideOn)
+				end
+			end)
+		else
+			MouseButtonFix(chipBtn, function()
+				box:CaptureFocus()
+			end)
+		end
+	end
 
 	local function setText(newValue, opts)
 		opts = opts or {}
@@ -56930,7 +57196,7 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 end
 
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
-NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {}, custom = {} }
+NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {}, custom = {}, enabledFlags = {} }
 NAFFlags.config.custom = NAFFlags.config.custom or {}
 NAFFlags.values = NAFFlags.values or {}
 NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
@@ -56990,6 +57256,14 @@ NAFFlags.getEntry = function(name)
 		end
 	end
 	return nil
+end
+
+NAFFlags.isFlagEnabled = function(name)
+	local t = NAFFlags.config and NAFFlags.config.enabledFlags
+	if not t then
+		return false
+	end
+	return t[name] == true
 end
 
 NAFFlags.getDefault = function(entry)
@@ -57073,8 +57347,11 @@ NAFFlags.applyDefaults = function()
 	NAFFlags.config.autoApply = false
 	NAFFlags.config.flags = {}
 	NAFFlags.config.custom = {}
+	NAFFlags.config.enabledFlags = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
-		NAFFlags.config.flags[entry.name] = NAFFlags.getDefault(entry)
+		local n = entry.name
+		NAFFlags.config.flags[n] = NAFFlags.getDefault(entry)
+		NAFFlags.config.enabledFlags[n] = false
 	end
 end
 
@@ -57128,12 +57405,18 @@ NAFFlags.load = function()
 			else
 				needsSave = true
 			end
+
+			NAFFlags.config.enabledFlags = {}
+			needsSave = true
 		else
 			needsSave = true
 		end
 	else
 		needsSave = true
 	end
+
+	NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+
 	if needsSave then
 		NAFFlags.save()
 	end
@@ -57251,14 +57534,19 @@ NAFFlags.getTargets = function()
 	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
 		local name = entry.name
+		if NAFFlags.isFlagEnabled and not NAFFlags.isFlagEnabled(name) then
+			continue
+		end
 		if not NAFFlags.isFlagAvailable or NAFFlags.isFlagAvailable(name) then
 			targets[#targets + 1] = { name = name, value = NAFFlags.values[name] }
 			seen[name] = true
 		end
 	end
-	for customName, customValue in pairs(NAFFlags.config.custom or {}) do
-		if not seen[customName] and customValue ~= nil then
-			targets[#targets + 1] = { name = customName, value = customValue }
+	if not NAFFlags.config.applyWhitelistOnly then
+		for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+			if not seen[customName] and customValue ~= nil then
+				targets[#targets + 1] = { name = customName, value = customValue }
+			end
 		end
 	end
 	return targets
@@ -57567,6 +57855,16 @@ NAgui.addButton("Apply All FFlags (including custom)", function()
 	NAFFlags.applyAll()
 end)
 
+NAgui.addToggle("Apply Only Whitelisted FFlags", NAFFlags.config.applyWhitelistOnly == true, function(state)
+	NAFFlags.config.applyWhitelistOnly = state == true
+	NAFFlags.save()
+	local mode = state and "whitelisted only" or "whitelist + custom"
+	DoNotif("FastFlags will apply: "..mode, 2)
+end)
+NAmanage.RegisterToggleAutoSync("Apply Only Whitelisted FFlags", function()
+	return NAFFlags.config.applyWhitelistOnly == true
+end)
+
 NAgui.addButton("Copy standalone setfflag script", function()
 	if not setclipboard then
 		DoNotif("Your executor does not support setclipboard", 3)
@@ -57678,46 +57976,67 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 		continue
 	end
 
+	local function getEnabled()
+		local v = NAFFlags.config and NAFFlags.config.enabledFlags and NAFFlags.config.enabledFlags[entryName]
+		return v == true
+	end
+
+	local function setEnabled(v)
+		if not NAFFlags.config then
+			return
+		end
+		NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+		NAFFlags.config.enabledFlags[entryName] = v and true or false
+		NAFFlags.save()
+		if v and NAFFlags.enabled() then
+			if NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entryName) or entryName == NAFFlags.renderingDisableFlag then
+				NAFFlags.applyAll({ notify = false })
+			else
+				NAFFlags.apply(entryName, NAFFlags.values[entryName], { silent = true })
+			end
+		end
+	end
+
+	local sideOpts = {
+		sideChip = true,
+		sideName = entryName.."_Enabled",
+		sideText = "Use",
+		sideGet = getEnabled,
+		sideSet = setEnabled,
+	}
+
 	if entry.valueType == "boolean" then
 		NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
 			if NAFFlags._lockedDefaults and NAFFlags._lockedDefaults[entryName] then
 				DoNotif(entryName.." cannot be changed on this executor (default-locked).", 3)
 				return
 			end
-
 			local normalized = NAFFlags.normalizeValue(entry, state)
 			if normalized == nil then
 				return
 			end
-
 			NAFFlags.values[entryName] = normalized
 			NAFFlags.config.flags[entryName] = normalized
-
 			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entryName)
 			local isRenderingDisable = entryName == NAFFlags.renderingDisableFlag
-
 			if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
 				NAFFlags.normalizeRenderingPrefs(entryName)
 			end
-
 			NAFFlags.save()
-
-			if isRenderingPrefer or isRenderingDisable then
-				NAFFlags.applyAll({ notify = false })
-			else
-				NAFFlags.apply(entryName, normalized)
+			if getEnabled() and NAFFlags.enabled() then
+				if isRenderingPrefer or isRenderingDisable then
+					NAFFlags.applyAll({ notify = false })
+				else
+					NAFFlags.apply(entryName, normalized)
+				end
 			end
-		end)
+		end, sideOpts)
 	else
-		local defaultText = NAFFlags.values[entryName]
-		if defaultText == nil then
-			defaultText = entry.default
+		local defaultTextValue = NAFFlags.values[entryName]
+		if defaultTextValue == nil then
+			defaultTextValue = NAFFlags.getDefault(entry)
 		end
-		if defaultText ~= nil then
-			defaultText = tostring(defaultText)
-		else
-			defaultText = ""
-		end
+		local defaultText = tostring(defaultTextValue)
 
 		local function applyEntryValue(rawValue)
 			local normalized = NAFFlags.normalizeValue(entry, rawValue)
@@ -57731,10 +58050,10 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 		end
 
 		NAgui.addInput(entryName, "Enter value", defaultText, function(inputValue)
-			if applyEntryValue(inputValue) then
+			if applyEntryValue(inputValue) and getEnabled() and NAFFlags.enabled() then
 				NAFFlags.apply(entryName, NAFFlags.values[entryName])
 			end
-		end)
+		end, sideOpts)
 	end
 
 	if desc and desc ~= "" then
