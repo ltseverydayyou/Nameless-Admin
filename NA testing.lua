@@ -14739,14 +14739,29 @@ NAmanage.connectTFlyKey=function()
 end
 
 NAmanage.readAliasFile = function()
-	if FileSupport and isfile(NAfiles.NAALIASPATH) then
-		local success, data = NACaller(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAALIASPATH))
-		end)
-		if success and type(data) == "table" then
-			return data
-		end
+	if not (FileSupport and isfile(NAfiles.NAALIASPATH)) then
+		return {}
 	end
+
+	local okRead, raw = pcall(readfile, NAfiles.NAALIASPATH)
+	if not okRead or type(raw) ~= "string" then
+		return {}
+	end
+
+	local okDecode, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if okDecode and type(decoded) == "table" then
+		return decoded
+	end
+
+	local trimmed = raw:match("^%s*(.-)%s*$") or ""
+	if trimmed ~= "" then
+		local backupPath = NAfiles.NAALIASPATH .. ".corrupt_" .. tostring(os.time()) .. ".json"
+		pcall(writefile, backupPath, raw)
+		NAmanage.loaderWarn('Aliases', ('failed to decode storage; backed up to %s, resetting'):format(backupPath))
+	end
+	pcall(writefile, NAfiles.NAALIASPATH, HttpService:JSONEncode({}))
 	return {}
 end
 
@@ -15186,9 +15201,24 @@ NAmanage.loadAutoExec = function()
 	local okDecode, decoded = pcall(function()
 		return HttpService:JSONDecode(raw)
 	end)
+
 	if not okDecode or type(decoded) ~= 'table' then
-		NAmanage.loaderWarn('AutoExec', 'failed to decode storage; keeping previous data')
-		return false
+		local trimmed = (type(raw) == "string") and raw:match("^%s*(.-)%s*$") or ""
+		if trimmed == "" then
+			decoded = { commands = {}, args = {} }
+		else
+			local backupPath = path .. ".corrupt_" .. tostring(os.time()) .. ".json"
+			pcall(writefile, backupPath, raw)
+			NAmanage.loaderWarn('AutoExec', ('failed to decode storage; backed up to %s, resetting'):format(backupPath))
+			local okReset, resetErr = pcall(function()
+				writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+			end)
+			if not okReset then
+				NAmanage.loaderWarn('AutoExec', 'failed to reset storage: ' .. tostring(resetErr))
+				return false
+			end
+			decoded = { commands = {}, args = {} }
+		end
 	end
 
 	if decoded.commands == nil and next(decoded) then
@@ -56803,6 +56833,15 @@ NAFFlags.isWhitelistedFlag = function(name)
 	return false
 end
 
+NAFFlags.getEntry = function(name)
+	for _, entry in ipairs(NAFFlags.whitelist) do
+		if entry.name == name then
+			return entry
+		end
+	end
+	return nil
+end
+
 NAFFlags.getDefault = function(entry)
 	if entry.valueType == "boolean" then
 		return false
@@ -56995,34 +57034,62 @@ NAFFlags.enabled = function()
 	return NAFFlags.config.useFFlags == true
 end
 
+NAFFlags._lockedDefaults = NAFFlags._lockedDefaults or {}
+
 NAFFlags.apply = function(flagName, flagValue, opts)
 	opts = opts or {}
 	local requireEnabled = opts.allowDisabled ~= true
+
 	if requireEnabled and not NAFFlags.enabled() then
 		if not opts.silent then
 			DoNotif("FastFlags are disabled. Enable \"Use FastFlags\" first.", 3)
 		end
 		return false, "disabled"
 	end
+
 	if not NAFFlags.hasSupport() then
 		if not opts.silent then
 			DoNotif("setfflag / DefineFastFlag is unavailable on this executor.", 3)
 		end
 		return false, "unsupported"
 	end
+
 	if NAFFlags.isFlagAvailable and not NAFFlags.isFlagAvailable(flagName, { notify = not opts.silent }) then
 		return false, "unavailable"
 	end
+
 	local setter = type(setfflag) == "function" and setfflag or function(name, value)
 		return game:DefineFastFlag(name, value)
 	end
+
 	local ok, err = pcall(setter, flagName, tostring(flagValue))
 	if not ok then
+		local msg = tostring(err or "")
+		local l = msg:lower()
+
+		if l:find("registration from lua failed") and l:find("different default value") then
+			NAFFlags._lockedDefaults[flagName] = true
+			local entry = NAFFlags.getEntry and NAFFlags.getEntry(flagName) or nil
+			if entry then
+				local def = NAFFlags.getDefault(entry)
+				NAFFlags.values[flagName] = def
+				if NAFFlags.config and NAFFlags.config.flags then
+					NAFFlags.config.flags[flagName] = def
+					NAFFlags.save()
+				end
+			end
+			if not opts.silent then
+				DoNotif(flagName.." cannot be changed on this executor (default value is locked by the client).", 3)
+			end
+			return false, "default-locked"
+		end
+
 		if not opts.silent then
-			DoNotif(Format("Failed to set %s: %s", tostring(flagName), tostring(err)), 4)
+			DoNotif("Failed to set "..tostring(flagName)..".", 4)
 		end
 		return false, err
 	end
+
 	if not opts.silent then
 		DoNotif(Format("%s set to %s", tostring(flagName), tostring(flagValue)), 2)
 	end
@@ -57463,18 +57530,28 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 
 	if entry.valueType == "boolean" then
 		NAgui.addToggle(entryName, NAFFlags.values[entryName] == true, function(state)
+			if NAFFlags._lockedDefaults and NAFFlags._lockedDefaults[entryName] then
+				DoNotif(entryName.." cannot be changed on this executor (default-locked).", 3)
+				return
+			end
+
 			local normalized = NAFFlags.normalizeValue(entry, state)
 			if normalized == nil then
 				return
 			end
+
 			NAFFlags.values[entryName] = normalized
 			NAFFlags.config.flags[entryName] = normalized
+
 			local isRenderingPrefer = NAFFlags.isRenderingPreferFlag and NAFFlags.isRenderingPreferFlag(entryName)
 			local isRenderingDisable = entryName == NAFFlags.renderingDisableFlag
+
 			if NAFFlags.normalizeRenderingPrefs and (isRenderingPrefer or isRenderingDisable) then
 				NAFFlags.normalizeRenderingPrefs(entryName)
 			end
+
 			NAFFlags.save()
+
 			if isRenderingPrefer or isRenderingDisable then
 				NAFFlags.applyAll({ notify = false })
 			else
