@@ -24805,37 +24805,77 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	root.CFrame = closestSpawn.CFrame * CFrame.new(0, 5, 0)
 end)
 
+NAStuff.hamsterState = NAStuff.hamsterState or { active = false }
+
 cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
+	if NAStuff.hamsterState.active or NAlib.isConnected("hamster_render") then
+		return DebugNotif("Hamster is already enabled")
+	end
+
 	local Camera = workspace.CurrentCamera
 
 	local SPEED_MULTIPLIER = (...) or 30
 	local JUMP_POWER = 60
 	local JUMP_GAP = 0.3
 
-	local character = SafeGetService("Players").LocalPlayer.Character
+	local plrs = SafeGetService("Players")
+	if not plrs then
+		return DebugNotif("Hamster failed: Players service missing")
+	end
 
-	for i, v in ipairs(character:GetDescendants()) do
+	local lp = plrs.LocalPlayer
+	if not lp then
+		return DebugNotif("Hamster failed: LocalPlayer missing")
+	end
+
+	local character = lp.Character
+	if not character then
+		return DebugNotif("Hamster failed: Character missing")
+	end
+
+	local humanoid = getHum()
+	local ball = getRoot(character)
+	if not humanoid or not ball then
+		return DebugNotif("Hamster failed: Humanoid or root missing")
+	end
+
+	local oldCamSubj = Camera and Camera.CameraSubject or nil
+	local oldCollide = {}
+
+	for _, v in ipairs(character:GetDescendants()) do
 		if v:IsA("BasePart") then
+			oldCollide[v] = v.CanCollide
 			v.CanCollide = false
 		end
 	end
 
-	local ball = getRoot(character)
 	ball.Shape = Enum.PartType.Ball
 	ball.Size = Vector3.new(5, 5, 5)
-	local humanoid = getHum()
 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Blacklist
-	params.FilterDescendantsInstances = {character}
+	params.FilterDescendantsInstances = { character }
+
+	NAStuff.hamsterState.active = true
+	NAStuff.hamsterState.ball = ball
+	NAStuff.hamsterState.humanoid = humanoid
+	NAStuff.hamsterState.oldCameraSubject = oldCamSubj
+	NAStuff.hamsterState.oldCollide = oldCollide
 
 	NAlib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
+		if not NAStuff.hamsterState.active then
+			return
+		end
+		if not ball or not ball.Parent or not humanoid or not humanoid.Parent then
+			return
+		end
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
-		if UserInputService:GetFocusedTextBox() then return end
+		if UserInputService:GetFocusedTextBox() then
+			return
+		end
 
 		local moveVec = GetCustomMoveVector()
-
 		if moveVec.Magnitude > 0 then
 			local right = Camera.CFrame.RightVector
 			local forward = Camera.CFrame.LookVector
@@ -24844,7 +24884,13 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		end
 	end))
 
-	UserInputService.JumpRequest:Connect(function()
+	NAlib.connect("hamster_jump", UserInputService.JumpRequest:Connect(function()
+		if not NAStuff.hamsterState.active then
+			return
+		end
+		if not ball or not ball.Parent then
+			return
+		end
 		local result = workspace:Raycast(
 			ball.Position,
 			Vector3.new(0, -((ball.Size.Y / 2) + JUMP_GAP), 0),
@@ -24853,14 +24899,65 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		if result then
 			ball.Velocity = ball.Velocity + Vector3.new(0, JUMP_POWER, 0)
 		end
-	end)
+	end))
 
-	humanoid.Died:Connect(function()
+	NAlib.connect("hamster_died", humanoid.Died:Connect(function()
 		NAlib.disconnect("hamster_render")
-	end)
+		NAlib.disconnect("hamster_jump")
+		NAlib.disconnect("hamster_died")
+		NAStuff.hamsterState.active = false
+	end))
 
-	Camera.CameraSubject = ball
+	if Camera then
+		Camera.CameraSubject = ball
+	end
+
+	DebugNotif("Hamster enabled")
 end, true)
+
+cmd.add({"unhamster"}, {"unhamster", "Disable hamster ball"}, function()
+	if not NAStuff.hamsterState.active and not NAlib.isConnected("hamster_render") then
+		return DebugNotif("Hamster is already disabled")
+	end
+
+	NAlib.disconnect("hamster_render")
+	NAlib.disconnect("hamster_jump")
+	NAlib.disconnect("hamster_died")
+
+	local ball = NAStuff.hamsterState.ball
+	local humanoid = NAStuff.hamsterState.humanoid
+	local oldCamSubj = NAStuff.hamsterState.oldCameraSubject
+	local oldCollide = NAStuff.hamsterState.oldCollide
+
+	NAStuff.hamsterState.ball = nil
+	NAStuff.hamsterState.humanoid = nil
+	NAStuff.hamsterState.oldCameraSubject = nil
+	NAStuff.hamsterState.oldCollide = nil
+	NAStuff.hamsterState.active = false
+
+	if humanoid and humanoid.Parent then
+		humanoid.PlatformStand = false
+	end
+
+	if oldCamSubj then
+		local Camera = workspace.CurrentCamera
+		if Camera then
+			Camera.CameraSubject = oldCamSubj
+		end
+	end
+
+	if oldCollide then
+		for part, can in pairs(oldCollide) do
+			if part and part.Parent then
+				part.CanCollide = can
+			end
+		end
+	end
+
+	DebugNotif("Hamster has been disabled")
+end, true)
+
+NAStuff.antiAFKStored = NAStuff.antiAFKStored or {}
 
 cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked for being AFK"},function()
 	if NAlib.isConnected("antiAFK") or NAlib.isConnected("antiAFK_scan") then
@@ -24872,45 +24969,76 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 	local KEY = Enum.KeyCode.F15
 
 	local function antiAFKHandler()
-		if not GETCONS then
-			local VIM = SafeGetService("VirtualInputManager")
-			if not VIM then return end
-			VIM:SendKeyEvent(true, KEY, false, game)
-			Wait(rng:NextNumber(0.04, 0.08))
-			VIM:SendKeyEvent(false, KEY, false, game)
-			Wait(rng:NextNumber(55, 75))
+		if GETCONS then
+			return
 		end
+		local VIM = SafeGetService("VirtualInputManager")
+		if not VIM then
+			return
+		end
+		VIM:SendKeyEvent(true, KEY, false, game)
+		Wait(rng:NextNumber(0.04, 0.08))
+		VIM:SendKeyEvent(false, KEY, false, game)
+		Wait(rng:NextNumber(55, 75))
+	end
+
+	local lp = Players and Players.LocalPlayer
+	if not lp then
+		return DebugNotif("Anti AFK failed: LocalPlayer missing")
 	end
 
 	if GETCONS then
-		local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
-		NAlib.connect("antiAFK", myConn)
-		local function nukeOtherIdled()
-			local ok, conns = pcall(GETCONS, Players.LocalPlayer.Idled)
-			if not ok or type(conns) ~= "table" then return end
+		NAStuff.antiAFKStored = {}
+		local ok, conns = pcall(GETCONS, lp.Idled)
+		local changed = 0
+		if ok and type(conns) == "table" then
 			for _, c in ipairs(conns) do
-				local f
-				pcall(function() f = c.Function end)
-				if f ~= antiAFKHandler then
-					if c and c.Disable then pcall(function() c:Disable() end) end
-					if c and c.Disconnect then pcall(function() c:Disconnect() end) end
+				if c then
+					local hasDisable = false
+					local wasEnabled = true
+					local s, enabled = pcall(function()
+						return c.Enabled
+					end)
+					if s then
+						wasEnabled = enabled
+					end
+					if c.Disable then
+						Insert(NAStuff.antiAFKStored, {
+							conn = c,
+							enabled = wasEnabled
+						})
+						local dOk = pcall(function()
+							c:Disable()
+						end)
+						if dOk then
+							changed += 1
+						end
+						hasDisable = true
+					end
+					if not hasDisable and c.Disconnect then
+						local dcOk = pcall(function()
+							c:Disconnect()
+						end)
+						if dcOk then
+							changed += 1
+						end
+					end
 				end
 			end
 		end
-		nukeOtherIdled()
-		--[[local acc = 0
-		local scanConn = RunService.Heartbeat:Connect(function(dt)
-			acc += dt
-			if acc >= 2 + rng:NextNumber(0, 0.75) then
-				acc = 0
-				nukeOtherIdled()
+		if changed > 0 then
+			local markConn = RunService and RunService.Heartbeat:Connect(function() end)
+			if markConn then
+				NAlib.connect("antiAFK", markConn)
 			end
-		end)]]
-		NAlib.connect("antiAFK_scan", scanConn)
-		DebugNotif("Anti AFK enabled")
+			DebugNotif("Anti AFK enabled")
+		else
+			NAStuff.antiAFKStored = {}
+			DebugNotif("Anti AFK failed: no Idled connections modified")
+		end
 	else
 		local function enable()
-			local myConn = Players.LocalPlayer.Idled:Connect(antiAFKHandler)
+			local myConn = lp.Idled:Connect(antiAFKHandler)
 			NAlib.connect("antiAFK", myConn)
 			SpawnCall(antiAFKHandler)
 			DebugNotif("Anti AFK enabled")
@@ -24928,11 +25056,28 @@ end)
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
 	local was = false
 	if NAlib.isConnected("antiAFK") then
-		NAlib.disconnect("antiAFK"); was = true
+		NAlib.disconnect("antiAFK")
+		was = true
 	end
 	if NAlib.isConnected("antiAFK_scan") then
-		NAlib.disconnect("antiAFK_scan"); was = true
+		NAlib.disconnect("antiAFK_scan")
+		was = true
 	end
+
+	if NAStuff.antiAFKStored and #NAStuff.antiAFKStored > 0 then
+		for _, info in ipairs(NAStuff.antiAFKStored) do
+			local c = info.conn
+			local shouldEnable = info.enabled
+			if c and shouldEnable ~= false and c.Enable then
+				pcall(function()
+					c:Enable()
+				end)
+			end
+		end
+		NAStuff.antiAFKStored = {}
+		was = true
+	end
+
 	if was then
 		DebugNotif("Anti AFK has been disabled")
 	else
