@@ -11709,7 +11709,10 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 				opt.queueteleport(opt.loader)
 			end
 			if isAprilFools() then
-				opt.queueteleport("_na_env.ActivateAprilMode=true")
+				opt.queueteleport([[
+					local _na_env = (getgenv and getgenv()) or _G or {}
+					_na_env.ActivateAprilMode=true
+				]])
 			end
 		end)
 	end)
