@@ -11701,14 +11701,19 @@ function loadedResults(res)
 	return isNegative and ("-"..result) or result
 end
 
-LocalPlayer.OnTeleport:Connect(function(...)
-	if NAQoTEnabled and opt.queueteleport then
-		opt.queueteleport(opt.loader)
-	end
-	if isAprilFools() then
-		opt.queueteleport("_na_env.ActivateAprilMode=true")
-	end
-end)
+NAStuff.onTP = NAStuff.onTP or LocalPlayer.OnTeleport
+if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
+	pcall(function()
+		NAStuff.onTP:Connect(function(...)
+			if NAQoTEnabled and opt.queueteleport then
+				opt.queueteleport(opt.loader)
+			end
+			if isAprilFools() then
+				opt.queueteleport("_na_env.ActivateAprilMode=true")
+			end
+		end)
+	end)
+end
 
 NAmanage.cloneArgsArray=function(source)
 	local out = {}
