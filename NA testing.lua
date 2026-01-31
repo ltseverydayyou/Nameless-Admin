@@ -48312,6 +48312,7 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 end)
 
 NAStuff.LastInputConns = NAStuff.LastInputConns or {}
+NAStuff.PreferredInputConns = NAStuff.PreferredInputConns or {}
 NAStuff.LastInputPatched = NAStuff.LastInputPatched or false
 
 originalIO.ApplyLastInputPatch = function()
@@ -48321,6 +48322,8 @@ originalIO.ApplyLastInputPatch = function()
 
 	if getconnections and not NAStuff.LastInputPatched then
 		table.clear(NAStuff.LastInputConns)
+		table.clear(NAStuff.PreferredInputConns)
+
 		for _, c in ipairs(getconnections(UserInputService.LastInputTypeChanged)) do
 			table.insert(NAStuff.LastInputConns, c)
 			pcall(function()
@@ -48328,6 +48331,22 @@ originalIO.ApplyLastInputPatch = function()
 					c:Disable()
 				end
 			end)
+		end
+
+		local prefSignal
+		pcall(function()
+			prefSignal = UserInputService:GetPropertyChangedSignal("PreferredInput")
+		end)
+
+		if prefSignal then
+			for _, c in ipairs(getconnections(prefSignal)) do
+				table.insert(NAStuff.PreferredInputConns, c)
+				pcall(function()
+					if c.Disable then
+						c:Disable()
+					end
+				end)
+			end
 		end
 	end
 
@@ -48362,13 +48381,25 @@ originalIO.RevertLastInputPatch = function()
 		NAlib.disconnect("NA_LastInputTouch")
 	end
 
-	if getconnections and NAStuff.LastInputConns and #NAStuff.LastInputConns > 0 then
-		for _, c in ipairs(NAStuff.LastInputConns) do
-			pcall(function()
-				if c.Enable then
-					c:Enable()
-				end
-			end)
+	if getconnections then
+		if NAStuff.LastInputConns and #NAStuff.LastInputConns > 0 then
+			for _, c in ipairs(NAStuff.LastInputConns) do
+				pcall(function()
+					if c.Enable then
+						c:Enable()
+					end
+				end)
+			end
+		end
+
+		if NAStuff.PreferredInputConns and #NAStuff.PreferredInputConns > 0 then
+			for _, c in ipairs(NAStuff.PreferredInputConns) do
+				pcall(function()
+					if c.Enable then
+						c:Enable()
+					end
+				end)
+			end
 		end
 	end
 
@@ -56927,7 +56958,7 @@ NAmanage.SetAssetLoadMode(NAStuff.AssetLoadMode)
 
 NAgui.addSection("Roblox Input Settings")
 
-NAgui.addToggle("Disable LastInputTypeChanged", NADisableLastInput, function(v)
+NAgui.addToggle("Disable Input Changing", NADisableLastInput, function(v)
 	NADisableLastInput = v
 	NAmanage.NASettingsSet("disableLastInput", v)
 
