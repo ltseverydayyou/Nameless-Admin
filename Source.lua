@@ -2574,8 +2574,16 @@ end
 NAmanage.WebhookChat=function(plr, msg)
 	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableChat) then return end
-	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
-	local text = Format("[Chat] %s: %s", username, tostring(msg or ""))
+
+	local uname = (type(nameChecker) == "function" and nameChecker(plr)) or (plr and plr.Name) or "Player"
+
+	local m = tostring(msg or "")
+
+	m = m:gsub("<br%s*/?>", " ")
+	m = m:gsub("<[^>]+>", "")
+	m = m:gsub("%%", "%%%%")
+
+	local text = Format("[Chat] %s: %s", uname, m)
 	NAmanage.SendIntegrationWebhook("chat", text)
 end
 
