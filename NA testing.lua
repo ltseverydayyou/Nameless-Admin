@@ -57229,159 +57229,234 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "RenderGrassHeightScaler", default = 0, valueType = "number" };
 	{ name = "HttpBatchApi_maxWaitMs", default = 50, valueType = "number" };
 	{ name = "HttpBatchApi_bgDelayMs", default = 10, valueType = "number" };
+
+	{ name = "ServerTickRate", default = 60, valueType = "number" };
+	{ name = "ServerPhysicsUpdateRate", default = 60, valueType = "number" };
+	{ name = "PlayerNetworkUpdateRate", default = 60, valueType = "number" };
+	{ name = "PlayerNetworkUpdateQueueSize", default = 20, valueType = "number" };
+	{ name = "NetworkLatencyTolerance", default = 0, valueType = "number" };
+	{ name = "NetworkPrediction", default = true, valueType = "boolean" };
+
+	{ name = "RenderLocalLightFadeInMs_enabled", default = true, valueType = "boolean" };
+	{ name = "GraphicsGLEnableHQShadersExclusion", default = true, valueType = "boolean" };
+	{ name = "GraphicsGLEnableSuperHQShadersExclusion", default = true, valueType = "boolean" };
+	{ name = "NullCheckCloudsRendering", default = true, valueType = "boolean" };
+	{ name = "GpuGeometryManager7", default = true, valueType = "boolean" };
+
+	{ name = "EnableInGameMenuV3", default = true, valueType = "boolean" };
+	{ name = "EnableInGameMenuControls", default = true, valueType = "boolean" };
+	{ name = "EnableMenuModernizationABTest", default = false, valueType = "boolean" };
+	{ name = "EnableMenuModernizationABTest2", default = false, valueType = "boolean" };
+	{ name = "EnableMenuControlsABTest", default = false, valueType = "boolean" };
+	{ name = "EnableInGameMenuChromeABTest2", default = false, valueType = "boolean" };
+ 	{ name = "EnableInGameMenuChromeABTest3", default = false, valueType = "boolean" };
+
+	{ name = "EnableReportAbuseMenuRoact2", default = true, valueType = "boolean" };
+	{ name = "EnableReportAbuseMenuLayerOnV3", default = true, valueType = "boolean" };
+	{ name = "EnableBubbleChatConfigurationV2", default = true, valueType = "boolean" };
+	{ name = "EnableChromePinnedChat", default = true, valueType = "boolean" };
+
+	{ name = "EnableAccessibilitySettingsAPIV2", default = true, valueType = "boolean" };
+	{ name = "EnableAccessibilitySettingsInExperienceMenu2", default = true, valueType = "boolean" };
+	{ name = "EnableAccessibilitySettingsEffectsInExperienceChat", default = true, valueType = "boolean" };
+	{ name = "EnableAccessibilitySettingsEffectsInCoreScripts2", default = true, valueType = "boolean" };
+
+	{ name = "EnableAudioOutputDevice", default = true, valueType = "boolean" };
+
+	{ name = "HardwareTelemetryHundredthsPercent", default = 100, valueType = "number" };
+	{ name = "LightstepHTTPTransportHundredthsPercent2", default = 100, valueType = "number" };
+	{ name = "ClientLightingEnvmapPlacementTelemetryHundredthsPercent", default = 100, valueType = "number" };
 }
 
 NAFFlags.info = NAFFlags.info or {
-	PhysicsReceiveNumParallelTasks = "Splits incoming physics work across more worker threads. Higher can help multi-core CPUs handle replication smoother.";
-	RuntimeConcurrency = "Global concurrency limit for internal worker threads used across subsystems.";
-	SimWorldTaskQueueParallelTasks = "Parallelism for world simulation job queue (physics/streaming).";
-	ReplicationDataCacheNumParallelTasks = "Number of parallel jobs used to process replication data cache.";
-	NetworkClusterPacketCacheNumParallelTasks = "Parallel packet cache handling for clustered network traffic.";
-	FixParticleEmissionBias2 = "Fixes uneven/biased particle emission so particle systems behave consistently.";
-	InterpolationNumParallelTasks = "Parallel interpolation jobs used for smoothing replicated motion.";
-	MegaReplicatorNumParallelTasks = "Parallel jobs for large-scale replication (many instances updating).";
-	LuaGcParallelMinMultiTasks = "Minimum number of parallel tasks used by the Luau garbage collector.";
-	FixParticleAttachmentCulling = "Fixes particle attachment culling so particles don't disappear incorrectly.";
-	DebugRenderingSetDeterministic = "Makes some rendering behavior more deterministic, reducing random variation between runs.";
+	PhysicsReceiveNumParallelTasks = "Spreads incoming physics work across more CPU threads. Raising it a bit on multi-core PCs can smooth physics in busy servers. If things feel worse, put it back to 16 or turn this flag off.";
+	RuntimeConcurrency = "Overall limit for how many worker threads the engine uses at once. Small bumps are fine; extreme values can hurt performance. If in doubt, put it back to 15.";
+	SimWorldTaskQueueParallelTasks = "Controls how many threads are used to simulate the world (physics, streaming, etc.). Helpful on strong CPUs, noisy on weak ones. Reset to 16 if it misbehaves.";
+	ReplicationDataCacheNumParallelTasks = "Parallelism for handling replicated data from the server. Can help in stacked lobbies; if you see lag spikes, reset to 16.";
+	NetworkClusterPacketCacheNumParallelTasks = "How many threads help manage cached network packets. Mostly only noticeable in huge games. Reset to 16 if it feels off.";
+	FixParticleEmissionBias2 = "Makes particles emit in a more even and predictable way. You almost always want this on. Turn it off only if you are testing old behavior.";
+	InterpolationNumParallelTasks = "Extra threads used for smoothing remote player and object motion. Higher can help on strong CPUs, but don’t go crazy. Reset to 16 if motion gets choppy.";
+	MegaReplicatorNumParallelTasks = "Extra threads for really heavy replication loads. Only useful in very busy places. If CPU time explodes, go back to 16.";
+	LuaGcParallelMinMultiTasks = "How many threads the Luau garbage collector is willing to use in parallel. It can reduce stutters on fast CPUs; if your CPU is weaker and feels hot, reset to 16.";
+	FixParticleAttachmentCulling = "Stops some particle systems disappearing too early when attached to parts. Usually best left on.";
+	DebugRenderingSetDeterministic = "Makes rendering more repeatable between runs, which is good for debugging. If it ever causes weird issues, just turn it off.";
 
-	TaskSchedulerAutoThreadLimit = "Upper bound for automatically created scheduler worker threads.";
-	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum worker threads kept for async engine tasks.";
-	SmoothClusterTaskQueueMaxParallelTasks = "Max parallel tasks for smooth-cluster networking queue.";
+	TaskSchedulerAutoThreadLimit = "Upper bound for how many worker threads the scheduler can spin up. Tiny changes are okay; big jumps can hurt. If you start seeing random jank, go back to 15.";
+	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum number of async worker threads that stay alive. Higher means more idle threads. If you see constant CPU usage even when idle, return to 15.";
+	SmoothClusterTaskQueueMaxParallelTasks = "How many tasks can run in parallel in a special networking queue. Mostly experimental; if you touch it and things break, put it back to 16.";
 
-	TeleportReconnect = "Enables reconnect logic on failed teleports.";
-	TeleportReconnect3 = "Newer reconnect path for teleport failures.";
-	AddJoinAttemptId = "Tags join attempts with IDs to improve reconnect and error handling.";
-	ChatTranslationSettingEnabled3 = "Controls current chat translation system behavior.";
-	EnableQuickGameLaunch = "Faster game launch flow; can spike CPU usage at load time.";
+	TeleportReconnect = "Lets the client automatically try to reconnect after a teleport fails. If teleports loop in a weird way, turn this off.";
+	TeleportReconnect3 = "Newer version of the teleport reconnect logic. If you see strange reconnect loops, try disabling this one first.";
+	AddJoinAttemptId = "Adds IDs to join attempts so errors and reconnects are easier to track. Normally harmless to keep on.";
+	ChatTranslationSettingEnabled3 = "Toggles the current chat auto-translation system. If your chat is being translated in ways you don’t like, turn this off.";
+	EnableQuickGameLaunch = "Loads into games faster by front-loading some work. Good on strong PCs, might feel heavy on weaker ones. Turn it off if starting a game freezes your PC for a moment.";
 
-	LCCageDeformLimit = "Limit for cage-based mesh deformation. -1 removes the limit.";
-	FullscreenTitleBarTriggerDelayMillis = "Delay before fullscreen title bar appears when hitting the top edge.";
-	DebugPauseVoxelizer = "Pauses voxelizer (lighting voxel updates). Keep false unless debugging.";
-	RobloxGuiBlurIntensity = "Blur intensity for core UI overlays. 0 disables blur.";
-	DebugDisplayFPS = "Shows a debug FPS counter overlay.";
-	RenderShadowmapBias = "Overrides shadowmap bias. -1 lets engine choose default.";
-	MaxFrameBufferSize = "Maximum number of buffered frames. Lower = lower latency, higher = smoother feel.";
-	DebugPerfMode = "Enables performance-focused internal debug paths.";
-	Order66 = "Internal engine flag used in perf/debug paths. Leave as configured in the pack.";
-	AdServiceEnabled = "Enables AdService (video/engagement ads). Off avoids ad-related overhead.";
-	HandleAltEnterFullscreenManually = "Changes how Alt+Enter fullscreen is processed (engine vs OS).";
+	LCCageDeformLimit = "Limit for how much cage-based mesh deforms. -1 basically means no artificial limit. If an avatar looks broken, try using a small positive number or just disable the flag.";
+	FullscreenTitleBarTriggerDelayMillis = "How long you have to hover at the top in fullscreen before the title bar appears, in milliseconds. Set it very high to almost never see the bar. Reset to 2 if you want the default.";
+	DebugPauseVoxelizer = "Freezes updates to the lighting voxel data. Only for debugging; the world lighting will be stuck. Leave it false unless you know what you’re doing.";
+	RobloxGuiBlurIntensity = "How strong the blur behind core UI like the pause menu is. 0 disables the blur, higher makes it blurrier. If you regret changes, just put it back to 0.";
+	DebugDisplayFPS = "Shows a simple FPS counter. Handy for testing, annoying if you hate clutter. Turn it off to hide it.";
+	RenderShadowmapBias = "Fine-tunes how shadows sit on surfaces. -1 lets Roblox pick automatically. If shadows look like they float or crawl, go back to -1.";
+	MaxFrameBufferSize = "How many frames can be buffered. Lower values reduce input lag, higher ones can feel smoother. 4 is a reasonable default to go back to.";
+	DebugPerfMode = "Enables a bundle of performance-focused debug paths. If things act unstable, turn this off.";
+	Order66 = "An internal bundle of debug/perf toggles. Best left at its default for your config. If messing with it causes issues, restore your original value.";
+	AdServiceEnabled = "Turns the built-in ad system on or off. Keeping it false avoids any extra ad-related overhead.";
+	HandleAltEnterFullscreenManually = "Makes Roblox handle Alt+Enter itself instead of leaving it to the OS. If Alt+Enter acts weird, try toggling this.";
 
-	DebugGraphicsPreferD3D11 = "Prefer D3D11 graphics backend when available.";
-	DebugGraphicsPreferD3D11FL10 = "Prefer D3D11 feature level 10 for older GPUs.";
-	DebugGraphicsPreferVulkan = "Prefer Vulkan graphics backend.";
-	DebugGraphicsPreferOpenGL = "Prefer OpenGL graphics backend.";
-	DebugGraphicsDisableDirect3D11 = "Disables D3D11 backend when true (use Vulkan/OpenGL instead).";
+	DebugGraphicsPreferD3D11 = "Tells Roblox to prefer Direct3D 11. Use it if Vulkan feels unstable on your machine. Turn it back off if D3D11 gives you worse results.";
+	DebugGraphicsPreferD3D11FL10 = "Prefers an older D3D11 path that can behave better on very old GPUs. If you don’t have that kind of hardware, you probably don’t need this.";
+	DebugGraphicsPreferVulkan = "Tells Roblox to prefer Vulkan. Good on modern GPUs, sometimes buggy on older drivers. Turn it off if you crash or see visual glitches.";
+	DebugGraphicsPreferOpenGL = "Tells Roblox to prefer OpenGL. Mainly useful under Wine/Linux or niche cases. If you’re on normal Windows and see issues, disable it.";
+	DebugGraphicsDisableDirect3D11 = "Blocks D3D11 so Roblox has to use Vulkan or OpenGL. If that causes crashes, set it back to false.";
 
-	TaskSchedulerTargetFps = "Target FPS value used by some internal scheduler heuristics.";
-	TaskSchedulerLimitTargetFpsTo2402 = "Clamp internal target FPS to 240 when enabled.";
+	TaskSchedulerTargetFps = "A target FPS hint for the scheduler. People often set it high (like 240 or 300) to avoid caps. If you end up with strange FPS behavior, reset this to its default or a sane number like 60–120.";
+	TaskSchedulerLimitTargetFpsTo2402 = "Hard clamps that target FPS hint to 240. If your setup hates ultra-high FPS, turning this on can feel smoother. Turn it off again if you want to experiment with higher caps.";
 
-	DebugForceMSAASamples = "Forces MSAA sample count. 0 disables forced MSAA override.";
+	DebugForceMSAASamples = "Forces a specific MSAA level. 0 means no override. Try 2 or 4 if you want cleaner edges and have spare GPU power. Go back to 0 if your FPS tanks.";
 
-	TextureQualityOverrideEnabled = "Allows manual override of texture quality.";
-	TextureQualityOverride = "Texture quality override level (0 = lowest, higher = better).";
-	TextureCompositorLowResFactor = "Base resolution factor for composited avatar and character textures.";
-	PerformanceControlTextureQualityBestUtility = "Weight/utility for choosing automatic texture quality. -1 lets engine pick.";
-	EnableRequestAsyncCompression = "Compresses some assets asynchronously during loading.";
-	DisablePostFx = "Disables post-processing (bloom, AO, motion blur etc.) for extra FPS.";
-	DebugRenderForceTechnologyVoxel = "Forces voxel lighting pipeline instead of newer lighting tech.";
+	TextureQualityOverrideEnabled = "Lets you manually override texture quality. If you want Roblox to manage textures itself, leave this disabled.";
+	TextureQualityOverride = "The actual texture quality level to use when override is enabled. 0 is low, higher is sharper but heavier. If textures look awful or too heavy, set it back to 0 or turn the override off.";
+	TextureCompositorLowResFactor = "Scale factor for combined avatar/character textures. Values above 1 lower the resolution to save VRAM, 1 is normal. If characters look muddy, put it back to 1.";
+	PerformanceControlTextureQualityBestUtility = "Internal weight used for deciding automatic texture quality. Leaving it at -1 lets Roblox handle it. If you change this and things look weird, set it back to -1.";
+	EnableRequestAsyncCompression = "Compresses some assets in the background while loading. Can help disk speed at the cost of a bit more CPU work. If load feels spiky, turn it off again.";
+	DisablePostFx = "Kills most post-processing (bloom, AO, motion blur, etc.). Good for raw FPS, bad for visuals. Turn it off again if the game starts to look too flat.";
+	DebugRenderForceTechnologyVoxel = "Forces the older voxel lighting model. Useful if the newer lighting is buggy or slow on your hardware. Disable it to go back to normal lighting.";
 
-	CSGLevelOfDetailSwitchingDistance = "Base distance where CSG LOD switching starts.";
-	CSGLevelOfDetailSwitchingDistanceL12 = "LOD switch distance between CSG L1 and L2.";
-	CSGLevelOfDetailSwitchingDistanceL23 = "LOD switch distance between CSG L2 and L3.";
-	CSGLevelOfDetailSwitchingDistanceL34 = "LOD switch distance between CSG L3 and L4.";
-	CSGv2LodsToGenerate = "How many CSGv2 LOD levels to generate for complex meshes.";
-	CSGv2LodMinTriangleCount = "Minimum triangle count required to generate CSGv2 LODs.";
+	CSGLevelOfDetailSwitchingDistance = "Base distance at which Roblox starts switching CSG meshes to lower detail. If you see ugly popping, experiment; if it gets worse, set it back to 0.";
+	CSGLevelOfDetailSwitchingDistanceL12 = "Distance where level 1 CSG detail drops to level 2. Same idea as above. Reset to 0 if your tweaks are bad.";
+	CSGLevelOfDetailSwitchingDistanceL23 = "Distance where level 2 drops to level 3. Again, mostly about when stuff starts looking low-poly. 0 is the safe fallback.";
+	CSGLevelOfDetailSwitchingDistanceL34 = "Distance where level 3 drops to level 4. Use only if you really know what you’re tuning. Reset to 0 if unsure.";
+	CSGv2LodsToGenerate = "How many levels of detail Roblox even generates for CSG v2 meshes. 0 is conservative and safe. If you change it and see odd meshes, put it back to 0.";
+	CSGv2LodMinTriangleCount = "Minimum complexity at which CSG v2 meshes get LODs at all. 0 means everything can get LODs. If low-detail parts look broken, reset to 0.";
 
-	NewLightAttenuation = "Enables newer light attenuation model (different light falloff).";
-	RenderShadowIntensity = "Global multiplier for shadow intensity.";
-	CSGVoxelizerFadeRadius = "Fade radius parameter used by the CSG voxelizer.";
+	NewLightAttenuation = "Switches to a newer way of fading light over distance. Can make lighting feel different. If a game’s lighting looks wrong, turn this back off.";
+	RenderShadowIntensity = "Global multiplier for how strong shadows are. 0 removes them, higher makes them darker. If the world is too dark, bring this down or reset it.";
+	CSGVoxelizerFadeRadius = "Controls how smoothly CSG lighting fades in and out around edges. Mostly niche; reset to 0 if you don’t like the result.";
 
-	TerrainArraySliceSize = "Internal slice size for terrain voxel storage. Higher = bigger chunks.";
+	TerrainArraySliceSize = "Internal chunk size for terrain data. Changing this is risky; if you do and terrain goes crazy, set it back to 0.";
 
-	RomarkStartWithGraphicQualityLevel = "Initial graphics quality level at launch.";
-	DebugFRMQualityLevelOverride = "Forces a fixed FRM render quality level.";
-	DebugRestrictGCDistance = "Restricts distance that FRM considers for geometry culling.";
+	RomarkStartWithGraphicQualityLevel = "Starting graphics quality when Roblox launches. Set it to a level you like if Roblox always starts too low or too high. Put it back to 1 to be safe.";
+	DebugFRMQualityLevelOverride = "Locks overall render quality to a fixed level. Handy for testing or forcing a quality that Roblox won’t pick. Set it back to 0 if the quality slider feels broken.";
+	DebugRestrictGCDistance = "Limits how far out geometry is considered for culling. Making it too small can cause stuff to pop in; the default 50 is a safe fallback.";
 
-	MSRefactor5 = "Refactored rendering/systems code path. Experimental; affects performance and behavior.";
-	DebugTextureManagerSkipMips = "If >= 0, skips top texture mips to force lower-res textures.";
+	MSRefactor5 = "Standalone refactor path for some rendering or core logic. Only flip this if you know it helps your case. Turn it back off if the client acts weird.";
+	DebugTextureManagerSkipMips = "Skips top texture mip levels, effectively lowering texture resolution. Values like 1–2 are a mild downgrade for performance; -1 disables the trick and is the safe default.";
 
-	GlobalWindActivated = "Turns on global wind simulation.";
-	GlobalWindRendering = "Renders global wind effects on foliage/parts.";
+	GlobalWindActivated = "Enables the global wind simulation. If foliage or special effects use wind, this decides whether they move at all. Turn it off if you hate the movement.";
+	GlobalWindRendering = "Actually draws the visual wind effects. Good for looks, cost for weak GPUs. Turn it off to squeeze extra frames.";
 
-	DebugDontRenderScreenGui = "Stops ScreenGui from rendering when true (useful for testing world-only FPS).";
-	DebugSSAOForce = "Forces SSAO debug behavior. Affects AO quality and perf.";
-	SSAOMipLevels = "Number of SSAO mip levels to use (AO quality vs performance).";
+	DebugDontRenderScreenGui = "Stops ScreenGui elements from rendering. Very useful for FPS measurements, very bad if you want to see UI. Turn it off to get UI back.";
+	DebugSSAOForce = "Forces a special SSAO (ambient occlusion) debug mode. Only for visuals debugging; turn it off for normal play.";
+	SSAOMipLevels = "How many detail levels SSAO uses. Higher is slightly nicer but more expensive. If you go too high and lag, reset to 0.";
 
-	EnableCommandAutocomplete = "Enables autocomplete in the developer console/command bar.";
+	EnableCommandAutocomplete = "Adds autocomplete to the developer console and similar places. Nice for developers; if it ever bugs out, just disable it.";
 
-	AnimationLodFacsDistanceMin = "Minimum distance for animation LOD fade-out.";
-	AnimationLodFacsDistanceMax = "Maximum distance for animation LOD fade-out.";
-	AnimationLodFacsVisibilityDenominator = "Visibility scaling factor for animation LOD.";
+	AnimationLodFacsDistanceMin = "Distance where animation starts to fade to lower detail. Increase this to keep nearby animations crisp; drop it if you want lower cost. Reset to 0 to let Roblox decide.";
+	AnimationLodFacsDistanceMax = "Distance where animation has fully faded to lower detail. Raising it keeps detailed animation further away, costing more. Reset to 0 if things look off.";
+	AnimationLodFacsVisibilityDenominator = "Another knob in how animation detail fades with visibility. Most people should leave it alone and keep it at 0.";
 
-	TextureCompositorActiveJobs = "Number of active avatar texture compositor jobs. Too low can cause gray avatars.";
+	TextureCompositorActiveJobs = "How many jobs the avatar texture compositor can run at once. Higher can make avatars appear faster on multi-core CPUs. If it causes spikes, go back to 1.";
 
-	ViewportFrameMaxSize = "Max resolution for ViewportFrame rendering. 0 uses default resolution.";
+	ViewportFrameMaxSize = "Maximum resolution for what ViewportFrames are allowed to render. A huge value lets them be very sharp but can cost GPU time. If something is too heavy, drop this or reset it.";
 
-	FRMMaxGrassDistance = "Maximum distance grass is rendered.";
-	FRMMinGrassDistance = "Minimum distance where grass starts rendering.";
-	RenderGrassDetailStrands = "Number of detailed grass strands rendered. Lower = less grass detail.";
-	GrassMovementReducedMotionFactor = "Scales grass movement amount. Higher = less waving motion.";
+	FRMMaxGrassDistance = "How far away grass is drawn. Smaller distance = less grass far away and better FPS. 0 lets Roblox pick; if you mess it up, just go back to that.";
+	FRMMinGrassDistance = "How close grass starts rendering around you. Raising this can remove grass near the player and help performance. 0 is the safe fallback.";
+	RenderGrassDetailStrands = "Controls how dense or detailed grass strands are. Higher = thicker, nicer grass. If grass is too heavy, lower this or leave it at 0.";
+	GrassMovementReducedMotionFactor = "How much grass movement is toned down. Higher values mean calmer grass. If you like the normal movement, put this back to around 100.";
 
-	DebugSkyGray = "Replaces skybox with a simple gray debug sky.";
-	CoreGuiTypeSelfViewPresent = "Marks that a self-view CoreGui (camera preview) is present.";
-	RenderCheckThreading = "Enables threaded render validation and checks.";
+	DebugSkyGray = "Replaces the skybox with a simple gray sky. Good for testing lighting, boring for actual play. Turn it off when you’re done debugging.";
+	CoreGuiTypeSelfViewPresent = "Tells Roblox a self-view (camera preview of your avatar) is present. Mostly internal; if you aren’t debugging that UI, you can ignore this.";
+	RenderCheckThreading = "Uses extra threads to sanity-check rendering. Good by default; if you suspect it in crashes or odd behavior, try turning it off and see if it helps.";
 
-	OptimizeNetworkTransport = "Enables optimized implementation of the network transport layer.";
-	OptimizeNetworkRouting = "Enables optimized routing for network traffic.";
-	RakNetResendBufferArrayLength = "Size of RakNet resend buffer array for resending packets.";
-	WaitOnRecvFromLoopEndedMS = "Wait time after receive loop ends before shutting down networking.";
+	OptimizeNetworkTransport = "Enables a more efficient networking transport path. Generally you want this on; if a game behaves worse, try toggling it as a test.";
+	OptimizeNetworkRouting = "Optimizes how packets are routed to peers. Keep this on unless you’re isolating a network bug.";
+	RakNetResendBufferArrayLength = "How big the buffer of packets waiting to be resent is. Slightly larger buffers can help bad networks but cost some memory. 128 is a good default if you want to undo changes.";
+	WaitOnRecvFromLoopEndedMS = "Small delay after the receive loop stops before network teardown. Usually safe at 100ms; if you change it and see odd disconnect timing, set it back.";
 
-	DebugDisableTelemetryEphemeralCounter = "Disables ephemeral counter telemetry.";
-	DebugDisableTelemetryEphemeralStat = "Disables ephemeral stat telemetry.";
-	DebugDisableTelemetryEventIngest = "Disables ingestion of some telemetry events.";
-	DebugDisableTelemetryPoint = "Disables generic telemetry points.";
-	DebugDisableTelemetryV2Counter = "Disables V2 counter telemetry.";
-	DebugDisableTelemetryV2Event = "Disables V2 event telemetry.";
-	DebugDisableTelemetryV2Stat = "Disables V2 stat telemetry.";
+	DebugDisableTelemetryEphemeralCounter = "Stops sending short-lived counter telemetry. Turning several of these on reduces how much data your client sends out. Reset to false if you want default behavior.";
+	DebugDisableTelemetryEphemeralStat = "Stops sending short-lived stat telemetry. Same idea as above.";
+	DebugDisableTelemetryEventIngest = "Reduces some event telemetry ingestion. Better for privacy, worse if Roblox wants diagnostics from you.";
+	DebugDisableTelemetryPoint = "Disables generic telemetry points. Flip it on if you want a quieter network footprint; off if you want stock behavior.";
+	DebugDisableTelemetryV2Counter = "Disables a newer set of counter telemetry. Same privacy vs diagnostics trade-off.";
+	DebugDisableTelemetryV2Event = "Disables V2 event telemetry. Again, less reporting, less insight for Roblox.";
+	DebugDisableTelemetryV2Stat = "Disables V2 stat telemetry. If you turn a lot of these off and something breaks, just return them to false.";
 
-	DisableDPIScale = "Disables OS DPI scaling for the Roblox window (can make UI sharper on some displays).";
+	DisableDPIScale = "Ignores Windows DPI scaling for the Roblox window. Great if Roblox looks blurry or over-sized on a high DPI monitor. If UI becomes too tiny, turn this off.";
 
-	OptimizeNetwork = "Enables additional network optimization paths to reduce overhead and latency.";
-	OptimizeServerTickRate = "Tunes server tick scheduling for more consistent physics/network timing.";
-	OptimizePingThreshold = "Adjusts thresholds used for ping/latency smoothing; can reduce small spikes.";
-	QueueDataPingFromSendData = "Queues ping measurements from outgoing data instead of a separate job to cut overhead.";
-	DontCreatePingJob = "Disables creation of a dedicated ping job. Less background work but less detailed ping data.";
+	OptimizeNetwork = "Packs various network optimizations together. Usually best left on; if you’re debugging something very specific, you can try toggling it.";
+	OptimizeServerTickRate = "Hints around how often the server should tick. On public games this is mostly controlled server-side. If you change it and nothing happens, that’s expected.";
+	OptimizePingThreshold = "Tweaks thresholds used when smoothing ping. Normally helpful; if your ping graph behaves strangely, you can experiment or just disable it.";
+	QueueDataPingFromSendData = "Measures ping based on outgoing traffic rather than a dedicated ping job. Slightly less overhead, slightly different measurements. Turn it off if you need more classic ping behavior.";
+	DontCreatePingJob = "Completely skips creating a dedicated ping job. Less background work, but less detailed ping info. Turn it off again if you like proper ping data.";
 
-	RenderPerformanceTelemetry = "Controls render/performance telemetry being sent to Roblox. Off reduces background telemetry load.";
+	RenderPerformanceTelemetry = "Controls whether render/performance metrics are sent back to Roblox. Turning it off reduces telemetry traffic. You can always re-enable it later.";
 
-	CommitToGraphicsQualityFix = "Uses newer graphics quality selection logic to keep quality/perf in sync with hardware.";
-	FixGraphicsQuality = "Applies a correction pass to incorrectly stored graphics quality levels.";
-	GraphicsSettingsOnlyShowValidModes = "Hides graphics options that are not valid for your hardware/driver.";
+	CommitToGraphicsQualityFix = "Applies a fix so your graphics quality better matches your hardware. Better to keep on unless you’re testing a bug.";
+	FixGraphicsQuality = "Attempts to repair broken saved graphics quality values. Useful if your slider is stuck. If it causes weird behavior, you can turn it back off.";
+	GraphicsSettingsOnlyShowValidModes = "Hides graphics options your hardware can’t actually use. Keeping this on makes the settings menu less confusing.";
 
-	PreloadAllFonts = "Loads all fonts up-front to avoid stutters when fonts are first used in UI.";
+	PreloadAllFonts = "Loads all fonts upfront instead of waiting until first use. That can add a little delay on startup, but helps avoid mid-game stutters when text appears. Turn it off again if the initial load feels too slow.";
 
-	PartTexturePackTable2022 = "Uses the newer (2022) texture pack table for parts for better packing/caching.";
-	PartTexturePackTablePre2022 = "Uses the older pre-2022 part texture pack table (useful if new one causes issues).";
+	PartTexturePackTable2022 = "Uses the newer texture packing scheme for parts. Usually better on modern hardware. If some places render weirdly, you can turn this off and use the older table.";
+	PartTexturePackTablePre2022 = "Uses the old part texture packing scheme. Only useful if the new one is broken for a specific game. Turn this off once you no longer need the workaround.";
 
-	CloudsReflectOnWater = "Enables clouds being reflected in water. Looks nicer but costs GPU performance.";
-	DebugForceFutureIsBrightPhase3 = "Forces the latest Future is Bright lighting phase; better visuals, higher GPU cost.";
+	CloudsReflectOnWater = "Lets clouds show up in water reflections. Looks nice, costs GPU. If water reflections stutter, disable it.";
+	DebugForceFutureIsBrightPhase3 = "Forces the latest version of the Future is Bright lighting pipeline. Looks best on strong GPUs; if you’re struggling for FPS or see bugs, turn it off.";
 
-	InGameMenuV1FullScreenTitleBar = "Enables V1 in-game menu fullscreen title bar behavior when hitting the top edge.";
+	InGameMenuV1FullScreenTitleBar = "Brings back the older fullscreen title bar behavior. Nice if you prefer the classic UI. Turn it off if it conflicts with newer menu layouts.";
 
-	EnableHardwareTelemetry = "Controls hardware telemetry upload. Off reduces hardware profiling traffic.";
-	AudioDeviceTelemetry = "Telemetry about audio device configuration and changes.";
-	EnableSoundTelemetry = "Telemetry for sound playback performance and errors.";
-	EnableFmodErrorsTelemetry = "Telemetry for FMOD audio backend errors.";
-	SimReportCPUInfo = "Reports CPU information as part of simulation telemetry.";
-	EnableGCapsHardwareTelemetry = "Uploads graphics capability (GCaps) telemetry for hardware profiling.";
+	EnableHardwareTelemetry = "Allows Roblox to send detailed info about your hardware. Turn it off if you’d rather keep that local.";
+	AudioDeviceTelemetry = "Reports how your audio devices are set up. Turning it off is fine if you don’t want that reported.";
+	EnableSoundTelemetry = "Reports audio performance and issues. You can disable it if you prefer fewer analytics calls.";
+	EnableFmodErrorsTelemetry = "Sends FMOD audio backend errors to Roblox. Turning it off keeps those errors local only.";
+	SimReportCPUInfo = "Reports CPU information as part of simulation data. Turn it off for less detailed reporting.";
+	EnableGCapsHardwareTelemetry = "Reports GPU capability info. Turn it off if you’re trying to minimize telemetry.";
 
-	BatchAssetApi = "Enables HTTP batch asset requests to reduce the number of asset HTTP calls.";
-	BatchAssetApiNoFallbackOnFail = "Disables fallback to non-batch asset requests when a batch fails.";
+	BatchAssetApi = "Allows assets to be requested in batches instead of one-by-one. This is normally good for performance and loading. Only turn it off for debugging.";
+	BatchAssetApiNoFallbackOnFail = "If a batch asset request fails, this prevents Roblox from falling back to single requests. Only use this for testing failures; turn it off for normal play.";
 
-	GameBasicSettingsFramerateCap = "Framerate cap used by basic game settings. 0 generally means uncapped.";
-	RenderGrassHeightScaler = "Scales the height of rendered grass. Lower = shorter grass blades.";
-	HttpBatchApi_maxWaitMs = "Max wait time before sending a HTTP batch. Higher = more batching, fewer requests.";
-	HttpBatchApi_bgDelayMs = "Extra delay before sending background HTTP batches to avoid spikes.";
+	GameBasicSettingsFramerateCap = "This is what the in-game Settings framerate slider really writes to. Set it to a number like 60, 120, or 240 to lock your FPS. Set to 0 to let Roblox handle it.";
+	RenderGrassHeightScaler = "Changes how tall grass appears. Lower numbers give shorter grass, which can look cleaner in some games. 0 returns to the default behavior.";
+	HttpBatchApi_maxWaitMs = "How long the client waits to gather requests before sending a batch. Higher means fewer requests but slightly more latency. 50ms is the default to go back to.";
+	HttpBatchApi_bgDelayMs = "Extra delay before sending background batches. Raising it can make large background loads less spiky. 10ms is the safe original value.";
+
+	ServerTickRate = "Target server tick rate in Hz. On normal Roblox servers this is mostly informational; you won’t override the real server. Only relevant if you run or simulate a server yourself.";
+	ServerPhysicsUpdateRate = "How often server physics should update. Again, mostly under server control, not the client’s. Leave it at 60 for safety.";
+	PlayerNetworkUpdateRate = "How often players get their movement updates. 60 is a good balance. Lower can feel laggy, higher costs more bandwidth.";
+	PlayerNetworkUpdateQueueSize = "How many player updates can sit in a queue. Larger values can smooth short spikes at the cost of a bit more latency. 20 is a sane value to restore.";
+	NetworkLatencyTolerance = "How tolerant smoothing is of ping spikes. Higher tolerance hides small jitters but can make big jumps feel delayed. 0 is a clean baseline.";
+
+	NetworkPrediction = "Controls whether the client uses prediction to guess short-term movement. If everything feels snappy, keep it on. If a game behaves strangely with prediction, try toggling this off as a test.";
+
+	RenderLocalLightFadeInMs_enabled = "Controls whether local lights gently fade in instead of appearing instantly. If you hate popping when lights switch on, keep this true.";
+	GraphicsGLEnableHQShadersExclusion = "Prevents certain weaker GL setups from using heavy shaders. If you force it off, old/weak GPUs may suffer.";
+	GraphicsGLEnableSuperHQShadersExclusion = "Same idea but for the very heaviest shader paths. Leave it on unless you know you want those shaders at any cost.";
+	NullCheckCloudsRendering = "Adds safety checks around cloud rendering. Usually helps stability; only disable if chasing down a very specific bug.";
+	GpuGeometryManager7 = "Enables a newer system for managing geometry on the GPU. Fine to leave on unless a specific game behaves badly with it.";
+
+	EnableInGameMenuV3 = "Turns on the modern V3 in-game menu. Disable it if it conflicts with your overlays or you just like the old style better.";
+	EnableInGameMenuControls = "Enables the newer control logic inside the menu (like better gamepad support). Turn it off if your custom UI navigation gets confused.";
+	EnableMenuModernizationABTest = "Lets you force a menu modernization experiment. Not needed in normal use; if menus feel weird after enabling, just turn it back off.";
+	EnableMenuModernizationABTest2 = "Second variant of the modernization test. Same idea: only mess with it if you’re curious, then revert.";
+	EnableMenuControlsABTest = "Tests alternative menu control schemes. If it feels off, just disable it again.";
+	EnableInGameMenuChromeABTest2 = "Lets you see a different style for the menu frame and borders. Fun to try, easy to undo.";
+ 	EnableInGameMenuChromeABTest3 = "Another style variation for the menu shell. If you don’t like the look, turn it off.";
+
+	EnableReportAbuseMenuRoact2 = "Enables the newer report-abuse interface. Keep it on unless it obviously breaks UI.";
+	EnableReportAbuseMenuLayerOnV3 = "Controls how the report-abuse screen layers into the V3 menu. Turn it off if it overlaps in ugly ways with your overlays.";
+	EnableBubbleChatConfigurationV2 = "Enables a newer, more configurable bubble chat system. If a game’s chat looks broken, try toggling this.";
+	EnableChromePinnedChat = "Allows the chat to be pinned like a bar or dock in the UI. If your layout gets cluttered, disable it.";
+
+	EnableAccessibilitySettingsAPIV2 = "Turns on the latest accessibility settings API. Good to keep on so Roblox can respect user preferences.";
+	EnableAccessibilitySettingsInExperienceMenu2 = "Shows accessibility settings inside the in-game menu. If you want a minimal-looking menu, you can turn it off.";
+	EnableAccessibilitySettingsEffectsInExperienceChat = "Applies accessibility choices (reduced motion, higher contrast, etc.) to chat. Turn it on for comfort, off if it clashes with your theme.";
+	EnableAccessibilitySettingsEffectsInCoreScripts2 = "Same idea but for built-in Roblox UI like core menus. Good to keep enabled for accessibility.";
+
+	EnableAudioOutputDevice = "Lets you choose which audio device Roblox uses. Very helpful if you have multiple outputs. Turn it off only if it causes odd audio behavior.";
+
+	HardwareTelemetryHundredthsPercent = "How often hardware telemetry is sampled, expressed in hundredths of a percent. 100 means about 1% of sessions. Setting it to 0 effectively stops this on your client.";
+	LightstepHTTPTransportHundredthsPercent2 = "Sampling rate for a specific telemetry pipeline. 0 turns it off for you; 100 is a typical default.";
+	ClientLightingEnvmapPlacementTelemetryHundredthsPercent = "Sampling rate for a lighting-related telemetry channel. Set to 0 to stop sending this; set back to 100 if you want default reporting.";
 }
 
 for _, entry in ipairs(NAFFlags.whitelist) do
