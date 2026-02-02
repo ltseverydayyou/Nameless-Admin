@@ -211,6 +211,53 @@ NAlib.isProperty = function(inst, prop)
 	return r
 end
 
+-- Attribute shim for executors that break string attributes (Xeno)
+NAmanage.GetAttr=function(inst, key)
+	if not inst or not key then return nil end
+	local ok, value = pcall(function() return inst:GetAttribute(key) end)
+	if ok and value ~= nil then
+		return value
+	end
+	local tag = inst:FindFirstChild("_NAATTR_"..tostring(key))
+	if tag and tag:IsA("ValueBase") then
+		return tag.Value
+	end
+	return nil
+end
+
+NAmanage.SetAttr=function(inst, key, value)
+	if not inst or not key then return end
+	local ok = pcall(function() inst:SetAttribute(key, value) end)
+	if ok then
+		return
+	end
+
+	local tagName = "_NAATTR_"..tostring(key)
+	local existing = inst:FindFirstChild(tagName)
+
+	if value == nil then
+		if existing then pcall(function() existing:Destroy() end) end
+		return
+	end
+
+	local class = "StringValue"
+	if type(value) == "boolean" then
+		class = "BoolValue"
+	elseif type(value) == "number" then
+		class = "NumberValue"
+	end
+
+	if not existing or existing.ClassName ~= class then
+		if existing then pcall(function() existing:Destroy() end) end
+		existing = Instance.new(class)
+		existing.Name = tagName
+		existing.Archivable = false
+		existing.Parent = inst
+	end
+
+	existing.Value = value
+end
+
 NAlib.setProperty = function(inst, prop, v)
 	local s, _ = pcall(function() inst[prop] = v end)
 	return s
@@ -9006,6 +9053,176 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		fpsBoostOptions = {
+			default = function()
+				return {
+					effectMode = "disable";
+					stripParticles = true;
+					stripDecals = true;
+					stripLights = true;
+					stripPostFx = true;
+					stripSurfaceAppearance = true;
+					stripExplosions = true;
+					simplifyMaterials = true;
+					zeroReflectance = true;
+					forceStreaming = true;
+					streamRadius = 96;
+					flattenLighting = true;
+				}
+			end;
+			coerce = function(value)
+				local defaults = {
+					effectMode = "disable";
+					stripParticles = true;
+					stripDecals = true;
+					stripLights = true;
+					stripPostFx = true;
+					stripSurfaceAppearance = true;
+					stripExplosions = true;
+					simplifyMaterials = true;
+					zeroReflectance = true;
+					forceStreaming = true;
+					streamRadius = 96;
+					flattenLighting = true;
+				}
+				if type(value) ~= "table" then
+					value = {}
+				end
+				local function boolField(key, fallback)
+					return coerceBoolean(value[key], fallback)
+				end
+				local function clampRadius(v)
+					local n = tonumber(v)
+					if not n then
+						return defaults.streamRadius
+					end
+					if n < 16 then
+						n = 16
+					elseif n > 4096 then
+						n = 4096
+					end
+					return n
+				end
+				local mode = value.effectMode
+				if type(mode) == "string" then
+					local lower = mode:lower()
+					if lower == "destroy" or lower == "delete" or lower == "remove" then
+						mode = "destroy"
+					else
+						mode = "disable"
+					end
+				else
+					mode = defaults.effectMode
+				end
+				local out = {}
+				out.effectMode = mode
+				out.stripParticles = boolField("stripParticles", defaults.stripParticles)
+				out.stripDecals = boolField("stripDecals", defaults.stripDecals)
+				out.stripLights = boolField("stripLights", defaults.stripLights)
+				out.stripPostFx = boolField("stripPostFx", defaults.stripPostFx)
+				out.stripSurfaceAppearance = boolField("stripSurfaceAppearance", defaults.stripSurfaceAppearance)
+				out.stripExplosions = boolField("stripExplosions", defaults.stripExplosions)
+				out.simplifyMaterials = boolField("simplifyMaterials", defaults.simplifyMaterials)
+				out.zeroReflectance = boolField("zeroReflectance", defaults.zeroReflectance)
+				out.forceStreaming = boolField("forceStreaming", defaults.forceStreaming)
+				out.streamRadius = clampRadius(value.streamRadius)
+				out.flattenLighting = boolField("flattenLighting", defaults.flattenLighting)
+				return out
+			end;
+		};
+		hitboxOptions = {
+			default = function()
+				return {
+					size = 10;
+					transparency = 0.9;
+					color = { R = 0; G = 0; B = 0 };
+					material = "Neon";
+					noCollide = true;
+					massless = true;
+				}
+			end;
+			coerce = function(value)
+				local function coerceNumber(v, min, max, fallback)
+					local n = tonumber(v)
+					if not n then return fallback end
+					if n < min then n = min end
+					if n > max then n = max end
+					return n
+				end
+
+				local function coerceColor(v)
+					if typeof(v) == "Color3" then
+						return {
+							R = clampChannel(v.R) or 0;
+							G = clampChannel(v.G) or 0;
+							B = clampChannel(v.B) or 0;
+						}
+					end
+					if type(v) == "table" then
+						local r = clampChannel(v.R or v.r or v[1])
+						local g = clampChannel(v.G or v.g or v[2])
+						local b = clampChannel(v.B or v.b or v[3])
+						if r and g and b then
+							return { R = r; G = g; B = b }
+						end
+					end
+					if type(v) == "string" then
+						local ok, decoded = NACaller(function()
+							return HttpService:JSONDecode(v)
+						end)
+						if ok and type(decoded) == "table" then
+							return coerceColor(decoded)
+						end
+					end
+					return { R = 0; G = 0; B = 0 }
+				end
+
+				local defaults = {
+					size = 10;
+					transparency = 0.9;
+					color = { R = 0; G = 0; B = 0 };
+					material = "Neon";
+					noCollide = true;
+					massless = true;
+				}
+
+				if type(value) ~= "table" then
+					return defaults
+				end
+
+				local out = {}
+				out.size = coerceNumber(value.size, 0.1, 200, defaults.size)
+				out.transparency = coerceNumber(value.transparency, 0, 1, defaults.transparency)
+				out.color = coerceColor(value.color)
+
+				local mat = "Neon"
+				if type(value.material) == "string" then
+					mat = value.material
+				elseif value.material ~= nil then
+					mat = tostring(value.material)
+				end
+				if type(mat) == "string" then
+					local trimmed = mat:match("^%s*(.-)%s*$") or mat
+					if Enum.Material[trimmed] then
+						mat = trimmed
+					else
+						local lower = trimmed:lower()
+						for _, item in ipairs(Enum.Material:GetEnumItems()) do
+							if item.Name:lower() == lower then
+								mat = item.Name
+								break
+							end
+						end
+					end
+				else
+					mat = defaults.material
+				end
+				out.material = mat
+				out.noCollide = coerceBoolean(value.noCollide, defaults.noCollide)
+				out.massless = coerceBoolean(value.massless, defaults.massless)
+				return out
+			end;
+		};
 		autoPreloadAssets = {
 			default = false;
 			coerce = function(value)
@@ -10202,6 +10419,7 @@ if FileSupport then
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
+	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
 	NAUISTROKER = InitUIStroke()
 	if NAStuff and NAStuff.AprilFoolsData then
 		NAStuff.AprilFoolsData.originalColor = NAUISTROKER
@@ -10768,9 +10986,9 @@ end
 local lastPrefix = opt.prefix
 
 --[[if opt.saveTag then
-	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
-	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
-	SafeGetService("Players").LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
+	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerText", opt.currentTagText)
+	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerColor", opt.currentTagColor)
+	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerRainbow", opt.currentTagRGB)
 end]]
 
 --[[ VARIABLES ]]--
@@ -13291,7 +13509,7 @@ NAmanage.ESP_DestroyLabel = function(model)
 
 	if uid and model and model.Parent then
 		for _, d in ipairs(model:GetDescendants()) do
-			if d:IsA("BillboardGui") and d:GetAttribute("NA_ESP_UID") == uid then
+			if d:IsA("BillboardGui") and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
 				d:Destroy()
 			end
 		end
@@ -13337,14 +13555,14 @@ NAmanage.ESP_EnsureLabel = function(model)
 	local list = {}
 	if model.Parent then
 		for _, d in ipairs(model:GetDescendants()) do
-			if d:IsA("BillboardGui") and d:GetAttribute("NA_ESP_UID") == uid then
+			if d:IsA("BillboardGui") and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
 				list[#list + 1] = d
 			end
 		end
 	end
 
 	local keep = nil
-	if bb and bb.Parent and bb:GetAttribute("NA_ESP_UID") == uid then
+	if bb and bb.Parent and NAmanage.GetAttr(bb, "NA_ESP_UID") == uid then
 		keep = bb
 	end
 	if not keep and #list > 0 then
@@ -13359,7 +13577,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 
 	if not keep then
 		keep = InstanceNew("BillboardGui")
-		keep:SetAttribute("NA_ESP_UID", uid)
+		NAmanage.SetAttr(keep, "NA_ESP_UID", uid)
 		keep.Adornee = anchor
 		keep.AlwaysOnTop = true
 		keep.Size = UDim2.new(0,150,0,40)
@@ -14134,7 +14352,7 @@ NAmanage._clearPhysics=function(full)
 		flyVariables.BG=nil
 		flyVariables.BV=nil
 		for _,v in ipairs(workspace:GetDescendants()) do
-			if v:GetAttribute("tflyPart") then pcall(function() v:Destroy() end) end
+			if NAmanage.GetAttr(v, "tflyPart") then pcall(function() v:Destroy() end) end
 		end
 	end
 end
@@ -22745,6 +22963,25 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	local w=workspace
 	local st=(NAmanage and NAmanage._ensureL and NAmanage._ensureL()) or {safeGet=function(i,p)local ok,v=pcall(function()return i[p]end)return ok and v or nil end,safeSet=function(i,p,v)NAlib.setProperty(i,p,v)end}
 	local opt=opt or {hiddenprop=function() end}
+	local fpsOpt = NAStuff.FPSBoostOptions or {}
+	local function boolOpt(v, default)
+		if v == nil then
+			return default
+		end
+		return v ~= false
+	end
+	local effectDestroy = (type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy")
+	local stripParticles = boolOpt(fpsOpt.stripParticles, true)
+	local stripDecals = boolOpt(fpsOpt.stripDecals, true)
+	local stripLights = boolOpt(fpsOpt.stripLights, true)
+	local stripPostFx = boolOpt(fpsOpt.stripPostFx, true)
+	local stripSurfaceAppearance = boolOpt(fpsOpt.stripSurfaceAppearance, true)
+	local stripExplosions = boolOpt(fpsOpt.stripExplosions, true)
+	local simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true)
+	local zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true)
+	local forceStreaming = boolOpt(fpsOpt.forceStreaming, true)
+	local flattenLighting = boolOpt(fpsOpt.flattenLighting, true)
+	local streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096)
 
 	local function setHiddenOrNormal(inst,prop,val)
 		local ok=false
@@ -22791,12 +23028,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	local A="NA_FPS_"
 	local function remember(inst,prop,val)
 		local key=A..prop
-		if inst:GetAttribute(key)==nil then
-			if typeof(val)=="EnumItem" then inst:SetAttribute(key,val.Name) else inst:SetAttribute(key,val) end
+		if NAmanage.GetAttr(inst, key)==nil then
+			if typeof(val)=="EnumItem" then NAmanage.SetAttr(inst, key,val.Name) else NAmanage.SetAttr(inst, key,val) end
 		end
 	end
-	local function recall(inst,prop) return inst:GetAttribute(A..prop) end
-	local function clearAttr(inst,prop) inst:SetAttribute(A..prop,nil) end
+	local function recall(inst,prop) return NAmanage.GetAttr(inst, A..prop) end
+	local function clearAttr(inst,prop) NAmanage.SetAttr(inst, A..prop,nil) end
 	local function isCharacterOrNPC(inst)local a=inst while a do if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then return true end a=a.Parent end return false end
 	local function isClothingLike(inst) return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription") end
 
@@ -22831,29 +23068,45 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	end
 
 	local function applyEnv()
-		pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end)
-		st.safeSet(Lighting,"GlobalShadows",false)
-		st.safeSet(Lighting,"FogEnd",math.huge)
-		st.safeSet(Lighting,"Brightness",0)
-		st.safeSet(Lighting,"Ambient",Color3.new(0.4,0.4,0.4))
-		st.safeSet(Lighting,"OutdoorAmbient",Color3.new(0.4,0.4,0.4))
-		setHiddenOrNormal(Lighting,"LightingStyle",Enum.LightingStyle.Soft)
-		setHiddenOrNormal(Lighting,"Technology",Enum.Technology.Compatibility)
+		if flattenLighting or simplifyMaterials then
+			pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+		end
+		if flattenLighting then
+			st.safeSet(Lighting,"GlobalShadows",false)
+			st.safeSet(Lighting,"FogEnd",math.huge)
+			st.safeSet(Lighting,"Brightness",0)
+			st.safeSet(Lighting,"Ambient",Color3.new(0.4,0.4,0.4))
+			st.safeSet(Lighting,"OutdoorAmbient",Color3.new(0.4,0.4,0.4))
+			setHiddenOrNormal(Lighting,"LightingStyle",Enum.LightingStyle.Soft)
+			setHiddenOrNormal(Lighting,"Technology",Enum.Technology.Compatibility)
+		end
 		local T=w:FindFirstChildOfClass("Terrain")
-		if T then
+		if T and simplifyMaterials then
 			st.safeSet(T,"Decoration",false)
 			st.safeSet(T,"WaterWaveSize",0)
 			st.safeSet(T,"WaterWaveSpeed",0)
 			st.safeSet(T,"WaterReflectance",0)
 			st.safeSet(T,"WaterTransparency",0)
 		end
-		st.safeSet(w,"StreamingEnabled",true)
-		pcall(function() w.StreamOutBehavior=Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default end)
-		st.safeSet(w,"StreamingPauseMode",Enum.StreamingPauseMode.Default)
-		st.safeSet(w,"TargetRadius",96)
-		for _,e in ipairs(Lighting:GetChildren()) do if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end end
-		local cam=w.CurrentCamera
-		if cam then for _,e in ipairs(cam:GetChildren()) do if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end end end
+		if forceStreaming then
+			st.safeSet(w,"StreamingEnabled",true)
+			pcall(function() w.StreamOutBehavior=Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default end)
+			st.safeSet(w,"StreamingPauseMode",Enum.StreamingPauseMode.Default)
+			st.safeSet(w,"TargetRadius",streamRadius)
+		end
+		if stripPostFx then
+			for _,e in ipairs(Lighting:GetChildren()) do
+				if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
+				if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end
+			end
+			local cam=w.CurrentCamera
+			if cam then
+				for _,e in ipairs(cam:GetChildren()) do
+					if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
+					if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end
+				end
+			end
+		end
 	end
 
 	local function restoreEnv()
@@ -22880,31 +23133,79 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if not active then return end
 		if isCharacterOrNPC(inst) then return end
 		if isClothingLike(inst) then return end
-		if inst:IsA("BasePart") then
+		if inst:IsA("BasePart") and simplifyMaterials then
 			remember(inst,"Material",inst.Material)
 			remember(inst,"MaterialVariant",st.safeGet(inst,"MaterialVariant"))
 			remember(inst,"Reflectance",inst.Reflectance)
 			remember(inst,"CastShadow",inst.CastShadow)
 			st.safeSet(inst,"Material",Enum.Material.Plastic)
 			st.safeSet(inst,"MaterialVariant","")
-			st.safeSet(inst,"Reflectance",0)
+			if zeroReflectance then
+				st.safeSet(inst,"Reflectance",0)
+			end
 			st.safeSet(inst,"CastShadow",false)
-			if inst:IsA("MeshPart") then
+			if stripDecals and inst:IsA("MeshPart") then
 				if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); st.safeSet(inst,"TextureID","") end
 			end
 		end
-		if inst:IsA("SpecialMesh") then remember(inst,"TextureId",inst.TextureId); st.safeSet(inst,"TextureId","") end
-		if inst:IsA("Decal") or inst:IsA("Texture") then remember(inst,"Transparency",inst.Transparency); st.safeSet(inst,"Transparency",1) end
-		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then remember(inst,"Enabled",inst.Enabled); st.safeSet(inst,"Enabled",false) end
-		if inst:IsA("Beam") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
-		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then remember(inst,"Enabled",inst.Enabled); st.safeSet(inst,"Enabled",false) end
-		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then remember(inst,"Enabled",st.safeGet(inst,"Enabled")); if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end end
-		if inst:IsA("PostEffect") then
+		if inst:IsA("SpecialMesh") and stripDecals then
+			remember(inst,"TextureId",inst.TextureId)
+			st.safeSet(inst,"TextureId","")
+		end
+		if stripDecals and (inst:IsA("Decal") or inst:IsA("Texture")) then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Transparency",inst.Transparency)
+			st.safeSet(inst,"Transparency",1)
+		end
+		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles")) then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Enabled",inst.Enabled)
+			st.safeSet(inst,"Enabled",false)
+		end
+		if stripParticles and inst:IsA("Beam") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
+			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
+		end
+		if stripLights and (inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")) then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Enabled",inst.Enabled)
+			st.safeSet(inst,"Enabled",false)
+		end
+		if stripSurfaceAppearance and (inst:IsA("SurfaceAppearance") or inst:IsA("Highlight")) then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
+			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
+		end
+		if stripPostFx and inst:IsA("PostEffect") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
 			local enabledValue=st.safeGet(inst,"Enabled")
 			if enabledValue~=nil then remember(inst,"Enabled",enabledValue) end
 			forceProperty(inst,"Enabled",false)
 		end
-		if inst:IsA("Atmosphere") then
+		if stripPostFx and inst:IsA("Atmosphere") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
 			local density=st.safeGet(inst,"Density")
 			if density~=nil then remember(inst,"Density",density); forceProperty(inst,"Density",0) end
 			local haze=st.safeGet(inst,"Haze")
@@ -22912,7 +23213,16 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 			local glare=st.safeGet(inst,"Glare")
 			if glare~=nil then remember(inst,"Glare",glare); forceProperty(inst,"Glare",0) end
 		end
-		if inst:IsA("Explosion") then remember(inst,"BlastPressure",inst.BlastPressure); remember(inst,"BlastRadius",inst.BlastRadius); st.safeSet(inst,"BlastPressure",1); st.safeSet(inst,"BlastRadius",1) end
+		if stripExplosions and inst:IsA("Explosion") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"BlastPressure",inst.BlastPressure)
+			remember(inst,"BlastRadius",inst.BlastRadius)
+			st.safeSet(inst,"BlastPressure",1)
+			st.safeSet(inst,"BlastRadius",1)
+		end
 	end
 
 	local function restoreInstance(inst)
@@ -22946,6 +23256,9 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		active=true
 		snapshotEnv()
 		applyEnv()
+		if effectDestroy then
+			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3)
+		end
 		for _,v in ipairs(Lighting:GetDescendants()) do Defer(function() optimizeInstance(v) end) end
 		sweepAll()
 		Insert(cons, connect(w.DescendantAdded,function(v) Defer(function() optimizeInstance(v) end) end))
@@ -24313,8 +24626,8 @@ cmd.add({"sit"},{"sit","Sit your player"},function()
 end)
 
 cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
-	if Lighting:GetAttribute("NAOldRbx_Enabled") then return end
-	Lighting:SetAttribute("NAOldRbx_Enabled", true)
+	if NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+	NAmanage.SetAttr(Lighting, "NAOldRbx_Enabled", true)
 
 	local studTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud)) or "rbxassetid://48715260"
 	local inletTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet)) or "rbxassetid://20299774"
@@ -24344,11 +24657,11 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	local function applyToPart(v)
 		if not v or not v.Parent or not v:IsA("BasePart") then return end
-		if v:GetAttribute("NAOldRbx_Applied") then return end
-		v:SetAttribute("NAOldRbx_Applied", true)
-		if v:GetAttribute("NAOldRbx_OrigMatName") == nil then
+		if NAmanage.GetAttr(v, "NAOldRbx_Applied") then return end
+		NAmanage.SetAttr(v, "NAOldRbx_Applied", true)
+		if NAmanage.GetAttr(v, "NAOldRbx_OrigMatName") == nil then
 			local ok, name = pcall(function() return v.Material.Name end)
-			if ok then v:SetAttribute("NAOldRbx_OrigMatName", name) end
+			if ok then NAmanage.SetAttr(v, "NAOldRbx_OrigMatName", name) end
 		end
 
 		local stud = v:FindFirstChild("NAOldRobloxStud")
@@ -24378,10 +24691,10 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		v.Material = Enum.Material.Plastic
 	end
 
-	Lighting:SetAttribute("NAOldRbx_PrevClockTime", Lighting.ClockTime)
-	Lighting:SetAttribute("NAOldRbx_PrevGlobalShadows", Lighting.GlobalShadows)
+	NAmanage.SetAttr(Lighting, "NAOldRbx_PrevClockTime", Lighting.ClockTime)
+	NAmanage.SetAttr(Lighting, "NAOldRbx_PrevGlobalShadows", Lighting.GlobalShadows)
 	local ok,outlines = pcall(function() return Lighting.Outlines end)
-	if ok then Lighting:SetAttribute("NAOldRbx_HadOutlines", true) Lighting:SetAttribute("NAOldRbx_PrevOutlines", outlines) end
+	if ok then NAmanage.SetAttr(Lighting, "NAOldRbx_HadOutlines", true) NAmanage.SetAttr(Lighting, "NAOldRbx_PrevOutlines", outlines) end
 
 	local stash = workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder")
 	stash.Name = "NAOldRbx_SkyStash"
@@ -24408,7 +24721,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	NAlib.disconnect("oldrbx_tick")
 	NAlib.connect("oldrbx_tick", RS.Heartbeat:Connect(function()
-		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		local budgetNodes = 200
 		local i = 0
 		while i < budgetNodes do
@@ -24428,7 +24741,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	NAlib.disconnect("oldrbx_desc")
 	NAlib.connect("oldrbx_desc", workspace.DescendantAdded:Connect(function(obj)
-		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("BasePart") then
 			qpush(obj)
 		end
@@ -24436,7 +24749,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	NAlib.disconnect("oldrbx_skywatch")
 	NAlib.connect("oldrbx_skywatch", Lighting.ChildAdded:Connect(function(obj)
-		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and obj.Name ~= "NAOldRobloxSky" then
 			local c = obj:Clone()
 			c.Parent = stash
@@ -24447,7 +24760,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	NAlib.disconnect("oldrbx_skyguard")
 	NAlib.connect("oldrbx_skyguard", Lighting.ChildRemoved:Connect(function(obj)
-		if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and not Lighting:FindFirstChild("NAOldRobloxSky") then
 			ensureSky()
 		end
@@ -24455,7 +24768,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 end)
 
 cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
-	if not Lighting:GetAttribute("NAOldRbx_Enabled") then return end
+	if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 
 	NAlib.disconnect("oldrbx_desc")
 	NAlib.disconnect("oldrbx_skywatch")
@@ -24477,16 +24790,16 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 			local node = rpop()
 			if not node then break end
 			if node.Parent then
-				if node:IsA("BasePart") and node:GetAttribute("NAOldRbx_Applied") then
+				if node:IsA("BasePart") and NAmanage.GetAttr(node, "NAOldRbx_Applied") then
 					local a = node:FindFirstChild("NAOldRobloxStud"); if a then a:Destroy() end
 					local b = node:FindFirstChild("NAOldRobloxInlet"); if b then b:Destroy() end
-					local matName = node:GetAttribute("NAOldRbx_OrigMatName")
+					local matName = NAmanage.GetAttr(node, "NAOldRbx_OrigMatName")
 					if typeof(matName) == "string" then
 						local mat = Enum.Material[matName]
 						if mat then pcall(function() node.Material = mat end) end
 					end
-					node:SetAttribute("NAOldRbx_Applied", nil)
-					node:SetAttribute("NAOldRbx_OrigMatName", nil)
+					NAmanage.SetAttr(node, "NAOldRbx_Applied", nil)
+					NAmanage.SetAttr(node, "NAOldRbx_OrigMatName", nil)
 					i += 1
 				end
 				for _,c in ipairs(node:GetChildren()) do
@@ -24513,20 +24826,20 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 				stash:Destroy()
 			end
 
-			local prevClock = Lighting:GetAttribute("NAOldRbx_PrevClockTime")
-			local prevShadows = Lighting:GetAttribute("NAOldRbx_PrevGlobalShadows")
+			local prevClock = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevClockTime")
+			local prevShadows = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevGlobalShadows")
 			if typeof(prevClock) == "number" then pcall(function() Lighting.ClockTime = prevClock end) end
 			if typeof(prevShadows) == "boolean" then pcall(function() Lighting.GlobalShadows = prevShadows end) end
-			if Lighting:GetAttribute("NAOldRbx_HadOutlines") then
-				local prevOut = Lighting:GetAttribute("NAOldRbx_PrevOutlines")
+			if NAmanage.GetAttr(Lighting, "NAOldRbx_HadOutlines") then
+				local prevOut = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevOutlines")
 				pcall(function() Lighting.Outlines = prevOut end)
 			end
 
-			Lighting:SetAttribute("NAOldRbx_Enabled", nil)
-			Lighting:SetAttribute("NAOldRbx_PrevClockTime", nil)
-			Lighting:SetAttribute("NAOldRbx_PrevGlobalShadows", nil)
-			Lighting:SetAttribute("NAOldRbx_HadOutlines", nil)
-			Lighting:SetAttribute("NAOldRbx_PrevOutlines", nil)
+			NAmanage.SetAttr(Lighting, "NAOldRbx_Enabled", nil)
+			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevClockTime", nil)
+			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevGlobalShadows", nil)
+			NAmanage.SetAttr(Lighting, "NAOldRbx_HadOutlines", nil)
+			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevOutlines", nil)
 		end
 	end))
 end)
@@ -32576,7 +32889,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		for _, btn in pairs(rows) do
 			local lbl = btn:FindFirstChild("NameLabel")
 			if lbl then
-				local uid = btn:GetAttribute("uid")
+				local uid = NAmanage.GetAttr(btn, "uid")
 				local plr = Players:GetPlayerByUserId(uid)
 				if plr == LocalPlayer then
 					lbl.TextColor3 = Color3.fromRGB(255,255,0)
@@ -32615,7 +32928,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		pb.BackgroundColor3 = Color3.fromRGB(40,40,40)
 		pb.AutoButtonColor = true
 		pb.Text = ""
-		pb:SetAttribute("uid", plr.UserId)
+		NAmanage.SetAttr(pb, "uid", plr.UserId)
 		local corner = InstanceNew("UICorner", pb) corner.CornerRadius = UDim.new(0, 10)
 		local stroke = InstanceNew("UIStroke", pb) stroke.Thickness = 1 stroke.Transparency = 0.6 stroke.Color = Color3.fromRGB(70,70,70)
 		local img = InstanceNew("ImageLabel", pb)
@@ -42841,71 +43154,148 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
-cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
-	NAStuff.HB = NAStuff.HB or {}
-
-	NAStuff.HB.P = NAStuff.HB.P or {
-		ps=setmetatable({}, {__mode="k"}),
-		og=setmetatable({}, {__mode="k"}),
-		ca=setmetatable({}, {__mode="k"}),
-		da=setmetatable({}, {__mode="k"}),
-		addConn=nil, remConn=nil,
-		run=nil, cfg=nil
+NAmanage.HB_Defaults=function()
+	return {
+		size = 10;
+		transparency = 0.9;
+		color = { R = 0; G = 0; B = 0 };
+		material = "Neon";
+		noCollide = true;
+		massless = true;
 	}
+end
 
-	NAStuff.HB.N = NAStuff.HB.N or {
-		ps=setmetatable({}, {__mode="k"}),
-		og=setmetatable({}, {__mode="k"}),
-		md=setmetatable({}, {__mode="k"}),
-		wc=nil,
-		run=nil, cfg=nil
-	}
+NAmanage.HB_Coerce=function(opts)
+	local base = NAmanage.HB_Defaults()
+	if type(opts) ~= "table" then
+		return base
+	end
+	if typeof(opts.color) == "Color3" then
+		base.color = { R = opts.color.R; G = opts.color.G; B = opts.color.B }
+	elseif type(opts.color) == "table" then
+		base.color = {
+			R = math.clamp(opts.color.R or opts.color.r or opts.color[1] or base.color.R, 0, 1);
+			G = math.clamp(opts.color.G or opts.color.g or opts.color[2] or base.color.G, 0, 1);
+			B = math.clamp(opts.color.B or opts.color.b or opts.color[3] or base.color.B, 0, 1);
+		}
+	end
+	base.size = math.clamp(tonumber(opts.size) or base.size, 0.1, 200)
+	base.transparency = math.clamp(tonumber(opts.transparency) or base.transparency, 0, 1)
+	if opts.material ~= nil then
+		base.material = NAmanage.HB_ResolveMaterial(opts.material)
+	end
+	base.noCollide = opts.noCollide ~= false
+	base.massless = opts.massless ~= false
+	return base
+end
 
-	local targets = getPlr(pArg)
-	if #targets==0 then DoNotif("No targets found",2) return end
-
-	local n = tonumber(sArg) or 10
-	local argL = Lower(pArg)
-	local npc = (argL=="npc")
-	local glb = (argL=="all" or argL=="others")
-
-	local function GetChar(t)
-		if typeof(t)=="Instance" and t:IsA("Player") then
-			return getPlrChar(t)
-		elseif typeof(t)=="Instance" and t:IsA("Model") then
-			return t
+NAmanage.HB_ColorFromOpt=function(opt)
+	if typeof(opt) == "Color3" then
+		return opt
+	end
+	if type(opt) == "table" then
+		local r = tonumber(opt.R or opt.r or opt[1])
+		local g = tonumber(opt.G or opt.g or opt[2])
+		local b = tonumber(opt.B or opt.b or opt[3])
+		if r and g and b then
+			return Color3.new(math.clamp(r, 0, 1), math.clamp(g, 0, 1), math.clamp(b, 0, 1))
 		end
 	end
+	return BrickColor.new("Really black").Color
+end
 
-	local partSet = {All=true}
-	for _,t in ipairs(targets) do
-		local c = GetChar(t)
-		if c then
-			for _,p in ipairs(c:GetChildren()) do
-				if p:IsA("BasePart") then
-					partSet[p.Name]=true
-				end
+NAmanage.HB_ResolveMaterial=function(matName)
+	local items = Enum.Material:GetEnumItems()
+	local defaultMat = "Neon"
+	if matName == nil then return defaultMat end
+	local input = tostring(matName)
+	if input == "" then return defaultMat end
+	local lowerInput = input:lower()
+
+	local bestName = nil
+	local bestScore = math.huge
+
+	local function score(name)
+		local lname = name:lower()
+		if lname == lowerInput then return 0 end
+		if lname:sub(1, #lowerInput) == lowerInput then return 1 end
+		if lname:find(lowerInput, 1, true) then return 2 end
+		return 3
+	end
+
+	for _, item in ipairs(items) do
+		local s = score(item.Name)
+		if s < bestScore or (s == bestScore and #item.Name < #(bestName or item.Name)) then
+			bestScore = s
+			bestName = item.Name
+			if s == 0 then
+				break
 			end
 		end
 	end
 
-	local btns = {}
-	for limb,_ in pairs(partSet) do
-		Insert(btns,{
-			Text = limb,
-			Callback = function()
-				local sz = Vector3.new(n,n,n)
-				local bc = BrickColor.new("Really black")
-				local mat = Enum.Material.Neon
-				local limbL = Lower(limb)
-				local isAll = (limb=="All")
+	return bestName or defaultMat
+end
 
-				local function MatchBp(bp)
-					if isAll then return true end
-					return Lower(bp.Name)==limbL
+NAStuff.HitboxOptions = NAmanage.HB_Coerce(NAStuff.HitboxOptions or (NAmanage.NASettingsGet and NAmanage.NASettingsGet("hitboxOptions")))
+
+function NAmanage.GetHitboxOpts()
+	NAStuff.HitboxOptions = NAmanage.HB_Coerce(NAStuff.HitboxOptions)
+	return NAStuff.HitboxOptions
+end
+
+function NAmanage.SetHitboxOpt(key, value)
+	local opts = NAmanage.HB_Coerce(NAStuff.HitboxOptions)
+	opts[key] = value
+	opts = NAmanage.HB_Coerce(opts)
+	NAStuff.HitboxOptions = opts
+	if NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "hitboxOptions", opts)
+	end
+	if NAmanage.HitboxUpdateActive then
+		NAmanage.HitboxUpdateActive(opts)
+	end
+	return opts
+end
+
+function NAmanage.HitboxUpdateActive(newOpts)
+	local opts = NAmanage.HB_Coerce(newOpts or NAmanage.GetHitboxOpts())
+	local function rescan(D)
+		if not (D and D.ps) then return end
+		for key,_ in pairs(D.ps) do
+			local ch = nil
+			if typeof(key) == "Instance" and key:IsA("Player") then
+				ch = getPlrChar(key)
+			elseif typeof(key) == "Instance" and key:IsA("Model") then
+				ch = key
+			end
+			if ch and ch.Parent then
+				for _,bp in ipairs(ch:GetChildren()) do
+					if bp:IsA("BasePart") then
+						D.ps[key] = D.ps[key] or setmetatable({}, {__mode="k"})
+						D.ps[key][bp] = true
+					end
 				end
-
-				local function Cache(D, key, bp)
+			end
+		end
+	end
+	local function updateCfg(D)
+		if not (D and D.cfg) then return end
+		rescan(D)
+		D.cfg.sz = Vector3.new(opts.size, opts.size, opts.size)
+		D.cfg.tr = opts.transparency
+		D.cfg.bc = BrickColor.new(NAmanage.HB_ColorFromOpt(opts.color))
+		D.cfg.mat = Enum.Material[NAmanage.HB_ResolveMaterial(opts.material or "Neon")] or Enum.Material.Neon
+		D.cfg.noCollide = opts.noCollide ~= false
+		D.cfg.massless = opts.massless ~= false
+		local function match(bp)
+			if not bp then return false end
+			if D.cfg.limb == "All" then return true end
+			return Lower(bp.Name) == D.cfg.limbL
+		end
+		for key, set in pairs(D.ps or {}) do
+			for bp,_ in pairs(set) do
+				if bp and bp.Parent and match(bp) then
 					D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
 					if not D.og[key][bp] then
 						D.og[key][bp] = {
@@ -42913,333 +43303,827 @@ cmd.add({"hitbox","hbox"},{"hitbox <player> {size}",""},function(pArg,sArg)
 							Material=bp.Material, CanCollide=bp.CanCollide, Massless=bp.Massless
 						}
 					end
-				end
-
-				local function ApplyBp(D, key, bp)
-					Cache(D, key, bp)
 					if bp.Size ~= D.cfg.sz then bp.Size = D.cfg.sz end
-					if bp.Transparency ~= 0.9 then bp.Transparency = 0.9 end
+					if bp.Transparency ~= D.cfg.tr then bp.Transparency = D.cfg.tr end
 					if bp.BrickColor ~= D.cfg.bc then bp.BrickColor = D.cfg.bc end
 					if bp.Material ~= D.cfg.mat then bp.Material = D.cfg.mat end
-					if bp.CanCollide then bp.CanCollide = false end
-					if not bp.Massless then bp.Massless = true end
-				end
-
-				if npc then
-					local D = NAStuff.HB.N
-
-					if D.run then D.run:Disconnect() D.run=nil end
-					if D.wc then D.wc:Disconnect() D.wc=nil end
-					for m,c in pairs(D.md) do
-						if c then c:Disconnect() end
-						D.md[m]=nil
-					end
-					for m,_ in pairs(D.ps) do
-						D.ps[m]=nil
-					end
-
-					D.cfg = {limb=limb, limbL=limbL, sz=sz, bc=bc, mat=mat}
-
-					local function Track(m, bp)
-						if not (bp and bp.Parent) then return end
-						if not bp:IsA("BasePart") then return end
-						if not MatchBp(bp) then return end
-						D.ps[m] = D.ps[m] or setmetatable({}, {__mode="k"})
-						D.ps[m][bp] = true
-						ApplyBp(D, m, bp)
-					end
-
-					local function Scan(m)
-						if not (m and m.Parent) then return end
-						for _,c in ipairs(m:GetChildren()) do
-							if c:IsA("BasePart") then
-								Track(m, c)
-							end
+					if D.cfg.noCollide then
+						if bp.CanCollide then bp.CanCollide = false end
+					else
+						local og = D.og[key][bp]
+						if og and bp.CanCollide ~= og.CanCollide then
+							bp.CanCollide = og.CanCollide
 						end
 					end
+					if D.cfg.massless then
+						if not bp.Massless then bp.Massless = true end
+					else
+						local og = D.og[key][bp]
+						if og and bp.Massless ~= og.Massless then
+							bp.Massless = og.Massless
+						end
+					end
+				end
+			end
+		end
+	end
+	updateCfg(NAStuff.HB and NAStuff.HB.P)
+	updateCfg(NAStuff.HB and NAStuff.HB.N)
+end
 
+cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
+	NAStuff.HB = NAStuff.HB or {};
+	NAStuff.HB.P = NAStuff.HB.P or {
+		ps = setmetatable({}, {
+			__mode = "k"
+		}),
+		og = setmetatable({}, {
+			__mode = "k"
+		}),
+		ca = setmetatable({}, {
+			__mode = "k"
+		}),
+		da = setmetatable({}, {
+			__mode = "k"
+		}),
+		ac = setmetatable({}, {
+			__mode = "k"
+		}),
+		addConn = nil,
+		remConn = nil,
+		run = nil,
+		cfg = nil
+	};
+	NAStuff.HB.N = NAStuff.HB.N or {
+		ps = setmetatable({}, {
+			__mode = "k"
+		}),
+		og = setmetatable({}, {
+			__mode = "k"
+		}),
+		md = setmetatable({}, {
+			__mode = "k"
+		}),
+		ac = setmetatable({}, {
+			__mode = "k"
+		}),
+		wc = nil,
+		run = nil,
+		cfg = nil
+	};
+	local targets = getPlr(pArg);
+	local hbOpts = NAmanage.GetHitboxOpts();
+	local n = tonumber(sArg) or hbOpts.size or 10;
+	local argL = Lower(pArg);
+	local npc = argL == "npc";
+	local glb = argL == "all" or argL == "others";
+	local allowEmpty = npc or glb;
+	if #targets == 0 and (not allowEmpty) then
+		DoNotif("No targets found", 2);
+		return;
+	end;
+	local defaultTransparency = math.clamp(tonumber(hbOpts.transparency) or 0.9, 0, 1);
+	local defaultColor = NAmanage.HB_ColorFromOpt(hbOpts.color);
+	local defaultMaterial = Enum.Material[NAmanage.HB_ResolveMaterial(hbOpts.material or "Neon")] or Enum.Material.Neon;
+	local defaultNoCollide = hbOpts.noCollide ~= false;
+	local defaultMassless = hbOpts.massless ~= false;
+	local function GetChar(t)
+		if typeof(t) == "Instance" and t:IsA("Player") then
+			return getPlrChar(t);
+		elseif typeof(t) == "Instance" and t:IsA("Model") then
+			return t;
+		end;
+	end;
+	local partSet = {
+		All = true
+	};
+	if #targets == 0 then
+		local defaults = {
+			"Head",
+			"UpperTorso",
+			"LowerTorso",
+			"Torso",
+			"LeftUpperArm",
+			"LeftLowerArm",
+			"LeftHand",
+			"RightUpperArm",
+			"RightLowerArm",
+			"RightHand",
+			"LeftUpperLeg",
+			"LeftLowerLeg",
+			"LeftFoot",
+			"RightUpperLeg",
+			"RightLowerLeg",
+			"RightFoot"
+		};
+		for _, limb in ipairs(defaults) do
+			partSet[limb] = true;
+		end;
+	end;
+	for _, t in ipairs(targets) do
+		local c = GetChar(t);
+		if c then
+			for _, p in ipairs(c:GetChildren()) do
+				if p:IsA("BasePart") then
+					partSet[p.Name] = true;
+				end;
+			end;
+		end;
+	end;
+	local btns = {};
+	for limb, _ in pairs(partSet) do
+		Insert(btns, {
+			Text = limb,
+			Callback = function()
+				local sz = Vector3.new(n, n, n);
+				local bc = BrickColor.new(defaultColor);
+				local mat = defaultMaterial;
+				local limbL = Lower(limb);
+				local isAll = limb == "All";
+				local function MatchBp(bp)
+					if isAll then
+						return true;
+					end;
+					return Lower(bp.Name) == limbL;
+				end;
+				local function Cache(D, key, bp)
+					D.og[key] = D.og[key] or setmetatable({}, {
+						__mode = "k"
+					});
+					if not D.og[key][bp] then
+						D.og[key][bp] = {
+							Size = bp.Size,
+							Transparency = bp.Transparency,
+							BrickColor = bp.BrickColor,
+							Material = bp.Material,
+							CanCollide = bp.CanCollide,
+							Massless = bp.Massless
+						};
+					end;
+					if not NAmanage.GetAttr(bp, "NAHB_HasOrig") then
+						local c = bp.BrickColor.Color;
+						NAmanage.SetAttr(bp, "NAHB_HasOrig", true);
+						NAmanage.SetAttr(bp, "NAHB_OSizeX", bp.Size.X);
+						NAmanage.SetAttr(bp, "NAHB_OSizeY", bp.Size.Y);
+						NAmanage.SetAttr(bp, "NAHB_OSizeZ", bp.Size.Z);
+						NAmanage.SetAttr(bp, "NAHB_OTransparency", bp.Transparency);
+						NAmanage.SetAttr(bp, "NAHB_OColorR", c.R);
+						NAmanage.SetAttr(bp, "NAHB_OColorG", c.G);
+						NAmanage.SetAttr(bp, "NAHB_OColorB", c.B);
+						NAmanage.SetAttr(bp, "NAHB_OMaterial", bp.Material.Name);
+						NAmanage.SetAttr(bp, "NAHB_OCanCollide", bp.CanCollide);
+						NAmanage.SetAttr(bp, "NAHB_OMassless", bp.Massless);
+					end;
+				end;
+				local function ApplyBp(D, key, bp)
+					Cache(D, key, bp);
+					local og = D.og[key] and D.og[key][bp] or nil;
+					if bp.Size ~= D.cfg.sz then
+						bp.Size = D.cfg.sz;
+					end;
+					if bp.Transparency ~= D.cfg.tr then
+						bp.Transparency = D.cfg.tr;
+					end;
+					if bp.BrickColor ~= D.cfg.bc then
+						bp.BrickColor = D.cfg.bc;
+					end;
+					if bp.Material ~= D.cfg.mat then
+						bp.Material = D.cfg.mat;
+					end;
+					if D.cfg.noCollide then
+						if bp.CanCollide then
+							bp.CanCollide = false;
+						end;
+					elseif og and bp.CanCollide ~= og.CanCollide then
+						bp.CanCollide = og.CanCollide;
+					end;
+					if D.cfg.massless then
+						if not bp.Massless then
+							bp.Massless = true;
+						end;
+					elseif og and bp.Massless ~= og.Massless then
+						bp.Massless = og.Massless;
+					end;
+				end;
+				if npc then
+					local D = NAStuff.HB.N;
+					if D.run then
+						D.run:Disconnect();
+						D.run = nil;
+					end;
+					if D.wc then
+						D.wc:Disconnect();
+						D.wc = nil;
+					end;
+					for m, c in pairs(D.md) do
+						if c then
+							c:Disconnect();
+						end;
+						D.md[m] = nil;
+					end;
+					for m, c in pairs(D.ac) do
+						if c then
+							c:Disconnect();
+						end;
+						D.ac[m] = nil;
+					end;
+					for m, _ in pairs(D.ps) do
+						D.ps[m] = nil;
+					end;
+					D.cfg = {
+						limb = limb,
+						limbL = limbL,
+						sz = sz,
+						bc = bc,
+						mat = mat,
+						tr = defaultTransparency,
+						noCollide = defaultNoCollide,
+						massless = defaultMassless
+					};
+					local function Track(m, bp)
+						if not (bp and bp.Parent) then
+							return;
+						end;
+						if not bp:IsA("BasePart") then
+							return;
+						end;
+						if not MatchBp(bp) then
+							return;
+						end;
+						D.ps[m] = D.ps[m] or setmetatable({}, {
+							__mode = "k"
+						});
+						D.ps[m][bp] = true;
+						ApplyBp(D, m, bp);
+					end;
+					local function Scan(m)
+						if not (m and m.Parent) then
+							return;
+						end;
+						for _, c in ipairs(m:GetChildren()) do
+							if c:IsA("BasePart") then
+								Track(m, c);
+							end;
+						end;
+					end;
 					local function Setup(m)
-						if not (m and m.Parent) then return end
-						if D.md[m] then D.md[m]:Disconnect() end
+						if not (m and m.Parent) then
+							return;
+						end;
+						if D.md[m] then
+							D.md[m]:Disconnect();
+						end;
 						D.md[m] = m.DescendantAdded:Connect(function(inst)
 							if inst and inst:IsA("BasePart") then
-								Track(m, inst)
-							end
-						end)
-						Scan(m)
-					end
-
+								Track(m, inst);
+							end;
+						end);
+						if D.ac[m] then
+							D.ac[m]:Disconnect();
+						end;
+						D.ac[m] = m.AncestryChanged:Connect(function(_, parent)
+							if not D.cfg then
+								return;
+							end;
+							if parent and workspace and m:IsDescendantOf(workspace) then
+								Defer(function()
+									Scan(m);
+								end);
+							end;
+						end);
+						Scan(m);
+					end;
 					local function IsNPC(inst)
-						if inst and inst:IsA("Model") and CheckIfNPC(inst) then return inst end
-						local m = inst and inst:FindFirstAncestorWhichIsA("Model") or nil
-						if m and CheckIfNPC(m) then return m end
-						return nil
-					end
-
-					for _,t in ipairs(targets) do
-						local m = GetChar(t)
-						if m then Setup(m) end
-					end
-
+						if inst and inst:IsA("Model") and CheckIfNPC(inst) then
+							return inst;
+						end;
+						local m = inst and inst:FindFirstAncestorWhichIsA("Model") or nil;
+						if m and CheckIfNPC(m) then
+							return m;
+						end;
+						return nil;
+					end;
+					for _, t in ipairs(targets) do
+						local m = GetChar(t);
+						if m then
+							Setup(m);
+						end;
+					end;
 					D.wc = workspace.DescendantAdded:Connect(function(inst)
-						local m = IsNPC(inst)
+						local m = IsNPC(inst);
 						if m then
 							Defer(function()
 								if not D.md[m] then
-									Setup(m)
-								end
-							end)
-						end
-					end)
-
-					local acc = 0
-					local acc2 = 0
+									Setup(m);
+								end;
+							end);
+						end;
+					end);
+					local acc = 0;
+					local acc2 = 0;
 					D.run = RunService.Heartbeat:Connect(function(dt)
-						acc += dt
-						acc2 += dt
-
+						acc += dt;
+						acc2 += dt;
 						if acc >= 0.45 then
-							acc = 0
-							for m,set in pairs(D.ps) do
+							acc = 0;
+							for m, c in pairs(D.md) do
 								if not (m and m.Parent) then
-									D.ps[m]=nil
-									D.og[m]=nil
+									if c then
+										c:Disconnect();
+									end;
+									D.md[m] = nil;
+									if D.ac[m] then
+										D.ac[m]:Disconnect();
+										D.ac[m] = nil;
+									end;
+									D.ps[m] = nil;
+									D.og[m] = nil;
+								end;
+							end;
+							for m, set in pairs(D.ps) do
+								if not (m and m.Parent) then
+									D.ps[m] = nil;
+									D.og[m] = nil;
+									if D.md[m] then
+										D.md[m]:Disconnect();
+										D.md[m] = nil;
+									end;
+									if D.ac[m] then
+										D.ac[m]:Disconnect();
+										D.ac[m] = nil;
+									end;
 								else
-									for bp,_ in pairs(set) do
+									for bp, _ in pairs(set) do
 										if not (bp and bp.Parent) then
-											set[bp]=nil
-										else
-											if MatchBp(bp) then
-												ApplyBp(D, m, bp)
-											end
-										end
-									end
-								end
-							end
-						end
-
+											set[bp] = nil;
+										elseif MatchBp(bp) then
+											ApplyBp(D, m, bp);
+										end;
+									end;
+								end;
+							end;
+						end;
 						if acc2 >= 1.2 then
-							acc2 = 0
-							for _,ch in ipairs(workspace:GetChildren()) do
-								if ch:IsA("Model") and CheckIfNPC(ch) and not D.md[ch] then
-									Setup(ch)
-								end
-							end
-						end
-					end)
-
+							acc2 = 0;
+							for _, ch in ipairs(workspace:GetChildren()) do
+								if ch:IsA("Model") and CheckIfNPC(ch) and (not D.md[ch]) then
+									Setup(ch);
+								end;
+							end;
+						end;
+					end);
 				else
-					local D = NAStuff.HB.P
-
-					if D.run then D.run:Disconnect() D.run=nil end
-					if D.addConn then D.addConn:Disconnect() D.addConn=nil end
-					if D.remConn then D.remConn:Disconnect() D.remConn=nil end
-					for k,c in pairs(D.ca) do
-						if c then c:Disconnect() end
-						D.ca[k]=nil
-					end
-					for k,c in pairs(D.da) do
-						if c then c:Disconnect() end
-						D.da[k]=nil
-					end
-					for k,_ in pairs(D.ps) do
-						D.ps[k]=nil
-					end
-
-					D.cfg = {limb=limb, limbL=limbL, sz=sz, bc=bc, mat=mat}
-
+					local D = NAStuff.HB.P;
+					if D.run then
+						D.run:Disconnect();
+						D.run = nil;
+					end;
+					if D.addConn then
+						D.addConn:Disconnect();
+						D.addConn = nil;
+					end;
+					if D.remConn then
+						D.remConn:Disconnect();
+						D.remConn = nil;
+					end;
+					for k, c in pairs(D.ca) do
+						if c then
+							c:Disconnect();
+						end;
+						D.ca[k] = nil;
+					end;
+					for k, c in pairs(D.da) do
+						if c then
+							c:Disconnect();
+						end;
+						D.da[k] = nil;
+					end;
+					for k, c in pairs(D.ac) do
+						if c then
+							c:Disconnect();
+						end;
+						D.ac[k] = nil;
+					end;
+					for k, _ in pairs(D.ps) do
+						D.ps[k] = nil;
+					end;
+					D.cfg = {
+						limb = limb,
+						limbL = limbL,
+						sz = sz,
+						bc = bc,
+						mat = mat,
+						tr = defaultTransparency,
+						noCollide = defaultNoCollide,
+						massless = defaultMassless
+					};
 					local function Track(k, bp)
-						if not (bp and bp.Parent) then return end
-						if not bp:IsA("BasePart") then return end
-						if not MatchBp(bp) then return end
-						D.ps[k] = D.ps[k] or setmetatable({}, {__mode="k"})
-						D.ps[k][bp] = true
-						ApplyBp(D, k, bp)
-					end
-
+						if not (bp and bp.Parent) then
+							return;
+						end;
+						if not bp:IsA("BasePart") then
+							return;
+						end;
+						if not MatchBp(bp) then
+							return;
+						end;
+						D.ps[k] = D.ps[k] or setmetatable({}, {
+							__mode = "k"
+						});
+						D.ps[k][bp] = true;
+						ApplyBp(D, k, bp);
+					end;
 					local function Scan(k, ch)
-						if not (ch and ch.Parent) then return end
-						for _,c in ipairs(ch:GetChildren()) do
+						if not (ch and ch.Parent) then
+							return;
+						end;
+						for _, c in ipairs(ch:GetChildren()) do
 							if c:IsA("BasePart") then
-								Track(k, c)
-							end
-						end
-					end
-
+								Track(k, c);
+							end;
+						end;
+					end;
 					local function SetupChar(k, ch)
-						if D.da[k] then D.da[k]:Disconnect() end
+						if D.da[k] then
+							D.da[k]:Disconnect();
+						end;
 						D.da[k] = ch.DescendantAdded:Connect(function(inst)
 							if inst and inst:IsA("BasePart") then
-								Track(k, inst)
-							end
-						end)
-						Scan(k, ch)
-					end
-
+								Track(k, inst);
+							end;
+						end);
+						if D.ac[k] then
+							D.ac[k]:Disconnect();
+						end;
+						D.ac[k] = ch.AncestryChanged:Connect(function(_, parent)
+							if not D.cfg then
+								return;
+							end;
+							if parent and workspace and ch:IsDescendantOf(workspace) then
+								Defer(function()
+									local cc = GetChar(k);
+									if cc then
+										Scan(k, cc);
+									end;
+								end);
+							end;
+						end);
+						Scan(k, ch);
+					end;
 					local function SetupKey(k)
-						local ch = GetChar(k)
-						if ch then SetupChar(k, ch) end
-						if typeof(k)=="Instance" and k:IsA("Player") and k.CharacterAdded then
-							if D.ca[k] then D.ca[k]:Disconnect() end
+						local ch = GetChar(k);
+						if ch then
+							SetupChar(k, ch);
+						end;
+						if typeof(k) == "Instance" and k:IsA("Player") and k.CharacterAdded then
+							if D.ca[k] then
+								D.ca[k]:Disconnect();
+							end;
 							D.ca[k] = k.CharacterAdded:Connect(function(c)
 								Defer(function()
-									if c then SetupChar(k, c) end
-								end)
-							end)
-						end
-					end
-
-					for _,t in ipairs(targets) do
-						SetupKey(t)
-					end
-
+									if c then
+										SetupChar(k, c);
+									end;
+								end);
+							end);
+						end;
+						Defer(function()
+							local cc = GetChar(k);
+							if cc then
+								Scan(k, cc);
+							end;
+						end);
+					end;
+					for _, t in ipairs(targets) do
+						SetupKey(t);
+					end;
 					if glb then
 						D.addConn = Players.PlayerAdded:Connect(function(plr)
-							SetupKey(plr)
-						end)
+							SetupKey(plr);
+						end);
 						D.remConn = Players.PlayerRemoving:Connect(function(plr)
-							if D.ca[plr] then D.ca[plr]:Disconnect() D.ca[plr]=nil end
-							if D.da[plr] then D.da[plr]:Disconnect() D.da[plr]=nil end
-							D.ps[plr]=nil
-							D.og[plr]=nil
-						end)
-					end
-
-					local acc = 0
+							if D.ca[plr] then
+								D.ca[plr]:Disconnect();
+								D.ca[plr] = nil;
+							end;
+							if D.da[plr] then
+								D.da[plr]:Disconnect();
+								D.da[plr] = nil;
+							end;
+							if D.ac[plr] then
+								D.ac[plr]:Disconnect();
+								D.ac[plr] = nil;
+							end;
+							D.ps[plr] = nil;
+							D.og[plr] = nil;
+						end);
+					end;
+					local acc = 0;
 					D.run = RunService.Heartbeat:Connect(function(dt)
-						acc += dt
-						if acc < 0.45 then return end
-						acc = 0
-
-						for k,set in pairs(D.ps) do
-							local ch = GetChar(k)
+						acc += dt;
+						if acc < 0.45 then
+							return;
+						end;
+						acc = 0;
+						for k, set in pairs(D.ps) do
+							local ch = GetChar(k);
 							if not (ch and ch.Parent) then
-								D.ps[k]=nil
+								D.ps[k] = nil;
 							else
-								for bp,_ in pairs(set) do
+								for bp, _ in pairs(set) do
 									if not (bp and bp.Parent) then
-										set[bp]=nil
-									else
-										if MatchBp(bp) then
-											ApplyBp(D, k, bp)
-										end
-									end
-								end
-							end
-						end
-					end)
-				end
+										set[bp] = nil;
+									elseif MatchBp(bp) then
+										ApplyBp(D, k, bp);
+									end;
+								end;
+							end;
+						end;
+					end);
+				end;
 			end
-		})
+		});
+	end;
+	Window({
+		Title = "Hitbox Menu",
+		Description = "Choose limb to resize",
+		Buttons = btns
+	});
+end, true);
+
+cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
+	NAStuff.HB = NAStuff.HB or {}
+	NAStuff.HB.P = NAStuff.HB.P or {
+		ps = setmetatable({}, { __mode = "k" }),
+		og = setmetatable({}, { __mode = "k" }),
+		ca = setmetatable({}, { __mode = "k" }),
+		da = setmetatable({}, { __mode = "k" }),
+		ac = setmetatable({}, { __mode = "k" }),
+		addConn = nil,
+		remConn = nil,
+		run = nil,
+		cfg = nil
+	}
+	NAStuff.HB.N = NAStuff.HB.N or {
+		ps = setmetatable({}, { __mode = "k" }),
+		og = setmetatable({}, { __mode = "k" }),
+		md = setmetatable({}, { __mode = "k" }),
+		ac = setmetatable({}, { __mode = "k" }),
+		wc = nil,
+		run = nil,
+		cfg = nil
+	}
+
+	local Players = game:GetService("Players")
+
+	local argL = pArg and Lower(pArg) or ""
+	local targets = getPlr(pArg)
+	local npc = argL == "npc"
+	local glb = argL == "" or argL == "all" or argL == "others"
+	local allowEmpty = npc or glb
+
+	if #targets == 0 and not allowEmpty then
+		DoNotif("No targets found", 2)
+		return
 	end
 
-	Window({Title="Hitbox Menu",Description="Choose limb to resize",Buttons=btns})
-end,true)
+	local function RestorePart(bp, pr)
+		if not (bp and bp.Parent) then
+			return
+		end
 
-cmd.add({"unhitbox","unhbox"},{"unhitbox <player>",""},function(pArg)
-	NAStuff.HB = NAStuff.HB or {}
+		local sx = NAmanage.GetAttr(bp, "NAHB_OSizeX")
+		local sy = NAmanage.GetAttr(bp, "NAHB_OSizeY")
+		local sz = NAmanage.GetAttr(bp, "NAHB_OSizeZ")
+		if sx and sy and sz then
+			bp.Size = Vector3.new(sx, sy, sz)
+		elseif pr and pr.Size then
+			bp.Size = pr.Size
+		end
 
-	NAStuff.HB.P = NAStuff.HB.P or {
-		ps=setmetatable({}, {__mode="k"}),
-		og=setmetatable({}, {__mode="k"}),
-		ca=setmetatable({}, {__mode="k"}),
-		da=setmetatable({}, {__mode="k"}),
-		addConn=nil, remConn=nil,
-		run=nil, cfg=nil
-	}
+		local tr = NAmanage.GetAttr(bp, "NAHB_OTransparency")
+		if tr ~= nil then
+			bp.Transparency = tr
+		elseif pr and pr.Transparency ~= nil then
+			bp.Transparency = pr.Transparency
+		end
 
-	NAStuff.HB.N = NAStuff.HB.N or {
-		ps=setmetatable({}, {__mode="k"}),
-		og=setmetatable({}, {__mode="k"}),
-		md=setmetatable({}, {__mode="k"}),
-		wc=nil,
-		run=nil, cfg=nil
-	}
+		local cr = NAmanage.GetAttr(bp, "NAHB_OColorR")
+		local cg = NAmanage.GetAttr(bp, "NAHB_OColorG")
+		local cb = NAmanage.GetAttr(bp, "NAHB_OColorB")
+		if cr and cg and cb then
+			bp.BrickColor = BrickColor.new(Color3.new(cr, cg, cb))
+		elseif pr and pr.BrickColor then
+			bp.BrickColor = pr.BrickColor
+		end
 
-	local targets = getPlr(pArg)
-	if #targets==0 then DoNotif("No targets found",2) return end
+		local matName = NAmanage.GetAttr(bp, "NAHB_OMaterial")
+		if matName then
+			local em = Enum.Material[matName]
+			if em then
+				bp.Material = em
+			end
+		elseif pr and pr.Material then
+			bp.Material = pr.Material
+		end
 
-	local argL = Lower(pArg)
-	local npc = (argL=="npc")
-	local glb = (argL=="all" or argL=="others")
+		local cc = NAmanage.GetAttr(bp, "NAHB_OCanCollide")
+		if cc ~= nil then
+			bp.CanCollide = cc
+		elseif pr and pr.CanCollide ~= nil then
+			bp.CanCollide = pr.CanCollide
+		end
+
+		local ml = NAmanage.GetAttr(bp, "NAHB_OMassless")
+		if ml ~= nil then
+			bp.Massless = ml
+		elseif pr and pr.Massless ~= nil then
+			bp.Massless = pr.Massless
+		end
+
+		NAmanage.SetAttr(bp, "NAHB_HasOrig", nil)
+		NAmanage.SetAttr(bp, "NAHB_OSizeX", nil)
+		NAmanage.SetAttr(bp, "NAHB_OSizeY", nil)
+		NAmanage.SetAttr(bp, "NAHB_OSizeZ", nil)
+		NAmanage.SetAttr(bp, "NAHB_OTransparency", nil)
+		NAmanage.SetAttr(bp, "NAHB_OColorR", nil)
+		NAmanage.SetAttr(bp, "NAHB_OColorG", nil)
+		NAmanage.SetAttr(bp, "NAHB_OColorB", nil)
+		NAmanage.SetAttr(bp, "NAHB_OMaterial", nil)
+		NAmanage.SetAttr(bp, "NAHB_OCanCollide", nil)
+		NAmanage.SetAttr(bp, "NAHB_OMassless", nil)
+	end
+
+	local function RestoreMap(mp)
+		for bp, pr in pairs(mp) do
+			RestorePart(bp, pr)
+		end
+	end
 
 	local function GetChar(t)
-		if typeof(t)=="Instance" and t:IsA("Player") then
+		if typeof(t) == "Instance" and t:IsA("Player") then
 			return getPlrChar(t)
-		elseif typeof(t)=="Instance" and t:IsA("Model") then
+		elseif typeof(t) == "Instance" and t:IsA("Model") then
 			return t
 		end
 	end
 
-	local function RestoreMap(mp)
-		for bp,pr in pairs(mp) do
-			if bp and bp.Parent then
-				bp.Size = pr.Size
-				bp.Transparency = pr.Transparency
-				bp.BrickColor = pr.BrickColor
-				bp.Material = pr.Material
-				bp.CanCollide = pr.CanCollide
-				bp.Massless = pr.Massless
+	local function restoreEntryPlayer(D, k)
+		local ch = GetChar(k)
+		if ch and ch.Parent then
+			local mp = D.og[k]
+			for _, bp in ipairs(ch:GetDescendants()) do
+				if bp:IsA("BasePart") then
+					local pr = mp and mp[bp] or nil
+					RestorePart(bp, pr)
+				end
+			end
+		elseif D.og[k] then
+			RestoreMap(D.og[k])
+		end
+		D.og[k] = nil
+		D.ps[k] = nil
+		if D.ca[k] then
+			D.ca[k]:Disconnect()
+			D.ca[k] = nil
+		end
+		if D.da[k] then
+			D.da[k]:Disconnect()
+			D.da[k] = nil
+		end
+		if D.ac[k] then
+			D.ac[k]:Disconnect()
+			D.ac[k] = nil
+		end
+	end
+
+	local function restoreEntryNPC(D, k)
+		local ch = GetChar(k)
+		if ch and ch.Parent then
+			local mp = D.og[k]
+			for _, bp in ipairs(ch:GetDescendants()) do
+				if bp:IsA("BasePart") then
+					local pr = mp and mp[bp] or nil
+					RestorePart(bp, pr)
+				end
+			end
+		elseif D.og[k] then
+			RestoreMap(D.og[k])
+		end
+		D.og[k] = nil
+		D.ps[k] = nil
+	end
+
+	local function cleanupPlayers(D)
+		local any = false
+		for _ in pairs(D.ps) do
+			any = true
+			break
+		end
+		if any then
+			return
+		end
+		for _, c in pairs(D.ca) do
+			if c then
+				c:Disconnect()
 			end
 		end
+		for _, c in pairs(D.da) do
+			if c then
+				c:Disconnect()
+			end
+		end
+		for _, c in pairs(D.ac) do
+			if c then
+				c:Disconnect()
+			end
+		end
+		D.ca = setmetatable({}, { __mode = "k" })
+		D.da = setmetatable({}, { __mode = "k" })
+		D.ac = setmetatable({}, { __mode = "k" })
+		if D.addConn then
+			D.addConn:Disconnect()
+			D.addConn = nil
+		end
+		if D.remConn then
+			D.remConn:Disconnect()
+			D.remConn = nil
+		end
+		if D.run then
+			D.run:Disconnect()
+			D.run = nil
+		end
+		D.cfg = nil
+	end
+
+	local function cleanupNPC(D)
+		local any = false
+		for _ in pairs(D.ps) do
+			any = true
+			break
+		end
+		if any then
+			return
+		end
+		for _, c in pairs(D.md) do
+			if c then
+				c:Disconnect()
+			end
+		end
+		for _, c in pairs(D.ac) do
+			if c then
+				c:Disconnect()
+			end
+		end
+		D.md = setmetatable({}, { __mode = "k" })
+		D.ac = setmetatable({}, { __mode = "k" })
+		if D.wc then
+			D.wc:Disconnect()
+			D.wc = nil
+		end
+		if D.run then
+			D.run:Disconnect()
+			D.run = nil
+		end
+		D.cfg = nil
 	end
 
 	if npc then
 		local D = NAStuff.HB.N
-
-		for m,mp in pairs(D.og) do
-			if mp then RestoreMap(mp) end
+		for k in pairs(D.og) do
+			restoreEntryNPC(D, k)
 		end
-
-		for m,c in pairs(D.md) do
-			if c then c:Disconnect() end
-			D.md[m]=nil
+		for _, t in ipairs(targets) do
+			restoreEntryNPC(D, t)
 		end
-
-		if D.wc then D.wc:Disconnect() D.wc=nil end
-		if D.run then D.run:Disconnect() D.run=nil end
-
-		for m,_ in pairs(D.ps) do D.ps[m]=nil end
-		for m,_ in pairs(D.og) do D.og[m]=nil end
-		D.cfg = nil
+		cleanupNPC(D)
 		return
 	end
 
 	local D = NAStuff.HB.P
-
-	for _,t in ipairs(targets) do
-		local k = t
-		local ch = GetChar(k)
-
-		if D.og[k] then
-			RestoreMap(D.og[k])
-			D.og[k]=nil
-		end
-
-		if D.ps[k] then D.ps[k]=nil end
-		if D.ca[k] then D.ca[k]:Disconnect() D.ca[k]=nil end
-		if D.da[k] then D.da[k]:Disconnect() D.da[k]=nil end
-
-		if typeof(k)=="Instance" and k:IsA("Model") and ch==k then
-			if D.og[k] then
-				RestoreMap(D.og[k])
-				D.og[k]=nil
-			end
-		end
-	end
+	local lp = Players.LocalPlayer
 
 	if glb then
-		if D.addConn then D.addConn:Disconnect() D.addConn=nil end
-		if D.remConn then D.remConn:Disconnect() D.remConn=nil end
+		if argL == "others" then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= lp then
+					restoreEntryPlayer(D, plr)
+				end
+			end
+		else
+			for _, plr in ipairs(Players:GetPlayers()) do
+				restoreEntryPlayer(D, plr)
+			end
+		end
+		cleanupPlayers(D)
+		return
 	end
 
-	local any = false
-	for k,_ in pairs(D.ps) do any = true break end
-	if not any then
-		if D.run then D.run:Disconnect() D.run=nil end
-		D.cfg = nil
+	for _, t in ipairs(targets) do
+		restoreEntryPlayer(D, t)
 	end
-end,true)
+	cleanupPlayers(D)
+end, true)
 
 NAStuff.PST = {
 	orig   = {},
@@ -47661,7 +48545,7 @@ NAmanage.registerElementForCurrentTab = function(instance)
 		NAStuff.elementOriginalParent[instance] = instance.Parent;
 	end;
 	pcall(function()
-		instance:SetAttribute("NAOriginalTab", currentName);
+		NAmanage.SetAttr(instance, "NAOriginalTab", currentName);
 	end);
 end;
 NAmanage.clearAllTabWrappers = function(page)
@@ -47669,19 +48553,19 @@ NAmanage.clearAllTabWrappers = function(page)
 		return;
 	end;
 	for _, child in ipairs(page:GetChildren()) do
-		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+		if child:IsA("GuiObject") and NAmanage.GetAttr(child, "NAAllWrapper") then
 			for _, element in ipairs(child:GetChildren()) do
 				if element:IsA("GuiObject") then
 					local originalParent = NAStuff.elementOriginalParent[element];
 					if not originalParent then
-						local originalTab = element:GetAttribute("NAOriginalTab");
+						local originalTab = NAmanage.GetAttr(element, "NAOriginalTab");
 						if originalTab and TabManager.tabs then
 							local info = TabManager.tabs[originalTab];
 							originalParent = info and info.page;
 						end;
 					end;
 					originalParent = originalParent or page;
-					local origOrder = element:GetAttribute("NAOrigOrder");
+					local origOrder = NAmanage.GetAttr(element, "NAOrigOrder");
 					if typeof(origOrder) == "number" then
 						element.LayoutOrder = origOrder;
 					end;
@@ -47706,7 +48590,7 @@ NAmanage.collectTabElements = function(tabInfo, tabName)
 		return elements;
 	end;
 	for _, child in ipairs(tabInfo.page:GetChildren()) do
-		if child:IsA("GuiObject") and (not child:GetAttribute("NAAllWrapper")) and (not child:IsA("UIListLayout")) and (not child:IsA("UIPadding")) and (not child:IsA("UIPageLayout")) then
+		if child:IsA("GuiObject") and (not NAmanage.GetAttr(child, "NAAllWrapper")) and (not child:IsA("UIListLayout")) and (not child:IsA("UIPadding")) and (not child:IsA("UIPageLayout")) then
 			Insert(elements, child);
 		end;
 	end;
@@ -47719,7 +48603,7 @@ NAmanage.collectTabElements = function(tabInfo, tabName)
 			NAStuff.elementOriginalParent[element] = tabInfo.page;
 		end;
 		pcall(function()
-			element:SetAttribute("NAOriginalTab", tabName);
+			NAmanage.SetAttr(element, "NAOriginalTab", tabName);
 		end);
 	end;
 	return elements;
@@ -47750,7 +48634,7 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 	merged.Size = UDim2.new(1, 0, 0, 0);
 	merged.AutomaticSize = Enum.AutomaticSize.Y;
 	merged.LayoutOrder = -1;
-	merged:SetAttribute("NAAllWrapper", true);
+	NAmanage.SetAttr(merged, "NAAllWrapper", true);
 	merged.Parent = page;
 	local ml = InstanceNew("UIListLayout");
 	ml.FillDirection = Enum.FillDirection.Vertical;
@@ -47764,8 +48648,8 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 			if tabInfo and tabInfo.page then
 				local elements = NAmanage.collectTabElements(tabInfo, tabName);
 				for _, element in ipairs(elements) do
-					if element:GetAttribute("NAOrigOrder") == nil then
-						element:SetAttribute("NAOrigOrder", element.LayoutOrder or 0);
+					if NAmanage.GetAttr(element, "NAOrigOrder") == nil then
+						NAmanage.SetAttr(element, "NAOrigOrder", element.LayoutOrder or 0);
 					end;
 					element.LayoutOrder = cursor;
 					cursor += 1;
@@ -47881,7 +48765,7 @@ function NAmanage.SetSearch.scan(handler)
 	end;
 	local root = list;
 	for _, child in ipairs(list:GetChildren()) do
-		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+		if child:IsA("GuiObject") and NAmanage.GetAttr(child, "NAAllWrapper") then
 			root = child;
 			break;
 		end;
@@ -47901,15 +48785,15 @@ function NAmanage.SetSearch.tag(element, labelText)
 	end;
 	local cleaned = NAmanage.SetSearch.clean(labelText);
 	pcall(function()
-		element:SetAttribute("NASearchLabel", labelText);
-		element:SetAttribute("NASearchText", cleaned);
+		NAmanage.SetAttr(element, "NASearchLabel", labelText);
+		NAmanage.SetAttr(element, "NASearchText", cleaned);
 	end);
 end;
 function NAmanage.SetSearch.label(element)
 	if not element then
 		return "";
 	end;
-	local stored = element:GetAttribute("NASearchLabel");
+	local stored = NAmanage.GetAttr(element, "NASearchLabel");
 	if type(stored) == "string" and stored ~= "" then
 		return stored;
 	end;
@@ -47944,7 +48828,7 @@ function NAmanage.SetSearch.info(element)
 	end;
 	local cleaned = NAmanage.SetSearch.clean(rawText);
 	pcall(function()
-		element:SetAttribute("NASearchText", cleaned);
+		NAmanage.SetAttr(element, "NASearchText", cleaned);
 	end);
 	return cleaned;
 end;
@@ -48015,7 +48899,7 @@ function NAmanage.SetSearch.isSect(element)
 	if not element or typeof(element) ~= "Instance" then
 		return false;
 	end;
-	if element:GetAttribute("NASettingsSection") == true then
+	if NAmanage.GetAttr(element, "NASettingsSection") == true then
 		return true;
 	end;
 	return element.Name == "SectionTitle" and element:IsA("GuiObject");
@@ -48026,7 +48910,7 @@ function NAmanage.SetSearch.sectVis(list, matchesMap)
 	end;
 	local root = list;
 	for _, child in ipairs(list:GetChildren()) do
-		if child:IsA("GuiObject") and child:GetAttribute("NAAllWrapper") then
+		if child:IsA("GuiObject") and NAmanage.GetAttr(child, "NAAllWrapper") then
 			root = child;
 			break;
 		end;
@@ -48613,7 +49497,7 @@ NAgui.commands = function()
 			Cmd.Parent = cList
 			Cmd.Name = cmdName
 			Cmd.MouseEnter:Connect(function()
-				local desc = Cmd:GetAttribute("CmdDesc")
+				local desc = NAmanage.GetAttr(Cmd, "CmdDesc")
 				if type(desc) == "string" and desc ~= "" then
 					NAUIMANAGER.description.Visible = true
 					NAUIMANAGER.description.Text = desc
@@ -48641,33 +49525,33 @@ NAgui.commands = function()
 		if isPatched then
 			Cmd.TextColor3 = patchedCommandColor
 			if Cmd.SetAttribute then
-				Cmd:SetAttribute("IsPatchedCommand", true)
-				Cmd:SetAttribute("IsPluginCommand", false)
-				Cmd:SetAttribute("IsCmdIntegration", false)
+				NAmanage.SetAttr(Cmd, "IsPatchedCommand", true)
+				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
+				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
 			end
 			finalText = addPatchedLabel(finalText)
 		elseif isCmdIntegration then
 			Cmd.TextColor3 = cmdIntegrationColor
 			if Cmd.SetAttribute then
-				Cmd:SetAttribute("IsCmdIntegration", true)
-				Cmd:SetAttribute("IsPatchedCommand", false)
-				Cmd:SetAttribute("IsPluginCommand", false)
+				NAmanage.SetAttr(Cmd, "IsCmdIntegration", true)
+				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
 			end
 		elseif isPluginCmd then
 			Cmd.TextColor3 = pluginCommandColor
 			if Cmd.SetAttribute then
-				Cmd:SetAttribute("IsPluginCommand", true)
-				Cmd:SetAttribute("IsPatchedCommand", false)
-				Cmd:SetAttribute("IsCmdIntegration", false)
+				NAmanage.SetAttr(Cmd, "IsPluginCommand", true)
+				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
 			end
 		else
 			if defaultCmdColor then
 				Cmd.TextColor3 = defaultCmdColor
 			end
 			if Cmd.SetAttribute then
-				Cmd:SetAttribute("IsPluginCommand", false)
-				Cmd:SetAttribute("IsPatchedCommand", false)
-				Cmd:SetAttribute("IsCmdIntegration", false)
+				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
+				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
 			end
 		end
 
@@ -48687,7 +49571,7 @@ NAgui.commands = function()
 		end
 
 		if Cmd.SetAttribute then
-			Cmd:SetAttribute("CmdDesc", resolveDesc())
+			NAmanage.SetAttr(Cmd, "CmdDesc", resolveDesc())
 		end
 
 		Cmd.Text = " "..finalText
@@ -48836,7 +49720,7 @@ end
 	local cursorActive = false
 
 	local function isMenuMinimized()
-		return ui and ui.GetAttribute and ui:GetAttribute("NAMenuMinimized") == true
+		return ui and ui.GetAttribute and NAmanage.GetAttr(ui, "NAMenuMinimized") == true
 	end
 
 	local function ensureMouse()
@@ -49084,7 +49968,7 @@ NAgui.addSection = function(titleText)
 	local section = templates.SectionTitle:Clone()
 	section.Title.Text = titleText
 	pcall(function()
-		section:SetAttribute("NASettingsSection", true)
+		NAmanage.SetAttr(section, "NASettingsSection", true)
 	end)
 	NAmanage.SetSearch.tag(section, titleText)
 	section.Parent = NAUIMANAGER.SettingsList
@@ -49101,7 +49985,7 @@ NAgui.getInputMinWidth=function(frame, fallback)
 		return fallback
 	end
 	local ok, attr = pcall(function()
-		return frame:GetAttribute("NAMinWidth")
+		return NAmanage.GetAttr(frame, "NAMinWidth")
 	end)
 	local minAttr = tonumber(ok and attr or nil)
 	if not minAttr then
@@ -51297,7 +52181,7 @@ NAgui.menu = function(menu)
 	local function setMinAtt(value)
 		minimized = value
 		if menu and menu.SetAttribute then
-			menu:SetAttribute("NAMenuMinimized", value)
+			NAmanage.SetAttr(menu, "NAMenuMinimized", value)
 		end
 	end
 	setMinAtt(false)
@@ -51349,7 +52233,7 @@ NAgui.menuv2 = function(menu)
 	local function setMinAtt(value)
 		minimized = value
 		if menu and menu.SetAttribute then
-			menu:SetAttribute("NAMenuMinimized", value)
+			NAmanage.SetAttr(menu, "NAMenuMinimized", value)
 		end
 	end
 	setMinAtt(false)
@@ -51567,9 +52451,9 @@ NAgui.loadCMDS = function()
 			btn.Text = finalDisplay
 		end
 		if btn.SetAttribute then
-			btn:SetAttribute("IsCmdIntegration", isCmdIntegration)
-			btn:SetAttribute("IsPluginCommand", isPluginCmd)
-			btn:SetAttribute("IsPatchedCommand", isPatched)
+			NAmanage.SetAttr(btn, "IsCmdIntegration", isCmdIntegration)
+			NAmanage.SetAttr(btn, "IsPluginCommand", isPluginCmd)
+			NAmanage.SetAttr(btn, "IsPatchedCommand", isPatched)
 		end
 		i += 1
 		btn.LayoutOrder = i
@@ -52246,33 +53130,33 @@ NAgui.filterCommandList = function(rawText)
 				if isPatched then
 					label.TextColor3 = patchedCommandColor
 					if label.SetAttribute then
-						label:SetAttribute("IsPatchedCommand", true)
-						label:SetAttribute("IsCmdIntegration", false)
-						label:SetAttribute("IsPluginCommand", false)
+						NAmanage.SetAttr(label, "IsPatchedCommand", true)
+						NAmanage.SetAttr(label, "IsCmdIntegration", false)
+						NAmanage.SetAttr(label, "IsPluginCommand", false)
 					end
 					finalText = addPatchedLabel(finalText)
 				elseif isCmdIntegration then
 					label.TextColor3 = cmdIntegrationColor
 					if label.SetAttribute then
-						label:SetAttribute("IsCmdIntegration", true)
-						label:SetAttribute("IsPatchedCommand", false)
-						label:SetAttribute("IsPluginCommand", false)
+						NAmanage.SetAttr(label, "IsCmdIntegration", true)
+						NAmanage.SetAttr(label, "IsPatchedCommand", false)
+						NAmanage.SetAttr(label, "IsPluginCommand", false)
 					end
 				elseif isPluginCmd then
 					label.TextColor3 = pluginCommandColor
 					if label.SetAttribute then
-						label:SetAttribute("IsPluginCommand", true)
-						label:SetAttribute("IsPatchedCommand", false)
-						label:SetAttribute("IsCmdIntegration", false)
+						NAmanage.SetAttr(label, "IsPluginCommand", true)
+						NAmanage.SetAttr(label, "IsPatchedCommand", false)
+						NAmanage.SetAttr(label, "IsCmdIntegration", false)
 					end
 				else
 					if templateColor then
 						label.TextColor3 = templateColor
 					end
 					if label.SetAttribute then
-						label:SetAttribute("IsPluginCommand", false)
-						label:SetAttribute("IsPatchedCommand", false)
-						label:SetAttribute("IsCmdIntegration", false)
+						NAmanage.SetAttr(label, "IsPluginCommand", false)
+						NAmanage.SetAttr(label, "IsPatchedCommand", false)
+						NAmanage.SetAttr(label, "IsCmdIntegration", false)
 					end
 				end
 				label.Text = " "..finalText
@@ -53947,7 +54831,7 @@ NAmanage.bindToDevConsole = function()
 			for i = 1, #activeLogs do
 				local lbl = activeLogs[i]
 				if lbl and lbl.Parent then
-					local tag = lbl:GetAttribute("Tag")
+					local tag = NAmanage.GetAttr(lbl, "Tag")
 					local matchesSearch = query == "" or Find(lbl.Text:lower(), query)
 					lbl.Visible = toggles[tag] and matchesSearch
 				end
@@ -53960,7 +54844,7 @@ NAmanage.bindToDevConsole = function()
 		for i = 1, #activeLogs do
 			local lbl = activeLogs[i]
 			if lbl and lbl.Parent then
-				local tag = lbl:GetAttribute("Tag")
+				local tag = NAmanage.GetAttr(lbl, "Tag")
 				local matches = query == "" or Find(lbl.Text:lower(), query)
 				lbl.Visible = toggles[tag] and matches
 			end
@@ -54020,7 +54904,7 @@ NAmanage.bindToDevConsole = function()
 				logLabel.Name = "Log_"..tostring(messageCounter)
 				logLabel.LayoutOrder = messageCounter
 				logLabel.Text = '<font color="'..item.c..'">['..item.t..']</font>: <font color="#ffffff">'..item.m..'</font>'
-				logLabel:SetAttribute("Tag", item.t)
+				NAmanage.SetAttr(logLabel, "Tag", item.t)
 
 				local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X
 				local h = measureHeight(logLabel, width)
@@ -54298,8 +55182,8 @@ SpawnCall(function()
 		if not o or typeof(o) ~= "Instance" then return end
 		if HUI and o:IsDescendantOf(HUI) then return end
 		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then return end
-		if o:GetAttribute("NAFriendHooked") then return end
-		o:SetAttribute("NAFriendHooked", true)
+		if NAmanage.GetAttr(o, "NAFriendHooked") then return end
+		NAmanage.SetAttr(o, "NAFriendHooked", true)
 
 		local applying = false
 		local function apply()
@@ -55300,9 +56184,9 @@ end
 	local pl = Players:GetPlayerByUserId(ts.UserId)
 	if not pl then return end
 
-	local tagText = pl:GetAttribute("CustomNAtaggerText")
-	local tagCol = pl:GetAttribute("CustomNAtaggerColor")
-	local useRainbow = pl:GetAttribute("CustomNAtaggerRainbow")
+	local tagText = NAmanage.GetAttr(pl, "CustomNAtaggerText")
+	local tagCol = NAmanage.GetAttr(pl, "CustomNAtaggerColor")
+	local useRainbow = NAmanage.GetAttr(pl, "CustomNAtaggerRainbow")
 
 	local basePrefix = message.PrefixText
 	if not basePrefix or basePrefix == "" then
@@ -55844,7 +56728,7 @@ SpawnCall(function()
 		uiLayout.Padding                = UDim.new(0,4)
 		uiLayout.Parent                 = itemsFrame
 		uiLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-			if binderFrame:GetAttribute("Expanded") then
+			if NAmanage.GetAttr(binderFrame, "Expanded") then
 				local h = uiLayout.AbsoluteContentSize.Y + 8
 				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
@@ -55852,8 +56736,8 @@ SpawnCall(function()
 		end)
 
 		MouseButtonFix(header, function()
-			local exp = binderFrame:GetAttribute("Expanded")
-			binderFrame:SetAttribute("Expanded", not exp)
+			local exp = NAmanage.GetAttr(binderFrame, "Expanded")
+			NAmanage.SetAttr(binderFrame, "Expanded", not exp)
 			if exp then
 				itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
@@ -55873,12 +56757,12 @@ SpawnCall(function()
 			local list = Bindings[ev] or {}
 			header.Text = ev.." ("..#list..")"
 			if #list > 0 then
-				binderFrame:SetAttribute("Expanded", true)
+				NAmanage.SetAttr(binderFrame, "Expanded", true)
 				local h = uiLayout.AbsoluteContentSize.Y + 8
 				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
 			else
-				binderFrame:SetAttribute("Expanded", false)
+				NAmanage.SetAttr(binderFrame, "Expanded", false)
 				itemsFrame:TweenSize(UDim2.new(1,0,0,0), "Out", "Quint", 0.25, true)
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
 			end
@@ -57006,6 +57890,119 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAmanage.updateFpsBoostOpt=function(key, value)
+	NAStuff.FPSBoostOptions = NAStuff.FPSBoostOptions or {}
+	NAStuff.FPSBoostOptions[key] = value
+	NAStuff.FPSBoostOptions = NAmanage.NASettingsSet("fpsBoostOptions", NAStuff.FPSBoostOptions) or NAStuff.FPSBoostOptions
+end
+
+NAgui.addSection("FPSBooster Defaults")
+
+NAgui.addToggle("Destroy Effects (FPSBooster)", NAStuff.FPSBoostOptions.effectMode == "destroy", function(v)
+	NAmanage.updateFpsBoostOpt("effectMode", v and "destroy" or "disable")
+	DoNotif("FPSBooster will "..(v and "destroy" or "disable").." visual effects", 3)
+end)
+NAmanage.RegisterToggleAutoSync("Destroy Effects (FPSBooster)", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.effectMode == "destroy") == true
+end)
+
+NAgui.addToggle("Strip Particles & Trails", NAStuff.FPSBoostOptions.stripParticles ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripParticles", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Strip Particles & Trails", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripParticles ~= false) == true
+end)
+
+NAgui.addToggle("Remove Decals & Textures", NAStuff.FPSBoostOptions.stripDecals ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripDecals", v ~= false)
+	NAmanage.updateFpsBoostOpt("stripSurfaceAppearance", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Remove Decals & Textures", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripDecals ~= false) == true
+end)
+
+NAgui.addToggle("Disable Lights & Highlights", NAStuff.FPSBoostOptions.stripLights ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripLights", v ~= false)
+	NAmanage.updateFpsBoostOpt("stripSurfaceAppearance", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Lights & Highlights", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripLights ~= false) == true
+end)
+
+NAgui.addToggle("Kill Post Effects & Atmospheres", NAStuff.FPSBoostOptions.stripPostFx ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripPostFx", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Kill Post Effects & Atmospheres", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripPostFx ~= false) == true
+end)
+
+NAgui.addToggle("Simplify Materials & Shadows", NAStuff.FPSBoostOptions.simplifyMaterials ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("simplifyMaterials", v ~= false)
+	NAmanage.updateFpsBoostOpt("zeroReflectance", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Simplify Materials & Shadows", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.simplifyMaterials ~= false) == true
+end)
+
+NAgui.addToggle("Flatten Lighting (Fog/Shadows)", NAStuff.FPSBoostOptions.flattenLighting ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("flattenLighting", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Flatten Lighting (Fog/Shadows)", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.flattenLighting ~= false) == true
+end)
+
+NAgui.addToggle("Force Streaming Optimizations", NAStuff.FPSBoostOptions.forceStreaming ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("forceStreaming", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Force Streaming Optimizations", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.forceStreaming ~= false) == true
+end)
+
+local streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
+NAgui.addSlider("Streaming Radius (FPSBooster)", 16, 1024, streamRadiusDefault, 8, " studs", function(val)
+	local n = math.clamp(tonumber(val) or streamRadiusDefault, 16, 4096)
+	NAmanage.updateFpsBoostOpt("streamRadius", n)
+end)
+
+NAgui.addSection("Hitbox Defaults")
+NAStuff.hbOptsUi = NAStuff.hbOptsUi or NAmanage.GetHitboxOpts()
+NAmanage.saveHitboxOpt=function(key, value)
+	NAStuff.hbOptsUi = NAmanage.SetHitboxOpt(key, value)
+	NAmanage.HitboxUpdateActive(NAStuff.hbOptsUi)
+end
+
+NAgui.addSlider("Hitbox Size", 1, 50, NAStuff.hbOptsUi.size or 10, 1, " studs", function(val)
+	local n = math.clamp(tonumber(val) or (NAStuff.hbOptsUi.size or 10), 1, 50)
+	NAmanage.saveHitboxOpt("size", n)
+end)
+
+NAgui.addSlider("Hitbox Transparency", 0, 1, NAStuff.hbOptsUi.transparency or 0.9, 0.05, "", function(val)
+	local n = math.clamp(tonumber(val) or (NAStuff.hbOptsUi.transparency or 0.9), 0, 1)
+	NAmanage.saveHitboxOpt("transparency", n)
+end)
+
+NAgui.addColorPicker("Hitbox Color", NAmanage.HB_ColorFromOpt(NAStuff.hbOptsUi.color), function(color)
+	NAmanage.saveHitboxOpt("color", color)
+end)
+
+NAgui.addInput("Hitbox Material", "Neon / ForceField / Plastic", tostring(NAStuff.hbOptsUi.material or "Neon"), function(text)
+	local matName = tostring(text or ""):match("^%s*(.-)%s*$") or "Neon"
+	matName = NAmanage.HB_ResolveMaterial(matName)
+	NAmanage.saveHitboxOpt("material", matName)
+	DoNotif("Hitbox material set to "..matName, 2)
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Hitbox Material", matName)
+	end
+end)
+
+NAgui.addToggle("Hitbox No-Collide", NAStuff.hbOptsUi.noCollide ~= false, function(v)
+	NAmanage.saveHitboxOpt("noCollide", v ~= false)
+end)
+
+NAgui.addToggle("Hitbox Massless", NAStuff.hbOptsUi.massless ~= false, function(v)
+	NAmanage.saveHitboxOpt("massless", v ~= false)
 end)
 
 if IsOnPC then
@@ -61260,9 +62257,9 @@ NAgui.addButton("Apply Chat Tag", function()
 		return
 	end
 
-	LocalPlayer:SetAttribute("CustomNAtaggerText", opt.currentTagText)
-	LocalPlayer:SetAttribute("CustomNAtaggerColor", opt.currentTagColor)
-	LocalPlayer:SetAttribute("CustomNAtaggerRainbow", opt.currentTagRGB)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerText", opt.currentTagText)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerColor", opt.currentTagColor)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerRainbow", opt.currentTagRGB)
 
 	if FileSupport then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
@@ -61281,9 +62278,9 @@ NAgui.addButton("Apply Chat Tag", function()
 end)
 
 NAgui.addButton("Remove Chat Tag", function()
-	LocalPlayer:SetAttribute("CustomNAtaggerText", nil)
-	LocalPlayer:SetAttribute("CustomNAtaggerColor", nil)
-	LocalPlayer:SetAttribute("CustomNAtaggerRainbow", nil)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerText", nil)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerColor", nil)
+	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerRainbow", nil)
 
 	if FileSupport and isfile(NAfiles.NACHATTAG) then
 		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
