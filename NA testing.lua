@@ -100,7 +100,7 @@ local NA_TABS = {
 	TAB_ADMIN_INFO = "Admin Info";
 }
 
-local opt
+local opt = {}
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -261,6 +261,15 @@ end
 NAlib.setProperty = function(inst, prop, v)
 	local s, _ = pcall(function() inst[prop] = v end)
 	return s
+end
+
+NAlib.huiGrabber = function()
+	return (gethui and gethui()) or
+	(gethiddenui and gethiddenui()) or
+	(gethiddengui and gethiddengui()) or
+	(get_hidden_ui and get_hidden_ui()) or
+	(get_hidden_gui and get_hidden_gui()) or
+	nil
 end
 
 local HttpService = SafeGetService('HttpService');
@@ -2949,6 +2958,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			targetPlayerGui = false,
 			targetBillboardGui = false,
 			targetSurfaceGui = false,
+			targetHiddenUi = false,
 		},
 		cg = coreGui,
 		store = NAmanage.newCornerStore(),
@@ -2965,6 +2975,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		targetPlayerGui = CE.default.targetPlayerGui,
 		targetBillboardGui = CE.default.targetBillboardGui,
 		targetSurfaceGui = CE.default.targetSurfaceGui,
+		targetHiddenUi = CE.default.targetHiddenUi,
 	}
 	if FileSupport then
 		if not isfile(CE.path) then
@@ -2991,6 +3002,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 				if type(decoded.targetSurfaceGui) == "boolean" then
 					data.targetSurfaceGui = decoded.targetSurfaceGui
 				end
+				if type(decoded.targetHiddenUi) == "boolean" then
+					data.targetHiddenUi = decoded.targetHiddenUi
+				end
 			end
 		end
 	end
@@ -3013,7 +3027,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if not (o and o:IsA("UICorner")) then
 			return false
 		end
-		if HUI and o:IsDescendantOf(HUI) then
+		if HUI and o:IsDescendantOf(HUI) and not CE.data.targetHiddenUi then
 			return false
 		end
 		return true
@@ -3029,6 +3043,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			if pg then
 				containers[#containers + 1] = pg
 			end
+		end
+		if CE.data.targetHiddenUi and HUI then
+			containers[#containers + 1] = HUI
 		end
 		local world = workspace
 		if CE.data.targetBillboardGui and world and world.GetDescendants then
@@ -3273,6 +3290,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		local pg = CE.data.targetPlayerGui and getPlayerGui()
 		if pg then
 			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCDesc))
+		end
+
+		NAlib.disconnect("CornerEditor_HUI")
+		if CE.data.targetHiddenUi and HUI then
+			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(onCDesc))
 		end
 
 		local world = workspace
@@ -4379,6 +4401,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			targetPlayerGui = false,
 			targetBillboardGui = false,
 			targetSurfaceGui = false,
+			targetHiddenUi = false,
 			useCustomCycle = false,
 		},
 		cg = CoreGui,
@@ -4391,6 +4414,7 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			targetPlayerGui = false,
 			targetBillboardGui = false,
 			targetSurfaceGui = false,
+			targetHiddenUi = false,
 			useCustomCycle = false,
 		},
 		currentFont = Enum.Font.Gotham,
@@ -4465,10 +4489,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			targetPlayerGui = FontEditor.data.targetPlayerGui,
 			targetBillboardGui = FontEditor.data.targetBillboardGui,
 			targetSurfaceGui = FontEditor.data.targetSurfaceGui,
+			targetHiddenUi = FontEditor.data.targetHiddenUi,
 			useCustomCycle = FontEditor.data.useCustomCycle,
 		}
 		pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
-	end
+		end
 
 	local function loadFontData()
 		local stored = FontEditor.default
@@ -4522,6 +4547,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		else
 			FontEditor.data.targetSurfaceGui = FontEditor.default.targetSurfaceGui
 		end
+		if type(stored.targetHiddenUi) == "boolean" then
+			FontEditor.data.targetHiddenUi = stored.targetHiddenUi
+		else
+			FontEditor.data.targetHiddenUi = FontEditor.default.targetHiddenUi
+		end
 
 		FontEditor.data.useCustomCycle = stored.useCustomCycle == true
 		FontEditor.data.enabled = stored.enabled == true
@@ -4544,10 +4574,10 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 		if not (o and o.Parent) then
 			return false
 		end
-		if HUI and o:IsDescendantOf(HUI) then
+		if HUI and o:IsDescendantOf(HUI) and not FontEditor.data.targetHiddenUi then
 			return false
 		end
-		if isNAUIElement(o) then
+		if isNAUIElement(o) and not FontEditor.data.targetHiddenUi then
 			return false
 		end
 		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
@@ -4679,6 +4709,12 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			if pg then
 				containers[#containers + 1] = pg
 			end
+		end
+		if FontEditor.data.targetHiddenUi and HUI then
+			containers[#containers + 1] = HUI
+		end
+		if FontEditor.data.targetHiddenUi and HUI then
+			containers[#containers + 1] = HUI
 		end
 		local world = workspace
 		if FontEditor.data.targetBillboardGui and world and world.GetDescendants then
@@ -4841,6 +4877,11 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 			NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(onFontDescendantAdded))
 		end
 
+		NAlib.disconnect("FontEditor_HUI")
+		if FontEditor.data.targetHiddenUi and HUI then
+			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(onFontDescendantAdded))
+		end
+
 		local world = workspace
 		NAlib.disconnect("FontEditor_Billboard")
 		if FontEditor.data.targetBillboardGui and world then
@@ -4923,6 +4964,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	NAgui.addToggle("Corner Target: SurfaceGui", CE.data.targetSurfaceGui, function(v)
 		setCTgt("targetSurfaceGui", v == true)
 	end)
+	NAgui.addToggle("Corner Target: gethui/hiddenui", CE.data.targetHiddenUi, function(v)
+		setCTgt("targetHiddenUi", v == true)
+	end)
 	local sliderRadius = math.clamp(CE.data.radius, 0, 64)
 	NAgui.addSlider("Corner Radius", 0, 64, sliderRadius, 0.5, " px", function(v)
 		local parsed = math.clamp(tonumber(v) or CE.default.radius, 0, 64)
@@ -4954,6 +4998,9 @@ NAmanage.initCornerEditor=function(coreGui, HUI)
 	end)
 	NAgui.addToggle("Font Target: SurfaceGui", FontEditor.data.targetSurfaceGui, function(v)
 		updateFontTarget("targetSurfaceGui", v == true)
+	end)
+	NAgui.addToggle("Font Target: gethui/hiddenui", FontEditor.data.targetHiddenUi, function(v)
+		updateFontTarget("targetHiddenUi", v == true)
 	end)
 	local fontInfoBox = NAgui.addInfo("Current Font", FontEditor.data.font)
 	local function refreshFontInfo()
@@ -6157,8 +6204,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 				local okBody, result = pcall(game.HttpGet, game, url)
 				if okBody and type(result) == "string" then
 					body = result
-				elseif type(NAREQUEST) == "function" then
-					local okReq, resp = pcall(NAREQUEST, { Url = url, Method = "GET" })
+				elseif type(opt.NAREQUEST) == "function" then
+					local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
 					if okReq and type(resp) == "table" then
 						body = resp.Body or resp.body or resp.ResponseBody
 					end
@@ -6287,8 +6334,8 @@ NAmanage.prefetchRobloxGameInfo = function()
 	local okBody, result = pcall(game.HttpGet, game, url)
 	if okBody and type(result) == "string" then
 		body = result
-	elseif type(NAREQUEST) == "function" then
-		local okReq, resp = pcall(NAREQUEST, { Url = url, Method = "GET" })
+	elseif type(opt.NAREQUEST) == "function" then
+		local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
 		if okReq and type(resp) == "table" then
 			body = resp.Body or resp.body or resp.ResponseBody
 		end
@@ -6394,10 +6441,10 @@ NAmanage.centerFrame = function(f)
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
-	return (gethui and gethui()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	return (NAlib.huiGrabber and NAlib.huiGrabber()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
-if not gethui then
+if not NAlib.huiGrabber() then
 	_na_env.gethui=function()
 		return NAmanage.guiCHECKINGAHHHHH()
 	end
@@ -6568,6 +6615,9 @@ function NAProtection(inst,var)
 end
 
 function NaProtectUI(gui)
+	if typeof(gui) ~= "Instance" then
+		return nil
+	end
 	local INV = "\0"
 	local MAX_DO = 0x7FFFFFFF
 	local target = NAmanage.guiCHECKINGAHHHHH()
@@ -8553,6 +8603,61 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		crosshairEnabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		crosshairSize = {
+			default = 8;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 8 end
+				if n < 2 then n = 2 end
+				if n > 100 then n = 100 end
+				return n
+			end;
+		};
+		crosshairThickness = {
+			default = 2;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 2 end
+				if n < 1 then n = 1 end
+				if n > 20 then n = 20 end
+				return n
+			end;
+		};
+		crosshairColor = {
+			default = function()
+				return { R = 1; G = 1; B = 1 }
+			end;
+			coerce = function(value)
+				local parsed = value
+				if typeof(value) == "Color3" then
+					parsed = { R = value.R; G = value.G; B = value.B }
+				elseif type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return HttpService:JSONDecode(value)
+					end)
+					if ok and typeof(decoded) == "table" then
+						parsed = decoded
+					else
+						parsed = nil
+					end
+				end
+				if type(parsed) == "table" then
+					local r = clampChannel(parsed.R)
+					local g = clampChannel(parsed.G)
+					local b = clampChannel(parsed.B)
+					if r and g and b then
+						return { R = r; G = g; B = b }
+					end
+				end
+				return { R = 1; G = 1; B = 1 }
+			end;
+		};
 		tweenSpeed = {
 			default = 1;
 			coerce = function(value)
@@ -10405,6 +10510,10 @@ end
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
+NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
+NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
+NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
+NAStuff.CrosshairThickness = NAStuff.CrosshairThickness or 2
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -10420,6 +10529,28 @@ if FileSupport then
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
+	local chColorRaw = NAmanage.NASettingsGet("crosshairColor")
+	local function toColor3(tbl, fallback)
+		if typeof(tbl) == "Color3" then
+			return tbl
+		end
+		if type(tbl) == "table" then
+			local r = tonumber(tbl.R or tbl.r)
+			local g = tonumber(tbl.G or tbl.g)
+			local b = tonumber(tbl.B or tbl.b)
+			if r and g and b then
+				r = math.clamp(r, 0, 1)
+				g = math.clamp(g, 0, 1)
+				b = math.clamp(b, 0, 1)
+				return Color3.new(r, g, b)
+			end
+		end
+		return fallback
+	end
+	NAStuff.CrosshairColor = toColor3(chColorRaw, Color3.new(1, 1, 1))
+	NAStuff.CrosshairEnabled = NAmanage.NASettingsGet("crosshairEnabled") == true
+	NAStuff.CrosshairSize = math.clamp(tonumber(NAmanage.NASettingsGet("crosshairSize")) or 8, 2, 100)
+	NAStuff.CrosshairThickness = math.clamp(tonumber(NAmanage.NASettingsGet("crosshairThickness")) or 2, 1, 20)
 	NAUISTROKER = InitUIStroke()
 	if NAStuff and NAStuff.AprilFoolsData then
 		NAStuff.AprilFoolsData.originalColor = NAUISTROKER
@@ -10433,6 +10564,9 @@ if FileSupport then
 	NASideSwipeSide = NAmanage.NASettingsGet("sideSwipeSide") or NASideSwipeSide
 	NASideSwipeEnabled = NAmanage.NASettingsGet("sideSwipeEnabled") or NASideSwipeEnabled
 	NADisableLastInput = NAmanage.NASettingsGet("disableLastInput")
+	if NAmanage.applyCrosshair then
+		NAmanage.applyCrosshair()
+	end
 	local function clamp01(v, fallback)
 		local n = tonumber(v)
 		if not n then return fallback end
@@ -49295,7 +49429,7 @@ local patchedCommandColor = Color3.fromRGB(255, 115, 115)
 local pluginCommandColor = Color3.fromRGB(255, 196, 125)
 local cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
 
-local function addPatchedLabel(text)
+NAgui.addPatchedLabel=function(text)
 	if not text then return text end
 	if Lower(text):find("patched", 1, true) then
 		return text
@@ -49304,8 +49438,26 @@ local function addPatchedLabel(text)
 end
 
 NAgui.txtSize=function(ui,x,y)
-	local textService=TextService
-	return textService:GetTextSize(ui.Text,ui.TextSize,ui.Font,Vector2.new(x,y))
+	local textService = TextService
+	if not (textService and ui) then
+		return Vector2.new(0, 0)
+	end
+
+	local font = ui.Font
+	if font == nil or font == Enum.Font.Unknown then
+		font = Enum.Font.SourceSans
+	end
+
+	local text = ui.Text or ""
+	local size = tonumber(ui.TextSize) or 14
+	local bounds = Vector2.new(tonumber(x) or 100, tonumber(y) or 100)
+
+	local ok, result = pcall(textService.GetTextSize, textService, text, size, font, bounds)
+	if ok and result then
+		return result
+	end
+
+	return Vector2.new(0, 0)
 end
 NAmanage.buildCommandEntries=function()
 	local entries = {}
@@ -49339,7 +49491,7 @@ NAmanage.buildCommandEntries=function()
 			finalText = finalText.." ["..(pluginType and (pluginType.." plugin") or "plugin").."]"
 		end
 		if isPatched then
-			finalText = addPatchedLabel(finalText)
+			finalText = NAgui.addPatchedLabel(finalText)
 		end
 		if isAprilFools() then
 			finalText = maybeMock(finalText)
@@ -49529,7 +49681,7 @@ NAgui.commands = function()
 				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
 				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
 			end
-			finalText = addPatchedLabel(finalText)
+			finalText = NAgui.addPatchedLabel(finalText)
 		elseif isCmdIntegration then
 			Cmd.TextColor3 = cmdIntegrationColor
 			if Cmd.SetAttribute then
@@ -52438,7 +52590,7 @@ NAgui.loadCMDS = function()
 		if btn.Input then
 			if isPatched then
 				btn.Input.TextColor3 = patchedCommandColor
-				finalDisplay = addPatchedLabel(finalDisplay)
+				finalDisplay = NAgui.addPatchedLabel(finalDisplay)
 			elseif isCmdIntegration then
 				btn.Input.TextColor3 = cmdIntegrationColor
 			elseif isPluginCmd then
@@ -53134,7 +53286,7 @@ NAgui.filterCommandList = function(rawText)
 						NAmanage.SetAttr(label, "IsCmdIntegration", false)
 						NAmanage.SetAttr(label, "IsPluginCommand", false)
 					end
-					finalText = addPatchedLabel(finalText)
+					finalText = NAgui.addPatchedLabel(finalText)
 				elseif isCmdIntegration then
 					label.TextColor3 = cmdIntegrationColor
 					if label.SetAttribute then
@@ -55176,7 +55328,7 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 SpawnCall(function()
-	local HUI = (typeof(gethui) == "function" and gethui()) or nil
+	local HUI = NAlib.huiGrabber()
 
 	local function hookFriendLabel(o)
 		if not o or typeof(o) ~= "Instance" then return end
@@ -58461,7 +58613,7 @@ for _, entry in ipairs(NAFFlags.whitelist) do
 end
 
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
-NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, flags = {}, custom = {}, enabledFlags = {} }
+NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, autoApplyLoop = true, autoApplyInterval = 3, flags = {}, custom = {}, enabledFlags = {} }
 NAFFlags.config.custom = NAFFlags.config.custom or {}
 NAFFlags.values = NAFFlags.values or {}
 NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
@@ -58610,6 +58762,8 @@ end
 NAFFlags.applyDefaults = function()
 	NAFFlags.config.useFFlags = false
 	NAFFlags.config.autoApply = false
+	NAFFlags.config.autoApplyLoop = true
+	NAFFlags.config.autoApplyInterval = 3
 	NAFFlags.config.flags = {}
 	NAFFlags.config.custom = {}
 	NAFFlags.config.enabledFlags = {}
@@ -58649,6 +58803,19 @@ NAFFlags.load = function()
 				NAFFlags.config.autoApply = decoded.autoApply
 			else
 				needsSave = true
+			end
+			if type(decoded.autoApplyLoop) == "boolean" then
+				NAFFlags.config.autoApplyLoop = decoded.autoApplyLoop
+			else
+				needsSave = true
+			end
+			if decoded.autoApplyInterval ~= nil then
+				local n = tonumber(decoded.autoApplyInterval)
+				if n and n > 0 then
+					NAFFlags.config.autoApplyInterval = n
+				else
+					needsSave = true
+				end
 			end
 			if type(decoded.flags) == "table" then
 				for _, entry in ipairs(NAFFlags.whitelist) do
@@ -58998,16 +59165,19 @@ NAFFlags.ensureMaintainLoop = function()
 	if NAFFlags._maintainLoopRunning then
 		return
 	end
-	if not (NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()) then
+	if not (NAFFlags.config.autoApply and NAFFlags.config.autoApplyLoop ~= false and NAFFlags.enabled() and NAFFlags.hasSupport()) then
 		return
 	end
 
 	local function stillActive()
-		return NAFFlags.config.autoApply and NAFFlags.enabled() and NAFFlags.hasSupport()
+		return NAFFlags.config.autoApply and NAFFlags.config.autoApplyLoop ~= false and NAFFlags.enabled() and NAFFlags.hasSupport()
 	end
 
 	local function loopDelay()
-		return math.random(1000, 3000) / 1000
+		local n = tonumber(NAFFlags.config.autoApplyInterval) or 3
+		if n < 0.1 then n = 0.1 end
+		if n > 60 then n = 60 end
+		return n
 	end
 
 	NAFFlags._maintainLoopRunning = true
@@ -59016,13 +59186,21 @@ NAFFlags.ensureMaintainLoop = function()
 		NAFFlags._maintainConn = nil
 	end
 	SpawnCall(function()
-		while stillActive() do
+		while stillActive() and NAFFlags._maintainLoopRunning do
 			Wait(loopDelay())
 			NAFFlags.applyAll({ notify = false })
 		end
 
 		NAFFlags._maintainLoopRunning = false
 	end)
+end
+
+NAFFlags.stopMaintainLoop = function()
+	NAFFlags._maintainLoopRunning = false
+	if NAFFlags._maintainConn then
+		NAFFlags._maintainConn:Disconnect()
+		NAFFlags._maintainConn = nil
+	end
 end
 
 NAFFlags.autoApplyWithRetry = function(opts)
@@ -59151,6 +59329,39 @@ NAgui.addToggle("Auto-apply FastFlags", NAFFlags.config.autoApply == true, funct
 end)
 NAmanage.RegisterToggleAutoSync("Auto-apply FastFlags", function()
 	return NAFFlags.config.autoApply == true
+end)
+
+NAStuff.autoLoopDefault = NAStuff.autoLoopDefault or math.clamp(tonumber(NAFFlags.config.autoApplyInterval) or 3, 0.1, 60)
+NAgui.addToggle("Loop Auto-apply FastFlags", NAFFlags.config.autoApplyLoop ~= false, function(state)
+	NAFFlags.config.autoApplyLoop = state ~= false
+	NAFFlags.save()
+	if state then
+		NAFFlags.stopMaintainLoop()
+		NAFFlags.ensureMaintainLoop()
+	else
+		NAFFlags.stopMaintainLoop()
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Loop Auto-apply FastFlags", function()
+	return NAFFlags.config.autoApplyLoop ~= false
+end)
+
+NAgui.addInput("Auto-apply Interval (s)", "e.g. 3", tostring(NAStuff.autoLoopDefault), function(text)
+	local n = tonumber(text)
+	if not n then
+		DoNotif("Enter a number of seconds (e.g. 3)", 3)
+		return
+	end
+	if n < 0.1 then n = 0.1 end
+	if n > 60 then n = 60 end
+	NAFFlags.config.autoApplyInterval = n
+	NAFFlags.save()
+	NAFFlags.stopMaintainLoop()
+	NAFFlags.ensureMaintainLoop()
+	DoNotif(Format("Auto-apply interval set to %.2f s", n), 2)
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Auto-apply Interval (s)", Format("%.2f", n))
+	end
 end)
 
 NAgui.addButton("Apply All FFlags (including custom)", function()
@@ -59617,6 +59828,82 @@ NAStuff.IconDefaultTrans = NAStuff.IconDefaultTrans or {
 	stroke = NAStuff.iconAppearance and NAStuff.iconAppearance.stroke or 0.7,
 }
 
+NAmanage.destroyCrosshair=function()
+	if NAStuff.CrosshairGui then
+		pcall(function() NAStuff.CrosshairGui:Destroy() end)
+	end
+	NAStuff.CrosshairGui = nil
+end
+
+NAmanage.applyCrosshair = function()
+	if not NAStuff.CrosshairEnabled then
+		NAmanage.destroyCrosshair()
+		return
+	end
+	local targetParent = NAStuff.NASCREENGUI
+	if not targetParent or not targetParent.Parent then
+		targetParent = (type(NAmanage.guiCHECKINGAHHHHH) == "function" and NAmanage.guiCHECKINGAHHHHH()) or nil
+	end
+	if not targetParent then
+		local pg = Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+		targetParent = pg
+	end
+	if not targetParent then return end
+	if NAStuff.CrosshairGui and NAStuff.CrosshairGui.Parent ~= targetParent then
+		NAmanage.destroyCrosshair()
+	end
+	if not NAStuff.CrosshairGui then
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "NA_Crosshair"
+		gui.IgnoreGuiInset = true
+		gui.ResetOnSpawn = false
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		gui.Archivable = false
+		local ok = pcall(function()
+			gui.Parent = targetParent
+		end)
+		if not ok then
+			local fallbackPg = Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+			if fallbackPg then
+				ok = pcall(function()
+					gui.Parent = fallbackPg
+				end)
+			end
+		end
+		if not ok then
+			gui:Destroy()
+			return
+		end
+		NAStuff.CrosshairGui = gui
+	end
+	local gui = NAStuff.CrosshairGui
+	gui:ClearAllChildren()
+
+	local size = math.clamp(tonumber(NAStuff.CrosshairSize) or 8, 2, 100)
+	local thick = math.clamp(tonumber(NAStuff.CrosshairThickness) or 2, 1, 20)
+	local color = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
+	local gap = math.max(1, math.floor(thick))
+
+	local function line(w, h, pos)
+		local f = Instance.new("Frame")
+		f.BackgroundColor3 = color
+		f.BorderSizePixel = 0
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Size = UDim2.new(0, w, 0, h)
+		f.Position = pos
+		f.Parent = gui
+		return f
+	end
+
+	local center = line(thick, thick, UDim2.fromScale(0.5, 0.5))
+	center.Name = "Center"
+
+	line(thick, size, UDim2.new(0.5, 0, 0.5, -(gap + size / 2))) -- top
+	line(thick, size, UDim2.new(0.5, 0, 0.5,  (gap + size / 2))) -- bottom
+	line(size, thick, UDim2.new(0.5, -(gap + size / 2), 0.5, 0)) -- left
+line(size, thick, UDim2.new(0.5,  (gap + size / 2), 0.5, 0)) -- right
+end
+
 NAmanage.applyIconAppearance = function()
 	if not TextButton then return end
 	local clamp01 = NAgui.clamp01
@@ -59827,6 +60114,37 @@ NAgui.addButton("Reset Icon Transparency", function()
 	NAmanage.NASettingsSet("iconStrokeTransparency", NAStuff.IconDefaultTrans.stroke or 0.7)
 end)
 
+NAgui.addSection("Crosshair")
+
+NAgui.addToggle("Show Crosshair", NAStuff.CrosshairEnabled == true, function(v)
+	NAStuff.CrosshairEnabled = v == true
+	NAmanage.NASettingsSet("crosshairEnabled", NAStuff.CrosshairEnabled)
+	NAmanage.applyCrosshair()
+end)
+
+NAgui.addSlider("Crosshair Size", 2, 100, math.clamp(tonumber(NAStuff.CrosshairSize) or 8, 2, 100), 1, " px", function(val)
+	local n = math.clamp(tonumber(val) or NAStuff.CrosshairSize or 8, 2, 100)
+	NAStuff.CrosshairSize = n
+	NAmanage.NASettingsSet("crosshairSize", n)
+	NAmanage.applyCrosshair()
+end)
+
+NAgui.addSlider("Crosshair Thickness", 1, 20, math.clamp(tonumber(NAStuff.CrosshairThickness) or 2, 1, 20), 1, " px", function(val)
+	local n = math.clamp(tonumber(val) or NAStuff.CrosshairThickness or 2, 1, 20)
+	NAStuff.CrosshairThickness = n
+	NAmanage.NASettingsSet("crosshairThickness", n)
+	NAmanage.applyCrosshair()
+end)
+
+NAgui.addColorPicker("Crosshair Color", NAStuff.CrosshairColor or Color3.new(1,1,1), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.CrosshairColor = color
+	NAmanage.NASettingsSet("crosshairColor", { R = color.R, G = color.G, B = color.B })
+	NAmanage.applyCrosshair()
+end)
+
 NAgui.addSection("Topbar")
 
 NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(state)
@@ -59943,7 +60261,7 @@ if CoreGui then
 
 	PT.data = data
 
-	local HUI = (typeof(gethui) == "function" and gethui()) or nil
+	local HUI = NAlib.huiGrabber()
 
 	local function isPlexTarget(o)
 		if HUI and o:IsDescendantOf(HUI) then
