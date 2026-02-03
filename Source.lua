@@ -9162,6 +9162,8 @@ NAmanage.NASettingsGetSchema=function()
 					forceStreaming = true;
 					streamRadius = 96;
 					flattenLighting = true;
+					ignorePlayers = true;
+					ignoreSelf = true;
 				}
 			end;
 			coerce = function(value)
@@ -9181,6 +9183,8 @@ NAmanage.NASettingsGetSchema=function()
 					forceStreaming = true;
 					streamRadius = 96;
 					flattenLighting = true;
+					ignorePlayers = true;
+					ignoreSelf = true;
 				}
 				if type(value) ~= "table" then
 					value = {}
@@ -9227,6 +9231,8 @@ NAmanage.NASettingsGetSchema=function()
 				out.forceStreaming = boolField("forceStreaming", defaults.forceStreaming)
 				out.streamRadius = clampRadius(value.streamRadius)
 				out.flattenLighting = boolField("flattenLighting", defaults.flattenLighting)
+				out.ignorePlayers = boolField("ignorePlayers", defaults.ignorePlayers)
+				out.ignoreSelf = boolField("ignoreSelf", defaults.ignoreSelf)
 				return out
 			end;
 		};
@@ -22177,7 +22183,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	DoNotif("Rejoining...")
 end)
 
-cmd.add({"teleporttoplace","toplace","ttp"},{"teleporttoplace (PlaceId) (toplace,ttp)","Teleports you using PlaceId"},function(...)
+cmd.add({"teleporttoplace","toplace","ttp", "gametp"},{"teleporttoplace <id>","Teleports you using PlaceId"},function(...)
 	args={...}
 	pId=tonumber(args[1])
 	TeleportService:Teleport(pId)
@@ -23098,6 +23104,21 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if v == nil then
 			return default
 		end
+		if type(v) == "boolean" then
+			return v
+		end
+		if type(v) == "string" then
+			local l = v:lower()
+			if l == "false" or l == "0" or l == "off" or l == "nil" then
+				return false
+			end
+			if l == "true" or l == "1" or l == "on" then
+				return true
+			end
+		end
+		if type(v) == "number" then
+			return v ~= 0
+		end
 		return v ~= false
 	end
 	local effectDestroy = (type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy")
@@ -23115,6 +23136,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	local forceStreaming = boolOpt(fpsOpt.forceStreaming, true)
 	local flattenLighting = boolOpt(fpsOpt.flattenLighting, true)
 	local streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096)
+	local ignorePlayers = boolOpt(fpsOpt.ignorePlayers, true)
+	local ignoreSelf = boolOpt(fpsOpt.ignoreSelf, true)
 
 	local function setHiddenOrNormal(inst,prop,val)
 		local ok=false
@@ -23167,7 +23190,25 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	end
 	local function recall(inst,prop) return NAmanage.GetAttr(inst, A..prop) end
 	local function clearAttr(inst,prop) NAmanage.SetAttr(inst, A..prop,nil) end
-	local function isCharacterOrNPC(inst)local a=inst while a do if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then return true end a=a.Parent end return false end
+	local function getCharacterModel(inst)
+		local a = inst
+		while a do
+			if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then
+				return a
+			end
+			a = a.Parent
+		end
+		return nil
+	end
+	local function playerFromCharacter(model)
+		local ok, plr = pcall(function()
+			return Players:GetPlayerFromCharacter(model)
+		end)
+		if ok then
+			return plr
+		end
+		return nil
+	end
 	local function isClothingLike(inst) return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription") end
 
 	local originals={quality=nil,lighting={},terrain={},workspace={},postFx={},postFxCam={}}
@@ -23262,7 +23303,21 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 
 	local function optimizeInstance(inst)
 		if not active then return end
-		if isCharacterOrNPC(inst) then return end
+
+		local charModel = getCharacterModel(inst)
+		if charModel then
+			if not CheckIfNPC(charModel) then
+				local plr = playerFromCharacter(charModel)
+				if plr then
+					if ignoreSelf and plr == Players.LocalPlayer then
+						return
+					end
+					if ignorePlayers and plr ~= Players.LocalPlayer then
+						return
+					end
+				end
+			end
+		end
 		if isClothingLike(inst) then return end
 		if inst:IsA("BasePart") and simplifyMaterials then
 			remember(inst,"Material",inst.Material)
@@ -28333,7 +28388,7 @@ cmd.add({"jobid"},{"jobid","Copies your job id"},function()
 	end
 end)
 
-cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid> (joinjid,jjobid,jjid)","Joins the job id you put in"},function(...)
+cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
 	TeleportService:TeleportToPlaceInstance(PlaceId,id)
@@ -28448,14 +28503,40 @@ end
 
 cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 	Wait()
-	DebugNotif("Searching")
 
-	local id, pl = NAStuff.srv:scan("high")
-	if id then
-		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		TeleportService:TeleportToPlaceInstance(PlaceId, id)
+	local function defaultHop()
+		DebugNotif("Teleporting (default)")
+		local ok, err = pcall(function()
+			TeleportService:Teleport(PlaceId)
+		end)
+		if not ok then
+			DebugNotif("Teleport failed: "..tostring(err or "?"))
+		end
+	end
+
+	local function advancedHop()
+		DebugNotif("Searching")
+		local id, pl = NAStuff.srv:scan("high")
+		if id then
+			DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
+			TeleportService:TeleportToPlaceInstance(PlaceId, id)
+		else
+			DebugNotif("No server found")
+		end
+	end
+
+	local show = Window or DoWindow
+	if type(show) == "function" then
+		show({
+			Title = "Serverhop",
+			Description = "Choose a serverhop method.",
+			Buttons = {
+				{ Text = "Default",  Callback = defaultHop },
+				{ Text = "Advanced", Callback = advancedHop },
+			},
+		})
 	else
-		DebugNotif("No server found")
+		advancedHop()
 	end
 end)
 
@@ -54898,224 +54979,319 @@ function bindToChat(plr, msg)
 end
 
 NAmanage.bindToDevConsole = function()
-	if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleExample then return end
-
-	local activeLogs, pool, pending = {}, {}, {}
-	local buttonTypes = { "Output", "Info", "Warn", "Error" }
-	local savedFilters
+	if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleExample) then
+		return;
+	end;
+	local activeLogs, pool, pending = {}, {}, {};
+	local buttonTypes = {
+		"Output",
+		"Info",
+		"Warn",
+		"Error"
+	};
+	local savedFilters;
 	if NAmanage and NAmanage.NASettingsGet then
 		local ok, result = pcall(function()
-			return NAmanage.NASettingsGet("devConsoleFilters")
-		end)
+			return NAmanage.NASettingsGet("devConsoleFilters");
+		end);
 		if ok and type(result) == "table" then
-			savedFilters = result
-		end
-	end
-	local toggles = {}
+			savedFilters = result;
+		end;
+	end;
+	local toggles = {};
 	for _, logType in ipairs(buttonTypes) do
-		local savedValue = savedFilters and savedFilters[logType]
+		local savedValue = savedFilters and savedFilters[logType];
 		if type(savedValue) == "boolean" then
-			toggles[logType] = savedValue
+			toggles[logType] = savedValue;
 		else
-			toggles[logType] = true
-		end
-	end
-
-	local SELECTED_COLOR = Color3.fromRGB(0, 255, 0)
-	local DESELECTED_COLOR = Color3.fromRGB(255, 255, 255)
-
-	local FilterButtons = InstanceNew("Frame")
-	FilterButtons.Name = "FilterButtons"
-	FilterButtons.Size = UDim2.new(1, -10, 0, 22)
-	FilterButtons.Position = UDim2.new(0.5, 0, 0, 30)
-	FilterButtons.AnchorPoint = Vector2.new(0.5, 0)
-	FilterButtons.BackgroundTransparency = 1
-	FilterButtons.Parent = NAUIMANAGER.NAconsoleLogs.Parent
-
-	local layout = InstanceNew("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 6)
-	layout.Parent = FilterButtons
-
+			toggles[logType] = true;
+		end;
+	end;
+	local SELECTED_COLOR = Color3.fromRGB(0, 255, 0);
+	local DESELECTED_COLOR = Color3.fromRGB(255, 255, 255);
+	local FilterButtons = InstanceNew("Frame");
+	FilterButtons.Name = "FilterButtons";
+	FilterButtons.Size = UDim2.new(1, -10, 0, 22);
+	FilterButtons.Position = UDim2.new(0.5, 0, 0, 30);
+	FilterButtons.AnchorPoint = Vector2.new(0.5, 0);
+	FilterButtons.BackgroundTransparency = 1;
+	FilterButtons.Parent = NAUIMANAGER.NAconsoleLogs.Parent;
+	local layout = InstanceNew("UIListLayout");
+	layout.FillDirection = Enum.FillDirection.Horizontal;
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
+	layout.SortOrder = Enum.SortOrder.LayoutOrder;
+	layout.Padding = UDim.new(0, 6);
+	layout.Parent = FilterButtons;
 	for _, logType in ipairs(buttonTypes) do
-		local btnContainer = InstanceNew("Frame")
-		btnContainer.Name = logType
-		btnContainer.Size = UDim2.new(0, 90, 1, 0)
-		btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		btnContainer.Parent = FilterButtons
-
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(1, 0)
-		corner.Parent = btnContainer
-
-		local checkbox = InstanceNew("Frame")
-		checkbox.Name = "Checkbox"
-		checkbox.Size = UDim2.new(0, 18, 0, 18)
-		checkbox.Position = UDim2.new(0, 5, 0.5, 0)
-		checkbox.AnchorPoint = Vector2.new(0, 0.5)
-		checkbox.BackgroundColor3 = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR
-		checkbox.BorderSizePixel = 0
-		checkbox.Parent = btnContainer
-
-		local boxCorner = InstanceNew("UICorner")
-		boxCorner.CornerRadius = UDim.new(0, 4)
-		boxCorner.Parent = checkbox
-
-		local label = InstanceNew("TextLabel")
-		label.Name = "Label"
-		label.Text = logType
-		label.Position = UDim2.new(0, 28, 0, 0)
-		label.Size = UDim2.new(1, -28, 1, 0)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.Gotham
-		label.TextSize = 14
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		label.TextXAlignment = Enum.TextXAlignment.Center
-		label.Parent = btnContainer
-
-		local clickZone = InstanceNew("TextButton")
-		clickZone.Name = "ClickArea"
-		clickZone.Size = UDim2.new(1, 0, 1, 0)
-		clickZone.BackgroundTransparency = 1
-		clickZone.Text = ""
-		clickZone.Parent = btnContainer
-
+		local btnContainer = InstanceNew("Frame");
+		btnContainer.Name = logType;
+		btnContainer.Size = UDim2.new(0, 90, 1, 0);
+		btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30);
+		btnContainer.Parent = FilterButtons;
+		local corner = InstanceNew("UICorner");
+		corner.CornerRadius = UDim.new(1, 0);
+		corner.Parent = btnContainer;
+		local checkbox = InstanceNew("Frame");
+		checkbox.Name = "Checkbox";
+		checkbox.Size = UDim2.new(0, 18, 0, 18);
+		checkbox.Position = UDim2.new(0, 5, 0.5, 0);
+		checkbox.AnchorPoint = Vector2.new(0, 0.5);
+		checkbox.BackgroundColor3 = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR;
+		checkbox.BorderSizePixel = 0;
+		checkbox.Parent = btnContainer;
+		local boxCorner = InstanceNew("UICorner");
+		boxCorner.CornerRadius = UDim.new(0, 4);
+		boxCorner.Parent = checkbox;
+		local label = InstanceNew("TextLabel");
+		label.Name = "Label";
+		label.Text = logType;
+		label.Position = UDim2.new(0, 28, 0, 0);
+		label.Size = UDim2.new(1, -28, 1, 0);
+		label.BackgroundTransparency = 1;
+		label.Font = Enum.Font.Gotham;
+		label.TextSize = 14;
+		label.TextColor3 = Color3.fromRGB(255, 255, 255);
+		label.TextXAlignment = Enum.TextXAlignment.Center;
+		label.Parent = btnContainer;
+		local clickZone = InstanceNew("TextButton");
+		clickZone.Name = "ClickArea";
+		clickZone.Size = UDim2.new(1, 0, 1, 0);
+		clickZone.BackgroundTransparency = 1;
+		clickZone.Text = "";
+		clickZone.Parent = btnContainer;
 		MouseButtonFix(clickZone, function()
-			toggles[logType] = not toggles[logType]
-
+			toggles[logType] = not toggles[logType];
 			if NAmanage and NAmanage.NASettingsSet then
 				local ok, saved = pcall(function()
-					return NAmanage.NASettingsSet("devConsoleFilters", toggles)
-				end)
+					return NAmanage.NASettingsSet("devConsoleFilters", toggles);
+				end);
 				if ok and type(saved) == "table" then
 					for _, key in ipairs(buttonTypes) do
-						local savedValue = saved[key]
+						local savedValue = saved[key];
 						if type(savedValue) == "boolean" then
-							toggles[key] = savedValue
-						end
-					end
-				end
-			end
-
-			local targetColor = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR
-			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-			TweenService:Create(checkbox, tweenInfo, {BackgroundColor3 = targetColor}):Play()
-
-			local query = NAUIMANAGER.NAfilter.Text:lower()
+							toggles[key] = savedValue;
+						end;
+					end;
+				end;
+			end;
+			local targetColor = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR;
+			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut);
+			(TweenService:Create(checkbox, tweenInfo, {
+				BackgroundColor3 = targetColor
+			})):Play();
+			local query = NAUIMANAGER.NAfilter.Text:lower();
 			for i = 1, #activeLogs do
-				local lbl = activeLogs[i]
+				local lbl = activeLogs[i];
 				if lbl and lbl.Parent then
-					local tag = NAmanage.GetAttr(lbl, "Tag")
-					local matchesSearch = query == "" or Find(lbl.Text:lower(), query)
-					lbl.Visible = toggles[tag] and matchesSearch
-				end
-			end
-		end)
-	end
-
-	NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text"):Connect(function()
-		local query = NAUIMANAGER.NAfilter.Text:lower()
+					local tag = NAmanage.GetAttr(lbl, "Tag");
+					local matchesSearch = query == "" or Find(lbl.Text:lower(), query);
+					lbl.Visible = toggles[tag] and matchesSearch;
+				end;
+			end;
+		end);
+	end;
+	(NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text")):Connect(function()
+		local query = NAUIMANAGER.NAfilter.Text:lower();
 		for i = 1, #activeLogs do
-			local lbl = activeLogs[i]
+			local lbl = activeLogs[i];
 			if lbl and lbl.Parent then
-				local tag = NAmanage.GetAttr(lbl, "Tag")
-				local matches = query == "" or Find(lbl.Text:lower(), query)
-				lbl.Visible = toggles[tag] and matches
-			end
-		end
-	end)
-
+				local tag = NAmanage.GetAttr(lbl, "Tag");
+				local matches = query == "" or Find(lbl.Text:lower(), query);
+				lbl.Visible = toggles[tag] and matches;
+			end;
+		end;
+	end);
 	local function acquireLabel()
-		if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleLogs.Parent then return nil end
-		local lbl = table.remove(pool)
+		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
+			return nil;
+		end;
+		local lbl = table.remove(pool);
 		if not lbl then
-			lbl = NAUIMANAGER.NAconsoleExample:Clone()
-			lbl.RichText = true
-			lbl.AutoLocalize = false
-			pcall(function() lbl.Active = true end)
-			lbl.TextWrapped = true
-			lbl.TextScaled = true
-		end
-		if not pcall(function() lbl.Parent = NAUIMANAGER.NAconsoleLogs end) then return nil end
-		return lbl
-	end
-
+			lbl = NAUIMANAGER.NAconsoleExample:Clone();
+			lbl.RichText = true;
+			lbl.AutoLocalize = false;
+			pcall(function()
+				lbl.Active = true;
+			end);
+			lbl.TextWrapped = true;
+			lbl.TextScaled = true;
+		end;
+		if not pcall(function()
+			lbl.Parent = NAUIMANAGER.NAconsoleLogs;
+		end) then
+			return nil;
+		end;
+		return lbl;
+	end;
 	local function recycleOldest()
-		local oldest = table.remove(activeLogs, 1)
+		local oldest = table.remove(activeLogs, 1);
 		if oldest then
-			oldest.Visible = false
-			oldest.Parent = nil
-			Insert(pool, oldest)
-		end
-	end
-
+			oldest.Visible = false;
+			oldest.Parent = nil;
+			Insert(pool, oldest);
+		end;
+	end;
 	local function escape(s)
-		return s:gsub("&","&amp;"):gsub("<","&lt;"):gsub(">","&gt;")
-	end
+		return ((s:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
+	end;
 
+	local function stripRichText(s)
+		s = tostring(s or "");
+		s = s:gsub("<.->", "");
+		s = s:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&amp;", "&");
+		return s;
+	end;
 	local function measureHeight(lbl, width)
-		local plain = lbl.Text:gsub("<.->","")
-		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14
-		local vec = TextService:GetTextSize(plain, baseSize, lbl.Font, Vector2.new(width, 1e6))
-		local h = vec.Y
-		if h < 18 then h = 18 end
-		return math.floor(h + 0.5)
-	end
-
-	local messageCounter = 0
-	local MAX_MESSAGES = 200
-
-	RunService.Heartbeat:Connect(function()
-		if not NAUIMANAGER.NAconsoleLogs or not NAUIMANAGER.NAconsoleLogs.Parent then return end
-		local perStep = 30
-		local processed = 0
-		while processed < perStep and #pending > 0 do
-			local item = table.remove(pending, 1)
-			if toggles[item.t] then
-				local logLabel = acquireLabel()
-				if not logLabel then break end
-				messageCounter += 1
-				logLabel.Name = "Log_"..tostring(messageCounter)
-				logLabel.LayoutOrder = messageCounter
-				logLabel.Text = '<font color="'..item.c..'">['..item.t..']</font>: <font color="#ffffff">'..item.m..'</font>'
-				NAmanage.SetAttr(logLabel, "Tag", item.t)
-
-				local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X
-				local h = measureHeight(logLabel, width)
-				logLabel.Size = UDim2.new(1, 0, 0, h)
-
-				activeLogs[#activeLogs + 1] = logLabel
-				if #activeLogs > MAX_MESSAGES then
-					recycleOldest()
-				end
-
-				local query = NAUIMANAGER.NAfilter.Text:lower()
-				local matchesSearch = query == "" or Find(logLabel.Text:lower(), query)
-				logLabel.Visible = toggles[item.t] and matchesSearch
-				processed += 1
-			end
-		end
-	end)
-
-	SafeGetService("LogService").MessageOut:Connect(function(msg, msgTYPE)
-		local tagColor = "#cccccc"
-		local tagText = "Output"
+		local plain = lbl.Text:gsub("<.->", "");
+		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
+		local vec = TextService:GetTextSize(plain, baseSize, lbl.Font, Vector2.new(width, 1000000));
+		local h = vec.Y;
+		if h < 18 then
+			h = 18;
+		end;
+		return math.floor(h + 0.5);
+	end;
+	local function refreshLogHeights()
+		if not NAUIMANAGER.NAconsoleLogs then
+			return;
+		end;
+		local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
+		for i = 1, #activeLogs do
+			local lbl = activeLogs[i];
+			if lbl and lbl.Parent then
+				local h = measureHeight(lbl, width);
+				lbl.Size = UDim2.new(1, 0, 0, h);
+			end;
+		end;
+	end;
+	local function reflowConsole()
+		local logs = NAUIMANAGER.NAconsoleLogs;
+		local filterBox = NAUIMANAGER.NAfilter;
+		if not logs or (not logs.Parent) or (not FilterButtons) or (not FilterButtons.Parent) then
+			return;
+		end;
+		local container = logs.Parent;
+		local containerPos = container.AbsolutePosition;
+		local cursorY = 0;
+		if filterBox and filterBox.Parent == container then
+			cursorY = filterBox.AbsolutePosition.Y - containerPos.Y + filterBox.AbsoluteSize.Y;
+		end;
+		cursorY = cursorY + 6;
+		FilterButtons.AnchorPoint = Vector2.new(0.5, 0);
+		FilterButtons.Position = UDim2.new(0.5, 0, 0, cursorY);
+		cursorY = cursorY + FilterButtons.AbsoluteSize.Y + 6;
+		logs.AnchorPoint = Vector2.new(0.5, 0);
+		logs.Position = UDim2.new(0.5, 0, 0, cursorY);
+		local availableHeight = math.max(0, container.AbsoluteSize.Y - cursorY - 8);
+		logs.Size = UDim2.new(1, -10, 0, availableHeight);
+		refreshLogHeights();
+		updateCanvasSize(logs, NAUIMANAGER.AUTOSCALER.Scale);
+	end;
+	local function enqueueMessage(msg, msgTYPE)
+		local rawText = tostring(msg or "");
+		local tagColor = "#cccccc";
+		local tagText = "Output";
 		if msgTYPE == Enum.MessageType.MessageError then
-			tagColor = "#ff6464"
-			tagText = "Error"
+			tagColor = "#ff6464";
+			tagText = "Error";
 		elseif msgTYPE == Enum.MessageType.MessageWarning then
-			tagColor = "#ffcc00"
-			tagText = "Warn"
+			tagColor = "#ffcc00";
+			tagText = "Warn";
 		elseif msgTYPE == Enum.MessageType.MessageInfo then
-			tagColor = "#66ccff"
-			tagText = "Info"
-		end
-		if not toggles[tagText] then return end
-		Insert(pending, { m = escape(msg), t = tagText, c = tagColor })
-	end)
-end
+			tagColor = "#66ccff";
+			tagText = "Info";
+		end;
+		if not toggles[tagText] then
+			return;
+		end;
+		Insert(pending, {
+			m = escape(rawText),
+			raw = rawText,
+			t = tagText,
+			c = tagColor
+		});
+	end;
+	local messageCounter = 0;
+	local MAX_MESSAGES = 200;
+	local logService = SafeGetService("LogService");
+	do
+		local ok, history = pcall(function()
+			if logService then
+				return logService:GetLogHistory();
+			end;
+			return nil;
+		end);
+		if ok and type(history) == "table" then
+			for i = 1, #history do
+				local entry = history[i];
+				if entry then
+					local text = entry.message or entry.Message or entry[1];
+					local msgType = entry.messageType or entry.MessageType or entry.type;
+					if text ~= nil then
+						enqueueMessage(text, msgType);
+					end;
+				end;
+			end;
+		end;
+	end;
+	RunService.RenderStepped:Connect(function()
+		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
+			return;
+		end;
+		local perStep = 30;
+		local processed = 0;
+		while processed < perStep and #pending > 0 do
+			local item = table.remove(pending, 1);
+			if toggles[item.t] then
+				local logLabel = acquireLabel();
+				if not logLabel then
+					break;
+				end;
+				messageCounter += 1;
+				logLabel.Name = "Log_" .. tostring(messageCounter);
+				logLabel.LayoutOrder = messageCounter;
+				logLabel.Text = "<font color=\"" .. item.c .. "\">[" .. item.t .. "]</font>: <font color=\"#ffffff\">" .. item.m .. "</font>";
+				NAmanage.SetAttr(logLabel, "Tag", item.t);
+				local copyText = item.raw or stripRichText(item.m);
+				NAmanage.SetAttr(logLabel, "NA_CopyText", copyText);
+				if NAmanage.AttachMessageCopy and NAmanage.GetAttr(logLabel, "NA_CopyHooked") ~= true then
+					NAmanage.AttachMessageCopy(logLabel, function(lbl)
+						return (NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_CopyText")) or copyText;
+					end);
+					NAmanage.SetAttr(logLabel, "NA_CopyHooked", true);
+				end;
+				local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
+				local h = measureHeight(logLabel, width);
+				logLabel.Size = UDim2.new(1, 0, 0, h);
+				activeLogs[(#activeLogs) + 1] = logLabel;
+				if #activeLogs > MAX_MESSAGES then
+					recycleOldest();
+				end;
+				local query = NAUIMANAGER.NAfilter.Text:lower();
+				local matchesSearch = query == "" or Find(logLabel.Text:lower(), query);
+				logLabel.Visible = toggles[item.t] and matchesSearch;
+				processed += 1;
+			end;
+		end;
+	end);
+	if logService then
+		logService.MessageOut:Connect(function(msg, msgTYPE)
+			enqueueMessage(msg, msgTYPE);
+		end);
+	end;
+	reflowConsole();
+	pcall(function()
+		if NAUIMANAGER.NAconsoleFrame then
+			(NAUIMANAGER.NAconsoleFrame:GetPropertyChangedSignal("AbsoluteSize")):Connect(reflowConsole);
+		end;
+	end);
+	pcall(function()
+		(NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+			refreshLogHeights();
+			updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale);
+		end);
+	end);
+end;
 
 --[[function NAUISCALEUPD()
 	if not workspace.CurrentCamera then return end
@@ -58294,6 +58470,20 @@ NAgui.addToggle("Force Streaming Optimizations", NAStuff.FPSBoostOptions.forceSt
 end)
 NAmanage.RegisterToggleAutoSync("Force Streaming Optimizations", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.forceStreaming ~= false) == true
+end)
+
+NAgui.addToggle("Ignore Players", NAStuff.FPSBoostOptions.ignorePlayers ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("ignorePlayers", v == true)
+end)
+NAmanage.RegisterToggleAutoSync("Ignore Players", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.ignorePlayers ~= false) == true
+end)
+
+NAgui.addToggle("Ignore Self", NAStuff.FPSBoostOptions.ignoreSelf ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("ignoreSelf", v == true)
+end)
+NAmanage.RegisterToggleAutoSync("Ignore Self", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.ignoreSelf ~= false) == true
 end)
 
 local streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
@@ -62340,19 +62530,21 @@ elseif _na_env and rawget(_na_env, "GITHUB_AUTH") then
 end
 
 NAStuff.RobloxVersionEndpoints = {
+	"https://itseverydayyou.github.io/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/main/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
+
 	"https://weao.xyz/api/versions/current";
 	"http://weao.xyz/api/versions/current";
 }
 
 if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
-	Insert(NAStuff.RobloxVersionEndpoints, tostring(_na_env.WEAO_PROXY))
+	Insert(NAStuff.RobloxVersionEndpoints, 1, tostring(_na_env.WEAO_PROXY))
 end
-Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current")
-Insert(NAStuff.RobloxVersionEndpoints, "https://r.jina.ai/http://weao.xyz/api/versions/current?format=json")
 
 NAStuff.RobloxVersionHeaders = {
-	["User-Agent"] = "WEAO-3PService";
 	["Accept"] = "application/json";
+	["User-Agent"] = "WEAO-3PService";
 	["Origin"] = "https://weao.xyz";
 	["Referer"] = "https://weao.xyz/";
 }
