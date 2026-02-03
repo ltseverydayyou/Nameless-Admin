@@ -43413,6 +43413,10 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 	})
 end)
 
+cmd.add({"oldconsole", "olddebug"}, {"oldconsole", "opens old version of the developer console"}, function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/OldConsole.lua"))()
+end)
+
 NAmanage.HB_Defaults=function()
 	return {
 		size = 10;
