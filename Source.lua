@@ -8678,6 +8678,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		debugDontRenderKeybind = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		autoExecEnabled = {
 			default = true;
 			coerce = function(value)
@@ -9144,9 +9150,12 @@ NAmanage.NASettingsGetSchema=function()
 					effectMode = "disable";
 					stripParticles = true;
 					stripDecals = true;
+					stripTextures = true;
 					stripLights = true;
 					stripPostFx = true;
+					stripAtmosphere = true;
 					stripSurfaceAppearance = true;
+					stripHighlights = true;
 					stripExplosions = true;
 					simplifyMaterials = true;
 					zeroReflectance = true;
@@ -9160,9 +9169,12 @@ NAmanage.NASettingsGetSchema=function()
 					effectMode = "disable";
 					stripParticles = true;
 					stripDecals = true;
+					stripTextures = true;
 					stripLights = true;
 					stripPostFx = true;
+					stripAtmosphere = true;
 					stripSurfaceAppearance = true;
+					stripHighlights = true;
 					stripExplosions = true;
 					simplifyMaterials = true;
 					zeroReflectance = true;
@@ -9203,9 +9215,12 @@ NAmanage.NASettingsGetSchema=function()
 				out.effectMode = mode
 				out.stripParticles = boolField("stripParticles", defaults.stripParticles)
 				out.stripDecals = boolField("stripDecals", defaults.stripDecals)
+				out.stripTextures = boolField("stripTextures", defaults.stripTextures)
 				out.stripLights = boolField("stripLights", defaults.stripLights)
 				out.stripPostFx = boolField("stripPostFx", defaults.stripPostFx)
+				out.stripAtmosphere = boolField("stripAtmosphere", defaults.stripAtmosphere)
 				out.stripSurfaceAppearance = boolField("stripSurfaceAppearance", defaults.stripSurfaceAppearance)
+				out.stripHighlights = boolField("stripHighlights", defaults.stripHighlights)
 				out.stripExplosions = boolField("stripExplosions", defaults.stripExplosions)
 				out.simplifyMaterials = boolField("simplifyMaterials", defaults.simplifyMaterials)
 				out.zeroReflectance = boolField("zeroReflectance", defaults.zeroReflectance)
@@ -10483,6 +10498,7 @@ NAmanage.loadIntegration()
 NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Width"), NAStuff.CmdBar2.minWidth, NAStuff.CmdBar2.maxWidth, NAStuff.CmdBar2.defaultWidth)
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 _na_env.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
+_na_env.NADebugDontRenderKeybindEnabled = NAmanage.NASettingsGet("debugDontRenderKeybind") == true
 NAStuff.FreecamSpeed = math.clamp(tonumber(NAmanage.NASettingsGet("freecamSpeed")) or 5, 0.05, 20)
 if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
@@ -23087,9 +23103,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	local effectDestroy = (type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy")
 	local stripParticles = boolOpt(fpsOpt.stripParticles, true)
 	local stripDecals = boolOpt(fpsOpt.stripDecals, true)
+	local stripTextures = boolOpt(fpsOpt.stripTextures, true)
 	local stripLights = boolOpt(fpsOpt.stripLights, true)
 	local stripPostFx = boolOpt(fpsOpt.stripPostFx, true)
+	local stripAtmosphere = boolOpt(fpsOpt.stripAtmosphere, true)
 	local stripSurfaceAppearance = boolOpt(fpsOpt.stripSurfaceAppearance, true)
+	local stripHighlights = boolOpt(fpsOpt.stripHighlights, true)
 	local stripExplosions = boolOpt(fpsOpt.stripExplosions, true)
 	local simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true)
 	local zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true)
@@ -23211,13 +23230,11 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if stripPostFx then
 			for _,e in ipairs(Lighting:GetChildren()) do
 				if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
-				if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end
 			end
 			local cam=w.CurrentCamera
 			if cam then
 				for _,e in ipairs(cam:GetChildren()) do
 					if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
-					if e:IsA("Atmosphere") then if st.safeGet(e,"Density")~=nil then st.safeSet(e,"Density",0) end end
 				end
 			end
 		end
@@ -23252,21 +23269,40 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 			remember(inst,"MaterialVariant",st.safeGet(inst,"MaterialVariant"))
 			remember(inst,"Reflectance",inst.Reflectance)
 			remember(inst,"CastShadow",inst.CastShadow)
-			st.safeSet(inst,"Material",Enum.Material.Plastic)
+			local desiredMaterial = Enum.Material.Plastic
+			local currentMaterial = inst.Material
+			local currentVariant = st.safeGet(inst,"MaterialVariant")
+			local materialChanged = currentMaterial ~= desiredMaterial
+			local variantChanged = currentVariant ~= "" and currentVariant ~= nil
+			st.safeSet(inst,"Material",desiredMaterial)
 			st.safeSet(inst,"MaterialVariant","")
 			if zeroReflectance then
 				st.safeSet(inst,"Reflectance",0)
 			end
 			st.safeSet(inst,"CastShadow",false)
-			if stripDecals and inst:IsA("MeshPart") then
-				if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); st.safeSet(inst,"TextureID","") end
+			if materialChanged then
+				forceProperty(inst,"Material",desiredMaterial)
+			end
+			if variantChanged then
+				forceProperty(inst,"MaterialVariant","")
 			end
 		end
-		if inst:IsA("SpecialMesh") and stripDecals then
+		if stripTextures and inst:IsA("MeshPart") then
+			if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); st.safeSet(inst,"TextureID","") end
+		end
+		if stripTextures and inst:IsA("SpecialMesh") then
 			remember(inst,"TextureId",inst.TextureId)
 			st.safeSet(inst,"TextureId","")
 		end
-		if stripDecals and (inst:IsA("Decal") or inst:IsA("Texture")) then
+		if stripDecals and inst:IsA("Decal") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Transparency",inst.Transparency)
+			st.safeSet(inst,"Transparency",1)
+		end
+		if stripTextures and inst:IsA("Texture") then
 			if effectDestroy then
 				pcall(function() inst:Destroy() end)
 				return
@@ -23298,7 +23334,15 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 			remember(inst,"Enabled",inst.Enabled)
 			st.safeSet(inst,"Enabled",false)
 		end
-		if stripSurfaceAppearance and (inst:IsA("SurfaceAppearance") or inst:IsA("Highlight")) then
+		if stripSurfaceAppearance and inst:IsA("SurfaceAppearance") then
+			if effectDestroy then
+				pcall(function() inst:Destroy() end)
+				return
+			end
+			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
+			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
+		end
+		if stripHighlights and inst:IsA("Highlight") then
 			if effectDestroy then
 				pcall(function() inst:Destroy() end)
 				return
@@ -23315,7 +23359,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 			if enabledValue~=nil then remember(inst,"Enabled",enabledValue) end
 			forceProperty(inst,"Enabled",false)
 		end
-		if stripPostFx and inst:IsA("Atmosphere") then
+		if stripAtmosphere and inst:IsA("Atmosphere") then
 			if effectDestroy then
 				pcall(function() inst:Destroy() end)
 				return
@@ -58004,6 +58048,126 @@ if FileSupport then
 	end)
 end
 
+NAgui.SCREEN_GUI_NO_RENDER_FLAG = NAgui.SCREEN_GUI_NO_RENDER_FLAG or "DebugDontRenderScreenGui"
+NAgui.screenGuiNoRenderSupported = NAgui.screenGuiNoRenderSupported or false
+NAgui.ScreenGuiNoRenderHasSupport=function()
+	if not (type(setfflag) == "function" or (game and type(game.DefineFastFlag) == "function")) then
+		return false
+	end
+	if NAFFlags and NAFFlags.isFlagAvailable then
+		return NAFFlags.isFlagAvailable(NAgui.SCREEN_GUI_NO_RENDER_FLAG, { notify = false })
+	end
+	return true
+end
+
+NAgui.ScreenGuiNoRenderGet=function()
+	if type(getfflag) == "function" then
+		local ok, val = pcall(getfflag, NAgui.SCREEN_GUI_NO_RENDER_FLAG)
+		if ok then
+			val = tostring(val):lower()
+			return val == "true" or val == "1"
+		end
+	end
+	return NAStuff._DebugDontRenderScreenGui == true
+end
+
+NAgui.ScreenGuiNoRenderSet=function(enabled, opts)
+	opts = opts or {}
+	local silent = opts.silent == true
+	if NAFFlags and NAFFlags.apply then
+		local ok, err = NAFFlags.apply(NAgui.SCREEN_GUI_NO_RENDER_FLAG, enabled, { allowDisabled = true, silent = silent })
+		if ok then
+			NAStuff._DebugDontRenderScreenGui = enabled
+		end
+		return ok, err
+	end
+	local setter
+	if type(setfflag) == "function" then
+		setter = setfflag
+	elseif game and type(game.DefineFastFlag) == "function" then
+		setter = function(name, value)
+			return game:DefineFastFlag(name, value)
+		end
+	end
+	if not setter then
+		return false, "unsupported"
+	end
+	local ok, err = pcall(setter, NAgui.SCREEN_GUI_NO_RENDER_FLAG, enabled and "true" or "false")
+	if ok then
+		NAStuff._DebugDontRenderScreenGui = enabled
+	end
+	return ok, err
+end
+
+NAgui.ScreenGuiNoRenderToggle=function()
+	local desired = not NAgui.ScreenGuiNoRenderGet()
+	local ok, err = NAgui.ScreenGuiNoRenderSet(desired)
+	if not ok then
+		DoNotif("ScreenGui render toggle failed: "..tostring(err), 3)
+	end
+end
+
+NAgui.screenGuiNoRenderSupported = NAgui.ScreenGuiNoRenderHasSupport()
+
+if NAgui.screenGuiNoRenderSupported then
+	NAgui.ScreenGuiNoRenderSet(false, { silent = true })
+end
+
+NAgui.EnsureScreenGuiNoRenderKeybind=function()
+	if NAStuff.ScreenGuiNoRenderConn then
+		if ContextActionService then
+			pcall(function() ContextActionService:UnbindAction("NA_ScreenGuiNoRenderToggle") end)
+		end
+		NAStuff.ScreenGuiNoRenderConn = nil
+	end
+	if NAStuff.ScreenGuiNoRenderUISConn then
+		NAStuff.ScreenGuiNoRenderUISConn:Disconnect()
+		NAStuff.ScreenGuiNoRenderUISConn = nil
+	end
+	if not (IsOnPC and NAgui.screenGuiNoRenderSupported and _na_env.NADebugDontRenderKeybindEnabled == true and ContextActionService) then
+		return
+	end
+
+	local macroKey = Enum.KeyCode.C
+	NAStuff.ScreenGuiNoRenderConn = ContextActionService:BindActionAtPriority(
+		"NA_ScreenGuiNoRenderToggle",
+		function(_, state, input)
+			if state ~= Enum.UserInputState.Begin then
+				return Enum.ContextActionResult.Pass
+			end
+			if input.KeyCode ~= macroKey then
+				return Enum.ContextActionResult.Pass
+			end
+			local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+			local shiftDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+			if ctrlDown and shiftDown then
+				NAgui.ScreenGuiNoRenderToggle()
+				return Enum.ContextActionResult.Sink
+			end
+			return Enum.ContextActionResult.Pass
+		end,
+		false,
+		Enum.ContextActionPriority.Low.Value,
+		macroKey
+	)
+
+	NAStuff.ScreenGuiNoRenderUISConn = UserInputService.InputBegan:Connect(function(input, processed)
+		if input.KeyCode ~= macroKey then
+			return
+		end
+		if _na_env.NADebugDontRenderKeybindEnabled ~= true then
+			return
+		end
+		local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+		local shiftDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		if ctrlDown and shiftDown then
+			NAgui.ScreenGuiNoRenderToggle()
+		end
+	end)
+end
+
+NAgui.EnsureScreenGuiNoRenderKeybind()
+
 NAgui.setTab(NA_TABS.TAB_AUTOMATION)
 NAgui.addSection("Command & AutoFire Options")
 
@@ -58047,27 +58211,53 @@ NAmanage.RegisterToggleAutoSync("Strip Particles & Trails", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripParticles ~= false) == true
 end)
 
-NAgui.addToggle("Remove Decals & Textures", NAStuff.FPSBoostOptions.stripDecals ~= false, function(v)
+NAgui.addToggle("Remove Decals", NAStuff.FPSBoostOptions.stripDecals ~= false, function(v)
 	NAmanage.updateFpsBoostOpt("stripDecals", v ~= false)
-	NAmanage.updateFpsBoostOpt("stripSurfaceAppearance", v ~= false)
 end)
-NAmanage.RegisterToggleAutoSync("Remove Decals & Textures", function()
+NAmanage.RegisterToggleAutoSync("Remove Decals", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripDecals ~= false) == true
 end)
 
-NAgui.addToggle("Disable Lights & Highlights", NAStuff.FPSBoostOptions.stripLights ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripLights", v ~= false)
+NAgui.addToggle("Remove Textures", NAStuff.FPSBoostOptions.stripTextures ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripTextures", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Remove Textures", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripTextures ~= false) == true
+end)
+
+NAgui.addToggle("Strip SurfaceAppearance", NAStuff.FPSBoostOptions.stripSurfaceAppearance ~= false, function(v)
 	NAmanage.updateFpsBoostOpt("stripSurfaceAppearance", v ~= false)
 end)
-NAmanage.RegisterToggleAutoSync("Disable Lights & Highlights", function()
+NAmanage.RegisterToggleAutoSync("Strip SurfaceAppearance", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripSurfaceAppearance ~= false) == true
+end)
+
+NAgui.addToggle("Disable Highlights", NAStuff.FPSBoostOptions.stripHighlights ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripHighlights", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Highlights", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripHighlights ~= false) == true
+end)
+
+NAgui.addToggle("Disable Lights", NAStuff.FPSBoostOptions.stripLights ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripLights", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Lights", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripLights ~= false) == true
 end)
 
-NAgui.addToggle("Kill Post Effects & Atmospheres", NAStuff.FPSBoostOptions.stripPostFx ~= false, function(v)
+NAgui.addToggle("Disable Post Effects", NAStuff.FPSBoostOptions.stripPostFx ~= false, function(v)
 	NAmanage.updateFpsBoostOpt("stripPostFx", v ~= false)
 end)
-NAmanage.RegisterToggleAutoSync("Kill Post Effects & Atmospheres", function()
+NAmanage.RegisterToggleAutoSync("Disable Post Effects", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripPostFx ~= false) == true
+end)
+
+NAgui.addToggle("Clear Atmospheres", NAStuff.FPSBoostOptions.stripAtmosphere ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripAtmosphere", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Clear Atmospheres", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripAtmosphere ~= false) == true
 end)
 
 NAgui.addToggle("Simplify Materials & Shadows", NAStuff.FPSBoostOptions.simplifyMaterials ~= false, function(v)
@@ -58076,6 +58266,20 @@ NAgui.addToggle("Simplify Materials & Shadows", NAStuff.FPSBoostOptions.simplify
 end)
 NAmanage.RegisterToggleAutoSync("Simplify Materials & Shadows", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.simplifyMaterials ~= false) == true
+end)
+
+NAgui.addToggle("Zero Reflectance", NAStuff.FPSBoostOptions.zeroReflectance ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("zeroReflectance", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Zero Reflectance", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.zeroReflectance ~= false) == true
+end)
+
+NAgui.addToggle("Dampen Explosions", NAStuff.FPSBoostOptions.stripExplosions ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("stripExplosions", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Dampen Explosions", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripExplosions ~= false) == true
 end)
 
 NAgui.addToggle("Flatten Lighting (Fog/Shadows)", NAStuff.FPSBoostOptions.flattenLighting ~= false, function(v)
@@ -58138,6 +58342,18 @@ NAgui.addToggle("Hitbox Massless", NAStuff.hbOptsUi.massless ~= false, function(
 end)
 
 if IsOnPC then
+	if NAgui.screenGuiNoRenderSupported then
+		NAgui.addToggle("Ctrl+Shift+C Hide ScreenGui", _na_env.NADebugDontRenderKeybindEnabled == true, function(v)
+			_na_env.NADebugDontRenderKeybindEnabled = v and true or false
+			NAmanage.NASettingsSet("debugDontRenderKeybind", _na_env.NADebugDontRenderKeybindEnabled)
+			NAgui.EnsureScreenGuiNoRenderKeybind()
+			DoNotif("ScreenGui hide keybind "..(v and "enabled" or "disabled"), 2)
+		end)
+		NAmanage.RegisterToggleAutoSync("Ctrl+Shift+C Hide ScreenGui", function()
+			return _na_env.NADebugDontRenderKeybindEnabled == true
+		end)
+	end
+
 	NAgui.addToggle("Freecam Shift+P Keybind", _na_env.NAFreecamKeybindEnabled == true, function(v)
 		_na_env.NAFreecamKeybindEnabled = v and true or false
 		NAmanage.NASettingsSet("freecamKeybind", _na_env.NAFreecamKeybindEnabled)
@@ -58952,6 +59168,9 @@ NAFFlags.getTargets = function()
 	local seen = {}
 	for _, entry in ipairs(NAFFlags.whitelist) do
 		local name = entry.name
+		if NAgui and NAgui.SCREEN_GUI_NO_RENDER_FLAG and name == NAgui.SCREEN_GUI_NO_RENDER_FLAG then
+			continue
+		end
 		if NAFFlags.isFlagEnabled and not NAFFlags.isFlagEnabled(name) then
 			continue
 		end
@@ -58962,6 +59181,9 @@ NAFFlags.getTargets = function()
 	end
 	if not NAFFlags.config.applyWhitelistOnly then
 		for customName, customValue in pairs(NAFFlags.config.custom or {}) do
+			if NAgui and NAgui.SCREEN_GUI_NO_RENDER_FLAG and customName == NAgui.SCREEN_GUI_NO_RENDER_FLAG then
+				continue
+			end
 			if not seen[customName] and customValue ~= nil then
 				targets[#targets + 1] = { name = customName, value = customValue }
 			end
