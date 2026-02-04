@@ -94,7 +94,7 @@ local topHeight = isMobile and 52 or 48;
 local searchHeight = isMobile and 56 or 52;
 local sidePadding = 12;
 local verticalGap = 10;
-local NAmanageRef = (getgenv and getgenv().NAmanage) or rawget(_G, "NAmanage");
+local NAmanageRef = getgenv and (getgenv()).NAmanage or rawget(_G, "NAmanage");
 local function centerFrame(f)
 	local cf = NAmanageRef and NAmanageRef.centerFrame;
 	if type(cf) == "function" then
@@ -108,8 +108,8 @@ local function centerFrame(f)
 	if vp.X == 0 or vp.Y == 0 then
 		return;
 	end;
-	local totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X);
-	local totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y);
+	local totalX = f.Size.X.Scale + f.Size.X.Offset / vp.X;
+	local totalY = f.Size.Y.Scale + f.Size.Y.Offset / vp.Y;
 	f.Position = UDim2.new(0.5 - totalX / 2, 0, 0.5 - totalY / 2, 0);
 end;
 local function clampFrameWithinViewport()
@@ -147,7 +147,7 @@ if autoCenter then
 end;
 local cam = workspace.CurrentCamera;
 if cam then
-	cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	(cam:GetPropertyChangedSignal("ViewportSize")):Connect(function()
 		if autoCenter then
 			centerFrame(fr);
 		else
@@ -155,7 +155,7 @@ if cam then
 		end;
 	end);
 end;
-fr:GetPropertyChangedSignal("Size"):Connect(function()
+(fr:GetPropertyChangedSignal("Size")):Connect(function()
 	if autoCenter then
 		centerFrame(fr);
 	else
@@ -503,13 +503,23 @@ sf.ScrollBarThickness = 6;
 sf.ScrollBarImageColor3 = col.ac;
 sf.CanvasSize = UDim2.new(0, 0, 0, 0);
 sf.Parent = rc;
-local gridLayout = Instance.new("UIGridLayout");
-gridLayout.CellPadding = UDim2.new(0, 8, 0, 8);
-gridLayout.CellSize = UDim2.new(isMobile and 1 or 0.48, -10, 0, isMobile and 250 or 240);
-gridLayout.FillDirection = Enum.FillDirection.Horizontal;
-gridLayout.SortOrder = Enum.SortOrder.LayoutOrder;
-gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top;
-gridLayout.Parent = sf;
+local gridLayout;
+local listLayout;
+if isMobile then
+	listLayout = Instance.new("UIListLayout");
+	listLayout.FillDirection = Enum.FillDirection.Vertical;
+	listLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+	listLayout.Padding = UDim.new(0, 8);
+	listLayout.Parent = sf;
+else
+	gridLayout = Instance.new("UIGridLayout");
+	gridLayout.CellPadding = UDim2.new(0, 8, 0, 8);
+	gridLayout.CellSize = UDim2.new(0.48, -10, 0, 240);
+	gridLayout.FillDirection = Enum.FillDirection.Horizontal;
+	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+	gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top;
+	gridLayout.Parent = sf;
+end;
 local pad = Instance.new("UIPadding");
 pad.PaddingTop = UDim.new(0, 8);
 pad.PaddingLeft = UDim.new(0, 2);
@@ -546,7 +556,7 @@ local function clearImageCache()
 		return false;
 	end;
 	local okExists, exists = pcall(isfolder, IMAGE_CACHE_DIR);
-	if not okExists or not exists then
+	if not okExists or (not exists) then
 		return false;
 	end;
 	local okList, files = pcall(listfiles, IMAGE_CACHE_DIR);
@@ -822,9 +832,20 @@ btnAnim(go, col.ac, Color3.fromRGB(58, 160, 255));
 btnAnim(mini, mini.BackgroundColor3, mini.BackgroundColor3:Lerp(Color3.fromRGB(255, 255, 255), 0.12));
 btnAnim(cls, cls.BackgroundColor3, Color3.fromRGB(72, 24, 32));
 local function sizeCanvas()
-	sf.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 12);
+	local y = 0;
+	if gridLayout then
+		y = gridLayout.AbsoluteContentSize.Y;
+	elseif listLayout then
+		y = listLayout.AbsoluteContentSize.Y;
+	end;
+	sf.CanvasSize = UDim2.new(0, 0, 0, y + 12);
 end;
-(gridLayout:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(sizeCanvas);
+if gridLayout then
+	(gridLayout:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(sizeCanvas);
+end;
+if listLayout then
+	(listLayout:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(sizeCanvas);
+end;
 local function clearAll(anim)
 	for _, v in ipairs(sf:GetChildren()) do
 		if v:IsA("Frame") and (v.Name:find("^Card") or v.Name == "Msg" or v.Name == "Skel") then
@@ -1105,12 +1126,17 @@ local function mkCard(i, d)
 	local displayGameId = hasPlaceId and tostring(placeId) or nil;
 	local c = Instance.new("Frame");
 	c.Name = "Card" .. i;
-	c.Size = UDim2.new(1, 0, 1, 0);
 	c.BackgroundColor3 = col.bg;
 	c.BorderSizePixel = 0;
 	c.LayoutOrder = i;
 	c.ClipsDescendants = true;
 	c.Parent = sf;
+	if isMobile then
+		c.Size = UDim2.new(1, 0, 0, 0);
+		c.AutomaticSize = Enum.AutomaticSize.Y;
+	else
+		c.Size = UDim2.new(1, 0, 1, 0);
+	end;
 	local cc = Instance.new("UICorner");
 	cc.CornerRadius = UDim.new(0, 10);
 	cc.Parent = c;
@@ -1244,11 +1270,11 @@ local function mkCard(i, d)
 	tl.LayoutOrder = 1;
 	tl.Parent = textContent;
 	local inf = Instance.new("TextLabel");
-	inf.Size = UDim2.new(1, 0, 0, 0);
-	inf.AutomaticSize = Enum.AutomaticSize.Y;
+	inf.Size = UDim2.new(1, 0, 0, isMobile and 72 or 64);
 	inf.BackgroundTransparency = 1;
 	inf.Font = Enum.Font.Gotham;
 	inf.TextWrapped = true;
+	inf.TextTruncate = Enum.TextTruncate.AtEnd;
 	inf.TextColor3 = col.td;
 	inf.TextSize = 12;
 	inf.TextXAlignment = Enum.TextXAlignment.Left;
@@ -1282,20 +1308,32 @@ local function mkCard(i, d)
 	end;
 	inf.Text = table.concat(infoLines, "\n");
 	inf.Parent = textContent;
+	local canCopy = setclipboard ~= nil;
+	local hasDiscord = d.discord and setclipboard;
+	local btnCount = 1;
+	if canCopy then
+		btnCount += 1;
+	end;
+	if hasDiscord then
+		btnCount += 1;
+	end;
+	local rowH = isMobile and btnCount * 30 + (btnCount - 1) * 4 or 30;
 	local row = Instance.new("Frame");
 	row.BackgroundTransparency = 1;
-	row.Size = UDim2.new(1, 0, 0, 30);
+	row.Size = UDim2.new(1, 0, 0, rowH);
 	row.ZIndex = 2;
 	row.LayoutOrder = 3;
 	row.Parent = textContent;
 	local rl = Instance.new("UIListLayout");
-	rl.FillDirection = Enum.FillDirection.Horizontal;
-	rl.Padding = UDim.new(0, 8);
+	rl.FillDirection = isMobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal;
+	rl.HorizontalAlignment = Enum.HorizontalAlignment.Left;
+	rl.VerticalAlignment = Enum.VerticalAlignment.Center;
+	rl.Padding = UDim.new(0, isMobile and 4 or 8);
 	rl.SortOrder = Enum.SortOrder.LayoutOrder;
 	rl.Parent = row;
 	local function mkB(txt, bg)
 		local b = Instance.new("TextButton");
-		b.Size = UDim2.new(0, 104, 0, 30);
+		b.Size = isMobile and UDim2.new(1, 0, 0, 30) or UDim2.new(0, 104, 0, 30);
 		b.BackgroundColor3 = bg;
 		b.Text = txt;
 		b.TextColor3 = col.tx;
@@ -1310,8 +1348,8 @@ local function mkCard(i, d)
 		return b;
 	end;
 	local ex = mkB("Run", col.su);
-	local cp = setclipboard and mkB("Copy", Color3.fromRGB(57, 63, 75)) or nil;
-	local dc = d.discord and setclipboard and mkB("Discord", Color3.fromRGB(28, 116, 224)) or nil;
+	local cp = canCopy and mkB("Copy", Color3.fromRGB(57, 63, 75)) or nil;
+	local dc = hasDiscord and mkB("Discord", Color3.fromRGB(28, 116, 224)) or nil;
 	ex.MouseButton1Click:Connect(function()
 		pcall(function()
 			if eng == "ScriptBlox" then
