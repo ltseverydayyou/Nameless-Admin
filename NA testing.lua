@@ -26879,7 +26879,7 @@ originalIO.startForceReverb=function(targetType)
 	DoNotif("Reverb locked to "..tostring(targetType.Name or tostring(targetType)), 2)
 end
 
-cmd.add({"forcereverb","freverb","fr"},{"forcereverb (freverb, fr)","Lock ambient reverb and auto-restore if changed"},function(...)
+cmd.add({"forcereverb","freverb"},{"forcereverb","Lock ambient reverb and auto-restore if changed"},function(...)
 	local args = {...}
 	local target = args[1]
 	local buttons = {}
@@ -26997,7 +26997,7 @@ cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera
 	end
 end)
 
-cmd.add({"forcecam","fcam","fc"},{"forcecam (fcam, fc)","Lock camera type and auto-restore if changed"},function(...)
+cmd.add({"forcecam"},{"forcecam","Lock camera type and auto-restore if changed"},function(...)
 	local args = {...}
 	local target = args[1]
 	local buttons = {}
