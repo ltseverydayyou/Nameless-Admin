@@ -26835,6 +26835,135 @@ cmd.add({"reverb","reverbcontrol"},{"reverb (reverbcontrol)","Manage sound rever
 	end
 end)
 
+NAStuff.forceReverbState = NAStuff.forceReverbState or { enabled = false, target = nil }
+
+originalIO.stopForceReverb=function()
+	NAStuff.forceReverbState.enabled = false
+	NAStuff.forceReverbState.target = nil
+	NAlib.disconnect("forcereverb_main")
+	NAlib.disconnect("forcereverb_prop")
+end
+
+originalIO.ensureForceReverb=function()
+	if not NAStuff.forceReverbState.enabled or not NAStuff.forceReverbState.target then return end
+	local ss = SafeGetService("SoundService")
+	if not ss then return end
+	if ss.AmbientReverb ~= NAStuff.forceReverbState.target then
+		pcall(function() ss.AmbientReverb = NAStuff.forceReverbState.target end)
+	end
+end
+
+originalIO.bindForceReverbWatcher=function()
+	NAlib.disconnect("forcereverb_prop")
+	local ss = SafeGetService("SoundService")
+	if ss then
+		NAlib.connect("forcereverb_prop", ss:GetPropertyChangedSignal("AmbientReverb"):Connect(originalIO.ensureForceReverb))
+	end
+end
+
+originalIO.startForceReverb=function(targetType)
+	if not targetType then return end
+	NAStuff.forceReverbState.enabled = true
+	NAStuff.forceReverbState.target = targetType
+	NAlib.disconnect("forcereverb_main")
+	NAlib.disconnect("forcereverb_prop")
+
+	originalIO.ensureForceReverb()
+	originalIO.bindForceReverbWatcher()
+
+	NAlib.connect("forcereverb_main", game:GetPropertyChangedSignal("SoundService"):Connect(function()
+		originalIO.ensureForceReverb()
+		originalIO.bindForceReverbWatcher()
+	end))
+
+	DoNotif("Reverb locked to "..tostring(targetType.Name or tostring(targetType)), 2)
+end
+
+cmd.add({"forcereverb","freverb","fr"},{"forcereverb (freverb, fr)","Lock ambient reverb and auto-restore if changed"},function(...)
+	local args = {...}
+	local target = args[1]
+	local buttons = {}
+	for _, rt in ipairs(Enum.ReverbType:GetEnumItems()) do
+		Insert(buttons, {
+			Text = rt.Name,
+			Callback = function()
+				originalIO.startForceReverb(rt)
+			end
+		})
+	end
+	if target and target ~= "" then
+		local found = false
+		for _, btn in ipairs(buttons) do
+			if Match(Lower(btn.Text), Lower(target)) then
+				btn.Callback()
+				found = true
+				break
+			end
+		end
+		if not found then
+			DebugNotif("No matching reverb type for: "..target, 3)
+		end
+	else
+		Window({
+			Title = "Force Reverb Type",
+			Buttons = buttons
+		})
+	end
+end)
+
+cmd.add({"unforcereverb","ufreverb","ufr","stopforcereverb"},{"unforcereverb (ufreverb, ufr)","Stop forcing ambient reverb"},function()
+	if NAStuff.forceReverbState.enabled then
+		originalIO.stopForceReverb()
+		DoNotif("Reverb force disabled", 2)
+	else
+		DoNotif("Reverb force is already off", 2)
+	end
+end)
+
+NAStuff.forceCamState = NAStuff.forceCamState or { enabled = false, target = nil }
+
+originalIO.stopForceCam=function()
+	NAStuff.forceCamState.enabled = false
+	NAStuff.forceCamState.target = nil
+	NAlib.disconnect("forcecam_main")
+	NAlib.disconnect("forcecam_camprop")
+end
+
+originalIO.ensureForceCam=function()
+	if not NAStuff.forceCamState.enabled or not NAStuff.forceCamState.target then return end
+	local cam = workspace.CurrentCamera
+	if not cam then return end
+	if cam.CameraType ~= NAStuff.forceCamState.target then
+		pcall(function() cam.CameraType = NAStuff.forceCamState.target end)
+	end
+end
+
+originalIO.bindForceCamPropWatcher=function()
+	NAlib.disconnect("forcecam_camprop")
+	local cam = workspace.CurrentCamera
+	if cam then
+		NAlib.connect("forcecam_camprop", cam:GetPropertyChangedSignal("CameraType"):Connect(originalIO.ensureForceCam))
+	end
+end
+
+originalIO.startForceCam=function(targetType)
+	if not targetType then return end
+	NAStuff.forceCamState.enabled = true
+	NAStuff.forceCamState.target = targetType
+	NAlib.disconnect("forcecam_main")
+	NAlib.disconnect("forcecam_camprop")
+
+	originalIO.ensureForceCam()
+	originalIO.bindForceCamPropWatcher()
+
+	NAlib.connect("forcecam_main", workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		originalIO.ensureForceCam()
+		originalIO.bindForceCamPropWatcher()
+	end))
+
+	DoNotif("Camera type locked to "..tostring(targetType.Name or tostring(targetType)), 2)
+end
+
 cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera type settings"},function(...)
 	local args = {...}
 	local target = args[1]
@@ -26865,6 +26994,47 @@ cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera
 			Title = "Camera Type Options",
 			Buttons = buttons
 		})
+	end
+end)
+
+cmd.add({"forcecam","fcam","fc"},{"forcecam (fcam, fc)","Lock camera type and auto-restore if changed"},function(...)
+	local args = {...}
+	local target = args[1]
+	local buttons = {}
+	for _, ct in ipairs(Enum.CameraType:GetEnumItems()) do
+		Insert(buttons, {
+			Text = ct.Name,
+			Callback = function()
+				originalIO.startForceCam(ct)
+			end
+		})
+	end
+	if target and target ~= "" then
+		local found = false
+		for _, btn in ipairs(buttons) do
+			if Match(Lower(btn.Text), Lower(target)) then
+				btn.Callback()
+				found = true
+				break
+			end
+		end
+		if not found then
+			DebugNotif("No matching camera type for: "..target, 3)
+		end
+	else
+		Window({
+			Title = "Force Camera Type",
+			Buttons = buttons
+		})
+	end
+end)
+
+cmd.add({"unforcecam","ufcam","ufc","stopforcecam"},{"unforcecam (ufcam, ufc)","Stop forcing camera type"},function()
+	if NAStuff.forceCamState.enabled then
+		originalIO.stopForceCam()
+		DoNotif("Camera force disabled", 2)
+	else
+		DoNotif("Camera force is already off", 2)
 	end
 end)
 
