@@ -1599,6 +1599,7 @@ local NAStuff = {
 	ForceAdminRainbow = true;
 	AutoExecEnabled = true;
 	UserButtonsAutoLoad = true;
+	FriendRequestAutoDismiss = false;
 	CmdBar2AutoRun = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
@@ -8882,6 +8883,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		friendRequestAutoDismiss = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		chatTranslate = {
 			default = true;
 			coerce = function(value)
@@ -10422,6 +10429,7 @@ NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
+NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
@@ -38355,6 +38363,149 @@ if NAStuff and NAStuff.PurchasePromptsDisabled == true then
 	NAmanage.nuhuhprompt(false)
 end
 
+notificationButtonBlock = notificationButtonBlock or { conns = {}, blocking = false, frames = setmetatable({}, { __mode = "k" }) }
+
+NAmanage._isFriendRequestFrame=function(inst)
+	if not inst or typeof(inst) ~= "Instance" or not inst:IsA("Frame") then return false end
+	if not (inst.Parent and inst.Parent.Name == "NotificationFrame") then
+		return false
+	end
+	local function hasThumbImage(container)
+		if not container or typeof(container) ~= "Instance" then return false end
+		if container:IsA("ImageLabel") or container:IsA("ImageButton") then
+			local img = Lower(tostring(container.Image or ""))
+			return img:find("rbxthumb://", 1, true) ~= nil
+		end
+		return false
+	end
+
+	local function hasAcceptDeclineButtons(container)
+		local foundAccept, foundDecline = false, false
+		local function checkBtn(btn)
+			if not btn or typeof(btn) ~= "Instance" then return end
+			if btn:IsA("TextButton") then
+				local txt = Lower(tostring(btn.Text or ""))
+				if txt == "accept" then
+					foundAccept = true
+				elseif txt == "decline" then
+					foundDecline = true
+				end
+			end
+		end
+		for _, d in ipairs(container:GetDescendants()) do
+			checkBtn(d)
+			if foundAccept and foundDecline then break end
+		end
+		return foundAccept and foundDecline
+	end
+
+	local hasThumb = hasThumbImage(inst)
+	if not hasThumb then
+		for _, desc in ipairs(inst:GetDescendants()) do
+			if hasThumbImage(desc) then
+				hasThumb = true
+				break
+			end
+		end
+	end
+
+	if not hasThumb then
+		return false
+	end
+
+	return hasAcceptDeclineButtons(inst)
+end
+
+NAmanage.setFriendRequestAutoDismiss = function(enable)
+	NACaller(function()
+		local tbl = notificationButtonBlock
+		local coreGui = COREGUI
+		if not coreGui then
+			return
+		end
+
+		local function disconnectAll()
+			for i = #tbl.conns, 1, -1 do
+				local c = tbl.conns[i]
+				if c and c.Connected then
+					c:Disconnect()
+				end
+				tbl.conns[i] = nil
+			end
+			tbl.frames = setmetatable({}, { __mode = "k" })
+			tbl.blocking = false
+		end
+
+		local function bindNotificationFrame(nf)
+			if not nf or tbl.frames[nf] or not nf:IsA("Frame") then return end
+			tbl.frames[nf] = true
+
+			local function handleChild(child)
+				if not tbl.blocking or not child or child.Parent ~= nf or not child:IsA("Frame") then
+					return
+				end
+				if NAmanage._isFriendRequestFrame(child) then
+					local function disableGuiObject(gui)
+						if gui:IsA("GuiObject") then
+							pcall(function() gui.Visible = false end)
+							pcall(function() gui.Active = false end)
+						end
+					end
+
+					disableGuiObject(child)
+					for _, d in ipairs(child:GetDescendants()) do
+						if d:IsA("GuiObject") then
+							disableGuiObject(d)
+						end
+					end
+				end
+			end
+
+			for _, child in ipairs(nf:GetChildren()) do
+				handleChild(child)
+			end
+
+			Insert(tbl.conns, nf.ChildAdded:Connect(handleChild))
+			Insert(tbl.conns, nf:GetPropertyChangedSignal("Parent"):Connect(function()
+				if not nf.Parent then
+					tbl.frames[nf] = nil
+				end
+			end))
+		end
+
+		local function attachExisting()
+			local robloxGui = coreGui:FindFirstChild("RobloxGui")
+			if not robloxGui then return end
+			local nf = robloxGui:FindFirstChild("NotificationFrame")
+			if nf and nf:IsA("Frame") then
+				bindNotificationFrame(nf)
+			end
+		end
+
+		if enable then
+			if tbl.blocking then return end
+			tbl.blocking = true
+			tbl.frames = tbl.frames or setmetatable({}, { __mode = "k" })
+
+			attachExisting()
+
+			Insert(tbl.conns, coreGui.DescendantAdded:Connect(function(inst)
+				if not tbl.blocking or not inst then return end
+				if inst.Name == "NotificationFrame" and inst:IsA("Frame") then
+					bindNotificationFrame(inst)
+				end
+			end))
+		else
+			if not tbl.blocking then return end
+			disconnectAll()
+		end
+	end)
+end
+
+if NAStuff and NAStuff.FriendRequestAutoDismiss == true then
+	NAmanage.setFriendRequestAutoDismiss(true)
+end
+
 networkPauseBlock = networkPauseBlock or {tracked = {}, conns = {}, blocking = false, polling = false}
 
 function NAmanage.isNetworkPauseScript(inst)
@@ -57749,6 +57900,16 @@ NAgui.addToggle("Disable Network Pause", NAStuff.NetworkPauseDisabled == true, f
 end)
 NAmanage.RegisterToggleAutoSync("Disable Network Pause", function()
 	return NAStuff.NetworkPauseDisabled == true
+end)
+
+NAgui.addToggle("Auto-dismiss Friend Requests", NAStuff.FriendRequestAutoDismiss == true, function(v)
+	NAStuff.FriendRequestAutoDismiss = v == true
+	pcall(NAmanage.NASettingsSet, "friendRequestAutoDismiss", NAStuff.FriendRequestAutoDismiss)
+	NAmanage.setFriendRequestAutoDismiss(NAStuff.FriendRequestAutoDismiss)
+	DoNotif("Friend request popups "..(NAStuff.FriendRequestAutoDismiss and "auto-dismissed" or "shown"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Auto-dismiss Friend Requests", function()
+	return NAStuff.FriendRequestAutoDismiss == true
 end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
