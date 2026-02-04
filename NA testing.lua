@@ -18,6 +18,8 @@
 
 ]]
 
+-- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
+
 local _na_env = (getgenv and getgenv()) or _G or {}
 local _na_shared = rawget(_G, "shared")
 
@@ -56380,10 +56382,17 @@ MouseButtonFix(TextButton,function()
 	NAUIMANAGER.cmdInput.Text=''
 end)
 
---@ltseverydayyou (Aervanix)
---@Cosmella (Viper)
+--@ltseverydayyou (Vyperia) | https://github.com/ltseverydayyou
+--@Cosmella (Viper) | https://github.com/Cosmella-v
 
---original by @qipu | loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/main/Source"))();
+--original by @qipu | https://github.com/lxte | https://github.com/FilteringEnabled | loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/main/Source"))();
+
+-- remove annoying aged group chat messages
+Spawn(function()
+	pcall(function() -- added pcall incase of errors (just to be sure this script doesn't kill itself 💀)
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"))();
+	end)
+end)
 
 SpawnCall(function()
 	local NAresult = tick() - NAbegin
@@ -63070,3 +63079,5 @@ end)
 ╚═╝░░╚═╝╚═════╝░╚═╝░░░░░╚═╝╚═╝╚═╝░░╚══╝
 
 )]]
+
+-- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
