@@ -27664,8 +27664,37 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 	end
 
 	local Tool, Handle = zeTOOL()
-	if not Tool or not Handle then
+	if not Tool then
 		return DoNotif('You need to hold a "Tool" that does damage on touch')
+	end
+
+	local function findDamagePart(tool)
+		local ttPart = nil
+		for _, desc in ipairs(tool:GetDescendants()) do
+			if desc:IsA("TouchTransmitter") then
+				local parent = desc.Parent
+				if parent and parent:IsA("BasePart") then
+					ttPart = parent
+					break
+				end
+			end
+		end
+		if ttPart then
+			return ttPart, "touchtransmitter"
+		end
+		local h = tool:FindFirstChild("Handle")
+		if h and h:IsA("BasePart") then
+			return h, "handle"
+		end
+		return nil, "none"
+	end
+
+	local DamagePart, source = findDamagePart(Tool)
+	if not DamagePart then
+		if Handle then
+			return DoNotif("This tool has no TouchTransmitter; the Handle can't be used for handlekill.", 3)
+		end
+		return DoNotif("This tool has no TouchTransmitter or Handle - handlekill cannot run with it.", 3)
 	end
 
 	local username = ...
@@ -27684,9 +27713,9 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 
 				for _, part in ipairs(getPlrChar(targetPlayer):GetChildren()) do
 					if part:IsA("BasePart") then
-						firetouchinterest(Handle, part, 0)
+						firetouchinterest(DamagePart, part, 0)
 						Wait()
-						firetouchinterest(Handle, part, 1)
+						firetouchinterest(DamagePart, part, 1)
 					end
 				end
 
