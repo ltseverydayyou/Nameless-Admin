@@ -39349,6 +39349,16 @@ NAindex.carPart = function(inst)
 		end
 	end
 	if not part then
+		if inst:IsA("Model") then
+			part = inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+		else
+			local parent = inst.Parent
+			if parent and parent:IsA("Model") then
+				part = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart", true)
+			end
+		end
+	end
+	if not part then
 		part = inst:FindFirstAncestorWhichIsA("BasePart")
 	end
 	carPartCache[inst] = part or false
