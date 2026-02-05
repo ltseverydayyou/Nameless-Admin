@@ -357,7 +357,7 @@ end)()
 --[[ Character helpers ]]--
 NA_GRAB_BODY = (function()
 	local T = {};
-	local _cache = _rp_cache or setmetatable({}, {
+	local _cache = setmetatable({}, {
 		__mode = "k"
 	});
 	local overrideModel = nil;
@@ -1626,6 +1626,8 @@ local NAStuff = {
 	CmdIntegrationLastSource = nil;
 	tweenSpeed = 1;
 	FreecamSpeed = 5;
+	MobileCamSensitivity = 1;
+	MobileCamSensEnabled = false;
 	originalDesc = nil;
 	currentDesc = nil;
 	AutoChar = nil;
@@ -8721,6 +8723,22 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		mobileCamSensEnabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		mobileCamSensitivity = {
+			default = 1;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then
+					return 1
+				end
+				return math.clamp(n, 0.2, 4)
+			end;
+		};
 		crosshairColor = {
 			default = function()
 				return { R = 1; G = 1; B = 1 }
@@ -10635,6 +10653,8 @@ NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
 NAStuff.CrosshairThickness = NAStuff.CrosshairThickness or 2
+NAStuff.MobileCamSensEnabled = NAStuff.MobileCamSensEnabled == true
+NAStuff.MobileCamSensitivity = math.clamp(tonumber(NAStuff.MobileCamSensitivity) or 1, 0.2, 4)
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -10650,6 +10670,11 @@ if FileSupport then
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
+	local savedMobileCamSens = tonumber(NAmanage.NASettingsGet("mobileCamSensitivity"))
+	if savedMobileCamSens then
+		NAStuff.MobileCamSensitivity = math.clamp(savedMobileCamSens, 0.2, 4)
+	end
+	NAStuff.MobileCamSensEnabled = NAmanage.NASettingsGet("mobileCamSensEnabled") == true
 	local chColorRaw = NAmanage.NASettingsGet("crosshairColor")
 	local function toColor3(tbl, fallback)
 		if typeof(tbl) == "Color3" then
@@ -11232,6 +11257,167 @@ else
 	--opt.saveTag = fals
 end
 NAAssetsLoading.applyMinimizedPreference()
+
+NAStuff.MobileCamSensState = NAStuff.MobileCamSensState or {
+	enabled = NAStuff.MobileCamSensEnabled == true;
+	mult = math.clamp(tonumber(NAStuff.MobileCamSensitivity) or 1, 0.2, 4);
+	lastYaw = nil;
+	lastPitch = nil;
+	lastFocus = nil;
+}
+
+NAmanage.mobileCamSensIsMobile=function()
+	local UIS = UserInputService
+	if not UIS then
+		return IsOnMobile == true
+	end
+	local platform = UIS:GetPlatform()
+	if platform == Enum.Platform.IOS or platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV
+		or platform == Enum.Platform.Chromecast or platform == Enum.Platform.MetaOS then
+		return true
+	end
+	if platform == Enum.Platform.None then
+		if UIS.TouchEnabled and not (UIS.KeyboardEnabled or UIS.MouseEnabled or UIS.GamepadEnabled) then
+			return true
+		end
+	end
+	if UIS.TouchEnabled and not (UIS.KeyboardEnabled or UIS.MouseEnabled or UIS.GamepadEnabled) then
+		return true
+	end
+	return IsOnMobile == true
+end
+
+NAmanage.mobileCamAngDiff=function(a, b)
+	local d = a - b
+	d = (d + math.pi) % (2 * math.pi) - math.pi
+	return d
+end
+
+NAmanage.resetMobileCamState=function()
+	NAStuff.MobileCamSensState.lastYaw = nil
+	NAStuff.MobileCamSensState.lastPitch = nil
+	NAStuff.MobileCamSensState.lastFocus = nil
+end
+
+NAmanage.mobileCamSensStep=function(dt)
+	if not NAStuff.MobileCamSensState.enabled or not NAmanage.mobileCamSensIsMobile() then
+		NAmanage.resetMobileCamState()
+		return
+	end
+
+	if not workspace then
+		NAmanage.resetMobileCamState()
+		return
+	end
+
+	local cam = workspace.CurrentCamera
+	if not cam then
+		NAmanage.resetMobileCamState()
+		return
+	end
+
+	local cf = cam.CFrame
+	local focus = cam.Focus
+	if not cf or not focus then
+		NAmanage.resetMobileCamState()
+		return
+	end
+
+	local camPos = cf.Position
+	local focusPos = focus.Position
+	local dist = (camPos - focusPos).Magnitude
+	if dist < 0.75 then
+		NAmanage.resetMobileCamState()
+		return
+	end
+
+	local dir = (focusPos - camPos).Unit
+	local yaw = math.atan2(dir.X, dir.Z)
+	local pitch = math.asin(dir.Y)
+
+	if not NAStuff.MobileCamSensState.lastYaw or not NAStuff.MobileCamSensState.lastPitch or not NAStuff.MobileCamSensState.lastFocus then
+		NAStuff.MobileCamSensState.lastYaw = yaw
+		NAStuff.MobileCamSensState.lastPitch = pitch
+		NAStuff.MobileCamSensState.lastFocus = focusPos
+		return
+	end
+
+	if (focusPos - NAStuff.MobileCamSensState.lastFocus).Magnitude > 20 or dt > 0.5 then
+		NAStuff.MobileCamSensState.lastYaw = yaw
+		NAStuff.MobileCamSensState.lastPitch = pitch
+		NAStuff.MobileCamSensState.lastFocus = focusPos
+		return
+	end
+
+	local dYaw = NAmanage.mobileCamAngDiff(yaw, NAStuff.MobileCamSensState.lastYaw)
+	local dPitch = NAmanage.mobileCamAngDiff(pitch, NAStuff.MobileCamSensState.lastPitch)
+
+	local newYaw = NAStuff.MobileCamSensState.lastYaw + dYaw * NAStuff.MobileCamSensState.mult
+	local newPitch = NAStuff.MobileCamSensState.lastPitch + dPitch * NAStuff.MobileCamSensState.mult
+
+	local limit = math.rad(80)
+	if newPitch > limit then
+		newPitch = limit
+	elseif newPitch < -limit then
+		newPitch = -limit
+	end
+
+	local cosPitch = math.cos(newPitch)
+	local newDir = Vector3.new(
+		math.sin(newYaw) * cosPitch,
+		math.sin(newPitch),
+		math.cos(newYaw) * cosPitch
+	)
+
+	local newPos = focusPos - newDir * dist
+	local newCF = CFrame.new(newPos, focusPos)
+
+	cam.CFrame = newCF
+	cam.Focus = CFrame.new(focusPos)
+
+	NAStuff.MobileCamSensState.lastYaw = newYaw
+	NAStuff.MobileCamSensState.lastPitch = newPitch
+	NAStuff.MobileCamSensState.lastFocus = focusPos
+end
+
+NAmanage.SetMobileCamSensitivity = function(value, opts)
+	opts = opts or {}
+	local clamped = math.clamp(tonumber(value) or 1, 0.2, 4)
+	NAStuff.MobileCamSensState.mult = clamped
+	NAStuff.MobileCamSensitivity = clamped
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "mobileCamSensitivity", clamped)
+	end
+end
+
+NAmanage.SetMobileCamSensEnabled = function(enabled, opts)
+	opts = opts or {}
+	local state = enabled == true
+	NAStuff.MobileCamSensState.enabled = state
+	NAStuff.MobileCamSensEnabled = state
+	if not state then
+		NAmanage.resetMobileCamState()
+	end
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "mobileCamSensEnabled", state)
+	end
+end
+
+NAmanage.bindMobileCamSens=function()
+	if not (RunService and RunService.BindToRenderStep) then
+		return
+	end
+	local name = "__NA_MobileCamSens"
+	pcall(RunService.UnbindFromRenderStep, RunService, name)
+	local priority = (Enum.RenderPriority and Enum.RenderPriority.Camera and Enum.RenderPriority.Camera.Value or 0) + 1
+	pcall(function()
+		RunService:BindToRenderStep(name, priority, NAmanage.mobileCamSensStep)
+	end)
+end
+
+NAmanage.bindMobileCamSens()
+NAmanage.SetMobileCamSensitivity(NAStuff.MobileCamSensitivity, { save = false })
+NAmanage.SetMobileCamSensEnabled(NAStuff.MobileCamSensEnabled, { save = false })
 
 opt.prefix = prefixCheck
 if NAmanage.SyncPrefixUI then
@@ -58664,12 +58850,22 @@ NAgui.addToggle("Disable Input Changing", NADisableLastInput, function(v)
 
 	if v then
 		originalIO.ApplyLastInputPatch()
-		DoNotif("LastInputTypeChanged Disabled\nPrevents forcing your input to change to Keyboard when using VirtualInputManager on mobile", 3)
+		DoNotif("Input Changing Disabled", 1.5)
 	else
 		originalIO.RevertLastInputPatch()
-		DoNotif("LastInputTypeChanged Enabled", 2)
+		DoNotif("Input Changing Enabled", 1.5)
 	end
 end)
+
+if IsOnMobile then
+	NAgui.addSection("Mobile Camera")
+	NAgui.addToggle("Enable Mobile Camera Sensitivity", NAStuff.MobileCamSensEnabled == true, function(state)
+		NAmanage.SetMobileCamSensEnabled(state)
+	end)
+	NAgui.addSlider("Touch Sensitivity Multiplier", 0.2, 4, NAStuff.MobileCamSensitivity or 1, 0.05, "x", function(val)
+		NAmanage.SetMobileCamSensitivity(val)
+	end)
+end
 
 NAgui.addSection("Support")
 NAgui.addButton("Join Discord", function()
