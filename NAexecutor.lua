@@ -86,15 +86,55 @@ local function AttachEditor(cfg)
 		l.Parent = src;
 		return l;
 	end;
-	local layerNumbers = newLayer("Numbers_", Color3.fromRGB(255, 200, 0), 0);
-	local layerTokens = newLayer("Tokens_", Color3.fromRGB(255, 255, 255), 1);
-	local layerKeywords = newLayer("Keywords_", Color3.fromRGB(250, 111, 126), 2);
-	local layerGlobals = newLayer("Globals_", Color3.fromRGB(134, 216, 249), 2);
-	local layerTypes = newLayer("Types_", Color3.fromRGB(204, 153, 255), 2);
-	local layerRobloxAPI = newLayer("RobloxAPI_", Color3.fromRGB(255, 225, 140), 2);
-	local layerRemote = newLayer("RemoteHighlight_", Color3.fromRGB(0, 146, 255), 2);
-	local layerStrings = newLayer("Strings_", Color3.fromRGB(175, 243, 151), 3);
-	local layerComments = newLayer("Comments_", Color3.fromRGB(120, 120, 120), 4);
+	local layerNumbers = newLayer("Numbers_", Color3.fromRGB(255, 198, 0), 0);
+	local layerTokens = newLayer("Tokens_", Color3.fromRGB(204, 204, 204), 1);
+	local layerKeywords = newLayer("Keywords_", Color3.fromRGB(248, 109, 124), 2);
+	local layerGlobals = newLayer("Globals_", Color3.fromRGB(132, 214, 247), 2);
+	local layerTypes = newLayer("Types_", Color3.fromRGB(97, 161, 241), 2);
+	local layerRobloxAPI = newLayer("RobloxAPI_", Color3.fromRGB(253, 251, 172), 2);
+	local layerRemote = newLayer("RemoteHighlight_", Color3.fromRGB(248, 109, 124), 2);
+	local layerStrings = newLayer("Strings_", Color3.fromRGB(173, 241, 149), 3);
+	local layerComments = newLayer("Comments_", Color3.fromRGB(102, 102, 102), 4);
+	local layerMap = {
+		Numbers = layerNumbers,
+		Tokens = layerTokens,
+		Keywords = layerKeywords,
+		Globals = layerGlobals,
+		Types = layerTypes,
+		RobloxAPI = layerRobloxAPI,
+		Remote = layerRemote,
+		Strings = layerStrings,
+		Comments = layerComments
+	};
+
+	local typeMap = {
+		[1] = "String",
+		[2] = "String",
+		[3] = "String",
+		[4] = "Comment",
+		[5] = "Operator",
+		[6] = "Number",
+		[7] = "Keyword",
+		[8] = "BuiltIn",
+		[9] = "LocalMethod",
+		[10] = "LocalProperty",
+		[11] = "Nil",
+		[12] = "Bool",
+		[13] = "Function",
+		[14] = "Local",
+		[15] = "Self",
+		[16] = "FunctionName",
+		[17] = "Bracket"
+	};
+
+	local specialKeywordsTypes = {
+		["nil"] = 11,
+		["true"] = 12,
+		["false"] = 12,
+		["function"] = 13,
+		["local"] = 14,
+		["self"] = 15
+	};
 	local lua_keywords = {
 		"and",
 		"break",
@@ -119,6 +159,11 @@ local function AttachEditor(cfg)
 		"until",
 		"while"
 	};
+	local keywordSet = {}
+	for _, v in ipairs(lua_keywords) do
+		keywordSet[v] = true
+	end
+	keywordSet.plugin = true
 	local lua_types = {
 		"any",
 		"nil",
@@ -227,7 +272,6 @@ local function AttachEditor(cfg)
 		"http_request",
 		"syn"
 	};
-
 	local roblox_api = {
 		"GetService",
 		"WaitForChild",
@@ -249,6 +293,246 @@ local function AttachEditor(cfg)
 		"SetPrimaryPartCFrame",
 		"PivotTo"
 	};
+	local builtIns = {}
+	for _, v in ipairs(global_env) do
+		builtIns[v] = true
+	end
+	for _, v in ipairs(roblox_api) do
+		builtIns[v] = true
+	end
+	local function mapNewLines(text)
+		local newLines = {}
+		local init = 1
+		local pos = string.find(text, "\n", init, true)
+		local count = 1
+		while pos do
+			newLines[count] = pos
+			count = count + 1
+			init = pos + 1
+			pos = string.find(text, "\n", init, true)
+		end
+		newLines[count] = #text + 1
+		return newLines
+	end
+
+	local function preHighlightText(text, newLines)
+		local found, foundMap, extras = {}, {}, {}
+		local function findAll(str, pattern, typ, raw)
+			local count = #found + 1
+			local init = 1
+			local x, y, extra = string.find(str, pattern, init, raw)
+			while x do
+				found[count] = x
+				foundMap[x] = typ
+				if extra then
+					extras[x] = extra
+				end
+				count = count + 1
+				init = y + 1
+				x, y, extra = string.find(str, pattern, init, raw)
+			end
+		end
+
+		findAll(text, '"', 1, true)
+		findAll(text, "'", 2, true)
+		findAll(text, "%[(=*)%[", 3)
+		findAll(text, "--", 4, true)
+		table.sort(found)
+
+		local textLen = #text
+		local curLine = 1
+		local lineStart = 0
+		local lineEnd = newLines[curLine] or textLen + 1
+		local lastEnding = 0
+		local foundHighlights = {}
+
+		for i = 1, #found do
+			local pos = found[i]
+			if pos <= lastEnding then
+			else
+			local typ = foundMap[pos]
+			local ending = pos
+			if typ == 1 then
+				ending = string.find(text, '"', pos + 1, true)
+				while ending and string.sub(text, ending - 1, ending - 1) == "\\" do
+					ending = string.find(text, '"', ending + 1, true)
+				end
+				if not ending then
+					ending = textLen
+				end
+			elseif typ == 2 then
+				ending = string.find(text, "'", pos + 1, true)
+				while ending and string.sub(text, ending - 1, ending - 1) == "\\" do
+					ending = string.find(text, "'", ending + 1, true)
+				end
+				if not ending then
+					ending = textLen
+				end
+			elseif typ == 3 then
+				local _, e2 = string.find(text, "]" .. (extras[pos] or "") .. "]", pos + 1, true)
+				ending = e2 or textLen
+			elseif typ == 4 then
+				local ahead = foundMap[pos + 2]
+				if ahead == 3 then
+					local _, e2 = string.find(text, "]" .. (extras[pos + 2] or "") .. "]", pos + 1, true)
+					ending = e2 or textLen
+				else
+					ending = string.find(text, "\n", pos + 1, true) or textLen
+				end
+			end
+
+			while pos > lineEnd do
+				curLine = curLine + 1
+				lineStart = newLines[curLine - 1] or 0
+				lineEnd = newLines[curLine] or textLen + 1
+			end
+
+			while true do
+				local lineTable = foundHighlights[curLine]
+				if not lineTable then
+					lineTable = {}
+					foundHighlights[curLine] = lineTable
+				end
+				lineTable[pos] = { typ, ending }
+				if ending > lineEnd then
+					curLine = curLine + 1
+					lineStart = newLines[curLine - 1] or 0
+					lineEnd = newLines[curLine] or textLen + 1
+				else
+					break
+				end
+			end
+			lastEnding = ending
+			end
+		end
+
+		return foundHighlights
+	end
+
+	local function highlightLineDex(lineText, lineIndex, newLines, preHighlights)
+		local highlights = {}
+		local pre = preHighlights[lineIndex] or {}
+		local lineLen = #lineText
+		local lastEnding = 0
+		local currentType = 0
+		local lastWord = nil
+		local wordBeginsDotted = false
+		local funcStatus = 0
+		local lineStart = (newLines[lineIndex - 1] or 0)
+
+		local preHighlightMap = {}
+		for pos, data in pairs(pre) do
+			local relativePos = pos - lineStart
+			if relativePos < 1 then
+				currentType = data[1]
+				lastEnding = data[2] - lineStart
+			else
+				preHighlightMap[relativePos] = { data[1], data[2] - lineStart }
+			end
+		end
+
+		for col = 1, lineLen do
+			if col <= lastEnding then
+				highlights[col] = currentType
+			else
+				local preEntry = preHighlightMap[col]
+				if preEntry then
+					currentType = preEntry[1]
+					lastEnding = preEntry[2]
+					highlights[col] = currentType
+					wordBeginsDotted = false
+					lastWord = nil
+					funcStatus = 0
+				else
+					local char = string.sub(lineText, col, col)
+					if string.find(char, "[%a_]") then
+						local word = string.match(lineText, "[%a%d_]+", col)
+						local wordType = (keywordSet[word] and 7) or (builtIns[word] and 8)
+
+						lastEnding = col + #word - 1
+
+						if wordType ~= 7 then
+							if wordBeginsDotted then
+								wordType = 10
+							end
+
+							if wordType ~= 8 then
+								local x, _, br = string.find(lineText, "^%s*([%({\"'])", lastEnding + 1)
+								if x then
+									wordType = (funcStatus > 0 and br == "(" and 16) or 9
+									funcStatus = 0
+								end
+							end
+						else
+							wordType = specialKeywordsTypes[word] or wordType
+							funcStatus = (word == "function" and 1 or 0)
+						end
+
+						lastWord = word
+						wordBeginsDotted = false
+						if funcStatus > 0 then
+							funcStatus = 1
+						end
+
+						if wordType then
+							currentType = wordType
+							highlights[col] = currentType
+						else
+							currentType = nil
+						end
+					elseif string.find(char, "%p") then
+						local isDot = (char == ".")
+						local isNum = isDot and string.find(string.sub(lineText, col + 1, col + 1), "%d")
+						highlights[col] = (isNum and 6 or 5)
+
+						if not isNum then
+							local dotStr = isDot and string.match(lineText, "%.%.?%.?", col)
+							if dotStr and #dotStr > 1 then
+								currentType = 5
+								lastEnding = col + #dotStr - 1
+								wordBeginsDotted = false
+								lastWord = nil
+								funcStatus = 0
+							else
+								if isDot then
+									if wordBeginsDotted then
+										lastWord = nil
+									else
+										wordBeginsDotted = true
+									end
+								else
+									wordBeginsDotted = false
+									lastWord = nil
+								end
+
+								funcStatus = ((isDot or char == ":") and funcStatus == 1 and 2) or 0
+							end
+						end
+					elseif string.find(char, "%d") then
+						local _, endPos = string.find(lineText, "%x+", col)
+						local endPart = string.sub(lineText, endPos, endPos + 1)
+						if (endPart == "e+" or endPart == "e-") and string.find(string.sub(lineText, endPos + 2, endPos + 2), "%d") then
+							endPos = endPos + 1
+						end
+						currentType = 6
+						lastEnding = endPos
+						highlights[col] = 6
+						wordBeginsDotted = false
+						lastWord = nil
+						funcStatus = 0
+					else
+						highlights[col] = currentType
+						local _, endPos = string.find(lineText, "%s+", col)
+						if endPos then
+							lastEnding = endPos
+						end
+					end
+				end
+			end
+		end
+
+		return highlights
+	end
 	local function HighlightString(str, keywords)
 		local K = {};
 		local S = str;
@@ -560,31 +844,94 @@ local function AttachEditor(cfg)
 		local s = src.Text or "";
 		s = s:gsub("\r", "");
 		local sTabs = s:gsub("\t", "    ");
+		local newLines = mapNewLines(sTabs);
+		local preHighlights = preHighlightText(sTabs, newLines);
 
-		local codeText, strLayer, comLayer = BuildLayers(sTabs);
+		local layerBuffers = {
+			Numbers = {},
+			Tokens = {},
+			Keywords = {},
+			Globals = {},
+			Types = {},
+			RobloxAPI = {},
+			Remote = {},
+			Strings = {},
+			Comments = {}
+		};
 
-		layerKeywords.Text = HighlightString(codeText, lua_keywords);
-		layerGlobals.Text = HighlightString(codeText, global_env);
-		layerTypes.Text = HighlightString(codeText, lua_types);
-		layerRobloxAPI.Text = HighlightString(codeText, roblox_api);
-		layerRemote.Text = HighlightString(codeText, {
-			"FireServer",
-			"fireServer",
-			"InvokeServer",
-			"invokeServer"
-		});
-		layerTokens.Text = HighlightTokens(codeText);
-		layerNumbers.Text = HighlightNumbers(codeText);
-		layerStrings.Text = strLayer;
-		layerComments.Text = comLayer;
+		local layerTypes = {
+			Numbers = {
+				[6] = true,
+				[11] = true,
+				[12] = true
+			},
+			Tokens = {
+				[5] = true,
+				[17] = true
+			},
+			Keywords = {
+				[7] = true,
+				[13] = true,
+				[14] = true,
+				[15] = true
+			},
+			Globals = {
+				[8] = true
+			},
+			Types = {
+				[10] = true
+			},
+			RobloxAPI = {
+				[9] = true,
+				[16] = true
+			},
+			Remote = {},
+			Strings = {
+				[1] = true,
+				[2] = true,
+				[3] = true
+			},
+			Comments = {
+				[4] = true
+			}
+		};
+
+		local lineCount = 0;
+		local lineIndex = 1;
+
+		for line in (sTabs .. "\n"):gmatch("([^\n]*)\n") do
+			local hl = highlightLineDex(line, lineIndex, newLines, preHighlights);
+			for i = 1, #line do
+				local ch = string.sub(line, i, i);
+				local t = hl[i] or 0;
+				for name, buf in pairs(layerBuffers) do
+					if layerTypes[name][t] then
+						buf[#buf + 1] = ch;
+					else
+						buf[#buf + 1] = " ";
+					end
+				end
+			end
+			for _, buf in pairs(layerBuffers) do
+				buf[#buf + 1] = "\n";
+			end
+			lineCount = lineCount + 1;
+			lineIndex = lineIndex + 1;
+		end
+
+		layerNumbers.Text = table.concat(layerBuffers.Numbers);
+		layerTokens.Text = table.concat(layerBuffers.Tokens);
+		layerKeywords.Text = table.concat(layerBuffers.Keywords);
+		layerGlobals.Text = table.concat(layerBuffers.Globals);
+		layerTypes.Text = table.concat(layerBuffers.Types);
+		layerRobloxAPI.Text = table.concat(layerBuffers.RobloxAPI);
+		layerRemote.Text = table.concat(layerBuffers.Remote);
+		layerStrings.Text = table.concat(layerBuffers.Strings);
+		layerComments.Text = table.concat(layerBuffers.Comments);
 
 		if lines then
-			local lin = 1;
-			s:gsub("\n", function()
-				lin = lin + 1;
-			end);
 			local t = {};
-			for i = 1, lin do
+			for i = 1, lineCount do
 				t[#t + 1] = tostring(i);
 			end;
 			lines.Text = table.concat(t, "\n");
@@ -631,7 +978,7 @@ local function AttachEditor(cfg)
 		cursorPos -= 1;
 		local prefix = text:sub(1, cursorPos);
 		local _, lineNumber = prefix:gsub("\n", "");
-		lineNumber += 1;
+		lineNumber = lineNumber + 1;
 		local linesPos = {
 			0
 		};
@@ -897,8 +1244,8 @@ m.Parent = e;
 m.Active = true;
 m.BackgroundColor3 = col.bg;
 m.ClipsDescendants = true;
-m.AnchorPoint = Vector2.new(0.5, 0.5);
-m.Position = UDim2.fromScale(0.5, 0.5);
+m.AnchorPoint = Vector2.new(0, 0);
+m.Position = UDim2.new(0, 0, 0, 0);
 m.Size = UDim2.new(0, 440, 0, 340);
 local c1 = Instance.new("UICorner", m);
 c1.CornerRadius = UDim.new(0, 12);
@@ -907,8 +1254,8 @@ sc.Scale = cfg.z * 0.92;
 tw(sc, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 	Scale = cfg.z
 });
-local minW = isM and 320 or 380;
-local minH = isM and 340 or 300;
+local minW = isM and 280 or 380;
+local minH = isM and 420 or 300;
 local szc = Instance.new("UISizeConstraint", m);
 szc.MinSize = Vector2.new(minW, minH);
 local MAX0 = Vector2.new(860, 720);
@@ -992,17 +1339,56 @@ tsf.BackgroundTransparency = 1;
 tsf.BorderSizePixel = 0;
 tsf.Position = UDim2.new(0, 0, 0, 0);
 tsf.Size = UDim2.new(1, 0, 1, 0);
-tsf.ScrollBarThickness = 0;
+tsf.ScrollBarThickness = isM and 6 or 0;
+tsf.ScrollBarImageTransparency = isM and 0.2 or 1;
+tsf.ScrollBarImageColor3 = col.sb;
 tsf.ScrollingDirection = Enum.ScrollingDirection.X;
+tsf.AutomaticCanvasSize = Enum.AutomaticSize.X;
 tsf.CanvasSize = UDim2.new(0, 0, 0, 0);
+tsf.ScrollingEnabled = true;
+tsf.ElasticBehavior = Enum.ElasticBehavior.Always;
 tsf.Active = true;
 tsf.ClipsDescendants = true;
+local tabTouch, tabTouchX = nil, nil;
+if isM then
+	local function inTabBar(pos)
+		local a = tsf.AbsolutePosition;
+		local s2 = tsf.AbsoluteSize;
+		return pos.X >= a.X and pos.X <= a.X + s2.X and pos.Y >= a.Y and pos.Y <= a.Y + s2.Y;
+	end;
+	uis.TouchStarted:Connect(function(i, gpe)
+		if gpe or tabTouch then
+			return;
+		end;
+		if inTabBar(i.Position) then
+			tabTouch = i;
+			tabTouchX = i.Position.X;
+		end;
+	end);
+	uis.TouchMoved:Connect(function(i, gpe)
+		if gpe or i ~= tabTouch or not tabTouchX then
+			return;
+		end;
+		local dx = i.Position.X - tabTouchX;
+		tabTouchX = i.Position.X;
+		local maxX = math.max(0, tsf.CanvasSize.X.Offset - tsf.AbsoluteSize.X);
+		local nx = math.clamp(tsf.CanvasPosition.X - dx, 0, maxX);
+		tsf.CanvasPosition = Vector2.new(nx, 0);
+	end);
+	uis.TouchEnded:Connect(function(i, gpe)
+		if i == tabTouch then
+			tabTouch = nil;
+			tabTouchX = nil;
+		end;
+	end);
+end;
 local twp = Instance.new("Frame");
 twp.Name = "Wrap";
 twp.Parent = tsf;
 twp.BackgroundTransparency = 1;
 twp.Position = UDim2.new(0, 0, 0, 0);
 twp.Size = UDim2.new(0, 0, 1, 0);
+twp.AutomaticSize = Enum.AutomaticSize.X;
 twp.ZIndex = 7;
 local tly = Instance.new("UIListLayout", twp);
 tly.FillDirection = Enum.FillDirection.Horizontal;
@@ -1102,9 +1488,9 @@ bf.Parent = m;
 bf.BackgroundTransparency = 1;
 local gl = Instance.new("UIGridLayout", bf);
 gl.SortOrder = Enum.SortOrder.LayoutOrder;
-gl.CellPadding = UDim2.new(0, isM and 10 or 8, 0, isM and 6 or 4);
-gl.CellSize = UDim2.new(0.25, -6, 0, isM and 34 or 28);
-gl.FillDirectionMaxCells = 4;
+gl.CellPadding = UDim2.new(0, isM and 8 or 8, 0, isM and 6 or 4);
+gl.CellSize = UDim2.new(isM and 0.5 or 0.25, -6, 0, isM and 40 or 28);
+gl.FillDirectionMaxCells = isM and 2 or 4;
 local function sbtn(tx2, bg)
 	local b = Instance.new("TextButton");
 	b.Name = tx2;
@@ -1699,12 +2085,18 @@ cnb.MouseButton1Click:Connect(function()
 	closeMd(false);
 end);
 local function tabCS()
-	local w = tly.AbsoluteContentSize.X + 10 + tad.AbsoluteSize.X;
-	if w < tsf.AbsoluteSize.X then
-		w = tsf.AbsoluteSize.X;
+	local contentX = twp.AbsoluteSize.X;
+	local maxX = math.max(0, contentX - tsf.AbsoluteSize.X);
+	local cx = tsf.CanvasPosition.X;
+	if maxX <= 0 then
+		if cx ~= 0 then
+			tsf.CanvasPosition = Vector2.new(0, 0);
+		end;
+		return;
 	end;
-	tsf.CanvasSize = UDim2.new(0, math.floor(w), 0, 0);
-	twp.Size = UDim2.new(0, math.floor(w), 1, 0);
+	if cx < 0 or cx > maxX then
+		tsf.CanvasPosition = Vector2.new(math.clamp(cx, 0, maxX), 0);
+	end;
 end;
 local function lh()
 	return TSZ + 4;
@@ -1845,6 +2237,7 @@ local function renum()
 		end;
 	end;
 	tad.LayoutOrder = (#tabs) + 1000;
+	task.defer(tabCS);
 end;
 local function ensureTab()
 	local v = tabs[cur];
@@ -1866,7 +2259,8 @@ local function ensureTab()
 		elseif r > vp - pad then
 			nx = math.max(0, cx + (r - (vp - pad)));
 		end;
-		nx = math.clamp(nx, 0, math.max(0, tsf.CanvasSize.X.Offset - tsf.AbsoluteSize.X));
+		local maxX = math.max(0, twp.AbsoluteSize.X - tsf.AbsoluteSize.X);
+		nx = math.clamp(nx, 0, maxX);
 		if math.abs(nx - cx) > 1 then
 			if cfg.an then
 				tw(tsf, TweenInfo.new(0.22, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
@@ -2053,13 +2447,43 @@ local function topH()
 end;
 local min = false;
 local exSz;
-local exPos;
+local drag, din, ds, sp0 = false, nil, nil, nil;
+local userPos = false;
+local restorePos = nil;
+local fsRestorePos = nil;
+
+local function centerMain(w, h, forceCenter)
+	if drag then
+		return;
+	end;
+	local cam = workspace.CurrentCamera;
+	if not cam then
+		return;
+	end;
+	if not (forceCenter or (not userPos)) then
+		return;
+	end;
+
+	local vp = cam.ViewportSize;
+	local k = sc and sc.Scale or 1;
+	if k <= 0 then
+		k = 1;
+	end;
+	w = w or m.Size.X.Offset;
+	h = h or m.Size.Y.Offset;
+
+	local px = vp.X / (2 * k) - w * 0.5;
+	local py = vp.Y / (2 * k) - h * 0.5;
+	m.Position = UDim2.new(0, math.floor(px + 0.5), 0, math.floor(py + 0.5));
+end;
 local function tgtSz()
 	local cam = workspace.CurrentCamera
 	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	local ins = gsv:GetGuiInset()
 	local ux = math.max(0, vp.X - ins.X * 2)
 	local uy = math.max(0, vp.Y - ins.Y * 2)
+	local availW = math.max(BMIN.X, ux - 12)
+	local availH = math.max(BMIN.Y, uy - 12)
 	local w, h
 	if cfg.fs then
 		local scale = cfg.z > 0 and cfg.z or 1
@@ -2068,9 +2492,13 @@ local function tgtSz()
 		w = math.max(BMIN.X, math.floor(targetW / scale))
 		h = math.max(BMIN.Y, math.floor(targetH / scale))
 	else
-		w = math.clamp(ux * (isM and 0.92 or 0.56), BMIN.X, szc.MaxSize.X)
-		h = math.clamp(uy * (isM and 0.86 or 0.66), BMIN.Y, szc.MaxSize.Y)
+		local wMul = isM and 0.78 or 0.56
+		local hMul = isM and 0.9 or 0.66
+		w = math.clamp(ux * wMul, BMIN.X, szc.MaxSize.X)
+		h = math.clamp(uy * hMul, BMIN.Y, szc.MaxSize.Y)
 	end
+	w = math.clamp(w, BMIN.X, math.min(availW, szc.MaxSize.X))
+	h = math.clamp(h, BMIN.Y, math.min(availH, szc.MaxSize.Y))
 	return w, h
 end
 local function setVis(v)
@@ -2084,12 +2512,13 @@ local function setVis(v)
 	end;
 end;
 local function lay()
-	local th, sh, gp = tb.AbsoluteSize.Y, 18, 10;
-	local bh = isM and 46 or 38;
+	local th, sh = tb.AbsoluteSize.Y, 18;
+	local gp = isM and 18 or 10;
+	local bh = isM and 54 or 38;
 	local tbh = tbar.AbsoluteSize.Y;
 	local hubW = cfg.hb and (isM and 260 or 240) or 0;
-	local pad = 12;
-	local gapHub = cfg.hb and 10 or 0;
+	local pad = isM and 10 or 12;
+	local gapHub = cfg.hb and (isM and 8 or 10) or 0;
 	if min then
 		setVis(false);
 		hp.Visible = false;
@@ -2115,14 +2544,17 @@ local function lay()
 	sb.Position = UDim2.new(0, 14, 1, -22);
 	sb.Size = UDim2.new(1, -28, 0, 18);
 end;
-local drag, din, ds, sp0 = false, nil, nil, nil;
 local function upDrag(i)
 	local d2 = i.Position - ds;
 	m.Position = UDim2.new(sp0.X.Scale, sp0.X.Offset + d2.X, sp0.Y.Scale, sp0.Y.Offset + d2.Y);
+	if min then
+		restorePos = m.Position;
+	end;
 end;
 tb.InputBegan:Connect(function(i)
 	if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 		drag = true;
+		userPos = true;
 		ds = i.Position;
 		sp0 = m.Position;
 		i.Changed:Connect(function()
@@ -2158,6 +2590,11 @@ local function upFS()
 		})
 	else
 		m.Size = UDim2.new(0, w, 0, h)
+	end
+	if fsRestorePos then
+		m.Position = fsRestorePos
+		userPos = true
+		fsRestorePos = nil
 	end
 	task.delay(0.02, lay)
 end
@@ -2448,6 +2885,7 @@ fsb.MouseButton1Click:Connect(function()
 	cfg.fs = not cfg.fs;
 	updFSUI();
 	schCfg();
+	fsRestorePos = m.Position
 	if not min then
 		upFS();
 	end;
@@ -2489,15 +2927,15 @@ mn.MouseButton1Click:Connect(function()
 	end
 
 	if min then
+		userPos = true
+		restorePos = m.Position;
 		szc.MinSize = Vector2.new(0, 0)
 		if not exSz then
 			local w0, h0 = tgtSz()
 			exSz = Vector2.new(w0, h0)
 		end
-		exPos = m.Position
 		local w = exSz.X
 		local th = topH()
-
 		if cfg.an then
 			tw(m, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				Size = UDim2.new(0, w, 0, th)
@@ -2513,7 +2951,6 @@ mn.MouseButton1Click:Connect(function()
 			sc.Scale = cfg.z * 0.94
 			s.CanvasPosition = Vector2.new(0, 0)
 		end
-
 		task.delay(0.1, function()
 			if min then
 				setVis(false)
@@ -2528,8 +2965,10 @@ mn.MouseButton1Click:Connect(function()
 		exSz = Vector2.new(w, h)
 		setVis(true)
 
-		if exPos then
-			m.Position = exPos
+		if restorePos then
+			m.Position = restorePos
+			userPos = true
+			restorePos = nil
 		end
 
 		if cfg.an then
@@ -2604,6 +3043,7 @@ local function first()
 	local w, h = tgtSz();
 	exSz = Vector2.new(w, h);
 	m.Size = UDim2.new(0, w, 0, h);
+	centerMain(w, h, true);
 	if editorCore and editorCore.refresh then
 		editorCore.refresh();
 	end;
