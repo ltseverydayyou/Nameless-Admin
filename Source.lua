@@ -8155,6 +8155,8 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 		pp.HoldDuration = 0
 		if o.requireLoS ~= nil then
 			pp.RequiresLineOfSight = o.requireLoS and true or false
+		elseif o.disableLoS ~= false then
+			pp.RequiresLineOfSight = false
 		end
 		if o.distance ~= nil then
 			pp.MaxActivationDistance = o.distance
@@ -8166,7 +8168,7 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 		else
 			pp.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 		end
-		if o.forceEnable then
+		if o.forceEnable ~= false then
 			pp.Enabled = true
 		end
 
@@ -8224,18 +8226,22 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 		end
 
 		local stagger = (o.stagger ~= nil) and math.max(0, o.stagger) or 0
-
-		for _, pp in ipairs(list) do
-			Spawn(fireOne, pp, o)
+		if stagger <= 0 and #list > 1 then
+			stagger = 0.02
 		end
 
-		if stagger > 0 then
-			for i = 2, #list do
-				Wait(stagger)
+		for i, pp in ipairs(list) do
+			local d = stagger * (i - 1)
+			if d > 0 then
+				Delay(d, function()
+					fireOne(pp, o)
+				end)
+			else
+				Spawn(fireOne, pp, o)
 			end
 		end
 
-		return true
+		return #list > 0
 	end
 end
 
@@ -39645,7 +39651,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 				if NAjobs._claim(it.inst) then
 					i += 1
 					Delay(step * (i - 1), function()
-						local range = (it.inst.MaxActivationDistance or 0) + 5
+						local range = (it.inst.MaxActivationDistance or 0) + extraRange
 						local allow = {
 							[it.inst] = true
 						}
@@ -39653,6 +39659,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 						pcall(fireproximityprompt, it.inst, {
 							hold = 0.03,
 							distance = range,
+							disableLoS = true,
 							stagger = 0
 						})
 						Delay(0.06, function()
