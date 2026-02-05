@@ -8212,6 +8212,86 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 
 	local function fireOne(pp, o)
 		if not begin(pp, o) then return end
+		local restorePos
+		if o.relocate ~= false then
+			local part = NAindex.getPromptPart(pp)
+			local cam = workspace.CurrentCamera
+			if part and part:IsA("BasePart") and cam then
+				local camPos = cam.CFrame.Position
+				local look = cam.CFrame.LookVector
+				local dir = (part.Position - camPos)
+				if dir.Magnitude > 0 then
+				local dot = dir.Unit:Dot(look)
+				if dot < 0 then
+					local dist = tonumber(o.relocateDistance) or 4
+					local downFactor = (o.relocateDownFactor ~= nil) and o.relocateDownFactor or 1.8
+					local target = camPos + look * dist + (cam.CFrame.UpVector * -dist * downFactor)
+
+					local useProxy = o.relocateProxy ~= false
+					if useProxy then
+						local ok, proxy = pcall(function()
+							local p = Instance.new("Part")
+							p.Size = Vector3.new(0.2, 0.2, 0.2)
+							p.Anchored = true
+							p.CanCollide = false
+							p.CanTouch = false
+							p.CanQuery = false
+							p.Transparency = 1
+							p.CFrame = CFrame.new(target, target + look)
+							p.Name = "\0"
+							p.Parent = workspace
+							return p
+						end)
+						if ok and proxy then
+							local origParent = pp.Parent
+							pp.Parent = proxy
+							restorePos = function()
+								if pp then
+									pp.Parent = origParent
+								end
+								if proxy then
+									pcall(function() proxy:Destroy() end)
+								end
+							end
+						end
+					end
+
+					if not restorePos then
+						local origCF = part.CFrame
+						local origCollide = part.CanCollide
+						local origTouch = part.CanTouch
+						local origQuery = part.CanQuery
+						local origTrans = part.Transparency
+						local hasLTM, origLTM = pcall(function() return part.LocalTransparencyModifier end)
+						part.CFrame = CFrame.new(target, target + look)
+						part.CanCollide = false
+						part.CanTouch = false
+						part.CanQuery = false
+						part.Transparency = (o.relocateTransparency ~= nil) and o.relocateTransparency or 1
+						if hasLTM then
+							pcall(function()
+								part.LocalTransparencyModifier = (o.relocateTransparency ~= nil) and o.relocateTransparency or 1
+							end)
+						end
+						restorePos = function()
+							if part and part.Parent then
+								part.CFrame = origCF
+								part.CanCollide = origCollide
+								part.CanTouch = origTouch
+								part.CanQuery = origQuery
+								part.Transparency = origTrans
+								if hasLTM then
+									pcall(function()
+										part.LocalTransparencyModifier = origLTM
+									end)
+								end
+							end
+						end
+					end
+				end
+				end
+			end
+		end
 		local ok, err = pcall(function()
 			hb(1)
 			pp:InputHoldBegin()
@@ -8224,6 +8304,9 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 			pp:InputHoldEnd()
 			hb(1)
 		end)
+		if restorePos then
+			pcall(restorePos)
+		end
 		finish(pp)
 		if not ok then
 			warn(("[fireproximityprompt] %s"):format(err))
