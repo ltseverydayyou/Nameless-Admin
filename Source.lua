@@ -8326,7 +8326,122 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 			end
 		end
 
-		return #list > 0
+	return #list > 0
+	end
+end
+
+if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno")) or typeof(firetouchinterest) ~= "function" then
+	local function hb(n)
+		for i = 1, (n or 1) do
+			RunService.Heartbeat:Wait()
+		end
+	end
+
+	local touchState = setmetatable({}, { __mode = "k" })
+
+	local function snapshot(part)
+		local vel, ang = Vector3.zero, Vector3.zero
+		pcall(function()
+			vel = part.AssemblyLinearVelocity
+			ang = part.AssemblyAngularVelocity
+		end)
+		local cg = nil
+		pcall(function() cg = part.CollisionGroupId end)
+		local anchored = nil
+		pcall(function() anchored = part.Anchored end)
+		local massless = nil
+		pcall(function() massless = part.Massless end)
+		return {
+			CF = part.CFrame,
+			VEL = vel,
+			ANG = ang,
+			CT = part.CanTouch,
+			CQ = part.CanQuery,
+			CC = part.CanCollide,
+			CG = cg,
+			AN = anchored,
+			MS = massless,
+		}
+	end
+
+	local function restore(part, snap)
+		if not (snap and part and part.Parent) then return end
+		pcall(function()
+			part.CFrame = snap.CF
+			part.AssemblyLinearVelocity = snap.VEL
+			part.AssemblyAngularVelocity = snap.ANG
+			part.CanTouch = snap.CT
+			part.CanQuery = snap.CQ
+			part.CanCollide = snap.CC
+			if snap.AN ~= nil then part.Anchored = snap.AN end
+			if snap.MS ~= nil then part.Massless = snap.MS end
+			if snap.CG then
+				part.CollisionGroupId = snap.CG
+			end
+		end)
+	end
+
+	local function getRoot(p)
+		if typeof(p) ~= "Instance" or not p:IsA("BasePart") then
+			return nil
+		end
+		return p.AssemblyRootPart or p
+	end
+
+	_na_env.firetouchinterest = function(partA, partB, state)
+		local handle = getRoot(partA)
+		local target = getRoot(partB)
+		if not handle or not target then
+			return false
+		end
+
+		state = tonumber(state) or 0
+		state = (state == 1) and 1 or 0
+
+		local st = touchState[target]
+		if state == 0 then
+			if not st then
+				st = {
+					ref = 0,
+					handle = handle,
+					handleCT = handle.CanTouch,
+					snap = snapshot(target),
+				}
+				touchState[target] = st
+			end
+			st.ref += 1
+
+			if handle.CanTouch == false then handle.CanTouch = true end
+			if target.CanTouch == false then target.CanTouch = true end
+			if target.CanQuery == false then target.CanQuery = true end
+			pcall(function() target.CanCollide = false end)
+			pcall(function() target.Massless = true end)
+			pcall(function() target.CollisionGroupId = handle.CollisionGroupId end)
+
+			pcall(function()
+				target.AssemblyLinearVelocity = Vector3.zero
+				target.AssemblyAngularVelocity = Vector3.zero
+				target.CFrame = handle.CFrame
+			end)
+
+			hb(1)
+		else
+			if st then
+				restore(target, st.snap)
+				if st.handle and st.handle.Parent and st.handleCT ~= nil then
+					pcall(function()
+						st.handle.CanTouch = st.handleCT
+					end)
+				end
+				st.ref -= 1
+				if st.ref <= 0 then
+					touchState[target] = nil
+				end
+			end
+			hb(1)
+	end
+
+	return true
 	end
 end
 
