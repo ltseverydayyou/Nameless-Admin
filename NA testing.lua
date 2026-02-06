@@ -7180,8 +7180,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	hLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	hLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	hLayout.Padding = UDim.new(0, 8)
+	hLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	local titleHolder = InstanceNew("Frame", ui.header)
+	titleHolder.LayoutOrder = 0
 	titleHolder.BackgroundTransparency = 1
 	titleHolder.Size = UDim2.new(1, -60, 1, 0)
 
@@ -7199,6 +7201,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.titleLabel.Text = text
 
 	ui.minimizeButton = InstanceNew("TextButton", ui.header)
+	ui.minimizeButton.LayoutOrder = 1
 	ui.minimizeButton.AutoButtonColor = false
 	ui.minimizeButton.Size = UDim2.new(0, IsOnMobile and 32 or 28, 0, IsOnMobile and 28 or 24)
 	ui.minimizeButton.Text = "-"
@@ -7223,8 +7226,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	midLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	midLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 	midLayout.Padding = UDim.new(0, 4)
+	midLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	ui.bigPercent = InstanceNew("TextLabel", midFrame)
+	ui.bigPercent.LayoutOrder = 0
 	ui.bigPercent.ZIndex = 8
 	ui.bigPercent.BackgroundTransparency = 1
 	ui.bigPercent.Size = UDim2.new(1, 0, 0, 34)
@@ -7235,6 +7240,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.bigPercent.Text = "0%"
 
 	ui.statusLabel = InstanceNew("TextLabel", midFrame)
+	ui.statusLabel.LayoutOrder = 1
 	ui.statusLabel.ZIndex = 8
 	ui.statusLabel.BackgroundTransparency = 1
 	ui.statusLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -7274,12 +7280,15 @@ NAmanage.createLoadingUI=function(text, opts)
 	brLayout.FillDirection = Enum.FillDirection.Horizontal
 	brLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	brLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	brLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	local spacer = InstanceNew("Frame", barRow)
+	spacer.LayoutOrder = 0
 	spacer.BackgroundTransparency = 1
 	spacer.Size = UDim2.new(0.7, 0, 1, 0)
 
 	ui.percentLabel = InstanceNew("TextLabel", barRow)
+	ui.percentLabel.LayoutOrder = 1
 	ui.percentLabel.ZIndex = 8
 	ui.percentLabel.BackgroundTransparency = 1
 	ui.percentLabel.Size = UDim2.new(0.3, 0, 1, 0)
@@ -7299,8 +7308,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	btnLayout.Padding = UDim.new(0, 8)
+	btnLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	ui.skipButton = InstanceNew("TextButton", ui.buttonRow)
+	ui.skipButton.LayoutOrder = 0
 	ui.skipButton.ZIndex = 9
 	ui.skipButton.Size = UDim2.new(0.45, 0, 1, 0)
 	ui.skipButton.Font = Enum.Font.GothamSemibold
@@ -7317,6 +7328,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	sStroke.Thickness = 1
 
 	ui.autoSkipButton = InstanceNew("TextButton", ui.buttonRow)
+	ui.autoSkipButton.LayoutOrder = 1
 	ui.autoSkipButton.ZIndex = 9
 	ui.autoSkipButton.Size = UDim2.new(0.55, 0, 1, 0)
 	ui.autoSkipButton.Font = Enum.Font.Gotham
@@ -7356,19 +7368,23 @@ NAmanage.createLoadingUI=function(text, opts)
 	tLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	tLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	tLayout.Padding = UDim.new(0, 4)
+	tLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	ui.toastRow = InstanceNew("Frame", ui.toast)
 	ui.toastRow.BackgroundTransparency = 1
 	ui.toastRow.Size = UDim2.fromScale(1, 0)
 	ui.toastRow.AutomaticSize = Enum.AutomaticSize.XY
 	ui.toastRow.ZIndex = 51
+	ui.toastRow.LayoutOrder = 1
 	local trLayout = InstanceNew("UIListLayout", ui.toastRow)
 	trLayout.FillDirection = Enum.FillDirection.Horizontal
 	trLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	trLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	trLayout.Padding = UDim.new(0, 8)
+	trLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 	ui.toastLabel = InstanceNew("TextLabel", ui.toastRow)
+	ui.toastLabel.LayoutOrder = 0
 	ui.toastLabel.BackgroundTransparency = 1
 	ui.toastLabel.Font = Enum.Font.Gotham
 	ui.toastLabel.TextScaled = true
@@ -7378,6 +7394,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastLabel.Size = UDim2.fromOffset(180, 22)
 
 	ui.toastPercent = InstanceNew("TextLabel", ui.toastRow)
+	ui.toastPercent.LayoutOrder = 1
 	ui.toastPercent.BackgroundTransparency = 1
 	ui.toastPercent.Font = Enum.Font.Gotham
 	ui.toastPercent.TextScaled = true
@@ -7387,6 +7404,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastPercent.Size = UDim2.fromOffset(44, 22)
 
 	ui.toastOpen = InstanceNew("TextButton", ui.toastRow)
+	ui.toastOpen.LayoutOrder = 2
 	ui.toastOpen.Size = UDim2.fromOffset(72, 22)
 	ui.toastOpen.Text = "Open"
 	ui.toastOpen.TextScaled = true
@@ -7403,6 +7421,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	toStroke.Transparency = 0.2
 
 	ui.toastSkip = InstanceNew("TextButton", ui.toastRow)
+	ui.toastSkip.LayoutOrder = 3
 	ui.toastSkip.Size = UDim2.fromOffset(72, 22)
 	ui.toastSkip.Text = "Skip"
 	ui.toastSkip.TextScaled = true
