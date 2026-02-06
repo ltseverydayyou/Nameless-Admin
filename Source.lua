@@ -15722,7 +15722,7 @@ NAmanage.AutoExecSave=function(data, context)
 end
 
 NAmanage.loadAutoExec = function()
-	local currentData = NAEXECDATA or { commands = {}, args = {} }
+	local currentData = NAEXECDATA or { commands = {} }
 	local path = NAfiles.NAAUTOEXECPATH
 
 	if not FileSupport then
@@ -15732,7 +15732,7 @@ NAmanage.loadAutoExec = function()
 
 	if not (isfile and isfile(path)) then
 		local okCreate, createErr = pcall(function()
-			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+			writefile(path, HttpService:JSONEncode({ commands = {} }))
 		end)
 		if not okCreate then
 			NAmanage.loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
@@ -15753,64 +15753,81 @@ NAmanage.loadAutoExec = function()
 	if not okDecode or type(decoded) ~= 'table' then
 		local trimmed = (type(raw) == "string") and raw:match("^%s*(.-)%s*$") or ""
 		if trimmed == "" then
-			decoded = { commands = {}, args = {} }
+			decoded = { commands = {} }
 		else
 			local backupPath = path .. ".corrupt_" .. tostring(os.time()) .. ".json"
 			pcall(writefile, backupPath, raw)
 			NAmanage.loaderWarn('AutoExec', ('failed to decode storage; backed up to %s, resetting'):format(backupPath))
 			local okReset, resetErr = pcall(function()
-				writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+				writefile(path, HttpService:JSONEncode({ commands = {} }))
 			end)
 			if not okReset then
 				NAmanage.loaderWarn('AutoExec', 'failed to reset storage: ' .. tostring(resetErr))
 				return false
 			end
-			decoded = { commands = {}, args = {} }
+			decoded = { commands = {} }
 		end
 	end
 
-	if decoded.commands == nil and next(decoded) then
-		decoded = { commands = decoded, args = {} }
+	local src = decoded.commands
+	local legacyArgs = decoded.args
+	if type(src) ~= "table" then
+		if decoded[1] ~= nil then
+			src = decoded
+		else
+			src = {}
+		end
+	end
+	if type(legacyArgs) ~= "table" then
+		legacyArgs = {}
 	end
 
-	local sourceCommands = decoded.commands
-	if type(sourceCommands) ~= 'table' then
-		sourceCommands = {}
-	end
-
-	local sourceArgs = decoded.args
-	if type(sourceArgs) ~= 'table' then
-		sourceArgs = {}
-	end
-
-	local cleaned, cleanedArgs, seen = {}, {}, {}
+	local cleaned = {}
+	local seen = {}
 	local modified = false
 
-	for _, storedName in ipairs(sourceCommands) do
-		local base = NAmanage.resolveCommandName(storedName)
-		if base and NAStuff.AutoExecBlockedCommands[base] then
-			modified = true
-		else
-			local key = base or storedName
-			local storedArgs = sourceArgs[storedName] or (base and sourceArgs[base]) or ''
+	for i = 1, #src do
+		local it = src[i]
+		local rawName, rawArgs
 
-			if not seen[key] then
-				seen[key] = true
-				cleaned[#cleaned+1] = key
-				cleanedArgs[key] = storedArgs
-				if base and base ~= storedName then
+		if type(it) == "string" then
+			rawName = it
+			rawArgs = legacyArgs[it] or ""
+			modified = true
+		elseif type(it) == "table" then
+			rawName = it.c or it.cmd or it.command or it[1]
+			rawArgs = it.a or it.args or it.arguments or it[2] or ""
+		end
+
+		if type(rawName) == "string" then
+			local base = NAmanage.resolveCommandName(rawName:lower())
+			if base and NAStuff.AutoExecBlockedCommands[base] then
+				modified = true
+			else
+				local cmdName = base or rawName:lower()
+				if cmdName ~= rawName then
 					modified = true
 				end
-			else
-				modified = true
+
+				if type(rawArgs) ~= "string" then
+					rawArgs = tostring(rawArgs or "")
+					modified = true
+				end
+
+				local k = cmdName .. "\n" .. rawArgs
+				if not seen[k] then
+					seen[k] = true
+					cleaned[#cleaned+1] = { c = cmdName, a = rawArgs }
+				else
+					modified = true
+				end
 			end
+		else
+			modified = true
 		end
 	end
-	if #cleaned ~= #sourceCommands then
-		modified = true
-	end
 
-	local newData = { commands = cleaned, args = cleanedArgs }
+	local newData = { commands = cleaned }
 
 	if modified then
 		NAmanage.AutoExecSave(newData, 'loader')
@@ -19500,7 +19517,6 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 		return
 	end
 
-	local args = {...}
 	local rawName = arg1:lower()
 	local canonical = NAmanage.resolveCommandName(rawName)
 
@@ -19514,68 +19530,87 @@ cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec
 		return
 	end
 
-	local commandName = canonical
+	local args = {...}
+	local argStr = (#args > 0) and Concat(args, " ") or ""
 
-	NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
-	if not NAEXECDATA.commands then
-		NAEXECDATA.commands = {}
-	end
-	if not NAEXECDATA.args then
-		NAEXECDATA.args = {}
-	end
+	NAEXECDATA = NAEXECDATA or { commands = {} }
+	NAEXECDATA.commands = NAEXECDATA.commands or {}
 
 	local exists = false
-	for _, cmd in ipairs(NAEXECDATA.commands) do
-		if cmd == commandName then
-			exists = true
-			break
+	for i = 1, #NAEXECDATA.commands do
+		local it = NAEXECDATA.commands[i]
+		if type(it) == "table" then
+			local c = it.c
+			local a = it.a or ""
+			if c == canonical and a == argStr then
+				exists = true
+				break
+			end
+		elseif type(it) == "string" then
+			local c = NAmanage.resolveCommandName(it:lower()) or it:lower()
+			local a = (NAEXECDATA.args and (NAEXECDATA.args[it] or NAEXECDATA.args[c])) or ""
+			if c == canonical and a == argStr then
+				exists = true
+				break
+			end
 		end
 	end
-	if not exists then
-		Insert(NAEXECDATA.commands, commandName)
+
+	if exists then
+		DoNotif("Already in AutoExec: "..canonical..(argStr ~= "" and (" "..argStr) or ""), 2)
+		return
 	end
 
-	if #args > 0 then
-		local argumentString = Concat(args, " ")
-		NAEXECDATA.args[commandName] = argumentString
-	else
-		NAEXECDATA.args[commandName] = ""
-	end
+	Insert(NAEXECDATA.commands, { c = canonical, a = argStr })
 
 	if not NAmanage.AutoExecSave(NAEXECDATA) then
 		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 	end
 
-	DoNotif("Added to AutoExec: "..arg1.." "..(args[1] or ""), 2)
-end,true)
+	DoNotif("Added to AutoExec: "..canonical..(argStr ~= "" and (" "..argStr) or ""), 2)
+end, true)
 
 cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {"removeautoexec (raexec, removeae, removeauto, aexecremove)", "Remove a command from autoexecute"}, function()
+	NAEXECDATA = NAEXECDATA or { commands = {} }
+	NAEXECDATA.commands = NAEXECDATA.commands or {}
+
 	if #NAEXECDATA.commands == 0 then
 		DoNotif("No AutoExec commands to remove", 2)
 		return
 	end
 
 	local options = {}
-	for i, cmdName in ipairs(NAEXECDATA.commands) do
-		local args = NAEXECDATA.args[cmdName]
-		local display = args and args ~= "" and (cmdName.." "..args) or cmdName
-		local index = i
-		Insert(options, {
-			Text = display,
-			Callback = function()
-				local removedCommand = table.remove(NAEXECDATA.commands, index)
-				if removedCommand then
-					NAEXECDATA.args[removedCommand] = nil
-					if not NAmanage.AutoExecSave(NAEXECDATA) then
-						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+	for i = 1, #NAEXECDATA.commands do
+		local it = NAEXECDATA.commands[i]
+		local c, a
+
+		if type(it) == "table" then
+			c = it.c
+			a = it.a or ""
+		elseif type(it) == "string" then
+			c = NAmanage.resolveCommandName(it:lower()) or it:lower()
+			a = (NAEXECDATA.args and (NAEXECDATA.args[it] or NAEXECDATA.args[c])) or ""
+		end
+
+		if type(c) == "string" then
+			local display = (a ~= "") and (c.." "..a) or c
+			Insert(options, {
+				Text = display,
+				Callback = function()
+					local removed = table.remove(NAEXECDATA.commands, i)
+					if removed then
+						if not NAmanage.AutoExecSave(NAEXECDATA) then
+							DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+						end
+						DoNotif("Removed AutoExec command: "..display, 2)
+					else
+						DoNotif("Unable to remove AutoExec command.", 2)
 					end
-					DoNotif("Removed AutoExec command: "..display, 2)
-				else
-					DoNotif("Unable to remove AutoExec command.", 2)
 				end
-			end
-		})
+			})
+		end
 	end
+
 	Window({
 		Title = "Remove AutoExec Command",
 		Description = "Select which AutoExec to remove:",
@@ -19584,9 +19619,8 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 end)
 
 cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", "aeclear"}, {"clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)", "Clear all AutoExec commands"}, function()
-	NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
+	NAEXECDATA = NAEXECDATA or { commands = {} }
 	NAEXECDATA.commands = NAEXECDATA.commands or {}
-	NAEXECDATA.args = NAEXECDATA.args or {}
 
 	if #NAEXECDATA.commands == 0 then
 		DoNotif("No AutoExec commands to clear", 2)
@@ -19601,7 +19635,6 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 				Text = "Yes",
 				Callback = function()
 					table.clear(NAEXECDATA.commands)
-					table.clear(NAEXECDATA.args)
 
 					if not NAmanage.AutoExecSave(NAEXECDATA) then
 						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
