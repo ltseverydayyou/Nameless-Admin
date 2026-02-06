@@ -15726,134 +15726,176 @@ NAmanage.UserButtons_Ungroup = function(groupId)
 	return true, ("Ungrouped %d buttons"):format(#children)
 end
 
-NAmanage.AutoExecSave=function(data, context)
+NAmanage.AutoExecSave = function(data, context)
 	if not FileSupport then return true end
-	local ok, err = pcall(function()
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(data))
-	end)
-	if not ok then
-		if context == 'loader' then
-			NAmanage.loaderWarn('AutoExec', 'failed to update storage: '..tostring(err))
-		else
-			warn("[NA] AutoExec save failed: "..tostring(err))
+
+	local out = { commands = {} }
+	local src = (type(data) == "table" and type(data.commands) == "table") and data.commands or {}
+
+	for i = 1, #src do
+		local it = src[i]
+		local c, a
+
+		if type(it) == "table" then
+			c = it.c or it.cmd or it.command or it[1]
+			a = it.a or it.args or it.arguments or it[2] or ""
+		elseif type(it) == "string" then
+			c = NAmanage.resolveCommandName(it:lower()) or it:lower()
+			a = (type(data) == "table" and data.args and (data.args[it] or data.args[c])) or ""
+		end
+
+		if type(c) == "string" then
+			if type(a) ~= "string" then
+				a = tostring(a or "")
+			end
+			out.commands[#out.commands + 1] = { c = c:lower(), a = a }
 		end
 	end
+
+	local ok, err = pcall(function()
+		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(out))
+	end)
+
+	if not ok then
+		if context == "loader" then
+			NAmanage.loaderWarn("AutoExec", "failed to update storage: " .. tostring(err))
+		else
+			warn("[NA] AutoExec save failed: " .. tostring(err))
+		end
+	end
+
 	return ok
 end
 
 NAmanage.loadAutoExec = function()
-	local currentData = NAEXECDATA or { commands = {} }
+	local cur = NAEXECDATA or { commands = {}, args = {} }
 	local path = NAfiles.NAAUTOEXECPATH
 
 	if not FileSupport then
-		NAEXECDATA = currentData
+		NAEXECDATA = cur
 		return true
 	end
 
 	if not (isfile and isfile(path)) then
-		local okCreate, createErr = pcall(function()
-			writefile(path, HttpService:JSONEncode({ commands = {} }))
+		local okc, erc = pcall(function()
+			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
-		if not okCreate then
-			NAmanage.loaderWarn('AutoExec', 'failed to create storage: '..tostring(createErr))
+		if not okc then
+			NAmanage.loaderWarn("AutoExec", "failed to create storage: " .. tostring(erc))
 			return false
 		end
 	end
 
-	local okRead, raw = pcall(readfile, path)
-	if not okRead or type(raw) ~= 'string' then
-		NAmanage.loaderWarn('AutoExec', 'failed to read storage: '..tostring(raw))
+	local okr, raw = pcall(readfile, path)
+	if not okr or type(raw) ~= "string" then
+		NAmanage.loaderWarn("AutoExec", "failed to read storage: " .. tostring(raw))
 		return false
 	end
 
-	local okDecode, decoded = pcall(function()
+	local okd, dec = pcall(function()
 		return HttpService:JSONDecode(raw)
 	end)
 
-	if not okDecode or type(decoded) ~= 'table' then
-		local trimmed = (type(raw) == "string") and raw:match("^%s*(.-)%s*$") or ""
-		if trimmed == "" then
-			decoded = { commands = {} }
+	if not okd or type(dec) ~= "table" then
+		local tr = (type(raw) == "string") and raw:match("^%s*(.-)%s*$") or ""
+		if tr == "" then
+			dec = { commands = {}, args = {} }
 		else
-			local backupPath = path .. ".corrupt_" .. tostring(os.time()) .. ".json"
-			pcall(writefile, backupPath, raw)
-			NAmanage.loaderWarn('AutoExec', ('failed to decode storage; backed up to %s, resetting'):format(backupPath))
-			local okReset, resetErr = pcall(function()
-				writefile(path, HttpService:JSONEncode({ commands = {} }))
+			local bkp = path .. ".corrupt_" .. tostring(os.time()) .. ".json"
+			pcall(writefile, bkp, raw)
+			NAmanage.loaderWarn("AutoExec", ("failed to decode storage; backed up to %s, resetting"):format(bkp))
+			local okrs, er2 = pcall(function()
+				writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
 			end)
-			if not okReset then
-				NAmanage.loaderWarn('AutoExec', 'failed to reset storage: ' .. tostring(resetErr))
+			if not okrs then
+				NAmanage.loaderWarn("AutoExec", "failed to reset storage: " .. tostring(er2))
 				return false
 			end
-			decoded = { commands = {} }
+			dec = { commands = {}, args = {} }
 		end
 	end
 
-	local src = decoded.commands
-	local legacyArgs = decoded.args
+	local src = dec.commands
+	local largs = dec.args
+
 	if type(src) ~= "table" then
-		if decoded[1] ~= nil then
-			src = decoded
+		if dec[1] ~= nil then
+			src = dec
 		else
 			src = {}
 		end
 	end
-	if type(legacyArgs) ~= "table" then
-		legacyArgs = {}
+	if type(largs) ~= "table" then
+		largs = {}
 	end
 
-	local cleaned = {}
+	local blk = (NAStuff and type(NAStuff.AutoExecBlockedCommands) == "table") and NAStuff.AutoExecBlockedCommands or {}
+
+	local canRes = type(NAmanage.resolveCommandName) == "function"
+		and type(cmds) == "table"
+		and type(cmds.Commands) == "table"
+		and type(cmds.Aliases) == "table"
+
+	local out = {}
 	local seen = {}
-	local modified = false
+	local mod = false
 
 	for i = 1, #src do
 		local it = src[i]
-		local rawName, rawArgs
+		local rn, ra
 
 		if type(it) == "string" then
-			rawName = it
-			rawArgs = legacyArgs[it] or ""
-			modified = true
+			rn = it
+			ra = largs[it] or ""
+			mod = true
 		elseif type(it) == "table" then
-			rawName = it.c or it.cmd or it.command or it[1]
-			rawArgs = it.a or it.args or it.arguments or it[2] or ""
+			rn = it.c or it.cmd or it.command or it[1]
+			ra = it.a or it.args or it.arguments or it[2] or ""
 		end
 
-		if type(rawName) == "string" then
-			local base = NAmanage.resolveCommandName(rawName:lower())
-			if base and NAStuff.AutoExecBlockedCommands[base] then
-				modified = true
+		if type(rn) == "string" then
+			local low = rn:lower()
+			local base = nil
+
+			if canRes then
+				local ok, res = pcall(NAmanage.resolveCommandName, low)
+				if ok then
+					base = res
+				else
+					canRes = false
+				end
+			end
+
+			local cn = base or low
+
+			if base and blk[base] then
+				mod = true
 			else
-				local cmdName = base or rawName:lower()
-				if cmdName ~= rawName then
-					modified = true
+				if type(ra) ~= "string" then
+					ra = tostring(ra or "")
+					mod = true
 				end
 
-				if type(rawArgs) ~= "string" then
-					rawArgs = tostring(rawArgs or "")
-					modified = true
-				end
-
-				local k = cmdName .. "\n" .. rawArgs
+				local k = cn .. "\n" .. ra
 				if not seen[k] then
 					seen[k] = true
-					cleaned[#cleaned+1] = { c = cmdName, a = rawArgs }
+					out[#out + 1] = { c = cn, a = ra }
 				else
-					modified = true
+					mod = true
 				end
 			end
 		else
-			modified = true
+			mod = true
 		end
 	end
 
-	local newData = { commands = cleaned }
+	local nd = { commands = out, args = {} }
 
-	if modified then
-		NAmanage.AutoExecSave(newData, 'loader')
+	if mod then
+		NAmanage.AutoExecSave(nd, "loader")
 	end
 
-	NAEXECDATA = newData
+	NAEXECDATA = nd
 	return true
 end
 
@@ -56960,26 +57002,37 @@ SpawnCall(function()
 			return
 		end
 
-		local data = NAEXECDATA or {commands = {}, args = {}}
+		local data = NAEXECDATA or { commands = {}, args = {} }
 		local commands = data.commands
-		local argsMap = data.args or {}
 
 		if type(commands) ~= "table" or #commands == 0 then
 			return
 		end
 
-		for _, commandName in ipairs(commands) do
-			local fullRun = {commandName}
-			local argsString = argsMap[commandName]
-			if type(argsString) == "string" and argsString ~= "" then
-				local extraArgs = ParseArguments(argsString)
-				if extraArgs then
-					for _, v in ipairs(extraArgs) do
-						Insert(fullRun, v)
+		for i = 1, #commands do
+			local it = commands[i]
+			local c, a
+
+			if type(it) == "table" then
+				c = it.c or it.cmd or it.command or it[1]
+				a = it.a or it.args or it.arguments or it[2] or ""
+			elseif type(it) == "string" then
+				c = it
+				a = (data.args and data.args[it]) or ""
+			end
+
+			if type(c) == "string" then
+				local run = { c }
+				if type(a) == "string" and a ~= "" then
+					local extra = ParseArguments(a)
+					if type(extra) == "table" then
+						for j = 1, #extra do
+							run[#run + 1] = extra[j]
+						end
 					end
 				end
+				pcall(cmd.run, run)
 			end
-			cmd.run(fullRun)
 		end
 	end)
 	NAUIMANAGER.cmdInput.ZIndex = 10
