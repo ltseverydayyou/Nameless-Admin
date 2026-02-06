@@ -6458,7 +6458,7 @@ end
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent = p end
-	inst.Name = "\0"
+	inst.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	return inst
 end
 
@@ -6580,7 +6580,10 @@ NAmanage.setAutoSkipPreference = function(enabled)
 	end
 end
 
-function rStringgg()
+NAgui.rStringgg=function()
+	if HttpService and HttpService.GenerateGUID then
+		return HttpService:GenerateGUID(false)
+	end
 	local length = math.random(10, 20)
 	local result = {}
 	local glitchMarks = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
@@ -6609,21 +6612,22 @@ function rStringgg()
 	return Concat(result)
 end
 
-function NAProtection(inst,var)
+NAgui.NAProtection=function(inst,var)
 	if not inst then return end
 	if var then
-		inst[var] = "\0"
+		inst[var] = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	else
-		inst.Name   = "\0"
+		inst.Name   = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	end
 	inst.Archivable = false
 end
 
-function NaProtectUI(gui)
+NAgui.NaProtectUI=function(gui)
 	if typeof(gui) ~= "Instance" then
 		return nil
 	end
-	local INV = "\0"
+
+	local INV = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	local MAX_DO = 0x7FFFFFFF
 	local target = NAmanage.guiCHECKINGAHHHHH()
 	if not target then return end
@@ -6638,7 +6642,6 @@ function NaProtectUI(gui)
 	end
 	local props = {
 		Parent         = target,
-		Name           = INV,
 		Archivable     = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Global,
 		DisplayOrder   = MAX_DO,
@@ -6652,11 +6655,13 @@ function NaProtectUI(gui)
 		props.IgnoreGuiInset = nil
 	end
 	for prop, val in pairs(props) do
-		gui:GetPropertyChangedSignal(prop):Connect(function()
-			if gui[prop] ~= val then
-				pcall(function() gui[prop] = val end)
-			end
-		end)
+		if val ~= nil then
+			gui:GetPropertyChangedSignal(prop):Connect(function()
+				if gui[prop] ~= val then
+					pcall(function() gui[prop] = val end)
+				end
+			end)
+		end
 	end
 	gui.AncestryChanged:Connect(function(_, newParent)
 		if gui.Parent ~= target then
@@ -6666,7 +6671,7 @@ function NaProtectUI(gui)
 	local hb
 	hb = SafeGetService("RunService").Heartbeat:Connect(function()
 		for prop, val in pairs(props) do
-			if gui[prop] ~= val then
+			if val ~= nil and gui[prop] ~= val then
 				pcall(function() gui[prop] = val end)
 			end
 		end
@@ -7107,7 +7112,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.sg.ResetOnSpawn = false
 	ui.sg.DisplayOrder = 999999
 	ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	local okProtect = pcall(function() NaProtectUI(ui.sg) end)
+	local okProtect = pcall(function() NAgui.NaProtectUI(ui.sg) end)
 	if not okProtect then
 		ui.sg.Parent = COREGUI
 	end
@@ -7758,7 +7763,7 @@ end
 
 if not NAAssetsLoading.setStatus then
 	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
-	NaProtectUI(NAAssetsLoading.ui)
+	NAgui.NaProtectUI(NAAssetsLoading.ui)
 	NAAssetsLoading.applyMinimizedPreference()
 	local stageOrder = {
 		"engine",
@@ -8240,7 +8245,7 @@ if (identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecut
 							p.CanQuery = false
 							p.Transparency = 1
 							p.CFrame = CFrame.new(target, target + look)
-							p.Name = "\0"
+							p.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 							p.Parent = workspace
 							return p
 						end)
@@ -15020,7 +15025,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 	if not IsOnMobile then return end
 	NAmanage._destroyMobileFlyUI()
 	local mk=function(modeKey,btnText,onToggle,getSpeed,setSpeed,storeRefs)
-		local gui=InstanceNew("ScreenGui"); NaProtectUI(gui); gui.ResetOnSpawn=false
+		local gui=InstanceNew("ScreenGui"); NAgui.NaProtectUI(gui); gui.ResetOnSpawn=false
 		local btn=InstanceNew("TextButton",gui)
 		local speedBox=InstanceNew("TextBox",gui)
 		local toggleBtn=InstanceNew("TextButton",btn)
@@ -18583,7 +18588,7 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 	local st2 = Color3.fromRGB(60, 60, 60)
 
 	gui = InstanceNew("ScreenGui")
-	NaProtectUI(gui)
+	NAgui.NaProtectUI(gui)
 
 	fr = InstanceNew("Frame", gui)
 	fr.Position = NAmanage._cb2p or getDefaultCmdBar2Position()
@@ -19004,7 +19009,7 @@ end
 NAmanage.NAibtoolsCreateUI=function(state, actions)
 	local gui = InstanceNew("ScreenGui")
 	gui.Name = "iBToolsUI"
-	NaProtectUI(gui)
+	NAgui.NaProtectUI(gui)
 
 	local frame = InstanceNew("Frame", gui)
 	frame.Name = "Panel"
@@ -20014,7 +20019,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	local sizeRange = {0.5, 2.5}
 	local minSize, maxSize = sizeRange[1], sizeRange[2]
 
-	NaProtectUI(scaleFrame)
+	NAgui.NaProtectUI(scaleFrame)
 	frame.Parent = scaleFrame
 	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 	frame.Size = UDim2.new(0, 400, 0, 120)
@@ -20227,7 +20232,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 
 	local Mouse = player:GetMouse()
 	clickflingUI = InstanceNew("ScreenGui")
-	NaProtectUI(clickflingUI)
+	NAgui.NaProtectUI(clickflingUI)
 
 	local toggleButton = InstanceNew("TextButton")
 	toggleButton.Size = UDim2.new(0,120,0,40)
@@ -20589,7 +20594,7 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 
 	local Mouse = player:GetMouse()
 	clickscareUI = InstanceNew("ScreenGui")
-	NaProtectUI(clickscareUI)
+	NAgui.NaProtectUI(clickscareUI)
 
 	local toggleButton = InstanceNew("TextButton")
 	toggleButton.Size = UDim2.new(0,120,0,40)
@@ -20668,7 +20673,7 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 	NAmanage.cleanupHoverName()
 
 	hoverNameGui = InstanceNew("ScreenGui")
-	NaProtectUI(hoverNameGui)
+	NAgui.NaProtectUI(hoverNameGui)
 
 	hoverNameLabel = InstanceNew("TextLabel")
 	hoverNameLabel.BackgroundTransparency = 1
@@ -20684,7 +20689,7 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 	hoverNameLabel.Parent = hoverNameGui
 
 	hoverNameSelection = InstanceNew("SelectionBox")
-	NAProtection(hoverNameSelection)
+	NAgui.NAProtection(hoverNameSelection)
 	hoverNameSelection.LineThickness = 0.03
 	hoverNameSelection.Color3 = Color3.new(1,1,1)
 	hoverNameSelection.Adornee = nil
@@ -20838,7 +20843,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		DisplayOrder = 100 + windowCounter,
 	})
-	NaProtectUI(screenGui)
+	NAgui.NaProtectUI(screenGui)
 
 	local holder = NAstatsUI.createInstance("Frame", {
 		Name = "Holder",
@@ -21544,7 +21549,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local function new(class, props) local inst = NewI(class) for k,v in pairs(props) do inst[k] = v end return inst end
 
 	debugUI = new("ScreenGui",{Name="CharDebugUI",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1000})
-	pcall(function() NaProtectUI(debugUI) end)
+	pcall(function() NAgui.NaProtectUI(debugUI) end)
 
 	local window = new("Frame",{Name="Window", Size=UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), Position=UDim2.new(0.5,-UI_SIZE.X/2,0.5,-UI_SIZE.Y/2), BackgroundColor3=BG_COLOR, BorderSizePixel=0, ClipsDescendants=true, Parent=debugUI, ZIndex=10})
 	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=window})
@@ -21601,7 +21606,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end
 
 	debugDock = new("ScreenGui",{Name="CharDebugDock",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1100})
-	pcall(function() NaProtectUI(debugDock) end)
+	pcall(function() NAgui.NaProtectUI(debugDock) end)
 	local dock = new("Frame",{Name="Dock", Size=UDim2.fromOffset(IsOnMobile and 76 or 64,IsOnMobile and 76 or 64), AnchorPoint=Vector2.new(0,1), Position=UDim2.new(0,16,1,-16), BackgroundColor3=ACCENT, Visible=false, Parent=debugDock, ZIndex=100})
 	new("UICorner",{CornerRadius=UDim.new(0,20),Parent=dock})
 	local dockLabel = new("TextButton",{Name="Btn", BackgroundTransparency=1, Size=UDim2.fromScale(1,1), Text="CD", Font=Enum.Font.Code, TextSize=20, TextColor3=Color3.new(1,1,1), Parent=dock, ZIndex=101})
@@ -22100,7 +22105,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		local corner = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(Somersault.btn)
+		NAgui.NaProtectUI(Somersault.btn)
 		Somersault.btn.ResetOnSpawn = false
 
 		flipBtn.Parent = Somersault.btn
@@ -23924,7 +23929,7 @@ end)
 
 cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
 	local sGUI = InstanceNew("ScreenGui")
-	NaProtectUI(sGUI)
+	NAgui.NaProtectUI(sGUI)
 	sGUI.Name = "AntiLagGUI"
 	sGUI.ResetOnSpawn = false
 
@@ -24988,7 +24993,7 @@ NAStuff.ATPC._buildGUI = function()
 	end
 
 	local g = InstanceNew("ScreenGui")
-	NaProtectUI(g)
+	NAgui.NaProtectUI(g)
 	g.ResetOnSpawn = false
 
 	local b = InstanceNew("TextButton")
@@ -25501,7 +25506,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	local GUI = InstanceNew("ScreenGui")
 	local On = InstanceNew("TextLabel")
 	local uicorner = InstanceNew("UICorner")
-	NaProtectUI(GUI)
+	NAgui.NaProtectUI(GUI)
 	On.Parent = GUI
 	On.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
 	On.BackgroundTransparency = 0.14
@@ -26163,7 +26168,7 @@ NAmanage.makeClickTweenUI = function()
 	local mouse = player:GetMouse()
 
 	NAStuff.tpUI = InstanceNew("ScreenGui")
-	NaProtectUI(NAStuff.tpUI)
+	NAgui.NaProtectUI(NAStuff.tpUI)
 
 	local clickTpButton = InstanceNew("TextButton")
 	clickTpButton.Size = UDim2.new(0,130,0,40)
@@ -26501,7 +26506,7 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 
 	local Dex=game:GetObjects("rbxassetid://9553291002")[1]
 	Dex.Name=RandomCharacters(rng:NextInteger(5,20))
-	NaProtectUI(Dex)
+	NAgui.NaProtectUI(Dex)
 
 	function Load(Obj,Url)
 		function GiveOwnGlobals(Func,Script)
@@ -26794,7 +26799,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	local vstopBtn = InstanceNew("TextButton")
 	local vstopCorner = InstanceNew("UICorner")
 
-	NaProtectUI(vspeedBTN)
+	NAgui.NaProtectUI(vspeedBTN)
 
 	btn.Parent = vspeedBTN
 	btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -27446,7 +27451,7 @@ cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment ke
 		alignmentButtonsGui = InstanceNew("ScreenGui")
 		alignmentButtonsGui.Name = "AlignButtons"
 		alignmentButtonsGui.ResetOnSpawn = false
-		NaProtectUI(alignmentButtonsGui)
+		NAgui.NaProtectUI(alignmentButtonsGui)
 
 		local btnSize = UDim2.new(0.1, 0, 0.1, 0)
 
@@ -28004,7 +28009,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 
 	builderAnim = InstanceNew("ScreenGui")
-	NaProtectUI(builderAnim)
+	NAgui.NaProtectUI(builderAnim)
 	builderAnim.Name = "AnimationBuilder"
 
 	local main = InstanceNew("Frame", builderAnim)
@@ -29260,7 +29265,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	local clear_2=InstanceNew("TextButton")
 	local copy=InstanceNew("TextButton")
 
-	NaProtectUI(FunctionSpy)
+	NAgui.NaProtectUI(FunctionSpy)
 	FunctionSpy.Name="FunctionSpy"
 	FunctionSpy.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 
@@ -30125,7 +30130,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		local corner3 = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(fcBTNTOGGLE)
+		NAgui.NaProtectUI(fcBTNTOGGLE)
 		fcBTNTOGGLE.ResetOnSpawn = false
 
 		btn.Parent = fcBTNTOGGLE
@@ -30412,7 +30417,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	GRIPUITHINGYIDFK = InstanceNew("ScreenGui")
 	GRIPUITHINGYIDFK.Name = "GripAdjustUI"
 	GRIPUITHINGYIDFK.ResetOnSpawn = false
-	NaProtectUI(GRIPUITHINGYIDFK)
+	NAgui.NaProtectUI(GRIPUITHINGYIDFK)
 
 	local frame = InstanceNew("Frame")
 	frame.Size = UDim2.new(0, 320, 0, 270)
@@ -31001,7 +31006,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 	local function createBadgeUI(data)
 		local sgui = InstanceNew("ScreenGui")
-		NaProtectUI(sgui)
+		NAgui.NaProtectUI(sgui)
 		sgui.Name = "BadgeViewer"
 
 		local headerH = 70
@@ -32376,8 +32381,8 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		return element
 	end
 
-	local ScreenGui = createUIElement("ScreenGui", { Name = '\0' })
-	NaProtectUI(ScreenGui)
+	local ScreenGui = createUIElement("ScreenGui", { Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0") })
+	NAgui.NaProtectUI(ScreenGui)
 
 	local background = createUIElement("Frame", {
 		BackgroundColor3 = Color3.fromRGB(0, 0, 0),
@@ -34058,7 +34063,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	if #playerList == 0 then return DebugNotif("No players to spectate", 2) end
 
 	ui = InstanceNew("ScreenGui")
-	NaProtectUI(ui)
+	NAgui.NaProtectUI(ui)
 	ui.ResetOnSpawn = false
 	ui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	ui.DisplayOrder = 10
@@ -34306,7 +34311,7 @@ cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your
 		local corner = InstanceNew("UICorner")
 		local aspect = InstanceNew("UIAspectRatioConstraint")
 
-		NaProtectUI(freezeBTNTOGGLE)
+		NAgui.NaProtectUI(freezeBTNTOGGLE)
 		freezeBTNTOGGLE.ResetOnSpawn = false
 
 		btn.Parent = freezeBTNTOGGLE
@@ -34427,7 +34432,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	end)
 
 	local sGUI=InstanceNew("ScreenGui")
-	NaProtectUI(sGUI)
+	NAgui.NaProtectUI(sGUI)
 
 	local toggleBtn=InstanceNew("TextButton",sGUI)
 	local toggleCorner=InstanceNew("UICorner",toggleBtn)
@@ -34874,8 +34879,8 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	NAlib.disconnect(GROUP)
 
 	local gui=InstanceNew("ScreenGui")
-	NAProtection(gui)
-	NaProtectUI(gui)
+	NAgui.NAProtection(gui)
+	NAgui.NaProtectUI(gui)
 	NA_DEVPROD_GUI=gui
 
 	local shadow=InstanceNew("Frame",gui)
@@ -34891,7 +34896,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	win.BorderSizePixel=0
 	win.Size=UDim2.fromOffset(680,600)
 	win.ZIndex=1
-	NAProtection(win)
+	NAgui.NAProtection(win)
 	NAmanage.centerFrame(win)
 	shadow.Position=win.Position
 	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
@@ -35269,8 +35274,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	NAlib.disconnect(GROUP)
 
 	local gui=InstanceNew("ScreenGui")
-	NAProtection(gui)
-	NaProtectUI(gui)
+	NAgui.NaProtectUI(gui)
 	NA_GAMEPASS_GUI=gui
 
 	local shadow=InstanceNew("Frame",gui)
@@ -35286,7 +35290,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	win.BorderSizePixel=0
 	win.Size=UDim2.fromOffset(640,520)
 	win.ZIndex=1
-	NAProtection(win)
+	NAgui.NAProtection(win)
 	NAmanage.centerFrame(win)
 	shadow.Position=win.Position
 	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
@@ -36418,7 +36422,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	if idkwhyididntmakethisbruh then idkwhyididntmakethisbruh:Destroy() idkwhyididntmakethisbruh = nil end
 
 	idkwhyididntmakethisbruh = InstanceNew("ScreenGui")
-	NaProtectUI(idkwhyididntmakethisbruh)
+	NAgui.NaProtectUI(idkwhyididntmakethisbruh)
 	idkwhyididntmakethisbruh.Name = "ToolViewGui"
 	idkwhyididntmakethisbruh.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -38191,7 +38195,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 
 		hugUI = InstanceNew("ScreenGui")
 		hugUI.Name = "HugModeUI"
-		NaProtectUI(hugUI)
+		NAgui.NaProtectUI(hugUI)
 
 		local toggleHugButton = InstanceNew("TextButton")
 		toggleHugButton.AnchorPoint = Vector2.new(0.5, 0)
@@ -38508,13 +38512,13 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 
 	if IsOnMobile then
 		local guiDown = InstanceNew("ScreenGui")
-		NaProtectUI(guiDown)
+		NAgui.NaProtectUI(guiDown)
 		guiDown.ResetOnSpawn = false
 		NAStuff.airwalk.guis.down = guiDown
 		createButton(guiDown, "DOWN", UDim2.new(0.9, 0, 0.7, 0), function() NAStuff.airwalk.Vars.decrease = true end, function() NAStuff.airwalk.Vars.decrease = false end)
 
 		local guiUp = InstanceNew("ScreenGui")
-		NaProtectUI(guiUp)
+		NAgui.NaProtectUI(guiUp)
 		guiUp.ResetOnSpawn = false
 		NAStuff.airwalk.guis.up = guiUp
 		createButton(guiUp, "UP", UDim2.new(0.9, 0, 0.5, 0), function() NAStuff.airwalk.Vars.increase = true end, function() NAStuff.airwalk.Vars.increase = false end)
@@ -43221,7 +43225,7 @@ end
 NAmanage.ESP_LocatorEnsureGui = function()
 	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then return NAStuff.ESP_LocatorGui end
 	local g = InstanceNew("ScreenGui")
-	NaProtectUI(g)
+	NAgui.NaProtectUI(g)
 	NAStuff.ESP_LocatorGui = g
 	return g
 end
@@ -46924,7 +46928,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		local TextButton = InstanceNew("TextButton")
 		local UICorner = InstanceNew("UICorner")
 		local UIAspectRatioConstraint = InstanceNew("UIAspectRatioConstraint")
-		NaProtectUI(invisBtnlol)
+		NAgui.NaProtectUI(invisBtnlol)
 		invisBtnlol.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 		TextButton.Parent = invisBtnlol
 		TextButton.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
@@ -47032,7 +47036,7 @@ do
 		SafeInstanceNew = function(className, parent)
 			local inst = InstanceNew(className)
 			if parent then inst.Parent = parent end
-			inst.Name = "\0"
+			inst.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 			return inst
 		end
 		InstanceNew = SafeInstanceNew
@@ -48897,7 +48901,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	local Mouse = player:GetMouse()
 
 	NAStuff.clickkillUI = InstanceNew("ScreenGui")
-	NaProtectUI(NAStuff.clickkillUI)
+	NAgui.NaProtectUI(NAStuff.clickkillUI)
 
 	local toggleButton = InstanceNew("TextButton")
 	toggleButton.Size = UDim2.new(0, 120, 0, 40)
@@ -48964,7 +48968,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 	NAlib.disconnect("clickvoid_mouse")
 
 	clickVoidUI = InstanceNew("ScreenGui")
-	NaProtectUI(clickVoidUI)
+	NAgui.NaProtectUI(clickVoidUI)
 
 	local button = InstanceNew("TextButton")
 	button.Size = UDim2.new(0, 120, 0, 40)
@@ -49015,7 +49019,7 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	local player=Players.LocalPlayer
 	local mouse=player:GetMouse()
 	clickSpeedUI=InstanceNew("ScreenGui")
-	NaProtectUI(clickSpeedUI)
+	NAgui.NaProtectUI(clickSpeedUI)
 	local btn=InstanceNew("TextButton")
 	btn.Size=UDim2.new(0,120,0,40)
 	btn.Position=UDim2.new(0.5,-130,0,10)
@@ -49079,7 +49083,7 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	local player=Players.LocalPlayer
 	local mouse=player:GetMouse()
 	clickJumpUI=InstanceNew("ScreenGui")
-	NaProtectUI(clickJumpUI)
+	NAgui.NaProtectUI(clickJumpUI)
 	local btn=InstanceNew("TextButton")
 	btn.Size=UDim2.new(0,120,0,40)
 	btn.Position=UDim2.new(0.5,-130,0,10)
@@ -49206,7 +49210,7 @@ else
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
 
-NaProtectUI(NAStuff.NASCREENGUI)
+NAgui.NaProtectUI(NAStuff.NASCREENGUI)
 
 NAUIMANAGER = {
 	description = NAStuff.NASCREENGUI:FindFirstChild("Description"),
@@ -50703,6 +50707,7 @@ end
 	rgui.Parent = screenGui
 	rgui.BackgroundTransparency = 1
 	rgui.ClipsDescendants = false
+	NAgui.NAProtection(rgui)
 
 	local function updateOverlay()
 		local ok = pcall(function()
@@ -52728,7 +52733,7 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.top.ZIndexBehavior=Enum.ZIndexBehavior.Global
 	TopBarApp.top.DisplayOrder=9999
 	TopBarApp.top.IgnoreGuiInset=true
-	NaProtectUI(TopBarApp.top)
+	NAgui.NaProtectUI(TopBarApp.top)
 	TopBarApp.top.Enabled=NATOPBARVISIBLE
 	TopBarApp.frame=InstanceNew("Frame")
 	TopBarApp.frame.Size=UDim2.new(1,0,0,36)
@@ -53122,7 +53127,7 @@ NAmanage.SideSwipe_Init=function()
 	SideSwipeApp.gui = InstanceNew("ScreenGui")
 	SideSwipeApp.gui.Name = "NA_SideSwipe"
 	SideSwipeApp.gui.Enabled = NASideSwipeEnabled
-	NaProtectUI(SideSwipeApp.gui)
+	NAgui.NaProtectUI(SideSwipeApp.gui)
 	SideSwipeApp.panel = InstanceNew("Frame", SideSwipeApp.gui)
 	SideSwipeApp.panel.BackgroundTransparency = 1
 	SideSwipeApp.panel.ClipsDescendants = true
@@ -55642,7 +55647,7 @@ function bindToChat(plr, msg)
 			end
 		end
 
-		chatMsg.Name = '\0'
+		chatMsg.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 		chatMsg.Parent = NAUIMANAGER.chatLogs
 		chatMsg.Text = baseText
 
@@ -57734,18 +57739,18 @@ end)
 
 
 SpawnCall(function() -- init
-	if NAUIMANAGER.cmdBar then NAProtection(NAUIMANAGER.cmdBar) end
-	if NAUIMANAGER.chatLogsFrame then NAProtection(NAUIMANAGER.chatLogsFrame) end
-	--if NAUIMANAGER.NAchatFrame then NAProtection(NAUIMANAGER.NAchatFrame) end
-	if NAUIMANAGER.NAconsoleFrame then NAProtection(NAUIMANAGER.NAconsoleFrame) end
-	if NAUIMANAGER.commandsFrame then NAProtection(NAUIMANAGER.commandsFrame) end
-	if NAUIMANAGER.resizeFrame then NAProtection(NAUIMANAGER.resizeFrame) end
-	if NAUIMANAGER.description then NAProtection(NAUIMANAGER.description) end
-	if NAUIMANAGER.ModalFixer then NAProtection(NAUIMANAGER.ModalFixer) end
-	if NAUIMANAGER.AUTOSCALER then NAProtection(NAUIMANAGER.AUTOSCALER) NAUIMANAGER.AUTOSCALER.Scale = NAUIScale end
-	if NAUIMANAGER.SettingsFrame then NAProtection(NAUIMANAGER.SettingsFrame) end
-	if NAUIMANAGER.WaypointFrame then NAProtection(NAUIMANAGER.WaypointFrame) end
-	if NAUIMANAGER.BindersFrame then NAProtection(NAUIMANAGER.BindersFrame) end
+	if NAUIMANAGER.cmdBar then NAgui.NAProtection(NAUIMANAGER.cmdBar) end
+	if NAUIMANAGER.chatLogsFrame then NAgui.NAProtection(NAUIMANAGER.chatLogsFrame) end
+	--if NAUIMANAGER.NAchatFrame then NAgui.NAProtection(NAUIMANAGER.NAchatFrame) end
+	if NAUIMANAGER.NAconsoleFrame then NAgui.NAProtection(NAUIMANAGER.NAconsoleFrame) end
+	if NAUIMANAGER.commandsFrame then NAgui.NAProtection(NAUIMANAGER.commandsFrame) end
+	if NAUIMANAGER.resizeFrame then NAgui.NAProtection(NAUIMANAGER.resizeFrame) end
+	if NAUIMANAGER.description then NAgui.NAProtection(NAUIMANAGER.description) end
+	if NAUIMANAGER.ModalFixer then NAgui.NAProtection(NAUIMANAGER.ModalFixer) end
+	if NAUIMANAGER.AUTOSCALER then NAgui.NAProtection(NAUIMANAGER.AUTOSCALER) NAUIMANAGER.AUTOSCALER.Scale = NAUIScale end
+	if NAUIMANAGER.SettingsFrame then NAgui.NAProtection(NAUIMANAGER.SettingsFrame) end
+	if NAUIMANAGER.WaypointFrame then NAgui.NAProtection(NAUIMANAGER.WaypointFrame) end
+	if NAUIMANAGER.BindersFrame then NAgui.NAProtection(NAUIMANAGER.BindersFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
