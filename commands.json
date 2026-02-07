@@ -1,0 +1,7879 @@
+{
+  "commands": [
+    {
+      "name": "addallplugins",
+      "aliases": [
+        "addallplugins",
+        "addplugins",
+        "aap",
+        "aaplugs"
+      ],
+      "usage": "addallplugins",
+      "args": "",
+      "desc": "Move all .na to Nameless-Admin/Plugins and all .iy to Nameless-Admin/PluginsIY, then load them",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "addplugin",
+      "aliases": [
+        "addplugin",
+        "addplug",
+        "ap",
+        "aplug"
+      ],
+      "usage": "addplugin",
+      "args": "",
+      "desc": "Move one .na to Plugins or one .iy to PluginsIY, then load it",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "reloadplugin",
+      "aliases": [
+        "reloadplugin",
+        "relplug",
+        "rp"
+      ],
+      "usage": "reloadplugin [name]",
+      "args": "[name]",
+      "desc": "Reload plugin files (reloads all if no name provided)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "removeplugin",
+      "aliases": [
+        "removeplugin",
+        "rmplugin",
+        "delplugin",
+        "rmp"
+      ],
+      "usage": "removeplugin",
+      "args": "",
+      "desc": "Move a plugin file from Nameless-Admin/Plugins or Nameless-Admin/PluginsIY back to workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "removeallplugins",
+      "aliases": [
+        "removeallplugins",
+        "rmaplugins",
+        "clearplugins",
+        "rmap",
+        "rmaplugs"
+      ],
+      "usage": "removeallplugins",
+      "args": "",
+      "desc": "Move all plugins from Nameless-Admin/Plugins and Nameless-Admin/PluginsIY back to workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "cmdbar2",
+      "aliases": [
+        "cmdbar2",
+        "cbar2"
+      ],
+      "usage": "cmdbar2 (cbar2)",
+      "args": "(cbar2)",
+      "desc": "Opens a HD-Admin style cmdbar (black & white)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "url",
+      "aliases": [
+        "url"
+      ],
+      "usage": "url <link>",
+      "args": "<link>",
+      "desc": "Run the script using URL",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loadstring",
+      "aliases": [
+        "loadstring",
+        "ls",
+        "lstring",
+        "loads",
+        "execute"
+      ],
+      "usage": "loadstring <code> (ls, lstring, loads, execute)",
+      "args": "<code> (ls, lstring, loads, execute)",
+      "desc": "Run code using loadstring",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "shaders",
+      "aliases": [
+        "shaders",
+        "shader",
+        "rtx",
+        "hd"
+      ],
+      "usage": "shaders (shader, rtx, hd)",
+      "args": "(shader, rtx, hd)",
+      "desc": "Enable a shader preset for Lighting",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unshaders",
+      "aliases": [
+        "unshaders",
+        "shadersoff",
+        "rtxoff"
+      ],
+      "usage": "unshaders (shadersoff, rtxoff)",
+      "args": "(shadersoff, rtxoff)",
+      "desc": "Disable the shader preset and restore Lighting",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "ibtools",
+      "aliases": [
+        "ibtools"
+      ],
+      "usage": "ibtools",
+      "args": "",
+      "desc": "Load the iBuild Tools helper tool",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unibtools",
+      "aliases": [
+        "unibtools"
+      ],
+      "usage": "unibtools",
+      "args": "",
+      "desc": "Remove the iBuild Tools helper tool",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "setfflag",
+      "aliases": [
+        "setfflag",
+        "setff"
+      ],
+      "usage": "setfflag <flag> <value> [save] (setff)",
+      "args": "<flag> <value> [save] (setff)",
+      "desc": "Set a fast flag (use 'save' to store it)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "addalias",
+      "aliases": [
+        "addalias"
+      ],
+      "usage": "addalias <command> <alias>",
+      "args": "<command> <alias>",
+      "desc": "Adds a persistent alias for an existing command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "removealias",
+      "aliases": [
+        "removealias"
+      ],
+      "usage": "removealias",
+      "args": "",
+      "desc": "Select and remove a saved alias",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clearaliases",
+      "aliases": [
+        "clearaliases"
+      ],
+      "usage": "clearaliases",
+      "args": "",
+      "desc": "Removes all aliases created using addalias.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "addbutton",
+      "aliases": [
+        "addbutton",
+        "ab"
+      ],
+      "usage": "addbutton <command> <label> [<command2>] (ab)",
+      "args": "<command> <label> [<command2>] (ab)",
+      "desc": "Add a mobile button",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "removebutton",
+      "aliases": [
+        "removebutton",
+        "rb"
+      ],
+      "usage": "removebutton (rb)",
+      "args": "(rb)",
+      "desc": "Remove a user button",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "clearbuttons",
+      "aliases": [
+        "clearbuttons",
+        "clearbtns",
+        "cb"
+      ],
+      "usage": "clearbuttons (clearbtns, cb)",
+      "args": "(clearbtns, cb)",
+      "desc": "Clear all user buttons",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "addautoexec",
+      "aliases": [
+        "addautoexec",
+        "aaexec",
+        "addae",
+        "addauto",
+        "aexecadd"
+      ],
+      "usage": "addautoexec <command> [arguments] (aaexec, addae, addauto, aexecadd)",
+      "args": "<command> [arguments] (aaexec, addae, addauto, aexecadd)",
+      "desc": "Add a command to autoexecute",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "removeautoexec",
+      "aliases": [
+        "removeautoexec",
+        "raexec",
+        "removeae",
+        "removeauto",
+        "aexecremove"
+      ],
+      "usage": "removeautoexec (raexec, removeae, removeauto, aexecremove)",
+      "args": "(raexec, removeae, removeauto, aexecremove)",
+      "desc": "Remove a command from autoexecute",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "clearautoexec",
+      "aliases": [
+        "clearautoexec",
+        "caexec",
+        "clearauto",
+        "autoexecclear",
+        "aexecclear",
+        "aeclear"
+      ],
+      "usage": "clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)",
+      "args": "(caexec, clearauto, autoexecclear, aexecclear, aeclear)",
+      "desc": "Clear all AutoExec commands",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "executor",
+      "aliases": [
+        "executor",
+        "exec"
+      ],
+      "usage": "executor (exec)",
+      "args": "(exec)",
+      "desc": "Very simple executor",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "lastcommand",
+      "aliases": [
+        "lastcommand",
+        "lastcmd"
+      ],
+      "usage": "lastcommand (lastcmd)",
+      "args": "(lastcmd)",
+      "desc": "Re-run your previously executed command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "commandloop",
+      "aliases": [
+        "commandloop",
+        "cmdloop"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "stoploop",
+      "aliases": [
+        "stoploop",
+        "uncmdloop",
+        "sloop",
+        "stopl"
+      ],
+      "usage": "stoploop",
+      "args": "",
+      "desc": "Stop a running loop",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "scripthub",
+      "aliases": [
+        "scripthub",
+        "hub"
+      ],
+      "usage": "scripthub (hub)",
+      "args": "(hub)",
+      "desc": "Thanks to scriptblox/rscripts API",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "uiscale",
+      "aliases": [
+        "uiscale",
+        "uscale",
+        "guiscale",
+        "gscale"
+      ],
+      "usage": "uiscale (uscale)",
+      "args": "(uscale)",
+      "desc": "Adjust the scale of the ",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "prefix",
+      "aliases": [
+        "prefix"
+      ],
+      "usage": "prefix <symbol>",
+      "args": "<symbol>",
+      "desc": "Changes the admin prefix",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "saveprefix",
+      "aliases": [
+        "saveprefix"
+      ],
+      "usage": "saveprefix <symbol>",
+      "args": "<symbol>",
+      "desc": "Saves the prefix to a file and applies it",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "chatlogs",
+      "aliases": [
+        "chatlogs",
+        "clogs"
+      ],
+      "usage": "chatlogs (clogs)",
+      "args": "(clogs)",
+      "desc": "Open the chat logs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gotocampos",
+      "aliases": [
+        "gotocampos",
+        "tocampos",
+        "tcp"
+      ],
+      "usage": "gotocampos (tocampos,tcp)",
+      "args": "(tocampos,tcp)",
+      "desc": "Teleports you to your camera position works with free cam but freezes you",
+      "category": "Camera & View"
+    },
+    {
+      "name": "teleportgui",
+      "aliases": [
+        "teleportgui",
+        "tpui",
+        "universeviewer",
+        "uviewer"
+      ],
+      "usage": "teleportgui (tpui,universeviewer,uviewer)",
+      "args": "(tpui,universeviewer,uviewer)",
+      "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button",
+      "category": "Camera & View"
+    },
+    {
+      "name": "serverremotespy",
+      "aliases": [
+        "serverremotespy",
+        "srs",
+        "sremotespy"
+      ],
+      "usage": "serverremotespy (srs,sremotespy)",
+      "args": "(srs,sremotespy)",
+      "desc": "Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "discord",
+      "aliases": [
+        "discord",
+        "invite",
+        "support",
+        "help"
+      ],
+      "usage": "discord",
+      "args": "",
+      "desc": "Copy an invite link",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clickfling",
+      "aliases": [
+        "clickfling",
+        "mousefling"
+      ],
+      "usage": "clickfling (mousefling)",
+      "args": "(mousefling)",
+      "desc": "Fling a player by clicking them",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unclickfling",
+      "aliases": [
+        "unclickfling",
+        "unmousefling"
+      ],
+      "usage": "unclickfling (unmousefling)",
+      "args": "(unmousefling)",
+      "desc": "disables clickfling",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "offset",
+      "aliases": [
+        "offset",
+        "offpos",
+        "off"
+      ],
+      "usage": "offset [x y z|y]",
+      "args": "[x y z|y]",
+      "desc": "Offsets your character for others (positive Y = up, negative Y = down)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clickscare",
+      "aliases": [
+        "clickscare",
+        "clickspook"
+      ],
+      "usage": "clickscare (clickspook)",
+      "args": "(clickspook)",
+      "desc": "Teleports next to a clicked player for a few seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unclickscare",
+      "aliases": [
+        "unclickscare",
+        "unclickspook"
+      ],
+      "usage": "unclickscare (unclickspook)",
+      "args": "(unclickspook)",
+      "desc": "Disables clickscare",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hovername",
+      "aliases": [
+        "hovername",
+        "namehover"
+      ],
+      "usage": "hovername",
+      "args": "",
+      "desc": "Shows player's username on hover",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unhovername",
+      "aliases": [
+        "unhovername",
+        "unnamehover"
+      ],
+      "usage": "unhovername",
+      "args": "",
+      "desc": "Disables hovername",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "resetfilter",
+      "aliases": [
+        "resetfilter",
+        "ref"
+      ],
+      "usage": "resetfilter",
+      "args": "",
+      "desc": "If Roblox keeps tagging your messages, run this to reset the filter",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "ping",
+      "aliases": [
+        "ping"
+      ],
+      "usage": "ping",
+      "args": "",
+      "desc": "Shows your network latency",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fps",
+      "aliases": [
+        "fps"
+      ],
+      "usage": "fps",
+      "args": "",
+      "desc": "Shows your frames per second",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "stats",
+      "aliases": [
+        "stats"
+      ],
+      "usage": "stats",
+      "args": "",
+      "desc": "Shows both FPS and ping",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "commands",
+      "aliases": [
+        "commands",
+        "cmds"
+      ],
+      "usage": "commands",
+      "args": "",
+      "desc": "Open the command list",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "settings",
+      "aliases": [
+        "settings"
+      ],
+      "usage": "settings",
+      "args": "",
+      "desc": "Open the settings menu",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "waypoints",
+      "aliases": [
+        "waypoints",
+        "wp"
+      ],
+      "usage": "waypoints",
+      "args": "",
+      "desc": "Open the waypoints menu",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "binders",
+      "aliases": [
+        "binders",
+        "binds"
+      ],
+      "usage": "binders",
+      "args": "",
+      "desc": "Open the event binder menu",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "setwaypoint",
+      "aliases": [
+        "setwaypoint",
+        "setwp"
+      ],
+      "usage": "setwaypoint <name>",
+      "args": "<name>",
+      "desc": "Store your current position under that name",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gotowaypoint",
+      "aliases": [
+        "gotowaypoint",
+        "gotowp"
+      ],
+      "usage": "gotowaypoint <name>",
+      "args": "<name>",
+      "desc": "Teleport to a saved waypoint",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "removewaypoint",
+      "aliases": [
+        "removewaypoint",
+        "removewp",
+        "rwp"
+      ],
+      "usage": "removewaypoint <name>",
+      "args": "<name>",
+      "desc": "Remove a saved waypoint",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "chardebug",
+      "aliases": [
+        "chardebug",
+        "cdebug"
+      ],
+      "usage": "chardebug (cdebug)",
+      "args": "(cdebug)",
+      "desc": "debug your character",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unchardebug",
+      "aliases": [
+        "unchardebug",
+        "uncdebug"
+      ],
+      "usage": "unchardebug (uncdebug)",
+      "args": "(uncdebug)",
+      "desc": "disable character debug",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "naked",
+      "aliases": [
+        "naked"
+      ],
+      "usage": "naked",
+      "args": "",
+      "desc": "no clothing gang",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "somersault",
+      "aliases": [
+        "somersault",
+        "frontflip"
+      ],
+      "usage": "somersault (frontflip)",
+      "args": "(frontflip)",
+      "desc": "Makes you do a clean front flip",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unsomersault",
+      "aliases": [
+        "unsomersault",
+        "unfrontflip"
+      ],
+      "usage": "unsomersault (unfrontflip)",
+      "args": "(unfrontflip)",
+      "desc": "Disable somersault button and keybind",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "rolewatch",
+      "aliases": [
+        "rolewatch"
+      ],
+      "usage": "rolewatch <groupId> <role name>",
+      "args": "<groupId> <role name>",
+      "desc": "Notify if someone from a watched group joins with a specific role",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "rolewatchstop",
+      "aliases": [
+        "rolewatchstop"
+      ],
+      "usage": "rolewatchstop",
+      "args": "",
+      "desc": "Disable Rolewatch monitoring",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "rolewatchleave",
+      "aliases": [
+        "rolewatchleave",
+        "unrolewatch"
+      ],
+      "usage": "rolewatchleave (unrolewatch)",
+      "args": "(unrolewatch)",
+      "desc": "Toggle leaving the server if the watched role joins",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "joingroup",
+      "aliases": [
+        "joingroup",
+        "groupjoin"
+      ],
+      "usage": "joingroup [groupId] (groupjoin)",
+      "args": "[groupId] (groupjoin)",
+      "desc": "Open the Roblox join prompt for a group",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "trackstaff",
+      "aliases": [
+        "trackstaff"
+      ],
+      "usage": "trackstaff",
+      "args": "",
+      "desc": "Track and notify when a staff member joins the server",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "stoptrackstaff",
+      "aliases": [
+        "stoptrackstaff",
+        "untrackstaff"
+      ],
+      "usage": "stoptrackstaff (untrackstaff)",
+      "args": "(untrackstaff)",
+      "desc": "Stop tracking staff members",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "deletevelocity",
+      "aliases": [
+        "deletevelocity",
+        "dv",
+        "removevelocity",
+        "removeforces"
+      ],
+      "usage": "deletevelocity (dv, removevelocity, removeforces)",
+      "args": "(dv, removevelocity, removeforces)",
+      "desc": "removes any velocity/force instanceson your character",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "sensorrotationscreen",
+      "aliases": [
+        "sensorrotationscreen",
+        "sensorscreen",
+        "senscreen"
+      ],
+      "usage": "sensorrotationscreen",
+      "args": "",
+      "desc": "Changes ScreenOrientation to Sensor",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "landscaperotationscreen",
+      "aliases": [
+        "landscaperotationscreen",
+        "landscapescreen",
+        "landscreen"
+      ],
+      "usage": "landscaperotationscreen",
+      "args": "",
+      "desc": "Changes ScreenOrientation to Landscape Sensor",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "portraitrotationscreen",
+      "aliases": [
+        "portraitrotationscreen",
+        "portraitscreen",
+        "portscreen"
+      ],
+      "usage": "portraitrotationscreen",
+      "args": "",
+      "desc": "Changes ScreenOrientation to Portrait",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "defaultrotaionscreen",
+      "aliases": [
+        "defaultrotaionscreen",
+        "defaultscreen",
+        "defscreen"
+      ],
+      "usage": "defaultrotaionscreen",
+      "args": "",
+      "desc": "Changes ScreenOrientation to Portrait",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "commandcount",
+      "aliases": [
+        "commandcount",
+        "cc"
+      ],
+      "usage": "commandcount (cc)",
+      "args": "(cc)",
+      "desc": "Counts how many commands NA has",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "flyfling",
+      "aliases": [
+        "flyfling",
+        "ff"
+      ],
+      "usage": "flyfling (ff)",
+      "args": "(ff)",
+      "desc": "makes you fly and fling",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unflyfling",
+      "aliases": [
+        "unflyfling",
+        "unff"
+      ],
+      "usage": "unflyfling (unff)",
+      "args": "(unff)",
+      "desc": "stops fly and fling",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "walkfling",
+      "aliases": [
+        "walkfling",
+        "wfling",
+        "wf"
+      ],
+      "usage": "walkfling (wfling,wf)",
+      "args": "(wfling,wf)",
+      "desc": "probably the best fling lol",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unwalkfling",
+      "aliases": [
+        "unwalkfling",
+        "unwfling",
+        "unwf"
+      ],
+      "usage": "unwalkfling (unwfling,unwf)",
+      "args": "(unwfling,unwf)",
+      "desc": "stop the walkfling command",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "rjre",
+      "aliases": [
+        "rjre",
+        "rejoinrefresh"
+      ],
+      "usage": "rjre (rejoinrefresh)",
+      "args": "(rejoinrefresh)",
+      "desc": "Rejoins and teleports you to your previous position",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "cancelteleport",
+      "aliases": [
+        "cancelteleport",
+        "canceltp"
+      ],
+      "usage": "cancelteleport (canceltp)",
+      "args": "(canceltp)",
+      "desc": "Cancel an in-progress teleport",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "rejoin",
+      "aliases": [
+        "rejoin",
+        "rj"
+      ],
+      "usage": "rejoin (rj)",
+      "args": "(rj)",
+      "desc": "Rejoin the game",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "teleporttoplace",
+      "aliases": [
+        "teleporttoplace",
+        "toplace",
+        "ttp",
+        "gametp"
+      ],
+      "usage": "teleporttoplace <id>",
+      "args": "<id>",
+      "desc": "Teleports you using PlaceId",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "adonisbypass",
+      "aliases": [
+        "adonisbypass",
+        "bypassadonis",
+        "badonis",
+        "adonisb"
+      ],
+      "usage": "adonisbypass (bypassadonis,badonis,adonisb)",
+      "args": "(bypassadonis,badonis,adonisb)",
+      "desc": "bypasses adonis admin detection",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "accountage",
+      "aliases": [
+        "accountage",
+        "accage"
+      ],
+      "usage": "accountage <player> (accage)",
+      "args": "<player> (accage)",
+      "desc": "Tells the account age of a player in the server",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "hitboxes",
+      "aliases": [
+        "hitboxes"
+      ],
+      "usage": "hitboxes",
+      "args": "",
+      "desc": "shows all the hitboxes",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unhitboxes",
+      "aliases": [
+        "unhitboxes"
+      ],
+      "usage": "unhitboxes",
+      "args": "",
+      "desc": "removes the hitboxes outline",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "vfly",
+      "aliases": [
+        "vfly",
+        "vehiclefly"
+      ],
+      "usage": "vehiclefly (vfly)",
+      "args": "(vfly)",
+      "desc": "be able to fly vehicles",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unvfly",
+      "aliases": [
+        "unvfly",
+        "unvehiclefly"
+      ],
+      "usage": "unvfly",
+      "args": "",
+      "desc": "disable vehicle fly",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "equiptools",
+      "aliases": [
+        "equiptools",
+        "equipall"
+      ],
+      "usage": "equiptools",
+      "args": "",
+      "desc": "Equip all of your tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "usetools",
+      "aliases": [
+        "usetools",
+        "uset"
+      ],
+      "usage": "usetools (uset)",
+      "args": "(uset)",
+      "desc": "Equips all tools, uses them, and unequips them",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "settweenspeed",
+      "aliases": [
+        "settweenspeed",
+        "tweenspeed"
+      ],
+      "usage": "tweenspeed [seconds]",
+      "args": "[seconds]",
+      "desc": "Set how long tween teleport commands take",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "tweento",
+      "aliases": [
+        "tweento",
+        "tweengoto",
+        "tgoto"
+      ],
+      "usage": "tweengoto <player>",
+      "args": "<player>",
+      "desc": "Teleportation method that bypasses some anticheats",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "reach",
+      "aliases": [
+        "reach",
+        "swordreach"
+      ],
+      "usage": "reach [number] (swordreach)",
+      "args": "[number] (swordreach)",
+      "desc": "Extends sword reach in one direction",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "boxreach",
+      "aliases": [
+        "boxreach"
+      ],
+      "usage": "boxreach [number]",
+      "args": "[number]",
+      "desc": "Creates a box-shaped hitbox around your tool",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "resetreach",
+      "aliases": [
+        "resetreach",
+        "normalreach",
+        "unreach"
+      ],
+      "usage": "resetreach (normalreach, unreach)",
+      "args": "(normalreach, unreach)",
+      "desc": "Resets tool to normal size",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "aura",
+      "aliases": [
+        "aura"
+      ],
+      "usage": "aura [distance]",
+      "args": "[distance]",
+      "desc": "Continuously damages nearby players with equipped tool",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unaura",
+      "aliases": [
+        "unaura"
+      ],
+      "usage": "unaura",
+      "args": "",
+      "desc": "Stops aura loop and removes visualizer",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "antivoid",
+      "aliases": [
+        "antivoid"
+      ],
+      "usage": "antivoid",
+      "args": "",
+      "desc": "Prevents you from falling into the void by launching you upwards",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unantivoid",
+      "aliases": [
+        "unantivoid"
+      ],
+      "usage": "unantivoid",
+      "args": "",
+      "desc": "Disables antivoid",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "fakeout",
+      "aliases": [
+        "fakeout"
+      ],
+      "usage": "fakeout",
+      "args": "",
+      "desc": "tp to void and back",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "invisfling",
+      "aliases": [
+        "invisfling"
+      ],
+      "usage": "invisfling",
+      "args": "",
+      "desc": "Enables invisible fling (the invis part is patched, try using the god command before using this)",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "split",
+      "aliases": [
+        "split"
+      ],
+      "usage": "split",
+      "args": "",
+      "desc": "Destroys waist joint",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antivoid2",
+      "aliases": [
+        "antivoid2"
+      ],
+      "usage": "antivoid2",
+      "args": "",
+      "desc": "sets FallenPartsDestroyHeight to -inf",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unantivoid2",
+      "aliases": [
+        "unantivoid2"
+      ],
+      "usage": "unantivoid2",
+      "args": "",
+      "desc": "reverts FallenPartsDestroyHeight",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "antivelocity",
+      "aliases": [
+        "antivelocity",
+        "antivelo",
+        "av",
+        "velcap"
+      ],
+      "usage": "antivelocity [limit]",
+      "args": "[limit]",
+      "desc": "Limits your character's velocity to the provided value",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantivelocity",
+      "aliases": [
+        "unantivelocity",
+        "unantivelo",
+        "unav",
+        "unvelcap"
+      ],
+      "usage": "unantivelocity",
+      "args": "",
+      "desc": "Disables the antivelocity limiter",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "showcom",
+      "aliases": [
+        "showcom",
+        "centerofmass",
+        "com"
+      ],
+      "usage": "showcom [radiusStuds]",
+      "args": "[radiusStuds]",
+      "desc": "Create a glass sphere with a Highlight at your center of mass",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hidecom",
+      "aliases": [
+        "hidecom",
+        "unshowcom",
+        "uncom"
+      ],
+      "usage": "hidecom",
+      "args": "",
+      "desc": "Remove COM tracker",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "droptool",
+      "aliases": [
+        "droptool"
+      ],
+      "usage": "dropatool",
+      "args": "",
+      "desc": "Drop one of your tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "droptools",
+      "aliases": [
+        "droptools"
+      ],
+      "usage": "dropalltools",
+      "args": "",
+      "desc": "Drop all of your tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "notools",
+      "aliases": [
+        "notools"
+      ],
+      "usage": "notools",
+      "args": "",
+      "desc": "Remove your tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "fpsbooster",
+      "aliases": [
+        "fpsbooster",
+        "lowgraphics",
+        "boostfps",
+        "lowg"
+      ],
+      "usage": "fpsbooster",
+      "args": "",
+      "desc": "Enables maximum-performance low graphics mode, run again to restore",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antilag",
+      "aliases": [
+        "antilag",
+        "boostfps"
+      ],
+      "usage": "antilag (boostfps)",
+      "args": "(boostfps)",
+      "desc": "Low Graphics",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "annoy",
+      "aliases": [
+        "annoy"
+      ],
+      "usage": "annoy <player>",
+      "args": "<player>",
+      "desc": "Annoys the given player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unannoy",
+      "aliases": [
+        "unannoy"
+      ],
+      "usage": "unannoy",
+      "args": "",
+      "desc": "Stops the annoy command",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "deleteinvisparts",
+      "aliases": [
+        "deleteinvisparts",
+        "deleteinvisibleparts",
+        "dip"
+      ],
+      "usage": "deleteinvisparts (deleteinvisibleparts,dip)",
+      "args": "(deleteinvisibleparts,dip)",
+      "desc": "Deletes invisible parts",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "invisibleparts",
+      "aliases": [
+        "invisibleparts",
+        "invisparts"
+      ],
+      "usage": "invisibleparts (invisparts)",
+      "args": "(invisparts)",
+      "desc": "Shows invisible parts",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "uninvisibleparts",
+      "aliases": [
+        "uninvisibleparts",
+        "uninvisparts"
+      ],
+      "usage": "uninvisibleparts (uninvisparts)",
+      "args": "(uninvisparts)",
+      "desc": "Makes parts affected by invisparts return to normal",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "datalimit",
+      "aliases": [
+        "datalimit"
+      ],
+      "usage": "datalimit <kbps>",
+      "args": "<kbps>",
+      "desc": "Set outgoing bandwidth limit in KBps",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "removeads",
+      "aliases": [
+        "removeads",
+        "adblock"
+      ],
+      "usage": "removeads (adblock)",
+      "args": "(adblock)",
+      "desc": "Continuously removes billboard advertisements",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unremoveads",
+      "aliases": [
+        "unremoveads",
+        "noadblock",
+        "disableads"
+      ],
+      "usage": "unremoveads (noadblock,disableads)",
+      "args": "(noadblock,disableads)",
+      "desc": "Stop removing billboard advertisements",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "replicationlag",
+      "aliases": [
+        "replicationlag",
+        "backtrack"
+      ],
+      "usage": "replicationlag (backtrack)",
+      "args": "(backtrack)",
+      "desc": "Set IncomingReplicationLag",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "sleepon",
+      "aliases": [
+        "sleepon"
+      ],
+      "usage": "sleepon",
+      "args": "",
+      "desc": "Enable AllowSleep",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unsleepon",
+      "aliases": [
+        "unsleepon"
+      ],
+      "usage": "unsleepon",
+      "args": "",
+      "desc": "Disable AllowSleep",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "throttle",
+      "aliases": [
+        "throttle"
+      ],
+      "usage": "throttle",
+      "args": "",
+      "desc": "Set PhysicsEnvironmentalThrottle (1 = default, 2 = disabled)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "quality",
+      "aliases": [
+        "quality",
+        "qualitylevel"
+      ],
+      "usage": "quality <1-21>",
+      "args": "<1-21>",
+      "desc": "Manage rendering quality settings",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "logphysics",
+      "aliases": [
+        "logphysics"
+      ],
+      "usage": "logphysics",
+      "args": "",
+      "desc": "Enable Physics Error Logging",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "nologphysics",
+      "aliases": [
+        "nologphysics"
+      ],
+      "usage": "nologphysics",
+      "args": "",
+      "desc": "Disable Physics Error Logging",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "norender",
+      "aliases": [
+        "norender"
+      ],
+      "usage": "norender",
+      "args": "",
+      "desc": "Disable 3d Rendering to decrease the amount of CPU the client uses",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "render",
+      "aliases": [
+        "render"
+      ],
+      "usage": "render",
+      "args": "",
+      "desc": "Enable 3d Rendering",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "noreset",
+      "aliases": [
+        "noreset",
+        "disablereset"
+      ],
+      "usage": "noreset",
+      "args": "",
+      "desc": "disable reset button",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "resetbtn",
+      "aliases": [
+        "resetbtn",
+        "enablereset"
+      ],
+      "usage": "resetbtn",
+      "args": "",
+      "desc": "enable reset button",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopoof",
+      "aliases": [
+        "loopoof"
+      ],
+      "usage": "loopoof",
+      "args": "",
+      "desc": "Loops everyone's character sounds (everyone can hear)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopoof",
+      "aliases": [
+        "unloopoof"
+      ],
+      "usage": "unloopoof",
+      "args": "",
+      "desc": "Stops the oof chaos",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "strengthen",
+      "aliases": [
+        "strengthen"
+      ],
+      "usage": "strengthen",
+      "args": "",
+      "desc": "Makes your character more dense (CustomPhysicalProperties)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unweaken",
+      "aliases": [
+        "unweaken",
+        "unstrengthen"
+      ],
+      "usage": "unweaken (unstrengthen)",
+      "args": "(unstrengthen)",
+      "desc": "Sets your characters CustomPhysicalProperties to default",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "weaken",
+      "aliases": [
+        "weaken"
+      ],
+      "usage": "weaken",
+      "args": "",
+      "desc": "Makes your character less dense",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "seat",
+      "aliases": [
+        "seat"
+      ],
+      "usage": "seat",
+      "args": "",
+      "desc": "Finds a seat and automatically sits on it",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "vehicleseat",
+      "aliases": [
+        "vehicleseat",
+        "vseat"
+      ],
+      "usage": "vehicleseat (vseat)",
+      "args": "(vseat)",
+      "desc": "Sits you in a vehicle seat, useful for trying to find cars in games",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "copytools",
+      "aliases": [
+        "copytools",
+        "ctools"
+      ],
+      "usage": "copytools <player> (ctools)",
+      "args": "<player> (ctools)",
+      "desc": "Copies the tools the given player has",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "localtime",
+      "aliases": [
+        "localtime",
+        "yourtime"
+      ],
+      "usage": "localtime (yourtime)",
+      "args": "(yourtime)",
+      "desc": "Shows your current time",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "localdate",
+      "aliases": [
+        "localdate",
+        "yourdate"
+      ],
+      "usage": "localdate (yourdate)",
+      "args": "(yourdate)",
+      "desc": "Shows your current date",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "servertime",
+      "aliases": [
+        "servertime",
+        "svtime"
+      ],
+      "usage": "servertime (svtime)",
+      "args": "(svtime)",
+      "desc": "Shows the server's current time",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "serverdate",
+      "aliases": [
+        "serverdate",
+        "svdate"
+      ],
+      "usage": "serverdate (svdate)",
+      "args": "(svdate)",
+      "desc": "Shows the server's current date",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "datetime",
+      "aliases": [
+        "datetime",
+        "localdatetime"
+      ],
+      "usage": "datetime (localdatetime)",
+      "args": "(localdatetime)",
+      "desc": "Shows your full local date and time",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "uptime",
+      "aliases": [
+        "uptime"
+      ],
+      "usage": "uptime",
+      "args": "",
+      "desc": "Shows how long the game/session has been running",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "timestamp",
+      "aliases": [
+        "timestamp",
+        "epoch"
+      ],
+      "usage": "timestamp (epoch)",
+      "args": "(epoch)",
+      "desc": "Shows current Unix timestamp",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "cartornado",
+      "aliases": [
+        "cartornado",
+        "ctornado"
+      ],
+      "usage": "cartornado (ctornado)",
+      "args": "(ctornado)",
+      "desc": "Tornados a car just sit in the car",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unspam",
+      "aliases": [
+        "unspam",
+        "unlag",
+        "unchatspam",
+        "unanimlag",
+        "unremotespam"
+      ],
+      "usage": "unspam",
+      "args": "",
+      "desc": "Stop all attempts to lag/spam",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unctest",
+      "aliases": [
+        "unctest",
+        "unc"
+      ],
+      "usage": "UNCTest (UNC)",
+      "args": "(UNC)",
+      "desc": "Test how many functions your executor supports",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "vulnerabilitytest",
+      "aliases": [
+        "vulnerabilitytest",
+        "vulntest"
+      ],
+      "usage": "vulnerabilitytest (vulntest)",
+      "args": "(vulntest)",
+      "desc": "Test if your executor is Vulnerable",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "respawn",
+      "aliases": [
+        "respawn",
+        "re"
+      ],
+      "usage": "respawn (re)",
+      "args": "(re)",
+      "desc": "Respawn your character",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "antisit",
+      "aliases": [
+        "antisit"
+      ],
+      "usage": "antisit",
+      "args": "",
+      "desc": "Prevents the player from sitting",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unantisit",
+      "aliases": [
+        "unantisit"
+      ],
+      "usage": "unantisit",
+      "args": "",
+      "desc": "Allows the player to sit again",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "antikick",
+      "aliases": [
+        "antikick",
+        "nokick",
+        "bypasskick",
+        "bk"
+      ],
+      "usage": "antikick (nokick, bypasskick, bk)",
+      "args": "(nokick, bypasskick, bk)",
+      "desc": "Bypass Kick on Most Games",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antiteleport",
+      "aliases": [
+        "antiteleport",
+        "noteleport",
+        "blocktp"
+      ],
+      "usage": "antiteleport (noteleport, blocktp)",
+      "args": "(noteleport, blocktp)",
+      "desc": "Prevents TeleportService from moving you to another place",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unantikick",
+      "aliases": [
+        "unantikick",
+        "unnokick",
+        "unbypasskick",
+        "unbk"
+      ],
+      "usage": "unantikick",
+      "args": "",
+      "desc": "Disables Anti-Kick protection",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantiteleport",
+      "aliases": [
+        "unantiteleport",
+        "unnoteleport",
+        "unblocktp"
+      ],
+      "usage": "unantiteleport",
+      "args": "",
+      "desc": "Disables Anti-Teleport protection",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "anticframeteleport",
+      "aliases": [
+        "anticframeteleport",
+        "acframetp",
+        "acftp"
+      ],
+      "usage": "anticframeteleport (acframetp,acftp)",
+      "args": "(acframetp,acftp)",
+      "desc": "Prevents client teleports",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unanticframeteleport",
+      "aliases": [
+        "unanticframeteleport",
+        "unacframetp",
+        "unacftp"
+      ],
+      "usage": "unanticframeteleport (unacframetp,unacftp)",
+      "args": "(unacframetp,unacftp)",
+      "desc": "Disables Anti CFrame Teleport",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "lay",
+      "aliases": [
+        "lay"
+      ],
+      "usage": "lay",
+      "args": "",
+      "desc": "zzzzzzzz",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "trip",
+      "aliases": [
+        "trip"
+      ],
+      "usage": "trip",
+      "args": "",
+      "desc": "get up NOW",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antitrip",
+      "aliases": [
+        "antitrip"
+      ],
+      "usage": "antitrip",
+      "args": "",
+      "desc": "no tripping today bruh",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantitrip",
+      "aliases": [
+        "unantitrip"
+      ],
+      "usage": "unantitrip",
+      "args": "",
+      "desc": "tripping allowed now",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "checkrfe",
+      "aliases": [
+        "checkrfe"
+      ],
+      "usage": "checkrfe",
+      "args": "",
+      "desc": "Checks if the game has respect filtering enabled off",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "sit",
+      "aliases": [
+        "sit"
+      ],
+      "usage": "sit",
+      "args": "",
+      "desc": "Sit your player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "oldroblox",
+      "aliases": [
+        "oldroblox"
+      ],
+      "usage": "oldroblox",
+      "args": "",
+      "desc": "Old skybox and studs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unoldroblox",
+      "aliases": [
+        "unoldroblox"
+      ],
+      "usage": "unoldroblox",
+      "args": "",
+      "desc": "Restore skybox and studs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "f3x",
+      "aliases": [
+        "f3x",
+        "fex"
+      ],
+      "usage": "f3x (fex)",
+      "args": "(fex)",
+      "desc": "F3X for client",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "harked",
+      "aliases": [
+        "harked",
+        "comet"
+      ],
+      "usage": "harked (comet)",
+      "args": "(comet)",
+      "desc": "Executes Comet which is like harked",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "triggerbot",
+      "aliases": [
+        "triggerbot",
+        "tbot"
+      ],
+      "usage": "triggerbot (tbot)",
+      "args": "(tbot)",
+      "desc": "Executes a script that automatically clicks the mouse when the mouse is on a player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "setspawn",
+      "aliases": [
+        "setspawn",
+        "spawnpoint",
+        "ss"
+      ],
+      "usage": "setspawn (spawnpoint, ss)",
+      "args": "(spawnpoint, ss)",
+      "desc": "Sets your spawn point to the current character's position",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "disablespawn",
+      "aliases": [
+        "disablespawn",
+        "unsetspawn",
+        "ds"
+      ],
+      "usage": "disablespawn (unsetspawn, ds)",
+      "args": "(unsetspawn, ds)",
+      "desc": "Disables the previously set spawn point",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autoflashback",
+      "aliases": [
+        "autoflashback",
+        "autodeathpos",
+        "deathback",
+        "adeath",
+        "db"
+      ],
+      "usage": "autoflashback",
+      "args": "",
+      "desc": "Auto-teleports you to your last death point on respawn",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautoflashback",
+      "aliases": [
+        "unautoflashback",
+        "undeathback",
+        "unadeath",
+        "undb"
+      ],
+      "usage": "unautoflashback",
+      "args": "",
+      "desc": "Disables auto deathpos",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "flashback",
+      "aliases": [
+        "flashback",
+        "deathpos",
+        "deathtp"
+      ],
+      "usage": "flashback (deathpos, deathtp)",
+      "args": "(deathpos, deathtp)",
+      "desc": "Teleports you to your last death point",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "tospawn",
+      "aliases": [
+        "tospawn",
+        "ts"
+      ],
+      "usage": "tospawn (ts)",
+      "args": "(ts)",
+      "desc": "Teleports you to a SpawnLocation",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "hamster",
+      "aliases": [
+        "hamster"
+      ],
+      "usage": "hamster <number>",
+      "args": "<number>",
+      "desc": "Hamster ball",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unhamster",
+      "aliases": [
+        "unhamster"
+      ],
+      "usage": "unhamster",
+      "args": "",
+      "desc": "Disable hamster ball",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antiafk",
+      "aliases": [
+        "antiafk",
+        "noafk"
+      ],
+      "usage": "antiafk (noafk)",
+      "args": "(noafk)",
+      "desc": "Prevents you from being kicked for being AFK",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantiafk",
+      "aliases": [
+        "unantiafk",
+        "unnoafk"
+      ],
+      "usage": "unantiafk (unnoafk)",
+      "args": "(unnoafk)",
+      "desc": "Allows you to be kicked for being AFK",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clicktp",
+      "aliases": [
+        "clicktp",
+        "tptool"
+      ],
+      "usage": "clicktp (tptool)",
+      "args": "(tptool)",
+      "desc": "Teleport where your mouse is",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unclicktp",
+      "aliases": [
+        "unclicktp",
+        "untptool"
+      ],
+      "usage": "unclicktp (untptool)",
+      "args": "(untptool)",
+      "desc": "Remove teleport buttons or tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "olddex",
+      "aliases": [
+        "olddex"
+      ],
+      "usage": "olddex",
+      "args": "",
+      "desc": "Using this you can see the parts / guis / scripts etc with this. A really good and helpful script.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "dex",
+      "aliases": [
+        "dex"
+      ],
+      "usage": "dex",
+      "args": "",
+      "desc": "Better version of dex",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "minimap",
+      "aliases": [
+        "minimap"
+      ],
+      "usage": "minimap",
+      "args": "",
+      "desc": "just a minimap lol",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "animationplayer",
+      "aliases": [
+        "animationplayer",
+        "animplayer",
+        "aplayer",
+        "animp"
+      ],
+      "usage": "animationplayer",
+      "args": "",
+      "desc": "dropdown menu with all the animations the game has to be played",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "decompiler",
+      "aliases": [
+        "decompiler"
+      ],
+      "usage": "Decompiler",
+      "args": "",
+      "desc": "Allows you to decompile LocalScript/ModuleScript's using konstant",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "getidfromusername",
+      "aliases": [
+        "getidfromusername",
+        "gidu"
+      ],
+      "usage": "getidfromusername (gidu)",
+      "args": "(gidu)",
+      "desc": "Copy a user's UserId by Username",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "getuserfromid",
+      "aliases": [
+        "getuserfromid",
+        "guid"
+      ],
+      "usage": "getuserfromid (guid)",
+      "args": "(guid)",
+      "desc": "Copy a user's Username by ID",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "ownerid",
+      "aliases": [
+        "ownerid"
+      ],
+      "usage": "ownerid",
+      "args": "",
+      "desc": "masks you as the game owner's ID and Username",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "userid",
+      "aliases": [
+        "userid"
+      ],
+      "usage": "userid <id>",
+      "args": "<id>",
+      "desc": "changes your UserId to any ID you enter",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "username",
+      "aliases": [
+        "username",
+        "name"
+      ],
+      "usage": "username <name>",
+      "args": "<name>",
+      "desc": "changes your Username to any name you enter",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "synapsedex",
+      "aliases": [
+        "synapsedex",
+        "sdex"
+      ],
+      "usage": "synapsedex (sdex)",
+      "args": "(sdex)",
+      "desc": "Loads SynapseX's dex explorer",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antifling",
+      "aliases": [
+        "antifling"
+      ],
+      "usage": "antifling",
+      "args": "",
+      "desc": "makes other players non-collidable with you",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unantifling",
+      "aliases": [
+        "unantifling"
+      ],
+      "usage": "unantifling",
+      "args": "",
+      "desc": "restores collision for other players",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "gravitygun",
+      "aliases": [
+        "gravitygun"
+      ],
+      "usage": "gravitygun",
+      "args": "",
+      "desc": "Probably the best gravity gun script thats fe",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "lockws",
+      "aliases": [
+        "lockws",
+        "lockworkspace"
+      ],
+      "usage": "lockws (lockworkspace)",
+      "args": "(lockworkspace)",
+      "desc": "Locks the whole workspace",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unlockws",
+      "aliases": [
+        "unlockws",
+        "unlockworkspace"
+      ],
+      "usage": "unlockws (unlockworkspace)",
+      "args": "(unlockworkspace)",
+      "desc": "Unlocks everything in Workspace",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "vehiclespeed",
+      "aliases": [
+        "vehiclespeed",
+        "vspeed"
+      ],
+      "usage": "vehiclespeed <amount> (vspeed)",
+      "args": "<amount> (vspeed)",
+      "desc": "Change the vehicle speed",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unvehiclespeed",
+      "aliases": [
+        "unvehiclespeed",
+        "unvspeed"
+      ],
+      "usage": "unvehiclespeed (unvspeed)",
+      "args": "(unvspeed)",
+      "desc": "Stops the vehiclespeed command",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "shiftlock",
+      "aliases": [
+        "shiftlock",
+        "sl"
+      ],
+      "usage": "shiftlock (sl)",
+      "args": "(sl)",
+      "desc": "Toggles shiftlock",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unshiftlock",
+      "aliases": [
+        "unshiftlock",
+        "unsl"
+      ],
+      "usage": "unshiftlock (unsl)",
+      "args": "(unsl)",
+      "desc": "Disables shiftlock",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "enable",
+      "aliases": [
+        "enable"
+      ],
+      "usage": "enable",
+      "args": "",
+      "desc": "Enables a specific CoreGui",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "disable",
+      "aliases": [
+        "disable"
+      ],
+      "usage": "disable",
+      "args": "",
+      "desc": "Disables a specific CoreGui",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "reverb",
+      "aliases": [
+        "reverb",
+        "reverbcontrol"
+      ],
+      "usage": "reverb (reverbcontrol)",
+      "args": "(reverbcontrol)",
+      "desc": "Manage sound reverb settings",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "forcereverb",
+      "aliases": [
+        "forcereverb",
+        "freverb"
+      ],
+      "usage": "forcereverb",
+      "args": "",
+      "desc": "Lock ambient reverb and auto-restore if changed",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unforcereverb",
+      "aliases": [
+        "unforcereverb",
+        "ufreverb",
+        "ufr",
+        "stopforcereverb"
+      ],
+      "usage": "unforcereverb (ufreverb, ufr)",
+      "args": "(ufreverb, ufr)",
+      "desc": "Stop forcing ambient reverb",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "cam",
+      "aliases": [
+        "cam",
+        "camera",
+        "cameratype"
+      ],
+      "usage": "cam (camera, cameratype)",
+      "args": "(camera, cameratype)",
+      "desc": "Manage camera type settings",
+      "category": "Camera & View"
+    },
+    {
+      "name": "forcecam",
+      "aliases": [
+        "forcecam"
+      ],
+      "usage": "forcecam",
+      "args": "",
+      "desc": "Lock camera type and auto-restore if changed",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unforcecam",
+      "aliases": [
+        "unforcecam",
+        "ufcam",
+        "ufc",
+        "stopforcecam"
+      ],
+      "usage": "unforcecam (ufcam, ufc)",
+      "args": "(ufcam, ufc)",
+      "desc": "Stop forcing camera type",
+      "category": "Camera & View"
+    },
+    {
+      "name": "alignmentkeys",
+      "aliases": [
+        "alignmentkeys",
+        "alignkeys",
+        "ak"
+      ],
+      "usage": "alignmentkeys",
+      "args": "",
+      "desc": "Enable alignment keys",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "disablealignmentkeys",
+      "aliases": [
+        "disablealignmentkeys",
+        "disablealignkeys",
+        "dak"
+      ],
+      "usage": "disablealignmentkeys",
+      "args": "",
+      "desc": "Disable alignment keys",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "esp",
+      "aliases": [
+        "esp"
+      ],
+      "usage": "esp",
+      "args": "",
+      "desc": "locate where the players are",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "chams",
+      "aliases": [
+        "chams"
+      ],
+      "usage": "chams",
+      "args": "",
+      "desc": "ESP but without the text :shock:",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "locate",
+      "aliases": [
+        "locate"
+      ],
+      "usage": "locate <username1> <username2> etc (optional)",
+      "args": "<username1> <username2> etc (optional)",
+      "desc": "locate where the specified player(s) are",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "npcesp",
+      "aliases": [
+        "npcesp",
+        "espnpc"
+      ],
+      "usage": "npcesp (espnpc)",
+      "args": "(espnpc)",
+      "desc": "locate where the npcs are",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unnpcesp",
+      "aliases": [
+        "unnpcesp",
+        "unespnpc"
+      ],
+      "usage": "unnpcesp (unespnpc)",
+      "args": "(unespnpc)",
+      "desc": "stop locating npcs",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unesp",
+      "aliases": [
+        "unesp",
+        "unchams"
+      ],
+      "usage": "unesp (unchams)",
+      "args": "(unchams)",
+      "desc": "Disables esp/chams",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unlocate",
+      "aliases": [
+        "unlocate"
+      ],
+      "usage": "unlocate <username1> <username2>",
+      "args": "<username1> <username2>",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "crash",
+      "aliases": [
+        "crash"
+      ],
+      "usage": "crash",
+      "args": "",
+      "desc": "crashes ur client lol (why would you even use this tho)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "vehiclenoclip",
+      "aliases": [
+        "vehiclenoclip",
+        "vnoclip"
+      ],
+      "usage": "vehiclenoclip (vnoclip)",
+      "args": "(vnoclip)",
+      "desc": "Disables vehicle collision",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "vehicleclip",
+      "aliases": [
+        "vehicleclip",
+        "vclip",
+        "unvnoclip",
+        "unvehiclenoclip"
+      ],
+      "usage": "vehicleclip (vclip, unvnoclip, unvehiclenoclip)",
+      "args": "(vclip, unvnoclip, unvehiclenoclip)",
+      "desc": "Enables vehicle collision",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "handlekill",
+      "aliases": [
+        "handlekill",
+        "hkill"
+      ],
+      "usage": "handlekill <player> (hkill)",
+      "args": "<player> (hkill)",
+      "desc": "Kills a player using a tool that deals damage on touch",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "creep",
+      "aliases": [
+        "creep"
+      ],
+      "usage": "creep <player>",
+      "args": "<player>",
+      "desc": "Teleports from a player behind them and under the floor to the top",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "netless",
+      "aliases": [
+        "netless",
+        "net"
+      ],
+      "usage": "netless (net)",
+      "args": "(net)",
+      "desc": "Executes netless which makes scripts more stable",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "reset",
+      "aliases": [
+        "reset",
+        "die"
+      ],
+      "usage": "reset (die)",
+      "args": "(die)",
+      "desc": "Makes your health be 0",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "runanim",
+      "aliases": [
+        "runanim",
+        "playanim",
+        "anim"
+      ],
+      "usage": "runanim <id> [speed] (playanim,anim)",
+      "args": "<id> [speed] (playanim,anim)",
+      "desc": "Plays an animation by ID with optional speed multiplier",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "animbuilder",
+      "aliases": [
+        "animbuilder",
+        "abuilder"
+      ],
+      "usage": "animbuilder (abuilder)",
+      "args": "(abuilder)",
+      "desc": "Opens animation builder GUI",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "setkiller",
+      "aliases": [
+        "setkiller",
+        "killeranim"
+      ],
+      "usage": "setkiller (killeranim)",
+      "args": "(killeranim)",
+      "desc": "Sets killer animation set",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "setpsycho",
+      "aliases": [
+        "setpsycho",
+        "psychoanim"
+      ],
+      "usage": "setpsycho (psychoanim)",
+      "args": "(psychoanim)",
+      "desc": "Sets psycho animation set",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "resetanims",
+      "aliases": [
+        "resetanims",
+        "defaultanims",
+        "animsreset"
+      ],
+      "usage": "resetanims (defaultanims,animsreset)",
+      "args": "(defaultanims,animsreset)",
+      "desc": "Restores your previous animations",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "animcopycore",
+      "aliases": [
+        "animcopycore",
+        "animcopy",
+        "copyanim",
+        "copyan"
+      ],
+      "usage": "animcopycore <target>",
+      "args": "<target>",
+      "desc": "Copy core animations from target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "syncanim",
+      "aliases": [
+        "syncanim",
+        "animsync"
+      ],
+      "usage": "syncanim <target>",
+      "args": "<target>",
+      "desc": "Mirror target animations (live)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "syncstop",
+      "aliases": [
+        "syncstop",
+        "stopsync",
+        "syncend",
+        "endsync",
+        "syncoff"
+      ],
+      "usage": "syncstop",
+      "args": "",
+      "desc": "Stop live sync and restore defaults",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "animresetcore",
+      "aliases": [
+        "animresetcore",
+        "animreset",
+        "resetanim",
+        "resetan"
+      ],
+      "usage": "animresetcore",
+      "args": "",
+      "desc": "Reset core animations to saved",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unsyncreset",
+      "aliases": [
+        "unsyncreset",
+        "unsync",
+        "unsres",
+        "unsr"
+      ],
+      "usage": "unsyncreset",
+      "args": "",
+      "desc": "Stop sync and reset saved",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "mimic",
+      "aliases": [
+        "mimic",
+        "mirror",
+        "mclone",
+        "mcopy",
+        "mimi"
+      ],
+      "usage": "mimic <target> [delay]",
+      "args": "<target> [delay]",
+      "desc": "Clone target movement with optional delay",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "mstop",
+      "aliases": [
+        "mstop",
+        "moff",
+        "stopmimic",
+        "mend"
+      ],
+      "usage": "mstop",
+      "args": "",
+      "desc": "Stop mimic and restore defaults",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bubblechat",
+      "aliases": [
+        "bubblechat",
+        "bchat"
+      ],
+      "usage": "bubblechat (bchat)",
+      "args": "(bchat)",
+      "desc": "Enables BubbleChat",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unbubblechat",
+      "aliases": [
+        "unbubblechat",
+        "unbchat"
+      ],
+      "usage": "unbubblechat (unbchat)",
+      "args": "(unbchat)",
+      "desc": "Disabled BubbleChat",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hideicon",
+      "aliases": [
+        "hideicon",
+        "iconhide"
+      ],
+      "usage": "hideicon",
+      "args": "",
+      "desc": "Hides the NA icon",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "showicon",
+      "aliases": [
+        "showicon",
+        "iconshow"
+      ],
+      "usage": "showicon",
+      "args": "",
+      "desc": "Shows the NA icon",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "lockiconposition",
+      "aliases": [
+        "lockiconposition",
+        "lockicon"
+      ],
+      "usage": "lockiconposition",
+      "args": "",
+      "desc": "Locks the NA icon's position (can't be dragged)",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unlockiconposition",
+      "aliases": [
+        "unlockiconposition",
+        "unlockicon"
+      ],
+      "usage": "unlockiconposition",
+      "args": "",
+      "desc": "Unlocks the NA icon's position (can be dragged again)",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "saveinstance",
+      "aliases": [
+        "saveinstance",
+        "savegame"
+      ],
+      "usage": "saveinstance (savegame)",
+      "args": "(savegame)",
+      "desc": "if it bugs out try removing stuff from your AutoExec folder",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "admin",
+      "aliases": [
+        "admin",
+        "whitelist"
+      ],
+      "usage": "admin <player>",
+      "args": "<player>",
+      "desc": "Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unadmin",
+      "aliases": [
+        "unadmin"
+      ],
+      "usage": "unadmin <player>",
+      "args": "<player>",
+      "desc": "removes someone from being admin",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "partname",
+      "aliases": [
+        "partname",
+        "partpath",
+        "partgrabber"
+      ],
+      "usage": "partname (partpath,partgrabber)",
+      "args": "(partpath,partgrabber)",
+      "desc": "gives a ui and allows you click on a part to grab it's path",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "jobid",
+      "aliases": [
+        "jobid"
+      ],
+      "usage": "jobid",
+      "args": "",
+      "desc": "Copies your job id",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "joinjobid",
+      "aliases": [
+        "joinjobid",
+        "joinjid",
+        "jjobid",
+        "jjid"
+      ],
+      "usage": "joinjobid <jobid>",
+      "args": "<jobid>",
+      "desc": "Joins the job id you put in",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "serverhop",
+      "aliases": [
+        "serverhop",
+        "shop"
+      ],
+      "usage": "serverhop (shop)",
+      "args": "(shop)",
+      "desc": "serverhop",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "smallserverhop",
+      "aliases": [
+        "smallserverhop",
+        "sshop"
+      ],
+      "usage": "smallserverhop (sshop)",
+      "args": "(sshop)",
+      "desc": "serverhop to a small server",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "pingserverhop",
+      "aliases": [
+        "pingserverhop",
+        "pshop"
+      ],
+      "usage": "pingserverhop (pshop)",
+      "args": "(pshop)",
+      "desc": "serverhop to a server with the best ping",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autorejoin",
+      "aliases": [
+        "autorejoin",
+        "autorj"
+      ],
+      "usage": "autorejoin (autorj)",
+      "args": "(autorj)",
+      "desc": "Rejoins the server if you get kicked / disconnected",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautorejoin",
+      "aliases": [
+        "unautorejoin",
+        "unautorj"
+      ],
+      "usage": "unautorejoin (unautorj)",
+      "args": "(unautorj)",
+      "desc": "Disables auto rejoin command",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "functionspy",
+      "aliases": [
+        "functionspy"
+      ],
+      "usage": "functionspy",
+      "args": "",
+      "desc": "Check console",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fly",
+      "aliases": [
+        "fly"
+      ],
+      "usage": "fly [speed]",
+      "args": "[speed]",
+      "desc": "Enable flight",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unfly",
+      "aliases": [
+        "unfly"
+      ],
+      "usage": "unfly",
+      "args": "",
+      "desc": "Disable flight",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "cframefly",
+      "aliases": [
+        "cframefly",
+        "cfly"
+      ],
+      "usage": "cframefly [speed] (cfly)",
+      "args": "[speed] (cfly)",
+      "desc": "Enable CFrame-based flight",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "uncframefly",
+      "aliases": [
+        "uncframefly",
+        "uncfly"
+      ],
+      "usage": "uncfly",
+      "args": "",
+      "desc": "Disable CFrame-based flight",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "cflybind",
+      "aliases": [
+        "cflybind",
+        "cframeflybind",
+        "bindcfly"
+      ],
+      "usage": "cflybind [key] (cframeflybind, bindcfly)",
+      "args": "[key] (cframeflybind, bindcfly)",
+      "desc": "Set custom keybind for CFrame fly",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "tfly",
+      "aliases": [
+        "tfly",
+        "tweenfly"
+      ],
+      "usage": "tfly [speed] (tweenfly)",
+      "args": "[speed] (tweenfly)",
+      "desc": "Enables smooth flying",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "untfly",
+      "aliases": [
+        "untfly",
+        "untweenfly"
+      ],
+      "usage": "untfly",
+      "args": "",
+      "desc": "Disables tween flying",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "tflykeybind",
+      "aliases": [
+        "tflykeybind",
+        "bindtfly",
+        "tflybind"
+      ],
+      "usage": "tflykeybind [key] (bindtfly, tflybind)",
+      "args": "[key] (bindtfly, tflybind)",
+      "desc": "Set keybind for tfly toggle",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "noclip",
+      "aliases": [
+        "noclip",
+        "nclip",
+        "nc"
+      ],
+      "usage": "noclip",
+      "args": "",
+      "desc": "Disable your player's collision",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "clip",
+      "aliases": [
+        "clip",
+        "unnoclip",
+        "stopclip",
+        "unnclip",
+        "unnc"
+      ],
+      "usage": "clip",
+      "args": "",
+      "desc": "Enable your player's collision",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "antianchor",
+      "aliases": [
+        "antianchor",
+        "aa"
+      ],
+      "usage": "antianchor",
+      "args": "",
+      "desc": "Prevent your parts from being anchored",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantianchor",
+      "aliases": [
+        "unantianchor",
+        "unaa"
+      ],
+      "usage": "unantianchor",
+      "args": "",
+      "desc": "Allow your parts to be anchored",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antibang",
+      "aliases": [
+        "antibang"
+      ],
+      "usage": "antibang",
+      "args": "",
+      "desc": "prevents users to bang you (still WORK IN PROGRESS)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantibang",
+      "aliases": [
+        "unantibang"
+      ],
+      "usage": "unantibang",
+      "args": "",
+      "desc": "disables antibang",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "orbit",
+      "aliases": [
+        "orbit"
+      ],
+      "usage": "orbit <player> <distance>",
+      "args": "<player> <distance>",
+      "desc": "Orbit around a player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "uporbit",
+      "aliases": [
+        "uporbit"
+      ],
+      "usage": "uporbit <player> <distance>",
+      "args": "<player> <distance>",
+      "desc": "Orbit around a player on the Y axis",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unorbit",
+      "aliases": [
+        "unorbit"
+      ],
+      "usage": "unorbit",
+      "args": "",
+      "desc": "Stop orbiting",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "freecam",
+      "aliases": [
+        "freecam",
+        "fc",
+        "fcam"
+      ],
+      "usage": "freecam [speed] (fc,fcam)",
+      "args": "[speed] (fc,fcam)",
+      "desc": "Enable free camera",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unfreecam",
+      "aliases": [
+        "unfreecam",
+        "unfc",
+        "unfcam"
+      ],
+      "usage": "unfreecam (unfc,unfcam)",
+      "args": "(unfc,unfcam)",
+      "desc": "Disable free camera",
+      "category": "Camera & View"
+    },
+    {
+      "name": "nohats",
+      "aliases": [
+        "nohats",
+        "drophats"
+      ],
+      "usage": "nohats (drophats)",
+      "args": "(drophats)",
+      "desc": "Drop all of your hats",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "permadeath",
+      "aliases": [
+        "permadeath",
+        "pdeath"
+      ],
+      "usage": "permadeath (pdeath)",
+      "args": "(pdeath)",
+      "desc": "be death permanently",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unpermadeath",
+      "aliases": [
+        "unpermadeath",
+        "unpdeath"
+      ],
+      "usage": "unpermadeath (unpdeath)",
+      "args": "(unpdeath)",
+      "desc": "no perma death",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "instantrespawn",
+      "aliases": [
+        "instantrespawn",
+        "instantr",
+        "irespawn"
+      ],
+      "usage": "instantrespawn (instantr, irespawn)",
+      "args": "(instantr, irespawn)",
+      "desc": "respawn instantly",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "circlemath",
+      "aliases": [
+        "circlemath",
+        "cm"
+      ],
+      "usage": "circlemath <mode> <size>",
+      "args": "<mode> <size>",
+      "desc": "Gay circle math\\nModes: a,b,c,d,e",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "grippos",
+      "aliases": [
+        "grippos",
+        "setgrip"
+      ],
+      "usage": "grippos (setgrip)",
+      "args": "(setgrip)",
+      "desc": "Opens a UI to manually input grip offset and rotation.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "seizure",
+      "aliases": [
+        "seizure"
+      ],
+      "usage": "seizure",
+      "args": "",
+      "desc": "Gives you a seizure",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unseizure",
+      "aliases": [
+        "unseizure"
+      ],
+      "usage": "unseizure",
+      "args": "",
+      "desc": "Stops you from having a seizure not in real life noob",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fakelag",
+      "aliases": [
+        "fakelag",
+        "flag"
+      ],
+      "usage": "fakelag (flag)",
+      "args": "(flag)",
+      "desc": "fake lag",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unfakelag",
+      "aliases": [
+        "unfakelag",
+        "unflag"
+      ],
+      "usage": "unfakelag (unflag)",
+      "args": "(unflag)",
+      "desc": "stops the fake lag command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hide",
+      "aliases": [
+        "hide",
+        "unshow"
+      ],
+      "usage": "hide <player> (unshow)",
+      "args": "<player> (unshow)",
+      "desc": "places the selected player to lighting",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unhide",
+      "aliases": [
+        "unhide",
+        "show"
+      ],
+      "usage": "show <player> (unhide)",
+      "args": "<player> (unhide)",
+      "desc": "places the selected player back to workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "aimbot",
+      "aliases": [
+        "aimbot",
+        "aimbotui",
+        "aimbotgui"
+      ],
+      "usage": "aimbot (aimbotui,aimbotgui)",
+      "args": "(aimbotui,aimbotgui)",
+      "desc": "aimbot and yeah",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "grabtools",
+      "aliases": [
+        "grabtools",
+        "gtools",
+        "gtls"
+      ],
+      "usage": "grabtools [range]",
+      "args": "[range]",
+      "desc": "Grabs dropped tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loopgrabtools",
+      "aliases": [
+        "loopgrabtools",
+        "lgtools",
+        "lgtls"
+      ],
+      "usage": "loopgrabtools [range]",
+      "args": "[range]",
+      "desc": "Loop grabs dropped tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unloopgrabtools",
+      "aliases": [
+        "unloopgrabtools"
+      ],
+      "usage": "unloopgrabtools",
+      "args": "",
+      "desc": "Stops the loop grab command",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "dance",
+      "aliases": [
+        "dance"
+      ],
+      "usage": "dance",
+      "args": "",
+      "desc": "Does a random dance",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "undance",
+      "aliases": [
+        "undance"
+      ],
+      "usage": "undance",
+      "args": "",
+      "desc": "Stops the dance command",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "animspoofer",
+      "aliases": [
+        "animspoofer",
+        "animationspoofer",
+        "spoofanim",
+        "animspoof"
+      ],
+      "usage": "animspoofer (animationspoofer, spoofanim, animspoof)",
+      "args": "(animationspoofer, spoofanim, animspoof)",
+      "desc": "Loads up an animation spoofer,spoofs animations that use rbxassetid",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "badgeviewer",
+      "aliases": [
+        "badgeviewer",
+        "badgeview",
+        "bviewer",
+        "badgev",
+        "bv"
+      ],
+      "usage": "badgeviewer (badgeview, bviewer, badgev, bv)",
+      "args": "(badgeview, bviewer, badgev, bv)",
+      "desc": "loads up a badge viewer UI that views all badges in the game you're in",
+      "category": "Camera & View"
+    },
+    {
+      "name": "bodytransparency",
+      "aliases": [
+        "bodytransparency",
+        "btransparency",
+        "bodyt"
+      ],
+      "usage": "bodytransparency <number> [part1] [part2] ... (btransparency,bodyt)",
+      "args": "<number> [part1] [part2] ... (btransparency,bodyt)",
+      "desc": "Sets LocalTransparencyModifier on selected body parts (no Head) to a value (0-1). UI supports multi-select.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unbodytransparency",
+      "aliases": [
+        "unbodytransparency",
+        "unbtransparency",
+        "unbodyt"
+      ],
+      "usage": "unbodytransparency (unbtransparency,unbodyt)",
+      "args": "(unbtransparency,unbodyt)",
+      "desc": "Stops transparency loop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "animationspeed",
+      "aliases": [
+        "animationspeed",
+        "animspeed",
+        "aspeed"
+      ],
+      "usage": "animationspeed <speed> (animspeed,aspeed)",
+      "args": "<speed> (animspeed,aspeed)",
+      "desc": "Adjusts the speed of currently playing animations",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unanimationspeed",
+      "aliases": [
+        "unanimationspeed",
+        "unanimspeed",
+        "unaspeed"
+      ],
+      "usage": "unanimationspeed (unanimspeed,unaspeed)",
+      "args": "(unanimspeed,unaspeed)",
+      "desc": "Stops the animation speed adjustment loop",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "placeid",
+      "aliases": [
+        "placeid",
+        "pid"
+      ],
+      "usage": "placeid (pid)",
+      "args": "(pid)",
+      "desc": "Copies the PlaceId of the game you're in",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gameid",
+      "aliases": [
+        "gameid",
+        "universeid",
+        "gid"
+      ],
+      "usage": "gameid (universeid,gid)",
+      "args": "(universeid,gid)",
+      "desc": "Copies the GameId/Universe Id of the game you're in",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "firework",
+      "aliases": [
+        "firework"
+      ],
+      "usage": "firework",
+      "args": "",
+      "desc": "pop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "placename",
+      "aliases": [
+        "placename",
+        "pname"
+      ],
+      "usage": "placename (pname)",
+      "args": "(pname)",
+      "desc": "Copies the game's place name to your clipboard",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gameinfo",
+      "aliases": [
+        "gameinfo",
+        "ginfo"
+      ],
+      "usage": "gameinfo (ginfo)",
+      "args": "(ginfo)",
+      "desc": "shows info about the game you're playing",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "userpreview",
+      "aliases": [
+        "userpreview",
+        "userp",
+        "upreview"
+      ],
+      "usage": "userpreview",
+      "args": "",
+      "desc": "show info about a user you name",
+      "category": "Camera & View"
+    },
+    {
+      "name": "copyname",
+      "aliases": [
+        "copyname",
+        "cname"
+      ],
+      "usage": "copyname <player> (cname)",
+      "args": "<player> (cname)",
+      "desc": "Copies the username of the target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "copydisplay",
+      "aliases": [
+        "copydisplay",
+        "cdisplay"
+      ],
+      "usage": "copydisplay <player> (cdisplay)",
+      "args": "<player> (cdisplay)",
+      "desc": "Copies the display name of the target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "copyid",
+      "aliases": [
+        "copyid",
+        "id"
+      ],
+      "usage": "copyid <player> (id)",
+      "args": "<player> (id)",
+      "desc": "Copies the UserId of the target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antikillbrick",
+      "aliases": [
+        "antikillbrick",
+        "antikb"
+      ],
+      "usage": "antikillbrick (antikb)",
+      "args": "(antikb)",
+      "desc": "Prevents kill bricks from killing you",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unantikillbrick",
+      "aliases": [
+        "unantikillbrick",
+        "unantikb"
+      ],
+      "usage": "unantikillbrick (unantikb)",
+      "args": "(unantikb)",
+      "desc": "Allows kill bricks to kill you",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "height",
+      "aliases": [
+        "height",
+        "hipheight",
+        "hh"
+      ],
+      "usage": "height <number> (hipheight,hh)",
+      "args": "<number> (hipheight,hh)",
+      "desc": "Changes your hipheight",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "netbypass",
+      "aliases": [
+        "netbypass",
+        "netb"
+      ],
+      "usage": "netbypass (netb)",
+      "args": "(netb)",
+      "desc": "Net bypass",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "day",
+      "aliases": [
+        "day"
+      ],
+      "usage": "day",
+      "args": "",
+      "desc": "Makes it day",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "night",
+      "aliases": [
+        "night"
+      ],
+      "usage": "night",
+      "args": "",
+      "desc": "Makes it night",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "time",
+      "aliases": [
+        "time"
+      ],
+      "usage": "time <number>",
+      "args": "<number>",
+      "desc": "Sets the time",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "chat",
+      "aliases": [
+        "chat",
+        "message"
+      ],
+      "usage": "chat <text> (message)",
+      "args": "<text> (message)",
+      "desc": "Chats for you, useful if you're muted",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "privatemessage",
+      "aliases": [
+        "privatemessage",
+        "pm"
+      ],
+      "usage": "privatemessage <player> <text> (pm)",
+      "args": "<player> <text> (pm)",
+      "desc": "Sends a private message to a player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "mimicchat",
+      "aliases": [
+        "mimicchat",
+        "mimic"
+      ],
+      "usage": "mimicchat <player> (mimic)",
+      "args": "<player> (mimic)",
+      "desc": "Mimics the chat of a player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "stopmimicchat",
+      "aliases": [
+        "stopmimicchat",
+        "unmimicchat"
+      ],
+      "usage": "stopmimicchat (unmimicchat)",
+      "args": "(unmimicchat)",
+      "desc": "Stops mimicking a player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "fixcam",
+      "aliases": [
+        "fixcam",
+        "fix"
+      ],
+      "usage": "fixcam",
+      "args": "",
+      "desc": "Fix your camera",
+      "category": "Camera & View"
+    },
+    {
+      "name": "saw",
+      "aliases": [
+        "saw"
+      ],
+      "usage": "saw <challenge>",
+      "args": "<challenge>",
+      "desc": "shush",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "jend",
+      "aliases": [
+        "jend"
+      ],
+      "usage": "jend",
+      "args": "",
+      "desc": "nil",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fling",
+      "aliases": [
+        "fling"
+      ],
+      "usage": "fling <player>",
+      "args": "<player>",
+      "desc": "Fling the given player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "commitoof",
+      "aliases": [
+        "commitoof",
+        "suicide",
+        "kys"
+      ],
+      "usage": "commitoof (suicide, kys)",
+      "args": "(suicide, kys)",
+      "desc": "Triggers a dramatic oof sequence for the player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "volume",
+      "aliases": [
+        "volume",
+        "vol"
+      ],
+      "usage": "volume <0-10> (vol)",
+      "args": "<0-10> (vol)",
+      "desc": "Changes your volume",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "perfstats",
+      "aliases": [
+        "perfstats"
+      ],
+      "usage": "perfstats <on/off>",
+      "args": "<on/off>",
+      "desc": "Shows or hides performance stats",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "preftransparency",
+      "aliases": [
+        "preftransparency",
+        "prefalpha"
+      ],
+      "usage": "preftransparency <0-15>",
+      "args": "<0-15>",
+      "desc": "Preferred UI transparency",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "sensitivity",
+      "aliases": [
+        "sensitivity",
+        "sens"
+      ],
+      "usage": "sensitivity <1-10> (sens)",
+      "args": "<1-10> (sens)",
+      "desc": "Changes your sensitivity",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "torandom",
+      "aliases": [
+        "torandom",
+        "tr"
+      ],
+      "usage": "torandom (tr)",
+      "args": "(tr)",
+      "desc": "Teleports to a random player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "timestop",
+      "aliases": [
+        "timestop",
+        "tstop"
+      ],
+      "usage": "timestop (tstop)",
+      "args": "(tstop)",
+      "desc": "freezes all players (ZA WARUDO)",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "untimestop",
+      "aliases": [
+        "untimestop",
+        "untstop"
+      ],
+      "usage": "untimestop (untstop)",
+      "args": "(untstop)",
+      "desc": "unfreeze all players",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "team",
+      "aliases": [
+        "team"
+      ],
+      "usage": "team <team name>",
+      "args": "<team name>",
+      "desc": "Changes your team (for the client)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "nilchar",
+      "aliases": [
+        "nilchar"
+      ],
+      "usage": "nilchar",
+      "args": "",
+      "desc": "Temporarily parent your character to nil",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unnilchar",
+      "aliases": [
+        "unnilchar",
+        "nonilchar"
+      ],
+      "usage": "unnilchar (nonilchar)",
+      "args": "(nonilchar)",
+      "desc": "Move your character back to workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "char",
+      "aliases": [
+        "char",
+        "character",
+        "morph"
+      ],
+      "usage": "char <username/userid>",
+      "args": "<username/userid>",
+      "desc": "change your character's appearance to someone else's",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unchar",
+      "aliases": [
+        "unchar"
+      ],
+      "usage": "unchar",
+      "args": "",
+      "desc": "revert to your character",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "autochar",
+      "aliases": [
+        "autochar",
+        "achar"
+      ],
+      "usage": "autochar",
+      "args": "",
+      "desc": "auto-change your character on respawn",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautochar",
+      "aliases": [
+        "unautochar",
+        "unachar"
+      ],
+      "usage": "unautochar",
+      "args": "",
+      "desc": "stop auto-change on respawn",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autooutfit",
+      "aliases": [
+        "autooutfit",
+        "aoutfit"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautooutfit",
+      "aliases": [
+        "unautooutfit",
+        "unaoutfit"
+      ],
+      "usage": "unautooutfit",
+      "args": "",
+      "desc": "stop outfit auto-apply",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "outfit",
+      "aliases": [
+        "outfit"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "goto",
+      "aliases": [
+        "goto",
+        "to",
+        "tp",
+        "teleport"
+      ],
+      "usage": "goto <player|X,Y,Z>",
+      "args": "<player|X,Y,Z>",
+      "desc": "Teleport to the given player or X,Y,Z coordinates",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "lookat",
+      "aliases": [
+        "lookat",
+        "stare"
+      ],
+      "usage": "lookat <player>",
+      "args": "<player>",
+      "desc": "Stare at a player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unlookat",
+      "aliases": [
+        "unlookat",
+        "unstare"
+      ],
+      "usage": "unlookat",
+      "args": "",
+      "desc": "Stops staring",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "starenear",
+      "aliases": [
+        "starenear",
+        "stareclosest"
+      ],
+      "usage": "starenear (stareclosest)",
+      "args": "(stareclosest)",
+      "desc": "Stare at the closest player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unstarenear",
+      "aliases": [
+        "unstarenear",
+        "unstareclosest"
+      ],
+      "usage": "unstarenear (unstareclosest)",
+      "args": "(unstareclosest)",
+      "desc": "Stop staring at closest player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "watch",
+      "aliases": [
+        "watch",
+        "view",
+        "spectate"
+      ],
+      "usage": "watch <Player> (view, spectate)",
+      "args": "<Player> (view, spectate)",
+      "desc": "Spectate player",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unwatch",
+      "aliases": [
+        "unwatch",
+        "unview"
+      ],
+      "usage": "unwatch (unview)",
+      "args": "(unview)",
+      "desc": "Stop spectating",
+      "category": "Camera & View"
+    },
+    {
+      "name": "watch2",
+      "aliases": [
+        "watch2",
+        "view2",
+        "spectate2"
+      ],
+      "usage": "watch2",
+      "args": "",
+      "desc": "",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unwatch2",
+      "aliases": [
+        "unwatch2",
+        "unview2"
+      ],
+      "usage": "unwatch2",
+      "args": "",
+      "desc": "",
+      "category": "Camera & View"
+    },
+    {
+      "name": "stealaudio",
+      "aliases": [
+        "stealaudio",
+        "getaudio",
+        "steal",
+        "logaudio"
+      ],
+      "usage": "stealaudio <player>",
+      "args": "<player>",
+      "desc": "Save all sounds a player is playing to a file -Cyrus",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "follow",
+      "aliases": [
+        "follow",
+        "stalk",
+        "walk"
+      ],
+      "usage": "follow <player>",
+      "args": "<player>",
+      "desc": "Follow a player wherever they go",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unfollow",
+      "aliases": [
+        "unfollow",
+        "unstalk",
+        "unwalk",
+        "unpathfind"
+      ],
+      "usage": "unfollow",
+      "args": "",
+      "desc": "Stop all attempts to follow a player",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "autofollow",
+      "aliases": [
+        "autofollow",
+        "autostalk",
+        "proxfollow"
+      ],
+      "usage": "autofollow (autostalk,proxfollow)",
+      "args": "(autostalk,proxfollow)",
+      "desc": "Automatically follow any player who comes close",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautofollow",
+      "aliases": [
+        "unautofollow",
+        "stopautofollow",
+        "unproxfollow"
+      ],
+      "usage": "unautofollow (stopautofollow,unproxfollow)",
+      "args": "(stopautofollow,unproxfollow)",
+      "desc": "Stop automatically following nearby players",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "pathfind",
+      "aliases": [
+        "pathfind"
+      ],
+      "usage": "pathfind <player>",
+      "args": "<player>",
+      "desc": "Follow a player using the pathfinder API wherever they go",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "freeze",
+      "aliases": [
+        "freeze",
+        "thaw",
+        "anchor",
+        "fr"
+      ],
+      "usage": "freeze (thaw,anchor,fr)",
+      "args": "(thaw,anchor,fr)",
+      "desc": "Freezes your character",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unfreeze",
+      "aliases": [
+        "unfreeze",
+        "unthaw",
+        "unanchor",
+        "unfr"
+      ],
+      "usage": "unfreeze (unthaw,unanchor,unfr)",
+      "args": "(unthaw,unanchor,unfr)",
+      "desc": "Unfreezes your character",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "blackhole",
+      "aliases": [
+        "blackhole",
+        "bhole",
+        "bholepull"
+      ],
+      "usage": "blackhole",
+      "args": "",
+      "desc": "Makes unanchored parts teleport to the black hole",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "disableanimations",
+      "aliases": [
+        "disableanimations",
+        "disableanims"
+      ],
+      "usage": "disableanimations (disableanims)",
+      "args": "(disableanims)",
+      "desc": "Freezes your animations",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "undisableanimations",
+      "aliases": [
+        "undisableanimations",
+        "undisableanims"
+      ],
+      "usage": "undisableanimations (undisableanims)",
+      "args": "(undisableanims)",
+      "desc": "Unfreezes your animations",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hatresize",
+      "aliases": [
+        "hatresize"
+      ],
+      "usage": "hatresize",
+      "args": "",
+      "desc": "Makes your hats very big r15 only",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "exit",
+      "aliases": [
+        "exit"
+      ],
+      "usage": "exit",
+      "args": "",
+      "desc": "Close down pedoblox",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "firekey",
+      "aliases": [
+        "firekey",
+        "fkey"
+      ],
+      "usage": "firekey <key> (fkey)",
+      "args": "<key> (fkey)",
+      "desc": "makes you fire a keybind using VirtualInputManager",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopfling",
+      "aliases": [
+        "loopfling"
+      ],
+      "usage": "loopfling <player>",
+      "args": "<player>",
+      "desc": "Loop voids a player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unloopfling",
+      "aliases": [
+        "unloopfling"
+      ],
+      "usage": "unloopfling",
+      "args": "",
+      "desc": "Stops loop flinging a player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "freegamepass",
+      "aliases": [
+        "freegamepass",
+        "freegp"
+      ],
+      "usage": "freegamepass (freegp)",
+      "args": "(freegp)",
+      "desc": "Pretends you own every gamepass and fires product purchase signals",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "devproducts",
+      "aliases": [
+        "devproducts",
+        "products"
+      ],
+      "usage": "devproducts (products)",
+      "args": "(products)",
+      "desc": "Lists Developer Products",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gamepasses",
+      "aliases": [
+        "gamepasses",
+        "passes"
+      ],
+      "usage": "gamepasses (passes)",
+      "args": "(passes)",
+      "desc": "Prompt & list Game Passes (manual IDs)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "listen",
+      "aliases": [
+        "listen"
+      ],
+      "usage": "listen <player>",
+      "args": "<player>",
+      "desc": "Listen to your target's voice chat",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "vcworld",
+      "aliases": [
+        "vcworld",
+        "vcdefault"
+      ],
+      "usage": "vcworld <on/off>",
+      "args": "<on/off>",
+      "desc": "Toggle default spatial voice routing",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unlisten",
+      "aliases": [
+        "unlisten"
+      ],
+      "usage": "unlisten",
+      "args": "",
+      "desc": "Stops listening",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gear",
+      "aliases": [
+        "gear"
+      ],
+      "usage": "gear [id]",
+      "args": "[id]",
+      "desc": "This is client sided and will probably not work",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "lockmouse",
+      "aliases": [
+        "lockmouse",
+        "lockm"
+      ],
+      "usage": "lockmouse (lockm)",
+      "args": "(lockm)",
+      "desc": "Default Mouse Behaviour (idk any description)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unlockmouse",
+      "aliases": [
+        "unlockmouse",
+        "unlockm"
+      ],
+      "usage": "unlockmouse (unlockm)",
+      "args": "(unlockm)",
+      "desc": "Unlocks your mouse (fr this time)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "lockmouse2",
+      "aliases": [
+        "lockmouse2",
+        "lockm2"
+      ],
+      "usage": "lockmouse2 (lockm2)",
+      "args": "(lockm2)",
+      "desc": "Locks your mouse in the center",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unlockmouse2",
+      "aliases": [
+        "unlockmouse2",
+        "unlockm2"
+      ],
+      "usage": "unlockmouse2 (unlockm2)",
+      "args": "(unlockm2)",
+      "desc": "Unlocks your mouse",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "headsit",
+      "aliases": [
+        "headsit"
+      ],
+      "usage": "headsit <player>",
+      "args": "<player>",
+      "desc": "sit on someone's head",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unheadsit",
+      "aliases": [
+        "unheadsit"
+      ],
+      "usage": "unheadsit",
+      "args": "",
+      "desc": "Stop the headsit command.",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "wallhop",
+      "aliases": [
+        "wallhop"
+      ],
+      "usage": "wallhop",
+      "args": "",
+      "desc": "wallhop helper",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unwallhop",
+      "aliases": [
+        "unwallhop"
+      ],
+      "usage": "unwallhop",
+      "args": "",
+      "desc": "disable wallhop helper",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "joinvoice",
+      "aliases": [
+        "joinvoice",
+        "joinvc"
+      ],
+      "usage": "joinvoice",
+      "args": "",
+      "desc": "let's you use vc if you were suspended",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "jump",
+      "aliases": [
+        "jump"
+      ],
+      "usage": "jump",
+      "args": "",
+      "desc": "jump.",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "loopjump",
+      "aliases": [
+        "loopjump",
+        "bhop"
+      ],
+      "usage": "loopjump (bhop)",
+      "args": "(bhop)",
+      "desc": "Continuously jump.",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unloopjump",
+      "aliases": [
+        "unloopjump",
+        "unbhop"
+      ],
+      "usage": "unloopjump (unbhop)",
+      "args": "(unbhop)",
+      "desc": "Stop continuous jumping.",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "trussjump",
+      "aliases": [
+        "trussjump",
+        "tj",
+        "tjump",
+        "trussj"
+      ],
+      "usage": "trussjump",
+      "args": "",
+      "desc": "Boost off trusses when you jump",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "untrussjump",
+      "aliases": [
+        "untrussjump",
+        "untj",
+        "untjump",
+        "untrussj"
+      ],
+      "usage": "untrussjump",
+      "args": "",
+      "desc": "Disable trussjump",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "chattranslate",
+      "aliases": [
+        "chattranslate",
+        "ctranslate",
+        "chatt"
+      ],
+      "usage": "chattranslate",
+      "args": "",
+      "desc": "the very old chat translator came back after years",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "headstand",
+      "aliases": [
+        "headstand"
+      ],
+      "usage": "headstand <player>",
+      "args": "<player>",
+      "desc": "Stand on someone's head.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unheadstand",
+      "aliases": [
+        "unheadstand"
+      ],
+      "usage": "unheadstand",
+      "args": "",
+      "desc": "Stop the headstand command.",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopwalkspeed",
+      "aliases": [
+        "loopwalkspeed",
+        "loopws",
+        "lws"
+      ],
+      "usage": "loopwalkspeed <number> (loopws,lws)",
+      "args": "<number> (loopws,lws)",
+      "desc": "Loop walkspeed",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unloopwalkspeed",
+      "aliases": [
+        "unloopwalkspeed",
+        "unloopws",
+        "unlws"
+      ],
+      "usage": "unloopwalkspeed (unloopws,unlws)",
+      "args": "(unloopws,unlws)",
+      "desc": "Disable loop walkspeed",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "loopjumppower",
+      "aliases": [
+        "loopjumppower",
+        "loopjp",
+        "ljp"
+      ],
+      "usage": "loopjumppower <number> (loopjp,ljp)",
+      "args": "<number> (loopjp,ljp)",
+      "desc": "Loop JumpPower",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unloopjumppower",
+      "aliases": [
+        "unloopjumppower",
+        "unloopjp",
+        "unljp"
+      ],
+      "usage": "unloopjumppower (unloopjp,unljp)",
+      "args": "(unloopjp,unljp)",
+      "desc": "Disable loop jump power",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "stopanimations",
+      "aliases": [
+        "stopanimations",
+        "stopanims",
+        "stopanim",
+        "noanim"
+      ],
+      "usage": "stopanimations (stopanims,stopanim,noanim)",
+      "args": "(stopanims,stopanim,noanim)",
+      "desc": "Stops running animations",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "refreshanimations",
+      "aliases": [
+        "refreshanimations",
+        "refreshanimation",
+        "refreshanims",
+        "refreshanim"
+      ],
+      "usage": "refreshanimations (refreshanimation,refreshanims,refreshanim)",
+      "args": "(refreshanimation,refreshanims,refreshanim)",
+      "desc": "Reload character animations",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopwaveat",
+      "aliases": [
+        "loopwaveat",
+        "loopwat"
+      ],
+      "usage": "loopwaveat <player> (loopwat)",
+      "args": "<player> (loopwat)",
+      "desc": "Wave to a player in a loop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopwaveat",
+      "aliases": [
+        "unloopwaveat",
+        "unloopwat"
+      ],
+      "usage": "unloopwaveat <player> (unloopwat)",
+      "args": "<player> (unloopwat)",
+      "desc": "Stops the loopwaveat command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "tools",
+      "aliases": [
+        "tools",
+        "gears"
+      ],
+      "usage": "tools (gears)",
+      "args": "(gears)",
+      "desc": "Copies tools from ReplicatedStorage and Lighting",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "toolview",
+      "aliases": [
+        "toolview",
+        "tview"
+      ],
+      "usage": "toolview <player> (tview)",
+      "args": "<player> (tview)",
+      "desc": "3D tool viewer above a player's head",
+      "category": "Camera & View"
+    },
+    {
+      "name": "untoolview",
+      "aliases": [
+        "untoolview",
+        "untview"
+      ],
+      "usage": "untview <player> (untview)",
+      "args": "<player> (untview)",
+      "desc": "Removes the tool viewer above a player's head",
+      "category": "Camera & View"
+    },
+    {
+      "name": "toolview2",
+      "aliases": [
+        "toolview2",
+        "tview2"
+      ],
+      "usage": "toolview2 (tview2)",
+      "args": "(tview2)",
+      "desc": "Live-updating tool viewer",
+      "category": "Camera & View"
+    },
+    {
+      "name": "waveat",
+      "aliases": [
+        "waveat",
+        "wat"
+      ],
+      "usage": "waveat <player> (wat)",
+      "args": "<player> (wat)",
+      "desc": "Wave to a player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "headbang",
+      "aliases": [
+        "headbang",
+        "mouthbang",
+        "headfuck",
+        "mouthfuck",
+        "facebang",
+        "facefuck",
+        "hb",
+        "mb"
+      ],
+      "usage": "headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
+      "args": "<player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
+      "desc": "Bang them in the mouth because you are gay",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unheadbang",
+      "aliases": [
+        "unheadbang",
+        "unmouthbang",
+        "unhb",
+        "unmb"
+      ],
+      "usage": "unheadbang (unmouthbang,unhb,unmb)",
+      "args": "(unmouthbang,unhb,unmb)",
+      "desc": "Stops headbang",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "jerkuser",
+      "aliases": [
+        "jerkuser",
+        "jorkuser",
+        "handjob",
+        "hjob",
+        "handj"
+      ],
+      "usage": "jerkuser <player> (jorkuser, handjob, hjob, handj)",
+      "args": "<player> (jorkuser, handjob, hjob, handj)",
+      "desc": "Lay under them and vibe",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unjerkuser",
+      "aliases": [
+        "unjerkuser",
+        "unjorkuser",
+        "unhandjob",
+        "unhjob",
+        "unhandj"
+      ],
+      "usage": "unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)",
+      "args": "(unjorkuser, unhandjob, unhjob, unhandj)",
+      "desc": "Stop the jerk user action",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "suck",
+      "aliases": [
+        "suck",
+        "dicksuck"
+      ],
+      "usage": "suck <player> <number>",
+      "args": "<player> <number>",
+      "desc": "suck it",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unsuck",
+      "aliases": [
+        "unsuck",
+        "undicksuck"
+      ],
+      "usage": "unsuck",
+      "args": "",
+      "desc": "no more fun",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "improvetextures",
+      "aliases": [
+        "improvetextures"
+      ],
+      "usage": "improvetextures",
+      "args": "",
+      "desc": "Switches Textures",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "undotextures",
+      "aliases": [
+        "undotextures"
+      ],
+      "usage": "undotextures",
+      "args": "",
+      "desc": "Switches Textures",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "serverlist",
+      "aliases": [
+        "serverlist",
+        "serverlister",
+        "slist"
+      ],
+      "usage": "serverlist (serverlister,slist)",
+      "args": "(serverlister,slist)",
+      "desc": "list of servers to join in",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "keyboard",
+      "aliases": [
+        "keyboard"
+      ],
+      "usage": "keyboard",
+      "args": "",
+      "desc": "provides a keyboard gui for mobile users",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "autoclicker",
+      "aliases": [
+        "autoclicker"
+      ],
+      "usage": "autoclicker",
+      "args": "",
+      "desc": "provides a autoclicker gui",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "backpack",
+      "aliases": [
+        "backpack"
+      ],
+      "usage": "backpack",
+      "args": "",
+      "desc": "provides a custom backpack gui",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "edgejump",
+      "aliases": [
+        "edgejump",
+        "ejump"
+      ],
+      "usage": "edgejump (ejump)",
+      "args": "(ejump)",
+      "desc": "Automatically jumps when you get to the edge of an object",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unedgejump",
+      "aliases": [
+        "unedgejump",
+        "noedgejump",
+        "noejump",
+        "unejump"
+      ],
+      "usage": "unedgejump (noedgejump, noejump, unejump)",
+      "args": "(noedgejump, noejump, unejump)",
+      "desc": "Disables edgejump",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "equiptools",
+      "aliases": [
+        "equiptools",
+        "etools",
+        "equipt"
+      ],
+      "usage": "equiptools (etools,equipt)",
+      "args": "(etools,equipt)",
+      "desc": "Equips every tool in your inventory",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unequiptools",
+      "aliases": [
+        "unequiptools"
+      ],
+      "usage": "unequiptools",
+      "args": "",
+      "desc": "Unequips every tool you are currently holding",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "equiptool",
+      "aliases": [
+        "equiptool",
+        "etool"
+      ],
+      "usage": "equiptool (etool)",
+      "args": "(etool)",
+      "desc": "Equip a specific tool by name or selection",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loopequiptool",
+      "aliases": [
+        "loopequiptool",
+        "lequiptool",
+        "loopet"
+      ],
+      "usage": "loopequiptool <tool name>",
+      "args": "<tool name>",
+      "desc": "Keeps a specific tool equipped until disabled",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unloopequiptool",
+      "aliases": [
+        "unloopequiptool",
+        "unloopet",
+        "unlequiptool"
+      ],
+      "usage": "unloopequiptool",
+      "args": "",
+      "desc": "Stops the loop equip behaviour",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bang",
+      "aliases": [
+        "bang",
+        "fuck"
+      ],
+      "usage": "bang <player> <number> (fuck)",
+      "args": "<player> <number> (fuck)",
+      "desc": "fucks the player by attaching to them",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unbang",
+      "aliases": [
+        "unbang",
+        "unfuck"
+      ],
+      "usage": "unbang (unfuck)",
+      "args": "(unfuck)",
+      "desc": "Unbangs the player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "carpet",
+      "aliases": [
+        "carpet"
+      ],
+      "usage": "carpet <player>",
+      "args": "<player>",
+      "desc": "Be someone's carpet",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "uncarpet",
+      "aliases": [
+        "uncarpet",
+        "nocarpet"
+      ],
+      "usage": "uncarpet (nocarpet)",
+      "args": "(nocarpet)",
+      "desc": "Undoes carpet",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "climb",
+      "aliases": [
+        "climb"
+      ],
+      "usage": "climb",
+      "args": "",
+      "desc": "Allows you to climb while in air",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unclimb",
+      "aliases": [
+        "unclimb"
+      ],
+      "usage": "unclimb",
+      "args": "",
+      "desc": "Disables climb",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "inversebang",
+      "aliases": [
+        "inversebang",
+        "ibang",
+        "inverseb"
+      ],
+      "usage": "inversebang <player> <number>",
+      "args": "<player> <number>",
+      "desc": "you're the one getting fucked today ;)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "uninversebang",
+      "aliases": [
+        "uninversebang",
+        "unibang",
+        "uninverseb"
+      ],
+      "usage": "uninversebang",
+      "args": "",
+      "desc": "no more fun",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "suslay",
+      "aliases": [
+        "suslay",
+        "laysus"
+      ],
+      "usage": "suslay (laysus)",
+      "args": "(laysus)",
+      "desc": "Lay down in a suspicious way",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unsuslay",
+      "aliases": [
+        "unsuslay"
+      ],
+      "usage": "unsuslay",
+      "args": "",
+      "desc": "Stand up from the sussy lay",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "jerk",
+      "aliases": [
+        "jerk",
+        "jork"
+      ],
+      "usage": "jerk (jork)",
+      "args": "(jork)",
+      "desc": "jorking it",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hug",
+      "aliases": [
+        "hug",
+        "clickhug"
+      ],
+      "usage": "hug (clickhug)",
+      "args": "(clickhug)",
+      "desc": "huggies time (click on a target to hug)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unhug",
+      "aliases": [
+        "unhug"
+      ],
+      "usage": "unhug",
+      "args": "",
+      "desc": "no huggies :(",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "glue",
+      "aliases": [
+        "glue",
+        "loopgoto",
+        "lgoto"
+      ],
+      "usage": "glue <player>",
+      "args": "<player>",
+      "desc": "Loop teleport to a player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unglue",
+      "aliases": [
+        "unglue",
+        "unloopgoto",
+        "noloopgoto"
+      ],
+      "usage": "unglue",
+      "args": "",
+      "desc": "Stops teleporting you to a player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "glueback",
+      "aliases": [
+        "glueback",
+        "loopbehind",
+        "lbehind"
+      ],
+      "usage": "glueback <player>",
+      "args": "<player>",
+      "desc": "Loop teleport behind a player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unglueback",
+      "aliases": [
+        "unglueback",
+        "unloopbehind",
+        "unlbehind"
+      ],
+      "usage": "unglueback",
+      "args": "",
+      "desc": "Stops teleporting you to a player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "spook",
+      "aliases": [
+        "spook",
+        "scare"
+      ],
+      "usage": "spook <player> (scare)",
+      "args": "<player> (scare)",
+      "desc": "Teleports next to a player for a few seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loopspook",
+      "aliases": [
+        "loopspook",
+        "loopscare"
+      ],
+      "usage": "loopspook <player>",
+      "args": "<player>",
+      "desc": "Teleports next to a player repeatedly",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unloopspook",
+      "aliases": [
+        "unloopspook",
+        "unloopscare"
+      ],
+      "usage": "unloopspook",
+      "args": "",
+      "desc": "Stops the loopspook command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "airwalk",
+      "aliases": [
+        "airwalk",
+        "float",
+        "aw"
+      ],
+      "usage": "airwalk (float, aw)",
+      "args": "(float, aw)",
+      "desc": "Press space to go up, unairwalk to stop",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unairwalk",
+      "aliases": [
+        "unairwalk",
+        "unfloat",
+        "unaw"
+      ],
+      "usage": "unairwalk (unfloat, unaw)",
+      "args": "(unfloat, unaw)",
+      "desc": "Stops the airwalk command",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "cbring",
+      "aliases": [
+        "cbring",
+        "clientbring",
+        "clientb"
+      ],
+      "usage": "cbring <player>",
+      "args": "<player>",
+      "desc": "Brings the player once on your client",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loopcbring",
+      "aliases": [
+        "loopcbring",
+        "loppclientb",
+        "loopclientbring",
+        "lcbring",
+        "lclientb"
+      ],
+      "usage": "loopcbring <player>",
+      "args": "<player>",
+      "desc": "Continuously brings the player on your client",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unloopcbring",
+      "aliases": [
+        "unloopcbring",
+        "unloopcientb",
+        "unlcbring",
+        "unlclientb",
+        "uncbring",
+        "unclientb"
+      ],
+      "usage": "unloopcbring",
+      "args": "",
+      "desc": "Disable looped client bring",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "mute",
+      "aliases": [
+        "mute",
+        "muteboombox"
+      ],
+      "usage": "mute <player> (muteboombox)",
+      "args": "<player> (muteboombox)",
+      "desc": "Mutes the player's boombox",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "tpwalk",
+      "aliases": [
+        "tpwalk",
+        "tpwalk"
+      ],
+      "usage": "tpwalk <number>",
+      "args": "<number>",
+      "desc": "More undetectable walkspeed script",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "untpwalk",
+      "aliases": [
+        "untpwalk"
+      ],
+      "usage": "untpwalk",
+      "args": "",
+      "desc": "Stops the tpwalk command",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "loopmute",
+      "aliases": [
+        "loopmute",
+        "loopmuteboombox"
+      ],
+      "usage": "loopmute <player> (loopmuteboombox)",
+      "args": "<player> (loopmuteboombox)",
+      "desc": "Loop mutes the player's boombox",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unloopmute",
+      "aliases": [
+        "unloopmute",
+        "unloopmuteboombox"
+      ],
+      "usage": "unloopmute <player> (unloopmuteboombox)",
+      "args": "<player> (unloopmuteboombox)",
+      "desc": "Unloop mutes the player's boombox",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "getmass",
+      "aliases": [
+        "getmass"
+      ],
+      "usage": "getmass <player>",
+      "args": "<player>",
+      "desc": "Get your mass",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "copyposition",
+      "aliases": [
+        "copyposition",
+        "copypos",
+        "cpos"
+      ],
+      "usage": "copyposition <player>",
+      "args": "<player>",
+      "desc": "Get the position of another player",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "equiptools",
+      "aliases": [
+        "equiptools"
+      ],
+      "usage": "equiptools",
+      "args": "",
+      "desc": "Equips every tool in your inventory at once",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unequiptools",
+      "aliases": [
+        "unequiptools"
+      ],
+      "usage": "unequiptools",
+      "args": "",
+      "desc": "Unequips every tool you are currently holding at once",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "removeterrain",
+      "aliases": [
+        "removeterrain",
+        "rterrain",
+        "noterrain"
+      ],
+      "usage": "removeterrain (rterrain, noterrain)",
+      "args": "(rterrain, noterrain)",
+      "desc": "clears terrain",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clearnilinstances",
+      "aliases": [
+        "clearnilinstances",
+        "nonilinstances",
+        "cni"
+      ],
+      "usage": "clearnilinstances (nonilinstances, cni)",
+      "args": "(nonilinstances, cni)",
+      "desc": "Removes nil instances",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "inspect",
+      "aliases": [
+        "inspect"
+      ],
+      "usage": "inspect",
+      "args": "",
+      "desc": "checks a user's items",
+      "category": "Camera & View"
+    },
+    {
+      "name": "noprompt",
+      "aliases": [
+        "noprompt",
+        "nopurchaseprompts",
+        "noprompts",
+        "np"
+      ],
+      "usage": "noprompt (nopurchaseprompts,noprompts,np)",
+      "args": "(nopurchaseprompts,noprompts,np)",
+      "desc": "remove the stupid purchase prompt",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "prompt",
+      "aliases": [
+        "prompt",
+        "purchaseprompts",
+        "showprompts",
+        "showpurchaseprompts",
+        "ppr"
+      ],
+      "usage": "prompt (purchaseprompts,showprompts,showpurchaseprompts,ppr)",
+      "args": "(purchaseprompts,showprompts,showpurchaseprompts,ppr)",
+      "desc": "allows the stupid purchase prompt",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "nonetworkpause",
+      "aliases": [
+        "nonetworkpause",
+        "disablenetworkpause",
+        "nnw",
+        "nnpause"
+      ],
+      "usage": "nonetworkpause (disableNetworkPause,nnw,nnpause)",
+      "args": "(disableNetworkPause,nnw,nnpause)",
+      "desc": "Disable Roblox network pause overlay",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "networkpause",
+      "aliases": [
+        "networkpause",
+        "enablenetworkpause",
+        "nw",
+        "npause"
+      ],
+      "usage": "networkpause (enablenetworkpause,nw,npause)",
+      "args": "(enablenetworkpause,nw,npause)",
+      "desc": "Re-enable Roblox network pause overlay",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "wallwalk",
+      "aliases": [
+        "wallwalk"
+      ],
+      "usage": "wallwalk",
+      "args": "",
+      "desc": "Makes you walk on walls",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "hideguis",
+      "aliases": [
+        "hideguis"
+      ],
+      "usage": "hideguis",
+      "args": "",
+      "desc": "Hides GUIs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unhideguis",
+      "aliases": [
+        "unhideguis"
+      ],
+      "usage": "unhideguis",
+      "args": "",
+      "desc": "Restores GUIs hidden by hideguis",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "showguis",
+      "aliases": [
+        "showguis"
+      ],
+      "usage": "showguis",
+      "args": "",
+      "desc": "Enables every UI",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unshowguis",
+      "aliases": [
+        "unshowguis"
+      ],
+      "usage": "unshowguis",
+      "args": "",
+      "desc": "Restores UI states set by showguis",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "spin",
+      "aliases": [
+        "spin"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unspin",
+      "aliases": [
+        "unspin"
+      ],
+      "usage": "unspin",
+      "args": "",
+      "desc": "Makes your character unspin",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "notepad",
+      "aliases": [
+        "notepad"
+      ],
+      "usage": "notepad",
+      "args": "",
+      "desc": "notepad for making scripts / etc",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "rc7",
+      "aliases": [
+        "rc7"
+      ],
+      "usage": "rc7",
+      "args": "",
+      "desc": "RC7 Internal UI",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "scriptviewer",
+      "aliases": [
+        "scriptviewer",
+        "viewscripts"
+      ],
+      "usage": "scriptviewer (viewscripts)",
+      "args": "(viewscripts)",
+      "desc": "Can view scripts made by 0866",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "hydroxide",
+      "aliases": [
+        "hydroxide",
+        "hydro"
+      ],
+      "usage": "hydroxide (hydro)",
+      "args": "(hydro)",
+      "desc": "executes hydroxide",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "remotespy",
+      "aliases": [
+        "remotespy",
+        "simplespy",
+        "rspy"
+      ],
+      "usage": "remotespy (simplespy,rspy)",
+      "args": "(simplespy,rspy)",
+      "desc": "executes simplespy that supports both pc and mobile",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "cobaltspy",
+      "aliases": [
+        "cobaltspy",
+        "cobalt",
+        "cspy"
+      ],
+      "usage": "cobaltspy (cobalt,cspy)",
+      "args": "(cobalt,cspy)",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "turtlespy",
+      "aliases": [
+        "turtlespy",
+        "tspy"
+      ],
+      "usage": "turtlespy (tspy)",
+      "args": "(tspy)",
+      "desc": "executes Turtle Spy that supports both pc and mobile",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "gravity",
+      "aliases": [
+        "gravity",
+        "grav"
+      ],
+      "usage": "gravity <amount> (grav)",
+      "args": "<amount> (grav)",
+      "desc": "sets game gravity to whatever u want",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "fireclickdetectors",
+      "aliases": [
+        "fireclickdetectors",
+        "fcd",
+        "firecd"
+      ],
+      "usage": "fireclickdetectors (fcd,firecd)",
+      "args": "(fcd,firecd)",
+      "desc": "Fires every ClickDetector in Workspace",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "fireclickdetectorsfind",
+      "aliases": [
+        "fireclickdetectorsfind",
+        "fcdfind",
+        "firecdfind"
+      ],
+      "usage": "fireclickdetectorsfind <target> (fcdfind,firecdfind)",
+      "args": "<target> (fcdfind,firecdfind)",
+      "desc": "Fires ClickDetectors substring-matching [target] in Workspace",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "fireproximityprompts",
+      "aliases": [
+        "fireproximityprompts",
+        "fpp",
+        "firepp"
+      ],
+      "usage": "fireproximityprompts (fpp,firepp)",
+      "args": "(fpp,firepp)",
+      "desc": "Fires every ProximityPrompt in Workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fireproximitypromptsfind",
+      "aliases": [
+        "fireproximitypromptsfind",
+        "fppfind",
+        "fireppfind"
+      ],
+      "usage": "fireproximitypromptsfind <target> (fppfind,fireppfind)",
+      "args": "<target> (fppfind,fireppfind)",
+      "desc": "Fires ProximityPrompts substring-matching [target] in Workspace",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "firetouchinterests",
+      "aliases": [
+        "firetouchinterests",
+        "fti"
+      ],
+      "usage": "firetouchinterests (fti)",
+      "args": "(fti)",
+      "desc": "Fires every TouchInterest in Workspace",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "firetouchinterestsfind",
+      "aliases": [
+        "firetouchinterestsfind",
+        "ftifind",
+        "firetifind"
+      ],
+      "usage": "firetouchinterestsfind <target> (ftifind,firetifind)",
+      "args": "<target> (ftifind,firetifind)",
+      "desc": "Fires TouchInterests substring-matching [target] in Workspace",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autofireproxi",
+      "aliases": [
+        "autofireproxi",
+        "afp"
+      ],
+      "usage": "autofireproxi <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires ProximityPrompts matching [target] every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autofireproxifind",
+      "aliases": [
+        "autofireproxifind",
+        "afpfind"
+      ],
+      "usage": "autofireproxifind <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autofireclick",
+      "aliases": [
+        "autofireclick",
+        "afc"
+      ],
+      "usage": "autofireclick <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires ClickDetectors matching [target] every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autofireclickfind",
+      "aliases": [
+        "autofireclickfind",
+        "afcfind"
+      ],
+      "usage": "autofireclickfind <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autotouch",
+      "aliases": [
+        "autotouch",
+        "at"
+      ],
+      "usage": "autotouch <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires TouchInterests on parts matching [target] every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autotouchfind",
+      "aliases": [
+        "autotouchfind",
+        "atfind"
+      ],
+      "usage": "autotouchfind <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautofireproxi",
+      "aliases": [
+        "unautofireproxi",
+        "uafp"
+      ],
+      "usage": "unautofireproxi (uafp)",
+      "args": "(uafp)",
+      "desc": "Stops all AutoFireProxi loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautofireclick",
+      "aliases": [
+        "unautofireclick",
+        "uafc"
+      ],
+      "usage": "unautofireclick (uafc)",
+      "args": "(uafc)",
+      "desc": "Stops all AutoFireClick loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautotouch",
+      "aliases": [
+        "unautotouch",
+        "uat"
+      ],
+      "usage": "unautotouch (uat)",
+      "args": "(uat)",
+      "desc": "Stops all AutoTouch loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautotouchfind",
+      "aliases": [
+        "unautotouchfind",
+        "uatfind"
+      ],
+      "usage": "unautotouchfind (uatfind)",
+      "args": "(uatfind)",
+      "desc": "Stops substring-matching AutoTouch loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautofireproxifind",
+      "aliases": [
+        "unautofireproxifind",
+        "uafpfind"
+      ],
+      "usage": "unautofireproxifind (uafpfind)",
+      "args": "(uafpfind)",
+      "desc": "Stops substring-matching AutoFireProxi loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautofireclickfind",
+      "aliases": [
+        "unautofireclickfind",
+        "uafcfind"
+      ],
+      "usage": "unautofireclickfind (uafcfind)",
+      "args": "(uafcfind)",
+      "desc": "Stops substring-matching AutoFireClick loops",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "noclickdetectorlimits",
+      "aliases": [
+        "noclickdetectorlimits",
+        "nocdlimits",
+        "removecdlimits"
+      ],
+      "usage": "noclickdetectorlimits <limit> (nocdlimits,removecdlimits)",
+      "args": "<limit> (nocdlimits,removecdlimits)",
+      "desc": "Sets all click detectors MaxActivationDistance to math.huge",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "noproximitypromptlimits",
+      "aliases": [
+        "noproximitypromptlimits",
+        "nopplimits",
+        "removepplimits"
+      ],
+      "usage": "noproximitypromptlimits <limit> (nopplimits,removepplimits)",
+      "args": "<limit> (nopplimits,removepplimits)",
+      "desc": "Sets all proximity prompts MaxActivationDistance to math.huge",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "instantproximityprompts",
+      "aliases": [
+        "instantproximityprompts",
+        "instantpp",
+        "ipp"
+      ],
+      "usage": "instantproximityprompts (instantpp,ipp)",
+      "args": "(instantpp,ipp)",
+      "desc": "Disable the cooldown for proximity prompts",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "uninstantproximityprompts",
+      "aliases": [
+        "uninstantproximityprompts",
+        "uninstantpp",
+        "unipp"
+      ],
+      "usage": "uninstantproximityprompts (uninstantpp,unipp)",
+      "args": "(uninstantpp,unipp)",
+      "desc": "Undo the cooldown removal",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "enableproximitypromptservice",
+      "aliases": [
+        "enableproximitypromptservice",
+        "enablepps",
+        "epps",
+        "ppson",
+        "ppon"
+      ],
+      "usage": "enableproximitypromptservice (enablepps,epps,ppson,ppon)",
+      "args": "(enablepps,epps,ppson,ppon)",
+      "desc": "enable proximity prompt buttons",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "disableproximitypromptservice",
+      "aliases": [
+        "disableproximitypromptservice",
+        "disablepps",
+        "dpps",
+        "ppsoff",
+        "ppoff"
+      ],
+      "usage": "disableproximitypromptservice (disablepps,dpps,ppsoff,ppoff)",
+      "args": "(disablepps,dpps,ppsoff,ppoff)",
+      "desc": "disable proximity prompt buttons",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "enableproximityprompts",
+      "aliases": [
+        "enableproximityprompts",
+        "enableprox",
+        "enprox",
+        "enprx",
+        "enpp"
+      ],
+      "usage": "enableproximityprompts [name]",
+      "args": "[name]",
+      "desc": "Enable ProximityPrompts (all or matching)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "disableproximityprompts",
+      "aliases": [
+        "disableproximityprompts",
+        "disableprox",
+        "disprox",
+        "dprx",
+        "dpp"
+      ],
+      "usage": "disableproximityprompts [name]",
+      "args": "[name]",
+      "desc": "Disable ProximityPrompts (all or matching)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopenableproximityprompts",
+      "aliases": [
+        "loopenableproximityprompts",
+        "loopenableprox",
+        "lenprox",
+        "lenpp"
+      ],
+      "usage": "loopenableproximityprompts [name]",
+      "args": "[name]",
+      "desc": "Continuously enable ProximityPrompts (all or matching)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopenableproximityprompts",
+      "aliases": [
+        "unloopenableproximityprompts",
+        "unloopenableprox",
+        "unlenprox",
+        "unlenpp"
+      ],
+      "usage": "unloopenableproximityprompts",
+      "args": "",
+      "desc": "Stop enabling loop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "r6",
+      "aliases": [
+        "r6"
+      ],
+      "usage": "r6",
+      "args": "",
+      "desc": "Shows a prompt that will switch your character rig type into R6",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "r15",
+      "aliases": [
+        "r15"
+      ],
+      "usage": "r15",
+      "args": "",
+      "desc": "Shows a prompt that will switch your character rig type into R15",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "breakvelocity",
+      "aliases": [
+        "breakvelocity"
+      ],
+      "usage": "breakvelocity",
+      "args": "",
+      "desc": "Sets your character's velocity to zero momentarily",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "maxslopeangle",
+      "aliases": [
+        "maxslopeangle",
+        "msa"
+      ],
+      "usage": "maxslopeangle (msa)",
+      "args": "(msa)",
+      "desc": "Changes your character's MaxSlopeAngle",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "godmode",
+      "aliases": [
+        "godmode",
+        "god"
+      ],
+      "usage": "godmode (god)",
+      "args": "(god)",
+      "desc": "Pick and enable an invincibility method",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "ungodmode",
+      "aliases": [
+        "ungodmode",
+        "ungod"
+      ],
+      "usage": "ungodmode (ungod)",
+      "args": "(ungod)",
+      "desc": "Disable invincibility",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "controllock",
+      "aliases": [
+        "controllock",
+        "ctrllock"
+      ],
+      "usage": "controllock (ctrllock)",
+      "args": "(ctrllock)",
+      "desc": "Set Shiftlock keys to Control for this session",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "uncontrollock",
+      "aliases": [
+        "uncontrollock",
+        "unctrllock"
+      ],
+      "usage": "uncontrollock (unctrllock)",
+      "args": "(unctrllock)",
+      "desc": "Restore Shiftlock keys to default (Shift)",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "resetlock",
+      "aliases": [
+        "resetlock"
+      ],
+      "usage": "resetlock",
+      "args": "",
+      "desc": "Resets your Shiftlock keybinds to default (LeftShift)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "autoreport",
+      "aliases": [
+        "autoreport"
+      ],
+      "usage": "autoreport",
+      "args": "",
+      "desc": "Automatically reports players to get them banned",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "light",
+      "aliases": [
+        "light"
+      ],
+      "usage": "light <range> <brightness> <hexColor>",
+      "args": "<range> <brightness> <hexColor>",
+      "desc": "Gives your player dynamic light",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unlight",
+      "aliases": [
+        "unlight",
+        "nolight"
+      ],
+      "usage": "unlight (nolight)",
+      "args": "(nolight)",
+      "desc": "Removes dynamic light from your player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "lighting",
+      "aliases": [
+        "lighting",
+        "lightingcontrol"
+      ],
+      "usage": "lighting (lightingcontrol)",
+      "args": "(lightingcontrol)",
+      "desc": "Manage lighting technology settings",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "friend",
+      "aliases": [
+        "friend"
+      ],
+      "usage": "friend <player>",
+      "args": "<player>",
+      "desc": "Sends a friend request to your target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unfriend",
+      "aliases": [
+        "unfriend"
+      ],
+      "usage": "unfriend <player>",
+      "args": "<player>",
+      "desc": "Prompts to unfriend your target",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "block",
+      "aliases": [
+        "block",
+        "blockuser"
+      ],
+      "usage": "block <player> (blockuser)",
+      "args": "<player> (blockuser)",
+      "desc": "Open block / unblock prompt for target player",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "friendweb",
+      "aliases": [
+        "friendweb",
+        "fweb"
+      ],
+      "usage": "friendweb (fweb)",
+      "args": "(fweb)",
+      "desc": "Finds friend circles in the current server",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "tweengotocampos",
+      "aliases": [
+        "tweengotocampos",
+        "tweentocampos",
+        "tweentcp"
+      ],
+      "usage": "tweengotocampos (tweentcp)",
+      "args": "(tweentcp)",
+      "desc": "Another version of goto camera position but bypassing more anti-cheats",
+      "category": "Camera & View"
+    },
+    {
+      "name": "delete",
+      "aliases": [
+        "delete",
+        "remove",
+        "del"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "deletefind",
+      "aliases": [
+        "deletefind",
+        "removefind",
+        "delfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "deletelighting",
+      "aliases": [
+        "deletelighting",
+        "removelighting",
+        "removel",
+        "ldel"
+      ],
+      "usage": "deletelighting (removelighting, removel, ldel)",
+      "args": "(removelighting, removel, ldel)",
+      "desc": "Removes all descendants (objects) within Lighting.",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "lightingdisable",
+      "aliases": [
+        "lightingdisable",
+        "disablelighting",
+        "ldisable"
+      ],
+      "usage": "lightingdisable (disablelighting, ldisable)",
+      "args": "(disablelighting, ldisable)",
+      "desc": "Disables all post-processing effects in Lighting instead of deleting them.",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "autodelete",
+      "aliases": [
+        "autodelete",
+        "autoremove",
+        "autodel"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautodelete",
+      "aliases": [
+        "unautodelete",
+        "unautoremove",
+        "unautodel"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "autodeletefind",
+      "aliases": [
+        "autodeletefind",
+        "autoremovefind",
+        "autodelfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautodeletefind",
+      "aliases": [
+        "unautodeletefind",
+        "unautoremovefind",
+        "unautodelfind"
+      ],
+      "usage": "unautodeletefind (unautoremovefind,unautodelfind)",
+      "args": "(unautoremovefind,unautodelfind)",
+      "desc": "Stops autodeletefind",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "deleteclass",
+      "aliases": [
+        "deleteclass",
+        "removeclass",
+        "dc"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "autodeleteclass",
+      "aliases": [
+        "autodeleteclass",
+        "autoremoveclass",
+        "autodc"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unautodeleteclass",
+      "aliases": [
+        "unautodeleteclass",
+        "unautoremoveclass",
+        "unautodc"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "chardelete",
+      "aliases": [
+        "chardelete",
+        "charremove",
+        "chardel",
+        "cdelete",
+        "cremove",
+        "cdel"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "chardeletefind",
+      "aliases": [
+        "chardeletefind",
+        "charremovefind",
+        "chardelfind",
+        "cdeletefind",
+        "cremovefind",
+        "cdelfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "chardeleteclass",
+      "aliases": [
+        "chardeleteclass",
+        "charremoveclass",
+        "chardeleteclassname",
+        "cdc"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "gotopartnext",
+      "aliases": [
+        "gotopartnext",
+        "gpn"
+      ],
+      "usage": "gotopartnext [prefix] <start> [end] [delay] (gpn)",
+      "args": "[prefix] <start> [end] [delay] (gpn)",
+      "desc": "Teleport sequentially to parts with optional prefix and duplicate handling.",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotomodelnext",
+      "aliases": [
+        "gotomodelnext",
+        "gmn"
+      ],
+      "usage": "gotomodelnext [prefix] <start> [end] [delay] (gmn)",
+      "args": "[prefix] <start> [end] [delay] (gmn)",
+      "desc": "Teleport sequentially to models with optional prefix and duplicate handling.",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotofoldernext",
+      "aliases": [
+        "gotofoldernext",
+        "gfn"
+      ],
+      "usage": "gotofoldernext [prefix] <start> [end] [delay] (gfn)",
+      "args": "[prefix] <start> [end] [delay] (gfn)",
+      "desc": "Teleport sequentially through folder contents with optional prefix.",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotobreak",
+      "aliases": [
+        "gotobreak",
+        "gb"
+      ],
+      "usage": "gotobreak (gb)",
+      "args": "(gb)",
+      "desc": "Stop the active goto sequence and clear duplicate selections.",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotopart",
+      "aliases": [
+        "gotopart",
+        "topart",
+        "toprt"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "tweengotopart",
+      "aliases": [
+        "tweengotopart",
+        "tgotopart",
+        "ttopart",
+        "ttoprt"
+      ],
+      "usage": "tweengotopart <partName>",
+      "args": "<partName>",
+      "desc": "Tween to each matching part by name once",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotopartfind",
+      "aliases": [
+        "gotopartfind",
+        "topartfind",
+        "toprtfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "tweengotopartfind",
+      "aliases": [
+        "tweengotopartfind",
+        "tgotopartfind",
+        "ttopartfind",
+        "ttoprtfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotopartclass",
+      "aliases": [
+        "gotopartclass",
+        "gpc",
+        "gotopartc",
+        "gotoprtc"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bringpart",
+      "aliases": [
+        "bringpart",
+        "bpart",
+        "bprt"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bringpartfind",
+      "aliases": [
+        "bringpartfind",
+        "bpartfind",
+        "bprtfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bringmodel",
+      "aliases": [
+        "bringmodel",
+        "bmodel"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bringmodelfind",
+      "aliases": [
+        "bringmodelfind",
+        "bmodelfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "bringfolder",
+      "aliases": [
+        "bringfolder",
+        "bfldr"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotomodel",
+      "aliases": [
+        "gotomodel",
+        "tomodel"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotomodelfind",
+      "aliases": [
+        "gotomodelfind",
+        "tomodelfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotomodelfind",
+      "aliases": [
+        "gotomodelfind",
+        "tomodelfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotofolder",
+      "aliases": [
+        "gotofolder",
+        "gofldr"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "swim",
+      "aliases": [
+        "swim"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unswim",
+      "aliases": [
+        "unswim"
+      ],
+      "usage": "unswim",
+      "args": "",
+      "desc": "Stops the swim script",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "punch",
+      "aliases": [
+        "punch"
+      ],
+      "usage": "punch",
+      "args": "",
+      "desc": "punch tool that flings",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "tpua",
+      "aliases": [
+        "tpua",
+        "bringua"
+      ],
+      "usage": "tpua <player>",
+      "args": "<player>",
+      "desc": "Brings every unanchored part on the map to the player",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "blackholefollow",
+      "aliases": [
+        "blackholefollow",
+        "bhf",
+        "bhpull",
+        "bhfollow"
+      ],
+      "usage": "blackholefollow",
+      "args": "",
+      "desc": "Pulls unanchored parts to you with spin",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "noblackholefollow",
+      "aliases": [
+        "noblackholefollow",
+        "nobhf",
+        "nobhpull",
+        "stopbhf"
+      ],
+      "usage": "noblackholefollow",
+      "args": "",
+      "desc": "Stops blackhole follow and clears constraints",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "swordfighter",
+      "aliases": [
+        "swordfighter",
+        "sfighter",
+        "swordf",
+        "swordbot",
+        "sf"
+      ],
+      "usage": "swordfighter (sfighter, swordf, swordbot, sf)",
+      "args": "(sfighter, swordf, swordbot, sf)",
+      "desc": "Activates a sword fighting bot that engages in automated PvP combat",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "touchesp",
+      "aliases": [
+        "touchesp",
+        "tesp"
+      ],
+      "usage": "touchesp",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "untouchesp",
+      "aliases": [
+        "untouchesp",
+        "untesp"
+      ],
+      "usage": "untouchesp",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "proximityesp",
+      "aliases": [
+        "proximityesp",
+        "prxesp",
+        "proxiesp"
+      ],
+      "usage": "proximityesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unproximityesp",
+      "aliases": [
+        "unproximityesp",
+        "unprxesp",
+        "unproxiesp"
+      ],
+      "usage": "unproximityesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "clickesp",
+      "aliases": [
+        "clickesp",
+        "cesp"
+      ],
+      "usage": "clickesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unclickesp",
+      "aliases": [
+        "unclickesp",
+        "uncesp"
+      ],
+      "usage": "unclickesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "sitesp",
+      "aliases": [
+        "sitesp",
+        "ssp"
+      ],
+      "usage": "sitesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unsitesp",
+      "aliases": [
+        "unsitesp",
+        "unssp"
+      ],
+      "usage": "unsitesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "vehiclesitesp",
+      "aliases": [
+        "vehiclesitesp",
+        "vsitesp",
+        "vsp"
+      ],
+      "usage": "vehiclesitesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unvehiclesitesp",
+      "aliases": [
+        "unvehiclesitesp",
+        "unvsitesp",
+        "unvsp"
+      ],
+      "usage": "unvehiclesitesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "pesp",
+      "aliases": [
+        "pesp",
+        "esppart",
+        "partesp"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unpesp",
+      "aliases": [
+        "unpesp",
+        "unesppart",
+        "unpartesp"
+      ],
+      "usage": "unpesp [name|All]",
+      "args": "[name|All]",
+      "desc": "Remove exact-name part ESP by name or All",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "pespfind",
+      "aliases": [
+        "pespfind",
+        "partespfind",
+        "esppartfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unpespfind",
+      "aliases": [
+        "unpespfind",
+        "unpartespfind",
+        "unesppartfind"
+      ],
+      "usage": "unpespfind [name|All]",
+      "args": "[name|All]",
+      "desc": "Remove partial-name part ESP by name or All",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unanchored",
+      "aliases": [
+        "unanchored",
+        "unanchoredesp",
+        "uaesp"
+      ],
+      "usage": "unanchored",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "ununanchored",
+      "aliases": [
+        "ununanchored",
+        "ununanchoredesp",
+        "unuaesp"
+      ],
+      "usage": "ununanchored",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "collisionesp",
+      "aliases": [
+        "collisionesp",
+        "colesp"
+      ],
+      "usage": "collisionesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "uncollisionesp",
+      "aliases": [
+        "uncollisionesp",
+        "uncolesp"
+      ],
+      "usage": "uncollisionesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "nocollisionesp",
+      "aliases": [
+        "nocollisionesp",
+        "ncolesp"
+      ],
+      "usage": "nocollisionesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unnocollisionesp",
+      "aliases": [
+        "unnocollisionesp",
+        "unncolesp"
+      ],
+      "usage": "unnocollisionesp",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "esplocator",
+      "aliases": [
+        "esplocator",
+        "locator",
+        "trackesp"
+      ],
+      "usage": "esplocator",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unesplocator",
+      "aliases": [
+        "unesplocator",
+        "unlocator",
+        "untrackesp"
+      ],
+      "usage": "unesplocator",
+      "args": "",
+      "desc": "",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "folderesp",
+      "aliases": [
+        "folderesp",
+        "fesp"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unfolderesp",
+      "aliases": [
+        "unfolderesp",
+        "unfesp"
+      ],
+      "usage": "unfolderesp [folderName]",
+      "args": "[folderName]",
+      "desc": "Disables folder ESP for a folder or all",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "viewpart",
+      "aliases": [
+        "viewpart",
+        "viewp",
+        "vpart"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unviewpart",
+      "aliases": [
+        "unviewpart",
+        "unviewp"
+      ],
+      "usage": "unviewpart (unviewp)",
+      "args": "(unviewp)",
+      "desc": "Resets the camera to the local humanoid",
+      "category": "Camera & View"
+    },
+    {
+      "name": "viewpartfind",
+      "aliases": [
+        "viewpartfind",
+        "viewpfind",
+        "vpartfind"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unviewpart",
+      "aliases": [
+        "unviewpart",
+        "unviewp"
+      ],
+      "usage": "unviewpart (unviewp)",
+      "args": "(unviewp)",
+      "desc": "Resets the camera to the local humanoid",
+      "category": "Camera & View"
+    },
+    {
+      "name": "console",
+      "aliases": [
+        "console",
+        "debug"
+      ],
+      "usage": "console (debug)",
+      "args": "(debug)",
+      "desc": "Opens developer console",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "oldconsole",
+      "aliases": [
+        "oldconsole",
+        "olddebug"
+      ],
+      "usage": "oldconsole",
+      "args": "",
+      "desc": "opens old version of the developer console",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "hitbox",
+      "aliases": [
+        "hitbox",
+        "hbox"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unhitbox",
+      "aliases": [
+        "unhitbox",
+        "unhbox"
+      ],
+      "usage": "unhitbox <player>",
+      "args": "<player>",
+      "desc": "",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "partsize",
+      "aliases": [
+        "partsize",
+        "psize",
+        "sizepart"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "partsizefind",
+      "aliases": [
+        "partsizefind",
+        "psizefind",
+        "sizefind",
+        "partsizef"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": "",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unpartsize",
+      "aliases": [
+        "unpartsize",
+        "unsizepart",
+        "unpsize"
+      ],
+      "usage": "unpartsize",
+      "args": "",
+      "desc": "Undo partsize\u2014return those parts back to their original size and collision.",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unpartsizefind",
+      "aliases": [
+        "unpartsizefind",
+        "unsizefind",
+        "unpsizefind"
+      ],
+      "usage": "unpartsizefind",
+      "args": "",
+      "desc": "Undo partsizefind\u2014return those resized parts back to their original size and collision.",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "breakcars",
+      "aliases": [
+        "breakcars",
+        "bcars"
+      ],
+      "usage": "breakcars (bcars)",
+      "args": "(bcars)",
+      "desc": "Breaks any car",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "setsimradius",
+      "aliases": [
+        "setsimradius",
+        "ssr",
+        "simrad"
+      ],
+      "usage": "setsimradius <number>",
+      "args": "<number>",
+      "desc": "Set sim radius using available methods. Usage: setsimradius <radius>",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "infjump",
+      "aliases": [
+        "infjump",
+        "infinitejump"
+      ],
+      "usage": "infjump (infinitejump)",
+      "args": "(infinitejump)",
+      "desc": "Enables infinite jumping",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "uninfjump",
+      "aliases": [
+        "uninfjump",
+        "uninfinitejump"
+      ],
+      "usage": "uninfjump (uninfinitejump)",
+      "args": "(uninfinitejump)",
+      "desc": "Disables infinite jumping",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "flyjump",
+      "aliases": [
+        "flyjump"
+      ],
+      "usage": "flyjump",
+      "args": "",
+      "desc": "Allows you to hold space to fly up",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unflyjump",
+      "aliases": [
+        "unflyjump",
+        "noflyjump"
+      ],
+      "usage": "unflyjump (noflyjump)",
+      "args": "(noflyjump)",
+      "desc": "Disables flyjump",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "xray",
+      "aliases": [
+        "xray",
+        "xrayon"
+      ],
+      "usage": "xray (xrayon)",
+      "args": "(xrayon)",
+      "desc": "Enables X-ray vision to see through walls",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unxray",
+      "aliases": [
+        "unxray",
+        "xrayoff"
+      ],
+      "usage": "unxray (xrayoff)",
+      "args": "(xrayoff)",
+      "desc": "Disables X-ray vision",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "fullbright",
+      "aliases": [
+        "fullbright",
+        "fullb",
+        "fb"
+      ],
+      "usage": "fullbright (fullb,fb)",
+      "args": "(fullb,fb)",
+      "desc": "makes dark games bright without destroying effects",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "loopday",
+      "aliases": [
+        "loopday",
+        "lday"
+      ],
+      "usage": "loopday",
+      "args": "",
+      "desc": "Sunshiiiine!",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopday",
+      "aliases": [
+        "unloopday",
+        "unlday"
+      ],
+      "usage": "unloopday",
+      "args": "",
+      "desc": "No more sunshine",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopfullbright",
+      "aliases": [
+        "loopfullbright",
+        "loopfb",
+        "lfb"
+      ],
+      "usage": "loopfullbright",
+      "args": "",
+      "desc": "Sunshiiiine!",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unloopfullbright",
+      "aliases": [
+        "unloopfullbright",
+        "unloopfb",
+        "unlfb"
+      ],
+      "usage": "unloopfullbright",
+      "args": "",
+      "desc": "No more sunshine",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "loopnight",
+      "aliases": [
+        "loopnight",
+        "loopn",
+        "ln"
+      ],
+      "usage": "loopnight",
+      "args": "",
+      "desc": "Moonlight.",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unloopnight",
+      "aliases": [
+        "unloopnight",
+        "unloopn",
+        "unln"
+      ],
+      "usage": "unloopnight",
+      "args": "",
+      "desc": "No more moonlight.",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "loopnoeffect",
+      "aliases": [
+        "loopnoeffect",
+        "lnoeffect",
+        "loopne",
+        "lne"
+      ],
+      "usage": "loopnoeffect",
+      "args": "",
+      "desc": "Keeps Lighting and CurrentCamera effects disabled",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unloopnoeffect",
+      "aliases": [
+        "unloopnoeffect",
+        "unlnoeffect",
+        "unloopne",
+        "unlne"
+      ],
+      "usage": "unloopnoeffect",
+      "args": "",
+      "desc": "Restores Lighting and CurrentCamera effects",
+      "category": "Camera & View"
+    },
+    {
+      "name": "noeffect",
+      "aliases": [
+        "noeffect",
+        "cleareffects",
+        "disableeffects"
+      ],
+      "usage": "noeffect",
+      "args": "",
+      "desc": "Disables Lighting and CurrentCamera effects",
+      "category": "Camera & View"
+    },
+    {
+      "name": "loopnofog",
+      "aliases": [
+        "loopnofog",
+        "lnofog",
+        "lnf",
+        "loopnf"
+      ],
+      "usage": "loopnofog",
+      "args": "",
+      "desc": "See clearly forever!",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unloopnofog",
+      "aliases": [
+        "unloopnofog",
+        "unlnofog",
+        "unlnf",
+        "unloopnf",
+        "unnf"
+      ],
+      "usage": "unloopnofog",
+      "args": "",
+      "desc": "No more sight.",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "nofog",
+      "aliases": [
+        "nofog"
+      ],
+      "usage": "nofog",
+      "args": "",
+      "desc": "Removes all fog from the game",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "nightmare",
+      "aliases": [
+        "nightmare",
+        "nm"
+      ],
+      "usage": "nightmare",
+      "args": "",
+      "desc": "Make it dark and spooky",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unnightmare",
+      "aliases": [
+        "unnightmare",
+        "unnm"
+      ],
+      "usage": "unnightmare (unnm)",
+      "args": "(unnm)",
+      "desc": "Disable nightmare mode",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "brightness",
+      "aliases": [
+        "brightness"
+      ],
+      "usage": "brightness <number>",
+      "args": "<number>",
+      "desc": "Changes the brightness lighting property",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "loopbrightness",
+      "aliases": [
+        "loopbrightness",
+        "loopbri",
+        "loopb"
+      ],
+      "usage": "loopbrightness (loopbri,loopb)",
+      "args": "(loopbri,loopb)",
+      "desc": "Lock the brightness lighting property",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "unloopbrightness",
+      "aliases": [
+        "unloopbrightness",
+        "unloopbri",
+        "unloopb"
+      ],
+      "usage": "unloopbrightness (unloopbri,unloopb)",
+      "args": "(unloopbri,unloopb)",
+      "desc": "Stop locking brightness",
+      "category": "Visuals / ESP / Environment"
+    },
+    {
+      "name": "globalshadows",
+      "aliases": [
+        "globalshadows",
+        "gshadows"
+      ],
+      "usage": "globalshadows",
+      "args": "",
+      "desc": "Enables global shadows",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unglobalshadows",
+      "aliases": [
+        "unglobalshadows",
+        "nogshadows",
+        "ungshadows",
+        "noglobalshadows"
+      ],
+      "usage": "unglobalshadows (nogshadows,ungshadows,noglobalshadows)",
+      "args": "(nogshadows,ungshadows,noglobalshadows)",
+      "desc": "Disables global shadows",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "gamma",
+      "aliases": [
+        "gamma",
+        "exposure"
+      ],
+      "usage": "gamma (exposure)",
+      "args": "(exposure)",
+      "desc": "gamma vision (real)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopgamma",
+      "aliases": [
+        "loopgamma",
+        "loopexposure"
+      ],
+      "usage": "loopgamma (loopexposure)",
+      "args": "(loopexposure)",
+      "desc": "loop gamma vision (mega real)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopgamma",
+      "aliases": [
+        "unloopgamma",
+        "unlgamma",
+        "unloopexposure",
+        "unlexposure"
+      ],
+      "usage": "unloopgamma (unlgamma, unloopexposure, unlexposure)",
+      "args": "(unlgamma, unloopexposure, unlexposure)",
+      "desc": "stop gamma vision (real)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "firstp",
+      "aliases": [
+        "firstp",
+        "1stp",
+        "firstperson",
+        "fp"
+      ],
+      "usage": "firstperson (1stp,firstp,fp)",
+      "args": "(1stp,firstp,fp)",
+      "desc": "Makes you go in first person mode",
+      "category": "Camera & View"
+    },
+    {
+      "name": "thirdp",
+      "aliases": [
+        "thirdp",
+        "3rdp",
+        "thirdperson"
+      ],
+      "usage": "thirdperson (3rdp,thirdp)",
+      "args": "(3rdp,thirdp)",
+      "desc": "Makes you go in third person mode",
+      "category": "Camera & View"
+    },
+    {
+      "name": "maxzoom",
+      "aliases": [
+        "maxzoom"
+      ],
+      "usage": "maxzoom <amount>",
+      "args": "<amount>",
+      "desc": "Set your maximum camera distance",
+      "category": "Camera & View"
+    },
+    {
+      "name": "minzoom",
+      "aliases": [
+        "minzoom"
+      ],
+      "usage": "minzoom <amount>",
+      "args": "<amount>",
+      "desc": "Set your minimum camera distance",
+      "category": "Camera & View"
+    },
+    {
+      "name": "cameranoclip",
+      "aliases": [
+        "cameranoclip",
+        "camnoclip",
+        "cnoclip",
+        "nccam"
+      ],
+      "usage": "cameranoclip (camnoclip,cnoclip,nccam)",
+      "args": "(camnoclip,cnoclip,nccam)",
+      "desc": "Makes your camera clip through walls",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "uncameranoclip",
+      "aliases": [
+        "uncameranoclip",
+        "uncamnoclip",
+        "uncnoclip",
+        "unnccam"
+      ],
+      "usage": "uncameranoclip (uncamnoclip,uncnoclip,unnccam)",
+      "args": "(uncamnoclip,uncnoclip,unnccam)",
+      "desc": "Restores normal camera",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "oganims",
+      "aliases": [
+        "oganims"
+      ],
+      "usage": "oganims",
+      "args": "",
+      "desc": "Old animations from 2007",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fakechat",
+      "aliases": [
+        "fakechat"
+      ],
+      "usage": "fakechat",
+      "args": "",
+      "desc": "Fake a chat gui",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fpscap",
+      "aliases": [
+        "fpscap"
+      ],
+      "usage": "fpscap <number>",
+      "args": "<number>",
+      "desc": "Sets the fps cap to whatever you want",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "toolinvisible",
+      "aliases": [
+        "toolinvisible",
+        "tinvis"
+      ],
+      "usage": "toolinvisible (tinvis)",
+      "args": "(tinvis)",
+      "desc": "Be invisible while still being able to use tools",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "invisible",
+      "aliases": [
+        "invisible",
+        "invis"
+      ],
+      "usage": "invisible (invis)",
+      "args": "(invis)",
+      "desc": "Sets invisibility to scare people or something",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "visible",
+      "aliases": [
+        "visible",
+        "vis"
+      ],
+      "usage": "visible",
+      "args": "",
+      "desc": "turn visible",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "invisbind",
+      "aliases": [
+        "invisbind",
+        "invisiblebind",
+        "bindinvis"
+      ],
+      "usage": "invisbind (invisiblebind, bindinvis)",
+      "args": "(invisiblebind, bindinvis)",
+      "desc": "set a custom keybind for the 'Invisible' command",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fireremotes",
+      "aliases": [
+        "fireremotes",
+        "fremotes",
+        "frem"
+      ],
+      "usage": "fireremotes (fremotes, frem)",
+      "args": "(fremotes, frem)",
+      "desc": "Fires every remote with arguments",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "keepna",
+      "aliases": [
+        "keepna"
+      ],
+      "usage": "keepna",
+      "args": "",
+      "desc": "keep executing ",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unkeepna",
+      "aliases": [
+        "unkeepna"
+      ],
+      "usage": "unkeepna",
+      "args": "",
+      "desc": "Stop executing ",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fov",
+      "aliases": [
+        "fov"
+      ],
+      "usage": "fov <number>",
+      "args": "<number>",
+      "desc": "Sets your FOV to a custom value (1\u2013300)",
+      "category": "Camera & View"
+    },
+    {
+      "name": "loopfov",
+      "aliases": [
+        "loopfov",
+        "lfov"
+      ],
+      "usage": "loopfov <number> (lfov)",
+      "args": "<number> (lfov)",
+      "desc": "Locks your FOV target (1\u2013300)",
+      "category": "Camera & View"
+    },
+    {
+      "name": "unloopfov",
+      "aliases": [
+        "unloopfov",
+        "unlfov"
+      ],
+      "usage": "unloopfov (unlfov)",
+      "args": "(unlfov)",
+      "desc": "Stops FOV loop",
+      "category": "Camera & View"
+    },
+    {
+      "name": "homebrew",
+      "aliases": [
+        "homebrew"
+      ],
+      "usage": "homebrew",
+      "args": "",
+      "desc": "Executes homebrew admin",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "fatesadmin",
+      "aliases": [
+        "fatesadmin"
+      ],
+      "usage": "fatesadmin",
+      "args": "",
+      "desc": "Executes fates admin",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "savetools",
+      "aliases": [
+        "savetools",
+        "stools"
+      ],
+      "usage": "savetools (stools)",
+      "args": "(stools)",
+      "desc": "Saves your tools to memory",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loadtools",
+      "aliases": [
+        "loadtools",
+        "ltools"
+      ],
+      "usage": "loadtools (ltools)",
+      "args": "(ltools)",
+      "desc": "Restores your saved tools to your backpack",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "preventtools",
+      "aliases": [
+        "preventtools",
+        "noequip",
+        "antiequip"
+      ],
+      "usage": "preventtools (noequip,antiequip)",
+      "args": "(noequip,antiequip)",
+      "desc": "Prevents any item from being equipped",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unpreventtools",
+      "aliases": [
+        "unpreventtools",
+        "unnoequip",
+        "unantiequip"
+      ],
+      "usage": "unpreventtools (unnoequip,unantiequip)",
+      "args": "(unnoequip,unantiequip)",
+      "desc": "Self-explanatory",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "ws",
+      "aliases": [
+        "ws",
+        "speed",
+        "walkspeed"
+      ],
+      "usage": "walkspeed <number> (speed,ws)",
+      "args": "<number> (speed,ws)",
+      "desc": "Sets your WalkSpeed",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "jp",
+      "aliases": [
+        "jp",
+        "jumppower"
+      ],
+      "usage": "jumppower <number> (jp)",
+      "args": "<number> (jp)",
+      "desc": "Sets your JumpPower",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "blockremote",
+      "aliases": [
+        "blockremote",
+        "br"
+      ],
+      "usage": "blockremote [name]",
+      "args": "[name]",
+      "desc": "Block a remote event/function by name (or pick from list)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unblockremote",
+      "aliases": [
+        "unblockremote",
+        "ubr"
+      ],
+      "usage": "unblockremote [name|all]",
+      "args": "[name|all]",
+      "desc": "Unblock a remote by name, or pick from blocked list",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "bypassspeed",
+      "aliases": [
+        "bypassspeed",
+        "bps",
+        "bypasswalkspeed",
+        "bpws"
+      ],
+      "usage": "bypassspeed <number> (bps,bpws)",
+      "args": "<number> (bps,bpws)",
+      "desc": "Set WalkSpeed (bypass variant)",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "loopbypassspeed",
+      "aliases": [
+        "loopbypassspeed",
+        "lbps",
+        "loopbypasswalkspeed",
+        "lbws"
+      ],
+      "usage": "loopbypassspeed <number|off> (lbps,lbws)",
+      "args": "<number|off> (lbps,lbws)",
+      "desc": "Loop WalkSpeed (bypass variant)",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unloopbypassspeed",
+      "aliases": [
+        "unloopbypassspeed",
+        "unlbps",
+        "unloopbypasswalkspeed",
+        "unlbws"
+      ],
+      "usage": "unloopbypassspeed (unlbps,unlbws)",
+      "args": "(unlbps,unlbws)",
+      "desc": "Disable loop WalkSpeed (bypass variant)",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "oofspam",
+      "aliases": [
+        "oofspam"
+      ],
+      "usage": "oofspam",
+      "args": "",
+      "desc": "Spams oof",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "httpspy",
+      "aliases": [
+        "httpspy"
+      ],
+      "usage": "httpspy",
+      "args": "",
+      "desc": "HTTP Spy",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "keystroke",
+      "aliases": [
+        "keystroke"
+      ],
+      "usage": "keystroke",
+      "args": "",
+      "desc": "Executes a keystroke ui script",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "errorchat",
+      "aliases": [
+        "errorchat"
+      ],
+      "usage": "errorchat",
+      "args": "",
+      "desc": "Makes the chat error appear when roblox chat is slow",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "clearerror",
+      "aliases": [
+        "clearerror",
+        "noerror"
+      ],
+      "usage": "clearerror",
+      "args": "",
+      "desc": "Clears any current error or disconnected UI immediately",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "antierror",
+      "aliases": [
+        "antierror"
+      ],
+      "usage": "antierror",
+      "args": "",
+      "desc": "Continuously blocks and clears any future error or disconnected UI",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unantierror",
+      "aliases": [
+        "unantierror",
+        "noantierror"
+      ],
+      "usage": "unantierror",
+      "args": "",
+      "desc": "Disables Anti Error",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "boobs",
+      "aliases": [
+        "boobs",
+        "boobies"
+      ],
+      "usage": "boobs <size> (boobies)",
+      "args": "<size> (boobies)",
+      "desc": "Boobs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unboobs",
+      "aliases": [
+        "unboobs",
+        "unboobies",
+        "noboobs",
+        "noboobies"
+      ],
+      "usage": "unboobs (unboobies,noboobs,noboobies)",
+      "args": "(unboobies,noboobs,noboobies)",
+      "desc": "Boobs",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "ass",
+      "aliases": [
+        "ass",
+        "booty"
+      ],
+      "usage": "ass <size> (booty)",
+      "args": "<size> (booty)",
+      "desc": "Ass",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unass",
+      "aliases": [
+        "unass",
+        "noass"
+      ],
+      "usage": "unass (noass)",
+      "args": "(noass)",
+      "desc": "Ass",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "penis",
+      "aliases": [
+        "penis",
+        "pp"
+      ],
+      "usage": "penis <length> (pp)",
+      "args": "<length> (pp)",
+      "desc": "penis",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unpenis",
+      "aliases": [
+        "unpenis",
+        "unpp",
+        "nopenis",
+        "nopp"
+      ],
+      "usage": "unpenis (unpp,nopenis,nopp)",
+      "args": "(unpp,nopenis,nopp)",
+      "desc": "penis",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "flingnpcs",
+      "aliases": [
+        "flingnpcs"
+      ],
+      "usage": "flingnpcs",
+      "args": "",
+      "desc": "Flings NPCs",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "npcfollow",
+      "aliases": [
+        "npcfollow"
+      ],
+      "usage": "npcfollow",
+      "args": "",
+      "desc": "Makes NPCS follow you",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "loopnpcfollow",
+      "aliases": [
+        "loopnpcfollow"
+      ],
+      "usage": "loopnpcfollow",
+      "args": "",
+      "desc": "Makes NPCS follow you in a loop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unloopnpcfollow",
+      "aliases": [
+        "unloopnpcfollow"
+      ],
+      "usage": "unloopnpcfollow",
+      "args": "",
+      "desc": "Makes NPCS not follow you in a loop",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "sitnpcs",
+      "aliases": [
+        "sitnpcs"
+      ],
+      "usage": "sitnpcs",
+      "args": "",
+      "desc": "Makes NPCS sit",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unsitnpcs",
+      "aliases": [
+        "unsitnpcs"
+      ],
+      "usage": "unsitnpcs",
+      "args": "",
+      "desc": "Makes NPCS unsit",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "killnpcs",
+      "aliases": [
+        "killnpcs"
+      ],
+      "usage": "killnpcs",
+      "args": "",
+      "desc": "Kills NPCs",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "npcwalkspeed",
+      "aliases": [
+        "npcwalkspeed",
+        "npcws"
+      ],
+      "usage": "npcwalkspeed <speed>",
+      "args": "<speed>",
+      "desc": "Sets all NPC WalkSpeed to <speed> (default 16)",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "npcjumppower",
+      "aliases": [
+        "npcjumppower",
+        "npcjp"
+      ],
+      "usage": "npcjumppower <power>",
+      "args": "<power>",
+      "desc": "Sets all NPC JumpPower to <power> (default 50)",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "bringnpcs",
+      "aliases": [
+        "bringnpcs"
+      ],
+      "usage": "bringnpcs",
+      "args": "",
+      "desc": "Brings NPCs",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "loopbringnpcs",
+      "aliases": [
+        "loopbringnpcs",
+        "lbnpcs"
+      ],
+      "usage": "loopbringnpcs (lbnpcs)",
+      "args": "(lbnpcs)",
+      "desc": "Loops NPC bringing",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unloopbringnpcs",
+      "aliases": [
+        "unloopbringnpcs",
+        "unlbnpcs"
+      ],
+      "usage": "unloopbringnpcs (unlbnpcs)",
+      "args": "(unlbnpcs)",
+      "desc": "Stops NPC bring loop",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "gotonpcs",
+      "aliases": [
+        "gotonpcs"
+      ],
+      "usage": "gotonpcs",
+      "args": "",
+      "desc": "Teleports to each NPC",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "actnpc",
+      "aliases": [
+        "actnpc"
+      ],
+      "usage": "actnpc",
+      "args": "",
+      "desc": "Start acting like an NPC",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unactnpc",
+      "aliases": [
+        "unactnpc",
+        "stopnpc"
+      ],
+      "usage": "unactnpc (stopnpc)",
+      "args": "(stopnpc)",
+      "desc": "Stop acting like an NPC",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "clickkillnpc",
+      "aliases": [
+        "clickkillnpc",
+        "cknpc"
+      ],
+      "usage": "clickkillnpc (cknpc)",
+      "args": "(cknpc)",
+      "desc": "Click on an NPC to kill it",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "unclickkillnpc",
+      "aliases": [
+        "unclickkillnpc",
+        "uncknpc"
+      ],
+      "usage": "unclickkillnpc (uncknpc)",
+      "args": "(uncknpc)",
+      "desc": "Disable clickkillnpc",
+      "category": "Trolling / Fun"
+    },
+    {
+      "name": "voidnpcs",
+      "aliases": [
+        "voidnpcs",
+        "vnpcs"
+      ],
+      "usage": "voidnpcs (vnpcs)",
+      "args": "(vnpcs)",
+      "desc": "Teleports NPC's to void",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "clickvoidnpc",
+      "aliases": [
+        "clickvoidnpc",
+        "cvnpc"
+      ],
+      "usage": "clickvoidnpc (cvnpc)",
+      "args": "(cvnpc)",
+      "desc": "Click to void NPCs",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "unclickvoidnpc",
+      "aliases": [
+        "unclickvoidnpc",
+        "uncvnpc"
+      ],
+      "usage": "unclickvoidnpc (uncvnpc)",
+      "args": "(uncvnpc)",
+      "desc": "Disable click-void",
+      "category": "Teleport & Tools"
+    },
+    {
+      "name": "clicknpcws",
+      "aliases": [
+        "clicknpcws",
+        "cnpcws"
+      ],
+      "usage": "clicknpcws",
+      "args": "",
+      "desc": "Click on an NPC to set its WalkSpeed",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unclicknpcws",
+      "aliases": [
+        "unclicknpcws",
+        "uncnpcws"
+      ],
+      "usage": "unclicknpcws",
+      "args": "",
+      "desc": "Disable clicknpcws",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "clicknpcjp",
+      "aliases": [
+        "clicknpcjp",
+        "cnpcjp"
+      ],
+      "usage": "clicknpcjp",
+      "args": "",
+      "desc": "Click on an NPC to set its JumpPower",
+      "category": "Movement & Physics"
+    },
+    {
+      "name": "unclicknpcjp",
+      "aliases": [
+        "unclicknpcjp",
+        "uncnpcjp"
+      ],
+      "usage": "unclicknpcjp",
+      "args": "",
+      "desc": "Disable clicknpcjp",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "rename",
+      "aliases": [
+        "rename"
+      ],
+      "usage": "rename <text>",
+      "args": "<text>",
+      "desc": "Renames the admin UI placeholder to the given name",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "unname",
+      "aliases": [
+        "unname"
+      ],
+      "usage": "unname",
+      "args": "",
+      "desc": "Resets the admin UI placeholder name to default",
+      "category": "Server & Utility"
+    }
+  ],
+  "patched_commands": [
+    {
+      "name": "breaklayeredclothing",
+      "aliases": [
+        "breaklayeredclothing",
+        "blc"
+      ],
+      "usage": "breaklayeredclothing (blc)",
+      "args": "(blc)",
+      "desc": "Streches your layered clothing",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "desync",
+      "aliases": [
+        "desync",
+        "ngrep"
+      ],
+      "usage": "desync (ngrep)",
+      "args": "(ngrep)",
+      "desc": "Toggle NextGenReplicator desync / sync (run again to disable)",
+      "category": "Server & Utility"
+    },
+    {
+      "name": "reserveserver",
+      "aliases": [
+        "reserveserver",
+        "privateserver",
+        "ps",
+        "rs"
+      ],
+      "usage": "reserveserver [code]",
+      "args": "[code]",
+      "desc": "Teleports to a reserved server or creates one if code is missing",
+      "category": "Teleport & Tools"
+    }
+  ]
+}
