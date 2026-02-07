@@ -1,0 +1,9 @@
+cmdPluginAdd = {
+    Aliases = {"hello", "hi"},
+    ArgsHint = "<name>",
+    Info = "Say hi",
+    Function = function(name)
+        DoNotif("Hello " .. tostring(name))
+    end,
+    RequiresArguments = true
+}

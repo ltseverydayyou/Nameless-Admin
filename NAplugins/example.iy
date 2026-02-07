@@ -1,0 +1,17 @@
+local Plugin = {
+    PluginName = "ExamplePlugin",
+    PluginDescription = "Shows how .iy maps to NA commands",
+    Commands = {
+        hello = {
+            ListName = "hello/greet",
+            Description = "Say hello",
+            Aliases = {"hi"},
+            Function = function(args, speaker)
+                local name = args[1] or "world"
+                DoNotif("Hello " .. tostring(name))
+            end,
+        },
+    },
+}
+
+return Plugin
