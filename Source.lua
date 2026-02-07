@@ -2949,7 +2949,7 @@ NAmanage.newCornerStore=function()
 	return {}
 end
 
-NAmanage.initCornerEditor=function(coreGui, HUI)
+NAmanage.initUIEditors=function(coreGui, HUI)
 	if not (coreGui and NAgui) then
 		return
 	end
@@ -56215,7 +56215,8 @@ SpawnCall(function()
 		Spawn(function()
 			batchedScan(CoreGui, hookFriendLabel, 100, 0.004)
 		end)
-		CoreGui.DescendantAdded:Connect(function(o)
+		NAlib.disconnect("NA_FriendLabel_CoreGui")
+		NAlib.connect("NA_FriendLabel_CoreGui", CoreGui.DescendantAdded:Connect(function(o)
 			if HUI and o:IsDescendantOf(HUI) then return end
 			Defer(function()
 				hookFriendLabel(o)
@@ -56223,32 +56224,35 @@ SpawnCall(function()
 					hookFriendLabel(c)
 				end
 			end)
-		end)
+		end))
 	end
 
 	if PlrGui then
 		Spawn(function()
 			batchedScan(PlrGui, hookFriendLabel, 100, 0.004)
 		end)
-		PlrGui.DescendantAdded:Connect(function(o)
+		NAlib.disconnect("NA_FriendLabel_PlayerGui")
+		NAlib.connect("NA_FriendLabel_PlayerGui", PlrGui.DescendantAdded:Connect(function(o)
 			if HUI and o:IsDescendantOf(HUI) then return end
 			Defer(function()
 				hookFriendLabel(o)
 			end)
-		end)
+		end))
 	end
 
 	Spawn(function()
 		batchedScan(workspace, registerInteract, 200, 0.006)
 	end)
 
-	workspace.DescendantAdded:Connect(function(inst)
+	NAlib.disconnect("NA_InteractAdded")
+	NAlib.connect("NA_InteractAdded", workspace.DescendantAdded:Connect(function(inst)
 		Defer(function()
 			registerInteract(inst)
 		end)
-	end)
+	end))
 
-	workspace.DescendantRemoving:Connect(function(inst)
+	NAlib.disconnect("NA_InteractRemoved")
+	NAlib.connect("NA_InteractRemoved", workspace.DescendantRemoving:Connect(function(inst)
 		Defer(function()
 			if inst:IsA("ClickDetector") then
 				local i = Discover(interactTbl.click, inst)
@@ -56267,7 +56271,7 @@ SpawnCall(function()
 				end
 			end
 		end)
-	end)
+	end))
 end)
 
 SpawnCall(function()
@@ -56364,61 +56368,97 @@ SpawnCall(function()
 	NAmanage.startWatcher()
 end)
 
-mouse.Move:Connect(function()
-	local viewportSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+do
+	NAStuff.dTick = NAStuff.dTick or 0
+	NAlib.disconnect("NA_MouseDesc")
+	if mouse and NAUIMANAGER and NAUIMANAGER.description then
+		local desc = NAUIMANAGER.description
+		NAlib.connect("NA_MouseDesc", mouse.Move:Connect(function()
+			local cam = workspace.CurrentCamera
+			if not cam then
+				return
+			end
+			local v = cam.ViewportSize
+			if v.X <= 0 or v.Y <= 0 then
+				return
+			end
+			local xS = mouse.X / v.X
+			local yS = mouse.Y / v.Y
+			desc.Position = UDim2.new(xS, 0, yS, 0)
+			local now = os.clock()
+			if now - NAStuff.dTick > 0.05 then
+				NAStuff.dTick = now
+				local sz = NAgui.txtSize(desc, 200, 100)
+				desc.Size = UDim2.new(0, sz.X, 0, sz.Y)
+			end
+		end))
+	end
+end
 
-	local xScale = mouse.X / viewportSize.X
-	local yScale = mouse.Y / viewportSize.Y
+do
+	NAStuff.pfTick = NAStuff.pfTick or 0
+	NAlib.disconnect("NA_RenderStepMain")
+	NAlib.connect("NA_RenderStepMain", RunService.RenderStepped:Connect(function(dt)
+		if NAUIMANAGER then
+			local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
+			if NAUIMANAGER.chatLogs then
+				updateCanvasSize(NAUIMANAGER.chatLogs, s)
+			end
+			if NAUIMANAGER.NAconsoleLogs then
+				updateCanvasSize(NAUIMANAGER.NAconsoleLogs, s)
+			end
+			if NAUIMANAGER.commandsList then
+				updateCanvasSize(NAUIMANAGER.commandsList, s)
+			end
+			if NAUIMANAGER.SettingsList then
+				updateCanvasSize(NAUIMANAGER.SettingsList, s)
+			end
+			if NAUIMANAGER.WaypointList then
+				updateCanvasSize(NAUIMANAGER.WaypointList, s)
+			end
+			if NAUIMANAGER.BindersList then
+				updateCanvasSize(NAUIMANAGER.BindersList, s)
+			end
+		end
 
-	NAUIMANAGER.description.Position = UDim2.new(xScale, 0, yScale, 0)
+		NAStuff.pfTick = NAStuff.pfTick + (dt or 0)
+		if NAStuff.pfTick < 0.25 then
+			return
+		end
+		NAStuff.pfTick = 0
 
-	local newSize = NAgui.txtSize(NAUIMANAGER.description, 200, 100)
-	NAUIMANAGER.description.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
-end)
+		local p = opt.prefix
+		local function isInvalid(prefix)
+			return not prefix
+				or utf8.len(prefix) ~= 1
+				or prefix:match("[%w]")
+				or prefix:match("[%[%]%(%)%*%^%$%%{}<>]")
+				or prefix:match("&amp;")
+				or prefix:match("&lt;")
+				or prefix:match("&gt;")
+				or prefix:match("&quot;")
+				or prefix:match("&#x27;")
+				or prefix:match("&#x60;")
+		end
 
-RunService.RenderStepped:Connect(function()
-	if NAUIMANAGER.chatLogs then
-		updateCanvasSize(NAUIMANAGER.chatLogs, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-	if NAUIMANAGER.NAconsoleLogs then
-		updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-	if NAUIMANAGER.commandsList then
-		updateCanvasSize(NAUIMANAGER.commandsList, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-	if NAUIMANAGER.SettingsList then
-		updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-	if NAUIMANAGER.WaypointList then
-		updateCanvasSize(NAUIMANAGER.WaypointList, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-	if NAUIMANAGER.BindersList then
-		updateCanvasSize(NAUIMANAGER.BindersList, NAUIMANAGER.AUTOSCALER.Scale);
-	end;
-end);
-
-RunService.RenderStepped:Connect(function()
-	local p = opt.prefix;
-	local function isInvalid(prefix)
-		return not prefix or utf8.len(prefix) ~= 1 or prefix:match("[%w]") or prefix:match("[%[%]%(%)%*%^%$%%{}<>]") or prefix:match("&amp;") or prefix:match("&lt;") or prefix:match("&gt;") or prefix:match("&quot;") or prefix:match("&#x27;") or prefix:match("&#x60;");
-	end;
-	if isInvalid(p) then
-		if opt.prefix ~= ";" then
-			opt.prefix = ";";
-			DoNotif("Invalid prefix detected. Resetting to default ';'");
-			lastPrefix = ";";
-			if NAmanage.SyncPrefixUI then
-				NAmanage.SyncPrefixUI();
-			end;
-			local storedPrefix = NAmanage.NASettingsGet("prefix");
-			if isInvalid(storedPrefix) then
-				NAmanage.NASettingsSet("prefix", ";");
-			end;
-		end;
-	else
-		lastPrefix = p;
-	end;
-end);
+		if isInvalid(p) then
+			if opt.prefix ~= ";" then
+				opt.prefix = ";"
+				DoNotif("Invalid prefix detected. Resetting to default ';'")
+				lastPrefix = ";"
+				if NAmanage.SyncPrefixUI then
+					NAmanage.SyncPrefixUI()
+				end
+				local storedPrefix = NAmanage.NASettingsGet("prefix")
+				if isInvalid(storedPrefix) then
+					NAmanage.NASettingsSet("prefix", ";")
+				end
+			end
+		else
+			lastPrefix = p
+		end
+	end))
+end
 
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
 
@@ -61539,7 +61579,7 @@ if CoreGui then
 		end
 	end)
 
-	NAmanage.initCornerEditor(CoreGui, HUI)
+	NAmanage.initUIEditors(CoreGui, HUI)
 
 	if previousTab and previousTab ~= NA_TABS.TAB_INTERFACE then
 		if NAgui.getActiveTab() == NA_TABS.TAB_INTERFACE then
