@@ -19818,12 +19818,6 @@ cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts AP
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
 end)
 
-cmd.addPatched({"resizechat","rc"},{"resizechat (rc)","Makes chat resizable and draggable"},function()
-	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowResizable=true
-	require(SafeGetService("Chat").ClientChatModules.ChatSettings).WindowDraggable=true
-end)
-
-
 local scaleFrame = nil
 cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
 	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
