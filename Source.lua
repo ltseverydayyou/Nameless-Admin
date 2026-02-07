@@ -8089,50 +8089,95 @@ end
 --[[ Version ]]--
 local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAStuff.NAjson and " V"..NAStuff.NAjson.ver or ""
 
-function getSeasonEmoji()
+NAmanage.isBetween=function(month, day, sm, sd, em, ed)
+	if sm < em or (sm == em and sd <= ed) then
+		if month < sm or month > em then return false end
+		if month == sm and day < sd then return false end
+		if month == em and day > ed then return false end
+		return true
+	else
+		return NAmanage.isBetween(month, day, sm, sd, 12, 31) or NAmanage.isBetween(month, day, 1, 1, em, ed)
+	end
+end
+
+NAmanage.getSeasonEmoji=function()
 	local date = os.date("*t")
 	local month = date.month
 	local day = date.day
 
 	if month == 1 and day == 1 then
-		return '🎉' -- New Year's Day
+		return "🎉" -- New Year's Day
 	elseif month == 2 and day == 14 then
-		return '❤️' -- Valentine's Day
+		return "❤️" -- Valentine's Day
 	elseif month == 2 and day >= 1 and day <= 21 then
-		return '🧧' -- Chinese New Year (approximate)
+		return "🧧" -- Chinese New Year (approx)
 	elseif month == 3 and day == 17 then
-		return '☘️' -- St. Patrick's Day
+		return "☘️" -- St. Patrick's Day
 	elseif month == 4 and day >= 1 and day <= 15 then
-		return '🥚' -- Easter (approximate)
+		return "🥚" -- Easter (approx)
+	elseif month == 4 and day == 22 then
+		return "🌍" -- Earth Day
 	elseif month == 5 and day >= 8 and day <= 14 then
-		return '💐' -- Mother's Day (approximate second Sunday)
+		return "💐" -- Mother's Day (approx)
 	elseif month == 6 and day >= 15 and day <= 21 then
-		return '👔' -- Father's Day (approximate third Sunday)
+		return "👔" -- Father's Day (approx)
 	elseif month == 6 and day == 21 then
-		return '☀️' -- Summer Solstice
+		return "☀️" -- Summer Solstice
+	elseif month == 7 and day == 4 then
+		return "🎇" -- Independence Day (US)
 	elseif month == 9 and day == 22 then
-		return '🍂' -- Autumn Equinox
+		return "🍂" -- Autumn Equinox
 	elseif month == 10 and day == 31 then
-		return '🎃' -- Halloween
+		return "🎃" -- Halloween
 	elseif month == 11 and day >= 22 and day <= 28 then
-		return '🦃' -- Thanksgiving (approximate fourth Thursday)
+		return "🦃" -- Thanksgiving (approx)
 	elseif month == 12 and day == 25 then
-		return '🎄' -- Christmas
+		return "🎄" -- Christmas
 	elseif month == 12 and day == 31 then
-		return '🎆' -- New Year's Eve
+		return "🎆" -- New Year's Eve
 	end
 
-	if month == 12 or month <= 2 then
-		return '❄️' -- Winter
-	elseif month >= 3 and month <= 5 then
-		return '🌸' -- Spring
-	elseif month >= 6 and month <= 8 then
-		return '☀️' -- Summer
-	elseif month >= 9 and month <= 11 then
-		return '🍂' -- Autumn
+	if NAmanage.isBetween(month, day, 12, 1, 12, 31) or NAmanage.isBetween(month, day, 1, 1, 2, 28) then
+		if NAmanage.isBetween(month, day, 12, 1, 12, 20) then
+			return "🌨️" -- Early Winter
+		elseif NAmanage.isBetween(month, day, 12, 21, 1, 31) then
+			return "❄️" -- Deep Winter
+		else
+			return "🌬️" -- Late Winter
+		end
 	end
 
-	return ''
+	if NAmanage.isBetween(month, day, 3, 1, 5, 31) then
+		if NAmanage.isBetween(month, day, 3, 1, 3, 31) then
+			return "🌱" -- Early Spring
+		elseif NAmanage.isBetween(month, day, 4, 1, 4, 30) then
+			return "🌸" -- Peak Spring
+		else
+			return "🌼" -- Late Spring
+		end
+	end
+
+	if NAmanage.isBetween(month, day, 6, 1, 8, 31) then
+		if NAmanage.isBetween(month, day, 6, 1, 6, 20) then
+			return "😎" -- Early Summer
+		elseif NAmanage.isBetween(month, day, 6, 21, 7, 31) then
+			return "☀️" -- Peak Summer
+		else
+			return "🏖️" -- Late Summer
+		end
+	end
+
+	if NAmanage.isBetween(month, day, 9, 1, 11, 30) then
+		if NAmanage.isBetween(month, day, 9, 1, 9, 30) then
+			return "🍃" -- Early Autumn
+		elseif NAmanage.isBetween(month, day, 10, 1, 10, 31) then
+			return "🍂" -- Peak Autumn
+		else
+			return "🕯️" -- Late Autumn
+		end
+	end
+
+	return ""
 end
 
 -- for solara/xeno
@@ -49951,7 +49996,7 @@ end, true)
 cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function()
 	adminName = _na_env.NATestingVer and "NA Testing" or "Nameless Admin"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
-		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
+		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
 	end
 	if NAmanage.UpdateAdminInfoTabDisplayName then
 		NAmanage.UpdateAdminInfoTabDisplayName()
@@ -56389,7 +56434,7 @@ TextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
 TextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
 TextLabel.Size = UDim2.new(0, 0, 0, 0)
 TextLabel.Font = Enum.Font.FredokaOne
-TextLabel.Text = getSeasonEmoji().." "..adminName..curVer.." "..getSeasonEmoji()
+TextLabel.Text = NAmanage.getSeasonEmoji().." "..adminName..curVer.." "..NAmanage.getSeasonEmoji()
 TextLabel.TextColor3 = Color3.fromRGB(241, 241, 241)
 TextLabel.TextSize = 22
 TextLabel.TextWrapped = true
@@ -57016,7 +57061,7 @@ SpawnCall(function()
 		end
 	end)
 	NAUIMANAGER.cmdInput.ZIndex = 10
-	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or getSeasonEmoji()..' '..adminName..curVer..' '..getSeasonEmoji()
+	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
 	NAmanage.startAprilPranks()
 end)
 
