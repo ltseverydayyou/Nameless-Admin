@@ -56,7 +56,8 @@ CMDAUTOFILL={}
 
 local NAmanage={}
 
-NAjobs = NAjobs or {}
+NAindex = {}
+NAjobs = {}
 NAjobs.jobs = NAjobs.jobs or {}
 NAjobs._touchState = NAjobs._touchState or {}
 NAjobs._frame = NAjobs._frame or 0
@@ -102,6 +103,220 @@ local NA_TABS = {
 	TAB_ADMIN_INFO = "Admin Info";
 }
 
+local NAStuff = {
+	CmdBar2 = (NAStuff and NAStuff.CmdBar2) or {
+		defaultWidth = 340;
+		defaultHeight = 78;
+		minWidth = 200;
+		maxWidth = 500;
+		minHeight = 70;
+		maxHeight = 160;
+		topHeight = 26;
+		bodyOffsetY = 34;
+		bodyBottomPadding = 8;
+		bodyMinHeight = 24;
+	};
+	NAICONMAIN = nil;
+	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
+	NAjson = nil;
+	nuhuhNotifs = true;
+	dmNotificationsEnabled = true;
+	KeybindConnection = nil;
+	ForceAdminRainbow = true;
+	AutoExecEnabled = true;
+	UserButtonsAutoLoad = true;
+	FriendRequestAutoDismiss = false;
+	CmdBar2AutoRun = false;
+	CmdIntegrationAutoRun = false;
+	CmdIntegrationLoaded = false;
+	CmdIntegrationLastSource = nil;
+	tweenSpeed = 1;
+	FreecamSpeed = 5;
+	MobileCamSensitivity = 1;
+	MobileCamSensEnabled = false;
+	originalDesc = nil;
+	currentDesc = nil;
+	AutoChar = nil;
+	BlockedRemotes = {};
+	touchESPList = {};
+	proximityESPList = {};
+	clickESPList = {};
+	siteESPList = {};
+	vehicleSiteESPList = {};
+	unanchoredESPList = {};
+	collisiontrueESPList = {};
+	collisionfalseESPList = {};
+	espTriggers = {};
+	espNameLists = { exact = {}, partial = {} };
+	espNameTriggers = {};
+	nameESPPartLists = { exact = {}, partial = {} };
+	ESP_RenderMode = "BoxHandleAdornment";
+	ESP_LabelTextSize = 12;
+	ESP_LabelTextScaled = false;
+	ESP_LabelStrokeTransparency = 0.5;
+	ESP_UseCustomColor = false;
+	ESP_CustomColor = Color3.new(1, 1, 1);
+	ESP_OutlineTransparency = 0;
+	ESP_ShowPartDistance = false;
+	ESP_LocatorEnabled = false;
+	ESP_LocatorSize = 26;
+	ESP_LocatorShowText = false;
+	ESP_LocatorTextSize = 14;
+	ESP_LastExactPart = "";
+	ESP_LastPartialPart = "";
+	ESP_LastFolderName = "";
+	ESP_LocatorGui = nil;
+	ESP_LocatorArrows = {};
+	ESP_ModelList = {};
+	ESP_ModelIndex = 1;
+	ESP_MaxPerStep = 32;
+	ESP_FolderMode = "parts";
+	NPC_ESP_MaxDist = 400;
+	NPC_ESP_MaxCount = 200;
+	NPC_ESP_ShowLabels = true;
+	NPC_ESP_LabelMaxDistance = 600;
+	partESPColors = setmetatable({}, { __mode = "k" });
+	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
+	partESPGlassCount = setmetatable({}, { __mode = "k" });
+	partESPEntries = setmetatable({}, { __mode = "k" });
+	partESPVisualMap = setmetatable({}, { __mode = "k" });
+	nameESPExclusions = { exact = {}, partial = {} };
+	TopbarGlassTransparency = 0.12;
+	TopbarStrokeTransparency = 0.15;
+	SideSwipeWidth = 80;
+	SideSwipeHandleTransparency = 0.72;
+	Integrations = {
+		webhook = {
+			url = "";
+			urls = { main = "" };
+			enableJoinLeave = false;
+			enableChat = false;
+			enableCommands = false;
+			minInterval = 2;
+			lastSent = 0;
+		};
+		health = {
+			endpoints = {};
+		};
+		notes = {
+			last = "";
+		};
+		rpc = {
+			useCustom = false;
+			details = "";
+			state = "";
+		};
+	};
+	NIL_SENTINEL = {};
+	RemoteBlockMode = "fakeok";
+	RemoteFakeReturn = true;
+	BlockedEventSaved = {};
+	BlockedInvokeSaved = {};
+	BlockedRemoteModes = {};
+	BlockedRemoteReturns = {};
+	BlockedSignals = {};
+	RemoteFakeReturn = true;
+	AntiKickMode = "fakeok";
+	AntiKickHooked = false;
+	AntiKickOrig = {namecall=nil,index=nil,newindex=nil,kicks={}};
+	AntiTeleportMode = "fakeok";
+	AntiTeleportHooked = false;
+	AntiTeleportOrig = {namecall=nil,index=nil,newindex=nil,funcs={}};
+	SYNC_TAG = "ANIM_SYNC";
+	CORE_FOLDERS = {idle=true,walk=true,run=true,jump=true,fall=true,climb=true,swim=true,swimidle=true,toolnone=true,toolslash=true,toollunge=true};
+	SavedDefaultMap = nil;
+	Sync_AnimatePrevDisabled = nil;
+	MIMIC_TAG = "MIMIC_SYNC";
+	Mimic_AnimatePrevDisabled = nil;
+	mimic_uid = 0;
+	ChatSettings = {
+		customEnabled = false;
+		coreGuiChat = true;
+		window = {
+			enabled = true;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			textSize = 16;
+			textColor = {235,235,235};
+			strokeColor = {0,0,0};
+			strokeTransparency = 0.5;
+			textTransparency = 0;
+			backgroundColor = {25,27,29};
+			backgroundTransparency = 0.2;
+		};
+		tabs = {
+			enabled = false;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			textSize = 18;
+			backgroundColor = {25,27,29};
+			backgroundTransparency = 0;
+			textTransparency = 0;
+			textColor = {255,255,255};
+			selectedTextColor = {170,255,170};
+			unselectedTextColor = {200,200,200};
+		};
+		input = {
+			enabled = true;
+			autocomplete = true;
+			font = "rbxasset://fonts/families/BuilderSans.json";
+			keyCode = "Slash";
+			textSize = 16;
+			textColor = {255,255,255};
+			strokeColor = {0,0,0};
+			strokeTransparency = 0.5;
+			backgroundColor = {25,27,29};
+			backgroundTransparency = 0.2;
+			targetGeneral = false;
+		};
+		bubbles = {
+			enabled = true; -- ENABLED IT SINCE YOU CAN'T STOP CRYING ABOUT IT
+			maxDistance = 100;
+			minimizeDistance = 20;
+			textSize = 14;
+			textColor = {255,255,255};
+			textTransparency = 0;
+			spacing = 4;
+			backgroundColor = {25,27,29};
+			backgroundTransparency = 0.1;
+			maxBubbles = 3;
+			bubbleDuration = 15;
+			tailVisible = true;
+		};
+	};
+	ChatSettingsTemplate = nil;
+	ChatSettingsDefaults = nil;
+	ChatCustomizationActive = nil;
+	ChatSettingsCustomBackup = nil;
+	IconInvisible = false;
+	IconLocked = false;
+	_prefetchedRemotes = {};
+	AutoExecBlockedCommands = {
+		exit = true;
+		rejoin = true;
+		rj = true;
+		serverhop = true;
+		shop = true;
+		smallserverhop = true;
+		sshop = true;
+		pingserverhop = true;
+		pshop = true;
+		saw = true;
+	};
+	NASettingsSchema = nil;
+	NASettingsData = nil;
+	elementOriginalParent = setmetatable({}, { __mode = "k" });
+	_lastCommand = nil;
+	_prevCommand = nil;
+	_removeAdsLoop = nil;
+	resizeVerticalAsset = nil;
+	resizeHorizontalAsset = nil;
+	resizeDiagonal1Asset = nil;
+	resizeDiagonal2Asset = nil;
+	defaultCmdClear = nil;
+	autofillSelecting = false;
+	cmdFocusGuardUntil = 0;
+	autofillRefocusGuard = 0;
+}
+
 local opt = {}
 
 local LoadstringCommandAliases = {
@@ -127,6 +342,25 @@ local NA_SRV = setmetatable({}, {
 
 function SafeGetService(name)
 	return NA_SRV[name]
+end
+
+NAmanage.NARegisterUI=function(gui)
+	if not gui then
+		return
+	end
+
+	NAStuff.NASCREENGUI = gui
+
+	if _na_env then
+		_na_env.NAUILOADEDORSUM = true
+
+		_na_env.NA_UI = function()
+			if not checkcaller() then
+				return nil
+			end
+			return NAStuff.NASCREENGUI
+		end
+	end
 end
 
 NAmanage.waitForPlay=function()
@@ -293,8 +527,7 @@ local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 local GuiService = SafeGetService("GuiService");
 
-NAStuff = NAStuff or {}
-NAStuff.CmdBar2 = NAStuff.CmdBar2 or {
+NAStuff.CmdBar2 = {
 	defaultWidth = 340;
 	defaultHeight = 78;
 	minWidth = 200;
@@ -1597,219 +1830,6 @@ local Waypoints = {}
 local Bindings = Bindings or {}
 local CommandKeybinds = CommandKeybinds or {}
 local CommandKeybindOptions = CommandKeybindOptions or {}
-local NAStuff = {
-	CmdBar2 = (NAStuff and NAStuff.CmdBar2) or {
-		defaultWidth = 340;
-		defaultHeight = 78;
-		minWidth = 200;
-		maxWidth = 500;
-		minHeight = 70;
-		maxHeight = 160;
-		topHeight = 26;
-		bodyOffsetY = 34;
-		bodyBottomPadding = 8;
-		bodyMinHeight = 24;
-	};
-	NAICONMAIN = nil;
-	NASCREENGUI = nil; --Getmodel("rbxassetid://140418556029404")
-	NAjson = nil;
-	nuhuhNotifs = true;
-	dmNotificationsEnabled = true;
-	KeybindConnection = nil;
-	ForceAdminRainbow = true;
-	AutoExecEnabled = true;
-	UserButtonsAutoLoad = true;
-	FriendRequestAutoDismiss = false;
-	CmdBar2AutoRun = false;
-	CmdIntegrationAutoRun = false;
-	CmdIntegrationLoaded = false;
-	CmdIntegrationLastSource = nil;
-	tweenSpeed = 1;
-	FreecamSpeed = 5;
-	MobileCamSensitivity = 1;
-	MobileCamSensEnabled = false;
-	originalDesc = nil;
-	currentDesc = nil;
-	AutoChar = nil;
-	BlockedRemotes = {};
-	touchESPList = {};
-	proximityESPList = {};
-	clickESPList = {};
-	siteESPList = {};
-	vehicleSiteESPList = {};
-	unanchoredESPList = {};
-	collisiontrueESPList = {};
-	collisionfalseESPList = {};
-	espTriggers = {};
-	espNameLists = { exact = {}, partial = {} };
-	espNameTriggers = {};
-	nameESPPartLists = { exact = {}, partial = {} };
-	ESP_RenderMode = "BoxHandleAdornment";
-	ESP_LabelTextSize = 12;
-	ESP_LabelTextScaled = false;
-	ESP_LabelStrokeTransparency = 0.5;
-	ESP_UseCustomColor = false;
-	ESP_CustomColor = Color3.new(1, 1, 1);
-	ESP_OutlineTransparency = 0;
-	ESP_ShowPartDistance = false;
-	ESP_LocatorEnabled = false;
-	ESP_LocatorSize = 26;
-	ESP_LocatorShowText = false;
-	ESP_LocatorTextSize = 14;
-	ESP_LastExactPart = "";
-	ESP_LastPartialPart = "";
-	ESP_LastFolderName = "";
-	ESP_LocatorGui = nil;
-	ESP_LocatorArrows = {};
-	ESP_ModelList = {};
-	ESP_ModelIndex = 1;
-	ESP_MaxPerStep = 32;
-	ESP_FolderMode = "parts";
-	NPC_ESP_MaxDist = 400;
-	NPC_ESP_MaxCount = 200;
-	NPC_ESP_ShowLabels = true;
-	NPC_ESP_LabelMaxDistance = 600;
-	partESPColors = setmetatable({}, { __mode = "k" });
-	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
-	partESPGlassCount = setmetatable({}, { __mode = "k" });
-	partESPEntries = setmetatable({}, { __mode = "k" });
-	partESPVisualMap = setmetatable({}, { __mode = "k" });
-	nameESPExclusions = { exact = {}, partial = {} };
-	TopbarGlassTransparency = 0.12;
-	TopbarStrokeTransparency = 0.15;
-	SideSwipeWidth = 80;
-	SideSwipeHandleTransparency = 0.72;
-	Integrations = {
-		webhook = {
-			url = "";
-			urls = { main = "" };
-			enableJoinLeave = false;
-			enableChat = false;
-			enableCommands = false;
-			minInterval = 2;
-			lastSent = 0;
-		};
-		health = {
-			endpoints = {};
-		};
-		notes = {
-			last = "";
-		};
-		rpc = {
-			useCustom = false;
-			details = "";
-			state = "";
-		};
-	};
-	NIL_SENTINEL = {};
-	RemoteBlockMode = "fakeok";
-	RemoteFakeReturn = true;
-	BlockedEventSaved = {};
-	BlockedInvokeSaved = {};
-	BlockedRemoteModes = {};
-	BlockedRemoteReturns = {};
-	BlockedSignals = {};
-	RemoteFakeReturn = true;
-	AntiKickMode = "fakeok";
-	AntiKickHooked = false;
-	AntiKickOrig = {namecall=nil,index=nil,newindex=nil,kicks={}};
-	AntiTeleportMode = "fakeok";
-	AntiTeleportHooked = false;
-	AntiTeleportOrig = {namecall=nil,index=nil,newindex=nil,funcs={}};
-	SYNC_TAG = "ANIM_SYNC";
-	CORE_FOLDERS = {idle=true,walk=true,run=true,jump=true,fall=true,climb=true,swim=true,swimidle=true,toolnone=true,toolslash=true,toollunge=true};
-	SavedDefaultMap = nil;
-	Sync_AnimatePrevDisabled = nil;
-	MIMIC_TAG = "MIMIC_SYNC";
-	Mimic_AnimatePrevDisabled = nil;
-	mimic_uid = 0;
-	ChatSettings = {
-		customEnabled = false;
-		coreGuiChat = true;
-		window = {
-			enabled = true;
-			font = "rbxasset://fonts/families/BuilderSans.json";
-			textSize = 16;
-			textColor = {235,235,235};
-			strokeColor = {0,0,0};
-			strokeTransparency = 0.5;
-			textTransparency = 0;
-			backgroundColor = {25,27,29};
-			backgroundTransparency = 0.2;
-		};
-		tabs = {
-			enabled = false;
-			font = "rbxasset://fonts/families/BuilderSans.json";
-			textSize = 18;
-			backgroundColor = {25,27,29};
-			backgroundTransparency = 0;
-			textTransparency = 0;
-			textColor = {255,255,255};
-			selectedTextColor = {170,255,170};
-			unselectedTextColor = {200,200,200};
-		};
-		input = {
-			enabled = true;
-			autocomplete = true;
-			font = "rbxasset://fonts/families/BuilderSans.json";
-			keyCode = "Slash";
-			textSize = 16;
-			textColor = {255,255,255};
-			strokeColor = {0,0,0};
-			strokeTransparency = 0.5;
-			backgroundColor = {25,27,29};
-			backgroundTransparency = 0.2;
-			targetGeneral = false;
-		};
-		bubbles = {
-			enabled = true; -- ENABLED IT SINCE YOU CAN'T STOP CRYING ABOUT IT
-			maxDistance = 100;
-			minimizeDistance = 20;
-			textSize = 14;
-			textColor = {255,255,255};
-			textTransparency = 0;
-			spacing = 4;
-			backgroundColor = {25,27,29};
-			backgroundTransparency = 0.1;
-			maxBubbles = 3;
-			bubbleDuration = 15;
-			tailVisible = true;
-		};
-	};
-	ChatSettingsTemplate = nil;
-	ChatSettingsDefaults = nil;
-	ChatCustomizationActive = nil;
-	ChatSettingsCustomBackup = nil;
-	IconInvisible = false;
-	IconLocked = false;
-	_prefetchedRemotes = {};
-	AutoExecBlockedCommands = {
-		exit = true;
-		rejoin = true;
-		rj = true;
-		serverhop = true;
-		shop = true;
-		smallserverhop = true;
-		sshop = true;
-		pingserverhop = true;
-		pshop = true;
-		saw = true;
-	};
-	NASettingsSchema = nil;
-	NASettingsData = nil;
-	elementOriginalParent = setmetatable({}, { __mode = "k" });
-	_lastCommand = nil;
-	_prevCommand = nil;
-	_removeAdsLoop = nil;
-	resizeVerticalAsset = nil;
-	resizeHorizontalAsset = nil;
-	resizeDiagonal1Asset = nil;
-	resizeDiagonal2Asset = nil;
-	defaultCmdClear = nil;
-	autofillSelecting = false;
-	cmdFocusGuardUntil = 0;
-	autofillRefocusGuard = 0;
-}
 local interactTbl = { click = {}; proxy = {}; touch = {}; }
 local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
@@ -5965,8 +5985,8 @@ local morphTarget = ""
 NASESSIONSTARTEDIDK = os.clock()
 NAlib = NAlib or {}
 NAgui={}
-NAindex = NAindex or { _init = false }
-NAjobs  = NAjobs  or { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, _touchState = setmetatable({}, {__mode="k"}) }
+NAindex = { _init = false }
+NAjobs  = { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, _touchState = setmetatable({}, {__mode="k"}) }
 NAutil  = NAutil  or {}
 NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
 NACOLOREDELEMENTS={}
@@ -11391,7 +11411,16 @@ local function updateInputVector()
 	end
 end
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+if NAStuff._moveInputBegan then
+	NAStuff._moveInputBegan:Disconnect()
+	NAStuff._moveInputBegan = nil
+end
+if NAStuff._moveInputEnded then
+	NAStuff._moveInputEnded:Disconnect()
+	NAStuff._moveInputEnded = nil
+end
+
+NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
 	if input.KeyCode == Enum.KeyCode.W then sussyINPUTTER.W = true end
 	if input.KeyCode == Enum.KeyCode.S then sussyINPUTTER.S = true end
@@ -11400,7 +11429,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	updateInputVector()
 end)
 
-UserInputService.InputEnded:Connect(function(input)
+NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.W then sussyINPUTTER.W = false end
 	if input.KeyCode == Enum.KeyCode.S then sussyINPUTTER.S = false end
 	if input.KeyCode == Enum.KeyCode.A then sussyINPUTTER.A = false end
@@ -11647,39 +11676,45 @@ SpawnCall(function()
 	end
 end)
 
-SpawnCall(function()
-	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
-		return
-	end
-
-	while true do
-		local waitTime
-		if isAprilFools and isAprilFools() then
-			waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes (AF mode)
-		else
-			waitTime = NAmanage.NABgRand(121) + 179 -- 3-5 minutes
+if not NAStuff._bgSoundLoopStarted then
+	NAStuff._bgSoundLoopStarted = true
+	SpawnCall(function()
+		if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
+			return
 		end
-		Wait(waitTime)
-		SpawnCall(NAmanage._bgSound)
-	end
-end)
 
-SpawnCall(function()
-	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
-		return
-	end
-
-	while true do
-		local waitTime
-		if isAprilFools and isAprilFools() then
-			waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes (AF mode)
-		else
-			waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+		while true do
+			local waitTime
+			if isAprilFools and isAprilFools() then
+				waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes (AF mode)
+			else
+				waitTime = NAmanage.NABgRand(121) + 179 -- 3-5 minutes
+			end
+			Wait(waitTime)
+			SpawnCall(NAmanage._bgSound)
 		end
-		Wait(waitTime)
-		SpawnCall(NAmanage._bgOverlay)
-	end
-end)
+	end)
+end
+
+if not NAStuff._bgOverlayLoopStarted then
+	NAStuff._bgOverlayLoopStarted = true
+	SpawnCall(function()
+		if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
+			return
+		end
+
+		while true do
+			local waitTime
+			if isAprilFools and isAprilFools() then
+				waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes (AF mode)
+			else
+				waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+			end
+			Wait(waitTime)
+			SpawnCall(NAmanage._bgOverlay)
+		end
+	end)
+end
 
 local bringc={}
 
@@ -12242,7 +12277,8 @@ function loadedResults(res)
 end
 
 NAStuff.onTP = NAStuff.onTP or LocalPlayer.OnTeleport
-if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
+if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.onTPConnected then
+	NAStuff.onTPConnected = true
 	pcall(function()
 		NAStuff.onTP:Connect(function(...)
 			if NAQoTEnabled and opt.queueteleport then
@@ -48993,28 +49029,46 @@ originalIO.NAfetchUILoaderSource=function()
 	return nil, body
 end
 
-repeat
-	local NASUC, resexy = pcall(function()
-		local src, err = originalIO.NAfetchUILoaderSource()
-		if not src then
-			error(tostring(err or "no UI loader source"))
-		end
-		return loadstring(src)()
-	end)
+if not (_na_env and _na_env.NAUILOADEDORSUM and _na_env.NA_UI and _na_env.NA_UI.Parent) then
+	do
+		if not NAStuff.NASCREENGUI then
+			repeat
+				local NASUC, resexy = pcall(function()
+					local src, err = originalIO.NAfetchUILoaderSource()
+					if not src then
+						error(tostring(err or "no UI loader source"))
+					end
+					return loadstring(src)()
+				end)
 
-	if NASUC and resexy then
-		NAStuff.NASCREENGUI = resexy
-	else
-		warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(resexy)))
-		Wait(0.3)
+				if NASUC and resexy then
+					NAmanage.NARegisterUI(resexy)
+				else
+					warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(resexy)))
+					Wait(0.3)
+				end
+			until NAStuff.NASCREENGUI
+		end
 	end
-until NAStuff.NASCREENGUI
-rPlayer=Players:FindFirstChildWhichIsA("Player")
-coreGuiProtection={}
+else
+	NAStuff.NASCREENGUI = _na_env.NA_UI or NAStuff.NASCREENGUI
+end
+
+do
+	if _na_env and type(_na_env.NA_UI) == "function" then
+		local ok, existing = pcall(_na_env.NA_UI)
+		if ok and existing then
+			NAmanage.NARegisterUI(existing)
+		end
+	end
+end
+
+rPlayer = Players:FindFirstChildWhichIsA("Player")
+coreGuiProtection = {}
 if not RunService:IsStudio() then
 else
-	repeat Wait() until player:FindFirstChild("AdminUI",true)
-	NAStuff.NASCREENGUI=player:FindFirstChild("AdminUI",true)
+	repeat Wait() until player:FindFirstChild("AdminUI", true)
+	NAStuff.NASCREENGUI = player:FindFirstChild("AdminUI", true)
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
 
