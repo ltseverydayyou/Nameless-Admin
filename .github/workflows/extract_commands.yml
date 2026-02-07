@@ -7,6 +7,9 @@ on:
     paths:
       - Source.lua
 
+permissions:
+  contents: write
+
 jobs:
   extract:
     runs-on: ubuntu-latest
