@@ -10959,11 +10959,11 @@ if FileSupport then
 		local defaults = originalIO.getChatDefaults()
 		local groupDefaults = defaults[group]
 		local info = groupDefaults[prop]
-		if info and info.source == inst then return end
+		if info and info.has then return end
 		if not hasProp(inst, prop) then return end
 		local ok, value = pcall(function() return inst[prop] end)
 		if not ok then return end
-		groupDefaults[prop] = { has = true, value = value, source = inst }
+		groupDefaults[prop] = { has = true, value = value }
 	end
 
 	originalIO.captureChatDefaults=function(Window, Tabs, InputBar, Bubbles)
@@ -23371,7 +23371,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
 end)
 
-cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
+cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
 	if _na_env.NA_FPS_ACTIVE then
 		_na_env.NA_FPS_ACTIVE=false
 		if _na_env.NA_FPS_UNHOOK then _na_env.NA_FPS_UNHOOK() end
@@ -23743,8 +23743,17 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if inst:IsA("Explosion") then local bp=recall(inst,"BlastPressure"); if bp~=nil then st.safeSet(inst,"BlastPressure",bp) clearAttr(inst,"BlastPressure") end local br=recall(inst,"BlastRadius"); if br~=nil then st.safeSet(inst,"BlastRadius",br) clearAttr(inst,"BlastRadius") end end
 	end
 
-	local function sweepAll() for _,v in ipairs(w:GetDescendants()) do Defer(function() optimizeInstance(v) end) end end
-	local function restoreAll() for _,v in ipairs(w:GetDescendants()) do Defer(function() restoreInstance(v) end) end end
+	local function sweepAll()
+		for _,v in ipairs(w:GetDescendants()) do
+			optimizeInstance(v)
+		end
+	end
+
+	local function restoreAll()
+		for _,v in ipairs(w:GetDescendants()) do
+			restoreInstance(v)
+		end
+	end
 
 	local function enable()
 		if active then return end
@@ -23754,20 +23763,39 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 		if effectDestroy then
 			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3)
 		end
-		for _,v in ipairs(Lighting:GetDescendants()) do Defer(function() optimizeInstance(v) end) end
+
+		for _,v in ipairs(Lighting:GetDescendants()) do
+			optimizeInstance(v)
+		end
 		sweepAll()
-		Insert(cons, connect(w.DescendantAdded,function(v) Defer(function() optimizeInstance(v) end) end))
-		Insert(cons, connect(Lighting.DescendantAdded,function(v) Defer(function() optimizeInstance(v) end) end))
-		Insert(cons, connect(w:GetPropertyChangedSignal("CurrentCamera"),function()
-			local cam=w.CurrentCamera
-			if not cam then return end
-			for _,e in ipairs(cam:GetChildren()) do Defer(function() optimizeInstance(e) end) end
-			Insert(cons, connect(cam.ChildAdded,function(e) Defer(function() optimizeInstance(e) end) end))
+
+		Insert(cons, connect(w.DescendantAdded, function(v)
+			optimizeInstance(v)
 		end))
-		local cam=w.CurrentCamera
+
+		Insert(cons, connect(Lighting.DescendantAdded, function(v)
+			optimizeInstance(v)
+		end))
+
+		Insert(cons, connect(w:GetPropertyChangedSignal("CurrentCamera"), function()
+			local cam = w.CurrentCamera
+			if not cam then return end
+			for _,e in ipairs(cam:GetChildren()) do
+				optimizeInstance(e)
+			end
+			Insert(cons, connect(cam.ChildAdded, function(e)
+				optimizeInstance(e)
+			end))
+		end))
+
+		local cam = w.CurrentCamera
 		if cam then
-			for _,e in ipairs(cam:GetChildren()) do Defer(function() optimizeInstance(e) end) end
-			Insert(cons, connect(cam.ChildAdded,function(e) Defer(function() optimizeInstance(e) end) end))
+			for _,e in ipairs(cam:GetChildren()) do
+				optimizeInstance(e)
+			end
+			Insert(cons, connect(cam.ChildAdded, function(e)
+				optimizeInstance(e)
+			end))
 		end
 	end
 
@@ -23782,205 +23810,6 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg"},{"fpsbooster","Enables ma
 	_na_env.NA_FPS_UNHOOK=function() disable() _na_env.NA_FPS_UNHOOK=nil end
 	enable()
 	_na_env.NA_FPS_ACTIVE=true
-end)
-
-cmd.add({"antilag","boostfps"},{"antilag (boostfps)","Low Graphics"},function()
-	local sGUI = InstanceNew("ScreenGui")
-	NAgui.NaProtectUI(sGUI)
-	sGUI.Name = "AntiLagGUI"
-	sGUI.ResetOnSpawn = false
-
-	local frame = InstanceNew("Frame")
-	frame.AnchorPoint = Vector2.new(0.5, 0)
-	frame.Size = UDim2.new(0.3, 0, 0.5, 0)
-	frame.Position = UDim2.new(0.5, 0, 0.35, 0)
-	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	frame.BorderSizePixel = 0
-	frame.Parent = sGUI
-
-	local topbar = InstanceNew("Frame")
-	topbar.Name = "TopBar"
-	topbar.Size = UDim2.new(1, 0, 0, 30)
-	topbar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	topbar.BorderSizePixel = 0
-	topbar.Parent = frame
-
-	local title = InstanceNew("TextLabel")
-	title.Text = "AntiLag Settings"
-	title.Font = Enum.Font.SourceSansBold
-	title.TextSize = 18
-	title.TextColor3 = Color3.new(1,1,1)
-	title.BackgroundTransparency = 1
-	title.Size = UDim2.new(1, -60, 1, 0)
-	title.Position = UDim2.new(0, 10, 0, 0)
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.Parent = topbar
-
-	local closeBtn = InstanceNew("TextButton")
-	closeBtn.Size = UDim2.new(0, 24, 0, 24)
-	closeBtn.Position = UDim2.new(1, -28, 0, 3)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-	closeBtn.Text = "X"
-	closeBtn.TextColor3 = Color3.new(1, 1, 1)
-	closeBtn.Font = Enum.Font.SourceSansBold
-	closeBtn.TextSize = 16
-	closeBtn.Parent = topbar
-
-	local minimizeBtn = InstanceNew("TextButton")
-	minimizeBtn.Size = UDim2.new(0, 24, 0, 24)
-	minimizeBtn.Position = UDim2.new(1, -56, 0, 3)
-	minimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-	minimizeBtn.Text = "-"
-	minimizeBtn.TextColor3 = Color3.new(1, 1, 1)
-	minimizeBtn.Font = Enum.Font.SourceSansBold
-	minimizeBtn.TextSize = 16
-	minimizeBtn.Parent = topbar
-
-	local content = InstanceNew("Frame")
-	content.Name = "Content"
-	content.Size = UDim2.new(1, 0, 1, -30)
-	content.Position = UDim2.new(0, 0, 0, 30)
-	content.BackgroundTransparency = 1
-	content.Parent = frame
-
-	local scrollingFrame = InstanceNew("ScrollingFrame", content)
-	scrollingFrame.Size = UDim2.new(1, 0, 1, -60)
-	scrollingFrame.Position = UDim2.new(0, 0, 0, 0)
-	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-	scrollingFrame.ScrollBarThickness = 6
-	scrollingFrame.BackgroundTransparency = 1
-
-	local layout = InstanceNew("UIListLayout", scrollingFrame)
-	layout.Padding = UDim.new(0, 5)
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-	local padding = InstanceNew("UIPadding", scrollingFrame)
-	padding.PaddingTop = UDim.new(0, 10)
-	padding.PaddingBottom = UDim.new(0, 10)
-	padding.PaddingLeft = UDim.new(0, 10)
-	padding.PaddingRight = UDim.new(0, 10)
-
-	local defaultSettings = {
-		Players = {
-			["Ignore Me"] = true,
-			["Ignore Others"] = true
-		},
-		Meshes = {
-			Destroy = false,
-			LowDetail = true
-		},
-		Images = {
-			Invisible = true,
-			LowDetail = true,
-			Destroy = true
-		},
-		Other = {
-			["No Particles"] = true,
-			["No Camera Effects"] = true,
-			["No Explosions"] = true,
-			["No Clothes"] = true,
-			["Low Water Graphics"] = true,
-			["No Shadows"] = true,
-			["Low Rendering"] = true,
-			["Low Quality Parts"] = true
-		}
-	}
-
-	local userSettings = table.clone(defaultSettings)
-
-	local function updateCanvas()
-		Wait()
-		scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
-	end
-
-	local function createSection(sectionName, keys)
-		local dropdown = InstanceNew("TextButton")
-		dropdown.Size = UDim2.new(1, -10, 0, 32)
-		dropdown.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-		dropdown.TextColor3 = Color3.new(1, 1, 1)
-		dropdown.Font = Enum.Font.SourceSansBold
-		dropdown.TextSize = 20
-		dropdown.Text = "▼ "..sectionName
-		dropdown.AutoButtonColor = false
-		dropdown.Parent = scrollingFrame
-
-		local container = InstanceNew("Frame")
-		container.Size = UDim2.new(1, -10, 0, 0)
-		container.BackgroundTransparency = 1
-		container.ClipsDescendants = true
-		container.Parent = scrollingFrame
-
-		local subLayout = InstanceNew("UIListLayout", container)
-		subLayout.Padding = UDim.new(0, 4)
-		subLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-		local isOpen = false
-
-		local function updateDropdown()
-			container.Size = UDim2.new(1, -10, 0, isOpen and #keys * 36 or 0)
-			dropdown.Text = (isOpen and "▲ " or "▼ ")..sectionName
-			updateCanvas()
-		end
-
-		for _, key in pairs(keys) do
-			local btn = InstanceNew("TextButton")
-			btn.Size = UDim2.new(1, 0, 0, 32)
-			btn.TextColor3 = Color3.new(1, 1, 1)
-			btn.Font = Enum.Font.SourceSans
-			btn.TextSize = 18
-			btn.AutoButtonColor = false
-			btn.Text = key..": "..tostring(userSettings[sectionName][key])
-			btn.BackgroundColor3 = userSettings[sectionName][key] and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(120, 30, 30)
-			btn.Parent = container
-
-			MouseButtonFix(btn,function()
-				userSettings[sectionName][key] = not userSettings[sectionName][key]
-				btn.Text = key..": "..tostring(userSettings[sectionName][key])
-				btn.BackgroundColor3 = userSettings[sectionName][key] and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(120, 30, 30)
-			end)
-		end
-
-		MouseButtonFix(dropdown,function()
-			isOpen = not isOpen
-			updateDropdown()
-		end)
-
-		updateDropdown()
-	end
-
-	for section, data in pairs(userSettings) do
-		local keys = {}
-		for k in pairs(data) do Insert(keys, k) end
-		createSection(section, keys)
-	end
-
-	local runBtn = InstanceNew("TextButton")
-	runBtn.Size = UDim2.new(1, -20, 0, 45)
-	runBtn.Position = UDim2.new(0, 10, 1, -50)
-	runBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-	runBtn.TextColor3 = Color3.new(1, 1, 1)
-	runBtn.Font = Enum.Font.SourceSansBold
-	runBtn.TextSize = 20
-	runBtn.Text = "Run AntiLag"
-	runBtn.Parent = content
-
-	MouseButtonFix(runBtn,function()
-		_na_env.Settings = userSettings
-		sGUI:Destroy()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/low%20detail"))()
-	end)
-
-	MouseButtonFix(closeBtn,function()
-		sGUI:Destroy()
-	end)
-
-	local minimized = false
-	MouseButtonFix(minimizeBtn,function()
-		minimized = not minimized
-		content.Visible = not minimized
-		minimizeBtn.Text = minimized and "+" or "-"
-	end)
-	NAgui.draggerV2(frame)
 end)
 
 NAStuff.annoyLoop = false
@@ -45588,9 +45417,15 @@ NAmanage._ensureL=function()
 					if st.safeGet(Lighting,"FogStart")~=nil and nf.baselineFogStart~=nil then st.safeSet(Lighting,"FogStart",nf.baselineFogStart) end
 				end
 			end
-			for inst,saved in pairs(nf.cache or {}) do
-				if inst and inst.Parent and saved then
-					for p,v in pairs(saved) do st.safeSet(inst,p,v) end
+			local cache = nf.cache
+			if cache then
+				for inst,saved in pairs(cache) do
+					if inst and inst.Parent and saved then
+						for p,v in pairs(saved) do
+							st.safeSet(inst,p,v)
+						end
+					end
+					cache[inst] = nil
 				end
 			end
 		end
@@ -46095,11 +45930,19 @@ cmd.add({"unloopnoeffect","unlnoeffect","unloopne","unlne"},{"unloopnoeffect","R
 		pcall(function() ne.camDescConn:Disconnect() end)
 		ne.camDescConn=nil
 	end
-	for inst,saved in pairs(ne.cache or {}) do
-		if inst and inst.Parent and saved then
-			for prop,value in pairs(saved) do
-				if st.safeSet then st.safeSet(inst,prop,value) else pcall(function() inst[prop]=value end) end
+	local cache = ne.cache
+	if cache then
+		for inst,saved in pairs(cache) do
+			if inst and inst.Parent and saved then
+				for prop,value in pairs(saved) do
+					if st.safeSet then
+						st.safeSet(inst,prop,value)
+					else
+						pcall(function() inst[prop]=value end)
+					end
+				end
 			end
+			cache[inst] = nil
 		end
 	end
 end)
@@ -46205,12 +46048,20 @@ cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No 
 	if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
 		if st.safeSet then
 			st.safeSet(Lighting,"FogEnd",st.nf.baselineFogEnd or 100000)
-			if st.safeGet(Lighting,"FogStart")~=nil then st.safeSet(Lighting,"FogStart",st.nf.baselineFogStart or 0) end
+			if st.safeGet(Lighting,"FogStart")~=nil then
+				st.safeSet(Lighting,"FogStart",st.nf.baselineFogStart or 0)
+			end
 		end
 	end
-	for inst,saved in pairs(st.nf.cache) do
-		if inst and inst.Parent and saved then
-			for p,v in pairs(saved) do st.safeSet(inst,p,v) end
+	local cache = st.nf.cache
+	if cache then
+		for inst,saved in pairs(cache) do
+			if inst and inst.Parent and saved then
+				for p,v in pairs(saved) do
+					st.safeSet(inst,p,v)
+				end
+			end
+			cache[inst] = nil
 		end
 	end
 end)
@@ -56386,23 +56237,10 @@ SpawnCall(function()
 		end)
 	end
 
-	setupFLASHBACK(LocalPlayer.Character)
-
 	LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
 		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
-		Wait(.5)
-		local humanoid=getHum()
-		if humanoid then
-			local lastHP=humanoid.Health
-			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
-			humanoid.HealthChanged:Connect(function(newHP)
-				if newHP<lastHP then
-					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
-				end
-				lastHP=newHP
-			end)
-		end
+
 		NAmanage.connectFlyKey()
 		NAmanage.connectVFlyKey()
 		NAmanage.connectCFlyKey()
@@ -56439,17 +56277,7 @@ SpawnCall(function()
 	end)
 
 	if LocalPlayer.Character then
-		local humanoid=getHum()
-		if humanoid then
-			local lastHP=humanoid.Health
-			humanoid.Died:Connect(function() NAmanage.ExecuteBindings("OnDeath") end)
-			humanoid.HealthChanged:Connect(function(newHP)
-				if newHP<lastHP then
-					NAmanage.ExecuteBindings("OnDamage", lastHP, newHP)
-				end
-				lastHP=newHP
-			end)
-		end
+		setupFLASHBACK(LocalPlayer.Character)
 	end
 
 	NAmanage.startWatcher()
