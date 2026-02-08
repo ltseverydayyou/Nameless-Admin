@@ -2593,17 +2593,6 @@
       "desc": "Disable CFrame-based flight"
     },
     {
-      "name": "cflybind",
-      "aliases": [
-        "cflybind",
-        "cframeflybind",
-        "bindcfly"
-      ],
-      "usage": "cflybind [key] (cframeflybind, bindcfly)",
-      "args": "[key]",
-      "desc": "Set custom keybind for CFrame fly"
-    },
-    {
       "name": "tfly",
       "aliases": [
         "tfly",
@@ -2622,17 +2611,6 @@
       "usage": "untfly",
       "args": "",
       "desc": "Disables tween flying"
-    },
-    {
-      "name": "tflykeybind",
-      "aliases": [
-        "tflykeybind",
-        "bindtfly",
-        "tflybind"
-      ],
-      "usage": "tflykeybind [key] (bindtfly, tflybind)",
-      "args": "[key]",
-      "desc": "Set keybind for tfly toggle"
     },
     {
       "name": "noclip",
