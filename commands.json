@@ -10,8 +10,7 @@
       ],
       "usage": "addallplugins",
       "args": "",
-      "desc": "Move all .na to Nameless-Admin/Plugins and all .iy to Nameless-Admin/PluginsIY, then load them",
-      "category": "Server & Utility"
+      "desc": "Move all .na to Nameless-Admin/Plugins and all .iy to Nameless-Admin/PluginsIY, then load them"
     },
     {
       "name": "addplugin",
@@ -23,8 +22,7 @@
       ],
       "usage": "addplugin",
       "args": "",
-      "desc": "Move one .na to Plugins or one .iy to PluginsIY, then load it",
-      "category": "Server & Utility"
+      "desc": "Move one .na to Plugins or one .iy to PluginsIY, then load it"
     },
     {
       "name": "reloadplugin",
@@ -35,8 +33,7 @@
       ],
       "usage": "reloadplugin [name]",
       "args": "[name]",
-      "desc": "Reload plugin files (reloads all if no name provided)",
-      "category": "Server & Utility"
+      "desc": "Reload plugin files (reloads all if no name provided)"
     },
     {
       "name": "removeplugin",
@@ -48,8 +45,7 @@
       ],
       "usage": "removeplugin",
       "args": "",
-      "desc": "Move a plugin file from Nameless-Admin/Plugins or Nameless-Admin/PluginsIY back to workspace",
-      "category": "Server & Utility"
+      "desc": "Move a plugin file from Nameless-Admin/Plugins or Nameless-Admin/PluginsIY back to workspace"
     },
     {
       "name": "removeallplugins",
@@ -62,8 +58,7 @@
       ],
       "usage": "removeallplugins",
       "args": "",
-      "desc": "Move all plugins from Nameless-Admin/Plugins and Nameless-Admin/PluginsIY back to workspace",
-      "category": "Server & Utility"
+      "desc": "Move all plugins from Nameless-Admin/Plugins and Nameless-Admin/PluginsIY back to workspace"
     },
     {
       "name": "cmdbar2",
@@ -73,8 +68,7 @@
       ],
       "usage": "cmdbar2 (cbar2)",
       "args": "(cbar2)",
-      "desc": "Opens a HD-Admin style cmdbar (black & white)",
-      "category": "Server & Utility"
+      "desc": "Opens a HD-Admin style cmdbar (black & white)"
     },
     {
       "name": "url",
@@ -83,8 +77,7 @@
       ],
       "usage": "url <link>",
       "args": "<link>",
-      "desc": "Run the script using URL",
-      "category": "Server & Utility"
+      "desc": "Run the script using URL"
     },
     {
       "name": "loadstring",
@@ -97,8 +90,7 @@
       ],
       "usage": "loadstring <code> (ls, lstring, loads, execute)",
       "args": "<code> (ls, lstring, loads, execute)",
-      "desc": "Run code using loadstring",
-      "category": "Server & Utility"
+      "desc": "Run code using loadstring"
     },
     {
       "name": "shaders",
@@ -110,8 +102,7 @@
       ],
       "usage": "shaders (shader, rtx, hd)",
       "args": "(shader, rtx, hd)",
-      "desc": "Enable a shader preset for Lighting",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Enable a shader preset for Lighting"
     },
     {
       "name": "unshaders",
@@ -122,8 +113,7 @@
       ],
       "usage": "unshaders (shadersoff, rtxoff)",
       "args": "(shadersoff, rtxoff)",
-      "desc": "Disable the shader preset and restore Lighting",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disable the shader preset and restore Lighting"
     },
     {
       "name": "ibtools",
@@ -132,8 +122,7 @@
       ],
       "usage": "ibtools",
       "args": "",
-      "desc": "Load the iBuild Tools helper tool",
-      "category": "Teleport & Tools"
+      "desc": "Load the iBuild Tools helper tool"
     },
     {
       "name": "unibtools",
@@ -142,8 +131,7 @@
       ],
       "usage": "unibtools",
       "args": "",
-      "desc": "Remove the iBuild Tools helper tool",
-      "category": "Teleport & Tools"
+      "desc": "Remove the iBuild Tools helper tool"
     },
     {
       "name": "setfflag",
@@ -153,8 +141,7 @@
       ],
       "usage": "setfflag <flag> <value> [save] (setff)",
       "args": "<flag> <value> [save] (setff)",
-      "desc": "Set a fast flag (use 'save' to store it)",
-      "category": "Server & Utility"
+      "desc": "Set a fast flag (use 'save' to store it)"
     },
     {
       "name": "addalias",
@@ -163,8 +150,7 @@
       ],
       "usage": "addalias <command> <alias>",
       "args": "<command> <alias>",
-      "desc": "Adds a persistent alias for an existing command",
-      "category": "Server & Utility"
+      "desc": "Adds a persistent alias for an existing command"
     },
     {
       "name": "removealias",
@@ -173,8 +159,7 @@
       ],
       "usage": "removealias",
       "args": "",
-      "desc": "Select and remove a saved alias",
-      "category": "Server & Utility"
+      "desc": "Select and remove a saved alias"
     },
     {
       "name": "clearaliases",
@@ -183,8 +168,7 @@
       ],
       "usage": "clearaliases",
       "args": "",
-      "desc": "Removes all aliases created using addalias.",
-      "category": "Server & Utility"
+      "desc": "Removes all aliases created using addalias."
     },
     {
       "name": "addbutton",
@@ -194,8 +178,7 @@
       ],
       "usage": "addbutton <command> <label> [<command2>] (ab)",
       "args": "<command> <label> [<command2>] (ab)",
-      "desc": "Add a mobile button",
-      "category": "Teleport & Tools"
+      "desc": "Add a mobile button"
     },
     {
       "name": "removebutton",
@@ -205,8 +188,7 @@
       ],
       "usage": "removebutton (rb)",
       "args": "(rb)",
-      "desc": "Remove a user button",
-      "category": "Teleport & Tools"
+      "desc": "Remove a user button"
     },
     {
       "name": "clearbuttons",
@@ -217,8 +199,7 @@
       ],
       "usage": "clearbuttons (clearbtns, cb)",
       "args": "(clearbtns, cb)",
-      "desc": "Clear all user buttons",
-      "category": "Teleport & Tools"
+      "desc": "Clear all user buttons"
     },
     {
       "name": "addautoexec",
@@ -231,8 +212,7 @@
       ],
       "usage": "addautoexec <command> [arguments] (aaexec, addae, addauto, aexecadd)",
       "args": "<command> [arguments] (aaexec, addae, addauto, aexecadd)",
-      "desc": "Add a command to autoexecute",
-      "category": "Teleport & Tools"
+      "desc": "Add a command to autoexecute"
     },
     {
       "name": "removeautoexec",
@@ -245,8 +225,7 @@
       ],
       "usage": "removeautoexec (raexec, removeae, removeauto, aexecremove)",
       "args": "(raexec, removeae, removeauto, aexecremove)",
-      "desc": "Remove a command from autoexecute",
-      "category": "Teleport & Tools"
+      "desc": "Remove a command from autoexecute"
     },
     {
       "name": "clearautoexec",
@@ -260,8 +239,7 @@
       ],
       "usage": "clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)",
       "args": "(caexec, clearauto, autoexecclear, aexecclear, aeclear)",
-      "desc": "Clear all AutoExec commands",
-      "category": "Teleport & Tools"
+      "desc": "Clear all AutoExec commands"
     },
     {
       "name": "executor",
@@ -271,8 +249,7 @@
       ],
       "usage": "executor (exec)",
       "args": "(exec)",
-      "desc": "Very simple executor",
-      "category": "Teleport & Tools"
+      "desc": "Very simple executor"
     },
     {
       "name": "lastcommand",
@@ -282,8 +259,7 @@
       ],
       "usage": "lastcommand (lastcmd)",
       "args": "(lastcmd)",
-      "desc": "Re-run your previously executed command",
-      "category": "Server & Utility"
+      "desc": "Re-run your previously executed command"
     },
     {
       "name": "commandloop",
@@ -293,8 +269,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "stoploop",
@@ -306,8 +281,7 @@
       ],
       "usage": "stoploop",
       "args": "",
-      "desc": "Stop a running loop",
-      "category": "Teleport & Tools"
+      "desc": "Stop a running loop"
     },
     {
       "name": "scripthub",
@@ -317,8 +291,7 @@
       ],
       "usage": "scripthub (hub)",
       "args": "(hub)",
-      "desc": "Thanks to scriptblox/rscripts API",
-      "category": "Server & Utility"
+      "desc": "Thanks to scriptblox/rscripts API"
     },
     {
       "name": "uiscale",
@@ -330,8 +303,7 @@
       ],
       "usage": "uiscale (uscale)",
       "args": "(uscale)",
-      "desc": "Adjust the scale of the ",
-      "category": "Server & Utility"
+      "desc": "Adjust the scale of the "
     },
     {
       "name": "prefix",
@@ -340,8 +312,7 @@
       ],
       "usage": "prefix <symbol>",
       "args": "<symbol>",
-      "desc": "Changes the admin prefix",
-      "category": "Server & Utility"
+      "desc": "Changes the admin prefix"
     },
     {
       "name": "saveprefix",
@@ -350,8 +321,7 @@
       ],
       "usage": "saveprefix <symbol>",
       "args": "<symbol>",
-      "desc": "Saves the prefix to a file and applies it",
-      "category": "Server & Utility"
+      "desc": "Saves the prefix to a file and applies it"
     },
     {
       "name": "chatlogs",
@@ -361,8 +331,7 @@
       ],
       "usage": "chatlogs (clogs)",
       "args": "(clogs)",
-      "desc": "Open the chat logs",
-      "category": "Server & Utility"
+      "desc": "Open the chat logs"
     },
     {
       "name": "gotocampos",
@@ -373,8 +342,7 @@
       ],
       "usage": "gotocampos (tocampos,tcp)",
       "args": "(tocampos,tcp)",
-      "desc": "Teleports you to your camera position works with free cam but freezes you",
-      "category": "Camera & View"
+      "desc": "Teleports you to your camera position works with free cam but freezes you"
     },
     {
       "name": "teleportgui",
@@ -386,8 +354,7 @@
       ],
       "usage": "teleportgui (tpui,universeviewer,uviewer)",
       "args": "(tpui,universeviewer,uviewer)",
-      "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button",
-      "category": "Camera & View"
+      "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button"
     },
     {
       "name": "serverremotespy",
@@ -398,8 +365,7 @@
       ],
       "usage": "serverremotespy (srs,sremotespy)",
       "args": "(srs,sremotespy)",
-      "desc": "Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"
     },
     {
       "name": "discord",
@@ -411,8 +377,7 @@
       ],
       "usage": "discord",
       "args": "",
-      "desc": "Copy an invite link",
-      "category": "Server & Utility"
+      "desc": "Copy an invite link"
     },
     {
       "name": "clickfling",
@@ -422,8 +387,7 @@
       ],
       "usage": "clickfling (mousefling)",
       "args": "(mousefling)",
-      "desc": "Fling a player by clicking them",
-      "category": "Trolling / Fun"
+      "desc": "Fling a player by clicking them"
     },
     {
       "name": "unclickfling",
@@ -433,8 +397,7 @@
       ],
       "usage": "unclickfling (unmousefling)",
       "args": "(unmousefling)",
-      "desc": "disables clickfling",
-      "category": "Trolling / Fun"
+      "desc": "disables clickfling"
     },
     {
       "name": "offset",
@@ -445,8 +408,7 @@
       ],
       "usage": "offset [x y z|y]",
       "args": "[x y z|y]",
-      "desc": "Offsets your character for others (positive Y = up, negative Y = down)",
-      "category": "Server & Utility"
+      "desc": "Offsets your character for others (positive Y = up, negative Y = down)"
     },
     {
       "name": "clickscare",
@@ -456,8 +418,7 @@
       ],
       "usage": "clickscare (clickspook)",
       "args": "(clickspook)",
-      "desc": "Teleports next to a clicked player for a few seconds",
-      "category": "Teleport & Tools"
+      "desc": "Teleports next to a clicked player for a few seconds"
     },
     {
       "name": "unclickscare",
@@ -467,8 +428,7 @@
       ],
       "usage": "unclickscare (unclickspook)",
       "args": "(unclickspook)",
-      "desc": "Disables clickscare",
-      "category": "Server & Utility"
+      "desc": "Disables clickscare"
     },
     {
       "name": "hovername",
@@ -478,8 +438,7 @@
       ],
       "usage": "hovername",
       "args": "",
-      "desc": "Shows player's username on hover",
-      "category": "Trolling / Fun"
+      "desc": "Shows player's username on hover"
     },
     {
       "name": "unhovername",
@@ -489,8 +448,7 @@
       ],
       "usage": "unhovername",
       "args": "",
-      "desc": "Disables hovername",
-      "category": "Trolling / Fun"
+      "desc": "Disables hovername"
     },
     {
       "name": "resetfilter",
@@ -500,8 +458,7 @@
       ],
       "usage": "resetfilter",
       "args": "",
-      "desc": "If Roblox keeps tagging your messages, run this to reset the filter",
-      "category": "Server & Utility"
+      "desc": "If Roblox keeps tagging your messages, run this to reset the filter"
     },
     {
       "name": "ping",
@@ -510,8 +467,7 @@
       ],
       "usage": "ping",
       "args": "",
-      "desc": "Shows your network latency",
-      "category": "Server & Utility"
+      "desc": "Shows your network latency"
     },
     {
       "name": "fps",
@@ -520,8 +476,7 @@
       ],
       "usage": "fps",
       "args": "",
-      "desc": "Shows your frames per second",
-      "category": "Server & Utility"
+      "desc": "Shows your frames per second"
     },
     {
       "name": "stats",
@@ -530,8 +485,7 @@
       ],
       "usage": "stats",
       "args": "",
-      "desc": "Shows both FPS and ping",
-      "category": "Server & Utility"
+      "desc": "Shows both FPS and ping"
     },
     {
       "name": "commands",
@@ -541,8 +495,7 @@
       ],
       "usage": "commands",
       "args": "",
-      "desc": "Open the command list",
-      "category": "Server & Utility"
+      "desc": "Open the command list"
     },
     {
       "name": "settings",
@@ -551,8 +504,7 @@
       ],
       "usage": "settings",
       "args": "",
-      "desc": "Open the settings menu",
-      "category": "Server & Utility"
+      "desc": "Open the settings menu"
     },
     {
       "name": "waypoints",
@@ -562,8 +514,7 @@
       ],
       "usage": "waypoints",
       "args": "",
-      "desc": "Open the waypoints menu",
-      "category": "Server & Utility"
+      "desc": "Open the waypoints menu"
     },
     {
       "name": "binders",
@@ -573,8 +524,7 @@
       ],
       "usage": "binders",
       "args": "",
-      "desc": "Open the event binder menu",
-      "category": "Server & Utility"
+      "desc": "Open the event binder menu"
     },
     {
       "name": "setwaypoint",
@@ -584,8 +534,7 @@
       ],
       "usage": "setwaypoint <name>",
       "args": "<name>",
-      "desc": "Store your current position under that name",
-      "category": "Server & Utility"
+      "desc": "Store your current position under that name"
     },
     {
       "name": "gotowaypoint",
@@ -595,8 +544,7 @@
       ],
       "usage": "gotowaypoint <name>",
       "args": "<name>",
-      "desc": "Teleport to a saved waypoint",
-      "category": "Teleport & Tools"
+      "desc": "Teleport to a saved waypoint"
     },
     {
       "name": "removewaypoint",
@@ -607,8 +555,7 @@
       ],
       "usage": "removewaypoint <name>",
       "args": "<name>",
-      "desc": "Remove a saved waypoint",
-      "category": "Server & Utility"
+      "desc": "Remove a saved waypoint"
     },
     {
       "name": "chardebug",
@@ -618,8 +565,7 @@
       ],
       "usage": "chardebug (cdebug)",
       "args": "(cdebug)",
-      "desc": "debug your character",
-      "category": "Server & Utility"
+      "desc": "debug your character"
     },
     {
       "name": "unchardebug",
@@ -629,8 +575,7 @@
       ],
       "usage": "unchardebug (uncdebug)",
       "args": "(uncdebug)",
-      "desc": "disable character debug",
-      "category": "Server & Utility"
+      "desc": "disable character debug"
     },
     {
       "name": "naked",
@@ -639,8 +584,7 @@
       ],
       "usage": "naked",
       "args": "",
-      "desc": "no clothing gang",
-      "category": "Server & Utility"
+      "desc": "no clothing gang"
     },
     {
       "name": "somersault",
@@ -650,8 +594,7 @@
       ],
       "usage": "somersault (frontflip)",
       "args": "(frontflip)",
-      "desc": "Makes you do a clean front flip",
-      "category": "Server & Utility"
+      "desc": "Makes you do a clean front flip"
     },
     {
       "name": "unsomersault",
@@ -661,8 +604,7 @@
       ],
       "usage": "unsomersault (unfrontflip)",
       "args": "(unfrontflip)",
-      "desc": "Disable somersault button and keybind",
-      "category": "Server & Utility"
+      "desc": "Disable somersault button and keybind"
     },
     {
       "name": "rolewatch",
@@ -671,8 +613,7 @@
       ],
       "usage": "rolewatch <groupId> <role name>",
       "args": "<groupId> <role name>",
-      "desc": "Notify if someone from a watched group joins with a specific role",
-      "category": "Server & Utility"
+      "desc": "Notify if someone from a watched group joins with a specific role"
     },
     {
       "name": "rolewatchstop",
@@ -681,8 +622,7 @@
       ],
       "usage": "rolewatchstop",
       "args": "",
-      "desc": "Disable Rolewatch monitoring",
-      "category": "Teleport & Tools"
+      "desc": "Disable Rolewatch monitoring"
     },
     {
       "name": "rolewatchleave",
@@ -692,8 +632,7 @@
       ],
       "usage": "rolewatchleave (unrolewatch)",
       "args": "(unrolewatch)",
-      "desc": "Toggle leaving the server if the watched role joins",
-      "category": "Teleport & Tools"
+      "desc": "Toggle leaving the server if the watched role joins"
     },
     {
       "name": "joingroup",
@@ -703,8 +642,7 @@
       ],
       "usage": "joingroup [groupId] (groupjoin)",
       "args": "[groupId] (groupjoin)",
-      "desc": "Open the Roblox join prompt for a group",
-      "category": "Server & Utility"
+      "desc": "Open the Roblox join prompt for a group"
     },
     {
       "name": "trackstaff",
@@ -713,8 +651,7 @@
       ],
       "usage": "trackstaff",
       "args": "",
-      "desc": "Track and notify when a staff member joins the server",
-      "category": "Teleport & Tools"
+      "desc": "Track and notify when a staff member joins the server"
     },
     {
       "name": "stoptrackstaff",
@@ -724,8 +661,7 @@
       ],
       "usage": "stoptrackstaff (untrackstaff)",
       "args": "(untrackstaff)",
-      "desc": "Stop tracking staff members",
-      "category": "Teleport & Tools"
+      "desc": "Stop tracking staff members"
     },
     {
       "name": "deletevelocity",
@@ -737,8 +673,7 @@
       ],
       "usage": "deletevelocity (dv, removevelocity, removeforces)",
       "args": "(dv, removevelocity, removeforces)",
-      "desc": "removes any velocity/force instanceson your character",
-      "category": "Server & Utility"
+      "desc": "removes any velocity/force instanceson your character"
     },
     {
       "name": "sensorrotationscreen",
@@ -749,8 +684,7 @@
       ],
       "usage": "sensorrotationscreen",
       "args": "",
-      "desc": "Changes ScreenOrientation to Sensor",
-      "category": "Server & Utility"
+      "desc": "Changes ScreenOrientation to Sensor"
     },
     {
       "name": "landscaperotationscreen",
@@ -761,8 +695,7 @@
       ],
       "usage": "landscaperotationscreen",
       "args": "",
-      "desc": "Changes ScreenOrientation to Landscape Sensor",
-      "category": "Server & Utility"
+      "desc": "Changes ScreenOrientation to Landscape Sensor"
     },
     {
       "name": "portraitrotationscreen",
@@ -773,8 +706,7 @@
       ],
       "usage": "portraitrotationscreen",
       "args": "",
-      "desc": "Changes ScreenOrientation to Portrait",
-      "category": "Server & Utility"
+      "desc": "Changes ScreenOrientation to Portrait"
     },
     {
       "name": "defaultrotaionscreen",
@@ -785,8 +717,7 @@
       ],
       "usage": "defaultrotaionscreen",
       "args": "",
-      "desc": "Changes ScreenOrientation to Portrait",
-      "category": "Server & Utility"
+      "desc": "Changes ScreenOrientation to Portrait"
     },
     {
       "name": "commandcount",
@@ -796,8 +727,7 @@
       ],
       "usage": "commandcount (cc)",
       "args": "(cc)",
-      "desc": "Counts how many commands NA has",
-      "category": "Server & Utility"
+      "desc": "Counts how many commands NA has"
     },
     {
       "name": "flyfling",
@@ -807,8 +737,7 @@
       ],
       "usage": "flyfling (ff)",
       "args": "(ff)",
-      "desc": "makes you fly and fling",
-      "category": "Movement & Physics"
+      "desc": "makes you fly and fling"
     },
     {
       "name": "unflyfling",
@@ -818,8 +747,7 @@
       ],
       "usage": "unflyfling (unff)",
       "args": "(unff)",
-      "desc": "stops fly and fling",
-      "category": "Movement & Physics"
+      "desc": "stops fly and fling"
     },
     {
       "name": "walkfling",
@@ -830,8 +758,7 @@
       ],
       "usage": "walkfling (wfling,wf)",
       "args": "(wfling,wf)",
-      "desc": "probably the best fling lol",
-      "category": "Movement & Physics"
+      "desc": "probably the best fling lol"
     },
     {
       "name": "unwalkfling",
@@ -842,8 +769,7 @@
       ],
       "usage": "unwalkfling (unwfling,unwf)",
       "args": "(unwfling,unwf)",
-      "desc": "stop the walkfling command",
-      "category": "Movement & Physics"
+      "desc": "stop the walkfling command"
     },
     {
       "name": "rjre",
@@ -853,8 +779,7 @@
       ],
       "usage": "rjre (rejoinrefresh)",
       "args": "(rejoinrefresh)",
-      "desc": "Rejoins and teleports you to your previous position",
-      "category": "Teleport & Tools"
+      "desc": "Rejoins and teleports you to your previous position"
     },
     {
       "name": "cancelteleport",
@@ -864,8 +789,7 @@
       ],
       "usage": "cancelteleport (canceltp)",
       "args": "(canceltp)",
-      "desc": "Cancel an in-progress teleport",
-      "category": "Teleport & Tools"
+      "desc": "Cancel an in-progress teleport"
     },
     {
       "name": "rejoin",
@@ -875,8 +799,7 @@
       ],
       "usage": "rejoin (rj)",
       "args": "(rj)",
-      "desc": "Rejoin the game",
-      "category": "Teleport & Tools"
+      "desc": "Rejoin the game"
     },
     {
       "name": "teleporttoplace",
@@ -888,8 +811,7 @@
       ],
       "usage": "teleporttoplace <id>",
       "args": "<id>",
-      "desc": "Teleports you using PlaceId",
-      "category": "Teleport & Tools"
+      "desc": "Teleports you using PlaceId"
     },
     {
       "name": "adonisbypass",
@@ -901,8 +823,7 @@
       ],
       "usage": "adonisbypass (bypassadonis,badonis,adonisb)",
       "args": "(bypassadonis,badonis,adonisb)",
-      "desc": "bypasses adonis admin detection",
-      "category": "Server & Utility"
+      "desc": "bypasses adonis admin detection"
     },
     {
       "name": "accountage",
@@ -912,8 +833,7 @@
       ],
       "usage": "accountage <player> (accage)",
       "args": "<player> (accage)",
-      "desc": "Tells the account age of a player in the server",
-      "category": "Teleport & Tools"
+      "desc": "Tells the account age of a player in the server"
     },
     {
       "name": "hitboxes",
@@ -922,8 +842,7 @@
       ],
       "usage": "hitboxes",
       "args": "",
-      "desc": "shows all the hitboxes",
-      "category": "Visuals / ESP / Environment"
+      "desc": "shows all the hitboxes"
     },
     {
       "name": "unhitboxes",
@@ -932,8 +851,7 @@
       ],
       "usage": "unhitboxes",
       "args": "",
-      "desc": "removes the hitboxes outline",
-      "category": "Visuals / ESP / Environment"
+      "desc": "removes the hitboxes outline"
     },
     {
       "name": "vfly",
@@ -943,8 +861,7 @@
       ],
       "usage": "vehiclefly (vfly)",
       "args": "(vfly)",
-      "desc": "be able to fly vehicles",
-      "category": "Movement & Physics"
+      "desc": "be able to fly vehicles"
     },
     {
       "name": "unvfly",
@@ -954,8 +871,7 @@
       ],
       "usage": "unvfly",
       "args": "",
-      "desc": "disable vehicle fly",
-      "category": "Movement & Physics"
+      "desc": "disable vehicle fly"
     },
     {
       "name": "equiptools",
@@ -965,8 +881,7 @@
       ],
       "usage": "equiptools",
       "args": "",
-      "desc": "Equip all of your tools",
-      "category": "Teleport & Tools"
+      "desc": "Equip all of your tools"
     },
     {
       "name": "usetools",
@@ -976,8 +891,7 @@
       ],
       "usage": "usetools (uset)",
       "args": "(uset)",
-      "desc": "Equips all tools, uses them, and unequips them",
-      "category": "Teleport & Tools"
+      "desc": "Equips all tools, uses them, and unequips them"
     },
     {
       "name": "settweenspeed",
@@ -987,8 +901,7 @@
       ],
       "usage": "tweenspeed [seconds]",
       "args": "[seconds]",
-      "desc": "Set how long tween teleport commands take",
-      "category": "Movement & Physics"
+      "desc": "Set how long tween teleport commands take"
     },
     {
       "name": "tweento",
@@ -999,8 +912,7 @@
       ],
       "usage": "tweengoto <player>",
       "args": "<player>",
-      "desc": "Teleportation method that bypasses some anticheats",
-      "category": "Teleport & Tools"
+      "desc": "Teleportation method that bypasses some anticheats"
     },
     {
       "name": "reach",
@@ -1010,8 +922,7 @@
       ],
       "usage": "reach [number] (swordreach)",
       "args": "[number] (swordreach)",
-      "desc": "Extends sword reach in one direction",
-      "category": "Server & Utility"
+      "desc": "Extends sword reach in one direction"
     },
     {
       "name": "boxreach",
@@ -1020,8 +931,7 @@
       ],
       "usage": "boxreach [number]",
       "args": "[number]",
-      "desc": "Creates a box-shaped hitbox around your tool",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Creates a box-shaped hitbox around your tool"
     },
     {
       "name": "resetreach",
@@ -1032,8 +942,7 @@
       ],
       "usage": "resetreach (normalreach, unreach)",
       "args": "(normalreach, unreach)",
-      "desc": "Resets tool to normal size",
-      "category": "Server & Utility"
+      "desc": "Resets tool to normal size"
     },
     {
       "name": "aura",
@@ -1042,8 +951,7 @@
       ],
       "usage": "aura [distance]",
       "args": "[distance]",
-      "desc": "Continuously damages nearby players with equipped tool",
-      "category": "Server & Utility"
+      "desc": "Continuously damages nearby players with equipped tool"
     },
     {
       "name": "unaura",
@@ -1052,8 +960,7 @@
       ],
       "usage": "unaura",
       "args": "",
-      "desc": "Stops aura loop and removes visualizer",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Stops aura loop and removes visualizer"
     },
     {
       "name": "antivoid",
@@ -1062,8 +969,7 @@
       ],
       "usage": "antivoid",
       "args": "",
-      "desc": "Prevents you from falling into the void by launching you upwards",
-      "category": "Teleport & Tools"
+      "desc": "Prevents you from falling into the void by launching you upwards"
     },
     {
       "name": "unantivoid",
@@ -1072,8 +978,7 @@
       ],
       "usage": "unantivoid",
       "args": "",
-      "desc": "Disables antivoid",
-      "category": "Teleport & Tools"
+      "desc": "Disables antivoid"
     },
     {
       "name": "fakeout",
@@ -1082,8 +987,7 @@
       ],
       "usage": "fakeout",
       "args": "",
-      "desc": "tp to void and back",
-      "category": "Server & Utility"
+      "desc": "tp to void and back"
     },
     {
       "name": "invisfling",
@@ -1092,8 +996,7 @@
       ],
       "usage": "invisfling",
       "args": "",
-      "desc": "Enables invisible fling (the invis part is patched, try using the god command before using this)",
-      "category": "Trolling / Fun"
+      "desc": "Enables invisible fling (the invis part is patched, try using the god command before using this)"
     },
     {
       "name": "split",
@@ -1102,8 +1005,7 @@
       ],
       "usage": "split",
       "args": "",
-      "desc": "Destroys waist joint",
-      "category": "Server & Utility"
+      "desc": "Destroys waist joint"
     },
     {
       "name": "antivoid2",
@@ -1112,8 +1014,7 @@
       ],
       "usage": "antivoid2",
       "args": "",
-      "desc": "sets FallenPartsDestroyHeight to -inf",
-      "category": "Teleport & Tools"
+      "desc": "sets FallenPartsDestroyHeight to -inf"
     },
     {
       "name": "unantivoid2",
@@ -1122,8 +1023,7 @@
       ],
       "usage": "unantivoid2",
       "args": "",
-      "desc": "reverts FallenPartsDestroyHeight",
-      "category": "Teleport & Tools"
+      "desc": "reverts FallenPartsDestroyHeight"
     },
     {
       "name": "antivelocity",
@@ -1135,8 +1035,7 @@
       ],
       "usage": "antivelocity [limit]",
       "args": "[limit]",
-      "desc": "Limits your character's velocity to the provided value",
-      "category": "Server & Utility"
+      "desc": "Limits your character's velocity to the provided value"
     },
     {
       "name": "unantivelocity",
@@ -1148,8 +1047,7 @@
       ],
       "usage": "unantivelocity",
       "args": "",
-      "desc": "Disables the antivelocity limiter",
-      "category": "Server & Utility"
+      "desc": "Disables the antivelocity limiter"
     },
     {
       "name": "showcom",
@@ -1160,8 +1058,7 @@
       ],
       "usage": "showcom [radiusStuds]",
       "args": "[radiusStuds]",
-      "desc": "Create a glass sphere with a Highlight at your center of mass",
-      "category": "Server & Utility"
+      "desc": "Create a glass sphere with a Highlight at your center of mass"
     },
     {
       "name": "hidecom",
@@ -1172,8 +1069,7 @@
       ],
       "usage": "hidecom",
       "args": "",
-      "desc": "Remove COM tracker",
-      "category": "Server & Utility"
+      "desc": "Remove COM tracker"
     },
     {
       "name": "droptool",
@@ -1182,8 +1078,7 @@
       ],
       "usage": "dropatool",
       "args": "",
-      "desc": "Drop one of your tools",
-      "category": "Teleport & Tools"
+      "desc": "Drop one of your tools"
     },
     {
       "name": "droptools",
@@ -1192,8 +1087,7 @@
       ],
       "usage": "dropalltools",
       "args": "",
-      "desc": "Drop all of your tools",
-      "category": "Teleport & Tools"
+      "desc": "Drop all of your tools"
     },
     {
       "name": "notools",
@@ -1202,8 +1096,7 @@
       ],
       "usage": "notools",
       "args": "",
-      "desc": "Remove your tools",
-      "category": "Teleport & Tools"
+      "desc": "Remove your tools"
     },
     {
       "name": "fpsbooster",
@@ -1215,8 +1108,7 @@
       ],
       "usage": "fpsbooster",
       "args": "",
-      "desc": "Enables maximum-performance low graphics mode, run again to restore",
-      "category": "Server & Utility"
+      "desc": "Enables maximum-performance low graphics mode, run again to restore"
     },
     {
       "name": "antilag",
@@ -1226,8 +1118,7 @@
       ],
       "usage": "antilag (boostfps)",
       "args": "(boostfps)",
-      "desc": "Low Graphics",
-      "category": "Server & Utility"
+      "desc": "Low Graphics"
     },
     {
       "name": "annoy",
@@ -1236,8 +1127,7 @@
       ],
       "usage": "annoy <player>",
       "args": "<player>",
-      "desc": "Annoys the given player",
-      "category": "Trolling / Fun"
+      "desc": "Annoys the given player"
     },
     {
       "name": "unannoy",
@@ -1246,8 +1136,7 @@
       ],
       "usage": "unannoy",
       "args": "",
-      "desc": "Stops the annoy command",
-      "category": "Trolling / Fun"
+      "desc": "Stops the annoy command"
     },
     {
       "name": "deleteinvisparts",
@@ -1258,8 +1147,7 @@
       ],
       "usage": "deleteinvisparts (deleteinvisibleparts,dip)",
       "args": "(deleteinvisibleparts,dip)",
-      "desc": "Deletes invisible parts",
-      "category": "Server & Utility"
+      "desc": "Deletes invisible parts"
     },
     {
       "name": "invisibleparts",
@@ -1269,8 +1157,7 @@
       ],
       "usage": "invisibleparts (invisparts)",
       "args": "(invisparts)",
-      "desc": "Shows invisible parts",
-      "category": "Server & Utility"
+      "desc": "Shows invisible parts"
     },
     {
       "name": "uninvisibleparts",
@@ -1280,8 +1167,7 @@
       ],
       "usage": "uninvisibleparts (uninvisparts)",
       "args": "(uninvisparts)",
-      "desc": "Makes parts affected by invisparts return to normal",
-      "category": "Server & Utility"
+      "desc": "Makes parts affected by invisparts return to normal"
     },
     {
       "name": "datalimit",
@@ -1290,8 +1176,7 @@
       ],
       "usage": "datalimit <kbps>",
       "args": "<kbps>",
-      "desc": "Set outgoing bandwidth limit in KBps",
-      "category": "Server & Utility"
+      "desc": "Set outgoing bandwidth limit in KBps"
     },
     {
       "name": "removeads",
@@ -1301,8 +1186,7 @@
       ],
       "usage": "removeads (adblock)",
       "args": "(adblock)",
-      "desc": "Continuously removes billboard advertisements",
-      "category": "Server & Utility"
+      "desc": "Continuously removes billboard advertisements"
     },
     {
       "name": "unremoveads",
@@ -1313,8 +1197,7 @@
       ],
       "usage": "unremoveads (noadblock,disableads)",
       "args": "(noadblock,disableads)",
-      "desc": "Stop removing billboard advertisements",
-      "category": "Server & Utility"
+      "desc": "Stop removing billboard advertisements"
     },
     {
       "name": "replicationlag",
@@ -1324,8 +1207,7 @@
       ],
       "usage": "replicationlag (backtrack)",
       "args": "(backtrack)",
-      "desc": "Set IncomingReplicationLag",
-      "category": "Server & Utility"
+      "desc": "Set IncomingReplicationLag"
     },
     {
       "name": "sleepon",
@@ -1334,8 +1216,7 @@
       ],
       "usage": "sleepon",
       "args": "",
-      "desc": "Enable AllowSleep",
-      "category": "Server & Utility"
+      "desc": "Enable AllowSleep"
     },
     {
       "name": "unsleepon",
@@ -1344,8 +1225,7 @@
       ],
       "usage": "unsleepon",
       "args": "",
-      "desc": "Disable AllowSleep",
-      "category": "Server & Utility"
+      "desc": "Disable AllowSleep"
     },
     {
       "name": "throttle",
@@ -1354,8 +1234,7 @@
       ],
       "usage": "throttle",
       "args": "",
-      "desc": "Set PhysicsEnvironmentalThrottle (1 = default, 2 = disabled)",
-      "category": "Server & Utility"
+      "desc": "Set PhysicsEnvironmentalThrottle (1 = default, 2 = disabled)"
     },
     {
       "name": "quality",
@@ -1365,8 +1244,7 @@
       ],
       "usage": "quality <1-21>",
       "args": "<1-21>",
-      "desc": "Manage rendering quality settings",
-      "category": "Server & Utility"
+      "desc": "Manage rendering quality settings"
     },
     {
       "name": "logphysics",
@@ -1375,8 +1253,7 @@
       ],
       "usage": "logphysics",
       "args": "",
-      "desc": "Enable Physics Error Logging",
-      "category": "Server & Utility"
+      "desc": "Enable Physics Error Logging"
     },
     {
       "name": "nologphysics",
@@ -1385,8 +1262,7 @@
       ],
       "usage": "nologphysics",
       "args": "",
-      "desc": "Disable Physics Error Logging",
-      "category": "Server & Utility"
+      "desc": "Disable Physics Error Logging"
     },
     {
       "name": "norender",
@@ -1395,8 +1271,7 @@
       ],
       "usage": "norender",
       "args": "",
-      "desc": "Disable 3d Rendering to decrease the amount of CPU the client uses",
-      "category": "Server & Utility"
+      "desc": "Disable 3d Rendering to decrease the amount of CPU the client uses"
     },
     {
       "name": "render",
@@ -1405,8 +1280,7 @@
       ],
       "usage": "render",
       "args": "",
-      "desc": "Enable 3d Rendering",
-      "category": "Server & Utility"
+      "desc": "Enable 3d Rendering"
     },
     {
       "name": "noreset",
@@ -1416,8 +1290,7 @@
       ],
       "usage": "noreset",
       "args": "",
-      "desc": "disable reset button",
-      "category": "Server & Utility"
+      "desc": "disable reset button"
     },
     {
       "name": "resetbtn",
@@ -1427,8 +1300,7 @@
       ],
       "usage": "resetbtn",
       "args": "",
-      "desc": "enable reset button",
-      "category": "Server & Utility"
+      "desc": "enable reset button"
     },
     {
       "name": "loopoof",
@@ -1437,8 +1309,7 @@
       ],
       "usage": "loopoof",
       "args": "",
-      "desc": "Loops everyone's character sounds (everyone can hear)",
-      "category": "Server & Utility"
+      "desc": "Loops everyone's character sounds (everyone can hear)"
     },
     {
       "name": "unloopoof",
@@ -1447,8 +1318,7 @@
       ],
       "usage": "unloopoof",
       "args": "",
-      "desc": "Stops the oof chaos",
-      "category": "Server & Utility"
+      "desc": "Stops the oof chaos"
     },
     {
       "name": "strengthen",
@@ -1457,8 +1327,7 @@
       ],
       "usage": "strengthen",
       "args": "",
-      "desc": "Makes your character more dense (CustomPhysicalProperties)",
-      "category": "Server & Utility"
+      "desc": "Makes your character more dense (CustomPhysicalProperties)"
     },
     {
       "name": "unweaken",
@@ -1468,8 +1337,7 @@
       ],
       "usage": "unweaken (unstrengthen)",
       "args": "(unstrengthen)",
-      "desc": "Sets your characters CustomPhysicalProperties to default",
-      "category": "Server & Utility"
+      "desc": "Sets your characters CustomPhysicalProperties to default"
     },
     {
       "name": "weaken",
@@ -1478,8 +1346,7 @@
       ],
       "usage": "weaken",
       "args": "",
-      "desc": "Makes your character less dense",
-      "category": "Server & Utility"
+      "desc": "Makes your character less dense"
     },
     {
       "name": "seat",
@@ -1488,8 +1355,7 @@
       ],
       "usage": "seat",
       "args": "",
-      "desc": "Finds a seat and automatically sits on it",
-      "category": "Server & Utility"
+      "desc": "Finds a seat and automatically sits on it"
     },
     {
       "name": "vehicleseat",
@@ -1499,8 +1365,7 @@
       ],
       "usage": "vehicleseat (vseat)",
       "args": "(vseat)",
-      "desc": "Sits you in a vehicle seat, useful for trying to find cars in games",
-      "category": "Server & Utility"
+      "desc": "Sits you in a vehicle seat, useful for trying to find cars in games"
     },
     {
       "name": "copytools",
@@ -1510,8 +1375,7 @@
       ],
       "usage": "copytools <player> (ctools)",
       "args": "<player> (ctools)",
-      "desc": "Copies the tools the given player has",
-      "category": "Teleport & Tools"
+      "desc": "Copies the tools the given player has"
     },
     {
       "name": "localtime",
@@ -1521,8 +1385,7 @@
       ],
       "usage": "localtime (yourtime)",
       "args": "(yourtime)",
-      "desc": "Shows your current time",
-      "category": "Server & Utility"
+      "desc": "Shows your current time"
     },
     {
       "name": "localdate",
@@ -1532,8 +1395,7 @@
       ],
       "usage": "localdate (yourdate)",
       "args": "(yourdate)",
-      "desc": "Shows your current date",
-      "category": "Server & Utility"
+      "desc": "Shows your current date"
     },
     {
       "name": "servertime",
@@ -1543,8 +1405,7 @@
       ],
       "usage": "servertime (svtime)",
       "args": "(svtime)",
-      "desc": "Shows the server's current time",
-      "category": "Teleport & Tools"
+      "desc": "Shows the server's current time"
     },
     {
       "name": "serverdate",
@@ -1554,8 +1415,7 @@
       ],
       "usage": "serverdate (svdate)",
       "args": "(svdate)",
-      "desc": "Shows the server's current date",
-      "category": "Teleport & Tools"
+      "desc": "Shows the server's current date"
     },
     {
       "name": "datetime",
@@ -1565,8 +1425,7 @@
       ],
       "usage": "datetime (localdatetime)",
       "args": "(localdatetime)",
-      "desc": "Shows your full local date and time",
-      "category": "Server & Utility"
+      "desc": "Shows your full local date and time"
     },
     {
       "name": "uptime",
@@ -1575,8 +1434,7 @@
       ],
       "usage": "uptime",
       "args": "",
-      "desc": "Shows how long the game/session has been running",
-      "category": "Server & Utility"
+      "desc": "Shows how long the game/session has been running"
     },
     {
       "name": "timestamp",
@@ -1586,8 +1444,7 @@
       ],
       "usage": "timestamp (epoch)",
       "args": "(epoch)",
-      "desc": "Shows current Unix timestamp",
-      "category": "Server & Utility"
+      "desc": "Shows current Unix timestamp"
     },
     {
       "name": "cartornado",
@@ -1597,8 +1454,7 @@
       ],
       "usage": "cartornado (ctornado)",
       "args": "(ctornado)",
-      "desc": "Tornados a car just sit in the car",
-      "category": "Teleport & Tools"
+      "desc": "Tornados a car just sit in the car"
     },
     {
       "name": "unspam",
@@ -1611,8 +1467,7 @@
       ],
       "usage": "unspam",
       "args": "",
-      "desc": "Stop all attempts to lag/spam",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Stop all attempts to lag/spam"
     },
     {
       "name": "unctest",
@@ -1622,8 +1477,7 @@
       ],
       "usage": "UNCTest (UNC)",
       "args": "(UNC)",
-      "desc": "Test how many functions your executor supports",
-      "category": "Server & Utility"
+      "desc": "Test how many functions your executor supports"
     },
     {
       "name": "vulnerabilitytest",
@@ -1633,8 +1487,7 @@
       ],
       "usage": "vulnerabilitytest (vulntest)",
       "args": "(vulntest)",
-      "desc": "Test if your executor is Vulnerable",
-      "category": "Server & Utility"
+      "desc": "Test if your executor is Vulnerable"
     },
     {
       "name": "respawn",
@@ -1644,8 +1497,7 @@
       ],
       "usage": "respawn (re)",
       "args": "(re)",
-      "desc": "Respawn your character",
-      "category": "Teleport & Tools"
+      "desc": "Respawn your character"
     },
     {
       "name": "antisit",
@@ -1654,8 +1506,7 @@
       ],
       "usage": "antisit",
       "args": "",
-      "desc": "Prevents the player from sitting",
-      "category": "Trolling / Fun"
+      "desc": "Prevents the player from sitting"
     },
     {
       "name": "unantisit",
@@ -1664,8 +1515,7 @@
       ],
       "usage": "unantisit",
       "args": "",
-      "desc": "Allows the player to sit again",
-      "category": "Trolling / Fun"
+      "desc": "Allows the player to sit again"
     },
     {
       "name": "antikick",
@@ -1677,8 +1527,7 @@
       ],
       "usage": "antikick (nokick, bypasskick, bk)",
       "args": "(nokick, bypasskick, bk)",
-      "desc": "Bypass Kick on Most Games",
-      "category": "Server & Utility"
+      "desc": "Bypass Kick on Most Games"
     },
     {
       "name": "antiteleport",
@@ -1689,8 +1538,7 @@
       ],
       "usage": "antiteleport (noteleport, blocktp)",
       "args": "(noteleport, blocktp)",
-      "desc": "Prevents TeleportService from moving you to another place",
-      "category": "Teleport & Tools"
+      "desc": "Prevents TeleportService from moving you to another place"
     },
     {
       "name": "unantikick",
@@ -1702,8 +1550,7 @@
       ],
       "usage": "unantikick",
       "args": "",
-      "desc": "Disables Anti-Kick protection",
-      "category": "Server & Utility"
+      "desc": "Disables Anti-Kick protection"
     },
     {
       "name": "unantiteleport",
@@ -1714,8 +1561,7 @@
       ],
       "usage": "unantiteleport",
       "args": "",
-      "desc": "Disables Anti-Teleport protection",
-      "category": "Teleport & Tools"
+      "desc": "Disables Anti-Teleport protection"
     },
     {
       "name": "anticframeteleport",
@@ -1726,8 +1572,7 @@
       ],
       "usage": "anticframeteleport (acframetp,acftp)",
       "args": "(acframetp,acftp)",
-      "desc": "Prevents client teleports",
-      "category": "Teleport & Tools"
+      "desc": "Prevents client teleports"
     },
     {
       "name": "unanticframeteleport",
@@ -1738,8 +1583,7 @@
       ],
       "usage": "unanticframeteleport (unacframetp,unacftp)",
       "args": "(unacframetp,unacftp)",
-      "desc": "Disables Anti CFrame Teleport",
-      "category": "Teleport & Tools"
+      "desc": "Disables Anti CFrame Teleport"
     },
     {
       "name": "lay",
@@ -1748,8 +1592,7 @@
       ],
       "usage": "lay",
       "args": "",
-      "desc": "zzzzzzzz",
-      "category": "Server & Utility"
+      "desc": "zzzzzzzz"
     },
     {
       "name": "trip",
@@ -1758,8 +1601,7 @@
       ],
       "usage": "trip",
       "args": "",
-      "desc": "get up NOW",
-      "category": "Server & Utility"
+      "desc": "get up NOW"
     },
     {
       "name": "antitrip",
@@ -1768,8 +1610,7 @@
       ],
       "usage": "antitrip",
       "args": "",
-      "desc": "no tripping today bruh",
-      "category": "Server & Utility"
+      "desc": "no tripping today bruh"
     },
     {
       "name": "unantitrip",
@@ -1778,8 +1619,7 @@
       ],
       "usage": "unantitrip",
       "args": "",
-      "desc": "tripping allowed now",
-      "category": "Server & Utility"
+      "desc": "tripping allowed now"
     },
     {
       "name": "checkrfe",
@@ -1788,8 +1628,7 @@
       ],
       "usage": "checkrfe",
       "args": "",
-      "desc": "Checks if the game has respect filtering enabled off",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Checks if the game has respect filtering enabled off"
     },
     {
       "name": "sit",
@@ -1798,8 +1637,7 @@
       ],
       "usage": "sit",
       "args": "",
-      "desc": "Sit your player",
-      "category": "Trolling / Fun"
+      "desc": "Sit your player"
     },
     {
       "name": "oldroblox",
@@ -1808,8 +1646,7 @@
       ],
       "usage": "oldroblox",
       "args": "",
-      "desc": "Old skybox and studs",
-      "category": "Server & Utility"
+      "desc": "Old skybox and studs"
     },
     {
       "name": "unoldroblox",
@@ -1818,8 +1655,7 @@
       ],
       "usage": "unoldroblox",
       "args": "",
-      "desc": "Restore skybox and studs",
-      "category": "Server & Utility"
+      "desc": "Restore skybox and studs"
     },
     {
       "name": "f3x",
@@ -1829,8 +1665,7 @@
       ],
       "usage": "f3x (fex)",
       "args": "(fex)",
-      "desc": "F3X for client",
-      "category": "Server & Utility"
+      "desc": "F3X for client"
     },
     {
       "name": "harked",
@@ -1840,8 +1675,7 @@
       ],
       "usage": "harked (comet)",
       "args": "(comet)",
-      "desc": "Executes Comet which is like harked",
-      "category": "Teleport & Tools"
+      "desc": "Executes Comet which is like harked"
     },
     {
       "name": "triggerbot",
@@ -1851,8 +1685,7 @@
       ],
       "usage": "triggerbot (tbot)",
       "args": "(tbot)",
-      "desc": "Executes a script that automatically clicks the mouse when the mouse is on a player",
-      "category": "Server & Utility"
+      "desc": "Executes a script that automatically clicks the mouse when the mouse is on a player"
     },
     {
       "name": "setspawn",
@@ -1863,8 +1696,7 @@
       ],
       "usage": "setspawn (spawnpoint, ss)",
       "args": "(spawnpoint, ss)",
-      "desc": "Sets your spawn point to the current character's position",
-      "category": "Teleport & Tools"
+      "desc": "Sets your spawn point to the current character's position"
     },
     {
       "name": "disablespawn",
@@ -1875,8 +1707,7 @@
       ],
       "usage": "disablespawn (unsetspawn, ds)",
       "args": "(unsetspawn, ds)",
-      "desc": "Disables the previously set spawn point",
-      "category": "Teleport & Tools"
+      "desc": "Disables the previously set spawn point"
     },
     {
       "name": "autoflashback",
@@ -1889,8 +1720,7 @@
       ],
       "usage": "autoflashback",
       "args": "",
-      "desc": "Auto-teleports you to your last death point on respawn",
-      "category": "Teleport & Tools"
+      "desc": "Auto-teleports you to your last death point on respawn"
     },
     {
       "name": "unautoflashback",
@@ -1902,8 +1732,7 @@
       ],
       "usage": "unautoflashback",
       "args": "",
-      "desc": "Disables auto deathpos",
-      "category": "Teleport & Tools"
+      "desc": "Disables auto deathpos"
     },
     {
       "name": "flashback",
@@ -1914,8 +1743,7 @@
       ],
       "usage": "flashback (deathpos, deathtp)",
       "args": "(deathpos, deathtp)",
-      "desc": "Teleports you to your last death point",
-      "category": "Teleport & Tools"
+      "desc": "Teleports you to your last death point"
     },
     {
       "name": "tospawn",
@@ -1925,8 +1753,7 @@
       ],
       "usage": "tospawn (ts)",
       "args": "(ts)",
-      "desc": "Teleports you to a SpawnLocation",
-      "category": "Teleport & Tools"
+      "desc": "Teleports you to a SpawnLocation"
     },
     {
       "name": "hamster",
@@ -1935,8 +1762,7 @@
       ],
       "usage": "hamster <number>",
       "args": "<number>",
-      "desc": "Hamster ball",
-      "category": "Server & Utility"
+      "desc": "Hamster ball"
     },
     {
       "name": "unhamster",
@@ -1945,8 +1771,7 @@
       ],
       "usage": "unhamster",
       "args": "",
-      "desc": "Disable hamster ball",
-      "category": "Server & Utility"
+      "desc": "Disable hamster ball"
     },
     {
       "name": "antiafk",
@@ -1956,8 +1781,7 @@
       ],
       "usage": "antiafk (noafk)",
       "args": "(noafk)",
-      "desc": "Prevents you from being kicked for being AFK",
-      "category": "Server & Utility"
+      "desc": "Prevents you from being kicked for being AFK"
     },
     {
       "name": "unantiafk",
@@ -1967,8 +1791,7 @@
       ],
       "usage": "unantiafk (unnoafk)",
       "args": "(unnoafk)",
-      "desc": "Allows you to be kicked for being AFK",
-      "category": "Server & Utility"
+      "desc": "Allows you to be kicked for being AFK"
     },
     {
       "name": "clicktp",
@@ -1978,8 +1801,7 @@
       ],
       "usage": "clicktp (tptool)",
       "args": "(tptool)",
-      "desc": "Teleport where your mouse is",
-      "category": "Teleport & Tools"
+      "desc": "Teleport where your mouse is"
     },
     {
       "name": "unclicktp",
@@ -1989,8 +1811,7 @@
       ],
       "usage": "unclicktp (untptool)",
       "args": "(untptool)",
-      "desc": "Remove teleport buttons or tools",
-      "category": "Teleport & Tools"
+      "desc": "Remove teleport buttons or tools"
     },
     {
       "name": "olddex",
@@ -1999,8 +1820,7 @@
       ],
       "usage": "olddex",
       "args": "",
-      "desc": "Using this you can see the parts / guis / scripts etc with this. A really good and helpful script.",
-      "category": "Server & Utility"
+      "desc": "Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."
     },
     {
       "name": "dex",
@@ -2009,8 +1829,7 @@
       ],
       "usage": "dex",
       "args": "",
-      "desc": "Better version of dex",
-      "category": "Server & Utility"
+      "desc": "Better version of dex"
     },
     {
       "name": "minimap",
@@ -2019,8 +1838,7 @@
       ],
       "usage": "minimap",
       "args": "",
-      "desc": "just a minimap lol",
-      "category": "Server & Utility"
+      "desc": "just a minimap lol"
     },
     {
       "name": "animationplayer",
@@ -2032,8 +1850,7 @@
       ],
       "usage": "animationplayer",
       "args": "",
-      "desc": "dropdown menu with all the animations the game has to be played",
-      "category": "Server & Utility"
+      "desc": "dropdown menu with all the animations the game has to be played"
     },
     {
       "name": "decompiler",
@@ -2042,8 +1859,7 @@
       ],
       "usage": "Decompiler",
       "args": "",
-      "desc": "Allows you to decompile LocalScript/ModuleScript's using konstant",
-      "category": "Server & Utility"
+      "desc": "Allows you to decompile LocalScript/ModuleScript's using konstant"
     },
     {
       "name": "getidfromusername",
@@ -2053,8 +1869,7 @@
       ],
       "usage": "getidfromusername (gidu)",
       "args": "(gidu)",
-      "desc": "Copy a user's UserId by Username",
-      "category": "Server & Utility"
+      "desc": "Copy a user's UserId by Username"
     },
     {
       "name": "getuserfromid",
@@ -2064,8 +1879,7 @@
       ],
       "usage": "getuserfromid (guid)",
       "args": "(guid)",
-      "desc": "Copy a user's Username by ID",
-      "category": "Server & Utility"
+      "desc": "Copy a user's Username by ID"
     },
     {
       "name": "ownerid",
@@ -2074,8 +1888,7 @@
       ],
       "usage": "ownerid",
       "args": "",
-      "desc": "masks you as the game owner's ID and Username",
-      "category": "Server & Utility"
+      "desc": "masks you as the game owner's ID and Username"
     },
     {
       "name": "userid",
@@ -2084,8 +1897,7 @@
       ],
       "usage": "userid <id>",
       "args": "<id>",
-      "desc": "changes your UserId to any ID you enter",
-      "category": "Server & Utility"
+      "desc": "changes your UserId to any ID you enter"
     },
     {
       "name": "username",
@@ -2095,8 +1907,7 @@
       ],
       "usage": "username <name>",
       "args": "<name>",
-      "desc": "changes your Username to any name you enter",
-      "category": "Server & Utility"
+      "desc": "changes your Username to any name you enter"
     },
     {
       "name": "synapsedex",
@@ -2106,8 +1917,7 @@
       ],
       "usage": "synapsedex (sdex)",
       "args": "(sdex)",
-      "desc": "Loads SynapseX's dex explorer",
-      "category": "Server & Utility"
+      "desc": "Loads SynapseX's dex explorer"
     },
     {
       "name": "antifling",
@@ -2116,8 +1926,7 @@
       ],
       "usage": "antifling",
       "args": "",
-      "desc": "makes other players non-collidable with you",
-      "category": "Trolling / Fun"
+      "desc": "makes other players non-collidable with you"
     },
     {
       "name": "unantifling",
@@ -2126,8 +1935,7 @@
       ],
       "usage": "unantifling",
       "args": "",
-      "desc": "restores collision for other players",
-      "category": "Trolling / Fun"
+      "desc": "restores collision for other players"
     },
     {
       "name": "gravitygun",
@@ -2136,8 +1944,7 @@
       ],
       "usage": "gravitygun",
       "args": "",
-      "desc": "Probably the best gravity gun script thats fe",
-      "category": "Movement & Physics"
+      "desc": "Probably the best gravity gun script thats fe"
     },
     {
       "name": "lockws",
@@ -2147,8 +1954,7 @@
       ],
       "usage": "lockws (lockworkspace)",
       "args": "(lockworkspace)",
-      "desc": "Locks the whole workspace",
-      "category": "Movement & Physics"
+      "desc": "Locks the whole workspace"
     },
     {
       "name": "unlockws",
@@ -2158,8 +1964,7 @@
       ],
       "usage": "unlockws (unlockworkspace)",
       "args": "(unlockworkspace)",
-      "desc": "Unlocks everything in Workspace",
-      "category": "Movement & Physics"
+      "desc": "Unlocks everything in Workspace"
     },
     {
       "name": "vehiclespeed",
@@ -2169,8 +1974,7 @@
       ],
       "usage": "vehiclespeed <amount> (vspeed)",
       "args": "<amount> (vspeed)",
-      "desc": "Change the vehicle speed",
-      "category": "Movement & Physics"
+      "desc": "Change the vehicle speed"
     },
     {
       "name": "unvehiclespeed",
@@ -2180,8 +1984,7 @@
       ],
       "usage": "unvehiclespeed (unvspeed)",
       "args": "(unvspeed)",
-      "desc": "Stops the vehiclespeed command",
-      "category": "Movement & Physics"
+      "desc": "Stops the vehiclespeed command"
     },
     {
       "name": "shiftlock",
@@ -2191,8 +1994,7 @@
       ],
       "usage": "shiftlock (sl)",
       "args": "(sl)",
-      "desc": "Toggles shiftlock",
-      "category": "Server & Utility"
+      "desc": "Toggles shiftlock"
     },
     {
       "name": "unshiftlock",
@@ -2202,8 +2004,7 @@
       ],
       "usage": "unshiftlock (unsl)",
       "args": "(unsl)",
-      "desc": "Disables shiftlock",
-      "category": "Server & Utility"
+      "desc": "Disables shiftlock"
     },
     {
       "name": "enable",
@@ -2212,8 +2013,7 @@
       ],
       "usage": "enable",
       "args": "",
-      "desc": "Enables a specific CoreGui",
-      "category": "Server & Utility"
+      "desc": "Enables a specific CoreGui"
     },
     {
       "name": "disable",
@@ -2222,8 +2022,7 @@
       ],
       "usage": "disable",
       "args": "",
-      "desc": "Disables a specific CoreGui",
-      "category": "Server & Utility"
+      "desc": "Disables a specific CoreGui"
     },
     {
       "name": "reverb",
@@ -2233,8 +2032,7 @@
       ],
       "usage": "reverb (reverbcontrol)",
       "args": "(reverbcontrol)",
-      "desc": "Manage sound reverb settings",
-      "category": "Server & Utility"
+      "desc": "Manage sound reverb settings"
     },
     {
       "name": "forcereverb",
@@ -2244,8 +2042,7 @@
       ],
       "usage": "forcereverb",
       "args": "",
-      "desc": "Lock ambient reverb and auto-restore if changed",
-      "category": "Server & Utility"
+      "desc": "Lock ambient reverb and auto-restore if changed"
     },
     {
       "name": "unforcereverb",
@@ -2257,8 +2054,7 @@
       ],
       "usage": "unforcereverb (ufreverb, ufr)",
       "args": "(ufreverb, ufr)",
-      "desc": "Stop forcing ambient reverb",
-      "category": "Teleport & Tools"
+      "desc": "Stop forcing ambient reverb"
     },
     {
       "name": "cam",
@@ -2269,8 +2065,7 @@
       ],
       "usage": "cam (camera, cameratype)",
       "args": "(camera, cameratype)",
-      "desc": "Manage camera type settings",
-      "category": "Camera & View"
+      "desc": "Manage camera type settings"
     },
     {
       "name": "forcecam",
@@ -2279,8 +2074,7 @@
       ],
       "usage": "forcecam",
       "args": "",
-      "desc": "Lock camera type and auto-restore if changed",
-      "category": "Camera & View"
+      "desc": "Lock camera type and auto-restore if changed"
     },
     {
       "name": "unforcecam",
@@ -2292,8 +2086,7 @@
       ],
       "usage": "unforcecam (ufcam, ufc)",
       "args": "(ufcam, ufc)",
-      "desc": "Stop forcing camera type",
-      "category": "Camera & View"
+      "desc": "Stop forcing camera type"
     },
     {
       "name": "alignmentkeys",
@@ -2304,8 +2097,7 @@
       ],
       "usage": "alignmentkeys",
       "args": "",
-      "desc": "Enable alignment keys",
-      "category": "Server & Utility"
+      "desc": "Enable alignment keys"
     },
     {
       "name": "disablealignmentkeys",
@@ -2316,8 +2108,7 @@
       ],
       "usage": "disablealignmentkeys",
       "args": "",
-      "desc": "Disable alignment keys",
-      "category": "Server & Utility"
+      "desc": "Disable alignment keys"
     },
     {
       "name": "esp",
@@ -2326,8 +2117,7 @@
       ],
       "usage": "esp",
       "args": "",
-      "desc": "locate where the players are",
-      "category": "Visuals / ESP / Environment"
+      "desc": "locate where the players are"
     },
     {
       "name": "chams",
@@ -2336,8 +2126,7 @@
       ],
       "usage": "chams",
       "args": "",
-      "desc": "ESP but without the text :shock:",
-      "category": "Visuals / ESP / Environment"
+      "desc": "ESP but without the text :shock:"
     },
     {
       "name": "locate",
@@ -2346,8 +2135,7 @@
       ],
       "usage": "locate <username1> <username2> etc (optional)",
       "args": "<username1> <username2> etc (optional)",
-      "desc": "locate where the specified player(s) are",
-      "category": "Server & Utility"
+      "desc": "locate where the specified player(s) are"
     },
     {
       "name": "npcesp",
@@ -2357,8 +2145,7 @@
       ],
       "usage": "npcesp (espnpc)",
       "args": "(espnpc)",
-      "desc": "locate where the npcs are",
-      "category": "Visuals / ESP / Environment"
+      "desc": "locate where the npcs are"
     },
     {
       "name": "unnpcesp",
@@ -2368,8 +2155,7 @@
       ],
       "usage": "unnpcesp (unespnpc)",
       "args": "(unespnpc)",
-      "desc": "stop locating npcs",
-      "category": "Visuals / ESP / Environment"
+      "desc": "stop locating npcs"
     },
     {
       "name": "unesp",
@@ -2379,8 +2165,7 @@
       ],
       "usage": "unesp (unchams)",
       "args": "(unchams)",
-      "desc": "Disables esp/chams",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disables esp/chams"
     },
     {
       "name": "unlocate",
@@ -2389,8 +2174,7 @@
       ],
       "usage": "unlocate <username1> <username2>",
       "args": "<username1> <username2>",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "crash",
@@ -2399,8 +2183,7 @@
       ],
       "usage": "crash",
       "args": "",
-      "desc": "crashes ur client lol (why would you even use this tho)",
-      "category": "Server & Utility"
+      "desc": "crashes ur client lol (why would you even use this tho)"
     },
     {
       "name": "vehiclenoclip",
@@ -2410,8 +2193,7 @@
       ],
       "usage": "vehiclenoclip (vnoclip)",
       "args": "(vnoclip)",
-      "desc": "Disables vehicle collision",
-      "category": "Movement & Physics"
+      "desc": "Disables vehicle collision"
     },
     {
       "name": "vehicleclip",
@@ -2423,8 +2205,7 @@
       ],
       "usage": "vehicleclip (vclip, unvnoclip, unvehiclenoclip)",
       "args": "(vclip, unvnoclip, unvehiclenoclip)",
-      "desc": "Enables vehicle collision",
-      "category": "Movement & Physics"
+      "desc": "Enables vehicle collision"
     },
     {
       "name": "handlekill",
@@ -2434,8 +2215,7 @@
       ],
       "usage": "handlekill <player> (hkill)",
       "args": "<player> (hkill)",
-      "desc": "Kills a player using a tool that deals damage on touch",
-      "category": "Trolling / Fun"
+      "desc": "Kills a player using a tool that deals damage on touch"
     },
     {
       "name": "creep",
@@ -2444,8 +2224,7 @@
       ],
       "usage": "creep <player>",
       "args": "<player>",
-      "desc": "Teleports from a player behind them and under the floor to the top",
-      "category": "Teleport & Tools"
+      "desc": "Teleports from a player behind them and under the floor to the top"
     },
     {
       "name": "netless",
@@ -2455,8 +2234,7 @@
       ],
       "usage": "netless (net)",
       "args": "(net)",
-      "desc": "Executes netless which makes scripts more stable",
-      "category": "Server & Utility"
+      "desc": "Executes netless which makes scripts more stable"
     },
     {
       "name": "reset",
@@ -2466,8 +2244,7 @@
       ],
       "usage": "reset (die)",
       "args": "(die)",
-      "desc": "Makes your health be 0",
-      "category": "Server & Utility"
+      "desc": "Makes your health be 0"
     },
     {
       "name": "runanim",
@@ -2478,8 +2255,7 @@
       ],
       "usage": "runanim <id> [speed] (playanim,anim)",
       "args": "<id> [speed] (playanim,anim)",
-      "desc": "Plays an animation by ID with optional speed multiplier",
-      "category": "Movement & Physics"
+      "desc": "Plays an animation by ID with optional speed multiplier"
     },
     {
       "name": "animbuilder",
@@ -2489,8 +2265,7 @@
       ],
       "usage": "animbuilder (abuilder)",
       "args": "(abuilder)",
-      "desc": "Opens animation builder GUI",
-      "category": "Server & Utility"
+      "desc": "Opens animation builder GUI"
     },
     {
       "name": "setkiller",
@@ -2500,8 +2275,7 @@
       ],
       "usage": "setkiller (killeranim)",
       "args": "(killeranim)",
-      "desc": "Sets killer animation set",
-      "category": "Trolling / Fun"
+      "desc": "Sets killer animation set"
     },
     {
       "name": "setpsycho",
@@ -2511,8 +2285,7 @@
       ],
       "usage": "setpsycho (psychoanim)",
       "args": "(psychoanim)",
-      "desc": "Sets psycho animation set",
-      "category": "Teleport & Tools"
+      "desc": "Sets psycho animation set"
     },
     {
       "name": "resetanims",
@@ -2523,8 +2296,7 @@
       ],
       "usage": "resetanims (defaultanims,animsreset)",
       "args": "(defaultanims,animsreset)",
-      "desc": "Restores your previous animations",
-      "category": "Server & Utility"
+      "desc": "Restores your previous animations"
     },
     {
       "name": "animcopycore",
@@ -2536,8 +2308,7 @@
       ],
       "usage": "animcopycore <target>",
       "args": "<target>",
-      "desc": "Copy core animations from target",
-      "category": "Server & Utility"
+      "desc": "Copy core animations from target"
     },
     {
       "name": "syncanim",
@@ -2547,8 +2318,7 @@
       ],
       "usage": "syncanim <target>",
       "args": "<target>",
-      "desc": "Mirror target animations (live)",
-      "category": "Server & Utility"
+      "desc": "Mirror target animations (live)"
     },
     {
       "name": "syncstop",
@@ -2561,8 +2331,7 @@
       ],
       "usage": "syncstop",
       "args": "",
-      "desc": "Stop live sync and restore defaults",
-      "category": "Teleport & Tools"
+      "desc": "Stop live sync and restore defaults"
     },
     {
       "name": "animresetcore",
@@ -2574,8 +2343,7 @@
       ],
       "usage": "animresetcore",
       "args": "",
-      "desc": "Reset core animations to saved",
-      "category": "Server & Utility"
+      "desc": "Reset core animations to saved"
     },
     {
       "name": "unsyncreset",
@@ -2587,8 +2355,7 @@
       ],
       "usage": "unsyncreset",
       "args": "",
-      "desc": "Stop sync and reset saved",
-      "category": "Server & Utility"
+      "desc": "Stop sync and reset saved"
     },
     {
       "name": "mimic",
@@ -2601,8 +2368,7 @@
       ],
       "usage": "mimic <target> [delay]",
       "args": "<target> [delay]",
-      "desc": "Clone target movement with optional delay",
-      "category": "Server & Utility"
+      "desc": "Clone target movement with optional delay"
     },
     {
       "name": "mstop",
@@ -2614,8 +2380,7 @@
       ],
       "usage": "mstop",
       "args": "",
-      "desc": "Stop mimic and restore defaults",
-      "category": "Teleport & Tools"
+      "desc": "Stop mimic and restore defaults"
     },
     {
       "name": "bubblechat",
@@ -2625,8 +2390,7 @@
       ],
       "usage": "bubblechat (bchat)",
       "args": "(bchat)",
-      "desc": "Enables BubbleChat",
-      "category": "Server & Utility"
+      "desc": "Enables BubbleChat"
     },
     {
       "name": "unbubblechat",
@@ -2636,8 +2400,7 @@
       ],
       "usage": "unbubblechat (unbchat)",
       "args": "(unbchat)",
-      "desc": "Disabled BubbleChat",
-      "category": "Server & Utility"
+      "desc": "Disabled BubbleChat"
     },
     {
       "name": "hideicon",
@@ -2647,8 +2410,7 @@
       ],
       "usage": "hideicon",
       "args": "",
-      "desc": "Hides the NA icon",
-      "category": "Server & Utility"
+      "desc": "Hides the NA icon"
     },
     {
       "name": "showicon",
@@ -2658,8 +2420,7 @@
       ],
       "usage": "showicon",
       "args": "",
-      "desc": "Shows the NA icon",
-      "category": "Server & Utility"
+      "desc": "Shows the NA icon"
     },
     {
       "name": "lockiconposition",
@@ -2669,8 +2430,7 @@
       ],
       "usage": "lockiconposition",
       "args": "",
-      "desc": "Locks the NA icon's position (can't be dragged)",
-      "category": "Trolling / Fun"
+      "desc": "Locks the NA icon's position (can't be dragged)"
     },
     {
       "name": "unlockiconposition",
@@ -2680,8 +2440,7 @@
       ],
       "usage": "unlockiconposition",
       "args": "",
-      "desc": "Unlocks the NA icon's position (can be dragged again)",
-      "category": "Trolling / Fun"
+      "desc": "Unlocks the NA icon's position (can be dragged again)"
     },
     {
       "name": "saveinstance",
@@ -2691,8 +2450,7 @@
       ],
       "usage": "saveinstance (savegame)",
       "args": "(savegame)",
-      "desc": "if it bugs out try removing stuff from your AutoExec folder",
-      "category": "Server & Utility"
+      "desc": "if it bugs out try removing stuff from your AutoExec folder"
     },
     {
       "name": "admin",
@@ -2702,8 +2460,7 @@
       ],
       "usage": "admin <player>",
       "args": "<player>",
-      "desc": "Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves",
-      "category": "Server & Utility"
+      "desc": "Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves"
     },
     {
       "name": "unadmin",
@@ -2712,8 +2469,7 @@
       ],
       "usage": "unadmin <player>",
       "args": "<player>",
-      "desc": "removes someone from being admin",
-      "category": "Server & Utility"
+      "desc": "removes someone from being admin"
     },
     {
       "name": "partname",
@@ -2724,8 +2480,7 @@
       ],
       "usage": "partname (partpath,partgrabber)",
       "args": "(partpath,partgrabber)",
-      "desc": "gives a ui and allows you click on a part to grab it's path",
-      "category": "Teleport & Tools"
+      "desc": "gives a ui and allows you click on a part to grab it's path"
     },
     {
       "name": "jobid",
@@ -2734,8 +2489,7 @@
       ],
       "usage": "jobid",
       "args": "",
-      "desc": "Copies your job id",
-      "category": "Server & Utility"
+      "desc": "Copies your job id"
     },
     {
       "name": "joinjobid",
@@ -2747,8 +2501,7 @@
       ],
       "usage": "joinjobid <jobid>",
       "args": "<jobid>",
-      "desc": "Joins the job id you put in",
-      "category": "Server & Utility"
+      "desc": "Joins the job id you put in"
     },
     {
       "name": "serverhop",
@@ -2758,8 +2511,7 @@
       ],
       "usage": "serverhop (shop)",
       "args": "(shop)",
-      "desc": "serverhop",
-      "category": "Teleport & Tools"
+      "desc": "serverhop"
     },
     {
       "name": "smallserverhop",
@@ -2769,8 +2521,7 @@
       ],
       "usage": "smallserverhop (sshop)",
       "args": "(sshop)",
-      "desc": "serverhop to a small server",
-      "category": "Teleport & Tools"
+      "desc": "serverhop to a small server"
     },
     {
       "name": "pingserverhop",
@@ -2780,8 +2531,7 @@
       ],
       "usage": "pingserverhop (pshop)",
       "args": "(pshop)",
-      "desc": "serverhop to a server with the best ping",
-      "category": "Teleport & Tools"
+      "desc": "serverhop to a server with the best ping"
     },
     {
       "name": "autorejoin",
@@ -2791,8 +2541,7 @@
       ],
       "usage": "autorejoin (autorj)",
       "args": "(autorj)",
-      "desc": "Rejoins the server if you get kicked / disconnected",
-      "category": "Teleport & Tools"
+      "desc": "Rejoins the server if you get kicked / disconnected"
     },
     {
       "name": "unautorejoin",
@@ -2802,8 +2551,7 @@
       ],
       "usage": "unautorejoin (unautorj)",
       "args": "(unautorj)",
-      "desc": "Disables auto rejoin command",
-      "category": "Teleport & Tools"
+      "desc": "Disables auto rejoin command"
     },
     {
       "name": "functionspy",
@@ -2812,8 +2560,7 @@
       ],
       "usage": "functionspy",
       "args": "",
-      "desc": "Check console",
-      "category": "Server & Utility"
+      "desc": "Check console"
     },
     {
       "name": "fly",
@@ -2822,8 +2569,7 @@
       ],
       "usage": "fly [speed]",
       "args": "[speed]",
-      "desc": "Enable flight",
-      "category": "Movement & Physics"
+      "desc": "Enable flight"
     },
     {
       "name": "unfly",
@@ -2832,8 +2578,7 @@
       ],
       "usage": "unfly",
       "args": "",
-      "desc": "Disable flight",
-      "category": "Movement & Physics"
+      "desc": "Disable flight"
     },
     {
       "name": "cframefly",
@@ -2843,8 +2588,7 @@
       ],
       "usage": "cframefly [speed] (cfly)",
       "args": "[speed] (cfly)",
-      "desc": "Enable CFrame-based flight",
-      "category": "Movement & Physics"
+      "desc": "Enable CFrame-based flight"
     },
     {
       "name": "uncframefly",
@@ -2854,8 +2598,7 @@
       ],
       "usage": "uncfly",
       "args": "",
-      "desc": "Disable CFrame-based flight",
-      "category": "Movement & Physics"
+      "desc": "Disable CFrame-based flight"
     },
     {
       "name": "cflybind",
@@ -2866,8 +2609,7 @@
       ],
       "usage": "cflybind [key] (cframeflybind, bindcfly)",
       "args": "[key] (cframeflybind, bindcfly)",
-      "desc": "Set custom keybind for CFrame fly",
-      "category": "Movement & Physics"
+      "desc": "Set custom keybind for CFrame fly"
     },
     {
       "name": "tfly",
@@ -2877,8 +2619,7 @@
       ],
       "usage": "tfly [speed] (tweenfly)",
       "args": "[speed] (tweenfly)",
-      "desc": "Enables smooth flying",
-      "category": "Movement & Physics"
+      "desc": "Enables smooth flying"
     },
     {
       "name": "untfly",
@@ -2888,8 +2629,7 @@
       ],
       "usage": "untfly",
       "args": "",
-      "desc": "Disables tween flying",
-      "category": "Movement & Physics"
+      "desc": "Disables tween flying"
     },
     {
       "name": "tflykeybind",
@@ -2900,8 +2640,7 @@
       ],
       "usage": "tflykeybind [key] (bindtfly, tflybind)",
       "args": "[key] (bindtfly, tflybind)",
-      "desc": "Set keybind for tfly toggle",
-      "category": "Movement & Physics"
+      "desc": "Set keybind for tfly toggle"
     },
     {
       "name": "noclip",
@@ -2912,8 +2651,7 @@
       ],
       "usage": "noclip",
       "args": "",
-      "desc": "Disable your player's collision",
-      "category": "Movement & Physics"
+      "desc": "Disable your player's collision"
     },
     {
       "name": "clip",
@@ -2926,8 +2664,7 @@
       ],
       "usage": "clip",
       "args": "",
-      "desc": "Enable your player's collision",
-      "category": "Movement & Physics"
+      "desc": "Enable your player's collision"
     },
     {
       "name": "antianchor",
@@ -2937,8 +2674,7 @@
       ],
       "usage": "antianchor",
       "args": "",
-      "desc": "Prevent your parts from being anchored",
-      "category": "Server & Utility"
+      "desc": "Prevent your parts from being anchored"
     },
     {
       "name": "unantianchor",
@@ -2948,8 +2684,7 @@
       ],
       "usage": "unantianchor",
       "args": "",
-      "desc": "Allow your parts to be anchored",
-      "category": "Server & Utility"
+      "desc": "Allow your parts to be anchored"
     },
     {
       "name": "antibang",
@@ -2958,8 +2693,7 @@
       ],
       "usage": "antibang",
       "args": "",
-      "desc": "prevents users to bang you (still WORK IN PROGRESS)",
-      "category": "Server & Utility"
+      "desc": "prevents users to bang you (still WORK IN PROGRESS)"
     },
     {
       "name": "unantibang",
@@ -2968,8 +2702,7 @@
       ],
       "usage": "unantibang",
       "args": "",
-      "desc": "disables antibang",
-      "category": "Server & Utility"
+      "desc": "disables antibang"
     },
     {
       "name": "orbit",
@@ -2978,8 +2711,7 @@
       ],
       "usage": "orbit <player> <distance>",
       "args": "<player> <distance>",
-      "desc": "Orbit around a player",
-      "category": "Trolling / Fun"
+      "desc": "Orbit around a player"
     },
     {
       "name": "uporbit",
@@ -2988,8 +2720,7 @@
       ],
       "usage": "uporbit <player> <distance>",
       "args": "<player> <distance>",
-      "desc": "Orbit around a player on the Y axis",
-      "category": "Trolling / Fun"
+      "desc": "Orbit around a player on the Y axis"
     },
     {
       "name": "unorbit",
@@ -2998,8 +2729,7 @@
       ],
       "usage": "unorbit",
       "args": "",
-      "desc": "Stop orbiting",
-      "category": "Trolling / Fun"
+      "desc": "Stop orbiting"
     },
     {
       "name": "freecam",
@@ -3010,8 +2740,7 @@
       ],
       "usage": "freecam [speed] (fc,fcam)",
       "args": "[speed] (fc,fcam)",
-      "desc": "Enable free camera",
-      "category": "Camera & View"
+      "desc": "Enable free camera"
     },
     {
       "name": "unfreecam",
@@ -3022,8 +2751,7 @@
       ],
       "usage": "unfreecam (unfc,unfcam)",
       "args": "(unfc,unfcam)",
-      "desc": "Disable free camera",
-      "category": "Camera & View"
+      "desc": "Disable free camera"
     },
     {
       "name": "nohats",
@@ -3033,8 +2761,7 @@
       ],
       "usage": "nohats (drophats)",
       "args": "(drophats)",
-      "desc": "Drop all of your hats",
-      "category": "Server & Utility"
+      "desc": "Drop all of your hats"
     },
     {
       "name": "permadeath",
@@ -3044,8 +2771,7 @@
       ],
       "usage": "permadeath (pdeath)",
       "args": "(pdeath)",
-      "desc": "be death permanently",
-      "category": "Server & Utility"
+      "desc": "be death permanently"
     },
     {
       "name": "unpermadeath",
@@ -3055,8 +2781,7 @@
       ],
       "usage": "unpermadeath (unpdeath)",
       "args": "(unpdeath)",
-      "desc": "no perma death",
-      "category": "Server & Utility"
+      "desc": "no perma death"
     },
     {
       "name": "instantrespawn",
@@ -3067,8 +2792,7 @@
       ],
       "usage": "instantrespawn (instantr, irespawn)",
       "args": "(instantr, irespawn)",
-      "desc": "respawn instantly",
-      "category": "Teleport & Tools"
+      "desc": "respawn instantly"
     },
     {
       "name": "circlemath",
@@ -3078,8 +2802,7 @@
       ],
       "usage": "circlemath <mode> <size>",
       "args": "<mode> <size>",
-      "desc": "Gay circle math\\nModes: a,b,c,d,e",
-      "category": "Server & Utility"
+      "desc": "Gay circle math\\nModes: a,b,c,d,e"
     },
     {
       "name": "grippos",
@@ -3089,8 +2812,7 @@
       ],
       "usage": "grippos (setgrip)",
       "args": "(setgrip)",
-      "desc": "Opens a UI to manually input grip offset and rotation.",
-      "category": "Server & Utility"
+      "desc": "Opens a UI to manually input grip offset and rotation."
     },
     {
       "name": "seizure",
@@ -3099,8 +2821,7 @@
       ],
       "usage": "seizure",
       "args": "",
-      "desc": "Gives you a seizure",
-      "category": "Server & Utility"
+      "desc": "Gives you a seizure"
     },
     {
       "name": "unseizure",
@@ -3109,8 +2830,7 @@
       ],
       "usage": "unseizure",
       "args": "",
-      "desc": "Stops you from having a seizure not in real life noob",
-      "category": "Server & Utility"
+      "desc": "Stops you from having a seizure not in real life noob"
     },
     {
       "name": "fakelag",
@@ -3120,8 +2840,7 @@
       ],
       "usage": "fakelag (flag)",
       "args": "(flag)",
-      "desc": "fake lag",
-      "category": "Server & Utility"
+      "desc": "fake lag"
     },
     {
       "name": "unfakelag",
@@ -3131,8 +2850,7 @@
       ],
       "usage": "unfakelag (unflag)",
       "args": "(unflag)",
-      "desc": "stops the fake lag command",
-      "category": "Server & Utility"
+      "desc": "stops the fake lag command"
     },
     {
       "name": "hide",
@@ -3142,8 +2860,7 @@
       ],
       "usage": "hide <player> (unshow)",
       "args": "<player> (unshow)",
-      "desc": "places the selected player to lighting",
-      "category": "Server & Utility"
+      "desc": "places the selected player to lighting"
     },
     {
       "name": "unhide",
@@ -3153,8 +2870,7 @@
       ],
       "usage": "show <player> (unhide)",
       "args": "<player> (unhide)",
-      "desc": "places the selected player back to workspace",
-      "category": "Server & Utility"
+      "desc": "places the selected player back to workspace"
     },
     {
       "name": "aimbot",
@@ -3165,8 +2881,7 @@
       ],
       "usage": "aimbot (aimbotui,aimbotgui)",
       "args": "(aimbotui,aimbotgui)",
-      "desc": "aimbot and yeah",
-      "category": "Server & Utility"
+      "desc": "aimbot and yeah"
     },
     {
       "name": "grabtools",
@@ -3177,8 +2892,7 @@
       ],
       "usage": "grabtools [range]",
       "args": "[range]",
-      "desc": "Grabs dropped tools",
-      "category": "Teleport & Tools"
+      "desc": "Grabs dropped tools"
     },
     {
       "name": "loopgrabtools",
@@ -3189,8 +2903,7 @@
       ],
       "usage": "loopgrabtools [range]",
       "args": "[range]",
-      "desc": "Loop grabs dropped tools",
-      "category": "Teleport & Tools"
+      "desc": "Loop grabs dropped tools"
     },
     {
       "name": "unloopgrabtools",
@@ -3199,8 +2912,7 @@
       ],
       "usage": "unloopgrabtools",
       "args": "",
-      "desc": "Stops the loop grab command",
-      "category": "Teleport & Tools"
+      "desc": "Stops the loop grab command"
     },
     {
       "name": "dance",
@@ -3209,8 +2921,7 @@
       ],
       "usage": "dance",
       "args": "",
-      "desc": "Does a random dance",
-      "category": "Trolling / Fun"
+      "desc": "Does a random dance"
     },
     {
       "name": "undance",
@@ -3219,8 +2930,7 @@
       ],
       "usage": "undance",
       "args": "",
-      "desc": "Stops the dance command",
-      "category": "Trolling / Fun"
+      "desc": "Stops the dance command"
     },
     {
       "name": "animspoofer",
@@ -3232,8 +2942,7 @@
       ],
       "usage": "animspoofer (animationspoofer, spoofanim, animspoof)",
       "args": "(animationspoofer, spoofanim, animspoof)",
-      "desc": "Loads up an animation spoofer,spoofs animations that use rbxassetid",
-      "category": "Server & Utility"
+      "desc": "Loads up an animation spoofer,spoofs animations that use rbxassetid"
     },
     {
       "name": "badgeviewer",
@@ -3246,8 +2955,7 @@
       ],
       "usage": "badgeviewer (badgeview, bviewer, badgev, bv)",
       "args": "(badgeview, bviewer, badgev, bv)",
-      "desc": "loads up a badge viewer UI that views all badges in the game you're in",
-      "category": "Camera & View"
+      "desc": "loads up a badge viewer UI that views all badges in the game you're in"
     },
     {
       "name": "bodytransparency",
@@ -3258,8 +2966,7 @@
       ],
       "usage": "bodytransparency <number> [part1] [part2] ... (btransparency,bodyt)",
       "args": "<number> [part1] [part2] ... (btransparency,bodyt)",
-      "desc": "Sets LocalTransparencyModifier on selected body parts (no Head) to a value (0-1). UI supports multi-select.",
-      "category": "Server & Utility"
+      "desc": "Sets LocalTransparencyModifier on selected body parts (no Head) to a value (0-1). UI supports multi-select."
     },
     {
       "name": "unbodytransparency",
@@ -3270,8 +2977,7 @@
       ],
       "usage": "unbodytransparency (unbtransparency,unbodyt)",
       "args": "(unbtransparency,unbodyt)",
-      "desc": "Stops transparency loop",
-      "category": "Server & Utility"
+      "desc": "Stops transparency loop"
     },
     {
       "name": "animationspeed",
@@ -3282,8 +2988,7 @@
       ],
       "usage": "animationspeed <speed> (animspeed,aspeed)",
       "args": "<speed> (animspeed,aspeed)",
-      "desc": "Adjusts the speed of currently playing animations",
-      "category": "Movement & Physics"
+      "desc": "Adjusts the speed of currently playing animations"
     },
     {
       "name": "unanimationspeed",
@@ -3294,8 +2999,7 @@
       ],
       "usage": "unanimationspeed (unanimspeed,unaspeed)",
       "args": "(unanimspeed,unaspeed)",
-      "desc": "Stops the animation speed adjustment loop",
-      "category": "Movement & Physics"
+      "desc": "Stops the animation speed adjustment loop"
     },
     {
       "name": "placeid",
@@ -3305,8 +3009,7 @@
       ],
       "usage": "placeid (pid)",
       "args": "(pid)",
-      "desc": "Copies the PlaceId of the game you're in",
-      "category": "Server & Utility"
+      "desc": "Copies the PlaceId of the game you're in"
     },
     {
       "name": "gameid",
@@ -3317,8 +3020,7 @@
       ],
       "usage": "gameid (universeid,gid)",
       "args": "(universeid,gid)",
-      "desc": "Copies the GameId/Universe Id of the game you're in",
-      "category": "Server & Utility"
+      "desc": "Copies the GameId/Universe Id of the game you're in"
     },
     {
       "name": "firework",
@@ -3327,8 +3029,7 @@
       ],
       "usage": "firework",
       "args": "",
-      "desc": "pop",
-      "category": "Server & Utility"
+      "desc": "pop"
     },
     {
       "name": "placename",
@@ -3338,8 +3039,7 @@
       ],
       "usage": "placename (pname)",
       "args": "(pname)",
-      "desc": "Copies the game's place name to your clipboard",
-      "category": "Server & Utility"
+      "desc": "Copies the game's place name to your clipboard"
     },
     {
       "name": "gameinfo",
@@ -3349,8 +3049,7 @@
       ],
       "usage": "gameinfo (ginfo)",
       "args": "(ginfo)",
-      "desc": "shows info about the game you're playing",
-      "category": "Server & Utility"
+      "desc": "shows info about the game you're playing"
     },
     {
       "name": "userpreview",
@@ -3361,8 +3060,7 @@
       ],
       "usage": "userpreview",
       "args": "",
-      "desc": "show info about a user you name",
-      "category": "Camera & View"
+      "desc": "show info about a user you name"
     },
     {
       "name": "copyname",
@@ -3372,8 +3070,7 @@
       ],
       "usage": "copyname <player> (cname)",
       "args": "<player> (cname)",
-      "desc": "Copies the username of the target",
-      "category": "Server & Utility"
+      "desc": "Copies the username of the target"
     },
     {
       "name": "copydisplay",
@@ -3383,8 +3080,7 @@
       ],
       "usage": "copydisplay <player> (cdisplay)",
       "args": "<player> (cdisplay)",
-      "desc": "Copies the display name of the target",
-      "category": "Server & Utility"
+      "desc": "Copies the display name of the target"
     },
     {
       "name": "copyid",
@@ -3394,8 +3090,7 @@
       ],
       "usage": "copyid <player> (id)",
       "args": "<player> (id)",
-      "desc": "Copies the UserId of the target",
-      "category": "Server & Utility"
+      "desc": "Copies the UserId of the target"
     },
     {
       "name": "antikillbrick",
@@ -3405,8 +3100,7 @@
       ],
       "usage": "antikillbrick (antikb)",
       "args": "(antikb)",
-      "desc": "Prevents kill bricks from killing you",
-      "category": "Trolling / Fun"
+      "desc": "Prevents kill bricks from killing you"
     },
     {
       "name": "unantikillbrick",
@@ -3416,8 +3110,7 @@
       ],
       "usage": "unantikillbrick (unantikb)",
       "args": "(unantikb)",
-      "desc": "Allows kill bricks to kill you",
-      "category": "Trolling / Fun"
+      "desc": "Allows kill bricks to kill you"
     },
     {
       "name": "height",
@@ -3428,8 +3121,7 @@
       ],
       "usage": "height <number> (hipheight,hh)",
       "args": "<number> (hipheight,hh)",
-      "desc": "Changes your hipheight",
-      "category": "Server & Utility"
+      "desc": "Changes your hipheight"
     },
     {
       "name": "netbypass",
@@ -3439,8 +3131,7 @@
       ],
       "usage": "netbypass (netb)",
       "args": "(netb)",
-      "desc": "Net bypass",
-      "category": "Server & Utility"
+      "desc": "Net bypass"
     },
     {
       "name": "day",
@@ -3449,8 +3140,7 @@
       ],
       "usage": "day",
       "args": "",
-      "desc": "Makes it day",
-      "category": "Server & Utility"
+      "desc": "Makes it day"
     },
     {
       "name": "night",
@@ -3459,8 +3149,7 @@
       ],
       "usage": "night",
       "args": "",
-      "desc": "Makes it night",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Makes it night"
     },
     {
       "name": "time",
@@ -3469,8 +3158,7 @@
       ],
       "usage": "time <number>",
       "args": "<number>",
-      "desc": "Sets the time",
-      "category": "Server & Utility"
+      "desc": "Sets the time"
     },
     {
       "name": "chat",
@@ -3480,8 +3168,7 @@
       ],
       "usage": "chat <text> (message)",
       "args": "<text> (message)",
-      "desc": "Chats for you, useful if you're muted",
-      "category": "Server & Utility"
+      "desc": "Chats for you, useful if you're muted"
     },
     {
       "name": "privatemessage",
@@ -3491,8 +3178,7 @@
       ],
       "usage": "privatemessage <player> <text> (pm)",
       "args": "<player> <text> (pm)",
-      "desc": "Sends a private message to a player",
-      "category": "Server & Utility"
+      "desc": "Sends a private message to a player"
     },
     {
       "name": "mimicchat",
@@ -3502,8 +3188,7 @@
       ],
       "usage": "mimicchat <player> (mimic)",
       "args": "<player> (mimic)",
-      "desc": "Mimics the chat of a player",
-      "category": "Server & Utility"
+      "desc": "Mimics the chat of a player"
     },
     {
       "name": "stopmimicchat",
@@ -3513,8 +3198,7 @@
       ],
       "usage": "stopmimicchat (unmimicchat)",
       "args": "(unmimicchat)",
-      "desc": "Stops mimicking a player",
-      "category": "Teleport & Tools"
+      "desc": "Stops mimicking a player"
     },
     {
       "name": "fixcam",
@@ -3524,8 +3208,7 @@
       ],
       "usage": "fixcam",
       "args": "",
-      "desc": "Fix your camera",
-      "category": "Camera & View"
+      "desc": "Fix your camera"
     },
     {
       "name": "saw",
@@ -3534,8 +3217,7 @@
       ],
       "usage": "saw <challenge>",
       "args": "<challenge>",
-      "desc": "shush",
-      "category": "Server & Utility"
+      "desc": "shush"
     },
     {
       "name": "jend",
@@ -3544,8 +3226,7 @@
       ],
       "usage": "jend",
       "args": "",
-      "desc": "nil",
-      "category": "Server & Utility"
+      "desc": "nil"
     },
     {
       "name": "fling",
@@ -3554,8 +3235,7 @@
       ],
       "usage": "fling <player>",
       "args": "<player>",
-      "desc": "Fling the given player",
-      "category": "Trolling / Fun"
+      "desc": "Fling the given player"
     },
     {
       "name": "commitoof",
@@ -3566,8 +3246,7 @@
       ],
       "usage": "commitoof (suicide, kys)",
       "args": "(suicide, kys)",
-      "desc": "Triggers a dramatic oof sequence for the player",
-      "category": "Teleport & Tools"
+      "desc": "Triggers a dramatic oof sequence for the player"
     },
     {
       "name": "volume",
@@ -3577,8 +3256,7 @@
       ],
       "usage": "volume <0-10> (vol)",
       "args": "<0-10> (vol)",
-      "desc": "Changes your volume",
-      "category": "Server & Utility"
+      "desc": "Changes your volume"
     },
     {
       "name": "perfstats",
@@ -3587,8 +3265,7 @@
       ],
       "usage": "perfstats <on/off>",
       "args": "<on/off>",
-      "desc": "Shows or hides performance stats",
-      "category": "Server & Utility"
+      "desc": "Shows or hides performance stats"
     },
     {
       "name": "preftransparency",
@@ -3598,8 +3275,7 @@
       ],
       "usage": "preftransparency <0-15>",
       "args": "<0-15>",
-      "desc": "Preferred UI transparency",
-      "category": "Server & Utility"
+      "desc": "Preferred UI transparency"
     },
     {
       "name": "sensitivity",
@@ -3609,8 +3285,7 @@
       ],
       "usage": "sensitivity <1-10> (sens)",
       "args": "<1-10> (sens)",
-      "desc": "Changes your sensitivity",
-      "category": "Trolling / Fun"
+      "desc": "Changes your sensitivity"
     },
     {
       "name": "torandom",
@@ -3620,8 +3295,7 @@
       ],
       "usage": "torandom (tr)",
       "args": "(tr)",
-      "desc": "Teleports to a random player",
-      "category": "Teleport & Tools"
+      "desc": "Teleports to a random player"
     },
     {
       "name": "timestop",
@@ -3631,8 +3305,7 @@
       ],
       "usage": "timestop (tstop)",
       "args": "(tstop)",
-      "desc": "freezes all players (ZA WARUDO)",
-      "category": "Teleport & Tools"
+      "desc": "freezes all players (ZA WARUDO)"
     },
     {
       "name": "untimestop",
@@ -3642,8 +3315,7 @@
       ],
       "usage": "untimestop (untstop)",
       "args": "(untstop)",
-      "desc": "unfreeze all players",
-      "category": "Teleport & Tools"
+      "desc": "unfreeze all players"
     },
     {
       "name": "team",
@@ -3652,8 +3324,7 @@
       ],
       "usage": "team <team name>",
       "args": "<team name>",
-      "desc": "Changes your team (for the client)",
-      "category": "Server & Utility"
+      "desc": "Changes your team (for the client)"
     },
     {
       "name": "nilchar",
@@ -3662,8 +3333,7 @@
       ],
       "usage": "nilchar",
       "args": "",
-      "desc": "Temporarily parent your character to nil",
-      "category": "Server & Utility"
+      "desc": "Temporarily parent your character to nil"
     },
     {
       "name": "unnilchar",
@@ -3673,8 +3343,7 @@
       ],
       "usage": "unnilchar (nonilchar)",
       "args": "(nonilchar)",
-      "desc": "Move your character back to workspace",
-      "category": "Server & Utility"
+      "desc": "Move your character back to workspace"
     },
     {
       "name": "char",
@@ -3685,8 +3354,7 @@
       ],
       "usage": "char <username/userid>",
       "args": "<username/userid>",
-      "desc": "change your character's appearance to someone else's",
-      "category": "Server & Utility"
+      "desc": "change your character's appearance to someone else's"
     },
     {
       "name": "unchar",
@@ -3695,8 +3363,7 @@
       ],
       "usage": "unchar",
       "args": "",
-      "desc": "revert to your character",
-      "category": "Server & Utility"
+      "desc": "revert to your character"
     },
     {
       "name": "autochar",
@@ -3706,8 +3373,7 @@
       ],
       "usage": "autochar",
       "args": "",
-      "desc": "auto-change your character on respawn",
-      "category": "Teleport & Tools"
+      "desc": "auto-change your character on respawn"
     },
     {
       "name": "unautochar",
@@ -3717,8 +3383,7 @@
       ],
       "usage": "unautochar",
       "args": "",
-      "desc": "stop auto-change on respawn",
-      "category": "Teleport & Tools"
+      "desc": "stop auto-change on respawn"
     },
     {
       "name": "autooutfit",
@@ -3728,8 +3393,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "unautooutfit",
@@ -3739,8 +3403,7 @@
       ],
       "usage": "unautooutfit",
       "args": "",
-      "desc": "stop outfit auto-apply",
-      "category": "Teleport & Tools"
+      "desc": "stop outfit auto-apply"
     },
     {
       "name": "outfit",
@@ -3749,8 +3412,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "goto",
@@ -3762,8 +3424,7 @@
       ],
       "usage": "goto <player|X,Y,Z>",
       "args": "<player|X,Y,Z>",
-      "desc": "Teleport to the given player or X,Y,Z coordinates",
-      "category": "Teleport & Tools"
+      "desc": "Teleport to the given player or X,Y,Z coordinates"
     },
     {
       "name": "lookat",
@@ -3773,8 +3434,7 @@
       ],
       "usage": "lookat <player>",
       "args": "<player>",
-      "desc": "Stare at a player",
-      "category": "Server & Utility"
+      "desc": "Stare at a player"
     },
     {
       "name": "unlookat",
@@ -3784,8 +3444,7 @@
       ],
       "usage": "unlookat",
       "args": "",
-      "desc": "Stops staring",
-      "category": "Server & Utility"
+      "desc": "Stops staring"
     },
     {
       "name": "starenear",
@@ -3795,8 +3454,7 @@
       ],
       "usage": "starenear (stareclosest)",
       "args": "(stareclosest)",
-      "desc": "Stare at the closest player",
-      "category": "Server & Utility"
+      "desc": "Stare at the closest player"
     },
     {
       "name": "unstarenear",
@@ -3806,8 +3464,7 @@
       ],
       "usage": "unstarenear (unstareclosest)",
       "args": "(unstareclosest)",
-      "desc": "Stop staring at closest player",
-      "category": "Server & Utility"
+      "desc": "Stop staring at closest player"
     },
     {
       "name": "watch",
@@ -3818,8 +3475,7 @@
       ],
       "usage": "watch <Player> (view, spectate)",
       "args": "<Player> (view, spectate)",
-      "desc": "Spectate player",
-      "category": "Camera & View"
+      "desc": "Spectate player"
     },
     {
       "name": "unwatch",
@@ -3829,8 +3485,7 @@
       ],
       "usage": "unwatch (unview)",
       "args": "(unview)",
-      "desc": "Stop spectating",
-      "category": "Camera & View"
+      "desc": "Stop spectating"
     },
     {
       "name": "watch2",
@@ -3841,8 +3496,7 @@
       ],
       "usage": "watch2",
       "args": "",
-      "desc": "",
-      "category": "Camera & View"
+      "desc": ""
     },
     {
       "name": "unwatch2",
@@ -3852,8 +3506,7 @@
       ],
       "usage": "unwatch2",
       "args": "",
-      "desc": "",
-      "category": "Camera & View"
+      "desc": ""
     },
     {
       "name": "stealaudio",
@@ -3865,8 +3518,7 @@
       ],
       "usage": "stealaudio <player>",
       "args": "<player>",
-      "desc": "Save all sounds a player is playing to a file -Cyrus",
-      "category": "Server & Utility"
+      "desc": "Save all sounds a player is playing to a file -Cyrus"
     },
     {
       "name": "follow",
@@ -3877,8 +3529,7 @@
       ],
       "usage": "follow <player>",
       "args": "<player>",
-      "desc": "Follow a player wherever they go",
-      "category": "Movement & Physics"
+      "desc": "Follow a player wherever they go"
     },
     {
       "name": "unfollow",
@@ -3890,8 +3541,7 @@
       ],
       "usage": "unfollow",
       "args": "",
-      "desc": "Stop all attempts to follow a player",
-      "category": "Movement & Physics"
+      "desc": "Stop all attempts to follow a player"
     },
     {
       "name": "autofollow",
@@ -3902,8 +3552,7 @@
       ],
       "usage": "autofollow (autostalk,proxfollow)",
       "args": "(autostalk,proxfollow)",
-      "desc": "Automatically follow any player who comes close",
-      "category": "Teleport & Tools"
+      "desc": "Automatically follow any player who comes close"
     },
     {
       "name": "unautofollow",
@@ -3914,8 +3563,7 @@
       ],
       "usage": "unautofollow (stopautofollow,unproxfollow)",
       "args": "(stopautofollow,unproxfollow)",
-      "desc": "Stop automatically following nearby players",
-      "category": "Teleport & Tools"
+      "desc": "Stop automatically following nearby players"
     },
     {
       "name": "pathfind",
@@ -3924,8 +3572,7 @@
       ],
       "usage": "pathfind <player>",
       "args": "<player>",
-      "desc": "Follow a player using the pathfinder API wherever they go",
-      "category": "Server & Utility"
+      "desc": "Follow a player using the pathfinder API wherever they go"
     },
     {
       "name": "freeze",
@@ -3937,8 +3584,7 @@
       ],
       "usage": "freeze (thaw,anchor,fr)",
       "args": "(thaw,anchor,fr)",
-      "desc": "Freezes your character",
-      "category": "Server & Utility"
+      "desc": "Freezes your character"
     },
     {
       "name": "unfreeze",
@@ -3950,8 +3596,7 @@
       ],
       "usage": "unfreeze (unthaw,unanchor,unfr)",
       "args": "(unthaw,unanchor,unfr)",
-      "desc": "Unfreezes your character",
-      "category": "Server & Utility"
+      "desc": "Unfreezes your character"
     },
     {
       "name": "blackhole",
@@ -3962,8 +3607,7 @@
       ],
       "usage": "blackhole",
       "args": "",
-      "desc": "Makes unanchored parts teleport to the black hole",
-      "category": "Teleport & Tools"
+      "desc": "Makes unanchored parts teleport to the black hole"
     },
     {
       "name": "disableanimations",
@@ -3973,8 +3617,7 @@
       ],
       "usage": "disableanimations (disableanims)",
       "args": "(disableanims)",
-      "desc": "Freezes your animations",
-      "category": "Server & Utility"
+      "desc": "Freezes your animations"
     },
     {
       "name": "undisableanimations",
@@ -3984,8 +3627,7 @@
       ],
       "usage": "undisableanimations (undisableanims)",
       "args": "(undisableanims)",
-      "desc": "Unfreezes your animations",
-      "category": "Server & Utility"
+      "desc": "Unfreezes your animations"
     },
     {
       "name": "hatresize",
@@ -3994,8 +3636,7 @@
       ],
       "usage": "hatresize",
       "args": "",
-      "desc": "Makes your hats very big r15 only",
-      "category": "Trolling / Fun"
+      "desc": "Makes your hats very big r15 only"
     },
     {
       "name": "exit",
@@ -4004,8 +3645,7 @@
       ],
       "usage": "exit",
       "args": "",
-      "desc": "Close down pedoblox",
-      "category": "Server & Utility"
+      "desc": "Close down pedoblox"
     },
     {
       "name": "firekey",
@@ -4015,8 +3655,7 @@
       ],
       "usage": "firekey <key> (fkey)",
       "args": "<key> (fkey)",
-      "desc": "makes you fire a keybind using VirtualInputManager",
-      "category": "Server & Utility"
+      "desc": "makes you fire a keybind using VirtualInputManager"
     },
     {
       "name": "loopfling",
@@ -4025,8 +3664,7 @@
       ],
       "usage": "loopfling <player>",
       "args": "<player>",
-      "desc": "Loop voids a player",
-      "category": "Trolling / Fun"
+      "desc": "Loop voids a player"
     },
     {
       "name": "unloopfling",
@@ -4035,8 +3673,7 @@
       ],
       "usage": "unloopfling",
       "args": "",
-      "desc": "Stops loop flinging a player",
-      "category": "Trolling / Fun"
+      "desc": "Stops loop flinging a player"
     },
     {
       "name": "freegamepass",
@@ -4046,8 +3683,7 @@
       ],
       "usage": "freegamepass (freegp)",
       "args": "(freegp)",
-      "desc": "Pretends you own every gamepass and fires product purchase signals",
-      "category": "Server & Utility"
+      "desc": "Pretends you own every gamepass and fires product purchase signals"
     },
     {
       "name": "devproducts",
@@ -4057,8 +3693,7 @@
       ],
       "usage": "devproducts (products)",
       "args": "(products)",
-      "desc": "Lists Developer Products",
-      "category": "Server & Utility"
+      "desc": "Lists Developer Products"
     },
     {
       "name": "gamepasses",
@@ -4068,8 +3703,7 @@
       ],
       "usage": "gamepasses (passes)",
       "args": "(passes)",
-      "desc": "Prompt & list Game Passes (manual IDs)",
-      "category": "Server & Utility"
+      "desc": "Prompt & list Game Passes (manual IDs)"
     },
     {
       "name": "listen",
@@ -4078,8 +3712,7 @@
       ],
       "usage": "listen <player>",
       "args": "<player>",
-      "desc": "Listen to your target's voice chat",
-      "category": "Server & Utility"
+      "desc": "Listen to your target's voice chat"
     },
     {
       "name": "vcworld",
@@ -4089,8 +3722,7 @@
       ],
       "usage": "vcworld <on/off>",
       "args": "<on/off>",
-      "desc": "Toggle default spatial voice routing",
-      "category": "Server & Utility"
+      "desc": "Toggle default spatial voice routing"
     },
     {
       "name": "unlisten",
@@ -4099,8 +3731,7 @@
       ],
       "usage": "unlisten",
       "args": "",
-      "desc": "Stops listening",
-      "category": "Server & Utility"
+      "desc": "Stops listening"
     },
     {
       "name": "gear",
@@ -4109,8 +3740,7 @@
       ],
       "usage": "gear [id]",
       "args": "[id]",
-      "desc": "This is client sided and will probably not work",
-      "category": "Server & Utility"
+      "desc": "This is client sided and will probably not work"
     },
     {
       "name": "lockmouse",
@@ -4120,8 +3750,7 @@
       ],
       "usage": "lockmouse (lockm)",
       "args": "(lockm)",
-      "desc": "Default Mouse Behaviour (idk any description)",
-      "category": "Server & Utility"
+      "desc": "Default Mouse Behaviour (idk any description)"
     },
     {
       "name": "unlockmouse",
@@ -4131,8 +3760,7 @@
       ],
       "usage": "unlockmouse (unlockm)",
       "args": "(unlockm)",
-      "desc": "Unlocks your mouse (fr this time)",
-      "category": "Server & Utility"
+      "desc": "Unlocks your mouse (fr this time)"
     },
     {
       "name": "lockmouse2",
@@ -4142,8 +3770,7 @@
       ],
       "usage": "lockmouse2 (lockm2)",
       "args": "(lockm2)",
-      "desc": "Locks your mouse in the center",
-      "category": "Server & Utility"
+      "desc": "Locks your mouse in the center"
     },
     {
       "name": "unlockmouse2",
@@ -4153,8 +3780,7 @@
       ],
       "usage": "unlockmouse2 (unlockm2)",
       "args": "(unlockm2)",
-      "desc": "Unlocks your mouse",
-      "category": "Server & Utility"
+      "desc": "Unlocks your mouse"
     },
     {
       "name": "headsit",
@@ -4163,8 +3789,7 @@
       ],
       "usage": "headsit <player>",
       "args": "<player>",
-      "desc": "sit on someone's head",
-      "category": "Trolling / Fun"
+      "desc": "sit on someone's head"
     },
     {
       "name": "unheadsit",
@@ -4173,8 +3798,7 @@
       ],
       "usage": "unheadsit",
       "args": "",
-      "desc": "Stop the headsit command.",
-      "category": "Trolling / Fun"
+      "desc": "Stop the headsit command."
     },
     {
       "name": "wallhop",
@@ -4183,8 +3807,7 @@
       ],
       "usage": "wallhop",
       "args": "",
-      "desc": "wallhop helper",
-      "category": "Teleport & Tools"
+      "desc": "wallhop helper"
     },
     {
       "name": "unwallhop",
@@ -4193,8 +3816,7 @@
       ],
       "usage": "unwallhop",
       "args": "",
-      "desc": "disable wallhop helper",
-      "category": "Teleport & Tools"
+      "desc": "disable wallhop helper"
     },
     {
       "name": "joinvoice",
@@ -4204,8 +3826,7 @@
       ],
       "usage": "joinvoice",
       "args": "",
-      "desc": "let's you use vc if you were suspended",
-      "category": "Server & Utility"
+      "desc": "let's you use vc if you were suspended"
     },
     {
       "name": "jump",
@@ -4214,8 +3835,7 @@
       ],
       "usage": "jump",
       "args": "",
-      "desc": "jump.",
-      "category": "Movement & Physics"
+      "desc": "jump."
     },
     {
       "name": "loopjump",
@@ -4225,8 +3845,7 @@
       ],
       "usage": "loopjump (bhop)",
       "args": "(bhop)",
-      "desc": "Continuously jump.",
-      "category": "Movement & Physics"
+      "desc": "Continuously jump."
     },
     {
       "name": "unloopjump",
@@ -4236,8 +3855,7 @@
       ],
       "usage": "unloopjump (unbhop)",
       "args": "(unbhop)",
-      "desc": "Stop continuous jumping.",
-      "category": "Movement & Physics"
+      "desc": "Stop continuous jumping."
     },
     {
       "name": "trussjump",
@@ -4249,8 +3867,7 @@
       ],
       "usage": "trussjump",
       "args": "",
-      "desc": "Boost off trusses when you jump",
-      "category": "Movement & Physics"
+      "desc": "Boost off trusses when you jump"
     },
     {
       "name": "untrussjump",
@@ -4262,8 +3879,7 @@
       ],
       "usage": "untrussjump",
       "args": "",
-      "desc": "Disable trussjump",
-      "category": "Movement & Physics"
+      "desc": "Disable trussjump"
     },
     {
       "name": "chattranslate",
@@ -4274,8 +3890,7 @@
       ],
       "usage": "chattranslate",
       "args": "",
-      "desc": "the very old chat translator came back after years",
-      "category": "Server & Utility"
+      "desc": "the very old chat translator came back after years"
     },
     {
       "name": "headstand",
@@ -4284,8 +3899,7 @@
       ],
       "usage": "headstand <player>",
       "args": "<player>",
-      "desc": "Stand on someone's head.",
-      "category": "Server & Utility"
+      "desc": "Stand on someone's head."
     },
     {
       "name": "unheadstand",
@@ -4294,8 +3908,7 @@
       ],
       "usage": "unheadstand",
       "args": "",
-      "desc": "Stop the headstand command.",
-      "category": "Server & Utility"
+      "desc": "Stop the headstand command."
     },
     {
       "name": "loopwalkspeed",
@@ -4306,8 +3919,7 @@
       ],
       "usage": "loopwalkspeed <number> (loopws,lws)",
       "args": "<number> (loopws,lws)",
-      "desc": "Loop walkspeed",
-      "category": "Movement & Physics"
+      "desc": "Loop walkspeed"
     },
     {
       "name": "unloopwalkspeed",
@@ -4318,8 +3930,7 @@
       ],
       "usage": "unloopwalkspeed (unloopws,unlws)",
       "args": "(unloopws,unlws)",
-      "desc": "Disable loop walkspeed",
-      "category": "Movement & Physics"
+      "desc": "Disable loop walkspeed"
     },
     {
       "name": "loopjumppower",
@@ -4330,8 +3941,7 @@
       ],
       "usage": "loopjumppower <number> (loopjp,ljp)",
       "args": "<number> (loopjp,ljp)",
-      "desc": "Loop JumpPower",
-      "category": "Movement & Physics"
+      "desc": "Loop JumpPower"
     },
     {
       "name": "unloopjumppower",
@@ -4342,8 +3952,7 @@
       ],
       "usage": "unloopjumppower (unloopjp,unljp)",
       "args": "(unloopjp,unljp)",
-      "desc": "Disable loop jump power",
-      "category": "Movement & Physics"
+      "desc": "Disable loop jump power"
     },
     {
       "name": "stopanimations",
@@ -4355,8 +3964,7 @@
       ],
       "usage": "stopanimations (stopanims,stopanim,noanim)",
       "args": "(stopanims,stopanim,noanim)",
-      "desc": "Stops running animations",
-      "category": "Teleport & Tools"
+      "desc": "Stops running animations"
     },
     {
       "name": "refreshanimations",
@@ -4368,8 +3976,7 @@
       ],
       "usage": "refreshanimations (refreshanimation,refreshanims,refreshanim)",
       "args": "(refreshanimation,refreshanims,refreshanim)",
-      "desc": "Reload character animations",
-      "category": "Server & Utility"
+      "desc": "Reload character animations"
     },
     {
       "name": "loopwaveat",
@@ -4379,8 +3986,7 @@
       ],
       "usage": "loopwaveat <player> (loopwat)",
       "args": "<player> (loopwat)",
-      "desc": "Wave to a player in a loop",
-      "category": "Server & Utility"
+      "desc": "Wave to a player in a loop"
     },
     {
       "name": "unloopwaveat",
@@ -4390,8 +3996,7 @@
       ],
       "usage": "unloopwaveat <player> (unloopwat)",
       "args": "<player> (unloopwat)",
-      "desc": "Stops the loopwaveat command",
-      "category": "Server & Utility"
+      "desc": "Stops the loopwaveat command"
     },
     {
       "name": "tools",
@@ -4401,8 +4006,7 @@
       ],
       "usage": "tools (gears)",
       "args": "(gears)",
-      "desc": "Copies tools from ReplicatedStorage and Lighting",
-      "category": "Teleport & Tools"
+      "desc": "Copies tools from ReplicatedStorage and Lighting"
     },
     {
       "name": "toolview",
@@ -4412,8 +4016,7 @@
       ],
       "usage": "toolview <player> (tview)",
       "args": "<player> (tview)",
-      "desc": "3D tool viewer above a player's head",
-      "category": "Camera & View"
+      "desc": "3D tool viewer above a player's head"
     },
     {
       "name": "untoolview",
@@ -4423,8 +4026,7 @@
       ],
       "usage": "untview <player> (untview)",
       "args": "<player> (untview)",
-      "desc": "Removes the tool viewer above a player's head",
-      "category": "Camera & View"
+      "desc": "Removes the tool viewer above a player's head"
     },
     {
       "name": "toolview2",
@@ -4434,8 +4036,7 @@
       ],
       "usage": "toolview2 (tview2)",
       "args": "(tview2)",
-      "desc": "Live-updating tool viewer",
-      "category": "Camera & View"
+      "desc": "Live-updating tool viewer"
     },
     {
       "name": "waveat",
@@ -4445,8 +4046,7 @@
       ],
       "usage": "waveat <player> (wat)",
       "args": "<player> (wat)",
-      "desc": "Wave to a player",
-      "category": "Server & Utility"
+      "desc": "Wave to a player"
     },
     {
       "name": "headbang",
@@ -4462,8 +4062,7 @@
       ],
       "usage": "headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
       "args": "<player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
-      "desc": "Bang them in the mouth because you are gay",
-      "category": "Server & Utility"
+      "desc": "Bang them in the mouth because you are gay"
     },
     {
       "name": "unheadbang",
@@ -4475,8 +4074,7 @@
       ],
       "usage": "unheadbang (unmouthbang,unhb,unmb)",
       "args": "(unmouthbang,unhb,unmb)",
-      "desc": "Stops headbang",
-      "category": "Server & Utility"
+      "desc": "Stops headbang"
     },
     {
       "name": "jerkuser",
@@ -4489,8 +4087,7 @@
       ],
       "usage": "jerkuser <player> (jorkuser, handjob, hjob, handj)",
       "args": "<player> (jorkuser, handjob, hjob, handj)",
-      "desc": "Lay under them and vibe",
-      "category": "Server & Utility"
+      "desc": "Lay under them and vibe"
     },
     {
       "name": "unjerkuser",
@@ -4503,8 +4100,7 @@
       ],
       "usage": "unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)",
       "args": "(unjorkuser, unhandjob, unhjob, unhandj)",
-      "desc": "Stop the jerk user action",
-      "category": "Server & Utility"
+      "desc": "Stop the jerk user action"
     },
     {
       "name": "suck",
@@ -4514,8 +4110,7 @@
       ],
       "usage": "suck <player> <number>",
       "args": "<player> <number>",
-      "desc": "suck it",
-      "category": "Server & Utility"
+      "desc": "suck it"
     },
     {
       "name": "unsuck",
@@ -4525,8 +4120,7 @@
       ],
       "usage": "unsuck",
       "args": "",
-      "desc": "no more fun",
-      "category": "Server & Utility"
+      "desc": "no more fun"
     },
     {
       "name": "improvetextures",
@@ -4535,8 +4129,7 @@
       ],
       "usage": "improvetextures",
       "args": "",
-      "desc": "Switches Textures",
-      "category": "Server & Utility"
+      "desc": "Switches Textures"
     },
     {
       "name": "undotextures",
@@ -4545,8 +4138,7 @@
       ],
       "usage": "undotextures",
       "args": "",
-      "desc": "Switches Textures",
-      "category": "Server & Utility"
+      "desc": "Switches Textures"
     },
     {
       "name": "serverlist",
@@ -4557,8 +4149,7 @@
       ],
       "usage": "serverlist (serverlister,slist)",
       "args": "(serverlister,slist)",
-      "desc": "list of servers to join in",
-      "category": "Teleport & Tools"
+      "desc": "list of servers to join in"
     },
     {
       "name": "keyboard",
@@ -4567,8 +4158,7 @@
       ],
       "usage": "keyboard",
       "args": "",
-      "desc": "provides a keyboard gui for mobile users",
-      "category": "Server & Utility"
+      "desc": "provides a keyboard gui for mobile users"
     },
     {
       "name": "autoclicker",
@@ -4577,8 +4167,7 @@
       ],
       "usage": "autoclicker",
       "args": "",
-      "desc": "provides a autoclicker gui",
-      "category": "Teleport & Tools"
+      "desc": "provides a autoclicker gui"
     },
     {
       "name": "backpack",
@@ -4587,8 +4176,7 @@
       ],
       "usage": "backpack",
       "args": "",
-      "desc": "provides a custom backpack gui",
-      "category": "Server & Utility"
+      "desc": "provides a custom backpack gui"
     },
     {
       "name": "edgejump",
@@ -4598,8 +4186,7 @@
       ],
       "usage": "edgejump (ejump)",
       "args": "(ejump)",
-      "desc": "Automatically jumps when you get to the edge of an object",
-      "category": "Movement & Physics"
+      "desc": "Automatically jumps when you get to the edge of an object"
     },
     {
       "name": "unedgejump",
@@ -4611,8 +4198,7 @@
       ],
       "usage": "unedgejump (noedgejump, noejump, unejump)",
       "args": "(noedgejump, noejump, unejump)",
-      "desc": "Disables edgejump",
-      "category": "Movement & Physics"
+      "desc": "Disables edgejump"
     },
     {
       "name": "equiptools",
@@ -4623,8 +4209,7 @@
       ],
       "usage": "equiptools (etools,equipt)",
       "args": "(etools,equipt)",
-      "desc": "Equips every tool in your inventory",
-      "category": "Teleport & Tools"
+      "desc": "Equips every tool in your inventory"
     },
     {
       "name": "unequiptools",
@@ -4633,8 +4218,7 @@
       ],
       "usage": "unequiptools",
       "args": "",
-      "desc": "Unequips every tool you are currently holding",
-      "category": "Teleport & Tools"
+      "desc": "Unequips every tool you are currently holding"
     },
     {
       "name": "equiptool",
@@ -4644,8 +4228,7 @@
       ],
       "usage": "equiptool (etool)",
       "args": "(etool)",
-      "desc": "Equip a specific tool by name or selection",
-      "category": "Teleport & Tools"
+      "desc": "Equip a specific tool by name or selection"
     },
     {
       "name": "loopequiptool",
@@ -4656,8 +4239,7 @@
       ],
       "usage": "loopequiptool <tool name>",
       "args": "<tool name>",
-      "desc": "Keeps a specific tool equipped until disabled",
-      "category": "Teleport & Tools"
+      "desc": "Keeps a specific tool equipped until disabled"
     },
     {
       "name": "unloopequiptool",
@@ -4668,8 +4250,7 @@
       ],
       "usage": "unloopequiptool",
       "args": "",
-      "desc": "Stops the loop equip behaviour",
-      "category": "Teleport & Tools"
+      "desc": "Stops the loop equip behaviour"
     },
     {
       "name": "bang",
@@ -4679,8 +4260,7 @@
       ],
       "usage": "bang <player> <number> (fuck)",
       "args": "<player> <number> (fuck)",
-      "desc": "fucks the player by attaching to them",
-      "category": "Server & Utility"
+      "desc": "fucks the player by attaching to them"
     },
     {
       "name": "unbang",
@@ -4690,8 +4270,7 @@
       ],
       "usage": "unbang (unfuck)",
       "args": "(unfuck)",
-      "desc": "Unbangs the player",
-      "category": "Server & Utility"
+      "desc": "Unbangs the player"
     },
     {
       "name": "carpet",
@@ -4700,8 +4279,7 @@
       ],
       "usage": "carpet <player>",
       "args": "<player>",
-      "desc": "Be someone's carpet",
-      "category": "Server & Utility"
+      "desc": "Be someone's carpet"
     },
     {
       "name": "uncarpet",
@@ -4711,8 +4289,7 @@
       ],
       "usage": "uncarpet (nocarpet)",
       "args": "(nocarpet)",
-      "desc": "Undoes carpet",
-      "category": "Server & Utility"
+      "desc": "Undoes carpet"
     },
     {
       "name": "climb",
@@ -4721,8 +4298,7 @@
       ],
       "usage": "climb",
       "args": "",
-      "desc": "Allows you to climb while in air",
-      "category": "Server & Utility"
+      "desc": "Allows you to climb while in air"
     },
     {
       "name": "unclimb",
@@ -4731,8 +4307,7 @@
       ],
       "usage": "unclimb",
       "args": "",
-      "desc": "Disables climb",
-      "category": "Server & Utility"
+      "desc": "Disables climb"
     },
     {
       "name": "inversebang",
@@ -4743,8 +4318,7 @@
       ],
       "usage": "inversebang <player> <number>",
       "args": "<player> <number>",
-      "desc": "you're the one getting fucked today ;)",
-      "category": "Server & Utility"
+      "desc": "you're the one getting fucked today ;)"
     },
     {
       "name": "uninversebang",
@@ -4755,8 +4329,7 @@
       ],
       "usage": "uninversebang",
       "args": "",
-      "desc": "no more fun",
-      "category": "Server & Utility"
+      "desc": "no more fun"
     },
     {
       "name": "suslay",
@@ -4766,8 +4339,7 @@
       ],
       "usage": "suslay (laysus)",
       "args": "(laysus)",
-      "desc": "Lay down in a suspicious way",
-      "category": "Server & Utility"
+      "desc": "Lay down in a suspicious way"
     },
     {
       "name": "unsuslay",
@@ -4776,8 +4348,7 @@
       ],
       "usage": "unsuslay",
       "args": "",
-      "desc": "Stand up from the sussy lay",
-      "category": "Server & Utility"
+      "desc": "Stand up from the sussy lay"
     },
     {
       "name": "jerk",
@@ -4787,8 +4358,7 @@
       ],
       "usage": "jerk (jork)",
       "args": "(jork)",
-      "desc": "jorking it",
-      "category": "Server & Utility"
+      "desc": "jorking it"
     },
     {
       "name": "hug",
@@ -4798,8 +4368,7 @@
       ],
       "usage": "hug (clickhug)",
       "args": "(clickhug)",
-      "desc": "huggies time (click on a target to hug)",
-      "category": "Server & Utility"
+      "desc": "huggies time (click on a target to hug)"
     },
     {
       "name": "unhug",
@@ -4808,8 +4377,7 @@
       ],
       "usage": "unhug",
       "args": "",
-      "desc": "no huggies :(",
-      "category": "Server & Utility"
+      "desc": "no huggies :("
     },
     {
       "name": "glue",
@@ -4820,8 +4388,7 @@
       ],
       "usage": "glue <player>",
       "args": "<player>",
-      "desc": "Loop teleport to a player",
-      "category": "Teleport & Tools"
+      "desc": "Loop teleport to a player"
     },
     {
       "name": "unglue",
@@ -4832,8 +4399,7 @@
       ],
       "usage": "unglue",
       "args": "",
-      "desc": "Stops teleporting you to a player",
-      "category": "Teleport & Tools"
+      "desc": "Stops teleporting you to a player"
     },
     {
       "name": "glueback",
@@ -4844,8 +4410,7 @@
       ],
       "usage": "glueback <player>",
       "args": "<player>",
-      "desc": "Loop teleport behind a player",
-      "category": "Teleport & Tools"
+      "desc": "Loop teleport behind a player"
     },
     {
       "name": "unglueback",
@@ -4856,8 +4421,7 @@
       ],
       "usage": "unglueback",
       "args": "",
-      "desc": "Stops teleporting you to a player",
-      "category": "Teleport & Tools"
+      "desc": "Stops teleporting you to a player"
     },
     {
       "name": "spook",
@@ -4867,8 +4431,7 @@
       ],
       "usage": "spook <player> (scare)",
       "args": "<player> (scare)",
-      "desc": "Teleports next to a player for a few seconds",
-      "category": "Teleport & Tools"
+      "desc": "Teleports next to a player for a few seconds"
     },
     {
       "name": "loopspook",
@@ -4878,8 +4441,7 @@
       ],
       "usage": "loopspook <player>",
       "args": "<player>",
-      "desc": "Teleports next to a player repeatedly",
-      "category": "Teleport & Tools"
+      "desc": "Teleports next to a player repeatedly"
     },
     {
       "name": "unloopspook",
@@ -4889,8 +4451,7 @@
       ],
       "usage": "unloopspook",
       "args": "",
-      "desc": "Stops the loopspook command",
-      "category": "Server & Utility"
+      "desc": "Stops the loopspook command"
     },
     {
       "name": "airwalk",
@@ -4901,8 +4462,7 @@
       ],
       "usage": "airwalk (float, aw)",
       "args": "(float, aw)",
-      "desc": "Press space to go up, unairwalk to stop",
-      "category": "Movement & Physics"
+      "desc": "Press space to go up, unairwalk to stop"
     },
     {
       "name": "unairwalk",
@@ -4913,8 +4473,7 @@
       ],
       "usage": "unairwalk (unfloat, unaw)",
       "args": "(unfloat, unaw)",
-      "desc": "Stops the airwalk command",
-      "category": "Movement & Physics"
+      "desc": "Stops the airwalk command"
     },
     {
       "name": "cbring",
@@ -4925,8 +4484,7 @@
       ],
       "usage": "cbring <player>",
       "args": "<player>",
-      "desc": "Brings the player once on your client",
-      "category": "Teleport & Tools"
+      "desc": "Brings the player once on your client"
     },
     {
       "name": "loopcbring",
@@ -4939,8 +4497,7 @@
       ],
       "usage": "loopcbring <player>",
       "args": "<player>",
-      "desc": "Continuously brings the player on your client",
-      "category": "Teleport & Tools"
+      "desc": "Continuously brings the player on your client"
     },
     {
       "name": "unloopcbring",
@@ -4954,8 +4511,7 @@
       ],
       "usage": "unloopcbring",
       "args": "",
-      "desc": "Disable looped client bring",
-      "category": "Teleport & Tools"
+      "desc": "Disable looped client bring"
     },
     {
       "name": "mute",
@@ -4965,8 +4521,7 @@
       ],
       "usage": "mute <player> (muteboombox)",
       "args": "<player> (muteboombox)",
-      "desc": "Mutes the player's boombox",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Mutes the player's boombox"
     },
     {
       "name": "tpwalk",
@@ -4976,8 +4531,7 @@
       ],
       "usage": "tpwalk <number>",
       "args": "<number>",
-      "desc": "More undetectable walkspeed script",
-      "category": "Movement & Physics"
+      "desc": "More undetectable walkspeed script"
     },
     {
       "name": "untpwalk",
@@ -4986,8 +4540,7 @@
       ],
       "usage": "untpwalk",
       "args": "",
-      "desc": "Stops the tpwalk command",
-      "category": "Movement & Physics"
+      "desc": "Stops the tpwalk command"
     },
     {
       "name": "loopmute",
@@ -4997,8 +4550,7 @@
       ],
       "usage": "loopmute <player> (loopmuteboombox)",
       "args": "<player> (loopmuteboombox)",
-      "desc": "Loop mutes the player's boombox",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Loop mutes the player's boombox"
     },
     {
       "name": "unloopmute",
@@ -5008,8 +4560,7 @@
       ],
       "usage": "unloopmute <player> (unloopmuteboombox)",
       "args": "<player> (unloopmuteboombox)",
-      "desc": "Unloop mutes the player's boombox",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Unloop mutes the player's boombox"
     },
     {
       "name": "getmass",
@@ -5018,8 +4569,7 @@
       ],
       "usage": "getmass <player>",
       "args": "<player>",
-      "desc": "Get your mass",
-      "category": "Server & Utility"
+      "desc": "Get your mass"
     },
     {
       "name": "copyposition",
@@ -5030,8 +4580,7 @@
       ],
       "usage": "copyposition <player>",
       "args": "<player>",
-      "desc": "Get the position of another player",
-      "category": "Trolling / Fun"
+      "desc": "Get the position of another player"
     },
     {
       "name": "equiptools",
@@ -5040,8 +4589,7 @@
       ],
       "usage": "equiptools",
       "args": "",
-      "desc": "Equips every tool in your inventory at once",
-      "category": "Teleport & Tools"
+      "desc": "Equips every tool in your inventory at once"
     },
     {
       "name": "unequiptools",
@@ -5050,8 +4598,7 @@
       ],
       "usage": "unequiptools",
       "args": "",
-      "desc": "Unequips every tool you are currently holding at once",
-      "category": "Teleport & Tools"
+      "desc": "Unequips every tool you are currently holding at once"
     },
     {
       "name": "removeterrain",
@@ -5062,8 +4609,7 @@
       ],
       "usage": "removeterrain (rterrain, noterrain)",
       "args": "(rterrain, noterrain)",
-      "desc": "clears terrain",
-      "category": "Server & Utility"
+      "desc": "clears terrain"
     },
     {
       "name": "clearnilinstances",
@@ -5074,8 +4620,7 @@
       ],
       "usage": "clearnilinstances (nonilinstances, cni)",
       "args": "(nonilinstances, cni)",
-      "desc": "Removes nil instances",
-      "category": "Server & Utility"
+      "desc": "Removes nil instances"
     },
     {
       "name": "inspect",
@@ -5084,8 +4629,7 @@
       ],
       "usage": "inspect",
       "args": "",
-      "desc": "checks a user's items",
-      "category": "Camera & View"
+      "desc": "checks a user's items"
     },
     {
       "name": "noprompt",
@@ -5097,8 +4641,7 @@
       ],
       "usage": "noprompt (nopurchaseprompts,noprompts,np)",
       "args": "(nopurchaseprompts,noprompts,np)",
-      "desc": "remove the stupid purchase prompt",
-      "category": "Server & Utility"
+      "desc": "remove the stupid purchase prompt"
     },
     {
       "name": "prompt",
@@ -5111,8 +4654,7 @@
       ],
       "usage": "prompt (purchaseprompts,showprompts,showpurchaseprompts,ppr)",
       "args": "(purchaseprompts,showprompts,showpurchaseprompts,ppr)",
-      "desc": "allows the stupid purchase prompt",
-      "category": "Server & Utility"
+      "desc": "allows the stupid purchase prompt"
     },
     {
       "name": "nonetworkpause",
@@ -5124,8 +4666,7 @@
       ],
       "usage": "nonetworkpause (disableNetworkPause,nnw,nnpause)",
       "args": "(disableNetworkPause,nnw,nnpause)",
-      "desc": "Disable Roblox network pause overlay",
-      "category": "Server & Utility"
+      "desc": "Disable Roblox network pause overlay"
     },
     {
       "name": "networkpause",
@@ -5137,8 +4678,7 @@
       ],
       "usage": "networkpause (enablenetworkpause,nw,npause)",
       "args": "(enablenetworkpause,nw,npause)",
-      "desc": "Re-enable Roblox network pause overlay",
-      "category": "Server & Utility"
+      "desc": "Re-enable Roblox network pause overlay"
     },
     {
       "name": "wallwalk",
@@ -5147,8 +4687,7 @@
       ],
       "usage": "wallwalk",
       "args": "",
-      "desc": "Makes you walk on walls",
-      "category": "Movement & Physics"
+      "desc": "Makes you walk on walls"
     },
     {
       "name": "hideguis",
@@ -5157,8 +4696,7 @@
       ],
       "usage": "hideguis",
       "args": "",
-      "desc": "Hides GUIs",
-      "category": "Server & Utility"
+      "desc": "Hides GUIs"
     },
     {
       "name": "unhideguis",
@@ -5167,8 +4705,7 @@
       ],
       "usage": "unhideguis",
       "args": "",
-      "desc": "Restores GUIs hidden by hideguis",
-      "category": "Server & Utility"
+      "desc": "Restores GUIs hidden by hideguis"
     },
     {
       "name": "showguis",
@@ -5177,8 +4714,7 @@
       ],
       "usage": "showguis",
       "args": "",
-      "desc": "Enables every UI",
-      "category": "Server & Utility"
+      "desc": "Enables every UI"
     },
     {
       "name": "unshowguis",
@@ -5187,8 +4723,7 @@
       ],
       "usage": "unshowguis",
       "args": "",
-      "desc": "Restores UI states set by showguis",
-      "category": "Server & Utility"
+      "desc": "Restores UI states set by showguis"
     },
     {
       "name": "spin",
@@ -5197,8 +4732,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Trolling / Fun"
+      "desc": ""
     },
     {
       "name": "unspin",
@@ -5207,8 +4741,7 @@
       ],
       "usage": "unspin",
       "args": "",
-      "desc": "Makes your character unspin",
-      "category": "Trolling / Fun"
+      "desc": "Makes your character unspin"
     },
     {
       "name": "notepad",
@@ -5217,8 +4750,7 @@
       ],
       "usage": "notepad",
       "args": "",
-      "desc": "notepad for making scripts / etc",
-      "category": "Server & Utility"
+      "desc": "notepad for making scripts / etc"
     },
     {
       "name": "rc7",
@@ -5227,8 +4759,7 @@
       ],
       "usage": "rc7",
       "args": "",
-      "desc": "RC7 Internal UI",
-      "category": "Server & Utility"
+      "desc": "RC7 Internal UI"
     },
     {
       "name": "scriptviewer",
@@ -5238,8 +4769,7 @@
       ],
       "usage": "scriptviewer (viewscripts)",
       "args": "(viewscripts)",
-      "desc": "Can view scripts made by 0866",
-      "category": "Movement & Physics"
+      "desc": "Can view scripts made by 0866"
     },
     {
       "name": "hydroxide",
@@ -5249,8 +4779,7 @@
       ],
       "usage": "hydroxide (hydro)",
       "args": "(hydro)",
-      "desc": "executes hydroxide",
-      "category": "Server & Utility"
+      "desc": "executes hydroxide"
     },
     {
       "name": "remotespy",
@@ -5261,8 +4790,7 @@
       ],
       "usage": "remotespy (simplespy,rspy)",
       "args": "(simplespy,rspy)",
-      "desc": "executes simplespy that supports both pc and mobile",
-      "category": "Visuals / ESP / Environment"
+      "desc": "executes simplespy that supports both pc and mobile"
     },
     {
       "name": "cobaltspy",
@@ -5273,8 +4801,7 @@
       ],
       "usage": "cobaltspy (cobalt,cspy)",
       "args": "(cobalt,cspy)",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "turtlespy",
@@ -5284,8 +4811,7 @@
       ],
       "usage": "turtlespy (tspy)",
       "args": "(tspy)",
-      "desc": "executes Turtle Spy that supports both pc and mobile",
-      "category": "Visuals / ESP / Environment"
+      "desc": "executes Turtle Spy that supports both pc and mobile"
     },
     {
       "name": "gravity",
@@ -5295,8 +4821,7 @@
       ],
       "usage": "gravity <amount> (grav)",
       "args": "<amount> (grav)",
-      "desc": "sets game gravity to whatever u want",
-      "category": "Movement & Physics"
+      "desc": "sets game gravity to whatever u want"
     },
     {
       "name": "fireclickdetectors",
@@ -5307,8 +4832,7 @@
       ],
       "usage": "fireclickdetectors (fcd,firecd)",
       "args": "(fcd,firecd)",
-      "desc": "Fires every ClickDetector in Workspace",
-      "category": "Teleport & Tools"
+      "desc": "Fires every ClickDetector in Workspace"
     },
     {
       "name": "fireclickdetectorsfind",
@@ -5319,8 +4843,7 @@
       ],
       "usage": "fireclickdetectorsfind <target> (fcdfind,firecdfind)",
       "args": "<target> (fcdfind,firecdfind)",
-      "desc": "Fires ClickDetectors substring-matching [target] in Workspace",
-      "category": "Teleport & Tools"
+      "desc": "Fires ClickDetectors substring-matching [target] in Workspace"
     },
     {
       "name": "fireproximityprompts",
@@ -5331,8 +4854,7 @@
       ],
       "usage": "fireproximityprompts (fpp,firepp)",
       "args": "(fpp,firepp)",
-      "desc": "Fires every ProximityPrompt in Workspace",
-      "category": "Server & Utility"
+      "desc": "Fires every ProximityPrompt in Workspace"
     },
     {
       "name": "fireproximitypromptsfind",
@@ -5343,8 +4865,7 @@
       ],
       "usage": "fireproximitypromptsfind <target> (fppfind,fireppfind)",
       "args": "<target> (fppfind,fireppfind)",
-      "desc": "Fires ProximityPrompts substring-matching [target] in Workspace",
-      "category": "Server & Utility"
+      "desc": "Fires ProximityPrompts substring-matching [target] in Workspace"
     },
     {
       "name": "firetouchinterests",
@@ -5354,8 +4875,7 @@
       ],
       "usage": "firetouchinterests (fti)",
       "args": "(fti)",
-      "desc": "Fires every TouchInterest in Workspace",
-      "category": "Teleport & Tools"
+      "desc": "Fires every TouchInterest in Workspace"
     },
     {
       "name": "firetouchinterestsfind",
@@ -5366,8 +4886,7 @@
       ],
       "usage": "firetouchinterestsfind <target> (ftifind,firetifind)",
       "args": "<target> (ftifind,firetifind)",
-      "desc": "Fires TouchInterests substring-matching [target] in Workspace",
-      "category": "Teleport & Tools"
+      "desc": "Fires TouchInterests substring-matching [target] in Workspace"
     },
     {
       "name": "autofireproxi",
@@ -5377,8 +4896,7 @@
       ],
       "usage": "autofireproxi <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires ProximityPrompts matching [target] every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires ProximityPrompts matching [target] every <interval> seconds"
     },
     {
       "name": "autofireproxifind",
@@ -5388,8 +4906,7 @@
       ],
       "usage": "autofireproxifind <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"
     },
     {
       "name": "autofireclick",
@@ -5399,8 +4916,7 @@
       ],
       "usage": "autofireclick <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires ClickDetectors matching [target] every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires ClickDetectors matching [target] every <interval> seconds"
     },
     {
       "name": "autofireclickfind",
@@ -5410,8 +4926,7 @@
       ],
       "usage": "autofireclickfind <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"
     },
     {
       "name": "autotouch",
@@ -5421,8 +4936,7 @@
       ],
       "usage": "autotouch <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires TouchInterests on parts matching [target] every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires TouchInterests on parts matching [target] every <interval> seconds"
     },
     {
       "name": "autotouchfind",
@@ -5432,8 +4946,7 @@
       ],
       "usage": "autotouchfind <interval> [target]",
       "args": "<interval> [target]",
-      "desc": "Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds",
-      "category": "Teleport & Tools"
+      "desc": "Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"
     },
     {
       "name": "unautofireproxi",
@@ -5443,8 +4956,7 @@
       ],
       "usage": "unautofireproxi (uafp)",
       "args": "(uafp)",
-      "desc": "Stops all AutoFireProxi loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops all AutoFireProxi loops"
     },
     {
       "name": "unautofireclick",
@@ -5454,8 +4966,7 @@
       ],
       "usage": "unautofireclick (uafc)",
       "args": "(uafc)",
-      "desc": "Stops all AutoFireClick loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops all AutoFireClick loops"
     },
     {
       "name": "unautotouch",
@@ -5465,8 +4976,7 @@
       ],
       "usage": "unautotouch (uat)",
       "args": "(uat)",
-      "desc": "Stops all AutoTouch loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops all AutoTouch loops"
     },
     {
       "name": "unautotouchfind",
@@ -5476,8 +4986,7 @@
       ],
       "usage": "unautotouchfind (uatfind)",
       "args": "(uatfind)",
-      "desc": "Stops substring-matching AutoTouch loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops substring-matching AutoTouch loops"
     },
     {
       "name": "unautofireproxifind",
@@ -5487,8 +4996,7 @@
       ],
       "usage": "unautofireproxifind (uafpfind)",
       "args": "(uafpfind)",
-      "desc": "Stops substring-matching AutoFireProxi loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops substring-matching AutoFireProxi loops"
     },
     {
       "name": "unautofireclickfind",
@@ -5498,8 +5006,7 @@
       ],
       "usage": "unautofireclickfind (uafcfind)",
       "args": "(uafcfind)",
-      "desc": "Stops substring-matching AutoFireClick loops",
-      "category": "Teleport & Tools"
+      "desc": "Stops substring-matching AutoFireClick loops"
     },
     {
       "name": "noclickdetectorlimits",
@@ -5510,8 +5017,7 @@
       ],
       "usage": "noclickdetectorlimits <limit> (nocdlimits,removecdlimits)",
       "args": "<limit> (nocdlimits,removecdlimits)",
-      "desc": "Sets all click detectors MaxActivationDistance to math.huge",
-      "category": "Teleport & Tools"
+      "desc": "Sets all click detectors MaxActivationDistance to math.huge"
     },
     {
       "name": "noproximitypromptlimits",
@@ -5522,8 +5028,7 @@
       ],
       "usage": "noproximitypromptlimits <limit> (nopplimits,removepplimits)",
       "args": "<limit> (nopplimits,removepplimits)",
-      "desc": "Sets all proximity prompts MaxActivationDistance to math.huge",
-      "category": "Server & Utility"
+      "desc": "Sets all proximity prompts MaxActivationDistance to math.huge"
     },
     {
       "name": "instantproximityprompts",
@@ -5534,8 +5039,7 @@
       ],
       "usage": "instantproximityprompts (instantpp,ipp)",
       "args": "(instantpp,ipp)",
-      "desc": "Disable the cooldown for proximity prompts",
-      "category": "Teleport & Tools"
+      "desc": "Disable the cooldown for proximity prompts"
     },
     {
       "name": "uninstantproximityprompts",
@@ -5546,8 +5050,7 @@
       ],
       "usage": "uninstantproximityprompts (uninstantpp,unipp)",
       "args": "(uninstantpp,unipp)",
-      "desc": "Undo the cooldown removal",
-      "category": "Teleport & Tools"
+      "desc": "Undo the cooldown removal"
     },
     {
       "name": "enableproximitypromptservice",
@@ -5560,8 +5063,7 @@
       ],
       "usage": "enableproximitypromptservice (enablepps,epps,ppson,ppon)",
       "args": "(enablepps,epps,ppson,ppon)",
-      "desc": "enable proximity prompt buttons",
-      "category": "Server & Utility"
+      "desc": "enable proximity prompt buttons"
     },
     {
       "name": "disableproximitypromptservice",
@@ -5574,8 +5076,7 @@
       ],
       "usage": "disableproximitypromptservice (disablepps,dpps,ppsoff,ppoff)",
       "args": "(disablepps,dpps,ppsoff,ppoff)",
-      "desc": "disable proximity prompt buttons",
-      "category": "Server & Utility"
+      "desc": "disable proximity prompt buttons"
     },
     {
       "name": "enableproximityprompts",
@@ -5588,8 +5089,7 @@
       ],
       "usage": "enableproximityprompts [name]",
       "args": "[name]",
-      "desc": "Enable ProximityPrompts (all or matching)",
-      "category": "Server & Utility"
+      "desc": "Enable ProximityPrompts (all or matching)"
     },
     {
       "name": "disableproximityprompts",
@@ -5602,8 +5102,7 @@
       ],
       "usage": "disableproximityprompts [name]",
       "args": "[name]",
-      "desc": "Disable ProximityPrompts (all or matching)",
-      "category": "Server & Utility"
+      "desc": "Disable ProximityPrompts (all or matching)"
     },
     {
       "name": "loopenableproximityprompts",
@@ -5615,8 +5114,7 @@
       ],
       "usage": "loopenableproximityprompts [name]",
       "args": "[name]",
-      "desc": "Continuously enable ProximityPrompts (all or matching)",
-      "category": "Server & Utility"
+      "desc": "Continuously enable ProximityPrompts (all or matching)"
     },
     {
       "name": "unloopenableproximityprompts",
@@ -5628,8 +5126,7 @@
       ],
       "usage": "unloopenableproximityprompts",
       "args": "",
-      "desc": "Stop enabling loop",
-      "category": "Server & Utility"
+      "desc": "Stop enabling loop"
     },
     {
       "name": "r6",
@@ -5638,8 +5135,7 @@
       ],
       "usage": "r6",
       "args": "",
-      "desc": "Shows a prompt that will switch your character rig type into R6",
-      "category": "Server & Utility"
+      "desc": "Shows a prompt that will switch your character rig type into R6"
     },
     {
       "name": "r15",
@@ -5648,8 +5144,7 @@
       ],
       "usage": "r15",
       "args": "",
-      "desc": "Shows a prompt that will switch your character rig type into R15",
-      "category": "Server & Utility"
+      "desc": "Shows a prompt that will switch your character rig type into R15"
     },
     {
       "name": "breakvelocity",
@@ -5658,8 +5153,7 @@
       ],
       "usage": "breakvelocity",
       "args": "",
-      "desc": "Sets your character's velocity to zero momentarily",
-      "category": "Server & Utility"
+      "desc": "Sets your character's velocity to zero momentarily"
     },
     {
       "name": "maxslopeangle",
@@ -5669,8 +5163,7 @@
       ],
       "usage": "maxslopeangle (msa)",
       "args": "(msa)",
-      "desc": "Changes your character's MaxSlopeAngle",
-      "category": "Server & Utility"
+      "desc": "Changes your character's MaxSlopeAngle"
     },
     {
       "name": "godmode",
@@ -5680,8 +5173,7 @@
       ],
       "usage": "godmode (god)",
       "args": "(god)",
-      "desc": "Pick and enable an invincibility method",
-      "category": "Server & Utility"
+      "desc": "Pick and enable an invincibility method"
     },
     {
       "name": "ungodmode",
@@ -5691,8 +5183,7 @@
       ],
       "usage": "ungodmode (ungod)",
       "args": "(ungod)",
-      "desc": "Disable invincibility",
-      "category": "Server & Utility"
+      "desc": "Disable invincibility"
     },
     {
       "name": "controllock",
@@ -5702,8 +5193,7 @@
       ],
       "usage": "controllock (ctrllock)",
       "args": "(ctrllock)",
-      "desc": "Set Shiftlock keys to Control for this session",
-      "category": "Trolling / Fun"
+      "desc": "Set Shiftlock keys to Control for this session"
     },
     {
       "name": "uncontrollock",
@@ -5713,8 +5203,7 @@
       ],
       "usage": "uncontrollock (unctrllock)",
       "args": "(unctrllock)",
-      "desc": "Restore Shiftlock keys to default (Shift)",
-      "category": "Trolling / Fun"
+      "desc": "Restore Shiftlock keys to default (Shift)"
     },
     {
       "name": "resetlock",
@@ -5723,8 +5212,7 @@
       ],
       "usage": "resetlock",
       "args": "",
-      "desc": "Resets your Shiftlock keybinds to default (LeftShift)",
-      "category": "Server & Utility"
+      "desc": "Resets your Shiftlock keybinds to default (LeftShift)"
     },
     {
       "name": "autoreport",
@@ -5733,8 +5221,7 @@
       ],
       "usage": "autoreport",
       "args": "",
-      "desc": "Automatically reports players to get them banned",
-      "category": "Teleport & Tools"
+      "desc": "Automatically reports players to get them banned"
     },
     {
       "name": "light",
@@ -5743,8 +5230,7 @@
       ],
       "usage": "light <range> <brightness> <hexColor>",
       "args": "<range> <brightness> <hexColor>",
-      "desc": "Gives your player dynamic light",
-      "category": "Server & Utility"
+      "desc": "Gives your player dynamic light"
     },
     {
       "name": "unlight",
@@ -5754,8 +5240,7 @@
       ],
       "usage": "unlight (nolight)",
       "args": "(nolight)",
-      "desc": "Removes dynamic light from your player",
-      "category": "Server & Utility"
+      "desc": "Removes dynamic light from your player"
     },
     {
       "name": "lighting",
@@ -5765,8 +5250,7 @@
       ],
       "usage": "lighting (lightingcontrol)",
       "args": "(lightingcontrol)",
-      "desc": "Manage lighting technology settings",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Manage lighting technology settings"
     },
     {
       "name": "friend",
@@ -5775,8 +5259,7 @@
       ],
       "usage": "friend <player>",
       "args": "<player>",
-      "desc": "Sends a friend request to your target",
-      "category": "Server & Utility"
+      "desc": "Sends a friend request to your target"
     },
     {
       "name": "unfriend",
@@ -5785,8 +5268,7 @@
       ],
       "usage": "unfriend <player>",
       "args": "<player>",
-      "desc": "Prompts to unfriend your target",
-      "category": "Server & Utility"
+      "desc": "Prompts to unfriend your target"
     },
     {
       "name": "block",
@@ -5796,8 +5278,7 @@
       ],
       "usage": "block <player> (blockuser)",
       "args": "<player> (blockuser)",
-      "desc": "Open block / unblock prompt for target player",
-      "category": "Server & Utility"
+      "desc": "Open block / unblock prompt for target player"
     },
     {
       "name": "friendweb",
@@ -5807,8 +5288,7 @@
       ],
       "usage": "friendweb (fweb)",
       "args": "(fweb)",
-      "desc": "Finds friend circles in the current server",
-      "category": "Teleport & Tools"
+      "desc": "Finds friend circles in the current server"
     },
     {
       "name": "tweengotocampos",
@@ -5819,8 +5299,7 @@
       ],
       "usage": "tweengotocampos (tweentcp)",
       "args": "(tweentcp)",
-      "desc": "Another version of goto camera position but bypassing more anti-cheats",
-      "category": "Camera & View"
+      "desc": "Another version of goto camera position but bypassing more anti-cheats"
     },
     {
       "name": "delete",
@@ -5831,8 +5310,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "deletefind",
@@ -5843,8 +5321,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "deletelighting",
@@ -5856,8 +5333,7 @@
       ],
       "usage": "deletelighting (removelighting, removel, ldel)",
       "args": "(removelighting, removel, ldel)",
-      "desc": "Removes all descendants (objects) within Lighting.",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Removes all descendants (objects) within Lighting."
     },
     {
       "name": "lightingdisable",
@@ -5868,8 +5344,7 @@
       ],
       "usage": "lightingdisable (disablelighting, ldisable)",
       "args": "(disablelighting, ldisable)",
-      "desc": "Disables all post-processing effects in Lighting instead of deleting them.",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disables all post-processing effects in Lighting instead of deleting them."
     },
     {
       "name": "autodelete",
@@ -5880,8 +5355,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "unautodelete",
@@ -5892,8 +5366,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "autodeletefind",
@@ -5904,8 +5377,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "unautodeletefind",
@@ -5916,8 +5388,7 @@
       ],
       "usage": "unautodeletefind (unautoremovefind,unautodelfind)",
       "args": "(unautoremovefind,unautodelfind)",
-      "desc": "Stops autodeletefind",
-      "category": "Teleport & Tools"
+      "desc": "Stops autodeletefind"
     },
     {
       "name": "deleteclass",
@@ -5928,8 +5399,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "autodeleteclass",
@@ -5940,8 +5410,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "unautodeleteclass",
@@ -5952,8 +5421,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "chardelete",
@@ -5967,8 +5435,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "chardeletefind",
@@ -5982,8 +5449,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "chardeleteclass",
@@ -5995,8 +5461,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "gotopartnext",
@@ -6006,8 +5471,7 @@
       ],
       "usage": "gotopartnext [prefix] <start> [end] [delay] (gpn)",
       "args": "[prefix] <start> [end] [delay] (gpn)",
-      "desc": "Teleport sequentially to parts with optional prefix and duplicate handling.",
-      "category": "Teleport & Tools"
+      "desc": "Teleport sequentially to parts with optional prefix and duplicate handling."
     },
     {
       "name": "gotomodelnext",
@@ -6017,8 +5481,7 @@
       ],
       "usage": "gotomodelnext [prefix] <start> [end] [delay] (gmn)",
       "args": "[prefix] <start> [end] [delay] (gmn)",
-      "desc": "Teleport sequentially to models with optional prefix and duplicate handling.",
-      "category": "Teleport & Tools"
+      "desc": "Teleport sequentially to models with optional prefix and duplicate handling."
     },
     {
       "name": "gotofoldernext",
@@ -6028,8 +5491,7 @@
       ],
       "usage": "gotofoldernext [prefix] <start> [end] [delay] (gfn)",
       "args": "[prefix] <start> [end] [delay] (gfn)",
-      "desc": "Teleport sequentially through folder contents with optional prefix.",
-      "category": "Teleport & Tools"
+      "desc": "Teleport sequentially through folder contents with optional prefix."
     },
     {
       "name": "gotobreak",
@@ -6039,8 +5501,7 @@
       ],
       "usage": "gotobreak (gb)",
       "args": "(gb)",
-      "desc": "Stop the active goto sequence and clear duplicate selections.",
-      "category": "Teleport & Tools"
+      "desc": "Stop the active goto sequence and clear duplicate selections."
     },
     {
       "name": "gotopart",
@@ -6051,8 +5512,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "tweengotopart",
@@ -6064,8 +5524,7 @@
       ],
       "usage": "tweengotopart <partName>",
       "args": "<partName>",
-      "desc": "Tween to each matching part by name once",
-      "category": "Teleport & Tools"
+      "desc": "Tween to each matching part by name once"
     },
     {
       "name": "gotopartfind",
@@ -6076,8 +5535,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "tweengotopartfind",
@@ -6089,8 +5547,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "gotopartclass",
@@ -6102,8 +5559,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "bringpart",
@@ -6114,8 +5570,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "bringpartfind",
@@ -6126,8 +5581,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "bringmodel",
@@ -6137,8 +5591,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "bringmodelfind",
@@ -6148,8 +5601,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "bringfolder",
@@ -6159,8 +5611,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "gotomodel",
@@ -6170,8 +5621,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "gotomodelfind",
@@ -6181,8 +5631,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "gotomodelfind",
@@ -6192,8 +5641,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "gotofolder",
@@ -6203,8 +5651,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "swim",
@@ -6213,8 +5660,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Server & Utility"
+      "desc": ""
     },
     {
       "name": "unswim",
@@ -6223,8 +5669,7 @@
       ],
       "usage": "unswim",
       "args": "",
-      "desc": "Stops the swim script",
-      "category": "Server & Utility"
+      "desc": "Stops the swim script"
     },
     {
       "name": "punch",
@@ -6233,8 +5678,7 @@
       ],
       "usage": "punch",
       "args": "",
-      "desc": "punch tool that flings",
-      "category": "Trolling / Fun"
+      "desc": "punch tool that flings"
     },
     {
       "name": "tpua",
@@ -6244,8 +5688,7 @@
       ],
       "usage": "tpua <player>",
       "args": "<player>",
-      "desc": "Brings every unanchored part on the map to the player",
-      "category": "Teleport & Tools"
+      "desc": "Brings every unanchored part on the map to the player"
     },
     {
       "name": "blackholefollow",
@@ -6257,8 +5700,7 @@
       ],
       "usage": "blackholefollow",
       "args": "",
-      "desc": "Pulls unanchored parts to you with spin",
-      "category": "Trolling / Fun"
+      "desc": "Pulls unanchored parts to you with spin"
     },
     {
       "name": "noblackholefollow",
@@ -6270,8 +5712,7 @@
       ],
       "usage": "noblackholefollow",
       "args": "",
-      "desc": "Stops blackhole follow and clears constraints",
-      "category": "Teleport & Tools"
+      "desc": "Stops blackhole follow and clears constraints"
     },
     {
       "name": "swordfighter",
@@ -6284,8 +5725,7 @@
       ],
       "usage": "swordfighter (sfighter, swordf, swordbot, sf)",
       "args": "(sfighter, swordf, swordbot, sf)",
-      "desc": "Activates a sword fighting bot that engages in automated PvP combat",
-      "category": "Server & Utility"
+      "desc": "Activates a sword fighting bot that engages in automated PvP combat"
     },
     {
       "name": "touchesp",
@@ -6295,8 +5735,7 @@
       ],
       "usage": "touchesp",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "untouchesp",
@@ -6306,8 +5745,7 @@
       ],
       "usage": "untouchesp",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "proximityesp",
@@ -6318,8 +5756,7 @@
       ],
       "usage": "proximityesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unproximityesp",
@@ -6330,8 +5767,7 @@
       ],
       "usage": "unproximityesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "clickesp",
@@ -6341,8 +5777,7 @@
       ],
       "usage": "clickesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unclickesp",
@@ -6352,8 +5787,7 @@
       ],
       "usage": "unclickesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "sitesp",
@@ -6363,8 +5797,7 @@
       ],
       "usage": "sitesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unsitesp",
@@ -6374,8 +5807,7 @@
       ],
       "usage": "unsitesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "vehiclesitesp",
@@ -6386,8 +5818,7 @@
       ],
       "usage": "vehiclesitesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unvehiclesitesp",
@@ -6398,8 +5829,7 @@
       ],
       "usage": "unvehiclesitesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "pesp",
@@ -6410,8 +5840,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unpesp",
@@ -6422,8 +5851,7 @@
       ],
       "usage": "unpesp [name|All]",
       "args": "[name|All]",
-      "desc": "Remove exact-name part ESP by name or All",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Remove exact-name part ESP by name or All"
     },
     {
       "name": "pespfind",
@@ -6434,8 +5862,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unpespfind",
@@ -6446,8 +5873,7 @@
       ],
       "usage": "unpespfind [name|All]",
       "args": "[name|All]",
-      "desc": "Remove partial-name part ESP by name or All",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Remove partial-name part ESP by name or All"
     },
     {
       "name": "unanchored",
@@ -6458,8 +5884,7 @@
       ],
       "usage": "unanchored",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "ununanchored",
@@ -6470,8 +5895,7 @@
       ],
       "usage": "ununanchored",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "collisionesp",
@@ -6481,8 +5905,7 @@
       ],
       "usage": "collisionesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "uncollisionesp",
@@ -6492,8 +5915,7 @@
       ],
       "usage": "uncollisionesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "nocollisionesp",
@@ -6503,8 +5925,7 @@
       ],
       "usage": "nocollisionesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unnocollisionesp",
@@ -6514,8 +5935,7 @@
       ],
       "usage": "unnocollisionesp",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "esplocator",
@@ -6526,8 +5946,7 @@
       ],
       "usage": "esplocator",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "unesplocator",
@@ -6538,8 +5957,7 @@
       ],
       "usage": "unesplocator",
       "args": "",
-      "desc": "",
-      "category": "Teleport & Tools"
+      "desc": ""
     },
     {
       "name": "folderesp",
@@ -6549,8 +5967,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unfolderesp",
@@ -6560,8 +5977,7 @@
       ],
       "usage": "unfolderesp [folderName]",
       "args": "[folderName]",
-      "desc": "Disables folder ESP for a folder or all",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disables folder ESP for a folder or all"
     },
     {
       "name": "viewpart",
@@ -6572,8 +5988,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Camera & View"
+      "desc": ""
     },
     {
       "name": "unviewpart",
@@ -6583,8 +5998,7 @@
       ],
       "usage": "unviewpart (unviewp)",
       "args": "(unviewp)",
-      "desc": "Resets the camera to the local humanoid",
-      "category": "Camera & View"
+      "desc": "Resets the camera to the local humanoid"
     },
     {
       "name": "viewpartfind",
@@ -6595,8 +6009,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Camera & View"
+      "desc": ""
     },
     {
       "name": "unviewpart",
@@ -6606,8 +6019,7 @@
       ],
       "usage": "unviewpart (unviewp)",
       "args": "(unviewp)",
-      "desc": "Resets the camera to the local humanoid",
-      "category": "Camera & View"
+      "desc": "Resets the camera to the local humanoid"
     },
     {
       "name": "console",
@@ -6617,8 +6029,7 @@
       ],
       "usage": "console (debug)",
       "args": "(debug)",
-      "desc": "Opens developer console",
-      "category": "Server & Utility"
+      "desc": "Opens developer console"
     },
     {
       "name": "oldconsole",
@@ -6628,8 +6039,7 @@
       ],
       "usage": "oldconsole",
       "args": "",
-      "desc": "opens old version of the developer console",
-      "category": "Server & Utility"
+      "desc": "opens old version of the developer console"
     },
     {
       "name": "hitbox",
@@ -6639,8 +6049,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "unhitbox",
@@ -6650,8 +6059,7 @@
       ],
       "usage": "unhitbox <player>",
       "args": "<player>",
-      "desc": "",
-      "category": "Visuals / ESP / Environment"
+      "desc": ""
     },
     {
       "name": "partsize",
@@ -6662,8 +6070,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Trolling / Fun"
+      "desc": ""
     },
     {
       "name": "partsizefind",
@@ -6675,8 +6082,7 @@
       ],
       "usage": "",
       "args": "",
-      "desc": "",
-      "category": "Trolling / Fun"
+      "desc": ""
     },
     {
       "name": "unpartsize",
@@ -6687,8 +6093,7 @@
       ],
       "usage": "unpartsize",
       "args": "",
-      "desc": "Undo partsize\u2014return those parts back to their original size and collision.",
-      "category": "Trolling / Fun"
+      "desc": "Undo partsize\u2014return those parts back to their original size and collision."
     },
     {
       "name": "unpartsizefind",
@@ -6699,8 +6104,7 @@
       ],
       "usage": "unpartsizefind",
       "args": "",
-      "desc": "Undo partsizefind\u2014return those resized parts back to their original size and collision.",
-      "category": "Trolling / Fun"
+      "desc": "Undo partsizefind\u2014return those resized parts back to their original size and collision."
     },
     {
       "name": "breakcars",
@@ -6710,8 +6114,7 @@
       ],
       "usage": "breakcars (bcars)",
       "args": "(bcars)",
-      "desc": "Breaks any car",
-      "category": "Server & Utility"
+      "desc": "Breaks any car"
     },
     {
       "name": "setsimradius",
@@ -6722,8 +6125,7 @@
       ],
       "usage": "setsimradius <number>",
       "args": "<number>",
-      "desc": "Set sim radius using available methods. Usage: setsimradius <radius>",
-      "category": "Server & Utility"
+      "desc": "Set sim radius using available methods. Usage: setsimradius <radius>"
     },
     {
       "name": "infjump",
@@ -6733,8 +6135,7 @@
       ],
       "usage": "infjump (infinitejump)",
       "args": "(infinitejump)",
-      "desc": "Enables infinite jumping",
-      "category": "Movement & Physics"
+      "desc": "Enables infinite jumping"
     },
     {
       "name": "uninfjump",
@@ -6744,8 +6145,7 @@
       ],
       "usage": "uninfjump (uninfinitejump)",
       "args": "(uninfinitejump)",
-      "desc": "Disables infinite jumping",
-      "category": "Movement & Physics"
+      "desc": "Disables infinite jumping"
     },
     {
       "name": "flyjump",
@@ -6754,8 +6154,7 @@
       ],
       "usage": "flyjump",
       "args": "",
-      "desc": "Allows you to hold space to fly up",
-      "category": "Movement & Physics"
+      "desc": "Allows you to hold space to fly up"
     },
     {
       "name": "unflyjump",
@@ -6765,8 +6164,7 @@
       ],
       "usage": "unflyjump (noflyjump)",
       "args": "(noflyjump)",
-      "desc": "Disables flyjump",
-      "category": "Movement & Physics"
+      "desc": "Disables flyjump"
     },
     {
       "name": "xray",
@@ -6776,8 +6174,7 @@
       ],
       "usage": "xray (xrayon)",
       "args": "(xrayon)",
-      "desc": "Enables X-ray vision to see through walls",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Enables X-ray vision to see through walls"
     },
     {
       "name": "unxray",
@@ -6787,8 +6184,7 @@
       ],
       "usage": "unxray (xrayoff)",
       "args": "(xrayoff)",
-      "desc": "Disables X-ray vision",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disables X-ray vision"
     },
     {
       "name": "fullbright",
@@ -6799,8 +6195,7 @@
       ],
       "usage": "fullbright (fullb,fb)",
       "args": "(fullb,fb)",
-      "desc": "makes dark games bright without destroying effects",
-      "category": "Visuals / ESP / Environment"
+      "desc": "makes dark games bright without destroying effects"
     },
     {
       "name": "loopday",
@@ -6810,8 +6205,7 @@
       ],
       "usage": "loopday",
       "args": "",
-      "desc": "Sunshiiiine!",
-      "category": "Server & Utility"
+      "desc": "Sunshiiiine!"
     },
     {
       "name": "unloopday",
@@ -6821,8 +6215,7 @@
       ],
       "usage": "unloopday",
       "args": "",
-      "desc": "No more sunshine",
-      "category": "Server & Utility"
+      "desc": "No more sunshine"
     },
     {
       "name": "loopfullbright",
@@ -6833,8 +6226,7 @@
       ],
       "usage": "loopfullbright",
       "args": "",
-      "desc": "Sunshiiiine!",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Sunshiiiine!"
     },
     {
       "name": "unloopfullbright",
@@ -6845,8 +6237,7 @@
       ],
       "usage": "unloopfullbright",
       "args": "",
-      "desc": "No more sunshine",
-      "category": "Visuals / ESP / Environment"
+      "desc": "No more sunshine"
     },
     {
       "name": "loopnight",
@@ -6857,8 +6248,7 @@
       ],
       "usage": "loopnight",
       "args": "",
-      "desc": "Moonlight.",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Moonlight."
     },
     {
       "name": "unloopnight",
@@ -6869,8 +6259,7 @@
       ],
       "usage": "unloopnight",
       "args": "",
-      "desc": "No more moonlight.",
-      "category": "Visuals / ESP / Environment"
+      "desc": "No more moonlight."
     },
     {
       "name": "loopnoeffect",
@@ -6882,8 +6271,7 @@
       ],
       "usage": "loopnoeffect",
       "args": "",
-      "desc": "Keeps Lighting and CurrentCamera effects disabled",
-      "category": "Camera & View"
+      "desc": "Keeps Lighting and CurrentCamera effects disabled"
     },
     {
       "name": "unloopnoeffect",
@@ -6895,8 +6283,7 @@
       ],
       "usage": "unloopnoeffect",
       "args": "",
-      "desc": "Restores Lighting and CurrentCamera effects",
-      "category": "Camera & View"
+      "desc": "Restores Lighting and CurrentCamera effects"
     },
     {
       "name": "noeffect",
@@ -6907,8 +6294,7 @@
       ],
       "usage": "noeffect",
       "args": "",
-      "desc": "Disables Lighting and CurrentCamera effects",
-      "category": "Camera & View"
+      "desc": "Disables Lighting and CurrentCamera effects"
     },
     {
       "name": "loopnofog",
@@ -6920,8 +6306,7 @@
       ],
       "usage": "loopnofog",
       "args": "",
-      "desc": "See clearly forever!",
-      "category": "Visuals / ESP / Environment"
+      "desc": "See clearly forever!"
     },
     {
       "name": "unloopnofog",
@@ -6934,8 +6319,7 @@
       ],
       "usage": "unloopnofog",
       "args": "",
-      "desc": "No more sight.",
-      "category": "Visuals / ESP / Environment"
+      "desc": "No more sight."
     },
     {
       "name": "nofog",
@@ -6944,8 +6328,7 @@
       ],
       "usage": "nofog",
       "args": "",
-      "desc": "Removes all fog from the game",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Removes all fog from the game"
     },
     {
       "name": "nightmare",
@@ -6955,8 +6338,7 @@
       ],
       "usage": "nightmare",
       "args": "",
-      "desc": "Make it dark and spooky",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Make it dark and spooky"
     },
     {
       "name": "unnightmare",
@@ -6966,8 +6348,7 @@
       ],
       "usage": "unnightmare (unnm)",
       "args": "(unnm)",
-      "desc": "Disable nightmare mode",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Disable nightmare mode"
     },
     {
       "name": "brightness",
@@ -6976,8 +6357,7 @@
       ],
       "usage": "brightness <number>",
       "args": "<number>",
-      "desc": "Changes the brightness lighting property",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Changes the brightness lighting property"
     },
     {
       "name": "loopbrightness",
@@ -6988,8 +6368,7 @@
       ],
       "usage": "loopbrightness (loopbri,loopb)",
       "args": "(loopbri,loopb)",
-      "desc": "Lock the brightness lighting property",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Lock the brightness lighting property"
     },
     {
       "name": "unloopbrightness",
@@ -7000,8 +6379,7 @@
       ],
       "usage": "unloopbrightness (unloopbri,unloopb)",
       "args": "(unloopbri,unloopb)",
-      "desc": "Stop locking brightness",
-      "category": "Visuals / ESP / Environment"
+      "desc": "Stop locking brightness"
     },
     {
       "name": "globalshadows",
@@ -7011,8 +6389,7 @@
       ],
       "usage": "globalshadows",
       "args": "",
-      "desc": "Enables global shadows",
-      "category": "Movement & Physics"
+      "desc": "Enables global shadows"
     },
     {
       "name": "unglobalshadows",
@@ -7024,8 +6401,7 @@
       ],
       "usage": "unglobalshadows (nogshadows,ungshadows,noglobalshadows)",
       "args": "(nogshadows,ungshadows,noglobalshadows)",
-      "desc": "Disables global shadows",
-      "category": "Movement & Physics"
+      "desc": "Disables global shadows"
     },
     {
       "name": "gamma",
@@ -7035,8 +6411,7 @@
       ],
       "usage": "gamma (exposure)",
       "args": "(exposure)",
-      "desc": "gamma vision (real)",
-      "category": "Server & Utility"
+      "desc": "gamma vision (real)"
     },
     {
       "name": "loopgamma",
@@ -7046,8 +6421,7 @@
       ],
       "usage": "loopgamma (loopexposure)",
       "args": "(loopexposure)",
-      "desc": "loop gamma vision (mega real)",
-      "category": "Server & Utility"
+      "desc": "loop gamma vision (mega real)"
     },
     {
       "name": "unloopgamma",
@@ -7059,8 +6433,7 @@
       ],
       "usage": "unloopgamma (unlgamma, unloopexposure, unlexposure)",
       "args": "(unlgamma, unloopexposure, unlexposure)",
-      "desc": "stop gamma vision (real)",
-      "category": "Server & Utility"
+      "desc": "stop gamma vision (real)"
     },
     {
       "name": "firstp",
@@ -7072,8 +6445,7 @@
       ],
       "usage": "firstperson (1stp,firstp,fp)",
       "args": "(1stp,firstp,fp)",
-      "desc": "Makes you go in first person mode",
-      "category": "Camera & View"
+      "desc": "Makes you go in first person mode"
     },
     {
       "name": "thirdp",
@@ -7084,8 +6456,7 @@
       ],
       "usage": "thirdperson (3rdp,thirdp)",
       "args": "(3rdp,thirdp)",
-      "desc": "Makes you go in third person mode",
-      "category": "Camera & View"
+      "desc": "Makes you go in third person mode"
     },
     {
       "name": "maxzoom",
@@ -7094,8 +6465,7 @@
       ],
       "usage": "maxzoom <amount>",
       "args": "<amount>",
-      "desc": "Set your maximum camera distance",
-      "category": "Camera & View"
+      "desc": "Set your maximum camera distance"
     },
     {
       "name": "minzoom",
@@ -7104,8 +6474,7 @@
       ],
       "usage": "minzoom <amount>",
       "args": "<amount>",
-      "desc": "Set your minimum camera distance",
-      "category": "Camera & View"
+      "desc": "Set your minimum camera distance"
     },
     {
       "name": "cameranoclip",
@@ -7117,8 +6486,7 @@
       ],
       "usage": "cameranoclip (camnoclip,cnoclip,nccam)",
       "args": "(camnoclip,cnoclip,nccam)",
-      "desc": "Makes your camera clip through walls",
-      "category": "Movement & Physics"
+      "desc": "Makes your camera clip through walls"
     },
     {
       "name": "uncameranoclip",
@@ -7130,8 +6498,7 @@
       ],
       "usage": "uncameranoclip (uncamnoclip,uncnoclip,unnccam)",
       "args": "(uncamnoclip,uncnoclip,unnccam)",
-      "desc": "Restores normal camera",
-      "category": "Movement & Physics"
+      "desc": "Restores normal camera"
     },
     {
       "name": "oganims",
@@ -7140,8 +6507,7 @@
       ],
       "usage": "oganims",
       "args": "",
-      "desc": "Old animations from 2007",
-      "category": "Server & Utility"
+      "desc": "Old animations from 2007"
     },
     {
       "name": "fakechat",
@@ -7150,8 +6516,7 @@
       ],
       "usage": "fakechat",
       "args": "",
-      "desc": "Fake a chat gui",
-      "category": "Server & Utility"
+      "desc": "Fake a chat gui"
     },
     {
       "name": "fpscap",
@@ -7160,8 +6525,7 @@
       ],
       "usage": "fpscap <number>",
       "args": "<number>",
-      "desc": "Sets the fps cap to whatever you want",
-      "category": "Server & Utility"
+      "desc": "Sets the fps cap to whatever you want"
     },
     {
       "name": "toolinvisible",
@@ -7171,8 +6535,7 @@
       ],
       "usage": "toolinvisible (tinvis)",
       "args": "(tinvis)",
-      "desc": "Be invisible while still being able to use tools",
-      "category": "Teleport & Tools"
+      "desc": "Be invisible while still being able to use tools"
     },
     {
       "name": "invisible",
@@ -7182,8 +6545,7 @@
       ],
       "usage": "invisible (invis)",
       "args": "(invis)",
-      "desc": "Sets invisibility to scare people or something",
-      "category": "Server & Utility"
+      "desc": "Sets invisibility to scare people or something"
     },
     {
       "name": "visible",
@@ -7193,8 +6555,7 @@
       ],
       "usage": "visible",
       "args": "",
-      "desc": "turn visible",
-      "category": "Server & Utility"
+      "desc": "turn visible"
     },
     {
       "name": "invisbind",
@@ -7205,8 +6566,7 @@
       ],
       "usage": "invisbind (invisiblebind, bindinvis)",
       "args": "(invisiblebind, bindinvis)",
-      "desc": "set a custom keybind for the 'Invisible' command",
-      "category": "Server & Utility"
+      "desc": "set a custom keybind for the 'Invisible' command"
     },
     {
       "name": "fireremotes",
@@ -7217,8 +6577,7 @@
       ],
       "usage": "fireremotes (fremotes, frem)",
       "args": "(fremotes, frem)",
-      "desc": "Fires every remote with arguments",
-      "category": "Server & Utility"
+      "desc": "Fires every remote with arguments"
     },
     {
       "name": "keepna",
@@ -7227,8 +6586,7 @@
       ],
       "usage": "keepna",
       "args": "",
-      "desc": "keep executing ",
-      "category": "Server & Utility"
+      "desc": "keep executing "
     },
     {
       "name": "unkeepna",
@@ -7237,8 +6595,7 @@
       ],
       "usage": "unkeepna",
       "args": "",
-      "desc": "Stop executing ",
-      "category": "Server & Utility"
+      "desc": "Stop executing "
     },
     {
       "name": "fov",
@@ -7247,8 +6604,7 @@
       ],
       "usage": "fov <number>",
       "args": "<number>",
-      "desc": "Sets your FOV to a custom value (1\u2013300)",
-      "category": "Camera & View"
+      "desc": "Sets your FOV to a custom value (1\u2013300)"
     },
     {
       "name": "loopfov",
@@ -7258,8 +6614,7 @@
       ],
       "usage": "loopfov <number> (lfov)",
       "args": "<number> (lfov)",
-      "desc": "Locks your FOV target (1\u2013300)",
-      "category": "Camera & View"
+      "desc": "Locks your FOV target (1\u2013300)"
     },
     {
       "name": "unloopfov",
@@ -7269,8 +6624,7 @@
       ],
       "usage": "unloopfov (unlfov)",
       "args": "(unlfov)",
-      "desc": "Stops FOV loop",
-      "category": "Camera & View"
+      "desc": "Stops FOV loop"
     },
     {
       "name": "homebrew",
@@ -7279,8 +6633,7 @@
       ],
       "usage": "homebrew",
       "args": "",
-      "desc": "Executes homebrew admin",
-      "category": "Server & Utility"
+      "desc": "Executes homebrew admin"
     },
     {
       "name": "fatesadmin",
@@ -7289,8 +6642,7 @@
       ],
       "usage": "fatesadmin",
       "args": "",
-      "desc": "Executes fates admin",
-      "category": "Server & Utility"
+      "desc": "Executes fates admin"
     },
     {
       "name": "savetools",
@@ -7300,8 +6652,7 @@
       ],
       "usage": "savetools (stools)",
       "args": "(stools)",
-      "desc": "Saves your tools to memory",
-      "category": "Teleport & Tools"
+      "desc": "Saves your tools to memory"
     },
     {
       "name": "loadtools",
@@ -7311,8 +6662,7 @@
       ],
       "usage": "loadtools (ltools)",
       "args": "(ltools)",
-      "desc": "Restores your saved tools to your backpack",
-      "category": "Teleport & Tools"
+      "desc": "Restores your saved tools to your backpack"
     },
     {
       "name": "preventtools",
@@ -7323,8 +6673,7 @@
       ],
       "usage": "preventtools (noequip,antiequip)",
       "args": "(noequip,antiequip)",
-      "desc": "Prevents any item from being equipped",
-      "category": "Teleport & Tools"
+      "desc": "Prevents any item from being equipped"
     },
     {
       "name": "unpreventtools",
@@ -7335,8 +6684,7 @@
       ],
       "usage": "unpreventtools (unnoequip,unantiequip)",
       "args": "(unnoequip,unantiequip)",
-      "desc": "Self-explanatory",
-      "category": "Teleport & Tools"
+      "desc": "Self-explanatory"
     },
     {
       "name": "ws",
@@ -7347,8 +6695,7 @@
       ],
       "usage": "walkspeed <number> (speed,ws)",
       "args": "<number> (speed,ws)",
-      "desc": "Sets your WalkSpeed",
-      "category": "Movement & Physics"
+      "desc": "Sets your WalkSpeed"
     },
     {
       "name": "jp",
@@ -7358,8 +6705,7 @@
       ],
       "usage": "jumppower <number> (jp)",
       "args": "<number> (jp)",
-      "desc": "Sets your JumpPower",
-      "category": "Movement & Physics"
+      "desc": "Sets your JumpPower"
     },
     {
       "name": "blockremote",
@@ -7369,8 +6715,7 @@
       ],
       "usage": "blockremote [name]",
       "args": "[name]",
-      "desc": "Block a remote event/function by name (or pick from list)",
-      "category": "Server & Utility"
+      "desc": "Block a remote event/function by name (or pick from list)"
     },
     {
       "name": "unblockremote",
@@ -7380,8 +6725,7 @@
       ],
       "usage": "unblockremote [name|all]",
       "args": "[name|all]",
-      "desc": "Unblock a remote by name, or pick from blocked list",
-      "category": "Server & Utility"
+      "desc": "Unblock a remote by name, or pick from blocked list"
     },
     {
       "name": "bypassspeed",
@@ -7393,8 +6737,7 @@
       ],
       "usage": "bypassspeed <number> (bps,bpws)",
       "args": "<number> (bps,bpws)",
-      "desc": "Set WalkSpeed (bypass variant)",
-      "category": "Movement & Physics"
+      "desc": "Set WalkSpeed (bypass variant)"
     },
     {
       "name": "loopbypassspeed",
@@ -7406,8 +6749,7 @@
       ],
       "usage": "loopbypassspeed <number|off> (lbps,lbws)",
       "args": "<number|off> (lbps,lbws)",
-      "desc": "Loop WalkSpeed (bypass variant)",
-      "category": "Movement & Physics"
+      "desc": "Loop WalkSpeed (bypass variant)"
     },
     {
       "name": "unloopbypassspeed",
@@ -7419,8 +6761,7 @@
       ],
       "usage": "unloopbypassspeed (unlbps,unlbws)",
       "args": "(unlbps,unlbws)",
-      "desc": "Disable loop WalkSpeed (bypass variant)",
-      "category": "Movement & Physics"
+      "desc": "Disable loop WalkSpeed (bypass variant)"
     },
     {
       "name": "oofspam",
@@ -7429,8 +6770,7 @@
       ],
       "usage": "oofspam",
       "args": "",
-      "desc": "Spams oof",
-      "category": "Server & Utility"
+      "desc": "Spams oof"
     },
     {
       "name": "httpspy",
@@ -7439,8 +6779,7 @@
       ],
       "usage": "httpspy",
       "args": "",
-      "desc": "HTTP Spy",
-      "category": "Teleport & Tools"
+      "desc": "HTTP Spy"
     },
     {
       "name": "keystroke",
@@ -7449,8 +6788,7 @@
       ],
       "usage": "keystroke",
       "args": "",
-      "desc": "Executes a keystroke ui script",
-      "category": "Server & Utility"
+      "desc": "Executes a keystroke ui script"
     },
     {
       "name": "errorchat",
@@ -7459,8 +6797,7 @@
       ],
       "usage": "errorchat",
       "args": "",
-      "desc": "Makes the chat error appear when roblox chat is slow",
-      "category": "Server & Utility"
+      "desc": "Makes the chat error appear when roblox chat is slow"
     },
     {
       "name": "clearerror",
@@ -7470,8 +6807,7 @@
       ],
       "usage": "clearerror",
       "args": "",
-      "desc": "Clears any current error or disconnected UI immediately",
-      "category": "Server & Utility"
+      "desc": "Clears any current error or disconnected UI immediately"
     },
     {
       "name": "antierror",
@@ -7480,8 +6816,7 @@
       ],
       "usage": "antierror",
       "args": "",
-      "desc": "Continuously blocks and clears any future error or disconnected UI",
-      "category": "Server & Utility"
+      "desc": "Continuously blocks and clears any future error or disconnected UI"
     },
     {
       "name": "unantierror",
@@ -7491,8 +6826,7 @@
       ],
       "usage": "unantierror",
       "args": "",
-      "desc": "Disables Anti Error",
-      "category": "Server & Utility"
+      "desc": "Disables Anti Error"
     },
     {
       "name": "boobs",
@@ -7502,8 +6836,7 @@
       ],
       "usage": "boobs <size> (boobies)",
       "args": "<size> (boobies)",
-      "desc": "Boobs",
-      "category": "Server & Utility"
+      "desc": "Boobs"
     },
     {
       "name": "unboobs",
@@ -7515,8 +6848,7 @@
       ],
       "usage": "unboobs (unboobies,noboobs,noboobies)",
       "args": "(unboobies,noboobs,noboobies)",
-      "desc": "Boobs",
-      "category": "Server & Utility"
+      "desc": "Boobs"
     },
     {
       "name": "ass",
@@ -7526,8 +6858,7 @@
       ],
       "usage": "ass <size> (booty)",
       "args": "<size> (booty)",
-      "desc": "Ass",
-      "category": "Server & Utility"
+      "desc": "Ass"
     },
     {
       "name": "unass",
@@ -7537,8 +6868,7 @@
       ],
       "usage": "unass (noass)",
       "args": "(noass)",
-      "desc": "Ass",
-      "category": "Server & Utility"
+      "desc": "Ass"
     },
     {
       "name": "penis",
@@ -7548,8 +6878,7 @@
       ],
       "usage": "penis <length> (pp)",
       "args": "<length> (pp)",
-      "desc": "penis",
-      "category": "Server & Utility"
+      "desc": "penis"
     },
     {
       "name": "unpenis",
@@ -7561,8 +6890,7 @@
       ],
       "usage": "unpenis (unpp,nopenis,nopp)",
       "args": "(unpp,nopenis,nopp)",
-      "desc": "penis",
-      "category": "Server & Utility"
+      "desc": "penis"
     },
     {
       "name": "flingnpcs",
@@ -7571,8 +6899,7 @@
       ],
       "usage": "flingnpcs",
       "args": "",
-      "desc": "Flings NPCs",
-      "category": "Trolling / Fun"
+      "desc": "Flings NPCs"
     },
     {
       "name": "npcfollow",
@@ -7581,8 +6908,7 @@
       ],
       "usage": "npcfollow",
       "args": "",
-      "desc": "Makes NPCS follow you",
-      "category": "Server & Utility"
+      "desc": "Makes NPCS follow you"
     },
     {
       "name": "loopnpcfollow",
@@ -7591,8 +6917,7 @@
       ],
       "usage": "loopnpcfollow",
       "args": "",
-      "desc": "Makes NPCS follow you in a loop",
-      "category": "Server & Utility"
+      "desc": "Makes NPCS follow you in a loop"
     },
     {
       "name": "unloopnpcfollow",
@@ -7601,8 +6926,7 @@
       ],
       "usage": "unloopnpcfollow",
       "args": "",
-      "desc": "Makes NPCS not follow you in a loop",
-      "category": "Server & Utility"
+      "desc": "Makes NPCS not follow you in a loop"
     },
     {
       "name": "sitnpcs",
@@ -7611,8 +6935,7 @@
       ],
       "usage": "sitnpcs",
       "args": "",
-      "desc": "Makes NPCS sit",
-      "category": "Trolling / Fun"
+      "desc": "Makes NPCS sit"
     },
     {
       "name": "unsitnpcs",
@@ -7621,8 +6944,7 @@
       ],
       "usage": "unsitnpcs",
       "args": "",
-      "desc": "Makes NPCS unsit",
-      "category": "Trolling / Fun"
+      "desc": "Makes NPCS unsit"
     },
     {
       "name": "killnpcs",
@@ -7631,8 +6953,7 @@
       ],
       "usage": "killnpcs",
       "args": "",
-      "desc": "Kills NPCs",
-      "category": "Trolling / Fun"
+      "desc": "Kills NPCs"
     },
     {
       "name": "npcwalkspeed",
@@ -7642,8 +6963,7 @@
       ],
       "usage": "npcwalkspeed <speed>",
       "args": "<speed>",
-      "desc": "Sets all NPC WalkSpeed to <speed> (default 16)",
-      "category": "Movement & Physics"
+      "desc": "Sets all NPC WalkSpeed to <speed> (default 16)"
     },
     {
       "name": "npcjumppower",
@@ -7653,8 +6973,7 @@
       ],
       "usage": "npcjumppower <power>",
       "args": "<power>",
-      "desc": "Sets all NPC JumpPower to <power> (default 50)",
-      "category": "Movement & Physics"
+      "desc": "Sets all NPC JumpPower to <power> (default 50)"
     },
     {
       "name": "bringnpcs",
@@ -7663,8 +6982,7 @@
       ],
       "usage": "bringnpcs",
       "args": "",
-      "desc": "Brings NPCs",
-      "category": "Teleport & Tools"
+      "desc": "Brings NPCs"
     },
     {
       "name": "loopbringnpcs",
@@ -7674,8 +6992,7 @@
       ],
       "usage": "loopbringnpcs (lbnpcs)",
       "args": "(lbnpcs)",
-      "desc": "Loops NPC bringing",
-      "category": "Teleport & Tools"
+      "desc": "Loops NPC bringing"
     },
     {
       "name": "unloopbringnpcs",
@@ -7685,8 +7002,7 @@
       ],
       "usage": "unloopbringnpcs (unlbnpcs)",
       "args": "(unlbnpcs)",
-      "desc": "Stops NPC bring loop",
-      "category": "Teleport & Tools"
+      "desc": "Stops NPC bring loop"
     },
     {
       "name": "gotonpcs",
@@ -7695,8 +7011,7 @@
       ],
       "usage": "gotonpcs",
       "args": "",
-      "desc": "Teleports to each NPC",
-      "category": "Teleport & Tools"
+      "desc": "Teleports to each NPC"
     },
     {
       "name": "actnpc",
@@ -7705,8 +7020,7 @@
       ],
       "usage": "actnpc",
       "args": "",
-      "desc": "Start acting like an NPC",
-      "category": "Server & Utility"
+      "desc": "Start acting like an NPC"
     },
     {
       "name": "unactnpc",
@@ -7716,8 +7030,7 @@
       ],
       "usage": "unactnpc (stopnpc)",
       "args": "(stopnpc)",
-      "desc": "Stop acting like an NPC",
-      "category": "Teleport & Tools"
+      "desc": "Stop acting like an NPC"
     },
     {
       "name": "clickkillnpc",
@@ -7727,8 +7040,7 @@
       ],
       "usage": "clickkillnpc (cknpc)",
       "args": "(cknpc)",
-      "desc": "Click on an NPC to kill it",
-      "category": "Trolling / Fun"
+      "desc": "Click on an NPC to kill it"
     },
     {
       "name": "unclickkillnpc",
@@ -7738,8 +7050,7 @@
       ],
       "usage": "unclickkillnpc (uncknpc)",
       "args": "(uncknpc)",
-      "desc": "Disable clickkillnpc",
-      "category": "Trolling / Fun"
+      "desc": "Disable clickkillnpc"
     },
     {
       "name": "voidnpcs",
@@ -7749,8 +7060,7 @@
       ],
       "usage": "voidnpcs (vnpcs)",
       "args": "(vnpcs)",
-      "desc": "Teleports NPC's to void",
-      "category": "Teleport & Tools"
+      "desc": "Teleports NPC's to void"
     },
     {
       "name": "clickvoidnpc",
@@ -7760,8 +7070,7 @@
       ],
       "usage": "clickvoidnpc (cvnpc)",
       "args": "(cvnpc)",
-      "desc": "Click to void NPCs",
-      "category": "Teleport & Tools"
+      "desc": "Click to void NPCs"
     },
     {
       "name": "unclickvoidnpc",
@@ -7771,8 +7080,7 @@
       ],
       "usage": "unclickvoidnpc (uncvnpc)",
       "args": "(uncvnpc)",
-      "desc": "Disable click-void",
-      "category": "Teleport & Tools"
+      "desc": "Disable click-void"
     },
     {
       "name": "clicknpcws",
@@ -7782,8 +7090,7 @@
       ],
       "usage": "clicknpcws",
       "args": "",
-      "desc": "Click on an NPC to set its WalkSpeed",
-      "category": "Movement & Physics"
+      "desc": "Click on an NPC to set its WalkSpeed"
     },
     {
       "name": "unclicknpcws",
@@ -7793,8 +7100,7 @@
       ],
       "usage": "unclicknpcws",
       "args": "",
-      "desc": "Disable clicknpcws",
-      "category": "Movement & Physics"
+      "desc": "Disable clicknpcws"
     },
     {
       "name": "clicknpcjp",
@@ -7804,8 +7110,7 @@
       ],
       "usage": "clicknpcjp",
       "args": "",
-      "desc": "Click on an NPC to set its JumpPower",
-      "category": "Movement & Physics"
+      "desc": "Click on an NPC to set its JumpPower"
     },
     {
       "name": "unclicknpcjp",
@@ -7815,8 +7120,7 @@
       ],
       "usage": "unclicknpcjp",
       "args": "",
-      "desc": "Disable clicknpcjp",
-      "category": "Server & Utility"
+      "desc": "Disable clicknpcjp"
     },
     {
       "name": "rename",
@@ -7825,8 +7129,7 @@
       ],
       "usage": "rename <text>",
       "args": "<text>",
-      "desc": "Renames the admin UI placeholder to the given name",
-      "category": "Server & Utility"
+      "desc": "Renames the admin UI placeholder to the given name"
     },
     {
       "name": "unname",
@@ -7835,8 +7138,7 @@
       ],
       "usage": "unname",
       "args": "",
-      "desc": "Resets the admin UI placeholder name to default",
-      "category": "Server & Utility"
+      "desc": "Resets the admin UI placeholder name to default"
     }
   ],
   "patched_commands": [
@@ -7848,8 +7150,7 @@
       ],
       "usage": "breaklayeredclothing (blc)",
       "args": "(blc)",
-      "desc": "Streches your layered clothing",
-      "category": "Server & Utility"
+      "desc": "Streches your layered clothing"
     },
     {
       "name": "desync",
@@ -7859,8 +7160,7 @@
       ],
       "usage": "desync (ngrep)",
       "args": "(ngrep)",
-      "desc": "Toggle NextGenReplicator desync / sync (run again to disable)",
-      "category": "Server & Utility"
+      "desc": "Toggle NextGenReplicator desync / sync (run again to disable)"
     },
     {
       "name": "reserveserver",
@@ -7872,8 +7172,7 @@
       ],
       "usage": "reserveserver [code]",
       "args": "[code]",
-      "desc": "Teleports to a reserved server or creates one if code is missing",
-      "category": "Teleport & Tools"
+      "desc": "Teleports to a reserved server or creates one if code is missing"
     }
   ]
 }
