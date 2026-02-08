@@ -1104,21 +1104,13 @@
         "fpsbooster",
         "lowgraphics",
         "boostfps",
-        "lowg"
+        "lowg",
+        "antilag",
+        "boostfps"
       ],
       "usage": "fpsbooster",
       "args": "",
       "desc": "Enables maximum-performance low graphics mode, run again to restore"
-    },
-    {
-      "name": "antilag",
-      "aliases": [
-        "antilag",
-        "boostfps"
-      ],
-      "usage": "antilag (boostfps)",
-      "args": "(boostfps)",
-      "desc": "Low Graphics"
     },
     {
       "name": "annoy",
