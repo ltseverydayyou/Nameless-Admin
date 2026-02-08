@@ -23580,6 +23580,17 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fp
 	end
 	local function isClothingLike(inst) return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription") end
 
+	local function isUnderAttachment(inst)
+		local p = inst
+		while p do
+			if p:IsA("Attachment") then
+				return true
+			end
+			p = p.Parent
+		end
+		return false
+	end
+
 	local originals={quality=nil,lighting={},terrain={},workspace={},postFx={},postFxCam={}}
 	local function snapshotEnv()
 		if originals.quality==nil then pcall(function() originals.quality=settings().Rendering.QualityLevel end) end
@@ -23750,6 +23761,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fp
 		end
 
 		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles")) then
+			if effectDestroy and not isUnderAttachment(inst) then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
 			local en = st.safeGet(inst,"Enabled")
 			if en ~= nil then
 				remember(inst,"Enabled",en)
@@ -23759,6 +23776,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fp
 		end
 
 		if stripParticles and inst:IsA("Beam") then
+			if effectDestroy and not isUnderAttachment(inst) then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
 			local en = st.safeGet(inst,"Enabled")
 			if en ~= nil then
 				remember(inst,"Enabled",en)
