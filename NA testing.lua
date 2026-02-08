@@ -779,22 +779,40 @@ NA_GRAB_BODY = (function()
 				dirty = true
 			};
 			_cache[model] = rec;
+
 			rec.a = model.DescendantAdded:Connect(function()
 				rec.dirty = true;
 			end);
-			rec.r = model.DescendantRemoving:Connect(function()
+
+			rec.r = model.DescendantRemoving:Connect(function(d)
+				if rec.head == d then
+					rec.head = nil;
+				end;
+				if rec.root == d then
+					rec.root = nil;
+				end;
+				if rec.torso == d then
+					rec.torso = nil;
+				end;
+				if rec.humanoid == d then
+					rec.humanoid = nil;
+				end;
 				rec.dirty = true;
 			end);
+
 			rec.c = model.AncestryChanged:Connect(function(_, parent)
 				if not parent then
 					if rec.a then
 						rec.a:Disconnect();
+						rec.a = nil;
 					end;
 					if rec.r then
 						rec.r:Disconnect();
+						rec.r = nil;
 					end;
 					if rec.c then
 						rec.c:Disconnect();
+						rec.c = nil;
 					end;
 					_cache[model] = nil;
 				end;
@@ -2965,9 +2983,6 @@ local NAfiles = {
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
-NAmanage.newCornerStore=function()
-	return {}
-end
 
 NAmanage.initUIEditors=function(coreGui, HUI)
 	if not (coreGui and NAgui) then
@@ -2986,9 +3001,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = false,
 		},
 		cg = coreGui,
-		store = NAmanage.newCornerStore(),
-		watchers = {},
-		guiRootWatchers = {},
+		store = setmetatable({}, { __mode = "k" }),
+		watchers = setmetatable({}, { __mode = "k" }),
+		guiRootWatchers = setmetatable({}, { __mode = "k" }),
 		guiRootSeen = setmetatable({}, { __mode = "k" }),
 		restoring = false,
 	}
@@ -3180,6 +3195,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			CE.guiRootWatchers[root] = nil
 		end
+		CE.guiRootWatchers = setmetatable({}, { __mode = "k" })
 		CE.guiRootSeen = setmetatable({}, { __mode = "k" })
 	end
 
@@ -3194,8 +3210,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			stopCWat(corner)
 		end
 		CE.restoring = false
-		CE.store = NAmanage.newCornerStore()
-		CE.watchers = {}
+		CE.store = setmetatable({}, { __mode = "k" })
+		CE.watchers = setmetatable({}, { __mode = "k" })
 		clearGuiRootWatchers()
 	end
 
@@ -3380,7 +3396,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local persistFontData
 
 	local function newFontStore()
-		return {}
+		return setmetatable({}, { __mode = "k" })
 	end
 
 	local FontChoices = {}
@@ -4450,7 +4466,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		customFontMap = {},
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
-		watchers = {},
+		watchers = setmetatable({}, { __mode = "k" }),
 		restoring = false,
 		dlBusy = false,
 	}
@@ -4778,7 +4794,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
-		FontEditor.watchers = {}
+		FontEditor.watchers = setmetatable({}, { __mode = "k" })
 	end
 
 	local function applyAllFonts()
@@ -13318,7 +13334,10 @@ local chamsEnabled=false
 local ESPAutoTrackAll=false
 local ESPPlayersEnabled=false
 local NPCESPenabled=false
-espCONS = espCONS or {}
+if type(espCONS) ~= "table" then
+	espCONS = {}
+end
+setmetatable(espCONS, { __mode = "k" })
 
 NAmanage.ESP_RecomputeEnabled=function()
 	ESPenabled = ESPPlayersEnabled or NPCESPenabled
@@ -14090,7 +14109,7 @@ NAmanage.ESP_ClearAll = function()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
 	end
-	NAStuff.ESP_ModelList = {}
+	NAStuff.ESP_ModelList = setmetatable({}, { __mode = "v" })
 	NAlib.disconnect("esp_update_global")
 	ESPPlayersEnabled = false
 	NPCESPenabled = false
@@ -24797,8 +24816,8 @@ NAStuff.ATPC = {
 	plr = Players.LocalPlayer,
 	gui = nil,
 	btn = nil,
-	allowed = {},
-	old = {},
+	allowed = setmetatable({}, { __mode = "k" }),
+	old = setmetatable({}, { __mode = "k" }),
 	parts = {}
 }
 
@@ -24944,8 +24963,9 @@ NAStuff.ATPC.Enable = function()
 	end
 
 	NAStuff.ATPC.state = true
-	NAStuff.ATPC.allowed = {}
-	NAStuff.ATPC.old = {}
+	NAStuff.ATPC.plr = plr
+	NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
+	NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
 	NAStuff.ATPC.parts = {}
 
 	if type(Refresh) == "function" then
@@ -24953,7 +24973,20 @@ NAStuff.ATPC.Enable = function()
 	end
 
 	NAlib.disconnect("AntiCFrame")
+	NAlib.disconnect("AntiCFrame_charAdded")
+
 	NAStuff.ATPC._hookChar(char)
+
+	NAlib.connect("AntiCFrame_charAdded", plr.CharacterAdded:Connect(function(newChar)
+		if not NAStuff.ATPC.state then return end
+		if not newChar or not newChar.Parent then return end
+		NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
+		NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
+		NAStuff.ATPC.parts = {}
+		NAlib.disconnect("AntiCFrame")
+		NAStuff.ATPC._hookChar(newChar)
+	end))
+
 	NAStuff.ATPC._syncBtn()
 	DoNotif("Anti CFrame Teleport has been enabled")
 end
@@ -24968,9 +25001,12 @@ NAStuff.ATPC.Disable = function()
 	end
 
 	NAlib.disconnect("AntiCFrame")
-	NAStuff.ATPC.allowed = {}
-	NAStuff.ATPC.old = {}
+	NAlib.disconnect("AntiCFrame_charAdded")
+
+	NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
+	NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
 	NAStuff.ATPC.parts = {}
+
 	NAStuff.ATPC._syncBtn()
 	DoNotif("Anti CFrame Teleport has been disabled")
 end
@@ -27405,9 +27441,19 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 end, true)
 
 NAStuff.NPC_SCAN_KEY = NAStuff.NPC_SCAN_KEY or "npc_esp_scan"
-NAStuff.npcESPList = NAStuff.npcESPList or _na_env.npcESPList or {}
+NAStuff.npcESPList = NAStuff.npcESPList or _na_env.npcESPList
+if not NAStuff.npcESPList then
+	NAStuff.npcESPList = setmetatable({}, { __mode = "k" })
+else
+	if not getmetatable(NAStuff.npcESPList) then
+		setmetatable(NAStuff.npcESPList, { __mode = "k" })
+	end
+end
 _na_env.npcESPList = NAStuff.npcESPList
-NAStuff.npcCandidates = NAStuff.npcCandidates or {}
+NAStuff.npcCandidates = NAStuff.npcCandidates or setmetatable({}, { __mode = "k" })
+if not getmetatable(NAStuff.npcCandidates) then
+	setmetatable(NAStuff.npcCandidates, { __mode = "k" })
+end
 
 NAmanage.ClearNpcTables = function()
 	for inst in pairs(NAStuff.npcCandidates) do
@@ -27439,9 +27485,7 @@ NAmanage.RemoveNpcCandidate = function(inst)
 end
 
 NAmanage.SeedNpcCandidates = function()
-	for inst in pairs(NAStuff.npcCandidates) do
-		NAStuff.npcCandidates[inst] = nil
-	end
+	NAStuff.npcCandidates = setmetatable({}, { __mode = "k" })
 	for _, inst in ipairs(workspace:GetDescendants()) do
 		NAmanage.AddNpcCandidate(inst)
 	end
@@ -27538,8 +27582,9 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 		NAlib.disconnect(NAStuff.NPC_SCAN_KEY)
 	end
 	NAmanage.ClearNpcTables()
-	NAStuff.npcESPList = {}
+	NAStuff.npcESPList = setmetatable({}, { __mode = "k" })
 	_na_env.npcESPList = NAStuff.npcESPList
+	NAStuff.npcCandidates = setmetatable({}, { __mode = "k" })
 	if not (ESPPlayersEnabled or chamsEnabled or NPCESPenabled) then
 		NAmanage.ESP_StopGlobal()
 	end
@@ -38693,7 +38738,11 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	end
 end, true)
 
-promptTBL = promptTBL or {tracked = {}, conns = {}, blocking = false, polling = false}
+promptTBL = promptTBL or {}
+promptTBL.tracked = promptTBL.tracked or setmetatable({}, { __mode = "k" })
+promptTBL.conns = promptTBL.conns or {}
+promptTBL.blocking = promptTBL.blocking == true
+promptTBL.polling = promptTBL.polling == true
 
 function NAmanage.isPromptGuiName(name)
 	if type(name) ~= "string" then
@@ -38957,7 +39006,11 @@ if NAStuff and NAStuff.FriendRequestAutoDismiss == true then
 	NAmanage.setFriendRequestAutoDismiss(true)
 end
 
-networkPauseBlock = networkPauseBlock or {tracked = {}, conns = {}, blocking = false, polling = false}
+networkPauseBlock = networkPauseBlock or {}
+networkPauseBlock.tracked = networkPauseBlock.tracked or setmetatable({}, { __mode = "k" })
+networkPauseBlock.conns = networkPauseBlock.conns or {}
+networkPauseBlock.blocking = networkPauseBlock.blocking == true
+networkPauseBlock.polling = networkPauseBlock.polling == true
 
 function NAmanage.isNetworkPauseScript(inst)
 	if typeof(inst) ~= "Instance" then
@@ -40419,6 +40472,7 @@ NAStuff._godHumRef  = NAStuff._godHumRef  or nil
 NAStuff._godHooked  = NAStuff._godHooked  or false
 NAStuff._godOldNC   = NAStuff._godOldNC   or nil
 NAStuff._godOldNI   = NAStuff._godOldNI   or nil
+NAStuff._godStrong  = NAStuff._godStrong  or true
 
 NAmanage.God_ClearSignals = function()
 	NAlib.disconnect("godmode")
@@ -40455,7 +40509,13 @@ end
 
 NAmanage.God_WireNoHooks = function(h, strong)
 	if not h then return end
-	if NAStuff._godSignals[h] then for _,c in ipairs(NAStuff._godSignals[h]) do if c then c:Disconnect() end end end
+	if NAStuff._godSignals[h] then
+		for _,c in ipairs(NAStuff._godSignals[h]) do
+			if c then
+				c:Disconnect()
+			end
+		end
+	end
 	NAStuff._godSignals[h] = {}
 	Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.HealthChanged:Connect(function()
 		if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
@@ -40486,50 +40546,81 @@ NAmanage.God_WireNoHooks = function(h, strong)
 		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
 		if h:GetState() == Enum.HumanoidStateType.Dead then pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end) end
 	end
-	NAlib.connect("god_loops", RunService.RenderStepped:Connect(function()
-		local hh = getHum()
-		if not hh then return end
-		NAStuff._godHumRef = hh
-		if hh.MaxHealth < NAStuff._godTarget then NAlib.setProperty(hh,"MaxHealth", NAStuff._godTarget) end
-		if hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
-		if strong then
-			if NAlib.isProperty(hh,"BreakJointsOnDeath") ~= false then NAlib.setProperty(hh,"BreakJointsOnDeath", false) end
-			pcall(function() hh:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
-			if hh:GetState() == Enum.HumanoidStateType.Dead then pcall(function() hh:ChangeState(Enum.HumanoidStateType.Running) end) end
-		end
-	end))
-	NAlib.connect("god_loops", RunService.Stepped:Connect(function()
-		local hh = getHum()
-		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
-	end))
-	NAlib.connect("god_loops", RunService.Heartbeat:Connect(function()
-		local hh = getHum()
-		if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
-	end))
+	NAStuff._godStrong = strong ~= false
+	if not NAlib.isConnected("god_loops") then
+		NAlib.connect("god_loops", RunService.RenderStepped:Connect(function()
+			if not NAStuff._godEnabled then return end
+			local hh = getHum()
+			if not hh then return end
+			NAStuff._godHumRef = hh
+			if hh.MaxHealth < NAStuff._godTarget then NAlib.setProperty(hh,"MaxHealth", NAStuff._godTarget) end
+			if hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
+			if NAStuff._godStrong then
+				if NAlib.isProperty(hh,"BreakJointsOnDeath") ~= false then NAlib.setProperty(hh,"BreakJointsOnDeath", false) end
+				pcall(function() hh:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
+				if hh:GetState() == Enum.HumanoidStateType.Dead then
+					pcall(function() hh:ChangeState(Enum.HumanoidStateType.Running) end)
+				end
+			end
+		end))
+		NAlib.connect("god_loops", RunService.Stepped:Connect(function()
+			if not NAStuff._godEnabled then return end
+			local hh = getHum()
+			if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
+		end))
+		NAlib.connect("god_loops", RunService.Heartbeat:Connect(function()
+			if not NAStuff._godEnabled then return end
+			local hh = getHum()
+			if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
+		end))
+	end
 end
 
 NAmanage.God_HookMeta = function()
-	if NAStuff._godHooked or not (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function") then return false end
+	if NAStuff._godHooked or not (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function" and typeof(checkcaller)=="function") then
+		return false
+	end
 	NAStuff._godHooked = true
 	NAStuff._godOldNC = NAStuff._godOldNC or hookmetamethod(game,"__namecall",newcclosure(function(self,...)
-		local m = getnamecallmethod()
-		local hum = NAStuff._godHumRef
-		if hum and typeof(self)=="Instance" then
-			if self==hum and m=="ChangeState" then local st = ...; if st==Enum.HumanoidStateType.Dead then return end end
-			if self==hum and m=="SetStateEnabled" then local st,en = ...; if st==Enum.HumanoidStateType.Dead and en==true then return end end
-			if self==hum and m=="Destroy" then return end
-			local char = Players.LocalPlayer.Character
-			if char and self==char and m=="BreakJoints" then return end
+		if not checkcaller() then
+			local m = getnamecallmethod()
+			if type(m) == "string" then
+				m = Lower(m)
+			end
+			local hum = NAStuff._godHumRef
+			if hum and typeof(self)=="Instance" then
+				if self==hum and m=="changestate" then
+					local st = ...
+					if st == Enum.HumanoidStateType.Dead then
+						return
+					end
+				end
+				if self==hum and m=="setstateenabled" then
+					local st,en = ...
+					if st == Enum.HumanoidStateType.Dead and en == true then
+						return
+					end
+				end
+				if self==hum and m=="destroy" then
+					return
+				end
+				local char = Players.LocalPlayer.Character
+				if char and self==char and m=="breakjoints" then
+					return
+				end
+			end
 		end
 		return NAStuff._godOldNC(self,...)
 	end))
 	NAStuff._godOldNI = NAStuff._godOldNI or hookmetamethod(game,"__newindex",newcclosure(function(self,k,v)
-		local hum = NAStuff._godHumRef
-		if hum and self==hum then
-			if k=="Health" and type(v)=="number" and v<=0 then return end
-			if k=="MaxHealth" and type(v)=="number" and v<NAStuff._godTarget then return end
-			if k=="BreakJointsOnDeath" and v==true then return end
-			if k=="Parent" and v==nil then return end
+		if not checkcaller() then
+			local hum = NAStuff._godHumRef
+			if hum and self==hum then
+				if k=="Health" and type(v)=="number" and v<=0 then return end
+				if k=="MaxHealth" and type(v)=="number" and v<NAStuff._godTarget then return end
+				if k=="BreakJointsOnDeath" and v==true then return end
+				if k=="Parent" and v==nil then return end
+			end
 		end
 		return NAStuff._godOldNI(self,k,v)
 	end))
@@ -40589,7 +40680,7 @@ end
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
 	local args = {...}
 	local choice = args[1] and Lower(args[1]) or nil
-	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function")
+	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function" and typeof(checkcaller)=="function")
 
 	local function enableStrong()
 		NAStuff._godMethod = "strong"
@@ -54069,7 +54160,7 @@ originalIO.naTransLatooor=function()
 	local translator = NAStuff.ChatTranslator or {}
 	NAStuff.ChatTranslator = translator
 
-	translator.messages = translator.messages or {}
+	translator.messages = setmetatable(translator.messages or {}, { __mode = "k" })
 	translator.enabled = opt.chatTranslateEnabled ~= false
 	opt.chatTranslateEnabled = translator.enabled
 
@@ -54403,56 +54494,27 @@ originalIO.naTransLatooor=function()
 
 	function translator:updateUI()
 		if self.button then
-			if self:isEnabled() then
-				self.button.Text = "TR: "..string.upper(self.target or "EN")
-				self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
-				self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+			if not self.button.Parent then
+				self.button = nil
 			else
-				self.button.Text = "TR: OFF"
-				self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
-				self.button.TextColor3 = Color3.fromRGB(178, 178, 188)
+				if self:isEnabled() then
+					self.button.Text = "TR: "..string.upper(self.target or "EN")
+					self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
+					self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+				else
+					self.button.Text = "TR: OFF"
+					self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+					self.button.TextColor3 = Color3.fromRGB(178, 178, 188)
+				end
 			end
 		end
 
-		local function normalizeRichTextEntities(text)
-			text = tostring(text or "")
-			if text == "" then
-				return text
+		if self.input then
+			if not self.input.Parent then
+				self.input = nil
+			elseif not self.input:IsFocused() then
+				self.input.Text = string.upper(self.target or "EN")
 			end
-			text = text:gsub("&amp;lt;", "&lt;")
-			text = text:gsub("&amp;gt;", "&gt;")
-			text = text:gsub("&amp;quot;", "&quot;")
-			text = text:gsub("&amp;apos;", "&apos;")
-			text = text:gsub("&amp;amp;", "&amp;")
-			return text
-		end
-
-		local function escapeForRichText(text)
-			local raw = tostring(text or "")
-			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
-			return normalizeRichTextEntities(safe)
-		end
-
-		local function normalizeRichTextEntities(text)
-			text = tostring(text or "")
-			if text == "" then
-				return text
-			end
-			text = text:gsub("&amp;lt;", "&lt;")
-			text = text:gsub("&amp;gt;", "&gt;")
-			text = text:gsub("&amp;quot;", "&quot;")
-			text = text:gsub("&amp;apos;", "&apos;")
-			text = text:gsub("&amp;amp;", "&amp;")
-			return text
-		end
-
-		local function escapeForRichText(text)
-			local raw = tostring(text or "")
-			local safe = originalIO.escapeRichTextText and originalIO.escapeRichTextText(raw) or raw
-			return normalizeRichTextEntities(safe)
-		end
-		if self.input and not self.input:IsFocused() then
-			self.input.Text = string.upper(self.target or "EN")
 		end
 	end
 
@@ -56200,13 +56262,21 @@ SpawnCall(function()
 	end
 
 	local function registerInteract(inst)
+		if not inst or not inst.Parent then return end
 		if HUI and inst:IsDescendantOf(HUI) then return end
+
 		if inst:IsA("ClickDetector") then
-			Insert(interactTbl.click, inst)
+			if not Discover(interactTbl.click, inst) then
+				Insert(interactTbl.click, inst)
+			end
 		elseif inst:IsA("ProximityPrompt") then
-			Insert(interactTbl.proxy, inst)
+			if not Discover(interactTbl.proxy, inst) then
+				Insert(interactTbl.proxy, inst)
+			end
 		elseif inst:IsA("TouchTransmitter") then
-			Insert(interactTbl.touch, inst)
+			if not Discover(interactTbl.touch, inst) then
+				Insert(interactTbl.touch, inst)
+			end
 		end
 	end
 
@@ -56268,20 +56338,28 @@ SpawnCall(function()
 	NAlib.disconnect("NA_InteractRemoved")
 	NAlib.connect("NA_InteractRemoved", workspace.DescendantRemoving:Connect(function(inst)
 		Defer(function()
+			if not inst then return end
+
 			if inst:IsA("ClickDetector") then
-				local i = Discover(interactTbl.click, inst)
-				if i then
-					table.remove(interactTbl.click, i)
+				local list = interactTbl.click
+				local i = Discover(list, inst)
+				while i do
+					table.remove(list, i)
+					i = Discover(list, inst)
 				end
 			elseif inst:IsA("ProximityPrompt") then
-				local i = Discover(interactTbl.proxy, inst)
-				if i then
-					table.remove(interactTbl.proxy, i)
+				local list = interactTbl.proxy
+				local i = Discover(list, inst)
+				while i do
+					table.remove(list, i)
+					i = Discover(list, inst)
 				end
 			elseif inst:IsA("TouchTransmitter") then
-				local i = Discover(interactTbl.touch, inst)
-				if i then
-					table.remove(interactTbl.touch, i)
+				local list = interactTbl.touch
+				local i = Discover(list, inst)
+				while i do
+					table.remove(list, i)
+					i = Discover(list, inst)
 				end
 			end
 		end)
@@ -61345,9 +61423,9 @@ if CoreGui then
 		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg        = CoreGui,
-		images    = {},
+		images    = setmetatable({}, { __mode = "k" }),
 		queue     = {},
-		queueSet  = {},
+		queueSet  = setmetatable({}, { __mode = "k" }),
 		processing = false,
 		applying   = false,
 	}
@@ -61441,8 +61519,15 @@ if CoreGui then
 	end
 
 	NAmanage.plex_remove = function(o)
-		local g = o and o:FindFirstChildOfClass("UIGradient")
-		if g then g:Destroy() end
+		if not o then
+			return
+		end
+		PT.images[o] = nil
+		PT.queueSet[o] = nil
+		local g = o:FindFirstChildOfClass("UIGradient")
+		if g then
+			g:Destroy()
+		end
 	end
 
 	NAmanage.plex_apply = function(o)
@@ -61469,7 +61554,10 @@ if CoreGui then
 	end
 
 	local function enqueue(o)
-		if not o then
+		if not o or not o.Parent then
+			return
+		end
+		if PT.cg and not o:IsDescendantOf(PT.cg) then
 			return
 		end
 		if PT.queueSet[o] then
@@ -61557,8 +61645,16 @@ if CoreGui then
 		end)()
 	end
 
-	NAlib.disconnect("PlexyDesc")
-	NAlib.connect("PlexyDesc", PT.cg.DescendantAdded:Connect(onDescendantAdded))
+	NAlib.disconnect("PlexyDescAdded")
+	NAlib.disconnect("PlexyDescRemoving")
+
+	if PT.cg then
+		NAlib.connect("PlexyDescAdded", PT.cg.DescendantAdded:Connect(onDescendantAdded))
+		NAlib.connect("PlexyDescRemoving", PT.cg.DescendantRemoving:Connect(function(o)
+			PT.images[o] = nil
+			PT.queueSet[o] = nil
+		end))
+	end
 
 	NAgui.addSection("Plexity Theme")
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
