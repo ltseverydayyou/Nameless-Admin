@@ -67,7 +67,7 @@
         "cbar2"
       ],
       "usage": "cmdbar2 (cbar2)",
-      "args": "(cbar2)",
+      "args": "",
       "desc": "Opens a HD-Admin style cmdbar (black & white)"
     },
     {
@@ -89,7 +89,7 @@
         "execute"
       ],
       "usage": "loadstring <code> (ls, lstring, loads, execute)",
-      "args": "<code> (ls, lstring, loads, execute)",
+      "args": "<code>",
       "desc": "Run code using loadstring"
     },
     {
@@ -101,7 +101,7 @@
         "hd"
       ],
       "usage": "shaders (shader, rtx, hd)",
-      "args": "(shader, rtx, hd)",
+      "args": "",
       "desc": "Enable a shader preset for Lighting"
     },
     {
@@ -112,7 +112,7 @@
         "rtxoff"
       ],
       "usage": "unshaders (shadersoff, rtxoff)",
-      "args": "(shadersoff, rtxoff)",
+      "args": "",
       "desc": "Disable the shader preset and restore Lighting"
     },
     {
@@ -140,7 +140,7 @@
         "setff"
       ],
       "usage": "setfflag <flag> <value> [save] (setff)",
-      "args": "<flag> <value> [save] (setff)",
+      "args": "<flag> <value> [save]",
       "desc": "Set a fast flag (use 'save' to store it)"
     },
     {
@@ -177,7 +177,7 @@
         "ab"
       ],
       "usage": "addbutton <command> <label> [<command2>] (ab)",
-      "args": "<command> <label> [<command2>] (ab)",
+      "args": "<command> <label> [<command2>]",
       "desc": "Add a mobile button"
     },
     {
@@ -187,7 +187,7 @@
         "rb"
       ],
       "usage": "removebutton (rb)",
-      "args": "(rb)",
+      "args": "",
       "desc": "Remove a user button"
     },
     {
@@ -198,7 +198,7 @@
         "cb"
       ],
       "usage": "clearbuttons (clearbtns, cb)",
-      "args": "(clearbtns, cb)",
+      "args": "",
       "desc": "Clear all user buttons"
     },
     {
@@ -211,7 +211,7 @@
         "aexecadd"
       ],
       "usage": "addautoexec <command> [arguments] (aaexec, addae, addauto, aexecadd)",
-      "args": "<command> [arguments] (aaexec, addae, addauto, aexecadd)",
+      "args": "<command> [arguments]",
       "desc": "Add a command to autoexecute"
     },
     {
@@ -224,7 +224,7 @@
         "aexecremove"
       ],
       "usage": "removeautoexec (raexec, removeae, removeauto, aexecremove)",
-      "args": "(raexec, removeae, removeauto, aexecremove)",
+      "args": "",
       "desc": "Remove a command from autoexecute"
     },
     {
@@ -238,7 +238,7 @@
         "aeclear"
       ],
       "usage": "clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)",
-      "args": "(caexec, clearauto, autoexecclear, aexecclear, aeclear)",
+      "args": "",
       "desc": "Clear all AutoExec commands"
     },
     {
@@ -248,7 +248,7 @@
         "exec"
       ],
       "usage": "executor (exec)",
-      "args": "(exec)",
+      "args": "",
       "desc": "Very simple executor"
     },
     {
@@ -258,7 +258,7 @@
         "lastcmd"
       ],
       "usage": "lastcommand (lastcmd)",
-      "args": "(lastcmd)",
+      "args": "",
       "desc": "Re-run your previously executed command"
     },
     {
@@ -290,7 +290,7 @@
         "hub"
       ],
       "usage": "scripthub (hub)",
-      "args": "(hub)",
+      "args": "",
       "desc": "Thanks to scriptblox/rscripts API"
     },
     {
@@ -302,7 +302,7 @@
         "gscale"
       ],
       "usage": "uiscale (uscale)",
-      "args": "(uscale)",
+      "args": "",
       "desc": "Adjust the scale of the "
     },
     {
@@ -330,7 +330,7 @@
         "clogs"
       ],
       "usage": "chatlogs (clogs)",
-      "args": "(clogs)",
+      "args": "",
       "desc": "Open the chat logs"
     },
     {
@@ -341,7 +341,7 @@
         "tcp"
       ],
       "usage": "gotocampos (tocampos,tcp)",
-      "args": "(tocampos,tcp)",
+      "args": "",
       "desc": "Teleports you to your camera position works with free cam but freezes you"
     },
     {
@@ -353,7 +353,7 @@
         "uviewer"
       ],
       "usage": "teleportgui (tpui,universeviewer,uviewer)",
-      "args": "(tpui,universeviewer,uviewer)",
+      "args": "",
       "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button"
     },
     {
@@ -364,7 +364,7 @@
         "sremotespy"
       ],
       "usage": "serverremotespy (srs,sremotespy)",
-      "args": "(srs,sremotespy)",
+      "args": "",
       "desc": "Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"
     },
     {
@@ -386,7 +386,7 @@
         "mousefling"
       ],
       "usage": "clickfling (mousefling)",
-      "args": "(mousefling)",
+      "args": "",
       "desc": "Fling a player by clicking them"
     },
     {
@@ -396,7 +396,7 @@
         "unmousefling"
       ],
       "usage": "unclickfling (unmousefling)",
-      "args": "(unmousefling)",
+      "args": "",
       "desc": "disables clickfling"
     },
     {
@@ -417,7 +417,7 @@
         "clickspook"
       ],
       "usage": "clickscare (clickspook)",
-      "args": "(clickspook)",
+      "args": "",
       "desc": "Teleports next to a clicked player for a few seconds"
     },
     {
@@ -427,7 +427,7 @@
         "unclickspook"
       ],
       "usage": "unclickscare (unclickspook)",
-      "args": "(unclickspook)",
+      "args": "",
       "desc": "Disables clickscare"
     },
     {
@@ -564,7 +564,7 @@
         "cdebug"
       ],
       "usage": "chardebug (cdebug)",
-      "args": "(cdebug)",
+      "args": "",
       "desc": "debug your character"
     },
     {
@@ -574,7 +574,7 @@
         "uncdebug"
       ],
       "usage": "unchardebug (uncdebug)",
-      "args": "(uncdebug)",
+      "args": "",
       "desc": "disable character debug"
     },
     {
@@ -593,7 +593,7 @@
         "frontflip"
       ],
       "usage": "somersault (frontflip)",
-      "args": "(frontflip)",
+      "args": "",
       "desc": "Makes you do a clean front flip"
     },
     {
@@ -603,7 +603,7 @@
         "unfrontflip"
       ],
       "usage": "unsomersault (unfrontflip)",
-      "args": "(unfrontflip)",
+      "args": "",
       "desc": "Disable somersault button and keybind"
     },
     {
@@ -631,7 +631,7 @@
         "unrolewatch"
       ],
       "usage": "rolewatchleave (unrolewatch)",
-      "args": "(unrolewatch)",
+      "args": "",
       "desc": "Toggle leaving the server if the watched role joins"
     },
     {
@@ -641,7 +641,7 @@
         "groupjoin"
       ],
       "usage": "joingroup [groupId] (groupjoin)",
-      "args": "[groupId] (groupjoin)",
+      "args": "[groupId]",
       "desc": "Open the Roblox join prompt for a group"
     },
     {
@@ -660,7 +660,7 @@
         "untrackstaff"
       ],
       "usage": "stoptrackstaff (untrackstaff)",
-      "args": "(untrackstaff)",
+      "args": "",
       "desc": "Stop tracking staff members"
     },
     {
@@ -672,7 +672,7 @@
         "removeforces"
       ],
       "usage": "deletevelocity (dv, removevelocity, removeforces)",
-      "args": "(dv, removevelocity, removeforces)",
+      "args": "",
       "desc": "removes any velocity/force instanceson your character"
     },
     {
@@ -726,7 +726,7 @@
         "cc"
       ],
       "usage": "commandcount (cc)",
-      "args": "(cc)",
+      "args": "",
       "desc": "Counts how many commands NA has"
     },
     {
@@ -736,7 +736,7 @@
         "ff"
       ],
       "usage": "flyfling (ff)",
-      "args": "(ff)",
+      "args": "",
       "desc": "makes you fly and fling"
     },
     {
@@ -746,7 +746,7 @@
         "unff"
       ],
       "usage": "unflyfling (unff)",
-      "args": "(unff)",
+      "args": "",
       "desc": "stops fly and fling"
     },
     {
@@ -757,7 +757,7 @@
         "wf"
       ],
       "usage": "walkfling (wfling,wf)",
-      "args": "(wfling,wf)",
+      "args": "",
       "desc": "probably the best fling lol"
     },
     {
@@ -768,7 +768,7 @@
         "unwf"
       ],
       "usage": "unwalkfling (unwfling,unwf)",
-      "args": "(unwfling,unwf)",
+      "args": "",
       "desc": "stop the walkfling command"
     },
     {
@@ -778,7 +778,7 @@
         "rejoinrefresh"
       ],
       "usage": "rjre (rejoinrefresh)",
-      "args": "(rejoinrefresh)",
+      "args": "",
       "desc": "Rejoins and teleports you to your previous position"
     },
     {
@@ -788,7 +788,7 @@
         "canceltp"
       ],
       "usage": "cancelteleport (canceltp)",
-      "args": "(canceltp)",
+      "args": "",
       "desc": "Cancel an in-progress teleport"
     },
     {
@@ -798,7 +798,7 @@
         "rj"
       ],
       "usage": "rejoin (rj)",
-      "args": "(rj)",
+      "args": "",
       "desc": "Rejoin the game"
     },
     {
@@ -822,7 +822,7 @@
         "adonisb"
       ],
       "usage": "adonisbypass (bypassadonis,badonis,adonisb)",
-      "args": "(bypassadonis,badonis,adonisb)",
+      "args": "",
       "desc": "bypasses adonis admin detection"
     },
     {
@@ -832,7 +832,7 @@
         "accage"
       ],
       "usage": "accountage <player> (accage)",
-      "args": "<player> (accage)",
+      "args": "<player>",
       "desc": "Tells the account age of a player in the server"
     },
     {
@@ -860,7 +860,7 @@
         "vehiclefly"
       ],
       "usage": "vehiclefly (vfly)",
-      "args": "(vfly)",
+      "args": "",
       "desc": "be able to fly vehicles"
     },
     {
@@ -890,7 +890,7 @@
         "uset"
       ],
       "usage": "usetools (uset)",
-      "args": "(uset)",
+      "args": "",
       "desc": "Equips all tools, uses them, and unequips them"
     },
     {
@@ -921,7 +921,7 @@
         "swordreach"
       ],
       "usage": "reach [number] (swordreach)",
-      "args": "[number] (swordreach)",
+      "args": "[number]",
       "desc": "Extends sword reach in one direction"
     },
     {
@@ -941,7 +941,7 @@
         "unreach"
       ],
       "usage": "resetreach (normalreach, unreach)",
-      "args": "(normalreach, unreach)",
+      "args": "",
       "desc": "Resets tool to normal size"
     },
     {
@@ -1138,7 +1138,7 @@
         "dip"
       ],
       "usage": "deleteinvisparts (deleteinvisibleparts,dip)",
-      "args": "(deleteinvisibleparts,dip)",
+      "args": "",
       "desc": "Deletes invisible parts"
     },
     {
@@ -1148,7 +1148,7 @@
         "invisparts"
       ],
       "usage": "invisibleparts (invisparts)",
-      "args": "(invisparts)",
+      "args": "",
       "desc": "Shows invisible parts"
     },
     {
@@ -1158,7 +1158,7 @@
         "uninvisparts"
       ],
       "usage": "uninvisibleparts (uninvisparts)",
-      "args": "(uninvisparts)",
+      "args": "",
       "desc": "Makes parts affected by invisparts return to normal"
     },
     {
@@ -1177,7 +1177,7 @@
         "adblock"
       ],
       "usage": "removeads (adblock)",
-      "args": "(adblock)",
+      "args": "",
       "desc": "Continuously removes billboard advertisements"
     },
     {
@@ -1188,7 +1188,7 @@
         "disableads"
       ],
       "usage": "unremoveads (noadblock,disableads)",
-      "args": "(noadblock,disableads)",
+      "args": "",
       "desc": "Stop removing billboard advertisements"
     },
     {
@@ -1198,7 +1198,7 @@
         "backtrack"
       ],
       "usage": "replicationlag (backtrack)",
-      "args": "(backtrack)",
+      "args": "",
       "desc": "Set IncomingReplicationLag"
     },
     {
@@ -1328,7 +1328,7 @@
         "unstrengthen"
       ],
       "usage": "unweaken (unstrengthen)",
-      "args": "(unstrengthen)",
+      "args": "",
       "desc": "Sets your characters CustomPhysicalProperties to default"
     },
     {
@@ -1356,7 +1356,7 @@
         "vseat"
       ],
       "usage": "vehicleseat (vseat)",
-      "args": "(vseat)",
+      "args": "",
       "desc": "Sits you in a vehicle seat, useful for trying to find cars in games"
     },
     {
@@ -1366,7 +1366,7 @@
         "ctools"
       ],
       "usage": "copytools <player> (ctools)",
-      "args": "<player> (ctools)",
+      "args": "<player>",
       "desc": "Copies the tools the given player has"
     },
     {
@@ -1376,7 +1376,7 @@
         "yourtime"
       ],
       "usage": "localtime (yourtime)",
-      "args": "(yourtime)",
+      "args": "",
       "desc": "Shows your current time"
     },
     {
@@ -1386,7 +1386,7 @@
         "yourdate"
       ],
       "usage": "localdate (yourdate)",
-      "args": "(yourdate)",
+      "args": "",
       "desc": "Shows your current date"
     },
     {
@@ -1396,7 +1396,7 @@
         "svtime"
       ],
       "usage": "servertime (svtime)",
-      "args": "(svtime)",
+      "args": "",
       "desc": "Shows the server's current time"
     },
     {
@@ -1406,7 +1406,7 @@
         "svdate"
       ],
       "usage": "serverdate (svdate)",
-      "args": "(svdate)",
+      "args": "",
       "desc": "Shows the server's current date"
     },
     {
@@ -1416,7 +1416,7 @@
         "localdatetime"
       ],
       "usage": "datetime (localdatetime)",
-      "args": "(localdatetime)",
+      "args": "",
       "desc": "Shows your full local date and time"
     },
     {
@@ -1435,7 +1435,7 @@
         "epoch"
       ],
       "usage": "timestamp (epoch)",
-      "args": "(epoch)",
+      "args": "",
       "desc": "Shows current Unix timestamp"
     },
     {
@@ -1445,7 +1445,7 @@
         "ctornado"
       ],
       "usage": "cartornado (ctornado)",
-      "args": "(ctornado)",
+      "args": "",
       "desc": "Tornados a car just sit in the car"
     },
     {
@@ -1468,7 +1468,7 @@
         "unc"
       ],
       "usage": "UNCTest (UNC)",
-      "args": "(UNC)",
+      "args": "",
       "desc": "Test how many functions your executor supports"
     },
     {
@@ -1478,7 +1478,7 @@
         "vulntest"
       ],
       "usage": "vulnerabilitytest (vulntest)",
-      "args": "(vulntest)",
+      "args": "",
       "desc": "Test if your executor is Vulnerable"
     },
     {
@@ -1488,7 +1488,7 @@
         "re"
       ],
       "usage": "respawn (re)",
-      "args": "(re)",
+      "args": "",
       "desc": "Respawn your character"
     },
     {
@@ -1518,7 +1518,7 @@
         "bk"
       ],
       "usage": "antikick (nokick, bypasskick, bk)",
-      "args": "(nokick, bypasskick, bk)",
+      "args": "",
       "desc": "Bypass Kick on Most Games"
     },
     {
@@ -1529,7 +1529,7 @@
         "blocktp"
       ],
       "usage": "antiteleport (noteleport, blocktp)",
-      "args": "(noteleport, blocktp)",
+      "args": "",
       "desc": "Prevents TeleportService from moving you to another place"
     },
     {
@@ -1563,7 +1563,7 @@
         "acftp"
       ],
       "usage": "anticframeteleport (acframetp,acftp)",
-      "args": "(acframetp,acftp)",
+      "args": "",
       "desc": "Prevents client teleports"
     },
     {
@@ -1574,7 +1574,7 @@
         "unacftp"
       ],
       "usage": "unanticframeteleport (unacframetp,unacftp)",
-      "args": "(unacframetp,unacftp)",
+      "args": "",
       "desc": "Disables Anti CFrame Teleport"
     },
     {
@@ -1656,7 +1656,7 @@
         "fex"
       ],
       "usage": "f3x (fex)",
-      "args": "(fex)",
+      "args": "",
       "desc": "F3X for client"
     },
     {
@@ -1666,7 +1666,7 @@
         "comet"
       ],
       "usage": "harked (comet)",
-      "args": "(comet)",
+      "args": "",
       "desc": "Executes Comet which is like harked"
     },
     {
@@ -1676,7 +1676,7 @@
         "tbot"
       ],
       "usage": "triggerbot (tbot)",
-      "args": "(tbot)",
+      "args": "",
       "desc": "Executes a script that automatically clicks the mouse when the mouse is on a player"
     },
     {
@@ -1687,7 +1687,7 @@
         "ss"
       ],
       "usage": "setspawn (spawnpoint, ss)",
-      "args": "(spawnpoint, ss)",
+      "args": "",
       "desc": "Sets your spawn point to the current character's position"
     },
     {
@@ -1698,7 +1698,7 @@
         "ds"
       ],
       "usage": "disablespawn (unsetspawn, ds)",
-      "args": "(unsetspawn, ds)",
+      "args": "",
       "desc": "Disables the previously set spawn point"
     },
     {
@@ -1734,7 +1734,7 @@
         "deathtp"
       ],
       "usage": "flashback (deathpos, deathtp)",
-      "args": "(deathpos, deathtp)",
+      "args": "",
       "desc": "Teleports you to your last death point"
     },
     {
@@ -1744,7 +1744,7 @@
         "ts"
       ],
       "usage": "tospawn (ts)",
-      "args": "(ts)",
+      "args": "",
       "desc": "Teleports you to a SpawnLocation"
     },
     {
@@ -1772,7 +1772,7 @@
         "noafk"
       ],
       "usage": "antiafk (noafk)",
-      "args": "(noafk)",
+      "args": "",
       "desc": "Prevents you from being kicked for being AFK"
     },
     {
@@ -1782,7 +1782,7 @@
         "unnoafk"
       ],
       "usage": "unantiafk (unnoafk)",
-      "args": "(unnoafk)",
+      "args": "",
       "desc": "Allows you to be kicked for being AFK"
     },
     {
@@ -1792,7 +1792,7 @@
         "tptool"
       ],
       "usage": "clicktp (tptool)",
-      "args": "(tptool)",
+      "args": "",
       "desc": "Teleport where your mouse is"
     },
     {
@@ -1802,7 +1802,7 @@
         "untptool"
       ],
       "usage": "unclicktp (untptool)",
-      "args": "(untptool)",
+      "args": "",
       "desc": "Remove teleport buttons or tools"
     },
     {
@@ -1860,7 +1860,7 @@
         "gidu"
       ],
       "usage": "getidfromusername (gidu)",
-      "args": "(gidu)",
+      "args": "",
       "desc": "Copy a user's UserId by Username"
     },
     {
@@ -1870,7 +1870,7 @@
         "guid"
       ],
       "usage": "getuserfromid (guid)",
-      "args": "(guid)",
+      "args": "",
       "desc": "Copy a user's Username by ID"
     },
     {
@@ -1908,7 +1908,7 @@
         "sdex"
       ],
       "usage": "synapsedex (sdex)",
-      "args": "(sdex)",
+      "args": "",
       "desc": "Loads SynapseX's dex explorer"
     },
     {
@@ -1945,7 +1945,7 @@
         "lockworkspace"
       ],
       "usage": "lockws (lockworkspace)",
-      "args": "(lockworkspace)",
+      "args": "",
       "desc": "Locks the whole workspace"
     },
     {
@@ -1955,7 +1955,7 @@
         "unlockworkspace"
       ],
       "usage": "unlockws (unlockworkspace)",
-      "args": "(unlockworkspace)",
+      "args": "",
       "desc": "Unlocks everything in Workspace"
     },
     {
@@ -1965,7 +1965,7 @@
         "vspeed"
       ],
       "usage": "vehiclespeed <amount> (vspeed)",
-      "args": "<amount> (vspeed)",
+      "args": "<amount>",
       "desc": "Change the vehicle speed"
     },
     {
@@ -1975,7 +1975,7 @@
         "unvspeed"
       ],
       "usage": "unvehiclespeed (unvspeed)",
-      "args": "(unvspeed)",
+      "args": "",
       "desc": "Stops the vehiclespeed command"
     },
     {
@@ -1985,7 +1985,7 @@
         "sl"
       ],
       "usage": "shiftlock (sl)",
-      "args": "(sl)",
+      "args": "",
       "desc": "Toggles shiftlock"
     },
     {
@@ -1995,7 +1995,7 @@
         "unsl"
       ],
       "usage": "unshiftlock (unsl)",
-      "args": "(unsl)",
+      "args": "",
       "desc": "Disables shiftlock"
     },
     {
@@ -2023,7 +2023,7 @@
         "reverbcontrol"
       ],
       "usage": "reverb (reverbcontrol)",
-      "args": "(reverbcontrol)",
+      "args": "",
       "desc": "Manage sound reverb settings"
     },
     {
@@ -2045,7 +2045,7 @@
         "stopforcereverb"
       ],
       "usage": "unforcereverb (ufreverb, ufr)",
-      "args": "(ufreverb, ufr)",
+      "args": "",
       "desc": "Stop forcing ambient reverb"
     },
     {
@@ -2056,7 +2056,7 @@
         "cameratype"
       ],
       "usage": "cam (camera, cameratype)",
-      "args": "(camera, cameratype)",
+      "args": "",
       "desc": "Manage camera type settings"
     },
     {
@@ -2077,7 +2077,7 @@
         "stopforcecam"
       ],
       "usage": "unforcecam (ufcam, ufc)",
-      "args": "(ufcam, ufc)",
+      "args": "",
       "desc": "Stop forcing camera type"
     },
     {
@@ -2126,7 +2126,7 @@
         "locate"
       ],
       "usage": "locate <username1> <username2> etc (optional)",
-      "args": "<username1> <username2> etc (optional)",
+      "args": "<username1> <username2>",
       "desc": "locate where the specified player(s) are"
     },
     {
@@ -2136,7 +2136,7 @@
         "espnpc"
       ],
       "usage": "npcesp (espnpc)",
-      "args": "(espnpc)",
+      "args": "",
       "desc": "locate where the npcs are"
     },
     {
@@ -2146,7 +2146,7 @@
         "unespnpc"
       ],
       "usage": "unnpcesp (unespnpc)",
-      "args": "(unespnpc)",
+      "args": "",
       "desc": "stop locating npcs"
     },
     {
@@ -2156,7 +2156,7 @@
         "unchams"
       ],
       "usage": "unesp (unchams)",
-      "args": "(unchams)",
+      "args": "",
       "desc": "Disables esp/chams"
     },
     {
@@ -2184,7 +2184,7 @@
         "vnoclip"
       ],
       "usage": "vehiclenoclip (vnoclip)",
-      "args": "(vnoclip)",
+      "args": "",
       "desc": "Disables vehicle collision"
     },
     {
@@ -2196,7 +2196,7 @@
         "unvehiclenoclip"
       ],
       "usage": "vehicleclip (vclip, unvnoclip, unvehiclenoclip)",
-      "args": "(vclip, unvnoclip, unvehiclenoclip)",
+      "args": "",
       "desc": "Enables vehicle collision"
     },
     {
@@ -2206,7 +2206,7 @@
         "hkill"
       ],
       "usage": "handlekill <player> (hkill)",
-      "args": "<player> (hkill)",
+      "args": "<player>",
       "desc": "Kills a player using a tool that deals damage on touch"
     },
     {
@@ -2225,7 +2225,7 @@
         "net"
       ],
       "usage": "netless (net)",
-      "args": "(net)",
+      "args": "",
       "desc": "Executes netless which makes scripts more stable"
     },
     {
@@ -2235,7 +2235,7 @@
         "die"
       ],
       "usage": "reset (die)",
-      "args": "(die)",
+      "args": "",
       "desc": "Makes your health be 0"
     },
     {
@@ -2246,7 +2246,7 @@
         "anim"
       ],
       "usage": "runanim <id> [speed] (playanim,anim)",
-      "args": "<id> [speed] (playanim,anim)",
+      "args": "<id> [speed]",
       "desc": "Plays an animation by ID with optional speed multiplier"
     },
     {
@@ -2256,7 +2256,7 @@
         "abuilder"
       ],
       "usage": "animbuilder (abuilder)",
-      "args": "(abuilder)",
+      "args": "",
       "desc": "Opens animation builder GUI"
     },
     {
@@ -2266,7 +2266,7 @@
         "killeranim"
       ],
       "usage": "setkiller (killeranim)",
-      "args": "(killeranim)",
+      "args": "",
       "desc": "Sets killer animation set"
     },
     {
@@ -2276,7 +2276,7 @@
         "psychoanim"
       ],
       "usage": "setpsycho (psychoanim)",
-      "args": "(psychoanim)",
+      "args": "",
       "desc": "Sets psycho animation set"
     },
     {
@@ -2287,7 +2287,7 @@
         "animsreset"
       ],
       "usage": "resetanims (defaultanims,animsreset)",
-      "args": "(defaultanims,animsreset)",
+      "args": "",
       "desc": "Restores your previous animations"
     },
     {
@@ -2381,7 +2381,7 @@
         "bchat"
       ],
       "usage": "bubblechat (bchat)",
-      "args": "(bchat)",
+      "args": "",
       "desc": "Enables BubbleChat"
     },
     {
@@ -2391,7 +2391,7 @@
         "unbchat"
       ],
       "usage": "unbubblechat (unbchat)",
-      "args": "(unbchat)",
+      "args": "",
       "desc": "Disabled BubbleChat"
     },
     {
@@ -2441,7 +2441,7 @@
         "savegame"
       ],
       "usage": "saveinstance (savegame)",
-      "args": "(savegame)",
+      "args": "",
       "desc": "if it bugs out try removing stuff from your AutoExec folder"
     },
     {
@@ -2471,7 +2471,7 @@
         "partgrabber"
       ],
       "usage": "partname (partpath,partgrabber)",
-      "args": "(partpath,partgrabber)",
+      "args": "",
       "desc": "gives a ui and allows you click on a part to grab it's path"
     },
     {
@@ -2502,7 +2502,7 @@
         "shop"
       ],
       "usage": "serverhop (shop)",
-      "args": "(shop)",
+      "args": "",
       "desc": "serverhop"
     },
     {
@@ -2512,7 +2512,7 @@
         "sshop"
       ],
       "usage": "smallserverhop (sshop)",
-      "args": "(sshop)",
+      "args": "",
       "desc": "serverhop to a small server"
     },
     {
@@ -2522,7 +2522,7 @@
         "pshop"
       ],
       "usage": "pingserverhop (pshop)",
-      "args": "(pshop)",
+      "args": "",
       "desc": "serverhop to a server with the best ping"
     },
     {
@@ -2532,7 +2532,7 @@
         "autorj"
       ],
       "usage": "autorejoin (autorj)",
-      "args": "(autorj)",
+      "args": "",
       "desc": "Rejoins the server if you get kicked / disconnected"
     },
     {
@@ -2542,7 +2542,7 @@
         "unautorj"
       ],
       "usage": "unautorejoin (unautorj)",
-      "args": "(unautorj)",
+      "args": "",
       "desc": "Disables auto rejoin command"
     },
     {
@@ -2579,7 +2579,7 @@
         "cfly"
       ],
       "usage": "cframefly [speed] (cfly)",
-      "args": "[speed] (cfly)",
+      "args": "[speed]",
       "desc": "Enable CFrame-based flight"
     },
     {
@@ -2600,7 +2600,7 @@
         "bindcfly"
       ],
       "usage": "cflybind [key] (cframeflybind, bindcfly)",
-      "args": "[key] (cframeflybind, bindcfly)",
+      "args": "[key]",
       "desc": "Set custom keybind for CFrame fly"
     },
     {
@@ -2610,7 +2610,7 @@
         "tweenfly"
       ],
       "usage": "tfly [speed] (tweenfly)",
-      "args": "[speed] (tweenfly)",
+      "args": "[speed]",
       "desc": "Enables smooth flying"
     },
     {
@@ -2631,7 +2631,7 @@
         "tflybind"
       ],
       "usage": "tflykeybind [key] (bindtfly, tflybind)",
-      "args": "[key] (bindtfly, tflybind)",
+      "args": "[key]",
       "desc": "Set keybind for tfly toggle"
     },
     {
@@ -2731,7 +2731,7 @@
         "fcam"
       ],
       "usage": "freecam [speed] (fc,fcam)",
-      "args": "[speed] (fc,fcam)",
+      "args": "[speed]",
       "desc": "Enable free camera"
     },
     {
@@ -2742,7 +2742,7 @@
         "unfcam"
       ],
       "usage": "unfreecam (unfc,unfcam)",
-      "args": "(unfc,unfcam)",
+      "args": "",
       "desc": "Disable free camera"
     },
     {
@@ -2752,7 +2752,7 @@
         "drophats"
       ],
       "usage": "nohats (drophats)",
-      "args": "(drophats)",
+      "args": "",
       "desc": "Drop all of your hats"
     },
     {
@@ -2762,7 +2762,7 @@
         "pdeath"
       ],
       "usage": "permadeath (pdeath)",
-      "args": "(pdeath)",
+      "args": "",
       "desc": "be death permanently"
     },
     {
@@ -2772,7 +2772,7 @@
         "unpdeath"
       ],
       "usage": "unpermadeath (unpdeath)",
-      "args": "(unpdeath)",
+      "args": "",
       "desc": "no perma death"
     },
     {
@@ -2783,7 +2783,7 @@
         "irespawn"
       ],
       "usage": "instantrespawn (instantr, irespawn)",
-      "args": "(instantr, irespawn)",
+      "args": "",
       "desc": "respawn instantly"
     },
     {
@@ -2803,7 +2803,7 @@
         "setgrip"
       ],
       "usage": "grippos (setgrip)",
-      "args": "(setgrip)",
+      "args": "",
       "desc": "Opens a UI to manually input grip offset and rotation."
     },
     {
@@ -2831,7 +2831,7 @@
         "flag"
       ],
       "usage": "fakelag (flag)",
-      "args": "(flag)",
+      "args": "",
       "desc": "fake lag"
     },
     {
@@ -2841,7 +2841,7 @@
         "unflag"
       ],
       "usage": "unfakelag (unflag)",
-      "args": "(unflag)",
+      "args": "",
       "desc": "stops the fake lag command"
     },
     {
@@ -2851,7 +2851,7 @@
         "unshow"
       ],
       "usage": "hide <player> (unshow)",
-      "args": "<player> (unshow)",
+      "args": "<player>",
       "desc": "places the selected player to lighting"
     },
     {
@@ -2861,7 +2861,7 @@
         "show"
       ],
       "usage": "show <player> (unhide)",
-      "args": "<player> (unhide)",
+      "args": "<player>",
       "desc": "places the selected player back to workspace"
     },
     {
@@ -2872,7 +2872,7 @@
         "aimbotgui"
       ],
       "usage": "aimbot (aimbotui,aimbotgui)",
-      "args": "(aimbotui,aimbotgui)",
+      "args": "",
       "desc": "aimbot and yeah"
     },
     {
@@ -2933,7 +2933,7 @@
         "animspoof"
       ],
       "usage": "animspoofer (animationspoofer, spoofanim, animspoof)",
-      "args": "(animationspoofer, spoofanim, animspoof)",
+      "args": "",
       "desc": "Loads up an animation spoofer,spoofs animations that use rbxassetid"
     },
     {
@@ -2946,7 +2946,7 @@
         "bv"
       ],
       "usage": "badgeviewer (badgeview, bviewer, badgev, bv)",
-      "args": "(badgeview, bviewer, badgev, bv)",
+      "args": "",
       "desc": "loads up a badge viewer UI that views all badges in the game you're in"
     },
     {
@@ -2957,7 +2957,7 @@
         "bodyt"
       ],
       "usage": "bodytransparency <number> [part1] [part2] ... (btransparency,bodyt)",
-      "args": "<number> [part1] [part2] ... (btransparency,bodyt)",
+      "args": "<number> [part1] [part2]",
       "desc": "Sets LocalTransparencyModifier on selected body parts (no Head) to a value (0-1). UI supports multi-select."
     },
     {
@@ -2968,7 +2968,7 @@
         "unbodyt"
       ],
       "usage": "unbodytransparency (unbtransparency,unbodyt)",
-      "args": "(unbtransparency,unbodyt)",
+      "args": "",
       "desc": "Stops transparency loop"
     },
     {
@@ -2979,7 +2979,7 @@
         "aspeed"
       ],
       "usage": "animationspeed <speed> (animspeed,aspeed)",
-      "args": "<speed> (animspeed,aspeed)",
+      "args": "<speed>",
       "desc": "Adjusts the speed of currently playing animations"
     },
     {
@@ -2990,7 +2990,7 @@
         "unaspeed"
       ],
       "usage": "unanimationspeed (unanimspeed,unaspeed)",
-      "args": "(unanimspeed,unaspeed)",
+      "args": "",
       "desc": "Stops the animation speed adjustment loop"
     },
     {
@@ -3000,7 +3000,7 @@
         "pid"
       ],
       "usage": "placeid (pid)",
-      "args": "(pid)",
+      "args": "",
       "desc": "Copies the PlaceId of the game you're in"
     },
     {
@@ -3011,7 +3011,7 @@
         "gid"
       ],
       "usage": "gameid (universeid,gid)",
-      "args": "(universeid,gid)",
+      "args": "",
       "desc": "Copies the GameId/Universe Id of the game you're in"
     },
     {
@@ -3030,7 +3030,7 @@
         "pname"
       ],
       "usage": "placename (pname)",
-      "args": "(pname)",
+      "args": "",
       "desc": "Copies the game's place name to your clipboard"
     },
     {
@@ -3040,7 +3040,7 @@
         "ginfo"
       ],
       "usage": "gameinfo (ginfo)",
-      "args": "(ginfo)",
+      "args": "",
       "desc": "shows info about the game you're playing"
     },
     {
@@ -3061,7 +3061,7 @@
         "cname"
       ],
       "usage": "copyname <player> (cname)",
-      "args": "<player> (cname)",
+      "args": "<player>",
       "desc": "Copies the username of the target"
     },
     {
@@ -3071,7 +3071,7 @@
         "cdisplay"
       ],
       "usage": "copydisplay <player> (cdisplay)",
-      "args": "<player> (cdisplay)",
+      "args": "<player>",
       "desc": "Copies the display name of the target"
     },
     {
@@ -3081,7 +3081,7 @@
         "id"
       ],
       "usage": "copyid <player> (id)",
-      "args": "<player> (id)",
+      "args": "<player>",
       "desc": "Copies the UserId of the target"
     },
     {
@@ -3091,7 +3091,7 @@
         "antikb"
       ],
       "usage": "antikillbrick (antikb)",
-      "args": "(antikb)",
+      "args": "",
       "desc": "Prevents kill bricks from killing you"
     },
     {
@@ -3101,7 +3101,7 @@
         "unantikb"
       ],
       "usage": "unantikillbrick (unantikb)",
-      "args": "(unantikb)",
+      "args": "",
       "desc": "Allows kill bricks to kill you"
     },
     {
@@ -3112,7 +3112,7 @@
         "hh"
       ],
       "usage": "height <number> (hipheight,hh)",
-      "args": "<number> (hipheight,hh)",
+      "args": "<number>",
       "desc": "Changes your hipheight"
     },
     {
@@ -3122,7 +3122,7 @@
         "netb"
       ],
       "usage": "netbypass (netb)",
-      "args": "(netb)",
+      "args": "",
       "desc": "Net bypass"
     },
     {
@@ -3159,7 +3159,7 @@
         "message"
       ],
       "usage": "chat <text> (message)",
-      "args": "<text> (message)",
+      "args": "<text>",
       "desc": "Chats for you, useful if you're muted"
     },
     {
@@ -3169,7 +3169,7 @@
         "pm"
       ],
       "usage": "privatemessage <player> <text> (pm)",
-      "args": "<player> <text> (pm)",
+      "args": "<player> <text>",
       "desc": "Sends a private message to a player"
     },
     {
@@ -3179,7 +3179,7 @@
         "mimic"
       ],
       "usage": "mimicchat <player> (mimic)",
-      "args": "<player> (mimic)",
+      "args": "<player>",
       "desc": "Mimics the chat of a player"
     },
     {
@@ -3189,7 +3189,7 @@
         "unmimicchat"
       ],
       "usage": "stopmimicchat (unmimicchat)",
-      "args": "(unmimicchat)",
+      "args": "",
       "desc": "Stops mimicking a player"
     },
     {
@@ -3237,7 +3237,7 @@
         "kys"
       ],
       "usage": "commitoof (suicide, kys)",
-      "args": "(suicide, kys)",
+      "args": "",
       "desc": "Triggers a dramatic oof sequence for the player"
     },
     {
@@ -3247,7 +3247,7 @@
         "vol"
       ],
       "usage": "volume <0-10> (vol)",
-      "args": "<0-10> (vol)",
+      "args": "<0-10>",
       "desc": "Changes your volume"
     },
     {
@@ -3276,7 +3276,7 @@
         "sens"
       ],
       "usage": "sensitivity <1-10> (sens)",
-      "args": "<1-10> (sens)",
+      "args": "<1-10>",
       "desc": "Changes your sensitivity"
     },
     {
@@ -3286,7 +3286,7 @@
         "tr"
       ],
       "usage": "torandom (tr)",
-      "args": "(tr)",
+      "args": "",
       "desc": "Teleports to a random player"
     },
     {
@@ -3296,7 +3296,7 @@
         "tstop"
       ],
       "usage": "timestop (tstop)",
-      "args": "(tstop)",
+      "args": "",
       "desc": "freezes all players (ZA WARUDO)"
     },
     {
@@ -3306,7 +3306,7 @@
         "untstop"
       ],
       "usage": "untimestop (untstop)",
-      "args": "(untstop)",
+      "args": "",
       "desc": "unfreeze all players"
     },
     {
@@ -3334,7 +3334,7 @@
         "nonilchar"
       ],
       "usage": "unnilchar (nonilchar)",
-      "args": "(nonilchar)",
+      "args": "",
       "desc": "Move your character back to workspace"
     },
     {
@@ -3445,7 +3445,7 @@
         "stareclosest"
       ],
       "usage": "starenear (stareclosest)",
-      "args": "(stareclosest)",
+      "args": "",
       "desc": "Stare at the closest player"
     },
     {
@@ -3455,7 +3455,7 @@
         "unstareclosest"
       ],
       "usage": "unstarenear (unstareclosest)",
-      "args": "(unstareclosest)",
+      "args": "",
       "desc": "Stop staring at closest player"
     },
     {
@@ -3466,7 +3466,7 @@
         "spectate"
       ],
       "usage": "watch <Player> (view, spectate)",
-      "args": "<Player> (view, spectate)",
+      "args": "<Player>",
       "desc": "Spectate player"
     },
     {
@@ -3476,7 +3476,7 @@
         "unview"
       ],
       "usage": "unwatch (unview)",
-      "args": "(unview)",
+      "args": "",
       "desc": "Stop spectating"
     },
     {
@@ -3543,7 +3543,7 @@
         "proxfollow"
       ],
       "usage": "autofollow (autostalk,proxfollow)",
-      "args": "(autostalk,proxfollow)",
+      "args": "",
       "desc": "Automatically follow any player who comes close"
     },
     {
@@ -3554,7 +3554,7 @@
         "unproxfollow"
       ],
       "usage": "unautofollow (stopautofollow,unproxfollow)",
-      "args": "(stopautofollow,unproxfollow)",
+      "args": "",
       "desc": "Stop automatically following nearby players"
     },
     {
@@ -3575,7 +3575,7 @@
         "fr"
       ],
       "usage": "freeze (thaw,anchor,fr)",
-      "args": "(thaw,anchor,fr)",
+      "args": "",
       "desc": "Freezes your character"
     },
     {
@@ -3587,7 +3587,7 @@
         "unfr"
       ],
       "usage": "unfreeze (unthaw,unanchor,unfr)",
-      "args": "(unthaw,unanchor,unfr)",
+      "args": "",
       "desc": "Unfreezes your character"
     },
     {
@@ -3608,7 +3608,7 @@
         "disableanims"
       ],
       "usage": "disableanimations (disableanims)",
-      "args": "(disableanims)",
+      "args": "",
       "desc": "Freezes your animations"
     },
     {
@@ -3618,7 +3618,7 @@
         "undisableanims"
       ],
       "usage": "undisableanimations (undisableanims)",
-      "args": "(undisableanims)",
+      "args": "",
       "desc": "Unfreezes your animations"
     },
     {
@@ -3646,7 +3646,7 @@
         "fkey"
       ],
       "usage": "firekey <key> (fkey)",
-      "args": "<key> (fkey)",
+      "args": "<key>",
       "desc": "makes you fire a keybind using VirtualInputManager"
     },
     {
@@ -3674,7 +3674,7 @@
         "freegp"
       ],
       "usage": "freegamepass (freegp)",
-      "args": "(freegp)",
+      "args": "",
       "desc": "Pretends you own every gamepass and fires product purchase signals"
     },
     {
@@ -3684,7 +3684,7 @@
         "products"
       ],
       "usage": "devproducts (products)",
-      "args": "(products)",
+      "args": "",
       "desc": "Lists Developer Products"
     },
     {
@@ -3694,7 +3694,7 @@
         "passes"
       ],
       "usage": "gamepasses (passes)",
-      "args": "(passes)",
+      "args": "",
       "desc": "Prompt & list Game Passes (manual IDs)"
     },
     {
@@ -3741,7 +3741,7 @@
         "lockm"
       ],
       "usage": "lockmouse (lockm)",
-      "args": "(lockm)",
+      "args": "",
       "desc": "Default Mouse Behaviour (idk any description)"
     },
     {
@@ -3751,7 +3751,7 @@
         "unlockm"
       ],
       "usage": "unlockmouse (unlockm)",
-      "args": "(unlockm)",
+      "args": "",
       "desc": "Unlocks your mouse (fr this time)"
     },
     {
@@ -3761,7 +3761,7 @@
         "lockm2"
       ],
       "usage": "lockmouse2 (lockm2)",
-      "args": "(lockm2)",
+      "args": "",
       "desc": "Locks your mouse in the center"
     },
     {
@@ -3771,7 +3771,7 @@
         "unlockm2"
       ],
       "usage": "unlockmouse2 (unlockm2)",
-      "args": "(unlockm2)",
+      "args": "",
       "desc": "Unlocks your mouse"
     },
     {
@@ -3836,7 +3836,7 @@
         "bhop"
       ],
       "usage": "loopjump (bhop)",
-      "args": "(bhop)",
+      "args": "",
       "desc": "Continuously jump."
     },
     {
@@ -3846,7 +3846,7 @@
         "unbhop"
       ],
       "usage": "unloopjump (unbhop)",
-      "args": "(unbhop)",
+      "args": "",
       "desc": "Stop continuous jumping."
     },
     {
@@ -3910,7 +3910,7 @@
         "lws"
       ],
       "usage": "loopwalkspeed <number> (loopws,lws)",
-      "args": "<number> (loopws,lws)",
+      "args": "<number>",
       "desc": "Loop walkspeed"
     },
     {
@@ -3921,7 +3921,7 @@
         "unlws"
       ],
       "usage": "unloopwalkspeed (unloopws,unlws)",
-      "args": "(unloopws,unlws)",
+      "args": "",
       "desc": "Disable loop walkspeed"
     },
     {
@@ -3932,7 +3932,7 @@
         "ljp"
       ],
       "usage": "loopjumppower <number> (loopjp,ljp)",
-      "args": "<number> (loopjp,ljp)",
+      "args": "<number>",
       "desc": "Loop JumpPower"
     },
     {
@@ -3943,7 +3943,7 @@
         "unljp"
       ],
       "usage": "unloopjumppower (unloopjp,unljp)",
-      "args": "(unloopjp,unljp)",
+      "args": "",
       "desc": "Disable loop jump power"
     },
     {
@@ -3955,7 +3955,7 @@
         "noanim"
       ],
       "usage": "stopanimations (stopanims,stopanim,noanim)",
-      "args": "(stopanims,stopanim,noanim)",
+      "args": "",
       "desc": "Stops running animations"
     },
     {
@@ -3967,7 +3967,7 @@
         "refreshanim"
       ],
       "usage": "refreshanimations (refreshanimation,refreshanims,refreshanim)",
-      "args": "(refreshanimation,refreshanims,refreshanim)",
+      "args": "",
       "desc": "Reload character animations"
     },
     {
@@ -3977,7 +3977,7 @@
         "loopwat"
       ],
       "usage": "loopwaveat <player> (loopwat)",
-      "args": "<player> (loopwat)",
+      "args": "<player>",
       "desc": "Wave to a player in a loop"
     },
     {
@@ -3987,7 +3987,7 @@
         "unloopwat"
       ],
       "usage": "unloopwaveat <player> (unloopwat)",
-      "args": "<player> (unloopwat)",
+      "args": "<player>",
       "desc": "Stops the loopwaveat command"
     },
     {
@@ -3997,7 +3997,7 @@
         "gears"
       ],
       "usage": "tools (gears)",
-      "args": "(gears)",
+      "args": "",
       "desc": "Copies tools from ReplicatedStorage and Lighting"
     },
     {
@@ -4007,7 +4007,7 @@
         "tview"
       ],
       "usage": "toolview <player> (tview)",
-      "args": "<player> (tview)",
+      "args": "<player>",
       "desc": "3D tool viewer above a player's head"
     },
     {
@@ -4017,7 +4017,7 @@
         "untview"
       ],
       "usage": "untview <player> (untview)",
-      "args": "<player> (untview)",
+      "args": "<player>",
       "desc": "Removes the tool viewer above a player's head"
     },
     {
@@ -4027,7 +4027,7 @@
         "tview2"
       ],
       "usage": "toolview2 (tview2)",
-      "args": "(tview2)",
+      "args": "",
       "desc": "Live-updating tool viewer"
     },
     {
@@ -4037,7 +4037,7 @@
         "wat"
       ],
       "usage": "waveat <player> (wat)",
-      "args": "<player> (wat)",
+      "args": "<player>",
       "desc": "Wave to a player"
     },
     {
@@ -4053,7 +4053,7 @@
         "mb"
       ],
       "usage": "headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
-      "args": "<player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)",
+      "args": "<player>",
       "desc": "Bang them in the mouth because you are gay"
     },
     {
@@ -4065,7 +4065,7 @@
         "unmb"
       ],
       "usage": "unheadbang (unmouthbang,unhb,unmb)",
-      "args": "(unmouthbang,unhb,unmb)",
+      "args": "",
       "desc": "Stops headbang"
     },
     {
@@ -4078,7 +4078,7 @@
         "handj"
       ],
       "usage": "jerkuser <player> (jorkuser, handjob, hjob, handj)",
-      "args": "<player> (jorkuser, handjob, hjob, handj)",
+      "args": "<player>",
       "desc": "Lay under them and vibe"
     },
     {
@@ -4091,7 +4091,7 @@
         "unhandj"
       ],
       "usage": "unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)",
-      "args": "(unjorkuser, unhandjob, unhjob, unhandj)",
+      "args": "",
       "desc": "Stop the jerk user action"
     },
     {
@@ -4140,7 +4140,7 @@
         "slist"
       ],
       "usage": "serverlist (serverlister,slist)",
-      "args": "(serverlister,slist)",
+      "args": "",
       "desc": "list of servers to join in"
     },
     {
@@ -4177,7 +4177,7 @@
         "ejump"
       ],
       "usage": "edgejump (ejump)",
-      "args": "(ejump)",
+      "args": "",
       "desc": "Automatically jumps when you get to the edge of an object"
     },
     {
@@ -4189,7 +4189,7 @@
         "unejump"
       ],
       "usage": "unedgejump (noedgejump, noejump, unejump)",
-      "args": "(noedgejump, noejump, unejump)",
+      "args": "",
       "desc": "Disables edgejump"
     },
     {
@@ -4200,7 +4200,7 @@
         "equipt"
       ],
       "usage": "equiptools (etools,equipt)",
-      "args": "(etools,equipt)",
+      "args": "",
       "desc": "Equips every tool in your inventory"
     },
     {
@@ -4219,7 +4219,7 @@
         "etool"
       ],
       "usage": "equiptool (etool)",
-      "args": "(etool)",
+      "args": "",
       "desc": "Equip a specific tool by name or selection"
     },
     {
@@ -4251,7 +4251,7 @@
         "fuck"
       ],
       "usage": "bang <player> <number> (fuck)",
-      "args": "<player> <number> (fuck)",
+      "args": "<player> <number>",
       "desc": "fucks the player by attaching to them"
     },
     {
@@ -4261,7 +4261,7 @@
         "unfuck"
       ],
       "usage": "unbang (unfuck)",
-      "args": "(unfuck)",
+      "args": "",
       "desc": "Unbangs the player"
     },
     {
@@ -4280,7 +4280,7 @@
         "nocarpet"
       ],
       "usage": "uncarpet (nocarpet)",
-      "args": "(nocarpet)",
+      "args": "",
       "desc": "Undoes carpet"
     },
     {
@@ -4330,7 +4330,7 @@
         "laysus"
       ],
       "usage": "suslay (laysus)",
-      "args": "(laysus)",
+      "args": "",
       "desc": "Lay down in a suspicious way"
     },
     {
@@ -4349,7 +4349,7 @@
         "jork"
       ],
       "usage": "jerk (jork)",
-      "args": "(jork)",
+      "args": "",
       "desc": "jorking it"
     },
     {
@@ -4359,7 +4359,7 @@
         "clickhug"
       ],
       "usage": "hug (clickhug)",
-      "args": "(clickhug)",
+      "args": "",
       "desc": "huggies time (click on a target to hug)"
     },
     {
@@ -4422,7 +4422,7 @@
         "scare"
       ],
       "usage": "spook <player> (scare)",
-      "args": "<player> (scare)",
+      "args": "<player>",
       "desc": "Teleports next to a player for a few seconds"
     },
     {
@@ -4453,7 +4453,7 @@
         "aw"
       ],
       "usage": "airwalk (float, aw)",
-      "args": "(float, aw)",
+      "args": "",
       "desc": "Press space to go up, unairwalk to stop"
     },
     {
@@ -4464,7 +4464,7 @@
         "unaw"
       ],
       "usage": "unairwalk (unfloat, unaw)",
-      "args": "(unfloat, unaw)",
+      "args": "",
       "desc": "Stops the airwalk command"
     },
     {
@@ -4512,7 +4512,7 @@
         "muteboombox"
       ],
       "usage": "mute <player> (muteboombox)",
-      "args": "<player> (muteboombox)",
+      "args": "<player>",
       "desc": "Mutes the player's boombox"
     },
     {
@@ -4541,7 +4541,7 @@
         "loopmuteboombox"
       ],
       "usage": "loopmute <player> (loopmuteboombox)",
-      "args": "<player> (loopmuteboombox)",
+      "args": "<player>",
       "desc": "Loop mutes the player's boombox"
     },
     {
@@ -4551,7 +4551,7 @@
         "unloopmuteboombox"
       ],
       "usage": "unloopmute <player> (unloopmuteboombox)",
-      "args": "<player> (unloopmuteboombox)",
+      "args": "<player>",
       "desc": "Unloop mutes the player's boombox"
     },
     {
@@ -4600,7 +4600,7 @@
         "noterrain"
       ],
       "usage": "removeterrain (rterrain, noterrain)",
-      "args": "(rterrain, noterrain)",
+      "args": "",
       "desc": "clears terrain"
     },
     {
@@ -4611,7 +4611,7 @@
         "cni"
       ],
       "usage": "clearnilinstances (nonilinstances, cni)",
-      "args": "(nonilinstances, cni)",
+      "args": "",
       "desc": "Removes nil instances"
     },
     {
@@ -4632,7 +4632,7 @@
         "np"
       ],
       "usage": "noprompt (nopurchaseprompts,noprompts,np)",
-      "args": "(nopurchaseprompts,noprompts,np)",
+      "args": "",
       "desc": "remove the stupid purchase prompt"
     },
     {
@@ -4645,7 +4645,7 @@
         "ppr"
       ],
       "usage": "prompt (purchaseprompts,showprompts,showpurchaseprompts,ppr)",
-      "args": "(purchaseprompts,showprompts,showpurchaseprompts,ppr)",
+      "args": "",
       "desc": "allows the stupid purchase prompt"
     },
     {
@@ -4657,7 +4657,7 @@
         "nnpause"
       ],
       "usage": "nonetworkpause (disableNetworkPause,nnw,nnpause)",
-      "args": "(disableNetworkPause,nnw,nnpause)",
+      "args": "",
       "desc": "Disable Roblox network pause overlay"
     },
     {
@@ -4669,7 +4669,7 @@
         "npause"
       ],
       "usage": "networkpause (enablenetworkpause,nw,npause)",
-      "args": "(enablenetworkpause,nw,npause)",
+      "args": "",
       "desc": "Re-enable Roblox network pause overlay"
     },
     {
@@ -4760,7 +4760,7 @@
         "viewscripts"
       ],
       "usage": "scriptviewer (viewscripts)",
-      "args": "(viewscripts)",
+      "args": "",
       "desc": "Can view scripts made by 0866"
     },
     {
@@ -4770,7 +4770,7 @@
         "hydro"
       ],
       "usage": "hydroxide (hydro)",
-      "args": "(hydro)",
+      "args": "",
       "desc": "executes hydroxide"
     },
     {
@@ -4781,7 +4781,7 @@
         "rspy"
       ],
       "usage": "remotespy (simplespy,rspy)",
-      "args": "(simplespy,rspy)",
+      "args": "",
       "desc": "executes simplespy that supports both pc and mobile"
     },
     {
@@ -4792,7 +4792,7 @@
         "cspy"
       ],
       "usage": "cobaltspy (cobalt,cspy)",
-      "args": "(cobalt,cspy)",
+      "args": "",
       "desc": ""
     },
     {
@@ -4802,7 +4802,7 @@
         "tspy"
       ],
       "usage": "turtlespy (tspy)",
-      "args": "(tspy)",
+      "args": "",
       "desc": "executes Turtle Spy that supports both pc and mobile"
     },
     {
@@ -4812,7 +4812,7 @@
         "grav"
       ],
       "usage": "gravity <amount> (grav)",
-      "args": "<amount> (grav)",
+      "args": "<amount>",
       "desc": "sets game gravity to whatever u want"
     },
     {
@@ -4823,7 +4823,7 @@
         "firecd"
       ],
       "usage": "fireclickdetectors (fcd,firecd)",
-      "args": "(fcd,firecd)",
+      "args": "",
       "desc": "Fires every ClickDetector in Workspace"
     },
     {
@@ -4834,7 +4834,7 @@
         "firecdfind"
       ],
       "usage": "fireclickdetectorsfind <target> (fcdfind,firecdfind)",
-      "args": "<target> (fcdfind,firecdfind)",
+      "args": "<target>",
       "desc": "Fires ClickDetectors substring-matching [target] in Workspace"
     },
     {
@@ -4845,7 +4845,7 @@
         "firepp"
       ],
       "usage": "fireproximityprompts (fpp,firepp)",
-      "args": "(fpp,firepp)",
+      "args": "",
       "desc": "Fires every ProximityPrompt in Workspace"
     },
     {
@@ -4856,7 +4856,7 @@
         "fireppfind"
       ],
       "usage": "fireproximitypromptsfind <target> (fppfind,fireppfind)",
-      "args": "<target> (fppfind,fireppfind)",
+      "args": "<target>",
       "desc": "Fires ProximityPrompts substring-matching [target] in Workspace"
     },
     {
@@ -4866,7 +4866,7 @@
         "fti"
       ],
       "usage": "firetouchinterests (fti)",
-      "args": "(fti)",
+      "args": "",
       "desc": "Fires every TouchInterest in Workspace"
     },
     {
@@ -4877,7 +4877,7 @@
         "firetifind"
       ],
       "usage": "firetouchinterestsfind <target> (ftifind,firetifind)",
-      "args": "<target> (ftifind,firetifind)",
+      "args": "<target>",
       "desc": "Fires TouchInterests substring-matching [target] in Workspace"
     },
     {
@@ -4947,7 +4947,7 @@
         "uafp"
       ],
       "usage": "unautofireproxi (uafp)",
-      "args": "(uafp)",
+      "args": "",
       "desc": "Stops all AutoFireProxi loops"
     },
     {
@@ -4957,7 +4957,7 @@
         "uafc"
       ],
       "usage": "unautofireclick (uafc)",
-      "args": "(uafc)",
+      "args": "",
       "desc": "Stops all AutoFireClick loops"
     },
     {
@@ -4967,7 +4967,7 @@
         "uat"
       ],
       "usage": "unautotouch (uat)",
-      "args": "(uat)",
+      "args": "",
       "desc": "Stops all AutoTouch loops"
     },
     {
@@ -4977,7 +4977,7 @@
         "uatfind"
       ],
       "usage": "unautotouchfind (uatfind)",
-      "args": "(uatfind)",
+      "args": "",
       "desc": "Stops substring-matching AutoTouch loops"
     },
     {
@@ -4987,7 +4987,7 @@
         "uafpfind"
       ],
       "usage": "unautofireproxifind (uafpfind)",
-      "args": "(uafpfind)",
+      "args": "",
       "desc": "Stops substring-matching AutoFireProxi loops"
     },
     {
@@ -4997,7 +4997,7 @@
         "uafcfind"
       ],
       "usage": "unautofireclickfind (uafcfind)",
-      "args": "(uafcfind)",
+      "args": "",
       "desc": "Stops substring-matching AutoFireClick loops"
     },
     {
@@ -5008,7 +5008,7 @@
         "removecdlimits"
       ],
       "usage": "noclickdetectorlimits <limit> (nocdlimits,removecdlimits)",
-      "args": "<limit> (nocdlimits,removecdlimits)",
+      "args": "<limit>",
       "desc": "Sets all click detectors MaxActivationDistance to math.huge"
     },
     {
@@ -5019,7 +5019,7 @@
         "removepplimits"
       ],
       "usage": "noproximitypromptlimits <limit> (nopplimits,removepplimits)",
-      "args": "<limit> (nopplimits,removepplimits)",
+      "args": "<limit>",
       "desc": "Sets all proximity prompts MaxActivationDistance to math.huge"
     },
     {
@@ -5030,7 +5030,7 @@
         "ipp"
       ],
       "usage": "instantproximityprompts (instantpp,ipp)",
-      "args": "(instantpp,ipp)",
+      "args": "",
       "desc": "Disable the cooldown for proximity prompts"
     },
     {
@@ -5041,7 +5041,7 @@
         "unipp"
       ],
       "usage": "uninstantproximityprompts (uninstantpp,unipp)",
-      "args": "(uninstantpp,unipp)",
+      "args": "",
       "desc": "Undo the cooldown removal"
     },
     {
@@ -5054,7 +5054,7 @@
         "ppon"
       ],
       "usage": "enableproximitypromptservice (enablepps,epps,ppson,ppon)",
-      "args": "(enablepps,epps,ppson,ppon)",
+      "args": "",
       "desc": "enable proximity prompt buttons"
     },
     {
@@ -5067,7 +5067,7 @@
         "ppoff"
       ],
       "usage": "disableproximitypromptservice (disablepps,dpps,ppsoff,ppoff)",
-      "args": "(disablepps,dpps,ppsoff,ppoff)",
+      "args": "",
       "desc": "disable proximity prompt buttons"
     },
     {
@@ -5154,7 +5154,7 @@
         "msa"
       ],
       "usage": "maxslopeangle (msa)",
-      "args": "(msa)",
+      "args": "",
       "desc": "Changes your character's MaxSlopeAngle"
     },
     {
@@ -5164,7 +5164,7 @@
         "god"
       ],
       "usage": "godmode (god)",
-      "args": "(god)",
+      "args": "",
       "desc": "Pick and enable an invincibility method"
     },
     {
@@ -5174,7 +5174,7 @@
         "ungod"
       ],
       "usage": "ungodmode (ungod)",
-      "args": "(ungod)",
+      "args": "",
       "desc": "Disable invincibility"
     },
     {
@@ -5184,7 +5184,7 @@
         "ctrllock"
       ],
       "usage": "controllock (ctrllock)",
-      "args": "(ctrllock)",
+      "args": "",
       "desc": "Set Shiftlock keys to Control for this session"
     },
     {
@@ -5194,7 +5194,7 @@
         "unctrllock"
       ],
       "usage": "uncontrollock (unctrllock)",
-      "args": "(unctrllock)",
+      "args": "",
       "desc": "Restore Shiftlock keys to default (Shift)"
     },
     {
@@ -5231,7 +5231,7 @@
         "nolight"
       ],
       "usage": "unlight (nolight)",
-      "args": "(nolight)",
+      "args": "",
       "desc": "Removes dynamic light from your player"
     },
     {
@@ -5241,7 +5241,7 @@
         "lightingcontrol"
       ],
       "usage": "lighting (lightingcontrol)",
-      "args": "(lightingcontrol)",
+      "args": "",
       "desc": "Manage lighting technology settings"
     },
     {
@@ -5269,7 +5269,7 @@
         "blockuser"
       ],
       "usage": "block <player> (blockuser)",
-      "args": "<player> (blockuser)",
+      "args": "<player>",
       "desc": "Open block / unblock prompt for target player"
     },
     {
@@ -5279,7 +5279,7 @@
         "fweb"
       ],
       "usage": "friendweb (fweb)",
-      "args": "(fweb)",
+      "args": "",
       "desc": "Finds friend circles in the current server"
     },
     {
@@ -5290,7 +5290,7 @@
         "tweentcp"
       ],
       "usage": "tweengotocampos (tweentcp)",
-      "args": "(tweentcp)",
+      "args": "",
       "desc": "Another version of goto camera position but bypassing more anti-cheats"
     },
     {
@@ -5324,7 +5324,7 @@
         "ldel"
       ],
       "usage": "deletelighting (removelighting, removel, ldel)",
-      "args": "(removelighting, removel, ldel)",
+      "args": "",
       "desc": "Removes all descendants (objects) within Lighting."
     },
     {
@@ -5335,7 +5335,7 @@
         "ldisable"
       ],
       "usage": "lightingdisable (disablelighting, ldisable)",
-      "args": "(disablelighting, ldisable)",
+      "args": "",
       "desc": "Disables all post-processing effects in Lighting instead of deleting them."
     },
     {
@@ -5379,7 +5379,7 @@
         "unautodelfind"
       ],
       "usage": "unautodeletefind (unautoremovefind,unautodelfind)",
-      "args": "(unautoremovefind,unautodelfind)",
+      "args": "",
       "desc": "Stops autodeletefind"
     },
     {
@@ -5462,7 +5462,7 @@
         "gpn"
       ],
       "usage": "gotopartnext [prefix] <start> [end] [delay] (gpn)",
-      "args": "[prefix] <start> [end] [delay] (gpn)",
+      "args": "[prefix] <start> [end] [delay]",
       "desc": "Teleport sequentially to parts with optional prefix and duplicate handling."
     },
     {
@@ -5472,7 +5472,7 @@
         "gmn"
       ],
       "usage": "gotomodelnext [prefix] <start> [end] [delay] (gmn)",
-      "args": "[prefix] <start> [end] [delay] (gmn)",
+      "args": "[prefix] <start> [end] [delay]",
       "desc": "Teleport sequentially to models with optional prefix and duplicate handling."
     },
     {
@@ -5482,7 +5482,7 @@
         "gfn"
       ],
       "usage": "gotofoldernext [prefix] <start> [end] [delay] (gfn)",
-      "args": "[prefix] <start> [end] [delay] (gfn)",
+      "args": "[prefix] <start> [end] [delay]",
       "desc": "Teleport sequentially through folder contents with optional prefix."
     },
     {
@@ -5492,7 +5492,7 @@
         "gb"
       ],
       "usage": "gotobreak (gb)",
-      "args": "(gb)",
+      "args": "",
       "desc": "Stop the active goto sequence and clear duplicate selections."
     },
     {
@@ -5716,7 +5716,7 @@
         "sf"
       ],
       "usage": "swordfighter (sfighter, swordf, swordbot, sf)",
-      "args": "(sfighter, swordf, swordbot, sf)",
+      "args": "",
       "desc": "Activates a sword fighting bot that engages in automated PvP combat"
     },
     {
@@ -5989,7 +5989,7 @@
         "unviewp"
       ],
       "usage": "unviewpart (unviewp)",
-      "args": "(unviewp)",
+      "args": "",
       "desc": "Resets the camera to the local humanoid"
     },
     {
@@ -6010,7 +6010,7 @@
         "unviewp"
       ],
       "usage": "unviewpart (unviewp)",
-      "args": "(unviewp)",
+      "args": "",
       "desc": "Resets the camera to the local humanoid"
     },
     {
@@ -6020,7 +6020,7 @@
         "debug"
       ],
       "usage": "console (debug)",
-      "args": "(debug)",
+      "args": "",
       "desc": "Opens developer console"
     },
     {
@@ -6105,7 +6105,7 @@
         "bcars"
       ],
       "usage": "breakcars (bcars)",
-      "args": "(bcars)",
+      "args": "",
       "desc": "Breaks any car"
     },
     {
@@ -6126,7 +6126,7 @@
         "infinitejump"
       ],
       "usage": "infjump (infinitejump)",
-      "args": "(infinitejump)",
+      "args": "",
       "desc": "Enables infinite jumping"
     },
     {
@@ -6136,7 +6136,7 @@
         "uninfinitejump"
       ],
       "usage": "uninfjump (uninfinitejump)",
-      "args": "(uninfinitejump)",
+      "args": "",
       "desc": "Disables infinite jumping"
     },
     {
@@ -6155,7 +6155,7 @@
         "noflyjump"
       ],
       "usage": "unflyjump (noflyjump)",
-      "args": "(noflyjump)",
+      "args": "",
       "desc": "Disables flyjump"
     },
     {
@@ -6165,7 +6165,7 @@
         "xrayon"
       ],
       "usage": "xray (xrayon)",
-      "args": "(xrayon)",
+      "args": "",
       "desc": "Enables X-ray vision to see through walls"
     },
     {
@@ -6175,7 +6175,7 @@
         "xrayoff"
       ],
       "usage": "unxray (xrayoff)",
-      "args": "(xrayoff)",
+      "args": "",
       "desc": "Disables X-ray vision"
     },
     {
@@ -6186,7 +6186,7 @@
         "fb"
       ],
       "usage": "fullbright (fullb,fb)",
-      "args": "(fullb,fb)",
+      "args": "",
       "desc": "makes dark games bright without destroying effects"
     },
     {
@@ -6339,7 +6339,7 @@
         "unnm"
       ],
       "usage": "unnightmare (unnm)",
-      "args": "(unnm)",
+      "args": "",
       "desc": "Disable nightmare mode"
     },
     {
@@ -6359,7 +6359,7 @@
         "loopb"
       ],
       "usage": "loopbrightness (loopbri,loopb)",
-      "args": "(loopbri,loopb)",
+      "args": "",
       "desc": "Lock the brightness lighting property"
     },
     {
@@ -6370,7 +6370,7 @@
         "unloopb"
       ],
       "usage": "unloopbrightness (unloopbri,unloopb)",
-      "args": "(unloopbri,unloopb)",
+      "args": "",
       "desc": "Stop locking brightness"
     },
     {
@@ -6392,7 +6392,7 @@
         "noglobalshadows"
       ],
       "usage": "unglobalshadows (nogshadows,ungshadows,noglobalshadows)",
-      "args": "(nogshadows,ungshadows,noglobalshadows)",
+      "args": "",
       "desc": "Disables global shadows"
     },
     {
@@ -6402,7 +6402,7 @@
         "exposure"
       ],
       "usage": "gamma (exposure)",
-      "args": "(exposure)",
+      "args": "",
       "desc": "gamma vision (real)"
     },
     {
@@ -6412,7 +6412,7 @@
         "loopexposure"
       ],
       "usage": "loopgamma (loopexposure)",
-      "args": "(loopexposure)",
+      "args": "",
       "desc": "loop gamma vision (mega real)"
     },
     {
@@ -6424,7 +6424,7 @@
         "unlexposure"
       ],
       "usage": "unloopgamma (unlgamma, unloopexposure, unlexposure)",
-      "args": "(unlgamma, unloopexposure, unlexposure)",
+      "args": "",
       "desc": "stop gamma vision (real)"
     },
     {
@@ -6436,7 +6436,7 @@
         "fp"
       ],
       "usage": "firstperson (1stp,firstp,fp)",
-      "args": "(1stp,firstp,fp)",
+      "args": "",
       "desc": "Makes you go in first person mode"
     },
     {
@@ -6447,7 +6447,7 @@
         "thirdperson"
       ],
       "usage": "thirdperson (3rdp,thirdp)",
-      "args": "(3rdp,thirdp)",
+      "args": "",
       "desc": "Makes you go in third person mode"
     },
     {
@@ -6477,7 +6477,7 @@
         "nccam"
       ],
       "usage": "cameranoclip (camnoclip,cnoclip,nccam)",
-      "args": "(camnoclip,cnoclip,nccam)",
+      "args": "",
       "desc": "Makes your camera clip through walls"
     },
     {
@@ -6489,7 +6489,7 @@
         "unnccam"
       ],
       "usage": "uncameranoclip (uncamnoclip,uncnoclip,unnccam)",
-      "args": "(uncamnoclip,uncnoclip,unnccam)",
+      "args": "",
       "desc": "Restores normal camera"
     },
     {
@@ -6526,7 +6526,7 @@
         "tinvis"
       ],
       "usage": "toolinvisible (tinvis)",
-      "args": "(tinvis)",
+      "args": "",
       "desc": "Be invisible while still being able to use tools"
     },
     {
@@ -6536,7 +6536,7 @@
         "invis"
       ],
       "usage": "invisible (invis)",
-      "args": "(invis)",
+      "args": "",
       "desc": "Sets invisibility to scare people or something"
     },
     {
@@ -6557,7 +6557,7 @@
         "bindinvis"
       ],
       "usage": "invisbind (invisiblebind, bindinvis)",
-      "args": "(invisiblebind, bindinvis)",
+      "args": "",
       "desc": "set a custom keybind for the 'Invisible' command"
     },
     {
@@ -6568,7 +6568,7 @@
         "frem"
       ],
       "usage": "fireremotes (fremotes, frem)",
-      "args": "(fremotes, frem)",
+      "args": "",
       "desc": "Fires every remote with arguments"
     },
     {
@@ -6605,7 +6605,7 @@
         "lfov"
       ],
       "usage": "loopfov <number> (lfov)",
-      "args": "<number> (lfov)",
+      "args": "<number>",
       "desc": "Locks your FOV target (1\u2013300)"
     },
     {
@@ -6615,7 +6615,7 @@
         "unlfov"
       ],
       "usage": "unloopfov (unlfov)",
-      "args": "(unlfov)",
+      "args": "",
       "desc": "Stops FOV loop"
     },
     {
@@ -6643,7 +6643,7 @@
         "stools"
       ],
       "usage": "savetools (stools)",
-      "args": "(stools)",
+      "args": "",
       "desc": "Saves your tools to memory"
     },
     {
@@ -6653,7 +6653,7 @@
         "ltools"
       ],
       "usage": "loadtools (ltools)",
-      "args": "(ltools)",
+      "args": "",
       "desc": "Restores your saved tools to your backpack"
     },
     {
@@ -6664,7 +6664,7 @@
         "antiequip"
       ],
       "usage": "preventtools (noequip,antiequip)",
-      "args": "(noequip,antiequip)",
+      "args": "",
       "desc": "Prevents any item from being equipped"
     },
     {
@@ -6675,7 +6675,7 @@
         "unantiequip"
       ],
       "usage": "unpreventtools (unnoequip,unantiequip)",
-      "args": "(unnoequip,unantiequip)",
+      "args": "",
       "desc": "Self-explanatory"
     },
     {
@@ -6686,7 +6686,7 @@
         "walkspeed"
       ],
       "usage": "walkspeed <number> (speed,ws)",
-      "args": "<number> (speed,ws)",
+      "args": "<number>",
       "desc": "Sets your WalkSpeed"
     },
     {
@@ -6696,7 +6696,7 @@
         "jumppower"
       ],
       "usage": "jumppower <number> (jp)",
-      "args": "<number> (jp)",
+      "args": "<number>",
       "desc": "Sets your JumpPower"
     },
     {
@@ -6728,7 +6728,7 @@
         "bpws"
       ],
       "usage": "bypassspeed <number> (bps,bpws)",
-      "args": "<number> (bps,bpws)",
+      "args": "<number>",
       "desc": "Set WalkSpeed (bypass variant)"
     },
     {
@@ -6740,7 +6740,7 @@
         "lbws"
       ],
       "usage": "loopbypassspeed <number|off> (lbps,lbws)",
-      "args": "<number|off> (lbps,lbws)",
+      "args": "<number|off>",
       "desc": "Loop WalkSpeed (bypass variant)"
     },
     {
@@ -6752,7 +6752,7 @@
         "unlbws"
       ],
       "usage": "unloopbypassspeed (unlbps,unlbws)",
-      "args": "(unlbps,unlbws)",
+      "args": "",
       "desc": "Disable loop WalkSpeed (bypass variant)"
     },
     {
@@ -6827,7 +6827,7 @@
         "boobies"
       ],
       "usage": "boobs <size> (boobies)",
-      "args": "<size> (boobies)",
+      "args": "<size>",
       "desc": "Boobs"
     },
     {
@@ -6839,7 +6839,7 @@
         "noboobies"
       ],
       "usage": "unboobs (unboobies,noboobs,noboobies)",
-      "args": "(unboobies,noboobs,noboobies)",
+      "args": "",
       "desc": "Boobs"
     },
     {
@@ -6849,7 +6849,7 @@
         "booty"
       ],
       "usage": "ass <size> (booty)",
-      "args": "<size> (booty)",
+      "args": "<size>",
       "desc": "Ass"
     },
     {
@@ -6859,7 +6859,7 @@
         "noass"
       ],
       "usage": "unass (noass)",
-      "args": "(noass)",
+      "args": "",
       "desc": "Ass"
     },
     {
@@ -6869,7 +6869,7 @@
         "pp"
       ],
       "usage": "penis <length> (pp)",
-      "args": "<length> (pp)",
+      "args": "<length>",
       "desc": "penis"
     },
     {
@@ -6881,7 +6881,7 @@
         "nopp"
       ],
       "usage": "unpenis (unpp,nopenis,nopp)",
-      "args": "(unpp,nopenis,nopp)",
+      "args": "",
       "desc": "penis"
     },
     {
@@ -6983,7 +6983,7 @@
         "lbnpcs"
       ],
       "usage": "loopbringnpcs (lbnpcs)",
-      "args": "(lbnpcs)",
+      "args": "",
       "desc": "Loops NPC bringing"
     },
     {
@@ -6993,7 +6993,7 @@
         "unlbnpcs"
       ],
       "usage": "unloopbringnpcs (unlbnpcs)",
-      "args": "(unlbnpcs)",
+      "args": "",
       "desc": "Stops NPC bring loop"
     },
     {
@@ -7021,7 +7021,7 @@
         "stopnpc"
       ],
       "usage": "unactnpc (stopnpc)",
-      "args": "(stopnpc)",
+      "args": "",
       "desc": "Stop acting like an NPC"
     },
     {
@@ -7031,7 +7031,7 @@
         "cknpc"
       ],
       "usage": "clickkillnpc (cknpc)",
-      "args": "(cknpc)",
+      "args": "",
       "desc": "Click on an NPC to kill it"
     },
     {
@@ -7041,7 +7041,7 @@
         "uncknpc"
       ],
       "usage": "unclickkillnpc (uncknpc)",
-      "args": "(uncknpc)",
+      "args": "",
       "desc": "Disable clickkillnpc"
     },
     {
@@ -7051,7 +7051,7 @@
         "vnpcs"
       ],
       "usage": "voidnpcs (vnpcs)",
-      "args": "(vnpcs)",
+      "args": "",
       "desc": "Teleports NPC's to void"
     },
     {
@@ -7061,7 +7061,7 @@
         "cvnpc"
       ],
       "usage": "clickvoidnpc (cvnpc)",
-      "args": "(cvnpc)",
+      "args": "",
       "desc": "Click to void NPCs"
     },
     {
@@ -7071,7 +7071,7 @@
         "uncvnpc"
       ],
       "usage": "unclickvoidnpc (uncvnpc)",
-      "args": "(uncvnpc)",
+      "args": "",
       "desc": "Disable click-void"
     },
     {
@@ -7141,7 +7141,7 @@
         "blc"
       ],
       "usage": "breaklayeredclothing (blc)",
-      "args": "(blc)",
+      "args": "",
       "desc": "Streches your layered clothing"
     },
     {
@@ -7151,7 +7151,7 @@
         "ngrep"
       ],
       "usage": "desync (ngrep)",
-      "args": "(ngrep)",
+      "args": "",
       "desc": "Toggle NextGenReplicator desync / sync (run again to disable)"
     },
     {
