@@ -481,11 +481,11 @@ end
 
 NAlib.huiGrabber = function()
 	return (gethui and gethui()) or
-	(gethiddenui and gethiddenui()) or
-	(gethiddengui and gethiddengui()) or
-	(get_hidden_ui and get_hidden_ui()) or
-	(get_hidden_gui and get_hidden_gui()) or
-	nil
+		(gethiddenui and gethiddenui()) or
+		(gethiddengui and gethiddengui()) or
+		(get_hidden_ui and get_hidden_ui()) or
+		(get_hidden_gui and get_hidden_gui()) or
+		nil
 end
 
 local HttpService = SafeGetService('HttpService');
@@ -2820,118 +2820,118 @@ NAStuff._df = NAStuff._df or delfile
 NAStuff.dotBad = NAStuff.dotBad or false
 
 NAmanage.stripExt=function(p)
-    if type(p) ~= "string" then
-        return p
-    end
-    return (p:gsub("([^/]+)%.[^/]+$", "%1"))
+	if type(p) ~= "string" then
+		return p
+	end
+	return (p:gsub("([^/]+)%.[^/]+$", "%1"))
 end
 
 NAmanage.isInvalidPathErr=function(e)
-    return type(e) == "string" and e:find("Invalid path", 1, true) ~= nil
+	return type(e) == "string" and e:find("Invalid path", 1, true) ~= nil
 end
 
 if type(NAStuff._wf) == "function" then
-    _na_env.writefile = function(p, data, ...)
-        if type(p) ~= "string" then
-            return NAStuff._wf(p, data, ...)
-        end
+	_na_env.writefile = function(p, data, ...)
+		if type(p) ~= "string" then
+			return NAStuff._wf(p, data, ...)
+		end
 
-        local pNoExt = NAmanage.stripExt(p)
-        local ok, err = pcall(NAStuff._wf, p, data, ...)
-        if ok then
-            NAStuff.dotBad = false
-            return
-        end
+		local pNoExt = NAmanage.stripExt(p)
+		local ok, err = pcall(NAStuff._wf, p, data, ...)
+		if ok then
+			NAStuff.dotBad = false
+			return
+		end
 
-        if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-            local ok2, err2 = pcall(NAStuff._wf, pNoExt, data, ...)
-            if ok2 then
-                NAStuff.dotBad = true
-                return
-            end
-            error(err2 or err)
-        end
+		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+			local ok2, err2 = pcall(NAStuff._wf, pNoExt, data, ...)
+			if ok2 then
+				NAStuff.dotBad = true
+				return
+			end
+			error(err2 or err)
+		end
 
-        error(err)
-    end
+		error(err)
+	end
 end
 
 if type(NAStuff._rf) == "function" then
-    _na_env.readfile = function(p, ...)
-        if type(p) ~= "string" then
-            return NAStuff._rf(p, ...)
-        end
+	_na_env.readfile = function(p, ...)
+		if type(p) ~= "string" then
+			return NAStuff._rf(p, ...)
+		end
 
-        local pNoExt = NAmanage.stripExt(p)
-        local ok, res = pcall(NAStuff._rf, p, ...)
-        if ok and res ~= nil then
-            NAStuff.dotBad = false
-            return res
-        end
+		local pNoExt = NAmanage.stripExt(p)
+		local ok, res = pcall(NAStuff._rf, p, ...)
+		if ok and res ~= nil then
+			NAStuff.dotBad = false
+			return res
+		end
 
-        if pNoExt ~= p then
-            local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
-            if ok2 then
-                NAStuff.dotBad = true
-                return res2
-            end
-        end
+		if pNoExt ~= p then
+			local ok2, res2 = pcall(NAStuff._rf, pNoExt, ...)
+			if ok2 then
+				NAStuff.dotBad = true
+				return res2
+			end
+		end
 
-        return nil
-    end
+		return nil
+	end
 end
 
 if type(NAStuff._iff) == "function" then
-    _na_env.isfile = function(p, ...)
-        if type(p) ~= "string" then
-            local ok, res = pcall(NAStuff._iff, p, ...)
-            return ok and res or false
-        end
+	_na_env.isfile = function(p, ...)
+		if type(p) ~= "string" then
+			local ok, res = pcall(NAStuff._iff, p, ...)
+			return ok and res or false
+		end
 
-        local pNoExt = NAmanage.stripExt(p)
+		local pNoExt = NAmanage.stripExt(p)
 
-        local ok, res = pcall(NAStuff._iff, p, ...)
-        if ok and res then
-            return true
-        end
+		local ok, res = pcall(NAStuff._iff, p, ...)
+		if ok and res then
+			return true
+		end
 
-        if pNoExt ~= p then
-            local ok2, res2 = pcall(NAStuff._iff, pNoExt, ...)
-            if ok2 and res2 then
-                NAStuff.dotBad = true
-                return true
-            end
-        end
+		if pNoExt ~= p then
+			local ok2, res2 = pcall(NAStuff._iff, pNoExt, ...)
+			if ok2 and res2 then
+				NAStuff.dotBad = true
+				return true
+			end
+		end
 
-        return false
-    end
+		return false
+	end
 end
 
 if type(NAStuff._df) == "function" then
-    _na_env.delfile = function(p, ...)
-        if type(p) ~= "string" then
-            return NAStuff._df(p, ...)
-        end
+	_na_env.delfile = function(p, ...)
+		if type(p) ~= "string" then
+			return NAStuff._df(p, ...)
+		end
 
-        local pNoExt = NAmanage.stripExt(p)
+		local pNoExt = NAmanage.stripExt(p)
 
-        local ok, err = pcall(NAStuff._df, p, ...)
-        if ok then
-            NAStuff.dotBad = false
-            return
-        end
+		local ok, err = pcall(NAStuff._df, p, ...)
+		if ok then
+			NAStuff.dotBad = false
+			return
+		end
 
-        if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
-            local ok2, err2 = pcall(NAStuff._df, pNoExt, ...)
-            if ok2 then
-                NAStuff.dotBad = true
-                return
-            end
-            error(err2 or err)
-        end
+		if pNoExt ~= p and NAmanage.isInvalidPathErr(err) then
+			local ok2, err2 = pcall(NAStuff._df, pNoExt, ...)
+			if ok2 then
+				NAStuff.dotBad = true
+				return
+			end
+			error(err2 or err)
+		end
 
-        error(err)
-    end
+		error(err)
+	end
 end
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
@@ -4514,7 +4514,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			useCustomCycle = FontEditor.data.useCustomCycle,
 		}
 		pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
-		end
+	end
 
 	local function loadFontData()
 		local stored = FontEditor.default
@@ -6937,15 +6937,50 @@ else
 	adminName = mainName
 end
 
+NAgui._dragState = NAgui._dragState or {}
+
 NAgui.dragger = function(ui, dragui)
 	dragui = dragui or ui
+	local GS = GuiService
+	local ds = NAgui._dragState
 	local dragging = false
 	local dragInput
 	local dragStart
 	local startPos
 
+	local function getOrder(g)
+		local z = (g.ZIndex or 0)
+		local lc = g:FindFirstAncestorWhichIsA("LayerCollector")
+		local d = 0
+		if lc and lc:IsA("ScreenGui") then
+			d = lc.DisplayOrder or 0
+		end
+		return d * 10000 + z
+	end
+
+	local function isTopMost(root, input)
+		local pos = input.Position
+		local list
+		local ok = pcall(function()
+			list = GS:GetGuiObjectsAtPosition(pos.X, pos.Y)
+		end)
+		if not ok or not list or #list == 0 then
+			return true
+		end
+		local top, topO
+		for _, g in ipairs(list) do
+			local o = getOrder(g)
+			if not top or o > topO then
+				top = g
+				topO = o
+			end
+		end
+		if not top then return true end
+		return top == root or top:IsDescendantOf(root)
+	end
+
 	local function update(input)
-		local success, err = NACaller(function()
+		NACaller(function()
 			local delta = input.Position - dragStart
 			local screenSize = ui.Parent.AbsoluteSize
 			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
@@ -6956,17 +6991,24 @@ NAgui.dragger = function(ui, dragui)
 
 	NACaller(function()
 		dragui.InputBegan:Connect(function(input)
-			local success, err = NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			NACaller(function()
+				if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
+					and (not ds.owner or ds.owner == ui)
+					and isTopMost(dragui, input) then
+					ds.owner = ui
+					ds.input = input
 					dragging = true
 					dragStart = input.Position
 					startPos = ui.Position
-
 					NACaller(function()
 						input.Changed:Connect(function()
-							local ok, innerErr = NACaller(function()
+							NACaller(function()
 								if input.UserInputState == Enum.UserInputState.End then
 									dragging = false
+									if ds.owner == ui then
+										ds.owner = nil
+										ds.input = nil
+									end
 								end
 							end)
 						end)
@@ -6978,7 +7020,7 @@ NAgui.dragger = function(ui, dragui)
 
 	NACaller(function()
 		dragui.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
+			NACaller(function()
 				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 					dragInput = input
 				end
@@ -6988,22 +7030,24 @@ NAgui.dragger = function(ui, dragui)
 
 	NACaller(function()
 		UserInputService.InputChanged:Connect(function(input)
-			local success, err = NACaller(function()
-				if input == dragInput and dragging then
+			NACaller(function()
+				if ds.owner == ui and input == dragInput and dragging then
 					update(input)
 				end
 			end)
 		end)
 	end)
 
-	pcall(function() ui.Active=true end)
-	pcall(function() dragui.Active=true end)
+	pcall(function() ui.Active = true end)
+	pcall(function() dragui.Active = true end)
 end
 
 NAgui.draggerV2 = function(ui, dragui)
 	dragui = dragui or ui
 	local connName = "DraggerV2_"..ui:GetDebugId()
 	NAlib.disconnect(connName)
+	local GS = GuiService
+	local ds = NAgui._dragState
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 	local dragging, dragInput, dragStart, startPos
 	local anchor = ui.AnchorPoint
@@ -7013,8 +7057,39 @@ NAgui.draggerV2 = function(ui, dragui)
 		return math.clamp(v, lo, hi)
 	end
 
+	local function getOrder(g)
+		local z = (g.ZIndex or 0)
+		local lc = g:FindFirstAncestorWhichIsA("LayerCollector")
+		local d = 0
+		if lc and lc:IsA("ScreenGui") then
+			d = lc.DisplayOrder or 0
+		end
+		return d * 10000 + z
+	end
+
+	local function isTopMost(root, input)
+		local pos = input.Position
+		local list
+		local ok = pcall(function()
+			list = GS:GetGuiObjectsAtPosition(pos.X, pos.Y)
+		end)
+		if not ok or not list or #list == 0 then
+			return true
+		end
+		local top, topO
+		for _, g in ipairs(list) do
+			local o = getOrder(g)
+			if not top or o > topO then
+				top = g
+				topO = o
+			end
+		end
+		if not top then return true end
+		return top == root or top:IsDescendantOf(root)
+	end
+
 	local function update(input)
-		local ok, err = NACaller(function()
+		NACaller(function()
 			local p = screenGui.AbsoluteSize
 			local s = ui.AbsoluteSize
 			if p.X <= 0 or p.Y <= 0 then return end
@@ -7033,14 +7108,24 @@ NAgui.draggerV2 = function(ui, dragui)
 	end
 
 	NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
-		local ok, err = NACaller(function()
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		NACaller(function()
+			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
+				and (not ds.owner or ds.owner == ui)
+				and isTopMost(dragui, input) then
+				ds.owner = ui
+				ds.input = input
 				dragging = true
 				dragStart = input.Position
 				startPos = ui.Position
 				local c = input.Changed:Connect(function()
-					local ok2, err2 = NACaller(function()
-						if input.UserInputState == Enum.UserInputState.End then dragging = false end
+					NACaller(function()
+						if input.UserInputState == Enum.UserInputState.End then
+							dragging = false
+							if ds.owner == ui then
+								ds.owner = nil
+								ds.input = nil
+							end
+						end
 					end)
 				end)
 				NAlib.connect(connName, c)
@@ -7049,7 +7134,7 @@ NAgui.draggerV2 = function(ui, dragui)
 	end))
 
 	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		local ok, err = NACaller(function()
+		NACaller(function()
 			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
 				dragInput = input
 			end
@@ -7057,8 +7142,10 @@ NAgui.draggerV2 = function(ui, dragui)
 	end))
 
 	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		local ok, err = NACaller(function()
-			if input == dragInput and dragging then update(input) end
+		NACaller(function()
+			if ds.owner == ui and input == dragInput and dragging then
+				update(input)
+			end
 		end)
 	end))
 
@@ -7093,8 +7180,8 @@ NAgui.draggerV2 = function(ui, dragui)
 	if dragui and NAlib.isProperty(dragui, "Active") then
 		NAlib.setProperty(dragui, "Active", true)
 	end
-	pcall(function() ui.Active=true end)
-	pcall(function() dragui.Active=true end)
+	pcall(function() ui.Active = true end)
+	pcall(function() dragui.Active = true end)
 end
 
 NAmanage.createLoadingUI=function(text, opts)
@@ -8033,7 +8120,7 @@ NAAssetsLoading.applyPrefetchPercent=function(done, total)
 		NAAssetsLoading.progressPercent("prefetch", frac)
 	else
 		NAAssetsLoading.progressPercent("prefetch", 1)
-	 end
+	end
 end
 NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
 	NAAssetsLoading.applyPrefetchPercent(done, total)
@@ -23566,137 +23653,160 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fp
 	local function optimizeInstance(inst)
 		if not active then return end
 
-		local charModel = getCharacterModel(inst)
-		if charModel then
-			if not CheckIfNPC(charModel) then
-				local plr = playerFromCharacter(charModel)
-				if plr then
-					if ignoreSelf and plr == Players.LocalPlayer then
-						return
-					end
-					if ignorePlayers and plr ~= Players.LocalPlayer then
-						return
-					end
+		local cm = getCharacterModel(inst)
+		if cm then
+			if not CheckIfNPC(cm) then
+				local pl = playerFromCharacter(cm)
+				if pl then
+					if ignoreSelf and pl == Players.LocalPlayer then return end
+					if ignorePlayers and pl ~= Players.LocalPlayer then return end
 				end
 			end
 		end
+
 		if isClothingLike(inst) then return end
+
 		if inst:IsA("BasePart") and simplifyMaterials then
 			remember(inst,"Material",inst.Material)
 			remember(inst,"MaterialVariant",st.safeGet(inst,"MaterialVariant"))
 			remember(inst,"Reflectance",inst.Reflectance)
 			remember(inst,"CastShadow",inst.CastShadow)
-			local desiredMaterial = Enum.Material.Plastic
-			local currentMaterial = inst.Material
-			local currentVariant = st.safeGet(inst,"MaterialVariant")
-			local materialChanged = currentMaterial ~= desiredMaterial
-			local variantChanged = currentVariant ~= "" and currentVariant ~= nil
-			st.safeSet(inst,"Material",desiredMaterial)
+
+			local dMat = Enum.Material.Plastic
+			local cMat = inst.Material
+			local cVar = st.safeGet(inst,"MaterialVariant")
+			local matChanged = cMat ~= dMat
+			local varChanged = cVar ~= "" and cVar ~= nil
+
+			st.safeSet(inst,"Material",dMat)
 			st.safeSet(inst,"MaterialVariant","")
+
 			if zeroReflectance then
 				st.safeSet(inst,"Reflectance",0)
+				forceProperty(inst,"Reflectance",0)
 			end
+
 			st.safeSet(inst,"CastShadow",false)
-			if materialChanged then
-				forceProperty(inst,"Material",desiredMaterial)
+			forceProperty(inst,"CastShadow",false)
+
+			if matChanged then
+				forceProperty(inst,"Material",dMat)
 			end
-			if variantChanged then
+			if varChanged then
 				forceProperty(inst,"MaterialVariant","")
 			end
 		end
+
 		if stripTextures and inst:IsA("MeshPart") then
-			if st.safeGet(inst,"TextureID")~=nil then remember(inst,"TextureID",inst.TextureID); st.safeSet(inst,"TextureID","") end
+			local tx = st.safeGet(inst,"TextureID")
+			if tx ~= nil and tx ~= "" then
+				remember(inst,"TextureID",tx)
+				st.safeSet(inst,"TextureID","")
+				forceProperty(inst,"TextureID","")
+			end
 		end
+
 		if stripTextures and inst:IsA("SpecialMesh") then
-			remember(inst,"TextureId",inst.TextureId)
-			st.safeSet(inst,"TextureId","")
+			local tx = st.safeGet(inst,"TextureId")
+			if tx ~= nil and tx ~= "" then
+				remember(inst,"TextureId",tx)
+				st.safeSet(inst,"TextureId","")
+				forceProperty(inst,"TextureId","")
+			end
 		end
+
 		if stripDecals and inst:IsA("Decal") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
-			end
-			remember(inst,"Transparency",inst.Transparency)
+			local t = inst.Transparency
+			remember(inst,"Transparency",t)
 			st.safeSet(inst,"Transparency",1)
+			forceProperty(inst,"Transparency",1)
 		end
+
 		if stripTextures and inst:IsA("Texture") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
-			end
-			remember(inst,"Transparency",inst.Transparency)
+			local t = inst.Transparency
+			remember(inst,"Transparency",t)
 			st.safeSet(inst,"Transparency",1)
+			forceProperty(inst,"Transparency",1)
 		end
+
 		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles")) then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				st.safeSet(inst,"Enabled",false)
+				forceProperty(inst,"Enabled",false)
 			end
-			remember(inst,"Enabled",inst.Enabled)
-			st.safeSet(inst,"Enabled",false)
 		end
+
 		if stripParticles and inst:IsA("Beam") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				st.safeSet(inst,"Enabled",false)
+				forceProperty(inst,"Enabled",false)
 			end
-			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
-			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
 		end
+
 		if stripLights and (inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")) then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				st.safeSet(inst,"Enabled",false)
+				forceProperty(inst,"Enabled",false)
 			end
-			remember(inst,"Enabled",inst.Enabled)
-			st.safeSet(inst,"Enabled",false)
 		end
+
 		if stripSurfaceAppearance and inst:IsA("SurfaceAppearance") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				st.safeSet(inst,"Enabled",false)
+				forceProperty(inst,"Enabled",false)
 			end
-			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
-			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
 		end
+
 		if stripHighlights and inst:IsA("Highlight") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				st.safeSet(inst,"Enabled",false)
+				forceProperty(inst,"Enabled",false)
 			end
-			remember(inst,"Enabled",st.safeGet(inst,"Enabled"))
-			if st.safeGet(inst,"Enabled")~=nil then st.safeSet(inst,"Enabled",false) end
 		end
+
 		if stripPostFx and inst:IsA("PostEffect") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local en = st.safeGet(inst,"Enabled")
+			if en ~= nil then
+				remember(inst,"Enabled",en)
+				forceProperty(inst,"Enabled",false)
 			end
-			local enabledValue=st.safeGet(inst,"Enabled")
-			if enabledValue~=nil then remember(inst,"Enabled",enabledValue) end
-			forceProperty(inst,"Enabled",false)
 		end
+
 		if stripAtmosphere and inst:IsA("Atmosphere") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
+			local d = st.safeGet(inst,"Density")
+			if d ~= nil then
+				remember(inst,"Density",d)
+				forceProperty(inst,"Density",0)
 			end
-			local density=st.safeGet(inst,"Density")
-			if density~=nil then remember(inst,"Density",density); forceProperty(inst,"Density",0) end
-			local haze=st.safeGet(inst,"Haze")
-			if haze~=nil then remember(inst,"Haze",haze); forceProperty(inst,"Haze",0) end
-			local glare=st.safeGet(inst,"Glare")
-			if glare~=nil then remember(inst,"Glare",glare); forceProperty(inst,"Glare",0) end
+			local h = st.safeGet(inst,"Haze")
+			if h ~= nil then
+				remember(inst,"Haze",h)
+				forceProperty(inst,"Haze",0)
+			end
+			local g = st.safeGet(inst,"Glare")
+			if g ~= nil then
+				remember(inst,"Glare",g)
+				forceProperty(inst,"Glare",0)
+			end
 		end
+
 		if stripExplosions and inst:IsA("Explosion") then
-			if effectDestroy then
-				pcall(function() inst:Destroy() end)
-				return
-			end
 			remember(inst,"BlastPressure",inst.BlastPressure)
 			remember(inst,"BlastRadius",inst.BlastRadius)
 			st.safeSet(inst,"BlastPressure",1)
 			st.safeSet(inst,"BlastRadius",1)
+			forceProperty(inst,"BlastPressure",1)
+			forceProperty(inst,"BlastRadius",1)
 		end
 	end
 
@@ -50466,22 +50576,22 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	tween:Play()
 	return tween
 end
-	NAgui.resizeable = function(ui, min, max)
-		if not ui or not ui:IsA("GuiObject") then return function() end end
-		min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
-		max = max or Vector2.new(5000, 5000)
+NAgui.resizeable = function(ui, min, max)
+	if not ui or not ui:IsA("GuiObject") then return function() end end
+	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
+	max = max or Vector2.new(5000, 5000)
 
-		local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
-		local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
-		local mouse
-		pcall(function()
-			if Players and Players.LocalPlayer then
-				mouse = Players.LocalPlayer:GetMouse()
-			end
-		end)
+	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
+	local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
+	local mouse
+	pcall(function()
+		if Players and Players.LocalPlayer then
+			mouse = Players.LocalPlayer:GetMouse()
+		end
+	end)
 
-		local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
-		if not rgui then return function() end end
+	local rgui = NAUIMANAGER.resizeFrame and NAUIMANAGER.resizeFrame:Clone()
+	if not rgui then return function() end end
 	rgui.Parent = screenGui
 	rgui.BackgroundTransparency = 1
 	rgui.ClipsDescendants = false
@@ -55648,8 +55758,8 @@ NAmanage.bindToDevConsole = function()
 			lbl.TextScaled = true;
 		end;
 		if not pcall(function()
-			lbl.Parent = NAUIMANAGER.NAconsoleLogs;
-		end) then
+				lbl.Parent = NAUIMANAGER.NAconsoleLogs;
+			end) then
 			return nil;
 		end;
 		return lbl;
@@ -59241,7 +59351,7 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
 	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean" };
-    { name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
+	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
 	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
 	{ name = "MaxFrameBufferSize", default = 4, valueType = "number" };
@@ -59386,7 +59496,7 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "EnableMenuModernizationABTest2", default = false, valueType = "boolean" };
 	{ name = "EnableMenuControlsABTest", default = false, valueType = "boolean" };
 	{ name = "EnableInGameMenuChromeABTest2", default = false, valueType = "boolean" };
- 	{ name = "EnableInGameMenuChromeABTest3", default = false, valueType = "boolean" };
+	{ name = "EnableInGameMenuChromeABTest3", default = false, valueType = "boolean" };
 
 	{ name = "EnableReportAbuseMenuRoact2", default = true, valueType = "boolean" };
 	{ name = "EnableReportAbuseMenuLayerOnV3", default = true, valueType = "boolean" };
@@ -59577,7 +59687,7 @@ NAFFlags.info = NAFFlags.info or {
 	EnableMenuModernizationABTest2 = "Second variant of the modernization test. Same idea: only mess with it if you’re curious, then revert.";
 	EnableMenuControlsABTest = "Tests alternative menu control schemes. If it feels off, just disable it again.";
 	EnableInGameMenuChromeABTest2 = "Lets you see a different style for the menu frame and borders. Fun to try, easy to undo.";
- 	EnableInGameMenuChromeABTest3 = "Another style variation for the menu shell. If you don’t like the look, turn it off.";
+	EnableInGameMenuChromeABTest3 = "Another style variation for the menu shell. If you don’t like the look, turn it off.";
 
 	EnableReportAbuseMenuRoact2 = "Enables the newer report-abuse interface. Keep it on unless it obviously breaks UI.";
 	EnableReportAbuseMenuLayerOnV3 = "Controls how the report-abuse screen layers into the V3 menu. Turn it off if it overlaps in ugly ways with your overlays.";
@@ -60895,7 +61005,7 @@ NAmanage.applyCrosshair = function()
 	line(thick, size, UDim2.new(0.5, 0, 0.5, -(gap + size / 2))) -- top
 	line(thick, size, UDim2.new(0.5, 0, 0.5,  (gap + size / 2))) -- bottom
 	line(size, thick, UDim2.new(0.5, -(gap + size / 2), 0.5, 0)) -- left
-line(size, thick, UDim2.new(0.5,  (gap + size / 2), 0.5, 0)) -- right
+	line(size, thick, UDim2.new(0.5,  (gap + size / 2), 0.5, 0)) -- right
 end
 
 NAmanage.applyIconAppearance = function()
