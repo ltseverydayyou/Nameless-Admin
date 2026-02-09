@@ -23919,41 +23919,23 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			return
 		end
 
-		local isEffectInst =
-			inst:IsA("ParticleEmitter")
-			or inst:IsA("Trail")
-			or inst:IsA("Fire")
-			or inst:IsA("Smoke")
-			or inst:IsA("Sparkles")
-			or inst:IsA("Beam")
-			or inst:IsA("PointLight")
-			or inst:IsA("SurfaceLight")
-			or inst:IsA("SpotLight")
-			or inst:IsA("SurfaceAppearance")
-			or inst:IsA("Highlight")
-			or inst:IsA("PostEffect")
-			or inst:IsA("Atmosphere")
-			or inst:IsA("Explosion")
-
-		if not isEffectInst then
-			local cm = getCharacterModel(inst)
-			if cm then
-				local isNPC = false
-				if CheckIfNPC then
-					local ok, r = pcall(CheckIfNPC, cm)
-					if ok and r then
-						isNPC = true
-					end
+		local cm = getCharacterModel(inst)
+		if cm then
+			local isNPC = false
+			if CheckIfNPC then
+				local ok, r = pcall(CheckIfNPC, cm)
+				if ok and r then
+					isNPC = true
 				end
-				if not isNPC then
-					local pl = playerFromCharacter(cm)
-					if pl then
-						if ignoreSelf and pl == Players.LocalPlayer then
-							return
-						end
-						if ignorePlayers and pl ~= Players.LocalPlayer then
-							return
-						end
+			end
+			if not isNPC then
+				local pl = playerFromCharacter(cm)
+				if pl then
+					if ignoreSelf and pl == Players.LocalPlayer then
+						return
+					end
+					if ignorePlayers and pl ~= Players.LocalPlayer then
+						return
 					end
 				end
 			end
@@ -23962,6 +23944,14 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		if isClothingLike(inst) then
 			return
 		end
+
+		local isParticle = inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") or inst:IsA("Beam")
+		local isLight = inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")
+		local isSurfApp = inst:IsA("SurfaceAppearance")
+		local isHighlight = inst:IsA("Highlight")
+		local isPost = inst:IsA("PostEffect")
+		local isAtmos = inst:IsA("Atmosphere")
+		local isExplosion = inst:IsA("Explosion")
 
 		if inst:IsA("BasePart") and simplifyMaterials then
 			remember(inst, "Material", inst.Material)
@@ -24026,7 +24016,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			forceProperty(inst, "Transparency", 1)
 		end
 
-		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") or inst:IsA("Beam")) then
+		if stripParticles and isParticle then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24041,7 +24031,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripLights and (inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")) then
+		if stripLights and isLight then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24056,7 +24046,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripSurfaceAppearance and inst:IsA("SurfaceAppearance") then
+		if stripSurfaceAppearance and isSurfApp then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24071,7 +24061,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripHighlights and inst:IsA("Highlight") then
+		if stripHighlights and isHighlight then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24086,7 +24076,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripPostFx and inst:IsA("PostEffect") then
+		if stripPostFx and isPost then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24100,7 +24090,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripAtmosphere and inst:IsA("Atmosphere") then
+		if stripAtmosphere and isAtmos then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
@@ -24124,7 +24114,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 		end
 
-		if stripExplosions and inst:IsA("Explosion") then
+		if stripExplosions and isExplosion then
 			if effectDestroy then
 				pcall(function()
 					inst:Destroy()
