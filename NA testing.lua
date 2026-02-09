@@ -611,13 +611,25 @@ NA_GRAB_BODY = (function()
 		return nil;
 	end;
 	local function firstPart(model)
-		for _, d in ipairs(model:GetDescendants()) do
-			if d:IsA("BasePart") then
-				return d;
-			end;
-		end;
-		return nil;
-	end;
+		if not model then
+			return nil
+		end
+		local q = { model }
+		local qi, qn = 1, 1
+		while qi <= qn do
+			local inst = q[qi]
+			qi += 1
+			if inst:IsA("BasePart") then
+				return inst
+			end
+			local ch = inst:GetChildren()
+			for i = 1, #ch do
+				qn += 1
+				q[qn] = ch[i]
+			end
+		end
+		return nil
+	end
 	setOverrideModel = function(model)
 		if overrideConn then
 			overrideConn:Disconnect();
@@ -672,12 +684,25 @@ NA_GRAB_BODY = (function()
 				Insert(cands, ch);
 			end;
 		end;
-		for _, inst in ipairs(workspace:GetDescendants()) do
-			if inst:IsA("Model") and CheckIfNPC and CheckIfNPC(inst) and (not seen[inst]) then
-				seen[inst] = true;
-				Insert(cands, inst);
-			end;
-		end;
+		if CheckIfNPC then
+			local q = { workspace }
+			local qi, qn = 1, 1
+			while qi <= qn do
+				local inst = q[qi]
+				qi += 1
+
+				if inst:IsA("Model") and not seen[inst] and CheckIfNPC(inst) then
+					seen[inst] = true
+					Insert(cands, inst)
+				end
+
+				local ch = inst:GetChildren()
+				for i = 1, #ch do
+					qn += 1
+					q[qn] = ch[i]
+				end
+			end
+		end
 		local nCnt = {};
 		for i = 1, #cands do
 			local m = cands[i];
@@ -735,30 +760,43 @@ NA_GRAB_BODY = (function()
 		return overrideModel;
 	end;
 	local function rebuild(model, rec)
-		rec.head = nil;
-		rec.root = nil;
-		rec.torso = nil;
-		rec.humanoid = nil;
+		rec.head = nil
+		rec.root = nil
+		rec.torso = nil
+		rec.humanoid = nil
 		if not model then
-			rec.dirty = false;
-			return rec;
-		end;
-		for _, inst in ipairs(model:GetDescendants()) do
+			rec.dirty = false
+			return rec
+		end
+		local q = { model }
+		local qi, qn = 1, 1
+		while qi <= qn do
+			local inst = q[qi]
+			qi += 1
 			if inst:IsA("Humanoid") or inst:IsA("AnimationController") then
-				rec.humanoid = rec.humanoid or inst;
+				rec.humanoid = rec.humanoid or inst
 			elseif inst:IsA("BasePart") then
-				local name = inst.Name:lower();
-				if name:find("root") then
-					rec.root = rec.root or inst;
-				elseif name:find("torso") then
-					rec.torso = rec.torso or inst;
-				elseif name:find("head") then
-					rec.head = rec.head or inst;
-				end;
-			end;
-		end;
-		rec.dirty = false;
-	end;
+				local name = inst.Name:lower()
+				if not rec.root and name:find("root", 1, true) then
+					rec.root = inst
+				elseif not rec.torso and name:find("torso", 1, true) then
+					rec.torso = inst
+				elseif not rec.head and name:find("head", 1, true) then
+					rec.head = inst
+				end
+			end
+			if rec.head and rec.root and rec.torso and rec.humanoid then
+				break
+			end
+			local ch = inst:GetChildren()
+			for i = 1, #ch do
+				qn += 1
+				q[qn] = ch[i]
+			end
+		end
+		rec.dirty = false
+		return rec
+	end
 	local function ensure(obj)
 		local model = asChar(obj);
 		if obj == Players.LocalPlayer then
@@ -3051,6 +3089,63 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	data.radius = math.clamp(data.radius, 0, 64)
 	CE.data = data
 
+	local uiScanJobs = {}
+	local uiScanning = false
+
+	local function queueUIScan(root, fn)
+		if not root or not fn then
+			return
+		end
+
+		Insert(uiScanJobs, {
+			fn = fn,
+			q = { root },
+			qi = 1,
+			qn = 1,
+		})
+
+		if uiScanning then
+			return
+		end
+		uiScanning = true
+
+		Spawn(function()
+			while #uiScanJobs > 0 do
+				local budget = 35
+
+				while budget > 0 and #uiScanJobs > 0 do
+					local job = uiScanJobs[1]
+					local q = job.q
+					local qi = job.qi
+					local qn = job.qn
+					local jobFn = job.fn
+
+					if qi > qn then
+						table.remove(uiScanJobs, 1)
+					else
+						local inst = q[qi]
+						job.qi = qi + 1
+
+						jobFn(inst)
+
+						local ch = inst:GetChildren()
+						for i = 1, #ch do
+							qn += 1
+							q[qn] = ch[i]
+						end
+						job.qn = qn
+
+						budget -= 1
+					end
+				end
+
+				Wait()
+			end
+
+			uiScanning = false
+		end)
+	end
+
 	local function getPlayerGui()
 		local lp = Players and Players.LocalPlayer
 		if not lp then
@@ -3086,21 +3181,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		if CE.data.targetHiddenUi and HUI then
 			containers[#containers + 1] = HUI
-		end
-		local world = workspace
-		if CE.data.targetBillboardGui and world and world.GetDescendants then
-			for _, inst in ipairs(world:GetDescendants()) do
-				if inst:IsA("BillboardGui") then
-					containers[#containers + 1] = inst
-				end
-			end
-		end
-		if CE.data.targetSurfaceGui and world and world.GetDescendants then
-			for _, inst in ipairs(world:GetDescendants()) do
-				if inst:IsA("SurfaceGui") then
-					containers[#containers + 1] = inst
-				end
-			end
 		end
 		return containers
 	end
@@ -3219,14 +3299,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not container then
 			return
 		end
-		if container:IsA("UICorner") then
-			setCorner(container)
-		end
-		for _, d in ipairs(container:GetDescendants()) do
-			if d:IsA("UICorner") then
-				setCorner(d)
+		queueUIScan(container, function(inst)
+			if inst:IsA("UICorner") then
+				setCorner(inst)
 			end
-		end
+		end)
 	end
 
 	local watchGuiRoot
@@ -3235,12 +3312,28 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not CE.data.enabled then
 			return
 		end
+
 		for _, container in ipairs(getCTgts()) do
 			applyCornersIn(container)
-			if container:IsA("BillboardGui") or container:IsA("SurfaceGui") then
-				CE.guiRootSeen[container] = true
-				watchGuiRoot(container)
-			end
+		end
+
+		local world = workspace
+		if not world then
+			return
+		end
+
+		if CE.data.targetBillboardGui or CE.data.targetSurfaceGui then
+			queueUIScan(world, function(inst)
+				if CE.data.targetBillboardGui and inst:IsA("BillboardGui") then
+					CE.guiRootSeen[inst] = true
+					applyCornersIn(inst)
+					watchGuiRoot(inst)
+				elseif CE.data.targetSurfaceGui and inst:IsA("SurfaceGui") then
+					CE.guiRootSeen[inst] = true
+					applyCornersIn(inst)
+					watchGuiRoot(inst)
+				end
+			end)
 		end
 	end
 
@@ -4725,19 +4818,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not container then
 			return
 		end
-		local function handle(inst)
+		queueUIScan(container, function(inst)
 			if isFontTarget(inst) then
 				applyFontToInstance(inst)
 			end
-		end
-		handle(container)
-		local desc = container:GetDescendants()
-		for i = 1, #desc do
-			handle(desc[i])
-			if i % 200 == 0 then
-				Wait()
-			end
-		end
+		end)
 	end
 
 	local function getFontTargets()
@@ -4753,24 +4838,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		if FontEditor.data.targetHiddenUi and HUI then
 			containers[#containers + 1] = HUI
-		end
-		if FontEditor.data.targetHiddenUi and HUI then
-			containers[#containers + 1] = HUI
-		end
-		local world = workspace
-		if FontEditor.data.targetBillboardGui and world and world.GetDescendants then
-			for _, inst in ipairs(world:GetDescendants()) do
-				if inst:IsA("BillboardGui") then
-					containers[#containers + 1] = inst
-				end
-			end
-		end
-		if FontEditor.data.targetSurfaceGui and world and world.GetDescendants then
-			for _, inst in ipairs(world:GetDescendants()) do
-				if inst:IsA("SurfaceGui") then
-					containers[#containers + 1] = inst
-				end
-			end
 		end
 		return containers
 	end
@@ -4801,11 +4868,24 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not FontEditor.data.enabled then
 			return
 		end
-		for idx, container in ipairs(getFontTargets()) do
+
+		for _, container in ipairs(getFontTargets()) do
 			applyFontToDescendants(container)
-			if idx % 3 == 0 then
-				Wait()
-			end
+		end
+
+		local world = workspace
+		if not world then
+			return
+		end
+
+		if FontEditor.data.targetBillboardGui or FontEditor.data.targetSurfaceGui then
+			queueUIScan(world, function(inst)
+				if FontEditor.data.targetBillboardGui and inst:IsA("BillboardGui") then
+					applyFontToDescendants(inst)
+				elseif FontEditor.data.targetSurfaceGui and inst:IsA("SurfaceGui") then
+					applyFontToDescendants(inst)
+				end
+			end)
 		end
 	end
 
@@ -4892,7 +4972,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		local root = getFontBB(o)
 		if root then
-			applyFontToInstance(root)
+			applyFontToDescendants(root)
 		end
 	end
 
@@ -4902,7 +4982,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		local root = getFontSurf(o)
 		if root then
-			applyFontToInstance(root)
+			applyFontToDescendants(root)
 		end
 	end
 
@@ -14616,72 +14696,106 @@ if getChar() and getBp() then
 	tool=getBp():FindFirstChildOfClass("Tool") or getChar():FindFirstChildOfClass("Tool")
 end
 
-local xrayConn = nil
+NAStuff.xrayConn = NAStuff.xrayConn or nil
+NAStuff.xrayEnabled = NAStuff.xrayEnabled or false
 
-function togXray(en)
+originalIO.isHumPart=function(inst)
+	if not inst or not inst.Parent then
+		return false
+	end
+	local cur = inst.Parent
+	for i = 1, 5 do
+		if not cur or cur == workspace then
+			break
+		end
+		if cur:FindFirstChildOfClass("Humanoid") then
+			return true
+		end
+		cur = cur.Parent
+	end
+	return false
+end
+
+originalIO.applyXrayToPart=function(prt, transVal)
+	if not (prt and prt:IsA("BasePart")) then
+		return
+	end
+	if originalIO.isHumPart(prt) then
+		return
+	end
+	local ok, err = NACaller(function()
+		prt.LocalTransparencyModifier = transVal
+	end)
+	if not ok then
+		warn("Failed to mod transparency for part " .. tostring(prt) .. ": " .. tostring(err))
+	end
+end
+
+originalIO.scanWorkspaceXray=function(transVal)
+	local root = workspace
+	if not root then
+		return
+	end
+
+	local q = { root }
+	local qi, qn = 1, 1
+	local step = 256
+	local n = 0
+
+	while qi <= qn do
+		local inst = q[qi]
+		qi += 1
+
+		if inst:IsA("BasePart") then
+			originalIO.applyXrayToPart(inst, transVal)
+		end
+
+		local ch = inst:GetChildren()
+		for i = 1, #ch do
+			qn += 1
+			q[qn] = ch[i]
+		end
+
+		n += 1
+		if n >= step then
+			n = 0
+			Wait()
+		end
+	end
+end
+
+originalIO.togXray=function(en)
 	if type(en) ~= "boolean" then
 		warn("togXray: Invalid arg, expected boolean")
 		return
 	end
 
+	if en == NAStuff.xrayEnabled then
+		return
+	end
+	NAStuff.xrayEnabled = en
+
 	local transVal = en and 0.5 or 0.0
 
-	if en then
-		xrayConn = workspace.DescendantAdded:Connect(function(desc)
-			if desc:IsA("BasePart") then
-				local hasHum = false
-				local cur = desc.Parent
-				for i = 1, 5 do
-					if cur and cur:FindFirstChildOfClass("Humanoid") then
-						hasHum = true
-						break
-					end
-					cur = cur.Parent
-					if not cur or cur == workspace then
-						break
-					end
-				end
-				if not hasHum then
-					local ok, err = pcall(function()
-						desc.LocalTransparencyModifier = 0.5
-					end)
-					if not ok then
-						warn("Failed to mod transparency for new part "..tostring(desc)..": "..tostring(err))
-					end
-				end
-			end
-		end)
-	else
-		if xrayConn then
-			xrayConn:Disconnect()
-			xrayConn = nil
-		end
+	if NAStuff.xrayConn then
+		NAStuff.xrayConn:Disconnect()
+		NAStuff.xrayConn = nil
 	end
 
-	for _, prt in pairs(workspace:GetDescendants()) do
-		if prt:IsA("BasePart") then
-			local hasHum = false
-			local cur = prt.Parent
-			for i = 1, 5 do
-				if cur and cur:FindFirstChildOfClass("Humanoid") then
-					hasHum = true
-					break
-				end
-				cur = cur.Parent
-				if not cur or cur == workspace then
-					break
-				end
+	if en then
+		NAStuff.xrayConn = workspace.DescendantAdded:Connect(function(desc)
+			if not NAStuff.xrayEnabled then
+				return
 			end
-			if not hasHum then
-				local ok, err = NACaller(function()
-					prt.LocalTransparencyModifier = transVal
-				end)
-				if not ok then
-					warn("Failed to mod transparency for part "..tostring(prt)..": "..tostring(err))
-				end
+			if desc:IsA("BasePart") then
+				originalIO.applyXrayToPart(desc, 0.5)
 			end
-		end
+		end)
 	end
+
+	Spawn(function()
+		originalIO.scanWorkspaceXray(transVal)
+	end)
 end
 
 -- [[ FLY VARIABLES ]] --
@@ -14773,24 +14887,61 @@ NAmanage._bindQE=function()
 	end)
 end
 
-NAmanage._clearPhysics=function(full)
+NAmanage._clearPhysics = function(full)
 	if CFloop then pcall(function() CFloop:Disconnect() end) end
-	CFloop=nil
-	if full then
-		if goofyFLY then pcall(function() goofyFLY:Destroy() end) end
-		goofyFLY=nil
-		if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) end
-		if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) end
-		flyVariables.TFpos=nil
-		flyVariables.TFgyro=nil
-		if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
-		if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
-		flyVariables.BG=nil
-		flyVariables.BV=nil
-		for _,v in ipairs(workspace:GetDescendants()) do
-			if NAmanage.GetAttr(v, "tflyPart") then pcall(function() v:Destroy() end) end
-		end
+	CFloop = nil
+
+	if not full then
+		return
 	end
+
+	if goofyFLY then pcall(function() goofyFLY:Destroy() end) end
+	goofyFLY = nil
+
+	if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) end
+	if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) end
+	flyVariables.TFpos = nil
+	flyVariables.TFgyro = nil
+
+	if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
+	if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
+	flyVariables.BG = nil
+	flyVariables.BV = nil
+
+	Spawn(function()
+		local root = workspace
+		if not root then
+			return
+		end
+
+		local q = { root }
+		local qi, qn = 1, 1
+		local step = 256
+		local n = 0
+
+		while qi <= qn do
+			local inst = q[qi]
+			qi += 1
+
+			if NAmanage.GetAttr(inst, "tflyPart") then
+				pcall(function()
+					inst:Destroy()
+				end)
+			end
+
+			local ch = inst:GetChildren()
+			for i = 1, #ch do
+				qn += 1
+				q[qn] = ch[i]
+			end
+
+			n += 1
+			if n >= step then
+				n = 0
+				Wait()
+			end
+		end
+	end)
 end
 
 NAmanage._isSeated=function()
@@ -23458,469 +23609,777 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
 end)
 
-cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"},{"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"},function()
+cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"}, function()
 	if _na_env.NA_FPS_ACTIVE then
-		_na_env.NA_FPS_ACTIVE=false
-		if _na_env.NA_FPS_UNHOOK then _na_env.NA_FPS_UNHOOK() end
-		return
-	end
-
-	local w=workspace
-	local st=(NAmanage and NAmanage._ensureL and NAmanage._ensureL()) or {safeGet=function(i,p)local ok,v=pcall(function()return i[p]end)return ok and v or nil end,safeSet=function(i,p,v)NAlib.setProperty(i,p,v)end}
-	local opt=opt or {hiddenprop=function() end}
-	local fpsOpt = NAStuff.FPSBoostOptions or {}
+		_na_env.NA_FPS_ACTIVE = false;
+		if _na_env.NA_FPS_UNHOOK then
+			_na_env.NA_FPS_UNHOOK();
+		end;
+		return;
+	end;
+	local w = workspace;
+	local st = NAmanage and NAmanage._ensureL and NAmanage._ensureL() or {
+		safeGet = function(i, p)
+			local ok, v = pcall(function()
+				return i[p];
+			end);
+			return ok and v or nil;
+		end,
+		safeSet = function(i, p, v)
+			NAlib.setProperty(i, p, v);
+		end
+	};
+	local opt = opt or {
+		hiddenprop = function()
+		end
+	};
+	local fpsOpt = NAStuff.FPSBoostOptions or {};
 	local function boolOpt(v, default)
 		if v == nil then
-			return default
-		end
+			return default;
+		end;
 		if type(v) == "boolean" then
-			return v
-		end
+			return v;
+		end;
 		if type(v) == "string" then
-			local l = v:lower()
+			local l = v:lower();
 			if l == "false" or l == "0" or l == "off" or l == "nil" then
-				return false
-			end
+				return false;
+			end;
 			if l == "true" or l == "1" or l == "on" then
-				return true
-			end
-		end
+				return true;
+			end;
+		end;
 		if type(v) == "number" then
-			return v ~= 0
-		end
-		return v ~= false
-	end
-	local effectDestroy = (type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy")
-	local stripParticles = boolOpt(fpsOpt.stripParticles, true)
-	local stripDecals = boolOpt(fpsOpt.stripDecals, true)
-	local stripTextures = boolOpt(fpsOpt.stripTextures, true)
-	local stripLights = boolOpt(fpsOpt.stripLights, true)
-	local stripPostFx = boolOpt(fpsOpt.stripPostFx, true)
-	local stripAtmosphere = boolOpt(fpsOpt.stripAtmosphere, true)
-	local stripSurfaceAppearance = boolOpt(fpsOpt.stripSurfaceAppearance, true)
-	local stripHighlights = boolOpt(fpsOpt.stripHighlights, true)
-	local stripExplosions = boolOpt(fpsOpt.stripExplosions, true)
-	local simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true)
-	local zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true)
-	local forceStreaming = boolOpt(fpsOpt.forceStreaming, true)
-	local flattenLighting = boolOpt(fpsOpt.flattenLighting, true)
-	local streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096)
-	local ignorePlayers = boolOpt(fpsOpt.ignorePlayers, true)
-	local ignoreSelf = boolOpt(fpsOpt.ignoreSelf, true)
-
-	local function setHiddenOrNormal(inst,prop,val)
-		local ok=false
-		if opt and opt.hiddenprop then ok=pcall(function() opt.hiddenprop(inst,prop,val) end) end
-		if not ok then st.safeSet(inst,prop,val) end
-	end
-
-	local active=false
-	local cons={}
-	local watchers=setmetatable({}, {__mode="k"})
-	local function connect(sig,fn)local c=sig:Connect(fn);Insert(cons,c);return c end
+			return v ~= 0;
+		end;
+		return v ~= false;
+	end;
+	local effectDestroy = type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy";
+	local stripParticles = boolOpt(fpsOpt.stripParticles, true);
+	local stripDecals = boolOpt(fpsOpt.stripDecals, true);
+	local stripTextures = boolOpt(fpsOpt.stripTextures, true);
+	local stripLights = boolOpt(fpsOpt.stripLights, true);
+	local stripPostFx = boolOpt(fpsOpt.stripPostFx, true);
+	local stripAtmosphere = boolOpt(fpsOpt.stripAtmosphere, true);
+	local stripSurfaceAppearance = boolOpt(fpsOpt.stripSurfaceAppearance, true);
+	local stripHighlights = boolOpt(fpsOpt.stripHighlights, true);
+	local stripExplosions = boolOpt(fpsOpt.stripExplosions, true);
+	local simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true);
+	local zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true);
+	local forceStreaming = boolOpt(fpsOpt.forceStreaming, true);
+	local flattenLighting = boolOpt(fpsOpt.flattenLighting, true);
+	local streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096);
+	local ignorePlayers = boolOpt(fpsOpt.ignorePlayers, true);
+	local ignoreSelf = boolOpt(fpsOpt.ignoreSelf, true);
+	local function setHiddenOrNormal(inst, prop, val)
+		local ok = false;
+		if opt and opt.hiddenprop then
+			ok = pcall(function()
+				opt.hiddenprop(inst, prop, val);
+			end);
+		end;
+		if not ok then
+			st.safeSet(inst, prop, val);
+		end;
+	end;
+	local active = false;
+	local cons = {};
+	local watchers = setmetatable({}, {
+		__mode = "k"
+	});
+	local function connect(sig, fn)
+		local c = sig:Connect(fn);
+		Insert(cons, c);
+		return c;
+	end;
 	local function disconnectAll()
-		for _,c in ipairs(cons) do pcall(function() c:Disconnect() end) end
-		cons={}
-		watchers=setmetatable({}, {__mode="k"})
-	end
-	local function forceProperty(inst,prop,desired)
-		if not inst then return end
-		local bucket=watchers[inst]
+		for _, c in ipairs(cons) do
+			pcall(function()
+				c:Disconnect();
+			end);
+		end;
+		cons = {};
+		watchers = setmetatable({}, {
+			__mode = "k"
+		});
+	end;
+	local function forceProperty(inst, prop, desired)
+		if not inst then
+			return;
+		end;
+		local bucket = watchers[inst];
 		if not bucket then
-			bucket={}
-			watchers[inst]=bucket
-		end
+			bucket = {};
+			watchers[inst] = bucket;
+		end;
 		local function apply()
-			if not active then return end
-			local current=st.safeGet(inst,prop)
-			if current~=nil and current~=desired then
-				st.safeSet(inst,prop,desired)
-			end
-		end
-		apply()
-		if bucket[prop] then return end
-		local ok,conn=pcall(function()
-			return inst:GetPropertyChangedSignal(prop):Connect(function()
-				apply()
-			end)
-		end)
+			if not active then
+				return;
+			end;
+			local current = st.safeGet(inst, prop);
+			if current ~= nil and current ~= desired then
+				st.safeSet(inst, prop, desired);
+			end;
+		end;
+		apply();
+		if bucket[prop] then
+			return;
+		end;
+		local ok, conn = pcall(function()
+			return (inst:GetPropertyChangedSignal(prop)):Connect(function()
+				apply();
+			end);
+		end);
 		if ok and conn then
-			bucket[prop]=conn
-			Insert(cons,conn)
-		end
-	end
-
-	local A="NA_FPS_"
-	local function remember(inst,prop,val)
-		local key=A..prop
-		if NAmanage.GetAttr(inst, key)==nil then
-			if typeof(val)=="EnumItem" then NAmanage.SetAttr(inst, key,val.Name) else NAmanage.SetAttr(inst, key,val) end
-		end
-	end
-	local function recall(inst,prop) return NAmanage.GetAttr(inst, A..prop) end
-	local function clearAttr(inst,prop) NAmanage.SetAttr(inst, A..prop,nil) end
+			bucket[prop] = conn;
+			Insert(cons, conn);
+		end;
+	end;
+	local A = "NA_FPS_";
+	local function remember(inst, prop, val)
+		local key = A .. prop;
+		if NAmanage.GetAttr(inst, key) == nil then
+			if typeof(val) == "EnumItem" then
+				NAmanage.SetAttr(inst, key, val.Name);
+			else
+				NAmanage.SetAttr(inst, key, val);
+			end;
+		end;
+	end;
+	local function recall(inst, prop)
+		return NAmanage.GetAttr(inst, A .. prop);
+	end;
+	local function clearAttr(inst, prop)
+		NAmanage.SetAttr(inst, A .. prop, nil);
+	end;
 	local function getCharacterModel(inst)
-		local a = inst
+		local a = inst;
 		while a do
 			if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then
-				return a
-			end
-			a = a.Parent
-		end
-		return nil
-	end
+				return a;
+			end;
+			a = a.Parent;
+		end;
+		return nil;
+	end;
 	local function playerFromCharacter(model)
 		local ok, plr = pcall(function()
-			return Players:GetPlayerFromCharacter(model)
-		end)
+			return Players:GetPlayerFromCharacter(model);
+		end);
 		if ok then
-			return plr
-		end
-		return nil
-	end
-	local function isClothingLike(inst) return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription") end
-
-	local originals={quality=nil,lighting={},terrain={},workspace={},postFx={},postFxCam={}}
+			return plr;
+		end;
+		return nil;
+	end;
+	local function isClothingLike(inst)
+		return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription");
+	end;
+	local originals = {
+		quality = nil,
+		lighting = {},
+		terrain = {},
+		workspace = {},
+		postFx = {},
+		postFxCam = {}
+	};
 	local function snapshotEnv()
-		if originals.quality==nil then pcall(function() originals.quality=settings().Rendering.QualityLevel end) end
-		for _,p in ipairs({"GlobalShadows","FogEnd","Brightness","Ambient","OutdoorAmbient","LightingStyle","Technology"}) do
-			if originals.lighting[p]==nil then originals.lighting[p]=st.safeGet(Lighting,p) end
-		end
-		for _,e in ipairs(Lighting:GetChildren()) do
+		if originals.quality == nil then
+			pcall(function()
+				originals.quality = (settings()).Rendering.QualityLevel;
+			end);
+		end;
+		for _, p in ipairs({
+			"GlobalShadows",
+			"FogEnd",
+			"Brightness",
+			"Ambient",
+			"OutdoorAmbient",
+			"LightingStyle",
+			"Technology"
+			}) do
+			if originals.lighting[p] == nil then
+				originals.lighting[p] = st.safeGet(Lighting, p);
+			end;
+		end;
+		for _, e in ipairs(Lighting:GetChildren()) do
 			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
-				if originals.postFx[e]==nil then local en=st.safeGet(e,"Enabled"); originals.postFx[e]=(en==nil) and true or en end
-			end
-		end
-		local cam=w.CurrentCamera
+				if originals.postFx[e] == nil then
+					local en = st.safeGet(e, "Enabled");
+					originals.postFx[e] = en == nil and true or en;
+				end;
+			end;
+		end;
+		local cam = w.CurrentCamera;
 		if cam then
-			for _,e in ipairs(cam:GetChildren()) do
+			for _, e in ipairs(cam:GetChildren()) do
 				if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
-					if originals.postFxCam[e]==nil then local en=st.safeGet(e,"Enabled"); originals.postFxCam[e]=(en==nil) and true or en end
-				end
-			end
-		end
-		local T=w:FindFirstChildOfClass("Terrain")
+					if originals.postFxCam[e] == nil then
+						local en = st.safeGet(e, "Enabled");
+						originals.postFxCam[e] = en == nil and true or en;
+					end;
+				end;
+			end;
+		end;
+		local T = w:FindFirstChildOfClass("Terrain");
 		if T then
-			for _,p in ipairs({"Decoration","WaterWaveSize","WaterWaveSpeed","WaterReflectance","WaterTransparency"}) do
-				if originals.terrain[p]==nil then originals.terrain[p]=st.safeGet(T,p) end
-			end
-		end
-		for _,p in ipairs({"StreamingEnabled","StreamingPauseMode","StreamOutBehavior","TargetRadius"}) do
-			if originals.workspace[p]==nil then originals.workspace[p]=st.safeGet(w,p) end
-		end
-	end
-
+			for _, p in ipairs({
+				"Decoration",
+				"WaterWaveSize",
+				"WaterWaveSpeed",
+				"WaterReflectance",
+				"WaterTransparency"
+				}) do
+				if originals.terrain[p] == nil then
+					originals.terrain[p] = st.safeGet(T, p);
+				end;
+			end;
+		end;
+		for _, p in ipairs({
+			"StreamingEnabled",
+			"StreamingPauseMode",
+			"StreamOutBehavior",
+			"TargetRadius"
+			}) do
+			if originals.workspace[p] == nil then
+				originals.workspace[p] = st.safeGet(w, p);
+			end;
+		end;
+	end;
 	local function applyEnv()
 		if flattenLighting or simplifyMaterials then
-			pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-		end
+			pcall(function()
+				(settings()).Rendering.QualityLevel = Enum.QualityLevel.Level01;
+			end);
+		end;
 		if flattenLighting then
-			st.safeSet(Lighting,"GlobalShadows",false)
-			st.safeSet(Lighting,"FogEnd",math.huge)
-			st.safeSet(Lighting,"Brightness",0)
-			st.safeSet(Lighting,"Ambient",Color3.new(0.4,0.4,0.4))
-			st.safeSet(Lighting,"OutdoorAmbient",Color3.new(0.4,0.4,0.4))
-			setHiddenOrNormal(Lighting,"LightingStyle",Enum.LightingStyle.Soft)
-			setHiddenOrNormal(Lighting,"Technology",Enum.Technology.Compatibility)
-		end
-		local T=w:FindFirstChildOfClass("Terrain")
+			st.safeSet(Lighting, "GlobalShadows", false);
+			st.safeSet(Lighting, "FogEnd", math.huge);
+			st.safeSet(Lighting, "Brightness", 0);
+			st.safeSet(Lighting, "Ambient", Color3.new(0.4, 0.4, 0.4));
+			st.safeSet(Lighting, "OutdoorAmbient", Color3.new(0.4, 0.4, 0.4));
+			setHiddenOrNormal(Lighting, "LightingStyle", Enum.LightingStyle.Soft);
+			setHiddenOrNormal(Lighting, "Technology", Enum.Technology.Compatibility);
+		end;
+		local T = w:FindFirstChildOfClass("Terrain");
 		if T and simplifyMaterials then
-			st.safeSet(T,"Decoration",false)
-			st.safeSet(T,"WaterWaveSize",0)
-			st.safeSet(T,"WaterWaveSpeed",0)
-			st.safeSet(T,"WaterReflectance",0)
-			st.safeSet(T,"WaterTransparency",0)
-		end
+			st.safeSet(T, "Decoration", false);
+			st.safeSet(T, "WaterWaveSize", 0);
+			st.safeSet(T, "WaterWaveSpeed", 0);
+			st.safeSet(T, "WaterReflectance", 0);
+			st.safeSet(T, "WaterTransparency", 0);
+		end;
 		if forceStreaming then
-			st.safeSet(w,"StreamingEnabled",true)
-			pcall(function() w.StreamOutBehavior=Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default end)
-			st.safeSet(w,"StreamingPauseMode",Enum.StreamingPauseMode.Default)
-			st.safeSet(w,"TargetRadius",streamRadius)
-		end
+			st.safeSet(w, "StreamingEnabled", true);
+			pcall(function()
+				w.StreamOutBehavior = Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default;
+			end);
+			st.safeSet(w, "StreamingPauseMode", Enum.StreamingPauseMode.Default);
+			st.safeSet(w, "TargetRadius", streamRadius);
+		end;
 		if stripPostFx then
-			for _,e in ipairs(Lighting:GetChildren()) do
-				if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
-			end
-			local cam=w.CurrentCamera
+			for _, e in ipairs(Lighting:GetChildren()) do
+				if e:IsA("PostEffect") then
+					st.safeSet(e, "Enabled", false);
+				end;
+			end;
+			local cam = w.CurrentCamera;
 			if cam then
-				for _,e in ipairs(cam:GetChildren()) do
-					if e:IsA("PostEffect") then st.safeSet(e,"Enabled",false) end
-				end
-			end
-		end
-	end
-
+				for _, e in ipairs(cam:GetChildren()) do
+					if e:IsA("PostEffect") then
+						st.safeSet(e, "Enabled", false);
+					end;
+				end;
+			end;
+		end;
+	end;
 	local function restoreEnv()
-		pcall(function() if originals.quality~=nil then settings().Rendering.QualityLevel=originals.quality end end)
-		for p,v in pairs(originals.lighting) do
-			if v~=nil then
-				if p=="LightingStyle" then
-					setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft)
-				elseif p=="Technology" then
-					setHiddenOrNormal(Lighting,p,typeof(v)=="EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility)
+		pcall(function()
+			if originals.quality ~= nil then
+				(settings()).Rendering.QualityLevel = originals.quality;
+			end;
+		end);
+		for p, v in pairs(originals.lighting) do
+			if v ~= nil then
+				if p == "LightingStyle" then
+					setHiddenOrNormal(Lighting, p, typeof(v) == "EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft);
+				elseif p == "Technology" then
+					setHiddenOrNormal(Lighting, p, typeof(v) == "EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility);
 				else
-					st.safeSet(Lighting,p,v)
-				end
-			end
-		end
-		for e,wasEnabled in pairs(originals.postFx) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then st.safeSet(e,"Enabled",wasEnabled) end end
-		for e,wasEnabled in pairs(originals.postFxCam) do if e and e.Parent and st.safeGet(e,"Enabled")~=nil then st.safeSet(e,"Enabled",wasEnabled) end end
-		local T=w:FindFirstChildOfClass("Terrain")
-		if T then for p,v in pairs(originals.terrain) do if v~=nil then st.safeSet(T,p,v) end end end
-		for p,v in pairs(originals.workspace) do if v~=nil then st.safeSet(w,p,v) end end
-	end
-
+					st.safeSet(Lighting, p, v);
+				end;
+			end;
+		end;
+		for e, wasEnabled in pairs(originals.postFx) do
+			if e and e.Parent and st.safeGet(e, "Enabled") ~= nil then
+				st.safeSet(e, "Enabled", wasEnabled);
+			end;
+		end;
+		for e, wasEnabled in pairs(originals.postFxCam) do
+			if e and e.Parent and st.safeGet(e, "Enabled") ~= nil then
+				st.safeSet(e, "Enabled", wasEnabled);
+			end;
+		end;
+		local T = w:FindFirstChildOfClass("Terrain");
+		if T then
+			for p, v in pairs(originals.terrain) do
+				if v ~= nil then
+					st.safeSet(T, p, v);
+				end;
+			end;
+		end;
+		for p, v in pairs(originals.workspace) do
+			if v ~= nil then
+				st.safeSet(w, p, v);
+			end;
+		end;
+	end;
 	local function optimizeInstance(inst)
-		if not active then return end
+		if not active then
+			return
+		end
 
-		local cm = getCharacterModel(inst)
-		if cm then
-			if not CheckIfNPC(cm) then
-				local pl = playerFromCharacter(cm)
-				if pl then
-					if ignoreSelf and pl == Players.LocalPlayer then return end
-					if ignorePlayers and pl ~= Players.LocalPlayer then return end
+		local isEffectInst =
+			inst:IsA("ParticleEmitter")
+			or inst:IsA("Trail")
+			or inst:IsA("Fire")
+			or inst:IsA("Smoke")
+			or inst:IsA("Sparkles")
+			or inst:IsA("Beam")
+			or inst:IsA("PointLight")
+			or inst:IsA("SurfaceLight")
+			or inst:IsA("SpotLight")
+			or inst:IsA("SurfaceAppearance")
+			or inst:IsA("Highlight")
+			or inst:IsA("PostEffect")
+			or inst:IsA("Atmosphere")
+			or inst:IsA("Explosion")
+
+		if not isEffectInst then
+			local cm = getCharacterModel(inst)
+			if cm then
+				local isNPC = false
+				if CheckIfNPC then
+					local ok, r = pcall(CheckIfNPC, cm)
+					if ok and r then
+						isNPC = true
+					end
+				end
+				if not isNPC then
+					local pl = playerFromCharacter(cm)
+					if pl then
+						if ignoreSelf and pl == Players.LocalPlayer then
+							return
+						end
+						if ignorePlayers and pl ~= Players.LocalPlayer then
+							return
+						end
+					end
 				end
 			end
 		end
 
-		if isClothingLike(inst) then return end
+		if isClothingLike(inst) then
+			return
+		end
 
 		if inst:IsA("BasePart") and simplifyMaterials then
-			remember(inst,"Material",inst.Material)
-			remember(inst,"MaterialVariant",st.safeGet(inst,"MaterialVariant"))
-			remember(inst,"Reflectance",inst.Reflectance)
-			remember(inst,"CastShadow",inst.CastShadow)
+			remember(inst, "Material", inst.Material)
+			remember(inst, "MaterialVariant", st.safeGet(inst, "MaterialVariant"))
+			remember(inst, "Reflectance", inst.Reflectance)
+			remember(inst, "CastShadow", inst.CastShadow)
 
 			local dMat = Enum.Material.Plastic
 			local cMat = inst.Material
-			local cVar = st.safeGet(inst,"MaterialVariant")
+			local cVar = st.safeGet(inst, "MaterialVariant")
 			local matChanged = cMat ~= dMat
 			local varChanged = cVar ~= "" and cVar ~= nil
 
-			st.safeSet(inst,"Material",dMat)
-			st.safeSet(inst,"MaterialVariant","")
+			st.safeSet(inst, "Material", dMat)
+			st.safeSet(inst, "MaterialVariant", "")
 
 			if zeroReflectance then
-				st.safeSet(inst,"Reflectance",0)
-				forceProperty(inst,"Reflectance",0)
+				st.safeSet(inst, "Reflectance", 0)
+				forceProperty(inst, "Reflectance", 0)
 			end
 
-			st.safeSet(inst,"CastShadow",false)
-			forceProperty(inst,"CastShadow",false)
+			st.safeSet(inst, "CastShadow", false)
+			forceProperty(inst, "CastShadow", false)
 
 			if matChanged then
-				forceProperty(inst,"Material",dMat)
+				forceProperty(inst, "Material", dMat)
 			end
 			if varChanged then
-				forceProperty(inst,"MaterialVariant","")
+				forceProperty(inst, "MaterialVariant", "")
 			end
 		end
 
 		if stripTextures and inst:IsA("MeshPart") then
-			local tx = st.safeGet(inst,"TextureID")
+			local tx = st.safeGet(inst, "TextureID")
 			if tx ~= nil and tx ~= "" then
-				remember(inst,"TextureID",tx)
-				st.safeSet(inst,"TextureID","")
-				forceProperty(inst,"TextureID","")
+				remember(inst, "TextureID", tx)
+				st.safeSet(inst, "TextureID", "")
+				forceProperty(inst, "TextureID", "")
 			end
 		end
 
 		if stripTextures and inst:IsA("SpecialMesh") then
-			local tx = st.safeGet(inst,"TextureId")
+			local tx = st.safeGet(inst, "TextureId")
 			if tx ~= nil and tx ~= "" then
-				remember(inst,"TextureId",tx)
-				st.safeSet(inst,"TextureId","")
-				forceProperty(inst,"TextureId","")
+				remember(inst, "TextureId", tx)
+				st.safeSet(inst, "TextureId", "")
+				forceProperty(inst, "TextureId", "")
 			end
 		end
 
 		if stripDecals and inst:IsA("Decal") then
 			local t = inst.Transparency
-			remember(inst,"Transparency",t)
-			st.safeSet(inst,"Transparency",1)
-			forceProperty(inst,"Transparency",1)
+			remember(inst, "Transparency", t)
+			st.safeSet(inst, "Transparency", 1)
+			forceProperty(inst, "Transparency", 1)
 		end
 
 		if stripTextures and inst:IsA("Texture") then
 			local t = inst.Transparency
-			remember(inst,"Transparency",t)
-			st.safeSet(inst,"Transparency",1)
-			forceProperty(inst,"Transparency",1)
+			remember(inst, "Transparency", t)
+			st.safeSet(inst, "Transparency", 1)
+			forceProperty(inst, "Transparency", 1)
 		end
 
-		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles")) then
-			local en = st.safeGet(inst,"Enabled")
-			if en ~= nil then
-				remember(inst,"Enabled",en)
-				st.safeSet(inst,"Enabled",false)
-				forceProperty(inst,"Enabled",false)
+		if stripParticles and (inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") or inst:IsA("Beam")) then
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
 			end
-		end
-
-		if stripParticles and inst:IsA("Beam") then
-			local en = st.safeGet(inst,"Enabled")
+			local en = st.safeGet(inst, "Enabled")
 			if en ~= nil then
-				remember(inst,"Enabled",en)
-				st.safeSet(inst,"Enabled",false)
-				forceProperty(inst,"Enabled",false)
+				remember(inst, "Enabled", en)
+				st.safeSet(inst, "Enabled", false)
+				forceProperty(inst, "Enabled", false)
 			end
 		end
 
 		if stripLights and (inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")) then
-			local en = st.safeGet(inst,"Enabled")
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			local en = st.safeGet(inst, "Enabled")
 			if en ~= nil then
-				remember(inst,"Enabled",en)
-				st.safeSet(inst,"Enabled",false)
-				forceProperty(inst,"Enabled",false)
+				remember(inst, "Enabled", en)
+				st.safeSet(inst, "Enabled", false)
+				forceProperty(inst, "Enabled", false)
 			end
 		end
 
 		if stripSurfaceAppearance and inst:IsA("SurfaceAppearance") then
-			local en = st.safeGet(inst,"Enabled")
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			local en = st.safeGet(inst, "Enabled")
 			if en ~= nil then
-				remember(inst,"Enabled",en)
-				st.safeSet(inst,"Enabled",false)
-				forceProperty(inst,"Enabled",false)
+				remember(inst, "Enabled", en)
+				st.safeSet(inst, "Enabled", false)
+				forceProperty(inst, "Enabled", false)
 			end
 		end
 
 		if stripHighlights and inst:IsA("Highlight") then
-			local en = st.safeGet(inst,"Enabled")
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			local en = st.safeGet(inst, "Enabled")
 			if en ~= nil then
-				remember(inst,"Enabled",en)
-				st.safeSet(inst,"Enabled",false)
-				forceProperty(inst,"Enabled",false)
+				remember(inst, "Enabled", en)
+				st.safeSet(inst, "Enabled", false)
+				forceProperty(inst, "Enabled", false)
 			end
 		end
 
 		if stripPostFx and inst:IsA("PostEffect") then
-			local en = st.safeGet(inst,"Enabled")
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			local en = st.safeGet(inst, "Enabled")
 			if en ~= nil then
-				remember(inst,"Enabled",en)
-				forceProperty(inst,"Enabled",false)
+				remember(inst, "Enabled", en)
+				forceProperty(inst, "Enabled", false)
 			end
 		end
 
 		if stripAtmosphere and inst:IsA("Atmosphere") then
-			local d = st.safeGet(inst,"Density")
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			local d = st.safeGet(inst, "Density")
 			if d ~= nil then
-				remember(inst,"Density",d)
-				forceProperty(inst,"Density",0)
+				remember(inst, "Density", d)
+				forceProperty(inst, "Density", 0)
 			end
-			local h = st.safeGet(inst,"Haze")
+			local h = st.safeGet(inst, "Haze")
 			if h ~= nil then
-				remember(inst,"Haze",h)
-				forceProperty(inst,"Haze",0)
+				remember(inst, "Haze", h)
+				forceProperty(inst, "Haze", 0)
 			end
-			local g = st.safeGet(inst,"Glare")
+			local g = st.safeGet(inst, "Glare")
 			if g ~= nil then
-				remember(inst,"Glare",g)
-				forceProperty(inst,"Glare",0)
+				remember(inst, "Glare", g)
+				forceProperty(inst, "Glare", 0)
 			end
 		end
 
 		if stripExplosions and inst:IsA("Explosion") then
-			remember(inst,"BlastPressure",inst.BlastPressure)
-			remember(inst,"BlastRadius",inst.BlastRadius)
-			st.safeSet(inst,"BlastPressure",1)
-			st.safeSet(inst,"BlastRadius",1)
-			forceProperty(inst,"BlastPressure",1)
-			forceProperty(inst,"BlastRadius",1)
+			if effectDestroy then
+				pcall(function()
+					inst:Destroy()
+				end)
+				return
+			end
+			remember(inst, "BlastPressure", inst.BlastPressure)
+			remember(inst, "BlastRadius", inst.BlastRadius)
+			st.safeSet(inst, "BlastPressure", 1)
+			st.safeSet(inst, "BlastRadius", 1)
+			forceProperty(inst, "BlastPressure", 1)
+			forceProperty(inst, "BlastRadius", 1)
 		end
 	end
-
 	local function restoreInstance(inst)
 		if inst:IsA("BasePart") then
-			local m=recall(inst,"Material"); if m~=nil then st.safeSet(inst,"Material",Enum.Material[m] or inst.Material) clearAttr(inst,"Material") end
-			local mv=recall(inst,"MaterialVariant"); if mv~=nil then st.safeSet(inst,"MaterialVariant",mv) clearAttr(inst,"MaterialVariant") end
-			local r=recall(inst,"Reflectance"); if r~=nil then st.safeSet(inst,"Reflectance",r) clearAttr(inst,"Reflectance") end
-			local cs=recall(inst,"CastShadow"); if cs~=nil then st.safeSet(inst,"CastShadow",cs) clearAttr(inst,"CastShadow") end
-			if inst:IsA("MeshPart") then local tx=recall(inst,"TextureID"); if tx~=nil then st.safeSet(inst,"TextureID",tx) clearAttr(inst,"TextureID") end end
-		end
-		if inst:IsA("SpecialMesh") then local t=recall(inst,"TextureId"); if t~=nil then st.safeSet(inst,"TextureId",t) clearAttr(inst,"TextureId") end end
-		if inst:IsA("Decal") or inst:IsA("Texture") then local t=recall(inst,"Transparency"); if t~=nil then st.safeSet(inst,"Transparency",t) clearAttr(inst,"Transparency") end end
-		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
-		if inst:IsA("Beam") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
-		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
-		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
-		if inst:IsA("PostEffect") then local e=recall(inst,"Enabled"); if e~=nil then st.safeSet(inst,"Enabled",e) clearAttr(inst,"Enabled") end end
+			local m = recall(inst, "Material");
+			if m ~= nil then
+				st.safeSet(inst, "Material", Enum.Material[m] or inst.Material);
+				clearAttr(inst, "Material");
+			end;
+			local mv = recall(inst, "MaterialVariant");
+			if mv ~= nil then
+				st.safeSet(inst, "MaterialVariant", mv);
+				clearAttr(inst, "MaterialVariant");
+			end;
+			local r = recall(inst, "Reflectance");
+			if r ~= nil then
+				st.safeSet(inst, "Reflectance", r);
+				clearAttr(inst, "Reflectance");
+			end;
+			local cs = recall(inst, "CastShadow");
+			if cs ~= nil then
+				st.safeSet(inst, "CastShadow", cs);
+				clearAttr(inst, "CastShadow");
+			end;
+			if inst:IsA("MeshPart") then
+				local tx = recall(inst, "TextureID");
+				if tx ~= nil then
+					st.safeSet(inst, "TextureID", tx);
+					clearAttr(inst, "TextureID");
+				end;
+			end;
+		end;
+		if inst:IsA("SpecialMesh") then
+			local t = recall(inst, "TextureId");
+			if t ~= nil then
+				st.safeSet(inst, "TextureId", t);
+				clearAttr(inst, "TextureId");
+			end;
+		end;
+		if inst:IsA("Decal") or inst:IsA("Texture") then
+			local t = recall(inst, "Transparency");
+			if t ~= nil then
+				st.safeSet(inst, "Transparency", t);
+				clearAttr(inst, "Transparency");
+			end;
+		end;
+		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then
+			local e = recall(inst, "Enabled");
+			if e ~= nil then
+				st.safeSet(inst, "Enabled", e);
+				clearAttr(inst, "Enabled");
+			end;
+		end;
+		if inst:IsA("Beam") then
+			local e = recall(inst, "Enabled");
+			if e ~= nil then
+				st.safeSet(inst, "Enabled", e);
+				clearAttr(inst, "Enabled");
+			end;
+		end;
+		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then
+			local e = recall(inst, "Enabled");
+			if e ~= nil then
+				st.safeSet(inst, "Enabled", e);
+				clearAttr(inst, "Enabled");
+			end;
+		end;
+		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then
+			local e = recall(inst, "Enabled");
+			if e ~= nil then
+				st.safeSet(inst, "Enabled", e);
+				clearAttr(inst, "Enabled");
+			end;
+		end;
+		if inst:IsA("PostEffect") then
+			local e = recall(inst, "Enabled");
+			if e ~= nil then
+				st.safeSet(inst, "Enabled", e);
+				clearAttr(inst, "Enabled");
+			end;
+		end;
 		if inst:IsA("Atmosphere") then
-			local d=recall(inst,"Density"); if d~=nil then st.safeSet(inst,"Density",d) clearAttr(inst,"Density") end
-			local h=recall(inst,"Haze"); if h~=nil then st.safeSet(inst,"Haze",h) clearAttr(inst,"Haze") end
-			local g=recall(inst,"Glare"); if g~=nil then st.safeSet(inst,"Glare",g) clearAttr(inst,"Glare") end
-		end
-		if inst:IsA("Explosion") then local bp=recall(inst,"BlastPressure"); if bp~=nil then st.safeSet(inst,"BlastPressure",bp) clearAttr(inst,"BlastPressure") end local br=recall(inst,"BlastRadius"); if br~=nil then st.safeSet(inst,"BlastRadius",br) clearAttr(inst,"BlastRadius") end end
-	end
-
+			local d = recall(inst, "Density");
+			if d ~= nil then
+				st.safeSet(inst, "Density", d);
+				clearAttr(inst, "Density");
+			end;
+			local h = recall(inst, "Haze");
+			if h ~= nil then
+				st.safeSet(inst, "Haze", h);
+				clearAttr(inst, "Haze");
+			end;
+			local g = recall(inst, "Glare");
+			if g ~= nil then
+				st.safeSet(inst, "Glare", g);
+				clearAttr(inst, "Glare");
+			end;
+		end;
+		if inst:IsA("Explosion") then
+			local bp = recall(inst, "BlastPressure");
+			if bp ~= nil then
+				st.safeSet(inst, "BlastPressure", bp);
+				clearAttr(inst, "BlastPressure");
+			end;
+			local br = recall(inst, "BlastRadius");
+			if br ~= nil then
+				st.safeSet(inst, "BlastRadius", br);
+				clearAttr(inst, "BlastRadius");
+			end;
+		end;
+	end;
 	local function sweepAll()
-		for _,v in ipairs(w:GetDescendants()) do
-			optimizeInstance(v)
-		end
-	end
-
+		local root = w;
+		if not root then
+			return;
+		end;
+		local q = {
+			root
+		};
+		local qi, qn = 1, 1;
+		local step = 256;
+		local n = 0;
+		while qi <= qn do
+			local inst = q[qi];
+			qi = qi + 1;
+			optimizeInstance(inst);
+			local ch = inst:GetChildren();
+			for i = 1, #ch do
+				qn = qn + 1;
+				q[qn] = ch[i];
+			end;
+			n = n + 1;
+			if n >= step then
+				n = 0;
+				Wait();
+			end;
+		end;
+	end;
 	local function restoreAll()
-		for _,v in ipairs(w:GetDescendants()) do
-			restoreInstance(v)
-		end
-	end
-
+		local root = w;
+		if not root then
+			return;
+		end;
+		local q = {
+			root
+		};
+		local qi, qn = 1, 1;
+		local step = 256;
+		local n = 0;
+		while qi <= qn do
+			local inst = q[qi];
+			qi = qi + 1;
+			restoreInstance(inst);
+			local ch = inst:GetChildren();
+			for i = 1, #ch do
+				qn = qn + 1;
+				q[qn] = ch[i];
+			end;
+			n = n + 1;
+			if n >= step then
+				n = 0;
+				Wait();
+			end;
+		end;
+	end;
 	local function enable()
-		if active then return end
-		active=true
-		snapshotEnv()
-		applyEnv()
+		if active then
+			return;
+		end;
+		active = true;
+		snapshotEnv();
+		applyEnv();
 		if effectDestroy then
-			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3)
-		end
-
-		for _,v in ipairs(Lighting:GetDescendants()) do
-			optimizeInstance(v)
-		end
-		sweepAll()
-
+			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
+		end;
+		for _, v in ipairs(Lighting:GetDescendants()) do
+			optimizeInstance(v);
+		end;
+		sweepAll();
 		Insert(cons, connect(w.DescendantAdded, function(v)
-			optimizeInstance(v)
-		end))
-
+			optimizeInstance(v);
+		end));
 		Insert(cons, connect(Lighting.DescendantAdded, function(v)
-			optimizeInstance(v)
-		end))
-
+			optimizeInstance(v);
+		end));
 		Insert(cons, connect(w:GetPropertyChangedSignal("CurrentCamera"), function()
-			local cam = w.CurrentCamera
-			if not cam then return end
-			for _,e in ipairs(cam:GetChildren()) do
-				optimizeInstance(e)
-			end
+			local cam = w.CurrentCamera;
+			if not cam then
+				return;
+			end;
+			for _, e in ipairs(cam:GetChildren()) do
+				optimizeInstance(e);
+			end;
 			Insert(cons, connect(cam.ChildAdded, function(e)
-				optimizeInstance(e)
-			end))
-		end))
-
-		local cam = w.CurrentCamera
+				optimizeInstance(e);
+			end));
+		end));
+		local cam = w.CurrentCamera;
 		if cam then
-			for _,e in ipairs(cam:GetChildren()) do
-				optimizeInstance(e)
-			end
+			for _, e in ipairs(cam:GetChildren()) do
+				optimizeInstance(e);
+			end;
 			Insert(cons, connect(cam.ChildAdded, function(e)
-				optimizeInstance(e)
-			end))
-		end
-	end
-
+				optimizeInstance(e);
+			end));
+		end;
+	end;
 	local function disable()
-		if not active then return end
-		active=false
-		disconnectAll()
-		restoreAll()
-		restoreEnv()
-	end
-
-	_na_env.NA_FPS_UNHOOK=function() disable() _na_env.NA_FPS_UNHOOK=nil end
-	enable()
-	_na_env.NA_FPS_ACTIVE=true
-end)
+		if not active then
+			return;
+		end;
+		active = false;
+		disconnectAll();
+		restoreAll();
+		restoreEnv();
+	end;
+	_na_env.NA_FPS_UNHOOK = function()
+		disable();
+		_na_env.NA_FPS_UNHOOK = nil;
+	end;
+	enable();
+	_na_env.NA_FPS_ACTIVE = true;
+end);
 
 NAStuff.annoyLoop = false
 
@@ -26560,20 +27019,47 @@ cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun"))()
 end)
 
-cmd.add({"lockws","lockworkspace"},{"lockws (lockworkspace)","Locks the whole workspace"},function()
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if NAlib.isProperty(inst, "Locked") ~= nil then
-			NAlib.setProperty(inst, "Locked", true)
-		end
+originalIO.setWorkspaceLocked=function(flag)
+	local root = workspace
+	if not root then
+		return
 	end
+
+	Spawn(function()
+		local q = { root }
+		local qi, qn = 1, 1
+		local step = 256
+		local n = 0
+
+		while qi <= qn do
+			local inst = q[qi]
+			qi += 1
+
+			if NAlib.isProperty(inst, "Locked") ~= nil then
+				NAlib.setProperty(inst, "Locked", flag)
+			end
+
+			local ch = inst:GetChildren()
+			for i = 1, #ch do
+				qn += 1
+				q[qn] = ch[i]
+			end
+
+			n += 1
+			if n >= step then
+				n = 0
+				Wait()
+			end
+		end
+	end)
+end
+
+cmd.add({"lockws","lockworkspace"},{"lockws (lockworkspace)","Locks the whole workspace"},function()
+	originalIO.setWorkspaceLocked(true)
 end)
 
 cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks everything in Workspace"},function()
-	for _, inst in ipairs(workspace:GetDescendants()) do
-		if NAlib.isProperty(inst, "Locked") ~= nil then
-			NAlib.setProperty(inst, "Locked", false)
-		end
-	end
+	originalIO.setWorkspaceLocked(false)
 end)
 
 vspeedBTN = nil
@@ -45445,13 +45931,13 @@ end)
 cmd.add({"xray", "xrayon"}, {"xray (xrayon)", "Enables X-ray vision to see through walls"}, function()
 	Wait()
 	DebugNotif("X-ray enabled")
-	togXray(true)
+	originalIO.togXray(true)
 end)
 
 cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, function()
 	Wait()
 	DebugNotif("X-ray disabled")
-	togXray(false)
+	originalIO.togXray(false)
 end)
 
 NAmanage._ensureL=function()
@@ -46842,30 +47328,72 @@ cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, 
 end,true)
 
 cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "Fires every remote with arguments"}, function()
+	local remoteList = {}
 	local remoteCount = 0
 	local failedCount = 0
 
-	for _, obj in ipairs(game:GetDescendants()) do
-		if not obj:IsDescendantOf(COREGUI) and (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) then
-			SpawnCall(function()
-				local ok
-				if obj:IsA("RemoteEvent") then
-					ok = pcall(function() obj:FireServer() end)
-				elseif obj:IsA("RemoteFunction") then
-					ok = pcall(function() obj:InvokeServer() end)
-				end
+	local q = {game}
+	local qi, qn = 1, 1
+	local step = 120
+	local n = 0
 
+	while qi <= qn do
+		local inst = q[qi]
+		qi += 1
+
+		if inst ~= COREGUI then
+			if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+				remoteList[#remoteList + 1] = inst
+			end
+
+			local ch = inst:GetChildren()
+			for i = 1, #ch do
+				local c = ch[i]
+				if c ~= COREGUI then
+					qn += 1
+					q[qn] = c
+				end
+			end
+		end
+
+		n += 1
+		if n >= step then
+			n = 0
+			Wait()
+		end
+	end
+
+	for i = 1, #remoteList do
+		local obj = remoteList[i]
+		if obj:IsA("RemoteEvent") then
+			local ok = pcall(function()
+				obj:FireServer()
+			end)
+			if ok then
+				remoteCount = remoteCount + 1
+			else
+				failedCount = failedCount + 1
+			end
+		elseif obj:IsA("RemoteFunction") then
+			SpawnCall(function()
+				local ok = pcall(function()
+					obj:InvokeServer()
+				end)
 				if ok then
-					remoteCount=remoteCount + 1
+					remoteCount = remoteCount + 1
 				else
-					failedCount=failedCount + 1
+					failedCount = failedCount + 1
 				end
 			end)
+		end
+
+		if i % 25 == 0 then
+			Wait()
 		end
 	end
 
 	Delay(2, function()
-		DebugNotif("Fired "..remoteCount.." remotes\nFailed: "..failedCount.." remotes")
+		DebugNotif("Fired " .. remoteCount .. " remotes\nFailed: " .. failedCount .. " remotes")
 	end)
 end)
 
@@ -56177,143 +56705,178 @@ Players.PlayerRemoving:Connect(function(plr)
 end)
 
 SpawnCall(function()
-	local HUI = NAlib.huiGrabber()
-
+	local HUI = NAlib.huiGrabber();
 	local function hookFriendLabel(o)
-		if not o or typeof(o) ~= "Instance" then return end
-		if HUI and o:IsDescendantOf(HUI) then return end
-		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then return end
-		if NAmanage.GetAttr(o, "NAFriendHooked") then return end
-		NAmanage.SetAttr(o, "NAFriendHooked", true)
-
-		local applying = false
+		if not o or typeof(o) ~= "Instance" then
+			return;
+		end;
+		if HUI and o:IsDescendantOf(HUI) then
+			return;
+		end;
+		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+			return;
+		end;
+		if NAmanage.GetAttr(o, "NAFriendHooked") then
+			return;
+		end;
+		NAmanage.SetAttr(o, "NAFriendHooked", true);
+		local applying = false;
 		local function apply()
-			if applying then return end
-			applying = true
+			if applying then
+				return;
+			end;
+			applying = true;
 			local ok, t = pcall(function()
-				return o.Text
-			end)
+				return o.Text;
+			end);
 			if ok and type(t) == "string" and t ~= "" and t:find("Connection") then
-				local new = t:gsub("Connections", "Friends"):gsub("Connection", "Friend")
+				local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend");
 				if new ~= t then
 					pcall(function()
-						o.Text = new
-					end)
-				end
-			end
-			applying = false
-		end
-
-		Defer(apply)
-		o:GetPropertyChangedSignal("Text"):Connect(function()
-			Defer(apply)
-		end)
-	end
-
+						o.Text = new;
+					end);
+				end;
+			end;
+			applying = false;
+		end;
+		Defer(apply);
+		(o:GetPropertyChangedSignal("Text")):Connect(function()
+			Defer(apply);
+		end);
+	end;
 	local function registerInteract(inst)
-		if not inst or not inst.Parent then return end
-		if HUI and inst:IsDescendantOf(HUI) then return end
-
+		if not inst or (not inst.Parent) then
+			return;
+		end;
+		if HUI and inst:IsDescendantOf(HUI) then
+			return;
+		end;
 		if inst:IsA("ClickDetector") then
-			if not Discover(interactTbl.click, inst) then
-				Insert(interactTbl.click, inst)
-			end
+			local list = interactTbl.click;
+			if #list == 0 or (not Discover(list, inst)) then
+				Insert(list, inst);
+			end;
 		elseif inst:IsA("ProximityPrompt") then
-			if not Discover(interactTbl.proxy, inst) then
-				Insert(interactTbl.proxy, inst)
-			end
+			local list = interactTbl.proxy;
+			if #list == 0 or (not Discover(list, inst)) then
+				Insert(list, inst);
+			end;
 		elseif inst:IsA("TouchTransmitter") then
-			if not Discover(interactTbl.touch, inst) then
-				Insert(interactTbl.touch, inst)
-			end
-		end
-	end
-
-	local function batchedScan(root, fn, batchSize, timeBudget)
-		if not root then return end
-		batchSize = batchSize or 125
-		timeBudget = timeBudget or 0.006
-		local n, start = 0, os.clock()
-		for _, inst in ipairs(root:GetDescendants()) do
-			fn(inst)
-			n += 1
-			if n % batchSize == 0 and (os.clock() - start) >= timeBudget then
-				start = os.clock()
-				Wait()
-			end
-		end
-	end
-
+			local list = interactTbl.touch;
+			if #list == 0 or (not Discover(list, inst)) then
+				Insert(list, inst);
+			end;
+		end;
+	end;
+	local scanJobs = {};
+	local scanning = false;
+	local function queueScan(root, fn)
+		if not root or (not fn) then
+			return;
+		end;
+		Insert(scanJobs, {
+			fn = fn,
+			q = {
+				root
+			},
+			qi = 1,
+			qn = 1
+		});
+		if scanning then
+			return;
+		end;
+		scanning = true;
+		Spawn(function()
+			while #scanJobs > 0 do
+				local budget = 35;
+				while budget > 0 and #scanJobs > 0 do
+					local job = scanJobs[1];
+					local q = job.q;
+					local qi = job.qi;
+					local qn = job.qn;
+					local jobFn = job.fn;
+					if qi > qn then
+						table.remove(scanJobs, 1);
+					else
+						local inst = q[qi];
+						job.qi = qi + 1;
+						jobFn(inst);
+						local ch = inst:GetChildren();
+						for i = 1, #ch do
+							qn += 1;
+							q[qn] = ch[i];
+						end;
+						job.qn = qn;
+						budget -= 1;
+					end;
+				end;
+				Wait();
+			end;
+			scanning = false;
+		end);
+	end;
 	if CoreGui then
-		Spawn(function()
-			batchedScan(CoreGui, hookFriendLabel, 100, 0.004)
-		end)
-		NAlib.disconnect("NA_FriendLabel_CoreGui")
+		queueScan(CoreGui, hookFriendLabel);
+		NAlib.disconnect("NA_FriendLabel_CoreGui");
 		NAlib.connect("NA_FriendLabel_CoreGui", CoreGui.DescendantAdded:Connect(function(o)
-			if HUI and o:IsDescendantOf(HUI) then return end
+			if HUI and o:IsDescendantOf(HUI) then
+				return;
+			end;
 			Defer(function()
-				hookFriendLabel(o)
-				for _, c in ipairs(o:GetDescendants()) do
-					hookFriendLabel(c)
-				end
-			end)
-		end))
-	end
-
+				queueScan(o, hookFriendLabel);
+			end);
+		end));
+	end;
 	if PlrGui then
-		Spawn(function()
-			batchedScan(PlrGui, hookFriendLabel, 100, 0.004)
-		end)
-		NAlib.disconnect("NA_FriendLabel_PlayerGui")
+		queueScan(PlrGui, hookFriendLabel);
+		NAlib.disconnect("NA_FriendLabel_PlayerGui");
 		NAlib.connect("NA_FriendLabel_PlayerGui", PlrGui.DescendantAdded:Connect(function(o)
-			if HUI and o:IsDescendantOf(HUI) then return end
+			if HUI and o:IsDescendantOf(HUI) then
+				return;
+			end;
 			Defer(function()
-				hookFriendLabel(o)
-			end)
-		end))
-	end
-
-	Spawn(function()
-		batchedScan(workspace, registerInteract, 200, 0.006)
-	end)
-
-	NAlib.disconnect("NA_InteractAdded")
+				hookFriendLabel(o);
+			end);
+		end));
+	end;
+	queueScan(workspace, registerInteract);
+	NAlib.disconnect("NA_InteractAdded");
 	NAlib.connect("NA_InteractAdded", workspace.DescendantAdded:Connect(function(inst)
 		Defer(function()
-			registerInteract(inst)
-		end)
-	end))
-
-	NAlib.disconnect("NA_InteractRemoved")
+			registerInteract(inst);
+		end);
+	end));
+	NAlib.disconnect("NA_InteractRemoved");
 	NAlib.connect("NA_InteractRemoved", workspace.DescendantRemoving:Connect(function(inst)
 		Defer(function()
-			if not inst then return end
-
+			if not inst then
+				return;
+			end;
 			if inst:IsA("ClickDetector") then
-				local list = interactTbl.click
-				local i = Discover(list, inst)
+				local list = interactTbl.click;
+				local i = Discover(list, inst);
 				while i do
-					table.remove(list, i)
-					i = Discover(list, inst)
-				end
+					table.remove(list, i);
+					i = Discover(list, inst);
+				end;
 			elseif inst:IsA("ProximityPrompt") then
-				local list = interactTbl.proxy
-				local i = Discover(list, inst)
+				local list = interactTbl.proxy;
+				local i = Discover(list, inst);
 				while i do
-					table.remove(list, i)
-					i = Discover(list, inst)
-				end
+					table.remove(list, i);
+					i = Discover(list, inst);
+				end;
 			elseif inst:IsA("TouchTransmitter") then
-				local list = interactTbl.touch
-				local i = Discover(list, inst)
+				local list = interactTbl.touch;
+				local i = Discover(list, inst);
 				while i do
-					table.remove(list, i)
-					i = Discover(list, inst)
-				end
-			end
-		end)
-	end))
-end)
+					table.remove(list, i);
+					i = Discover(list, inst);
+				end;
+			end;
+		end);
+	end));
+end);
 
 SpawnCall(function()
 	local function setupFLASHBACK(c)
