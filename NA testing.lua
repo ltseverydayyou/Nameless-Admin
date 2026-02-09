@@ -29466,27 +29466,6 @@ cmd.add({"uncframefly","uncfly"},{"uncfly","Disable CFrame-based flight"},functi
 	NAmanage.deactivateMode("cfly")
 end)
 
---[[if IsOnPC then
-	cmd.add({"cflybind", "cframeflybind", "bindcfly"}, {"cflybind [key] (cframeflybind, bindcfly)", "Set custom keybind for CFrame fly"}, function(...)
-		local newKey = (...) or ""
-		newKey = newKey:lower()
-		if newKey == "" then
-			DoNotif("Please provide a keybind.")
-			return
-		end
-
-		flyVariables.cToggleKey = newKey
-
-		if flyVariables.cKeybindConn then
-			flyVariables.cKeybindConn:Disconnect()
-			flyVariables.cKeybindConn = nil
-		end
-
-		connectCFlyKey()
-		DoNotif("CFrame fly keybind set to '"..flyVariables.cToggleKey:upper().."'")
-	end,true)
-end]]
-
 cmd.add({"tfly","tweenfly"},{"tfly [speed] (tweenfly)","Enables smooth flying"},function(...)
 	local arg=(...) or nil
 	flyVariables.TflySpeed=tonumber(arg) or flyVariables.TflySpeed or 1
@@ -29501,24 +29480,6 @@ end,true)
 cmd.add({"untfly","untweenfly"},{"untfly","Disables tween flying"},function()
 	NAmanage.deactivateMode("tfly")
 end)
-
---[[if IsOnPC then
-	cmd.add({"tflykeybind", "bindtfly", "tflybind"}, {"tflykeybind [key] (bindtfly, tflybind)", "Set keybind for tfly toggle"}, function(...)
-		local key = (...) or ""
-		if key == "" then
-			DoNotif("Please provide a key.")
-			return
-		end
-		flyVariables.tflyToggleKey = key:lower()
-		if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-		flyVariables.tflyKeyConn = mouse.KeyDown:Connect(function(k)
-			if k:lower() == flyVariables.tflyToggleKey then
-				toggleTFly()
-			end
-		end)
-		DoNotif("TFly keybind set to '"..flyVariables.tflyToggleKey:upper().."'")
-	end, true)
-end]]
 
 -- idk what i am doing lol (bored af :P)
 
@@ -52543,28 +52504,37 @@ end
 NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
 	local dragging=false
 	local dragInput,dragStart,startPos
+
 	ui.InputBegan:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
 			dragging=true
 			dragStart=input.Position
 			startPos=ui.Position
-			input.Changed:Connect(function()
+			local endConn
+			endConn=input.Changed:Connect(function()
 				if input.UserInputState==Enum.UserInputState.End then
 					dragging=false
 					if NATopbarKeepPosition then
 						NAmanage.Topbar_SavePositionPreference()
 					end
+					if endConn then
+						endConn:Disconnect()
+						endConn=nil
+					end
 				end
 			end)
 		end
 	end)
+
 	ui.InputChanged:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
 			dragInput=input
 		end
 	end)
+
 	local lastStep=0
-	UserInputService.InputChanged:Connect(function(input)
+	NAlib.disconnect("tb_drag_input")
+	NAlib.connect("tb_drag_input",UserInputService.InputChanged:Connect(function(input)
 		if input==dragInput and dragging then
 			local now=os.clock()
 			if now-lastStep<(1/60) then return end
@@ -52575,9 +52545,12 @@ NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
 			local base=startPos.X.Offset
 			local newX=math.clamp(base+delta.X,-(fw-bw)/2,(fw-bw)/2)
 			ui.Position=UDim2.new(0.5,newX,startPos.Y.Scale,startPos.Y.Offset)
-			if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
+			if TopBarApp.isOpen then
+				NAmanage.Topbar_PositionPanel()
+			end
 		end
-	end)
+	end))
+
 	ui.Active=true
 end
 
@@ -52721,6 +52694,7 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_repos_frame")
 	NAlib.disconnect("tb_repos_vp")
 	NAlib.disconnect("tb_follow")
+	NAlib.disconnect("tb_drag_input")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
 	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NAmanage.topbar_readDock() }
 end
@@ -52978,56 +52952,68 @@ end
 
 NAmanage.SideSwipe_WireHandle=function(btn, side)
 	if not btn then return end
-	local SWIPE_THRESHOLD = 28
-	local dragging = false
+	local SWIPE_THRESHOLD=28
+	local dragging=false
 	local dragStart
 	local dragInput
+
 	local function resetDrag()
-		dragging = false
-		dragStart = nil
-		dragInput = nil
+		dragging=false
+		dragStart=nil
+		dragInput=nil
 	end
+
 	btn.MouseButton1Down:Connect(function()
-		NAmanage.SideSwipe_SetSide(side, { skipAnimate = true })
+		NAmanage.SideSwipe_SetSide(side,{skipAnimate=true})
 	end)
+
 	btn.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			NAmanage.SideSwipe_SetSide(side, { skipAnimate = true })
-			dragging = true
-			dragStart = input.Position
-			dragInput = input
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End or input.UserInputState == Enum.UserInputState.Cancel then
+		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+			NAmanage.SideSwipe_SetSide(side,{skipAnimate=true})
+			dragging=true
+			dragStart=input.Position
+			dragInput=input
+			local endConn
+			endConn=input.Changed:Connect(function()
+				if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then
 					resetDrag()
+					if endConn then
+						endConn:Disconnect()
+						endConn=nil
+					end
 				end
 			end)
 		end
 	end)
+
 	btn.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
+		if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+			dragInput=input
 		end
 	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging and dragStart then
-			local delta = input.Position - dragStart
-			if side == "left" and delta.X > SWIPE_THRESHOLD then
+
+	local key=side=="right" and "ss_swipe_right" or "ss_swipe_left"
+	NAlib.disconnect(key)
+	NAlib.connect(key,UserInputService.InputChanged:Connect(function(input)
+		if input==dragInput and dragging and dragStart then
+			local delta=input.Position-dragStart
+			if side=="left" and delta.X>SWIPE_THRESHOLD then
 				resetDrag()
 				NAmanage.SideSwipe_SetOpen(true)
-			elseif side == "right" and delta.X < -SWIPE_THRESHOLD then
+			elseif side=="right" and delta.X<-SWIPE_THRESHOLD then
 				resetDrag()
 				NAmanage.SideSwipe_SetOpen(true)
 			elseif SideSwipeApp.isOpen then
-				if side == "left" and delta.X < -SWIPE_THRESHOLD then
+				if side=="left" and delta.X<-SWIPE_THRESHOLD then
 					resetDrag()
 					NAmanage.SideSwipe_SetOpen(false)
-				elseif side == "right" and delta.X > SWIPE_THRESHOLD then
+				elseif side=="right" and delta.X>SWIPE_THRESHOLD then
 					resetDrag()
 					NAmanage.SideSwipe_SetOpen(false)
 				end
 			end
 		end
-	end)
+	end))
 end
 
 NAmanage.SideSwipe_Init=function()
@@ -53113,6 +53099,8 @@ NAmanage.SideSwipe_Destroy=function()
 	NAlib.disconnect("ss_canvas")
 	NAlib.disconnect("ss_vp")
 	NAlib.disconnect("ss_click")
+	NAlib.disconnect("ss_swipe_left")
+	NAlib.disconnect("ss_swipe_right")
 	if SideSwipeApp.gui then SideSwipeApp.gui:Destroy() end
 	SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
 end
@@ -56928,7 +56916,8 @@ function Swoosh()
 	swooshySWOOSH = true
 	TextButton.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			input.Changed:Connect(function()
+			local endConn
+			endConn = input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					if FileSupport and NAiconSaveEnabled then
 						local pos = NAgui.getClampedIconPosition() or TextButton.Position
@@ -56937,6 +56926,10 @@ function Swoosh()
 							Y = pos.Y.Scale;
 						})
 						pcall(NAmanage.NASettingsSet, "iconKeepPosition", true)
+					end
+					if endConn then
+						endConn:Disconnect()
+						endConn = nil
 					end
 				end
 			end)
@@ -57189,136 +57182,6 @@ SpawnCall(function()
 	NAmanage.startAprilPranks()
 end)
 
-NAmanage.hsv2rgb=function(h, s, v)
-	local c = v * s
-	local x = c * (1 - math.abs((h / 60) % 2 - 1))
-	local m = v - c
-	local r1, g1, b1
-	if h < 60 then
-		r1, g1, b1 = c, x, 0
-	elseif h < 120 then
-		r1, g1, b1 = x, c, 0
-	elseif h < 180 then
-		r1, g1, b1 = 0, c, x
-	elseif h < 240 then
-		r1, g1, b1 = 0, x, c
-	elseif h < 300 then
-		r1, g1, b1 = x, 0, c
-	else
-		r1, g1, b1 = c, 0, x
-	end
-	return (r1 + m), (g1 + m), (b1 + m)
-end
-
-NAmanage.gradientify=function(text)
-	local len = #text
-	if len == 0 then return "" end
-	local out = {}
-	for i = 1, len do
-		local frac = (i - 1) / (len - 1)
-		local hue = frac * 360
-		local r, g, b = NAmanage.hsv2rgb(hue, 1, 1)
-		local hex = Format("#%02X%02X%02X", r * 255, g * 255, b * 255)
-		local ch = text:sub(i, i)
-		out[i] = Format('<font color="%s">%s</font>', hex, ch)
-	end
-	return Concat(out)
-end
-
-NAmanage.grayGradient=function(text)
-	local startGray = 0
-	local endGray   = 100
-	local len = #text
-	if len == 0 then return "" end
-	local out = {}
-	for i = 1, len do
-		local frac = (i - 1) / (len - 1)
-		local v = startGray + (endGray - startGray) * frac
-		local g = math.floor(v)
-		local hex = Format("#%02X%02X%02X", g, g, g)
-		local ch = text:sub(i, i)
-		out[i] = Format('<font color="%s">%s</font>', hex, ch)
-	end
-	return Concat(out)
-end
--- temp disabled for fixing
---[[TextChatService.OnIncomingMessage = function(message)
-	local ts = message.TextSource
-	if not ts then return end
-	local pl = Players:GetPlayerByUserId(ts.UserId)
-	if not pl then return end
-
-	local tagText = NAmanage.GetAttr(pl, "CustomNAtaggerText")
-	local tagCol = NAmanage.GetAttr(pl, "CustomNAtaggerColor")
-	local useRainbow = NAmanage.GetAttr(pl, "CustomNAtaggerRainbow")
-
-	local basePrefix = message.PrefixText
-	if not basePrefix or basePrefix == "" then
-		local nm = nameChecker(pl)
-		basePrefix = Format("%s: ", nm)
-	end
-
-	local rainbowApplied = false
-	if useRainbow then
-		local nmA = ts.Name or ""
-		local nmB = pl.DisplayName or ""
-		local nmC = pl.Name or ""
-		local nmD = nameChecker(pl) or ""
-		local gradSrc = nmD ~= "" and nmD or (nmB ~= "" and nmB or nmC)
-		local grad = NAmanage.gradientify(gradSrc)
-		local seen = {}
-		local cands = {}
-		local function add(s) if s and s ~= "" and not seen[s] then seen[s] = true; Insert(cands, s) end end
-		add(nmA); add(nmB); add(nmC); add(nmD)
-		local function esc(s) return (s:gsub("([^%w])","%%%1")) end
-		for _, c in ipairs(cands) do
-			local rep, n = basePrefix:gsub(esc(c), grad, 1)
-			if n > 0 then
-				basePrefix = rep
-				rainbowApplied = true
-				break
-			end
-		end
-		if not rainbowApplied then
-			basePrefix = Format("%s: ", grad)
-			rainbowApplied = true
-		end
-	end
-
-	for _, id in ipairs(_na_env.NAadminsLol or {}) do
-		if pl.UserId == id then
-			local props = InstanceNew("TextChatMessageProperties")
-			local tag = NAmanage.grayGradient("[NA ADMIN]")
-			local finalPrefix = basePrefix
-			if NAStuff.ForceAdminRainbow then
-				local nm = nameChecker(pl)
-				local grad = NAmanage.gradientify(nm)
-				local esc = nm:gsub("([^%w])","%%%1")
-				local rep, n = finalPrefix:gsub(esc, grad, 1)
-				finalPrefix = n > 0 and rep or Format("%s: ", grad)
-			end
-			props.PrefixText = Format("%s %s", tag, finalPrefix)
-			props.Text = message.Text
-			return props
-		end
-	end
-
-	if tagText and tagCol then
-		local r, g, b = tagCol.R * 255, tagCol.G * 255, tagCol.B * 255
-		local hex = Format("#%02X%02X%02X", r, g, b)
-		local props = InstanceNew("TextChatMessageProperties")
-		props.PrefixText = Format('<font color="%s">[%s]</font> %s', hex, tagText, basePrefix)
-		props.Text = message.Text
-		return props
-	end
-
-	if rainbowApplied then
-		local props = InstanceNew("TextChatMessageProperties")
-		props.PrefixText = basePrefix
-		props.Text = message.Text
-		return props
-	end
-end]]
 math.randomseed(os.time())
 
 NAmanage.injectNAConsole = function()
@@ -57557,7 +57420,8 @@ NAmanage.injectNAConsole = function()
 		end
 	end
 
-	textbox.FocusLost:Connect(function(enterPressed)
+	NAlib.disconnect("naconsole_focus")
+	NAlib.connect("naconsole_focus", textbox.FocusLost:Connect(function(enterPressed)
 		if not enterPressed then
 			return
 		end
@@ -57615,7 +57479,7 @@ NAmanage.injectNAConsole = function()
 		if not ok then
 			reportError(execErr or "execution error")
 		end
-	end)
+	end))
 
 	local function ensureInjection()
 		local coreGui = COREGUI
@@ -57650,16 +57514,33 @@ NAmanage.injectNAConsole = function()
 	return true
 end
 
-SpawnCall(function()
-	SpawnCall(function() Lighting.LightingStyle=Enum.LightingStyle.Soft end)
-	while Wait(0.25) and getChar() do
-		local hum = getHum()
-		if hum and hum.AutoJumpEnabled then
-			hum.AutoJumpEnabled = false
-		end
+NAmanage.destroyNAConsole = function()
+	NAlib.disconnect("naconsole_loop")
+	NAlib.disconnect("naconsole_focus")
+	if NAmanage._naConsoleFrame then
+		NAmanage._naConsoleFrame:Destroy()
 	end
-end)
+	NAmanage._naConsoleFrame = nil
+	NAmanage._naConsoleTextBox = nil
+	NAmanage._naConsoleArrow = nil
+	NAmanage._naConsoleInitialized = false
+end
 
+if not NAmanage._autoJumpLoopRunning then
+	NAmanage._autoJumpLoopRunning = true
+	SpawnCall(function()
+		Lighting.LightingStyle = Enum.LightingStyle.Soft
+		while Wait(0.25) and getChar() do
+			local hum = getHum()
+			if hum and hum.AutoJumpEnabled then
+				hum.AutoJumpEnabled = false
+			end
+		end
+		NAmanage._autoJumpLoopRunning = false
+	end)
+end
+
+SpawnCall(NAmanage.destroyNAConsole) -- ensure no dupes
 
 SpawnCall(function() -- init
 	if NAUIMANAGER.cmdBar then NAgui.NAProtection(NAUIMANAGER.cmdBar) end
@@ -61366,6 +61247,7 @@ if CoreGui then
 		queueSet  = setmetatable({}, { __mode = "k" }),
 		processing = false,
 		applying   = false,
+		needApplyAll = false,
 	}
 
 	local data = PT.default
@@ -61460,10 +61342,9 @@ if CoreGui then
 		if not o then
 			return
 		end
-		PT.images[o] = nil
 		PT.queueSet[o] = nil
-		local g = o:FindFirstChildOfClass("UIGradient")
-		if g then
+		local g = o:FindFirstChild("PlexityGradient")
+		if g and g:IsA("UIGradient") then
 			g:Destroy()
 		end
 	end
@@ -61475,19 +61356,25 @@ if CoreGui then
 		if HUI and o:IsDescendantOf(HUI) then
 			return
 		end
+		if isPlexTarget(o) then
+			PT.images[o] = true
+		end
 		NAmanage.plex_remove(o)
 		if PT.data.enabled then
 			local seq = ColorSequence.new{
 				ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
 				ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
 			}
-			local ug = InstanceNew("UIGradient", o)
-			ug.Color, ug.Rotation = seq, 45
+			local ug = InstanceNew("UIGradient")
+			ug.Name = "PlexityGradient"
+			ug.Color = seq
+			ug.Rotation = 45
 			ug.Transparency = NumberSequence.new{
 				NumberSequenceKeypoint.new(0,   0, 0),
 				NumberSequenceKeypoint.new(0.5, 0, 0),
 				NumberSequenceKeypoint.new(1,   0, 0),
 			}
+			ug.Parent = o
 		end
 	end
 
@@ -61538,23 +61425,30 @@ if CoreGui then
 
 	NAmanage.plex_applyAll = function()
 		if PT.applying then
+			PT.needApplyAll = true
 			return
 		end
 		PT.applying = true
+		PT.needApplyAll = false
+
 		coroutine.wrap(function()
-			local n = 0
-			for o in pairs(PT.images) do
-				if o and o.Parent then
-					NAmanage.plex_apply(o)
-				else
-					PT.images[o] = nil
-				end
-				n += 1
-				if n % 50 == 0 then
-					Wait()
+			local cg = PT.cg
+			if cg then
+				local desc = cg:GetDescendants()
+				for i = 1, #desc do
+					local o = desc[i]
+					if o and o.Parent then
+						applyIfReady(o)
+					end
+					if i % 200 == 0 then
+						Wait()
+					end
 				end
 			end
 			PT.applying = false
+			if PT.needApplyAll then
+				NAmanage.plex_applyAll()
+			end
 		end)()
 	end
 
@@ -61600,8 +61494,15 @@ if CoreGui then
 		if v then
 			NAmanage.plex_applyAll()
 		else
-			for o in pairs(PT.images) do
-				NAmanage.plex_remove(o)
+			local cg = PT.cg
+			if cg then
+				local desc = cg:GetDescendants()
+				for i = 1, #desc do
+					NAmanage.plex_remove(desc[i])
+					if i % 200 == 0 then
+						Wait()
+					end
+				end
 			end
 		end
 		if FileSupport then
@@ -63046,30 +62947,6 @@ NAgui.addButton("Remove Light", function()
 	if settingsLight.LIGHTER then
 		settingsLight.LIGHTER:Destroy()
 		settingsLight.LIGHTER = nil
-	end
-end)
-
-NAgui.addSection("Movement Tweaks")
-local currentHum = getHum(getChar())
-local wsDefault = (currentHum and currentHum.WalkSpeed) or 16
-local jpDefault = (currentHum and currentHum.JumpPower) or 50
-NAgui.addSlider("WalkSpeed", 0, 150, wsDefault, 1, " u/s", function(v)
-	NAmanage.ApplyWalkSpeed(v)
-end)
-NAgui.addSlider("JumpPower", 0, 150, jpDefault, 1, "", function(v)
-	NAmanage.ApplyJump(v)
-end)
-NAgui.addButton("Reset Speed/Jump", function()
-	NAmanage.ApplyWalkSpeed(16)
-	NAmanage.ApplyJump(50)
-	DoNotif("WalkSpeed/Jump reset to defaults", 2)
-end)
-NAgui.addToggle("Noclip", NAStuff.CharacterNoclip == true, function(state)
-	NAStuff.CharacterNoclip = state and true or false
-	if state then
-		cmd.run({"noclip"})
-	else
-		cmd.run({"clip"})
 	end
 end)
 
