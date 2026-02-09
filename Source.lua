@@ -479,6 +479,87 @@ NAlib.setProperty = function(inst, prop, v)
 	return s
 end
 
+NAmanage.NewCancelToken = NAmanage.NewCancelToken or function()
+	return { cancelled = false }
+end
+
+NAmanage.CancelTokenCancel = NAmanage.CancelTokenCancel or function(token)
+	if type(token) == "table" then
+		token.cancelled = true
+	end
+end
+
+NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(root, handler, opts)
+	opts = opts or {}
+	if typeof(root) ~= "Instance" or type(handler) ~= "function" then
+		return 0
+	end
+
+	local yieldEvery = tonumber(opts.yieldEvery) or 250
+	if yieldEvery < 1 then
+		yieldEvery = 1
+	end
+
+	local delayTime = opts.delayTime
+	local cancelToken = opts.cancelToken
+	local includeRoot = opts.includeRoot == true
+
+	local stack = {}
+	local stackN = 0
+	local function push(inst)
+		stackN += 1
+		stack[stackN] = inst
+	end
+	local function pop()
+		local inst = stack[stackN]
+		stack[stackN] = nil
+		stackN -= 1
+		return inst
+	end
+
+	if includeRoot then
+		push(root)
+	else
+		local okChildren, children = pcall(root.GetChildren, root)
+		if okChildren and children then
+			for i = 1, #children do
+				push(children[i])
+			end
+		end
+	end
+
+	local processed = 0
+	while stackN > 0 do
+		if cancelToken and cancelToken.cancelled then
+			break
+		end
+
+		local inst = pop()
+		processed += 1
+		handler(inst)
+
+		local okChildren, children = pcall(inst.GetChildren, inst)
+		if okChildren and children then
+			for i = 1, #children do
+				push(children[i])
+			end
+		end
+
+		if processed % yieldEvery == 0 then
+			if cancelToken and cancelToken.cancelled then
+				break
+			end
+			if delayTime ~= nil then
+				Wait(delayTime)
+			else
+				Wait()
+			end
+		end
+	end
+
+	return processed
+end
+
 NAlib.huiGrabber = function()
 	return (gethui and gethui()) or
 		(gethiddenui and gethiddenui()) or
@@ -7021,6 +7102,8 @@ NAgui._dragState = NAgui._dragState or {}
 
 NAgui.dragger = function(ui, dragui)
 	dragui = dragui or ui
+	local connName = "Dragger_"..tostring((ui and ui.GetDebugId and ui:GetDebugId()) or ui)
+	NAlib.disconnect(connName)
 	local GS = GuiService
 	local ds = NAgui._dragState
 	local dragging = false
@@ -7061,62 +7144,67 @@ NAgui.dragger = function(ui, dragui)
 
 	local function update(input)
 		NACaller(function()
+			if not ui or not ui.Parent then return end
 			local delta = input.Position - dragStart
 			local screenSize = ui.Parent.AbsoluteSize
+			if not screenSize or screenSize.X <= 0 or screenSize.Y <= 0 then return end
 			local newXScale = startPos.X.Scale + (startPos.X.Offset + delta.X) / screenSize.X
 			local newYScale = startPos.Y.Scale + (startPos.Y.Offset + delta.Y) / screenSize.Y
 			ui.Position = UDim2.new(newXScale, 0, newYScale, 0)
 		end)
 	end
 
-	NACaller(function()
-		dragui.InputBegan:Connect(function(input)
-			NACaller(function()
-				if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
-					and (not ds.owner or ds.owner == ui)
-					and isTopMost(dragui, input) then
-					ds.owner = ui
-					ds.input = input
-					dragging = true
-					dragStart = input.Position
-					startPos = ui.Position
+	NAlib.connect(connName, dragui.InputBegan:Connect(function(input)
+		NACaller(function()
+			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
+				and (not ds.owner or ds.owner == ui)
+				and isTopMost(dragui, input) then
+				ds.owner = ui
+				ds.input = input
+				dragging = true
+				dragStart = input.Position
+				startPos = ui.Position
+				local c = input.Changed:Connect(function()
 					NACaller(function()
-						input.Changed:Connect(function()
-							NACaller(function()
-								if input.UserInputState == Enum.UserInputState.End then
-									dragging = false
-									if ds.owner == ui then
-										ds.owner = nil
-										ds.input = nil
-									end
-								end
-							end)
-						end)
+						if input.UserInputState == Enum.UserInputState.End then
+							dragging = false
+							if ds.owner == ui then
+								ds.owner = nil
+								ds.input = nil
+							end
+						end
 					end)
-				end
-			end)
+				end)
+				NAlib.connect(connName, c)
+			end
 		end)
-	end)
+	end))
 
-	NACaller(function()
-		dragui.InputChanged:Connect(function(input)
-			NACaller(function()
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
+	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
+		NACaller(function()
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				dragInput = input
+			end
 		end)
-	end)
+	end))
 
-	NACaller(function()
-		UserInputService.InputChanged:Connect(function(input)
-			NACaller(function()
-				if ds.owner == ui and input == dragInput and dragging then
-					update(input)
-				end
-			end)
+	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
+		NACaller(function()
+			if ds.owner == ui and input == dragInput and dragging then
+				update(input)
+			end
 		end)
-	end)
+	end))
+
+	if ui and ui.AncestryChanged then
+		NAlib.connect(connName, ui.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(function()
+					NAlib.disconnect(connName)
+				end)
+			end
+		end))
+	end
 
 	pcall(function() ui.Active = true end)
 	pcall(function() dragui.Active = true end)
@@ -18251,8 +18339,8 @@ end
 local lp=Players.LocalPlayer
 
 --[[ LIB FUNCTIONS ]]--
-chatmsgshooks={}
-Playerchats={}
+chatmsgshooks = chatmsgshooks or {}
+Playerchats = Playerchats or setmetatable({}, { __mode = "v" })
 local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
@@ -18266,85 +18354,177 @@ if oldChat then
 	end
 else
 	local RBXGeneral = nil
+
+	local function getTextChannelsContainer()
+		local container = TextChatService and TextChatService:FindFirstChild("TextChannels")
+		if typeof(container) == "Instance" then
+			return container
+		end
+		return nil
+	end
+
+	local function getTextChannels()
+		local container = getTextChannelsContainer()
+		local channels = {}
+		local children
+
+		if container then
+			local ok, result = pcall(container.GetChildren, container)
+			if ok then
+				children = result
+			end
+		else
+			local ok, result = pcall(TextChatService.GetChildren, TextChatService)
+			if ok then
+				children = result
+			end
+		end
+
+		if children then
+			for i = 1, #children do
+				local inst = children[i]
+				if inst and inst:IsA("TextChannel") then
+					channels[#channels + 1] = inst
+				end
+			end
+		end
+
+		return channels, container
+	end
+
+	local function getTextSource(channel, playerName)
+		if not channel or type(playerName) ~= "string" then
+			return nil
+		end
+		local src = channel:FindFirstChild(playerName)
+		if src and src:IsA("TextSource") then
+			return src
+		end
+		return nil
+	end
+
+	local function localCanSend(channel)
+		local src = getTextSource(channel, lp.Name)
+		return src and src.CanSend
+	end
+
+	local function resolveGeneralChannel()
+		local channels, container = getTextChannels()
+
+		if TextChatService.CreateDefaultTextChannels and container then
+			local ch = container:FindFirstChild("RBXGeneral")
+			if ch and ch:IsA("TextChannel") and localCanSend(ch) then
+				return ch
+			end
+		end
+
+		local players = Players:GetPlayers()
+		for i = 1, #channels do
+			local ch = channels[i]
+			local okAll = true
+			for j = 1, #players do
+				local p = players[j]
+				local src = getTextSource(ch, p.Name)
+				if not (src and src.CanSend) then
+					okAll = false
+					break
+				end
+			end
+			if okAll and localCanSend(ch) then
+				return ch
+			end
+		end
+
+		for i = 1, #channels do
+			local ch = channels[i]
+			if localCanSend(ch) then
+				return ch
+			end
+		end
+
+		return nil
+	end
+
+	local function ensureGeneralChannel()
+		if RBXGeneral and RBXGeneral.Parent ~= nil and localCanSend(RBXGeneral) then
+			return RBXGeneral
+		end
+		RBXGeneral = resolveGeneralChannel()
+		return RBXGeneral
+	end
+
+	local function findWhisperChannel(targetName)
+		if type(targetName) ~= "string" or targetName == "" then
+			return nil
+		end
+		local channels = getTextChannels()
+		for i = 1, #channels do
+			local ch = channels[i]
+			if ch and ch:IsA("TextChannel") and Find(ch.Name, "RBXWhisper:") then
+				if ch:FindFirstChild(targetName) and ch:FindFirstChild(lp.Name) then
+					local src = getTextSource(ch, lp.Name)
+					if src and src.CanSend ~= false then
+						return ch
+					end
+				end
+			end
+		end
+		return nil
+	end
+
 	NACaller(function()
-		if TextChatService.CreateDefaultTextChannels then
-			for i,v in pairs(TextChatService:GetDescendants()) do
-				if v:IsA("TextChannel") and v.Name=="RBXGeneral" then
-					if v:FindFirstChild(Players.LocalPlayer.Name) and v[Players.LocalPlayer.Name]:IsA("TextSource") then
-						RBXGeneral = v
-						break
-					end
-				end
-			end
-		end
-
-		if not RBXGeneral then
-			for i,v in pairs(TextChatService:GetDescendants()) do
-				if v:IsA("TextChannel") then
-					for index,player in pairs(Players:GetPlayers()) do
-						if v:FindFirstChild(player.Name) and v[player.Name]:IsA("TextSource") and v[player.Name].CanSend then
-							RBXGeneral = v
-						else
-							RBXGeneral = nil
-							break
-						end
-					end
-					if RBXGeneral then
-						break
-					end
-				end
-			end
-
-			if not RBXGeneral then
-				for i,v in pairs(TextChatService:GetDescendants()) do
-					if v:IsA("TextChannel") then
-						if v:FindFirstChild(Players.LocalPlayer.Name) and v[Players.LocalPlayer.Name]:IsA("TextSource") and v[Players.LocalPlayer.Name].CanSend then
-							RBXGeneral = v
-							break
-						end
-					end
-				end
-			end
-			-- i have tried enough
-			if not RBXGeneral then
-				NAlib.LocalPlayerChat=function(...)
-					NACaller(function()
-						error("unable to get the chat system for the game")
-					end)
-				end
-				return
-			end
-		end
+		RBXGeneral = resolveGeneralChannel()
 
 		NAlib.LocalPlayerChat=function(...)
 			local args={...}
-			local sendto=RBXGeneral
-			if args[2]~=nil and  args[2]~="All"  then
-				if not Playerchats[args[2]] then
-					for i,v in pairs(TextChatService:GetDescendants()) do
-						if v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
-							if v:FindFirstChild(args[2]) and v:FindFirstChild(Players.LocalPlayer.Name) then
-								if v[Players.LocalPlayer.Name].CanSend==false then
-									continue
-								end
-								sendto=v
-								Playerchats[args[2]]=v
-								break
-							end
-						end
+			local message = tostring(args[1] or "")
+			local target = args[2]
+			if target ~= nil and target ~= "All" then
+				target = tostring(target)
+			end
+
+			local general = ensureGeneralChannel()
+			if not general then
+				NACaller(function()
+					error("unable to get the chat system for the game")
+				end)
+				return
+			end
+
+			local sendto = general
+			if target ~= nil and target ~= "All" then
+				local cached = Playerchats[target]
+				if cached and cached.Parent ~= nil then
+					local src = getTextSource(cached, lp.Name)
+					if src and src.CanSend ~= false then
+						sendto = cached
+					else
+						Playerchats[target] = nil
 					end
-				else
-					sendto=Playerchats[args[2]]
 				end
-				if sendto==RBXGeneral then
-					chatmsgshooks[args[1]]={args[1],args}
-					SpawnCall(function()
-						RBXGeneral:SendAsync("/w @"..args[2])
-					end)
-					return "Hooking"
+
+				if sendto == general then
+					local whisper = findWhisperChannel(target)
+					if whisper then
+						Playerchats[target] = whisper
+						sendto = whisper
+					else
+						local entry = { msg = message, ts = tick() }
+						chatmsgshooks[target] = entry
+						SpawnCall(function()
+							general:SendAsync("/w @"..tostring(target))
+						end)
+						Delay(15, function()
+							if chatmsgshooks[target] == entry then
+								chatmsgshooks[target] = nil
+							end
+						end)
+						return "Hooking"
+					end
 				end
 			end
-			sendto:SendAsync(args[1] or "")
+
+			sendto:SendAsync(message or "")
 
 		end
 	end)
@@ -18352,15 +18532,17 @@ else
 	if TextChatService:FindFirstChild("TextChannels") then
 		TextChatService.TextChannels.ChildAdded:Connect(function(v)
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
-				Wait(1)
-				for id,va in pairs(chatmsgshooks) do
-					if v:FindFirstChild(va[1]) and v:FindFirstChild(Players.LocalPlayer.Name) then
-						if v[Players.LocalPlayer.Name].CanSend==false then
-							continue
+				Wait(0.25)
+				for target, entry in pairs(chatmsgshooks) do
+					if type(target) == "string" and type(entry) == "table" and v:FindFirstChild(target) and v:FindFirstChild(lp.Name) then
+						local src = getTextSource(v, lp.Name)
+						if src and src.CanSend ~= false then
+							Playerchats[target] = v
+							chatmsgshooks[target] = nil
+							pcall(function()
+								v:SendAsync(entry.msg or "")
+							end)
 						end
-						Playerchats[va[1]]=v
-						chatmsgshooks[id]=nil
-						NAlib.LocalPlayerChat(va[2])
 					end
 				end
 			end
@@ -20077,6 +20259,7 @@ end)
 
 local scaleFrame = nil
 cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
+	NAlib.disconnect("uiscale_ui")
 	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
 	scaleFrame = InstanceNew("ScreenGui")
 	local frame = InstanceNew("Frame")
@@ -20184,7 +20367,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 		end
 	end)
 
-	UserInputService.InputChanged:Connect(function(input)
+	NAlib.connect("uiscale_ui", UserInputService.InputChanged:Connect(function(input)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local mouseX = input.Position.X
 			local relativePosition = (mouseX - sliderStart) / sliderWidth
@@ -20192,9 +20375,18 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 			NAUIScale = math.clamp(newScale, minSize, maxSize)
 			update(NAUIScale)
 		end
-	end)
+	end))
+
+	NAlib.connect("uiscale_ui", scaleFrame.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			Defer(function()
+				NAlib.disconnect("uiscale_ui")
+			end)
+		end
+	end))
 
 	MouseButtonFix(closeButton,function()
+		NAlib.disconnect("uiscale_ui")
 		scaleFrame:Destroy()
 	end)
 
@@ -24029,6 +24221,23 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 				st.safeSet(inst, "Enabled", false)
 				forceProperty(inst, "Enabled", false)
 			end
+			if inst:IsA("ParticleEmitter") then
+				local rate = st.safeGet(inst, "Rate")
+				if rate ~= nil then
+					remember(inst, "Rate", rate)
+					st.safeSet(inst, "Rate", 0)
+					forceProperty(inst, "Rate", 0)
+				end
+				pcall(function()
+					inst:Clear()
+				end)
+			elseif inst:IsA("Trail") then
+				pcall(function()
+					if inst.Clear then
+						inst:Clear()
+					end
+				end)
+			end
 		end
 
 		if stripLights and isLight then
@@ -24180,6 +24389,13 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 				clearAttr(inst, "Enabled");
 			end;
 		end;
+		if inst:IsA("ParticleEmitter") then
+			local r = recall(inst, "Rate");
+			if r ~= nil then
+				st.safeSet(inst, "Rate", r);
+				clearAttr(inst, "Rate");
+			end;
+		end;
 		if inst:IsA("Beam") then
 			local e = recall(inst, "Enabled");
 			if e ~= nil then
@@ -24238,6 +24454,52 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end;
 		end;
 	end;
+
+	local function getChildrenSafe(inst)
+		local ok, ch = pcall(inst.GetChildren, inst);
+		return ok and ch or {};
+	end;
+
+	local function safeOptimize(inst)
+		pcall(optimizeInstance, inst);
+	end;
+
+	local function safeRestore(inst)
+		pcall(restoreInstance, inst);
+	end;
+
+	local function optimizeSubtree(root)
+		local q = getChildrenSafe(root);
+		local qi, qn = 1, #q;
+		local step = 256;
+		local n = 0;
+		while qi <= qn do
+			local inst = q[qi];
+			qi = qi + 1;
+			local ch = getChildrenSafe(inst);
+			safeOptimize(inst);
+			for i = 1, #ch do
+				qn = qn + 1;
+				q[qn] = ch[i];
+			end;
+			n = n + 1;
+			if n >= step then
+				n = 0;
+				Wait();
+			end;
+		end;
+	end;
+
+	local function handleAdded(inst)
+		if not inst then
+			return;
+		end;
+		safeOptimize(inst);
+		if inst:IsA("Attachment") or inst:IsA("BasePart") then
+			optimizeSubtree(inst);
+		end;
+	end;
+
 	local function sweepAll()
 		local root = w;
 		if not root then
@@ -24252,8 +24514,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		while qi <= qn do
 			local inst = q[qi];
 			qi = qi + 1;
-			optimizeInstance(inst);
-			local ch = inst:GetChildren();
+			local ch = getChildrenSafe(inst);
+			safeOptimize(inst);
 			for i = 1, #ch do
 				qn = qn + 1;
 				q[qn] = ch[i];
@@ -24279,8 +24541,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		while qi <= qn do
 			local inst = q[qi];
 			qi = qi + 1;
-			restoreInstance(inst);
-			local ch = inst:GetChildren();
+			local ch = getChildrenSafe(inst);
+			safeRestore(inst);
 			for i = 1, #ch do
 				qn = qn + 1;
 				q[qn] = ch[i];
@@ -24298,41 +24560,42 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		end;
 		active = true;
 		snapshotEnv();
+
+		connect(w.DescendantAdded, function(v)
+			handleAdded(v);
+		end);
+		connect(Lighting.DescendantAdded, function(v)
+			handleAdded(v);
+		end);
+
+		local camSeen = setmetatable({}, { __mode = "k" });
+		local function hookCamera(cam)
+			if not cam or camSeen[cam] then
+				return;
+			end;
+			camSeen[cam] = true;
+			for _, e in ipairs(getChildrenSafe(cam)) do
+				handleAdded(e);
+			end;
+			connect(cam.ChildAdded, function(e)
+				handleAdded(e);
+			end);
+		end;
+		connect(w:GetPropertyChangedSignal("CurrentCamera"), function()
+			hookCamera(w.CurrentCamera);
+		end);
+		hookCamera(w.CurrentCamera);
+
 		applyEnv();
+
 		if effectDestroy then
 			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
 		end;
+
 		for _, v in ipairs(Lighting:GetDescendants()) do
-			optimizeInstance(v);
+			safeOptimize(v);
 		end;
 		sweepAll();
-		Insert(cons, connect(w.DescendantAdded, function(v)
-			optimizeInstance(v);
-		end));
-		Insert(cons, connect(Lighting.DescendantAdded, function(v)
-			optimizeInstance(v);
-		end));
-		Insert(cons, connect(w:GetPropertyChangedSignal("CurrentCamera"), function()
-			local cam = w.CurrentCamera;
-			if not cam then
-				return;
-			end;
-			for _, e in ipairs(cam:GetChildren()) do
-				optimizeInstance(e);
-			end;
-			Insert(cons, connect(cam.ChildAdded, function(e)
-				optimizeInstance(e);
-			end));
-		end));
-		local cam = w.CurrentCamera;
-		if cam then
-			for _, e in ipairs(cam:GetChildren()) do
-				optimizeInstance(e);
-			end;
-			Insert(cons, connect(cam.ChildAdded, function(e)
-				optimizeInstance(e);
-			end));
-		end;
 	end;
 	local function disable()
 		if not active then
@@ -24790,6 +25053,14 @@ cmd.add({"timestamp", "epoch"}, {"timestamp (epoch)", "Shows current Unix timest
 	DoNotif("Current Unix Timestamp: "..timestamp)
 end)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
+	NAStuff = NAStuff or {}
+	local CONN_KEY = "cartornado"
+	NAlib.disconnect(CONN_KEY)
+	if NAStuff._cartornadoPart then
+		pcall(function() NAStuff._cartornadoPart:Destroy() end)
+		NAStuff._cartornadoPart = nil
+	end
+
 	local Player = Players.LocalPlayer
 
 	repeat RunService.RenderStepped:Wait() until Player.Character
@@ -24801,8 +25072,18 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 	SPart.Size = Vector3.new(1, 100, 1)
 	SPart.Transparency = 0.4
 	SPart.Parent = workspace
+	NAStuff._cartornadoPart = SPart
+	NAlib.connect(CONN_KEY, SPart.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAStuff._cartornadoPart = nil
+			Defer(function()
+				NAlib.disconnect(CONN_KEY)
+			end)
+		end
+	end))
 
-	RunService.Stepped:Connect(function()
+	NAlib.connect(CONN_KEY, RunService.Stepped:Connect(function()
+		if not SPart or not SPart.Parent then return end
 		local hum = Character and getHum()
 		if hum and Character.PrimaryPart then
 			local rayOrigin = Character.PrimaryPart.Position + Character.PrimaryPart.CFrame.LookVector * 6
@@ -24813,10 +25094,12 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 				SPart.CFrame = Character.PrimaryPart.CFrame + Character.PrimaryPart.CFrame.LookVector * 6
 			end
 		end
-	end)
+	end))
 
-	SPart.Touched:Connect(function(hit)
+	NAlib.connect(CONN_KEY, SPart.Touched:Connect(function(hit)
 		if not hit:IsA("Seat") then return end
+		NAlib.disconnect(CONN_KEY)
+		NAStuff._cartornadoPart = nil
 
 		local torso = getTorso(Character)
 		if not torso then return end
@@ -24896,7 +25179,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		spin.MaxTorque = Vector3.new(0, math.huge, 0)
 		spin.AngularVelocity = Vector3.new(0, 2000, 0)
 		spin.Parent = Character.PrimaryPart
-	end)
+	end))
 end)
 
 cmd.add({"unspam","unlag","unchatspam","unanimlag","unremotespam"},{"unspam","Stop all attempts to lag/spam"},function()
@@ -25733,6 +26016,24 @@ cmd.add({"harked","comet"},{"harked (comet)","Executes Comet which is like harke
 end)
 
 cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that automatically clicks the mouse when the mouse is on a player"}, function()
+	NAStuff = NAStuff or {}
+	local CONN_KEY = "triggerbot"
+
+	if NAlib.isConnected(CONN_KEY) then
+		NAlib.disconnect(CONN_KEY)
+		if NAStuff._triggerbotGui then
+			pcall(function() NAStuff._triggerbotGui:Destroy() end)
+			NAStuff._triggerbotGui = nil
+		end
+		DoNotif("Triggerbot disabled", 2, "TriggerBot")
+		return
+	end
+	NAlib.disconnect(CONN_KEY)
+	if NAStuff._triggerbotGui then
+		pcall(function() NAStuff._triggerbotGui:Destroy() end)
+		NAStuff._triggerbotGui = nil
+	end
+
 	local ToggleKey = Enum.KeyCode.Z
 	local FieldOfView = 10
 
@@ -25749,6 +26050,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	local On = InstanceNew("TextLabel")
 	local uicorner = InstanceNew("UICorner")
 	NAgui.NaProtectUI(GUI)
+	NAStuff._triggerbotGui = GUI
 	On.Parent = GUI
 	On.BackgroundColor3 = Color3.fromRGB(12, 4, 20)
 	On.BackgroundTransparency = 0.14
@@ -25813,14 +26115,14 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 		end
 	end
 
-	UIS.InputBegan:Connect(function(input, processed)
+	NAlib.connect(CONN_KEY, UIS.InputBegan:Connect(function(input, processed)
 		if not processed and input.KeyCode == ToggleKey then
 			Toggled = not Toggled
 			On.Text = "TriggerBot On: "..tostring(Toggled).." (Key: "..ToggleKey.Name..")"
 		end
-	end)
+	end))
 
-	RunService.RenderStepped:Connect(function()
+	NAlib.connect(CONN_KEY, RunService.RenderStepped:Connect(function()
 		CheckMode()
 		if Toggled then
 			local targetPlayer = GetClosestPlayer()
@@ -25831,7 +26133,16 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 				end
 			end
 		end
-	end)
+	end))
+
+	NAlib.connect(CONN_KEY, GUI.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAStuff._triggerbotGui = nil
+			Defer(function()
+				NAlib.disconnect(CONN_KEY)
+			end)
+		end
+	end))
 
 	On.Text = "TriggerBot On: "..tostring(Toggled).." (Key: "..ToggleKey.Name..")"
 
@@ -28184,17 +28495,24 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 end, true)
 
 cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts more stable"},function()
-	for i,v in next,getChar():GetDescendants() do
-		if v:IsA("BasePart") and v.Name~="HumanoidRootPart" then
-			RunService.Stepped:Connect(function()
-				v.Velocity=Vector3.new(-30,0,0)
-			end)
-		end
+	if NAlib.isConnected("netless") then
+		NAlib.disconnect("netless")
+		DebugNotif("Netless disabled", 2)
+		return
 	end
 
-	Wait();
+	NAlib.disconnect("netless")
+	NAlib.connect("netless", RunService.Stepped:Connect(function()
+		local c = getChar()
+		if not c then return end
+		for _, v in ipairs(c:GetDescendants()) do
+			if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+				v.Velocity = Vector3.new(-30, 0, 0)
+			end
+		end
+	end))
 
-	DebugNotif("Netless has been activated,re-run this script if you die")
+	DebugNotif("Netless enabled (run again to disable)", 3)
 end)
 
 cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
@@ -29777,7 +30095,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 					hooked[i]=hookfunction(v,function(...)
 						local args={...}
 						if _na_env.functionspy then
-							NACaller(function() 
+							NACaller(function()
 								out=""
 								out=out..(getinfo(v).name..",Args-> {")..("\n"):format()
 								for l,k in pairs(args) do
@@ -29828,7 +30146,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end
 
 		Insert(_na_env.functionspy.connections,frame.Title.InputBegan:Connect(function(input)
-			if (input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch) then 
+			if (input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch) then
 				dragToggle=true
 				dragStart=input.Position
 				startPos=frame.Position
@@ -30863,21 +31181,23 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			end
 		end
 
-		RunService.RenderStepped:Connect(function()
-			if Lzzz == true then
+		NAlib.disconnect("seizure_loop")
+		NAlib.connect("seizure_loop", RunService.RenderStepped:Connect(function()
+			if _na_env.Lzzz == true then
 				getRoot(LocalPlayer.Character).CFrame = getRoot(LocalPlayer.Character).CFrame * CFrame.new(
 					.075 * math.sin(45 * tick()),
 					.075 * math.sin(45 * tick()),
 					.075 * math.sin(45 * tick())
 				)
 			end
-		end)
+		end))
 	end)
 end)
 
 cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in real life noob"}, function()
 	SpawnCall(function()
 		if _na_env.Lzzz ~= true then return end
+		NAlib.disconnect("seizure_loop")
 
 		local Anim = InstanceNew("Animation")
 		if IsR15() then
@@ -39125,9 +39445,16 @@ function NAmanage.nuhuhprompt(v)
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
 
-			local visited = {}
+			NAmanage.CancelTokenCancel(promptTBL.scanToken)
+			local scanToken = NAmanage.NewCancelToken()
+			promptTBL.scanToken = scanToken
+
+			local visited = setmetatable({}, { __mode = "k" })
 
 			local function disableGui(gui)
+				if not promptTBL.blocking then
+					return
+				end
 				if not gui or typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then
 					return
 				end
@@ -39148,6 +39475,9 @@ function NAmanage.nuhuhprompt(v)
 			end
 
 			local function trackAndDisable(inst)
+				if not promptTBL.blocking then
+					return
+				end
 				local gui = NAmanage.trackPromptGui(inst)
 				if not gui or visited[gui] then
 					return
@@ -39170,30 +39500,20 @@ function NAmanage.nuhuhprompt(v)
 				Insert(promptTBL.conns, inner)
 			end
 
-			for _, d in ipairs(COREGUI:GetDescendants()) do
-				trackAndDisable(d)
-			end
-
-			local c = COREGUI.DescendantAdded:Connect(function(inst)
-				trackAndDisable(inst)
-			end)
+			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
 			Insert(promptTBL.conns, c)
 
-			if not promptTBL.polling then
-				promptTBL.polling = true
-				SpawnCall(function()
-					Wait(1)
-					if promptTBL.blocking then
-						for _, d in ipairs(COREGUI:GetDescendants()) do
-							trackAndDisable(d)
-						end
-					end
-					promptTBL.polling = false
-				end)
-			end
+			SpawnCall(function()
+				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
+					cancelToken = scanToken,
+					yieldEvery = 400,
+				})
+			end)
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
+			NAmanage.CancelTokenCancel(promptTBL.scanToken)
+			promptTBL.scanToken = nil
 
 			for i = #promptTBL.conns, 1, -1 do
 				local c = promptTBL.conns[i]
@@ -39406,6 +39726,7 @@ end
 function NAmanage.setNetworkPauseBlocked(disable)
 	NACaller(function()
 		local tbl = networkPauseBlock
+		local scanToken
 		local function destroyNetworkPauseGui(inst)
 			if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
 				return
@@ -39416,6 +39737,9 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			end
 		end
 		local function trackAndDisable(inst)
+			if not tbl.blocking then
+				return
+			end
 			if inst then
 				destroyNetworkPauseGui(inst)
 			end
@@ -39446,16 +39770,28 @@ function NAmanage.setNetworkPauseBlocked(disable)
 		if disable then
 			if tbl.blocking then return end
 			tbl.blocking = true
-			trackAndDisable(nil)
-			startPolling()
-			for _, d in ipairs(COREGUI:GetDescendants()) do
-				trackAndDisable(d)
-			end
+
+			NAmanage.CancelTokenCancel(tbl.scanToken)
+			scanToken = NAmanage.NewCancelToken()
+			tbl.scanToken = scanToken
+
 			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
 			Insert(tbl.conns, c)
+
+			trackAndDisable(nil)
+			startPolling()
+
+			SpawnCall(function()
+				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
+					cancelToken = scanToken,
+					yieldEvery = 400,
+				})
+			end)
 		else
 			if not tbl.blocking then return end
 			tbl.blocking = false
+			NAmanage.CancelTokenCancel(tbl.scanToken)
+			tbl.scanToken = nil
 			for i = #tbl.conns, 1, -1 do
 				local c = tbl.conns[i]
 				if c and c.Connected then c:Disconnect() end
@@ -45713,6 +46049,25 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 end, true)
 
 cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, function()
+	NAStuff = NAStuff or {}
+	local CONN_KEY = "breakcars"
+	if NAStuff._breakcarsEnabled then
+		NAStuff._breakcarsEnabled = false
+		NAlib.disconnect(CONN_KEY)
+		if NAStuff._breakcarsFolder then
+			pcall(function() NAStuff._breakcarsFolder:Destroy() end)
+		end
+		NAStuff._breakcarsFolder = nil
+		DoNotif("Breakcars disabled", 2, "BreakCars")
+		return
+	end
+	NAStuff._breakcarsEnabled = true
+	NAlib.disconnect(CONN_KEY)
+	if NAStuff._breakcarsFolder then
+		pcall(function() NAStuff._breakcarsFolder:Destroy() end)
+		NAStuff._breakcarsFolder = nil
+	end
+
 	DebugNotif("Car breaker loaded, sit on a vehicle and be the driver")
 
 	local Player = Players.LocalPlayer
@@ -45720,6 +46075,16 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	local Folder = InstanceNew("Folder")
 	Folder.Parent = workspace
+	NAStuff._breakcarsFolder = Folder
+	NAlib.connect(CONN_KEY, Folder.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAStuff._breakcarsEnabled = false
+			NAStuff._breakcarsFolder = nil
+			Defer(function()
+				NAlib.disconnect(CONN_KEY)
+			end)
+		end
+	end))
 
 	local Part = InstanceNew("Part")
 	Part.Anchored = true
@@ -45734,15 +46099,15 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	local UpdatedPosition = Mouse.Hit + Vector3.new(0, 5, 0)
 
 	SpawnCall(function()
-		while Wait() do
+		while NAStuff._breakcarsEnabled and Wait() do
 			for _, player in ipairs(Players:GetPlayers()) do
 				if player ~= Player then
-					player.MaximumSimulationRadius = 0
-					opt.hiddenprop(player, "SimulationRadius", 0)
+					pcall(function() player.MaximumSimulationRadius = 0 end)
+					pcall(function() if opt and opt.hiddenprop then opt.hiddenprop(player, "SimulationRadius", 0) end end)
 				end
 			end
-			Player.MaximumSimulationRadius = math.pow(math.huge, math.huge)
-			setsimulationradius(math.huge)
+			pcall(function() Player.MaximumSimulationRadius = math.pow(math.huge, math.huge) end)
+			pcall(function() if setsimulationradius then setsimulationradius(math.huge) end end)
 		end
 	end)
 
@@ -45787,18 +46152,25 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		applyForceToPart(descendant)
 	end
 
-	workspace.DescendantAdded:Connect(applyForceToPart)
+	NAlib.connect(CONN_KEY, workspace.DescendantAdded:Connect(applyForceToPart))
 
-	UserInputService.InputBegan:Connect(function(input, isChatting)
+	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input, isChatting)
 		if input.KeyCode == Enum.KeyCode.E and not isChatting then
 			UpdatedPosition = Mouse.Hit + Vector3.new(0, 5, 0)
 		end
-	end)
+	end))
 
 	SpawnCall(function()
-		while Wait() do
-			Attachment1.WorldCFrame = UpdatedPosition
+		while NAStuff._breakcarsEnabled and Wait() do
+			pcall(function()
+				Attachment1.WorldCFrame = UpdatedPosition
+			end)
 		end
+		pcall(function()
+			if Folder and Folder.Parent then
+				Folder:Destroy()
+			end
+		end)
 	end)
 end)
 
@@ -50539,7 +50911,7 @@ opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 			coreGuiProtection[v]=rPlayer.Name
 		end)
 		coreGuiProtection[NAStuff.NASCREENGUI]=rPlayer.Name
-	
+
 		local meta=getrawmetatable(game)
 		local tostr=meta.__tostring
 		setreadonly(meta,false)
@@ -51055,8 +51427,15 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	tween:Play()
 	return tween
 end
+
+NAgui._resizeCleanup = NAgui._resizeCleanup or setmetatable({}, {__mode = "k"})
 NAgui.resizeable = function(ui, min, max)
 	if not ui or not ui:IsA("GuiObject") then return function() end end
+	local prevCleanup = NAgui._resizeCleanup[ui]
+	if prevCleanup then
+		pcall(prevCleanup)
+		NAgui._resizeCleanup[ui] = nil
+	end
 	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
 	max = max or Vector2.new(5000, 5000)
 
@@ -51199,8 +51578,9 @@ NAgui.resizeable = function(ui, min, max)
 		if not ok then warn("Resize update failed:", err) end
 	end
 
+	local uisChangedConn, uisEndedConn
 	pcall(function()
-		UserInputService.InputChanged:Connect(function(input)
+		uisChangedConn = UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
@@ -51210,7 +51590,7 @@ NAgui.resizeable = function(ui, min, max)
 	end)
 
 	pcall(function()
-		UserInputService.InputEnded:Connect(function(input)
+		uisEndedConn = UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
 				if not dragging then return end
 				if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -51279,14 +51659,36 @@ NAgui.resizeable = function(ui, min, max)
 		end
 	end
 
-	return function()
+	local cleaned = false
+	local ancestryConn
+	pcall(function()
+		ancestryConn = ui.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				pcall(function()
+					if NAgui._resizeCleanup[ui] then
+						NAgui._resizeCleanup[ui]()
+					end
+				end)
+			end
+		end)
+	end)
+
+	local function cleanup()
+		if cleaned then return end
+		cleaned = true
+		NAgui._resizeCleanup[ui] = nil
 		for _, conn in ipairs(overlayConns) do
 			pcall(function() conn:Disconnect() end)
 		end
+		pcall(function() if ancestryConn then ancestryConn:Disconnect() end end)
+		pcall(function() if uisChangedConn then uisChangedConn:Disconnect() end end)
+		pcall(function() if uisEndedConn then uisEndedConn:Disconnect() end end)
 		pcall(function() if dragEndedConn then dragEndedConn:Disconnect() end end)
 		pcall(restoreCursor)
 		pcall(function() rgui:Destroy() end)
 	end
+	NAgui._resizeCleanup[ui] = cleanup
+	return cleanup
 end
 NAmanage.UpdateWaypointList=function()
 	local list = NAUIMANAGER.WaypointList
@@ -52432,6 +52834,8 @@ NAmanage.StartUIAutoSyncLoop()
 
 NAgui.addKeybind = function(label, defaultKey, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	local connKey = "NAgui_keybind:"..tostring(label)
+	NAlib.disconnect(connKey)
 	local keybind = templates.Keybind:Clone()
 	keybind.Title.Text = label
 	NAmanage.SetSearch.tag(keybind, label)
@@ -52443,19 +52847,19 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 
 	local capturing = false
 
-	keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
+	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
 		capturing = true
 		keybind.KeybindFrame.KeybindBox.Text = ""
-	end)
+	end))
 
-	keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
+	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
 		capturing = false
 		if keybind.KeybindFrame.KeybindBox.Text == "" then
 			keybind.KeybindFrame.KeybindBox.Text = defaultKey
 		end
-	end)
+	end))
 
-	UserInputService.InputBegan:Connect(function(input, processed)
+	NAlib.connect(connKey, UserInputService.InputBegan:Connect(function(input, processed)
 		if capturing and input.KeyCode ~= Enum.KeyCode.Unknown then
 			local keyName = tostring(input.KeyCode):split(".")[3]
 			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
@@ -52467,9 +52871,9 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 				pcall(callback)
 			end
 		end
-	end)
+	end))
 
-	keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
+	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
 		keybind.KeybindFrame:TweenSize(
 			UDim2.new(0, keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30),
 			Enum.EasingDirection.Out,
@@ -52477,11 +52881,19 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			0.2,
 			true
 		)
-	end)
+	end))
+
+	NAlib.connect(connKey, keybind:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not keybind.Parent then
+			NAlib.disconnect(connKey)
+		end
+	end))
 end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	local connKey = "NAgui_slider:"..tostring(label)
+	NAlib.disconnect(connKey)
 	local slider = templates.Slider:Clone()
 	slider.Title.Text = label
 	NAmanage.SetSearch.tag(slider, label)
@@ -52530,23 +52942,34 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		applyValue(value)
 	end
 
-	interact.InputBegan:Connect(function(input)
+	NAlib.connect(connKey, interact.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
+			pcall(function()
+				updateSliderValueFromPos(input.Position.X)
+			end)
 		end
-	end)
+	end))
 
-	interact.InputEnded:Connect(function(input)
+	NAlib.connect(connKey, interact.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
-	end)
+	end))
 
-	RunService.RenderStepped:Connect(function()
-		if dragging then
-			updateSliderValueFromPos(UserInputService:GetMouseLocation().X)
+	NAlib.connect(connKey, UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			pcall(function()
+				updateSliderValueFromPos(input.Position.X)
+			end)
 		end
-	end)
+	end))
+	NAlib.connect(connKey, UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end))
 
 	applyValue(defaultValue, { fire = false })
 
@@ -52560,11 +52983,14 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	}
 	NAgui._sliderRegistry[label] = entry
 
-	slider:GetPropertyChangedSignal("Parent"):Connect(function()
+	NAlib.connect(connKey, slider:GetPropertyChangedSignal("Parent"):Connect(function()
 		if not slider.Parent and NAgui._sliderRegistry[label] == entry then
 			NAgui._sliderRegistry[label] = nil
+			Defer(function()
+				NAlib.disconnect(connKey)
+			end)
 		end
-	end)
+	end))
 
 	return slider
 end
@@ -54329,7 +54755,8 @@ end
 		cmdInput:CaptureFocus()
 	end
 end)]]
-UserInputService.InputBegan:Connect(function(i, g)
+NAlib.disconnect("cmdbar_hotkeys")
+NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, g)
 	if g then return end
 	local c = tostring(opt.prefix):sub(1,1)
 	local k
@@ -54353,7 +54780,7 @@ UserInputService.InputBegan:Connect(function(i, g)
 			end
 		end
 	end
-end)
+end))
 
 --[[ CLOSE THE COMMAND BAR ]]--
 NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
@@ -54410,7 +54837,7 @@ if NAUIMANAGER.filterBox then
 	NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList)
 end
 
-UserInputService.InputBegan:Connect(function(input)
+NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Tab
 		and UserInputService:GetFocusedTextBox() == NAUIMANAGER.cmdInput then
 
@@ -54424,7 +54851,7 @@ UserInputService.InputBegan:Connect(function(input)
 			end)
 		end
 	end
-end)
+end))
 
 NAgui.barDeselect(0)
 NAUIMANAGER.cmdBar.Visible=true
@@ -55474,7 +55901,31 @@ NAmanage.CommandKeybindsUIInit=function()
 
 	NAmanage.registerElementForCurrentTab(root)
 	NAgui.RegisterStrokesFrom(root)
-	SpawnCall(function() RunService.RenderStepped:Connect(function() if root.Parent.ClassName:lower()=="scrollingframe" then updateCanvasSize(root.Parent) end updateCanvasSize(listFrame) end) end)
+	do
+		local canvasKey = "CommandKeybinds_canvas"
+		NAlib.disconnect(canvasKey)
+		local function refreshCanvas()
+			if not root or not root.Parent then return end
+			local parent = root.Parent
+			pcall(function()
+				if parent and parent:IsA("ScrollingFrame") then
+					updateCanvasSize(parent)
+				end
+			end)
+			pcall(function()
+				updateCanvasSize(listFrame)
+			end)
+		end
+		refreshCanvas()
+		NAlib.connect(canvasKey, layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas))
+		NAlib.connect(canvasKey, listFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshCanvas))
+		NAlib.connect(canvasKey, root:GetPropertyChangedSignal("Parent"):Connect(refreshCanvas))
+		NAlib.connect(canvasKey, root.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(function() NAlib.disconnect(canvasKey) end)
+			end
+		end))
+	end
 
 	return true
 end
@@ -56126,6 +56577,14 @@ function bindToChat(plr, msg)
 end
 
 NAmanage.bindToDevConsole = function()
+	NAStuff = NAStuff or {}
+	local CONN_KEY = "dev_console"
+	if NAStuff._devConsoleCleanup then
+		pcall(NAStuff._devConsoleCleanup)
+		NAStuff._devConsoleCleanup = nil
+	end
+	NAlib.disconnect(CONN_KEY)
+
 	if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleExample) then
 		return;
 	end;
@@ -56237,7 +56696,7 @@ NAmanage.bindToDevConsole = function()
 			end;
 		end);
 	end;
-	(NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text")):Connect(function()
+	NAlib.connect(CONN_KEY, (NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text")):Connect(function()
 		local query = NAUIMANAGER.NAfilter.Text:lower();
 		for i = 1, #activeLogs do
 			local lbl = activeLogs[i];
@@ -56247,7 +56706,7 @@ NAmanage.bindToDevConsole = function()
 				lbl.Visible = toggles[tag] and matches;
 			end;
 		end;
-	end);
+	end));
 	local function acquireLabel()
 		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
 			return nil;
@@ -56381,7 +56840,7 @@ NAmanage.bindToDevConsole = function()
 			end;
 		end;
 	end;
-	RunService.RenderStepped:Connect(function()
+	NAlib.connect(CONN_KEY, RunService.RenderStepped:Connect(function()
 		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
 			return;
 		end;
@@ -56420,24 +56879,34 @@ NAmanage.bindToDevConsole = function()
 				processed += 1;
 			end;
 		end;
-	end);
+	end));
 	if logService then
-		logService.MessageOut:Connect(function(msg, msgTYPE)
+		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE)
 			enqueueMessage(msg, msgTYPE);
-		end);
+		end));
 	end;
 	reflowConsole();
 	pcall(function()
 		if NAUIMANAGER.NAconsoleFrame then
-			(NAUIMANAGER.NAconsoleFrame:GetPropertyChangedSignal("AbsoluteSize")):Connect(reflowConsole);
+			NAlib.connect(CONN_KEY, (NAUIMANAGER.NAconsoleFrame:GetPropertyChangedSignal("AbsoluteSize")):Connect(reflowConsole));
 		end;
 	end);
 	pcall(function()
-		(NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+		NAlib.connect(CONN_KEY, (NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
 			refreshLogHeights();
 			updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale);
-		end);
+		end));
 	end);
+
+	local function cleanup()
+		NAlib.disconnect(CONN_KEY)
+		pcall(function()
+			if FilterButtons then
+				FilterButtons:Destroy()
+			end
+		end)
+	end
+	NAStuff._devConsoleCleanup = cleanup
 end;
 
 --[[function NAUISCALEUPD()
@@ -56658,9 +57127,10 @@ for _, plr in pairs(Players:GetPlayers()) do
 	end
 end
 
-Players.PlayerAdded:Connect(setupPlayer)
+NAlib.disconnect("playerLifecycle")
+NAlib.connect("playerLifecycle", Players.PlayerAdded:Connect(setupPlayer))
 
-Players.PlayerRemoving:Connect(function(plr)
+NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
 	NAmanage.ExecuteBindings("OnLeave", plr)
 	NAmanage.ESP_Disconnect(plr)
 	if NAmanage.jlCfg.LeaveLog then
@@ -56672,7 +57142,7 @@ Players.PlayerRemoving:Connect(function(plr)
 	if NAmanage.WebhookJoinLeave then
 		NAmanage.WebhookJoinLeave(plr, "leave")
 	end
-end)
+end))
 
 SpawnCall(function()
 	local HUI = NAlib.huiGrabber();
@@ -59144,35 +59614,30 @@ originalIO.AssetsPreloadNA = function()
 
 	for i = 1, #roots do
 		local root = roots[i]
-		local ok, descendants = pcall(function()
-			return root:GetDescendants()
-		end)
-		if ok and descendants then
-			for _, inst in ipairs(descendants) do
-				if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
-					addResource(inst)
-				end
-				local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
-				if props then
-					for j = 1, #props do
-						local prop = props[j]
-						local okProp, value = pcall(function()
-							return inst[prop]
-						end)
-						if okProp and value then
-							addResource(value)
+		if typeof(root) == "Instance" then
+			pcall(function()
+				NAmanage.ForEachDescendantYield(root, function(inst)
+					if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
+						addResource(inst)
+					end
+					local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
+					if props then
+						for j = 1, #props do
+							local prop = props[j]
+							local okProp, value = pcall(function()
+								return inst[prop]
+							end)
+							if okProp and value then
+								addResource(value)
+							end
 						end
 					end
-				end
-				scanned += 1
-				if scanned % scanChunk == 0 then
-					if scanYield > 0 then
-						Wait(scanYield)
-					else
-						Wait()
-					end
-				end
-			end
+					scanned += 1
+				end, {
+					yieldEvery = scanChunk,
+					delayTime = (scanYield > 0 and scanYield or nil),
+				})
+			end)
 		end
 		if scanYield > 0 then
 			Wait(scanYield)
@@ -64190,7 +64655,7 @@ pcall(function()
 end)
 
 --[[print(
-	
+
 ███╗░░██╗░█████╗░███╗░░░███╗███████╗██╗░░░░░███████╗░██████╗░██████╗
 ████╗░██║██╔══██╗████╗░████║██╔════╝██║░░░░░██╔════╝██╔════╝██╔════╝
 ██╔██╗██║███████║██╔████╔██║█████╗░░██║░░░░░█████╗░░╚█████╗░╚█████╗░
