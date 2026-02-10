@@ -1,3 +1,4 @@
+_naNotif_env = getgenv and getgenv() or _G or {};
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
 		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref)
@@ -15,10 +16,8 @@ local NA_SRV = setmetatable({}, {
 local function S(name)
 	return NA_SRV[name];
 end;
-local tw, rs, uis, plrs, cg, hs, ts, lg = S("TweenService"), S("RunService"), S("UserInputService"), S("Players"), S("CoreGui"), S("HttpService"), S("TextService"), S("Lighting");
+local tw, rs, uis, plrs, cg, hs, ts = S("TweenService"), S("RunService"), S("UserInputService"), S("Players"), S("CoreGui"), S("HttpService"), S("TextService");
 local function pick()
-	local cg = S("CoreGui");
-	local lp = (S("Players")).LocalPlayer;
 	if gethui then
 		return gethui();
 	elseif cg and cg:FindFirstChild("RobloxGui") then
@@ -26,29 +25,21 @@ local function pick()
 	elseif cg then
 		return cg;
 	else
-		local lp2 = (S("Players")).LocalPlayer;
-		if lp2 and lp2:FindFirstChildWhichIsA("PlayerGui") then
-			return lp2:FindFirstChildWhichIsA("PlayerGui");
+		local lp = plrs.LocalPlayer;
+		if lp and lp:FindFirstChildWhichIsA("PlayerGui") then
+			return lp:FindFirstChildWhichIsA("PlayerGui");
 		end;
 	end;
 	return nil;
 end;
 local function findGui()
-	local a;
-	pcall(function()
-		if gethui then
-			a = gethui();
-		end;
-	end);
-	local b = cg:FindFirstChild("RobloxGui");
-	local c = cg;
-	local d = plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChildWhichIsA("PlayerGui");
-	for _, p in ipairs({
-		a,
-		b,
-		c,
-		d
-	}) do
+	local targets = {
+		gethui and pcall(gethui) and gethui() or nil,
+		cg:FindFirstChild("RobloxGui"),
+		cg,
+		plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	};
+	for _, p in ipairs(targets) do
 		if typeof(p) == "Instance" then
 			local g = p:FindFirstChild("EnhancedNotif");
 			if g then
@@ -58,26 +49,22 @@ local function findGui()
 	end;
 end;
 local TH = {
-	Txt = Color3.fromRGB(235, 235, 235),
+	Txt = Color3.fromRGB(250, 250, 250),
 	Ttl = Color3.fromRGB(255, 255, 255),
-	Mut = Color3.fromRGB(170, 170, 170),
-	Bg0 = Color3.fromRGB(10, 10, 10),
-	Bg1 = Color3.fromRGB(18, 18, 18),
-	Bg2 = Color3.fromRGB(26, 26, 26),
-	St0 = Color3.fromRGB(255, 255, 255),
-	St1 = Color3.fromRGB(85, 85, 85),
-	Btn0 = Color3.fromRGB(22, 22, 22),
-	Btn1 = Color3.fromRGB(32, 32, 32),
-	Btn2 = Color3.fromRGB(16, 16, 16),
-	Bad0 = Color3.fromRGB(235, 70, 70),
-	Bad1 = Color3.fromRGB(255, 95, 95),
-	Ok0 = Color3.fromRGB(0, 180, 110),
-	Ok1 = Color3.fromRGB(0, 210, 130),
-	Line = Color3.fromRGB(70, 70, 70),
-	Prog = Color3.fromRGB(255, 255, 255),
-	Ph = Color3.fromRGB(160, 160, 160)
+	Mut = Color3.fromRGB(150, 150, 150),
+	Bg = Color3.fromRGB(12, 12, 12),
+	Bg2 = Color3.fromRGB(18, 18, 18),
+	Border = Color3.fromRGB(255, 255, 255),
+	Btn = Color3.fromRGB(25, 25, 25),
+	BtnHover = Color3.fromRGB(35, 35, 35),
+	BtnActive = Color3.fromRGB(15, 15, 15),
+	BtnSel = Color3.fromRGB(255, 255, 255),
+	Close = Color3.fromRGB(220, 55, 55),
+	CloseHover = Color3.fromRGB(255, 70, 70),
+	Progress = Color3.fromRGB(255, 255, 255),
+	Shadow = Color3.fromRGB(0, 0, 0)
 };
-local PAD, GAP = 14, 12;
+local PAD, GAP = 18, 16;
 local FPATH = "enhanced_notif_fonts.json";
 local DPATH = "enhanced_notif_docks.json";
 local FONTS = {};
@@ -93,8 +80,8 @@ do
 	end);
 end;
 local ex, exPar = findGui();
-if _G.EnhancedNotifs and ex then
-	return _G.EnhancedNotifs;
+if _naNotif_env.EnhancedNotifs and ex then
+	return _naNotif_env.EnhancedNotifs;
 end;
 local root = exPar or pick();
 local gui = ex or Instance.new("ScreenGui");
@@ -125,9 +112,9 @@ local ACT = {
 	})
 };
 local CURF = {
-	Notify = Enum.Font.Gotham,
-	Window = Enum.Font.Gotham,
-	Popup = Enum.Font.Gotham
+	Notify = Enum.Font.GothamBold,
+	Window = Enum.Font.GothamBold,
+	Popup = Enum.Font.GothamBold
 };
 local function canfs()
 	return (isfile and readfile and writefile) ~= nil;
@@ -205,11 +192,13 @@ local function saveDocks()
 		writefile(DPATH, hs:JSONEncode(CURD));
 	end);
 end;
+local isMobile = uis.TouchEnabled and (not uis.KeyboardEnabled);
+local baseSize = isMobile and 340 or 320;
 local function nW()
-	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.28, 280, 420));
+	return math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.85 or 0.28), baseSize, isMobile and 420 or 400));
 end;
 local function wW()
-	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.38, 360, 600));
+	return math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.88 or 0.38), isMobile and 380 or 360, isMobile and 520 or 600));
 end;
 local stacks = {};
 local function mkStack(key)
@@ -222,42 +211,42 @@ local function mkStack(key)
 	l.SortOrder = Enum.SortOrder.LayoutOrder;
 	if key == "bottomRight" then
 		f.AnchorPoint = Vector2.new(1, 1);
-		f.Position = UDim2.new(1, -24, 1, -24);
+		f.Position = UDim2.new(1, isMobile and (-16) or (-24), 1, isMobile and (-16) or (-24));
 		f.Size = UDim2.new(0, nW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Right;
 		l.VerticalAlignment = Enum.VerticalAlignment.Bottom;
 	elseif key == "bottomLeft" then
 		f.AnchorPoint = Vector2.new(0, 1);
-		f.Position = UDim2.new(0, 24, 1, -24);
+		f.Position = UDim2.new(0, isMobile and 16 or 24, 1, isMobile and (-16) or (-24));
 		f.Size = UDim2.new(0, nW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Left;
 		l.VerticalAlignment = Enum.VerticalAlignment.Bottom;
 	elseif key == "topRight" then
 		f.AnchorPoint = Vector2.new(1, 0);
-		f.Position = UDim2.new(1, -24, 0, 24);
+		f.Position = UDim2.new(1, isMobile and (-16) or (-24), 0, isMobile and 16 or 24);
 		f.Size = UDim2.new(0, nW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Right;
 		l.VerticalAlignment = Enum.VerticalAlignment.Top;
 	elseif key == "topLeft" then
 		f.AnchorPoint = Vector2.new(0, 0);
-		f.Position = UDim2.new(0, 24, 0, 24);
+		f.Position = UDim2.new(0, isMobile and 16 or 24, 0, isMobile and 16 or 24);
 		f.Size = UDim2.new(0, nW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Left;
 		l.VerticalAlignment = Enum.VerticalAlignment.Top;
 	elseif key == "top" then
 		f.AnchorPoint = Vector2.new(0.5, 0);
-		f.Position = UDim2.new(0.5, 0, 0, 24);
+		f.Position = UDim2.new(0.5, 0, 0, isMobile and 16 or 24);
 		f.Size = UDim2.new(0, wW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Center;
 		l.VerticalAlignment = Enum.VerticalAlignment.Top;
 	elseif key == "bottom" then
 		f.AnchorPoint = Vector2.new(0.5, 1);
-		f.Position = UDim2.new(0.5, 0, 1, -24);
+		f.Position = UDim2.new(0.5, 0, 1, isMobile and (-16) or (-24));
 		f.Size = UDim2.new(0, wW(), 1, 0);
 		l.FillDirection = Enum.FillDirection.Vertical;
 		l.HorizontalAlignment = Enum.HorizontalAlignment.Center;
@@ -347,74 +336,8 @@ local function cntH(c)
 	local pad = c:FindFirstChildOfClass("UIPadding");
 	local top = pad and pad.PaddingTop.Offset or 0;
 	local bot = pad and pad.PaddingBottom.Offset or 0;
-	local last = -1;
-	for _ = 1, 30 do
-		rs.Heartbeat:Wait();
-		local h = (lay and lay.AbsoluteContentSize.Y or 0) + top + bot;
-		if math.abs(h - last) < 1 then
-			return h;
-		end;
-		last = h;
-	end;
-	return math.max(0, last);
-end;
-local function setAAll(root, a)
-	for _, d in ipairs(root:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			d.TextTransparency = a;
-		end;
-		if d:IsA("ImageLabel") then
-			d.ImageTransparency = a;
-		end;
-	end;
-end;
-local function stgInAll(root, dur)
-	local t = TweenInfo.new(dur or 0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out);
-	for _, d in ipairs(root:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			d.TextTransparency = 1;
-			(tw:Create(d, t, {
-				TextTransparency = 0
-			})):Play();
-		elseif d:IsA("ImageLabel") then
-			d.ImageTransparency = 1;
-			(tw:Create(d, t, {
-				ImageTransparency = 0
-			})):Play();
-		end;
-	end;
-end;
-local function dirFrom(str)
-	str = string.lower(tostring(str or ""));
-	local d = {
-		dx = 0,
-		dy = 14,
-		rot = -2.5
-	};
-	if str == "top" or str == "up" then
-		d.dy = -14;
-		d.rot = 2.5;
-	elseif str == "bottom" or str == "down" then
-		d.dy = 14;
-		d.rot = -2.5;
-	elseif str == "topright" or str == "top right" then
-		d.dx = 18;
-		d.dy = -18;
-		d.rot = 2.5;
-	elseif str == "topleft" or str == "top left" then
-		d.dx = -18;
-		d.dy = -18;
-		d.rot = 2.5;
-	elseif str == "bottomright" or str == "bottom right" then
-		d.dx = 18;
-		d.dy = 18;
-		d.rot = -2.5;
-	elseif str == "bottomleft" or str == "bottom left" then
-		d.dx = -18;
-		d.dy = 18;
-		d.rot = -2.5;
-	end;
-	return d;
+	local h = (lay and lay.AbsoluteContentSize.Y or 0) + top + bot;
+	return math.max(0, h);
 end;
 local ST = setmetatable({}, {
 	__mode = "k"
@@ -422,16 +345,47 @@ local ST = setmetatable({}, {
 local function ctx(x)
 	local s = ST[x];
 	if not s then
-		s = {};
+		s = {
+			connections = {},
+			tweens = {}
+		};
 		ST[x] = s;
 	end;
 	return s;
+end;
+local function addConnection(obj, conn)
+	local s = ctx(obj);
+	table.insert(s.connections, conn);
+end;
+local function addTween(obj, tween)
+	local s = ctx(obj);
+	table.insert(s.tweens, tween);
+end;
+local function cleanup(obj)
+	local s = ctx(obj);
+	if s.connections then
+		for _, conn in ipairs(s.connections) do
+			if conn and conn.Connected then
+				conn:Disconnect();
+			end;
+		end;
+		s.connections = {};
+	end;
+	if s.tweens then
+		for _, tween in ipairs(s.tweens) do
+			if tween then
+				tween:Cancel();
+			end;
+		end;
+		s.tweens = {};
+	end;
+	ST[obj] = nil;
 end;
 local function drag(frame, handle)
 	local g = false;
 	local sp, su;
 	local mv = false;
-	handle.InputBegan:Connect(function(i)
+	local c1 = handle.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			g = true;
 			sp = i.Position;
@@ -439,12 +393,12 @@ local function drag(frame, handle)
 			mv = false;
 		end;
 	end);
-	handle.InputEnded:Connect(function(i)
+	local c2 = handle.InputEnded:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			g = false;
 		end;
 	end);
-	uis.InputChanged:Connect(function(i)
+	local c3 = uis.InputChanged:Connect(function(i)
 		if g and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
 			local d = i.Position - sp;
 			if not mv and (math.abs(d.X) > 0 or math.abs(d.Y) > 0) then
@@ -454,6 +408,9 @@ local function drag(frame, handle)
 			frame.Position = UDim2.new(su.X.Scale, su.X.Offset + d.X, su.Y.Scale, su.Y.Offset + d.Y);
 		end;
 	end);
+	addConnection(handle, c1);
+	addConnection(handle, c2);
+	addConnection(handle, c3);
 end;
 local function centerPopupRoot(f, force)
 	if not f then
@@ -477,101 +434,105 @@ local function trackPopupCenter(root2, card)
 		centerPopupRoot(root2, force);
 	end;
 	ref(true);
-	(card:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+	local c1 = (card:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
 		ref();
 	end);
+	addConnection(card, c1);
 	local cam = workspace.CurrentCamera;
 	if cam then
-		(cam:GetPropertyChangedSignal("ViewportSize")):Connect(function()
+		local c2 = (cam:GetPropertyChangedSignal("ViewportSize")):Connect(function()
 			ref();
 		end);
+		addConnection(card, c2);
 	end;
 end;
 local function mkIcn(par, txt, z, font, stl)
+	local btnSize = isMobile and 40 or 34;
 	local b = Instance.new("TextButton");
 	b.AutoButtonColor = false;
 	b.Text = "";
-	b.BackgroundColor3 = TH.Btn0;
-	b.BackgroundTransparency = 0.06;
-	b.Size = UDim2.fromOffset(28, 28);
+	b.BackgroundColor3 = TH.Btn;
+	b.BackgroundTransparency = 1;
+	b.Size = UDim2.fromOffset(btnSize, btnSize);
 	b.ZIndex = z;
 	b.ClipsDescendants = true;
 	b.Parent = par;
 	local cr = Instance.new("UICorner", b);
-	cr.CornerRadius = UDim.new(0, 999);
+	cr.CornerRadius = UDim.new(0, 6);
 	local st = Instance.new("UIStroke", b);
-	st.Color = TH.St0;
-	st.Transparency = 0.78;
+	st.Color = TH.Border;
+	st.Transparency = 0.92;
 	st.Thickness = 1;
 	local lb = Instance.new("TextLabel");
 	lb.BackgroundTransparency = 1;
 	lb.Size = UDim2.fromScale(1, 1);
 	lb.ZIndex = z + 1;
-	lb.Font = font or Enum.Font.Gotham;
+	lb.Font = font or Enum.Font.GothamBold;
 	lb.Text = txt or "";
 	lb.TextScaled = true;
 	lb.TextColor3 = TH.Txt;
 	lb.Parent = b;
 	local cst = Instance.new("UITextSizeConstraint", lb);
-	cst.MinTextSize = 10;
-	cst.MaxTextSize = 18;
+	cst.MinTextSize = isMobile and 14 or 12;
+	cst.MaxTextSize = isMobile and 20 or 18;
 	b:SetAttribute("_stl", stl or "");
 	b:SetAttribute("sel", false);
-	local function col()
-		local s = b:GetAttribute("sel") and true or false;
+	b:SetAttribute("hov", false);
+	local function updateColors()
+		local s = b:GetAttribute("sel");
 		local t = b:GetAttribute("_stl") or "";
-		if s then
-			return TH.Ok1, 0.08;
-		end;
+		local h = b:GetAttribute("hov");
 		if t == "bad" then
-			return TH.Bad0, 0.08;
-		end;
-		return TH.Btn0, 0.06;
-	end;
-	local function hov(on)
-		if b:GetAttribute("sel") then
-			return;
-		end;
-		local t = b:GetAttribute("_stl") or "";
-		if t == "bad" then
-			(tw:Create(b, TweenInfo.new(0.12), {
-				BackgroundColor3 = on and TH.Bad1 or TH.Bad0
+			local targetBg = h and TH.CloseHover or TH.Close;
+			local targetTrans = (h or s) and 0 or 1;
+			local targetBorder = h and 0.85 or 0.92;
+			(tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = targetBg,
+				BackgroundTransparency = targetTrans
+			})):Play();
+			(tw:Create(st, TweenInfo.new(0.12), {
+				Transparency = targetBorder
 			})):Play();
 		else
-			(tw:Create(b, TweenInfo.new(0.12), {
-				BackgroundColor3 = on and TH.Btn1 or TH.Btn0
+			local targetBg = s and TH.BtnSel or (h and TH.BtnHover or TH.Btn);
+			local targetTrans = s and 0 or (h and 0 or 1);
+			local targetTxt = s and TH.Bg or TH.Txt;
+			local targetBorder = h and 0.85 or 0.92;
+			(tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = targetBg,
+				BackgroundTransparency = targetTrans
+			})):Play();
+			(tw:Create(lb, TweenInfo.new(0.12), {
+				TextColor3 = targetTxt
+			})):Play();
+			(tw:Create(st, TweenInfo.new(0.12), {
+				Transparency = targetBorder
 			})):Play();
 		end;
 	end;
-	b.MouseEnter:Connect(function()
-		hov(true);
+	local c1 = b.MouseEnter:Connect(function()
+		b:SetAttribute("hov", true);
+		updateColors();
 	end);
-	b.MouseLeave:Connect(function()
-		hov(false);
+	local c2 = b.MouseLeave:Connect(function()
+		b:SetAttribute("hov", false);
+		updateColors();
 	end);
-	b.MouseButton1Down:Connect(function()
-		if b:GetAttribute("sel") then
-			return;
-		end;
-		local t = b:GetAttribute("_stl") or "";
+	local c3 = b.MouseButton1Down:Connect(function()
 		(tw:Create(b, TweenInfo.new(0.08), {
-			BackgroundColor3 = t == "bad" and TH.Bad0 or TH.Btn2
+			BackgroundColor3 = b:GetAttribute("_stl") == "bad" and TH.Close or TH.BtnActive
 		})):Play();
 	end);
-	b.MouseButton1Up:Connect(function()
-		local bc, bt = col();
-		(tw:Create(b, TweenInfo.new(0.1), {
-			BackgroundColor3 = bc,
-			BackgroundTransparency = bt
-		})):Play();
+	local c4 = b.MouseButton1Up:Connect(function()
+		updateColors();
 	end);
+	addConnection(b, c1);
+	addConnection(b, c2);
+	addConnection(b, c3);
+	addConnection(b, c4);
 	local function setSel(on)
-		b:SetAttribute("sel", on and true or false);
-		local bc, bt = col();
-		(tw:Create(b, TweenInfo.new(0.1), {
-			BackgroundColor3 = bc,
-			BackgroundTransparency = bt
-		})):Play();
+		b:SetAttribute("sel", on);
+		updateColors();
 	end;
 	return b, setSel;
 end;
@@ -581,34 +542,50 @@ local function mkMenuBtn(par, txt, z, font)
 	b.Text = txt or "";
 	b.TextScaled = true;
 	b.TextWrapped = true;
-	b.Font = font or Enum.Font.Gotham;
+	b.Font = font or Enum.Font.GothamBold;
 	b.TextColor3 = TH.Txt;
 	b.RichText = true;
-	b.BackgroundColor3 = TH.Btn0;
-	b.BackgroundTransparency = 0.08;
-	b.Size = UDim2.new(1, 0, 0, 28);
+	b.BackgroundColor3 = TH.Btn;
+	b.BackgroundTransparency = 1;
+	b.Size = UDim2.new(1, 0, 0, isMobile and 44 or 36);
 	b.ZIndex = z;
 	b.ClipsDescendants = true;
 	local c = Instance.new("UICorner", b);
-	c.CornerRadius = UDim.new(0, 12);
+	c.CornerRadius = UDim.new(0, 6);
 	local st = Instance.new("UIStroke", b);
-	st.Color = TH.St0;
-	st.Transparency = 0.84;
+	st.Color = TH.Border;
+	st.Transparency = 0.92;
 	st.Thickness = 1;
 	local tsz = Instance.new("UITextSizeConstraint", b);
-	tsz.MinTextSize = 11;
-	tsz.MaxTextSize = 16;
+	tsz.MinTextSize = isMobile and 14 or 12;
+	tsz.MaxTextSize = isMobile and 16 or 15;
 	b.Parent = par;
-	b.MouseEnter:Connect(function()
+	local c1 = b.MouseEnter:Connect(function()
 		(tw:Create(b, TweenInfo.new(0.12), {
-			BackgroundColor3 = TH.Btn1
+			BackgroundTransparency = 0
+		})):Play();
+		(tw:Create(b, TweenInfo.new(0.12), {
+			BackgroundColor3 = TH.BtnHover
+		})):Play();
+		(tw:Create(st, TweenInfo.new(0.12), {
+			Transparency = 0.85
 		})):Play();
 	end);
-	b.MouseLeave:Connect(function()
-		(tw:Create(b, TweenInfo.new(0.12), {
-			BackgroundColor3 = TH.Btn0
-		})):Play();
+	local c2 = b.MouseLeave:Connect(function()
+		if not b:GetAttribute("sel") then
+			(tw:Create(b, TweenInfo.new(0.12), {
+				BackgroundTransparency = 1
+			})):Play();
+			(tw:Create(b, TweenInfo.new(0.12), {
+				BackgroundColor3 = TH.Btn
+			})):Play();
+			(tw:Create(st, TweenInfo.new(0.12), {
+				Transparency = 0.92
+			})):Play();
+		end;
 	end);
+	addConnection(b, c1);
+	addConnection(b, c2);
 	return b;
 end;
 local function placeMenu(btn, menu)
@@ -617,25 +594,26 @@ local function placeMenu(btn, menu)
 	local fs = btn.AbsoluteSize;
 	local ms = menu.AbsoluteSize;
 	local mw, mh = math.max(ms.X, 200), math.max(ms.Y, 90);
-	local left = fa.X + fs.X + 8 + mw > aw;
-	local x = left and fa.X - 8 - mw or fa.X + fs.X + 8;
-	local y = math.clamp(fa.Y - 8, 8, ah - mh - 8);
+	local left = fa.X + fs.X + 10 + mw > aw;
+	local x = left and fa.X - 10 - mw or fa.X + fs.X + 10;
+	local y = math.clamp(fa.Y - 10, 10, ah - mh - 10);
 	menu.Position = UDim2.fromOffset(x, y);
 	menu.Size = UDim2.new(0, mw, 0, mh);
 end;
 local function mkHdr(par, z, kind, onPause)
 	local state = ctx(par);
+	local hdrHeight = isMobile and 56 or 52;
 	local hdr = Instance.new("Frame");
 	hdr.Name = "Header";
 	hdr.BackgroundTransparency = 1;
-	hdr.Size = UDim2.new(1, 0, 0, 44);
+	hdr.Size = UDim2.new(1, 0, 0, hdrHeight);
 	hdr.ZIndex = z + 200;
 	hdr.Parent = par;
 	local top = Instance.new("Frame");
 	top.Name = "TopLine";
 	top.BorderSizePixel = 0;
-	top.BackgroundColor3 = TH.St0;
-	top.BackgroundTransparency = 0.82;
+	top.BackgroundColor3 = TH.Border;
+	top.BackgroundTransparency = 0.9;
 	top.Position = UDim2.new(0, PAD, 1, -1);
 	top.Size = UDim2.new(1, (-PAD) * 2, 0, 1);
 	top.ZIndex = z + 199;
@@ -653,7 +631,7 @@ local function mkHdr(par, z, kind, onPause)
 	lay.FillDirection = Enum.FillDirection.Horizontal;
 	lay.HorizontalAlignment = Enum.HorizontalAlignment.Right;
 	lay.VerticalAlignment = Enum.VerticalAlignment.Center;
-	lay.Padding = UDim.new(0, 8);
+	lay.Padding = UDim.new(0, isMobile and 10 or 8);
 	local posBtn, setPosSel;
 	if kind ~= "Popup" then
 		posBtn, setPosSel = mkIcn(act, "≡", act.ZIndex + 1, CURF[kind]);
@@ -662,24 +640,20 @@ local function mkHdr(par, z, kind, onPause)
 	local cls, _ = mkIcn(act, "×", act.ZIndex + 1, CURF[kind], "bad");
 	local dot = Instance.new("Frame");
 	dot.Name = "Dot";
-	dot.BackgroundColor3 = TH.St0;
-	dot.BackgroundTransparency = 0.05;
+	dot.BackgroundColor3 = TH.Border;
+	dot.BackgroundTransparency = 0.1;
 	dot.BorderSizePixel = 0;
-	dot.Size = UDim2.fromOffset(8, 8);
-	dot.Position = UDim2.new(0, PAD, 0.5, -4);
+	dot.Size = UDim2.fromOffset(4, 4);
+	dot.Position = UDim2.new(0, PAD, 0.5, -2);
 	dot.ZIndex = z + 210;
 	dot.Parent = hdr;
 	local dc = Instance.new("UICorner", dot);
-	dc.CornerRadius = UDim.new(0, 999);
-	local ds = Instance.new("UIStroke", dot);
-	ds.Color = TH.St0;
-	ds.Transparency = 0.7;
-	ds.Thickness = 1;
+	dc.CornerRadius = UDim.new(1, 0);
 	local ttl = Instance.new("TextLabel");
 	ttl.Name = "Title";
 	ttl.AnchorPoint = Vector2.new(0, 0.5);
-	ttl.Position = UDim2.new(0, PAD + 14, 0.5, 0);
-	ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 14), 1, 0);
+	ttl.Position = UDim2.new(0, PAD + 12, 0.5, 0);
+	ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 12), 1, 0);
 	ttl.BackgroundTransparency = 1;
 	ttl.TextTruncate = Enum.TextTruncate.AtEnd;
 	ttl.Font = CURF[kind];
@@ -691,11 +665,12 @@ local function mkHdr(par, z, kind, onPause)
 	ttl.ZIndex = z + 210;
 	ttl.Parent = hdr;
 	local tcon = Instance.new("UITextSizeConstraint", ttl);
-	tcon.MinTextSize = 14;
-	tcon.MaxTextSize = kind == "Popup" and 28 or 22;
-	(act:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
-		ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 14), 1, 0);
+	tcon.MinTextSize = isMobile and 16 or 14;
+	tcon.MaxTextSize = kind == "Popup" and (isMobile and 22 or 20) or (isMobile and 18 or 16);
+	local c1 = (act:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+		ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 12), 1, 0);
 	end);
+	addConnection(act, c1);
 	local function closeCard()
 		local p = par;
 		repeat
@@ -711,9 +686,10 @@ local function mkHdr(par, z, kind, onPause)
 			end;
 		end;
 	end;
-	cls.MouseButton1Click:Connect(function()
+	local c2 = cls.MouseButton1Click:Connect(function()
 		closeCard();
 	end);
+	addConnection(cls, c2);
 	local fMenu, fCon, rec;
 	local function refreshFonts()
 		if not rec then
@@ -752,29 +728,29 @@ local function mkHdr(par, z, kind, onPause)
 		end;
 		setFontSel(true);
 		local m = Instance.new("Frame");
-		m.BackgroundColor3 = TH.Bg1;
-		m.BackgroundTransparency = 0.06;
+		m.BackgroundColor3 = TH.Bg;
+		m.BackgroundTransparency = 0.05;
 		m.BorderSizePixel = 0;
-		m.Size = UDim2.new(0, 240, 0, 0);
+		m.Size = UDim2.new(0, isMobile and 260 or 240, 0, 0);
 		m.AutomaticSize = Enum.AutomaticSize.Y;
 		m.ZIndex = ov.ZIndex + 10;
 		m.Parent = ov;
 		local c = Instance.new("UICorner", m);
-		c.CornerRadius = UDim.new(0, 18);
+		c.CornerRadius = UDim.new(0, 10);
 		local s = Instance.new("UIStroke", m);
-		s.Color = TH.St0;
+		s.Color = TH.Border;
 		s.Thickness = 1;
-		s.Transparency = 0.55;
+		s.Transparency = 0.8;
 		local p = Instance.new("UIPadding", m);
-		p.PaddingTop = UDim.new(0, 8);
-		p.PaddingBottom = UDim.new(0, 8);
-		p.PaddingLeft = UDim.new(0, 8);
-		p.PaddingRight = UDim.new(0, 8);
+		p.PaddingTop = UDim.new(0, 10);
+		p.PaddingBottom = UDim.new(0, 10);
+		p.PaddingLeft = UDim.new(0, 10);
+		p.PaddingRight = UDim.new(0, 10);
 		local sf = Instance.new("ScrollingFrame");
 		sf.BackgroundTransparency = 1;
 		sf.BorderSizePixel = 0;
 		sf.ScrollBarThickness = 4;
-		sf.Size = UDim2.new(1, 0, 0, 250);
+		sf.Size = UDim2.new(1, 0, 0, isMobile and 300 or 250);
 		sf.AutomaticCanvasSize = Enum.AutomaticSize.Y;
 		sf.CanvasSize = UDim2.new();
 		sf.ZIndex = m.ZIndex + 1;
@@ -786,22 +762,36 @@ local function mkHdr(par, z, kind, onPause)
 		for _, pair in ipairs(FONTS) do
 			local b = mkMenuBtn(sf, pair[1], sf.ZIndex + 1, CURF[kind]);
 			local setSel = function(on)
-				b:SetAttribute("sel", on and true or false);
-				(tw:Create(b, TweenInfo.new(0.1), {
-					BackgroundColor3 = on and TH.Ok1 or TH.Btn0,
-					BackgroundTransparency = on and 0.06 or 0.08
-				})):Play();
+				b:SetAttribute("sel", on);
+				if on then
+					(tw:Create(b, TweenInfo.new(0.12), {
+						BackgroundColor3 = TH.BtnSel,
+						BackgroundTransparency = 0
+					})):Play();
+					(tw:Create(b, TweenInfo.new(0.12), {
+						TextColor3 = TH.Bg
+					})):Play();
+				else
+					(tw:Create(b, TweenInfo.new(0.12), {
+						BackgroundColor3 = TH.Btn,
+						BackgroundTransparency = 1
+					})):Play();
+					(tw:Create(b, TweenInfo.new(0.12), {
+						TextColor3 = TH.Txt
+					})):Play();
+				end;
 			end;
 			table.insert(rec, {
 				btn = b,
 				font = pair[2],
 				set = setSel
 			});
-			b.MouseButton1Click:Connect(function()
+			local c3 = b.MouseButton1Click:Connect(function()
 				setFontKind(kind, pair[2]);
 				applyFontTree(par, pair[2]);
 				refreshFonts();
 			end);
+			addConnection(b, c3);
 		end;
 		refreshFonts();
 		rs.Heartbeat:Wait();
@@ -816,16 +806,20 @@ local function mkHdr(par, z, kind, onPause)
 			end;
 		end);
 		local sc = Instance.new("UIScale", m);
-		sc.Scale = 0.96;
+		sc.Scale = 0.92;
 		m.BackgroundTransparency = 1;
-		(tw:Create(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+		local t1 = tw:Create(sc, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Scale = 1
-		})):Play();
-		(tw:Create(m, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			BackgroundTransparency = 0.06
-		})):Play();
+		});
+		local t2 = tw:Create(m, TweenInfo.new(0.15), {
+			BackgroundTransparency = 0.05
+		});
+		t1:Play();
+		t2:Play();
+		addTween(m, t1);
+		addTween(m, t2);
 	end;
-	fbtn.MouseButton1Click:Connect(function()
+	local c4 = fbtn.MouseButton1Click:Connect(function()
 		if state.closing then
 			return;
 		end;
@@ -835,6 +829,7 @@ local function mkHdr(par, z, kind, onPause)
 			openFont();
 		end;
 	end);
+	addConnection(fbtn, c4);
 	local pMenu, pCon;
 	local closePosFn = function()
 	end;
@@ -892,30 +887,30 @@ local function mkHdr(par, z, kind, onPause)
 			end;
 			setPosSel(true);
 			local m = Instance.new("Frame");
-			m.BackgroundColor3 = TH.Bg1;
-			m.BackgroundTransparency = 0.06;
+			m.BackgroundColor3 = TH.Bg;
+			m.BackgroundTransparency = 0.05;
 			m.BorderSizePixel = 0;
-			m.Size = UDim2.new(0, 210, 0, 0);
+			m.Size = UDim2.new(0, isMobile and 230 or 210, 0, 0);
 			m.AutomaticSize = Enum.AutomaticSize.Y;
 			m.ZIndex = ov.ZIndex + 10;
 			m.Parent = ov;
 			local c = Instance.new("UICorner", m);
-			c.CornerRadius = UDim.new(0, 18);
+			c.CornerRadius = UDim.new(0, 10);
 			local s = Instance.new("UIStroke", m);
-			s.Color = TH.St0;
+			s.Color = TH.Border;
 			s.Thickness = 1;
-			s.Transparency = 0.55;
+			s.Transparency = 0.8;
 			local padF = Instance.new("UIPadding", m);
-			padF.PaddingTop = UDim.new(0, 8);
-			padF.PaddingBottom = UDim.new(0, 8);
-			padF.PaddingLeft = UDim.new(0, 8);
-			padF.PaddingRight = UDim.new(0, 8);
+			padF.PaddingTop = UDim.new(0, 10);
+			padF.PaddingBottom = UDim.new(0, 10);
+			padF.PaddingLeft = UDim.new(0, 10);
+			padF.PaddingRight = UDim.new(0, 10);
 			local list = Instance.new("UIListLayout", m);
 			list.Padding = UDim.new(0, 6);
 			list.SortOrder = Enum.SortOrder.LayoutOrder;
 			for _, ent in ipairs(POS) do
 				local b = mkMenuBtn(m, ent[1], m.ZIndex + 2, CURF[kind]);
-				b.MouseButton1Click:Connect(function()
+				local c5 = b.MouseButton1Click:Connect(function()
 					local p0 = par;
 					repeat
 						if p0:IsA("Frame") and p0.Name == "Card" then
@@ -929,6 +924,7 @@ local function mkHdr(par, z, kind, onPause)
 					end;
 					closePos();
 				end);
+				addConnection(b, c5);
 			end;
 			rs.Heartbeat:Wait();
 			placeMenu(posBtn, m);
@@ -942,16 +938,20 @@ local function mkHdr(par, z, kind, onPause)
 				end;
 			end);
 			local sc = Instance.new("UIScale", m);
-			sc.Scale = 0.96;
+			sc.Scale = 0.92;
 			m.BackgroundTransparency = 1;
-			(tw:Create(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+			local t1 = tw:Create(sc, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 				Scale = 1
-			})):Play();
-			(tw:Create(m, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-				BackgroundTransparency = 0.06
-			})):Play();
+			});
+			local t2 = tw:Create(m, TweenInfo.new(0.15), {
+				BackgroundTransparency = 0.05
+			});
+			t1:Play();
+			t2:Play();
+			addTween(m, t1);
+			addTween(m, t2);
 		end;
-		posBtn.MouseButton1Click:Connect(function()
+		local c6 = posBtn.MouseButton1Click:Connect(function()
 			if state.closing then
 				return;
 			end;
@@ -961,6 +961,7 @@ local function mkHdr(par, z, kind, onPause)
 				openPos();
 			end;
 		end);
+		addConnection(posBtn, c6);
 		closePosFn = closePos;
 	end;
 	state.closeMenus = function()
@@ -973,8 +974,8 @@ local function attachTimer(card, fil, dur)
 	local hover = uis.MouseEnabled;
 	local ext = false;
 	local hov = false;
+	local s = ctx(card);
 	local function closeCard()
-		local s = ctx(card);
 		if s and s.close and (not s.closing) then
 			s.close();
 		end;
@@ -989,6 +990,9 @@ local function attachTimer(card, fil, dur)
 			th = task.spawn(function()
 				local last = os.clock();
 				while rem > 0 do
+					if s.closing then
+						break;
+					end;
 					if ext or hov then
 						last = os.clock();
 						task.wait(0.05);
@@ -1001,23 +1005,26 @@ local function attachTimer(card, fil, dur)
 					end;
 				end;
 				th = nil;
-				if not ext and (not hov) then
+				if not ext and (not hov) and (not s.closing) then
 					closeCard();
 				end;
 			end);
 		end;
 		start();
-		card.Destroying:Connect(function()
+		local c1 = card.Destroying:Connect(function()
 			ext = true;
 			rem = 0;
 		end);
+		addConnection(card, c1);
 		if hover then
-			card.MouseEnter:Connect(function()
+			local c2 = card.MouseEnter:Connect(function()
 				hov = true;
 			end);
-			card.MouseLeave:Connect(function()
+			local c3 = card.MouseLeave:Connect(function()
 				hov = false;
 			end);
+			addConnection(card, c2);
+			addConnection(card, c3);
 		end;
 		return {
 			pause = function()
@@ -1041,20 +1048,30 @@ local function attachTimer(card, fil, dur)
 		end;
 	end;
 	local function playFrom(f)
+		if s.closing then
+			stop();
+			return;
+		end;
 		fil.Size = UDim2.new(f, 0, 1, 0);
 		stop();
 		local d = math.max(0.01, dur * f);
 		tn = tw:Create(fil, TweenInfo.new(d, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, 0, 1, 0)
 		});
-		tn.Completed:Connect(function()
-			if not ext and (not hov) and fil.Size.X.Scale <= 0.001 then
+		local c = tn.Completed:Connect(function()
+			if not ext and (not hov) and fil.Size.X.Scale <= 0.001 and (not s.closing) then
 				closeCard();
 			end;
 		end);
+		addConnection(fil, c);
 		tn:Play();
+		addTween(fil, tn);
 	end;
 	local function ref()
+		if s.closing then
+			stop();
+			return;
+		end;
 		if ext or hov then
 			stop();
 			frac = fil.Size.X.Scale;
@@ -1064,14 +1081,16 @@ local function attachTimer(card, fil, dur)
 	end;
 	playFrom(frac);
 	if hover then
-		card.MouseEnter:Connect(function()
+		local c4 = card.MouseEnter:Connect(function()
 			hov = true;
 			ref();
 		end);
-		card.MouseLeave:Connect(function()
+		local c5 = card.MouseLeave:Connect(function()
 			hov = false;
 			ref();
 		end);
+		addConnection(card, c4);
+		addConnection(card, c5);
 	end;
 	return {
 		pause = function()
@@ -1085,7 +1104,7 @@ local function attachTimer(card, fil, dur)
 	};
 end;
 local function calcCellH(w, list, font)
-	local h = 34;
+	local h = isMobile and 48 or 42;
 	for _, info in ipairs(list) do
 		local t = tostring(info.Text or "");
 		local iconSpace = 0;
@@ -1098,13 +1117,13 @@ local function calcCellH(w, list, font)
 			end;
 		end;
 		if raw and raw ~= "" then
-			iconSpace = 28;
+			iconSpace = isMobile and 36 or 32;
 		end;
-		local avail = math.max(10, w - 24 - iconSpace);
-		local sz = ts:GetTextSize(t, 14, font, Vector2.new(avail, math.huge));
-		h = math.max(h, math.ceil(sz.Y) + 14);
+		local avail = math.max(10, w - 28 - iconSpace);
+		local sz = ts:GetTextSize(t, isMobile and 15 or 14, font, Vector2.new(avail, math.huge));
+		h = math.max(h, math.ceil(sz.Y) + (isMobile and 20 or 18));
 	end;
-	return math.clamp(h, 34, 86);
+	return math.clamp(h, isMobile and 48 or 42, isMobile and 100 or 90);
 end;
 local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	if not list or #list == 0 then
@@ -1113,7 +1132,7 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	local sf = Instance.new("ScrollingFrame");
 	sf.BackgroundTransparency = 1;
 	sf.BorderSizePixel = 0;
-	sf.ScrollBarThickness = 6;
+	sf.ScrollBarThickness = isMobile and 8 or 6;
 	sf.AutomaticCanvasSize = Enum.AutomaticSize.Y;
 	sf.ScrollingEnabled = true;
 	sf.CanvasSize = UDim2.new();
@@ -1122,8 +1141,8 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	sf.ClipsDescendants = true;
 	sf.Parent = cnt;
 	local grid = Instance.new("UIGridLayout", sf);
-	grid.CellPadding = UDim2.new(0, 10, 0, 10);
-	grid.FillDirectionMaxCells = math.min(3, math.max(1, #list == 1 and 1 or math.min(3, (#list))));
+	grid.CellPadding = UDim2.new(0, isMobile and 14 or 12, 0, isMobile and 14 or 12);
+	grid.FillDirectionMaxCells = math.min(isMobile and 2 or 3, math.max(1, #list == 1 and 1 or math.min((isMobile and 2 or 3), (#list))));
 	grid.SortOrder = Enum.SortOrder.LayoutOrder;
 	local function fitCells()
 		local cols = grid.FillDirectionMaxCells;
@@ -1132,24 +1151,32 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 			grid.CellSize = UDim2.new(1, 0, 0, ch);
 		else
 			local w = sf.AbsoluteSize.X;
-			local bw = math.max(100, math.floor((w - (cols - 1) * 10) / cols));
+			local gap = isMobile and 14 or 12;
+			local bw = math.max(100, math.floor((w - (cols - 1) * gap) / cols));
 			local ch = calcCellH(bw, list, font);
 			grid.CellSize = UDim2.new(0, bw, 0, ch);
 		end;
 	end;
-	(sf:GetPropertyChangedSignal("AbsoluteSize")):Connect(fitCells);
+	local c1 = (sf:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+		fitCells();
+	end);
+	addConnection(sf, c1);
 	local function fitH()
 		local need = grid.AbsoluteContentSize.Y;
 		local cap = math.min(430, math.max(44, maxH or math.floor(gui.AbsoluteSize.Y * 0.52)));
 		local h = math.min(need, cap);
 		sf.Size = UDim2.new(1, 0, 0, h);
 		sf.ScrollingEnabled = need > cap;
-		sf.ScrollBarThickness = need > cap and 6 or 0;
+		sf.ScrollBarThickness = need > cap and (isMobile and 8 or 6) or 0;
 	end;
-	(grid:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(fitH);
-	rs.Heartbeat:Wait();
-	fitCells();
-	fitH();
+	local c2 = (grid:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
+		fitH();
+	end);
+	addConnection(grid, c2);
+	task.defer(function()
+		fitCells();
+		fitH();
+	end);
 	local s = ctx(owner);
 	s.sel = s.sel or {};
 	s.btns = s.btns or {};
@@ -1158,21 +1185,21 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 		b.AutoButtonColor = false;
 		b.Text = "";
 		b.ZIndex = (z or 10) + 1;
-		b.BackgroundColor3 = TH.Btn0;
-		b.BackgroundTransparency = 0.06;
+		b.BackgroundColor3 = TH.Btn;
+		b.BackgroundTransparency = 1;
 		b.ClipsDescendants = true;
 		b.Parent = sf;
 		local cr = Instance.new("UICorner", b);
-		cr.CornerRadius = UDim.new(0, 16);
+		cr.CornerRadius = UDim.new(0, 8);
 		local st = Instance.new("UIStroke", b);
-		st.Color = TH.St0;
-		st.Transparency = 0.78;
+		st.Color = TH.Border;
+		st.Transparency = 0.92;
 		st.Thickness = 1;
 		local pad = Instance.new("UIPadding", b);
-		pad.PaddingTop = UDim.new(0, 10);
-		pad.PaddingBottom = UDim.new(0, 10);
-		pad.PaddingRight = UDim.new(0, 14);
-		pad.PaddingLeft = UDim.new(0, 14);
+		pad.PaddingTop = UDim.new(0, isMobile and 14 or 12);
+		pad.PaddingBottom = UDim.new(0, isMobile and 14 or 12);
+		pad.PaddingRight = UDim.new(0, isMobile and 18 or 16);
+		pad.PaddingLeft = UDim.new(0, isMobile and 18 or 16);
 		local lay = Instance.new("UIListLayout", b);
 		lay.FillDirection = Enum.FillDirection.Horizontal;
 		lay.HorizontalAlignment = Enum.HorizontalAlignment.Center;
@@ -1187,7 +1214,7 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 			end;
 		end;
 		local hasIcon = raw and raw ~= "" and true or false;
-		lay.Padding = UDim.new(0, hasIcon and 10 or 0);
+		lay.Padding = UDim.new(0, hasIcon and (isMobile and 12 or 10) or 0);
 		local ic = Instance.new("ImageLabel");
 		ic.BackgroundTransparency = 1;
 		ic.Image = raw and raw or "";
@@ -1196,7 +1223,7 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 		ic.ScaleType = Enum.ScaleType.Fit;
 		ic.ZIndex = b.ZIndex + 2;
 		ic.LayoutOrder = 10;
-		ic.Size = hasIcon and UDim2.fromOffset(20, 20) or UDim2.new(0, 0, 0, 0);
+		ic.Size = hasIcon and UDim2.fromOffset((isMobile and 24 or 22), (isMobile and 24 or 22)) or UDim2.new(0, 0, 0, 0);
 		ic.Parent = b;
 		local lb = Instance.new("TextLabel");
 		lb.BackgroundTransparency = 1;
@@ -1204,46 +1231,87 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 		lb.RichText = true;
 		lb.TextWrapped = true;
 		lb.TextScaled = true;
-		lb.Font = font or Enum.Font.Gotham;
+		lb.Font = font or Enum.Font.GothamBold;
 		lb.Text = info.Text or "";
 		lb.ZIndex = b.ZIndex + 2;
 		lb.LayoutOrder = 20;
 		lb.TextYAlignment = Enum.TextYAlignment.Center;
 		lb.TextXAlignment = hasIcon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center;
-		lb.Size = UDim2.new(1, hasIcon and (-28) or 0, 1, 0);
+		lb.Size = UDim2.new(1, hasIcon and (isMobile and (-36) or (-32)) or 0, 1, 0);
 		local tc = Instance.new("UITextSizeConstraint", lb);
-		tc.MinTextSize = 12;
-		tc.MaxTextSize = 20;
+		tc.MinTextSize = isMobile and 14 or 13;
+		tc.MaxTextSize = isMobile and 17 or 16;
 		lb.Parent = b;
 		local function setSel(on)
-			b:SetAttribute("sel", on and true or false);
-			(tw:Create(b, TweenInfo.new(0.1), {
-				BackgroundColor3 = on and TH.Ok1 or TH.Btn0,
-				BackgroundTransparency = on and 0.05 or 0.06
-			})):Play();
+			b:SetAttribute("sel", on);
+			if on then
+				(tw:Create(b, TweenInfo.new(0.12), {
+					BackgroundColor3 = TH.BtnSel,
+					BackgroundTransparency = 0
+				})):Play();
+				(tw:Create(st, TweenInfo.new(0.12), {
+					Transparency = 0.7
+				})):Play();
+				(tw:Create(lb, TweenInfo.new(0.12), {
+					TextColor3 = TH.Bg
+				})):Play();
+				if hasIcon then
+					(tw:Create(ic, TweenInfo.new(0.12), {
+						ImageColor3 = TH.Bg
+					})):Play();
+				end;
+			else
+				(tw:Create(b, TweenInfo.new(0.12), {
+					BackgroundColor3 = TH.Btn,
+					BackgroundTransparency = 1
+				})):Play();
+				(tw:Create(st, TweenInfo.new(0.12), {
+					Transparency = 0.92
+				})):Play();
+				(tw:Create(lb, TweenInfo.new(0.12), {
+					TextColor3 = TH.Txt
+				})):Play();
+				if hasIcon then
+					(tw:Create(ic, TweenInfo.new(0.12), {
+						ImageColor3 = TH.Txt
+					})):Play();
+				end;
+			end;
 		end;
 		s.btns[b] = {
 			info = info,
 			set = setSel
 		};
 		setSel(false);
-		b.MouseEnter:Connect(function()
+		local c3 = b.MouseEnter:Connect(function()
 			if b:GetAttribute("sel") then
 				return;
 			end;
 			(tw:Create(b, TweenInfo.new(0.12), {
-				BackgroundColor3 = TH.Btn1
+				BackgroundTransparency = 0
+			})):Play();
+			(tw:Create(b, TweenInfo.new(0.12), {
+				BackgroundColor3 = TH.BtnHover
+			})):Play();
+			(tw:Create(st, TweenInfo.new(0.12), {
+				Transparency = 0.85
 			})):Play();
 		end);
-		b.MouseLeave:Connect(function()
+		local c4 = b.MouseLeave:Connect(function()
 			if b:GetAttribute("sel") then
 				return;
 			end;
 			(tw:Create(b, TweenInfo.new(0.12), {
-				BackgroundColor3 = TH.Btn0
+				BackgroundTransparency = 1
+			})):Play();
+			(tw:Create(b, TweenInfo.new(0.12), {
+				BackgroundColor3 = TH.Btn
+			})):Play();
+			(tw:Create(st, TweenInfo.new(0.12), {
+				Transparency = 0.92
 			})):Play();
 		end);
-		b.MouseButton1Click:Connect(function()
+		local c5 = b.MouseButton1Click:Connect(function()
 			if s.multi then
 				local i = table.find(s.sel, info);
 				if i then
@@ -1266,6 +1334,9 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 				end;
 			end;
 		end);
+		addConnection(b, c3);
+		addConnection(b, c4);
+		addConnection(b, c5);
 	end;
 	return sf;
 end;
@@ -1273,74 +1344,132 @@ local function widthForDock(dock, kind)
 	if dock == "top" or dock == "bottom" then
 		return wW();
 	end;
-	return kind == "Popup" and math.floor(math.clamp(gui.AbsoluteSize.X * 0.36, 340, 620)) or nW();
+	return kind == "Popup" and math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.88 or 0.36), (isMobile and 360 or 340), (isMobile and 500 or 620))) or nW();
 end;
-local function appear(card, sc, st, sh, tgt, from, cnt)
-	setAAll(cnt, 1);
-	card.Rotation = from.rot or (-3);
+local function dirFrom(str)
+	str = string.lower(tostring(str or ""));
+	local d = {
+		dx = 0,
+		dy = isMobile and 20 or 18,
+		rot = -1.5
+	};
+	if str == "top" or str == "up" then
+		d.dy = isMobile and (-20) or (-18);
+		d.rot = 1.5;
+	elseif str == "bottom" or str == "down" then
+		d.dy = isMobile and 20 or 18;
+		d.rot = -1.5;
+	elseif str == "topright" or str == "top right" then
+		d.dx = isMobile and 24 or 22;
+		d.dy = isMobile and (-24) or (-22);
+		d.rot = 1.5;
+	elseif str == "topleft" or str == "top left" then
+		d.dx = isMobile and (-24) or (-22);
+		d.dy = isMobile and (-24) or (-22);
+		d.rot = 1.5;
+	elseif str == "bottomright" or str == "bottom right" then
+		d.dx = isMobile and 24 or 22;
+		d.dy = isMobile and 24 or 22;
+		d.rot = -1.5;
+	elseif str == "bottomleft" or str == "bottom left" then
+		d.dx = isMobile and (-24) or (-22);
+		d.dy = isMobile and 24 or 22;
+		d.rot = -1.5;
+	end;
+	return d;
+end;
+local function appear(card, sc, st, tgt, from, cnt)
+	for _, d in ipairs(cnt:GetDescendants()) do
+		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+			d.TextTransparency = 1;
+		end;
+		if d:IsA("ImageLabel") then
+			d.ImageTransparency = 1;
+		end;
+	end;
+	card.Rotation = from.rot or (-1.5);
 	card.BackgroundTransparency = 1;
 	st.Transparency = 1;
-	st.Thickness = 1;
-	sc.Scale = 0.86;
-	if sh then
-		sh.ImageTransparency = 1;
-	end;
+	sc.Scale = 0.9;
 	card.Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset + (from.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset + (from.dy or 0));
 	local tA = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out);
 	local tB = TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut);
-	(tw:Create(card, tA, {
+	local t1 = tw:Create(card, tA, {
 		Size = tgt,
-		BackgroundTransparency = 0.65,
+		BackgroundTransparency = 0.6,
 		Rotation = 0,
 		Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset - (from.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset - (from.dy or 0))
-	})):Play();
-	(tw:Create(sc, tA, {
-		Scale = 1.05
-	})):Play();
-	task.delay(0.16, function()
-		(tw:Create(sc, tB, {
-			Scale = 1
-		})):Play();
-	end);
-	(tw:Create(st, TweenInfo.new(0.22, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-		Transparency = 0.55,
+	});
+	local t2 = tw:Create(sc, tA, {
+		Scale = 1.02
+	});
+	local t3 = tw:Create(st, TweenInfo.new(0.22), {
+		Transparency = 0.8,
 		Thickness = 1
-	})):Play();
-	if sh then
-		(tw:Create(sh, TweenInfo.new(0.22, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
-			ImageTransparency = 0.3
-		})):Play();
-	end;
-	stgInAll(cnt, 0.18);
+	});
+	t1:Play();
+	t2:Play();
+	t3:Play();
+	addTween(card, t1);
+	addTween(card, t2);
+	addTween(card, t3);
+	task.delay(0.18, function()
+		local t4 = tw:Create(sc, tB, {
+			Scale = 1
+		});
+		t4:Play();
+		addTween(card, t4);
+	end);
+	task.delay(0.05, function()
+		local tC = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
+		for _, d in ipairs(cnt:GetDescendants()) do
+			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+				local t = tw:Create(d, tC, {
+					TextTransparency = 0
+				});
+				t:Play();
+				addTween(d, t);
+			elseif d:IsA("ImageLabel") then
+				local t = tw:Create(d, tC, {
+					ImageTransparency = 0
+				});
+				t:Play();
+				addTween(d, t);
+			end;
+		end;
+	end);
 end;
-local function disappear(card, sc, st, sh)
+local function disappear(card, sc, st)
 	local t1 = TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out);
 	local t2 = TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.In);
-	(tw:Create(sc, t1, {
+	local tw1 = tw:Create(sc, t1, {
 		Scale = 1.02
-	})):Play();
-	task.delay(0.07, function()
-		(tw:Create(sc, t2, {
+	});
+	tw1:Play();
+	addTween(card, tw1);
+	task.delay(0.08, function()
+		local tw2 = tw:Create(sc, t2, {
 			Scale = 0.88
-		})):Play();
-		(tw:Create(card, t2, {
+		});
+		local tw3 = tw:Create(card, t2, {
 			BackgroundTransparency = 1,
-			Rotation = -1.5
-		})):Play();
-		if st then
-			(tw:Create(st, t2, {
-				Transparency = 1
-			})):Play();
-		end;
-		if sh then
-			(tw:Create(sh, t2, {
-				ImageTransparency = 1
-			})):Play();
-		end;
-		task.delay(0.08, function()
-			(tw:Create(card, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {
+			Rotation = -1
+		});
+		local tw4 = tw:Create(st, t2, {
+			Transparency = 1
+		});
+		tw2:Play();
+		tw3:Play();
+		tw4:Play();
+		addTween(card, tw2);
+		addTween(card, tw3);
+		addTween(card, tw4);
+		task.delay(0.1, function()
+			local tw5 = tw:Create(card, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {
 				Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
-			})):Play();
+			});
+			tw5:Play();
+			addTween(card, tw5);
 		end);
 	end);
 end;
@@ -1350,23 +1479,20 @@ local function mkCard(w, baseZ, kind, onPause)
 	card.Name = "Card";
 	card.LayoutOrder = os.clock() * 1000;
 	card.Size = UDim2.new(0, w, 0, 0);
-	card.BackgroundColor3 = TH.Bg1;
-	card.BackgroundTransparency = 0;
+	card.BackgroundColor3 = TH.Bg;
+	card.BackgroundTransparency = 1;
 	card.ZIndex = z;
 	card.BorderSizePixel = 0;
 	card.ClipsDescendants = true;
 	local cr = Instance.new("UICorner", card);
-	cr.CornerRadius = UDim.new(0, 22);
+	cr.CornerRadius = UDim.new(0, isMobile and 18 or 14);
 	local st = Instance.new("UIStroke", card);
-	st.Color = TH.St0;
+	st.Color = TH.Border;
 	st.Thickness = 1;
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
-	st.Transparency = 0.55;
+	st.Transparency = 0.8;
 	local sc = Instance.new("UIScale", card);
 	sc.Scale = 1;
-	local grad = Instance.new("UIGradient", card);
-	grad.Rotation = 90;
-	grad.Color = ColorSequence.new(TH.Bg2, TH.Bg0);
 	local cnt = Instance.new("Frame");
 	cnt.Name = "Content";
 	cnt.BackgroundTransparency = 1;
@@ -1374,13 +1500,14 @@ local function mkCard(w, baseZ, kind, onPause)
 	cnt.AutomaticSize = Enum.AutomaticSize.Y;
 	cnt.ZIndex = z + 120;
 	cnt.Parent = card;
+	local hdrHeight = isMobile and 56 or 52;
 	local pad = Instance.new("UIPadding", cnt);
 	pad.PaddingLeft = UDim.new(0, PAD);
 	pad.PaddingRight = UDim.new(0, PAD);
-	pad.PaddingTop = UDim.new(0, 44 + PAD - 4);
-	pad.PaddingBottom = UDim.new(0, PAD + 16);
+	pad.PaddingTop = UDim.new(0, hdrHeight + PAD - 4);
+	pad.PaddingBottom = UDim.new(0, PAD + (isMobile and 20 or 18));
 	local col = Instance.new("UIListLayout", cnt);
-	col.Padding = UDim.new(0, 10);
+	col.Padding = UDim.new(0, isMobile and 14 or 12);
 	col.FillDirection = Enum.FillDirection.Vertical;
 	col.HorizontalAlignment = Enum.HorizontalAlignment.Left;
 	col.SortOrder = Enum.SortOrder.LayoutOrder;
@@ -1388,7 +1515,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	ftr.Name = "Footer";
 	ftr.AnchorPoint = Vector2.new(0, 1);
 	ftr.Position = UDim2.new(0, 0, 1, 0);
-	ftr.Size = UDim2.new(1, 0, 0, 16);
+	ftr.Size = UDim2.new(1, 0, 0, isMobile and 20 or 18);
 	ftr.BackgroundTransparency = 1;
 	ftr.ZIndex = z + 130;
 	ftr.Parent = card;
@@ -1396,36 +1523,44 @@ local function mkCard(w, baseZ, kind, onPause)
 	trk.Name = "ProgTrack";
 	trk.AnchorPoint = Vector2.new(0.5, 0.5);
 	trk.Position = UDim2.new(0.5, 0, 0.5, 0);
-	trk.Size = UDim2.new(0.86, 0, 0, 3);
-	trk.BackgroundTransparency = 0.75;
-	trk.BackgroundColor3 = TH.Prog;
+	trk.Size = UDim2.new(0.9, 0, 0, 2);
+	trk.BackgroundTransparency = 0.85;
+	trk.BackgroundColor3 = TH.Progress;
 	trk.BorderSizePixel = 0;
 	trk.ZIndex = z + 140;
 	trk.Parent = ftr;
 	local c1 = Instance.new("UICorner", trk);
-	c1.CornerRadius = UDim.new(0, 999);
+	c1.CornerRadius = UDim.new(1, 0);
 	local fil = Instance.new("Frame");
 	fil.Name = "ProgFill";
 	fil.AnchorPoint = Vector2.new(0, 0.5);
 	fil.Position = UDim2.new(0, 0, 0.5, 0);
 	fil.Size = UDim2.new(1, 0, 1, 0);
-	fil.BackgroundTransparency = 0.08;
-	fil.BackgroundColor3 = TH.Prog;
+	fil.BackgroundTransparency = 0.1;
+	fil.BackgroundColor3 = TH.Progress;
 	fil.BorderSizePixel = 0;
 	fil.ZIndex = z + 141;
 	fil.Parent = trk;
 	local c2 = Instance.new("UICorner", fil);
-	c2.CornerRadius = UDim.new(0, 999);
+	c2.CornerRadius = UDim.new(1, 0);
 	local hdr, ttl, act = mkHdr(card, z, kind, onPause);
-	return card, hdr, ttl, act, st, sc, sh, cnt, ftr, trk, fil;
+	return card, hdr, ttl, act, st, sc, cnt, ftr, trk, fil;
 end;
-local function openIn(card, par, ftr, trk, st, sc, sh, from, cnt)
+local function openIn(card, par, ftr, trk, st, sc, from, cnt)
 	card.Parent = par;
 	card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0);
 	card.Visible = true;
-	local extra = typeof(trk) == "Instance" and trk.Visible and ftr and ftr.AbsoluteSize.Y or 0;
-	local h = cntH(cnt) + extra;
-	appear(card, sc, st, sh, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt);
+	task.defer(function()
+		if not card or (not card.Parent) then
+			return;
+		end;
+		local extra = typeof(trk) == "Instance" and trk.Visible and ftr and ftr.AbsoluteSize.Y or 0;
+		local h = cntH(cnt) + extra;
+		if h < 2 then
+			h = 2;
+		end;
+		appear(card, sc, st, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt);
+	end);
 end;
 local function build(kind, p)
 	ensureGui();
@@ -1460,7 +1595,7 @@ local function build(kind, p)
 		baseZ = grp.ZIndex + 10;
 	end;
 	local timCtl;
-	local card, hdr, ttl, act, st, sc, sh, cnt, ftr, trk, fil = mkCard(w, baseZ, kind, function(paused)
+	local card, hdr, ttl, act, st, sc, cnt, ftr, trk, fil = mkCard(w, baseZ, kind, function(paused)
 		if timCtl then
 			if paused then
 				timCtl.pause();
@@ -1491,10 +1626,10 @@ local function build(kind, p)
 		if s.closeMenus then
 			s.closeMenus();
 		end;
-		disappear(card, sc, st, sh);
-		task.delay(0.36, function()
+		disappear(card, sc, st);
+		task.delay(0.38, function()
 			if card then
-				ST[card] = nil;
+				cleanup(card);
 				for _, t in pairs(ACT) do
 					t[card] = nil;
 				end;
@@ -1520,10 +1655,12 @@ local function build(kind, p)
 		card.Parent = tgt;
 		card.Size = UDim2.new(0, card.AbsoluteSize.X, 0, card.AbsoluteSize.Y);
 		card.Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset + (b.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset + (b.dy or 0));
-		(tw:Create(card, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+		local t = tw:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, newW, 0, h),
 			Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset - (b.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset - (b.dy or 0))
-		})):Play();
+		});
+		t:Play();
+		addTween(card, t);
 	end;
 	if p.Description and p.Description ~= "" then
 		local d = Instance.new("TextLabel");
@@ -1535,7 +1672,7 @@ local function build(kind, p)
 		d.RichText = true;
 		d.Font = CURF[kind];
 		d.TextScaled = false;
-		d.TextSize = 14;
+		d.TextSize = isMobile and 15 or 14;
 		d.AutomaticSize = Enum.AutomaticSize.Y;
 		d.Size = UDim2.new(1, 0, 0, 0);
 		d.ZIndex = card.ZIndex + 121;
@@ -1544,38 +1681,55 @@ local function build(kind, p)
 	end;
 	if p.InputField then
 		local inp = Instance.new("TextBox");
-		inp.Size = UDim2.new(1, 0, 0, 38);
+		inp.Size = UDim2.new(1, 0, 0, isMobile and 48 or 44);
 		inp.ClearTextOnFocus = false;
 		inp.TextXAlignment = Enum.TextXAlignment.Left;
 		inp.TextYAlignment = Enum.TextYAlignment.Center;
 		inp.Font = CURF[kind];
-		inp.TextSize = 14;
+		inp.TextSize = isMobile and 15 or 14;
 		inp.TextColor3 = TH.Txt;
 		inp.RichText = true;
-		inp.BackgroundColor3 = TH.Btn0;
-		inp.BackgroundTransparency = 0.06;
+		inp.BackgroundColor3 = TH.Btn;
+		inp.BackgroundTransparency = 1;
 		inp.Text = "";
 		inp.PlaceholderText = p.Placeholder or "Type here…";
-		inp.PlaceholderColor3 = TH.Ph;
+		inp.PlaceholderColor3 = TH.Mut;
 		inp.ZIndex = card.ZIndex + 121;
 		inp.Parent = cnt;
 		local c = Instance.new("UICorner", inp);
-		c.CornerRadius = UDim.new(0, 16);
+		c.CornerRadius = UDim.new(0, 8);
 		local st2 = Instance.new("UIStroke", inp);
-		st2.Color = TH.St0;
-		st2.Transparency = 0.82;
+		st2.Color = TH.Border;
+		st2.Transparency = 0.92;
 		st2.Thickness = 1;
+		local p2 = Instance.new("UIPadding", inp);
+		p2.PaddingLeft = UDim.new(0, isMobile and 16 or 14);
+		p2.PaddingRight = UDim.new(0, isMobile and 16 or 14);
 		s.inp = inp;
-		inp.Focused:Connect(function()
+		local c1 = inp.Focused:Connect(function()
 			(tw:Create(inp, TweenInfo.new(0.12), {
-				BackgroundColor3 = TH.Btn1
+				BackgroundTransparency = 0
+			})):Play();
+			(tw:Create(inp, TweenInfo.new(0.12), {
+				BackgroundColor3 = TH.BtnHover
+			})):Play();
+			(tw:Create(st2, TweenInfo.new(0.12), {
+				Transparency = 0.85
 			})):Play();
 		end);
-		inp.FocusLost:Connect(function()
+		local c2 = inp.FocusLost:Connect(function()
 			(tw:Create(inp, TweenInfo.new(0.12), {
-				BackgroundColor3 = TH.Btn0
+				BackgroundTransparency = 1
+			})):Play();
+			(tw:Create(inp, TweenInfo.new(0.12), {
+				BackgroundColor3 = TH.Btn
+			})):Play();
+			(tw:Create(st2, TweenInfo.new(0.12), {
+				Transparency = 0.92
 			})):Play();
 		end);
+		addConnection(inp, c1);
+		addConnection(inp, c2);
 	end;
 	local btns = p.Buttons or {};
 	if #btns > 0 then
@@ -1589,7 +1743,7 @@ local function build(kind, p)
 			okBtn.Visible = on and true or false;
 		end;
 		setMSel(false);
-		mBtn.MouseButton1Click:Connect(function()
+		local c1 = mBtn.MouseButton1Click:Connect(function()
 			if s.closing then
 				return;
 			end;
@@ -1609,7 +1763,7 @@ local function build(kind, p)
 				showOK(#(s.sel or {}) > 0);
 			end;
 		end);
-		okBtn.MouseButton1Click:Connect(function()
+		local c2 = okBtn.MouseButton1Click:Connect(function()
 			if s.closing then
 				return;
 			end;
@@ -1622,6 +1776,8 @@ local function build(kind, p)
 				s.close();
 			end;
 		end);
+		addConnection(mBtn, c1);
+		addConnection(okBtn, c2);
 		s.ok = function(vis)
 			showOK(vis);
 		end;
@@ -1631,7 +1787,7 @@ local function build(kind, p)
 	local shouldTimer = kind == "Notify" and dur ~= nil;
 	local parent = kind == "Popup" and grp or getStack(dock);
 	trk.Visible = showProg;
-	openIn(card, parent, ftr, showProg and trk or nil, st, sc, sh, from, cnt);
+	openIn(card, parent, ftr, showProg and trk or nil, st, sc, from, cnt);
 	if shouldTimer then
 		timCtl = attachTimer(card, showProg and fil or nil, dur);
 	end;
@@ -1653,7 +1809,7 @@ local function Popup(p)
 	p.Dock = p.Dock or CURD.Popup or "top";
 	return build("Popup", p);
 end;
-_G.EnhancedNotifs = {
+_naNotif_env.EnhancedNotifs = {
 	Notify = function(p)
 		return Notify(p);
 	end,
@@ -1672,4 +1828,4 @@ _G.EnhancedNotifs = {
 		end;
 	end
 };
-return _G.EnhancedNotifs;
+return _naNotif_env.EnhancedNotifs;
