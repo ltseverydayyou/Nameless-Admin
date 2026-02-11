@@ -193,12 +193,29 @@ local function saveDocks()
 	end);
 end;
 local isMobile = uis.TouchEnabled and (not uis.KeyboardEnabled);
-local baseSize = isMobile and 340 or 320;
-local function nW()
-	return math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.85 or 0.28), baseSize, isMobile and 420 or 400));
+
+local function mobScale()
+	if not isMobile then
+		return 1;
+	end;
+	local x = gui.AbsoluteSize.X;
+	local y = gui.AbsoluteSize.Y;
+	local s = math.min(x / 900, y / 650);
+	return math.clamp(s, 0.72, 0.9);
 end;
+
+local function nW()
+	if not isMobile then
+		return math.floor(math.clamp(gui.AbsoluteSize.X * 0.28, 320, 400));
+	end;
+	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.78, 280, 380));
+end;
+
 local function wW()
-	return math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.88 or 0.38), isMobile and 380 or 360, isMobile and 520 or 600));
+	if not isMobile then
+		return math.floor(math.clamp(gui.AbsoluteSize.X * 0.38, 360, 600));
+	end;
+	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.82, 320, 480));
 end;
 local stacks = {};
 local function mkStack(key)
@@ -267,6 +284,21 @@ end;
 	for k, f in pairs(stacks) do
 		if f and f.Parent then
 			f.Size = (k == "top" or k == "bottom") and UDim2.new(0, wW(), 1, 0) or UDim2.new(0, nW(), 1, 0);
+		end;
+	end;
+
+	if isMobile then
+		local bs = mobScale();
+		for _, t in pairs(ACT) do
+			for card in pairs(t) do
+				if card and card.Parent then
+					local s = ctx(card);
+					if s and s.sc then
+						s.baseScale = bs;
+						s.sc.Scale = bs;
+					end;
+				end;
+			end;
 		end;
 	end;
 end);
@@ -1387,52 +1419,58 @@ local function appear(card, sc, st, tgt, from, cnt)
 			d.ImageTransparency = 1;
 		end;
 	end;
+
+	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1);
+
 	card.Rotation = from.rot or (-1.5);
 	card.BackgroundTransparency = 1;
 	st.Transparency = 1;
-	sc.Scale = 0.9;
-	card.Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset + (from.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset + (from.dy or 0));
+
+	sc.Scale = bs * 0.9;
+
+	card.Position = UDim2.new(
+		card.Position.X.Scale,
+		card.Position.X.Offset + (from.dx or 0),
+		card.Position.Y.Scale,
+		card.Position.Y.Offset + (from.dy or 0)
+	);
+
 	local tA = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out);
 	local tB = TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut);
+
 	local t1 = tw:Create(card, tA, {
 		Size = tgt,
 		BackgroundTransparency = 0.6,
 		Rotation = 0,
-		Position = UDim2.new(card.Position.X.Scale, card.Position.X.Offset - (from.dx or 0), card.Position.Y.Scale, card.Position.Y.Offset - (from.dy or 0))
+		Position = UDim2.new(
+			card.Position.X.Scale,
+			card.Position.X.Offset - (from.dx or 0),
+			card.Position.Y.Scale,
+			card.Position.Y.Offset - (from.dy or 0)
+		)
 	});
-	local t2 = tw:Create(sc, tA, {
-		Scale = 1.02
-	});
-	local t3 = tw:Create(st, TweenInfo.new(0.22), {
-		Transparency = 0.8,
-		Thickness = 1
-	});
-	t1:Play();
-	t2:Play();
-	t3:Play();
-	addTween(card, t1);
-	addTween(card, t2);
-	addTween(card, t3);
+
+	local t2 = tw:Create(sc, tA, { Scale = bs * 1.02 });
+	local t3 = tw:Create(st, TweenInfo.new(0.22), { Transparency = 0.8, Thickness = 1 });
+
+	t1:Play(); t2:Play(); t3:Play();
+	addTween(card, t1); addTween(card, t2); addTween(card, t3);
+
 	task.delay(0.18, function()
-		local t4 = tw:Create(sc, tB, {
-			Scale = 1
-		});
+		local t4 = tw:Create(sc, tB, { Scale = bs });
 		t4:Play();
 		addTween(card, t4);
 	end);
+
 	task.delay(0.05, function()
 		local tC = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
 		for _, d in ipairs(cnt:GetDescendants()) do
 			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-				local t = tw:Create(d, tC, {
-					TextTransparency = 0
-				});
+				local t = tw:Create(d, tC, { TextTransparency = 0 });
 				t:Play();
 				addTween(d, t);
 			elseif d:IsA("ImageLabel") then
-				local t = tw:Create(d, tC, {
-					ImageTransparency = 0
-				});
+				local t = tw:Create(d, tC, { ImageTransparency = 0 });
 				t:Play();
 				addTween(d, t);
 			end;
@@ -1440,30 +1478,23 @@ local function appear(card, sc, st, tgt, from, cnt)
 	end);
 end;
 local function disappear(card, sc, st)
+	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1);
+
 	local t1 = TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out);
 	local t2 = TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.In);
-	local tw1 = tw:Create(sc, t1, {
-		Scale = 1.02
-	});
+
+	local tw1 = tw:Create(sc, t1, { Scale = bs * 1.02 });
 	tw1:Play();
 	addTween(card, tw1);
+
 	task.delay(0.08, function()
-		local tw2 = tw:Create(sc, t2, {
-			Scale = 0.88
-		});
-		local tw3 = tw:Create(card, t2, {
-			BackgroundTransparency = 1,
-			Rotation = -1
-		});
-		local tw4 = tw:Create(st, t2, {
-			Transparency = 1
-		});
-		tw2:Play();
-		tw3:Play();
-		tw4:Play();
-		addTween(card, tw2);
-		addTween(card, tw3);
-		addTween(card, tw4);
+		local tw2 = tw:Create(sc, t2, { Scale = bs * 0.88 });
+		local tw3 = tw:Create(card, t2, { BackgroundTransparency = 1, Rotation = -1 });
+		local tw4 = tw:Create(st, t2, { Transparency = 1 });
+
+		tw2:Play(); tw3:Play(); tw4:Play();
+		addTween(card, tw2); addTween(card, tw3); addTween(card, tw4);
+
 		task.delay(0.1, function()
 			local tw5 = tw:Create(card, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {
 				Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
@@ -1492,7 +1523,10 @@ local function mkCard(w, baseZ, kind, onPause)
 	st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 	st.Transparency = 0.8;
 	local sc = Instance.new("UIScale", card);
-	sc.Scale = 1;
+	sc.Scale = mobScale();
+	local s0 = ctx(card);
+	s0.sc = sc;
+	s0.baseScale = sc.Scale;
 	local cnt = Instance.new("Frame");
 	cnt.Name = "Content";
 	cnt.BackgroundTransparency = 1;
