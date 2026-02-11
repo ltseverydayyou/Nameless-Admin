@@ -699,10 +699,25 @@ local function mkHdr(par, z, kind, onPause)
 	local tcon = Instance.new("UITextSizeConstraint", ttl);
 	tcon.MinTextSize = isMobile and 16 or 14;
 	tcon.MaxTextSize = kind == "Popup" and (isMobile and 22 or 20) or (isMobile and 18 or 16);
-	local c1 = (act:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
+	local function refTitle()
 		ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 12), 1, 0);
+	end;
+
+	refTitle();
+
+	local c1 = act:GetPropertyChangedSignal("AbsoluteSize"):Connect(refTitle);
+	local c2 = act.ChildAdded:Connect(function(ch)
+		refTitle();
+		local c3 = ch:GetPropertyChangedSignal("Visible"):Connect(refTitle);
+		addConnection(ch, c3);
 	end);
+	local c4 = act.ChildRemoved:Connect(refTitle);
+
 	addConnection(act, c1);
+	addConnection(act, c2);
+	addConnection(act, c4);
+
+	state.refTitle = refTitle;
 	local function closeCard()
 		local p = par;
 		repeat
@@ -1174,17 +1189,41 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	sf.Parent = cnt;
 	local grid = Instance.new("UIGridLayout", sf);
 	grid.CellPadding = UDim2.new(0, isMobile and 14 or 12, 0, isMobile and 14 or 12);
-	grid.FillDirectionMaxCells = math.min(isMobile and 2 or 3, math.max(1, #list == 1 and 1 or math.min((isMobile and 2 or 3), (#list))));
+	grid.FillDirectionMaxCells = 1;
+	grid.HorizontalAlignment = Enum.HorizontalAlignment.Center;
 	grid.SortOrder = Enum.SortOrder.LayoutOrder;
 	local function fitCells()
-		local cols = grid.FillDirectionMaxCells;
-		if cols == 1 then
-			local ch = calcCellH(sf.AbsoluteSize.X, list, font);
+		local w = sf.AbsoluteSize.X;
+		if w <= 0 then
+			return;
+		end;
+
+		local gap = isMobile and 14 or 12;
+		local maxCols = isMobile and 3 or 3;
+		local minCell = isMobile and 110 or 140;
+
+		local cols = math.floor((w + gap) / (minCell + gap));
+		cols = math.clamp(cols, 1, maxCols);
+		cols = math.min(cols, #list);
+
+		grid.FillDirectionMaxCells = cols;
+
+		if cols <= 1 then
+			local ch = calcCellH(w, list, font);
 			grid.CellSize = UDim2.new(1, 0, 0, ch);
 		else
-			local w = sf.AbsoluteSize.X;
-			local gap = isMobile and 14 or 12;
-			local bw = math.max(100, math.floor((w - (cols - 1) * gap) / cols));
+			local bw = math.floor((w - (cols - 1) * gap) / cols);
+			if bw < 80 then
+				cols = math.max(1, cols - 1);
+				grid.FillDirectionMaxCells = cols;
+				if cols <= 1 then
+					local ch = calcCellH(w, list, font);
+					grid.CellSize = UDim2.new(1, 0, 0, ch);
+					return;
+				end;
+				bw = math.floor((w - (cols - 1) * gap) / cols);
+			end;
+
 			local ch = calcCellH(bw, list, font);
 			grid.CellSize = UDim2.new(0, bw, 0, ch);
 		end;
@@ -1194,12 +1233,29 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	end);
 	addConnection(sf, c1);
 	local function fitH()
-		local need = grid.AbsoluteContentSize.Y;
+		local need = grid.AbsoluteContentSize.Y + (isMobile and 10 or 8);
 		local cap = math.min(430, math.max(44, maxH or math.floor(gui.AbsoluteSize.Y * 0.52)));
 		local h = math.min(need, cap);
+
 		sf.Size = UDim2.new(1, 0, 0, h);
 		sf.ScrollingEnabled = need > cap;
 		sf.ScrollBarThickness = need > cap and (isMobile and 8 or 6) or 0;
+
+		task.defer(function()
+			local so = ctx(owner);
+			if not (owner and owner.Parent) or not (so and so.cnt) or so.closing then
+				return;
+			end;
+			local extra = (so.trk and so.trk.Visible and so.ftr and so.ftr.AbsoluteSize.Y) or 0;
+			local nh = cntH(so.cnt) + extra;
+			if nh > 2 then
+				local tw0 = tw:Create(owner, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+					Size = UDim2.new(owner.Size.X.Scale, owner.Size.X.Offset, 0, nh)
+				});
+				tw0:Play();
+				addTween(owner, tw0);
+			end;
+		end);
 	end;
 	local c2 = (grid:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
 		fitH();
@@ -1775,6 +1831,11 @@ local function build(kind, p)
 		okBtn.Visible = false;
 		local function showOK(on)
 			okBtn.Visible = on and true or false;
+			task.defer(function()
+				if s and s.refTitle then
+					s.refTitle();
+				end;
+			end);
 		end;
 		setMSel(false);
 		local c1 = mBtn.MouseButton1Click:Connect(function()
