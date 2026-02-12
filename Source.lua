@@ -1118,15 +1118,40 @@ FindInTable = function(tbl,val)
 end
 
 updateCanvasSize = function(frame, scale)
-	local layout = frame:FindFirstChildOfClass("UIListLayout")
-	if layout then
-		if scale then
-			local adjustedHeight = layout.AbsoluteContentSize.Y / scale
-			frame.CanvasSize = UDim2.new(0, 0, 0, adjustedHeight)
-		else
-			frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y)
-		end
+	if not (frame and frame.Parent) then
+		return
 	end
+
+	NAmanage._canvasLayoutCache = NAmanage._canvasLayoutCache or setmetatable({}, { __mode = "k" })
+	NAmanage._canvasHeightCache = NAmanage._canvasHeightCache or setmetatable({}, { __mode = "k" })
+
+	local layout = NAmanage._canvasLayoutCache[frame]
+	if not (layout and layout.Parent == frame) then
+		layout = frame:FindFirstChildOfClass("UIListLayout")
+		NAmanage._canvasLayoutCache[frame] = layout
+	end
+	if not layout then
+		return
+	end
+
+	local targetHeight = layout.AbsoluteContentSize.Y
+	if scale and scale ~= 0 then
+		targetHeight = targetHeight / scale
+	end
+	targetHeight = math.max(0, math.floor(targetHeight + 0.5))
+
+	local last = NAmanage._canvasHeightCache[frame]
+	if last ~= nil and last == targetHeight then
+		return
+	end
+	NAmanage._canvasHeightCache[frame] = targetHeight
+
+	local cs = frame.CanvasSize
+	if cs.Y.Scale == 0 and (cs.Y.Offset or 0) == targetHeight then
+		return
+	end
+
+	frame.CanvasSize = UDim2.new(0, 0, 0, targetHeight)
 end
 
 NAmanage.CreateNAFreecam=function()
@@ -1966,9 +1991,6 @@ opt={
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
 	ctrlModule = nil;
-	currentTagText = "Tag";
-	currentTagColor = Color3.fromRGB(0, 255, 170);
-	currentTagRGB = false;
 	chatTranslateEnabled = true;
 	chatTranslateTarget = "en";
 	--saveTag = false;
@@ -3332,6 +3354,50 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		setCWat(o)
 	end
 
+	local cornerApplyQueue = {}
+	local cornerApplySet = setmetatable({}, { __mode = "k" })
+	local cornerApplyHead = 1
+	local cornerApplyTail = 0
+	local cornerApplyBusy = false
+
+	local function queueCornerApply(o)
+		if not (CE.data.enabled and o and o.Parent and o:IsA("UICorner")) then
+			return
+		end
+		if cornerApplySet[o] then
+			return
+		end
+		cornerApplySet[o] = true
+		cornerApplyTail += 1
+		cornerApplyQueue[cornerApplyTail] = o
+		if cornerApplyBusy then
+			return
+		end
+		cornerApplyBusy = true
+		Spawn(function()
+			while cornerApplyHead <= cornerApplyTail do
+				local budget = 90
+				while budget > 0 and cornerApplyHead <= cornerApplyTail do
+					local inst = cornerApplyQueue[cornerApplyHead]
+					cornerApplyQueue[cornerApplyHead] = nil
+					cornerApplyHead += 1
+					if inst then
+						cornerApplySet[inst] = nil
+						if inst.Parent and CE.data.enabled then
+							setCorner(inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			cornerApplyQueue = {}
+			cornerApplyHead = 1
+			cornerApplyTail = 0
+			cornerApplyBusy = false
+		end)
+	end
+
 	local function clearGuiRootWatchers()
 		for root, conns in pairs(CE.guiRootWatchers) do
 			if conns.desc then conns.desc:Disconnect() end
@@ -3408,7 +3474,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 	local function onCDesc(o)
 		if CE.data.enabled and o:IsA("UICorner") then
-			setCorner(o)
+			queueCornerApply(o)
 		end
 	end
 
@@ -3419,7 +3485,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local conns = {}
 		conns.desc = root.DescendantAdded:Connect(function(d)
 			if CE.data.enabled and d:IsA("UICorner") then
-				setCorner(d)
+				queueCornerApply(d)
 			end
 		end)
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
@@ -4623,6 +4689,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
 		watchers = setmetatable({}, { __mode = "k" }),
+		guiRootWatchers = setmetatable({}, { __mode = "k" }),
+		guiRootSeen = setmetatable({}, { __mode = "k" }),
 		restoring = false,
 		dlBusy = false,
 	}
@@ -4787,38 +4855,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		return ok and pg ~= nil
 	end
 
-	local function getFontBB(o)
-		if not (FontEditor.data.targetBillboardGui and typeof(o) == "Instance") then
-			return nil
-		end
-		if o:IsA("BillboardGui") then
-			return o
-		end
-		local ok, ancestor = pcall(function()
-			return o:FindFirstAncestorOfClass("BillboardGui")
-		end)
-		if ok then
-			return ancestor
-		end
-		return nil
-	end
-
-	local function getFontSurf(o)
-		if not (FontEditor.data.targetSurfaceGui and typeof(o) == "Instance") then
-			return nil
-		end
-		if o:IsA("SurfaceGui") then
-			return o
-		end
-		local ok, ancestor = pcall(function()
-			return o:FindFirstAncestorOfClass("SurfaceGui")
-		end)
-		if ok then
-			return ancestor
-		end
-		return nil
-	end
-
 	local function captureFontFaceState(o)
 		local ok, value = pcall(function()
 			return o.FontFace
@@ -4877,13 +4913,90 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 	end
 
+	local fontApplyQueue = {}
+	local fontApplySet = setmetatable({}, { __mode = "k" })
+	local fontApplyHead = 1
+	local fontApplyTail = 0
+	local fontApplyBusy = false
+
+	local function queueFontApply(o)
+		if not (FontEditor.data.enabled and o and o.Parent and isFontTarget(o)) then
+			return
+		end
+		if fontApplySet[o] then
+			return
+		end
+		fontApplySet[o] = true
+		fontApplyTail += 1
+		fontApplyQueue[fontApplyTail] = o
+		if fontApplyBusy then
+			return
+		end
+		fontApplyBusy = true
+		Spawn(function()
+			while fontApplyHead <= fontApplyTail do
+				local budget = 100
+				while budget > 0 and fontApplyHead <= fontApplyTail do
+					local inst = fontApplyQueue[fontApplyHead]
+					fontApplyQueue[fontApplyHead] = nil
+					fontApplyHead += 1
+					if inst then
+						fontApplySet[inst] = nil
+						if inst.Parent and FontEditor.data.enabled then
+							applyFontToInstance(inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			fontApplyQueue = {}
+			fontApplyHead = 1
+			fontApplyTail = 0
+			fontApplyBusy = false
+		end)
+	end
+
+	local function clearFontGuiRootWatchers()
+		for root, conns in pairs(FontEditor.guiRootWatchers) do
+			if conns.desc then conns.desc:Disconnect() end
+			if conns.anc then conns.anc:Disconnect() end
+			FontEditor.guiRootWatchers[root] = nil
+		end
+		FontEditor.guiRootWatchers = setmetatable({}, { __mode = "k" })
+		FontEditor.guiRootSeen = setmetatable({}, { __mode = "k" })
+	end
+
+	local function watchFontGuiRoot(root)
+		if not root or FontEditor.guiRootWatchers[root] then
+			return
+		end
+		local conns = {}
+		conns.desc = root.DescendantAdded:Connect(function(d)
+			if FontEditor.data.enabled then
+				queueFontApply(d)
+			end
+		end)
+		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
+			if parent == nil then
+				if FontEditor.guiRootWatchers[root] then
+					if conns.desc then conns.desc:Disconnect() end
+					if conns.anc then conns.anc:Disconnect() end
+					FontEditor.guiRootWatchers[root] = nil
+				end
+				FontEditor.guiRootSeen[root] = nil
+			end
+		end)
+		FontEditor.guiRootWatchers[root] = conns
+	end
+
 	local function applyFontToDescendants(container)
 		if not container then
 			return
 		end
 		queueUIScan(container, function(inst)
 			if isFontTarget(inst) then
-				applyFontToInstance(inst)
+				queueFontApply(inst)
 			end
 		end)
 	end
@@ -4925,6 +5038,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
 		FontEditor.watchers = setmetatable({}, { __mode = "k" })
+		clearFontGuiRootWatchers()
+		fontApplyQueue = {}
+		fontApplySet = setmetatable({}, { __mode = "k" })
+		fontApplyHead = 1
+		fontApplyTail = 0
 	end
 
 	local function applyAllFonts()
@@ -4944,9 +5062,17 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if FontEditor.data.targetBillboardGui or FontEditor.data.targetSurfaceGui then
 			queueUIScan(world, function(inst)
 				if FontEditor.data.targetBillboardGui and inst:IsA("BillboardGui") then
-					applyFontToDescendants(inst)
+					if not FontEditor.guiRootSeen[inst] then
+						FontEditor.guiRootSeen[inst] = true
+						applyFontToDescendants(inst)
+					end
+					watchFontGuiRoot(inst)
 				elseif FontEditor.data.targetSurfaceGui and inst:IsA("SurfaceGui") then
-					applyFontToDescendants(inst)
+					if not FontEditor.guiRootSeen[inst] then
+						FontEditor.guiRootSeen[inst] = true
+						applyFontToDescendants(inst)
+					end
+					watchFontGuiRoot(inst)
 				end
 			end)
 		end
@@ -5025,7 +5151,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 	local function onFontDescendantAdded(o)
 		if FontEditor.data.enabled then
-			applyFontToInstance(o)
+			queueFontApply(o)
 		end
 	end
 
@@ -5033,20 +5159,28 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not FontEditor.data.enabled then
 			return
 		end
-		local root = getFontBB(o)
-		if root then
-			applyFontToDescendants(root)
+		if not o:IsA("BillboardGui") then
+			return
 		end
+		if not FontEditor.guiRootSeen[o] then
+			FontEditor.guiRootSeen[o] = true
+			applyFontToDescendants(o)
+		end
+		watchFontGuiRoot(o)
 	end
 
 	local function onFontSurfaceAdded(o)
 		if not FontEditor.data.enabled then
 			return
 		end
-		local root = getFontSurf(o)
-		if root then
-			applyFontToDescendants(root)
+		if not o:IsA("SurfaceGui") then
+			return
 		end
+		if not FontEditor.guiRootSeen[o] then
+			FontEditor.guiRootSeen[o] = true
+			applyFontToDescendants(o)
+		end
+		watchFontGuiRoot(o)
 	end
 
 	local function refreshFontConnections()
@@ -11093,7 +11227,25 @@ if FileSupport then
 		return true
 	end
 
+	local function markChatSettingsDirty()
+		NAStuff.ChatSettingsDirty = true
+	end
+
+	local function isCoreChatStateSynced()
+		local desired = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
+		local okRead, current = pcall(function()
+			return StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Chat)
+		end)
+		if okRead and type(current) == "boolean" then
+			return current == desired
+		end
+		return nil
+	end
+	originalIO.markChatSettingsDirty = markChatSettingsDirty
+	NAStuff.ChatSettingsDirty = true
+
 	NAmanage.SaveTextChatSettings = function()
+		markChatSettingsDirty()
 		local ok4, json = pcall(function() return HttpService:JSONEncode(NAStuff.ChatSettings) end)
 		if ok4 then pcall(writefile, ChatConfigPath, json) end
 		if NAmanage.SyncChatSettingsUI then
@@ -11252,8 +11404,28 @@ if FileSupport then
 	NAStuff.ChatSettings.input = NAStuff.ChatSettings.input or {}
 	NAStuff.ChatSettings.input.textTransparency = nil
 
-	NAmanage.ApplyTextChatSettings = function()
-		pcall(function() StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, NAStuff.ChatSettings.coreGuiChat) end)
+	NAmanage.ApplyTextChatSettings = function(forceApply)
+		if forceApply ~= true and not NAStuff.ChatSettingsDirty then
+			return
+		end
+		local desiredCoreChat = (NAStuff.ChatSettings.coreGuiChat == true)
+		local coreChatApplied = false
+		local okCore = pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, desiredCoreChat)
+		end)
+		if okCore then
+			local okRead, currentCore = pcall(function()
+				return StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Chat)
+			end)
+			if okRead and type(currentCore) == "boolean" then
+				coreChatApplied = (currentCore == desiredCoreChat)
+			else
+				coreChatApplied = true
+			end
+		end
+		if not coreChatApplied then
+			markChatSettingsDirty()
+		end
 		local TCS = TextChatService
 
 		local Window = TCS:FindFirstChildOfClass("ChatWindowConfiguration")
@@ -11268,6 +11440,7 @@ if FileSupport then
 				originalIO.restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
 			end
 			NAStuff.ChatCustomizationActive = false
+			NAStuff.ChatSettingsDirty = not coreChatApplied
 			return
 		end
 		NAStuff.ChatCustomizationActive = true
@@ -11357,10 +11530,12 @@ if FileSupport then
 			if hasProp(Bubbles, "MaxBubbles") then safeSet(Bubbles, "MaxBubbles", math.max(1, math.min(5, tonumber(NAStuff.ChatSettings.bubbles.maxBubbles) or 1))) end
 			safeSet(Bubbles, "TailVisible", NAStuff.ChatSettings.bubbles.tailVisible)
 		end
+		NAStuff.ChatSettingsDirty = not coreChatApplied
 	end
 
 	NAlib.disconnect("TCS_OnDescendantAdded")
 	NAlib.connect("TCS_OnDescendantAdded", TextChatService.DescendantAdded:Connect(function()
+		markChatSettingsDirty()
 		Defer(NAmanage.ApplyTextChatSettings)
 	end))
 
@@ -11371,7 +11546,21 @@ if FileSupport then
 			local now = os.clock()
 			if now - last >= 0.2 then
 				last = now
-				NAmanage.ApplyTextChatSettings()
+				local desiredCoreChat = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
+				local synced = isCoreChatStateSynced()
+				if synced == false then
+					pcall(function()
+						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, desiredCoreChat)
+					end)
+					markChatSettingsDirty()
+				elseif synced == nil and desiredCoreChat then
+					pcall(function()
+						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+					end)
+				end
+				if NAStuff.ChatSettingsDirty then
+					NAmanage.ApplyTextChatSettings()
+				end
 			end
 		end))
 	end
@@ -11387,9 +11576,6 @@ else
 	NATopbarDock = "top"
 	NALoadingStartMinimized = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
-	opt.currentTagText = "Tag"
-	opt.currentTagColor = Color3.fromRGB(0, 255, 170)
-	opt.currentTagRGB = false
 	DoPopup("Your exploit does not support read/write file")
 	--opt.saveTag = fals
 end
@@ -11563,12 +11749,6 @@ end
 
 local lastPrefix = opt.prefix
 
---[[if opt.saveTag then
-	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerText", opt.currentTagText)
-	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerColor", opt.currentTagColor)
-	NAmanage.SetAttr(SafeGetService("Players").LocalPlayer, "CustomNAtaggerRainbow", opt.currentTagRGB)
-end]]
-
 --[[ VARIABLES ]]--
 
 local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
@@ -11576,7 +11756,7 @@ local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
-local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
+local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
 local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
@@ -52258,6 +52438,61 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		st.Parent = rgbDot
 	end
 
+	local pickerConns = {}
+	local pickerDestroyed = false
+	local rgbLoopConn = nil
+	local startRgbLoop = nil
+	local dM, dS = false, false
+	local inM, inS
+	local dragChangedConn, dragEndedConn = nil, nil
+
+	local function trackPickerConn(conn)
+		if conn then
+			Insert(pickerConns, conn)
+		end
+		return conn
+	end
+
+	local function stopRgbLoop()
+		if rgbLoopConn then
+			rgbLoopConn:Disconnect()
+			rgbLoopConn = nil
+		end
+	end
+
+	local function stopDragListeners()
+		if dragChangedConn then
+			dragChangedConn:Disconnect()
+			dragChangedConn = nil
+		end
+		if dragEndedConn then
+			dragEndedConn:Disconnect()
+			dragEndedConn = nil
+		end
+	end
+
+	local function cleanupPickerConnections()
+		if pickerDestroyed then
+			return
+		end
+		pickerDestroyed = true
+		stopRgbLoop()
+		stopDragListeners()
+		for i = 1, #pickerConns do
+			local conn = pickerConns[i]
+			if conn then
+				pcall(function()
+					conn:Disconnect()
+				end)
+			end
+		end
+		for i = #pickerConns, 1, -1 do
+			pickerConns[i] = nil
+		end
+		dM, dS = false, false
+		inM, inS = nil, nil
+	end
+
 	local rgbOn = false
 	local rgbSpd = 0.1
 
@@ -52290,6 +52525,13 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			saveState(rgbOn)
 		end
 		updTog()
+		if rgbOn then
+			if startRgbLoop then
+				startRgbLoop()
+			end
+		else
+			stopRgbLoop()
+		end
 	end
 
 	local sv = getSaved()
@@ -52309,8 +52551,6 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	end
 
 	local h, s, v = defaultColor:ToHSV()
-	local dM, dS = false, false
-	local inM, inS
 
 	local function updUI(push, opt)
 		opt = opt or {}
@@ -52350,11 +52590,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		updUI(false)
 	end
 
-	rgb.RInput.InputBox.FocusLost:Connect(parseRGB)
-	rgb.GInput.InputBox.FocusLost:Connect(parseRGB)
-	rgb.BInput.InputBox.FocusLost:Connect(parseRGB)
+	trackPickerConn(rgb.RInput.InputBox.FocusLost:Connect(parseRGB))
+	trackPickerConn(rgb.GInput.InputBox.FocusLost:Connect(parseRGB))
+	trackPickerConn(rgb.BInput.InputBox.FocusLost:Connect(parseRGB))
 
-	hex.InputBox.FocusLost:Connect(function()
+	trackPickerConn(hex.InputBox.FocusLost:Connect(function()
 		setRGB(false)
 		local txt = (hex.InputBox.Text or ""):gsub("#", ""):upper()
 		if txt:match("^[0-9A-F]+$") and #txt == 6 then
@@ -52373,13 +52613,32 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			math.floor(col.G * 255 + 0.5),
 			math.floor(col.B * 255 + 0.5)
 		)
-	end)
+	end))
 
 	pcall(function() main.MainPoint.AnchorPoint = Vector2.new(0.5, 0.5) end)
 	pcall(function() sl.SliderPoint.AnchorPoint = Vector2.new(0.5, 0.5) end)
 
 	local UIS = SafeGetService("UserInputService")
 	local RS = SafeGetService("RunService")
+
+	startRgbLoop = function()
+		if pickerDestroyed or rgbLoopConn or not RS then
+			return
+		end
+		rgbLoopConn = trackPickerConn(RS.RenderStepped:Connect(function(dt)
+			if pickerDestroyed then
+				return
+			end
+			if rgbOn and not dM and not dS then
+				local step = math.clamp(dt or 0.016, 0.001, 0.1)
+				h = (h + step * rgbSpd) % 1
+				updUI(true)
+			end
+		end))
+	end
+	if rgbOn then
+		startRgbLoop()
+	end
 
 	local function v2(p)
 		if typeof(p) == "Vector2" then return p end
@@ -52405,6 +52664,55 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		local rx = math.clamp(pos.X - ap.X, 0, sz.X)
 		h = rx / sz.X
 		updUI(true)
+	end
+
+	local function startDragListeners()
+		if not UIS or pickerDestroyed then
+			return
+		end
+		if dragChangedConn or dragEndedConn then
+			return
+		end
+
+		dragChangedConn = UIS.InputChanged:Connect(function(input)
+			if not dM and not dS then
+				return
+			end
+			if dM then
+				if inM and inM.UserInputType == Enum.UserInputType.Touch then
+					if input == inM then
+						updMain(v2(input.Position))
+					end
+				elseif input.UserInputType == Enum.UserInputType.MouseMovement then
+					updMain(v2(input.Position))
+				end
+			end
+			if dS then
+				if inS and inS.UserInputType == Enum.UserInputType.Touch then
+					if input == inS then
+						updSl(v2(input.Position))
+					end
+				elseif input.UserInputType == Enum.UserInputType.MouseMovement then
+					updSl(v2(input.Position))
+				end
+			end
+		end)
+
+		dragEndedConn = UIS.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dM, dS = false, false
+				inM, inS = nil, nil
+				stopDragListeners()
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.Touch then
+				if inM == input then dM, inM = false, nil end
+				if inS == input then dS, inS = false, nil end
+				if not dM and not dS then
+					stopDragListeners()
+				end
+			end
+		end)
 	end
 
 	local function hit(obj)
@@ -52448,59 +52756,11 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			inS = input
 			updSl(v2(input.Position))
 		end
+		startDragListeners()
 	end
 
-	mHit.InputBegan:Connect(function(i) beg("m", i) end)
-	sHit.InputBegan:Connect(function(i) beg("s", i) end)
-
-	if UIS then
-		UIS.InputChanged:Connect(function(input)
-			if dM then
-				if inM and inM.UserInputType == Enum.UserInputType.Touch then
-					if input == inM then
-						updMain(v2(input.Position))
-					end
-				else
-					if input.UserInputType == Enum.UserInputType.MouseMovement then
-						updMain(v2(input.Position))
-					end
-				end
-			end
-			if dS then
-				if inS and inS.UserInputType == Enum.UserInputType.Touch then
-					if input == inS then
-						updSl(v2(input.Position))
-					end
-				else
-					if input.UserInputType == Enum.UserInputType.MouseMovement then
-						updSl(v2(input.Position))
-					end
-				end
-			end
-		end)
-
-		UIS.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				dM, dS = false, false
-				inM, inS = nil, nil
-				return
-			end
-			if input.UserInputType == Enum.UserInputType.Touch then
-				if inM == input then dM, inM = false, nil end
-				if inS == input then dS, inS = false, nil end
-			end
-		end)
-	end
-
-	if RS then
-		RS.RenderStepped:Connect(function(dt)
-			if rgbOn and not dM and not dS then
-				local step = math.clamp(dt or 0.016, 0.001, 0.1)
-				h = (h + step * rgbSpd) % 1
-				updUI(true)
-			end
-		end)
-	end
+	trackPickerConn(mHit.InputBegan:Connect(function(i) beg("m", i) end))
+	trackPickerConn(sHit.InputBegan:Connect(function(i) beg("s", i) end))
 
 	local entry = {
 		get = function()
@@ -52521,11 +52781,14 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 
 	NAgui._colorPickerRegistry[label] = entry
 
-	picker:GetPropertyChangedSignal("Parent"):Connect(function()
-		if not picker.Parent and NAgui._colorPickerRegistry[label] == entry then
-			NAgui._colorPickerRegistry[label] = nil
+	trackPickerConn(picker:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not picker.Parent then
+			if NAgui._colorPickerRegistry[label] == entry then
+				NAgui._colorPickerRegistry[label] = nil
+			end
+			cleanupPickerConnections()
 		end
-	end)
+	end))
 
 	local initOpts = {
 		fire = cfg.fireOnInit ~= false;
@@ -52937,8 +53200,8 @@ end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
 	if not NAUIMANAGER.SettingsList then return end
-	local connKey = "NAgui_slider:"..tostring(label)
-	NAlib.disconnect(connKey)
+	NAgui._sliderConnCounter = (NAgui._sliderConnCounter or 0) + 1
+	local connKey = "NAgui_slider:"..tostring(label)..":"..tostring(NAgui._sliderConnCounter)
 	local slider = templates.Slider:Clone()
 	slider.Title.Text = label
 	NAmanage.SetSearch.tag(slider, label)
@@ -53680,15 +53943,28 @@ NAmanage.SideSwipe_PositionHandles=function()
 	local cam = workspace.CurrentCamera
 	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	local y = vp.Y * 0.5
-	local inset = 6
+	local panelW = math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200)
+	local handleW = math.clamp(math.floor(panelW * 0.22 + 0.5), 16, 44)
+	local inset = math.max(4, math.floor(handleW * 0.4 + 0.5))
 	local handleH = math.clamp(vp.Y * 0.22, 90, 180)
+	local hideHandles = SideSwipeApp.handlesHidden == true or SideSwipeApp.isOpen == true
 	if SideSwipeApp.handles.left then
-		SideSwipeApp.handles.left.Position = UDim2.new(0, inset, 0, y)
-		SideSwipeApp.handles.left.Size = UDim2.new(0, 16, 0, handleH)
+		if hideHandles then
+			SideSwipeApp.handles.left.Position = UDim2.new(0, -handleW - 12, 0, y)
+			SideSwipeApp.handles.left.Active = false
+		else
+			SideSwipeApp.handles.left.Position = UDim2.new(0, inset, 0, y)
+		end
+		SideSwipeApp.handles.left.Size = UDim2.new(0, handleW, 0, handleH)
 	end
 	if SideSwipeApp.handles.right then
-		SideSwipeApp.handles.right.Position = UDim2.new(1, -inset, 0, y)
-		SideSwipeApp.handles.right.Size = UDim2.new(0, 16, 0, handleH)
+		if hideHandles then
+			SideSwipeApp.handles.right.Position = UDim2.new(1, handleW + 12, 0, y)
+			SideSwipeApp.handles.right.Active = false
+		else
+			SideSwipeApp.handles.right.Position = UDim2.new(1, -inset, 0, y)
+		end
+		SideSwipeApp.handles.right.Size = UDim2.new(0, handleW, 0, handleH)
 	end
 end
 
@@ -53865,6 +54141,12 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	if SideSwipeApp.animating then return end
 	local wasOpen = SideSwipeApp.isOpen
 	SideSwipeApp.isOpen = state and true or false
+	if SideSwipeApp.isOpen then
+		SideSwipeApp.handlesHidden = true
+	elseif wasOpen then
+		SideSwipeApp.handlesHidden = true
+	end
+	NAmanage.SideSwipe_PositionHandles()
 	SideSwipeApp.animating = true
 	SideSwipeApp.panel.Visible = true
 	NAmanage.SideSwipe_UpdateCanvas()
@@ -53894,6 +54176,11 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	tween.Completed:Connect(function()
 		if not SideSwipeApp.isOpen then
 			SideSwipeApp.panel.Visible = false
+			SideSwipeApp.handlesHidden = false
+			NAmanage.SideSwipe_UpdateHandleSide()
+		else
+			SideSwipeApp.handlesHidden = true
+			NAmanage.SideSwipe_PositionHandles()
 		end
 		SideSwipeApp.animating = false
 	end)
@@ -54071,7 +54358,7 @@ NAmanage.SideSwipe_Destroy=function()
 	NAlib.disconnect("ss_swipe_left")
 	NAlib.disconnect("ss_swipe_right")
 	if SideSwipeApp.gui then SideSwipeApp.gui:Destroy() end
-	SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; side=NASideSwipeSide or "left" }
+	SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 end
 
 NAgui.menu = function(menu)
@@ -54918,12 +55205,20 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 		if NAUIMANAGER.cmdInput then
 			NAgui.barSelect()
 			NAUIMANAGER.cmdInput.Text = ''
-
-			while true do
+			local focused = false
+			for _ = 1, 12 do
 				NAUIMANAGER.cmdInput:CaptureFocus()
-				Wait(.00005)
+				Wait(0.01)
 				NAUIMANAGER.cmdInput.Text = ''
-				if NAUIMANAGER.cmdInput:IsFocused() then break end
+				if NAUIMANAGER.cmdInput:IsFocused() then
+					focused = true
+					break
+				end
+			end
+			if not focused then
+				if type(DoNotif) == "function" then
+					DoNotif("Command bar focus delayed.", 1.5)
+				end
 			end
 		end
 	end
@@ -57331,6 +57626,39 @@ SpawnCall(function()
 			Defer(apply);
 		end);
 	end;
+	local interactIndex = {
+		click = setmetatable({}, { __mode = "k" });
+		proxy = setmetatable({}, { __mode = "k" });
+		touch = setmetatable({}, { __mode = "k" });
+	};
+	local function addInteract(kind, inst)
+		local list = interactTbl[kind];
+		local idxMap = interactIndex[kind];
+		if (not list) or (not idxMap) or idxMap[inst] then
+			return;
+		end;
+		local idx = #list + 1;
+		list[idx] = inst;
+		idxMap[inst] = idx;
+	end;
+	local function removeInteract(kind, inst)
+		local list = interactTbl[kind];
+		local idxMap = interactIndex[kind];
+		local idx = idxMap and idxMap[inst];
+		if (not list) or (not idxMap) or (not idx) then
+			return;
+		end;
+		local last = #list;
+		local lastInst = list[last];
+		list[last] = nil;
+		if idx ~= last then
+			list[idx] = lastInst;
+			if lastInst then
+				idxMap[lastInst] = idx;
+			end;
+		end;
+		idxMap[inst] = nil;
+	end;
 	local function registerInteract(inst)
 		if not inst or (not inst.Parent) then
 			return;
@@ -57339,21 +57667,32 @@ SpawnCall(function()
 			return;
 		end;
 		if inst:IsA("ClickDetector") then
-			local list = interactTbl.click;
-			if #list == 0 or (not Discover(list, inst)) then
-				Insert(list, inst);
-			end;
+			addInteract("click", inst);
 		elseif inst:IsA("ProximityPrompt") then
-			local list = interactTbl.proxy;
-			if #list == 0 or (not Discover(list, inst)) then
-				Insert(list, inst);
-			end;
+			addInteract("proxy", inst);
 		elseif inst:IsA("TouchTransmitter") then
-			local list = interactTbl.touch;
-			if #list == 0 or (not Discover(list, inst)) then
-				Insert(list, inst);
-			end;
+			addInteract("touch", inst);
 		end;
+	end;
+	local function unregisterInteract(inst)
+		if not inst then
+			return;
+		end;
+		if inst:IsA("ClickDetector") then
+			removeInteract("click", inst);
+		elseif inst:IsA("ProximityPrompt") then
+			removeInteract("proxy", inst);
+		elseif inst:IsA("TouchTransmitter") then
+			removeInteract("touch", inst);
+		end;
+	end;
+	local function isFriendLabelTarget(inst)
+		return inst
+			and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"));
+	end;
+	local function isInteractTarget(inst)
+		return inst
+			and (inst:IsA("ClickDetector") or inst:IsA("ProximityPrompt") or inst:IsA("TouchTransmitter"));
 	end;
 	local scanJobs = {};
 	local scanning = false;
@@ -57402,66 +57741,109 @@ SpawnCall(function()
 			scanning = false;
 		end);
 	end;
+	local friendQueue = {};
+	local friendSet = setmetatable({}, { __mode = "k" });
+	local friendHead = 1;
+	local friendTail = 0;
+	local interactQueue = {};
+	local interactQueued = setmetatable({}, { __mode = "k" });
+	local interactPending = setmetatable({}, { __mode = "k" });
+	local interactHead = 1;
+	local interactTail = 0;
+	local eventQueueBusy = false;
+	local function pumpEventQueues()
+		if eventQueueBusy then
+			return;
+		end;
+		eventQueueBusy = true;
+		Spawn(function()
+			while friendHead <= friendTail or interactHead <= interactTail do
+				local budget = 120;
+				while budget > 0 and (friendHead <= friendTail or interactHead <= interactTail) do
+					if friendHead <= friendTail then
+						local inst = friendQueue[friendHead];
+						friendQueue[friendHead] = nil;
+						friendHead += 1;
+						if inst then
+							friendSet[inst] = nil;
+							hookFriendLabel(inst);
+						end;
+					elseif interactHead <= interactTail then
+						local inst = interactQueue[interactHead];
+						interactQueue[interactHead] = nil;
+						interactHead += 1;
+						if inst then
+							interactQueued[inst] = nil;
+							local shouldAdd = interactPending[inst];
+							interactPending[inst] = nil;
+							if shouldAdd then
+								registerInteract(inst);
+							else
+								unregisterInteract(inst);
+							end;
+						end;
+					end;
+					budget -= 1;
+				end;
+				Wait();
+			end;
+			friendQueue = {};
+			friendHead = 1;
+			friendTail = 0;
+			interactQueue = {};
+			interactHead = 1;
+			interactTail = 0;
+			eventQueueBusy = false;
+		end);
+	end;
+	local function queueFriendLabel(inst)
+		if (not isFriendLabelTarget(inst)) or friendSet[inst] then
+			return;
+		end;
+		if HUI and inst:IsDescendantOf(HUI) then
+			return;
+		end;
+		friendSet[inst] = true;
+		friendTail += 1;
+		friendQueue[friendTail] = inst;
+		pumpEventQueues();
+	end;
+	local function queueInteract(inst, shouldAdd)
+		if not isInteractTarget(inst) then
+			return;
+		end;
+		interactPending[inst] = shouldAdd and true or false;
+		if interactQueued[inst] then
+			pumpEventQueues();
+			return;
+		end;
+		interactQueued[inst] = true;
+		interactTail += 1;
+		interactQueue[interactTail] = inst;
+		pumpEventQueues();
+	end;
 	if CoreGui then
 		queueScan(CoreGui, hookFriendLabel);
 		NAlib.disconnect("NA_FriendLabel_CoreGui");
 		NAlib.connect("NA_FriendLabel_CoreGui", CoreGui.DescendantAdded:Connect(function(o)
-			if HUI and o:IsDescendantOf(HUI) then
-				return;
-			end;
-			Defer(function()
-				queueScan(o, hookFriendLabel);
-			end);
+			queueFriendLabel(o);
 		end));
 	end;
 	if PlrGui then
 		queueScan(PlrGui, hookFriendLabel);
 		NAlib.disconnect("NA_FriendLabel_PlayerGui");
 		NAlib.connect("NA_FriendLabel_PlayerGui", PlrGui.DescendantAdded:Connect(function(o)
-			if HUI and o:IsDescendantOf(HUI) then
-				return;
-			end;
-			Defer(function()
-				hookFriendLabel(o);
-			end);
+			queueFriendLabel(o);
 		end));
 	end;
 	queueScan(workspace, registerInteract);
 	NAlib.disconnect("NA_InteractAdded");
 	NAlib.connect("NA_InteractAdded", workspace.DescendantAdded:Connect(function(inst)
-		Defer(function()
-			registerInteract(inst);
-		end);
+		queueInteract(inst, true);
 	end));
 	NAlib.disconnect("NA_InteractRemoved");
 	NAlib.connect("NA_InteractRemoved", workspace.DescendantRemoving:Connect(function(inst)
-		Defer(function()
-			if not inst then
-				return;
-			end;
-			if inst:IsA("ClickDetector") then
-				local list = interactTbl.click;
-				local i = Discover(list, inst);
-				while i do
-					table.remove(list, i);
-					i = Discover(list, inst);
-				end;
-			elseif inst:IsA("ProximityPrompt") then
-				local list = interactTbl.proxy;
-				local i = Discover(list, inst);
-				while i do
-					table.remove(list, i);
-					i = Discover(list, inst);
-				end;
-			elseif inst:IsA("TouchTransmitter") then
-				local list = interactTbl.touch;
-				local i = Discover(list, inst);
-				while i do
-					table.remove(list, i);
-					i = Discover(list, inst);
-				end;
-			end;
-		end);
+		queueInteract(inst, false);
 	end));
 end);
 
@@ -57565,9 +57947,12 @@ end
 
 do
 	NAStuff.pfTick = NAStuff.pfTick or 0
+	NAStuff.canvasTick = NAStuff.canvasTick or 0
 	NAlib.disconnect("NA_RenderStepMain")
 	NAlib.connect("NA_RenderStepMain", RunService.RenderStepped:Connect(function(dt)
-		if NAUIMANAGER then
+		NAStuff.canvasTick = NAStuff.canvasTick + (dt or 0)
+		if NAUIMANAGER and NAStuff.canvasTick >= 0.1 then
+			NAStuff.canvasTick = 0
 			local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
 			if NAUIMANAGER.chatLogs then
 				updateCanvasSize(NAUIMANAGER.chatLogs, s)
@@ -62173,40 +62558,146 @@ end)
 
 local mainColorDefault = (NAStuff and NAStuff.AprilFoolsData and NAStuff.AprilFoolsData.originalColor) or NAUISTROKER
 
-NAgui.addColorPicker("Main Color", mainColorDefault, function(color, meta)
-	if typeof(color) == "Color3" then
-		NAUISTROKER = color
-		for _, element in ipairs(NACOLOREDELEMENTS) do
-			if typeof(element) == "Instance" and element:IsA("UIStroke") then
-				element.Color = color
+local MAIN_COLOR_TAB_REFRESH_INTERVAL = 1 / 30
+local MAIN_COLOR_SAVE_DEBOUNCE = 0.2
+
+NAmanage._mainColorState = NAmanage._mainColorState or {
+	pendingTabColor = nil,
+	tabFlushQueued = false,
+	lastTabFlush = 0,
+	pendingSaveColor = nil,
+	saveSeq = 0,
+	nextStrokePrune = 0,
+}
+
+NAgui.applyMainColorToRegisteredStrokes=function(color)
+	local state = NAmanage._mainColorState
+	local list = NACOLOREDELEMENTS
+	if type(list) ~= "table" then
+		return
+	end
+
+	local now = tick()
+	local doPrune = now >= (state.nextStrokePrune or 0)
+
+	if doPrune then
+		local writeIdx = 0
+		for i = 1, #list do
+			local stroke = list[i]
+			if typeof(stroke) == "Instance" and stroke:IsA("UIStroke") and stroke.Parent then
+				writeIdx += 1
+				list[writeIdx] = stroke
+				stroke.Color = color
 			end
 		end
-		if TabManager and TabManager.tabs then
-			for name, info in pairs(TabManager.tabs) do
-				local btn = info and info.button
-				if btn then
-					local stroke = btn:FindFirstChildWhichIsA("UIStroke", true)
-					if stroke then
-						local computeColor = NAmanage.getTabStrokeColor
-						if typeof(computeColor) == "function" then
-							stroke.Color = computeColor(TabManager.current == name)
-						else
-							stroke.Color = color
-						end
-					end
-					if originalIO.applyTabDisplayText then
-						originalIO.applyTabDisplayText(info, {
-							isActive = info._isActive,
-							defaultColor = color,
-						})
-					end
+		for i = writeIdx + 1, #list do
+			list[i] = nil
+		end
+		state.nextStrokePrune = now + 1.5
+	else
+		for i = 1, #list do
+			local stroke = list[i]
+			if typeof(stroke) == "Instance" and stroke:IsA("UIStroke") then
+				stroke.Color = color
+			end
+		end
+	end
+end
+
+NAgui.flushMainColorTabRefresh=function()
+	local state = NAmanage._mainColorState
+	state.tabFlushQueued = false
+
+	local color = state.pendingTabColor
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	state.lastTabFlush = tick()
+
+	if not (TabManager and TabManager.tabs) then
+		return
+	end
+
+	local computeColor = NAmanage.getTabStrokeColor
+	local canCompute = type(computeColor) == "function"
+	for name, info in pairs(TabManager.tabs) do
+		local btn = info and info.button
+		if btn then
+			local stroke = info._tabStrokeCache
+			if not (typeof(stroke) == "Instance" and stroke.Parent) then
+				stroke = btn:FindFirstChildWhichIsA("UIStroke", true)
+				info._tabStrokeCache = stroke
+			end
+			if stroke then
+				if canCompute then
+					stroke.Color = computeColor(TabManager.current == name)
+				else
+					stroke.Color = color
 				end
 			end
+			if originalIO.applyTabDisplayText then
+				originalIO.applyTabDisplayText(info, {
+					isActive = info._isActive,
+					defaultColor = color,
+				})
+			end
 		end
-		NAmanage.SideSwipe_UpdateHandleColors(color)
 	end
+end
+
+NAgui.scheduleMainColorTabRefresh=function(color, forceNow)
+	local state = NAmanage._mainColorState
+	state.pendingTabColor = color
+
+	if forceNow then
+		NAgui.flushMainColorTabRefresh()
+		return
+	end
+
+	local now = tick()
+	local elapsed = now - (state.lastTabFlush or 0)
+	if elapsed >= MAIN_COLOR_TAB_REFRESH_INTERVAL and not state.tabFlushQueued then
+		NAgui.flushMainColorTabRefresh()
+		return
+	end
+
+	if state.tabFlushQueued then
+		return
+	end
+	state.tabFlushQueued = true
+	local waitFor = math.max(0, MAIN_COLOR_TAB_REFRESH_INTERVAL - elapsed)
+	Delay(waitFor, NAgui.flushMainColorTabRefresh)
+end
+
+NAgui.scheduleMainColorSave=function(color)
+	local state = NAmanage._mainColorState
+	state.pendingSaveColor = color
+	state.saveSeq = (state.saveSeq or 0) + 1
+	local seq = state.saveSeq
+	Delay(MAIN_COLOR_SAVE_DEBOUNCE, function()
+		local latest = NAmanage._mainColorState
+		if not latest or latest.saveSeq ~= seq then
+			return
+		end
+		local pending = latest.pendingSaveColor
+		if typeof(pending) == "Color3" then
+			SaveUIStroke(pending)
+		end
+	end)
+end
+
+NAgui.addColorPicker("Main Color", mainColorDefault, function(color, meta)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+
+	NAUISTROKER = color
+	NAgui.applyMainColorToRegisteredStrokes(color)
+	NAgui.scheduleMainColorTabRefresh(color, meta and meta.context == "init")
+	NAmanage.SideSwipe_UpdateHandleColors(color)
+
 	if not (meta and meta.context == "init") then
-		SaveUIStroke(color)
+		NAgui.scheduleMainColorSave(color)
 	end
 end, {
 	fireOnInit = true,
@@ -62371,7 +62862,7 @@ end)
 NAgui.addSection("Side Swipe Styling")
 
 NAgui.addSlider("Side Swipe Width", 60, 200, math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200), 1, " px", function(v)
-	NAStuff.SideSwipeWidth = math.clamp(math.floor(tonumber(v) or 80 + 0.5), 60, 200)
+	NAStuff.SideSwipeWidth = math.clamp(math.floor((tonumber(v) or 80) + 0.5), 60, 200)
 	NAmanage.NASettingsSet("sideSwipeWidth", NAStuff.SideSwipeWidth)
 	NAmanage.applySideSwipeStyle({ rebuild = true })
 end)
@@ -62389,8 +62880,11 @@ if CoreGui then
 		cg        = CoreGui,
 		images    = setmetatable({}, { __mode = "k" }),
 		queue     = {},
+		queueHead = 1,
+		queueTail = 0,
 		queueSet  = setmetatable({}, { __mode = "k" }),
 		processing = false,
+		queueKickPending = false,
 		applying   = false,
 		needApplyAll = false,
 	}
@@ -62537,7 +63031,8 @@ if CoreGui then
 			return
 		end
 		PT.queueSet[o] = true
-		Insert(PT.queue, o)
+		PT.queueTail += 1
+		PT.queue[PT.queueTail] = o
 	end
 
 	local function processQueue()
@@ -62546,26 +63041,43 @@ if CoreGui then
 		end
 		PT.processing = true
 		coroutine.wrap(function()
-			while #PT.queue > 0 do
-				local stepCount = math.min(#PT.queue, 50)
-				for i = 1, stepCount do
-					local o = table.remove(PT.queue, 1)
+			while PT.queueHead <= PT.queueTail do
+				local budget = 80
+				while budget > 0 and PT.queueHead <= PT.queueTail do
+					local o = PT.queue[PT.queueHead]
+					PT.queue[PT.queueHead] = nil
+					PT.queueHead += 1
 					if o then
 						PT.queueSet[o] = nil
 						if o.Parent then
 							applyIfReady(o)
 						end
 					end
+					budget -= 1
 				end
 				Wait()
 			end
+			PT.queue = {}
+			PT.queueHead = 1
+			PT.queueTail = 0
 			PT.processing = false
 		end)()
 	end
 
+	local function scheduleQueueProcess()
+		if PT.queueKickPending then
+			return
+		end
+		PT.queueKickPending = true
+		Defer(function()
+			PT.queueKickPending = false
+			processQueue()
+		end)
+	end
+
 	NAmanage.plex_add = function(o)
 		enqueue(o)
-		processQueue()
+		scheduleQueueProcess()
 	end
 
 	NAmanage.plex_applyAll = function()
@@ -62616,10 +63128,8 @@ if CoreGui then
 	rescanAll()
 
 	local function onDescendantAdded(o)
-		coroutine.wrap(function()
-			enqueue(o)
-			processQueue()
-		end)()
+		enqueue(o)
+		scheduleQueueProcess()
 	end
 
 	NAlib.disconnect("PlexyDescAdded")
@@ -64717,66 +65227,6 @@ SpawnCall(function()
 end)
 
 NAgui.setTab(NAgui.getActiveTab())
-
-NAgui.setTab(NA_TABS.TAB_CHAT)
-
-
-NAgui.addSection("Chat Tag Customization | disabled for fixing")
-
---[[NAgui.addInput("Tag Text", "Enter your tag", opt.currentTagText, function(inputText)
-	opt.currentTagText = inputText
-end)
-
-NAgui.addColorPicker("Tag Color", opt.currentTagColor, function(color)
-	opt.currentTagColor = color
-end)
-
-NAgui.addToggle("Rainbow Name", opt.currentTagRGB, function(state)
-	opt.currentTagRGB = state
-end)
-
-NAgui.addButton("Apply Chat Tag", function()
-	if opt.currentTagText == "" or not opt.currentTagText then
-		DoNotif("Please enter a tag name before applying",2)
-		return
-	end
-
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerText", opt.currentTagText)
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerColor", opt.currentTagColor)
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerRainbow", opt.currentTagRGB)
-
-	if FileSupport then
-		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
-			Text = opt.currentTagText;
-			Color = {
-				R = opt.currentTagColor.R;
-				G = opt.currentTagColor.G;
-				B = opt.currentTagColor.B;
-			};
-			RGB = opt.currentTagRGB;
-			Save = true;
-		}))
-	end
-
-	DebugNotif("Custom chat tag applied and saved!",2.5)
-end)
-
-NAgui.addButton("Remove Chat Tag", function()
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerText", nil)
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerColor", nil)
-	NAmanage.SetAttr(LocalPlayer, "CustomNAtaggerRainbow", nil)
-
-	if FileSupport and isfile(NAfiles.NACHATTAG) then
-		writefile(NAfiles.NACHATTAG, HttpService:JSONEncode({
-			Text = opt.currentTagText;
-			Color = { R = opt.currentTagColor.R, G = opt.currentTagColor.G, B = opt.currentTagColor.B };
-			RGB = opt.currentTagRGB;
-			Save = false;
-		}))
-	end
-
-	DebugNotif("Custom chat tag removed.",2.5)
-end)]]
 
 NAgui.setTab(NA_TABS.TAB_ALL)
 
