@@ -295,6 +295,8 @@ local NAStuff = {
 	autofillSelecting = false;
 	cmdFocusGuardUntil = 0;
 	autofillRefocusGuard = 0;
+	cmdBarSelected = false;
+	cmdAutofillClickable = false;
 }
 
 local opt = {}
@@ -10304,6 +10306,8 @@ NAmanage.ApplyCommandKeybinds=function()
 	end
 
 	local activeHoldKeys = {}
+	local keySpamState = {}
+	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if shouldBlock(gameProcessed) then return end
@@ -10313,12 +10317,21 @@ NAmanage.ApplyCommandKeybinds=function()
 		if type(args) ~= "table" or #args == 0 then
 			return
 		end
+		local now = os.clock()
+		local last = keySpamState[keyName]
+		if last and (now - last) < keySpamGap then
+			return
+		end
+		keySpamState[keyName] = now
 
 		local opt = CommandKeybindOptions[keyName]
 		if opt and opt.disabled then
 			return
 		end
 		if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
+			if activeHoldKeys[keyName] then
+				return
+			end
 			activeHoldKeys[keyName] = true
 			opt.state = true
 			cmd.run(cloneArgs(args))
@@ -15623,6 +15636,14 @@ NAmanage.activateMode = function(mode)
 end
 
 NAmanage.keyToggle=function(mode)
+	NAmanage._keyToggleLast = NAmanage._keyToggleLast or {}
+	local now = os.clock()
+	local cooldown = tonumber(NAmanage._keyToggleCooldown) or 0.12
+	local last = NAmanage._keyToggleLast[mode]
+	if last and (now - last) < cooldown then
+		return
+	end
+	NAmanage._keyToggleLast[mode] = now
 	if NAmanage._state.mode~=mode then return end
 	if not NAmanage._modeEnabled(mode) then return end
 	if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
@@ -15676,40 +15697,55 @@ NAmanage.toggleTFly=function()
 	end
 end
 
-NAmanage.connectFlyKey=function()
-	if flyVariables.keybindConn then flyVariables.keybindConn:Disconnect() end
-	flyVariables.keybindConn=mouse.KeyDown:Connect(function(KEY)
-		if Lower(KEY)==Lower(flyVariables.toggleKey) then
-			NAmanage.keyToggle("fly")
+NAmanage._shouldIgnoreFlyKeyInput = function(input, gameProcessed)
+	if gameProcessed then
+		return true
+	end
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return true
+	end
+	if UserInputService.GetFocusedTextBox and UserInputService:GetFocusedTextBox() then
+		return true
+	end
+	return false
+end
+
+NAmanage._connectFlyToggleKey = function(connField, keyField, mode)
+	local oldConn = flyVariables[connField]
+	if oldConn then
+		oldConn:Disconnect()
+		flyVariables[connField] = nil
+	end
+	flyVariables[connField] = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if NAmanage._shouldIgnoreFlyKeyInput(input, gameProcessed) then
+			return
 		end
+		local targetKey = Lower(tostring(flyVariables[keyField] or ""))
+		if targetKey == "" then
+			return
+		end
+		local keyName = Lower(tostring(input.KeyCode.Name or ""))
+		if keyName ~= targetKey then
+			return
+		end
+		NAmanage.keyToggle(mode)
 	end)
+end
+
+NAmanage.connectFlyKey=function()
+	NAmanage._connectFlyToggleKey("keybindConn", "toggleKey", "fly")
 end
 
 NAmanage.connectVFlyKey=function()
-	if flyVariables.vKeybindConn then flyVariables.vKeybindConn:Disconnect() end
-	flyVariables.vKeybindConn=mouse.KeyDown:Connect(function(KEY)
-		if Lower(KEY)==Lower(flyVariables.vToggleKey) then
-			NAmanage.keyToggle("vfly")
-		end
-	end)
+	NAmanage._connectFlyToggleKey("vKeybindConn", "vToggleKey", "vfly")
 end
 
 NAmanage.connectCFlyKey=function()
-	if flyVariables.cKeybindConn then flyVariables.cKeybindConn:Disconnect() end
-	flyVariables.cKeybindConn=mouse.KeyDown:Connect(function(KEY)
-		if Lower(KEY)==Lower(flyVariables.cToggleKey) then
-			NAmanage.keyToggle("cfly")
-		end
-	end)
+	NAmanage._connectFlyToggleKey("cKeybindConn", "cToggleKey", "cfly")
 end
 
 NAmanage.connectTFlyKey=function()
-	if flyVariables.tflyKeyConn then flyVariables.tflyKeyConn:Disconnect() end
-	flyVariables.tflyKeyConn=mouse.KeyDown:Connect(function(KEY)
-		if Lower(KEY)==Lower(flyVariables.tflyToggleKey) then
-			NAmanage.keyToggle("tfly")
-		end
-	end)
+	NAmanage._connectFlyToggleKey("tflyKeyConn", "tflyToggleKey", "tfly")
 end
 
 NAmanage.readAliasFile = function()
@@ -52840,6 +52876,7 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 	keybind.Title.Text = label
 	NAmanage.SetSearch.tag(keybind, label)
 	keybind.KeybindFrame.KeybindBox.Text = defaultKey
+	local boundKeyCode = Enum.KeyCode[defaultKey] or Enum.KeyCode.Unknown
 
 	keybind.LayoutOrder = NAgui._nextLayoutOrder()
 	keybind.Parent = NAUIMANAGER.SettingsList
@@ -52857,23 +52894,31 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		if keybind.KeybindFrame.KeybindBox.Text == "" then
 			keybind.KeybindFrame.KeybindBox.Text = defaultKey
 		end
+		boundKeyCode = Enum.KeyCode[keybind.KeybindFrame.KeybindBox.Text] or Enum.KeyCode.Unknown
 	end))
 
 	NAlib.connect(connKey, UserInputService.InputBegan:Connect(function(input, processed)
+		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+			return
+		end
+		local keyCode = input.KeyCode
+		if keyCode == Enum.KeyCode.Unknown then
+			return
+		end
 		if capturing and input.KeyCode ~= Enum.KeyCode.Unknown then
-			local keyName = tostring(input.KeyCode):split(".")[3]
+			local keyName = keyCode.Name
 			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
 			keybind.KeybindFrame.KeybindBox.Text = keyName
+			boundKeyCode = keyCode
 			capturing = false
 			pcall(callback, keyName)
-		elseif not capturing and keybind.KeybindFrame.KeybindBox.Text ~= "" then
-			if tostring(input.KeyCode) == "Enum.KeyCode."..keybind.KeybindFrame.KeybindBox.Text and not processed then
-				pcall(callback)
-			end
+		elseif not capturing and boundKeyCode ~= Enum.KeyCode.Unknown and not processed and keyCode == boundKeyCode then
+			pcall(callback)
 		end
 	end))
 
 	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
+		boundKeyCode = Enum.KeyCode[keybind.KeybindFrame.KeybindBox.Text] or Enum.KeyCode.Unknown
 		keybind.KeybindFrame:TweenSize(
 			UDim2.new(0, keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30),
 			Enum.EasingDirection.Out,
@@ -54196,6 +54241,42 @@ NAgui.hideFill = function()
 	end
 end
 
+NAmanage.setCmdAutofillClickable = function(enabled)
+	local isEnabled = enabled == true
+	NAStuff.cmdAutofillClickable = isEnabled
+
+	for _, frame in ipairs(CMDAUTOFILL) do
+		if frame and frame.Parent and frame:IsA("GuiObject") then
+			pcall(function()
+				frame.Active = isEnabled
+			end)
+			pcall(function()
+				frame.Selectable = isEnabled
+			end)
+			if frame:IsA("GuiButton") then
+				pcall(function()
+					frame.AutoButtonColor = isEnabled
+				end)
+			end
+
+			local inputObj = frame:FindFirstChild("Input")
+			if inputObj and inputObj:IsA("GuiObject") then
+				pcall(function()
+					inputObj.Active = isEnabled
+				end)
+				pcall(function()
+					inputObj.Selectable = isEnabled
+				end)
+				if inputObj:IsA("GuiButton") then
+					pcall(function()
+						inputObj.AutoButtonColor = isEnabled
+					end)
+				end
+			end
+		end
+	end
+end
+
 NAgui.loadCMDS = function()
 	for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
 		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
@@ -54214,6 +54295,9 @@ NAgui.loadCMDS = function()
 	NAStuff.autofillRefocusGuard = 0
 	local function wireAutofillClick(btn, textObj, fillText)
 		local function applyFill()
+			if not NAStuff.cmdAutofillClickable or not NAStuff.cmdBarSelected then
+				return
+			end
 			if not NAUIMANAGER.cmdInput then
 				return
 			end
@@ -54319,6 +54403,7 @@ NAgui.loadCMDS = function()
 		wireAutofillClick(btn, btn.Input, name)
 		Insert(CMDAUTOFILL, btn)
 	end
+	NAmanage.setCmdAutofillClickable(NAStuff.cmdBarSelected == true)
 	cmdNAnum = i
 	NAgui.hideFill()
 	NAmanage.rebuildIndex()
@@ -54365,6 +54450,8 @@ end
 NAgui.barSelect = function(speed)
 	speed = speed or 0.18
 	shouldShowDefaultAutofill = true
+	NAStuff.cmdBarSelected = true
+	NAmanage.setCmdAutofillClickable(true)
 
 	local targetSize = UDim2.new(0, 280, 1, 10)
 	local startSize = UDim2.new(0, 250, 1, 8)
@@ -54404,6 +54491,8 @@ NAgui.barDeselect = function(speed)
 	speed = speed or 0.4
 
 	shouldShowDefaultAutofill = false
+	NAStuff.cmdBarSelected = false
+	NAmanage.setCmdAutofillClickable(false)
 
 	NAgui.tween(NAUIMANAGER.centerBar, "Back", "InOut", speed, {
 		Size = UDim2.new(0, 0, 0, 0)
@@ -54756,15 +54845,73 @@ end
 	end
 end)]]
 NAlib.disconnect("cmdbar_hotkeys")
+NAStuff.prefixKeyAliasMap = NAStuff.prefixKeyAliasMap or {
+	[";"] = "Semicolon",
+	[","] = "Comma",
+	["."] = "Period",
+	["/"] = "Slash",
+	["\\"] = "BackSlash",
+	["`"] = "Backquote",
+	["-"] = "Minus",
+	["="] = "Equals",
+	["["] = "LeftBracket",
+	["]"] = "RightBracket",
+	["'"] = "Quote",
+}
+NAStuff.prefixDigitMap = NAStuff.prefixDigitMap or {
+	["0"] = Enum.KeyCode.Zero,
+	["1"] = Enum.KeyCode.One,
+	["2"] = Enum.KeyCode.Two,
+	["3"] = Enum.KeyCode.Three,
+	["4"] = Enum.KeyCode.Four,
+	["5"] = Enum.KeyCode.Five,
+	["6"] = Enum.KeyCode.Six,
+	["7"] = Enum.KeyCode.Seven,
+	["8"] = Enum.KeyCode.Eight,
+	["9"] = Enum.KeyCode.Nine,
+}
+NAStuff.cachedPrefixChar = NAStuff.cachedPrefixChar or nil
+NAStuff.cachedPrefixKey = NAStuff.cachedPrefixKey or nil
+originalIO.resolvePrefixKey=function()
+	local prefixChar = tostring(opt.prefix or ""):sub(1, 1)
+	if prefixChar == NAStuff.cachedPrefixChar then
+		return NAStuff.cachedPrefixKey
+	end
+	NAStuff.cachedPrefixChar = prefixChar
+	NAStuff.cachedPrefixKey = nil
+	if prefixChar == "" then
+		return nil
+	end
+	local alias = NAStuff.prefixKeyAliasMap[prefixChar]
+	if alias and Enum.KeyCode[alias] then
+		NAStuff.cachedPrefixKey = Enum.KeyCode[alias]
+		return NAStuff.cachedPrefixKey
+	end
+	if NAStuff.prefixDigitMap[prefixChar] then
+		NAStuff.cachedPrefixKey = NAStuff.prefixDigitMap[prefixChar]
+		return NAStuff.cachedPrefixKey
+	end
+	local upper = prefixChar:upper()
+	if #upper == 1 and Enum.KeyCode[upper] then
+		NAStuff.cachedPrefixKey = Enum.KeyCode[upper]
+		return NAStuff.cachedPrefixKey
+	end
+	for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
+		if keyCode.Name:lower() == prefixChar:lower() or keyCode.Value == string.byte(prefixChar) then
+			NAStuff.cachedPrefixKey = keyCode
+			return NAStuff.cachedPrefixKey
+		end
+	end
+	return nil
+end
 NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, g)
 	if g then return end
-	local c = tostring(opt.prefix):sub(1,1)
-	local k
-	for _, v in pairs(Enum.KeyCode:GetEnumItems()) do
-		if v.Name:lower() == c:lower() or v.Value == string.byte(c) then
-			k = v
-			break
-		end
+	if not i or i.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	local k = originalIO.resolvePrefixKey()
+	if not k then
+		return
 	end
 	if i.KeyCode == k then
 		Wait()
@@ -64673,3 +64820,4 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
+
