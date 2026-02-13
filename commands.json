@@ -1061,6 +1061,24 @@
       "desc": "Create a glass sphere with a Highlight at your center of mass"
     },
     {
+      "name": "predict",
+      "aliases": [
+        "predict"
+      ],
+      "usage": "predict <player> [leadSeconds]",
+      "args": "<player> [leadSeconds]",
+      "desc": "Visualize predicted player movement"
+    },
+    {
+      "name": "unpredict",
+      "aliases": [
+        "unpredict"
+      ],
+      "usage": "unpredict <player>",
+      "args": "<player>",
+      "desc": "Remove prediction orb"
+    },
+    {
       "name": "hidecom",
       "aliases": [
         "hidecom",
@@ -1200,6 +1218,24 @@
       "usage": "replicationlag (backtrack)",
       "args": "",
       "desc": "Set IncomingReplicationLag"
+    },
+    {
+      "name": "animdata",
+      "aliases": [
+        "animdata"
+      ],
+      "usage": "animdata",
+      "args": "",
+      "desc": "Shows you information about your current animations"
+    },
+    {
+      "name": "unanimdata",
+      "aliases": [
+        "unanimdata"
+      ],
+      "usage": "unanimdata",
+      "args": "",
+      "desc": ""
     },
     {
       "name": "sleepon",
@@ -1900,6 +1936,26 @@
       "usage": "username <name>",
       "args": "<name>",
       "desc": "changes your Username to any name you enter"
+    },
+    {
+      "name": "spoofclientid",
+      "aliases": [
+        "spoofclientid",
+        "spoofclid"
+      ],
+      "usage": "spoofclientid <value> (spoofclid)",
+      "args": "<value>",
+      "desc": "Spoofs GetClientId() to the value you provide"
+    },
+    {
+      "name": "unspoofclientid",
+      "aliases": [
+        "unspoofclientid",
+        "unspoofclid"
+      ],
+      "usage": "unspoofclientid (unspoofclid)",
+      "args": "",
+      "desc": "Restores normal GetClientId() behavior"
     },
     {
       "name": "synapsedex",
@@ -4582,6 +4638,16 @@
       "desc": "clears terrain"
     },
     {
+      "name": "memory",
+      "aliases": [
+        "memory",
+        "mem"
+      ],
+      "usage": "memory",
+      "args": "",
+      "desc": "Shows you your current memory usage"
+    },
+    {
       "name": "clearnilinstances",
       "aliases": [
         "clearnilinstances",
@@ -5259,6 +5325,15 @@
       "usage": "friendweb (fweb)",
       "args": "",
       "desc": "Finds friend circles in the current server"
+    },
+    {
+      "name": "massfollowedinto",
+      "aliases": [
+        "massfollowedinto"
+      ],
+      "usage": "massfollowedinto",
+      "args": "",
+      "desc": "Shows everyone in the server that followed someone into the game"
     },
     {
       "name": "tweengotocampos",
