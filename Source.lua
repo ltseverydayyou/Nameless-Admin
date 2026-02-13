@@ -8635,6 +8635,7 @@ NAmanage.jlDef = {
 	WelcomeNotif = true;
 	KeybindNotif = true;
 	PluginNotif = true;
+	NotifyFollowed = false;
 }
 
 NAmanage.jlNorm = function(cfg)
@@ -23803,6 +23804,28 @@ end)
 
 comPart, comHL, comConn, comRadius = nil,nil,nil,nil
 
+NAStuff.PredictionConfig = NAStuff.PredictionConfig or {
+	color = Color3.fromRGB(255, 255, 0);
+	radius = 0.35;
+	defaultLead = 0.25;
+	maxOffset = 40;
+}
+
+NAStuff.PredictionState = NAStuff.PredictionState or {
+	conn = nil;
+	cleanupConn = nil;
+	folder = nil;
+	lead = nil;
+	tracks = {};
+	lastRuntimeErrorAt = 0;
+	stats = {
+		tracked = 0;
+		visible = 0;
+		missingCharacter = 0;
+		missingRoot = 0;
+	};
+}
+
 cmd.add({"showcom","centerofmass","com"},{"showcom [radiusStuds]","Create a glass sphere with a Highlight at your center of mass"},function(...)
 	comRadius = tonumber(({...})[1]) or 0.35
 	if comConn then comConn:Disconnect() comConn=nil end
@@ -23856,6 +23879,340 @@ cmd.add({"showcom","centerofmass","com"},{"showcom [radiusStuds]","Create a glas
 
 	NAlib.connect("com_track", comConn)
 end,true)
+
+NAmanage.PredictionEnsureState = function()
+	NAStuff.PredictionConfig = NAStuff.PredictionConfig or {
+		color = Color3.fromRGB(255, 255, 0);
+		radius = 0.35;
+		defaultLead = 0.25;
+		maxOffset = 40;
+	}
+	local state = NAStuff.PredictionState or {}
+	NAStuff.PredictionState = state
+	state.tracks = state.tracks or {}
+	state.lastRuntimeErrorAt = tonumber(state.lastRuntimeErrorAt) or 0
+	state.stats = state.stats or {}
+	state.stats.tracked = tonumber(state.stats.tracked) or 0
+	state.stats.visible = tonumber(state.stats.visible) or 0
+	state.stats.missingCharacter = tonumber(state.stats.missingCharacter) or 0
+	state.stats.missingRoot = tonumber(state.stats.missingRoot) or 0
+	return state, NAStuff.PredictionConfig
+end
+
+NAmanage.PredictionOrbSize = function()
+	local _, cfg = NAmanage.PredictionEnsureState()
+	local radius = tonumber(cfg.radius) or 0.35
+	local diameter = radius * 2
+	return Vector3.new(diameter, diameter, diameter)
+end
+
+NAmanage.PredictionEnsureFolder = function()
+	local state = NAmanage.PredictionEnsureState()
+	if state.folder and state.folder.Parent == workspace then
+		return state.folder
+	end
+	if state.folder then
+		pcall(function() state.folder:Destroy() end)
+	end
+	state.folder = InstanceNew("Folder")
+	state.folder.Parent = workspace
+	return state.folder
+end
+
+NAmanage.PredictionCreateOrb = function()
+	local _, cfg = NAmanage.PredictionEnsureState()
+	local orb = InstanceNew("Part")
+	orb.Shape = Enum.PartType.Ball
+	orb.Size = NAmanage.PredictionOrbSize()
+	orb.Color = cfg.color
+	orb.Material = Enum.Material.Glass
+	orb.Transparency = 0
+	orb.Anchored = true
+	NAlib.setProperty(orb, "CanCollide", false)
+	NAlib.setProperty(orb, "CanTouch", false)
+	NAlib.setProperty(orb, "CanQuery", false)
+	NAlib.setProperty(orb, "Massless", true)
+	NAlib.setProperty(orb, "CastShadow", false)
+	orb.Parent = NAmanage.PredictionEnsureFolder()
+
+	local hl = InstanceNew("Highlight")
+	hl.Adornee = orb
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.FillTransparency = 0.25
+	hl.OutlineTransparency = 0
+	hl.FillColor = cfg.color
+	hl.OutlineColor = cfg.color
+	hl.Parent = orb
+
+	return orb, hl
+end
+
+NAmanage.PredictionRootFromPlayer = function(plr)
+	if not plr then
+		return nil
+	end
+	local tchar = plr.Character
+	if not tchar then
+		return nil
+	end
+	local root = tchar:FindFirstChild("HumanoidRootPart")
+		or getRoot(tchar)
+		or tchar.PrimaryPart
+		or tchar:FindFirstChildWhichIsA("BasePart")
+	if not root then
+		local okDesc, descendants = pcall(tchar.GetDescendants, tchar)
+		if okDesc and descendants then
+			for i = 1, #descendants do
+				local inst = descendants[i]
+				if inst:IsA("BasePart") then
+					root = inst
+					break
+				end
+			end
+		end
+	end
+	if root and root:IsDescendantOf(workspace) then
+		return root
+	end
+	return nil
+end
+
+NAmanage.PredictionResolvePlayer = function(userId, fallbackPlayer)
+	local plr = fallbackPlayer
+	if plr and plr.Parent and plr:IsDescendantOf(game) then
+		return plr
+	end
+	local numericId = tonumber(userId) or (plr and tonumber(plr.UserId))
+	if numericId then
+		local ok, resolved = pcall(Players.GetPlayerByUserId, Players, numericId)
+		if ok and resolved and resolved.Parent and resolved:IsDescendantOf(game) then
+			return resolved
+		end
+	end
+	return nil
+end
+
+NAmanage.PredictionEnsureEntry = function(userId, plr, lead)
+	if userId == nil then
+		return nil
+	end
+	local state, cfg = NAmanage.PredictionEnsureState()
+	state.tracks = state.tracks or {}
+	local entry = state.tracks[userId]
+	if not entry then
+		entry = {}
+		state.tracks[userId] = entry
+	end
+	entry.player = plr
+	entry.lead = tonumber(lead) or entry.lead or cfg.defaultLead
+	if not entry.part or not entry.part.Parent then
+		if entry.part then pcall(function() entry.part:Destroy() end) end
+		if entry.hl then pcall(function() entry.hl:Destroy() end) end
+		entry.part, entry.hl = NAmanage.PredictionCreateOrb()
+	end
+	return entry
+end
+
+NAmanage.PredictionDestroyEntry = function(userId)
+	if userId == nil then return end
+	local state = NAmanage.PredictionEnsureState()
+	local entry = state.tracks and state.tracks[userId]
+	if not entry then return end
+	if entry.hl then pcall(function() entry.hl:Destroy() end) end
+	if entry.part then pcall(function() entry.part:Destroy() end) end
+	state.tracks[userId] = nil
+end
+
+NAmanage.PredictionStopIfEmpty = function()
+	local state = NAmanage.PredictionEnsureState()
+	if state.tracks and next(state.tracks) ~= nil then
+		return
+	end
+	NAlib.disconnect("prediction_track")
+	if state.conn then state.conn:Disconnect() state.conn=nil end
+	if state.cleanupConn then state.cleanupConn:Disconnect() state.cleanupConn=nil end
+	if state.folder and state.folder.Parent then
+		pcall(function() state.folder:Destroy() end)
+	end
+	state.folder = nil
+end
+
+NAmanage.PredictionHeartbeatImpl = function()
+	local state, cfg = NAmanage.PredictionEnsureState()
+	local stale = {}
+	local visible = 0
+	local tracked = 0
+	local missingCharacter = 0
+	local missingRoot = 0
+	for userId, entry in pairs(state.tracks) do
+		tracked += 1
+		local plr = NAmanage.PredictionResolvePlayer(userId, entry and entry.player)
+		if not plr then
+			Insert(stale, userId)
+		else
+			entry.player = plr
+			local refreshed = NAmanage.PredictionEnsureEntry(userId, plr, entry.lead)
+			local troot = NAmanage.PredictionRootFromPlayer(plr)
+			if refreshed and troot and refreshed.part and refreshed.part.Parent then
+				local velocity = troot.AssemblyLinearVelocity or troot.Velocity or Vector3.new()
+				local lead = tonumber(refreshed.lead) or cfg.defaultLead
+				local offset = velocity * lead
+				local maxOffset = tonumber(cfg.maxOffset) or 40
+				if offset.Magnitude > maxOffset then
+					offset = offset.Unit * maxOffset
+				end
+				local basePos = troot.AssemblyCenterOfMass or troot.Position
+				local predicted = basePos + offset
+				refreshed.part.CFrame = CFrame.new(predicted)
+				refreshed.part.Transparency = 0
+				if refreshed.hl then
+					NAlib.setProperty(refreshed.hl, "Enabled", true)
+				end
+				visible += 1
+			elseif refreshed and refreshed.part then
+				refreshed.part.Transparency = 1
+				if refreshed.hl then
+					NAlib.setProperty(refreshed.hl, "Enabled", false)
+				end
+				if not plr.Character then
+					missingCharacter += 1
+				else
+					missingRoot += 1
+				end
+			end
+		end
+	end
+
+	for _, userId in ipairs(stale) do
+		NAmanage.PredictionDestroyEntry(userId)
+	end
+
+	NAmanage.PredictionStopIfEmpty()
+	state.stats.tracked = tracked
+	state.stats.visible = visible
+	state.stats.missingCharacter = missingCharacter
+	state.stats.missingRoot = missingRoot
+	return visible
+end
+
+NAmanage.PredictionHeartbeatSafe = function()
+	local state = NAmanage.PredictionEnsureState()
+	local ok, resultOrErr = pcall(NAmanage.PredictionHeartbeatImpl)
+	if ok then
+		return resultOrErr
+	end
+	local now = tick()
+	if now - state.lastRuntimeErrorAt >= 2 then
+		state.lastRuntimeErrorAt = now
+		warn("[NA predict] "..tostring(resultOrErr))
+		DoNotif("Predict runtime error (see console).", 2, "Prediction")
+	end
+	return 0
+end
+
+NAmanage.PredictionEnsureLoop = function()
+	local state = NAmanage.PredictionEnsureState()
+	if not state.cleanupConn then
+		state.cleanupConn = Players.PlayerRemoving:Connect(function(plr)
+			NAmanage.PredictionDestroyEntry(plr.UserId)
+			NAmanage.PredictionStopIfEmpty()
+		end)
+	end
+	if not state.conn then
+		state.conn = RunService.Heartbeat:Connect(NAmanage.PredictionHeartbeatSafe)
+		NAlib.connect("prediction_track", state.conn)
+	end
+end
+
+cmd.add({"predict"},{"predict <player> [leadSeconds]","Visualize predicted player movement"},function(target, leadSeconds)
+	local state, cfg = NAmanage.PredictionEnsureState()
+	local resolvedTarget = target
+	local resolvedLead = tonumber(leadSeconds)
+	if resolvedLead == nil and type(target) == "string" and tonumber(target) and (leadSeconds == nil or leadSeconds == "") then
+		resolvedLead = tonumber(target)
+		resolvedTarget = nil
+	end
+
+	state.lead = math.clamp(resolvedLead or state.lead or cfg.defaultLead, 0, 3)
+
+	local targets = (not resolvedTarget or resolvedTarget == "") and getPlr("others") or getPlr(resolvedTarget)
+	if not targets or #targets == 0 then
+		DoNotif("Player not found.", 2, "Prediction")
+		return
+	end
+
+	local added = 0
+	for _, plr in ipairs(targets) do
+		if plr and plr ~= Players.LocalPlayer then
+			local entry = NAmanage.PredictionEnsureEntry(plr.UserId, plr, state.lead)
+			if entry then
+				added += 1
+			end
+		end
+	end
+
+	if added == 0 then
+		DoNotif("No valid targets to predict.", 2, "Prediction")
+		return
+	end
+
+	NAmanage.PredictionEnsureLoop()
+	local visible = NAmanage.PredictionHeartbeatSafe() or 0
+	local tracked = state.stats.tracked or 0
+	if tracked <= 0 then
+		tracked = state.tracks and (function()
+			local count = 0
+			for _ in pairs(state.tracks) do
+				count += 1
+			end
+			return count
+		end)() or 0
+	end
+	if visible <= 0 and tracked > 0 then
+		DoNotif(
+			Format(
+				"Movement visualizer active: %d target(s), %d visible predicted orb(s). (no char: %d, no root: %d)",
+				tracked,
+				visible,
+				state.stats.missingCharacter or 0,
+				state.stats.missingRoot or 0
+			),
+			3,
+			"Prediction"
+		)
+	else
+		DoNotif(Format("Movement visualizer active: %d target(s), %d visible predicted orb(s).", tracked, visible), 2, "Prediction")
+	end
+end)
+
+cmd.add({"unpredict"},{"unpredict <player>","Remove prediction orb"},function(target)
+	local state = NAmanage.PredictionEnsureState()
+	state.tracks = state.tracks or {}
+	local removed = 0
+
+	if target and target ~= "" then
+		local list = getPlr(target)
+		if not list or #list == 0 then
+			DoNotif("Player not found.", 2, "Prediction")
+			return
+		end
+		for _, plr in ipairs(list) do
+			local userId = plr and plr.UserId
+			if userId and state.tracks[userId] then
+				removed += 1
+			end
+			NAmanage.PredictionDestroyEntry(userId)
+		end
+	else
+		for userId in pairs(state.tracks) do
+			removed += 1
+			NAmanage.PredictionDestroyEntry(userId)
+		end
+	end
+
+	NAmanage.PredictionStopIfEmpty()
+	DoNotif(Format("Removed %d prediction orb(s).", removed), 2, "Prediction")
+end)
 
 cmd.add({"hidecom","unshowcom","uncom"},{"hidecom","Remove COM tracker"},function()
 	NAlib.disconnect("com_track")
@@ -25003,6 +25360,14 @@ end)
 
 cmd.add({"replicationlag", "backtrack"}, {"replicationlag (backtrack)", "Set IncomingReplicationLag"}, function(num)
 	settings():GetService("NetworkSettings").IncomingReplicationLag = tonumber(num) or 0
+end, true)
+
+cmd.add({"animdata"}, {"animdata", "Shows you information about your current animations"}, function(num)
+	settings():GetService("NetworkSettings").ShowActiveAnimationAsset = true
+end, true)
+
+cmd.add({"unanimdata"}, {"unanimdata", ""}, function(num)
+	settings():GetService("NetworkSettings").ShowActiveAnimationAsset = false
 end, true)
 
 cmd.add({"sleepon"}, {"sleepon", "Enable AllowSleep"}, function()
@@ -27257,6 +27622,104 @@ cmd.add({"username","name"},{"username <name>","changes your Username to any nam
 		return DebugNotif("missing argument",3)
 	end
 	opt.hiddenprop(LocalPlayer, "Name", arg)
+end)
+
+NAmanage.ClientIdSpoofEnsureHook = function()
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro)
+		if ro then
+			make_readonly(t)
+		else
+			make_writeable(t)
+		end
+	end)
+	if type(getRawMetatable) ~= "function" or type(setReadOnly) ~= "function" or type(newcclosure) ~= "function" or type(getnamecallmethod) ~= "function" then
+		return false, "executor does not support required hook functions"
+	end
+	local mt = getRawMetatable(game)
+	if not mt or type(mt.__namecall) ~= "function" then
+		return false, "unable to access game metatable __namecall"
+	end
+
+	if NAStuff.ClientIdSpoofHooked == true and mt.__namecall == NAStuff.ClientIdSpoofHookRef and NAStuff.ClientIdSpoofOldNamecall then
+		return true
+	end
+
+	NAStuff.ClientIdSpoofOldNamecall = mt.__namecall
+	local hookRef
+	hookRef = newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if NAStuff.ClientIdSpoofEnabled == true and method == "GetClientId" then
+			return NAStuff.ClientIdSpoofValue
+		end
+		return NAStuff.ClientIdSpoofOldNamecall(self, ...)
+	end)
+	setReadOnly(mt, false)
+	mt.__namecall = hookRef
+	setReadOnly(mt, true)
+	NAStuff.ClientIdSpoofHookRef = hookRef
+	NAStuff.ClientIdSpoofHooked = true
+	return true
+end
+
+NAmanage.ClientIdSpoofDisable = function()
+	NAStuff.ClientIdSpoofEnabled = false
+	NAStuff.ClientIdSpoofValue = nil
+
+	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
+	local setReadOnly = setreadonly or (make_writeable and function(t, ro)
+		if ro then
+			make_readonly(t)
+		else
+			make_writeable(t)
+		end
+	end)
+	if type(getRawMetatable) ~= "function" or type(setReadOnly) ~= "function" then
+		NAStuff.ClientIdSpoofHooked = false
+		NAStuff.ClientIdSpoofHookRef = nil
+		NAStuff.ClientIdSpoofOldNamecall = nil
+		return false, "unable to restore metatable on this executor"
+	end
+
+	local mt = getRawMetatable(game)
+	if mt and NAStuff.ClientIdSpoofHookRef and NAStuff.ClientIdSpoofOldNamecall and mt.__namecall == NAStuff.ClientIdSpoofHookRef then
+		setReadOnly(mt, false)
+		mt.__namecall = NAStuff.ClientIdSpoofOldNamecall
+		setReadOnly(mt, true)
+	end
+	NAStuff.ClientIdSpoofHooked = false
+	NAStuff.ClientIdSpoofHookRef = nil
+	NAStuff.ClientIdSpoofOldNamecall = nil
+	return true
+end
+
+cmd.add({"spoofclientid","spoofclid"}, {"spoofclientid <value> (spoofclid)", "Spoofs GetClientId() to the value you provide"}, function(value)
+	local spoofValue = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	if spoofValue == "" then
+		DoNotif("Usage: spoofclientid <value>", 2, "ClientID")
+		return
+	end
+	local ok, err = NAmanage.ClientIdSpoofEnsureHook()
+	if not ok then
+		DoNotif("Failed to spoof ClientID: "..tostring(err), 3, "ClientID")
+		return
+	end
+	NAStuff.ClientIdSpoofValue = spoofValue
+	NAStuff.ClientIdSpoofEnabled = true
+	DoNotif("ClientID spoofed.", 2, "ClientID")
+end, true)
+
+cmd.add({"unspoofclientid","unspoofclid"}, {"unspoofclientid (unspoofclid)", "Restores normal GetClientId() behavior"}, function()
+	if NAStuff.ClientIdSpoofEnabled ~= true and NAStuff.ClientIdSpoofHooked ~= true then
+		DoNotif("ClientID spoof is not enabled.", 2, "ClientID")
+		return
+	end
+	local ok, err = NAmanage.ClientIdSpoofDisable()
+	if ok then
+		DoNotif("ClientID spoof disabled.", 2, "ClientID")
+	else
+		DoNotif("ClientID spoof flag disabled, but restore may be incomplete: "..tostring(err), 3, "ClientID")
+	end
 end)
 
 cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explorer"},function()
@@ -39612,6 +40075,11 @@ cmd.add({"removeterrain", "rterrain", "noterrain"},{"removeterrain (rterrain, no
 	workspace:FindFirstChildOfClass('Terrain'):Clear()
 end)
 
+cmd.add({"memory", "mem"}, {"memory", "Shows you your current memory usage"}, function(args)
+	--DoNotif(stats():GetTotalMemoryUsageMb().." mb",5,"Memory")
+	DoNotif(SafeGetService("Stats"):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
+end, true)
+
 cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (nonilinstances, cni)","Removes nil instances"},function()
 	if getnilinstances then
 		for _,nill in pairs(getnilinstances()) do
@@ -39625,9 +40093,13 @@ end)
 cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	local targetPlayers = getPlr(args)
 
-	for _, plr in next, targetPlayers do
-		GuiService:CloseInspectMenu()
-		GuiService:InspectPlayerFromUserId(plr.UserId)
+	if targetPlayers and #targetPlayers > 0 then
+		for _, plr in next, targetPlayers do
+			GuiService:CloseInspectMenu()
+			GuiService:InspectPlayerFromUserId(plr.UserId)
+		end
+	else
+		GuiService:InspectPlayerFromUserId(Players:GetUserIdFromNameAsync(args))
 	end
 end, true)
 
@@ -41988,6 +42460,36 @@ cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the cu
 	local body = (groupsFound == 0) and "No friend circles found in this server." or ("Here are the circles I found:\n"..Concat(lines, "\n"))
 	DoNotif(Format("Friend scan finished: %d circle%s found.", groupsFound, groupsFound == 1 and "" or "s"), 4, "Friend Web")
 	DoPopup({ Title = "Friend Circles", Description = body })
+end)
+
+cmd.add({"massfollowedinto"}, {"massfollowedinto", "Shows everyone in the server that followed someone into the game"}, function()
+	local lines = {}
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local okFollow, followIdRaw = pcall(function()
+			return plr.FollowUserId
+		end)
+		local followId = (okFollow and tonumber(followIdRaw)) or 0
+		if followId and followId ~= 0 then
+			local followedName = tostring(followId)
+			local okName, resolvedName = pcall(Players.GetNameFromUserIdAsync, Players, followId)
+			if okName and type(resolvedName) == "string" and resolvedName ~= "" then
+				followedName = resolvedName
+			end
+			lines[#lines + 1] = plr.Name.." followed "..followedName.." into game"
+		end
+	end
+
+	if #lines == 0 then
+		DoNotif("No players in this server joined by following someone.", 3, "Followed Into")
+		return
+	end
+
+	table.sort(lines, function(a, b)
+		return a:lower() < b:lower()
+	end)
+	DoNotif("Showing all followed-into players.", 3, "Followed Into")
+	DoWindow(table.concat(lines, "\n"), "Followed Into")
 end)
 
 cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"}, function()
@@ -52166,7 +52668,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		it:Destroy()
 	end
 
-	it = Instance.new("ImageButton")
+	it = InstanceNew("ImageButton")
 	it.Name = "Interact"
 	it.BackgroundTransparency = 1
 	it.ImageTransparency = 1
@@ -52221,7 +52723,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		end
 		cupd()
 
-		cbtn = Instance.new("TextButton")
+		cbtn = InstanceNew("TextButton")
 		cbtn.Name = "ChipInteract"
 		cbtn.BackgroundTransparency = 1
 		cbtn.Text = "Use"
@@ -52880,7 +53382,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 
 			updChip2()
 
-			local btn = Instance.new("TextButton")
+			local btn = InstanceNew("TextButton")
 			btn.Name = "ChipInteract"
 			btn.BackgroundTransparency = 1
 			btn.Text = "Use"
@@ -57581,6 +58083,15 @@ function setupPlayer(plr,bruh)
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
+	end
+	if not bruh and plr ~= LocalPlayer and NAmanage.jlCfg.NotifyFollowed == true then
+		local okFollow, followIdRaw = pcall(function()
+			return plr.FollowUserId
+		end)
+		local followId = okFollow and tonumber(followIdRaw) or 0
+		if followId and followId ~= 0 and followId == LocalPlayer.UserId then
+			DoNotif(nameChecker(plr).." followed you into game", 3, "Followed Into")
+		end
 	end
 	if NAmanage.WebhookJoinLeave then
 		NAmanage.WebhookJoinLeave(plr, "join")
@@ -62462,7 +62973,7 @@ NAmanage.applyCrosshair = function()
 		NAmanage.destroyCrosshair()
 	end
 	if not NAStuff.CrosshairGui then
-		local gui = Instance.new("ScreenGui")
+		local gui = InstanceNew("ScreenGui")
 		gui.Name = "NA_Crosshair"
 		gui.IgnoreGuiInset = true
 		gui.ResetOnSpawn = false
@@ -62494,7 +63005,7 @@ NAmanage.applyCrosshair = function()
 	local gap = math.max(1, math.floor(thick))
 
 	local function line(w, h, pos)
-		local f = Instance.new("Frame")
+		local f = InstanceNew("Frame")
 		f.BackgroundColor3 = color
 		f.BorderSizePixel = 0
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -63911,6 +64422,12 @@ NAgui.addToggle("Log Player Leaves", NAmanage.jlCfg.LeaveLog, function(v)
 	DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 end)
 
+NAgui.addToggle("Notify If Followed Into", NAmanage.jlCfg.NotifyFollowed == true, function(v)
+	NAmanage.jlCfg.NotifyFollowed = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Followed-into notification "..(v and "enabled" or "disabled"), 2)
+end)
+
 NAgui.addToggle("Save Join/Leave Logs", NAmanage.jlCfg.SaveLog, function(v)
 	NAmanage.jlCfg.SaveLog = v
 	NAmanage.jlSave()
@@ -65234,6 +65751,7 @@ originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 	})
 end
 
+SpawnCall(function() NAgui.addInfo("Your Version", version().."-".._VERSION) end)
 NAgui.addSection("Powered by weao.xyz API")
 originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
 originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
@@ -65344,4 +65862,3 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
-

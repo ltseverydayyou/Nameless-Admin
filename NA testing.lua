@@ -24144,7 +24144,7 @@ NAmanage.PredictionEnsureLoop = function()
 	end
 end
 
-cmd.add({"predict"},{"predict <player> [leadSeconds]","Create COM-style prediction orbs (all if no player)"},function(target, leadSeconds)
+cmd.add({"predict"},{"predict <player> [leadSeconds]","Visualize predicted player movement"},function(target, leadSeconds)
 	local state, cfg = NAmanage.PredictionEnsureState()
 	local resolvedTarget = target
 	local resolvedLead = tonumber(leadSeconds)
@@ -24191,7 +24191,7 @@ cmd.add({"predict"},{"predict <player> [leadSeconds]","Create COM-style predicti
 	if visible <= 0 and tracked > 0 then
 		DoNotif(
 			Format(
-				"Prediction active: %d target(s), %d visible orb(s). (no char: %d, no root: %d)",
+				"Movement visualizer active: %d target(s), %d visible predicted orb(s). (no char: %d, no root: %d)",
 				tracked,
 				visible,
 				state.stats.missingCharacter or 0,
@@ -24201,11 +24201,11 @@ cmd.add({"predict"},{"predict <player> [leadSeconds]","Create COM-style predicti
 			"Prediction"
 		)
 	else
-		DoNotif(Format("Prediction active: %d target(s), %d visible orb(s).", tracked, visible), 2, "Prediction")
+		DoNotif(Format("Movement visualizer active: %d target(s), %d visible predicted orb(s).", tracked, visible), 2, "Prediction")
 	end
 end)
 
-cmd.add({"unpredict"},{"unpredict <player>","Remove prediction orb (all if no player)"},function(target)
+cmd.add({"unpredict"},{"unpredict <player>","Remove prediction orb"},function(target)
 	local state = NAmanage.PredictionEnsureState()
 	state.tracks = state.tracks or {}
 	local removed = 0
@@ -64442,6 +64442,12 @@ NAgui.addToggle("Log Player Leaves", NAmanage.jlCfg.LeaveLog, function(v)
 	DoNotif("Leave logging "..(v and "enabled" or "disabled"), 2)
 end)
 
+NAgui.addToggle("Notify If Followed Into", NAmanage.jlCfg.NotifyFollowed == true, function(v)
+	NAmanage.jlCfg.NotifyFollowed = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Followed-into notification "..(v and "enabled" or "disabled"), 2)
+end)
+
 NAgui.addToggle("Save Join/Leave Logs", NAmanage.jlCfg.SaveLog, function(v)
 	NAmanage.jlCfg.SaveLog = v
 	NAmanage.jlSave()
@@ -64480,12 +64486,6 @@ NAgui.addToggle("Show Plugin Load Summary", NAmanage.jlCfg.PluginNotif ~= false,
 	NAmanage.jlCfg.PluginNotif = v and true or false
 	NAmanage.jlSave()
 	DoNotif("Plugin load summary "..(v and "enabled" or "disabled"), 2)
-end)
-
-NAgui.addToggle("Notify If Followed Into", NAmanage.jlCfg.NotifyFollowed == true, function(v)
-	NAmanage.jlCfg.NotifyFollowed = v and true or false
-	NAmanage.jlSave()
-	DoNotif("Followed-into notification "..(v and "enabled" or "disabled"), 2)
 end)
 
 NAgui.addToggle("Show Intro Text Label", NAmanage.jlCfg.IconLabel ~= false, function(v)
