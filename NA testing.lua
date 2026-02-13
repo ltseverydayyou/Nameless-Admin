@@ -12881,17 +12881,27 @@ NAmanage.wrapPatchedFunc=function(func)
 end
 
 NAmanage.inferRequiresArguments=function(infoTable)
-	if type(infoTable) == "table" then
-		for i = 1, 2 do
-			local text = infoTable[i]
-			if type(text) == "string" then
-				if text:find("%b<>") or text:find("%[") then
-					return true
-				end
-			end
+	local function hasRequiredPlaceholder(text)
+		if type(text) ~= "string" then
+			return false
 		end
+
+		local cleaned = text:gsub("%b[]", "")
+		return cleaned:find("%b<>") ~= nil or cleaned:find("%b{}") ~= nil
 	end
-	return nil
+
+	if type(infoTable) == "table" then
+		if hasRequiredPlaceholder(infoTable[1]) then
+			return true
+		end
+		if (type(infoTable[1]) ~= "string" or infoTable[1] == "") and hasRequiredPlaceholder(infoTable[2]) then
+			return true
+		end
+	elseif type(infoTable) == "string" then
+		return hasRequiredPlaceholder(infoTable)
+	end
+
+	return false
 end
 
 cmd.add = function(aliases, info, func, requiresArguments, meta)
@@ -16170,6 +16180,7 @@ local function NAUserButtonCloneAsChild(data, fallbackLabel)
 		Cmd1 = data.Cmd1,
 		Cmd2 = data.Cmd2,
 		Args = (type(data.Args) == "table") and originalIO.deepCopyTable(data.Args) or nil,
+		ArgsSaved = data.ArgsSaved,
 		RunMode = data.RunMode,
 		BgColor = data.BgColor,
 		TextColor = data.TextColor,
@@ -18233,6 +18244,9 @@ NAmanage.RenderUserButtons = function()
 							SavedArgs[childKey] = child.Args or SavedArgs[childKey] or {}
 							local childToggled = childKey and UserButtonToggleState[childKey] == true or false
 							local childSaveEnabled = child.RunMode == "S"
+							if child.ArgsSaved == nil and type(child.Args) == "table" then
+								child.ArgsSaved = true
+							end
 							local childCmd1 = child.Cmd1
 							local childCd1 = childCmd1 and (cmds.Commands[childCmd1:lower()] or cmds.Aliases[childCmd1:lower()])
 							local childNeedsArgs = childCd1 and childCd1[3]
@@ -18296,10 +18310,30 @@ NAmanage.RenderUserButtons = function()
 								local needsArgs = nd and nd[3]
 								if needsArgs then
 									if childSaveEnabled then
-										if child.Args and #child.Args > 0 then
+										if child.ArgsSaved then
 											runChild(child.Args)
 										else
-											runChild(nil)
+											if ActivePrompts[now] then return end
+											ActivePrompts[now] = true
+											ButtonInputPrompt(now, function(input)
+												ActivePrompts[now] = nil
+												local parsed = ParseArguments(input)
+												if parsed then
+													SavedArgs[childKey] = parsed
+													child.Args = parsed
+													child.ArgsSaved = true
+													NAmanage.UserButtonsSave("group child args")
+													runChild(parsed)
+												elseif type(input) == "string" then
+													SavedArgs[childKey] = {}
+													child.Args = {}
+													child.ArgsSaved = true
+													NAmanage.UserButtonsSave("group child args empty")
+													runChild(nil)
+												else
+													runChild(nil)
+												end
+											end)
 										end
 									else
 										if ActivePrompts[now] then return end
@@ -18310,6 +18344,7 @@ NAmanage.RenderUserButtons = function()
 											if parsed then
 												SavedArgs[childKey] = parsed
 												child.Args = parsed
+												child.ArgsSaved = true
 												NAmanage.UserButtonsSave("group child args")
 												runChild(parsed)
 											else
@@ -18367,6 +18402,9 @@ NAmanage.RenderUserButtons = function()
 					local toggled     = UserButtonToggleState[id] == true
 					local saveEnabled = data.RunMode == "S"
 					SavedArgs[id]     = data.Args or {}
+					if data.ArgsSaved == nil and type(data.Args) == "table" then
+						data.ArgsSaved = true
+					end
 
 					local cmd1      = data.Cmd1
 					local cd1       = cmd1 and (cmds.Commands[cmd1:lower()] or cmds.Aliases[cmd1:lower()])
@@ -18428,7 +18466,7 @@ NAmanage.RenderUserButtons = function()
 						local nd      = cmds.Commands[now:lower()] or cmds.Aliases[now:lower()]
 						local na      = nd and nd[3]
 						if na then
-							if saveEnabled and data.Args and #data.Args>0 then
+							if saveEnabled and data.ArgsSaved then
 								runCmd(data.Args)
 							else
 								if ActivePrompts[now] then return end
@@ -18439,8 +18477,15 @@ NAmanage.RenderUserButtons = function()
 									if parsed then
 										SavedArgs[id] = parsed
 										data.Args     = parsed
+										data.ArgsSaved = true
 										NAmanage.UserButtonsSave("button args")
 										runCmd(parsed)
+									elseif saveEnabled and type(input) == "string" then
+										SavedArgs[id] = {}
+										data.Args = {}
+										data.ArgsSaved = true
+										NAmanage.UserButtonsSave("button args empty")
+										runCmd(nil)
 									else
 										runCmd(nil)
 									end
@@ -27994,7 +28039,7 @@ cmd.add({"unantifling"},{"unantifling","restores collision for other players"},f
 	DebugNotif("Antifling Disabled")
 end)
 
-cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
+cmd.addPatched({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
 	Wait();
 	DoNotif("Wait a few seconds for it to load",2.5)
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun"))()
@@ -39205,7 +39250,7 @@ cmd.add({"climb"}, {"climb", "Allows you to climb while in air"}, function()
 			climbPart.CFrame = r.CFrame * CFrame.new(0, 0, -1.5)
 		end)
 	end)
-end, true)
+end)
 
 cmd.add({"unclimb"}, {"unclimb", "Disables climb"}, function()
 	originalIO.stopClimb()
