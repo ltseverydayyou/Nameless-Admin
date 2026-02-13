@@ -11542,9 +11542,10 @@ if FileSupport then
 	NAlib.disconnect("TCS_ApplyLoop")
 	do
 		local last = os.clock()
+		local interval = 0.5
 		NAlib.connect("TCS_ApplyLoop", RunService.RenderStepped:Connect(function()
 			local now = os.clock()
-			if now - last >= 0.2 then
+			if now - last >= interval then
 				last = now
 				local desiredCoreChat = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
 				local synced = isCoreChatStateSynced()
@@ -56880,6 +56881,12 @@ end
 function bindToChat(plr, msg)
 	local shouldDisplay = NAmanage.jlCfg.ChatLog ~= false
 	local shouldSave = NAmanage.jlCfg.SaveChatLog == true
+	NAStuff.ChatLogState = NAStuff.ChatLogState or {
+		entries = {};
+		nextOrder = 0;
+		maxMessages = 200;
+	}
+	local chatLogState = NAStuff.ChatLogState
 
 	if not shouldDisplay and not shouldSave then
 		return
@@ -56899,14 +56906,10 @@ function bindToChat(plr, msg)
 	if shouldDisplay then
 		chatMsg = NAUIMANAGER.chatExample:Clone()
 
-		for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
-			if v:IsA("TextLabel") then
-				v.LayoutOrder = v.LayoutOrder + 1
-			end
-		end
-
 		chatMsg.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 		chatMsg.Parent = NAUIMANAGER.chatLogs
+		chatLogState.nextOrder = (chatLogState.nextOrder or 0) + 1
+		chatMsg.LayoutOrder = chatLogState.nextOrder
 		chatMsg.Text = baseText
 
 		if NAmanage.AttachMessageCopy then
@@ -56998,21 +57001,20 @@ function bindToChat(plr, msg)
 		local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 200)
 		chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
-		local MAX_MESSAGES = 200
-		local chatFrames = {}
-		for _, v in pairs(NAUIMANAGER.chatLogs:GetChildren()) do
-			if v:IsA("TextLabel") then
-				Insert(chatFrames, v)
-			end
+		local entries = chatLogState.entries
+		while #entries > 0 and (not entries[1] or not entries[1].Parent) do
+			table.remove(entries, 1)
 		end
+		Insert(entries, chatMsg)
 
-		table.sort(chatFrames, function(a, b)
-			return a.LayoutOrder < b.LayoutOrder
-		end)
-
-		if #chatFrames > MAX_MESSAGES then
-			for i = MAX_MESSAGES + 1, #chatFrames do
-				chatFrames[i]:Destroy()
+		local maxMessages = tonumber(chatLogState.maxMessages) or 200
+		if maxMessages < 20 then
+			maxMessages = 20
+		end
+		while #entries > maxMessages do
+			local old = table.remove(entries, 1)
+			if old and old.Parent then
+				old:Destroy()
 			end
 		end
 	end
@@ -57030,7 +57032,11 @@ NAmanage.bindToDevConsole = function()
 	if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleExample) then
 		return;
 	end;
-	local activeLogs, pool, pending = {}, {}, {};
+	local activeLogs, pool = {}, {};
+	local pending = {};
+	local pendingHead = 1;
+	local pendingTail = 0;
+	local pendingProcessing = false;
 	local buttonTypes = {
 		"Output",
 		"Info",
@@ -57252,15 +57258,72 @@ NAmanage.bindToDevConsole = function()
 		if not toggles[tagText] then
 			return;
 		end;
-		Insert(pending, {
+		pendingTail += 1;
+		pending[pendingTail] = {
 			m = escape(rawText),
 			raw = rawText,
 			t = tagText,
 			c = tagColor
-		});
+		};
 	end;
 	local messageCounter = 0;
 	local MAX_MESSAGES = 200;
+	local function processPendingQueue()
+		if pendingProcessing then
+			return;
+		end;
+		pendingProcessing = true;
+		Spawn(function()
+			while pendingHead <= pendingTail do
+				if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
+					pendingProcessing = false;
+					return;
+				end;
+				local perStep = 30;
+				local processed = 0;
+				while processed < perStep and pendingHead <= pendingTail do
+					local item = pending[pendingHead];
+					pending[pendingHead] = nil;
+					pendingHead += 1;
+					if item and toggles[item.t] then
+						local logLabel = acquireLabel();
+						if not logLabel then
+							break;
+						end;
+						messageCounter += 1;
+						logLabel.Name = "Log_" .. tostring(messageCounter);
+						logLabel.LayoutOrder = messageCounter;
+						logLabel.Text = "<font color=\"" .. item.c .. "\">[" .. item.t .. "]</font>: <font color=\"#ffffff\">" .. item.m .. "</font>";
+						NAmanage.SetAttr(logLabel, "Tag", item.t);
+						local copyText = item.raw or stripRichText(item.m);
+						NAmanage.SetAttr(logLabel, "NA_CopyText", copyText);
+						if NAmanage.AttachMessageCopy and NAmanage.GetAttr(logLabel, "NA_CopyHooked") ~= true then
+							NAmanage.AttachMessageCopy(logLabel, function(lbl)
+								return (NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_CopyText")) or copyText;
+							end);
+							NAmanage.SetAttr(logLabel, "NA_CopyHooked", true);
+						end;
+						local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
+						local h = measureHeight(logLabel, width);
+						logLabel.Size = UDim2.new(1, 0, 0, h);
+						activeLogs[(#activeLogs) + 1] = logLabel;
+						if #activeLogs > MAX_MESSAGES then
+							recycleOldest();
+						end;
+						local query = NAUIMANAGER.NAfilter.Text:lower();
+						local matchesSearch = query == "" or Find(logLabel.Text:lower(), query);
+						logLabel.Visible = toggles[item.t] and matchesSearch;
+						processed += 1;
+					end;
+				end;
+				Wait();
+			end;
+			pending = {};
+			pendingHead = 1;
+			pendingTail = 0;
+			pendingProcessing = false;
+		end);
+	end;
 	local logService = SafeGetService("LogService");
 	do
 		local ok, history = pcall(function()
@@ -57282,49 +57345,11 @@ NAmanage.bindToDevConsole = function()
 			end;
 		end;
 	end;
-	NAlib.connect(CONN_KEY, RunService.RenderStepped:Connect(function()
-		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
-			return;
-		end;
-		local perStep = 30;
-		local processed = 0;
-		while processed < perStep and #pending > 0 do
-			local item = table.remove(pending, 1);
-			if toggles[item.t] then
-				local logLabel = acquireLabel();
-				if not logLabel then
-					break;
-				end;
-				messageCounter += 1;
-				logLabel.Name = "Log_" .. tostring(messageCounter);
-				logLabel.LayoutOrder = messageCounter;
-				logLabel.Text = "<font color=\"" .. item.c .. "\">[" .. item.t .. "]</font>: <font color=\"#ffffff\">" .. item.m .. "</font>";
-				NAmanage.SetAttr(logLabel, "Tag", item.t);
-				local copyText = item.raw or stripRichText(item.m);
-				NAmanage.SetAttr(logLabel, "NA_CopyText", copyText);
-				if NAmanage.AttachMessageCopy and NAmanage.GetAttr(logLabel, "NA_CopyHooked") ~= true then
-					NAmanage.AttachMessageCopy(logLabel, function(lbl)
-						return (NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_CopyText")) or copyText;
-					end);
-					NAmanage.SetAttr(logLabel, "NA_CopyHooked", true);
-				end;
-				local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
-				local h = measureHeight(logLabel, width);
-				logLabel.Size = UDim2.new(1, 0, 0, h);
-				activeLogs[(#activeLogs) + 1] = logLabel;
-				if #activeLogs > MAX_MESSAGES then
-					recycleOldest();
-				end;
-				local query = NAUIMANAGER.NAfilter.Text:lower();
-				local matchesSearch = query == "" or Find(logLabel.Text:lower(), query);
-				logLabel.Visible = toggles[item.t] and matchesSearch;
-				processed += 1;
-			end;
-		end;
-	end));
+	processPendingQueue();
 	if logService then
 		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE)
 			enqueueMessage(msg, msgTYPE);
+			processPendingQueue();
 		end));
 	end;
 	reflowConsole();
@@ -59039,7 +59064,17 @@ NAmanage.injectNAConsole = function()
 	end
 
 	NAlib.disconnect("naconsole_loop")
-	NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(ensureInjection))
+	do
+		local injectTick = 0
+		NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(function(dt)
+			injectTick = injectTick + (dt or 0)
+			if injectTick < 0.15 then
+				return
+			end
+			injectTick = 0
+			ensureInjection()
+		end))
+	end
 	ensureInjection()
 
 	NAmanage._naConsoleInitialized = true
@@ -59061,18 +59096,57 @@ NAmanage.destroyNAConsole = function()
 	NAmanage._naConsoleInitialized = false
 end
 
-if not NAmanage._autoJumpLoopRunning then
-	NAmanage._autoJumpLoopRunning = true
-	SpawnCall(function()
-		Lighting.LightingStyle = Enum.LightingStyle.Soft
-		while Wait(0.25) and getChar() do
-			local hum = getHum()
-			if hum and hum.AutoJumpEnabled then
-				hum.AutoJumpEnabled = false
-			end
+if not NAmanage._autoJumpGuardInitialized then
+	NAmanage._autoJumpGuardInitialized = true
+	Lighting.LightingStyle = Enum.LightingStyle.Soft
+
+	local function disableAutoJump(hum)
+		if not hum or not hum.Parent then
+			return
 		end
-		NAmanage._autoJumpLoopRunning = false
-	end)
+		if hum.AutoJumpEnabled then
+			hum.AutoJumpEnabled = false
+		end
+	end
+
+	local function bindHumanoid(hum)
+		NAlib.disconnect("na_autojump_hum")
+		if not hum then
+			return
+		end
+		disableAutoJump(hum)
+		NAlib.connect("na_autojump_hum", hum:GetPropertyChangedSignal("AutoJumpEnabled"):Connect(function()
+			disableAutoJump(hum)
+		end))
+		NAlib.connect("na_autojump_hum", hum.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAlib.disconnect("na_autojump_hum")
+			end
+		end))
+	end
+
+	local function bindCharacter(char)
+		NAlib.disconnect("na_autojump_char_desc")
+		if not char then
+			bindHumanoid(nil)
+			return
+		end
+		bindHumanoid(char:FindFirstChildOfClass("Humanoid"))
+		NAlib.connect("na_autojump_char_desc", char.DescendantAdded:Connect(function(inst)
+			if inst and inst:IsA("Humanoid") then
+				bindHumanoid(inst)
+			end
+		end))
+		NAlib.connect("na_autojump_char_desc", char.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAlib.disconnect("na_autojump_char_desc")
+			end
+		end))
+	end
+
+	bindCharacter(getChar())
+	NAlib.disconnect("na_autojump_char")
+	NAlib.connect("na_autojump_char", LocalPlayer.CharacterAdded:Connect(bindCharacter))
 end
 
 SpawnCall(NAmanage.destroyNAConsole) -- ensure no dupes
