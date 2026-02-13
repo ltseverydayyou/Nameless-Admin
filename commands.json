@@ -1986,15 +1986,6 @@
       "desc": "restores collision for other players"
     },
     {
-      "name": "gravitygun",
-      "aliases": [
-        "gravitygun"
-      ],
-      "usage": "gravitygun",
-      "args": "",
-      "desc": "Probably the best gravity gun script thats fe"
-    },
-    {
       "name": "lockws",
       "aliases": [
         "lockws",
@@ -7196,6 +7187,15 @@
       "usage": "breaklayeredclothing (blc)",
       "args": "",
       "desc": "Streches your layered clothing"
+    },
+    {
+      "name": "gravitygun",
+      "aliases": [
+        "gravitygun"
+      ],
+      "usage": "gravitygun",
+      "args": "",
+      "desc": "Probably the best gravity gun script thats fe"
     },
     {
       "name": "desync",
