@@ -1050,6 +1050,26 @@
       "desc": "Disables the antivelocity limiter"
     },
     {
+      "name": "antiknockback",
+      "aliases": [
+        "antiknockback",
+        "akb"
+      ],
+      "usage": "antiknockback (akb)",
+      "args": "",
+      "desc": "Disables knockback"
+    },
+    {
+      "name": "unantiknockback",
+      "aliases": [
+        "unantiknockback",
+        "unakb"
+      ],
+      "usage": "unantiknockback (unakb)",
+      "args": "",
+      "desc": "Disables antiknockback"
+    },
+    {
       "name": "showcom",
       "aliases": [
         "showcom",
@@ -1684,6 +1704,15 @@
       "usage": "unoldroblox",
       "args": "",
       "desc": "Restore skybox and studs"
+    },
+    {
+      "name": "2016",
+      "aliases": [
+        "2016"
+      ],
+      "usage": "2016",
+      "args": "",
+      "desc": "Makes your Roblox CoreGui look like the 2016 CoreGui"
     },
     {
       "name": "f3x",
@@ -3110,24 +3139,26 @@
       "desc": "Copies the UserId of the target"
     },
     {
-      "name": "antikillbrick",
+      "name": "antitouch",
       "aliases": [
+        "antitouch",
         "antikillbrick",
         "antikb"
       ],
-      "usage": "antikillbrick (antikb)",
+      "usage": "antitouch (antikillbrick, antikb)",
       "args": "",
-      "desc": "Prevents kill bricks from killing you"
+      "desc": "Disables touchable parts"
     },
     {
-      "name": "unantikillbrick",
+      "name": "unantitouch",
       "aliases": [
+        "unantitouch",
         "unantikillbrick",
         "unantikb"
       ],
-      "usage": "unantikillbrick (unantikb)",
+      "usage": "unantitouch (unantikillbrick, unantikb)",
       "args": "",
-      "desc": "Allows kill bricks to kill you"
+      "desc": "Re-enables touchable parts"
     },
     {
       "name": "height",
