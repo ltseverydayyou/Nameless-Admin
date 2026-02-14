@@ -450,35 +450,143 @@ local function cleanup(obj)
 	ST[obj] = nil;    
 end;    
 local function drag(frame, handle)    
-	local g = false;    
-	local sp, su;    
-	local mv = false;    
-	local c1 = handle.InputBegan:Connect(function(i)    
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then    
-			g = true;    
-			sp = i.Position;    
-			su = frame.Position;    
-			mv = false;    
+	if not (frame and handle) then    
+		return;    
+	end;    
+	handle.Active = true;    
+	frame.Active = true;    
+	local screenGui = frame:FindFirstAncestorWhichIsA("ScreenGui") or gui;    
+	local dragging, dragInput, dragStart, startPos;    
+	local moved = false;    
+	local anchor = frame.AnchorPoint;    
+	local DRAG_STATE = _naNotif_env.__na_popup_drag_state or {    
+		owner = nil,    
+		input = nil    
+	};    
+	_naNotif_env.__na_popup_drag_state = DRAG_STATE;    
+	local function safeClamp(v, lo, hi)    
+		if hi < lo then    
+			hi = lo;    
 		end;    
-	end);    
-	local c2 = handle.InputEnded:Connect(function(i)    
-		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then    
-			g = false;    
+		return math.clamp(v, lo, hi);    
+	end;    
+	local function getOrder(gobj)    
+		local z = gobj.ZIndex or 0;    
+		local lc = gobj:FindFirstAncestorWhichIsA("LayerCollector");    
+		local d = 0;    
+		if lc and lc:IsA("ScreenGui") then    
+			d = lc.DisplayOrder or 0;    
 		end;    
-	end);    
-	local c3 = uis.InputChanged:Connect(function(i)    
-		if g and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then    
-			local d = i.Position - sp;    
-			if not mv and (math.abs(d.X) > 0 or math.abs(d.Y) > 0) then    
-				mv = true;    
-				(ctx(frame)).popupManual = true;    
+		return d * 10000 + z;    
+	end;    
+	local function isTopMost(rootObj, inputObj)    
+		if not gs or (not gs.GetGuiObjectsAtPosition) then    
+			return true;    
+		end;    
+		local pos = inputObj.Position;    
+		local list;    
+		local ok = pcall(function()    
+			list = gs:GetGuiObjectsAtPosition(pos.X, pos.Y);    
+		end);    
+		if (not ok) or (not list) or #list == 0 then    
+			return true;    
+		end;    
+		local top, topO;    
+		for _, gobj in ipairs(list) do    
+			local o = getOrder(gobj);    
+			if (not top) or o > topO then    
+				top = gobj;    
+				topO = o;    
 			end;    
-			frame.Position = UDim2.new(su.X.Scale, su.X.Offset + d.X, su.Y.Scale, su.Y.Offset + d.Y);    
+		end;    
+		if not top then    
+			return true;    
+		end;    
+		return top == rootObj or top:IsDescendantOf(rootObj);    
+	end;    
+	local function markMoved(dx, dy)    
+		if (not moved) and (math.abs(dx) > 0 or math.abs(dy) > 0) then    
+			moved = true;    
+			(ctx(frame)).popupManual = true;    
+		end;    
+	end;    
+	local function update(inputObj)    
+		local p = screenGui.AbsoluteSize;    
+		local s = frame.AbsoluteSize;    
+		if p.X <= 0 or p.Y <= 0 then    
+			return;    
+		end;    
+		local startX = startPos.X.Scale * p.X + startPos.X.Offset;    
+		local startY = startPos.Y.Scale * p.Y + startPos.Y.Offset;    
+		local dx = inputObj.Position.X - dragStart.X;    
+		local dy = inputObj.Position.Y - dragStart.Y;    
+		markMoved(dx, dy);    
+		local minX = anchor.X * s.X;    
+		local maxX = p.X - (1 - anchor.X) * s.X;    
+		local minY = anchor.Y * s.Y;    
+		local maxY = p.Y - (1 - anchor.Y) * s.Y;    
+		local nx = safeClamp(startX + dx, minX, maxX);    
+		local ny = safeClamp(startY + dy, minY, maxY);    
+		frame.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0);    
+	end;    
+	local c1 = handle.InputBegan:Connect(function(inputObj)    
+		if (inputObj.UserInputType == Enum.UserInputType.MouseButton1 or inputObj.UserInputType == Enum.UserInputType.Touch) and (not DRAG_STATE.owner or DRAG_STATE.owner == frame) and isTopMost(handle, inputObj) then    
+			DRAG_STATE.owner = frame;    
+			DRAG_STATE.input = inputObj;    
+			dragging = true;    
+			dragStart = inputObj.Position;    
+			startPos = frame.Position;    
+			moved = false;    
+			local cEnd = inputObj.Changed:Connect(function()    
+				if inputObj.UserInputState == Enum.UserInputState.End then    
+					dragging = false;    
+					if DRAG_STATE.owner == frame then    
+						DRAG_STATE.owner = nil;    
+						DRAG_STATE.input = nil;    
+					end;    
+				end;    
+			end);    
+			addConnection(handle, cEnd);    
 		end;    
 	end);    
+	local c2 = handle.InputChanged:Connect(function(inputObj)    
+		if inputObj.UserInputType == Enum.UserInputType.MouseMovement or inputObj.UserInputType == Enum.UserInputType.Touch then    
+			dragInput = inputObj;    
+		end;    
+	end);    
+	local c3 = uis.InputChanged:Connect(function(inputObj)    
+		if DRAG_STATE.owner == frame and inputObj == dragInput and dragging then    
+			update(inputObj);    
+		end;    
+	end);    
+	local function clampToViewport()    
+		if not (frame and frame.Parent and screenGui) then    
+			return;    
+		end;    
+		local p = screenGui.AbsoluteSize;    
+		local s = frame.AbsoluteSize;    
+		if p.X <= 0 or p.Y <= 0 then    
+			return;    
+		end;    
+		local curr = frame.Position;    
+		local absX = curr.X.Scale * p.X + curr.X.Offset;    
+		local absY = curr.Y.Scale * p.Y + curr.Y.Offset;    
+		local minX = anchor.X * s.X;    
+		local maxX = p.X - (1 - anchor.X) * s.X;    
+		local minY = anchor.Y * s.Y;    
+		local maxY = p.Y - (1 - anchor.Y) * s.Y;    
+		local nx = safeClamp(absX, minX, maxX);    
+		local ny = safeClamp(absY, minY, maxY);    
+		frame.Position = UDim2.new(nx / p.X, 0, ny / p.Y, 0);    
+	end;    
+	local c4 = screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport);    
+	local c5 = frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport);    
+	clampToViewport();    
 	addConnection(handle, c1);    
 	addConnection(handle, c2);    
 	addConnection(handle, c3);    
+	addConnection(handle, c4);    
+	addConnection(handle, c5);    
 end;    
 local function centerPopupRoot(f, force)    
 	if not f then    
@@ -674,6 +782,7 @@ local function mkHdr(par, z, kind, onPause)
 	local hdr = Instance.new("Frame");    
 	hdr.Name = "Header";    
 	hdr.BackgroundTransparency = 1;    
+	hdr.Active = kind == "Popup";    
 	hdr.Size = UDim2.new(1, 0, 0, hdrHeight);    
 	hdr.ZIndex = z + 200;    
 	hdr.Parent = par;    
@@ -1767,6 +1876,7 @@ local function build(kind, p)
 		grp = Instance.new("Frame");    
 		grp.Name = "PopupRoot";    
 		grp.BackgroundTransparency = 1;    
+		grp.Active = true;    
 		grp.AnchorPoint = Vector2.new(0.5, 0.5);    
 		grp.Position = UDim2.fromScale(0.5, 0.5);    
 		grp.Size = UDim2.fromOffset(w, 0);    
