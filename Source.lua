@@ -23847,6 +23847,161 @@ cmd.add({"unantivelocity","unantivelo","unav","unvelcap"}, {"unantivelocity", "D
 	DebugNotif("Antivelocity disabled.", 2)
 end)
 
+NAStuff.AntiKBForceProps = NAStuff.AntiKBForceProps or {
+	BodyVelocity = {
+		Velocity = Vector3.zero,
+		MaxForce = Vector3.zero,
+		P = 0,
+	};
+	BodyForce = {
+		Force = Vector3.zero,
+	};
+	BodyThrust = {
+		Force = Vector3.zero,
+		Location = Vector3.zero,
+	};
+	BodyGyro = {
+		MaxTorque = Vector3.zero,
+		P = 0,
+		D = 0,
+	};
+	BodyAngularVelocity = {
+		AngularVelocity = Vector3.zero,
+		MaxTorque = Vector3.zero,
+		P = 0,
+	};
+	LinearVelocity = {
+		MaxForce = 0,
+	};
+	VectorForce = {
+		Force = Vector3.zero,
+	};
+	AlignPosition = {
+		MaxForce = 0,
+		Responsiveness = 0,
+	};
+	AlignOrientation = {
+		MaxTorque = 0,
+		Responsiveness = 0,
+		MaxAngularVelocity = 0,
+	};
+	BodyPosition = {
+		MaxForce = Vector3.zero,
+		P = 0,
+		D = 0,
+	};
+}
+
+NAmanage.AntiKnockBack=function(char, state)
+	NAlib.disconnect("antiknockback_char_desc")
+	if not char or not state then
+		return
+	end
+
+	state.char = char
+	for _, obj in ipairs(char:GetDescendants()) do
+		if NAStuff.AntiKBForceProps[obj.ClassName] then
+			state.forces[obj] = true
+		end
+	end
+
+	NAlib.connect("antiknockback_char_desc", char.DescendantAdded:Connect(function(obj)
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+		if NAStuff.AntiKBForceProps[obj.ClassName] then
+			state.forces[obj] = true
+		end
+	end))
+end
+
+cmd.add({"antiknockback","akb"}, {"antiknockback (akb)", "Disables knockback"}, function()
+	NAlib.disconnect("antiknockback_loop")
+	NAlib.disconnect("antiknockback_char_add")
+	NAlib.disconnect("antiknockback_char_desc")
+
+	local state = {
+		forces = setmetatable({}, {__mode = "k"});
+		char = nil;
+	}
+	NAStuff._antiKnockback = true
+	NAStuff._antiKnockbackState = state
+
+	NAmanage.AntiKnockBack(getChar(), state)
+	NAlib.connect("antiknockback_char_add", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+		NAmanage.AntiKnockBack(char, state)
+	end))
+
+	NAlib.connect("antiknockback_loop", RunService.Heartbeat:Connect(function()
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+
+		local char = getChar()
+		if not char then
+			return
+		end
+		if char ~= state.char then
+			NAmanage.AntiKnockBack(char, state)
+		end
+
+		local hum = getHum(char)
+		local root = getRoot(char)
+		if hum and NAlib.isProperty(hum, "PlatformStand") ~= nil then
+			NAlib.setProperty(hum, "PlatformStand", false)
+		end
+
+		for obj in pairs(state.forces) do
+			if not obj or not obj.Parent or not obj:IsDescendantOf(char) then
+				state.forces[obj] = nil
+			else
+				local cfg = NAStuff.AntiKBForceProps[obj.ClassName]
+				if cfg then
+					for prop, value in pairs(cfg) do
+						NAlib.setProperty(obj, prop, value)
+					end
+					if root then
+						if obj:IsA("BodyGyro") or obj:IsA("AlignOrientation") then
+							NAlib.setProperty(obj, "CFrame", root.CFrame)
+						elseif obj:IsA("BodyPosition") or obj:IsA("AlignPosition") then
+							NAlib.setProperty(obj, "Position", root.Position)
+						end
+					end
+				else
+					state.forces[obj] = nil
+				end
+			end
+		end
+	end))
+
+	DebugNotif("AntiKnockback enabled. This may break fly.", 3)
+end)
+
+cmd.add({"unantiknockback","unakb"}, {"unantiknockback (unakb)", "Disables antiknockback"}, function()
+	NAlib.disconnect("antiknockback_loop")
+	NAlib.disconnect("antiknockback_char_add")
+	NAlib.disconnect("antiknockback_char_desc")
+
+	local state = NAStuff._antiKnockbackState
+	if state and state.forces then
+		table.clear(state.forces)
+	end
+
+	NAStuff._antiKnockbackState = nil
+	NAStuff._antiKnockback = nil
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	if root and NAlib.isProperty(root, "Anchored") ~= nil then
+		NAlib.setProperty(root, "Anchored", false)
+	end
+
+	DebugNotif("AntiKnockback disabled.", 2)
+end)
+
 comPart, comHL, comConn, comRadius = nil,nil,nil,nil
 
 NAStuff.PredictionConfig = NAStuff.PredictionConfig or {
@@ -26632,6 +26787,25 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevOutlines", nil)
 		end
 	end))
+end)
+
+cmd.add({"2016"},{"2016","Makes your Roblox CoreGui look like the 2016 CoreGui"},function()
+	_na_env.Config2016 = {
+		OldConsole = true,
+		OldGraphics = true,
+		OldPlayerList = true,
+		OldBubbleChat = true,
+		ReplaceAgeGroupMessage = true,
+		HideVoiceChatButton = false,
+	}
+
+	local ok, err = pcall(function()
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/lxte/projects/refs/heads/main/UI/Core2016/Source.luau"))();
+	end)
+
+	if not ok then
+		DoNotif("Failed to load 2016 CoreGui: "..tostring(err), 3)
+	end
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
@@ -33469,82 +33643,207 @@ cmd.add({"copyid", "id"}, {"copyid <player> (id)", "Copies the UserId of the tar
 end, true)
 
 --[ PLAYER ]--
-cmd.add({"antikillbrick","antikb"},{"antikillbrick (antikb)","Prevents kill bricks from killing you"},function()
+NAmanage.AntiTouchRestoreState = function()
 	NAlib.disconnect("antikb")
 	NAlib.disconnect("antikb_char")
-	NAStuff._kbTracked = NAStuff._kbTracked or setmetatable({}, {__mode="k"})
-	NAStuff._kbOrig = NAStuff._kbOrig or setmetatable({}, {__mode="k"})
-	NAStuff._kbSignals = NAStuff._kbSignals or setmetatable({}, {__mode="k"})
-	local tracked, orig, signals = NAStuff._kbTracked, NAStuff._kbOrig, NAStuff._kbSignals
-	local lp = Players.LocalPlayer
-	local apply = function(p)
-		if not (p and p:IsA("BasePart")) then return end
-		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"CanTouch") end
-		if NAlib.isProperty(p,"CanTouch") ~= false then NAlib.setProperty(p,"CanTouch", false) end
-		tracked[p] = true
-		if not signals[p] then
-			local c = p:GetPropertyChangedSignal("CanTouch"):Connect(function()
-				if NAlib.isProperty(p,"CanTouch") ~= false then NAlib.setProperty(p,"CanTouch", false) end
+
+	local stats = {
+		movedRestored = 0;
+		movedFailed = 0;
+		touchRestored = 0;
+		touchFailed = 0;
+	}
+
+	local moved = NAStuff._kbMovedParts or {}
+	for part, parent in pairs(moved) do
+		if typeof(part) == "Instance" and part.Parent then
+			local targetParent = (typeof(parent) == "Instance" and parent.Parent) and parent or workspace
+			local ok = pcall(function()
+				part.Parent = targetParent
 			end)
-			signals[p] = {c}
-			NAlib.connect("antikb", c)
+			if ok and part.Parent == targetParent then
+				stats.movedRestored += 1
+			else
+				stats.movedFailed += 1
+			end
+		end
+		moved[part] = nil
+	end
+
+	local tracked = NAStuff._kbTouchParts or {}
+	local original = NAStuff._kbTouchOriginal or {}
+	for part in pairs(tracked) do
+		if typeof(part) == "Instance" and part.Parent then
+			local originalValue = original[part]
+			if originalValue == nil then
+				originalValue = true
+			end
+			local ok = NAlib.setProperty(part, "CanTouch", originalValue)
+			if ok and NAlib.isProperty(part, "CanTouch") == originalValue then
+				stats.touchRestored += 1
+			else
+				stats.touchFailed += 1
+			end
+		end
+		tracked[part] = nil
+		original[part] = nil
+	end
+
+	NAStuff._kbMethod = nil
+	return stats
+end
+
+NAmanage.AntiTouchEnableRemoveParts = function()
+	local policy = SafeGetService("PolicyService")
+	if not policy then
+		return false, "AntiTouch is unavailable on this client."
+	end
+
+	NAStuff._kbMovedParts = NAStuff._kbMovedParts or setmetatable({}, {__mode="k"})
+	local moved = NAStuff._kbMovedParts
+
+	local function moveTouchPart(inst)
+		if not (inst and inst:IsA("TouchTransmitter")) then
+			return false
+		end
+		local part = inst.Parent
+		local parent = part and part.Parent
+		if not (part and parent and parent ~= policy) then
+			return false
+		end
+		if moved[part] == nil then
+			moved[part] = parent
+		end
+		local ok = pcall(function()
+			part.Parent = policy
+		end)
+		return ok and part.Parent == policy
+	end
+
+	NAlib.connect("antikb", workspace.DescendantAdded:Connect(function(inst)
+		moveTouchPart(inst)
+	end))
+
+	local changed = 0
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if moveTouchPart(inst) then
+			changed += 1
 		end
 	end
-	local seed = function(char)
-		if not char then return end
-		for _,d in ipairs(char:GetDescendants()) do
-			if d:IsA("BasePart") then apply(d) end
+
+	NAStuff._kbMethod = "remove"
+	return true, { changed = changed }
+end
+
+NAmanage.AntiTouchEnableCanTouch = function()
+	NAStuff._kbTouchParts = NAStuff._kbTouchParts or setmetatable({}, {__mode="k"})
+	NAStuff._kbTouchOriginal = NAStuff._kbTouchOriginal or setmetatable({}, {__mode="k"})
+	local tracked = NAStuff._kbTouchParts
+	local original = NAStuff._kbTouchOriginal
+
+	local function disableTouchPart(inst)
+		if not (inst and inst:IsA("TouchTransmitter")) then
+			return false
 		end
-		NAlib.connect("antikb", char.DescendantAdded:Connect(function(inst)
-			if inst:IsA("BasePart") then apply(inst) end
-		end))
-		NAlib.connect("antikb", char.DescendantRemoving:Connect(function(inst)
-			if signals[inst] then for _,c in ipairs(signals[inst]) do if c then c:Disconnect() end end signals[inst]=nil end
-			tracked[inst] = nil
-			orig[inst] = nil
-		end))
+		local part = inst.Parent
+		if not (part and part:IsA("BasePart")) then
+			return false
+		end
+		if original[part] == nil then
+			original[part] = NAlib.isProperty(part, "CanTouch")
+		end
+		local before = NAlib.isProperty(part, "CanTouch")
+		if before ~= false then
+			NAlib.setProperty(part, "CanTouch", false)
+		end
+		tracked[part] = true
+		return before ~= false
 	end
-	if lp.Character then seed(lp.Character) end
-	NAlib.connect("antikb_char", lp.CharacterAdded:Connect(function(char)
-		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k]=nil end
-		for k in pairs(tracked) do tracked[k]=nil end
-		for k in pairs(orig) do orig[k]=nil end
-		Wait(); seed(char)
+
+	NAlib.connect("antikb", workspace.DescendantAdded:Connect(function(inst)
+		disableTouchPart(inst)
 	end))
-	NAlib.connect("antikb_char", lp.CharacterRemoving:Connect(function()
-		for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-		for k in pairs(signals) do signals[k]=nil end
-		for k in pairs(tracked) do tracked[k]=nil end
-		for k in pairs(orig) do orig[k]=nil end
-	end))
+
 	NAlib.connect("antikb", RunService.Stepped:Connect(function()
-		local char = lp.Character
-		if not char then return end
-		for p in pairs(tracked) do
-			if typeof(p)=="Instance" and p:IsA("BasePart") and p:IsDescendantOf(char) then
-				if p.CanTouch ~= false then NAlib.setProperty(p,"CanTouch", false) end
+		for part in pairs(tracked) do
+			if typeof(part) == "Instance" and part.Parent then
+				if NAlib.isProperty(part, "CanTouch") ~= false then
+					NAlib.setProperty(part, "CanTouch", false)
+				end
+			else
+				tracked[part] = nil
+				original[part] = nil
 			end
 		end
 	end))
-end)
 
-cmd.add({"unantikillbrick","unantikb"},{"unantikillbrick (unantikb)","Allows kill bricks to kill you"},function()
-	local tracked = NAStuff._kbTracked or {}
-	local orig = NAStuff._kbOrig or {}
-	local signals = NAStuff._kbSignals or {}
-	NAlib.disconnect("antikb")
-	NAlib.disconnect("antikb_char")
-	for _,arr in pairs(signals) do if arr then for _,c in ipairs(arr) do if c then c:Disconnect() end end end end
-	for p in pairs(tracked) do
-		if typeof(p)=="Instance" and p:IsA("BasePart") then
-			local v = orig[p]; if v == nil then v = true end
-			NAlib.setProperty(p,"CanTouch", v)
+	local changed = 0
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if disableTouchPart(inst) then
+			changed += 1
 		end
 	end
-	for k in pairs(signals) do signals[k] = nil end
-	for k in pairs(tracked) do tracked[k] = nil end
-	for k in pairs(orig) do orig[k] = nil end
+
+	NAStuff._kbMethod = "cantouch"
+	return true, { changed = changed }
+end
+
+cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch (antikillbrick, antikb)","Disables touchable parts"},function()
+	local function finishEnable(method)
+		NAmanage.AntiTouchRestoreState()
+		local ok, result
+		if method == "cantouch" then
+			ok, result = NAmanage.AntiTouchEnableCanTouch()
+		else
+			ok, result = NAmanage.AntiTouchEnableRemoveParts()
+		end
+		if not ok then
+			DoNotif(tostring(result or "Unable to enable AntiTouch."), 3, "AntiTouch")
+			return
+		end
+		local changed = (type(result) == "table" and tonumber(result.changed)) or 0
+		local methodText = (method == "cantouch") and "Disable touchable property" or "Remove parts"
+		if changed > 0 then
+			DoNotif(("AntiTouch enabled (%s). Disabled %d touchable part(s)."):format(methodText, changed), 3, "AntiTouch")
+		else
+			DoNotif(("AntiTouch enabled (%s). No touchable parts found yet (live tracking active)."):format(methodText), 2, "AntiTouch")
+		end
+	end
+
+	if type(Window) ~= "function" then
+		finishEnable("remove")
+		return
+	end
+
+	Window({
+		Title = "AntiTouch Method",
+		Description = "Choose which method to use.",
+		Buttons = {
+			{
+				Text = "Method 1: Remove parts",
+				Callback = function()
+					finishEnable("remove")
+				end
+			},
+			{
+				Text = "Method 2: Disable touchable property",
+				Callback = function()
+					finishEnable("cantouch")
+				end
+			}
+		}
+	})
+end)
+
+cmd.add({"unantitouch","unantikillbrick","unantikb"},{"unantitouch (unantikillbrick, unantikb)","Re-enables touchable parts"},function()
+	local stats = NAmanage.AntiTouchRestoreState()
+	local restored = (stats.movedRestored or 0) + (stats.touchRestored or 0)
+	local failed = (stats.movedFailed or 0) + (stats.touchFailed or 0)
+	if restored > 0 or failed > 0 then
+		DoNotif(("AntiTouch disabled. Restored %d part(s)%s."):format(restored, failed > 0 and (", failed: "..failed) or ""), 3, "AntiTouch")
+	else
+		DoNotif("AntiTouch is not active.", 2, "AntiTouch")
+	end
 end)
 
 cmd.add({"height","hipheight","hh"},{"height <number> (hipheight,hh)","Changes your hipheight"},function(...)
