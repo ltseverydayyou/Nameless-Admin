@@ -131,6 +131,7 @@ local NAStuff = {
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
 	tweenSpeed = 1;
+	tpDelay = 0.2;
 	FreecamSpeed = 5;
 	MobileCamSensitivity = 1;
 	MobileCamSensEnabled = false;
@@ -2988,6 +2989,10 @@ NAmanage.resolveTweenDuration=function(scale)
 		scale = 1
 	end
 	return math.max(0.05, base * scale)
+end
+NAmanage.tpDelay=function()
+	local interval = tonumber(NAStuff.tpDelay) or 0.2
+	return math.clamp(interval, 0, 5)
 end
 NAmanage._loaderStatus = NAmanage._loaderStatus or {}
 
@@ -9404,6 +9409,16 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		tpDelay = {
+			default = 0.2;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 0.2
+				end
+				return math.clamp(numberValue, 0, 5)
+			end;
+		};
 		freecamSpeed = {
 			default = 5;
 			coerce = function(value)
@@ -11279,6 +11294,7 @@ NAStuff.CmdBar2Width = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar
 NAStuff.CmdBar2Height = NAmanage.CmdBar2ClampValue(NAmanage.NASettingsGet("cmdbar2Height"), NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.maxHeight, NAStuff.CmdBar2.defaultHeight)
 _na_env.NAFreecamKeybindEnabled = NAmanage.NASettingsGet("freecamKeybind")
 _na_env.NADebugDontRenderKeybindEnabled = NAmanage.NASettingsGet("debugDontRenderKeybind") == true
+NAStuff.tpDelay = math.clamp(tonumber(NAmanage.NASettingsGet("tpDelay")) or 0.2, 0, 5)
 NAStuff.FreecamSpeed = math.clamp(tonumber(NAmanage.NASettingsGet("freecamSpeed")) or 5, 0.05, 20)
 if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
@@ -44099,12 +44115,18 @@ do
 		end;
 		return Concat(segments, ".");
 	end;
-	function gotoNext.findMatches(objectType, targetName)
-		local matches = {};
-		if not targetName or targetName == "" then
-			return matches;
+	function gotoNext.isTypeMatch(objectType, inst)
+		if objectType == "Part" then
+			return inst:IsA("BasePart");
+		elseif objectType == "Model" then
+			return inst:IsA("Model");
+		elseif objectType == "Folder" then
+			return inst:IsA("Folder");
 		end;
-		local targetLower = targetName:lower();
+		return false;
+	end;
+	function gotoNext.buildNameIndex(objectType)
+		local nameIndex = {};
 		local queue = {
 			workspace
 		};
@@ -44113,14 +44135,54 @@ do
 			local current = queue[index];
 			index += 1;
 			for _, child in ipairs(current:GetChildren()) do
-				local isValid = false;
-				if objectType == "Part" then
-					isValid = child:IsA("BasePart");
-				elseif objectType == "Model" then
-					isValid = child:IsA("Model");
-				elseif objectType == "Folder" then
-					isValid = child:IsA("Folder");
+				if gotoNext.isTypeMatch(objectType, child) and child.Name and child.Name ~= "" then
+					local lowered = child.Name:lower();
+					local bucket = nameIndex[lowered];
+					if not bucket then
+						bucket = {};
+						nameIndex[lowered] = bucket;
+					end;
+					Insert(bucket, {
+						inst = child,
+						parent = child.Parent
+					});
 				end;
+				queue[(#queue) + 1] = child;
+			end;
+		end;
+		return nameIndex;
+	end;
+	function gotoNext.findMatches(objectType, targetName, nameIndex)
+		local matches = {};
+		if not targetName or targetName == "" then
+			return matches;
+		end;
+		local targetLower = targetName:lower();
+		if type(nameIndex) == "table" then
+			local bucket = nameIndex[targetLower];
+			if not bucket then
+				return matches;
+			end;
+			for _, info in ipairs(bucket) do
+				local inst = info.inst;
+				if inst and inst.Parent then
+					Insert(matches, {
+						inst = inst,
+						parent = inst.Parent
+					});
+				end;
+			end;
+			return matches;
+		end;
+		local queue = {
+			workspace
+		};
+		local index = 1;
+		while queue[index] do
+			local current = queue[index];
+			index += 1;
+			for _, child in ipairs(current:GetChildren()) do
+				local isValid = gotoNext.isTypeMatch(objectType, child);
 				if isValid and child.Name and child.Name:lower() == targetLower then
 					Insert(matches, {
 						inst = child,
@@ -44458,6 +44520,7 @@ do
 		end;
 		gotoNext.notify(descriptor, 3);
 		SpawnCall(function()
+			local nameIndex = gotoNext.buildNameIndex(objectType);
 			local step = parsed.startNum <= parsed.endNum and 1 or (-1);
 			for index = parsed.startNum, parsed.endNum, step do
 				if not state.teleporting then
@@ -44493,7 +44556,7 @@ do
 				local candidates = {};
 				local seen = {};
 				for _, name in ipairs(searchNames) do
-					local found = gotoNext.findMatches(objectType, name);
+					local found = gotoNext.findMatches(objectType, name, nameIndex);
 					for _, info in ipairs(found) do
 						local inst = info.inst;
 						if inst and (not seen[inst]) then
@@ -44605,12 +44668,13 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
-				Wait(.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -44624,6 +44688,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
 		local char = getChar()
+		local partDelay = NAmanage.tpDelay()
 		for _,obj in ipairs(NAmanage.wsDescs()) do
 			if not state.active then return end
 			if obj:IsA("BasePart") and obj.Name:lower() == partName then
@@ -44636,7 +44701,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 				local tw = TweenService:Create(cfVal, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value = obj.CFrame})
 				tw:Play()
 				tw.Completed:Connect(function() cfVal:Destroy() end)
-				Wait(duration + 0.1)
+				Wait(duration + partDelay)
 			end
 		end
 	end)
@@ -44655,12 +44720,13 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
-				Wait(.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -44678,6 +44744,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
@@ -44692,7 +44759,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 					local duration = NAmanage.resolveTweenDuration()
 					local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
 					tween:Play()
-					Wait(duration + 0.1)
+					Wait(duration + partDelay)
 				end
 			end
 		end
@@ -44711,12 +44778,13 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
-				Wait(.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -44839,12 +44907,13 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, model in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(model:GetPivot()) end
-				Wait(.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -44862,12 +44931,13 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		for _, model in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(model:GetPivot()) end
-				Wait(.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -44875,6 +44945,7 @@ end, true)
 
 cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)", "Teleports you to a model whose name contains the given text"}, function(...)
 	local name = Concat({...}, " "):lower()
+	local partDelay = NAmanage.tpDelay()
 
 	for _, model in pairs(NAmanage.wsDescs()) do
 		if model:IsA("Model") and model.Name:lower():find(name) then
@@ -44885,7 +44956,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 			if getChar() then
 				getChar():PivotTo(model:GetPivot())
 			end
-			Wait(0.2)
+			Wait(partDelay)
 		end
 	end
 end, true)
@@ -44900,6 +44971,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	local state = {active = true}
 	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
+		local partDelay = NAmanage.tpDelay()
 		local folder
 		for _,obj in ipairs(NAmanage.wsDescs()) do
 			if obj:IsA("Folder") and obj.Name:lower() == folderName then folder = obj break end
@@ -44912,7 +44984,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 				if hum then hum.Sit = false Wait(0.1) end
 				local char = getChar()
 				if char then char:PivotTo(desc:GetPivot()) end
-				Wait(0.2)
+				Wait(partDelay)
 			end
 		end
 	end)
@@ -62256,6 +62328,13 @@ NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, 
 	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
 	NAStuff.tweenSpeed = clamped
 	NAmanage.NASettingsSet("tweenSpeed", clamped)
+end)
+
+local tpdDef = math.clamp(tonumber(NAStuff.tpDelay) or 0.2, 0, 5)
+NAgui.addSlider("TP Delay", 0, 5, tpdDef, 0.05, " s", function(val)
+	local clp = math.clamp(tonumber(val) or tpdDef, 0, 5)
+	NAStuff.tpDelay = clp
+	NAmanage.NASettingsSet("tpDelay", clp)
 end)
 
 local freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
