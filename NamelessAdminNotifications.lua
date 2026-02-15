@@ -68,6 +68,7 @@ local PAD, GAP = 18, 16;
 local FPATH = "enhanced_notif_fonts.json";    
 local DPATH = "enhanced_notif_docks.json";    
 local FONTS = {};    
+local walkDesc;    
 do    
 	for _, e in ipairs(Enum.Font:GetEnumItems()) do    
 		table.insert(FONTS, {    
@@ -152,11 +153,11 @@ local function saveFonts()
 	end);    
 end;    
 local function applyFontTree(r, f)    
-	for _, d in ipairs(r:GetDescendants()) do    
+	walkDesc(r, function(d)    
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then    
 			d.Font = f;    
 		end;    
-	end;    
+	end, 160);    
 end;    
 local function setFontKind(kind, f)    
 	CURF[kind] = f;    
@@ -236,6 +237,7 @@ local function wW()
 	end;    
 	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.82, 320, 480));    
 end;    
+local ctx;    
 local stacks = {};    
 local function mkStack(key)    
 	local tl, br = inz();    
@@ -301,14 +303,15 @@ local function getStack(key)
 	end;    
 	return stacks[key];    
 end;    
-(gui:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()    
+local gSzCon, gDeadCon;    
+local function onGuiSize()    
 	for k, f in pairs(stacks) do    
 		if f and f.Parent then    
 			f.Size = (k == "top" or k == "bottom") and UDim2.new(0, wW(), 1, 0) or UDim2.new(0, nW(), 1, 0);    
 		end;    
 	end;    
     
-	if isMobile then    
+	if isMobile and type(ctx) == "function" then    
 		local bs = mobScale();    
 		for _, t in pairs(ACT) do    
 			for card in pairs(t) do    
@@ -322,7 +325,26 @@ end;
 			end;    
 		end;    
 	end;    
-end);    
+end;    
+local function bindGui()    
+	if gSzCon and gSzCon.Connected then    
+		gSzCon:Disconnect();    
+	end;    
+	if gDeadCon and gDeadCon.Connected then    
+		gDeadCon:Disconnect();    
+	end;    
+	gSzCon = nil;    
+	gDeadCon = nil;    
+	if not gui then    
+		return;    
+	end;    
+	gSzCon = (gui:GetPropertyChangedSignal("AbsoluteSize")):Connect(onGuiSize);    
+	gDeadCon = gui.Destroying:Connect(function()    
+		gui = nil;    
+		stacks = {};    
+	end);    
+end;    
+bindGui();    
 local function ensureGui()    
 	if not gui or (not gui.Parent) or (not gui.Parent.Parent) then    
 		local g, p = findGui();    
@@ -348,11 +370,8 @@ local function ensureGui()
 		ov.Parent = gui;    
 		stacks = {};    
 	end;    
+	bindGui();    
 end;    
-gui.Destroying:Connect(function()    
-	gui = nil;    
-	stacks = {};    
-end);    
 local VALID = {    
 	bottomRight = true,    
 	bottomLeft = true,    
@@ -402,12 +421,12 @@ end;
 local ST = setmetatable({}, {    
 	__mode = "k"    
 });    
-local function ctx(x)    
+ctx = function(x)    
 	local s = ST[x];    
 	if not s then    
 		s = {    
-			connections = {},    
-			tweens = {}    
+			connections = setmetatable({}, { __mode = "k" }),    
+			tweens = setmetatable({}, { __mode = "k" })    
 		};    
 		ST[x] = s;    
 	end;    
@@ -422,32 +441,103 @@ local function csc(o)
 	return v;    
 end;    
 local function addConnection(obj, conn)    
+	if not (obj and conn) then    
+		return conn;    
+	end;    
 	local s = ctx(obj);    
-	table.insert(s.connections, conn);    
+	s.connections[conn] = true;    
+	return conn;    
 end;    
 local function addTween(obj, tween)    
+	if not (obj and tween) then    
+		return tween;    
+	end;    
 	local s = ctx(obj);    
-	table.insert(s.tweens, tween);    
+	s.tweens[tween] = true;    
+	local doneConn;    
+	doneConn = tween.Completed:Connect(function()    
+		local st = ST[obj];    
+		if st then    
+			if st.tweens then st.tweens[tween] = nil; end;    
+			if st.connections and doneConn then st.connections[doneConn] = nil; end;    
+		end;    
+		if doneConn and doneConn.Connected then    
+			doneConn:Disconnect();    
+		end;    
+		doneConn = nil;    
+	end);    
+	if doneConn then    
+		s.connections[doneConn] = true;    
+	end;    
+	return tween;    
 end;    
-local function cleanup(obj)    
-	local s = ctx(obj);    
+local function clrSt(s)    
+	if not s then    
+		return;    
+	end;    
 	if s.connections then    
-		for _, conn in ipairs(s.connections) do    
+		for conn in pairs(s.connections) do    
 			if conn and conn.Connected then    
 				conn:Disconnect();    
 			end;    
 		end;    
-		s.connections = {};    
+		s.connections = setmetatable({}, { __mode = "k" });    
 	end;    
 	if s.tweens then    
-		for _, tween in ipairs(s.tweens) do    
+		for tween in pairs(s.tweens) do    
 			if tween then    
 				tween:Cancel();    
 			end;    
 		end;    
-		s.tweens = {};    
+		s.tweens = setmetatable({}, { __mode = "k" });    
+	end;    
+end;    
+local function cleanup(obj)    
+	local s = ST[obj];    
+	if s then    
+		clrSt(s);    
+	end;    
+	if type(walkDesc) == "function" and typeof(obj) == "Instance" then    
+		walkDesc(obj, function(d)    
+			local sd = ST[d];    
+			if sd then    
+				clrSt(sd);    
+				ST[d] = nil;    
+			end;    
+		end);    
 	end;    
 	ST[obj] = nil;    
+end;    
+walkDesc = function(root, fn, ye)    
+	if not (root and type(fn) == "function") then    
+		return;    
+	end;    
+	local q = {};    
+	local ch0 = root:GetChildren();    
+	for i = #ch0, 1, -1 do    
+		q[#q + 1] = ch0[i];    
+	end;    
+	local budget = tonumber(ye) or 0;    
+	local step = 0;    
+	while #q > 0 do    
+		local i = #q;    
+		local inst = q[i];    
+		q[i] = nil;    
+		if inst then    
+			fn(inst);    
+			local ch = inst:GetChildren();    
+			for j = #ch, 1, -1 do    
+				q[#q + 1] = ch[j];    
+			end;    
+		end;    
+		if budget > 0 then    
+			step += 1;    
+			if step >= budget then    
+				step = 0;    
+				task.wait();    
+			end;    
+		end;    
+	end;    
 end;    
 local function drag(frame, handle)    
 	if not (frame and handle) then    
@@ -499,11 +589,21 @@ local function drag(frame, handle)
 				topO = o;    
 			end;    
 		end;    
-		if not top then    
-			return true;    
+			if not top then    
+				return true;    
+			end;    
+			if top == rootObj then    
+				return true;    
+			end;    
+			local p = top.Parent;    
+			while p do    
+				if p == rootObj then    
+					return true;    
+				end;    
+				p = p.Parent;    
+			end;    
+			return false;    
 		end;    
-		return top == rootObj or top:IsDescendantOf(rootObj);    
-	end;    
 	local function markMoved(dx, dy)    
 		if (not moved) and (math.abs(dx) > 0 or math.abs(dy) > 0) then    
 			moved = true;    
@@ -537,13 +637,22 @@ local function drag(frame, handle)
 			dragStart = inputObj.Position;    
 			startPos = frame.Position;    
 			moved = false;    
-			local cEnd = inputObj.Changed:Connect(function()    
+			local cEnd;    
+			cEnd = inputObj.Changed:Connect(function()    
 				if inputObj.UserInputState == Enum.UserInputState.End then    
 					dragging = false;    
 					if DRAG_STATE.owner == frame then    
 						DRAG_STATE.owner = nil;    
 						DRAG_STATE.input = nil;    
 					end;    
+					if cEnd and cEnd.Connected then    
+						cEnd:Disconnect();    
+					end;    
+					local hs = ST[handle];    
+					if hs and hs.connections and cEnd then    
+						hs.connections[cEnd] = nil;    
+					end;    
+					cEnd = nil;    
 				end;    
 			end);    
 			addConnection(handle, cEnd);    
@@ -904,6 +1013,10 @@ local function mkHdr(par, z, kind, onPause)
 	local function closeFont()    
 		if fCon then    
 			fCon:Disconnect();    
+			local sp = ST[par];    
+			if sp and sp.connections then    
+				sp.connections[fCon] = nil;    
+			end;    
 			fCon = nil;    
 		end;    
 		if fMenu and fMenu.Parent then    
@@ -1003,9 +1116,14 @@ local function mkHdr(par, z, kind, onPause)
 				placeMenu(fbtn, fMenu);    
 			elseif fCon then    
 				fCon:Disconnect();    
+				local sp = ST[par];    
+				if sp and sp.connections then    
+					sp.connections[fCon] = nil;    
+				end;    
 				fCon = nil;    
 			end;    
 		end);    
+		addConnection(par, fCon);    
 		local sc = Instance.new("UIScale", m);    
 		sc.Scale = 0.92;    
 		m.BackgroundTransparency = 1;    
@@ -1064,6 +1182,10 @@ local function mkHdr(par, z, kind, onPause)
 		local function closePos()    
 			if pCon then    
 				pCon:Disconnect();    
+				local sp = ST[par];    
+				if sp and sp.connections then    
+					sp.connections[pCon] = nil;    
+				end;    
 				pCon = nil;    
 			end;    
 			if pMenu and pMenu.Parent then    
@@ -1135,9 +1257,14 @@ local function mkHdr(par, z, kind, onPause)
 					placeMenu(posBtn, pMenu);    
 				elseif pCon then    
 					pCon:Disconnect();    
+					local sp = ST[par];    
+					if sp and sp.connections then    
+						sp.connections[pCon] = nil;    
+					end;    
 					pCon = nil;    
 				end;    
 			end);    
+			addConnection(par, pCon);    
 			local sc = Instance.new("UIScale", m);    
 			sc.Scale = 0.92;    
 			m.BackgroundTransparency = 1;    
@@ -1645,14 +1772,14 @@ local function dirFrom(str)
 	return d;    
 end;    
 local function appear(card, sc, st, tgt, from, cnt)    
-	for _, d in ipairs(cnt:GetDescendants()) do    
+	walkDesc(cnt, function(d)    
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then    
 			d.TextTransparency = 1;    
 		end;    
 		if d:IsA("ImageLabel") then    
 			d.ImageTransparency = 1;    
 		end;    
-	end;    
+	end, 120);    
     
 	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1);    
     
@@ -1698,17 +1825,17 @@ local function appear(card, sc, st, tgt, from, cnt)
     
 	task.delay(0.05, function()    
 		local tC = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);    
-		for _, d in ipairs(cnt:GetDescendants()) do    
+		walkDesc(cnt, function(d)    
 			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then    
 				local t = tw:Create(d, tC, { TextTransparency = 0 });    
 				t:Play();    
-				addTween(d, t);    
+				addTween(card, t);    
 			elseif d:IsA("ImageLabel") then    
 				local t = tw:Create(d, tC, { ImageTransparency = 0 });    
 				t:Play();    
-				addTween(d, t);    
+				addTween(card, t);    
 			end;    
-		end;    
+		end, 120);    
 	end);    
 end;    
 local function disappear(card, sc, st)    
@@ -1927,6 +2054,12 @@ local function build(kind, p)
 			end;    
 		end);    
 	end;    
+	addConnection(card, card.Destroying:Connect(function()    
+		for _, t in pairs(ACT) do    
+			t[card] = nil;    
+		end;    
+		cleanup(card);    
+	end));    
 	function s.setDock(newDock, persist)    
 		newDock = mapDock(newDock);    
 		if s.dock == newDock then    

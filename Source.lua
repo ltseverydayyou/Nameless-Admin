@@ -423,6 +423,331 @@ NAlib.isConnected = function(name)
 	return connections[name] ~= nil
 end
 
+NAmanage._wsHub = NAmanage._wsHub or nil
+
+NAmanage._wsHubGet = NAmanage._wsHubGet or function()
+	local cRoot = workspace
+	local hub = NAmanage._wsHub
+	if hub and hub.root == cRoot then
+		return hub
+	end
+
+	if hub then
+		hub.alive = false
+		if hub.cAdd then
+			hub.cAdd:Disconnect()
+		end
+		if hub.cRem then
+			hub.cRem:Disconnect()
+		end
+	end
+
+	hub = {
+		root = cRoot,
+		nextId = 0,
+		added = {},
+		removing = {},
+		cache = {},
+		idx = setmetatable({}, { __mode = "k" }),
+		aQ = setmetatable({}, { __mode = "v" }),
+		rQ = setmetatable({}, { __mode = "v" }),
+		aSet = setmetatable({}, { __mode = "k" }),
+		rSet = setmetatable({}, { __mode = "k" }),
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		sQ = setmetatable({}, { __mode = "v" }),
+		sHead = 1,
+		sTail = 0,
+		sBusy = false,
+		cIdx = 1,
+		cAdd = nil,
+		cRem = nil,
+		alive = true,
+	}
+
+	local function addC(inst)
+		if not (inst and inst.Parent) then
+			return
+		end
+		if hub.idx[inst] then
+			return
+		end
+		local n = #hub.cache + 1
+		hub.cache[n] = inst
+		hub.idx[inst] = n
+	end
+
+	local function remC(inst)
+		local i = hub.idx[inst]
+		if not i then
+			return
+		end
+		local last = #hub.cache
+		local lastInst = hub.cache[last]
+		hub.cache[last] = nil
+		if i ~= last then
+			hub.cache[i] = lastInst
+			if lastInst then
+				hub.idx[lastInst] = i
+			end
+		end
+		hub.idx[inst] = nil
+	end
+
+	local function scrub(limit)
+		local n = #hub.cache
+		if n == 0 then
+			hub.cIdx = 1
+			return
+		end
+		local i = hub.cIdx
+		local steps = 0
+		while steps < limit and n > 0 do
+			if i > n then
+				i = 1
+				break
+			end
+			local inst = hub.cache[i]
+			if not (inst and inst.Parent) then
+				local lastInst = hub.cache[n]
+				hub.cache[n] = nil
+				n -= 1
+				if i <= n then
+					hub.cache[i] = lastInst
+					if lastInst then
+						hub.idx[lastInst] = i
+					end
+				end
+				if inst then
+					hub.idx[inst] = nil
+				end
+			else
+				i += 1
+			end
+			steps += 1
+		end
+		hub.cIdx = i
+	end
+
+	local function dispatch(handlers, inst)
+		for _, fn in pairs(handlers) do
+			pcall(fn, inst)
+		end
+	end
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget = 140
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removing, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				scrub(32)
+				Wait()
+			end
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	local function runScan()
+		if hub.sBusy or not hub.alive then
+			return
+		end
+		hub.sBusy = true
+		Spawn(function()
+			while hub.alive and hub.sHead <= hub.sTail do
+				local budget = 90
+				while budget > 0 and hub.alive and hub.sHead <= hub.sTail do
+					local inst = hub.sQ[hub.sHead]
+					hub.sQ[hub.sHead] = nil
+					hub.sHead += 1
+					if inst and inst.Parent then
+						addC(inst)
+						local ch = inst:GetChildren()
+						for i = 1, #ch do
+							hub.sTail += 1
+							hub.sQ[hub.sTail] = ch[i]
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			hub.sQ = setmetatable({}, { __mode = "v" })
+			hub.sHead = 1
+			hub.sTail = 0
+			hub.sBusy = false
+		end)
+	end
+
+	if cRoot then
+		local top = cRoot:GetChildren()
+		for i = 1, #top do
+			hub.sTail += 1
+			hub.sQ[hub.sTail] = top[i]
+		end
+		runScan()
+
+		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
+			addC(inst)
+			qEvt("add", inst)
+		end)
+		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
+			remC(inst)
+			qEvt("rem", inst)
+		end)
+	end
+
+	NAmanage._wsHub = hub
+	return hub
+end
+
+NAmanage.wsDescs = NAmanage.wsDescs or function()
+	local hub = NAmanage._wsHubGet()
+	if not hub then
+		return {}
+	end
+	if hub.alive then
+		local n = #hub.cache
+		if n > 0 then
+			local i = hub.cIdx
+			if i > n then
+				i = 1
+			end
+			local inst = hub.cache[i]
+			if not (inst and inst.Parent) then
+				local lastInst = hub.cache[n]
+				hub.cache[n] = nil
+				n -= 1
+				if i <= n then
+					hub.cache[i] = lastInst
+					if lastInst then
+						hub.idx[lastInst] = i
+					end
+				end
+				if inst then
+					hub.idx[inst] = nil
+				end
+			else
+				hub.cIdx = i + 1
+			end
+		end
+	end
+	return hub.cache
+end
+
+NAmanage.wsSub = NAmanage.wsSub or function(spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+
+	local hub = NAmanage._wsHubGet()
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = onAdd
+	end
+	if onRem then
+		hub.removing[id] = onRem
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		hub.added[id] = nil
+		hub.removing[id] = nil
+	end
+	return conn
+end
+
+NAmanage.wsAdd = NAmanage.wsAdd or function(fn)
+	return NAmanage.wsSub({
+		added = fn
+	})
+end
+
+NAmanage.wsRem = NAmanage.wsRem or function(fn)
+	return NAmanage.wsSub({
+		removing = fn
+	})
+end
+
 NAlib.isProperty = function(inst, prop)
 	local s, r = pcall(function() return inst[prop] end)
 	if not s then return nil end
@@ -1974,7 +2299,29 @@ local Waypoints = {}
 local Bindings = Bindings or {}
 local CommandKeybinds = CommandKeybinds or {}
 local CommandKeybindOptions = CommandKeybindOptions or {}
-local interactTbl = { click = {}; proxy = {}; touch = {}; }
+local InstancesTbl = { click = {}; proxy = {}; touch = {}; }
+InstancesTbl.wsAdd = InstancesTbl.wsAdd or {}
+InstancesTbl.wsRem = InstancesTbl.wsRem or {}
+
+NAmanage.setWsH = NAmanage.setWsH or function(key, spec)
+	if type(key) ~= "string" or key == "" then
+		return
+	end
+	spec = type(spec) == "table" and spec or {}
+	local onAdded = type(spec.added) == "function" and spec.added or nil
+	local onRemoving = type(spec.removing) == "function" and spec.removing or nil
+	InstancesTbl.wsAdd[key] = onAdded
+	InstancesTbl.wsRem[key] = onRemoving
+end
+
+NAmanage.clrWsH = NAmanage.clrWsH or function(key)
+	if type(key) ~= "string" or key == "" then
+		return
+	end
+	InstancesTbl.wsAdd[key] = nil
+	InstancesTbl.wsRem[key] = nil
+end
+
 local Notification = nil
 local inviteLink = "https://discord.gg/zzjYhtMGFD"
 local prefixCheck = ";"
@@ -3543,6 +3890,13 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		watchGuiRoot(root)
 	end
 
+	NAmanage.setWsH("CornerEditor_World", {
+		added = function(o)
+			onCBB(o)
+			onCSurf(o)
+		end
+	})
+
 	local function syncCConn()
 		NAlib.disconnect("CornerEditor")
 		if CE.data.targetCoreGui and CE.cg then
@@ -3560,16 +3914,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(onCDesc))
 		end
 
-		local world = workspace
 		NAlib.disconnect("CornerEditor_Billboard")
-		if CE.data.targetBillboardGui and world then
-			NAlib.connect("CornerEditor_Billboard", world.DescendantAdded:Connect(onCBB))
-		end
-
 		NAlib.disconnect("CornerEditor_Surface")
-		if CE.data.targetSurfaceGui and world then
-			NAlib.connect("CornerEditor_Surface", world.DescendantAdded:Connect(onCSurf))
-		end
 	end
 
 	local function monCPGui()
@@ -5183,6 +5529,13 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		watchFontGuiRoot(o)
 	end
 
+	NAmanage.setWsH("FontEditor_World", {
+		added = function(o)
+			onFontBillboardAdded(o)
+			onFontSurfaceAdded(o)
+		end
+	})
+
 	local function refreshFontConnections()
 		NAlib.disconnect("FontEditor")
 		if FontEditor.data.targetCoreGui and FontEditor.cg then
@@ -5200,16 +5553,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(onFontDescendantAdded))
 		end
 
-		local world = workspace
 		NAlib.disconnect("FontEditor_Billboard")
-		if FontEditor.data.targetBillboardGui and world then
-			NAlib.connect("FontEditor_Billboard", world.DescendantAdded:Connect(onFontBillboardAdded))
-		end
-
 		NAlib.disconnect("FontEditor_Surface")
-		if FontEditor.data.targetSurfaceGui and world then
-			NAlib.connect("FontEditor_Surface", world.DescendantAdded:Connect(onFontSurfaceAdded))
-		end
 	end
 
 	local function monitorFontPlayerGui()
@@ -13376,7 +13721,7 @@ local PlayerArgs = {
 
 	["npc"] = function()
 		local Targets = {}
-		for _, model in ipairs(workspace:GetDescendants()) do
+		for _, model in ipairs(NAmanage.wsDescs()) do
 			if CheckIfNPC(model) then
 				Insert(Targets, model)
 			end
@@ -15056,7 +15401,7 @@ originalIO.togXray=function(en)
 	end
 
 	if en then
-		NAStuff.xrayConn = workspace.DescendantAdded:Connect(function(desc)
+		NAStuff.xrayConn = NAmanage.wsAdd(function(desc)
 			if not NAStuff.xrayEnabled then
 				return
 			end
@@ -25455,7 +25800,7 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 end)
 
 cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
-	for i,v in pairs(workspace:GetDescendants()) do
+	for i,v in pairs(NAmanage.wsDescs()) do
 		if v:IsA("BasePart") and v.Transparency==1 and v.CanCollide then
 			v:Destroy()
 		end
@@ -25465,7 +25810,7 @@ end)
 NAStuff.shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
-	for _, v in ipairs(workspace:GetDescendants()) do
+	for _, v in ipairs(NAmanage.wsDescs()) do
 		if v:IsA("BasePart") and v.Transparency == 1 then
 			local alreadyShown = false
 			for _, p in ipairs(NAStuff.shownParts) do
@@ -25523,7 +25868,7 @@ cmd.add({"removeads","adblock"},{"removeads (adblock)","Continuously removes bil
 	SpawnCall(function()
 		while state.active do
 			pcall(function()
-				for _,obj in ipairs(workspace:GetDescendants()) do
+				for _,obj in ipairs(NAmanage.wsDescs()) do
 					if obj:IsA("PackageLink") then
 						local parent=obj.Parent
 						if parent then
@@ -26685,7 +27030,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	end))
 
 	NAlib.disconnect("oldrbx_desc")
-	NAlib.connect("oldrbx_desc", workspace.DescendantAdded:Connect(function(obj)
+	NAlib.connect("oldrbx_desc", NAmanage.wsAdd(function(obj)
 		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("BasePart") then
 			qpush(obj)
@@ -27131,7 +27476,7 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	local closestSpawn = nil
 	local shortestDistance = math.huge
 	local rootPosition = root.Position
-	for _, descendant in ipairs(workspace:GetDescendants()) do
+	for _, descendant in ipairs(NAmanage.wsDescs()) do
 		if descendant:IsA("SpawnLocation") then
 			local distance = (descendant.Position - rootPosition).Magnitude
 			if distance < shortestDistance then
@@ -29091,7 +29436,7 @@ end
 
 NAmanage.SeedNpcCandidates = function()
 	NAStuff.npcCandidates = setmetatable({}, { __mode = "k" })
-	for _, inst in ipairs(workspace:GetDescendants()) do
+	for _, inst in ipairs(NAmanage.wsDescs()) do
 		NAmanage.AddNpcCandidate(inst)
 	end
 end
@@ -29156,7 +29501,7 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 				end
 			end
 		end))
-		NAlib.connect(NAStuff.NPC_SCAN_KEY, workspace.DescendantAdded:Connect(function(inst)
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, NAmanage.wsAdd(function(inst)
 			if inst:IsA("Model") then
 				NAmanage.AddNpcCandidate(inst)
 			elseif inst:IsA("Humanoid") then
@@ -29166,7 +29511,7 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 				end
 			end
 		end))
-		NAlib.connect(NAStuff.NPC_SCAN_KEY, workspace.DescendantRemoving:Connect(function(inst)
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, NAmanage.wsRem(function(inst)
 			if inst:IsA("Model") then
 				NAmanage.RemoveNpcCandidate(inst)
 			elseif inst:IsA("Humanoid") then
@@ -32232,7 +32577,7 @@ NAmanage.grabAllTools=function(range)
 	local useRange = range and range > 0
 
 	local count = 0
-	for _, tool in ipairs(workspace:GetDescendants()) do
+	for _, tool in ipairs(NAmanage.wsDescs()) do
 		if tool:IsA("Tool") then
 			if useRange then
 				local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
@@ -33720,12 +34065,12 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 		return ok and part.Parent == policy
 	end
 
-	NAlib.connect("antikb", workspace.DescendantAdded:Connect(function(inst)
+	NAlib.connect("antikb", NAmanage.wsAdd(function(inst)
 		moveTouchPart(inst)
 	end))
 
 	local changed = 0
-	for _, inst in ipairs(workspace:GetDescendants()) do
+	for _, inst in ipairs(NAmanage.wsDescs()) do
 		if moveTouchPart(inst) then
 			changed += 1
 		end
@@ -33760,7 +34105,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 		return before ~= false
 	end
 
-	NAlib.connect("antikb", workspace.DescendantAdded:Connect(function(inst)
+	NAlib.connect("antikb", NAmanage.wsAdd(function(inst)
 		disableTouchPart(inst)
 	end))
 
@@ -33778,7 +34123,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 	end))
 
 	local changed = 0
-	for _, inst in ipairs(workspace:GetDescendants()) do
+	for _, inst in ipairs(NAmanage.wsDescs()) do
 		if disableTouchPart(inst) then
 			changed += 1
 		end
@@ -34709,7 +35054,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 		end)
 	end
 	if typeof(firetouchinterest)=="function" and root then
-		for _,spawnLocation in ipairs(workspace:GetDescendants()) do
+		for _,spawnLocation in ipairs(NAmanage.wsDescs()) do
 			if spawnLocation:IsA("SpawnLocation") and spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
 				pcall(firetouchinterest,spawnLocation,root,0)
 				Wait()
@@ -36005,8 +36350,8 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 	end
 
-	for _,v in next,workspace:GetDescendants() do ForcePart(v) end
-	NAlib.connect("blackhole_force",workspace.DescendantAdded:Connect(ForcePart))
+	for _,v in next,NAmanage.wsDescs() do ForcePart(v) end
+	NAlib.connect("blackhole_force",NAmanage.wsAdd(ForcePart))
 
 	UIS.InputBegan:Connect(function(k,chat)
 		if k.KeyCode==Enum.KeyCode.E and not chat then
@@ -36033,7 +36378,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		_na_env.BlackholeActive=not _na_env.BlackholeActive
 		toggleBtn.Text=_na_env.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
 		if not _na_env.BlackholeActive then
-			for _,p in ipairs(workspace:GetDescendants()) do
+			for _,p in ipairs(NAmanage.wsDescs()) do
 				if p:IsA("BasePart") and not p.Anchored then
 					for _,o in ipairs(p:GetChildren()) do
 						if o:IsA("AlignPosition") or o:IsA("Torque") or o:IsA("Attachment") then o:Destroy() end
@@ -36042,7 +36387,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 			end
 			DebugNotif("Blackhole force disabled",2)
 		else
-			for _,v in next,workspace:GetDescendants() do ForcePart(v) end
+			for _,v in next,NAmanage.wsDescs() do ForcePart(v) end
 			DebugNotif("Blackhole force enabled",2)
 		end
 	end)
@@ -41037,7 +41382,7 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
 	NAindex.init()
 	local list,f={},0
-	for _,inst in ipairs(interactTbl.click or {}) do
+	for _,inst in ipairs(InstancesTbl.click or {}) do
 		if inst and inst.Parent then
 			local names = NAindex.namesForClick(inst)
 			if NAindex.matchAny(names, target) then
@@ -41068,7 +41413,7 @@ cmd.add({"fireclickdetectorsfind","fcdfind","firecdfind"},{"fireclickdetectorsfi
 	if typeof(fireclickdetector)~="function" then return DoNotif("fireclickdetector not available",3) end
 	NAindex.init()
 	local list,f={},0
-	for _,inst in ipairs(interactTbl.click or {}) do
+	for _,inst in ipairs(InstancesTbl.click or {}) do
 		if inst and inst.Parent then
 			local names = NAindex.namesForClick(inst)
 			if NAindex.matchAnyFind(names, target) then
@@ -41097,7 +41442,7 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
 	NAindex.init()
 	local list,f={},0
-	for _,inst in ipairs(interactTbl.proxy or {}) do
+	for _,inst in ipairs(InstancesTbl.proxy or {}) do
 		if inst and inst.Parent and inst.Enabled then
 			local names = NAindex.namesForPrompt(inst)
 			if NAindex.matchAny(names, target) then
@@ -41128,7 +41473,7 @@ cmd.add({"fireproximitypromptsfind","fppfind","fireppfind"},{"fireproximitypromp
 	if typeof(fireproximityprompt)~="function" then return DoNotif("fireproximityprompt not available",3) end
 	NAindex.init()
 	local list,f={},0
-	for _,inst in ipairs(interactTbl.proxy or {}) do
+	for _,inst in ipairs(InstancesTbl.proxy or {}) do
 		if inst and inst.Parent and inst.Enabled then
 			local names = NAindex.namesForPrompt(inst)
 			if NAindex.matchAnyFind(names, target) then
@@ -41160,7 +41505,7 @@ cmd.add({"firetouchinterests","fti"},{"firetouchinterests (fti)","Fires every To
 	if not root then return end
 	NAindex.init()
 	local found = 0
-	for _,ti in ipairs(interactTbl.touch or {}) do
+	for _,ti in ipairs(InstancesTbl.touch or {}) do
 		local container = ti.Parent
 		if container and container.Parent then
 			local part = NAindex.carPart(container)
@@ -41215,7 +41560,7 @@ cmd.add({"firetouchinterestsfind","ftifind","firetifind"},{"firetouchinterestsfi
 	if not root then return end
 	NAindex.init()
 	local found = 0
-	for _,ti in ipairs(interactTbl.touch or {}) do
+	for _,ti in ipairs(InstancesTbl.touch or {}) do
 		local container = ti.Parent
 		if container and container.Parent then
 			local part = NAindex.carPart(container)
@@ -41533,8 +41878,8 @@ end
 
 NAsuppress.collectAndAcquire = function(centerPos, radius, allowSet)
 	local list = {}
-	if interactTbl and type(interactTbl.proxy) == "table" then
-		for _, p in ipairs(interactTbl.proxy) do
+	if InstancesTbl and type(InstancesTbl.proxy) == "table" then
+		for _, p in ipairs(InstancesTbl.proxy) do
 			if p and p.Parent and p.Enabled and not (allowSet and allowSet[p]) then
 				local _, pos = NAindex.promptTarget(p)
 				if pos and (pos - centerPos).Magnitude <= radius then
@@ -41655,7 +42000,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 	}
 	if kind == "prompt" then
 		job.tick = function(self)
-			if not interactTbl or type(interactTbl.proxy) ~= "table" then
+			if not InstancesTbl or type(InstancesTbl.proxy) ~= "table" then
 				return
 			end
 			local char = getChar()
@@ -41667,7 +42012,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 			local list = {}
 			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
 			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
-			local proxy = interactTbl.proxy
+			local proxy = InstancesTbl.proxy
 			local hasTarget = self.target ~= nil and self.target ~= ""
 			for i = 1, #proxy do
 				local inst = proxy[i]
@@ -41734,7 +42079,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 		end
 	elseif kind == "click" then
 		job.tick = function(self)
-			if not interactTbl or type(interactTbl.click) ~= "table" then
+			if not InstancesTbl or type(InstancesTbl.click) ~= "table" then
 				return
 			end
 			local char = getChar()
@@ -41746,7 +42091,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 			local list = {}
 			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
 			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
-			local clickTbl = interactTbl.click
+			local clickTbl = InstancesTbl.click
 			local hasTarget = self.target ~= nil and self.target ~= ""
 			for i = 1, #clickTbl do
 				local inst = clickTbl[i]
@@ -41800,7 +42145,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 		end
 	elseif kind == "touch" then
 		job.tick = function(self)
-			if not interactTbl or type(interactTbl.touch) ~= "table" then
+			if not InstancesTbl or type(InstancesTbl.touch) ~= "table" then
 				return
 			end
 			local char = getChar()
@@ -41809,7 +42154,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 				return
 			end
 			local list = {}
-			local touchTbl = interactTbl.touch
+			local touchTbl = InstancesTbl.touch
 			local hasTarget = self.target ~= nil and self.target ~= ""
 			for i = 1, #touchTbl do
 				local ti = touchTbl[i]
@@ -42058,14 +42403,14 @@ end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
 	local limit = (...) or math.huge
-	for _,v in ipairs(interactTbl.click) do
+	for _,v in ipairs(InstancesTbl.click) do
 		v.MaxActivationDistance = limit
 	end
 end,true)
 
 cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximitypromptlimits <limit> (nopplimits,removepplimits)","Sets all proximity prompts MaxActivationDistance to math.huge"},function(...)
 	local limit = (...) or math.huge
-	for _,v in ipairs(interactTbl.proxy) do
+	for _,v in ipairs(InstancesTbl.proxy) do
 		v.MaxActivationDistance = limit
 	end
 end,true)
@@ -42091,7 +42436,7 @@ end,true)
 
 cmd.add({"enableproximityprompts","enableprox","enprox","enprx","enpp"},{"enableproximityprompts [name]","Enable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
-	for _,obj in ipairs(interactTbl.proxy) do
+	for _,obj in ipairs(InstancesTbl.proxy) do
 		if obj and obj.Parent then
 			if term=="" or Find(Lower(obj.Name), term) then
 				obj.Enabled = true
@@ -42102,7 +42447,7 @@ end,true)
 
 cmd.add({"disableproximityprompts","disableprox","disprox","dprx","dpp"},{"disableproximityprompts [name]","Disable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
-	for _,obj in ipairs(interactTbl.proxy) do
+	for _,obj in ipairs(InstancesTbl.proxy) do
 		if obj and obj.Parent then
 			if term=="" or Find(Lower(obj.Name), term) then
 				obj.Enabled = false
@@ -42119,7 +42464,7 @@ cmd.add({"loopenableproximityprompts","loopenableprox","lenprox","lenpp"},{"loop
 	proxyEnableLoopState = {active=true}
 	SpawnCall(function()
 		while proxyEnableLoopState and proxyEnableLoopState.active do
-			for _,obj in ipairs(interactTbl.proxy) do
+			for _,obj in ipairs(InstancesTbl.proxy) do
 				if obj and obj.Parent and obj:IsA("ProximityPrompt") then
 					if term=="" or Find(Lower(obj.Name), term) then
 						if obj.Enabled ~= true then obj.Enabled = true end
@@ -42861,7 +43206,7 @@ cmd.add({"delete","remove","del"}, {"delete {partname} (remove, del)","Removes a
 		...
 	};
 	local targetName = Concat(args, " ");
-	for _, d in pairs(workspace:GetDescendants()) do
+	for _, d in pairs(NAmanage.wsDescs()) do
 		if d.Name:lower() == targetName:lower() then
 			d:Destroy();
 			deleteCount = deleteCount + 1;
@@ -42879,7 +43224,7 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 	local deFind = 0
 	local targetName = Concat({...}, " "):lower()
 
-	for _, d in pairs(workspace:GetDescendants()) do
+	for _, d in pairs(NAmanage.wsDescs()) do
 		if d.Name:lower():find(targetName) then
 			d:Destroy()
 			deFind = deFind + 1
@@ -42935,7 +43280,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 
 	if not FindInTable(autoRemover, targetName) then
 		Insert(autoRemover, targetName)
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if part.Name:lower() == targetName then
 				part:Destroy()
 			end
@@ -42943,7 +43288,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 	end
 
 	if not autoRemoveConnection then
-		autoRemoveConnection = workspace.DescendantAdded:Connect(handleDescendantAdd)
+		autoRemoveConnection = NAmanage.wsAdd(handleDescendantAdd)
 	end
 
 	Wait()
@@ -43061,7 +43406,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 
 	if not FindInTable(autoFinder, kw) then
 		Insert(autoFinder, kw)
-		for _, obj in pairs(workspace:GetDescendants()) do
+		for _, obj in pairs(NAmanage.wsDescs()) do
 			if obj.Name:lower():find(kw) then
 				obj:Destroy()
 			end
@@ -43069,7 +43414,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 	end
 
 	if not finderConn then
-		finderConn = workspace.DescendantAdded:Connect(onAdd)
+		finderConn = NAmanage.wsAdd(onAdd)
 	end
 
 	Wait()
@@ -43163,7 +43508,7 @@ cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removec
 	local targetClass = args[1]:lower()
 	local deleteCount = 0
 
-	for _, part in pairs(workspace:GetDescendants()) do
+	for _, part in pairs(NAmanage.wsDescs()) do
 		if part.ClassName:lower() == targetClass then
 			part:Destroy()
 			deleteCount = deleteCount + 1
@@ -43204,7 +43549,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 
 	if not FindInTable(NAStuff.autoClassRemover, targetClass) then
 		Insert(NAStuff.autoClassRemover, targetClass)
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if part.ClassName:lower() == targetClass then
 				part:Destroy()
 			end
@@ -43212,7 +43557,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 	end
 
 	if not NAStuff.autoClassConnection then
-		NAStuff.autoClassConnection = workspace.DescendantAdded:Connect(handleClassDescendantAdd)
+		NAStuff.autoClassConnection = NAmanage.wsAdd(handleClassDescendantAdd)
 	end
 
 	Wait()
@@ -44051,7 +44396,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -44070,7 +44415,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
 		local char = getChar()
-		for _,obj in ipairs(workspace:GetDescendants()) do
+		for _,obj in ipairs(NAmanage.wsDescs()) do
 			if not state.active then return end
 			if obj:IsA("BasePart") and obj.Name:lower() == partName then
 				local hum = getHum()
@@ -44101,7 +44446,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -44124,7 +44469,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.Name:lower():find(name) then
 				local hum = getHum()
@@ -44157,7 +44502,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, part in pairs(workspace:GetDescendants()) do
+		for _, part in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if part:IsA("BasePart") and part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -44171,7 +44516,7 @@ end, true)
 cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
 	local partName = Concat({...}, " "):lower()
 
-	for _, part in pairs(workspace:GetDescendants()) do
+	for _, part in pairs(NAmanage.wsDescs()) do
 		if part:IsA("BasePart") and part.Name:lower() == partName then
 			if getChar() then
 				part:PivotTo(getChar():GetPivot())
@@ -44188,7 +44533,7 @@ cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfi
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, part in ipairs(workspace:GetDescendants()) do
+	for _, part in ipairs(NAmanage.wsDescs()) do
 		if part:IsA("BasePart") then
 			local n = part.Name:lower()
 			if Find(n, name, 1, true) ~= nil then
@@ -44201,7 +44546,7 @@ end,true)
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
-	for _, model in pairs(workspace:GetDescendants()) do
+	for _, model in pairs(NAmanage.wsDescs()) do
 		if model:IsA("Model") and model.Name:lower() == modelName then
 			if getChar() then
 				model:PivotTo(getChar():GetPivot())
@@ -44218,7 +44563,7 @@ cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","B
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, model in ipairs(workspace:GetDescendants()) do
+	for _, model in ipairs(NAmanage.wsDescs()) do
 		if model:IsA("Model") then
 			local n = model.Name:lower()
 			if Find(n, name, 1, true) ~= nil then
@@ -44236,18 +44581,18 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local folder, partFilter
 	do
 		local nameAll = Concat(lower," ")
-		for _,obj in ipairs(workspace:GetDescendants()) do
+		for _,obj in ipairs(NAmanage.wsDescs()) do
 			if obj:IsA("Folder") and obj.Name:lower() == nameAll then folder = obj break end
 		end
 		if not folder and #lower>=2 then
 			local nameWithoutLast = Concat(lower," ",1,#lower-1)
 			local last = lower[#lower]
-			for _,obj in ipairs(workspace:GetDescendants()) do
+			for _,obj in ipairs(NAmanage.wsDescs()) do
 				if obj:IsA("Folder") and obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
 			end
 		end
 		if not folder then
-			for _,obj in ipairs(workspace:GetDescendants()) do
+			for _,obj in ipairs(NAmanage.wsDescs()) do
 				if obj:IsA("Folder") and obj.Name:lower() == lower[1] then folder = obj break end
 			end
 			if folder and #lower>1 then
@@ -44285,7 +44630,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, model in pairs(workspace:GetDescendants()) do
+		for _, model in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -44308,7 +44653,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 	NAStuff.activeTeleports[commandKey] = taskState
 
 	SpawnCall(function()
-		for _, model in pairs(workspace:GetDescendants()) do
+		for _, model in pairs(NAmanage.wsDescs()) do
 			if not taskState.active then return end
 			if model:IsA("Model") and model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -44322,7 +44667,7 @@ end, true)
 cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)", "Teleports you to a model whose name contains the given text"}, function(...)
 	local name = Concat({...}, " "):lower()
 
-	for _, model in pairs(workspace:GetDescendants()) do
+	for _, model in pairs(NAmanage.wsDescs()) do
 		if model:IsA("Model") and model.Name:lower():find(name) then
 			if getHum() then
 				getHum().Sit = false
@@ -44347,7 +44692,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	NAStuff.activeTeleports[key] = state
 	SpawnCall(function()
 		local folder
-		for _,obj in ipairs(workspace:GetDescendants()) do
+		for _,obj in ipairs(NAmanage.wsDescs()) do
 			if obj:IsA("Folder") and obj.Name:lower() == folderName then folder = obj break end
 		end
 		if not folder then return end
@@ -44488,7 +44833,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 		v.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
 	end
 
-	for _,part in ipairs(workspace:GetDescendants()) do
+	for _,part in ipairs(NAmanage.wsDescs()) do
 		ForcePart(part)
 	end
 end,true)
@@ -44527,9 +44872,9 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 		torque.Torque=Vector3.new(100000,100000,100000)
 	end
 
-	for _,part in ipairs(workspace:GetDescendants()) do Defer(function() ForcePart(part) end) end
+	for _,part in ipairs(NAmanage.wsDescs()) do Defer(function() ForcePart(part) end) end
 
-	NAlib.connect("bhf",workspace.DescendantAdded:Connect(ForcePart))
+	NAlib.connect("bhf",NAmanage.wsAdd(ForcePart))
 	NAlib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
 		NACaller(function()
 			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
@@ -44547,7 +44892,7 @@ cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow",
 	local root=getRoot(getPlrChar(LocalPlayer))
 	if root then local att=root:FindFirstChild("BHF_Attach") if att then att:Destroy() end end
 
-	for _,part in ipairs(workspace:GetDescendants()) do
+	for _,part in ipairs(NAmanage.wsDescs()) do
 		if part:IsA("BasePart") and not part.Anchored then
 			for _,obj in ipairs(part:GetChildren()) do
 				if obj:IsA("AlignPosition") or obj:IsA("Torque") or obj:IsA("Attachment") then obj:Destroy() end
@@ -44697,7 +45042,7 @@ NAmanage.RemoveEspFromPart = function(part)
 end
 
 NAmanage.EnableEsp = function(objType, color, list)
-	for _,obj in ipairs(workspace:GetDescendants()) do
+	for _,obj in ipairs(NAmanage.wsDescs()) do
 		if obj:IsA(objType) then
 			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 			if parent and not Discover(list, parent) then
@@ -44707,7 +45052,7 @@ NAmanage.EnableEsp = function(objType, color, list)
 		end
 	end
 	if not NAStuff.espTriggers[objType] then
-		NAStuff.espTriggers[objType] = workspace.DescendantAdded:Connect(function(obj)
+		NAStuff.espTriggers[objType] = NAmanage.wsAdd(function(obj)
 			if obj:IsA(objType) then
 				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 				if parent and not Discover(list, parent) then
@@ -44775,7 +45120,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 			table.remove(parts,idx)
 		end
 	end
-	for _,obj in ipairs(workspace:GetDescendants()) do
+	for _,obj in ipairs(NAmanage.wsDescs()) do
 		if obj:IsA("BasePart") or obj:IsA("Model") then
 			NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
 				handleNameChange(obj)
@@ -44784,7 +45129,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		end
 	end
 	if not NAStuff.espNameTriggers[mode] then
-		NAStuff.espNameTriggers[mode] = workspace.DescendantAdded:Connect(function(obj)
+		NAStuff.espNameTriggers[mode] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") or obj:IsA("Model") then
 				NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
 					handleNameChange(obj)
@@ -44822,7 +45167,7 @@ NAmanage.EnableUnanchoredEsp = function(color)
 			table.remove(NAStuff.unanchoredESPList, idx)
 		end
 	end
-	for _,obj in ipairs(workspace:GetDescendants()) do
+	for _,obj in ipairs(NAmanage.wsDescs()) do
 		if obj:IsA("BasePart") then
 			update(obj)
 			NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
@@ -44831,7 +45176,7 @@ NAmanage.EnableUnanchoredEsp = function(color)
 		end
 	end
 	if not NAStuff.espTriggers["__unanchored"] then
-		NAStuff.espTriggers["__unanchored"] = workspace.DescendantAdded:Connect(function(obj)
+		NAStuff.espTriggers["__unanchored"] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				update(obj)
 				NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
@@ -44871,7 +45216,7 @@ NAmanage.EnableCollisionEsp = function(targetState, color)
 			table.remove(list, idx)
 		end
 	end
-	for _,obj in ipairs(workspace:GetDescendants()) do
+	for _,obj in ipairs(NAmanage.wsDescs()) do
 		if obj:IsA("BasePart") then
 			update(obj)
 			NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
@@ -44880,7 +45225,7 @@ NAmanage.EnableCollisionEsp = function(targetState, color)
 		end
 	end
 	if not NAStuff.espTriggers[trigKey] then
-		NAStuff.espTriggers[trigKey] = workspace.DescendantAdded:Connect(function(obj)
+		NAStuff.espTriggers[trigKey] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				update(obj)
 				NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
@@ -45565,7 +45910,7 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 	local matches = {}
 	local exactFolder
 
-	for _, obj in ipairs(workspace:GetDescendants()) do
+	for _, obj in ipairs(NAmanage.wsDescs()) do
 		if obj:IsA("Folder") then
 			local lowered = Lower(obj.Name)
 			if lowered == name then
@@ -46313,7 +46658,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 							Setup(m);
 						end;
 					end;
-					D.wc = workspace.DescendantAdded:Connect(function(inst)
+					D.wc = NAmanage.wsAdd(function(inst)
 						local m = IsNPC(inst);
 						if m then
 							Defer(function()
@@ -46861,7 +47206,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	NAStuff.PST.sizeE[term] = sizeVec
 
 	local parts, elser = {}, {}
-	for _, obj in ipairs(workspace:GetDescendants()) do
+	for _, obj in ipairs(NAmanage.wsDescs()) do
 		local nm = Lower(obj.Name)
 		if obj:IsA("BasePart") and nm == term then
 			Insert(parts, obj)
@@ -46882,7 +47227,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	end
 
 	if not NAlib.isConnected("partsizeExact") then
-		NAlib.connect("partsizeExact", workspace.DescendantAdded:Connect(function(obj)
+		NAlib.connect("partsizeExact", NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				local nm = Lower(obj.Name)
 				local sz = NAStuff.PST.sizeE[nm]
@@ -46911,7 +47256,7 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 	PST.sizeP[term] = sizeVec
 
 	local parts, elser = {}, {}
-	for _, obj in ipairs(workspace:GetDescendants()) do
+	for _, obj in ipairs(NAmanage.wsDescs()) do
 		local nm = Lower(obj.Name)
 		if obj:IsA("BasePart") and nm:find(term) then
 			Insert(parts, obj)
@@ -46932,7 +47277,7 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 	end
 
 	if not NAlib.isConnected("partsizeFind") then
-		NAlib.connect("partsizeFind", workspace.DescendantAdded:Connect(function(obj)
+		NAlib.connect("partsizeFind", NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				local nm = Lower(obj.Name)
 				for t, sz in pairs(PST.sizeP) do
@@ -47211,11 +47556,11 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		alignPosition.Attachment1 = Attachment1
 	end
 
-	for _, descendant in ipairs(workspace:GetDescendants()) do
+	for _, descendant in ipairs(NAmanage.wsDescs()) do
 		applyForceToPart(descendant)
 	end
 
-	NAlib.connect(CONN_KEY, workspace.DescendantAdded:Connect(applyForceToPart))
+	NAlib.connect(CONN_KEY, NAmanage.wsAdd(applyForceToPart))
 
 	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input, isChatting)
 		if input.KeyCode == Enum.KeyCode.E and not isChatting then
@@ -50387,7 +50732,7 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 			hum.HipHeight = 1024
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
@@ -50403,7 +50748,7 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 			hum:MoveTo(targetPos)
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
@@ -50423,7 +50768,7 @@ cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"},
 				hum:MoveTo(targetPos)
 			end
 		end
-		for _,hum in pairs(workspace:GetDescendants()) do
+		for _,hum in pairs(NAmanage.wsDescs()) do
 			disappear(hum)
 		end
 	until npcfollowloop == false
@@ -50445,7 +50790,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
@@ -50462,7 +50807,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
@@ -50479,14 +50824,14 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
 
 cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
 	local speed = tonumber(speedStr) or 16
-	for _, hum in pairs(workspace:GetDescendants()) do
+	for _, hum in pairs(NAmanage.wsDescs()) do
 		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			local root = getRoot(hum.Parent)
 			if root then hum.WalkSpeed = speed end
@@ -50496,7 +50841,7 @@ end,true)
 
 cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
 	local power=tonumber(powerStr) or 50
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			local root=getRoot(hum.Parent)
 			if root then hum.JumpPower=power end
@@ -50516,7 +50861,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 			end
 		end
 	end
-	for _,hum in pairs(workspace:GetDescendants()) do
+	for _,hum in pairs(NAmanage.wsDescs()) do
 		disappear(hum)
 	end
 end)
@@ -50525,7 +50870,7 @@ npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
-	for _, hum in ipairs(workspace:GetDescendants()) do
+	for _, hum in ipairs(NAmanage.wsDescs()) do
 		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
 		end
@@ -50561,7 +50906,7 @@ end)
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
-	for _, d in pairs(workspace:GetDescendants()) do
+	for _, d in pairs(NAmanage.wsDescs()) do
 		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
 			local root = getRoot(d.Parent)
 			if root then
@@ -50732,7 +51077,7 @@ cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable cli
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
-	for _, d in ipairs(workspace:GetDescendants()) do
+	for _, d in ipairs(NAmanage.wsDescs()) do
 		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
 			local root = getPlrHum(d.Parent)
 			if root then
@@ -58468,7 +58813,7 @@ end))
 
 SpawnCall(function()
 	local HUI = NAlib.huiGrabber();
-	local function hookFriendLabel(o)
+	local function hookLbl(o)
 		if not o or typeof(o) ~= "Instance" then
 			return;
 		end;
@@ -58483,37 +58828,47 @@ SpawnCall(function()
 		end;
 		NAmanage.SetAttr(o, "NAFriendHooked", true);
 		local applying = false;
+		local function rep(p)
+			local ok, t = pcall(function()
+				return o[p];
+			end);
+			if not (ok and type(t) == "string" and t ~= "" and t:find("Connection")) then
+				return;
+			end;
+			local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend");
+			if new ~= t then
+				pcall(function()
+					o[p] = new;
+				end);
+			end;
+		end;
 		local function apply()
 			if applying then
 				return;
 			end;
 			applying = true;
-			local ok, t = pcall(function()
-				return o.Text;
-			end);
-			if ok and type(t) == "string" and t ~= "" and t:find("Connection") then
-				local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend");
-				if new ~= t then
-					pcall(function()
-						o.Text = new;
-					end);
-				end;
-			end;
+			rep("Text");
+			rep("PlaceholderText");
 			applying = false;
 		end;
 		Defer(apply);
 		(o:GetPropertyChangedSignal("Text")):Connect(function()
 			Defer(apply);
 		end);
+		pcall(function()
+			(o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
+				Defer(apply);
+			end);
+		end);
 	end;
-	local interactIndex = {
+	local iIdx = {
 		click = setmetatable({}, { __mode = "k" });
 		proxy = setmetatable({}, { __mode = "k" });
 		touch = setmetatable({}, { __mode = "k" });
 	};
-	local function addInteract(kind, inst)
-		local list = interactTbl[kind];
-		local idxMap = interactIndex[kind];
+	local function addI(kind, inst)
+		local list = InstancesTbl[kind];
+		local idxMap = iIdx[kind];
 		if (not list) or (not idxMap) or idxMap[inst] then
 			return;
 		end;
@@ -58521,9 +58876,9 @@ SpawnCall(function()
 		list[idx] = inst;
 		idxMap[inst] = idx;
 	end;
-	local function removeInteract(kind, inst)
-		local list = interactTbl[kind];
-		local idxMap = interactIndex[kind];
+	local function remI(kind, inst)
+		local list = InstancesTbl[kind];
+		local idxMap = iIdx[kind];
 		local idx = idxMap and idxMap[inst];
 		if (not list) or (not idxMap) or (not idx) then
 			return;
@@ -58539,7 +58894,7 @@ SpawnCall(function()
 		end;
 		idxMap[inst] = nil;
 	end;
-	local function registerInteract(inst)
+	local function regI(inst)
 		if not inst or (not inst.Parent) then
 			return;
 		end;
@@ -58547,30 +58902,30 @@ SpawnCall(function()
 			return;
 		end;
 		if inst:IsA("ClickDetector") then
-			addInteract("click", inst);
+			addI("click", inst);
 		elseif inst:IsA("ProximityPrompt") then
-			addInteract("proxy", inst);
+			addI("proxy", inst);
 		elseif inst:IsA("TouchTransmitter") then
-			addInteract("touch", inst);
+			addI("touch", inst);
 		end;
 	end;
-	local function unregisterInteract(inst)
+	local function unregI(inst)
 		if not inst then
 			return;
 		end;
 		if inst:IsA("ClickDetector") then
-			removeInteract("click", inst);
+			remI("click", inst);
 		elseif inst:IsA("ProximityPrompt") then
-			removeInteract("proxy", inst);
+			remI("proxy", inst);
 		elseif inst:IsA("TouchTransmitter") then
-			removeInteract("touch", inst);
+			remI("touch", inst);
 		end;
 	end;
-	local function isFriendLabelTarget(inst)
+	local function isFLbl(inst)
 		return inst
 			and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"));
 	end;
-	local function isInteractTarget(inst)
+	local function isITgt(inst)
 		return inst
 			and (inst:IsA("ClickDetector") or inst:IsA("ProximityPrompt") or inst:IsA("TouchTransmitter"));
 	end;
@@ -58621,109 +58976,170 @@ SpawnCall(function()
 			scanning = false;
 		end);
 	end;
-	local friendQueue = {};
-	local friendSet = setmetatable({}, { __mode = "k" });
-	local friendHead = 1;
-	local friendTail = 0;
-	local interactQueue = {};
-	local interactQueued = setmetatable({}, { __mode = "k" });
-	local interactPending = setmetatable({}, { __mode = "k" });
-	local interactHead = 1;
-	local interactTail = 0;
-	local eventQueueBusy = false;
-	local function pumpEventQueues()
-		if eventQueueBusy then
+	local dQ = setmetatable({}, { __mode = "v" });
+	local dSet = setmetatable({}, { __mode = "k" });
+	local fPend = setmetatable({}, { __mode = "k" });
+	local iPend = setmetatable({}, { __mode = "k" });
+	local wsAddP = setmetatable({}, { __mode = "k" });
+	local wsRemP = setmetatable({}, { __mode = "k" });
+	local dHead = 1;
+	local dTail = 0;
+	local dBusy = false;
+	local dKick = false;
+	local function runWsH(kind, inst)
+		local handlers = (kind == "added") and InstancesTbl.wsAdd or InstancesTbl.wsRem;
+		if type(handlers) ~= "table" then
 			return;
 		end;
-		eventQueueBusy = true;
+		for _, fn in pairs(handlers) do
+			if type(fn) == "function" then
+				pcall(fn, inst);
+			end;
+		end;
+	end;
+	local function runDQ()
+		if dBusy then
+			return;
+		end;
+		dBusy = true;
 		Spawn(function()
-			while friendHead <= friendTail or interactHead <= interactTail do
+			while dHead <= dTail do
 				local budget = 120;
-				while budget > 0 and (friendHead <= friendTail or interactHead <= interactTail) do
-					if friendHead <= friendTail then
-						local inst = friendQueue[friendHead];
-						friendQueue[friendHead] = nil;
-						friendHead += 1;
-						if inst then
-							friendSet[inst] = nil;
-							hookFriendLabel(inst);
+				while budget > 0 and dHead <= dTail do
+					local inst = dQ[dHead];
+					dQ[dHead] = nil;
+					dHead += 1;
+					if inst then
+						dSet[inst] = nil;
+						local doFriend = fPend[inst];
+						local addInt = iPend[inst];
+						local doWsAdd = wsAddP[inst];
+						local doWsRem = wsRemP[inst];
+						fPend[inst] = nil;
+						iPend[inst] = nil;
+						wsAddP[inst] = nil;
+						wsRemP[inst] = nil;
+						if doFriend then
+							hookLbl(inst);
 						end;
-					elseif interactHead <= interactTail then
-						local inst = interactQueue[interactHead];
-						interactQueue[interactHead] = nil;
-						interactHead += 1;
-						if inst then
-							interactQueued[inst] = nil;
-							local shouldAdd = interactPending[inst];
-							interactPending[inst] = nil;
-							if shouldAdd then
-								registerInteract(inst);
+						if addInt ~= nil then
+							if addInt then
+								regI(inst);
 							else
-								unregisterInteract(inst);
+								unregI(inst);
 							end;
+						end;
+						if doWsAdd then
+							runWsH("added", inst);
+						end;
+						if doWsRem then
+							runWsH("removing", inst);
 						end;
 					end;
 					budget -= 1;
 				end;
 				Wait();
 			end;
-			friendQueue = {};
-			friendHead = 1;
-			friendTail = 0;
-			interactQueue = {};
-			interactHead = 1;
-			interactTail = 0;
-			eventQueueBusy = false;
+			dQ = setmetatable({}, { __mode = "v" });
+			dHead = 1;
+			dTail = 0;
+			dBusy = false;
 		end);
 	end;
-	local function queueFriendLabel(inst)
-		if (not isFriendLabelTarget(inst)) or friendSet[inst] then
+	local function kickDQ()
+		if dKick then
 			return;
 		end;
-		if HUI and inst:IsDescendantOf(HUI) then
-			return;
-		end;
-		friendSet[inst] = true;
-		friendTail += 1;
-		friendQueue[friendTail] = inst;
-		pumpEventQueues();
+		dKick = true;
+		Defer(function()
+			dKick = false;
+			runDQ();
+		end);
 	end;
-	local function queueInteract(inst, shouldAdd)
-		if not isInteractTarget(inst) then
+	local function qDesc(inst, opts)
+		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
-		interactPending[inst] = shouldAdd and true or false;
-		if interactQueued[inst] then
-			pumpEventQueues();
+		opts = opts or {};
+		local hasAny = false;
+		if opts.friend == true and isFLbl(inst) then
+			if not (HUI and inst:IsDescendantOf(HUI)) then
+				fPend[inst] = true;
+				hasAny = true;
+			end;
+		end;
+		if opts.interact ~= nil and isITgt(inst) then
+			iPend[inst] = opts.interact and true or false;
+			hasAny = true;
+		end;
+		if opts.wsAdd == true then
+			local handlers = InstancesTbl.wsAdd;
+			if type(handlers) == "table" and next(handlers) ~= nil then
+				wsAddP[inst] = true;
+				hasAny = true;
+			end;
+		end;
+		if opts.wsRem == true then
+			local handlers = InstancesTbl.wsRem;
+			if type(handlers) == "table" and next(handlers) ~= nil then
+				wsRemP[inst] = true;
+				hasAny = true;
+			end;
+		end;
+		if not hasAny then
 			return;
 		end;
-		interactQueued[inst] = true;
-		interactTail += 1;
-		interactQueue[interactTail] = inst;
-		pumpEventQueues();
+		if not dSet[inst] then
+			dSet[inst] = true;
+			dTail += 1;
+			dQ[dTail] = inst;
+		end;
+		kickDQ();
 	end;
 	if CoreGui then
-		queueScan(CoreGui, hookFriendLabel);
+		queueScan(CoreGui, function(inst)
+			qDesc(inst, {
+				friend = true
+			});
+		end);
 		NAlib.disconnect("NA_FriendLabel_CoreGui");
 		NAlib.connect("NA_FriendLabel_CoreGui", CoreGui.DescendantAdded:Connect(function(o)
-			queueFriendLabel(o);
+			qDesc(o, {
+				friend = true
+			});
 		end));
 	end;
 	if PlrGui then
-		queueScan(PlrGui, hookFriendLabel);
+		queueScan(PlrGui, function(inst)
+			qDesc(inst, {
+				friend = true
+			});
+		end);
 		NAlib.disconnect("NA_FriendLabel_PlayerGui");
 		NAlib.connect("NA_FriendLabel_PlayerGui", PlrGui.DescendantAdded:Connect(function(o)
-			queueFriendLabel(o);
+			qDesc(o, {
+				friend = true
+			});
 		end));
 	end;
-	queueScan(workspace, registerInteract);
+	queueScan(workspace, function(inst)
+		qDesc(inst, {
+			interact = true
+		});
+	end);
 	NAlib.disconnect("NA_InteractAdded");
-	NAlib.connect("NA_InteractAdded", workspace.DescendantAdded:Connect(function(inst)
-		queueInteract(inst, true);
+	NAlib.connect("NA_InteractAdded", NAmanage.wsAdd(function(inst)
+		qDesc(inst, {
+			interact = true,
+			wsAdd = true
+		});
 	end));
 	NAlib.disconnect("NA_InteractRemoved");
-	NAlib.connect("NA_InteractRemoved", workspace.DescendantRemoving:Connect(function(inst)
-		queueInteract(inst, false);
+	NAlib.connect("NA_InteractRemoved", NAmanage.wsRem(function(inst)
+		qDesc(inst, {
+			interact = false,
+			wsRem = true
+		});
 	end));
 end);
 
