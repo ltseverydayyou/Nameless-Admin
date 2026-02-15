@@ -24237,37 +24237,267 @@ NAStuff.AntiKBForceProps = NAStuff.AntiKBForceProps or {
 	};
 }
 
+NAmanage.antiKBInChar=function(obj, char)
+	if not obj or not char then
+		return false
+	end
+	local p = obj
+	while p do
+		if p == char then
+			return true
+		end
+		p = p.Parent
+	end
+	return false
+end
+
+NAmanage.antiKBDropObj=function(state, obj)
+	if not state or not obj then
+		return
+	end
+	local conns = state.objConns and state.objConns[obj]
+	if conns then
+		for i = 1, #conns do
+			local c = conns[i]
+			if c and c.Connected then
+				c:Disconnect()
+			end
+		end
+		state.objConns[obj] = nil
+	end
+	if state.forces then
+		state.forces[obj] = nil
+	end
+	if state.deferQ then
+		state.deferQ[obj] = nil
+	end
+end
+
+NAmanage.antiKBApplyObj=function(state, obj)
+	if state ~= NAStuff._antiKnockbackState then
+		return
+	end
+	local char = state and state.char
+	if not char or not obj or not obj.Parent or not NAmanage.antiKBInChar(obj, char) then
+		NAmanage.antiKBDropObj(state, obj)
+		return
+	end
+	local cfg = NAStuff.AntiKBForceProps[obj.ClassName]
+	if not cfg then
+		NAmanage.antiKBDropObj(state, obj)
+		return
+	end
+
+	for prop, value in pairs(cfg) do
+		NAlib.setProperty(obj, prop, value)
+	end
+
+	local root = state.root
+	if (not root) or root.Parent ~= char then
+		root = getRoot(char)
+		state.root = root
+	end
+	if root then
+		if obj:IsA("BodyGyro") or obj:IsA("AlignOrientation") then
+			NAlib.setProperty(obj, "CFrame", root.CFrame)
+		elseif obj:IsA("BodyPosition") or obj:IsA("AlignPosition") then
+			NAlib.setProperty(obj, "Position", root.Position)
+		end
+	end
+end
+
+NAmanage.antiKBQueueObj=function(state, obj)
+	if not state or not obj or state ~= NAStuff._antiKnockbackState then
+		return
+	end
+	if not state.deferQ then
+		state.deferQ = setmetatable({}, {__mode = "k"})
+	end
+	if state.deferQ[obj] then
+		return
+	end
+	state.deferQ[obj] = true
+	task.defer(function()
+		if state.deferQ then
+			state.deferQ[obj] = nil
+		end
+		NAmanage.antiKBApplyObj(state, obj)
+	end)
+end
+
+NAmanage.antiKBBindObj=function(state, obj)
+	if state ~= NAStuff._antiKnockbackState then
+		return
+	end
+	local cfg = obj and NAStuff.AntiKBForceProps[obj.ClassName]
+	if not cfg then
+		return
+	end
+	if state.forces[obj] then
+		NAmanage.antiKBQueueObj(state, obj)
+		return
+	end
+
+	state.forces[obj] = true
+	local conns = {}
+	state.objConns[obj] = conns
+
+	for prop in pairs(cfg) do
+		if NAlib.isProperty(obj, prop) ~= nil then
+			conns[#conns + 1] = obj:GetPropertyChangedSignal(prop):Connect(function()
+				NAmanage.antiKBQueueObj(state, obj)
+			end)
+		end
+	end
+
+	conns[#conns + 1] = obj.AncestryChanged:Connect(function(_, parent)
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+		if (not parent) or (not state.char) or (not NAmanage.antiKBInChar(obj, state.char)) then
+			NAmanage.antiKBDropObj(state, obj)
+		end
+	end)
+
+	NAmanage.antiKBQueueObj(state, obj)
+end
+
+NAmanage.antiKBClearState=function(state)
+	if not state then
+		return
+	end
+	if state.objConns then
+		for obj in pairs(state.objConns) do
+			NAmanage.antiKBDropObj(state, obj)
+		end
+	end
+	if state.forces then
+		table.clear(state.forces)
+	end
+	if state.deferQ then
+		table.clear(state.deferQ)
+	end
+	state.root = nil
+	state.char = nil
+	state.rootSyncPend = nil
+end
+
 NAmanage.AntiKnockBack=function(char, state)
 	NAlib.disconnect("antiknockback_char_desc")
+	NAlib.disconnect("antiknockback_char_rem")
+	NAlib.disconnect("antiknockback_hum_ps")
+	NAlib.disconnect("antiknockback_root_cf")
+	NAlib.disconnect("antiknockback_root_pos")
+
+	NAmanage.antiKBClearState(state)
 	if not char or not state then
 		return
 	end
 
 	state.char = char
-	for _, obj in ipairs(char:GetDescendants()) do
-		if NAStuff.AntiKBForceProps[obj.ClassName] then
-			state.forces[obj] = true
+	state.root = getRoot(char)
+
+	local function queueRootSync()
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+		if state.rootSyncPend then
+			return
+		end
+		state.rootSyncPend = true
+		task.defer(function()
+			state.rootSyncPend = nil
+			if state ~= NAStuff._antiKnockbackState then
+				return
+			end
+			for obj in pairs(state.forces) do
+				local cn = obj and obj.ClassName
+				if cn == "BodyGyro" or cn == "AlignOrientation" or cn == "BodyPosition" or cn == "AlignPosition" then
+					NAmanage.antiKBQueueObj(state, obj)
+				end
+			end
+		end)
+	end
+
+	local function bindRoot()
+		NAlib.disconnect("antiknockback_root_cf")
+		NAlib.disconnect("antiknockback_root_pos")
+		local root = getRoot(char)
+		state.root = root
+		if not root then
+			return
+		end
+		NAlib.connect("antiknockback_root_cf", root:GetPropertyChangedSignal("CFrame"):Connect(queueRootSync))
+		NAlib.connect("antiknockback_root_pos", root:GetPropertyChangedSignal("Position"):Connect(queueRootSync))
+	end
+
+	local function bindHum()
+		NAlib.disconnect("antiknockback_hum_ps")
+		local hum = getHum(char)
+		if hum and NAlib.isProperty(hum, "PlatformStand") ~= nil then
+			NAlib.setProperty(hum, "PlatformStand", false)
+			NAlib.connect("antiknockback_hum_ps", hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+				if state ~= NAStuff._antiKnockbackState then
+					return
+				end
+				if hum.PlatformStand then
+					task.defer(function()
+						if state == NAStuff._antiKnockbackState and hum and hum.Parent and hum.PlatformStand then
+							NAlib.setProperty(hum, "PlatformStand", false)
+						end
+					end)
+				end
+			end))
 		end
 	end
+
+	for _, obj in ipairs(char:GetDescendants()) do
+		NAmanage.antiKBBindObj(state, obj)
+	end
+	bindRoot()
+	bindHum()
 
 	NAlib.connect("antiknockback_char_desc", char.DescendantAdded:Connect(function(obj)
 		if state ~= NAStuff._antiKnockbackState then
 			return
 		end
-		if NAStuff.AntiKBForceProps[obj.ClassName] then
-			state.forces[obj] = true
+		if obj:IsA("Humanoid") then
+			bindHum()
+		elseif obj.Name == "HumanoidRootPart" then
+			bindRoot()
+		end
+		NAmanage.antiKBBindObj(state, obj)
+	end))
+
+	NAlib.connect("antiknockback_char_rem", char.DescendantRemoving:Connect(function(obj)
+		if state ~= NAStuff._antiKnockbackState then
+			return
+		end
+		NAmanage.antiKBDropObj(state, obj)
+		if obj == state.root then
+			state.root = nil
+			NAlib.disconnect("antiknockback_root_cf")
+			NAlib.disconnect("antiknockback_root_pos")
 		end
 	end))
 end
 
 cmd.add({"antiknockback","akb"}, {"antiknockback (akb)", "Disables knockback"}, function()
-	NAlib.disconnect("antiknockback_loop")
 	NAlib.disconnect("antiknockback_char_add")
 	NAlib.disconnect("antiknockback_char_desc")
+	NAlib.disconnect("antiknockback_char_rem")
+	NAlib.disconnect("antiknockback_hum_ps")
+	NAlib.disconnect("antiknockback_root_cf")
+	NAlib.disconnect("antiknockback_root_pos")
+	NAmanage.antiKBClearState(NAStuff._antiKnockbackState)
 
 	local state = {
 		forces = setmetatable({}, {__mode = "k"});
+		objConns = setmetatable({}, {__mode = "k"});
+		deferQ = setmetatable({}, {__mode = "k"});
 		char = nil;
+		root = nil;
+		rootSyncPend = nil;
 	}
 	NAStuff._antiKnockback = true
 	NAStuff._antiKnockbackState = state
@@ -24280,60 +24510,19 @@ cmd.add({"antiknockback","akb"}, {"antiknockback (akb)", "Disables knockback"}, 
 		NAmanage.AntiKnockBack(char, state)
 	end))
 
-	NAlib.connect("antiknockback_loop", RunService.Heartbeat:Connect(function()
-		if state ~= NAStuff._antiKnockbackState then
-			return
-		end
-
-		local char = getChar()
-		if not char then
-			return
-		end
-		if char ~= state.char then
-			NAmanage.AntiKnockBack(char, state)
-		end
-
-		local hum = getHum(char)
-		local root = getRoot(char)
-		if hum and NAlib.isProperty(hum, "PlatformStand") ~= nil then
-			NAlib.setProperty(hum, "PlatformStand", false)
-		end
-
-		for obj in pairs(state.forces) do
-			if not obj or not obj.Parent or not obj:IsDescendantOf(char) then
-				state.forces[obj] = nil
-			else
-				local cfg = NAStuff.AntiKBForceProps[obj.ClassName]
-				if cfg then
-					for prop, value in pairs(cfg) do
-						NAlib.setProperty(obj, prop, value)
-					end
-					if root then
-						if obj:IsA("BodyGyro") or obj:IsA("AlignOrientation") then
-							NAlib.setProperty(obj, "CFrame", root.CFrame)
-						elseif obj:IsA("BodyPosition") or obj:IsA("AlignPosition") then
-							NAlib.setProperty(obj, "Position", root.Position)
-						end
-					end
-				else
-					state.forces[obj] = nil
-				end
-			end
-		end
-	end))
-
 	DebugNotif("AntiKnockback enabled. This may break fly.", 3)
 end)
 
 cmd.add({"unantiknockback","unakb"}, {"unantiknockback (unakb)", "Disables antiknockback"}, function()
-	NAlib.disconnect("antiknockback_loop")
 	NAlib.disconnect("antiknockback_char_add")
 	NAlib.disconnect("antiknockback_char_desc")
+	NAlib.disconnect("antiknockback_char_rem")
+	NAlib.disconnect("antiknockback_hum_ps")
+	NAlib.disconnect("antiknockback_root_cf")
+	NAlib.disconnect("antiknockback_root_pos")
 
 	local state = NAStuff._antiKnockbackState
-	if state and state.forces then
-		table.clear(state.forces)
-	end
+	NAmanage.antiKBClearState(state)
 
 	NAStuff._antiKnockbackState = nil
 	NAStuff._antiKnockback = nil
