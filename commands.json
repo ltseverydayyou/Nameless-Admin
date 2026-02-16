@@ -352,9 +352,22 @@
         "universeviewer",
         "uviewer"
       ],
-      "usage": "teleportgui (tpui,universeviewer,uviewer)",
+      "usage": "teleportgui",
       "args": "",
       "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button"
+    },
+    {
+      "name": "imagescanner",
+      "aliases": [
+        "imagescanner",
+        "imgscanner",
+        "imgscan",
+        "imgs",
+        "images"
+      ],
+      "usage": "imagescanner",
+      "args": "",
+      "desc": "Gives an UI that grabs all images on the game"
     },
     {
       "name": "serverremotespy",
