@@ -403,21 +403,24 @@ local function mapDock(s)
 	local m = ALIAS[s] or s;    
 	return VALID[m] and m or "bottomRight";    
 end;    
-local function cntH(c)    
-	if not c then    
-		return 0;    
-	end;    
-	local h = c.AbsoluteSize.Y;    
-	if h and h > 0 then    
-		return h;    
-	end;    
-	local lay = c:FindFirstChildOfClass("UIListLayout");    
-	local pad = c:FindFirstChildOfClass("UIPadding");    
-	local top = pad and pad.PaddingTop.Offset or 0;    
-	local bot = pad and pad.PaddingBottom.Offset or 0;    
-	local hh = (lay and lay.AbsoluteContentSize.Y or 0) + top + bot;    
-	return math.max(0, hh);    
-end;    
+local function cntH(c)
+	if not c then
+		return 0
+	end
+	local lay = c:FindFirstChildOfClass("UIListLayout")
+	local pad = c:FindFirstChildOfClass("UIPadding")
+	local top = pad and pad.PaddingTop.Offset or 0
+	local bot = pad and pad.PaddingBottom.Offset or 0
+	local hh = (lay and lay.AbsoluteContentSize.Y or 0) + top + bot
+	if c:IsA("ScrollingFrame") then
+		return math.max(0, hh)
+	end
+	local h = c.AbsoluteSize.Y
+	if h and h > 0 then
+		return h
+	end
+	return math.max(0, hh)
+end
 local ST = setmetatable({}, {    
 	__mode = "k"    
 });    
@@ -1898,13 +1901,17 @@ local function mkCard(w, baseZ, kind, onPause)
 	body.ZIndex = z + 110;    
 	body.Parent = card;    
     
-	local cnt = Instance.new("Frame");    
-	cnt.Name = "Content";    
-	cnt.BackgroundTransparency = 1;    
-	cnt.Size = UDim2.new(1, 0, 0, 0);    
-	cnt.AutomaticSize = Enum.AutomaticSize.Y;    
-	cnt.ZIndex = z + 120;    
-	cnt.Parent = body;    
+	local cnt = Instance.new("ScrollingFrame")
+	cnt.Name = "Content"
+	cnt.BackgroundTransparency = 1
+	cnt.BorderSizePixel = 0
+	cnt.ScrollBarThickness = isMobile and 6 or 4
+	cnt.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	cnt.CanvasSize = UDim2.new()
+	cnt.Size = UDim2.new(1, 0, 1, 0)
+	cnt.ClipsDescendants = true
+	cnt.ZIndex = z + 120
+	cnt.Parent = body
     
 	local pad = Instance.new("UIPadding", cnt);    
 	pad.PaddingLeft = UDim.new(0, PAD);    
@@ -1952,32 +1959,35 @@ local function mkCard(w, baseZ, kind, onPause)
 	local hdr, ttl, act = mkHdr(card, z, kind, onPause);    
 	return card, hdr, ttl, act, st, sc, cnt, ftr, trk, fil;    
 end;    
-local function openIn(card, par, ftr, trk, st, sc, from, cnt)    
-	card.Parent = par;    
-	card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0);    
-	card.Visible = true;    
-    
-	task.defer(function()    
-		if not card or (not card.Parent) then    
-			return;    
-		end;    
-    
-		rs.Heartbeat:Wait();    
-		rs.Heartbeat:Wait();    
-    
-		local sca = csc(card);    
-		local extra = typeof(trk) == "Instance" and trk.Visible and ftr and ftr.AbsoluteSize.Y or 0;    
-		local hdr = card:FindFirstChild("Header");    
-		local hh = (hdr and hdr.AbsoluteSize.Y) or (isMobile and 56 or 52);    
-    
-		local h = (hh + cntH(cnt) + extra) / sca;    
-		if h < 2 then    
-			h = 2;    
-		end;    
-    
-		appear(card, sc, st, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt);    
-	end);    
-end;    
+local function openIn(card, par, ftr, trk, st, sc, from, cnt)
+	card.Parent = par
+	card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
+	card.Visible = true
+
+	task.defer(function()
+		if not card or (not card.Parent) then
+			return
+		end
+
+		rs.Heartbeat:Wait()
+		rs.Heartbeat:Wait()
+
+		local sca = csc(card)
+		local extra = typeof(trk) == "Instance" and trk.Visible and ftr and ftr.AbsoluteSize.Y or 0
+		local hdr = card:FindFirstChild("Header")
+		local hh = (hdr and hdr.AbsoluteSize.Y) or (isMobile and 56 or 52)
+
+		local needed = cntH(cnt)
+		local h = (hh + needed + extra) / sca
+
+		local maxH = (gui.AbsoluteSize.Y * (isMobile and 0.9 or 0.82)) / sca
+		h = math.min(h, maxH)
+
+		if h < 2 then h = 2 end
+
+		appear(card, sc, st, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt)
+	end)
+end
 local function build(kind, p)    
 	ensureGui();    
 	p = typeof(p) == "table" and p or {};    
@@ -2020,7 +2030,17 @@ local function build(kind, p)
 				timCtl.resume();    
 			end;    
 		end;    
-	end);    
+	end);
+	if kind == "Popup" then
+		local function syncGrp()
+			if grp and card then
+				grp.Size = UDim2.fromOffset(card.AbsoluteSize.X, card.AbsoluteSize.Y)
+			end
+		end
+		local csz = card:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncGrp)
+		addConnection(card, csz)
+		syncGrp()
+	end
 	ACT[kind][card] = true;    
 	ttl.Text = p.Title or kind;    
 	local s = ctx(card);    
