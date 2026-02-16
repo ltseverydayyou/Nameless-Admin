@@ -21103,8 +21103,12 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 	teleportPlayer()
 end)
 
-cmd.add({"teleportgui","tpui","universeviewer","uviewer"},{"teleportgui (tpui,universeviewer,uviewer)","Gives an UI that grabs all places and teleports you by clicking a simple button"},function()
+cmd.add({"teleportgui","tpui","universeviewer","uviewer"},{"teleportgui","Gives an UI that grabs all places and teleports you by clicking a simple button"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Universe%20Viewer"))();
+end)
+
+cmd.add({"imagescanner","imgscanner","imgscan","imgs","images"},{"imagescanner","Gives an UI that grabs all images on the game"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ImageScanner.lua"))();
 end)
 
 cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy)","Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"},function()
