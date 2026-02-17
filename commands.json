@@ -800,9 +800,33 @@
         "cancelteleport",
         "canceltp"
       ],
-      "usage": "cancelteleport (canceltp)",
+      "usage": "cancelteleport",
       "args": "",
       "desc": "Cancel an in-progress teleport"
+    },
+    {
+      "name": "cancelteleportloop",
+      "aliases": [
+        "cancelteleportloop",
+        "canceltploop",
+        "loopcancelteleport",
+        "loopcanceltp"
+      ],
+      "usage": "cancelteleportloop [interval]",
+      "args": "[interval]",
+      "desc": "Repeatedly cancels in-progress teleport"
+    },
+    {
+      "name": "uncancelteleportloop",
+      "aliases": [
+        "uncancelteleportloop",
+        "uncanceltploop",
+        "unloopcancelteleport",
+        "unloopcanceltp"
+      ],
+      "usage": "uncancelteleportloop",
+      "args": "",
+      "desc": "Disable cancelteleport loop"
     },
     {
       "name": "rejoin",
