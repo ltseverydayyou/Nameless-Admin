@@ -7741,6 +7741,7 @@ end
 NAgui._dragState = NAgui._dragState or {}
 
 NAgui.dragger = function(ui, dragui)
+	if not ui then return end
 	dragui = dragui or ui
 	local connName = "Dragger_"..tostring((ui and ui.GetDebugId and ui:GetDebugId()) or ui)
 	NAlib.disconnect(connName)
@@ -7750,6 +7751,19 @@ NAgui.dragger = function(ui, dragui)
 	local dragInput
 	local dragStart
 	local startPos
+	local cleaned = false
+
+	local function cleanupDragger()
+		if cleaned then return end
+		cleaned = true
+		dragging = false
+		dragInput = nil
+		if ds.owner == ui then
+			ds.owner = nil
+			ds.input = nil
+		end
+		NAlib.disconnect(connName)
+	end
 
 	local function getOrder(g)
 		local z = (g.ZIndex or 0)
@@ -7805,15 +7819,13 @@ NAgui.dragger = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				local c = input.Changed:Connect(function()
-					NACaller(function()
-						if input.UserInputState == Enum.UserInputState.End then
-							dragging = false
-							if ds.owner == ui then
-								ds.owner = nil
-								ds.input = nil
-							end
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+						if ds.owner == ui then
+							ds.owner = nil
+							ds.input = nil
 						end
-					end)
+					end
 				end)
 				NAlib.connect(connName, c)
 			end
@@ -7821,29 +7833,28 @@ NAgui.dragger = function(ui, dragui)
 	end))
 
 	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		NACaller(function()
-			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-				dragInput = input
-			end
-		end)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
 	end))
 
 	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		NACaller(function()
-			if ds.owner == ui and input == dragInput and dragging then
-				update(input)
-			end
-		end)
+		if not dragging or ds.owner ~= ui or input ~= dragInput then return end
+		update(input)
 	end))
 
 	if ui and ui.AncestryChanged then
 		NAlib.connect(connName, ui.AncestryChanged:Connect(function(_, parent)
 			if not parent then
 				Defer(function()
-					NAlib.disconnect(connName)
+					cleanupDragger()
 				end)
 			end
 		end))
+	end
+	if ui and ui.Destroying then
+		NAlib.connect(connName, ui.Destroying:Connect(cleanupDragger))
 	end
 
 	pcall(function() ui.Active = true end)
@@ -7851,6 +7862,7 @@ NAgui.dragger = function(ui, dragui)
 end
 
 NAgui.draggerV2 = function(ui, dragui)
+	if not ui then return end
 	dragui = dragui or ui
 	local connName = "DraggerV2_"..ui:GetDebugId()
 	NAlib.disconnect(connName)
@@ -7859,6 +7871,19 @@ NAgui.draggerV2 = function(ui, dragui)
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 	local dragging, dragInput, dragStart, startPos
 	local anchor = ui.AnchorPoint
+	local cleaned = false
+
+	local function cleanupDragger()
+		if cleaned then return end
+		cleaned = true
+		dragging = false
+		dragInput = nil
+		if ds.owner == ui then
+			ds.owner = nil
+			ds.input = nil
+		end
+		NAlib.disconnect(connName)
+	end
 
 	local function safeClamp(v, lo, hi)
 		if hi < lo then hi = lo end
@@ -7926,15 +7951,13 @@ NAgui.draggerV2 = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				local c = input.Changed:Connect(function()
-					NACaller(function()
-						if input.UserInputState == Enum.UserInputState.End then
-							dragging = false
-							if ds.owner == ui then
-								ds.owner = nil
-								ds.input = nil
-							end
+					if input.UserInputState == Enum.UserInputState.End then
+						dragging = false
+						if ds.owner == ui then
+							ds.owner = nil
+							ds.input = nil
 						end
-					end)
+					end
 				end)
 				NAlib.connect(connName, c)
 			end
@@ -7942,19 +7965,15 @@ NAgui.draggerV2 = function(ui, dragui)
 	end))
 
 	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		NACaller(function()
-			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-				dragInput = input
-			end
-		end)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
 	end))
 
 	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		NACaller(function()
-			if ds.owner == ui and input == dragInput and dragging then
-				update(input)
-			end
-		end)
+		if not dragging or ds.owner ~= ui or input ~= dragInput then return end
+		update(input)
 	end))
 
 	local function clampToViewport()
@@ -7979,6 +7998,30 @@ NAgui.draggerV2 = function(ui, dragui)
 	NAlib.connect(connName, screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport))
 	if ui and ui.GetPropertyChangedSignal then
 		NAlib.connect(connName, ui:GetPropertyChangedSignal("AbsoluteSize"):Connect(clampToViewport))
+	end
+	if ui and ui.AncestryChanged then
+		NAlib.connect(connName, ui.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(function()
+					cleanupDragger()
+				end)
+			end
+		end))
+	end
+	if dragui and dragui ~= ui and dragui.AncestryChanged then
+		NAlib.connect(connName, dragui.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(function()
+					cleanupDragger()
+				end)
+			end
+		end))
+	end
+	if ui and ui.Destroying then
+		NAlib.connect(connName, ui.Destroying:Connect(cleanupDragger))
+	end
+	if dragui and dragui ~= ui and dragui.Destroying then
+		NAlib.connect(connName, dragui.Destroying:Connect(cleanupDragger))
 	end
 	clampToViewport()
 
@@ -8583,6 +8626,13 @@ NAAssetsLoading.knownRemotes = {
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
 }
+NAAssetsLoading._knownRemoteIndex = NAAssetsLoading._knownRemoteIndex or {}
+for _, entry in ipairs(NAAssetsLoading.knownRemotes) do
+	local url = entry and entry.url
+	if type(url) == "string" and url ~= "" then
+		NAAssetsLoading._knownRemoteIndex[Lower(url)] = entry
+	end
+end
 
 NAAssetsLoading.applyMinimizedPreference=function()
 	if type(NAAssetsLoading.setMinimizedState) == "function" then
@@ -8612,10 +8662,21 @@ NAAssetsLoading.registerRemote=function(url, options)
 	if type(url) ~= "string" or url == "" then
 		return
 	end
+	NAAssetsLoading._knownRemoteIndex = NAAssetsLoading._knownRemoteIndex or {}
+	local key = Lower(url)
+	if NAAssetsLoading._knownRemoteIndex[key] then
+		local entry = NAAssetsLoading._knownRemoteIndex[key]
+		if options and options.skip == true and entry.skip ~= true then
+			entry.skip = true
+			NAAssetsLoading.remoteTargets = nil
+		end
+		return
+	end
 	NAAssetsLoading.knownRemotes[#NAAssetsLoading.knownRemotes+1] = {
 		url = url;
 		skip = options and options.skip or false;
 	}
+	NAAssetsLoading._knownRemoteIndex[key] = NAAssetsLoading.knownRemotes[#NAAssetsLoading.knownRemotes]
 	NAAssetsLoading.remoteTargets = nil
 end
 
@@ -11054,8 +11115,8 @@ NAmanage.ApplyCommandKeybinds=function()
 	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 		if shouldBlock(gameProcessed) then return end
-		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 		local keyName = input.KeyCode.Name
 		local args = CommandKeybinds[keyName]
 		if type(args) ~= "table" or #args == 0 then
@@ -11099,11 +11160,11 @@ NAmanage.ApplyCommandKeybinds=function()
 		if not (input and input.KeyCode and input.KeyCode.Name) then
 			return
 		end
-		local keyName = input.KeyCode.Name
-		if not activeHoldKeys[keyName] and shouldBlock(gameProcessed) then
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then
 			return
 		end
-		if input.UserInputType ~= Enum.UserInputType.Keyboard then
+		local keyName = input.KeyCode.Name
+		if not activeHoldKeys[keyName] and shouldBlock(gameProcessed) then
 			return
 		end
 		local opt = CommandKeybindOptions[keyName]
@@ -12456,7 +12517,31 @@ sussyINPUTTER = {
 	D = false,
 }
 
-local function updateInputVector()
+NAmanage.setMoveKeyState=function(keyCode, isDown)
+	if keyCode == Enum.KeyCode.W then
+		if sussyINPUTTER.W == isDown then return false end
+		sussyINPUTTER.W = isDown
+		return true
+	end
+	if keyCode == Enum.KeyCode.S then
+		if sussyINPUTTER.S == isDown then return false end
+		sussyINPUTTER.S = isDown
+		return true
+	end
+	if keyCode == Enum.KeyCode.A then
+		if sussyINPUTTER.A == isDown then return false end
+		sussyINPUTTER.A = isDown
+		return true
+	end
+	if keyCode == Enum.KeyCode.D then
+		if sussyINPUTTER.D == isDown then return false end
+		sussyINPUTTER.D = isDown
+		return true
+	end
+	return false
+end
+
+NAmanage.updateInputVector=function()
 	local x, z = 0, 0
 	if sussyINPUTTER.W then z = z + 1 end
 	if sussyINPUTTER.S then z = z - 1 end
@@ -12485,19 +12570,21 @@ end
 
 NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.W then sussyINPUTTER.W = true end
-	if input.KeyCode == Enum.KeyCode.S then sussyINPUTTER.S = true end
-	if input.KeyCode == Enum.KeyCode.A then sussyINPUTTER.A = true end
-	if input.KeyCode == Enum.KeyCode.D then sussyINPUTTER.D = true end
-	updateInputVector()
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	if NAmanage.setMoveKeyState(input.KeyCode, true) then
+		NAmanage.updateInputVector()
+	end
 end)
 
 NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.W then sussyINPUTTER.W = false end
-	if input.KeyCode == Enum.KeyCode.S then sussyINPUTTER.S = false end
-	if input.KeyCode == Enum.KeyCode.A then sussyINPUTTER.A = false end
-	if input.KeyCode == Enum.KeyCode.D then sussyINPUTTER.D = false end
-	updateInputVector()
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	if NAmanage.setMoveKeyState(input.KeyCode, false) then
+		NAmanage.updateInputVector()
+	end
 end)
 
 function GetCustomMoveVector()
@@ -13894,21 +13981,38 @@ NAmanage.AttachMessageCopy = function(gui, rawMessage)
 	if not (gui and gui.InputBegan and gui.InputEnded) then
 		return
 	end
+	NAStuff._messageCopyHooks = NAStuff._messageCopyHooks or setmetatable({}, { __mode = "k" })
+	local hooks = NAStuff._messageCopyHooks
+
+	local function buildResolver()
+		if type(rawMessage) == "function" then
+			return function()
+				local ok, value = pcall(rawMessage, gui)
+				if ok then
+					return value
+				end
+				return nil
+			end
+		end
+		return function()
+			return rawMessage
+		end
+	end
+
+	local existing = hooks[gui]
+	if existing then
+		existing.resolveMessage = buildResolver()
+		return existing
+	end
 
 	local HOLD_TIME = 0.5
 	local isHolding = false
 	local holdToken = 0
 
-	local function resolveMessage()
-		if type(rawMessage) == "function" then
-			local ok, value = pcall(rawMessage, gui)
-			if ok then
-				return value
-			end
-			return nil
-		end
-		return rawMessage
-	end
+	local state = {
+		resolveMessage = buildResolver(),
+	}
+	hooks[gui] = state
 
 	local function startHold()
 		holdToken += 1
@@ -13918,7 +14022,8 @@ NAmanage.AttachMessageCopy = function(gui, rawMessage)
 			if not isHolding or myToken ~= holdToken then
 				return
 			end
-			local msg = resolveMessage()
+			local resolver = state.resolveMessage
+			local msg = resolver and resolver() or nil
 			if msg == nil then
 				return
 			end
@@ -13941,19 +14046,50 @@ NAmanage.AttachMessageCopy = function(gui, rawMessage)
 		isHolding = false
 	end
 
-	gui.InputBegan:Connect(function(input)
+	state.beginConn = gui.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
 			startHold()
 		end
 	end)
 
-	gui.InputEnded:Connect(function(input)
+	state.endConn = gui.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
 			stopHold()
 		end
 	end)
+
+	local function cleanup()
+		holdToken += 1
+		isHolding = false
+		local s = hooks[gui]
+		if not s then
+			return
+		end
+		hooks[gui] = nil
+		if s.beginConn then
+			pcall(function() s.beginConn:Disconnect() end)
+			s.beginConn = nil
+		end
+		if s.endConn then
+			pcall(function() s.endConn:Disconnect() end)
+			s.endConn = nil
+		end
+		if s.ancestryConn then
+			pcall(function() s.ancestryConn:Disconnect() end)
+			s.ancestryConn = nil
+		end
+	end
+
+	state.cleanup = cleanup
+	state.ancestryConn = gui.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			cleanup()
+		end
+	end)
+
+	return state
 end
 
 
@@ -57048,31 +57184,51 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 		return
 	end
 	local k = originalIO.resolvePrefixKey()
-	if not k then
+	if not k or i.KeyCode ~= k then
 		return
 	end
-	if i.KeyCode == k then
-		Wait()
-		if NAUIMANAGER.cmdInput then
-			NAgui.barSelect()
-			NAUIMANAGER.cmdInput.Text = ''
-			local focused = false
-			for _ = 1, 12 do
-				NAUIMANAGER.cmdInput:CaptureFocus()
-				Wait(0.01)
-				NAUIMANAGER.cmdInput.Text = ''
-				if NAUIMANAGER.cmdInput:IsFocused() then
-					focused = true
-					break
-				end
-			end
-			if not focused then
-				if type(DoNotif) == "function" then
-					DoNotif("Command bar focus delayed.", 1.5)
-				end
+	local cmdInput = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not cmdInput then
+		return
+	end
+	local now = os.clock()
+	if NAStuff._cmdbarFocusPending then
+		return
+	end
+	local lastFocusHotkey = tonumber(NAStuff._cmdbarFocusHotkeyTick) or 0
+	if (now - lastFocusHotkey) < 0.12 then
+		return
+	end
+	NAStuff._cmdbarFocusHotkeyTick = now
+	NAStuff._cmdbarFocusPending = true
+	Defer(function()
+		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+		if not box then
+			NAStuff._cmdbarFocusPending = false
+			return
+		end
+		if UserInputService:GetFocusedTextBox() == box then
+			box.Text = ''
+			NAStuff._cmdbarFocusPending = false
+			return
+		end
+		NAgui.barSelect()
+		box.Text = ''
+		local focused = false
+		for _ = 1, 6 do
+			box:CaptureFocus()
+			Wait(0.01)
+			box.Text = ''
+			if box:IsFocused() then
+				focused = true
+				break
 			end
 		end
-	end
+		if not focused and type(DoNotif) == "function" then
+			DoNotif("Command bar focus delayed.", 1.5)
+		end
+		NAStuff._cmdbarFocusPending = false
+	end)
 end))
 
 --[[ CLOSE THE COMMAND BAR ]]--
@@ -57131,6 +57287,9 @@ if NAUIMANAGER.filterBox then
 end
 
 NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(input)
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
 	if input.KeyCode == Enum.KeyCode.Tab
 		and UserInputService:GetFocusedTextBox() == NAUIMANAGER.cmdInput then
 
@@ -57686,11 +57845,11 @@ originalIO.naTransLatooor=function()
 	end
 
 	function translator:updateAllMessages()
-		for _, info in pairs(self.messages) do
+		for label, info in pairs(self.messages) do
 			if self:isEnabled() then
-				self:ensureTranslation(info)
+				self:ensureTranslation(label, info)
 			end
-			self:applyDisplay(info)
+			self:applyDisplay(label, info)
 		end
 	end
 
@@ -57713,9 +57872,8 @@ originalIO.naTransLatooor=function()
 		return self.enabled
 	end
 
-	function translator:applyDisplay(info)
-		if not info or not info.label then return end
-		local label = info.label
+	function translator:applyDisplay(label, info)
+		if not (label and info) then return end
 		if not (label and label.Parent) then
 			self.messages[label] = nil
 			return
@@ -57728,8 +57886,8 @@ originalIO.naTransLatooor=function()
 		resizeLabel(label)
 	end
 
-	function translator:ensureTranslation(info)
-		if not info or info.translating then
+	function translator:ensureTranslation(label, info)
+		if not (label and info) or info.translating then
 			return
 		end
 		if info.translationLine and info.target == self.target then
@@ -57745,19 +57903,19 @@ originalIO.naTransLatooor=function()
 			info.translating = false
 			if not ok then
 				info.translationLine = nil
-				self:applyDisplay(info)
+				self:applyDisplay(label, info)
 				return
 			end
 			if not translated or translated == "" then
 				info.translationLine = nil
-				self:applyDisplay(info)
+				self:applyDisplay(label, info)
 				return
 			end
 			local code = NAmanage.iso2(detected) or detected or "AUTO"
 			local tag = tostring(code):upper()
 			info.translationLine = ("[%s] %s"):format(self.target:upper(), escapeForRichText(translated))
 			info.detected = tag
-			self:applyDisplay(info)
+			self:applyDisplay(label, info)
 		end)
 	end
 
@@ -57766,7 +57924,6 @@ originalIO.naTransLatooor=function()
 		local info = self.messages[label]
 		if not info then
 			info = {
-				label = label;
 				base = baseText or "";
 				message = rawMessage or "";
 				translationLine = nil;
@@ -57791,8 +57948,8 @@ originalIO.naTransLatooor=function()
 			info.target = nil
 		end
 
-		self:applyDisplay(info)
-		self:ensureTranslation(info)
+		self:applyDisplay(label, info)
+		self:ensureTranslation(label, info)
 	end
 
 	function translator:setTarget(lang)
@@ -57807,12 +57964,12 @@ originalIO.naTransLatooor=function()
 		self.target = code
 		opt.chatTranslateTarget = code
 		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
-		for _, info in pairs(self.messages) do
+		for label, info in pairs(self.messages) do
 			info.translationLine = nil
 			info.target = nil
 			info.translating = false
-			self:applyDisplay(info)
-			self:ensureTranslation(info)
+			self:applyDisplay(label, info)
+			self:ensureTranslation(label, info)
 		end
 		self:updateUI()
 		return true, code, originalIO.languageName(code)
@@ -57891,7 +58048,23 @@ originalIO.naTransLatooor=function()
 	end
 
 	translator:tryAttach()
-	if NAStuff.NASCREENGUI and not translator._hookedWatcher then
+	if NAlib and NAlib.connect and NAlib.disconnect then
+		NAlib.disconnect("chat_translator_watch")
+		if NAStuff.NASCREENGUI then
+			NAlib.connect("chat_translator_watch", NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
+				if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
+					Defer(function()
+						translator:tryAttach()
+					end)
+				end
+			end))
+			NAlib.connect("chat_translator_watch", NAStuff.NASCREENGUI.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					NAlib.disconnect("chat_translator_watch")
+				end
+			end))
+		end
+	elseif NAStuff.NASCREENGUI and not translator._hookedWatcher then
 		translator._hookedWatcher = true
 		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
 			if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
@@ -58855,6 +59028,12 @@ function bindToChat(plr, msg)
 		while #entries > 0 and (not entries[1] or not entries[1].Parent) do
 			table.remove(entries, 1)
 		end
+		for i = #entries, 1, -1 do
+			local item = entries[i]
+			if not (item and item.Parent) then
+				table.remove(entries, i)
+			end
+		end
 		Insert(entries, chatMsg)
 
 		local maxMessages = tonumber(chatLogState.maxMessages) or 200
@@ -58882,6 +59061,13 @@ NAmanage.bindToDevConsole = function()
 	if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleExample) then
 		return;
 	end;
+	for _, child in ipairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
+		if NAmanage.GetAttr and NAmanage.GetAttr(child, "NA_DevConsoleLog") == true then
+			pcall(function()
+				child:Destroy()
+			end)
+		end
+	end
 	local activeLogs, pool = {}, {};
 	local pending = {};
 	local pendingHead = 1;
@@ -59145,6 +59331,7 @@ NAmanage.bindToDevConsole = function()
 						logLabel.LayoutOrder = messageCounter;
 						logLabel.Text = "<font color=\"" .. item.c .. "\">[" .. item.t .. "]</font>: <font color=\"#ffffff\">" .. item.m .. "</font>";
 						NAmanage.SetAttr(logLabel, "Tag", item.t);
+						NAmanage.SetAttr(logLabel, "NA_DevConsoleLog", true);
 						local copyText = item.raw or stripRichText(item.m);
 						NAmanage.SetAttr(logLabel, "NA_CopyText", copyText);
 						if NAmanage.AttachMessageCopy and NAmanage.GetAttr(logLabel, "NA_CopyHooked") ~= true then
@@ -60011,20 +60198,16 @@ do
 	NAlib.disconnect("NA_MouseDesc")
 	if mouse and NAUIMANAGER and NAUIMANAGER.description then
 		local desc = NAUIMANAGER.description
+		local lastDescText = desc.Text or ""
 		NAlib.connect("NA_MouseDesc", mouse.Move:Connect(function()
-			local cam = workspace.CurrentCamera
-			if not cam then
+			if not desc.Visible then
 				return
 			end
-			local v = cam.ViewportSize
-			if v.X <= 0 or v.Y <= 0 then
-				return
-			end
-			local xS = mouse.X / v.X
-			local yS = mouse.Y / v.Y
-			desc.Position = UDim2.new(xS, 0, yS, 0)
+			desc.Position = UDim2.fromOffset(mouse.X, mouse.Y)
 			local now = os.clock()
-			if now - NAStuff.dTick > 0.05 then
+			local textNow = desc.Text or ""
+			if textNow ~= lastDescText or now - NAStuff.dTick > 0.12 then
+				lastDescText = textNow
 				NAStuff.dTick = now
 				local sz = NAgui.txtSize(desc, 200, 100)
 				desc.Size = UDim2.new(0, sz.X, 0, sz.Y)
@@ -62677,6 +62860,12 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	)
 
 	NAStuff.ScreenGuiNoRenderUISConn = UserInputService.InputBegan:Connect(function(input, processed)
+		if processed then
+			return
+		end
+		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+			return
+		end
 		if input.KeyCode ~= macroKey then
 			return
 		end
