@@ -787,6 +787,25 @@ local function mkHdr(par, z, kind, onPause)
 	dot.Parent = hdr;    
 	local dc = Instance.new("UICorner", dot);    
 	dc.CornerRadius = UDim.new(1, 0);    
+	local cnt = Instance.new("TextLabel");    
+	cnt.Name = "Count";    
+	cnt.AnchorPoint = Vector2.new(0, 0.5);    
+	cnt.Position = UDim2.new(0, PAD, 0.5, 0);    
+	cnt.Size = UDim2.fromOffset(isMobile and 24 or 20, isMobile and 22 or 20);    
+	cnt.BackgroundTransparency = 1;    
+	cnt.Font = CURF[kind];    
+	cnt.TextScaled = true;    
+	cnt.TextXAlignment = Enum.TextXAlignment.Left;    
+	cnt.TextYAlignment = Enum.TextYAlignment.Center;    
+	cnt.TextColor3 = TH.Ttl;    
+	cnt.RichText = false;    
+	cnt.Text = "1x";    
+	cnt.ZIndex = z + 210;    
+	cnt.Visible = false;    
+	cnt.Parent = hdr;    
+	local ccon = Instance.new("UITextSizeConstraint", cnt);    
+	ccon.MinTextSize = isMobile and 13 or 11;    
+	ccon.MaxTextSize = isMobile and 18 or 16;    
 	local ttl = Instance.new("TextLabel");    
 	ttl.Name = "Title";    
 	ttl.AnchorPoint = Vector2.new(0, 0.5);    
@@ -805,10 +824,27 @@ local function mkHdr(par, z, kind, onPause)
 	local tcon = Instance.new("UITextSizeConstraint", ttl);    
 	tcon.MinTextSize = isMobile and 16 or 14;    
 	tcon.MaxTextSize = kind == "Popup" and (isMobile and 22 or 20) or (isMobile and 18 or 16);    
+	local function countW()    
+		local tx = cnt.Text ~= "" and cnt.Text or "1x";    
+		local sz = ts:GetTextSize(tx, isMobile and 18 or 16, CURF[kind], Vector2.new(200, 24));    
+		return math.max(isMobile and 24 or 20, sz.X + (isMobile and 4 or 2));    
+	end;    
 	local function refTitle()    
 		local sca = csc(par);    
 		local ax = act.AbsoluteSize.X / sca;    
-		ttl.Size = UDim2.new(1, -(PAD + ax + PAD + 12), 1, 0);    
+		if state.stackCount and state.stackCount > 1 then    
+			local cw = countW() / sca;    
+			dot.Visible = false;    
+			cnt.Visible = true;    
+			cnt.Size = UDim2.fromOffset(math.max(1, math.floor(cw)), isMobile and 22 or 20);    
+			ttl.Position = UDim2.new(0, PAD + cw + 8, 0.5, 0);    
+			ttl.Size = UDim2.new(1, -(PAD + ax + PAD + cw + 8), 1, 0);    
+		else    
+			dot.Visible = true;    
+			cnt.Visible = false;    
+			ttl.Position = UDim2.new(0, PAD + 12, 0.5, 0);    
+			ttl.Size = UDim2.new(1, -(PAD + ax + PAD + 12), 1, 0);    
+		end;    
 	end;    
     
 	refTitle();    
@@ -825,6 +861,13 @@ local function mkHdr(par, z, kind, onPause)
 	addConnection(act, c2);    
 	addConnection(act, c4);    
     
+	state.stackCount = 1;    
+	state.setStackCount = function(n)    
+		local v = math.max(1, math.floor(tonumber(n) or 1));    
+		state.stackCount = v;    
+		cnt.Text = tostring(v) .. "x";    
+		refTitle();    
+	end;    
 	state.refTitle = refTitle;    
 	local function closeCard()    
 		local p = par;    
@@ -949,6 +992,7 @@ local function mkHdr(par, z, kind, onPause)
 				setFontKind(kind, pair[2]);    
 				applyFontTree(par, pair[2]);    
 				refreshFonts();    
+				refTitle();    
 			end);    
 			addConnection(b, c3);    
 		end;    
@@ -1154,7 +1198,8 @@ local function attachTimer(card, fil, dur)
 		end;    
 	end;    
 	if not fil then    
-		local rem = dur;    
+		local runDur = dur;    
+		local rem = runDur;    
 		local th;    
 		local function start()    
 			if th and coroutine.status(th) ~= "dead" then    
@@ -1209,10 +1254,20 @@ local function attachTimer(card, fil, dur)
 				end;    
 				ext = false;    
 				start();    
+			end,    
+			reset = function(newDur)    
+				if typeof(newDur) == "number" and newDur > 0 then    
+					runDur = newDur;    
+				end;    
+				rem = runDur;    
+				if not ext and (not hov) then    
+					start();    
+				end;    
 			end    
 		};    
 	end;    
 	local frac = 1;    
+	local runDur = dur;    
 	local tn;    
 	local function stop()    
 		if tn then    
@@ -1227,7 +1282,7 @@ local function attachTimer(card, fil, dur)
 		end;    
 		fil.Size = UDim2.new(f, 0, 1, 0);    
 		stop();    
-		local d = math.max(0.01, dur * f);    
+		local d = math.max(0.01, runDur * f);    
 		tn = tw:Create(fil, TweenInfo.new(d, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {    
 			Size = UDim2.new(0, 0, 1, 0)    
 		});    
@@ -1273,6 +1328,18 @@ local function attachTimer(card, fil, dur)
 		resume = function()    
 			ext = false;    
 			ref();    
+		end,    
+		reset = function(newDur)    
+			if typeof(newDur) == "number" and newDur > 0 then    
+				runDur = newDur;    
+			end;    
+			frac = 1;    
+			fil.Size = UDim2.new(1, 0, 1, 0);    
+			if ext or hov then    
+				stop();    
+			else    
+				playFrom(1);    
+			end;    
 		end    
 	};    
 end;    
@@ -1616,6 +1683,19 @@ local function dirFrom(str)
 	end;    
 	return d;    
 end;    
+local STACKED_NOTIFS = {};    
+local function canStackNotify(p)    
+	local btns = p and p.Buttons;    
+	return (not (p and p.InputField)) and (type(btns) ~= "table" or #btns == 0);    
+end;    
+local function notifyStackKey(dock, p)    
+	return table.concat({    
+		tostring(dock or "bottomRight"),    
+		tostring((p and p.Title) or "Notify"),    
+		tostring((p and p.Description) or ""),    
+		tostring((p and p.Duration) or "")    
+	}, "\30");    
+end;    
 local function appear(card, sc, st, tgt, from, cnt)    
 	walkDesc(cnt, function(d)    
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then    
@@ -1835,6 +1915,29 @@ local function build(kind, p)
 	p = typeof(p) == "table" and p or {};    
 	local def = kind == "Window" and "top" or "bottomRight";    
 	local dock = mapDock(p.Dock or CURD[kind] or def);    
+	local stackKey;    
+	if kind == "Notify" and canStackNotify(p) then    
+		stackKey = notifyStackKey(dock, p);    
+		local exCard = STACKED_NOTIFS[stackKey];    
+		if exCard and exCard.Parent then    
+			local ex = ctx(exCard);    
+			if ex and (not ex.closing) then    
+				local newCount = math.max(1, math.floor(tonumber(ex.stackCount) or 1)) + 1;    
+				if ex.setStackCount then    
+					ex.setStackCount(newCount);    
+				else    
+					ex.stackCount = newCount;    
+				end;    
+				exCard.LayoutOrder = os.clock() * 1000;    
+				local newDur = typeof(p.Duration) == "number" and p.Duration > 0 and p.Duration or nil;    
+				if ex.timCtl and ex.timCtl.reset then    
+					ex.timCtl.reset(newDur);    
+				end;    
+				return exCard;    
+			end;    
+		end;    
+		STACKED_NOTIFS[stackKey] = nil;    
+	end;    
 	local from;    
 	if dock == "top" then    
 		from = dirFrom("top");    
@@ -1905,12 +2008,22 @@ local function build(kind, p)
 	s.sel = {};    
 	s.btns = nil;    
 	s.ok = nil;    
+	s.stackKey = stackKey;    
+	if stackKey then    
+		STACKED_NOTIFS[stackKey] = card;    
+	end;    
+	if s.setStackCount then    
+		s.setStackCount(1);    
+	end;    
 	s.closing = false;    
 	s.close = function()    
 		if s.closing then    
 			return;    
 		end;    
 		s.closing = true;    
+		if s.stackKey and STACKED_NOTIFS[s.stackKey] == card then    
+			STACKED_NOTIFS[s.stackKey] = nil;    
+		end;    
 		if s.closeMenus then    
 			s.closeMenus();    
 		end;    
@@ -1929,6 +2042,9 @@ local function build(kind, p)
 		end);    
 	end;    
 	addConnection(card, card.Destroying:Connect(function()    
+		if s.stackKey and STACKED_NOTIFS[s.stackKey] == card then    
+			STACKED_NOTIFS[s.stackKey] = nil;    
+		end;    
 		for _, t in pairs(ACT) do    
 			t[card] = nil;    
 		end;    
@@ -2102,6 +2218,7 @@ local function build(kind, p)
 	if shouldTimer then    
 		timCtl = attachTimer(card, showProg and fil or nil, dur);    
 	end;    
+	s.timCtl = timCtl;    
 	if kind == "Popup" then    
 		ov.BackgroundTransparency = 1;    
 		trackPopupCenter(grp, card);    

@@ -146,12 +146,19 @@ local NAStuff = {
 	siteESPList = {};
 	vehicleSiteESPList = {};
 	unanchoredESPList = {};
+	unanchoredESPSet = setmetatable({}, { __mode = "k" });
 	collisiontrueESPList = {};
+	collisiontrueESPSet = setmetatable({}, { __mode = "k" });
 	collisionfalseESPList = {};
+	collisionfalseESPSet = setmetatable({}, { __mode = "k" });
 	espTriggers = {};
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
 	nameESPPartLists = { exact = {}, partial = {} };
+	nameESPPartMaps = {
+		exact = setmetatable({}, { __mode = "k" }),
+		partial = setmetatable({}, { __mode = "k" }),
+	};
 	ESP_RenderMode = "BoxHandleAdornment";
 	ESP_LabelTextSize = 12;
 	ESP_LabelTextScaled = false;
@@ -172,6 +179,9 @@ local NAStuff = {
 	ESP_ModelList = {};
 	ESP_ModelIndex = 1;
 	ESP_MaxPerStep = 32;
+	ESP_ScanBatchSize = 160;
+	ESP_ScanDelay = 0;
+	ESP_RescanPerStep = 90;
 	ESP_FolderMode = "parts";
 	NPC_ESP_MaxDist = 400;
 	NPC_ESP_MaxCount = 200;
@@ -182,6 +192,12 @@ local NAStuff = {
 	partESPGlassCount = setmetatable({}, { __mode = "k" });
 	partESPEntries = setmetatable({}, { __mode = "k" });
 	partESPVisualMap = setmetatable({}, { __mode = "k" });
+	partESPQueueMap = setmetatable({}, { __mode = "k" });
+	partESPQueue = {};
+	partESPQueueHead = 1;
+	partESPQueueTail = 0;
+	espScanTokens = {};
+	espSweepCursor = {};
 	nameESPExclusions = { exact = {}, partial = {} };
 	TopbarGlassTransparency = 0.12;
 	TopbarStrokeTransparency = 0.15;
@@ -1037,6 +1053,110 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 	end
 
 	return processed
+end
+
+NAmanage.ForEachWorkspaceYield = NAmanage.ForEachWorkspaceYield or function(handler, opts)
+	opts = opts or {}
+	if type(handler) ~= "function" then
+		return 0
+	end
+
+	local list = NAmanage.wsDescs and NAmanage.wsDescs() or {}
+	local total = #list
+	if total <= 0 then
+		return 0
+	end
+
+	local yieldEvery = tonumber(opts.yieldEvery) or tonumber(NAStuff.ESP_ScanBatchSize) or 160
+	if yieldEvery < 1 then
+		yieldEvery = 1
+	end
+	local delayTime = opts.delayTime
+	if delayTime == nil then
+		delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0
+	end
+	local cancelToken = opts.cancelToken
+
+	local processed = 0
+	for i = 1, total do
+		if cancelToken and cancelToken.cancelled then
+			break
+		end
+
+		local inst = list[i]
+		processed += 1
+		handler(inst, i, total)
+
+		if processed % yieldEvery == 0 then
+			if cancelToken and cancelToken.cancelled then
+				break
+			end
+			if delayTime and delayTime > 0 then
+				Wait(delayTime)
+			else
+				Wait()
+			end
+		end
+	end
+
+	return processed
+end
+
+NAmanage.ESP_CancelScanToken = NAmanage.ESP_CancelScanToken or function(key)
+	if type(key) ~= "string" or key == "" then
+		return
+	end
+	local tokens = NAStuff.espScanTokens
+	if type(tokens) ~= "table" then
+		return
+	end
+	local tok = tokens[key]
+	if tok then
+		NAmanage.CancelTokenCancel(tok)
+		tokens[key] = nil
+	end
+end
+
+NAmanage.ESP_StartScanToken = NAmanage.ESP_StartScanToken or function(key)
+	if type(key) ~= "string" or key == "" then
+		return nil
+	end
+	NAmanage.ESP_CancelScanToken(key)
+	local tok = NAmanage.NewCancelToken()
+	NAStuff.espScanTokens[key] = tok
+	return tok
+end
+
+NAmanage.ESP_ListAdd = NAmanage.ESP_ListAdd or function(list, indexMap, item)
+	if type(list) ~= "table" or type(indexMap) ~= "table" or item == nil then
+		return false
+	end
+	if indexMap[item] then
+		return false
+	end
+	local n = #list + 1
+	list[n] = item
+	indexMap[item] = n
+	return true
+end
+
+NAmanage.ESP_ListRemove = NAmanage.ESP_ListRemove or function(list, indexMap, item)
+	if type(list) ~= "table" or type(indexMap) ~= "table" or item == nil then
+		return false
+	end
+	local idx = indexMap[item]
+	if not idx then
+		return false
+	end
+	local lastIdx = #list
+	local lastItem = list[lastIdx]
+	list[lastIdx] = nil
+	indexMap[item] = nil
+	if idx < lastIdx then
+		list[idx] = lastItem
+		indexMap[lastItem] = idx
+	end
+	return true
 end
 
 NAlib.huiGrabber = function()
@@ -11006,11 +11126,20 @@ NAmanage.ESP_LocatorApplyFlags = function()
 	local ts = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
 
 	for _, d in pairs(NAStuff.ESP_LocatorArrows) do
-		local f = d.frame
-		local l = d.label
+		local f, l
+		if typeof(d) == "Instance" then
+			f = d
+			l = d:FindFirstChild("Name")
+		elseif type(d) == "table" then
+			f = d.frame or d.holder
+			l = d.label
+		end
 		if f then
 			f.Visible = show
-			f.Size = UDim2.fromOffset(sz, sz)
+			local p = f:FindFirstChild("Pointer")
+			if p then
+				p.Size = UDim2.fromOffset(sz, sz)
+			end
 		end
 		if l then
 			l.Visible = showTxt
@@ -14747,6 +14876,140 @@ end
 
 NAStuff.partESPEntries = NAStuff.partESPEntries or setmetatable({}, { __mode = "k" })
 NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or setmetatable({}, { __mode = "k" })
+NAStuff.partESPQueueMap = NAStuff.partESPQueueMap or setmetatable({}, { __mode = "k" })
+NAStuff.partESPQueue = NAStuff.partESPQueue or {}
+NAStuff.partESPQueueHead = tonumber(NAStuff.partESPQueueHead) or 1
+NAStuff.partESPQueueTail = tonumber(NAStuff.partESPQueueTail) or 0
+NAStuff.espScanTokens = NAStuff.espScanTokens or {}
+NAStuff.espSweepCursor = NAStuff.espSweepCursor or {}
+
+NAmanage.PartESP_QueueClear = function()
+	NAStuff.partESPQueue = {}
+	NAStuff.partESPQueueMap = setmetatable({}, { __mode = "k" })
+	NAStuff.partESPQueueHead = 1
+	NAStuff.partESPQueueTail = 0
+	NAlib.disconnect("esp_part_queue")
+end
+
+NAmanage.PartESP_QueueRun = function()
+	if NAlib.isConnected("esp_part_queue") then
+		return
+	end
+	NAlib.connect("esp_part_queue", RunService.Heartbeat:Connect(function()
+		local queue = NAStuff.partESPQueue
+		local qMap = NAStuff.partESPQueueMap
+		local head = tonumber(NAStuff.partESPQueueHead) or 1
+		local tail = tonumber(NAStuff.partESPQueueTail) or 0
+		if head > tail then
+			NAmanage.PartESP_QueueClear()
+			return
+		end
+
+		local maxPerStep = tonumber(NAStuff.ESP_MaxPerStep) or 32
+		maxPerStep = math.clamp(math.floor(maxPerStep), 1, 128)
+		local processed = 0
+		while processed < maxPerStep and head <= tail do
+			local item = queue[head]
+			queue[head] = nil
+			head += 1
+			processed += 1
+			if item then
+				local part = item.part
+				if qMap[part] == item then
+					qMap[part] = nil
+				end
+				if part and part.Parent and (part:IsA("BasePart") or part:IsA("Model")) then
+					local canCreate = true
+					if type(item.guard) == "function" then
+						local ok, result = pcall(item.guard, part, item)
+						canCreate = ok and result == true
+					end
+					if canCreate then
+						NAmanage.CreateBox(part, item.color, item.transparency)
+					end
+				end
+			end
+		end
+
+		NAStuff.partESPQueueHead = head
+		NAStuff.partESPQueueTail = tail
+		if head > tail then
+			NAmanage.PartESP_QueueClear()
+		end
+	end))
+end
+
+NAmanage.PartESP_QueueCreate = function(part, color, transparency, guard)
+	if not part or not part.Parent then
+		return
+	end
+	if not (part:IsA("BasePart") or part:IsA("Model")) then
+		return
+	end
+	local qMap = NAStuff.partESPQueueMap
+	local existing = qMap[part]
+	if existing then
+		existing.color = color
+		existing.transparency = transparency
+		existing.guard = guard
+		return
+	end
+	local queue = NAStuff.partESPQueue
+	local tail = (tonumber(NAStuff.partESPQueueTail) or 0) + 1
+	local item = {
+		part = part,
+		color = color,
+		transparency = transparency,
+		guard = guard,
+	}
+	queue[tail] = item
+	qMap[part] = item
+	NAStuff.partESPQueueTail = tail
+	NAmanage.PartESP_QueueRun()
+end
+
+NAmanage.PartESP_StartSweep = function(key, predicate, budget)
+	if type(key) ~= "string" or key == "" or type(predicate) ~= "function" then
+		return
+	end
+	if NAlib.isConnected(key) then
+		return
+	end
+	local cursorStore = NAStuff.espSweepCursor
+	if type(cursorStore) ~= "table" then
+		cursorStore = {}
+		NAStuff.espSweepCursor = cursorStore
+	end
+	cursorStore[key] = tonumber(cursorStore[key]) or 1
+	local stepBudget = tonumber(budget) or tonumber(NAStuff.ESP_RescanPerStep) or 90
+	stepBudget = math.clamp(math.floor(stepBudget), 8, 400)
+	NAlib.connect(key, RunService.Heartbeat:Connect(function()
+		local list = NAmanage.wsDescs and NAmanage.wsDescs() or {}
+		local total = #list
+		if total <= 0 then
+			cursorStore[key] = 1
+			return
+		end
+		local idx = tonumber(cursorStore[key]) or 1
+		if idx < 1 or idx > total then
+			idx = 1
+		end
+		local scanned = 0
+		local start = idx
+		repeat
+			local obj = list[idx]
+			if obj then
+				predicate(obj)
+			end
+			scanned += 1
+			idx += 1
+			if idx > total then
+				idx = 1
+			end
+		until scanned >= stepBudget or idx == start
+		cursorStore[key] = idx
+	end))
+end
 
 NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	if not entry or entry.removed then return end
@@ -45786,7 +46049,9 @@ NAmanage.EnableEsp = function(objType, color, list)
 			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 			if parent and not Discover(list, parent) then
 				Insert(list, parent)
-				NAmanage.CreateBox(parent, color, 0.45)
+				NAmanage.PartESP_QueueCreate(parent, color, 0.45, function(p)
+					return Discover(list, p) ~= nil
+				end)
 			end
 		end
 	end
@@ -45796,7 +46061,9 @@ NAmanage.EnableEsp = function(objType, color, list)
 				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 				if parent and not Discover(list, parent) then
 					Insert(list, parent)
-					NAmanage.CreateBox(parent, color, 0.45)
+					NAmanage.PartESP_QueueCreate(parent, color, 0.45, function(p)
+						return Discover(list, p) ~= nil
+					end)
 				end
 			end
 		end)
@@ -45819,6 +46086,11 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 	local terms = {...}
 	local list = NAStuff.espNameLists[mode]
 	local parts = NAStuff.nameESPPartLists[mode]
+	local partMap = NAStuff.nameESPPartMaps and NAStuff.nameESPPartMaps[mode]
+	if type(partMap) ~= "table" then
+		partMap = setmetatable({}, { __mode = "k" })
+		NAStuff.nameESPPartMaps[mode] = partMap
+	end
 	for _,term in ipairs(terms) do
 		local t = Lower(term)
 		if mode == "exact" then
@@ -45850,33 +46122,46 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 	end
 	local function handleNameChange(obj)
 		local matches = matchFn(obj)
-		local idx = Discover(parts,obj)
-		if matches and not idx then
-			Insert(parts,obj)
-			NAmanage.CreateBox(obj,color,0.45)
-		elseif not matches and idx then
+		local tracked = partMap[obj] ~= nil
+		if matches and not tracked then
+			if NAmanage.ESP_ListAdd(parts, partMap, obj) then
+				NAmanage.PartESP_QueueCreate(obj, color, 0.45, function(p)
+					return partMap[p] ~= nil
+				end)
+			end
+		elseif not matches and tracked then
 			NAmanage.RemoveEspFromPart(obj)
-			table.remove(parts,idx)
+			NAmanage.ESP_ListRemove(parts, partMap, obj)
 		end
 	end
-	for _,obj in ipairs(NAmanage.wsDescs()) do
-		if obj:IsA("BasePart") or obj:IsA("Model") then
-			NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
+	local scanKey = "esp_name_scan_"..mode
+	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if obj and (obj:IsA("BasePart") or obj:IsA("Model")) then
 				handleNameChange(obj)
-			end))
-			handleNameChange(obj)
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
+		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
+			NAStuff.espScanTokens[scanKey] = nil
 		end
-	end
+	end)
 	if not NAStuff.espNameTriggers[mode] then
 		NAStuff.espNameTriggers[mode] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") or obj:IsA("Model") then
-				NAlib.connect("esp_namechange_"..mode, obj:GetPropertyChangedSignal("Name"):Connect(function()
-					handleNameChange(obj)
-				end))
 				handleNameChange(obj)
 			end
 		end)
 	end
+	NAmanage.PartESP_StartSweep("esp_name_sweep_"..mode, function(obj)
+		if obj:IsA("BasePart") or obj:IsA("Model") then
+			handleNameChange(obj)
+		end
+	end, tonumber(NAStuff.ESP_RescanPerStep) or 90)
 end
 
 NAmanage.DisableNameEsp = function(mode)
@@ -45885,45 +46170,73 @@ NAmanage.DisableNameEsp = function(mode)
 		NAStuff.espNameTriggers[mode] = nil
 	end
 	NAlib.disconnect("esp_namechange_"..mode)
+	NAlib.disconnect("esp_name_sweep_"..mode)
+	NAmanage.ESP_CancelScanToken("esp_name_scan_"..mode)
+	if NAStuff.espSweepCursor then
+		NAStuff.espSweepCursor["esp_name_sweep_"..mode] = nil
+	end
 	local parts = NAStuff.nameESPPartLists[mode]
+	local partMap = NAStuff.nameESPPartMaps and NAStuff.nameESPPartMaps[mode]
 	for _,part in ipairs(parts) do
 		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(parts)
+	if type(partMap) == "table" then
+		table.clear(partMap)
+	end
 	table.clear(NAStuff.espNameLists[mode])
 end
 
 NAmanage.EnableUnanchoredEsp = function(color)
 	local col = color or Color3.fromRGB(255,220,0)
+	local list = NAStuff.unanchoredESPList
+	local setMap = NAStuff.unanchoredESPSet
+	if type(setMap) ~= "table" then
+		setMap = setmetatable({}, { __mode = "k" })
+		NAStuff.unanchoredESPSet = setMap
+	end
 	local function update(part)
 		if not part:IsA("BasePart") then return end
-		local idx = Discover(NAStuff.unanchoredESPList, part)
-		if part.Anchored == false and not idx then
-			Insert(NAStuff.unanchoredESPList, part)
-			NAmanage.CreateBox(part, col, 0.45)
-		elseif part.Anchored == true and idx then
+		local tracked = setMap[part] ~= nil
+		if part.Anchored == false and not tracked then
+			if NAmanage.ESP_ListAdd(list, setMap, part) then
+				NAmanage.PartESP_QueueCreate(part, col, 0.45, function(p)
+					return setMap[p] ~= nil
+				end)
+			end
+		elseif part.Anchored == true and tracked then
 			NAmanage.RemoveEspFromPart(part)
-			table.remove(NAStuff.unanchoredESPList, idx)
+			NAmanage.ESP_ListRemove(list, setMap, part)
 		end
 	end
-	for _,obj in ipairs(NAmanage.wsDescs()) do
-		if obj:IsA("BasePart") then
-			update(obj)
-			NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
+	local scanKey = "__unanchored_scan"
+	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if obj and obj:IsA("BasePart") then
 				update(obj)
-			end))
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
+		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
+			NAStuff.espScanTokens[scanKey] = nil
 		end
-	end
+	end)
 	if not NAStuff.espTriggers["__unanchored"] then
 		NAStuff.espTriggers["__unanchored"] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				update(obj)
-				NAlib.connect("esp_unanchored_prop", obj:GetPropertyChangedSignal("Anchored"):Connect(function()
-					update(obj)
-				end))
 			end
 		end)
 	end
+	NAmanage.PartESP_StartSweep("__unanchored_sweep", function(obj)
+		if obj:IsA("BasePart") then
+			update(obj)
+		end
+	end, tonumber(NAStuff.ESP_RescanPerStep) or 90)
 end
 
 NAmanage.DisableUnanchoredEsp = function()
@@ -45932,47 +46245,78 @@ NAmanage.DisableUnanchoredEsp = function()
 		NAStuff.espTriggers["__unanchored"] = nil
 	end
 	NAlib.disconnect("esp_unanchored_prop")
+	NAlib.disconnect("__unanchored_sweep")
+	NAmanage.ESP_CancelScanToken("__unanchored_scan")
+	if NAStuff.espSweepCursor then
+		NAStuff.espSweepCursor["__unanchored_sweep"] = nil
+	end
 	for _,part in ipairs(NAStuff.unanchoredESPList) do
 		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(NAStuff.unanchoredESPList)
+	if type(NAStuff.unanchoredESPSet) == "table" then
+		table.clear(NAStuff.unanchoredESPSet)
+	end
 end
 
 NAmanage.EnableCollisionEsp = function(targetState, color)
 	local list = targetState and NAStuff.collisiontrueESPList or NAStuff.collisionfalseESPList
+	local setMap = targetState and NAStuff.collisiontrueESPSet or NAStuff.collisionfalseESPSet
+	if type(setMap) ~= "table" then
+		setMap = setmetatable({}, { __mode = "k" })
+		if targetState then
+			NAStuff.collisiontrueESPSet = setMap
+		else
+			NAStuff.collisionfalseESPSet = setMap
+		end
+	end
 	local trigKey = targetState and "__cancollide_true" or "__cancollide_false"
 	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
+	local scanKey = targetState and "__cancollide_true_scan" or "__cancollide_false_scan"
+	local sweepKey = targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep"
 	local col = color or (targetState and Color3.fromRGB(0,200,255) or Color3.fromRGB(255,120,120))
 	local function update(part)
 		if not part:IsA("BasePart") then return end
-		local idx = Discover(list, part)
+		local tracked = setMap[part] ~= nil
 		local matches = part.CanCollide == targetState
-		if matches and not idx then
-			Insert(list, part)
-			NAmanage.CreateBox(part, col, 0.45)
-		elseif not matches and idx then
+		if matches and not tracked then
+			if NAmanage.ESP_ListAdd(list, setMap, part) then
+				NAmanage.PartESP_QueueCreate(part, col, 0.45, function(p)
+					return setMap[p] ~= nil
+				end)
+			end
+		elseif not matches and tracked then
 			NAmanage.RemoveEspFromPart(part)
-			table.remove(list, idx)
+			NAmanage.ESP_ListRemove(list, setMap, part)
 		end
 	end
-	for _,obj in ipairs(NAmanage.wsDescs()) do
-		if obj:IsA("BasePart") then
-			update(obj)
-			NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
+	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if obj and obj:IsA("BasePart") then
 				update(obj)
-			end))
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
+		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
+			NAStuff.espScanTokens[scanKey] = nil
 		end
-	end
+	end)
 	if not NAStuff.espTriggers[trigKey] then
 		NAStuff.espTriggers[trigKey] = NAmanage.wsAdd(function(obj)
 			if obj:IsA("BasePart") then
 				update(obj)
-				NAlib.connect(propKey, obj:GetPropertyChangedSignal("CanCollide"):Connect(function()
-					update(obj)
-				end))
 			end
 		end)
 	end
+	NAmanage.PartESP_StartSweep(sweepKey, function(obj)
+		if obj:IsA("BasePart") then
+			update(obj)
+		end
+	end, tonumber(NAStuff.ESP_RescanPerStep) or 90)
 end
 
 NAmanage.DisableCollisionEsp = function(targetState)
@@ -45984,10 +46328,19 @@ NAmanage.DisableCollisionEsp = function(targetState)
 		NAStuff.espTriggers[trigKey] = nil
 	end
 	NAlib.disconnect(propKey)
+	NAlib.disconnect(targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep")
+	NAmanage.ESP_CancelScanToken(targetState and "__cancollide_true_scan" or "__cancollide_false_scan")
+	if NAStuff.espSweepCursor then
+		NAStuff.espSweepCursor[targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep"] = nil
+	end
 	for _,part in ipairs(list) do
 		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(list)
+	local setMap = targetState and NAStuff.collisiontrueESPSet or NAStuff.collisionfalseESPSet
+	if type(setMap) == "table" then
+		table.clear(setMap)
+	end
 end
 
 NAmanage.ESP_LocatorEnsureGui = function()
@@ -46005,10 +46358,20 @@ NAmanage.ESP_LocatorEnable = function(force)
 	local gui = NAmanage.ESP_LocatorEnsureGui()
 	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
 	local arrows = NAStuff.ESP_LocatorArrows
+	local holderState = setmetatable({}, { __mode = "k" })
+	local activeCount = 0
+	local iterKey = nil
+	local accum = 0
+	local lastCleanup = 0
 
 	local function getHolder(entry)
 		local holder = arrows[entry]
 		if holder and holder.Parent then return holder end
+
+		local maxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorMaxArrows) or 180), 24, 800)
+		if activeCount >= maxActive then
+			return nil
+		end
 
 		holder = InstanceNew("Frame")
 		holder.Name = "locator"
@@ -46052,7 +46415,40 @@ NAmanage.ESP_LocatorEnable = function(force)
 		label.Parent = holder
 
 		arrows[entry] = holder
+		holderState[holder] = {
+			seen = os.clock(),
+			lastText = nil,
+			lastTextSize = nil,
+			lastMaxW = nil,
+		}
+		activeCount += 1
 		return holder
+	end
+
+	local function removeHolder(entry, holder)
+		local had = false
+		if holder and holder.Parent then
+			holder:Destroy()
+			had = true
+		end
+		if holderState[holder] then
+			holderState[holder] = nil
+			had = true
+		end
+		if entry ~= nil and arrows[entry] ~= nil then
+			arrows[entry] = nil
+			had = true
+		end
+		if had and activeCount > 0 then
+			activeCount -= 1
+		end
+	end
+
+	for _, holder in pairs(arrows) do
+		if holder and holder.Parent then
+			activeCount += 1
+			holderState[holder] = holderState[holder] or { seen = os.clock() }
+		end
 	end
 
 	local function applyStyle(holder, col)
@@ -46083,8 +46479,16 @@ NAmanage.ESP_LocatorEnable = function(force)
 	end
 
 	NAlib.disconnect("esp_locator_loop")
-	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function()
+	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_LocatorEnabled then return end
+		accum += tonumber(dt) or 0
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 25, 8, 60)
+		local stepInterval = 1 / updateRate
+		if accum < stepInterval then
+			return
+		end
+		accum = 0
+
 		local cam = workspace.CurrentCamera
 		if not cam then return end
 		local vp = cam.ViewportSize
@@ -46093,13 +46497,14 @@ NAmanage.ESP_LocatorEnable = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_LocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 400)
+		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_LocatorHoldSeconds) or 0.5, 0.15, 3)
+		local now = os.clock()
 
 		local cx, cy = vp.X * 0.5, vp.Y * 0.5
 		local margin = 16 + size * 0.5
 		local minX, maxX = margin, vp.X - margin
 		local minY, maxY = margin, vp.Y - margin
-
-		local seen = {}
 
 		local root = nil
 		if NAStuff.ESP_ShowPartDistance == true then
@@ -46108,123 +46513,155 @@ NAmanage.ESP_LocatorEnable = function(force)
 			root = ch and getRoot(ch)
 		end
 
-		for _, entry in pairs(NAStuff.partESPEntries or {}) do
+		local entries = NAStuff.partESPEntries or {}
+		local processed = 0
+		while processed < perStep do
+			local key, entry = next(entries, iterKey)
+			if key == nil then
+				key, entry = next(entries, nil)
+				if key == nil then
+					iterKey = nil
+					break
+				end
+			end
+			iterKey = key
+			processed += 1
+
 			if entry and not entry.removed and entry.part and entry.part.Parent then
 				local pos = NAgui.getInstanceWorldPosition(entry.part)
 				if pos then
 					local v3 = cam:WorldToViewportPoint(pos)
 					local x, y, z = v3.X, v3.Y, v3.Z
-					local holder = getHolder(entry)
-					local pointer = holder:FindFirstChild("Pointer")
-					local label = holder:FindFirstChild("Name")
-					local col = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
-
-					applyStyle(holder, col)
-
-					if z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y then
-						holder.Visible = false
+					local onScreen = (z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y)
+					if onScreen then
+						local holder = arrows[entry]
+						if holder and holder.Parent then
+							holder.Visible = false
+							local hs = holderState[holder]
+							if hs then
+								hs.seen = now
+							end
+						end
 					else
-						local dirX, dirY = x - cx, y - cy
-						if z <= 0 then dirX = -dirX dirY = -dirY end
-						local mag = math.sqrt(dirX*dirX + dirY*dirY)
-						if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX/mag, dirY/mag end
+						local holder = arrows[entry] or getHolder(entry)
+						if holder and holder.Parent then
+							local pointer = holder:FindFirstChild("Pointer")
+							local label = holder:FindFirstChild("Name")
+							local col = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
+							applyStyle(holder, col)
 
-						local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
-						local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
-						local scale = math.min(sx, sy)
-						local px = cx + dirX * scale
-						local py = cy + dirY * scale
+							local dirX, dirY = x - cx, y - cy
+							if z <= 0 then dirX = -dirX dirY = -dirY end
+							local mag = math.sqrt(dirX*dirX + dirY*dirY)
+							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX/mag, dirY/mag end
 
-						if px < minX then px = minX elseif px > maxX then px = maxX end
-						if py < minY then py = minY elseif py > maxY then py = maxY end
+							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
+							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
+							local scale = math.min(sx, sy)
+							local px = cx + dirX * scale
+							local py = cy + dirY * scale
+							if px < minX then px = minX elseif px > maxX then px = maxX end
+							if py < minY then py = minY elseif py > maxY then py = maxY end
 
-						local wantPos = UDim2.fromOffset(px, py)
-						if holder.Position.X.Offset ~= wantPos.X.Offset or holder.Position.Y.Offset ~= wantPos.Y.Offset then
-							holder.Position = wantPos
-						end
-
-						if pointer then
-							local ang = math.deg(math.atan2(dirY, dirX)) - 90
-							if pointer.Rotation ~= ang then pointer.Rotation = ang end
-						end
-
-						if textOn and label then
-							local nm = entry.customName or (entry.part and entry.part.Name) or "Part"
-							if NAStuff.ESP_ShowPartDistance == true and root and root.Position then
-								local d = math.floor((root.Position - pos).Magnitude + 0.5)
-								nm = nm.." | "..tostring(d).." studs"
+							local wantPos = UDim2.fromOffset(px, py)
+							if holder.Position.X.Offset ~= wantPos.X.Offset or holder.Position.Y.Offset ~= wantPos.Y.Offset then
+								holder.Position = wantPos
 							end
 
-							local side = math.abs(dirX) > math.abs(dirY)
-							local textForSide = nm
-							if side then
-								local nameOnly, distOnly = nm, ""
-								local bar = Find(nm, "|", 1, true)
-								if bar then
-									nameOnly = Sub(nm, 1, bar-2)
-									distOnly = Sub(nm, bar+2)
+							if pointer then
+								local ang = math.deg(math.atan2(dirY, dirX)) - 90
+								if pointer.Rotation ~= ang then pointer.Rotation = ang end
+							end
+
+							local hs = holderState[holder]
+							if hs then
+								hs.seen = now
+							end
+
+							if textOn and label then
+								local nm = entry.customName or (entry.part and entry.part.Name) or "Part"
+								if NAStuff.ESP_ShowPartDistance == true and root and root.Position then
+									local d = math.floor((root.Position - pos).Magnitude + 0.5)
+									nm = nm.." | "..tostring(d).." studs"
 								end
-								textForSide = nameOnly..(distOnly ~= "" and ("\n"..distOnly) or "")
-							end
 
-							if label.Text ~= (side and textForSide or nm) then
-								label.Text = side and textForSide or nm
-							end
-
-							if side then
-								local maxW = math.max(60, math.floor(size * 3.5))
-								local w, h = measure(textForSide, textSize, maxW)
-								if label.Size.X.Offset ~= maxW or label.Size.Y.Offset ~= h then
-									label.Size = UDim2.fromOffset(maxW, h)
+								local side = math.abs(dirX) > math.abs(dirY)
+								local displayText = nm
+								if side then
+									local nameOnly, distOnly = nm, ""
+									local bar = Find(nm, "|", 1, true)
+									if bar then
+										nameOnly = Sub(nm, 1, bar-2)
+										distOnly = Sub(nm, bar+2)
+									end
+									displayText = nameOnly..(distOnly ~= "" and ("\n"..distOnly) or "")
 								end
-							else
-								local maxW = math.floor(vp.X * 0.25)
-								local w, h = measure(nm, textSize, maxW)
-								if label.Size.X.Offset ~= w or label.Size.Y.Offset ~= h then
-									label.Size = UDim2.fromOffset(w, h)
+
+								if label.Text ~= displayText then
+									label.Text = displayText
 								end
+
+								local maxW = side and math.max(60, math.floor(size * 3.5)) or math.floor(vp.X * 0.25)
+								local needsMeasure = true
+								if hs then
+									needsMeasure = not (
+										hs.lastText == displayText and
+										hs.lastTextSize == textSize and
+										hs.lastMaxW == maxW
+									)
+								end
+								if needsMeasure then
+									local w, h = measure(displayText, textSize, maxW)
+									if label.Size.X.Offset ~= w or label.Size.Y.Offset ~= h then
+										label.Size = UDim2.fromOffset(w, h)
+									end
+									if hs then
+										hs.lastText = displayText
+										hs.lastTextSize = textSize
+										hs.lastMaxW = maxW
+									end
+								end
+
+								local gap = 6 + math.floor(size * 0.35)
+								local bx, by = -dirX, -dirY
+								local offX = bx * (size*0.5 + gap)
+								local offY = by * (size*0.5 + gap)
+								local lblAbsX = px + offX
+								local lblAbsY = py + offY
+								local halfW = label.Size.X.Offset * 0.5
+								local halfH = label.Size.Y.Offset * 0.5
+								if lblAbsX - halfW < 4 then lblAbsX = 4 + halfW end
+								if lblAbsX + halfW > vp.X - 4 then lblAbsX = vp.X - 4 - halfW end
+								if lblAbsY - halfH < 4 then lblAbsY = 4 + halfH end
+								if lblAbsY + halfH > vp.Y - 4 then lblAbsY = vp.Y - 4 - halfH end
+								local relX = lblAbsX - px
+								local relY = lblAbsY - py
+								local wantLabel = UDim2.fromOffset(relX, relY)
+								if label.Position.X.Offset ~= wantLabel.X.Offset or label.Position.Y.Offset ~= wantLabel.Y.Offset then
+									label.Position = wantLabel
+								end
+								if not label.Visible then label.Visible = true end
+							elseif label and label.Visible then
+								label.Visible = false
 							end
 
-							local gap = 6 + math.floor(size * 0.35)
-							local bx, by = -dirX, -dirY
-							local offX = bx * (size*0.5 + gap)
-							local offY = by * (size*0.5 + gap)
-
-							local lblAbsX = px + offX
-							local lblAbsY = py + offY
-
-							local halfW = label.Size.X.Offset * 0.5
-							local halfH = label.Size.Y.Offset * 0.5
-
-							if lblAbsX - halfW < 4 then lblAbsX = 4 + halfW end
-							if lblAbsX + halfW > vp.X - 4 then lblAbsX = vp.X - 4 - halfW end
-							if lblAbsY - halfH < 4 then lblAbsY = 4 + halfH end
-							if lblAbsY + halfH > vp.Y - 4 then lblAbsY = vp.Y - 4 - halfH end
-
-							local relX = lblAbsX - px
-							local relY = lblAbsY - py
-							local wantLabel = UDim2.fromOffset(relX, relY)
-							if label.Position.X.Offset ~= wantLabel.X.Offset or label.Position.Y.Offset ~= wantLabel.Y.Offset then
-								label.Position = wantLabel
-							end
-
-							if not label.Visible then label.Visible = true end
-						elseif label and label.Visible then
-							label.Visible = false
+							holder.Visible = true
 						end
-
-						holder.Visible = true
 					end
-
-					seen[entry] = true
 				end
+			else
+				removeHolder(entry, arrows[entry])
 			end
 		end
 
-		for entry, holder in pairs(arrows) do
-			if (not entry) or entry.removed or (not seen[entry]) or (not entry.part) or (not entry.part.Parent) then
-				if holder and holder.Parent then holder:Destroy() end
-				arrows[entry] = nil
+		if now - lastCleanup >= 0.25 then
+			lastCleanup = now
+			for entry, holder in pairs(arrows) do
+				local hs = holderState[holder]
+				local stale = (not hs) or ((now - (hs.seen or 0)) > staleSeconds)
+				if (not entry) or entry.removed or (not entry.part) or (not entry.part.Parent) or (not holder) or (not holder.Parent) or stale then
+					removeHolder(entry, holder)
+				end
 			end
 		end
 	end))
@@ -46297,6 +46734,7 @@ end,true)
 cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp [name|All]","Remove exact-name part ESP by name or All"},function(...)
 	local mode = "exact"
 	local parts = NAStuff.nameESPPartLists and NAStuff.nameESPPartLists[mode] or {}
+	local partMap = NAStuff.nameESPPartMaps and NAStuff.nameESPPartMaps[mode] or {}
 	local terms = NAStuff.espNameLists and NAStuff.espNameLists[mode] or {}
 	if type(terms) ~= "table" or #terms == 0 then
 		DoNotif("No exact-name ESP terms are active.", 2)
@@ -46320,11 +46758,17 @@ cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp [name|All]","Remove exact-na
 				table.remove(terms, i)
 			end
 		end
-		for i = #parts, 1, -1 do
+		local i = #parts
+		while i >= 1 do
 			local p = parts[i]
 			if p and p.Parent and termMatchesName(term, p.Name) then
 				NAmanage.RemoveEspFromPart(p)
-				table.remove(parts, i)
+				local removed = NAmanage.ESP_ListRemove(parts, partMap, p)
+				if not removed then
+					i -= 1
+				end
+			else
+				i -= 1
 			end
 		end
 		DoNotif("Removed exact-name ESP for '"..term.."'.", 2)
@@ -46377,6 +46821,7 @@ end,true)
 cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]","Remove partial-name part ESP by name or All"},function(...)
 	local mode = "partial"
 	local parts = NAStuff.nameESPPartLists and NAStuff.nameESPPartLists[mode] or {}
+	local partMap = NAStuff.nameESPPartMaps and NAStuff.nameESPPartMaps[mode] or {}
 	local terms = NAStuff.espNameLists and NAStuff.espNameLists[mode] or {}
 	if type(terms) ~= "table" or #terms == 0 then
 		DoNotif("No partial-name ESP terms are active.", 2)
@@ -46400,11 +46845,17 @@ cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]",
 				table.remove(terms, i)
 			end
 		end
-		for i = #parts, 1, -1 do
+		local i = #parts
+		while i >= 1 do
 			local p = parts[i]
 			if p and p.Parent and termMatchesName(term, p.Name) then
 				NAmanage.RemoveEspFromPart(p)
-				table.remove(parts, i)
+				local removed = NAmanage.ESP_ListRemove(parts, partMap, p)
+				if not removed then
+					i -= 1
+				end
+			else
+				i -= 1
 			end
 		end
 		DoNotif("Removed partial-name ESP for '"..term.."'.", 2)
@@ -46487,7 +46938,9 @@ NAmanage.FolderESP_Enable = function(folder)
 	end
 
 	if not NAStuff.folderESPMembers then NAStuff.folderESPMembers = {} end
+	if not NAStuff.folderESPMemberMaps then NAStuff.folderESPMemberMaps = {} end
 	if not NAStuff.folderESPKeys then NAStuff.folderESPKeys = {} end
+	if not NAStuff.folderESPScanTokens then NAStuff.folderESPScanTokens = {} end
 
 	local mode = originalIO.folderESPMode()
 	local highlightColor = Color3.fromRGB(255,220,0)
@@ -46510,60 +46963,74 @@ NAmanage.FolderESP_Enable = function(folder)
 		return model and model:FindFirstChildWhichIsA("BasePart", true)
 	end
 
-	local function addTarget(list, target)
+	local function addTarget(list, map, target)
 		if not target or not target.Parent then
 			return
 		end
-		if Discover(list, target) then
-			return
+		if NAmanage.ESP_ListAdd(list, map, target) then
+			NAmanage.PartESP_QueueCreate(target, highlightColor, 0.45, function(p)
+				return map[p] ~= nil
+			end)
 		end
-		Insert(list, target)
-		NAmanage.CreateBox(target, highlightColor, 0.45)
 	end
 
-	local function removeTarget(list, target)
+	local function removeTarget(list, map, target)
 		if not target then
 			return
 		end
-		local idx = Discover(list, target)
-		if idx then
+		if NAmanage.ESP_ListRemove(list, map, target) then
 			NAmanage.RemoveEspFromPart(target)
-			table.remove(list, idx)
 		end
 	end
 
-	local function rescanFolder(rootFolder, list)
-		for _, desc in ipairs(rootFolder:GetDescendants()) do
-			if mode == "models" then
-				if desc:IsA("Model") then
-					local top = topModelFor(desc, rootFolder)
-					if top == desc and modelHasBasePart(top) then
-						addTarget(list, top)
-					end
-				elseif desc:IsA("BasePart") then
-					local top = topModelFor(desc, rootFolder)
-					if top and modelHasBasePart(top) then
-						addTarget(list, top)
-					else
-						addTarget(list, desc)
-					end
+	local function handleDesc(rootFolder, list, map, desc)
+		if mode == "models" then
+			if desc:IsA("Model") then
+				local top = topModelFor(desc, rootFolder)
+				if top == desc and modelHasBasePart(top) then
+					addTarget(list, map, top)
 				end
 			elseif desc:IsA("BasePart") then
-				addTarget(list, desc)
+				local top = topModelFor(desc, rootFolder)
+				if top and modelHasBasePart(top) then
+					addTarget(list, map, top)
+				else
+					addTarget(list, map, desc)
+				end
 			end
+		elseif desc:IsA("BasePart") then
+			addTarget(list, map, desc)
 		end
+	end
+
+	local function rescanFolder(rootFolder, list, map, token)
+		NAmanage.ForEachDescendantYield(rootFolder, function(desc)
+			if token and token.cancelled then
+				return
+			end
+			handleDesc(rootFolder, list, map, desc)
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = token,
+		})
 	end
 
 	local list = NAStuff.folderESPMembers[folder]
 	if not list then
 		list = {}
-	else
-		for i = #list, 1, -1 do
-			NAmanage.RemoveEspFromPart(list[i])
-			list[i] = nil
-		end
 	end
+	local map = NAStuff.folderESPMemberMaps[folder]
+	if type(map) ~= "table" then
+		map = setmetatable({}, { __mode = "k" })
+	end
+	for i = #list, 1, -1 do
+		NAmanage.RemoveEspFromPart(list[i])
+		list[i] = nil
+	end
+	table.clear(map)
 	NAStuff.folderESPMembers[folder] = list
+	NAStuff.folderESPMemberMaps[folder] = map
 
 	local key = NAStuff.folderESPKeys[folder]
 	if not key then
@@ -46575,45 +47042,40 @@ NAmanage.FolderESP_Enable = function(folder)
 		NAlib.disconnect(key)
 	end
 
-	rescanFolder(folder, list)
+	local prevToken = NAStuff.folderESPScanTokens[folder]
+	if prevToken then
+		NAmanage.CancelTokenCancel(prevToken)
+	end
+	local scanToken = NAmanage.NewCancelToken()
+	NAStuff.folderESPScanTokens[folder] = scanToken
+	SpawnCall(function()
+		rescanFolder(folder, list, map, scanToken)
+		if NAStuff.folderESPScanTokens and NAStuff.folderESPScanTokens[folder] == scanToken then
+			NAStuff.folderESPScanTokens[folder] = nil
+		end
+	end)
 
 	local function onAdded(obj)
-		if mode == "models" then
-			if obj:IsA("Model") then
-				local top = topModelFor(obj, folder)
-				if top == obj and modelHasBasePart(top) then
-					addTarget(list, top)
-				end
-			elseif obj:IsA("BasePart") then
-				local top = topModelFor(obj, folder)
-				if top and modelHasBasePart(top) then
-					addTarget(list, top)
-				else
-					addTarget(list, obj)
-				end
-			end
-		elseif obj:IsA("BasePart") then
-			addTarget(list, obj)
-		end
+		handleDesc(folder, list, map, obj)
 	end
 
 	local function onRemoving(obj)
 		if mode == "models" then
 			if obj:IsA("Model") then
-				removeTarget(list, obj)
+				removeTarget(list, map, obj)
 			elseif obj:IsA("BasePart") then
 				local top = topModelFor(obj, folder)
 				if top then
 					Defer(function()
 						if not modelHasBasePart(top) then
-							removeTarget(list, top)
+							removeTarget(list, map, top)
 						end
 					end)
 				end
-				removeTarget(list, obj)
+				removeTarget(list, map, obj)
 			end
 		elseif obj:IsA("BasePart") then
-			removeTarget(list, obj)
+			removeTarget(list, map, obj)
 		end
 	end
 
@@ -46645,73 +47107,90 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 	if name == "" then
 		return
 	end
+	if NAStuff.folderSearchToken then
+		NAmanage.CancelTokenCancel(NAStuff.folderSearchToken)
+	end
+	local searchToken = NAmanage.NewCancelToken()
+	NAStuff.folderSearchToken = searchToken
 
-	local matches = {}
-	local exactFolder
-
-	for _, obj in ipairs(NAmanage.wsDescs()) do
-		if obj:IsA("Folder") then
-			local lowered = Lower(obj.Name)
-			if lowered == name then
-				exactFolder = obj
-				break
-			elseif Find(lowered, name, 1, true) then
-				Insert(matches, obj)
+	SpawnCall(function()
+		local matches = {}
+		local exactFolder
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if searchToken.cancelled or exactFolder then
+				return
 			end
-		end
-	end
-
-	if exactFolder then
-		NAmanage.FolderESP_Enable(exactFolder)
-		return
-	end
-
-	if #matches == 0 then
-		DoNotif(Format("No folders found containing '%s'.", rawInput), 3)
-		return
-	end
-
-	table.sort(matches, function(a, b)
-		local la, lb = Lower(a.Name), Lower(b.Name)
-		local pa = Find(la, name, 1, true) or math.huge
-		local pb = Find(lb, name, 1, true) or math.huge
-		if pa == pb then
-			if #la == #lb then
-				return la < lb
-			end
-			return #la < #lb
-		end
-		return pa < pb
-	end)
-
-	local buttons = {}
-
-	if #matches > 1 then
-		Insert(buttons, {
-			Text = "All Matches",
-			Callback = function()
-				for _, folder in ipairs(matches) do
-					NAmanage.FolderESP_Enable(folder)
+			if obj and obj:IsA("Folder") then
+				local lowered = Lower(obj.Name)
+				if lowered == name then
+					exactFolder = obj
+				elseif Find(lowered, name, 1, true) then
+					Insert(matches, obj)
 				end
 			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = searchToken,
 		})
-	end
 
-	for _, folder in ipairs(matches) do
-		local folderRef = folder
-		Insert(buttons, {
-			Text = folderRef.Name,
-			Callback = function()
-				NAmanage.FolderESP_Enable(folderRef)
+		if searchToken.cancelled then
+			return
+		end
+		if NAStuff.folderSearchToken == searchToken then
+			NAStuff.folderSearchToken = nil
+		end
+
+		if exactFolder then
+			NAmanage.FolderESP_Enable(exactFolder)
+			return
+		end
+
+		if #matches == 0 then
+			DoNotif(Format("No folders found containing '%s'.", rawInput), 3)
+			return
+		end
+
+		table.sort(matches, function(a, b)
+			local la, lb = Lower(a.Name), Lower(b.Name)
+			local pa = Find(la, name, 1, true) or math.huge
+			local pb = Find(lb, name, 1, true) or math.huge
+			if pa == pb then
+				if #la == #lb then
+					return la < lb
+				end
+				return #la < #lb
 			end
-		})
-	end
+			return pa < pb
+		end)
 
-	Window({
-		Title = "Folder ESP",
-		Description = "Select folder(s) to highlight. Toggle multi-select in the header to pick several.",
-		Buttons = buttons
-	})
+		local buttons = {}
+		if #matches > 1 then
+			Insert(buttons, {
+				Text = "All Matches",
+				Callback = function()
+					for _, folder in ipairs(matches) do
+						NAmanage.FolderESP_Enable(folder)
+					end
+				end
+			})
+		end
+		for _, folder in ipairs(matches) do
+			local folderRef = folder
+			Insert(buttons, {
+				Text = folderRef.Name,
+				Callback = function()
+					NAmanage.FolderESP_Enable(folderRef)
+				end
+			})
+		end
+
+		Window({
+			Title = "Folder ESP",
+			Description = "Select folder(s) to highlight. Toggle multi-select in the header to pick several.",
+			Buttons = buttons
+		})
+	end)
 end,true)
 
 cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ESP for a folder or all"},function(...)
@@ -46722,6 +47201,8 @@ cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ES
 	end
 
 	local keysCache = NAStuff.folderESPKeys
+	local mapsCache = NAStuff.folderESPMemberMaps
+	local scanTokens = NAStuff.folderESPScanTokens
 
 	local function detachFolder(folder)
 		if typeof(folder) ~= "Instance" then
@@ -46747,6 +47228,14 @@ cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ES
 			table.clear(list)
 			members[folder] = nil
 			removed = true
+		end
+		if mapsCache and mapsCache[folder] then
+			table.clear(mapsCache[folder])
+			mapsCache[folder] = nil
+		end
+		if scanTokens and scanTokens[folder] then
+			NAmanage.CancelTokenCancel(scanTokens[folder])
+			scanTokens[folder] = nil
 		end
 
 		return removed
@@ -59695,101 +60184,220 @@ end))
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
 		local fhSet = setmetatable({}, { __mode = "k" })
+		local fhCount = 0
+		local fhWarned = false
+		local FH_SOFT_LIMIT = 1200
+		local FH_HARD_LIMIT = 1600
+		local FH_RETRY_SLACK = 0.002
+		local function discConn(conn)
+			if conn then
+				pcall(function()
+					conn:Disconnect()
+				end)
+			end
+		end
+		local function releaseLbl(o)
+			local state = fhSet[o]
+			if not state then
+				return
+			end
+			fhSet[o] = nil
+			state.dead = true
+			discConn(state.textConn)
+			discConn(state.placeholderConn)
+			discConn(state.ancestryConn)
+			discConn(state.destroyConn)
+			if fhCount > 0 then
+				fhCount -= 1
+			end
+		end
+		local function recountLbls()
+			local n = 0
+			for _ in pairs(fhSet) do
+				n += 1
+			end
+			fhCount = n
+		end
 		local function conToFriendsEnabled()
 			return NAStuff and NAStuff.ConnectionsToFriends == true
 		end
 		local function hasCon(v)
 			return type(v) == "string" and v ~= "" and v:find("Connection", 1, true) ~= nil
 		end
-	local function needCon(o)
-		local okText, textVal = pcall(function()
-			return o.Text
-		end)
-		if okText and hasCon(textVal) then
-			return true
-		end
-		if o:IsA("TextBox") then
-			local okPh, phVal = pcall(function()
-				return o.PlaceholderText
+		local function needCon(o)
+			local okText, textVal = pcall(function()
+				return o.Text
 			end)
-			if okPh and hasCon(phVal) then
+			if okText and hasCon(textVal) then
 				return true
 			end
+			if o:IsA("TextBox") then
+				local okPh, phVal = pcall(function()
+					return o.PlaceholderText
+				end)
+				if okPh and hasCon(phVal) then
+					return true
+				end
+			end
+			return false
 		end
-		return false
-	end
-	local function hookLbl(o)
-		if not o or typeof(o) ~= "Instance" then
-			return;
-		end;
-		if HUI and o:IsDescendantOf(HUI) then
-			return;
-		end;
-			if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
-				return;
-			end;
-			if not conToFriendsEnabled() then
-				return;
-			end;
-			if not needCon(o) then
-				return;
-			end;
-		if fhSet[o] then
-			return;
-		end;
-		fhSet[o] = true;
-		local applying = false;
-		local function rep(p)
-			local ok, t = pcall(function()
-				return o[p];
-			end);
-			if not (ok and hasCon(t)) then
-				return false;
-			end;
-			local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend");
-			if new ~= t then
+		local function canTrackLbl(o)
+			if fhSet[o] then
+				return true
+			end
+			if fhCount >= FH_SOFT_LIMIT then
+				recountLbls()
+			end
+			if fhCount < FH_SOFT_LIMIT then
+				return true
+			end
+			if fhCount >= FH_HARD_LIMIT then
+				if not fhWarned then
+					fhWarned = true
+					pcall(function()
+						DoNotif("Connections rename: hit tracking cap, skipping new labels for performance.", 3, "CoreGui Customization")
+					end)
+				end
+				return false
+			end
+			if needCon(o) then
+				return true
+			end
+			if not fhWarned then
+				fhWarned = true
 				pcall(function()
-					o[p] = new;
-				end);
-				return true;
-			end;
-			return false;
-		end;
-		local pending = false;
-		local nextAt = 0;
-		local function apply()
-			if applying or pending then
-				return;
-			end;
-			pending = true;
-			Defer(function()
-				pending = false;
-				if applying or (not o.Parent) then
-					return;
-				end;
-				local now = os.clock();
-				if now < nextAt then
-					return;
-				end;
-				applying = true;
-				local changed = rep("Text");
-				if o:IsA("TextBox") then
-					changed = rep("PlaceholderText") or changed;
-				end;
+					DoNotif("Connections rename: limiting passive label watchers for performance.", 3, "CoreGui Customization")
+				end)
+			end
+			return false
+		end
+		local function hookLbl(o)
+			if not o or typeof(o) ~= "Instance" then
+				return
+			end
+			if HUI and o:IsDescendantOf(HUI) then
+				return
+			end
+			if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+				return
+			end
+			if not conToFriendsEnabled() then
+				return
+			end
+			local state = fhSet[o]
+			if state then
+				if state.scheduleApply then
+					state.scheduleApply(true)
+				end
+				return
+			end
+			if not canTrackLbl(o) then
+				return
+			end
+			state = {
+				dead = false;
 				applying = false;
-				nextAt = os.clock() + (changed and 0.03 or 0.08);
-			end);
-		end;
-		apply();
-		(o:GetPropertyChangedSignal("Text")):Connect(function()
-			apply();
-		end);
-		if o:IsA("TextBox") then
-			(o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
-				apply();
-			end);
-		end;
-	end;
+				pending = false;
+				retryQueued = false;
+				nextAt = 0;
+			}
+			fhSet[o] = state
+			fhCount += 1
+			local function rep(p)
+				local ok, t = pcall(function()
+					return o[p]
+				end)
+				if not (ok and hasCon(t)) then
+					return false
+				end
+				local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend")
+				if new ~= t then
+					pcall(function()
+						o[p] = new
+					end)
+					return true
+				end
+				return false
+			end
+			local function scheduleApply(forceNow)
+				if state.dead or state.pending then
+					return
+				end
+				state.pending = true
+				Defer(function()
+					state.pending = false
+					if state.dead then
+						return
+					end
+					if not (o and o.Parent) then
+						releaseLbl(o)
+						return
+					end
+					if not conToFriendsEnabled() then
+						return
+					end
+					local now = os.clock()
+					if (not forceNow) and (now + FH_RETRY_SLACK < state.nextAt) then
+						if not state.retryQueued then
+							state.retryQueued = true
+							local waitFor = math.max(0.01, state.nextAt - now)
+							Delay(waitFor, function()
+								state.retryQueued = false
+								if state.dead then
+									return
+								end
+								scheduleApply(true)
+							end)
+						end
+						return
+					end
+					if state.applying then
+						return
+					end
+					state.applying = true
+					local changed = rep("Text")
+					if o:IsA("TextBox") then
+						changed = rep("PlaceholderText") or changed
+					end
+					state.applying = false
+					state.nextAt = os.clock() + (changed and 0.03 or 0.08)
+				end)
+			end
+			state.scheduleApply = scheduleApply
+			state.textConn = (o:GetPropertyChangedSignal("Text")):Connect(function()
+				scheduleApply(false)
+			end)
+			if o:IsA("TextBox") then
+				state.placeholderConn = (o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
+					scheduleApply(false)
+				end)
+			end
+			state.ancestryConn = o.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					releaseLbl(o)
+				end
+			end)
+			local okDestroy, destroySig = pcall(function()
+				return o.Destroying
+			end)
+			if okDestroy and destroySig then
+				state.destroyConn = destroySig:Connect(function()
+					releaseLbl(o)
+				end)
+			end
+			scheduleApply(true)
+		end
+		NAmanage.clearConnectionsFriendLabelHooks = function()
+			local list = {}
+			for inst in pairs(fhSet) do
+				list[#list + 1] = inst
+			end
+			for i = 1, #list do
+				releaseLbl(list[i])
+			end
+			recountLbls()
+			fhWarned = false
+		end
 	local iIdx = {
 		click = setmetatable({}, { __mode = "k" });
 		proxy = setmetatable({}, { __mode = "k" });
@@ -60018,7 +60626,7 @@ end))
 			opts = opts or {};
 			local hasAny = false;
 			if opts.friend == true and conToFriendsEnabled() and isFLbl(inst) then
-				if not (HUI and inst:IsDescendantOf(HUI)) and needCon(inst) then
+				if not (HUI and inst:IsDescendantOf(HUI)) then
 					fPend[inst] = true;
 					hasAny = true;
 			end;
@@ -65282,6 +65890,8 @@ NAgui.addToggle("Rename Connections To Friends", NAStuff.ConnectionsToFriends ==
 	NAmanage.NASettingsSet("connectionsToFriends", NAStuff.ConnectionsToFriends)
 	if NAStuff.ConnectionsToFriends and type(NAmanage.refreshConnectionsFriendLabels) == "function" then
 		NAmanage.refreshConnectionsFriendLabels()
+	elseif (not NAStuff.ConnectionsToFriends) and type(NAmanage.clearConnectionsFriendLabelHooks) == "function" then
+		NAmanage.clearConnectionsFriendLabelHooks()
 	end
 end)
 
