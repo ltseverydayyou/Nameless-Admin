@@ -126,6 +126,7 @@ local NAStuff = {
 	AutoExecEnabled = true;
 	UserButtonsAutoLoad = true;
 	FriendRequestAutoDismiss = false;
+	ConnectionsToFriends = false;
 	CmdBar2AutoRun = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
@@ -422,26 +423,111 @@ end
 
 pcall(NAmanage.syncNameGlobals)
 
-local connections = {}
 NAlib = NAlib or {}
+NAStuff.conns = (type(NAStuff.conns) == "table") and NAStuff.conns or {}
+NAStuff.prCnt = tonumber(NAStuff.prCnt) or 0
 
-NAlib.connect = function(name, connection)
-	connections[name] = connections[name] or {}
-	Insert(connections[name], connection)
-	return connection
+NAmanage.prnCon = NAmanage.prnCon or function(name)
+	local conns = NAStuff.conns
+	if type(conns) ~= "table" then
+		conns = {}
+		NAStuff.conns = conns
+		return 0
+	end
+
+	local bucket = conns[name]
+	if type(bucket) ~= "table" then
+		return 0
+	end
+
+	local write = 1
+	for i = 1, #bucket do
+		local conn = bucket[i]
+		local keep = false
+		if conn ~= nil then
+			local connType = typeof(conn)
+			if connType == "RBXScriptConnection" then
+				local ok, connected = pcall(function()
+					return conn.Connected
+				end)
+				keep = ok and connected == true
+			elseif type(conn) == "table" and type(conn.Disconnect) == "function" then
+				keep = true
+			elseif type(conn) == "userdata" then
+				keep = true
+			end
+		end
+
+		if keep then
+			bucket[write] = conn
+			write += 1
+		end
+	end
+
+	for i = write, #bucket do
+		bucket[i] = nil
+	end
+
+	local alive = write - 1
+	if alive <= 0 then
+		conns[name] = nil
+		return 0
+	end
+	return alive
+end
+
+NAlib.connect = function(name, conn)
+	if not name or not conn then
+		return conn
+	end
+	local conns = NAStuff.conns
+	if type(conns) ~= "table" then
+		conns = {}
+		NAStuff.conns = conns
+	end
+	NAmanage.prnCon(name)
+	local bucket = conns[name]
+	if type(bucket) ~= "table" then
+		bucket = {}
+		conns[name] = bucket
+	end
+	table.insert(bucket, conn)
+	NAStuff.prCnt = (tonumber(NAStuff.prCnt) or 0) + 1
+	if NAStuff.prCnt % 128 == 0 then
+		for key in pairs(conns) do
+			NAmanage.prnCon(key)
+		end
+	end
+	return conn
 end
 
 NAlib.disconnect = function(name)
-	if connections[name] then
-		for _, conn in ipairs(connections[name]) do
-			conn:Disconnect()
+	if not name then
+		return
+	end
+	local conns = NAStuff.conns
+	if type(conns) ~= "table" then
+		NAStuff.conns = {}
+		return
+	end
+	local bucket = conns[name]
+	if type(bucket) == "table" then
+		for _, conn in ipairs(bucket) do
+			pcall(function()
+				if conn and type(conn.Disconnect) == "function" then
+					conn:Disconnect()
+				end
+			end)
 		end
-		connections[name] = nil
+		conns[name] = nil
 	end
 end
 
 NAlib.isConnected = function(name)
-	return connections[name] ~= nil
+	if not name then
+		return false
+	end
+	return NAmanage.prnCon(name) > 0
 end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
@@ -837,6 +923,45 @@ NAmanage.CancelTokenCancel = NAmanage.CancelTokenCancel or function(token)
 	end
 end
 
+NAmanage.isLoad = NAmanage.isLoad or function()
+	local load = nil
+	if type(_G) == "table" then
+		load = rawget(_G, "NAAssetsLoading")
+	end
+	if type(load) ~= "table" then
+		load = NAAssetsLoading
+	end
+	if type(load) ~= "table" then
+		return false
+	end
+	local done = load.completed
+	if typeof(done) == "Instance" and done:IsA("BoolValue") then
+		return done.Value ~= true
+	end
+	return load._finalized ~= true
+end
+
+NAmanage.lpProf = NAmanage.lpProf or function(baseBud, opts)
+	opts = opts or {}
+	local bud = math.max(1, math.floor(tonumber(baseBud) or 1))
+	local del = tonumber(opts.delay) or 0
+	if NAmanage.isLoad and NAmanage.isLoad() then
+		local sc = tonumber(opts.ldSc)
+		if not sc then
+			sc = 0.4
+		end
+		sc = math.clamp(sc, 0.05, 1)
+		bud = math.max(1, math.floor(bud * sc))
+		local ld = tonumber(opts.ldDel)
+		if ld and ld > del then
+			del = ld
+		elseif del <= 0 then
+			del = 0.01
+		end
+	end
+	return bud, del
+end
+
 NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(root, handler, opts)
 	opts = opts or {}
 	if typeof(root) ~= "Instance" or type(handler) ~= "function" then
@@ -851,6 +976,12 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 	local delayTime = opts.delayTime
 	local cancelToken = opts.cancelToken
 	local includeRoot = opts.includeRoot == true
+	if NAmanage.isLoad and NAmanage.isLoad() then
+		yieldEvery = math.min(yieldEvery, 96)
+		if delayTime == nil then
+			delayTime = 0.01
+		end
+	end
 
 	local stack = {}
 	local stackN = 0
@@ -3923,19 +4054,20 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	})
 
 	local function syncCConn()
+		local shouldWatch = CE.data.enabled == true
 		NAlib.disconnect("CornerEditor")
-		if CE.data.targetCoreGui and CE.cg then
+		if shouldWatch and CE.data.targetCoreGui and CE.cg then
 			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCDesc))
 		end
 
 		NAlib.disconnect("CornerEditor_PlayerGui")
-		local pg = CE.data.targetPlayerGui and getPlayerGui()
+		local pg = shouldWatch and CE.data.targetPlayerGui and getPlayerGui()
 		if pg then
 			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCDesc))
 		end
 
 		NAlib.disconnect("CornerEditor_HUI")
-		if CE.data.targetHiddenUi and HUI then
+		if shouldWatch and CE.data.targetHiddenUi and HUI then
 			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(onCDesc))
 		end
 
@@ -5562,19 +5694,20 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	})
 
 	local function refreshFontConnections()
+		local shouldWatch = FontEditor.data.enabled == true
 		NAlib.disconnect("FontEditor")
-		if FontEditor.data.targetCoreGui and FontEditor.cg then
+		if shouldWatch and FontEditor.data.targetCoreGui and FontEditor.cg then
 			NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(onFontDescendantAdded))
 		end
 
 		NAlib.disconnect("FontEditor_PlayerGui")
-		local pg = FontEditor.data.targetPlayerGui and getPlayerGui()
+		local pg = shouldWatch and FontEditor.data.targetPlayerGui and getPlayerGui()
 		if pg then
 			NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(onFontDescendantAdded))
 		end
 
 		NAlib.disconnect("FontEditor_HUI")
-		if FontEditor.data.targetHiddenUi and HUI then
+		if shouldWatch and FontEditor.data.targetHiddenUi and HUI then
 			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(onFontDescendantAdded))
 		end
 
@@ -5633,6 +5766,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addSection("Corner Editor")
 	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
 		CE.data.enabled = v
+		syncCConn()
 		if CE.data.enabled then
 			applyCorn()
 		else
@@ -5668,6 +5802,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addSection("Font Changer")
 	NAgui.addToggle("Override Text Font", FontEditor.data.enabled, function(v)
 		FontEditor.data.enabled = v
+		refreshFontConnections()
 		if FontEditor.data.enabled then
 			applyAllFonts()
 		else
@@ -7351,15 +7486,14 @@ NAgui.NaProtectUI=function(gui)
 			pcall(function() gui.Parent = target end)
 		end
 	end)
-	local hb
-	hb = SafeGetService("RunService").Heartbeat:Connect(function()
-		for prop, val in pairs(props) do
-			if val ~= nil and gui[prop] ~= val then
-				pcall(function() gui[prop] = val end)
+	Spawn(function()
+		while gui and gui.Parent do
+			Wait(0.75)
+			for prop, val in pairs(props) do
+				if val ~= nil and gui[prop] ~= val then
+					pcall(function() gui[prop] = val end)
+				end
 			end
-		end
-		if not gui.Parent then
-			pcall(function() hb:Disconnect() end)
 		end
 	end)
 	return gui
@@ -8382,22 +8516,43 @@ NAmanage.createLoadingUI=function(text, opts)
 		end)
 	end
 
-	applyMinimized()
+	local shown = false
+	local showDelay = tonumber(opts.showDelay)
+	if showDelay == nil then
+		showDelay = 0.35
+	end
+	showDelay = math.clamp(showDelay, 0, 2)
 
-	if not flags.minimized then
-		ui.overlay.BackgroundTransparency = 1
-		ui.container.BackgroundTransparency = 1
-		ui.container.Position = UDim2.fromScale(0.5, 0.6)
-		tween(ui.overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25})
-		tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			BackgroundTransparency = 0,
-			Position = UDim2.fromScale(0.5, 0.55)
-		})
-	else
-		ui.toast.BackgroundTransparency = 1
-		if ui.toast.Visible then
-			tween(ui.toast, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+	local function showUI()
+		if shown or ui.completedFlag.Value then
+			return
 		end
+		shown = true
+		ui.sg.Enabled = true
+		applyMinimized()
+
+		if not flags.minimized then
+			ui.overlay.BackgroundTransparency = 1
+			ui.container.BackgroundTransparency = 1
+			ui.container.Position = UDim2.fromScale(0.5, 0.6)
+			tween(ui.overlay, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.25})
+			tween(ui.container, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundTransparency = 0,
+				Position = UDim2.fromScale(0.5, 0.55)
+			})
+		else
+			ui.toast.BackgroundTransparency = 1
+			if ui.toast.Visible then
+				tween(ui.toast, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0})
+			end
+		end
+	end
+
+	ui.sg.Enabled = false
+	if showDelay <= 0 then
+		showUI()
+	else
+		Delay(showDelay, showUI)
 	end
 
 	local pulseConn
@@ -8557,6 +8712,74 @@ NAmanage.registerRemoteForPreload=function(url, options)
 	NAAssetsLoading.registerRemote(url, options)
 end
 
+NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
+	if not force and type(NAStuff.uiSrc) == "string" and NAStuff.uiSrc ~= "" then
+		return NAStuff.uiSrc
+	end
+
+	local url = opt and opt.NAUILOADER
+	if type(url) ~= "string" or url == "" then
+		return nil, "missing UI loader url"
+	end
+
+	local src
+	if not force and NAmanage and NAmanage.getPrefetchedRemote then
+		src = NAmanage.getPrefetchedRemote(url)
+	end
+
+	if type(src) ~= "string" or src == "" then
+		local ok, body = pcall(game.HttpGet, game, url)
+		if not ok then
+			return nil, body
+		end
+		if type(body) ~= "string" or body == "" then
+			return nil, "empty response"
+		end
+		src = body
+	end
+
+	NAStuff.uiSrc = src
+	NAStuff.uiFn = nil
+	NAStuff.uiErr = nil
+	NAAssetsLoading.cachePrefetchedRemote(url, src)
+	return src
+end
+
+NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
+	if not force and type(NAStuff.uiFn) == "function" then
+		return NAStuff.uiFn
+	end
+
+	local src, err = NAmanage.uiSrcGet(force)
+	if type(src) ~= "string" or src == "" then
+		return nil, err or "missing source"
+	end
+
+	local fn, lerr = loadstring(src)
+	if type(fn) ~= "function" then
+		NAStuff.uiErr = tostring(lerr or "compile error")
+		return nil, lerr
+	end
+
+	NAStuff.uiFn = fn
+	NAStuff.uiErr = nil
+	return fn
+end
+
+NAmanage.uiRun = NAmanage.uiRun or function(force)
+	local fn, err = NAmanage.uiFnGet(force)
+	if type(fn) ~= "function" then
+		return false, err
+	end
+	local ok, res = pcall(fn)
+	if not ok then
+		NAStuff.uiErr = tostring(res)
+		return false, res
+	end
+	return true, res
+end
+
+NAAssetsLoading._finalized = false
 if not NAAssetsLoading.setStatus then
 	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
 	NAgui.NaProtectUI(NAAssetsLoading.ui)
@@ -8760,17 +8983,15 @@ end, {maxAttempts=10})
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("changelog") end
 
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
-	if type(opt.NAUILOADER) ~= "string" or opt.NAUILOADER == "" then
-		return false, nil, "missing UI loader url"
+	local src, serr = NAmanage.uiSrcGet(false)
+	if type(src) ~= "string" or src == "" then
+		return false, nil, serr or "missing UI loader source"
 	end
-	local ok, body = pcall(game.HttpGet, game, opt.NAUILOADER)
-	if not ok then
-		return false, nil, body
+	local fn, ferr = NAmanage.uiFnGet(false)
+	if type(fn) ~= "function" then
+		return false, nil, ferr or "failed to compile UI loader"
 	end
-	if type(body) ~= "string" or body == "" then
-		return false, nil, "empty response"
-	end
-	return true, body
+	return true, src
 end, function(body)
 	NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
 end)
@@ -8806,7 +9027,9 @@ end, NAAssetsLoading.getSkip)
 NAAssetsLoading.setStatus("Fetching Roblox API")
 pcall(function()
 	if NAmanage and NAmanage.prefetchRobloxGameInfo then
-		NAmanage.prefetchRobloxGameInfo()
+		SpawnCall(function()
+			pcall(NAmanage.prefetchRobloxGameInfo)
+		end)
 	end
 	if NAAssetsLoading.setPercent then
 		NAAssetsLoading.setPercent(0.96)
@@ -9307,15 +9530,21 @@ NAmanage.NASettingsGetSchema=function()
 				return { X = 0.5; Y = 0.1 }
 			end;
 		};
-		iconKeepPosition = {
-			default = false;
-			coerce = function(value)
-				return value == true
-			end;
-		};
-		uiScale = {
-			pathKey = "NAUISIZEPATH";
-			default = function()
+			iconKeepPosition = {
+				default = false;
+				coerce = function(value)
+					return value == true
+				end;
+			};
+			connectionsToFriends = {
+				default = false;
+				coerce = function(value)
+					return coerceBoolean(value, false)
+				end;
+			};
+			uiScale = {
+				pathKey = "NAUISIZEPATH";
+				default = function()
 				local migrated = NamelessMigrate:UiSize()
 				local numberValue = tonumber(migrated)
 				return numberValue and numberValue > 0 and numberValue or 1
@@ -11207,6 +11436,7 @@ opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
+NAStuff.ConnectionsToFriends = NAmanage.NASettingsGet("connectionsToFriends") == true
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
@@ -11922,13 +12152,12 @@ if FileSupport then
 	end))
 
 	NAlib.disconnect("TCS_ApplyLoop")
+	NAStuff._tcsApplyLoopToken = (tonumber(NAStuff._tcsApplyLoopToken) or 0) + 1
 	do
-		local last = os.clock()
-		local interval = 0.5
-		NAlib.connect("TCS_ApplyLoop", RunService.RenderStepped:Connect(function()
-			local now = os.clock()
-			if now - last >= interval then
-				last = now
+		local loopToken = NAStuff._tcsApplyLoopToken
+		Spawn(function()
+			while NAStuff and NAStuff._tcsApplyLoopToken == loopToken do
+				local didWork = false
 				local desiredCoreChat = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
 				local synced = isCoreChatStateSynced()
 				if synced == false then
@@ -11936,6 +12165,7 @@ if FileSupport then
 						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, desiredCoreChat)
 					end)
 					markChatSettingsDirty()
+					didWork = true
 				elseif synced == nil and desiredCoreChat then
 					pcall(function()
 						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
@@ -11943,9 +12173,15 @@ if FileSupport then
 				end
 				if NAStuff.ChatSettingsDirty then
 					NAmanage.ApplyTextChatSettings()
+					didWork = true
 				end
+				local waitTime = didWork and 0.5 or 1
+				if NAmanage.isLoad and NAmanage.isLoad() then
+					waitTime = math.max(waitTime, 1.2)
+				end
+				Wait(waitTime)
 			end
-		end))
+		end)
 	end
 
 	NAmanage.ApplyTextChatSettings()
@@ -23482,7 +23718,7 @@ end)
 	end
 end)
 
-cmd.add({"cancelteleport","canceltp"},{"cancelteleport (canceltp)","Cancel an in-progress teleport"},function()
+cmd.add({"cancelteleport","canceltp"},{"cancelteleport","Cancel an in-progress teleport"},function()
 	local ok,err=pcall(function()
 		TeleportService:TeleportCancel()
 	end)
@@ -23493,10 +23729,54 @@ cmd.add({"cancelteleport","canceltp"},{"cancelteleport (canceltp)","Cancel an in
 	end
 end)
 
+cmd.add({"cancelteleportloop","canceltploop","loopcancelteleport","loopcanceltp"},{"cancelteleportloop [interval]","Repeatedly cancels in-progress teleport"},function(interval)
+	local tickRate = tonumber(interval)
+	if not tickRate then
+		tickRate = 0
+	end
+	tickRate = math.clamp(tickRate, 0, 2)
+
+	NAlib.disconnect("cancelteleport_loop")
+	local elapsed = tickRate
+	NAlib.connect("cancelteleport_loop", RunService.Heartbeat:Connect(function(dt)
+		elapsed += (tonumber(dt) or 0)
+		if elapsed < tickRate then
+			return
+		end
+		elapsed = 0
+		pcall(function()
+			TeleportService:TeleportCancel()
+		end)
+	end))
+
+	DoNotif("CancelTeleport loop enabled ("..tostring(tickRate).."s interval).",2)
+end,true)
+
+cmd.add({"uncancelteleportloop","uncanceltploop","unloopcancelteleport","unloopcanceltp"},{"uncancelteleportloop","Disable cancelteleport loop"},function()
+	if NAlib.isConnected("cancelteleport_loop") then
+		NAlib.disconnect("cancelteleport_loop")
+		DoNotif("CancelTeleport loop disabled.",2)
+	else
+		DoNotif("CancelTeleport loop is already disabled.",2)
+	end
+end)
+
 cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	local plrs=Players
 	local tp=TeleportService
 	local lp=plrs.LocalPlayer
+
+	local function resolveRejoinJobId()
+		local live = tostring((game and game.JobId) or "")
+		if live ~= "" then
+			return live
+		end
+		local cached = tostring(JobId or "")
+		if cached ~= "" then
+			return cached
+		end
+		return nil
+	end
 
 	NAlib.disconnect("rejoin_tperr")
 	NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
@@ -23511,11 +23791,16 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		end)
 		if not ok then DoNotif("Teleport error: "..tostring(err)) end
 	else
-		local ok,err=pcall(function()
-			tp:TeleportToPlaceInstance(PlaceId,game.JobId,lp)
-		end)
-		if not ok then
-			DoNotif("TeleportToPlaceInstance error: "..tostring(err))
+		local targetJobId = resolveRejoinJobId()
+		if targetJobId then
+			local ok,err=pcall(function()
+				tp:TeleportToPlaceInstance(PlaceId,targetJobId,lp)
+			end)
+			if not ok then
+				DoNotif("TeleportToPlaceInstance error: "..tostring(err))
+				pcall(function() tp:Teleport(PlaceId,lp) end)
+			end
+		else
 			pcall(function() tp:Teleport(PlaceId,lp) end)
 		end
 	end
@@ -31262,14 +31547,31 @@ end)
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
 	NAlib.disconnect("autorejoin")
 
-	local function handleRejoin()
-		if #Players:GetPlayers() <= 1 then
-			Players.LocalPlayer:Kick("Rejoining...")
-			Wait(.05)
-			TeleportService:Teleport(PlaceId, Players.LocalPlayer)
-		else
-			TeleportService:TeleportToPlaceInstance(PlaceId, JobId, Players.LocalPlayer)
+	local function resolveRejoinJobId()
+		local live = tostring((game and game.JobId) or "")
+		if live ~= "" then
+			return live
 		end
+		local cached = tostring(JobId or "")
+		if cached ~= "" then
+			return cached
+		end
+		return nil
+	end
+
+	local function handleRejoin()
+		local targetJobId = resolveRejoinJobId()
+		if targetJobId then
+			local ok, err = pcall(function()
+				TeleportService:TeleportToPlaceInstance(PlaceId, targetJobId, Players.LocalPlayer)
+			end)
+			if ok then
+				return
+			end
+		end
+		pcall(function()
+			TeleportService:Teleport(PlaceId, Players.LocalPlayer)
+		end)
 	end
 
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(handleRejoin))
@@ -41265,17 +41567,33 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 			end
 		end
 
+		local function bindRobloxGui(rg)
+			if not (rg and rg:IsA("LayerCollector")) then
+				return
+			end
+			local nf = rg:FindFirstChild("NotificationFrame")
+			if nf and nf:IsA("Frame") then
+				bindNotificationFrame(nf)
+			end
+			Insert(tbl.conns, rg.ChildAdded:Connect(function(inst)
+				if not tbl.blocking or not inst then return end
+				if inst.Name == "NotificationFrame" and inst:IsA("Frame") then
+					bindNotificationFrame(inst)
+				end
+			end))
+		end
+
 		if enable then
 			if tbl.blocking then return end
 			tbl.blocking = true
 			tbl.frames = tbl.frames or setmetatable({}, { __mode = "k" })
 
 			attachExisting()
-
-			Insert(tbl.conns, coreGui.DescendantAdded:Connect(function(inst)
+			bindRobloxGui(coreGui:FindFirstChild("RobloxGui"))
+			Insert(tbl.conns, coreGui.ChildAdded:Connect(function(inst)
 				if not tbl.blocking or not inst then return end
-				if inst.Name == "NotificationFrame" and inst:IsA("Frame") then
-					bindNotificationFrame(inst)
+				if inst.Name == "RobloxGui" and inst:IsA("LayerCollector") then
+					bindRobloxGui(inst)
 				end
 			end))
 		else
@@ -51586,38 +51904,49 @@ end]]
 
 --[[ GUI VARIABLES ]]--
 originalIO.NAfetchUILoaderSource=function()
-	if NAmanage and NAmanage.getPrefetchedRemote and opt and opt.NAUILOADER then
-		local cached = NAmanage.getPrefetchedRemote(opt.NAUILOADER)
-		if type(cached) == "string" and cached ~= "" then
-			return cached
-		end
+	if NAmanage and NAmanage.uiSrcGet then
+		return NAmanage.uiSrcGet(false)
 	end
-	local ok, body = pcall(game.HttpGet, game, opt.NAUILOADER)
-	if ok and type(body) == "string" and body ~= "" then
-		return body
-	end
-	return nil, body
+	return nil, "ui source helper unavailable"
 end
 
 if not (_na_env and _na_env.NAUILOADEDORSUM and _na_env.NA_UI and _na_env.NA_UI.Parent) then
 	do
 		if not NAStuff.NASCREENGUI then
-			repeat
-				local NASUC, resexy = pcall(function()
+			local maxTry = 6
+			local attempt = 0
+			while not NAStuff.NASCREENGUI and attempt < maxTry do
+				attempt += 1
+
+				local okRun, result = false, nil
+				if NAmanage and NAmanage.uiRun then
+					okRun, result = NAmanage.uiRun(attempt > 1)
+				else
 					local src, err = originalIO.NAfetchUILoaderSource()
 					if not src then
-						error(tostring(err or "no UI loader source"))
+						okRun, result = false, err
+					else
+						local fn, lerr = loadstring(src)
+						if type(fn) == "function" then
+							okRun, result = pcall(fn)
+						else
+							okRun, result = false, lerr
+						end
 					end
-					return loadstring(src)()
-				end)
-
-				if NASUC and resexy then
-					NAmanage.NARegisterUI(resexy)
-				else
-					warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(resexy)))
-					Wait(0.3)
 				end
-			until NAStuff.NASCREENGUI
+
+				if okRun and result then
+					NAmanage.NARegisterUI(result)
+					break
+				end
+
+				if attempt < maxTry then
+					warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(result)))
+					Wait(0.2 + (attempt * 0.05))
+				else
+					warn(Format("%d | Failed to load UI module after %d attempts: %s", math.random(1, 999999), attempt, tostring(result)))
+				end
+			end
 		end
 	end
 else
@@ -53052,8 +53381,17 @@ NAgui.commands = function()
 	end
 
 	for name, label in pairs(pool) do
-		if not active[name] and label.Parent == cList then
-			label.Visible = false
+		if not active[name] then
+			pool[name] = nil
+			if label then
+				pcall(function()
+					label:Destroy()
+				end)
+			end
+		elseif label and label.Parent ~= cList then
+			pcall(function()
+				label.Parent = cList
+			end)
 		end
 	end
 
@@ -54588,20 +54926,37 @@ end
 NAmanage.StartUIAutoSyncLoop = function()
 	if NAmanage._uiAutoSyncLoopStarted then return end
 	NAmanage._uiAutoSyncLoopStarted = true
+	NAmanage._uiAutoSyncLoopAlive = true
 	Spawn(function()
-		while true do
+		local idleStreak = 0
+		while NAmanage._uiAutoSyncLoopAlive do
 			local store = NAmanage._uiAutoSync
 			local hasToggles = store and store.toggles and next(store.toggles) ~= nil
-
-			if not hasToggles then
-				Wait(1)
-			else
-				Wait(0.25)
+			if hasToggles then
 				local ok, err = pcall(NAmanage.RunUIAutoSync)
-				if not ok then
+				if ok then
+					idleStreak = 0
+				else
+					idleStreak = math.min(idleStreak + 1, 10)
 					warn("[NA] UI auto-sync failed:", err)
 				end
+			else
+				idleStreak = math.min(idleStreak + 1, 12)
 			end
+
+			local sleepTime = hasToggles and 0.35 or math.min(6, 1.5 + idleStreak * 0.35)
+			if hasToggles then
+				if NAmanage.isLoad and NAmanage.isLoad() then
+					sleepTime = 0.6
+				end
+				if NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Enabled == false then
+					sleepTime = math.max(sleepTime, 0.8)
+				end
+				if idleStreak > 0 then
+					sleepTime = sleepTime + math.min(0.5, idleStreak * 0.05)
+				end
+			end
+			Wait(sleepTime)
 		end
 	end)
 end
@@ -56174,9 +56529,28 @@ NAgui.loadCMDS = function()
 end
 
 SpawnCall(function() -- plugin tester
-	while Wait(2) do
-		if NAmanage.totalCommandCount() ~= cmdNAnum then
-			NAgui.loadCMDS()
+	NAStuff._pluginTesterLoop = true
+	local waitTime = 2
+	local stableStreak = 0
+	while NAStuff._pluginTesterLoop do
+		Wait(waitTime)
+		if NAmanage.isLoad and NAmanage.isLoad() then
+			waitTime = 4
+			stableStreak = 0
+		elseif not (NAUIMANAGER and NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill.Parent) then
+			waitTime = math.min(8, waitTime + 1)
+		else
+			if type(NAgui.loadCMDS) == "function" and NAmanage.totalCommandCount() ~= cmdNAnum then
+				local ok, err = pcall(NAgui.loadCMDS)
+				if not ok then
+					warn("[NA] Command refresh loop failed:", err)
+				end
+				waitTime = 2
+				stableStreak = 0
+			else
+				stableStreak = math.min(stableStreak + 1, 20)
+				waitTime = math.min(12, 2 + stableStreak * 0.5)
+			end
 		end
 	end
 end)
@@ -58957,6 +59331,11 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 	if not (plr and hum) then
 		return
 	end
+	NAStuff.bHum = NAStuff.bHum or setmetatable({}, { __mode = "k" })
+	if NAStuff.bHum[hum] then
+		return
+	end
+	NAStuff.bHum[hum] = true
 	local lastHP = hum.Health
 	hum.Died:Connect(function()
 		NAmanage.ExecuteBindings("OnDeath", plr)
@@ -58982,6 +59361,11 @@ originalIO.binderAttachToolListeners=function(plr, char)
 	if not (plr and char) then
 		return
 	end
+	NAStuff.bTool = NAStuff.bTool or setmetatable({}, { __mode = "k" })
+	if NAStuff.bTool[char] then
+		return
+	end
+	NAStuff.bTool[char] = true
 	char.ChildAdded:Connect(function(child)
 		if child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
@@ -58998,6 +59382,11 @@ originalIO.binderSetupCharacter=function(plr, char)
 	if not char then
 		return
 	end
+	NAStuff.bSet = NAStuff.bSet or setmetatable({}, { __mode = "k" })
+	if NAStuff.bSet[char] then
+		return
+	end
+	NAStuff.bSet[char] = true
 	originalIO.binderAttachToolListeners(plr, char)
 	local hum = getHum(char)
 	if hum then
@@ -59019,16 +59408,34 @@ originalIO.waitForCharacterReady=function(plr)
 	return nil
 end
 
+NAmanage.lcKey = NAmanage.lcKey or function(prefix, plr)
+	local id = "unknown"
+	if plr then
+		local uid = tonumber(plr.UserId)
+		if uid and uid > 0 then
+			id = tostring(uid)
+		elseif plr.Name then
+			id = tostring(plr.Name)
+		end
+	end
+	return prefix.."_"..id
+end
+
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr)
 
-	plr.Chatted:Connect(function(msg)
+	local chatKey = NAmanage.lcKey("playerLifecycle_chat", plr)
+	local charKey = NAmanage.lcKey("playerLifecycle_char", plr)
+	NAlib.disconnect(chatKey)
+	NAlib.disconnect(charKey)
+
+	NAlib.connect(chatKey, plr.Chatted:Connect(function(msg)
 		bindToChat(plr, msg)
 		NAmanage.ExecuteBindings("OnChatted", plr, msg)
 		if NAmanage.WebhookChat then
 			NAmanage.WebhookChat(plr, msg)
 		end
-	end)
+	end))
 
 	if plr ~= LocalPlayer then
 		SpawnCall(function() CheckPermissions(plr) end)
@@ -59043,10 +59450,10 @@ function setupPlayer(plr,bruh)
 		end)
 	end
 
-	plr.CharacterAdded:Connect(function(char)
+	NAlib.connect(charKey, plr.CharacterAdded:Connect(function(char)
 		NAmanage.ExecuteBindings("OnSpawn", plr, char)
 		originalIO.binderSetupCharacter(plr, char)
-	end)
+	end))
 
 	if not bruh and plr.Character then
 		originalIO.binderSetupCharacter(plr, plr.Character)
@@ -59083,6 +59490,8 @@ NAlib.disconnect("playerLifecycle")
 NAlib.connect("playerLifecycle", Players.PlayerAdded:Connect(setupPlayer))
 
 NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
+	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_chat", plr))
+	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_char", plr))
 	NAmanage.ExecuteBindings("OnLeave", plr)
 	NAmanage.ESP_Disconnect(plr)
 	if NAmanage.jlCfg.LeaveLog then
@@ -59096,8 +59505,32 @@ NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
 	end
 end))
 
-SpawnCall(function()
-	local HUI = NAlib.huiGrabber();
+	SpawnCall(function()
+		local HUI = NAlib.huiGrabber();
+		local fhSet = setmetatable({}, { __mode = "k" })
+		local function conToFriendsEnabled()
+			return NAStuff and NAStuff.ConnectionsToFriends == true
+		end
+		local function hasCon(v)
+			return type(v) == "string" and v ~= "" and v:find("Connection", 1, true) ~= nil
+		end
+	local function needCon(o)
+		local okText, textVal = pcall(function()
+			return o.Text
+		end)
+		if okText and hasCon(textVal) then
+			return true
+		end
+		if o:IsA("TextBox") then
+			local okPh, phVal = pcall(function()
+				return o.PlaceholderText
+			end)
+			if okPh and hasCon(phVal) then
+				return true
+			end
+		end
+		return false
+	end
 	local function hookLbl(o)
 		if not o or typeof(o) ~= "Instance" then
 			return;
@@ -59105,46 +59538,70 @@ SpawnCall(function()
 		if HUI and o:IsDescendantOf(HUI) then
 			return;
 		end;
-		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+			if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+				return;
+			end;
+			if not conToFriendsEnabled() then
+				return;
+			end;
+			if not needCon(o) then
+				return;
+			end;
+		if fhSet[o] then
 			return;
 		end;
-		if NAmanage.GetAttr(o, "NAFriendHooked") then
-			return;
-		end;
-		NAmanage.SetAttr(o, "NAFriendHooked", true);
+		fhSet[o] = true;
 		local applying = false;
 		local function rep(p)
 			local ok, t = pcall(function()
 				return o[p];
 			end);
-			if not (ok and type(t) == "string" and t ~= "" and t:find("Connection")) then
-				return;
+			if not (ok and hasCon(t)) then
+				return false;
 			end;
 			local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend");
 			if new ~= t then
 				pcall(function()
 					o[p] = new;
 				end);
+				return true;
 			end;
+			return false;
 		end;
+		local pending = false;
+		local nextAt = 0;
 		local function apply()
-			if applying then
+			if applying or pending then
 				return;
 			end;
-			applying = true;
-			rep("Text");
-			rep("PlaceholderText");
-			applying = false;
-		end;
-		Defer(apply);
-		(o:GetPropertyChangedSignal("Text")):Connect(function()
-			Defer(apply);
-		end);
-		pcall(function()
-			(o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
-				Defer(apply);
+			pending = true;
+			Defer(function()
+				pending = false;
+				if applying or (not o.Parent) then
+					return;
+				end;
+				local now = os.clock();
+				if now < nextAt then
+					return;
+				end;
+				applying = true;
+				local changed = rep("Text");
+				if o:IsA("TextBox") then
+					changed = rep("PlaceholderText") or changed;
+				end;
+				applying = false;
+				nextAt = os.clock() + (changed and 0.03 or 0.08);
 			end);
+		end;
+		apply();
+		(o:GetPropertyChangedSignal("Text")):Connect(function()
+			apply();
 		end);
+		if o:IsA("TextBox") then
+			(o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
+				apply();
+			end);
+		end;
 	end;
 	local iIdx = {
 		click = setmetatable({}, { __mode = "k" });
@@ -59234,7 +59691,16 @@ SpawnCall(function()
 		scanning = true;
 		Spawn(function()
 			while #scanJobs > 0 do
-				local budget = 35;
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(35, {
+						delay = 0,
+						ldSc = 0.35,
+						ldDel = 0.012,
+					});
+				else
+					budget, waitDelay = 35, 0
+				end
 				while budget > 0 and #scanJobs > 0 do
 					local job = scanJobs[1];
 					local q = job.q;
@@ -59256,7 +59722,11 @@ SpawnCall(function()
 						budget -= 1;
 					end;
 				end;
-				Wait();
+				if waitDelay > 0 then
+					Wait(waitDelay);
+				else
+					Wait();
+				end;
 			end;
 			scanning = false;
 		end);
@@ -59289,7 +59759,16 @@ SpawnCall(function()
 		dBusy = true;
 		Spawn(function()
 			while dHead <= dTail do
-				local budget = 120;
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(120, {
+						delay = 0,
+						ldSc = 0.4,
+						ldDel = 0.008,
+					});
+				else
+					budget, waitDelay = 120, 0
+				end
 				while budget > 0 and dHead <= dTail do
 					local inst = dQ[dHead];
 					dQ[dHead] = nil;
@@ -59323,7 +59802,11 @@ SpawnCall(function()
 					end;
 					budget -= 1;
 				end;
-				Wait();
+				if waitDelay > 0 then
+					Wait(waitDelay);
+				else
+					Wait();
+				end;
 			end;
 			dQ = setmetatable({}, { __mode = "v" });
 			dHead = 1;
@@ -59345,12 +59828,12 @@ SpawnCall(function()
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
-		opts = opts or {};
-		local hasAny = false;
-		if opts.friend == true and isFLbl(inst) then
-			if not (HUI and inst:IsDescendantOf(HUI)) then
-				fPend[inst] = true;
-				hasAny = true;
+			opts = opts or {};
+			local hasAny = false;
+			if opts.friend == true and conToFriendsEnabled() and isFLbl(inst) then
+				if not (HUI and inst:IsDescendantOf(HUI)) and needCon(inst) then
+					fPend[inst] = true;
+					hasAny = true;
 			end;
 		end;
 		if opts.interact ~= nil and isITgt(inst) then
@@ -59381,32 +59864,56 @@ SpawnCall(function()
 		end;
 		kickDQ();
 	end;
-	if CoreGui then
-		queueScan(CoreGui, function(inst)
-			qDesc(inst, {
-				friend = true
-			});
-		end);
-		NAlib.disconnect("NA_FriendLabel_CoreGui");
-		NAlib.connect("NA_FriendLabel_CoreGui", CoreGui.DescendantAdded:Connect(function(o)
-			qDesc(o, {
-				friend = true
-			});
-		end));
-	end;
-	if PlrGui then
-		queueScan(PlrGui, function(inst)
-			qDesc(inst, {
-				friend = true
-			});
-		end);
-		NAlib.disconnect("NA_FriendLabel_PlayerGui");
-		NAlib.connect("NA_FriendLabel_PlayerGui", PlrGui.DescendantAdded:Connect(function(o)
-			qDesc(o, {
-				friend = true
-			});
-		end));
-	end;
+		if CoreGui then
+			local friendRoot = nil
+			local function bindFriendRoot(root)
+			if friendRoot == root then
+				return
+			end
+			friendRoot = root
+			NAlib.disconnect("NA_FriendLabel_CoreGui")
+			if not root then
+				return
+			end
+			queueScan(root, function(inst)
+				qDesc(inst, {
+					friend = true
+				});
+			end);
+				NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
+					if not isFLbl(o) then
+						return
+					end
+					qDesc(o, {
+						friend = true
+					});
+				end));
+			end
+
+			NAmanage.refreshConnectionsFriendLabels = function()
+				if not conToFriendsEnabled() then
+					return
+				end
+				local root = friendRoot
+				if not (root and root.Parent) then
+					root = CoreGui
+				end
+				if not root then
+					return
+				end
+				queueScan(root, function(inst)
+					qDesc(inst, {
+						friend = true
+					});
+				end);
+			end
+	
+				bindFriendRoot(CoreGui)
+		
+			NAlib.disconnect("NA_FriendLabel_CoreGuiRoot")
+			NAlib.disconnect("NA_FriendLabel_CoreGuiRootRemoved")
+		end;
+	NAlib.disconnect("NA_FriendLabel_PlayerGui");
 	queueScan(workspace, function(inst)
 		qDesc(inst, {
 			interact = true
@@ -59530,9 +60037,11 @@ do
 	NAStuff.pfTick = NAStuff.pfTick or 0
 	NAStuff.canvasTick = NAStuff.canvasTick or 0
 	NAlib.disconnect("NA_RenderStepMain")
-	NAlib.connect("NA_RenderStepMain", RunService.RenderStepped:Connect(function(dt)
+	NAlib.connect("NA_RenderStepMain", RunService.Heartbeat:Connect(function(dt)
+		local uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
+		local canvasInterval = uiVisible and 0.12 or 0.5
 		NAStuff.canvasTick = NAStuff.canvasTick + (dt or 0)
-		if NAUIMANAGER and NAStuff.canvasTick >= 0.1 then
+		if NAUIMANAGER and NAStuff.canvasTick >= canvasInterval then
 			NAStuff.canvasTick = 0
 			local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
 			if NAUIMANAGER.chatLogs then
@@ -59555,8 +60064,9 @@ do
 			end
 		end
 
+		local prefixInterval = uiVisible and 0.35 or 0.8
 		NAStuff.pfTick = NAStuff.pfTick + (dt or 0)
-		if NAStuff.pfTick < 0.25 then
+		if NAStuff.pfTick < prefixInterval then
 			return
 		end
 		NAStuff.pfTick = 0
@@ -61738,15 +62248,55 @@ NAmanage.UpdateAssetLoadStatus = NAmanage.UpdateAssetLoadStatus or function(done
 	end)
 end
 
-originalIO.AssetsPreloadNA = function()
+originalIO.AssetsPreloadNA = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	local stMode = opts.st == true
+
 	local entries = {}
 	local seenString = {}
 	local seenInstance = {}
 	local scanChunk = math.max(100, NAmanage.GetAggressivePreloadChunk())
 	local scanYield = math.max(0, NAmanage.GetAggressiveChunkYield())
+	if stMode then
+		scanChunk = math.max(48, math.floor(scanChunk * 0.25))
+		scanYield = math.max(scanYield, 0.02)
+	end
 	local scanned = 0
+	local maxInst = tonumber(opts.maxI)
+	local maxEnt = tonumber(opts.maxE)
+	if stMode then
+		if not maxInst or maxInst < 1 then
+			maxInst = 12000
+		end
+		if not maxEnt or maxEnt < 1 then
+			maxEnt = 6000
+		end
+	end
+	local incWs = opts.incWs
+	if incWs == nil then
+		incWs = not stMode
+	end
+	local cTok = NAmanage.NewCancelToken()
 
-	local function addResource(value)
+	local function hitLim()
+		if cTok and cTok.cancelled then
+			return true
+		end
+		if maxInst and scanned >= maxInst then
+			cTok.cancelled = true
+			return true
+		end
+		if maxEnt and #entries >= maxEnt then
+			cTok.cancelled = true
+			return true
+		end
+		return false
+	end
+
+	local function addRes(value)
+		if hitLim() then
+			return
+		end
 		local t = typeof(value)
 		if t == "Instance" then
 			if not seenInstance[value] then
@@ -61762,7 +62312,6 @@ originalIO.AssetsPreloadNA = function()
 	end
 
 	local roots = {
-		game:GetService("Workspace"),
 		game:GetService("ReplicatedStorage"),
 		game:GetService("ReplicatedFirst"),
 		game:GetService("Lighting"),
@@ -61773,14 +62322,23 @@ originalIO.AssetsPreloadNA = function()
 		game:GetService("Chat"),
 		game:GetService("TextChatService"),
 	}
+	if incWs then
+		roots[#roots + 1] = game:GetService("Workspace")
+	end
 
 	for i = 1, #roots do
+		if hitLim() then
+			break
+		end
 		local root = roots[i]
 		if typeof(root) == "Instance" then
 			pcall(function()
 				NAmanage.ForEachDescendantYield(root, function(inst)
+					if hitLim() then
+						return
+					end
 					if NAStuff.PRELOAD_INSTANCE_CLASSES[inst.ClassName] then
-						addResource(inst)
+						addRes(inst)
 					end
 					local props = NAStuff.PRELOAD_ASSET_CLASS_PROPS[inst.ClassName]
 					if props then
@@ -61790,16 +62348,23 @@ originalIO.AssetsPreloadNA = function()
 								return inst[prop]
 							end)
 							if okProp and value then
-								addResource(value)
+								addRes(value)
 							end
 						end
 					end
 					scanned += 1
+					if hitLim() then
+						return
+					end
 				end, {
 					yieldEvery = scanChunk,
 					delayTime = (scanYield > 0 and scanYield or nil),
+					cancelToken = cTok,
 				})
 			end)
+		end
+		if hitLim() then
+			break
 		end
 		if scanYield > 0 then
 			Wait(scanYield)
@@ -61865,7 +62430,9 @@ NAmanage.finishAssetLoad = function(session, success, total, startTime, err)
 end
 
 NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
+	opts = type(opts) == "table" and opts or {}
 	local silent = opts and opts.silent
+	local stMode = opts.st == true
 	if NAStuff.AssetLoadRunning then
 		if not silent then
 			DoNotif("Asset loader is already running.", 2)
@@ -61891,7 +62458,12 @@ NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
 		local session = { finished = false }
 		local lastProgressTick = startTime
 		local ok, err = pcall(function()
-			local assets = originalIO.AssetsPreloadNA()
+			local assets = originalIO.AssetsPreloadNA({
+				st = stMode,
+				incWs = opts.incWs,
+				maxI = opts.maxI,
+				maxE = opts.maxE,
+			})
 			local total = #assets
 			totalAssets = total
 			if total == 0 then
@@ -61906,6 +62478,10 @@ NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
 			lastProgressTick = tick()
 			local chunkSize = math.max(1, NAmanage.GetAggressivePreloadChunk())
 			local chunkYield = math.max(0, NAmanage.GetAggressiveChunkYield())
+			if stMode then
+				chunkSize = math.max(48, math.floor(chunkSize * 0.4))
+				chunkYield = math.max(chunkYield, 0.02)
+			end
 			local watchdog = Spawn(function()
 				while not session.finished do
 					Wait(2)
@@ -64510,6 +65086,16 @@ NAgui.addSlider("Side Swipe Handle Transparency", 0, 1, NAgui.clamp01(NAStuff.Si
 	NAmanage.applySideSwipeStyle({ rebuild = false })
 end)
 
+NAgui.addSection("CoreGui Customization")
+
+NAgui.addToggle("Rename Connections To Friends", NAStuff.ConnectionsToFriends == true, function(v)
+	NAStuff.ConnectionsToFriends = v == true
+	NAmanage.NASettingsSet("connectionsToFriends", NAStuff.ConnectionsToFriends)
+	if NAStuff.ConnectionsToFriends and type(NAmanage.refreshConnectionsFriendLabels) == "function" then
+		NAmanage.refreshConnectionsFriendLabels()
+	end
+end)
+
 if CoreGui then
 	local PT = {
 		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
@@ -64762,17 +65348,20 @@ if CoreGui then
 		end)()
 	end
 
-	rescanAll()
-
 	local function onDescendantAdded(o)
+		if not PT.data.enabled then
+			return
+		end
 		enqueue(o)
 		scheduleQueueProcess()
 	end
 
-	NAlib.disconnect("PlexyDescAdded")
-	NAlib.disconnect("PlexyDescRemoving")
-
-	if PT.cg then
+	local function setPlexW(on)
+		NAlib.disconnect("PlexyDescAdded")
+		NAlib.disconnect("PlexyDescRemoving")
+		if not on or not PT.cg then
+			return
+		end
 		NAlib.connect("PlexyDescAdded", PT.cg.DescendantAdded:Connect(onDescendantAdded))
 		NAlib.connect("PlexyDescRemoving", PT.cg.DescendantRemoving:Connect(function(o)
 			PT.images[o] = nil
@@ -64780,12 +65369,26 @@ if CoreGui then
 		end))
 	end
 
+	if PT.data.enabled then
+		rescanAll()
+		setPlexW(true)
+	else
+		setPlexW(false)
+	end
+
 	NAgui.addSection("Plexity Theme")
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
 		if v then
+			setPlexW(true)
+			rescanAll()
 			NAmanage.plex_applyAll()
 		else
+			setPlexW(false)
+			PT.queue = {}
+			PT.queueHead = 1
+			PT.queueTail = 0
+			PT.queueSet = setmetatable({}, { __mode = "k" })
 			local cg = PT.cg
 			if cg then
 				local desc = cg:GetDescendants()
@@ -64805,7 +65408,9 @@ if CoreGui then
 	NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
 		local h, s, v = c:ToHSV()
 		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
-		NAmanage.plex_applyAll()
+		if PT.data.enabled then
+			NAmanage.plex_applyAll()
+		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
 		end
@@ -64814,7 +65419,9 @@ if CoreGui then
 	NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
 		local h, s, v = c:ToHSV()
 		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
-		NAmanage.plex_applyAll()
+		if PT.data.enabled then
+			NAmanage.plex_applyAll()
+		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
 		end
@@ -66399,19 +67006,21 @@ NAmanage.SetupBasicInfoTab = function()
 
 	local updateInterval = 1
 	if not NAgui.BasicInfoUpdate then
-		NAgui.BasicInfoUpdate = { interval = updateInterval, last = 0 }
-		NAgui.BasicInfoUpdate.conn = RunService.Heartbeat:Connect(function()
-			local data = NAgui.BasicInfoUpdate
-			if not data then
-				return
-			end
-			if not TabManager or TabManager.current ~= NA_TABS.TAB_BASIC_INFO then
-				return
-			end
-			local now = tick()
-			if now - data.last >= data.interval then
-				data.last = now
-				refreshBasicInfo()
+		NAgui.BasicInfoUpdate = { interval = updateInterval, token = 0 }
+		NAgui.BasicInfoUpdate.token += 1
+		local token = NAgui.BasicInfoUpdate.token
+		Spawn(function()
+			while NAgui.BasicInfoUpdate and NAgui.BasicInfoUpdate.token == token do
+				local data = NAgui.BasicInfoUpdate
+				local active = TabManager and TabManager.current == NA_TABS.TAB_BASIC_INFO
+				if active then
+					refreshBasicInfo()
+				end
+				local waitTime = active and (tonumber(data.interval) or updateInterval) or 1.5
+				if NAmanage.isLoad and NAmanage.isLoad() then
+					waitTime = math.max(waitTime, 2)
+				end
+				Wait(waitTime)
 			end
 		end)
 	else
@@ -66886,11 +67495,15 @@ pcall(function()
 		NAAssetsLoading.setStatus("ready")
 		NAAssetsLoading.setPercent(1)
 		NAAssetsLoading.completed.Value = true
+		NAAssetsLoading._finalized = true
 	end
 	if NAStuff.AutoPreloadAssets then
 		Defer(function()
-			Wait(0.1)
-			NAmanage.StartAssetPreload({silent = true})
+			Wait(1.5)
+			NAmanage.StartAssetPreload({
+				silent = true,
+				st = true,
+			})
 		end)
 	end
 end)
