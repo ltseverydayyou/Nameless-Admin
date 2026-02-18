@@ -3800,13 +3800,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local uiScanJobs = {}
 	local uiScanning = false
 
-	local function queueUIScan(root, fn)
+	local function queueUIScan(root, fn, opts)
 		if not root or not fn then
 			return
 		end
+		opts = opts or {}
+		local guard = type(opts.guard) == "function" and opts.guard or nil
 
 		Insert(uiScanJobs, {
 			fn = fn,
+			guard = guard,
 			q = { root },
 			qi = 1,
 			qn = 1,
@@ -3823,6 +3826,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 				while budget > 0 and #uiScanJobs > 0 do
 					local job = uiScanJobs[1]
+					local jobGuard = job.guard
+					if jobGuard and not jobGuard() then
+						table.remove(uiScanJobs, 1)
+						continue
+					end
 					local q = job.q
 					local qi = job.qi
 					local qn = job.qn
@@ -3834,6 +3842,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 						local inst = q[qi]
 						job.qi = qi + 1
 
+						if jobGuard and not jobGuard() then
+							table.remove(uiScanJobs, 1)
+							continue
+						end
 						jobFn(inst)
 
 						local ch = inst:GetChildren()
@@ -3873,7 +3885,35 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if HUI and o:IsDescendantOf(HUI) and not CE.data.targetHiddenUi then
 			return false
 		end
-		return true
+		if CE.data.targetHiddenUi and HUI and o:IsDescendantOf(HUI) then
+			return true
+		end
+		if CE.data.targetCoreGui and CE.cg and o:IsDescendantOf(CE.cg) then
+			return true
+		end
+		if CE.data.targetPlayerGui then
+			local pg = getPlayerGui()
+			if pg and o:IsDescendantOf(pg) then
+				return true
+			end
+		end
+		if CE.data.targetBillboardGui then
+			local ok, bb = pcall(function()
+				return o:FindFirstAncestorOfClass("BillboardGui")
+			end)
+			if ok and bb then
+				return true
+			end
+		end
+		if CE.data.targetSurfaceGui then
+			local ok, sg = pcall(function()
+				return o:FindFirstAncestorOfClass("SurfaceGui")
+			end)
+			if ok and sg then
+				return true
+			end
+		end
+		return false
 	end
 
 	local function getCTgts()
@@ -3965,6 +4005,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function setCorner(o)
+		if not CE.data.enabled then
+			return
+		end
 		if not isCTgt(o) then
 			return
 		end
@@ -4044,6 +4087,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		CE.restoring = false
 		CE.store = setmetatable({}, { __mode = "k" })
 		CE.watchers = setmetatable({}, { __mode = "k" })
+		cornerApplyQueue = {}
+		cornerApplySet = setmetatable({}, { __mode = "k" })
+		cornerApplyHead = 1
+		cornerApplyTail = 0
 		clearGuiRootWatchers()
 	end
 
@@ -4055,7 +4102,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if inst:IsA("UICorner") then
 				setCorner(inst)
 			end
-		end)
+		end, {
+			guard = function()
+				return CE.data.enabled
+			end,
+		})
 	end
 
 	local watchGuiRoot
@@ -4085,7 +4136,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					applyCornersIn(inst)
 					watchGuiRoot(inst)
 				end
-			end)
+			end, {
+				guard = function()
+					return CE.data.enabled and (CE.data.targetBillboardGui or CE.data.targetSurfaceGui)
+				end,
+			})
 		end
 	end
 
@@ -5468,7 +5523,38 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if isNAUIElement(o) and not FontEditor.data.targetHiddenUi then
 			return false
 		end
-		return o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")
+		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+			return false
+		end
+		if FontEditor.data.targetHiddenUi and HUI and o:IsDescendantOf(HUI) then
+			return true
+		end
+		if FontEditor.data.targetCoreGui and FontEditor.cg and o:IsDescendantOf(FontEditor.cg) then
+			return true
+		end
+		if FontEditor.data.targetPlayerGui then
+			local pg = getPlayerGui()
+			if pg and o:IsDescendantOf(pg) then
+				return true
+			end
+		end
+		if FontEditor.data.targetBillboardGui then
+			local ok, bb = pcall(function()
+				return o:FindFirstAncestorOfClass("BillboardGui")
+			end)
+			if ok and bb then
+				return true
+			end
+		end
+		if FontEditor.data.targetSurfaceGui then
+			local ok, sg = pcall(function()
+				return o:FindFirstAncestorOfClass("SurfaceGui")
+			end)
+			if ok and sg then
+				return true
+			end
+		end
+		return false
 	end
 
 	local function isInPlayerGui(o)
@@ -5489,6 +5575,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function applyFontToInstance(o)
+		if not FontEditor.data.enabled then
+			return
+		end
 		if not isFontTarget(o) then
 			return
 		end
@@ -5621,7 +5710,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if isFontTarget(inst) then
 				queueFontApply(inst)
 			end
-		end)
+		end, {
+			guard = function()
+				return FontEditor.data.enabled
+			end,
+		})
 	end
 
 	local function getFontTargets()
@@ -5697,7 +5790,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					watchFontGuiRoot(inst)
 				end
-			end)
+			end, {
+				guard = function()
+					return FontEditor.data.enabled and (FontEditor.data.targetBillboardGui or FontEditor.data.targetSurfaceGui)
+				end,
+			})
 		end
 	end
 
@@ -5782,6 +5879,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not FontEditor.data.enabled then
 			return
 		end
+		if not FontEditor.data.targetBillboardGui then
+			return
+		end
 		if not o:IsA("BillboardGui") then
 			return
 		end
@@ -5794,6 +5894,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 	local function onFontSurfaceAdded(o)
 		if not FontEditor.data.enabled then
+			return
+		end
+		if not FontEditor.data.targetSurfaceGui then
 			return
 		end
 		if not o:IsA("SurfaceGui") then
@@ -5888,6 +5991,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		CE.data.enabled = v
 		syncCConn()
 		if CE.data.enabled then
+			resetCorn()
 			applyCorn()
 		else
 			resetCorn()
@@ -5924,6 +6028,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		FontEditor.data.enabled = v
 		refreshFontConnections()
 		if FontEditor.data.enabled then
+			restoreAllFonts()
 			applyAllFonts()
 		else
 			restoreAllFonts()
@@ -7868,20 +7973,46 @@ NAgui.dragger = function(ui, dragui)
 	local GS = GuiService
 	local ds = NAgui._dragState
 	local dragging = false
-	local dragInput
 	local dragStart
 	local startPos
 	local cleaned = false
+	local dragPointer
+	local pendingInput
+	local moveConn
+	local endConn
+	local stepConn
 
-	local function cleanupDragger()
-		if cleaned then return end
-		cleaned = true
+	local function disconnectLiveInput()
+		if moveConn then
+			moveConn:Disconnect()
+			moveConn = nil
+		end
+		if endConn then
+			endConn:Disconnect()
+			endConn = nil
+		end
+		if stepConn then
+			stepConn:Disconnect()
+			stepConn = nil
+		end
+		pendingInput = nil
+	end
+
+	local function stopDrag()
 		dragging = false
-		dragInput = nil
+		dragPointer = nil
+		pendingInput = nil
 		if ds.owner == ui then
 			ds.owner = nil
 			ds.input = nil
 		end
+		disconnectLiveInput()
+	end
+
+	local function cleanupDragger()
+		if cleaned then return end
+		cleaned = true
+		stopDrag()
 		NAlib.disconnect(connName)
 	end
 
@@ -7936,32 +8067,46 @@ NAgui.dragger = function(ui, dragui)
 				ds.owner = ui
 				ds.input = input
 				dragging = true
+				dragPointer = input
 				dragStart = input.Position
 				startPos = ui.Position
-				local c = input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
-						if ds.owner == ui then
-							ds.owner = nil
-							ds.input = nil
-						end
+				disconnectLiveInput()
+				moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+					if not dragging or ds.owner ~= ui then
+						return
+					end
+					local inputType = changedInput.UserInputType
+					if inputType == Enum.UserInputType.MouseMovement then
+						pendingInput = changedInput
+						return
+					end
+					if inputType == Enum.UserInputType.Touch and changedInput == dragPointer then
+						pendingInput = changedInput
 					end
 				end)
-				NAlib.connect(connName, c)
+				endConn = UserInputService.InputEnded:Connect(function(endedInput)
+					if not dragging then
+						return
+					end
+					local inputType = endedInput.UserInputType
+					if inputType == Enum.UserInputType.MouseButton1
+						or (inputType == Enum.UserInputType.Touch and endedInput == dragPointer) then
+						stopDrag()
+					end
+				end)
+				stepConn = RunService.RenderStepped:Connect(function()
+					local frameInput = pendingInput
+					if not frameInput then
+						return
+					end
+					pendingInput = nil
+					if not dragging or ds.owner ~= ui then
+						return
+					end
+					update(frameInput)
+				end)
 			end
 		end)
-	end))
-
-	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end))
-
-	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		if not dragging or ds.owner ~= ui or input ~= dragInput then return end
-		update(input)
 	end))
 
 	if ui and ui.AncestryChanged then
@@ -7989,19 +8134,46 @@ NAgui.draggerV2 = function(ui, dragui)
 	local GS = GuiService
 	local ds = NAgui._dragState
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
-	local dragging, dragInput, dragStart, startPos
+	local dragging, dragStart, startPos
 	local anchor = ui.AnchorPoint
 	local cleaned = false
+	local dragPointer
+	local pendingInput
+	local moveConn
+	local endConn
+	local stepConn
 
-	local function cleanupDragger()
-		if cleaned then return end
-		cleaned = true
+	local function disconnectLiveInput()
+		if moveConn then
+			moveConn:Disconnect()
+			moveConn = nil
+		end
+		if endConn then
+			endConn:Disconnect()
+			endConn = nil
+		end
+		if stepConn then
+			stepConn:Disconnect()
+			stepConn = nil
+		end
+		pendingInput = nil
+	end
+
+	local function stopDrag()
 		dragging = false
-		dragInput = nil
+		dragPointer = nil
+		pendingInput = nil
 		if ds.owner == ui then
 			ds.owner = nil
 			ds.input = nil
 		end
+		disconnectLiveInput()
+	end
+
+	local function cleanupDragger()
+		if cleaned then return end
+		cleaned = true
+		stopDrag()
 		NAlib.disconnect(connName)
 	end
 
@@ -8068,32 +8240,46 @@ NAgui.draggerV2 = function(ui, dragui)
 				ds.owner = ui
 				ds.input = input
 				dragging = true
+				dragPointer = input
 				dragStart = input.Position
 				startPos = ui.Position
-				local c = input.Changed:Connect(function()
-					if input.UserInputState == Enum.UserInputState.End then
-						dragging = false
-						if ds.owner == ui then
-							ds.owner = nil
-							ds.input = nil
-						end
+				disconnectLiveInput()
+				moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+					if not dragging or ds.owner ~= ui then
+						return
+					end
+					local inputType = changedInput.UserInputType
+					if inputType == Enum.UserInputType.MouseMovement then
+						pendingInput = changedInput
+						return
+					end
+					if inputType == Enum.UserInputType.Touch and changedInput == dragPointer then
+						pendingInput = changedInput
 					end
 				end)
-				NAlib.connect(connName, c)
+				endConn = UserInputService.InputEnded:Connect(function(endedInput)
+					if not dragging then
+						return
+					end
+					local inputType = endedInput.UserInputType
+					if inputType == Enum.UserInputType.MouseButton1
+						or (inputType == Enum.UserInputType.Touch and endedInput == dragPointer) then
+						stopDrag()
+					end
+				end)
+				stepConn = RunService.RenderStepped:Connect(function()
+					local frameInput = pendingInput
+					if not frameInput then
+						return
+					end
+					pendingInput = nil
+					if not dragging or ds.owner ~= ui then
+						return
+					end
+					update(frameInput)
+				end)
 			end
 		end)
-	end))
-
-	NAlib.connect(connName, dragui.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end))
-
-	NAlib.connect(connName, UserInputService.InputChanged:Connect(function(input)
-		if not dragging or ds.owner ~= ui or input ~= dragInput then return end
-		update(input)
 	end))
 
 	local function clampToViewport()
@@ -14660,9 +14846,65 @@ if type(espCONS) ~= "table" then
 	espCONS = {}
 end
 setmetatable(espCONS, { __mode = "k" })
+if type(NAStuff.ESP_PlayerLabelOverrides) ~= "table" then
+	NAStuff.ESP_PlayerLabelOverrides = {}
+end
+
+NAmanage.ESP_SetPlayerLabelOverride = function(player, enabled)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return
+	end
+	local uid = tonumber(player.UserId)
+	if not uid or uid <= 0 then
+		return
+	end
+	if enabled == true then
+		NAStuff.ESP_PlayerLabelOverrides[uid] = true
+	else
+		NAStuff.ESP_PlayerLabelOverrides[uid] = nil
+	end
+end
+
+NAmanage.ESP_HasPlayerLabelOverride = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	local uid = tonumber(player.UserId)
+	if not uid or uid <= 0 then
+		return false
+	end
+	return NAStuff.ESP_PlayerLabelOverrides[uid] == true
+end
+
+NAmanage.ESP_ClearPlayerLabelOverrides = function()
+	NAStuff.ESP_PlayerLabelOverrides = {}
+end
 
 NAmanage.ESP_RecomputeEnabled=function()
 	ESPenabled = ESPPlayersEnabled or NPCESPenabled
+end
+
+NAmanage.ESP_WaitForPlayerCharacter = function(player, timeoutSeconds)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return nil
+	end
+	local timeout = tonumber(timeoutSeconds) or 4
+	if timeout < 0.1 then
+		timeout = 0.1
+	end
+	local deadline = os.clock() + timeout
+	while player.Parent and os.clock() < deadline do
+		local char = player.Character
+		if char and NAmanage.IsValidESPModel(char, false) then
+			return char
+		end
+		Wait(0.1)
+	end
+	local char = player.Character
+	if char and NAmanage.IsValidESPModel(char, false) then
+		return char
+	end
+	return nil
 end
 
 
@@ -15332,9 +15574,11 @@ NAmanage.ESP_FirstBasePart = function(model)
 end
 
 NAmanage.ESP_EnsureLabel = function(model)
-	if chamsEnabled then return end
 	local data = espCONS[model]
 	if not data then return end
+	local owner = Players:GetPlayerFromCharacter(model)
+	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
+	if chamsEnabled and not forceLabel then return end
 
 	if not data.uid then
 		data.uid = HttpService:GenerateGUID(false)
@@ -15569,6 +15813,7 @@ NAmanage.ESP_ClearAll = function()
 	NAlib.disconnect("esp_update_global")
 	ESPPlayersEnabled = false
 	NPCESPenabled = false
+	NAmanage.ESP_ClearPlayerLabelOverrides()
 	NAmanage.ESP_RecomputeEnabled()
 end
 
@@ -15586,6 +15831,7 @@ end
 NAmanage.ESP_Disconnect = function(target)
 	local model = (target and target:IsA("Player")) and target.Character or target
 	if typeof(target) == "Instance" and target:IsA("Player") then
+		NAmanage.ESP_SetPlayerLabelOverride(target, false)
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
 	end
 	NAmanage.ESP_ClearModel(model)
@@ -15635,7 +15881,11 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local wantBoxes = ESPenabled and (dist == nil or dist <= boxDist)
 	local labelDist = isNPC and (NAStuff.NPC_ESP_LabelMaxDistance or NAStuff.ESP_LabelMaxDistance or 600) or (NAStuff.ESP_LabelMaxDistance or 1000)
 	local allowLabel = (not isNPC) or (NAStuff.NPC_ESP_ShowLabels ~= false)
-	local wantLabel = ESPenabled and not chamsEnabled and allowLabel and (dist == nil or dist <= labelDist)
+	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
+	local wantLabel = ESPenabled
+		and allowLabel
+		and (dist == nil or dist <= labelDist)
+		and ((not chamsEnabled) or forceLabel)
 
 	if wantBoxes and not data.boxEnabled then
 		NAmanage.ESP_AddBoxes(model)
@@ -15780,13 +16030,24 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 		if persistent then
 			NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
 			NAlib.connect("esp_charAdded_plr_"..tostring(target.UserId), target.CharacterAdded:Connect(function()
-				Wait(0.25)
 				if (ESPenabled or chamsEnabled) then
-					NAmanage.ESP_Add(target, true, false)
+					local ready = NAmanage.ESP_WaitForPlayerCharacter(target, 5)
+					if ready then
+						NAmanage.ESP_Add(target, true, false)
+					end
 				end
 			end))
 		end
-		if not target.Character then return end
+		if not target.Character then
+			if persistent then
+				local ready = NAmanage.ESP_WaitForPlayerCharacter(target, 5)
+				if not ready then
+					return
+				end
+			else
+				return
+			end
+		end
 	end
 
 	local model = target:IsA("Player") and target.Character or target
@@ -30256,6 +30517,7 @@ cmd.add({"esp"}, {"esp","locate where the players are"}, function()
 	ESPPlayersEnabled = true
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
+	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
 		if player ~= Players.LocalPlayer then
@@ -30268,6 +30530,7 @@ cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
 	ESPPlayersEnabled = true
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = true
+	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = true
 	for _, player in pairs(Players:GetPlayers()) do
 		if player ~= Players.LocalPlayer then
@@ -30279,11 +30542,11 @@ end)
 cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
 	ESPPlayersEnabled = true
 	NAmanage.ESP_RecomputeEnabled()
-	chamsEnabled = false
 	local tokens = {...}
 	local providedArgCount = select("#", ...)
 	if providedArgCount == 0 then tokens = {"all"} end
 	local shouldAuto = (providedArgCount == 0)
+	local targetUidSet = {}
 	if not shouldAuto then
 		for _, token in ipairs(tokens) do
 			local lower = tostring(token):lower()
@@ -30293,11 +30556,37 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 			end
 		end
 	end
-	ESPAutoTrackAll = shouldAuto
+	if shouldAuto then
+		chamsEnabled = false
+		NAmanage.ESP_ClearPlayerLabelOverrides()
+		ESPAutoTrackAll = true
+	elseif not chamsEnabled then
+		ESPAutoTrackAll = false
+	end
 	for _, token in ipairs(tokens) do
 		for _, target in ipairs(getPlr(token)) do
 			if target and target ~= Players.LocalPlayer then
+				local uid = tonumber(target.UserId)
+				if uid and uid > 0 then
+					targetUidSet[uid] = true
+				end
+				if not shouldAuto then
+					NAmanage.ESP_SetPlayerLabelOverride(target, true)
+				end
 				NAmanage.ESP_Add(target, true)
+			end
+		end
+	end
+	if not shouldAuto and chamsEnabled then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr and plr ~= Players.LocalPlayer then
+				local uid = tonumber(plr.UserId)
+				if not (uid and targetUidSet[uid]) then
+					NAmanage.ESP_SetPlayerLabelOverride(plr, false)
+					if plr.Character and espCONS[plr.Character] then
+						NAmanage.ESP_DestroyLabel(plr.Character)
+					end
+				end
 			end
 		end
 	end
@@ -30457,6 +30746,7 @@ cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
 	ESPPlayersEnabled = false
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
+	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = false
 	NAmanage.ESP_ClearPlayers()
 	if not (NPCESPenabled or chamsEnabled) then
@@ -30467,7 +30757,13 @@ end)
 cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
 	for _, name in ipairs({...}) do
 		for _, plr in ipairs(getPlr(name)) do
-			NAmanage.ESP_Disconnect(plr)
+			NAmanage.ESP_SetPlayerLabelOverride(plr, false)
+			if plr.Character and espCONS[plr.Character] then
+				NAmanage.ESP_DestroyLabel(plr.Character)
+			end
+			if not chamsEnabled then
+				NAmanage.ESP_Disconnect(plr)
+			end
 		end
 	end
 end, true)
@@ -55675,6 +55971,10 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local currentValue = defaultValue
 	local step = tonumber(increment) or 0
 	local range = max - min
+	local dragInputChangedConn
+	local dragInputEndedConn
+	local dragStepConn
+	local pendingPointerX
 
 	local function quantize(value)
 		if step == 0 then
@@ -55707,9 +56007,58 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		applyValue(value)
 	end
 
+	local function disconnectDragListeners()
+		if dragInputChangedConn then
+			dragInputChangedConn:Disconnect()
+			dragInputChangedConn = nil
+		end
+		if dragInputEndedConn then
+			dragInputEndedConn:Disconnect()
+			dragInputEndedConn = nil
+		end
+		if dragStepConn then
+			dragStepConn:Disconnect()
+			dragStepConn = nil
+		end
+		pendingPointerX = nil
+	end
+
+	local function stopDrag()
+		dragging = false
+		disconnectDragListeners()
+	end
+
+	local function ensureDragListeners()
+		disconnectDragListeners()
+		dragInputChangedConn = UserInputService.InputChanged:Connect(function(input)
+			if not dragging then
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+				pendingPointerX = input.Position.X
+			end
+		end)
+		dragInputEndedConn = UserInputService.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				stopDrag()
+			end
+		end)
+		dragStepConn = RunService.RenderStepped:Connect(function()
+			local pointerX = pendingPointerX
+			if not dragging or pointerX == nil then
+				return
+			end
+			pendingPointerX = nil
+			pcall(function()
+				updateSliderValueFromPos(pointerX)
+			end)
+		end)
+	end
+
 	NAlib.connect(connKey, interact.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
+			ensureDragListeners()
 			pcall(function()
 				updateSliderValueFromPos(input.Position.X)
 			end)
@@ -55718,21 +56067,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 
 	NAlib.connect(connKey, interact.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
-		end
-	end))
-
-	NAlib.connect(connKey, UserInputService.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			pcall(function()
-				updateSliderValueFromPos(input.Position.X)
-			end)
-		end
-	end))
-	NAlib.connect(connKey, UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = false
+			stopDrag()
 		end
 	end))
 
@@ -55750,6 +56085,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 
 	NAlib.connect(connKey, slider:GetPropertyChangedSignal("Parent"):Connect(function()
 		if not slider.Parent and NAgui._sliderRegistry[label] == entry then
+			stopDrag()
 			NAgui._sliderRegistry[label] = nil
 			Defer(function()
 				NAlib.disconnect(connKey)
