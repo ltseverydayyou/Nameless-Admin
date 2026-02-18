@@ -39319,9 +39319,12 @@ cmd.add({"tools", "gears"}, {"tools (gears)", "Copies tools from ReplicatedStora
 	DebugNotif("Copied tools from ReplicatedStorage and Lighting", 3)
 end)
 
-tviewBillboards = {}
-tviewAddConn, tviewRemoveConn = nil, nil
-tviewGlobalMode = nil
+NAStuff.tviewBillboards = NAStuff.tviewBillboards or {}
+NAStuff.tviewAddConn = NAStuff.tviewAddConn or nil
+NAStuff.tviewRemoveConn = NAStuff.tviewRemoveConn or nil
+NAStuff.tviewGlobalMode = NAStuff.tviewGlobalMode or nil
+NAStuff.TOOLVIEW_IDLE_COLOR = NAStuff.TOOLVIEW_IDLE_COLOR or Color3.fromRGB(80, 80, 80)
+NAStuff.TOOLVIEW_EQUIPPED_COLOR = NAStuff.TOOLVIEW_EQUIPPED_COLOR or Color3.fromRGB(60, 170, 70)
 
 if toolConnections then
 	for _, conn in pairs(toolConnections) do
@@ -39340,17 +39343,17 @@ NAmanage.tvCleanupVisual=function(data)
 	data.container = nil
 	data.char = nil
 	data.head = nil
-	data.lastToolNames = nil
+	data.lastToolSnapshot = nil
 end
 
 NAmanage.tvDetach=function(plr)
-	local data = tviewBillboards[plr]
+	local data = NAStuff.tviewBillboards[plr]
 	if not data then return end
 	NAmanage.tvCleanupVisual(data)
 	if data.charAddedConn then data.charAddedConn:Disconnect() data.charAddedConn = nil end
 	if data.charRemovingConn then data.charRemovingConn:Disconnect() data.charRemovingConn = nil end
 	if data.ancestryConn then data.ancestryConn:Disconnect() data.ancestryConn = nil end
-	tviewBillboards[plr] = nil
+	NAStuff.tviewBillboards[plr] = nil
 end
 
 NAmanage.tvAttach=function(plr, data, char)
@@ -39392,12 +39395,12 @@ NAmanage.tvAttach=function(plr, data, char)
 	layout.Padding = UDim.new(0, 6)
 	layout.Parent = container
 
-	local function makeToolBtn(tool)
+	local function makeToolBtn(tool, isEquipped)
 		local hasImg = tool.TextureId and tool.TextureId ~= ""
 		local btn = hasImg and InstanceNew("ImageButton") or InstanceNew("TextButton")
 		btn.Size = UDim2.new(0, 50, 0, 50)
 		btn.Name = tool.Name
-		btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		btn.BackgroundColor3 = isEquipped and NAStuff.TOOLVIEW_EQUIPPED_COLOR or NAStuff.TOOLVIEW_IDLE_COLOR
 		btn.AutoButtonColor = false
 		btn.ZIndex = 5
 		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
@@ -39420,37 +39423,39 @@ NAmanage.tvAttach=function(plr, data, char)
 		local bp = plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")
 		if bp then
 			for _, t in ipairs(bp:GetChildren()) do
-				if t:IsA("Tool") then makeToolBtn(t).Parent = container end
+				if t:IsA("Tool") then makeToolBtn(t, false).Parent = container end
 			end
 		end
 
 		local activeChar = getPlrChar(plr) or plr.Character
 		if activeChar then
 			for _, t in ipairs(activeChar:GetChildren()) do
-				if t:IsA("Tool") then makeToolBtn(t).Parent = container end
+				if t:IsA("Tool") then makeToolBtn(t, true).Parent = container end
 			end
 		end
 	end
 
-	local function getToolNames()
-		local names = {}
-		local function add(t)
-			if t:IsA("Tool") then Insert(names, t.Name) end
+	local function getToolSnapshot()
+		local snapshot = {}
+		local function add(t, isEquipped)
+			if t:IsA("Tool") then
+				Insert(snapshot, (isEquipped and "C:" or "B:") .. t.Name)
+			end
 		end
 		local bp = plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")
 		if bp then
-			for _, t in ipairs(bp:GetChildren()) do add(t) end
+			for _, t in ipairs(bp:GetChildren()) do add(t, false) end
 		end
 		local activeChar = getPlrChar(plr) or plr.Character
 		if activeChar then
-			for _, t in ipairs(activeChar:GetChildren()) do add(t) end
+			for _, t in ipairs(activeChar:GetChildren()) do add(t, true) end
 		end
-		table.sort(names)
-		return names
+		table.sort(snapshot)
+		return snapshot
 	end
 
 	refresh()
-	data.lastToolNames = getToolNames()
+	data.lastToolSnapshot = getToolSnapshot()
 
 	data.renderConn = RunService.RenderStepped:Connect(function()
 		if not plr.Parent then NAmanage.tvCleanupVisual(data) return end
@@ -39465,18 +39470,18 @@ NAmanage.tvAttach=function(plr, data, char)
 		end
 		if not head:IsDescendantOf(workspace) then NAmanage.tvCleanupVisual(data) return end
 
-		local currentNames = getToolNames()
-		local previous = data.lastToolNames or {}
+		local currentSnapshot = getToolSnapshot()
+		local previous = data.lastToolSnapshot or {}
 		local changed = false
-		if #currentNames ~= #previous then
+		if #currentSnapshot ~= #previous then
 			changed = true
 		else
-			for i = 1, #currentNames do
-				if currentNames[i] ~= previous[i] then changed = true break end
+			for i = 1, #currentSnapshot do
+				if currentSnapshot[i] ~= previous[i] then changed = true break end
 			end
 		end
 		if changed then
-			data.lastToolNames = currentNames
+			data.lastToolSnapshot = currentSnapshot
 			refresh()
 		end
 		local width = container.AbsoluteSize.X
@@ -39495,7 +39500,7 @@ NAmanage.tvEnsure=function(plr)
 	if not plr then return end
 
 	local data = {}
-	tviewBillboards[plr] = data
+	NAStuff.tviewBillboards[plr] = data
 
 	local function onCharAdded(char)
 		NAmanage.tvAttach(plr, data, char)
@@ -39532,14 +39537,14 @@ cmd.add({"toolview", "tview"}, {"toolview <player> (tview)", "3D tool viewer abo
 	end
 
 	if isGlobal then
-		if tviewAddConn then tviewAddConn:Disconnect() end
-		if tviewRemoveConn then tviewRemoveConn:Disconnect() end
-		tviewGlobalMode = lowerFirst
-		tviewAddConn = Players.PlayerAdded:Connect(function(plr)
-			if tviewGlobalMode == "others" and plr == Players.LocalPlayer then return end
+		if NAStuff.tviewAddConn then NAStuff.tviewAddConn:Disconnect() end
+		if NAStuff.tviewRemoveConn then NAStuff.tviewRemoveConn:Disconnect() end
+		NAStuff.tviewGlobalMode = lowerFirst
+		NAStuff.tviewAddConn = Players.PlayerAdded:Connect(function(plr)
+			if NAStuff.tviewGlobalMode == "others" and plr == Players.LocalPlayer then return end
 			NAmanage.tvEnsure(plr)
 		end)
-		tviewRemoveConn = Players.PlayerRemoving:Connect(function(plr)
+		NAStuff.tviewRemoveConn = Players.PlayerRemoving:Connect(function(plr)
 			NAmanage.tvDetach(plr)
 		end)
 	end
@@ -39559,10 +39564,10 @@ cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the t
 		NAmanage.tvDetach(plr)
 	end
 
-	if lowerFirst == "all" or lowerFirst == "others" or lowerFirst == tviewGlobalMode then
-		if tviewAddConn then tviewAddConn:Disconnect() tviewAddConn = nil end
-		if tviewRemoveConn then tviewRemoveConn:Disconnect() tviewRemoveConn = nil end
-		tviewGlobalMode = nil
+	if lowerFirst == "all" or lowerFirst == "others" or lowerFirst == NAStuff.tviewGlobalMode then
+		if NAStuff.tviewAddConn then NAStuff.tviewAddConn:Disconnect() NAStuff.tviewAddConn = nil end
+		if NAStuff.tviewRemoveConn then NAStuff.tviewRemoveConn:Disconnect() NAStuff.tviewRemoveConn = nil end
+		NAStuff.tviewGlobalMode = nil
 	end
 end, true)
 
@@ -39675,12 +39680,12 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		end
 	end
 
-	local function makeToolBtn(tool)
+	local function makeToolBtn(tool, isEquipped)
 		local hasImg = tool.TextureId and tool.TextureId ~= ""
 		local btn = hasImg and InstanceNew("ImageButton") or InstanceNew("TextButton")
 		btn.Size = UDim2.new(0, 50, 0, 50)
 		btn.Name = tool.Name
-		btn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+		btn.BackgroundColor3 = isEquipped and NAStuff.TOOLVIEW_EQUIPPED_COLOR or NAStuff.TOOLVIEW_IDLE_COLOR
 		btn.AutoButtonColor = false
 		btn.ZIndex = 10
 		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
@@ -39729,7 +39734,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 
 		for _, t in ipairs(tools) do
 			if t then
-				makeToolBtn(t).Parent = sec.Holder
+				makeToolBtn(t, char and t.Parent == char).Parent = sec.Holder
 			end
 		end
 	end
@@ -40466,6 +40471,7 @@ end)
 HumanModCons = {}
 
 ToolLoopCons = {}
+MultiToolCons = {}
 
 originalIO.stopEquipToolLoop=function(silent)
 	if ToolLoopCons.loop then
@@ -40717,6 +40723,202 @@ originalIO.startLoopForTool=function(toolRef)
 	DoNotif(Format("Loop equip enabled for \"%s\". Use unloopequiptool to stop.", displayName), 3)
 end
 
+originalIO.stopMultiTool=function(silent)
+	local function dropConn(key)
+		local conn = MultiToolCons[key]
+		if conn then
+			MultiToolCons[key] = nil
+			NACaller(function()
+				if conn and conn.Disconnect then conn:Disconnect() end
+			end)
+		end
+	end
+
+	dropConn("loop")
+	dropConn("charChildAdded")
+	dropConn("charChildRemoved")
+	dropConn("backpackChildAdded")
+	dropConn("charAdded")
+	dropConn("playerChildAdded")
+
+	MultiToolCons.tracked = nil
+	MultiToolCons.equipToken = nil
+	MultiToolCons.restacking = nil
+	MultiToolCons.enabled = false
+
+	if not silent then
+		DoNotif("Multitool disabled.", 2)
+	end
+end
+
+originalIO.startMultiTool=function()
+	local localPlayer = Players.LocalPlayer
+	local char = getChar()
+	local backpack = getBp()
+
+	if not localPlayer or not char or not backpack then
+		DoNotif("Could not find your character or backpack.", 2)
+		return
+	end
+
+	originalIO.stopMultiTool(true)
+
+	local tracked = {}
+	local UNEQUIP_WINDOW = 0.25
+	MultiToolCons.tracked = tracked
+	MultiToolCons.equipToken = 0
+	MultiToolCons.restacking = false
+	MultiToolCons.enabled = true
+
+	local function trackTool(tool)
+		if typeof(tool) == "Instance" and tool:IsA("Tool") then
+			tracked[tool] = true
+		end
+	end
+
+	local function untrackTool(tool)
+		if tool then
+			tracked[tool] = nil
+		end
+	end
+
+	local function stackTrackedTools()
+		if MultiToolCons.restacking then
+			return
+		end
+
+		local activeChar = getChar()
+		local activeBackpack = getBp()
+		if not activeChar or not activeBackpack then
+			return
+		end
+
+		MultiToolCons.restacking = true
+		for tool in pairs(tracked) do
+			if typeof(tool) ~= "Instance" or tool.Parent == nil then
+				untrackTool(tool)
+			elseif tool.Parent == activeBackpack then
+				NACaller(function()
+					if tool.Parent == activeBackpack then
+						tool.Parent = activeChar
+					end
+				end)
+			elseif tool.Parent ~= activeChar then
+				untrackTool(tool)
+			end
+		end
+		MultiToolCons.restacking = false
+	end
+
+	local function connectCharacter(charRef)
+		if MultiToolCons.charChildAdded then
+			MultiToolCons.charChildAdded:Disconnect()
+			MultiToolCons.charChildAdded = nil
+		end
+		if MultiToolCons.charChildRemoved then
+			MultiToolCons.charChildRemoved:Disconnect()
+			MultiToolCons.charChildRemoved = nil
+		end
+
+		if typeof(charRef) ~= "Instance" then
+			return
+		end
+
+		for tool in pairs(tracked) do
+			tracked[tool] = nil
+		end
+
+		for _, item in ipairs(charRef:GetChildren()) do
+			if item:IsA("Tool") then
+				trackTool(item)
+			end
+		end
+
+		MultiToolCons.charChildAdded = charRef.ChildAdded:Connect(function(item)
+			if item:IsA("Tool") then
+				if MultiToolCons.restacking then
+					return
+				end
+				MultiToolCons.equipToken = (MultiToolCons.equipToken or 0) + 1
+				trackTool(item)
+				Defer(stackTrackedTools)
+			end
+		end)
+
+		MultiToolCons.charChildRemoved = charRef.ChildRemoved:Connect(function(item)
+			if not item:IsA("Tool") then
+				return
+			end
+			if MultiToolCons.restacking then
+				return
+			end
+
+			local tokenAtRemoval = MultiToolCons.equipToken or 0
+			Delay(UNEQUIP_WINDOW, function()
+				if not MultiToolCons.enabled or MultiToolCons.tracked ~= tracked then
+					return
+				end
+
+				if (MultiToolCons.equipToken or 0) ~= tokenAtRemoval then
+					return
+				end
+
+				local activeChar = getChar()
+				local activeBackpack = getBp()
+
+				if typeof(item) ~= "Instance" or item.Parent == nil then
+					untrackTool(item)
+					return
+				end
+
+				if activeBackpack and item.Parent == activeBackpack then
+					-- No new equip followed: treat as intentional unequip.
+					untrackTool(item)
+					return
+				end
+
+				if not (activeChar and item.Parent == activeChar) then
+					untrackTool(item)
+				end
+			end)
+		end)
+	end
+
+	local function connectBackpack(backpackRef)
+		if MultiToolCons.backpackChildAdded then
+			MultiToolCons.backpackChildAdded:Disconnect()
+			MultiToolCons.backpackChildAdded = nil
+		end
+
+		if typeof(backpackRef) ~= "Instance" then
+			return
+		end
+
+		MultiToolCons.backpackChildAdded = backpackRef.ChildAdded:Connect(function(item)
+			if item:IsA("Tool") and tracked[item] then
+				-- Re-equip only when a true equip-swap happens (handled by char ChildAdded).
+			end
+		end)
+	end
+
+	connectCharacter(char)
+	connectBackpack(backpack)
+
+	MultiToolCons.charAdded = localPlayer.CharacterAdded:Connect(function(newChar)
+		connectCharacter(newChar)
+		Defer(stackTrackedTools)
+	end)
+
+	MultiToolCons.playerChildAdded = localPlayer.ChildAdded:Connect(function(child)
+		if typeof(child) == "Instance" and child:IsA("Backpack") then
+			connectBackpack(child)
+			Defer(stackTrackedTools)
+		end
+	end)
+
+	DoNotif("Multitool enabled. Equip another tool to stack it.", 3)
+end
+
 cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when you get to the edge of an object"}, function()
 	local Char = speaker.Character
 	local Human = getHum()
@@ -40856,6 +41058,33 @@ end)
 
 cmd.add({"unloopequiptool","unloopet","unlequiptool"},{"unloopequiptool","Stops the loop equip behaviour"},function()
 	originalIO.stopEquipToolLoop()
+end)
+
+cmd.add({"multitool","mtool"},{"multitool (mtool)","Allows stacking equipped tools from your inventory"},function(mode)
+	local arg = type(mode) == "string" and Lower(mode) or ""
+	if arg == "off" or arg == "false" or arg == "0" then
+		if MultiToolCons.enabled then
+			originalIO.stopMultiTool()
+		else
+			DoNotif("Multitool is already disabled.", 2)
+		end
+		return
+	end
+
+	if MultiToolCons.enabled then
+		DoNotif("Multitool is already enabled. Use unmultitool to disable.", 2)
+		return
+	end
+
+	originalIO.startMultiTool()
+end)
+
+cmd.add({"unmultitool","nomultitool"},{"unmultitool (nomultitool)","Disables multitool mode"},function()
+	if MultiToolCons.enabled then
+		originalIO.stopMultiTool()
+	else
+		DoNotif("Multitool is already disabled.", 2)
+	end
 end)
 
 bangLoop = nil
