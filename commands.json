@@ -4338,6 +4338,26 @@
       "desc": "Stops the loop equip behaviour"
     },
     {
+      "name": "multitool",
+      "aliases": [
+        "multitool",
+        "mtool"
+      ],
+      "usage": "multitool (mtool)",
+      "args": "",
+      "desc": "Allows stacking equipped tools from your inventory"
+    },
+    {
+      "name": "unmultitool",
+      "aliases": [
+        "unmultitool",
+        "nomultitool"
+      ],
+      "usage": "unmultitool (nomultitool)",
+      "args": "",
+      "desc": "Disables multitool mode"
+    },
+    {
       "name": "bang",
       "aliases": [
         "bang",
