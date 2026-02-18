@@ -100,6 +100,7 @@ ov.BackgroundTransparency = 1;
 ov.BackgroundColor3 = Color3.new(0, 0, 0);
 ov.Size = UDim2.fromScale(1, 1);
 ov.ZIndex = 50000;
+ov.Active = false;
 ov.Parent = gui;
 local ACT = {
 	Notify = setmetatable({}, {
@@ -112,6 +113,19 @@ local ACT = {
 		__mode = "k"
 	})
 };
+local function syncOverlayActive()
+	if not ov then
+		return;
+	end;
+	local hasPopup = false;
+	for card in pairs(ACT.Popup) do
+		if card and card.Parent then
+			hasPopup = true;
+			break;
+		end;
+	end;
+	ov.Active = hasPopup;
+end;
 local CURF = {
 	Notify = Enum.Font.GothamBold,
 	Window = Enum.Font.GothamBold,
@@ -367,9 +381,11 @@ local function ensureGui()
 		ov.BackgroundColor3 = Color3.new(0, 0, 0);
 		ov.Size = UDim2.fromScale(1, 1);
 		ov.ZIndex = 50000;
+		ov.Active = false;
 		ov.Parent = gui;
 		stacks = {};
 	end;
+	syncOverlayActive();
 	bindGui();
 end;
 local VALID = {
@@ -1801,6 +1817,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	card.BackgroundTransparency = 1;
 	card.ZIndex = z;
 	card.BorderSizePixel = 0;
+	card.Active = kind == "Popup";
 	card.ClipsDescendants = true;
 	local cr = Instance.new("UICorner", card);
 	cr.CornerRadius = UDim.new(0, isMobile and 18 or 14);
@@ -1999,6 +2016,7 @@ local function build(kind, p)
 		syncGrp()
 	end
 	ACT[kind][card] = true;
+	syncOverlayActive();
 	ttl.Text = p.Title or kind;
 	local s = ctx(card);
 	s.kind = kind;
@@ -2037,6 +2055,7 @@ local function build(kind, p)
 				for _, t in pairs(ACT) do
 					t[card] = nil;
 				end;
+				syncOverlayActive();
 				pcall(function()
 					card:Destroy();
 				end);
@@ -2051,6 +2070,7 @@ local function build(kind, p)
 		for _, t in pairs(ACT) do
 			t[card] = nil;
 		end;
+		syncOverlayActive();
 		cleanup(card);
 		destroyPopupRoot();
 	end));
