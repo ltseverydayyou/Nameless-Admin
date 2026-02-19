@@ -1930,6 +1930,20 @@ local function openIn(card, par, ftr, trk, st, sc, from, cnt)
 		appear(card, sc, st, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt)
 	end)
 end
+local POPUP_FRAME_Z = 69;
+local function enforcePopupFrameZ(root)
+	if not root then
+		return;
+	end;
+	if root:IsA("Frame") then
+		root.ZIndex = POPUP_FRAME_Z;
+	end;
+	for _, d in ipairs(root:GetDescendants()) do
+		if d:IsA("Frame") then
+			d.ZIndex = POPUP_FRAME_Z;
+		end;
+	end;
+end;
 local function build(kind, p)
 	ensureGui();
 	p = typeof(p) == "table" and p or {};
@@ -1991,9 +2005,9 @@ local function build(kind, p)
 		grp.AnchorPoint = Vector2.new(0.5, 0.5);
 		grp.Position = UDim2.fromScale(0.5, 0.5);
 		grp.Size = UDim2.fromOffset(w, 0);
-		grp.ZIndex = 40000;
+		grp.ZIndex = POPUP_FRAME_Z;
 		grp.Parent = gui;
-		baseZ = grp.ZIndex + 10;
+		baseZ = POPUP_FRAME_Z;
 	end;
 	local timCtl;
 	local card, hdr, ttl, act, st, sc, cnt, ftr, trk, fil = mkCard(w, baseZ, kind, function(paused)
@@ -2013,6 +2027,12 @@ local function build(kind, p)
 		end
 		local csz = card:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncGrp)
 		addConnection(card, csz)
+		local cdz = grp.DescendantAdded:Connect(function(d)
+			if d:IsA("Frame") then
+				d.ZIndex = POPUP_FRAME_Z;
+			end;
+		end);
+		addConnection(grp, cdz);
 		syncGrp()
 	end
 	ACT[kind][card] = true;
@@ -2238,6 +2258,9 @@ local function build(kind, p)
 	local parent = kind == "Popup" and grp or getStack(dock);
 	trk.Visible = showProg;
 	openIn(card, parent, ftr, showProg and trk or nil, st, sc, from, cnt);
+	if kind == "Popup" then
+		enforcePopupFrameZ(grp);
+	end;
 	if shouldTimer then
 		timCtl = attachTimer(card, showProg and fil or nil, dur);
 	end;
