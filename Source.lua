@@ -3710,6 +3710,438 @@ local NAfiles = {
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
 
+NAmanage.normalizeAssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod or function(value)
+	if type(value) ~= "string" then
+		return "txt"
+	end
+	local mode = value:match("^%s*(.-)%s*$") or ""
+	mode = mode:lower()
+	if mode == "legacy" then
+		return "legacy"
+	end
+	if mode == "txt" or mode == ".txt" or mode == "text" then
+		return "txt"
+	end
+	return "txt"
+end
+
+NAmanage.hashAssetString = NAmanage.hashAssetString or function(str)
+	str = type(str) == "string" and str or tostring(str or "")
+	local hash = 0
+	for i = 1, #str do
+		hash = (hash * 31 + string.byte(str, i)) % 4294967296
+	end
+	return string.format("%08x", hash)
+end
+
+NAmanage.getNAImageFileName = NAmanage.getNAImageFileName or function(keyOrFile)
+	if type(keyOrFile) ~= "string" or keyOrFile == "" then
+		return nil
+	end
+	if type(NAImageAssets) == "table" and type(NAImageAssets[keyOrFile]) == "string" then
+		return NAImageAssets[keyOrFile]
+	end
+	return keyOrFile
+end
+
+NAmanage.getNAImageAssetSourceUrl = NAmanage.getNAImageAssetSourceUrl or function(keyOrFile)
+	local fileName = NAmanage.getNAImageFileName(keyOrFile)
+	if type(fileName) ~= "string" or fileName == "" then
+		return nil
+	end
+	return "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"..fileName
+end
+
+NAmanage.getNAImageStoredFileName = NAmanage.getNAImageStoredFileName or function(keyOrFile, method)
+	local fileName = NAmanage.getNAImageFileName(keyOrFile)
+	if type(fileName) ~= "string" or fileName == "" then
+		return nil
+	end
+	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
+	if resolvedMethod == "legacy" then
+		return fileName
+	end
+	local base = fileName:match("(.+)%.") or fileName
+	base = base:gsub("[^%w%._%-]", "_")
+	base = base:gsub("_+", "_")
+	base = base:gsub("^_+", "")
+	base = base:gsub("_+$", "")
+	if base == "" then
+		base = "asset"
+	end
+	local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName) or fileName
+	local hashed = NAmanage.hashAssetString(sourceUrl)
+	return string.format("%s_%s.txt", base, hashed)
+end
+
+NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths or function(keyOrFile, method)
+	local fileName = NAmanage.getNAImageFileName(keyOrFile)
+	if type(fileName) ~= "string" or fileName == "" then
+		return {}
+	end
+	if not (NAfiles and type(NAfiles.NAASSETSFILEPATH) == "string" and NAfiles.NAASSETSFILEPATH ~= "") then
+		return {}
+	end
+	local out = {}
+	local seen = {}
+	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
+	local altMethod = resolvedMethod == "txt" and "legacy" or "txt"
+	local function addPath(path)
+		if type(path) ~= "string" or path == "" or seen[path] then
+			return
+		end
+		seen[path] = true
+		out[#out + 1] = path
+	end
+	local preferred = NAmanage.getNAImageStoredFileName(fileName, resolvedMethod)
+	if preferred then
+		addPath(NAfiles.NAASSETSFILEPATH.."/"..preferred)
+	end
+	local alternate = NAmanage.getNAImageStoredFileName(fileName, altMethod)
+	if alternate then
+		addPath(NAfiles.NAASSETSFILEPATH.."/"..alternate)
+	end
+	return out
+end
+
+NAmanage.getNAImageAssetPath = NAmanage.getNAImageAssetPath or function(keyOrFile, opts)
+	opts = type(opts) == "table" and opts or {}
+	local candidates = NAmanage.getNAImageAssetCandidatePaths(keyOrFile, opts.method)
+	if #candidates == 0 then
+		return nil
+	end
+	if opts.preferredOnly or type(isfile) ~= "function" then
+		return candidates[1]
+	end
+	for _, path in ipairs(candidates) do
+		local okEx, exists = pcall(isfile, path)
+		if okEx and exists then
+			return path
+		end
+	end
+	return candidates[1]
+end
+
+NAmanage.getNAImageAsset = NAmanage.getNAImageAsset or function(keyOrFile, fallback)
+	if type(getcustomasset) ~= "function" then
+		return fallback
+	end
+	local candidates = NAmanage.getNAImageAssetCandidatePaths(keyOrFile)
+	for _, path in ipairs(candidates) do
+		local okAsset, asset = pcall(getcustomasset, path)
+		if okAsset and type(asset) == "string" and asset ~= "" then
+			return asset
+		end
+	end
+	return fallback
+end
+
+NAmanage.getAssetDownloadMethod = NAmanage.getAssetDownloadMethod or function()
+	NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
+	return NAStuff.AssetDownloadMethod
+end
+
+NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or function(method, opts)
+	opts = type(opts) == "table" and opts or {}
+	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
+	local result = {
+		method = resolvedMethod,
+		assets = { checked = 0, converted = 0, failed = 0 },
+		icons = { checked = 0, converted = 0, failed = 0 },
+	}
+
+	if not FileSupport then
+		return result
+	end
+	if type(readfile) ~= "function" or type(writefile) ~= "function" or type(isfile) ~= "function" then
+		return result
+	end
+
+	local function fileExists(path)
+		if type(path) ~= "string" or path == "" then
+			return false
+		end
+		local ok, exists = pcall(isfile, path)
+		return ok and exists
+	end
+
+	local function copyFile(sourcePath, targetPath)
+		if type(sourcePath) ~= "string" or sourcePath == "" then
+			return false
+		end
+		if type(targetPath) ~= "string" or targetPath == "" then
+			return false
+		end
+		local okRead, data = pcall(readfile, sourcePath)
+		if not (okRead and type(data) == "string" and data ~= "") then
+			return false
+		end
+		local okWrite = pcall(writefile, targetPath, data)
+		return okWrite == true
+	end
+
+	local function deleteSourceFile(path)
+		if type(path) ~= "string" or path == "" then
+			return false
+		end
+		if type(delfile) ~= "function" then
+			return false
+		end
+		local okDelete = pcall(delfile, path)
+		return okDelete == true
+	end
+
+	local function getName(path)
+		if type(path) ~= "string" then
+			return nil
+		end
+		local normalized = path:gsub("\\", "/")
+		return normalized:match("([^/]+)$")
+	end
+
+	local function sanitizeBase(value)
+		local out = (type(value) == "string" and value or ""):gsub("[^%w%._%-]", "_")
+		out = out:gsub("_+", "_")
+		out = out:gsub("^_+", "")
+		out = out:gsub("_+$", "")
+		return out ~= "" and out or "asset"
+	end
+
+	local function ensureSourceGone(path)
+		if not fileExists(path) then
+			return true
+		end
+		return deleteSourceFile(path)
+	end
+
+	if type(listfiles) == "function"
+		and NAfiles
+		and type(NAfiles.NAASSETSFILEPATH) == "string"
+		and NAfiles.NAASSETSFILEPATH ~= ""
+		and type(isfolder) == "function"
+	then
+		local assetsDir = NAfiles.NAASSETSFILEPATH
+		local txtToLegacy = {}
+		if type(NAImageAssets) == "table" then
+			for _, knownFile in pairs(NAImageAssets) do
+				if type(knownFile) == "string" and knownFile ~= "" then
+					local knownTxt = NAmanage.getNAImageStoredFileName(knownFile, "txt")
+					if type(knownTxt) == "string" and knownTxt ~= "" then
+						txtToLegacy[knownTxt:lower()] = knownFile
+					end
+				end
+			end
+		end
+
+		local okFolder, hasFolder = pcall(isfolder, assetsDir)
+		if okFolder and hasFolder then
+			local okList, files = pcall(listfiles, assetsDir)
+			if okList and type(files) == "table" then
+				for _, fullPath in ipairs(files) do
+					local okFile, isRealFile = pcall(isfile, fullPath)
+					if not (okFile and isRealFile) then
+						continue
+					end
+					local name = getName(fullPath)
+					if type(name) == "string" and name ~= "" then
+						result.assets.checked += 1
+						local lower = name:lower()
+						if resolvedMethod == "txt" then
+							if not lower:match("%.txt$") then
+								local targetName = NAmanage.getNAImageStoredFileName(name, "txt")
+								if type(targetName) ~= "string" or targetName == "" then
+									local base = sanitizeBase(name:gsub("%.[^%.]+$", ""))
+									targetName = string.format("%s_%s.txt", base, NAmanage.hashAssetString(lower))
+								end
+								local targetPath = assetsDir.."/"..targetName
+								if fileExists(targetPath) then
+									if ensureSourceGone(fullPath) then
+										result.assets.converted += 1
+									else
+										result.assets.failed += 1
+									end
+								else
+									if copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
+										result.assets.converted += 1
+									else
+										result.assets.failed += 1
+									end
+								end
+							end
+						elseif lower:match("%.txt$") then
+							local targetName = txtToLegacy[lower]
+							if type(targetName) ~= "string" or targetName == "" then
+								local stem = name:sub(1, -5)
+								stem = stem:gsub("_[0-9a-fA-F]+$", "")
+								stem = sanitizeBase(stem)
+								targetName = stem..".png"
+							end
+							local targetPath = assetsDir.."/"..targetName
+							if fileExists(targetPath) then
+								if ensureSourceGone(fullPath) then
+									result.assets.converted += 1
+								else
+									result.assets.failed += 1
+								end
+							else
+								if copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
+									result.assets.converted += 1
+								else
+									result.assets.failed += 1
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if type(listfiles) == "function"
+		and NAfiles
+		and type(NAfiles.NACUSTOMICONPATH) == "string"
+		and NAfiles.NACUSTOMICONPATH ~= ""
+		and type(isfolder) == "function"
+	then
+		local okFolder, hasFolder = pcall(isfolder, NAfiles.NACUSTOMICONPATH)
+		if okFolder and hasFolder then
+			local okList, files = pcall(listfiles, NAfiles.NACUSTOMICONPATH)
+			if okList and type(files) == "table" then
+				local movedPath = {}
+				for _, fullPath in ipairs(files) do
+					local okFile, isRealFile = pcall(isfile, fullPath)
+					if not (okFile and isRealFile) then
+						continue
+					end
+					local name = getName(fullPath)
+					if type(name) == "string" and name ~= "" then
+						local lower = name:lower()
+						result.icons.checked += 1
+						if resolvedMethod == "txt" then
+							if not lower:match("%.txt$") then
+								local base = sanitizeBase(name:gsub("%.[^%.]+$", ""))
+								local targetName = string.format("%s_%s.txt", base, NAmanage.hashAssetString(name:lower()))
+								local targetPath = NAfiles.NACUSTOMICONPATH.."/"..targetName
+								if fileExists(targetPath) then
+									if ensureSourceGone(fullPath) then
+										result.icons.converted += 1
+										movedPath[fullPath] = targetPath
+									else
+										result.icons.failed += 1
+									end
+								elseif copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
+									result.icons.converted += 1
+									movedPath[fullPath] = targetPath
+								else
+									result.icons.failed += 1
+								end
+							end
+						elseif lower:match("%.txt$") then
+							local stem = name:sub(1, -5)
+							stem = stem:gsub("_[0-9a-fA-F]+$", "")
+							stem = sanitizeBase(stem)
+							local targetName = stem..".png"
+							local targetPath = NAfiles.NACUSTOMICONPATH.."/"..targetName
+							if fileExists(targetPath) then
+								if ensureSourceGone(fullPath) then
+									result.icons.converted += 1
+									movedPath[fullPath] = targetPath
+								else
+									result.icons.failed += 1
+								end
+							elseif copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
+								result.icons.converted += 1
+								movedPath[fullPath] = targetPath
+							else
+								result.icons.failed += 1
+							end
+						end
+					end
+				end
+				if type(NAStuff.CustomIcon) == "table" and type(NAStuff.CustomIcon.localPath) == "string" then
+					local replacement = movedPath[NAStuff.CustomIcon.localPath]
+					if type(replacement) == "string" and replacement ~= "" then
+						NAStuff.CustomIcon.localPath = replacement
+					end
+				end
+			end
+		end
+	end
+
+	return result
+end
+
+NAmanage.setAssetDownloadMethod = NAmanage.setAssetDownloadMethod or function(method, opts)
+	opts = type(opts) == "table" and opts or {}
+	local normalized = NAmanage.normalizeAssetDownloadMethod(method)
+	local current = NAmanage.getAssetDownloadMethod and NAmanage.getAssetDownloadMethod() or NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
+	if normalized == current and opts.force ~= true then
+		if type(NAmanage.updateAssetDownloadMethodInfo) == "function" then
+			NAmanage.updateAssetDownloadMethodInfo()
+		end
+		return current, nil, "unchanged"
+	end
+	if NAStuff.AssetDownloadSyncBusy == true then
+		return current, nil, "busy"
+	end
+	NAStuff.AssetDownloadSyncBusy = true
+	NAStuff.AssetDownloadMethod = normalized
+	local syncResult = nil
+	local okSync, syncErr = pcall(function()
+		syncResult = NAmanage.syncDownloadedImageFiles(normalized, opts)
+	end)
+	if opts.persist ~= false and type(NAmanage.NASettingsSet) == "function" then
+		pcall(NAmanage.NASettingsSet, "assetDownloadMethod", normalized)
+	end
+	if type(NAmanage.updateAssetDownloadMethodInfo) == "function" then
+		NAmanage.updateAssetDownloadMethodInfo()
+	end
+	NAStuff.AssetDownloadSyncBusy = false
+	if not okSync then
+		return normalized, nil, "sync_error", syncErr
+	end
+	return normalized, syncResult, "ok"
+end
+
+NAmanage.queueAssetMethodResync = NAmanage.queueAssetMethodResync or function(delays, opts)
+	opts = type(opts) == "table" and opts or {}
+	local sequence = type(delays) == "table" and delays or { 0 }
+	local token = (tonumber(NAStuff.AssetMethodResyncToken) or 0) + 1
+	NAStuff.AssetMethodResyncToken = token
+	for i = 1, #sequence do
+		local delaySeconds = tonumber(sequence[i]) or 0
+		if delaySeconds < 0 then
+			delaySeconds = 0
+		end
+		Delay(delaySeconds, function()
+			if NAStuff.AssetMethodResyncToken ~= token then
+				return
+			end
+			pcall(function()
+				local current = NAmanage.getAssetDownloadMethod()
+				NAmanage.setAssetDownloadMethod(current, {
+					persist = false,
+					force = true,
+					silent = opts.silent ~= false,
+				})
+			end)
+		end)
+	end
+end
+
+NAStuff.AssetDownloadMethod = NAStuff.AssetDownloadMethod or "txt"
+if FileSupport and type(isfile) == "function" and type(readfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
+	local okRaw, raw = pcall(readfile, NAfiles.NAMAINSETTINGSPATH)
+	if okRaw and type(raw) == "string" and raw ~= "" then
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if okDecode and type(decoded) == "table" then
+			NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(decoded.assetDownloadMethod)
+		end
+	end
+end
+NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
+NAmanage.syncDownloadedImageFiles(NAStuff.AssetDownloadMethod, { persist = false, silent = true })
+
 NAmanage.initUIEditors=function(coreGui, HUI)
 	if not (coreGui and NAgui) then
 		return
@@ -5114,6 +5546,31 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		return candidate
 	end
 
+	local function hashString(str)
+		local hash = 0
+		for i = 1, #str do
+			hash = (hash * 31 + string.byte(str, i)) % 4294967296
+		end
+		return string.format("%08x", hash)
+	end
+
+	local function deriveTxtFileNameFromUrl(url)
+		if type(url) ~= "string" or url == "" then
+			return nil
+		end
+		local fileName = deriveFileNameFromUrl(url) or "icon"
+		fileName = fileName:match("([^?#]+)") or fileName
+		local base = fileName:match("(.+)%.") or fileName
+		base = sanitizeFileName(base) or "icon"
+		local hashed = hashString(url)
+		return string.format("%s_%s.txt", base ~= "" and base or "icon", hashed)
+	end
+
+	local function deriveLegacyIconFileNameFromUrl(url)
+		local remoteFile = deriveFileNameFromUrl(url) or "CustomIcon.png"
+		return sanitizeFileName(remoteFile) or ("icon_"..tostring(os.time())..".png")
+	end
+
 	local function installFontFromUrl(name, url, opts)
 		opts = opts or {}
 		local rawName = type(name) == "string" and (name:match("^%s*(.-)%s*$") or "") or ""
@@ -6391,8 +6848,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			and NAfiles and NAfiles.NAASSETSFILEPATH
 			and NAImageAssets and typeof(NAImageAssets.Icon) == "string" and NAImageAssets.Icon ~= ""
 		then
-			local ok, asset = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon)
-			if ok and typeof(asset) == "string" and asset ~= "" then
+			local asset = NAmanage.getNAImageAsset("Icon", "")
+			if typeof(asset) == "string" and asset ~= "" then
 				return asset
 			end
 		end
@@ -6537,8 +6994,13 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and typeof(data) == "string" and data ~= "") then
 			return false, "Unable to download custom icon image."
 		end
-		local remoteFile = deriveFileNameFromUrl(norm) or "CustomIcon.png"
-		local safeName = sanitizeFileName(remoteFile) or ("icon_"..tostring(os.time())..".png")
+		local method = (type(NAmanage.getAssetDownloadMethod) == "function" and NAmanage.getAssetDownloadMethod()) or "txt"
+		local safeName
+		if method == "legacy" then
+			safeName = deriveLegacyIconFileNameFromUrl(norm)
+		else
+			safeName = deriveTxtFileNameFromUrl(norm) or ("icon_"..tostring(os.time())..".txt")
+		end
 		local fullPath = NAfiles.NACUSTOMICONPATH.."/"..safeName
 		local okW, errW = pcall(writefile, fullPath, data)
 		if not okW then
@@ -9222,9 +9684,16 @@ repeat
 		end
 		for _, fileName in pairs(NAImageAssets) do
 			if type(fileName) == "string" and fileName ~= "" then
-				local fullPath = NAfiles.NAASSETSFILEPATH.."/"..fileName
+				local fullPath = NAmanage.getNAImageAssetPath(fileName, { preferredOnly = true })
+				if type(fullPath) ~= "string" or fullPath == "" then
+					return false
+				end
 				if not isfile(fullPath) then
-					local data = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"..fileName)
+					local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName)
+					if type(sourceUrl) ~= "string" or sourceUrl == "" then
+						return false
+					end
+					local data = game:HttpGet(sourceUrl)
 					if type(data) ~= "string" or data == "" then
 						return false
 					end
@@ -10710,6 +11179,12 @@ NAmanage.NASettingsGetSchema=function()
 				return mode or "Fast"
 			end;
 		};
+		assetDownloadMethod = {
+			default = "txt";
+			coerce = function(value)
+				return NAmanage.normalizeAssetDownloadMethod(value)
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -11799,8 +12274,10 @@ NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisable
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
+NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NASettingsGet("assetDownloadMethod") or NAStuff.AssetDownloadMethod)
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
+pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
 
 NAmanage.loadIntegration=function()
 	local integ = NAStuff.Integrations or {}
@@ -28073,15 +28550,15 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	if NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 	NAmanage.SetAttr(Lighting, "NAOldRbx_Enabled", true)
 
-	local studTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Stud)) or "rbxassetid://48715260"
-	local inletTex = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Inlet)) or "rbxassetid://20299774"
+	local studTex = NAmanage.getNAImageAsset("Stud", "rbxassetid://48715260")
+	local inletTex = NAmanage.getNAImageAsset("Inlet", "rbxassetid://20299774")
 	local skyA = {
-		bk = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.bk)) or "rbxassetid://161781263",
-		dn = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.dn)) or "rbxassetid://161781258",
-		ft = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.ft)) or "rbxassetid://161781261",
-		lf = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.lf)) or "rbxassetid://161781267",
-		rt = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.rt)) or "rbxassetid://161781268",
-		up = (getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.up)) or "rbxassetid://161781260",
+		bk = NAmanage.getNAImageAsset("bk", "rbxassetid://161781263"),
+		dn = NAmanage.getNAImageAsset("dn", "rbxassetid://161781258"),
+		ft = NAmanage.getNAImageAsset("ft", "rbxassetid://161781261"),
+		lf = NAmanage.getNAImageAsset("lf", "rbxassetid://161781267"),
+		rt = NAmanage.getNAImageAsset("rt", "rbxassetid://161781268"),
+		up = NAmanage.getNAImageAsset("up", "rbxassetid://161781260"),
 	}
 
 	local function ensureSky()
@@ -32396,7 +32873,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	clear.Position=UDim2.new(1,-28,0,2)
 	clear.Size=UDim2.new(0,24,0,24)
 	clear.ZIndex=2
-	clear.Image=getcustomasset and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Sheet) or "rbxassetid://3926305904"
+	clear.Image=NAmanage.getNAImageAsset("Sheet", "rbxassetid://3926305904")
 	clear.ImageRectOffset=Vector2.new(924,724)
 	clear.ImageRectSize=Vector2.new(36,36)
 
@@ -36356,6 +36833,16 @@ end,true)
 cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
 	NAlib.disconnect("autochar")
 	NAStuff.AutoChar=nil
+end)
+
+cmd.add({"reselectchar","reselectcharacter","pickchar","charpicker"},{"reselectchar","Re-open the character picker"},function()
+	if not (NA_GRAB_BODY and type(NA_GRAB_BODY.pickOverride) == "function") then
+		DoNotif("Character picker is unavailable.", 3)
+		return
+	end
+	SpawnCall(function()
+		NA_GRAB_BODY.pickOverride()
+	end)
 end)
 
 cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a selected outfit on respawn"},function(arg)
@@ -53067,6 +53554,9 @@ if not (_na_env and _na_env.NAUILOADEDORSUM and _na_env.NA_UI and _na_env.NA_UI.
 
 				if okRun and result then
 					NAmanage.NARegisterUI(result)
+					if type(NAmanage.queueAssetMethodResync) == "function" then
+						NAmanage.queueAssetMethodResync({ 0, 2, 5 }, { silent = true })
+					end
 					break
 				end
 
@@ -53153,15 +53643,9 @@ NAUIMANAGER = {
 };
 
 originalIO.resizeCursors = function(key, fallback)
-	if type(getcustomasset) ~= "function" then
-		return fallback;
-	end;
-	if not (NAfiles and NAfiles.NAASSETSFILEPATH and NAImageAssets and NAImageAssets[key]) then
-		return fallback;
-	end;
-	local suc, res = pcall(getcustomasset, NAfiles.NAASSETSFILEPATH .. "/" .. NAImageAssets[key]);
-	if suc and res then
-		return res;
+	local asset = NAmanage.getNAImageAsset(key, nil)
+	if type(asset) == "string" and asset ~= "" then
+		return asset
 	end;
 	return fallback;
 end;
@@ -61458,7 +61942,10 @@ UICorner2 = InstanceNew("UICorner")
 
 NAICONASSET = nil
 
-pcall(function() NAICONASSET=(getcustomasset and (isAprilFools() and getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.nilsongamer99) or getcustomasset(NAfiles.NAASSETSFILEPATH.."/"..NAImageAssets.Icon))) or nil end)
+pcall(function()
+	local key = isAprilFools() and "nilsongamer99" or "Icon"
+	NAICONASSET = NAmanage.getNAImageAsset(key, nil)
+end)
 
 TextButton = InstanceNew("ImageButton")
 TextButton.Image = NAICONASSET or ""
@@ -63715,6 +64202,69 @@ end
 NAgui.addSection("Asset Loading")
 NAStuff.AssetLoadModeBox = NAgui.addInfo("Asset Load Mode", "")
 NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
+NAStuff.AssetDownloadMethodBox = NAgui.addInfo("Downloaded Image File Type", "")
+
+NAmanage.updateAssetDownloadMethodInfo = function()
+	local box = NAStuff.AssetDownloadMethodBox
+	if not box then
+		return
+	end
+	local method = NAmanage.getAssetDownloadMethod()
+	local label = method == "legacy" and "Normal image files (legacy)" or ".txt files (helps keep images out of gallery)"
+	pcall(function()
+		box.Text = label
+	end)
+end
+NAmanage.updateAssetDownloadMethodInfo()
+
+NAgui.addToggle("Save downloaded images as .txt", NAmanage.getAssetDownloadMethod() == "txt", function(v)
+	local prev = NAmanage.getAssetDownloadMethod()
+	local nextMethod = v and "txt" or "legacy"
+	if NAStuff.AssetDownloadSyncBusy == true then
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Save downloaded images as .txt", prev == "txt", { force = true, fire = false })
+		end
+		local now = tick()
+		local untilTick = tonumber(NAStuff.AssetDownloadBusyNotifUntil) or 0
+		if now >= untilTick then
+			NAStuff.AssetDownloadBusyNotifUntil = now + 1
+			DoNotif("Asset image conversion is already running. Please wait.", 2)
+		end
+		return
+	end
+	local _, sync, status, syncErr = NAmanage.setAssetDownloadMethod(nextMethod)
+	if status == "busy" then
+		if NAgui.setToggleState then
+			local cur = NAmanage.getAssetDownloadMethod()
+			NAgui.setToggleState("Save downloaded images as .txt", cur == "txt", { force = true, fire = false })
+		end
+		return
+	end
+	if status == "sync_error" then
+		local errText = type(syncErr) == "string" and syncErr or "unknown error"
+		DoNotif("Asset image conversion failed: "..errText, 3)
+	end
+	if prev ~= nextMethod then
+		local converted = 0
+		local failed = 0
+		if type(sync) == "table" then
+			local assets = sync.assets or {}
+			local icons = sync.icons or {}
+			converted = (tonumber(assets.converted) or 0) + (tonumber(icons.converted) or 0)
+			failed = (tonumber(assets.failed) or 0) + (tonumber(icons.failed) or 0)
+		end
+		local msg = "Downloaded image file type set to "..(nextMethod == "txt" and ".txt" or "legacy image files").."."
+		if converted > 0 then
+			msg = msg.." Converted "..tostring(converted).." existing file"..(converted == 1 and "" or "s").."."
+		elseif failed > 0 then
+			msg = msg.." Conversion attempted with "..tostring(failed).." failure"..(failed == 1 and "" or "s").."."
+		end
+		DoNotif(msg, 2)
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Save downloaded images as .txt", function()
+	return NAmanage.getAssetDownloadMethod() == "txt"
+end)
 
 NAgui.addToggle("Preload Assets On Load", NAStuff.AutoPreloadAssets == true, function(v)
 	NAStuff.AutoPreloadAssets = v and true or false
@@ -68167,7 +68717,7 @@ NAgui.addToggle("Auto Morph", false, function(state)
 	end
 end)
 
-NAgui.addButton("Re-select Character (BETA)", function()
+NAgui.addButton("Re-select Character", function()
 	if NA_GRAB_BODY and NA_GRAB_BODY.pickOverride then
 		Spawn(function()
 			NA_GRAB_BODY.pickOverride()
@@ -68835,6 +69385,9 @@ SpawnCall(function()
 end)
 
 pcall(function()
+	if type(NAmanage.queueAssetMethodResync) == "function" then
+		NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
+	end
 	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
 		NAAssetsLoading.setStatus("ready")
 		NAAssetsLoading.setPercent(1)
