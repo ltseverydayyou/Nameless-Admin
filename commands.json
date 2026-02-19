@@ -3471,6 +3471,18 @@
       "desc": "stop auto-change on respawn"
     },
     {
+      "name": "reselectchar",
+      "aliases": [
+        "reselectchar",
+        "reselectcharacter",
+        "pickchar",
+        "charpicker"
+      ],
+      "usage": "reselectchar",
+      "args": "",
+      "desc": "Re-open the character picker"
+    },
+    {
       "name": "autooutfit",
       "aliases": [
         "autooutfit",
