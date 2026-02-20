@@ -1888,24 +1888,53 @@
       "desc": "Allows you to be kicked for being AFK"
     },
     {
-      "name": "clicktp",
+      "name": "tptool",
       "aliases": [
-        "clicktp",
-        "tptool"
+        "tptool",
+        "clicktptool"
       ],
-      "usage": "clicktp (tptool)",
+      "usage": "tptool",
       "args": "",
-      "desc": "Teleport where your mouse is"
+      "desc": "Create click/tween teleport buttons or backpack tools"
     },
     {
-      "name": "unclicktp",
+      "name": "unclicktptool",
       "aliases": [
-        "unclicktp",
+        "unclicktptool",
         "untptool"
       ],
-      "usage": "unclicktp (untptool)",
+      "usage": "unclicktptool",
       "args": "",
       "desc": "Remove teleport buttons or tools"
+    },
+    {
+      "name": "clickteleport",
+      "aliases": [
+        "clickteleport",
+        "clicktp"
+      ],
+      "usage": "clickteleport",
+      "args": "",
+      "desc": "Bind-only click teleport (hold bind + left click)"
+    },
+    {
+      "name": "clickdelete",
+      "aliases": [
+        "clickdelete",
+        "clickdel"
+      ],
+      "usage": "clickdelete",
+      "args": "",
+      "desc": "Bind-only click delete (hold bind + left click)"
+    },
+    {
+      "name": "thru",
+      "aliases": [
+        "thru"
+      ],
+      "usage": "thru <distance>",
+      "args": "<distance>",
+      "desc": "Move forward by distance"
     },
     {
       "name": "olddex",
