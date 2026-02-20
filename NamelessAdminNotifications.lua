@@ -905,6 +905,30 @@ local function mkHdr(par, z, kind, onPause)
 	end);
 	addConnection(cls, c2);
 	local fMenu, fCon, rec;
+	local fNonce = 0;
+	local pNonce = 0;
+	local menuGateUntil = 0;
+	local function canToggleMenu()
+		local now = os.clock();
+		if now < menuGateUntil then
+			return false;
+		end;
+		menuGateUntil = now + 0.07;
+		return true;
+	end;
+	local function disconnectMenuConn(conn)
+		if not conn then
+			return nil;
+		end;
+		conn:Disconnect();
+		local sp = ST[par];
+		if sp and sp.connections then
+			sp.connections[conn] = nil;
+		end;
+		return nil;
+	end;
+	local fontApplyBusy = false;
+	local dockApplyBusy = false;
 	local function refreshFonts()
 		if not rec then
 			return;
@@ -915,14 +939,8 @@ local function mkHdr(par, z, kind, onPause)
 		end;
 	end;
 	local function closeFont()
-		if fCon then
-			fCon:Disconnect();
-			local sp = ST[par];
-			if sp and sp.connections then
-				sp.connections[fCon] = nil;
-			end;
-			fCon = nil;
-		end;
+		fNonce += 1;
+		fCon = disconnectMenuConn(fCon);
 		if fMenu and fMenu.Parent then
 			fMenu:Destroy();
 		end;
@@ -945,6 +963,8 @@ local function mkHdr(par, z, kind, onPause)
 			onPause(true);
 		end;
 		setFontSel(true);
+		fNonce += 1;
+		local thisNonce = fNonce;
 		local m = Instance.new("Frame");
 		m.BackgroundColor3 = TH.Bg;
 		m.BackgroundTransparency = 0.05;
@@ -953,6 +973,7 @@ local function mkHdr(par, z, kind, onPause)
 		m.AutomaticSize = Enum.AutomaticSize.Y;
 		m.ZIndex = ov.ZIndex + 10;
 		m.Parent = ov;
+		fMenu = m;
 		local c = Instance.new("UICorner", m);
 		c.CornerRadius = UDim.new(0, 10);
 		local s = Instance.new("UIStroke", m);
@@ -1005,27 +1026,35 @@ local function mkHdr(par, z, kind, onPause)
 				set = setSel
 			});
 			local c3 = b.MouseButton1Click:Connect(function()
-				setFontKind(kind, pair[2]);
-				applyFontTree(par, pair[2]);
-				refreshFonts();
-				refTitle();
+				if fontApplyBusy then
+					return;
+				end;
+				fontApplyBusy = true;
+				local ok = pcall(function()
+					setFontKind(kind, pair[2]);
+					applyFontTree(par, pair[2]);
+					refreshFonts();
+					refTitle();
+				end);
+				fontApplyBusy = false;
+				if not ok then
+					return;
+				end;
 			end);
 			addConnection(b, c3);
 		end;
 		refreshFonts();
-		rs.Heartbeat:Wait();
 		placeMenu(fbtn, m);
-		fMenu = m;
+		fCon = disconnectMenuConn(fCon);
 		fCon = rs.Heartbeat:Connect(function()
-			if fMenu and fMenu.Parent then
+			if thisNonce ~= fNonce then
+				fCon = disconnectMenuConn(fCon);
+				return;
+			end;
+			if fMenu == m and fMenu.Parent and fbtn and fbtn.Parent then
 				placeMenu(fbtn, fMenu);
-			elseif fCon then
-				fCon:Disconnect();
-				local sp = ST[par];
-				if sp and sp.connections then
-					sp.connections[fCon] = nil;
-				end;
-				fCon = nil;
+			else
+				fCon = disconnectMenuConn(fCon);
 			end;
 		end);
 		addConnection(par, fCon);
@@ -1044,6 +1073,9 @@ local function mkHdr(par, z, kind, onPause)
 		addTween(m, t2);
 	end;
 	local c4 = fbtn.MouseButton1Click:Connect(function()
+		if not canToggleMenu() then
+			return;
+		end;
 		if state.closing then
 			return;
 		end;
@@ -1085,14 +1117,8 @@ local function mkHdr(par, z, kind, onPause)
 			}
 		};
 		local function closePos()
-			if pCon then
-				pCon:Disconnect();
-				local sp = ST[par];
-				if sp and sp.connections then
-					sp.connections[pCon] = nil;
-				end;
-				pCon = nil;
-			end;
+			pNonce += 1;
+			pCon = disconnectMenuConn(pCon);
 			if pMenu and pMenu.Parent then
 				pMenu:Destroy();
 			end;
@@ -1114,6 +1140,8 @@ local function mkHdr(par, z, kind, onPause)
 				onPause(true);
 			end;
 			setPosSel(true);
+			pNonce += 1;
+			local thisNonce = pNonce;
 			local m = Instance.new("Frame");
 			m.BackgroundColor3 = TH.Bg;
 			m.BackgroundTransparency = 0.05;
@@ -1122,6 +1150,7 @@ local function mkHdr(par, z, kind, onPause)
 			m.AutomaticSize = Enum.AutomaticSize.Y;
 			m.ZIndex = ov.ZIndex + 10;
 			m.Parent = ov;
+			pMenu = m;
 			local c = Instance.new("UICorner", m);
 			c.CornerRadius = UDim.new(0, 10);
 			local s = Instance.new("UIStroke", m);
@@ -1139,34 +1168,39 @@ local function mkHdr(par, z, kind, onPause)
 			for _, ent in ipairs(POS) do
 				local b = mkMenuBtn(m, ent[1], m.ZIndex + 2, CURF[kind]);
 				local c5 = b.MouseButton1Click:Connect(function()
-					local p0 = par;
-					repeat
-						if p0:IsA("Frame") and p0.Name == "Card" then
-							break;
-						end;
-						p0 = p0.Parent;
-					until not p0;
-					local s0 = ctx(p0);
-					if s0.setDock then
-						s0.setDock(ent[2], true);
+					if dockApplyBusy then
+						return;
 					end;
-					closePos();
+					dockApplyBusy = true;
+					pcall(function()
+						local p0 = par;
+						repeat
+							if p0:IsA("Frame") and p0.Name == "Card" then
+								break;
+							end;
+							p0 = p0.Parent;
+						until not p0;
+						local s0 = ctx(p0);
+						if s0.setDock then
+							s0.setDock(ent[2], true);
+						end;
+						closePos();
+					end);
+					dockApplyBusy = false;
 				end);
 				addConnection(b, c5);
 			end;
-			rs.Heartbeat:Wait();
 			placeMenu(posBtn, m);
-			pMenu = m;
+			pCon = disconnectMenuConn(pCon);
 			pCon = rs.Heartbeat:Connect(function()
-				if pMenu and pMenu.Parent then
+				if thisNonce ~= pNonce then
+					pCon = disconnectMenuConn(pCon);
+					return;
+				end;
+				if pMenu == m and pMenu.Parent and posBtn and posBtn.Parent then
 					placeMenu(posBtn, pMenu);
-				elseif pCon then
-					pCon:Disconnect();
-					local sp = ST[par];
-					if sp and sp.connections then
-						sp.connections[pCon] = nil;
-					end;
-					pCon = nil;
+				else
+					pCon = disconnectMenuConn(pCon);
 				end;
 			end);
 			addConnection(par, pCon);
@@ -1185,6 +1219,9 @@ local function mkHdr(par, z, kind, onPause)
 			addTween(m, t2);
 		end;
 		local c6 = posBtn.MouseButton1Click:Connect(function()
+			if not canToggleMenu() then
+				return;
+			end;
 			if state.closing then
 				return;
 			end;

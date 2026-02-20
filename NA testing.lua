@@ -11860,6 +11860,18 @@ NAStuff.CKBM = NAStuff.CKBM or {
 	LeftAlt = "Alt";
 	RightAlt = "Alt";
 }
+NAStuff.CKBX = NAStuff.CKBX or {
+	leftclick = "LeftClick";
+	leftmouse = "LeftClick";
+	mouse1 = "LeftClick";
+	mousebutton1 = "LeftClick";
+	lmb = "LeftClick";
+	rightclick = "RightClick";
+	rightmouse = "RightClick";
+	mouse2 = "RightClick";
+	mousebutton2 = "RightClick";
+	rmb = "RightClick";
+}
 NAStuff.CKBL = NAStuff.CKBL or nil
 
 NAmanage.CKBMap = function()
@@ -11874,6 +11886,9 @@ NAmanage.CKBMap = function()
 		for _, item in ipairs(items) do
 			lut[Lower(item.Name)] = item.Name
 		end
+	end
+	for alias, name in pairs(NAStuff.CKBX) do
+		lut[alias] = name
 	end
 	NAStuff.CKBL = lut
 	return lut
@@ -11893,6 +11908,10 @@ NAmanage.CKBKey = function(tok)
 	end)
 	if ok and direct then
 		return direct.Name
+	end
+	local alias = NAStuff.CKBX[Lower(tok)]
+	if alias then
+		return alias
 	end
 	return nil
 end
@@ -11954,12 +11973,21 @@ NAmanage.CKBNorm = function(rawKey)
 end
 
 NAmanage.CKBBind = function(input, UIS)
-	if not (input and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode and UIS) then
+	if not (input and UIS) then
 		return nil
 	end
 
-	local keyName = input.KeyCode.Name
-	if NAStuff.CKBM[keyName] then
+	local keyName = nil
+	if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode then
+		keyName = input.KeyCode.Name
+		if NAStuff.CKBM[keyName] then
+			return nil
+		end
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
+		keyName = "LeftClick"
+	elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+		keyName = "RightClick"
+	else
 		return nil
 	end
 
@@ -11982,15 +12010,16 @@ NAmanage.CKBRel = function(bindKey, relKey)
 	end
 
 	local norm = NAmanage.CKBNorm(bindKey) or bindKey
+	local relNorm = NAmanage.CKBKey(relKey) or relKey
 	local parts = {}
 	for part in tostring(norm):gmatch("[^%+]+") do
 		Insert(parts, part)
 	end
 	if #parts == 0 then
-		return bindKey == relKey
+		return bindKey == relNorm
 	end
 
-	local relMod = NAStuff.CKBM[relKey]
+	local relMod = NAStuff.CKBM[relNorm]
 	if relMod then
 		for i = 1, #parts - 1 do
 			if parts[i] == relMod then
@@ -12000,7 +12029,7 @@ NAmanage.CKBRel = function(bindKey, relKey)
 		return false
 	end
 
-	return parts[#parts] == relKey
+	return parts[#parts] == relNorm
 end
 
 NAmanage.CKBRes = function(cand, nMap)
@@ -12084,6 +12113,10 @@ NAmanage.ApplyCommandKeybinds=function()
 		NAStuff.KeybindEndConnection:Disconnect()
 		NAStuff.KeybindEndConnection = nil
 	end
+	if NAStuff.KeybindClickConnection then
+		NAStuff.KeybindClickConnection:Disconnect()
+		NAStuff.KeybindClickConnection = nil
+	end
 	local UIS = UserInputService
 	if not UIS then
 		return
@@ -12104,6 +12137,113 @@ NAmanage.ApplyCommandKeybinds=function()
 		return false
 	end
 
+	local function resolveInputBindName(input)
+		if not input then
+			return nil
+		end
+		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode then
+			return input.KeyCode.Name
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			return "LeftClick"
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			return "RightClick"
+		end
+		return nil
+	end
+
+	local function resolveBindOnlyClickAction(args)
+		if type(args) ~= "table" or type(args[1]) ~= "string" then
+			return nil
+		end
+		local commandName = Lower(args[1])
+		if commandName == "clickteleport" or commandName == "clicktp" then
+			return "teleport"
+		end
+		if commandName == "clickdelete" or commandName == "clickdel" then
+			return "delete"
+		end
+		return nil
+	end
+
+	local function bindComboActiveForClick(bindKey)
+		local normalized = NAmanage.CKBNorm(bindKey) or bindKey
+		if type(normalized) ~= "string" or normalized == "" then
+			return false
+		end
+
+		local parts = {}
+		for part in normalized:gmatch("[^%+]+") do
+			local piece = tostring(part):match("^%s*(.-)%s*$") or ""
+			if piece ~= "" then
+				Insert(parts, piece)
+			end
+		end
+		if #parts == 0 then
+			return false
+		end
+
+		for i = 1, #parts - 1 do
+			local modifier = parts[i]
+			if modifier == "Ctrl" then
+				if not (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
+					return false
+				end
+			elseif modifier == "Shift" then
+				if not (UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)) then
+					return false
+				end
+			elseif modifier == "Alt" then
+				if not (UIS:IsKeyDown(Enum.KeyCode.LeftAlt) or UIS:IsKeyDown(Enum.KeyCode.RightAlt)) then
+					return false
+				end
+			else
+				return false
+			end
+		end
+
+		local main = NAmanage.CKBKey(parts[#parts]) or parts[#parts]
+		if main == "LeftClick" then
+			return UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+		end
+		if main == "RightClick" then
+			return UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+		end
+
+		local keyCode = Enum.KeyCode[main]
+		if keyCode then
+			return UIS:IsKeyDown(keyCode)
+		end
+		return false
+	end
+
+	local function runBindOnlyClickAction(actionName)
+		if actionName == "teleport" then
+			local player = Players and Players.LocalPlayer
+			local char = player and player.Character
+			if not (player and char and mouse) then
+				return
+			end
+			local hit = NAmanage._tpTargetFromMouse(mouse, char)
+			if not hit then
+				return
+			end
+			local targetPosition = hit.Position + Vector3.new(0, 2.5, 0)
+			NAmanage.safePivotModel(char, CFrame.new(targetPosition))
+			return
+		end
+
+		if actionName == "delete" then
+			pcall(function()
+				local target = mouse and mouse.Target
+				if target and target.Parent then
+					target:Destroy()
+				end
+			end)
+		end
+	end
+
 	local activeHoldKeys = {}
 	local keySpamState = {}
 	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
@@ -12119,13 +12259,13 @@ NAmanage.ApplyCommandKeybinds=function()
 	end
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
-		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+		if not input then return end
 		if shouldBlock(gameProcessed) then return end
 
-		local keyName = input.KeyCode.Name
 		local cKey = NAmanage.CKBBind(input, UIS)
+		local keyName = resolveInputBindName(input)
 		local boundKey, args = NAmanage.CKBRes(cKey, nMap)
-		if not boundKey then
+		if not boundKey and keyName then
 			boundKey, args = NAmanage.CKBRes(keyName, nMap)
 		end
 		if type(args) ~= "table" or #args == 0 then
@@ -12140,6 +12280,9 @@ NAmanage.ApplyCommandKeybinds=function()
 
 		local opt = CommandKeybindOptions[boundKey]
 		if opt and opt.disabled then
+			return
+		end
+		if resolveBindOnlyClickAction(args) then
 			return
 		end
 		if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
@@ -12166,13 +12309,10 @@ NAmanage.ApplyCommandKeybinds=function()
 	end)
 
 	NAStuff.KeybindEndConnection = UIS.InputEnded:Connect(function(input, gameProcessed)
-		if not (input and input.KeyCode and input.KeyCode.Name) then
+		local keyName = resolveInputBindName(input)
+		if not keyName then
 			return
 		end
-		if input.UserInputType ~= Enum.UserInputType.Keyboard then
-			return
-		end
-		local keyName = input.KeyCode.Name
 		local relHolds = {}
 		for holdKey in pairs(activeHoldKeys) do
 			if NAmanage.CKBRel(holdKey, keyName) then
@@ -12195,6 +12335,28 @@ NAmanage.ApplyCommandKeybinds=function()
 			end
 		end
 	end)
+
+	if mouse and mouse.Button1Down then
+		NAStuff.KeybindClickConnection = mouse.Button1Down:Connect(function()
+			if NAStuff._capturingCommandKeybind then
+				return
+			end
+			if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then
+				return
+			end
+
+			for rawKey, args in pairs(CommandKeybinds) do
+				local action = resolveBindOnlyClickAction(args)
+				if action then
+					local normalizedKey = NAmanage.CKBNorm(rawKey) or rawKey
+					local opt = CommandKeybindOptions[rawKey] or CommandKeybindOptions[normalizedKey]
+					if not (opt and opt.disabled) and bindComboActiveForClick(normalizedKey) then
+						runBindOnlyClickAction(action)
+					end
+				end
+			end
+		end)
+	end
 end
 
 NAmanage.LoadCommandKeybinds=function()
@@ -29885,7 +30047,7 @@ NAmanage.makeClickTweenTools = function()
 	newTool("Tween TP", true)
 end
 
-cmd.add({"clicktp","tptool"},{"clicktp (tptool)","Teleport where your mouse is"},function()
+cmd.add({"tptool","clicktptool"},{"tptool","Create click/tween teleport buttons or backpack tools"},function()
 	Window({
 		Title = "Choose Teleport Mode",
 		Description = "Would you like to use on-screen buttons, or equipable Tools in your Backpack?",
@@ -29896,8 +30058,39 @@ cmd.add({"clicktp","tptool"},{"clicktp (tptool)","Teleport where your mouse is"}
 	})
 end)
 
-cmd.add({"unclicktp","untptool"},{"unclicktp (untptool)","Remove teleport buttons or tools"},function()
+cmd.add({"unclicktptool","untptool"},{"unclicktptool","Remove teleport buttons or tools"},function()
 	NAmanage.clearAllTP()
+end)
+
+cmd.add({"clickteleport","clicktp"},{"clickteleport","Bind-only click teleport (hold bind + left click)"},function()
+	DoNotif("Go to Settings > Command Keybinds and bind clickteleport (or clicktp), then hold that bind and left click.", 4, "Click Teleport")
+end)
+
+cmd.add({"clickdelete","clickdel"},{"clickdelete","Bind-only click delete (hold bind + left click)"},function()
+	DoNotif("Go to Settings > Command Keybinds and bind clickdelete (or clickdel), then hold that bind and left click.", 4, "Click Delete")
+end)
+
+cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distance)
+	local char = getChar()
+	local root = char and getRoot(char)
+	if not root then
+		return DoNotif("Thru failed: character root not found", 2)
+	end
+
+	local num = tonumber(distance) or 5
+	if num < 1 then
+		num = 1
+	end
+	local targetPos = root.CFrame.Position + (root.CFrame.LookVector * num)
+	local targetCF = CFrame.new(targetPos, targetPos + root.CFrame.LookVector)
+
+	if char and NAmanage.safePivotModel then
+		if not NAmanage.safePivotModel(char, targetCF) then
+			root.CFrame = targetCF
+		end
+	else
+		root.CFrame = targetCF
+	end
 end)
 
 cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
@@ -59845,11 +60038,10 @@ NAmanage.CommandKeybindsAdd=function()
 	if not UIS then return end
 	local listening = true
 	local bindConn
-	DoNotif("Press a key or key combo to bind to a command...", 3)
+	DoNotif("Press a key, key combo, or click combo to bind to a command...", 3)
 	NAStuff._capturingCommandKeybind = true
 	bindConn = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed or not listening then return end
-		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 		local keyName = NAmanage.CKBBind(input, UIS)
 		if not keyName then
 			return
@@ -60539,7 +60731,7 @@ NAmanage.CommandKeybindsUIWire=function()
 
 			NAStuff._capturingCommandKeybind = true
 			ui.setKeyBtn.Text = "Cancel"
-			DoNotif("Press a key or key combo to set...", 2)
+			DoNotif("Press a key, key combo, or click combo to set...", 2)
 
 			local conn
 			local function stop(msg)
@@ -60557,7 +60749,6 @@ NAmanage.CommandKeybindsUIWire=function()
 			conn = UserInputService.InputBegan:Connect(function(input, gp)
 				if tok ~= ui._capTok then return end
 				if gp then return end
-				if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 
 				local keyName = NAmanage.CKBBind(input, UserInputService)
 				if not keyName then
