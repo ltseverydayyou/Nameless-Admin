@@ -11812,13 +11812,217 @@ NAmanage.SaveBinders=function()
 	end
 end
 
+NAStuff.CKBA = NAStuff.CKBA or {
+	ctrl = "Ctrl";
+	control = "Ctrl";
+	leftcontrol = "Ctrl";
+	rightcontrol = "Ctrl";
+	lctrl = "Ctrl";
+	rctrl = "Ctrl";
+	shift = "Shift";
+	leftshift = "Shift";
+	rightshift = "Shift";
+	lshift = "Shift";
+	rshift = "Shift";
+	alt = "Alt";
+	option = "Alt";
+	leftalt = "Alt";
+	rightalt = "Alt";
+	lalt = "Alt";
+	ralt = "Alt";
+}
+NAStuff.CKBO = NAStuff.CKBO or {"Ctrl", "Shift", "Alt"}
+NAStuff.CKBM = NAStuff.CKBM or {
+	LeftControl = "Ctrl";
+	RightControl = "Ctrl";
+	LeftShift = "Shift";
+	RightShift = "Shift";
+	LeftAlt = "Alt";
+	RightAlt = "Alt";
+}
+NAStuff.CKBL = NAStuff.CKBL or nil
+
+NAmanage.CKBMap = function()
+	if NAStuff.CKBL then
+		return NAStuff.CKBL
+	end
+	local lut = {}
+	local ok, items = pcall(function()
+		return Enum.KeyCode:GetEnumItems()
+	end)
+	if ok and type(items) == "table" then
+		for _, item in ipairs(items) do
+			lut[Lower(item.Name)] = item.Name
+		end
+	end
+	NAStuff.CKBL = lut
+	return lut
+end
+
+NAmanage.CKBKey = function(tok)
+	if type(tok) ~= "string" or tok == "" then
+		return nil
+	end
+	local lut = NAmanage.CKBMap()
+	local name = lut[Lower(tok)]
+	if name then
+		return name
+	end
+	local ok, direct = pcall(function()
+		return Enum.KeyCode[tok]
+	end)
+	if ok and direct then
+		return direct.Name
+	end
+	return nil
+end
+
+NAmanage.CKBNorm = function(rawKey)
+	local trimmed = type(rawKey) == "string" and (rawKey:match("^%s*(.-)%s*$") or "") or ""
+	if trimmed == "" then
+		return nil
+	end
+
+	local parts = {}
+	for part in trimmed:gmatch("[^%+]+") do
+		local piece = tostring(part):match("^%s*(.-)%s*$") or ""
+		if piece ~= "" then
+			Insert(parts, piece)
+		end
+	end
+	if #parts == 0 then
+		return nil
+	end
+
+	if #parts == 1 then
+		return NAmanage.CKBKey(parts[1])
+	end
+
+	local mainKey = nil
+	local modifiers = {}
+	for _, piece in ipairs(parts) do
+		local resolved = NAmanage.CKBKey(piece)
+		local modifier = NAStuff.CKBA[Lower(piece)]
+		if not modifier and resolved then
+			modifier = NAStuff.CKBA[Lower(resolved)]
+		end
+		if modifier then
+			modifiers[modifier] = true
+		else
+			if not resolved then
+				return nil
+			end
+			if mainKey and mainKey ~= resolved then
+				return nil
+			end
+			mainKey = resolved
+		end
+	end
+
+	if not mainKey then
+		return nil
+	end
+
+	local normalized = {}
+	for _, modifier in ipairs(NAStuff.CKBO) do
+		if modifiers[modifier] then
+			Insert(normalized, modifier)
+		end
+	end
+	Insert(normalized, mainKey)
+	return Concat(normalized, "+")
+end
+
+NAmanage.CKBBind = function(input, UIS)
+	if not (input and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode and UIS) then
+		return nil
+	end
+
+	local keyName = input.KeyCode.Name
+	if NAStuff.CKBM[keyName] then
+		return nil
+	end
+
+	local combo = {}
+	local ctrlDown = UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
+	local shiftDown = UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)
+	local altDown = UIS:IsKeyDown(Enum.KeyCode.LeftAlt) or UIS:IsKeyDown(Enum.KeyCode.RightAlt)
+
+	if ctrlDown then Insert(combo, "Ctrl") end
+	if shiftDown then Insert(combo, "Shift") end
+	if altDown then Insert(combo, "Alt") end
+	Insert(combo, keyName)
+
+	return Concat(combo, "+")
+end
+
+NAmanage.CKBRel = function(bindKey, relKey)
+	if type(bindKey) ~= "string" or type(relKey) ~= "string" then
+		return false
+	end
+
+	local norm = NAmanage.CKBNorm(bindKey) or bindKey
+	local parts = {}
+	for part in tostring(norm):gmatch("[^%+]+") do
+		Insert(parts, part)
+	end
+	if #parts == 0 then
+		return bindKey == relKey
+	end
+
+	local relMod = NAStuff.CKBM[relKey]
+	if relMod then
+		for i = 1, #parts - 1 do
+			if parts[i] == relMod then
+				return true
+			end
+		end
+		return false
+	end
+
+	return parts[#parts] == relKey
+end
+
+NAmanage.CKBRes = function(cand, nMap)
+	if type(cand) ~= "string" or cand == "" then
+		return nil, nil
+	end
+
+	local args = CommandKeybinds[cand]
+	if type(args) == "table" then
+		return cand, args
+	end
+
+	local map = type(nMap) == "table" and nMap or {}
+	local mapped = map[cand]
+	if mapped and type(CommandKeybinds[mapped]) == "table" then
+		return mapped, CommandKeybinds[mapped]
+	end
+
+	local nKey = NAmanage.CKBNorm(cand)
+	if nKey and nKey ~= "" then
+		args = CommandKeybinds[nKey]
+		if type(args) == "table" then
+			return nKey, args
+		end
+		mapped = map[nKey]
+		if mapped and type(CommandKeybinds[mapped]) == "table" then
+			return mapped, CommandKeybinds[mapped]
+		end
+	end
+
+	return nil, nil
+end
+
 NAmanage.SaveCommandKeybinds=function()
 	if not FileSupport then return end
 
 	local payload = {}
 	for key, args in pairs(CommandKeybinds) do
-		if type(key) == "string" and type(args) == "table" then
-			local opt = CommandKeybindOptions[key]
+		local nKey = (type(key) == "string" and NAmanage.CKBNorm(key)) or nil
+		local saveKey = nKey or key
+		if type(saveKey) == "string" and saveKey ~= "" and type(args) == "table" then
+			local opt = CommandKeybindOptions[key] or CommandKeybindOptions[saveKey]
 			local disabled = opt and opt.disabled == true
 			local entry
 			if opt and opt.toggle then
@@ -11839,7 +12043,7 @@ NAmanage.SaveCommandKeybinds=function()
 			if disabled and type(entry) == "table" then
 				entry.disabled = true
 			end
-			payload[key] = entry
+			payload[saveKey] = entry
 		end
 	end
 
@@ -11883,31 +12087,46 @@ NAmanage.ApplyCommandKeybinds=function()
 	local activeHoldKeys = {}
 	local keySpamState = {}
 	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
+	local nMap = {}
+
+	for rawKey, args in pairs(CommandKeybinds) do
+		if type(rawKey) == "string" and type(args) == "table" then
+			local nKey = NAmanage.CKBNorm(rawKey)
+			if nKey and nKey ~= "" and rawKey ~= nKey then
+				nMap[nKey] = rawKey
+			end
+		end
+	end
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 		if shouldBlock(gameProcessed) then return end
+
 		local keyName = input.KeyCode.Name
-		local args = CommandKeybinds[keyName]
+		local cKey = NAmanage.CKBBind(input, UIS)
+		local boundKey, args = NAmanage.CKBRes(cKey, nMap)
+		if not boundKey then
+			boundKey, args = NAmanage.CKBRes(keyName, nMap)
+		end
 		if type(args) ~= "table" or #args == 0 then
 			return
 		end
 		local now = os.clock()
-		local last = keySpamState[keyName]
+		local last = keySpamState[boundKey]
 		if last and (now - last) < keySpamGap then
 			return
 		end
-		keySpamState[keyName] = now
+		keySpamState[boundKey] = now
 
-		local opt = CommandKeybindOptions[keyName]
+		local opt = CommandKeybindOptions[boundKey]
 		if opt and opt.disabled then
 			return
 		end
 		if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
-			if activeHoldKeys[keyName] then
+			if activeHoldKeys[boundKey] then
 				return
 			end
-			activeHoldKeys[keyName] = true
+			activeHoldKeys[boundKey] = true
 			opt.state = true
 			cmd.run(cloneArgs(args))
 			return
@@ -11934,27 +12153,27 @@ NAmanage.ApplyCommandKeybinds=function()
 			return
 		end
 		local keyName = input.KeyCode.Name
-		if not activeHoldKeys[keyName] and shouldBlock(gameProcessed) then
+		local relHolds = {}
+		for holdKey in pairs(activeHoldKeys) do
+			if NAmanage.CKBRel(holdKey, keyName) then
+				Insert(relHolds, holdKey)
+			end
+		end
+
+		if #relHolds == 0 and shouldBlock(gameProcessed) then
 			return
 		end
-		local opt = CommandKeybindOptions[keyName]
-		if not opt then
-			activeHoldKeys[keyName] = nil
-			return
+
+		for _, holdKey in ipairs(relHolds) do
+			local opt = CommandKeybindOptions[holdKey]
+			if opt and opt.toggle and opt.hold and not opt.disabled and type(opt.args2) == "table" then
+				cmd.run(cloneArgs(opt.args2))
+			end
+			activeHoldKeys[holdKey] = nil
+			if opt then
+				opt.state = false
+			end
 		end
-		if not (opt.toggle and opt.hold) then
-			activeHoldKeys[keyName] = nil
-			return
-		end
-		if opt.disabled then
-			activeHoldKeys[keyName] = nil
-			return
-		end
-		if type(opt.args2) == "table" then
-			cmd.run(cloneArgs(opt.args2))
-		end
-		activeHoldKeys[keyName] = nil
-		opt.state = false
 	end)
 end
 
@@ -11970,6 +12189,10 @@ NAmanage.LoadCommandKeybinds=function()
 			if okDecode and type(decoded) == "table" then
 				for key, value in pairs(decoded) do
 					if type(key) == "string" and type(value) == "table" then
+						local saveKey = NAmanage.CKBNorm(key) or key
+						if type(saveKey) ~= "string" or saveKey == "" then
+							continue
+						end
 						local args = nil
 						local opt = nil
 						local disabled = value.disabled == true
@@ -12009,13 +12232,13 @@ NAmanage.LoadCommandKeybinds=function()
 							args = value
 						end
 						if type(args) == "table" then
-							CommandKeybinds[key] = args
+							CommandKeybinds[saveKey] = args
 							if disabled then
 								opt = opt or {}
 								opt.disabled = true
 							end
 							if opt then
-								CommandKeybindOptions[key] = opt
+								CommandKeybindOptions[saveKey] = opt
 							end
 						end
 					end
@@ -17844,7 +18067,7 @@ NAmanage.loadButtonIDS = function()
 
 	for _, data in pairs(NAUserButtons) do
 		if type(data) == "table" and type(data.Keybind) == "string" and data.Keybind ~= "" then
-			local keyName = data.Keybind
+			local keyName = NAmanage.CKBNorm(data.Keybind) or data.Keybind
 
 			if CommandKeybinds[keyName] == nil then
 				local parts = {}
@@ -19913,9 +20136,10 @@ NAmanage.RenderUserButtons = function()
 						local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 						local margin = 8
 						local dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
-						local visibleCount = math.min(#children, 5)
-						local dropHeight = (visibleCount * (childHeight + 6)) + 12
 						local maxHeight = math.max(120, (vp.Y - margin * 2) * 0.8)
+						local maxRows = math.max(1, math.floor((maxHeight - 12) / (childHeight + 6)))
+						local visibleCount = math.min(#children, maxRows)
+						local dropHeight = (visibleCount * (childHeight + 6)) + 12
 						local finalHeight = math.min(dropHeight, maxHeight)
 						local posUDim, anchor = placeGroupContainer(mode, btn, Vector2.new(dropWidth, finalHeight))
 						container.AnchorPoint = anchor
@@ -59601,17 +59825,20 @@ NAmanage.CommandKeybindsAdd=function()
 	if not UIS then return end
 	local listening = true
 	local bindConn
-	DoNotif("Press a key to bind to a command...", 3)
+	DoNotif("Press a key or key combo to bind to a command...", 3)
 	NAStuff._capturingCommandKeybind = true
 	bindConn = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed or not listening then return end
 		if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
+		local keyName = NAmanage.CKBBind(input, UIS)
+		if not keyName then
+			return
+		end
 		listening = false
 		if bindConn then bindConn:Disconnect() bindConn = nil end
 		Defer(function()
 			NAStuff._capturingCommandKeybind = false
 		end)
-		local keyName = input.KeyCode.Name
 		Window({
 			Title = "Command Keybind",
 			Description = "Enter a command to run when "..keyName.." is pressed.",
@@ -59788,7 +60015,7 @@ NAmanage.CommandKeybindsUIInit=function()
 	root.LayoutOrder = NAgui._nextLayoutOrder()
 	root.ClipsDescendants = false
 
-	local keyBox = cloneSearchBox(root, "Key")
+	local keyBox = cloneSearchBox(root, "Key / Combo")
 	keyBox.Name = "KeyBox"
 	keyBox.TextEditable = false
 	keyBox.Size = UDim2.new(0.28, -10, 0, 30)
@@ -59838,7 +60065,7 @@ NAmanage.CommandKeybindsUIInit=function()
 		return btn
 	end
 
-	local setKeyBtn = makeActionButton(root, "Set Key (click)", UDim2.new(0, 10, 0, 46), UDim2.new(0.22, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local setKeyBtn = makeActionButton(root, "Set Key/Combo", UDim2.new(0, 10, 0, 46), UDim2.new(0.22, -10, 0, 30), Color3.fromRGB(54, 54, 64))
 	local newBtn = makeActionButton(root, "New", UDim2.new(0.22, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
 	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.36, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(80, 120, 80))
 	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.52, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(54, 54, 64))
@@ -60051,7 +60278,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 
 		local keyLbl = InstanceNew("TextLabel", row)
 		keyLbl.BackgroundTransparency = 1
-		keyLbl.Size = UDim2.new(0, 60, 1, 0)
+		keyLbl.Size = UDim2.new(0, 130, 1, 0)
 		keyLbl.Position = UDim2.new(0, 10, 0, 0)
 		keyLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		keyLbl.TextSize = 14
@@ -60062,8 +60289,8 @@ NAmanage.CommandKeybindsUIRefresh=function()
 
 		local cmdLbl = InstanceNew("TextLabel", row)
 		cmdLbl.BackgroundTransparency = 1
-		cmdLbl.Size = UDim2.new(1, -240, 1, 0)
-		cmdLbl.Position = UDim2.new(0, 70, 0, 0)
+		cmdLbl.Size = UDim2.new(1, -310, 1, 0)
+		cmdLbl.Position = UDim2.new(0, 140, 0, 0)
 		cmdLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		cmdLbl.TextSize = 14
 		cmdLbl.TextWrapped = true
@@ -60281,7 +60508,7 @@ NAmanage.CommandKeybindsUIWire=function()
 			if ui._cap then
 				ui._cap = false
 				NAStuff._capturingCommandKeybind = false
-				ui.setKeyBtn.Text = "Set Key"
+				ui.setKeyBtn.Text = "Set Key/Combo"
 				DoNotif("Cancelled", 1.5)
 				return
 			end
@@ -60292,14 +60519,14 @@ NAmanage.CommandKeybindsUIWire=function()
 
 			NAStuff._capturingCommandKeybind = true
 			ui.setKeyBtn.Text = "Cancel"
-			DoNotif("Press a key to set...", 2)
+			DoNotif("Press a key or key combo to set...", 2)
 
 			local conn
 			local function stop(msg)
 				if tok ~= ui._capTok then return end
 				ui._capTok = (ui._capTok or 0) + 1
 				ui._cap = false
-				ui.setKeyBtn.Text = "Set Key"
+				ui.setKeyBtn.Text = "Set Key/Combo"
 				if conn then conn:Disconnect() conn = nil end
 				Defer(function()
 					NAStuff._capturingCommandKeybind = false
@@ -60312,7 +60539,10 @@ NAmanage.CommandKeybindsUIWire=function()
 				if gp then return end
 				if input.UserInputType ~= Enum.UserInputType.Keyboard or not input.KeyCode then return end
 
-				local keyName = input.KeyCode.Name
+				local keyName = NAmanage.CKBBind(input, UserInputService)
+				if not keyName then
+					return
+				end
 				if ui.keyBox then ui.keyBox.Text = keyName end
 				stop()
 			end)
@@ -60327,15 +60557,19 @@ NAmanage.CommandKeybindsUIWire=function()
 
 	if ui.saveBtn then
 		MouseButtonFix(ui.saveBtn, function()
-			local keyName = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local rawKey = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local keyName = NAmanage.CKBNorm(rawKey) or ""
 			local cmdName = ui.cmdBox and tostring(ui.cmdBox.Text or ""):match("^%s*(.-)%s*$") or ""
 			local argsRaw = ui.argsBox and tostring(ui.argsBox.Text or "") or ""
 			local toggleCmdName = ui.toggleCmdBox and tostring(ui.toggleCmdBox.Text or ""):match("^%s*(.-)%s*$") or ""
 			local toggleArgsRaw = ui.toggleArgsBox and tostring(ui.toggleArgsBox.Text or "") or ""
 
 			if keyName == "" then
-				DoNotif("Pick a key first.", 2)
+				DoNotif("Pick a valid key or key combo first.", 2)
 				return
+			end
+			if ui.keyBox and ui.keyBox.Text ~= keyName then
+				ui.keyBox.Text = keyName
 			end
 			if cmdName == "" then
 				DoNotif("Command cannot be empty.", 2)
@@ -60402,9 +60636,10 @@ NAmanage.CommandKeybindsUIWire=function()
 
 	if ui.delBtn then
 		MouseButtonFix(ui.delBtn, function()
-			local keyName = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local rawKey = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
+			local keyName = NAmanage.CKBNorm(rawKey) or rawKey
 			if keyName == "" then
-				DoNotif("No key selected.", 2)
+				DoNotif("No key or combo selected.", 2)
 				return
 			end
 			CommandKeybinds[keyName] = nil
