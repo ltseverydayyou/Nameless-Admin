@@ -7475,7 +7475,20 @@ NASESSIONSTARTEDIDK = os.clock()
 NAlib = NAlib or {}
 NAgui={}
 NAindex = { _init = false }
-NAjobs  = { jobs = {}, hb = nil, seq = 0, _frame = 0, _claimed = {}, _touchState = setmetatable({}, {__mode="k"}) }
+NAjobs  = {
+	jobs = {},
+	hb = nil,
+	seq = 0,
+	_frame = 0,
+	_claimed = {},
+	_touchState = setmetatable({}, {__mode="k"}),
+	_q = {},
+	_qHead = 1,
+	_qTail = 0,
+	_maxTicksPerStep = 2,
+	_zeroMinInterval = 0.03,
+	_zeroTargetTicksPerSecond = 45
+}
 NAutil  = NAutil  or {}
 NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
 NACOLOREDELEMENTS={}
@@ -44828,20 +44841,70 @@ NAjobs._restoreTouchDue = function()
 	end
 end
 
+NAjobs._effectiveInterval = function(job, zeroCount)
+	local ivl = tonumber(job and job.interval) or 0
+	if ivl > 0 then
+		return ivl
+	end
+	local minIvl = math.max(0.01, tonumber(NAjobs._zeroMinInterval) or 0.03)
+	local targetTPS = math.max(1, tonumber(NAjobs._zeroTargetTicksPerSecond) or 45)
+	return math.max(minIvl, (tonumber(zeroCount) or 1) / targetTPS)
+end
+
+NAjobs._enqueue = function(job)
+	local tail = (NAjobs._qTail or 0) + 1
+	NAjobs._qTail = tail
+	NAjobs._q[tail] = job
+end
+
+NAjobs._dequeue = function()
+	local head = NAjobs._qHead or 1
+	local tail = NAjobs._qTail or 0
+	if head > tail then
+		return nil
+	end
+	local job = NAjobs._q[head]
+	NAjobs._q[head] = nil
+	head += 1
+	if head > tail then
+		NAjobs._qHead = 1
+		NAjobs._qTail = 0
+	else
+		NAjobs._qHead = head
+	end
+	return job
+end
+
 NAjobs._schedule = function()
 	if NAjobs.hb then return end
 	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function()
 		NAjobs._frame = (NAjobs._frame or 0) + 1
 		NAjobs._claimed = {}
 		local now = time()
+		local zeroCount = 0
 		for _, job in pairs(NAjobs.jobs) do
 			if job.interval <= 0 then
-				job.tick(job)
-			else
-				if now >= job.next then
-					job.next = now + job.interval
-					job.tick(job)
-				end
+				zeroCount += 1
+			end
+		end
+		for _, job in pairs(NAjobs.jobs) do
+			if (not job._queued) and now >= (job.next or 0) then
+				job._queued = true
+				NAjobs._enqueue(job)
+			end
+		end
+		local budget = math.max(1, math.floor(tonumber(NAjobs._maxTicksPerStep) or 2))
+		local ran = 0
+		while ran < budget do
+			local job = NAjobs._dequeue()
+			if not job then
+				break
+			end
+			job._queued = false
+			if NAjobs.jobs[job.id] == job then
+				job.next = time() + NAjobs._effectiveInterval(job, zeroCount)
+				pcall(job.tick, job)
+				ran += 1
 			end
 		end
 		NAjobs._restoreTouchDue()
@@ -44849,9 +44912,14 @@ NAjobs._schedule = function()
 end
 
 NAjobs._maybeStop = function()
-	if not next(NAjobs.jobs) and NAjobs.hb then
-		NAlib.disconnect("NAjobs_stp")
-		NAjobs.hb = nil
+	if not next(NAjobs.jobs) then
+		if NAjobs.hb then
+			NAlib.disconnect("NAjobs_stp")
+			NAjobs.hb = nil
+		end
+		NAjobs._q = {}
+		NAjobs._qHead = 1
+		NAjobs._qTail = 0
 	end
 end
 
@@ -45219,10 +45287,10 @@ cmd.add({"autofireproxi","afp"},{"autofireproxi <interval> [target]","Automatica
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
-		interval = 0
+		interval = 0.05
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.01, ...)
+		interval, target = NAutil.parseInterval(0.05, ...)
 	end
 	local id, reused = NAjobs.start("prompt", interval, target)
 	local action = reused and "updated" or "started"
@@ -45233,10 +45301,10 @@ cmd.add({"autofireproxifind","afpfind"},{"autofireproxifind <interval> [target]"
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
-		interval = 0
+		interval = 0.05
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.01, ...)
+		interval, target = NAutil.parseInterval(0.05, ...)
 	end
 	local id, reused = NAjobs.start("prompt", interval, target, true)
 	local action = reused and "updated" or "started"
@@ -45247,10 +45315,10 @@ cmd.add({"autofireclick","afc"},{"autofireclick <interval> [target]","Automatica
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
-		interval = 0
+		interval = 0.05
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.01, ...)
+		interval, target = NAutil.parseInterval(0.05, ...)
 	end
 	local id, reused = NAjobs.start("click", interval, target)
 	local action = reused and "updated" or "started"
@@ -45261,10 +45329,10 @@ cmd.add({"autofireclickfind","afcfind"},{"autofireclickfind <interval> [target]"
 	local args = {...}
 	local interval, target
 	if args[1] and not tonumber(args[1]) then
-		interval = 0
+		interval = 0.05
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.01, ...)
+		interval, target = NAutil.parseInterval(0.05, ...)
 	end
 	local id, reused = NAjobs.start("click", interval, target, true)
 	local action = reused and "updated" or "started"
