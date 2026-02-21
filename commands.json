@@ -424,6 +424,17 @@
       "desc": "Offsets your character for others (positive Y = up, negative Y = down)"
     },
     {
+      "name": "unoffset",
+      "aliases": [
+        "unoffset",
+        "unoffpos",
+        "unoff"
+      ],
+      "usage": "unoffset",
+      "args": "",
+      "desc": "Disables offset and restores your character"
+    },
+    {
       "name": "clickscare",
       "aliases": [
         "clickscare",
