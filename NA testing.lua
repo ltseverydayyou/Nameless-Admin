@@ -136,6 +136,10 @@ local NAStuff = {
 	FreecamSpeed = 5;
 	MobileCamSensitivity = 1;
 	MobileCamSensEnabled = false;
+	OffVisOn = true;
+	OffVisAcc = true;
+	OffVisFTr = 0.82;
+	OffVisOTr = 0.15;
 	originalDesc = nil;
 	currentDesc = nil;
 	AutoChar = nil;
@@ -10484,6 +10488,38 @@ NAmanage.NASettingsGetSchema=function()
 				return math.clamp(numberValue, 0, 5)
 			end;
 		};
+		offVisOn = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		offVisAcc = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		offVisFTr = {
+			default = 0.82;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 0.82
+				end
+				return math.clamp(numberValue, 0, 1)
+			end;
+		};
+		offVisOTr = {
+			default = 0.15;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 0.15
+				end
+				return math.clamp(numberValue, 0, 1)
+			end;
+		};
 		freecamSpeed = {
 			default = 5;
 			coerce = function(value)
@@ -12776,6 +12812,10 @@ NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
 NAStuff.CrosshairThickness = NAStuff.CrosshairThickness or 2
 NAStuff.MobileCamSensEnabled = NAStuff.MobileCamSensEnabled == true
 NAStuff.MobileCamSensitivity = math.clamp(tonumber(NAStuff.MobileCamSensitivity) or 1, 0.2, 4)
+NAStuff.OffVisOn = NAStuff.OffVisOn ~= false
+NAStuff.OffVisAcc = NAStuff.OffVisAcc ~= false
+NAStuff.OffVisFTr = math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1)
+NAStuff.OffVisOTr = math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1)
 
 if FileSupport then
 	prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -12796,6 +12836,18 @@ if FileSupport then
 		NAStuff.MobileCamSensitivity = math.clamp(savedMobileCamSens, 0.2, 4)
 	end
 	NAStuff.MobileCamSensEnabled = NAmanage.NASettingsGet("mobileCamSensEnabled") == true
+	local ovOn = NAmanage.NASettingsGet("offVisOn")
+	if ovOn == nil then ovOn = NAmanage.NASettingsGet("offsetVisualizerEnabled") end
+	NAStuff.OffVisOn = ovOn ~= false
+	local ovAcc = NAmanage.NASettingsGet("offVisAcc")
+	if ovAcc == nil then ovAcc = NAmanage.NASettingsGet("offsetVisualizerIncludeAccessories") end
+	NAStuff.OffVisAcc = ovAcc ~= false
+	local ovFTr = tonumber(NAmanage.NASettingsGet("offVisFTr"))
+	if not ovFTr then ovFTr = tonumber(NAmanage.NASettingsGet("offsetVisualizerFillTransparency")) end
+	NAStuff.OffVisFTr = math.clamp(ovFTr or NAStuff.OffVisFTr or 0.82, 0, 1)
+	local ovOTr = tonumber(NAmanage.NASettingsGet("offVisOTr"))
+	if not ovOTr then ovOTr = tonumber(NAmanage.NASettingsGet("offsetVisualizerOutlineTransparency")) end
+	NAStuff.OffVisOTr = math.clamp(ovOTr or NAStuff.OffVisOTr or 0.15, 0, 1)
 	local chColorRaw = NAmanage.NASettingsGet("crosshairColor")
 	local function toColor3(tbl, fallback)
 		if typeof(tbl) == "Color3" then
@@ -23103,6 +23155,440 @@ NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
 NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME or "NAundergroundBind"
 NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
 
+NAStuff.ovOld = NAStuff.ovOld or {
+	NA_OffsetPartBox = true,
+	NA_OffsetVisualizer = true,
+	NA_OffsetBeam = true,
+	NA_OffsetBillboard = true,
+	NA_OffsetMarkerAttachment = true,
+	NA_OffsetRootAttachment = true,
+}
+
+NAmanage.ovCfg = function()
+	local on = (NAStuff.OffVisOn ~= false)
+	local acc = (NAStuff.OffVisAcc ~= false)
+	local ftr = math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1)
+	local otr = math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1)
+	return on, acc, ftr, otr
+end
+
+NAmanage.ovDsc = function(st)
+	if type(st) ~= "table" then
+		return
+	end
+	local conns = st.ovConns
+	if type(conns) == "table" then
+		for i = 1, #conns do
+			local conn = conns[i]
+			if conn and type(conn.Disconnect) == "function" then
+				pcall(function()
+					conn:Disconnect()
+				end)
+			end
+			conns[i] = nil
+		end
+	end
+	st.ovConns = nil
+	st.ovChr = nil
+	st.ovParts = nil
+	st.ovPartIdx = nil
+	st.ovMeshCache = nil
+end
+
+NAmanage.ovPartAdd = function(st, src)
+	if type(st) ~= "table" or not (src and src:IsA("BasePart")) then
+		return
+	end
+	local parts = st.ovParts
+	if type(parts) ~= "table" then
+		parts = {}
+		st.ovParts = parts
+	end
+	local idxMap = st.ovPartIdx
+	if type(idxMap) ~= "table" then
+		idxMap = setmetatable({}, { __mode = "k" })
+		st.ovPartIdx = idxMap
+	end
+	if idxMap[src] then
+		return
+	end
+	local n = #parts + 1
+	parts[n] = src
+	idxMap[src] = n
+end
+
+NAmanage.ovPartRem = function(st, src)
+	if type(st) ~= "table" or src == nil then
+		return
+	end
+	local parts = st.ovParts
+	local idxMap = st.ovPartIdx
+	if type(parts) ~= "table" or type(idxMap) ~= "table" then
+		return
+	end
+	local idx = idxMap[src]
+	if not idx then
+		return
+	end
+	local lastIdx = #parts
+	local lastSrc = parts[lastIdx]
+	parts[lastIdx] = nil
+	idxMap[src] = nil
+	if idx < lastIdx then
+		parts[idx] = lastSrc
+		idxMap[lastSrc] = idx
+	end
+	local map = st.ovMap
+	if type(map) == "table" then
+		local gp = map[src]
+		if gp then
+			pcall(function()
+				gp:Destroy()
+			end)
+		end
+		map[src] = nil
+	end
+	local meshCache = st.ovMeshCache
+	if type(meshCache) == "table" then
+		meshCache[src] = nil
+	end
+end
+
+NAmanage.ovTrack = function(st, chr)
+	if type(st) ~= "table" or not (chr and chr:IsA("Model")) then
+		return
+	end
+	if st.ovChr == chr and type(st.ovParts) == "table" and type(st.ovPartIdx) == "table" then
+		return
+	end
+	NAmanage.ovDsc(st)
+	st.ovChr = chr
+	st.ovParts = {}
+	st.ovPartIdx = setmetatable({}, { __mode = "k" })
+	st.ovMeshCache = setmetatable({}, { __mode = "k" })
+	for _, desc in ipairs(chr:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			NAmanage.ovPartAdd(st, desc)
+		end
+	end
+	st.ovConns = {}
+	local conns = st.ovConns
+	conns[#conns + 1] = chr.DescendantAdded:Connect(function(desc)
+		if desc:IsA("BasePart") then
+			NAmanage.ovPartAdd(st, desc)
+		end
+	end)
+	conns[#conns + 1] = chr.DescendantRemoving:Connect(function(desc)
+		if desc:IsA("BasePart") then
+			NAmanage.ovPartRem(st, desc)
+		end
+	end)
+	conns[#conns + 1] = chr.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAmanage.ovDsc(st)
+		end
+	end)
+end
+
+NAmanage.ovSyncMesh = function(st, src, gp)
+	if not (src and gp) then
+		return
+	end
+	local sSm = src:FindFirstChildOfClass("SpecialMesh")
+	local gSm = gp:FindFirstChildOfClass("SpecialMesh")
+	local meshCache = st and st.ovMeshCache
+	if not (sSm and gSm) then
+		if type(meshCache) == "table" then
+			meshCache[src] = nil
+		end
+		return
+	end
+	local meshId = tostring(sSm.MeshId or "")
+	local texId = tostring(sSm.TextureId or "")
+	local scale = sSm.Scale
+	local offset = sSm.Offset
+	local sig = meshId.."|"..texId.."|"..tostring(scale).."|"..tostring(offset)
+	if type(meshCache) == "table" and meshCache[src] == sig then
+		return
+	end
+	if type(meshCache) == "table" then
+		meshCache[src] = sig
+	end
+	pcall(function()
+		gSm.MeshId = sSm.MeshId
+		gSm.TextureId = sSm.TextureId
+		gSm.Scale = scale
+		gSm.Offset = offset
+	end)
+end
+
+NAmanage.ovClr = function(st)
+	if type(st) ~= "table" then
+		return
+	end
+	NAmanage.ovDsc(st)
+	if type(st.ovMap) == "table" then
+		for _, v in pairs(st.ovMap) do
+			if v then
+				pcall(function() v:Destroy() end)
+			end
+		end
+	end
+	if st.ovFld and st.ovFld.Parent then
+		pcall(function() st.ovFld:Destroy() end)
+	end
+	st.ovFld = nil
+	st.ovMdl = nil
+	st.ovMap = nil
+	st.ovHL = nil
+end
+
+NAmanage.ovPrg = function()
+	local old = NAStuff.ovOld or {}
+	for _, inst in ipairs(workspace:GetDescendants()) do
+		if old[inst.Name] then
+			pcall(function() inst:Destroy() end)
+		end
+	end
+	for _, inst in ipairs(workspace:GetChildren()) do
+		if inst:IsA("Folder") and (inst.Name == "NA_OffsetCharacterVisualizer" or inst.Name == "NA_OffVis") then
+			pcall(function() inst:Destroy() end)
+		end
+	end
+end
+
+NAmanage.ovEns = function(st)
+	if type(st) ~= "table" then
+		return nil
+	end
+
+	local fld = st.ovFld
+	if not (fld and fld.Parent) then
+		if st.ovPruned ~= true then
+			NAmanage.ovPrg()
+			st.ovPruned = true
+		end
+		fld = InstanceNew("Folder", workspace)
+		fld.Name = "NA_OffVis"
+		st.ovFld = fld
+	end
+	if type(st.ovMap) ~= "table" then
+		st.ovMap = {}
+	end
+
+	local mdl = st.ovMdl
+	if not (mdl and mdl.Parent) then
+		mdl = InstanceNew("Model", fld)
+		mdl.Name = "NA_OffMdl"
+		st.ovMdl = mdl
+	end
+
+	local hl = st.ovHL
+	if not (hl and hl.Parent) then
+		hl = InstanceNew("Highlight", fld)
+		hl.Name = "NA_OffHL"
+		st.ovHL = hl
+	end
+
+	local _, _, ftr, otr = NAmanage.ovCfg()
+	hl.Adornee = mdl
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.Enabled = true
+	hl.FillColor = Color3.new(1, 1, 1)
+	hl.OutlineColor = Color3.new(1, 1, 1)
+	hl.FillTransparency = ftr
+	hl.OutlineTransparency = otr
+
+	return mdl
+end
+
+NAmanage.ovMk = function(src, parent)
+	if not (src and parent) then
+		return nil
+	end
+
+	local gp = nil
+	local okClone, cloned = pcall(function()
+		return src:Clone()
+	end)
+	if okClone and cloned and cloned:IsA("BasePart") then
+		gp = cloned
+		gp.Parent = parent
+	else
+		gp = InstanceNew("Part", parent)
+		gp.Size = src.Size
+	end
+
+	gp.Name = "NA_OffPart"
+
+	for _, d in ipairs(gp:GetDescendants()) do
+		if not d:IsA("SpecialMesh") then
+			pcall(function() d:Destroy() end)
+		end
+	end
+
+	gp.Anchored = true
+	gp.CanCollide = false
+	gp.CanTouch = false
+	gp.CanQuery = false
+	gp.CastShadow = false
+	gp.Massless = true
+	pcall(function() gp.Material = Enum.Material.Glass end)
+	pcall(function() gp.Color = Color3.new(1, 1, 1) end)
+	pcall(function() gp.Transparency = 1 end)
+
+	return gp
+end
+
+NAmanage.ovUpd = function(st, root, base, offVec)
+	if type(st) ~= "table" or not root or not root:IsA("BasePart") then
+		return
+	end
+	if typeof(base) ~= "CFrame" then
+		return
+	end
+	local on, acc, ftr, otr = NAmanage.ovCfg()
+	if not on then
+		NAmanage.ovClr(st)
+		return
+	end
+
+	local chr = root.Parent
+	if not (chr and chr:IsA("Model")) then
+		return
+	end
+
+	local off = (typeof(offVec) == "Vector3") and offVec or Vector3.new()
+	local mdl = NAmanage.ovEns(st)
+	if not mdl then
+		return
+	end
+
+	local map = st.ovMap
+	local hl = st.ovHL
+	if hl then
+		hl.FillColor = Color3.new(1, 1, 1)
+		hl.OutlineColor = Color3.new(1, 1, 1)
+		hl.FillTransparency = ftr
+		hl.OutlineTransparency = otr
+	end
+
+	if type(map) == "table" then
+		NAmanage.ovTrack(st, chr)
+		local parts = st.ovParts
+		if type(parts) ~= "table" then
+			return
+		end
+		local i = 1
+		while i <= #parts do
+			local src = parts[i]
+			if not (src and src.Parent and src:IsDescendantOf(chr)) then
+				if src and type(st.ovPartIdx) == "table" and st.ovPartIdx[src] then
+					NAmanage.ovPartRem(st, src)
+				else
+					local idxMap = st.ovPartIdx
+					local lastIdx = #parts
+					local lastSrc = parts[lastIdx]
+					parts[i] = lastSrc
+					parts[lastIdx] = nil
+					if type(idxMap) == "table" then
+						if src then
+							idxMap[src] = nil
+						end
+						if lastSrc then
+							idxMap[lastSrc] = i
+						end
+					end
+				end
+				continue
+			end
+			local inAcc = src:FindFirstAncestorOfClass("Accessory")
+			if src:IsA("BasePart") and src.Transparency < 1 and (acc or not inAcc) then
+				local gp = map[src]
+				if not (gp and gp.Parent and gp:IsA("BasePart")) then
+					if gp then
+						pcall(function() gp:Destroy() end)
+					end
+					gp = NAmanage.ovMk(src, mdl)
+					map[src] = gp
+					if type(st.ovMeshCache) == "table" then
+						st.ovMeshCache[src] = nil
+					end
+				end
+
+				if gp then
+					pcall(function()
+						gp.Size = src.Size
+						gp.CFrame = src.CFrame + off
+						gp.Material = Enum.Material.Glass
+						gp.Color = Color3.new(1, 1, 1)
+						gp.Transparency = 1
+					end)
+					NAmanage.ovSyncMesh(st, src, gp)
+				end
+			elseif map[src] then
+				pcall(function()
+					map[src]:Destroy()
+				end)
+				map[src] = nil
+				if type(st.ovMeshCache) == "table" then
+					st.ovMeshCache[src] = nil
+				end
+			end
+			i += 1
+		end
+
+		for src, gp in pairs(map) do
+			if not src or not src.Parent or not src:IsDescendantOf(chr) then
+				if gp then
+					pcall(function() gp:Destroy() end)
+				end
+				map[src] = nil
+				if type(st.ovMeshCache) == "table" then
+					st.ovMeshCache[src] = nil
+				end
+			end
+		end
+	end
+end
+
+NAmanage.ovLive = function(reb)
+	local st = NAStuff and NAStuff.NAundergroundState
+	if type(st) ~= "table" then
+		return
+	end
+	if reb and type(st.ovMap) == "table" then
+		for _, gp in pairs(st.ovMap) do
+			if gp then
+				pcall(function() gp:Destroy() end)
+			end
+		end
+		st.ovMap = {}
+		st.ovMeshCache = setmetatable({}, { __mode = "k" })
+	end
+	local on = NAmanage.ovCfg()
+	if not on then
+		NAmanage.ovClr(st)
+		return
+	end
+	if not st.Underground then
+		if st.ovHL then
+			local _, _, ftr, otr = NAmanage.ovCfg()
+			st.ovHL.FillTransparency = ftr
+			st.ovHL.OutlineTransparency = otr
+		end
+		return
+	end
+	local chr = getChar()
+	local root = chr and getRoot(chr)
+	if not root then
+		return
+	end
+	local base = st.UndergroundCurrent or root.CFrame
+	local off = st.UndergroundOffset or NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+	NAmanage.ovUpd(st, root, base, off)
+end
+
 if RunService and RunService.UnbindFromRenderStep then
 	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 end
@@ -23111,14 +23597,13 @@ do
 	if st.heartbeatConnection then
 		pcall(function() st.heartbeatConnection:Disconnect() end)
 	end
-	if st.highlight and st.highlight.Parent then
-		pcall(function() st.highlight:Destroy() end)
-	end
+	NAmanage.ovClr(st)
+	NAmanage.ovPrg()
+	st.ovPruned = true
 	st.Underground = false
 	st.UndergroundBind = false
 	st.UndergroundCurrent = nil
 	st.heartbeatConnection = nil
-	st.highlight = nil
 end
 
 cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
@@ -23180,73 +23665,120 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 	local offsetVec = parseOffsetVector(...) or defaultOffset
 
 	local Underground = UG_Get("Underground")
-	UG_Set("Underground", not Underground)
-
-	if not Underground then
-		UG_Set("UndergroundCurrent", rootPart.CFrame)
+	if Underground then
 		UG_Set("UndergroundOffset", offsetVec)
-
-		local prevHB = UG_Get("heartbeatConnection")
-		if prevHB then
-			pcall(function() prevHB:Disconnect() end)
-		end
-
-		UG_Set("heartbeatConnection", RunService.Heartbeat:Connect(function()
-			if not UG_Get("Underground") then
-				return
-			end
-
-			local _, currentRoot, hum = fetchCharPieces()
-			if not currentRoot then
-				return
-			end
-
-			UG_Set("UndergroundCurrent", currentRoot.CFrame)
-			if hum then
-				hum.Sit = false
-			end
-
-			currentRoot.CFrame = currentRoot.CFrame + (UG_Get("UndergroundOffset") or defaultOffset)
-		end))
-
-		if RunService and RunService.UnbindFromRenderStep then
-			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
-		end
-		UG_Set("UndergroundBind", true)
-		RunService:BindToRenderStep(NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
-			local current = UG_Get("UndergroundCurrent")
-			if UG_Get("Underground") and current then
-				local _, r = fetchCharPieces()
-				if r then
-					r.CFrame = current
-				end
-			end
-		end)
-
+		NAmanage.ovLive(false)
 		if type(DoNotif) == "function" then
-			DoNotif("Offset enabled (replicates for others)", 2)
+			DoNotif("Offset updated", 2)
 		end
 		return
 	end
 
+	UG_Set("Underground", true)
+	UG_Set("UndergroundCurrent", rootPart.CFrame)
+	UG_Set("UndergroundOffset", offsetVec)
+
+	local prevHB = UG_Get("heartbeatConnection")
+	if prevHB then
+		pcall(function() prevHB:Disconnect() end)
+	end
+
+	UG_Set("heartbeatConnection", RunService.Heartbeat:Connect(function()
+		if not UG_Get("Underground") then
+			return
+		end
+
+		local _, currentRoot, hum = fetchCharPieces()
+		if not currentRoot then
+			return
+		end
+
+		local baseCFrame = currentRoot.CFrame
+		local activeOffset = UG_Get("UndergroundOffset") or defaultOffset
+		UG_Set("UndergroundCurrent", baseCFrame)
+		if hum then
+			hum.Sit = false
+		end
+
+		currentRoot.CFrame = baseCFrame + activeOffset
+	end))
+
+	if RunService and RunService.UnbindFromRenderStep then
+		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+	end
+	UG_Set("UndergroundBind", true)
+	RunService:BindToRenderStep(NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
+		local current = UG_Get("UndergroundCurrent")
+		if UG_Get("Underground") and current then
+			local _, r = fetchCharPieces()
+			if r then
+				r.CFrame = current
+				NAmanage.ovUpd(state, r, current, UG_Get("UndergroundOffset") or defaultOffset)
+			end
+		end
+	end)
+
+	NAmanage.ovUpd(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame, UG_Get("UndergroundOffset") or defaultOffset)
+
+	if type(DoNotif) == "function" then
+		DoNotif("Offset enabled (replicates for others)", 2)
+	end
+	return
+end)
+
+cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restores your character"},function()
+	local state = NAStuff.NAundergroundState
+	if type(state) ~= "table" then
+		return
+	end
+	if state.Underground ~= true then
+		if type(DoNotif) == "function" then
+			DoNotif("Offset is already disabled", 2)
+		end
+		return
+	end
+
+	local function fetchRoot()
+		local chr = getChar()
+		if not chr then
+			return nil
+		end
+		local root = getRoot(chr)
+		if not root then
+			for _, part in ipairs(chr:GetChildren()) do
+				if part:IsA("BasePart") then
+					root = part
+					break
+				end
+			end
+		end
+		return root
+	end
+
 	for _ = 1, 10 do
-		local _, r = fetchCharPieces()
+		local r = fetchRoot()
 		if r then
-			r.CFrame = UG_Get("UndergroundCurrent") or r.CFrame
+			r.CFrame = state.UndergroundCurrent or r.CFrame
 		end
 		Wait()
 	end
 
-	UG_Set("UndergroundCurrent", nil)
+	state.UndergroundCurrent = nil
 
-	local hb = UG_Get("heartbeatConnection")
+	local hb = state.heartbeatConnection
 	if hb then
-		hb:Disconnect()
-		UG_Set("heartbeatConnection", nil)
+		pcall(function()
+			hb:Disconnect()
+		end)
+		state.heartbeatConnection = nil
 	end
-	UG_Set("UndergroundOffset", nil)
-	if UG_Get("UndergroundBind") then
-		UG_Set("UndergroundBind", false)
+
+	state.UndergroundOffset = nil
+	state.Underground = false
+	NAmanage.ovClr(state)
+
+	if state.UndergroundBind then
+		state.UndergroundBind = false
 		if RunService and RunService.UnbindFromRenderStep then
 			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 		end
@@ -23255,7 +23787,6 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 	if type(DoNotif) == "function" then
 		DoNotif("Offset disabled, you're back to normal", 2)
 	end
-	return
 end)
 
 clickscareUI = nil
@@ -30062,13 +30593,15 @@ cmd.add({"unclicktptool","untptool"},{"unclicktptool","Remove teleport buttons o
 	NAmanage.clearAllTP()
 end)
 
-cmd.add({"clickteleport","clicktp"},{"clickteleport","Bind-only click teleport (hold bind + left click)"},function()
-	DoNotif("Go to Settings > Command Keybinds and bind clickteleport (or clicktp), then hold that bind and left click.", 4, "Click Teleport")
-end)
+if IsOnPC then
+	cmd.add({"clickteleport","clicktp"},{"clickteleport","Bind-only click teleport (hold bind + left click)"},function()
+		DoNotif("Go to Settings > Command Keybinds and bind clickteleport (or clicktp), then hold that bind and left click.", 4, "Click Teleport")
+	end)
 
-cmd.add({"clickdelete","clickdel"},{"clickdelete","Bind-only click delete (hold bind + left click)"},function()
-	DoNotif("Go to Settings > Command Keybinds and bind clickdelete (or clickdel), then hold that bind and left click.", 4, "Click Delete")
-end)
+	cmd.add({"clickdelete","clickdel"},{"clickdelete","Bind-only click delete (hold bind + left click)"},function()
+		DoNotif("Go to Settings > Command Keybinds and bind clickdelete (or clickdel), then hold that bind and left click.", 4, "Click Delete")
+	end)
+end
 
 cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distance)
 	local char = getChar()
@@ -65049,6 +65582,46 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAgui.addSection("Offset Visualizer")
+
+NAgui.addToggle("Offset Visualizer Enabled", NAStuff.OffVisOn ~= false, function(v)
+	NAStuff.OffVisOn = v ~= false
+	pcall(NAmanage.NASettingsSet, "offVisOn", NAStuff.OffVisOn)
+	if not NAStuff.OffVisOn then
+		local st = NAStuff and NAStuff.NAundergroundState
+		if st then
+			NAmanage.ovClr(st)
+		end
+	end
+	NAmanage.ovLive(true)
+end)
+NAmanage.RegisterToggleAutoSync("Offset Visualizer Enabled", function()
+	return NAStuff.OffVisOn ~= false
+end)
+
+NAgui.addToggle("Offset Visualizer Accessories", NAStuff.OffVisAcc ~= false, function(v)
+	NAStuff.OffVisAcc = v ~= false
+	pcall(NAmanage.NASettingsSet, "offVisAcc", NAStuff.OffVisAcc)
+	NAmanage.ovLive(true)
+end)
+NAmanage.RegisterToggleAutoSync("Offset Visualizer Accessories", function()
+	return NAStuff.OffVisAcc ~= false
+end)
+
+NAgui.addSlider("Offset Visual Fill Transparency", 0, 1, math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1), 0.05, "", function(val)
+	local n = math.clamp(tonumber(val) or 0.82, 0, 1)
+	NAStuff.OffVisFTr = n
+	pcall(NAmanage.NASettingsSet, "offVisFTr", n)
+	NAmanage.ovLive(false)
+end)
+
+NAgui.addSlider("Offset Visual Outline Transparency", 0, 1, math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1), 0.05, "", function(val)
+	local n = math.clamp(tonumber(val) or 0.15, 0, 1)
+	NAStuff.OffVisOTr = n
+	pcall(NAmanage.NASettingsSet, "offVisOTr", n)
+	NAmanage.ovLive(false)
 end)
 
 NAmanage.updateFpsBoostOpt=function(key, value)
