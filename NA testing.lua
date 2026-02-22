@@ -23969,7 +23969,7 @@ cmd.add({"unhovername","unnamehover"}, {"unhovername", "Disables hovername"}, fu
 	NAmanage.cleanupHoverName()
 end)
 
-cmd.add({"resetfilter", "ref"}, {"resetfilter","If Roblox keeps tagging your messages, run this to reset the filter"}, function()
+cmd.add({"resetfilter", "ref"}, {"resetfilter","If Pedoblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
 		Players:Chat(Format("/e hi"))
 	end
@@ -25501,7 +25501,7 @@ cmd.add({"rolewatchleave", "unrolewatch"}, {"rolewatchleave (unrolewatch)", "Tog
 	DoNotif(stateText, 3, "Rolewatch")
 end)
 
-cmd.add({"joingroup", "groupjoin"}, {"joingroup [groupId] (groupjoin)", "Open the Roblox join prompt for a group"}, function(groupIdArg)
+cmd.add({"joingroup", "groupjoin"}, {"joingroup [groupId] (groupjoin)", "Open the Pedoblox join prompt for a group"}, function(groupIdArg)
 	local supplied = tostring(groupIdArg or "")
 	local hasInput = supplied ~= ""
 	local targetId = tonumber(groupIdArg)
@@ -26163,7 +26163,7 @@ cmd.add({"settweenspeed","tweenspeed"},{"tweenspeed [seconds]","Set how long twe
 	NAmanage.NASettingsSet("tweenSpeed", value)
 	DoNotif(("Tween speed set to %.2f seconds."):format(value))
 	if not FileSupport then
-		DebugNotif("Tween speed will reset when Roblox closes (no file support detected).")
+		DebugNotif("Tween speed will reset when Pedoblox closes (no file support detected)")
 	end
 end)
 
@@ -29404,6 +29404,77 @@ cmd.add({"trip"},{"trip","get up NOW"},function()
 	getRoot(getChar()).Velocity=getRoot(getChar()).CFrame.LookVector*25
 end)
 
+cmd.add({"permtrip","ptrip"},{"permtrip (ptrip)","Permanent trip that keeps you down"},function()
+	NAStuff.permtrip = true
+	shared.__permtrip = shared.__permtrip or {saved = {}}
+	local STORE = shared.__permtrip
+
+	local function cacheAndDisableGettingUp(hum)
+		if not hum then return end
+		if STORE.saved[hum] == nil then
+			local ok, was = pcall(function()
+				return hum:GetStateEnabled(Enum.HumanoidStateType.GettingUp)
+			end)
+			if ok then
+				STORE.saved[hum] = was
+			end
+		end
+		pcall(function()
+			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+		end)
+	end
+
+	local function applyPermTrip()
+		if not NAStuff.permtrip then return end
+		local char = getChar()
+		local hum = char and getPlrHum(char)
+		local root = char and getRoot(char)
+		if not (hum and root) then return end
+
+		cacheAndDisableGettingUp(hum)
+		pcall(function()
+			if hum:GetState() ~= Enum.HumanoidStateType.FallingDown then
+				hum:ChangeState(Enum.HumanoidStateType.FallingDown)
+			end
+		end)
+		local look = root.CFrame.LookVector
+		pcall(function()
+			root.AssemblyLinearVelocity = Vector3.new(look.X * 25, -35, look.Z * 25)
+		end)
+	end
+
+	NAlib.disconnect("permtrip_step")
+	NAlib.disconnect("permtrip_char")
+	applyPermTrip()
+
+	NAlib.connect("permtrip_step", RunService.RenderStepped:Connect(function()
+		applyPermTrip()
+	end))
+	NAlib.connect("permtrip_char", Players.LocalPlayer.CharacterAdded:Connect(function()
+		if not NAStuff.permtrip then return end
+		Wait(0.2)
+		applyPermTrip()
+	end))
+end)
+
+cmd.add({"unpermtrip","unptrip"},{"unpermtrip (unptrip)","Disable permanent trip"},function()
+	NAStuff.permtrip = false
+	NAlib.disconnect("permtrip_step")
+	NAlib.disconnect("permtrip_char")
+
+	local STORE = shared.__permtrip
+	if STORE and STORE.saved then
+		for hum, was in pairs(STORE.saved) do
+			if hum and hum.Parent then
+				pcall(function()
+					hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, was)
+				end)
+			end
+		end
+		STORE.saved = {}
+	end
+end)
+
 cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
 	local LocalPlayer=Players.LocalPlayer
 	local states={Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.PlatformStanding}
@@ -29715,7 +29786,7 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	end))
 end)
 
-cmd.add({"2016"},{"2016","Makes your Roblox CoreGui look like the 2016 CoreGui"},function()
+cmd.add({"2016"},{"2016","Makes your Pedoblox CoreGui look like the 2016 CoreGui"},function()
 	_na_env.Config2016 = {
 		OldConsole = true,
 		OldGraphics = true,

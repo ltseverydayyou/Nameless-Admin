@@ -1,4 +1,10 @@
 _naNotif_env = getgenv and getgenv() or _G or {};
+local NotifFuns = setmetatable({}, {
+	__newindex = function(t, k, v)
+		rawset(t, k, v);
+		_naNotif_env[k] = v;
+	end
+});
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
 		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref)
@@ -13,11 +19,110 @@ local NA_SRV = setmetatable({}, {
 		end;
 	end
 });
-local function S(name)
+function NotifFuns.S(name)
 	return NA_SRV[name];
 end;
 local tw, rs, uis, plrs, cg, hs, ts, gs = S("TweenService"), S("RunService"), S("UserInputService"), S("Players"), S("CoreGui"), S("HttpService"), S("TextService"), S("GuiService");
-local function pick()
+local UI_ATTR = {
+	GUI = "_na_en_gui",
+	OVERLAY = "_na_en_overlay",
+	STACK = "_na_en_stack",
+	CARD = "_na_en_card",
+	HEADER = "_na_en_header",
+	POPUPROOT = "_na_en_popuproot"
+};
+function NotifFuns.randomUiName()
+	local ng = rawget(_naNotif_env, "NAgui");
+	local fn = (type(ng) == "table" and type(ng.rStringgg) == "function" and ng.rStringgg) or (type(NAgui) == "table" and type(NAgui.rStringgg) == "function" and NAgui.rStringgg);
+	if fn then
+		local ok, res = pcall(fn);
+		if ok and type(res) == "string" and res ~= "" then
+			return res;
+		end;
+	end;
+	if hs and hs.GenerateGUID then
+		local ok, res = pcall(function()
+			return hs:GenerateGUID(false);
+		end);
+		if ok and type(res) == "string" and res ~= "" then
+			return res;
+		end;
+	end;
+	return tostring(math.random(100000, 999999)) .. "_" .. tostring(math.floor(os.clock() * 1000000));
+end;
+function NotifFuns.tag(inst, attr)
+	if typeof(inst) ~= "Instance" or type(attr) ~= "string" then
+		return;
+	end;
+	pcall(function()
+		inst:SetAttribute(attr, true);
+	end);
+end;
+function NotifFuns.hasTag(inst, attr)
+	if typeof(inst) ~= "Instance" or type(attr) ~= "string" then
+		return false;
+	end;
+	local ok, value = pcall(function()
+		return inst:GetAttribute(attr);
+	end);
+	return ok and value == true;
+end;
+function NotifFuns.protectUiInst(inst, attr)
+	if typeof(inst) ~= "Instance" then
+		return inst;
+	end;
+	if attr then
+		tag(inst, attr);
+	end;
+	pcall(function()
+		inst.Name = randomUiName();
+	end);
+	pcall(function()
+		inst.Archivable = false;
+	end);
+	return inst;
+end;
+function NotifFuns.findTaggedChild(parent, className, attr)
+	if typeof(parent) ~= "Instance" then
+		return nil;
+	end;
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA(className) and hasTag(child, attr) then
+			return child;
+		end;
+	end;
+	return nil;
+end;
+function NotifFuns.isCardFrame(inst)
+	return typeof(inst) == "Instance" and inst:IsA("Frame") and hasTag(inst, UI_ATTR.CARD);
+end;
+function NotifFuns.findCardAncestor(inst)
+	local p = inst;
+	while p do
+		if isCardFrame(p) then
+			return p;
+		end;
+		p = p.Parent;
+	end;
+	return nil;
+end;
+function NotifFuns.findHeaderFrame(card)
+	return findTaggedChild(card, "Frame", UI_ATTR.HEADER);
+end;
+function NotifFuns.registerUI(guiInst)
+	if typeof(guiInst) ~= "Instance" then
+		return;
+	end;
+	_naNotif_env.EnhancedNotifsGui = guiInst;
+	_naNotif_env.EnhancedNotifsUI = function()
+		if type(checkcaller) == "function" and not checkcaller() then
+			return nil;
+		end;
+		return _naNotif_env.EnhancedNotifsGui;
+	end;
+	_naNotif_env.NA_NOTIF_UI = _naNotif_env.EnhancedNotifsUI;
+end;
+function NotifFuns.pick()
 	if gethui then
 		return gethui();
 	elseif cg and cg:FindFirstChild("RobloxGui") then
@@ -32,15 +137,26 @@ local function pick()
 	end;
 	return nil;
 end;
-local function findGui()
+function NotifFuns.findGui()
+	local uiFn = _naNotif_env and _naNotif_env.EnhancedNotifsUI;
+	if type(uiFn) == "function" then
+		local ok, uiRef = pcall(uiFn);
+		if ok and typeof(uiRef) == "Instance" and uiRef:IsA("ScreenGui") and uiRef.Parent then
+			return uiRef, uiRef.Parent;
+		end;
+	end;
 	local targets = {
 		gethui and pcall(gethui) and gethui() or nil,
-		cg:FindFirstChild("RobloxGui"),
+		cg and cg:FindFirstChild("RobloxGui") or nil,
 		cg,
 		plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 	};
 	for _, p in ipairs(targets) do
 		if typeof(p) == "Instance" then
+			local tagged = findTaggedChild(p, "ScreenGui", UI_ATTR.GUI);
+			if tagged then
+				return tagged, p;
+			end;
 			local g = p:FindFirstChild("EnhancedNotif");
 			if g then
 				return g, p;
@@ -82,24 +198,28 @@ do
 end;
 local ex, exPar = findGui();
 if _naNotif_env.EnhancedNotifs and ex then
+	registerUI(ex);
 	return _naNotif_env.EnhancedNotifs;
 end;
 local root = exPar or pick();
 local gui = ex or Instance.new("ScreenGui");
-gui.Name = "EnhancedNotif";
+protectUiInst(gui, UI_ATTR.GUI);
 gui.IgnoreGuiInset = true;
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 gui.DisplayOrder = 2147483647;
 gui.ResetOnSpawn = false;
+local OVERLAY_Z = 50000;
+local POPUP_FRAME_Z = OVERLAY_Z + 100;
 if not gui.Parent then
 	gui.Parent = root;
 end;
-local ov = gui:FindFirstChild("EN_Overlay") or Instance.new("Frame");
-ov.Name = "EN_Overlay";
+registerUI(gui);
+local ov = findTaggedChild(gui, "Frame", UI_ATTR.OVERLAY) or gui:FindFirstChild("EN_Overlay") or Instance.new("Frame");
+protectUiInst(ov, UI_ATTR.OVERLAY);
 ov.BackgroundTransparency = 1;
 ov.BackgroundColor3 = Color3.new(0, 0, 0);
 ov.Size = UDim2.fromScale(1, 1);
-ov.ZIndex = 50000;
+ov.ZIndex = OVERLAY_Z;
 ov.Active = false;
 ov.Parent = gui;
 local ACT = {
@@ -113,25 +233,18 @@ local ACT = {
 		__mode = "k"
 	})
 };
-local function syncOverlayActive()
+function NotifFuns.syncOverlayActive()
 	if not ov then
 		return;
 	end;
-	local hasPopup = false;
-	for card in pairs(ACT.Popup) do
-		if card and card.Parent then
-			hasPopup = true;
-			break;
-		end;
-	end;
-	ov.Active = hasPopup;
+	ov.Active = false;
 end;
 local CURF = {
 	Notify = Enum.Font.GothamBold,
 	Window = Enum.Font.GothamBold,
 	Popup = Enum.Font.GothamBold
 };
-local function canfs()
+function NotifFuns.canfs()
 	return (isfile and readfile and writefile) ~= nil;
 end;
 do
@@ -150,7 +263,7 @@ do
 		end;
 	end;
 end;
-local function saveFonts()
+function NotifFuns.saveFonts()
 	if not canfs() then
 		return;
 	end;
@@ -166,14 +279,14 @@ local function saveFonts()
 		writefile(FPATH, hs:JSONEncode(out));
 	end);
 end;
-local function applyFontTree(r, f)
+function NotifFuns.applyFontTree(r, f)
 	walkDesc(r, function(d)
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
 			d.Font = f;
 		end;
 	end, 160);
 end;
-local function setFontKind(kind, f)
+function NotifFuns.setFontKind(kind, f)
 	CURF[kind] = f;
 	saveFonts();
 	for c in pairs(ACT[kind]) do
@@ -199,7 +312,7 @@ do
 		end;
 	end;
 end;
-local function saveDocks()
+function NotifFuns.saveDocks()
 	if not canfs() then
 		return;
 	end;
@@ -208,7 +321,7 @@ local function saveDocks()
 	end);
 end;
 
-local function inz()
+function NotifFuns.inz()
 	local tl = Vector2.new(0, 0);
 	local br = Vector2.new(0, 0);
 	if gs and gs.GetSafeZoneOffsets then
@@ -228,7 +341,7 @@ end;
 
 local isMobile = uis.TouchEnabled and (not uis.KeyboardEnabled);
 
-local function mobScale()
+function NotifFuns.mobScale()
 	if not isMobile then
 		return 1;
 	end;
@@ -238,14 +351,14 @@ local function mobScale()
 	return math.clamp(s, 0.72, 0.9);
 end;
 
-local function nW()
+function NotifFuns.nW()
 	if not isMobile then
 		return math.floor(math.clamp(gui.AbsoluteSize.X * 0.28, 320, 400));
 	end;
 	return math.floor(math.clamp(gui.AbsoluteSize.X * 0.78, 280, 380));
 end;
 
-local function wW()
+function NotifFuns.wW()
 	if not isMobile then
 		return math.floor(math.clamp(gui.AbsoluteSize.X * 0.38, 360, 600));
 	end;
@@ -253,11 +366,11 @@ local function wW()
 end;
 local ctx;
 local stacks = {};
-local function mkStack(key)
+function NotifFuns.mkStack(key)
 	local tl, br = inz();
 	local off = isMobile and 16 or 24;
 	local f = Instance.new("Frame");
-	f.Name = "Stack_" .. key;
+	protectUiInst(f, UI_ATTR.STACK);
 	f.BackgroundTransparency = 1;
 	f.Parent = gui;
 	local l = Instance.new("UIListLayout", f);
@@ -310,7 +423,7 @@ local function mkStack(key)
 	end;
 	return f;
 end;
-local function getStack(key)
+function NotifFuns.getStack(key)
 	key = key or "bottomRight";
 	if not stacks[key] or (not stacks[key].Parent) then
 		stacks[key] = mkStack(key);
@@ -318,7 +431,7 @@ local function getStack(key)
 	return stacks[key];
 end;
 local gSzCon, gDeadCon;
-local function onGuiSize()
+function NotifFuns.onGuiSize()
 	for k, f in pairs(stacks) do
 		if f and f.Parent then
 			f.Size = (k == "top" or k == "bottom") and UDim2.new(0, wW(), 1, 0) or UDim2.new(0, nW(), 1, 0);
@@ -340,7 +453,7 @@ local function onGuiSize()
 		end;
 	end;
 end;
-local function bindGui()
+function NotifFuns.bindGui()
 	if gSzCon and gSzCon.Connected then
 		gSzCon:Disconnect();
 	end;
@@ -359,7 +472,7 @@ local function bindGui()
 	end);
 end;
 bindGui();
-local function ensureGui()
+function NotifFuns.ensureGui()
 	if not gui or (not gui.Parent) or (not gui.Parent.Parent) then
 		local g, p = findGui();
 		if g then
@@ -368,19 +481,20 @@ local function ensureGui()
 		else
 			root = pick();
 			gui = Instance.new("ScreenGui");
-			gui.Name = "EnhancedNotif";
 			gui.IgnoreGuiInset = true;
 			gui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 			gui.DisplayOrder = 2147483647;
 			gui.ResetOnSpawn = false;
 			gui.Parent = root;
 		end;
-		ov = gui:FindFirstChild("EN_Overlay") or Instance.new("Frame");
-		ov.Name = "EN_Overlay";
+		protectUiInst(gui, UI_ATTR.GUI);
+		registerUI(gui);
+		ov = findTaggedChild(gui, "Frame", UI_ATTR.OVERLAY) or gui:FindFirstChild("EN_Overlay") or Instance.new("Frame");
+		protectUiInst(ov, UI_ATTR.OVERLAY);
 		ov.BackgroundTransparency = 1;
 		ov.BackgroundColor3 = Color3.new(0, 0, 0);
 		ov.Size = UDim2.fromScale(1, 1);
-		ov.ZIndex = 50000;
+		ov.ZIndex = OVERLAY_Z;
 		ov.Active = false;
 		ov.Parent = gui;
 		stacks = {};
@@ -414,12 +528,12 @@ local ALIAS = {
 	["center bottom"] = "bottom",
 	centerbottom = "bottom"
 };
-local function mapDock(s)
+function NotifFuns.mapDock(s)
 	s = (tostring(s or "")):lower();
 	local m = ALIAS[s] or s;
 	return VALID[m] and m or "bottomRight";
 end;
-local function cntH(c)
+function NotifFuns.cntH(c)
 	if not c then
 		return 0
 	end
@@ -451,7 +565,7 @@ ctx = function(x)
 	end;
 	return s;
 end;
-local function csc(o)
+function NotifFuns.csc(o)
 	local s = ctx(o);
 	local v = (s and s.baseScale) or (s and s.sc and s.sc.Scale) or 1;
 	if v <= 0 then
@@ -459,7 +573,7 @@ local function csc(o)
 	end;
 	return v;
 end;
-local function addConnection(obj, conn)
+function NotifFuns.addConnection(obj, conn)
 	if not (obj and conn) then
 		return conn;
 	end;
@@ -467,7 +581,7 @@ local function addConnection(obj, conn)
 	s.connections[conn] = true;
 	return conn;
 end;
-local function addTween(obj, tween)
+function NotifFuns.addTween(obj, tween)
 	if not (obj and tween) then
 		return tween;
 	end;
@@ -490,7 +604,7 @@ local function addTween(obj, tween)
 	end;
 	return tween;
 end;
-local function clrSt(s)
+function NotifFuns.clrSt(s)
 	if not s then
 		return;
 	end;
@@ -511,7 +625,7 @@ local function clrSt(s)
 		s.tweens = setmetatable({}, { __mode = "k" });
 	end;
 end;
-local function cleanup(obj)
+function NotifFuns.cleanup(obj)
 	local s = ST[obj];
 	if s then
 		clrSt(s);
@@ -558,7 +672,7 @@ walkDesc = function(root, fn, ye)
 		end;
 	end;
 end;
-local function centerPopupRoot(f, force)
+function NotifFuns.centerPopupRoot(f, force)
 	if not f then
 		return;
 	end;
@@ -572,7 +686,7 @@ local function centerPopupRoot(f, force)
 	f.AnchorPoint = Vector2.new(0.5, 0.5);
 	f.Position = UDim2.new(0.5, 0, 0.5, 0);
 end;
-local function trackPopupCenter(root2, card)
+function NotifFuns.trackPopupCenter(root2, card)
 	if not (root2 and card) then
 		return;
 	end;
@@ -592,7 +706,7 @@ local function trackPopupCenter(root2, card)
 		addConnection(card, c2);
 	end;
 end;
-local function mkIcn(par, txt, z, font, stl)
+function NotifFuns.mkIcn(par, txt, z, font, stl)
 	local btnSize = isMobile and 40 or 34;
 	local b = Instance.new("TextButton");
 	b.AutoButtonColor = false;
@@ -682,7 +796,7 @@ local function mkIcn(par, txt, z, font, stl)
 	end;
 	return b, setSel;
 end;
-local function mkMenuBtn(par, txt, z, font)
+function NotifFuns.mkMenuBtn(par, txt, z, font)
 	local b = Instance.new("TextButton");
 	b.AutoButtonColor = false;
 	b.Text = txt or "";
@@ -734,7 +848,7 @@ local function mkMenuBtn(par, txt, z, font)
 	addConnection(b, c2);
 	return b;
 end;
-local function placeMenu(btn, menu)
+function NotifFuns.placeMenu(btn, menu)
 	local aw, ah = gui.AbsoluteSize.X, gui.AbsoluteSize.Y;
 	local fa = btn.AbsolutePosition;
 	local fs = btn.AbsoluteSize;
@@ -746,18 +860,18 @@ local function placeMenu(btn, menu)
 	menu.Position = UDim2.fromOffset(x, y);
 	menu.Size = UDim2.new(0, mw, 0, mh);
 end;
-local function mkHdr(par, z, kind, onPause)
+function NotifFuns.mkHdr(par, z, kind, onPause)
 	local state = ctx(par);
 	local hdrHeight = isMobile and 56 or 52;
 	local hdr = Instance.new("Frame");
-	hdr.Name = "Header";
+	protectUiInst(hdr, UI_ATTR.HEADER);
 	hdr.BackgroundTransparency = 1;
 	hdr.Active = kind == "Popup";
 	hdr.Size = UDim2.new(1, 0, 0, hdrHeight);
 	hdr.ZIndex = z + 200;
 	hdr.Parent = par;
 	local top = Instance.new("Frame");
-	top.Name = "TopLine";
+	protectUiInst(top);
 	top.BorderSizePixel = 0;
 	top.BackgroundColor3 = TH.Border;
 	top.BackgroundTransparency = 0.9;
@@ -766,7 +880,7 @@ local function mkHdr(par, z, kind, onPause)
 	top.ZIndex = z + 199;
 	top.Parent = hdr;
 	local act = Instance.new("Frame");
-	act.Name = "Actions";
+	protectUiInst(act);
 	act.AnchorPoint = Vector2.new(1, 0.5);
 	act.Position = UDim2.new(1, -PAD, 0.5, 0);
 	act.Size = UDim2.new(0, 0, 1, 0);
@@ -793,7 +907,7 @@ local function mkHdr(par, z, kind, onPause)
 	fbtn.LayoutOrder = 30;
 	cls.LayoutOrder = 50;
 	local dot = Instance.new("Frame");
-	dot.Name = "Dot";
+	protectUiInst(dot);
 	dot.BackgroundColor3 = TH.Border;
 	dot.BackgroundTransparency = 0.1;
 	dot.BorderSizePixel = 0;
@@ -804,7 +918,7 @@ local function mkHdr(par, z, kind, onPause)
 	local dc = Instance.new("UICorner", dot);
 	dc.CornerRadius = UDim.new(1, 0);
 	local cnt = Instance.new("TextLabel");
-	cnt.Name = "Count";
+	protectUiInst(cnt);
 	cnt.AnchorPoint = Vector2.new(0, 0.5);
 	cnt.Position = UDim2.new(0, PAD, 0.5, 0);
 	cnt.Size = UDim2.fromOffset(isMobile and 24 or 20, isMobile and 22 or 20);
@@ -823,7 +937,7 @@ local function mkHdr(par, z, kind, onPause)
 	ccon.MinTextSize = isMobile and 13 or 11;
 	ccon.MaxTextSize = isMobile and 18 or 16;
 	local ttl = Instance.new("TextLabel");
-	ttl.Name = "Title";
+	protectUiInst(ttl);
 	ttl.AnchorPoint = Vector2.new(0, 0.5);
 	ttl.Position = UDim2.new(0, PAD + 12, 0.5, 0);
 	ttl.Size = UDim2.new(1, -(PAD + act.AbsoluteSize.X + PAD + 12), 1, 0);
@@ -886,13 +1000,7 @@ local function mkHdr(par, z, kind, onPause)
 	end;
 	state.refTitle = refTitle;
 	local function closeCard()
-		local p = par;
-		repeat
-			if p:IsA("Frame") and p.Name == "Card" then
-				break;
-			end;
-			p = p.Parent;
-		until not p;
+		local p = findCardAncestor(par);
 		if p then
 			local s = ctx(p);
 			if s and s.close then
@@ -971,7 +1079,7 @@ local function mkHdr(par, z, kind, onPause)
 		m.BorderSizePixel = 0;
 		m.Size = UDim2.new(0, isMobile and 260 or 240, 0, 0);
 		m.AutomaticSize = Enum.AutomaticSize.Y;
-		m.ZIndex = ov.ZIndex + 10;
+		m.ZIndex = kind == "Popup" and (POPUP_FRAME_Z + 300) or (ov.ZIndex + 10);
 		m.Parent = ov;
 		fMenu = m;
 		local c = Instance.new("UICorner", m);
@@ -1148,7 +1256,7 @@ local function mkHdr(par, z, kind, onPause)
 			m.BorderSizePixel = 0;
 			m.Size = UDim2.new(0, isMobile and 230 or 210, 0, 0);
 			m.AutomaticSize = Enum.AutomaticSize.Y;
-			m.ZIndex = ov.ZIndex + 10;
+			m.ZIndex = kind == "Popup" and (POPUP_FRAME_Z + 300) or (ov.ZIndex + 10);
 			m.Parent = ov;
 			pMenu = m;
 			local c = Instance.new("UICorner", m);
@@ -1173,13 +1281,7 @@ local function mkHdr(par, z, kind, onPause)
 					end;
 					dockApplyBusy = true;
 					pcall(function()
-						local p0 = par;
-						repeat
-							if p0:IsA("Frame") and p0.Name == "Card" then
-								break;
-							end;
-							p0 = p0.Parent;
-						until not p0;
+						local p0 = findCardAncestor(par);
 						local s0 = ctx(p0);
 						if s0.setDock then
 							s0.setDock(ent[2], true);
@@ -1240,7 +1342,7 @@ local function mkHdr(par, z, kind, onPause)
 	end;
 	return hdr, ttl, act;
 end;
-local function attachTimer(card, fil, dur)
+function NotifFuns.attachTimer(card, fil, dur)
 	local hover = uis.MouseEnabled;
 	local ext = false;
 	local hov = false;
@@ -1396,7 +1498,7 @@ local function attachTimer(card, fil, dur)
 		end
 	};
 end;
-local function calcCellH(w, list, font)
+function NotifFuns.calcCellH(w, list, font)
 	local h = isMobile and 48 or 42;
 	for _, info in ipairs(list) do
 		local t = tostring(info.Text or "");
@@ -1418,7 +1520,7 @@ local function calcCellH(w, list, font)
 	end;
 	return math.clamp(h, isMobile and 48 or 42, isMobile and 140 or 110);
 end;
-local function mkBtnArea(cnt, list, owner, z, maxH, font)
+function NotifFuns.mkBtnArea(cnt, list, owner, z, maxH, font)
 	if not list or #list == 0 then
 		return;
 	end;
@@ -1505,7 +1607,7 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 			end;
 
 			local sca2 = csc(owner);
-			local hdr = owner:FindFirstChild("Header");
+			local hdr = findHeaderFrame(owner);
 			local hh = (hdr and hdr.AbsoluteSize.Y) or (isMobile and 56 or 52);
 
 			local extra = (so.trk and so.trk.Visible and so.ftr and so.ftr.AbsoluteSize.Y) or 0;
@@ -1699,13 +1801,13 @@ local function mkBtnArea(cnt, list, owner, z, maxH, font)
 	end;
 	return sf;
 end;
-local function widthForDock(dock, kind)
+function NotifFuns.widthForDock(dock, kind)
 	if dock == "top" or dock == "bottom" then
 		return wW();
 	end;
 	return kind == "Popup" and math.floor(math.clamp(gui.AbsoluteSize.X * (isMobile and 0.88 or 0.36), (isMobile and 360 or 340), (isMobile and 500 or 620))) or nW();
 end;
-local function dirFrom(str)
+function NotifFuns.dirFrom(str)
 	str = string.lower(tostring(str or ""));
 	local d = {
 		dx = 0,
@@ -1738,11 +1840,11 @@ local function dirFrom(str)
 	return d;
 end;
 local STACKED_NOTIFS = {};
-local function canStackNotify(p)
+function NotifFuns.canStackNotify(p)
 	local btns = p and p.Buttons;
 	return (not (p and p.InputField)) and (type(btns) ~= "table" or #btns == 0);
 end;
-local function notifyStackKey(dock, p)
+function NotifFuns.notifyStackKey(dock, p)
 	return table.concat({
 		tostring(dock or "bottomRight"),
 		tostring((p and p.Title) or "Notify"),
@@ -1750,7 +1852,7 @@ local function notifyStackKey(dock, p)
 		tostring((p and p.Duration) or "")
 	}, "\30");
 end;
-local function appear(card, sc, st, tgt, from, cnt)
+function NotifFuns.appear(card, sc, st, tgt, from, cnt)
 	walkDesc(cnt, function(d)
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
 			d.TextTransparency = 1;
@@ -1817,7 +1919,7 @@ local function appear(card, sc, st, tgt, from, cnt)
 		end, 120);
 	end);
 end;
-local function disappear(card, sc, st)
+function NotifFuns.disappear(card, sc, st)
 	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1);
 
 	local t1 = TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out);
@@ -1844,10 +1946,10 @@ local function disappear(card, sc, st)
 		end);
 	end);
 end;
-local function mkCard(w, baseZ, kind, onPause)
+function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	local z = baseZ or 100 + tick() % 1 * 1000;
 	local card = Instance.new("Frame");
-	card.Name = "Card";
+	protectUiInst(card, UI_ATTR.CARD);
 	card.LayoutOrder = os.clock() * 1000;
 	card.Size = UDim2.new(0, w, 0, 0);
 	card.BackgroundColor3 = TH.Bg;
@@ -1871,7 +1973,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	local hdrHeight = isMobile and 56 or 52;
 	
 	local body = Instance.new("Frame");
-	body.Name = "Body";
+	protectUiInst(body);
 	body.BackgroundTransparency = 1;
 	body.Position = UDim2.new(0, 0, 0, hdrHeight);
 	body.Size = UDim2.new(1, 0, 1, -hdrHeight);
@@ -1879,7 +1981,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	body.Parent = card;
 
 	local cnt = Instance.new("ScrollingFrame")
-	cnt.Name = "Content"
+	protectUiInst(cnt)
 	cnt.Active = kind == "Popup"
 	cnt.ScrollingEnabled = kind == "Popup"
 	cnt.BackgroundTransparency = 1
@@ -1904,7 +2006,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	col.HorizontalAlignment = Enum.HorizontalAlignment.Left;
 	col.SortOrder = Enum.SortOrder.LayoutOrder;
 	local ftr = Instance.new("Frame");
-	ftr.Name = "Footer";
+	protectUiInst(ftr);
 	ftr.AnchorPoint = Vector2.new(0, 1);
 	ftr.Position = UDim2.new(0, 0, 1, 0);
 	ftr.Size = UDim2.new(1, 0, 0, isMobile and 20 or 18);
@@ -1912,7 +2014,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	ftr.ZIndex = z + 130;
 	ftr.Parent = card;
 	local trk = Instance.new("Frame");
-	trk.Name = "ProgTrack";
+	protectUiInst(trk);
 	trk.AnchorPoint = Vector2.new(0.5, 0.5);
 	trk.Position = UDim2.new(0.5, 0, 0.5, 0);
 	trk.Size = UDim2.new(0.9, 0, 0, 2);
@@ -1924,7 +2026,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	local c1 = Instance.new("UICorner", trk);
 	c1.CornerRadius = UDim.new(1, 0);
 	local fil = Instance.new("Frame");
-	fil.Name = "ProgFill";
+	protectUiInst(fil);
 	fil.AnchorPoint = Vector2.new(0, 0.5);
 	fil.Position = UDim2.new(0, 0, 0.5, 0);
 	fil.Size = UDim2.new(1, 0, 1, 0);
@@ -1938,7 +2040,7 @@ local function mkCard(w, baseZ, kind, onPause)
 	local hdr, ttl, act = mkHdr(card, z, kind, onPause);
 	return card, hdr, ttl, act, st, sc, cnt, ftr, trk, fil;
 end;
-local function openIn(card, par, ftr, trk, st, sc, from, cnt)
+function NotifFuns.openIn(card, par, ftr, trk, st, sc, from, cnt)
 	card.Parent = par
 	card.Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
 	card.Visible = true
@@ -1953,7 +2055,7 @@ local function openIn(card, par, ftr, trk, st, sc, from, cnt)
 
 		local sca = csc(card)
 		local extra = typeof(trk) == "Instance" and trk.Visible and ftr and ftr.AbsoluteSize.Y or 0
-		local hdr = card:FindFirstChild("Header")
+		local hdr = findHeaderFrame(card)
 		local hh = (hdr and hdr.AbsoluteSize.Y) or (isMobile and 56 or 52)
 
 		local needed = cntH(cnt)
@@ -1967,8 +2069,7 @@ local function openIn(card, par, ftr, trk, st, sc, from, cnt)
 		appear(card, sc, st, UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, h), from, cnt)
 	end)
 end
-local POPUP_FRAME_Z = 69;
-local function enforcePopupFrameZ(root)
+function NotifFuns.enforcePopupFrameZ(root)
 	if not root then
 		return;
 	end;
@@ -1981,7 +2082,7 @@ local function enforcePopupFrameZ(root)
 		end;
 	end;
 end;
-local function build(kind, p)
+function NotifFuns.build(kind, p)
 	ensureGui();
 	p = typeof(p) == "table" and p or {};
 	local def = kind == "Window" and "top" or "bottomRight";
@@ -2036,7 +2137,7 @@ local function build(kind, p)
 	end;
 	if kind == "Popup" then
 		grp = Instance.new("Frame");
-		grp.Name = "PopupRoot";
+		protectUiInst(grp, UI_ATTR.POPUPROOT);
 		grp.BackgroundTransparency = 1;
 		grp.Active = true;
 		grp.AnchorPoint = Vector2.new(0.5, 0.5);
@@ -2144,7 +2245,7 @@ local function build(kind, p)
 		local tgt = getStack(newDock);
 		local newW = widthForDock(newDock, kind);
 		local extra = s.trk.Visible and s.ftr.AbsoluteSize.Y or 0;
-		local hdr = card:FindFirstChild("Header");
+		local hdr = findHeaderFrame(card);
 		local hh = (hdr and hdr.AbsoluteSize.Y) or (isMobile and 56 or 52);
 
 		local h = (hh + cntH(s.cnt) + extra) / csc(card);
@@ -2317,13 +2418,13 @@ local function build(kind, p)
 	end;
 	return card;
 end;
-local function Notify(p)
+function NotifFuns.Notify(p)
 	return build("Notify", p);
 end;
-local function Window(p)
+function NotifFuns.Window(p)
 	return build("Window", p or {});
 end;
-local function Popup(p)
+function NotifFuns.Popup(p)
 	p = p or {};
 	p.Dock = p.Dock or CURD.Popup or "top";
 	return build("Popup", p);
@@ -2345,6 +2446,18 @@ _naNotif_env.EnhancedNotifs = {
 				break;
 			end;
 		end;
-	end
+	end,
+	UI = function()
+		local uiFn = _naNotif_env and _naNotif_env.EnhancedNotifsUI;
+		if type(uiFn) == "function" then
+			local ok, uiRef = pcall(uiFn);
+			if ok then
+				return uiRef;
+			end;
+		end;
+		return nil;
+	end,
+	NotifFuns = NotifFuns
 };
 return _naNotif_env.EnhancedNotifs;
+
