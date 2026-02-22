@@ -33682,6 +33682,8 @@ end)
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
 	NAlib.disconnect("autorejoin")
 
+	local maxInstanceRetries = 10
+
 	local function resolveRejoinJobId()
 		local live = tostring((game and game.JobId) or "")
 		if live ~= "" then
@@ -33697,11 +33699,16 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	local function handleRejoin()
 		local targetJobId = resolveRejoinJobId()
 		if targetJobId then
-			local ok, err = pcall(function()
-				TeleportService:TeleportToPlaceInstance(PlaceId, targetJobId, Players.LocalPlayer)
-			end)
-			if ok then
-				return
+			for attempt = 1, maxInstanceRetries do
+				local ok = pcall(function()
+					TeleportService:TeleportToPlaceInstance(PlaceId, targetJobId, Players.LocalPlayer)
+				end)
+				if ok then
+					return
+				end
+				if attempt < maxInstanceRetries then
+					Wait(0.5)
+				end
 			end
 		end
 		pcall(function()
