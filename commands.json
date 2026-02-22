@@ -482,7 +482,7 @@
       ],
       "usage": "resetfilter",
       "args": "",
-      "desc": "If Roblox keeps tagging your messages, run this to reset the filter"
+      "desc": "If Pedoblox keeps tagging your messages, run this to reset the filter"
     },
     {
       "name": "ping",
@@ -666,7 +666,7 @@
       ],
       "usage": "joingroup [groupId] (groupjoin)",
       "args": "[groupId]",
-      "desc": "Open the Roblox join prompt for a group"
+      "desc": "Open the Pedoblox join prompt for a group"
     },
     {
       "name": "trackstaff",
@@ -1700,6 +1700,26 @@
       "desc": "get up NOW"
     },
     {
+      "name": "permtrip",
+      "aliases": [
+        "permtrip",
+        "ptrip"
+      ],
+      "usage": "permtrip (ptrip)",
+      "args": "",
+      "desc": "Permanent trip that keeps you down"
+    },
+    {
+      "name": "unpermtrip",
+      "aliases": [
+        "unpermtrip",
+        "unptrip"
+      ],
+      "usage": "unpermtrip (unptrip)",
+      "args": "",
+      "desc": "Disable permanent trip"
+    },
+    {
       "name": "antitrip",
       "aliases": [
         "antitrip"
@@ -1760,7 +1780,7 @@
       ],
       "usage": "2016",
       "args": "",
-      "desc": "Makes your Roblox CoreGui look like the 2016 CoreGui"
+      "desc": "Makes your Pedoblox CoreGui look like the 2016 CoreGui"
     },
     {
       "name": "f3x",
