@@ -80,6 +80,24 @@ Delay    = task.delay
 Wait     = task.wait
 Defer    = task.defer
 
+NAmanage._gmx31 = NAmanage._gmx31 or function(bytes, seed)
+	local out = {}
+	seed = tonumber(seed) or 0
+	for i = 1, #bytes do
+		local key = ((seed + (i * 3)) % 11) + 17
+		out[i] = string.char((tonumber(bytes[i]) or 0) - key)
+	end
+	return table.concat(out)
+end
+NAmanage._guardTokens = NAmanage._guardTokens or {
+	name = NAmanage._gmx31({
+		142, 132, 125, 133, 129, 100, 122, 121, 135, 97, 87, 136, 131, 135, 134, 135, 119, 137, 128, 132, 129, 125, 130, 117, 127, 88, 108, 107, 104, 107, 112, 86, 97, 108, 82, 103, 106
+	}, 5);
+	value = NAmanage._gmx31({
+		119, 139, 138, 135, 106, 111, 85, 96, 101, 116, 87, 95, 92, 92
+	}, 2);
+}
+
 local Notify = nil
 local Window = nil
 local Popup  = nil
@@ -14739,10 +14757,90 @@ NAmanage.ExecuteBindings = function(evName, ...)
 		local sel, cmdText = NAmanage._parseSelectorPrefix(raw)
 		if NAmanage._selectorPasses(sel, ctx) then
 			local expanded = NAmanage._expandTokens(cmdText, ctx)
-			local args = ParseArguments(expanded) or { expanded }
-			SpawnCall(function() cmd.run(args) end)
+			SpawnCall(function()
+				if Find(expanded, ";", 1, true) or Find(expanded, "\n", 1, true) then
+					NAmanage.BinderRunSequence(expanded)
+					return
+				end
+				local args = ParseArguments(expanded) or { expanded }
+				cmd.run(args)
+			end)
 		end
 	end
+end
+
+NAmanage.BinderTrim = function(text)
+	if type(text) ~= "string" then
+		return ""
+	end
+	return text:match("^%s*(.-)%s*$") or ""
+end
+
+NAmanage.BinderSplitSequence = function(raw)
+	local steps = {}
+	local text = NAmanage.BinderTrim(raw)
+	if text == "" then
+		return steps
+	end
+
+	for part in text:gmatch("[^;\n]+") do
+		local step = NAmanage.BinderTrim(part)
+		if step ~= "" then
+			Insert(steps, step)
+		end
+	end
+
+	if #steps == 0 and text ~= "" then
+		Insert(steps, text)
+	end
+
+	return steps
+end
+
+NAmanage.BinderWaitFromStep = function(step)
+	local trimmed = NAmanage.BinderTrim(step)
+	if trimmed == "" then
+		return nil
+	end
+
+	local lower = Lower(trimmed)
+	local num = lower:match("^wait%s+([%-]?[%d%.]+)$")
+		or lower:match("^delay%s+([%-]?[%d%.]+)$")
+		or lower:match("^pause%s+([%-]?[%d%.]+)$")
+
+	if not num then
+		return nil
+	end
+
+	local seconds = tonumber(num)
+	if not seconds then
+		return nil
+	end
+	if seconds < 0 then
+		seconds = 0
+	end
+	return seconds
+end
+
+NAmanage.BinderRunSequence = function(raw)
+	local steps = NAmanage.BinderSplitSequence(raw)
+	if #steps == 0 then
+		return false, "No steps provided"
+	end
+
+	for _, step in ipairs(steps) do
+		local waitTime = NAmanage.BinderWaitFromStep(step)
+		if waitTime ~= nil then
+			Wait(waitTime)
+		else
+			local args = ParseArguments(step)
+			if args and args[1] then
+				cmd.run(args)
+			end
+		end
+	end
+
+	return true
 end
 
 function loadedResults(res)
@@ -63868,14 +63966,114 @@ SpawnCall(function()
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
 
-		local coreGuiOk = pcall(function()
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau"))()
-		end) -- manipulates coregui checks
+		local guardFlagName = (NAmanage._guardTokens and NAmanage._guardTokens.name) or ""
+		local guardFlagValue = (NAmanage._guardTokens and NAmanage._guardTokens.value) or ""
 
-		if coreGuiOk then
+		local function guardEnv()
+			local env = (_na_env and type(_na_env) == "table" and _na_env) or ((getgenv and getgenv()) or _G or {})
+			return env
+		end
+
+		local function mirrorGuardState(env)
+			env = (type(env) == "table" and env) or guardEnv()
+
+			local key = tostring(env.NAverify or (_G and _G.NAverify) or (_na_shared and _na_shared.NAverify) or "")
+			if key ~= "" then
+				env.NAverify = key
+				pcall(function() _G.NAverify = key end)
+				if _na_shared then
+					pcall(function() _na_shared.NAverify = key end)
+				end
+			end
+
+			local flag = env[guardFlagName]
+			if flag == nil and _G then
+				flag = _G[guardFlagName]
+			end
+			if flag == nil and _na_shared then
+				flag = _na_shared[guardFlagName]
+			end
+			if flag ~= nil then
+				env[guardFlagName] = flag
+				pcall(function() _G[guardFlagName] = flag end)
+				if _na_shared then
+					pcall(function() _na_shared[guardFlagName] = flag end)
+				end
+			end
+		end
+
+		local function primeGuardEnv()
+			local env = guardEnv()
+
+			local resolvedName = tostring(adminName or "")
+			if resolvedName ~= "NA" and resolvedName ~= "Nameless Admin" and resolvedName ~= "NA Testing" then
+				resolvedName = (env.NATestingVer == true) and "NA Testing" or "Nameless Admin"
+			end
+			if resolvedName == "" then
+				resolvedName = (env.NATestingVer == true) and "NA Testing" or "Nameless Admin"
+			end
+
+			if type(env.adminName) ~= "string" or env.adminName == "" then
+				env.adminName = resolvedName
+			end
+			if type(env.mainName) ~= "string" or env.mainName == "" then
+				env.mainName = "Nameless Admin"
+			end
+			if env.NATestingVer == true then
+				env.testingName = "NA Testing"
+			elseif type(env.testingName) ~= "string" or env.testingName == "" then
+				env.testingName = resolvedName
+			end
+
 			pcall(function()
-				loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau"))()
-			end) -- collab soon?????
+				_G.adminName = env.adminName
+				_G.mainName = env.mainName
+				_G.testingName = env.testingName
+			end)
+			if _na_shared then
+				pcall(function()
+					_na_shared.adminName = env.adminName
+					_na_shared.mainName = env.mainName
+					_na_shared.testingName = env.testingName
+				end)
+			end
+
+			mirrorGuardState(env)
+			return env
+		end
+
+		local function runProtectors(url, chunkName, env)
+			local okFetch, source = pcall(function()
+				return game:HttpGet(url)
+			end)
+			if not okFetch or type(source) ~= "string" or source == "" then
+				return false
+			end
+
+			local chunk, compileErr = loadstring(source, chunkName)
+			if not chunk then
+				return false
+			end
+
+			if type(setfenv) == "function" and type(env) == "table" then
+				pcall(setfenv, chunk, env)
+			end
+
+			local okRun, runErr = pcall(chunk)
+			if not okRun then end
+
+			mirrorGuardState(env)
+			if env and env[guardFlagName] == guardFlagValue then
+				mirrorGuardState(env)
+			end
+
+			return okRun
+		end
+
+		local sharedGuardEnv = primeGuardEnv()
+		local coreGuiOk = runProtectors("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau", "CoreGuiManipulation", sharedGuardEnv)
+		if coreGuiOk then
+			runProtectors("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau", "lxteCmdSupport", sharedGuardEnv)
 		end
 
 		-- just ignore this section (personal stuff)
@@ -64577,6 +64775,239 @@ SpawnCall(function()
 				Description = "Pick who this binder applies to.",
 				Buttons     = (function()
 					local B = {}
+
+					Insert(B, {
+						Text = "Guided Builder...",
+						Callback = function()
+							local function openGuidedInput(prefix, targetLabel)
+								Window({
+									Title = ev.." Guided Builder",
+									Description = "Target: "..targetLabel.."\nAdd one or more steps with ';'.\nUse wait <seconds> between steps.\nExample: ws 100 ; wait 1 ; ws 16",
+									InputField = true,
+									Buttons = {{
+										Text = "Add Sequence",
+										Callback = function(input)
+											local body = NAmanage.BinderTrim(input)
+											if body == "" then
+												DoNotif("Sequence cannot be empty.")
+												return
+											end
+											local steps = NAmanage.BinderSplitSequence(body)
+											if #steps == 0 then
+												DoNotif("Sequence cannot be empty.")
+												return
+											end
+											for idx, step in ipairs(steps) do
+												if NAmanage.BinderWaitFromStep(step) == nil then
+													local cmdName = step:match("^(%S+)")
+													local lowerCmd = cmdName and Lower(cmdName) or nil
+													if not (lowerCmd and (cmds.Commands[lowerCmd] or cmds.Aliases[lowerCmd])) then
+														DoNotif("Step "..idx..": command '"..tostring(cmdName).."' not found.")
+														return
+													end
+												end
+											end
+											Insert(Bindings[ev], prefix..body)
+											NAmanage.SaveBinders()
+											refreshItems()
+										end
+									}}
+								})
+							end
+
+							local targetButtons = {}
+							Insert(targetButtons, {
+								Text = "No Selector",
+								Callback = function()
+									openGuidedInput("", "No Selector")
+								end
+							})
+
+							if allowMe then
+								Insert(targetButtons, {
+									Text = "Me",
+									Callback = function()
+										openGuidedInput("<me> ", "Me")
+									end
+								})
+							end
+
+							Insert(targetButtons, {
+								Text = "Others",
+								Callback = function()
+									openGuidedInput("<others> ", "Others")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "All",
+								Callback = function()
+									openGuidedInput("<all> ", "All")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Friends",
+								Callback = function()
+									openGuidedInput("<friends> ", "Friends")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "NonFriends",
+								Callback = function()
+									openGuidedInput("<nonfriends> ", "NonFriends")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Team",
+								Callback = function()
+									openGuidedInput("<team> ", "Team")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Nearest",
+								Callback = function()
+									openGuidedInput("<nearest> ", "Nearest")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Farthest",
+								Callback = function()
+									openGuidedInput("<farthest> ", "Farthest")
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Random...",
+								Callback = function()
+									Window({
+										Title = "Random Count",
+										Description = "How many random players? Example: 1, 3, 5",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(n)
+												n = tonumber(n) or 1
+												n = math.max(1, math.floor(n))
+												local prefix = "<#"..tostring(n).."> "
+												openGuidedInput(prefix, "#" .. tostring(n) .. " Random")
+											end
+										}}
+									})
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Radius...",
+								Callback = function()
+									Window({
+										Title = "Radius (studs)",
+										Description = "Players within this radius of you. Example: 25",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(r)
+												r = tonumber(r) or 25
+												r = math.max(1, math.floor(r))
+												local prefix = "<rad"..tostring(r).."> "
+												openGuidedInput(prefix, "Radius "..tostring(r))
+											end
+										}}
+									})
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Team Prefix...",
+								Callback = function()
+									Window({
+										Title = "Team Prefix",
+										Description = "Example: red / blu / gua",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(prefix)
+												prefix = tostring(prefix or ""):gsub("%s+", "")
+												if prefix == "" then
+													DoNotif("Team prefix cannot be empty.")
+													return
+												end
+												local sel = "<%"..prefix.."> "
+												openGuidedInput(sel, "Team Prefix "..prefix)
+											end
+										}}
+									})
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Specific Player...",
+								Callback = function()
+									Window({
+										Title = "Player Name",
+										Description = "Use full name or prefix. Example: coolguy / coo",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(name)
+												name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+												if name == "" then
+													DoNotif("Name cannot be empty.")
+													return
+												end
+												local sel = "<player:"..name.."> "
+												openGuidedInput(sel, "Player "..name)
+											end
+										}}
+									})
+								end
+							})
+							Insert(targetButtons, {
+								Text = "UserId...",
+								Callback = function()
+									Window({
+										Title = "UserId",
+										Description = "Numbers only",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(id)
+												id = tonumber(id)
+												if not id then
+													DoNotif("Invalid UserId.")
+													return
+												end
+												local sel = "<id:"..tostring(id).."> "
+												openGuidedInput(sel, "UserId "..tostring(id))
+											end
+										}}
+									})
+								end
+							})
+							Insert(targetButtons, {
+								Text = "Custom Terms...",
+								Callback = function()
+									Window({
+										Title = "Custom Terms",
+										Description = "Comma-separated terms. Example: nearest,%blu,#3,group123,rad25",
+										InputField = true,
+										Buttons = {{
+											Text = "Next",
+											Callback = function(term)
+												term = tostring(term or ""):gsub("%s+", "")
+												if term == "" then
+													DoNotif("Enter at least one term.")
+													return
+												end
+												local sel = "<"..term.."> "
+												openGuidedInput(sel, "Custom Terms")
+											end
+										}}
+									})
+								end
+							})
+
+							Window({
+								Title = ev.." Guided Target",
+								Description = "Pick who this sequence applies to.",
+								Buttons = targetButtons
+							})
+						end
+					})
 
 					Insert(B, {
 						Text = "No Selector",
