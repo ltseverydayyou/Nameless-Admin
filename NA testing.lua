@@ -12202,6 +12202,19 @@ NAmanage.ApplyCommandKeybinds=function()
 		return nil
 	end
 
+	local function safeKc(name)
+		if type(name) ~= "string" or name == "" then
+			return nil
+		end
+		local ok, keyCode = pcall(function()
+			return Enum.KeyCode[name]
+		end)
+		if ok and keyCode then
+			return keyCode
+		end
+		return nil
+	end
+
 	local function resolveBindOnlyClickAction(args)
 		if type(args) ~= "table" or type(args[1]) ~= "string" then
 			return nil
@@ -12260,7 +12273,7 @@ NAmanage.ApplyCommandKeybinds=function()
 			return UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 		end
 
-		local keyCode = Enum.KeyCode[main]
+		local keyCode = safeKc(main)
 		if keyCode then
 			return UIS:IsKeyDown(keyCode)
 		end
@@ -12297,6 +12310,11 @@ NAmanage.ApplyCommandKeybinds=function()
 	local keySpamState = {}
 	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
 	local nMap = {}
+	local bindLut = {}
+	local bindHit = {}
+	local clkBinds = {}
+	local anyBind = false
+	local holdBind = false
 
 	for rawKey, args in pairs(CommandKeybinds) do
 		if type(rawKey) == "string" and type(args) == "table" then
@@ -12304,18 +12322,116 @@ NAmanage.ApplyCommandKeybinds=function()
 			if nKey and nKey ~= "" and rawKey ~= nKey then
 				nMap[nKey] = rawKey
 			end
+
+			local canonical = nKey or rawKey
+			if type(canonical) == "string" and canonical ~= "" then
+				anyBind = true
+				bindLut[rawKey] = canonical
+				bindLut[canonical] = canonical
+
+				local action = resolveBindOnlyClickAction(args)
+				if action then
+					Insert(clkBinds, {
+						key = canonical;
+						rawKey = rawKey;
+						action = action;
+					})
+				end
+
+				local opt = CommandKeybindOptions[canonical] or CommandKeybindOptions[rawKey]
+				if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
+					holdBind = true
+				end
+			end
 		end
+	end
+
+	if not anyBind then
+		return
+	end
+
+	local function getBOpt(boundKey)
+		if type(boundKey) ~= "string" or boundKey == "" then
+			return nil
+		end
+		local opt = CommandKeybindOptions[boundKey]
+		if opt then
+			return opt
+		end
+		local mapped = nMap[boundKey]
+		if mapped then
+			opt = CommandKeybindOptions[mapped]
+			if opt then
+				return opt
+			end
+		end
+		local normalized = NAmanage.CKBNorm(boundKey)
+		if normalized and normalized ~= boundKey then
+			opt = CommandKeybindOptions[normalized]
+			if opt then
+				return opt
+			end
+			mapped = nMap[normalized]
+			if mapped then
+				opt = CommandKeybindOptions[mapped]
+				if opt then
+					return opt
+				end
+			end
+		end
+		return nil
+	end
+
+	local function resCand(cand)
+		if type(cand) ~= "string" or cand == "" then
+			return nil, nil
+		end
+
+		local cached = bindHit[cand]
+		if cached ~= nil then
+			if cached == false then
+				return nil, nil
+			end
+			local args = CommandKeybinds[cached]
+			if type(args) == "table" then
+				return cached, args
+			end
+			bindHit[cand] = false
+			return nil, nil
+		end
+
+		local canonical = bindLut[cand]
+		if canonical and type(CommandKeybinds[canonical]) == "table" then
+			bindHit[cand] = canonical
+			return canonical, CommandKeybinds[canonical]
+		end
+
+		local boundKey, args = NAmanage.CKBRes(cand, nMap)
+		if boundKey and type(args) == "table" then
+			bindHit[cand] = boundKey
+			bindLut[cand] = boundKey
+			return boundKey, args
+		end
+
+		bindHit[cand] = false
+		return nil, nil
 	end
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if not input then return end
 		if shouldBlock(gameProcessed) then return end
+		local inputType = input.UserInputType
+		if inputType ~= Enum.UserInputType.Keyboard
+			and inputType ~= Enum.UserInputType.MouseButton1
+			and inputType ~= Enum.UserInputType.MouseButton2 then
+			return
+		end
 
 		local cKey = NAmanage.CKBBind(input, UIS)
 		local keyName = resolveInputBindName(input)
-		local boundKey, args = NAmanage.CKBRes(cKey, nMap)
+		local boundKey, args = resCand(cKey)
 		if not boundKey and keyName then
-			boundKey, args = NAmanage.CKBRes(keyName, nMap)
+			boundKey, args = resCand(keyName)
 		end
 		if type(args) ~= "table" or #args == 0 then
 			return
@@ -12327,7 +12443,7 @@ NAmanage.ApplyCommandKeybinds=function()
 		end
 		keySpamState[boundKey] = now
 
-		local opt = CommandKeybindOptions[boundKey]
+		local opt = getBOpt(boundKey)
 		if opt and opt.disabled then
 			return
 		end
@@ -12357,35 +12473,37 @@ NAmanage.ApplyCommandKeybinds=function()
 		end
 	end)
 
-	NAStuff.KeybindEndConnection = UIS.InputEnded:Connect(function(input, gameProcessed)
-		local keyName = resolveInputBindName(input)
-		if not keyName then
-			return
-		end
-		local relHolds = {}
-		for holdKey in pairs(activeHoldKeys) do
-			if NAmanage.CKBRel(holdKey, keyName) then
-				Insert(relHolds, holdKey)
+	if holdBind then
+		NAStuff.KeybindEndConnection = UIS.InputEnded:Connect(function(input, gameProcessed)
+			local keyName = resolveInputBindName(input)
+			if not keyName then
+				return
 			end
-		end
-
-		if #relHolds == 0 and shouldBlock(gameProcessed) then
-			return
-		end
-
-		for _, holdKey in ipairs(relHolds) do
-			local opt = CommandKeybindOptions[holdKey]
-			if opt and opt.toggle and opt.hold and not opt.disabled and type(opt.args2) == "table" then
-				cmd.run(cloneArgs(opt.args2))
+			local relHolds = {}
+			for holdKey in pairs(activeHoldKeys) do
+				if NAmanage.CKBRel(holdKey, keyName) then
+					Insert(relHolds, holdKey)
+				end
 			end
-			activeHoldKeys[holdKey] = nil
-			if opt then
-				opt.state = false
-			end
-		end
-	end)
 
-	if mouse and mouse.Button1Down then
+			if #relHolds == 0 and shouldBlock(gameProcessed) then
+				return
+			end
+
+			for _, holdKey in ipairs(relHolds) do
+				local opt = getBOpt(holdKey)
+				if opt and opt.toggle and opt.hold and not opt.disabled and type(opt.args2) == "table" then
+					cmd.run(cloneArgs(opt.args2))
+				end
+				activeHoldKeys[holdKey] = nil
+				if opt then
+					opt.state = false
+				end
+			end
+		end)
+	end
+
+	if mouse and mouse.Button1Down and #clkBinds > 0 then
 		NAStuff.KeybindClickConnection = mouse.Button1Down:Connect(function()
 			if NAStuff._capturingCommandKeybind then
 				return
@@ -12394,14 +12512,10 @@ NAmanage.ApplyCommandKeybinds=function()
 				return
 			end
 
-			for rawKey, args in pairs(CommandKeybinds) do
-				local action = resolveBindOnlyClickAction(args)
-				if action then
-					local normalizedKey = NAmanage.CKBNorm(rawKey) or rawKey
-					local opt = CommandKeybindOptions[rawKey] or CommandKeybindOptions[normalizedKey]
-					if not (opt and opt.disabled) and bindComboActiveForClick(normalizedKey) then
-						runBindOnlyClickAction(action)
-					end
+			for _, rec in ipairs(clkBinds) do
+				local opt = getBOpt(rec.key) or getBOpt(rec.rawKey)
+				if not (opt and opt.disabled) and bindComboActiveForClick(rec.key) then
+					runBindOnlyClickAction(rec.action)
 				end
 			end
 		end)
@@ -59738,9 +59852,10 @@ NAgui.autoFILLLL=function()
 end
 
 if NAUIMANAGER.cmdInput then
-	NAUIMANAGER.cmdInput.Focused:Connect(function()
+	NAlib.disconnect("cmdbar_input_focused")
+	NAlib.connect("cmdbar_input_focused", NAUIMANAGER.cmdInput.Focused:Connect(function()
 		Delay(0, NAgui.autoFILLLL)
-	end)
+	end))
 end
 
 --[[ OPEN THE COMMAND BAR ]]--
@@ -59780,7 +59895,39 @@ NAStuff.prefixDigitMap = NAStuff.prefixDigitMap or {
 }
 NAStuff.cachedPrefixChar = NAStuff.cachedPrefixChar or nil
 NAStuff.cachedPrefixKey = NAStuff.cachedPrefixKey or nil
+NAStuff.pfxMap = NAStuff.pfxMap or (function()
+	local lookup = {}
+	local ok, enumItems = pcall(function()
+		return Enum.KeyCode:GetEnumItems()
+	end)
+	if ok and type(enumItems) == "table" then
+		for _, keyCode in ipairs(enumItems) do
+			local keyName = Lower(tostring(keyCode.Name or ""))
+			if keyName ~= "" then
+				lookup[keyName] = keyCode
+			end
+			local keyValue = tonumber(keyCode.Value)
+			if keyValue then
+				lookup[keyValue] = keyCode
+			end
+		end
+	end
+	return lookup
+end)()
 originalIO.resolvePrefixKey=function()
+	local function sKey(name)
+		if type(name) ~= "string" or name == "" then
+			return nil
+		end
+		local ok, value = pcall(function()
+			return Enum.KeyCode[name]
+		end)
+		if ok and value then
+			return value
+		end
+		return nil
+	end
+
 	local prefixChar = tostring(opt.prefix or ""):sub(1, 1)
 	if prefixChar == NAStuff.cachedPrefixChar then
 		return NAStuff.cachedPrefixKey
@@ -59791,8 +59938,9 @@ originalIO.resolvePrefixKey=function()
 		return nil
 	end
 	local alias = NAStuff.prefixKeyAliasMap[prefixChar]
-	if alias and Enum.KeyCode[alias] then
-		NAStuff.cachedPrefixKey = Enum.KeyCode[alias]
+	local aliasEnum = sKey(alias)
+	if aliasEnum then
+		NAStuff.cachedPrefixKey = aliasEnum
 		return NAStuff.cachedPrefixKey
 	end
 	if NAStuff.prefixDigitMap[prefixChar] then
@@ -59800,23 +59948,48 @@ originalIO.resolvePrefixKey=function()
 		return NAStuff.cachedPrefixKey
 	end
 	local upper = prefixChar:upper()
-	if #upper == 1 and Enum.KeyCode[upper] then
-		NAStuff.cachedPrefixKey = Enum.KeyCode[upper]
+	local upperEnum = (#upper == 1) and sKey(upper) or nil
+	if upperEnum then
+		NAStuff.cachedPrefixKey = upperEnum
 		return NAStuff.cachedPrefixKey
 	end
-	for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
-		if keyCode.Name:lower() == prefixChar:lower() or keyCode.Value == string.byte(prefixChar) then
-			NAStuff.cachedPrefixKey = keyCode
+	local fbMap = NAStuff.pfxMap
+	if fbMap then
+		local byName = fbMap[Lower(prefixChar)]
+		if byName then
+			NAStuff.cachedPrefixKey = byName
+			return NAStuff.cachedPrefixKey
+		end
+		local byValue = fbMap[string.byte(prefixChar)]
+		if byValue then
+			NAStuff.cachedPrefixKey = byValue
 			return NAStuff.cachedPrefixKey
 		end
 	end
 	return nil
 end
 NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, g)
-	if g then return end
 	if not i or i.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
 	end
+	if i.KeyCode == Enum.KeyCode.Tab
+		and UserInputService:GetFocusedTextBox() == (NAUIMANAGER and NAUIMANAGER.cmdInput) then
+		local predictionText = predictionInput and predictionInput.Text or ""
+		if predictionText ~= "" then
+			Defer(function()
+				local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+				if not box then
+					return
+				end
+				local sanitizedText = NAmanage.stripChar(predictionText)
+				box.Text = sanitizedText
+				box.CursorPosition = #sanitizedText + 1
+				predictionInput.Text = ""
+			end)
+		end
+		return
+	end
+	if g then return end
 	local k = originalIO.resolvePrefixKey()
 	if not k or i.KeyCode ~= k then
 		return
@@ -59866,7 +60039,8 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 end))
 
 --[[ CLOSE THE COMMAND BAR ]]--
-NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
+NAlib.disconnect("cmdbar_input_focuslost")
+NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 	if NAStuff.cmdFocusGuardUntil and os.clock() < NAStuff.cmdFocusGuardUntil then
 		return
 	end
@@ -59899,9 +60073,10 @@ NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
 	end
 	Wait(checkDelay)
 	if not NAUIMANAGER.cmdInput:IsFocused() then NAgui.barDeselect() end
-end)
+end))
 
-NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
+NAlib.disconnect("cmdbar_input_text")
+NAlib.connect("cmdbar_input_text", NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 	if not NAUIMANAGER.cmdInput then
 		return
 	end
@@ -59914,30 +60089,12 @@ NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 		box.CursorPosition = #c + 1
 	end
 	NAgui.searchCommands()
-end)
+end))
 
 if NAUIMANAGER.filterBox then
-	NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList)
+	NAlib.disconnect("waypoint_filter_text")
+	NAlib.connect("waypoint_filter_text", NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList))
 end
-
-NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(input)
-	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
-		return
-	end
-	if input.KeyCode == Enum.KeyCode.Tab
-		and UserInputService:GetFocusedTextBox() == NAUIMANAGER.cmdInput then
-
-		local predictionText = predictionInput and predictionInput.Text or ""
-		if predictionText ~= "" then
-			Defer(function()
-				local sanitizedText = NAmanage.stripChar(predictionText)
-				NAUIMANAGER.cmdInput.Text = sanitizedText
-				NAUIMANAGER.cmdInput.CursorPosition = #sanitizedText + 1
-				predictionInput.Text = ""
-			end)
-		end
-	end
-end))
 
 NAgui.barDeselect(0)
 NAUIMANAGER.cmdBar.Visible=true
@@ -62885,11 +63042,32 @@ end))
 end);
 
 SpawnCall(function()
+	local fbHumCon = nil
+	local function clrFbHum()
+		if fbHumCon then
+			pcall(function()
+				fbHumCon:Disconnect()
+			end)
+			fbHumCon = nil
+		end
+	end
+
 	local function setupFLASHBACK(c)
 		if not c then return end
-		local hum=getHum()
-		while not hum do Wait(.1) hum=getHum() end
-		hum.Died:Connect(function()
+		clrFbHum()
+		local hum = c:FindFirstChildOfClass("Humanoid")
+		if not hum then
+			local okWait, waited = pcall(function()
+				return c:WaitForChild("Humanoid", 3)
+			end)
+			if okWait then
+				hum = waited
+			end
+		end
+		if not hum then
+			return
+		end
+		fbHumCon = hum.Died:Connect(function()
 			local root=getRoot(c)
 			if root then
 				deathCFrame=root.CFrame
@@ -62904,7 +63082,8 @@ SpawnCall(function()
 		end)
 	end
 
-	LocalPlayer.CharacterAdded:Connect(function(c)
+	NAlib.disconnect("flashback_char_added")
+	NAlib.connect("flashback_char_added", LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
 		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
 
@@ -62941,17 +63120,17 @@ SpawnCall(function()
 			NAmanage._applyMode(desired,true)
 			NAmanage._persist.wasFlying=false
 		end)
-	end)
+	end))
+
+	NAlib.disconnect("flashback_char_removing")
+	NAlib.connect("flashback_char_removing", LocalPlayer.CharacterRemoving:Connect(function()
+		clrFbHum()
+	end))
 
 	if LocalPlayer.Character then
 		setupFLASHBACK(LocalPlayer.Character)
 	end
 
-	NAmanage.startWatcher()
-end)
-
-SpawnCall(function()
-	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
 	NAmanage.startWatcher()
 end)
 
@@ -62978,9 +63157,31 @@ do
 	end
 end
 
+NAgui.badPfx=function(prefix)
+	if type(prefix) ~= "string" then
+		return true
+	end
+	local okLen, prefixLen = pcall(utf8.len, prefix)
+	if not okLen or prefixLen ~= 1 then
+		return true
+	end
+	return prefix:match("[%w]")
+		or prefix:match("[%[%]%(%)%*%^%$%%{}<>]")
+		or prefix:match("&amp;")
+		or prefix:match("&lt;")
+		or prefix:match("&gt;")
+		or prefix:match("&quot;")
+		or prefix:match("&#x27;")
+		or prefix:match("&#x60;")
+end
+
 do
 	NAStuff.pfTick = NAStuff.pfTick or 0
 	NAStuff.canvasTick = NAStuff.canvasTick or 0
+	NAStuff.pfxCache = NAStuff.pfxCache or {
+		value = nil;
+		invalid = nil;
+	}
 	NAlib.disconnect("NA_RenderStepMain")
 	NAlib.connect("NA_RenderStepMain", RunService.Heartbeat:Connect(function(dt)
 		local uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
@@ -63017,29 +63218,24 @@ do
 		NAStuff.pfTick = 0
 
 		local p = opt.prefix
-		local function isInvalid(prefix)
-			return not prefix
-				or utf8.len(prefix) ~= 1
-				or prefix:match("[%w]")
-				or prefix:match("[%[%]%(%)%*%^%$%%{}<>]")
-				or prefix:match("&amp;")
-				or prefix:match("&lt;")
-				or prefix:match("&gt;")
-				or prefix:match("&quot;")
-				or prefix:match("&#x27;")
-				or prefix:match("&#x60;")
+		local pfxSt = NAStuff.pfxCache
+		if pfxSt.value ~= p then
+			pfxSt.value = p
+			pfxSt.invalid = NAgui.badPfx(p)
 		end
 
-		if isInvalid(p) then
+		if pfxSt.invalid then
 			if opt.prefix ~= ";" then
 				opt.prefix = ";"
+				pfxSt.value = ";"
+				pfxSt.invalid = false
 				DoNotif("Invalid prefix detected. Resetting to default ';'")
 				lastPrefix = ";"
 				if NAmanage.SyncPrefixUI then
 					NAmanage.SyncPrefixUI()
 				end
 				local storedPrefix = NAmanage.NASettingsGet("prefix")
-				if isInvalid(storedPrefix) then
+				if NAgui.badPfx(storedPrefix) then
 					NAmanage.NASettingsSet("prefix", ";")
 				end
 			end
