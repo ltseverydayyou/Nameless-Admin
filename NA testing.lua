@@ -62504,7 +62504,7 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 			if newState == Enum.HumanoidStateType.Jumping then
 				NAmanage.ExecuteBindings("OnJump", plr, hum)
 			end
-		end
+		end)
 	end
 end
 
