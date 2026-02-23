@@ -1271,31 +1271,23 @@ end)()
 
 --[[ Character helpers ]]--
 NA_GRAB_BODY = (function()
-	local T = {};
-	local _cache = setmetatable({}, {
-		__mode = "k"
-	});
-	local overrideModel = nil;
-	local overrideConn = nil;
-	local selectingOverride = false;
-	local setOverrideModel;
-	local pickOverrideModel;
+	local T = {}
+	local cache = setmetatable({}, { __mode = "k" })
+
+	local override = nil
+	local oCon = nil
+	local picking = false
+	local setOv, pickOv
+
 	local function asChar(obj)
-		if not obj or typeof(obj) ~= "Instance" then
-			return nil;
-		end;
-		if obj:IsA("Player") then
-			return obj.Character;
-		end;
-		if obj:IsA("Model") then
-			return obj;
-		end;
-		return nil;
-	end;
+		if not obj or typeof(obj) ~= "Instance" then return nil end
+		if obj:IsA("Player") then return obj.Character end
+		if obj:IsA("Model") then return obj end
+		return nil
+	end
+
 	local function firstPart(model)
-		if not model then
-			return nil
-		end
+		if not model then return nil end
 		local q = { model }
 		local qi, qn = 1, 1
 		while qi <= qn do
@@ -1312,162 +1304,36 @@ NA_GRAB_BODY = (function()
 		end
 		return nil
 	end
-	setOverrideModel = function(model)
-		if overrideConn then
-			overrideConn:Disconnect();
-			overrideConn = nil;
-		end;
-		overrideModel = model;
-		if model then
-			overrideConn = model.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					if overrideConn then
-						overrideConn:Disconnect();
-						overrideConn = nil;
-					end;
-					overrideModel = nil;
-					selectingOverride = false;
-					if Players and Players.LocalPlayer and workspace then
-						local lp = Players.LocalPlayer;
-						local cur = lp.Character;
-						if cur and cur.Parent and (not cur:IsDescendantOf(workspace)) then
-							Spawn(function()
-								pickOverrideModel();
-							end);
-						end;
-					end;
-				end;
-			end);
-		end;
-	end;
-	pickOverrideModel = function(force)
-		if selectingOverride then
-			return overrideModel;
-		end;
-		if not (Window and Players and Players.LocalPlayer and workspace) then
-			return overrideModel;
-		end;
-		local lp = Players.LocalPlayer;
-		local cur = lp.Character;
-		if not cur then
-			return overrideModel;
-		end;
-		if not force and cur:IsDescendantOf(workspace) then
-			return overrideModel;
-		end;
-		selectingOverride = true;
-		local btns = {};
-		local cands = {};
-		local seen = {};
-		for _, plr in ipairs(Players:GetPlayers()) do
-			local ch = plr.Character;
-			if ch and ch:IsDescendantOf(workspace) and (not seen[ch]) then
-				seen[ch] = true;
-				Insert(cands, ch);
-			end;
-		end;
-		if CheckIfNPC then
-			local q = { workspace }
-			local qi, qn = 1, 1
-			while qi <= qn do
-				local inst = q[qi]
-				qi += 1
 
-				if inst:IsA("Model") and not seen[inst] and CheckIfNPC(inst) then
-					seen[inst] = true
-					Insert(cands, inst)
-				end
+	local function findPart(model, want)
+		local p = model:FindFirstChild(want, true)
+		if p and p:IsA("BasePart") then return p end
+		return nil
+	end
 
-				local ch = inst:GetChildren()
-				for i = 1, #ch do
-					qn += 1
-					q[qn] = ch[i]
-				end
-			end
-		end
-		local nCnt = {};
-		for i = 1, #cands do
-			local m = cands[i];
-			local n = m.Name;
-			nCnt[n] = (nCnt[n] or 0) + 1;
-		end;
-		local nUse = {};
-		local done = false;
-		local function fin()
-			if done then
-				return;
-			end;
-			done = true;
-			selectingOverride = false;
-		end;
-		if #cands == 0 then
-			Insert(btns, {
-				Text = "No characters found",
-				Callback = function()
-					setOverrideModel(nil);
-					fin();
-				end
-			});
-		else
-			for i = 1, #cands do
-				local m = cands[i];
-				local n = m.Name;
-				local suffix = "";
-				if nCnt[n] and nCnt[n] > 1 then
-					nUse[n] = (nUse[n] or 0) + 1;
-					suffix = " (" .. nUse[n] .. ")";
-				end;
-				Insert(btns, {
-					Text = n .. suffix,
-					Callback = function()
-						setOverrideModel(m);
-						fin();
-					end
-				});
-			end;
-		end;
-		Insert(btns, {
-			Text = "Cancel",
-			Callback = function()
-				setOverrideModel(nil);
-				fin();
-			end
-		});
-		Window({
-			WindowTitle = "Select Character",
-			Duration = nil,
-			Text = "Choose a character or NPC model",
-			Buttons = btns
-		});
-		return overrideModel;
-	end;
-	local function rebuild(model, rec)
-		rec.head = nil
-		rec.root = nil
-		rec.torso = nil
-		rec.humanoid = nil
-		if not model then
-			rec.dirty = false
-			return rec
-		end
+	local function findHum(model)
+		return model:FindFirstChildOfClass("Humanoid") or model:FindFirstChildOfClass("AnimationController")
+	end
+
+	local function scanFallback(model, rec)
 		local q = { model }
 		local qi, qn = 1, 1
 		while qi <= qn do
 			local inst = q[qi]
 			qi += 1
-			if inst:IsA("Humanoid") or inst:IsA("AnimationController") then
-				rec.humanoid = rec.humanoid or inst
+			if not rec.hum and (inst:IsA("Humanoid") or inst:IsA("AnimationController")) then
+				rec.hum = inst
 			elseif inst:IsA("BasePart") then
-				local name = inst.Name:lower()
-				if not rec.root and name:find("root", 1, true) then
+				local n = inst.Name:lower()
+				if not rec.root and n:find("root", 1, true) then
 					rec.root = inst
-				elseif not rec.torso and name:find("torso", 1, true) then
+				elseif not rec.torso and n:find("torso", 1, true) then
 					rec.torso = inst
-				elseif not rec.head and name:find("head", 1, true) then
+				elseif not rec.head and n:find("head", 1, true) then
 					rec.head = inst
 				end
 			end
-			if rec.head and rec.root and rec.torso and rec.humanoid then
+			if rec.head and rec.root and rec.torso and rec.hum then
 				break
 			end
 			local ch = inst:GetChildren()
@@ -1476,83 +1342,227 @@ NA_GRAB_BODY = (function()
 				q[qn] = ch[i]
 			end
 		end
-		rec.dirty = false
+	end
+
+	local function rebuild(model, rec)
+		rec.head = nil
+		rec.root = nil
+		rec.torso = nil
+		rec.hum = nil
+		if not model then
+			return rec
+		end
+
+		rec.hum = findHum(model)
+
+		rec.root = findPart(model, "HumanoidRootPart")
+			or findPart(model, "Torso")
+			or findPart(model, "UpperTorso")
+			or findPart(model, "LowerTorso")
+
+		rec.torso = findPart(model, "UpperTorso")
+			or findPart(model, "Torso")
+			or findPart(model, "LowerTorso")
+
+		rec.head = findPart(model, "Head")
+
+		if not (rec.head and rec.root and rec.torso and rec.hum) then
+			scanFallback(model, rec)
+		end
+
 		return rec
 	end
+
+	setOv = function(model)
+		if oCon then
+			oCon:Disconnect()
+			oCon = nil
+		end
+		override = model
+		if model then
+			oCon = model.AncestryChanged:Connect(function(_, par)
+				if not par then
+					if oCon then
+						oCon:Disconnect()
+						oCon = nil
+					end
+					override = nil
+					picking = false
+					if Players and Players.LocalPlayer and workspace then
+						local lp = Players.LocalPlayer
+						local cur = lp.Character
+						if cur and cur.Parent and (not cur:IsDescendantOf(workspace)) then
+							Spawn(function()
+								pickOv()
+							end)
+						end
+					end
+				end
+			end)
+		end
+	end
+
+	pickOv = function(force)
+		if picking then
+			return override
+		end
+		if not (Window and Players and Players.LocalPlayer and workspace) then
+			return override
+		end
+
+		local lp = Players.LocalPlayer
+		local cur = lp.Character
+		if not cur then
+			return override
+		end
+		if not force and cur:IsDescendantOf(workspace) then
+			return override
+		end
+
+		picking = true
+
+		local btns = {}
+		local cands = {}
+		local seen = {}
+
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local ch = plr.Character
+			if ch and ch:IsDescendantOf(workspace) and (not seen[ch]) then
+				seen[ch] = true
+				Insert(cands, ch)
+			end
+		end
+
+		if CheckIfNPC then
+			local q = { workspace }
+			local qi, qn = 1, 1
+			while qi <= qn do
+				local inst = q[qi]
+				qi += 1
+				if inst:IsA("Model") and not seen[inst] and CheckIfNPC(inst) then
+					seen[inst] = true
+					Insert(cands, inst)
+				end
+				local ch = inst:GetChildren()
+				for i = 1, #ch do
+					qn += 1
+					q[qn] = ch[i]
+				end
+			end
+		end
+
+		local nCnt = {}
+		for i = 1, #cands do
+			local m = cands[i]
+			local n = m.Name
+			nCnt[n] = (nCnt[n] or 0) + 1
+		end
+
+		local nUse = {}
+		local done = false
+		local function fin()
+			if done then return end
+			done = true
+			picking = false
+		end
+
+		if #cands == 0 then
+			Insert(btns, {
+				Text = "No characters found",
+				Callback = function()
+					setOv(nil)
+					fin()
+				end
+			})
+		else
+			for i = 1, #cands do
+				local m = cands[i]
+				local n = m.Name
+				local suf = ""
+				if nCnt[n] and nCnt[n] > 1 then
+					nUse[n] = (nUse[n] or 0) + 1
+					suf = " (" .. nUse[n] .. ")"
+				end
+				Insert(btns, {
+					Text = n .. suf,
+					Callback = function()
+						setOv(m)
+						fin()
+					end
+				})
+			end
+		end
+
+		Insert(btns, {
+			Text = "Cancel",
+			Callback = function()
+				setOv(nil)
+				fin()
+			end
+		})
+
+		Window({
+			WindowTitle = "Select Character",
+			Duration = nil,
+			Text = "Choose a character or NPC model",
+			Buttons = btns
+		})
+
+		return override
+	end
+
+	local function valid(model, inst)
+		return inst and inst.Parent and inst:IsDescendantOf(model)
+	end
+
 	local function ensure(obj)
-		local model = asChar(obj);
+		local model = asChar(obj)
+
 		if obj == Players.LocalPlayer then
-			if overrideModel then
-				model = overrideModel;
+			if override then
+				model = override
 			elseif model and model.Parent and (not model:IsDescendantOf(workspace)) then
-				model = pickOverrideModel(true) or model;
-			end;
+				model = pickOv(true) or model
+			end
 		elseif not model then
-			model = overrideModel;
-		end;
+			model = override
+		end
+
 		if not model then
-			return nil;
-		end;
-		local rec = _cache[model];
+			return nil
+		end
+
+		local rec = cache[model]
 		if not rec then
-			rec = {
-				dirty = true
-			};
-			_cache[model] = rec;
+			rec = {}
+			cache[model] = rec
+		end
 
-			rec.a = model.DescendantAdded:Connect(function()
-				rec.dirty = true;
-			end);
+		local bad = false
 
-			rec.r = model.DescendantRemoving:Connect(function(d)
-				if rec.head == d then
-					rec.head = nil;
-				end;
-				if rec.root == d then
-					rec.root = nil;
-				end;
-				if rec.torso == d then
-					rec.torso = nil;
-				end;
-				if rec.humanoid == d then
-					rec.humanoid = nil;
-				end;
-				rec.dirty = true;
-			end);
+		if rec.hum and (not valid(model, rec.hum)) then rec.hum = nil; bad = true end
+		if rec.root and (not valid(model, rec.root)) then rec.root = nil; bad = true end
+		if rec.torso and (not valid(model, rec.torso)) then rec.torso = nil; bad = true end
+		if rec.head and (not valid(model, rec.head)) then rec.head = nil; bad = true end
 
-			rec.c = model.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					if rec.a then
-						rec.a:Disconnect();
-						rec.a = nil;
-					end;
-					if rec.r then
-						rec.r:Disconnect();
-						rec.r = nil;
-					end;
-					if rec.c then
-						rec.c:Disconnect();
-						rec.c = nil;
-					end;
-					_cache[model] = nil;
-				end;
-			end);
-		end;
-		if rec.dirty or rec.humanoid and rec.humanoid.Parent == nil then
-			rebuild(model, rec);
-		end;
-		return rec, model;
-	end;
-	T.ensure = ensure;
-	T.firstPart = firstPart;
-	T.asChar = asChar;
+		if (not rec.hum) or (not rec.root) or (not rec.torso) or (not rec.head) or bad then
+			rebuild(model, rec)
+		end
+
+		return rec, model
+	end
+
+	T.ensure = ensure
+	T.firstPart = firstPart
+	T.asChar = asChar
 	T.pickOverride = function()
-		selectingOverride = false;
-		setOverrideModel(nil);
-		return pickOverrideModel(true);
-	end;
-	return T;
-end)();
+		picking = false
+		setOv(nil)
+		return pickOv(true)
+	end
+
+	return T
+end)()
 
 function getRoot(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
@@ -1612,19 +1622,19 @@ function getHum(char, waitSeconds)
 	local timeout = tonumber(waitSeconds)
 	if not timeout or timeout <= 0 then
 		local rec = NA_GRAB_BODY.ensure(target)
-		return rec and rec.humanoid or nil
+		return rec and rec.hum or nil
 	end
 
 	timeout = math.max(0, timeout)
 	local deadline = os.clock() + timeout
 
-	local function findHumanoid()
+	local function findHum()
 		return target:FindFirstChildOfClass("Humanoid") or target:FindFirstChildOfClass("AnimationController")
 	end
 
 	while not hum and os.clock() < deadline do
 		Wait(0.05)
-		hum = findHumanoid()
+		hum = findHum()
 	end
 
 	if hum then
@@ -1632,7 +1642,7 @@ function getHum(char, waitSeconds)
 	end
 
 	local rec = NA_GRAB_BODY.ensure(target)
-	return rec and rec.humanoid or nil
+	return rec and rec.hum or nil
 end
 
 function getPlrHum(plr)
@@ -1640,19 +1650,19 @@ function getPlrHum(plr)
 end
 
 function IsR15(plr)
-	plr=(plr or Players.LocalPlayer)
+	plr = (plr or Players.LocalPlayer)
 	if plr then
-		local h=getPlrHum(plr)
-		if h and h.RigType==Enum.HumanoidRigType.R15 then return true end
+		local h = getPlrHum(plr)
+		if h and h.RigType == Enum.HumanoidRigType.R15 then return true end
 	end
 	return false
 end
 
 function IsR6(plr)
-	plr=(plr or Players.LocalPlayer)
+	plr = (plr or Players.LocalPlayer)
 	if plr then
-		local h=getPlrHum(plr)
-		if h and h.RigType==Enum.HumanoidRigType.R6 then return true end
+		local h = getPlrHum(plr)
+		if h and h.RigType == Enum.HumanoidRigType.R6 then return true end
 	end
 	return false
 end
