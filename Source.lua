@@ -572,8 +572,11 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		nextId = 0,
 		added = {},
 		removing = {},
+		addCount = 0,
+		remCount = 0,
 		cache = {},
 		idx = setmetatable({}, { __mode = "k" }),
+		cacheLive = false,
 		aQ = setmetatable({}, { __mode = "v" }),
 		rQ = setmetatable({}, { __mode = "v" }),
 		aSet = setmetatable({}, { __mode = "k" }),
@@ -659,9 +662,37 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	end
 
 	local function dispatch(handlers, inst)
-		for _, fn in pairs(handlers) do
-			pcall(fn, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			if type(rec) == "table" then
+				fn = rec.fn
+			end
+			if type(fn) == "function" then
+				pcall(fn, inst)
+			end
 		end
+	end
+
+	local function hasInterested(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			local filter = nil
+			if type(rec) == "table" then
+				fn = rec.fn
+				filter = rec.filter
+			end
+			if type(fn) == "function" then
+				if type(filter) == "function" then
+					local ok, pass = pcall(filter, inst)
+					if ok and pass then
+						return true
+					end
+				else
+					return true
+				end
+			end
+		end
+		return false
 	end
 
 	local function runQ()
@@ -692,7 +723,9 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 					end
 					budget -= 1
 				end
-				scrub(32)
+				if hub.cacheLive then
+					scrub(32)
+				end
 				Wait()
 			end
 			hub.aQ = setmetatable({}, { __mode = "v" })
@@ -721,6 +754,12 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			return
 		end
 		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -728,6 +767,12 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			hub.aTail += 1
 			hub.aQ[hub.aTail] = inst
 		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
 			if hub.rSet[inst] then
 				return
 			end
@@ -770,19 +815,16 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	end
 
 	if cRoot then
-		local top = cRoot:GetChildren()
-		for i = 1, #top do
-			hub.sTail += 1
-			hub.sQ[hub.sTail] = top[i]
-		end
-		runScan()
-
 		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
-			addC(inst)
+			if hub.cacheLive then
+				addC(inst)
+			end
 			qEvt("add", inst)
 		end)
 		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
-			remC(inst)
+			if hub.cacheLive then
+				remC(inst)
+			end
 			qEvt("rem", inst)
 		end)
 	end
@@ -795,6 +837,30 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 	local hub = NAmanage._wsHubGet()
 	if not hub then
 		return {}
+	end
+	if not hub.cacheLive then
+		hub.cacheLive = true
+		hub.cache = {}
+		hub.idx = setmetatable({}, { __mode = "k" })
+		local root = hub.root
+		local ok, descs = pcall(function()
+			if root then
+				return root:GetDescendants()
+			end
+			return {}
+		end)
+		if ok and descs then
+			local n = 0
+			for i = 1, #descs do
+				local inst = descs[i]
+				if inst and inst.Parent then
+					n += 1
+					hub.cache[n] = inst
+					hub.idx[inst] = n
+				end
+			end
+		end
+		hub.cIdx = 1
 	end
 	if hub.alive then
 		local n = #hub.cache
@@ -829,6 +895,10 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 	spec = spec or {}
 	local onAdd = type(spec.added) == "function" and spec.added or nil
 	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -841,10 +911,18 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = onAdd
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = onRem
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
 	end
 
 	local conn = {
@@ -855,8 +933,24 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			return
 		end
 		self.Connected = false
-		hub.added[id] = nil
-		hub.removing[id] = nil
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aSet = setmetatable({}, { __mode = "k" })
+			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+		end
 	end
 	return conn
 end
@@ -870,6 +964,257 @@ end
 NAmanage.wsRem = NAmanage.wsRem or function(fn)
 	return NAmanage.wsSub({
 		removing = fn
+	})
+end
+
+NAmanage._cgHub = NAmanage._cgHub or nil
+
+NAmanage._cgHubGet = NAmanage._cgHubGet or function()
+	local root = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	local hub = NAmanage._cgHub
+	if hub and hub.root == root and hub.alive then
+		return hub
+	end
+
+	if hub then
+		hub.alive = false
+		if hub.cAdd then
+			hub.cAdd:Disconnect()
+		end
+		if hub.cRem then
+			hub.cRem:Disconnect()
+		end
+	end
+
+	hub = {
+		root = root,
+		nextId = 0,
+		added = {},
+		removing = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = setmetatable({}, { __mode = "v" }),
+		rQ = setmetatable({}, { __mode = "v" }),
+		aSet = setmetatable({}, { __mode = "k" }),
+		rSet = setmetatable({}, { __mode = "k" }),
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		alive = true,
+	}
+
+	local function dispatch(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			if type(rec) == "table" then
+				fn = rec.fn
+			end
+			if type(fn) == "function" then
+				pcall(fn, inst)
+			end
+		end
+	end
+
+	local function hasInterested(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			local filter = nil
+			if type(rec) == "table" then
+				fn = rec.fn
+				filter = rec.filter
+			end
+			if type(fn) == "function" then
+				if type(filter) == "function" then
+					local ok, pass = pcall(filter, inst)
+					if ok and pass then
+						return true
+					end
+				else
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget = 160
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removing, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	if root then
+		hub.cAdd = root.DescendantAdded:Connect(function(inst)
+			qEvt("add", inst)
+		end)
+		hub.cRem = root.DescendantRemoving:Connect(function(inst)
+			qEvt("rem", inst)
+		end)
+	end
+
+	NAmanage._cgHub = hub
+	return hub
+end
+
+NAmanage.cgSub = NAmanage.cgSub or function(spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+
+	local hub = NAmanage._cgHubGet()
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aSet = setmetatable({}, { __mode = "k" })
+			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+		end
+	end
+	return conn
+end
+
+NAmanage.cgAdd = NAmanage.cgAdd or function(fn, filter)
+	return NAmanage.cgSub({
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.cgRem = NAmanage.cgRem or function(fn, filter)
+	return NAmanage.cgSub({
+		removing = fn,
+		filterRemoving = filter,
 	})
 end
 
@@ -2576,6 +2921,30 @@ local CommandKeybindOptions = CommandKeybindOptions or {}
 local InstancesTbl = { click = {}; proxy = {}; touch = {}; }
 InstancesTbl.wsAdd = InstancesTbl.wsAdd or {}
 InstancesTbl.wsRem = InstancesTbl.wsRem or {}
+NAmanage._wsHCounts = NAmanage._wsHCounts or { add = 0, rem = 0 }
+do
+	local cAdd, cRem = 0, 0
+	for _, fn in pairs(InstancesTbl.wsAdd) do
+		if type(fn) == "function" then
+			cAdd += 1
+		end
+	end
+	for _, fn in pairs(InstancesTbl.wsRem) do
+		if type(fn) == "function" then
+			cRem += 1
+		end
+	end
+	NAmanage._wsHCounts.add = cAdd
+	NAmanage._wsHCounts.rem = cRem
+end
+
+NAmanage.hasWsH = NAmanage.hasWsH or function(kind)
+	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
+	if kind == "rem" or kind == "remove" or kind == "removing" then
+		return (tonumber(counts.rem) or 0) > 0
+	end
+	return (tonumber(counts.add) or 0) > 0
+end
 
 NAmanage.setWsH = NAmanage.setWsH or function(key, spec)
 	if type(key) ~= "string" or key == "" then
@@ -2584,6 +2953,20 @@ NAmanage.setWsH = NAmanage.setWsH or function(key, spec)
 	spec = type(spec) == "table" and spec or {}
 	local onAdded = type(spec.added) == "function" and spec.added or nil
 	local onRemoving = type(spec.removing) == "function" and spec.removing or nil
+	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
+	local prevAdded = InstancesTbl.wsAdd[key]
+	local prevRemoving = InstancesTbl.wsRem[key]
+	if type(prevAdded) == "function" and type(onAdded) ~= "function" then
+		counts.add = math.max(0, (tonumber(counts.add) or 0) - 1)
+	elseif type(prevAdded) ~= "function" and type(onAdded) == "function" then
+		counts.add = (tonumber(counts.add) or 0) + 1
+	end
+	if type(prevRemoving) == "function" and type(onRemoving) ~= "function" then
+		counts.rem = math.max(0, (tonumber(counts.rem) or 0) - 1)
+	elseif type(prevRemoving) ~= "function" and type(onRemoving) == "function" then
+		counts.rem = (tonumber(counts.rem) or 0) + 1
+	end
+	NAmanage._wsHCounts = counts
 	InstancesTbl.wsAdd[key] = onAdded
 	InstancesTbl.wsRem[key] = onRemoving
 end
@@ -2592,6 +2975,14 @@ NAmanage.clrWsH = NAmanage.clrWsH or function(key)
 	if type(key) ~= "string" or key == "" then
 		return
 	end
+	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
+	if type(InstancesTbl.wsAdd[key]) == "function" then
+		counts.add = math.max(0, (tonumber(counts.add) or 0) - 1)
+	end
+	if type(InstancesTbl.wsRem[key]) == "function" then
+		counts.rem = math.max(0, (tonumber(counts.rem) or 0) - 1)
+	end
+	NAmanage._wsHCounts = counts
 	InstancesTbl.wsAdd[key] = nil
 	InstancesTbl.wsRem[key] = nil
 end
@@ -14823,6 +15214,29 @@ NAmanage.BinderRunSequence = function(raw)
 	return true
 end
 
+NAmanage.BinderHasEntries = function(evName)
+	local list = Bindings and Bindings[evName]
+	return type(list) == "table" and #list > 0
+end
+
+NAmanage.BinderNeedsToolHooks = function()
+	return NAmanage.BinderHasEntries("OnEquipItem")
+		or NAmanage.BinderHasEntries("OnUnequipItem")
+end
+
+NAmanage.BinderNeedsHumanoidHooks = function()
+	return NAmanage.BinderHasEntries("OnDeath")
+		or NAmanage.BinderHasEntries("OnKill")
+		or NAmanage.BinderHasEntries("OnDamage")
+		or NAmanage.BinderHasEntries("OnJump")
+end
+
+NAmanage.BinderNeedsCharacterHooks = function()
+	return NAmanage.BinderHasEntries("OnSpawn")
+		or NAmanage.BinderNeedsToolHooks()
+		or NAmanage.BinderNeedsHumanoidHooks()
+end
+
 function loadedResults(res)
 	local total = tonumber(res) or 0
 	local isNegative = total < 0
@@ -16956,20 +17370,53 @@ NAmanage.ESP_Disconnect = function(target)
 	NAmanage.ESP_ClearModel(model)
 end
 
+NAStuff.ESP_ReattachCooldown = NAStuff.ESP_ReattachCooldown or {}
+NAmanage.ESP_RequestReattachPlayer = function(player)
+	if not (ESPenabled or chamsEnabled) then
+		return
+	end
+	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent) then
+		return
+	end
+	local uid = tonumber(player.UserId)
+	if not uid or uid <= 0 then
+		return
+	end
+	local now = tick()
+	local last = tonumber(NAStuff.ESP_ReattachCooldown[uid]) or 0
+	if now - last < 0.15 then
+		return
+	end
+	NAStuff.ESP_ReattachCooldown[uid] = now
+	Defer(function()
+		if not (ESPenabled or chamsEnabled) then
+			return
+		end
+		if not (player and player.Parent) then
+			return
+		end
+		local char = player.Character
+		if char and NAmanage.IsValidESPModel(char, false) then
+			NAmanage.ESP_Add(player, true, false)
+		end
+	end)
+end
+
 NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local data = espCONS[model]
 	if not data then return end
 
-	local owner = Players:GetPlayerFromCharacter(model)
+	local owner = data.ownerPlayer
+	if not (owner and owner.Parent) then
+		owner = Players:GetPlayerFromCharacter(model)
+		if owner then
+			data.ownerPlayer = owner
+		end
+	end
 	if not NAmanage.IsValidESPModel(model, data.isNPC) then
+		NAmanage.ESP_ClearModel(model)
 		if data.persistent and owner then
-			Spawn(function()
-				if owner.Character and NAmanage.IsValidESPModel(owner.Character, false) then
-					NAmanage.ESP_Add(owner, true, false)
-				end
-			end)
-		else
-			NAmanage.ESP_ClearModel(model)
+			NAmanage.ESP_RequestReattachPlayer(owner)
 		end
 		return
 	end
@@ -17173,13 +17620,15 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 	if not NAmanage.IsValidESPModel(model, npcFlag) then return end
+	local ownerPlayer = target:IsA("Player") and target or Players:GetPlayerFromCharacter(model)
 
 	espCONS[model] = {
 		boxTable = {},
 		persistent = persistent,
 		boxEnabled = false,
 		highlight = nil,
-		isNPC = npcFlag
+		isNPC = npcFlag,
+		ownerPlayer = ownerPlayer
 	}
 
 	NAmanage.ESP_RegisterModel(model)
@@ -17207,20 +17656,11 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAlib.connect(key.."_ancestry", model.AncestryChanged:Connect(function(_, parent)
 		local data = espCONS[model]
 		if not data then return end
-		if data.persistent then
-			local owner = Players:GetPlayerFromCharacter(model)
-			if parent and workspace and model:IsDescendantOf(workspace) then
-				Spawn(function()
-					if owner then
-						NAmanage.ESP_Add(owner, true, false)
-					elseif NAmanage.IsValidESPModel(model, data.isNPC) then
-						NAmanage.ESP_Add(model, true, data.isNPC)
-					end
-				end)
-			end
-		else
-			if parent == nil or not (workspace and model:IsDescendantOf(workspace)) then
-				NAmanage.ESP_ClearModel(model)
+		if parent == nil or not (workspace and model:IsDescendantOf(workspace)) then
+			local owner = data.ownerPlayer
+			NAmanage.ESP_ClearModel(model)
+			if data.persistent and owner then
+				NAmanage.ESP_RequestReattachPlayer(owner)
 			end
 		end
 	end))
@@ -20997,6 +21437,18 @@ do
 end
 
 local lp=Players.LocalPlayer
+NAStuff.ChatLocalIdentity = NAStuff.ChatLocalIdentity or {}
+if lp then
+	if type(NAStuff.ChatLocalIdentity.realName) ~= "string" or NAStuff.ChatLocalIdentity.realName == "" then
+		NAStuff.ChatLocalIdentity.realName = tostring(lp.Name or "")
+	end
+	if type(NAStuff.ChatLocalIdentity.realUserId) ~= "number" or NAStuff.ChatLocalIdentity.realUserId <= 0 then
+		local uid = tonumber(lp.UserId)
+		if uid and uid > 0 then
+			NAStuff.ChatLocalIdentity.realUserId = uid
+		end
+	end
+end
 
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks = chatmsgshooks or {}
@@ -21063,8 +21515,70 @@ else
 		return nil
 	end
 
+	local function getStableLocalUserId()
+		local cached = NAStuff and NAStuff.ChatLocalIdentity and tonumber(NAStuff.ChatLocalIdentity.realUserId)
+		if cached and cached > 0 then
+			return cached
+		end
+		local uid = lp and tonumber(lp.UserId)
+		if uid and uid > 0 then
+			return uid
+		end
+		return nil
+	end
+
+	local function getLocalNameCandidates()
+		local out = {}
+		local seen = {}
+		local function add(value)
+			local v = tostring(value or "")
+			if v ~= "" and not seen[v] then
+				seen[v] = true
+				out[#out + 1] = v
+			end
+		end
+		add(lp and lp.Name)
+		add(NAStuff and NAStuff.ChatLocalIdentity and NAStuff.ChatLocalIdentity.realName)
+		return out
+	end
+
+	local function getLocalTextSource(channel)
+		if not channel then
+			return nil
+		end
+
+		local candidates = getLocalNameCandidates()
+		for i = 1, #candidates do
+			local src = getTextSource(channel, candidates[i])
+			if src then
+				return src
+			end
+		end
+
+		local stableUid = getStableLocalUserId()
+		if stableUid then
+			local children = channel:GetChildren()
+			for i = 1, #children do
+				local child = children[i]
+				if child and child:IsA("TextSource") and tonumber(child.UserId) == stableUid then
+					return child
+				end
+			end
+		end
+
+		local children = channel:GetChildren()
+		for i = 1, #children do
+			local child = children[i]
+			if child and child:IsA("TextSource") and child.CanSend == true then
+				return child
+			end
+		end
+
+		return nil
+	end
+
 	local function localCanSend(channel)
-		local src = getTextSource(channel, lp.Name)
+		local src = getLocalTextSource(channel)
 		return src and src.CanSend
 	end
 
@@ -21078,19 +21592,9 @@ else
 			end
 		end
 
-		local players = Players:GetPlayers()
 		for i = 1, #channels do
 			local ch = channels[i]
-			local okAll = true
-			for j = 1, #players do
-				local p = players[j]
-				local src = getTextSource(ch, p.Name)
-				if not (src and src.CanSend) then
-					okAll = false
-					break
-				end
-			end
-			if okAll and localCanSend(ch) then
+			if ch and ch:IsA("TextChannel") and ch.Name == "RBXGeneral" and localCanSend(ch) then
 				return ch
 			end
 		end
@@ -21121,8 +21625,8 @@ else
 		for i = 1, #channels do
 			local ch = channels[i]
 			if ch and ch:IsA("TextChannel") and Find(ch.Name, "RBXWhisper:") then
-				if ch:FindFirstChild(targetName) and ch:FindFirstChild(lp.Name) then
-					local src = getTextSource(ch, lp.Name)
+				if ch:FindFirstChild(targetName) then
+					local src = getLocalTextSource(ch)
 					if src and src.CanSend ~= false then
 						return ch
 					end
@@ -21145,17 +21649,29 @@ else
 
 			local general = ensureGeneralChannel()
 			if not general then
-				NACaller(function()
-					error("unable to get the chat system for the game")
-				end)
-				return
+				local channels, container = getTextChannels()
+				if container then
+					local fallback = container:FindFirstChild("RBXGeneral")
+					if fallback and fallback:IsA("TextChannel") then
+						general = fallback
+					end
+				end
+				if not general and channels and channels[1] and channels[1]:IsA("TextChannel") then
+					general = channels[1]
+				end
+				if not general then
+					pcall(function()
+						DebugNotif("unable to get the chat system for the game", 3)
+					end)
+					return nil
+				end
 			end
 
 			local sendto = general
 			if target ~= nil and target ~= "All" then
 				local cached = Playerchats[target]
 				if cached and cached.Parent ~= nil then
-					local src = getTextSource(cached, lp.Name)
+					local src = getLocalTextSource(cached)
 					if src and src.CanSend ~= false then
 						sendto = cached
 					else
@@ -21172,7 +21688,9 @@ else
 						local entry = { msg = message, ts = tick() }
 						chatmsgshooks[target] = entry
 						SpawnCall(function()
-							general:SendAsync("/w @"..tostring(target))
+							pcall(function()
+								general:SendAsync("/w @"..tostring(target))
+							end)
 						end)
 						Delay(15, function()
 							if chatmsgshooks[target] == entry then
@@ -21184,7 +21702,14 @@ else
 				end
 			end
 
-			sendto:SendAsync(message or "")
+			local okSend = pcall(function()
+				sendto:SendAsync(message or "")
+			end)
+			if not okSend and sendto ~= general then
+				pcall(function()
+					general:SendAsync(message or "")
+				end)
+			end
 
 		end
 	end)
@@ -21194,8 +21719,8 @@ else
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
 				Wait(0.25)
 				for target, entry in pairs(chatmsgshooks) do
-					if type(target) == "string" and type(entry) == "table" and v:FindFirstChild(target) and v:FindFirstChild(lp.Name) then
-						local src = getTextSource(v, lp.Name)
+					if type(target) == "string" and type(entry) == "table" and v:FindFirstChild(target) then
+						local src = getLocalTextSource(v)
 						if src and src.CanSend ~= false then
 							Playerchats[target] = v
 							chatmsgshooks[target] = nil
@@ -44053,7 +44578,12 @@ function NAmanage.nuhuhprompt(v)
 				Insert(promptTBL.conns, inner)
 			end
 
-			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
+			local c = NAmanage.cgSub({
+				added = trackAndDisable,
+				filterAdded = function(inst)
+					return NAmanage.trackPromptGui(inst) ~= nil
+				end,
+			})
 			Insert(promptTBL.conns, c)
 
 			SpawnCall(function()
@@ -44344,7 +44874,19 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			scanToken = NAmanage.NewCancelToken()
 			tbl.scanToken = scanToken
 
-			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
+			local c = NAmanage.cgSub({
+				added = trackAndDisable,
+				filterAdded = function(inst)
+					if not inst then
+						return false
+					end
+					local name = Lower(tostring(inst.Name or ""))
+					if name == "" then
+						return false
+					end
+					return name:find("networkpause", 1, true) ~= nil
+				end,
+			})
 			Insert(tbl.conns, c)
 
 			trackAndDisable(nil)
@@ -62396,34 +62938,54 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 	if not (plr and hum) then
 		return
 	end
+	if not NAmanage.BinderNeedsHumanoidHooks() then
+		return
+	end
 	NAStuff.bHum = NAStuff.bHum or setmetatable({}, { __mode = "k" })
 	if NAStuff.bHum[hum] then
 		return
 	end
 	NAStuff.bHum[hum] = true
 	local lastHP = hum.Health
-	hum.Died:Connect(function()
-		NAmanage.ExecuteBindings("OnDeath", plr)
-		local killer = originalIO.binderFindKiller(hum)
-		if killer then
-			NAmanage.ExecuteBindings("OnKill", killer, plr)
-		end
-	end)
-	hum.HealthChanged:Connect(function(newHP)
-		if newHP < lastHP then
-			NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
-		end
-		lastHP = newHP
-	end)
-	hum.StateChanged:Connect(function(_, newState)
-		if newState == Enum.HumanoidStateType.Jumping then
-			NAmanage.ExecuteBindings("OnJump", plr, hum)
-		end
-	end)
+	local wantDeath = NAmanage.BinderHasEntries("OnDeath")
+	local wantKill = NAmanage.BinderHasEntries("OnKill")
+	local wantDamage = NAmanage.BinderHasEntries("OnDamage")
+	local wantJump = NAmanage.BinderHasEntries("OnJump")
+	if wantDeath or wantKill then
+		hum.Died:Connect(function()
+			if wantDeath then
+				NAmanage.ExecuteBindings("OnDeath", plr)
+			end
+			if wantKill then
+				local killer = originalIO.binderFindKiller(hum)
+				if killer then
+					NAmanage.ExecuteBindings("OnKill", killer, plr)
+				end
+			end
+		end)
+	end
+	if wantDamage then
+		hum.HealthChanged:Connect(function(newHP)
+			if newHP < lastHP then
+				NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+			end
+			lastHP = newHP
+		end)
+	end
+	if wantJump then
+		hum.StateChanged:Connect(function(_, newState)
+			if newState == Enum.HumanoidStateType.Jumping then
+				NAmanage.ExecuteBindings("OnJump", plr, hum)
+			end
+		end)
+	end
 end
 
 originalIO.binderAttachToolListeners=function(plr, char)
 	if not (plr and char) then
+		return
+	end
+	if not NAmanage.BinderNeedsToolHooks() then
 		return
 	end
 	NAStuff.bTool = NAStuff.bTool or setmetatable({}, { __mode = "k" })
@@ -62431,13 +62993,15 @@ originalIO.binderAttachToolListeners=function(plr, char)
 		return
 	end
 	NAStuff.bTool[char] = true
+	local wantEquip = NAmanage.BinderHasEntries("OnEquipItem")
+	local wantUnequip = NAmanage.BinderHasEntries("OnUnequipItem")
 	char.ChildAdded:Connect(function(child)
-		if child:IsA("Tool") then
+		if wantEquip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
 		end
 	end)
 	char.ChildRemoved:Connect(function(child)
-		if child:IsA("Tool") then
+		if wantUnequip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
 		end
 	end)
@@ -62445,6 +63009,9 @@ end
 
 originalIO.binderSetupCharacter=function(plr, char)
 	if not char then
+		return
+	end
+	if not NAmanage.BinderNeedsCharacterHooks() then
 		return
 	end
 	NAStuff.bSet = NAStuff.bSet or setmetatable({}, { __mode = "k" })
@@ -62516,11 +63083,15 @@ function setupPlayer(plr,bruh)
 	end
 
 	NAlib.connect(charKey, plr.CharacterAdded:Connect(function(char)
-		NAmanage.ExecuteBindings("OnSpawn", plr, char)
-		originalIO.binderSetupCharacter(plr, char)
+		if NAmanage.BinderHasEntries("OnSpawn") then
+			NAmanage.ExecuteBindings("OnSpawn", plr, char)
+		end
+		if NAmanage.BinderNeedsCharacterHooks() then
+			originalIO.binderSetupCharacter(plr, char)
+		end
 	end))
 
-	if not bruh and plr.Character then
+	if not bruh and plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 
@@ -62546,7 +63117,7 @@ end
 
 for _, plr in pairs(Players:GetPlayers()) do
 	setupPlayer(plr, true)
-	if plr.Character then
+	if plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 end
@@ -62852,8 +63423,11 @@ end))
 			and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"));
 	end;
 	local function isITgt(inst)
-		return inst
-			and (inst:IsA("ClickDetector") or inst:IsA("ProximityPrompt") or inst:IsA("TouchTransmitter"));
+		if not inst then
+			return false
+		end
+		local cn = inst.ClassName
+		return cn == "ClickDetector" or cn == "ProximityPrompt" or cn == "TouchTransmitter"
 	end;
 	local scanJobs = {};
 	local scanning = false;
@@ -63008,35 +63582,28 @@ end))
 			runDQ();
 		end);
 	end;
-	local function qDesc(inst, opts)
+	local function qDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
-			opts = opts or {};
-			local hasAny = false;
-			if opts.friend == true and conToFriendsEnabled() and isFLbl(inst) then
-				if not (HUI and inst:IsDescendantOf(HUI)) then
-					fPend[inst] = true;
-					hasAny = true;
+		local hasAny = false;
+		if friendFlag == true and conToFriendsEnabled() and isFLbl(inst) then
+			if not (HUI and inst:IsDescendantOf(HUI)) then
+				fPend[inst] = true;
+				hasAny = true;
 			end;
 		end;
-		if opts.interact ~= nil and isITgt(inst) then
-			iPend[inst] = opts.interact and true or false;
+		if interactState ~= nil and isITgt(inst) then
+			iPend[inst] = interactState and true or false;
 			hasAny = true;
 		end;
-		if opts.wsAdd == true then
-			local handlers = InstancesTbl.wsAdd;
-			if type(handlers) == "table" and next(handlers) ~= nil then
-				wsAddP[inst] = true;
-				hasAny = true;
-			end;
+		if wsAddFlag == true and NAmanage.hasWsH("add") then
+			wsAddP[inst] = true;
+			hasAny = true;
 		end;
-		if opts.wsRem == true then
-			local handlers = InstancesTbl.wsRem;
-			if type(handlers) == "table" and next(handlers) ~= nil then
-				wsRemP[inst] = true;
-				hasAny = true;
-			end;
+		if wsRemFlag == true and NAmanage.hasWsH("rem") then
+			wsRemP[inst] = true;
+			hasAny = true;
 		end;
 		if not hasAny then
 			return;
@@ -63060,18 +63627,31 @@ end))
 				return
 			end
 			queueScan(root, function(inst)
-				qDesc(inst, {
-					friend = true
-				});
+				qDesc(inst, true, nil, nil, nil);
 			end);
-				NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
-					if not isFLbl(o) then
-						return
-					end
-					qDesc(o, {
-						friend = true
-					});
-				end));
+				if root == CoreGui and NAmanage.cgSub then
+					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				else
+					NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
+						if not isFLbl(o) then
+							return
+						end
+						qDesc(o, true, nil, nil, nil);
+					end))
+				end
 			end
 
 			NAmanage.refreshConnectionsFriendLabels = function()
@@ -63086,9 +63666,7 @@ end))
 					return
 				end
 				queueScan(root, function(inst)
-					qDesc(inst, {
-						friend = true
-					});
+					qDesc(inst, true, nil, nil, nil);
 				end);
 			end
 	
@@ -63099,24 +63677,32 @@ end))
 		end;
 	NAlib.disconnect("NA_FriendLabel_PlayerGui");
 	queueScan(workspace, function(inst)
-		qDesc(inst, {
-			interact = true
-		});
+		qDesc(inst, nil, true, nil, nil);
 	end);
 	NAlib.disconnect("NA_InteractAdded");
-	NAlib.connect("NA_InteractAdded", NAmanage.wsAdd(function(inst)
-		qDesc(inst, {
-			interact = true,
-			wsAdd = true
-		});
-	end));
+	NAlib.connect("NA_InteractAdded", NAmanage.wsSub({
+		added = function(inst)
+			qDesc(inst, nil, true, true, nil);
+		end,
+		filterAdded = function(inst)
+			if NAmanage.hasWsH("add") then
+				return true
+			end
+			return isITgt(inst)
+		end,
+	}));
 	NAlib.disconnect("NA_InteractRemoved");
-	NAlib.connect("NA_InteractRemoved", NAmanage.wsRem(function(inst)
-		qDesc(inst, {
-			interact = false,
-			wsRem = true
-		});
-	end));
+	NAlib.connect("NA_InteractRemoved", NAmanage.wsSub({
+		removing = function(inst)
+			qDesc(inst, nil, false, nil, true);
+		end,
+		filterRemoving = function(inst)
+			if NAmanage.hasWsH("rem") then
+				return true
+			end
+			return isITgt(inst)
+		end,
+	}));
 end);
 
 SpawnCall(function()

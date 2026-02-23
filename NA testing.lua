@@ -987,6 +987,257 @@ NAmanage.wsRem = NAmanage.wsRem or function(fn)
 	})
 end
 
+NAmanage._cgHub = NAmanage._cgHub or nil
+
+NAmanage._cgHubGet = NAmanage._cgHubGet or function()
+	local root = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	local hub = NAmanage._cgHub
+	if hub and hub.root == root and hub.alive then
+		return hub
+	end
+
+	if hub then
+		hub.alive = false
+		if hub.cAdd then
+			hub.cAdd:Disconnect()
+		end
+		if hub.cRem then
+			hub.cRem:Disconnect()
+		end
+	end
+
+	hub = {
+		root = root,
+		nextId = 0,
+		added = {},
+		removing = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = setmetatable({}, { __mode = "v" }),
+		rQ = setmetatable({}, { __mode = "v" }),
+		aSet = setmetatable({}, { __mode = "k" }),
+		rSet = setmetatable({}, { __mode = "k" }),
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		alive = true,
+	}
+
+	local function dispatch(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			if type(rec) == "table" then
+				fn = rec.fn
+			end
+			if type(fn) == "function" then
+				pcall(fn, inst)
+			end
+		end
+	end
+
+	local function hasInterested(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			local filter = nil
+			if type(rec) == "table" then
+				fn = rec.fn
+				filter = rec.filter
+			end
+			if type(fn) == "function" then
+				if type(filter) == "function" then
+					local ok, pass = pcall(filter, inst)
+					if ok and pass then
+						return true
+					end
+				else
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget = 160
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removing, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	if root then
+		hub.cAdd = root.DescendantAdded:Connect(function(inst)
+			qEvt("add", inst)
+		end)
+		hub.cRem = root.DescendantRemoving:Connect(function(inst)
+			qEvt("rem", inst)
+		end)
+	end
+
+	NAmanage._cgHub = hub
+	return hub
+end
+
+NAmanage.cgSub = NAmanage.cgSub or function(spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+
+	local hub = NAmanage._cgHubGet()
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aSet = setmetatable({}, { __mode = "k" })
+			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+		end
+	end
+	return conn
+end
+
+NAmanage.cgAdd = NAmanage.cgAdd or function(fn, filter)
+	return NAmanage.cgSub({
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.cgRem = NAmanage.cgRem or function(fn, filter)
+	return NAmanage.cgSub({
+		removing = fn,
+		filterRemoving = filter,
+	})
+end
+
 NAlib.isProperty = function(inst, prop)
 	local s, r = pcall(function() return inst[prop] end)
 	if not s then return nil end
@@ -21206,6 +21457,18 @@ do
 end
 
 local lp=Players.LocalPlayer
+NAStuff.ChatLocalIdentity = NAStuff.ChatLocalIdentity or {}
+if lp then
+	if type(NAStuff.ChatLocalIdentity.realName) ~= "string" or NAStuff.ChatLocalIdentity.realName == "" then
+		NAStuff.ChatLocalIdentity.realName = tostring(lp.Name or "")
+	end
+	if type(NAStuff.ChatLocalIdentity.realUserId) ~= "number" or NAStuff.ChatLocalIdentity.realUserId <= 0 then
+		local uid = tonumber(lp.UserId)
+		if uid and uid > 0 then
+			NAStuff.ChatLocalIdentity.realUserId = uid
+		end
+	end
+end
 
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks = chatmsgshooks or {}
@@ -21272,8 +21535,70 @@ else
 		return nil
 	end
 
+	local function getStableLocalUserId()
+		local cached = NAStuff and NAStuff.ChatLocalIdentity and tonumber(NAStuff.ChatLocalIdentity.realUserId)
+		if cached and cached > 0 then
+			return cached
+		end
+		local uid = lp and tonumber(lp.UserId)
+		if uid and uid > 0 then
+			return uid
+		end
+		return nil
+	end
+
+	local function getLocalNameCandidates()
+		local out = {}
+		local seen = {}
+		local function add(value)
+			local v = tostring(value or "")
+			if v ~= "" and not seen[v] then
+				seen[v] = true
+				out[#out + 1] = v
+			end
+		end
+		add(lp and lp.Name)
+		add(NAStuff and NAStuff.ChatLocalIdentity and NAStuff.ChatLocalIdentity.realName)
+		return out
+	end
+
+	local function getLocalTextSource(channel)
+		if not channel then
+			return nil
+		end
+
+		local candidates = getLocalNameCandidates()
+		for i = 1, #candidates do
+			local src = getTextSource(channel, candidates[i])
+			if src then
+				return src
+			end
+		end
+
+		local stableUid = getStableLocalUserId()
+		if stableUid then
+			local children = channel:GetChildren()
+			for i = 1, #children do
+				local child = children[i]
+				if child and child:IsA("TextSource") and tonumber(child.UserId) == stableUid then
+					return child
+				end
+			end
+		end
+
+		local children = channel:GetChildren()
+		for i = 1, #children do
+			local child = children[i]
+			if child and child:IsA("TextSource") and child.CanSend == true then
+				return child
+			end
+		end
+
+		return nil
+	end
+
 	local function localCanSend(channel)
-		local src = getTextSource(channel, lp.Name)
+		local src = getLocalTextSource(channel)
 		return src and src.CanSend
 	end
 
@@ -21287,19 +21612,9 @@ else
 			end
 		end
 
-		local players = Players:GetPlayers()
 		for i = 1, #channels do
 			local ch = channels[i]
-			local okAll = true
-			for j = 1, #players do
-				local p = players[j]
-				local src = getTextSource(ch, p.Name)
-				if not (src and src.CanSend) then
-					okAll = false
-					break
-				end
-			end
-			if okAll and localCanSend(ch) then
+			if ch and ch:IsA("TextChannel") and ch.Name == "RBXGeneral" and localCanSend(ch) then
 				return ch
 			end
 		end
@@ -21330,8 +21645,8 @@ else
 		for i = 1, #channels do
 			local ch = channels[i]
 			if ch and ch:IsA("TextChannel") and Find(ch.Name, "RBXWhisper:") then
-				if ch:FindFirstChild(targetName) and ch:FindFirstChild(lp.Name) then
-					local src = getTextSource(ch, lp.Name)
+				if ch:FindFirstChild(targetName) then
+					local src = getLocalTextSource(ch)
 					if src and src.CanSend ~= false then
 						return ch
 					end
@@ -21354,17 +21669,29 @@ else
 
 			local general = ensureGeneralChannel()
 			if not general then
-				NACaller(function()
-					error("unable to get the chat system for the game")
-				end)
-				return
+				local channels, container = getTextChannels()
+				if container then
+					local fallback = container:FindFirstChild("RBXGeneral")
+					if fallback and fallback:IsA("TextChannel") then
+						general = fallback
+					end
+				end
+				if not general and channels and channels[1] and channels[1]:IsA("TextChannel") then
+					general = channels[1]
+				end
+				if not general then
+					pcall(function()
+						DebugNotif("unable to get the chat system for the game", 3)
+					end)
+					return nil
+				end
 			end
 
 			local sendto = general
 			if target ~= nil and target ~= "All" then
 				local cached = Playerchats[target]
 				if cached and cached.Parent ~= nil then
-					local src = getTextSource(cached, lp.Name)
+					local src = getLocalTextSource(cached)
 					if src and src.CanSend ~= false then
 						sendto = cached
 					else
@@ -21381,7 +21708,9 @@ else
 						local entry = { msg = message, ts = tick() }
 						chatmsgshooks[target] = entry
 						SpawnCall(function()
-							general:SendAsync("/w @"..tostring(target))
+							pcall(function()
+								general:SendAsync("/w @"..tostring(target))
+							end)
 						end)
 						Delay(15, function()
 							if chatmsgshooks[target] == entry then
@@ -21393,7 +21722,14 @@ else
 				end
 			end
 
-			sendto:SendAsync(message or "")
+			local okSend = pcall(function()
+				sendto:SendAsync(message or "")
+			end)
+			if not okSend and sendto ~= general then
+				pcall(function()
+					general:SendAsync(message or "")
+				end)
+			end
 
 		end
 	end)
@@ -21403,8 +21739,8 @@ else
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
 				Wait(0.25)
 				for target, entry in pairs(chatmsgshooks) do
-					if type(target) == "string" and type(entry) == "table" and v:FindFirstChild(target) and v:FindFirstChild(lp.Name) then
-						local src = getTextSource(v, lp.Name)
+					if type(target) == "string" and type(entry) == "table" and v:FindFirstChild(target) then
+						local src = getLocalTextSource(v)
 						if src and src.CanSend ~= false then
 							Playerchats[target] = v
 							chatmsgshooks[target] = nil
@@ -44262,7 +44598,12 @@ function NAmanage.nuhuhprompt(v)
 				Insert(promptTBL.conns, inner)
 			end
 
-			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
+			local c = NAmanage.cgSub({
+				added = trackAndDisable,
+				filterAdded = function(inst)
+					return NAmanage.trackPromptGui(inst) ~= nil
+				end,
+			})
 			Insert(promptTBL.conns, c)
 
 			SpawnCall(function()
@@ -44553,7 +44894,19 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			scanToken = NAmanage.NewCancelToken()
 			tbl.scanToken = scanToken
 
-			local c = COREGUI.DescendantAdded:Connect(trackAndDisable)
+			local c = NAmanage.cgSub({
+				added = trackAndDisable,
+				filterAdded = function(inst)
+					if not inst then
+						return false
+					end
+					local name = Lower(tostring(inst.Name or ""))
+					if name == "" then
+						return false
+					end
+					return name:find("networkpause", 1, true) ~= nil
+				end,
+			})
 			Insert(tbl.conns, c)
 
 			trackAndDisable(nil)
@@ -63296,12 +63649,29 @@ end))
 			queueScan(root, function(inst)
 				qDesc(inst, true, nil, nil, nil);
 			end);
-				NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
-					if not isFLbl(o) then
-						return
-					end
-					qDesc(o, true, nil, nil, nil);
-				end));
+				if root == CoreGui and NAmanage.cgSub then
+					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				else
+					NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
+						if not isFLbl(o) then
+							return
+						end
+						qDesc(o, true, nil, nil, nil);
+					end))
+				end
 			end
 
 			NAmanage.refreshConnectionsFriendLabels = function()
