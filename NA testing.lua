@@ -570,17 +570,6 @@ end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
 
-NAmanage.isCharPart=function(inst)
-	if not (inst and inst.Parent) then
-		return false
-	end
-	local m = inst:IsA("Model") and inst or inst:FindFirstAncestorOfClass("Model")
-	if m and m:FindFirstChildOfClass("Humanoid") then
-		return true, m
-	end
-	return false
-end
-
 NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	local cRoot = workspace
 	local hub = NAmanage._wsHub
@@ -625,16 +614,8 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		alive = true,
 	}
 
-	local function _hubIsCharPart(inst)
-		return NAmanage.isCharPart(inst)
-	end
-
 	local function addC(inst)
 		if not (inst and inst.Parent) then
-			return
-		end
-		local isChar, charModel = NAmanage.isCharPart(inst)
-		if isChar then
 			return
 		end
 		if hub.idx[inst] then
@@ -791,13 +772,10 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 					hub.sHead += 1
 					if inst and inst.Parent then
 						addC(inst)
-						local isChar, charModel = NAmanage.isCharPart(inst)
-						if not (isChar and inst == charModel) then
-							local ch = inst:GetChildren()
-							for i = 1, #ch do
-								hub.sTail += 1
-								hub.sQ[hub.sTail] = ch[i]
-							end
+						local ch = inst:GetChildren()
+						for i = 1, #ch do
+							hub.sTail += 1
+							hub.sQ[hub.sTail] = ch[i]
 						end
 					end
 					budget -= 1
@@ -820,17 +798,10 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		runScan()
 
 		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
-			local isChar = NAmanage.isCharPart(inst)
-			if isChar then
-				return
-			end
 			addC(inst)
 			qEvt("add", inst)
 		end)
 		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
-			if NAmanage.isCharPart(inst) then
-				return
-			end
 			remC(inst)
 			qEvt("rem", inst)
 		end)
@@ -1309,7 +1280,6 @@ NA_GRAB_BODY = (function()
 	local selectingOverride = false;
 	local setOverrideModel;
 	local pickOverrideModel;
-	local _lastPick = { time = 0, result = nil }
 	local function asChar(obj)
 		if not obj or typeof(obj) ~= "Instance" then
 			return nil;
@@ -1374,9 +1344,6 @@ NA_GRAB_BODY = (function()
 		if selectingOverride then
 			return overrideModel;
 		end;
-		if not force and _lastPick.result and tick() - _lastPick.time < 1 then
-			return _lastPick.result
-		end
 		if not (Window and Players and Players.LocalPlayer and workspace) then
 			return overrideModel;
 		end;
@@ -1472,8 +1439,6 @@ NA_GRAB_BODY = (function()
 			Text = "Choose a character or NPC model",
 			Buttons = btns
 		});
-		_lastPick.time = tick()
-		_lastPick.result = overrideModel
 		return overrideModel;
 	end;
 	local function rebuild(model, rec)
@@ -1520,7 +1485,7 @@ NA_GRAB_BODY = (function()
 			if overrideModel then
 				model = overrideModel;
 			elseif model and model.Parent and (not model:IsDescendantOf(workspace)) then
-				model = pickOverrideModel() or model;
+				model = pickOverrideModel(true) or model;
 			end;
 		elseif not model then
 			model = overrideModel;
@@ -23605,11 +23570,7 @@ end
 
 NAmanage.ovPrg = function()
 	local old = NAStuff.ovOld or {}
-	local _isChar = NAmanage.isCharPart
 	for _, inst in ipairs(workspace:GetDescendants()) do
-		if _isChar and _isChar(inst) then
-			continue
-		end
 		if old[inst.Name] then
 			pcall(function() inst:Destroy() end)
 		end
@@ -29908,11 +29869,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local q = {head = 1, tail = 0, data = {}}
-	local _isChar = NAmanage.isCharPart
-	local function qpush(x)
-		if _isChar and _isChar(x) then return end
-		q.tail += 1; q.data[q.tail] = x
-	end
+	local function qpush(x) q.tail += 1; q.data[q.tail] = x end
 	local function qpop() local i = q.head; if i > q.tail then return nil end; local x = q.data[i]; q.data[i] = nil; q.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do qpush(child) end
 
@@ -29975,11 +29932,7 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local rq = {head = 1, tail = 0, data = {}}
-	local _isChar = NAmanage.isCharPart
-	local function rpush(x)
-		if _isChar and _isChar(x) then return end
-		rq.tail += 1; rq.data[rq.tail] = x
-	end
+	local function rpush(x) rq.tail += 1; rq.data[rq.tail] = x end
 	local function rpop() local i = rq.head; if i > rq.tail then return nil end; local x = rq.data[i]; rq.data[i] = nil; rq.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do rpush(child) end
 
