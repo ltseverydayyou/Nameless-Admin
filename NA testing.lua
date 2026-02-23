@@ -630,7 +630,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			return
 		end
 		local isChar, charModel = isCharPart(inst)
-		if isChar and inst ~= charModel then
+		if isChar then
 			return
 		end
 		if hub.idx[inst] then
@@ -816,14 +816,17 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		runScan()
 
 		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
-			local isChar, charModel = isCharPart(inst)
-			if isChar and inst ~= charModel then
+			local isChar = isCharPart(inst)
+			if isChar then
 				return
 			end
 			addC(inst)
 			qEvt("add", inst)
 		end)
 		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
+			if isCharPart(inst) then
+				return
+			end
 			remC(inst)
 			qEvt("rem", inst)
 		end)
@@ -23599,6 +23602,9 @@ end
 NAmanage.ovPrg = function()
 	local old = NAStuff.ovOld or {}
 	for _, inst in ipairs(workspace:GetDescendants()) do
+		if isCharPart(inst) then
+			continue
+		end
 		if old[inst.Name] then
 			pcall(function() inst:Destroy() end)
 		end
@@ -29897,7 +29903,10 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local q = {head = 1, tail = 0, data = {}}
-	local function qpush(x) q.tail += 1; q.data[q.tail] = x end
+	local function qpush(x)
+		if isCharPart(x) then return end
+		q.tail += 1; q.data[q.tail] = x
+	end
 	local function qpop() local i = q.head; if i > q.tail then return nil end; local x = q.data[i]; q.data[i] = nil; q.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do qpush(child) end
 
@@ -29960,7 +29969,10 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local rq = {head = 1, tail = 0, data = {}}
-	local function rpush(x) rq.tail += 1; rq.data[rq.tail] = x end
+	local function rpush(x)
+		if isCharPart(x) then return end
+		rq.tail += 1; rq.data[rq.tail] = x
+	end
 	local function rpop() local i = rq.head; if i > rq.tail then return nil end; local x = rq.data[i]; rq.data[i] = nil; rq.head = i + 1; return x end
 	for _,child in ipairs(workspace:GetChildren()) do rpush(child) end
 
