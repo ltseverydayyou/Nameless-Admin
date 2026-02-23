@@ -14843,6 +14843,29 @@ NAmanage.BinderRunSequence = function(raw)
 	return true
 end
 
+NAmanage.BinderHasEntries = function(evName)
+	local list = Bindings and Bindings[evName]
+	return type(list) == "table" and #list > 0
+end
+
+NAmanage.BinderNeedsToolHooks = function()
+	return NAmanage.BinderHasEntries("OnEquipItem")
+		or NAmanage.BinderHasEntries("OnUnequipItem")
+end
+
+NAmanage.BinderNeedsHumanoidHooks = function()
+	return NAmanage.BinderHasEntries("OnDeath")
+		or NAmanage.BinderHasEntries("OnKill")
+		or NAmanage.BinderHasEntries("OnDamage")
+		or NAmanage.BinderHasEntries("OnJump")
+end
+
+NAmanage.BinderNeedsCharacterHooks = function()
+	return NAmanage.BinderHasEntries("OnSpawn")
+		or NAmanage.BinderNeedsToolHooks()
+		or NAmanage.BinderNeedsHumanoidHooks()
+end
+
 function loadedResults(res)
 	local total = tonumber(res) or 0
 	local isNegative = total < 0
@@ -16976,20 +16999,53 @@ NAmanage.ESP_Disconnect = function(target)
 	NAmanage.ESP_ClearModel(model)
 end
 
+NAStuff.ESP_ReattachCooldown = NAStuff.ESP_ReattachCooldown or {}
+NAmanage.ESP_RequestReattachPlayer = function(player)
+	if not (ESPenabled or chamsEnabled) then
+		return
+	end
+	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent) then
+		return
+	end
+	local uid = tonumber(player.UserId)
+	if not uid or uid <= 0 then
+		return
+	end
+	local now = tick()
+	local last = tonumber(NAStuff.ESP_ReattachCooldown[uid]) or 0
+	if now - last < 0.15 then
+		return
+	end
+	NAStuff.ESP_ReattachCooldown[uid] = now
+	Defer(function()
+		if not (ESPenabled or chamsEnabled) then
+			return
+		end
+		if not (player and player.Parent) then
+			return
+		end
+		local char = player.Character
+		if char and NAmanage.IsValidESPModel(char, false) then
+			NAmanage.ESP_Add(player, true, false)
+		end
+	end)
+end
+
 NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local data = espCONS[model]
 	if not data then return end
 
-	local owner = Players:GetPlayerFromCharacter(model)
+	local owner = data.ownerPlayer
+	if not (owner and owner.Parent) then
+		owner = Players:GetPlayerFromCharacter(model)
+		if owner then
+			data.ownerPlayer = owner
+		end
+	end
 	if not NAmanage.IsValidESPModel(model, data.isNPC) then
+		NAmanage.ESP_ClearModel(model)
 		if data.persistent and owner then
-			Spawn(function()
-				if owner.Character and NAmanage.IsValidESPModel(owner.Character, false) then
-					NAmanage.ESP_Add(owner, true, false)
-				end
-			end)
-		else
-			NAmanage.ESP_ClearModel(model)
+			NAmanage.ESP_RequestReattachPlayer(owner)
 		end
 		return
 	end
@@ -17193,13 +17249,15 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 	if not NAmanage.IsValidESPModel(model, npcFlag) then return end
+	local ownerPlayer = target:IsA("Player") and target or Players:GetPlayerFromCharacter(model)
 
 	espCONS[model] = {
 		boxTable = {},
 		persistent = persistent,
 		boxEnabled = false,
 		highlight = nil,
-		isNPC = npcFlag
+		isNPC = npcFlag,
+		ownerPlayer = ownerPlayer
 	}
 
 	NAmanage.ESP_RegisterModel(model)
@@ -17227,20 +17285,11 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAlib.connect(key.."_ancestry", model.AncestryChanged:Connect(function(_, parent)
 		local data = espCONS[model]
 		if not data then return end
-		if data.persistent then
-			local owner = Players:GetPlayerFromCharacter(model)
-			if parent and workspace and model:IsDescendantOf(workspace) then
-				Spawn(function()
-					if owner then
-						NAmanage.ESP_Add(owner, true, false)
-					elseif NAmanage.IsValidESPModel(model, data.isNPC) then
-						NAmanage.ESP_Add(model, true, data.isNPC)
-					end
-				end)
-			end
-		else
-			if parent == nil or not (workspace and model:IsDescendantOf(workspace)) then
-				NAmanage.ESP_ClearModel(model)
+		if parent == nil or not (workspace and model:IsDescendantOf(workspace)) then
+			local owner = data.ownerPlayer
+			NAmanage.ESP_ClearModel(model)
+			if data.persistent and owner then
+				NAmanage.ESP_RequestReattachPlayer(owner)
 			end
 		end
 	end))
@@ -62416,34 +62465,54 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 	if not (plr and hum) then
 		return
 	end
+	if not NAmanage.BinderNeedsHumanoidHooks() then
+		return
+	end
 	NAStuff.bHum = NAStuff.bHum or setmetatable({}, { __mode = "k" })
 	if NAStuff.bHum[hum] then
 		return
 	end
 	NAStuff.bHum[hum] = true
 	local lastHP = hum.Health
-	hum.Died:Connect(function()
-		NAmanage.ExecuteBindings("OnDeath", plr)
-		local killer = originalIO.binderFindKiller(hum)
-		if killer then
-			NAmanage.ExecuteBindings("OnKill", killer, plr)
+	local wantDeath = NAmanage.BinderHasEntries("OnDeath")
+	local wantKill = NAmanage.BinderHasEntries("OnKill")
+	local wantDamage = NAmanage.BinderHasEntries("OnDamage")
+	local wantJump = NAmanage.BinderHasEntries("OnJump")
+	if wantDeath or wantKill then
+		hum.Died:Connect(function()
+			if wantDeath then
+				NAmanage.ExecuteBindings("OnDeath", plr)
+			end
+			if wantKill then
+				local killer = originalIO.binderFindKiller(hum)
+				if killer then
+					NAmanage.ExecuteBindings("OnKill", killer, plr)
+				end
+			end
+		end)
+	end
+	if wantDamage then
+		hum.HealthChanged:Connect(function(newHP)
+			if newHP < lastHP then
+				NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+			end
+			lastHP = newHP
+		end)
+	end
+	if wantJump then
+		hum.StateChanged:Connect(function(_, newState)
+			if newState == Enum.HumanoidStateType.Jumping then
+				NAmanage.ExecuteBindings("OnJump", plr, hum)
+			end
 		end
-	end)
-	hum.HealthChanged:Connect(function(newHP)
-		if newHP < lastHP then
-			NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
-		end
-		lastHP = newHP
-	end)
-	hum.StateChanged:Connect(function(_, newState)
-		if newState == Enum.HumanoidStateType.Jumping then
-			NAmanage.ExecuteBindings("OnJump", plr, hum)
-		end
-	end)
+	end
 end
 
 originalIO.binderAttachToolListeners=function(plr, char)
 	if not (plr and char) then
+		return
+	end
+	if not NAmanage.BinderNeedsToolHooks() then
 		return
 	end
 	NAStuff.bTool = NAStuff.bTool or setmetatable({}, { __mode = "k" })
@@ -62451,13 +62520,15 @@ originalIO.binderAttachToolListeners=function(plr, char)
 		return
 	end
 	NAStuff.bTool[char] = true
+	local wantEquip = NAmanage.BinderHasEntries("OnEquipItem")
+	local wantUnequip = NAmanage.BinderHasEntries("OnUnequipItem")
 	char.ChildAdded:Connect(function(child)
-		if child:IsA("Tool") then
+		if wantEquip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
 		end
 	end)
 	char.ChildRemoved:Connect(function(child)
-		if child:IsA("Tool") then
+		if wantUnequip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
 		end
 	end)
@@ -62465,6 +62536,9 @@ end
 
 originalIO.binderSetupCharacter=function(plr, char)
 	if not char then
+		return
+	end
+	if not NAmanage.BinderNeedsCharacterHooks() then
 		return
 	end
 	NAStuff.bSet = NAStuff.bSet or setmetatable({}, { __mode = "k" })
@@ -62536,11 +62610,15 @@ function setupPlayer(plr,bruh)
 	end
 
 	NAlib.connect(charKey, plr.CharacterAdded:Connect(function(char)
-		NAmanage.ExecuteBindings("OnSpawn", plr, char)
-		originalIO.binderSetupCharacter(plr, char)
+		if NAmanage.BinderHasEntries("OnSpawn") then
+			NAmanage.ExecuteBindings("OnSpawn", plr, char)
+		end
+		if NAmanage.BinderNeedsCharacterHooks() then
+			originalIO.binderSetupCharacter(plr, char)
+		end
 	end))
 
-	if not bruh and plr.Character then
+	if not bruh and plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 
@@ -62566,7 +62644,7 @@ end
 
 for _, plr in pairs(Players:GetPlayers()) do
 	setupPlayer(plr, true)
-	if plr.Character then
+	if plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 end
