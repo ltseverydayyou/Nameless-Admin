@@ -570,6 +570,17 @@ end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
 
+NAmanage.isCharPart=function(inst)
+	if not (inst and inst.Parent) then
+		return false
+	end
+	local m = inst:IsA("Model") and inst or inst:FindFirstAncestorOfClass("Model")
+	if m and m:FindFirstChildOfClass("Humanoid") then
+		return true, m
+	end
+	return false
+end
+
 NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	local cRoot = workspace
 	local hub = NAmanage._wsHub
@@ -614,22 +625,15 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		alive = true,
 	}
 
-	local function isCharPart(inst)
-		if not (inst and inst.Parent) then
-			return false
-		end
-		local m = inst:IsA("Model") and inst or inst:FindFirstAncestorOfClass("Model")
-		if m and m:FindFirstChildOfClass("Humanoid") then
-			return true, m
-		end
-		return false
+	local function _hubIsCharPart(inst)
+		return NAmanage.isCharPart(inst)
 	end
 
 	local function addC(inst)
 		if not (inst and inst.Parent) then
 			return
 		end
-		local isChar, charModel = isCharPart(inst)
+		local isChar, charModel = NAmanage.isCharPart(inst)
 		if isChar then
 			return
 		end
@@ -787,7 +791,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 					hub.sHead += 1
 					if inst and inst.Parent then
 						addC(inst)
-						local isChar, charModel = isCharPart(inst)
+						local isChar, charModel = NAmanage.isCharPart(inst)
 						if not (isChar and inst == charModel) then
 							local ch = inst:GetChildren()
 							for i = 1, #ch do
@@ -816,7 +820,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		runScan()
 
 		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
-			local isChar = isCharPart(inst)
+			local isChar = NAmanage.isCharPart(inst)
 			if isChar then
 				return
 			end
@@ -824,7 +828,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			qEvt("add", inst)
 		end)
 		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
-			if isCharPart(inst) then
+			if NAmanage.isCharPart(inst) then
 				return
 			end
 			remC(inst)
@@ -23601,8 +23605,9 @@ end
 
 NAmanage.ovPrg = function()
 	local old = NAStuff.ovOld or {}
+	local _isChar = NAmanage.isCharPart
 	for _, inst in ipairs(workspace:GetDescendants()) do
-		if isCharPart(inst) then
+		if _isChar and _isChar(inst) then
 			continue
 		end
 		if old[inst.Name] then
@@ -29903,8 +29908,9 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local q = {head = 1, tail = 0, data = {}}
+	local _isChar = NAmanage.isCharPart
 	local function qpush(x)
-		if isCharPart(x) then return end
+		if _isChar and _isChar(x) then return end
 		q.tail += 1; q.data[q.tail] = x
 	end
 	local function qpop() local i = q.head; if i > q.tail then return nil end; local x = q.data[i]; q.data[i] = nil; q.head = i + 1; return x end
@@ -29969,8 +29975,9 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	local RS = SafeGetService("RunService")
 
 	local rq = {head = 1, tail = 0, data = {}}
+	local _isChar = NAmanage.isCharPart
 	local function rpush(x)
-		if isCharPart(x) then return end
+		if _isChar and _isChar(x) then return end
 		rq.tail += 1; rq.data[rq.tail] = x
 	end
 	local function rpop() local i = rq.head; if i > rq.tail then return nil end; local x = rq.data[i]; rq.data[i] = nil; rq.head = i + 1; return x end
