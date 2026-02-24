@@ -235,11 +235,11 @@ local NAStuff = {
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
-	BlockedEventSaved = {};
-	BlockedInvokeSaved = {};
-	BlockedRemoteModes = {};
-	BlockedRemoteReturns = {};
-	BlockedSignals = {};
+	BlockedEventSaved = setmetatable({}, { __mode = "k" });
+	BlockedInvokeSaved = setmetatable({}, { __mode = "k" });
+	BlockedRemoteModes = setmetatable({}, { __mode = "k" });
+	BlockedRemoteReturns = setmetatable({}, { __mode = "k" });
+	BlockedSignals = setmetatable({}, { __mode = "k" });
 	RemoteFakeReturn = true;
 	AntiKickMode = "fakeok";
 	AntiKickHooked = false;
@@ -557,6 +557,26 @@ NAlib.isConnected = function(name)
 		return false
 	end
 	return NAmanage.prnCon(name) > 0
+end
+
+NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
+	local conns = NAStuff.conns
+	if type(conns) ~= "table" then
+		return 0
+	end
+	local maxKeys = tonumber(limit)
+	if maxKeys ~= nil then
+		maxKeys = math.max(1, math.floor(maxKeys))
+	end
+	local checked = 0
+	for key in pairs(conns) do
+		NAmanage.prnCon(key)
+		checked += 1
+		if maxKeys and checked >= maxKeys then
+			break
+		end
+	end
+	return checked
 end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
@@ -961,6 +981,13 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			hub.aTail = 0
 			hub.rHead = 1
 			hub.rTail = 0
+			hub.cacheLive = false
+			hub.cache = {}
+			hub.idx = setmetatable({}, { __mode = "k" })
+			hub.cIdx = 1
+			hub.sQ = setmetatable({}, { __mode = "v" })
+			hub.sHead = 1
+			hub.sTail = 0
 		end
 	end
 	return conn
@@ -8848,11 +8875,50 @@ end
 NAgui.RegisterColoredStroke=function(stroke)
 	if typeof(stroke) ~= "Instance" then return end
 	if not stroke:IsA("UIStroke") then return end
+	if not stroke.Parent then return end
+	NAmanage._strokeRegistry = NAmanage._strokeRegistry or { adds = 0, nextPrune = 0 }
+	local reg = NAmanage._strokeRegistry
+	reg.adds = (tonumber(reg.adds) or 0) + 1
+	if reg.adds % 128 == 0 and type(NAgui.pruneRegisteredStrokes) == "function" then
+		NAgui.pruneRegisteredStrokes(false)
+	end
 	if NACOLOREDELEMENTS_SET[stroke] then return end
 	NACOLOREDELEMENTS_SET[stroke]=true
 	local baseColor=NAUISTROKER or DEFAULT_UI_STROKE_COLOR or stroke.Color
 	stroke.Color=baseColor
 	Insert(NACOLOREDELEMENTS,stroke)
+end
+
+NAgui.pruneRegisteredStrokes = function(force)
+	local list = NACOLOREDELEMENTS
+	if type(list) ~= "table" then
+		return 0
+	end
+	NAmanage._strokeRegistry = NAmanage._strokeRegistry or { adds = 0, nextPrune = 0 }
+	local reg = NAmanage._strokeRegistry
+	local now = tick()
+	if not force and now < (tonumber(reg.nextPrune) or 0) then
+		return #list
+	end
+	local writeIdx = 0
+	for i = 1, #list do
+		local stroke = list[i]
+		if typeof(stroke) == "Instance" and stroke:IsA("UIStroke") and stroke.Parent then
+			writeIdx += 1
+			list[writeIdx] = stroke
+			NACOLOREDELEMENTS_SET[stroke] = true
+		else
+			if stroke ~= nil then
+				NACOLOREDELEMENTS_SET[stroke] = nil
+			end
+		end
+	end
+	for i = writeIdx + 1, #list do
+		list[i] = nil
+	end
+	reg.nextPrune = now + 2
+	reg.adds = 0
+	return writeIdx
 end
 
 NAgui.RegisterStrokesFrom=function(instance)
@@ -8985,13 +9051,41 @@ NAmanage.GetBasicInfoSnapshot = function()
 	end
 
 	local voiceStatus = "Unknown"
-	local okVoiceService, voiceService = pcall(game.GetService, game, "VoiceChatService")
-	if okVoiceService and voiceService and userId then
-		local okVoice, voiceEnabled = pcall(function()
-			return voiceService:IsVoiceEnabledForUserIdAsync(userId)
-		end)
-		if okVoice then
-			voiceStatus = voiceEnabled and "Enabled" or "Disabled"
+	if NAmanage then
+		NAmanage.BasicInfoVoiceCache = NAmanage.BasicInfoVoiceCache or {}
+		local voiceCache = NAmanage.BasicInfoVoiceCache
+		if voiceCache.userId ~= userId then
+			voiceCache.userId = userId
+			voiceCache.value = nil
+			voiceCache.fetching = false
+			voiceCache.lastFetch = 0
+		end
+		if type(voiceCache.value) == "string" and voiceCache.value ~= "" then
+			voiceStatus = voiceCache.value
+		end
+		local voiceNow = (os.clock and os.clock() or tick())
+		local voiceLast = tonumber(voiceCache.lastFetch) or 0
+		local voiceRetry = voiceStatus == "Unknown" and 15 or 60
+		if userId and (not voiceCache.fetching) and (voiceLast == 0 or (voiceNow - voiceLast) > voiceRetry) then
+			voiceCache.fetching = true
+			voiceCache.lastFetch = voiceNow
+			local fetchUserId = userId
+			SpawnCall(function()
+				local resolved = "Unknown"
+				local okVoiceService, voiceService = pcall(game.GetService, game, "VoiceChatService")
+				if okVoiceService and voiceService and fetchUserId then
+					local okVoice, voiceEnabled = pcall(function()
+						return voiceService:IsVoiceEnabledForUserIdAsync(fetchUserId)
+					end)
+					if okVoice then
+						resolved = voiceEnabled and "Enabled" or "Disabled"
+					end
+				end
+				if voiceCache.userId == fetchUserId then
+					voiceCache.value = resolved
+					voiceCache.fetching = false
+				end
+			end)
 		end
 	end
 
@@ -9034,6 +9128,9 @@ NAmanage.GetBasicInfoSnapshot = function()
 			cache.lastFetch = 0
 			cache.fetchId = 0
 			cache.marketplaceFetched = false
+			cache.marketplaceFetching = false
+			cache.marketplaceLastFetch = 0
+			cache.marketplaceFetchId = 0
 		end
 
 		if cache.name then
@@ -9085,20 +9182,34 @@ NAmanage.GetBasicInfoSnapshot = function()
 			end)
 		end
 
-		if MarketplaceService and placeId ~= 0 and not cache.marketplaceFetched and (gameName == "Unknown" or creatorName == "Unknown") then
-			local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
-			if okInfo and type(infoResult) == "table" then
-				cache.name = cache.name or infoResult.Name
-				if infoResult.Creator and infoResult.Creator.Name then
-					cache.creator = cache.creator or infoResult.Creator.Name
+		local marketplaceLastFetch = tonumber(cache.marketplaceLastFetch) or 0
+		if MarketplaceService and placeId ~= 0 and (gameName == "Unknown" or creatorName == "Unknown")
+			and (not cache.marketplaceFetching)
+			and ((not cache.marketplaceFetched) or marketplaceLastFetch == 0 or (now - marketplaceLastFetch > 60))
+		then
+			cache.marketplaceFetching = true
+			cache.marketplaceLastFetch = now
+			cache.marketplaceFetchId = (cache.marketplaceFetchId or 0) + 1
+			local marketplaceFetchId = cache.marketplaceFetchId
+			local fetchUniverseId = universeId
+			local fetchPlaceId = placeId
+			SpawnCall(function()
+				local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, fetchPlaceId)
+				if cache.universeId == fetchUniverseId and cache.marketplaceFetchId == marketplaceFetchId then
+					if okInfo and type(infoResult) == "table" then
+						cache.name = cache.name or infoResult.Name
+						if infoResult.Creator and infoResult.Creator.Name then
+							cache.creator = cache.creator or infoResult.Creator.Name
+						end
+						cache.marketplaceFetched = true
+					end
+					cache.marketplaceFetching = false
 				end
-			end
-			cache.marketplaceFetched = true
-
-			gameName = cache.name or gameName
-			creatorName = cache.creator or creatorName
-			gameGenre = cache.genre or gameGenre
+			end)
 		end
+		gameName = cache.name or gameName
+		creatorName = cache.creator or creatorName
+		gameGenre = cache.genre or gameGenre
 	end
 
 	snapshot.game.name = gameName
@@ -9168,6 +9279,7 @@ NAmanage.prefetchRobloxGameInfo = function()
 	if universeId == 0 then
 		return false, "no universe id"
 	end
+	local now = (os.clock and os.clock() or tick())
 
 	if cache.universeId ~= universeId then
 		cache.universeId = universeId
@@ -9178,48 +9290,78 @@ NAmanage.prefetchRobloxGameInfo = function()
 		cache.lastFetch = 0
 		cache.fetchId = 0
 		cache.marketplaceFetched = false
+		cache.marketplaceFetching = false
+		cache.marketplaceLastFetch = 0
+		cache.marketplaceFetchId = 0
 	end
 
-	if cache.genre and cache.name and cache.creator then
-		return true
-	end
+	local lastFetch = tonumber(cache.lastFetch) or 0
+	if (not cache.fetching) and (cache.genre == nil) and (lastFetch == 0 or (now - lastFetch > 15)) then
+		cache.fetching = true
+		cache.lastFetch = now
+		cache.fetchId = (cache.fetchId or 0) + 1
+		local fetchId = cache.fetchId
+		local fetchUniverseId = universeId
+		SpawnCall(function()
+			local url = "https://games.roblox.com/v1/games?universeIds="..tostring(fetchUniverseId)
+			local body
 
-	local url = "https://games.roblox.com/v1/games?universeIds="..tostring(universeId)
-	local body
-
-	local okBody, result = pcall(game.HttpGet, game, url)
-	if okBody and type(result) == "string" then
-		body = result
-	elseif type(opt.NAREQUEST) == "function" then
-		local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
-		if okReq and type(resp) == "table" then
-			body = resp.Body or resp.body or resp.ResponseBody
-		end
-	end
-
-	if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
-		if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1] then
-			local entry = decoded.data[1]
-			cache.name = cache.name or entry.name or entry.Name
-			if entry.creator and type(entry.creator) == "table" then
-				cache.creator = cache.creator or entry.creator.name or entry.creator.Name
+			local okBody, result = pcall(game.HttpGet, game, url)
+			if okBody and type(result) == "string" then
+				body = result
+			elseif type(opt.NAREQUEST) == "function" then
+				local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
+				if okReq and type(resp) == "table" then
+					body = resp.Body or resp.body or resp.ResponseBody
+				end
 			end
-			cache.genre = cache.genre or entry.genre or entry.genre_l1 or entry.genre_l2 or entry.Genre
-		end
+
+			if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+				if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1]
+					and cache.fetchId == fetchId and cache.universeId == fetchUniverseId
+				then
+					local entry = decoded.data[1]
+					cache.name = cache.name or entry.name or entry.Name
+					if entry.creator and type(entry.creator) == "table" then
+						cache.creator = cache.creator or entry.creator.name or entry.creator.Name
+					end
+					cache.genre = cache.genre or entry.genre or entry.genre_l1 or entry.genre_l2 or entry.Genre
+				end
+			end
+
+			if cache.fetchId == fetchId then
+				cache.fetching = false
+			end
+		end)
 	end
 
 	local cachedName = cache.name or "Unknown"
 	local cachedCreator = cache.creator or "Unknown"
-	if (not cache.marketplaceFetched) and (cachedName == "Unknown" or cachedCreator == "Unknown") and MarketplaceService and placeId ~= 0 then
-		local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId)
-		if okInfo and type(infoResult) == "table" then
-			cache.name = cache.name or infoResult.Name
-			if infoResult.Creator and infoResult.Creator.Name then
-				cache.creator = cache.creator or infoResult.Creator.Name
+	local marketplaceLastFetch = tonumber(cache.marketplaceLastFetch) or 0
+	if MarketplaceService and placeId ~= 0 and (cachedName == "Unknown" or cachedCreator == "Unknown")
+		and (not cache.marketplaceFetching)
+		and ((not cache.marketplaceFetched) or marketplaceLastFetch == 0 or (now - marketplaceLastFetch > 60))
+	then
+		cache.marketplaceFetching = true
+		cache.marketplaceLastFetch = now
+		cache.marketplaceFetchId = (cache.marketplaceFetchId or 0) + 1
+		local marketplaceFetchId = cache.marketplaceFetchId
+		local fetchUniverseId = universeId
+		local fetchPlaceId = placeId
+		SpawnCall(function()
+			local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, fetchPlaceId)
+			if cache.universeId == fetchUniverseId and cache.marketplaceFetchId == marketplaceFetchId then
+				if okInfo and type(infoResult) == "table" then
+					cache.name = cache.name or infoResult.Name
+					if infoResult.Creator and infoResult.Creator.Name then
+						cache.creator = cache.creator or infoResult.Creator.Name
+					end
+					cache.marketplaceFetched = true
+				end
+				cache.marketplaceFetching = false
 			end
-		end
-		cache.marketplaceFetched = true
+		end)
 	end
 
 	local success = cache.genre ~= nil or cache.name ~= nil
@@ -9691,6 +9833,9 @@ NAmanage.startAprilPranks = function()
 	NAmanage.ApplyAprilColor = NAmanage.ApplyAprilColor or function(color)
 		if typeof(color) ~= "Color3" then return end
 		NAUISTROKER = color
+		if type(NAgui.pruneRegisteredStrokes) == "function" then
+			NAgui.pruneRegisteredStrokes(false)
+		end
 		for _, stroke in ipairs(NACOLOREDELEMENTS or {}) do
 			if stroke and stroke.Color then
 				stroke.Color = color
@@ -10826,17 +10971,111 @@ end
 
 NAAssetsLoading = NAAssetsLoading or {}
 NAAssetsLoading.remoteStatus = {}
+NAAssetsLoading._statusOrder = {}
+NAAssetsLoading._statusOrderSet = {}
+NAAssetsLoading._prefetchOrder = {}
+NAAssetsLoading._prefetchOrderSet = {}
+NAAssetsLoading._maxKnownRemotes = math.max(32, math.floor(tonumber(NAAssetsLoading._maxKnownRemotes) or 384))
+NAAssetsLoading._maxRemoteStatus = math.max(64, math.floor(tonumber(NAAssetsLoading._maxRemoteStatus) or 512))
+NAAssetsLoading._maxPrefetchedRemotes = math.max(16, math.floor(tonumber(NAAssetsLoading._maxPrefetchedRemotes) or 96))
 NAAssetsLoading.knownRemotes = {
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
 }
-NAAssetsLoading._knownRemoteIndex = NAAssetsLoading._knownRemoteIndex or {}
+NAAssetsLoading._knownRemoteIndex = {}
 for _, entry in ipairs(NAAssetsLoading.knownRemotes) do
 	local url = entry and entry.url
 	if type(url) == "string" and url ~= "" then
 		NAAssetsLoading._knownRemoteIndex[Lower(url)] = entry
 	end
 end
+
+NAAssetsLoading._trackOrderedKey = NAAssetsLoading._trackOrderedKey or function(order, orderSet, key)
+	if type(key) ~= "string" or key == "" then
+		return
+	end
+	if orderSet[key] then
+		return
+	end
+	order[#order + 1] = key
+	orderSet[key] = true
+end
+
+NAAssetsLoading._trimRemoteStatus = NAAssetsLoading._trimRemoteStatus or function()
+	local status = NAAssetsLoading.remoteStatus or {}
+	local order = NAAssetsLoading._statusOrder or {}
+	local orderSet = NAAssetsLoading._statusOrderSet or {}
+	local maxEntries = math.max(64, math.floor(tonumber(NAAssetsLoading._maxRemoteStatus) or 512))
+	while #order > maxEntries do
+		local oldUrl = table.remove(order, 1)
+		if oldUrl ~= nil then
+			orderSet[oldUrl] = nil
+			status[oldUrl] = nil
+		end
+	end
+end
+
+NAAssetsLoading._rebuildKnownRemoteIndex = NAAssetsLoading._rebuildKnownRemoteIndex or function()
+	local idx = {}
+	for _, entry in ipairs(NAAssetsLoading.knownRemotes or {}) do
+		local url = entry and entry.url
+		if type(url) == "string" and url ~= "" then
+			idx[Lower(url)] = entry
+		end
+	end
+	NAAssetsLoading._knownRemoteIndex = idx
+end
+
+NAAssetsLoading._trimKnownRemotes = NAAssetsLoading._trimKnownRemotes or function()
+	local cap = math.max(32, math.floor(tonumber(NAAssetsLoading._maxKnownRemotes) or 384))
+	local list = NAAssetsLoading.knownRemotes or {}
+	local overflow = #list - cap
+	if overflow <= 0 then
+		return
+	end
+	local i = 1
+	while overflow > 0 and i <= #list do
+		local entry = list[i]
+		if entry and entry.skip == true then
+			table.remove(list, i)
+			overflow -= 1
+		else
+			i += 1
+		end
+	end
+	while overflow > 0 and #list > 0 do
+		table.remove(list, 1)
+		overflow -= 1
+	end
+	NAAssetsLoading.knownRemotes = list
+	NAAssetsLoading.remoteTargets = nil
+	NAAssetsLoading._rebuildKnownRemoteIndex()
+end
+
+NAAssetsLoading._trimPrefetchedRemoteCache = NAAssetsLoading._trimPrefetchedRemoteCache or function()
+	NAStuff._prefetchedRemotes = NAStuff._prefetchedRemotes or {}
+	local cache = NAStuff._prefetchedRemotes
+	local order = NAAssetsLoading._prefetchOrder or {}
+	local orderSet = NAAssetsLoading._prefetchOrderSet or {}
+	local maxEntries = math.max(16, math.floor(tonumber(NAAssetsLoading._maxPrefetchedRemotes) or 96))
+	while #order > maxEntries do
+		local oldUrl = table.remove(order, 1)
+		if oldUrl ~= nil then
+			orderSet[oldUrl] = nil
+			cache[oldUrl] = nil
+		end
+	end
+end
+
+for url in pairs(NAAssetsLoading.remoteStatus) do
+	NAAssetsLoading._trackOrderedKey(NAAssetsLoading._statusOrder, NAAssetsLoading._statusOrderSet, url)
+end
+for url in pairs(NAStuff._prefetchedRemotes or {}) do
+	NAAssetsLoading._trackOrderedKey(NAAssetsLoading._prefetchOrder, NAAssetsLoading._prefetchOrderSet, url)
+end
+NAAssetsLoading._trimRemoteStatus()
+NAAssetsLoading._trimPrefetchedRemoteCache()
+NAAssetsLoading._trimKnownRemotes()
 
 NAAssetsLoading.applyMinimizedPreference=function()
 	if type(NAAssetsLoading.setMinimizedState) == "function" then
@@ -10845,6 +11084,9 @@ NAAssetsLoading.applyMinimizedPreference=function()
 end
 
 NAAssetsLoading.getRemoteTargets=function()
+	if type(NAAssetsLoading._trimKnownRemotes) == "function" then
+		NAAssetsLoading._trimKnownRemotes()
+	end
 	if NAAssetsLoading.remoteTargets then
 		return NAAssetsLoading.remoteTargets
 	end
@@ -10873,6 +11115,9 @@ NAAssetsLoading.registerRemote=function(url, options)
 		if options and options.skip == true and entry.skip ~= true then
 			entry.skip = true
 			NAAssetsLoading.remoteTargets = nil
+			if type(NAAssetsLoading._trimKnownRemotes) == "function" then
+				NAAssetsLoading._trimKnownRemotes()
+			end
 		end
 		return
 	end
@@ -10882,6 +11127,9 @@ NAAssetsLoading.registerRemote=function(url, options)
 	}
 	NAAssetsLoading._knownRemoteIndex[key] = NAAssetsLoading.knownRemotes[#NAAssetsLoading.knownRemotes]
 	NAAssetsLoading.remoteTargets = nil
+	if type(NAAssetsLoading._trimKnownRemotes) == "function" then
+		NAAssetsLoading._trimKnownRemotes()
+	end
 end
 
 NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
@@ -10901,9 +11149,21 @@ NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
 		local ok, body = NACaller(game.HttpGet, game, url)
 		if ok and type(body) == "string" and body ~= "" then
 			NAStuff._prefetchedRemotes[url] = body
+			if type(NAAssetsLoading._trackOrderedKey) == "function" then
+				NAAssetsLoading._trackOrderedKey(NAAssetsLoading._prefetchOrder, NAAssetsLoading._prefetchOrderSet, url)
+			end
+			if type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
+				NAAssetsLoading._trimPrefetchedRemoteCache()
+			end
 			NAAssetsLoading.remoteStatus[url] = true
 		else
 			NAAssetsLoading.remoteStatus[url] = false
+		end
+		if type(NAAssetsLoading._trackOrderedKey) == "function" then
+			NAAssetsLoading._trackOrderedKey(NAAssetsLoading._statusOrder, NAAssetsLoading._statusOrderSet, url)
+		end
+		if type(NAAssetsLoading._trimRemoteStatus) == "function" then
+			NAAssetsLoading._trimRemoteStatus()
 		end
 		if onStep then
 			onStep(index, total, url, ok)
@@ -10965,6 +11225,12 @@ NAAssetsLoading.cachePrefetchedRemote = function(url, body)
 	if type(url) == "string" and url ~= "" and type(body) == "string" and body ~= "" then
 		NAStuff._prefetchedRemotes = NAStuff._prefetchedRemotes or {}
 		NAStuff._prefetchedRemotes[url] = body
+		if type(NAAssetsLoading._trackOrderedKey) == "function" then
+			NAAssetsLoading._trackOrderedKey(NAAssetsLoading._prefetchOrder, NAAssetsLoading._prefetchOrderSet, url)
+		end
+		if type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
+			NAAssetsLoading._trimPrefetchedRemoteCache()
+		end
 	end
 end
 
@@ -54713,8 +54979,42 @@ NAmanage.isCoreFunc=function(fn)
 	return typeof(sc) == "Instance" and sc:IsDescendantOf(COREGUI)
 end
 
+NAmanage.pruneBlockedRemoteState = NAmanage.pruneBlockedRemoteState or function()
+	local list = NAStuff.BlockedRemotes
+	if type(list) ~= "table" then
+		return 0
+	end
+	local write = 0
+	for i = 1, #list do
+		local remote = list[i]
+		if typeof(remote) == "Instance" and remote.Parent then
+			write += 1
+			list[write] = remote
+		else
+			if remote ~= nil then
+				pcall(function()
+					if typeof(remote) == "Instance" and remote:IsA("RemoteEvent") then
+						NAStuff.BlockedSignals[remote.OnClientEvent] = nil
+					end
+				end)
+				NAStuff.BlockedRemoteModes[remote] = nil
+				NAStuff.BlockedRemoteReturns[remote] = nil
+				NAStuff.BlockedEventSaved[remote] = nil
+				NAStuff.BlockedInvokeSaved[remote] = nil
+			end
+		end
+	end
+	for i = write + 1, #list do
+		list[i] = nil
+	end
+	return write
+end
+
 NAmanage.BlockRemote = function(remote, mode)
 	mode = mode or "fakeok"
+	if type(NAmanage.pruneBlockedRemoteState) == "function" then
+		NAmanage.pruneBlockedRemoteState()
+	end
 	if not Discover(NAStuff.BlockedRemotes, remote) then
 		Insert(NAStuff.BlockedRemotes, remote)
 	end
@@ -54752,6 +55052,9 @@ NAmanage.BlockRemote = function(remote, mode)
 end
 
 NAmanage.UnblockRemote = function(remote)
+	if type(NAmanage.pruneBlockedRemoteState) == "function" then
+		NAmanage.pruneBlockedRemoteState()
+	end
 	local idx = Discover(NAStuff.BlockedRemotes, remote)
 	if idx then
 		local name = NAStuff.BlockedRemotes[idx]:GetFullName()
@@ -65357,6 +65660,7 @@ end
 do
 	NAStuff.pfTick = NAStuff.pfTick or 0
 	NAStuff.canvasTick = NAStuff.canvasTick or 0
+	NAStuff.memCleanTick = NAStuff.memCleanTick or 0
 	NAStuff.pfxCache = NAStuff.pfxCache or {
 		value = nil;
 		invalid = nil;
@@ -65386,6 +65690,29 @@ do
 			end
 			if NAUIMANAGER.BindersList then
 				updateCanvasSize(NAUIMANAGER.BindersList, s)
+			end
+		end
+
+		NAStuff.memCleanTick = NAStuff.memCleanTick + (dt or 0)
+		if NAStuff.memCleanTick >= 10 then
+			NAStuff.memCleanTick = 0
+			if NAgui and type(NAgui.pruneRegisteredStrokes) == "function" then
+				pcall(NAgui.pruneRegisteredStrokes, false)
+			end
+			if NAmanage and type(NAmanage.prnAllCon) == "function" then
+				pcall(NAmanage.prnAllCon)
+			end
+			if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
+				pcall(NAmanage.pruneBlockedRemoteState)
+			end
+			if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
+				pcall(NAAssetsLoading._trimRemoteStatus)
+			end
+			if NAAssetsLoading and type(NAAssetsLoading._trimKnownRemotes) == "function" then
+				pcall(NAAssetsLoading._trimKnownRemotes)
+			end
+			if NAAssetsLoading and type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
+				pcall(NAAssetsLoading._trimPrefetchedRemoteCache)
 			end
 		end
 
