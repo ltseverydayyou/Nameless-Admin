@@ -150,6 +150,7 @@ local NAStuff = {
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
 	cmdAutofillLoading = false;
+	cmdAutofillLoadRequested = false;
 	keepCmdFocus = false;
 	cmdInputAtInit = nil;
 	tweenSpeed = 1;
@@ -57959,6 +57960,7 @@ NAgui.commands = function()
 	NAmanage.centerFrame(cFrame)
 
 	local entries = NAmanage.buildCommandEntries()
+	local seenNames = {}
 
 	local stale = {}
 	for name, label in pairs(pool) do
@@ -57979,6 +57981,10 @@ NAgui.commands = function()
 
 			local entry = entries[i]
 			local cmdName = entry.name
+			if seenNames[cmdName] then
+				continue
+			end
+			seenNames[cmdName] = true
 			local meta = entry.meta or {}
 			local tbl = cmds.Commands[cmdName]
 			local Cmd = pool[cmdName]
@@ -61219,8 +61225,13 @@ NAmanage.setCmdAutofillClickable = function(enabled)
 end
 
 NAgui.loadCMDS = function()
+	if NAStuff.cmdAutofillLoading == true then
+		NAStuff.cmdAutofillLoadRequested = true
+		return
+	end
 	local cmdInput = NAUIMANAGER and NAUIMANAGER.cmdInput
 	local prevCmdEditable, prevCmdActive, prevCmdSelectable, prevCmdPlaceholder
+	NAStuff.cmdAutofillLoadRequested = false
 	NAStuff.cmdAutofillLoading = true
 	if cmdInput then
 		prevCmdPlaceholder = cmdInput.PlaceholderText
@@ -61323,9 +61334,14 @@ NAgui.loadCMDS = function()
 	if NAmanage.isLoad and NAmanage.isLoad() then
 		batchSize = 24
 	end
+	local seenCmdNames = {}
 	local i = 0
 	for _, entry in ipairs(entries) do
 		local name = entry.name
+		if seenCmdNames[name] then
+			continue
+		end
+		seenCmdNames[name] = true
 		local meta = entry.meta or {}
 		local cmdData = cmds.Commands[name]
 		local btn = NAUIMANAGER.cmdExample:Clone()
@@ -61392,6 +61408,17 @@ NAgui.loadCMDS = function()
 		if cmdInput.PlaceholderText ~= nil and prevCmdPlaceholder ~= nil then
 			cmdInput.PlaceholderText = prevCmdPlaceholder
 		end
+	end
+	if NAStuff.cmdAutofillLoadRequested == true then
+		NAStuff.cmdAutofillLoadRequested = false
+		task.defer(function()
+			if type(NAgui.loadCMDS) == "function" then
+				local ok, err = pcall(NAgui.loadCMDS)
+				if not ok then
+					warn("[NA] Queued command rebuild failed:", err)
+				end
+			end
+		end)
 	end
 end
 
@@ -73234,7 +73261,7 @@ pcall(function()
 		repeat
 			local targetCount = NAmanage.totalCommandCount()
 			local currentCount = tonumber(cmdNAnum) or 0
-			local needsBuild = (NAStuff.cmdAutofillLoading == true) or (currentCount ~= targetCount)
+			local needsBuild = (NAStuff.cmdAutofillLoading == true) or (NAStuff.cmdAutofillLoadRequested == true) or (currentCount ~= targetCount)
 			if not needsBuild then
 				break
 			end
