@@ -1238,6 +1238,845 @@ NAmanage.cgRem = NAmanage.cgRem or function(fn, filter)
 	})
 end
 
+NAmanage._pgHub = NAmanage._pgHub or nil
+
+NAmanage._pgHubGet = NAmanage._pgHubGet or function()
+	local players = SafeGetService("Players")
+	local lp = players and players.LocalPlayer or nil
+	local hub = NAmanage._pgHub
+
+	local function disc(c)
+		if c then
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+	end
+
+	local function killHub(old)
+		if not old then
+			return
+		end
+		old.alive = false
+		disc(old.cAdd)
+		disc(old.cRem)
+		disc(old.rAnc)
+		disc(old.lpAdd)
+		disc(old.lpRem)
+		disc(old.lpAnc)
+		old.cAdd = nil
+		old.cRem = nil
+		old.rAnc = nil
+		old.lpAdd = nil
+		old.lpRem = nil
+		old.lpAnc = nil
+		old.root = nil
+	end
+
+	if hub and (not hub.alive or hub.player ~= lp) then
+		killHub(hub)
+		hub = nil
+		NAmanage._pgHub = nil
+	end
+
+	if hub and hub.alive then
+		if type(hub.syncRoot) == "function" then
+			hub.syncRoot()
+		end
+		return hub
+	end
+
+	hub = {
+		player = lp,
+		root = nil,
+		nextId = 0,
+		added = {},
+		removing = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = setmetatable({}, { __mode = "v" }),
+		rQ = setmetatable({}, { __mode = "v" }),
+		aSet = setmetatable({}, { __mode = "k" }),
+		rSet = setmetatable({}, { __mode = "k" }),
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		rAnc = nil,
+		lpAdd = nil,
+		lpRem = nil,
+		lpAnc = nil,
+		alive = true,
+	}
+
+	local function dispatch(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			if type(rec) == "table" then
+				fn = rec.fn
+			end
+			if type(fn) == "function" then
+				pcall(fn, inst)
+			end
+		end
+	end
+
+	local function hasInterested(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			local filter = nil
+			if type(rec) == "table" then
+				fn = rec.fn
+				filter = rec.filter
+			end
+			if type(fn) == "function" then
+				if type(filter) == "function" then
+					local ok, pass = pcall(filter, inst)
+					if ok and pass then
+						return true
+					end
+				else
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget = 120
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removing, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	local function wantsRootEvents()
+		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
+	end
+
+	local function disconnectRootHooks()
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		hub.cAdd = nil
+		hub.cRem = nil
+	end
+
+	local function connectRootHooks()
+		if not (hub.alive and hub.root and wantsRootEvents()) then
+			return
+		end
+		if not hub.cAdd then
+			hub.cAdd = hub.root.DescendantAdded:Connect(function(inst)
+				qEvt("add", inst)
+			end)
+		end
+		if not hub.cRem then
+			hub.cRem = hub.root.DescendantRemoving:Connect(function(inst)
+				qEvt("rem", inst)
+			end)
+		end
+	end
+
+	local syncRoot
+	local function bindRoot(root)
+		if hub.root == root then
+			if wantsRootEvents() then
+				connectRootHooks()
+			else
+				disconnectRootHooks()
+			end
+			return
+		end
+		disconnectRootHooks()
+		disc(hub.rAnc)
+		hub.rAnc = nil
+		hub.root = root
+		if root then
+			hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					bindRoot(nil)
+					Defer(function()
+						if hub.alive and syncRoot then
+							syncRoot()
+						end
+					end)
+				end
+			end)
+			connectRootHooks()
+		end
+	end
+
+	syncRoot = function()
+		if not hub.alive then
+			return
+		end
+		local player = hub.player
+		local root = nil
+		if player and player.Parent then
+			root = player:FindFirstChildOfClass("PlayerGui") or player:FindFirstChild("PlayerGui")
+		end
+		bindRoot(root)
+	end
+	hub.syncRoot = syncRoot
+	hub.disableRootHooks = disconnectRootHooks
+	hub.enableRootHooks = connectRootHooks
+
+	if lp then
+		hub.lpAdd = lp.ChildAdded:Connect(function(child)
+			if child and child:IsA("PlayerGui") then
+				bindRoot(child)
+			end
+		end)
+		hub.lpRem = lp.ChildRemoved:Connect(function(child)
+			if child and child:IsA("PlayerGui") then
+				if child == hub.root then
+					bindRoot(nil)
+				end
+				Defer(syncRoot)
+			end
+		end)
+		hub.lpAnc = lp.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				bindRoot(nil)
+			else
+				Defer(syncRoot)
+			end
+		end)
+	end
+
+	syncRoot()
+	NAmanage._pgHub = hub
+	return hub
+end
+
+NAmanage.pgSub = NAmanage.pgSub or function(spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+
+	local hub = NAmanage._pgHubGet()
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+	if type(hub.syncRoot) == "function" then
+		hub.syncRoot()
+	end
+	if type(hub.enableRootHooks) == "function" then
+		hub.enableRootHooks()
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aSet = setmetatable({}, { __mode = "k" })
+			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			if type(hub.disableRootHooks) == "function" then
+				hub.disableRootHooks()
+			end
+		end
+	end
+	return conn
+end
+
+NAmanage.pgAdd = NAmanage.pgAdd or function(fn, filter)
+	return NAmanage.pgSub({
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.pgRem = NAmanage.pgRem or function(fn, filter)
+	return NAmanage.pgSub({
+		removing = fn,
+		filterRemoving = filter,
+	})
+end
+
+NAmanage._descHubs = NAmanage._descHubs or setmetatable({}, { __mode = "k" })
+
+NAmanage._descHubGet = NAmanage._descHubGet or function(root)
+	if typeof(root) ~= "Instance" then
+		return nil
+	end
+	local hubs = NAmanage._descHubs
+	local hub = hubs[root]
+	if hub and hub.alive and hub.root == root then
+		return hub
+	end
+
+	local function disc(c)
+		if c then
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+	end
+
+	if hub then
+		hub.alive = false
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		disc(hub.rAnc)
+	end
+
+	hub = {
+		root = root,
+		nextId = 0,
+		added = {},
+		removing = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = setmetatable({}, { __mode = "v" }),
+		rQ = setmetatable({}, { __mode = "v" }),
+		aSet = setmetatable({}, { __mode = "k" }),
+		rSet = setmetatable({}, { __mode = "k" }),
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		rAnc = nil,
+		alive = true,
+	}
+
+	local function dispatch(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			if type(rec) == "table" then
+				fn = rec.fn
+			end
+			if type(fn) == "function" then
+				pcall(fn, inst)
+			end
+		end
+	end
+
+	local function hasInterested(handlers, inst)
+		for _, rec in pairs(handlers) do
+			local fn = rec
+			local filter = nil
+			if type(rec) == "table" then
+				fn = rec.fn
+				filter = rec.filter
+			end
+			if type(fn) == "function" then
+				if type(filter) == "function" then
+					local ok, pass = pcall(filter, inst)
+					if ok and pass then
+						return true
+					end
+				else
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget = 120
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removing, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				Wait()
+			end
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	hub.cAdd = root.DescendantAdded:Connect(function(inst)
+		qEvt("add", inst)
+	end)
+	hub.cRem = root.DescendantRemoving:Connect(function(inst)
+		qEvt("rem", inst)
+	end)
+	hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+		if parent then
+			return
+		end
+		hub.alive = false
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		disc(hub.rAnc)
+		hubs[root] = nil
+	end)
+
+	hubs[root] = hub
+	return hub
+end
+
+NAmanage.descSub = NAmanage.descSub or function(root, spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+	if typeof(root) ~= "Instance" then
+		return noop
+	end
+
+	if root == workspace and NAmanage.wsSub then
+		return NAmanage.wsSub(spec)
+	end
+
+	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	if coreRoot and root == coreRoot and NAmanage.cgSub then
+		return NAmanage.cgSub(spec)
+	end
+
+	if NAmanage.pgSub and NAmanage._pgHubGet then
+		local ok, pgHub = pcall(NAmanage._pgHubGet)
+		if ok and pgHub and pgHub.root and pgHub.root == root then
+			return NAmanage.pgSub(spec)
+		end
+	end
+
+	local hub = NAmanage._descHubGet(root)
+	if not hub then
+		return noop
+	end
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = setmetatable({}, { __mode = "v" })
+			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aSet = setmetatable({}, { __mode = "k" })
+			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+		end
+	end
+	return conn
+end
+
+NAmanage.descAdd = NAmanage.descAdd or function(root, fn, filter)
+	return NAmanage.descSub(root, {
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.descRem = NAmanage.descRem or function(root, fn, filter)
+	return NAmanage.descSub(root, {
+		removing = fn,
+		filterRemoving = filter,
+	})
+end
+
+NAmanage._mouseMoveHubs = NAmanage._mouseMoveHubs or setmetatable({}, { __mode = "k" })
+
+NAmanage._mouseMoveHubGet = NAmanage._mouseMoveHubGet or function(mouseObj)
+	if not mouseObj then
+		return nil
+	end
+
+	local hubs = NAmanage._mouseMoveHubs
+	local hub = hubs[mouseObj]
+
+	local function disc(c)
+		if c then
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+	end
+
+	if hub and not hub.alive then
+		disc(hub.moveCon)
+		hubs[mouseObj] = nil
+		hub = nil
+	end
+
+	if hub then
+		return hub
+	end
+
+	hub = {
+		mouse = mouseObj,
+		nextId = 0,
+		subs = {},
+		count = 0,
+		moveCon = nil,
+		alive = true,
+	}
+
+	local function dispatch(x, y, now)
+		for _, rec in pairs(hub.subs) do
+			local fn = rec and rec.fn
+			if type(fn) == "function" then
+				local pass = true
+				local guard = rec.guard
+				if type(guard) == "function" then
+					local okGuard, allowed = pcall(guard, x, y, now)
+					pass = okGuard and allowed == true
+				end
+				if pass then
+					local minInterval = rec.minInterval or 0
+					if minInterval > 0 then
+						local lastRun = rec.lastRun or 0
+						if now - lastRun < minInterval then
+							pass = false
+						end
+					end
+				end
+				if pass then
+					local minDelta = rec.minDelta or 0
+					if minDelta > 0 then
+						local lx = rec.lastX
+						local ly = rec.lastY
+						if lx ~= nil and ly ~= nil then
+							local delta = math.abs(x - lx) + math.abs(y - ly)
+							if delta < minDelta then
+								pass = false
+							end
+						end
+					end
+				end
+				if pass then
+					rec.lastRun = now
+					rec.lastX = x
+					rec.lastY = y
+					pcall(fn, x, y, now)
+				end
+			end
+		end
+	end
+
+	local function ensureConnection()
+		if hub.moveCon or not hub.alive or hub.count <= 0 then
+			return
+		end
+		hub.moveCon = mouseObj.Move:Connect(function()
+			if not hub.alive then
+				return
+			end
+			local x = tonumber(mouseObj.X) or 0
+			local y = tonumber(mouseObj.Y) or 0
+			dispatch(x, y, os.clock())
+		end)
+	end
+
+	local function stopIfIdle()
+		if hub.count <= 0 and hub.moveCon then
+			disc(hub.moveCon)
+			hub.moveCon = nil
+		end
+	end
+
+	hub.ensureConnection = ensureConnection
+	hub.stopIfIdle = stopIfIdle
+
+	hubs[mouseObj] = hub
+	return hub
+end
+
+NAmanage.mouseMoveSub = NAmanage.mouseMoveSub or function(mouseObj, spec)
+	spec = spec or {}
+	if type(spec) == "function" then
+		spec = { fn = spec }
+	end
+	local fn = type(spec.fn) == "function" and spec.fn
+		or (type(spec.callback) == "function" and spec.callback or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if type(fn) ~= "function" then
+		return noop
+	end
+
+	local hub = NAmanage._mouseMoveHubGet(mouseObj)
+	if not hub then
+		return noop
+	end
+
+	hub.nextId += 1
+	local id = hub.nextId
+	hub.subs[id] = {
+		fn = fn,
+		guard = type(spec.guard) == "function" and spec.guard or nil,
+		minInterval = math.max(0, tonumber(spec.minInterval) or 0),
+		minDelta = math.max(0, tonumber(spec.minDelta) or 0),
+		lastRun = 0,
+		lastX = nil,
+		lastY = nil,
+	}
+	hub.count = (hub.count or 0) + 1
+	if type(hub.ensureConnection) == "function" then
+		hub.ensureConnection()
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.subs[id] then
+			hub.subs[id] = nil
+			hub.count = math.max(0, (hub.count or 0) - 1)
+		end
+		if type(hub.stopIfIdle) == "function" then
+			hub.stopIfIdle()
+		end
+	end
+
+	if spec.fireNow then
+		local x = tonumber(mouseObj.X) or 0
+		local y = tonumber(mouseObj.Y) or 0
+		pcall(fn, x, y, os.clock())
+	end
+
+	return conn
+end
+
 NAlib.isProperty = function(inst, prop)
 	local s, r = pcall(function() return inst[prop] end)
 	if not s then return nil end
@@ -5006,11 +5845,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = root.DescendantAdded:Connect(function(d)
-			if CE.data.enabled and d:IsA("UICorner") then
-				queueCornerApply(d)
-			end
-		end)
+		conns.desc = NAmanage.descSub(root, {
+			added = function(d)
+				if CE.data.enabled then
+					queueCornerApply(d)
+				end
+			end,
+			filterAdded = function(d)
+				return d and d:IsA("UICorner")
+			end,
+		})
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if CE.guiRootWatchers[root] then
@@ -5077,18 +5921,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = CE.data.enabled == true
 		NAlib.disconnect("CornerEditor")
 		if shouldWatch and CE.data.targetCoreGui and CE.cg then
-			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(onCDesc))
+			NAlib.connect("CornerEditor", NAmanage.descSub(CE.cg, {
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_PlayerGui")
-		local pg = shouldWatch and CE.data.targetPlayerGui and getPlayerGui()
-		if pg then
-			NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(onCDesc))
+		if shouldWatch and CE.data.targetPlayerGui then
+			NAlib.connect("CornerEditor_PlayerGui", NAmanage.pgSub({
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_HUI")
 		if shouldWatch and CE.data.targetHiddenUi and HUI then
-			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(onCDesc))
+			NAlib.connect("CornerEditor_HUI", NAmanage.descSub(HUI, {
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_Billboard")
@@ -5096,6 +5954,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monCPGui()
+		if NAmanage.pgSub then
+			NAlib.disconnect("CornerEditor_PlayerGuiAdded")
+			NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
+			return
+		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
@@ -6554,11 +7417,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = root.DescendantAdded:Connect(function(d)
-			if FontEditor.data.enabled then
-				queueFontApply(d)
-			end
-		end)
+		conns.desc = NAmanage.descSub(root, {
+			added = function(d)
+				if FontEditor.data.enabled then
+					queueFontApply(d)
+				end
+			end,
+			filterAdded = function(d)
+				return isFontTarget(d)
+			end,
+		})
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if FontEditor.guiRootWatchers[root] then
@@ -6790,18 +7658,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = FontEditor.data.enabled == true
 		NAlib.disconnect("FontEditor")
 		if shouldWatch and FontEditor.data.targetCoreGui and FontEditor.cg then
-			NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(onFontDescendantAdded))
+			NAlib.connect("FontEditor", NAmanage.descSub(FontEditor.cg, {
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_PlayerGui")
-		local pg = shouldWatch and FontEditor.data.targetPlayerGui and getPlayerGui()
-		if pg then
-			NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(onFontDescendantAdded))
+		if shouldWatch and FontEditor.data.targetPlayerGui then
+			NAlib.connect("FontEditor_PlayerGui", NAmanage.pgSub({
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_HUI")
 		if shouldWatch and FontEditor.data.targetHiddenUi and HUI then
-			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(onFontDescendantAdded))
+			NAlib.connect("FontEditor_HUI", NAmanage.descSub(HUI, {
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_Billboard")
@@ -6809,6 +7691,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monitorFontPlayerGui()
+		if NAmanage.pgSub then
+			NAlib.disconnect("FontEditor_PlayerGuiAdded")
+			NAlib.disconnect("FontEditor_PlayerGuiRemoved")
+			return
+		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
@@ -7865,6 +8752,45 @@ end
 
 local NAScale = 1
 local NAUIScale = 1
+local NA_UI_SCALE_MIN = 0.5
+local NA_UI_SCALE_MAX = 2.5
+
+NAmanage.ClampUIScale = function(value, fallback)
+	local n = tonumber(value)
+	if not n then
+		n = tonumber(fallback)
+	end
+	if not n then
+		n = tonumber(NAUIScale) or 1
+	end
+	return math.clamp(n, NA_UI_SCALE_MIN, NA_UI_SCALE_MAX)
+end
+
+NAmanage.ApplyUIScale = function(value, opts)
+	opts = opts or {}
+	local clamped = NAmanage.ClampUIScale(value, opts.fallback)
+	NAUIScale = clamped
+
+	local scaler = (opt and opt.NAAUTOSCALER) or (NAUIMANAGER and NAUIMANAGER.AUTOSCALER)
+	if scaler then
+		scaler.Scale = clamped
+	end
+
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "uiScale", clamped)
+	end
+
+	if opts.syncUI ~= false and NAmanage.SyncUIScaleUI then
+		NAmanage.SyncUIScaleUI({
+			value = clamped,
+			force = opts.forceSync ~= false,
+			fire = opts.fireSync == true,
+		})
+	end
+
+	return clamped
+end
+
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
 local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
 local events = {
@@ -8852,6 +9778,36 @@ else
 end
 
 NAgui._dragState = NAgui._dragState or {}
+NAgui._touchGestureLock = NAgui._touchGestureLock or { owner = nil, mode = nil, input = nil }
+
+NAgui.tryLockTouchGesture = NAgui.tryLockTouchGesture or function(owner, mode, input)
+	if not (input and input.UserInputType == Enum.UserInputType.Touch) then
+		return true
+	end
+	local lock = NAgui._touchGestureLock
+	if lock.input and lock.input ~= input then
+		return false
+	end
+	if lock.input == input then
+		return lock.owner == owner and lock.mode == mode
+	end
+	lock.owner = owner
+	lock.mode = mode
+	lock.input = input
+	return true
+end
+
+NAgui.releaseTouchGesture = NAgui.releaseTouchGesture or function(owner, mode, input)
+	if not (input and input.UserInputType == Enum.UserInputType.Touch) then
+		return
+	end
+	local lock = NAgui._touchGestureLock
+	if lock.input == input and lock.owner == owner and lock.mode == mode then
+		lock.owner = nil
+		lock.mode = nil
+		lock.input = nil
+	end
+end
 
 NAgui.dragger = function(ui, dragui)
 	if not ui then return end
@@ -8865,6 +9821,7 @@ NAgui.dragger = function(ui, dragui)
 	local startPos
 	local cleaned = false
 	local dragPointer
+	local touchGestureLocked = false
 	local pendingInput
 	local moveConn
 	local endConn
@@ -8887,6 +9844,10 @@ NAgui.dragger = function(ui, dragui)
 	end
 
 	local function stopDrag()
+		if touchGestureLocked then
+			NAgui.releaseTouchGesture(ui, "move", dragPointer)
+			touchGestureLocked = false
+		end
 		dragging = false
 		dragPointer = nil
 		pendingInput = nil
@@ -8952,6 +9913,12 @@ NAgui.dragger = function(ui, dragui)
 			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
 				and (not ds.owner or ds.owner == ui)
 				and isTopMost(dragui, input) then
+				if input.UserInputType == Enum.UserInputType.Touch then
+					if not (NAgui.tryLockTouchGesture and NAgui.tryLockTouchGesture(ui, "move", input)) then
+						return
+					end
+					touchGestureLocked = true
+				end
 				ds.owner = ui
 				ds.input = input
 				dragging = true
@@ -9026,6 +9993,7 @@ NAgui.draggerV2 = function(ui, dragui)
 	local anchor = ui.AnchorPoint
 	local cleaned = false
 	local dragPointer
+	local touchGestureLocked = false
 	local pendingInput
 	local moveConn
 	local endConn
@@ -9048,6 +10016,10 @@ NAgui.draggerV2 = function(ui, dragui)
 	end
 
 	local function stopDrag()
+		if touchGestureLocked then
+			NAgui.releaseTouchGesture(ui, "move", dragPointer)
+			touchGestureLocked = false
+		end
 		dragging = false
 		dragPointer = nil
 		pendingInput = nil
@@ -9068,6 +10040,33 @@ NAgui.draggerV2 = function(ui, dragui)
 	local function safeClamp(v, lo, hi)
 		if hi < lo then hi = lo end
 		return math.clamp(v, lo, hi)
+	end
+
+	local function getDragScale()
+		local scale = 1
+		local scaler = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER) or (opt and opt.NAAUTOSCALER)
+		if scaler and screenGui then
+			local ok, inside = pcall(function()
+				return scaler == screenGui or scaler:IsDescendantOf(screenGui)
+			end)
+			if ok and inside then
+				scale = tonumber(scaler.Scale) or 1
+			end
+		end
+		if not scale or scale <= 0 then
+			scale = 1
+		end
+		return scale
+	end
+
+	local function getLogicalScreenSize()
+		local absSize = screenGui.AbsoluteSize
+		local scale = getDragScale()
+		return Vector2.new((absSize.X or 0) / scale, (absSize.Y or 0) / scale), scale
+	end
+
+	local function isResizeActive()
+		return NAmanage and NAmanage.GetAttr and NAmanage.GetAttr(ui, "NAResizeActive") == true
 	end
 
 	local function getOrder(g)
@@ -9103,13 +10102,17 @@ NAgui.draggerV2 = function(ui, dragui)
 
 	local function update(input)
 		NACaller(function()
-			local p = screenGui.AbsoluteSize
-			local s = ui.AbsoluteSize
+			if isResizeActive() then
+				return
+			end
+			local p, dragScale = getLogicalScreenSize()
+			local absSize = ui.AbsoluteSize
+			local s = Vector2.new((absSize.X or 0) / dragScale, (absSize.Y or 0) / dragScale)
 			if p.X <= 0 or p.Y <= 0 then return end
 			local startX = startPos.X.Scale * p.X + startPos.X.Offset
 			local startY = startPos.Y.Scale * p.Y + startPos.Y.Offset
-			local dx = input.Position.X - dragStart.X
-			local dy = input.Position.Y - dragStart.Y
+			local dx = (input.Position.X - dragStart.X) / dragScale
+			local dy = (input.Position.Y - dragStart.Y) / dragScale
 			local minX = anchor.X * s.X
 			local maxX = p.X - (1 - anchor.X) * s.X
 			local minY = anchor.Y * s.Y
@@ -9125,6 +10128,15 @@ NAgui.draggerV2 = function(ui, dragui)
 			if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
 				and (not ds.owner or ds.owner == ui)
 				and isTopMost(dragui, input) then
+				if isResizeActive() then
+					return
+				end
+				if input.UserInputType == Enum.UserInputType.Touch then
+					if not (NAgui.tryLockTouchGesture and NAgui.tryLockTouchGesture(ui, "move", input)) then
+						return
+					end
+					touchGestureLocked = true
+				end
 				ds.owner = ui
 				ds.input = input
 				dragging = true
@@ -9172,8 +10184,12 @@ NAgui.draggerV2 = function(ui, dragui)
 
 	local function clampToViewport()
 		local ok, err = NACaller(function()
-			local p = screenGui.AbsoluteSize
-			local s = ui.AbsoluteSize
+			if isResizeActive() then
+				return
+			end
+			local p, dragScale = getLogicalScreenSize()
+			local absSize = ui.AbsoluteSize
+			local s = Vector2.new((absSize.X or 0) / dragScale, (absSize.Y or 0) / dragScale)
 			if p.X <= 0 or p.Y <= 0 then return end
 			local curr = ui.Position
 			local absX = curr.X.Scale * p.X + curr.X.Offset
@@ -10804,19 +11820,22 @@ NAmanage.NASettingsGetSchema=function()
 					return coerceBoolean(value, false)
 				end;
 			};
-			uiScale = {
-				pathKey = "NAUISIZEPATH";
-				default = function()
+		uiScale = {
+			pathKey = "NAUISIZEPATH";
+			default = function()
 				local migrated = NamelessMigrate:UiSize()
 				local numberValue = tonumber(migrated)
-				return numberValue and numberValue > 0 and numberValue or 1
+				if not numberValue or numberValue <= 0 then
+					numberValue = 1
+				end
+				return math.clamp(numberValue, NA_UI_SCALE_MIN, NA_UI_SCALE_MAX)
 			end;
 			coerce = function(value)
 				local numberValue = tonumber(value)
 				if not numberValue or numberValue <= 0 then
 					return 1
 				end
-				return numberValue
+				return math.clamp(numberValue, NA_UI_SCALE_MIN, NA_UI_SCALE_MAX)
 			end;
 		};
 		crosshairEnabled = {
@@ -13459,8 +14478,14 @@ if FileSupport then
 		DoNotif("ImageButton size has been reset to default due to invalid data.")
 	end
 
-	if NAUISavedScale and NAUISavedScale > 0 then
-		NAUIScale = NAUISavedScale
+	local loadedUIScale = tonumber(NAUISavedScale)
+	if loadedUIScale and loadedUIScale > 0 then
+		local clampedUIScale = NAmanage.ClampUIScale(loadedUIScale, 1)
+		NAUIScale = clampedUIScale
+		if clampedUIScale ~= loadedUIScale then
+			NAmanage.NASettingsSet("uiScale", clampedUIScale)
+			DoNotif("UI Scale was clamped to "..Format("%.1f", NA_UI_SCALE_MIN).." - "..Format("%.1f", NA_UI_SCALE_MAX).." due to invalid data.")
+		end
 	else
 		NAUIScale = 1
 		NAmanage.NASettingsSet("uiScale", 1)
@@ -22853,14 +23878,24 @@ cmd.add({"ibtools"}, {"ibtools", "Load the iBuild Tools helper tool"}, function(
 
 		local function refreshTarget()
 			local target = mouse.Target
-			if target and target:IsA("BasePart") then
+			if not (target and target:IsA("BasePart")) then
+				if state.currentPart ~= nil then
+					setTarget(nil)
+				end
+				return
+			end
+			if target ~= state.currentPart then
 				setTarget(target)
 			end
 		end
 
 		refreshTarget()
 
-		Insert(state.connections, mouse.Move:Connect(refreshTarget))
+		Insert(state.connections, NAmanage.mouseMoveSub(mouse, {
+			fn = refreshTarget,
+			minInterval = 0.03,
+			minDelta = 1,
+		}))
 		Insert(state.connections, mouse.Button1Down:Connect(function()
 			local target = mouse.Target
 			if target and target:IsA("BasePart") then
@@ -23479,8 +24514,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	local closeButton = InstanceNew("TextButton")
 	local closeCorner = InstanceNew("UICorner")
 
-	local sizeRange = {0.5, 2.5}
-	local minSize, maxSize = sizeRange[1], sizeRange[2]
+	local minSize, maxSize = NA_UI_SCALE_MIN, NA_UI_SCALE_MAX
 
 	NAgui.NaProtectUI(scaleFrame)
 	frame.Parent = scaleFrame
@@ -23546,10 +24580,10 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	closeCorner.Parent = closeButton
 
 	local function update(scale)
-		opt.NAAUTOSCALER.Scale = scale
-		progress.Size = UDim2.new((scale - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
-		knob.Position = UDim2.new((scale - minSize) / (maxSize - minSize), 0, -0.25, 0)
-		label.Text = "Scale: "..Format("%.2f", scale)
+		local clamped = NAmanage.ApplyUIScale(scale, { save = false, syncUI = false })
+		progress.Size = UDim2.new((clamped - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
+		knob.Position = UDim2.new((clamped - minSize) / (maxSize - minSize), 0, -0.25, 0)
+		label.Text = "Scale: "..Format("%.2f", clamped)
 	end
 
 	update(NAUIScale)
@@ -23566,7 +24600,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
-					NAmanage.NASettingsSet("uiScale", NAUIScale)
+					NAmanage.ApplyUIScale(NAUIScale, { save = true, syncUI = true })
 				end
 			end)
 		end
@@ -23577,8 +24611,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 			local mouseX = input.Position.X
 			local relativePosition = (mouseX - sliderStart) / sliderWidth
 			local newScale = math.clamp(relativePosition, 0, 1) * (maxSize - minSize) + minSize
-			NAUIScale = math.clamp(newScale, minSize, maxSize)
-			update(NAUIScale)
+			update(newScale)
 		end
 	end))
 
@@ -24656,50 +25689,96 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 		return
 	end
 
-	local function updateHoverName()
+	local lastTarget = nil
+	local lastCharacter = nil
+	local lastResolvedAt = 0
+	local lastHoverText = ""
+	local lastHoverAlignRight = nil
+
+	local function resolveHoverCharacter(target)
+		if not target then
+			return nil
+		end
+		local parent = target.Parent
+		if not parent then
+			return nil
+		end
+		local humanoid = parent:FindFirstChildOfClass("Humanoid")
+		if not humanoid and parent.Parent then
+			humanoid = parent.Parent:FindFirstChildOfClass("Humanoid")
+		end
+		if humanoid then
+			return humanoid.Parent
+		end
+		return nil
+	end
+
+	local function updateHoverName(x, y, now)
+		now = tonumber(now) or os.clock()
+		x = tonumber(x) or mouse.X or 0
+		y = tonumber(y) or mouse.Y or 0
+
 		local target = mouse.Target
-		local character
-		if target then
-			local parent = target.Parent
-			if parent then
-				local humanoid = parent:FindFirstChildOfClass("Humanoid")
-				if not humanoid and parent.Parent then
-					humanoid = parent.Parent:FindFirstChildOfClass("Humanoid")
-				end
-				if humanoid then
-					character = humanoid.Parent
-				end
-			end
+		local shouldResolve = target ~= lastTarget or (now - lastResolvedAt) >= 0.08
+		if shouldResolve then
+			lastTarget = target
+			lastResolvedAt = now
+			lastCharacter = resolveHoverCharacter(target)
 		end
 
-		if character and character:IsA("Model") then
-			local isPlr = nil
-			if Players:GetPlayerFromCharacter(character) then isPlr=Players:GetPlayerFromCharacter(character) end
-			local x = mouse.X
-			local y = mouse.Y
+		local character = lastCharacter
+		if character and character:IsA("Model") and character.Parent then
+			local alignRight = x > 200
 			local xPos
-			if x > 200 then
+			if alignRight then
 				xPos = x - 205
-				hoverNameLabel.TextXAlignment = Enum.TextXAlignment.Right
 			else
 				xPos = x + 25
-				hoverNameLabel.TextXAlignment = Enum.TextXAlignment.Left
 			end
 			hoverNameLabel.Position = UDim2.new(0, xPos, 0, y)
-			hoverNameLabel.Text = nameChecker(isPlr or character)
-			hoverNameLabel.Visible = true
-			hoverNameSelection.Parent = character
-			hoverNameSelection.Adornee = character
+			if lastHoverAlignRight ~= alignRight then
+				hoverNameLabel.TextXAlignment = alignRight and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+				lastHoverAlignRight = alignRight
+			end
+			if shouldResolve then
+				local isPlr = Players:GetPlayerFromCharacter(character)
+				local text = nameChecker(isPlr or character)
+				if text ~= lastHoverText then
+					hoverNameLabel.Text = text
+					lastHoverText = text
+				end
+				if hoverNameSelection.Adornee ~= character then
+					hoverNameSelection.Adornee = character
+				end
+				if hoverNameSelection.Parent ~= character then
+					hoverNameSelection.Parent = character
+				end
+			end
+			if not hoverNameLabel.Visible then
+				hoverNameLabel.Visible = true
+			end
 		else
-			hoverNameLabel.Visible = false
-			hoverNameSelection.Parent = nil
-			hoverNameSelection.Adornee = nil
+			lastCharacter = nil
+			lastHoverText = ""
+			if hoverNameLabel.Visible then
+				hoverNameLabel.Visible = false
+			end
+			if hoverNameSelection.Adornee ~= nil then
+				hoverNameSelection.Adornee = nil
+			end
+			if hoverNameSelection.Parent ~= nil then
+				hoverNameSelection.Parent = nil
+			end
 		end
 	end
 
 	NAlib.disconnect("hovername_track")
-	NAlib.connect("hovername_track", mouse.Move:Connect(updateHoverName))
-	updateHoverName()
+	NAlib.connect("hovername_track", NAmanage.mouseMoveSub(mouse, {
+		fn = updateHoverName,
+		minInterval = 0.02,
+		minDelta = 1,
+	}))
+	updateHoverName(mouse.X, mouse.Y, os.clock())
 end)
 
 cmd.add({"unhovername","unnamehover"}, {"unhovername", "Disables hovername"}, function()
@@ -44590,11 +45669,16 @@ function NAmanage.nuhuhprompt(v)
 					end
 				end
 
-				local inner = gui.DescendantAdded:Connect(function(inst2)
-					if inst2:IsA("ScreenGui") then
-						disableGui(inst2)
-					end
-				end)
+				local inner = NAmanage.descSub(gui, {
+					added = function(inst2)
+						if inst2:IsA("ScreenGui") then
+							disableGui(inst2)
+						end
+					end,
+					filterAdded = function(inst2)
+						return inst2 and inst2:IsA("ScreenGui")
+					end,
+				})
 				Insert(promptTBL.conns, inner)
 			end
 
@@ -53250,18 +54334,61 @@ cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time yo
 end)
 
 do
-	local SafeInstanceNew = InstanceNew
-	if type(SafeInstanceNew) ~= "function" then
-		SafeInstanceNew = function(className, parent)
-			local inst = InstanceNew(className)
-			if parent then inst.Parent = parent end
-			inst.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
-			return inst
+	local FOVhandler = {mem={parent=nil,o=0,r=Vector3.new(),u=Vector3.new(),base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
+	local FOV_ATTR = {
+		o = "NA_FOV_O",
+		base1 = "NA_FOV_BASE_1",
+		rx = "NA_FOV_R_X",
+		ry = "NA_FOV_R_Y",
+		rz = "NA_FOV_R_Z",
+		ux = "NA_FOV_U_X",
+		uy = "NA_FOV_U_Y",
+		uz = "NA_FOV_U_Z"
+	}
+	local ZERO_VECTOR = Vector3.new()
+	local UNIT_VECTOR = Vector3.new(1,1,1)
+
+	local function getFovNumberAttr(parent, key, default)
+		local v = NAmanage.GetAttr(parent, key)
+		if type(v) == "number" then
+			return v
 		end
-		InstanceNew = SafeInstanceNew
+		return default or 0
 	end
 
-	local FOVhandler = {mem={o=nil,r=nil,u=nil,base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
+	local function setFovNumberAttr(parent, key, value)
+		NAmanage.SetAttr(parent, key, tonumber(value) or 0)
+	end
+
+	local function getFovVectorAttr(parent, xKey, yKey, zKey)
+		return Vector3.new(
+			getFovNumberAttr(parent, xKey, 0),
+			getFovNumberAttr(parent, yKey, 0),
+			getFovNumberAttr(parent, zKey, 0)
+		)
+	end
+
+	local function setFovVectorAttr(parent, xKey, yKey, zKey, v)
+		local vec = v or ZERO_VECTOR
+		setFovNumberAttr(parent, xKey, vec.X)
+		setFovNumberAttr(parent, yKey, vec.Y)
+		setFovNumberAttr(parent, zKey, vec.Z)
+	end
+
+	local function syncFovMemFromParent(parent)
+		if FOVhandler.mem.parent == parent then
+			return
+		end
+		FOVhandler.mem.parent = parent
+		FOVhandler.mem.o = getFovNumberAttr(parent, FOV_ATTR.o, 0)
+		FOVhandler.mem.base = {}
+		local base1 = NAmanage.GetAttr(parent, FOV_ATTR.base1)
+		if type(base1) == "number" then
+			FOVhandler.mem.base[1] = base1
+		end
+		FOVhandler.mem.r = getFovVectorAttr(parent, FOV_ATTR.rx, FOV_ATTR.ry, FOV_ATTR.rz)
+		FOVhandler.mem.u = getFovVectorAttr(parent, FOV_ATTR.ux, FOV_ATTR.uy, FOV_ATTR.uz)
+	end
 
 	local function disconnectFovRefresh()
 		if FOVhandler.refreshConn then
@@ -53304,14 +54431,6 @@ do
 		end
 	end
 
-	local function setLoopHoldConnection(conn)
-		disconnectLoopHold()
-		FOVhandler.loopHoldConn = conn
-		if conn and NAlib and NAlib.connect then
-			pcall(NAlib.connect, "fov_loop_hold", conn)
-		end
-	end
-
 	local function connectCameraWatcher()
 		if FOVhandler.watchConn then
 			pcall(function() FOVhandler.watchConn:Disconnect() end)
@@ -53336,16 +54455,12 @@ do
 
 	originalIO.FOVstep=function()
 		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
-		FOVhandler.mem.r = (FOVhandler.mem.r and FOVhandler.mem.r.Parent) and FOVhandler.mem.r or SafeInstanceNew("Vector3Value", parent)
-		FOVhandler.mem.u = (FOVhandler.mem.u and FOVhandler.mem.u.Parent) and FOVhandler.mem.u or SafeInstanceNew("Vector3Value", parent)
+		syncFovMemFromParent(parent)
 
-		local o = FOVhandler.mem.o.Value or 0
+		local o = FOVhandler.mem.o or 0
 		local sum = 0
 		for i=1,#FOVhandler.mem.base do
-			local v = FOVhandler.mem.base[i]
-			if not v or not v.Parent then v = SafeInstanceNew("NumberValue", parent); FOVhandler.mem.base[i] = v end
-			sum += (v.Value or 0)
+			sum += (tonumber(FOVhandler.mem.base[i]) or 0)
 		end
 		local target = (o ~= 0 and o) or sum
 		local cam = workspace.CurrentCamera; if not cam then return end
@@ -53354,7 +54469,7 @@ do
 			FOVhandler.cam = cam
 			setFovRefreshConnection(cam:GetPropertyChangedSignal("FieldOfView"):Connect(function()
 				if not FOVhandler.loop then return end
-				local t = (FOVhandler.mem.o and FOVhandler.mem.o.Value) or 0
+				local t = FOVhandler.mem.o or 0
 				if t > 0 then
 					local vis = math.clamp(t, 25, 120)
 					if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
@@ -53368,23 +54483,35 @@ do
 		end
 
 		if target <= 120 or target == 0 then
-			if FOVhandler.mem.r.Value.Magnitude > 0 then FOVhandler.mem.r.Value = Vector3.new() end
-			if FOVhandler.mem.u.Value.Magnitude > 0 then FOVhandler.mem.u.Value = Vector3.new() end
+			if FOVhandler.mem.r.Magnitude > 0 then
+				FOVhandler.mem.r = ZERO_VECTOR
+				setFovVectorAttr(parent, FOV_ATTR.rx, FOV_ATTR.ry, FOV_ATTR.rz, ZERO_VECTOR)
+			end
+			if FOVhandler.mem.u.Magnitude > 0 then
+				FOVhandler.mem.u = ZERO_VECTOR
+				setFovVectorAttr(parent, FOV_ATTR.ux, FOV_ATTR.uy, FOV_ATTR.uz, ZERO_VECTOR)
+			end
 			return
 		end
 
 		local f = math.clamp((target - 120) * 0.005, 0, 0.9)
 		local v = Vector3.new(f,f,f)
-		if FOVhandler.mem.r.Value ~= v then FOVhandler.mem.r.Value = v end
-		if FOVhandler.mem.u.Value ~= v then FOVhandler.mem.u.Value = v end
+		if FOVhandler.mem.r ~= v then
+			FOVhandler.mem.r = v
+			setFovVectorAttr(parent, FOV_ATTR.rx, FOV_ATTR.ry, FOV_ATTR.rz, v)
+		end
+		if FOVhandler.mem.u ~= v then
+			FOVhandler.mem.u = v
+			setFovVectorAttr(parent, FOV_ATTR.ux, FOV_ATTR.uy, FOV_ATTR.uz, v)
+		end
 
 		local c = cam.CFrame
 		local p = c.Position
 		local r = c.RightVector
 		local u = c.UpVector
 		local l = -c.LookVector
-		local rs = Vector3.new(1,1,1) - FOVhandler.mem.r.Value
-		local us = Vector3.new(1,1,1) - FOVhandler.mem.u.Value
+		local rs = UNIT_VECTOR - FOVhandler.mem.r
+		local us = UNIT_VECTOR - FOVhandler.mem.u
 		cam.CFrame = CFrame.fromMatrix(p, Vector3.new(r.X*rs.X, r.Y*rs.Y, r.Z*rs.Z), Vector3.new(u.X*us.X, u.Y*us.Y, u.Z*us.Z), l)
 	end
 
@@ -53396,12 +54523,13 @@ do
 	cmd.add({"fov"}, {"fov <number>", "Sets your FOV to a custom value (1–300)"}, function(num)
 		local t = math.clamp(tonumber(num) or 70, 1, 300)
 		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
+		syncFovMemFromParent(parent)
 		if FOVhandler.loop then
-			FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
-			FOVhandler.mem.o.Value = t
+			FOVhandler.mem.o = t
+			setFovNumberAttr(parent, FOV_ATTR.o, t)
 		else
-			FOVhandler.mem.base[1] = (FOVhandler.mem.base[1] and FOVhandler.mem.base[1].Parent) and FOVhandler.mem.base[1] or SafeInstanceNew("NumberValue", parent)
-			FOVhandler.mem.base[1].Value = t
+			FOVhandler.mem.base[1] = t
+			setFovNumberAttr(parent, FOV_ATTR.base1, t)
 		end
 		local cam = workspace.CurrentCamera
 		if cam then
@@ -53413,16 +54541,14 @@ do
 	cmd.add({"loopfov","lfov"}, {"loopfov <number> (lfov)", "Locks your FOV target (1–300)"}, function(num)
 		local t = math.clamp(tonumber(num) or 70, 1, 300)
 		local parent = NAmanage.guiCHECKINGAHHHHH(); if not parent then return end
-		FOVhandler.mem.o = (FOVhandler.mem.o and FOVhandler.mem.o.Parent) and FOVhandler.mem.o or SafeInstanceNew("NumberValue", parent)
-		FOVhandler.mem.o.Value = t
+		syncFovMemFromParent(parent)
+		FOVhandler.mem.o = t
+		setFovNumberAttr(parent, FOV_ATTR.o, t)
 		FOVhandler.loop = true
 		if not hasFovRefresh() then
 			FOVhandler.cam = nil
 		end
-		setLoopHoldConnection(RunService.RenderStepped:Connect(function()
-			local p = NAmanage.guiCHECKINGAHHHHH()
-			if not FOVhandler.mem.o or not FOVhandler.mem.o.Parent then FOVhandler.mem.o = SafeInstanceNew("NumberValue", p) end
-		end))
+		disconnectLoopHold()
 		local cam = workspace.CurrentCamera
 		if cam then
 			local vis = math.clamp(t, 25, 120)
@@ -53434,9 +54560,19 @@ do
 		FOVhandler.loop = false
 		disconnectLoopHold()
 		disconnectFovRefresh()
-		if FOVhandler.mem.o and FOVhandler.mem.o.Parent then FOVhandler.mem.o.Value = 0 end
-		if FOVhandler.mem.r and FOVhandler.mem.r.Parent then FOVhandler.mem.r.Value = Vector3.new() end
-		if FOVhandler.mem.u and FOVhandler.mem.u.Parent then FOVhandler.mem.u.Value = Vector3.new() end
+		FOVhandler.mem.o = 0
+		FOVhandler.mem.r = ZERO_VECTOR
+		FOVhandler.mem.u = ZERO_VECTOR
+		local parent = NAmanage.guiCHECKINGAHHHHH()
+		if parent then
+			syncFovMemFromParent(parent)
+			FOVhandler.mem.o = 0
+			FOVhandler.mem.r = ZERO_VECTOR
+			FOVhandler.mem.u = ZERO_VECTOR
+			setFovNumberAttr(parent, FOV_ATTR.o, 0)
+			setFovVectorAttr(parent, FOV_ATTR.rx, FOV_ATTR.ry, FOV_ATTR.rz, ZERO_VECTOR)
+			setFovVectorAttr(parent, FOV_ATTR.ux, FOV_ATTR.uy, FOV_ATTR.uz, ZERO_VECTOR)
+		end
 	end)
 end
 
@@ -56758,132 +57894,166 @@ NAmanage.totalCommandCount=function()
 end
 NAgui.commands = function()
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
+	if not (cFrame and cList and NAUIMANAGER.commandExample) then
+		return
+	end
 	local defaultCmdColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
 	NAStuff.CommandLabelPool = NAStuff.CommandLabelPool or {}
 	local pool = NAStuff.CommandLabelPool
+	NAStuff.CommandBuildToken = (tonumber(NAStuff.CommandBuildToken) or 0) + 1
+	local buildToken = NAStuff.CommandBuildToken
 
 	if not cFrame.Visible then
 		cFrame.Visible = true
 		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
 	end
+	NAmanage.centerFrame(cFrame)
 
-	local yOffset = 5
-	local active = {}
 	local entries = NAmanage.buildCommandEntries()
-	for _, entry in ipairs(entries) do
-		local cmdName = entry.name
-		local meta = entry.meta or {}
-		local tbl = cmds.Commands[cmdName]
-		local Cmd = pool[cmdName]
-		if not Cmd then
-			Cmd = NAUIMANAGER.commandExample:Clone()
-			Cmd.Parent = cList
-			Cmd.Name = cmdName
-			Cmd.MouseEnter:Connect(function()
-				local desc = NAmanage.GetAttr(Cmd, "CmdDesc")
-				if type(desc) == "string" and desc ~= "" then
-					NAUIMANAGER.description.Visible = true
-					NAUIMANAGER.description.Text = desc
-				else
-					NAUIMANAGER.description.Visible = false
-					NAUIMANAGER.description.Text = ""
-				end
-			end)
-			Cmd.MouseLeave:Connect(function()
-				NAUIMANAGER.description.Visible = false
-				NAUIMANAGER.description.Text = ""
-			end)
-			pool[cmdName] = Cmd
-		end
-		active[cmdName] = true
 
-		local finalText = meta.displayText or entry.display or cmdName
-		local isPatched = meta.patched == true
-		local isCmdIntegration = meta.origin == "cmd"
-		local pluginType = meta.pluginType
-		local isPluginCmd = pluginType ~= nil
-		if not isPluginCmd and NAmanage.IsPluginCommand then
-			isPluginCmd = NAmanage.IsPluginCommand(cmdName)
-		end
-		if isPatched then
-			Cmd.TextColor3 = patchedCommandColor
-			if Cmd.SetAttribute then
-				NAmanage.SetAttr(Cmd, "IsPatchedCommand", true)
-				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-			end
-			finalText = NAgui.addPatchedLabel(finalText)
-		elseif isCmdIntegration then
-			Cmd.TextColor3 = cmdIntegrationColor
-			if Cmd.SetAttribute then
-				NAmanage.SetAttr(Cmd, "IsCmdIntegration", true)
-				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-			end
-		elseif isPluginCmd then
-			Cmd.TextColor3 = pluginCommandColor
-			if Cmd.SetAttribute then
-				NAmanage.SetAttr(Cmd, "IsPluginCommand", true)
-				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-			end
-		else
-			if defaultCmdColor then
-				Cmd.TextColor3 = defaultCmdColor
-			end
-			if Cmd.SetAttribute then
-				NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-				NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-				NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-			end
-		end
-
-		local function resolveDesc()
-			local desc = meta.desc
-			if desc == nil and tbl and type(tbl[2]) == "table" then
-				desc = tbl[2][2]
-			end
-			if desc ~= nil then
-				desc = tostring(desc)
-			end
-			desc = desc or ""
-			if desc ~= "" and isAprilFools() then
-				desc = maybeMock(desc)
-			end
-			return desc
-		end
-
-		if Cmd.SetAttribute then
-			NAmanage.SetAttr(Cmd, "CmdDesc", resolveDesc())
-		end
-
-		Cmd.Text = " "..finalText
-		Cmd.Position = UDim2.new(0, 0, 0, yOffset)
-		Cmd.Visible = true
-
-		yOffset = yOffset + 20
+	local stale = {}
+	for name, label in pairs(pool) do
+		stale[name] = label
 	end
 
-	for name, label in pairs(pool) do
-		if not active[name] then
+	local batchSize = 40
+	if NAmanage.isLoad and NAmanage.isLoad() then
+		batchSize = 22
+	end
+
+	Spawn(function()
+		local yOffset = 5
+		for i = 1, #entries do
+			if buildToken ~= NAStuff.CommandBuildToken then
+				return
+			end
+
+			local entry = entries[i]
+			local cmdName = entry.name
+			local meta = entry.meta or {}
+			local tbl = cmds.Commands[cmdName]
+			local Cmd = pool[cmdName]
+			if not Cmd then
+				Cmd = NAUIMANAGER.commandExample:Clone()
+				Cmd.Parent = cList
+				Cmd.Name = cmdName
+				Cmd.MouseEnter:Connect(function()
+					local desc = NAmanage.GetAttr(Cmd, "CmdDesc")
+					if type(desc) == "string" and desc ~= "" then
+						NAUIMANAGER.description.Visible = true
+						NAUIMANAGER.description.Text = desc
+					else
+						NAUIMANAGER.description.Visible = false
+						NAUIMANAGER.description.Text = ""
+					end
+				end)
+				Cmd.MouseLeave:Connect(function()
+					NAUIMANAGER.description.Visible = false
+					NAUIMANAGER.description.Text = ""
+				end)
+				pool[cmdName] = Cmd
+			end
+
+			stale[cmdName] = nil
+
+			local finalText = meta.displayText or entry.display or cmdName
+			local isPatched = meta.patched == true
+			local isCmdIntegration = meta.origin == "cmd"
+			local pluginType = meta.pluginType
+			local isPluginCmd = pluginType ~= nil
+			if not isPluginCmd and NAmanage.IsPluginCommand then
+				isPluginCmd = NAmanage.IsPluginCommand(cmdName)
+			end
+			if isPatched then
+				Cmd.TextColor3 = patchedCommandColor
+				if Cmd.SetAttribute then
+					NAmanage.SetAttr(Cmd, "IsPatchedCommand", true)
+					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
+					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
+				end
+				finalText = NAgui.addPatchedLabel(finalText)
+			elseif isCmdIntegration then
+				Cmd.TextColor3 = cmdIntegrationColor
+				if Cmd.SetAttribute then
+					NAmanage.SetAttr(Cmd, "IsCmdIntegration", true)
+					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
+				end
+			elseif isPluginCmd then
+				Cmd.TextColor3 = pluginCommandColor
+				if Cmd.SetAttribute then
+					NAmanage.SetAttr(Cmd, "IsPluginCommand", true)
+					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
+				end
+			else
+				if defaultCmdColor then
+					Cmd.TextColor3 = defaultCmdColor
+				end
+				if Cmd.SetAttribute then
+					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
+					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
+					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
+				end
+			end
+
+			local function resolveDesc()
+				local desc = meta.desc
+				if desc == nil and tbl and type(tbl[2]) == "table" then
+					desc = tbl[2][2]
+				end
+				if desc ~= nil then
+					desc = tostring(desc)
+				end
+				desc = desc or ""
+				if desc ~= "" and isAprilFools() then
+					desc = maybeMock(desc)
+				end
+				return desc
+			end
+
+			if Cmd.SetAttribute then
+				NAmanage.SetAttr(Cmd, "CmdDesc", resolveDesc())
+			end
+
+			Cmd.Text = " "..finalText
+			Cmd.Position = UDim2.new(0, 0, 0, yOffset)
+			Cmd.Visible = true
+			if Cmd.Parent ~= cList then
+				pcall(function()
+					Cmd.Parent = cList
+				end)
+			end
+			yOffset += 20
+
+			if i % batchSize == 0 then
+				if buildToken ~= NAStuff.CommandBuildToken then
+					return
+				end
+				cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+				Wait()
+			end
+		end
+
+		if buildToken ~= NAStuff.CommandBuildToken then
+			return
+		end
+
+		for name, label in pairs(stale) do
 			pool[name] = nil
 			if label then
 				pcall(function()
 					label:Destroy()
 				end)
 			end
-		elseif label and label.Parent ~= cList then
-			pcall(function()
-				label.Parent = cList
-			end)
 		end
-	end
 
-	cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-	NAmanage.centerFrame(cFrame)
-	if NAgui.filterCommandList then
-		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
-	end
+		cList.CanvasSize = UDim2.new(0, 0, 0, 5 + (#entries * 20))
+		NAmanage.centerFrame(cFrame)
+		if NAgui.filterCommandList then
+			NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
+		end
+	end)
 end
 NAgui.chatlogs = function()
 	if NAUIMANAGER.chatLogsFrame then
@@ -56951,11 +58121,43 @@ NAgui.resizeable = function(ui, min, max)
 		pcall(prevCleanup)
 		NAgui._resizeCleanup[ui] = nil
 	end
-	min = min or Vector2.new(ui.AbsoluteSize.X, ui.AbsoluteSize.Y)
+	pcall(function()
+		NAmanage.SetAttr(ui, "NAResizeActive", nil)
+	end)
+	local function getUiScale()
+		local s = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or 1
+		if not s or s <= 0 then
+			s = 1
+		end
+		return s
+	end
+	local function getLogicalSize()
+		local size = ui.Size
+		local lx = tonumber(size.X.Offset) or 0
+		local ly = tonumber(size.Y.Offset) or 0
+		if size.X.Scale ~= 0 or size.Y.Scale ~= 0 then
+			local s = getUiScale()
+			local abs = ui.AbsoluteSize
+			if size.X.Scale ~= 0 then
+				lx = (abs.X or 0) / s
+			end
+			if size.Y.Scale ~= 0 then
+				ly = (abs.Y or 0) / s
+			end
+		end
+		return Vector2.new(lx, ly)
+	end
+
+	if not min then
+		local baseMin = getLogicalSize()
+		min = Vector2.new(
+			math.max(1, math.floor(baseMin.X * 0.5 + 0.5)),
+			math.max(1, math.floor(baseMin.Y * 0.5 + 0.5))
+		)
+	end
 	max = max or Vector2.new(5000, 5000)
 
 	local screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
-	local scale = (NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale) or 1
 	local mouse
 	pcall(function()
 		if Players and Players.LocalPlayer then
@@ -56975,12 +58177,13 @@ NAgui.resizeable = function(ui, min, max)
 			if not ui or not ui.Parent or not rgui or not rgui.Parent or not screenGui then
 				return
 			end
+			local s = getUiScale()
 			local absPos = ui.AbsolutePosition
 			local absSize = ui.AbsoluteSize
 			local rootPos = screenGui.AbsolutePosition or Vector2.new(0, 0)
 			local relPos = absPos - rootPos
-			rgui.Position = UDim2.new(0, relPos.X, 0, relPos.Y)
-			rgui.Size = UDim2.new(0, absSize.X, 0, absSize.Y)
+			rgui.Position = UDim2.new(0, math.floor((relPos.X / s) + 0.5), 0, math.floor((relPos.Y / s) + 0.5))
+			rgui.Size = UDim2.new(0, math.floor((absSize.X / s) + 0.5), 0, math.floor((absSize.Y / s) + 0.5))
 		end)
 		if not ok then end
 	end
@@ -57008,6 +58211,11 @@ NAgui.resizeable = function(ui, min, max)
 	pcall(function()
 		Insert(overlayConns, ui:GetPropertyChangedSignal("Visible"):Connect(updateVisibility))
 	end)
+	pcall(function()
+		if NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.GetPropertyChangedSignal then
+			Insert(overlayConns, NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(updateOverlay))
+		end
+	end)
 
 	local dragging = false
 	local mode
@@ -57018,6 +58226,7 @@ NAgui.resizeable = function(ui, min, max)
 	local dragEndedConn
 	local cursorSaved
 	local cursorActive = false
+	local touchGestureLocked = false
 
 	local function isMenuMinimized()
 		return ui and ui.GetAttribute and NAmanage.GetAttr(ui, "NAMenuMinimized") == true
@@ -57055,6 +58264,15 @@ NAgui.resizeable = function(ui, min, max)
 	end
 
 	local function endDrag()
+		if touchGestureLocked then
+			NAgui.releaseTouchGesture(ui, "resize", dragInput)
+			touchGestureLocked = false
+		end
+		pcall(function()
+			if ui then
+				NAmanage.SetAttr(ui, "NAResizeActive", nil)
+			end
+		end)
 		dragging = false
 		mode = nil
 		dragInput = nil
@@ -57069,8 +58287,8 @@ NAgui.resizeable = function(ui, min, max)
 			local map = resizeXY and resizeXY[mode.Name]
 			if not map then return end
 
-			local parentSize = screenGui.AbsoluteSize
-			local delta = (currentPos - lastPos) / scale
+			local s = getUiScale()
+			local delta = (currentPos - lastPos) / s
 
 			local resizeDelta = Vector2.new(delta.X * map[1].X, delta.Y * map[1].Y)
 			local newSize = Vector2.new(
@@ -57080,15 +58298,16 @@ NAgui.resizeable = function(ui, min, max)
 
 			ui.Size = UDim2.new(0, newSize.X, 0, newSize.Y)
 
-			local dx = (lastSize.X - newSize.X) / parentSize.X
-			local dy = (lastSize.Y - newSize.Y) / parentSize.Y
+			local ox = UIPos.X.Offset
+			local oy = UIPos.Y.Offset
+			if map[1].X < 0 then
+				ox = ox + (lastSize.X - newSize.X)
+			end
+			if map[1].Y < 0 then
+				oy = oy + (lastSize.Y - newSize.Y)
+			end
 
-			local sx = UIPos.X.Scale
-			local sy = UIPos.Y.Scale
-			if map[1].X < 0 then sx = sx + dx end
-			if map[1].Y < 0 then sy = sy + dy end
-
-			ui.Position = UDim2.new(sx, 0, sy, 0)
+			ui.Position = UDim2.new(UIPos.X.Scale, ox, UIPos.Y.Scale, oy)
 		end)
 		if not ok then warn("Resize update failed:", err) end
 	end
@@ -57098,6 +58317,9 @@ NAgui.resizeable = function(ui, min, max)
 		uisChangedConn = UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					if input.UserInputType == Enum.UserInputType.Touch and input ~= dragInput then
+						return
+					end
 					updateResize(Vector2.new(input.Position.X, input.Position.Y))
 				end
 			end)
@@ -57124,11 +58346,22 @@ NAgui.resizeable = function(ui, min, max)
 				button.InputBegan:Connect(function(input)
 					pcall(function()
 						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							if input.UserInputType == Enum.UserInputType.Touch then
+								if not (NAgui.tryLockTouchGesture and NAgui.tryLockTouchGesture(ui, "resize", input)) then
+									return
+								end
+								touchGestureLocked = true
+							end
 							mode = button
 							dragging = true
+							pcall(function()
+								if ui then
+									NAmanage.SetAttr(ui, "NAResizeActive", true)
+								end
+							end)
 							local p = input.Position
 							lastPos = Vector2.new(p.X, p.Y)
-							lastSize = ui.AbsoluteSize
+							lastSize = getLogicalSize()
 							UIPos = ui.Position
 							dragInput = input
 							if dragEndedConn then dragEndedConn:Disconnect() end
@@ -57192,6 +58425,7 @@ NAgui.resizeable = function(ui, min, max)
 		if cleaned then return end
 		cleaned = true
 		NAgui._resizeCleanup[ui] = nil
+		pcall(endDrag)
 		for _, conn in ipairs(overlayConns) do
 			pcall(function() conn:Disconnect() end)
 		end
@@ -58354,6 +59588,21 @@ NAmanage.SyncPrefixUI = function(opts)
 		fire = opts.fire == true,
 	}
 	NAgui.setInputValue("Prefix", prefixValue, setterOpts)
+end
+
+NAmanage.SyncUIScaleUI = function(opts)
+	if not (NAgui and NAgui.setInputValue) then return end
+	opts = opts or {}
+	local value = opts.value
+	if value == nil then
+		value = NAUIScale
+	end
+	local clamped = NAmanage.ClampUIScale(value, 1)
+	local setterOpts = {
+		force = opts.force ~= false,
+		fire = opts.fire == true,
+	}
+	NAgui.setInputValue("UI Scale", Format("%.2f", clamped), setterOpts)
 end
 
 NAmanage._uiAutoSync = NAmanage._uiAutoSync or { toggles = {} }
@@ -61479,16 +62728,22 @@ originalIO.naTransLatooor=function()
 	end
 
 	translator:tryAttach()
+	local function onTranslatorDesc(inst)
+		if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
+			Defer(function()
+				translator:tryAttach()
+			end)
+		end
+	end
 	if NAlib and NAlib.connect and NAlib.disconnect then
 		NAlib.disconnect("chat_translator_watch")
 		if NAStuff.NASCREENGUI then
-			NAlib.connect("chat_translator_watch", NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
-				if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
-					Defer(function()
-						translator:tryAttach()
-					end)
-				end
-			end))
+			NAlib.connect("chat_translator_watch", NAmanage.descSub(NAStuff.NASCREENGUI, {
+				added = onTranslatorDesc,
+				filterAdded = function(inst)
+					return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput")
+				end,
+			}))
 			NAlib.connect("chat_translator_watch", NAStuff.NASCREENGUI.AncestryChanged:Connect(function(_, parent)
 				if not parent then
 					NAlib.disconnect("chat_translator_watch")
@@ -61497,13 +62752,15 @@ originalIO.naTransLatooor=function()
 		end
 	elseif NAStuff.NASCREENGUI and not translator._hookedWatcher then
 		translator._hookedWatcher = true
-		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(inst)
-			if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
-				Defer(function()
-					translator:tryAttach()
-				end)
-			end
-		end)
+		if translator._watchConn and translator._watchConn.Connected then
+			translator._watchConn:Disconnect()
+		end
+		translator._watchConn = NAmanage.descSub(NAStuff.NASCREENGUI, {
+			added = onTranslatorDesc,
+			filterAdded = function(inst)
+				return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput")
+			end,
+		})
 	end
 	translator:updateUI()
 end
@@ -63643,6 +64900,7 @@ end))
 			end
 			friendRoot = root
 			NAlib.disconnect("NA_FriendLabel_CoreGui")
+			NAlib.disconnect("NA_FriendLabel_PlayerGui")
 			if not root then
 				return
 			end
@@ -63664,13 +64922,36 @@ end))
 							return true
 						end,
 					}))
-				else
-					NAlib.connect("NA_FriendLabel_CoreGui", root.DescendantAdded:Connect(function(o)
-						if not isFLbl(o) then
-							return
-						end
-						qDesc(o, true, nil, nil, nil);
-					end))
+				elseif root:IsA("PlayerGui") and NAmanage.pgSub then
+					NAlib.connect("NA_FriendLabel_PlayerGui", NAmanage.pgSub({
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				elseif NAmanage.descSub then
+					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.descSub(root, {
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
 				end
 			end
 
@@ -63824,12 +65105,23 @@ do
 	if mouse and NAUIMANAGER and NAUIMANAGER.description then
 		local desc = NAUIMANAGER.description
 		local lastDescText = desc.Text or ""
-		NAlib.connect("NA_MouseDesc", mouse.Move:Connect(function()
+		local lastDescX = nil
+		local lastDescY = nil
+		NAlib.connect("NA_MouseDesc", NAmanage.mouseMoveSub(mouse, {
+			minInterval = 0.016,
+			minDelta = 1,
+			fn = function(x, y, now)
 			if not desc.Visible then
 				return
 			end
-			desc.Position = UDim2.fromOffset(mouse.X, mouse.Y)
-			local now = os.clock()
+			x = tonumber(x) or mouse.X or 0
+			y = tonumber(y) or mouse.Y or 0
+			if x ~= lastDescX or y ~= lastDescY then
+				desc.Position = UDim2.fromOffset(x, y)
+				lastDescX = x
+				lastDescY = y
+			end
+			now = tonumber(now) or os.clock()
 			local textNow = desc.Text or ""
 			if textNow ~= lastDescText or now - NAStuff.dTick > 0.12 then
 				lastDescText = textNow
@@ -63837,7 +65129,8 @@ do
 				local sz = NAgui.txtSize(desc, 200, 100)
 				desc.Size = UDim2.new(0, sz.X, 0, sz.Y)
 			end
-		end))
+		end,
+		}))
 	end
 end
 
@@ -66106,6 +67399,30 @@ if FileSupport then
 		DoNotif("Prefix saved to settings file: "..NAfiles.NAMAINSETTINGSPATH)
 	end)
 end
+
+NAgui.addSection("UI Settings")
+
+NAgui.addInput("UI Scale", "0.5 - 2.5", Format("%.2f", NAmanage.ClampUIScale(NAUIScale, 1)), function(text)
+	local parsed = tonumber(text)
+	if not parsed then
+		DoNotif("UI Scale must be a number between 0.5 and 2.5", 2)
+		if NAmanage.SyncUIScaleUI then
+			NAmanage.SyncUIScaleUI({ force = true })
+		end
+		return
+	end
+
+	local clamped = NAmanage.ApplyUIScale(parsed, { save = true, syncUI = false })
+	if clamped ~= parsed then
+		DoNotif("UI Scale clamped to "..Format("%.2f", clamped), 2)
+	else
+		DoNotif("UI Scale set to "..Format("%.2f", clamped), 2)
+	end
+
+	if NAmanage.SyncUIScaleUI then
+		NAmanage.SyncUIScaleUI({ value = clamped, force = true })
+	end
+end)
 
 NAgui.addSection("Admin Utility")
 
@@ -69634,11 +70951,15 @@ if CoreGui then
 		if not on or not PT.cg then
 			return
 		end
-		NAlib.connect("PlexyDescAdded", PT.cg.DescendantAdded:Connect(onDescendantAdded))
-		NAlib.connect("PlexyDescRemoving", PT.cg.DescendantRemoving:Connect(function(o)
-			PT.images[o] = nil
-			PT.queueSet[o] = nil
-		end))
+		NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
+			added = onDescendantAdded,
+		}))
+		NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
+			removing = function(o)
+				PT.images[o] = nil
+				PT.queueSet[o] = nil
+			end,
+		}))
 	end
 
 	if PT.data.enabled then
