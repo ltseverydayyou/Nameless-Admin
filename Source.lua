@@ -8813,7 +8813,10 @@ NAjobs  = {
 	_qTail = 0,
 	_maxTicksPerStep = 2,
 	_zeroMinInterval = 0.03,
-	_zeroTargetTicksPerSecond = 45
+	_zeroTargetTicksPerSecond = 45,
+	_stepInterval = (1 / 120),
+	_maxCatchUpSteps = 6,
+	_accum = 0
 }
 NAutil  = NAutil  or {}
 NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
@@ -46793,39 +46796,65 @@ NAjobs._dequeue = function()
 	return job
 end
 
+NAjobs._runStep = function()
+	NAjobs._frame = (NAjobs._frame or 0) + 1
+	NAjobs._claimed = {}
+	local now = time()
+	local zeroCount = 0
+	for _, job in pairs(NAjobs.jobs) do
+		if job.interval <= 0 then
+			zeroCount += 1
+		end
+	end
+	for _, job in pairs(NAjobs.jobs) do
+		if (not job._queued) and now >= (job.next or 0) then
+			job._queued = true
+			NAjobs._enqueue(job)
+		end
+	end
+	local budget = math.max(1, math.floor(tonumber(NAjobs._maxTicksPerStep) or 2))
+	local ran = 0
+	while ran < budget do
+		local job = NAjobs._dequeue()
+		if not job then
+			break
+		end
+		job._queued = false
+		if NAjobs.jobs[job.id] == job then
+			job.next = time() + NAjobs._effectiveInterval(job, zeroCount)
+			pcall(job.tick, job)
+			ran += 1
+		end
+	end
+	NAjobs._restoreTouchDue()
+end
+
 NAjobs._schedule = function()
 	if NAjobs.hb then return end
-	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function()
-		NAjobs._frame = (NAjobs._frame or 0) + 1
-		NAjobs._claimed = {}
-		local now = time()
-		local zeroCount = 0
-		for _, job in pairs(NAjobs.jobs) do
-			if job.interval <= 0 then
-				zeroCount += 1
-			end
+	NAjobs._accum = 0
+	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function(dt)
+		local step = tonumber(NAjobs._stepInterval) or (1 / 120)
+		if step <= 0 then
+			step = 1 / 120
 		end
-		for _, job in pairs(NAjobs.jobs) do
-			if (not job._queued) and now >= (job.next or 0) then
-				job._queued = true
-				NAjobs._enqueue(job)
-			end
+		local maxCatch = math.max(1, math.floor(tonumber(NAjobs._maxCatchUpSteps) or 6))
+		local delta = tonumber(dt) or 0
+		if delta < 0 then
+			delta = 0
 		end
-		local budget = math.max(1, math.floor(tonumber(NAjobs._maxTicksPerStep) or 2))
-		local ran = 0
-		while ran < budget do
-			local job = NAjobs._dequeue()
-			if not job then
-				break
-			end
-			job._queued = false
-			if NAjobs.jobs[job.id] == job then
-				job.next = time() + NAjobs._effectiveInterval(job, zeroCount)
-				pcall(job.tick, job)
-				ran += 1
-			end
+		NAjobs._accum = (tonumber(NAjobs._accum) or 0) + delta
+
+		local loops = 0
+		while NAjobs._accum >= step and loops < maxCatch do
+			NAjobs._accum -= step
+			loops += 1
+			NAjobs._runStep()
 		end
-		NAjobs._restoreTouchDue()
+
+		local maxAccum = step * maxCatch
+		if NAjobs._accum > maxAccum then
+			NAjobs._accum = maxAccum
+		end
 	end))
 end
 
@@ -46838,6 +46867,7 @@ NAjobs._maybeStop = function()
 		NAjobs._q = {}
 		NAjobs._qHead = 1
 		NAjobs._qTail = 0
+		NAjobs._accum = 0
 	end
 end
 
