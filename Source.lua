@@ -8838,11 +8838,12 @@ NAjobs  = {
 	_q = {},
 	_qHead = 1,
 	_qTail = 0,
-	_maxTicksPerStep = 2,
-	_zeroMinInterval = 0.03,
-	_zeroTargetTicksPerSecond = 45,
-	_stepInterval = (1 / 120),
-	_maxCatchUpSteps = 6,
+	_maxTicksPerStep = 8,
+	_zeroMinInterval = 0.005,
+	_zeroTargetTicksPerSecond = 180,
+	_stepInterval = (1 / 240),
+	_maxCatchUpSteps = 12,
+	_staggerCap = 0.003,
 	_accum = 0
 }
 NAutil  = NAutil  or {}
@@ -47165,7 +47166,8 @@ NAjobs.start = function(kind, interval, target, useFind)
 	local tgt = target and Lower(target) or nil
 	local ivl = interval or 0.1
 	local ivlClamped = math.max(0, ivl)
-	local stagger = ivlClamped > 0 and math.min(0.02, ivlClamped / 8) or 0
+	local staggerCap = math.max(0, tonumber(NAjobs._staggerCap) or 0.003)
+	local stagger = ivlClamped > 0 and math.min(staggerCap, ivlClamped / 48) or 0
 	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny
 	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind)
 	if existingJob then
@@ -47247,8 +47249,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.inst) then
-					i += 1
-					Delay(step * (i - 1), function()
+					local function fireNow()
 						local range = (it.inst.MaxActivationDistance or 0) + extraRange
 						local allow = {
 							[it.inst] = true
@@ -47263,7 +47264,13 @@ NAjobs.start = function(kind, interval, target, useFind)
 						Delay(0.06, function()
 							NAsuppress.releaseList(suppressed)
 						end)
-					end)
+					end
+					if step <= 0 then
+						fireNow()
+					else
+						i += 1
+						Delay(step * (i - 1), fireNow)
+					end
 				end
 			end
 		end
@@ -47326,10 +47333,14 @@ NAjobs.start = function(kind, interval, target, useFind)
 			local i = 0
 			for _, it in ipairs(list) do
 				if NAjobs._claim(it.part) then
-					i += 1
-					Delay(step * (i - 1), function()
+					if step <= 0 then
 						pcall(fireclickdetector, it.inst)
-					end)
+					else
+						i += 1
+						Delay(step * (i - 1), function()
+							pcall(fireclickdetector, it.inst)
+						end)
+					end
 				end
 			end
 		end
