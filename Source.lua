@@ -131,6 +131,7 @@ local NAStuff = {
 	CmdIntegrationLastSource = nil;
 	cmdAutofillLoading = false;
 	cmdAutofillLoadRequested = false;
+	uiBootHidden = false;
 	keepCmdFocus = false;
 	cmdInputAtInit = nil;
 	tweenSpeed = 1;
@@ -376,6 +377,12 @@ NAmanage.NARegisterUI=function(gui)
 	end
 
 	NAStuff.NASCREENGUI = gui
+	if typeof(gui) == "Instance" and gui:IsA("ScreenGui") then
+		NAStuff.uiBootHidden = true
+		pcall(function()
+			gui.Enabled = false
+		end)
+	end
 
 	if _na_env then
 		_na_env.NAUILOADEDORSUM = true
@@ -56589,8 +56596,21 @@ if not RunService:IsStudio() then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI", true)
 	NAStuff.NASCREENGUI = player:FindFirstChild("AdminUI", true)
+	if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
+		NAStuff.uiBootHidden = true
+		pcall(function()
+			NAStuff.NASCREENGUI.Enabled = false
+		end)
+	end
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
+
+if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
+	NAStuff.uiBootHidden = true
+	pcall(function()
+		NAStuff.NASCREENGUI.Enabled = false
+	end)
+end
 
 NAgui.NaProtectUI(NAStuff.NASCREENGUI)
 
@@ -62148,29 +62168,13 @@ else
 	NAmanage.setCmdAutofillClickable(true)
 end
 NAUIMANAGER.cmdBar.Visible=true
-if NAUIMANAGER.chatLogsFrame then
-	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
-end
 
-if NAUIMANAGER.NAconsoleFrame then
-	NAgui.menuv2(NAUIMANAGER.NAconsoleFrame)
-end
-
-if NAUIMANAGER.commandsFrame then
-	NAgui.menu(NAUIMANAGER.commandsFrame)
-end
-
-if NAUIMANAGER.SettingsFrame then
-	NAgui.menu(NAUIMANAGER.SettingsFrame)
-end
-
-if NAUIMANAGER.WaypointFrame then
-	NAgui.menu(NAUIMANAGER.WaypointFrame)
-end
-
-if NAUIMANAGER.BindersFrame then
-	NAgui.menu(NAUIMANAGER.BindersFrame)
-end
+if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end
+if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end
+if NAUIMANAGER.commandsFrame then NAgui.menu(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
+if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
+if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -62180,6 +62184,13 @@ if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) en
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
+
+if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
+	pcall(function()
+		NAStuff.NASCREENGUI.Enabled = true
+	end)
+	NAStuff.uiBootHidden = false
+end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
 NAgui.normalizeCommandFilter=function(text)
