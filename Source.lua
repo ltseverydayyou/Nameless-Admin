@@ -45401,16 +45401,27 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 	end
 
 	TPWalk = true
-	local Speed = ...
+	local Speed = tonumber(...) or 1
+	local stepRate = 1 / 60
+	local maxSteps = 3
+	local accumulator = 0
 
-	NAlib.connect("TPWalkingConnection", RunService.Stepped:Connect(function(_, deltaTime)
-		if TPWalk then
-			local humanoid = getHum()
-			if humanoid and humanoid.MoveDirection.Magnitude > 0 then
-				local moveDirection = humanoid.MoveDirection
-				local translation = moveDirection * (Speed or 1) * deltaTime * 10
-				getChar():TranslateBy(translation)
-			end
+	NAlib.connect("TPWalkingConnection", RunService.Heartbeat:Connect(function(deltaTime)
+		if not TPWalk then
+			return
+		end
+		accumulator = math.min(accumulator + (tonumber(deltaTime) or 0), stepRate * maxSteps)
+		local humanoid = getHum()
+		local char = getChar()
+		if not humanoid or not char or humanoid.MoveDirection.Magnitude <= 0 then
+			return
+		end
+		local moveDirection = humanoid.MoveDirection
+		local steps = 0
+		while accumulator >= stepRate and steps < maxSteps do
+			char:TranslateBy(moveDirection * Speed * stepRate * 10)
+			accumulator -= stepRate
+			steps += 1
 		end
 	end))
 end, true)
