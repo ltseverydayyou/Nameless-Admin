@@ -129,6 +129,9 @@ local NAStuff = {
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
+	cmdAutofillLoading = false;
+	keepCmdFocus = false;
+	cmdInputAtInit = nil;
 	tweenSpeed = 1;
 	tpDelay = 0.2;
 	FreecamSpeed = 5;
@@ -57710,10 +57713,57 @@ NAmanage.buildCommandEntries=function()
 	local entries = {}
 	local metaByName = {}
 	local used = {}
+	local aliasByFunc = {}
+	for alias, data in pairs(cmds.Aliases or {}) do
+		local func = type(data) == "table" and data[1]
+		if func then
+			local bucket = aliasByFunc[func]
+			if not bucket then
+				bucket = {}
+				aliasByFunc[func] = bucket
+			end
+			bucket[Lower(tostring(alias))] = true
+		end
+	end
+	local function resolveCommandDisplay(name, data)
+		local dInfo = data and data[2] and data[2][1] or ""
+		local func = data and data[1]
+		local aliasSet = {}
+		local fromFunc = func and aliasByFunc[func]
+		if fromFunc then
+			for alias in pairs(fromFunc) do
+				aliasSet[alias] = true
+			end
+		end
+		local main = name and Lower(name)
+		local prefix, aliasBlock = dInfo:match("^(.-)%s*%((.-)%)$")
+		if aliasBlock then
+			for a in aliasBlock:gmatch("[^,%s]+") do
+				aliasSet[Lower(a)] = true
+			end
+		end
+		local final = {}
+		for alias in pairs(aliasSet) do
+			if alias ~= main then
+				Insert(final, alias)
+			end
+		end
+		table.sort(final)
+		local updatedText
+		if prefix then
+			updatedText = prefix.." ("..Concat(final, ", ")..")"
+		else
+			updatedText = dInfo
+			if #final > 0 then
+				updatedText = updatedText.." ("..Concat(final, ", ")..")"
+			end
+		end
+		return updatedText, final
+	end
 
 	local function addNACommand(name, data)
 		if not name or name == "" then return end
-		local displayText = fixStupidSearchGoober(name, data)
+		local displayText, extraAliases = resolveCommandDisplay(name, data)
 		if displayText and displayText ~= "" then
 			if type(data[2]) == "table" then
 				data[2][1] = displayText
@@ -57722,7 +57772,6 @@ NAmanage.buildCommandEntries=function()
 			displayText = (type(data[2]) == "table" and data[2][1]) or name
 		end
 		local aliasList = {}
-		local _, extraAliases = fixStupidSearchGoober(name, data)
 		for _, alias in ipairs(extraAliases or {}) do
 			Insert(aliasList, alias:lower())
 		end
@@ -61150,6 +61199,22 @@ NAmanage.setCmdAutofillClickable = function(enabled)
 end
 
 NAgui.loadCMDS = function()
+	local cmdInput = NAUIMANAGER and NAUIMANAGER.cmdInput
+	local prevCmdEditable, prevCmdActive, prevCmdSelectable, prevCmdPlaceholder
+	NAStuff.cmdAutofillLoading = true
+	if cmdInput then
+		prevCmdPlaceholder = cmdInput.PlaceholderText
+		prevCmdEditable = cmdInput.TextEditable
+		prevCmdActive = cmdInput.Active
+		prevCmdSelectable = cmdInput.Selectable
+		pcall(function() cmdInput.TextEditable = false end)
+		pcall(function() cmdInput.Active = false end)
+		pcall(function() cmdInput.Selectable = false end)
+		if cmdInput.PlaceholderText ~= nil then
+			cmdInput.PlaceholderText = "Loading commands..."
+		end
+	end
+	NAmanage.setCmdAutofillClickable(false)
 	for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
 		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
 			v:Destroy()
@@ -61234,12 +61299,17 @@ NAgui.loadCMDS = function()
 	end
 	CMDAUTOFILL = {}
 	local entries = NAmanage.buildCommandEntries()
+	local batchSize = 60
+	if NAmanage.isLoad and NAmanage.isLoad() then
+		batchSize = 24
+	end
 	local i = 0
 	for _, entry in ipairs(entries) do
 		local name = entry.name
 		local meta = entry.meta or {}
 		local cmdData = cmds.Commands[name]
 		local btn = NAUIMANAGER.cmdExample:Clone()
+		btn.Visible = false
 		btn.Parent = NAUIMANAGER.cmdAutofill
 		btn.Name = name
 		local finalDisplay = meta.displayText or entry.display or name
@@ -61274,11 +61344,35 @@ NAgui.loadCMDS = function()
 		btn.LayoutOrder = i
 		wireAutofillClick(btn, btn.Input, name)
 		Insert(CMDAUTOFILL, btn)
+		if i % batchSize == 0 then
+			Wait()
+		end
 	end
 	NAmanage.setCmdAutofillClickable(NAStuff.cmdBarSelected == true)
 	cmdNAnum = i
 	NAgui.hideFill()
 	NAmanage.rebuildIndex()
+	NAStuff.cmdAutofillLoading = false
+	if cmdInput then
+		pcall(function()
+			if prevCmdEditable ~= nil then
+				cmdInput.TextEditable = prevCmdEditable
+			end
+		end)
+		pcall(function()
+			if prevCmdActive ~= nil then
+				cmdInput.Active = prevCmdActive
+			end
+		end)
+		pcall(function()
+			if prevCmdSelectable ~= nil then
+				cmdInput.Selectable = prevCmdSelectable
+			end
+		end)
+		if cmdInput.PlaceholderText ~= nil and prevCmdPlaceholder ~= nil then
+			cmdInput.PlaceholderText = prevCmdPlaceholder
+		end
+	end
 end
 
 SpawnCall(function() -- plugin tester
@@ -61293,7 +61387,9 @@ SpawnCall(function() -- plugin tester
 		elseif not (NAUIMANAGER and NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill.Parent) then
 			waitTime = math.min(8, waitTime + 1)
 		else
-			if type(NAgui.loadCMDS) == "function" and NAmanage.totalCommandCount() ~= cmdNAnum then
+			if NAStuff.cmdAutofillLoading ~= true
+				and type(NAgui.loadCMDS) == "function"
+				and NAmanage.totalCommandCount() ~= cmdNAnum then
 				local ok, err = pcall(NAgui.loadCMDS)
 				if not ok then
 					warn("[NA] Command refresh loop failed:", err)
@@ -61373,6 +61469,53 @@ NAgui.barSelect = function(speed)
 	if not IsOnMobile then
 		task.delay(speed * 0.4, NAgui.ensureCmdFocus)
 	end
+end
+
+NAgui.activateCmdInput = function(opts)
+	opts = opts or {}
+	if NAStuff.cmdAutofillLoading == true then
+		return false
+	end
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local prefixChar = tostring(opts.prefixChar or (opt and opt.prefix) or ""):sub(1, 1)
+	local alreadyFocused = false
+	if UserInputService.GetFocusedTextBox then
+		alreadyFocused = UserInputService:GetFocusedTextBox() == box
+	end
+	if not alreadyFocused then
+		alreadyFocused = box:IsFocused()
+	end
+	NAgui.barSelect(opts.speed)
+	if not alreadyFocused and opts.clear ~= false then
+		box.Text = ""
+		if predictionInput then
+			predictionInput.Text = ""
+		end
+	end
+	if alreadyFocused then
+		return true
+	end
+	local focused = false
+	for _ = 1, 6 do
+		box:CaptureFocus()
+		Wait(0.01)
+		if box:IsFocused() then
+			focused = true
+			break
+		end
+	end
+	if focused and prefixChar ~= "" then
+		local current = box.Text or ""
+		if Sub(current, 1, #prefixChar) == prefixChar then
+			local trimmed = current:sub(#prefixChar + 1)
+			box.Text = trimmed
+			box.CursorPosition = #trimmed + 1
+		end
+	end
+	return focused
 end
 
 NAgui.barDeselect = function(speed)
@@ -61883,23 +62026,10 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 			NAStuff._cmdbarFocusPending = false
 			return
 		end
-		if UserInputService:GetFocusedTextBox() == box then
-			box.Text = ''
-			NAStuff._cmdbarFocusPending = false
-			return
-		end
-		NAgui.barSelect()
-		box.Text = ''
-		local focused = false
-		for _ = 1, 6 do
-			box:CaptureFocus()
-			Wait(0.01)
-			box.Text = ''
-			if box:IsFocused() then
-				focused = true
-				break
-			end
-		end
+		local focused = NAgui.activateCmdInput({
+			clear = true,
+			prefixChar = tostring(opt.prefix or ""):sub(1, 1)
+		})
 		if not focused and type(DoNotif) == "function" then
 			DoNotif("Command bar focus delayed.", 1.5)
 		end
@@ -61965,7 +62095,20 @@ if NAUIMANAGER.filterBox then
 	NAlib.connect("waypoint_filter_text", NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList))
 end
 
-NAgui.barDeselect(0)
+NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
+NAStuff.keepCmdFocus = false
+if NAStuff.cmdInputAtInit then
+	NAStuff.keepCmdFocus = NAStuff.cmdInputAtInit:IsFocused()
+	if not NAStuff.keepCmdFocus and UserInputService.GetFocusedTextBox then
+		NAStuff.keepCmdFocus = UserInputService:GetFocusedTextBox() == NAStuff.cmdInputAtInit
+	end
+end
+if not NAStuff.keepCmdFocus then
+	NAgui.barDeselect(0)
+else
+	NAStuff.cmdBarSelected = true
+	NAmanage.setCmdAutofillClickable(true)
+end
 NAUIMANAGER.cmdBar.Visible=true
 if NAUIMANAGER.chatLogsFrame then
 	NAgui.menuv3(NAUIMANAGER.chatLogsFrame)
@@ -65763,11 +65906,10 @@ coroutine.wrap(mainNameless)()
 NAgui.setIconLocked(NAStuff.IconLocked, { force = true, skipToggle = true })
 
 MouseButtonFix(TextButton,function()
-	NAgui.barSelect()
-	NAUIMANAGER.cmdInput.Text=''
-	NAUIMANAGER.cmdInput:CaptureFocus()
-	Wait(.00005)
-	NAUIMANAGER.cmdInput.Text=''
+	NAgui.activateCmdInput({
+		clear = true,
+		prefixChar = tostring(opt.prefix or ""):sub(1, 1)
+	})
 end)
 
 --@ltseverydayyou (Vyperia) | https://github.com/ltseverydayyou
@@ -73066,6 +73208,26 @@ end)
 pcall(function()
 	if type(NAmanage.queueAssetMethodResync) == "function" then
 		NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
+	end
+	if type(NAgui.loadCMDS) == "function" and type(NAmanage.totalCommandCount) == "function" then
+		local syncDeadline = os.clock() + 4
+		repeat
+			local targetCount = NAmanage.totalCommandCount()
+			local currentCount = tonumber(cmdNAnum) or 0
+			local needsBuild = (NAStuff.cmdAutofillLoading == true) or (currentCount ~= targetCount)
+			if not needsBuild then
+				break
+			end
+			if NAStuff.cmdAutofillLoading ~= true then
+				local ok, err = pcall(NAgui.loadCMDS)
+				if not ok then
+					warn("[NA] Final command sync failed:", err)
+					break
+				end
+			else
+				Wait()
+			end
+		until os.clock() >= syncDeadline
 	end
 	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
 		NAAssetsLoading.setStatus("ready")
