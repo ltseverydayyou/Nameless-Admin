@@ -3902,6 +3902,7 @@ opt={
 	ctrlModule = nil;
 	chatTranslateEnabled = true;
 	chatTranslateTarget = "en";
+	settingsTranslateTarget = "en";
 	--saveTag = false;
 }
 local cmd={}
@@ -12653,6 +12654,19 @@ NAmanage.NASettingsGetSchema=function()
 				return value
 			end;
 		};
+		settingsTranslateTarget = {
+			default = "en";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "en")
+				end
+				value = value:lower()
+				if value == "" then
+					return "en"
+				end
+				return value
+			end;
+		};
 		uiStroke = {
 			pathKey = "NASTROKETHINGY";
 			default = function()
@@ -14695,6 +14709,7 @@ end
 
 opt.chatTranslateEnabled = NAmanage.NASettingsGet("chatTranslate")
 opt.chatTranslateTarget = NAmanage.NASettingsGet("chatTranslateTarget")
+opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
@@ -57402,7 +57417,18 @@ originalIO.composeTabTitleText = function(info, opts)
 		return "";
 	end;
 	opts = opts or {};
-	local rawTitle = info.displayName;
+	local rawTitle = nil;
+	local translator = NAStuff and NAStuff.ChatTranslator;
+	local settingsLang = translator and translator.settingsTarget;
+	if type(settingsLang) == "string" and settingsLang ~= ""
+		and type(info.localizedDisplay) == "table"
+		and type(info.localizedDisplay[settingsLang]) == "string"
+		and info.localizedDisplay[settingsLang] ~= "" then
+		rawTitle = info.localizedDisplay[settingsLang];
+	end;
+	if type(rawTitle) ~= "string" or rawTitle == "" then
+		rawTitle = info.displayName;
+	end;
 	if type(rawTitle) ~= "string" or rawTitle == "" then
 		rawTitle = info.name or "";
 	end;
@@ -57587,6 +57613,9 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 			if tabInfo and tabInfo.page then
 				local elements = NAmanage.collectTabElements(tabInfo, tabName);
 				for _, element in ipairs(elements) do
+					if NAmanage.GetAttr(element, "NAHideInAll") == true then
+						continue;
+					end;
 					if NAmanage.GetAttr(element, "NAOrigOrder") == nil then
 						NAmanage.SetAttr(element, "NAOrigOrder", element.LayoutOrder or 0);
 					end;
@@ -59091,6 +59120,42 @@ NAmanage.UpdateWaypointList=function()
 	end
 end
 
+NAgui.atchSettings = function(row, hoverKey, strength)
+	if not (row and row:IsA("GuiObject")) then
+		return
+	end
+	if not (TweenService and NAlib and NAlib.connect and NAlib.disconnect) then
+		return
+	end
+
+	local key = "NAgui_row_hover:"..tostring(hoverKey or row.Name or "row")
+	local baseRowColor = row.BackgroundColor3
+	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), strength or 0.08)
+
+	local function tw(color)
+		pcall(function()
+			TweenService:Create(row, TweenInfo.new(0.22, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = color
+			}):Play()
+		end)
+	end
+
+	NAlib.disconnect(key)
+	NAlib.connect(key, row.MouseEnter:Connect(function()
+		tw(hoverRowColor)
+	end))
+	NAlib.connect(key, row.MouseLeave:Connect(function()
+		tw(baseRowColor)
+	end))
+	NAlib.connect(key, row:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not row.Parent then
+			Defer(function()
+				NAlib.disconnect(key)
+			end)
+		end
+	end))
+end
+
 NAgui.addButton = function(label, callback)
 	if not NAUIMANAGER.SettingsList then return end
 	local button = templates.Button:Clone()
@@ -59102,6 +59167,7 @@ NAgui.addButton = function(label, callback)
 	if NAgui.RegisterStrokesFrom then
 		NAgui.RegisterStrokesFrom(button)
 	end
+	NAgui.atchSettings(button, "button:"..tostring(label)..":"..tostring(button.LayoutOrder), 0.08)
 
 	MouseButtonFix(button.Interact,function()
 		pcall(callback)
@@ -59179,6 +59245,7 @@ NAgui.addInfo = function(label, value)
 	if NAgui.RegisterStrokesFrom then
 		NAgui.RegisterStrokesFrom(info)
 	end
+	NAgui.atchSettings(info, "info:"..tostring(label)..":"..tostring(info.LayoutOrder), 0.06)
 
 	local frame = info.InputFrame
 	if not frame then
@@ -59268,6 +59335,7 @@ NAgui._colorPickerRegistry = NAgui._colorPickerRegistry or {}
 NAgui._sliderRegistry = NAgui._sliderRegistry or {}
 NAgui._inputRegistry = NAgui._inputRegistry or {}
 NAgui._dropdownRegistry = NAgui._dropdownRegistry or {}
+NAgui._keybindRegistry = NAgui._keybindRegistry or {}
 
 NAgui.addToggle = function(lbl, def, cb, opt)
 	if not NAUIMANAGER.SettingsList then return end
@@ -60379,6 +60447,7 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 	input.LayoutOrder = NAgui._nextLayoutOrder()
 	input.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(input)
+	NAgui.atchSettings(input, "input:"..tostring(label)..":"..tostring(input.LayoutOrder), 0.08)
 
 	local lastW
 
@@ -60507,17 +60576,23 @@ NAgui.setInputValue = function(label, value, opts)
 end
 
 NAmanage.SyncPrefixUI = function(opts)
-	if not (NAgui and NAgui.setInputValue) then return end
+	if not NAgui then return end
 	local prefixValue = opt and tostring(opt.prefix or "") or ""
 	if prefixValue == "" then
 		prefixValue = ";"
 	end
 	opts = opts or {}
 	local setterOpts = {
-		force = opts.force ~= false,
+		force = opts.force == true,
 		fire = opts.fire == true,
 	}
-	NAgui.setInputValue("Prefix", prefixValue, setterOpts)
+	if NAgui.setKeybindValue then
+		NAgui.setKeybindValue("Prefix", prefixValue, setterOpts)
+		return
+	end
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Prefix", prefixValue, setterOpts)
+	end
 end
 
 NAmanage.SyncUIScaleUI = function(opts)
@@ -60644,6 +60719,32 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		defaultKeyText = "Unknown"
 	end
 
+	local keybindSymbolAliases = {
+		[";"] = "Semicolon",
+		[","] = "Comma",
+		["."] = "Period",
+		["/"] = "Slash",
+		["\\"] = "BackSlash",
+		["`"] = "Backquote",
+		["-"] = "Minus",
+		["="] = "Equals",
+		["["] = "LeftBracket",
+		["]"] = "RightBracket",
+		["'"] = "Quote",
+	}
+	local keybindDigitAliases = {
+		["0"] = "Zero",
+		["1"] = "One",
+		["2"] = "Two",
+		["3"] = "Three",
+		["4"] = "Four",
+		["5"] = "Five",
+		["6"] = "Six",
+		["7"] = "Seven",
+		["8"] = "Eight",
+		["9"] = "Nine",
+	}
+
 	local function resolveKeyCode(text)
 		if type(text) ~= "string" then
 			return Enum.KeyCode.Unknown, nil
@@ -60651,6 +60752,15 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		local clean = text:match("^%s*(.-)%s*$")
 		if not clean or clean == "" then
 			return Enum.KeyCode.Unknown, nil
+		end
+		if #clean == 1 then
+			local alias = keybindSymbolAliases[clean] or keybindDigitAliases[clean]
+			if alias then
+				local aliasCode = Enum.KeyCode[alias]
+				if aliasCode and aliasCode ~= Enum.KeyCode.Unknown then
+					return aliasCode, aliasCode.Name
+				end
+			end
 		end
 		local direct = Enum.KeyCode[clean]
 		if direct and direct ~= Enum.KeyCode.Unknown then
@@ -60671,6 +60781,32 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 	end
 	local boundKeyCode = defaultKeyCode
 	box.Text = defaultKeyText
+	local runCallback
+	local tweenFrameWidth
+
+	local function setKeyText(newValue, opts)
+		opts = opts or {}
+		local text = tostring(newValue or "")
+		if text == "" then
+			text = defaultKeyText
+		end
+		local code, normalized = resolveKeyCode(text)
+		if normalized and normalized ~= "" then
+			text = normalized
+		end
+		if not opts.force and box.Text == text then
+			if opts.fire then
+				runCallback(text)
+			end
+			return
+		end
+		box.Text = text
+		boundKeyCode = code
+		tweenFrameWidth()
+		if opts.fire then
+			runCallback(text)
+		end
+	end
 
 	keybind.LayoutOrder = NAgui._nextLayoutOrder()
 	keybind.Parent = NAUIMANAGER.SettingsList
@@ -60683,9 +60819,28 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 	local focusFrameColor = baseFrameColor:Lerp(Color3.new(1, 1, 1), 0.1)
 	local baseFrameStrokeColor = frameStroke and frameStroke.Color or Color3.fromRGB(72, 72, 72)
 	local focusFrameStrokeColor = Color3.fromRGB(155, 100, 255)
+	local frameFocused = false
+	local lastPulseAt = 0
+	local pulseCooldown = 0.09
+	local pulseHold = 0.08
+	local pulseResetAt = 0
+	local pulseResetRunning = false
 
 	local function tw(obj, info, goal)
 		if not obj then return nil end
+		local same = true
+		for prop, target in pairs(goal) do
+			local ok, current = pcall(function()
+				return obj[prop]
+			end)
+			if not ok or current ~= target then
+				same = false
+				break
+			end
+		end
+		if same then
+			return nil
+		end
 		local ok, tween = pcall(function()
 			return TweenService:Create(obj, info, goal)
 		end)
@@ -60728,27 +60883,55 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		end)
 	end
 
-	local function runCallback(...)
+	runCallback = function(...)
 		local ok, err = pcall(callback, ...)
 		if not ok then
 			flashKeybindError(err)
 		end
 	end
 
-	local function setFrameFocused(focused)
+	local function setFrameFocused(focused, force)
+		focused = focused == true
+		if not force and frameFocused == focused then
+			return
+		end
+		frameFocused = focused
 		if frame then
 			tw(frame, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
-				BackgroundColor3 = focused and focusFrameColor or baseFrameColor
+				BackgroundColor3 = frameFocused and focusFrameColor or baseFrameColor
 			})
 		end
 		if frameStroke then
 			tw(frameStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
-				Color = focused and focusFrameStrokeColor or baseFrameStrokeColor
+				Color = frameFocused and focusFrameStrokeColor or baseFrameStrokeColor
 			})
 		end
 	end
 
-	local function tweenFrameWidth()
+	local function schedulePulseReset()
+		pulseResetAt = os.clock() + pulseHold
+		if pulseResetRunning then
+			return
+		end
+		pulseResetRunning = true
+		Spawn(function()
+			while keybind and keybind.Parent do
+				local remaining = pulseResetAt - os.clock()
+				if remaining > 0 then
+					Wait(math.min(remaining, 0.05))
+				else
+					if not capturing then
+						setFrameFocused(false, false)
+					end
+					break
+				end
+			end
+			pulseResetRunning = false
+			pulseResetAt = 0
+		end)
+	end
+
+	tweenFrameWidth = function()
 		if not (frame and box) then
 			return
 		end
@@ -60786,12 +60969,14 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 
 	NAlib.connect(connKey, box.Focused:Connect(function()
 		capturing = true
+		pulseResetAt = 0
 		box.Text = ""
-		setFrameFocused(true)
+		setFrameFocused(true, true)
 	end))
 
 	NAlib.connect(connKey, box.FocusLost:Connect(function()
 		capturing = false
+		pulseResetAt = 0
 		local typed = box.Text
 		if typed == nil or typed == "" then
 			box.Text = defaultKeyText
@@ -60801,7 +60986,7 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			box.Text = normalized
 		end
 		boundKeyCode = code
-		setFrameFocused(false)
+		setFrameFocused(false, true)
 		tweenFrameWidth()
 	end))
 
@@ -60819,15 +61004,16 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			box.Text = keyName
 			boundKeyCode = keyCode
 			capturing = false
-			setFrameFocused(false)
+			pulseResetAt = 0
+			setFrameFocused(false, true)
 			runCallback(keyName)
 		elseif not capturing and boundKeyCode ~= Enum.KeyCode.Unknown and not processed and keyCode == boundKeyCode then
-			setFrameFocused(true)
-			Delay(0.1, function()
-				if keybind.Parent then
-					setFrameFocused(false)
-				end
-			end)
+			local now = os.clock()
+			if now - lastPulseAt >= pulseCooldown then
+				lastPulseAt = now
+				setFrameFocused(true, false)
+				schedulePulseReset()
+			end
 			runCallback()
 		end
 	end))
@@ -60838,13 +61024,41 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		tweenFrameWidth()
 	end))
 
+	local entry = {
+		keybind = keybind;
+		get = function()
+			return box.Text
+		end;
+		set = function(v, opts)
+			setKeyText(v, opts)
+		end;
+		getKeyCode = function()
+			return boundKeyCode
+		end;
+	}
+
+	NAgui._keybindRegistry[label] = entry
 	NAlib.connect(connKey, keybind:GetPropertyChangedSignal("Parent"):Connect(function()
-		if not keybind.Parent then
-			NAlib.disconnect(connKey)
+		if keybind.Parent then
+			return
 		end
+		if NAgui._keybindRegistry[label] == entry then
+			NAgui._keybindRegistry[label] = nil
+		end
+		NAlib.disconnect(connKey)
 	end))
 
 	return keybind
+end
+
+NAgui.setKeybindValue = function(label, value, opts)
+	local entry = NAgui._keybindRegistry and NAgui._keybindRegistry[label]
+	if not entry then return end
+	if not (entry.keybind and entry.keybind.Parent) then
+		NAgui._keybindRegistry[label] = nil
+		return
+	end
+	entry.set(value, opts or { fire = false })
 end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
@@ -64033,8 +64247,11 @@ originalIO.naTransLatooor=function()
 		return Concat(words, " ")
 	end
 
-	translator.target = NAmanage.iso2(opt.chatTranslateTarget) or translator.target or "en"
-	opt.chatTranslateTarget = translator.target
+	translator.chatTarget = NAmanage.iso2(opt.chatTranslateTarget) or translator.chatTarget or translator.target or "en"
+	opt.chatTranslateTarget = translator.chatTarget
+	translator.settingsTarget = NAmanage.iso2(opt.settingsTranslateTarget) or translator.settingsTarget or "en"
+	opt.settingsTranslateTarget = translator.settingsTarget
+	translator.target = translator.chatTarget
 
 	translator._state = translator._state or {
 		gv = (isfile and isfile("googlev.txt") and readfile("googlev.txt")) or "";
@@ -64281,7 +64498,7 @@ originalIO.naTransLatooor=function()
 				self.button = nil
 			else
 				if self:isEnabled() then
-					self.button.Text = "TR: "..string.upper(self.target or "EN")
+					self.button.Text = "TR: "..string.upper(self.chatTarget or "EN")
 					self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
 					self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
 				else
@@ -64296,7 +64513,7 @@ originalIO.naTransLatooor=function()
 			if not self.input.Parent then
 				self.input = nil
 			elseif not self.input:IsFocused() then
-				self.input.Text = string.upper(self.target or "EN")
+				self.input.Text = string.upper(self.chatTarget or "EN")
 			end
 		end
 	end
@@ -64347,16 +64564,16 @@ originalIO.naTransLatooor=function()
 		if not (label and info) or info.translating then
 			return
 		end
-		if info.translationLine and info.target == self.target then
+		if info.translationLine and info.target == self.chatTarget then
 			return
 		end
 		if not info.message or info.message == "" then
 			return
 		end
 		info.translating = true
-		info.target = self.target
+		info.target = self.chatTarget
 		Spawn(function()
-			local ok, translated, detected = pcall(translatePayload, info.message, self.target, "auto")
+			local ok, translated, detected = pcall(translatePayload, info.message, self.chatTarget, "auto")
 			info.translating = false
 			if not ok then
 				info.translationLine = nil
@@ -64370,7 +64587,7 @@ originalIO.naTransLatooor=function()
 			end
 			local code = NAmanage.iso2(detected) or detected or "AUTO"
 			local tag = tostring(code):upper()
-			info.translationLine = ("[%s] %s"):format(self.target:upper(), escapeForRichText(translated))
+			info.translationLine = ("[%s] %s"):format((self.chatTarget or "en"):upper(), escapeForRichText(translated))
 			info.detected = tag
 			self:applyDisplay(label, info)
 		end)
@@ -64409,15 +64626,19 @@ originalIO.naTransLatooor=function()
 		self:ensureTranslation(label, info)
 	end
 
-	function translator:setTarget(lang)
+	function translator:setChatTarget(lang)
 		local code = NAmanage.iso2(lang)
 		if not code then
 			return false
 		end
-		if self.target == code then
+		if self.chatTarget == code then
 			self:updateUI()
+			if self.updateSettingsUI then
+				self:updateSettingsUI()
+			end
 			return true, code, originalIO.languageName(code)
 		end
+		self.chatTarget = code
 		self.target = code
 		opt.chatTranslateTarget = code
 		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
@@ -64429,7 +64650,637 @@ originalIO.naTransLatooor=function()
 			self:ensureTranslation(label, info)
 		end
 		self:updateUI()
+		if self.updateSettingsUI then
+			self:updateSettingsUI()
+		end
 		return true, code, originalIO.languageName(code)
+	end
+
+	function translator:setSettingsTarget(lang)
+		local code = NAmanage.iso2(lang)
+		if not code then
+			return false
+		end
+		if self.settingsTarget == code then
+			self:updateSettingsUI()
+			return true, code, originalIO.languageName(code)
+		end
+		self.settingsTarget = code
+		opt.settingsTranslateTarget = code
+		pcall(NAmanage.NASettingsSet, "settingsTranslateTarget", code)
+		self:updateSettingsUI()
+		return true, code, originalIO.languageName(code)
+	end
+
+	function translator:setTarget(lang)
+		return self:setChatTarget(lang)
+	end
+
+	local function sanitizeUiText(text)
+		text = tostring(text or "")
+		text = text:match("^%s*(.-)%s*$") or ""
+		return text
+	end
+
+	local function shouldTranslateUiText(text)
+		local cleaned = sanitizeUiText(text)
+		if cleaned == "" then
+			return false, cleaned
+		end
+		if not cleaned:match("[%a]") then
+			return false, cleaned
+		end
+		return true, cleaned
+	end
+
+	local function cacheOriginalText(inst, attrName, text)
+		if not (inst and attrName and type(text) == "string") then
+			return
+		end
+		pcall(function()
+			if inst:GetAttribute(attrName) == nil then
+				NAmanage.SetAttr(inst, attrName, text)
+			end
+		end)
+	end
+
+	local function usesBuilderIconFont(inst)
+		local family = nil
+		pcall(function()
+			if inst and inst.FontFace then
+				family = inst.FontFace.Family
+			end
+		end)
+		return type(family) == "string" and family:find("BuilderIcons/BuilderIcons.json", 1, true) ~= nil
+	end
+
+	local function isRichTextEnabled(inst)
+		local rich = false
+		pcall(function()
+			rich = inst and inst.RichText == true
+		end)
+		return rich
+	end
+
+	local function getElementAttr(inst, attrName)
+		if not (inst and attrName) then
+			return nil
+		end
+		local out = nil
+		pcall(function()
+			out = inst:GetAttribute(attrName)
+		end)
+		return out
+	end
+
+	local function findTaggedSettingsAncestor(inst, root)
+		local current = inst
+		while current and current ~= root do
+			local tabName = getElementAttr(current, "NAOriginalTab")
+			if type(tabName) == "string" and tabName ~= "" then
+				return current, tabName
+			end
+			current = current.Parent
+		end
+		return nil, nil
+	end
+
+	local BUILDER_ICON_MARKER = "BuilderIcons/BuilderIcons.json"
+
+	local function parseRichTextTokens(rawText)
+		local tokens = {}
+		local text = tostring(rawText or "")
+		if text == "" then
+			return tokens
+		end
+
+		local i = 1
+		local length = #text
+		local fontStack = {}
+		local builderDepth = 0
+
+		while i <= length do
+			local lt = string.find(text, "<", i, true)
+			if not lt then
+				Insert(tokens, {
+					kind = "text";
+					value = text:sub(i);
+					inBuilder = builderDepth > 0;
+				})
+				break
+			end
+
+			if lt > i then
+				Insert(tokens, {
+					kind = "text";
+					value = text:sub(i, lt - 1);
+					inBuilder = builderDepth > 0;
+				})
+			end
+
+			local gt = string.find(text, ">", lt + 1, true)
+			if not gt then
+				Insert(tokens, {
+					kind = "text";
+					value = text:sub(lt);
+					inBuilder = builderDepth > 0;
+				})
+				break
+			end
+
+			local tag = text:sub(lt, gt)
+			Insert(tokens, {
+				kind = "tag";
+				value = tag;
+			})
+
+			local inner = text:sub(lt + 1, gt - 1)
+			local trimmed = inner:match("^%s*(.-)%s*$") or ""
+			local isClosing = trimmed:sub(1, 1) == "/"
+			local isSelfClosing = (not isClosing) and trimmed:sub(-1) == "/"
+			local tagName = nil
+
+			if isClosing then
+				tagName = (trimmed:match("^/%s*([%w]+)") or ""):lower()
+			else
+				tagName = (trimmed:match("^([%w]+)") or ""):lower()
+			end
+
+			if tagName == "font" then
+				if isClosing then
+					local popped = table.remove(fontStack)
+					if popped then
+						builderDepth = math.max(0, builderDepth - 1)
+					end
+				elseif not isSelfClosing then
+					local family = trimmed:match("[Ff][Aa][Mm][Ii][Ll][Yy]%s*=%s*\"([^\"]+)\"")
+						or trimmed:match("[Ff][Aa][Mm][Ii][Ll][Yy]%s*=%s*'([^']+)'")
+					local isBuilder = type(family) == "string" and family:find(BUILDER_ICON_MARKER, 1, true) ~= nil
+					Insert(fontStack, isBuilder)
+					if isBuilder then
+						builderDepth += 1
+					end
+				end
+			end
+
+			i = gt + 1
+		end
+
+		return tokens
+	end
+
+	function translator:updateSettingsUI()
+		if self.settingsInput then
+			if not self.settingsInput.Parent then
+				self.settingsInput = nil
+			elseif not self.settingsInput:IsFocused() then
+				self.settingsInput.Text = string.upper(self.settingsTarget or "EN")
+			end
+		end
+
+		if self.settingsButton then
+			if not self.settingsButton.Parent then
+				self.settingsButton = nil
+			else
+				self.settingsButton.Text = "Translate"
+			end
+		end
+	end
+
+	function translator:translateText(text, target, source)
+		local canTranslate, cleaned = shouldTranslateUiText(text)
+		if not canTranslate then
+			return nil
+		end
+		return translatePayload(cleaned, target or self.settingsTarget or self.chatTarget or "en", source or "auto")
+	end
+
+	function translator:translateSettingsFrame(root, lang)
+		if not (root and root.Parent) then
+			return
+		end
+		local targetCode = NAmanage.iso2(lang) or self.settingsTarget or self.chatTarget or "en"
+		local items = {}
+		local richItems = {}
+		local fflagNameMap = {}
+		local tabButtonMap = {}
+		do
+			local fflags = NAmanage and NAmanage.NAFFlags
+			local whitelist = fflags and fflags.whitelist
+			if type(whitelist) == "table" then
+				for _, entry in ipairs(whitelist) do
+					local entryName = nil
+					if type(entry) == "table" then
+						entryName = entry.name or entry.flag or entry[1]
+					end
+					if type(entryName) == "string" and entryName ~= "" then
+						fflagNameMap[entryName] = true
+						fflagNameMap[string.lower(entryName)] = true
+					end
+				end
+			end
+		end
+		do
+			local tabs = TabManager and TabManager.tabs
+			if type(tabs) == "table" then
+				for _, info in pairs(tabs) do
+					if info and info.button then
+						tabButtonMap[info.button] = info
+					end
+				end
+			end
+		end
+
+		local function findTabInfoForDescendant(inst)
+			local current = inst
+			while current and current ~= root do
+				local info = tabButtonMap[current]
+				if info then
+					return info
+				end
+				current = current.Parent
+			end
+			return nil
+		end
+
+		for _, obj in ipairs(root:GetDescendants()) do
+			local _, rowTab = findTaggedSettingsAncestor(obj, root)
+			local isFflagsRow = rowTab == (NA_TABS and NA_TABS.TAB_FFLAGS or "FFlags")
+
+			if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+				if obj.Name ~= "Translate" then
+					local tabInfo = findTabInfoForDescendant(obj)
+					local isTabTitle = tabInfo ~= nil and obj:IsA("TextLabel") and obj.Name == "Title"
+					if isTabTitle then
+						local baseTabTitle = tostring(tabInfo.displayName or tabInfo.name or "")
+						local okTabTitle, normalizedTabTitle = shouldTranslateUiText(baseTabTitle)
+						if okTabTitle then
+							Insert(items, {
+								inst = obj;
+								prop = "Text";
+								source = normalizedTabTitle;
+								tabInfo = tabInfo;
+							})
+						end
+						continue
+					end
+
+					local objectUsesBuilderFont = usesBuilderIconFont(obj)
+					local richEnabled = isRichTextEnabled(obj)
+					local originalText = obj:GetAttribute("NAOriginalText")
+					if type(originalText) ~= "string" or originalText == "" then
+						originalText = tostring(obj.Text or "")
+						if originalText ~= "" then
+							cacheOriginalText(obj, "NAOriginalText", originalText)
+						end
+					end
+					local skipWhitelistedFflag = false
+					if isFflagsRow and type(originalText) == "string" and originalText ~= "" then
+						local normalizedOriginal = sanitizeUiText(originalText)
+						if normalizedOriginal ~= "" then
+							skipWhitelistedFflag = fflagNameMap[normalizedOriginal] == true
+								or fflagNameMap[string.lower(normalizedOriginal)] == true
+						end
+					end
+					local hasRichTags = type(originalText) == "string"
+						and Find(originalText, "<", 1, true) ~= nil
+						and Find(originalText, ">", 1, true) ~= nil
+					if skipWhitelistedFflag then
+						if type(originalText) == "string" and originalText ~= "" and obj.Text ~= originalText then
+							pcall(function()
+								obj.Text = originalText
+							end)
+						end
+					elseif richEnabled and hasRichTags then
+						Insert(richItems, {
+							inst = obj;
+							prop = "Text";
+							source = originalText;
+						})
+					elseif objectUsesBuilderFont then
+						if type(originalText) == "string" and originalText ~= "" and obj.Text ~= originalText then
+							pcall(function()
+								obj.Text = originalText
+							end)
+						end
+					else
+						local okText, normalizedText = shouldTranslateUiText(originalText)
+						if okText then
+							Insert(items, {
+								inst = obj;
+								prop = "Text";
+								source = normalizedText;
+							})
+						end
+					end
+				end
+			elseif obj:IsA("TextBox") then
+				if obj.Name ~= "TranslateInput" then
+					local originalPlaceholder = obj:GetAttribute("NAOriginalPlaceholder")
+					if type(originalPlaceholder) ~= "string" or originalPlaceholder == "" then
+						originalPlaceholder = tostring(obj.PlaceholderText or "")
+						if originalPlaceholder ~= "" then
+							cacheOriginalText(obj, "NAOriginalPlaceholder", originalPlaceholder)
+						end
+					end
+					local skipWhitelistedFflagPlaceholder = false
+					if isFflagsRow and type(originalPlaceholder) == "string" and originalPlaceholder ~= "" then
+						local normalizedPlaceholder = sanitizeUiText(originalPlaceholder)
+						if normalizedPlaceholder ~= "" then
+							skipWhitelistedFflagPlaceholder = fflagNameMap[normalizedPlaceholder] == true
+								or fflagNameMap[string.lower(normalizedPlaceholder)] == true
+						end
+					end
+					if skipWhitelistedFflagPlaceholder then
+						if type(originalPlaceholder) == "string" and originalPlaceholder ~= "" and obj.PlaceholderText ~= originalPlaceholder then
+							pcall(function()
+								obj.PlaceholderText = originalPlaceholder
+							end)
+						end
+					else
+						local okPlaceholder, normalizedPlaceholder = shouldTranslateUiText(originalPlaceholder)
+						if okPlaceholder then
+							Insert(items, {
+								inst = obj;
+								prop = "PlaceholderText";
+								source = normalizedPlaceholder;
+							})
+						end
+					end
+				end
+			end
+		end
+
+		if #items == 0 and #richItems == 0 then
+			DoNotif("No translatable settings text was found.", 1.75)
+			return
+		end
+
+		self._settingsTranslateJob = (self._settingsTranslateJob or 0) + 1
+		local jobId = self._settingsTranslateJob
+
+		Spawn(function()
+			local translateCache = self._settingsTranslateCache or {}
+			self._settingsTranslateCache = translateCache
+			local targetCache = translateCache[targetCode] or {}
+			translateCache[targetCode] = targetCache
+
+			local function getOrTranslate(sourceText)
+				if type(sourceText) ~= "string" or sourceText == "" then
+					return nil
+				end
+				local cached = targetCache[sourceText]
+				if type(cached) == "string" and cached ~= "" then
+					return cached
+				end
+				if cached == false then
+					return nil
+				end
+
+				local ok, result = pcall(function()
+					return self:translateText(sourceText, targetCode, "auto")
+				end)
+				if ok and type(result) == "string" and result ~= "" then
+					targetCache[sourceText] = result
+					return result
+				end
+				targetCache[sourceText] = false
+				return nil
+			end
+
+			local sourceTargets = {}
+			for _, item in ipairs(items) do
+				local list = sourceTargets[item.source]
+				if not list then
+					list = {}
+					sourceTargets[item.source] = list
+				end
+				Insert(list, item)
+			end
+
+			local sourceList = {}
+			for sourceText in pairs(sourceTargets) do
+				Insert(sourceList, sourceText)
+			end
+			table.sort(sourceList)
+
+			local nextIndex = 1
+			local activeWorkers = 0
+			local workerCount = math.clamp(math.floor(#sourceList / 10), 2, 7)
+			if #sourceList < 2 then
+				workerCount = 1
+			end
+
+			for _ = 1, workerCount do
+				activeWorkers += 1
+				Spawn(function()
+					while true do
+						if self._settingsTranslateJob ~= jobId then
+							break
+						end
+						local i = nextIndex
+						if i > #sourceList then
+							break
+						end
+						nextIndex += 1
+
+						local sourceText = sourceList[i]
+						local translated = getOrTranslate(sourceText)
+						local targets = sourceTargets[sourceText]
+						if targets then
+							for _, item in ipairs(targets) do
+								if self._settingsTranslateJob ~= jobId then
+									break
+								end
+								if item.inst and item.inst.Parent then
+									if type(translated) == "string" and translated ~= "" then
+										local okApply = pcall(function()
+											if item.tabInfo then
+												item.tabInfo.localizedDisplay = item.tabInfo.localizedDisplay or {}
+												item.tabInfo.localizedDisplay[targetCode] = translated
+												if originalIO and originalIO.applyTabDisplayText then
+													originalIO.applyTabDisplayText(item.tabInfo, {
+														isActive = item.tabInfo._isActive;
+														defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR;
+													})
+												else
+													item.inst[item.prop] = translated
+												end
+											else
+												item.inst[item.prop] = translated
+											end
+										end)
+										item._ok = okApply and true or false
+										if not okApply then
+											item._failed = true
+										end
+									else
+										item._failed = true
+									end
+								else
+									item._failed = true
+								end
+							end
+						end
+					end
+					activeWorkers -= 1
+				end)
+			end
+
+			while activeWorkers > 0 do
+				if self._settingsTranslateJob ~= jobId then
+					return
+				end
+				Wait()
+			end
+
+			local function translateRichTextOutsideBuilder(sourceText)
+				local tokens = parseRichTextTokens(sourceText)
+				if #tokens == 0 then
+					return nil, false, false
+				end
+
+				local changed = false
+				local hadCandidate = false
+				for _, token in ipairs(tokens) do
+					if token.kind == "text" and token.inBuilder ~= true then
+						local segment = tostring(token.value or "")
+						local lead = segment:match("^(%s*)") or ""
+						local trail = segment:match("(%s*)$") or ""
+						local core = segment:match("^%s*(.-)%s*$") or ""
+						local canTranslate, normalizedCore = shouldTranslateUiText(core)
+						if canTranslate then
+							hadCandidate = true
+							local translatedCore = getOrTranslate(normalizedCore)
+							if type(translatedCore) == "string" and translatedCore ~= "" then
+								if originalIO and type(originalIO.escapeRichTextText) == "function" then
+									translatedCore = originalIO.escapeRichTextText(translatedCore)
+								end
+								local updated = lead..translatedCore..trail
+								if updated ~= segment then
+									token.value = updated
+									changed = true
+								end
+							else
+								token._failed = true
+							end
+						end
+					end
+				end
+
+				local rebuilt = {}
+				for _, token in ipairs(tokens) do
+					Insert(rebuilt, tostring(token.value or ""))
+				end
+
+				return Concat(rebuilt, ""), changed, hadCandidate
+			end
+
+			for index, item in ipairs(richItems) do
+				if self._settingsTranslateJob ~= jobId then
+					return
+				end
+				if item.inst and item.inst.Parent and type(item.source) == "string" then
+					local translatedRich, changed, hadCandidate = translateRichTextOutsideBuilder(item.source)
+					if changed and type(translatedRich) == "string" and translatedRich ~= "" then
+						pcall(function()
+							item.inst[item.prop] = translatedRich
+						end)
+						item._ok = true
+					else
+						item._failed = hadCandidate == true
+					end
+				else
+					item._failed = true
+				end
+				if index % 8 == 0 then
+					Wait()
+				end
+			end
+
+			local translatedCount = 0
+			local failedCount = 0
+			for _, item in ipairs(items) do
+				if item._ok then
+					translatedCount += 1
+				elseif item._failed then
+					failedCount += 1
+				end
+			end
+			for _, item in ipairs(richItems) do
+				if item._ok then
+					translatedCount += 1
+				elseif item._failed then
+					failedCount += 1
+				end
+			end
+
+			local totalItems = #items + #richItems
+			if self._settingsTranslateJob == jobId then
+				DoNotif(("Settings translated to %s (%d/%d)."):format(string.upper(targetCode), translatedCount, totalItems), 2.5)
+				if failedCount > 0 then
+					DebugNotif(("Settings translation skipped/failed for %d item(s)."):format(failedCount), 2)
+				end
+			end
+		end)
+	end
+
+	function translator:attachSettingsControls(button, input, root)
+		if not root then
+			return
+		end
+		self.settingsRoot = root
+
+		if button and self.settingsButton ~= button then
+			self.settingsButton = button
+			MouseButtonFix(button, function()
+				local langText = self.settingsInput and self.settingsInput.Text or ""
+				langText = langText:match("^%s*(.-)%s*$") or ""
+				if langText == "" then
+					langText = self.settingsTarget or "en"
+				end
+
+				local ok, code, name = self:setSettingsTarget(langText)
+				if not ok then
+					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
+					self:updateSettingsUI()
+					return
+				end
+				DoNotif(("Translating settings to %s (%s)..."):format(code:upper(), name), 1.5)
+				self:translateSettingsFrame(self.settingsRoot or root, code)
+				self:updateSettingsUI()
+			end)
+		end
+
+		if input and self.settingsInput ~= input then
+			if self._settingsInputConn then
+				self._settingsInputConn:Disconnect()
+				self._settingsInputConn = nil
+			end
+			self.settingsInput = input
+			input.PlaceholderText = "Lang"
+			input.ClearTextOnFocus = false
+			self._settingsInputConn = input.FocusLost:Connect(function(enterPressed)
+				local text = input.Text or ""
+				text = text:match("^%s*(.-)%s*$") or ""
+				if text == "" then
+					self:updateSettingsUI()
+					return
+				end
+				local ok, code, name = self:setSettingsTarget(text)
+				if not ok then
+					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
+				else
+					DoNotif(("Settings translator target set to %s (%s)"):format(code:upper(), name), 1.5)
+				end
+				self:updateSettingsUI()
+				if enterPressed then
+					input:ReleaseFocus()
+				end
+			end)
+		end
+
+		self:updateSettingsUI()
 	end
 
 	function translator:attachControls(button, input)
@@ -64456,7 +65307,7 @@ originalIO.naTransLatooor=function()
 					self:updateUI()
 					return
 				end
-				local ok, code, name = self:setTarget(text)
+				local ok, code, name = self:setChatTarget(text)
 				if not ok then
 					DoNotif("Invalid language code. Example: en, bg, ja", 1.5)
 				else
@@ -64472,12 +65323,22 @@ originalIO.naTransLatooor=function()
 	end
 
 	function translator:tryAttach()
-		local frame = NAUIMANAGER and NAUIMANAGER.chatLogsFrame
-		if not frame then return end
-		local button = frame:FindFirstChild("Translate", true)
-		local input = frame:FindFirstChild("TranslateInput", true)
-		if button or input then
-			self:attachControls(button, input)
+		local chatFrame = NAUIMANAGER and NAUIMANAGER.chatLogsFrame
+		if chatFrame then
+			local button = chatFrame:FindFirstChild("Translate", true)
+			local input = chatFrame:FindFirstChild("TranslateInput", true)
+			if button or input then
+				self:attachControls(button, input)
+			end
+		end
+
+		local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+		if settingsFrame then
+			local settingsButton = settingsFrame:FindFirstChild("Translate", true)
+			local settingsInput = settingsFrame:FindFirstChild("TranslateInput", true)
+			if settingsButton or settingsInput then
+				self:attachSettingsControls(settingsButton, settingsInput, settingsFrame)
+			end
 		end
 	end
 
@@ -64736,6 +65597,9 @@ NAmanage.CommandKeybindsUIInit=function()
 	root.Size = UDim2.new(1, -10, 1, 0)
 	root.LayoutOrder = NAgui._nextLayoutOrder()
 	root.ClipsDescendants = false
+	pcall(function()
+		NAmanage.SetAttr(root, "NAHideInAll", true)
+	end)
 
 	local keyBox = cloneSearchBox(root, "Key / Combo")
 	keyBox.Name = "KeyBox"
@@ -69171,25 +70035,69 @@ NAgui.setTab(NA_TABS.TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
 
-NAgui.addInput("Prefix", "Enter a Prefix", opt.prefix, function(text)
-	local newPrefix = text
+NAgui.prfxKeyNaem=function(keyName)
+	if type(keyName) ~= "string" or keyName == "" then
+		return nil
+	end
+	local clean = keyName:match("^%s*(.-)%s*$")
+	if not clean or clean == "" then
+		return nil
+	end
+	if #clean == 1 then
+		return clean
+	end
+	local lower = Lower(clean)
+	local aliases = NAStuff.prefixKeyAliasMap or {}
+	for char, alias in pairs(aliases) do
+		if type(alias) == "string" and Lower(alias) == lower then
+			return char
+		end
+	end
+	local digits = {
+		zero = "0", one = "1", two = "2", three = "3", four = "4",
+		five = "5", six = "6", seven = "7", eight = "8", nine = "9",
+	}
+	if digits[lower] then
+		return digits[lower]
+	end
+	return clean
+end
+
+NAgui.addKeybind("Prefix", opt.prefix, function(keyName)
+	if type(keyName) ~= "string" or keyName == "" then
+		return
+	end
+	local newPrefix = NAgui.prfxKeyNaem(keyName)
 	if not newPrefix or newPrefix == "" then
 		DoNotif("Please enter a valid prefix")
-	elseif utf8.len(newPrefix) > 1 then
-		DoNotif("Prefix must be a single character (e.g. ; . !)")
-	elseif newPrefix:match("[%w]") then
-		DoNotif("Prefix cannot contain letters or numbers")
-	elseif newPrefix:match("[%[%]%(%)%*%^%$%%{}<>]") then
-		DoNotif("That symbol is not allowed as a prefix")
-	elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;")
-		or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
-		DoNotif("Encoded/HTML characters are not allowed as a prefix")
-	else
-		opt.prefix = newPrefix
-		DoNotif("Prefix set to: "..newPrefix)
 		if NAmanage.SyncPrefixUI then
-			NAmanage.SyncPrefixUI()
+			NAmanage.SyncPrefixUI({ force = true, fire = false })
 		end
+		return
+	end
+	if NAgui.badPfx(newPrefix) then
+		if utf8.len(newPrefix) > 1 then
+			DoNotif("Prefix must be a single character (e.g. ; . !)")
+		elseif newPrefix:match("[%w]") then
+			DoNotif("Prefix cannot contain letters or numbers")
+		elseif newPrefix:match("[%[%]%(%)%*%^%$%%{}<>]") then
+			DoNotif("That symbol is not allowed as a prefix")
+		elseif newPrefix:match("&amp;") or newPrefix:match("&lt;") or newPrefix:match("&gt;")
+			or newPrefix:match("&quot;") or newPrefix:match("&#x27;") or newPrefix:match("&#x60;") then
+			DoNotif("Encoded/HTML characters are not allowed as a prefix")
+		else
+			DoNotif("Please enter a valid prefix")
+		end
+		if NAmanage.SyncPrefixUI then
+			NAmanage.SyncPrefixUI({ force = true, fire = false })
+		end
+		return
+	end
+
+	opt.prefix = newPrefix
+	DoNotif("Prefix set to: "..newPrefix)
+	if NAmanage.SyncPrefixUI then
+		NAmanage.SyncPrefixUI()
 	end
 end)
 
@@ -69493,6 +70401,11 @@ NAmanage.SetAssetLoadMode = NAmanage.SetAssetLoadMode or function(mode)
 			box.Text = Format("%s Mode | %d chunk, %.3fs delay", mode, def.chunk, def.delay)
 		end)
 	end
+	if NAgui and NAgui.setDropdownValue and type(NAStuff.AssetLoadModeDropdownLabel) == "string" then
+		pcall(function()
+			NAgui.setDropdownValue(NAStuff.AssetLoadModeDropdownLabel, { mode }, { fire = false, context = "sync" })
+		end)
+	end
 end
 
 NAmanage.GetAggressivePreloadChunk = NAmanage.GetAggressivePreloadChunk or function()
@@ -69729,16 +70642,33 @@ NAmanage.RegisterToggleAutoSync("Preload Assets On Load", function()
 	return NAStuff.AutoPreloadAssets == true
 end)
 
-for _, modeName in ipairs(NAStuff.ASSET_LOAD_MODE_ORDER) do
-	NAgui.addButton("Mode: "..modeName, function()
-		if NAStuff.AssetLoadRunning then
-			DoNotif("Finish the current load before changing modes.", 2)
-			return
+NAStuff.AssetLoadModeDropdownLabel = NAStuff.AssetLoadModeDropdownLabel or "Asset Load Mode Selector"
+NAStuff.AssetLoadModeDropdown = NAgui.addDropdown(NAStuff.AssetLoadModeDropdownLabel, NAStuff.ASSET_LOAD_MODE_ORDER, NAStuff.AssetLoadMode, function(selection)
+	local modeName = nil
+	if type(selection) == "table" then
+		modeName = tostring(selection[1] or "")
+	else
+		modeName = tostring(selection or "")
+	end
+	modeName = modeName:match("^%s*(.-)%s*$") or modeName
+	if modeName == "" then
+		return
+	end
+	if not NAStuff.ASSET_LOAD_MODE_DEFS[modeName] then
+		return
+	end
+	if NAStuff.AssetLoadRunning then
+		DoNotif("Finish the current load before changing modes.", 2)
+		if NAgui and NAgui.setDropdownValue then
+			pcall(function()
+				NAgui.setDropdownValue(NAStuff.AssetLoadModeDropdownLabel, { NAStuff.AssetLoadMode or "Fast" }, { fire = false, context = "revert" })
+			end)
 		end
-		NAmanage.SetAssetLoadMode(modeName)
-		DoNotif("Asset load mode set to "..modeName, 2)
-	end)
-end
+		return
+	end
+	NAmanage.SetAssetLoadMode(modeName)
+	DoNotif("Asset load mode set to "..modeName, 2)
+end)
 
 NAmanage.setAssetLoadButtonState = function(isRunning)
 	NAStuff.AssetLoadRunning = isRunning and true or false
