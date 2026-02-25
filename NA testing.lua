@@ -7625,6 +7625,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		elseif not ok and not opts.silent then
 			DoNotif(err or "Unable to update override font.", 3)
 		end
+		local syncDropdown = FontEditor and FontEditor.refreshFontDropdown
+		if type(syncDropdown) == "function" then
+			pcall(syncDropdown)
+		end
 	end
 
 	local function cycleOverrideFont(delta)
@@ -7855,6 +7859,46 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local cfCycleLabel = "Cycle Custom Fonts Only"
 	local cfNameLabel = "Custom Font Name"
 	local cfUrlLabel = "Custom Font URL"
+	local fontDropdownLabel = "Select Font"
+	local function getDropdownText(selection)
+		local value = selection
+		if type(value) == "table" then
+			value = value[1]
+		end
+		if type(value) ~= "string" then
+			return nil
+		end
+		value = value:match("^%s*(.-)%s*$")
+		if value == "" then
+			return nil
+		end
+		return value
+	end
+	local function refreshFontDropdown()
+		local choices = getActiveFontChoices()
+		local options = {}
+		local selected = "None"
+		local currentKey = FontEditor.data.fontKey or FontEditor.default.fontKey
+		for _, choice in ipairs(choices) do
+			local label = tostring(choice.label or choice.key or "Font")
+			Insert(options, label)
+			if choice.key == currentKey then
+				selected = label
+			end
+		end
+		if #options == 0 then
+			options = { "None" }
+			selected = "None"
+		elseif selected == "None" then
+			selected = options[1]
+		end
+		if NAgui.setDropdownOptions then
+			NAgui.setDropdownOptions(fontDropdownLabel, options)
+		end
+		if NAgui.setDropdownValue then
+			NAgui.setDropdownValue(fontDropdownLabel, selected, { fire = false })
+		end
+	end
 	local function refreshFontUI()
 		if scanFonts() then
 			rebuildFontChoices()
@@ -7865,6 +7909,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not hasCustomFonts() and NAgui.setToggleState then
 			NAgui.setToggleState(cfCycleLabel, false, { force = true, fire = false })
 		end
+		refreshFontDropdown()
 	end
 	local function openFontDeletePopup()
 		if not hasCustomFonts() then
@@ -7903,20 +7948,30 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		})
 	end
 	refreshFontInfo()
-	NAgui.addButton("Previous Font", function()
-		cycleOverrideFont(-1)
-		refreshFontInfo()
-	end)
-	NAgui.addButton("Next Font", function()
-		cycleOverrideFont(1)
-		refreshFontInfo()
+	NAgui.addDropdown(fontDropdownLabel, { "None" }, "None", function(selection)
+		local selected = getDropdownText(selection)
+		if not selected or Lower(selected) == "none" then
+			return
+		end
+		local choices = getActiveFontChoices()
+		for _, choice in ipairs(choices) do
+			if tostring(choice.label or "") == selected then
+				setOverrideFont(choice.key)
+				refreshFontInfo()
+				refreshFontUI()
+				return
+			end
+		end
+		refreshFontDropdown()
 	end)
 	NAgui.addButton("Reset Font", function()
 		setOverrideFont(FontEditor.default.fontKey)
 		refreshFontInfo()
+		refreshFontUI()
 	end)
 	cfInfo = NAgui.addInfo("Custom Fonts", formatCustomFontStatus())
 	refreshFontUI()
+	FontEditor.refreshFontDropdown = refreshFontDropdown
 	FontEditor.refreshCustomFontUI = refreshFontUI
 	NAgui.addToggle(cfCycleLabel, FontEditor.data.useCustomCycle and hasCustomFonts(), function(v)
 		if v and not hasCustomFonts() then
@@ -7928,6 +7983,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.data.useCustomCycle = v == true
 		persistFontData()
+		refreshFontUI()
 	end)
 	NAgui.addSection("Custom Font Loader")
 	NAgui.addInput(cfNameLabel, "Display name (optional)", FontEditor.customInputs.name, function(text)
@@ -8332,6 +8388,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local info = NAStuff.CustomIcon.info
 		if info then
 			info.Text = NAgui.formatCustomIconStatus()
+		end
+		local syncDropdown = NAStuff.CustomIcon and NAStuff.CustomIcon.refreshDropdown
+		if type(syncDropdown) == "function" then
+			pcall(syncDropdown)
 		end
 	end
 
@@ -8750,13 +8810,107 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 	end)
 
-	NAgui.addButton("Previous Custom Icon", function()
-		NAgui.cycleCustomIcon(-1)
-	end)
+	local customIconDropdownLabel = "Select Custom Icon"
+	local function getSelectedIconName(selection)
+		local value = selection
+		if type(value) == "table" then
+			value = value[1]
+		end
+		if type(value) ~= "string" then
+			return nil
+		end
+		value = value:match("^%s*(.-)%s*$")
+		if not value or value == "" then
+			return nil
+		end
+		if Lower(value) == "none" then
+			return nil
+		end
+		return value
+	end
 
-	NAgui.addButton("Next Custom Icon", function()
-		NAgui.cycleCustomIcon(1)
+	local function useCustomIconByName(iconName, opts)
+		opts = opts or {}
+		local wanted = getSelectedIconName(iconName)
+		if not wanted then
+			return false, "No custom icon selected."
+		end
+		local list = NAStuff.CustomIcon.entries or {}
+		local targetEntry, targetIndex
+		for i, entry in ipairs(list) do
+			if entry and entry.file == wanted then
+				targetEntry = entry
+				targetIndex = i
+				break
+			end
+		end
+		if not targetEntry then
+			return false, "Selected custom icon is missing."
+		end
+		local okUse, errUse = NAgui.useCustomIconEntry(targetEntry)
+		if not okUse then
+			return false, errUse or "Unable to apply selected custom icon."
+		end
+		NAStuff.CustomIcon.index = targetIndex or NAStuff.CustomIcon.index
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom NA Icon", true, { force = true, fire = false })
+		end
+		if opts.notify then
+			DoNotif('Applied custom icon "'..wanted..'".', 2)
+		end
+		return true
+	end
+
+	local function refreshCustomIconDropdown()
+		local list = NAStuff.CustomIcon.entries or {}
+		local options = {}
+		local selectedName = "None"
+
+		if #list > 0 then
+			local currentName = (type(getFName) == "function" and getFName(NAStuff.CustomIcon.localPath)) or nil
+			for i, entry in ipairs(list) do
+				if entry and entry.file then
+					Insert(options, entry.file)
+					if currentName and entry.file == currentName then
+						selectedName = entry.file
+						NAStuff.CustomIcon.index = i
+					end
+				end
+			end
+			if selectedName == "None" and #options > 0 then
+				local idx = tonumber(NAStuff.CustomIcon.index)
+				if idx and options[idx] then
+					selectedName = options[idx]
+				else
+					selectedName = options[1]
+				end
+			end
+		else
+			options = { "None" }
+			NAStuff.CustomIcon.index = 0
+		end
+
+		if NAgui.setDropdownOptions then
+			NAgui.setDropdownOptions(customIconDropdownLabel, options)
+		end
+		if NAgui.setDropdownValue then
+			NAgui.setDropdownValue(customIconDropdownLabel, selectedName, { fire = false })
+		end
+	end
+
+	NAStuff.CustomIcon.refreshDropdown = refreshCustomIconDropdown
+	NAgui.addDropdown(customIconDropdownLabel, { "None" }, "None", function(selection)
+		local chosen = getSelectedIconName(selection)
+		if not chosen then
+			return
+		end
+		local okUse, errUse = useCustomIconByName(chosen, { notify = true })
+		if not okUse and errUse then
+			DoNotif(errUse, 3)
+		end
+		NAgui.refreshCustomIconUI()
 	end)
+	refreshCustomIconDropdown()
 
 	NAgui.addButton("Download NA Icons", function()
 		local ok, res = NAgui.downloadNAIcons()
@@ -57017,6 +57171,7 @@ NAUIMANAGER = {
 	SettingsInput = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Input"),
 	SettingsKeybind = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Keybind"),
 	SettingsSlider = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Slider"),
+	SettingsDropdown = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Dropdown"),
 	WaypointFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"),
 	WaypointContainer = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container"),
 	WaypointList = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List"),
@@ -57123,6 +57278,9 @@ end;
 if NAUIMANAGER.SettingsSlider then
 	NAUIMANAGER.SettingsSlider.Parent = nil;
 end;
+if NAUIMANAGER.SettingsDropdown then
+	NAUIMANAGER.SettingsDropdown.Parent = nil;
+end;
 if NAUIMANAGER.SettingsTabButton then
 	NAUIMANAGER.SettingsTabButton.Parent = nil;
 end;
@@ -57137,6 +57295,7 @@ templates = {
 	Input = NAUIMANAGER.SettingsInput,
 	Keybind = NAUIMANAGER.SettingsKeybind,
 	Slider = NAUIMANAGER.SettingsSlider,
+	Dropdown = NAUIMANAGER.SettingsDropdown,
 	WaypointerFrame = NAUIMANAGER.WPFrame
 };
 TabManager = {
@@ -59108,15 +59267,20 @@ NAgui._toggleRegistry = NAgui._toggleRegistry or {}
 NAgui._colorPickerRegistry = NAgui._colorPickerRegistry or {}
 NAgui._sliderRegistry = NAgui._sliderRegistry or {}
 NAgui._inputRegistry = NAgui._inputRegistry or {}
+NAgui._dropdownRegistry = NAgui._dropdownRegistry or {}
 
 NAgui.addToggle = function(lbl, def, cb, opt)
 	if not NAUIMANAGER.SettingsList then return end
 	opt = opt or {}
+	cb = type(cb) == "function" and cb or function() end
 
 	local tgl = templates.Toggle:Clone()
 	local sw = tgl:FindFirstChild("Switch")
 	local ind = sw and sw:FindFirstChild("Indicator")
-	local st = ind and ind:FindFirstChild("UIStroke")
+	local st = ind and ind:FindFirstChildWhichIsA("UIStroke")
+	local swStroke = sw and sw:FindFirstChildWhichIsA("UIStroke")
+	local rowStroke = tgl:FindFirstChild("UIStroke")
+	local title = tgl:FindFirstChild("Title")
 
 	if sw then
 		pcall(function() sw.Active = false end)
@@ -59169,11 +59333,20 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 			if cind then
 				local onx = chip.AbsoluteSize.X - cind.AbsoluteSize.X - 4
 				local offx = 2
-				cind.Position = UDim2.new(0, con and onx or offx, 0.5, 0)
+				local toPos = UDim2.new(0, con and onx or offx, 0.5, 0)
+				pcall(function()
+					TweenService:Create(cind, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+						Position = toPos
+					}):Play()
+				end)
 				cind.Visible = false
 			end
 			if cst then
-				cst.Color = con and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
+				pcall(function()
+					TweenService:Create(cst, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+						Color = con and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
+					}):Play()
+				end)
 			end
 		end
 
@@ -59221,42 +59394,180 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 	tgl.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(tgl)
 
+	local baseRowColor = tgl.BackgroundColor3
+	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), 0.08)
 	local on = def and true or false
+	local busy = false
 
-	local function vupd()
-		if not (ind and st) then return end
-		if on then
-			ind.Position = UDim2.new(1, -20, 0.5, 0)
-			ind.BackgroundColor3 = Color3.fromRGB(60, 200, 80)
-			st.Color = Color3.fromRGB(50, 255, 80)
-		else
-			ind.Position = UDim2.new(1, -40, 0.5, 0)
-			ind.BackgroundColor3 = Color3.fromRGB(111, 111, 121)
-			st.Color = Color3.fromRGB(80, 80, 80)
+	local function tw(obj, info, goal)
+		if not obj then return nil end
+		local ok, tween = pcall(function()
+			return TweenService:Create(obj, info, goal)
+		end)
+		if ok and tween then
+			tween:Play()
+			return tween
 		end
+		return nil
+	end
+
+	local function animateRowHover(show)
+		local rowColor = show and hoverRowColor or baseRowColor
+		tw(tgl, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = rowColor
+		})
+	end
+
+	local function applyToggleVisual(state, opts2)
+		opts2 = opts2 or {}
+		local animate = opts2.animate ~= false
+		local pulse = opts2.pulse == true
+
+		if not ind then
+			return
+		end
+
+		local onPos = UDim2.new(1, -20, 0.5, 0)
+		local offPos = UDim2.new(1, -40, 0.5, 0)
+		local toPos = state and onPos or offPos
+		local toColor = state and Color3.fromRGB(60, 200, 80) or Color3.fromRGB(111, 111, 121)
+		local toStroke = state and Color3.fromRGB(50, 255, 80) or Color3.fromRGB(80, 80, 80)
+		local toOuterStroke = state and Color3.fromRGB(84, 208, 102) or Color3.fromRGB(72, 72, 72)
+
+		if animate then
+			animateRowHover(true)
+			if rowStroke then
+				tw(rowStroke, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 1
+				})
+			end
+			tw(ind, TweenInfo.new(state and 0.5 or 0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+				Position = toPos
+			})
+			tw(ind, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = toColor
+			})
+			if st then
+				tw(st, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Color = toStroke
+				})
+			end
+			if swStroke then
+				tw(swStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Color = toOuterStroke
+				})
+			end
+			if pulse then
+				local mini = UDim2.new(0, 12, 0, 12)
+				local resetSize = UDim2.new(0, 17, 0, 17)
+				local down = tw(ind, TweenInfo.new(0.15, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = mini })
+				if down then
+					pcall(function()
+						down.Completed:Connect(function()
+							tw(ind, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = resetSize })
+						end)
+					end)
+				else
+					ind.Size = resetSize
+				end
+			end
+			Delay(0.05, function()
+				animateRowHover(false)
+				if rowStroke then
+					tw(rowStroke, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+						Transparency = 0
+					})
+				end
+			end)
+		else
+			ind.Position = toPos
+			ind.BackgroundColor3 = toColor
+			if st then st.Color = toStroke end
+			if swStroke then swStroke.Color = toOuterStroke end
+		end
+	end
+
+	local function flashToggleError(message)
+		tw(tgl, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(85, 0, 0)
+		})
+		if rowStroke then
+			tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = 1
+			})
+		end
+		local prevTitle = title and title.Text or nil
+		if title then
+			title.Text = "Callback Error"
+		end
+		warn("[NA] Toggle callback error ("..tostring(lbl).."): "..tostring(message))
+		Delay(0.5, function()
+			if not tgl.Parent then
+				return
+			end
+			if title and prevTitle ~= nil then
+				title.Text = prevTitle
+			end
+			tw(tgl, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = baseRowColor
+			})
+			if rowStroke then
+				tw(rowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 0
+				})
+			end
+		end)
 	end
 
 	local function set(v, o)
 		o = o or {}
 		local want = v and true or false
 		if not o.force and on == want then
-			if o.fire then pcall(cb, on) end
+			if o.fire then
+				local ok, err = pcall(cb, on)
+				if not ok then
+					flashToggleError(err)
+				end
+			end
 			return
 		end
 		on = want
-		vupd()
+		applyToggleVisual(on, {
+			animate = o.animate ~= false,
+			pulse = o.pulse == true
+		})
 		if o.fire ~= false then
-			pcall(cb, on)
+			local ok, err = pcall(cb, on)
+			if not ok then
+				flashToggleError(err)
+			end
 		end
 	end
 
-	set(on, { force = true, fire = false })
+	if rowStroke then
+		rowStroke.Transparency = 1
+		tw(rowStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 0 })
+	end
+	if title then
+		title.TextTransparency = 1
+		tw(title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { TextTransparency = 0 })
+	end
+	tgl.BackgroundTransparency = 1
+	tw(tgl, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
 
-	local busy = false
+	set(on, { force = true, fire = false, animate = false, pulse = false })
+
+	NAlib.connect("NAgui_toggle_hover:"..tostring(lbl)..":"..tostring(tgl.LayoutOrder), tgl.MouseEnter:Connect(function()
+		animateRowHover(true)
+	end))
+	NAlib.connect("NAgui_toggle_hover:"..tostring(lbl)..":"..tostring(tgl.LayoutOrder), tgl.MouseLeave:Connect(function()
+		animateRowHover(false)
+	end))
+
 	local function clk()
 		if busy then return end
 		busy = true
-		set(not on, { force = true, fire = true })
+		set(not on, { force = true, fire = true, animate = true, pulse = true })
 		Defer(function()
 			busy = false
 		end)
@@ -59270,6 +59581,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		set = function(v, o)
 			o = o or {}
 			if o.force == nil then o.force = true end
+			if o.animate == nil then o.animate = true end
 			set(v, o)
 		end;
 	}
@@ -59292,6 +59604,7 @@ end
 
 NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	callback = type(callback) == "function" and callback or function() end
 
 	local cfg = opts or {}
 
@@ -59308,6 +59621,12 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local sl = picker.ColorSlider
 	local rgb = picker.RGB
 	local hex = picker.HexInput
+	local rowStroke = picker:FindFirstChild("UIStroke")
+	local title = picker:FindFirstChild("Title")
+	local interact = picker:FindFirstChild("Interact")
+	local baseRowColor = picker.BackgroundColor3
+	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), 0.08)
+	local opened = false
 
 	local rgbTog = picker:FindFirstChild("RGBToggle")
 	local rgbBtn, rgbSw, rgbDot, rgbTit
@@ -59323,6 +59642,70 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 
 	if not (rgbTog and rgbBtn and rgbSw and rgbDot and rgbTit) then
 		rgbTog, rgbBtn, rgbSw, rgbDot, rgbTit = NAgui.MakeSwitchRow(picker, "RGBToggle", "RGB Cycle")
+	end
+
+	if not (interact and interact:IsA("GuiButton")) then
+		interact = InstanceNew("TextButton")
+		interact.Name = "Interact"
+		interact.BackgroundTransparency = 1
+		interact.BorderSizePixel = 0
+		interact.Text = ""
+		interact.AutoButtonColor = false
+		interact.AnchorPoint = Vector2.new(0.5, 0.5)
+		interact.Position = UDim2.new(0.5, 0, 0.5, 0)
+		interact.Size = UDim2.new(1, 0, 1, 0)
+		interact.Parent = picker
+	end
+
+	local function tw(obj, info, goal)
+		if not obj then return nil end
+		local ok, tween = pcall(function()
+			return TweenService:Create(obj, info, goal)
+		end)
+		if ok and tween then
+			tween:Play()
+			return tween
+		end
+		return nil
+	end
+
+	local function flashColorPickerError(message)
+		tw(picker, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(85, 0, 0)
+		})
+		if rowStroke then
+			tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = 1
+			})
+		end
+		local prevTitle = title and title.Text or nil
+		if title then
+			title.Text = "Callback Error"
+		end
+		warn("[NA] ColorPicker callback error ("..tostring(label).."): "..tostring(message))
+		Delay(0.5, function()
+			if not picker.Parent then
+				return
+			end
+			if title and prevTitle ~= nil then
+				title.Text = prevTitle
+			end
+			tw(picker, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = baseRowColor
+			})
+			if rowStroke then
+				tw(rowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 0
+				})
+			end
+		end)
+	end
+
+	local function runColorCallback(col, optPack)
+		local ok, err = pcall(callback, col, optPack)
+		if not ok then
+			flashColorPickerError(err)
+		end
 	end
 
 	local function getSaved()
@@ -59456,6 +59839,122 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		inM, inS = nil, nil
 	end
 
+	local pickerOpenSize = picker.Size
+	local bgOpenSize = bg.Size
+	local bgOpenTr = bg.BackgroundTransparency
+	local dispOpenTr = 1
+	local interactOpenSize = interact.Size
+	local interactOpenPos = interact.Position
+	local bgOpenPos = UDim2.new(1, -15, bg.Position.Y.Scale, bg.Position.Y.Offset)
+	local slOpenPos = UDim2.new(1, -15, sl.Position.Y.Scale, sl.Position.Y.Offset)
+	local rgbOpenPos = rgb.Position
+	local hexOpenPos = hex.Position
+	local mainOpenTr = main.ImageTransparency
+	local pointOpenTr = main.MainPoint.ImageTransparency
+
+	local pickerClosedSize = UDim2.new(pickerOpenSize.X.Scale, pickerOpenSize.X.Offset, pickerOpenSize.Y.Scale, 45)
+	local bgClosedSize = UDim2.new(0, 39, 0, 22)
+	local bgClosedTr = 1
+	local dispClosedTr = disp.BackgroundTransparency
+	local interactClosedSize = UDim2.new(1, 0, 1, 0)
+	local interactClosedPos = UDim2.new(0.5, 0, 0.5, 0)
+	local rgbClosedPos = UDim2.new(rgbOpenPos.X.Scale, rgbOpenPos.X.Offset, rgbOpenPos.Y.Scale, rgbOpenPos.Y.Offset + 30)
+	local hexClosedPos = UDim2.new(hexOpenPos.X.Scale, hexOpenPos.X.Offset, hexOpenPos.Y.Scale, hexOpenPos.Y.Offset + 17)
+	local mainClosedTr = 1
+	local pointClosedTr = 1
+
+	bg.Position = bgOpenPos
+	sl.Position = slOpenPos
+
+	local function animateRowHover(show)
+		tw(picker, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = show and hoverRowColor or baseRowColor
+		})
+	end
+
+	local function setPickerOpen(state, animate)
+		opened = state == true
+		local fast = TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+		local mid = TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+		local bgInfo = TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+		local useAnim = animate ~= false
+
+		local pickerSize = opened and pickerOpenSize or pickerClosedSize
+		local bgSize = opened and bgOpenSize or bgClosedSize
+		local displayTr = opened and dispOpenTr or dispClosedTr
+		local interactSize = opened and interactOpenSize or interactClosedSize
+		local interactPos = opened and interactOpenPos or interactClosedPos
+		local rgbPos = opened and rgbOpenPos or rgbClosedPos
+		local hexPos = opened and hexOpenPos or hexClosedPos
+		local mainTr = opened and mainOpenTr or mainClosedTr
+		local pointTr = opened and pointOpenTr or pointClosedTr
+		local bgTr = opened and bgOpenTr or bgClosedTr
+
+		if useAnim then
+			tw(picker, mid, { Size = pickerSize })
+			tw(bg, bgInfo, { Size = bgSize, BackgroundTransparency = bgTr, Position = bgOpenPos })
+			tw(disp, mid, { BackgroundTransparency = displayTr })
+			tw(interact, mid, { Size = interactSize, Position = interactPos })
+			tw(rgb, mid, { Position = rgbPos })
+			tw(hex, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Position = hexPos })
+			pcall(function()
+				tw(main.MainPoint, fast, { ImageTransparency = pointTr })
+			end)
+			pcall(function()
+				tw(main, fast, { ImageTransparency = mainTr })
+			end)
+		else
+			picker.Size = pickerSize
+			bg.Size = bgSize
+			bg.BackgroundTransparency = bgTr
+			bg.Position = bgOpenPos
+			disp.BackgroundTransparency = displayTr
+			interact.Size = interactSize
+			interact.Position = interactPos
+			sl.Position = slOpenPos
+			rgb.Position = rgbPos
+			hex.Position = hexPos
+			pcall(function() main.MainPoint.ImageTransparency = pointTr end)
+			pcall(function() main.ImageTransparency = mainTr end)
+		end
+	end
+
+	picker.ClipsDescendants = true
+	if rowStroke then
+		rowStroke.Transparency = 1
+		tw(rowStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 0 })
+	end
+	if title then
+		title.TextTransparency = 1
+		tw(title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { TextTransparency = 0 })
+	end
+	picker.BackgroundTransparency = 1
+	tw(picker, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+
+	trackPickerConn(picker.MouseEnter:Connect(function()
+		animateRowHover(true)
+	end))
+	trackPickerConn(picker.MouseLeave:Connect(function()
+		animateRowHover(false)
+	end))
+	trackPickerConn(interact.MouseButton1Click:Connect(function()
+		animateRowHover(true)
+		if rowStroke then
+			tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 1 })
+		end
+		Delay(0.2, function()
+			if picker.Parent then
+				animateRowHover(false)
+				if rowStroke then
+					tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 0 })
+				end
+			end
+		end)
+		setPickerOpen(not opened, true)
+	end))
+
+	setPickerOpen(false, false)
+
 	local rgbOn = false
 	local rgbSpd = 0.1
 
@@ -59535,9 +60034,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		end
 
 		if opt.fire ~= false then
-			pcall(function()
-				callback(col, opt)
-			end)
+			runColorCallback(col, opt)
 		end
 	end
 
@@ -59703,10 +60200,13 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local sHit = hit(sl)
 	pcall(function() main.MainPoint.Interactable = false end)
 	pcall(function() sl.SliderPoint.Interactable = false end)
-	pcall(function() picker.Interact.Interactable = false end)
+	pcall(function() interact.Interactable = true end)
 
 	local function beg(t, input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		if not opened then
 			return
 		end
 		setRGB(false)
@@ -60128,31 +60628,181 @@ NAmanage.StartUIAutoSyncLoop()
 
 NAgui.addKeybind = function(label, defaultKey, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	callback = type(callback) == "function" and callback or function() end
 	local connKey = "NAgui_keybind:"..tostring(label)
 	NAlib.disconnect(connKey)
 	local keybind = templates.Keybind:Clone()
 	keybind.Title.Text = label
 	NAmanage.SetSearch.tag(keybind, label)
-	keybind.KeybindFrame.KeybindBox.Text = defaultKey
-	local boundKeyCode = Enum.KeyCode[defaultKey] or Enum.KeyCode.Unknown
+	local frame = keybind.KeybindFrame
+	local box = frame and frame.KeybindBox
+	local rowStroke = keybind:FindFirstChild("UIStroke")
+	local frameStroke = frame and frame:FindFirstChildWhichIsA("UIStroke")
+	local title = keybind:FindFirstChild("Title")
+	local defaultKeyText = tostring(defaultKey or "Unknown")
+	if defaultKeyText == "" then
+		defaultKeyText = "Unknown"
+	end
+
+	local function resolveKeyCode(text)
+		if type(text) ~= "string" then
+			return Enum.KeyCode.Unknown, nil
+		end
+		local clean = text:match("^%s*(.-)%s*$")
+		if not clean or clean == "" then
+			return Enum.KeyCode.Unknown, nil
+		end
+		local direct = Enum.KeyCode[clean]
+		if direct and direct ~= Enum.KeyCode.Unknown then
+			return direct, direct.Name
+		end
+		local lower = Lower(clean)
+		for _, enumKey in ipairs(Enum.KeyCode:GetEnumItems()) do
+			if Lower(enumKey.Name) == lower then
+				return enumKey, enumKey.Name
+			end
+		end
+		return Enum.KeyCode.Unknown, clean
+	end
+
+	local defaultKeyCode, defaultDisplay = resolveKeyCode(defaultKeyText)
+	if defaultDisplay and defaultDisplay ~= "" then
+		defaultKeyText = defaultDisplay
+	end
+	local boundKeyCode = defaultKeyCode
+	box.Text = defaultKeyText
 
 	keybind.LayoutOrder = NAgui._nextLayoutOrder()
 	keybind.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(keybind)
 
 	local capturing = false
+	local baseRowColor = keybind.BackgroundColor3
+	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), 0.08)
+	local baseFrameColor = frame and frame.BackgroundColor3 or Color3.fromRGB(45, 45, 50)
+	local focusFrameColor = baseFrameColor:Lerp(Color3.new(1, 1, 1), 0.1)
+	local baseFrameStrokeColor = frameStroke and frameStroke.Color or Color3.fromRGB(72, 72, 72)
+	local focusFrameStrokeColor = Color3.fromRGB(155, 100, 255)
 
-	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
-		capturing = true
-		keybind.KeybindFrame.KeybindBox.Text = ""
+	local function tw(obj, info, goal)
+		if not obj then return nil end
+		local ok, tween = pcall(function()
+			return TweenService:Create(obj, info, goal)
+		end)
+		if ok and tween then
+			tween:Play()
+			return tween
+		end
+		return nil
+	end
+
+	local function flashKeybindError(message)
+		tw(keybind, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(85, 0, 0)
+		})
+		if rowStroke then
+			tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = 1
+			})
+		end
+		local prevTitle = title and title.Text or nil
+		if title then
+			title.Text = "Callback Error"
+		end
+		warn("[NA] Keybind callback error ("..tostring(label).."): "..tostring(message))
+		Delay(0.5, function()
+			if not keybind.Parent then
+				return
+			end
+			if title and prevTitle ~= nil then
+				title.Text = prevTitle
+			end
+			tw(keybind, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = baseRowColor
+			})
+			if rowStroke then
+				tw(rowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 0
+				})
+			end
+		end)
+	end
+
+	local function runCallback(...)
+		local ok, err = pcall(callback, ...)
+		if not ok then
+			flashKeybindError(err)
+		end
+	end
+
+	local function setFrameFocused(focused)
+		if frame then
+			tw(frame, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = focused and focusFrameColor or baseFrameColor
+			})
+		end
+		if frameStroke then
+			tw(frameStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Color = focused and focusFrameStrokeColor or baseFrameStrokeColor
+			})
+		end
+	end
+
+	local function tweenFrameWidth()
+		if not (frame and box) then
+			return
+		end
+		local width = box.TextBounds.X + 24
+		if width < 24 then
+			width = 24
+		end
+		tw(frame, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, width, 0, 30)
+		})
+	end
+
+	if rowStroke then
+		rowStroke.Transparency = 1
+		tw(rowStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 0 })
+	end
+	if title then
+		title.TextTransparency = 1
+		tw(title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { TextTransparency = 0 })
+	end
+	keybind.BackgroundTransparency = 1
+	tw(keybind, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+	tweenFrameWidth()
+
+	NAlib.connect(connKey, keybind.MouseEnter:Connect(function()
+		tw(keybind, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = hoverRowColor
+		})
+	end))
+	NAlib.connect(connKey, keybind.MouseLeave:Connect(function()
+		tw(keybind, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = baseRowColor
+		})
 	end))
 
-	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
+	NAlib.connect(connKey, box.Focused:Connect(function()
+		capturing = true
+		box.Text = ""
+		setFrameFocused(true)
+	end))
+
+	NAlib.connect(connKey, box.FocusLost:Connect(function()
 		capturing = false
-		if keybind.KeybindFrame.KeybindBox.Text == "" then
-			keybind.KeybindFrame.KeybindBox.Text = defaultKey
+		local typed = box.Text
+		if typed == nil or typed == "" then
+			box.Text = defaultKeyText
 		end
-		boundKeyCode = Enum.KeyCode[keybind.KeybindFrame.KeybindBox.Text] or Enum.KeyCode.Unknown
+		local code, normalized = resolveKeyCode(box.Text)
+		if normalized and normalized ~= "" then
+			box.Text = normalized
+		end
+		boundKeyCode = code
+		setFrameFocused(false)
+		tweenFrameWidth()
 	end))
 
 	NAlib.connect(connKey, UserInputService.InputBegan:Connect(function(input, processed)
@@ -60165,25 +60815,27 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		end
 		if capturing and input.KeyCode ~= Enum.KeyCode.Unknown then
 			local keyName = keyCode.Name
-			keybind.KeybindFrame.KeybindBox:ReleaseFocus()
-			keybind.KeybindFrame.KeybindBox.Text = keyName
+			box:ReleaseFocus()
+			box.Text = keyName
 			boundKeyCode = keyCode
 			capturing = false
-			pcall(callback, keyName)
+			setFrameFocused(false)
+			runCallback(keyName)
 		elseif not capturing and boundKeyCode ~= Enum.KeyCode.Unknown and not processed and keyCode == boundKeyCode then
-			pcall(callback)
+			setFrameFocused(true)
+			Delay(0.1, function()
+				if keybind.Parent then
+					setFrameFocused(false)
+				end
+			end)
+			runCallback()
 		end
 	end))
 
-	NAlib.connect(connKey, keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
-		boundKeyCode = Enum.KeyCode[keybind.KeybindFrame.KeybindBox.Text] or Enum.KeyCode.Unknown
-		keybind.KeybindFrame:TweenSize(
-			UDim2.new(0, keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30),
-			Enum.EasingDirection.Out,
-			Enum.EasingStyle.Exponential,
-			0.2,
-			true
-		)
+	NAlib.connect(connKey, box:GetPropertyChangedSignal("Text"):Connect(function()
+		local code = resolveKeyCode(box.Text)
+		boundKeyCode = code
+		tweenFrameWidth()
 	end))
 
 	NAlib.connect(connKey, keybind:GetPropertyChangedSignal("Parent"):Connect(function()
@@ -60191,10 +60843,13 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			NAlib.disconnect(connKey)
 		end
 	end))
+
+	return keybind
 end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	callback = type(callback) == "function" and callback or function() end
 	NAgui._sliderConnCounter = (NAgui._sliderConnCounter or 0) + 1
 	local connKey = "NAgui_slider:"..tostring(label)..":"..tostring(NAgui._sliderConnCounter)
 	local slider = templates.Slider:Clone()
@@ -60208,6 +60863,10 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local interact = slider.Main.Interact
 	local progress = slider.Main.Progress
 	local infoText = slider.Main.Information
+	local rowStroke = slider:FindFirstChild("UIStroke")
+	local title = slider:FindFirstChild("Title")
+	local mainStroke = slider.Main and slider.Main:FindFirstChildWhichIsA("UIStroke")
+	local progressStroke = progress and progress:FindFirstChildWhichIsA("UIStroke")
 
 	local dragging = false
 	local currentValue = defaultValue
@@ -60217,6 +60876,61 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local dragInputEndedConn
 	local dragStepConn
 	local pendingPointerX
+	local baseRowColor = slider.BackgroundColor3
+	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), 0.08)
+	local mainStrokeIdleTransparency = (mainStroke and typeof(mainStroke.Transparency) == "number") and mainStroke.Transparency or 0.4
+	local progressStrokeIdleTransparency = (progressStroke and typeof(progressStroke.Transparency) == "number") and progressStroke.Transparency or 0.3
+
+	local function tw(obj, info, goal)
+		if not obj then return nil end
+		local ok, tween = pcall(function()
+			return TweenService:Create(obj, info, goal)
+		end)
+		if ok and tween then
+			tween:Play()
+			return tween
+		end
+		return nil
+	end
+
+	local function flashSliderError(message)
+		tw(slider, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = Color3.fromRGB(85, 0, 0)
+		})
+		if rowStroke then
+			tw(rowStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = 1
+			})
+		end
+		local prevTitle = title and title.Text or nil
+		if title then
+			title.Text = "Callback Error"
+		end
+		warn("[NA] Slider callback error ("..tostring(label).."): "..tostring(message))
+		Delay(0.5, function()
+			if not slider.Parent then
+				return
+			end
+			if title and prevTitle ~= nil then
+				title.Text = prevTitle
+			end
+			tw(slider, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				BackgroundColor3 = baseRowColor
+			})
+			if rowStroke then
+				tw(rowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 0
+				})
+			end
+		end)
+	end
+
+	local function runCallback(value)
+		local ok, err = pcall(callback, value)
+		if not ok then
+			flashSliderError(err)
+		end
+	end
 
 	local function quantize(value)
 		if step == 0 then
@@ -60230,15 +60944,33 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		return quantized
 	end
 
+	local function progressGoalForPercent(percent)
+		percent = math.clamp(percent or 0, 0, 1)
+		local width = interact and interact.AbsoluteSize.X or 0
+		if width > 0 then
+			local pixel = math.max(5, width * percent)
+			return UDim2.new(0, pixel, 1, 0)
+		end
+		return UDim2.new(percent, 0, 1, 0)
+	end
+
 	local function applyValue(value, opts)
 		opts = opts or {}
 		local quantized = quantize(value)
+		local changed = currentValue ~= quantized
 		currentValue = quantized
 		local percent = (range ~= 0) and ((quantized - min) / range) or 0
-		progress.Size = UDim2.new(percent, 0, 1, 0)
+		local goalSize = progressGoalForPercent(percent)
+		if opts.animate == false then
+			progress.Size = goalSize
+		else
+			tw(progress, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Size = goalSize
+			})
+		end
 		infoText.Text = Format("%.14g", quantized)..(suffix or "")
-		if opts.fire ~= false then
-			pcall(callback, quantized)
+		if opts.fire ~= false and (changed or opts.forceFire == true) then
+			runCallback(quantized)
 		end
 	end
 
@@ -60268,6 +61000,16 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local function stopDrag()
 		dragging = false
 		disconnectDragListeners()
+		if mainStroke then
+			tw(mainStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = mainStrokeIdleTransparency
+			})
+		end
+		if progressStroke then
+			tw(progressStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Transparency = progressStrokeIdleTransparency
+			})
+		end
 	end
 
 	local function ensureDragListeners()
@@ -60300,6 +61042,16 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	NAlib.connect(connKey, interact.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
+			if mainStroke then
+				tw(mainStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 1
+				})
+			end
+			if progressStroke then
+				tw(progressStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					Transparency = 1
+				})
+			end
 			ensureDragListeners()
 			pcall(function()
 				updateSliderValueFromPos(input.Position.X)
@@ -60313,14 +61065,40 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		end
 	end))
 
-	applyValue(defaultValue, { fire = false })
+	NAlib.connect(connKey, slider.MouseEnter:Connect(function()
+		tw(slider, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = hoverRowColor
+		})
+	end))
+	NAlib.connect(connKey, slider.MouseLeave:Connect(function()
+		tw(slider, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			BackgroundColor3 = baseRowColor
+		})
+	end))
+
+	if rowStroke then
+		rowStroke.Transparency = 1
+		tw(rowStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Transparency = 0 })
+	end
+	if title then
+		title.TextTransparency = 1
+		tw(title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { TextTransparency = 0 })
+	end
+	slider.BackgroundTransparency = 1
+	tw(slider, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { BackgroundTransparency = 0 })
+
+	applyValue(defaultValue, { fire = false, animate = false })
 
 	local entry = {
 		get = function()
 			return currentValue
 		end;
 		set = function(value, opts)
-			applyValue(value, opts or {})
+			opts = opts or {}
+			if opts.animate == nil then
+				opts.animate = true
+			end
+			applyValue(value, opts)
 		end;
 	}
 	NAgui._sliderRegistry[label] = entry
@@ -60342,6 +61120,469 @@ NAgui.setSliderValue = function(label, value, opts)
 	local entry = NAgui._sliderRegistry and NAgui._sliderRegistry[label]
 	if not entry then return end
 	entry.set(value, opts or { fire = false })
+end
+
+NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
+	if not NAUIMANAGER.SettingsList then return end
+	if not (templates and templates.Dropdown) then return end
+
+	local DropdownSettings
+	if type(label) == "table" and values == nil then
+		DropdownSettings = label
+	else
+		opts = opts or {}
+		if type(defaultValue) == "function" and callback == nil then
+			callback = defaultValue
+			defaultValue = nil
+		end
+		DropdownSettings = {
+			Name = tostring(label or "Dropdown"),
+			Options = values,
+			CurrentOption = defaultValue,
+			MultipleOptions = opts.MultipleOptions == true or opts.multipleOptions == true,
+			Callback = callback,
+			Ext = opts.Ext,
+			Flag = opts.Flag,
+		}
+	end
+
+	DropdownSettings = DropdownSettings or {}
+	DropdownSettings.Name = tostring(DropdownSettings.Name or label or "Dropdown")
+	DropdownSettings.Options = DropdownSettings.Options or {}
+	DropdownSettings.Callback = type(DropdownSettings.Callback) == "function" and DropdownSettings.Callback or function() end
+	DropdownSettings.MultipleOptions = DropdownSettings.MultipleOptions == true
+	NAgui._dropdownConnCounter = (NAgui._dropdownConnCounter or 0) + 1
+	local connKey = "NAgui_dropdown:"..DropdownSettings.Name..":"..tostring(NAgui._dropdownConnCounter)
+
+	local function normalizeOptions(raw)
+		local out = {}
+		if type(raw) ~= "table" then
+			return out
+		end
+		local n = #raw
+		if n > 0 then
+			for i = 1, n do
+				out[#out + 1] = tostring(raw[i])
+			end
+		else
+			for _, v in pairs(raw) do
+				out[#out + 1] = tostring(v)
+			end
+		end
+		return out
+	end
+
+	DropdownSettings.Options = normalizeOptions(DropdownSettings.Options)
+
+	local dropdown = templates.Dropdown:Clone()
+	if string.find(DropdownSettings.Name, "closed") then
+		dropdown.Name = "Dropdown"
+	else
+		dropdown.Name = DropdownSettings.Name
+	end
+	dropdown.Visible = true
+	dropdown.ClipsDescendants = true
+	dropdown.Parent = NAUIMANAGER.SettingsList
+	dropdown.LayoutOrder = NAgui._nextLayoutOrder()
+	NAmanage.registerElementForCurrentTab(dropdown)
+	NAmanage.SetSearch.tag(dropdown, DropdownSettings.Name)
+	if NAgui.RegisterStrokesFrom then
+		NAgui.RegisterStrokesFrom(dropdown)
+	end
+
+	local title = dropdown:FindFirstChild("Title")
+	local selected = dropdown:FindFirstChild("Selected")
+	local toggle = dropdown:FindFirstChild("Toggle")
+	local interact = dropdown:FindFirstChild("Interact")
+	local list = dropdown:FindFirstChild("List")
+	local listLayout = list and list:FindFirstChildWhichIsA("UIListLayout")
+	local optionTemplate = list and list:FindFirstChild("Template")
+	local uiStroke = dropdown:FindFirstChild("UIStroke")
+
+	if title and title:IsA("TextLabel") then
+		title.Text = DropdownSettings.Name
+	end
+
+	if not (interact and interact:IsA("GuiButton")) then
+		interact = InstanceNew("TextButton")
+		interact.Name = "Interact"
+		interact.BackgroundTransparency = 1
+		interact.Text = ""
+		interact.AutoButtonColor = false
+		interact.Parent = dropdown
+	end
+
+	if not (list and list:IsA("ScrollingFrame")) then
+		list = InstanceNew("ScrollingFrame")
+		list.Name = "List"
+		list.BackgroundTransparency = 1
+		list.BorderSizePixel = 0
+		list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		list.ScrollBarThickness = 3
+		list.Parent = dropdown
+	end
+
+	if not listLayout then
+		listLayout = InstanceNew("UIListLayout")
+		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		listLayout.Padding = UDim.new(0, 5)
+		listLayout.Parent = list
+	end
+
+	local collapsedHeight = tonumber((opts and opts.CollapsedHeight) or (opts and opts.collapsedHeight)) or 45
+	local openHeight = tonumber((opts and opts.OpenHeight) or (opts and opts.openHeight)) or 180
+	collapsedHeight = math.max(36, math.floor(collapsedHeight + 0.5))
+	openHeight = math.max(collapsedHeight + 20, math.floor(openHeight + 0.5))
+
+	list.Visible = false
+	list.Position = UDim2.new(0, 5, 0, 38)
+	list.Size = UDim2.new(1, -10, 1, -42)
+	list.ScrollBarImageTransparency = 1
+	dropdown.Size = UDim2.new(1, -10, 0, collapsedHeight)
+	interact.AnchorPoint = Vector2.new(0, 0)
+	interact.Position = UDim2.new(0, 0, 0, 0)
+	interact.Size = UDim2.new(1, 0, 0, collapsedHeight)
+
+	local selectedColor = (opts and (opts.DropdownSelected or opts.selectedColor)) or Color3.fromRGB(40, 40, 40)
+	local unselectedColor = (opts and (opts.DropdownUnselected or opts.unselectedColor)) or Color3.fromRGB(30, 30, 30)
+	local hoverColor = (opts and (opts.HoverColor or opts.hoverColor)) or Color3.fromRGB(55, 55, 60)
+	local baseColor = dropdown.BackgroundColor3
+	local busy = false
+
+	if DropdownSettings.CurrentOption then
+		if type(DropdownSettings.CurrentOption) == "string" then
+			DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+		end
+		if not DropdownSettings.MultipleOptions and type(DropdownSettings.CurrentOption) == "table" then
+			DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+		end
+	else
+		DropdownSettings.CurrentOption = {}
+	end
+
+	local function updateSelectedText()
+		if not (selected and selected:IsA("TextLabel")) then
+			return
+		end
+		if DropdownSettings.MultipleOptions then
+			if #DropdownSettings.CurrentOption == 1 then
+				selected.Text = tostring(DropdownSettings.CurrentOption[1])
+			elseif #DropdownSettings.CurrentOption == 0 then
+				selected.Text = "None"
+			else
+				selected.Text = "Various"
+			end
+		else
+			selected.Text = tostring(DropdownSettings.CurrentOption[1] or "None")
+		end
+	end
+
+	local function eachOptionRow(fn)
+		for _, child in ipairs(list:GetChildren()) do
+			if child:IsA("Frame") and child.Name ~= "Placeholder" and child.Name ~= "Template" then
+				fn(child)
+			end
+		end
+	end
+
+	local function applySelectionColors()
+		eachOptionRow(function(row)
+			local on = table.find(DropdownSettings.CurrentOption, row.Name) ~= nil
+			row.BackgroundColor3 = on and selectedColor or unselectedColor
+			local rowStroke = row:FindFirstChild("UIStroke")
+			if rowStroke and rowStroke:IsA("UIStroke") then
+				rowStroke.Transparency = on and 1 or 0
+			end
+		end)
+	end
+
+	local function openDropdown()
+		if busy then return end
+		busy = true
+		list.Visible = true
+		TweenService:Create(dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, openHeight)}):Play()
+		TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 0.7}):Play()
+		if toggle then
+			TweenService:Create(toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 0}):Play()
+		end
+		eachOptionRow(function(row)
+			local rowStroke = row:FindFirstChild("UIStroke")
+			local rowTitle = row:FindFirstChild("Title")
+			if rowStroke and rowStroke:IsA("UIStroke") then
+				if not table.find(DropdownSettings.CurrentOption, row.Name) then
+					TweenService:Create(rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				end
+			end
+			TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			if rowTitle and rowTitle:IsA("TextLabel") then
+				TweenService:Create(rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			end
+		end)
+		task.wait(0.05)
+		busy = false
+	end
+
+	local function closeDropdown()
+		if busy then return end
+		busy = true
+		TweenService:Create(dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, collapsedHeight)}):Play()
+		eachOptionRow(function(row)
+			local rowStroke = row:FindFirstChild("UIStroke")
+			local rowTitle = row:FindFirstChild("Title")
+			TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+			if rowStroke and rowStroke:IsA("UIStroke") then
+				TweenService:Create(rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			end
+			if rowTitle and rowTitle:IsA("TextLabel") then
+				TweenService:Create(rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+			end
+		end)
+		TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
+		if toggle then
+			TweenService:Create(toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()
+		end
+		task.wait(0.35)
+		list.Visible = false
+		busy = false
+	end
+
+	local function toggleDropdown()
+		TweenService:Create(dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
+		if uiStroke and uiStroke:IsA("UIStroke") then
+			TweenService:Create(uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+		end
+		task.wait(0.08)
+		TweenService:Create(dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+		if uiStroke and uiStroke:IsA("UIStroke") then
+			TweenService:Create(uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+		end
+		if list.Visible then
+			closeDropdown()
+		else
+			openDropdown()
+		end
+	end
+
+	local function clearOptionRows()
+		eachOptionRow(function(row)
+			row:Destroy()
+		end)
+	end
+
+	local function makeFallbackTemplate()
+		local row = InstanceNew("Frame")
+		row.Size = UDim2.new(1, -8, 0, 32)
+		row.BackgroundColor3 = unselectedColor
+		row.BorderSizePixel = 0
+		local c = InstanceNew("UICorner")
+		c.CornerRadius = UDim.new(0, 6)
+		c.Parent = row
+		local st = InstanceNew("UIStroke")
+		st.Color = Color3.fromRGB(70, 70, 70)
+		st.Parent = row
+		local txt = InstanceNew("TextLabel")
+		txt.Name = "Title"
+		txt.AnchorPoint = Vector2.new(0, 0.5)
+		txt.Position = UDim2.new(0, 10, 0.5, 0)
+		txt.Size = UDim2.new(1, -20, 0, 14)
+		txt.BackgroundTransparency = 1
+		txt.TextXAlignment = Enum.TextXAlignment.Left
+		txt.TextScaled = true
+		txt.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		txt.TextColor3 = Color3.fromRGB(245, 245, 250)
+		txt.Parent = row
+		local btn = InstanceNew("TextButton")
+		btn.Name = "Interact"
+		btn.BackgroundTransparency = 1
+		btn.Text = ""
+		btn.Size = UDim2.new(1, 0, 1, 0)
+		btn.ZIndex = 50
+		btn.Parent = row
+		return row
+	end
+
+	local function fireCallback(payload)
+		local ok, err = pcall(function()
+			DropdownSettings.Callback(payload)
+		end)
+		if not ok then
+			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+			if uiStroke and uiStroke:IsA("UIStroke") then
+				TweenService:Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			end
+			if title and title:IsA("TextLabel") then
+				title.Text = "Callback Error"
+			end
+			warn("[NA] Dropdown callback error:", err)
+			task.wait(0.4)
+			if title and title:IsA("TextLabel") then
+				title.Text = DropdownSettings.Name
+			end
+			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+			if uiStroke and uiStroke:IsA("UIStroke") then
+				TweenService:Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			end
+		end
+	end
+
+	local function setDropdownOptions()
+		clearOptionRows()
+		local templateRow = optionTemplate
+		if templateRow and templateRow:IsA("GuiObject") then
+			templateRow.Visible = false
+		end
+		for _, option in ipairs(DropdownSettings.Options) do
+			local optionText = tostring(option)
+			local row = (templateRow and templateRow:Clone()) or makeFallbackTemplate()
+			row.Name = optionText
+			row.Visible = true
+			row.Parent = list
+			local rowTitle = row:FindFirstChild("Title")
+			local rowInteract = row:FindFirstChild("Interact")
+			local rowStroke = row:FindFirstChild("UIStroke")
+			if rowTitle and rowTitle:IsA("TextLabel") then
+				rowTitle.Text = optionText
+				rowTitle.TextTransparency = 1
+			end
+			if rowStroke and rowStroke:IsA("UIStroke") then
+				rowStroke.Transparency = 1
+			end
+			row.BackgroundTransparency = 1
+
+			if not (rowInteract and rowInteract:IsA("GuiButton")) then
+				rowInteract = InstanceNew("TextButton")
+				rowInteract.Name = "Interact"
+				rowInteract.BackgroundTransparency = 1
+				rowInteract.Text = ""
+				rowInteract.Size = UDim2.new(1, 0, 1, 0)
+				rowInteract.Parent = row
+			end
+			rowInteract.ZIndex = 50
+
+			MouseButtonFix(rowInteract, function()
+				if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, optionText) then
+					return
+				end
+
+				local idx = table.find(DropdownSettings.CurrentOption, optionText)
+				if idx then
+					table.remove(DropdownSettings.CurrentOption, idx)
+				else
+					if not DropdownSettings.MultipleOptions then
+						table.clear(DropdownSettings.CurrentOption)
+					end
+					table.insert(DropdownSettings.CurrentOption, optionText)
+				end
+
+				updateSelectedText()
+				applySelectionColors()
+				fireCallback(DropdownSettings.CurrentOption)
+
+				if not DropdownSettings.MultipleOptions and list.Visible then
+					task.wait(0.1)
+					closeDropdown()
+				end
+			end)
+		end
+		applySelectionColors()
+	end
+
+	updateSelectedText()
+	setDropdownOptions()
+	if toggle and toggle:IsA("GuiObject") then
+		toggle.Rotation = 180
+	end
+
+	MouseButtonFix(interact, toggleDropdown)
+	if toggle and toggle:IsA("GuiButton") then
+		MouseButtonFix(toggle, toggleDropdown)
+	end
+
+	NAlib.connect(connKey, dropdown.MouseEnter:Connect(function()
+		if not list.Visible then
+			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
+		end
+	end))
+	NAlib.connect(connKey, dropdown.MouseLeave:Connect(function()
+		TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+	end))
+
+	function DropdownSettings:Set(NewOption)
+		DropdownSettings.CurrentOption = NewOption
+		if typeof(DropdownSettings.CurrentOption) == "string" then
+			DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+		end
+		if type(DropdownSettings.CurrentOption) ~= "table" then
+			DropdownSettings.CurrentOption = {}
+		end
+		if not DropdownSettings.MultipleOptions then
+			DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+		end
+		updateSelectedText()
+		applySelectionColors()
+		fireCallback(NewOption)
+	end
+
+	function DropdownSettings:Refresh(optionsTable)
+		DropdownSettings.Options = normalizeOptions(optionsTable)
+		for i = #DropdownSettings.CurrentOption, 1, -1 do
+			local val = DropdownSettings.CurrentOption[i]
+			if not table.find(DropdownSettings.Options, val) then
+				table.remove(DropdownSettings.CurrentOption, i)
+			end
+		end
+		updateSelectedText()
+		setDropdownOptions()
+	end
+
+	DropdownSettings.Instance = dropdown
+
+	local regKey = DropdownSettings.Name
+	local entry = {
+		get = function()
+			return DropdownSettings.CurrentOption
+		end;
+		set = function(value, setOpts)
+			setOpts = setOpts or {}
+			if setOpts.fire == false then
+				local prev = DropdownSettings.Callback
+				DropdownSettings.Callback = function() end
+				DropdownSettings:Set(value)
+				DropdownSettings.Callback = prev
+				return
+			end
+			DropdownSettings:Set(value)
+		end;
+		setOptions = function(newOptions)
+			DropdownSettings:Refresh(newOptions)
+		end;
+		api = DropdownSettings;
+	}
+	NAgui._dropdownRegistry[regKey] = entry
+
+	NAlib.connect(connKey, dropdown:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not dropdown.Parent and NAgui._dropdownRegistry[regKey] == entry then
+			NAgui._dropdownRegistry[regKey] = nil
+			Defer(function()
+				NAlib.disconnect(connKey)
+			end)
+		end
+	end))
+
+	return DropdownSettings
+end
+
+NAgui.setDropdownValue = function(label, value, opts)
+	local entry = NAgui._dropdownRegistry and NAgui._dropdownRegistry[label]
+	if not entry then return end
+	entry.set(value, opts or { fire = false, context = "set" })
+end
+
+NAgui.setDropdownOptions = function(label, options, opts)
+	local entry = NAgui._dropdownRegistry and NAgui._dropdownRegistry[label]
+	if not entry then return end
+	entry.setOptions(options, opts or {})
 end
 
 NAmanage.Topbar_PlayTween=function(key,instance,info,props)
@@ -69978,6 +71219,28 @@ NAFFlags.refreshCustomListDisplay = function()
 	if countInfo then
 		countInfo.Text = Format("Saved Custom Flags (%d)", count)
 	end
+	local customFlagDropdownLabel = NAStuff and NAStuff.customFlagDropdownLabel
+	if customFlagDropdownLabel and NAgui then
+		local options = {}
+		local selectedName = "None"
+		if count > 0 then
+			for i = 1, count do
+				options[i] = names[i]
+			end
+			local idx = tonumber(NAStuff and NAStuff.customFlagIndex) or 1
+			if idx < 1 then idx = 1 end
+			if idx > count then idx = count end
+			selectedName = names[idx] or names[1]
+		else
+			options = { "None" }
+		end
+		if NAgui.setDropdownOptions then
+			NAgui.setDropdownOptions(customFlagDropdownLabel, options)
+		end
+		if NAgui.setDropdownValue then
+			NAgui.setDropdownValue(customFlagDropdownLabel, selectedName, { fire = false })
+		end
+	end
 	NAFFlags.updateSelectedDisplay()
 end
 
@@ -70315,6 +71578,27 @@ NAgui.addInput("Custom Flag Value", "Enter fast flag value", NAStuff.customFFlag
 end)
 NAStuff.customFlagCountInfo = NAStuff.customFlagCountInfo or NAgui.addInfo("Saved Custom Flags", "Saved Custom Flags (0)")
 NAStuff.customFlagSelectedInfo = NAStuff.customFlagSelectedInfo or NAgui.addInfo("Selected Custom Flag", "Selected Custom Flag: None")
+NAStuff.customFlagDropdownLabel = NAStuff.customFlagDropdownLabel or "Select Custom Flag"
+NAgui.addDropdown(NAStuff.customFlagDropdownLabel, { "None" }, "None", function(selection)
+	local selectedName = selection
+	if type(selectedName) == "table" then
+		selectedName = selectedName[1]
+	end
+	selectedName = NAmanage.trimCustomFlagText(selectedName)
+	if selectedName == "" or Lower(selectedName) == "none" then
+		return
+	end
+	local names = NAFFlags.getSortedCustomNames()
+	for idx, name in ipairs(names) do
+		if name == selectedName then
+			NAStuff.customFlagIndex = idx
+			break
+		end
+	end
+	NAStuff.customFlagNames = names
+	NAFFlags.setCustomInputFields(selectedName)
+	NAFFlags.updateSelectedDisplay()
+end)
 NAFFlags.refreshCustomListDisplay()
 
 NAgui.addButton("Add / Update Custom Flag", function()
@@ -70377,14 +71661,6 @@ NAgui.addButton("Remove Custom Flag", function()
 	else
 		DoNotif(tostring(err or "Failed to remove custom fast flag"), 3)
 	end
-end)
-
-NAgui.addButton("Previous Custom Flag", function()
-	NAFFlags.cycleCustomFlag(-1)
-end)
-
-NAgui.addButton("Next Custom Flag", function()
-	NAFFlags.cycleCustomFlag(1)
 end)
 
 NAgui.addSection("Individual Flags")
@@ -71783,6 +73059,10 @@ originalIO.UserBtnEditor=function()
 	end)
 
 	local selectionInfo
+	local buttonDropdownLabel = "Select Button"
+	local childDropdownLabel = "Select Child"
+	local refreshButtonDropdown
+	local refreshChildDropdown
 
 	local function cData()
 		if type(editorState.currentId) ~= "number" then
@@ -71814,6 +73094,9 @@ originalIO.UserBtnEditor=function()
 				NAgui.setColorPickerValue("Child Background", Color3.fromRGB(0,0,0), { fire = false })
 				NAgui.setColorPickerValue("Child Text", Color3.fromRGB(255,255,255), { fire = false })
 			end
+			if refreshChildDropdown then
+				refreshChildDropdown()
+			end
 			return
 		end
 		local bg = NAmanage.UserButtonColorFromTable(ch.BgColor, Color3.fromRGB(0,0,0))
@@ -71828,6 +73111,9 @@ originalIO.UserBtnEditor=function()
 		if NAgui and NAgui.setColorPickerValue then
 			NAgui.setColorPickerValue("Child Background", bg, { fire = false })
 			NAgui.setColorPickerValue("Child Text", tc, { fire = false })
+		end
+		if refreshChildDropdown then
+			refreshChildDropdown()
 		end
 	end
 
@@ -71844,6 +73130,9 @@ originalIO.UserBtnEditor=function()
 				NAgui.setInputValue("UserButton Label", "", { force = true, fire = false })
 			end
 			cSync()
+			if refreshButtonDropdown then
+				refreshButtonDropdown()
+			end
 			return
 		end
 
@@ -71867,6 +73156,9 @@ originalIO.UserBtnEditor=function()
 		end
 
 		selectionInfo.Text = ("Selected: [%d] %s%s"):format(id, label, groupSuffix)
+		if refreshButtonDropdown then
+			refreshButtonDropdown()
+		end
 
 		if editorState.editAll then
 			if NAgui and NAgui.setInputValue then
@@ -71949,6 +73241,87 @@ originalIO.UserBtnEditor=function()
 		cSync()
 	end
 
+	local function getDropdownText(selection)
+		local value = selection
+		if type(value) == "table" then
+			value = value[1]
+		end
+		if type(value) ~= "string" then
+			return nil
+		end
+		value = value:match("^%s*(.-)%s*$")
+		if value == "" then
+			return nil
+		end
+		return value
+	end
+
+	refreshButtonDropdown = function()
+		local ids = collectAllIds()
+		local options = {}
+		local selected = "None"
+		local currentId = type(editorState.currentId) == "number" and editorState.currentId or nil
+		for i, id in ipairs(ids) do
+			local data = NAUserButtons[id]
+			local label = (type(data) == "table" and type(data.Label) == "string" and data.Label ~= "") and data.Label or ("Button "..tostring(id))
+			local groupSuffix = ""
+			if type(data) == "table" and data.Type == "group" then
+				local count = (type(data.Children) == "table") and #data.Children or 0
+				groupSuffix = (" (group: %d)"):format(count)
+			end
+			local option = ("[%d] %s%s"):format(id, label, groupSuffix)
+			Insert(options, option)
+			if currentId == id then
+				selected = option
+				editorState.currentIndex = i
+			end
+		end
+		if #options == 0 then
+			options = { "None" }
+			selected = "None"
+		elseif selected == "None" then
+			local idx = editorState.currentIndex
+			if idx < 1 or idx > #options then
+				idx = 1
+			end
+			selected = options[idx]
+		end
+		if NAgui and NAgui.setDropdownOptions then
+			NAgui.setDropdownOptions(buttonDropdownLabel, options)
+		end
+		if NAgui and NAgui.setDropdownValue then
+			NAgui.setDropdownValue(buttonDropdownLabel, selected, { fire = false })
+		end
+	end
+
+	refreshChildDropdown = function()
+		local g, list, idx = cData()
+		local options = {}
+		local selected = "None"
+		if g and list and #list > 0 then
+			for i, child in ipairs(list) do
+				local label = (type(child) == "table" and type(child.Label) == "string" and child.Label ~= "") and child.Label or ("Action "..tostring(i))
+				local option = ("[%d] %s"):format(i, label)
+				Insert(options, option)
+				if i == idx then
+					selected = option
+				end
+			end
+		end
+		if #options == 0 then
+			options = { "None" }
+			selected = "None"
+		elseif selected == "None" then
+			selected = options[1]
+		end
+		if NAgui and NAgui.setDropdownOptions then
+			NAgui.setDropdownOptions(childDropdownLabel, options)
+		end
+		if NAgui and NAgui.setDropdownValue then
+			NAgui.setDropdownValue(childDropdownLabel, selected, { fire = false })
+		end
+	end
+
 	local function getChildPickerColor(label, fallback)
 		local reg = NAgui and NAgui._colorPickerRegistry
 		local entry = reg and reg[label]
@@ -71999,15 +73372,32 @@ originalIO.UserBtnEditor=function()
 	end)
 
 	selectionInfo = NAgui.addInfo("Selected Button", "Selected: None")
+	NAgui.addDropdown(buttonDropdownLabel, { "None" }, "None", function(selection)
+		local selected = getDropdownText(selection)
+		if not selected or Lower(selected) == "none" then
+			return
+		end
+		local id = tonumber(Match(selected, "^%[(%d+)%]"))
+		if not id or type(NAUserButtons[id]) ~= "table" then
+			if refreshButtonDropdown then
+				refreshButtonDropdown()
+			end
+			return
+		end
+		local ids = collectAllIds()
+		for idx, currentId in ipairs(ids) do
+			if currentId == id then
+				editorState.currentIndex = idx
+				break
+			end
+		end
+		editorState.currentId = id
+		updateSelectionLabel()
+	end)
 	selectByDelta(0)
-
-	NAgui.addButton("Previous Button", function()
-		selectByDelta(-1)
-	end)
-
-	NAgui.addButton("Next Button", function()
-		selectByDelta(1)
-	end)
+	if refreshButtonDropdown then
+		refreshButtonDropdown()
+	end
 
 	NAgui.addButton("Delete Button", function()
 		if not next(NAUserButtons) then
@@ -72093,14 +73483,25 @@ originalIO.UserBtnEditor=function()
 	end)
 
 	NAgui.addSection("Group Children")
-
-	NAgui.addButton("Previous Child", function()
-		selectChildByDelta(-1)
+	NAgui.addDropdown(childDropdownLabel, { "None" }, "None", function(selection)
+		local selected = getDropdownText(selection)
+		if not selected or Lower(selected) == "none" then
+			return
+		end
+		local idx = tonumber(Match(selected, "^%[(%d+)%]"))
+		local g = type(editorState.currentId) == "number" and NAUserButtons[editorState.currentId] or nil
+		if not (idx and type(g) == "table" and g.Type == "group" and type(g.Children) == "table" and g.Children[idx]) then
+			if refreshChildDropdown then
+				refreshChildDropdown()
+			end
+			return
+		end
+		editorState.childIdx = idx
+		cSync()
 	end)
-
-	NAgui.addButton("Next Child", function()
-		selectChildByDelta(1)
-	end)
+	if refreshChildDropdown then
+		refreshChildDropdown()
+	end
 
 	NAgui.addInput("Child Index", "Number in group", "", function(txt)
 		editorState.childIdx = tonumber(txt) or editorState.childIdx or 1
