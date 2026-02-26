@@ -479,7 +479,7 @@ function Destroy(part)
 			(SafeGetService("ReplicatedStorage")).DeleteCar:FireServer(part);
 		elseif (SafeGetService("Players")).LocalPlayer.Character:FindFirstChild("HandlessSegway") then
 			SupportedGame = true;
-			for i, slaves in pairs(game:GetDescendants()) do
+			for i, slaves in pairs(game:QueryDescendants("Instance")) do
 				if slaves.Name == "DestroySegway" then
 					slaves:FireServer(part, {
 						Value = part

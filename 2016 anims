@@ -16,7 +16,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 		local c = Instance.new("LocalScript", Close);
 		c.Name = "Animate";
 		c.Parent = Player.Character;
-		for d, e in next, a:GetDescendants() do
+		for d, e in next, a:QueryDescendants("Instance") do
 			if e:IsA("StringValue") then
 				e.Parent = c;
 			end;

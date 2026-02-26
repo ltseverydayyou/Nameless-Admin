@@ -2076,7 +2076,7 @@ function NotifFuns.enforcePopupFrameZ(root)
 	if root:IsA("Frame") then
 		root.ZIndex = POPUP_FRAME_Z + 10;
 	end;
-	for _, d in ipairs(root:GetDescendants()) do
+	for _, d in ipairs(root:QueryDescendants("Instance")) do
 		if d:IsA("Frame") then
 			d.ZIndex = POPUP_FRAME_Z;
 		end;

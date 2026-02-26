@@ -5,7 +5,7 @@ local function ClonedService(name)
 	end;
 	return Reference(Service(game, name));
 end;
-for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:GetDescendants()) do
+for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:QueryDescendants("Instance")) do
 	if v:IsA("Accessory") then
 		print("What accessories you have on");
 		print(v.Name);
@@ -280,7 +280,7 @@ function getPlayer(shortcut)
 end;
 function getHat(shortcuts)
 	local hat = nil;
-	for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:GetDescendants()) do
+	for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:QueryDescendants("Instance")) do
 		if v:IsA("Accessory") then
 			if string.lower(string.sub(v.Name, 1, string.len(shortcuts))) == string.lower(shortcuts) then
 				if v.Name ~= nil then
@@ -340,17 +340,17 @@ SilentC.MouseButton1Click:Connect(function()
 			smr:FireServer(";givehat " .. hatse.Name .. " " .. arg.Name, "All");
 		end;
 		cchar.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame;
-		for i, x in pairs(cchar:GetDescendants()) do
+		for i, x in pairs(cchar:QueryDescendants("Instance")) do
 			if x:IsA("BasePart") then
 				x.Transparency = 1;
 			end;
 		end;
-		for i, v in pairs(cchar.Head:GetDescendants()) do
+		for i, v in pairs(cchar.Head:QueryDescendants("Instance")) do
 			if v.className == "Decal" or v.className == "Texture" then
 				v.Transparency = 1;
 			end;
 		end;
-		for i, v in pairs(char:GetDescendants()) do
+		for i, v in pairs(char:QueryDescendants("Instance")) do
 			if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
 				fc = rs.Heartbeat:Connect(function()
 					if char.Humanoid.Health <= 0 then
@@ -391,7 +391,7 @@ SilentC.MouseButton1Click:Connect(function()
 	mOut("Hat Giver Has Loaded", 2);
 	wait(0.2);
 	print("What accessories you have on");
-	for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:GetDescendants()) do
+	for i, v in pairs((ClonedService("Players")).LocalPlayer.Character:QueryDescendants("Instance")) do
 		if v:IsA("Accessory") then
 			print("What accessories you have on");
 			print(v.Name);

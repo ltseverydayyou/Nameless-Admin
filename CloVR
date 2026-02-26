@@ -317,7 +317,7 @@ Script = function()
 		return tween;
 	end;
 	local function GetMotorForLimb(Limb)
-		for _, Motor in next, Character:GetDescendants() do
+		for _, Motor in next, Character:QueryDescendants("Instance") do
 			if Motor:IsA("Motor6D") and Motor.Part1 == Limb then
 				return Motor;
 			end;
@@ -367,13 +367,13 @@ Script = function()
 		end;
 	end;
 	local function GetGripForHandle(Handle)
-		for _, Weld in next, Character:GetDescendants() do
+		for _, Weld in next, Character:QueryDescendants("Instance") do
 			if Weld:IsA("Weld") and (Weld.Part0 == Handle or Weld.Part1 == Handle) then
 				return Weld;
 			end;
 		end;
 		wait(0.2);
-		for _, Weld in next, Character:GetDescendants() do
+		for _, Weld in next, Character:QueryDescendants("Instance") do
 			if Weld:IsA("Weld") and (Weld.Part0 == Handle or Weld.Part1 == Handle) then
 				return Weld;
 			end;
@@ -414,7 +414,7 @@ Script = function()
 		UsedAccessories[Accessory] = true;
 		local RightGrip = CreateRightGrip(Handle);
 		wait();
-		for _, Object in pairs(Handle:GetDescendants()) do
+		for _, Object in pairs(Handle:QueryDescendants("Instance")) do
 			if not Object:IsA("BasePart") then
 				pcall(function()
 					Object.Transparency = 1;
@@ -544,7 +544,7 @@ Script = function()
 		(VirtualBody:FindFirstChildOfClass("Humanoid")).Jump = true;
 	end);
 	if RagdollEnabled then
-		for _, Part in pairs(Character:GetDescendants()) do
+		for _, Part in pairs(Character:QueryDescendants("Instance")) do
 			if Part:IsA("BasePart") and Part.Name == "Handle" and Part.Parent:IsA("Accessory") then
 				Part.LocalTransparencyModifier = 1;
 			elseif Part:IsA("BasePart") and Part.Transparency < 0.5 and Part.Name ~= "Head" then
@@ -842,7 +842,7 @@ Script = function()
 		if NoCollision then
 			for _, Player in pairs(Players:GetPlayers()) do
 				if Player ~= Client and Player.Character then
-					local Descendants = Player.Character:GetDescendants();
+					local Descendants = Player.Character:QueryDescendants("Instance");
 					for i = 1, #Descendants do
 						local Part = Descendants[i];
 						if Part:IsA("BasePart") then
@@ -1214,8 +1214,8 @@ ViewHUDFunc = function()
 			local FakeChar = Clone(Character);
 			local Root = FakeChar:FindFirstChild("HumanoidRootPart") or FakeChar:FindFirstChild("Head");
 			local RenderConnection;
-			local Descendants = FakeChar:GetDescendants();
-			local RealDescendants = Character:GetDescendants();
+			local Descendants = FakeChar:QueryDescendants("Instance");
+			local RealDescendants = Character:QueryDescendants("Instance");
 			local Correspondents = {};
 			(FakeChar:FindFirstChildOfClass("Humanoid")).DisplayDistanceType = "None";
 			for i = 1, #Descendants do
@@ -1290,7 +1290,7 @@ ViewHUDFunc = function()
 		ViewHUD:Destroy();
 		ViewHUD = nil;
 	end);
-	for i, v in pairs(character1:GetDescendants()) do
+	for i, v in pairs(character1:QueryDescendants("Instance")) do
 		if v:IsA("Motor6D") then
 			v:Destroy();
 		end;

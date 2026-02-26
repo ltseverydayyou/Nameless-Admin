@@ -108,7 +108,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:GetDescendants()) do
+		for _, v in pairs(char:QueryDescendants("Instance")) do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -129,7 +129,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:GetDescendants()) do
+		for _, v in pairs(char:QueryDescendants("Instance")) do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -150,7 +150,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:GetDescendants()) do
+		for _, v in pairs(char:QueryDescendants("Instance")) do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -176,7 +176,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 		if not char then
 			return nil;
 		end;
-		for _, v in pairs(char:GetDescendants()) do
+		for _, v in pairs(char:QueryDescendants("Instance")) do
 			if v:IsA("Humanoid") then
 				return v;
 			end;
@@ -188,7 +188,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 		if not char then
 			return nil;
 		end;
-		for _, v in pairs(char:GetDescendants()) do
+		for _, v in pairs(char:QueryDescendants("Instance")) do
 			if v:IsA("Humanoid") then
 				return v;
 			end;

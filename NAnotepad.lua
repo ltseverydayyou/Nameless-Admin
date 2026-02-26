@@ -713,7 +713,7 @@ local function toDock()
 	(ts:Create(top, TweenInfo.new(0.18), {
 		BackgroundTransparency = 1
 	})):Play();
-	for _, g in ipairs(body:GetDescendants()) do
+	for _, g in ipairs(body:QueryDescendants("Instance")) do
 		if g:IsA("GuiObject") then
 			g.Visible = false;
 		end;
@@ -738,7 +738,7 @@ local function fromDock()
 		BackgroundTransparency = 0
 	})):Play();
 	task.delay(0.02, function()
-		for _, g in ipairs(body:GetDescendants()) do
+		for _, g in ipairs(body:QueryDescendants("Instance")) do
 			if g:IsA("GuiObject") then
 				g.Visible = true;
 			end;

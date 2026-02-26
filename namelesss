@@ -180,7 +180,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	if antiragdoll then
-		for i, v in pairs(c:GetDescendants()) do
+		for i, v in pairs(c:QueryDescendants("Instance")) do
 			antiragdoll(v);
 		end;
 		c.DescendantAdded:Connect(antiragdoll);
@@ -220,13 +220,13 @@ if "wanna use myworld reanimate" then
 		(settings()).Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled;
 	end);
 	local OLDscripts = {};
-	for i, v in pairs(c:GetDescendants()) do
+	for i, v in pairs(c:QueryDescendants("Instance")) do
 		if v.ClassName == "Script" then
 			table.insert(OLDscripts, v);
 		end;
 	end;
 	local scriptNames = {};
-	for i, v in pairs(c:GetDescendants()) do
+	for i, v in pairs(c:QueryDescendants("Instance")) do
 		if v:IsA("BasePart") then
 			local newName = tostring(i);
 			local exists = true;
@@ -294,7 +294,7 @@ if "wanna use myworld reanimate" then
 	for i, v in pairs(c:GetChildren()) do
 		if v ~= model then
 			if addtools and v:IsA("Tool") then
-				for i1, v1 in pairs(v:GetDescendants()) do
+				for i1, v1 in pairs(v:QueryDescendants("Instance")) do
 					if v1 and v1.Parent and v1:IsA("BasePart") then
 						local bv = Instance.new("BodyVelocity", v1);
 						bv.Velocity = v3_0;
@@ -311,7 +311,7 @@ if "wanna use myworld reanimate" then
 		model:BreakJoints();
 	else
 		if head and torso then
-			for i, v in pairs(model:GetDescendants()) do
+			for i, v in pairs(model:QueryDescendants("Instance")) do
 				if v:IsA("Weld") or v:IsA("Snap") or v:IsA("Glue") or v:IsA("Motor") or v:IsA("Motor6D") then
 					local save = false;
 					if v.Part0 == torso and v.Part1 == head then
@@ -348,7 +348,7 @@ if "wanna use myworld reanimate" then
 	local noclipcon = nil;
 	local function uncollide()
 		if noclipmodel then
-			for i, v in pairs(noclipmodel:GetDescendants()) do
+			for i, v in pairs(noclipmodel:QueryDescendants("Instance")) do
 				if v:IsA("BasePart") then
 					v.CanCollide = false;
 				end;
@@ -359,11 +359,11 @@ if "wanna use myworld reanimate" then
 	end;
 	noclipcon = stepped:Connect(uncollide);
 	uncollide();
-	for i, scr in pairs(model:GetDescendants()) do
+	for i, scr in pairs(model:QueryDescendants("Instance")) do
 		if scr.ClassName == "Script" and table.find(scriptNames, scr.Name) then
 			local Part0 = scr.Parent;
 			if Part0:IsA("BasePart") then
-				for i1, scr1 in pairs(c:GetDescendants()) do
+				for i1, scr1 in pairs(c:QueryDescendants("Instance")) do
 					if scr1.ClassName == "Script" and scr1.Name == scr.Name and (not scr1:IsDescendantOf(model)) then
 						local Part1 = scr1.Parent;
 						if Part1.ClassName == Part0.ClassName and Part1.Name == Part0.Name then
@@ -377,7 +377,7 @@ if "wanna use myworld reanimate" then
 			end;
 		end;
 	end;
-	for i, v in pairs(c:GetDescendants()) do
+	for i, v in pairs(c:QueryDescendants("Instance")) do
 		if v and v.Parent and (not v:IsDescendantOf(model)) then
 			if v:IsA("Decal") then
 				v.Transparency = 1;
@@ -661,7 +661,7 @@ if "wanna use myworld reanimate" then
 		end);
 		conTorso = (torso:GetPropertyChangedSignal("Parent")):Connect(enableAligns);
 		conTorso1 = (torso1:GetPropertyChangedSignal("Parent")):Connect(enableAligns);
-		for i, v in pairs(head:GetDescendants()) do
+		for i, v in pairs(head:QueryDescendants("Instance")) do
 			if v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
 				i = tostring(i);
 				aligns[i] = v;

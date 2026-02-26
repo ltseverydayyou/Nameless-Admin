@@ -90,7 +90,7 @@ if config.old_graphics == true then
 	(settings()).Rendering.QualityLevel = 14;
 	devprint("loaded old graphics!");
 end;
-for _, v in ipairs(game:GetDescendants()) do
+for _, v in ipairs(game:QueryDescendants("Instance")) do
 	if v:IsA("BasePart") and v.Material == Enum.Material.Plastic and v.TopSurface == Enum.SurfaceType.Studs then
 		if not v:FindFirstChildOfClass("Texture") then
 			local Studs = Instance.new("Texture");
@@ -203,7 +203,7 @@ local function changechatico()
 		ChatIcon.Image = "rbxasset://textures/ui/Chat/ChatDown@2x.png";
 	end;
 end;
-for _, v in pairs(game:GetDescendants()) do
+for _, v in pairs(game:QueryDescendants("Instance")) do
 	if v:IsA("TextLabel") and v.Text == "Chat '/?' or '/help' for a list of chat commands." then
 		v.Text = "Please chat '/?' for a list of commands";
 	end;
@@ -2190,7 +2190,7 @@ if config.old_plist then
 			devprint("got mb1 function");
 			if open == false then
 				devprint("was not open");
-				local ScrollDecend = ScrollList:GetDescendants();
+				local ScrollDecend = ScrollList:QueryDescendants("Instance");
 				for i, v in pairs(ScrollDecend) do
 					if v.Name == "PlayerControlsHolder" then
 						v:Destroy();

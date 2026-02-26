@@ -27,7 +27,7 @@ for i, v in pairs(player.Backpack:GetChildren()) do
 end;
 character:ClearAllChildren();
 wait(7);
-for i, v in pairs((ClonedService("Workspace")):GetDescendants()) do
+for i, v in pairs((ClonedService("Workspace")):QueryDescendants("Instance")) do
 	if v:IsA("Tool") then
 		v.Handle.CanCollide = false;
 		bp:Destroy();
