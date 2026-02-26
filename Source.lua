@@ -167,22 +167,42 @@ local NAStuff = {
 		partial = setmetatable({}, { __mode = "k" }),
 	};
 	ESP_RenderMode = "BoxHandleAdornment";
+	ESP_PartRenderMode = "BoxHandleAdornment";
+	ESP_Transparency = 0.7;
+	ESP_PartTransparency = 0.45;
 	ESP_LabelTextSize = 12;
 	ESP_LabelTextScaled = false;
 	ESP_LabelStrokeTransparency = 0.5;
 	ESP_UseCustomColor = false;
 	ESP_CustomColor = Color3.new(1, 1, 1);
 	ESP_OutlineTransparency = 0;
+	ESP_ShowPartText = true;
 	ESP_ShowPartDistance = false;
+	ESP_PartColor_Name = Color3.fromRGB(255, 255, 255);
+	ESP_PartColor_Folder = Color3.fromRGB(255, 220, 0);
+	ESP_PartColor_Touch = Color3.fromRGB(255, 0, 0);
+	ESP_PartColor_Proximity = Color3.fromRGB(0, 0, 255);
+	ESP_PartColor_Click = Color3.fromRGB(255, 165, 0);
+	ESP_PartColor_Seat = Color3.fromRGB(0, 255, 0);
+	ESP_PartColor_VehicleSeat = Color3.fromRGB(255, 0, 255);
+	ESP_PartColor_Unanchored = Color3.fromRGB(255, 220, 0);
+	ESP_PartColor_CollisionTrue = Color3.fromRGB(0, 200, 255);
+	ESP_PartColor_CollisionFalse = Color3.fromRGB(255, 120, 120);
 	ESP_LocatorEnabled = false;
 	ESP_LocatorSize = 26;
 	ESP_LocatorShowText = false;
 	ESP_LocatorTextSize = 14;
+	ESP_PlayerLocatorEnabled = false;
+	ESP_PlayerLocatorSize = 26;
+	ESP_PlayerLocatorShowText = false;
+	ESP_PlayerLocatorTextSize = 14;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
 	ESP_LocatorGui = nil;
 	ESP_LocatorArrows = {};
+	ESP_PlayerLocatorGui = nil;
+	ESP_PlayerLocatorArrows = {};
 	ESP_ModelList = {};
 	ESP_ModelIndex = 1;
 	ESP_MaxPerStep = 32;
@@ -9083,10 +9103,8 @@ NAgui.RegisterStrokesFrom=function(instance)
 		NAgui.RegisterColoredStroke(instance)
 		return
 	end
-	for _, descendant in ipairs(instance:QueryDescendants("Instance")) do
-		if descendant:IsA("UIStroke") then
-			NAgui.RegisterColoredStroke(descendant)
-		end
+	for _, descendant in ipairs(instance:QueryDescendants("UIStroke")) do
+		NAgui.RegisterColoredStroke(descendant)
 	end
 end
 
@@ -13523,6 +13541,7 @@ local bindersPath = NAfiles.NABINDERS
 NAmanage.LoadESPSettings = function()
 	local d = {
 		ESP_Transparency = 0.7;
+		ESP_PartTransparency = 0.45;
 		ESP_BoxMaxDistance = 120;
 		ESP_LabelMaxDistance = 1000;
 		ESP_ColorByTeam = true;
@@ -13531,17 +13550,33 @@ NAmanage.LoadESPSettings = function()
 		ESP_ShowHealth = true;
 		ESP_ShowDistance = true;
 		ESP_RenderMode = "BoxHandleAdornment";
+		ESP_PartRenderMode = "BoxHandleAdornment";
 		ESP_LabelTextSize = 12;
 		ESP_LabelTextScaled = false;
 		ESP_LabelStrokeTransparency = 0.5;
 		ESP_UseCustomColor = false;
 		ESP_CustomColor = {255, 255, 255};
 		ESP_OutlineTransparency = 0;
+		ESP_ShowPartText = true;
 		ESP_ShowPartDistance = false;
+		ESP_PartColor_Name = {255, 255, 255};
+		ESP_PartColor_Folder = {255, 220, 0};
+		ESP_PartColor_Touch = {255, 0, 0};
+		ESP_PartColor_Proximity = {0, 0, 255};
+		ESP_PartColor_Click = {255, 165, 0};
+		ESP_PartColor_Seat = {0, 255, 0};
+		ESP_PartColor_VehicleSeat = {255, 0, 255};
+		ESP_PartColor_Unanchored = {255, 220, 0};
+		ESP_PartColor_CollisionTrue = {0, 200, 255};
+		ESP_PartColor_CollisionFalse = {255, 120, 120};
 		ESP_LocatorEnabled = false;
 		ESP_LocatorSize = 26;
 		ESP_LocatorShowText = false;
 		ESP_LocatorTextSize = 14;
+		ESP_PlayerLocatorEnabled = false;
+		ESP_PlayerLocatorSize = 26;
+		ESP_PlayerLocatorShowText = false;
+		ESP_PlayerLocatorTextSize = 14;
 		ESP_MaxPerStep = 32;
 		ESP_FolderMode = "parts";
 	}
@@ -13592,8 +13627,10 @@ NAmanage.LoadESPSettings = function()
 		end
 		return defaultColor
 	end
-	local mode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
-	mode = (type(mode)=="string" and (Lower(mode)=="highlight" and "Highlight" or "BoxHandleAdornment")) or "BoxHandleAdornment"
+	local legacyMode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
+	local mode = NAgui.sanitizeESPRenderMode(legacyMode, "BoxHandleAdornment")
+	local partMode = NAgui.sanitizeESPRenderMode(d.ESP_PartRenderMode or legacyMode, mode)
+	local partTransparency = NAgui.sanitizeTransparency(d.ESP_PartTransparency ~= nil and d.ESP_PartTransparency or d.ESP_Transparency)
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local stroke = math.clamp(tonumber(d.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
@@ -13601,7 +13638,7 @@ NAmanage.LoadESPSettings = function()
 	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
 	local customColor = sanitizeColor(d.ESP_CustomColor, Color3.new(1, 1, 1))
 
-	NAStuff.ESP_Transparency     = d.ESP_Transparency
+	NAStuff.ESP_Transparency     = NAgui.sanitizeTransparency(d.ESP_Transparency)
 	NAStuff.ESP_BoxMaxDistance   = d.ESP_BoxMaxDistance
 	NAStuff.ESP_LabelMaxDistance = d.ESP_LabelMaxDistance
 	NAStuff.ESP_ColorByTeam      = d.ESP_ColorByTeam
@@ -13611,12 +13648,25 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_ShowDistance     = d.ESP_ShowDistance
 	NAStuff.ESP_ShowPartDistance = d.ESP_ShowPartDistance
 	NAStuff.ESP_RenderMode       = mode
+	NAStuff.ESP_PartRenderMode   = partMode
+	NAStuff.ESP_PartTransparency = partTransparency
 	NAStuff.ESP_LabelTextSize    = sz
 	NAStuff.ESP_LabelTextScaled  = d.ESP_LabelTextScaled == true
 	NAStuff.ESP_LabelStrokeTransparency = stroke
 	NAStuff.ESP_UseCustomColor   = d.ESP_UseCustomColor == true
 	NAStuff.ESP_CustomColor      = customColor
 	NAStuff.ESP_OutlineTransparency = outline
+	NAStuff.ESP_ShowPartText = d.ESP_ShowPartText ~= false
+	NAStuff.ESP_PartColor_Name = sanitizeColor(d.ESP_PartColor_Name, Color3.fromRGB(255, 255, 255))
+	NAStuff.ESP_PartColor_Folder = sanitizeColor(d.ESP_PartColor_Folder, Color3.fromRGB(255, 220, 0))
+	NAStuff.ESP_PartColor_Touch = sanitizeColor(d.ESP_PartColor_Touch, Color3.fromRGB(255, 0, 0))
+	NAStuff.ESP_PartColor_Proximity = sanitizeColor(d.ESP_PartColor_Proximity, Color3.fromRGB(0, 0, 255))
+	NAStuff.ESP_PartColor_Click = sanitizeColor(d.ESP_PartColor_Click, Color3.fromRGB(255, 165, 0))
+	NAStuff.ESP_PartColor_Seat = sanitizeColor(d.ESP_PartColor_Seat, Color3.fromRGB(0, 255, 0))
+	NAStuff.ESP_PartColor_VehicleSeat = sanitizeColor(d.ESP_PartColor_VehicleSeat, Color3.fromRGB(255, 0, 255))
+	NAStuff.ESP_PartColor_Unanchored = sanitizeColor(d.ESP_PartColor_Unanchored, Color3.fromRGB(255, 220, 0))
+	NAStuff.ESP_PartColor_CollisionTrue = sanitizeColor(d.ESP_PartColor_CollisionTrue, Color3.fromRGB(0, 200, 255))
+	NAStuff.ESP_PartColor_CollisionFalse = sanitizeColor(d.ESP_PartColor_CollisionFalse, Color3.fromRGB(255, 120, 120))
 	NAStuff.ESP_MaxPerStep       = maxPerStep
 	local folderMode = Lower(tostring(d.ESP_FolderMode or "parts"))
 	if folderMode ~= "models" then
@@ -13628,6 +13678,10 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_LocatorSize      = math.clamp(tonumber(d.ESP_LocatorSize) or 26, 12, 128)
 	NAStuff.ESP_LocatorShowText  = d.ESP_LocatorShowText == true
 	NAStuff.ESP_LocatorTextSize  = math.clamp(tonumber(d.ESP_LocatorTextSize) or 14, 10, 48)
+	NAStuff.ESP_PlayerLocatorEnabled  = d.ESP_PlayerLocatorEnabled == true
+	NAStuff.ESP_PlayerLocatorSize     = math.clamp(tonumber(d.ESP_PlayerLocatorSize) or 26, 12, 128)
+	NAStuff.ESP_PlayerLocatorShowText = d.ESP_PlayerLocatorShowText == true
+	NAStuff.ESP_PlayerLocatorTextSize = math.clamp(tonumber(d.ESP_PlayerLocatorTextSize) or 14, 10, 48)
 
 	if NAStuff.ESP_LocatorEnabled then
 		NAmanage.ESP_LocatorEnable(true)
@@ -13635,18 +13689,23 @@ NAmanage.LoadESPSettings = function()
 		NAmanage.ESP_LocatorDisable()
 	end
 	NAmanage.ESP_LocatorApplyFlags()
+	if NAStuff.ESP_PlayerLocatorEnabled then
+		NAmanage.ESP_PlayerLocatorEnable(true)
+	else
+		NAmanage.ESP_PlayerLocatorDisable()
+	end
+	NAmanage.ESP_PlayerLocatorApplyFlags()
 end
 
 NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
-	local mode = "BoxHandleAdornment"
-	if type(NAStuff.ESP_RenderMode) == "string" and Lower(NAStuff.ESP_RenderMode)=="highlight" then
-		mode = "Highlight"
-	end
+	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "BoxHandleAdornment")
+	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, mode)
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local d = {
 		ESP_Transparency = NAStuff.ESP_Transparency or 0.7;
+		ESP_PartTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency ~= nil and NAStuff.ESP_PartTransparency or 0.45);
 		ESP_BoxMaxDistance = NAStuff.ESP_BoxMaxDistance or 120;
 		ESP_LabelMaxDistance = NAStuff.ESP_LabelMaxDistance or 1000;
 		ESP_ColorByTeam = (NAStuff.ESP_ColorByTeam ~= false);
@@ -13656,16 +13715,32 @@ NAmanage.SaveESPSettings = function()
 		ESP_ShowDistance = (NAStuff.ESP_ShowDistance ~= false);
 		ESP_ShowPartDistance = (NAStuff.ESP_ShowPartDistance == true);
 		ESP_RenderMode = mode;
+		ESP_PartRenderMode = partMode;
 		ESP_LabelTextSize = sz;
 		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
 		ESP_LabelStrokeTransparency = math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1);
 		ESP_UseCustomColor = NAStuff.ESP_UseCustomColor == true;
 		ESP_CustomColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_CustomColor or Color3.new(1, 1, 1));
 		ESP_OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0);
+		ESP_ShowPartText = (NAStuff.ESP_ShowPartText ~= false);
+		ESP_PartColor_Name = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Name or Color3.fromRGB(255, 255, 255));
+		ESP_PartColor_Folder = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Folder or Color3.fromRGB(255, 220, 0));
+		ESP_PartColor_Touch = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Touch or Color3.fromRGB(255, 0, 0));
+		ESP_PartColor_Proximity = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Proximity or Color3.fromRGB(0, 0, 255));
+		ESP_PartColor_Click = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Click or Color3.fromRGB(255, 165, 0));
+		ESP_PartColor_Seat = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Seat or Color3.fromRGB(0, 255, 0));
+		ESP_PartColor_VehicleSeat = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_VehicleSeat or Color3.fromRGB(255, 0, 255));
+		ESP_PartColor_Unanchored = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Unanchored or Color3.fromRGB(255, 220, 0));
+		ESP_PartColor_CollisionTrue = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_CollisionTrue or Color3.fromRGB(0, 200, 255));
+		ESP_PartColor_CollisionFalse = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_CollisionFalse or Color3.fromRGB(255, 120, 120));
 		ESP_LocatorEnabled = NAStuff.ESP_LocatorEnabled == true;
 		ESP_LocatorSize = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128);
 		ESP_LocatorShowText = NAStuff.ESP_LocatorShowText == true;
 		ESP_LocatorTextSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48);
+		ESP_PlayerLocatorEnabled = NAStuff.ESP_PlayerLocatorEnabled == true;
+		ESP_PlayerLocatorSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128);
+		ESP_PlayerLocatorShowText = NAStuff.ESP_PlayerLocatorShowText == true;
+		ESP_PlayerLocatorTextSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48);
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 	}
@@ -13683,6 +13758,9 @@ end
 NAmanage.ESP_LocatorRemoveArrow = function(key)
 	local d = NAStuff.ESP_LocatorArrows[key]
 	if not d then return end
+	if NAmanage.ESP_LocatorDisposeHolder then
+		NAmanage.ESP_LocatorDisposeHolder(d)
+	end
 	NAStuff.ESP_LocatorArrows[key] = nil
 end
 
@@ -13694,12 +13772,15 @@ NAmanage.ESP_LocatorApplyFlags = function()
 
 	for _, d in pairs(NAStuff.ESP_LocatorArrows) do
 		local f, l
+		local drawingArrow, drawingLabel
 		if typeof(d) == "Instance" then
 			f = d
 			l = d:FindFirstChild("Name")
 		elseif type(d) == "table" then
 			f = d.frame or d.holder
 			l = d.label
+			drawingArrow = d.drawingArrow
+			drawingLabel = d.drawingLabel
 		end
 		if f then
 			f.Visible = show
@@ -13711,6 +13792,17 @@ NAmanage.ESP_LocatorApplyFlags = function()
 		if l then
 			l.Visible = showTxt
 			l.TextSize = ts
+		end
+		if drawingArrow and not show then
+			pcall(function()
+				drawingArrow.Visible = false
+			end)
+		end
+		if drawingLabel then
+			pcall(function()
+				drawingLabel.Visible = showTxt
+				drawingLabel.Size = ts
+			end)
 		end
 	end
 end
@@ -13729,6 +13821,90 @@ end
 NAmanage.ESP_SetLocatorShowText = function(on)
 	NAStuff.ESP_LocatorShowText = on == true
 	NAmanage.ESP_LocatorApplyFlags()
+	NAmanage.SaveESPSettings()
+end
+
+NAmanage.ESP_PlayerLocatorRegisterArrow = function(key, frame, label)
+	if not key or not frame then return end
+	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or {}
+	NAStuff.ESP_PlayerLocatorArrows[key] = {
+		frame = frame,
+		label = label,
+	}
+end
+
+NAmanage.ESP_PlayerLocatorRemoveArrow = function(key)
+	local arrows = NAStuff.ESP_PlayerLocatorArrows
+	if not arrows then return end
+	local d = arrows[key]
+	if not d then return end
+	if NAmanage.ESP_LocatorDisposeHolder then
+		NAmanage.ESP_LocatorDisposeHolder(d)
+	end
+	arrows[key] = nil
+end
+
+NAmanage.ESP_PlayerLocatorApplyFlags = function()
+	local arrows = NAStuff.ESP_PlayerLocatorArrows
+	if type(arrows) ~= "table" then
+		return
+	end
+	local show = NAStuff.ESP_PlayerLocatorEnabled == true
+	local showTxt = show and NAStuff.ESP_PlayerLocatorShowText == true
+	local sz = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
+	local ts = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
+
+	for _, d in pairs(arrows) do
+		local f, l
+		local drawingArrow, drawingLabel
+		if typeof(d) == "Instance" then
+			f = d
+			l = d:FindFirstChild("Name")
+		elseif type(d) == "table" then
+			f = d.frame or d.holder
+			l = d.label
+			drawingArrow = d.drawingArrow
+			drawingLabel = d.drawingLabel
+		end
+		if f then
+			f.Visible = show
+			local p = f:FindFirstChild("Pointer")
+			if p then
+				p.Size = UDim2.fromOffset(sz, sz)
+			end
+		end
+		if l then
+			l.Visible = showTxt
+			l.TextSize = ts
+		end
+		if drawingArrow and not show then
+			pcall(function()
+				drawingArrow.Visible = false
+			end)
+		end
+		if drawingLabel then
+			pcall(function()
+				drawingLabel.Visible = showTxt
+				drawingLabel.Size = ts
+			end)
+		end
+	end
+end
+
+NAmanage.ESP_SetPlayerLocatorEnabled = function(on)
+	NAStuff.ESP_PlayerLocatorEnabled = on == true
+	if NAStuff.ESP_PlayerLocatorEnabled then
+		NAmanage.ESP_PlayerLocatorEnable(true)
+	else
+		NAmanage.ESP_PlayerLocatorDisable()
+	end
+	NAmanage.ESP_PlayerLocatorApplyFlags()
+	NAmanage.SaveESPSettings()
+end
+
+NAmanage.ESP_SetPlayerLocatorShowText = function(on)
+	NAStuff.ESP_PlayerLocatorShowText = on == true
+	NAmanage.ESP_PlayerLocatorApplyFlags()
 	NAmanage.SaveESPSettings()
 end
 
@@ -17981,12 +18157,84 @@ NAmanage.ESP_WaitForPlayerCharacter = function(player, timeoutSeconds)
 end
 
 
-NAgui.espUsesHighlight=function()
-	local mode = NAStuff.ESP_RenderMode
-	if type(mode) == "string" then
-		return Lower(mode) == "highlight"
+NAgui.hasDrawingAPI = function()
+	local draw = Drawing
+	if type(draw) == "table" and type(draw.new) == "function" then
+		return true
+	end
+	local ok, env = false, nil
+	if type(getgenv) == "function" then
+		ok, env = pcall(getgenv)
+	end
+	if ok and type(env) == "table" then
+		local fromEnv = rawget(env, "Drawing")
+		if type(fromEnv) == "table" and type(fromEnv.new) == "function" then
+			return true
+		end
 	end
 	return false
+end
+
+NAgui.getDrawingLibrary = function()
+	local draw = Drawing
+	if type(draw) == "table" and type(draw.new) == "function" then
+		return draw
+	end
+	local ok, env = false, nil
+	if type(getgenv) == "function" then
+		ok, env = pcall(getgenv)
+	end
+	if ok and type(env) == "table" then
+		local fromEnv = rawget(env, "Drawing")
+		if type(fromEnv) == "table" and type(fromEnv.new) == "function" then
+			return fromEnv
+		end
+	end
+	return nil
+end
+
+NAgui.getESPRenderModeOptions = function()
+	local options = { "BoxHandleAdornment", "Highlight" }
+	if NAgui.hasDrawingAPI() then
+		options[#options + 1] = "Drawing API"
+	end
+	return options
+end
+
+NAgui.sanitizeESPRenderMode = function(mode, fallback)
+	local desired = Lower(tostring(mode or ""))
+	if desired == "highlight" then
+		return "Highlight"
+	end
+	if desired == "boxhandleadornment" or desired == "box" then
+		return "BoxHandleAdornment"
+	end
+	if desired == "drawing api" or desired == "drawingapi" or desired == "drawing" then
+		if NAgui.hasDrawingAPI() then
+			return "Drawing API"
+		end
+	end
+	local defaultMode = tostring(fallback or "BoxHandleAdornment")
+	defaultMode = (Lower(defaultMode) == "highlight") and "Highlight"
+		or ((Lower(defaultMode) == "drawing api" and NAgui.hasDrawingAPI()) and "Drawing API")
+		or "BoxHandleAdornment"
+	return defaultMode
+end
+
+NAgui.getESPRenderMode = function(target)
+	local key = Lower(tostring(target or "players"))
+	local rawMode = (key == "part" or key == "parts" or key == "partesp")
+		and NAStuff.ESP_PartRenderMode
+		or NAStuff.ESP_RenderMode
+	return NAgui.sanitizeESPRenderMode(rawMode, "BoxHandleAdornment")
+end
+
+NAgui.espUsesHighlight=function(target)
+	return NAgui.getESPRenderMode(target) == "Highlight"
+end
+
+NAgui.espUsesDrawing = function(target)
+	return NAgui.getESPRenderMode(target) == "Drawing API"
 end
 
 NAgui.sanitizeTransparency=function(value)
@@ -18029,6 +18277,257 @@ NAgui.getInstanceWorldPosition=function(inst)
 		end
 	end
 	return nil
+end
+
+NAgui.getInstanceWorldBounds = function(inst)
+	if not (inst and inst.Parent) then
+		return nil, nil
+	end
+	if inst:IsA("BasePart") then
+		return inst.CFrame, inst.Size
+	end
+	if inst:IsA("Model") then
+		local ok, cf, size = pcall(inst.GetBoundingBox, inst)
+		if ok and cf and size then
+			return cf, size
+		end
+	end
+	return nil, nil
+end
+
+NAgui.getInstanceViewportBounds = function(inst, camera)
+	camera = camera or (workspace and workspace.CurrentCamera)
+	if not camera then
+		return nil
+	end
+	local cf, size = NAgui.getInstanceWorldBounds(inst)
+	if not (cf and size) then
+		return nil
+	end
+	local hx, hy, hz = size.X * 0.5, size.Y * 0.5, size.Z * 0.5
+	local offsets = {
+		Vector3.new(-hx, -hy, -hz),
+		Vector3.new(-hx, -hy, hz),
+		Vector3.new(-hx, hy, -hz),
+		Vector3.new(-hx, hy, hz),
+		Vector3.new(hx, -hy, -hz),
+		Vector3.new(hx, -hy, hz),
+		Vector3.new(hx, hy, -hz),
+		Vector3.new(hx, hy, hz),
+	}
+	local minX, minY = math.huge, math.huge
+	local maxX, maxY = -math.huge, -math.huge
+	local hasPoint = false
+	local onScreen = false
+	for i = 1, #offsets do
+		local worldPoint = cf:PointToWorldSpace(offsets[i])
+		local viewportPoint, visible = camera:WorldToViewportPoint(worldPoint)
+		if viewportPoint.Z > 0 then
+			hasPoint = true
+			if viewportPoint.X < minX then minX = viewportPoint.X end
+			if viewportPoint.Y < minY then minY = viewportPoint.Y end
+			if viewportPoint.X > maxX then maxX = viewportPoint.X end
+			if viewportPoint.Y > maxY then maxY = viewportPoint.Y end
+			if visible then
+				onScreen = true
+			end
+		end
+	end
+	if not hasPoint then
+		return nil
+	end
+	local viewportSize = camera.ViewportSize
+	if not onScreen then
+		if maxX < 0 or minX > viewportSize.X or maxY < 0 or minY > viewportSize.Y then
+			return nil
+		end
+	end
+	local width = math.max(1, maxX - minX)
+	local height = math.max(1, maxY - minY)
+	return minX, minY, width, height
+end
+
+NAgui.toDrawingTransparency = function(fillTransparency)
+	return math.clamp(1 - NAgui.sanitizeTransparency(fillTransparency), 0, 1)
+end
+
+NAgui.getInstanceLabelWorldPosition = function(inst, extraOffset)
+	local worldPos = NAgui.getInstanceWorldPosition(inst)
+	local rise = tonumber(extraOffset) or 0.2
+	if inst and inst:IsA("BasePart") then
+		return inst.Position + Vector3.new(0, (inst.Size.Y * 0.5) + rise, 0)
+	end
+	if inst and inst:IsA("Model") then
+		local ok, cf, size = pcall(inst.GetBoundingBox, inst)
+		if ok and cf and size then
+			return cf.Position + Vector3.new(0, (size.Y * 0.5) + rise, 0)
+		end
+	end
+	if worldPos then
+		return worldPos + Vector3.new(0, rise, 0)
+	end
+	return nil
+end
+
+NAmanage.DrawingRemoveObject = function(obj)
+	if not obj then return end
+	pcall(function()
+		obj.Visible = false
+	end)
+	pcall(function()
+		obj:Remove()
+	end)
+	pcall(function()
+		obj:Destroy()
+	end)
+end
+
+NAmanage.DrawingCreateSquare = function(color, fillTransparency)
+	local drawingLib = NAgui.getDrawingLibrary()
+	if not drawingLib then
+		return nil
+	end
+	local ok, square = pcall(function()
+		return drawingLib.new("Square")
+	end)
+	if not ok or not square then
+		return nil
+	end
+	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
+	pcall(function()
+		square.Visible = false
+		square.Filled = false
+		square.Thickness = 1
+		square.Color = color or Color3.new(1, 1, 1)
+		square.Transparency = alpha
+	end)
+	return square
+end
+
+NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
+	if not square then return end
+	local minX, minY, width, height = NAgui.getInstanceViewportBounds(inst)
+	if not minX then
+		pcall(function()
+			square.Visible = false
+		end)
+		return
+	end
+	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
+	pcall(function()
+		square.Color = color or Color3.new(1, 1, 1)
+		square.Transparency = alpha
+		square.Filled = false
+		square.Thickness = 1
+		square.Position = Vector2.new(minX, minY)
+		square.Size = Vector2.new(width, height)
+		square.Visible = true
+	end)
+end
+
+NAmanage.DrawingCreateText = function(text, color, textSize)
+	local drawingLib = NAgui.getDrawingLibrary()
+	if not drawingLib then
+		return nil
+	end
+	local ok, txt = pcall(function()
+		return drawingLib.new("Text")
+	end)
+	if not ok or not txt then
+		return nil
+	end
+	pcall(function()
+		txt.Visible = false
+		txt.Center = true
+		txt.Outline = true
+		txt.Color = color or Color3.new(1, 1, 1)
+		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
+		txt.Text = tostring(text or "")
+		txt.Transparency = 1
+	end)
+	return txt
+end
+
+NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize)
+	if not txt then return end
+	local cam = workspace and workspace.CurrentCamera
+	if not cam or not worldPos then
+		pcall(function()
+			txt.Visible = false
+		end)
+		return
+	end
+	local viewportPoint, onScreen = cam:WorldToViewportPoint(worldPos)
+	if viewportPoint.Z <= 0 or not onScreen then
+		pcall(function()
+			txt.Visible = false
+		end)
+		return
+	end
+	pcall(function()
+		txt.Text = tostring(text or "")
+		txt.Color = color or Color3.new(1, 1, 1)
+		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
+		txt.Position = Vector2.new(viewportPoint.X, viewportPoint.Y)
+		txt.Visible = true
+	end)
+end
+
+NAmanage.DrawingCreateTriangle = function(color, alpha)
+	local drawingLib = NAgui.getDrawingLibrary()
+	if not drawingLib then
+		return nil
+	end
+	local ok, tri = pcall(function()
+		return drawingLib.new("Triangle")
+	end)
+	if not ok or not tri then
+		return nil
+	end
+	pcall(function()
+		tri.Visible = false
+		tri.Filled = true
+		tri.Thickness = 1
+		tri.Color = color or Color3.new(1, 1, 1)
+		tri.Transparency = math.clamp(tonumber(alpha) or 1, 0, 1)
+	end)
+	return tri
+end
+
+NAmanage.DrawingUpdateTriangle = function(tri, centerX, centerY, dirX, dirY, size, color, alpha)
+	if not tri then
+		return
+	end
+	local dx = tonumber(dirX) or 0
+	local dy = tonumber(dirY) or -1
+	local mag = math.sqrt((dx * dx) + (dy * dy))
+	if mag <= 1e-4 then
+		dx, dy = 0, -1
+	else
+		dx, dy = dx / mag, dy / mag
+	end
+	local arrowSize = math.clamp(tonumber(size) or 26, 8, 256)
+	local tip = arrowSize * 0.5
+	local tail = arrowSize * 0.36
+	local halfWidth = arrowSize * 0.32
+	local px = -dy
+	local py = dx
+	local ax = centerX + (dx * tip)
+	local ay = centerY + (dy * tip)
+	local baseX = centerX - (dx * tail)
+	local baseY = centerY - (dy * tail)
+	local bx = baseX + (px * halfWidth)
+	local by = baseY + (py * halfWidth)
+	local cx = baseX - (px * halfWidth)
+	local cy = baseY - (py * halfWidth)
+	pcall(function()
+		tri.Color = color or Color3.new(1, 1, 1)
+		tri.Transparency = math.clamp(tonumber(alpha) or 1, 0, 1)
+		tri.PointA = Vector2.new(ax, ay)
+		tri.PointB = Vector2.new(bx, by)
+		tri.PointC = Vector2.new(cx, cy)
+		tri.Visible = true
+	end)
 end
 
 NAgui.updateLabelBounds=function(label)
@@ -18082,22 +18581,36 @@ NAmanage.ESP_ApplyLabelStyles = function()
 	local seen = {}
 	if NAStuff.partESPEntries then
 		for _, entry in pairs(NAStuff.partESPEntries) do
-			if typeof(entry) == "table" and entry.label and not seen[entry] then
+			if typeof(entry) == "table" and not seen[entry] then
 				seen[entry] = true
-				entry.label.TextScaled = scaled
-				if not scaled then
-					entry.label.TextSize = size
+				if entry.label then
+					entry.label.TextScaled = scaled
+					if not scaled then
+						entry.label.TextSize = size
+					end
+				end
+				if entry.drawingLabel then
+					pcall(function()
+						entry.drawingLabel.Size = size
+					end)
 				end
 			end
 		end
 	end
 	if NAStuff.partESPVisualMap then
 		for _, entry in pairs(NAStuff.partESPVisualMap) do
-			if typeof(entry) == "table" and entry.label and not seen[entry] then
+			if typeof(entry) == "table" and not seen[entry] then
 				seen[entry] = true
-				entry.label.TextScaled = scaled
-				if not scaled then
-					entry.label.TextSize = size
+				if entry.label then
+					entry.label.TextScaled = scaled
+					if not scaled then
+						entry.label.TextSize = size
+					end
+				end
+				if entry.drawingLabel then
+					pcall(function()
+						entry.drawingLabel.Size = size
+					end)
 				end
 			end
 		end
@@ -18177,10 +18690,8 @@ NAgui.adjustHighlightMaterialFor = function(target, enable)
 	if target:IsA("BasePart") then
 		handlePart(target)
 	elseif target:IsA("Model") then
-		for _, desc in ipairs(target:QueryDescendants("Instance")) do
-			if desc:IsA("BasePart") then
-				handlePart(desc)
-			end
+		for _, desc in ipairs(target:QueryDescendants("BasePart")) do
+			handlePart(desc)
 		end
 	end
 end
@@ -18221,7 +18732,10 @@ NAmanage.PartESP_QueueRun = function()
 		end
 
 		local maxPerStep = tonumber(NAStuff.ESP_MaxPerStep) or 32
-		maxPerStep = math.clamp(math.floor(maxPerStep), 1, 128)
+		if NAgui.espUsesDrawing("part") then
+			maxPerStep = math.max(maxPerStep, tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128)
+		end
+		maxPerStep = math.clamp(math.floor(maxPerStep), 1, 512)
 		local processed = 0
 		while processed < maxPerStep and head <= tail do
 			local item = queue[head]
@@ -18335,16 +18849,18 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	end
 	local billboard = entry.billboard
 	local label = entry.label
-	if not billboard or not billboard.Parent then
+	local drawingLabel = entry.drawingLabel
+	if (not billboard or not billboard.Parent) and (not drawingLabel) then
 		NAmanage.PartESP_UnregisterEntry(entry)
 		return
 	end
-	if not label or label.Parent ~= billboard then
+	if billboard and ((not label) or label.Parent ~= billboard) then
 		label = billboard:FindFirstChildWhichIsA("TextLabel")
 		entry.label = label
 	end
 	local baseName = entry.customName or part.Name or "Part"
 	local display = baseName
+	local showPartText = (NAStuff.ESP_ShowPartText ~= false)
 	local showDistance = (NAStuff.ESP_ShowPartDistance == true)
 	local root = rootPart
 	if showDistance and not root then
@@ -18360,13 +18876,36 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		end
 	end
 	if label then
-		if label.Text ~= display then
-			label.Text = display
+		if showPartText then
+			if label.Text ~= display then
+				label.Text = display
+			end
+			if not label.Visible then
+				label.Visible = true
+			end
+			NAgui.applyLabelStyle(label)
+		elseif label.Visible then
+			label.Visible = false
 		end
-		NAgui.applyLabelStyle(label)
+	end
+	if drawingLabel then
+		if showPartText then
+			local textColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
+			local textPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
+			NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize)
+		else
+			pcall(function()
+				drawingLabel.Visible = false
+			end)
+		end
 	end
 	local visual = entry.visual
-	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or entry.transparency)
+	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency)
+	local drawingSquare = entry.drawingSquare
+	if drawingSquare then
+		local drawColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
+		NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency)
+	end
 	if visual and visual.Parent then
 		if visual:IsA("Highlight") then
 			if visual.FillTransparency ~= transparency then
@@ -18406,15 +18945,16 @@ NAmanage.PartESP_UpdateTexts = function(force)
 	if not entries then
 		return
 	end
+	local interval = NAgui.espUsesDrawing("part") and 0.03 or 0.2
 	if not force then
 		local now = tick()
 		local nextUpdate = NAStuff.partESPLastUpdate or 0
 		if now < nextUpdate then
 			return
 		end
-		NAStuff.partESPLastUpdate = now + 0.2
+		NAStuff.partESPLastUpdate = now + interval
 	else
-		NAStuff.partESPLastUpdate = tick() + 0.2
+		NAStuff.partESPLastUpdate = tick() + interval
 	end
 	local rootPart = nil
 	if NAStuff.ESP_ShowPartDistance == true then
@@ -18435,9 +18975,18 @@ NAmanage.PartESP_UpdateTexts = function(force)
 end
 
 NAmanage.PartESP_StartHeartbeat = function()
-	if NAlib.isConnected("esp_part_update") then return end
+	local useDrawingSignal = NAgui.espUsesDrawing("part")
+	local desiredSignal = useDrawingSignal and "RenderStepped" or "Heartbeat"
+	if NAlib.isConnected("esp_part_update") then
+		if NAStuff.partESPUpdateSignal == desiredSignal then
+			return
+		end
+		NAlib.disconnect("esp_part_update")
+	end
+	NAStuff.partESPUpdateSignal = desiredSignal
 	NAStuff.partESPLastUpdate = 0
-	NAlib.connect("esp_part_update", RunService.Heartbeat:Connect(function()
+	local signal = useDrawingSignal and RunService.RenderStepped or RunService.Heartbeat
+	NAlib.connect("esp_part_update", signal:Connect(function()
 		NAmanage.PartESP_UpdateTexts(false)
 	end))
 end
@@ -18446,12 +18995,15 @@ NAmanage.PartESP_StopHeartbeat = function()
 	local entries = NAStuff.partESPEntries
 	if entries and next(entries) then return end
 	NAlib.disconnect("esp_part_update")
+	NAStuff.partESPUpdateSignal = nil
 end
 
 NAmanage.PartESP_RegisterEntry = function(entry)
-	if not entry or not entry.billboard then return end
-	NAStuff.partESPEntries[entry.billboard] = entry
-	if entry.visual then
+	if not entry then return end
+	entry.entryKey = entry.entryKey or entry.billboard or entry.visual or entry.drawingSquare or entry.drawingLabel or entry.part
+	if not entry.entryKey then return end
+	NAStuff.partESPEntries[entry.entryKey] = entry
+	if entry.visual and typeof(entry.visual) == "Instance" then
 		NAStuff.partESPVisualMap[entry.visual] = entry
 	end
 	if entry.billboardCleanup then
@@ -18460,11 +19012,13 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.visualCleanup then
 		entry.visualCleanup:Disconnect()
 	end
-	entry.billboardCleanup = entry.billboard.AncestryChanged:Connect(function(_, parent)
-		if not parent then
-			NAmanage.PartESP_UnregisterEntry(entry)
-		end
-	end)
+	if entry.billboard then
+		entry.billboardCleanup = entry.billboard.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end
+		end)
+	end
 	if entry.visual then
 		entry.visualCleanup = entry.visual.AncestryChanged:Connect(function(_, parent)
 			if not parent then
@@ -18491,12 +19045,33 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 		NAlib.disconnect(entry.updateKey)
 		entry.updateKey = nil
 	end
-	if entry.billboard and NAStuff.partESPEntries then
-		NAStuff.partESPEntries[entry.billboard] = nil
+	if entry.entryKey and NAStuff.partESPEntries then
+		NAStuff.partESPEntries[entry.entryKey] = nil
 	end
-	if entry.visual and NAStuff.partESPVisualMap then
+	if entry.visual and typeof(entry.visual) == "Instance" and NAStuff.partESPVisualMap then
 		NAStuff.partESPVisualMap[entry.visual] = nil
 	end
+	if entry.drawingSquare then
+		NAmanage.DrawingRemoveObject(entry.drawingSquare)
+		entry.drawingSquare = nil
+	end
+	if entry.drawingLabel then
+		NAmanage.DrawingRemoveObject(entry.drawingLabel)
+		entry.drawingLabel = nil
+	end
+	if entry.visual and typeof(entry.visual) == "Instance" then
+		pcall(function()
+			entry.visual:Destroy()
+		end)
+	end
+	entry.visual = nil
+	if entry.billboard then
+		pcall(function()
+			entry.billboard:Destroy()
+		end)
+	end
+	entry.billboard = nil
+	entry.label = nil
 	NAmanage.PartESP_StopHeartbeat()
 end
 
@@ -18515,7 +19090,7 @@ NAmanage.PartESP_RebuildVisuals = function()
 			end
 			bucket[#bucket+1] = {
 				color = entry.baseColor or Color3.new(1,1,1),
-				transparency = entry.transparency or 0.45,
+				transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency or 0.45),
 			}
 		end
 	end
@@ -18539,6 +19114,15 @@ NAmanage.ESP_RebuildVisuals = function()
 		end
 	end
 	NAmanage.PartESP_RebuildVisuals()
+	NAmanage.PartESP_StartHeartbeat()
+	if NAStuff.ESP_LocatorEnabled then
+		NAmanage.ESP_LocatorEnable(true)
+		NAmanage.ESP_LocatorApplyFlags()
+	end
+	if NAStuff.ESP_PlayerLocatorEnabled then
+		NAmanage.ESP_PlayerLocatorEnable(true)
+		NAmanage.ESP_PlayerLocatorApplyFlags()
+	end
 	NAmanage.ESP_ApplyLabelStyles()
 end
 
@@ -18626,10 +19210,14 @@ NAmanage.ESP_DestroyLabel = function(model)
 		data.textLabel:Destroy()
 		data.textLabel = nil
 	end
+	if data.drawingLabel then
+		NAmanage.DrawingRemoveObject(data.drawingLabel)
+		data.drawingLabel = nil
+	end
 
 	if uid and model and model.Parent then
-		for _, d in ipairs(model:QueryDescendants("Instance")) do
-			if d:IsA("BillboardGui") and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
+		for _, d in ipairs(model:QueryDescendants("BillboardGui")) do
+			if NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
 				d:Destroy()
 			end
 		end
@@ -18638,12 +19226,60 @@ end
 
 NAmanage.ESP_FirstBasePart = function(model)
 	if not model or not model.Parent then return nil end
-	for _, d in ipairs(model:QueryDescendants("Instance")) do
-		if d:IsA("BasePart") then
-			return d
-		end
+	for _, d in ipairs(model:QueryDescendants("BasePart")) do
+		return d
 	end
 	return nil
+end
+
+NAmanage.ESP_GetLabelWorldPosition = function(model)
+	if not model then
+		return nil
+	end
+	local head = getHead(model)
+	if head and head:IsA("BasePart") then
+		return head.Position + Vector3.new(0, (head.Size.Y * 0.5) + 0.5, 0)
+	end
+	local root = getRoot(model)
+	if root and root:IsA("BasePart") then
+		return root.Position + Vector3.new(0, (root.Size.Y * 0.5) + 2, 0)
+	end
+	local first = NAmanage.ESP_FirstBasePart(model)
+	if first and first:IsA("BasePart") then
+		return first.Position + Vector3.new(0, (first.Size.Y * 0.5) + 0.5, 0)
+	end
+	return nil
+end
+
+NAmanage.ESP_RemoveDrawingLabel = function(data)
+	if not data then return end
+	if data.drawingLabel then
+		NAmanage.DrawingRemoveObject(data.drawingLabel)
+		data.drawingLabel = nil
+	end
+end
+
+NAmanage.ESP_EnsureDrawingLabel = function(model)
+	local data = espCONS[model]
+	if not data then
+		return nil
+	end
+	local label = data.drawingLabel
+	if label then
+		return label
+	end
+	label = NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_LabelTextSize)
+	data.drawingLabel = label
+	return label
+end
+
+NAmanage.ESP_UpdateDrawingLabel = function(model, text, color)
+	local data = espCONS[model]
+	if not data then return end
+	local label = data.drawingLabel or NAmanage.ESP_EnsureDrawingLabel(model)
+	if not label then return end
+	local worldPos = NAmanage.ESP_GetLabelWorldPosition(model)
+	NAmanage.DrawingUpdateText(label, worldPos, text, color, NAStuff.ESP_LabelTextSize)
 end
 
 NAmanage.ESP_EnsureLabel = function(model)
@@ -18652,6 +19288,19 @@ NAmanage.ESP_EnsureLabel = function(model)
 	local owner = Players:GetPlayerFromCharacter(model)
 	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	if chamsEnabled and not forceLabel then return end
+	if NAgui.espUsesDrawing("players") then
+		if data.billboard then
+			data.billboard:Destroy()
+			data.billboard = nil
+		end
+		if data.textLabel then
+			data.textLabel:Destroy()
+			data.textLabel = nil
+		end
+		NAmanage.ESP_EnsureDrawingLabel(model)
+		return
+	end
+	NAmanage.ESP_RemoveDrawingLabel(data)
 
 	if not data.uid then
 		data.uid = HttpService:GenerateGUID(false)
@@ -18676,8 +19325,8 @@ NAmanage.ESP_EnsureLabel = function(model)
 
 	local list = {}
 	if model.Parent then
-		for _, d in ipairs(model:QueryDescendants("Instance")) do
-			if d:IsA("BillboardGui") and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
+		for _, d in ipairs(model:QueryDescendants("BillboardGui")) do
+			if NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
 				list[#list + 1] = d
 			end
 		end
@@ -18736,11 +19385,30 @@ NAmanage.ESP_EnsureLabel = function(model)
 	data.textLabel = tl
 end
 
+NAmanage.ESP_RemoveDrawing = function(data)
+	if not data then return end
+	if data.drawingBox then
+		NAmanage.DrawingRemoveObject(data.drawingBox)
+		data.drawingBox = nil
+	end
+end
+
+NAmanage.ESP_EnsureDrawing = function(data)
+	if not data then return nil end
+	local box = data.drawingBox
+	if box then
+		return box
+	end
+	box = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
+	data.drawingBox = box
+	return box
+end
+
 NAmanage.ESP_AddBoxForPart = function(model, part)
 	local data = espCONS[model]
 	if not data or data.isNPC or not part or not part:IsA("BasePart") then return end
 	if data.boxTable[part] then return end
-	if NAgui.espUsesHighlight() then return end
+	if NAgui.espUsesHighlight("players") or NAgui.espUsesDrawing("players") then return end
 	local box = InstanceNew("BoxHandleAdornment")
 	box.Adornee = part
 	box.AlwaysOnTop = true
@@ -18755,8 +19423,10 @@ end
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
+	local playerRenderMode = NAgui.getESPRenderMode("players")
 
 	if data.isNPC then
+		NAmanage.ESP_RemoveDrawing(data)
 		for part, box in pairs(data.boxTable) do
 			if box then box:Destroy() end
 			data.boxTable[part] = nil
@@ -18799,7 +19469,24 @@ NAmanage.ESP_AddBoxes = function(model)
 		return
 	end
 
-	if NAgui.espUsesHighlight() then
+	if playerRenderMode == "Drawing API" then
+		for part, box in pairs(data.boxTable) do
+			if box then box:Destroy() end
+			data.boxTable[part] = nil
+		end
+		if data.highlight then
+			NAmanage.ESP_AdjustHighlightMaterial(model, false)
+			data.highlight:Destroy()
+			data.highlight = nil
+		end
+		NAmanage.ESP_EnsureDrawing(data)
+		data.boxEnabled = true
+		return
+	end
+
+	NAmanage.ESP_RemoveDrawing(data)
+
+	if playerRenderMode == "Highlight" then
 		local highlight = data.highlight
 		if highlight and not highlight.Parent then
 			highlight = nil
@@ -18838,10 +19525,8 @@ NAmanage.ESP_AddBoxes = function(model)
 		return
 	end
 
-	for _, part in ipairs(model:QueryDescendants("Instance")) do
-		if part:IsA("BasePart") then
-			NAmanage.ESP_AddBoxForPart(model, part)
-		end
+	for _, part in ipairs(model:QueryDescendants("BasePart")) do
+		NAmanage.ESP_AddBoxForPart(model, part)
 	end
 
 	data.boxEnabled = true
@@ -18850,6 +19535,7 @@ end
 NAmanage.ESP_RemoveBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
+	NAmanage.ESP_RemoveDrawing(data)
 	for part, box in pairs(data.boxTable) do
 		if box then box:Destroy() end
 		data.boxTable[part] = nil
@@ -18967,10 +19653,18 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
 
 	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
-	local budget = dist and ((dist <= 50 and 0.05) or (dist <= 150 and 0.15) or (dist <= 400 and 0.3) or 0.6) or 0.2
-
-	if data.isNPC then
-		budget = budget * (NAStuff.NPC_ESP_Throttle or 2)
+	local drawingPlayers = NAgui.espUsesDrawing("players")
+	local budget
+	if drawingPlayers then
+		budget = dist and ((dist <= 50 and 0.015) or (dist <= 150 and 0.035) or (dist <= 400 and 0.08) or 0.16) or 0.03
+		if data.isNPC then
+			budget = budget * (NAStuff.NPC_ESP_DrawingThrottle or 1.25)
+		end
+	else
+		budget = dist and ((dist <= 50 and 0.05) or (dist <= 150 and 0.15) or (dist <= 400 and 0.3) or 0.6) or 0.2
+		if data.isNPC then
+			budget = budget * (NAStuff.NPC_ESP_Throttle or 2)
+		end
 	end
 
 	if data.next and now < data.next then return end
@@ -19001,6 +19695,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	if data.boxEnabled then
 		if isNPC then
+			NAmanage.ESP_RemoveDrawing(data)
 			local highlight = data.highlight
 			if not highlight or not highlight.Parent then
 				data.highlight = nil
@@ -19018,7 +19713,26 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if highlight.FillColor ~= color then highlight.FillColor = color end
 				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
 			end
-		elseif NAgui.espUsesHighlight() then
+		elseif NAgui.espUsesDrawing("players") then
+			if next(data.boxTable) ~= nil then
+				for part, box in pairs(data.boxTable) do
+					if box then box:Destroy() end
+					data.boxTable[part] = nil
+				end
+			end
+			if data.highlight then
+				NAmanage.ESP_AdjustHighlightMaterial(model, false)
+				data.highlight:Destroy()
+				data.highlight = nil
+			end
+			local drawingBox = data.drawingBox or NAmanage.ESP_EnsureDrawing(data)
+			if drawingBox then
+				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+				local color = finalColor or Color3.new(1, 1, 1)
+				NAmanage.DrawingUpdateSquare(drawingBox, model, color, tr)
+			end
+		elseif NAgui.espUsesHighlight("players") then
+			NAmanage.ESP_RemoveDrawing(data)
 			if next(data.boxTable) ~= nil then
 				for part, box in pairs(data.boxTable) do
 					if box then box:Destroy() end
@@ -19043,6 +19757,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
 			end
 		else
+			NAmanage.ESP_RemoveDrawing(data)
 			local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			for part, box in pairs(data.boxTable) do
 				if not part or not part.Parent then
@@ -19055,8 +19770,8 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if now % 0.5 < 0.05 then
-				for _, part in ipairs(model:QueryDescendants("Instance")) do
-					if part:IsA("BasePart") and not data.boxTable[part] then
+				for _, part in ipairs(model:QueryDescendants("BasePart")) do
+					if not data.boxTable[part] then
 						NAmanage.ESP_AddBoxForPart(model, part)
 					end
 				end
@@ -19086,14 +19801,19 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 
 	if wantLabel and pieces and #pieces > 0 then
-		NAmanage.ESP_EnsureLabel(model)
-		local label = data.textLabel
-		if label then
-			NAgui.applyLabelStyle(label)
-			local txt = Concat(pieces, " | ")
-			if label.Text ~= txt then label.Text = txt end
-			local txtColor = finalColor or Color3.new(1, 1, 1)
-			if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
+		local txt = Concat(pieces, " | ")
+		local txtColor = finalColor or Color3.new(1, 1, 1)
+		if NAgui.espUsesDrawing("players") then
+			NAmanage.ESP_EnsureLabel(model)
+			NAmanage.ESP_UpdateDrawingLabel(model, txt, txtColor)
+		else
+			NAmanage.ESP_EnsureLabel(model)
+			local label = data.textLabel
+			if label then
+				NAgui.applyLabelStyle(label)
+				if label.Text ~= txt then label.Text = txt end
+				if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
+			end
 		end
 	else
 		NAmanage.ESP_DestroyLabel(model)
@@ -19167,6 +19887,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 		persistent = persistent,
 		boxEnabled = false,
 		highlight = nil,
+		drawingBox = nil,
 		isNPC = npcFlag,
 		ownerPlayer = ownerPlayer
 	}
@@ -19231,6 +19952,12 @@ NAmanage.ESP_StartGlobal = function()
 
 		local idx = NAStuff.ESP_ModelIndex or 1
 		local maxStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256)
+		if NAgui.espUsesDrawing("players") then
+			local drawingStep = tonumber(NAStuff.ESP_DrawingMaxPerStep) or 192
+			drawingStep = math.clamp(math.floor(drawingStep), 16, 512)
+			maxStep = math.max(maxStep, drawingStep)
+		end
+		maxStep = math.min(maxStep, n)
 		if idx > n then
 			idx = 1
 		end
@@ -25544,10 +26271,8 @@ NAmanage.ovTrack = function(st, chr)
 	st.ovParts = {}
 	st.ovPartIdx = setmetatable({}, { __mode = "k" })
 	st.ovMeshCache = setmetatable({}, { __mode = "k" })
-	for _, desc in ipairs(chr:QueryDescendants("Instance")) do
-		if desc:IsA("BasePart") then
-			NAmanage.ovPartAdd(st, desc)
-		end
+	for _, desc in ipairs(chr:QueryDescendants("BasePart")) do
+		NAmanage.ovPartAdd(st, desc)
 	end
 	st.ovConns = {}
 	local conns = st.ovConns
@@ -25699,10 +26424,8 @@ NAmanage.ovMk = function(src, parent)
 
 	gp.Name = "NA_OffPart"
 
-	for _, d in ipairs(gp:QueryDescendants("Instance")) do
-		if not d:IsA("SpecialMesh") then
-			pcall(function() d:Destroy() end)
-		end
+	for _, d in ipairs(gp:QueryDescendants("SpecialMesh")) do
+		pcall(function() d:Destroy() end)
 	end
 
 	gp.Anchored = true
@@ -28064,11 +28787,9 @@ local s,err = pcall(function()
 		repeat
 			root = char:FindFirstChild("HumanoidRootPart")
 			if not root then
-				for _,d in ipairs(char:QueryDescendants("Instance")) do
-					if d:IsA("BasePart") then
-						root = d
-						break
-					end
+				for _,d in ipairs(char:QueryDescendants("BasePart")) do
+					root = d
+					break
 				end
 			end
 			if root then break end
@@ -28500,10 +29221,8 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 	if not Tool then return end
 
 	local partSet = {}
-	for _, p in ipairs(Tool:QueryDescendants("Instance")) do
-		if p:IsA("BasePart") then
-			partSet[p.Name] = true
-		end
+	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+		partSet[p.Name] = true
 	end
 
 	local btns = {}
@@ -28554,10 +29273,8 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 	if not Tool then return end
 
 	local partSet = {}
-	for _, p in ipairs(Tool:QueryDescendants("Instance")) do
-		if p:IsA("BasePart") then
-			partSet[p.Name] = true
-		end
+	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+		partSet[p.Name] = true
 	end
 
 	local btns = {}
@@ -28605,15 +29322,13 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
 	if not Tool then return end
 
-	for _, p in ipairs(Tool:QueryDescendants("Instance")) do
-		if p:IsA("BasePart") then
-			if p:FindFirstChild("OGSize3") then
-				p.Size = p.OGSize3.Value
-				p.OGSize3:Destroy()
-			end
-			if p:FindFirstChild("FunTIMES") then
-				p.FunTIMES:Destroy()
-			end
+	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+		if p:FindFirstChild("OGSize3") then
+			p.Size = p.OGSize3.Value
+			p.OGSize3:Destroy()
+		end
+		if p:FindFirstChild("FunTIMES") then
+			p.FunTIMES:Destroy()
 		end
 	end
 end)
@@ -29729,15 +30444,11 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 end)
 
 cmd.add({"notools"},{"notools","Remove your tools"},function()
-	for _,tool in pairs(getChar():QueryDescendants("Instance")) do
-		if tool:IsA("Tool") then
-			tool:Destroy()
-		end
+	for _,tool in pairs(getChar():QueryDescendants("Tool")) do
+		tool:Destroy()
 	end
-	for _,tool in pairs(getBp():QueryDescendants("Instance")) do
-		if tool:IsA("Tool") then
-			tool:Destroy()
-		end
+	for _,tool in pairs(getBp():QueryDescendants("Tool")) do
+		tool:Destroy()
 	end
 end)
 
@@ -29772,8 +30483,8 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	Wait(0.1)
 	function NoclipLoop()
 		if Clip==false and char~=nil then
-			for _,child in pairs(char:QueryDescendants("Instance")) do
-				if child:IsA("BasePart") and child.CanCollide==true then
+			for _,child in pairs(char:QueryDescendants("BasePart")) do
+				if child.CanCollide==true then
 					child.CanCollide=false
 				end
 			end
@@ -30683,8 +31394,8 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 end)
 
 cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
-	for i,v in pairs(NAmanage.wsDescs()) do
-		if v:IsA("BasePart") and v.Transparency==1 and v.CanCollide then
+	for i,v in pairs(workspace:QueryDescendants("BasePart")) do
+		if v.Transparency==1 and v.CanCollide then
 			v:Destroy()
 		end
 	end
@@ -30693,8 +31404,8 @@ end)
 NAStuff.shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
-	for _, v in ipairs(NAmanage.wsDescs()) do
-		if v:IsA("BasePart") and v.Transparency == 1 then
+	for _, v in ipairs(workspace:QueryDescendants("BasePart")) do
+		if v.Transparency == 1 then
 			local alreadyShown = false
 			for _, p in ipairs(NAStuff.shownParts) do
 				if p == v then
@@ -30751,19 +31462,17 @@ cmd.add({"removeads","adblock"},{"removeads (adblock)","Continuously removes bil
 	SpawnCall(function()
 		while state.active do
 			pcall(function()
-				for _,obj in ipairs(NAmanage.wsDescs()) do
-					if obj:IsA("PackageLink") then
-						local parent=obj.Parent
-						if parent then
-							if parent:FindFirstChild("ADpart") then
+				for _,obj in ipairs(workspace:QueryDescendants("PackageLink")) do
+					local parent=obj.Parent
+					if parent then
+						if parent:FindFirstChild("ADpart") then
+							parent:Destroy()
+						elseif parent:FindFirstChild("AdGuiAdornee") then
+							local grand=parent.Parent
+							if grand then
+								grand:Destroy()
+							else
 								parent:Destroy()
-							elseif parent:FindFirstChild("AdGuiAdornee") then
-								local grand=parent.Parent
-								if grand then
-									grand:Destroy()
-								else
-									parent:Destroy()
-								end
 							end
 						end
 					end
@@ -30907,34 +31616,28 @@ end)
 
 cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhysicalProperties)"},function(...)
 	local args={...}
-	for _,child in pairs(getChar():QueryDescendants("Instance")) do
-		if child:IsA("BasePart") then
-			if args[1] then
-				child.CustomPhysicalProperties=PhysicalProperties.new(args[1],0.3,0.5)
-			else
-				child.CustomPhysicalProperties=PhysicalProperties.new(100,0.3,0.5)
-			end
+	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+		if args[1] then
+			child.CustomPhysicalProperties=PhysicalProperties.new(args[1],0.3,0.5)
+		else
+			child.CustomPhysicalProperties=PhysicalProperties.new(100,0.3,0.5)
 		end
 	end
 end,true)
 
 cmd.add({"unweaken","unstrengthen"},{"unweaken (unstrengthen)","Sets your characters CustomPhysicalProperties to default"},function()
-	for _,child in pairs(getChar():QueryDescendants("Instance")) do
-		if child:IsA("BasePart") then
-			child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
-		end
+	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+		child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
 	end
 end)
 
 cmd.add({"weaken"},{"weaken","Makes your character less dense"},function(...)
 	local args={...}
-	for _,child in pairs(getChar():QueryDescendants("Instance")) do
-		if child:IsA("BasePart") then
-			if args[1] then
-				child.CustomPhysicalProperties=PhysicalProperties.new(-args[1],0.3,0.5)
-			else
-				child.CustomPhysicalProperties=PhysicalProperties.new(0,0.3,0.5)
-			end
+	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+		if args[1] then
+			child.CustomPhysicalProperties=PhysicalProperties.new(-args[1],0.3,0.5)
+		else
+			child.CustomPhysicalProperties=PhysicalProperties.new(0,0.3,0.5)
 		end
 	end
 end,true)
@@ -30950,8 +31653,8 @@ cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, functio
 	end
 
 	local seats = {}
-	for _, v in ipairs(game:QueryDescendants("Instance")) do
-		if v:IsA("Seat") and not v.Occupant then
+	for _, v in ipairs(game:QueryDescendants("Seat")) do
+		if not v.Occupant then
 			Insert(seats, v)
 		end
 	end
@@ -30985,8 +31688,8 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	end
 
 	local vehicleSeats = {}
-	for _, v in ipairs(game:QueryDescendants("Instance")) do
-		if v:IsA("VehicleSeat") and not v.Occupant then
+	for _, v in ipairs(game:QueryDescendants("VehicleSeat")) do
+		if not v.Occupant then
 			Insert(vehicleSeats, v)
 		end
 	end
@@ -31175,8 +31878,8 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		end
 
 		if vehicleModel then
-			for _, v in pairs(vehicleModel:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") and v.CanCollide then
+			for _, v in pairs(vehicleModel:QueryDescendants("BasePart")) do
+				if v.CanCollide then
 					v.CanCollide = false
 				end
 			end
@@ -31582,10 +32285,8 @@ NAStuff.ATPC._hookChar = function(char)
 		NAlib.connect("AntiCFrame", con)
 	end
 
-	for _, d in ipairs(char:QueryDescendants("Instance")) do
-		if d:IsA("BasePart") then
-			hookPart(d)
-		end
+	for _, d in ipairs(char:QueryDescendants("BasePart")) do
+		hookPart(d)
 	end
 
 	local addCon = char.DescendantAdded:Connect(function(d)
@@ -32430,13 +33131,11 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	local closestSpawn = nil
 	local shortestDistance = math.huge
 	local rootPosition = root.Position
-	for _, descendant in ipairs(NAmanage.wsDescs()) do
-		if descendant:IsA("SpawnLocation") then
-			local distance = (descendant.Position - rootPosition).Magnitude
-			if distance < shortestDistance then
-				shortestDistance = distance
-				closestSpawn = descendant
-			end
+	for _, descendant in ipairs(workspace:QueryDescendants("SpawnLocation")) do
+		local distance = (descendant.Position - rootPosition).Magnitude
+		if distance < shortestDistance then
+			shortestDistance = distance
+			closestSpawn = descendant
 		end
 	end
 	if not closestSpawn then
@@ -32482,11 +33181,9 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	local oldCamSubj = Camera and Camera.CameraSubject or nil
 	local oldCollide = {}
 
-	for _, v in ipairs(character:QueryDescendants("Instance")) do
-		if v:IsA("BasePart") then
-			oldCollide[v] = v.CanCollide
-			v.CanCollide = false
-		end
+	for _, v in ipairs(character:QueryDescendants("BasePart")) do
+		oldCollide[v] = v.CanCollide
+		v.CanCollide = false
 	end
 
 	ball.Shape = Enum.PartType.Ball
@@ -32780,11 +33477,9 @@ NAmanage.safePivotModel = function(model, cf)
 
 	local root = model.PrimaryPart or getRoot(model)
 	if not root then
-		for _, part in ipairs(model:QueryDescendants("Instance")) do
-			if part:IsA("BasePart") then
-				root = part
-				break
-			end
+		for _, part in ipairs(model:QueryDescendants("BasePart")) do
+			root = part
+			break
 		end
 	end
 	if not root then
@@ -33391,10 +34086,8 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		if not char then
 			return
 		end
-		for _, d in ipairs(char:QueryDescendants("Instance")) do
-			if d:IsA("BasePart") then
-				apply(d)
-			end
+		for _, d in ipairs(char:QueryDescendants("BasePart")) do
+			apply(d)
 		end
 		NAlib.connect("antifling", char.DescendantAdded:Connect(function(inst)
 			if inst:IsA("BasePart") then
@@ -34602,8 +35295,8 @@ cmd.add({"vehiclenoclip", "vnoclip"}, {"vehiclenoclip (vnoclip)", "Disables vehi
 	Wait(0.1)
 	cmd.run({"noclip"})
 
-	for _, pp in ipairs(model:QueryDescendants("Instance")) do
-		if pp:IsA("BasePart") and pp.CanCollide then
+	for _, pp in ipairs(model:QueryDescendants("BasePart")) do
+		if pp.CanCollide then
 			Insert(VVVVVVVVVVVCARRR, pp)
 			pp.CanCollide = false
 		end
@@ -34645,13 +35338,11 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 
 	local function findDamagePart(tool)
 		local ttPart = nil
-		for _, desc in ipairs(tool:QueryDescendants("Instance")) do
-			if desc:IsA("TouchTransmitter") then
-				local parent = desc.Parent
-				if parent and parent:IsA("BasePart") then
-					ttPart = parent
-					break
-				end
+		for _, desc in ipairs(tool:QueryDescendants("TouchTransmitter")) do
+			local parent = desc.Parent
+			if parent and parent:IsA("BasePart") then
+				ttPart = parent
+				break
 			end
 		end
 		if ttPart then
@@ -34736,10 +35427,8 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 	NAlib.connect("noclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
-		for _, part in ipairs(char:QueryDescendants("Instance")) do
-			if part:IsA("BasePart") then
-				part.CanCollide = false
-			end
+		for _, part in ipairs(char:QueryDescendants("BasePart")) do
+			part.CanCollide = false
 		end
 	end))
 	Wait()
@@ -34771,8 +35460,8 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 	NAlib.connect("netless", RunService.Stepped:Connect(function()
 		local c = getChar()
 		if not c then return end
-		for _, v in ipairs(c:QueryDescendants("Instance")) do
-			if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+		for _, v in ipairs(c:QueryDescendants("BasePart")) do
+			if v.Name ~= "HumanoidRootPart" then
 				v.Velocity = Vector3.new(-30, 0, 0)
 			end
 		end
@@ -35235,11 +35924,9 @@ cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>
 	if not (myAnimate and targetAnimate) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Instance")) do
-			if inst:IsA("Animation") then
-				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
-				t[k] = inst
-			end
+		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+			t[k] = inst
 		end
 		return t
 	end
@@ -35257,13 +35944,11 @@ cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>
 		if NAStuff.SavedDefaultMap then return end
 		if not myAnimate then return end
 		NAStuff.SavedDefaultMap = {}
-		for _, a in ipairs(myAnimate:QueryDescendants("Instance")) do
-			if a:IsA("Animation") then
-				local parentName = Lower((a.Parent and a.Parent.Name) or "root")
-				if NAStuff.CORE_FOLDERS[parentName] then
-					local key = Lower(parentName.."|"..a.Name)
-					NAStuff.SavedDefaultMap[key] = a.AnimationId
-				end
+		for _, a in ipairs(myAnimate:QueryDescendants("Animation")) do
+			local parentName = Lower((a.Parent and a.Parent.Name) or "root")
+			if NAStuff.CORE_FOLDERS[parentName] then
+				local key = Lower(parentName.."|"..a.Name)
+				NAStuff.SavedDefaultMap[key] = a.AnimationId
 			end
 		end
 	end
@@ -35449,11 +36134,9 @@ cmd.add({"animresetcore","animreset","resetanim","resetan"}, {"animresetcore","R
 	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Instance")) do
-			if inst:IsA("Animation") then
-				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
-				t[k] = inst
-			end
+		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+			t[k] = inst
 		end
 		return t
 	end
@@ -35499,11 +36182,9 @@ cmd.add({"unsyncreset","unsync","unsres","unsr"}, {"unsyncreset","Stop sync and 
 	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Instance")) do
-			if inst:IsA("Animation") then
-				local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
-				t[k] = inst
-			end
+		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
+			t[k] = inst
 		end
 		return t
 	end
@@ -36332,8 +37013,8 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			for i,v in pairs(connections) do
 				v:Disconnect()
 			end
-			for i,v in pairs(Main.LeftPanel:QueryDescendants("Instance")) do
-				if v:IsA("TextButton") and v.Visible==true then
+			for i,v in pairs(Main.LeftPanel:QueryDescendants("TextButton")) do
+				if v.Visible==true then
 					v:Destroy()
 				end
 			end
@@ -36555,15 +37236,13 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	NAlib.connect("noclip", RunService.Stepped:Connect(function()
 		local char = getChar()
 		if not char then return end
-		for _,p in pairs(char:QueryDescendants("Instance")) do
-			if p:IsA("BasePart") then
-				local currentState = NAlib.isProperty(p, "CanCollide")
-				if collMap and collMap[p] == nil and currentState ~= nil then
-					collMap[p] = currentState
-				end
-				if currentState ~= false then
-					NAlib.setProperty(p,"CanCollide", false)
-				end
+		for _,p in pairs(char:QueryDescendants("BasePart")) do
+			local currentState = NAlib.isProperty(p, "CanCollide")
+			if collMap and collMap[p] == nil and currentState ~= nil then
+				collMap[p] = currentState
+			end
+			if currentState ~= false then
+				NAlib.setProperty(p,"CanCollide", false)
 			end
 		end
 	end))
@@ -36606,8 +37285,8 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 	end
 	local seed = function(char)
 		if not char then return end
-		for _,d in ipairs(char:QueryDescendants("Instance")) do
-			if d:IsA("BasePart") then enforce(d) end
+		for _,d in ipairs(char:QueryDescendants("BasePart")) do
+			enforce(d)
 		end
 		NAlib.connect("antianchor", char.DescendantAdded:Connect(function(inst)
 			if inst:IsA("BasePart") then enforce(inst) end
@@ -37623,19 +38302,17 @@ NAmanage.grabAllTools=function(range)
 	local useRange = range and range > 0
 
 	local count = 0
-	for _, tool in ipairs(NAmanage.wsDescs()) do
-		if tool:IsA("Tool") then
-			if useRange then
-				local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-				if handle and (handle.Position - root.Position).Magnitude <= range then
-					if NACaller(function() hum:EquipTool(tool) end) then
-						count += 1
-					end
-				end
-			else
+	for _, tool in ipairs(workspace:QueryDescendants("Tool")) do
+		if useRange then
+			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+			if handle and (handle.Position - root.Position).Magnitude <= range then
 				if NACaller(function() hum:EquipTool(tool) end) then
 					count += 1
 				end
+			end
+		else
+			if NACaller(function() hum:EquipTool(tool) end) then
+				count += 1
 			end
 		end
 	end
@@ -38862,8 +39539,8 @@ cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency
 
 	local ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
 	if ch then
-		for _,p in ipairs(ch:QueryDescendants("Instance")) do
-			if p:IsA("BasePart") and Lower(p.Name) ~= "head" and not p:FindFirstAncestorOfClass("Accessory") and not p:FindFirstAncestorOfClass("Tool") then
+		for _,p in ipairs(ch:QueryDescendants("BasePart")) do
+			if Lower(p.Name) ~= "head" and not p:FindFirstAncestorOfClass("Accessory") and not p:FindFirstAncestorOfClass("Tool") then
 				p.LocalTransparencyModifier = 0
 			end
 		end
@@ -39874,19 +40551,15 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	for _, plr in pairs(target) do
 		local char = plr.Character or getPlrChar(plr)
 		if char then
-			for _, v in pairs(char:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") then
-					v.Anchored = true
-				end
+			for _, v in pairs(char:QueryDescendants("BasePart")) do
+				v.Anchored = true
 			end
 		end
 
 		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
-			for _, v in pairs(char:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") then
-					v.Anchored = true
-				end
+			for _, v in pairs(char:QueryDescendants("BasePart")) do
+				v.Anchored = true
 			end
 		end))
 	end
@@ -39894,10 +40567,8 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	NAlib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
 		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
-			for _, v in pairs(char:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") then
-					v.Anchored = true
-				end
+			for _, v in pairs(char:QueryDescendants("BasePart")) do
+				v.Anchored = true
 			end
 		end))
 	end))
@@ -39915,10 +40586,8 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	for _, plr in pairs(target) do
 		local char = plr.Character or getPlrChar(plr)
 		if char then
-			for _, v in pairs(char:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") then
-					v.Anchored = false
-				end
+			for _, v in pairs(char:QueryDescendants("BasePart")) do
+				v.Anchored = false
 			end
 		end
 	end
@@ -40000,8 +40669,8 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		elseif uidFallback then
 			local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
 			if okA2 and ap then
-				for _,v in ipairs(ap:QueryDescendants("Instance")) do
-					if v:IsA("Decal") and Lower(v.Name)=="face" then
+				for _,v in ipairs(ap:QueryDescendants("Decal")) do
+					if Lower(v.Name)=="face" then
 						v:Clone().Parent=headNow
 						break
 					end
@@ -40045,10 +40714,8 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
 		local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
 		if okA3 and ap then
-			for _,v in ipairs(ap:QueryDescendants("Instance")) do
-				if v:IsA("CharacterMesh") then
-					v:Clone().Parent=char
-				end
+			for _,v in ipairs(ap:QueryDescendants("CharacterMesh")) do
+				v:Clone().Parent=char
 			end
 		end
 	end
@@ -40100,8 +40767,8 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 		end)
 	end
 	if typeof(firetouchinterest)=="function" and root then
-		for _,spawnLocation in ipairs(NAmanage.wsDescs()) do
-			if spawnLocation:IsA("SpawnLocation") and spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
+		for _,spawnLocation in ipairs(workspace:QueryDescendants("SpawnLocation")) do
+			if spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
 				pcall(firetouchinterest,spawnLocation,root,0)
 				Wait()
 				pcall(firetouchinterest,spawnLocation,root,1)
@@ -41104,8 +41771,8 @@ cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Sav
 	for _,plr in pairs(players)do
 		local char=plr and plr.Character
 		if char then
-			for _,snd in pairs(char:QueryDescendants("Instance"))do
-				if snd:IsA("Sound") and snd.Playing then
+			for _,snd in pairs(char:QueryDescendants("Sound"))do
+				if snd.Playing then
 					ids[#ids+1]=snd.SoundId
 				end
 			end
@@ -41434,8 +42101,8 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		_na_env.BlackholeActive=not _na_env.BlackholeActive
 		toggleBtn.Text=_na_env.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
 		if not _na_env.BlackholeActive then
-			for _,p in ipairs(NAmanage.wsDescs()) do
-				if p:IsA("BasePart") and not p.Anchored then
+			for _,p in ipairs(workspace:QueryDescendants("BasePart")) do
+				if not p.Anchored then
 					for _,o in ipairs(p:GetChildren()) do
 						if o:IsA("AlignPosition") or o:IsA("Torque") or o:IsA("Attachment") then o:Destroy() end
 					end
@@ -45836,10 +46503,8 @@ cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"},
 	NAlib.connect("cbnoclip", RunService.RenderStepped:Connect(function()
 		local char = getChar()
 		if not char then return end
-		for _, descendant in pairs(char:QueryDescendants("Instance")) do
-			if descendant:IsA("BasePart") then
-				descendant.CanCollide = false
-			end
+		for _, descendant in pairs(char:QueryDescendants("BasePart")) do
+			descendant.CanCollide = false
 		end
 	end))
 	for _, plr in next, target do
@@ -45875,8 +46540,8 @@ cmd.add({"mute", "muteboombox"}, {"mute <player> (muteboombox)", "Mutes the play
 	if #pp == 0 then return end
 
 	local function NONOSOUND(container)
-		for _, descendant in ipairs(container:QueryDescendants("Instance")) do
-			if descendant:IsA("Sound") and descendant.Playing then
+		for _, descendant in ipairs(container:QueryDescendants("Sound")) do
+			if descendant.Playing then
 				descendant.Playing = false
 			end
 		end
@@ -45942,16 +46607,16 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 
 	local function mute(p)
 		if p and p.Character then
-			for _, d in ipairs(p.Character:QueryDescendants("Instance")) do
-				if d:IsA("Sound") and d.Playing then
+			for _, d in ipairs(p.Character:QueryDescendants("Sound")) do
+				if d.Playing then
 					d.Playing = false
 				end
 			end
 		end
 		local bp = p:FindFirstChildOfClass("Backpack")
 		if bp then
-			for _, d in ipairs(bp:QueryDescendants("Instance")) do
-				if d:IsA("Sound") and d.Playing then
+			for _, d in ipairs(bp:QueryDescendants("Sound")) do
+				if d.Playing then
 					d.Playing = false
 				end
 			end
@@ -46160,10 +46825,8 @@ function NAmanage.nuhuhprompt(v)
 
 				disableGui(gui)
 
-				for _, x in ipairs(gui:QueryDescendants("Instance")) do
-					if x:IsA("ScreenGui") then
-						disableGui(x)
-					end
+				for _, x in ipairs(gui:QueryDescendants("ScreenGui")) do
+					disableGui(x)
 				end
 
 				local inner = NAmanage.descSub(gui, {
@@ -46313,10 +46976,8 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 					end
 
 					disableGuiObject(child)
-					for _, d in ipairs(child:QueryDescendants("Instance")) do
-						if d:IsA("GuiObject") then
-							disableGuiObject(d)
-						end
+					for _, d in ipairs(child:QueryDescendants("GuiObject")) do
+						disableGuiObject(d)
 					end
 				end
 			end
@@ -46559,8 +47220,8 @@ hiddenGUIS = hiddenGUIS or {}
 showPrev = showPrev or {}
 
 cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
-	for _, guiElement in pairs(PlrGui:QueryDescendants("Instance")) do
-		if guiElement:IsA("GuiObject") and guiElement.Visible then
+	for _, guiElement in pairs(PlrGui:QueryDescendants("GuiObject")) do
+		if guiElement.Visible then
 			guiElement.Visible = false
 			if not Discover(hiddenGUIS, guiElement) then
 				Insert(hiddenGUIS, guiElement)
@@ -47932,13 +48593,11 @@ cmd.add({"breakvelocity"},{"breakvelocity","Sets your character's velocity to ze
 	local zero=Vector3.zero
 	local stopAt=time()+1
 	repeat
-		for _,part in ipairs(char:QueryDescendants("Instance")) do
-			if part:IsA("BasePart") then
-				NAlib.setProperty(part,"AssemblyLinearVelocity",zero)
-				NAlib.setProperty(part,"AssemblyAngularVelocity",zero)
-				NAlib.setProperty(part,"Velocity",zero)
-				NAlib.setProperty(part,"RotVelocity",zero)
-			end
+		for _,part in ipairs(char:QueryDescendants("BasePart")) do
+			NAlib.setProperty(part,"AssemblyLinearVelocity",zero)
+			NAlib.setProperty(part,"AssemblyAngularVelocity",zero)
+			NAlib.setProperty(part,"Velocity",zero)
+			NAlib.setProperty(part,"RotVelocity",zero)
 		end
 		Wait()
 	until time()>=stopAt or not char.Parent
@@ -48673,10 +49332,8 @@ cmd.add({"deletelighting", "removelighting", "removel", "ldel"},{"deletelighting
 end)
 
 cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (disablelighting, ldisable)", "Disables all post-processing effects in Lighting instead of deleting them."},function()
-	for _, inst in ipairs(Lighting:QueryDescendants("Instance")) do
-		if inst:IsA("PostEffect") then
-			inst.Enabled = false
-		end
+	for _, inst in ipairs(Lighting:QueryDescendants("PostEffect")) do
+		inst.Enabled = false
 	end
 end)
 
@@ -49435,10 +50092,8 @@ do
 	end;
 	function gotoNext.collectFolderParts(folder)
 		local parts = {};
-		for _, descendant in ipairs(folder:QueryDescendants("Instance")) do
-			if descendant:IsA("BasePart") then
-				Insert(parts, descendant);
-			end;
+		for _, descendant in ipairs(folder:QueryDescendants("BasePart")) do
+			Insert(parts, descendant);
 		end;
 		table.sort(parts, function(a, b)
 			return a:GetFullName() < b:GetFullName();
@@ -49870,9 +50525,9 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.wsDescs()) do
+		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
 			if not taskState.active then return end
-			if part:IsA("BasePart") and part.Name:lower() == partName then
+			if part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(partDelay)
@@ -49890,9 +50545,9 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	SpawnCall(function()
 		local char = getChar()
 		local partDelay = NAmanage.tpDelay()
-		for _,obj in ipairs(NAmanage.wsDescs()) do
+		for _,obj in ipairs(workspace:QueryDescendants("BasePart")) do
 			if not state.active then return end
-			if obj:IsA("BasePart") and obj.Name:lower() == partName then
+			if obj.Name:lower() == partName then
 				local hum = getHum()
 				if hum then hum.Sit = false end
 				local cfVal = InstanceNew("CFrameValue")
@@ -49922,9 +50577,9 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.wsDescs()) do
+		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
 			if not taskState.active then return end
-			if part:IsA("BasePart") and part.Name:lower():find(name) then
+			if part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(partDelay)
@@ -49946,9 +50601,9 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.wsDescs()) do
+		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
 			if not taskState.active then return end
-			if part:IsA("BasePart") and part.Name:lower():find(name) then
+			if part.Name:lower():find(name) then
 				local hum = getHum()
 				if hum then
 					hum.Sit = false
@@ -49980,9 +50635,9 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.wsDescs()) do
+		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
 			if not taskState.active then return end
-			if part:IsA("BasePart") and part.ClassName:lower() == className then
+			if part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(part:GetPivot()) end
 				Wait(partDelay)
@@ -49994,8 +50649,8 @@ end, true)
 cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
 	local partName = Concat({...}, " "):lower()
 
-	for _, part in pairs(NAmanage.wsDescs()) do
-		if part:IsA("BasePart") and part.Name:lower() == partName then
+	for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+		if part.Name:lower() == partName then
 			if getChar() then
 				part:PivotTo(getChar():GetPivot())
 			end
@@ -50011,12 +50666,10 @@ cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfi
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, part in ipairs(NAmanage.wsDescs()) do
-		if part:IsA("BasePart") then
-			local n = part.Name:lower()
-			if Find(n, name, 1, true) ~= nil then
-				part:PivotTo(pivot)
-			end
+	for _, part in ipairs(workspace:QueryDescendants("BasePart")) do
+		local n = part.Name:lower()
+		if Find(n, name, 1, true) ~= nil then
+			part:PivotTo(pivot)
 		end
 	end
 end,true)
@@ -50024,8 +50677,8 @@ end,true)
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
-	for _, model in pairs(NAmanage.wsDescs()) do
-		if model:IsA("Model") and model.Name:lower() == modelName then
+	for _, model in pairs(workspace:QueryDescendants("Model")) do
+		if model.Name:lower() == modelName then
 			if getChar() then
 				model:PivotTo(getChar():GetPivot())
 			end
@@ -50041,12 +50694,10 @@ cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","B
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, model in ipairs(NAmanage.wsDescs()) do
-		if model:IsA("Model") then
-			local n = model.Name:lower()
-			if Find(n, name, 1, true) ~= nil then
-				model:PivotTo(pivot)
-			end
+	for _, model in ipairs(workspace:QueryDescendants("Model")) do
+		local n = model.Name:lower()
+		if Find(n, name, 1, true) ~= nil then
+			model:PivotTo(pivot)
 		end
 	end
 end,true)
@@ -50059,19 +50710,19 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local folder, partFilter
 	do
 		local nameAll = Concat(lower," ")
-		for _,obj in ipairs(NAmanage.wsDescs()) do
-			if obj:IsA("Folder") and obj.Name:lower() == nameAll then folder = obj break end
+		for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+			if obj.Name:lower() == nameAll then folder = obj break end
 		end
 		if not folder and #lower>=2 then
 			local nameWithoutLast = Concat(lower," ",1,#lower-1)
 			local last = lower[#lower]
-			for _,obj in ipairs(NAmanage.wsDescs()) do
-				if obj:IsA("Folder") and obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
+			for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+				if obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
 			end
 		end
 		if not folder then
-			for _,obj in ipairs(NAmanage.wsDescs()) do
-				if obj:IsA("Folder") and obj.Name:lower() == lower[1] then folder = obj break end
+			for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+				if obj.Name:lower() == lower[1] then folder = obj break end
 			end
 			if folder and #lower>1 then
 				partFilter = Concat(lower," ",2,#lower)
@@ -50082,16 +50733,14 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local char = getChar()
 	if not char then return end
 	local pivot = char:GetPivot()
-	for _,desc in ipairs(folder:QueryDescendants("Instance")) do
-		if desc:IsA("BasePart") then
-			local ok = true
-			if partFilter and partFilter ~= "" then
-				local n = desc.Name:lower()
-				ok = (n == partFilter) or (Find(n, partFilter, 1, true) ~= nil)
-			end
-			if ok then
-				desc:PivotTo(pivot)
-			end
+	for _,desc in ipairs(folder:QueryDescendants("BasePart")) do
+		local ok = true
+		if partFilter and partFilter ~= "" then
+			local n = desc.Name:lower()
+			ok = (n == partFilter) or (Find(n, partFilter, 1, true) ~= nil)
+		end
+		if ok then
+			desc:PivotTo(pivot)
 		end
 	end
 end,true)
@@ -50109,9 +50758,9 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(NAmanage.wsDescs()) do
+		for _, model in pairs(workspace:QueryDescendants("Model")) do
 			if not taskState.active then return end
-			if model:IsA("Model") and model.Name:lower() == modelName then
+			if model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(model:GetPivot()) end
 				Wait(partDelay)
@@ -50133,9 +50782,9 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(NAmanage.wsDescs()) do
+		for _, model in pairs(workspace:QueryDescendants("Model")) do
 			if not taskState.active then return end
-			if model:IsA("Model") and model.Name:lower():find(name) then
+			if model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
 				if getChar() then getChar():PivotTo(model:GetPivot()) end
 				Wait(partDelay)
@@ -50148,8 +50797,8 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 	local name = Concat({...}, " "):lower()
 	local partDelay = NAmanage.tpDelay()
 
-	for _, model in pairs(NAmanage.wsDescs()) do
-		if model:IsA("Model") and model.Name:lower():find(name) then
+	for _, model in pairs(workspace:QueryDescendants("Model")) do
+		if model.Name:lower():find(name) then
 			if getHum() then
 				getHum().Sit = false
 				Wait(0.1)
@@ -50174,19 +50823,17 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
 		local folder
-		for _,obj in ipairs(NAmanage.wsDescs()) do
-			if obj:IsA("Folder") and obj.Name:lower() == folderName then folder = obj break end
+		for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+			if obj.Name:lower() == folderName then folder = obj break end
 		end
 		if not folder then return end
-		for _,desc in ipairs(folder:QueryDescendants("Instance")) do
+		for _,desc in ipairs(folder:QueryDescendants("BasePart")) do
 			if not state.active then return end
-			if desc:IsA("BasePart") then
-				local hum = getHum()
-				if hum then hum.Sit = false Wait(0.1) end
-				local char = getChar()
-				if char then char:PivotTo(desc:GetPivot()) end
-				Wait(partDelay)
-			end
+			local hum = getHum()
+			if hum then hum.Sit = false Wait(0.1) end
+			local char = getChar()
+			if char then char:PivotTo(desc:GetPivot()) end
+			Wait(partDelay)
 		end
 	end)
 end,true)
@@ -50393,65 +51040,82 @@ NAmanage.CreateBox = function(part, color, transparency)
 	if not part or not part.Parent then return end
 	NAmanage.RemoveEspFromPart(part)
 	local c = (typeof(color) == "Color3" and color) or Color3.new(1,1,1)
-	local entryTransparency = NAgui.sanitizeTransparency(transparency or (NAStuff.ESP_Transparency or 0.45))
+	local entryTransparency = NAgui.sanitizeTransparency(transparency or (NAStuff.ESP_PartTransparency or 0.45))
 	local h, s, v = Color3.toHSV(c)
 	local off = 0.35
 	local darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
 	local lighter = Color3.fromHSV(h, s, math.clamp(v + off, 0, 1))
-	local useHighlight = NAgui.espUsesHighlight()
+	local mode = NAgui.getESPRenderMode("part")
+	local useHighlight = mode == "Highlight"
+	local useDrawing = mode == "Drawing API"
 	local adornName = Lower(part.Name).."_peepee"
 	local visual
-	if useHighlight then
-		visual = InstanceNew("Highlight", part)
-		visual.Name = adornName
-		visual.Adornee = part
-		visual.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		visual.FillColor = lighter
-		visual.OutlineColor = darker
-		visual.FillTransparency = entryTransparency
-		visual.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
-		visual.Enabled = false
-		Defer(function()
-			if visual and visual.Parent then
-				visual.Enabled = true
-			end
-		end)
-	else
-		visual = InstanceNew("BoxHandleAdornment", part)
-		visual.Name = adornName
-		visual.Adornee = part
-		visual.AlwaysOnTop = true
-		visual.ZIndex = 0
-		visual.Transparency = entryTransparency
-		visual.Color3 = lighter
+	local drawingSquare
+	if useDrawing then
+		drawingSquare = NAmanage.DrawingCreateSquare(lighter, entryTransparency)
+		if not drawingSquare then
+			useDrawing = false
+		end
 	end
-	local bb = InstanceNew("BillboardGui", part)
-	bb.Name = Lower(part.Name).."_label"
-	bb.Adornee = part
-	bb.Size = UDim2.new(0, 160, 0, 28)
-	bb.StudsOffset = Vector3.new(0, 0.5, 0)
-	bb.AlwaysOnTop = true
-	bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	local tl = InstanceNew("TextLabel", bb)
-	tl.Size = UDim2.new(1, 0, 1, 0)
-	tl.BackgroundTransparency = 1
-	tl.Text = part.Name
-	tl.TextColor3 = Color3.new(1,1,1)
-	tl.Font = Enum.Font.SourceSansBold
-	tl.TextStrokeTransparency = 0.5
-	tl.ZIndex = 1
-	NAgui.applyLabelStyle(tl)
-	local gr = InstanceNew("UIGradient", tl)
-	gr.Color = ColorSequence.new(darker, lighter)
+	if not useDrawing then
+		if useHighlight then
+			visual = InstanceNew("Highlight", part)
+			visual.Name = adornName
+			visual.Adornee = part
+			visual.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			visual.FillColor = lighter
+			visual.OutlineColor = darker
+			visual.FillTransparency = entryTransparency
+			visual.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
+			visual.Enabled = false
+			Defer(function()
+				if visual and visual.Parent then
+					visual.Enabled = true
+				end
+			end)
+		else
+			visual = InstanceNew("BoxHandleAdornment", part)
+			visual.Name = adornName
+			visual.Adornee = part
+			visual.AlwaysOnTop = true
+			visual.ZIndex = 0
+			visual.Transparency = entryTransparency
+			visual.Color3 = lighter
+		end
+	end
+	local bb, tl, gr, drawingLabel = nil, nil, nil, nil
+	if useDrawing then
+		drawingLabel = NAmanage.DrawingCreateText(part.Name, lighter, NAStuff.ESP_LabelTextSize)
+	end
+	if (not useDrawing) or (not drawingLabel) then
+		bb = InstanceNew("BillboardGui", part)
+		bb.Name = Lower(part.Name).."_label"
+		bb.Adornee = part
+		bb.Size = UDim2.new(0, 160, 0, 28)
+		bb.StudsOffset = Vector3.new(0, 0.5, 0)
+		bb.AlwaysOnTop = true
+		bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		tl = InstanceNew("TextLabel", bb)
+		tl.Size = UDim2.new(1, 0, 1, 0)
+		tl.BackgroundTransparency = 1
+		tl.Text = part.Name
+		tl.TextColor3 = Color3.new(1,1,1)
+		tl.Font = Enum.Font.SourceSansBold
+		tl.TextStrokeTransparency = 0.5
+		tl.ZIndex = 1
+		NAgui.applyLabelStyle(tl)
+		gr = InstanceNew("UIGradient", tl)
+		gr.Color = ColorSequence.new(darker, lighter)
+	end
 	local function update()
 		if not part or not part.Parent then return end
-		if not bb.Parent then return end
+		if bb and not bb.Parent then return end
 		local sizeY = 2.5
 		if part:IsA("Model") then
 			local ok, _, ms = pcall(part.GetBoundingBox, part)
 			if ok and ms then
 				sizeY = ms.Y
-				if not useHighlight and visual and visual:IsA("BoxHandleAdornment") then
+				if (not useHighlight) and (not useDrawing) and visual and visual:IsA("BoxHandleAdornment") then
 					local newSize = ms + Vector3.new(0.1,0.1,0.1)
 					if visual.Size ~= newSize then
 						visual.Size = newSize
@@ -50460,18 +51124,20 @@ NAmanage.CreateBox = function(part, color, transparency)
 			end
 		elseif part:IsA("BasePart") then
 			sizeY = part.Size.Y
-			if not useHighlight and visual and visual:IsA("BoxHandleAdornment") then
+			if (not useHighlight) and (not useDrawing) and visual and visual:IsA("BoxHandleAdornment") then
 				local newSize = part.Size + Vector3.new(0.1,0.1,0.1)
 				if visual.Size ~= newSize then
 					visual.Size = newSize
 				end
 			end
 		end
-		bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
+		if bb then
+			bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
+		end
 	end
 	update()
 	Defer(update)
-	local key = "esp_update_"..tostring(visual)
+	local key = "esp_update_"..HttpService:GenerateGUID(false)
 	if part:IsA("Model") then
 		NAlib.connect(key, part.DescendantAdded:Connect(update))
 		NAlib.connect(key, part.DescendantRemoving:Connect(update))
@@ -50487,17 +51153,20 @@ NAmanage.CreateBox = function(part, color, transparency)
 		part = part,
 		billboard = bb,
 		label = tl,
+		drawingLabel = drawingLabel,
 		visual = visual,
+		drawingSquare = drawingSquare,
 		baseColor = c,
 		lightColor = lighter,
 		darkColor = darker,
 		transparency = entryTransparency,
 		gradient = gr,
 		useHighlight = useHighlight,
+		useDrawing = useDrawing,
 		updateKey = key,
 	}
 	NAmanage.PartESP_RegisterEntry(entry)
-	return visual
+	return visual or drawingSquare
 end
 
 NAmanage.RemoveEspFromPart = function(part)
@@ -50521,18 +51190,68 @@ NAmanage.RemoveEspFromPart = function(part)
 			child:Destroy()
 		end
 	end
+	if NAStuff.partESPEntries then
+		local removeList = {}
+		for _, entry in pairs(NAStuff.partESPEntries) do
+			if entry and entry.part == part then
+				removeList[#removeList + 1] = entry
+			end
+		end
+		for i = 1, #removeList do
+			NAmanage.PartESP_UnregisterEntry(removeList[i])
+		end
+	end
+end
+
+NAmanage.GetPartESPColor = function(key, fallbackColor)
+	local value = NAStuff and NAStuff[key]
+	if typeof(value) == "Color3" then
+		return value
+	end
+	return fallbackColor or Color3.new(1, 1, 1)
+end
+
+NAmanage.RecolorPartESPList = function(list, color)
+	if type(list) ~= "table" then return end
+	local applyColor = (typeof(color) == "Color3") and color or Color3.new(1, 1, 1)
+	for _, part in ipairs(list) do
+		if part and part.Parent then
+			NAmanage.CreateBox(part, applyColor, NAStuff.ESP_PartTransparency or 0.45)
+		end
+	end
+end
+
+NAmanage.RecolorFolderESPEntries = function(color)
+	local members = NAStuff and NAStuff.folderESPMembers
+	if type(members) ~= "table" then return end
+	local applyColor = (typeof(color) == "Color3") and color or Color3.fromRGB(255, 220, 0)
+	for _, list in pairs(members) do
+		if type(list) == "table" then
+			NAmanage.RecolorPartESPList(list, applyColor)
+		end
+	end
+end
+
+NAmanage.RecolorNameESPEntries = function(color)
+	local applyColor = (typeof(color) == "Color3") and color or Color3.fromRGB(255, 255, 255)
+	if NAStuff and NAStuff.nameESPPartLists then
+		NAmanage.RecolorPartESPList(NAStuff.nameESPPartLists.exact, applyColor)
+		NAmanage.RecolorPartESPList(NAStuff.nameESPPartLists.partial, applyColor)
+	end
 end
 
 NAmanage.EnableEsp = function(objType, color, list)
-	for _,obj in ipairs(NAmanage.wsDescs()) do
-		if obj:IsA(objType) then
-			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-			if parent and not Discover(list, parent) then
-				Insert(list, parent)
-				NAmanage.PartESP_QueueCreate(parent, color, 0.45, function(p)
-					return Discover(list, p) ~= nil
-				end)
-			end
+	local function currentColor()
+		local resolved = (type(color) == "function") and color() or color
+		return (typeof(resolved) == "Color3") and resolved or Color3.new(1, 1, 1)
+	end
+	for _,obj in ipairs(workspace:QueryDescendants(objType)) do
+		local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+		if parent and not Discover(list, parent) then
+			Insert(list, parent)
+			NAmanage.PartESP_QueueCreate(parent, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
+				return Discover(list, p) ~= nil
+			end)
 		end
 	end
 	if not NAStuff.espTriggers[objType] then
@@ -50541,7 +51260,7 @@ NAmanage.EnableEsp = function(objType, color, list)
 				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 				if parent and not Discover(list, parent) then
 					Insert(list, parent)
-					NAmanage.PartESP_QueueCreate(parent, color, 0.45, function(p)
+					NAmanage.PartESP_QueueCreate(parent, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 						return Discover(list, p) ~= nil
 					end)
 				end
@@ -50562,6 +51281,13 @@ NAmanage.DisableEsp = function(objType, list)
 end
 
 NAmanage.EnableNameEsp = function(mode, color, ...)
+	local function currentColor()
+		local resolved = (type(color) == "function") and color() or color
+		if typeof(resolved) == "Color3" then
+			return resolved
+		end
+		return NAmanage.GetPartESPColor("ESP_PartColor_Name", Color3.fromRGB(255, 255, 255))
+	end
 	NAStuff.nameESPExclusions = NAStuff.nameESPExclusions or { exact = {}, partial = {} }
 	local terms = {...}
 	local list = NAStuff.espNameLists[mode]
@@ -50605,7 +51331,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		local tracked = partMap[obj] ~= nil
 		if matches and not tracked then
 			if NAmanage.ESP_ListAdd(parts, partMap, obj) then
-				NAmanage.PartESP_QueueCreate(obj, color, 0.45, function(p)
+				NAmanage.PartESP_QueueCreate(obj, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 					return partMap[p] ~= nil
 				end)
 			end
@@ -50668,7 +51394,13 @@ NAmanage.DisableNameEsp = function(mode)
 end
 
 NAmanage.EnableUnanchoredEsp = function(color)
-	local col = color or Color3.fromRGB(255,220,0)
+	local function currentColor()
+		local resolved = (type(color) == "function") and color() or color
+		if typeof(resolved) == "Color3" then
+			return resolved
+		end
+		return NAmanage.GetPartESPColor("ESP_PartColor_Unanchored", Color3.fromRGB(255,220,0))
+	end
 	local list = NAStuff.unanchoredESPList
 	local setMap = NAStuff.unanchoredESPSet
 	if type(setMap) ~= "table" then
@@ -50680,7 +51412,7 @@ NAmanage.EnableUnanchoredEsp = function(color)
 		local tracked = setMap[part] ~= nil
 		if part.Anchored == false and not tracked then
 			if NAmanage.ESP_ListAdd(list, setMap, part) then
-				NAmanage.PartESP_QueueCreate(part, col, 0.45, function(p)
+				NAmanage.PartESP_QueueCreate(part, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 					return setMap[p] ~= nil
 				end)
 			end
@@ -50754,14 +51486,23 @@ NAmanage.EnableCollisionEsp = function(targetState, color)
 	local propKey = targetState and "esp_cancollide_true_prop" or "esp_cancollide_false_prop"
 	local scanKey = targetState and "__cancollide_true_scan" or "__cancollide_false_scan"
 	local sweepKey = targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep"
-	local col = color or (targetState and Color3.fromRGB(0,200,255) or Color3.fromRGB(255,120,120))
+	local function currentColor()
+		local resolved = (type(color) == "function") and color() or color
+		if typeof(resolved) == "Color3" then
+			return resolved
+		end
+		if targetState then
+			return NAmanage.GetPartESPColor("ESP_PartColor_CollisionTrue", Color3.fromRGB(0,200,255))
+		end
+		return NAmanage.GetPartESPColor("ESP_PartColor_CollisionFalse", Color3.fromRGB(255,120,120))
+	end
 	local function update(part)
 		if not part:IsA("BasePart") then return end
 		local tracked = setMap[part] ~= nil
 		local matches = part.CanCollide == targetState
 		if matches and not tracked then
 			if NAmanage.ESP_ListAdd(list, setMap, part) then
-				NAmanage.PartESP_QueueCreate(part, col, 0.45, function(p)
+				NAmanage.PartESP_QueueCreate(part, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 					return setMap[p] ~= nil
 				end)
 			end
@@ -50831,9 +51572,37 @@ NAmanage.ESP_LocatorEnsureGui = function()
 	return g
 end
 
-NAmanage.ESP_LocatorEnable = function(force)
-	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") then return end
+NAmanage.ESP_LocatorDisposeHolder = function(holder)
+	if typeof(holder) == "Instance" then
+		if holder and holder.Parent then
+			holder:Destroy()
+		end
+		return
+	end
+	if type(holder) ~= "table" then
+		return
+	end
+	if holder.frame and typeof(holder.frame) == "Instance" and holder.frame.Parent then
+		holder.frame:Destroy()
+	end
+	if holder.holder and typeof(holder.holder) == "Instance" and holder.holder.Parent then
+		holder.holder:Destroy()
+	end
+	if holder.label and typeof(holder.label) == "Instance" and holder.label.Parent then
+		holder.label:Destroy()
+	end
+	if holder.drawingArrow then
+		NAmanage.DrawingRemoveObject(holder.drawingArrow)
+	end
+	if holder.drawingLabel then
+		NAmanage.DrawingRemoveObject(holder.drawingLabel)
+	end
+end
+
+NAmanage.ESP_LocatorEnableGui = function(force)
+	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") and NAStuff.ESP_LocatorBackend == "gui" then return end
 	NAStuff.ESP_LocatorEnabled = true
+	NAStuff.ESP_LocatorBackend = "gui"
 
 	local gui = NAmanage.ESP_LocatorEnsureGui()
 	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
@@ -50846,7 +51615,13 @@ NAmanage.ESP_LocatorEnable = function(force)
 
 	local function getHolder(entry)
 		local holder = arrows[entry]
-		if holder and holder.Parent then return holder end
+		if typeof(holder) == "Instance" and holder.Parent then
+			return holder
+		end
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			arrows[entry] = nil
+		end
 
 		local maxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorMaxArrows) or 180), 24, 800)
 		if activeCount >= maxActive then
@@ -50907,8 +51682,8 @@ NAmanage.ESP_LocatorEnable = function(force)
 
 	local function removeHolder(entry, holder)
 		local had = false
-		if holder and holder.Parent then
-			holder:Destroy()
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
 			had = true
 		end
 		if holderState[holder] then
@@ -50925,7 +51700,7 @@ NAmanage.ESP_LocatorEnable = function(force)
 	end
 
 	for _, holder in pairs(arrows) do
-		if holder and holder.Parent then
+		if typeof(holder) == "Instance" and holder.Parent then
 			activeCount += 1
 			holderState[holder] = holderState[holder] or { seen = os.clock() }
 		end
@@ -51147,23 +51922,863 @@ NAmanage.ESP_LocatorEnable = function(force)
 	end))
 end
 
+NAmanage.ESP_LocatorEnableDrawing = function(force)
+	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") and NAStuff.ESP_LocatorBackend == "drawing" then return end
+	NAStuff.ESP_LocatorEnabled = true
+	NAStuff.ESP_LocatorBackend = "drawing"
+
+	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then
+		NAStuff.ESP_LocatorGui:Destroy()
+		NAStuff.ESP_LocatorGui = nil
+	end
+
+	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
+	local arrows = NAStuff.ESP_LocatorArrows
+	local holderState = setmetatable({}, { __mode = "k" })
+	local activeCount = 0
+	local iterKey = nil
+	local accum = 0
+	local lastCleanup = 0
+
+	local function getHolder(entry)
+		local holder = arrows[entry]
+		if type(holder) == "table" and holder.drawingArrow then
+			return holder
+		end
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			arrows[entry] = nil
+		end
+
+		local maxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorMaxArrows) or 180), 24, 800)
+		if activeCount >= maxActive then
+			return nil
+		end
+
+		local tri = NAmanage.DrawingCreateTriangle(Color3.new(1, 1, 1), 1)
+		if not tri then
+			return nil
+		end
+		local label = NAStuff.ESP_LocatorShowText == true and NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_LocatorTextSize or 14) or nil
+		holder = {
+			drawingArrow = tri,
+			drawingLabel = label,
+		}
+		arrows[entry] = holder
+		holderState[holder] = { seen = os.clock() }
+		activeCount += 1
+		return holder
+	end
+
+	local function removeHolder(entry, holder)
+		local had = false
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			had = true
+		end
+		if holderState[holder] then
+			holderState[holder] = nil
+			had = true
+		end
+		if entry ~= nil and arrows[entry] ~= nil then
+			arrows[entry] = nil
+			had = true
+		end
+		if had and activeCount > 0 then
+			activeCount -= 1
+		end
+	end
+
+	for _, holder in pairs(arrows) do
+		if type(holder) == "table" and holder.drawingArrow then
+			activeCount += 1
+			holderState[holder] = holderState[holder] or { seen = os.clock() }
+		end
+	end
+
+	NAlib.disconnect("esp_locator_loop")
+	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function(dt)
+		if not NAStuff.ESP_LocatorEnabled then
+			return
+		end
+		accum += tonumber(dt) or 0
+		local configuredRate = tonumber(NAStuff.ESP_LocatorUpdateRate)
+		local updateRate = math.clamp((configuredRate and math.floor(configuredRate + 0.5)) or 60, 8, 60)
+		if updateRate < 60 then
+			updateRate = 60
+		end
+		local stepInterval = 1 / updateRate
+		if accum < stepInterval then
+			return
+		end
+		accum = 0
+
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local vp = cam.ViewportSize
+		if vp.X <= 0 or vp.Y <= 0 then return end
+
+		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
+		local textOn = (NAStuff.ESP_LocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 600)
+		if perStep < 180 then
+			perStep = 180
+		end
+		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_LocatorHoldSeconds) or 0.5, 0.15, 3)
+		local now = os.clock()
+
+		local cx, cy = vp.X * 0.5, vp.Y * 0.5
+		local margin = 16 + size * 0.5
+		local minX, maxX = margin, vp.X - margin
+		local minY, maxY = margin, vp.Y - margin
+
+		local root = nil
+		if NAStuff.ESP_ShowPartDistance == true then
+			local lp = Players.LocalPlayer
+			local ch = lp and lp.Character
+			root = ch and getRoot(ch)
+		end
+
+		local entries = NAStuff.partESPEntries or {}
+		local processed = 0
+		while processed < perStep do
+			local key, entry = next(entries, iterKey)
+			if key == nil then
+				key, entry = next(entries, nil)
+				if key == nil then
+					iterKey = nil
+					break
+				end
+			end
+			iterKey = key
+			processed += 1
+
+			if entry and not entry.removed and entry.part and entry.part.Parent then
+				local pos = NAgui.getInstanceWorldPosition(entry.part)
+				if pos then
+					local v3 = cam:WorldToViewportPoint(pos)
+					local x, y, z = v3.X, v3.Y, v3.Z
+					local onScreen = (z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y)
+					if onScreen then
+						local holder = arrows[entry]
+						if type(holder) == "table" then
+							if holder.drawingArrow then
+								pcall(function() holder.drawingArrow.Visible = false end)
+							end
+							if holder.drawingLabel then
+								pcall(function() holder.drawingLabel.Visible = false end)
+							end
+							local hs = holderState[holder]
+							if hs then
+								hs.seen = now
+							end
+						end
+					else
+						local holder = arrows[entry] or getHolder(entry)
+						if type(holder) == "table" and holder.drawingArrow then
+							local col = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
+
+							local dirX, dirY = x - cx, y - cy
+							if z <= 0 then
+								dirX = -dirX
+								dirY = -dirY
+							end
+							local mag = math.sqrt((dirX * dirX) + (dirY * dirY))
+							if mag < 1e-3 then
+								dirX, dirY = 0, -1
+							else
+								dirX, dirY = dirX / mag, dirY / mag
+							end
+
+							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
+							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
+							local scale = math.min(sx, sy)
+							local px = cx + (dirX * scale)
+							local py = cy + (dirY * scale)
+							if px < minX then px = minX elseif px > maxX then px = maxX end
+							if py < minY then py = minY elseif py > maxY then py = maxY end
+
+							NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1)
+
+							local hs = holderState[holder]
+							if hs then
+								hs.seen = now
+							end
+
+							if textOn then
+								if not holder.drawingLabel then
+									holder.drawingLabel = NAmanage.DrawingCreateText("", col, textSize)
+								end
+								local label = holder.drawingLabel
+								if label then
+									local nm = entry.customName or (entry.part and entry.part.Name) or "Part"
+									if NAStuff.ESP_ShowPartDistance == true and root and root.Position then
+										local d = math.floor((root.Position - pos).Magnitude + 0.5)
+										nm = nm.." | "..tostring(d).." studs"
+									end
+									local gap = 8 + math.floor(size * 0.5)
+									local lx = px - (dirX * gap)
+									local ly = py - (dirY * gap)
+									if lx < 4 then lx = 4 elseif lx > (vp.X - 4) then lx = vp.X - 4 end
+									if ly < 4 then ly = 4 elseif ly > (vp.Y - 4) then ly = vp.Y - 4 end
+									pcall(function()
+										label.Text = nm
+										label.Color = col
+										label.Size = textSize
+										label.Position = Vector2.new(lx, ly)
+										label.Visible = true
+									end)
+								end
+							elseif holder.drawingLabel then
+								pcall(function()
+									holder.drawingLabel.Visible = false
+								end)
+							end
+						end
+					end
+				end
+			else
+				removeHolder(entry, arrows[entry])
+			end
+		end
+
+		if now - lastCleanup >= 0.2 then
+			lastCleanup = now
+			for entry, holder in pairs(arrows) do
+				local hs = holderState[holder]
+				local stale = (not hs) or ((now - (hs.seen or 0)) > staleSeconds)
+				local hasArrow = type(holder) == "table" and holder.drawingArrow ~= nil
+				if (not entry) or entry.removed or (not entry.part) or (not entry.part.Parent) or (not hasArrow) or stale then
+					removeHolder(entry, holder)
+				end
+			end
+		end
+	end))
+end
+
+NAmanage.ESP_LocatorShouldUseDrawing = function()
+	return NAgui.espUsesDrawing("part") and NAgui.hasDrawingAPI()
+end
+
+NAmanage.ESP_LocatorEnable = function(force)
+	local targetBackend = NAmanage.ESP_LocatorShouldUseDrawing() and "drawing" or "gui"
+	local currentBackend = tostring(NAStuff.ESP_LocatorBackend or "")
+	if NAlib.isConnected("esp_locator_loop") and (force or currentBackend ~= targetBackend) then
+		NAmanage.ESP_LocatorDisable()
+	end
+	if targetBackend == "drawing" then
+		NAmanage.ESP_LocatorEnableDrawing(force)
+	else
+		NAmanage.ESP_LocatorEnableGui(force)
+	end
+end
+
 NAmanage.ESP_LocatorDisable = function()
 	NAStuff.ESP_LocatorEnabled = false
 	NAlib.disconnect("esp_locator_loop")
 	if NAStuff.ESP_LocatorArrows then
-		for _, a in pairs(NAStuff.ESP_LocatorArrows) do
-			if a and a.Parent then a:Destroy() end
+		for _, holder in pairs(NAStuff.ESP_LocatorArrows) do
+			NAmanage.ESP_LocatorDisposeHolder(holder)
 		end
 	end
-	NAStuff.ESP_LocatorArrows = setmetatable({}, {__mode="k"})
+	NAStuff.ESP_LocatorArrows = setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_LocatorBackend = nil
 	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then
 		NAStuff.ESP_LocatorGui:Destroy()
 		NAStuff.ESP_LocatorGui = nil
 	end
 end
 
+NAmanage.ESP_PlayerLocatorEnsureGui = function()
+	if NAStuff.ESP_PlayerLocatorGui and NAStuff.ESP_PlayerLocatorGui.Parent then
+		return NAStuff.ESP_PlayerLocatorGui
+	end
+	local g = InstanceNew("ScreenGui")
+	NAgui.NaProtectUI(g)
+	NAStuff.ESP_PlayerLocatorGui = g
+	return g
+end
+
+NAmanage.ESP_PlayerLocatorShouldUseDrawing = function()
+	return NAgui.espUsesDrawing("players") and NAgui.hasDrawingAPI()
+end
+
+NAmanage.ESP_PlayerLocatorEnableGui = function(force)
+	if NAStuff.ESP_PlayerLocatorEnabled and not force and NAlib.isConnected("esp_player_locator_loop") and NAStuff.ESP_PlayerLocatorBackend == "gui" then return end
+	NAStuff.ESP_PlayerLocatorEnabled = true
+	NAStuff.ESP_PlayerLocatorBackend = "gui"
+
+	local gui = NAmanage.ESP_PlayerLocatorEnsureGui()
+	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or setmetatable({}, { __mode = "k" })
+	local arrows = NAStuff.ESP_PlayerLocatorArrows
+	local holderState = setmetatable({}, { __mode = "k" })
+	local activeCount = 0
+	local iterKey = nil
+	local accum = 0
+	local lastCleanup = 0
+
+	local function getHolder(model)
+		local holder = arrows[model]
+		if typeof(holder) == "Instance" and holder.Parent then
+			return holder
+		end
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			arrows[model] = nil
+		end
+
+		local maxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorMaxArrows) or 180), 24, 500)
+		if activeCount >= maxActive then
+			return nil
+		end
+
+		holder = InstanceNew("Frame")
+		holder.Name = "player_locator"
+		holder.Size = UDim2.fromOffset(1, 1)
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.BackgroundTransparency = 1
+		holder.ZIndex = 1
+		holder.Visible = false
+		holder.Parent = gui
+
+		local pointer = InstanceNew("TextLabel")
+		pointer.Name = "Pointer"
+		pointer.Size = UDim2.fromOffset(NAStuff.ESP_PlayerLocatorSize or 26, NAStuff.ESP_PlayerLocatorSize or 26)
+		pointer.AnchorPoint = Vector2.new(0.5, 0.5)
+		pointer.Position = UDim2.fromOffset(0, 0)
+		pointer.BackgroundTransparency = 1
+		pointer.Text = "V"
+		pointer.TextScaled = true
+		pointer.TextStrokeTransparency = 0.5
+		pointer.Font = Enum.Font.SourceSansBold
+		pointer.ZIndex = 3
+		pointer.Visible = true
+		pointer.Parent = holder
+
+		local label = InstanceNew("TextLabel")
+		label.Name = "Name"
+		label.Size = UDim2.fromOffset(170, 24)
+		label.AnchorPoint = Vector2.new(0.5, 0.5)
+		label.Position = UDim2.fromOffset(0, 0)
+		label.BackgroundTransparency = 1
+		label.Text = ""
+		label.TextScaled = false
+		label.TextSize = NAStuff.ESP_PlayerLocatorTextSize or 14
+		label.TextWrapped = true
+		label.Font = Enum.Font.SourceSansBold
+		label.TextXAlignment = Enum.TextXAlignment.Center
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextStrokeTransparency = 0.5
+		label.ZIndex = 2
+		label.Visible = NAStuff.ESP_PlayerLocatorShowText == true
+		label.Parent = holder
+
+		arrows[model] = holder
+		holderState[holder] = {
+			seen = os.clock(),
+			lastText = nil,
+			lastTextSize = nil,
+			lastMaxW = nil,
+		}
+		activeCount += 1
+		return holder
+	end
+
+	local function removeHolder(model, holder)
+		local had = false
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			had = true
+		end
+		if holderState[holder] then
+			holderState[holder] = nil
+			had = true
+		end
+		if model ~= nil and arrows[model] ~= nil then
+			arrows[model] = nil
+			had = true
+		end
+		if had and activeCount > 0 then
+			activeCount -= 1
+		end
+	end
+
+	for _, holder in pairs(arrows) do
+		if typeof(holder) == "Instance" and holder.Parent then
+			activeCount += 1
+			holderState[holder] = holderState[holder] or { seen = os.clock() }
+		end
+	end
+
+	local function applyStyle(holder, col)
+		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
+		local showText = (NAStuff.ESP_PlayerLocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
+
+		local pointer = holder:FindFirstChild("Pointer")
+		local label = holder:FindFirstChild("Name")
+
+		if pointer then
+			if pointer.TextColor3 ~= col then pointer.TextColor3 = col end
+			local s = UDim2.fromOffset(size, size)
+			if pointer.Size ~= s then pointer.Size = s end
+		end
+		if label then
+			if label.TextColor3 ~= col then label.TextColor3 = col end
+			if label.TextSize ~= textSize then label.TextSize = textSize end
+			label.Visible = showText
+		end
+	end
+
+	local function measure(text, textSize, maxWidth)
+		local b = TextService:GetTextSize(text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
+		local w = math.clamp(b.X + 12, 40, maxWidth)
+		local h = math.max(b.Y + 6, textSize + 4)
+		return w, h
+	end
+
+	NAlib.disconnect("esp_player_locator_loop")
+	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
+		if not NAStuff.ESP_PlayerLocatorEnabled then return end
+		accum += tonumber(dt) or 0
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 25, 8, 60)
+		local stepInterval = 1 / updateRate
+		if accum < stepInterval then
+			return
+		end
+		accum = 0
+
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local vp = cam.ViewportSize
+		if vp.X <= 0 or vp.Y <= 0 then return end
+
+		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
+		local textOn = (NAStuff.ESP_PlayerLocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 400)
+		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
+		local now = os.clock()
+
+		local localRoot = nil
+		local lp = Players.LocalPlayer
+		local localChar = lp and lp.Character
+		localRoot = localChar and getRoot(localChar)
+
+		local cx, cy = vp.X * 0.5, vp.Y * 0.5
+		local margin = 16 + size * 0.5
+		local minX, maxX = margin, vp.X - margin
+		local minY, maxY = margin, vp.Y - margin
+
+		local processed = 0
+		while processed < perStep do
+			local model, data = next(espCONS, iterKey)
+			if model == nil then
+				model, data = next(espCONS, nil)
+				if model == nil then
+					iterKey = nil
+					break
+				end
+			end
+			iterKey = model
+			processed += 1
+
+			if data and data.isNPC ~= true and model and model.Parent and NAmanage.IsValidESPModel(model, false) then
+				local targetPart = getRoot(model) or getHead(model) or NAmanage.ESP_FirstBasePart(model)
+				local pos = targetPart and targetPart.Position or NAgui.getInstanceWorldPosition(model)
+				if pos then
+					local v3 = cam:WorldToViewportPoint(pos)
+					local x, y, z = v3.X, v3.Y, v3.Z
+					local onScreen = (z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y)
+					if onScreen then
+						local holder = arrows[model]
+						if holder and holder.Parent then
+							holder.Visible = false
+							local hs = holderState[holder]
+							if hs then hs.seen = now end
+						end
+					else
+						local holder = arrows[model] or getHolder(model)
+						if holder and holder.Parent then
+							local pointer = holder:FindFirstChild("Pointer")
+							local label = holder:FindFirstChild("Name")
+							local owner = data.ownerPlayer
+							if not (owner and owner.Parent) then
+								owner = Players:GetPlayerFromCharacter(model)
+								if owner then
+									data.ownerPlayer = owner
+								end
+							end
+							local col = (NAStuff.ESP_UseCustomColor == true and NAStuff.ESP_CustomColor)
+								or (owner and owner.Team and owner.Team.TeamColor and owner.Team.TeamColor.Color)
+								or Color3.new(1, 1, 1)
+							applyStyle(holder, col)
+
+							local dirX, dirY = x - cx, y - cy
+							if z <= 0 then dirX = -dirX dirY = -dirY end
+							local mag = math.sqrt(dirX * dirX + dirY * dirY)
+							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX / mag, dirY / mag end
+
+							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
+							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
+							local scale = math.min(sx, sy)
+							local px = cx + dirX * scale
+							local py = cy + dirY * scale
+							if px < minX then px = minX elseif px > maxX then px = maxX end
+							if py < minY then py = minY elseif py > maxY then py = maxY end
+
+							local wantPos = UDim2.fromOffset(px, py)
+							if holder.Position.X.Offset ~= wantPos.X.Offset or holder.Position.Y.Offset ~= wantPos.Y.Offset then
+								holder.Position = wantPos
+							end
+							if pointer then
+								local ang = math.deg(math.atan2(dirY, dirX)) - 90
+								if pointer.Rotation ~= ang then pointer.Rotation = ang end
+							end
+
+							local hs = holderState[holder]
+							if hs then hs.seen = now end
+
+							if textOn and label then
+								local nm = (owner and nameChecker(owner)) or (model and model.Name) or "Player"
+								if localRoot then
+									local d = math.floor((localRoot.Position - pos).Magnitude + 0.5)
+									nm = nm.." | "..tostring(d).." studs"
+								end
+								local side = math.abs(dirX) > math.abs(dirY)
+								local displayText = nm
+								if side then
+									local nameOnly, distOnly = nm, ""
+									local bar = Find(nm, "|", 1, true)
+									if bar then
+										nameOnly = Sub(nm, 1, bar - 2)
+										distOnly = Sub(nm, bar + 2)
+									end
+									displayText = nameOnly..(distOnly ~= "" and ("\n"..distOnly) or "")
+								end
+								if label.Text ~= displayText then
+									label.Text = displayText
+								end
+								local maxW = side and math.max(60, math.floor(size * 3.5)) or math.floor(vp.X * 0.25)
+								local needsMeasure = true
+								if hs then
+									needsMeasure = not (hs.lastText == displayText and hs.lastTextSize == textSize and hs.lastMaxW == maxW)
+								end
+								if needsMeasure then
+									local w, h = measure(displayText, textSize, maxW)
+									if label.Size.X.Offset ~= w or label.Size.Y.Offset ~= h then
+										label.Size = UDim2.fromOffset(w, h)
+									end
+									if hs then
+										hs.lastText = displayText
+										hs.lastTextSize = textSize
+										hs.lastMaxW = maxW
+									end
+								end
+								local gap = 6 + math.floor(size * 0.35)
+								local bx, by = -dirX, -dirY
+								local offX = bx * (size * 0.5 + gap)
+								local offY = by * (size * 0.5 + gap)
+								local lblAbsX = px + offX
+								local lblAbsY = py + offY
+								local halfW = label.Size.X.Offset * 0.5
+								local halfH = label.Size.Y.Offset * 0.5
+								if lblAbsX - halfW < 4 then lblAbsX = 4 + halfW end
+								if lblAbsX + halfW > vp.X - 4 then lblAbsX = vp.X - 4 - halfW end
+								if lblAbsY - halfH < 4 then lblAbsY = 4 + halfH end
+								if lblAbsY + halfH > vp.Y - 4 then lblAbsY = vp.Y - 4 - halfH end
+								local relX = lblAbsX - px
+								local relY = lblAbsY - py
+								local wantLabel = UDim2.fromOffset(relX, relY)
+								if label.Position.X.Offset ~= wantLabel.X.Offset or label.Position.Y.Offset ~= wantLabel.Y.Offset then
+									label.Position = wantLabel
+								end
+								if not label.Visible then label.Visible = true end
+							elseif label and label.Visible then
+								label.Visible = false
+							end
+
+							holder.Visible = true
+						end
+					end
+				end
+			else
+				removeHolder(model, arrows[model])
+			end
+		end
+
+		if now - lastCleanup >= 0.25 then
+			lastCleanup = now
+			for model, holder in pairs(arrows) do
+				local hs = holderState[holder]
+				local stale = (not hs) or ((now - (hs.seen or 0)) > staleSeconds)
+				local data = espCONS[model]
+				local invalid = (not model) or (not data) or data.isNPC == true or (not model.Parent) or (not NAmanage.IsValidESPModel(model, false))
+				if invalid or (not holder) or (not holder.Parent) or stale then
+					removeHolder(model, holder)
+				end
+			end
+		end
+	end))
+end
+
+NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
+	if NAStuff.ESP_PlayerLocatorEnabled and not force and NAlib.isConnected("esp_player_locator_loop") and NAStuff.ESP_PlayerLocatorBackend == "drawing" then return end
+	NAStuff.ESP_PlayerLocatorEnabled = true
+	NAStuff.ESP_PlayerLocatorBackend = "drawing"
+
+	if NAStuff.ESP_PlayerLocatorGui and NAStuff.ESP_PlayerLocatorGui.Parent then
+		NAStuff.ESP_PlayerLocatorGui:Destroy()
+		NAStuff.ESP_PlayerLocatorGui = nil
+	end
+
+	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or setmetatable({}, { __mode = "k" })
+	local arrows = NAStuff.ESP_PlayerLocatorArrows
+	local holderState = setmetatable({}, { __mode = "k" })
+	local activeCount = 0
+	local iterKey = nil
+	local accum = 0
+	local lastCleanup = 0
+
+	local function getHolder(model)
+		local holder = arrows[model]
+		if type(holder) == "table" and holder.drawingArrow then
+			return holder
+		end
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			arrows[model] = nil
+		end
+		local maxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorMaxArrows) or 180), 24, 500)
+		if activeCount >= maxActive then
+			return nil
+		end
+		local tri = NAmanage.DrawingCreateTriangle(Color3.new(1, 1, 1), 1)
+		if not tri then
+			return nil
+		end
+		local label = NAStuff.ESP_PlayerLocatorShowText == true and NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_PlayerLocatorTextSize or 14) or nil
+		holder = {
+			drawingArrow = tri,
+			drawingLabel = label,
+		}
+		arrows[model] = holder
+		holderState[holder] = { seen = os.clock() }
+		activeCount += 1
+		return holder
+	end
+
+	local function removeHolder(model, holder)
+		local had = false
+		if holder then
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+			had = true
+		end
+		if holderState[holder] then
+			holderState[holder] = nil
+			had = true
+		end
+		if model ~= nil and arrows[model] ~= nil then
+			arrows[model] = nil
+			had = true
+		end
+		if had and activeCount > 0 then
+			activeCount -= 1
+		end
+	end
+
+	for _, holder in pairs(arrows) do
+		if type(holder) == "table" and holder.drawingArrow then
+			activeCount += 1
+			holderState[holder] = holderState[holder] or { seen = os.clock() }
+		end
+	end
+
+	NAlib.disconnect("esp_player_locator_loop")
+	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
+		if not NAStuff.ESP_PlayerLocatorEnabled then return end
+		accum += tonumber(dt) or 0
+		local configuredRate = tonumber(NAStuff.ESP_PlayerLocatorUpdateRate)
+		local updateRate = math.clamp((configuredRate and math.floor(configuredRate + 0.5)) or 60, 8, 60)
+		if updateRate < 60 then
+			updateRate = 60
+		end
+		local stepInterval = 1 / updateRate
+		if accum < stepInterval then
+			return
+		end
+		accum = 0
+
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local vp = cam.ViewportSize
+		if vp.X <= 0 or vp.Y <= 0 then return end
+
+		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
+		local textOn = (NAStuff.ESP_PlayerLocatorShowText == true)
+		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 600)
+		if perStep < 180 then
+			perStep = 180
+		end
+		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
+		local now = os.clock()
+
+		local lp = Players.LocalPlayer
+		local localChar = lp and lp.Character
+		local localRoot = localChar and getRoot(localChar)
+
+		local cx, cy = vp.X * 0.5, vp.Y * 0.5
+		local margin = 16 + size * 0.5
+		local minX, maxX = margin, vp.X - margin
+		local minY, maxY = margin, vp.Y - margin
+
+		local processed = 0
+		while processed < perStep do
+			local model, data = next(espCONS, iterKey)
+			if model == nil then
+				model, data = next(espCONS, nil)
+				if model == nil then
+					iterKey = nil
+					break
+				end
+			end
+			iterKey = model
+			processed += 1
+
+			if data and data.isNPC ~= true and model and model.Parent and NAmanage.IsValidESPModel(model, false) then
+				local targetPart = getRoot(model) or getHead(model) or NAmanage.ESP_FirstBasePart(model)
+				local pos = targetPart and targetPart.Position or NAgui.getInstanceWorldPosition(model)
+				if pos then
+					local v3 = cam:WorldToViewportPoint(pos)
+					local x, y, z = v3.X, v3.Y, v3.Z
+					local onScreen = (z > 0 and x >= 0 and x <= vp.X and y >= 0 and y <= vp.Y)
+					if onScreen then
+						local holder = arrows[model]
+						if type(holder) == "table" then
+							if holder.drawingArrow then pcall(function() holder.drawingArrow.Visible = false end) end
+							if holder.drawingLabel then pcall(function() holder.drawingLabel.Visible = false end) end
+							local hs = holderState[holder]
+							if hs then hs.seen = now end
+						end
+					else
+						local holder = arrows[model] or getHolder(model)
+						if type(holder) == "table" and holder.drawingArrow then
+							local owner = data.ownerPlayer
+							if not (owner and owner.Parent) then
+								owner = Players:GetPlayerFromCharacter(model)
+								if owner then
+									data.ownerPlayer = owner
+								end
+							end
+							local col = (NAStuff.ESP_UseCustomColor == true and NAStuff.ESP_CustomColor)
+								or (owner and owner.Team and owner.Team.TeamColor and owner.Team.TeamColor.Color)
+								or Color3.new(1, 1, 1)
+
+							local dirX, dirY = x - cx, y - cy
+							if z <= 0 then dirX = -dirX dirY = -dirY end
+							local mag = math.sqrt((dirX * dirX) + (dirY * dirY))
+							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX / mag, dirY / mag end
+
+							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
+							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
+							local scale = math.min(sx, sy)
+							local px = cx + (dirX * scale)
+							local py = cy + (dirY * scale)
+							if px < minX then px = minX elseif px > maxX then px = maxX end
+							if py < minY then py = minY elseif py > maxY then py = maxY end
+
+							NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1)
+							local hs = holderState[holder]
+							if hs then hs.seen = now end
+
+							if textOn then
+								if not holder.drawingLabel then
+									holder.drawingLabel = NAmanage.DrawingCreateText("", col, textSize)
+								end
+								local label = holder.drawingLabel
+								if label then
+									local nm = (owner and nameChecker(owner)) or (model and model.Name) or "Player"
+									if localRoot then
+										local d = math.floor((localRoot.Position - pos).Magnitude + 0.5)
+										nm = nm.." | "..tostring(d).." studs"
+									end
+									local gap = 8 + math.floor(size * 0.5)
+									local lx = px - (dirX * gap)
+									local ly = py - (dirY * gap)
+									if lx < 4 then lx = 4 elseif lx > (vp.X - 4) then lx = vp.X - 4 end
+									if ly < 4 then ly = 4 elseif ly > (vp.Y - 4) then ly = vp.Y - 4 end
+									pcall(function()
+										label.Text = nm
+										label.Color = col
+										label.Size = textSize
+										label.Position = Vector2.new(lx, ly)
+										label.Visible = true
+									end)
+								end
+							elseif holder.drawingLabel then
+								pcall(function()
+									holder.drawingLabel.Visible = false
+								end)
+							end
+						end
+					end
+				end
+			else
+				removeHolder(model, arrows[model])
+			end
+		end
+
+		if now - lastCleanup >= 0.2 then
+			lastCleanup = now
+			for model, holder in pairs(arrows) do
+				local hs = holderState[holder]
+				local stale = (not hs) or ((now - (hs.seen or 0)) > staleSeconds)
+				local data = espCONS[model]
+				local invalid = (not model) or (not data) or data.isNPC == true or (not model.Parent) or (not NAmanage.IsValidESPModel(model, false))
+				local hasArrow = type(holder) == "table" and holder.drawingArrow ~= nil
+				if invalid or (not hasArrow) or stale then
+					removeHolder(model, holder)
+				end
+			end
+		end
+	end))
+end
+
+NAmanage.ESP_PlayerLocatorEnable = function(force)
+	local targetBackend = NAmanage.ESP_PlayerLocatorShouldUseDrawing() and "drawing" or "gui"
+	local currentBackend = tostring(NAStuff.ESP_PlayerLocatorBackend or "")
+	if NAlib.isConnected("esp_player_locator_loop") and (force or currentBackend ~= targetBackend) then
+		NAmanage.ESP_PlayerLocatorDisable()
+	end
+	if targetBackend == "drawing" then
+		NAmanage.ESP_PlayerLocatorEnableDrawing(force)
+	else
+		NAmanage.ESP_PlayerLocatorEnableGui(force)
+	end
+end
+
+NAmanage.ESP_PlayerLocatorDisable = function()
+	NAStuff.ESP_PlayerLocatorEnabled = false
+	NAlib.disconnect("esp_player_locator_loop")
+	if NAStuff.ESP_PlayerLocatorArrows then
+		for _, holder in pairs(NAStuff.ESP_PlayerLocatorArrows) do
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+		end
+	end
+	NAStuff.ESP_PlayerLocatorArrows = setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_PlayerLocatorBackend = nil
+	if NAStuff.ESP_PlayerLocatorGui and NAStuff.ESP_PlayerLocatorGui.Parent then
+		NAStuff.ESP_PlayerLocatorGui:Destroy()
+		NAStuff.ESP_PlayerLocatorGui = nil
+	end
+end
+
 cmd.add({"touchesp","tesp"},{"touchesp"},function()
-	NAmanage.EnableEsp("TouchTransmitter", Color3.fromRGB(255,0,0), NAStuff.touchESPList)
+	NAmanage.EnableEsp("TouchTransmitter", function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Touch", Color3.fromRGB(255,0,0))
+	end, NAStuff.touchESPList)
 end)
 
 cmd.add({"untouchesp","untesp"},{"untouchesp"},function()
@@ -51171,7 +52786,9 @@ cmd.add({"untouchesp","untesp"},{"untouchesp"},function()
 end)
 
 cmd.add({"proximityesp","prxesp","proxiesp"},{"proximityesp"},function()
-	NAmanage.EnableEsp("ProximityPrompt", Color3.fromRGB(0,0,255), NAStuff.proximityESPList)
+	NAmanage.EnableEsp("ProximityPrompt", function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Proximity", Color3.fromRGB(0,0,255))
+	end, NAStuff.proximityESPList)
 end)
 
 cmd.add({"unproximityesp","unprxesp","unproxiesp"},{"unproximityesp"},function()
@@ -51179,7 +52796,9 @@ cmd.add({"unproximityesp","unprxesp","unproxiesp"},{"unproximityesp"},function()
 end)
 
 cmd.add({"clickesp","cesp"},{"clickesp"},function()
-	NAmanage.EnableEsp("ClickDetector", Color3.fromRGB(255,165,0), NAStuff.clickESPList)
+	NAmanage.EnableEsp("ClickDetector", function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Click", Color3.fromRGB(255,165,0))
+	end, NAStuff.clickESPList)
 end)
 
 cmd.add({"unclickesp","uncesp"},{"unclickesp"},function()
@@ -51187,7 +52806,9 @@ cmd.add({"unclickesp","uncesp"},{"unclickesp"},function()
 end)
 
 cmd.add({"sitesp","ssp"},{"sitesp"},function()
-	NAmanage.EnableEsp("Seat", Color3.fromRGB(0,255,0), NAStuff.siteESPList)
+	NAmanage.EnableEsp("Seat", function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Seat", Color3.fromRGB(0,255,0))
+	end, NAStuff.siteESPList)
 end)
 
 cmd.add({"unsitesp","unssp"},{"unsitesp"},function()
@@ -51195,7 +52816,9 @@ cmd.add({"unsitesp","unssp"},{"unsitesp"},function()
 end)
 
 cmd.add({"vehiclesitesp","vsitesp","vsp"},{"vehiclesitesp"},function()
-	NAmanage.EnableEsp("VehicleSeat", Color3.fromRGB(255,0,255), NAStuff.vehicleSiteESPList)
+	NAmanage.EnableEsp("VehicleSeat", function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_VehicleSeat", Color3.fromRGB(255,0,255))
+	end, NAStuff.vehicleSiteESPList)
 end)
 
 cmd.add({"unvehiclesitesp","unvsitesp","unvsp"},{"unvehiclesitesp"},function()
@@ -51377,7 +53000,9 @@ cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]",
 end,true)
 
 cmd.add({"unanchored","unanchoredesp","uaesp"},{"unanchored"},function()
-	NAmanage.EnableUnanchoredEsp(Color3.fromRGB(255,220,0))
+	NAmanage.EnableUnanchoredEsp(function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Unanchored", Color3.fromRGB(255,220,0))
+	end)
 end)
 
 cmd.add({"ununanchored","ununanchoredesp","unuaesp"},{"ununanchored"},function()
@@ -51385,7 +53010,9 @@ cmd.add({"ununanchored","ununanchoredesp","unuaesp"},{"ununanchored"},function()
 end)
 
 cmd.add({"collisionesp","colesp"},{"collisionesp"},function()
-	NAmanage.EnableCollisionEsp(true, Color3.fromRGB(0,200,255))
+	NAmanage.EnableCollisionEsp(true, function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_CollisionTrue", Color3.fromRGB(0,200,255))
+	end)
 end)
 
 cmd.add({"uncollisionesp","uncolesp"},{"uncollisionesp"},function()
@@ -51393,7 +53020,9 @@ cmd.add({"uncollisionesp","uncolesp"},{"uncollisionesp"},function()
 end)
 
 cmd.add({"nocollisionesp","ncolesp"},{"nocollisionesp"},function()
-	NAmanage.EnableCollisionEsp(false, Color3.fromRGB(255,120,120))
+	NAmanage.EnableCollisionEsp(false, function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_CollisionFalse", Color3.fromRGB(255,120,120))
+	end)
 end)
 
 cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
@@ -51401,11 +53030,11 @@ cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
 end)
 
 cmd.add({"esplocator","locator","trackesp"},{"esplocator",""},function()
-	NAmanage.ESP_LocatorEnable(true)
+	NAmanage.ESP_SetLocatorEnabled(true)
 end)
 
 cmd.add({"unesplocator","unlocator","untrackesp"},{"unesplocator",""},function()
-	NAmanage.ESP_LocatorDisable()
+	NAmanage.ESP_SetLocatorEnabled(false)
 end)
 
 originalIO.folderESPMode=function()
@@ -51423,7 +53052,9 @@ NAmanage.FolderESP_Enable = function(folder)
 	if not NAStuff.folderESPScanTokens then NAStuff.folderESPScanTokens = {} end
 
 	local mode = originalIO.folderESPMode()
-	local highlightColor = Color3.fromRGB(255,220,0)
+	local function currentColor()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Folder", Color3.fromRGB(255,220,0))
+	end
 
 	local function topModelFor(instance, rootFolder)
 		if not instance or not rootFolder then
@@ -51448,7 +53079,7 @@ NAmanage.FolderESP_Enable = function(folder)
 			return
 		end
 		if NAmanage.ESP_ListAdd(list, map, target) then
-			NAmanage.PartESP_QueueCreate(target, highlightColor, 0.45, function(p)
+			NAmanage.PartESP_QueueCreate(target, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 				return map[p] ~= nil
 			end)
 		end
@@ -51832,11 +53463,9 @@ cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "
 				camera.CameraSubject = obj
 				return
 			elseif obj:IsA("Model") or obj:IsA("Folder") then
-				for _, child in ipairs(obj:QueryDescendants("Instance")) do
-					if child:IsA("BasePart") then
-						camera.CameraSubject = child
-						return
-					end
+				for _, child in ipairs(obj:QueryDescendants("BasePart")) do
+					camera.CameraSubject = child
+					return
 				end
 			end
 		end
@@ -51864,11 +53493,9 @@ cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewp
 				cam.CameraSubject = obj
 				return
 			elseif obj:IsA("Model") or obj:IsA("Folder") then
-				for _, child in ipairs(obj:QueryDescendants("Instance")) do
-					if child:IsA("BasePart") then
-						cam.CameraSubject = child
-						return
-					end
+				for _, child in ipairs(obj:QueryDescendants("BasePart")) do
+					cam.CameraSubject = child
+					return
 				end
 			end
 		end
@@ -52729,11 +54356,9 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		local ch = GetChar(k)
 		if ch and ch.Parent then
 			local mp = D.og[k]
-			for _, bp in ipairs(ch:QueryDescendants("Instance")) do
-				if bp:IsA("BasePart") then
-					local pr = mp and mp[bp] or nil
-					RestorePart(bp, pr)
-				end
+			for _, bp in ipairs(ch:QueryDescendants("BasePart")) do
+				local pr = mp and mp[bp] or nil
+				RestorePart(bp, pr)
 			end
 		elseif D.og[k] then
 			RestoreMap(D.og[k])
@@ -52758,11 +54383,9 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		local ch = GetChar(k)
 		if ch and ch.Parent then
 			local mp = D.og[k]
-			for _, bp in ipairs(ch:QueryDescendants("Instance")) do
-				if bp:IsA("BasePart") then
-					local pr = mp and mp[bp] or nil
-					RestorePart(bp, pr)
-				end
+			for _, bp in ipairs(ch:QueryDescendants("BasePart")) do
+				local pr = mp and mp[bp] or nil
+				RestorePart(bp, pr)
 			end
 		elseif D.og[k] then
 			RestoreMap(D.og[k])
@@ -52927,10 +54550,8 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 		NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
 	end
 	for _, m in ipairs(elser) do
-		for _, d in ipairs(m:QueryDescendants("Instance")) do
-			if d:IsA("BasePart") then
-				NAmanage.resizePart(d, sizeVec, PST.exact)
-			end
+		for _, d in ipairs(m:QueryDescendants("BasePart")) do
+			NAmanage.resizePart(d, sizeVec, NAStuff.PST.exact)
 		end
 	end
 
@@ -52940,16 +54561,14 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 				local nm = Lower(obj.Name)
 				local sz = NAStuff.PST.sizeE[nm]
 				if sz then
-					NAmanage.resizePart(obj, sz, PST.exact)
+					NAmanage.resizePart(obj, sz, NAStuff.PST.exact)
 					return
 				end
 			else
 				local sz = NAStuff.PST.sizeE[Lower(obj.Name)]
 				if sz then
-					for _, d in ipairs(obj:QueryDescendants("Instance")) do
-						if d:IsA("BasePart") then
-							NAmanage.resizePart(d, sz, PST.exact)
-						end
+					for _, d in ipairs(obj:QueryDescendants("BasePart")) do
+						NAmanage.resizePart(d, sz, NAStuff.PST.exact)
 					end
 				end
 			end
@@ -52977,10 +54596,8 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 		NAmanage.resizePart(p, sizeVec, PST.partial)
 	end
 	for _, m in ipairs(elser) do
-		for _, d in ipairs(m:QueryDescendants("Instance")) do
-			if d:IsA("BasePart") then
-				NAmanage.resizePart(d, sizeVec, PST.partial)
-			end
+		for _, d in ipairs(m:QueryDescendants("BasePart")) do
+			NAmanage.resizePart(d, sizeVec, PST.partial)
 		end
 	end
 
@@ -52997,10 +54614,8 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 			else
 				for t, sz in pairs(PST.sizeP) do
 					if Lower(obj.Name):find(t) then
-						for _, d in ipairs(obj:QueryDescendants("Instance")) do
-							if d:IsA("BasePart") then
-								NAmanage.resizePart(d, sz, PST.partial)
-							end
+						for _, d in ipairs(obj:QueryDescendants("BasePart")) do
+							NAmanage.resizePart(d, sz, PST.partial)
 						end
 						return
 					end
@@ -54674,10 +56289,8 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			IsInvis = true
 			InvisibleCharacter = Character:Clone()
 			InvisibleCharacter.Parent = workspace
-			for _, v in ipairs(InvisibleCharacter:QueryDescendants("Instance")) do
-				if v:IsA("BasePart") then
-					v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
-				end
+			for _, v in ipairs(InvisibleCharacter:QueryDescendants("BasePart")) do
+				v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
 			end
 			local root = getRoot(Character)
 			if root then
@@ -56628,8 +58241,8 @@ end)
 
 cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
 	local speed = tonumber(speedStr) or 16
-	for _, hum in pairs(NAmanage.wsDescs()) do
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+	for _, hum in pairs(workspace:QueryDescendants("Humanoid")) do
+		if CheckIfNPC(hum.Parent) then
 			local root = getRoot(hum.Parent)
 			if root then hum.WalkSpeed = speed end
 		end
@@ -56638,8 +58251,8 @@ end,true)
 
 cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
 	local power=tonumber(powerStr) or 50
-	for _,hum in pairs(NAmanage.wsDescs()) do
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+	for _,hum in pairs(workspace:QueryDescendants("Humanoid")) do
+		if CheckIfNPC(hum.Parent) then
 			local root=getRoot(hum.Parent)
 			if root then hum.JumpPower=power end
 		end
@@ -56667,8 +58280,8 @@ npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
-	for _, hum in ipairs(NAmanage.wsDescs()) do
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+	for _, hum in ipairs(workspace:QueryDescendants("Humanoid")) do
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
 		end
 	end
@@ -56683,11 +58296,9 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 					rootPart.CFrame = localRoot.CFrame
 				end
 				SpawnCall(function()
-					for _, part in ipairs(model:QueryDescendants("Instance")) do
-						if part:IsA("BasePart") then
-							if NAlib.isProperty(part, "CanCollide") then
-								NAlib.setProperty(part, "CanCollide", false)
-							end
+					for _, part in ipairs(model:QueryDescendants("BasePart")) do
+						if NAlib.isProperty(part, "CanCollide") then
+							NAlib.setProperty(part, "CanCollide", false)
 						end
 					end
 				end)
@@ -56703,8 +58314,8 @@ end)
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
-	for _, d in pairs(NAmanage.wsDescs()) do
-		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
+	for _, d in pairs(workspace:QueryDescendants("Humanoid")) do
+		if CheckIfNPC(d.Parent) then
 			local root = getRoot(d.Parent)
 			if root then
 				Insert(npcs, root)
@@ -56874,8 +58485,8 @@ cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable cli
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
-	for _, d in ipairs(NAmanage.wsDescs()) do
-		if d:IsA("Humanoid") and CheckIfNPC(d.Parent) then
+	for _, d in ipairs(workspace:QueryDescendants("Humanoid")) do
+		if CheckIfNPC(d.Parent) then
 			local root = getPlrHum(d.Parent)
 			if root then
 				root.HipHeight = math.huge
@@ -58118,10 +59729,8 @@ NAgui.addTab=function(name, options)
 end
 
 SpawnCall(function()
-	for _,v in ipairs(NAStuff.NASCREENGUI:QueryDescendants("Instance")) do
-		if v:IsA("UIStroke") then
-			NAgui.RegisterColoredStroke(v)
-		end
+	for _,v in ipairs(NAStuff.NASCREENGUI:QueryDescendants("UIStroke")) do
+		NAgui.RegisterColoredStroke(v)
 	end
 end)
 
@@ -59470,10 +61079,8 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		cbtn.Parent = chip
 
 		chip.ZIndex = it.ZIndex + 1
-		for _, d in ipairs(chip:QueryDescendants("Instance")) do
-			if d:IsA("GuiObject") then
-				d.ZIndex = it.ZIndex + 2
-			end
+		for _, d in ipairs(chip:QueryDescendants("GuiObject")) do
+			d.ZIndex = it.ZIndex + 2
 		end
 		cbtn.ZIndex = it.ZIndex + 3
 
@@ -59490,10 +61097,8 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 	NAmanage.SetSearch.tag(tgl, lbl)
 	tgl.Parent = NAUIMANAGER.SettingsList
 	tgl.ZIndex = 1
-	for _, d in ipairs(tgl:QueryDescendants("Instance")) do
-		if d:IsA("GuiObject") then
-			d.ZIndex = d == it and 999999 or d.ZIndex
-		end
+	for _, d in ipairs(tgl:QueryDescendants("GuiObject")) do
+		d.ZIndex = d == it and 999999 or d.ZIndex
 	end
 	tgl.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(tgl)
@@ -74691,10 +76296,45 @@ NAgui.trimText=function(str)
 	return (str or ""):match("^%s*(.-)%s*$")
 end
 
+local function addPartESPColorPicker(label, key, defaultColor, refreshFn)
+	local startColor = NAmanage.GetPartESPColor(key, defaultColor)
+	NAgui.addColorPicker(label, startColor, function(color)
+		if typeof(color) ~= "Color3" then
+			return
+		end
+		NAStuff[key] = color
+		if type(refreshFn) == "function" then
+			refreshFn(color)
+		end
+		NAmanage.SaveESPSettings()
+		NAmanage.PartESP_UpdateTexts(true)
+	end)
+end
+
 NAgui.addSection("Visuals & Color")
 
-NAgui.addToggle("Use Highlight Rendering (Highlight)", NAgui.espUsesHighlight(), function(state)
-	NAStuff.ESP_RenderMode = state and "Highlight" or "BoxHandleAdornment"
+local espRenderOptions = NAgui.getESPRenderModeOptions()
+NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "BoxHandleAdornment")
+NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, NAStuff.ESP_RenderMode)
+
+NAgui.addDropdown("ESP Render Mode", espRenderOptions, NAStuff.ESP_RenderMode, function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local mode = NAgui.sanitizeESPRenderMode(picked, NAStuff.ESP_RenderMode)
+	if mode == NAStuff.ESP_RenderMode then
+		return
+	end
+	NAStuff.ESP_RenderMode = mode
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addDropdown("Part ESP Render Mode", espRenderOptions, NAStuff.ESP_PartRenderMode, function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local mode = NAgui.sanitizeESPRenderMode(picked, NAStuff.ESP_PartRenderMode)
+	if mode == NAStuff.ESP_PartRenderMode then
+		return
+	end
+	NAStuff.ESP_PartRenderMode = mode
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_RebuildVisuals()
 end)
@@ -74719,17 +76359,28 @@ NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), functio
 	NAmanage.SaveESPSettings()
 end)
 
-NAgui.addSlider("ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
+NAgui.addSlider("Player ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
 	local alpha = NAgui.sanitizeTransparency(v)
 	NAStuff.ESP_Transparency = alpha
 	for _, data in pairs(espCONS) do
 		if data.highlight then
 			data.highlight.FillTransparency = alpha
 		end
+		if data.drawingBox then
+			pcall(function()
+				data.drawingBox.Transparency = NAgui.toDrawingTransparency(alpha)
+			end)
+		end
 		for _, box in pairs(data.boxTable) do
 			if box then box.Transparency = alpha end
 		end
 	end
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Part ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or 0.45), 0.05, "", function(v)
+	local alpha = NAgui.sanitizeTransparency(v)
+	NAStuff.ESP_PartTransparency = alpha
 	NAmanage.PartESP_UpdateTexts(true)
 	NAmanage.SaveESPSettings()
 end)
@@ -74807,12 +76458,71 @@ NAgui.addSlider("Label Stroke Transparency", 0, 1, math.clamp(tonumber(NAStuff.E
 	NAmanage.PartESP_UpdateTexts(true)
 end)
 
+NAgui.addSection("Player ESP Locator Arrows")
+
+NAgui.addToggle("Player ESP Locator Arrows", NAStuff.ESP_PlayerLocatorEnabled == true, function(state)
+	NAmanage.ESP_SetPlayerLocatorEnabled(state)
+end)
+
+NAgui.addSlider("Player Locator Size", 12, 128, math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128), 1, " px", function(v)
+	NAStuff.ESP_PlayerLocatorSize = math.clamp(tonumber(v) or 26, 12, 128)
+	NAmanage.ESP_PlayerLocatorApplyFlags()
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Player Locator Show Text", NAStuff.ESP_PlayerLocatorShowText == true, function(state)
+	NAmanage.ESP_SetPlayerLocatorShowText(state)
+end)
+
+NAgui.addSlider("Player Locator Text Size", 10, 48, math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48), 1, " px", function(v)
+	NAStuff.ESP_PlayerLocatorTextSize = math.clamp(tonumber(v) or 14, 10, 48)
+	NAmanage.ESP_PlayerLocatorApplyFlags()
+	NAmanage.SaveESPSettings()
+end)
+
 NAgui.addSection("Part ESP")
+
+NAgui.addToggle("Show Part ESP Text", (NAStuff.ESP_ShowPartText ~= false), function(state)
+	NAStuff.ESP_ShowPartText = state
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
 
 NAgui.addToggle("Show Part Distance", (NAStuff.ESP_ShowPartDistance == true), function(state)
 	NAStuff.ESP_ShowPartDistance = state
 	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+addPartESPColorPicker("Part ESP Name Color", "ESP_PartColor_Name", Color3.fromRGB(255, 255, 255), function(color)
+	NAmanage.RecolorNameESPEntries(color)
+end)
+addPartESPColorPicker("Folder ESP Color", "ESP_PartColor_Folder", Color3.fromRGB(255, 220, 0), function(color)
+	NAmanage.RecolorFolderESPEntries(color)
+end)
+addPartESPColorPicker("Touch ESP Color", "ESP_PartColor_Touch", Color3.fromRGB(255, 0, 0), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.touchESPList, color)
+end)
+addPartESPColorPicker("Proximity ESP Color", "ESP_PartColor_Proximity", Color3.fromRGB(0, 0, 255), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.proximityESPList, color)
+end)
+addPartESPColorPicker("Click ESP Color", "ESP_PartColor_Click", Color3.fromRGB(255, 165, 0), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.clickESPList, color)
+end)
+addPartESPColorPicker("Seat ESP Color", "ESP_PartColor_Seat", Color3.fromRGB(0, 255, 0), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.siteESPList, color)
+end)
+addPartESPColorPicker("Vehicle Seat ESP Color", "ESP_PartColor_VehicleSeat", Color3.fromRGB(255, 0, 255), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.vehicleSiteESPList, color)
+end)
+addPartESPColorPicker("Unanchored ESP Color", "ESP_PartColor_Unanchored", Color3.fromRGB(255, 220, 0), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.unanchoredESPList, color)
+end)
+addPartESPColorPicker("Collidable ESP Color", "ESP_PartColor_CollisionTrue", Color3.fromRGB(0, 200, 255), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.collisiontrueESPList, color)
+end)
+addPartESPColorPicker("Non-Collidable ESP Color", "ESP_PartColor_CollisionFalse", Color3.fromRGB(255, 120, 120), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.collisionfalseESPList, color)
 end)
 
 NAgui.addSection("Folder ESP")
@@ -74826,7 +76536,7 @@ NAgui.addToggle("Highlight Folder ESP By Models", (NAStuff.ESP_FolderMode == "mo
 	end
 end)
 
-NAgui.addSection("Locator Arrows")
+NAgui.addSection("Part ESP Locator Arrows")
 
 NAgui.addToggle("ESP Locator Arrows", NAStuff.ESP_LocatorEnabled == true, function(state)
 	NAmanage.ESP_SetLocatorEnabled(state)
