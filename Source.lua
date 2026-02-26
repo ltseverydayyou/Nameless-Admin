@@ -26271,8 +26271,10 @@ NAmanage.ovTrack = function(st, chr)
 	st.ovParts = {}
 	st.ovPartIdx = setmetatable({}, { __mode = "k" })
 	st.ovMeshCache = setmetatable({}, { __mode = "k" })
-	for _, desc in ipairs(chr:QueryDescendants("BasePart")) do
-		NAmanage.ovPartAdd(st, desc)
+	for _, desc in ipairs(chr:QueryDescendants("Instance")) do
+		if desc:IsA("BasePart") then
+			NAmanage.ovPartAdd(st, desc)
+		end
 	end
 	st.ovConns = {}
 	local conns = st.ovConns
@@ -26424,8 +26426,10 @@ NAmanage.ovMk = function(src, parent)
 
 	gp.Name = "NA_OffPart"
 
-	for _, d in ipairs(gp:QueryDescendants("SpecialMesh")) do
-		pcall(function() d:Destroy() end)
+	for _, d in ipairs(gp:QueryDescendants("Instance")) do
+		if not d:IsA("SpecialMesh") then
+			pcall(function() d:Destroy() end)
+		end
 	end
 
 	gp.Anchored = true
