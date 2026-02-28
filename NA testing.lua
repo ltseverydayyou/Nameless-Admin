@@ -11768,7 +11768,7 @@ pcall(function()
 	end
 end)
 
-NAAssetsLoading.setStatus("finalizing")
+NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
 
 Notify = Notification.Notify
 Window = Notification.Window
@@ -62385,17 +62385,38 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 	end
 
 	local keybindSymbolAliases = {
+		["!"] = "One",
+		["\""] = "Quote",
+		["#"] = "Three",
+		["$"] = "Four",
+		["%"] = "Five",
+		["&"] = "Seven",
+		["'"] = "Quote",
+		["("] = "Nine",
+		[")"] = "Zero",
+		["*"] = "Eight",
+		["+"] = "Equals",
 		[";"] = "Semicolon",
+		[":"] = "Semicolon",
 		[","] = "Comma",
+		["<"] = "Comma",
 		["."] = "Period",
+		[">"] = "Period",
 		["/"] = "Slash",
+		["?"] = "Slash",
 		["\\"] = "BackSlash",
+		["|"] = "BackSlash",
 		["`"] = "Backquote",
+		["~"] = "Backquote",
 		["-"] = "Minus",
+		["_"] = "Minus",
 		["="] = "Equals",
 		["["] = "LeftBracket",
+		["{"] = "LeftBracket",
 		["]"] = "RightBracket",
-		["'"] = "Quote",
+		["}"] = "RightBracket",
+		["@"] = "Two",
+		["^"] = "Six",
 	}
 	local keybindDigitAliases = {
 		["0"] = "Zero",
@@ -62410,6 +62431,19 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		["9"] = "Nine",
 	}
 
+	local function safeKeyCodeLookup(name)
+		if type(name) ~= "string" or name == "" then
+			return nil
+		end
+		local ok, code = pcall(function()
+			return Enum.KeyCode[name]
+		end)
+		if ok and code and code ~= Enum.KeyCode.Unknown then
+			return code
+		end
+		return nil
+	end
+
 	local function resolveKeyCode(text)
 		if type(text) ~= "string" then
 			return Enum.KeyCode.Unknown, nil
@@ -62421,14 +62455,15 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		if #clean == 1 then
 			local alias = keybindSymbolAliases[clean] or keybindDigitAliases[clean]
 			if alias then
-				local aliasCode = Enum.KeyCode[alias]
-				if aliasCode and aliasCode ~= Enum.KeyCode.Unknown then
+				local aliasCode = safeKeyCodeLookup(alias)
+				if aliasCode then
 					return aliasCode, aliasCode.Name
 				end
 			end
 		end
-		local direct = Enum.KeyCode[clean]
-		if direct and direct ~= Enum.KeyCode.Unknown then
+		clean = clean:gsub("^Enum%.KeyCode%.", "")
+		local direct = safeKeyCodeLookup(clean)
+		if direct then
 			return direct, direct.Name
 		end
 		local lower = Lower(clean)
@@ -77753,6 +77788,13 @@ pcall(function()
 			local targetCount = NAmanage.totalCommandCount()
 			local currentCount = tonumber(cmdNAnum) or 0
 			local needsBuild = (NAStuff.cmdAutofillLoading == true) or (NAStuff.cmdAutofillLoadRequested == true) or (currentCount ~= targetCount)
+			if needsBuild and NAAssetsLoading and NAAssetsLoading.setStatus then
+				if targetCount > 0 then
+					NAAssetsLoading.setStatus(Format("building command list and autofill (%d/%d)", math.min(currentCount, targetCount), targetCount))
+				else
+					NAAssetsLoading.setStatus("building command list and autofill")
+				end
+			end
 			if not needsBuild then
 				break
 			end
