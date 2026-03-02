@@ -109,6 +109,7 @@ local NA_TABS = {
 	TAB_INTERFACE = "Interface";
 	TAB_FFLAGS = "FFlags";
 	TAB_AUTOMATION = "Automation";
+	TAB_MANAGEMENT = "Management";
 	TAB_USER_BUTTONS = "User Buttons";
 	TAB_LOGGING = "Logging";
 	TAB_ESP = "ESP";
@@ -118,7 +119,7 @@ local NA_TABS = {
 	TAB_COMMAND_KEYBINDS = "Command Keybinds";
 	TAB_BASIC_INFO = "Basic Info";
 	TAB_ROBLOX_DATA = "Roblox Data";
-	TAB_ADMIN_INFO = "Admin Info";
+	TAB_ADMIN_INFO = "NA Info";
 }
 
 local NAStuff = {
@@ -602,6 +603,7 @@ end
 NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 	local conns = NAStuff.conns
 	if type(conns) ~= "table" then
+		NAStuff._prnAllConCursor = nil
 		return 0
 	end
 	local maxKeys = tonumber(limit)
@@ -609,13 +611,46 @@ NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 		maxKeys = math.max(1, math.floor(maxKeys))
 	end
 	local checked = 0
-	for key in pairs(conns) do
+
+	local function nextConnKey(afterKey)
+		if afterKey == nil then
+			return next(conns)
+		end
+		local ok, result = pcall(next, conns, afterKey)
+		if ok then
+			return result
+		end
+		return next(conns)
+	end
+
+	if maxKeys == nil then
+		for key in pairs(conns) do
+			NAmanage.prnCon(key)
+			checked += 1
+		end
+		NAStuff._prnAllConCursor = nil
+		return checked
+	end
+
+	local cursor = rawget(NAStuff, "_prnAllConCursor")
+	local key = nextConnKey(cursor)
+	if key == nil then
+		cursor = nil
+		key = nextConnKey(nil)
+	end
+
+	while key ~= nil and checked < maxKeys do
 		NAmanage.prnCon(key)
 		checked += 1
-		if maxKeys and checked >= maxKeys then
-			break
+		cursor = key
+		key = nextConnKey(key)
+		if key == nil and checked < maxKeys then
+			cursor = nil
+			key = nextConnKey(nil)
 		end
 	end
+
+	NAStuff._prnAllConCursor = cursor
 	return checked
 end
 
@@ -17292,22 +17327,119 @@ cmd.run = function(args)
 	if not success then warn(adminName.." script error:\n"..msg) end
 end
 
-cmd.loop = function(commandName, args)
-	local command = cmds.Commands[commandName:lower()] or cmds.Aliases[commandName:lower()]
+NAmanage.FmtLoop = function(args)
+	if not args or #args == 0 then
+		return "(no args)"
+	end
+	return Concat(args, ", ")
+end
+
+NAmanage.LoopKey = function(name, args)
+	local loopArgs = type(args) == "table" and args or {}
+	return Lower(tostring(name or "")).." "..Concat(loopArgs, " ")
+end
+
+NAmanage.StartLoop = function(cmdName, args, interval)
+	if type(cmdName) ~= "string" or cmdName == "" then
+		return false, "Command name is required."
+	end
+
+	local command = cmds.Commands[cmdName:lower()] or cmds.Aliases[cmdName:lower()]
 	if not command then
-		DoNotif("Command '"..commandName.."' does not exist.", 3)
-		return
+		return false, "Command '"..cmdName.."' does not exist."
 	end
 
-	local function GenerateLoopKey(name, arguments)
-		return name:lower().." "..Concat(arguments or {}, " ")
+	interval = tonumber(interval)
+	if not interval then
+		return false, "Loop delay must be a number."
+	end
+	if interval < 0 then
+		return false, "Invalid delay. Loop not started."
 	end
 
-	local function FormatArgs(arguments)
-		if not arguments or #arguments == 0 then
-			return "(no args)"
+	local loopArgs = type(args) == "table" and args or {}
+	local loopKey = NAmanage.LoopKey(cmdName, loopArgs)
+	if Loops[loopKey] then
+		return false, "A loop with these arguments is already running for '"..cmdName.."'."
+	end
+
+	local connKey = "loop::"..loopKey
+	NAlib.disconnect(connKey)
+
+	local loopData = {
+		commandName = cmdName,
+		command = command[1],
+		args = loopArgs,
+		interval = interval,
+		running = true,
+		key = connKey,
+	}
+
+	Loops[loopKey] = loopData
+
+	pcall(function()
+		loopData.command(Unpack(loopData.args))
+	end)
+
+	local acc = 0
+	NAlib.connect(connKey, RunService.RenderStepped:Connect(function(dt)
+		local currentLoop = Loops[loopKey]
+		if not currentLoop or not currentLoop.running then
+			NAlib.disconnect(connKey)
+			return
 		end
-		return Concat(arguments, ", ")
+		if currentLoop.interval <= 0 then
+			pcall(function()
+				currentLoop.command(Unpack(currentLoop.args))
+			end)
+			return
+		end
+		acc += dt
+		if acc >= currentLoop.interval then
+			acc %= currentLoop.interval
+			pcall(function()
+				currentLoop.command(Unpack(currentLoop.args))
+			end)
+		end
+	end))
+
+	return true, loopKey, loopData
+end
+
+NAmanage.StopLoop = function(loopKey)
+	local loopData = Loops[loopKey]
+	if not loopData then
+		return false, "Loop not found."
+	end
+
+	loopData.running = false
+	if loopData.key then
+		NAlib.disconnect(loopData.key)
+	end
+	Loops[loopKey] = nil
+
+	return true, loopData
+end
+
+NAmanage.GetLoops = function()
+	local entries = {}
+	for loopKey, loopData in pairs(Loops) do
+		Insert(entries, {
+			key = loopKey,
+			data = loopData,
+			label = Format("'%s' | Args: %s | Delay: %ss", loopData.commandName, NAmanage.FmtLoop(loopData.args), loopData.interval),
+		})
+	end
+	table.sort(entries, function(a, b)
+		return tostring(a.label) < tostring(b.label)
+	end)
+	return entries
+end
+
+cmd.loop = function(commandName, args)
+	if type(commandName) ~= "string" or commandName == "" then
+		DoNotif("Command name is required.", 3)
+		return
 	end
 
 	Window({
@@ -17318,51 +17450,12 @@ cmd.loop = function(commandName, args)
 			{
 				Text = "Submit",
 				Callback = function(input)
-					local interval = tonumber(input) or 0
-					if interval < 0 then
-						DoNotif("Invalid delay. Loop not started.", 3)
+					local ok, result, loopData = NAmanage.StartLoop(commandName, args, tonumber(input) or 0)
+					if not ok then
+						DoNotif(result, 3)
 						return
 					end
-
-					local loopKey = GenerateLoopKey(commandName, args)
-					if Loops[loopKey] then
-						DoNotif("A loop with these arguments is already running for '"..commandName.."'.", 3)
-						return
-					end
-
-					local connKey = "loop::"..loopKey
-					NAlib.disconnect(connKey)
-
-					Loops[loopKey] = {
-						commandName = commandName,
-						command = command[1],
-						args = args or {},
-						interval = interval,
-						running = true,
-						key = connKey
-					}
-
-					pcall(function() Loops[loopKey].command(Unpack(Loops[loopKey].args)) end)
-
-					local acc = 0
-					NAlib.connect(connKey, RunService.RenderStepped:Connect(function(dt)
-						local L = Loops[loopKey]
-						if not L or not L.running then
-							NAlib.disconnect(connKey)
-							return
-						end
-						if L.interval <= 0 then
-							pcall(function() L.command(Unpack(L.args)) end)
-							return
-						end
-						acc += dt
-						if acc >= L.interval then
-							acc %= L.interval
-							pcall(function() L.command(Unpack(L.args)) end)
-						end
-					end))
-
-					DoNotif("Loop started for '"..commandName.."' with delay: "..interval.."s. Args: "..FormatArgs(args), 3)
+					DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 3)
 				end
 			}
 		}
@@ -17370,28 +17463,24 @@ cmd.loop = function(commandName, args)
 end
 
 cmd.stopLoop = function()
-	if next(Loops) == nil then
+	local loopEnts = NAmanage.GetLoops()
+	if #loopEnts == 0 then
 		DoNotif("No active loops to stop.", 2)
 		return
 	end
 
-	local function FormatArgs(arguments)
-		if not arguments or #arguments == 0 then
-			return "(no args)"
-		end
-		return Concat(arguments, ", ")
-	end
-
 	local buttons = {}
-	for loopKey, loopData in pairs(Loops) do
-		local label = Format("'%s' | Args: %s | Delay: %ss", loopData.commandName, FormatArgs(loopData.args), loopData.interval)
+	for i = 1, #loopEnts do
+		local entry = loopEnts[i]
 		Insert(buttons, {
-			Text = label,
+			Text = entry.label,
 			Callback = function()
-				loopData.running = false
-				if loopData.key then NAlib.disconnect(loopData.key) end
-				Loops[loopKey] = nil
-				DoNotif("Stopped loop: '"..loopData.commandName.."' with args: "..FormatArgs(loopData.args), 3)
+				local ok, loopData = NAmanage.StopLoop(entry.key)
+				if not ok then
+					DoNotif(loopData, 2)
+					return
+				end
+				DoNotif("Stopped loop: '"..loopData.commandName.."' with args: "..NAmanage.FmtLoop(loopData.args), 3)
 			end
 		})
 	end
@@ -25555,104 +25644,175 @@ cmd.add({"clearbuttons", "clearbtns", "cb"}, {"clearbuttons (clearbtns, cb)", "C
 	})
 end)
 
-cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec <command> [arguments] (aaexec, addae, addauto, aexecadd)", "Add a command to autoexecute"}, function(arg1, ...)
-	if not arg1 then
-		DoNotif("Usage: ;addautoexec <command> [arguments...]", 2)
-		return
+NAmanage.EnsureAEX = function()
+	NAEXECDATA = NAEXECDATA or { commands = {}, args = {} }
+	if type(NAEXECDATA.commands) ~= "table" then
+		NAEXECDATA.commands = {}
 	end
-
-	local rawName = arg1:lower()
-	local canonical = NAmanage.resolveCommandName(rawName)
-
-	if not canonical then
-		DoNotif("Command ["..rawName.."] does not exist", 2)
-		return
+	if type(NAEXECDATA.args) ~= "table" then
+		NAEXECDATA.args = {}
 	end
+	return NAEXECDATA
+end
 
-	if NAStuff.AutoExecBlockedCommands[canonical] then
-		DoNotif("Command ["..canonical.."] is blocked.", 2)
-		return
-	end
+NAmanage.FmtAExec = function(cmdName, argTxt)
+	local argsTxt = type(argTxt) == "string" and argTxt or tostring(argTxt or "")
+	return argsTxt ~= "" and (tostring(cmdName).." "..argsTxt) or tostring(cmdName)
+end
 
-	local args = {...}
-	local argStr = (#args > 0) and Concat(args, " ") or ""
+NAmanage.GetAExec = function()
+	local data = NAmanage.EnsureAEX()
+	local entries = {}
 
-	NAEXECDATA = NAEXECDATA or { commands = {} }
-	NAEXECDATA.commands = NAEXECDATA.commands or {}
+	for i = 1, #data.commands do
+		local it = data.commands[i]
+		local cmdName, argStr
 
-	local exists = false
-	for i = 1, #NAEXECDATA.commands do
-		local it = NAEXECDATA.commands[i]
 		if type(it) == "table" then
-			local c = it.c
-			local a = it.a or ""
-			if c == canonical and a == argStr then
-				exists = true
-				break
-			end
+			cmdName = it.c
+			argStr = it.a or ""
 		elseif type(it) == "string" then
-			local c = NAmanage.resolveCommandName(it:lower()) or it:lower()
-			local a = (NAEXECDATA.args and (NAEXECDATA.args[it] or NAEXECDATA.args[c])) or ""
-			if c == canonical and a == argStr then
-				exists = true
-				break
+			cmdName = NAmanage.resolveCommandName(it:lower()) or it:lower()
+			argStr = (data.args and (data.args[it] or data.args[cmdName])) or ""
+		end
+
+		if type(cmdName) == "string" then
+			if type(argStr) ~= "string" then
+				argStr = tostring(argStr or "")
 			end
+			Insert(entries, {
+				index = i,
+				command = cmdName,
+				args = argStr,
+				display = NAmanage.FmtAExec(cmdName, argStr),
+			})
 		end
 	end
 
-	if exists then
-		DoNotif("Already in AutoExec: "..canonical..(argStr ~= "" and (" "..argStr) or ""), 2)
-		return
+	return entries
+end
+
+NAmanage.FindAEX = function(tCmd, tArgs)
+	tArgs = type(tArgs) == "string" and tArgs or tostring(tArgs or "")
+	local entries = NAmanage.GetAExec()
+	for i = 1, #entries do
+		local entry = entries[i]
+		if entry.command == tCmd and entry.args == tArgs then
+			return entry.index
+		end
+	end
+end
+
+NAmanage.AddAEX = function(arg1, ...)
+	if not arg1 then
+		return false, "Usage: ;addautoexec <command> [arguments...]"
 	end
 
-	Insert(NAEXECDATA.commands, { c = canonical, a = argStr })
+	local rawName = Lower(tostring(arg1))
+	local canonical = NAmanage.resolveCommandName(rawName)
+	if not canonical then
+		return false, "Command ["..rawName.."] does not exist"
+	end
+	if NAStuff.AutoExecBlockedCommands[canonical] then
+		return false, "Command ["..canonical.."] is blocked."
+	end
 
-	if not NAmanage.AutoExecSave(NAEXECDATA) then
+	local args = { ... }
+	local argStr = (#args > 0) and Concat(args, " ") or ""
+	local data = NAmanage.EnsureAEX()
+
+	if NAmanage.FindAEX(canonical, argStr) then
+		return false, "Already in AutoExec: "..NAmanage.FmtAExec(canonical, argStr)
+	end
+
+	Insert(data.commands, { c = canonical, a = argStr })
+
+	if not NAmanage.AutoExecSave(data) then
 		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
 	end
 
-	DoNotif("Added to AutoExec: "..canonical..(argStr ~= "" and (" "..argStr) or ""), 2)
+	return true, NAmanage.FmtAExec(canonical, argStr)
+end
+
+NAmanage.AddAEXTxt = function(rawTxt)
+	local parsed = ParseArguments(tostring(rawTxt or ""))
+	if type(parsed) ~= "table" or not parsed[1] then
+		return false, "Enter a command to add."
+	end
+
+	local cmdName = parsed[1]
+	table.remove(parsed, 1)
+
+	return NAmanage.AddAEX(cmdName, Unpack(parsed))
+end
+
+NAmanage.DelAEX = function(tCmd, tArgs)
+	local data = NAmanage.EnsureAEX()
+	local eidx = NAmanage.FindAEX(tCmd, tArgs)
+	if not eidx then
+		return false, "Unable to remove AutoExec command."
+	end
+
+	local removed = table.remove(data.commands, eidx)
+	if not removed then
+		return false, "Unable to remove AutoExec command."
+	end
+
+	if not NAmanage.AutoExecSave(data) then
+		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+	end
+
+	return true, NAmanage.FmtAExec(tCmd, tArgs)
+end
+
+NAmanage.ClrAEX = function()
+	local data = NAmanage.EnsureAEX()
+	if #data.commands == 0 then
+		return false, "No AutoExec commands to clear"
+	end
+
+	local clearedCount = #data.commands
+	table.clear(data.commands)
+	data.args = {}
+
+	if not NAmanage.AutoExecSave(data) then
+		DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+	end
+
+	return true, clearedCount
+end
+
+cmd.add({"addautoexec", "aaexec", "addae", "addauto", "aexecadd"}, {"addautoexec <command> [arguments] (aaexec, addae, addauto, aexecadd)", "Add a command to autoexecute"}, function(arg1, ...)
+	local ok, message = NAmanage.AddAEX(arg1, ...)
+	if not ok then
+		DoNotif(message, 2)
+		return
+	end
+
+	DoNotif("Added to AutoExec: "..message, 2)
 end, true)
 
 cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {"removeautoexec (raexec, removeae, removeauto, aexecremove)", "Remove a command from autoexecute"}, function()
-	NAEXECDATA = NAEXECDATA or { commands = {} }
-	NAEXECDATA.commands = NAEXECDATA.commands or {}
-
-	if #NAEXECDATA.commands == 0 then
+	local entries = NAmanage.GetAExec()
+	if #entries == 0 then
 		DoNotif("No AutoExec commands to remove", 2)
 		return
 	end
 
 	local options = {}
-	for i = 1, #NAEXECDATA.commands do
-		local it = NAEXECDATA.commands[i]
-		local c, a
-
-		if type(it) == "table" then
-			c = it.c
-			a = it.a or ""
-		elseif type(it) == "string" then
-			c = NAmanage.resolveCommandName(it:lower()) or it:lower()
-			a = (NAEXECDATA.args and (NAEXECDATA.args[it] or NAEXECDATA.args[c])) or ""
-		end
-
-		if type(c) == "string" then
-			local display = (a ~= "") and (c.." "..a) or c
-			Insert(options, {
-				Text = display,
-				Callback = function()
-					local removed = table.remove(NAEXECDATA.commands, i)
-					if removed then
-						if not NAmanage.AutoExecSave(NAEXECDATA) then
-							DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
-						end
-						DoNotif("Removed AutoExec command: "..display, 2)
-					else
-						DoNotif("Unable to remove AutoExec command.", 2)
-					end
+	for i = 1, #entries do
+		local entry = entries[i]
+		Insert(options, {
+			Text = entry.display,
+			Callback = function()
+				local ok, message = NAmanage.DelAEX(entry.command, entry.args)
+				if not ok then
+					DoNotif(message, 2)
+					return
 				end
-			})
-		end
+				DoNotif("Removed AutoExec command: "..message, 2)
+			end
+		})
 	end
 
 	Window({
@@ -25663,10 +25823,8 @@ cmd.add({"removeautoexec", "raexec", "removeae", "removeauto", "aexecremove"}, {
 end)
 
 cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", "aeclear"}, {"clearautoexec (caexec, clearauto, autoexecclear, aexecclear, aeclear)", "Clear all AutoExec commands"}, function()
-	NAEXECDATA = NAEXECDATA or { commands = {} }
-	NAEXECDATA.commands = NAEXECDATA.commands or {}
-
-	if #NAEXECDATA.commands == 0 then
+	local entries = NAmanage.GetAExec()
+	if #entries == 0 then
 		DoNotif("No AutoExec commands to clear", 2)
 		return
 	end
@@ -25678,12 +25836,11 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 			{
 				Text = "Yes",
 				Callback = function()
-					table.clear(NAEXECDATA.commands)
-
-					if not NAmanage.AutoExecSave(NAEXECDATA) then
-						DebugNotif("Failed to save AutoExec changes; they will reset after this session.")
+					local ok, message = NAmanage.ClrAEX()
+					if not ok then
+						DoNotif(message, 2)
+						return
 					end
-
 					DoNotif("Cleared all AutoExec commands", 2)
 				end
 			}
@@ -59817,18 +59974,12 @@ cmd.add({"rename"}, {"rename <text>", "Renames the admin UI placeholder to the g
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = newName
 	end
-	if NAmanage.UpdateAdminInfoTabDisplayName then
-		NAmanage.UpdateAdminInfoTabDisplayName()
-	end
 end, true)
 
 cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"}, function()
 	adminName = _na_env.NATestingVer and "NA Testing" or "Nameless Admin"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
-	end
-	if NAmanage.UpdateAdminInfoTabDisplayName then
-		NAmanage.UpdateAdminInfoTabDisplayName()
 	end
 end)
 
@@ -69235,19 +69386,30 @@ end))
 	end;
 		if CoreGui then
 			local friendRoot = nil
-			local function bindFriendRoot(root)
-			if friendRoot == root then
-				return
+			local function clrFRoot()
+				friendRoot = nil
+				NAlib.disconnect("NA_FriendLabel_CoreGui")
+				NAlib.disconnect("NA_FriendLabel_PlayerGui")
+				NAlib.disconnect("NA_FriendLabel_CoreGuiRoot")
+				NAlib.disconnect("NA_FriendLabel_CoreGuiRootRemoved")
 			end
-			friendRoot = root
-			NAlib.disconnect("NA_FriendLabel_CoreGui")
-			NAlib.disconnect("NA_FriendLabel_PlayerGui")
-			if not root then
-				return
-			end
-			queueScan(root, function(inst)
-				qDesc(inst, true, nil, nil, nil);
-			end);
+			local function setFRoot(root)
+				if not conToFriendsEnabled() then
+					clrFRoot()
+					return
+				end
+				if friendRoot == root then
+					return
+				end
+				friendRoot = root
+				NAlib.disconnect("NA_FriendLabel_CoreGui")
+				NAlib.disconnect("NA_FriendLabel_PlayerGui")
+				if not root then
+					return
+				end
+				queueScan(root, function(inst)
+					qDesc(inst, true, nil, nil, nil);
+				end);
 				if root == CoreGui and NAmanage.cgSub then
 					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
 						added = function(o)
@@ -69298,6 +69460,7 @@ end))
 
 			NAmanage.refreshConnectionsFriendLabels = function()
 				if not conToFriendsEnabled() then
+					clrFRoot()
 					return
 				end
 				local root = friendRoot
@@ -69307,17 +69470,29 @@ end))
 				if not root then
 					return
 				end
+				if friendRoot ~= root then
+					setFRoot(root)
+					return
+				end
 				queueScan(root, function(inst)
 					qDesc(inst, true, nil, nil, nil);
 				end);
 			end
-	
-				bindFriendRoot(CoreGui)
-		
-			NAlib.disconnect("NA_FriendLabel_CoreGuiRoot")
-			NAlib.disconnect("NA_FriendLabel_CoreGuiRootRemoved")
+
+			local prevClearConnectionsFriendLabelHooks = NAmanage.clearConnectionsFriendLabelHooks
+			NAmanage.clearConnectionsFriendLabelHooks = function()
+				if type(prevClearConnectionsFriendLabelHooks) == "function" then
+					prevClearConnectionsFriendLabelHooks()
+				end
+				clrFRoot()
+			end
+
+			if conToFriendsEnabled() then
+				setFRoot(CoreGui)
+			else
+				clrFRoot()
+			end
 		end;
-	NAlib.disconnect("NA_FriendLabel_PlayerGui");
 	queueScan(workspace, function(inst)
 		qDesc(inst, nil, true, nil, nil);
 	end);
@@ -69536,7 +69711,7 @@ do
 				pcall(NAgui.pruneRegisteredStrokes, false)
 			end
 			if NAmanage and type(NAmanage.prnAllCon) == "function" then
-				pcall(NAmanage.prnAllCon)
+				pcall(NAmanage.prnAllCon, 64)
 			end
 			if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
 				pcall(NAmanage.pruneBlockedRemoteState)
@@ -70696,37 +70871,39 @@ NAmanage.injectNAConsole = function()
 		local coreGui = COREGUI
 		if not coreGui then
 			resetCommandLine()
-			return
+			return false
 		end
 
 		local master = coreGui:FindFirstChild("DevConsoleMaster")
 		if not master then
 			resetCommandLine()
-			return
+			return false
 		end
 
 		local window = master:FindFirstChild("DevConsoleWindow")
 		if not window or window.Visible == false then
 			resetCommandLine()
-			return
+			return false
 		end
 
 		adjustDevConsoleLayout(window)
+		return true
 	end
 
 	NAlib.disconnect("naconsole_loop")
 	do
 		local injectTick = 0
+		local consoleVisible = ensureInjection() == true
 		NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(function(dt)
 			injectTick = injectTick + (dt or 0)
-			if injectTick < 0.15 then
+			local pollInterval = consoleVisible and 0.15 or 0.75
+			if injectTick < pollInterval then
 				return
 			end
 			injectTick = 0
-			ensureInjection()
+			consoleVisible = ensureInjection() == true
 		end))
 	end
-	ensureInjection()
 
 	NAmanage._naConsoleInitialized = true
 	NAmanage._naConsoleFrame = commandLine
@@ -71731,6 +71908,7 @@ end]]
 NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
 NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
 NAgui.addTab(NA_TABS.TAB_AUTOMATION, { order = 2, textIcon = "cube-vertexes" })
+NAgui.addTab(NA_TABS.TAB_MANAGEMENT, { order = 3, textIcon = "nebula" })
 NAgui.setTab(NA_TABS.TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
@@ -72978,6 +73156,216 @@ NAgui.addSlider("cmdbar2 Height", NAStuff.CmdBar2.minHeight, NAStuff.CmdBar2.max
 		height = val,
 	})
 end)
+
+NAgui.setTab(NA_TABS.TAB_MANAGEMENT)
+
+NAStuff.MgmtUI = NAStuff.MgmtUI or {}
+NAStuff.MgmtUI.loopCmd = type(NAStuff.MgmtUI.loopCmd) == "string" and NAStuff.MgmtUI.loopCmd or ""
+NAStuff.MgmtUI.loopDel = type(NAStuff.MgmtUI.loopDel) == "string" and NAStuff.MgmtUI.loopDel or "1"
+NAStuff.MgmtUI.aexecCmd = type(NAStuff.MgmtUI.aexecCmd) == "string" and NAStuff.MgmtUI.aexecCmd or ""
+NAStuff.MgmtUI.loopSel = type(NAStuff.MgmtUI.loopSel) == "string" and NAStuff.MgmtUI.loopSel or "None"
+NAStuff.MgmtUI.aexecSel = type(NAStuff.MgmtUI.aexecSel) == "string" and NAStuff.MgmtUI.aexecSel or "None"
+
+NAStuff.loopLbl = NAStuff.loopLbl or "Active Command Loops"
+NAStuff.aeLbl = NAStuff.aeLbl or "Stored AutoExec Commands"
+NAStuff.loopMap = NAStuff.loopMap or {}
+NAStuff.aeMap = NAStuff.aeMap or {}
+
+NAmanage.getDDTxt=function(sel)
+	if type(sel) == "table" then
+		return sel[1]
+	end
+	if type(sel) == "string" then
+		return sel
+	end
+	return nil
+end
+
+NAmanage.syncLoopDD=function()
+	NAStuff.loopMap = {}
+	local options = {}
+	local entries = NAmanage.GetLoops()
+
+	for i = 1, #entries do
+		local entry = entries[i]
+		options[#options + 1] = entry.label
+		NAStuff.loopMap[entry.label] = entry.key
+	end
+
+	if #options == 0 then
+		options = { "None" }
+	end
+
+	if NAgui.setDropdownOptions then
+		NAgui.setDropdownOptions(NAStuff.loopLbl, options)
+	end
+
+	local sel = NAStuff.MgmtUI.loopSel
+	if not sel or not NAStuff.loopMap[sel] then
+		sel = "None"
+	end
+	NAStuff.MgmtUI.loopSel = sel
+
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue(NAStuff.loopLbl, sel)
+	end
+end
+
+NAmanage.syncAeDD=function()
+	NAStuff.aeMap = {}
+	local options = {}
+	local entries = NAmanage.GetAExec()
+
+	for i = 1, #entries do
+		local entry = entries[i]
+		options[#options + 1] = entry.display
+		NAStuff.aeMap[entry.display] = {
+			command = entry.command,
+			args = entry.args,
+		}
+	end
+
+	if #options == 0 then
+		options = { "None" }
+	end
+
+	if NAgui.setDropdownOptions then
+		NAgui.setDropdownOptions(NAStuff.aeLbl, options)
+	end
+
+	local sel = NAStuff.MgmtUI.aexecSel
+	if not sel or not NAStuff.aeMap[sel] then
+		sel = "None"
+	end
+	NAStuff.MgmtUI.aexecSel = sel
+
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue(NAStuff.aeLbl, sel)
+	end
+end
+
+NAgui.addSection("Command Loop Manager")
+
+NAgui.addInput("Loop Command", "command arguments", NAStuff.MgmtUI.loopCmd, function(text)
+	NAStuff.MgmtUI.loopCmd = tostring(text or "")
+end)
+
+NAgui.addInput("Loop Delay", "seconds (0 = every frame)", NAStuff.MgmtUI.loopDel, function(text)
+	NAStuff.MgmtUI.loopDel = tostring(text or "")
+end)
+
+NAgui.addButton("Start Loop", function()
+	local parsed = ParseArguments(tostring(NAStuff.MgmtUI.loopCmd or ""))
+	if type(parsed) ~= "table" or not parsed[1] then
+		DoNotif("Enter a command to loop.", 2)
+		return
+	end
+
+	local cmdName = parsed[1]
+	table.remove(parsed, 1)
+
+	local interval = tonumber(NAStuff.MgmtUI.loopDel)
+	if interval == nil then
+		DoNotif("Loop delay must be a number.", 2)
+		return
+	end
+
+	local ok, result, loopData = NAmanage.StartLoop(cmdName, parsed, interval)
+	if not ok then
+		DoNotif(result, 2)
+		return
+	end
+
+	DoNotif("Loop started for '"..cmdName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 2)
+	NAmanage.syncLoopDD()
+end)
+
+NAgui.addDropdown(NAStuff.loopLbl, { "None" }, "None", function(sel)
+	local txt = NAmanage.getDDTxt(sel) or "None"
+	NAStuff.MgmtUI.loopSel = txt
+end)
+
+NAgui.addButton("Stop Selected Loop", function()
+	local loopKey = NAStuff.loopMap[NAStuff.MgmtUI.loopSel or ""]
+	if not loopKey then
+		DoNotif("No active loop selected.", 2)
+		NAmanage.syncLoopDD()
+		return
+	end
+
+	local ok, result = NAmanage.StopLoop(loopKey)
+	if not ok then
+		DoNotif(result, 2)
+		NAmanage.syncLoopDD()
+		return
+	end
+
+	DoNotif("Stopped loop: '"..result.commandName.."' with args: "..NAmanage.FmtLoop(result.args), 2)
+	NAmanage.syncLoopDD()
+end)
+
+NAgui.addButton("Refresh Loop List", function()
+	NAmanage.syncLoopDD()
+end)
+
+NAgui.addSection("AutoExec Manager")
+
+NAgui.addInput("AutoExec Command", "command arguments", NAStuff.MgmtUI.aexecCmd, function(text)
+	NAStuff.MgmtUI.aexecCmd = tostring(text or "")
+end)
+
+NAgui.addButton("Add AutoExec Entry", function()
+	local ok, message = NAmanage.AddAEXTxt(NAStuff.MgmtUI.aexecCmd)
+	if not ok then
+		DoNotif(message, 2)
+		return
+	end
+
+	DoNotif("Added to AutoExec: "..message, 2)
+	NAmanage.syncAeDD()
+end)
+
+NAgui.addDropdown(NAStuff.aeLbl, { "None" }, "None", function(sel)
+	local txt = NAmanage.getDDTxt(sel) or "None"
+	NAStuff.MgmtUI.aexecSel = txt
+end)
+
+NAgui.addButton("Remove Selected AutoExec", function()
+	local aeEnt = NAStuff.aeMap[NAStuff.MgmtUI.aexecSel or ""]
+	if not aeEnt then
+		DoNotif("No AutoExec command selected.", 2)
+		NAmanage.syncAeDD()
+		return
+	end
+
+	local ok, message = NAmanage.DelAEX(aeEnt.command, aeEnt.args)
+	if not ok then
+		DoNotif(message, 2)
+		NAmanage.syncAeDD()
+		return
+	end
+
+	DoNotif("Removed AutoExec command: "..message, 2)
+	NAmanage.syncAeDD()
+end)
+
+NAgui.addButton("Clear All AutoExec", function()
+	local ok, result = NAmanage.ClrAEX()
+	if not ok then
+		DoNotif(result, 2)
+		return
+	end
+
+	DoNotif("Cleared "..tostring(result).." AutoExec command"..(result == 1 and "" or "s"), 2)
+	NAmanage.syncAeDD()
+end)
+
+NAgui.addButton("Refresh AutoExec List", function()
+	NAmanage.syncAeDD()
+end)
+
+NAmanage.syncLoopDD()
+NAmanage.syncAeDD()
 
 NAgui.addTab(NA_TABS.TAB_FFLAGS, { order = 4, textIcon = "flag" })
 NAgui.setTab(NA_TABS.TAB_FFLAGS)
@@ -77617,22 +78005,6 @@ NAmanage.RefreshGitHubCommits = function(forceRefresh)
 	return ok
 end
 
-NAmanage.UpdateAdminInfoTabDisplayName = function()
-	if not TabManager or not TabManager.tabs then return end
-	local info = TabManager.tabs[NA_TABS.TAB_ADMIN_INFO]
-	if not info then return end
-	local displayText = (adminName or "Admin").." Info"
-	info.displayName = displayText
-	if originalIO.applyTabDisplayText then
-		originalIO.applyTabDisplayText(info, { isActive = info._isActive })
-	elseif info.button then
-		local title = info.button:FindFirstChild("Title")
-		if title then
-			title.Text = displayText
-		end
-	end
-end
-
 originalIO.fetchRobloxVersionData=function(forceRefresh)
 	local cached = NAStuff.RobloxVersionData
 	local lastFetch = NAStuff.RobloxVersionLastFetch or 0
@@ -77722,12 +78094,8 @@ SpawnCall(function()
 	end
 end)
 
-NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 14, displayText = adminInfoDisplay })
+NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 14, textIcon = "github" })
 NAgui.setTab(NA_TABS.TAB_ADMIN_INFO)
-
-if NAmanage.UpdateAdminInfoTabDisplayName then
-	NAmanage.UpdateAdminInfoTabDisplayName()
-end
 
 if not NAStuff.GitHubTabInitialized then
 	NAgui.addSection("Latest Commit")
