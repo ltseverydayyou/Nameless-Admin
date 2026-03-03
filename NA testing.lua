@@ -142,6 +142,16 @@ local NAStuff = {
 	dmNotificationsEnabled = true;
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
+	StreamerModeEnabled = false;
+	StreamerModeText = "User";
+	StreamerModeGray = Color3.fromRGB(127, 127, 127);
+	StreamerModeImage = "rbxasset://textures/LightThemeLoadingCircle.png";
+	StreamerModeState = {
+		cache = setmetatable({}, { __mode = "k" });
+		nameTokens = {};
+		token = nil;
+		scrubBusy = false;
+	};
 	AutoExecEnabled = true;
 	UserButtonsAutoLoad = true;
 	FriendRequestAutoDismiss = false;
@@ -2176,6 +2186,11 @@ NAlib.isProperty = function(inst, prop)
 	return r
 end
 
+NAlib.setProperty = function(inst, prop, v)
+	local s, _ = pcall(function() inst[prop] = v end)
+	return s
+end
+
 -- Attribute shim for executors that break string attributes (Xeno)
 NAmanage.GetAttr=function(inst, key)
 	if not inst or not key then return nil end
@@ -2221,11 +2236,6 @@ NAmanage.SetAttr=function(inst, key, value)
 	end
 
 	existing.Value = value
-end
-
-NAlib.setProperty = function(inst, prop, v)
-	local s, _ = pcall(function() inst[prop] = v end)
-	return s
 end
 
 NAmanage.NewCancelToken = NAmanage.NewCancelToken or function()
@@ -2485,6 +2495,745 @@ local ContentProvider = SafeGetService("ContentProvider");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 local GuiService = SafeGetService("GuiService");
+
+NAmanage.StreamerEscapePattern = NAmanage.StreamerEscapePattern or function(value)
+	value = tostring(value or "")
+	return value:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+end
+
+NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
+	local state = NAStuff and NAStuff.StreamerModeState
+	if type(state) ~= "table" then
+		state = {
+			cache = setmetatable({}, { __mode = "k" });
+			nameTokens = {};
+			token = nil;
+			scrubBusy = false;
+		}
+		NAStuff.StreamerModeState = state
+	end
+	if type(state.cache) ~= "table" then
+		state.cache = setmetatable({}, { __mode = "k" })
+	end
+	if type(state.nameTokens) ~= "table" then
+		state.nameTokens = {}
+	end
+	return state
+end
+
+NAmanage.StreamerGetRecord = NAmanage.StreamerGetRecord or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local state = NAmanage.StreamerGetState()
+	local cache = state.cache
+	local rec = cache[inst]
+	if type(rec) ~= "table" then
+		rec = {}
+		cache[inst] = rec
+	end
+	return rec
+end
+
+NAmanage.StreamerRefreshNameTokens = NAmanage.StreamerRefreshNameTokens or function()
+	local state = NAmanage.StreamerGetState()
+	local tokens = {}
+	local seen = {}
+	if Players then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local names = {
+				plr and plr.Name or nil,
+				plr and plr.DisplayName or nil,
+			}
+			for i = 1, #names do
+				local value = names[i]
+				if type(value) == "string" and value ~= "" and not seen[value] then
+					seen[value] = true
+					Insert(tokens, value)
+				end
+			end
+		end
+	end
+	table.sort(tokens, function(a, b)
+		if #a == #b then
+			return a < b
+		end
+		return #a > #b
+	end)
+	state.nameTokens = tokens
+	return tokens
+end
+
+NAmanage.StreamerRefreshCachedTargets = NAmanage.StreamerRefreshCachedTargets or function()
+	local state = NAmanage.StreamerGetState()
+	local pending = {}
+	for inst in pairs(state.cache) do
+		if typeof(inst) == "Instance" and inst.Parent and NAmanage.StreamerIsTarget(inst) then
+			Insert(pending, inst)
+		end
+	end
+	for i = 1, #pending do
+		NAmanage.StreamerScrubInstance(pending[i])
+	end
+end
+
+NAmanage.StreamerMaskText = NAmanage.StreamerMaskText or function(text)
+	if text == nil then
+		return nil
+	end
+	local source = tostring(text)
+	local tokens = NAmanage.StreamerGetState().nameTokens
+	if type(tokens) ~= "table" or #tokens == 0 then
+		return source
+	end
+	local masked = source
+	local replacement = tostring(NAStuff.StreamerModeText or "\0")
+	for i = 1, #tokens do
+		local token = tokens[i]
+		if token ~= "" then
+			masked = masked:gsub(NAmanage.StreamerEscapePattern(token), replacement)
+		end
+	end
+	return masked
+end
+
+NAmanage.StreamerShouldMaskImage = NAmanage.StreamerShouldMaskImage or function(image)
+	local value = Lower(tostring(image or ""))
+	if value == "" then
+		return false
+	end
+	if value:find("rbxthumb://", 1, true) then
+		return true
+	end
+	if value:find("avatar", 1, true) or value:find("headshot", 1, true) or value:find("bust", 1, true) then
+		return true
+	end
+	if value:find("user-thumbnail", 1, true) or value:find("thumbnail", 1, true) then
+		return true
+	end
+	if value:find("rbxcdn.com", 1, true) and value:find("/users/", 1, true) then
+		return true
+	end
+	return false
+end
+
+NAmanage.StreamerIsContainer = NAmanage.StreamerIsContainer or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	return inst:IsA("BillboardGui")
+		or inst:IsA("SurfaceGui")
+end
+
+NAmanage.StreamerIsTarget = NAmanage.StreamerIsTarget or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	return inst:IsA("TextLabel")
+		or inst:IsA("TextButton")
+		or inst:IsA("TextBox")
+		or inst:IsA("ImageLabel")
+		or inst:IsA("ImageButton")
+end
+
+NAmanage.StreamerIsRelevant = NAmanage.StreamerIsRelevant or function(inst)
+	return NAmanage.StreamerIsTarget(inst) or NAmanage.StreamerIsContainer(inst)
+end
+
+NAmanage.StreamerDisconnectConn = NAmanage.StreamerDisconnectConn or function(conn)
+	if conn and type(conn.Disconnect) == "function" then
+		pcall(function()
+			conn:Disconnect()
+		end)
+	end
+end
+
+NAmanage.StreamerWatchTarget = NAmanage.StreamerWatchTarget or function(inst)
+	if not NAmanage.StreamerIsTarget(inst) then
+		return
+	end
+	local rec = NAmanage.StreamerGetRecord(inst)
+	rec.signalConns = rec.signalConns or {}
+	local function bindSignal(key, signal)
+		if rec.signalConns[key] then
+			return
+		end
+		rec.signalConns[key] = signal:Connect(function()
+			if NAStuff and NAStuff.StreamerModeEnabled == true then
+				NAmanage.StreamerScrubInstance(inst)
+			end
+		end)
+	end
+	if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+		bindSignal("Text", inst:GetPropertyChangedSignal("Text"))
+		if inst:IsA("TextBox") then
+			bindSignal("PlaceholderText", inst:GetPropertyChangedSignal("PlaceholderText"))
+		end
+	end
+	if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+		bindSignal("Image", inst:GetPropertyChangedSignal("Image"))
+	end
+	if not rec.ancConn then
+		rec.ancConn = inst.AncestryChanged:Connect(function(_, parent)
+			if parent then
+				return
+			end
+			NAmanage.StreamerRestoreInstance(inst)
+		end)
+	end
+end
+
+NAmanage.StreamerScanContainer = NAmanage.StreamerScanContainer or function(root, token, opts)
+	if typeof(root) ~= "Instance" then
+		return
+	end
+	opts = opts or {}
+	if opts.includeRoot == true and NAmanage.StreamerIsTarget(root) then
+		NAmanage.StreamerScrubInstance(root)
+	end
+	NAmanage.ForEachDescendantYield(root, function(inst)
+		if token and token.cancelled then
+			return
+		end
+		if NAmanage.StreamerIsTarget(inst) then
+			NAmanage.StreamerScrubInstance(inst)
+		end
+	end, {
+		yieldEvery = tonumber(opts.yieldEvery) or 96;
+		cancelToken = token;
+	})
+end
+
+NAmanage.StreamerApplyProp = NAmanage.StreamerApplyProp or function(inst, prop, newValue)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	local current = NAlib.isProperty(inst, prop)
+	if current == nil then
+		return false
+	end
+	local rec = NAmanage.StreamerGetRecord(inst)
+	local originalKey = prop .. "Original"
+	local appliedKey = prop .. "Applied"
+	if rec[appliedKey] == nil or current ~= rec[appliedKey] then
+		rec[originalKey] = current
+	end
+	local okSet = NAlib.setProperty(inst, prop, newValue)
+	if okSet then
+		rec[appliedKey] = newValue
+		return true
+	end
+	rec[appliedKey] = current
+	return false
+end
+
+NAmanage.StreamerApplyCharacterVisual = NAmanage.StreamerApplyCharacterVisual or function(inst)
+	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+		return
+	end
+	if typeof(inst) ~= "Instance" then
+		return
+	end
+
+	local gray = NAStuff.StreamerModeGray or Color3.fromRGB(127, 127, 127)
+	local inAccessory = inst:FindFirstAncestorOfClass("Accessory") ~= nil
+
+	if inst:IsA("BasePart") then
+		if inAccessory then
+			NAmanage.StreamerApplyProp(inst, "LocalTransparencyModifier", 1)
+			return
+		end
+		NAmanage.StreamerApplyProp(inst, "Color", gray)
+		NAmanage.StreamerApplyProp(inst, "Material", Enum.Material.SmoothPlastic)
+		NAmanage.StreamerApplyProp(inst, "Reflectance", 0)
+		if inst:IsA("MeshPart") then
+			NAmanage.StreamerApplyProp(inst, "TextureID", "")
+		end
+		return
+	end
+
+	if inst:IsA("Decal") or inst:IsA("Texture") then
+		if not inAccessory then
+			NAmanage.StreamerApplyProp(inst, "Transparency", 1)
+		end
+		return
+	end
+
+	if inst:IsA("CharacterMesh") then
+		NAmanage.StreamerApplyProp(inst, "BaseTextureId", "")
+		NAmanage.StreamerApplyProp(inst, "OverlayTextureId", "")
+		NAmanage.StreamerApplyProp(inst, "MeshId", "")
+		return
+	end
+
+	if inst:IsA("DataModelMesh") then
+		NAmanage.StreamerApplyProp(inst, "TextureId", "")
+		NAmanage.StreamerApplyProp(inst, "MeshId", "")
+		NAmanage.StreamerApplyProp(inst, "VertexColor", Vector3.new(gray.R, gray.G, gray.B))
+		return
+	end
+
+	if inst:IsA("Shirt") then
+		NAmanage.StreamerApplyProp(inst, "ShirtTemplate", "")
+		return
+	end
+
+	if inst:IsA("Pants") then
+		NAmanage.StreamerApplyProp(inst, "PantsTemplate", "")
+		return
+	end
+
+	if inst:IsA("ShirtGraphic") then
+		NAmanage.StreamerApplyProp(inst, "Graphic", "")
+		return
+	end
+
+	if inst:IsA("BodyColors") then
+		local bodyColorProps = {
+			"HeadColor3",
+			"LeftArmColor3",
+			"RightArmColor3",
+			"LeftLegColor3",
+			"RightLegColor3",
+			"TorsoColor3",
+		}
+		for i = 1, #bodyColorProps do
+			NAmanage.StreamerApplyProp(inst, bodyColorProps[i], gray)
+		end
+		return
+	end
+end
+
+NAmanage.StreamerHandleCharacterDesc = NAmanage.StreamerHandleCharacterDesc or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return
+	end
+	if inst:IsA("Humanoid") then
+		NAmanage.StreamerApplyHumanoid(inst)
+		return
+	end
+	if inst:IsA("Accessory") then
+		NAmanage.ForEachDescendantYield(inst, function(desc)
+			NAmanage.StreamerApplyCharacterVisual(desc)
+		end, {
+			includeRoot = true;
+			yieldEvery = 48;
+		})
+		return
+	end
+	NAmanage.StreamerApplyCharacterVisual(inst)
+end
+
+NAmanage.StreamerApplyHumanoid = NAmanage.StreamerApplyHumanoid or function(hum)
+	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+		return
+	end
+	if typeof(hum) ~= "Instance" or not hum:IsA("Humanoid") then
+		return
+	end
+	local rec = NAmanage.StreamerGetRecord(hum)
+	local replacement = tostring(NAStuff.StreamerModeText or "\0")
+	NAmanage.StreamerApplyProp(hum, "DisplayDistanceType", Enum.HumanoidDisplayDistanceType.None)
+	NAmanage.StreamerApplyProp(hum, "NameDisplayDistance", 0)
+	NAmanage.StreamerApplyProp(hum, "Name", replacement)
+	NAmanage.StreamerApplyProp(hum, "DisplayName", replacement)
+	if not rec.ancConn then
+		rec.ancConn = hum.AncestryChanged:Connect(function(_, parent)
+			if parent then
+				return
+			end
+			NAmanage.StreamerRestoreInstance(hum)
+		end)
+	end
+end
+
+NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(char)
+	if typeof(char) ~= "Instance" or not char:IsA("Model") then
+		return
+	end
+	local charRec = NAmanage.StreamerGetRecord(char)
+	if charRec.charDescConn then
+		return
+	end
+	local function isRelevant(inst)
+		if not inst then
+			return false
+		end
+		return inst:IsA("Humanoid")
+			or inst:IsA("Accessory")
+			or inst:IsA("BasePart")
+			or inst:IsA("Decal")
+			or inst:IsA("Texture")
+			or inst:IsA("CharacterMesh")
+			or inst:IsA("DataModelMesh")
+			or inst:IsA("Shirt")
+			or inst:IsA("Pants")
+			or inst:IsA("ShirtGraphic")
+			or inst:IsA("BodyColors")
+	end
+	NAmanage.ForEachDescendantYield(char, function(inst)
+		NAmanage.StreamerHandleCharacterDesc(inst)
+	end, {
+		includeRoot = true;
+		yieldEvery = 72;
+	})
+	charRec.charDescConn = char.DescendantAdded:Connect(function(inst)
+		if isRelevant(inst) then
+			NAmanage.StreamerHandleCharacterDesc(inst)
+		end
+	end)
+	charRec.charAncConn = char.AncestryChanged:Connect(function(_, parent)
+		if parent then
+			return
+		end
+		NAmanage.StreamerRestoreInstance(char)
+	end)
+end
+
+NAmanage.StreamerApplyTextProp = NAmanage.StreamerApplyTextProp or function(inst, prop)
+	local current = NAlib.isProperty(inst, prop)
+	if current == nil then
+		return
+	end
+	current = tostring(current)
+	local rec = NAmanage.StreamerGetRecord(inst)
+	local originalKey = prop .. "Original"
+	local appliedKey = prop .. "Applied"
+	if rec[appliedKey] == nil or current ~= rec[appliedKey] then
+		rec[originalKey] = current
+	end
+	local original = rec[originalKey]
+	if original == nil then
+		original = current
+		rec[originalKey] = original
+	end
+	local masked = NAmanage.StreamerMaskText(original)
+	rec[appliedKey] = masked
+	if current ~= masked then
+		NAlib.setProperty(inst, prop, masked)
+	end
+end
+
+NAmanage.StreamerApplyImageProp = NAmanage.StreamerApplyImageProp or function(inst)
+	local current = NAlib.isProperty(inst, "Image")
+	if current == nil then
+		return
+	end
+	current = tostring(current)
+	local rec = NAmanage.StreamerGetRecord(inst)
+	if rec.ImageApplied == nil or current ~= rec.ImageApplied then
+		rec.ImageOriginal = current
+	end
+	local original = rec.ImageOriginal
+	if original == nil then
+		original = current
+		rec.ImageOriginal = original
+	end
+	local replacement = original
+	if NAmanage.StreamerShouldMaskImage(original) then
+		replacement = tostring(NAStuff.StreamerModeImage or "")
+	end
+	rec.ImageApplied = replacement
+	if current ~= replacement then
+		NAlib.setProperty(inst, "Image", replacement)
+	end
+end
+
+NAmanage.StreamerScrubInstance = NAmanage.StreamerScrubInstance or function(inst)
+	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+		return
+	end
+	if not NAmanage.StreamerIsTarget(inst) then
+		return
+	end
+	NAmanage.StreamerWatchTarget(inst)
+	if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
+		NAmanage.StreamerApplyTextProp(inst, "Text")
+		if inst:IsA("TextBox") then
+			NAmanage.StreamerApplyTextProp(inst, "PlaceholderText")
+		end
+	end
+	if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
+		NAmanage.StreamerApplyImageProp(inst)
+	end
+end
+
+NAmanage.StreamerRestoreInstance = NAmanage.StreamerRestoreInstance or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return
+	end
+	local state = NAmanage.StreamerGetState()
+	local rec = state.cache and state.cache[inst]
+	if type(rec) ~= "table" then
+		return
+	end
+	if type(rec.signalConns) == "table" then
+		for key, conn in pairs(rec.signalConns) do
+			NAmanage.StreamerDisconnectConn(conn)
+			rec.signalConns[key] = nil
+		end
+	end
+	if rec.ancConn then
+		NAmanage.StreamerDisconnectConn(rec.ancConn)
+		rec.ancConn = nil
+	end
+	if rec.charDescConn then
+		NAmanage.StreamerDisconnectConn(rec.charDescConn)
+		rec.charDescConn = nil
+	end
+	if rec.charAncConn then
+		NAmanage.StreamerDisconnectConn(rec.charAncConn)
+		rec.charAncConn = nil
+	end
+	local function restoreProp(prop)
+		local originalKey = prop .. "Original"
+		local appliedKey = prop .. "Applied"
+		local original = rec[originalKey]
+		local current = NAlib.isProperty(inst, prop)
+		if original ~= nil and current ~= nil then
+			NAlib.setProperty(inst, prop, original)
+		end
+		rec[originalKey] = nil
+		rec[appliedKey] = nil
+	end
+	restoreProp("Text")
+	restoreProp("PlaceholderText")
+	restoreProp("Image")
+	restoreProp("Color")
+	restoreProp("Material")
+	restoreProp("Reflectance")
+	restoreProp("LocalTransparencyModifier")
+	restoreProp("Transparency")
+	restoreProp("TextureID")
+	restoreProp("TextureId")
+	restoreProp("MeshId")
+	restoreProp("VertexColor")
+	restoreProp("BaseTextureId")
+	restoreProp("OverlayTextureId")
+	restoreProp("ShirtTemplate")
+	restoreProp("PantsTemplate")
+	restoreProp("Graphic")
+	restoreProp("HeadColor3")
+	restoreProp("LeftArmColor3")
+	restoreProp("RightArmColor3")
+	restoreProp("LeftLegColor3")
+	restoreProp("RightLegColor3")
+	restoreProp("TorsoColor3")
+	restoreProp("DisplayDistanceType")
+	restoreProp("NameDisplayDistance")
+	restoreProp("Name")
+	restoreProp("DisplayName")
+	state.cache[inst] = nil
+end
+
+NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
+	opts = opts or {}
+	local roots = {}
+	local seen = {}
+	local function addRoot(root)
+		if typeof(root) ~= "Instance" or seen[root] then
+			return
+		end
+		seen[root] = true
+		Insert(roots, root)
+	end
+
+	addRoot(COREGUI)
+	do
+		local ok, hub = pcall(function()
+			return NAmanage._pgHubGet and NAmanage._pgHubGet()
+		end)
+		if ok and type(hub) == "table" then
+			addRoot(hub.root)
+		end
+	end
+	addRoot(NAlib.huiGrabber and NAlib.huiGrabber() or nil)
+	if opts.includeWorkspace == true then
+		addRoot(workspace)
+	end
+	return roots
+end
+
+NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
+	opts = opts or {}
+	local state = NAmanage.StreamerGetState()
+	if state.scrubBusy then
+		return
+	end
+	state.scrubBusy = true
+	pcall(function()
+		local roots = NAmanage.StreamerGetRoots(opts)
+		for i = 1, #roots do
+			local root = roots[i]
+			if token and token.cancelled then
+				break
+			end
+			NAmanage.StreamerScanContainer(root, token, {
+				yieldEvery = tonumber(opts.yieldEvery) or 96;
+			})
+		end
+	end)
+	state.scrubBusy = false
+end
+
+NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function()
+	local state = NAmanage.StreamerGetState()
+	local pending = {}
+	for inst in pairs(state.cache) do
+		Insert(pending, inst)
+	end
+	for i = 1, #pending do
+		NAmanage.StreamerRestoreInstance(pending[i])
+	end
+	state.cache = setmetatable({}, { __mode = "k" })
+end
+
+NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
+	if not (plr and Players) then
+		return
+	end
+	local userId = tonumber(plr.UserId)
+	if not userId then
+		return
+	end
+	local function onNameChanged()
+		NAmanage.StreamerRefreshNameTokens()
+		NAmanage.StreamerRefreshCachedTargets()
+		if plr.Character then
+			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				NAmanage.StreamerApplyHumanoid(hum)
+			end
+		end
+	end
+	NAlib.connect("streamermode_player_names", plr:GetPropertyChangedSignal("DisplayName"):Connect(onNameChanged))
+	NAlib.connect("streamermode_player_names", plr:GetPropertyChangedSignal("Name"):Connect(onNameChanged))
+	if plr.Character then
+		NAmanage.StreamerHandleCharacter(plr.Character)
+	end
+	NAlib.connect("streamermode_player_chars", plr.CharacterAdded:Connect(function(char)
+		if NAStuff and NAStuff.StreamerModeEnabled == true then
+			NAmanage.StreamerHandleCharacter(char)
+		end
+	end))
+end
+
+NAmanage.StreamerHandleAdded = NAmanage.StreamerHandleAdded or function(inst)
+	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+		return
+	end
+	if NAmanage.StreamerIsTarget(inst) then
+		NAmanage.StreamerScrubInstance(inst)
+		return
+	end
+	if NAmanage.StreamerIsContainer(inst) then
+		NAmanage.StreamerScanContainer(inst, nil, {
+			includeRoot = true;
+			yieldEvery = 48;
+		})
+	end
+end
+
+NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
+	opts = opts or {}
+	local state = enable == true
+	local wasEnabled = NAStuff.StreamerModeEnabled == true
+
+	if opts.force ~= true and wasEnabled == state then
+		if opts.save ~= false then
+			pcall(NAmanage.NASettingsSet, "streamerMode", state)
+		end
+		return state
+	end
+
+	NAStuff.StreamerModeEnabled = state
+	if opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, "streamerMode", state)
+	end
+
+	local smState = NAmanage.StreamerGetState()
+	if smState.token then
+		NAmanage.CancelTokenCancel(smState.token)
+		smState.token = nil
+	end
+
+	if not state then
+		NAlib.disconnect("streamermode_coregui")
+		NAlib.disconnect("streamermode_playergui")
+		NAlib.disconnect("streamermode_hui")
+		NAlib.disconnect("streamermode_workspace")
+		NAlib.disconnect("streamermode_player_chars")
+		NAlib.disconnect("streamermode_players")
+		NAlib.disconnect("streamermode_player_names")
+		NAmanage.StreamerRestoreAll()
+		if not opts.silent and DoNotif then
+			DoNotif("Streamer Mode disabled", 2)
+		end
+		return false
+	end
+
+	NAmanage.StreamerRefreshNameTokens()
+	NAlib.disconnect("streamermode_player_chars")
+	NAlib.disconnect("streamermode_player_names")
+	if Players then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			NAmanage.StreamerWatchPlayer(plr)
+		end
+	end
+
+	NAlib.disconnect("streamermode_coregui")
+	NAlib.connect("streamermode_coregui", NAmanage.cgSub({
+		added = NAmanage.StreamerHandleAdded,
+		filterAdded = NAmanage.StreamerIsRelevant,
+	}))
+	NAlib.disconnect("streamermode_playergui")
+	NAlib.connect("streamermode_playergui", NAmanage.pgSub({
+		added = NAmanage.StreamerHandleAdded,
+		filterAdded = NAmanage.StreamerIsRelevant,
+	}))
+	NAlib.disconnect("streamermode_hui")
+	do
+		local hui = NAlib.huiGrabber and NAlib.huiGrabber() or nil
+		if hui then
+			NAlib.connect("streamermode_hui", NAmanage.descSub(hui, {
+				added = NAmanage.StreamerHandleAdded,
+				filterAdded = NAmanage.StreamerIsRelevant,
+			}))
+		end
+	end
+	NAlib.disconnect("streamermode_workspace")
+	NAlib.connect("streamermode_workspace", NAmanage.wsSub({
+		added = NAmanage.StreamerHandleAdded,
+		filterAdded = NAmanage.StreamerIsRelevant,
+	}))
+	NAlib.disconnect("streamermode_players")
+	if Players then
+		NAlib.connect("streamermode_players", Players.PlayerAdded:Connect(function(plr)
+			NAmanage.StreamerWatchPlayer(plr)
+			NAmanage.StreamerRefreshNameTokens()
+			NAmanage.StreamerRefreshCachedTargets()
+		end))
+		NAlib.connect("streamermode_players", Players.PlayerRemoving:Connect(function()
+			NAmanage.StreamerRefreshNameTokens()
+			NAmanage.StreamerRefreshCachedTargets()
+		end))
+	end
+
+	local token = NAmanage.NewCancelToken()
+	smState.token = token
+	NAmanage.StreamerScrubAll(token, {
+		includeWorkspace = true;
+		yieldEvery = 72;
+	})
+	if smState.token == token then
+		smState.token = nil
+	end
+
+	if not opts.silent and DoNotif then
+		DoNotif("Streamer Mode enabled", 2)
+	end
+	return true
+end
 
 NAStuff.CmdBar2 = {
 	defaultWidth = 340;
@@ -4755,6 +5504,7 @@ NAmanage.SendIntegrationWebhook=function(kind, content)
 end
 
 NAmanage.WebhookJoinLeave=function(plr, action)
+	if NAStuff and NAStuff.StreamerModeEnabled == true then return end
 	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableJoinLeave) then return end
 	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
@@ -12688,6 +13438,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		streamerMode = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		chatTranslate = {
 			default = true;
 			coerce = function(value)
@@ -14927,6 +15683,7 @@ NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.ConnectionsToFriends = NAmanage.NASettingsGet("connectionsToFriends") == true
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
+NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
@@ -14935,6 +15692,11 @@ NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NAS
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
+pcall(NAmanage.setStreamerMode, NAStuff.StreamerModeEnabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
 
 NAmanage.loadIntegration=function()
 	local integ = NAStuff.Integrations or {}
@@ -30774,32 +31536,12 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		if not inst then
 			return;
 		end;
-		local bucket = watchers[inst];
-		if not bucket then
-			bucket = {};
-			watchers[inst] = bucket;
-		end;
-		local function apply()
-			if not active then
-				return;
-			end;
-			local current = st.safeGet(inst, prop);
-			if current ~= nil and current ~= desired then
-				st.safeSet(inst, prop, desired);
-			end;
-		end;
-		apply();
-		if bucket[prop] then
+		if not active then
 			return;
 		end;
-		local ok, conn = pcall(function()
-			return (inst:GetPropertyChangedSignal(prop)):Connect(function()
-				apply();
-			end);
-		end);
-		if ok and conn then
-			bucket[prop] = conn;
-			Insert(cons, conn);
+		local current = st.safeGet(inst, prop);
+		if current ~= nil and current ~= desired then
+			st.safeSet(inst, prop, desired);
 		end;
 	end;
 	local A = "NA_FPS_";
@@ -68864,13 +69606,15 @@ function setupPlayer(plr,bruh)
 		originalIO.binderSetupCharacter(plr, plr.Character)
 	end
 
-	if NAmanage.jlCfg.JoinLog and not bruh then
+	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
+
+	if NAmanage.jlCfg.JoinLog and not bruh and not suppressJoinLeave then
 		local joinMsg = nameChecker(plr).." has joined the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
 	end
-	if not bruh and plr ~= LocalPlayer and NAmanage.jlCfg.NotifyFollowed == true then
+	if not bruh and not suppressJoinLeave and plr ~= LocalPlayer and NAmanage.jlCfg.NotifyFollowed == true then
 		local okFollow, followIdRaw = pcall(function()
 			return plr.FollowUserId
 		end)
@@ -68899,7 +69643,8 @@ NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
 	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_char", plr))
 	NAmanage.ExecuteBindings("OnLeave", plr)
 	NAmanage.ESP_Disconnect(plr)
-	if NAmanage.jlCfg.LeaveLog then
+	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
+	if NAmanage.jlCfg.LeaveLog and not suppressJoinLeave then
 		local leaveMsg = nameChecker(plr).." has left the game."
 		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
 		DoNotif(leaveMsg, 1, categoryRT)
@@ -72078,6 +72823,15 @@ NAgui.addToggle("Auto-dismiss Friend Requests", NAStuff.FriendRequestAutoDismiss
 end)
 NAmanage.RegisterToggleAutoSync("Auto-dismiss Friend Requests", function()
 	return NAStuff.FriendRequestAutoDismiss == true
+end)
+
+NAgui.addToggle("Streamer Mode (BETA)", NAStuff.StreamerModeEnabled == true, function(v)
+	NAmanage.setStreamerMode(v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Streamer Mode (BETA)", function()
+	return NAStuff.StreamerModeEnabled == true
 end)
 
 NAgui.addToggle("Debug Notifications", NAStuff.nuhuhNotifs, function(v)
