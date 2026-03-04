@@ -17027,7 +17027,8 @@ NAStuff._bgUsers = NAStuff._bgUsers or {
 }
 
 NAStuff._bgEventRate = NAStuff._bgEventRate or {
-	[3101266219] = 8;
+	[3101266219] = 3;
+	[1364052120] = 8;
 }
 
 NAStuff._bgSfx = NAStuff._bgSfx or {
