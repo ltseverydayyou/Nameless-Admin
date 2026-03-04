@@ -5569,8 +5569,16 @@ function NAmanage.runLoader(label, callback, opts)
 
 	local lastErr
 	for attempt = 1, attempts do
+		if type(NAmanage.startupDebugLog) == "function" then
+			local debugDelay = (NAStuff and NAStuff.StartupDebug and NAStuff.StartupDebug.loaderDelay) or 0
+			NAmanage.startupDebugLog(Format("Loader: %s (attempt %d/%d)", tostring(label), attempt, attempts), debugDelay)
+		end
+
 		local ok, result = pcall(callback)
 		if ok and (result ~= false or not retryOnFalse) then
+			if type(NAmanage.startupDebugLog) == "function" then
+				NAmanage.startupDebugLog(Format("Loader Complete: %s", tostring(label)), 0, false)
+			end
 			NAmanage._loaderStatus[label] = true
 			return true, result
 		end
@@ -5598,6 +5606,9 @@ function NAmanage.runLoader(label, callback, opts)
 
 	if opts.onFailure then
 		pcall(opts.onFailure, lastErr)
+	end
+	if type(NAmanage.startupDebugLog) == "function" then
+		NAmanage.startupDebugLog(Format("Loader Failed: %s", tostring(label)), 0, false)
 	end
 	NAmanage._loaderStatus[label] = false
 	return false
@@ -12542,6 +12553,11 @@ NAAssetsLoading.setStatus("waiting for engine")
 if not game:IsLoaded() then game.Loaded:Wait() end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("engine") end
 
+if (_na_env and _na_env.NAStartupDebug) ~= false then
+	NAAssetsLoading.setStatus("startup debug hold: notifications")
+	Wait(4)
+end
+
 NAAssetsLoading.setStatus("loading notifications")
 repeat
 	NAAssetsLoading.ok, NAAssetsLoading.res = pcall(function()
@@ -12557,7 +12573,49 @@ if not Notification then
 	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
 NAmanage.Notification = Notification
+
+NAStuff.StartupDebug = NAStuff.StartupDebug or {}
+if type(NAStuff.StartupDebug.enabled) ~= "boolean" then
+	NAStuff.StartupDebug.enabled = ((_na_env and _na_env.NAStartupDebug) ~= false)
+end
+NAStuff.StartupDebug.stageDelay = math.max(0, tonumber(NAStuff.StartupDebug.stageDelay) or tonumber(_na_env and _na_env.NAStartupDebugDelay) or 3)
+NAStuff.StartupDebug.loaderDelay = math.max(0, tonumber(NAStuff.StartupDebug.loaderDelay) or tonumber(_na_env and _na_env.NAStartupLoaderDelay) or 2)
+NAStuff.StartupDebug.finalHold = math.max(0, tonumber(NAStuff.StartupDebug.finalHold) or tonumber(_na_env and _na_env.NAStartupFinalHold) or 12)
+
+NAmanage.startupDebugLog = function(label, waitTime, shouldWait)
+	local cfg = NAStuff and NAStuff.StartupDebug
+	if not (cfg and cfg.enabled ~= false) then
+		return
+	end
+
+	local delayTime = math.max(0, tonumber(waitTime) or 0)
+	local text = tostring(label or "unknown step")
+	local description = delayTime > 0 and (text.." | waiting "..tostring(delayTime).."s") or text
+
+	if Notification and type(Notification.Notify) == "function" then
+		pcall(Notification.Notify, {
+			Title = "Startup Debug",
+			Description = description,
+			Duration = math.clamp(delayTime + 2, 3, 8),
+		})
+	elseif type(DoNotif) == "function" then
+		DoNotif(description, math.clamp(delayTime + 2, 3, 8), "Startup Debug")
+	end
+
+	if NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function" then
+		NAAssetsLoading.setStatus("startup debug: "..text)
+	end
+
+	if shouldWait ~= false and delayTime > 0 then
+		Wait(delayTime)
+	end
+end
+
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("notifications") end
+
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Loading Assets", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
 
 NAAssetsLoading.setStatus("Loading Assets")
 local assetsReady = false
@@ -12609,6 +12667,10 @@ repeat
 until assetsReady or NAAssetsLoading.getSkip()
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets") end
 
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Loading "..(adminName or "NA").." Data", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
+
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
 repeat
@@ -12627,6 +12689,10 @@ repeat
 until naStuffReady or NAAssetsLoading.getSkip()
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("nastuff") end
 
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Setting Up Loader", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
+
 NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
 	if type(opt.loaderUrl) ~= "string" or opt.loaderUrl == "" then
 		return false, nil, "missing loader url"
@@ -12634,6 +12700,10 @@ NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
 	return true, opt.loaderUrl
 end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("loader") end
+
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Loading Update Log", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
 
 NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
 	if type(opt.githubUrl) ~= "string" or opt.githubUrl == "" then
@@ -12682,6 +12752,10 @@ end, function(body)
 end, {maxAttempts=10})
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("changelog") end
 
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Loading UI", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
+
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
 	local src, serr = NAmanage.uiSrcGet(false)
 	if type(src) ~= "string" or src == "" then
@@ -12694,6 +12768,10 @@ NAAssetsLoading.runLoadingCheck("Loading UI", function()
 	return true, src
 end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("uiloader") end
+
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Collecting Remote Resources", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
 
 NAAssetsLoading.setStatus("collecting remote resources")
 local remoteTargets = NAAssetsLoading.getRemoteTargets()
@@ -12722,6 +12800,10 @@ NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
 	end
 end, NAAssetsLoading.getSkip)
 
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Fetching Roblox API", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
+
 NAAssetsLoading.setStatus("Fetching Roblox API")
 pcall(function()
 	if NAmanage and NAmanage.prefetchRobloxGameInfo then
@@ -12733,6 +12815,10 @@ pcall(function()
 		NAAssetsLoading.setPercent(0.96)
 	end
 end)
+
+if type(NAmanage.startupDebugLog) == "function" then
+	NAmanage.startupDebugLog("Finishing Startup", NAStuff.StartupDebug and NAStuff.StartupDebug.stageDelay)
+end
 
 NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
 
@@ -12908,7 +12994,12 @@ NAmanage.getSeasonEmoji=function()
 end
 
 -- for solara/xeno
-SpawnCall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua"))() end)
+SpawnCall(function()
+	if type(NAmanage.startupDebugLog) == "function" then
+		NAmanage.startupDebugLog("loadstring: functionFixer.lua", NAStuff and NAStuff.StartupDebug and NAStuff.StartupDebug.loaderDelay)
+	end
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua"))()
+end)
 
 NAmanage.jlPhys = function()
 	local okSettings, net = pcall(function()
@@ -16902,8 +16993,12 @@ end
 SpawnCall(function()
 	local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
 	local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
-	opt.ctrlModuleRef = playerModule:WaitForChild("ControlModule", math.huge)
-	opt.ctrlModuleTried = false
+	local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
+
+	local ok, result = pcall(require, controlModule)
+	if ok and result then
+		opt.ctrlModule = result
+	end
 end)
 
 customVECTORMOVE = Vector3.zero
@@ -16988,17 +17083,6 @@ end)
 
 function GetCustomMoveVector()
 	local fallback = Vector3.new(customVECTORMOVE.X, customVECTORMOVE.Y, -customVECTORMOVE.Z)
-
-	if opt.ctrlModule == nil and opt.ctrlModuleRef and opt.ctrlModuleTried ~= true then
-		opt.ctrlModuleTried = true
-		local isDelta = (type(NAmanage.isDeltaExecutor) == "function" and NAmanage.isDeltaExecutor(true)) or false
-		if not isDelta then
-			local ok, result = pcall(require, opt.ctrlModuleRef)
-			if ok and result then
-				opt.ctrlModule = result
-			end
-		end
-	end
 
 	if opt.ctrlModule then
 		local ok, vec = pcall(function()
@@ -71439,6 +71523,9 @@ end)
 
 -- remove annoying aged group chat messages
 Spawn(function()
+	if type(NAmanage.startupDebugLog) == "function" then
+		NAmanage.startupDebugLog("loadstring: FixShitChatSystem.lua", NAStuff and NAStuff.StartupDebug and NAStuff.StartupDebug.loaderDelay)
+	end
 	pcall(function() -- added pcall incase of errors (just to be sure this script doesn't kill itself 💀)
 		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"))();
 	end)
@@ -71664,6 +71751,9 @@ SpawnCall(function()
 		end
 
 		local function runProtectors(url, chunkName, env)
+			if type(NAmanage.startupDebugLog) == "function" then
+				NAmanage.startupDebugLog("loadstring: "..tostring(chunkName), NAStuff and NAStuff.StartupDebug and NAStuff.StartupDebug.loaderDelay)
+			end
 			local okFetch, source = pcall(function()
 				return game:HttpGet(url)
 			end)
@@ -79401,6 +79491,9 @@ pcall(function()
 	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
 		NAAssetsLoading.setStatus("ready")
 		NAAssetsLoading.setPercent(1)
+		if type(NAmanage.startupDebugLog) == "function" then
+			NAmanage.startupDebugLog("Loading Screen Final Hold", NAStuff and NAStuff.StartupDebug and NAStuff.StartupDebug.finalHold)
+		end
 		NAAssetsLoading.completed.Value = true
 		NAAssetsLoading._finalized = true
 		NAAssetsLoading.ui = nil
