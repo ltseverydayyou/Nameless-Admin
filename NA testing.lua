@@ -5057,7 +5057,53 @@ NAmanage.InitializeIntegration=function()
 
 	NAStuff.Integrations = integ
 end
-NAmanage.InitializeIntegration()
+
+NAmanage.awaitStartupPreNotifyStage = NAmanage.awaitStartupPreNotifyStage or function(label, defaultDelay)
+	if (_na_env and _na_env.NAStartupDebug) == false then
+		return false
+	end
+	local deadline = (os.clock and os.clock() or tick()) + 20
+	while ((not (_na_env and _na_env.NAStartupPreNotifyReady)) or not (NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function")) and ((os.clock and os.clock() or tick()) < deadline) do
+		Wait()
+	end
+	if not (_na_env and _na_env.NAStartupPreNotifyReady and NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function") then
+		return false
+	end
+	while _na_env and _na_env.NAStartupPreNotifyBusy do
+		Wait()
+	end
+	if _na_env then
+		_na_env.NAStartupPreNotifyBusy = true
+	end
+	local delayFallback = tonumber(defaultDelay)
+	if delayFallback == nil then
+		delayFallback = 5
+	end
+	local delaySeconds = math.max(0, tonumber((_na_env and _na_env.NAStartupEarlyDelay) or delayFallback) or delayFallback)
+	NAAssetsLoading.setStatus("startup debug pre-notify: "..tostring(label or "unknown"))
+	if delaySeconds > 0 then
+		Wait(delaySeconds)
+	end
+	if _na_env then
+		_na_env.NAStartupPreNotifyBusy = nil
+	end
+	return true
+end
+
+NAmanage.runStartupIntegrationInit = NAmanage.runStartupIntegrationInit or function()
+	if NAmanage._startupIntegrationInitDone then
+		return
+	end
+	if (_na_env and _na_env.NAStartupDebug) ~= false then
+		NAmanage.awaitStartupPreNotifyStage("InitializeIntegration", 5)
+	end
+	NAmanage._startupIntegrationInitDone = true
+	NAmanage.InitializeIntegration()
+end
+
+if (_na_env and _na_env.NAStartupDebug) == false then
+	NAmanage.runStartupIntegrationInit()
+end
 
 NAmanage.btSend=function(command, data)
 	if not NAmanage.btEnabled() then
@@ -5169,6 +5215,10 @@ NAmanage.btBump=function()
 end
 
 Defer(function()
+	NAmanage.runStartupIntegrationInit()
+	if (_na_env and _na_env.NAStartupDebug) ~= false then
+		NAmanage.awaitStartupPreNotifyStage("btUpdate", 5)
+	end
 	NAmanage.btUpdate()
 end)
 
@@ -12554,6 +12604,14 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("engine") end
 
 if (_na_env and _na_env.NAStartupDebug) ~= false then
+	if _na_env then
+		_na_env.NAStartupPreNotifyReady = true
+	end
+	local preNotifyWindow = math.max(0, tonumber((_na_env and _na_env.NAStartupPreNotifyWindow) or 6) or 6)
+	if preNotifyWindow > 0 then
+		NAAssetsLoading.setStatus("startup debug pre-notify: pending early async")
+		Wait(preNotifyWindow)
+	end
 	NAAssetsLoading.setStatus("startup debug hold: notifications")
 	Wait(4)
 end
