@@ -5680,8 +5680,20 @@ end
 
 NAmanage.WebhookJoinLeave=function(plr, action)
 	if NAStuff and NAStuff.StreamerModeEnabled == true then return end
+	if NAStuff and NAStuff.teleportTransition == true then return end
 	local cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableJoinLeave) then return end
+	local localPlr = Players and Players.LocalPlayer
+	if localPlr and plr then
+		if plr == localPlr then
+			return
+		end
+		local lpId = tonumber(localPlr.UserId)
+		local plrId = tonumber(plr.UserId)
+		if lpId and plrId and lpId == plrId then
+			return
+		end
+	end
 	local username = nameChecker and nameChecker(plr) or (plr and plr.Name) or "Player"
 	local actLabel = action == "leave" and "left" or "joined"
 	local jobId = tostring(game.JobId or "")
@@ -5704,7 +5716,11 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 			},
 		},
 	}
-	NAmanage.SendIntegrationWebhook("joinleave", payload)
+	SpawnCall(function()
+		pcall(function()
+			NAmanage.SendIntegrationWebhook("joinleave", payload)
+		end)
+	end)
 end
 
 NAmanage.WebhookChat=function(plr, msg)
@@ -17953,6 +17969,13 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 	NAStuff.onTPConnected = true
 	pcall(function()
 		NAStuff.onTP:Connect(function(...)
+			local tpState = select(1, ...)
+			local stateName = (typeof(tpState) == "EnumItem" and tpState.Name) or tostring(tpState or "")
+			if stateName == "Failed" then
+				NAStuff.teleportTransition = false
+			else
+				NAStuff.teleportTransition = true
+			end
 			if NAQoTEnabled and opt.queueteleport then
 				opt.queueteleport(opt.loader)
 			end
@@ -17963,6 +17986,18 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 				]])
 			end
 		end)
+	end)
+end
+
+if TeleportService and not NAStuff.teleportTransitionFailHook then
+	NAStuff.teleportTransitionFailHook = true
+	pcall(function()
+		NAlib.connect("na_teleport_transition_fail", TeleportService.TeleportInitFailed:Connect(function(player)
+			local lp = Players and Players.LocalPlayer
+			if lp and player == lp then
+				NAStuff.teleportTransition = false
+			end
+		end))
 	end)
 end
 
@@ -69995,9 +70030,6 @@ function setupPlayer(plr,bruh)
 			DoNotif(nameChecker(plr).." followed you into game", 3, "Followed Into")
 		end
 	end
-	if NAmanage.WebhookJoinLeave then
-		NAmanage.WebhookJoinLeave(plr, "join")
-	end
 end
 
 for _, plr in pairs(Players:GetPlayers()) do
@@ -70008,7 +70040,12 @@ for _, plr in pairs(Players:GetPlayers()) do
 end
 
 NAlib.disconnect("playerLifecycle")
-NAlib.connect("playerLifecycle", Players.PlayerAdded:Connect(setupPlayer))
+NAlib.connect("playerLifecycle", Players.PlayerAdded:Connect(function(plr)
+	setupPlayer(plr)
+	if NAmanage.WebhookJoinLeave then
+		NAmanage.WebhookJoinLeave(plr, "join")
+	end
+end))
 
 NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
 	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_chat", plr))
