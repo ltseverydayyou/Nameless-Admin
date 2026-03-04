@@ -37739,7 +37739,7 @@ NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
 	for _, b in ipairs(self.b) do
 		local url = b.."/v1/games/"..tostring(PlaceId).."/servers/Public"..q
 		local ok, body = pcall(function()
-			return game:HttpGetAsync(url)
+			return game:HttpGet(url)
 		end)
 		if ok and type(body) == "string" and #body > 0 then
 			local js = self:j(body)
@@ -37756,7 +37756,7 @@ NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
 
 	local wurl = NAStuff.srvWorker.."/servers?"..wq
 	local wok, wbody = pcall(function()
-		return game:HttpGetAsync(wurl)
+		return game:HttpGet(wurl)
 	end)
 	if wok and type(wbody) == "string" and #wbody > 0 then
 		local ok2, js = pcall(function()
@@ -48482,7 +48482,7 @@ cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},functio
 		local branch = "revision"
 
 		local function webImport(file)
-			return loadstring(game:HttpGetAsync(("https://raw.githubusercontent.com/%s/MC-Hydroxide/%s/%s.lua"):format(owner, branch, file)), file..'.lua')()
+			return loadstring(game:HttpGet(("https://raw.githubusercontent.com/%s/MC-Hydroxide/%s/%s.lua"):format(owner, branch, file)), file..'.lua')()
 		end
 
 		webImport("init")
@@ -48492,7 +48492,7 @@ cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},functio
 		local branch="revision"
 
 		local function webImport(file)
-			return loadstring(game:HttpGetAsync(("https://raw.githubusercontent.com/%s/Hydroxide/%s/%s.lua"):format(owner,branch,file)),file..'.lua')()
+			return loadstring(game:HttpGet(("https://raw.githubusercontent.com/%s/Hydroxide/%s/%s.lua"):format(owner,branch,file)),file..'.lua')()
 		end
 
 		webImport("init")
