@@ -12446,7 +12446,6 @@ NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
 	NAStuff.uiSrc = src
 	NAStuff.uiFn = nil
 	NAStuff.uiErr = nil
-	NAAssetsLoading.cachePrefetchedRemote(url, src)
 	return src
 end
 
@@ -12632,16 +12631,7 @@ NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
 	if type(opt.loaderUrl) ~= "string" or opt.loaderUrl == "" then
 		return false, nil, "missing loader url"
 	end
-	local ok, body = pcall(game.HttpGet, game, opt.loaderUrl)
-	if not ok then
-		return false, nil, body
-	end
-	if type(body) ~= "string" or body == "" then
-		return false, nil, "empty response"
-	end
-	return true, body
-end, function(body)
-	NAAssetsLoading.cachePrefetchedRemote(opt.loaderUrl, body)
+	return true, opt.loaderUrl
 end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("loader") end
 
@@ -12678,10 +12668,8 @@ NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
 	end
 	return true, body
 end, function(body)
-	NAStuff._githubMetadata = body
 	local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
 	if decodeOk and type(decoded) == "table" then
-		NAStuff._githubCommits = decoded
 		local top = decoded[1]
 		local date = top and top.commit and top.commit.author and top.commit.author.date
 		if type(date) == "string" then
@@ -12704,8 +12692,6 @@ NAAssetsLoading.runLoadingCheck("Loading UI", function()
 		return false, nil, ferr or "failed to compile UI loader"
 	end
 	return true, src
-end, function(body)
-	NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
 end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("uiloader") end
 
@@ -12753,6 +12739,15 @@ NAAssetsLoading.setStatus("finishing startup (building command data, autofill, a
 Notify = Notification.Notify
 Window = Notification.Window
 Popup  = Notification.Popup
+
+if NAStuff and type(NAStuff._prefetchedRemotes) == "table" then
+	NAStuff._prefetchedRemotes = {}
+end
+NAAssetsLoading.remoteStatus = {}
+NAAssetsLoading._statusOrder = {}
+NAAssetsLoading._statusOrderSet = {}
+NAAssetsLoading._prefetchOrder = {}
+NAAssetsLoading._prefetchOrderSet = {}
 
 local function cloneTable(tbl)
 	local copy = {}
@@ -16907,12 +16902,8 @@ end
 SpawnCall(function()
 	local playerScripts = LocalPlayer:WaitForChild("PlayerScripts", math.huge)
 	local playerModule = playerScripts:WaitForChild("PlayerModule", math.huge)
-	local controlModule = playerModule:WaitForChild("ControlModule", math.huge)
-
-	local ok, result = pcall(require, controlModule)
-	if ok and result then
-		opt.ctrlModule = result
-	end
+	opt.ctrlModuleRef = playerModule:WaitForChild("ControlModule", math.huge)
+	opt.ctrlModuleTried = false
 end)
 
 customVECTORMOVE = Vector3.zero
@@ -16997,6 +16988,17 @@ end)
 
 function GetCustomMoveVector()
 	local fallback = Vector3.new(customVECTORMOVE.X, customVECTORMOVE.Y, -customVECTORMOVE.Z)
+
+	if opt.ctrlModule == nil and opt.ctrlModuleRef and opt.ctrlModuleTried ~= true then
+		opt.ctrlModuleTried = true
+		local isDelta = (type(NAmanage.isDeltaExecutor) == "function" and NAmanage.isDeltaExecutor(true)) or false
+		if not isDelta then
+			local ok, result = pcall(require, opt.ctrlModuleRef)
+			if ok and result then
+				opt.ctrlModule = result
+			end
+		end
+	end
 
 	if opt.ctrlModule then
 		local ok, vec = pcall(function()
@@ -18407,12 +18409,14 @@ cmd.loop = function(commandName, args)
 			{
 				Text = "Submit",
 				Callback = function(input)
-					local ok, result, loopData = NAmanage.StartLoop(commandName, args, tonumber(input) or 0)
-					if not ok then
-						DoNotif(result, 3)
-						return
-					end
-					DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 3)
+					Spawn(function()
+						local ok, result, loopData = NAmanage.StartLoop(commandName, args, tonumber(input) or 0)
+						if not ok then
+							DoNotif(result, 3)
+							return
+						end
+						DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 3)
+					end)
 				end
 			}
 		}
@@ -23140,6 +23144,7 @@ NAmanage.LoadPlugins = function(opts)
 
 		local colPlugins = {}
 		local proxyEnv = {}
+		local pluginGlobals = {}
 		local baseEnv = getfenv()
 
 		local function _runCmd(...)
@@ -23517,6 +23522,10 @@ NAmanage.LoadPlugins = function(opts)
 				elseif k == "httprequest" or k == "request" or k == "http_request" then
 					return _pluginRequest
 				end
+				local localValue = pluginGlobals[k]
+				if localValue ~= nil then
+					return localValue
+				end
 				return baseEnv[k]
 			end,
 			__newindex = function(_, k, v)
@@ -23531,7 +23540,7 @@ NAmanage.LoadPlugins = function(opts)
 						end
 					end
 				else
-					rawset(baseEnv, k, v)
+					rawset(pluginGlobals, k, v)
 				end
 			end
 		})
@@ -71554,6 +71563,106 @@ SpawnCall(function()
 			return env
 		end
 
+		local function buildGuardSandbox(sharedEnv)
+			sharedEnv = (type(sharedEnv) == "table" and sharedEnv) or guardEnv()
+			local sandbox = {}
+			local sandboxShared = {}
+			local seedKeys = {
+				"NAverify",
+				"adminName",
+				"mainName",
+				"testingName",
+				"NATestingVer",
+			}
+			if type(guardFlagName) == "string" and guardFlagName ~= "" then
+				seedKeys[#seedKeys + 1] = guardFlagName
+			end
+
+			for _, keyName in ipairs(seedKeys) do
+				local value = sharedEnv[keyName]
+				if value == nil and _G then
+					value = _G[keyName]
+				end
+				if value ~= nil then
+					sandbox[keyName] = value
+				end
+
+				local sharedValue = _na_shared and _na_shared[keyName] or nil
+				if sharedValue == nil then
+					sharedValue = value
+				end
+				if sharedValue ~= nil then
+					sandboxShared[keyName] = sharedValue
+				end
+			end
+
+			sandbox.shared = sandboxShared
+			sandbox._G = sandbox
+			sandbox.getgenv = function()
+				return sandbox
+			end
+			sandbox.getfenv = function()
+				return sandbox
+			end
+
+			setmetatable(sandbox, {
+				__index = function(_, key)
+					if key == "_G" then
+						return sandbox
+					elseif key == "shared" then
+						return sandboxShared
+					elseif key == "getgenv" then
+						return sandbox.getgenv
+					elseif key == "getfenv" then
+						return sandbox.getfenv
+					end
+					return sharedEnv[key]
+				end
+			})
+
+			return sandbox
+		end
+
+		local function syncGuardSandbox(sharedEnv, sandboxEnv)
+			sharedEnv = (type(sharedEnv) == "table" and sharedEnv) or guardEnv()
+			if type(sandboxEnv) ~= "table" then
+				mirrorGuardState(sharedEnv)
+				return
+			end
+
+			local keys = {
+				"NAverify",
+				"adminName",
+				"mainName",
+				"testingName",
+				"NATestingVer",
+			}
+			if type(guardFlagName) == "string" and guardFlagName ~= "" then
+				keys[#keys + 1] = guardFlagName
+			end
+
+			local sandboxShared = rawget(sandboxEnv, "shared")
+			for _, keyName in ipairs(keys) do
+				local value = rawget(sandboxEnv, keyName)
+				if value == nil and type(sandboxShared) == "table" then
+					value = rawget(sandboxShared, keyName)
+				end
+				if value ~= nil then
+					sharedEnv[keyName] = value
+					pcall(function()
+						_G[keyName] = value
+					end)
+					if _na_shared then
+						pcall(function()
+							_na_shared[keyName] = value
+						end)
+					end
+				end
+			end
+
+			mirrorGuardState(sharedEnv)
+		end
+
 		local function runProtectors(url, chunkName, env)
 			local okFetch, source = pcall(function()
 				return game:HttpGet(url)
@@ -71567,14 +71676,23 @@ SpawnCall(function()
 				return false
 			end
 
-			if type(setfenv) == "function" and type(env) == "table" then
-				pcall(setfenv, chunk, env)
+			local execEnv = env
+			if type(env) == "table" then
+				execEnv = buildGuardSandbox(env)
+			end
+
+			if type(setfenv) == "function" and type(execEnv) == "table" then
+				pcall(setfenv, chunk, execEnv)
 			end
 
 			local okRun, runErr = pcall(chunk)
 			if not okRun then end
 
-			mirrorGuardState(env)
+			if type(env) == "table" then
+				syncGuardSandbox(env, execEnv)
+			else
+				mirrorGuardState(env)
+			end
 			if env and env[guardFlagName] == guardFlagValue then
 				mirrorGuardState(env)
 			end
@@ -79285,6 +79403,14 @@ pcall(function()
 		NAAssetsLoading.setPercent(1)
 		NAAssetsLoading.completed.Value = true
 		NAAssetsLoading._finalized = true
+		NAAssetsLoading.ui = nil
+		NAAssetsLoading.setStatus = nil
+		NAAssetsLoading.setPercent = nil
+		NAAssetsLoading.completed = nil
+		NAAssetsLoading.getSkip = nil
+		NAAssetsLoading.setMinimizedState = nil
+		NAAssetsLoading.progress = nil
+		NAAssetsLoading.progressPercent = nil
 	end
 	if NAStuff.AutoPreloadAssets then
 		Defer(function()
