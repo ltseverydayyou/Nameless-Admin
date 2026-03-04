@@ -1011,6 +1011,24 @@
       "desc": "Stops aura loop and removes visualizer"
     },
     {
+      "name": "npcaura",
+      "aliases": [
+        "npcaura"
+      ],
+      "usage": "npcaura [distance]",
+      "args": "[distance]",
+      "desc": "Continuously damages nearby NPCs with equipped tool"
+    },
+    {
+      "name": "unnpcaura",
+      "aliases": [
+        "unnpcaura"
+      ],
+      "usage": "unnpcaura",
+      "args": "",
+      "desc": "Stops NPC aura loop and removes visualizer"
+    },
+    {
       "name": "antivoid",
       "aliases": [
         "antivoid"
