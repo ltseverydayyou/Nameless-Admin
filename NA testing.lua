@@ -780,35 +780,22 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	local function dispatch(handlers, inst)
 		for _, rec in pairs(handlers) do
 			local fn = rec
-			if type(rec) == "table" then
-				fn = rec.fn
-			end
-			if type(fn) == "function" then
-				pcall(fn, inst)
-			end
-		end
-	end
-
-	local function hasInterested(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
 			local filter = nil
 			if type(rec) == "table" then
 				fn = rec.fn
 				filter = rec.filter
 			end
 			if type(fn) == "function" then
+				local pass = true
 				if type(filter) == "function" then
-					local ok, pass = pcall(filter, inst)
-					if ok and pass then
-						return true
-					end
-				else
-					return true
+					local ok, allowed = pcall(filter, inst)
+					pass = ok and allowed == true
+				end
+				if pass then
+					pcall(fn, inst)
 				end
 			end
 		end
-		return false
 	end
 
 	local function runQ()
@@ -873,9 +860,6 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -884,9 +868,6 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
 				return
 			end
 			if hub.rSet[inst] then
@@ -1134,35 +1115,22 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 	local function dispatch(handlers, inst)
 		for _, rec in pairs(handlers) do
 			local fn = rec
-			if type(rec) == "table" then
-				fn = rec.fn
-			end
-			if type(fn) == "function" then
-				pcall(fn, inst)
-			end
-		end
-	end
-
-	local function hasInterested(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
 			local filter = nil
 			if type(rec) == "table" then
 				fn = rec.fn
 				filter = rec.filter
 			end
 			if type(fn) == "function" then
+				local pass = true
 				if type(filter) == "function" then
-					local ok, pass = pcall(filter, inst)
-					if ok and pass then
-						return true
-					end
-				else
-					return true
+					local ok, allowed = pcall(filter, inst)
+					pass = ok and allowed == true
+				end
+				if pass then
+					pcall(fn, inst)
 				end
 			end
 		end
-		return false
 	end
 
 	local function runQ()
@@ -1224,9 +1192,6 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -1235,9 +1200,6 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
 				return
 			end
 			if hub.rSet[inst] then
@@ -2468,6 +2430,51 @@ NAmanage.ESP_ListRemove = NAmanage.ESP_ListRemove or function(list, indexMap, it
 	return true
 end
 
+NAmanage.ESP_GetListMeta = NAmanage.ESP_GetListMeta or function(list)
+	if type(list) ~= "table" then
+		return nil
+	end
+	local store = NAStuff and NAStuff.genericESPListMeta
+	if type(store) ~= "table" then
+		store = setmetatable({}, { __mode = "k" })
+		NAStuff.genericESPListMeta = store
+	end
+	local meta = store[list]
+	if type(meta) ~= "table" then
+		meta = {
+			index = setmetatable({}, { __mode = "k" });
+			counts = setmetatable({}, { __mode = "k" });
+			objects = setmetatable({}, { __mode = "k" });
+		}
+		store[list] = meta
+	end
+	if type(meta.index) ~= "table" then
+		meta.index = setmetatable({}, { __mode = "k" })
+	end
+	if type(meta.counts) ~= "table" then
+		meta.counts = setmetatable({}, { __mode = "k" })
+	end
+	if type(meta.objects) ~= "table" then
+		meta.objects = setmetatable({}, { __mode = "k" })
+	end
+	return meta
+end
+
+NAmanage.ESP_GetListMap = NAmanage.ESP_GetListMap or function(list)
+	local meta = NAmanage.ESP_GetListMeta(list)
+	return meta and meta.index or nil
+end
+
+NAmanage.ESP_GetListCountMap = NAmanage.ESP_GetListCountMap or function(list)
+	local meta = NAmanage.ESP_GetListMeta(list)
+	return meta and meta.counts or nil
+end
+
+NAmanage.ESP_GetListObjectMap = NAmanage.ESP_GetListObjectMap or function(list)
+	local meta = NAmanage.ESP_GetListMeta(list)
+	return meta and meta.objects or nil
+end
+
 NAlib.huiGrabber = function()
 	return (gethui and gethui()) or
 		(gethiddenui and gethiddenui()) or
@@ -2508,6 +2515,7 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 			cache = setmetatable({}, { __mode = "k" });
 			nameTokens = {};
 			token = nil;
+			restoreToken = nil;
 			scrubBusy = false;
 		}
 		NAStuff.StreamerModeState = state
@@ -2519,6 +2527,20 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 		state.nameTokens = {}
 	end
 	return state
+end
+
+NAmanage.StreamerIsRunActive = NAmanage.StreamerIsRunActive or function(token)
+	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+		return false
+	end
+	if type(token) ~= "table" then
+		return true
+	end
+	if token.cancelled then
+		return false
+	end
+	local state = NAmanage.StreamerGetState()
+	return state.token == token
 end
 
 NAmanage.StreamerGetRecord = NAmanage.StreamerGetRecord or function(inst)
@@ -2562,6 +2584,29 @@ NAmanage.StreamerRefreshNameTokens = NAmanage.StreamerRefreshNameTokens or funct
 	end)
 	state.nameTokens = tokens
 	return tokens
+end
+
+NAmanage.StreamerScheduleNameRefresh = NAmanage.StreamerScheduleNameRefresh or function(refreshCached)
+	local state = NAmanage.StreamerGetState()
+	if refreshCached then
+		state.nameRefreshNeedsCached = true
+	end
+	if state.nameRefreshQueued then
+		return
+	end
+	state.nameRefreshQueued = true
+	Delay(0.05, function()
+		state.nameRefreshQueued = false
+		if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
+			state.nameRefreshNeedsCached = false
+			return
+		end
+		NAmanage.StreamerRefreshNameTokens()
+		if state.nameRefreshNeedsCached then
+			state.nameRefreshNeedsCached = false
+			NAmanage.StreamerRefreshCachedTargets()
+		end
+	end)
 end
 
 NAmanage.StreamerRefreshCachedTargets = NAmanage.StreamerRefreshCachedTargets or function()
@@ -2687,12 +2732,15 @@ NAmanage.StreamerScanContainer = NAmanage.StreamerScanContainer or function(root
 	if typeof(root) ~= "Instance" then
 		return
 	end
+	if token and not NAmanage.StreamerIsRunActive(token) then
+		return
+	end
 	opts = opts or {}
 	if opts.includeRoot == true and NAmanage.StreamerIsTarget(root) then
 		NAmanage.StreamerScrubInstance(root)
 	end
 	NAmanage.ForEachDescendantYield(root, function(inst)
-		if token and token.cancelled then
+		if token and not NAmanage.StreamerIsRunActive(token) then
 			return
 		end
 		if NAmanage.StreamerIsTarget(inst) then
@@ -2702,6 +2750,57 @@ NAmanage.StreamerScanContainer = NAmanage.StreamerScanContainer or function(root
 		yieldEvery = tonumber(opts.yieldEvery) or 96;
 		cancelToken = token;
 	})
+end
+
+NAmanage.StreamerScanContainerAsync = NAmanage.StreamerScanContainerAsync or function(root, opts)
+	if typeof(root) ~= "Instance" then
+		return
+	end
+	opts = opts or {}
+	local state = NAmanage.StreamerGetState()
+	local scanToken = opts.cancelToken
+	if type(scanToken) ~= "table" then
+		scanToken = state.token
+	end
+	local rec = NAmanage.StreamerGetRecord(root)
+	if rec.scanQueued == true and rec.scanToken == scanToken then
+		return
+	end
+	rec.scanQueued = true
+	rec.scanToken = scanToken
+	Spawn(function()
+		if NAmanage.StreamerIsRunActive(scanToken) then
+			NAmanage.StreamerScanContainer(root, scanToken, opts)
+		end
+		local liveState = NAmanage.StreamerGetState()
+		local liveRec = liveState.cache and liveState.cache[root]
+		if type(liveRec) == "table" and liveRec.scanToken == scanToken then
+			liveRec.scanQueued = false
+			liveRec.scanToken = nil
+		end
+	end)
+end
+
+NAmanage.StreamerWatchContainer = NAmanage.StreamerWatchContainer or function(container)
+	if not NAmanage.StreamerIsContainer(container) then
+		return
+	end
+	local rec = NAmanage.StreamerGetRecord(container)
+	if not rec.containerDescConn then
+		rec.containerDescConn = container.DescendantAdded:Connect(function(inst)
+			if NAmanage.StreamerIsRelevant(inst) then
+				NAmanage.StreamerHandleAdded(inst)
+			end
+		end)
+	end
+	if not rec.containerAncConn then
+		rec.containerAncConn = container.AncestryChanged:Connect(function(_, parent)
+			if parent then
+				return
+			end
+			NAmanage.StreamerRestoreInstance(container)
+		end)
+	end
 end
 
 NAmanage.StreamerApplyProp = NAmanage.StreamerApplyProp or function(inst, prop, newValue)
@@ -2804,8 +2903,11 @@ NAmanage.StreamerApplyCharacterVisual = NAmanage.StreamerApplyCharacterVisual or
 	end
 end
 
-NAmanage.StreamerHandleCharacterDesc = NAmanage.StreamerHandleCharacterDesc or function(inst)
+NAmanage.StreamerHandleCharacterDesc = NAmanage.StreamerHandleCharacterDesc or function(inst, token)
 	if typeof(inst) ~= "Instance" then
+		return
+	end
+	if token and not NAmanage.StreamerIsRunActive(token) then
 		return
 	end
 	if inst:IsA("Humanoid") then
@@ -2814,10 +2916,14 @@ NAmanage.StreamerHandleCharacterDesc = NAmanage.StreamerHandleCharacterDesc or f
 	end
 	if inst:IsA("Accessory") then
 		NAmanage.ForEachDescendantYield(inst, function(desc)
+			if token and not NAmanage.StreamerIsRunActive(token) then
+				return
+			end
 			NAmanage.StreamerApplyCharacterVisual(desc)
 		end, {
 			includeRoot = true;
 			yieldEvery = 48;
+			cancelToken = token;
 		})
 		return
 	end
@@ -2847,9 +2953,13 @@ NAmanage.StreamerApplyHumanoid = NAmanage.StreamerApplyHumanoid or function(hum)
 	end
 end
 
-NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(char)
+NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(char, token)
 	if typeof(char) ~= "Instance" or not char:IsA("Model") then
 		return
+	end
+	local scanToken = token
+	if type(scanToken) ~= "table" then
+		scanToken = NAmanage.StreamerGetState().token
 	end
 	local charRec = NAmanage.StreamerGetRecord(char)
 	if charRec.charDescConn then
@@ -2871,15 +2981,9 @@ NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(
 			or inst:IsA("ShirtGraphic")
 			or inst:IsA("BodyColors")
 	end
-	NAmanage.ForEachDescendantYield(char, function(inst)
-		NAmanage.StreamerHandleCharacterDesc(inst)
-	end, {
-		includeRoot = true;
-		yieldEvery = 72;
-	})
 	charRec.charDescConn = char.DescendantAdded:Connect(function(inst)
 		if isRelevant(inst) then
-			NAmanage.StreamerHandleCharacterDesc(inst)
+			NAmanage.StreamerHandleCharacterDesc(inst, scanToken)
 		end
 	end)
 	charRec.charAncConn = char.AncestryChanged:Connect(function(_, parent)
@@ -2887,6 +2991,32 @@ NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(
 			return
 		end
 		NAmanage.StreamerRestoreInstance(char)
+	end)
+	charRec.charScanToken = scanToken
+	Spawn(function()
+		if scanToken and not NAmanage.StreamerIsRunActive(scanToken) then
+			local liveState = NAmanage.StreamerGetState()
+			local liveRec = liveState.cache and liveState.cache[char]
+			if type(liveRec) == "table" and liveRec.charScanToken == scanToken then
+				liveRec.charScanToken = nil
+			end
+			return
+		end
+		NAmanage.ForEachDescendantYield(char, function(inst)
+			if scanToken and not NAmanage.StreamerIsRunActive(scanToken) then
+				return
+			end
+			NAmanage.StreamerHandleCharacterDesc(inst, scanToken)
+		end, {
+			includeRoot = true;
+			yieldEvery = 24;
+			cancelToken = scanToken;
+		})
+		local liveState = NAmanage.StreamerGetState()
+		local liveRec = liveState.cache and liveState.cache[char]
+		if type(liveRec) == "table" and liveRec.charScanToken == scanToken then
+			liveRec.charScanToken = nil
+		end
 	end)
 end
 
@@ -2985,6 +3115,17 @@ NAmanage.StreamerRestoreInstance = NAmanage.StreamerRestoreInstance or function(
 		NAmanage.StreamerDisconnectConn(rec.charAncConn)
 		rec.charAncConn = nil
 	end
+	if rec.containerDescConn then
+		NAmanage.StreamerDisconnectConn(rec.containerDescConn)
+		rec.containerDescConn = nil
+	end
+	if rec.containerAncConn then
+		NAmanage.StreamerDisconnectConn(rec.containerAncConn)
+		rec.containerAncConn = nil
+	end
+	rec.scanQueued = nil
+	rec.scanToken = nil
+	rec.charScanToken = nil
 	local function restoreProp(prop)
 		local originalKey = prop .. "Original"
 		local appliedKey = prop .. "Applied"
@@ -3068,24 +3209,75 @@ NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
 			if token and token.cancelled then
 				break
 			end
-			NAmanage.StreamerScanContainer(root, token, {
-				yieldEvery = tonumber(opts.yieldEvery) or 96;
-			})
+			if root == workspace then
+				NAmanage.ForEachDescendantYield(root, function(inst)
+					if token and token.cancelled then
+						return
+					end
+					if NAmanage.StreamerIsContainer(inst) then
+						NAmanage.StreamerHandleAdded(inst)
+					end
+				end, {
+					yieldEvery = tonumber(opts.yieldEvery) or 144;
+					cancelToken = token;
+				})
+			else
+				NAmanage.StreamerScanContainer(root, token, {
+					yieldEvery = tonumber(opts.yieldEvery) or 96;
+				})
+			end
 		end
 	end)
 	state.scrubBusy = false
 end
 
-NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function()
+NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
+	opts = opts or {}
 	local state = NAmanage.StreamerGetState()
+	if state.restoreToken then
+		NAmanage.CancelTokenCancel(state.restoreToken)
+		state.restoreToken = nil
+	end
 	local pending = {}
 	for inst in pairs(state.cache) do
 		Insert(pending, inst)
 	end
-	for i = 1, #pending do
-		NAmanage.StreamerRestoreInstance(pending[i])
+	if #pending == 0 then
+		state.cache = setmetatable({}, { __mode = "k" })
+		return 0
 	end
-	state.cache = setmetatable({}, { __mode = "k" })
+	local yieldEvery = tonumber(opts.yieldEvery) or 72
+	if yieldEvery < 1 then
+		yieldEvery = 1
+	end
+	local delayTime = opts.delayTime
+	local restoreToken = NAmanage.NewCancelToken()
+	state.restoreToken = restoreToken
+	local restored = 0
+	for i = 1, #pending do
+		if restoreToken.cancelled then
+			break
+		end
+		NAmanage.StreamerRestoreInstance(pending[i])
+		restored += 1
+		if restored % yieldEvery == 0 then
+			if restoreToken.cancelled then
+				break
+			end
+			if delayTime and delayTime > 0 then
+				Wait(delayTime)
+			else
+				Wait()
+			end
+		end
+	end
+	if state.restoreToken == restoreToken then
+		state.restoreToken = nil
+		if not restoreToken.cancelled then
+			state.cache = setmetatable({}, { __mode = "k" })
+		end
+	end
+	return restored
 end
 
 NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
@@ -3097,8 +3289,7 @@ NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
 		return
 	end
 	local function onNameChanged()
-		NAmanage.StreamerRefreshNameTokens()
-		NAmanage.StreamerRefreshCachedTargets()
+		NAmanage.StreamerScheduleNameRefresh(true)
 		if plr.Character then
 			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 			if hum then
@@ -3109,11 +3300,11 @@ NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
 	NAlib.connect("streamermode_player_names", plr:GetPropertyChangedSignal("DisplayName"):Connect(onNameChanged))
 	NAlib.connect("streamermode_player_names", plr:GetPropertyChangedSignal("Name"):Connect(onNameChanged))
 	if plr.Character then
-		NAmanage.StreamerHandleCharacter(plr.Character)
+		NAmanage.StreamerHandleCharacter(plr.Character, NAmanage.StreamerGetState().token)
 	end
 	NAlib.connect("streamermode_player_chars", plr.CharacterAdded:Connect(function(char)
 		if NAStuff and NAStuff.StreamerModeEnabled == true then
-			NAmanage.StreamerHandleCharacter(char)
+			NAmanage.StreamerHandleCharacter(char, NAmanage.StreamerGetState().token)
 		end
 	end))
 end
@@ -3127,9 +3318,11 @@ NAmanage.StreamerHandleAdded = NAmanage.StreamerHandleAdded or function(inst)
 		return
 	end
 	if NAmanage.StreamerIsContainer(inst) then
-		NAmanage.StreamerScanContainer(inst, nil, {
+		NAmanage.StreamerWatchContainer(inst)
+		NAmanage.StreamerScanContainerAsync(inst, {
 			includeRoot = true;
-			yieldEvery = 48;
+			yieldEvery = 96;
+			cancelToken = NAmanage.StreamerGetState().token;
 		})
 	end
 end
@@ -3156,6 +3349,10 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		NAmanage.CancelTokenCancel(smState.token)
 		smState.token = nil
 	end
+	if smState.restoreToken then
+		NAmanage.CancelTokenCancel(smState.restoreToken)
+		smState.restoreToken = nil
+	end
 
 	if not state then
 		NAlib.disconnect("streamermode_coregui")
@@ -3165,7 +3362,10 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		NAlib.disconnect("streamermode_player_chars")
 		NAlib.disconnect("streamermode_players")
 		NAlib.disconnect("streamermode_player_names")
-		NAmanage.StreamerRestoreAll()
+		NAmanage.StreamerRestoreAll({
+			yieldEvery = tonumber(opts.yieldEvery) or 72;
+			delayTime = opts.delayTime;
+		})
 		if not opts.silent and DoNotif then
 			DoNotif("Streamer Mode disabled", 2)
 		end
@@ -3204,18 +3404,16 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	NAlib.disconnect("streamermode_workspace")
 	NAlib.connect("streamermode_workspace", NAmanage.wsSub({
 		added = NAmanage.StreamerHandleAdded,
-		filterAdded = NAmanage.StreamerIsRelevant,
+		filterAdded = NAmanage.StreamerIsContainer,
 	}))
 	NAlib.disconnect("streamermode_players")
 	if Players then
 		NAlib.connect("streamermode_players", Players.PlayerAdded:Connect(function(plr)
 			NAmanage.StreamerWatchPlayer(plr)
-			NAmanage.StreamerRefreshNameTokens()
-			NAmanage.StreamerRefreshCachedTargets()
+			NAmanage.StreamerScheduleNameRefresh(false)
 		end))
 		NAlib.connect("streamermode_players", Players.PlayerRemoving:Connect(function()
-			NAmanage.StreamerRefreshNameTokens()
-			NAmanage.StreamerRefreshCachedTargets()
+			NAmanage.StreamerScheduleNameRefresh(false)
 		end))
 	end
 
@@ -3225,9 +3423,6 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		includeWorkspace = true;
 		yieldEvery = 72;
 	})
-	if smState.token == token then
-		smState.token = nil
-	end
 
 	if not opts.silent and DoNotif then
 		DoNotif("Streamer Mode enabled", 2)
@@ -19573,6 +19768,7 @@ end
 
 NAStuff.partESPEntries = NAStuff.partESPEntries or setmetatable({}, { __mode = "k" })
 NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or setmetatable({}, { __mode = "k" })
+NAStuff.partESPPartMap = NAStuff.partESPPartMap or setmetatable({}, { __mode = "k" })
 NAStuff.partESPQueueMap = NAStuff.partESPQueueMap or setmetatable({}, { __mode = "k" })
 NAStuff.partESPQueue = NAStuff.partESPQueue or {}
 NAStuff.partESPQueueHead = tonumber(NAStuff.partESPQueueHead) or 1
@@ -19877,6 +20073,19 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.visual and typeof(entry.visual) == "Instance" then
 		NAStuff.partESPVisualMap[entry.visual] = entry
 	end
+	if entry.part and typeof(entry.part) == "Instance" then
+		local partMap = NAStuff.partESPPartMap
+		if type(partMap) ~= "table" then
+			partMap = setmetatable({}, { __mode = "k" })
+			NAStuff.partESPPartMap = partMap
+		end
+		local bucket = partMap[entry.part]
+		if type(bucket) ~= "table" then
+			bucket = setmetatable({}, { __mode = "kv" })
+			partMap[entry.part] = bucket
+		end
+		bucket[entry.entryKey] = entry
+	end
 	if entry.billboardCleanup then
 		entry.billboardCleanup:Disconnect()
 	end
@@ -19921,6 +20130,15 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	end
 	if entry.visual and typeof(entry.visual) == "Instance" and NAStuff.partESPVisualMap then
 		NAStuff.partESPVisualMap[entry.visual] = nil
+	end
+	if entry.part and typeof(entry.part) == "Instance" and type(NAStuff.partESPPartMap) == "table" then
+		local bucket = NAStuff.partESPPartMap[entry.part]
+		if type(bucket) == "table" and entry.entryKey then
+			bucket[entry.entryKey] = nil
+			if not next(bucket) then
+				NAStuff.partESPPartMap[entry.part] = nil
+			end
+		end
 	end
 	if entry.drawingSquare then
 		NAmanage.DrawingRemoveObject(entry.drawingSquare)
@@ -52094,6 +52312,22 @@ end
 
 NAmanage.RemoveEspFromPart = function(part)
 	if not part then return end
+	local removed = false
+	local partMap = NAStuff.partESPPartMap
+	local bucket = type(partMap) == "table" and partMap[part] or nil
+	if type(bucket) == "table" then
+		local removeList = {}
+		for _, entry in pairs(bucket) do
+			removeList[#removeList + 1] = entry
+		end
+		for i = 1, #removeList do
+			removed = true
+			NAmanage.PartESP_UnregisterEntry(removeList[i])
+		end
+	end
+	if removed then
+		return
+	end
 	for _, child in ipairs(part:GetChildren()) do
 		if (child:IsA("BoxHandleAdornment") or child:IsA("Highlight")) and Sub(child.Name,-7) == "_peepee" then
 			NAlib.disconnect("esp_update_"..tostring(child))
@@ -52168,28 +52402,72 @@ NAmanage.EnableEsp = function(objType, color, list)
 		local resolved = (type(color) == "function") and color() or color
 		return (typeof(resolved) == "Color3") and resolved or Color3.new(1, 1, 1)
 	end
-	for _,obj in ipairs(workspace:QueryDescendants(objType)) do
-		local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-		if parent and not Discover(list, parent) then
-			Insert(list, parent)
+	local setMap = NAmanage.ESP_GetListMap(list)
+	local countMap = NAmanage.ESP_GetListCountMap(list)
+	local objectMap = NAmanage.ESP_GetListObjectMap(list)
+	local trigger = NAStuff.espTriggers[objType]
+	local function trackParent(parent)
+		if not (parent and setMap and countMap) then
+			return
+		end
+		local nextCount = (tonumber(countMap[parent]) or 0) + 1
+		countMap[parent] = nextCount
+		if nextCount == 1 and NAmanage.ESP_ListAdd(list, setMap, parent) then
 			NAmanage.PartESP_QueueCreate(parent, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
-				return Discover(list, p) ~= nil
+				return setMap[p] ~= nil
 			end)
 		end
 	end
-	if not NAStuff.espTriggers[objType] then
-		NAStuff.espTriggers[objType] = NAmanage.wsAdd(function(obj)
-			if obj:IsA(objType) then
-				local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
-				if parent and not Discover(list, parent) then
-					Insert(list, parent)
-					NAmanage.PartESP_QueueCreate(parent, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
-						return Discover(list, p) ~= nil
-					end)
-				end
+	local function untrackParent(parent)
+		if not (parent and setMap and countMap) then
+			return
+		end
+		local count = tonumber(countMap[parent]) or 0
+		if count <= 1 then
+			countMap[parent] = nil
+			if NAmanage.ESP_ListRemove(list, setMap, parent) then
+				NAmanage.RemoveEspFromPart(parent)
 			end
-		end)
+			return
+		end
+		countMap[parent] = count - 1
 	end
+	if trigger then
+		NAmanage.RecolorPartESPList(list, currentColor())
+		return
+	end
+	for _,obj in ipairs(workspace:QueryDescendants(objType)) do
+		local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+		if parent then
+			objectMap[obj] = parent
+			trackParent(parent)
+		end
+	end
+	NAStuff.espTriggers[objType] = NAmanage.wsSub({
+		added = function(obj)
+			if not obj:IsA(objType) then
+				return
+			end
+			local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+			if parent then
+				objectMap[obj] = parent
+				trackParent(parent)
+			end
+		end,
+		removing = function(obj)
+			if not obj:IsA(objType) then
+				return
+			end
+			local parent = objectMap[obj]
+			if not parent then
+				parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+			end
+			objectMap[obj] = nil
+			if parent then
+				untrackParent(parent)
+			end
+		end,
+	})
 end
 
 NAmanage.DisableEsp = function(objType, list)
@@ -52201,6 +52479,18 @@ NAmanage.DisableEsp = function(objType, list)
 		NAmanage.RemoveEspFromPart(part)
 	end
 	table.clear(list)
+	local setMap = NAmanage.ESP_GetListMap(list)
+	if type(setMap) == "table" then
+		table.clear(setMap)
+	end
+	local countMap = NAmanage.ESP_GetListCountMap(list)
+	if type(countMap) == "table" then
+		table.clear(countMap)
+	end
+	local objectMap = NAmanage.ESP_GetListObjectMap(list)
+	if type(objectMap) == "table" then
+		table.clear(objectMap)
+	end
 end
 
 NAmanage.EnableNameEsp = function(mode, color, ...)
@@ -69944,25 +70234,30 @@ end))
 		return cn == "ClickDetector" or cn == "ProximityPrompt" or cn == "TouchTransmitter"
 	end;
 	local scanJobs = {};
+	local scanHead = 1;
+	local scanTail = 0;
 	local scanning = false;
-	local function queueScan(root, fn)
+	local bulkAddRoots = setmetatable({}, { __mode = "k" });
+	local function queueScan(root, fn, onDone)
 		if not root or (not fn) then
 			return;
 		end;
-		Insert(scanJobs, {
+		scanTail += 1;
+		scanJobs[scanTail] = {
 			fn = fn,
+			done = onDone,
 			q = {
 				root
 			},
 			qi = 1,
 			qn = 1
-		});
+		};
 		if scanning then
 			return;
 		end;
 		scanning = true;
 		Spawn(function()
-			while #scanJobs > 0 do
+			while scanHead <= scanTail do
 				local budget, waitDelay
 				if NAmanage and NAmanage.lpProf then
 					budget, waitDelay = NAmanage.lpProf(35, {
@@ -69973,14 +70268,18 @@ end))
 				else
 					budget, waitDelay = 35, 0
 				end
-				while budget > 0 and #scanJobs > 0 do
-					local job = scanJobs[1];
+				while budget > 0 and scanHead <= scanTail do
+					local job = scanJobs[scanHead];
 					local q = job.q;
 					local qi = job.qi;
 					local qn = job.qn;
 					local jobFn = job.fn;
 					if qi > qn then
-						table.remove(scanJobs, 1);
+						scanJobs[scanHead] = nil;
+						scanHead += 1;
+						if type(job.done) == "function" then
+							pcall(job.done);
+						end;
 					else
 						local inst = q[qi];
 						job.qi = qi + 1;
@@ -70000,6 +70299,9 @@ end))
 					Wait();
 				end;
 			end;
+			scanJobs = {};
+			scanHead = 1;
+			scanTail = 0;
 			scanning = false;
 		end);
 	end;
@@ -70096,7 +70398,7 @@ end))
 			runDQ();
 		end);
 	end;
-	local function qDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+	local function enqueueDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
@@ -70128,6 +70430,53 @@ end))
 			dQ[dTail] = inst;
 		end;
 		kickDQ();
+	end;
+	local function hasBulkAddRoot(inst)
+		local parent = inst and inst.Parent;
+		while parent and parent ~= workspace do
+			if bulkAddRoots[parent] then
+				return true;
+			end;
+			parent = parent.Parent;
+		end;
+		return false;
+	end;
+	local function shouldBulkAddScan(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+		if wsRemFlag == true then
+			return false;
+		end;
+		if not (friendFlag == true or interactState ~= nil or wsAddFlag == true) then
+			return false;
+		end;
+		if not (inst and inst.Parent) then
+			return false;
+		end;
+		if not (inst:IsA("Model") or inst:IsA("Folder")) then
+			return false;
+		end;
+		local ok, children = pcall(inst.GetChildren, inst);
+		return ok and children and #children > 0;
+	end;
+	local function qDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+		if not (inst and typeof(inst) == "Instance") then
+			return;
+		end;
+		if shouldBulkAddScan(inst, friendFlag, interactState, wsAddFlag, wsRemFlag) then
+			if hasBulkAddRoot(inst) then
+				return;
+			end;
+			bulkAddRoots[inst] = true;
+			queueScan(inst, function(desc)
+				enqueueDesc(desc, friendFlag, interactState, wsAddFlag, wsRemFlag);
+			end, function()
+				bulkAddRoots[inst] = nil;
+			end);
+			return;
+		end;
+		if wsRemFlag ~= true and hasBulkAddRoot(inst) then
+			return;
+		end;
+		enqueueDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag);
 	end;
 		if CoreGui then
 			local friendRoot = nil
