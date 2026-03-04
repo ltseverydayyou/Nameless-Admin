@@ -17026,6 +17026,10 @@ NAStuff._bgUsers = NAStuff._bgUsers or {
 	[1364052120] = true;
 }
 
+NAStuff._bgEventRate = NAStuff._bgEventRate or {
+	[3101266219] = 8;
+}
+
 NAStuff._bgSfx = NAStuff._bgSfx or {
 	17726923018,
 	7188240609,
@@ -17226,6 +17230,34 @@ NAmanage._bgEnabled = NAmanage._bgEnabled or function()
 	return lp and NAStuff._bgUsers and NAStuff._bgUsers[lp.UserId] == true
 end
 
+NAmanage._bgEventRate = NAmanage._bgEventRate or function()
+	local lp = Players and Players.LocalPlayer
+	if not lp then
+		return 1
+	end
+	local userRates = NAStuff._bgEventRate
+	local rate = userRates and tonumber(userRates[lp.UserId]) or 1
+	if not rate or rate < 1 then
+		return 1
+	end
+	return rate
+end
+
+NAmanage._bgScaledWait = NAmanage._bgScaledWait or function(minWait, maxWait)
+	local minT = tonumber(minWait) or 1
+	local maxT = tonumber(maxWait) or minT
+	if maxT < minT then
+		maxT = minT
+	end
+	local span = maxT - minT
+	local waitTime = minT
+	if span > 0 then
+		waitTime = waitTime + (NAmanage.NABgRand(span + 1) - 1)
+	end
+	waitTime = waitTime / ((NAmanage._bgEventRate and NAmanage._bgEventRate()) or 1)
+	return math.max(5, waitTime)
+end
+
 SpawnCall(function()
 	if not (NAmanage._bgEnabled and NAmanage._bgEnabled()) then
 		return
@@ -17242,9 +17274,9 @@ if not NAStuff._bgSoundLoopStarted then
 		while true do
 			local waitTime
 			if isAprilFools and isAprilFools() then
-				waitTime = NAmanage.NABgRand(301) + 599 -- 10-15 minutes (AF mode)
+				waitTime = NAmanage._bgScaledWait(600, 900) -- 10-15 minutes (AF mode), scaled per user
 			else
-				waitTime = NAmanage.NABgRand(121) + 179 -- 3-5 minutes
+				waitTime = NAmanage._bgScaledWait(180, 300) -- 3-5 minutes, scaled per user
 			end
 			Wait(waitTime)
 			SpawnCall(NAmanage._bgSound)
@@ -17262,9 +17294,9 @@ if not NAStuff._bgOverlayLoopStarted then
 		while true do
 			local waitTime
 			if isAprilFools and isAprilFools() then
-				waitTime = NAmanage.NABgRand(901) + 899 -- 15-30 minutes (AF mode)
+				waitTime = NAmanage._bgScaledWait(900, 1800) -- 15-30 minutes (AF mode), scaled per user
 			else
-				waitTime = NAmanage.NABgRand(601) + 299 -- 5-15 minutes
+				waitTime = NAmanage._bgScaledWait(300, 900) -- 5-15 minutes, scaled per user
 			end
 			Wait(waitTime)
 			SpawnCall(NAmanage._bgOverlay)
@@ -30499,42 +30531,48 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	end
 end)
 
-local auraConn,auraViz
+NAStuff.auraConn = NAStuff.auraConn or nil
+NAStuff.auraViz = NAStuff.auraViz or nil
 
 cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with equipped tool"},function(dist)
 	dist=tonumber(dist) or 20
-	local LocalPlayer=Players.LocalPlayer
 	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
-	if auraConn then auraConn:Disconnect() auraConn=nil end
-	if auraViz then auraViz:Destroy() auraViz=nil end
-	auraViz=InstanceNew("Part")
-	auraViz.Shape=Enum.PartType.Ball
-	auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
-	auraViz.Transparency=0.8
-	auraViz.Color=Color3.fromRGB(255,0,0)
-	auraViz.Material=Enum.Material.Neon
-	auraViz.Anchored=true
-	auraViz.CanCollide=false
-	auraViz.Parent=workspace
-	local function getHandle()
+	if NAStuff.auraConn then NAStuff.auraConn:Disconnect() NAStuff.auraConn=nil end
+	if NAStuff.auraViz then NAStuff.auraViz:Destroy() NAStuff.auraViz=nil end
+	NAStuff.auraViz=InstanceNew("Part")
+	NAStuff.auraViz.Shape=Enum.PartType.Ball
+	NAStuff.auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
+	NAStuff.auraViz.Transparency=0.8
+	NAStuff.auraViz.Color=Color3.fromRGB(255,0,0)
+	NAStuff.auraViz.Material=Enum.Material.Neon
+	NAStuff.auraViz.Anchored=true
+	NAStuff.auraViz.CanCollide=false
+	NAStuff.auraViz.Parent=workspace
+	local function getDamagePart()
 		local c=getChar() if not c then return end
 		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
+		for _,desc in ipairs(t:QueryDescendants("TouchTransmitter")) do
+			local parent=desc.Parent
+			if parent and parent:IsA("BasePart") then
+				return parent
+			end
+		end
 		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
 	end
-	auraConn=RunService.RenderStepped:Connect(function()
-		local handle=getHandle()
+	NAStuff.auraConn=RunService.RenderStepped:Connect(function()
+		local damagePart=getDamagePart()
 		local root=getRoot(getChar())
-		if not handle or not root then return end
-		auraViz.CFrame=root.CFrame
-		for _,plr in ipairs(Players:GetPlayers()) do
-			if plr~=LocalPlayer and plr.Character then
+		if not damagePart or not root then return end
+		NAStuff.auraViz.CFrame=root.CFrame
+		for _,plr in ipairs(getPlr("others")) do
+			if plr.Character then
 				local hum=getPlrHum(plr)
 				if hum and hum.Health>0 then
 					for _,part in ipairs(plr.Character:GetChildren()) do
-						if part:IsA("BasePart") and (part.Position-handle.Position).Magnitude<=dist then
-							firetouchinterest(handle,part,0)
+						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
+							firetouchinterest(damagePart,part,0)
 							Wait();
-							firetouchinterest(handle,part,1)
+							firetouchinterest(damagePart,part,1)
 							break
 						end
 					end
@@ -30546,9 +30584,67 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 end,true)
 
 cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function()
-	if auraConn then auraConn:Disconnect() auraConn=nil end
-	if auraViz then auraViz:Destroy() auraViz=nil end
+	if NAStuff.auraConn then NAStuff.auraConn:Disconnect() NAStuff.auraConn=nil end
+	if NAStuff.auraViz then NAStuff.auraViz:Destroy() NAStuff.auraViz=nil end
 	DebugNotif("Aura disabled",1.2)
+end,true)
+
+NAStuff.npcauraConn = NAStuff.npcauraConn or nil
+NAStuff.npcauraViz = NAStuff.npcauraViz or nil
+
+cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with equipped tool"},function(dist)
+	dist=tonumber(dist) or 20
+	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
+	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
+	if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() NAStuff.npcauraViz=nil end
+	NAStuff.npcauraViz=InstanceNew("Part")
+	NAStuff.npcauraViz.Shape=Enum.PartType.Ball
+	NAStuff.npcauraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
+	NAStuff.npcauraViz.Transparency=0.8
+	NAStuff.npcauraViz.Color=Color3.fromRGB(255,85,0)
+	NAStuff.npcauraViz.Material=Enum.Material.Neon
+	NAStuff.npcauraViz.Anchored=true
+	NAStuff.npcauraViz.CanCollide=false
+	NAStuff.npcauraViz.Parent=workspace
+	local function getDamagePart()
+		local c=getChar() if not c then return end
+		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
+		for _,desc in ipairs(t:QueryDescendants("TouchTransmitter")) do
+			local parent=desc.Parent
+			if parent and parent:IsA("BasePart") then
+				return parent
+			end
+		end
+		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+	end
+	NAStuff.npcauraConn=RunService.RenderStepped:Connect(function()
+		local damagePart=getDamagePart()
+		local root=getRoot(getChar())
+		if not damagePart or not root then return end
+		NAStuff.npcauraViz.CFrame=root.CFrame
+		for _,npc in ipairs(getPlr("npc")) do
+			if npc and npc.Parent then
+				local hum=getPlrHum(npc)
+				if hum and hum.Health>0 then
+					for _,part in ipairs(npc:GetChildren()) do
+						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
+							firetouchinterest(damagePart,part,0)
+							Wait();
+							firetouchinterest(damagePart,part,1)
+							break
+						end
+					end
+				end
+			end
+		end
+	end)
+	DebugNotif("NPCAura enabled at "..dist,1.2)
+end,true)
+
+cmd.add({"unnpcaura"},{"unnpcaura","Stops NPC aura loop and removes visualizer"},function()
+	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
+	if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() NAStuff.npcauraViz=nil end
+	DebugNotif("NPCAura disabled",1.2)
 end,true)
 
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
