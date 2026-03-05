@@ -10083,7 +10083,21 @@ NAjobs  = {
 	_stepInterval = (1 / 240),
 	_maxCatchUpSteps = 12,
 	_staggerCap = 0.003,
-	_accum = 0
+	_accum = 0,
+	_promptBatchNext = 0,
+	_clickBatchNext = 0,
+	_promptBatchFloor = 0.05,
+	_clickBatchFloor = 0.05,
+	_promptMaxFiresPerBatch = 18,
+	_clickMaxFiresPerBatch = 18,
+	_promptScanPerBatch = 220,
+	_clickScanPerBatch = 220,
+	_promptRefireFloor = 0.08,
+	_clickRefireFloor = 0.08,
+	_promptCursor = 0,
+	_clickCursor = 0,
+	_lastPromptFire = {},
+	_lastClickFire = {}
 }
 NAutil  = NAutil  or {}
 NAsuppress = NAsuppress or { ref = {}, snap = {} }
@@ -13984,8 +13998,8 @@ NAmanage.NASettingsGetSchema=function()
 				local n = tonumber(value)
 				if not n then return 0.1 end
 				if n < 0 then n = 0 end
-				if n > 5 then n = 5 end
-				return math.floor((n * 10) + 0.5) / 10
+				if n > 1 then n = 1 end
+				return math.floor((n * 100) + 0.5) / 100
 			end;
 		};
 		fpsBoostOptions = {
@@ -16051,7 +16065,7 @@ end
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
-NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
+NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
@@ -16076,7 +16090,7 @@ if FileSupport then
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
-	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 5)
+	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
 	local savedMobileCamSens = tonumber(NAmanage.NASettingsGet("mobileCamSensitivity"))
 	if savedMobileCamSens then
@@ -48726,7 +48740,7 @@ cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)"
 		return DebugNotif("No ClickDetectors found",2)
 	end
 	for _,d in ipairs(list) do
-		if not pcall(function() fireclickdetector(d) end) then f += 1 end
+		if not pcall(fireclickdetector, d) then f += 1 end
 	end
 	Wait()
 	if f>0 then
@@ -48756,7 +48770,7 @@ cmd.add({"fireclickdetectorsfind","fcdfind","firecdfind"},{"fireclickdetectorsfi
 		return DebugNotif(("No ClickDetectors found matching \"%s\""):format(targetText),2)
 	end
 	for _,d in ipairs(list) do
-		if not pcall(function() fireclickdetector(d) end) then f += 1 end
+		if not pcall(fireclickdetector, d) then f += 1 end
 	end
 	Wait()
 	if f>0 then
@@ -48786,7 +48800,10 @@ cmd.add({"fireproximityprompts","fpp","firepp"},{"fireproximityprompts (fpp,fire
 		return DebugNotif("No ProximityPrompts found",2)
 	end
 	for _,p in ipairs(list) do
-		if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
+		local ok = pcall(fireproximityprompt, p)
+		if not ok then
+			f += 1
+		end
 	end
 	Wait()
 	if f>0 then
@@ -48816,7 +48833,10 @@ cmd.add({"fireproximitypromptsfind","fppfind","fireppfind"},{"fireproximitypromp
 		return DebugNotif(("No ProximityPrompts found matching \"%s\""):format(targetText),2)
 	end
 	for _,p in ipairs(list) do
-		if not pcall(function() fireproximityprompt(p,1) end) then f += 1 end
+		local ok = pcall(fireproximityprompt, p)
+		if not ok then
+			f += 1
+		end
 	end
 	Wait()
 	if f>0 then
@@ -48942,7 +48962,7 @@ NAutil.parseInterval = function(defaultInterval, ...)
 end
 
 NAmanage.getAutoInteractDefaultInterval = function()
-	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
+	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 end
 
 local promptPartCache = {}
@@ -49233,6 +49253,175 @@ NAsuppress.releaseList = function(list)
 	end
 end
 
+NAjobs._tracked = NAjobs._tracked or {
+	prompt = { list = {}, idx = {} },
+	click = { list = {}, idx = {} }
+}
+
+NAjobs._trackedAdd = function(kind, inst)
+	if not inst then
+		return
+	end
+	local bucket = NAjobs._tracked[kind]
+	if not bucket then
+		return
+	end
+	if bucket.idx[inst] then
+		return
+	end
+	local list = bucket.list
+	local n = #list + 1
+	list[n] = inst
+	bucket.idx[inst] = n
+end
+
+NAjobs._trackedRemove = function(kind, inst)
+	if not inst then
+		return
+	end
+	local bucket = NAjobs._tracked[kind]
+	if not bucket then
+		return
+	end
+	local idx = bucket.idx[inst]
+	if not idx then
+		return
+	end
+	local list = bucket.list
+	local last = #list
+	local repl = list[last]
+	list[last] = nil
+	if idx ~= last then
+		list[idx] = repl
+		if repl then
+			bucket.idx[repl] = idx
+		end
+	end
+	bucket.idx[inst] = nil
+	if kind == "prompt" and type(NAjobs._lastPromptFire) == "table" then
+		NAjobs._lastPromptFire[inst] = nil
+	elseif kind == "click" and type(NAjobs._lastClickFire) == "table" then
+		NAjobs._lastClickFire[inst] = nil
+	end
+	if #list <= 0 then
+		if kind == "prompt" then
+			NAjobs._promptCursor = 0
+		elseif kind == "click" then
+			NAjobs._clickCursor = 0
+		end
+	end
+end
+
+NAjobs._ensureTracked = function()
+	if NAjobs._trackedReady then
+		return
+	end
+	NAjobs._trackedReady = true
+	for _, inst in ipairs(workspace:QueryDescendants("Instance")) do
+		if inst:IsA("ProximityPrompt") then
+			NAjobs._trackedAdd("prompt", inst)
+		elseif inst:IsA("ClickDetector") then
+			NAjobs._trackedAdd("click", inst)
+		end
+	end
+	NAlib.connect("NAjobs_track_add", workspace.DescendantAdded:Connect(function(inst)
+		if inst:IsA("ProximityPrompt") then
+			NAjobs._trackedAdd("prompt", inst)
+		elseif inst:IsA("ClickDetector") then
+			NAjobs._trackedAdd("click", inst)
+		end
+	end))
+	NAlib.connect("NAjobs_track_rem", workspace.DescendantRemoving:Connect(function(inst)
+		if inst:IsA("ProximityPrompt") then
+			NAjobs._trackedRemove("prompt", inst)
+		elseif inst:IsA("ClickDetector") then
+			NAjobs._trackedRemove("click", inst)
+		end
+	end))
+end
+
+NAjobs._resolvePromptPart = function(pp)
+	if not (pp and pp.Parent) then
+		return nil
+	end
+	local parent = pp.Parent
+	if parent:IsA("Attachment") then
+		local p = parent.Parent
+		if p and p:IsA("BasePart") then
+			return p
+		end
+	elseif parent:IsA("BasePart") then
+		return parent
+	end
+	local model = pp:FindFirstAncestorWhichIsA("Model")
+	if model then
+		return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return pp:FindFirstAncestorWhichIsA("BasePart")
+end
+
+NAjobs._resolveClickPart = function(cd)
+	if not (cd and cd.Parent) then
+		return nil
+	end
+	local src = cd.Parent
+	if src:IsA("BasePart") then
+		return src
+	end
+	if src:IsA("Model") then
+		return src.PrimaryPart or src:FindFirstChildWhichIsA("BasePart", true)
+	end
+	local model = cd:FindFirstAncestorWhichIsA("Model")
+	if model then
+		return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	end
+	return cd:FindFirstAncestorWhichIsA("BasePart")
+end
+
+NAjobs._collectNames = function(kind, inst, part)
+	local names = {}
+	local function add(v)
+		if not v then
+			return
+		end
+		local s = Lower(tostring(v))
+		if s ~= "" then
+			names[#names + 1] = s
+		end
+	end
+	if kind == "prompt" then
+		add(inst.Name)
+		add(inst.ObjectText)
+		add(inst.ActionText)
+		local parent = inst.Parent
+		if parent then
+			add(parent.Name)
+		end
+	else
+		add(inst.Name)
+		local parent = inst.Parent
+		if parent then
+			add(parent.Name)
+		end
+	end
+	if part then
+		add(part.Name)
+		local m = part:FindFirstAncestorWhichIsA("Model")
+		while m do
+			add(m.Name)
+			m = m:FindFirstAncestorWhichIsA("Model")
+		end
+	end
+	return names
+end
+
+NAjobs._matchNames = function(matcher, names, target)
+	if not target or target == "" then
+		return true
+	end
+	return matcher(names, target)
+end
+
 NAjobs._claim = function(key)
 	if not key then return true end
 	if NAjobs._claimed[key] == NAjobs._frame then return false end
@@ -49289,32 +49478,306 @@ NAjobs._dequeue = function()
 	return job
 end
 
+NAjobs._buildTargetPlan = function(dueJobs)
+	local plan = {
+		all = false,
+		exact = {},
+		findList = {},
+	}
+	local findSeen = {}
+	for i = 1, #dueJobs do
+		local job = dueJobs[i]
+		local target = job and job.target
+		if not target or target == "" then
+			plan.all = true
+		elseif job.useFind then
+			if not findSeen[target] then
+				findSeen[target] = true
+				Insert(plan.findList, target)
+			end
+		else
+			plan.exact[target] = true
+		end
+	end
+	return plan
+end
+
+NAjobs._matchesTargetPlan = function(names, plan)
+	if plan.all then
+		return true
+	end
+	for i = 1, #names do
+		if plan.exact[names[i]] then
+			return true
+		end
+	end
+	local findList = plan.findList
+	for i = 1, #findList do
+		local target = findList[i]
+		for j = 1, #names do
+			local name = names[j]
+			if name == target or Find(name, target, 1, true) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAjobs._batchInterval = function(dueJobs, zeroCount, floor)
+	local minInterval = nil
+	for i = 1, #dueJobs do
+		local job = dueJobs[i]
+		if job and NAjobs.jobs[job.id] == job then
+			local ivl = NAjobs._effectiveInterval(job, zeroCount)
+			if not minInterval or ivl < minInterval then
+				minInterval = ivl
+			end
+		end
+	end
+	if not minInterval then
+		minInterval = 0.1
+	end
+	local minFloor = tonumber(floor) or 0
+	if minInterval < minFloor then
+		minInterval = minFloor
+	end
+	return minInterval
+end
+
+NAjobs._canRefire = function(lastMap, inst, now, cooldown)
+	if type(lastMap) ~= "table" or not inst then
+		return true
+	end
+	local cd = tonumber(cooldown) or 0
+	if cd <= 0 then
+		return true
+	end
+	local last = tonumber(lastMap[inst]) or 0
+	return (now - last) >= cd
+end
+
+NAjobs._runPromptBatch = function(dueJobs)
+	local char = getChar()
+	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	if not root then
+		return
+	end
+	local rootPos = root.Position
+	local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
+	local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
+	local tracked = (NAjobs._tracked.prompt and NAjobs._tracked.prompt.list) or {}
+	local trackedCount = #tracked
+	if trackedCount <= 0 then
+		NAjobs._promptCursor = 0
+		return
+	end
+	local plan = NAjobs._buildTargetPlan(dueJobs)
+	local needsNames = not plan.all and (next(plan.exact) ~= nil or #plan.findList > 0)
+	local maxFires = math.max(1, math.floor(tonumber(NAjobs._promptMaxFiresPerBatch) or 18))
+	local scanBudget = math.max(1, math.floor(tonumber(NAjobs._promptScanPerBatch) or trackedCount))
+	if scanBudget < maxFires then
+		scanBudget = maxFires
+	end
+	if scanBudget > trackedCount then
+		scanBudget = trackedCount
+	end
+	local cursor = tonumber(NAjobs._promptCursor) or 0
+	local cooldown = tonumber(NAjobs._promptRefireFloor) or 0
+	local dynamicFloor = NAjobs._batchInterval(dueJobs, 0, 0)
+	if dynamicFloor > cooldown then
+		cooldown = dynamicFloor
+	end
+	local now = time()
+	local stale = {}
+	local fired = 0
+	local lastMap = NAjobs._lastPromptFire
+	if type(lastMap) ~= "table" then
+		lastMap = {}
+		NAjobs._lastPromptFire = lastMap
+	end
+	for step = 1, scanBudget do
+		if fired >= maxFires then
+			break
+		end
+		local idx = ((cursor + step - 1) % trackedCount) + 1
+		local inst = tracked[idx]
+		if not (inst and inst.Parent) then
+			if inst then
+				Insert(stale, inst)
+			end
+		else
+			local part = NAjobs._resolvePromptPart(inst)
+			if part and inst.Enabled then
+				local ok = true
+				if needsNames then
+					local names = NAjobs._collectNames("prompt", inst, part)
+					ok = NAjobs._matchesTargetPlan(names, plan)
+				end
+				if ok and useRange then
+					local dist = (part.Position - rootPos).Magnitude
+					ok = dist <= ((inst.MaxActivationDistance or 0) + extraRange)
+				end
+				if ok and NAjobs._claim(inst) and NAjobs._canRefire(lastMap, inst, now, cooldown) then
+					local okFire = pcall(fireproximityprompt, inst)
+					if okFire then
+						lastMap[inst] = now
+						fired += 1
+					end
+				end
+			end
+		end
+	end
+	NAjobs._promptCursor = (cursor + scanBudget) % trackedCount
+	for i = 1, #stale do
+		NAjobs._trackedRemove("prompt", stale[i])
+	end
+end
+
+NAjobs._runClickBatch = function(dueJobs)
+	local char = getChar()
+	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	if not root then
+		return
+	end
+	local rootPos = root.Position
+	local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
+	local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
+	local tracked = (NAjobs._tracked.click and NAjobs._tracked.click.list) or {}
+	local trackedCount = #tracked
+	if trackedCount <= 0 then
+		NAjobs._clickCursor = 0
+		return
+	end
+	local plan = NAjobs._buildTargetPlan(dueJobs)
+	local needsNames = not plan.all and (next(plan.exact) ~= nil or #plan.findList > 0)
+	local maxFires = math.max(1, math.floor(tonumber(NAjobs._clickMaxFiresPerBatch) or 18))
+	local scanBudget = math.max(1, math.floor(tonumber(NAjobs._clickScanPerBatch) or trackedCount))
+	if scanBudget < maxFires then
+		scanBudget = maxFires
+	end
+	if scanBudget > trackedCount then
+		scanBudget = trackedCount
+	end
+	local cursor = tonumber(NAjobs._clickCursor) or 0
+	local cooldown = tonumber(NAjobs._clickRefireFloor) or 0
+	local dynamicFloor = NAjobs._batchInterval(dueJobs, 0, 0)
+	if dynamicFloor > cooldown then
+		cooldown = dynamicFloor
+	end
+	local now = time()
+	local stale = {}
+	local fired = 0
+	local lastMap = NAjobs._lastClickFire
+	if type(lastMap) ~= "table" then
+		lastMap = {}
+		NAjobs._lastClickFire = lastMap
+	end
+	for step = 1, scanBudget do
+		if fired >= maxFires then
+			break
+		end
+		local idx = ((cursor + step - 1) % trackedCount) + 1
+		local inst = tracked[idx]
+		if not (inst and inst.Parent) then
+			if inst then
+				Insert(stale, inst)
+			end
+		else
+			local part = NAjobs._resolveClickPart(inst)
+			if part then
+				local ok = true
+				if needsNames then
+					local names = NAjobs._collectNames("click", inst, part)
+					ok = NAjobs._matchesTargetPlan(names, plan)
+				end
+				if ok and useRange then
+					local dist = (part.Position - rootPos).Magnitude
+					ok = dist <= ((inst.MaxActivationDistance or 0) + extraRange)
+				end
+				if ok and NAjobs._claim(inst) and NAjobs._canRefire(lastMap, inst, now, cooldown) then
+					local okFire = pcall(fireclickdetector, inst)
+					if okFire then
+						lastMap[inst] = now
+						fired += 1
+					end
+				end
+			end
+		end
+	end
+	NAjobs._clickCursor = (cursor + scanBudget) % trackedCount
+	for i = 1, #stale do
+		NAjobs._trackedRemove("click", stale[i])
+	end
+end
+
 NAjobs._runStep = function()
 	NAjobs._frame = (NAjobs._frame or 0) + 1
 	NAjobs._claimed = {}
 	local now = time()
 	local zeroCount = 0
+	local duePrompt = {}
+	local dueClick = {}
+	local dueOther = {}
 	for _, job in pairs(NAjobs.jobs) do
 		if job.interval <= 0 then
 			zeroCount += 1
 		end
-	end
-	for _, job in pairs(NAjobs.jobs) do
-		if (not job._queued) and now >= (job.next or 0) then
-			job._queued = true
-			NAjobs._enqueue(job)
+		if now >= (job.next or 0) then
+			if job.kind == "prompt" then
+				Insert(duePrompt, job)
+			elseif job.kind == "click" then
+				Insert(dueClick, job)
+			else
+				Insert(dueOther, job)
+			end
 		end
 	end
+
+	local ranPromptBatch = false
+	local ranClickBatch = false
+	if #duePrompt > 0 then
+		local nextAt = tonumber(NAjobs._promptBatchNext) or 0
+		if now >= nextAt then
+			NAjobs._runPromptBatch(duePrompt)
+			ranPromptBatch = true
+			NAjobs._promptBatchNext = now + NAjobs._batchInterval(duePrompt, zeroCount, NAjobs._promptBatchFloor)
+		end
+	end
+	if #dueClick > 0 then
+		local nextAt = tonumber(NAjobs._clickBatchNext) or 0
+		if now >= nextAt then
+			NAjobs._runClickBatch(dueClick)
+			ranClickBatch = true
+			NAjobs._clickBatchNext = now + NAjobs._batchInterval(dueClick, zeroCount, NAjobs._clickBatchFloor)
+		end
+	end
+	if ranPromptBatch then
+		for i = 1, #duePrompt do
+			local job = duePrompt[i]
+			if NAjobs.jobs[job.id] == job then
+				job.next = now + NAjobs._effectiveInterval(job, zeroCount)
+			end
+		end
+	end
+	if ranClickBatch then
+		for i = 1, #dueClick do
+			local job = dueClick[i]
+			if NAjobs.jobs[job.id] == job then
+				job.next = now + NAjobs._effectiveInterval(job, zeroCount)
+			end
+		end
+	end
+
 	local budget = math.max(1, math.floor(tonumber(NAjobs._maxTicksPerStep) or 2))
 	local ran = 0
-	while ran < budget do
-		local job = NAjobs._dequeue()
-		if not job then
+	for i = 1, #dueOther do
+		if ran >= budget then
 			break
 		end
-		job._queued = false
+		local job = dueOther[i]
 		if NAjobs.jobs[job.id] == job then
-			job.next = time() + NAjobs._effectiveInterval(job, zeroCount)
+			job.next = now + NAjobs._effectiveInterval(job, zeroCount)
 			pcall(job.tick, job)
 			ran += 1
 		end
@@ -49361,6 +49824,13 @@ NAjobs._maybeStop = function()
 		NAjobs._qHead = 1
 		NAjobs._qTail = 0
 		NAjobs._accum = 0
+		NAjobs._promptBatchNext = 0
+		NAjobs._clickBatchNext = 0
+		NAjobs._promptCursor = 0
+		NAjobs._clickCursor = 0
+		NAjobs._lastPromptFire = {}
+		NAjobs._lastClickFire = {}
+		NAjobs._claimed = {}
 	end
 end
 
@@ -49389,6 +49859,9 @@ end
 
 NAjobs.start = function(kind, interval, target, useFind)
 	NAindex.init()
+	if kind == "prompt" or kind == "click" then
+		NAjobs._ensureTracked()
+	end
 	local tgt = target and Lower(target) or nil
 	local ivl = interval or 0.1
 	local ivlClamped = math.max(0, ivl)
@@ -49418,154 +49891,72 @@ NAjobs.start = function(kind, interval, target, useFind)
 	}
 	if kind == "prompt" then
 		job.tick = function(self)
-			if not InstancesTbl or type(InstancesTbl.proxy) ~= "table" then
-				return
-			end
 			local char = getChar()
 			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 			if not root then
 				return
 			end
 			local rootPos = root.Position
-			local list = {}
 			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
 			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
-			local proxy = InstancesTbl.proxy
+			local tracked = (NAjobs._tracked.prompt and NAjobs._tracked.prompt.list) or {}
 			local hasTarget = self.target ~= nil and self.target ~= ""
-			for i = 1, #proxy do
-				local inst = proxy[i]
-				if inst and inst.Parent and inst.Enabled then
-					local ok = false
-					local dist = 0
-					local part
+			for i = #tracked, 1, -1 do
+				local inst = tracked[i]
+				if not (inst and inst.Parent) then
+					NAjobs._trackedRemove("prompt", inst)
+				else
+					local part = NAjobs._resolvePromptPart(inst)
+					if not part then
+						continue
+					end
+					local ok = true
 					if hasTarget then
-						local names = NAindex.namesForPrompt(inst)
-						if self.m(names, self.target) then
-							if useRange then
-								ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange)
-							else
-								part = NAindex.getPromptPart(inst)
-								ok = part ~= nil
-							end
-						end
-					else
-						if useRange then
-							ok, dist, part = NAindex.inRangePrompt(inst, rootPos, extraRange)
-						else
-							part = NAindex.getPromptPart(inst)
-							ok = part ~= nil
-						end
+						local names = NAjobs._collectNames("prompt", inst, part)
+						ok = NAjobs._matchNames(self.m, names, self.target)
 					end
-					if ok and part then
-						local n = #list + 1
-						list[n] = {
-							inst = inst,
-							dist = dist,
-							part = part
-						}
+					if ok and useRange then
+						local dist = (part.Position - rootPos).Magnitude
+						ok = dist <= ((inst.MaxActivationDistance or 0) + extraRange)
 					end
-				end
-			end
-			if #list > 1 then
-				table.sort(list, function(a, b)
-					return a.dist < b.dist
-				end)
-			end
-			local step = self.interval > 0 and self.stagger or 0
-			local i = 0
-			for _, it in ipairs(list) do
-				if NAjobs._claim(it.inst) then
-					local function fireNow()
-						local range = (it.inst.MaxActivationDistance or 0) + extraRange
-						local allow = {
-							[it.inst] = true
-						}
-						local suppressed = NAsuppress.collectAndAcquire(it.part and it.part.Position or rootPos, 10, allow)
-						pcall(fireproximityprompt, it.inst, {
-							hold = 0.03,
-							distance = range,
-							disableLoS = true,
-							stagger = 0
-						})
-						Delay(0.06, function()
-							NAsuppress.releaseList(suppressed)
-						end)
-					end
-					if step <= 0 then
-						fireNow()
-					else
-						i += 1
-						Delay(step * (i - 1), fireNow)
+					if ok and part and inst.Enabled then
+						pcall(fireproximityprompt, inst)
 					end
 				end
 			end
 		end
 	elseif kind == "click" then
 		job.tick = function(self)
-			if not InstancesTbl or type(InstancesTbl.click) ~= "table" then
-				return
-			end
 			local char = getChar()
 			local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
 			if not root then
 				return
 			end
 			local rootPos = root.Position
-			local list = {}
 			local useRange = NAStuff.AutoInteractDistanceEnabled ~= false
 			local extraRange = tonumber(NAStuff.AutoInteractExtraRange) or 5
-			local clickTbl = InstancesTbl.click
+			local tracked = (NAjobs._tracked.click and NAjobs._tracked.click.list) or {}
 			local hasTarget = self.target ~= nil and self.target ~= ""
-			for i = 1, #clickTbl do
-				local inst = clickTbl[i]
-				if inst and inst.Parent then
-					local ok = false
-					local dist = 0
-					local part
+			for i = #tracked, 1, -1 do
+				local inst = tracked[i]
+				if not (inst and inst.Parent) then
+					NAjobs._trackedRemove("click", inst)
+				else
+					local part = NAjobs._resolveClickPart(inst)
+					if not part then
+						continue
+					end
+					local ok = true
 					if hasTarget then
-						local names = NAindex.namesForClick(inst)
-						if self.m(names, self.target) then
-							if useRange then
-								ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange)
-							else
-								part = NAindex.carPart(inst.Parent or inst)
-								ok = part ~= nil
-							end
-						end
-					else
-						if useRange then
-							ok, dist, part = NAindex.inRangeClick(inst, rootPos, extraRange)
-						else
-							part = NAindex.carPart(inst.Parent or inst)
-							ok = part ~= nil
-						end
+						local names = NAjobs._collectNames("click", inst, part)
+						ok = NAjobs._matchNames(self.m, names, self.target)
+					end
+					if ok and useRange then
+						local dist = (part.Position - rootPos).Magnitude
+						ok = dist <= ((inst.MaxActivationDistance or 0) + extraRange)
 					end
 					if ok and part then
-						local n = #list + 1
-						list[n] = {
-							inst = inst,
-							dist = dist,
-							part = part
-						}
-					end
-				end
-			end
-			if #list > 1 then
-				table.sort(list, function(a, b)
-					return a.dist < b.dist
-				end)
-			end
-			local step = self.interval > 0 and self.stagger or 0
-			local i = 0
-			for _, it in ipairs(list) do
-				if NAjobs._claim(it.part) then
-					if step <= 0 then
-						pcall(fireclickdetector, it.inst)
-					else
-						i += 1
-						Delay(step * (i - 1), function()
-							pcall(fireclickdetector, it.inst)
-						end)
+						pcall(fireclickdetector, inst)
 					end
 				end
 			end
@@ -49889,7 +50280,7 @@ end,true)
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Disable the cooldown for proximity prompts"},function()
 	NAlib.disconnect("instantpp")
 	NAlib.connect("instantpp", SafeGetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(pp)
-		fireproximityprompt(pp, 1)
+		pcall(fireproximityprompt, pp)
 	end))
 end)
 
@@ -74286,10 +74677,10 @@ NAgui.setTab(NA_TABS.TAB_AUTOMATION)
 NAgui.addSection("Command & AutoFire Options")
 
 local autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
-local autoInteractIntervalDefault = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
-NAgui.addSlider("AutoFire Default Delay", 0, 5, autoInteractIntervalDefault, 0.1, " s", function(val)
+local autoInteractIntervalDefault = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
+NAgui.addSlider("AutoFire Default Delay", 0, 1, autoInteractIntervalDefault, 0.01, "", function(val)
 	local n = tonumber(val) or autoInteractIntervalDefault
-	n = math.floor((math.clamp(n, 0, 5) * 10) + 0.5) / 10
+	n = math.floor((math.clamp(n, 0, 1) * 100) + 0.5) / 100
 	NAStuff.AutoInteractDefaultInterval = n
 	pcall(NAmanage.NASettingsSet, "autoInteractDefaultInterval", n)
 	NAjobs.applyLinkedAutoInteractInterval(n)
