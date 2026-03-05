@@ -79554,12 +79554,13 @@ elseif _na_env and rawget(_na_env, "GITHUB_AUTH") then
 end
 
 NAStuff.RobloxVersionEndpoints = {
-	"https://itseverydayyou.github.io/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/main/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
-
 	"https://weao.xyz/api/versions/current";
 	"http://weao.xyz/api/versions/current";
+	"https://itseverydayyou.github.io/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/main/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
 }
 
 if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
@@ -79599,6 +79600,38 @@ originalIO.parseRobloxVersionBody=function(body)
 			end
 		end
 	end
+	return nil
+end
+
+originalIO.normalizeRobloxVersionData=function(decoded)
+	if type(decoded) ~= "table" then
+		return nil
+	end
+
+	local function hasVersionKeys(tbl)
+		return type(tbl) == "table" and (
+			tbl.Windows ~= nil or
+			tbl.Mac ~= nil or
+			tbl.Android ~= nil or
+			tbl.iOS ~= nil
+		)
+	end
+
+	local candidates = {
+		decoded;
+		decoded.current;
+		decoded.data;
+		decoded.data and decoded.data.current;
+		decoded.versions;
+		decoded.versions and decoded.versions.current;
+	}
+
+	for _, candidate in ipairs(candidates) do
+		if hasVersionKeys(candidate) then
+			return candidate
+		end
+	end
+
 	return nil
 end
 
@@ -79830,38 +79863,38 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 	for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
 		if baseUrl and baseUrl ~= "" then
 			local url = baseUrl..((Find(baseUrl, "?", 1, true) and "&" or "?").."_="..tostring(os.time())..tostring(math.random(1,1e6)))
-			if requestFunc then
-				local ok1, response = pcall(requestFunc, { Url = url; Method = "GET"; Headers = NAStuff.RobloxVersionHeaders; Timeout = 6; FollowRedirects = true; SslVerify = false; })
-				if ok1 and response then
-					local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
-					body = tostring(body or "")
-					local decoded = originalIO.parseRobloxVersionBody(body)
-					if decoded then
-						NAStuff.RobloxVersionData = decoded
-						NAStuff.RobloxVersionLastFetch = tick()
-						return true, decoded
+				if requestFunc then
+					local ok1, response = pcall(requestFunc, { Url = url; Method = "GET"; Headers = NAStuff.RobloxVersionHeaders; Timeout = 6; FollowRedirects = true; SslVerify = false; })
+					if ok1 and response then
+						local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
+						body = tostring(body or "")
+						local decoded = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body))
+						if decoded then
+							NAStuff.RobloxVersionData = decoded
+							NAStuff.RobloxVersionLastFetch = tick()
+							return true, decoded
+						end
+					end
+					local ok2, response2 = pcall(requestFunc, { Url = url; Method = "GET"; Headers = {["Accept"]="application/json"}; Timeout = 6; FollowRedirects = true; SslVerify = false; })
+					if ok2 and response2 then
+						local body2 = response2.Body or response2.body or response2.Data or response2.data or response2.Text or response2.text or response2.Content or response2.content or response2[1]
+						body2 = tostring(body2 or "")
+						local decoded2 = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body2))
+						if decoded2 then
+							NAStuff.RobloxVersionData = decoded2
+							NAStuff.RobloxVersionLastFetch = tick()
+							return true, decoded2
+						end
 					end
 				end
-				local ok2, response2 = pcall(requestFunc, { Url = url; Method = "GET"; Headers = {["Accept"]="application/json"}; Timeout = 6; FollowRedirects = true; SslVerify = false; })
-				if ok2 and response2 then
-					local body2 = response2.Body or response2.body or response2.Data or response2.data or response2.Text or response2.text or response2.Content or response2.content or response2[1]
-					body2 = tostring(body2 or "")
-					local decoded2 = originalIO.parseRobloxVersionBody(body2)
-					if decoded2 then
-						NAStuff.RobloxVersionData = decoded2
+				local ok3, body3 = pcall(function() return game and game.HttpGet and game:HttpGet(url) end)
+				if ok3 and type(body3) == "string" then
+					local decoded3 = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body3))
+					if decoded3 then
+						NAStuff.RobloxVersionData = decoded3
 						NAStuff.RobloxVersionLastFetch = tick()
-						return true, decoded2
+						return true, decoded3
 					end
-				end
-			end
-			local ok3, body3 = pcall(function() return game and game.HttpGet and game:HttpGet(url) end)
-			if ok3 and type(body3) == "string" then
-				local decoded3 = originalIO.parseRobloxVersionBody(body3)
-				if decoded3 then
-					NAStuff.RobloxVersionData = decoded3
-					NAStuff.RobloxVersionLastFetch = tick()
-					return true, decoded3
-				end
 			end
 		end
 	end
