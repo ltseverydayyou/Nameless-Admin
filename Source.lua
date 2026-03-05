@@ -147,6 +147,7 @@ local NAStuff = {
 	cmdInputAtInit = nil;
 	tweenSpeed = 1;
 	tpDelay = 0.2;
+	AutoInteractDefaultInterval = 0.1;
 	FreecamSpeed = 5;
 	MobileCamSensitivity = 1;
 	MobileCamSensEnabled = false;
@@ -13957,6 +13958,16 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		autoInteractDefaultInterval = {
+			default = 0.1;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 0.1 end
+				if n < 0 then n = 0 end
+				if n > 5 then n = 5 end
+				return math.floor((n * 10) + 0.5) / 10
+			end;
+		};
 		fpsBoostOptions = {
 			default = function()
 				return {
@@ -16020,6 +16031,7 @@ end
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
+NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
@@ -16044,6 +16056,7 @@ if FileSupport then
 	doPREDICTION = NAmanage.NASettingsGet("prediction")
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
+	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 5)
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
 	local savedMobileCamSens = tonumber(NAmanage.NASettingsGet("mobileCamSensitivity"))
 	if savedMobileCamSens then
@@ -48908,6 +48921,10 @@ NAutil.parseInterval = function(defaultInterval, ...)
 	end
 end
 
+NAmanage.getAutoInteractDefaultInterval = function()
+	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
+end
+
 local promptPartCache = {}
 local carPartCache = {}
 local promptNamesCache = {}
@@ -49640,6 +49657,32 @@ NAjobs.stopAll = function()
 	NAjobs._maybeStop()
 end
 
+NAjobs.setAutoIntervalLink = function(id, linked)
+	local job = NAjobs.jobs[id]
+	if not job then
+		return false
+	end
+	job.autoIntervalLinked = linked == true
+	return true
+end
+
+NAjobs.applyLinkedAutoInteractInterval = function(interval)
+	local n = tonumber(interval)
+	if not n then
+		return 0
+	end
+	local ivl = math.max(0, n)
+	local changed = 0
+	for _, job in pairs(NAjobs.jobs) do
+		if job and (job.kind == "prompt" or job.kind == "click" or job.kind == "touch") and job.autoIntervalLinked == true then
+			job.interval = ivl
+			job.next = time()
+			changed += 1
+		end
+	end
+	return changed
+end
+
 NAmanage._sortedJobs = function(kind, useFind)
 	local list = {}
 	local findMode = useFind and true or false
@@ -49700,13 +49743,16 @@ end
 cmd.add({"autofireproxi","afp"},{"autofireproxi <interval> [target]","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
+	local defaultInterval = NAmanage.getAutoInteractDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
 	if args[1] and not tonumber(args[1]) then
-		interval = 0.05
+		interval = defaultInterval
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.05, ...)
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
 	end
 	local id, reused = NAjobs.start("prompt", interval, target)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("afp %s (%s) → %s"):format(action, target, id) or ("afp %s → %s"):format(action, id), 2)
 end, true)
@@ -49714,13 +49760,16 @@ end, true)
 cmd.add({"autofireproxifind","afpfind"},{"autofireproxifind <interval> [target]","Automatically fires ProximityPrompts matching [target] using substring matching every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
+	local defaultInterval = NAmanage.getAutoInteractDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
 	if args[1] and not tonumber(args[1]) then
-		interval = 0.05
+		interval = defaultInterval
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.05, ...)
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
 	end
 	local id, reused = NAjobs.start("prompt", interval, target, true)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("afpfind %s (%s) → %s"):format(action, target, id) or ("afpfind %s → %s"):format(action, id), 2)
 end, true)
@@ -49728,13 +49777,16 @@ end, true)
 cmd.add({"autofireclick","afc"},{"autofireclick <interval> [target]","Automatically fires ClickDetectors matching [target] every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
+	local defaultInterval = NAmanage.getAutoInteractDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
 	if args[1] and not tonumber(args[1]) then
-		interval = 0.05
+		interval = defaultInterval
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.05, ...)
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
 	end
 	local id, reused = NAjobs.start("click", interval, target)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("afc %s (%s) → %s"):format(action, target, id) or ("afc %s → %s"):format(action, id), 2)
 end, true)
@@ -49742,27 +49794,36 @@ end, true)
 cmd.add({"autofireclickfind","afcfind"},{"autofireclickfind <interval> [target]","Automatically fires ClickDetectors matching [target] using substring matching every <interval> seconds"}, function(...)
 	local args = {...}
 	local interval, target
+	local defaultInterval = NAmanage.getAutoInteractDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
 	if args[1] and not tonumber(args[1]) then
-		interval = 0.05
+		interval = defaultInterval
 		target = Lower(Concat(args, " ", 1))
 	else
-		interval, target = NAutil.parseInterval(0.05, ...)
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
 	end
 	local id, reused = NAjobs.start("click", interval, target, true)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("afcfind %s (%s) → %s"):format(action, target, id) or ("afcfind %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"autotouch","at"},{"autotouch <interval> [target]","Automatically fires TouchInterests on parts matching [target] every <interval> seconds"}, function(...)
-	local interval, target = NAutil.parseInterval(0.5, ...)
+	local args = {...}
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
+	local interval, target = NAutil.parseInterval(NAmanage.getAutoInteractDefaultInterval(), ...)
 	local id, reused = NAjobs.start("touch", interval, target)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("at %s (%s) → %s"):format(action, target, id) or ("at %s → %s"):format(action, id), 2)
 end, true)
 
 cmd.add({"autotouchfind","atfind"},{"autotouchfind <interval> [target]","Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"}, function(...)
-	local interval, target = NAutil.parseInterval(0.5, ...)
+	local args = {...}
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
+	local interval, target = NAutil.parseInterval(NAmanage.getAutoInteractDefaultInterval(), ...)
 	local id, reused = NAjobs.start("touch", interval, target, true)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
 	local action = reused and "updated" or "started"
 	DebugNotif(target and ("atfind %s (%s) → %s"):format(action, target, id) or ("atfind %s → %s"):format(action, id), 2)
 end, true)
@@ -74205,6 +74266,15 @@ NAgui.setTab(NA_TABS.TAB_AUTOMATION)
 NAgui.addSection("Command & AutoFire Options")
 
 local autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
+local autoInteractIntervalDefault = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 5)
+NAgui.addSlider("AutoFire Default Delay", 0, 5, autoInteractIntervalDefault, 0.1, " s", function(val)
+	local n = tonumber(val) or autoInteractIntervalDefault
+	n = math.floor((math.clamp(n, 0, 5) * 10) + 0.5) / 10
+	NAStuff.AutoInteractDefaultInterval = n
+	pcall(NAmanage.NASettingsSet, "autoInteractDefaultInterval", n)
+	NAjobs.applyLinkedAutoInteractInterval(n)
+end)
+
 NAgui.addToggle("Use Distance Check for AutoFire", NAStuff.AutoInteractDistanceEnabled ~= false, function(v)
 	NAStuff.AutoInteractDistanceEnabled = v ~= false
 	pcall(NAmanage.NASettingsSet, "autoInteractDistanceEnabled", NAStuff.AutoInteractDistanceEnabled)
