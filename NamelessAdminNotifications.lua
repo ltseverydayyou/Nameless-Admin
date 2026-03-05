@@ -223,15 +223,9 @@ ov.ZIndex = OVERLAY_Z;
 ov.Active = false;
 ov.Parent = gui;
 local ACT = {
-	Notify = setmetatable({}, {
-		__mode = "k"
-	}),
-	Window = setmetatable({}, {
-		__mode = "k"
-	}),
-	Popup = setmetatable({}, {
-		__mode = "k"
-	})
+	Notify = {},
+	Window = {},
+	Popup = {}
 };
 function NotifFuns.syncOverlayActive()
 	if not ov then
@@ -551,15 +545,13 @@ function NotifFuns.cntH(c)
 	end
 	return math.max(0, hh)
 end
-local ST = setmetatable({}, {
-	__mode = "k"
-});
+local ST = {};
 ctx = function(x)
 	local s = ST[x];
 	if not s then
 		s = {
-			connections = setmetatable({}, { __mode = "k" }),
-			tweens = setmetatable({}, { __mode = "k" })
+			connections = {},
+			tweens = {}
 		};
 		ST[x] = s;
 	end;
@@ -614,7 +606,7 @@ function NotifFuns.clrSt(s)
 				conn:Disconnect();
 			end;
 		end;
-		s.connections = setmetatable({}, { __mode = "k" });
+		s.connections = {};
 	end;
 	if s.tweens then
 		for tween in pairs(s.tweens) do
@@ -622,7 +614,7 @@ function NotifFuns.clrSt(s)
 				tween:Cancel();
 			end;
 		end;
-		s.tweens = setmetatable({}, { __mode = "k" });
+		s.tweens = {};
 	end;
 end;
 function NotifFuns.cleanup(obj)

@@ -1082,9 +1082,7 @@ local col = {
 	hub = Color3.fromRGB(10, 10, 12),
 	hub2 = Color3.fromRGB(14, 14, 16)
 };
-local twm = setmetatable({}, {
-	__mode = "k"
-});
+local twm = {};
 local function tw(o, ti, p)
 	local old = twm[o];
 	if old then

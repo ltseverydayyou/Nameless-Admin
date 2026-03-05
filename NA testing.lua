@@ -147,7 +147,7 @@ local NAStuff = {
 	StreamerModeGray = Color3.fromRGB(127, 127, 127);
 	StreamerModeImage = "rbxasset://textures/LightThemeLoadingCircle.png";
 	StreamerModeState = {
-		cache = setmetatable({}, { __mode = "k" });
+		cache = {};
 		nameTokens = {};
 		token = nil;
 		scrubBusy = false;
@@ -184,18 +184,18 @@ local NAStuff = {
 	siteESPList = {};
 	vehicleSiteESPList = {};
 	unanchoredESPList = {};
-	unanchoredESPSet = setmetatable({}, { __mode = "k" });
+	unanchoredESPSet = {};
 	collisiontrueESPList = {};
-	collisiontrueESPSet = setmetatable({}, { __mode = "k" });
+	collisiontrueESPSet = {};
 	collisionfalseESPList = {};
-	collisionfalseESPSet = setmetatable({}, { __mode = "k" });
+	collisionfalseESPSet = {};
 	espTriggers = {};
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
 	nameESPPartLists = { exact = {}, partial = {} };
 	nameESPPartMaps = {
-		exact = setmetatable({}, { __mode = "k" }),
-		partial = setmetatable({}, { __mode = "k" }),
+		exact = {},
+		partial = {},
 	};
 	ESP_RenderMode = "BoxHandleAdornment";
 	ESP_PartRenderMode = "BoxHandleAdornment";
@@ -245,12 +245,12 @@ local NAStuff = {
 	NPC_ESP_MaxCount = 200;
 	NPC_ESP_ShowLabels = true;
 	NPC_ESP_LabelMaxDistance = 600;
-	partESPColors = setmetatable({}, { __mode = "k" });
-	partESPGlassOriginal = setmetatable({}, { __mode = "k" });
-	partESPGlassCount = setmetatable({}, { __mode = "k" });
-	partESPEntries = setmetatable({}, { __mode = "k" });
-	partESPVisualMap = setmetatable({}, { __mode = "k" });
-	partESPQueueMap = setmetatable({}, { __mode = "k" });
+	partESPColors = {};
+	partESPGlassOriginal = {};
+	partESPGlassCount = {};
+	partESPEntries = {};
+	partESPVisualMap = {};
+	partESPQueueMap = {};
 	partESPQueue = {};
 	partESPQueueHead = 1;
 	partESPQueueTail = 0;
@@ -286,11 +286,11 @@ local NAStuff = {
 	NIL_SENTINEL = {};
 	RemoteBlockMode = "fakeok";
 	RemoteFakeReturn = true;
-	BlockedEventSaved = setmetatable({}, { __mode = "k" });
-	BlockedInvokeSaved = setmetatable({}, { __mode = "k" });
-	BlockedRemoteModes = setmetatable({}, { __mode = "k" });
-	BlockedRemoteReturns = setmetatable({}, { __mode = "k" });
-	BlockedSignals = setmetatable({}, { __mode = "k" });
+	BlockedEventSaved = {};
+	BlockedInvokeSaved = {};
+	BlockedRemoteModes = {};
+	BlockedRemoteReturns = {};
+	BlockedSignals = {};
 	RemoteFakeReturn = true;
 	AntiKickMode = "fakeok";
 	AntiKickHooked = false;
@@ -379,7 +379,7 @@ local NAStuff = {
 	};
 	NASettingsSchema = nil;
 	NASettingsData = nil;
-	elementOriginalParent = setmetatable({}, { __mode = "k" });
+	elementOriginalParent = {};
 	_lastCommand = nil;
 	_prevCommand = nil;
 	_removeAdsLoop = nil;
@@ -691,19 +691,19 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		addCount = 0,
 		remCount = 0,
 		cache = {},
-		idx = setmetatable({}, { __mode = "k" }),
+		idx = {},
 		cacheLive = false,
-		aQ = setmetatable({}, { __mode = "v" }),
-		rQ = setmetatable({}, { __mode = "v" }),
-		aSet = setmetatable({}, { __mode = "k" }),
-		rSet = setmetatable({}, { __mode = "k" }),
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
 		rTail = 0,
 		qBusy = false,
 		qKick = false,
-		sQ = setmetatable({}, { __mode = "v" }),
+		sQ = {},
 		sHead = 1,
 		sTail = 0,
 		sBusy = false,
@@ -831,8 +831,8 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 				end
 				Wait()
 			end
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aQ = {}
+			hub.rQ = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -904,7 +904,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 				end
 				Wait()
 			end
-			hub.sQ = setmetatable({}, { __mode = "v" })
+			hub.sQ = {}
 			hub.sHead = 1
 			hub.sTail = 0
 			hub.sBusy = false
@@ -938,7 +938,7 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 	if not hub.cacheLive then
 		hub.cacheLive = true
 		hub.cache = {}
-		hub.idx = setmetatable({}, { __mode = "k" })
+		hub.idx = {}
 		local root = hub.root
 		local ok, descs = pcall(function()
 			if root then
@@ -1039,19 +1039,19 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
-			hub.aSet = setmetatable({}, { __mode = "k" })
-			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
 			hub.rTail = 0
 			hub.cacheLive = false
 			hub.cache = {}
-			hub.idx = setmetatable({}, { __mode = "k" })
+			hub.idx = {}
 			hub.cIdx = 1
-			hub.sQ = setmetatable({}, { __mode = "v" })
+			hub.sQ = {}
 			hub.sHead = 1
 			hub.sTail = 0
 		end
@@ -1097,10 +1097,10 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		removing = {},
 		addCount = 0,
 		remCount = 0,
-		aQ = setmetatable({}, { __mode = "v" }),
-		rQ = setmetatable({}, { __mode = "v" }),
-		aSet = setmetatable({}, { __mode = "k" }),
-		rSet = setmetatable({}, { __mode = "k" }),
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -1163,8 +1163,8 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 				end
 				Wait()
 			end
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aQ = {}
+			hub.rQ = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1276,10 +1276,10 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
-			hub.aSet = setmetatable({}, { __mode = "k" })
-			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1359,10 +1359,10 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		removing = {},
 		addCount = 0,
 		remCount = 0,
-		aQ = setmetatable({}, { __mode = "v" }),
-		rQ = setmetatable({}, { __mode = "v" }),
-		aSet = setmetatable({}, { __mode = "k" }),
-		rSet = setmetatable({}, { __mode = "k" }),
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -1442,8 +1442,8 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 				end
 				Wait()
 			end
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aQ = {}
+			hub.rQ = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1653,10 +1653,10 @@ NAmanage.pgSub = NAmanage.pgSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
-			hub.aSet = setmetatable({}, { __mode = "k" })
-			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1683,7 +1683,7 @@ NAmanage.pgRem = NAmanage.pgRem or function(fn, filter)
 	})
 end
 
-NAmanage._descHubs = NAmanage._descHubs or setmetatable({}, { __mode = "k" })
+NAmanage._descHubs = NAmanage._descHubs or {}
 
 NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 	if typeof(root) ~= "Instance" then
@@ -1717,10 +1717,10 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		removing = {},
 		addCount = 0,
 		remCount = 0,
-		aQ = setmetatable({}, { __mode = "v" }),
-		rQ = setmetatable({}, { __mode = "v" }),
-		aSet = setmetatable({}, { __mode = "k" }),
-		rSet = setmetatable({}, { __mode = "k" }),
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -1797,8 +1797,8 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 				end
 				Wait()
 			end
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
+			hub.aQ = {}
+			hub.rQ = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1946,10 +1946,10 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = setmetatable({}, { __mode = "v" })
-			hub.rQ = setmetatable({}, { __mode = "v" })
-			hub.aSet = setmetatable({}, { __mode = "k" })
-			hub.rSet = setmetatable({}, { __mode = "k" })
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
 			hub.aHead = 1
 			hub.aTail = 0
 			hub.rHead = 1
@@ -1973,7 +1973,7 @@ NAmanage.descRem = NAmanage.descRem or function(root, fn, filter)
 	})
 end
 
-NAmanage._mouseMoveHubs = NAmanage._mouseMoveHubs or setmetatable({}, { __mode = "k" })
+NAmanage._mouseMoveHubs = NAmanage._mouseMoveHubs or {}
 
 NAmanage._mouseMoveHubGet = NAmanage._mouseMoveHubGet or function(mouseObj)
 	if not mouseObj then
@@ -2436,26 +2436,26 @@ NAmanage.ESP_GetListMeta = NAmanage.ESP_GetListMeta or function(list)
 	end
 	local store = NAStuff and NAStuff.genericESPListMeta
 	if type(store) ~= "table" then
-		store = setmetatable({}, { __mode = "k" })
+		store = {}
 		NAStuff.genericESPListMeta = store
 	end
 	local meta = store[list]
 	if type(meta) ~= "table" then
 		meta = {
-			index = setmetatable({}, { __mode = "k" });
-			counts = setmetatable({}, { __mode = "k" });
-			objects = setmetatable({}, { __mode = "k" });
+			index = {};
+			counts = {};
+			objects = {};
 		}
 		store[list] = meta
 	end
 	if type(meta.index) ~= "table" then
-		meta.index = setmetatable({}, { __mode = "k" })
+		meta.index = {}
 	end
 	if type(meta.counts) ~= "table" then
-		meta.counts = setmetatable({}, { __mode = "k" })
+		meta.counts = {}
 	end
 	if type(meta.objects) ~= "table" then
-		meta.objects = setmetatable({}, { __mode = "k" })
+		meta.objects = {}
 	end
 	return meta
 end
@@ -2512,7 +2512,7 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 	local state = NAStuff and NAStuff.StreamerModeState
 	if type(state) ~= "table" then
 		state = {
-			cache = setmetatable({}, { __mode = "k" });
+			cache = {};
 			nameTokens = {};
 			token = nil;
 			restoreToken = nil;
@@ -2521,7 +2521,7 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 		NAStuff.StreamerModeState = state
 	end
 	if type(state.cache) ~= "table" then
-		state.cache = setmetatable({}, { __mode = "k" })
+		state.cache = {}
 	end
 	if type(state.nameTokens) ~= "table" then
 		state.nameTokens = {}
@@ -3243,40 +3243,83 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 		Insert(pending, inst)
 	end
 	if #pending == 0 then
-		state.cache = setmetatable({}, { __mode = "k" })
+		state.cache = {}
+		if type(opts.onComplete) == "function" then
+			pcall(opts.onComplete, 0, false)
+		end
 		return 0
 	end
-	local yieldEvery = tonumber(opts.yieldEvery) or 72
-	if yieldEvery < 1 then
-		yieldEvery = 1
+	local maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 24
+	if maxPerStep < 1 then
+		maxPerStep = 1
 	end
+	local timeBudget = tonumber(opts.timeBudget)
+	if timeBudget == nil then
+		timeBudget = 0.002
+	end
+	if timeBudget < 0 then
+		timeBudget = 0
+	end
+	local restoreAsync = opts.async ~= false
 	local delayTime = opts.delayTime
 	local restoreToken = NAmanage.NewCancelToken()
 	state.restoreToken = restoreToken
+	local onComplete = type(opts.onComplete) == "function" and opts.onComplete or nil
 	local restored = 0
-	for i = 1, #pending do
-		if restoreToken.cancelled then
-			break
+	local idx = 1
+	local total = #pending
+
+	local function finish()
+		local cancelled = restoreToken.cancelled == true
+		if state.restoreToken == restoreToken then
+			state.restoreToken = nil
+			if not cancelled then
+				state.cache = {}
+			end
 		end
-		NAmanage.StreamerRestoreInstance(pending[i])
-		restored += 1
-		if restored % yieldEvery == 0 then
+		if onComplete then
+			pcall(onComplete, restored, cancelled)
+		end
+	end
+
+	local function runWorker()
+		while idx <= total do
 			if restoreToken.cancelled then
 				break
 			end
-			if delayTime and delayTime > 0 then
-				Wait(delayTime)
-			else
-				Wait()
+			local started = os.clock()
+			local stepCount = 0
+			while idx <= total do
+				if restoreToken.cancelled then
+					break
+				end
+				NAmanage.StreamerRestoreInstance(pending[idx])
+				restored += 1
+				idx += 1
+				stepCount += 1
+				if stepCount >= maxPerStep then
+					break
+				end
+				if timeBudget > 0 and (os.clock() - started) >= timeBudget then
+					break
+				end
+			end
+			if idx <= total and not restoreToken.cancelled then
+				if delayTime and delayTime > 0 then
+					Wait(delayTime)
+				else
+					Wait()
+				end
 			end
 		end
+		finish()
 	end
-	if state.restoreToken == restoreToken then
-		state.restoreToken = nil
-		if not restoreToken.cancelled then
-			state.cache = setmetatable({}, { __mode = "k" })
-		end
+
+	if restoreAsync then
+		Spawn(runWorker)
+		return total
 	end
+	runWorker()
 	return restored
 end
 
@@ -3362,12 +3405,18 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		NAlib.disconnect("streamermode_player_chars")
 		NAlib.disconnect("streamermode_players")
 		NAlib.disconnect("streamermode_player_names")
-		NAmanage.StreamerRestoreAll({
-			yieldEvery = tonumber(opts.yieldEvery) or 72;
+		local queued = NAmanage.StreamerRestoreAll({
+			maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 24;
+			timeBudget = tonumber(opts.timeBudget) or 0.002;
 			delayTime = opts.delayTime;
+			async = opts.restoreAsync ~= false;
 		})
 		if not opts.silent and DoNotif then
-			DoNotif("Streamer Mode disabled", 2)
+			if (tonumber(queued) or 0) > 0 and opts.restoreAsync ~= false then
+				DoNotif("Streamer Mode disabled (restoring in background)", 2)
+			else
+				DoNotif("Streamer Mode disabled", 2)
+			end
 		end
 		return false
 	end
@@ -3493,9 +3542,7 @@ end)()
 --[[ Character helpers ]]--
 NA_GRAB_BODY = (function()
 	local T = {};
-	local _cache = setmetatable({}, {
-		__mode = "k"
-	});
+	local _cache = {};
 	local overrideModel = nil;
 	local overrideConn = nil;
 	local selectingOverride = false;
@@ -3962,8 +4009,8 @@ updateCanvasSize = function(frame, scale)
 		return
 	end
 
-	NAmanage._canvasLayoutCache = NAmanage._canvasLayoutCache or setmetatable({}, { __mode = "k" })
-	NAmanage._canvasHeightCache = NAmanage._canvasHeightCache or setmetatable({}, { __mode = "k" })
+	NAmanage._canvasLayoutCache = NAmanage._canvasLayoutCache or {}
+	NAmanage._canvasHeightCache = NAmanage._canvasHeightCache or {}
 
 	local layout = NAmanage._canvasLayoutCache[frame]
 	if not (layout and layout.Parent == frame) then
@@ -6486,10 +6533,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = false,
 		},
 		cg = coreGui,
-		store = setmetatable({}, { __mode = "k" }),
-		watchers = setmetatable({}, { __mode = "k" }),
-		guiRootWatchers = setmetatable({}, { __mode = "k" }),
-		guiRootSeen = setmetatable({}, { __mode = "k" }),
+		store = {},
+		watchers = {},
+		guiRootWatchers = {},
+		guiRootSeen = {},
 		restoring = false,
 	}
 
@@ -6760,7 +6807,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local cornerApplyQueue = {}
-	local cornerApplySet = setmetatable({}, { __mode = "k" })
+	local cornerApplySet = {}
 	local cornerApplyHead = 1
 	local cornerApplyTail = 0
 	local cornerApplyBusy = false
@@ -6809,8 +6856,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			CE.guiRootWatchers[root] = nil
 		end
-		CE.guiRootWatchers = setmetatable({}, { __mode = "k" })
-		CE.guiRootSeen = setmetatable({}, { __mode = "k" })
+		CE.guiRootWatchers = {}
+		CE.guiRootSeen = {}
 	end
 
 	local function resetCorn()
@@ -6824,10 +6871,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			stopCWat(corner)
 		end
 		CE.restoring = false
-		CE.store = setmetatable({}, { __mode = "k" })
-		CE.watchers = setmetatable({}, { __mode = "k" })
+		CE.store = {}
+		CE.watchers = {}
 		cornerApplyQueue = {}
-		cornerApplySet = setmetatable({}, { __mode = "k" })
+		cornerApplySet = {}
 		cornerApplyHead = 1
 		cornerApplyTail = 0
 		clearGuiRootWatchers()
@@ -7059,7 +7106,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local persistFontData
 
 	local function newFontStore()
-		return setmetatable({}, { __mode = "k" })
+		return {}
 	end
 
 	local FontChoices = {}
@@ -8154,9 +8201,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		customFontMap = {},
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
-		watchers = setmetatable({}, { __mode = "k" }),
-		guiRootWatchers = setmetatable({}, { __mode = "k" }),
-		guiRootSeen = setmetatable({}, { __mode = "k" }),
+		watchers = {},
+		guiRootWatchers = {},
+		guiRootSeen = {},
 		restoring = false,
 		dlBusy = false,
 	}
@@ -8414,7 +8461,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local fontApplyQueue = {}
-	local fontApplySet = setmetatable({}, { __mode = "k" })
+	local fontApplySet = {}
 	local fontApplyHead = 1
 	local fontApplyTail = 0
 	local fontApplyBusy = false
@@ -8463,8 +8510,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			FontEditor.guiRootWatchers[root] = nil
 		end
-		FontEditor.guiRootWatchers = setmetatable({}, { __mode = "k" })
-		FontEditor.guiRootSeen = setmetatable({}, { __mode = "k" })
+		FontEditor.guiRootWatchers = {}
+		FontEditor.guiRootSeen = {}
 	end
 
 	local function watchFontGuiRoot(root)
@@ -8546,10 +8593,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
-		FontEditor.watchers = setmetatable({}, { __mode = "k" })
+		FontEditor.watchers = {}
 		clearFontGuiRootWatchers()
 		fontApplyQueue = {}
-		fontApplySet = setmetatable({}, { __mode = "k" })
+		fontApplySet = {}
 		fontApplyHead = 1
 		fontApplyTail = 0
 	end
@@ -10025,7 +10072,7 @@ NAjobs  = {
 	seq = 0,
 	_frame = 0,
 	_claimed = {},
-	_touchState = setmetatable({}, {__mode="k"}),
+	_touchState = {},
 	_q = {},
 	_qHead = 1,
 	_qTail = 0,
@@ -10038,9 +10085,9 @@ NAjobs  = {
 	_accum = 0
 }
 NAutil  = NAutil  or {}
-NAsuppress = NAsuppress or { ref = setmetatable({}, {__mode="k"}), snap = setmetatable({}, {__mode="k"}) }
+NAsuppress = NAsuppress or { ref = {}, snap = {} }
 NACOLOREDELEMENTS={}
-NACOLOREDELEMENTS_SET=setmetatable({}, {__mode="k"})
+NACOLOREDELEMENTS_SET={}
 
 DEFAULT_UI_STROKE_COLOR=Color3.fromRGB(148,93,255)
 COLOR_WHITE=Color3.new(1,1,1)
@@ -18679,7 +18726,7 @@ NAmanage.AttachMessageCopy = function(gui, rawMessage)
 	if not (gui and gui.InputBegan and gui.InputEnded) then
 		return
 	end
-	NAStuff._messageCopyHooks = NAStuff._messageCopyHooks or setmetatable({}, { __mode = "k" })
+	NAStuff._messageCopyHooks = NAStuff._messageCopyHooks or {}
 	local hooks = NAStuff._messageCopyHooks
 
 	local function buildResolver()
@@ -19228,7 +19275,9 @@ local NPCESPenabled=false
 if type(espCONS) ~= "table" then
 	espCONS = {}
 end
-setmetatable(espCONS, { __mode = "k" })
+if getmetatable(espCONS) then
+	setmetatable(espCONS, nil)
+end
 if type(NAStuff.ESP_PlayerLabelOverrides) ~= "table" then
 	NAStuff.ESP_PlayerLabelOverrides = {}
 end
@@ -19758,19 +19807,19 @@ NAgui.adjustHighlightMaterialFor = function(target, enable)
 	local ltOriginals = NAStuff.partESPLocalTransOriginal
 	local ltCounts = NAStuff.partESPLocalTransCount
 	if not originals then
-		originals = setmetatable({}, { __mode = "k" })
+		originals = {}
 		NAStuff.partESPGlassOriginal = originals
 	end
 	if not counts then
-		counts = setmetatable({}, { __mode = "k" })
+		counts = {}
 		NAStuff.partESPGlassCount = counts
 	end
 	if not ltOriginals then
-		ltOriginals = setmetatable({}, { __mode = "k" })
+		ltOriginals = {}
 		NAStuff.partESPLocalTransOriginal = ltOriginals
 	end
 	if not ltCounts then
-		ltCounts = setmetatable({}, { __mode = "k" })
+		ltCounts = {}
 		NAStuff.partESPLocalTransCount = ltCounts
 	end
 	local function handlePart(base)
@@ -19834,10 +19883,10 @@ NAmanage.ESP_AdjustHighlightMaterial = function(target, enable)
 	NAgui.adjustHighlightMaterialFor(target, enable)
 end
 
-NAStuff.partESPEntries = NAStuff.partESPEntries or setmetatable({}, { __mode = "k" })
-NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or setmetatable({}, { __mode = "k" })
-NAStuff.partESPPartMap = NAStuff.partESPPartMap or setmetatable({}, { __mode = "k" })
-NAStuff.partESPQueueMap = NAStuff.partESPQueueMap or setmetatable({}, { __mode = "k" })
+NAStuff.partESPEntries = NAStuff.partESPEntries or {}
+NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or {}
+NAStuff.partESPPartMap = NAStuff.partESPPartMap or {}
+NAStuff.partESPQueueMap = NAStuff.partESPQueueMap or {}
 NAStuff.partESPQueue = NAStuff.partESPQueue or {}
 NAStuff.partESPQueueHead = tonumber(NAStuff.partESPQueueHead) or 1
 NAStuff.partESPQueueTail = tonumber(NAStuff.partESPQueueTail) or 0
@@ -19846,7 +19895,7 @@ NAStuff.espSweepCursor = NAStuff.espSweepCursor or {}
 
 NAmanage.PartESP_QueueClear = function()
 	NAStuff.partESPQueue = {}
-	NAStuff.partESPQueueMap = setmetatable({}, { __mode = "k" })
+	NAStuff.partESPQueueMap = {}
 	NAStuff.partESPQueueHead = 1
 	NAStuff.partESPQueueTail = 0
 	NAlib.disconnect("esp_part_queue")
@@ -20144,12 +20193,12 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.part and typeof(entry.part) == "Instance" then
 		local partMap = NAStuff.partESPPartMap
 		if type(partMap) ~= "table" then
-			partMap = setmetatable({}, { __mode = "k" })
+			partMap = {}
 			NAStuff.partESPPartMap = partMap
 		end
 		local bucket = partMap[entry.part]
 		if type(bucket) ~= "table" then
-			bucket = setmetatable({}, { __mode = "kv" })
+			bucket = {}
 			partMap[entry.part] = bucket
 		end
 		bucket[entry.entryKey] = entry
@@ -20725,7 +20774,7 @@ NAmanage.ESP_ClearAll = function()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
 	end
-	NAStuff.ESP_ModelList = setmetatable({}, { __mode = "v" })
+	NAStuff.ESP_ModelList = {}
 	NAlib.disconnect("esp_update_global")
 	ESPPlayersEnabled = false
 	NPCESPenabled = false
@@ -24881,7 +24930,7 @@ end
 
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks = chatmsgshooks or {}
-Playerchats = Playerchats or setmetatable({}, { __mode = "v" })
+Playerchats = Playerchats or {}
 local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
@@ -27441,7 +27490,7 @@ NAmanage.ovPartAdd = function(st, src)
 	end
 	local idxMap = st.ovPartIdx
 	if type(idxMap) ~= "table" then
-		idxMap = setmetatable({}, { __mode = "k" })
+		idxMap = {}
 		st.ovPartIdx = idxMap
 	end
 	if idxMap[src] then
@@ -27499,8 +27548,8 @@ NAmanage.ovTrack = function(st, chr)
 	NAmanage.ovDsc(st)
 	st.ovChr = chr
 	st.ovParts = {}
-	st.ovPartIdx = setmetatable({}, { __mode = "k" })
-	st.ovMeshCache = setmetatable({}, { __mode = "k" })
+	st.ovPartIdx = {}
+	st.ovMeshCache = {}
 	for _, desc in ipairs(chr:QueryDescendants("Instance")) do
 		if desc:IsA("BasePart") then
 			NAmanage.ovPartAdd(st, desc)
@@ -27799,7 +27848,7 @@ NAmanage.ovLive = function(reb)
 			end
 		end
 		st.ovMap = {}
-		st.ovMeshCache = setmetatable({}, { __mode = "k" })
+		st.ovMeshCache = {}
 	end
 	local on = NAmanage.ovCfg()
 	if not on then
@@ -31018,7 +31067,7 @@ NAmanage.antiKBQueueObj=function(state, obj)
 		return
 	end
 	if not state.deferQ then
-		state.deferQ = setmetatable({}, {__mode = "k"})
+		state.deferQ = {}
 	end
 	if state.deferQ[obj] then
 		return
@@ -31199,9 +31248,9 @@ cmd.add({"antiknockback","akb"}, {"antiknockback (akb)", "Disables knockback"}, 
 	NAmanage.antiKBClearState(NAStuff._antiKnockbackState)
 
 	local state = {
-		forces = setmetatable({}, {__mode = "k"});
-		objConns = setmetatable({}, {__mode = "k"});
-		deferQ = setmetatable({}, {__mode = "k"});
+		forces = {};
+		objConns = {};
+		deferQ = {};
 		char = nil;
 		root = nil;
 		rootSyncPend = nil;
@@ -31868,9 +31917,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	end;
 	local active = false;
 	local cons = {};
-	local watchers = setmetatable({}, {
-		__mode = "k"
-	});
+	local watchers = {};
 	local function connect(sig, fn)
 		local c = sig:Connect(fn);
 		Insert(cons, c);
@@ -31883,9 +31930,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end);
 		end;
 		cons = {};
-		watchers = setmetatable({}, {
-			__mode = "k"
-		});
+		watchers = {};
 	end;
 	local function forceProperty(inst, prop, desired)
 		if not inst then
@@ -32559,7 +32604,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			handleAdded(v);
 		end);
 
-		local camSeen = setmetatable({}, { __mode = "k" });
+		local camSeen = {};
 		local function hookCamera(cam)
 			if not cam or camSeen[cam] then
 				return;
@@ -33458,8 +33503,8 @@ NAStuff.ATPC = {
 	plr = Players.LocalPlayer,
 	gui = nil,
 	btn = nil,
-	allowed = setmetatable({}, { __mode = "k" }),
-	old = setmetatable({}, { __mode = "k" }),
+	allowed = {},
+	old = {},
 	parts = {}
 }
 
@@ -33604,8 +33649,8 @@ NAStuff.ATPC.Enable = function()
 
 	NAStuff.ATPC.state = true
 	NAStuff.ATPC.plr = plr
-	NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
-	NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
+	NAStuff.ATPC.allowed = {}
+	NAStuff.ATPC.old = {}
 	NAStuff.ATPC.parts = {}
 
 	if type(Refresh) == "function" then
@@ -33620,8 +33665,8 @@ NAStuff.ATPC.Enable = function()
 	NAlib.connect("AntiCFrame_charAdded", plr.CharacterAdded:Connect(function(newChar)
 		if not NAStuff.ATPC.state then return end
 		if not newChar or not newChar.Parent then return end
-		NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
-		NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
+		NAStuff.ATPC.allowed = {}
+		NAStuff.ATPC.old = {}
 		NAStuff.ATPC.parts = {}
 		NAlib.disconnect("AntiCFrame")
 		NAStuff.ATPC._hookChar(newChar)
@@ -33643,8 +33688,8 @@ NAStuff.ATPC.Disable = function()
 	NAlib.disconnect("AntiCFrame")
 	NAlib.disconnect("AntiCFrame_charAdded")
 
-	NAStuff.ATPC.allowed = setmetatable({}, { __mode = "k" })
-	NAStuff.ATPC.old = setmetatable({}, { __mode = "k" })
+	NAStuff.ATPC.allowed = {}
+	NAStuff.ATPC.old = {}
 	NAStuff.ATPC.parts = {}
 
 	NAStuff.ATPC._syncBtn()
@@ -35310,9 +35355,9 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 	NAlib.disconnect("antifling")
 	NAlib.disconnect("antifling_players")
 
-	NAStuff._afTracked = NAStuff._afTracked or setmetatable({}, {__mode = "k"})
-	NAStuff._afOrigCan = NAStuff._afOrigCan or setmetatable({}, {__mode = "k"})
-	NAStuff._afSignals = NAStuff._afSignals or setmetatable({}, {__mode = "k"})
+	NAStuff._afTracked = NAStuff._afTracked or {}
+	NAStuff._afOrigCan = NAStuff._afOrigCan or {}
+	NAStuff._afSignals = NAStuff._afSignals or {}
 
 	local tracked = NAStuff._afTracked
 	local orig = NAStuff._afOrigCan
@@ -36379,16 +36424,16 @@ end, true)
 NAStuff.NPC_SCAN_KEY = NAStuff.NPC_SCAN_KEY or "npc_esp_scan"
 NAStuff.npcESPList = NAStuff.npcESPList or _na_env.npcESPList
 if not NAStuff.npcESPList then
-	NAStuff.npcESPList = setmetatable({}, { __mode = "k" })
+	NAStuff.npcESPList = {}
 else
-	if not getmetatable(NAStuff.npcESPList) then
-		setmetatable(NAStuff.npcESPList, { __mode = "k" })
+	if getmetatable(NAStuff.npcESPList) then
+		setmetatable(NAStuff.npcESPList, nil)
 	end
 end
 _na_env.npcESPList = NAStuff.npcESPList
-NAStuff.npcCandidates = NAStuff.npcCandidates or setmetatable({}, { __mode = "k" })
-if not getmetatable(NAStuff.npcCandidates) then
-	setmetatable(NAStuff.npcCandidates, { __mode = "k" })
+NAStuff.npcCandidates = NAStuff.npcCandidates or {}
+if getmetatable(NAStuff.npcCandidates) then
+	setmetatable(NAStuff.npcCandidates, nil)
 end
 
 NAmanage.ClearNpcTables = function()
@@ -36421,7 +36466,7 @@ NAmanage.RemoveNpcCandidate = function(inst)
 end
 
 NAmanage.SeedNpcCandidates = function()
-	NAStuff.npcCandidates = setmetatable({}, { __mode = "k" })
+	NAStuff.npcCandidates = {}
 	for _, inst in ipairs(NAmanage.wsDescs()) do
 		NAmanage.AddNpcCandidate(inst)
 	end
@@ -36518,9 +36563,9 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 		NAlib.disconnect(NAStuff.NPC_SCAN_KEY)
 	end
 	NAmanage.ClearNpcTables()
-	NAStuff.npcESPList = setmetatable({}, { __mode = "k" })
+	NAStuff.npcESPList = {}
 	_na_env.npcESPList = NAStuff.npcESPList
-	NAStuff.npcCandidates = setmetatable({}, { __mode = "k" })
+	NAStuff.npcCandidates = {}
 	if not (ESPPlayersEnabled or chamsEnabled or NPCESPenabled) then
 		NAmanage.ESP_StopGlobal()
 	end
@@ -38507,7 +38552,7 @@ end)
 -- idk what i am doing lol (bored af :P)
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
-	NAStuff._ncColl = setmetatable({}, {__mode="k"})
+	NAStuff._ncColl = {}
 	local collMap = NAStuff._ncColl
 
 	NAlib.disconnect("noclip")
@@ -38543,9 +38588,9 @@ end)
 cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchored"},function()
 	NAlib.disconnect("antianchor")
 	NAlib.disconnect("antianchor_char")
-	NAStuff._aaTracked = NAStuff._aaTracked or setmetatable({}, {__mode="k"})
-	NAStuff._aaOrig = NAStuff._aaOrig or setmetatable({}, {__mode="k"})
-	NAStuff._aaSignals = NAStuff._aaSignals or setmetatable({}, {__mode="k"})
+	NAStuff._aaTracked = NAStuff._aaTracked or {}
+	NAStuff._aaOrig = NAStuff._aaOrig or {}
+	NAStuff._aaSignals = NAStuff._aaSignals or {}
 	local tracked, orig, signals = NAStuff._aaTracked, NAStuff._aaOrig, NAStuff._aaSignals
 	local lp = Players.LocalPlayer
 	local enforce = function(p)
@@ -41045,7 +41090,7 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 		return false, "AntiTouch is unavailable on this client."
 	end
 
-	NAStuff._kbMovedParts = NAStuff._kbMovedParts or setmetatable({}, {__mode="k"})
+	NAStuff._kbMovedParts = NAStuff._kbMovedParts or {}
 	local moved = NAStuff._kbMovedParts
 
 	local function moveTouchPart(inst)
@@ -41082,8 +41127,8 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 end
 
 NAmanage.AntiTouchEnableCanTouch = function()
-	NAStuff._kbTouchParts = NAStuff._kbTouchParts or setmetatable({}, {__mode="k"})
-	NAStuff._kbTouchOriginal = NAStuff._kbTouchOriginal or setmetatable({}, {__mode="k"})
+	NAStuff._kbTouchParts = NAStuff._kbTouchParts or {}
+	NAStuff._kbTouchOriginal = NAStuff._kbTouchOriginal or {}
 	local tracked = NAStuff._kbTouchParts
 	local original = NAStuff._kbTouchOriginal
 
@@ -48032,7 +48077,7 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 end, true)
 
 promptTBL = promptTBL or {}
-promptTBL.tracked = promptTBL.tracked or setmetatable({}, { __mode = "k" })
+promptTBL.tracked = promptTBL.tracked or {}
 promptTBL.conns = promptTBL.conns or {}
 promptTBL.blocking = promptTBL.blocking == true
 promptTBL.polling = promptTBL.polling == true
@@ -48066,7 +48111,7 @@ function NAmanage.nuhuhprompt(v)
 			local scanToken = NAmanage.NewCancelToken()
 			promptTBL.scanToken = scanToken
 
-			local visited = setmetatable({}, { __mode = "k" })
+			local visited = {}
 
 			local function disableGui(gui)
 				if not promptTBL.blocking then
@@ -48164,7 +48209,7 @@ if NAStuff and NAStuff.PurchasePromptsDisabled == true then
 	NAmanage.nuhuhprompt(false)
 end
 
-notificationButtonBlock = notificationButtonBlock or { conns = {}, blocking = false, frames = setmetatable({}, { __mode = "k" }) }
+notificationButtonBlock = notificationButtonBlock or { conns = {}, blocking = false, frames = {} }
 
 NAmanage._isFriendRequestFrame=function(inst)
 	if not inst or typeof(inst) ~= "Instance" or not inst:IsA("Frame") then return false end
@@ -48233,7 +48278,7 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 				end
 				tbl.conns[i] = nil
 			end
-			tbl.frames = setmetatable({}, { __mode = "k" })
+			tbl.frames = {}
 			tbl.blocking = false
 		end
 
@@ -48300,7 +48345,7 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 		if enable then
 			if tbl.blocking then return end
 			tbl.blocking = true
-			tbl.frames = tbl.frames or setmetatable({}, { __mode = "k" })
+			tbl.frames = tbl.frames or {}
 
 			attachExisting()
 			bindRobloxGui(coreGui:FindFirstChild("RobloxGui"))
@@ -48322,7 +48367,7 @@ if NAStuff and NAStuff.FriendRequestAutoDismiss == true then
 end
 
 networkPauseBlock = networkPauseBlock or {}
-networkPauseBlock.tracked = networkPauseBlock.tracked or setmetatable({}, { __mode = "k" })
+networkPauseBlock.tracked = networkPauseBlock.tracked or {}
 networkPauseBlock.conns = networkPauseBlock.conns or {}
 networkPauseBlock.blocking = networkPauseBlock.blocking == true
 networkPauseBlock.polling = networkPauseBlock.polling == true
@@ -48883,11 +48928,11 @@ NAutil.parseInterval = function(defaultInterval, ...)
 	end
 end
 
-local promptPartCache = setmetatable({}, { __mode = "k" })
-local carPartCache = setmetatable({}, { __mode = "k" })
-local promptNamesCache = setmetatable({}, { __mode = "k" })
-local clickNamesCache = setmetatable({}, { __mode = "k" })
-local partNamesCache = setmetatable({}, { __mode = "k" })
+local promptPartCache = {}
+local carPartCache = {}
+local promptNamesCache = {}
+local clickNamesCache = {}
+local partNamesCache = {}
 
 NAindex.lc = function(s)
 	if s then
@@ -49899,8 +49944,8 @@ end,true)
 NAStuff._godEnabled = NAStuff._godEnabled or false
 NAStuff._godMethod  = NAStuff._godMethod  or "nohooks_strong"
 NAStuff._godTarget  = NAStuff._godTarget  or 1e9
-NAStuff._godOrig    = NAStuff._godOrig    or setmetatable({}, {__mode="k"})
-NAStuff._godSignals = NAStuff._godSignals or setmetatable({}, {__mode="k"})
+NAStuff._godOrig    = NAStuff._godOrig    or {}
+NAStuff._godSignals = NAStuff._godSignals or {}
 NAStuff._godHumRef  = NAStuff._godHumRef  or nil
 NAStuff._godHooked  = NAStuff._godHooked  or false
 NAStuff._godOldNC   = NAStuff._godOldNC   or nil
@@ -52644,7 +52689,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 	local parts = NAStuff.nameESPPartLists[mode]
 	local partMap = NAStuff.nameESPPartMaps and NAStuff.nameESPPartMaps[mode]
 	if type(partMap) ~= "table" then
-		partMap = setmetatable({}, { __mode = "k" })
+		partMap = {}
 		NAStuff.nameESPPartMaps[mode] = partMap
 	end
 	for _,term in ipairs(terms) do
@@ -52754,7 +52799,7 @@ NAmanage.EnableUnanchoredEsp = function(color)
 	local list = NAStuff.unanchoredESPList
 	local setMap = NAStuff.unanchoredESPSet
 	if type(setMap) ~= "table" then
-		setMap = setmetatable({}, { __mode = "k" })
+		setMap = {}
 		NAStuff.unanchoredESPSet = setMap
 	end
 	local function update(part)
@@ -52825,7 +52870,7 @@ NAmanage.EnableCollisionEsp = function(targetState, color)
 	local list = targetState and NAStuff.collisiontrueESPList or NAStuff.collisionfalseESPList
 	local setMap = targetState and NAStuff.collisiontrueESPSet or NAStuff.collisionfalseESPSet
 	if type(setMap) ~= "table" then
-		setMap = setmetatable({}, { __mode = "k" })
+		setMap = {}
 		if targetState then
 			NAStuff.collisiontrueESPSet = setMap
 		else
@@ -52955,9 +53000,9 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 	NAStuff.ESP_LocatorBackend = "gui"
 
 	local gui = NAmanage.ESP_LocatorEnsureGui()
-	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or {}
 	local arrows = NAStuff.ESP_LocatorArrows
-	local holderState = setmetatable({}, { __mode = "k" })
+	local holderState = {}
 	local activeCount = 0
 	local iterKey = nil
 	local accum = 0
@@ -53282,9 +53327,9 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 		NAStuff.ESP_LocatorGui = nil
 	end
 
-	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_LocatorArrows = NAStuff.ESP_LocatorArrows or {}
 	local arrows = NAStuff.ESP_LocatorArrows
-	local holderState = setmetatable({}, { __mode = "k" })
+	local holderState = {}
 	local activeCount = 0
 	local iterKey = nil
 	local accum = 0
@@ -53532,7 +53577,7 @@ NAmanage.ESP_LocatorDisable = function()
 			NAmanage.ESP_LocatorDisposeHolder(holder)
 		end
 	end
-	NAStuff.ESP_LocatorArrows = setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_LocatorArrows = {}
 	NAStuff.ESP_LocatorBackend = nil
 	if NAStuff.ESP_LocatorGui and NAStuff.ESP_LocatorGui.Parent then
 		NAStuff.ESP_LocatorGui:Destroy()
@@ -53560,9 +53605,9 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 	NAStuff.ESP_PlayerLocatorBackend = "gui"
 
 	local gui = NAmanage.ESP_PlayerLocatorEnsureGui()
-	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or {}
 	local arrows = NAStuff.ESP_PlayerLocatorArrows
-	local holderState = setmetatable({}, { __mode = "k" })
+	local holderState = {}
 	local activeCount = 0
 	local iterKey = nil
 	local accum = 0
@@ -53883,9 +53928,9 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		NAStuff.ESP_PlayerLocatorGui = nil
 	end
 
-	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_PlayerLocatorArrows = NAStuff.ESP_PlayerLocatorArrows or {}
 	local arrows = NAStuff.ESP_PlayerLocatorArrows
-	local holderState = setmetatable({}, { __mode = "k" })
+	local holderState = {}
 	local activeCount = 0
 	local iterKey = nil
 	local accum = 0
@@ -54117,7 +54162,7 @@ NAmanage.ESP_PlayerLocatorDisable = function()
 			NAmanage.ESP_LocatorDisposeHolder(holder)
 		end
 	end
-	NAStuff.ESP_PlayerLocatorArrows = setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_PlayerLocatorArrows = {}
 	NAStuff.ESP_PlayerLocatorBackend = nil
 	if NAStuff.ESP_PlayerLocatorGui and NAStuff.ESP_PlayerLocatorGui.Parent then
 		NAStuff.ESP_PlayerLocatorGui:Destroy()
@@ -54483,7 +54528,7 @@ NAmanage.FolderESP_Enable = function(folder)
 	end
 	local map = NAStuff.folderESPMemberMaps[folder]
 	if type(map) ~= "table" then
-		map = setmetatable({}, { __mode = "k" })
+		map = {}
 	end
 	for i = #list, 1, -1 do
 		NAmanage.RemoveEspFromPart(list[i])
@@ -55006,7 +55051,7 @@ function NAmanage.HitboxUpdateActive(newOpts)
 			if ch and ch.Parent then
 				for _,bp in ipairs(ch:GetChildren()) do
 					if bp:IsA("BasePart") then
-						D.ps[key] = D.ps[key] or setmetatable({}, {__mode="k"})
+						D.ps[key] = D.ps[key] or {}
 						D.ps[key][bp] = true
 					end
 				end
@@ -55030,7 +55075,7 @@ function NAmanage.HitboxUpdateActive(newOpts)
 		for key, set in pairs(D.ps or {}) do
 			for bp,_ in pairs(set) do
 				if bp and bp.Parent and match(bp) then
-					D.og[key] = D.og[key] or setmetatable({}, {__mode="k"})
+					D.og[key] = D.og[key] or {}
 					if not D.og[key][bp] then
 						D.og[key][bp] = {
 							Size=bp.Size, Transparency=bp.Transparency, BrickColor=bp.BrickColor,
@@ -55068,39 +55113,21 @@ end
 cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 	NAStuff.HB = NAStuff.HB or {};
 	NAStuff.HB.P = NAStuff.HB.P or {
-		ps = setmetatable({}, {
-			__mode = "k"
-		}),
-		og = setmetatable({}, {
-			__mode = "k"
-		}),
-		ca = setmetatable({}, {
-			__mode = "k"
-		}),
-		da = setmetatable({}, {
-			__mode = "k"
-		}),
-		ac = setmetatable({}, {
-			__mode = "k"
-		}),
+		ps = {},
+		og = {},
+		ca = {},
+		da = {},
+		ac = {},
 		addConn = nil,
 		remConn = nil,
 		run = nil,
 		cfg = nil
 	};
 	NAStuff.HB.N = NAStuff.HB.N or {
-		ps = setmetatable({}, {
-			__mode = "k"
-		}),
-		og = setmetatable({}, {
-			__mode = "k"
-		}),
-		md = setmetatable({}, {
-			__mode = "k"
-		}),
-		ac = setmetatable({}, {
-			__mode = "k"
-		}),
+		ps = {},
+		og = {},
+		md = {},
+		ac = {},
 		wc = nil,
 		run = nil,
 		cfg = nil
@@ -55181,9 +55208,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 					return Lower(bp.Name) == limbL;
 				end;
 				local function Cache(D, key, bp)
-					D.og[key] = D.og[key] or setmetatable({}, {
-						__mode = "k"
-					});
+					D.og[key] = D.og[key] or {};
 					if not D.og[key][bp] then
 						D.og[key][bp] = {
 							Size = bp.Size,
@@ -55284,9 +55309,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						if not MatchBp(bp) then
 							return;
 						end;
-						D.ps[m] = D.ps[m] or setmetatable({}, {
-							__mode = "k"
-						});
+						D.ps[m] = D.ps[m] or {};
 						D.ps[m][bp] = true;
 						ApplyBp(D, m, bp);
 					end;
@@ -55461,9 +55484,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						if not MatchBp(bp) then
 							return;
 						end;
-						D.ps[k] = D.ps[k] or setmetatable({}, {
-							__mode = "k"
-						});
+						D.ps[k] = D.ps[k] or {};
 						D.ps[k][bp] = true;
 						ApplyBp(D, k, bp);
 					end;
@@ -55588,21 +55609,21 @@ end, true);
 cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 	NAStuff.HB = NAStuff.HB or {}
 	NAStuff.HB.P = NAStuff.HB.P or {
-		ps = setmetatable({}, { __mode = "k" }),
-		og = setmetatable({}, { __mode = "k" }),
-		ca = setmetatable({}, { __mode = "k" }),
-		da = setmetatable({}, { __mode = "k" }),
-		ac = setmetatable({}, { __mode = "k" }),
+		ps = {},
+		og = {},
+		ca = {},
+		da = {},
+		ac = {},
 		addConn = nil,
 		remConn = nil,
 		run = nil,
 		cfg = nil
 	}
 	NAStuff.HB.N = NAStuff.HB.N or {
-		ps = setmetatable({}, { __mode = "k" }),
-		og = setmetatable({}, { __mode = "k" }),
-		md = setmetatable({}, { __mode = "k" }),
-		ac = setmetatable({}, { __mode = "k" }),
+		ps = {},
+		og = {},
+		md = {},
+		ac = {},
 		wc = nil,
 		run = nil,
 		cfg = nil
@@ -55768,9 +55789,9 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 				c:Disconnect()
 			end
 		end
-		D.ca = setmetatable({}, { __mode = "k" })
-		D.da = setmetatable({}, { __mode = "k" })
-		D.ac = setmetatable({}, { __mode = "k" })
+		D.ca = {}
+		D.da = {}
+		D.ac = {}
 		if D.addConn then
 			D.addConn:Disconnect()
 			D.addConn = nil
@@ -55805,8 +55826,8 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 				c:Disconnect()
 			end
 		end
-		D.md = setmetatable({}, { __mode = "k" })
-		D.ac = setmetatable({}, { __mode = "k" })
+		D.md = {}
+		D.ac = {}
 		if D.wc then
 			D.wc:Disconnect()
 			D.wc = nil
@@ -56809,9 +56830,9 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	local w = workspace
-	st.ne = st.ne or {init=false,enabled=false,cache=setmetatable({},{__mode="k"}),sticky=false}
+	st.ne = st.ne or {init=false,enabled=false,cache={},sticky=false}
 	local ne = st.ne
-	ne.cache = ne.cache or setmetatable({},{__mode="k"})
+	ne.cache = ne.cache or {}
 	local function cacheProperty(inst,prop,value)
 		if not inst then return end
 		local saved = ne.cache[inst]
@@ -56956,7 +56977,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
-	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache=setmetatable({},{__mode="k"}),sticky=false}
+	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache={},sticky=false}
 	local nf = st.nf
 	local function cacheOnce(inst, props)
 		if nf.cache[inst] then return end
@@ -60707,9 +60728,7 @@ NAmanage.SetSearch = NAmanage.SetSearch or {};
 NAmanage.SetSearch.state = NAmanage.SetSearch.state or {
 	active = false,
 	last = "",
-	vis = setmetatable({}, {
-		__mode = "k"
-	})
+	vis = {}
 };
 function NAmanage.SetSearch.ignore(element)
 	if not element or typeof(element) ~= "Instance" then
@@ -61720,7 +61739,7 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	return tween
 end
 
-NAgui._resizeCleanup = NAgui._resizeCleanup or setmetatable({}, {__mode = "k"})
+NAgui._resizeCleanup = NAgui._resizeCleanup or {}
 NAgui.resizeable = function(ui, min, max)
 	if not ui or not ui:IsA("GuiObject") then return function() end end
 	local prevCleanup = NAgui._resizeCleanup[ui]
@@ -67177,7 +67196,10 @@ originalIO.naTransLatooor=function()
 	local translator = NAStuff.ChatTranslator or {}
 	NAStuff.ChatTranslator = translator
 
-	translator.messages = setmetatable(translator.messages or {}, { __mode = "k" })
+	translator.messages = translator.messages or {}
+	if getmetatable(translator.messages) then
+		setmetatable(translator.messages, nil)
+	end
 	translator.enabled = opt.chatTranslateEnabled ~= false
 	opt.chatTranslateEnabled = translator.enabled
 
@@ -69879,7 +69901,7 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 	if not NAmanage.BinderNeedsHumanoidHooks() then
 		return
 	end
-	NAStuff.bHum = NAStuff.bHum or setmetatable({}, { __mode = "k" })
+	NAStuff.bHum = NAStuff.bHum or {}
 	if NAStuff.bHum[hum] then
 		return
 	end
@@ -69926,7 +69948,7 @@ originalIO.binderAttachToolListeners=function(plr, char)
 	if not NAmanage.BinderNeedsToolHooks() then
 		return
 	end
-	NAStuff.bTool = NAStuff.bTool or setmetatable({}, { __mode = "k" })
+	NAStuff.bTool = NAStuff.bTool or {}
 	if NAStuff.bTool[char] then
 		return
 	end
@@ -69952,7 +69974,7 @@ originalIO.binderSetupCharacter=function(plr, char)
 	if not NAmanage.BinderNeedsCharacterHooks() then
 		return
 	end
-	NAStuff.bSet = NAStuff.bSet or setmetatable({}, { __mode = "k" })
+	NAStuff.bSet = NAStuff.bSet or {}
 	if NAStuff.bSet[char] then
 		return
 	end
@@ -70086,7 +70108,7 @@ end))
 
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
-		local fhSet = setmetatable({}, { __mode = "k" })
+		local fhSet = {}
 		local fhCount = 0
 		local fhWarned = false
 		local FH_SOFT_LIMIT = 1200
@@ -70302,9 +70324,9 @@ end))
 			fhWarned = false
 		end
 	local iIdx = {
-		click = setmetatable({}, { __mode = "k" });
-		proxy = setmetatable({}, { __mode = "k" });
-		touch = setmetatable({}, { __mode = "k" });
+		click = {};
+		proxy = {};
+		touch = {};
 	};
 	local function addI(kind, inst)
 		local list = InstancesTbl[kind];
@@ -70376,7 +70398,7 @@ end))
 	local scanHead = 1;
 	local scanTail = 0;
 	local scanning = false;
-	local bulkAddRoots = setmetatable({}, { __mode = "k" });
+	local bulkAddRoots = {};
 	local function queueScan(root, fn, onDone)
 		if not root or (not fn) then
 			return;
@@ -70444,12 +70466,12 @@ end))
 			scanning = false;
 		end);
 	end;
-	local dQ = setmetatable({}, { __mode = "v" });
-	local dSet = setmetatable({}, { __mode = "k" });
-	local fPend = setmetatable({}, { __mode = "k" });
-	local iPend = setmetatable({}, { __mode = "k" });
-	local wsAddP = setmetatable({}, { __mode = "k" });
-	local wsRemP = setmetatable({}, { __mode = "k" });
+	local dQ = {};
+	local dSet = {};
+	local fPend = {};
+	local iPend = {};
+	local wsAddP = {};
+	local wsRemP = {};
 	local dHead = 1;
 	local dTail = 0;
 	local dBusy = false;
@@ -70521,7 +70543,7 @@ end))
 					Wait();
 				end;
 			end;
-			dQ = setmetatable({}, { __mode = "v" });
+			dQ = {};
 			dHead = 1;
 			dTail = 0;
 			dBusy = false;
@@ -76894,11 +76916,11 @@ if CoreGui then
 		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg        = CoreGui,
-		images    = setmetatable({}, { __mode = "k" }),
+		images    = {},
 		queue     = {},
 		queueHead = 1,
 		queueTail = 0,
-		queueSet  = setmetatable({}, { __mode = "k" }),
+		queueSet  = {},
 		processing = false,
 		queueKickPending = false,
 		applying   = false,
@@ -77185,7 +77207,7 @@ if CoreGui then
 			PT.queue = {}
 			PT.queueHead = 1
 			PT.queueTail = 0
-			PT.queueSet = setmetatable({}, { __mode = "k" })
+			PT.queueSet = {}
 			local cg = PT.cg
 			if cg then
 				local desc = cg:QueryDescendants("Instance")
