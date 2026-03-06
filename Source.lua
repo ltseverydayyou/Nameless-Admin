@@ -136,6 +136,10 @@ local NAStuff = {
 	UserButtonsAutoLoad = true;
 	FriendRequestAutoDismiss = false;
 	ConnectionsToFriends = false;
+	UnsafeFunctionsDisabled = false;
+	UnsafeFunctionState = {
+		originals = {};
+	};
 	CmdBar2AutoRun = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
@@ -3559,6 +3563,105 @@ NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
 	state.scrubBusy = false
 end
 
+NAmanage.StreamerSortRestorePending = NAmanage.StreamerSortRestorePending or function(pending)
+	if type(pending) ~= "table" or #pending <= 1 then
+		return pending
+	end
+	local sortMeta = {}
+	for i = 1, #pending do
+		local inst = pending[i]
+		local depth = 0
+		local current = inst
+		while typeof(current) == "Instance" and current.Parent do
+			depth += 1
+			current = current.Parent
+		end
+		local ok, fullName = pcall(function()
+			return inst:GetFullName()
+		end)
+		sortMeta[inst] = {
+			depth = depth;
+			key = (ok and type(fullName) == "string" and fullName) or tostring(inst);
+		}
+	end
+	table.sort(pending, function(a, b)
+		local metaA = sortMeta[a]
+		local metaB = sortMeta[b]
+		if metaA.depth == metaB.depth then
+			return metaA.key > metaB.key
+		end
+		return metaA.depth > metaB.depth
+	end)
+	return pending
+end
+
+NAmanage.StreamerGetPriorityRoots = NAmanage.StreamerGetPriorityRoots or function()
+	local roots = {}
+	local seen = {}
+	local function addRoot(root)
+		if typeof(root) ~= "Instance" or seen[root] then
+			return
+		end
+		seen[root] = true
+		Insert(roots, root)
+	end
+	if Players and Players.LocalPlayer and Players.LocalPlayer.Character then
+		addRoot(Players.LocalPlayer.Character)
+	end
+	local baseRoots = NAmanage.StreamerGetRoots({
+		includeWorkspace = false;
+	})
+	for i = 1, #baseRoots do
+		addRoot(baseRoots[i])
+	end
+	return roots
+end
+
+NAmanage.StreamerRestorePriority = NAmanage.StreamerRestorePriority or function(opts)
+	opts = opts or {}
+	local state = NAmanage.StreamerGetState()
+	local cache = state.cache
+	if type(cache) ~= "table" then
+		return 0
+	end
+	local roots = opts.roots
+	if type(roots) ~= "table" then
+		roots = NAmanage.StreamerGetPriorityRoots()
+	end
+	if #roots == 0 then
+		return 0
+	end
+	local pending = {}
+	local function isPriority(inst)
+		if typeof(inst) ~= "Instance" then
+			return false
+		end
+		for i = 1, #roots do
+			local root = roots[i]
+			if inst == root then
+				return true
+			end
+			local ok, result = pcall(function()
+				return inst:IsDescendantOf(root)
+			end)
+			if ok and result then
+				return true
+			end
+		end
+		return false
+	end
+	for inst in pairs(cache) do
+		if isPriority(inst) then
+			Insert(pending, inst)
+		end
+	end
+	NAmanage.StreamerSortRestorePending(pending)
+	for i = 1, #pending do
+		NAmanage.StreamerRestoreInstance(pending[i])
+	end
+	return #pending
+end
+
 NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 	opts = opts or {}
 	local state = NAmanage.StreamerGetState()
@@ -3570,6 +3673,7 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 	for inst in pairs(state.cache) do
 		Insert(pending, inst)
 	end
+	NAmanage.StreamerSortRestorePending(pending)
 	if #pending == 0 then
 		state.cache = {}
 		if type(opts.onComplete) == "function" then
@@ -3610,6 +3714,19 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 		end
 	end
 
+	if not restoreAsync then
+		while idx <= total do
+			if restoreToken.cancelled then
+				break
+			end
+			NAmanage.StreamerRestoreInstance(pending[idx])
+			restored += 1
+			idx += 1
+		end
+		finish()
+		return restored
+	end
+
 	local function runWorker()
 		while idx <= total do
 			if restoreToken.cancelled then
@@ -3643,12 +3760,8 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 		finish()
 	end
 
-	if restoreAsync then
-		Spawn(runWorker)
-		return total
-	end
-	runWorker()
-	return restored
+	Spawn(runWorker)
+	return total
 end
 
 NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
@@ -3733,14 +3846,16 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		NAlib.disconnect("streamermode_player_chars")
 		NAlib.disconnect("streamermode_players")
 		NAlib.disconnect("streamermode_player_names")
+		NAmanage.StreamerRestorePriority()
+		local restoreAsync = opts.restoreAsync ~= false
 		local queued = NAmanage.StreamerRestoreAll({
-			maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 24;
-			timeBudget = tonumber(opts.timeBudget) or 0.002;
+			maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 72;
+			timeBudget = tonumber(opts.timeBudget) or 0.006;
 			delayTime = opts.delayTime;
-			async = opts.restoreAsync ~= false;
+			async = restoreAsync;
 		})
 		if not opts.silent and DoNotif then
-			if (tonumber(queued) or 0) > 0 and opts.restoreAsync ~= false then
+			if (tonumber(queued) or 0) > 0 and restoreAsync then
 				DoNotif("Streamer Mode disabled (restoring in background)", 2)
 			else
 				DoNotif("Streamer Mode disabled", 2)
@@ -12089,8 +12204,14 @@ NAmanage.createLoadingUI=function(text, opts)
 		minimized = startMinimized,
 		autoSkip = false,
 	}
+	local widthConnName = "na_loadingui_width_"..tostring(math.floor((tick() % 1e7) * 1000))
 
 	local wScale = tonumber(opts.widthScale) or 0.34
+	local mobileWidthScale = tonumber(opts.mobileWidthScale) or math.max(wScale, 0.84)
+	local desktopMinWidth = tonumber(opts.minWidth) or 340
+	local mobileMinWidth = tonumber(opts.mobileMinWidth) or 320
+	local desktopMargin = tonumber(opts.desktopMargin) or 120
+	local mobileMargin = tonumber(opts.mobileMargin) or 24
 	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
 	local lp = Players and Players.LocalPlayer
 
@@ -12121,7 +12242,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.container.ZIndex = 6
 	ui.container.AnchorPoint = Vector2.new(0.5, 0.5)
 	ui.container.Position = UDim2.fromScale(0.5, 0.55)
-	ui.container.Size = UDim2.fromScale(wScale, 0)
+	ui.container.Size = UDim2.fromOffset(420, 0)
 	ui.container.AutomaticSize = Enum.AutomaticSize.Y
 	ui.container.BackgroundColor3 = Color3.fromRGB(6, 6, 6)
 	ui.container.BorderSizePixel = 0
@@ -12147,6 +12268,42 @@ NAmanage.createLoadingUI=function(text, opts)
 	cLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 	cLayout.Padding = UDim.new(0, 10)
 	cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local function getLoadingViewportWidth()
+		local width = ui.sg.AbsoluteSize.X
+		if tonumber(width) and width > 0 then
+			return width
+		end
+		local cam = workspace and workspace.CurrentCamera
+		local vp = cam and cam.ViewportSize
+		if vp and vp.X and vp.X > 0 then
+			return vp.X
+		end
+		return IsOnMobile and 430 or 1280
+	end
+
+	local function updateContainerWidth()
+		local viewportWidth = math.max(1, getLoadingViewportWidth())
+		local useMobile = IsOnMobile == true
+		local widthScale = useMobile and mobileWidthScale or wScale
+		local minWidth = useMobile and mobileMinWidth or desktopMinWidth
+		local margin = useMobile and mobileMargin or desktopMargin
+		local maxWidth = math.max(220, viewportWidth - margin)
+		if maxWidth < minWidth then
+			minWidth = maxWidth
+		end
+		local targetWidth = math.floor((viewportWidth * widthScale) + 0.5)
+		targetWidth = math.clamp(targetWidth, minWidth, maxWidth)
+		ui.container.Size = UDim2.fromOffset(targetWidth, 0)
+	end
+	updateContainerWidth()
+	NAlib.connect(widthConnName, ui.sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateContainerWidth))
+	if workspace and workspace.CurrentCamera then
+		NAlib.connect(widthConnName, workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateContainerWidth))
+	end
+	NAlib.connect(widthConnName, ui.sg.Destroying:Connect(function()
+		NAlib.disconnect(widthConnName)
+	end))
 
 	local accent = InstanceNew("Frame", ui.container)
 	accent.LayoutOrder = 0
@@ -14158,6 +14315,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		disableUnsafeFunctions = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
 		friendRequestAutoDismiss = {
 			default = false;
 			coerce = function(value)
@@ -14820,6 +14983,113 @@ NAmanage.NASettingsSet=function(key, value)
 	settings[key] = NAmanage.NASettingsCoerce(def, value)
 	NAmanage.NASettingsSave()
 	return settings[key]
+end
+
+NAmanage.UnsafeFunctionNames = NAmanage.UnsafeFunctionNames or {
+	"messagebox",
+	"consoleprint",
+	"consolewarn",
+	"consoleerr",
+	"consoleerror",
+	"consoleinfo",
+	"consoleclear",
+	"consolecreate",
+	"consoledestroy",
+	"consoleclose",
+	"consolename",
+	"consoleinput",
+	"rconsoleprint",
+	"rconsolewarn",
+	"rconsoleerr",
+	"rconsoleerror",
+	"rconsoleinfo",
+	"rconsoleclear",
+	"rconsolecreate",
+	"rconsoledestroy",
+	"rconsoleclose",
+	"rconsolename",
+	"rconsoleinput",
+}
+
+NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function()
+	local stores = {}
+	local seen = {}
+	local function addStore(store)
+		if type(store) ~= "table" or seen[store] then
+			return
+		end
+		seen[store] = true
+		Insert(stores, store)
+	end
+	addStore(_na_env)
+	addStore(_G)
+	addStore(_na_shared)
+	if type(getgenv) == "function" then
+		local ok, env = pcall(getgenv)
+		if ok then
+			addStore(env)
+		end
+	end
+	if type(getfenv) == "function" then
+		local ok, env = pcall(getfenv)
+		if ok then
+			addStore(env)
+		end
+	end
+	return stores
+end
+
+NAmanage.SetUnsafeFunctionsDisabled = NAmanage.SetUnsafeFunctionsDisabled or function(state, opts)
+	opts = opts or {}
+	state = state == true
+	local prev = NAStuff.UnsafeFunctionsDisabled == true
+	NAStuff.UnsafeFunctionsDisabled = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "disableUnsafeFunctions", state)
+	end
+	local unsafeState = NAStuff.UnsafeFunctionState
+	if type(unsafeState) ~= "table" then
+		unsafeState = { originals = {} }
+		NAStuff.UnsafeFunctionState = unsafeState
+	end
+	if type(unsafeState.originals) ~= "table" then
+		unsafeState.originals = {}
+	end
+	if not opts.force and prev == state then
+		return state
+	end
+	local names = NAmanage.UnsafeFunctionNames or {}
+	local stores = NAmanage.GetUnsafeFunctionStores()
+	if state then
+		for i = 1, #stores do
+			local store = stores[i]
+			local originals = unsafeState.originals[store]
+			if type(originals) ~= "table" then
+				originals = {}
+				unsafeState.originals[store] = originals
+			end
+			for j = 1, #names do
+				local name = names[j]
+				local current = rawget(store, name)
+				if originals[name] == nil and current ~= nil then
+					originals[name] = current
+				end
+				pcall(rawset, store, name, nil)
+			end
+		end
+	else
+		for store, originals in pairs(unsafeState.originals) do
+			if type(store) == "table" and type(originals) == "table" then
+				for name, original in pairs(originals) do
+					pcall(rawset, store, name, original)
+				end
+			end
+		end
+	end
+	if not opts.silent and DoNotif then
+		DoNotif("Unsafe functions "..(state and "disabled" or "restored"), 2)
+	end
+	return state
 end
 
 NAStuff.deltaPrompted = NAmanage.NASettingsGet("deltaPrompted") == true
@@ -16418,6 +16688,7 @@ NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.ConnectionsToFriends = NAmanage.NASettingsGet("connectionsToFriends") == true
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
+NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
@@ -16428,6 +16699,11 @@ NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NAS
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
+pcall(NAmanage.SetUnsafeFunctionsDisabled, NAStuff.UnsafeFunctionsDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
 pcall(NAmanage.setStreamerMode, NAStuff.StreamerModeEnabled == true, {
 	save = false;
 	silent = true;
@@ -35162,6 +35438,103 @@ end)
 
 NAStuff.hamsterState = NAStuff.hamsterState or { active = false }
 
+NAmanage.HamsterCleanup = NAmanage.HamsterCleanup or function(opts)
+	opts = opts or {}
+	NAlib.disconnect("hamster_render")
+	NAlib.disconnect("hamster_jump")
+	NAlib.disconnect("hamster_died")
+
+	local state = NAStuff.hamsterState or {}
+	local ball = state.ball
+	local humanoid = state.humanoid
+	local oldCamSubj = state.oldCameraSubject
+	local oldCollide = state.oldCollide
+	local rootState = state.rootState
+	local humanoidState = state.humanoidState
+
+	state.ball = nil
+	state.humanoid = nil
+	state.oldCameraSubject = nil
+	state.oldCollide = nil
+	state.rootState = nil
+	state.humanoidState = nil
+	state.active = false
+	NAStuff.hamsterState = state
+
+	if humanoid and humanoid.Parent and type(humanoidState) == "table" then
+		if humanoidState.HipHeight ~= nil then
+			pcall(function()
+				humanoid.HipHeight = humanoidState.HipHeight
+			end)
+		end
+		if humanoidState.PlatformStand ~= nil then
+			pcall(function()
+				humanoid.PlatformStand = humanoidState.PlatformStand
+			end)
+		end
+		if humanoidState.AutoRotate ~= nil then
+			pcall(function()
+				humanoid.AutoRotate = humanoidState.AutoRotate
+			end)
+		end
+		if humanoidState.Sit ~= nil then
+			pcall(function()
+				humanoid.Sit = humanoidState.Sit
+			end)
+		end
+	elseif humanoid and humanoid.Parent then
+		pcall(function()
+			humanoid.PlatformStand = false
+		end)
+	end
+
+	if ball and ball.Parent and type(rootState) == "table" then
+		if rootState.Shape ~= nil then
+			pcall(function()
+				ball.Shape = rootState.Shape
+			end)
+		end
+		if rootState.Size ~= nil then
+			pcall(function()
+				ball.Size = rootState.Size
+			end)
+		end
+		if rootState.Transparency ~= nil then
+			pcall(function()
+				ball.Transparency = rootState.Transparency
+			end)
+		end
+		if rootState.Material ~= nil then
+			pcall(function()
+				ball.Material = rootState.Material
+			end)
+		end
+	end
+
+	if oldCamSubj then
+		local Camera = workspace.CurrentCamera
+		if Camera then
+			pcall(function()
+				Camera.CameraSubject = oldCamSubj
+			end)
+		end
+	end
+
+	if oldCollide then
+		for part, can in pairs(oldCollide) do
+			if part and part.Parent then
+				pcall(function()
+					part.CanCollide = can
+				end)
+			end
+		end
+	end
+
+	if not opts.silent then
+		DebugNotif(opts.message or "Hamster has been disabled")
+	end
+end
+
 cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	if NAStuff.hamsterState.active or NAlib.isConnected("hamster_render") then
 		return DebugNotif("Hamster is already enabled")
@@ -35196,6 +35569,18 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 
 	local oldCamSubj = Camera and Camera.CameraSubject or nil
 	local oldCollide = {}
+	local rootState = {
+		Shape = ball.Shape;
+		Size = ball.Size;
+		Transparency = ball.Transparency;
+		Material = ball.Material;
+	}
+	local humanoidState = {
+		HipHeight = humanoid.HipHeight;
+		PlatformStand = humanoid.PlatformStand;
+		AutoRotate = humanoid.AutoRotate;
+		Sit = humanoid.Sit;
+	}
 
 	for _, v in ipairs(character:QueryDescendants("BasePart")) do
 		oldCollide[v] = v.CanCollide
@@ -35214,6 +35599,8 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	NAStuff.hamsterState.humanoid = humanoid
 	NAStuff.hamsterState.oldCameraSubject = oldCamSubj
 	NAStuff.hamsterState.oldCollide = oldCollide
+	NAStuff.hamsterState.rootState = rootState
+	NAStuff.hamsterState.humanoidState = humanoidState
 
 	NAlib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
 		if not NAStuff.hamsterState.active then
@@ -35255,10 +35642,9 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	end))
 
 	NAlib.connect("hamster_died", humanoid.Died:Connect(function()
-		NAlib.disconnect("hamster_render")
-		NAlib.disconnect("hamster_jump")
-		NAlib.disconnect("hamster_died")
-		NAStuff.hamsterState.active = false
+		NAmanage.HamsterCleanup({
+			silent = true;
+		})
 	end))
 
 	if Camera then
@@ -35273,41 +35659,7 @@ cmd.add({"unhamster"}, {"unhamster", "Disable hamster ball"}, function()
 		return DebugNotif("Hamster is already disabled")
 	end
 
-	NAlib.disconnect("hamster_render")
-	NAlib.disconnect("hamster_jump")
-	NAlib.disconnect("hamster_died")
-
-	local ball = NAStuff.hamsterState.ball
-	local humanoid = NAStuff.hamsterState.humanoid
-	local oldCamSubj = NAStuff.hamsterState.oldCameraSubject
-	local oldCollide = NAStuff.hamsterState.oldCollide
-
-	NAStuff.hamsterState.ball = nil
-	NAStuff.hamsterState.humanoid = nil
-	NAStuff.hamsterState.oldCameraSubject = nil
-	NAStuff.hamsterState.oldCollide = nil
-	NAStuff.hamsterState.active = false
-
-	if humanoid and humanoid.Parent then
-		humanoid.PlatformStand = false
-	end
-
-	if oldCamSubj then
-		local Camera = workspace.CurrentCamera
-		if Camera then
-			Camera.CameraSubject = oldCamSubj
-		end
-	end
-
-	if oldCollide then
-		for part, can in pairs(oldCollide) do
-			if part and part.Parent then
-				part.CanCollide = can
-			end
-		end
-	end
-
-	DebugNotif("Hamster has been disabled")
+	NAmanage.HamsterCleanup()
 end, true)
 
 NAStuff.antiAFKStored = NAStuff.antiAFKStored or {}
@@ -75091,6 +75443,15 @@ NAmanage.RegisterToggleAutoSync("Disable Network Pause", function()
 	return NAStuff.NetworkPauseDisabled == true
 end)
 
+NAgui.addToggle("Disable Unsafe Functions", NAStuff.UnsafeFunctionsDisabled == true, function(v)
+	pcall(NAmanage.SetUnsafeFunctionsDisabled, v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Disable Unsafe Functions", function()
+	return NAStuff.UnsafeFunctionsDisabled == true
+end)
+
 NAgui.addToggle("Auto-dismiss Friend Requests", NAStuff.FriendRequestAutoDismiss == true, function(v)
 	NAStuff.FriendRequestAutoDismiss = v == true
 	pcall(NAmanage.NASettingsSet, "friendRequestAutoDismiss", NAStuff.FriendRequestAutoDismiss)
@@ -81365,6 +81726,39 @@ originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 	})
 end
 
+originalIO.withRobloxVersionTab=function(callback)
+	if type(callback) ~= "function" then
+		return false
+	end
+
+	local targetTab = NA_TABS.TAB_ROBLOX_DATA
+
+	local deadline = os.clock() + 5
+	while os.clock() < deadline do
+		if TabManager and TabManager.tabs and TabManager.tabs[targetTab] and NAgui and NAgui.setTab and NAgui.getActiveTab then
+			break
+		end
+		Wait()
+	end
+
+	if not (TabManager and TabManager.tabs and TabManager.tabs[targetTab] and NAgui and NAgui.setTab and NAgui.getActiveTab) then
+		return false
+	end
+
+	local previousTab = NAgui.getActiveTab()
+	if previousTab ~= targetTab then
+		pcall(NAgui.setTab, targetTab)
+	end
+
+	local ok, result = pcall(callback)
+
+	if previousTab and previousTab ~= targetTab then
+		pcall(NAgui.setTab, previousTab)
+	end
+
+	return ok, result
+end
+
 originalIO.hasRobloxVersionData=function(data)
 	if type(data) ~= "table" then
 		return false
@@ -81377,6 +81771,40 @@ originalIO.hasRobloxVersionData=function(data)
 		end
 	end
 	return false
+end
+
+originalIO.renderRobloxVersionSections=function(ok, data)
+	local canRenderRemote = ok and NAStuff.RobloxVersionFromRemote == true and originalIO.hasRobloxVersionData(data)
+	if not canRenderRemote then
+		NAStuff.RobloxVersionRows = {}
+		return false
+	end
+
+	local rendered = false
+	local okRender = originalIO.withRobloxVersionTab(function()
+		NAStuff.RobloxVersionRows = {}
+		NAgui.addSection("Powered by weao.xyz API")
+		originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
+		originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
+		originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
+		originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
+
+		local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
+		for _, entry in ipairs(NAStuff.RobloxVersionRows) do
+			if entry.versionField then
+				local v = (type(data) == "table" and data[entry.versionKey]) or fallbackText
+				entry.versionField.Text = v and tostring(v) or fallbackText
+			end
+			if entry.dateField then
+				local d = (type(data) == "table" and data[entry.dateKey]) or fallbackText
+				entry.dateField.Text = d and tostring(d) or fallbackText
+			end
+		end
+
+		rendered = true
+	end)
+
+	return okRender == true and rendered == true
 end
 
 SpawnCall(function()
@@ -81399,34 +81827,6 @@ SpawnCall(function()
 		clampAlignLeft = false;
 		autoShrink = true;
 	})
-end)
-
-SpawnCall(function()
-	local ok, data = originalIO.fetchRobloxVersionData()
-	local canRenderRemote = ok and NAStuff.RobloxVersionFromRemote == true and originalIO.hasRobloxVersionData(data)
-	if not canRenderRemote then
-		NAStuff.RobloxVersionRows = {}
-		return
-	end
-
-	NAStuff.RobloxVersionRows = {}
-	NAgui.addSection("Powered by weao.xyz API")
-	originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
-	originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
-	originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
-	originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
-
-	local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
-	for _, entry in ipairs(NAStuff.RobloxVersionRows) do
-		if entry.versionField then
-			local v = (type(data) == "table" and data[entry.versionKey]) or fallbackText
-			entry.versionField.Text = v and tostring(v) or fallbackText
-		end
-		if entry.dateField then
-			local d = (type(data) == "table" and data[entry.dateKey]) or fallbackText
-			entry.dateField.Text = d and tostring(d) or fallbackText
-		end
-	end
 end)
 
 NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 14, textIcon = "github" })
@@ -81463,6 +81863,11 @@ if not NAStuff.GitHubTabInitialized then
 
 	NAStuff.GitHubTabInitialized = true
 end
+
+SpawnCall(function()
+	local ok, data = originalIO.fetchRobloxVersionData()
+	originalIO.renderRobloxVersionSections(ok, data)
+end)
 
 NAmanage.UpdateGitHubCommitUI(nil, NAStuff.GitHubLoadingText)
 
