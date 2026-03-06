@@ -62857,10 +62857,46 @@ NAgui.getInputMinWidth=function(frame, fallback)
 	return math.max(fallback, minAttr)
 end
 
+NAgui.getInputMeasureText=function(box)
+	if not box then
+		return ""
+	end
+
+	local text = tostring(box.Text or "")
+	local okContent, contentText = pcall(function()
+		return box.ContentText
+	end)
+	if okContent and type(contentText) == "string" and contentText ~= "" then
+		local focused = false
+		local okFocused, isFocused = pcall(function()
+			return box:IsFocused()
+		end)
+		if okFocused and isFocused == true then
+			focused = true
+		end
+		if focused or text == "" then
+			text = contentText
+		end
+	end
+
+	return text
+end
+
 NAgui.getInputTextWidth=function(box, padding)
 	padding = padding or 24
 	if not box then
 		return padding
+	end
+	local measureText = NAgui.getInputMeasureText(box)
+
+	if box.TextScaled and TextService then
+		local okScaled, sizeScaled = pcall(function()
+			local fontSize = tonumber(box.TextSize) or 14
+			return TextService:GetTextSize(measureText, fontSize, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
+		end)
+		if okScaled and sizeScaled and type(sizeScaled.X) == "number" then
+			return sizeScaled.X + padding
+		end
 	end
 
 	local okBounds, bounds = pcall(function()
@@ -62872,7 +62908,7 @@ NAgui.getInputTextWidth=function(box, padding)
 
 	if TextService then
 		local okSize, size = pcall(function()
-			return TextService:GetTextSize(tostring(box.Text or ""), box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
+			return TextService:GetTextSize(measureText, box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
 		end)
 		if okSize and size and type(size.X) == "number" then
 			return size.X + padding
@@ -62928,8 +62964,6 @@ NAgui.addInfo = function(label, value, opts)
 	if minTextSize > baseTextSize then
 		minTextSize = baseTextSize
 	end
-	local widthRatio = tonumber(opts.maxWidthRatio) or 0.62
-	widthRatio = math.clamp(widthRatio, 0.35, 0.95)
 	local clampAlignLeft = opts.clampAlignLeft ~= false
 	local autoShrink = opts.autoShrink ~= false
 
@@ -62956,22 +62990,9 @@ NAgui.addInfo = function(label, value, opts)
 		end
 
 		if cw and cw > 0 then
-			local titleWidth = 0
-			if info.Title then
-				local abs = info.Title.AbsoluteSize.X
-				if abs and abs > 0 then
-					titleWidth = abs
-				else
-					titleWidth = info.Title.TextBounds.X or 0
-				end
-			end
-			local gap = 18
-			local byTitle = cw - titleWidth - gap
-			local byRatio = math.floor(cw * widthRatio)
-			maxW = math.max(byTitle, byRatio)
-			if maxW < minW then
-				maxW = minW
-			end
+			local tw = (info.Title and info.Title.TextBounds.X or 0)
+			local gap = 32
+			maxW = cw - tw - gap
 		end
 
 		local w = math.max(textW, minW)
@@ -63008,6 +63029,7 @@ NAgui.addInfo = function(label, value, opts)
 		end
 	end
 
+	box:GetPropertyChangedSignal("TextBounds"):Connect(resize)
 	box:GetPropertyChangedSignal("Text"):Connect(resize)
 	info:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 	resize()
@@ -64136,8 +64158,45 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 	NAgui.atchSettings(input, "input:"..tostring(label)..":"..tostring(input.LayoutOrder), 0.08)
 
 	local lastW
+	local mobileInputPollConn
+	local resize
 
-	local function resize()
+	local function stopMobileInputPoll()
+		if mobileInputPollConn then
+			mobileInputPollConn:Disconnect()
+			mobileInputPollConn = nil
+		end
+	end
+
+	local function startMobileInputPoll()
+		stopMobileInputPoll()
+		if not (RunService and UserInputService and UserInputService.TouchEnabled) then
+			return
+		end
+
+		local accum = 0
+		mobileInputPollConn = RunService.Heartbeat:Connect(function(dt)
+			if not (input and input.Parent and box and box.Parent) then
+				stopMobileInputPoll()
+				return
+			end
+			local okFocused, isFocused = pcall(function()
+				return box:IsFocused()
+			end)
+			if not (okFocused and isFocused == true) then
+				stopMobileInputPoll()
+				return
+			end
+			accum += tonumber(dt) or 0
+			if accum < 0.05 then
+				return
+			end
+			accum = 0
+			resize()
+		end)
+	end
+
+	resize = function()
 		if not (input and frame and box) then
 			return
 		end
@@ -64193,13 +64252,34 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 		end
 	end
 
+	box.Focused:Connect(function()
+		startMobileInputPoll()
+		resize()
+	end)
+
 	box.FocusLost:Connect(function()
-		pcall(callback, box.Text)
+		stopMobileInputPoll()
+		local commitText = tostring(box.Text or "")
+		local measureText = NAgui.getInputMeasureText(box)
+		if commitText == "" and measureText ~= "" then
+			commitText = measureText
+			box.Text = commitText
+		end
+		resize()
+		pcall(callback, commitText)
 	end)
 
 	box:GetPropertyChangedSignal("TextBounds"):Connect(resize)
 	box:GetPropertyChangedSignal("Text"):Connect(resize)
+	pcall(function()
+		box:GetPropertyChangedSignal("ContentText"):Connect(resize)
+	end)
 	input:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+	input:GetPropertyChangedSignal("Parent"):Connect(function()
+		if not input.Parent then
+			stopMobileInputPoll()
+		end
+	end)
 	if chipBtn then
 		if type(opts.sideSet) == "function" or type(opts.sideGet) == "function" then
 			MouseButtonFix(chipBtn, function()
@@ -79787,15 +79867,12 @@ NAmanage.SetupBasicInfoTab = function()
 			NAgui.addSection(section.title)
 		end
 		for _, field in ipairs(section.fields) do
-			local box = NAgui.addInfo(field.label, "")
+			local box = NAgui.addInfo(field.label, "", {
+				textScaled = true;
+			})
 			if box then
-				box.TextXAlignment = Enum.TextXAlignment.Left
-				box.TextYAlignment = Enum.TextYAlignment.Center
-				box.TextWrapped = false
-				box.TextScaled = false
 				box.Selectable = true
 				box.Active = true
-				local frame = box.Parent
 			end
 			basicInfoBoxes[field.id] = box
 		end
@@ -80499,7 +80576,6 @@ SpawnCall(function()
 		textValue = clientVersion.."-"..luauVersion
 	end
 	NAgui.addInfo("Your Version", textValue, {
-		maxWidthRatio = 0.9;
 		minTextSize = 11;
 		clampAlignLeft = false;
 		autoShrink = true;
