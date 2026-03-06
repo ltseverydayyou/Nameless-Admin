@@ -30435,7 +30435,7 @@ cmd.add({"joingroup", "groupjoin"}, {"joingroup [groupId] (groupjoin)", "Open th
 		end
 	end
 
-	local groupService = SafeGetService("GroupService")
+	local groupService = SafeGetService("GroupService",false)
 	if not groupService or type(groupService.PromptJoinAsync) ~= "function" then
 		DoNotif("GroupService.PromptJoinAsync is unavailable.", 4)
 		return
@@ -35882,7 +35882,7 @@ cmd.add({"ownerid"},{"ownerid","masks you as the game owner's ID and Username"},
 	if game.CreatorType == Enum.CreatorType.User then
 		ownerUserId = game.CreatorId
 	elseif game.CreatorType == Enum.CreatorType.Group then
-		local ok, info = pcall(function() return SafeGetService("GroupService"):GetGroupInfoAsync(game.CreatorId) end)
+		local ok, info = pcall(function() return SafeGetService("GroupService",false):GetGroupInfoAsync(game.CreatorId) end)
 		if ok and info then
 			if info.Owner and info.Owner.Id then ownerUserId = info.Owner.Id end
 			if not ownerUserId and info.OwnerId then ownerUserId = info.OwnerId end
