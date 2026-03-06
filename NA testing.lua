@@ -18158,8 +18158,10 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 			local stateName = (typeof(tpState) == "EnumItem" and tpState.Name) or tostring(tpState or "")
 			if stateName == "Failed" then
 				NAStuff.teleportTransition = false
+				NAStuff.teleportTransitionSince = nil
 			else
 				NAStuff.teleportTransition = true
+				NAStuff.teleportTransitionSince = tick()
 			end
 			if NAQoTEnabled and opt.queueteleport then
 				opt.queueteleport(opt.loader)
@@ -18181,6 +18183,7 @@ if TeleportService and not NAStuff.teleportTransitionFailHook then
 			local lp = Players and Players.LocalPlayer
 			if lp and player == lp then
 				NAStuff.teleportTransition = false
+				NAStuff.teleportTransitionSince = nil
 			end
 		end))
 	end)
@@ -30294,7 +30297,22 @@ end)
 cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	local plrs=Players
 	local tp=TeleportService
-	local lp=plrs.LocalPlayer
+	local lp=plrs and plrs.LocalPlayer
+	local nowTick = tick()
+	if not (plrs and tp and lp) then
+		DoNotif("Teleport service is unavailable.")
+		return
+	end
+	if NAStuff.teleportTransition == true then
+		local startedAt = tonumber(NAStuff.teleportTransitionSince) or 0
+		if startedAt > 0 and (nowTick - startedAt) > 20 then
+			NAStuff.teleportTransition = false
+			NAStuff.teleportTransitionSince = nil
+		else
+			DoNotif("Teleport already in progress.",2)
+			return
+		end
+	end
 
 	local function resolveRejoinJobId()
 		local live = tostring((game and game.JobId) or "")
@@ -30308,18 +30326,41 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		return nil
 	end
 
+	local transitionToken = tostring(os.clock())..":"..tostring(math.random(1, 1e6))
+	NAStuff.teleportTransition = true
+	NAStuff.teleportTransitionSince = nowTick
+	NAStuff.teleportTransitionToken = transitionToken
+
 	NAlib.disconnect("rejoin_tperr")
 	NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
+		local currentLp = Players and Players.LocalPlayer
+		if currentLp and player == currentLp and NAStuff.teleportTransitionToken == transitionToken then
+			NAStuff.teleportTransition = false
+			NAStuff.teleportTransitionSince = nil
+			NAStuff.teleportTransitionToken = nil
+		end
 		DoNotif(("Teleport failed [%s]: %s"):format(tostring(result),tostring(errMsg)))
 	end))
 
-	tp:TeleportCancel()
+	local function markTeleportFailed(msg)
+		if NAStuff.teleportTransitionToken == transitionToken then
+			NAStuff.teleportTransition = false
+			NAStuff.teleportTransitionSince = nil
+			NAStuff.teleportTransitionToken = nil
+		end
+		if msg then
+			DoNotif(msg)
+		end
+	end
 
 	if #plrs:GetPlayers()<=1 then
 		local ok,err=pcall(function()
 			tp:Teleport(PlaceId,lp)
 		end)
-		if not ok then DoNotif("Teleport error: "..tostring(err)) end
+		if not ok then
+			markTeleportFailed("Teleport error: "..tostring(err))
+			return
+		end
 	else
 		local targetJobId = resolveRejoinJobId()
 		if targetJobId then
@@ -30328,10 +30369,22 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			end)
 			if not ok then
 				DoNotif("TeleportToPlaceInstance error: "..tostring(err))
-				pcall(function() tp:Teleport(PlaceId,lp) end)
+				local ok2, err2 = pcall(function()
+					tp:Teleport(PlaceId,lp)
+				end)
+				if not ok2 then
+					markTeleportFailed("Teleport fallback error: "..tostring(err2))
+					return
+				end
 			end
 		else
-			pcall(function() tp:Teleport(PlaceId,lp) end)
+			local ok, err = pcall(function()
+				tp:Teleport(PlaceId,lp)
+			end)
+			if not ok then
+				markTeleportFailed("Teleport error: "..tostring(err))
+				return
+			end
 		end
 	end
 
@@ -38207,41 +38260,58 @@ end)
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
 	NAlib.disconnect("autorejoin")
 
-	local maxInstanceRetries = 10
+	local triggerCooldown = 2
+	local lastTriggerAt = 0
+	local inFlight = false
 
-	local function resolveRejoinJobId()
-		local live = tostring((game and game.JobId) or "")
-		if live ~= "" then
-			return live
+	local function shouldTriggerFromMessage(message)
+		local text = Lower(tostring(message or ""))
+		if text == "" then
+			return false
 		end
-		local cached = tostring(JobId or "")
-		if cached ~= "" then
-			return cached
+		if text:find("disconnect", 1, true)
+			or text:find("kicked", 1, true)
+			or text:find("kick", 1, true)
+			or text:find("connection", 1, true)
+			or text:find("same account", 1, true)
+			or text:find("error code", 1, true)
+		then
+			return true
 		end
-		return nil
+		return false
 	end
 
-	local function handleRejoin()
-		local targetJobId = resolveRejoinJobId()
-		if targetJobId then
-			for attempt = 1, maxInstanceRetries do
-				local ok = pcall(function()
-					TeleportService:TeleportToPlaceInstance(PlaceId, targetJobId, Players.LocalPlayer)
-				end)
-				if ok then
-					return
-				end
-				if attempt < maxInstanceRetries then
-					Wait(0.5)
-				end
-			end
+	local function handleRejoin(message)
+		if inFlight then
+			return
 		end
-		pcall(function()
-			TeleportService:Teleport(PlaceId, Players.LocalPlayer)
+		if not shouldTriggerFromMessage(message) then
+			return
+		end
+		local now = tick()
+		if (now - lastTriggerAt) < triggerCooldown then
+			return
+		end
+
+		lastTriggerAt = now
+		inFlight = true
+		Spawn(function()
+			local ok = pcall(function()
+				cmd.run({"rejoin"})
+			end)
+			if not ok then
+				pcall(function()
+					TeleportService:Teleport(PlaceId, Players.LocalPlayer)
+				end)
+			end
+			Wait(1.5)
+			inFlight = false
 		end)
 	end
 
-	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(handleRejoin))
+	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
+		handleRejoin(message)
+	end))
 
 	DebugNotif("Auto Rejoin is now enabled!")
 end)
@@ -79775,6 +79845,8 @@ NAStuff.RobloxVersionEndpoints = {
 	"https://cdn.jsdelivr.net/gh/ltseverydayyou/ltseverydayyou.github.io@main/.well-known/weao/versions.json";
 	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
 	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
+	"https://r.jina.ai/http://ltseverydayyou.github.io/.well-known/weao/versions.json";
+	"https://r.jina.ai/http://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
 }
 
 if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
@@ -80170,6 +80242,30 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		return nil
 	end
 
+	local function localDeviceFallback()
+		local okVersion, currentVersion = pcall(function()
+			return version and version() or nil
+		end)
+		if not okVersion or type(currentVersion) ~= "string" or currentVersion == "" then
+			return nil
+		end
+
+		local platform = UserInputService and UserInputService:GetPlatform() or nil
+		local fallback = {}
+		local nowText = os.date("!%m/%d/%Y, %I:%M:%S %p UTC")
+		if platform == Enum.Platform.IOS then
+			fallback.iOS = currentVersion
+			fallback.iOSDate = "Local Client ("..nowText..")"
+		elseif platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV or platform == Enum.Platform.Chromecast then
+			fallback.Android = currentVersion
+			fallback.AndroidDate = "Local Client ("..nowText..")"
+		else
+			fallback.Windows = currentVersion
+			fallback.WindowsDate = "Local Client ("..nowText..")"
+		end
+		return fallback
+	end
+
 	local requestPayloads = {
 		function(url)
 			return {
@@ -80238,6 +80334,13 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		if attempt < attempts then
 			Wait(0.15)
 		end
+	end
+
+	local localFallback = localDeviceFallback()
+	if localFallback then
+		NAStuff.RobloxVersionData = localFallback
+		NAStuff.RobloxVersionLastFetch = tick()
+		return true, localFallback
 	end
 
 	return false, cached
