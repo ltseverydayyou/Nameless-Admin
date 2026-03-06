@@ -2204,8 +2204,14 @@ NAmanage.isLoad = NAmanage.isLoad or function()
 		return false
 	end
 	local done = load.completed
-	if typeof(done) == "Instance" and done:IsA("BoolValue") then
-		return done.Value ~= true
+	if typeof(done) == "Instance" then
+		local completedAttr = NAmanage.GetAttr(done, "Completed")
+		if type(completedAttr) == "boolean" then
+			return completedAttr ~= true
+		end
+		if done:IsA("BoolValue") then
+			return done.Value ~= true
+		end
 	end
 	return load._finalized ~= true
 end
@@ -12068,13 +12074,19 @@ NAmanage.createLoadingUI=function(text, opts)
 		Color3.fromRGB(255, 255, 255)
 	)
 
-	ui.skipFlag = InstanceNew("BoolValue", ui.sg)
-	ui.skipFlag.Name = "SkipAssets"
-	ui.skipFlag.Value = false
-
-	ui.completedFlag = InstanceNew("BoolValue", ui.sg)
-	ui.completedFlag.Name = "Completed"
-	ui.completedFlag.Value = false
+	local skipAttrKey = "SkipAssets"
+	local completedAttrKey = "Completed"
+	NAmanage.SetAttr(ui.sg, skipAttrKey, false)
+	NAmanage.SetAttr(ui.sg, completedAttrKey, false)
+	local function getSkipFlag()
+		return NAmanage.GetAttr(ui.sg, skipAttrKey) == true
+	end
+	local function setSkipFlag(value)
+		NAmanage.SetAttr(ui.sg, skipAttrKey, value == true)
+	end
+	local function getCompletedFlag()
+		return NAmanage.GetAttr(ui.sg, completedAttrKey) == true
+	end
 
 	local function tween(tg, info, goal)
 		local tw = TweenService:Create(tg, info, goal)
@@ -12116,10 +12128,10 @@ NAmanage.createLoadingUI=function(text, opts)
 	end
 
 	local function doSkip()
-		if ui.skipFlag.Value then
+		if getSkipFlag() then
 			return
 		end
-		ui.skipFlag.Value = true
+		setSkipFlag(true)
 		ui.skipButton.Text = "Skipping..."
 		ui.toastSkip.Text = "Skipping..."
 	end
@@ -12192,8 +12204,8 @@ NAmanage.createLoadingUI=function(text, opts)
 		end
 	end)
 
-	ui.completedFlag:GetPropertyChangedSignal("Value"):Connect(function()
-		if ui.completedFlag.Value then
+	local function onCompletedChanged()
+		if getCompletedFlag() then
 			tween(ui.overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
 			tween(ui.container, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1, Position = UDim2.fromScale(0.5, 0.5)})
 			tween(ui.toast, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
@@ -12203,7 +12215,20 @@ NAmanage.createLoadingUI=function(text, opts)
 				end
 			end)
 		end
-	end)
+	end
+	if ui.sg and ui.sg.GetAttributeChangedSignal then
+		ui.sg:GetAttributeChangedSignal(completedAttrKey):Connect(onCompletedChanged)
+	else
+		Spawn(function()
+			while ui.sg and ui.sg.Parent do
+				if getCompletedFlag() then
+					onCompletedChanged()
+					break
+				end
+				Wait(0.05)
+			end
+		end)
+	end
 
 	if NAgui and NAgui.draggerV2 then
 		pcall(function()
@@ -12219,7 +12244,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	showDelay = math.clamp(showDelay, 0, 2)
 
 	local function showUI()
-		if shown or ui.completedFlag.Value then
+		if shown or getCompletedFlag() then
 			return
 		end
 		shown = true
@@ -12267,8 +12292,8 @@ NAmanage.createLoadingUI=function(text, opts)
 		doSkip()
 	end
 
-	return ui.sg, setStatus, setPercent, ui.completedFlag, function()
-		return ui.skipFlag.Value
+	return ui.sg, setStatus, setPercent, ui.sg, function()
+		return getSkipFlag()
 	end, setMinimizedState
 end
 
@@ -17591,7 +17616,15 @@ NAmanage.rebuildIndex=function()
 		local meta = metaByName[cmdName]
 		local command = cmds.Commands[cmdName]
 		local displayInfo = meta and meta.displayText or ""
-		local extra = (meta and meta.aliases) or {}
+		local extra = {}
+		if meta and type(meta.aliases) == "table" then
+			for _, alias in ipairs(meta.aliases) do
+				local aliasText = Lower(tostring(alias or ""))
+				if aliasText ~= "" then
+					extra[#extra + 1] = aliasText
+				end
+			end
+		end
 		if command and displayInfo == "" then
 			local updatedText, aliasList = fixStupidSearchGoober(cmdName, command)
 			if updatedText and type(command[2]) == "table" then
@@ -17599,7 +17632,10 @@ NAmanage.rebuildIndex=function()
 			end
 			displayInfo = (command[2] and command[2][1]) or ""
 			for _, alias in ipairs(aliasList or {}) do
-				Insert(extra, alias)
+				local aliasText = Lower(tostring(alias or ""))
+				if aliasText ~= "" then
+					extra[#extra + 1] = aliasText
+				end
 			end
 		end
 		local lowerName = Lower(cmdName)
@@ -22415,7 +22451,7 @@ NAmanage.loadAliases = function()
 			local originalLower = original:lower()
 			local command = cmds.Commands[originalLower]
 			if command then
-				cmds.Aliases[aliasLower] = {command[1], command[2], command[3]}
+				cmds.Aliases[aliasLower] = command
 				cmds.NASAVEDALIASES[aliasLower] = originalLower
 			end
 		end
@@ -23869,6 +23905,9 @@ NAmanage.LoadPlugins = function(opts)
 
 	if NAgui and NAgui.loadCMDS then
 		pcall(NAgui.loadCMDS)
+	end
+	if NAgui and NAgui.commands and NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible then
+		pcall(NAgui.commands)
 	end
 
 	return true
@@ -26541,6 +26580,21 @@ cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> [save] (setff)", "Set a
 	end
 end, true)
 
+NAgui.refAliasesCmds=function()
+	if type(NAgui) == "table" and type(NAgui.loadCMDS) == "function" then
+		pcall(NAgui.loadCMDS)
+	else
+		pcall(NAmanage.rebuildSearchAliasCache)
+	end
+	if type(NAgui) == "table"
+		and type(NAgui.commands) == "function"
+		and NAUIMANAGER
+		and NAUIMANAGER.commandsFrame
+		and NAUIMANAGER.commandsFrame.Visible then
+		pcall(NAgui.commands)
+	end
+end
+
 cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias for an existing command"}, function(original, alias)
 	if not original or not alias then
 		DoNotif("Usage: addalias <command> <alias>", 2)
@@ -26548,6 +26602,10 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 	end
 
 	original, alias = original:lower(), alias:lower()
+	local resolvedOriginal = NAmanage.resolveCommandName and NAmanage.resolveCommandName(original) or nil
+	if resolvedOriginal then
+		original = resolvedOriginal
+	end
 
 	if not cmds.Commands[original] then
 		DoNotif("Command '"..original.."' does not exist", 2)
@@ -26560,7 +26618,7 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 	end
 
 	local command = cmds.Commands[original]
-	cmds.Aliases[alias] = {command[1], command[2], command[3]}
+	cmds.Aliases[alias] = command
 	cmds.NASAVEDALIASES[alias] = original
 
 	if FileSupport then
@@ -26573,6 +26631,7 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 	if not FileSupport then
 		DebugNotif("Alias stored for this session only (no file support detected).")
 	end
+	NAgui.refAliasesCmds()
 end, true)
 
 cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, function()
@@ -26609,6 +26668,7 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 					writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(combined))
 				end
 				DoNotif(("Removed alias '%s'"):format(alias), 2)
+				NAgui.refAliasesCmds()
 			end
 		})
 	end
@@ -26639,6 +26699,7 @@ cmd.add({"clearaliases"}, {"clearaliases", "Removes all aliases created using ad
 	end
 
 	DoNotif("All aliases have been removed", 2)
+	NAgui.refAliasesCmds()
 end)
 
 cmd.add({"addbutton", "ab"}, {"addbutton <command> <label> [<command2>] (ab)", "Add a mobile button"}, function(arg1, arg2, arg3)
@@ -30666,15 +30727,61 @@ end)
 cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
 	local char = getChar()
 	for _,plr in ipairs(getPlr(name)) do
-		local cfVal = InstanceNew("CFrameValue")
-		cfVal.Value = char:GetPivot()
-		cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-		local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=plr.Character:GetPivot()})
-		tw:Play()
-		tw.Completed:Connect(function() cfVal:Destroy() end)
+		if not (char and char.Parent and plr and plr.Character) then
+			continue
+		end
+		local startPivot = char:GetPivot()
+		local targetPivot = plr.Character:GetPivot()
+		local duration = math.max(0.01, tonumber(NAmanage.resolveTweenDuration()) or 1)
+		local startTick = os.clock()
+		NAmanage.SetAttr(char, "NATweenToActive", true)
+		NAmanage.SetAttr(char, "NATweenToStartCF", startPivot)
+		NAmanage.SetAttr(char, "NATweenToTargetCF", targetPivot)
+		local hbConn
+		hbConn = RunService.Heartbeat:Connect(function()
+			if not (char and char.Parent) then
+				NAmanage.SetAttr(char, "NATweenToActive", false)
+				NAmanage.SetAttr(char, "NATweenToCurrentCF", nil)
+				if hbConn then
+					hbConn:Disconnect()
+					hbConn = nil
+				end
+				return
+			end
+			local alpha = math.clamp((os.clock() - startTick) / duration, 0, 1)
+			local eased = alpha
+			local okEase, easedValue = pcall(function()
+				return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			end)
+			if okEase and type(easedValue) == "number" then
+				eased = easedValue
+			end
+			local currentCF = startPivot:Lerp(targetPivot, eased)
+			NAmanage.SetAttr(char, "NATweenToCurrentCF", currentCF)
+			char:PivotTo(currentCF)
+			if alpha >= 1 then
+				NAmanage.SetAttr(char, "NATweenToCurrentCF", nil)
+				NAmanage.SetAttr(char, "NATweenToActive", false)
+				if hbConn then
+					hbConn:Disconnect()
+					hbConn = nil
+				end
+			end
+		end)
 	end
 end,true)
 
+
+NAStuff.reachOrigSize = NAStuff.reachOrigSize or "NAReachOriginalSize"
+NAmanage.cacheReachOrig=function(part)
+	if not part then
+		return
+	end
+	local existing = NAmanage.GetAttr(part, NAStuff.reachOrigSize)
+	if typeof(existing) ~= "Vector3" then
+		NAmanage.SetAttr(part, NAStuff.reachOrigSize, part.Size)
+	end
+end
 
 cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
 	reachsize = tonumber(reachsize) or 15
@@ -30697,11 +30804,7 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 				local toolPart = Tool:FindFirstChild(partName)
 				if not toolPart then return end
 
-				if not toolPart:FindFirstChild("OGSize3") then
-					local val = InstanceNew("Vector3Value", toolPart)
-					val.Name = "OGSize3"
-					val.Value = toolPart.Size
-				end
+				NAmanage.cacheReachOrig(toolPart)
 
 				if toolPart:FindFirstChild("FunTIMES") then
 					toolPart.FunTIMES:Destroy()
@@ -30749,11 +30852,7 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 				local toolPart = Tool:FindFirstChild(partName)
 				if not toolPart then return end
 
-				if not toolPart:FindFirstChild("OGSize3") then
-					local val = InstanceNew("Vector3Value", toolPart)
-					val.Name = "OGSize3"
-					val.Value = toolPart.Size
-				end
+				NAmanage.cacheReachOrig(toolPart)
 
 				if toolPart:FindFirstChild("FunTIMES") then
 					toolPart.FunTIMES:Destroy()
@@ -30787,9 +30886,16 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	if not Tool then return end
 
 	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
-		if p:FindFirstChild("OGSize3") then
-			p.Size = p.OGSize3.Value
-			p.OGSize3:Destroy()
+		local originalSize = NAmanage.GetAttr(p, NAStuff.reachOrigSize)
+		if typeof(originalSize) == "Vector3" then
+			p.Size = originalSize
+			NAmanage.SetAttr(p, NAStuff.reachOrigSize, nil)
+		else
+			local legacySize = p:FindFirstChild("OGSize3")
+			if legacySize and legacySize:IsA("Vector3Value") then
+				p.Size = legacySize.Value
+				legacySize:Destroy()
+			end
 		end
 		if p:FindFirstChild("FunTIMES") then
 			p.FunTIMES:Destroy()
@@ -35044,15 +35150,33 @@ NAmanage.makeClickTweenUI = function()
 	local tweenEnabled = false
 	local initialPos
 	local dragThreshold = 10
-	local ctCFVal
+	local ctTweenState = {
+		active = false,
+		conn = nil,
+		char = nil
+	}
+	local tweenAttrActive = "NAClickTweenToolActive"
+	local tweenAttrStart = "NAClickTweenToolStartCF"
+	local tweenAttrTarget = "NAClickTweenToolTargetCF"
+	local tweenAttrCurrent = "NAClickTweenToolCurrentCF"
+
+	local function stopActiveTween()
+		ctTweenState.active = false
+		if ctTweenState.conn then
+			ctTweenState.conn:Disconnect()
+			ctTweenState.conn = nil
+		end
+		if ctTweenState.char then
+			NAmanage.SetAttr(ctTweenState.char, tweenAttrCurrent, nil)
+			NAmanage.SetAttr(ctTweenState.char, tweenAttrActive, false)
+		end
+		ctTweenState.char = nil
+	end
 
 	MouseButtonFix(clickTpButton, function()
 		clickEnabled = not clickEnabled
 		tweenEnabled = false
-		if ctCFVal then
-			ctCFVal:Destroy()
-			ctCFVal = nil
-		end
+		stopActiveTween()
 		clickTpButton.Text = clickEnabled and "Disable Click TP" or "Enable Click TP"
 		tweenTpButton.Text = "Enable Tween TP"
 	end)
@@ -35060,9 +35184,8 @@ NAmanage.makeClickTweenUI = function()
 	MouseButtonFix(tweenTpButton, function()
 		tweenEnabled = not tweenEnabled
 		clickEnabled = false
-		if not tweenEnabled and ctCFVal then
-			ctCFVal:Destroy()
-			ctCFVal = nil
+		if not tweenEnabled then
+			stopActiveTween()
 		end
 		tweenTpButton.Text = tweenEnabled and "Disable Tween TP" or "Enable Tween TP"
 		clickTpButton.Text = "Enable Click TP"
@@ -35090,24 +35213,35 @@ NAmanage.makeClickTweenUI = function()
 			if clickEnabled then
 				NAmanage.safePivotModel(char, CFrame.new(target.p))
 			elseif tweenEnabled then
-				if ctCFVal then
-					ctCFVal:Destroy()
-					ctCFVal = nil
-				end
-				local cfVal = InstanceNew("CFrameValue")
-				ctCFVal = cfVal
-				cfVal.Value = char:GetPivot()
-				cfVal.Changed:Connect(function(newCF)
-					NAmanage.safePivotModel(char, newCF)
-				end)
-				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
-				tw:Play()
-				tw.Completed:Connect(function()
-					if cfVal then
-						cfVal:Destroy()
-						if ctCFVal == cfVal then
-							ctCFVal = nil
-						end
+				stopActiveTween()
+				local duration = math.max(0.01, tonumber(NAmanage.resolveTweenDuration()) or 1)
+				local startCF = char:GetPivot()
+				local targetCF = CFrame.new(target.p)
+				local elapsed = 0
+				ctTweenState.active = true
+				ctTweenState.char = char
+				NAmanage.SetAttr(char, tweenAttrActive, true)
+				NAmanage.SetAttr(char, tweenAttrStart, startCF)
+				NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
+				ctTweenState.conn = RunService.Heartbeat:Connect(function(dt)
+					if not ctTweenState.active or not char.Parent then
+						stopActiveTween()
+						return
+					end
+					elapsed += dt
+					local alpha = math.clamp(elapsed / duration, 0, 1)
+					local eased = alpha
+					local okEase, easedValue = pcall(function()
+						return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+					end)
+					if okEase and type(easedValue) == "number" then
+						eased = easedValue
+					end
+					local currentCF = startCF:Lerp(targetCF, eased)
+					NAmanage.SetAttr(char, tweenAttrCurrent, currentCF)
+					NAmanage.safePivotModel(char, currentCF)
+					if alpha >= 1 then
+						stopActiveTween()
 					end
 				end)
 			end
@@ -35123,6 +35257,10 @@ NAmanage.makeClickTweenTools = function()
 	NAmanage.clearAllTP()
 	local TweenService = SafeGetService("TweenService")
 	local player = Players.LocalPlayer
+	local tweenAttrActive = "NATweenTeleportToolActive"
+	local tweenAttrStart = "NATweenTeleportToolStartCF"
+	local tweenAttrTarget = "NATweenTeleportToolTargetCF"
+	local tweenAttrCurrent = "NATweenTeleportToolCurrentCF"
 
 	local function newTool(name, tween)
 		local tool = InstanceNew("Tool")
@@ -35142,15 +35280,44 @@ NAmanage.makeClickTweenTools = function()
 			end
 			local target = hit + Vector3.new(0,2.5,0)
 			if tween then
-				local cfVal = InstanceNew("CFrameValue")
-				cfVal.Value = char:GetPivot()
-				cfVal.Changed:Connect(function(newCF)
-					NAmanage.safePivotModel(char, newCF)
-				end)
-				local tw = TweenService:Create(cfVal, TweenInfo.new(NAmanage.resolveTweenDuration(), Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value=CFrame.new(target.p)})
-				tw:Play()
-				tw.Completed:Connect(function()
-					cfVal:Destroy()
+				local duration = math.max(0.01, tonumber(NAmanage.resolveTweenDuration()) or 1)
+				local startCF = char:GetPivot()
+				local targetCF = CFrame.new(target.p)
+				local elapsed = 0
+				NAmanage.SetAttr(char, tweenAttrActive, true)
+				NAmanage.SetAttr(char, tweenAttrStart, startCF)
+				NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
+				local hbConn
+				hbConn = RunService.Heartbeat:Connect(function(dt)
+					if not char.Parent then
+						NAmanage.SetAttr(char, tweenAttrCurrent, nil)
+						NAmanage.SetAttr(char, tweenAttrActive, false)
+						if hbConn then
+							hbConn:Disconnect()
+							hbConn = nil
+						end
+						return
+					end
+					elapsed += dt
+					local alpha = math.clamp(elapsed / duration, 0, 1)
+					local eased = alpha
+					local okEase, easedValue = pcall(function()
+						return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+					end)
+					if okEase and type(easedValue) == "number" then
+						eased = easedValue
+					end
+					local currentCF = startCF:Lerp(targetCF, eased)
+					NAmanage.SetAttr(char, tweenAttrCurrent, currentCF)
+					NAmanage.safePivotModel(char, currentCF)
+					if alpha >= 1 then
+						NAmanage.SetAttr(char, tweenAttrCurrent, nil)
+						NAmanage.SetAttr(char, tweenAttrActive, false)
+						if hbConn then
+							hbConn:Disconnect()
+							hbConn = nil
+						end
+					end
 				end)
 			else
 				NAmanage.safePivotModel(char, CFrame.new(target.p))
@@ -39135,11 +39302,17 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	end
 
 	local function runFREECAM()
-		local cf = InstanceNew("CFrameValue")
+		local freecamMoveAttr = "NAFreecamMoveCF"
 		local camPart = InstanceNew("Part")
 		camPart.Transparency = 1
 		camPart.Anchored = true
 		camPart.CFrame = camera.CFrame
+		NAmanage.SetAttr(camPart, freecamMoveAttr, CFrame.new())
+		local moveCF = NAmanage.GetAttr(camPart, freecamMoveAttr)
+		if typeof(moveCF) ~= "CFrame" then
+			moveCF = CFrame.new()
+			NAmanage.SetAttr(camPart, freecamMoveAttr, moveCF)
+		end
 
 		NAlib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
 			local primaryPart = camPart
@@ -39157,8 +39330,9 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			)
 
 			local moveDir = CFrame.new(x, y, z)
-			cf.Value = cf.Value:lerp(moveDir, 0.2)
-			primaryPart.CFrame = primaryPart.CFrame:lerp(primaryPart.CFrame * cf.Value, 0.2)
+			moveCF = moveCF:lerp(moveDir, 0.2)
+			NAmanage.SetAttr(primaryPart, freecamMoveAttr, moveCF)
+			primaryPart.CFrame = primaryPart.CFrame:lerp(primaryPart.CFrame * moveCF, 0.2)
 		end))
 	end
 
@@ -52488,22 +52662,59 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	if NAStuff.activeTeleports[key] then NAStuff.activeTeleports[key].active = false end
 	local state    = {active = true}
 	NAStuff.activeTeleports[key] = state
+	local tweenAttrActive = "NATweenGoToPartActive"
+	local tweenAttrStart = "NATweenGoToPartStartCF"
+	local tweenAttrTarget = "NATweenGoToPartTargetCF"
+	local tweenAttrCurrent = "NATweenGoToPartCurrentCF"
 	SpawnCall(function()
-		local char = getChar()
 		local partDelay = NAmanage.tpDelay()
 		for _,obj in ipairs(workspace:QueryDescendants("BasePart")) do
 			if not state.active then return end
 			if obj.Name:lower() == partName then
 				local hum = getHum()
 				if hum then hum.Sit = false end
-				local cfVal = InstanceNew("CFrameValue")
-				cfVal.Value = char:GetPivot()
-				cfVal.Changed:Connect(function(newCF) char:PivotTo(newCF) end)
-				local duration = NAmanage.resolveTweenDuration()
-				local tw = TweenService:Create(cfVal, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Value = obj.CFrame})
-				tw:Play()
-				tw.Completed:Connect(function() cfVal:Destroy() end)
-				Wait(duration + partDelay)
+				local char = getChar()
+				if char then
+					local duration = NAmanage.resolveTweenDuration()
+					local startCF = char:GetPivot()
+					local targetCF = obj:GetPivot()
+					local elapsed = 0
+					local done = false
+					local hbConn
+					NAmanage.SetAttr(char, tweenAttrActive, true)
+					NAmanage.SetAttr(char, tweenAttrStart, startCF)
+					NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
+					hbConn = RunService.Heartbeat:Connect(function(dt)
+						if not state.active or not char.Parent then
+							NAmanage.SetAttr(char, tweenAttrCurrent, nil)
+							NAmanage.SetAttr(char, tweenAttrActive, false)
+							done = true
+							if hbConn then
+								hbConn:Disconnect()
+								hbConn = nil
+							end
+							return
+						end
+						elapsed += dt
+						local alpha = duration <= 0 and 1 or math.clamp(elapsed / duration, 0, 1)
+						local currentCF = startCF:Lerp(targetCF, alpha)
+						NAmanage.SetAttr(char, tweenAttrCurrent, currentCF)
+						char:PivotTo(currentCF)
+						if alpha >= 1 then
+							NAmanage.SetAttr(char, tweenAttrCurrent, nil)
+							NAmanage.SetAttr(char, tweenAttrActive, false)
+							done = true
+							if hbConn then
+								hbConn:Disconnect()
+								hbConn = nil
+							end
+						end
+					end)
+					while state.active and not done do
+						Wait()
+					end
+					Wait(partDelay)
+				end
 			end
 		end
 	end)
@@ -62155,6 +62366,7 @@ NAgui.commands = function()
 
 	local entries = NAmanage.buildCommandEntries()
 	local seenNames = {}
+	local filterEntries = {}
 
 	local stale = {}
 	for name, label in pairs(pool) do
@@ -62273,6 +62485,31 @@ NAgui.commands = function()
 					Cmd.Parent = cList
 				end)
 			end
+			local aliases = {}
+			if type(meta.aliases) == "table" then
+				for _, alias in ipairs(meta.aliases) do
+					local aliasText = Lower(tostring(alias or ""))
+					if aliasText ~= "" then
+						aliases[#aliases + 1] = aliasText
+					end
+				end
+			end
+			local searchable = meta.searchable
+			if type(searchable) ~= "string" or searchable == "" then
+				if type(NAgui.sanitizeCommandInfo) == "function" then
+					searchable = NAgui.sanitizeCommandInfo(finalText)
+				else
+					searchable = NAmanage.stripMarkup(Lower(tostring(finalText or cmdName)))
+				end
+			else
+				searchable = Lower(searchable)
+			end
+			filterEntries[#filterEntries + 1] = {
+				label = Cmd;
+				lowerName = Lower(cmdName);
+				searchable = searchable;
+				aliases = aliases;
+			}
 			yOffset += 20
 
 			if i % batchSize == 0 then
@@ -62298,6 +62535,7 @@ NAgui.commands = function()
 		end
 
 		cList.CanvasSize = UDim2.new(0, 0, 0, 5 + (#entries * 20))
+		NAStuff.CommandFilterEntries = filterEntries
 		NAmanage.centerFrame(cFrame)
 		if NAgui.filterCommandList then
 			NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
@@ -66638,8 +66876,24 @@ NAgui.menu = function(menu)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
 	local minimized = false
 	local isAnimating = false
-	local sizeX = InstanceNew("IntValue", menu)
-	local sizeY = InstanceNew("IntValue", menu)
+	local sizeXAttr = "NAMenuStoredSizeX"
+	local sizeYAttr = "NAMenuStoredSizeY"
+	local function setStoredSize(x, y)
+		if menu and menu.SetAttribute then
+			NAmanage.SetAttr(menu, sizeXAttr, tonumber(x) or 0)
+			NAmanage.SetAttr(menu, sizeYAttr, tonumber(y) or 0)
+		end
+	end
+	local function getStoredSize()
+		local storedX, storedY
+		if menu and menu.GetAttribute then
+			storedX = tonumber(NAmanage.GetAttr(menu, sizeXAttr))
+			storedY = tonumber(NAmanage.GetAttr(menu, sizeYAttr))
+		end
+		storedX = storedX or menu.Size.X.Offset
+		storedY = storedY or menu.Size.Y.Offset
+		return storedX, storedY
+	end
 	local function setMinAtt(value)
 		minimized = value
 		if menu and menu.SetAttribute then
@@ -66655,14 +66909,16 @@ NAgui.menu = function(menu)
 		isAnimating = true
 
 		if nextState then
-			sizeX.Value = menu.Size.X.Offset
-			sizeY.Value = menu.Size.Y.Offset
-			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, 35)})
+			local currentX = menu.Size.X.Offset
+			local currentY = menu.Size.Y.Offset
+			setStoredSize(currentX, currentY)
+			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, 35)})
 				.Completed:Connect(function()
 					isAnimating = false
 				end)
 		else
-			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)})
+			local restoreX, restoreY = getStoredSize()
+			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)})
 				.Completed:Connect(function()
 					isAnimating = false
 				end)
@@ -66690,8 +66946,24 @@ NAgui.menuv2 = function(menu)
 
 	local minimized = false
 	local isAnimating = false
-	local sizeX = InstanceNew("IntValue", menu)
-	local sizeY = InstanceNew("IntValue", menu)
+	local sizeXAttr = "NAMenuStoredSizeX"
+	local sizeYAttr = "NAMenuStoredSizeY"
+	local function setStoredSize(x, y)
+		if menu and menu.SetAttribute then
+			NAmanage.SetAttr(menu, sizeXAttr, tonumber(x) or 0)
+			NAmanage.SetAttr(menu, sizeYAttr, tonumber(y) or 0)
+		end
+	end
+	local function getStoredSize()
+		local storedX, storedY
+		if menu and menu.GetAttribute then
+			storedX = tonumber(NAmanage.GetAttr(menu, sizeXAttr))
+			storedY = tonumber(NAmanage.GetAttr(menu, sizeYAttr))
+		end
+		storedX = storedX or menu.Size.X.Offset
+		storedY = storedY or menu.Size.Y.Offset
+		return storedX, storedY
+	end
 	local function setMinAtt(value)
 		minimized = value
 		if menu and menu.SetAttribute then
@@ -66708,16 +66980,18 @@ NAgui.menuv2 = function(menu)
 			isAnimating = true
 
 			if nextState then
-				sizeX.Value = menu.Size.X.Offset
-				sizeY.Value = menu.Size.Y.Offset
+				local currentX = menu.Size.X.Offset
+				local currentY = menu.Size.Y.Offset
+				setStoredSize(currentX, currentY)
 				NAgui.tween(menu, "Quart", "Out", 0.5, {
-					Size = UDim2.new(0, sizeX.Value, 0, 35)
+					Size = UDim2.new(0, currentX, 0, 35)
 				}).Completed:Connect(function()
 					isAnimating = false
 				end)
 			else
+				local restoreX, restoreY = getStoredSize()
 				NAgui.tween(menu, "Quart", "Out", 0.5, {
-					Size = UDim2.new(0, sizeX.Value, 0, sizeY.Value)
+					Size = UDim2.new(0, restoreX, 0, restoreY)
 				}).Completed:Connect(function()
 					isAnimating = false
 				end)
@@ -66865,16 +67139,15 @@ NAgui.loadCMDS = function()
 		end
 	end
 	NAmanage.setCmdAutofillClickable(false)
-	local trackedCount = #CMDAUTOFILL
-	for i = 1, trackedCount do
-		local v = CMDAUTOFILL[i]
-		if v and v.Parent then
-			v:Destroy()
-		end
-		CMDAUTOFILL[i] = nil
+	local autofillPool = NAStuff.CmdAutofillPool or {}
+	NAStuff.CmdAutofillPool = autofillPool
+	local staleAutofill = {}
+	for name, btn in pairs(autofillPool) do
+		staleAutofill[name] = btn
 	end
+	CMDAUTOFILL = {}
 	table.clear(prevVisible)
-	if trackedCount == 0 and NAUIMANAGER and NAUIMANAGER.cmdAutofill then
+	if next(autofillPool) == nil and NAUIMANAGER and NAUIMANAGER.cmdAutofill then
 		for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
 			if v:IsA("GuiObject") and v.Name ~= "UIListLayout" and v ~= NAUIMANAGER.cmdExample then
 				v:Destroy()
@@ -66962,7 +67235,6 @@ NAgui.loadCMDS = function()
 		bind(btn)
 		bind(textObj)
 	end
-	CMDAUTOFILL = {}
 	local entries = NAmanage.buildCommandEntries()
 	local batchSize = 60
 	if NAmanage.isLoad and NAmanage.isLoad() then
@@ -66977,10 +67249,18 @@ NAgui.loadCMDS = function()
 		end
 		seenCmdNames[name] = true
 		local meta = entry.meta or {}
-		local cmdData = cmds.Commands[name]
-		local btn = NAUIMANAGER.cmdExample:Clone()
+		local btn = autofillPool[name]
+		if not (btn and btn.Parent) then
+			btn = NAUIMANAGER.cmdExample:Clone()
+			btn.Parent = NAUIMANAGER.cmdAutofill
+			autofillPool[name] = btn
+			wireAutofillClick(btn, btn.Input, name)
+		end
+		staleAutofill[name] = nil
 		btn.Visible = false
-		btn.Parent = NAUIMANAGER.cmdAutofill
+		if btn.Parent ~= NAUIMANAGER.cmdAutofill then
+			btn.Parent = NAUIMANAGER.cmdAutofill
+		end
 		btn.Name = name
 		local finalDisplay = meta.displayText or entry.display or name
 		local isPatched = meta.patched == true
@@ -67013,10 +67293,17 @@ NAgui.loadCMDS = function()
 		i += 1
 		btn.LayoutOrder = i
 		NAmanage.setCmdAutofillItemInteractivity(btn, false)
-		wireAutofillClick(btn, btn.Input, name)
 		Insert(CMDAUTOFILL, btn)
 		if i % batchSize == 0 then
 			Wait()
+		end
+	end
+	for staleName, staleBtn in pairs(staleAutofill) do
+		autofillPool[staleName] = nil
+		if staleBtn then
+			pcall(function()
+				staleBtn:Destroy()
+			end)
 		end
 	end
 	NAmanage.setCmdAutofillClickable(NAStuff.cmdBarSelected == true)
@@ -67893,117 +68180,57 @@ end
 
 NAgui.filterCommandList = function(rawText)
 	if not NAUIMANAGER.commandsList then return end
-	local templateColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
 	local searchText = NAgui.normalizeCommandFilter(rawText)
-	local metaByName = NAStuff.AutofillMetaByName or {}
-	for _, label in ipairs(NAUIMANAGER.commandsList:GetChildren()) do
-		if label:IsA("TextLabel") then
-			local originalName = label.Name or ""
-			local cmdName = Lower(originalName)
-			local meta = metaByName[originalName] or metaByName[cmdName]
-			local command = cmds.Commands[cmdName]
-			local aliasList = {}
-			local displayText
-			local searchableInfo
-
-			if command then
-				local updatedText, extraAliases = fixStupidSearchGoober(cmdName, command)
-				displayText = updatedText
-				if not displayText or displayText == "" then
-					displayText = (type(command[2]) == "table" and command[2][1]) or cmdName
-				end
-				if type(command[2]) == "table" then
-					command[2][1] = displayText
-				end
-				extraAliases = extraAliases or {}
-				for i = 1, #extraAliases do
-					aliasList[#aliasList + 1] = Lower(extraAliases[i])
-				end
-			end
-
-			if meta then
-				displayText = displayText or meta.displayText
-				searchableInfo = meta.searchable or searchableInfo
-				if type(meta.aliases) == "table" then
-					for _, alias in ipairs(meta.aliases) do
-						aliasList[#aliasList + 1] = Lower(alias)
-					end
-				end
-			end
-
-			displayText = displayText or originalName
-			searchableInfo = searchableInfo or NAgui.sanitizeCommandInfo(displayText)
-
+	local cached = NAStuff.CommandFilterEntries
+	if type(cached) ~= "table" then
+		return
+	end
+	for i = 1, #cached do
+		local entry = cached[i]
+		local label = entry and entry.label
+		if label and label.Parent and label:IsA("TextLabel") then
 			local matches
 			if searchText == "" then
 				matches = true
 			else
-				if Sub(cmdName, 1, #searchText) == searchText then
-					matches = true
-				elseif searchableInfo ~= "" and Find(searchableInfo, searchText, 1, true) then
+				local lowerName = entry.lowerName or ""
+				if Sub(lowerName, 1, #searchText) == searchText then
 					matches = true
 				else
-					for _, alias in ipairs(aliasList) do
-						if Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true) then
-							matches = true
-							break
+					local searchableInfo = entry.searchable or ""
+					if searchableInfo ~= "" and Find(searchableInfo, searchText, 1, true) then
+						matches = true
+					else
+						local aliases = entry.aliases
+						if type(aliases) == "table" then
+							for j = 1, #aliases do
+								local alias = aliases[j]
+								if alias and (Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true)) then
+									matches = true
+									break
+								end
+							end
 						end
 					end
 				end
 			end
-
 			label.Visible = matches and true or false
-			if matches then
-				local isCmdIntegration = meta and meta.origin == "cmd"
-				local pluginType = meta and meta.pluginType
-				local isPluginCmd = pluginType ~= nil
-				if not isPluginCmd and NAmanage.IsPluginCommand then
-					isPluginCmd, pluginType = NAmanage.IsPluginCommand(cmdName)
-				end
-
-				local isPatched = meta and meta.patched == true
-
-				local finalText = (meta and meta.displayText) or displayText
-				if isPatched then
-					label.TextColor3 = patchedCommandColor
-					if label.SetAttribute then
-						NAmanage.SetAttr(label, "IsPatchedCommand", true)
-						NAmanage.SetAttr(label, "IsCmdIntegration", false)
-						NAmanage.SetAttr(label, "IsPluginCommand", false)
-					end
-					finalText = NAgui.addPatchedLabel(finalText)
-				elseif isCmdIntegration then
-					label.TextColor3 = cmdIntegrationColor
-					if label.SetAttribute then
-						NAmanage.SetAttr(label, "IsCmdIntegration", true)
-						NAmanage.SetAttr(label, "IsPatchedCommand", false)
-						NAmanage.SetAttr(label, "IsPluginCommand", false)
-					end
-				elseif isPluginCmd then
-					label.TextColor3 = pluginCommandColor
-					if label.SetAttribute then
-						NAmanage.SetAttr(label, "IsPluginCommand", true)
-						NAmanage.SetAttr(label, "IsPatchedCommand", false)
-						NAmanage.SetAttr(label, "IsCmdIntegration", false)
-					end
-				else
-					if templateColor then
-						label.TextColor3 = templateColor
-					end
-					if label.SetAttribute then
-						NAmanage.SetAttr(label, "IsPluginCommand", false)
-						NAmanage.SetAttr(label, "IsPatchedCommand", false)
-						NAmanage.SetAttr(label, "IsCmdIntegration", false)
-					end
-				end
-				label.Text = " "..finalText
-			end
 		end
 	end
 end
 
+local commandFilterTick = 0
 NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
-	NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
+	commandFilterTick += 1
+	local thisTick = commandFilterTick
+	Delay(0.05, function()
+		if thisTick ~= commandFilterTick then
+			return
+		end
+		if NAUIMANAGER and NAUIMANAGER.commandsFilter then
+			NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
+		end
+	end)
 end)
 
 originalIO.naTransLatooor=function()
@@ -80676,7 +80903,11 @@ pcall(function()
 	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
 		NAAssetsLoading.setStatus("ready")
 		NAAssetsLoading.setPercent(1)
-		NAAssetsLoading.completed.Value = true
+		if typeof(NAAssetsLoading.completed) == "Instance" then
+			NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+		elseif type(NAAssetsLoading.completed) == "table" then
+			NAAssetsLoading.completed.Completed = true
+		end
 		NAAssetsLoading._finalized = true
 		NAAssetsLoading.ui = nil
 		NAAssetsLoading.setStatus = nil
