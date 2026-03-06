@@ -62920,6 +62920,8 @@ NAgui.addInfo = function(label, value)
 	box.TextTruncate = Enum.TextTruncate.None
 	box.ClipsDescendants = true
 	frame.ClipsDescendants = true
+	local baseTextSize = tonumber(box.TextSize) or 14
+	local minTextSize = 10
 
 	box.Focused:Connect(function()
 		box:ReleaseFocus()
@@ -62944,9 +62946,22 @@ NAgui.addInfo = function(label, value)
 		end
 
 		if cw and cw > 0 then
-			local tw = (info.Title and info.Title.TextBounds.X or 0)
-			local gap = 32
-			maxW = cw - tw - gap
+			local titleWidth = 0
+			if info.Title then
+				local abs = info.Title.AbsoluteSize.X
+				if abs and abs > 0 then
+					titleWidth = abs
+				else
+					titleWidth = info.Title.TextBounds.X or 0
+				end
+			end
+			local gap = 18
+			local byTitle = cw - titleWidth - gap
+			local byRatio = math.floor(cw * 0.62)
+			maxW = math.max(byTitle, byRatio)
+			if maxW < minW then
+				maxW = minW
+			end
 		end
 
 		local w = math.max(textW, minW)
@@ -62958,6 +62973,18 @@ NAgui.addInfo = function(label, value)
 		end
 
 		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+
+		local targetTextSize = baseTextSize
+		if hit then
+			local avail = math.max(1, w - 14)
+			local rawWidth = math.max(1, NAgui.getInputTextWidth(box, 0))
+			if rawWidth > avail then
+				targetTextSize = math.max(minTextSize, math.floor(baseTextSize * (avail / rawWidth)))
+			end
+		end
+		if box.TextSize ~= targetTextSize then
+			box.TextSize = targetTextSize
+		end
 
 		if type(w) ~= "number" then
 			return
@@ -79894,13 +79921,71 @@ originalIO.normalizeRobloxVersionData=function(decoded)
 		return nil
 	end
 
-	local function hasVersionKeys(tbl)
-		return type(tbl) == "table" and (
-			tbl.Windows ~= nil or
-			tbl.Mac ~= nil or
-			tbl.Android ~= nil or
-			tbl.iOS ~= nil
-		)
+	local function normKey(value)
+		if type(value) ~= "string" then
+			return ""
+		end
+		return Lower(value):gsub("[^%w]", "")
+	end
+
+	local function readValue(tbl, keys)
+		if type(tbl) ~= "table" or type(keys) ~= "table" then
+			return nil
+		end
+		for i = 1, #keys do
+			local key = keys[i]
+			local value = tbl[key]
+			if value ~= nil and tostring(value) ~= "" then
+				return tostring(value)
+			end
+		end
+		local wanted = {}
+		for i = 1, #keys do
+			wanted[normKey(keys[i])] = true
+		end
+		for key, value in pairs(tbl) do
+			if value ~= nil and tostring(value) ~= "" and wanted[normKey(key)] then
+				return tostring(value)
+			end
+		end
+		return nil
+	end
+
+	local function normalizeCandidate(tbl)
+		if type(tbl) ~= "table" then
+			return nil
+		end
+
+		local out = {
+			Windows = readValue(tbl, {"Windows", "windows", "win", "WindowsVersion", "windowsVersion"});
+			Mac = readValue(tbl, {"Mac", "mac", "MacVersion", "macVersion"});
+			Android = readValue(tbl, {"Android", "android", "AndroidVersion", "androidVersion"});
+			iOS = readValue(tbl, {"iOS", "ios", "IOS", "iOs", "iOSVersion", "iosVersion"});
+			WindowsDate = readValue(tbl, {"WindowsDate", "windowsDate", "WindowsUpdated", "windowsUpdated", "windowsLastUpdated"});
+			MacDate = readValue(tbl, {"MacDate", "macDate", "MacUpdated", "macUpdated", "macLastUpdated"});
+			AndroidDate = readValue(tbl, {"AndroidDate", "androidDate", "AndroidUpdated", "androidUpdated", "androidLastUpdated"});
+			iOSDate = readValue(tbl, {"iOSDate", "iosDate", "IOSDate", "iOSUpdated", "iosUpdated", "iosLastUpdated"});
+		}
+
+		local genericVersion = readValue(tbl, {"version", "Version", "clientVersionUpload", "clientVersion"})
+		local genericDate = readValue(tbl, {"fetchedAt", "updatedAt", "timestamp", "date"})
+		if genericVersion then
+			out.Windows = out.Windows or genericVersion
+			out.Mac = out.Mac or genericVersion
+			out.Android = out.Android or genericVersion
+			out.iOS = out.iOS or genericVersion
+		end
+		if genericDate then
+			out.WindowsDate = out.WindowsDate or genericDate
+			out.MacDate = out.MacDate or genericDate
+			out.AndroidDate = out.AndroidDate or genericDate
+			out.iOSDate = out.iOSDate or genericDate
+		end
+
+		if out.Windows or out.Mac or out.Android or out.iOS then
+			return out
+		end
+		return nil
 	end
 
 	local candidates = {
@@ -79911,10 +79996,10 @@ originalIO.normalizeRobloxVersionData=function(decoded)
 		decoded.versions;
 		decoded.versions and decoded.versions.current;
 	}
-
 	for _, candidate in ipairs(candidates) do
-		if hasVersionKeys(candidate) then
-			return candidate
+		local normalized = normalizeCandidate(candidate)
+		if normalized then
+			return normalized
 		end
 	end
 
@@ -80247,22 +80332,24 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 			return version and version() or nil
 		end)
 		if not okVersion or type(currentVersion) ~= "string" or currentVersion == "" then
-			return nil
+			if _VERSION then
+				currentVersion = tostring(_VERSION)
+			else
+				return nil
+			end
 		end
 
-		local platform = UserInputService and UserInputService:GetPlatform() or nil
 		local fallback = {}
 		local nowText = os.date("!%m/%d/%Y, %I:%M:%S %p UTC")
-		if platform == Enum.Platform.IOS then
-			fallback.iOS = currentVersion
-			fallback.iOSDate = "Local Client ("..nowText..")"
-		elseif platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV or platform == Enum.Platform.Chromecast then
-			fallback.Android = currentVersion
-			fallback.AndroidDate = "Local Client ("..nowText..")"
-		else
-			fallback.Windows = currentVersion
-			fallback.WindowsDate = "Local Client ("..nowText..")"
-		end
+		local sourceText = "Local Client ("..nowText..")"
+		fallback.Windows = currentVersion
+		fallback.WindowsDate = sourceText
+		fallback.Mac = currentVersion
+		fallback.MacDate = sourceText
+		fallback.Android = currentVersion
+		fallback.AndroidDate = sourceText
+		fallback.iOS = currentVersion
+		fallback.iOSDate = sourceText
 		return fallback
 	end
 
@@ -80343,6 +80430,10 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		return true, localFallback
 	end
 
+	if type(cached) == "table" and next(cached) ~= nil then
+		return true, cached
+	end
+
 	return false, cached
 end
 
@@ -80363,7 +80454,23 @@ originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 	})
 end
 
-SpawnCall(function() NAgui.addInfo("Your Version", version().."-".._VERSION) end)
+SpawnCall(function()
+	local clientVersion = "Unknown"
+	local okVersion, versionValue = pcall(function()
+		return version and version() or nil
+	end)
+	if okVersion and versionValue ~= nil then
+		clientVersion = tostring(versionValue)
+	elseif _VERSION then
+		clientVersion = tostring(_VERSION)
+	end
+	local luauVersion = tostring(_VERSION or "")
+	local textValue = clientVersion
+	if luauVersion ~= "" and luauVersion ~= clientVersion then
+		textValue = clientVersion.."-"..luauVersion
+	end
+	NAgui.addInfo("Your Version", textValue)
+end)
 NAgui.addSection("Powered by weao.xyz API")
 originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
 originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
