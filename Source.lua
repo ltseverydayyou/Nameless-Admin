@@ -51460,7 +51460,7 @@ end,true)
 
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Disable the cooldown for proximity prompts"},function()
 	NAlib.disconnect("instantpp")
-	NAlib.connect("instantpp", SafeGetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(pp)
+	NAlib.connect("instantpp", SafeGetService("ProximityPromptService",false).PromptButtonHoldBegan:Connect(function(pp)
 		pcall(fireproximityprompt, pp)
 	end))
 end)
@@ -51470,11 +51470,11 @@ cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximity
 end)
 
 cmd.add({"enableproximitypromptservice","enablepps","epps","ppson","ppon"},{"enableproximitypromptservice (enablepps,epps,ppson,ppon)","enable proximity prompt buttons"},function()
-	SafeGetService("ProximityPromptService").Enabled = true
+	SafeGetService("ProximityPromptService",false).Enabled = true
 end,true)
 
 cmd.add({"disableproximitypromptservice","disablepps","dpps","ppsoff","ppoff"},{"disableproximitypromptservice (disablepps,dpps,ppsoff,ppoff)","disable proximity prompt buttons"},function()
-	SafeGetService("ProximityPromptService").Enabled = false
+	SafeGetService("ProximityPromptService",false).Enabled = false
 end,true)
 
 cmd.add({"enableproximityprompts","enableprox","enprox","enprx","enpp"},{"enableproximityprompts [name]","Enable ProximityPrompts (all or matching)"},function(...)
