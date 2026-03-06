@@ -1,4 +1,7 @@
 local function ClonedService(name)
+	if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
+		return game:GetService(name);
+	end;
 	local service = cloneref and cloneref(game:GetService(name)) or game:GetService(name);
 	return service;
 end;

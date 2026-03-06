@@ -4,6 +4,9 @@ local SRV = setmetatable({}, {
 			return ref;
 		end;
 		local ok, svc = pcall(function()
+			if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
+				return game:GetService(name);
+			end;
 			return Reference(game:GetService(name));
 		end);
 		if ok and svc then

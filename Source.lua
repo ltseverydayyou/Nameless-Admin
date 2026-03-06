@@ -377,7 +377,9 @@ local NAStuff = {
 	cmdSearchSuspendUntil = 0;
 }
 
-local opt = {}
+local opt = {
+	NA_cloneref = nil;
+}
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -387,12 +389,22 @@ local LoadstringCommandAliases = {
 	execute = true;
 };
 
+opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
+NAmanage.NA_getServiceRef = opt.NA_cloneref and function(name)
+	if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
+		return game:GetService(name)
+	end
+	return opt.NA_cloneref(game:GetService(name))
+end or function(name)
+	return game:GetService(name)
+end
+NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
+	return game:GetService(name)
+end
+
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
-		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref) return ref end
-		local ok, svc = pcall(function()
-			return Reference(game:GetService(name))
-		end)
+		local ok, svc = pcall(NAmanage.NA_getServiceRef, name)
 		if ok and svc then
 			rawset(self, name, svc)
 			return svc
@@ -400,7 +412,20 @@ local NA_SRV = setmetatable({}, {
 	end
 })
 
-function SafeGetService(name)
+local NA_SRV_RAW = setmetatable({}, {
+	__index = function(self, name)
+		local ok, svc = pcall(NAmanage.NA_getServiceRaw, name)
+		if ok and svc then
+			rawset(self, name, svc)
+			return svc
+		end
+	end
+})
+
+function SafeGetService(name, useCloneRef)
+	if useCloneRef == false then
+		return NA_SRV_RAW[name]
+	end
 	return NA_SRV[name]
 end
 
@@ -431,11 +456,7 @@ end
 
 NAmanage.waitForPlay=function()
 	local function ready()
-		local ok, playersSvc = pcall(game.GetService, game, "Players")
-		if not ok or not playersSvc then
-			return nil
-		end
-		local localPlayer = playersSvc.LocalPlayer
+		local localPlayer = SafeGetService("Players").LocalPlayer
 		if not localPlayer or not localPlayer.Parent then
 			return nil
 		end
@@ -646,6 +667,71 @@ NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 	return checked
 end
 
+NAmanage._evtHubDispatch = NAmanage._evtHubDispatch or function(handlers, inst)
+	for _, rec in pairs(handlers or {}) do
+		local fn = rec
+		local filter = nil
+		if type(rec) == "table" then
+			fn = rec.fn
+			filter = rec.filter
+		end
+		if type(fn) == "function" then
+			local pass = true
+			if type(filter) == "function" then
+				local ok, allowed = pcall(filter, inst)
+				pass = ok and allowed == true
+			end
+			if pass then
+				pcall(fn, inst)
+			end
+		end
+	end
+end
+
+NAmanage._evtHubHasInterested = NAmanage._evtHubHasInterested or function(handlers, inst)
+	for _, rec in pairs(handlers or {}) do
+		local fn = rec
+		local filter = nil
+		if type(rec) == "table" then
+			fn = rec.fn
+			filter = rec.filter
+		end
+		if type(fn) == "function" then
+			if type(filter) == "function" then
+				local ok, pass = pcall(filter, inst)
+				if ok and pass then
+					return true
+				end
+			else
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAmanage._evtHubBudget = NAmanage._evtHubBudget or function(baseBudget, opts)
+	local budget = math.max(1, math.floor(tonumber(baseBudget) or 120))
+	local waitDelay = 0
+	if NAmanage and NAmanage.lpProf then
+		local cfg = type(opts) == "table" and opts or {}
+		local ok, calcBudget, calcDelay = pcall(NAmanage.lpProf, budget, {
+			delay = tonumber(cfg.delay) or 0,
+			ldSc = tonumber(cfg.ldSc) or 0.4,
+			ldDel = tonumber(cfg.ldDel) or 0.008,
+		})
+		if ok then
+			if tonumber(calcBudget) then
+				budget = math.max(1, math.floor(tonumber(calcBudget) or budget))
+			end
+			if tonumber(calcDelay) then
+				waitDelay = math.max(0, tonumber(calcDelay) or 0)
+			end
+		end
+	end
+	return budget, waitDelay
+end
+
 NAmanage._wsHub = NAmanage._wsHub or nil
 
 NAmanage._wsHubGet = NAmanage._wsHubGet or function()
@@ -759,26 +845,8 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		hub.cIdx = i
 	end
 
-	local function dispatch(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			local filter = nil
-			if type(rec) == "table" then
-				fn = rec.fn
-				filter = rec.filter
-			end
-			if type(fn) == "function" then
-				local pass = true
-				if type(filter) == "function" then
-					local ok, allowed = pcall(filter, inst)
-					pass = ok and allowed == true
-				end
-				if pass then
-					pcall(fn, inst)
-				end
-			end
-		end
-	end
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
 
 	local function runQ()
 		if hub.qBusy or not hub.alive then
@@ -787,7 +855,11 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget = 140
+				local budget, waitDelay = NAmanage._evtHubBudget(140, {
+					delay = 0,
+					ldSc = 0.4,
+					ldDel = 0.008,
+				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
@@ -811,7 +883,11 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 				if hub.cacheLive then
 					scrub(32)
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			hub.aQ = {}
 			hub.rQ = {}
@@ -842,6 +918,9 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -850,6 +929,9 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
 				return
 			end
 			if hub.rSet[inst] then
@@ -869,7 +951,11 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		hub.sBusy = true
 		Spawn(function()
 			while hub.alive and hub.sHead <= hub.sTail do
-				local budget = 90
+				local budget, waitDelay = NAmanage._evtHubBudget(90, {
+					delay = 0,
+					ldSc = 0.3,
+					ldDel = 0.006,
+				})
 				while budget > 0 and hub.alive and hub.sHead <= hub.sTail do
 					local inst = hub.sQ[hub.sHead]
 					hub.sQ[hub.sHead] = nil
@@ -884,7 +970,11 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			hub.sQ = {}
 			hub.sHead = 1
@@ -1094,26 +1184,8 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		alive = true,
 	}
 
-	local function dispatch(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			local filter = nil
-			if type(rec) == "table" then
-				fn = rec.fn
-				filter = rec.filter
-			end
-			if type(fn) == "function" then
-				local pass = true
-				if type(filter) == "function" then
-					local ok, allowed = pcall(filter, inst)
-					pass = ok and allowed == true
-				end
-				if pass then
-					pcall(fn, inst)
-				end
-			end
-		end
-	end
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
 
 	local function runQ()
 		if hub.qBusy or not hub.alive then
@@ -1122,7 +1194,11 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget = 160
+				local budget, waitDelay = NAmanage._evtHubBudget(160, {
+					delay = 0,
+					ldSc = 0.4,
+					ldDel = 0.008,
+				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
@@ -1143,7 +1219,11 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			hub.aQ = {}
 			hub.rQ = {}
@@ -1174,6 +1254,9 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -1182,6 +1265,9 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, inst) then
 				return
 			end
 			if hub.rSet[inst] then
@@ -1194,14 +1280,38 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		kickQ()
 	end
 
-	if root then
-		hub.cAdd = root.DescendantAdded:Connect(function(inst)
-			qEvt("add", inst)
-		end)
-		hub.cRem = root.DescendantRemoving:Connect(function(inst)
-			qEvt("rem", inst)
-		end)
+	local function wantsRootEvents()
+		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
 	end
+
+	local function disconnectRootHooks()
+		if hub.cAdd then
+			hub.cAdd:Disconnect()
+			hub.cAdd = nil
+		end
+		if hub.cRem then
+			hub.cRem:Disconnect()
+			hub.cRem = nil
+		end
+	end
+
+	local function connectRootHooks()
+		if not (hub.alive and root and wantsRootEvents()) then
+			return
+		end
+		if not hub.cAdd then
+			hub.cAdd = root.DescendantAdded:Connect(function(inst)
+				qEvt("add", inst)
+			end)
+		end
+		if not hub.cRem then
+			hub.cRem = root.DescendantRemoving:Connect(function(inst)
+				qEvt("rem", inst)
+			end)
+		end
+	end
+	hub.enableRootHooks = connectRootHooks
+	hub.disableRootHooks = disconnectRootHooks
 
 	NAmanage._cgHub = hub
 	return hub
@@ -1240,6 +1350,9 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	if type(hub.enableRootHooks) == "function" then
+		hub.enableRootHooks()
+	end
 
 	local conn = {
 		Connected = true,
@@ -1266,6 +1379,9 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 			hub.aTail = 0
 			hub.rHead = 1
 			hub.rTail = 0
+			if type(hub.disableRootHooks) == "function" then
+				hub.disableRootHooks()
+			end
 		end
 	end
 	return conn
@@ -1360,39 +1476,8 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		alive = true,
 	}
 
-	local function dispatch(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			if type(rec) == "table" then
-				fn = rec.fn
-			end
-			if type(fn) == "function" then
-				pcall(fn, inst)
-			end
-		end
-	end
-
-	local function hasInterested(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			local filter = nil
-			if type(rec) == "table" then
-				fn = rec.fn
-				filter = rec.filter
-			end
-			if type(fn) == "function" then
-				if type(filter) == "function" then
-					local ok, pass = pcall(filter, inst)
-					if ok and pass then
-						return true
-					end
-				else
-					return true
-				end
-			end
-		end
-		return false
-	end
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
 
 	local function runQ()
 		if hub.qBusy or not hub.alive then
@@ -1401,7 +1486,11 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget = 120
+				local budget, waitDelay = NAmanage._evtHubBudget(120, {
+					delay = 0,
+					ldSc = 0.35,
+					ldDel = 0.008,
+				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
@@ -1422,7 +1511,11 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			hub.aQ = {}
 			hub.rQ = {}
@@ -1665,6 +1758,276 @@ NAmanage.pgRem = NAmanage.pgRem or function(fn, filter)
 	})
 end
 
+NAmanage._playersHub = NAmanage._playersHub or nil
+
+NAmanage._playersHubGet = NAmanage._playersHubGet or function()
+	local players = SafeGetService("Players")
+	local hub = NAmanage._playersHub
+
+	local function disc(c)
+		if c then
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+	end
+
+	local function killHub(old)
+		if not old then
+			return
+		end
+		old.alive = false
+		disc(old.cAdd)
+		disc(old.cRem)
+		old.cAdd = nil
+		old.cRem = nil
+		old.players = nil
+	end
+
+	if hub and (not hub.alive or hub.players ~= players) then
+		killHub(hub)
+		hub = nil
+		NAmanage._playersHub = nil
+	end
+	if hub and hub.alive then
+		return hub
+	end
+
+	hub = {
+		players = players,
+		nextId = 0,
+		added = {},
+		removing = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		alive = true,
+	}
+
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget, waitDelay = NAmanage._evtHubBudget(90, {
+					delay = 0,
+					ldSc = 0.3,
+					ldDel = 0.008,
+				})
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local plr = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if plr then
+							hub.rSet[plr] = nil
+							dispatch(hub.removing, plr)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local plr = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if plr then
+							hub.aSet[plr] = nil
+							dispatch(hub.added, plr)
+						end
+					end
+					budget -= 1
+				end
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
+			end
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, plr)
+		if not (hub.alive and plr) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, plr) then
+				return
+			end
+			if hub.aSet[plr] then
+				return
+			end
+			hub.aSet[plr] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = plr
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removing, plr) then
+				return
+			end
+			if hub.rSet[plr] then
+				return
+			end
+			hub.rSet[plr] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = plr
+		end
+		kickQ()
+	end
+
+	local function wantsEvents()
+		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
+	end
+
+	local function disconnectHooks()
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		hub.cAdd = nil
+		hub.cRem = nil
+	end
+
+	local function connectHooks()
+		if not (hub.alive and players and wantsEvents()) then
+			return
+		end
+		if not hub.cAdd then
+			hub.cAdd = players.PlayerAdded:Connect(function(plr)
+				qEvt("add", plr)
+			end)
+		end
+		if not hub.cRem then
+			hub.cRem = players.PlayerRemoving:Connect(function(plr)
+				qEvt("rem", plr)
+			end)
+		end
+	end
+
+	hub.enableHooks = connectHooks
+	hub.disableHooks = disconnectHooks
+	NAmanage._playersHub = hub
+	return hub
+end
+
+NAmanage.playersSub = NAmanage.playersSub or function(spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+
+	local hub = NAmanage._playersHubGet()
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removing[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+	if type(hub.enableHooks) == "function" then
+		hub.enableHooks()
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removing[id] then
+			hub.removing[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			if type(hub.disableHooks) == "function" then
+				hub.disableHooks()
+			end
+		end
+	end
+	return conn
+end
+
+NAmanage.playersAdd = NAmanage.playersAdd or function(fn, filter)
+	return NAmanage.playersSub({
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.playersRem = NAmanage.playersRem or function(fn, filter)
+	return NAmanage.playersSub({
+		removing = fn,
+		filterRemoving = filter,
+	})
+end
+
 NAmanage._descHubs = NAmanage._descHubs or {}
 
 NAmanage._descHubGet = NAmanage._descHubGet or function(root)
@@ -1715,39 +2078,8 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		alive = true,
 	}
 
-	local function dispatch(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			if type(rec) == "table" then
-				fn = rec.fn
-			end
-			if type(fn) == "function" then
-				pcall(fn, inst)
-			end
-		end
-	end
-
-	local function hasInterested(handlers, inst)
-		for _, rec in pairs(handlers) do
-			local fn = rec
-			local filter = nil
-			if type(rec) == "table" then
-				fn = rec.fn
-				filter = rec.filter
-			end
-			if type(fn) == "function" then
-				if type(filter) == "function" then
-					local ok, pass = pcall(filter, inst)
-					if ok and pass then
-						return true
-					end
-				else
-					return true
-				end
-			end
-		end
-		return false
-	end
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
 
 	local function runQ()
 		if hub.qBusy or not hub.alive then
@@ -1756,7 +2088,11 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget = 120
+				local budget, waitDelay = NAmanage._evtHubBudget(120, {
+					delay = 0,
+					ldSc = 0.35,
+					ldDel = 0.008,
+				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
@@ -1777,7 +2113,11 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			hub.aQ = {}
 			hub.rQ = {}
@@ -3444,15 +3784,15 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		filterAdded = NAmanage.StreamerIsContainer,
 	}))
 	NAlib.disconnect("streamermode_players")
-	if Players then
-		NAlib.connect("streamermode_players", Players.PlayerAdded:Connect(function(plr)
+	NAlib.connect("streamermode_players", NAmanage.playersSub({
+		added = function(plr)
 			NAmanage.StreamerWatchPlayer(plr)
 			NAmanage.StreamerScheduleNameRefresh(false)
-		end))
-		NAlib.connect("streamermode_players", Players.PlayerRemoving:Connect(function()
+		end,
+		removing = function()
 			NAmanage.StreamerScheduleNameRefresh(false)
-		end))
-	end
+		end,
+	}))
 
 	local token = NAmanage.NewCancelToken()
 	smState.token = token
@@ -3530,10 +3870,14 @@ end)()
 --[[ Character helpers ]]--
 NA_GRAB_BODY = (function()
 	local T = {};
-	local _cache = {};
+	local _cache = setmetatable({}, {
+		__mode = "k"
+	});
 	local overrideModel = nil;
 	local overrideConn = nil;
 	local selectingOverride = false;
+	local lastOverridePickAt = 0;
+	local OVERRIDE_PICK_COOLDOWN = 1.25;
 	local setOverrideModel;
 	local pickOverrideModel;
 	local function asChar(obj)
@@ -3741,7 +4085,11 @@ NA_GRAB_BODY = (function()
 			if overrideModel then
 				model = overrideModel;
 			elseif model and model.Parent and (not model:IsDescendantOf(workspace)) then
-				model = pickOverrideModel(true) or model;
+				local now = os.clock()
+				if now - lastOverridePickAt >= OVERRIDE_PICK_COOLDOWN then
+					lastOverridePickAt = now
+					model = pickOverrideModel(true) or model;
+				end
 			end;
 		elseif not model then
 			model = overrideModel;
@@ -3756,24 +4104,56 @@ NA_GRAB_BODY = (function()
 			};
 			_cache[model] = rec;
 
-			rec.a = model.DescendantAdded:Connect(function()
-				rec.dirty = true;
+			local function applyCandidate(inst)
+				if not inst then
+					return
+				end
+				if not rec.humanoid and (inst:IsA("Humanoid") or inst:IsA("AnimationController")) then
+					rec.humanoid = inst
+					return
+				end
+				if not inst:IsA("BasePart") then
+					return
+				end
+				local name = inst.Name:lower()
+				if not rec.root and name:find("root", 1, true) then
+					rec.root = inst
+					return
+				end
+				if not rec.torso and name:find("torso", 1, true) then
+					rec.torso = inst
+					return
+				end
+				if not rec.head and name:find("head", 1, true) then
+					rec.head = inst
+				end
+			end
+
+			rec.a = model.DescendantAdded:Connect(function(d)
+				applyCandidate(d)
 			end);
 
 			rec.r = model.DescendantRemoving:Connect(function(d)
+				local removedTracked = false
 				if rec.head == d then
 					rec.head = nil;
+					removedTracked = true
 				end;
 				if rec.root == d then
 					rec.root = nil;
+					removedTracked = true
 				end;
 				if rec.torso == d then
 					rec.torso = nil;
+					removedTracked = true
 				end;
 				if rec.humanoid == d then
 					rec.humanoid = nil;
+					removedTracked = true
 				end;
-				rec.dirty = true;
+				if removedTracked then
+					rec.dirty = true;
+				end
 			end);
 
 			rec.c = model.AncestryChanged:Connect(function(_, parent)
@@ -10381,10 +10761,9 @@ NAmanage.GetBasicInfoSnapshot = function()
 			local fetchUserId = userId
 			SpawnCall(function()
 				local resolved = "Unknown"
-				local okVoiceService, voiceService = pcall(game.GetService, game, "VoiceChatService")
-				if okVoiceService and voiceService and fetchUserId then
+				if fetchUserId then
 					local okVoice, voiceEnabled = pcall(function()
-						return voiceService:IsVoiceEnabledForUserIdAsync(fetchUserId)
+						return SafeGetService("VoiceChatService",false):IsVoiceEnabledForUserIdAsync(fetchUserId)
 					end)
 					if okVoice then
 						resolved = voiceEnabled and "Enabled" or "Disabled"
@@ -10538,7 +10917,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	local statsService = SafeGetService and SafeGetService("Stats") or nil
+	local statsService = SafeGetService("Stats",false) or nil
 	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
 		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
 		if pingStat then
@@ -27465,12 +27844,11 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = game.GetService(game,"Players")
+		local Players = cloneref(game.GetService(game,"Players"))
 		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
 			local Targets = {PlayerName}
-			local Players = game.GetService(game,"Players")
 			local Player = Players.LocalPlayer
 			local AllBool = false
 
@@ -28488,7 +28866,7 @@ end)
 NAstatsUI = {}
 windowCounter = (windowCounter or 0)
 windowRegistry = windowRegistry or {}
-StatsService = SafeGetService("Stats")
+StatsService = SafeGetService("Stats",false)
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -28897,6 +29275,56 @@ function NAstatsUI.createStatBox(parent, titleText)
 	return box, valueLabel, bar
 end
 
+NAmanage._fpsTracker = NAmanage._fpsTracker or nil
+
+NAmanage.getRealFPS = NAmanage.getRealFPS or function()
+	local tracker = NAmanage._fpsTracker
+	if not tracker then
+		tracker = {
+			times = {},
+			head = 1,
+			tail = 0,
+			value = 0,
+			conn = nil,
+		}
+		tracker.conn = RunService.RenderStepped:Connect(function()
+			local now = os.clock()
+			tracker.tail += 1
+			tracker.times[tracker.tail] = now
+			local cutoff = now - 1
+			while tracker.head <= tracker.tail and tracker.times[tracker.head] < cutoff do
+				tracker.times[tracker.head] = nil
+				tracker.head += 1
+			end
+			local frameCount = tracker.tail - tracker.head + 1
+			if frameCount <= 1 then
+				tracker.value = frameCount
+			else
+				local firstTime = tracker.times[tracker.head]
+				local span = now - (tonumber(firstTime) or now)
+				if span > 0 then
+					tracker.value = (frameCount - 1) / span
+				else
+					tracker.value = frameCount
+				end
+			end
+			if tracker.head > 2048 then
+				local compact = {}
+				local n = 0
+				for i = tracker.head, tracker.tail do
+					n += 1
+					compact[n] = tracker.times[i]
+				end
+				tracker.times = compact
+				tracker.head = 1
+				tracker.tail = n
+			end
+		end)
+		NAmanage._fpsTracker = tracker
+	end
+	return math.max(0, math.floor((tonumber(tracker.value) or 0) + 0.5))
+end
+
 cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
 	local T = NAstatsUI.Theme
 	NAstatsUI.createStatCommand({
@@ -28923,26 +29351,14 @@ end)
 
 cmd.add({ "fps" }, { "fps", "Shows your frames per second" }, function()
 	local T = NAstatsUI.Theme
-	local frameHistory = {}
 
 	NAstatsUI.createStatCommand({
 		key = "FPS",
 		title = "FPS",
 		subtitle = "Frames per second",
 		position = UDim2.new(0.5, 0, 0.36, 0),
-		updateFn = function(dt)
-			Insert(frameHistory, dt)
-			if #frameHistory > 60 then
-				table.remove(frameHistory, 1)
-			end
-
-			local sum = 0
-			for _, frameTime in ipairs(frameHistory) do
-				sum += frameTime
-			end
-			local avg = sum / math.max(1, #frameHistory)
-			local fps = math.floor(1 / avg + 0.5)
-
+		updateFn = function()
+			local fps = NAmanage.getRealFPS()
 			return tostring(fps), fps
 		end,
 		colorFn = function(fps)
@@ -28993,7 +29409,6 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 	pingBox.LayoutOrder = 1
 	fpsBox.LayoutOrder = 2
 
-	local frames = {}
 	local lastUpdate = 0
 	local updateInterval = 0.5
 
@@ -29017,22 +29432,13 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		return T.Colors.Bad
 	end
 
-	local conn = RunService.RenderStepped:Connect(function(dt)
-		Insert(frames, dt)
-		if #frames > 60 then
-			table.remove(frames, 1)
-		end
+	local conn = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
 		if t - lastUpdate < updateInterval then
 			return
 		end
 
-		local sum = 0
-		for i = 1, #frames do
-			sum += frames[i]
-		end
-		local avg = sum / math.max(1, #frames)
-		local fps = math.max(1, math.floor(1 / avg + 0.5))
+		local fps = NAmanage.getRealFPS()
 
 		local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
 		local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
@@ -29169,8 +29575,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local CONN_KEY = "CharDebug"
 	local RENDER_BIND = "CharDebug"
 
-	local LogService = SafeGetService("LogService")
-	local StatsService = SafeGetService("Stats")
+	local LogService = SafeGetService("LogService", false)
+	local StatsService = SafeGetService("Stats",false)
 	local CoreGui = SafeGetService("CoreGui")
 
 	local UI_BASE = Vector2.new(860, 520)
@@ -30225,7 +30631,7 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
-	local plrs = game:GetService("Players")
+	local plrs = cloneref(game:GetService("Players"))
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -34919,7 +35325,7 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		if GETCONS then
 			return
 		end
-		local VIM = SafeGetService("VirtualInputManager")
+		local VIM = SafeGetService("VirtualInputManager",false)
 		if not VIM then
 			return
 		end
@@ -42003,7 +42409,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = game.GetService(game,"Players")
+	local Players = cloneref(game.GetService(game,"Players"))
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -43855,7 +44261,7 @@ end)
 cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
 	local args = {...}
 	local target = args[1]
-	local vim=SafeGetService("VirtualInputManager");
+	local vim=SafeGetService("VirtualInputManager",false);
 	local keyMap = {
 		["leftcontrol"] = Enum.KeyCode.LeftControl,
 		["lcontrol"] = Enum.KeyCode.LeftControl,
@@ -43949,7 +44355,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = game.GetService(game,"Players")
+		local Players = cloneref(game.GetService(game,"Players"))
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
@@ -44614,7 +45020,6 @@ NA_GAMEPASS_GUI=nil
 cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
 	if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
 	local MarketplaceService=SafeGetService("MarketplaceService")
-	local Players=SafeGetService("Players")
 	local LocalPlayer=Players.LocalPlayer
 	local GROUP="GamePassesGUI"
 	NAlib.disconnect(GROUP)
@@ -44983,7 +45388,7 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 end,true)
 
 cmd.add({"vcworld","vcdefault"},{"vcworld <on/off>","Toggle default spatial voice routing"},function(mode)
-	local vcs = SafeGetService("VoiceChatService")
+	local vcs = SafeGetService("VoiceChatService",false)
 	local m = Lower(tostring(mode or ""))
 	if m ~= "on" and m ~= "off" then
 		DoNotif("Usage: vcworld <on/off>",2)
@@ -45096,7 +45501,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 		end
 
 		NAlib.connect("headsit_follow", RunService.Stepped:Connect(function()
-			if not SafeGetService("Players"):FindFirstChild(plr.Name)
+			if not Players:FindFirstChild(plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
 				or hum.Sit == false then
@@ -45195,7 +45600,7 @@ cmd.add({"unwallhop"},{"unwallhop","disable wallhop helper"},function()
 end)
 
 cmd.add({"joinvoice", "joinvc"},{"joinvoice","let's you use vc if you were suspended"},function()
-	SafeGetService("VoiceChatService"):joinVoice()
+	SafeGetService("VoiceChatService",false):joinVoice()
 end)
 
 cmd.add({"jump"},{"jump","jump."},function()
@@ -46564,7 +46969,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		return final..tostring(pad)
 	end
 	local function getTeleportRemote()
-		local RRS=SafeGetService("RobloxReplicatedStorage") or game:GetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage")
+		local RRS=SafeGetService("RobloxReplicatedStorage") or ReplicatedStorage:FindFirstChild("RobloxReplicatedStorage")
 		if not RRS then DoNotif("Missing RRS") return nil end
 		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
 		if not remote then DoNotif("Missing Teleport Remote") return nil end
@@ -48422,7 +48827,7 @@ end)
 
 cmd.add({"memory", "mem"}, {"memory", "Shows you your current memory usage"}, function(args)
 	--DoNotif(stats():GetTotalMemoryUsageMb().." mb",5,"Memory")
-	DoNotif(SafeGetService("Stats"):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
+	DoNotif(SafeGetService("Stats",false):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
 end, true)
 
 cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (nonilinstances, cni)","Removes nil instances"},function()
@@ -51063,17 +51468,17 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 				if reportplayer then
 					reportplayer(player, reason, Format("Saying %s", keyword))
 				else
-					SafeGetService("Players"):ReportAbuse(player, reason, Format("Saying %s", keyword))
+					Players:ReportAbuse(player, reason, Format("Saying %s", keyword))
 				end
 			end
 		end)
 	end
 
-	for _, player in ipairs(SafeGetService("Players"):GetPlayers()) do
+	for _, player in ipairs(Players:GetPlayers()) do
 		MonitorPlayerChat(player)
 	end
 
-	SafeGetService("Players").PlayerAdded:Connect(function(player)
+	Players.PlayerAdded:Connect(function(player)
 		MonitorPlayerChat(player)
 	end)
 end)
@@ -56462,8 +56867,6 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		run = nil,
 		cfg = nil
 	}
-
-	local Players = game:GetService("Players")
 
 	local argL = pArg and Lower(pArg) or ""
 	local targets = getPlr(pArg)
@@ -70783,7 +71186,7 @@ NAmanage.bindToDevConsole = function()
 			pendingProcessing = false;
 		end);
 	end;
-	local logService = SafeGetService("LogService");
+	local logService = SafeGetService("LogService", false);
 	do
 		local ok, history = pcall(function()
 			if logService then
@@ -70943,7 +71346,15 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 	if not NAmanage.BinderNeedsHumanoidHooks() then
 		return
 	end
-	NAStuff.bHum = NAStuff.bHum or {}
+	NAStuff.bHum = NAStuff.bHum or setmetatable({}, {
+		__mode = "k"
+	})
+	local bHumMeta = getmetatable(NAStuff.bHum)
+	if not (bHumMeta and bHumMeta.__mode == "k") then
+		setmetatable(NAStuff.bHum, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bHum[hum] then
 		return
 	end
@@ -70990,7 +71401,15 @@ originalIO.binderAttachToolListeners=function(plr, char)
 	if not NAmanage.BinderNeedsToolHooks() then
 		return
 	end
-	NAStuff.bTool = NAStuff.bTool or {}
+	NAStuff.bTool = NAStuff.bTool or setmetatable({}, {
+		__mode = "k"
+	})
+	local bToolMeta = getmetatable(NAStuff.bTool)
+	if not (bToolMeta and bToolMeta.__mode == "k") then
+		setmetatable(NAStuff.bTool, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bTool[char] then
 		return
 	end
@@ -71016,7 +71435,15 @@ originalIO.binderSetupCharacter=function(plr, char)
 	if not NAmanage.BinderNeedsCharacterHooks() then
 		return
 	end
-	NAStuff.bSet = NAStuff.bSet or {}
+	NAStuff.bSet = NAStuff.bSet or setmetatable({}, {
+		__mode = "k"
+	})
+	local bSetMeta = getmetatable(NAStuff.bSet)
+	if not (bSetMeta and bSetMeta.__mode == "k") then
+		setmetatable(NAStuff.bSet, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bSet[char] then
 		return
 	end
@@ -71055,6 +71482,107 @@ NAmanage.lcKey = NAmanage.lcKey or function(prefix, plr)
 	return prefix.."_"..id
 end
 
+NAmanage._charAddHub = NAmanage._charAddHub or {
+	q = {},
+	pending = {},
+	set = setmetatable({}, {
+		__mode = "k"
+	}),
+	head = 1,
+	tail = 0,
+	busy = false,
+	kick = false,
+}
+
+NAmanage._charAddRun = NAmanage._charAddRun or function()
+	local hub = NAmanage._charAddHub
+	if type(hub) ~= "table" then
+		return
+	end
+	if hub.busy then
+		return
+	end
+	hub.busy = true
+	Spawn(function()
+		while hub.head <= hub.tail do
+			local budget, waitDelay = NAmanage._evtHubBudget(72, {
+				delay = 0,
+				ldSc = 0.35,
+				ldDel = 0.01,
+			})
+			while budget > 0 and hub.head <= hub.tail do
+				local plr = hub.q[hub.head]
+				hub.q[hub.head] = nil
+				hub.head += 1
+				if plr then
+					hub.set[plr] = nil
+					local rec = hub.pending[plr]
+					hub.pending[plr] = nil
+					if rec then
+						local char = rec.char
+						local fireSpawn = rec.fireSpawn == true
+						if plr and char and plr.Parent and char.Parent and plr.Character == char then
+							if fireSpawn and NAmanage.BinderHasEntries("OnSpawn") then
+								NAmanage.ExecuteBindings("OnSpawn", plr, char)
+							end
+							if NAmanage.BinderNeedsCharacterHooks() then
+								originalIO.binderSetupCharacter(plr, char)
+							end
+						end
+					end
+				end
+				budget -= 1
+			end
+			if waitDelay > 0 then
+				Wait(waitDelay)
+			else
+				Wait()
+			end
+		end
+		hub.q = {}
+		hub.head = 1
+		hub.tail = 0
+		hub.busy = false
+	end)
+end
+
+NAmanage.queueCharacterWork = NAmanage.queueCharacterWork or function(plr, char, fireSpawn)
+	if not (plr and char and typeof(char) == "Instance") then
+		return
+	end
+	local hub = NAmanage._charAddHub
+	if type(hub) ~= "table" then
+		return
+	end
+	if type(hub.set) ~= "table" then
+		hub.set = setmetatable({}, {
+			__mode = "k"
+		})
+	end
+	if type(hub.pending) ~= "table" then
+		hub.pending = {}
+	end
+	local prev = hub.pending[plr]
+	hub.pending[plr] = {
+		char = char,
+		fireSpawn = fireSpawn == true or (prev and prev.fireSpawn == true) or false,
+	}
+	if hub.set[plr] then
+		return
+	end
+	hub.set[plr] = true
+	hub.tail += 1
+	hub.q[hub.tail] = plr
+	if hub.kick then
+		return
+	end
+	hub.kick = true
+	Defer(function()
+		hub.kick = false
+		NAmanage._charAddRun()
+	end)
+end
+
 function setupPlayer(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr)
 
@@ -71085,16 +71613,13 @@ function setupPlayer(plr,bruh)
 	end
 
 	NAlib.connect(charKey, plr.CharacterAdded:Connect(function(char)
-		if NAmanage.BinderHasEntries("OnSpawn") then
-			NAmanage.ExecuteBindings("OnSpawn", plr, char)
-		end
-		if NAmanage.BinderNeedsCharacterHooks() then
-			originalIO.binderSetupCharacter(plr, char)
+		if NAmanage.BinderHasEntries("OnSpawn") or NAmanage.BinderNeedsCharacterHooks() then
+			NAmanage.queueCharacterWork(plr, char, true)
 		end
 	end))
 
 	if not bruh and plr.Character and NAmanage.BinderNeedsCharacterHooks() then
-		originalIO.binderSetupCharacter(plr, plr.Character)
+		NAmanage.queueCharacterWork(plr, plr.Character, false)
 	end
 
 	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
@@ -71119,34 +71644,44 @@ end
 for _, plr in pairs(Players:GetPlayers()) do
 	setupPlayer(plr, true)
 	if plr.Character and NAmanage.BinderNeedsCharacterHooks() then
-		originalIO.binderSetupCharacter(plr, plr.Character)
+		NAmanage.queueCharacterWork(plr, plr.Character, false)
 	end
 end
 
 NAlib.disconnect("playerLifecycle")
-NAlib.connect("playerLifecycle", Players.PlayerAdded:Connect(function(plr)
-	setupPlayer(plr)
-	if NAmanage.WebhookJoinLeave then
-		NAmanage.WebhookJoinLeave(plr, "join")
-	end
-end))
-
-NAlib.connect("playerLifecycle", Players.PlayerRemoving:Connect(function(plr)
-	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_chat", plr))
-	NAlib.disconnect(NAmanage.lcKey("playerLifecycle_char", plr))
-	NAmanage.ExecuteBindings("OnLeave", plr)
-	NAmanage.ESP_Disconnect(plr)
-	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
-	if NAmanage.jlCfg.LeaveLog and not suppressJoinLeave then
-		local leaveMsg = nameChecker(plr).." has left the game."
-		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
-		DoNotif(leaveMsg, 1, categoryRT)
-		NAmanage.LogJoinLeave(leaveMsg)
-	end
-	if NAmanage.WebhookJoinLeave then
-		NAmanage.WebhookJoinLeave(plr, "leave")
-	end
-end))
+NAlib.connect("playerLifecycle", NAmanage.playersSub({
+	added = function(plr)
+		setupPlayer(plr)
+		if NAmanage.WebhookJoinLeave then
+			NAmanage.WebhookJoinLeave(plr, "join")
+		end
+	end,
+	removing = function(plr)
+		NAlib.disconnect(NAmanage.lcKey("playerLifecycle_chat", plr))
+		NAlib.disconnect(NAmanage.lcKey("playerLifecycle_char", plr))
+		local charHub = NAmanage._charAddHub
+		if type(charHub) == "table" then
+			if type(charHub.pending) == "table" then
+				charHub.pending[plr] = nil
+			end
+			if type(charHub.set) == "table" then
+				charHub.set[plr] = nil
+			end
+		end
+		NAmanage.ExecuteBindings("OnLeave", plr)
+		NAmanage.ESP_Disconnect(plr)
+		local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
+		if NAmanage.jlCfg.LeaveLog and not suppressJoinLeave then
+			local leaveMsg = nameChecker(plr).." has left the game."
+			local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
+			DoNotif(leaveMsg, 1, categoryRT)
+			NAmanage.LogJoinLeave(leaveMsg)
+		end
+		if NAmanage.WebhookJoinLeave then
+			NAmanage.WebhookJoinLeave(plr, "leave")
+		end
+	end,
+}))
 
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
@@ -74797,18 +75332,18 @@ originalIO.AssetsPreloadNA = function(opts)
 	end
 
 	local roots = {
-		game:GetService("ReplicatedStorage"),
-		game:GetService("ReplicatedFirst"),
-		game:GetService("Lighting"),
-		game:GetService("StarterGui"),
-		game:GetService("StarterPack"),
-		game:GetService("StarterPlayer"),
-		game:GetService("SoundService"),
-		game:GetService("Chat"),
-		game:GetService("TextChatService"),
+		SafeGetService("ReplicatedStorage",false),
+		SafeGetService("ReplicatedFirst",false),
+		SafeGetService("Lighting",false),
+		SafeGetService("StarterGui",false),
+		SafeGetService("StarterPack",false),
+		SafeGetService("StarterPlayer",false),
+		SafeGetService("SoundService",false),
+		SafeGetService("Chat",false),
+		SafeGetService("TextChatService",false),
 	}
 	if incWs then
-		roots[#roots + 1] = game:GetService("Workspace")
+		roots[#roots + 1] = workspace
 	end
 
 	for i = 1, #roots do
@@ -77467,7 +78002,6 @@ NAmanage.applyCrosshair = function()
 	end
 	if not NAStuff.CrosshairGui then
 		local gui = InstanceNew("ScreenGui")
-		gui.Name = "NA_Crosshair"
 		gui.IgnoreGuiInset = true
 		gui.ResetOnSpawn = false
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -77509,7 +78043,6 @@ NAmanage.applyCrosshair = function()
 	end
 
 	local center = line(thick, thick, UDim2.fromScale(0.5, 0.5))
-	center.Name = "Center"
 
 	line(thick, size, UDim2.new(0.5, 0, 0.5, -(gap + size / 2))) -- top
 	line(thick, size, UDim2.new(0.5, 0, 0.5,  (gap + size / 2))) -- bottom

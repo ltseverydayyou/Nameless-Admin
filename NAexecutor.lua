@@ -32,6 +32,9 @@ local NA_SRV = setmetatable({}, {
 			return x;
 		end;
 		local ok, svc = pcall(function()
+			if n == "Stats" or n == "VirtualInputManager" or n == "LogService" or n == "VoiceChatService" then
+				return game:GetService(n);
+			end;
 			return R(game:GetService(n));
 		end);
 		if ok and svc then
@@ -52,8 +55,8 @@ local function AttachEditor(cfg)
 	src.TextXAlignment = Enum.TextXAlignment.Left;
 	src.TextYAlignment = Enum.TextYAlignment.Top;
 	src.BackgroundTransparency = 1;
-	local TS = game:GetService("TextService");
-	local TweenService = game:GetService("TweenService");
+	local TS = cloneref(game:GetService("TextService"));
+	local TweenService = cloneref(game:GetService("TweenService"));
 	src.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			task.defer(function()

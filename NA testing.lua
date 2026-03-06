@@ -397,7 +397,9 @@ local NAStuff = {
 	cmdSearchSuspendUntil = 0;
 }
 
-local opt = {}
+local opt = {
+	NA_cloneref = nil;
+}
 
 local LoadstringCommandAliases = {
 	loadstring = true;
@@ -407,12 +409,22 @@ local LoadstringCommandAliases = {
 	execute = true;
 };
 
+opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
+NAmanage.NA_getServiceRef = opt.NA_cloneref and function(name)
+	if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
+		return game:GetService(name)
+	end
+	return opt.NA_cloneref(game:GetService(name))
+end or function(name)
+	return game:GetService(name)
+end
+NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
+	return game:GetService(name)
+end
+
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
-		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref) return ref end
-		local ok, svc = pcall(function()
-			return Reference(game:GetService(name))
-		end)
+		local ok, svc = pcall(NAmanage.NA_getServiceRef, name)
 		if ok and svc then
 			rawset(self, name, svc)
 			return svc
@@ -420,7 +432,20 @@ local NA_SRV = setmetatable({}, {
 	end
 })
 
-function SafeGetService(name)
+local NA_SRV_RAW = setmetatable({}, {
+	__index = function(self, name)
+		local ok, svc = pcall(NAmanage.NA_getServiceRaw, name)
+		if ok and svc then
+			rawset(self, name, svc)
+			return svc
+		end
+	end
+})
+
+function SafeGetService(name, useCloneRef)
+	if useCloneRef == false then
+		return NA_SRV_RAW[name]
+	end
 	return NA_SRV[name]
 end
 
@@ -451,11 +476,7 @@ end
 
 NAmanage.waitForPlay=function()
 	local function ready()
-		local ok, playersSvc = pcall(game.GetService, game, "Players")
-		if not ok or not playersSvc then
-			return nil
-		end
-		local localPlayer = playersSvc.LocalPlayer
+		local localPlayer = SafeGetService("Players").LocalPlayer
 		if not localPlayer or not localPlayer.Parent then
 			return nil
 		end
@@ -10760,10 +10781,9 @@ NAmanage.GetBasicInfoSnapshot = function()
 			local fetchUserId = userId
 			SpawnCall(function()
 				local resolved = "Unknown"
-				local okVoiceService, voiceService = pcall(game.GetService, game, "VoiceChatService")
-				if okVoiceService and voiceService and fetchUserId then
+				if fetchUserId then
 					local okVoice, voiceEnabled = pcall(function()
-						return voiceService:IsVoiceEnabledForUserIdAsync(fetchUserId)
+						return SafeGetService("VoiceChatService",false):IsVoiceEnabledForUserIdAsync(fetchUserId)
 					end)
 					if okVoice then
 						resolved = voiceEnabled and "Enabled" or "Disabled"
@@ -10917,7 +10937,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	local statsService = SafeGetService and SafeGetService("Stats") or nil
+	local statsService = SafeGetService("Stats",false) or nil
 	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
 		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
 		if pingStat then
@@ -27844,12 +27864,11 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = game.GetService(game,"Players")
+		local Players = cloneref(game.GetService(game,"Players"))
 		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
 			local Targets = {PlayerName}
-			local Players = game.GetService(game,"Players")
 			local Player = Players.LocalPlayer
 			local AllBool = false
 
@@ -28867,7 +28886,7 @@ end)
 NAstatsUI = {}
 windowCounter = (windowCounter or 0)
 windowRegistry = windowRegistry or {}
-StatsService = SafeGetService("Stats")
+StatsService = SafeGetService("Stats",false)
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -29276,6 +29295,56 @@ function NAstatsUI.createStatBox(parent, titleText)
 	return box, valueLabel, bar
 end
 
+NAmanage._fpsTracker = NAmanage._fpsTracker or nil
+
+NAmanage.getRealFPS = NAmanage.getRealFPS or function()
+	local tracker = NAmanage._fpsTracker
+	if not tracker then
+		tracker = {
+			times = {},
+			head = 1,
+			tail = 0,
+			value = 0,
+			conn = nil,
+		}
+		tracker.conn = RunService.RenderStepped:Connect(function()
+			local now = os.clock()
+			tracker.tail += 1
+			tracker.times[tracker.tail] = now
+			local cutoff = now - 1
+			while tracker.head <= tracker.tail and tracker.times[tracker.head] < cutoff do
+				tracker.times[tracker.head] = nil
+				tracker.head += 1
+			end
+			local frameCount = tracker.tail - tracker.head + 1
+			if frameCount <= 1 then
+				tracker.value = frameCount
+			else
+				local firstTime = tracker.times[tracker.head]
+				local span = now - (tonumber(firstTime) or now)
+				if span > 0 then
+					tracker.value = (frameCount - 1) / span
+				else
+					tracker.value = frameCount
+				end
+			end
+			if tracker.head > 2048 then
+				local compact = {}
+				local n = 0
+				for i = tracker.head, tracker.tail do
+					n += 1
+					compact[n] = tracker.times[i]
+				end
+				tracker.times = compact
+				tracker.head = 1
+				tracker.tail = n
+			end
+		end)
+		NAmanage._fpsTracker = tracker
+	end
+	return math.max(0, math.floor((tonumber(tracker.value) or 0) + 0.5))
+end
+
 cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
 	local T = NAstatsUI.Theme
 	NAstatsUI.createStatCommand({
@@ -29302,26 +29371,14 @@ end)
 
 cmd.add({ "fps" }, { "fps", "Shows your frames per second" }, function()
 	local T = NAstatsUI.Theme
-	local frameHistory = {}
 
 	NAstatsUI.createStatCommand({
 		key = "FPS",
 		title = "FPS",
 		subtitle = "Frames per second",
 		position = UDim2.new(0.5, 0, 0.36, 0),
-		updateFn = function(dt)
-			Insert(frameHistory, dt)
-			if #frameHistory > 60 then
-				table.remove(frameHistory, 1)
-			end
-
-			local sum = 0
-			for _, frameTime in ipairs(frameHistory) do
-				sum += frameTime
-			end
-			local avg = sum / math.max(1, #frameHistory)
-			local fps = math.floor(1 / avg + 0.5)
-
+		updateFn = function()
+			local fps = NAmanage.getRealFPS()
 			return tostring(fps), fps
 		end,
 		colorFn = function(fps)
@@ -29372,7 +29429,6 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 	pingBox.LayoutOrder = 1
 	fpsBox.LayoutOrder = 2
 
-	local frames = {}
 	local lastUpdate = 0
 	local updateInterval = 0.5
 
@@ -29396,22 +29452,13 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		return T.Colors.Bad
 	end
 
-	local conn = RunService.RenderStepped:Connect(function(dt)
-		Insert(frames, dt)
-		if #frames > 60 then
-			table.remove(frames, 1)
-		end
+	local conn = RunService.RenderStepped:Connect(function()
 		local t = os.clock()
 		if t - lastUpdate < updateInterval then
 			return
 		end
 
-		local sum = 0
-		for i = 1, #frames do
-			sum += frames[i]
-		end
-		local avg = sum / math.max(1, #frames)
-		local fps = math.max(1, math.floor(1 / avg + 0.5))
+		local fps = NAmanage.getRealFPS()
 
 		local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
 		local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
@@ -29548,8 +29595,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local CONN_KEY = "CharDebug"
 	local RENDER_BIND = "CharDebug"
 
-	local LogService = SafeGetService("LogService")
-	local StatsService = SafeGetService("Stats")
+	local LogService = SafeGetService("LogService", false)
+	local StatsService = SafeGetService("Stats",false)
 	local CoreGui = SafeGetService("CoreGui")
 
 	local UI_BASE = Vector2.new(860, 520)
@@ -30604,7 +30651,7 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
-	local plrs = game:GetService("Players")
+	local plrs = cloneref(game:GetService("Players"))
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -35298,7 +35345,7 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		if GETCONS then
 			return
 		end
-		local VIM = SafeGetService("VirtualInputManager")
+		local VIM = SafeGetService("VirtualInputManager",false)
 		if not VIM then
 			return
 		end
@@ -42382,7 +42429,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = game.GetService(game,"Players")
+	local Players = cloneref(game.GetService(game,"Players"))
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -44234,7 +44281,7 @@ end)
 cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
 	local args = {...}
 	local target = args[1]
-	local vim=SafeGetService("VirtualInputManager");
+	local vim=SafeGetService("VirtualInputManager",false);
 	local keyMap = {
 		["leftcontrol"] = Enum.KeyCode.LeftControl,
 		["lcontrol"] = Enum.KeyCode.LeftControl,
@@ -44328,7 +44375,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = game.GetService(game,"Players")
+		local Players = cloneref(game.GetService(game,"Players"))
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
@@ -44993,7 +45040,6 @@ NA_GAMEPASS_GUI=nil
 cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
 	if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
 	local MarketplaceService=SafeGetService("MarketplaceService")
-	local Players=SafeGetService("Players")
 	local LocalPlayer=Players.LocalPlayer
 	local GROUP="GamePassesGUI"
 	NAlib.disconnect(GROUP)
@@ -45362,7 +45408,7 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 end,true)
 
 cmd.add({"vcworld","vcdefault"},{"vcworld <on/off>","Toggle default spatial voice routing"},function(mode)
-	local vcs = SafeGetService("VoiceChatService")
+	local vcs = SafeGetService("VoiceChatService",false)
 	local m = Lower(tostring(mode or ""))
 	if m ~= "on" and m ~= "off" then
 		DoNotif("Usage: vcworld <on/off>",2)
@@ -45475,7 +45521,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 		end
 
 		NAlib.connect("headsit_follow", RunService.Stepped:Connect(function()
-			if not SafeGetService("Players"):FindFirstChild(plr.Name)
+			if not Players:FindFirstChild(plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
 				or hum.Sit == false then
@@ -45574,7 +45620,7 @@ cmd.add({"unwallhop"},{"unwallhop","disable wallhop helper"},function()
 end)
 
 cmd.add({"joinvoice", "joinvc"},{"joinvoice","let's you use vc if you were suspended"},function()
-	SafeGetService("VoiceChatService"):joinVoice()
+	SafeGetService("VoiceChatService",false):joinVoice()
 end)
 
 cmd.add({"jump"},{"jump","jump."},function()
@@ -46943,7 +46989,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		return final..tostring(pad)
 	end
 	local function getTeleportRemote()
-		local RRS=SafeGetService("RobloxReplicatedStorage") or game:GetService("ReplicatedStorage"):FindFirstChild("RobloxReplicatedStorage")
+		local RRS=SafeGetService("RobloxReplicatedStorage") or ReplicatedStorage:FindFirstChild("RobloxReplicatedStorage")
 		if not RRS then DoNotif("Missing RRS") return nil end
 		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
 		if not remote then DoNotif("Missing Teleport Remote") return nil end
@@ -48801,7 +48847,7 @@ end)
 
 cmd.add({"memory", "mem"}, {"memory", "Shows you your current memory usage"}, function(args)
 	--DoNotif(stats():GetTotalMemoryUsageMb().." mb",5,"Memory")
-	DoNotif(SafeGetService("Stats"):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
+	DoNotif(SafeGetService("Stats",false):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
 end, true)
 
 cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (nonilinstances, cni)","Removes nil instances"},function()
@@ -51442,17 +51488,17 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 				if reportplayer then
 					reportplayer(player, reason, Format("Saying %s", keyword))
 				else
-					SafeGetService("Players"):ReportAbuse(player, reason, Format("Saying %s", keyword))
+					Players:ReportAbuse(player, reason, Format("Saying %s", keyword))
 				end
 			end
 		end)
 	end
 
-	for _, player in ipairs(SafeGetService("Players"):GetPlayers()) do
+	for _, player in ipairs(Players:GetPlayers()) do
 		MonitorPlayerChat(player)
 	end
 
-	SafeGetService("Players").PlayerAdded:Connect(function(player)
+	Players.PlayerAdded:Connect(function(player)
 		MonitorPlayerChat(player)
 	end)
 end)
@@ -56841,8 +56887,6 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		run = nil,
 		cfg = nil
 	}
-
-	local Players = game:GetService("Players")
 
 	local argL = pArg and Lower(pArg) or ""
 	local targets = getPlr(pArg)
@@ -71162,7 +71206,7 @@ NAmanage.bindToDevConsole = function()
 			pendingProcessing = false;
 		end);
 	end;
-	local logService = SafeGetService("LogService");
+	local logService = SafeGetService("LogService", false);
 	do
 		local ok, history = pcall(function()
 			if logService then
@@ -75308,18 +75352,18 @@ originalIO.AssetsPreloadNA = function(opts)
 	end
 
 	local roots = {
-		game:GetService("ReplicatedStorage"),
-		game:GetService("ReplicatedFirst"),
-		game:GetService("Lighting"),
-		game:GetService("StarterGui"),
-		game:GetService("StarterPack"),
-		game:GetService("StarterPlayer"),
-		game:GetService("SoundService"),
-		game:GetService("Chat"),
-		game:GetService("TextChatService"),
+		SafeGetService("ReplicatedStorage",false),
+		SafeGetService("ReplicatedFirst",false),
+		SafeGetService("Lighting",false),
+		SafeGetService("StarterGui",false),
+		SafeGetService("StarterPack",false),
+		SafeGetService("StarterPlayer",false),
+		SafeGetService("SoundService",false),
+		SafeGetService("Chat",false),
+		SafeGetService("TextChatService",false),
 	}
 	if incWs then
-		roots[#roots + 1] = game:GetService("Workspace")
+		roots[#roots + 1] = workspace
 	end
 
 	for i = 1, #roots do
@@ -77978,7 +78022,6 @@ NAmanage.applyCrosshair = function()
 	end
 	if not NAStuff.CrosshairGui then
 		local gui = InstanceNew("ScreenGui")
-		gui.Name = "NA_Crosshair"
 		gui.IgnoreGuiInset = true
 		gui.ResetOnSpawn = false
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -78020,7 +78063,6 @@ NAmanage.applyCrosshair = function()
 	end
 
 	local center = line(thick, thick, UDim2.fromScale(0.5, 0.5))
-	center.Name = "Center"
 
 	line(thick, size, UDim2.new(0.5, 0, 0.5, -(gap + size / 2))) -- top
 	line(thick, size, UDim2.new(0.5, 0, 0.5,  (gap + size / 2))) -- bottom
