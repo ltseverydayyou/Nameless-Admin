@@ -394,6 +394,7 @@ local NAStuff = {
 	autofillRefocusGuard = 0;
 	cmdBarSelected = false;
 	cmdAutofillClickable = false;
+	cmdSearchSuspendUntil = 0;
 }
 
 local opt = {}
@@ -4865,6 +4866,8 @@ local CommandKeybindOptions = CommandKeybindOptions or {}
 local InstancesTbl = { click = {}; proxy = {}; touch = {}; }
 InstancesTbl.wsAdd = InstancesTbl.wsAdd or {}
 InstancesTbl.wsRem = InstancesTbl.wsRem or {}
+NAmanage._wsHEnabledAdd = NAmanage._wsHEnabledAdd or {}
+NAmanage._wsHEnabledRem = NAmanage._wsHEnabledRem or {}
 NAmanage._wsHCounts = NAmanage._wsHCounts or { add = 0, rem = 0 }
 do
 	local cAdd, cRem = 0, 0
@@ -4882,21 +4885,70 @@ do
 	NAmanage._wsHCounts.rem = cRem
 end
 
-NAmanage.hasWsH = NAmanage.hasWsH or function(kind)
-	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
-	if kind == "rem" or kind == "remove" or kind == "removing" then
-		return (tonumber(counts.rem) or 0) > 0
+NAmanage._wsHEvalGate = function(gate)
+	if gate == nil then
+		return true
 	end
-	return (tonumber(counts.add) or 0) > 0
+	if type(gate) == "boolean" then
+		return gate == true
+	end
+	if type(gate) == "function" then
+		local ok, active = pcall(gate)
+		return ok and active == true
+	end
+	return false
 end
 
-NAmanage.setWsH = NAmanage.setWsH or function(key, spec)
+NAmanage._wsHIsActive = function(kind, key)
+	local addKind = not (kind == "rem" or kind == "remove" or kind == "removing")
+	local handler = addKind and InstancesTbl.wsAdd[key] or InstancesTbl.wsRem[key]
+	if type(handler) ~= "function" then
+		return false
+	end
+	local gates = addKind and NAmanage._wsHEnabledAdd or NAmanage._wsHEnabledRem
+	return NAmanage._wsHEvalGate(gates and gates[key])
+end
+
+NAmanage.hasWsH = function(kind)
+	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
+	if kind == "rem" or kind == "remove" or kind == "removing" then
+		if (tonumber(counts.rem) or 0) <= 0 then
+			return false
+		end
+		for key, fn in pairs(InstancesTbl.wsRem or {}) do
+			if type(fn) == "function" and NAmanage._wsHIsActive("rem", key) then
+				return true
+			end
+		end
+		return false
+	end
+	if (tonumber(counts.add) or 0) <= 0 then
+		return false
+	end
+	for key, fn in pairs(InstancesTbl.wsAdd or {}) do
+		if type(fn) == "function" and NAmanage._wsHIsActive("add", key) then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.setWsH = function(key, spec)
 	if type(key) ~= "string" or key == "" then
 		return
 	end
 	spec = type(spec) == "table" and spec or {}
 	local onAdded = type(spec.added) == "function" and spec.added or nil
 	local onRemoving = type(spec.removing) == "function" and spec.removing or nil
+	local gateShared = spec.enabled
+	local gateAdd = spec.enabledAdded
+	if gateAdd == nil then
+		gateAdd = gateShared
+	end
+	local gateRem = spec.enabledRemoving
+	if gateRem == nil then
+		gateRem = gateShared
+	end
 	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
 	local prevAdded = InstancesTbl.wsAdd[key]
 	local prevRemoving = InstancesTbl.wsRem[key]
@@ -4913,9 +4965,19 @@ NAmanage.setWsH = NAmanage.setWsH or function(key, spec)
 	NAmanage._wsHCounts = counts
 	InstancesTbl.wsAdd[key] = onAdded
 	InstancesTbl.wsRem[key] = onRemoving
+	if onAdded then
+		NAmanage._wsHEnabledAdd[key] = gateAdd
+	else
+		NAmanage._wsHEnabledAdd[key] = nil
+	end
+	if onRemoving then
+		NAmanage._wsHEnabledRem[key] = gateRem
+	else
+		NAmanage._wsHEnabledRem[key] = nil
+	end
 end
 
-NAmanage.clrWsH = NAmanage.clrWsH or function(key)
+NAmanage.clrWsH = function(key)
 	if type(key) ~= "string" or key == "" then
 		return
 	end
@@ -4929,6 +4991,8 @@ NAmanage.clrWsH = NAmanage.clrWsH or function(key)
 	NAmanage._wsHCounts = counts
 	InstancesTbl.wsAdd[key] = nil
 	InstancesTbl.wsRem[key] = nil
+	NAmanage._wsHEnabledAdd[key] = nil
+	NAmanage._wsHEnabledRem[key] = nil
 end
 
 local Notification = nil
@@ -5887,6 +5951,7 @@ local lastSearchText, gen = "", 0
 local searchInputTarget
 local aliasExactCache, aliasPrefixCache = {}, {}
 local savedExactCache, savedPrefixCache = {}, {}
+local aliasOwnerByAlias, savedOwnerByAlias = {}, {}
 
 NAmanage.defaultCommandMatches=function(entry, target)
 	if not (entry and target) then
@@ -7014,6 +7079,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	NAmanage.setWsH("CornerEditor_World", {
+		enabled = function()
+			return CE.data.enabled == true
+		end,
 		added = function(o)
 			onCBB(o)
 			onCSurf(o)
@@ -8755,6 +8823,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	NAmanage.setWsH("FontEditor_World", {
+		enabled = function()
+			return FontEditor.data.enabled == true
+		end,
 		added = function(o)
 			onFontBillboardAdded(o)
 			onFontSurfaceAdded(o)
@@ -17564,6 +17635,26 @@ NAmanage.rebuildIndex=function()
 	end
 end
 
+NAmanage.rebuildSearchAliasCache = function()
+	table.clear(aliasOwnerByAlias)
+	table.clear(savedOwnerByAlias)
+	local dataToName = {}
+	for cmdName, data in pairs(cmds.Commands or {}) do
+		dataToName[data] = cmdName
+	end
+	for alias, data in pairs(cmds.Aliases or {}) do
+		local owner = dataToName[data]
+		if owner then
+			aliasOwnerByAlias[alias] = owner
+		end
+	end
+	for alias, original in pairs(cmds.NASAVEDALIASES or {}) do
+		if type(original) == "string" and original ~= "" then
+			savedOwnerByAlias[alias] = original
+		end
+	end
+end
+
 NAmanage.ControlLock_FromString = function(s)
 	NAStuff._ctrlLockList = {}
 	NAStuff._ctrlLockSet = {}
@@ -18324,6 +18415,22 @@ cmd.run = function(args)
 		rawArgs[i] = v
 	end
 
+	local function bumpRichPresenceAsync()
+		if type(NAmanage.btBump) == "function" then
+			task.defer(function()
+				pcall(NAmanage.btBump)
+			end)
+		end
+	end
+
+	local function sendWebhookAsync(payloadArgs)
+		if type(NAmanage.WebhookCommand) == "function" then
+			task.defer(function()
+				pcall(NAmanage.WebhookCommand, payloadArgs)
+			end)
+		end
+	end
+
 	local caller, arguments = args[1], args
 	table.remove(args, 1)
 
@@ -18334,21 +18441,17 @@ cmd.run = function(args)
 		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
 		if command then
 			command[1](unpack(arguments))
-			NAmanage.btBump()
+			bumpRichPresenceAsync()
 			if shouldRecord then
 				NAmanage.updateLastCommand(rawArgs)
 			end
-			if NAmanage.WebhookCommand then
-				NAmanage.WebhookCommand(rawArgs)
-			end
+			sendWebhookAsync(rawArgs)
 		else
 			if NAmanage.tryCmdIntegration(rawArgs) then
 				if shouldRecord then
 					NAmanage.updateLastCommand(rawArgs)
 				end
-				if NAmanage.WebhookCommand then
-					NAmanage.WebhookCommand(rawArgs)
-				end
+				sendWebhookAsync(rawArgs)
 				return
 			end
 			local closest = callerLower and didYouMean(callerLower) or nil
@@ -20364,12 +20467,24 @@ function round(num,numDecimalPlaces)
 	return math.floor(num*mult+0.5) / mult
 end
 
-function getPlaceInfo()
+function getPlaceInfo(forceRefresh)
+	local cachedInfo = NAStuff and NAStuff._placeInfoCache
+	if not forceRefresh and type(cachedInfo) == "table" then
+		return cachedInfo
+	end
+
 	local success, result = pcall(function()
 		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
 	end)
 
-	if not success then return nil end
+	if not success or type(result) ~= "table" then
+		return cachedInfo
+	end
+
+	if NAStuff then
+		NAStuff._placeInfoCache = result
+		NAStuff._placeInfoCacheAt = os.clock()
+	end
 
 	return result
 end
@@ -20401,6 +20516,12 @@ function placeIconAssetId()
 	end
 	return nil
 end
+
+Defer(function()
+	if NAmanage and NAmanage.btEnabled and NAmanage.btEnabled() then
+		pcall(getPlaceInfo)
+	end
+end)
 
 function SaveUIStroke(color)
 	if typeof(color) ~= "Color3" then
@@ -66501,47 +66622,55 @@ NAgui.menuv3 = function(menu)
 	end
 end
 
+NAmanage.setCmdAutofillItemInteractivity = function(frame, enabled)
+	if not (frame and frame.Parent and frame:IsA("GuiObject")) then
+		return
+	end
+	local isEnabled = enabled == true
+	pcall(function()
+		frame.Active = isEnabled
+	end)
+	pcall(function()
+		frame.Selectable = isEnabled
+	end)
+	if frame:IsA("GuiButton") then
+		pcall(function()
+			frame.AutoButtonColor = isEnabled
+		end)
+	end
+
+	local inputObj = frame:FindFirstChild("Input")
+	if inputObj and inputObj:IsA("GuiObject") then
+		pcall(function()
+			inputObj.Active = isEnabled
+		end)
+		pcall(function()
+			inputObj.Selectable = isEnabled
+		end)
+		if inputObj:IsA("GuiButton") then
+			pcall(function()
+				inputObj.AutoButtonColor = isEnabled
+			end)
+		end
+	end
+end
+
 NAgui.hideFill = function()
-	for i, v in ipairs(CMDAUTOFILL) do
-		if v:IsA("Frame") then
+	for i = 1, #prevVisible do
+		local v = prevVisible[i]
+		if v and v.Parent and v:IsA("GuiObject") then
 			v.Visible = false
 		end
 	end
+	table.clear(prevVisible)
 end
 
 NAmanage.setCmdAutofillClickable = function(enabled)
 	local isEnabled = enabled == true
 	NAStuff.cmdAutofillClickable = isEnabled
 
-	for _, frame in ipairs(CMDAUTOFILL) do
-		if frame and frame.Parent and frame:IsA("GuiObject") then
-			pcall(function()
-				frame.Active = isEnabled
-			end)
-			pcall(function()
-				frame.Selectable = isEnabled
-			end)
-			if frame:IsA("GuiButton") then
-				pcall(function()
-					frame.AutoButtonColor = isEnabled
-				end)
-			end
-
-			local inputObj = frame:FindFirstChild("Input")
-			if inputObj and inputObj:IsA("GuiObject") then
-				pcall(function()
-					inputObj.Active = isEnabled
-				end)
-				pcall(function()
-					inputObj.Selectable = isEnabled
-				end)
-				if inputObj:IsA("GuiButton") then
-					pcall(function()
-						inputObj.AutoButtonColor = isEnabled
-					end)
-				end
-			end
-		end
+	for i = 1, #prevVisible do
+		NAmanage.setCmdAutofillItemInteractivity(prevVisible[i], isEnabled)
 	end
 end
 
@@ -66567,12 +66696,27 @@ NAgui.loadCMDS = function()
 		end
 	end
 	NAmanage.setCmdAutofillClickable(false)
-	for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
-		if v:IsA("GuiObject") and v.Name ~= "UIListLayout" then
+	local trackedCount = #CMDAUTOFILL
+	for i = 1, trackedCount do
+		local v = CMDAUTOFILL[i]
+		if v and v.Parent then
 			v:Destroy()
 		end
+		CMDAUTOFILL[i] = nil
 	end
-	local layout = NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill:FindFirstChildOfClass("UIListLayout")
+	table.clear(prevVisible)
+	if trackedCount == 0 and NAUIMANAGER and NAUIMANAGER.cmdAutofill then
+		for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
+			if v:IsA("GuiObject") and v.Name ~= "UIListLayout" and v ~= NAUIMANAGER.cmdExample then
+				v:Destroy()
+			end
+		end
+	end
+	local layout = NAStuff.cmdAutofillLayout
+	if not (layout and layout.Parent == NAUIMANAGER.cmdAutofill) then
+		layout = NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill:FindFirstChildOfClass("UIListLayout")
+		NAStuff.cmdAutofillLayout = layout
+	end
 	if layout then
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 	end
@@ -66699,6 +66843,7 @@ NAgui.loadCMDS = function()
 		end
 		i += 1
 		btn.LayoutOrder = i
+		NAmanage.setCmdAutofillItemInteractivity(btn, false)
 		wireAutofillClick(btn, btn.Input, name)
 		Insert(CMDAUTOFILL, btn)
 		if i % batchSize == 0 then
@@ -66709,6 +66854,7 @@ NAgui.loadCMDS = function()
 	cmdNAnum = i
 	NAgui.hideFill()
 	NAmanage.rebuildIndex()
+	NAmanage.rebuildSearchAliasCache()
 	NAStuff.cmdAutofillLoading = false
 	if cmdInput then
 		pcall(function()
@@ -66909,15 +67055,29 @@ NAgui.barDeselect = function(speed)
 		Size = UDim2.new(0, 0, fillSizes.right.Y.Scale, fillSizes.right.Y.Offset)
 	})
 
-	for i, v in ipairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
-		if v:IsA("Frame") then
-			wrap(function()
-				Wait(math.random(50, 120) / 1000)
-				NAgui.tween(v, "Exponential", "In", 0.25, {
-					Size = UDim2.new(0, 0, 0, 25)
-				})
-			end)
+	local hadVisible = false
+	local toHide = {}
+	for i = 1, #prevVisible do
+		local v = prevVisible[i]
+		if v and v.Parent and v:IsA("Frame") then
+			hadVisible = true
+			toHide[#toHide + 1] = v
+			NAgui.tween(v, "Exponential", "In", 0.12, {
+				Size = UDim2.new(0, 0, 0, 25)
+			})
 		end
+	end
+	table.clear(prevVisible)
+	task.delay(0.14, function()
+		for i = 1, #toHide do
+			local frame = toHide[i]
+			if frame and frame.Parent and frame:IsA("GuiObject") then
+				frame.Visible = false
+			end
+		end
+	end)
+	if not hadVisible then
+		NAgui.hideFill()
 	end
 	if NAUIMANAGER and NAUIMANAGER.cmdInput then
 		NAUIMANAGER.cmdInput:ReleaseFocus()
@@ -67055,6 +67215,7 @@ NAmanage.performSearch = function(term)
 		if not frame then return end
 		Insert(prevVisible, frame)
 		frame.Visible = true
+		NAmanage.setCmdAutofillItemInteractivity(frame, NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true)
 		local w = math.sqrt(index) * 125
 		local y = (index - 1) * 28
 		local pos = UDim2.new(0.5, w, 0, y)
@@ -67112,22 +67273,18 @@ NAmanage.performSearch = function(term)
 	table.clear(savedExactCache)
 	table.clear(aliasPrefixCache)
 	table.clear(savedPrefixCache)
-	local dataToName = {}
-	for cmdName, data in pairs(cmds.Commands or {}) do
-		dataToName[data] = cmdName
+	if next(aliasOwnerByAlias) == nil and next(cmds.Aliases or {}) ~= nil then
+		NAmanage.rebuildSearchAliasCache()
 	end
-	for alias, data in pairs(cmds.Aliases or {}) do
-		local targetName = dataToName[data]
-		if targetName then
-			if alias == term then
-				aliasExactCache[targetName] = alias
-			end
-			if Sub(alias,1,len) == term then
-				aliasPrefixCache[targetName] = alias
-			end
+	for alias, targetName in pairs(aliasOwnerByAlias) do
+		if alias == term then
+			aliasExactCache[targetName] = alias
+		end
+		if Sub(alias,1,len) == term then
+			aliasPrefixCache[targetName] = alias
 		end
 	end
-	for alias, original in pairs(cmds.NASAVEDALIASES or {}) do
+	for alias, original in pairs(savedOwnerByAlias) do
 		if alias == term then
 			savedExactCache[original] = alias
 		end
@@ -67199,11 +67356,14 @@ NAgui.searchCommands = function()
 	if NAlib.isConnected("SearchInput") then NAlib.disconnect("SearchInput") end
 	searchInputTarget = NAUIMANAGER.cmdInput
 	NAlib.connect("SearchInput",NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
+		local suspendedUntil = tonumber(NAStuff.cmdSearchSuspendUntil) or 0
+		if suspendedUntil > 0 and os.clock() < suspendedUntil then
+			return
+		end
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
 		local trimmed = cleaned:gsub("%s+$", "")
 		local query = (trimmed ~= "" and trimmed) or cleaned
 		shouldShowDefaultAutofill = cleaned == ""
-		local isBlank = cleaned == "" or cleaned:match("^%s*$")
 		if query == lastSearchText then
 			return
 		end
@@ -67212,6 +67372,25 @@ NAgui.searchCommands = function()
 		local thisGen = gen
 		Delay(0.08,function()
 			if thisGen ~= gen then return end
+			local now = os.clock()
+			local suspendedUntil = tonumber(NAStuff.cmdSearchSuspendUntil) or 0
+			if suspendedUntil > 0 and now < suspendedUntil then
+				return
+			end
+			local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+			if not box then
+				return
+			end
+			local focused = false
+			local okFocused, isFocusedNow = pcall(function()
+				return box:IsFocused()
+			end)
+			if okFocused and isFocusedNow then
+				focused = true
+			end
+			if not focused and NAStuff.cmdBarSelected ~= true then
+				return
+			end
 			NAmanage.performSearch(query)
 		end)
 	end))
@@ -67234,6 +67413,7 @@ end
 if NAUIMANAGER.cmdInput then
 	NAlib.disconnect("cmdbar_input_focused")
 	NAlib.connect("cmdbar_input_focused", NAUIMANAGER.cmdInput.Focused:Connect(function()
+		NAStuff.cmdSearchSuspendUntil = 0
 		Delay(0, NAgui.autoFILLLL)
 	end))
 end
@@ -67424,11 +67604,20 @@ NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(f
 		return
 	end
 	if enter then
-		local txt = NAUIMANAGER.cmdInput.Text
+		NAStuff.cmdSearchSuspendUntil = os.clock() + 0.35
+		gen += 1
+		local txt = NAmanage.stripChar(NAUIMANAGER.cmdInput.Text or "")
 		if txt and #txt > 0 then
-			wrap(function()
-				NAlib.parseCommand(opt.prefix..txt)
-			end)
+			local prefix = tostring(opt.prefix or "")
+			if prefix ~= "" then
+				local escapedPrefix = (NAmanage.StreamerEscapePattern and NAmanage.StreamerEscapePattern(prefix)) or prefix:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+				txt = txt:gsub("^%s*"..escapedPrefix.."+%s*", "")
+			end
+			if txt ~= "" then
+				task.defer(function()
+					NAlib.parseCommand(prefix..txt)
+				end)
+			end
 		end
 	end
 	if predictionInput then
@@ -67445,6 +67634,11 @@ end))
 NAlib.disconnect("cmdbar_input_text")
 NAlib.connect("cmdbar_input_text", NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(function()
 	if not NAUIMANAGER.cmdInput then
+		return
+	end
+
+	local suspendedUntil = tonumber(NAStuff.cmdSearchSuspendUntil) or 0
+	if suspendedUntil > 0 and os.clock() < suspendedUntil then
 		return
 	end
 
@@ -70933,8 +71127,9 @@ end))
 		if type(handlers) ~= "table" then
 			return;
 		end;
-		for _, fn in pairs(handlers) do
-			if type(fn) == "function" then
+		local gateKind = (kind == "added") and "add" or "rem"
+		for key, fn in pairs(handlers) do
+			if type(fn) == "function" and (not NAmanage._wsHIsActive or NAmanage._wsHIsActive(gateKind, key)) then
 				pcall(fn, inst);
 			end;
 		end;
@@ -79576,11 +79771,10 @@ end
 NAStuff.RobloxVersionEndpoints = {
 	"https://weao.xyz/api/versions/current";
 	"http://weao.xyz/api/versions/current";
-	"https://itseverydayyou.github.io/.well-known/weao/versions.json";
+	"https://ltseverydayyou.github.io/.well-known/weao/versions.json";
+	"https://cdn.jsdelivr.net/gh/ltseverydayyou/ltseverydayyou.github.io@main/.well-known/weao/versions.json";
 	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
 	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/main/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/Itseverydayyou/Itseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
 }
 
 if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
@@ -79879,43 +80073,170 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		return true, cached
 	end
 
+	local function decodeAndCache(body)
+		if type(body) ~= "string" or body == "" then
+			return nil
+		end
+		local decoded = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body))
+		if decoded then
+			NAStuff.RobloxVersionData = decoded
+			NAStuff.RobloxVersionLastFetch = tick()
+			return decoded
+		end
+		return nil
+	end
+
+	local function extractResponseBody(response)
+		if type(response) == "string" then
+			return response
+		end
+		if type(response) ~= "table" then
+			return nil
+		end
+		local body = response.Body
+			or response.body
+			or response.Data
+			or response.data
+			or response.Text
+			or response.text
+			or response.Content
+			or response.content
+			or response.ResponseBody
+			or response.responseBody
+			or response[1]
+		if type(body) == "table" then
+			body = body.Body
+				or body.body
+				or body.Data
+				or body.data
+				or body.Text
+				or body.text
+				or body.Content
+				or body.content
+				or body.ResponseBody
+				or body.responseBody
+				or body[1]
+		end
+		return type(body) == "string" and body or nil
+	end
+
+	local function statusOk(response)
+		if type(response) ~= "table" then
+			return true
+		end
+		local code = tonumber(response.StatusCode)
+			or tonumber(response.Status)
+			or tonumber(response.statusCode)
+			or tonumber(response.status)
+			or tonumber(response.Code)
+			or tonumber(response.code)
+		if not code then
+			return true
+		end
+		return code >= 200 and code < 300
+	end
+
 	local requestFunc = opt and opt.NAREQUEST
-	for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
-		if baseUrl and baseUrl ~= "" then
-			local url = baseUrl..((Find(baseUrl, "?", 1, true) and "&" or "?").."_="..tostring(os.time())..tostring(math.random(1,1e6)))
-				if requestFunc then
-					local ok1, response = pcall(requestFunc, { Url = url; Method = "GET"; Headers = NAStuff.RobloxVersionHeaders; Timeout = 6; FollowRedirects = true; SslVerify = false; })
-					if ok1 and response then
-						local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
-						body = tostring(body or "")
-						local decoded = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body))
+	local function tryRequest(url, payload)
+		if type(requestFunc) ~= "function" then
+			return nil
+		end
+		local okReq, response = pcall(requestFunc, payload)
+		if not (okReq and response and statusOk(response)) then
+			return nil
+		end
+		local body = extractResponseBody(response)
+		return decodeAndCache(body)
+	end
+
+	local function tryGetAsync(url)
+		if not (HttpService and type(HttpService.GetAsync) == "function") then
+			return nil
+		end
+		local okHttp, body = pcall(HttpService.GetAsync, HttpService, url)
+		if okHttp and type(body) == "string" then
+			return decodeAndCache(body)
+		end
+		return nil
+	end
+
+	local function tryHttpGet(url)
+		local okHttp, body = pcall(function()
+			return game and game.HttpGet and game:HttpGet(url)
+		end)
+		if okHttp and type(body) == "string" then
+			return decodeAndCache(body)
+		end
+		return nil
+	end
+
+	local requestPayloads = {
+		function(url)
+			return {
+				Url = url;
+				Method = "GET";
+				Headers = NAStuff.RobloxVersionHeaders;
+				Timeout = 8;
+				FollowRedirects = true;
+				SslVerify = false;
+			}
+		end;
+		function(url)
+			return {
+				Url = url;
+				Method = "GET";
+				Headers = { ["Accept"] = "application/json" };
+				Timeout = 8;
+				FollowRedirects = true;
+				SslVerify = false;
+			}
+		end;
+		function(url)
+			return {
+				Url = url;
+				Method = "GET";
+				Headers = { ["Accept"] = "application/json" };
+			}
+		end;
+		function(url)
+			return {
+				Url = url;
+				Method = "GET";
+			}
+		end;
+		function(url)
+			return {
+				url = url;
+				method = "GET";
+			}
+		end;
+	}
+
+	local attempts = forceRefresh and 1 or 2
+	for attempt = 1, attempts do
+		for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
+			if baseUrl and baseUrl ~= "" then
+				local url = baseUrl..((Find(baseUrl, "?", 1, true) and "&" or "?").."_="..tostring(os.time())..tostring(math.random(1,1e6)))
+				if type(requestFunc) == "function" then
+					for i = 1, #requestPayloads do
+						local decoded = tryRequest(url, requestPayloads[i](url))
 						if decoded then
-							NAStuff.RobloxVersionData = decoded
-							NAStuff.RobloxVersionLastFetch = tick()
 							return true, decoded
 						end
 					end
-					local ok2, response2 = pcall(requestFunc, { Url = url; Method = "GET"; Headers = {["Accept"]="application/json"}; Timeout = 6; FollowRedirects = true; SslVerify = false; })
-					if ok2 and response2 then
-						local body2 = response2.Body or response2.body or response2.Data or response2.data or response2.Text or response2.text or response2.Content or response2.content or response2[1]
-						body2 = tostring(body2 or "")
-						local decoded2 = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body2))
-						if decoded2 then
-							NAStuff.RobloxVersionData = decoded2
-							NAStuff.RobloxVersionLastFetch = tick()
-							return true, decoded2
-						end
-					end
 				end
-				local ok3, body3 = pcall(function() return game and game.HttpGet and game:HttpGet(url) end)
-				if ok3 and type(body3) == "string" then
-					local decoded3 = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body3))
-					if decoded3 then
-						NAStuff.RobloxVersionData = decoded3
-						NAStuff.RobloxVersionLastFetch = tick()
-						return true, decoded3
-					end
+				local decodedAsync = tryGetAsync(url)
+				if decodedAsync then
+					return true, decodedAsync
+				end
+				local decodedHttpGet = tryHttpGet(url)
+				if decodedHttpGet then
+					return true, decodedHttpGet
+				end
 			end
+		end
+		if attempt < attempts then
+			Wait(0.15)
 		end
 	end
 
