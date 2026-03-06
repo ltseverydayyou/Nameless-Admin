@@ -40513,7 +40513,7 @@ cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer
 end)
 
 cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
-	local BadgeService = SafeGetService("BadgeService")
+	local BadgeService = SafeGetService("BadgeService",false)
 	local Player = Players.LocalPlayer
 
 	local COLORS = {
@@ -40564,6 +40564,49 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			delay = delay * 1.6
 		end
 		return false, nil
+	end
+
+	local function checkBadgesBatchWithRetry(userId, badgeIds)
+		local canBatch = type(BadgeService.CheckUserBadgesAsync) == "function"
+		if canBatch then
+			local tries, delay = 0, 1
+			while tries < 4 do
+				tries += 1
+				local ok, ownedIds = pcall(BadgeService.CheckUserBadgesAsync, BadgeService, userId, badgeIds)
+				if ok then
+					local results = {}
+					for _, badgeId in ipairs(badgeIds) do
+						results[badgeId] = false
+					end
+					for _, ownedId in ipairs(ownedIds or {}) do
+						results[ownedId] = true
+						cachePut(userId, ownedId, true)
+					end
+					for _, badgeId in ipairs(badgeIds) do
+						if results[badgeId] ~= true then
+							cachePut(userId, badgeId, false)
+						end
+					end
+					return true, results
+				end
+				Wait(delay)
+				delay = math.min(delay * 1.8, 8)
+			end
+			return false, nil
+		end
+
+		local anySuccess = false
+		local results = {}
+		for _, badgeId in ipairs(badgeIds) do
+			local ok, has = hasBadgeWithRetry(userId, badgeId)
+			if ok then
+				anySuccess = true
+				results[badgeId] = has
+			else
+				results[badgeId] = nil
+			end
+		end
+		return anySuccess, results
 	end
 
 	local function getBadges()
@@ -40934,6 +40977,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local idToCards = {}
 		local badgesData = data
 		local gridBuilt = false
+		local ownershipRunId = 0
 
 		local function mkToolBtn(parent, label, cb)
 			local b = InstanceNew("TextButton", parent)
@@ -41342,55 +41386,90 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		NAgui.dragger(main, header)
 
 		local function runOwnershipChecks(dataset)
+			ownershipRunId += 1
+			local runId = ownershipRunId
 			loadingOverlay.Visible = true
-			local pending = #dataset
-			if pending == 0 then
+			local total = #dataset
+			loadingText.Text = "Loading..."
+			if total == 0 then
 				loadingOverlay.Visible = false
+				loadingText.Text = "Loading..."
 				refreshBtn.AutoButtonColor = true
 				refreshBtn.Text = "Refresh"
 				refreshBtn.Active = true
 				return
 			end
-			local active = 0
-			local maxActive = 12
-			local idx = 1
-			local function step()
-				while active < maxActive and idx <= #dataset do
-					local b = dataset[idx]
-					idx += 1
-					active += 1
-					Spawn(function()
-						local ok, has = hasBadgeWithRetry(Player.UserId, b.id)
-						if ok then
-							ownedMap[b.id] = has
-							if has then applyOwnedVisualsFor(b.id) end
-						else
-							ownedMap[b.id] = nil
+			local batchSize = type(BadgeService.CheckUserBadgesAsync) == "function" and 10 or 1
+
+			Spawn(function()
+				local processed = 0
+				local failedBatches = 0
+				while processed < total do
+					if runId ~= ownershipRunId or not sgui.Parent then
+						return
+					end
+
+					local badgeIds = {}
+					local upper = math.min(processed + batchSize, total)
+					for i = processed + 1, upper do
+						Insert(badgeIds, dataset[i].id)
+					end
+
+					loadingText.Text = ("Loading... %d/%d"):format(processed, total)
+					local ok, results = checkBadgesBatchWithRetry(Player.UserId, badgeIds)
+					if ok and results then
+						for _, badgeId in ipairs(badgeIds) do
+							local has = results[badgeId]
+							ownedMap[badgeId] = has
+							if has == true then
+								applyOwnedVisualsFor(badgeId)
+							end
 						end
-						active -= 1
-						pending -= 1
-						if ownedOnly or unownedOnly then applyFilters() end
-						if pending <= 0 then
-							loadingOverlay.Visible = false
-							refreshBtn.AutoButtonColor = true
-							refreshBtn.Text = "Refresh"
-							refreshBtn.Active = true
-							setStatLabel()
-						else
-							step()
+					else
+						failedBatches += 1
+						for _, badgeId in ipairs(badgeIds) do
+							ownedMap[badgeId] = nil
 						end
-					end)
+					end
+
+					processed = upper
+					loadingText.Text = ("Loading... %d/%d"):format(processed, total)
+					if ownedOnly or unownedOnly then
+						applyFilters()
+					else
+						setStatLabel()
+					end
+
+					if processed < total then
+						Wait(0.1)
+					end
 				end
-			end
-			step()
+
+				if runId ~= ownershipRunId or not sgui.Parent then
+					return
+				end
+
+				loadingOverlay.Visible = false
+				loadingText.Text = "Loading..."
+				refreshBtn.AutoButtonColor = true
+				refreshBtn.Text = "Refresh"
+				refreshBtn.Active = true
+				setStatLabel()
+
+				if failedBatches > 0 then
+					DoNotif("Some badge ownership checks failed", 3)
+				end
+			end)
 		end
 
 		MouseButtonFix(refreshBtn, function()
 			if refreshBtn.Active == false then return end
+			ownershipRunId += 1
 			refreshBtn.Active = false
 			refreshBtn.AutoButtonColor = false
 			refreshBtn.Text = "Refreshing..."
 			loadingOverlay.Visible = true
+			loadingText.Text = "Loading..."
 			for _, c in ipairs(listCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
 			for _, c in ipairs(gridCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
 			listCards, gridCards, idToCards, ownedMap = {}, {}, {}, {}
