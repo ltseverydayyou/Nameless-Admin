@@ -62882,8 +62882,9 @@ NAgui.getInputTextWidth=function(box, padding)
 	return 56
 end
 
-NAgui.addInfo = function(label, value)
+NAgui.addInfo = function(label, value, opts)
 	if not NAUIMANAGER.SettingsList then return nil end
+	opts = type(opts) == "table" and opts or {}
 
 	local info = templates.Input:Clone()
 	info.Name = "Info"
@@ -62918,10 +62919,19 @@ NAgui.addInfo = function(label, value)
 	box.TextXAlignment = Enum.TextXAlignment.Center
 	box.TextWrapped = false
 	box.TextTruncate = Enum.TextTruncate.None
+	local textScaledEnabled = opts.textScaled ~= false
+	box.TextScaled = textScaledEnabled
 	box.ClipsDescendants = true
 	frame.ClipsDescendants = true
-	local baseTextSize = tonumber(box.TextSize) or 14
-	local minTextSize = 10
+	local baseTextSize = tonumber(opts.textSize) or tonumber(box.TextSize) or 14
+	local minTextSize = tonumber(opts.minTextSize) or 10
+	if minTextSize > baseTextSize then
+		minTextSize = baseTextSize
+	end
+	local widthRatio = tonumber(opts.maxWidthRatio) or 0.62
+	widthRatio = math.clamp(widthRatio, 0.35, 0.95)
+	local clampAlignLeft = opts.clampAlignLeft ~= false
+	local autoShrink = opts.autoShrink ~= false
 
 	box.Focused:Connect(function()
 		box:ReleaseFocus()
@@ -62957,7 +62967,7 @@ NAgui.addInfo = function(label, value)
 			end
 			local gap = 18
 			local byTitle = cw - titleWidth - gap
-			local byRatio = math.floor(cw * 0.62)
+			local byRatio = math.floor(cw * widthRatio)
 			maxW = math.max(byTitle, byRatio)
 			if maxW < minW then
 				maxW = minW
@@ -62972,18 +62982,20 @@ NAgui.addInfo = function(label, value)
 			w = clamped
 		end
 
-		box.TextXAlignment = hit and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+		box.TextXAlignment = (hit and clampAlignLeft) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 
-		local targetTextSize = baseTextSize
-		if hit then
-			local avail = math.max(1, w - 14)
-			local rawWidth = math.max(1, NAgui.getInputTextWidth(box, 0))
-			if rawWidth > avail then
-				targetTextSize = math.max(minTextSize, math.floor(baseTextSize * (avail / rawWidth)))
+		if not textScaledEnabled then
+			local targetTextSize = baseTextSize
+			if hit and autoShrink then
+				local avail = math.max(1, w - 14)
+				local rawWidth = math.max(1, NAgui.getInputTextWidth(box, 0))
+				if rawWidth > avail then
+					targetTextSize = math.max(minTextSize, math.floor(baseTextSize * (avail / rawWidth)))
+				end
 			end
-		end
-		if box.TextSize ~= targetTextSize then
-			box.TextSize = targetTextSize
+			if box.TextSize ~= targetTextSize then
+				box.TextSize = targetTextSize
+			end
 		end
 
 		if type(w) ~= "number" then
@@ -80238,6 +80250,7 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		if decoded then
 			NAStuff.RobloxVersionData = decoded
 			NAStuff.RobloxVersionLastFetch = tick()
+			NAStuff.RobloxVersionFromRemote = true
 			return decoded
 		end
 		return nil
@@ -80427,6 +80440,7 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 	if localFallback then
 		NAStuff.RobloxVersionData = localFallback
 		NAStuff.RobloxVersionLastFetch = tick()
+		NAStuff.RobloxVersionFromRemote = false
 		return true, localFallback
 	end
 
@@ -80442,6 +80456,7 @@ NAStuff.RobloxVersionMissingText = "Unavailable"
 NAStuff.RobloxVersionFailureText = "Failed to load"
 
 NAStuff.RobloxVersionRows = {}
+NAStuff.RobloxVersionFromRemote = NAStuff.RobloxVersionFromRemote == true
 originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 	NAgui.addSection(sectionTitle)
 	local versionField = NAgui.addInfo("Version", NAStuff.RobloxVersionLoadingText)
@@ -80452,6 +80467,20 @@ originalIO.addRobloxVersionSection=function(sectionTitle, versionKey, dateKey)
 		versionField = versionField;
 		dateField = updatedField;
 	})
+end
+
+originalIO.hasRobloxVersionData=function(data)
+	if type(data) ~= "table" then
+		return false
+	end
+	local keys = { "Windows", "Mac", "Android", "iOS" }
+	for i = 1, #keys do
+		local value = data[keys[i]]
+		if value ~= nil and tostring(value) ~= "" then
+			return true
+		end
+	end
+	return false
 end
 
 SpawnCall(function()
@@ -80469,16 +80498,29 @@ SpawnCall(function()
 	if luauVersion ~= "" and luauVersion ~= clientVersion then
 		textValue = clientVersion.."-"..luauVersion
 	end
-	NAgui.addInfo("Your Version", textValue)
+	NAgui.addInfo("Your Version", textValue, {
+		maxWidthRatio = 0.9;
+		minTextSize = 11;
+		clampAlignLeft = false;
+		autoShrink = true;
+	})
 end)
-NAgui.addSection("Powered by weao.xyz API")
-originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
-originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
-originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
-originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
 
 SpawnCall(function()
 	local ok, data = originalIO.fetchRobloxVersionData()
+	local canRenderRemote = ok and NAStuff.RobloxVersionFromRemote == true and originalIO.hasRobloxVersionData(data)
+	if not canRenderRemote then
+		NAStuff.RobloxVersionRows = {}
+		return
+	end
+
+	NAStuff.RobloxVersionRows = {}
+	NAgui.addSection("Powered by weao.xyz API")
+	originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
+	originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
+	originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
+	originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
+
 	local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
 	for _, entry in ipairs(NAStuff.RobloxVersionRows) do
 		if entry.versionField then
