@@ -1,3 +1,35 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 local screenGui = Instance.new("ScreenGui");
 local main = Instance.new("Frame");
 local top = Instance.new("Frame");
@@ -12,10 +44,8 @@ local NA_SRV = setmetatable({}, {
 			return r;
 		end;
 		local ok, svc = pcall(function()
-			if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
-				return game:GetService(name);
-			end;
-			return Ref(game:GetService(name));
+
+			return __lt_clone_service(name, Ref);
 		end);
 		if ok and svc then
 			rawset(self, name, svc);
@@ -49,9 +79,9 @@ local function protectUI(g)
 		NAP(g);
 		g.Parent = gethui();
 		return g;
-	elseif cg and cg:FindFirstChild("RobloxGui") then
+	elseif cg and __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui") then
 		NAP(g);
-		g.Parent = cg:FindFirstChild("RobloxGui");
+		g.Parent = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui");
 		return g;
 	elseif cg then
 		NAP(g);
@@ -159,7 +189,7 @@ local function ti(d, s)
 	return TweenInfo.new(d, s or Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
 end;
 local function tw(i, d, p, s)
-	local tr = TS:Create(i, ti(d, s), p);
+	local tr = __lt_call_service_method("TweenService", "Create", i, ti(d, s), p);
 	tr:Play();
 	return tr;
 end;
@@ -271,12 +301,12 @@ gV.Changed:Connect(function(v)
 end);
 task.spawn(function()
 	while screenGui.Parent do
-		local t1 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+		local t1 = __lt_call_service_method("TweenService", "Create", gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 			Value = 270
 		});
 		t1:Play();
 		t1.Completed:Wait();
-		local t2 = TS:Create(gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+		local t2 = __lt_call_service_method("TweenService", "Create", gV, TweenInfo.new(opt.red and 2.4 or 3.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 			Value = 90
 		});
 		t2:Play();
@@ -450,7 +480,7 @@ local function pop(s)
 end;
 local blur = nil;
 if Lgt then
-	blur = Lgt:FindFirstChild("ASX_Blur");
+	blur = __lt_call_service_method("Lighting", "FindFirstChild", "ASX_Blur");
 	if not blur then
 		blur = Instance.new("BlurEffect");
 		blur.Name = "ASX_Blur";
@@ -879,7 +909,7 @@ local function runInfo()
 				n = "Unknown"
 			};
 			local ok, res = pcall(function()
-				return MPS:GetProductInfo(tonumber(id));
+				return __lt_call_service_method("MarketplaceService", "GetProductInfo", tonumber(id));
 			end);
 			if ok and type(res) == "table" and res.Name then
 				info[id].n = tostring(res.Name);
@@ -997,7 +1027,7 @@ local function hookPlr(plr)
 	end);
 	pCon[plr] = cons;
 end;
-for _, plr in ipairs(Plrs:GetPlayers()) do
+for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 	hookPlr(plr);
 end;
 Plrs.PlayerAdded:Connect(hookPlr);
@@ -1145,7 +1175,7 @@ act(row(44), "Rescan now", function()
 		scanPlr(Plrs.LocalPlayer);
 	end;
 	if opt.plr then
-		for _, plr in ipairs(Plrs:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr ~= Plrs.LocalPlayer then
 				scanPlr(plr);
 			end;
@@ -1192,7 +1222,7 @@ task.spawn(function()
 				scanPlr(Plrs.LocalPlayer);
 			end;
 			if opt.plr then
-				for _, plr in ipairs(Plrs:GetPlayers()) do
+				for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 					if plr ~= Plrs.LocalPlayer then
 						scanPlr(plr);
 					end;

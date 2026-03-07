@@ -1,3 +1,35 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 -- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
 
 local _na_env = (getgenv and getgenv()) or _G or {}
@@ -395,10 +427,8 @@ local LoadstringCommandAliases = {
 
 opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
 NAmanage.NA_getServiceRef = opt.NA_cloneref and function(name)
-	if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
-		return game:GetService(name)
-	end
-	return opt.NA_cloneref(game:GetService(name))
+
+	return __lt_clone_service(name, opt.NA_cloneref)
 end or function(name)
 	return game:GetService(name)
 end
@@ -2894,7 +2924,7 @@ NAmanage.StreamerRefreshNameTokens = NAmanage.StreamerRefreshNameTokens or funct
 	local tokens = {}
 	local seen = {}
 	if Players then
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local names = {
 				plr and plr.Name or nil,
 				plr and plr.DisplayName or nil,
@@ -3868,7 +3898,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	NAlib.disconnect("streamermode_player_chars")
 	NAlib.disconnect("streamermode_player_names")
 	if Players then
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			NAmanage.StreamerWatchPlayer(plr)
 		end
 	end
@@ -3962,7 +3992,7 @@ local CustomFunctionSupport = isfile and isfolder and writefile and readfile and
 local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
 local IsOnMobile=(function()
-	local platform=UserInputService:GetPlatform()
+	local platform=__lt_call_service_method("UserInputService", "GetPlatform")
 	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
 		return true
 	end
@@ -3972,7 +4002,7 @@ local IsOnMobile=(function()
 	return false
 end)()
 local IsOnPC=(function()
-	local platform=UserInputService:GetPlatform()
+	local platform=__lt_call_service_method("UserInputService", "GetPlatform")
 	if platform==Enum.Platform.Windows or platform==Enum.Platform.OSX or platform==Enum.Platform.Linux or platform==Enum.Platform.SteamOS or platform==Enum.Platform.UWP or platform==Enum.Platform.DOS or platform==Enum.Platform.BeOS then
 		return true
 	end
@@ -4074,7 +4104,7 @@ NA_GRAB_BODY = (function()
 		local btns = {};
 		local cands = {};
 		local seen = {};
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local ch = plr.Character;
 			if ch and ch:IsDescendantOf(workspace) and (not seen[ch]) then
 				seen[ch] = true;
@@ -4431,12 +4461,12 @@ CheckIfNPC = function(character)
 			return false
 		end
 		local okPlr, plr = pcall(function()
-			return Players:GetPlayerFromCharacter(model)
+			return __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 		end)
 		if okPlr and plr then
 			return true
 		end
-		for _, p in ipairs(Players:GetPlayers()) do
+		for _, p in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local ch = p.Character
 			if ch and (model == ch or model:IsDescendantOf(ch) or ch:IsDescendantOf(model)) then
 				return true
@@ -4474,7 +4504,7 @@ NAmanage.IsValidESPModel = function(model, allowNPC)
 		return true
 	end
 	local okPlr, plr = pcall(function()
-		return Players:GetPlayerFromCharacter(model)
+		return __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 	end)
 	return okPlr and plr ~= nil
 end
@@ -4689,7 +4719,7 @@ NAmanage.CreateNAFreecam=function()
 			)
 		end
 
-		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		local shift = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)
 
 		return move*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
 	end
@@ -4776,13 +4806,13 @@ NAmanage.CreateNAFreecam=function()
 
 		if not capturing and ContextActionService then
 			capturing = true
-			ContextActionService:BindActionAtPriority("NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
 				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
 				Enum.KeyCode.Q, Enum.KeyCode.E,
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
-			ContextActionService:BindActionAtPriority("NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
-			ContextActionService:BindActionAtPriority("NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
 		end
 
 		if IsOnMobile and not touchConnection then
@@ -4801,7 +4831,7 @@ NAmanage.CreateNAFreecam=function()
 			end)
 		end
 
-		RunService:BindToRenderStep("NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+		__lt_call_service_method("RunService", "BindToRenderStep", "NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
 	end
 
 	function module.Stop()
@@ -4810,13 +4840,13 @@ NAmanage.CreateNAFreecam=function()
 		end
 
 		enabled = false
-		RunService:UnbindFromRenderStep("NA_Freecam")
+		__lt_call_service_method("RunService", "UnbindFromRenderStep", "NA_Freecam")
 
 		if capturing and ContextActionService then
 			capturing = false
-			ContextActionService:UnbindAction("NA_FreecamKeyboard")
-			ContextActionService:UnbindAction("NA_FreecamMousePan")
-			ContextActionService:UnbindAction("NA_FreecamMouseWheel")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamKeyboard")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamMousePan")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamMouseWheel")
 		end
 
 		if touchConnection then
@@ -4868,7 +4898,7 @@ NAmanage.CreateNAFreecam=function()
 
 	local function checkMacro()
 		for i = 1, #FREECAM_MACRO_KEYS - 1 do
-			if not UserInputService:IsKeyDown(FREECAM_MACRO_KEYS[i]) then
+			if not __lt_call_service_method("UserInputService", "IsKeyDown", FREECAM_MACRO_KEYS[i]) then
 				return
 			end
 		end
@@ -4881,7 +4911,7 @@ NAmanage.CreateNAFreecam=function()
 	end
 
 	if ContextActionService then
-		ContextActionService:BindActionAtPriority("NA_FreecamToggleKey", function(_, state, input)
+		__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamToggleKey", function(_, state, input)
 			if state == Enum.UserInputState.Begin and input.KeyCode == FREECAM_MACRO_KEYS[#FREECAM_MACRO_KEYS] then
 				checkMacro()
 			end
@@ -5040,7 +5070,7 @@ do
 			-(keyboard[Enum.KeyCode.W] - keyboard[Enum.KeyCode.S])
 		)
 
-		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		local shift = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)
 
 		return kKeyboard*(navSpeed*(shift and NAV_SHIFT_MUL or 1))
 	end
@@ -5127,16 +5157,16 @@ do
 
 		if not capturing and ContextActionService then
 			capturing = true
-			ContextActionService:BindActionAtPriority("NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
 				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
 				Enum.KeyCode.Q, Enum.KeyCode.E,
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
-			ContextActionService:BindActionAtPriority("NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
-			ContextActionService:BindActionAtPriority("NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", "NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
 		end
 
-		RunService:BindToRenderStep("NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+		__lt_call_service_method("RunService", "BindToRenderStep", "NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
 	end
 
 	function NAFreecam.Stop()
@@ -5145,13 +5175,13 @@ do
 		end
 
 		enabled = false
-		RunService:UnbindFromRenderStep("NA_Freecam")
+		__lt_call_service_method("RunService", "UnbindFromRenderStep", "NA_Freecam")
 
 		if capturing and ContextActionService then
 			capturing = false
-			ContextActionService:UnbindAction("NA_FreecamKeyboard")
-			ContextActionService:UnbindAction("NA_FreecamMousePan")
-			ContextActionService:UnbindAction("NA_FreecamMouseWheel")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamKeyboard")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamMousePan")
+			__lt_call_service_method("ContextActionService", "UnbindAction", "NA_FreecamMouseWheel")
 		end
 
 		zeroInput()
@@ -10878,7 +10908,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 				local resolved = "Unknown"
 				if fetchUserId then
 					local okVoice, voiceEnabled = pcall(function()
-						return SafeGetService("VoiceChatService",false):IsVoiceEnabledForUserIdAsync(fetchUserId)
+						return __lt_call_service_method("VoiceChatService", "IsVoiceEnabledForUserIdAsync", fetchUserId)
 					end)
 					if okVoice then
 						resolved = voiceEnabled and "Enabled" or "Disabled"
@@ -11032,7 +11062,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	local statsService = SafeGetService("Stats",false) or nil
+	local statsService = SafeGetService("Stats") or nil
 	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
 		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
 		if pingStat then
@@ -11242,7 +11272,7 @@ NAmanage.centerFrame = function(f)
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
-	return (NAlib.huiGrabber and NAlib.huiGrabber()) or SafeGetService("CoreGui"):FindFirstChildWhichIsA("ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt_call_service_method("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 if not NAlib.huiGrabber() then
@@ -11576,9 +11606,9 @@ NAmanage.nudgeAprilIcon = function()
 	if not (isAprilFools() and TextButton) then return end
 	local wobble = math.random(-15, 15)
 	pcall(function()
-		TweenService:Create(TextButton, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = wobble }):Play()
+		__lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = wobble }):Play()
 		Delay(0.35, function()
-			TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
+			__lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), { Rotation = 0 }):Play()
 		end)
 	end)
 end
@@ -11620,13 +11650,13 @@ NAmanage.startAprilPranks = function()
 		local offsetX = math.random(-8, 8)
 		local offsetY = math.random(-4, 4)
 		local rot = math.random(-6, 6)
-		local wiggleTween = TweenService:Create(target, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		local wiggleTween = __lt_call_service_method("TweenService", "Create", target, TweenInfo.new(0.35, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 			Position = basePos + UDim2.new(0, offsetX, 0, offsetY);
 			Rotation = baseRot + rot;
 		})
 		wiggleTween:Play()
 		Delay(0.4, function()
-			TweenService:Create(target, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+			__lt_call_service_method("TweenService", "Create", target, TweenInfo.new(0.25, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 				Position = basePos;
 				Rotation = baseRot;
 			}):Play()
@@ -12625,7 +12655,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	end
 
 	local function tween(tg, info, goal)
-		local tw = TweenService:Create(tg, info, goal)
+		local tw = __lt_call_service_method("TweenService", "Create", tg, info, goal)
 		tw:Play()
 		return tw
 	end
@@ -15336,7 +15366,7 @@ end
 NAmanage.getPlrCursor = function()
 	local found = nil
 	local ClosestDistance = math.huge
-	for _,v in pairs(Players:GetPlayers()) do
+	for _,v in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		if v ~= Players.LocalPlayer and v.Character and getPlrHum(v.Character) then
 			for k, x in pairs(v.Character:GetChildren()) do
 				if Find(x.Name, "Torso") then
@@ -15891,9 +15921,9 @@ NAmanage.CKBBind = function(input, UIS)
 	end
 
 	local combo = {}
-	local ctrlDown = UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
-	local shiftDown = UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)
-	local altDown = UIS:IsKeyDown(Enum.KeyCode.LeftAlt) or UIS:IsKeyDown(Enum.KeyCode.RightAlt)
+	local ctrlDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftControl) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightControl)
+	local shiftDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)
+	local altDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftAlt) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightAlt)
 
 	if ctrlDown then Insert(combo, "Ctrl") end
 	if shiftDown then Insert(combo, "Shift") end
@@ -16032,7 +16062,7 @@ NAmanage.ApplyCommandKeybinds=function()
 	local function shouldBlock(gameProcessed)
 		if gameProcessed then return true end
 		if NAStuff._capturingCommandKeybind then return true end
-		if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then return true end
+		if UIS.GetFocusedTextBox and __lt_call_service_method("UserInputService", "GetFocusedTextBox") then return true end
 		return false
 	end
 
@@ -16099,15 +16129,15 @@ NAmanage.ApplyCommandKeybinds=function()
 		for i = 1, #parts - 1 do
 			local modifier = parts[i]
 			if modifier == "Ctrl" then
-				if not (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
+				if not (__lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftControl) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightControl)) then
 					return false
 				end
 			elseif modifier == "Shift" then
-				if not (UIS:IsKeyDown(Enum.KeyCode.LeftShift) or UIS:IsKeyDown(Enum.KeyCode.RightShift)) then
+				if not (__lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)) then
 					return false
 				end
 			elseif modifier == "Alt" then
-				if not (UIS:IsKeyDown(Enum.KeyCode.LeftAlt) or UIS:IsKeyDown(Enum.KeyCode.RightAlt)) then
+				if not (__lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftAlt) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightAlt)) then
 					return false
 				end
 			else
@@ -16117,15 +16147,15 @@ NAmanage.ApplyCommandKeybinds=function()
 
 		local main = NAmanage.CKBKey(parts[#parts]) or parts[#parts]
 		if main == "LeftClick" then
-			return UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+			return __lt_call_service_method("UserInputService", "IsMouseButtonPressed", Enum.UserInputType.MouseButton1)
 		end
 		if main == "RightClick" then
-			return UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+			return __lt_call_service_method("UserInputService", "IsMouseButtonPressed", Enum.UserInputType.MouseButton2)
 		end
 
 		local keyCode = safeKc(main)
 		if keyCode then
-			return UIS:IsKeyDown(keyCode)
+			return __lt_call_service_method("UserInputService", "IsKeyDown", keyCode)
 		end
 		return false
 	end
@@ -16358,7 +16388,7 @@ NAmanage.ApplyCommandKeybinds=function()
 			if NAStuff._capturingCommandKeybind then
 				return
 			end
-			if UIS.GetFocusedTextBox and UIS:GetFocusedTextBox() then
+			if UIS.GetFocusedTextBox and __lt_call_service_method("UserInputService", "GetFocusedTextBox") then
 				return
 			end
 
@@ -17029,7 +17059,7 @@ if FileSupport then
 			return
 		end
 		pcall(function()
-			ContextActionService:UnbindAction(chatKeyBlockAction)
+			__lt_call_service_method("ContextActionService", "UnbindAction", chatKeyBlockAction)
 		end)
 		if IsOnMobile then
 			return
@@ -17038,7 +17068,7 @@ if FileSupport then
 			return
 		end
 		local ok, err = pcall(function()
-			ContextActionService:BindActionAtPriority(chatKeyBlockAction, function(_, state)
+			__lt_call_service_method("ContextActionService", "BindActionAtPriority", chatKeyBlockAction, function(_, state)
 				if state == Enum.UserInputState.Begin then
 					return Enum.ContextActionResult.Sink
 				end
@@ -17134,7 +17164,7 @@ if FileSupport then
 	local function isCoreChatStateSynced()
 		local desired = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
 		local okRead, current = pcall(function()
-			return StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Chat)
+			return __lt_call_service_method("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.Chat)
 		end)
 		if okRead and type(current) == "boolean" then
 			return current == desired
@@ -17311,11 +17341,11 @@ if FileSupport then
 		local desiredCoreChat = (NAStuff.ChatSettings.coreGuiChat == true)
 		local coreChatApplied = false
 		local okCore = pcall(function()
-			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, desiredCoreChat)
+			__lt_call_service_method("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, desiredCoreChat)
 		end)
 		if okCore then
 			local okRead, currentCore = pcall(function()
-				return StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.Chat)
+				return __lt_call_service_method("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.Chat)
 			end)
 			if okRead and type(currentCore) == "boolean" then
 				coreChatApplied = (currentCore == desiredCoreChat)
@@ -17450,13 +17480,13 @@ if FileSupport then
 				local synced = isCoreChatStateSynced()
 				if synced == false then
 					pcall(function()
-						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, desiredCoreChat)
+						__lt_call_service_method("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, desiredCoreChat)
 					end)
 					markChatSettingsDirty()
 					didWork = true
 				elseif synced == nil and desiredCoreChat then
 					pcall(function()
-						StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, true)
+						__lt_call_service_method("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, true)
 					end)
 				end
 				if NAStuff.ChatSettingsDirty then
@@ -17501,7 +17531,7 @@ NAmanage.mobileCamSensIsMobile=function()
 	if not UIS then
 		return IsOnMobile == true
 	end
-	local platform = UIS:GetPlatform()
+	local platform = __lt_call_service_method("UserInputService", "GetPlatform")
 	if platform == Enum.Platform.IOS or platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV
 		or platform == Enum.Platform.Chromecast or platform == Enum.Platform.MetaOS then
 		return true
@@ -17641,7 +17671,7 @@ NAmanage.bindMobileCamSens=function()
 	pcall(RunService.UnbindFromRenderStep, RunService, name)
 	local priority = (Enum.RenderPriority and Enum.RenderPriority.Camera and Enum.RenderPriority.Camera.Value or 0) + 1
 	pcall(function()
-		RunService:BindToRenderStep(name, priority, NAmanage.mobileCamSensStep)
+		__lt_call_service_method("RunService", "BindToRenderStep", name, priority, NAmanage.mobileCamSensStep)
 	end)
 end
 
@@ -17987,7 +18017,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 
 	if ContentProvider and ContentProvider.PreloadAsync then
 		pcall(function()
-			ContentProvider:PreloadAsync({ image })
+			__lt_call_service_method("ContentProvider", "PreloadAsync", { image })
 		end)
 	end
 
@@ -18017,7 +18047,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 
 		if TweenService and image then
 			local ok, tween = pcall(function()
-				return TweenService:Create(image, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 1 })
+				return __lt_call_service_method("TweenService", "Create", image, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 1 })
 			end)
 			if ok and tween then
 				tween.Completed:Connect(finish)
@@ -18506,7 +18536,7 @@ end
 
 NAmanage._normPlayer = function(p)
 	if typeof(p) == "Instance" and p:IsA("Player") then return p end
-	if type(p) == "string" then return Players:FindFirstChild(p) end
+	if type(p) == "string" then return __lt_call_service_method("Players", "FindFirstChild", p) end
 	return nil
 end
 
@@ -19645,13 +19675,13 @@ end
 --[[ FUNCTION TO GET A PLAYER ]]--
 local PlayerArgs = {
 	["all"] = function()
-		return Players:GetPlayers()
+		return __lt_call_service_method("Players", "GetPlayers")
 	end,
 
 	["others"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if Player ~= LocalPlayer then
 				Insert(Targets, Player)
 			end
@@ -19665,7 +19695,7 @@ local PlayerArgs = {
 	end,
 
 	["random"] = function()
-		local list = Players:GetPlayers()
+		local list = __lt_call_service_method("Players", "GetPlayers")
 		if LocalPlayer then
 			local i = Discover(list, LocalPlayer)
 			if i then table.remove(list, i) end
@@ -19689,7 +19719,7 @@ local PlayerArgs = {
 	["seated"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if getPlrHum(Player.Character).Sit then
 				Insert(Targets, Player)
 			end
@@ -19701,7 +19731,7 @@ local PlayerArgs = {
 	["stood"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if not getPlrHum(Player.Character).Sit then
 				Insert(Targets, Player)
 			end
@@ -19715,7 +19745,7 @@ local PlayerArgs = {
 		local lowest = math.huge
 		local Targets = nil
 
-		Foreach(Players:GetPlayers(), function(_, plr)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, plr)
 			if plr ~= LocalPlayer and plr.Character and getRoot(plr.Character) then
 				local distance = (getRoot(plr.Character).Position - getRoot(LocalPlayer.Character).Position).Magnitude
 				if distance < lowest then
@@ -19733,7 +19763,7 @@ local PlayerArgs = {
 		local highest = 0
 		local Targets = nil
 
-		Foreach(Players:GetPlayers(), function(_, plr)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, plr)
 			if plr ~= LocalPlayer and plr.Character and getRoot(plr.Character) then
 				local distance = (getRoot(plr.Character).Position - getRoot(LocalPlayer.Character).Position).Magnitude
 				if distance > highest then
@@ -19749,7 +19779,7 @@ local PlayerArgs = {
 	["dead"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if getPlrHum(Player.Character).Health == 0 then
 				Insert(Targets, Player)
 			end
@@ -19761,7 +19791,7 @@ local PlayerArgs = {
 	["alive"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if getPlrHum(Player.Character).Health > 0 then
 				Insert(Targets, Player)
 			end
@@ -19773,7 +19803,7 @@ local PlayerArgs = {
 	["friends"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if Player:IsFriendsWith(LocalPlayer.UserId) and LocalPlayer ~= Player then
 				Insert(Targets, Player)
 			end
@@ -19785,7 +19815,7 @@ local PlayerArgs = {
 	["nonfriends"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(Index, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(Index, Player)
 			if not Player:IsFriendsWith(LocalPlayer.UserId) and LocalPlayer ~= Player then
 				Insert(Targets, Player)
 			end
@@ -19797,7 +19827,7 @@ local PlayerArgs = {
 	["team"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
 				Insert(Targets, Player)
 			end
@@ -19809,7 +19839,7 @@ local PlayerArgs = {
 	["nonteam"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
 				Insert(Targets, Player)
 			end
@@ -19821,7 +19851,7 @@ local PlayerArgs = {
 	["r15"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Hum = getPlrHum(Player.Character)
 			if Hum and Hum.RigType == Enum.HumanoidRigType.R15 then
 				Insert(Targets, Player)
@@ -19834,7 +19864,7 @@ local PlayerArgs = {
 	["r6"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Hum = getPlrHum(Player.Character)
 			if Hum and Hum.RigType == Enum.HumanoidRigType.R6 then
 				Insert(Targets, Player)
@@ -19847,7 +19877,7 @@ local PlayerArgs = {
 	["invisible"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Char = Player.Character
 			if Char then
 				local isInvisible = true
@@ -19869,7 +19899,7 @@ local PlayerArgs = {
 	["bacon"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Char = Player.Character
 			if Char then
 				for _, v in ipairs(Char:GetChildren()) do
@@ -19887,7 +19917,7 @@ local PlayerArgs = {
 	["slenders"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Hum = getPlrHum(Player.Character)
 			if Hum and Hum.RigType == Enum.HumanoidRigType.R15 then
 				local desc = Hum:GetAppliedDescription()
@@ -19903,7 +19933,7 @@ local PlayerArgs = {
 	["short"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			local Hum = getPlrHum(Player.Character)
 			if Hum and Hum.RigType == Enum.HumanoidRigType.R15 then
 				local desc = Hum:GetAppliedDescription()
@@ -19918,7 +19948,7 @@ local PlayerArgs = {
 	["#(%d+)"] = function(speaker, args, currentList)
 		local returns = {}
 		local randAmount = tonumber(args[1])
-		local pool = { unpack(currentList or Players:GetPlayers()) }
+		local pool = { unpack(currentList or __lt_call_service_method("Players", "GetPlayers")) }
 		for i = 1, math.min(randAmount, #pool) do
 			local idx = math.random(1, #pool)
 			Insert(returns, pool[idx])
@@ -19930,7 +19960,7 @@ local PlayerArgs = {
 	["%%(.+)"] = function(speaker, args)
 		local returns = {}
 		local teamPrefix = args[1]:lower()
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr.Team
 				and plr.Team.Name:lower():sub(1, #teamPrefix) == teamPrefix
 			then
@@ -19943,7 +19973,7 @@ local PlayerArgs = {
 	["allies"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
 				Insert(Targets, Player)
 			end
@@ -19955,7 +19985,7 @@ local PlayerArgs = {
 	["enemies"] = function()
 		local Targets = {}
 
-		Foreach(Players:GetPlayers(), function(_, Player)
+		Foreach(__lt_call_service_method("Players", "GetPlayers"), function(_, Player)
 			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
 				Insert(Targets, Player)
 			end
@@ -19967,7 +19997,7 @@ local PlayerArgs = {
 	["age(%d+)"] = function(speaker, args)
 		local returns = {}
 		local maxAge = tonumber(args[1])
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr.AccountAge <= maxAge then
 				Insert(returns, plr)
 			end
@@ -19978,7 +20008,7 @@ local PlayerArgs = {
 	["group(%d+)"] = function(speaker, args)
 		local returns = {}
 		local groupID = tonumber(args[1])
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr:IsInGroup(groupID) then
 				Insert(returns, plr)
 			end
@@ -19991,7 +20021,7 @@ local PlayerArgs = {
 		local radius = tonumber(args[1])
 		local origin = getRoot(speaker.Character)
 		if not origin then return returns end
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local root = getRoot(plr.Character)
 			if root and (root.Position - origin.Position).Magnitude <= radius then
 				Insert(returns, plr)
@@ -20045,7 +20075,7 @@ local function getPlr(a, b)
 	end
 
 	local out = {}
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		local n = plr.Name:lower()
 		local d = plr.DisplayName:lower()
 		if n:sub(1,#raw) == raw or d:sub(1,#raw) == raw then
@@ -21148,7 +21178,7 @@ function getPlaceInfo(forceRefresh)
 	end
 
 	local success, result = pcall(function()
-		return SafeGetService("MarketplaceService"):GetProductInfo(PlaceId)
+		return __lt_call_service_method("MarketplaceService", "GetProductInfo", PlaceId)
 	end)
 
 	if not success or type(result) ~= "table" then
@@ -21313,7 +21343,7 @@ end
 NAmanage.ESP_EnsureLabel = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	local owner = Players:GetPlayerFromCharacter(model)
+	local owner = __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	if chamsEnabled and not forceLabel then return end
 	if NAgui.espUsesDrawing("players") then
@@ -21593,7 +21623,7 @@ NAmanage.ESP_ClearAll = function()
 	for model,_ in pairs(espCONS) do
 		NAmanage.ESP_ClearModel(model)
 	end
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
 	end
 	NAStuff.ESP_ModelList = {}
@@ -21610,7 +21640,7 @@ NAmanage.ESP_ClearPlayers = function()
 			NAmanage.ESP_ClearModel(model)
 		end
 	end
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
 	end
 end
@@ -21662,7 +21692,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	local owner = data.ownerPlayer
 	if not (owner and owner.Parent) then
-		owner = Players:GetPlayerFromCharacter(model)
+		owner = __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 		if owner then
 			data.ownerPlayer = owner
 		end
@@ -21908,7 +21938,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAmanage.ESP_ClearModel(model)
 	if not (model and model:IsA("Model")) then return end
 	if not NAmanage.IsValidESPModel(model, npcFlag) then return end
-	local ownerPlayer = target:IsA("Player") and target or Players:GetPlayerFromCharacter(model)
+	local ownerPlayer = target:IsA("Player") and target or __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 
 	espCONS[model] = {
 		boxTable = {},
@@ -23027,7 +23057,7 @@ NAmanage._shouldIgnoreFlyKeyInput = function(input, gameProcessed)
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return true
 	end
-	if UserInputService.GetFocusedTextBox and UserInputService:GetFocusedTextBox() then
+	if UserInputService.GetFocusedTextBox and __lt_call_service_method("UserInputService", "GetFocusedTextBox") then
 		return true
 	end
 	return false
@@ -24226,7 +24256,7 @@ NAmanage.LoadPlugins = function(opts)
 					return results
 				end
 
-				local everyone = Players:GetPlayers()
+				local everyone = __lt_call_service_method("Players", "GetPlayers")
 
 				for _, tokenRaw in ipairs(tokens) do
 					local token = tokenRaw:lower()
@@ -24380,7 +24410,7 @@ NAmanage.LoadPlugins = function(opts)
 
 			local function iyIsOnMobile()
 				if UserInputService and typeof(UserInputService.GetPlatform) == "function" then
-					local platform = UserInputService:GetPlatform()
+					local platform = __lt_call_service_method("UserInputService", "GetPlatform")
 					return platform == Enum.Platform.Android or platform == Enum.Platform.IOS
 				end
 				return UserInputService and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
@@ -25481,7 +25511,7 @@ NAmanage.RenderUserButtons = function()
 						local conn = UIS.InputBegan:Connect(function(input, gpe)
 							if gpe then return end
 							if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-								local posNow = UIS:GetMouseLocation()
+								local posNow = __lt_call_service_method("UserInputService", "GetMouseLocation")
 								if not (pointInsideGui(container, posNow) or pointInsideGui(btn, posNow)) then
 									clearDropdownEntry(id)
 								end
@@ -25756,7 +25786,7 @@ end
 --[[ LIB FUNCTIONS ]]--
 chatmsgshooks = chatmsgshooks or {}
 Playerchats = Playerchats or {}
-local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and __lt_call_service_method("ReplicatedStorage", "FindFirstChild", "DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
 	NAlib.LocalPlayerChat=function(...)
@@ -25771,7 +25801,7 @@ else
 	local RBXGeneral = nil
 
 	local function getTextChannelsContainer()
-		local container = TextChatService and TextChatService:FindFirstChild("TextChannels")
+		local container = TextChatService and __lt_call_service_method("TextChatService", "FindFirstChild", "TextChannels")
 		if typeof(container) == "Instance" then
 			return container
 		end
@@ -26017,7 +26047,7 @@ else
 		end
 	end)
 
-	if TextChatService:FindFirstChild("TextChannels") then
+	if __lt_call_service_method("TextChatService", "FindFirstChild", "TextChannels") then
 		TextChatService.TextChannels.ChildAdded:Connect(function(v)
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
 				Wait(0.25)
@@ -26232,7 +26262,7 @@ cmd.add({"cmdbar2","cbar2"},{"cmdbar2 (cbar2)","Opens a HD-Admin style cmdbar (b
 
 	local function tw(o,t,p)
 		local ti = TweenInfo.new(t or 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local tr = TweenService:Create(o, ti, p)
+		local tr = __lt_call_service_method("TweenService", "Create", o, ti, p)
 		tr:Play()
 		return tr
 	end
@@ -28121,8 +28151,8 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
 		local Players = cloneref(game.GetService(game,"Players"))
-		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
-			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
+		if Target and Target.Parent and Target.Parent:IsA("Model") and __lt_call_service_method("Players", "GetPlayerFromCharacter", Target.Parent) then
+			local PlayerName = __lt_call_service_method("Players", "GetPlayerFromCharacter", Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
 			local Targets = {PlayerName}
 			local Player = Players.LocalPlayer
@@ -28134,11 +28164,11 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					AllBool = true
 					return
 				elseif Name == "random" then
-					local GetPlayers = Players:GetPlayers()
+					local GetPlayers = __lt_call_service_method("Players", "GetPlayers")
 					if Discover(GetPlayers,Player) then table.remove(GetPlayers,Discover(GetPlayers,Player)) end
 					return GetPlayers[math.random(#GetPlayers)]
 				end
-				for _,x in next,Players:GetPlayers() do
+				for _,x in next,__lt_call_service_method("Players", "GetPlayers") do
 					if x~=Player then
 						if Sub(Lower(x.Name),1,#Name)==Name or Sub(Lower(x.DisplayName),1,#Name)==Name then
 							return x
@@ -28260,7 +28290,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 			end
 
 			if AllBool then
-				for _,x in next,Players:GetPlayers() do SkidFling(x) end
+				for _,x in next,__lt_call_service_method("Players", "GetPlayers") do SkidFling(x) end
 			end
 
 			for _,x in next,Targets do
@@ -28837,7 +28867,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 	end
 	UG_Set("UndergroundBind", true)
-	RunService:BindToRenderStep(NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
+	__lt_call_service_method("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
 		local current = UG_Get("UndergroundCurrent")
 		if UG_Get("Underground") and current then
 			local _, r = fetchCharPieces()
@@ -28957,7 +28987,7 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 		if not clickscareEnabled then return end
 		local target = Mouse.Target
 		if not (target and target.Parent and target.Parent:IsA("Model")) then return end
-		local clickedPlayer = Players:GetPlayerFromCharacter(target.Parent)
+		local clickedPlayer = __lt_call_service_method("Players", "GetPlayerFromCharacter", target.Parent)
 		if not clickedPlayer or not getPlrHum(clickedPlayer) then return end
 
 		local char = getChar()
@@ -29088,7 +29118,7 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 				lastHoverAlignRight = alignRight
 			end
 			if shouldResolve then
-				local isPlr = Players:GetPlayerFromCharacter(character)
+				local isPlr = __lt_call_service_method("Players", "GetPlayerFromCharacter", character)
 				local text = nameChecker(isPlr or character)
 				if text ~= lastHoverText then
 					hoverNameLabel.Text = text
@@ -29134,7 +29164,7 @@ end)
 
 cmd.add({"resetfilter", "ref"}, {"resetfilter","If Pedoblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
-		Players:Chat(Format("/e hi"))
+		__lt_call_service_method("Players", "Chat", Format("/e hi"))
 	end
 	return "Filter", "Reset"
 end)
@@ -29142,7 +29172,7 @@ end)
 NAstatsUI = {}
 windowCounter = (windowCounter or 0)
 windowRegistry = windowRegistry or {}
-StatsService = SafeGetService("Stats",false)
+StatsService = SafeGetService("Stats")
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -29851,8 +29881,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local CONN_KEY = "CharDebug"
 	local RENDER_BIND = "CharDebug"
 
-	local LogService = SafeGetService("LogService", false)
-	local StatsService = SafeGetService("Stats",false)
+	local LogService = SafeGetService("LogService")
+	local StatsService = SafeGetService("Stats")
 	local CoreGui = SafeGetService("CoreGui")
 
 	local UI_BASE = Vector2.new(860, 520)
@@ -29885,7 +29915,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		debugUI:Destroy()
 		debugUI = nil
 		NAlib.disconnect(CONN_KEY)
-		RunService:UnbindFromRenderStep(RENDER_BIND)
+		__lt_call_service_method("RunService", "UnbindFromRenderStep", RENDER_BIND)
 		return
 	end
 
@@ -29916,7 +29946,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end
 	local function getPingMs()
 		local ok,ms = pcall(function()
-			local net = StatsService:FindFirstChild("Network")
+			local net = __lt_call_service_method("Stats", "FindFirstChild", "Network")
 			if not net then return nil end
 			local p = (net:FindFirstChild("ServerStatsItem") and net.ServerStatsItem:FindFirstChild("Data Ping")) or net:FindFirstChild("Data Ping")
 			if not p then return nil end
@@ -29937,12 +29967,12 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		return nil
 	end
 	local function getMem()
-		local ok,total = pcall(function() return StatsService:GetTotalMemoryUsageMb() end)
+		local ok,total = pcall(function() return __lt_call_service_method("Stats", "GetTotalMemoryUsageMb") end)
 		local tags = {"Internal","Instances","Signals","Physics","GraphicsTexture","LuaHeap","HttpCache","Animation","Pathfinding","Sounds","Terrain","Navigation"}
 		local map = {}
 		if ok then map.Total = total end
 		for _,t in ipairs(tags) do
-			local ok2,val = pcall(function() return StatsService:GetMemoryUsageMbForTag(t) end)
+			local ok2,val = pcall(function() return __lt_call_service_method("Stats", "GetMemoryUsageMbForTag", t) end)
 			if ok2 then map[t] = val end
 		end
 		return map
@@ -29973,7 +30003,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local right = new("Frame",{Name="Right", AnchorPoint=Vector2.new(1,0), Position=UDim2.new(1,-8,0,6), Size=UDim2.new(0,0,1,-12), BackgroundTransparency=1, AutomaticSize=Enum.AutomaticSize.X, Parent=hdr, ZIndex=60})
 	new("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,HorizontalAlignment=Enum.HorizontalAlignment.Right,VerticalAlignment=Enum.VerticalAlignment.Center,Padding=UDim.new(0,6),Parent=right})
 
-	local platformStr = tostring(UserInputService:GetPlatform())
+	local platformStr = tostring(__lt_call_service_method("UserInputService", "GetPlatform"))
 	local status = new("TextLabel",{Name="Status", Size=UDim2.fromOffset(210,HEADER_H-16), BackgroundTransparency=0, BackgroundColor3=Color3.fromRGB(30,30,30), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), TextXAlignment=Enum.TextXAlignment.Center, Text="FPS: -- | Ping: -- | "..platformStr, Parent=right, ZIndex=61})
 	new("UICorner",{CornerRadius=UDim.new(1,8),Parent=status})
 	local btnPause = new("TextButton",{Name="Pause", Size=UDim2.fromOffset(74,HEADER_H-16), BackgroundColor3=ACCENT, AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="Pause", Font=Enum.Font.Code, TextSize=16, Parent=right, ZIndex=61})
@@ -30038,7 +30068,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		cards[key] = card
 		values[key] = val
 		card.BackgroundTransparency = 0.35
-		TweenService:Create(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.15}):Play()
+		__lt_call_service_method("TweenService", "Create", card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.15}):Play()
 	end
 
 	NAlib.connect(CONN_KEY, grid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -30062,7 +30092,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	local function setTab(name)
 		activeTab = name
-		for n,b in pairs(tabBtns) do TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = (n==name) and ACCENT or Color3.fromRGB(45,45,45)}):Play() end
+		for n,b in pairs(tabBtns) do __lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.15), {BackgroundColor3 = (n==name) and ACCENT or Color3.fromRGB(45,45,45)}):Play() end
 		local showLogs = (name == "Logs")
 		cardsScroll.Visible = not showLogs
 		logsHolder.Visible = showLogs
@@ -30156,8 +30186,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	for _,b in pairs(tabBtns) do
 		NAlib.connect(CONN_KEY, MouseButtonFix(b, function() setTab(b.Name) end))
-		NAlib.connect(CONN_KEY, b.MouseEnter:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0.05}):Play() end))
-		NAlib.connect(CONN_KEY, b.MouseLeave:Connect(function() TweenService:Create(b, TweenInfo.new(0.12), {TextTransparency = 0}):Play() end))
+		NAlib.connect(CONN_KEY, b.MouseEnter:Connect(function() __lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12), {TextTransparency = 0.05}):Play() end))
+		NAlib.connect(CONN_KEY, b.MouseLeave:Connect(function() __lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12), {TextTransparency = 0}):Play() end))
 	end
 
 	local pressed, lastInput = {}, "-"
@@ -30386,17 +30416,17 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		paused = not paused
 		isMinimized = false
 		btnPause.Text = paused and "Resume" or "Pause"
-		TweenService:Create(btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
+		__lt_call_service_method("TweenService", "Create", btnPause, TweenInfo.new(0.12), {BackgroundColor3 = paused and Color3.fromRGB(120,120,120) or ACCENT}):Play()
 	end))
 
 	NAlib.connect(CONN_KEY, MouseButtonFix(btnMin, function()
 		if window.Visible then
 			isMinimized = true
-			local out = TweenService:Create(window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
+			local out = __lt_call_service_method("TweenService", "Create", window, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96), BackgroundTransparency = 0.4})
 			out.Completed:Connect(function()
 				window.Visible=false
 				dock.Visible=true
-				TweenService:Create(dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(IsOnMobile and 80 or 70,IsOnMobile and 80 or 70)}):Play()
+				__lt_call_service_method("TweenService", "Create", dock, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(IsOnMobile and 80 or 70,IsOnMobile and 80 or 70)}):Play()
 			end)
 			out:Play()
 		end
@@ -30409,7 +30439,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 			window.Visible=true
 			window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
 			window.BackgroundTransparency = 0.4
-			TweenService:Create(window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
+			__lt_call_service_method("TweenService", "Create", window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), BackgroundTransparency = 0}):Play()
 			NAmanage.centerFrame(window)
 		end
 	end))
@@ -30424,12 +30454,12 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 			debugDock = nil
 		end
 		NAlib.disconnect(CONN_KEY)
-		RunService:UnbindFromRenderStep(RENDER_BIND)
+		__lt_call_service_method("RunService", "UnbindFromRenderStep", RENDER_BIND)
 	end))
 
 	setTab(activeTab)
 
-	RunService:BindToRenderStep(RENDER_BIND, Enum.RenderPriority.Last.Value, function(dt)
+	__lt_call_service_method("RunService", "BindToRenderStep", RENDER_BIND, Enum.RenderPriority.Last.Value, function(dt)
 		lastDt = dt
 		safeFPS(dt)
 		dtAcc += dt
@@ -30440,7 +30470,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	window.Size = UDim2.fromOffset(UI_SIZE.X*0.96, UI_SIZE.Y*0.96)
 	NAmanage.centerFrame(window)
-	TweenService:Create(window, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)}):Play()
+	__lt_call_service_method("TweenService", "Create", window, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y)}):Play()
 end)
 
 cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character debug"},function()
@@ -30454,7 +30484,7 @@ cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character 
 	end
 	isMinimized = false
 	NAlib.disconnect("CharDebug")
-	SafeGetService("RunService"):UnbindFromRenderStep("CharDebug")
+	__lt_call_service_method("RunService", "UnbindFromRenderStep", "CharDebug")
 end)
 
 cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
@@ -30740,7 +30770,7 @@ cmd.add({"trackstaff"}, {"trackstaff", "Track and notify when a staff member joi
 				DebugNotif(formatUsername(player).." is a "..info.Role)
 			end
 		end))
-		for _, player in pairs(Players:GetPlayers()) do
+		for _, player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local info = groupRole(player)
 			if info.IsStaff then
 				Insert(staffList, formatUsername(player).." is a "..info.Role)
@@ -30907,7 +30937,7 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
-	local plrs = cloneref(game:GetService("Players"))
+	local plrs = __lt_clone_service("Players", cloneref)
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -30976,7 +31006,7 @@ end)
 
 cmd.add({"cancelteleport","canceltp"},{"cancelteleport","Cancel an in-progress teleport"},function()
 	local ok,err=pcall(function()
-		TeleportService:TeleportCancel()
+		__lt_call_service_method("TeleportService", "TeleportCancel")
 	end)
 	if ok then
 		DoNotif("Cancelled pending teleports.",2)
@@ -31001,7 +31031,7 @@ cmd.add({"cancelteleportloop","canceltploop","loopcancelteleport","loopcanceltp"
 		end
 		elapsed = 0
 		pcall(function()
-			TeleportService:TeleportCancel()
+			__lt_call_service_method("TeleportService", "TeleportCancel")
 		end)
 	end))
 
@@ -31076,7 +31106,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		end
 	end
 
-	if #plrs:GetPlayers()<=1 then
+	if #__lt_call_service_method("Players", "GetPlayers")<=1 then
 		local ok,err=pcall(function()
 			tp:Teleport(PlaceId,lp)
 		end)
@@ -31117,7 +31147,7 @@ end)
 cmd.add({"teleporttoplace","toplace","ttp", "gametp"},{"teleporttoplace <id>","Teleports you using PlaceId"},function(...)
 	args={...}
 	pId=tonumber(args[1])
-	TeleportService:Teleport(pId)
+	__lt_call_service_method("TeleportService", "Teleport", pId)
 end,true)
 
 --made by the_king.78
@@ -31433,7 +31463,7 @@ cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation met
 			local alpha = math.clamp((os.clock() - startTick) / duration, 0, 1)
 			local eased = alpha
 			local okEase, easedValue = pcall(function()
-				return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+				return __lt_call_service_method("TweenService", "GetValue", alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 			end)
 			if okEase and type(easedValue) == "number" then
 				eased = easedValue
@@ -32791,7 +32821,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 	swimbeat=RunService.Heartbeat:Connect(function()
 		pcall(function()
-			getRoot(char).Velocity=((Humanoid.MoveDirection~=Vector3.new() or UserInputService:IsKeyDown(Enum.KeyCode.Space)) and getRoot(char).Velocity or Vector3.new())
+			getRoot(char).Velocity=((Humanoid.MoveDirection~=Vector3.new() or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.Space)) and getRoot(char).Velocity or Vector3.new())
 		end)
 	end)
 	swimming=true
@@ -32942,7 +32972,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	end;
 	local function playerFromCharacter(model)
 		local ok, plr = pcall(function()
-			return Players:GetPlayerFromCharacter(model);
+			return __lt_call_service_method("Players", "GetPlayerFromCharacter", model);
 		end);
 		if ok then
 			return plr;
@@ -32979,7 +33009,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 				originals.lighting[p] = st.safeGet(Lighting, p);
 			end;
 		end;
-		for _, e in ipairs(Lighting:GetChildren()) do
+		for _, e in ipairs(__lt_call_service_method("Lighting", "GetChildren")) do
 			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
 				if originals.postFx[e] == nil then
 					local en = st.safeGet(e, "Enabled");
@@ -33055,7 +33085,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			st.safeSet(w, "TargetRadius", streamRadius);
 		end;
 		if stripPostFx then
-			for _, e in ipairs(Lighting:GetChildren()) do
+			for _, e in ipairs(__lt_call_service_method("Lighting", "GetChildren")) do
 				if e:IsA("PostEffect") then
 					st.safeSet(e, "Enabled", false);
 				end;
@@ -33597,7 +33627,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
 		end;
 
-		for _, v in ipairs(Lighting:QueryDescendants("Instance")) do
+		for _, v in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do
 			safeOptimize(v);
 		end;
 		sweepAll();
@@ -33734,7 +33764,7 @@ cmd.add({"datalimit"},{"datalimit <kbps>","Set outgoing bandwidth limit in KBps"
 		return
 	end
 	local ok,err=pcall(function()
-		networkClient:SetOutgoingKBPSLimit(limit)
+		__lt_call_service_method("NetworkClient", "SetOutgoingKBPSLimit", limit)
 	end)
 	if ok then
 		DoNotif("Outgoing limit set to "..tostring(limit).." kbps",2)
@@ -33868,19 +33898,19 @@ cmd.add({"nologphysics"}, {"nologphysics", "Disable Physics Error Logging"}, fun
 end)
 
 cmd.add({"norender"},{"norender","Disable 3d Rendering to decrease the amount of CPU the client uses"},function()
-	RunService:Set3dRenderingEnabled(false)
+	__lt_call_service_method("RunService", "Set3dRenderingEnabled", false)
 end)
 
 cmd.add({"render"},{"render","Enable 3d Rendering"},function()
-	RunService:Set3dRenderingEnabled(true)
+	__lt_call_service_method("RunService", "Set3dRenderingEnabled", true)
 end)
 
 cmd.add({"noreset","disablereset"},{"noreset","disable reset button"},function()
-	StarterGui:SetCore("ResetButtonCallback",false)
+	__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback",false)
 end,true)
 
 cmd.add({"resetbtn","enablereset"},{"resetbtn","enable reset button"},function()
-	StarterGui:SetCore("ResetButtonCallback",true)
+	__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback",true)
 end,true)
 
 oofing = false
@@ -33888,7 +33918,7 @@ oofing = false
 cmd.add({"loopoof"},{"loopoof","Loops everyone's character sounds (everyone can hear)"},function()
 	oofing = true
 	repeat Wait(0.1)
-		for _, player in ipairs(Players:GetPlayers()) do
+		for _, player in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			local char = player.Character
 			local head = getHead(char)
 			if head then
@@ -34878,7 +34908,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	}
 
 	local function ensureSky()
-		local s = Lighting:FindFirstChild("NAOldRobloxSky")
+		local s = __lt_call_service_method("Lighting", "FindFirstChild", "NAOldRobloxSky")
 		if s then return s end
 		local sky = InstanceNew("Sky")
 		sky.Name = "NAOldRobloxSky"
@@ -34936,7 +34966,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	local stash = workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder")
 	stash.Name = "NAOldRbx_SkyStash"
 	stash.Parent = workspace
-	for _,v in ipairs(Lighting:GetChildren()) do
+	for _,v in ipairs(__lt_call_service_method("Lighting", "GetChildren")) do
 		if v:IsA("Sky") then
 			local c = v:Clone()
 			c.Parent = stash
@@ -34998,7 +35028,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	NAlib.disconnect("oldrbx_skyguard")
 	NAlib.connect("oldrbx_skyguard", Lighting.ChildRemoved:Connect(function(obj)
 		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
-		if obj:IsA("Sky") and not Lighting:FindFirstChild("NAOldRobloxSky") then
+		if obj:IsA("Sky") and not __lt_call_service_method("Lighting", "FindFirstChild", "NAOldRobloxSky") then
 			ensureSky()
 		end
 	end))
@@ -35048,7 +35078,7 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 		if rq.head > rq.tail then
 			NAlib.disconnect("oldrbx_untick")
 
-			for _,v in ipairs(Lighting:GetChildren()) do
+			for _,v in ipairs(__lt_call_service_method("Lighting", "GetChildren")) do
 				if v:IsA("Sky") and v.Name == "NAOldRobloxSky" then
 					v:Destroy()
 				end
@@ -35179,7 +35209,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	end
 
 	local function GetClosestPlayer()
-		for _, otherPlayer in pairs(Players:GetPlayers()) do
+		for _, otherPlayer in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if otherPlayer ~= Player and IsEnemy(otherPlayer) and otherPlayer.Character then
 				for _, part in pairs(otherPlayer.Character:GetChildren()) do
 					if part:IsA("BasePart") and IsInFieldOfView(part) then
@@ -35196,7 +35226,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	end
 
 	local function CheckMode()
-		if #Players:GetPlayers() > 0 and Players.LocalPlayer.Team == nil then
+		if #__lt_call_service_method("Players", "GetPlayers") > 0 and Players.LocalPlayer.Team == nil then
 			Mode = "FFA"
 		else
 			Mode = "Team"
@@ -35611,7 +35641,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		end
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
-		if UserInputService:GetFocusedTextBox() then
+		if __lt_call_service_method("UserInputService", "GetFocusedTextBox") then
 			return
 		end
 
@@ -35677,13 +35707,13 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		if GETCONS then
 			return
 		end
-		local VIM = SafeGetService("VirtualInputManager",false)
+		local VIM = SafeGetService("VirtualInputManager")
 		if not VIM then
 			return
 		end
-		VIM:SendKeyEvent(true, KEY, false, game)
+		__lt_call_service_method("VirtualInputManager", "SendKeyEvent", true, KEY, false, game)
 		Wait(rng:NextNumber(0.04, 0.08))
-		VIM:SendKeyEvent(false, KEY, false, game)
+		__lt_call_service_method("VirtualInputManager", "SendKeyEvent", false, KEY, false, game)
 		Wait(rng:NextNumber(55, 75))
 	end
 
@@ -35990,7 +36020,7 @@ NAmanage.makeClickTweenUI = function()
 					local alpha = math.clamp(elapsed / duration, 0, 1)
 					local eased = alpha
 					local okEase, easedValue = pcall(function()
-						return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+						return __lt_call_service_method("TweenService", "GetValue", alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 					end)
 					if okEase and type(easedValue) == "number" then
 						eased = easedValue
@@ -36060,7 +36090,7 @@ NAmanage.makeClickTweenTools = function()
 					local alpha = math.clamp(elapsed / duration, 0, 1)
 					local eased = alpha
 					local okEase, easedValue = pcall(function()
-						return TweenService:GetValue(alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+						return __lt_call_service_method("TweenService", "GetValue", alpha, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 					end)
 					if okEase and type(easedValue) == "number" then
 						eased = easedValue
@@ -36205,7 +36235,7 @@ end)
 
 cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's UserId by Username"}, function(thingy)
 	local s,idd=NACaller(function()
-		return Players:GetUserIdFromNameAsync(tostring(thingy))
+		return __lt_call_service_method("Players", "GetUserIdFromNameAsync", tostring(thingy))
 	end)
 
 	if not s then return DoNotif("err: "..tostring(idd)) end
@@ -36218,7 +36248,7 @@ end,true)
 
 cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username by ID"}, function(thingy)
 	local s,naem=NACaller(function()
-		return Players:GetNameFromUserIdAsync(thingy)
+		return __lt_call_service_method("Players", "GetNameFromUserIdAsync", thingy)
 	end)
 
 	if not s then return DoNotif("err: "..tostring(naem)) end
@@ -36241,7 +36271,7 @@ cmd.add({"ownerid"},{"ownerid","masks you as the game owner's ID and Username"},
 		end
 	end
 	if not ownerUserId then DebugNotif("Owner not found",3) return end
-	local ok2, nameOrErr = pcall(function() return Players:GetNameFromUserIdAsync(ownerUserId) end)
+	local ok2, nameOrErr = pcall(function() return __lt_call_service_method("Players", "GetNameFromUserIdAsync", ownerUserId) end)
 	if ok2 and nameOrErr and nameOrErr ~= "" then ownerName = nameOrErr else ownerName = "unknown" end
 	opt.hiddenprop(LocalPlayer, "UserId", ownerUserId)
 	opt.hiddenprop(LocalPlayer, "Name", ownerName)
@@ -36262,7 +36292,7 @@ cmd.add({"userid"},{"userid <id>","changes your UserId to any ID you enter"},fun
 			DebugNotif("invalid userId",3)
 			return nil
 		end
-		local ok, _ = pcall(function() return Players:GetNameFromUserIdAsync(asNum) end)
+		local ok, _ = pcall(function() return __lt_call_service_method("Players", "GetNameFromUserIdAsync", asNum) end)
 		if not ok then
 			DebugNotif("invalid userId (not found)",3)
 			return nil
@@ -36270,12 +36300,12 @@ cmd.add({"userid"},{"userid <id>","changes your UserId to any ID you enter"},fun
 		resolvedId = asNum
 	else
 		local uname = text:gsub("^@","")
-		local ok, uid = pcall(function() return Players:GetUserIdFromNameAsync(uname) end)
+		local ok, uid = pcall(function() return __lt_call_service_method("Players", "GetUserIdFromNameAsync", uname) end)
 		if not ok or not uid then
 			DebugNotif("invalid username",3)
 			return nil
 		end
-		local ok2, _ = pcall(function() return Players:GetNameFromUserIdAsync(uid) end)
+		local ok2, _ = pcall(function() return __lt_call_service_method("Players", "GetNameFromUserIdAsync", uid) end)
 		if not ok2 then
 			DebugNotif("resolved user invalid",3)
 			return nil
@@ -36556,7 +36586,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		end))
 	end
 
-	for _, pl in ipairs(Players:GetPlayers()) do
+	for _, pl in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		hookOther(pl)
 	end
 
@@ -37031,7 +37061,7 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				StarterGui:SetCoreGuiEnabled(coreGuiType, true)
+				__lt_call_service_method("StarterGui", "SetCoreGuiEnabled", coreGuiType, true)
 				if coreGuiType == Enum.CoreGuiType.Chat or coreGuiType == Enum.CoreGuiType.All then
 					NAStuff.ChatSettings.coreGuiChat = true
 					NAmanage.SaveTextChatSettings()
@@ -37051,7 +37081,7 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 	Insert(buttons, {
 		Text = "Reset",
 		Callback = function()
-			StarterGui:SetCore("ResetButtonCallback", true)
+			__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback", true)
 		end
 	})
 
@@ -37088,7 +37118,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 		Insert(buttons, {
 			Text = coreGuiType.Name,
 			Callback = function()
-				StarterGui:SetCoreGuiEnabled(coreGuiType, false)
+				__lt_call_service_method("StarterGui", "SetCoreGuiEnabled", coreGuiType, false)
 			end
 		})
 	end
@@ -37103,7 +37133,7 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 	Insert(buttons, {
 		Text = "Reset",
 		Callback = function()
-			StarterGui:SetCore("ResetButtonCallback", false)
+			__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback", false)
 		end
 	})
 
@@ -37185,7 +37215,7 @@ originalIO.bindForceReverbWatcher=function()
 	NAlib.disconnect("forcereverb_prop")
 	local ss = SafeGetService("SoundService")
 	if ss then
-		NAlib.connect("forcereverb_prop", ss:GetPropertyChangedSignal("AmbientReverb"):Connect(originalIO.ensureForceReverb))
+		NAlib.connect("forcereverb_prop", __lt_call_service_method("SoundService", "GetPropertyChangedSignal", "AmbientReverb"):Connect(originalIO.ensureForceReverb))
 	end
 end
 
@@ -37454,7 +37484,7 @@ cmd.add({"esp"}, {"esp","locate where the players are"}, function()
 	chamsEnabled = false
 	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = true
-	for _, player in pairs(Players:GetPlayers()) do
+	for _, player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		if player ~= Players.LocalPlayer then
 			NAmanage.ESP_Add(player, true)
 		end
@@ -37467,7 +37497,7 @@ cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
 	chamsEnabled = true
 	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = true
-	for _, player in pairs(Players:GetPlayers()) do
+	for _, player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		if player ~= Players.LocalPlayer then
 			NAmanage.ESP_Add(player, true)
 		end
@@ -37513,7 +37543,7 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 		end
 	end
 	if not shouldAuto and chamsEnabled then
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr and plr ~= Players.LocalPlayer then
 				local uid = tonumber(plr.UserId)
 				if not (uid and targetUidSet[uid]) then
@@ -38209,7 +38239,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	prefill()
 
 	MouseButtonFix(closeBtn, function()
-		local t = TweenService:Create(main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+		local t = __lt_call_service_method("TweenService", "Create", main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 			Size = UDim2.new(0.02,0,0.02,0),
 			Position = UDim2.new(0.99,0,0.01,0)
 		})
@@ -38987,7 +39017,7 @@ end)
 cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
-	TeleportService:TeleportToPlaceInstance(PlaceId,id)
+	__lt_call_service_method("TeleportService", "TeleportToPlaceInstance", PlaceId,id)
 end,true)
 
 NAStuff.srv = NAStuff.srv or {}
@@ -39103,7 +39133,7 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 	local function defaultHop()
 		DebugNotif("Teleporting (default)")
 		local ok, err = pcall(function()
-			TeleportService:Teleport(PlaceId)
+			__lt_call_service_method("TeleportService", "Teleport", PlaceId)
 		end)
 		if not ok then
 			DebugNotif("Teleport failed: "..tostring(err or "?"))
@@ -39115,7 +39145,7 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 		local id, pl = NAStuff.srv:scan("high")
 		if id then
 			DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-			TeleportService:TeleportToPlaceInstance(PlaceId, id)
+			__lt_call_service_method("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 		else
 			DebugNotif("No server found")
 		end
@@ -39143,7 +39173,7 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	local id, pl = NAStuff.srv:scan("low")
 	if id then
 		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		TeleportService:TeleportToPlaceInstance(PlaceId, id)
+		__lt_call_service_method("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 	else
 		DebugNotif("No server found")
 	end
@@ -39156,7 +39186,7 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	local id, pl, pn = NAStuff.srv:scan("ping")
 	if id and pn then
 		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		TeleportService:TeleportToPlaceInstance(PlaceId, id)
+		__lt_call_service_method("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 	else
 		DebugNotif("No server with ping found")
 	end
@@ -39206,7 +39236,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end)
 			if not ok then
 				pcall(function()
-					TeleportService:Teleport(PlaceId, Players.LocalPlayer)
+					__lt_call_service_method("TeleportService", "Teleport", PlaceId, Players.LocalPlayer)
 				end)
 			end
 			Wait(1.5)
@@ -39559,7 +39589,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			local delta=input.Position-dragStart
 			local position=UDim2.new(startPos.X.Scale,startPos.X.Offset+delta.X,
 				startPos.Y.Scale,startPos.Y.Offset+delta.Y)
-			TweenService:Create(frame,TweenInfo.new(dragSpeed),{Position=position}):Play()
+			__lt_call_service_method("TweenService", "Create", frame,TweenInfo.new(dragSpeed),{Position=position}):Play()
 		end
 
 		Insert(_na_env.functionspy.connections,frame.Title.InputBegan:Connect(function(input)
@@ -39590,31 +39620,31 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 
 		Insert(_na_env.functionspy.connections,FakeTitle.MouseEnter:Connect(function()
 			if _na_env.functionspy.logging==true then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
 			elseif _na_env.functionspy.logging==false then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
 		Insert(_na_env.functionspy.connections,FakeTitle.MouseMoved:Connect(function()
 			if _na_env.functionspy.logging==true then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
 			elseif _na_env.functionspy.logging==false then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
 		Insert(_na_env.functionspy.connections, MouseButtonFix(FakeTitle, function()
 			_na_env.functionspy.logging=not _na_env.functionspy.logging
 			if _na_env.functionspy.logging==true then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(0,1,0)}):Play()
 			elseif _na_env.functionspy.logging==false then
-				TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
+				__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,0,0)}):Play()
 			end
 		end))
 
 		Insert(_na_env.functionspy.connections,FakeTitle.MouseLeave:Connect(function()
-			TweenService:Create(FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,1,1)}):Play()
+			__lt_call_service_method("TweenService", "Create", FakeTitle.Parent.Title,TweenInfo.new(0.3),{TextColor3=Color3.new(1,1,1)}):Play()
 		end))
 	end
 	coroutine.wrap(BIPVKVC_fake_script)()
@@ -39906,7 +39936,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 
 		local back = -root.CFrame.LookVector
 
-		for _, p in pairs(SafeGetService("Players"):GetPlayers()) do
+		for _, p in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if p ~= LocalPlayer then
 				local char = p.Character
 				local targetRoot = char and getRoot(char)
@@ -41003,13 +41033,13 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 	local function tweenTransparency(container, target, tinfo)
 		for _, d in ipairs(container:QueryDescendants("Instance")) do
 			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-				TweenService:Create(d, tinfo, {TextTransparency = target}):Play()
+				__lt_call_service_method("TweenService", "Create", d, tinfo, {TextTransparency = target}):Play()
 			elseif d:IsA("ImageLabel") or d:IsA("ImageButton") then
-				TweenService:Create(d, tinfo, {ImageTransparency = target}):Play()
+				__lt_call_service_method("TweenService", "Create", d, tinfo, {ImageTransparency = target}):Play()
 			elseif d:IsA("Frame") then
-				TweenService:Create(d, tinfo, {BackgroundTransparency = math.clamp(target,0,1)}):Play()
+				__lt_call_service_method("TweenService", "Create", d, tinfo, {BackgroundTransparency = math.clamp(target,0,1)}):Play()
 			elseif d:IsA("UIStroke") then
-				TweenService:Create(d, tinfo, {Transparency = target}):Play()
+				__lt_call_service_method("TweenService", "Create", d, tinfo, {Transparency = target}):Play()
 			end
 		end
 	end
@@ -41157,8 +41187,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			local function hover(v)
 				local target = v and 0.12 or 0.2
 				local st = v and 0.35 or 0.5
-				TweenService:Create(b, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = target}):Play()
-				TweenService:Create(s, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = st}):Play()
+				__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = target}):Play()
+				__lt_call_service_method("TweenService", "Create", s, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = st}):Play()
 			end
 
 			if IsOnPC then
@@ -41689,8 +41719,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local function minimize()
 			if minimized then return end
 			tweenTransparency(content, 1, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
-			local tA = TweenService:Create(content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,0)})
-			local tB = TweenService:Create(main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(expandedMainSize.X.Scale, expandedMainSize.X.Offset, 0, headerH)})
+			local tA = __lt_call_service_method("TweenService", "Create", content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,0)})
+			local tB = __lt_call_service_method("TweenService", "Create", main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(expandedMainSize.X.Scale, expandedMainSize.X.Offset, 0, headerH)})
 			tA:Play(); tB:Play()
 			Delay(0.18, function() content.Visible = false end)
 			minimized = true
@@ -41698,8 +41728,8 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local function restore()
 			if not minimized then return end
 			content.Visible = true
-			local tB = TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = expandedMainSize})
-			local tA = TweenService:Create(content, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1, -headerH)})
+			local tB = __lt_call_service_method("TweenService", "Create", main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = expandedMainSize})
+			local tA = __lt_call_service_method("TweenService", "Create", content, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1, -headerH)})
 			tB:Play(); tA:Play()
 			Delay(0.1, function() tweenTransparency(content, 0, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)) end)
 			minimized = false
@@ -41707,7 +41737,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		MouseButtonFix(minBtn, function() if minimized then restore() else minimize() end end)
 
 		MouseButtonFix(closeBtn, function()
-			local t1 = TweenService:Create(main, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+			local t1 = __lt_call_service_method("TweenService", "Create", main, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 				Size = UDim2.new(0.02,0,0.02,0),
 				Position = UDim2.new(0.99,0,0.02,0)
 			})
@@ -42584,7 +42614,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 
 	coroutine.wrap(function()
 		while not _na_env.SawFinish do
-			local tween = TweenService:Create(
+			local tween = __lt_call_service_method("TweenService", "Create", 
 				staticOverlay,
 				TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ ImageTransparency = math.random(0.7, 0.9), Position = UDim2.new(math.random(-0.01, 0.01), 0, math.random(-0.01, 0.01), 0) }
@@ -42594,7 +42624,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		end
 	end)()
 
-	local bgTween = TweenService:Create(
+	local bgTween = __lt_call_service_method("TweenService", "Create", 
 		background,
 		TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{ BackgroundTransparency = 0.5 }
@@ -42630,7 +42660,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		while not _na_env.SawFinish do
 			local newSize = math.random(140, 160)
 			local newRotation = math.random(-10, 10)
-			local tween = TweenService:Create(
+			local tween = __lt_call_service_method("TweenService", "Create", 
 				imgLabel,
 				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ Size = UDim2.new(0, newSize, 0, newSize), Rotation = newRotation, ImageColor3 = Color3.fromRGB(math.random(200, 255), 0, 0) }
@@ -42638,14 +42668,14 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			tween:Play()
 			tween.Completed:Wait()
 			if math.random() < 0.2 then
-				local glitchTween = TweenService:Create(
+				local glitchTween = __lt_call_service_method("TweenService", "Create", 
 					imgLabel,
 					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 					{ ImageTransparency = math.random(0.3, 0.7), Position = UDim2.new(0.5 + math.random(-0.05, 0.05), 0, 0.1 + math.random(-0.05, 0.05), 0) }
 				)
 				glitchTween:Play()
 				glitchTween.Completed:Wait()
-				local resetTween = TweenService:Create(
+				local resetTween = __lt_call_service_method("TweenService", "Create", 
 					imgLabel,
 					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 					{ ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.1, 0) }
@@ -42717,7 +42747,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		dramaticLabel.Text = tostring(num)
 		playSound(138081500, 2)
 		for i = 1, 5 do
-			local shakeTween = TweenService:Create(
+			local shakeTween = __lt_call_service_method("TweenService", "Create", 
 				dramaticLabel,
 				TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ Position = UDim2.new(0.5 + math.random(-0.02, 0.02), 0, 0.7 + math.random(-0.02, 0.02), 0) }
@@ -42725,7 +42755,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			shakeTween:Play()
 			shakeTween.Completed:Wait()
 		end
-		local resetTween = TweenService:Create(
+		local resetTween = __lt_call_service_method("TweenService", "Create", 
 			dramaticLabel,
 			TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 			{ Position = UDim2.new(0.5, 0, 0.7, 0) }
@@ -42753,7 +42783,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 
 					local progress = num / 180
 					local jitter = math.random(-0.02, 0.02)
-					local tween = TweenService:Create(
+					local tween = __lt_call_service_method("TweenService", "Create", 
 						progressFill,
 						TweenInfo.new(1, Enum.EasingStyle.Linear),
 						{ Size = UDim2.new(progress + jitter, 0, 1, 0), BackgroundColor3 = num <= 30 and Color3.fromRGB(math.random(200, 255), math.random(0, 50), 0) or Color3.fromRGB(255, 0, 0) }
@@ -42797,7 +42827,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 				}, distortion)
 				playSound(9125915751, 5)
 				for i = 1, 3 do
-					local glitchTween = TweenService:Create(
+					local glitchTween = __lt_call_service_method("TweenService", "Create", 
 						glitchOverlay,
 						TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 						{ Position = UDim2.new(math.random(-0.05, 0.05), 0, math.random(-0.05, 0.05), 0), ImageTransparency = math.random(0.3, 0.7) }
@@ -42805,17 +42835,17 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 					glitchTween:Play()
 					Wait(0.15)
 				end
-				local fadeTween = TweenService:Create(
+				local fadeTween = __lt_call_service_method("TweenService", "Create", 
 					dramaticLabel,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ TextTransparency = 1 }
 				)
-				local distortionFade = TweenService:Create(
+				local distortionFade = __lt_call_service_method("TweenService", "Create", 
 					distortion,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ BackgroundTransparency = 1 }
 				)
-				local glitchFade = TweenService:Create(
+				local glitchFade = __lt_call_service_method("TweenService", "Create", 
 					glitchOverlay,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ ImageTransparency = 1 }
@@ -42854,13 +42884,13 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			AllBool = true
 			return
 		elseif Name == "random" then
-			local list = Players:GetPlayers()
+			local list = __lt_call_service_method("Players", "GetPlayers")
 			if Discover(list, LocalPlayer) then
 				table.remove(list, Discover(list, LocalPlayer))
 			end
 			return list[math.random(#list)]
 		end
-		for _, x in next, Players:GetPlayers() do
+		for _, x in next, __lt_call_service_method("Players", "GetPlayers") do
 			if x ~= LocalPlayer then
 				if Sub(Lower(x.Name), 1, #Name) == Name or Sub(Lower(x.DisplayName), 1, #Name) == Name then
 					return x
@@ -42993,7 +43023,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	end
 
 	if AllBool then
-		for _, p in next, Players:GetPlayers() do
+		for _, p in next, __lt_call_service_method("Players", "GetPlayers") do
 			if p ~= LocalPlayer then SkidFling(p) end
 		end
 	else
@@ -43075,7 +43105,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	local target = getPlr("others")
 	if #target == 0 then return end
 
-	for _, plr in pairs(Players:GetPlayers()) do
+	for _, plr in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		NAlib.disconnect("timestop_char_"..plr.UserId)
 	end
 	NAlib.disconnect("timestop_playeradd")
@@ -43110,7 +43140,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	local target = getPlr("all")
 	if #target == 0 then return end
 
-	for _, plr in pairs(Players:GetPlayers()) do
+	for _, plr in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		NAlib.disconnect("timestop_char_"..plr.UserId)
 	end
 	NAlib.disconnect("timestop_playeradd")
@@ -43284,7 +43314,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 	if not teamsService then return end
 	local lookup=Lower(teamName)
 	local targetTeam=nil
-	for _,team in ipairs(teamsService:GetChildren()) do
+	for _,team in ipairs(__lt_call_service_method("Teams", "GetChildren")) do
 		if Lower(team.Name):find(lookup,1,true) then targetTeam=team break end
 	end
 	if not targetTeam then DoNotif(Format("Invalid team \"%s\"",teamName),3,"Team") return end
@@ -43635,7 +43665,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(
 		local function Stare()
 			if lp.Character and plr.Character and getRoot(plr.Character) then
 				stareFIXER(lp.Character, getRoot(plr.Character).Position)
-			elseif not Players:FindFirstChild(plr.Name) then
+			elseif not __lt_call_service_method("Players", "FindFirstChild", plr.Name) then
 				NAlib.disconnect("stare_direct")
 			end
 		end
@@ -43661,7 +43691,7 @@ cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at th
 
 		local closest, dist = nil, math.huge
 		local pos = getRoot(char).Position
-		for _, p in ipairs(Players:GetPlayers()) do
+		for _, p in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if p ~= lp and p.Character and getRoot(p.Character) then
 				local pPos = getRoot(p.Character).Position
 				local d = (pPos - pos).Magnitude
@@ -43884,7 +43914,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 			return thumbCache[userId]
 		end
 		local ok, image = pcall(function()
-			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+			return __lt_call_service_method("Players", "GetUserThumbnailAsync", userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
 		end)
 		local resolved = (ok and image and image ~= "") and image or Format(fallbackThumbFmt, userId)
 		thumbCache[userId] = resolved
@@ -43936,7 +43966,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 			local lbl = btn:FindFirstChild("NameLabel")
 			if lbl then
 				local uid = NAmanage.GetAttr(btn, "uid")
-				local plr = Players:GetPlayerByUserId(uid)
+				local plr = __lt_call_service_method("Players", "GetPlayerByUserId", uid)
 				if plr == LocalPlayer then
 					lbl.TextColor3 = Color3.fromRGB(255,255,0)
 				elseif spectatedPlayer and plr == spectatedPlayer then
@@ -44005,7 +44035,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 
 	local function filterRows()
 		for uid, btn in pairs(rows) do
-			local plr = Players:GetPlayerByUserId(uid)
+			local plr = __lt_call_service_method("Players", "GetPlayerByUserId", uid)
 			if plr then
 				btn.Visible = matchesFilter(plr)
 			else
@@ -44085,7 +44115,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 
 		local vpY = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 720
 		dropMaxH = math.floor(vpY * (IsOnMobile and 0.7 or 0.55))
-		local openStart = TweenService:Create(drop, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 280 or 240)))})
+		local openStart = __lt_call_service_method("TweenService", "Create", drop, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 280 or 240)))})
 		openStart:Play()
 
 		for _, plr in ipairs(playerList) do
@@ -44120,7 +44150,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		toggleBtn.Text = "V"
 		toggleBtn.Rotation = 0
 		if drop then
-			local tClose = TweenService:Create(drop, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)})
+			local tClose = __lt_call_service_method("TweenService", "Create", drop, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, 0)})
 			tClose:Play()
 			tClose.Completed:Wait()
 			if drop then drop:Destroy() end
@@ -44237,7 +44267,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 
 	local function initialRoster()
 		table.clear(playerList)
-		for _, p in ipairs(Players:GetPlayers()) do
+		for _, p in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			insertSorted(p)
 		end
 	end
@@ -44371,7 +44401,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 		local myHum = getHum()
 		if not (myChar and myRoot and myHum) then return end
 
-		for _, plr in ipairs(Players:GetPlayers()) do
+		for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if plr ~= LocalPlayer then
 				local char = plr.Character
 				local root = getRoot(char)
@@ -44570,7 +44600,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	NAlib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
-		for _,plr in next,Players:GetPlayers() do
+		for _,plr in next,__lt_call_service_method("Players", "GetPlayers") do
 			if plr~=LocalPlayer then NACaller(function()
 					plr.MaximumSimulationRadius=0
 					opt.hiddenprop(plr,"SimulationRadius",0)
@@ -44692,7 +44722,7 @@ end)
 cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
 	local args = {...}
 	local target = args[1]
-	local vim=SafeGetService("VirtualInputManager",false);
+	local vim=SafeGetService("VirtualInputManager");
 	local keyMap = {
 		["leftcontrol"] = Enum.KeyCode.LeftControl,
 		["lcontrol"] = Enum.KeyCode.LeftControl,
@@ -44769,8 +44799,8 @@ cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind usi
 	local keyCode = findKeyCode(target)
 
 	if keyCode then
-		vim:SendKeyEvent(true, keyCode, 0, game)
-		vim:SendKeyEvent(false, keyCode, 0, game)
+		__lt_call_service_method("VirtualInputManager", "SendKeyEvent", true, keyCode, 0, game)
+		__lt_call_service_method("VirtualInputManager", "SendKeyEvent", false, keyCode, 0, game)
 	elseif not target or target == "" then
 		DebugNotif("firekey needs a key name (ex: firekey space)", 3)
 	else
@@ -44795,11 +44825,11 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				AllBool = true
 				return
 			elseif Name == "random" then
-				local GetPlayers = Players:GetPlayers()
+				local GetPlayers = __lt_call_service_method("Players", "GetPlayers")
 				if Discover(GetPlayers, Player) then table.remove(GetPlayers, Discover(GetPlayers, Player)) end
 				return GetPlayers[math.random(#GetPlayers)]
 			elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
-				for _, x in next, Players:GetPlayers() do
+				for _, x in next, __lt_call_service_method("Players", "GetPlayers") do
 					if x ~= Player then
 						if x.Name:lower():match("^"..Name) then
 							return x
@@ -44968,7 +44998,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 		_na_env.Welcome = true
 		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
 		if AllBool then
-			for _, x in next, Players:GetPlayers() do
+			for _, x in next, __lt_call_service_method("Players", "GetPlayers") do
 				SkidFling(x)
 			end
 		end
@@ -45011,7 +45041,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 
 	local products = {}
 	local okProducts, errProducts = pcall(function()
-		products = market:GetDeveloperProductsAsync():GetCurrentPage()
+		products = __lt_call_service_method("MarketplaceService", "GetDeveloperProductsAsync"):GetCurrentPage()
 	end)
 
 	local gamepasses = (function()
@@ -45034,7 +45064,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 	for _, product in next, (products or {}) do
 		for key, id in next, product do
 			if (key == "ProductId") or (key == "DeveloperProductId") then
-				market:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+				__lt_call_service_method("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
 				totalSignals += 1
 			end
 		end
@@ -45042,7 +45072,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 
 	for _, gamepass in next, (gamepasses or {}) do
 		pcall(function()
-			market:SignalPromptGamePassPurchaseFinished(LocalPlayer, gamepass, true)
+			__lt_call_service_method("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer, gamepass, true)
 		end)
 	end
 
@@ -45242,15 +45272,15 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			minimized=false
 			body.Visible=true
 			status.Visible=true
-			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
-			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
+			__lt_call_service_method("TweenService", "Create", win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
+			__lt_call_service_method("TweenService", "Create", shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=fullSize}):Play()
 			minimize.Text="-"
 		else
 			minimized=true
 			body.Visible=false
 			status.Visible=false
-			TweenService:Create(win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
-			TweenService:Create(shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
+			__lt_call_service_method("TweenService", "Create", win,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
+			__lt_call_service_method("TweenService", "Create", shadow,TweenInfo.new(0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Size=miniSize}):Play()
 			minimize.Text="+"
 		end
 	end))
@@ -45332,7 +45362,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		local lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
 
 		NAlib.connect(GROUP, MouseButtonFix(purchase, function()
-			MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+			__lt_call_service_method("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
 		end))
 		NAlib.connect(GROUP, MouseButtonFix(loopBtn, function()
 			local l=loops[id]
@@ -45347,7 +45377,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 				loopBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
 				SpawnCall(function()
 					while state.running do
-						MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, id, true)
+						__lt_call_service_method("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
 						Wait(parseInterval())
 					end
 					if loopBtn and loopBtn.Parent then
@@ -45362,7 +45392,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		rows[id]=row
 
 		SpawnCall(function()
-			local ok,pi=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.Product) end)
+			local ok,pi=pcall(function() return __lt_call_service_method("MarketplaceService", "GetProductInfo", id,Enum.InfoType.Product) end)
 			if ok and type(pi)=="table" and rows[id] and rows[id].Parent then
 				nameL.Text=pi.Name or nameL.Text
 				sub.Text=Format("ID: %d  •  Price: %s",id,pi.PriceInRobux and (pi.PriceInRobux.." R$") or "—")
@@ -45382,7 +45412,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		clearList()
 		table.clear(allItems)
 		notify("Loading developer products…")
-		local ok,pagesOrErr=pcall(function() return MarketplaceService:GetDeveloperProductsAsync() end)
+		local ok,pagesOrErr=pcall(function() return __lt_call_service_method("MarketplaceService", "GetDeveloperProductsAsync") end)
 		if not ok then notify("Failed to get pages: "..tostring(pagesOrErr),8) fetching=false return end
 		local pages=pagesOrErr
 		local count=0
@@ -45437,7 +45467,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		local delayS=parseInterval()
 		SpawnCall(function()
 			for _,info in ipairs(allItems) do
-				MarketplaceService:SignalPromptProductPurchaseFinished(LocalPlayer.UserId, info.ProductId, true)
+				__lt_call_service_method("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, info.ProductId, true)
 				Wait(delayS)
 			end
 		end)
@@ -45656,7 +45686,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		local sCorner=InstanceNew("UICorner",spamBtn); sCorner.CornerRadius=UDim.new(0,12)
 
 		NAlib.connect(GROUP, MouseButtonFix(buy, function()
-			MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+			__lt_call_service_method("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
 		end))
 		NAlib.connect(GROUP, MouseButtonFix(spamBtn, function()
 			local loop=loops[id]
@@ -45672,7 +45702,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 				spamBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
 				SpawnCall(function()
 					while state.running do
-						MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+						__lt_call_service_method("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
 						Wait(parseInterval())
 					end
 					if spamBtn and spamBtn.Parent then
@@ -45686,7 +45716,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 		rows[id]=row
 		SpawnCall(function()
-			local ok,info=pcall(function() return MarketplaceService:GetProductInfo(id,Enum.InfoType.GamePass) end)
+			local ok,info=pcall(function() return __lt_call_service_method("MarketplaceService", "GetProductInfo", id,Enum.InfoType.GamePass) end)
 			if ok and type(info)=="table" and rows[id] and rows[id].Parent then
 				nameL.Text=info.Name or nameL.Text
 				local price=info.PriceInRobux and (tostring(info.PriceInRobux).." R$") or "Unknown"
@@ -45715,7 +45745,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		local delayS=parseInterval()
 		SpawnCall(function()
 			for _,id in ipairs(ids) do
-				MarketplaceService:SignalPromptGamePassPurchaseFinished(LocalPlayer,id,true)
+				__lt_call_service_method("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
 				Wait(delayS)
 			end
 		end)
@@ -45813,13 +45843,13 @@ cmd.add({"listen"}, {"listen <player>", "Listen to your target's voice chat"}, f
 	for _, plr in next, trg do
 		local Root = getRoot(plr.Character)
 		if Root then
-			SafeGetService("SoundService"):SetListener(Enum.ListenerType.ObjectPosition, Root)
+			__lt_call_service_method("SoundService", "SetListener", Enum.ListenerType.ObjectPosition, Root)
 		end
 	end
 end,true)
 
 cmd.add({"vcworld","vcdefault"},{"vcworld <on/off>","Toggle default spatial voice routing"},function(mode)
-	local vcs = SafeGetService("VoiceChatService",false)
+	local vcs = SafeGetService("VoiceChatService")
 	local m = Lower(tostring(mode or ""))
 	if m ~= "on" and m ~= "off" then
 		DoNotif("Usage: vcworld <on/off>",2)
@@ -45830,7 +45860,7 @@ cmd.add({"vcworld","vcdefault"},{"vcworld <on/off>","Toggle default spatial voic
 end,true)
 
 cmd.add({"unlisten"}, {"unlisten", "Stops listening"}, function()
-	SafeGetService("SoundService"):SetListener(Enum.ListenerType.Camera)
+	__lt_call_service_method("SoundService", "SetListener", Enum.ListenerType.Camera)
 end)
 
 cmd.add({"gear"}, {"gear [id]", "This is client sided and will probably not work"}, function(assetId)
@@ -45932,7 +45962,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 		end
 
 		NAlib.connect("headsit_follow", RunService.Stepped:Connect(function()
-			if not Players:FindFirstChild(plr.Name)
+			if not __lt_call_service_method("Players", "FindFirstChild", plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
 				or hum.Sit == false then
@@ -46031,7 +46061,7 @@ cmd.add({"unwallhop"},{"unwallhop","disable wallhop helper"},function()
 end)
 
 cmd.add({"joinvoice", "joinvc"},{"joinvoice","let's you use vc if you were suspended"},function()
-	SafeGetService("VoiceChatService",false):joinVoice()
+	__lt_call_service_method("VoiceChatService", "joinVoice")
 end)
 
 cmd.add({"jump"},{"jump","jump."},function()
@@ -46153,7 +46183,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 
 	NAlib.connect("headstand_follow", RunService.Stepped:Connect(function()
 		local plrCharacter = plr.Character
-		if Players:FindFirstChild(plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
+		if __lt_call_service_method("Players", "FindFirstChild", plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			local charRoot = getRoot(char)
 			charRoot.CFrame = getRoot(plrCharacter).CFrame * CFrame.new(0, 4.6, 0.4)
 			for i, wall in ipairs(walls) do
@@ -46888,7 +46918,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		end
 	end
 
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		createSection(plr)
 	end
 
@@ -47002,7 +47032,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	if bangplr then
 		bangLoop = RunService.RenderStepped:Connect(function()
 			NACaller(function()
-				local targetPlayer = Players:FindFirstChild(bangplr)
+				local targetPlayer = __lt_call_service_method("Players", "FindFirstChild", bangplr)
 				if not targetPlayer or not targetPlayer.Character then
 					if bangLoop then bangLoop:Disconnect() bangLoop = nil end
 					return
@@ -47210,7 +47240,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 
 	suckLOOP = coroutine.wrap(function()
 		while true do
-			local targetPlayer = Players:FindFirstChild(targetName)
+			local targetPlayer = __lt_call_service_method("Players", "FindFirstChild", targetName)
 			local targetCharacter = targetPlayer and targetPlayer.Character
 			local localCharacter = getChar()
 			if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
@@ -47218,10 +47248,10 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 				local localHRP = getRoot(localCharacter)
 				local forwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-2.5) * CFrame.Angles(0,math.pi,0)
 				local backwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-1.3) * CFrame.Angles(0,math.pi,0)
-				local tweenForward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
+				local tweenForward = __lt_call_service_method("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
 				tweenForward:Play()
 				tweenForward.Completed:Wait()
-				local tweenBackward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
+				local tweenBackward = __lt_call_service_method("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
 				tweenBackward:Play()
 				tweenBackward.Completed:Wait()
 				for i,wall in ipairs(walls) do
@@ -47400,7 +47430,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		return final..tostring(pad)
 	end
 	local function getTeleportRemote()
-		local RRS=SafeGetService("RobloxReplicatedStorage") or ReplicatedStorage:FindFirstChild("RobloxReplicatedStorage")
+		local RRS=SafeGetService("RobloxReplicatedStorage") or __lt_call_service_method("ReplicatedStorage", "FindFirstChild", "RobloxReplicatedStorage")
 		if not RRS then DoNotif("Missing RRS") return nil end
 		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
 		if not remote then DoNotif("Missing Teleport Remote") return nil end
@@ -47429,7 +47459,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 	local places={}
 	local fetchErr
 	if assetService then
-		local ok,pages=pcall(function() return assetService:GetGamePlacesAsync() end)
+		local ok,pages=pcall(function() return __lt_call_service_method("AssetService", "GetGamePlacesAsync") end)
 		if ok and pages then
 			while true do
 				for _,place in pages:GetCurrentPage() do
@@ -47448,7 +47478,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 	local marketplace=SafeGetService("MarketplaceService")
 	local currentPlaceName=Format("Place %d",game.PlaceId)
 	if marketplace then
-		local ok,info=pcall(function() return marketplace:GetProductInfo(game.PlaceId) end)
+		local ok,info=pcall(function() return __lt_call_service_method("MarketplaceService", "GetProductInfo", game.PlaceId) end)
 		if ok and info and info.Name and info.Name~="" then currentPlaceName=info.Name end
 	end
 	local seen,processed={},{}
@@ -48179,7 +48209,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	if bangplr then
 		bangLoop = RunService.RenderStepped:Connect(function()
 			NACaller(function()
-				local targetPlayer = Players:FindFirstChild(bangplr)
+				local targetPlayer = __lt_call_service_method("Players", "FindFirstChild", bangplr)
 				if not targetPlayer or not targetPlayer.Character then
 					if bangLoop then bangLoop:Disconnect() bangLoop = nil end
 					return
@@ -48291,7 +48321,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 		local targetName = targetPlayer.Name
 		carpetLoop = RunService.Heartbeat:Connect(function()
 			NACaller(function()
-				local tgt = Players:FindFirstChild(targetName)
+				local tgt = __lt_call_service_method("Players", "FindFirstChild", targetName)
 				local tgtChar = tgt and tgt.Character
 				if not tgtChar then
 					originalIO.stopCarpet()
@@ -48443,7 +48473,7 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 			if tick() - lastStep < 0.1 then return end
 			lastStep = tick()
 			NACaller(function()
-				local targetPlayer = Players:FindFirstChild(bangplr)
+				local targetPlayer = __lt_call_service_method("Players", "FindFirstChild", bangplr)
 				local targetCharacter = targetPlayer and targetPlayer.Character
 				local localCharacter = getChar()
 				if not targetCharacter or not localCharacter then
@@ -48457,10 +48487,10 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 
 				local forwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-2.5)
 				local backwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-1.3)
-				local tweenForward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
+				local tweenForward = __lt_call_service_method("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
 				tweenForward:Play()
 				tweenForward.Completed:Wait()
-				local tweenBackward = TweenService:Create(localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
+				local tweenBackward = __lt_call_service_method("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
 				tweenBackward:Play()
 				tweenBackward.Completed:Wait()
 				localHRP.AssemblyLinearVelocity = Vector3.new()
@@ -48737,7 +48767,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 			if not hugModeEnabled then return end
 			local target = mouse.Target
 			if target and target.Parent then
-				local targetPlayer = Players:GetPlayerFromCharacter(target.Parent)
+				local targetPlayer = __lt_call_service_method("Players", "GetPlayerFromCharacter", target.Parent)
 				if targetPlayer and targetPlayer ~= LocalPlayer and targetPlayer.Character then
 					performHug(targetPlayer.Character)
 				end
@@ -48773,7 +48803,7 @@ cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"
 		local name = p.Name
 		if glueloop[name] then glueloop[name]:Disconnect() end
 		glueloop[name] = RunService.RenderStepped:Connect(function()
-			local target = Players:FindFirstChild(name)
+			local target = __lt_call_service_method("Players", "FindFirstChild", name)
 			if target and target.Character then
 				getRoot(getChar()).CFrame=getRoot(target.Character).CFrame
 			end
@@ -48798,7 +48828,7 @@ cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport 
 			glueBACKER[name] = nil
 		end
 		glueBACKER[name] = RunService.RenderStepped:Connect(function()
-			local tp = Players:FindFirstChild(name)
+			local tp = __lt_call_service_method("Players", "FindFirstChild", name)
 			if not tp or not tp.Character then return end
 			getRoot(getChar()).CFrame=getRoot(tp.Character).CFrame*CFrame.new(0,0,3)
 		end)
@@ -48843,7 +48873,7 @@ cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a pla
 	SpawnCall(function()
 		while loopspook do
 			for _, name in ipairs(names) do
-				local target = Players:FindFirstChild(name)
+				local target = __lt_call_service_method("Players", "FindFirstChild", name)
 				if target and getPlrHum(target) then
 					local lc = getChar()
 					local lr = getRoot(lc)
@@ -49258,7 +49288,7 @@ end)
 
 cmd.add({"memory", "mem"}, {"memory", "Shows you your current memory usage"}, function(args)
 	--DoNotif(stats():GetTotalMemoryUsageMb().." mb",5,"Memory")
-	DoNotif(SafeGetService("Stats",false):WaitForChild("PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
+	DoNotif(__lt_call_service_method("Stats", "WaitForChild", "PerformanceStats"):WaitForChild("Memory"):GetValueString(),5,"Memory")
 end, true)
 
 cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (nonilinstances, cni)","Removes nil instances"},function()
@@ -49276,11 +49306,11 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 
 	if targetPlayers and #targetPlayers > 0 then
 		for _, plr in next, targetPlayers do
-			GuiService:CloseInspectMenu()
-			GuiService:InspectPlayerFromUserId(plr.UserId)
+			__lt_call_service_method("GuiService", "CloseInspectMenu")
+			__lt_call_service_method("GuiService", "InspectPlayerFromUserId", plr.UserId)
 		end
 	else
-		GuiService:InspectPlayerFromUserId(Players:GetUserIdFromNameAsync(args))
+		__lt_call_service_method("GuiService", "InspectPlayerFromUserId", __lt_call_service_method("Players", "GetUserIdFromNameAsync", args))
 	end
 end, true)
 
@@ -49603,7 +49633,7 @@ function NAmanage.isNetworkPauseScript(inst)
 end
 
 function NAmanage.getNetworkPauseScript()
-	local robloxGui = COREGUI:FindFirstChild("RobloxGui")
+	local robloxGui = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui")
 	if not robloxGui then
 		return nil
 	end
@@ -51527,14 +51557,14 @@ cmd.add({"unloopenableproximityprompts","unloopenableprox","unlenprox","unlenpp"
 end)
 
 cmd.add({"r6"},{"r6","Shows a prompt that will switch your character rig type into R6"},function()
-	SafeGetService("AvatarEditorService"):PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R6)
+	__lt_call_service_method("AvatarEditorService", "PromptSaveAvatar", getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R6)
 	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
 	getHum():ChangeState(Enum.HumanoidStateType.Dead)
 	getHum().Health=0
 end)
 
 cmd.add({"r15"},{"r15","Shows a prompt that will switch your character rig type into R15"},function()
-	SafeGetService("AvatarEditorService"):PromptSaveAvatar(getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R15)
+	__lt_call_service_method("AvatarEditorService", "PromptSaveAvatar", getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R15)
 	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
 	getHum():ChangeState(Enum.HumanoidStateType.Dead)
 	getHum().Health=0
@@ -51899,13 +51929,13 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 				if reportplayer then
 					reportplayer(player, reason, Format("Saying %s", keyword))
 				else
-					Players:ReportAbuse(player, reason, Format("Saying %s", keyword))
+					__lt_call_service_method("Players", "ReportAbuse", player, reason, Format("Saying %s", keyword))
 				end
 			end
 		end)
 	end
 
-	for _, player in ipairs(Players:GetPlayers()) do
+	for _, player in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		MonitorPlayerChat(player)
 	end
 
@@ -51996,7 +52026,7 @@ cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}
 	local tg = getPlr(p)
 
 	local function dlg()
-		local rg = COREGUI:FindFirstChild("RobloxGui")
+		local rg = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui")
 		if not rg then return nil end
 		return rg:FindFirstChild("PromptDialog", true) or rg:FindFirstChild("RobloxPromptGui", true)
 	end
@@ -52019,7 +52049,7 @@ cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}
 	for _, t in ipairs(tg) do
 		if t and t ~= LocalPlayer and not LocalPlayer:IsFriendsWith(t.UserId) then
 			local ok = pcall(function()
-				StarterGui:SetCore("PromptSendFriendRequest", t)
+				__lt_call_service_method("StarterGui", "SetCore", "PromptSendFriendRequest", t)
 			end)
 			if ok then
 				waitPrompt()
@@ -52036,7 +52066,7 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	local tg = getPlr(p)
 
 	local function dlg()
-		local rg = COREGUI:FindFirstChild("RobloxGui")
+		local rg = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui")
 		if not rg then return nil end
 		return rg:FindFirstChild("PromptDialog", true) or rg:FindFirstChild("RobloxPromptGui", true)
 	end
@@ -52059,7 +52089,7 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	for _, t in ipairs(tg) do
 		if t and t ~= LocalPlayer and LocalPlayer:IsFriendsWith(t.UserId) then
 			local ok = pcall(function()
-				StarterGui:SetCore("PromptUnfriend", t)
+				__lt_call_service_method("StarterGui", "SetCore", "PromptUnfriend", t)
 			end)
 			if ok then
 				waitPrompt()
@@ -52076,13 +52106,13 @@ cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unbloc
 	local tg = getPlr(p)
 	for _,t in ipairs(tg) do
 		if t ~= LocalPlayer then
-			StarterGui:SetCore("PromptBlockPlayer",t)
+			__lt_call_service_method("StarterGui", "SetCore", "PromptBlockPlayer",t)
 		end
 	end
 end,true)
 
 NAmanage.NAgetFriendCircles=function()
-	local players = Players:GetPlayers()
+	local players = __lt_call_service_method("Players", "GetPlayers")
 	local graph, seen, groups = {}, {}, {}
 	local friendSets = {}
 
@@ -52160,7 +52190,7 @@ cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the cu
 	local groups, graph = NAmanage.NAgetFriendCircles()
 	local useDisplayNames = false
 	local ok, enabled = pcall(function()
-		return StarterGui and StarterGui:GetCoreGuiEnabled(Enum.CoreGuiType.PlayerList)
+		return StarterGui and __lt_call_service_method("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
 	end)
 	if ok and enabled then
 		useDisplayNames = true
@@ -52195,7 +52225,7 @@ end)
 cmd.add({"massfollowedinto"}, {"massfollowedinto", "Shows everyone in the server that followed someone into the game"}, function()
 	local lines = {}
 
-	for _, plr in ipairs(Players:GetPlayers()) do
+	for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 		local okFollow, followIdRaw = pcall(function()
 			return plr.FollowUserId
 		end)
@@ -52229,7 +52259,7 @@ cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tween
 		local character = player.Character or player.CharacterAdded:wait(1);
 		local camera = workspace.CurrentCamera;
 		local cameraPosition = camera.CFrame.Position;
-		local tween = TweenService:Create(character.PrimaryPart, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
+		local tween = __lt_call_service_method("TweenService", "Create", character.PrimaryPart, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
 			CFrame = CFrame.new(cameraPosition)
 		});
 		tween:Play();
@@ -52282,13 +52312,13 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 end, true)
 
 cmd.add({"deletelighting", "removelighting", "removel", "ldel"},{"deletelighting (removelighting, removel, ldel)","Removes all descendants (objects) within Lighting."},function()
-	for _, l in ipairs(Lighting:QueryDescendants("Instance")) do
+	for _, l in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do
 		l:Destroy()
 	end
 end)
 
 cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (disablelighting, ldisable)", "Disables all post-processing effects in Lighting instead of deleting them."},function()
-	for _, inst in ipairs(Lighting:QueryDescendants("PostEffect")) do
+	for _, inst in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "PostEffect")) do
 		inst.Enabled = false
 	end
 end)
@@ -53606,7 +53636,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 				local root = char and getRoot(char)
 				if root then
 					local duration = NAmanage.resolveTweenDuration()
-					local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
+					local tween = __lt_call_service_method("TweenService", "Create", root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
 					tween:Play()
 					Wait(duration + partDelay)
 				end
@@ -53884,7 +53914,7 @@ cmd.add({"swim"}, {"swim {speed}","Swim in the air"}, function(speed)
 			if move.Magnitude > 0 then
 				v = move.Unit * spd;
 			end;
-			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+			if __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.Space) then
 				v = v + Vector3.new(0, spd, 0);
 			end;
 			if humanoid:GetState() == Enum.HumanoidStateType.Jumping then
@@ -54792,7 +54822,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 	end
 
 	local function measure(text, textSize, maxWidth)
-		local b = TextService:GetTextSize(text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
+		local b = __lt_call_service_method("TextService", "GetTextSize", text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
 		local w = math.clamp(b.X + 12, 40, maxWidth)
 		local h = math.max(b.Y + 6, textSize + 4)
 		return w, h
@@ -55397,7 +55427,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 	end
 
 	local function measure(text, textSize, maxWidth)
-		local b = TextService:GetTextSize(text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
+		local b = __lt_call_service_method("TextService", "GetTextSize", text, textSize, Enum.Font.SourceSansBold, Vector2.new(maxWidth, 1e5))
 		local w = math.clamp(b.X + 12, 40, maxWidth)
 		local h = math.max(b.Y + 6, textSize + 4)
 		return w, h
@@ -55470,7 +55500,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 							local label = holder:FindFirstChild("Name")
 							local owner = data.ownerPlayer
 							if not (owner and owner.Parent) then
-								owner = Players:GetPlayerFromCharacter(model)
+								owner = __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 								if owner then
 									data.ownerPlayer = owner
 								end
@@ -55732,7 +55762,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 						if type(holder) == "table" and holder.drawingArrow then
 							local owner = data.ownerPlayer
 							if not (owner and owner.Parent) then
-								owner = Players:GetPlayerFromCharacter(model)
+								owner = __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 								if owner then
 									data.ownerPlayer = owner
 								end
@@ -56582,7 +56612,7 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 		{
 			Text = "Roblox Console",
 			Callback = function()
-				StarterGui:SetCore("DevConsoleVisible", true)
+				__lt_call_service_method("StarterGui", "SetCore", "DevConsoleVisible", true)
 			end
 		},
 		{
@@ -57524,13 +57554,13 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 
 	if glb then
 		if argL == "others" then
-			for _, plr in ipairs(Players:GetPlayers()) do
+			for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 				if plr ~= lp then
 					restoreEntryPlayer(D, plr)
 				end
 			end
 		else
-			for _, plr in ipairs(Players:GetPlayers()) do
+			for _, plr in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 				restoreEntryPlayer(D, plr)
 			end
 		end
@@ -57870,7 +57900,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	SpawnCall(function()
 		while NAStuff._breakcarsEnabled and Wait() do
-			for _, player in ipairs(Players:GetPlayers()) do
+			for _, player in ipairs(__lt_call_service_method("Players", "GetPlayers")) do
 				if player ~= Player then
 					pcall(function() player.MaximumSimulationRadius = 0 end)
 					pcall(function() if opt and opt.hiddenprop then opt.hiddenprop(player, "SimulationRadius", 0) end end)
@@ -58157,35 +58187,35 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games b
 		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initFB then
 			st.initFB = function()
-				st.hook("fb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+				st.hook("fb_brightness", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
 						else
 							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
 						end
 					end) end)
-				st.hook("fb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+				st.hook("fb_clocktime", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
 						else
 							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
 						end
 					end) end)
-				st.hook("fb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+				st.hook("fb_fogend", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
 						else
 							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
 						end
 					end) end)
-				st.hook("fb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+				st.hook("fb_shadows", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
 						else
 							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
 						end
 					end) end)
-				st.hook("fb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+				st.hook("fb_ambient", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
 						else
@@ -58244,7 +58274,7 @@ cmd.add({"loopday","lday"},{"loopday","Sunshiiiine!"},function()
 	st.cancelFor("day")
 	NAlib.disconnect("time_day")
 	st.safeSet(Lighting,"ClockTime",14)
-	NAlib.connect("time_day", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+	NAlib.connect("time_day", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 		if st.safeGet(Lighting,"ClockTime") ~= 14 then st.safeSet(Lighting,"ClockTime",14) end
 	end))
 end)
@@ -58270,35 +58300,35 @@ cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright","Sunshiiiine!"},func
 		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initFB then
 			st.initFB = function()
-				st.hook("fb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+				st.hook("fb_brightness", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
 						else
 							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
 						end
 					end) end)
-				st.hook("fb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+				st.hook("fb_clocktime", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
 						else
 							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
 						end
 					end) end)
-				st.hook("fb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+				st.hook("fb_fogend", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
 						else
 							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
 						end
 					end) end)
-				st.hook("fb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+				st.hook("fb_shadows", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
 						else
 							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
 						end
 					end) end)
-				st.hook("fb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+				st.hook("fb_ambient", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.fb and st.fb.enabled then
 							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
 						else
@@ -58397,35 +58427,35 @@ cmd.add({"loopnight","loopn","ln"},{"loopnight","Moonlight."},function()
 		if st.nb.baseline.Ambient == nil then st.nb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initNB then
 			st.initNB = function()
-				st.hook("nb_brightness", function() return Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+				st.hook("nb_brightness", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.nb and st.nb.enabled then
 							if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
 						else
 							st.nb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.nb.baseline.Brightness
 						end
 					end) end)
-				st.hook("nb_clocktime", function() return Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+				st.hook("nb_clocktime", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.nb and st.nb.enabled then
 							if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
 						else
 							st.nb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.nb.baseline.ClockTime
 						end
 					end) end)
-				st.hook("nb_fogend", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+				st.hook("nb_fogend", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.nb and st.nb.enabled then
 							if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
 						else
 							st.nb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.nb.baseline.FogEnd
 						end
 					end) end)
-				st.hook("nb_shadows", function() return Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+				st.hook("nb_shadows", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.nb and st.nb.enabled then
 							if st.safeGet(Lighting,"GlobalShadows") ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
 						else
 							local v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.nb.baseline.GlobalShadows=v end
 						end
 					end) end)
-				st.hook("nb_ambient", function() return Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+				st.hook("nb_ambient", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.nb and st.nb.enabled then
 							if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
 						else
@@ -58533,7 +58563,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 		end
 	end
 	local function processLighting()
-		for _,inst in ipairs(Lighting:QueryDescendants("Instance")) do disableEffect(inst) end
+		for _,inst in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do disableEffect(inst) end
 	end
 	local function processCamera()
 		local cam = w.CurrentCamera
@@ -58634,7 +58664,7 @@ cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Light
 			if glare~=nil and glare~=0 then st.safeSet(inst,"Glare",0) end
 		end
 	end
-	for _,inst in ipairs(Lighting:QueryDescendants("Instance")) do disableEffect(inst) end
+	for _,inst in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do disableEffect(inst) end
 	local cam = workspace.CurrentCamera
 	if cam then
 		for _,inst in ipairs(cam:QueryDescendants("Instance")) do disableEffect(inst) end
@@ -58672,12 +58702,12 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	if not nf.init then
 		nf.init = true
 		local scanAccumulator = 0
-		st.hook("nf_prop_end", function() return Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+		st.hook("nf_prop_end", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 				if st.nf and st.nf.enabled then
 					if st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
 				end
 			end) end)
-		st.hook("nf_prop_start", function() return Lighting:GetPropertyChangedSignal("FogStart"):Connect(function()
+		st.hook("nf_prop_start", function() return __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogStart"):Connect(function()
 				if st.nf and st.nf.enabled then
 					if st.safeGet(Lighting,"FogStart") ~= 0 then st.safeSet(Lighting,"FogStart",0) end
 				end
@@ -58692,7 +58722,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 				scanAccumulator = scanAccumulator + dt
 				if scanAccumulator >= 0.5 then
 					scanAccumulator = 0
-					for _, inst in ipairs(Lighting:QueryDescendants("Instance")) do
+					for _, inst in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do
 						disableEffect(inst)
 					end
 				end
@@ -58705,7 +58735,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	nf.baselineFogStart = st.safeGet(Lighting,"FogStart") or nf.baselineFogStart
 	st.safeSet(Lighting,"FogEnd",786543)
 	st.safeSet(Lighting,"FogStart",0)
-	for _,v in ipairs(Lighting:QueryDescendants("Instance")) do disableEffect(v) end
+	for _,v in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do disableEffect(v) end
 end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No more sight."},function()
@@ -58748,7 +58778,7 @@ cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
 	end
 	st.safeSet(Lighting,"FogEnd",786543)
 	if st.safeGet(Lighting,"FogStart")~=nil then st.safeSet(Lighting,"FogStart",0) end
-	for _,v in ipairs(Lighting:QueryDescendants("Instance")) do disableEffect(v) end
+	for _,v in ipairs(__lt_call_service_method("Lighting", "QueryDescendants", "Instance")) do disableEffect(v) end
 end)
 
 cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
@@ -58784,7 +58814,7 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 	st.nm = st.nm or {enabled=false,baseline={},target={Brightness=0.4,ClockTime=0,FogStart=0,FogEnd=28,GlobalShadows=true,Ambient=Color3.fromRGB(50,50,65)},effects={}}
 	local function ensureEffect(className, key)
 		local name = "NA_nm_"..key
-		local inst = Lighting:FindFirstChild(name)
+		local inst = __lt_call_service_method("Lighting", "FindFirstChild", name)
 		if not inst then inst = InstanceNew(className); inst.Name = name; inst.Parent = Lighting end
 		st.nm.effects[key] = inst
 		return inst
@@ -58851,22 +58881,22 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 		NAlib.disconnect("nm_shadows")
 		NAlib.disconnect("nm_ambient")
 		NAlib.disconnect("nm_loop")
-		NAlib.connect("nm_brightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+		NAlib.connect("nm_brightness", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 			if st.nm and st.nm.enabled and st.safeGet(Lighting,"Brightness") ~= st.nm.target.Brightness then st.safeSet(Lighting,"Brightness",st.nm.target.Brightness) end
 		end))
-		NAlib.connect("nm_clocktime", Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+		NAlib.connect("nm_clocktime", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 			if st.nm and st.nm.enabled and st.safeGet(Lighting,"ClockTime") ~= st.nm.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nm.target.ClockTime) end
 		end))
-		NAlib.connect("nm_fogstart", Lighting:GetPropertyChangedSignal("FogStart"):Connect(function()
+		NAlib.connect("nm_fogstart", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogStart"):Connect(function()
 			if st.nm and st.nm.enabled then local fs = st.safeGet(Lighting,"FogStart"); if fs==nil or fs ~= st.nm.target.FogStart then st.safeSet(Lighting,"FogStart",st.nm.target.FogStart) end end
 		end))
-		NAlib.connect("nm_fogend", Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+		NAlib.connect("nm_fogend", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 			if st.nm and st.nm.enabled and st.safeGet(Lighting,"FogEnd") ~= st.nm.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nm.target.FogEnd) end
 		end))
-		NAlib.connect("nm_shadows", Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+		NAlib.connect("nm_shadows", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 			if st.nm and st.nm.enabled then local gs = st.safeGet(Lighting,"GlobalShadows"); if gs==nil or gs ~= st.nm.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end end
 		end))
-		NAlib.connect("nm_ambient", Lighting:GetPropertyChangedSignal("Ambient"):Connect(function()
+		NAlib.connect("nm_ambient", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 			if st.nm and st.nm.enabled and st.safeGet(Lighting,"Ambient") ~= st.nm.target.Ambient then st.safeSet(Lighting,"Ambient",st.nm.target.Ambient) end
 		end))
 		NAlib.connect("nm_loop", RunService.RenderStepped:Connect(function()
@@ -58930,7 +58960,7 @@ cmd.add({"loopbrightness","loopbri","loopb"},{"loopbrightness (loopbri,loopb)","
 	loopBrightnessValue = tonumber(num)
 	NAlib.disconnect("loopbrightness")
 	Lighting.Brightness = loopBrightnessValue
-	NAlib.connect("loopbrightness", Lighting:GetPropertyChangedSignal("Brightness"):Connect(function()
+	NAlib.connect("loopbrightness", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 		if Lighting.Brightness ~= loopBrightnessValue then
 			Lighting.Brightness = loopBrightnessValue
 		end
@@ -58958,7 +58988,7 @@ cmd.add({"loopgamma", "loopexposure"},{"loopgamma (loopexposure)","loop gamma vi
 	expose = tonumber(num) or 0
 	NAlib.disconnect("loopgamma")
 	Lighting.ExposureCompensation = expose
-	NAlib.connect("loopgamma", Lighting:GetPropertyChangedSignal("ExposureCompensation"):Connect(function()
+	NAlib.connect("loopgamma", __lt_call_service_method("Lighting", "GetPropertyChangedSignal", "ExposureCompensation"):Connect(function()
 		if Lighting.ExposureCompensation ~= expose then
 			Lighting.ExposureCompensation = expose
 		end
@@ -59157,7 +59187,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 	HH = getHum().HipHeight
 
 	function setDisplayDistance(distance)
-		for _, player in pairs(Players:GetPlayers()) do
+		for _, player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 			if getPlrChar(player) and getPlrHum(player) then
 				getPlrHum(player).NameDisplayDistance = distance
 				getPlrHum(player).HealthDisplayDistance = distance
@@ -59320,7 +59350,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			root.CFrame = OriginalPosition
 		end
 		DebugNotif("Invisibility turned off.")
-		StarterGui:SetCore("ResetButtonCallback", true)
+		__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback", true)
 	end
 
 	local function ToggleInvisibility()
@@ -59345,7 +59375,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			Players.LocalPlayer.Character = InvisibleCharacter
 			workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
 			DebugNotif("You are now invisible.")
-			StarterGui:SetCore("ResetButtonCallback", false)
+			__lt_call_service_method("StarterGui", "SetCore", "ResetButtonCallback", false)
 		else
 			TurnVisible()
 		end
@@ -59701,8 +59731,8 @@ do
 		cam.CFrame = CFrame.fromMatrix(p, Vector3.new(r.X*rs.X, r.Y*rs.Y, r.Z*rs.Z), Vector3.new(u.X*us.X, u.Y*us.Y, u.Z*us.Z), l)
 	end
 
-	pcall(function() RunService:UnbindFromRenderStep("FOV_SYS") end)
-	RunService:BindToRenderStep("FOV_SYS", Enum.RenderPriority.Camera.Value+1, originalIO.FOVstep)
+	pcall(function() __lt_call_service_method("RunService", "UnbindFromRenderStep", "FOV_SYS") end)
+	__lt_call_service_method("RunService", "BindToRenderStep", "FOV_SYS", Enum.RenderPriority.Camera.Value+1, originalIO.FOVstep)
 
 	connectCameraWatcher()
 
@@ -59720,7 +59750,7 @@ do
 		local cam = workspace.CurrentCamera
 		if cam then
 			local vis = math.clamp(t, 25, 120)
-			TweenService:Create(cam, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {FieldOfView = vis}):Play()
+			__lt_call_service_method("TweenService", "Create", cam, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {FieldOfView = vis}):Play()
 		end
 	end, true)
 
@@ -60290,13 +60320,13 @@ cmd.add({"errorchat"},{"errorchat","Makes the chat error appear when roblox chat
 end)
 
 cmd.add({"clearerror", "noerror"}, {"clearerror", "Clears any current error or disconnected UI immediately"}, function()
-	GuiService:ClearError()
+	__lt_call_service_method("GuiService", "ClearError")
 end)
 
 cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future error or disconnected UI"}, function()
 	NAlib.disconnect("antierror")
 	NAlib.connect("antierror", GuiService.ErrorMessageChanged:Connect(function()
-		GuiService:ClearError()
+		__lt_call_service_method("GuiService", "ClearError")
 	end))
 	DebugNotif("Anti Error is now enabled!", 2)
 end)
@@ -60496,7 +60526,7 @@ do
 				local target = part.Size
 				part.Transparency = 1
 				part.Size = target * (scale or 0.2)
-				TweenService:Create(part, tweenInfo, { Transparency = 0, Size = target }):Play()
+				__lt_call_service_method("TweenService", "Create", part, tweenInfo, { Transparency = 0, Size = target }):Play()
 			end
 		end
 	end
@@ -60728,7 +60758,7 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			TweenService:Create(part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			__lt_call_service_method("TweenService", "Create", part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
 		Delay(0.30, function()
 			for _, part in ipairs(toRemove) do
@@ -60892,7 +60922,7 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			TweenService:Create(part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			__lt_call_service_method("TweenService", "Create", part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
 		Delay(0.30, function()
 			for _, part in ipairs(toRemove) do
@@ -61059,7 +61089,7 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			TweenService:Create(part, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			__lt_call_service_method("TweenService", "Create", part, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
 		Delay(0.27, function()
 			for _, part in ipairs(toRemove) do
@@ -61443,7 +61473,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		if result and NPCControl._jumpCooldown <= 0 then
 			local part = result.Instance
 			local model = part:FindFirstAncestorOfClass("Model")
-			local isPlayerChar = model and Players:GetPlayerFromCharacter(model)
+			local isPlayerChar = model and __lt_call_service_method("Players", "GetPlayerFromCharacter", model)
 
 			if part.CanCollide and not isPlayerChar then
 				if hum:GetState() == Enum.HumanoidStateType.Running then
@@ -61809,9 +61839,9 @@ do
 	end
 end
 
-rPlayer = Players:FindFirstChildWhichIsA("Player")
+rPlayer = __lt_call_service_method("Players", "FindFirstChildWhichIsA", "Player")
 coreGuiProtection = {}
-if not RunService:IsStudio() then
+if not __lt_call_service_method("RunService", "IsStudio") then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI", true)
 	NAStuff.NASCREENGUI = player:FindFirstChild("AdminUI", true)
@@ -62913,8 +62943,8 @@ opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 			return tostr(t)
 		end)
 	end)
-	if not RunService:IsStudio() then
-		local newGui=COREGUI:FindFirstChildWhichIsA("NAStuff.NASCREENGUI")
+	if not __lt_call_service_method("RunService", "IsStudio") then
+		local newGui=__lt_call_service_method("CoreGui", "FindFirstChildWhichIsA", "NAStuff.NASCREENGUI")
 		newGui.DescendantAdded:Connect(function(v)
 			coreGuiProtection[v]=rPlayer.Name
 		end)
@@ -62963,7 +62993,7 @@ originalIO.ApplyLastInputPatch = function()
 
 		local prefSignal
 		pcall(function()
-			prefSignal = UserInputService:GetPropertyChangedSignal("PreferredInput")
+			prefSignal = __lt_call_service_method("UserInputService", "GetPropertyChangedSignal", "PreferredInput")
 		end)
 
 		if prefSignal then
@@ -62984,7 +63014,7 @@ originalIO.ApplyLastInputPatch = function()
 
 	if NAlib and NAlib.connect and NAlib.disconnect then
 		NAlib.disconnect("NA_LastInputTouch")
-		NAlib.connect("NA_LastInputTouch", GuiService:GetPropertyChangedSignal("TouchControlsEnabled"):Connect(function()
+		NAlib.connect("NA_LastInputTouch", __lt_call_service_method("GuiService", "GetPropertyChangedSignal", "TouchControlsEnabled"):Connect(function()
 			if IsOnMobile then
 				pcall(function()
 					GuiService.TouchControlsEnabled = true
@@ -62992,7 +63022,7 @@ originalIO.ApplyLastInputPatch = function()
 			end
 		end))
 	else
-		GuiService:GetPropertyChangedSignal("TouchControlsEnabled"):Connect(function()
+		__lt_call_service_method("GuiService", "GetPropertyChangedSignal", "TouchControlsEnabled"):Connect(function()
 			if IsOnMobile then
 				pcall(function()
 					GuiService.TouchControlsEnabled = true
@@ -63528,7 +63558,7 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	style = style or "Sine"
 	direction = direction or "Out"
 	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle[style], Enum.EasingDirection[direction])
-	local tween = TweenService:Create(obj, tweenInfo, goal)
+	local tween = __lt_call_service_method("TweenService", "Create", obj, tweenInfo, goal)
 	if callback then tween.Completed:Connect(callback) end
 	tween:Play()
 	return tween
@@ -63937,7 +63967,7 @@ NAgui.atchSettings = function(row, hoverKey, strength)
 
 	local function tw(color)
 		pcall(function()
-			TweenService:Create(row, TweenInfo.new(0.22, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+			__lt_call_service_method("TweenService", "Create", row, TweenInfo.new(0.22, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
 				BackgroundColor3 = color
 			}):Play()
 		end)
@@ -64044,7 +64074,7 @@ NAgui.getInputTextWidth=function(box, padding)
 	if box.TextScaled and TextService then
 		local okScaled, sizeScaled = pcall(function()
 			local fontSize = tonumber(box.TextSize) or 14
-			return TextService:GetTextSize(measureText, fontSize, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
+			return __lt_call_service_method("TextService", "GetTextSize", measureText, fontSize, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
 		end)
 		if okScaled and sizeScaled and type(sizeScaled.X) == "number" then
 			return sizeScaled.X + padding
@@ -64060,7 +64090,7 @@ NAgui.getInputTextWidth=function(box, padding)
 
 	if TextService then
 		local okSize, size = pcall(function()
-			return TextService:GetTextSize(measureText, box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
+			return __lt_call_service_method("TextService", "GetTextSize", measureText, box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
 		end)
 		if okSize and size and type(size.X) == "number" then
 			return size.X + padding
@@ -64267,7 +64297,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 				local offx = 2
 				local toPos = UDim2.new(0, con and onx or offx, 0.5, 0)
 				pcall(function()
-					TweenService:Create(cind, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+					__lt_call_service_method("TweenService", "Create", cind, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
 						Position = toPos
 					}):Play()
 				end)
@@ -64275,7 +64305,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 			end
 			if cst then
 				pcall(function()
-					TweenService:Create(cst, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+					__lt_call_service_method("TweenService", "Create", cst, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
 						Color = con and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(72, 72, 72)
 					}):Play()
 				end)
@@ -64330,7 +64360,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 	local function tw(obj, info, goal)
 		if not obj then return nil end
 		local ok, tween = pcall(function()
-			return TweenService:Create(obj, info, goal)
+			return __lt_call_service_method("TweenService", "Create", obj, info, goal)
 		end)
 		if ok and tween then
 			tween:Play()
@@ -64588,7 +64618,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local function tw(obj, info, goal)
 		if not obj then return nil end
 		local ok, tween = pcall(function()
-			return TweenService:Create(obj, info, goal)
+			return __lt_call_service_method("TweenService", "Create", obj, info, goal)
 		end)
 		if ok and tween then
 			tween:Play()
@@ -65031,7 +65061,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local function v2(p)
 		if typeof(p) == "Vector2" then return p end
 		if typeof(p) == "Vector3" then return Vector2.new(p.X, p.Y) end
-		return UIS and UIS:GetMouseLocation() or Vector2.new(0, 0)
+		return UIS and __lt_call_service_method("UserInputService", "GetMouseLocation") or Vector2.new(0, 0)
 	end
 
 	local function updMain(pos)
@@ -65795,7 +65825,7 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 			return nil
 		end
 		local ok, tween = pcall(function()
-			return TweenService:Create(obj, info, goal)
+			return __lt_call_service_method("TweenService", "Create", obj, info, goal)
 		end)
 		if ok and tween then
 			tween:Play()
@@ -66051,7 +66081,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local function tw(obj, info, goal)
 		if not obj then return nil end
 		local ok, tween = pcall(function()
-			return TweenService:Create(obj, info, goal)
+			return __lt_call_service_method("TweenService", "Create", obj, info, goal)
 		end)
 		if ok and tween then
 			tween:Play()
@@ -66468,22 +66498,22 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		if busy then return end
 		busy = true
 		list.Visible = true
-		TweenService:Create(dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, openHeight)}):Play()
-		TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 0.7}):Play()
+		__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, openHeight)}):Play()
+		__lt_call_service_method("TweenService", "Create", list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 0.7}):Play()
 		if toggle then
-			TweenService:Create(toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 0}):Play()
+			__lt_call_service_method("TweenService", "Create", toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 0}):Play()
 		end
 		eachOptionRow(function(row)
 			local rowStroke = row:FindFirstChild("UIStroke")
 			local rowTitle = row:FindFirstChild("Title")
 			if rowStroke and rowStroke:IsA("UIStroke") then
 				if not table.find(DropdownSettings.CurrentOption, row.Name) then
-					TweenService:Create(rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					__lt_call_service_method("TweenService", "Create", rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
 				end
 			end
-			TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+			__lt_call_service_method("TweenService", "Create", row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
 			if rowTitle and rowTitle:IsA("TextLabel") then
-				TweenService:Create(rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				__lt_call_service_method("TweenService", "Create", rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 			end
 		end)
 		task.wait(0.05)
@@ -66493,21 +66523,21 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	local function closeDropdown()
 		if busy then return end
 		busy = true
-		TweenService:Create(dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, collapsedHeight)}):Play()
+		__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, collapsedHeight)}):Play()
 		eachOptionRow(function(row)
 			local rowStroke = row:FindFirstChild("UIStroke")
 			local rowTitle = row:FindFirstChild("Title")
-			TweenService:Create(row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+			__lt_call_service_method("TweenService", "Create", row, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
 			if rowStroke and rowStroke:IsA("UIStroke") then
-				TweenService:Create(rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				__lt_call_service_method("TweenService", "Create", rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 			end
 			if rowTitle and rowTitle:IsA("TextLabel") then
-				TweenService:Create(rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+				__lt_call_service_method("TweenService", "Create", rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
 			end
 		end)
-		TweenService:Create(list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
+		__lt_call_service_method("TweenService", "Create", list, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
 		if toggle then
-			TweenService:Create(toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()
+			__lt_call_service_method("TweenService", "Create", toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()
 		end
 		task.wait(0.35)
 		list.Visible = false
@@ -66515,14 +66545,14 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	end
 
 	local function toggleDropdown()
-		TweenService:Create(dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
+		__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
 		if uiStroke and uiStroke:IsA("UIStroke") then
-			TweenService:Create(uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			__lt_call_service_method("TweenService", "Create", uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 		end
 		task.wait(0.08)
-		TweenService:Create(dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+		__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
 		if uiStroke and uiStroke:IsA("UIStroke") then
-			TweenService:Create(uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+			__lt_call_service_method("TweenService", "Create", uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
 		end
 		if list.Visible then
 			closeDropdown()
@@ -66574,9 +66604,9 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			DropdownSettings.Callback(payload)
 		end)
 		if not ok then
-			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+			__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
 			if uiStroke and uiStroke:IsA("UIStroke") then
-				TweenService:Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				__lt_call_service_method("TweenService", "Create", uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 			end
 			if title and title:IsA("TextLabel") then
 				title.Text = "Callback Error"
@@ -66586,9 +66616,9 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			if title and title:IsA("TextLabel") then
 				title.Text = DropdownSettings.Name
 			end
-			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+			__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
 			if uiStroke and uiStroke:IsA("UIStroke") then
-				TweenService:Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				__lt_call_service_method("TweenService", "Create", uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
 			end
 		end
 	end
@@ -66668,11 +66698,11 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 
 	NAlib.connect(connKey, dropdown.MouseEnter:Connect(function()
 		if not list.Visible then
-			TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
+			__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = hoverColor}):Play()
 		end
 	end))
 	NAlib.connect(connKey, dropdown.MouseLeave:Connect(function()
-		TweenService:Create(dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
+		__lt_call_service_method("TweenService", "Create", dropdown, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
 	end))
 
 	function DropdownSettings:Set(NewOption)
@@ -66755,7 +66785,7 @@ end
 NAmanage.Topbar_PlayTween=function(key,instance,info,props)
 	NAmanage._tweens=NAmanage._tweens or {}
 	if NAmanage._tweens[key] then NAmanage._tweens[key]:Cancel() end
-	local t=TweenService:Create(instance,info,props)
+	local t=__lt_call_service_method("TweenService", "Create", instance,info,props)
 	NAmanage._tweens[key]=t
 	t:Play()
 	return t
@@ -67610,10 +67640,10 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	SideSwipeApp.panel.AnchorPoint = anchor
 	SideSwipeApp.panel.Position = UDim2.new(0, startX, 0, y)
 	local ease = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-	local tween = TweenService:Create(SideSwipeApp.panel, ease, { Position = UDim2.new(0, targetX, 0, y) })
+	local tween = __lt_call_service_method("TweenService", "Create", SideSwipeApp.panel, ease, { Position = UDim2.new(0, targetX, 0, y) })
 	if SideSwipeApp.underlay then
 		local underGoal = SideSwipeApp.isOpen and 0.08 or 0.35
-		TweenService:Create(SideSwipeApp.underlay, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = underGoal }):Play()
+		__lt_call_service_method("TweenService", "Create", SideSwipeApp.underlay, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = underGoal }):Play()
 	end
 	tween:Play()
 	tween.Completed:Connect(function()
@@ -68387,7 +68417,7 @@ NAgui.activateCmdInput = function(opts)
 	local prefixChar = tostring(opts.prefixChar or (opt and opt.prefix) or ""):sub(1, 1)
 	local alreadyFocused = false
 	if UserInputService.GetFocusedTextBox then
-		alreadyFocused = UserInputService:GetFocusedTextBox() == box
+		alreadyFocused = __lt_call_service_method("UserInputService", "GetFocusedTextBox") == box
 	end
 	if not alreadyFocused then
 		alreadyFocused = box:IsFocused()
@@ -68923,7 +68953,7 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 		return
 	end
 	if i.KeyCode == Enum.KeyCode.Tab
-		and UserInputService:GetFocusedTextBox() == (NAUIMANAGER and NAUIMANAGER.cmdInput) then
+		and __lt_call_service_method("UserInputService", "GetFocusedTextBox") == (NAUIMANAGER and NAUIMANAGER.cmdInput) then
 		local predictionText = predictionInput and predictionInput.Text or ""
 		if predictionText ~= "" then
 			Defer(function()
@@ -69052,7 +69082,7 @@ NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
 	NAStuff.keepCmdFocus = NAStuff.cmdInputAtInit:IsFocused()
 	if not NAStuff.keepCmdFocus and UserInputService.GetFocusedTextBox then
-		NAStuff.keepCmdFocus = UserInputService:GetFocusedTextBox() == NAStuff.cmdInputAtInit
+		NAStuff.keepCmdFocus = __lt_call_service_method("UserInputService", "GetFocusedTextBox") == NAStuff.cmdInputAtInit
 	end
 end
 if not NAStuff.keepCmdFocus then
@@ -71522,7 +71552,7 @@ NAmanage.bindToDevConsole = function()
 			end;
 			local targetColor = toggles[logType] and SELECTED_COLOR or DESELECTED_COLOR;
 			local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut);
-			(TweenService:Create(checkbox, tweenInfo, {
+			(__lt_call_service_method("TweenService", "Create", checkbox, tweenInfo, {
 				BackgroundColor3 = targetColor
 			})):Play();
 			local query = NAUIMANAGER.NAfilter.Text:lower();
@@ -71590,7 +71620,7 @@ NAmanage.bindToDevConsole = function()
 	local function measureHeight(lbl, width)
 		local plain = lbl.Text:gsub("<.->", "");
 		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
-		local vec = TextService:GetTextSize(plain, baseSize, lbl.Font, Vector2.new(width, 1000000));
+		local vec = __lt_call_service_method("TextService", "GetTextSize", plain, baseSize, lbl.Font, Vector2.new(width, 1000000));
 		local h = vec.Y;
 		if h < 18 then
 			h = 18;
@@ -71717,11 +71747,11 @@ NAmanage.bindToDevConsole = function()
 			pendingProcessing = false;
 		end);
 	end;
-	local logService = SafeGetService("LogService", false);
+	local logService = SafeGetService("LogService");
 	do
 		local ok, history = pcall(function()
 			if logService then
-				return logService:GetLogHistory();
+				return __lt_call_service_method("LogService", "GetLogHistory");
 			end;
 			return nil;
 		end);
@@ -71803,17 +71833,17 @@ originalIO.binderResolvePlayerFromValue=function(value)
 		if value:IsA("Player") then
 			return value
 		end
-		return Players:GetPlayerFromCharacter(value)
+		return __lt_call_service_method("Players", "GetPlayerFromCharacter", value)
 	end
 	if type(value) == "number" then
 		local ok, plr = pcall(function()
-			return Players:GetPlayerByUserId(value)
+			return __lt_call_service_method("Players", "GetPlayerByUserId", value)
 		end)
 		if ok and plr then
 			return plr
 		end
 	elseif type(value) == "string" then
-		return Players:FindFirstChild(value)
+		return __lt_call_service_method("Players", "FindFirstChild", value)
 	end
 	return nil
 end
@@ -71826,11 +71856,11 @@ originalIO.binderFindPlayerInTag=function(tag)
 		return originalIO.binderResolvePlayerFromValue(tag.Value)
 	end
 	if tag:IsA("StringValue") then
-		return Players:FindFirstChild(tag.Value)
+		return __lt_call_service_method("Players", "FindFirstChild", tag.Value)
 	end
 	if tag:IsA("IntValue") or tag:IsA("NumberValue") then
 		local ok, plr = pcall(function()
-			return Players:GetPlayerByUserId(tag.Value)
+			return __lt_call_service_method("Players", "GetPlayerByUserId", tag.Value)
 		end)
 		if ok and plr then
 			return plr
@@ -72172,7 +72202,7 @@ function setupPlayer(plr,bruh)
 	end
 end
 
-for _, plr in pairs(Players:GetPlayers()) do
+for _, plr in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 	setupPlayer(plr, true)
 	if plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		NAmanage.queueCharacterWork(plr, plr.Character, false)
@@ -73232,13 +73262,13 @@ UICorner.CornerRadius = UDim.new(1, 0)
 UICorner.Parent = TextButton
 
 TextButton.MouseEnter:Connect(function()
-	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+	__lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 35 * NAScale, 0, 35 * NAScale)
 	}):Play()
 end)
 
 TextButton.MouseLeave:Connect(function()
-	TweenService:Create(TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+	__lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 32 * NAScale, 0, 32 * NAScale)
 	}):Play()
 end)
@@ -73559,7 +73589,7 @@ NAmanage.IconSetLocked = NAgui.setIconLocked
 swooshySWOOSH = false
 
 function Swoosh()
-	TweenService:Create(TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Rotation = 720}):Play()
+	__lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Rotation = 720}):Play()
 	if not NAStuff.IconLocked then
 		NAgui.draggerV2(TextButton)
 	end
@@ -73599,7 +73629,7 @@ function mainNameless()
 	local function fadeOut()
 		if fadeOutStarted or not showIntroLabel or not txtLabel then return end
 		fadeOutStarted = true
-		local fadeOutTween = TweenService:Create(txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
+		local fadeOutTween = __lt_call_service_method("TweenService", "Create", txtLabel, TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.InOut), {
 			TextTransparency = 1,
 			BackgroundTransparency = 1,
 			Position = UDim2.new(0.5, 0, 0.52, 20),
@@ -73618,16 +73648,16 @@ function mainNameless()
 			end
 		end)
 
-		local textWidth = TextService:GetTextSize(txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
+		local textWidth = __lt_call_service_method("TextService", "GetTextSize", txtLabel.Text, txtLabel.TextSize, txtLabel.Font, Vector2.new(math.huge, math.huge)).X
 		local finalSize = UDim2.new(0, textWidth + 80, 0, 40)
 
-		local appearTween = TweenService:Create(txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		local appearTween = __lt_call_service_method("TweenService", "Create", txtLabel, TweenInfo.new(0.8, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 			Size = finalSize,
 			BackgroundTransparency = 0.1,
 			TextTransparency = 0,
 		})
 
-		local riseTween = TweenService:Create(txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
+		local riseTween = __lt_call_service_method("TweenService", "Create", txtLabel, TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 			Position = UDim2.new(0.5, 0, 0.48, 0)
 		})
 
@@ -73671,7 +73701,7 @@ function mainNameless()
 		tweenProps.TextTransparency = 0
 	end
 
-	local appearBtnTween = TweenService:Create(TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), tweenProps)
+	local appearBtnTween = __lt_call_service_method("TweenService", "Create", TextButton, TweenInfo.new(1, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), tweenProps)
 	appearBtnTween:Play()
 
 	Swoosh()
@@ -74272,7 +74302,7 @@ NAmanage.injectNAConsole = function()
 		filtered = filtered:gsub("%[string \"console\"%]:", "console:")
 		if testService then
 			pcall(function()
-				testService:Error(filtered)
+				__lt_call_service_method("TestService", "Error", filtered)
 			end)
 		else
 			warn(filtered)
@@ -76145,7 +76175,7 @@ NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
 				end
 
 				pcall(function()
-					ContentProvider:PreloadAsync(chunk)
+					__lt_call_service_method("ContentProvider", "PreloadAsync", chunk)
 				end)
 				local doneCount = math.min(total, index + #chunk - 1)
 				NAmanage.UpdateAssetLoadStatus(doneCount, total)
@@ -76281,7 +76311,7 @@ end
 NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	if NAStuff.ScreenGuiNoRenderConn then
 		if ContextActionService then
-			pcall(function() ContextActionService:UnbindAction("NA_ScreenGuiNoRenderToggle") end)
+			pcall(function() __lt_call_service_method("ContextActionService", "UnbindAction", "NA_ScreenGuiNoRenderToggle") end)
 		end
 		NAStuff.ScreenGuiNoRenderConn = nil
 	end
@@ -76294,7 +76324,7 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	end
 
 	local macroKey = Enum.KeyCode.C
-	NAStuff.ScreenGuiNoRenderConn = ContextActionService:BindActionAtPriority(
+	NAStuff.ScreenGuiNoRenderConn = __lt_call_service_method("ContextActionService", "BindActionAtPriority", 
 		"NA_ScreenGuiNoRenderToggle",
 		function(_, state, input)
 			if state ~= Enum.UserInputState.Begin then
@@ -76303,8 +76333,8 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 			if input.KeyCode ~= macroKey then
 				return Enum.ContextActionResult.Pass
 			end
-			local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-			local shiftDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+			local ctrlDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftControl) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightControl)
+			local shiftDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)
 			if ctrlDown and shiftDown then
 				NAgui.ScreenGuiNoRenderToggle()
 				return Enum.ContextActionResult.Sink
@@ -76329,8 +76359,8 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 		if _na_env.NADebugDontRenderKeybindEnabled ~= true then
 			return
 		end
-		local ctrlDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-		local shiftDown = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		local ctrlDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftControl) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightControl)
+		local shiftDown = __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.LeftShift) or __lt_call_service_method("UserInputService", "IsKeyDown", Enum.KeyCode.RightShift)
 		if ctrlDown and shiftDown then
 			NAgui.ScreenGuiNoRenderToggle()
 		end

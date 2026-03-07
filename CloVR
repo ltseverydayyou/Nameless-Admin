@@ -1,9 +1,41 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 local function SafeGetService(name)
 	local Service = game.GetService;
 	local Reference = cloneref or function(reference)
 		return reference;
 	end;
-	return Reference(Service(game, name));
+	return __lt_clone_service(name, Reference);
 end;
 local game = game;
 local Players = SafeGetService("Players");
@@ -64,9 +96,9 @@ local function protectUI(sGui)
 		NAProtection(sGui);
 		sGui.Parent = gethui();
 		return sGui;
-	elseif cGUI and cGUI:FindFirstChild("RobloxGui") then
+	elseif cGUI and __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui") then
 		NAProtection(sGui);
-		sGui.Parent = cGUI:FindFirstChild("RobloxGui");
+		sGui.Parent = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui");
 		return sGui;
 	elseif cGUI then
 		NAProtection(sGui);
@@ -280,7 +312,7 @@ Script = function()
 	Anchor.Transparency = 1;
 	Anchor.CanCollide = false;
 	Anchor.Parent = workspace;
-	StarterGui:SetCore("VRLaserPointerMode", 3);
+	__lt_call_service_method("StarterGui", "SetCore", "VRLaserPointerMode", 3);
 	local CharacterCFrame = WeldBase.CFrame;
 	if not RagdollEnabled then
 		(Character:FindFirstChild("Humanoid")).AnimationPlayed:Connect(function(Animation)
@@ -840,7 +872,7 @@ Script = function()
 			end;
 		end;
 		if NoCollision then
-			for _, Player in pairs(Players:GetPlayers()) do
+			for _, Player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 				if Player ~= Client and Player.Character then
 					local Descendants = Player.Character:QueryDescendants("Instance");
 					for i = 1, #Descendants do
@@ -967,7 +999,7 @@ Script = function()
 			Pointer.Target.ParticleEmitter.Enabled = false;
 			local RenderStepped = RunService.RenderStepped:Connect(function()
 				if Pointer.Beam.Enabled then
-					local RightHand = Camera.CFrame * VRService:GetUserCFrame(Enum.UserCFrame.RightHand);
+					local RightHand = Camera.CFrame * __lt_call_service_method("VRService", "GetUserCFrame", Enum.UserCFrame.RightHand);
 					local Target = RightHand * CFrame.new(0, 0, (-10));
 					local Line = Ray.new(RightHand.p, ((Target.p - RightHand.p)).Unit * 128);
 					local Part, Position = workspace:FindPartOnRayWithIgnoreList(Line, {
@@ -1133,7 +1165,7 @@ ChatHUDFunc = function()
 		end);
 	end;
 	Players.PlayerAdded:Connect(OnPlayerAdded);
-	for _, Player in pairs(Players:GetPlayers()) do
+	for _, Player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		OnPlayerAdded(Player);
 	end;
 	local ChatPart = ChatHUD.Part;
@@ -1150,7 +1182,7 @@ ChatHUDFunc = function()
 			end;
 		end);
 		local RenderStepped = RunService.RenderStepped:Connect(function()
-			local LeftHand = VRService:GetUserCFrame(Enum.UserCFrame.LeftHand);
+			local LeftHand = __lt_call_service_method("VRService", "GetUserCFrame", Enum.UserCFrame.LeftHand);
 			ChatPart.CFrame = Camera.CFrame * LeftHand;
 		end);
 		local CharacterAdded;
@@ -1260,7 +1292,7 @@ ViewHUDFunc = function()
 		end;
 	end;
 	local PlayerAdded = Players.PlayerAdded:Connect(OnPlayerAdded);
-	for _, Player in pairs(Players:GetPlayers()) do
+	for _, Player in pairs(__lt_call_service_method("Players", "GetPlayers")) do
 		OnPlayerAdded(Player);
 	end;
 	ViewPart.Size = Vector3.new();
@@ -1275,7 +1307,7 @@ ViewHUDFunc = function()
 		local Render = Camera.CFrame;
 		local Scale = Camera.ViewportSize;
 		if VRReady then
-			Render = Render * VRService:GetUserCFrame(Enum.UserCFrame.Head);
+			Render = Render * __lt_call_service_method("VRService", "GetUserCFrame", Enum.UserCFrame.Head);
 		end;
 		CameraPort = CFrame.new(Render.p + Vector3.new(5, 2, 0), Render.p);
 		Viewport.Camera.CFrame = CameraPort;

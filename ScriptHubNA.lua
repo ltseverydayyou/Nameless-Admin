@@ -1,13 +1,43 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
 		local Reference = cloneref and type(cloneref) == "function" and cloneref or function(ref)
 			return ref;
 		end;
 		local ok, svc = pcall(function()
-			if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
-				return game:GetService(name);
-			end;
-			return Reference(game:GetService(name));
+
+			return __lt_clone_service(name, Reference);
 		end);
 		if ok and svc then
 			rawset(self, name, svc);
@@ -42,9 +72,9 @@ local function Protect(g)
 		NAP(g);
 		g.Parent = gethui();
 		return g;
-	elseif cg and cg:FindFirstChild("RobloxGui") then
+	elseif cg and __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui") then
 		NAP(g);
-		g.Parent = cg:FindFirstChild("RobloxGui");
+		g.Parent = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui");
 		return g;
 	elseif cg then
 		NAP(g);
@@ -80,7 +110,7 @@ local col = {
 	er = Color3.fromRGB(244, 63, 94)
 };
 local isMobile = (function()
-	local platform = ui:GetPlatform();
+	local platform = __lt_call_service_method("UserInputService", "GetPlatform");
 	if platform == Enum.Platform.IOS or platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV or platform == Enum.Platform.Chromecast or platform == Enum.Platform.MetaOS then
 		return true;
 	end;
@@ -187,7 +217,7 @@ tgrad.Rotation = 90;
 tgrad.Parent = top;
 task.spawn(function()
 	while top.Parent do
-		(tw:Create(tgrad, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {
+		(__lt_call_service_method("TweenService", "Create", tgrad, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, true), {
 			Offset = Vector2.new(0, 0.07)
 		})):Play();
 		task.wait(1.8);
@@ -320,7 +350,7 @@ goGrad.Offset = Vector2.new(-1, 0);
 goGrad.Parent = go;
 task.spawn(function()
 	while go.Parent do
-		(tw:Create(goGrad, TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+		(__lt_call_service_method("TweenService", "Create", goGrad, TweenInfo.new(2.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 			Offset = Vector2.new(1, 0)
 		})):Play();
 		task.wait(2.2);
@@ -370,7 +400,7 @@ local function btnAnim(b, baseCol, hoverCol)
 			return;
 		end;
 		hovering = true;
-		(tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			BackgroundColor3 = hoverCol,
 			Size = hover
 		})):Play();
@@ -380,7 +410,7 @@ local function btnAnim(b, baseCol, hoverCol)
 			return;
 		end;
 		hovering = false;
-		(tw:Create(b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			BackgroundColor3 = baseCol,
 			Size = base
 		})):Play();
@@ -389,7 +419,7 @@ local function btnAnim(b, baseCol, hoverCol)
 		if not b.Active then
 			return;
 		end;
-		(tw:Create(b, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = press
 		})):Play();
 	end);
@@ -397,7 +427,7 @@ local function btnAnim(b, baseCol, hoverCol)
 		if not b.Active then
 			return;
 		end;
-		(tw:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = hovering and hover or base
 		})):Play();
 	end);
@@ -818,7 +848,7 @@ local function tryFetchPlaceIcon(placeId, imageLabel)
 	end;
 	(coroutine.wrap(function()
 		local ok, info = pcall(function()
-			return MarketplaceService:GetProductInfo(tonumber(placeId), Enum.InfoType.Asset);
+			return __lt_call_service_method("MarketplaceService", "GetProductInfo", tonumber(placeId), Enum.InfoType.Asset);
 		end);
 		if not ok or (not info) then
 			return;
@@ -853,7 +883,7 @@ local function clearAll(anim)
 	for _, v in ipairs(sf:GetChildren()) do
 		if v:IsA("Frame") and (v.Name:find("^Card") or v.Name == "Msg" or v.Name == "Skel") then
 			if anim then
-				(tw:Create(v, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				(__lt_call_service_method("TweenService", "Create", v, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 					BackgroundTransparency = 1,
 					Position = v.Position + UDim2.new(0, 0, 0, 6)
 				})):Play();
@@ -900,15 +930,15 @@ local function toast(txt, colr)
 	f.Position = UDim2.new(1, 24, 0, 0);
 	f.BackgroundTransparency = 1;
 	lb.TextTransparency = 1;
-	(tw:Create(f, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", f, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Position = UDim2.new(1, 0, 0, 0),
 		BackgroundTransparency = 0
 	})):Play();
-	(tw:Create(lb, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", lb, TweenInfo.new(0.2), {
 		TextTransparency = 0
 	})):Play();
 	task.delay(2.2, function()
-		(tw:Create(f, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		(__lt_call_service_method("TweenService", "Create", f, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 			Position = UDim2.new(1, 24, 0, 0),
 			BackgroundTransparency = 1
 		})):Play();
@@ -939,7 +969,7 @@ local function spin(on)
 		end;
 		sp.Text = spFrames[1];
 		ub.Size = UDim2.new(0, 0, 0, 2);
-		(tw:Create(ub, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, true), {
+		(__lt_call_service_method("TweenService", "Create", ub, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, true), {
 			Size = UDim2.new(1, -24, 0, 2)
 		})):Play();
 		local i, acc = 1, 0;
@@ -957,7 +987,7 @@ local function spin(on)
 			spConn = nil;
 		end;
 		sp.Text = "";
-		(tw:Create(ub, TweenInfo.new(0.15), {
+		(__lt_call_service_method("TweenService", "Create", ub, TweenInfo.new(0.15), {
 			Size = UDim2.new(0, 0, 0, 2)
 		})):Play();
 	end;
@@ -979,7 +1009,7 @@ local function skeleton(n)
 		g.Rotation = 0;
 		g.Offset = Vector2.new(-1, 0);
 		g.Parent = s;
-		(tw:Create(g, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), {
+		(__lt_call_service_method("TweenService", "Create", g, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), {
 			Offset = Vector2.new(1, 0)
 		})):Play();
 	end;
@@ -1009,13 +1039,13 @@ local function mkMsg(txt, bg)
 	sc.Parent = el;
 	el.BackgroundTransparency = 1;
 	lb.TextTransparency = 1;
-	(tw:Create(el, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", el, TweenInfo.new(0.18), {
 		BackgroundTransparency = 0.15
 	})):Play();
-	(tw:Create(lb, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", lb, TweenInfo.new(0.18), {
 		TextTransparency = 0
 	})):Play();
-	(tw:Create(sc, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", sc, TweenInfo.new(0.18), {
 		Scale = 1
 	})):Play();
 	sizeCanvas();
@@ -1028,36 +1058,36 @@ local function setMin(s)
 	minimized = s;
 	if minimized then
 		mini.Text = "V";
-		(tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = miniS
 		})):Play();
-		(tw:Create(fst, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", fst, TweenInfo.new(0.2), {
 			Transparency = 1
 		})):Play();
-		(tw:Create(mini, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", mini, TweenInfo.new(0.2), {
 			Rotation = 180
 		})):Play();
-		(tw:Create(rc, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", rc, TweenInfo.new(0.2), {
 			BackgroundTransparency = 1
 		})):Play();
-		(tw:Create(sr, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", sr, TweenInfo.new(0.2), {
 			BackgroundTransparency = 1
 		})):Play();
 	else
 		mini.Text = "^";
-		(tw:Create(fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", fr, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = fullS
 		})):Play();
-		(tw:Create(fst, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", fst, TweenInfo.new(0.2), {
 			Transparency = 0.35
 		})):Play();
-		(tw:Create(mini, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", mini, TweenInfo.new(0.2), {
 			Rotation = 0
 		})):Play();
-		(tw:Create(rc, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", rc, TweenInfo.new(0.2), {
 			BackgroundTransparency = 0
 		})):Play();
-		(tw:Create(sr, TweenInfo.new(0.2), {
+		(__lt_call_service_method("TweenService", "Create", sr, TweenInfo.new(0.2), {
 			BackgroundTransparency = 0
 		})):Play();
 	end;
@@ -1067,7 +1097,7 @@ mini.MouseButton1Click:Connect(function()
 	setMin(not minimized);
 end);
 cls.MouseButton1Click:Connect(function()
-	(tw:Create(fr, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+	(__lt_call_service_method("TweenService", "Create", fr, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 		BackgroundTransparency = 1,
 		Size = fr.Size - UDim2.new(0, 12, 0, 12)
 	})):Play();
@@ -1076,18 +1106,18 @@ cls.MouseButton1Click:Connect(function()
 	end);
 end);
 sbox.Focused:Connect(function()
-	(tw:Create(sLbl, TweenInfo.new(0.15), {
+	(__lt_call_service_method("TweenService", "Create", sLbl, TweenInfo.new(0.15), {
 		TextColor3 = col.ac
 	})):Play();
-	(tw:Create(srs, TweenInfo.new(0.15), {
+	(__lt_call_service_method("TweenService", "Create", srs, TweenInfo.new(0.15), {
 		Transparency = 0.1
 	})):Play();
 end);
 sbox.FocusLost:Connect(function()
-	(tw:Create(sLbl, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", sLbl, TweenInfo.new(0.2), {
 		TextColor3 = col.td
 	})):Play();
-	(tw:Create(srs, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", srs, TweenInfo.new(0.2), {
 		Transparency = 0.25
 	})):Play();
 end);
@@ -1149,12 +1179,12 @@ local function mkCard(i, d)
 	cs.Thickness = 1;
 	cs.Parent = c;
 	c.MouseEnter:Connect(function()
-		(tw:Create(cs, TweenInfo.new(0.12), {
+		(__lt_call_service_method("TweenService", "Create", cs, TweenInfo.new(0.12), {
 			Transparency = 0.15
 		})):Play();
 	end);
 	c.MouseLeave:Connect(function()
-		(tw:Create(cs, TweenInfo.new(0.12), {
+		(__lt_call_service_method("TweenService", "Create", cs, TweenInfo.new(0.12), {
 			Transparency = 0.35
 		})):Play();
 	end);
@@ -1373,12 +1403,12 @@ local function mkCard(i, d)
 				end;
 			end);
 			cp.Text = "Copied";
-			(tw:Create(cp, TweenInfo.new(0.12), {
+			(__lt_call_service_method("TweenService", "Create", cp, TweenInfo.new(0.12), {
 				BackgroundColor3 = Color3.fromRGB(76, 82, 96)
 			})):Play();
 			task.delay(0.9, function()
 				cp.Text = "Copy";
-				(tw:Create(cp, TweenInfo.new(0.12), {
+				(__lt_call_service_method("TweenService", "Create", cp, TweenInfo.new(0.12), {
 					BackgroundColor3 = Color3.fromRGB(57, 63, 75)
 				})):Play();
 			end);
@@ -1401,16 +1431,16 @@ local function mkCard(i, d)
 	c.BackgroundTransparency = 1;
 	tl.TextTransparency = 1;
 	inf.TextTransparency = 1;
-	(tw:Create(c, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", c, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		BackgroundTransparency = 0
 	})):Play();
-	(tw:Create(sca, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", sca, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Scale = 1
 	})):Play();
-	(tw:Create(tl, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", tl, TweenInfo.new(0.18), {
 		TextTransparency = 0
 	})):Play();
-	(tw:Create(inf, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", inf, TweenInfo.new(0.18), {
 		TextTransparency = 0
 	})):Play();
 end;
@@ -1461,7 +1491,7 @@ function fetch(searchText, trending, page)
 	spin(true);
 	go.Text = "Searching...";
 	go.Active = false;
-	local encoded = hs:UrlEncode(searchText);
+	local encoded = __lt_call_service_method("HttpService", "UrlEncode", searchText);
 	local url;
 	if eng == "RScripts" then
 		url = string.format("https://rscripts.net/api/v2/scripts?page=%d&orderBy=date&sort=desc", page);
@@ -1487,7 +1517,7 @@ function fetch(searchText, trending, page)
 		return;
 	end;
 	local ok2, dec = pcall(function()
-		return hs:JSONDecode(res.Body);
+		return __lt_call_service_method("HttpService", "JSONDecode", res.Body);
 	end);
 	if not ok2 or (not dec) then
 		mkMsg("Invalid response", col.er);
@@ -1525,7 +1555,7 @@ engb.MouseButton1Click:Connect(function()
 		eng = "RScripts";
 		engb.Text = "Engine: RScripts";
 		sbox.PlaceholderText = "Search for scripts (rscripts.net)";
-		(tw:Create(engb, TweenInfo.new(0.18), {
+		(__lt_call_service_method("TweenService", "Create", engb, TweenInfo.new(0.18), {
 			BackgroundColor3 = Color3.fromRGB(45, 49, 58)
 		})):Play();
 		toast("Switched to RScripts", col.tx);
@@ -1533,7 +1563,7 @@ engb.MouseButton1Click:Connect(function()
 		eng = "ScriptBlox";
 		engb.Text = "Engine: ScriptBlox";
 		sbox.PlaceholderText = "Search for scripts (scriptblox.com)";
-		(tw:Create(engb, TweenInfo.new(0.18), {
+		(__lt_call_service_method("TweenService", "Create", engb, TweenInfo.new(0.18), {
 			BackgroundColor3 = col.bg
 		})):Play();
 		toast("Switched to ScriptBlox", col.tx);
@@ -1615,9 +1645,9 @@ local openS = Instance.new("UIScale");
 openS.Scale = 0.9;
 openS.Parent = fr;
 fr.BackgroundTransparency = 1;
-(tw:Create(openS, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+(__lt_call_service_method("TweenService", "Create", openS, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 	Scale = 1
 })):Play();
-(tw:Create(fr, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+(__lt_call_service_method("TweenService", "Create", fr, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 	BackgroundTransparency = 0
 })):Play();

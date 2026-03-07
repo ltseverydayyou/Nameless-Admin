@@ -1,3 +1,35 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 if (getgenv()).npadLoaded then
 	return;
 end;
@@ -8,10 +40,8 @@ local NA_SRV = setmetatable({}, {
 			return ref;
 		end;
 		local ok, svc = pcall(function()
-			if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
-				return game:GetService(name);
-			end;
-			return Reference(game:GetService(name));
+
+			return __lt_clone_service(name, Reference);
 		end);
 		if ok and svc then
 			rawset(self, name, svc);
@@ -46,9 +76,9 @@ local function ProtectGui(g)
 		NAP(g);
 		g.Parent = gethui();
 		return g;
-	elseif cg and cg:FindFirstChild("RobloxGui") then
+	elseif cg and __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui") then
 		NAP(g);
-		g.Parent = cg:FindFirstChild("RobloxGui");
+		g.Parent = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui");
 		return g;
 	elseif cg then
 		NAP(g);
@@ -70,7 +100,7 @@ local uis = Svc("UserInputService");
 local gsv = Svc("GuiService");
 local txtsvc = Svc("TextService");
 local isM = (function()
-	local p = uis:GetPlatform();
+	local p = __lt_call_service_method("UserInputService", "GetPlatform");
 	if p == Enum.Platform.IOS or p == Enum.Platform.Android or p == Enum.Platform.AndroidTV or p == Enum.Platform.Chromecast or p == Enum.Platform.MetaOS then
 		return true;
 	end;
@@ -197,25 +227,25 @@ local function mkBtn(txt, par, h)
 	s.Parent = b;
 	b.MouseEnter:Connect(function()
 		if not isM then
-			(ts:Create(b, TweenInfo.new(0.12), {
+			(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12), {
 				BackgroundColor3 = C.btnBgHover
 			})):Play();
 		end;
 	end);
 	b.MouseLeave:Connect(function()
 		if not isM then
-			(ts:Create(b, TweenInfo.new(0.12), {
+			(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12), {
 				BackgroundColor3 = C.btnBg
 			})):Play();
 		end;
 	end);
 	b.MouseButton1Down:Connect(function()
-		(ts:Create(b, TweenInfo.new(0.08), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.08), {
 			TextTransparency = 0.35
 		})):Play();
 	end);
 	b.MouseButton1Up:Connect(function()
-		(ts:Create(b, TweenInfo.new(0.12), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.12), {
 			TextTransparency = 0
 		})):Play();
 	end);
@@ -448,12 +478,12 @@ local function setStatus(msg, good)
 	status.TextTransparency = 1;
 	status.TextColor3 = good == false and C.statusTextBad or C.statusText;
 	status.Text = (good == false and "! " or "✓ ") .. msg;
-	(ts:Create(status, TweenInfo.new(0.12), {
+	(__lt_call_service_method("TweenService", "Create", status, TweenInfo.new(0.12), {
 		TextTransparency = 0
 	})):Play();
 	task.delay(2, function()
 		if status then
-			local t = ts:Create(status, TweenInfo.new(0.18), {
+			local t = __lt_call_service_method("TweenService", "Create", status, TweenInfo.new(0.18), {
 				TextTransparency = 1
 			});
 			t:Play();
@@ -484,7 +514,7 @@ local function showExt()
 	posExt();
 	extList.Size = UDim2.new(0, 180, 0, 0);
 	extList.Visible = true;
-	(ts:Create(extList, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", extList, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0, 180, 0, extH)
 	})):Play();
 end;
@@ -493,7 +523,7 @@ local function hideExt()
 		return;
 	end;
 	extOpen = false;
-	local twn = ts:Create(extList, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+	local twn = __lt_call_service_method("TweenService", "Create", extList, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 		Size = UDim2.new(0, 180, 0, 0)
 	});
 	twn:Play();
@@ -518,12 +548,12 @@ local function mkExtButton(t)
 	c.Parent = b;
 	b.Parent = extScroll;
 	b.MouseEnter:Connect(function()
-		(ts:Create(b, TweenInfo.new(0.1), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.1), {
 			BackgroundColor3 = C.extItemHover
 		})):Play();
 	end);
 	b.MouseLeave:Connect(function()
-		(ts:Create(b, TweenInfo.new(0.1), {
+		(__lt_call_service_method("TweenService", "Create", b, TweenInfo.new(0.1), {
 			BackgroundColor3 = C.extItemBg
 		})):Play();
 	end);
@@ -594,12 +624,12 @@ local function countLines(s)
 	return select(2, s:gsub("\n", "")) + 1;
 end;
 local function lineH()
-	return (txtsvc:GetTextSize("Ag", 20, box.Font, Vector2.new(100000, 100000))).Y;
+	return (__lt_call_service_method("TextService", "GetTextSize", "Ag", 20, box.Font, Vector2.new(100000, 100000))).Y;
 end;
 local function maxW(text)
 	local m = 0;
 	for line in (text .. "\n"):gmatch("(.-)\n") do
-		local w = (txtsvc:GetTextSize(line == "" and " " or line, 20, box.Font, Vector2.new(10000000, 10000000))).X;
+		local w = (__lt_call_service_method("TextService", "GetTextSize", line == "" and " " or line, 20, box.Font, Vector2.new(10000000, 10000000))).X;
 		if w > m then
 			m = w;
 		end;
@@ -622,7 +652,7 @@ end;
 local function doScale()
 	local cam = workspace.CurrentCamera;
 	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720);
-	local inset = gsv:GetGuiInset();
+	local inset = __lt_call_service_method("GuiService", "GetGuiInset");
 	local ux = math.max(0, vp.X - inset.X * 2);
 	local uy = math.max(0, vp.Y - inset.Y * 2);
 	local tw = math.clamp(ux * 0.6, BASE_MIN.X, szCons.MaxSize.X);
@@ -664,13 +694,13 @@ top.InputBegan:Connect(function(i)
 	drag = true;
 	dragStart = i.Position;
 	startPos = win.Position;
-	(ts:Create(winStroke, TweenInfo.new(0.08), {
+	(__lt_call_service_method("TweenService", "Create", winStroke, TweenInfo.new(0.08), {
 		Thickness = 3
 	})):Play();
 	i.Changed:Connect(function()
 		if i.UserInputState == Enum.UserInputState.End then
 			drag = false;
-			(ts:Create(winStroke, TweenInfo.new(0.08), {
+			(__lt_call_service_method("TweenService", "Create", winStroke, TweenInfo.new(0.08), {
 				Thickness = 2
 			})):Play();
 		end;
@@ -707,13 +737,13 @@ local function toDock()
 	dock.Position = UDim2.fromOffset(ax, ay);
 	dock.Size = UDim2.fromOffset(0, 0);
 	dock.Visible = true;
-	(ts:Create(win, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", win, TweenInfo.new(0.18), {
 		BackgroundTransparency = 1
 	})):Play();
-	(ts:Create(body, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", body, TweenInfo.new(0.18), {
 		BackgroundTransparency = 1
 	})):Play();
-	(ts:Create(top, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", top, TweenInfo.new(0.18), {
 		BackgroundTransparency = 1
 	})):Play();
 	for _, g in ipairs(body:QueryDescendants("Instance")) do
@@ -721,7 +751,7 @@ local function toDock()
 			g.Visible = false;
 		end;
 	end;
-	(ts:Create(dock, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", dock, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.fromOffset(56, 56)
 	})):Play();
 	task.delay(0.18, function()
@@ -734,10 +764,10 @@ local function fromDock()
 	end;
 	minz = false;
 	win.Visible = true;
-	(ts:Create(dock, TweenInfo.new(0.16), {
+	(__lt_call_service_method("TweenService", "Create", dock, TweenInfo.new(0.16), {
 		Size = UDim2.fromOffset(0, 0)
 	})):Play();
-	(ts:Create(win, TweenInfo.new(0.18), {
+	(__lt_call_service_method("TweenService", "Create", win, TweenInfo.new(0.18), {
 		BackgroundTransparency = 0
 	})):Play();
 	task.delay(0.02, function()
@@ -746,10 +776,10 @@ local function fromDock()
 				g.Visible = true;
 			end;
 		end;
-		(ts:Create(body, TweenInfo.new(0.18), {
+		(__lt_call_service_method("TweenService", "Create", body, TweenInfo.new(0.18), {
 			BackgroundTransparency = 0
 		})):Play();
-		(ts:Create(top, TweenInfo.new(0.18), {
+		(__lt_call_service_method("TweenService", "Create", top, TweenInfo.new(0.18), {
 			BackgroundTransparency = 0
 		})):Play();
 		win.Position = lastPos;
@@ -780,7 +810,7 @@ uis.InputBegan:Connect(function(i, gpe)
 		if not extList.Visible then
 			return;
 		end;
-		local mp = i.UserInputType == Enum.UserInputType.Touch and i.Position or uis:GetMouseLocation();
+		local mp = i.UserInputType == Enum.UserInputType.Touch and i.Position or __lt_call_service_method("UserInputService", "GetMouseLocation");
 		local pos = Vector2.new(extList.AbsolutePosition.X, extList.AbsolutePosition.Y);
 		local sz = extList.AbsoluteSize;
 		if mp.X < pos.X or mp.X > pos.X + sz.X or mp.Y < pos.Y or mp.Y > pos.Y + sz.Y then
@@ -900,16 +930,16 @@ top.BackgroundTransparency = 1;
 task.spawn(function()
 	local sc = uiScale.Scale;
 	uiScale.Scale = sc * 0.9;
-	(ts:Create(uiScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", uiScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Scale = sc
 	})):Play();
-	(ts:Create(win, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", win, TweenInfo.new(0.2), {
 		BackgroundTransparency = 0
 	})):Play();
-	(ts:Create(body, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", body, TweenInfo.new(0.2), {
 		BackgroundTransparency = 0
 	})):Play();
-	(ts:Create(top, TweenInfo.new(0.2), {
+	(__lt_call_service_method("TweenService", "Create", top, TweenInfo.new(0.2), {
 		BackgroundTransparency = 0
 	})):Play();
 end);

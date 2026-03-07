@@ -1,3 +1,35 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 if (getgenv()).prtGrabLoaded then
 	return print("Part Grabber is already running");
 end;
@@ -8,10 +40,8 @@ local NA_SRV = setmetatable({}, {
 			return ref;
 		end;
 		local ok, svc = pcall(function()
-			if name == "Stats" or name == "VirtualInputManager" or name == "LogService" or name == "VoiceChatService" then
-				return game:GetService(name);
-			end;
-			return Reference(game:GetService(name));
+
+			return __lt_clone_service(name, Reference);
 		end);
 		if ok and svc then
 			rawset(self, name, svc);
@@ -46,9 +76,9 @@ local function ProtectGui(g)
 		NAP(g);
 		g.Parent = gethui();
 		return g;
-	elseif cg and cg:FindFirstChild("RobloxGui") then
+	elseif cg and __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui") then
 		NAP(g);
-		g.Parent = cg:FindFirstChild("RobloxGui");
+		g.Parent = __lt_call_service_method("CoreGui", "FindFirstChild", "RobloxGui");
 		return g;
 	elseif cg then
 		NAP(g);
@@ -71,7 +101,7 @@ local gsv = Svc("GuiService");
 local plrs = Svc("Players");
 local lp = plrs.LocalPlayer;
 local IsOnMobile = (function()
-	local platform = uis:GetPlatform();
+	local platform = __lt_call_service_method("UserInputService", "GetPlatform");
 	if platform == Enum.Platform.IOS or platform == Enum.Platform.Android or platform == Enum.Platform.AndroidTV or platform == Enum.Platform.Chromecast or platform == Enum.Platform.MetaOS then
 		return true;
 	end;
@@ -243,29 +273,29 @@ local function mkBtn(txt, col, parent, h)
 	sc.Parent = b;
 	if not IsOnMobile then
 		track(b.MouseEnter:Connect(function()
-			(ts:Create(b, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", b, ti_fast, {
 				BackgroundTransparency = 0.05
 			})):Play();
-			(ts:Create(st, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", st, ti_fast, {
 				Transparency = 0.4
 			})):Play();
 		end));
 		track(b.MouseLeave:Connect(function()
-			(ts:Create(b, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", b, ti_fast, {
 				BackgroundTransparency = 0.15
 			})):Play();
-			(ts:Create(st, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", st, ti_fast, {
 				Transparency = 0.8
 			})):Play();
 		end));
 	end;
 	track(b.MouseButton1Down:Connect(function()
-		(ts:Create(sc, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", sc, ti_fast, {
 			Scale = 0.96
 		})):Play();
 	end));
 	track(b.MouseButton1Up:Connect(function()
-		(ts:Create(sc, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", sc, ti_fast, {
 			Scale = 1
 		})):Play();
 	end));
@@ -346,7 +376,7 @@ dotCorner.Parent = dot;
 local dotScale = Instance.new("UIScale");
 dotScale.Scale = 1;
 dotScale.Parent = dot;
-(ts:Create(dotScale, ti_long, {
+(__lt_call_service_method("TweenService", "Create", dotScale, ti_long, {
 	Scale = 1.15
 })):Play();
 local lbl = Instance.new("TextLabel");
@@ -617,11 +647,11 @@ end;
 local function setStatus(t, ok)
 	lbl.Text = t;
 	local c = ok == nil and Color3.fromRGB(190, 190, 190) or (ok and Color3.fromRGB(235, 235, 235) or Color3.fromRGB(150, 150, 150));
-	(ts:Create(lbl, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", lbl, ti_fast, {
 		TextColor3 = c
 	})):Play();
 	local dc = ok == nil and Color3.fromRGB(200, 200, 200) or (ok and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(130, 130, 130));
-	(ts:Create(dot, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", dot, ti_fast, {
 		BackgroundColor3 = dc
 	})):Play();
 end;
@@ -668,20 +698,20 @@ local function updCollBtn()
 	if selObj and selObj:IsA("BasePart") then
 		if selObj.CanCollide then
 			btnColl.Text = "CanCollide: On";
-			(ts:Create(btnColl, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnColl, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 			})):Play();
 			btnColl.TextColor3 = Color3.fromRGB(0, 0, 0);
 		else
 			btnColl.Text = "CanCollide: Off";
-			(ts:Create(btnColl, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnColl, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 			})):Play();
 			btnColl.TextColor3 = Color3.fromRGB(235, 235, 235);
 		end;
 	else
 		btnColl.Text = "CanCollide: ?";
-		(ts:Create(btnColl, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", btnColl, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		})):Play();
 		btnColl.TextColor3 = Color3.fromRGB(235, 235, 235);
@@ -691,20 +721,20 @@ local function updAnchBtn()
 	if selObj and selObj:IsA("BasePart") then
 		if selObj.Anchored then
 			btnAnch.Text = "Anchored: On";
-			(ts:Create(btnAnch, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnAnch, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 			})):Play();
 			btnAnch.TextColor3 = Color3.fromRGB(0, 0, 0);
 		else
 			btnAnch.Text = "Anchored: Off";
-			(ts:Create(btnAnch, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnAnch, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 			})):Play();
 			btnAnch.TextColor3 = Color3.fromRGB(235, 235, 235);
 		end;
 	else
 		btnAnch.Text = "Anchored: ?";
-		(ts:Create(btnAnch, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", btnAnch, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		})):Play();
 		btnAnch.TextColor3 = Color3.fromRGB(235, 235, 235);
@@ -714,20 +744,20 @@ local function updMassBtn()
 	if selObj and selObj:IsA("BasePart") then
 		if selObj.Massless then
 			btnMass.Text = "Massless: On";
-			(ts:Create(btnMass, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnMass, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(230, 230, 230)
 			})):Play();
 			btnMass.TextColor3 = Color3.fromRGB(0, 0, 0);
 		else
 			btnMass.Text = "Massless: Off";
-			(ts:Create(btnMass, ti_fast, {
+			(__lt_call_service_method("TweenService", "Create", btnMass, ti_fast, {
 				BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 			})):Play();
 			btnMass.TextColor3 = Color3.fromRGB(235, 235, 235);
 		end;
 	else
 		btnMass.Text = "Massless: ?";
-		(ts:Create(btnMass, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", btnMass, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		})):Play();
 		btnMass.TextColor3 = Color3.fromRGB(235, 235, 235);
@@ -770,10 +800,10 @@ function setSel(p)
 		showAdorn(p);
 		updAllBtns();
 		applySelSignals(p);
-		(ts:Create(pathFrame, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", pathFrame, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 		})):Play();
-		(ts:Create(pfStroke, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", pfStroke, ti_fast, {
 			Transparency = 0.3
 		})):Play();
 	else
@@ -783,16 +813,16 @@ function setSel(p)
 		clearAdorn();
 		clearPropConns();
 		updAllBtns();
-		(ts:Create(pathFrame, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", pathFrame, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		})):Play();
-		(ts:Create(pfStroke, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", pfStroke, ti_fast, {
 			Transparency = 0.55
 		})):Play();
 	end;
 end;
 local function onWin(p)
-	local inset = gsv:GetGuiInset();
+	local inset = __lt_call_service_method("GuiService", "GetGuiInset");
 	local v = Vector2.new(p.X - inset.X, p.Y - inset.Y);
 	local a = win.AbsolutePosition;
 	local s = win.AbsoluteSize;
@@ -803,7 +833,7 @@ local function raycastPick()
 	if not cam then
 		return nil;
 	end;
-	local pos = uis:GetMouseLocation();
+	local pos = __lt_call_service_method("UserInputService", "GetMouseLocation");
 	local ray = cam:ViewportPointToRay(pos.X, pos.Y);
 	local params = RaycastParams.new();
 	params.FilterType = Enum.RaycastFilterType.Exclude;
@@ -822,7 +852,7 @@ local function softPick()
 	if not cam then
 		return nil;
 	end;
-	local pos = uis:GetMouseLocation();
+	local pos = __lt_call_service_method("UserInputService", "GetMouseLocation");
 	local ray = cam:ViewportPointToRay(pos.X, pos.Y);
 	local op = OverlapParams.new();
 	op.FilterType = Enum.RaycastFilterType.Exclude;
@@ -855,7 +885,7 @@ local function pick()
 	if dragging then
 		return;
 	end;
-	local pos = uis:GetMouseLocation();
+	local pos = __lt_call_service_method("UserInputService", "GetMouseLocation");
 	if onWin(pos) then
 		return;
 	end;
@@ -898,16 +928,16 @@ local function showRen(d)
 	renBox.Visible = true;
 	modal.Visible = true;
 	rbScale.Scale = 0.9;
-	(ts:Create(modal, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", modal, ti_fast, {
 		BackgroundTransparency = 0.25
 	})):Play();
-	(ts:Create(rbScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	(__lt_call_service_method("TweenService", "Create", rbScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 		Scale = 1
 	})):Play();
 	rbInput:CaptureFocus();
 end;
 local function hideRen()
-	(ts:Create(modal, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", modal, ti_fast, {
 		BackgroundTransparency = 1
 	})):Play();
 	task.delay(0.16, function()
@@ -956,7 +986,7 @@ end));
 local function applyScale()
 	local cam = workspace.CurrentCamera;
 	local vp = cam and cam.ViewportSize or Vector2.new(1280, 720);
-	local inset = gsv:GetGuiInset();
+	local inset = __lt_call_service_method("GuiService", "GetGuiInset");
 	local ux = math.max(0, vp.X - inset.X * 2);
 	local uy = math.max(0, vp.Y - inset.Y * 2);
 	local bw, bh = baseSize();
@@ -985,7 +1015,7 @@ btnMin.MouseButton1Click:Connect(function()
 	minimized = not minimized;
 	local bw, bh = baseSize();
 	if minimized then
-		local tw = ts:Create(win, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		local tw = __lt_call_service_method("TweenService", "Create", win, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, bw, 0, bh)
 		});
 		tw.Completed:Connect(function()
@@ -995,7 +1025,7 @@ btnMin.MouseButton1Click:Connect(function()
 		btnMin.Text = "+";
 	else
 		body.Visible = true;
-		(ts:Create(win, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		(__lt_call_service_method("TweenService", "Create", win, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, bw, 0, bh)
 		})):Play();
 		btnMin.Text = "-";
@@ -1005,13 +1035,13 @@ btnExit.MouseButton1Click:Connect(function()
 	selOn = false;
 	setSel(nil);
 	discAll();
-	(ts:Create(winScale, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", winScale, ti_fast, {
 		Scale = 0.9
 	})):Play();
-	(ts:Create(win, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", win, ti_fast, {
 		BackgroundTransparency = 1
 	})):Play();
-	(ts:Create(winStroke, ti_fast, {
+	(__lt_call_service_method("TweenService", "Create", winStroke, ti_fast, {
 		Transparency = 1
 	})):Play();
 	task.delay(0.18, function()
@@ -1033,13 +1063,13 @@ btnToggle.MouseButton1Click:Connect(function()
 	selOn = not selOn;
 	if selOn then
 		btnToggle.Text = "Selection: On";
-		(ts:Create(btnToggle, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", btnToggle, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 		})):Play();
 		setStatus("Selection enabled", true);
 	else
 		btnToggle.Text = "Selection: Off";
-		(ts:Create(btnToggle, ti_fast, {
+		(__lt_call_service_method("TweenService", "Create", btnToggle, ti_fast, {
 			BackgroundColor3 = Color3.fromRGB(6, 6, 6)
 		})):Play();
 		setStatus("Selection disabled", false);
@@ -1157,20 +1187,20 @@ btnPathMode.MouseButton1Click:Connect(function()
 		setStatus("Path mode: " .. pathMode, nil);
 	end;
 end);
-(ts:Create(titleGrad, TweenInfo.new(1.4, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
+(__lt_call_service_method("TweenService", "Create", titleGrad, TweenInfo.new(1.4, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {
 	Rotation = 360
 })):Play();
 win.BackgroundTransparency = 1;
-(ts:Create(win, ti_med, {
+(__lt_call_service_method("TweenService", "Create", win, ti_med, {
 	BackgroundTransparency = 0
 })):Play();
-(ts:Create(winScale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+(__lt_call_service_method("TweenService", "Create", winScale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 	Scale = 1
 })):Play();
-(ts:Create(winStroke, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+(__lt_call_service_method("TweenService", "Create", winStroke, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 	Transparency = 0.35
 })):Play();
-(ts:Create(bodyStroke, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+(__lt_call_service_method("TweenService", "Create", bodyStroke, TweenInfo.new(0.35, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 	Transparency = 0.55
 })):Play();
 hookViewport();

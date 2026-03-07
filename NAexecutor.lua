@@ -1,3 +1,35 @@
+local __lt_oldcloneref = type(cloneref) == "function" and cloneref or nil;
+local function __lt_clone_service_value(value)
+	if __lt_oldcloneref and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt_oldcloneref, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+local function __lt_clone_service(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+local function __lt_call_service_method(name, method, ...)
+	local service = game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
+
+
 local cg = (function()
 	local S = game.GetService;
 	local ok, s = pcall(function()
@@ -32,10 +64,8 @@ local NA_SRV = setmetatable({}, {
 			return x;
 		end;
 		local ok, svc = pcall(function()
-			if n == "Stats" or n == "VirtualInputManager" or n == "LogService" or n == "VoiceChatService" then
-				return game:GetService(n);
-			end;
-			return R(game:GetService(n));
+
+			return __lt_clone_service(n, R);
 		end);
 		if ok and svc then
 			rawset(self, n, svc);
@@ -55,8 +85,8 @@ local function AttachEditor(cfg)
 	src.TextXAlignment = Enum.TextXAlignment.Left;
 	src.TextYAlignment = Enum.TextYAlignment.Top;
 	src.BackgroundTransparency = 1;
-	local TS = cloneref(game:GetService("TextService"));
-	local TweenService = cloneref(game:GetService("TweenService"));
+	local TS = __lt_clone_service("TextService", cloneref);
+	local TweenService = __lt_clone_service("TweenService", cloneref);
 	src.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			task.defer(function()
@@ -956,7 +986,7 @@ local function AttachEditor(cfg)
 			if l == "" then
 				l = " ";
 			end;
-			local bounds = TS:GetTextSize(l, src.TextSize, src.Font, Vector2.new(1000000, lineHeight));
+			local bounds = __lt_call_service_method("TextService", "GetTextSize", l, src.TextSize, src.Font, Vector2.new(1000000, lineHeight));
 			if bounds.X > maxW then
 				maxW = bounds.X;
 			end;
@@ -1013,11 +1043,11 @@ local function AttachEditor(cfg)
 		local w = math.max(1, src.AbsoluteSize.X - left);
 		local lineHeight = getLineHeight();
 		local before = text:sub(1, cursorPos - 1);
-		local bounds = TS:GetTextSize(before, src.TextSize, src.Font, Vector2.new(w, 99999));
+		local bounds = __lt_call_service_method("TextService", "GetTextSize", before, src.TextSize, src.Font, Vector2.new(w, 99999));
 		local targetY = math.max(0, bounds.Y - lineHeight);
 		local maxY = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y);
 		local newY = math.clamp(targetY - sf.AbsoluteSize.Y * 0.3, 0, maxY);
-		(TweenService:Create(sf, tweenInfo, {
+		(__lt_call_service_method("TweenService", "Create", sf, tweenInfo, {
 			CanvasPosition = Vector2.new(0, newY)
 		})):Play();
 	end;
