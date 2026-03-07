@@ -62028,7 +62028,8 @@ TabManager = {
 	order = {},
 	current = nil,
 	fallback = nil,
-	fallbackIndex = 0
+	fallbackIndex = 0,
+	lastNonAll = nil
 };
 
 BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
@@ -62204,6 +62205,50 @@ if TabManager.defaultPage then
 	TabManager.fallbackIndex = maxOrder;
 	TabManager.defaultPage.Visible = true;
 end;
+NAStuff.settingsAllDirty = true;
+NAmanage.markAllTabDirty = function(tabName)
+	if not tabName or not NA_TABS or tabName == NA_TABS.TAB_ALL then
+		return;
+	end;
+	NAStuff.settingsAllDirty = true;
+	local info = TabManager.tabs and TabManager.tabs[tabName];
+	if info then
+		info.elementsDirty = true;
+	end;
+end;
+NAmanage.getAllTabWrapper = function(page, createIfMissing)
+	if not page then
+		return nil;
+	end;
+	local found = nil;
+	for _, child in ipairs(page:GetChildren()) do
+		if child:IsA("GuiObject") and NAmanage.GetAttr(child, "NAAllWrapper") then
+			if not found then
+				found = child;
+			else
+				child:Destroy();
+			end;
+		end;
+	end;
+	if found or not createIfMissing then
+		return found;
+	end;
+	local merged = InstanceNew("Frame");
+	merged.Name = "NAAllMerged";
+	merged.BackgroundTransparency = 1;
+	merged.Size = UDim2.new(1, 0, 0, 0);
+	merged.AutomaticSize = Enum.AutomaticSize.Y;
+	merged.LayoutOrder = -1;
+	NAmanage.SetAttr(merged, "NAAllWrapper", true);
+	merged.Parent = page;
+
+	local ml = InstanceNew("UIListLayout");
+	ml.FillDirection = Enum.FillDirection.Vertical;
+	ml.SortOrder = Enum.SortOrder.LayoutOrder;
+	ml.Padding = UDim.new(0, 6);
+	ml.Parent = merged;
+	return merged;
+end;
 NAmanage.registerElementForCurrentTab = function(instance)
 	if not instance then
 		return;
@@ -62218,6 +62263,13 @@ NAmanage.registerElementForCurrentTab = function(instance)
 	pcall(function()
 		NAmanage.SetAttr(instance, "NAOriginalTab", currentName);
 	end);
+	local info = TabManager.tabs and TabManager.tabs[currentName];
+	if info then
+		info.elements = info.elements or {};
+		Insert(info.elements, instance);
+		info.elementsDirty = true;
+	end;
+	NAmanage.markAllTabDirty(currentName);
 end;
 NAmanage.clearAllTabWrappers = function(page)
 	if not page then
@@ -62256,6 +62308,20 @@ NAmanage.restoreAllTabElements = function()
 	end;
 end;
 NAmanage.collectTabElements = function(tabInfo, tabName)
+	local cached = tabInfo and tabInfo.elements;
+	if type(cached) == "table" and #cached > 0 and not tabInfo.elementsDirty then
+		local valid = {};
+		for _, element in ipairs(cached) do
+			if typeof(element) == "Instance" and element.Parent and element:IsA("GuiObject") then
+				Insert(valid, element);
+			end;
+		end;
+		table.sort(valid, function(a, b)
+			return (a.LayoutOrder or 0) < (b.LayoutOrder or 0);
+		end);
+		tabInfo.elements = valid;
+		return valid;
+	end;
 	local elements = {};
 	if not tabInfo or (not tabInfo.page) then
 		return elements;
@@ -62277,13 +62343,31 @@ NAmanage.collectTabElements = function(tabInfo, tabName)
 			NAmanage.SetAttr(element, "NAOriginalTab", tabName);
 		end);
 	end;
+	tabInfo.elementsDirty = false;
 	return elements;
+end;
+NAmanage.mountTabElements = function(tabInfo, tabName)
+	if not tabInfo or (not tabInfo.page) then
+		return 0;
+	end;
+	local moved = 0;
+	local elements = NAmanage.collectTabElements(tabInfo, tabName);
+	for _, element in ipairs(elements) do
+		if element and element.Parent and element.Parent ~= tabInfo.page then
+			local origOrder = NAmanage.GetAttr(element, "NAOrigOrder");
+			if typeof(origOrder) == "number" then
+				element.LayoutOrder = origOrder;
+			end;
+			element.Parent = tabInfo.page;
+			moved += 1;
+		end;
+	end;
+	return moved;
 end;
 NAmanage.prepareAllTabDisplay = function(allInfo)
 	if not allInfo or (not allInfo.page) then
 		return;
 	end;
-	NAmanage.clearAllTabWrappers(allInfo.page);
 	local page = allInfo.page;
 	local layout = page:FindFirstChildWhichIsA("UIListLayout");
 	if not layout then
@@ -62299,24 +62383,15 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 		page.AutomaticCanvasSize = Enum.AutomaticSize.Y;
 		page.CanvasPosition = Vector2.new(0, 0);
 	end;
-	local merged = InstanceNew("Frame");
-	merged.Name = "NAAllMerged";
-	merged.BackgroundTransparency = 1;
-	merged.Size = UDim2.new(1, 0, 0, 0);
-	merged.AutomaticSize = Enum.AutomaticSize.Y;
-	merged.LayoutOrder = -1;
-	NAmanage.SetAttr(merged, "NAAllWrapper", true);
-	merged.Parent = page;
-	local ml = InstanceNew("UIListLayout");
-	ml.FillDirection = Enum.FillDirection.Vertical;
-	ml.SortOrder = Enum.SortOrder.LayoutOrder;
-	ml.Padding = UDim.new(0, 6);
-	ml.Parent = merged;
+	local merged = NAmanage.getAllTabWrapper(page, true);
+	if merged and not NAStuff.settingsAllDirty then
+		return;
+	end;
 	local cursor = 0;
 	for _, tabName in ipairs(TabManager.order) do
 		if tabName ~= NA_TABS.TAB_ALL then
 			local tabInfo = TabManager.tabs[tabName];
-			if tabInfo and tabInfo.page then
+			if tabInfo then
 				local elements = NAmanage.collectTabElements(tabInfo, tabName);
 				for _, element in ipairs(elements) do
 					if NAmanage.GetAttr(element, "NAHideInAll") == true then
@@ -62333,6 +62408,10 @@ NAmanage.prepareAllTabDisplay = function(allInfo)
 				end;
 			end;
 		end;
+	end;
+	NAStuff.settingsAllDirty = false;
+	if page:IsA("ScrollingFrame") then
+		updateCanvasSize(page, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
 	end;
 end;
 NAmanage.updateTabVisual = function(tabInfo, isActive)
@@ -62390,10 +62469,29 @@ NAgui.setTab = function(name)
 		return nil;
 	end;
 	local previousTab = TabManager.current;
-	if previousTab == NA_TABS.TAB_ALL and name ~= NA_TABS.TAB_ALL then
-		NAmanage.restoreAllTabElements();
+	local isAllTab = NA_TABS and name == NA_TABS.TAB_ALL;
+	if previousTab == name then
+		if name == NA_TABS.TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
+			pcall(NAgui.RefreshBasicInfo);
+		end;
+		if info.page then
+			NAUIMANAGER.SettingsList = info.page;
+		end;
+		if isAllTab and NAStuff.settingsAllDirty then
+			NAmanage.prepareAllTabDisplay(info);
+		end;
+		return info.page;
+	end;
+	if not isAllTab then
+		local moved = NAmanage.mountTabElements(info, name);
+		if moved > 0 then
+			NAStuff.settingsAllDirty = true;
+		end;
 	end;
 	TabManager.current = name;
+	if not isAllTab then
+		TabManager.lastNonAll = name;
+	end;
 	if name == NA_TABS.TAB_BASIC_INFO and NAgui.RefreshBasicInfo then
 		pcall(NAgui.RefreshBasicInfo);
 	end;
@@ -62407,8 +62505,10 @@ NAgui.setTab = function(name)
 		end;
 		NAmanage.updateTabVisual(tabInfo, isActive);
 	end;
-	if name == NA_TABS.TAB_ALL then
+	if isAllTab then
 		NAmanage.prepareAllTabDisplay(info);
+	elseif info.page and info.page:IsA("ScrollingFrame") then
+		updateCanvasSize(info.page, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
 	end;
 	return info.page;
 end;
@@ -81897,12 +81997,11 @@ end)
 
 NAgui.setTab(NAgui.getActiveTab())
 
-NAgui.setTab(NA_TABS.TAB_ALL)
-
 SpawnCall(function()
 	Wait()
-	if TabManager and TabManager.current ~= NA_TABS.TAB_ALL then
-		NAgui.setTab(NA_TABS.TAB_ALL)
+	local defaultTab = (NA_TABS and NA_TABS.TAB_GENERAL) or (TabManager and TabManager.lastNonAll) or NAgui.getActiveTab()
+	if defaultTab and TabManager and TabManager.current ~= defaultTab then
+		NAgui.setTab(defaultTab)
 	end
 end)
 
