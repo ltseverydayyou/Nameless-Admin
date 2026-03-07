@@ -460,10 +460,19 @@ local LoadstringCommandAliases = {
 };
 
 opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
-NAmanage.NA_getServiceRef = opt.NA_cloneref and function(name)
-
-	return __lt.cs(name, opt.NA_cloneref)
-end or function(name)
+NAmanage.NA_getCloneRef = NAmanage.NA_getCloneRef or function()
+	local ref = (type(cloneref) == "function") and cloneref or opt.NA_cloneref
+	if type(ref) == "function" then
+		opt.NA_cloneref = ref
+		return ref
+	end
+	return nil
+end
+NAmanage.NA_getServiceRef = function(name)
+	local ref = NAmanage.NA_getCloneRef()
+	if ref then
+		return __lt.cs(name, ref)
+	end
 	return game:GetService(name)
 end
 NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
@@ -493,6 +502,16 @@ local NA_SRV_RAW = setmetatable({}, {
 function SafeGetService(name, useCloneRef)
 	if useCloneRef == false then
 		return NA_SRV_RAW[name]
+	end
+	local cached = rawget(NA_SRV, name)
+	local ref = NAmanage.NA_getCloneRef and NAmanage.NA_getCloneRef() or nil
+	if cached ~= nil and (not ref or cached ~= NA_SRV_RAW[name]) then
+		return cached
+	end
+	local ok, svc = pcall(NAmanage.NA_getServiceRef, name)
+	if ok and svc then
+		rawset(NA_SRV, name, svc)
+		return svc
 	end
 	return NA_SRV[name]
 end
