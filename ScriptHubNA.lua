@@ -491,6 +491,14 @@ pageInfo.LayoutOrder = 3;
 pageInfo.Parent = pageBar;
 local nextBtn = mkPageBtn("Next", nil, 4);
 local lastBtn = mkPageBtn("Last", nil, 5);
+local filterBtn = mkPageBtn("Filter: All", 118, 6);
+local filterModes = {
+	"all",
+	"keyless",
+	"key"
+};
+local filterMode = filterModes[1];
+local currentPageScripts = {};
 local pagination = {
 	current = 1,
 	total = 1,
@@ -499,6 +507,43 @@ local pagination = {
 	hasResults = false
 };
 local searching = false;
+local function getFilterButtonText()
+	if filterMode == "keyless" then
+		return "Filter: Keyless";
+	elseif filterMode == "key" then
+		return "Filter: Key Req";
+	end;
+	return "Filter: All";
+end;
+local function scriptRequiresKey(d)
+	local value = eng == "ScriptBlox" and d.key or d.keySystem;
+	if type(value) == "boolean" then
+		return value;
+	end;
+	if type(value) == "number" then
+		return value ~= 0;
+	end;
+	if type(value) == "string" then
+		local normalized = value:lower();
+		if normalized == "" or normalized == "false" or normalized == "0" or normalized == "none" or normalized == "n/a" then
+			return false;
+		end;
+		if normalized:find("no key", 1, true) or normalized:find("keyless", 1, true) then
+			return false;
+		end;
+		return true;
+	end;
+	return value ~= nil and value ~= false;
+end;
+local function passesFilter(d)
+	local requiresKey = scriptRequiresKey(d);
+	if filterMode == "keyless" then
+		return not requiresKey;
+	elseif filterMode == "key" then
+		return requiresKey;
+	end;
+	return true;
+end;
 local function setNavButtonEnabled(btn, enabled)
 	if not btn then
 		return;
@@ -529,11 +574,14 @@ local function updatePageControls()
 	setNavButtonEnabled(prevBtn, ready and hasPrev);
 	setNavButtonEnabled(nextBtn, ready and hasNext);
 	setNavButtonEnabled(lastBtn, ready and hasNext);
+	filterBtn.Text = getFilterButtonText();
+	setNavButtonEnabled(filterBtn, ready and #currentPageScripts > 0);
 end;
 local function resetPagination(clearQuery)
 	pagination.current = 1;
 	pagination.total = 1;
 	pagination.hasResults = false;
+	currentPageScripts = {};
 	if clearQuery then
 		pagination.query = "";
 		pagination.trending = false;
@@ -1140,7 +1188,7 @@ local function mkCard(i, d)
 	local rw = eng == "ScriptBlox" and d.script or d.rawScript or d.scriptLink or d.raw or "";
 	local v = tostring(d.views or d.viewCount or 0);
 	local likes = tostring(d.likeCount or 0);
-	local keyFlag = eng == "ScriptBlox" and d.key or d.keySystem;
+	local keyFlag = scriptRequiresKey(d);
 	local scriptType = d.scriptType or "Free";
 	local verified = d.verified and "Verified" or "Unverified";
 	local status = d.isPatched and "Patched" or "Working";
@@ -1458,6 +1506,34 @@ local function mkCard(i, d)
 		TextTransparency = 0
 	})):Play();
 end;
+local function renderCurrentPage(stagger)
+	clearAll(false);
+	if not currentPageScripts or #currentPageScripts == 0 then
+		mkMsg("No scripts found", col.wa);
+		sizeCanvas();
+		return;
+	end;
+	local shown = 0;
+	for _, d in ipairs(currentPageScripts) do
+		if passesFilter(d) then
+			shown += 1;
+			mkCard(shown, d);
+			if stagger then
+				task.wait(0.02);
+			end;
+		end;
+	end;
+	if shown == 0 then
+		if filterMode == "keyless" then
+			mkMsg("No keyless scripts found on this page", col.wa);
+		elseif filterMode == "key" then
+			mkMsg("No key-required scripts found on this page", col.wa);
+		else
+			mkMsg("No scripts found", col.wa);
+		end;
+	end;
+	sizeCanvas();
+end;
 local function finishSearch()
 	spin(false);
 	go.Text = "Search";
@@ -1497,6 +1573,7 @@ function fetch(searchText, trending, page)
 	pagination.trending = trending;
 	pagination.current = page;
 	pagination.hasResults = false;
+	currentPageScripts = {};
 	updatePageControls();
 	searching = true;
 	updatePageControls();
@@ -1550,6 +1627,7 @@ function fetch(searchText, trending, page)
 		totalPages = result.totalPages or 1;
 	end;
 	pagination.total = math.max(totalPages or 1, 1);
+	currentPageScripts = data or {};
 	if not data or #data == 0 then
 		mkMsg("No scripts found", col.wa);
 		finishSearch();
@@ -1557,10 +1635,7 @@ function fetch(searchText, trending, page)
 		return;
 	end;
 	pagination.hasResults = true;
-	for i, d in ipairs(data) do
-		mkCard(i, d);
-		task.wait(0.02);
-	end;
+	renderCurrentPage(true);
 	finishSearch();
 	sizeCanvas();
 end;
@@ -1625,6 +1700,15 @@ nextBtn.MouseButton1Click:Connect(function()
 end);
 lastBtn.MouseButton1Click:Connect(function()
 	requestPage(pagination.total);
+end);
+filterBtn.MouseButton1Click:Connect(function()
+	if searching or #currentPageScripts == 0 then
+		return;
+	end;
+	local idx = table.find(filterModes, filterMode) or 1;
+	filterMode = filterModes[idx % #filterModes + 1];
+	updatePageControls();
+	renderCurrentPage(false);
 end);
 local drag, dIn, dStart, start;
 local function up(i)
