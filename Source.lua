@@ -43,7 +43,6 @@ function __lt.cm(name, method, ...)
 	return fn(service, ...);
 end;
 
-
 -- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
 
 local _na_env = (getgenv and getgenv()) or _G or {}
@@ -14379,7 +14378,7 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		disableUnsafeFunctions = {
-			default = false;
+			default = true;
 			coerce = function(value)
 				return coerceBoolean(value, false)
 			end;

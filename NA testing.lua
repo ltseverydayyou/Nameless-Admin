@@ -14399,7 +14399,7 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		disableUnsafeFunctions = {
-			default = false;
+			default = true;
 			coerce = function(value)
 				return coerceBoolean(value, false)
 			end;
