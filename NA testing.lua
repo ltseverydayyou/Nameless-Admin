@@ -1,49 +1,3 @@
-local __lt = { cr = type(cloneref) == "function" and cloneref or nil };
-function __lt.cv(value)
-	if __lt.cr and typeof(value) == "Instance" then
-		local ok, cloned = pcall(__lt.cr, value);
-		if ok and cloned ~= nil then
-			return cloned;
-		end;
-	end;
-	return value;
-end;
-function __lt.cs(name, refFn)
-	if type(refFn) ~= "function" then
-		return game:GetService(name);
-	end;
-	local ok, ref = pcall(function()
-		return refFn(game:GetService(name));
-	end);
-	if ok and ref ~= nil then
-		return ref;
-	end;
-	return game:GetService(name);
-end;
-function __lt.ig(method)
-	return method == "FindFirstChild"
-		or method == "WaitForChild"
-		or method == "FindFirstChildOfClass"
-		or method == "FindFirstChildWhichIsA"
-		or method == "FindFirstAncestor"
-		or method == "FindFirstAncestorOfClass"
-		or method == "FindFirstAncestorWhichIsA"
-		or method == "GetChildren"
-		or method == "GetDescendants"
-		or method == "QueryDescendants";
-end;
-function __lt.cm(name, method, ...)
-	local service = __lt.ig(method)
-		and __lt.cs(name, __lt.cr)
-		or game:GetService(name);
-	local fn = service[method];
-	if type(fn) ~= "function" then
-		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
-	end;
-	return fn(service, ...);
-end;
-
-
 --[[
 
 
@@ -96,6 +50,51 @@ pcall(function()
 		_na_shared.NA_LOADED = naFlagValue
 	end
 end)
+
+local __lt = { cr = type(cloneref) == "function" and cloneref or nil };
+function __lt.cv(value)
+	if __lt.cr and typeof(value) == "Instance" then
+		local ok, cloned = pcall(__lt.cr, value);
+		if ok and cloned ~= nil then
+			return cloned;
+		end;
+	end;
+	return value;
+end;
+function __lt.cs(name, refFn)
+	if type(refFn) ~= "function" then
+		return game:GetService(name);
+	end;
+	local ok, ref = pcall(function()
+		return refFn(game:GetService(name));
+	end);
+	if ok and ref ~= nil then
+		return ref;
+	end;
+	return game:GetService(name);
+end;
+function __lt.ig(method)
+	return method == "FindFirstChild"
+		or method == "WaitForChild"
+		or method == "FindFirstChildOfClass"
+		or method == "FindFirstChildWhichIsA"
+		or method == "FindFirstAncestor"
+		or method == "FindFirstAncestorOfClass"
+		or method == "FindFirstAncestorWhichIsA"
+		or method == "GetChildren"
+		or method == "GetDescendants"
+		or method == "QueryDescendants";
+end;
+function __lt.cm(name, method, ...)
+	local service = __lt.ig(method)
+		and __lt.cs(name, __lt.cr)
+		or game:GetService(name);
+	local fn = service[method];
+	if type(fn) ~= "function" then
+		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
+	end;
+	return fn(service, ...);
+end;
 
 NAbegin=tick()
 CMDAUTOFILL={}
@@ -6711,6 +6710,7 @@ local NAfiles = {
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
+	NAFLYBINDSPATH = "Nameless-Admin/FlyBinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
 
@@ -13947,6 +13947,24 @@ NAmanage.NASettingsGetSchema=function()
 				return numberValue
 			end;
 		};
+		iconShape = {
+			default = "Circle";
+			coerce = function(value)
+				local shape = type(value) == "string" and value or tostring(value or "")
+				shape = shape:match("^%s*(.-)%s*$") or shape
+				shape = shape:lower()
+				if shape == "square" then
+					return "Square"
+				elseif shape == "rounded" or shape == "round" then
+					return "Rounded"
+				elseif shape == "squircle" then
+					return "Squircle"
+				elseif shape == "circle" then
+					return "Circle"
+				end
+				return "Circle"
+			end;
+		};
 		iconBgTransparency = {
 			default = 0;
 			coerce = function(value)
@@ -15324,6 +15342,10 @@ if FileSupport then
 
 		if not isfile(NAfiles.NACOMMANDKEYBINDS) then
 			writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
+		end
+
+		if not isfile(NAfiles.NAFLYBINDSPATH) then
+			writefile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode({}))
 		end
 
 		if not isfile(NAfiles.NAAUTOEXECPATH) then
@@ -16979,6 +17001,7 @@ if FileSupport then
 		text = NAmanage.NASettingsGet("iconTextTransparency"),
 		stroke = NAmanage.NASettingsGet("iconStrokeTransparency"),
 	}
+	NAStuff.IconShape = NAmanage.NASettingsGet("iconShape")
 
 	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
 		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
@@ -22319,6 +22342,67 @@ local flyVariables = {
 
 	uiPosConns = {};
 }
+
+NAmanage.normalizeFlyBindKey = function(value, fallback)
+	local key = value
+	if type(key) ~= "string" then
+		key = tostring(key or "")
+	end
+	key = key:match("^%s*(.-)%s*$") or ""
+	key = Lower(key)
+	if key == "" then
+		return Lower(tostring(fallback or ""))
+	end
+	return key
+end
+
+NAmanage.SaveFlyKeybinds = function()
+	if not FileSupport then
+		return
+	end
+	local payload = {
+		fly = NAmanage.normalizeFlyBindKey(flyVariables.toggleKey, "f");
+		vfly = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v");
+		cfly = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c");
+		tfly = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t");
+	}
+	local ok, err = pcall(function()
+		writefile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode(payload))
+	end)
+	if not ok then
+		warn("[NA] Fly keybind save failed: "..tostring(err))
+	end
+end
+
+NAmanage.LoadFlyKeybinds = function()
+	flyVariables.toggleKey = NAmanage.normalizeFlyBindKey(flyVariables.toggleKey, "f")
+	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v")
+	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c")
+	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t")
+
+	if not (FileSupport and isfile and isfile(NAfiles.NAFLYBINDSPATH)) then
+		return
+	end
+
+	local okRead, raw = pcall(readfile, NAfiles.NAFLYBINDSPATH)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return
+	end
+
+	local okDecode, decoded = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not okDecode or type(decoded) ~= "table" then
+		return
+	end
+
+	flyVariables.toggleKey = NAmanage.normalizeFlyBindKey(decoded.fly, flyVariables.toggleKey or "f")
+	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(decoded.vfly, flyVariables.vToggleKey or "v")
+	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(decoded.cfly, flyVariables.cToggleKey or "c")
+	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(decoded.tfly, flyVariables.tflyToggleKey or "t")
+end
+
+NAmanage.LoadFlyKeybinds()
 
 -----------------------------
 
@@ -42667,7 +42751,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 
 	coroutine.wrap(function()
 		while not _na_env.SawFinish do
-			local tween = __lt.cm("TweenService", "Create", 
+			local tween = __lt.cm("TweenService", "Create",
 				staticOverlay,
 				TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ ImageTransparency = math.random(0.7, 0.9), Position = UDim2.new(math.random(-0.01, 0.01), 0, math.random(-0.01, 0.01), 0) }
@@ -42677,7 +42761,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		end
 	end)()
 
-	local bgTween = __lt.cm("TweenService", "Create", 
+	local bgTween = __lt.cm("TweenService", "Create",
 		background,
 		TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{ BackgroundTransparency = 0.5 }
@@ -42713,7 +42797,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		while not _na_env.SawFinish do
 			local newSize = math.random(140, 160)
 			local newRotation = math.random(-10, 10)
-			local tween = __lt.cm("TweenService", "Create", 
+			local tween = __lt.cm("TweenService", "Create",
 				imgLabel,
 				TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ Size = UDim2.new(0, newSize, 0, newSize), Rotation = newRotation, ImageColor3 = Color3.fromRGB(math.random(200, 255), 0, 0) }
@@ -42721,14 +42805,14 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			tween:Play()
 			tween.Completed:Wait()
 			if math.random() < 0.2 then
-				local glitchTween = __lt.cm("TweenService", "Create", 
+				local glitchTween = __lt.cm("TweenService", "Create",
 					imgLabel,
 					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 					{ ImageTransparency = math.random(0.3, 0.7), Position = UDim2.new(0.5 + math.random(-0.05, 0.05), 0, 0.1 + math.random(-0.05, 0.05), 0) }
 				)
 				glitchTween:Play()
 				glitchTween.Completed:Wait()
-				local resetTween = __lt.cm("TweenService", "Create", 
+				local resetTween = __lt.cm("TweenService", "Create",
 					imgLabel,
 					TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 					{ ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.1, 0) }
@@ -42800,7 +42884,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 		dramaticLabel.Text = tostring(num)
 		playSound(138081500, 2)
 		for i = 1, 5 do
-			local shakeTween = __lt.cm("TweenService", "Create", 
+			local shakeTween = __lt.cm("TweenService", "Create",
 				dramaticLabel,
 				TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 				{ Position = UDim2.new(0.5 + math.random(-0.02, 0.02), 0, 0.7 + math.random(-0.02, 0.02), 0) }
@@ -42808,7 +42892,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 			shakeTween:Play()
 			shakeTween.Completed:Wait()
 		end
-		local resetTween = __lt.cm("TweenService", "Create", 
+		local resetTween = __lt.cm("TweenService", "Create",
 			dramaticLabel,
 			TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 			{ Position = UDim2.new(0.5, 0, 0.7, 0) }
@@ -42836,7 +42920,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 
 					local progress = num / 180
 					local jitter = math.random(-0.02, 0.02)
-					local tween = __lt.cm("TweenService", "Create", 
+					local tween = __lt.cm("TweenService", "Create",
 						progressFill,
 						TweenInfo.new(1, Enum.EasingStyle.Linear),
 						{ Size = UDim2.new(progress + jitter, 0, 1, 0), BackgroundColor3 = num <= 30 and Color3.fromRGB(math.random(200, 255), math.random(0, 50), 0) or Color3.fromRGB(255, 0, 0) }
@@ -42880,7 +42964,7 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 				}, distortion)
 				playSound(9125915751, 5)
 				for i = 1, 3 do
-					local glitchTween = __lt.cm("TweenService", "Create", 
+					local glitchTween = __lt.cm("TweenService", "Create",
 						glitchOverlay,
 						TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
 						{ Position = UDim2.new(math.random(-0.05, 0.05), 0, math.random(-0.05, 0.05), 0), ImageTransparency = math.random(0.3, 0.7) }
@@ -42888,17 +42972,17 @@ cmd.add({"saw"}, {"saw <challenge>", "shush"}, function(...)
 					glitchTween:Play()
 					Wait(0.15)
 				end
-				local fadeTween = __lt.cm("TweenService", "Create", 
+				local fadeTween = __lt.cm("TweenService", "Create",
 					dramaticLabel,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ TextTransparency = 1 }
 				)
-				local distortionFade = __lt.cm("TweenService", "Create", 
+				local distortionFade = __lt.cm("TweenService", "Create",
 					distortion,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ BackgroundTransparency = 1 }
 				)
-				local glitchFade = __lt.cm("TweenService", "Create", 
+				local glitchFade = __lt.cm("TweenService", "Create",
 					glitchOverlay,
 					TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 					{ ImageTransparency = 1 }
@@ -43245,6 +43329,8 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 			NAStuff.originalDesc=ap:Clone()
 		end
 	end
+	local targetAppearanceModel = nil
+	local targetAccessoryCount = nil
 
 	local function clearAppearance()
 		for _,inst in ipairs(char:GetChildren()) do
@@ -43260,6 +43346,42 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 				end
 			end
 		end
+	end
+
+	local function getTargetAppearance()
+		if targetAppearanceModel ~= nil then
+			return targetAppearanceModel or nil
+		end
+		if not uidFallback then
+			targetAppearanceModel = false
+			return nil
+		end
+		local ok, appearance = pcall(Players.GetCharacterAppearanceAsync, Players, uidFallback)
+		targetAppearanceModel = ok and appearance or false
+		return targetAppearanceModel or nil
+	end
+
+	local function getTargetAccessoryCount()
+		if targetAccessoryCount ~= nil then
+			return targetAccessoryCount
+		end
+		local appearance = getTargetAppearance()
+		local count = 0
+		if appearance then
+			for _, inst in ipairs(appearance:QueryDescendants("Accessory")) do
+				count += 1
+			end
+		end
+		targetAccessoryCount = count
+		return count
+	end
+
+	local function getCurrentAccessoryCount()
+		local count = 0
+		for _, inst in ipairs(char:QueryDescendants("Accessory")) do
+			count += 1
+		end
+		return count
 	end
 
 	local function ensureFace()
@@ -43282,8 +43404,8 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 			dec.Face=Enum.NormalId.Front
 			dec.Parent=headNow
 		elseif uidFallback then
-			local okA2,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
-			if okA2 and ap then
+			local ap = getTargetAppearance()
+			if ap then
 				for _,v in ipairs(ap:QueryDescendants("Decal")) do
 					if Lower(v.Name)=="face" then
 						v:Clone().Parent=headNow
@@ -43315,25 +43437,149 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		end
 	end
 
-	if opts.forceRefresh then
-		NAStuff._blankCharDesc = NAStuff._blankCharDesc or InstanceNew("HumanoidDescription")
-		pcall(function() hum:ApplyDescriptionClientServer(NAStuff._blankCharDesc) end)
-		Wait(0.15)
+	local function collectAccessoryIds(descObj)
+		local ids = {}
+		if not descObj then
+			return ids
+		end
+		for _, key in ipairs({
+			"HatAccessory",
+			"HairAccessory",
+			"FaceAccessory",
+			"NeckAccessory",
+			"ShoulderAccessory",
+			"ShouldersAccessory",
+			"FrontAccessory",
+			"BackAccessory",
+			"WaistAccessory",
+			"AccessoryBlob",
+		}) do
+			local ok, value = pcall(function()
+				return descObj[key]
+			end)
+			if ok and value ~= nil and value ~= "" then
+				for id in tostring(value):gmatch("%d+") do
+					if tonumber(id) and tonumber(id) > 0 then
+						ids[id] = true
+					end
+				end
+			end
+		end
+		return ids
 	end
 
-	clearAppearance()
-	hum:ApplyDescriptionClientServer(desc)
-	Wait(0.25)
-	ensureFace()
-	ensureClothes()
+	local function descriptionsShareAccessories(currentDesc, targetDesc)
+		local currentIds = collectAccessoryIds(currentDesc)
+		local targetIds = collectAccessoryIds(targetDesc)
+		for id in pairs(currentIds) do
+			if targetIds[id] then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function stashEquippedTools()
+		local backpack = plr and (plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack"))
+		local equippedTools = {}
+		for _, inst in ipairs(char:GetChildren()) do
+			if inst:IsA("Tool") then
+				Insert(equippedTools, inst)
+			end
+		end
+		if #equippedTools == 0 then
+			return equippedTools, backpack
+		end
+		pcall(function()
+			hum:UnequipTools()
+		end)
+		Wait()
+		if backpack then
+			for _, tool in ipairs(equippedTools) do
+				if tool and tool.Parent == char then
+					pcall(function()
+						tool.Parent = backpack
+					end)
+				end
+			end
+		end
+		return equippedTools, backpack
+	end
+
+	local function restoreEquippedTools(equippedTools, backpack)
+		if not equippedTools or #equippedTools == 0 then
+			return
+		end
+		local currentChar = getChar() or plr.Character or char
+		local currentBackpack = plr and (plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")) or backpack
+		if not currentChar then
+			return
+		end
+		for _, tool in ipairs(equippedTools) do
+			local toolRef = tool
+			if typeof(toolRef) == "Instance" and toolRef:IsA("Tool") and toolRef.Parent == nil and currentBackpack then
+				local found = currentBackpack:FindFirstChild(toolRef.Name)
+				if found and found:IsA("Tool") then
+					toolRef = found
+				end
+			end
+			if typeof(toolRef) == "Instance" and toolRef:IsA("Tool") and toolRef.Parent and toolRef.Parent ~= currentChar then
+				pcall(function()
+					toolRef.Parent = currentChar
+				end)
+			end
+		end
+	end
+
+	local equippedTools, backpack = stashEquippedTools()
+	local currentDesc
+	pcall(function()
+		currentDesc = hum:GetAppliedDescription()
+	end)
+
+	local function applyBlankDescription()
+		NAStuff._blankCharDesc = NAStuff._blankCharDesc or InstanceNew("HumanoidDescription")
+		pcall(function() hum:ApplyDescriptionClientServer(NAStuff._blankCharDesc) end)
+		for _ = 1, 20 do
+			Wait(0.05)
+			clearAppearance()
+			local appliedDesc
+			pcall(function()
+				appliedDesc = hum:GetAppliedDescription()
+			end)
+			if next(collectAccessoryIds(appliedDesc)) == nil then
+				break
+			end
+		end
+		clearAppearance()
+	end
+
+	local function applyTargetDescription()
+		clearAppearance()
+		hum:ApplyDescriptionClientServer(desc)
+		Wait(0.35)
+		ensureFace()
+		ensureClothes()
+	end
+
+	if opts.forceRefresh or descriptionsShareAccessories(currentDesc, desc) or getTargetAccessoryCount() > 0 then
+		applyBlankDescription()
+	end
+
+	applyTargetDescription()
+	if uidFallback and getTargetAccessoryCount() > 0 and getCurrentAccessoryCount() < getTargetAccessoryCount() then
+		applyBlankDescription()
+		applyTargetDescription()
+	end
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
-		local okA3,ap=pcall(Players.GetCharacterAppearanceAsync,Players,uidFallback)
-		if okA3 and ap then
+		local ap = getTargetAppearance()
+		if ap then
 			for _,v in ipairs(ap:QueryDescendants("CharacterMesh")) do
 				v:Clone().Parent=char
 			end
 		end
 	end
+	restoreEquippedTools(equippedTools, backpack)
 
 	local targetKey = opts.targetKey or (uidFallback and ("uid:"..tostring(uidFallback))) or nil
 	NAStuff._lastDescriptionKey = targetKey
@@ -73225,6 +73471,43 @@ TextButton = nil
 IconFallbackText = nil
 UICorner2 = InstanceNew("UICorner")
 
+NAgui.getIconShapeOptions = NAgui.getIconShapeOptions or function()
+	return {
+		"Square",
+		"Rounded",
+		"Squircle",
+		"Circle",
+	}
+end
+
+NAgui.sanitizeIconShape = NAgui.sanitizeIconShape or function(shape)
+	local raw = Lower(tostring(shape or ""))
+	if raw == "square" then
+		return "Square"
+	elseif raw == "rounded" or raw == "round" then
+		return "Rounded"
+	elseif raw == "squircle" then
+		return "Squircle"
+	elseif raw == "circle" then
+		return "Circle"
+	end
+	return "Circle"
+end
+
+NAgui.getIconShapeCornerRadius = NAgui.getIconShapeCornerRadius or function(shape)
+	local normalized = NAgui.sanitizeIconShape(shape)
+	if normalized == "Square" then
+		return UDim.new(0, 0)
+	elseif normalized == "Rounded" then
+		return UDim.new(0.18, 0)
+	elseif normalized == "Squircle" then
+		return UDim.new(0.3, 0)
+	end
+	return UDim.new(1, 0)
+end
+
+NAStuff.IconShape = NAgui.sanitizeIconShape(NAStuff.IconShape)
+
 NAICONASSET = nil
 
 pcall(function()
@@ -73311,7 +73594,7 @@ if IconFallbackText then
 	IconFallbackText.ZIndex = TextButton.ZIndex + 1
 end
 
-UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.CornerRadius = NAgui.getIconShapeCornerRadius(NAStuff.IconShape)
 UICorner.Parent = TextButton
 
 TextButton.MouseEnter:Connect(function()
@@ -76377,7 +76660,7 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	end
 
 	local macroKey = Enum.KeyCode.C
-	NAStuff.ScreenGuiNoRenderConn = __lt.cm("ContextActionService", "BindActionAtPriority", 
+	NAStuff.ScreenGuiNoRenderConn = __lt.cm("ContextActionService", "BindActionAtPriority",
 		"NA_ScreenGuiNoRenderToggle",
 		function(_, state, input)
 			if state ~= Enum.UserInputState.Begin then
@@ -78673,6 +78956,15 @@ NAmanage.applyCrosshair = function()
 	line(size, thick, UDim2.new(0.5,  (gap + size / 2), 0.5, 0)) -- right
 end
 
+NAmanage.applyIconShape = function(shape)
+	local normalized = NAgui.sanitizeIconShape(shape)
+	NAStuff.IconShape = normalized
+	if UICorner then
+		UICorner.CornerRadius = NAgui.getIconShapeCornerRadius(normalized)
+	end
+	return normalized
+end
+
 NAmanage.applyIconAppearance = function()
 	if not TextButton then return end
 	local clamp01 = NAgui.clamp01
@@ -78786,8 +79078,17 @@ NAgui.addSection("UI Customization")
 
 NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
 	NAScale = val
-	TextButton.Size = UDim2.new(0, 32 * val, 0, 33 * val)
+	TextButton.Size = UDim2.new(0, 32 * val, 0, 32 * val)
 	NAmanage.NASettingsSet("buttonSize", val)
+end)
+
+NAgui.addDropdown("NA Icon Shape", NAgui.getIconShapeOptions(), NAgui.sanitizeIconShape(NAStuff.IconShape), function(selection)
+	local picked = selection
+	if type(picked) == "table" then
+		picked = picked[1]
+	end
+	local shape = NAmanage.applyIconShape(picked)
+	NAmanage.NASettingsSet("iconShape", shape)
 end)
 
 local mainColorDefault = (NAStuff and NAStuff.AprilFoolsData and NAStuff.AprilFoolsData.originalColor) or NAUISTROKER
@@ -80968,7 +81269,7 @@ if not IsOnMobile then
 				if keyName == nil then
 					return
 				end
-				local newKey = tostring(keyName or ""):lower()
+				local newKey = NAmanage.normalizeFlyBindKey(keyName)
 				if newKey == "" then
 					DoNotif(emptyMessage)
 					return
@@ -80980,6 +81281,7 @@ if not IsOnMobile then
 					flyVariables[connField] = nil
 				end
 				connectFunc()
+				NAmanage.SaveFlyKeybinds()
 				DebugNotif(Format(successTemplate, newKey:upper()))
 			end
 		end
