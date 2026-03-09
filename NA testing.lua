@@ -125,6 +125,553 @@ Delay    = task.delay
 Wait     = task.wait
 Defer    = task.defer
 
+NAmanage.isLiveInstance = NAmanage.isLiveInstance or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	if inst == game then
+		return true
+	end
+	local ok, parent = pcall(function()
+		return inst.Parent
+	end)
+	return ok and parent ~= nil
+end
+
+NAmanage.tryDisconnect = NAmanage.tryDisconnect or function(conn)
+	if conn and type(conn.Disconnect) == "function" then
+		pcall(function()
+			conn:Disconnect()
+		end)
+	end
+	return nil
+end
+
+NAmanage.isLiveConnection = NAmanage.isLiveConnection or function(conn)
+	if conn == nil then
+		return false
+	end
+	if typeof(conn) == "RBXScriptConnection" then
+		local ok, connected = pcall(function()
+			return conn.Connected
+		end)
+		return ok and connected ~= false
+	end
+	return type(conn.Disconnect) == "function"
+end
+
+NAmanage.ConnectHumanoidDeath = NAmanage.ConnectHumanoidDeath or function(hum, callback, opts)
+	if typeof(hum) ~= "Instance" or not hum:IsA("Humanoid") then
+		return nil
+	end
+
+	local watcher = {
+		Connected = true,
+		_hum = hum,
+		_conns = {},
+		_dead = false,
+	}
+
+	local function disconnectAll()
+		if not watcher.Connected then
+			return
+		end
+		watcher.Connected = false
+		for i = 1, #watcher._conns do
+			NAmanage.tryDisconnect(watcher._conns[i])
+			watcher._conns[i] = nil
+		end
+	end
+
+	function watcher:Disconnect()
+		disconnectAll()
+	end
+
+	local function fire()
+		if watcher._dead then
+			return
+		end
+		watcher._dead = true
+		disconnectAll()
+		if type(callback) ~= "function" then
+			return
+		end
+		if opts and opts.defer == false then
+			pcall(callback, hum)
+			return
+		end
+		Defer(function()
+			pcall(callback, hum)
+		end)
+	end
+
+	watcher._conns[#watcher._conns + 1] = hum.Died:Connect(function()
+		fire()
+	end)
+	watcher._conns[#watcher._conns + 1] = hum.StateChanged:Connect(function(_, newState)
+		if newState == Enum.HumanoidStateType.Dead then
+			fire()
+		end
+	end)
+	watcher._conns[#watcher._conns + 1] = hum.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			disconnectAll()
+		end
+	end)
+
+	return watcher
+end
+
+NAmanage.pruneInstanceKeyMap = NAmanage.pruneInstanceKeyMap or function(map, onRemove)
+	if type(map) ~= "table" then
+		return
+	end
+	for key, value in pairs(map) do
+		if typeof(key) == "Instance" and not NAmanage.isLiveInstance(key) then
+			if type(onRemove) == "function" then
+				pcall(onRemove, value, key)
+			end
+			map[key] = nil
+		end
+	end
+end
+
+NAmanage.pruneConnectionArray = NAmanage.pruneConnectionArray or function(list, resolver)
+	if type(list) ~= "table" then
+		return
+	end
+	local write = 1
+	for i = 1, #list do
+		local item = list[i]
+		local conn = type(resolver) == "function" and resolver(item) or item
+		if NAmanage.isLiveConnection(conn) then
+			list[write] = item
+			write += 1
+		end
+	end
+	for i = write, #list do
+		list[i] = nil
+	end
+end
+
+NAmanage.pruneInstanceArray = NAmanage.pruneInstanceArray or function(list, onRemove)
+	if type(list) ~= "table" then
+		return
+	end
+	local write = 1
+	for i = 1, #list do
+		local item = list[i]
+		local keep = true
+		if typeof(item) == "Instance" then
+			keep = NAmanage.isLiveInstance(item)
+		end
+		if keep then
+			list[write] = item
+			write += 1
+		else
+			if type(onRemove) == "function" then
+				pcall(onRemove, item, i)
+			end
+		end
+	end
+	for i = write, #list do
+		list[i] = nil
+	end
+end
+
+NAmanage.pruneConnectionValueMap = NAmanage.pruneConnectionValueMap or function(map)
+	if type(map) ~= "table" then
+		return
+	end
+	for key, value in pairs(map) do
+		if typeof(value) == "RBXScriptConnection" and not NAmanage.isLiveConnection(value) then
+			map[key] = nil
+		end
+	end
+end
+
+NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or function()
+	local state = NAStuff
+	if type(state) ~= "table" then
+		return
+	end
+
+	NAmanage.pruneInstanceKeyMap(state._afTracked)
+	NAmanage.pruneInstanceKeyMap(state._afOrigCan)
+	NAmanage.pruneInstanceKeyMap(state._aaTracked)
+	NAmanage.pruneInstanceKeyMap(state._aaOrig)
+	NAmanage.pruneInstanceKeyMap(state._godOrig)
+	NAmanage.pruneInstanceKeyMap(state._kbMovedParts)
+	NAmanage.pruneInstanceKeyMap(state._kbTouchParts)
+	NAmanage.pruneInstanceKeyMap(state._kbTouchOriginal)
+	NAmanage.pruneInstanceKeyMap(state.partESPGlassOriginal)
+	NAmanage.pruneInstanceKeyMap(state.partESPGlassCount)
+	NAmanage.pruneInstanceKeyMap(state.partESPLocalTransOriginal)
+	NAmanage.pruneInstanceKeyMap(state.partESPLocalTransCount)
+
+	NAmanage.pruneInstanceKeyMap(state._afSignals, function(conn)
+		NAmanage.tryDisconnect(conn)
+	end)
+	NAmanage.pruneInstanceKeyMap(state._aaSignals, function(conn)
+		NAmanage.tryDisconnect(conn)
+	end)
+	NAmanage.pruneInstanceKeyMap(state._godSignals, function(arr)
+		if type(arr) == "table" then
+			for i = 1, #arr do
+				NAmanage.tryDisconnect(arr[i])
+				arr[i] = nil
+			end
+		end
+	end)
+	NAmanage.pruneInstanceKeyMap(state.bHumCons, function(rec)
+		if type(rec) == "table" and type(rec.conns) == "table" then
+			for i = 1, #rec.conns do
+				rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
+			end
+		end
+	end)
+	NAmanage.pruneInstanceKeyMap(state.bToolCons, function(rec)
+		if type(rec) == "table" and type(rec.conns) == "table" then
+			for i = 1, #rec.conns do
+				rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
+			end
+		end
+	end)
+	NAmanage.pruneInstanceKeyMap(state.bSetCons, function(conn)
+		NAmanage.tryDisconnect(conn)
+	end)
+	NAmanage.pruneInstanceKeyMap(state.bHum)
+	NAmanage.pruneInstanceKeyMap(state.bTool)
+	NAmanage.pruneInstanceKeyMap(state.bSet)
+
+	if type(state.elementOriginalParent) == "table" then
+		for inst, parent in pairs(state.elementOriginalParent) do
+			if not NAmanage.isLiveInstance(inst) or (typeof(parent) == "Instance" and not NAmanage.isLiveInstance(parent)) then
+				state.elementOriginalParent[inst] = nil
+			end
+		end
+	end
+
+	NAmanage.pruneConnectionArray(state.LastInputConns)
+	NAmanage.pruneConnectionArray(state.PreferredInputConns)
+	NAmanage.pruneConnectionArray(state.antiAFKStored, function(item)
+		return type(item) == "table" and item.conn or nil
+	end)
+	NAmanage.pruneInstanceArray(state.shownParts)
+	NAmanage.pruneInstanceArray(state.tpTools)
+	NAmanage.pruneInstanceArray(state.touchESPList)
+	NAmanage.pruneInstanceArray(state.proximityESPList)
+	NAmanage.pruneInstanceArray(state.clickESPList)
+	NAmanage.pruneInstanceArray(state.siteESPList)
+	NAmanage.pruneInstanceArray(state.vehicleSiteESPList)
+	NAmanage.pruneInstanceArray(state.unanchoredESPList)
+	NAmanage.pruneInstanceArray(state.collisiontrueESPList)
+	NAmanage.pruneInstanceArray(state.collisionfalseESPList)
+	NAmanage.pruneInstanceArray(state.ESP_ModelList)
+	NAmanage.pruneInstanceArray(state.BlockedRemotes)
+	NAmanage.pruneInstanceArray(state.RobloxVersionRows)
+
+	NAmanage.pruneInstanceKeyMap(state.npcCandidates)
+	NAmanage.pruneInstanceKeyMap(state.npcESPList)
+	NAmanage.pruneInstanceKeyMap(state.unanchoredESPSet)
+	NAmanage.pruneInstanceKeyMap(state.collisiontrueESPSet)
+	NAmanage.pruneInstanceKeyMap(state.collisionfalseESPSet)
+	NAmanage.pruneInstanceKeyMap(state._ncColl)
+	NAmanage.pruneInstanceKeyMap(state._messageCopyHooks, function(hook)
+		if type(hook) == "table" and type(hook.cleanup) == "function" then
+			pcall(hook.cleanup)
+		end
+	end)
+	NAmanage.pruneInstanceKeyMap(state.BlockedRemoteModes)
+	NAmanage.pruneInstanceKeyMap(state.BlockedRemoteReturns)
+	NAmanage.pruneInstanceKeyMap(state.BlockedEventSaved)
+	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
+	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
+	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
+
+	if type(state.CommandLabelPool) == "table" then
+		for name, label in pairs(state.CommandLabelPool) do
+			if typeof(label) == "Instance" and not NAmanage.isLiveInstance(label) then
+				state.CommandLabelPool[name] = nil
+			end
+		end
+	end
+
+	if type(state.tviewBillboards) == "table" then
+		for plr, data in pairs(state.tviewBillboards) do
+			if not NAmanage.isLiveInstance(plr) or type(data) ~= "table" then
+				state.tviewBillboards[plr] = nil
+			elseif (data.bb and not NAmanage.isLiveInstance(data.bb))
+				or (data.head and not NAmanage.isLiveInstance(data.head))
+				or (data.char and not NAmanage.isLiveInstance(data.char)) then
+				if type(NAmanage.tvDetach) == "function" then
+					pcall(NAmanage.tvDetach, plr)
+				else
+					state.tviewBillboards[plr] = nil
+				end
+			end
+		end
+	end
+
+	if type(state.airwalk) == "table" then
+		NAmanage.pruneConnectionValueMap(state.airwalk.connections)
+		if type(state.airwalk.guis) == "table" then
+			for key, gui in pairs(state.airwalk.guis) do
+				if typeof(gui) == "Instance" and not NAmanage.isLiveInstance(gui) then
+					state.airwalk.guis[key] = nil
+				end
+			end
+		end
+	end
+	if type(state._commandKeybindUI) == "table" then
+		local root = state._commandKeybindUI.root
+		if typeof(root) == "Instance" and not NAmanage.isLiveInstance(root) then
+			state._commandKeybindUI = nil
+		end
+	end
+
+	if type(state.partESPEntries) == "table" then
+		local staleEntries = {}
+		for _, entry in pairs(state.partESPEntries) do
+			if type(entry) == "table" then
+				local deadPart = typeof(entry.part) == "Instance" and not NAmanage.isLiveInstance(entry.part)
+				local deadKey = typeof(entry.entryKey) == "Instance" and not NAmanage.isLiveInstance(entry.entryKey)
+				local deadVisual = typeof(entry.visual) == "Instance" and not NAmanage.isLiveInstance(entry.visual)
+				local deadBillboard = typeof(entry.billboard) == "Instance" and not NAmanage.isLiveInstance(entry.billboard)
+				if entry.removed or deadPart or deadKey or deadVisual or deadBillboard then
+					staleEntries[#staleEntries + 1] = entry
+				end
+			end
+		end
+		if #staleEntries > 0 and type(NAmanage.PartESP_UnregisterEntry) == "function" then
+			for i = 1, #staleEntries do
+				pcall(NAmanage.PartESP_UnregisterEntry, staleEntries[i])
+			end
+		end
+	end
+
+	if type(state.partESPQueue) == "table" then
+		for i = 1, #state.partESPQueue do
+			local item = state.partESPQueue[i]
+			if type(item) == "table" then
+				local part = item.part
+				if typeof(part) == "Instance" and not NAmanage.isLiveInstance(part) then
+					state.partESPQueue[i] = nil
+				end
+			end
+		end
+	end
+	NAmanage.pruneInstanceKeyMap(state.partESPQueueMap)
+	NAmanage.pruneInstanceKeyMap(state.partESPVisualMap)
+
+	if type(state.partESPPartMap) == "table" then
+		for part, bucket in pairs(state.partESPPartMap) do
+			if not NAmanage.isLiveInstance(part) or type(bucket) ~= "table" then
+				state.partESPPartMap[part] = nil
+			else
+				for entryKey, entry in pairs(bucket) do
+					local badEntry = type(entry) ~= "table" or entry.removed
+					local badKey = typeof(entryKey) == "Instance" and not NAmanage.isLiveInstance(entryKey)
+					if badEntry or badKey then
+						bucket[entryKey] = nil
+					end
+				end
+				if not next(bucket) then
+					state.partESPPartMap[part] = nil
+				end
+			end
+		end
+	end
+
+	if type(state.folderESPMembers) == "table" then
+		for folder, list in pairs(state.folderESPMembers) do
+			if not NAmanage.isLiveInstance(folder) then
+				local key = type(state.folderESPKeys) == "table" and state.folderESPKeys[folder] or nil
+				if key then
+					NAlib.disconnect(key)
+					state.folderESPKeys[folder] = nil
+				end
+				local token = type(state.folderESPScanTokens) == "table" and state.folderESPScanTokens[folder] or nil
+				if token and type(NAmanage.CancelTokenCancel) == "function" then
+					pcall(NAmanage.CancelTokenCancel, token)
+				end
+				if type(state.folderESPScanTokens) == "table" then
+					state.folderESPScanTokens[folder] = nil
+				end
+				if type(state.folderESPMemberMaps) == "table" then
+					state.folderESPMemberMaps[folder] = nil
+				end
+				state.folderESPMembers[folder] = nil
+			else
+				NAmanage.pruneInstanceArray(list)
+				local map = type(state.folderESPMemberMaps) == "table" and state.folderESPMemberMaps[folder] or nil
+				if type(map) == "table" then
+					NAmanage.pruneInstanceKeyMap(map)
+				end
+			end
+		end
+	end
+	if type(state.folderESPKeys) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.folderESPKeys, function(key)
+			if key then
+				NAlib.disconnect(key)
+			end
+		end)
+	end
+	if type(state.folderESPScanTokens) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.folderESPScanTokens, function(token)
+			if token and type(NAmanage.CancelTokenCancel) == "function" then
+				pcall(NAmanage.CancelTokenCancel, token)
+			end
+		end)
+	end
+
+	if type(state.PST) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.PST.orig)
+		NAmanage.pruneInstanceArray(state.PST.exact)
+		NAmanage.pruneInstanceArray(state.PST.partial)
+	end
+
+	if type(state.ESP_LocatorArrows) == "table" then
+		for key, holder in pairs(state.ESP_LocatorArrows) do
+			if typeof(holder) == "Instance" and not NAmanage.isLiveInstance(holder) then
+				state.ESP_LocatorArrows[key] = nil
+			end
+		end
+	end
+	if type(state.ESP_PlayerLocatorArrows) == "table" then
+		for key, holder in pairs(state.ESP_PlayerLocatorArrows) do
+			if typeof(holder) == "Instance" and not NAmanage.isLiveInstance(holder) then
+				state.ESP_PlayerLocatorArrows[key] = nil
+			end
+		end
+	end
+
+	if type(state.activeTeleports) == "table" then
+		for key, taskState in pairs(state.activeTeleports) do
+			if type(taskState) ~= "table" or taskState.active ~= true then
+				state.activeTeleports[key] = nil
+			end
+		end
+	end
+
+	if type(UserButtonGuiList) == "table" then
+		NAmanage.pruneInstanceArray(UserButtonGuiList)
+	end
+	if type(UserButtonGuiMap) == "table" then
+		for id, gui in pairs(UserButtonGuiMap) do
+			if typeof(gui) == "Instance" and not NAmanage.isLiveInstance(gui) then
+				UserButtonGuiMap[id] = nil
+			end
+		end
+	end
+	if type(UserButtonDropdowns) == "table" then
+		for id, drop in pairs(UserButtonDropdowns) do
+			if type(drop) == "table" then
+				if drop.conn and not NAmanage.isLiveConnection(drop.conn) then
+					drop.conn = nil
+				end
+				if drop.container and not NAmanage.isLiveInstance(drop.container) then
+					drop.container = nil
+				end
+				if drop.container == nil and drop.conn == nil then
+					UserButtonDropdowns[id] = nil
+				end
+			elseif typeof(drop) == "Instance" and not NAmanage.isLiveInstance(drop) then
+				UserButtonDropdowns[id] = nil
+			end
+		end
+	end
+
+	if type(coreGuiProtection) == "table" then
+		NAmanage.pruneInstanceKeyMap(coreGuiProtection)
+	end
+	if type(storedTools) == "table" then
+		NAmanage.pruneInstanceArray(storedTools)
+	end
+	if type(npcCache) == "table" then
+		NAmanage.pruneInstanceArray(npcCache)
+	end
+	if type(HumanModCons) == "table" then
+		NAmanage.pruneConnectionValueMap(HumanModCons)
+	end
+	if type(ToolLoopCons) == "table" then
+		NAmanage.pruneConnectionValueMap(ToolLoopCons)
+	end
+	if type(MultiToolCons) == "table" then
+		NAmanage.pruneConnectionValueMap(MultiToolCons)
+	end
+	if type(glueloop) == "table" then
+		NAmanage.pruneConnectionValueMap(glueloop)
+	end
+	if type(glueBACKER) == "table" then
+		NAmanage.pruneConnectionValueMap(glueBACKER)
+	end
+
+	if type(NAgui) == "table" then
+		NAmanage.pruneInstanceKeyMap(NAgui._resizeCleanup, function(cleanup)
+			if type(cleanup) == "function" then
+				pcall(cleanup)
+			end
+		end)
+		if type(NAgui._toggleRegistry) == "table" then
+			for key, entry in pairs(NAgui._toggleRegistry) do
+				local button = type(entry) == "table" and entry.button or nil
+				if typeof(button) == "Instance" and not NAmanage.isLiveInstance(button) then
+					NAgui._toggleRegistry[key] = nil
+				end
+			end
+		end
+		if type(NAgui._colorPickerRegistry) == "table" then
+			for key, entry in pairs(NAgui._colorPickerRegistry) do
+				local picker = type(entry) == "table" and entry.picker or nil
+				if typeof(picker) == "Instance" and not NAmanage.isLiveInstance(picker) then
+					NAgui._colorPickerRegistry[key] = nil
+				end
+			end
+		end
+		if type(NAgui._inputRegistry) == "table" then
+			for key, entry in pairs(NAgui._inputRegistry) do
+				local input = type(entry) == "table" and entry.input or nil
+				if typeof(input) == "Instance" and not NAmanage.isLiveInstance(input) then
+					NAgui._inputRegistry[key] = nil
+				end
+			end
+		end
+		if type(NAgui._sliderRegistry) == "table" then
+			for key, entry in pairs(NAgui._sliderRegistry) do
+				local slider = type(entry) == "table" and entry.slider or nil
+				if typeof(slider) == "Instance" and not NAmanage.isLiveInstance(slider) then
+					NAgui._sliderRegistry[key] = nil
+				end
+			end
+		end
+		if type(NAgui._dropdownRegistry) == "table" then
+			for key, entry in pairs(NAgui._dropdownRegistry) do
+				local dropdown = type(entry) == "table" and entry.dropdown or nil
+				if dropdown == nil and type(entry) == "table" and type(entry.api) == "table" then
+					dropdown = entry.api.Instance
+				end
+				if typeof(dropdown) == "Instance" and not NAmanage.isLiveInstance(dropdown) then
+					NAgui._dropdownRegistry[key] = nil
+				end
+			end
+		end
+		if type(NAgui._keybindRegistry) == "table" then
+			for key, entry in pairs(NAgui._keybindRegistry) do
+				local keybind = type(entry) == "table" and (entry.keybind or entry.button) or nil
+				if typeof(keybind) == "Instance" and not NAmanage.isLiveInstance(keybind) then
+					NAgui._keybindRegistry[key] = nil
+				end
+			end
+		end
+	end
+
+	if type(TopBarApp) == "table" and type(TopBarApp.childButtons) == "table" then
+		NAmanage.pruneInstanceKeyMap(TopBarApp.childButtons)
+	end
+end
+
 NAmanage._gmx31 = NAmanage._gmx31 or function(bytes, seed)
 	local out = {}
 	seed = tonumber(seed) or 0
@@ -32949,7 +33496,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 		swimming=false
 	end
 	Humanoid=char:FindFirstChildWhichIsA("Humanoid")
-	gravReset=Humanoid.Died:Connect(swimDied)
+	gravReset=NAmanage.ConnectHumanoidDeath(Humanoid, swimDied)
 	enums=Enum.HumanoidStateType:GetEnumItems()
 	table.remove(enums,Discover(enums,Enum.HumanoidStateType.None))
 	for i,v in pairs(enums) do
@@ -35808,7 +36355,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		end
 	end))
 
-	NAlib.connect("hamster_died", humanoid.Died:Connect(function()
+	NAlib.connect("hamster_died", NAmanage.ConnectHumanoidDeath(humanoid, function()
 		NAmanage.HamsterCleanup({
 			silent = true;
 		})
@@ -44683,11 +45230,13 @@ ISfollowing = false
 followTarget = nil
 followConnection = nil
 flwCharAdd = nil
+followDeathConnection = nil
 
 cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxfollow)", "Automatically follow any player who comes close"}, function()
 	NAlib.disconnect("autofollow")
 	if followConnection then followConnection:Disconnect() followConnection = nil end
 	if flwCharAdd then flwCharAdd:Disconnect() flwCharAdd = nil end
+	if followDeathConnection then followDeathConnection:Disconnect() followDeathConnection = nil end
 	lastDistances = {}
 	ISfollowing = false
 	followTarget = nil
@@ -44723,6 +45272,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 								else
 									if followConnection then followConnection:Disconnect() followConnection = nil end
 									if flwCharAdd then flwCharAdd:Disconnect() flwCharAdd = nil end
+									if followDeathConnection then followDeathConnection:Disconnect() followDeathConnection = nil end
 									ISfollowing = false
 									followTarget = nil
 								end
@@ -44730,8 +45280,10 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 
 							local hum = getPlrHum(plr)
 							if hum then
-								hum.Died:Connect(function()
+								if followDeathConnection then followDeathConnection:Disconnect() end
+								followDeathConnection = NAmanage.ConnectHumanoidDeath(hum, function()
 									if followConnection then followConnection:Disconnect() followConnection = nil end
+									if followDeathConnection then followDeathConnection:Disconnect() followDeathConnection = nil end
 									ISfollowing = false
 									followTarget = nil
 								end)
@@ -44762,6 +45314,7 @@ cmd.add({"unautofollow", "stopautofollow", "unproxfollow"}, {"unautofollow (stop
 	NAlib.disconnect("autofollow")
 	if followConnection then followConnection:Disconnect() followConnection = nil end
 	if flwCharAdd then flwCharAdd:Disconnect() flwCharAdd = nil end
+	if followDeathConnection then followDeathConnection:Disconnect() followDeathConnection = nil end
 	lastDistances = {}
 	ISfollowing = false
 	followTarget = nil
@@ -46222,7 +46775,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 
 		hum.Sit = true
 
-		NAlib.connect("headsit_died", hum.Died:Connect(function()
+		NAlib.connect("headsit_died", NAmanage.ConnectHumanoidDeath(hum, function()
 			NAlib.disconnect("headsit_follow")
 			NAlib.disconnect("headsit_died")
 			for _, part in pairs(platformParts) do
@@ -46442,7 +46995,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 	local hum = getHum()
 	if not hum then return end
 
-	NAlib.connect("headstand_died", hum.Died:Connect(function()
+	NAlib.connect("headstand_died", NAmanage.ConnectHumanoidDeath(hum, function()
 		NAlib.disconnect("headstand_follow")
 		NAlib.disconnect("headstand_died")
 		for _, part in pairs(standParts) do
@@ -47311,7 +47864,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	bang:Play(0.1, 1, 1)
 	bang:AdjustSpeed(speed)
 	local bangplr = plr and plr.Name or nil
-	bangDied = humanoid.Died:Connect(function()
+	bangDied = NAmanage.ConnectHumanoidDeath(humanoid, function()
 		if bangLoop then
 			bangLoop:Disconnect()
 		end
@@ -47442,7 +47995,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 		end)
 	end)
 
-	jerkDied = humanoid.Died:Connect(function()
+	jerkDied = NAmanage.ConnectHumanoidDeath(humanoid, function()
 		if jerkLoop then jerkLoop:Disconnect() end
 		if jerkTrack then jerkTrack:Stop() end
 		if jerkAnim then jerkAnim:Destroy() end
@@ -47509,7 +48062,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	doSUCKING:Play(0.1,1,1)
 	doSUCKING:AdjustSpeed(speed)
 
-	suckDIED = hum.Died:Connect(function()
+	suckDIED = NAmanage.ConnectHumanoidDeath(hum, function()
 		if suckLOOP then suckLOOP = nil end
 		doSUCKING:Stop()
 		suckANIM:Destroy()
@@ -48489,7 +49042,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	doBang:AdjustSpeed(speed)
 
 	local bangplr = plr and plr.Name or nil
-	bangDied = hum.Died:Connect(function()
+	bangDied = NAmanage.ConnectHumanoidDeath(hum, function()
 		if bangLoop then
 			bangLoop:Disconnect()
 		end
@@ -48615,7 +49168,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 	carpetTrack = humanoid:LoadAnimation(carpetAnim)
 	carpetTrack:Play(0.1, 1, 1)
 
-	carpetDied = humanoid.Died:Connect(originalIO.stopCarpet)
+	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
 	if targetPlayer and targetRoot then
 		local targetName = targetPlayer.Name
 		carpetLoop = RunService.Heartbeat:Connect(function()
@@ -48764,7 +49317,7 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 		doInversebang2:AdjustSpeed(speed)
 	end
 
-	inversebangDied = hum.Died:Connect(stopInversebang)
+	inversebangDied = NAmanage.ConnectHumanoidDeath(hum, stopInversebang)
 
 	if bangplr then
 		local lastStep = 0
@@ -48885,7 +49438,7 @@ cmd.add({"jerk", "jork"}, {"jerk (jork)", "jorking it"}, function()
 
 	tool.Equipped:Connect(function() jorkin = true end)
 	tool.Unequipped:Connect(stopTomfoolery)
-	humanoid.Died:Connect(stopTomfoolery)
+	NAmanage.ConnectHumanoidDeath(humanoid, stopTomfoolery)
 
 	while Wait() do
 		if not jorkin then continue end
@@ -51978,11 +52531,6 @@ NAmanage.God_WireNoHooks = function(h, strong)
 				pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
 			end
 		end)))
-		Insert(NAStuff._godSignals[h], NAlib.connect("godmode", h.Died:Connect(function()
-			if h.Health < h.MaxHealth then NAlib.setProperty(h,"Health", h.MaxHealth) end
-			pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
-			pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
-		end)))
 		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
 		if h:GetState() == Enum.HumanoidStateType.Dead then pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end) end
 	end
@@ -54194,7 +54742,7 @@ cmd.add({"swim"}, {"swim {speed}","Swim in the air"}, function(speed)
 	ZEhumSTATE(humanoid, false);
 	humanoid:ChangeState(Enum.HumanoidStateType.Swimming);
 	humanoid.WalkSpeed = spd;
-	NAlib.connect("swim_die", humanoid.Died:Connect(function()
+	NAlib.connect("swim_die", NAmanage.ConnectHumanoidDeath(humanoid, function()
 		workspace.Gravity = OGGRAVV;
 		SWIMMERRRR = false;
 		NAlib.disconnect("swim_heartbeat");
@@ -59693,7 +60241,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 
 	local humanoid = getPlrHum(Character)
 	if humanoid then
-		humanoid.Died:Connect(function()
+		NAmanage.ConnectHumanoidDeath(humanoid, function()
 			cmd.run({"vis"})
 		end)
 	end
@@ -72215,42 +72763,90 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 			__mode = "k"
 		})
 	end
+	NAStuff.bHumCons = NAStuff.bHumCons or setmetatable({}, {
+		__mode = "k"
+	})
+	local bHumConsMeta = getmetatable(NAStuff.bHumCons)
+	if not (bHumConsMeta and bHumConsMeta.__mode == "k") then
+		setmetatable(NAStuff.bHumCons, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bHum[hum] then
 		return
 	end
-	NAStuff.bHum[hum] = true
-	local lastHP = hum.Health
+	local rec = {
+		lastHP = hum.Health,
+		dead = false,
+		conns = {},
+	}
+	NAStuff.bHum[hum] = rec
+	NAStuff.bHumCons[hum] = rec
 	local wantDeath = NAmanage.BinderHasEntries("OnDeath")
 	local wantKill = NAmanage.BinderHasEntries("OnKill")
 	local wantDamage = NAmanage.BinderHasEntries("OnDamage")
 	local wantJump = NAmanage.BinderHasEntries("OnJump")
-	if wantDeath or wantKill then
-		hum.Died:Connect(function()
+
+	local function cleanup()
+		if NAStuff.bHum[hum] == rec then
+			NAStuff.bHum[hum] = nil
+		end
+		if NAStuff.bHumCons[hum] == rec then
+			NAStuff.bHumCons[hum] = nil
+		end
+		for i = 1, #rec.conns do
+			rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
+		end
+	end
+
+	local function fireDeath()
+		if rec.dead then
+			return
+		end
+		rec.dead = true
+		local killer = wantKill and originalIO.binderFindKiller(hum) or nil
+		Defer(function()
 			if wantDeath then
 				NAmanage.ExecuteBindings("OnDeath", plr)
 			end
-			if wantKill then
-				local killer = originalIO.binderFindKiller(hum)
-				if killer then
-					NAmanage.ExecuteBindings("OnKill", killer, plr)
-				end
+			if wantKill and killer then
+				NAmanage.ExecuteBindings("OnKill", killer, plr)
 			end
 		end)
+		cleanup()
 	end
+
 	if wantDamage then
-		hum.HealthChanged:Connect(function(newHP)
-			if newHP < lastHP then
-				NAmanage.ExecuteBindings("OnDamage", plr, lastHP, newHP)
+		rec.conns[#rec.conns + 1] = hum.HealthChanged:Connect(function(newHP)
+			local oldHP = rec.lastHP
+			if wantDamage and tonumber(newHP) and tonumber(oldHP) and newHP < oldHP then
+				NAmanage.ExecuteBindings("OnDamage", plr, oldHP, newHP)
 			end
-			lastHP = newHP
+			rec.lastHP = newHP
 		end)
 	end
-	if wantJump then
-		hum.StateChanged:Connect(function(_, newState)
-			if newState == Enum.HumanoidStateType.Jumping then
+	if wantDeath or wantKill then
+		rec.conns[#rec.conns + 1] = hum.Died:Connect(function()
+			fireDeath()
+		end)
+	end
+	if wantJump or wantDeath or wantKill then
+		rec.conns[#rec.conns + 1] = hum.StateChanged:Connect(function(_, newState)
+			if wantJump and newState == Enum.HumanoidStateType.Jumping then
 				NAmanage.ExecuteBindings("OnJump", plr, hum)
 			end
+			if (wantDeath or wantKill) and newState == Enum.HumanoidStateType.Dead then
+				fireDeath()
+			end
 		end)
+	end
+	rec.conns[#rec.conns + 1] = hum.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			cleanup()
+		end
+	end)
+	if hum.Health <= 0 and (wantDeath or wantKill) then
+		fireDeath()
 	end
 end
 
@@ -72270,20 +72866,49 @@ originalIO.binderAttachToolListeners=function(plr, char)
 			__mode = "k"
 		})
 	end
+	NAStuff.bToolCons = NAStuff.bToolCons or setmetatable({}, {
+		__mode = "k"
+	})
+	local bToolConsMeta = getmetatable(NAStuff.bToolCons)
+	if not (bToolConsMeta and bToolConsMeta.__mode == "k") then
+		setmetatable(NAStuff.bToolCons, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bTool[char] then
 		return
 	end
-	NAStuff.bTool[char] = true
+	local rec = {
+		conns = {},
+	}
+	NAStuff.bTool[char] = rec
+	NAStuff.bToolCons[char] = rec
 	local wantEquip = NAmanage.BinderHasEntries("OnEquipItem")
 	local wantUnequip = NAmanage.BinderHasEntries("OnUnequipItem")
-	char.ChildAdded:Connect(function(child)
+	local function cleanup()
+		if NAStuff.bTool[char] == rec then
+			NAStuff.bTool[char] = nil
+		end
+		if NAStuff.bToolCons[char] == rec then
+			NAStuff.bToolCons[char] = nil
+		end
+		for i = 1, #rec.conns do
+			rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
+		end
+	end
+	rec.conns[#rec.conns + 1] = char.ChildAdded:Connect(function(child)
 		if wantEquip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
 		end
 	end)
-	char.ChildRemoved:Connect(function(child)
+	rec.conns[#rec.conns + 1] = char.ChildRemoved:Connect(function(child)
 		if wantUnequip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
+		end
+	end)
+	rec.conns[#rec.conns + 1] = char.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			cleanup()
 		end
 	end)
 end
@@ -72304,10 +72929,28 @@ originalIO.binderSetupCharacter=function(plr, char)
 			__mode = "k"
 		})
 	end
+	NAStuff.bSetCons = NAStuff.bSetCons or setmetatable({}, {
+		__mode = "k"
+	})
+	local bSetConsMeta = getmetatable(NAStuff.bSetCons)
+	if not (bSetConsMeta and bSetConsMeta.__mode == "k") then
+		setmetatable(NAStuff.bSetCons, {
+			__mode = "k"
+		})
+	end
 	if NAStuff.bSet[char] then
 		return
 	end
 	NAStuff.bSet[char] = true
+	NAStuff.bSetCons[char] = char.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			if NAStuff.bSetCons[char] then
+				NAmanage.tryDisconnect(NAStuff.bSetCons[char])
+				NAStuff.bSetCons[char] = nil
+			end
+			NAStuff.bSet[char] = nil
+		end
+	end)
 	originalIO.binderAttachToolListeners(plr, char)
 	local hum = getHum(char)
 	if hum then
@@ -73241,7 +73884,7 @@ SpawnCall(function()
 		if not hum then
 			return
 		end
-		fbHumCon = hum.Died:Connect(function()
+		fbHumCon = NAmanage.ConnectHumanoidDeath(hum, function()
 			local root=getRoot(c)
 			if root then
 				deathCFrame=root.CFrame
@@ -73408,6 +74051,9 @@ do
 			end
 			if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
 				pcall(NAmanage.pruneBlockedRemoteState)
+			end
+			if NAmanage and type(NAmanage.pruneRuntimeInstanceState) == "function" then
+				pcall(NAmanage.pruneRuntimeInstanceState)
 			end
 			if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
 				pcall(NAAssetsLoading._trimRemoteStatus)
