@@ -137,7 +137,23 @@ NAmanage.isLiveConnection = NAmanage.isLiveConnection or function(conn)
 		end)
 		return ok and connected ~= false
 	end
-	return type(conn.Disconnect) == "function"
+	local disconnect = conn and conn.Disconnect
+	if type(disconnect) ~= "function" then
+		return false
+	end
+	if type(conn) == "table" then
+		local connected = rawget(conn, "Connected")
+		if connected ~= nil then
+			return connected ~= false
+		end
+	end
+	local ok, connectedValue = pcall(function()
+		return conn.Connected
+	end)
+	if ok and connectedValue ~= nil then
+		return connectedValue ~= false
+	end
+	return true
 end
 
 NAmanage.ConnectHumanoidDeath = NAmanage.ConnectHumanoidDeath or function(hum, callback, opts)
@@ -264,7 +280,7 @@ NAmanage.pruneConnectionValueMap = NAmanage.pruneConnectionValueMap or function(
 		return
 	end
 	for key, value in pairs(map) do
-		if typeof(value) == "RBXScriptConnection" and not NAmanage.isLiveConnection(value) then
+		if not NAmanage.isLiveConnection(value) then
 			map[key] = nil
 		end
 	end
@@ -1139,21 +1155,7 @@ NAmanage.prnCon = NAmanage.prnCon or function(name)
 	local write = 1
 	for i = 1, #bucket do
 		local conn = bucket[i]
-		local keep = false
-		if conn ~= nil then
-			local connType = typeof(conn)
-			if connType == "RBXScriptConnection" then
-				local ok, connected = pcall(function()
-					return conn.Connected
-				end)
-				keep = ok and connected == true
-			elseif type(conn) == "table" and type(conn.Disconnect) == "function" then
-				keep = true
-			elseif type(conn) == "userdata" then
-				keep = true
-			end
-		end
-
+		local keep = NAmanage.isLiveConnection(conn)
 		if keep then
 			bucket[write] = conn
 			write += 1
@@ -1389,6 +1391,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		sTail = 0,
 		sBusy = false,
 		cIdx = 1,
+		cacheLastTouch = 0,
 		cAdd = nil,
 		cRem = nil,
 		alive = true,
@@ -1615,6 +1618,45 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	return hub
 end
 
+NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
+	hub = hub or NAmanage._wsHub
+	if type(hub) ~= "table" then
+		return false
+	end
+	if not hub.cacheLive then
+		return false
+	end
+	hub.cacheLive = false
+	hub.cache = {}
+	hub.idx = {}
+	hub.cIdx = 1
+	hub.sQ = {}
+	hub.sHead = 1
+	hub.sTail = 0
+	hub.cacheLastTouch = 0
+	return true
+end
+
+NAmanage.wsReleaseCacheIfIdle = NAmanage.wsReleaseCacheIfIdle or function(maxIdle)
+	local hub = NAmanage._wsHub
+	if type(hub) ~= "table" or not hub.cacheLive then
+		return false
+	end
+	local idleLimit = tonumber(maxIdle)
+	if idleLimit == nil then
+		idleLimit = tonumber(NAStuff and NAStuff.WSCacheIdleSeconds) or 30
+	end
+	idleLimit = math.max(2, idleLimit)
+	local lastTouch = tonumber(hub.cacheLastTouch) or 0
+	if lastTouch <= 0 then
+		return NAmanage.wsReleaseCache(hub)
+	end
+	if os.clock() - lastTouch < idleLimit then
+		return false
+	end
+	return NAmanage.wsReleaseCache(hub)
+end
+
 NAmanage.wsDescs = NAmanage.wsDescs or function()
 	local hub = NAmanage._wsHubGet()
 	if not hub then
@@ -1644,6 +1686,7 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 		end
 		hub.cIdx = 1
 	end
+	hub.cacheLastTouch = os.clock()
 	if hub.alive then
 		local n = #hub.cache
 		if n > 0 then
@@ -18253,6 +18296,10 @@ NAmanage.SetMobileCamSensitivity = function(value, opts)
 	end
 end
 
+NAmanage.shouldBindMobileCamSens = function()
+	return NAStuff.MobileCamSensState.enabled == true and NAmanage.mobileCamSensIsMobile()
+end
+
 NAmanage.SetMobileCamSensEnabled = function(enabled, opts)
 	opts = opts or {}
 	local state = enabled == true
@@ -18264,6 +18311,7 @@ NAmanage.SetMobileCamSensEnabled = function(enabled, opts)
 	if opts.save ~= false and NAmanage.NASettingsSet then
 		pcall(NAmanage.NASettingsSet, "mobileCamSensEnabled", state)
 	end
+	NAmanage.bindMobileCamSens()
 end
 
 NAmanage.bindMobileCamSens=function()
@@ -18272,6 +18320,9 @@ NAmanage.bindMobileCamSens=function()
 	end
 	local name = "__NA_MobileCamSens"
 	pcall(RunService.UnbindFromRenderStep, RunService, name)
+	if not NAmanage.shouldBindMobileCamSens() then
+		return
+	end
 	local priority = (Enum.RenderPriority and Enum.RenderPriority.Camera and Enum.RenderPriority.Camera.Value or 0) + 1
 	pcall(function()
 		__lt.cm("RunService", "BindToRenderStep", name, priority, NAmanage.mobileCamSensStep)
@@ -23256,6 +23307,7 @@ NAmanage.deactivateMode=function(m)
 	if m=="vfly" then flyVariables.vFlyEnabled=false end
 	if m=="cfly" then flyVariables.cFlyEnabled=false end
 	if m=="tfly" then flyVariables.TFlyEnabled=false end
+	NAmanage.startWatcher()
 	NAmanage._destroyMobileFlyUI()
 end
 
@@ -23570,21 +23622,39 @@ NAmanage._ensureWeldTarget=function()
 end
 
 NAmanage.startWatcher=function()
-	if flyVariables._watchConn then pcall(function() flyVariables._watchConn:Disconnect() end) end
-	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
-		if flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled then
-			local desired="none"
-			if flyVariables.cFlyEnabled then desired="cfly"
-			elseif flyVariables.TFlyEnabled then desired="tfly"
-			elseif flyVariables.vFlyEnabled then desired="vfly"
-			elseif flyVariables.flyEnabled then desired="fly" end
-			if NAmanage._state.mode=="none" and desired~="none" then
-				NAmanage._state.mode=desired
-			end
-			NAmanage._ensureWeldTarget()
-			NAmanage._ensureForces()
-			NAmanage._ensureLoops()
+	local shouldWatch = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled
+	if not shouldWatch then
+		if flyVariables._watchConn then
+			pcall(function() flyVariables._watchConn:Disconnect() end)
+			flyVariables._watchConn = nil
 		end
+		NAmanage._bindCameraWatch()
+		return
+	end
+	if flyVariables._watchConn then
+		NAmanage._bindCameraWatch()
+		return
+	end
+	flyVariables._watchConn=RunService.Heartbeat:Connect(function()
+		local watching = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled
+		if not watching then
+			if flyVariables._watchConn then
+				pcall(function() flyVariables._watchConn:Disconnect() end)
+				flyVariables._watchConn = nil
+			end
+			return
+		end
+		local desired="none"
+		if flyVariables.cFlyEnabled then desired="cfly"
+		elseif flyVariables.TFlyEnabled then desired="tfly"
+		elseif flyVariables.vFlyEnabled then desired="vfly"
+		elseif flyVariables.flyEnabled then desired="fly" end
+		if NAmanage._state.mode=="none" and desired~="none" then
+			NAmanage._state.mode=desired
+		end
+		NAmanage._ensureWeldTarget()
+		NAmanage._ensureForces()
+		NAmanage._ensureLoops()
 	end)
 	NAmanage._bindCameraWatch()
 end
@@ -73992,93 +74062,136 @@ do
 		value = nil;
 		invalid = nil;
 	}
+	local function isFrameVisible(frame)
+		local node = frame
+		while node do
+			local okVisible, visible = pcall(function()
+				return node.Visible
+			end)
+			if okVisible and visible == false then
+				return false
+			end
+			node = node.Parent
+			if node == nil or node == NAStuff.NASCREENGUI then
+				break
+			end
+		end
+		return true
+	end
+	local function updateVisibleCanvas(frame, scale)
+		if frame and frame.Parent and isFrameVisible(frame) then
+			updateCanvasSize(frame, scale)
+		end
+	end
 	NAlib.disconnect("NA_RenderStepMain")
-	NAlib.connect("NA_RenderStepMain", RunService.Heartbeat:Connect(function(dt)
-		local uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
-		local canvasInterval = uiVisible and 0.12 or 0.5
-		NAStuff.canvasTick = NAStuff.canvasTick + (dt or 0)
-		if NAUIMANAGER and NAStuff.canvasTick >= canvasInterval then
-			NAStuff.canvasTick = 0
-			local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
-			if NAUIMANAGER.chatLogs then
-				updateCanvasSize(NAUIMANAGER.chatLogs, s)
-			end
-			if NAUIMANAGER.NAconsoleLogs then
-				updateCanvasSize(NAUIMANAGER.NAconsoleLogs, s)
-			end
-			if NAUIMANAGER.commandsList then
-				updateCanvasSize(NAUIMANAGER.commandsList, s)
-			end
-			if NAUIMANAGER.SettingsList then
-				updateCanvasSize(NAUIMANAGER.SettingsList, s)
-			end
-			if NAUIMANAGER.WaypointList then
-				updateCanvasSize(NAUIMANAGER.WaypointList, s)
-			end
-			if NAUIMANAGER.BindersList then
-				updateCanvasSize(NAUIMANAGER.BindersList, s)
-			end
-		end
-
-		NAStuff.memCleanTick = NAStuff.memCleanTick + (dt or 0)
-		if NAStuff.memCleanTick >= 10 then
-			NAStuff.memCleanTick = 0
-			if NAgui and type(NAgui.pruneRegisteredStrokes) == "function" then
-				pcall(NAgui.pruneRegisteredStrokes, false)
-			end
-			if NAmanage and type(NAmanage.prnAllCon) == "function" then
-				pcall(NAmanage.prnAllCon, 64)
-			end
-			if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
-				pcall(NAmanage.pruneBlockedRemoteState)
-			end
-			if NAmanage and type(NAmanage.pruneRuntimeInstanceState) == "function" then
-				pcall(NAmanage.pruneRuntimeInstanceState)
-			end
-			if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
-				pcall(NAAssetsLoading._trimRemoteStatus)
-			end
-			if NAAssetsLoading and type(NAAssetsLoading._trimKnownRemotes) == "function" then
-				pcall(NAAssetsLoading._trimKnownRemotes)
-			end
-			if NAAssetsLoading and type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
-				pcall(NAAssetsLoading._trimPrefetchedRemoteCache)
-			end
-		end
-
-		local prefixInterval = uiVisible and 0.35 or 0.8
-		NAStuff.pfTick = NAStuff.pfTick + (dt or 0)
-		if NAStuff.pfTick < prefixInterval then
+	local mainLoopToken = (tonumber(NAStuff._mainLoopToken) or 0) + 1
+	NAStuff._mainLoopToken = mainLoopToken
+	local watcher = {
+		Connected = true,
+	}
+	function watcher:Disconnect()
+		if not self.Connected then
 			return
 		end
-		NAStuff.pfTick = 0
-
-		local p = opt.prefix
-		local pfxSt = NAStuff.pfxCache
-		if pfxSt.value ~= p then
-			pfxSt.value = p
-			pfxSt.invalid = NAgui.badPfx(p)
+		self.Connected = false
+		if NAStuff and NAStuff._mainLoopToken == mainLoopToken then
+			NAStuff._mainLoopToken = mainLoopToken + 1
 		end
+	end
+	NAlib.connect("NA_RenderStepMain", watcher)
+	Spawn(function()
+		local nextCanvasAt = 0
+		local nextMemAt = 0
+		local nextPrefixAt = 0
+		while watcher.Connected and NAStuff and NAStuff._mainLoopToken == mainLoopToken do
+			local now = os.clock()
+			local uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
+			local canvasInterval = uiVisible and 0.12 or 0.5
+			local prefixInterval = uiVisible and 0.35 or 0.8
 
-		if pfxSt.invalid then
-			if opt.prefix ~= ";" then
-				opt.prefix = ";"
-				pfxSt.value = ";"
-				pfxSt.invalid = false
-				DoNotif("Invalid prefix detected. Resetting to default ';'")
-				lastPrefix = ";"
-				if NAmanage.SyncPrefixUI then
-					NAmanage.SyncPrefixUI()
-				end
-				local storedPrefix = NAmanage.NASettingsGet("prefix")
-				if NAgui.badPfx(storedPrefix) then
-					NAmanage.NASettingsSet("prefix", ";")
+			if now >= nextCanvasAt then
+				nextCanvasAt = now + canvasInterval
+				if NAUIMANAGER then
+					local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
+					updateVisibleCanvas(NAUIMANAGER.chatLogs, s)
+					updateVisibleCanvas(NAUIMANAGER.NAconsoleLogs, s)
+					updateVisibleCanvas(NAUIMANAGER.commandsList, s)
+					updateVisibleCanvas(NAUIMANAGER.SettingsList, s)
+					updateVisibleCanvas(NAUIMANAGER.WaypointList, s)
+					updateVisibleCanvas(NAUIMANAGER.BindersList, s)
 				end
 			end
-		else
-			lastPrefix = p
+
+			if now >= nextMemAt then
+				nextMemAt = now + 10
+				if NAgui and type(NAgui.pruneRegisteredStrokes) == "function" then
+					pcall(NAgui.pruneRegisteredStrokes, false)
+				end
+				if NAmanage and type(NAmanage.prnAllCon) == "function" then
+					pcall(NAmanage.prnAllCon, 64)
+				end
+				if NAmanage and type(NAmanage.wsReleaseCacheIfIdle) == "function" then
+					pcall(NAmanage.wsReleaseCacheIfIdle)
+				end
+				if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
+					pcall(NAmanage.pruneBlockedRemoteState)
+				end
+				if NAmanage and type(NAmanage.pruneRuntimeInstanceState) == "function" then
+					pcall(NAmanage.pruneRuntimeInstanceState)
+				end
+				if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
+					pcall(NAAssetsLoading._trimRemoteStatus)
+				end
+				if NAAssetsLoading and type(NAAssetsLoading._trimKnownRemotes) == "function" then
+					pcall(NAAssetsLoading._trimKnownRemotes)
+				end
+				if NAAssetsLoading and type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
+					pcall(NAAssetsLoading._trimPrefetchedRemoteCache)
+				end
+			end
+
+			if now >= nextPrefixAt then
+				nextPrefixAt = now + prefixInterval
+				local p = opt.prefix
+				local pfxSt = NAStuff.pfxCache
+				if pfxSt.value ~= p then
+					pfxSt.value = p
+					pfxSt.invalid = NAgui.badPfx(p)
+				end
+
+				if pfxSt.invalid then
+					if opt.prefix ~= ";" then
+						opt.prefix = ";"
+						pfxSt.value = ";"
+						pfxSt.invalid = false
+						DoNotif("Invalid prefix detected. Resetting to default ';'")
+						lastPrefix = ";"
+						if NAmanage.SyncPrefixUI then
+							NAmanage.SyncPrefixUI()
+						end
+						local storedPrefix = NAmanage.NASettingsGet("prefix")
+						if NAgui.badPfx(storedPrefix) then
+							NAmanage.NASettingsSet("prefix", ";")
+						end
+					end
+				else
+					lastPrefix = p
+				end
+			end
+
+			local wakeAt = math.min(nextCanvasAt, nextMemAt, nextPrefixAt)
+			local sleepFor = wakeAt - os.clock()
+			local minSleep = uiVisible and 0.05 or 0.15
+			local maxSleep = uiVisible and 0.12 or 0.4
+			if sleepFor < minSleep then
+				sleepFor = minSleep
+			elseif sleepFor > maxSleep then
+				sleepFor = maxSleep
+			end
+			Wait(sleepFor)
 		end
-	end))
+		watcher.Connected = false
+	end)
 end
 
 --RunService.RenderStepped:Connect(NAUISCALEUPD)
