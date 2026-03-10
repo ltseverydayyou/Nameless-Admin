@@ -1756,6 +1756,29 @@
       "desc": "tripping allowed now"
     },
     {
+      "name": "disablehumanoidstate",
+      "aliases": [
+        "disablehumanoidstate",
+        "disablehumanoidstates",
+        "disablehumstates"
+      ],
+      "usage": "disablehumanoidstate",
+      "args": "",
+      "desc": "why..."
+    },
+    {
+      "name": "enablehumanoidstate",
+      "aliases": [
+        "enablehumanoidstate",
+        "enablehumanoidstates",
+        "restorehumanoidstate",
+        "restorehumstates"
+      ],
+      "usage": "enablehumanoidstate",
+      "args": "",
+      "desc": "why..."
+    },
+    {
       "name": "checkrfe",
       "aliases": [
         "checkrfe"
