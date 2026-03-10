@@ -731,6 +731,8 @@ local NA_TABS = {
 }
 
 local NAStuff = {
+	prefixCheck = ";";
+	Notification = nil;
 	CmdBar2 = (NAStuff and NAStuff.CmdBar2) or {
 		defaultWidth = 340;
 		defaultHeight = 78;
@@ -748,6 +750,8 @@ local NAStuff = {
 	NAjson = nil;
 	nuhuhNotifs = true;
 	dmNotificationsEnabled = true;
+	inviteLink = "https://discord.gg/zzjYhtMGFD";
+	docsLink = "https://ltseverydayyou.github.io/NA-docs";
 	KeybindConnection = nil;
 	ForceAdminRainbow = true;
 	StreamerModeEnabled = false;
@@ -6148,11 +6152,8 @@ NAmanage.clrWsH = function(key)
 	NAmanage._wsHEnabledRem[key] = nil
 end
 
-local Notification = nil
-local inviteLink = "https://discord.gg/zzjYhtMGFD"
-local prefixCheck = ";"
 opt={
-	prefix=prefixCheck;
+	prefix=NAStuff.prefixCheck;
 	NAupdDate='unknown'; --month,day,year
 	githubUrl = '';
 	loader='';
@@ -11892,15 +11893,15 @@ function NACaller(fn, ...)
 						Text = "Discord Server",
 						Callback = function()
 							if setclipboard then
-								setclipboard(inviteLink)
+								setclipboard(NAStuff.inviteLink)
 								if type(DoNotif) == "function" then
 									DoNotif("Discord link copied to clipboard!")
 								end
 							else
 								if type(DoWindow) == "function" then
-									DoWindow("Server Invite: "..inviteLink)
+									DoWindow("Server Invite: "..NAStuff.inviteLink)
 								else
-									warn("Server Invite: "..inviteLink)
+									warn("Server Invite: "..NAStuff.inviteLink)
 								end
 							end
 						end
@@ -13835,15 +13836,14 @@ repeat
 		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
 	end)
 	if NAAssetsLoading.ok then
-		Notification = NAAssetsLoading.res
+		NAStuff.Notification = NAAssetsLoading.res
 	else
 		Wait(0.25)
 	end
-until Notification or NAAssetsLoading.getSkip()
-if not Notification then
-	Notification = {Notify=function() end, Window=function() end, Popup=function() end}
+until NAStuff.Notification or NAAssetsLoading.getSkip()
+if not NAStuff.Notification then
+	NAStuff.Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
-NAmanage.Notification = Notification
 
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("notifications") end
 
@@ -14024,9 +14024,9 @@ end)
 
 NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
 
-Notify = Notification.Notify
-Window = Notification.Window
-Popup  = Notification.Popup
+Notify = NAStuff.Notification.Notify
+Window = NAStuff.Notification.Window
+Popup  = NAStuff.Notification.Popup
 
 if NAStuff and type(NAStuff._prefetchedRemotes) == "table" then
 	NAStuff._prefetchedRemotes = {}
@@ -14940,6 +14940,18 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value)
 				return coerceBoolean(value, false)
+			end;
+		};
+		devConsoleCopyButtons = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		devConsoleMasterInput = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
 			end;
 		};
 		streamerMode = {
@@ -17434,6 +17446,8 @@ end
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
 NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
+NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false
+NAStuff.NAConsoleMasterEnabled = NAStuff.NAConsoleMasterEnabled ~= false
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
@@ -17446,7 +17460,7 @@ NAStuff.OffVisFTr = math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1)
 NAStuff.OffVisOTr = math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1)
 
 if FileSupport then
-	prefixCheck = NAmanage.NASettingsGet("prefix")
+	NAStuff.prefixCheck = NAmanage.NASettingsGet("prefix")
 	NAsavedScale = NAmanage.NASettingsGet("buttonSize")
 	NAUISavedScale = NAmanage.NASettingsGet("uiScale")
 	NAQoTEnabled = NAmanage.NASettingsGet("queueOnTeleport")
@@ -17459,6 +17473,8 @@ if FileSupport then
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
 	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
+	NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAmanage.NASettingsGet("devConsoleCopyButtons") ~= false
+	NAStuff.NAConsoleMasterEnabled = NAmanage.NASettingsGet("devConsoleMasterInput") ~= false
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
 	local savedMobileCamSens = tonumber(NAmanage.NASettingsGet("mobileCamSensitivity"))
 	if savedMobileCamSens then
@@ -17535,12 +17551,12 @@ if FileSupport then
 	}
 	NAStuff.IconShape = NAmanage.NASettingsGet("iconShape")
 
-	if prefixCheck == "" or utf8.len(prefixCheck) > 1 or prefixCheck:match("[%w]")
-		or prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
-		or prefixCheck:match("&amp;") or prefixCheck:match("&lt;") or prefixCheck:match("&gt;")
-		or prefixCheck:match("&quot;") or prefixCheck:match("&#x27;") or prefixCheck:match("&#x60;") then
+	if NAStuff.prefixCheck == "" or utf8.len(NAStuff.prefixCheck) > 1 or NAStuff.prefixCheck:match("[%w]")
+		or NAStuff.prefixCheck:match("[%[%]%(%)%*%^%$%%{}<>]")
+		or NAStuff.prefixCheck:match("&amp;") or NAStuff.prefixCheck:match("&lt;") or NAStuff.prefixCheck:match("&gt;")
+		or NAStuff.prefixCheck:match("&quot;") or NAStuff.prefixCheck:match("&#x27;") or NAStuff.prefixCheck:match("&#x60;") then
 
-		prefixCheck = ";"
+		NAStuff.prefixCheck = ";"
 		NAmanage.NASettingsSet("prefix", ";")
 		DoNotif("Your prefix has been reset to the default (;) due to invalid symbol.")
 	end
@@ -18112,7 +18128,7 @@ if FileSupport then
 
 	NAmanage.ApplyTextChatSettings()
 else
-	prefixCheck = ";"
+	NAStuff.prefixCheck = ";"
 	NAScale = 1
 	NAQoTEnabled = false
 	NAiconSaveEnabled = false
@@ -18295,7 +18311,7 @@ NAmanage.bindMobileCamSens()
 NAmanage.SetMobileCamSensitivity(NAStuff.MobileCamSensitivity, { save = false })
 NAmanage.SetMobileCamSensEnabled(NAStuff.MobileCamSensEnabled, { save = false })
 
-opt.prefix = prefixCheck
+opt.prefix = NAStuff.prefixCheck
 if NAmanage.SyncPrefixUI then
 	NAmanage.SyncPrefixUI()
 end
@@ -28787,16 +28803,16 @@ cmd.add({"discord", "invite", "support", "help"}, {"discord", "Copy an invite li
 	if setclipboard then
 		Window({
 			Title = "Discord",
-			Description = inviteLink,
+			Description = NAStuff.inviteLink,
 			Buttons = {
-				{Text = "Copy Link", Callback = function() setclipboard(inviteLink) end},
+				{Text = "Copy Link", Callback = function() setclipboard(NAStuff.inviteLink) end},
 				{Text = "Close", Callback = function() end}
 			}
 		})
 	else
 		Window({
 			Title = "Discord",
-			Description = "Your exploit does not support setclipboard.\nPlease manually type the invite link: "..inviteLink,
+			Description = "Your exploit does not support setclipboard.\nPlease manually type the invite link: "..NAStuff.inviteLink,
 			Buttons = {
 				{Text = "Close", Callback = function() end}
 			}
@@ -29459,6 +29475,7 @@ do
 	st.Underground = false
 	st.UndergroundBind = false
 	st.UndergroundCurrent = nil
+	st.PendingTranslation = nil
 	st.heartbeatConnection = nil
 end
 
@@ -29533,6 +29550,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 	UG_Set("Underground", true)
 	UG_Set("UndergroundCurrent", rootPart.CFrame)
 	UG_Set("UndergroundOffset", offsetVec)
+	UG_Set("PendingTranslation", nil)
 
 	local prevHB = UG_Get("heartbeatConnection")
 	if prevHB then
@@ -29550,6 +29568,11 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		end
 
 		local baseCFrame = currentRoot.CFrame
+		local pendingTranslation = UG_Get("PendingTranslation")
+		if typeof(pendingTranslation) == "Vector3" and pendingTranslation.Magnitude > 0 then
+			baseCFrame += pendingTranslation
+			UG_Set("PendingTranslation", nil)
+		end
 		local activeOffset = UG_Get("UndergroundOffset") or defaultOffset
 		UG_Set("UndergroundCurrent", baseCFrame)
 		if hum then
@@ -29630,6 +29653,7 @@ cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restore
 	end
 
 	state.UndergroundOffset = nil
+	state.PendingTranslation = nil
 	state.Underground = false
 	NAmanage.ovClr(state)
 
@@ -31633,7 +31657,16 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
-	local plrs = __lt.cs("Players", cloneref)
+	local plrs
+	if type(cloneref) == "function" then
+		local okRef, ref = pcall(function()
+			return cloneref(game:GetService("Players"))
+		end)
+		if okRef and ref then
+			plrs = ref
+		end
+	end
+	plrs = plrs or game:GetService("Players")
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -35575,6 +35608,177 @@ cmd.add({"unantitrip"}, {"unantitrip", "tripping allowed now"}, function()
 		end
 	end
 	DebugNotif("Antitrip Disabled",2)
+end)
+
+NAmanage.getHumState = function()
+	if NAStuff.AllHumanoidStatesExceptNone then
+		return NAStuff.AllHumanoidStatesExceptNone
+	end
+
+	local states = {}
+	for _, state in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+		if state ~= Enum.HumanoidStateType.None then
+			Insert(states, state)
+		end
+	end
+	NAStuff.AllHumanoidStatesExceptNone = states
+	return states
+end
+
+NAmanage.HumanoidStateLockApply = function(hum)
+	if not hum then return 0 end
+
+	shared.__disablehumanoidstate = shared.__disablehumanoidstate or {saved = {}}
+	local store = shared.__disablehumanoidstate
+	local saved = store.saved[hum]
+	if not saved then
+		saved = {}
+		store.saved[hum] = saved
+		hum.Destroying:Connect(function()
+			store.saved[hum] = nil
+			if NAStuff.HumanoidStateLockHumanoid == hum then
+				NAStuff.HumanoidStateLockHumanoid = nil
+			end
+		end)
+	end
+
+	local disabled = 0
+	for _, state in ipairs(NAmanage.getHumState()) do
+		if saved[state] == nil then
+			local okEnabled, wasEnabled = pcall(function()
+				return hum:GetStateEnabled(state)
+			end)
+			if okEnabled then
+				saved[state] = wasEnabled
+			end
+		end
+
+		local okSet = pcall(function()
+			hum:SetStateEnabled(state, false)
+		end)
+		if okSet then
+			disabled = disabled + 1
+		end
+	end
+
+	NAStuff.HumanoidStateLockHumanoid = hum
+	return disabled
+end
+
+NAmanage.HumanoidStateLockRestore = function(hum)
+	if not hum then return 0 end
+
+	local store = shared.__disablehumanoidstate
+	local saved = store and store.saved and store.saved[hum] or nil
+	local restored = 0
+
+	if saved then
+		for state, wasEnabled in pairs(saved) do
+			local okSet = pcall(function()
+				hum:SetStateEnabled(state, wasEnabled)
+			end)
+			if okSet then
+				restored = restored + 1
+			end
+		end
+		store.saved[hum] = nil
+	else
+		for _, state in ipairs(NAmanage.getHumState()) do
+			local okSet = pcall(function()
+				hum:SetStateEnabled(state, true)
+			end)
+			if okSet then
+				restored = restored + 1
+			end
+		end
+	end
+
+	if NAStuff.HumanoidStateLockHumanoid == hum then
+		NAStuff.HumanoidStateLockHumanoid = nil
+	end
+	return restored
+end
+
+NAmanage.HumanoidStateLockEnsureHook = function()
+	if NAStuff.HumanoidStateLockHooked or not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+		return false
+	end
+
+	NAStuff.HumanoidStateLockHooked = true
+	NAStuff.HumanoidStateLockOldNC = NAStuff.HumanoidStateLockOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if not checkcaller() and NAStuff.HumanoidStateLockEnabled and typeof(self) == "Instance" then
+			local hum = NAStuff.HumanoidStateLockHumanoid
+			if hum and self == hum then
+				local method = getnamecallmethod()
+				if type(method) == "string" then
+					method = Lower(method)
+				end
+				if method == "setstateenabled" then
+					local state, enabled = ...
+					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and enabled == true then
+						return
+					end
+				end
+			end
+		end
+		return NAStuff.HumanoidStateLockOldNC(self, ...)
+	end))
+
+	return true
+end
+
+NAmanage.HumanoidStateLockStart = function()
+	NAStuff.HumanoidStateLockEnabled = true
+	NAmanage.HumanoidStateLockEnsureHook()
+
+	local hum = getHum()
+	if hum then
+		NAmanage.HumanoidStateLockApply(hum)
+	end
+
+	NAlib.disconnect("humstate_lock_step")
+	NAlib.connect("humstate_lock_step", RunService.Heartbeat:Connect(function()
+		if not NAStuff.HumanoidStateLockEnabled then return end
+		local activeHum = getHum()
+		if not activeHum then return end
+		NAmanage.HumanoidStateLockApply(activeHum)
+	end))
+
+	NAlib.disconnect("humstate_lock_char")
+	local lp = Players.LocalPlayer
+	if lp then
+		NAlib.connect("humstate_lock_char", lp.CharacterAdded:Connect(function(char)
+			if not NAStuff.HumanoidStateLockEnabled then return end
+			local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
+			if hum then
+				NAmanage.HumanoidStateLockApply(hum)
+			end
+		end))
+	end
+end
+
+NAmanage.HumanoidStateLockStop = function()
+	NAStuff.HumanoidStateLockEnabled = false
+	NAlib.disconnect("humstate_lock_step")
+	NAlib.disconnect("humstate_lock_char")
+	local hum = getHum()
+	return hum and NAmanage.HumanoidStateLockRestore(hum) or 0
+end
+
+cmd.add({"disablehumanoidstate","disablehumanoidstates","disablehumstates"}, {"disablehumanoidstate", "why..."}, function()
+	local hum = getHum()
+	if not hum then
+		DebugNotif("No humanoid found", 2)
+		return
+	end
+
+	NAmanage.HumanoidStateLockStart()
+	DebugNotif("Humanoid state lock enabled", 2)
+end)
+
+cmd.add({"enablehumanoidstate","enablehumanoidstates","restorehumanoidstate","restorehumstates"}, {"enablehumanoidstate", "why..."}, function()
+	local restored = NAmanage.HumanoidStateLockStop()
+	DebugNotif("Humanoid state lock disabled ("..restored.." states restored)", 2)
 end)
 
 cmd.add({"checkrfe"},{"checkrfe","Checks if the game has respect filtering enabled off"},function()
@@ -44486,12 +44690,16 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the gi
 	local char    = getChar()
 	if #targets > 0 then
 		for _,plr in ipairs(targets) do
-			char:PivotTo(plr.Character:GetPivot())
+			if char and plr.Character then
+				char:PivotTo(plr.Character:GetPivot())
+			end
 		end
 	else
 		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
 		if x and y and z then
-			char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+			if char then
+				char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+			end
 		else
 			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
 		end
@@ -50011,7 +50219,13 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 		local moveDirection = humanoid.MoveDirection
 		local steps = 0
 		while accumulator >= stepRate and steps < maxSteps do
-			char:TranslateBy(moveDirection * Speed * stepRate * 10)
+			local stepDelta = moveDirection * Speed * stepRate * 10
+			local undergroundState = NAStuff and NAStuff.NAundergroundState
+			if undergroundState and undergroundState.Underground then
+				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new()) + stepDelta
+			else
+				char:TranslateBy(stepDelta)
+			end
 			accumulator -= stepRate
 			steps += 1
 		end
@@ -75110,7 +75324,354 @@ end)
 
 math.randomseed(os.time())
 
+NAmanage.cleanupRobloxDevConsoleCopyButtons = function()
+	if NAStuff and NAStuff._rbxDevConsoleCopyCleanup then
+		pcall(NAStuff._rbxDevConsoleCopyCleanup)
+		NAStuff._rbxDevConsoleCopyCleanup = nil
+	end
+	if NAStuff then
+		NAStuff._rbxDevConsoleCopyTarget = nil
+		NAStuff._rbxDevConsoleCopyRefresh = nil
+	end
+end
+
+NAmanage.getRobloxDevConsoleWindow = function()
+	local coreGui = COREGUI
+	if not coreGui then
+		return nil
+	end
+	local master = coreGui:FindFirstChild("DevConsoleMaster")
+	if not master then
+		return nil
+	end
+	return master:FindFirstChild("DevConsoleWindow")
+end
+
+NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButtons or function(window)
+	if NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == false then
+		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		return false
+	end
+	if not setclipboard then
+		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		return false
+	end
+
+	local consoleUI = window and (window:FindFirstChild("DevConsoleUI") or window)
+	local mainView = consoleUI and consoleUI:FindFirstChild("MainView")
+	local clientLog = mainView and (mainView:FindFirstChild("ClientLog") or mainView:FindFirstChild("ClientLog", true))
+	if not clientLog then
+		if NAStuff._rbxDevConsoleCopyCleanup and NAStuff._rbxDevConsoleCopyTarget and not NAStuff._rbxDevConsoleCopyTarget.Parent then
+			NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		end
+		return false
+	end
+
+	if NAStuff._rbxDevConsoleCopyTarget == clientLog and NAStuff._rbxDevConsoleCopyRefresh then
+		pcall(NAStuff._rbxDevConsoleCopyRefresh)
+		return true
+	end
+
+	if NAStuff._rbxDevConsoleCopyCleanup then
+		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+	end
+
+	local connections = {}
+	local createdButtons = {}
+	local boundHosts = {}
+	local function setMark(inst, key, value)
+		if NAmanage.SetAttr then
+			pcall(NAmanage.SetAttr, inst, key, value)
+		else
+			pcall(function()
+				inst:SetAttribute(key, value)
+			end)
+		end
+	end
+	local function getMark(inst, key)
+		if NAmanage.GetAttr then
+			local ok, value = pcall(NAmanage.GetAttr, inst, key)
+			if ok then
+				return value
+			end
+		end
+		local ok, value = pcall(function()
+			return inst:GetAttribute(key)
+		end)
+		return ok and value or nil
+	end
+	local function isDescendantOf(node, ancestor)
+		local current = node
+		while current do
+			if current == ancestor then
+				return true
+			end
+			current = current.Parent
+		end
+		return false
+	end
+	local function resolveHost(label)
+		local host = label.Parent
+		if not (host and host:IsA("GuiObject")) or host == clientLog then
+			host = label
+		end
+		return host
+	end
+	local function sanitizeConsoleCopyText(parts, fallback)
+		local out = {}
+		for i = 1, #(parts or {}) do
+			local text = tostring(parts[i] or ""):match("^%s*(.-)%s*$")
+			if text ~= "" then
+				Insert(out, text)
+			end
+		end
+		if #out >= 1 and out[1]:match("^%d%d:%d%d:%d%d$") then
+			table.remove(out, 1)
+		end
+		if #out >= 1 and out[1] == "--" then
+			table.remove(out, 1)
+		end
+		local text = (#out > 0 and Concat(out, " ") or tostring(fallback or "")):gsub("^%s*%d%d:%d%d:%d%d%s*%-%-%s*", "")
+		return text:match("^%s*(.-)%s*$")
+	end
+	local function collectCopyText(label)
+		local host = resolveHost(label)
+		local labels = {}
+		for _, desc in ipairs(host:GetDescendants()) do
+			if desc:IsA("TextLabel") then
+				local text = tostring(desc.Text or ""):match("^%s*(.-)%s*$")
+				if text ~= "" then
+					Insert(labels, desc)
+				end
+			end
+		end
+		if #labels == 0 then
+			return sanitizeConsoleCopyText(nil, label.Text or "")
+		end
+		table.sort(labels, function(a, b)
+			local ay, by = a.AbsolutePosition.Y, b.AbsolutePosition.Y
+			if math.abs(ay - by) > 1 then
+				return ay < by
+			end
+			local ax, bx = a.AbsolutePosition.X, b.AbsolutePosition.X
+			if math.abs(ax - bx) > 1 then
+				return ax < bx
+			end
+			return (a.LayoutOrder or 0) < (b.LayoutOrder or 0)
+		end)
+		local parts = {}
+		for _, textLabel in ipairs(labels) do
+			local text = tostring(textLabel.Text or ""):match("^%s*(.-)%s*$")
+			if text ~= "" then
+				Insert(parts, text)
+			end
+		end
+		return sanitizeConsoleCopyText(parts, label.Text or "")
+	end
+	local function attach(label)
+		if not (label and label.Parent and label:IsA("TextLabel")) then
+			return
+		end
+		if not isDescendantOf(label, clientLog) then
+			return
+		end
+		local text = tostring(label.Text or "")
+		if text:match("^%s*$") then
+			return
+		end
+
+		local host = resolveHost(label)
+		if getMark(host, "NA_RBXDevConsoleCopyBound") == true then
+			return
+		end
+
+		local copyButton = InstanceNew("TextButton")
+		copyButton.Name = "NADevConsoleCopyButton"
+		copyButton.Text = "COPY"
+		copyButton.Font = Enum.Font.GothamSemibold
+		copyButton.TextSize = 10
+		copyButton.TextColor3 = Color3.fromRGB(240, 244, 247)
+		copyButton.BackgroundColor3 = Color3.fromRGB(20, 24, 29)
+		copyButton.BackgroundTransparency = 0.12
+		copyButton.BorderSizePixel = 0
+		copyButton.AutoButtonColor = false
+		copyButton.AnchorPoint = Vector2.new(1, 0.5)
+		copyButton.Position = UDim2.new(1, -8, 0.5, 0)
+		copyButton.Size = UDim2.new(0, 38, 0, 16)
+		copyButton.ZIndex = math.max((host.ZIndex or 1) + 2, (label.ZIndex or 1) + 2)
+		copyButton.AutoLocalize = false
+		copyButton.Parent = host
+
+		local corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 4)
+		corner.Parent = copyButton
+
+		local stroke = InstanceNew("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = Color3.fromRGB(132, 145, 160)
+		stroke.Transparency = 0.45
+		stroke.Thickness = 1
+		stroke.Parent = copyButton
+
+		Insert(connections, copyButton.MouseEnter:Connect(function()
+			__lt.cm("TweenService", "Create", copyButton, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = Color3.fromRGB(32, 38, 45),
+				TextColor3 = Color3.fromRGB(255, 255, 255)
+			}):Play()
+			__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transparency = 0.15
+			}):Play()
+		end))
+		Insert(connections, copyButton.MouseLeave:Connect(function()
+			__lt.cm("TweenService", "Create", copyButton, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = Color3.fromRGB(20, 24, 29),
+				TextColor3 = Color3.fromRGB(240, 244, 247)
+			}):Play()
+			__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Transparency = 0.45
+			}):Play()
+		end))
+
+		local clickConn = MouseButtonFix(copyButton, function()
+			local copyText = collectCopyText(label)
+			if copyText == "" then
+				return
+			end
+			local ok = pcall(setclipboard, copyText)
+			if ok then
+				copyButton.Text = "DONE"
+				Delay(0.7, function()
+					if copyButton and copyButton.Parent then
+						copyButton.Text = "COPY"
+					end
+				end)
+				DoNotif("Console line copied to clipboard.", 1.5)
+			else
+				DoNotif("Clipboard unavailable", 1.5)
+			end
+		end)
+		Insert(connections, clickConn)
+		Insert(createdButtons, copyButton)
+		boundHosts[host] = true
+		setMark(host, "NA_RBXDevConsoleCopyBound", true)
+	end
+	local function scan(root)
+		for _, desc in ipairs(root:GetDescendants()) do
+			attach(desc)
+		end
+	end
+
+	scan(clientLog)
+	Insert(connections, clientLog.DescendantAdded:Connect(function(desc)
+		attach(desc)
+	end))
+	Insert(connections, clientLog.AncestryChanged:Connect(function(_, parent)
+		if not parent and NAStuff._rbxDevConsoleCopyCleanup then
+			pcall(NAStuff._rbxDevConsoleCopyCleanup)
+			NAStuff._rbxDevConsoleCopyCleanup = nil
+			NAStuff._rbxDevConsoleCopyTarget = nil
+		end
+	end))
+
+	local function cleanup()
+		for host in pairs(boundHosts) do
+			if host then
+				setMark(host, "NA_RBXDevConsoleCopyBound", nil)
+			end
+		end
+		boundHosts = {}
+		for _, button in ipairs(createdButtons) do
+			if button and button.Parent then
+				pcall(function()
+					button:Destroy()
+				end)
+			end
+		end
+		createdButtons = {}
+		for _, conn in ipairs(connections) do
+			if conn and conn.Disconnect then
+				pcall(function()
+					conn:Disconnect()
+				end)
+			end
+		end
+		connections = {}
+	end
+
+	NAStuff._rbxDevConsoleCopyTarget = clientLog
+	NAStuff._rbxDevConsoleCopyRefresh = function()
+		if clientLog and clientLog.Parent then
+			scan(clientLog)
+		end
+	end
+	NAStuff._rbxDevConsoleCopyCleanup = cleanup
+	return true
+end
+
+NAmanage.refreshDevConsoleFeatures = function()
+	local window = NAmanage.getRobloxDevConsoleWindow and NAmanage.getRobloxDevConsoleWindow() or nil
+	local windowVisible = window and window.Visible ~= false
+
+	if NAStuff and NAStuff.NAConsoleMasterEnabled == true then
+		SpawnCall(NAmanage.injectNAConsole)
+	else
+		if NAmanage._naConsoleFrame or NAmanage._naConsoleInitialized then
+			NAmanage.destroyNAConsole()
+		end
+	end
+
+	if NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true then
+		NAmanage.ensureRobloxDevConsoleCopyLoop()
+	else
+		NAlib.disconnect("rbx_devconsole_copy_loop")
+	end
+
+	if NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true and windowVisible then
+		NAmanage.bindRobloxDevConsoleCopyButtons(window)
+	else
+		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+	end
+end
+
+NAmanage.ensureRobloxDevConsoleCopyLoop = function()
+	NAlib.disconnect("rbx_devconsole_copy_loop")
+	if not (NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true) then
+		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		return
+	end
+
+	local elapsed = 0
+	NAlib.connect("rbx_devconsole_copy_loop", RunService.Heartbeat:Connect(function(dt)
+		elapsed = elapsed + (dt or 0)
+		if elapsed < 0.35 then
+			return
+		end
+		elapsed = 0
+
+		if not (NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true) then
+			NAmanage.cleanupRobloxDevConsoleCopyButtons()
+			return
+		end
+
+		local window = NAmanage.getRobloxDevConsoleWindow and NAmanage.getRobloxDevConsoleWindow() or nil
+		if window and window.Visible ~= false then
+			NAmanage.bindRobloxDevConsoleCopyButtons(window)
+		elseif NAStuff._rbxDevConsoleCopyTarget and not NAStuff._rbxDevConsoleCopyTarget.Parent then
+			NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		end
+	end))
+end
+
 NAmanage.injectNAConsole = function()
+	if NAStuff and NAStuff.NAConsoleMasterEnabled == false then
+		local window = NAmanage.getRobloxDevConsoleWindow and NAmanage.getRobloxDevConsoleWindow() or nil
+		if NAStuff.RobloxDevConsoleCopyButtonsEnabled == true and window and window.Visible ~= false then
+			NAmanage.bindRobloxDevConsoleCopyButtons(window)
+		else
+			NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		end
+		return true
+	end
 	if NAmanage._naConsoleInitialized then
 		return true
 	end
@@ -75427,6 +75988,7 @@ NAmanage.injectNAConsole = function()
 		end
 
 		adjustDevConsoleLayout(window)
+		NAmanage.bindRobloxDevConsoleCopyButtons(window)
 		return true
 	end
 
@@ -75455,6 +76017,8 @@ end
 NAmanage.destroyNAConsole = function()
 	NAlib.disconnect("naconsole_loop")
 	NAlib.disconnect("naconsole_focus")
+	NAlib.disconnect("rbx_devconsole_copy_loop")
+	NAmanage.cleanupRobloxDevConsoleCopyButtons()
 	if NAmanage._naConsoleFrame then
 		NAmanage._naConsoleFrame:Destroy()
 	end
@@ -75543,6 +76107,7 @@ end)
 
 NAmanage.scheduleLoader('BindDevConsole', NAmanage.bindToDevConsole)
 NAmanage.scheduleLoader('NAConsole', NAmanage.injectNAConsole)
+NAmanage.scheduleLoader('DevConsoleCopyButtons', NAmanage.ensureRobloxDevConsoleCopyLoop)
 NAmanage.scheduleLoader('Aliases', NAmanage.loadAliases)
 NAmanage.scheduleLoader('UserButtons', function()
 	if NAStuff.UserButtonsAutoLoad == false then
@@ -76731,6 +77296,26 @@ NAmanage.RegisterToggleAutoSync("Keep Icon Position", function()
 	return NAiconSaveEnabled == true
 end)
 
+NAgui.addSection("Dev Console")
+
+NAgui.addToggle("Dev Console Copy Buttons", NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false, function(v)
+	NAStuff.RobloxDevConsoleCopyButtonsEnabled = v ~= false
+	pcall(NAmanage.NASettingsSet, "devConsoleCopyButtons", NAStuff.RobloxDevConsoleCopyButtonsEnabled)
+	NAmanage.refreshDevConsoleFeatures()
+end)
+NAmanage.RegisterToggleAutoSync("Dev Console Copy Buttons", function()
+	return NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false
+end)
+
+NAgui.addToggle("NA Console Master Input", NAStuff.NAConsoleMasterEnabled ~= false, function(v)
+	NAStuff.NAConsoleMasterEnabled = v ~= false
+	pcall(NAmanage.NASettingsSet, "devConsoleMasterInput", NAStuff.NAConsoleMasterEnabled)
+	NAmanage.refreshDevConsoleFeatures()
+end)
+NAmanage.RegisterToggleAutoSync("NA Console Master Input", function()
+	return NAStuff.NAConsoleMasterEnabled ~= false
+end)
+
 NAStuff.PRELOAD_ASSET_CLASS_PROPS = NAStuff.PRELOAD_ASSET_CLASS_PROPS or {
 	Animation = { "AnimationId" };
 	AnimationClip = { "AnimationId" };
@@ -77200,13 +77785,21 @@ if IsOnMobile then
 	end)
 end
 
-NAgui.addSection("Support")
-NAgui.addButton("Join Discord", function()
+NAgui.addSection("Links")
+NAgui.addButton("Discord Server", function()
 	if setclipboard then
-		setclipboard(inviteLink)
+		setclipboard(NAStuff.inviteLink)
 		DoNotif("Discord link copied to clipboard!")
 	else
-		DoNotif("Unable to copy automatically. Invite: "..inviteLink, 3)
+		DoNotif("Unable to copy automatically. Invite: "..NAStuff.inviteLink, 3)
+	end
+end)
+NAgui.addButton(adminName.." Documents", function()
+	if setclipboard then
+		setclipboard(NAStuff.docsLink)
+		DoNotif("Documents link copied to clipboard!")
+	else
+		DoNotif("Unable to copy automatically. Documents: "..NAStuff.docsLink, 3)
 	end
 end)
 
