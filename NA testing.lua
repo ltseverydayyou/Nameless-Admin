@@ -7274,6 +7274,7 @@ if type(NAStuff._df) == "function" then
 end
 local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
+	NANOMEDIAPATH = "Nameless-Admin/.nomedia";
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
 	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
 	NAIYPLUGINFILEPATH = "Nameless-Admin/PluginsIY";
@@ -7305,18 +7306,7 @@ local NAfiles = {
 }
 
 NAmanage.normalizeAssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod or function(value)
-	if type(value) ~= "string" then
-		return "txt"
-	end
-	local mode = value:match("^%s*(.-)%s*$") or ""
-	mode = mode:lower()
-	if mode == "legacy" then
-		return "legacy"
-	end
-	if mode == "txt" or mode == ".txt" or mode == "text" then
-		return "txt"
-	end
-	return "txt"
+	return "legacy"
 end
 
 NAmanage.hashAssetString = NAmanage.hashAssetString or function(str)
@@ -7346,14 +7336,10 @@ NAmanage.getNAImageAssetSourceUrl = NAmanage.getNAImageAssetSourceUrl or functio
 	return "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"..fileName
 end
 
-NAmanage.getNAImageStoredFileName = NAmanage.getNAImageStoredFileName or function(keyOrFile, method)
+NAmanage.getNAImageLegacyTxtFileName = NAmanage.getNAImageLegacyTxtFileName or function(keyOrFile)
 	local fileName = NAmanage.getNAImageFileName(keyOrFile)
 	if type(fileName) ~= "string" or fileName == "" then
 		return nil
-	end
-	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
-	if resolvedMethod == "legacy" then
-		return fileName
 	end
 	local base = fileName:match("(.+)%.") or fileName
 	base = base:gsub("[^%w%._%-]", "_")
@@ -7368,6 +7354,14 @@ NAmanage.getNAImageStoredFileName = NAmanage.getNAImageStoredFileName or functio
 	return string.format("%s_%s.txt", base, hashed)
 end
 
+NAmanage.getNAImageStoredFileName = NAmanage.getNAImageStoredFileName or function(keyOrFile, method)
+	local fileName = NAmanage.getNAImageFileName(keyOrFile)
+	if type(fileName) ~= "string" or fileName == "" then
+		return nil
+	end
+	return fileName
+end
+
 NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths or function(keyOrFile, method)
 	local fileName = NAmanage.getNAImageFileName(keyOrFile)
 	if type(fileName) ~= "string" or fileName == "" then
@@ -7378,8 +7372,6 @@ NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths 
 	end
 	local out = {}
 	local seen = {}
-	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
-	local altMethod = resolvedMethod == "txt" and "legacy" or "txt"
 	local function addPath(path)
 		if type(path) ~= "string" or path == "" or seen[path] then
 			return
@@ -7387,11 +7379,11 @@ NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths 
 		seen[path] = true
 		out[#out + 1] = path
 	end
-	local preferred = NAmanage.getNAImageStoredFileName(fileName, resolvedMethod)
+	local preferred = NAmanage.getNAImageStoredFileName(fileName, "legacy")
 	if preferred then
 		addPath(NAfiles.NAASSETSFILEPATH.."/"..preferred)
 	end
-	local alternate = NAmanage.getNAImageStoredFileName(fileName, altMethod)
+	local alternate = NAmanage.getNAImageLegacyTxtFileName(fileName)
 	if alternate then
 		addPath(NAfiles.NAASSETSFILEPATH.."/"..alternate)
 	end
@@ -7437,9 +7429,8 @@ end
 
 NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or function(method, opts)
 	opts = type(opts) == "table" and opts or {}
-	local resolvedMethod = NAmanage.normalizeAssetDownloadMethod(method or NAStuff.AssetDownloadMethod)
 	local result = {
-		method = resolvedMethod,
+		method = "legacy",
 		assets = { checked = 0, converted = 0, failed = 0 },
 		icons = { checked = 0, converted = 0, failed = 0 },
 	}
@@ -7519,7 +7510,7 @@ NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or functio
 		if type(NAImageAssets) == "table" then
 			for _, knownFile in pairs(NAImageAssets) do
 				if type(knownFile) == "string" and knownFile ~= "" then
-					local knownTxt = NAmanage.getNAImageStoredFileName(knownFile, "txt")
+					local knownTxt = NAmanage.getNAImageLegacyTxtFileName(knownFile)
 					if type(knownTxt) == "string" and knownTxt ~= "" then
 						txtToLegacy[knownTxt:lower()] = knownFile
 					end
@@ -7540,29 +7531,7 @@ NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or functio
 					if type(name) == "string" and name ~= "" then
 						result.assets.checked += 1
 						local lower = name:lower()
-						if resolvedMethod == "txt" then
-							if not lower:match("%.txt$") then
-								local targetName = NAmanage.getNAImageStoredFileName(name, "txt")
-								if type(targetName) ~= "string" or targetName == "" then
-									local base = sanitizeBase(name:gsub("%.[^%.]+$", ""))
-									targetName = string.format("%s_%s.txt", base, NAmanage.hashAssetString(lower))
-								end
-								local targetPath = assetsDir.."/"..targetName
-								if fileExists(targetPath) then
-									if ensureSourceGone(fullPath) then
-										result.assets.converted += 1
-									else
-										result.assets.failed += 1
-									end
-								else
-									if copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
-										result.assets.converted += 1
-									else
-										result.assets.failed += 1
-									end
-								end
-							end
-						elseif lower:match("%.txt$") then
+						if lower:match("%.txt$") then
 							local targetName = txtToLegacy[lower]
 							if type(targetName) ~= "string" or targetName == "" then
 								local stem = name:sub(1, -5)
@@ -7611,26 +7580,7 @@ NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or functio
 					if type(name) == "string" and name ~= "" then
 						local lower = name:lower()
 						result.icons.checked += 1
-						if resolvedMethod == "txt" then
-							if not lower:match("%.txt$") then
-								local base = sanitizeBase(name:gsub("%.[^%.]+$", ""))
-								local targetName = string.format("%s_%s.txt", base, NAmanage.hashAssetString(name:lower()))
-								local targetPath = NAfiles.NACUSTOMICONPATH.."/"..targetName
-								if fileExists(targetPath) then
-									if ensureSourceGone(fullPath) then
-										result.icons.converted += 1
-										movedPath[fullPath] = targetPath
-									else
-										result.icons.failed += 1
-									end
-								elseif copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
-									result.icons.converted += 1
-									movedPath[fullPath] = targetPath
-								else
-									result.icons.failed += 1
-								end
-							end
-						elseif lower:match("%.txt$") then
+						if lower:match("%.txt$") then
 							local stem = name:sub(1, -5)
 							stem = stem:gsub("_[0-9a-fA-F]+$", "")
 							stem = sanitizeBase(stem)
@@ -7723,7 +7673,7 @@ NAmanage.queueAssetMethodResync = NAmanage.queueAssetMethodResync or function(de
 	end
 end
 
-NAStuff.AssetDownloadMethod = NAStuff.AssetDownloadMethod or "txt"
+NAStuff.AssetDownloadMethod = NAStuff.AssetDownloadMethod or "legacy"
 if FileSupport and type(isfile) == "function" and type(readfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
 	local okRaw, raw = pcall(readfile, NAfiles.NAMAINSETTINGSPATH)
 	if okRaw and type(raw) == "string" and raw ~= "" then
@@ -9165,26 +9115,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		local candidate = url:match("/([^/%?]+)$")
 		return candidate
-	end
-
-	local function hashString(str)
-		local hash = 0
-		for i = 1, #str do
-			hash = (hash * 31 + string.byte(str, i)) % 4294967296
-		end
-		return string.format("%08x", hash)
-	end
-
-	local function deriveTxtFileNameFromUrl(url)
-		if type(url) ~= "string" or url == "" then
-			return nil
-		end
-		local fileName = deriveFileNameFromUrl(url) or "icon"
-		fileName = fileName:match("([^?#]+)") or fileName
-		local base = fileName:match("(.+)%.") or fileName
-		base = sanitizeFileName(base) or "icon"
-		local hashed = hashString(url)
-		return string.format("%s_%s.txt", base ~= "" and base or "icon", hashed)
 	end
 
 	local function deriveLegacyIconFileNameFromUrl(url)
@@ -10702,13 +10632,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and typeof(data) == "string" and data ~= "") then
 			return false, "Unable to download custom icon image."
 		end
-		local method = (type(NAmanage.getAssetDownloadMethod) == "function" and NAmanage.getAssetDownloadMethod()) or "txt"
-		local safeName
-		if method == "legacy" then
-			safeName = deriveLegacyIconFileNameFromUrl(norm)
-		else
-			safeName = deriveTxtFileNameFromUrl(norm) or ("icon_"..tostring(os.time())..".txt")
-		end
+		local safeName = deriveLegacyIconFileNameFromUrl(norm)
 		local fullPath = NAfiles.NACUSTOMICONPATH.."/"..safeName
 		local okW, errW = pcall(writefile, fullPath, data)
 		if not okW then
@@ -15525,7 +15449,7 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		assetDownloadMethod = {
-			default = "txt";
+			default = "legacy";
 			coerce = function(value)
 				return NAmanage.normalizeAssetDownloadMethod(value)
 			end;
@@ -15895,12 +15819,27 @@ local function NAensureFolder(path)
 	return false, err
 end
 
+NAmanage.ensureNoMediaFile = NAmanage.ensureNoMediaFile or function()
+	if not (FileSupport and NAfiles and type(NAfiles.NANOMEDIAPATH) == "string") then
+		return false
+	end
+	if type(isfile) == "function" and isfile(NAfiles.NANOMEDIAPATH) then
+		return true
+	end
+	if type(writefile) ~= "function" then
+		return false
+	end
+	local ok = pcall(writefile, NAfiles.NANOMEDIAPATH, "")
+	return ok == true
+end
+
 -- Creates folder & files for Prefix, Plugins, and etc
 if FileSupport then
 	local baseOk = NAensureFolder(NAfiles.NAFILEPATH)
 	if not baseOk then
 		FileSupport = false
 	else
+		NAmanage.ensureNoMediaFile()
 		if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
 			if NAensureFolder(NAfiles.NAWAYPOINTFILEPATH) then
 				-- imagine if it didn't make the folder
@@ -17222,6 +17161,9 @@ originalIO.safeClearFolder=function(path, opts)
 		local okMk, errMk = pcall(makefolder, path)
 		if not okMk then
 			return false, errMk or ("Failed to recreate "..path)
+		end
+		if path == NAfiles.NAFILEPATH and type(NAmanage.ensureNoMediaFile) == "function" then
+			NAmanage.ensureNoMediaFile()
 		end
 	end
 
@@ -77064,69 +77006,6 @@ end
 NAgui.addSection("Asset Loading")
 NAStuff.AssetLoadModeBox = NAgui.addInfo("Asset Load Mode", "")
 NAStuff.AssetLoadStatusBox = NAgui.addInfo("Asset Load Progress", "0/0 (0/0%)")
-NAStuff.AssetDownloadMethodBox = NAgui.addInfo("Downloaded Image File Type", "")
-
-NAmanage.updateAssetDownloadMethodInfo = function()
-	local box = NAStuff.AssetDownloadMethodBox
-	if not box then
-		return
-	end
-	local method = NAmanage.getAssetDownloadMethod()
-	local label = method == "legacy" and "Normal image files (legacy)" or ".txt files (helps keep images out of gallery)"
-	pcall(function()
-		box.Text = label
-	end)
-end
-NAmanage.updateAssetDownloadMethodInfo()
-
-NAgui.addToggle("Save downloaded images as .txt", NAmanage.getAssetDownloadMethod() == "txt", function(v)
-	local prev = NAmanage.getAssetDownloadMethod()
-	local nextMethod = v and "txt" or "legacy"
-	if NAStuff.AssetDownloadSyncBusy == true then
-		if NAgui.setToggleState then
-			NAgui.setToggleState("Save downloaded images as .txt", prev == "txt", { force = true, fire = false })
-		end
-		local now = tick()
-		local untilTick = tonumber(NAStuff.AssetDownloadBusyNotifUntil) or 0
-		if now >= untilTick then
-			NAStuff.AssetDownloadBusyNotifUntil = now + 1
-			DoNotif("Asset image conversion is already running. Please wait.", 2)
-		end
-		return
-	end
-	local _, sync, status, syncErr = NAmanage.setAssetDownloadMethod(nextMethod)
-	if status == "busy" then
-		if NAgui.setToggleState then
-			local cur = NAmanage.getAssetDownloadMethod()
-			NAgui.setToggleState("Save downloaded images as .txt", cur == "txt", { force = true, fire = false })
-		end
-		return
-	end
-	if status == "sync_error" then
-		local errText = type(syncErr) == "string" and syncErr or "unknown error"
-		DoNotif("Asset image conversion failed: "..errText, 3)
-	end
-	if prev ~= nextMethod then
-		local converted = 0
-		local failed = 0
-		if type(sync) == "table" then
-			local assets = sync.assets or {}
-			local icons = sync.icons or {}
-			converted = (tonumber(assets.converted) or 0) + (tonumber(icons.converted) or 0)
-			failed = (tonumber(assets.failed) or 0) + (tonumber(icons.failed) or 0)
-		end
-		local msg = "Downloaded image file type set to "..(nextMethod == "txt" and ".txt" or "legacy image files").."."
-		if converted > 0 then
-			msg = msg.." Converted "..tostring(converted).." existing file"..(converted == 1 and "" or "s").."."
-		elseif failed > 0 then
-			msg = msg.." Conversion attempted with "..tostring(failed).." failure"..(failed == 1 and "" or "s").."."
-		end
-		DoNotif(msg, 2)
-	end
-end)
-NAmanage.RegisterToggleAutoSync("Save downloaded images as .txt", function()
-	return NAmanage.getAssetDownloadMethod() == "txt"
-end)
 
 NAgui.addToggle("Preload Assets On Load", NAStuff.AutoPreloadAssets == true, function(v)
 	NAStuff.AutoPreloadAssets = v and true or false
