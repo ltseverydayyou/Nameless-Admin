@@ -28842,9 +28842,9 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = cloneref(game.GetService(game,"Players"))
-		if Target and Target.Parent and Target.Parent:IsA("Model") and __lt.cm("Players", "GetPlayerFromCharacter", Target.Parent) then
-			local PlayerName = __lt.cm("Players", "GetPlayerFromCharacter", Target.Parent).Name
+		local Players = game.GetService(game,"Players")
+		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
+			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
 			local Targets = {PlayerName}
 			local Player = Players.LocalPlayer
@@ -28856,11 +28856,11 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					AllBool = true
 					return
 				elseif Name == "random" then
-					local GetPlayers = __lt.cm("Players", "GetPlayers")
+					local GetPlayers = Players:GetPlayers()
 					if Discover(GetPlayers,Player) then table.remove(GetPlayers,Discover(GetPlayers,Player)) end
 					return GetPlayers[math.random(#GetPlayers)]
 				end
-				for _,x in next,__lt.cm("Players", "GetPlayers") do
+				for _,x in next, Players:GetPlayers() do
 					if x~=Player then
 						if Sub(Lower(x.Name),1,#Name)==Name or Sub(Lower(x.DisplayName),1,#Name)==Name then
 							return x
@@ -28982,7 +28982,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 			end
 
 			if AllBool then
-				for _,x in next,__lt.cm("Players", "GetPlayers") do SkidFling(x) end
+				for _,x in next, Players:GetPlayers() do SkidFling(x) end
 			end
 
 			for _,x in next,Targets do
@@ -43750,7 +43750,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = cloneref(game.GetService(game,"Players"))
+	local Players = game.GetService(game,"Players")
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -43764,13 +43764,13 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			AllBool = true
 			return
 		elseif Name == "random" then
-			local list = __lt.cm("Players", "GetPlayers")
+			local list = Players:GetPlayers()
 			if Discover(list, LocalPlayer) then
 				table.remove(list, Discover(list, LocalPlayer))
 			end
 			return list[math.random(#list)]
 		end
-		for _, x in next, __lt.cm("Players", "GetPlayers") do
+		for _, x in next, Players:GetPlayers() do
 			if x ~= LocalPlayer then
 				if Sub(Lower(x.Name), 1, #Name) == Name or Sub(Lower(x.DisplayName), 1, #Name) == Name then
 					return x
@@ -43903,7 +43903,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	end
 
 	if AllBool then
-		for _, p in next, __lt.cm("Players", "GetPlayers") do
+		for _, p in next, Players:GetPlayers() do
 			if p ~= LocalPlayer then SkidFling(p) end
 		end
 	else
@@ -45868,7 +45868,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = cloneref(game.GetService(game,"Players"))
+		local Players = game.GetService(game,"Players")
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
@@ -45877,11 +45877,11 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				AllBool = true
 				return
 			elseif Name == "random" then
-				local GetPlayers = __lt.cm("Players", "GetPlayers")
+				local GetPlayers = Players:GetPlayers()
 				if Discover(GetPlayers, Player) then table.remove(GetPlayers, Discover(GetPlayers, Player)) end
 				return GetPlayers[math.random(#GetPlayers)]
 			elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
-				for _, x in next, __lt.cm("Players", "GetPlayers") do
+				for _, x in next, Players:GetPlayers() do
 					if x ~= Player then
 						if x.Name:lower():match("^"..Name) then
 							return x
@@ -46050,7 +46050,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 		_na_env.Welcome = true
 		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
 		if AllBool then
-			for _, x in next, __lt.cm("Players", "GetPlayers") do
+			for _, x in next, Players:GetPlayers() do
 				SkidFling(x)
 			end
 		end
