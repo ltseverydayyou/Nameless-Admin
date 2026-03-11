@@ -32680,7 +32680,7 @@ cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part 
 	root.Color = Color3.new(1, 1, 1)
 
 	local invisflingStepped
-	invisflingStepped = RunService.Stepped:Connect(function()
+	invisflingStepped = RunService.PreSimulation:Connect(function()
 		local currentChar = getChar()
 		local currentRoot = currentChar and getRoot(currentChar)
 		if currentRoot then
@@ -33673,7 +33673,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 			end
 		end
 	end
-	Noclipping=RunService.Stepped:Connect(NoclipLoop)
+	Noclipping=RunService.PreSimulation:Connect(NoclipLoop)
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
 end)
 
@@ -34954,7 +34954,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		end
 	end))
 
-	NAlib.connect(CONN_KEY, RunService.Stepped:Connect(function()
+	NAlib.connect(CONN_KEY, RunService.PreSimulation:Connect(function()
 		if not SPart or not SPart.Parent then return end
 		local hum = Character and getHum()
 		if hum and Character.PrimaryPart then
@@ -37609,7 +37609,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 	local lastKey = nil
 	local quotaPerStep = 256
 
-	NAlib.connect("antifling", RunService.Stepped:Connect(function()
+	NAlib.connect("antifling", RunService.PreSimulation:Connect(function()
 		local t = tracked
 		if not t then
 			return
@@ -37746,7 +37746,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 
 	local intens = tonumber(amount) or 1
 
-	NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+	NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
 		local subject = workspace.CurrentCamera.CameraSubject
 		if subject and subject:IsA("Humanoid") and subject.SeatPart then
 			subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -37857,7 +37857,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			intens = newIntens
 
 			NAlib.disconnect("vehicleloopspeed")
-			NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+			NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
 				local subject = workspace.CurrentCamera.CameraSubject
 				if subject and subject:IsA("Humanoid") and subject.SeatPart then
 					subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -37935,7 +37935,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		intens = newIntens
 
 		NAlib.disconnect("vehicleloopspeed")
-		NAlib.connect("vehicleloopspeed", RunService.Stepped:Connect(function()
+		NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
 			local subject = workspace.CurrentCamera.CameraSubject
 			if subject and subject:IsA("Humanoid") and subject.SeatPart then
 				subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
@@ -38852,7 +38852,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 					end
 				end
 
-				RunService.Stepped:Wait()
+				RunService.PreSimulation:Wait()
 			end
 		end)
 	end
@@ -38891,7 +38891,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 		NAlib.disconnect("noclip")
 	end
 
-	NAlib.connect("noclip", RunService.Stepped:Connect(function()
+	NAlib.connect("noclip", RunService.PreSimulation:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _, part in ipairs(char:QueryDescendants("BasePart")) do
@@ -38924,7 +38924,7 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 	end
 
 	NAlib.disconnect("netless")
-	NAlib.connect("netless", RunService.Stepped:Connect(function()
+	NAlib.connect("netless", RunService.PreSimulation:Connect(function()
 		local c = getChar()
 		if not c then return end
 		for _, v in ipairs(c:QueryDescendants("BasePart")) do
@@ -40717,7 +40717,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	local collMap = NAStuff._ncColl
 
 	NAlib.disconnect("noclip")
-	NAlib.connect("noclip", RunService.Stepped:Connect(function()
+	NAlib.connect("noclip", RunService.PreSimulation:Connect(function()
 		local char = getChar()
 		if not char then return end
 		for _,p in pairs(char:QueryDescendants("BasePart")) do
@@ -40795,7 +40795,7 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 		for k in pairs(tracked) do tracked[k]=nil end
 		for k in pairs(orig) do orig[k]=nil end
 	end))
-	NAlib.connect("antianchor", RunService.Stepped:Connect(function()
+	NAlib.connect("antianchor", RunService.PreSimulation:Connect(function()
 		local char = lp.Character
 		if not char then return end
 		for p in pairs(tracked) do
@@ -40937,7 +40937,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		return triggered
 	end
 
-	NAlib.connect("antibang_loop", RunService.Stepped:Connect(function(_, dt)
+	NAlib.connect("antibang_loop", RunService.PreSimulation:Connect(function(_, dt)
 		if not root then
 			return
 		end
@@ -41021,7 +41021,7 @@ cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, funct
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
 	local sineX, sineZ = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.Stepped:Connect(function()
+	NAlib.connect("orbit", RunService.PreSimulation:Connect(function()
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
@@ -41046,7 +41046,7 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on t
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
 	local sineX, sineY = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.Stepped:Connect(function()
+	NAlib.connect("orbit", RunService.PreSimulation:Connect(function()
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
@@ -43131,7 +43131,7 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 
 	NAlib.disconnect("animation_speed")
 
-	NAlib.connect("animation_speed", RunService.Stepped:Connect(function()
+	NAlib.connect("animation_speed", RunService.PreSimulation:Connect(function()
 		local character = getChar()
 		local humanoid = getHum()
 		if humanoid then
@@ -43402,7 +43402,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 		disableTouchPart(inst)
 	end))
 
-	NAlib.connect("antikb", RunService.Stepped:Connect(function()
+	NAlib.connect("antikb", RunService.PreSimulation:Connect(function()
 		for part in pairs(tracked) do
 			if typeof(part) == "Instance" and part.Parent then
 				if NAlib.isProperty(part, "CanTouch") ~= false then
@@ -45569,7 +45569,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 	ISfollowing = false
 	followTarget = nil
 
-	NAlib.connect("autofollow", RunService.Stepped:Connect(function()
+	NAlib.connect("autofollow", RunService.PreSimulation:Connect(function()
 		if ISfollowing then return end
 
 		local myChar = getChar()
@@ -45594,7 +45594,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 							while not targetRoot do Wait(.1) targetRoot=getRoot(char) end
 
 							if followConnection then followConnection:Disconnect() end
-							followConnection = RunService.Stepped:Connect(function()
+							followConnection = RunService.PreSimulation:Connect(function()
 								if myChar and myHum and targetRoot and char and char.Parent then
 									myHum:MoveTo(targetRoot.Position)
 								else
@@ -47141,7 +47141,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 			Insert(platformParts, part)
 		end
 
-		NAlib.connect("headsit_follow", RunService.Stepped:Connect(function()
+		NAlib.connect("headsit_follow", RunService.PreSimulation:Connect(function()
 			if not __lt.cm("Players", "FindFirstChild", plr.Name)
 				or not plr.Character
 				or not getHead(plr.Character)
@@ -47191,7 +47191,7 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 
 	local canHop = true
 
-	NAlib.connect("wallhop_loop", RunService.Stepped:Connect(function()
+	NAlib.connect("wallhop_loop", RunService.PreSimulation:Connect(function()
 		if not char or not root or not hum or hum.Health <= 0 then
 			NAlib.disconnect("wallhop_loop")
 			return
@@ -47361,7 +47361,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		Insert(standParts, part)
 	end
 
-	NAlib.connect("headstand_follow", RunService.Stepped:Connect(function()
+	NAlib.connect("headstand_follow", RunService.PreSimulation:Connect(function()
 		local plrCharacter = plr.Character
 		if __lt.cm("Players", "FindFirstChild", plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			local charRoot = getRoot(char)
@@ -52885,7 +52885,7 @@ NAmanage.God_WireNoHooks = function(h, strong)
 				end
 			end
 		end))
-		NAlib.connect("god_loops", RunService.Stepped:Connect(function()
+		NAlib.connect("god_loops", RunService.PreSimulation:Connect(function()
 			if not NAStuff._godEnabled then return end
 			local hh = getHum()
 			if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
@@ -61468,7 +61468,7 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	Humanoid.BreakJointsOnDeath = false
 	Humanoid.RequiresNeck = false
 
-	NAlib.connect("oofspam_forcerun", RunService.Stepped:Connect(function()
+	NAlib.connect("oofspam_forcerun", RunService.PreSimulation:Connect(function()
 		if not Humanoid then return NAlib.disconnect("oofspam_forcerun") end
 		Humanoid:ChangeState(Enum.HumanoidStateType.Running)
 	end))

@@ -79,7 +79,7 @@ if "wanna use myworld reanimate" then
 	local flingpart = "HumanoidRootPart";
 	local lp = (ClonedService("Players")).LocalPlayer;
 	local rs = ClonedService("RunService");
-	local stepped = rs.Stepped;
+	local stepped = rs.PreSimulation;
 	local heartbeat = rs.Heartbeat;
 	local renderstepped = rs.RenderStepped;
 	local sg = ClonedService("StarterGui");
@@ -884,7 +884,7 @@ c.AncestryChanged:Connect(function()
 	end;
 end);
 local rs = ClonedService("RunService");
-local stepped, renderstepped, heartbeat = rs.Stepped, rs.RenderStepped, rs.Heartbeat;
+local stepped, renderstepped, heartbeat = rs.PreSimulation, rs.RenderStepped, rs.Heartbeat;
 local function gp(parent, name, classname)
 	if typeof(parent) == "Instance" then
 		for i, v in pairs(parent:GetChildren()) do

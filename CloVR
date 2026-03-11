@@ -61,7 +61,7 @@ local sethidden = sethiddenproperty or set_hidden_property or set_hidden_prop;
 		sethidden(Players.LocalPlayer, "MaximumSimulationRadius", math.huge);
 	end;
 end))();
-RunService.Stepped:Connect(function()
+RunService.PreSimulation:Connect(function()
 	sethidden(Players.LocalPlayer, "SimulationRadius", math.huge);
 	Players.LocalPlayer.MaximumSimulationRadius = math.huge;
 end);
@@ -577,7 +577,7 @@ Script = function()
 		VirtualRig.RightUpperArm.ShoulderConstraint.RigidityEnabled = true;
 		VirtualRig.LeftUpperArm.ShoulderConstraint.RigidityEnabled = true;
 	end;
-	local OnMoving = RunService.Stepped:Connect(function()
+	local OnMoving = RunService.PreSimulation:Connect(function()
 		local Direction = (Character:FindFirstChildOfClass("Humanoid")).MoveDirection;
 		local Start = VirtualBody.HumanoidRootPart.Position;
 		local Point = Start + Direction * 6;
@@ -650,7 +650,7 @@ Script = function()
 		local LowerTorso = VirtualRig.LowerTorso;
 		local Yield = tick();
 		repeat
-			RunService.Stepped:Wait();
+			RunService.PreSimulation:Wait();
 			if (LowerTorso.Position - RightFooting.Position).Y > 4 or (LowerTorso.Position - LeftFooting.Position).Y > 4 or ((LowerTorso.Position - RightFooting.Position) * Vector3.new(1, 0, 1)).Magnitude > 4 or ((LowerTorso.Position - LeftFooting.Position) * Vector3.new(1, 0, 1)).Magnitude > 4 then
 				break;
 			end;
@@ -872,7 +872,7 @@ Script = function()
 		end;
 	end;
 	local CFrameChanged = VRService.UserCFrameChanged:Connect(OnUserCFrameChanged);
-	local OnStepped = RunService.Stepped:Connect(function()
+	local OnStepped = RunService.PreSimulation:Connect(function()
 		for _, Part in pairs(VirtualRig:GetChildren()) do
 			if Part:IsA("BasePart") then
 				Part.CanCollide = false;
@@ -901,7 +901,7 @@ Script = function()
 			end;
 		end;
 	end);
-	local OnRenderStepped = RunService.Stepped:Connect(function()
+	local OnRenderStepped = RunService.PreSimulation:Connect(function()
 		Camera.CameraSubject = VirtualBody:FindFirstChildOfClass("Humanoid");
 		if RagdollEnabled then
 			Character.HumanoidRootPart.CFrame = VirtualRig.UpperTorso.CFrame;
@@ -1412,7 +1412,7 @@ ViewHUDFunc = function()
 			end;
 		end;
 	end);
-	(SafeGetService("RunService")).Stepped:Connect(function()
+	(SafeGetService("RunService")).PreSimulation:Connect(function()
 		for i, v in pairs(reanimation:GetChildren()) do
 			if v:IsA("BasePart") then
 				v.CanCollide = false;
@@ -1463,7 +1463,7 @@ wait(9000000000);
 		sethidden(Players.LocalPlayer, "MaximumSimulationRadius", math.huge);
 	end;
 end))();
-RunService.Stepped:Connect(function()
+RunService.PreSimulation:Connect(function()
 	sethidden(Players.LocalPlayer, "SimulationRadius", math.huge);
 	Players.LocalPlayer.MaximumSimulationRadius = math.huge;
 end);
